@@ -12985,7 +12985,7 @@ export class GameLogicSubsystem implements Subsystem {
         });
       case 'SKIRMISH_PLAYER_HAS_PREREQUISITE_TO_BUILD':
         return this.evaluateScriptSkirmishPlayerHasPrereqsToBuild({
-          side: readSide(0, ['side']),
+          side: readString(0, ['side', 'playerName', 'player']),
           templateName: readString(1, ['templateName', 'objectType', 'unitType']),
         });
       case 'SKIRMISH_PLAYER_HAS_COMPARISON_GARRISONED':
@@ -24030,10 +24030,12 @@ export class GameLogicSubsystem implements Subsystem {
     side: string;
     templateName: string;
   }): boolean {
-    const normalizedSide = this.normalizeSide(filter.side);
+    const selector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide) {
       return false;
     }
+    const controllingPlayerToken = selector.explicitNamedPlayer ? selector.controllingPlayerToken : null;
 
     const objectTypes = this.resolveScriptObjectTypeEntriesForCondition(filter.templateName);
     if (objectTypes.length === 0) {
@@ -24041,7 +24043,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
     for (const objectType of objectTypes) {
       const objectDef = this.resolveObjectDefByTemplateName(objectType);
-      if (objectDef && this.canSideBuildUnitTemplate(normalizedSide, objectDef)) {
+      if (objectDef && this.canSideBuildUnitTemplate(normalizedSide, objectDef, undefined, controllingPlayerToken)) {
         return true;
       }
     }
@@ -46397,6 +46399,7 @@ export class GameLogicSubsystem implements Subsystem {
     side: string,
     unitDef: ObjectDef,
     controllingPlayerTypeOverride?: SidePlayerType,
+    controllingPlayerTokenOverride?: string | null,
   ): boolean {
     const normalizedSide = this.normalizeSide(side);
     if (!normalizedSide) {
@@ -46429,7 +46432,13 @@ export class GameLogicSubsystem implements Subsystem {
       if (prereqGroup.objectAlternatives.length > 0) {
         let objectSatisfied = false;
         for (const alternativeName of prereqGroup.objectAlternatives) {
-          if (this.countActiveEntitiesOfTemplateForSide(normalizedSide, alternativeName) > 0) {
+          if (
+            this.countActiveEntitiesOfTemplateForSide(
+              normalizedSide,
+              alternativeName,
+              controllingPlayerTokenOverride,
+            ) > 0
+          ) {
             objectSatisfied = true;
             break;
           }
@@ -46881,9 +46890,14 @@ export class GameLogicSubsystem implements Subsystem {
     );
   }
 
-  private countActiveEntitiesOfTemplateForSide(side: string, templateName: string): number {
+  private countActiveEntitiesOfTemplateForSide(
+    side: string,
+    templateName: string,
+    controllingPlayerToken?: string | null,
+  ): number {
     const normalizedSide = this.normalizeSide(side);
     const normalizedTemplateName = templateName.trim().toUpperCase();
+    const normalizedOwnerToken = this.normalizeControllingPlayerToken(controllingPlayerToken ?? undefined);
     if (!normalizedSide || !normalizedTemplateName) {
       return 0;
     }
@@ -46895,6 +46909,12 @@ export class GameLogicSubsystem implements Subsystem {
       }
       if (this.normalizeSide(entity.side) !== normalizedSide) {
         continue;
+      }
+      if (normalizedOwnerToken !== null) {
+        const ownerToken = this.resolveEntityControllingPlayerTokenForAffiliation(entity);
+        if (!ownerToken || ownerToken !== normalizedOwnerToken) {
+          continue;
+        }
       }
       if (!this.areEquivalentTemplateNames(entity.templateName, normalizedTemplateName)) {
         continue;

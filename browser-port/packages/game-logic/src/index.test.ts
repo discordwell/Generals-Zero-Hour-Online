@@ -57958,6 +57958,71 @@ describe('Script condition groundwork', () => {
     })).toBe(true);
   });
 
+  it('matches skirmish prerequisite-to-build by controlling player identity when players share a side', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Barracks', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+        ]),
+        makeObjectDef('AdvancedTank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 400, InitialHealth: 400 }),
+        ], { BuildCost: 1200, Prerequisites: 'OBJECT Barracks' }),
+      ],
+      factions: [{
+        name: 'FactionAmerica',
+        side: 'America',
+        fields: {},
+      }],
+    });
+
+    const map = makeMap([
+      makeMapObject('Barracks', 10, 10, { originalOwner: 'Player_1' }),
+    ], 128, 128);
+    map.sidesList = {
+      sides: [
+        {
+          dict: {
+            playerName: 'Player_1',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+        {
+          dict: {
+            playerName: 'Player_2',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+      ],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_PLAYER_HAS_PREREQUISITE_TO_BUILD',
+      params: ['Player_1', 'AdvancedTank'],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_PLAYER_HAS_PREREQUISITE_TO_BUILD',
+      params: ['Player_2', 'AdvancedTank'],
+    })).toBe(false);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_PLAYER_HAS_PREREQUISITE_TO_BUILD',
+      params: ['America', 'AdvancedTank'],
+    })).toBe(true);
+  });
+
   it('evaluates skirmish supply-source-attacked with AI scan gating', () => {
     const bundle = makeBundle({
       objects: [
