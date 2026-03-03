@@ -20601,6 +20601,7 @@ describe('PilotFindVehicleUpdate', () => {
     pilotSide?: string;
     vehicleSide?: string;
     playerType?: 'HUMAN' | 'COMPUTER';
+    pilotOriginalOwner?: string;
     vehicleHealth?: number;
     vehicleMaxHealth?: number;
     scanRange?: number;
@@ -20645,7 +20646,12 @@ describe('PilotFindVehicleUpdate', () => {
     const logic = new GameLogicSubsystem(scene);
 
     const mapObjects = [
-      makeMapObject('Pilot', 5, 5),
+      makeMapObject(
+        'Pilot',
+        5,
+        5,
+        opts.pilotOriginalOwner ? { OriginalOwner: opts.pilotOriginalOwner } : undefined,
+      ),
       makeMapObject('EmptyTank', 5, 8),
     ];
     if (opts.vehicleOccupied) {
@@ -20728,6 +20734,37 @@ describe('PilotFindVehicleUpdate', () => {
 
     // Human-controlled pilots should not auto-seek vehicles.
     expect(pilot.pilotFindVehicleTargetId).toBeNull();
+  });
+
+  it('uses controlling player type to activate for AI-controlled pilots even when side is human', () => {
+    const { logic, pilot, vehicle } = makePilotSetup({
+      playerType: 'HUMAN',
+      pilotOriginalOwner: 'AIPlayer',
+    });
+    logic.submitCommand({ type: 'setSidePlayerType', side: 'AIPlayer', playerType: 'COMPUTER' });
+
+    for (let i = 0; i < 60; i++) {
+      logic.update(1 / 30);
+    }
+
+    const hasTarget = pilot.pilotFindVehicleTargetId === vehicle.id;
+    const isMoving = pilot.moveTarget !== null || pilot.moving;
+    expect(hasTarget || isMoving || pilot.destroyed).toBe(true);
+  });
+
+  it('uses controlling player type to block for human-controlled pilots even when side is AI', () => {
+    const { logic, pilot } = makePilotSetup({
+      playerType: 'COMPUTER',
+      pilotOriginalOwner: 'HumanPlayer',
+    });
+    logic.submitCommand({ type: 'setSidePlayerType', side: 'HumanPlayer', playerType: 'HUMAN' });
+
+    for (let i = 0; i < 15; i++) {
+      logic.update(1 / 30);
+    }
+
+    expect(pilot.pilotFindVehicleTargetId).toBeNull();
+    expect(pilot.destroyed).toBe(false);
   });
 
   it('rejects vehicles below minHealth threshold', () => {

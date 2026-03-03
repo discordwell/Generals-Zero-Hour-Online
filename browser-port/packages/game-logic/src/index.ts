@@ -53328,7 +53328,12 @@ export class GameLogicSubsystem implements Subsystem {
       // Source parity: AI-only behavior — human-controlled pilots don't auto-seek vehicles.
       const side = entity.side ? this.normalizeSide(entity.side) : null;
       if (side) {
-        const playerType = this.sidePlayerTypes.get(side);
+        const controllingPlayerToken = this.normalizeControllingPlayerToken(entity.controllingPlayerToken ?? undefined);
+        const playerType = (
+          controllingPlayerToken != null
+            ? this.sidePlayerTypes.get(controllingPlayerToken)
+            : undefined
+        ) ?? this.sidePlayerTypes.get(side);
         if (!playerType || playerType === 'HUMAN') continue;
       }
 
