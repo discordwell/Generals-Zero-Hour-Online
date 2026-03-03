@@ -58256,6 +58256,71 @@ describe('Script condition groundwork', () => {
       startPosition: 2,
     })).toBe(false);
   });
+
+  it('matches skirmish start-position condition by controlling player identity when players share a side', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('CommandCenter', 'America', ['STRUCTURE', 'MP_COUNT_FOR_VICTORY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1200, InitialHealth: 1200 }),
+        ]),
+      ],
+      factions: [{
+        name: 'FactionAmerica',
+        side: 'America',
+        fields: {},
+      }],
+    });
+
+    const map = makeMap([makeMapObject('CommandCenter', 10, 10)], 128, 128);
+    map.sidesList = {
+      sides: [
+        {
+          dict: {
+            playerName: 'Player_1',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+        {
+          dict: {
+            playerName: 'Player_2',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+      ],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
+
+    expect(logic.setSkirmishPlayerStartPosition('Player_1', 1)).toBe(true);
+    expect(logic.setSkirmishPlayerStartPosition('Player_2', 2)).toBe(true);
+    expect(logic.getSkirmishPlayerStartPosition('Player_1')).toBe(1);
+    expect(logic.getSkirmishPlayerStartPosition('Player_2')).toBe(2);
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'START_POSITION_IS',
+      params: ['Player_1', 1],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'START_POSITION_IS',
+      params: ['Player_1', 2],
+    })).toBe(false);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'START_POSITION_IS',
+      params: ['Player_2', 2],
+    })).toBe(true);
+  });
 });
 
 describe('SubdualDamageHelper', () => {

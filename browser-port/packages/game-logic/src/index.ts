@@ -5689,6 +5689,8 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly skirmishAIStates = new Map<string, SkirmishAIState>();
   /** Source parity: Player::m_mpStartIndex (0-based start slot per side). */
   private readonly sideSkirmishStartIndex = new Map<string, number>();
+  /** Source parity bridge: explicit script-player start slot overrides keyed by controlling player. */
+  private readonly skirmishStartIndexByPlayerToken = new Map<string, number>();
   /** Source parity subset: ScriptEngine::m_currentPlayer side bridge for script actions. */
   private scriptCurrentPlayerSide: string | null = null;
   /** Source parity subset: Player::m_unitsShouldHunt from PLAYER_HUNT script action. */
@@ -7215,7 +7217,8 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   setSkirmishPlayerStartPosition(side: string, startPositionOneBased: number): boolean {
-    const normalizedSide = this.normalizeSide(side);
+    const selector = this.resolveScriptPlayerConditionSelector(side);
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide) {
       return false;
     }
@@ -7228,12 +7231,23 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     // Source parity: Player::getMpStartIndex is 0-based internally.
-    this.sideSkirmishStartIndex.set(normalizedSide, normalizedStartPosition - 1);
+    const startIndex = normalizedStartPosition - 1;
+    this.sideSkirmishStartIndex.set(normalizedSide, startIndex);
+    if (selector.explicitNamedPlayer && selector.controllingPlayerToken) {
+      this.skirmishStartIndexByPlayerToken.set(selector.controllingPlayerToken, startIndex);
+    }
     return true;
   }
 
   getSkirmishPlayerStartPosition(side: string): number | null {
-    const normalizedSide = this.normalizeSide(side);
+    const selector = this.resolveScriptPlayerConditionSelector(side);
+    if (selector.explicitNamedPlayer && selector.controllingPlayerToken) {
+      const playerStartIndex = this.skirmishStartIndexByPlayerToken.get(selector.controllingPlayerToken);
+      if (playerStartIndex !== undefined) {
+        return playerStartIndex + 1;
+      }
+    }
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide) {
       return null;
     }
@@ -13048,7 +13062,7 @@ export class GameLogicSubsystem implements Subsystem {
         });
       case 'START_POSITION_IS':
         return this.evaluateScriptSkirmishStartPosition({
-          side: readSide(0, ['side']),
+          side: readString(0, ['side', 'playerName', 'player']),
           startPosition: readInteger(1, ['startPosition']),
         });
       case 'OBSOLETE_SCRIPT_1':
@@ -24012,11 +24026,6 @@ export class GameLogicSubsystem implements Subsystem {
     side: string;
     startPosition: number;
   }): boolean {
-    const normalizedSide = this.normalizeSide(filter.side);
-    if (!normalizedSide) {
-      return false;
-    }
-
     const expectedStartIndex = Number.isFinite(filter.startPosition)
       ? Math.trunc(filter.startPosition) - 1
       : -1;
@@ -24024,12 +24033,12 @@ export class GameLogicSubsystem implements Subsystem {
       return false;
     }
 
-    const actualStartIndex = this.sideSkirmishStartIndex.get(normalizedSide);
-    if (actualStartIndex === undefined) {
+    const actualStartPosition = this.getSkirmishPlayerStartPosition(filter.side);
+    if (actualStartPosition === null) {
       return false;
     }
 
-    return actualStartIndex === expectedStartIndex;
+    return Math.trunc(actualStartPosition) - 1 === expectedStartIndex;
   }
 
   /**
@@ -59377,6 +59386,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.nextPlayerIndex = 0;
     this.skirmishAIStates.clear();
     this.sideSkirmishStartIndex.clear();
+    this.skirmishStartIndexByPlayerToken.clear();
     this.scriptCurrentPlayerSide = null;
     this.scriptSidesUnitsShouldHunt.clear();
     this.scriptCallingTeamNameUpper = null;
