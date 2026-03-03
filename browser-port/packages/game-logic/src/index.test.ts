@@ -57339,6 +57339,92 @@ describe('Script condition groundwork', () => {
     })).toBe(false);
   });
 
+  it('matches skirmish discovered-player target ownership by controlling player identity when players share a side', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('AmericaScout', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { VisionRange: 40 }),
+        makeObjectDef('ChinaScout', 'China', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { VisionRange: 40 }),
+      ],
+      factions: [
+        {
+          name: 'FactionAmerica',
+          side: 'America',
+          fields: {},
+        },
+        {
+          name: 'FactionChina',
+          side: 'China',
+          fields: {},
+        },
+      ],
+    });
+
+    const map = makeMap([
+      makeMapObject('AmericaScout', 110, 110, { originalOwner: 'Player_1' }), // id 1
+      makeMapObject('AmericaScout', 20, 20, { originalOwner: 'Player_2' }), // id 2
+      makeMapObject('ChinaScout', 22, 20, { originalOwner: 'Player_3' }), // id 3
+    ], 256, 256);
+    map.sidesList = {
+      sides: [
+        {
+          dict: {
+            playerName: 'Player_1',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+        {
+          dict: {
+            playerName: 'Player_2',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+        {
+          dict: {
+            playerName: 'Player_3',
+            playerFaction: 'FactionChina',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+      ],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(256, 256));
+    logic.update(1 / 30);
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_PLAYER_HAS_DISCOVERED_PLAYER',
+      params: ['Player_1', 'China'],
+    })).toBe(false);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_PLAYER_HAS_DISCOVERED_PLAYER',
+      params: ['Player_2', 'China'],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_PLAYER_HAS_DISCOVERED_PLAYER',
+      params: ['America', 'China'],
+    })).toBe(true);
+  });
+
   it('evaluates skirmish special power ready condition with cached retry frames', () => {
     const bundle = makeBundle({
       objects: [

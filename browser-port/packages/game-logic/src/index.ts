@@ -13023,8 +13023,8 @@ export class GameLogicSubsystem implements Subsystem {
         });
       case 'SKIRMISH_PLAYER_HAS_DISCOVERED_PLAYER':
         return this.evaluateScriptSkirmishPlayerHasDiscoveredPlayer({
-          side: readSide(0, ['side']),
-          discoveredBySide: readSide(1, ['discoveredBySide', 'side']),
+          side: readString(0, ['side', 'playerName', 'player']),
+          discoveredBySide: readString(1, ['discoveredBySide', 'side', 'playerName', 'player']),
         });
       case 'MUSIC_TRACK_HAS_COMPLETED':
         return this.evaluateScriptMusicHasCompleted({
@@ -23597,15 +23597,22 @@ export class GameLogicSubsystem implements Subsystem {
     side: string;
     discoveredBySide: string;
   }): boolean {
-    const normalizedSide = this.normalizeSide(filter.side);
-    const normalizedDiscoveredBySide = this.normalizeSide(filter.discoveredBySide);
+    const targetSelector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const observerSelector = this.resolveScriptPlayerConditionSelector(filter.discoveredBySide);
+    const normalizedSide = targetSelector.normalizedSide;
+    const normalizedDiscoveredBySide = observerSelector.normalizedSide;
     if (!normalizedSide || !normalizedDiscoveredBySide) {
       return false;
     }
+    const targetToken = targetSelector.explicitNamedPlayer ? targetSelector.controllingPlayerToken : null;
 
     for (const entity of this.spawnedEntities.values()) {
       if (entity.destroyed) continue;
       if (this.normalizeSide(entity.side) !== normalizedSide) continue;
+      if (targetToken) {
+        const ownerToken = this.resolveEntityControllingPlayerTokenForAffiliation(entity);
+        if (!ownerToken || ownerToken !== targetToken) continue;
+      }
       // Source parity: held objects do not count as discovered.
       if (entity.objectStatusFlags.has('DISABLED_HELD')) continue;
       // Source parity: stealthed + not detected/disguised objects are not visible.
