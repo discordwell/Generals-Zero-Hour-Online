@@ -33693,7 +33693,7 @@ export class GameLogicSubsystem implements Subsystem {
     // Gate requires a fog grid and that the attacker has vision capability.
     if (aiLikeCommandSource && this.fogOfWarGrid && attacker.visionRange > 0) {
       const attackerSide = this.normalizeSide(attacker.side);
-      if (attackerSide && this.getSidePlayerType(attackerSide) === 'HUMAN'
+      if (attackerSide && this.getControllingPlayerTypeForEntity(attacker) === 'HUMAN'
           && !this.isPositionVisible(attackerSide, target.x, target.z)) {
         return false;
       }

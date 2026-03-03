@@ -5667,6 +5667,90 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     expect(first).toEqual(second);
   });
 
+  it('uses controlling player type to allow AI fog targeting when controller is AI', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('FogGateAttacker', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 250, InitialHealth: 250 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'FogGateCannon'] }),
+        ], {
+          VisionRange: 80,
+        }),
+        makeObjectDef('FogGateTarget', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 150, InitialHealth: 150 }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('FogGateCannon', {
+          AttackRange: 220,
+          PrimaryDamage: 30,
+          DelayBetweenShots: 100,
+        }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('FogGateAttacker', 10, 10, { OriginalOwner: 'AIPlayer' }),
+        makeMapObject('FogGateTarget', 200, 200),
+      ], 256, 256),
+      makeRegistry(bundle),
+      makeHeightmap(256, 256),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+    logic.setSidePlayerType('America', 'HUMAN');
+    logic.setSidePlayerType('AIPlayer', 'COMPUTER');
+    expect(logic.getCellVisibility('America', 200, 200)).toBe(CELL_SHROUDED);
+
+    logic.submitCommand({ type: 'attackEntity', entityId: 1, targetEntityId: 2, commandSource: 'AI' });
+    logic.update(1 / 30);
+    expect(logic.getEntityState(1)?.attackTargetEntityId).toBe(2);
+  });
+
+  it('uses controlling player type to block AI fog targeting when controller is human', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('FogGateAttacker', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 250, InitialHealth: 250 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'FogGateCannon'] }),
+        ], {
+          VisionRange: 80,
+        }),
+        makeObjectDef('FogGateTarget', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 150, InitialHealth: 150 }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('FogGateCannon', {
+          AttackRange: 220,
+          PrimaryDamage: 30,
+          DelayBetweenShots: 100,
+        }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('FogGateAttacker', 10, 10, { OriginalOwner: 'HumanPlayer' }),
+        makeMapObject('FogGateTarget', 200, 200),
+      ], 256, 256),
+      makeRegistry(bundle),
+      makeHeightmap(256, 256),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+    logic.setSidePlayerType('America', 'COMPUTER');
+    logic.setSidePlayerType('HumanPlayer', 'HUMAN');
+    expect(logic.getCellVisibility('America', 200, 200)).toBe(CELL_SHROUDED);
+
+    logic.submitCommand({ type: 'attackEntity', entityId: 1, targetEntityId: 2, commandSource: 'AI' });
+    logic.update(1 / 30);
+    expect(logic.getEntityState(1)?.attackTargetEntityId).toBeNull();
+  });
+
   it('rejects attack command assignment when attacker/target map status differs (on-map vs off-map)', () => {
     const timeline = runOffMapTargetGateTimeline();
     expect(timeline.attackerTargetTimeline).toEqual([null, null, null, null, null, null]);
@@ -51317,10 +51401,6 @@ describe('Script condition groundwork', () => {
       logic.setTeamRelationship('China', 'America', 0);
       logic.setSidePlayerType('America', opts.americaPlayerType);
       logic.setSidePlayerType(opts.ownerToken, opts.ownerPlayerType);
-      expect(logic.executeScriptAction({
-        actionType: 45, // NAMED_SET_ATTITUDE
-        params: [1, 1], // PASSIVE
-      })).toBe(true);
 
       const privateApi = logic as unknown as {
         spawnedEntities: Map<number, {
@@ -51328,8 +51408,24 @@ describe('Script condition groundwork', () => {
           attackTargetEntityId: number | null;
         }>;
       };
-      privateApi.spawnedEntities.get(1)!.autoTargetScanNextFrame = 0;
+      // Prime fog visibility first without allowing an initial auto-target scan to run.
+      privateApi.spawnedEntities.get(1)!.autoTargetScanNextFrame = Number.MAX_SAFE_INTEGER;
       logic.update(1 / 30);
+      privateApi.spawnedEntities.get(1)!.attackTargetEntityId = null;
+
+      expect(logic.executeScriptAction({
+        actionType: 45, // NAMED_SET_ATTITUDE
+        params: [1, 1], // PASSIVE
+      })).toBe(true);
+
+      privateApi.spawnedEntities.get(1)!.autoTargetScanNextFrame = 0;
+      for (let frame = 0; frame < 30; frame += 1) {
+        logic.update(1 / 30);
+        const attackTargetEntityId = privateApi.spawnedEntities.get(1)?.attackTargetEntityId ?? null;
+        if (attackTargetEntityId !== null) {
+          return attackTargetEntityId;
+        }
+      }
       return privateApi.spawnedEntities.get(1)?.attackTargetEntityId ?? null;
     };
 
