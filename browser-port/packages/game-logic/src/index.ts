@@ -14112,6 +14112,12 @@ export class GameLogicSubsystem implements Subsystem {
       if ((resolved.commandOption & SCRIPT_COMMAND_OPTION_CAN_USE_WAYPOINTS) === 0) {
         continue;
       }
+      // Source parity: doCommandButtonUsingWaypoints does not provide an object target context.
+      // Object-target special powers cannot execute through this script action.
+      if ((resolved.commandOption & SCRIPT_COMMAND_OPTION_NEED_OBJECT_TARGET) !== 0) {
+        continue;
+      }
+      const usesPositionTarget = (resolved.commandOption & SCRIPT_COMMAND_OPTION_NEED_TARGET_POS) !== 0;
 
       this.applyCommand({
         type: 'issueSpecialPower',
@@ -14122,8 +14128,8 @@ export class GameLogicSubsystem implements Subsystem {
         issuingEntityIds: [sourceEntity.id],
         sourceEntityId: sourceEntity.id,
         targetEntityId: null,
-        targetX: destinationWaypoint.x,
-        targetZ: destinationWaypoint.z,
+        targetX: usesPositionTarget ? destinationWaypoint.x : null,
+        targetZ: usesPositionTarget ? destinationWaypoint.z : null,
       });
       executed = true;
     }

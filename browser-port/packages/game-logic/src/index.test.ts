@@ -46234,6 +46234,9 @@ describe('Script condition groundwork', () => {
           makeBlock('Behavior', 'SpecialPowerModule ModuleTag_PathWaypointOnly', {
             SpecialPowerTemplate: 'ScriptPathPowerWaypointOnly',
           }),
+          makeBlock('Behavior', 'SpecialPowerModule ModuleTag_PathNeedsObject', {
+            SpecialPowerTemplate: 'ScriptPathPowerNeedsObject',
+          }),
         ], {
           CommandSet: 'ScriptPathCasterCommandSet',
         }),
@@ -46254,18 +46257,25 @@ describe('Script condition groundwork', () => {
           SpecialPower: 'ScriptPathPowerWaypointOnly',
           Options: 'CAN_USE_WAYPOINTS',
         }),
+        makeCommandButtonDef('Command_PathPowerNeedsObject', {
+          Command: 'SPECIAL_POWER',
+          SpecialPower: 'ScriptPathPowerNeedsObject',
+          Options: 'NEED_TARGET_ENEMY_OBJECT CAN_USE_WAYPOINTS',
+        }),
       ],
       commandSets: [
         makeCommandSetDef('ScriptPathCasterCommandSet', {
           1: 'Command_PathPowerAllowed',
           2: 'Command_PathPowerBlocked',
           3: 'Command_PathPowerWaypointOnly',
+          4: 'Command_PathPowerNeedsObject',
         }),
       ],
       specialPowers: [
         makeSpecialPowerDef('ScriptPathPowerAllowed', { ReloadTime: 0 }),
         makeSpecialPowerDef('ScriptPathPowerBlocked', { ReloadTime: 0 }),
         makeSpecialPowerDef('ScriptPathPowerWaypointOnly', { ReloadTime: 0 }),
+        makeSpecialPowerDef('ScriptPathPowerNeedsObject', { ReloadTime: 0 }),
       ],
     });
 
@@ -46356,6 +46366,16 @@ describe('Script condition groundwork', () => {
       actionType: 542,
       params: [1, 'Command_PathPowerAllowed', 'MissingPath'],
     })).toBe(false);
+
+    expect(logic.executeScriptAction({
+      actionType: 542,
+      params: [1, 'Command_PathPowerNeedsObject', 'PathAlpha'],
+    })).toBe(false);
+    expect(logic.getEntityState(1)?.lastSpecialPowerDispatch).toMatchObject({
+      commandButtonId: 'Command_PathPowerWaypointOnly',
+      targetX: null,
+      targetZ: null,
+    });
   });
 
   it('executes script flash-white actions using source action ids', () => {
