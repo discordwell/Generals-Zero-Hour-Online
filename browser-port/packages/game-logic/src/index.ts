@@ -5412,6 +5412,8 @@ export class GameLogicSubsystem implements Subsystem {
   private scriptScoringEnabled = true;
   /** Source parity: ScriptActions::excludePlayerFromScoreScreen per-player hidden set. */
   private readonly sideScoreScreenExcluded = new Set<string>();
+  /** Source parity bridge: script-only credit overrides for explicit controlling players. */
+  private readonly controllingPlayerScriptCredits = new Map<string, number>();
   /** Source parity bridge: mission-attempt counters keyed by side for evaluateMissionAttempts. */
   private readonly sideMissionAttempts = new Map<string, number>();
   /** Source parity bridge: optional mission-attempt overrides keyed by controlling-player token. */
@@ -8151,6 +8153,69 @@ export class GameLogicSubsystem implements Subsystem {
     const next = Math.max(0, current + delta);
     this.sideCredits.set(normalizedSide, next);
     return next;
+  }
+
+  private getScriptCreditsForPlayerInput(sideInput: string): number {
+    const selector = this.resolveScriptPlayerConditionSelector(sideInput);
+    if (selector.explicitNamedPlayer && selector.controllingPlayerToken) {
+      const namedCredits = this.controllingPlayerScriptCredits.get(selector.controllingPlayerToken);
+      if (namedCredits !== undefined) {
+        return namedCredits;
+      }
+    }
+    const normalizedSide = selector.normalizedSide;
+    if (!normalizedSide) {
+      return 0;
+    }
+    return this.getSideCredits(normalizedSide);
+  }
+
+  private countScriptPlayersForSide(normalizedSide: string): number {
+    let count = 0;
+    for (const side of this.scriptPlayerSideByName.values()) {
+      if (side === normalizedSide) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  private setScriptCreditsForPlayerInput(sideInput: string, amount: number): boolean {
+    const selector = this.resolveScriptPlayerConditionSelector(sideInput);
+    const normalizedSide = selector.normalizedSide;
+    if (!normalizedSide || !Number.isFinite(amount)) {
+      return false;
+    }
+    const normalizedAmount = Math.max(0, Math.trunc(amount));
+    if (selector.explicitNamedPlayer && selector.controllingPlayerToken) {
+      this.controllingPlayerScriptCredits.set(selector.controllingPlayerToken, normalizedAmount);
+      if (this.countScriptPlayersForSide(normalizedSide) <= 1) {
+        this.setSideCredits(normalizedSide, normalizedAmount);
+      }
+      return true;
+    }
+    this.setSideCredits(normalizedSide, normalizedAmount);
+    return true;
+  }
+
+  private addScriptCreditsForPlayerInput(sideInput: string, amount: number): number | null {
+    const selector = this.resolveScriptPlayerConditionSelector(sideInput);
+    const normalizedSide = selector.normalizedSide;
+    if (!normalizedSide || !Number.isFinite(amount)) {
+      return null;
+    }
+    const delta = Math.trunc(amount);
+    if (selector.explicitNamedPlayer && selector.controllingPlayerToken) {
+      const sidePlayerCount = this.countScriptPlayersForSide(normalizedSide);
+      const current = this.controllingPlayerScriptCredits.get(selector.controllingPlayerToken)
+        ?? this.getSideCredits(normalizedSide);
+      const next = sidePlayerCount <= 1
+        ? this.addSideCredits(normalizedSide, delta)
+        : Math.max(0, current + delta);
+      this.controllingPlayerScriptCredits.set(selector.controllingPlayerToken, next);
+      return next;
+    }
+    return this.addSideCredits(normalizedSide, delta);
   }
 
   getSidePlayerType(side: string | undefined): SidePlayerType {
@@ -12258,19 +12323,17 @@ export class GameLogicSubsystem implements Subsystem {
           readNumber(1, ['recruitRadius', 'radius']),
         );
       case 'PLAYER_SET_MONEY': {
-        const side = readSide(0, ['side', 'playerName', 'player']);
-        if (!this.normalizeSide(side)) {
+        const sideInput = readString(0, ['side', 'playerName', 'player']);
+        if (!this.setScriptCreditsForPlayerInput(sideInput, readInteger(1, ['value', 'amount', 'money']))) {
           return false;
         }
-        this.setSideCredits(side, readInteger(1, ['value', 'amount', 'money']));
         return true;
       }
       case 'PLAYER_GIVE_MONEY': {
-        const side = readSide(0, ['side', 'playerName', 'player']);
-        if (!this.normalizeSide(side)) {
+        const sideInput = readString(0, ['side', 'playerName', 'player']);
+        if (this.addScriptCreditsForPlayerInput(sideInput, readInteger(1, ['value', 'amount', 'money'])) === null) {
           return false;
         }
-        this.addSideCredits(side, readInteger(1, ['value', 'amount', 'money']));
         return true;
       }
       case 'PLAYER_ADD_SKILLPOINTS': {
@@ -24350,13 +24413,13 @@ export class GameLogicSubsystem implements Subsystem {
     comparison: ScriptComparisonInput;
     credits: number;
   }): boolean {
-    const normalizedSide = this.resolveScriptPlayerSideFromInput(filter.side);
+    const normalizedSide = this.resolveScriptPlayerConditionSelector(filter.side).normalizedSide;
     if (!normalizedSide) {
       return false;
     }
 
     const requestedCredits = Number.isFinite(filter.credits) ? Math.trunc(filter.credits) : 0;
-    const currentCredits = this.getSideCredits(normalizedSide);
+    const currentCredits = this.getScriptCreditsForPlayerInput(filter.side);
     return this.compareScriptCount(filter.comparison, requestedCredits, currentCredits);
   }
 
@@ -59955,6 +60018,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.sideScoreState.clear();
     this.scriptScoringEnabled = true;
     this.sideScoreScreenExcluded.clear();
+    this.controllingPlayerScriptCredits.clear();
     this.sideMissionAttempts.clear();
     this.controllingPlayerMissionAttempts.clear();
     this.scriptObjectsReceiveDifficultyBonus = true;

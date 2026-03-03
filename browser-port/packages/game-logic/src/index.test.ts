@@ -34718,6 +34718,102 @@ describe('Script condition groundwork', () => {
     })).toBe(true);
   });
 
+  it('tracks script credit overrides separately for named players sharing a side', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Scout', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+      factions: [{
+        name: 'FactionAmerica',
+        side: 'America',
+        fields: {},
+      }],
+    });
+
+    const map = makeMap([
+      makeMapObject('Scout', 10, 10, { originalOwner: 'Player_1' }),
+      makeMapObject('Scout', 14, 10, { originalOwner: 'Player_2' }),
+    ], 128, 128);
+    map.sidesList = {
+      sides: [
+        {
+          dict: {
+            playerName: 'Player_1',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+        {
+          dict: {
+            playerName: 'Player_2',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+      ],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
+    logic.setSideCredits('America', 250);
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'PLAYER_HAS_CREDITS',
+      params: [250, 'EQUAL', 'Player_1'],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'PLAYER_HAS_CREDITS',
+      params: [250, 'EQUAL', 'Player_2'],
+    })).toBe(true);
+
+    expect(logic.executeScriptAction({
+      actionType: 'PLAYER_SET_MONEY',
+      params: ['Player_1', 500],
+    })).toBe(true);
+    expect(logic.executeScriptAction({
+      actionType: 'PLAYER_GIVE_MONEY',
+      params: ['Player_1', 100],
+    })).toBe(true);
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'PLAYER_HAS_CREDITS',
+      params: [600, 'EQUAL', 'Player_1'],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'PLAYER_HAS_CREDITS',
+      params: [250, 'EQUAL', 'Player_2'],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'PLAYER_HAS_CREDITS',
+      params: [250, 'EQUAL', 'America'],
+    })).toBe(true);
+    expect(logic.getSideCredits('America')).toBe(250);
+
+    expect(logic.executeScriptAction({
+      actionType: 'PLAYER_GIVE_MONEY',
+      params: ['America', 50],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'PLAYER_HAS_CREDITS',
+      params: [300, 'EQUAL', 'Player_2'],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'PLAYER_HAS_CREDITS',
+      params: [600, 'EQUAL', 'Player_1'],
+    })).toBe(true);
+  });
+
   it('accepts player-name inputs for all-build-facilities-destroyed conditions', () => {
     const bundle = makeBundle({
       objects: [
