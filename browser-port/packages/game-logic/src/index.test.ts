@@ -46490,13 +46490,18 @@ describe('Script condition groundwork', () => {
     expect(logic.getSideCredits('China')).toBe(100);
   });
 
-  it('treats TOGGLE_OVERCHARGE script command-button execution as unsupported', () => {
+  it('executes TOGGLE_OVERCHARGE script command-buttons only for no-target invocation', () => {
     const bundle = makeBundle({
       objects: [
         makeObjectDef('ScriptOverchargeUnit', 'China', ['VEHICLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 400, InitialHealth: 400 }),
+          makeBlock('Behavior', 'OverchargeBehavior ModuleTag_Overcharge', {
+            HealthPercentToDrainPerSecond: 0.25,
+            NotAllowedWhenHealthBelowPercent: 0.1,
+          }),
         ], {
           CommandSet: 'ScriptOverchargeCommandSet',
+          EnergyBonus: 10,
         }),
         makeObjectDef('ScriptTarget', 'America', ['INFANTRY'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
@@ -46539,7 +46544,8 @@ describe('Script condition groundwork', () => {
     expect(logic.executeScriptAction({
       actionType: 445, // NAMED_USE_COMMANDBUTTON_ABILITY
       params: [1, 'Command_ToggleOvercharge'],
-    })).toBe(false);
+    })).toBe(true);
+    expect(logic.getSidePowerState('China').powerBonus).toBe(10);
     expect(logic.executeScriptAction({
       actionType: 403, // NAMED_USE_COMMANDBUTTON_ABILITY_ON_NAMED
       params: [1, 'Command_ToggleOvercharge', 2],
@@ -46873,7 +46879,7 @@ describe('Script condition groundwork', () => {
     expect(logic.getSideCredits('America')).toBe(350);
   });
 
-  it('treats SET_RALLY_POINT script command-button execution as unsupported', () => {
+  it('executes SET_RALLY_POINT script command-buttons for object/position targets only', () => {
     const bundle = makeBundle({
       objects: [
         makeObjectDef('ScriptFactory', 'America', ['STRUCTURE'], [
@@ -46926,14 +46932,16 @@ describe('Script condition groundwork', () => {
     expect(logic.executeScriptAction({
       actionType: 403, // NAMED_USE_COMMANDBUTTON_ABILITY_ON_NAMED
       params: [1, 'Command_SetRally', 2],
-    })).toBe(false);
+    })).toBe(true);
+    expect(logic.getEntityState(1)?.rallyPoint).toMatchObject({ x: 30, z: 10 });
     expect(logic.executeScriptAction({
       actionType: 404, // NAMED_USE_COMMANDBUTTON_ABILITY_AT_WAYPOINT
       params: [1, 'Command_SetRally', 'RallyWaypoint'],
-    })).toBe(false);
+    })).toBe(true);
+    expect(logic.getEntityState(1)?.rallyPoint).toMatchObject({ x: 48, z: 48 });
   });
 
-  it('treats guard-mode script command-button execution as unsupported', () => {
+  it('executes guard-mode script command-buttons for object/position targets only', () => {
     const bundle = makeBundle({
       objects: [
         makeObjectDef('ScriptGuardUnit', 'America', ['INFANTRY'], [
@@ -46986,13 +46994,22 @@ describe('Script condition groundwork', () => {
       makeRegistry(bundle),
       makeHeightmap(128, 128),
     );
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, {
+        guardState: string;
+        guardMode: number;
+        guardObjectId: number;
+        guardPositionX: number;
+        guardPositionZ: number;
+      }>;
+    };
 
-    const commandNames = [
-      'Command_Guard',
-      'Command_GuardNoPursuit',
-      'Command_GuardFlyingOnly',
+    const commandModes = [
+      { commandName: 'Command_Guard', guardMode: 0 },
+      { commandName: 'Command_GuardNoPursuit', guardMode: 1 },
+      { commandName: 'Command_GuardFlyingOnly', guardMode: 2 },
     ];
-    for (const commandName of commandNames) {
+    for (const { commandName, guardMode } of commandModes) {
       expect(logic.executeScriptAction({
         actionType: 445, // NAMED_USE_COMMANDBUTTON_ABILITY
         params: [1, commandName],
@@ -47000,15 +47017,25 @@ describe('Script condition groundwork', () => {
       expect(logic.executeScriptAction({
         actionType: 403, // NAMED_USE_COMMANDBUTTON_ABILITY_ON_NAMED
         params: [1, commandName, 2],
-      })).toBe(false);
+      })).toBe(true);
+      const guardOnObjectState = privateApi.spawnedEntities.get(1);
+      expect(guardOnObjectState?.guardState).toBe('RETURNING');
+      expect(guardOnObjectState?.guardMode).toBe(guardMode);
+      expect(guardOnObjectState?.guardObjectId).toBe(2);
       expect(logic.executeScriptAction({
         actionType: 404, // NAMED_USE_COMMANDBUTTON_ABILITY_AT_WAYPOINT
         params: [1, commandName, 'GuardWaypoint'],
-      })).toBe(false);
+      })).toBe(true);
+      const guardOnPositionState = privateApi.spawnedEntities.get(1);
+      expect(guardOnPositionState?.guardState).toBe('RETURNING');
+      expect(guardOnPositionState?.guardMode).toBe(guardMode);
+      expect(guardOnPositionState?.guardObjectId).toBe(0);
+      expect(guardOnPositionState?.guardPositionX).toBeCloseTo(48, 5);
+      expect(guardOnPositionState?.guardPositionZ).toBeCloseTo(48, 5);
     }
   });
 
-  it('treats PLACE_BEACON script command-button execution as unsupported', () => {
+  it('executes PLACE_BEACON script command-buttons for object/position targets only', () => {
     const bundle = makeBundle({
       objects: [
         makeObjectDef('ScriptBeaconUnit', 'America', ['INFANTRY'], [
@@ -47019,6 +47046,7 @@ describe('Script condition groundwork', () => {
         makeObjectDef('ScriptTarget', 'China', ['INFANTRY'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
         ]),
+        makeObjectDef('AmericaBeacon', 'America', ['STRUCTURE', 'BEACON'], []),
       ],
       commandButtons: [
         makeCommandButtonDef('Command_PlaceBeacon', {
@@ -47029,6 +47057,15 @@ describe('Script condition groundwork', () => {
         makeCommandSetDef('ScriptBeaconCommandSet', {
           1: 'Command_PlaceBeacon',
         }),
+      ],
+      factions: [
+        {
+          name: 'FactionAmerica',
+          side: 'America',
+          fields: {
+            BeaconName: 'AmericaBeacon',
+          },
+        },
       ],
     });
 
@@ -47053,6 +47090,7 @@ describe('Script condition groundwork', () => {
       makeRegistry(bundle),
       makeHeightmap(128, 128),
     );
+    logic.setPlayerSide(0, 'America');
 
     expect(logic.executeScriptAction({
       actionType: 445, // NAMED_USE_COMMANDBUTTON_ABILITY
@@ -47061,11 +47099,13 @@ describe('Script condition groundwork', () => {
     expect(logic.executeScriptAction({
       actionType: 403, // NAMED_USE_COMMANDBUTTON_ABILITY_ON_NAMED
       params: [1, 'Command_PlaceBeacon', 2],
-    })).toBe(false);
+    })).toBe(true);
+    expect(logic.getEntityIdsByTemplateAndSide('AmericaBeacon', 'America')).toHaveLength(1);
     expect(logic.executeScriptAction({
       actionType: 404, // NAMED_USE_COMMANDBUTTON_ABILITY_AT_WAYPOINT
       params: [1, 'Command_PlaceBeacon', 'BeaconWaypoint'],
-    })).toBe(false);
+    })).toBe(true);
+    expect(logic.getEntityIdsByTemplateAndSide('AmericaBeacon', 'America')).toHaveLength(2);
   });
 
   it('requires FIRE_WEAPON object-target relationship masks to pass source validity checks', () => {

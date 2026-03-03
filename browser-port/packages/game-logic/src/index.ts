@@ -13828,16 +13828,70 @@ export class GameLogicSubsystem implements Subsystem {
           commandSource: 'SCRIPT',
         });
         return true;
-      case 'SET_RALLY_POINT':
-        // Source parity: GeneralsMD Object::doCommandButton{,AtObject,AtPosition}
-        // does not implement SET_RALLY_POINT for script command-button execution.
-        return false;
+      case 'SET_RALLY_POINT': {
+        let targetX: number;
+        let targetZ: number;
+        if (target.kind === 'OBJECT') {
+          const targetPosition = this.getEntityWorldPosition(target.targetEntity.id);
+          if (!targetPosition) {
+            return false;
+          }
+          targetX = targetPosition[0];
+          targetZ = targetPosition[2];
+        } else if (target.kind === 'POSITION') {
+          targetX = target.targetX;
+          targetZ = target.targetZ;
+        } else {
+          return false;
+        }
+        if (validateOnly) {
+          return true;
+        }
+        this.applyCommand({
+          type: 'setRallyPoint',
+          entityId: sourceEntity.id,
+          targetX,
+          targetZ,
+        });
+        return true;
+      }
       case 'GUARD':
       case 'GUARD_WITHOUT_PURSUIT':
-      case 'GUARD_FLYING_UNITS_ONLY':
-        // Source parity: GeneralsMD Object::doCommandButton{,AtObject,AtPosition}
-        // does not implement guard command-buttons for script execution.
+      case 'GUARD_FLYING_UNITS_ONLY': {
+        const guardMode = commandTypeName === 'GUARD_WITHOUT_PURSUIT'
+          ? 1
+          : commandTypeName === 'GUARD_FLYING_UNITS_ONLY'
+          ? 2
+          : 0;
+        if (target.kind === 'OBJECT') {
+          if (validateOnly) {
+            return true;
+          }
+          this.applyCommand({
+            type: 'guardObject',
+            entityId: sourceEntity.id,
+            targetEntityId: target.targetEntity.id,
+            guardMode,
+            commandSource: 'SCRIPT',
+          });
+          return true;
+        }
+        if (target.kind === 'POSITION') {
+          if (validateOnly) {
+            return true;
+          }
+          this.applyCommand({
+            type: 'guardPosition',
+            entityId: sourceEntity.id,
+            targetX: target.targetX,
+            targetZ: target.targetZ,
+            guardMode,
+            commandSource: 'SCRIPT',
+          });
+          return true;
+        }
         return false;
+      }
       case 'FIRE_WEAPON': {
         const weaponSlot = this.resolveScriptWeaponSlotFromCommandButton(commandButtonDef) ?? 0;
         const maxShotsToFire = this.resolveScriptMaxShotsToFireFromCommandButton(commandButtonDef);
@@ -13922,9 +13976,14 @@ export class GameLogicSubsystem implements Subsystem {
         this.applyCommand({ type: 'hackInternet', entityId: sourceEntity.id });
         return true;
       case 'TOGGLE_OVERCHARGE':
-        // Source parity: GeneralsMD Object::doCommandButton{,AtObject,AtPosition}
-        // does not implement TOGGLE_OVERCHARGE for script command-button execution.
-        return false;
+        if (target.kind !== 'NONE') {
+          return false;
+        }
+        if (validateOnly) {
+          return true;
+        }
+        this.applyCommand({ type: 'toggleOvercharge', entityId: sourceEntity.id });
+        return true;
       case 'EXIT_CONTAINER':
       case 'EVACUATE':
       case 'EXECUTE_RAILED_TRANSPORT':
@@ -13996,10 +14055,31 @@ export class GameLogicSubsystem implements Subsystem {
             : 'sabotageBuilding',
         });
         return true;
-      case 'PLACE_BEACON':
-        // Source parity: GeneralsMD Object::doCommandButton{,AtObject,AtPosition}
-        // does not implement PLACE_BEACON for script command-button execution.
-        return false;
+      case 'PLACE_BEACON': {
+        let targetX: number;
+        let targetZ: number;
+        if (target.kind === 'OBJECT') {
+          const targetPosition = this.getEntityWorldPosition(target.targetEntity.id);
+          if (!targetPosition) {
+            return false;
+          }
+          targetX = targetPosition[0];
+          targetZ = targetPosition[2];
+        } else if (target.kind === 'POSITION') {
+          targetX = target.targetX;
+          targetZ = target.targetZ;
+        } else {
+          return false;
+        }
+        if (validateOnly) {
+          return true;
+        }
+        this.applyCommand({
+          type: 'placeBeacon',
+          targetPosition: [targetX, 0, targetZ],
+        });
+        return true;
+      }
       default:
         // Source parity subset: unknown command button types are currently unsupported.
         return false;
