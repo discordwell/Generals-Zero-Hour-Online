@@ -10851,13 +10851,13 @@ export class GameLogicSubsystem implements Subsystem {
         );
       case 'PLAYER_TRANSFER_OWNERSHIP_PLAYER':
         return this.executeScriptPlayerTransferOwnershipPlayer(
-          readSide(0, ['sourceSide', 'sourcePlayer', 'fromPlayer']),
-          readSide(1, ['targetSide', 'targetPlayer', 'toPlayer']),
+          readString(0, ['sourceSide', 'sourcePlayer', 'fromPlayer']),
+          readString(1, ['targetSide', 'targetPlayer', 'toPlayer']),
         );
       case 'NAMED_TRANSFER_OWNERSHIP_PLAYER':
         return this.executeScriptNamedTransferOwnershipPlayer(
           readEntityId(0, ['entityId', 'unitId', 'named', 'unitName']),
-          readSide(1, ['targetSide', 'targetPlayer', 'toPlayer']),
+          readString(1, ['targetSide', 'targetPlayer', 'toPlayer']),
         );
       case 'MOVIE_PLAY_FULLSCREEN':
         return this.requestScriptMoviePlayback(
@@ -22082,8 +22082,10 @@ export class GameLogicSubsystem implements Subsystem {
    * Transfers all non-beacon objects and all credits from source side to target side.
    */
   private executeScriptPlayerTransferOwnershipPlayer(sourceSide: string, targetSide: string): boolean {
-    const normalizedSourceSide = this.normalizeSide(sourceSide);
-    const normalizedTargetSide = this.normalizeSide(targetSide);
+    const sourceSelector = this.resolveScriptPlayerConditionSelector(sourceSide);
+    const targetSelector = this.resolveScriptPlayerConditionSelector(targetSide);
+    const normalizedSourceSide = sourceSelector.normalizedSide;
+    const normalizedTargetSide = targetSelector.normalizedSide;
     if (!normalizedSourceSide || !normalizedTargetSide) {
       return false;
     }
@@ -22100,6 +22102,13 @@ export class GameLogicSubsystem implements Subsystem {
       if (this.normalizeSide(entity.side) !== normalizedSourceSide) {
         continue;
       }
+      if (
+        sourceSelector.explicitNamedPlayer
+        && sourceSelector.controllingPlayerToken
+        && this.resolveEntityControllingPlayerTokenForAffiliation(entity) !== sourceSelector.controllingPlayerToken
+      ) {
+        continue;
+      }
       if (this.isBeaconEntity(entity)) {
         continue;
       }
@@ -22111,7 +22120,11 @@ export class GameLogicSubsystem implements Subsystem {
       if (!entity || entity.destroyed) {
         continue;
       }
-      this.transferScriptEntityToSide(entity, normalizedTargetSide);
+      this.transferScriptEntityToSide(
+        entity,
+        normalizedTargetSide,
+        targetSelector.controllingPlayerToken,
+      );
     }
 
     const transferredCredits = this.getSideCredits(normalizedSourceSide);
@@ -22126,14 +22139,19 @@ export class GameLogicSubsystem implements Subsystem {
    */
   private executeScriptNamedTransferOwnershipPlayer(entityId: number, targetSide: string): boolean {
     const entity = this.spawnedEntities.get(entityId);
-    const normalizedTargetSide = this.normalizeSide(targetSide);
+    const targetSelector = this.resolveScriptPlayerConditionSelector(targetSide);
+    const normalizedTargetSide = targetSelector.normalizedSide;
     if (!entity || entity.destroyed || !normalizedTargetSide) {
       return false;
     }
     if (!this.collectScriptKnownSides().has(normalizedTargetSide)) {
       return false;
     }
-    this.transferScriptEntityToSide(entity, normalizedTargetSide);
+    this.transferScriptEntityToSide(
+      entity,
+      normalizedTargetSide,
+      targetSelector.controllingPlayerToken,
+    );
     return true;
   }
 
@@ -22141,28 +22159,42 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity subset: ownership transfer used by ScriptActions asset-transfer actions.
    * Mirrors setTeam + updateTeamAndPlayerStuff without capture-bonus side effects.
    */
-  private transferScriptEntityToSide(entity: MapEntity, targetSide: string): void {
+  private transferScriptEntityToSide(
+    entity: MapEntity,
+    targetSide: string,
+    targetControllingPlayerToken?: string | null,
+  ): void {
     const normalizedTargetSide = this.normalizeSide(targetSide);
     if (!normalizedTargetSide) {
       return;
     }
 
     const normalizedSourceSide = this.normalizeSide(entity.side ?? '');
-    if (normalizedSourceSide === normalizedTargetSide) {
+    const normalizedTargetToken = this.normalizeControllingPlayerToken(
+      targetControllingPlayerToken ?? normalizedTargetSide,
+    );
+    const normalizedSourceToken = this.normalizeControllingPlayerToken(entity.controllingPlayerToken ?? undefined);
+
+    const sideChanged = normalizedSourceSide !== normalizedTargetSide;
+    if (!sideChanged && normalizedSourceToken === normalizedTargetToken) {
       return;
     }
 
-    this.unregisterEntityEnergy(entity);
+    if (sideChanged) {
+      this.unregisterEntityEnergy(entity);
+    }
     entity.side = normalizedTargetSide;
-    entity.controllingPlayerToken = this.normalizeControllingPlayerToken(normalizedTargetSide);
+    entity.controllingPlayerToken = normalizedTargetToken;
     entity.capturedFromOriginalOwner =
       entity.originalOwningSide.length > 0 && normalizedTargetSide !== entity.originalOwningSide;
-    this.registerEntityEnergy(entity);
-    this.transferCostModifierUpgradesBetweenSides(entity, normalizedSourceSide, normalizedTargetSide);
-    this.transferPowerPlantUpgradesBetweenSides(entity, normalizedSourceSide, normalizedTargetSide);
-    this.transferOverchargeBetweenSides(entity, normalizedSourceSide, normalizedTargetSide);
-    this.transferRadarUpgradesBetweenSides(entity, normalizedSourceSide, normalizedTargetSide);
-    this.executePendingUpgradeModules(entity.id, entity);
+    if (sideChanged) {
+      this.registerEntityEnergy(entity);
+      this.transferCostModifierUpgradesBetweenSides(entity, normalizedSourceSide, normalizedTargetSide);
+      this.transferPowerPlantUpgradesBetweenSides(entity, normalizedSourceSide, normalizedTargetSide);
+      this.transferOverchargeBetweenSides(entity, normalizedSourceSide, normalizedTargetSide);
+      this.transferRadarUpgradesBetweenSides(entity, normalizedSourceSide, normalizedTargetSide);
+      this.executePendingUpgradeModules(entity.id, entity);
+    }
   }
 
   /**

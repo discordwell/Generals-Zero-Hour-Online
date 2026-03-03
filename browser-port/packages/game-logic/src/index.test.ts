@@ -52918,6 +52918,78 @@ describe('Script condition groundwork', () => {
     })).toBe(false);
   });
 
+  it('preserves player-token ownership on same-side transfer actions', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('AmericaInfantry', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+      factions: [{
+        name: 'FactionAmerica',
+        side: 'America',
+        fields: {},
+      }],
+    });
+
+    const map = makeMap([
+      makeMapObject('AmericaInfantry', 10, 10, { originalOwner: 'Player_1' }), // id 1
+      makeMapObject('AmericaInfantry', 12, 10, { originalOwner: 'Player_2' }), // id 2
+    ], 128, 128);
+    map.sidesList = {
+      sides: [
+        {
+          dict: {
+            playerName: 'Player_1',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+        {
+          dict: {
+            playerName: 'Player_2',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+      ],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
+
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, {
+        side: string;
+        controllingPlayerToken: string | null;
+      }>;
+    };
+    const sideBefore = privateApi.spawnedEntities.get(1)?.side ?? '';
+
+    expect(logic.executeScriptAction({
+      actionType: 84, // PLAYER_TRANSFER_OWNERSHIP_PLAYER
+      params: ['Player_1', 'Player_2'],
+    })).toBe(true);
+    expect(privateApi.spawnedEntities.get(1)?.side.toLowerCase()).toBe(sideBefore.toLowerCase());
+    expect(privateApi.spawnedEntities.get(1)?.controllingPlayerToken).toBe('player_2');
+
+    expect(logic.executeScriptAction({
+      actionType: 85, // NAMED_TRANSFER_OWNERSHIP_PLAYER
+      params: [2, 'Player_1'],
+    })).toBe(true);
+    expect(privateApi.spawnedEntities.get(2)?.side.toLowerCase()).toBe(sideBefore.toLowerCase());
+    expect(privateApi.spawnedEntities.get(2)?.controllingPlayerToken).toBe('player_1');
+  });
+
   it('executes script recruitability/collect/merge actions using source action ids', () => {
     const bundle = makeBundle({
       objects: [
