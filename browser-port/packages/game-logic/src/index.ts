@@ -12990,13 +12990,13 @@ export class GameLogicSubsystem implements Subsystem {
         });
       case 'SKIRMISH_PLAYER_HAS_COMPARISON_GARRISONED':
         return this.evaluateScriptSkirmishPlayerHasComparisonGarrisoned({
-          side: readSide(0, ['side']),
+          side: readString(0, ['side', 'playerName', 'player']),
           comparison: readComparison(1, ['comparison']),
           count: readInteger(2, ['count']),
         });
       case 'SKIRMISH_PLAYER_HAS_COMPARISON_CAPTURED_UNITS':
         return this.evaluateScriptSkirmishPlayerHasComparisonCapturedUnits({
-          side: readSide(0, ['side']),
+          side: readString(0, ['side', 'playerName', 'player']),
           comparison: readComparison(1, ['comparison']),
           count: readInteger(2, ['count']),
         });
@@ -25033,15 +25033,21 @@ export class GameLogicSubsystem implements Subsystem {
     comparison: ScriptComparisonInput;
     count: number;
   }): boolean {
-    const normalizedSide = this.normalizeSide(filter.side);
+    const selector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide) {
       return false;
     }
+    const targetToken = selector.explicitNamedPlayer ? selector.controllingPlayerToken : null;
 
     let garrisonedBuildingCount = 0;
     for (const entity of this.spawnedEntities.values()) {
       if (entity.destroyed) continue;
       if (this.normalizeSide(entity.side) !== normalizedSide) continue;
+      if (targetToken) {
+        const ownerToken = this.resolveEntityControllingPlayerTokenForAffiliation(entity);
+        if (!ownerToken || ownerToken !== targetToken) continue;
+      }
       if (entity.containProfile?.moduleType !== 'GARRISON') continue;
       if (this.collectContainedEntityIds(entity.id).length <= 0) continue;
       garrisonedBuildingCount += 1;
@@ -25058,15 +25064,21 @@ export class GameLogicSubsystem implements Subsystem {
     comparison: ScriptComparisonInput;
     count: number;
   }): boolean {
-    const normalizedSide = this.normalizeSide(filter.side);
+    const selector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide) {
       return false;
     }
+    const targetToken = selector.explicitNamedPlayer ? selector.controllingPlayerToken : null;
 
     let capturedUnitCount = 0;
     for (const entity of this.spawnedEntities.values()) {
       if (entity.destroyed) continue;
       if (this.normalizeSide(entity.side) !== normalizedSide) continue;
+      if (targetToken) {
+        const ownerToken = this.resolveEntityControllingPlayerTokenForAffiliation(entity);
+        if (!ownerToken || ownerToken !== targetToken) continue;
+      }
       if (!entity.capturedFromOriginalOwner) continue;
       capturedUnitCount += 1;
     }

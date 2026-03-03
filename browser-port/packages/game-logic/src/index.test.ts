@@ -57289,6 +57289,99 @@ describe('Script condition groundwork', () => {
     })).toBe(true);
   });
 
+  it('matches skirmish garrisoned/captured comparisons by controlling player identity when players share a side', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('GarrisonBuilding', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Contain', { ContainMax: 5 }),
+        ]),
+        makeObjectDef('Ranger', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+      factions: [{
+        name: 'FactionAmerica',
+        side: 'America',
+        fields: {},
+      }],
+    });
+
+    const map = makeMap([
+      makeMapObject('GarrisonBuilding', 10, 10, { originalOwner: 'Player_1' }), // id 1
+      makeMapObject('GarrisonBuilding', 20, 10, { originalOwner: 'Player_2' }), // id 2
+      makeMapObject('Ranger', 12, 10, { originalOwner: 'Player_1' }), // id 3
+      makeMapObject('Ranger', 22, 10, { originalOwner: 'Player_2' }), // id 4
+    ], 128, 128);
+    map.sidesList = {
+      sides: [
+        {
+          dict: {
+            playerName: 'Player_1',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+        {
+          dict: {
+            playerName: 'Player_2',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+      ],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
+
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, {
+        garrisonContainerId: number | null;
+        capturedFromOriginalOwner: boolean;
+      }>;
+    };
+    privateApi.spawnedEntities.get(3)!.garrisonContainerId = 1;
+    privateApi.spawnedEntities.get(4)!.garrisonContainerId = 2;
+    privateApi.spawnedEntities.get(3)!.capturedFromOriginalOwner = true;
+    privateApi.spawnedEntities.get(4)!.capturedFromOriginalOwner = true;
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_PLAYER_HAS_COMPARISON_GARRISONED',
+      params: ['Player_1', 'EQUAL', 1],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_PLAYER_HAS_COMPARISON_GARRISONED',
+      params: ['Player_2', 'EQUAL', 1],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_PLAYER_HAS_COMPARISON_GARRISONED',
+      params: ['America', 'EQUAL', 2],
+    })).toBe(true);
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_PLAYER_HAS_COMPARISON_CAPTURED_UNITS',
+      params: ['Player_1', 'EQUAL', 1],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_PLAYER_HAS_COMPARISON_CAPTURED_UNITS',
+      params: ['Player_2', 'EQUAL', 1],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_PLAYER_HAS_COMPARISON_CAPTURED_UNITS',
+      params: ['America', 'EQUAL', 2],
+    })).toBe(true);
+  });
+
   it('evaluates skirmish player faction and discovery conditions', () => {
     const bundle = makeBundle({
       objects: [
