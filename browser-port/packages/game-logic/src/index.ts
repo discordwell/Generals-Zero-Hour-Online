@@ -22695,13 +22695,21 @@ export class GameLogicSubsystem implements Subsystem {
   evaluateScriptAllDestroyed(filter: {
     side: string;
   }): boolean {
-    const normalizedSide = this.resolveScriptPlayerSideFromInput(filter.side);
+    const selector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide) {
       return true;
     }
+    const targetToken = selector.explicitNamedPlayer ? selector.controllingPlayerToken : null;
 
     for (const entity of this.spawnedEntities.values()) {
       if (this.normalizeSide(entity.side) !== normalizedSide) continue;
+      if (targetToken) {
+        const ownerToken = this.resolveEntityControllingPlayerTokenForAffiliation(entity);
+        if (!ownerToken || ownerToken !== targetToken) {
+          continue;
+        }
+      }
       if (this.isScriptEntityEffectivelyDead(entity) || entity.health <= 0) continue;
       if (entity.kindOf.has('PROJECTILE') || entity.kindOf.has('INERT') || entity.kindOf.has('MINE')) {
         continue;
@@ -22719,10 +22727,12 @@ export class GameLogicSubsystem implements Subsystem {
   evaluateScriptAllBuildFacilitiesDestroyed(filter: {
     side: string;
   }): boolean {
-    const normalizedSide = this.resolveScriptPlayerSideFromInput(filter.side);
+    const selector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide) {
       return true;
     }
+    const targetToken = selector.explicitNamedPlayer ? selector.controllingPlayerToken : null;
 
     const buildFacilityNames = this.getBuildFacilityTemplateNames();
     if (buildFacilityNames.size === 0) {
@@ -22731,6 +22741,12 @@ export class GameLogicSubsystem implements Subsystem {
 
     for (const entity of this.spawnedEntities.values()) {
       if (this.normalizeSide(entity.side) !== normalizedSide) continue;
+      if (targetToken) {
+        const ownerToken = this.resolveEntityControllingPlayerTokenForAffiliation(entity);
+        if (!ownerToken || ownerToken !== targetToken) {
+          continue;
+        }
+      }
       if (!buildFacilityNames.has(entity.templateName.trim().toUpperCase())) continue;
       return false;
     }
@@ -25333,12 +25349,14 @@ export class GameLogicSubsystem implements Subsystem {
     side: string;
     buildingCount: number;
   }): boolean {
-    const normalizedSide = this.resolveScriptPlayerSideFromInput(filter.side);
+    const selector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide) {
       return false;
     }
+    const targetToken = selector.explicitNamedPlayer ? selector.controllingPlayerToken : null;
     const desiredMax = Number.isFinite(filter.buildingCount) ? Math.trunc(filter.buildingCount) : 0;
-    return desiredMax >= this.countScriptStructuresForSide(normalizedSide, false);
+    return desiredMax >= this.countScriptStructuresForSide(normalizedSide, false, targetToken);
   }
 
   /**
@@ -25349,12 +25367,14 @@ export class GameLogicSubsystem implements Subsystem {
     side: string;
     buildingCount: number;
   }): boolean {
-    const normalizedSide = this.resolveScriptPlayerSideFromInput(filter.side);
+    const selector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide) {
       return false;
     }
+    const targetToken = selector.explicitNamedPlayer ? selector.controllingPlayerToken : null;
     const desiredMax = Number.isFinite(filter.buildingCount) ? Math.trunc(filter.buildingCount) : 0;
-    return desiredMax >= this.countScriptStructuresForSide(normalizedSide, true);
+    return desiredMax >= this.countScriptStructuresForSide(normalizedSide, true, targetToken);
   }
 
   /**
@@ -35247,7 +35267,9 @@ export class GameLogicSubsystem implements Subsystem {
   private countScriptStructuresForSide(
     normalizedSide: string,
     requireVictoryFlag: boolean,
+    controllingPlayerToken?: string | null,
   ): number {
+    const normalizedOwnerToken = this.normalizeControllingPlayerToken(controllingPlayerToken ?? undefined);
     let count = 0;
     for (const entity of this.spawnedEntities.values()) {
       if (entity.destroyed) {
@@ -35255,6 +35277,12 @@ export class GameLogicSubsystem implements Subsystem {
       }
       if (this.normalizeSide(entity.side) !== normalizedSide) {
         continue;
+      }
+      if (normalizedOwnerToken !== null) {
+        const ownerToken = this.resolveEntityControllingPlayerTokenForAffiliation(entity);
+        if (!ownerToken || ownerToken !== normalizedOwnerToken) {
+          continue;
+        }
       }
       if (!entity.kindOf.has('STRUCTURE')) {
         continue;
