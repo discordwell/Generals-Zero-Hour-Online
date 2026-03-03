@@ -34990,6 +34990,103 @@ describe('Script condition groundwork', () => {
     })).toBe(false);
   });
 
+  it('scopes player-destroyed-N-buildings condition to named controlling players when provided', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TankA', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+        ]),
+        makeObjectDef('TankB', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+        ]),
+        makeObjectDef('CommandCenterC', 'China', ['STRUCTURE', 'COMMANDCENTER', 'MP_COUNT_FOR_VICTORY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1200, InitialHealth: 1200 }),
+        ]),
+        makeObjectDef('CommandCenterD', 'China', ['STRUCTURE', 'COMMANDCENTER', 'MP_COUNT_FOR_VICTORY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1200, InitialHealth: 1200 }),
+        ]),
+      ],
+      factions: [
+        { name: 'FactionAmerica', side: 'America', fields: {} },
+        { name: 'FactionChina', side: 'China', fields: {} },
+      ],
+    });
+
+    const map = makeMap([
+      makeMapObject('TankA', 10, 10), // id 1
+      makeMapObject('TankB', 12, 10), // id 2
+      makeMapObject('CommandCenterC', 20, 10), // id 3
+      makeMapObject('CommandCenterD', 22, 10), // id 4
+    ], 128, 128);
+    map.sidesList = {
+      sides: [
+        {
+          dict: { playerName: 'Player_1', playerFaction: 'FactionAmerica', skirmishDifficulty: 1 },
+          buildList: [],
+          scripts: { scripts: [], groups: [] },
+        },
+        {
+          dict: { playerName: 'Player_2', playerFaction: 'FactionAmerica', skirmishDifficulty: 1 },
+          buildList: [],
+          scripts: { scripts: [], groups: [] },
+        },
+        {
+          dict: { playerName: 'Player_3', playerFaction: 'FactionChina', skirmishDifficulty: 1 },
+          buildList: [],
+          scripts: { scripts: [], groups: [] },
+        },
+        {
+          dict: { playerName: 'Player_4', playerFaction: 'FactionChina', skirmishDifficulty: 1 },
+          buildList: [],
+          scripts: { scripts: [], groups: [] },
+        },
+      ],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      map,
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    const privateApi = logic as unknown as {
+      applyWeaponDamageAmount: (sourceEntityId: number | null, target: unknown, amount: number, damageType: string) => void;
+      spawnedEntities: Map<number, { controllingPlayerToken: string | null }>;
+    };
+    privateApi.spawnedEntities.get(1)!.controllingPlayerToken = 'player_1';
+    privateApi.spawnedEntities.get(2)!.controllingPlayerToken = 'player_2';
+    privateApi.spawnedEntities.get(3)!.controllingPlayerToken = 'player_3';
+    privateApi.spawnedEntities.get(4)!.controllingPlayerToken = 'player_4';
+
+    privateApi.applyWeaponDamageAmount(1, privateApi.spawnedEntities.get(3), 9999, 'UNRESISTABLE');
+    logic.update(1 / 30);
+
+    expect(logic.evaluateScriptPlayerDestroyedNOrMoreBuildings({
+      side: 'Player_1',
+      count: 1,
+      opponentSide: 'Player_3',
+    })).toBe(true);
+    expect(logic.evaluateScriptPlayerDestroyedNOrMoreBuildings({
+      side: 'Player_2',
+      count: 1,
+      opponentSide: 'Player_3',
+    })).toBe(false);
+    expect(logic.evaluateScriptPlayerDestroyedNOrMoreBuildings({
+      side: 'Player_1',
+      count: 1,
+      opponentSide: 'Player_4',
+    })).toBe(false);
+    expect(logic.evaluateScriptPlayerDestroyedNOrMoreBuildings({
+      side: 'America',
+      count: 1,
+      opponentSide: 'China',
+    })).toBe(true);
+  });
+
   it('consumes video/speech/audio/music script completion events', () => {
     const logic = new GameLogicSubsystem(new THREE.Scene());
     logic.loadMapObjects(
