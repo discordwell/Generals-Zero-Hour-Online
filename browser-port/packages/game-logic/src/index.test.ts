@@ -38487,6 +38487,118 @@ describe('Script condition groundwork', () => {
     })).toBe(false);
   });
 
+  it('allows team garrison actions when occupied building is held by same controlling player token', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('CivilianBunker', 'Neutral', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 600, InitialHealth: 600 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Garrison', {
+            ContainMax: 4,
+          }),
+        ]),
+        makeObjectDef('Passenger', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+        makeObjectDef('CrossSidePassenger', 'China', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('CivilianBunker', 40, 40), // id 1
+        makeMapObject('Passenger', 42, 40), // id 2
+        makeMapObject('CrossSidePassenger', 44, 40), // id 3
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    expect(logic.setScriptTeamMembers('GarrisonTeam', [2])).toBe(true);
+
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, {
+        controllingPlayerToken: string | null;
+        garrisonContainerId: number | null;
+      }>;
+    };
+
+    logic.submitCommand({ type: 'garrisonBuilding', entityId: 3, targetBuildingId: 1 });
+    for (let i = 0; i < 5; i += 1) {
+      logic.update(1 / 30);
+    }
+    expect(privateApi.spawnedEntities.get(3)?.garrisonContainerId).toBe(1);
+
+    privateApi.spawnedEntities.get(2)!.controllingPlayerToken = 'america';
+    privateApi.spawnedEntities.get(3)!.controllingPlayerToken = 'america';
+
+    expect(logic.executeScriptAction({
+      actionType: 103, // TEAM_GARRISON_SPECIFIC_BUILDING
+      params: ['GarrisonTeam', 1],
+    })).toBe(true);
+    for (let i = 0; i < 5; i += 1) {
+      logic.update(1 / 30);
+    }
+    expect(privateApi.spawnedEntities.get(2)?.garrisonContainerId).toBe(1);
+  });
+
+  it('blocks team garrison actions when occupied building is held by a different controlling player token', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('CivilianBunker', 'Neutral', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 600, InitialHealth: 600 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Garrison', {
+            ContainMax: 4,
+          }),
+        ]),
+        makeObjectDef('PassengerA', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+        makeObjectDef('PassengerB', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('CivilianBunker', 40, 40), // id 1
+        makeMapObject('PassengerA', 42, 40), // id 2
+        makeMapObject('PassengerB', 44, 40), // id 3
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    expect(logic.setScriptTeamMembers('GarrisonTeam', [2])).toBe(true);
+
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, {
+        controllingPlayerToken: string | null;
+        garrisonContainerId: number | null;
+      }>;
+    };
+
+    logic.submitCommand({ type: 'garrisonBuilding', entityId: 3, targetBuildingId: 1 });
+    for (let i = 0; i < 5; i += 1) {
+      logic.update(1 / 30);
+    }
+    expect(privateApi.spawnedEntities.get(3)?.garrisonContainerId).toBe(1);
+
+    privateApi.spawnedEntities.get(2)!.controllingPlayerToken = 'player_a';
+    privateApi.spawnedEntities.get(3)!.controllingPlayerToken = 'player_b';
+
+    expect(logic.executeScriptAction({
+      actionType: 103, // TEAM_GARRISON_SPECIFIC_BUILDING
+      params: ['GarrisonTeam', 1],
+    })).toBe(false);
+    for (let i = 0; i < 5; i += 1) {
+      logic.update(1 / 30);
+    }
+    expect(privateApi.spawnedEntities.get(2)?.garrisonContainerId).toBeNull();
+  });
+
   it('executes script transport enter/exit-all actions using source action ids', () => {
     const bundle = makeBundle({
       objects: [

@@ -18375,15 +18375,15 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  private resolveScriptContainedSide(container: MapEntity): string | null {
+  private resolveScriptContainedControllingPlayerToken(container: MapEntity): string | null {
     for (const passengerId of this.collectContainedEntityIds(container.id)) {
       const passenger = this.spawnedEntities.get(passengerId);
       if (!passenger || passenger.destroyed) {
         continue;
       }
-      const normalizedSide = this.normalizeSide(passenger.side);
-      if (normalizedSide) {
-        return normalizedSide;
+      const ownerToken = this.resolveEntityControllingPlayerTokenForAffiliation(passenger);
+      if (ownerToken) {
+        return ownerToken;
       }
     }
     return null;
@@ -18394,15 +18394,20 @@ export class GameLogicSubsystem implements Subsystem {
     return kindOf.has('FS_INTERNET_CENTER') || entity.containProfile?.moduleType === 'INTERNET_HACK';
   }
 
-  private canScriptSideUseBuildingContainer(building: MapEntity, normalizedSide: string): boolean {
+  private canScriptOwnerUseBuildingContainer(building: MapEntity, ownerToken: string | null): boolean {
     if (!this.resolveEntityKindOfSet(building).has('STRUCTURE')) {
       return false;
     }
     if (!building.containProfile) {
       return false;
     }
-    const occupiedSide = this.resolveScriptContainedSide(building);
-    return occupiedSide === null || occupiedSide === normalizedSide;
+    const occupiedOwnerToken = this.resolveScriptContainedControllingPlayerToken(building);
+    return occupiedOwnerToken === null || (ownerToken !== null && occupiedOwnerToken === ownerToken);
+  }
+
+  private canScriptSideUseBuildingContainer(building: MapEntity, normalizedSide: string): boolean {
+    const ownerToken = this.normalizeControllingPlayerToken(normalizedSide);
+    return this.canScriptOwnerUseBuildingContainer(building, ownerToken);
   }
 
   private issueScriptEnterContainer(entity: MapEntity, container: MapEntity): boolean {
@@ -18509,8 +18514,8 @@ export class GameLogicSubsystem implements Subsystem {
     source: MapEntity,
     requireInternetCenter: boolean,
   ): MapEntity | null {
-    const normalizedSide = this.normalizeSide(source.side);
-    if (!normalizedSide) {
+    const ownerToken = this.resolveEntityControllingPlayerTokenForAffiliation(source);
+    if (!ownerToken) {
       return null;
     }
     const sourceOffMap = this.isEntityOffMap(source);
@@ -18525,7 +18530,7 @@ export class GameLogicSubsystem implements Subsystem {
       if (this.isEntityOffMap(candidate) !== sourceOffMap) {
         continue;
       }
-      if (!this.canScriptSideUseBuildingContainer(candidate, normalizedSide)) {
+      if (!this.canScriptOwnerUseBuildingContainer(candidate, ownerToken)) {
         continue;
       }
       const isInternetCenter = this.isScriptInternetCenterBuilding(candidate);
@@ -18565,18 +18570,18 @@ export class GameLogicSubsystem implements Subsystem {
       return false;
     }
 
+    const teamMembers = this.getScriptTeamMemberEntities(team).filter((entity) => !entity.destroyed);
+    const sourceMember = teamMembers[0];
+    if (!sourceMember) {
+      return false;
+    }
+
     let issuedAny = false;
-    const controllingSide = this.resolveScriptTeamControllingSide(team);
-    if (!controllingSide) {
+    const controllingOwnerToken = this.resolveScriptTeamControllingPlayerTokenForAffiliation(team, sourceMember);
+    if (!this.canScriptOwnerUseBuildingContainer(building, controllingOwnerToken)) {
       return false;
     }
-    if (!this.canScriptSideUseBuildingContainer(building, controllingSide)) {
-      return false;
-    }
-    for (const member of this.getScriptTeamMemberEntities(team)) {
-      if (member.destroyed) {
-        continue;
-      }
+    for (const member of teamMembers) {
       if (this.issueScriptEnterContainer(member, building)) {
         issuedAny = true;
       }
@@ -18608,8 +18613,8 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     const leader = teamMembers[0]!;
-    const controllingSide = this.resolveScriptTeamControllingSide(team);
-    if (!controllingSide) {
+    const controllingOwnerToken = this.resolveScriptTeamControllingPlayerTokenForAffiliation(team, leader);
+    if (!controllingOwnerToken) {
       return false;
     }
     const requireInternetCenter = this.resolveEntityKindOfSet(leader).has('MONEY_HACKER');
@@ -18622,7 +18627,7 @@ export class GameLogicSubsystem implements Subsystem {
         if (this.isEntityOffMap(candidate) !== leaderOffMap) {
           return false;
         }
-        if (!this.canScriptSideUseBuildingContainer(candidate, controllingSide)) {
+        if (!this.canScriptOwnerUseBuildingContainer(candidate, controllingOwnerToken)) {
           return false;
         }
         const isInternetCenter = this.isScriptInternetCenterBuilding(candidate);
@@ -18664,9 +18669,6 @@ export class GameLogicSubsystem implements Subsystem {
         if (!kindOf.has('INFANTRY') || kindOf.has('NO_GARRISON')) {
           continue;
         }
-        if (this.normalizeSide(member.side) !== controllingSide) {
-          continue;
-        }
         if (this.issueScriptEnterContainer(member, building)) {
           handledEntityIds?.add(member.id);
           issuedAny = true;
@@ -18690,11 +18692,11 @@ export class GameLogicSubsystem implements Subsystem {
     if (!entity || !building || entity.destroyed || building.destroyed) {
       return false;
     }
-    const normalizedSide = this.normalizeSide(entity.side);
-    if (!normalizedSide) {
+    const ownerToken = this.resolveEntityControllingPlayerTokenForAffiliation(entity);
+    if (!ownerToken) {
       return false;
     }
-    if (!this.canScriptSideUseBuildingContainer(building, normalizedSide)) {
+    if (!this.canScriptOwnerUseBuildingContainer(building, ownerToken)) {
       return false;
     }
     return this.issueScriptEnterContainer(entity, building);
