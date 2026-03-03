@@ -48152,8 +48152,9 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
 
-    // Source parity: TerrainLogic::setWaterHeight forces pathfinder recalculation.
-    if (forcePathfindUpdate) {
+    // Source parity: TerrainLogic::setWaterHeight forces pathfinder recalculation
+    // when requested OR whenever the water height actually changed.
+    if (forcePathfindUpdate || previousHeight !== height) {
       this.refreshNavigationGridFromCurrentMap();
     }
   }

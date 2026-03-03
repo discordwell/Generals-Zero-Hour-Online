@@ -43556,7 +43556,9 @@ describe('Script condition groundwork', () => {
     const privateOverTime = logicOverTime as unknown as {
       waterPolygonData: Array<{ waterHeight: number }>;
       dynamicWaterUpdates: Array<{ waterIndex: number }>;
+      navigationGrid: object | null;
     };
+    const navOverTimeBefore = privateOverTime.navigationGrid;
 
     expect(logicOverTime.executeScriptAction({
       actionType: 405, // WATER_CHANGE_HEIGHT_OVER_TIME
@@ -43564,7 +43566,15 @@ describe('Script condition groundwork', () => {
     })).toBe(true);
     expect(privateOverTime.dynamicWaterUpdates.length).toBe(1);
 
-    for (let frame = 0; frame < 30; frame += 1) {
+    logicOverTime.update(1 / 30);
+    expect(privateOverTime.navigationGrid).not.toBeNull();
+    expect(privateOverTime.navigationGrid).not.toBe(navOverTimeBefore);
+    const navAfterFirstFrame = privateOverTime.navigationGrid;
+
+    logicOverTime.update(1 / 30);
+    expect(privateOverTime.navigationGrid).not.toBe(navAfterFirstFrame);
+
+    for (let frame = 2; frame < 30; frame += 1) {
       logicOverTime.update(1 / 30);
     }
     expect(privateOverTime.dynamicWaterUpdates.length).toBe(0);
