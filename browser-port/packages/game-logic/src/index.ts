@@ -24982,10 +24982,12 @@ export class GameLogicSubsystem implements Subsystem {
     if (!Number.isFinite(filter.entityId)) {
       return false;
     }
-    const normalizedSide = this.resolveScriptPlayerSideFromInput(filter.side);
+    const selector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide) {
       return false;
     }
+    const targetToken = selector.explicitNamedPlayer ? selector.controllingPlayerToken : null;
     const relation = this.resolveScriptRelationshipInput(filter.alliance);
     if (relation === null) {
       return false;
@@ -25003,6 +25005,12 @@ export class GameLogicSubsystem implements Subsystem {
     for (const candidate of this.spawnedEntities.values()) {
       if (this.normalizeSide(candidate.side) !== normalizedSide) {
         continue;
+      }
+      if (targetToken) {
+        const ownerToken = this.resolveEntityControllingPlayerTokenForAffiliation(candidate);
+        if (!ownerToken || ownerToken !== targetToken) {
+          continue;
+        }
       }
       if (this.isScriptEntityEffectivelyDead(candidate)) {
         continue;
@@ -25040,10 +25048,12 @@ export class GameLogicSubsystem implements Subsystem {
     if (!Number.isFinite(filter.entityId)) {
       return false;
     }
-    const normalizedSide = this.resolveScriptPlayerSideFromInput(filter.side);
+    const selector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide) {
       return false;
     }
+    const targetToken = selector.explicitNamedPlayer ? selector.controllingPlayerToken : null;
     const objectTypes = this.resolveScriptObjectTypeEntriesForCondition(filter.objectType);
     if (objectTypes.length === 0) {
       return false;
@@ -25061,6 +25071,12 @@ export class GameLogicSubsystem implements Subsystem {
     for (const candidate of this.spawnedEntities.values()) {
       if (this.normalizeSide(candidate.side) !== normalizedSide) {
         continue;
+      }
+      if (targetToken) {
+        const ownerToken = this.resolveEntityControllingPlayerTokenForAffiliation(candidate);
+        if (!ownerToken || ownerToken !== targetToken) {
+          continue;
+        }
       }
       if (this.isScriptEntityEffectivelyDead(candidate)) {
         continue;
