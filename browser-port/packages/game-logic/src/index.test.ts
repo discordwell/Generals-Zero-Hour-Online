@@ -34489,6 +34489,77 @@ describe('Script condition groundwork', () => {
     expect(logic.evaluateScriptNamedDiscovered({ entityId: 1, side: 'China' })).toBe(false);
   });
 
+  it('accepts player-name inputs for named and team discovered conditions', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('ScoutA', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { VisionRange: 40 }),
+        makeObjectDef('ScoutC', 'China', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { VisionRange: 40 }),
+      ],
+      factions: [
+        {
+          name: 'FactionAmerica',
+          side: 'America',
+          fields: {},
+        },
+        {
+          name: 'FactionChina',
+          side: 'China',
+          fields: {},
+        },
+      ],
+    });
+
+    const map = makeMap([
+      makeMapObject('ScoutA', 10, 10, { originalOwner: 'Player_1' }),
+      makeMapObject('ScoutC', 15, 10, { originalOwner: 'Player_3' }),
+    ], 128, 128);
+    map.sidesList = {
+      sides: [
+        {
+          dict: {
+            playerName: 'Player_1',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+        {
+          dict: {
+            playerName: 'Player_3',
+            playerFaction: 'FactionChina',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+      ],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
+    logic.setScriptTeamMembers('AlphaTeam', [1]);
+    logic.update(1 / 30);
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'NAMED_DISCOVERED',
+      params: [1, 'Player_3'],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'TEAM_DISCOVERED',
+      params: ['AlphaTeam', 'Player_3'],
+    })).toBe(true);
+  });
+
   it('evaluates named-selected from current selection state', () => {
     const bundle = makeBundle({
       objects: [

@@ -12594,13 +12594,13 @@ export class GameLogicSubsystem implements Subsystem {
         }
         return this.evaluateScriptNamedDiscovered({
           entityId,
-          side: readSide(1, ['side']),
+          side: readString(1, ['side', 'playerName', 'player']),
         });
       }
       case 'TEAM_DISCOVERED':
         return this.evaluateScriptTeamDiscovered({
           teamName: readString(0, ['teamName', 'team']),
-          side: readSide(1, ['side']),
+          side: readString(1, ['side', 'playerName', 'player']),
         });
       case 'MISSION_ATTEMPTS':
         return this.evaluateScriptMissionAttempts({
@@ -23337,7 +23337,7 @@ export class GameLogicSubsystem implements Subsystem {
     if (!Number.isFinite(filter.entityId)) {
       return false;
     }
-    const normalizedSide = this.normalizeSide(filter.side);
+    const normalizedSide = this.resolveScriptPlayerSideFromInput(filter.side);
     if (!normalizedSide) {
       return false;
     }
