@@ -46556,7 +46556,7 @@ describe('Script condition groundwork', () => {
     })).toBe(false);
   });
 
-  it('treats EXIT/EVACUATE/RAILED/BEACON script command-button execution as unsupported', () => {
+  it('executes EXIT/EVACUATE/RAILED/BEACON script command-buttons only for no-target invocation', () => {
     const bundle = makeBundle({
       objects: [
         makeObjectDef('ScriptCommandUnit', 'America', ['VEHICLE'], [
@@ -46624,7 +46624,7 @@ describe('Script condition groundwork', () => {
       expect(logic.executeScriptAction({
         actionType: 445, // NAMED_USE_COMMANDBUTTON_ABILITY
         params: [1, commandName],
-      })).toBe(false);
+      })).toBe(true);
       expect(logic.executeScriptAction({
         actionType: 403, // NAMED_USE_COMMANDBUTTON_ABILITY_ON_NAMED
         params: [1, commandName, 2],
@@ -46636,17 +46636,33 @@ describe('Script condition groundwork', () => {
     }
   });
 
-  it('treats CANCEL/WAYPOINTS script command-button execution as unsupported', () => {
+  it('executes CANCEL script command-buttons for no-target invocation and keeps WAYPOINTS unsupported', () => {
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('ScriptCancelUnit', 'America', ['VEHICLE'], [
-          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+        makeObjectDef('ScriptCancelFactory', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+          makeBlock('Behavior', 'ProductionUpdate ModuleTag_Production', {
+            MaxQueueEntries: 4,
+          }),
         ], {
           CommandSet: 'ScriptCancelCommandSet',
+        }),
+        makeObjectDef('ScriptSoldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 80, InitialHealth: 80 }),
+        ], {
+          BuildCost: 100,
+          BuildTime: 0.2,
         }),
         makeObjectDef('ScriptTarget', 'China', ['INFANTRY'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
         ]),
+      ],
+      upgrades: [
+        makeUpgradeDef('Upgrade_CancelScript', {
+          Type: 'PLAYER',
+          BuildCost: 150,
+          BuildTime: 0.2,
+        }),
       ],
       commandButtons: [
         makeCommandButtonDef('Command_DozerConstructCancel', {
@@ -46657,9 +46673,18 @@ describe('Script condition groundwork', () => {
         }),
         makeCommandButtonDef('Command_CancelUpgrade', {
           Command: 'CANCEL_UPGRADE',
+          Upgrade: 'Upgrade_CancelScript',
         }),
         makeCommandButtonDef('Command_Waypoints', {
           Command: 'WAYPOINTS',
+        }),
+        makeCommandButtonDef('Command_BuildScriptTank', {
+          Command: 'UNIT_BUILD',
+          Object: 'ScriptSoldier',
+        }),
+        makeCommandButtonDef('Command_ResearchCancelScript', {
+          Command: 'PLAYER_UPGRADE',
+          Upgrade: 'Upgrade_CancelScript',
         }),
       ],
       commandSets: [
@@ -46668,12 +46693,14 @@ describe('Script condition groundwork', () => {
           2: 'Command_CancelUnitBuild',
           3: 'Command_CancelUpgrade',
           4: 'Command_Waypoints',
+          5: 'Command_BuildScriptTank',
+          6: 'Command_ResearchCancelScript',
         }),
       ],
     });
 
     const map = makeMap([
-      makeMapObject('ScriptCancelUnit', 10, 10), // id 1
+      makeMapObject('ScriptCancelFactory', 10, 10), // id 1
       makeMapObject('ScriptTarget', 30, 10), // id 2
     ], 128, 128);
     map.waypoints = {
@@ -46693,27 +46720,71 @@ describe('Script condition groundwork', () => {
       makeRegistry(bundle),
       makeHeightmap(128, 128),
     );
+    logic.submitCommand({ type: 'setSideCredits', side: 'America', amount: 1000 });
+    logic.update(1 / 30);
+    expect(logic.executeScriptAction({
+      actionType: 445, // NAMED_USE_COMMANDBUTTON_ABILITY
+      params: [1, 'Command_BuildScriptTank'],
+    })).toBe(true);
+    expect(logic.executeScriptAction({
+      actionType: 445, // NAMED_USE_COMMANDBUTTON_ABILITY
+      params: [1, 'Command_ResearchCancelScript'],
+    })).toBe(true);
+    expect(logic.getProductionState(1)?.queueEntryCount).toBe(2);
 
-    const commandNames = [
-      'Command_DozerConstructCancel',
-      'Command_CancelUnitBuild',
-      'Command_CancelUpgrade',
-      'Command_Waypoints',
-    ];
-    for (const commandName of commandNames) {
-      expect(logic.executeScriptAction({
-        actionType: 445, // NAMED_USE_COMMANDBUTTON_ABILITY
-        params: [1, commandName],
-      })).toBe(false);
-      expect(logic.executeScriptAction({
-        actionType: 403, // NAMED_USE_COMMANDBUTTON_ABILITY_ON_NAMED
-        params: [1, commandName, 2],
-      })).toBe(false);
-      expect(logic.executeScriptAction({
-        actionType: 404, // NAMED_USE_COMMANDBUTTON_ABILITY_AT_WAYPOINT
-        params: [1, commandName, 'CancelWaypoint'],
-      })).toBe(false);
-    }
+    expect(logic.executeScriptAction({
+      actionType: 445, // NAMED_USE_COMMANDBUTTON_ABILITY
+      params: [1, 'Command_DozerConstructCancel'],
+    })).toBe(true);
+    expect(logic.executeScriptAction({
+      actionType: 403, // NAMED_USE_COMMANDBUTTON_ABILITY_ON_NAMED
+      params: [1, 'Command_DozerConstructCancel', 2],
+    })).toBe(false);
+    expect(logic.executeScriptAction({
+      actionType: 404, // NAMED_USE_COMMANDBUTTON_ABILITY_AT_WAYPOINT
+      params: [1, 'Command_DozerConstructCancel', 'CancelWaypoint'],
+    })).toBe(false);
+
+    expect(logic.executeScriptAction({
+      actionType: 445,
+      params: [1, 'Command_CancelUnitBuild'],
+    })).toBe(true);
+    expect(logic.getProductionState(1)?.queueEntryCount).toBe(1);
+    expect(logic.executeScriptAction({
+      actionType: 403,
+      params: [1, 'Command_CancelUnitBuild', 2],
+    })).toBe(false);
+    expect(logic.executeScriptAction({
+      actionType: 404,
+      params: [1, 'Command_CancelUnitBuild', 'CancelWaypoint'],
+    })).toBe(false);
+
+    expect(logic.executeScriptAction({
+      actionType: 445,
+      params: [1, 'Command_CancelUpgrade'],
+    })).toBe(true);
+    expect(logic.getProductionState(1)?.queueEntryCount).toBe(0);
+    expect(logic.executeScriptAction({
+      actionType: 403,
+      params: [1, 'Command_CancelUpgrade', 2],
+    })).toBe(false);
+    expect(logic.executeScriptAction({
+      actionType: 404,
+      params: [1, 'Command_CancelUpgrade', 'CancelWaypoint'],
+    })).toBe(false);
+
+    expect(logic.executeScriptAction({
+      actionType: 445,
+      params: [1, 'Command_Waypoints'],
+    })).toBe(false);
+    expect(logic.executeScriptAction({
+      actionType: 403,
+      params: [1, 'Command_Waypoints', 2],
+    })).toBe(false);
+    expect(logic.executeScriptAction({
+      actionType: 404,
+      params: [1, 'Command_Waypoints', 'CancelWaypoint'],
+    })).toBe(false);
   });
 
   it('executes SWITCH_WEAPON command-button only for no-target script invocation', () => {

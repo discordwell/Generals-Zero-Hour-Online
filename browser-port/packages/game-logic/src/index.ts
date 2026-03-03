@@ -13985,12 +13985,100 @@ export class GameLogicSubsystem implements Subsystem {
         this.applyCommand({ type: 'toggleOvercharge', entityId: sourceEntity.id });
         return true;
       case 'EXIT_CONTAINER':
+        if (target.kind !== 'NONE') {
+          return false;
+        }
+        if (validateOnly) {
+          return true;
+        }
+        this.applyCommand({ type: 'exitContainer', entityId: sourceEntity.id });
+        return true;
       case 'EVACUATE':
+        if (target.kind !== 'NONE') {
+          return false;
+        }
+        if (validateOnly) {
+          return true;
+        }
+        this.applyCommand({ type: 'evacuate', entityId: sourceEntity.id });
+        return true;
       case 'EXECUTE_RAILED_TRANSPORT':
+        if (target.kind !== 'NONE') {
+          return false;
+        }
+        if (validateOnly) {
+          return true;
+        }
+        this.applyCommand({ type: 'executeRailedTransport', entityId: sourceEntity.id });
+        return true;
       case 'BEACON_DELETE':
+        if (target.kind !== 'NONE') {
+          return false;
+        }
+        if (validateOnly) {
+          return true;
+        }
+        this.applyCommand({ type: 'beaconDelete', entityId: sourceEntity.id });
+        return true;
       case 'DOZER_CONSTRUCT_CANCEL':
-      case 'CANCEL_UNIT_BUILD':
-      case 'CANCEL_UPGRADE':
+        if (target.kind !== 'NONE') {
+          return false;
+        }
+        if (validateOnly) {
+          return true;
+        }
+        this.applyCommand({ type: 'cancelDozerConstruction', entityId: sourceEntity.id });
+        return true;
+      case 'CANCEL_UNIT_BUILD': {
+        if (target.kind !== 'NONE') {
+          return false;
+        }
+        const queuedUnit = sourceEntity.productionQueue.find((entry) => entry.type === 'UNIT');
+        if (!queuedUnit) {
+          return false;
+        }
+        if (validateOnly) {
+          return true;
+        }
+        this.applyCommand({
+          type: 'cancelUnitProduction',
+          entityId: sourceEntity.id,
+          productionId: queuedUnit.productionId,
+        });
+        return true;
+      }
+      case 'CANCEL_UPGRADE': {
+        if (target.kind !== 'NONE') {
+          return false;
+        }
+        let upgradeName = this.resolveScriptCommandButtonUpgradeName(commandButtonDef)?.trim().toUpperCase() ?? '';
+        if (upgradeName === 'NONE') {
+          upgradeName = '';
+        }
+        if (!upgradeName) {
+          const queuedUpgrade = sourceEntity.productionQueue.find((entry) => entry.type === 'UPGRADE');
+          if (!queuedUpgrade) {
+            return false;
+          }
+          upgradeName = queuedUpgrade.upgradeName;
+        } else {
+          const hasQueuedUpgrade = sourceEntity.productionQueue.some(
+            (entry) => entry.type === 'UPGRADE' && entry.upgradeName === upgradeName,
+          );
+          if (!hasQueuedUpgrade) {
+            return false;
+          }
+        }
+        if (validateOnly) {
+          return true;
+        }
+        this.applyCommand({
+          type: 'cancelUpgradeProduction',
+          entityId: sourceEntity.id,
+          upgradeName,
+        });
+        return true;
+      }
       case 'WAYPOINTS':
         // Source parity: GeneralsMD Object::doCommandButton{,AtObject,AtPosition}
         // does not implement these command-button types for script execution.
