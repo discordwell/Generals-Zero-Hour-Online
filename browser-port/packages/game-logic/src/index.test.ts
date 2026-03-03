@@ -34604,6 +34604,67 @@ describe('Script condition groundwork', () => {
     })).toBe(true);
   });
 
+  it('accepts player-name inputs for all-build-facilities-destroyed conditions', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('FactoryA', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+          makeBlock('Behavior', 'ProductionUpdate ModuleTag_Production', { MaxQueueEntries: 3 }),
+        ]),
+        makeObjectDef('TankA', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+        ], {
+          Prerequisites: 'OBJECT FactoryA',
+        }),
+      ],
+      factions: [{
+        name: 'FactionAmerica',
+        side: 'America',
+        fields: {},
+      }],
+    });
+
+    const map = makeMap([
+      makeMapObject('FactoryA', 20, 10, { originalOwner: 'Player_1' }), // id 1
+    ], 128, 128);
+    map.sidesList = {
+      sides: [
+        {
+          dict: {
+            playerName: 'Player_1',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+      ],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'PLAYER_ALL_BUILDFACILITIES_DESTROYED',
+      params: ['Player_1'],
+    })).toBe(false);
+
+    const privateApi = logic as unknown as {
+      applyWeaponDamageAmount: (sourceEntityId: number | null, target: unknown, amount: number, damageType: string) => void;
+      spawnedEntities: Map<number, unknown>;
+    };
+    privateApi.applyWeaponDamageAmount(null, privateApi.spawnedEntities.get(1), 9999, 'UNRESISTABLE');
+    logic.update(1 / 30);
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'PLAYER_ALL_BUILDFACILITIES_DESTROYED',
+      params: ['Player_1'],
+    })).toBe(true);
+  });
+
   it('evaluates named-discovered with held/stealth visibility gating', () => {
     const bundle = makeBundle({
       objects: [

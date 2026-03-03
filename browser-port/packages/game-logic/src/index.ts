@@ -12460,7 +12460,7 @@ export class GameLogicSubsystem implements Subsystem {
         });
       case 'PLAYER_ALL_BUILDFACILITIES_DESTROYED':
         return this.evaluateScriptAllBuildFacilitiesDestroyed({
-          side: readSide(0, ['side']),
+          side: readString(0, ['side', 'playerName', 'player']),
         });
       case 'TEAM_INSIDE_AREA_PARTIALLY':
         return this.evaluateScriptTeamInsideAreaPartially({
@@ -12604,7 +12604,7 @@ export class GameLogicSubsystem implements Subsystem {
         });
       case 'MISSION_ATTEMPTS':
         return this.evaluateScriptMissionAttempts({
-          side: readSide(0, ['side']),
+          side: readString(0, ['side', 'playerName', 'player']),
           comparison: readComparison(1, ['comparison']),
           attempts: readInteger(2, ['attempts']),
         });
@@ -12870,9 +12870,9 @@ export class GameLogicSubsystem implements Subsystem {
         return false;
       case 'PLAYER_DESTROYED_N_BUILDINGS_PLAYER':
         return this.evaluateScriptPlayerDestroyedNOrMoreBuildings({
-          side: readSide(0, ['side']),
+          side: readString(0, ['side', 'playerName', 'player']),
           count: readInteger(1, ['count']),
-          opponentSide: readSide(2, ['opponentSide']),
+          opponentSide: readString(2, ['opponentSide', 'side', 'playerName', 'player']),
         });
       case 'PLAYER_HAS_COMPARISON_UNIT_TYPE_IN_TRIGGER_AREA':
         return this.evaluateScriptPlayerHasUnitTypeInArea({
@@ -12980,14 +12980,14 @@ export class GameLogicSubsystem implements Subsystem {
         });
       case 'SKIRMISH_COMMAND_BUTTON_READY_ALL':
         return this.evaluateScriptSkirmishCommandButtonIsReady({
-          side: readSide(0, ['side']),
+          side: readString(0, ['side', 'playerName', 'player']),
           teamName: readString(1, ['teamName', 'team']),
           commandButtonName: readString(2, ['commandButtonName', 'commandButton']),
           allReady: true,
         });
       case 'SKIRMISH_COMMAND_BUTTON_READY_PARTIAL':
         return this.evaluateScriptSkirmishCommandButtonIsReady({
-          side: readSide(0, ['side']),
+          side: readString(0, ['side', 'playerName', 'player']),
           teamName: readString(1, ['teamName', 'team']),
           commandButtonName: readString(2, ['commandButtonName', 'commandButton']),
           allReady: false,
@@ -22528,7 +22528,7 @@ export class GameLogicSubsystem implements Subsystem {
   evaluateScriptAllBuildFacilitiesDestroyed(filter: {
     side: string;
   }): boolean {
-    const normalizedSide = this.normalizeSide(filter.side);
+    const normalizedSide = this.resolveScriptPlayerSideFromInput(filter.side);
     if (!normalizedSide) {
       return true;
     }
