@@ -36994,12 +36994,26 @@ export class GameLogicSubsystem implements Subsystem {
     );
   }
 
+  /**
+   * Source parity: SpecialPowerDef RadiusCursorRadius drives target-area size.
+   * Spy-vision reveal uses this radius when present, then falls back to source vision/default.
+   */
+  private resolveSpyVisionRevealRadius(source: MapEntity, specialPowerDef: SpecialPowerDef | null): number {
+    const radiusFromSpecialPower = specialPowerDef
+      ? (readNumericField(specialPowerDef.fields, ['RadiusCursorRadius']) ?? 0)
+      : 0;
+    if (radiusFromSpecialPower > 0) {
+      return radiusFromSpecialPower;
+    }
+    return source.visionRange > 0 ? source.visionRange : DEFAULT_SPY_VISION_RADIUS;
+  }
+
   protected onIssueSpecialPowerNoTarget(
     sourceEntityId: number,
     specialPowerName: string,
     commandOption: number,
     commandButtonId: string,
-    _specialPowerDef: SpecialPowerDef,
+    specialPowerDef: SpecialPowerDef,
   ): void {
     const module = this.resolveSpecialPowerModuleProfile(sourceEntityId, specialPowerName);
     if (!module) {
@@ -37061,7 +37075,7 @@ export class GameLogicSubsystem implements Subsystem {
           sourceSide: source.side ?? '',
           targetX: source.x,
           targetZ: source.z,
-          revealRadius: source.visionRange > 0 ? source.visionRange : DEFAULT_SPY_VISION_RADIUS,
+          revealRadius: this.resolveSpyVisionRevealRadius(source, specialPowerDef),
           durationMs: module.spyVisionBaseDurationMs,
         }, effectContext);
         break;
@@ -37271,7 +37285,7 @@ export class GameLogicSubsystem implements Subsystem {
     targetZ: number,
     commandOption: number,
     commandButtonId: string,
-    _specialPowerDef: SpecialPowerDef,
+    specialPowerDef: SpecialPowerDef,
   ): void {
     const module = this.resolveSpecialPowerModuleProfile(sourceEntityId, specialPowerName);
     if (!module) {
@@ -37341,7 +37355,7 @@ export class GameLogicSubsystem implements Subsystem {
           sourceSide,
           targetX,
           targetZ,
-          revealRadius: source.visionRange > 0 ? source.visionRange : DEFAULT_SPY_VISION_RADIUS,
+          revealRadius: this.resolveSpyVisionRevealRadius(source, specialPowerDef),
           durationMs: module.spyVisionBaseDurationMs,
         }, effectContext);
         break;

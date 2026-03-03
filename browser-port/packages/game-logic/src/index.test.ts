@@ -13382,6 +13382,114 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     expect(targetState === null || (targetState.health < 200)).toBe(true);
   });
 
+  it('uses RadiusCursorRadius for position-target Spy Vision reveal radius', () => {
+    const logic = new GameLogicSubsystem();
+
+    const sourceDef = makeObjectDef('SpySource', 'America', ['INFANTRY'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'SpyVisionSpecialPower SpyModule', {
+        SpecialPowerTemplate: 'SpecialPowerSpyVisionPos',
+      }),
+    ], {
+      VisionRange: 30,
+    });
+
+    const registry = makeRegistry(makeBundle({
+      objects: [sourceDef],
+      specialPowers: [
+        makeSpecialPowerDef('SpecialPowerSpyVisionPos', {
+          ReloadTime: 0,
+          Enum: 'SPECIAL_SPY_SATELLITE',
+          RadiusCursorRadius: 180,
+        }),
+      ],
+    }));
+
+    logic.loadMapObjects(
+      makeMap([makeMapObject('SpySource', 10, 10)], 256, 256),
+      registry,
+      makeHeightmap(256, 256),
+    );
+    logic.update(1 / 30);
+
+    const priv = logic as unknown as {
+      temporaryVisionReveals: Array<{ radius: number; worldX: number; worldZ: number }>;
+    };
+
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_SPY_POS',
+      specialPowerName: 'SpecialPowerSpyVisionPos',
+      commandOption: 0x20,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: null,
+      targetX: 200,
+      targetZ: 200,
+    });
+    logic.update(0);
+
+    const reveal = priv.temporaryVisionReveals.at(-1);
+    expect(reveal).toBeDefined();
+    expect(reveal?.radius).toBe(180);
+    expect(reveal?.worldX).toBe(200);
+    expect(reveal?.worldZ).toBe(200);
+  });
+
+  it('uses RadiusCursorRadius for no-target Spy Vision reveal radius', () => {
+    const logic = new GameLogicSubsystem();
+
+    const sourceDef = makeObjectDef('SpySource', 'America', ['INFANTRY'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'SpyVisionSpecialPower SpyModule', {
+        SpecialPowerTemplate: 'SpecialPowerSpyVisionNoTarget',
+      }),
+    ], {
+      VisionRange: 30,
+    });
+
+    const registry = makeRegistry(makeBundle({
+      objects: [sourceDef],
+      specialPowers: [
+        makeSpecialPowerDef('SpecialPowerSpyVisionNoTarget', {
+          ReloadTime: 0,
+          Enum: 'SPECIAL_CHANGE_BATTLE_PLANS',
+          RadiusCursorRadius: 150,
+        }),
+      ],
+    }));
+
+    logic.loadMapObjects(
+      makeMap([makeMapObject('SpySource', 40, 50)], 256, 256),
+      registry,
+      makeHeightmap(256, 256),
+    );
+    logic.update(1 / 30);
+
+    const priv = logic as unknown as {
+      temporaryVisionReveals: Array<{ radius: number; worldX: number; worldZ: number }>;
+    };
+
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_SPY_NO_TARGET',
+      specialPowerName: 'SpecialPowerSpyVisionNoTarget',
+      commandOption: 0,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: null,
+      targetX: null,
+      targetZ: null,
+    });
+    logic.update(0);
+
+    const reveal = priv.temporaryVisionReveals.at(-1);
+    expect(reveal).toBeDefined();
+    expect(reveal?.radius).toBe(150);
+    expect(reveal?.worldX).toBe(40);
+    expect(reveal?.worldZ).toBe(50);
+  });
+
   it('executes cash hack special power to steal enemy credits', () => {
     const logic = new GameLogicSubsystem();
 
