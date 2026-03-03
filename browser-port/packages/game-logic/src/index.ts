@@ -12539,13 +12539,13 @@ export class GameLogicSubsystem implements Subsystem {
         }
         return this.evaluateScriptNamedAttackedByPlayer({
           entityId,
-          attackedBySide: readSide(1, ['attackedBySide', 'side']),
+          attackedBySide: readString(1, ['attackedBySide', 'side', 'playerName', 'player']),
         });
       }
       case 'TEAM_ATTACKED_BY_PLAYER':
         return this.evaluateScriptTeamAttackedByPlayer({
           teamName: readString(0, ['teamName', 'team']),
-          attackedBySide: readSide(1, ['attackedBySide', 'side']),
+          attackedBySide: readString(1, ['attackedBySide', 'side', 'playerName', 'player']),
         });
       case 'BUILT_BY_PLAYER':
         return this.evaluateScriptBuiltByPlayer({
@@ -22611,8 +22611,13 @@ export class GameLogicSubsystem implements Subsystem {
     teamName: string;
     attackedBySide: string;
   }): boolean {
-    const normalizedAttackerSide = this.normalizeSide(filter.attackedBySide);
-    if (!normalizedAttackerSide) {
+    const selector = this.resolveScriptPlayerConditionSelector(filter.attackedBySide);
+    const {
+      normalizedSide: normalizedAttackerSide,
+      controllingPlayerToken: attackerToken,
+      explicitNamedPlayer,
+    } = selector;
+    if (!normalizedAttackerSide && !attackerToken) {
       return false;
     }
 
@@ -22632,7 +22637,18 @@ export class GameLogicSubsystem implements Subsystem {
         if (!attacker) {
           continue;
         }
-        if (this.normalizeSide(attacker.side) === normalizedAttackerSide) {
+        const attackerOwnerToken = this.resolveEntityControllingPlayerTokenForAffiliation(attacker);
+        if (
+          attackerToken
+          && attackerOwnerToken
+          && attackerOwnerToken === attackerToken
+        ) {
+          return true;
+        }
+        if (explicitNamedPlayer) {
+          continue;
+        }
+        if (normalizedAttackerSide && this.normalizeSide(attacker.side) === normalizedAttackerSide) {
           return true;
         }
       }
@@ -22688,11 +22704,8 @@ export class GameLogicSubsystem implements Subsystem {
     teamName: string;
     side: string;
   }): boolean {
-    const trimmedPlayerInput = filter.side.trim();
-    const hasExplicitPlayerToken = trimmedPlayerInput.length > 0
-      && this.scriptPlayerSideByName.has(trimmedPlayerInput.toUpperCase());
-    const normalizedSide = this.resolveScriptPlayerSideFromInput(filter.side);
-    const controllingPlayerToken = this.resolveScriptControllingPlayerTokenFromInput(filter.side, normalizedSide);
+    const selector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const { normalizedSide, controllingPlayerToken, explicitNamedPlayer } = selector;
     if (!normalizedSide && !controllingPlayerToken) {
       return false;
     }
@@ -22711,7 +22724,7 @@ export class GameLogicSubsystem implements Subsystem {
       ) {
         return true;
       }
-      if (hasExplicitPlayerToken) {
+      if (explicitNamedPlayer) {
         continue;
       }
       const teamControllingSide = team.controllingSide ? this.normalizeSide(team.controllingSide) : '';
@@ -24321,8 +24334,13 @@ export class GameLogicSubsystem implements Subsystem {
     if (!Number.isFinite(filter.entityId)) {
       return false;
     }
-    const normalizedAttackerSide = this.normalizeSide(filter.attackedBySide);
-    if (!normalizedAttackerSide) {
+    const selector = this.resolveScriptPlayerConditionSelector(filter.attackedBySide);
+    const {
+      normalizedSide: normalizedAttackerSide,
+      controllingPlayerToken: attackerToken,
+      explicitNamedPlayer,
+    } = selector;
+    if (!normalizedAttackerSide && !attackerToken) {
       return false;
     }
 
@@ -24332,7 +24350,31 @@ export class GameLogicSubsystem implements Subsystem {
       return false;
     }
 
-    return entity.scriptLastDamageSourceSide === normalizedAttackerSide;
+    const attackerId = entity.scriptLastDamageSourceEntityId;
+    if (attackerId !== null) {
+      const attacker = this.spawnedEntities.get(attackerId);
+      if (attacker) {
+        const attackerOwnerToken = this.resolveEntityControllingPlayerTokenForAffiliation(attacker);
+        if (
+          attackerToken
+          && attackerOwnerToken
+          && attackerOwnerToken === attackerToken
+        ) {
+          return true;
+        }
+        if (!explicitNamedPlayer && normalizedAttackerSide && this.normalizeSide(attacker.side) === normalizedAttackerSide) {
+          return true;
+        }
+        if (explicitNamedPlayer) {
+          return false;
+        }
+      }
+    }
+
+    if (explicitNamedPlayer) {
+      return false;
+    }
+    return normalizedAttackerSide !== null && entity.scriptLastDamageSourceSide === normalizedAttackerSide;
   }
 
   /**
@@ -35009,6 +35051,24 @@ export class GameLogicSubsystem implements Subsystem {
       return this.normalizeControllingPlayerToken(resolvedSide);
     }
     return this.normalizeControllingPlayerToken(trimmed);
+  }
+
+  private resolveScriptPlayerConditionSelector(playerInput: string): {
+    normalizedSide: string | null;
+    controllingPlayerToken: string | null;
+    explicitNamedPlayer: boolean;
+  } {
+    const trimmed = playerInput.trim();
+    const explicitNamedPlayer = trimmed.length > 0 && this.scriptPlayerSideByName.has(trimmed.toUpperCase());
+    const normalizedSide = this.resolveScriptPlayerSideFromInput(playerInput);
+    const controllingPlayerToken = explicitNamedPlayer
+      ? this.normalizeControllingPlayerToken(trimmed)
+      : this.resolveScriptControllingPlayerTokenFromInput(playerInput, normalizedSide);
+    return {
+      normalizedSide,
+      controllingPlayerToken,
+      explicitNamedPlayer,
+    };
   }
 
   private resolveScriptWaypointPosition(waypointName: string): { x: number; z: number } | null {

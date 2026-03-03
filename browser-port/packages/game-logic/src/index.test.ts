@@ -55980,6 +55980,89 @@ describe('Script condition groundwork', () => {
     })).toBe(true);
   });
 
+  it('matches TEAM_ATTACKED_BY_PLAYER by controlling player identity when players share a side', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TeamUnit', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+        makeObjectDef('AttackerA', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+        makeObjectDef('AttackerB', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+      factions: [{
+        name: 'FactionAmerica',
+        side: 'America',
+        fields: {},
+      }],
+    });
+
+    const map = makeMap([
+      makeMapObject('TeamUnit', 10, 10), // id 1
+      makeMapObject('AttackerA', 12, 10, { originalOwner: 'Player_1' }), // id 2
+      makeMapObject('AttackerB', 14, 10, { originalOwner: 'Player_2' }), // id 3
+    ], 128, 128);
+    map.sidesList = {
+      sides: [
+        {
+          dict: {
+            playerName: 'Player_1',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+        {
+          dict: {
+            playerName: 'Player_2',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+      ],
+      teams: [{
+        dict: {
+          teamName: 'AlphaTeam',
+          teamOwner: 'Player_2',
+          teamIsSingleton: true,
+        },
+      }],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
+    expect(logic.setScriptTeamMembers('AlphaTeam', [1])).toBe(true);
+
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, unknown>;
+      applyWeaponDamageAmount: (sourceEntityId: number | null, target: unknown, amount: number, damageType: string) => void;
+    };
+    privateApi.applyWeaponDamageAmount(2, privateApi.spawnedEntities.get(1), 10, 'SMALL_ARMS');
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'TEAM_ATTACKED_BY_PLAYER',
+      params: ['AlphaTeam', 'Player_1'],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'TEAM_ATTACKED_BY_PLAYER',
+      params: ['AlphaTeam', 'Player_2'],
+    })).toBe(false);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'TEAM_ATTACKED_BY_PLAYER',
+      params: ['AlphaTeam', 'America'],
+    })).toBe(true);
+  });
+
   it('evaluates TEAM_STATE_IS and TEAM_STATE_IS_NOT across TeamPrototype instances with THIS_TEAM precedence', () => {
     const logic = new GameLogicSubsystem(new THREE.Scene());
     logic.loadMapObjects(
