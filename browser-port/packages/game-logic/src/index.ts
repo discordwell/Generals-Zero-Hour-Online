@@ -13052,7 +13052,7 @@ export class GameLogicSubsystem implements Subsystem {
         });
       case 'SUPPLY_SOURCE_SAFE':
         return this.evaluateScriptSkirmishSupplySourceSafe({
-          side: readSide(0, ['side']),
+          side: readString(0, ['side', 'playerName', 'player']),
           minSupplyAmount: readNumber(1, ['minSupplyAmount', 'supplyAmount']),
           conditionCacheId,
         });
@@ -24033,18 +24033,20 @@ export class GameLogicSubsystem implements Subsystem {
       cache.customFrame = this.frameCounter + 2 * LOGIC_FRAME_RATE;
     }
 
-    const normalizedSide = this.normalizeSide(filter.side);
+    const selector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide) {
       if (cache) {
         cache.customData = -1;
       }
       return false;
     }
+    const targetToken = selector.explicitNamedPlayer ? selector.controllingPlayerToken : null;
 
     const minSupplyAmount = Number.isFinite(filter.minSupplyAmount)
       ? Math.max(0, Math.trunc(filter.minSupplyAmount))
       : 0;
-    const isSafe = this.isScriptSupplySourceSafe(normalizedSide, minSupplyAmount);
+    const isSafe = this.isScriptSupplySourceSafe(normalizedSide, minSupplyAmount, targetToken);
     if (cache) {
       cache.customData = isSafe ? 1 : -1;
     }
@@ -53983,12 +53985,16 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity: Player::isSupplySourceSafe / AIPlayer::isSupplySourceSafe.
    * Human players have no AI module in C++, so they return true.
    */
-  private isScriptSupplySourceSafe(normalizedSide: string, minSupplies: number): boolean {
+  private isScriptSupplySourceSafe(
+    normalizedSide: string,
+    minSupplies: number,
+    ownerToken?: string | null,
+  ): boolean {
     if (this.getSidePlayerType(normalizedSide) !== 'COMPUTER') {
       return true;
     }
 
-    const warehouse = this.findScriptSupplySourceForSide(normalizedSide, minSupplies);
+    const warehouse = this.findScriptSupplySourceForSide(normalizedSide, minSupplies, ownerToken);
     if (!warehouse) {
       return true;
     }
@@ -54000,7 +54006,11 @@ export class GameLogicSubsystem implements Subsystem {
   /**
    * Source parity: AIPlayer::findSupplyCenter(minimumCash).
    */
-  private findScriptSupplySourceForSide(normalizedSide: string, minimumCash: number): MapEntity | null {
+  private findScriptSupplySourceForSide(
+    normalizedSide: string,
+    minimumCash: number,
+    ownerToken?: string | null,
+  ): MapEntity | null {
     const baseCenter = this.resolveAiBaseCenter(normalizedSide);
     const enemyCenter = this.resolveScriptEnemyBaseCenter(normalizedSide);
     const supplyCenterCloseDistance = 20 * PATHFIND_CELL_SIZE;
@@ -54033,6 +54043,12 @@ export class GameLogicSubsystem implements Subsystem {
           if (nearby.destroyed) continue;
           if (!nearby.kindOf.has('CASH_GENERATOR')) continue;
           if (this.normalizeSide(nearby.side) !== normalizedSide) continue;
+          if (ownerToken) {
+            const nearbyOwnerToken = this.resolveEntityControllingPlayerTokenForAffiliation(nearby);
+            if (!nearbyOwnerToken || nearbyOwnerToken !== ownerToken) {
+              continue;
+            }
+          }
           const dx = nearby.x - entity.x;
           const dz = nearby.z - entity.z;
           if (dx * dx + dz * dz <= nearbyRadiusSq) {
