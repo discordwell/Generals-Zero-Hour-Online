@@ -5418,6 +5418,10 @@ export class GameLogicSubsystem implements Subsystem {
   /** Source parity bridge: controlling-player attacked-by tracking for script player-name conditions. */
   private readonly controllingPlayerAttackedByPlayer = new Map<string, Set<string>>();
   private readonly controllingPlayerAttackedBySide = new Map<string, Set<string>>();
+  /** Source parity bridge: attacker-side -> victim-side destroyed-structure counts for script conditions. */
+  private readonly sideDestroyedBuildingsByAttacker = new Map<string, Map<string, number>>();
+  /** Source parity bridge: attacker-player -> victim-player destroyed-structure counts for named-player conditions. */
+  private readonly controllingPlayerDestroyedBuildingsByAttacker = new Map<string, Map<string, number>>();
   /** Source parity: AIPlayer::m_supplySourceAttackCheckFrame (per-side scan gate). */
   private readonly sideSupplySourceAttackCheckFrame = new Map<string, number>();
   /** Source parity: AIPlayer::m_attackedSupplyCenter (last attacked economy object ID). */
@@ -24309,14 +24313,71 @@ export class GameLogicSubsystem implements Subsystem {
 
   /**
    * Source parity: ScriptConditions::evaluatePlayerDestroyedNOrMoreBuildings.
-   * C++ currently returns false (unimplemented TODO).
    */
-  evaluateScriptPlayerDestroyedNOrMoreBuildings(_filter: {
+  evaluateScriptPlayerDestroyedNOrMoreBuildings(filter: {
     side: string;
     count: number;
     opponentSide: string;
   }): boolean {
-    return false;
+    const attackerSelector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const victimSelector = this.resolveScriptPlayerConditionSelector(filter.opponentSide);
+    const attackerSide = attackerSelector.normalizedSide;
+    const victimSide = victimSelector.normalizedSide;
+    if (!attackerSide || !victimSide) {
+      return false;
+    }
+
+    const requiredCount = Number.isFinite(filter.count)
+      ? Math.max(0, Math.trunc(filter.count))
+      : 0;
+
+    let destroyedCount = this.sideDestroyedBuildingsByAttacker.get(attackerSide)?.get(victimSide) ?? 0;
+    if (attackerSelector.explicitNamedPlayer || victimSelector.explicitNamedPlayer) {
+      const attackerTokens = attackerSelector.explicitNamedPlayer
+        ? (attackerSelector.controllingPlayerToken ? [attackerSelector.controllingPlayerToken] : [])
+        : this.resolveObservedControllingPlayerTokensForSide(attackerSide);
+      const victimTokens = victimSelector.explicitNamedPlayer
+        ? (victimSelector.controllingPlayerToken ? [victimSelector.controllingPlayerToken] : [])
+        : this.resolveObservedControllingPlayerTokensForSide(victimSide);
+
+      destroyedCount = 0;
+      for (const attackerToken of attackerTokens) {
+        const byVictimToken = this.controllingPlayerDestroyedBuildingsByAttacker.get(attackerToken);
+        if (!byVictimToken) {
+          continue;
+        }
+        for (const victimToken of victimTokens) {
+          destroyedCount += byVictimToken.get(victimToken) ?? 0;
+        }
+      }
+    }
+
+    return destroyedCount >= requiredCount;
+  }
+
+  private resolveObservedControllingPlayerTokensForSide(side: string): string[] {
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return [];
+    }
+
+    const tokens = new Set<string>();
+    const fallbackToken = this.normalizeControllingPlayerToken(normalizedSide);
+    if (fallbackToken) {
+      tokens.add(fallbackToken);
+    }
+
+    for (const entity of this.spawnedEntities.values()) {
+      if (this.normalizeSide(entity.side) !== normalizedSide) {
+        continue;
+      }
+      const token = this.resolveEntityControllingPlayerTokenForAffiliation(entity);
+      if (token) {
+        tokens.add(token);
+      }
+    }
+
+    return Array.from(tokens.values());
   }
 
   /**
@@ -52203,6 +52264,54 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
+   * Source parity bridge: track destroyed-structure counts by attacker/victim
+   * for ScriptConditions::evaluatePlayerDestroyedNOrMoreBuildings.
+   */
+  private recordDestroyedBuildingBySource(victim: MapEntity, attackerId: number): void {
+    if (!victim.kindOf.has('STRUCTURE')) {
+      return;
+    }
+    if (!Number.isFinite(attackerId) || attackerId <= 0) {
+      return;
+    }
+    const attacker = this.spawnedEntities.get(Math.trunc(attackerId));
+    if (!attacker || attacker.destroyed) {
+      return;
+    }
+
+    const victimSide = this.normalizeSide(victim.side);
+    const attackerSide = this.normalizeSide(attacker.side);
+    if (!victimSide || !attackerSide) {
+      return;
+    }
+    this.incrementNestedScriptCounter(this.sideDestroyedBuildingsByAttacker, attackerSide, victimSide);
+
+    const attackerToken = this.resolveEntityControllingPlayerTokenForAffiliation(attacker);
+    const victimToken = this.resolveEntityControllingPlayerTokenForAffiliation(victim);
+    if (!attackerToken || !victimToken) {
+      return;
+    }
+    this.incrementNestedScriptCounter(
+      this.controllingPlayerDestroyedBuildingsByAttacker,
+      attackerToken,
+      victimToken,
+    );
+  }
+
+  private incrementNestedScriptCounter(
+    counters: Map<string, Map<string, number>>,
+    sourceKey: string,
+    targetKey: string,
+  ): void {
+    let sourceMap = counters.get(sourceKey);
+    if (!sourceMap) {
+      sourceMap = new Map<string, number>();
+      counters.set(sourceKey, sourceMap);
+    }
+    sourceMap.set(targetKey, (sourceMap.get(targetKey) ?? 0) + 1);
+  }
+
+  /**
    * Source parity: ActiveBody::attemptDamage → Player::setAttackedBy.
    * Records attacker side notification even for subdual-only damage.
    */
@@ -57131,6 +57240,7 @@ export class GameLogicSubsystem implements Subsystem {
 
     // Source parity: award XP to killer on victim death.
     this.awardExperienceOnKill(entityId, attackerId);
+    this.recordDestroyedBuildingBySource(entity, attackerId);
 
     // Source parity: Player::addCashBounty — if the killer's player has cash bounty active,
     // award a percentage of the victim's build cost as credits.
@@ -59746,6 +59856,8 @@ export class GameLogicSubsystem implements Subsystem {
     this.sideAttackedFrame.clear();
     this.controllingPlayerAttackedByPlayer.clear();
     this.controllingPlayerAttackedBySide.clear();
+    this.sideDestroyedBuildingsByAttacker.clear();
+    this.controllingPlayerDestroyedBuildingsByAttacker.clear();
     this.sideSupplySourceAttackCheckFrame.clear();
     this.sideAttackedSupplySource.clear();
     this.scriptCurrentSupplyWarehouseBySide.clear();

@@ -34925,10 +34925,13 @@ describe('Script condition groundwork', () => {
     expect(defeatLogic.evaluateScriptMultiplayerPlayerDefeat()).toBe(false);
   });
 
-  it('keeps mission-attempt and player-destroyed-N-buildings conditions at source TODO behavior', () => {
+  it('keeps mission-attempt TODO behavior and tracks player-destroyed-N-buildings condition', () => {
     const bundle = makeBundle({
       objects: [
-        makeObjectDef('CommandCenterA', 'America', ['STRUCTURE', 'COMMANDCENTER'], [
+        makeObjectDef('TankA', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+        ]),
+        makeObjectDef('CommandCenterC', 'China', ['STRUCTURE', 'COMMANDCENTER', 'MP_COUNT_FOR_VICTORY'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1200, InitialHealth: 1200 }),
         ]),
       ],
@@ -34936,10 +34939,15 @@ describe('Script condition groundwork', () => {
 
     const logic = new GameLogicSubsystem(new THREE.Scene());
     logic.loadMapObjects(
-      makeMap([makeMapObject('CommandCenterA', 10, 10)], 128, 128),
+      makeMap([
+        makeMapObject('TankA', 10, 10), // id 1
+        makeMapObject('CommandCenterC', 20, 10), // id 2
+      ], 128, 128),
       makeRegistry(bundle),
       makeHeightmap(128, 128),
     );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
 
     expect(logic.evaluateScriptMissionAttempts({
       side: 'America',
@@ -34949,6 +34957,24 @@ describe('Script condition groundwork', () => {
     expect(logic.evaluateScriptPlayerDestroyedNOrMoreBuildings({
       side: 'America',
       count: 1,
+      opponentSide: 'China',
+    })).toBe(false);
+
+    const privateApi = logic as unknown as {
+      applyWeaponDamageAmount: (sourceEntityId: number | null, target: unknown, amount: number, damageType: string) => void;
+      spawnedEntities: Map<number, unknown>;
+    };
+    privateApi.applyWeaponDamageAmount(1, privateApi.spawnedEntities.get(2), 9999, 'UNRESISTABLE');
+    logic.update(1 / 30);
+
+    expect(logic.evaluateScriptPlayerDestroyedNOrMoreBuildings({
+      side: 'America',
+      count: 1,
+      opponentSide: 'China',
+    })).toBe(true);
+    expect(logic.evaluateScriptPlayerDestroyedNOrMoreBuildings({
+      side: 'America',
+      count: 2,
       opponentSide: 'China',
     })).toBe(false);
   });
