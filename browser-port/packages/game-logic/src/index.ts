@@ -13058,7 +13058,7 @@ export class GameLogicSubsystem implements Subsystem {
         });
       case 'SUPPLY_SOURCE_ATTACKED':
         return this.evaluateScriptSkirmishSupplySourceAttacked({
-          side: readSide(0, ['side']),
+          side: readString(0, ['side', 'playerName', 'player']),
         });
       case 'START_POSITION_IS':
         return this.evaluateScriptSkirmishStartPosition({
@@ -23928,12 +23928,44 @@ export class GameLogicSubsystem implements Subsystem {
   evaluateScriptSkirmishSupplySourceAttacked(filter: {
     side: string;
   }): boolean {
-    const normalizedSide = this.normalizeSide(filter.side);
+    const selector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide) {
       return false;
     }
+    const targetToken = selector.explicitNamedPlayer ? selector.controllingPlayerToken : null;
 
     const scanRateFrames = 10;
+    if (targetToken) {
+      for (const entity of this.spawnedEntities.values()) {
+        if (entity.destroyed) {
+          continue;
+        }
+        if (this.normalizeSide(entity.side) !== normalizedSide) {
+          continue;
+        }
+        const ownerToken = this.resolveEntityControllingPlayerTokenForAffiliation(entity);
+        if (!ownerToken || ownerToken !== targetToken) {
+          continue;
+        }
+        if (
+          !entity.kindOf.has('CASH_GENERATOR')
+          && !entity.kindOf.has('DOZER')
+          && !entity.kindOf.has('HARVESTER')
+        ) {
+          continue;
+        }
+        if (
+          entity.lastDamageFrame > 0
+          && entity.lastDamageFrame + scanRateFrames > this.frameCounter
+          && !entity.lastDamageNoEffect
+        ) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     if (this.frameCounter === 0) {
       this.sideSupplySourceAttackCheckFrame.set(normalizedSide, this.frameCounter + scanRateFrames);
       return false;

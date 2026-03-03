@@ -58158,6 +58158,102 @@ describe('Script condition groundwork', () => {
     })).toBe(false);
   });
 
+  it('matches skirmish supply-source-attacked by controlling player identity when players share a side', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('SupplyCenter', 'America', ['STRUCTURE', 'CASH_GENERATOR', 'MP_COUNT_FOR_VICTORY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1200, InitialHealth: 1200 }),
+        ]),
+        makeObjectDef('EnemyAttacker', 'China', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+      factions: [
+        {
+          name: 'FactionAmerica',
+          side: 'America',
+          fields: {},
+        },
+        {
+          name: 'FactionChina',
+          side: 'China',
+          fields: {},
+        },
+      ],
+    });
+
+    const map = makeMap([
+      makeMapObject('SupplyCenter', 10, 10, { originalOwner: 'Player_1' }), // id 1
+      makeMapObject('SupplyCenter', 20, 10, { originalOwner: 'Player_2' }), // id 2
+      makeMapObject('EnemyAttacker', 30, 10, { originalOwner: 'Player_3' }), // id 3
+    ], 128, 128);
+    map.sidesList = {
+      sides: [
+        {
+          dict: {
+            playerName: 'Player_1',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+        {
+          dict: {
+            playerName: 'Player_2',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+        {
+          dict: {
+            playerName: 'Player_3',
+            playerFaction: 'FactionChina',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+      ],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    logic.update(1 / 30);
+    const privateApi = logic as unknown as {
+      applyWeaponDamageAmount: (id: number | null, target: unknown, amount: number, type: string) => void;
+      spawnedEntities: Map<number, unknown>;
+      sideSupplySourceAttackCheckFrame: Map<string, number>;
+    };
+    privateApi.applyWeaponDamageAmount(3, privateApi.spawnedEntities.get(1), 25, 'SMALL_ARMS');
+    privateApi.sideSupplySourceAttackCheckFrame.set('america', 0);
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SUPPLY_SOURCE_ATTACKED',
+      params: ['Player_1'],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SUPPLY_SOURCE_ATTACKED',
+      params: ['Player_2'],
+    })).toBe(false);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SUPPLY_SOURCE_ATTACKED',
+      params: ['America'],
+    })).toBe(true);
+  });
+
   it('evaluates skirmish supply-source-safe with AI safety scan and cached polling', () => {
     const bundle = makeBundle({
       objects: [
