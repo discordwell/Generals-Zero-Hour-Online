@@ -5410,6 +5410,8 @@ export class GameLogicSubsystem implements Subsystem {
   private scriptScoringEnabled = true;
   /** Source parity: ScriptActions::excludePlayerFromScoreScreen per-player hidden set. */
   private readonly sideScoreScreenExcluded = new Set<string>();
+  /** Source parity bridge: mission-attempt counters keyed by side for evaluateMissionAttempts. */
+  private readonly sideMissionAttempts = new Map<string, number>();
   /** Source parity: ScriptEngine::setObjectsShouldReceiveDifficultyBonus. */
   private scriptObjectsReceiveDifficultyBonus = true;
   /** Source parity: Player::m_attackedBy + m_attackedFrame. */
@@ -7480,6 +7482,23 @@ export class GameLogicSubsystem implements Subsystem {
     const level = this.getLocalPlayerRankLevel();
     if (level >= RANK_TABLE.length) return RANK_TABLE[RANK_TABLE.length - 1]?.skillPointsNeeded ?? 0;
     return RANK_TABLE[level]?.skillPointsNeeded ?? 0;
+  }
+
+  setScriptMissionAttempts(side: string, attempts: number): boolean {
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide || !Number.isFinite(attempts)) {
+      return false;
+    }
+    this.sideMissionAttempts.set(normalizedSide, Math.max(0, Math.trunc(attempts)));
+    return true;
+  }
+
+  getScriptMissionAttempts(side: string): number {
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return 0;
+    }
+    return this.sideMissionAttempts.get(normalizedSide) ?? 0;
   }
 
   private resolveLocalPlayerSide(): string | null {
@@ -24301,14 +24320,23 @@ export class GameLogicSubsystem implements Subsystem {
 
   /**
    * Source parity: ScriptConditions::evaluateMissionAttempts.
-   * C++ currently returns false (unimplemented TODO).
    */
-  evaluateScriptMissionAttempts(_filter: {
+  evaluateScriptMissionAttempts(filter: {
     side: string;
     comparison: ScriptComparisonInput;
     attempts: number;
   }): boolean {
-    return false;
+    const selector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const normalizedSide = selector.normalizedSide;
+    if (!normalizedSide) {
+      return false;
+    }
+
+    const missionAttempts = this.getScriptMissionAttempts(normalizedSide);
+    const requiredAttempts = Number.isFinite(filter.attempts)
+      ? Math.max(0, Math.trunc(filter.attempts))
+      : 0;
+    return this.compareScriptCount(filter.comparison, missionAttempts, requiredAttempts);
   }
 
   /**
@@ -59851,6 +59879,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.sideScoreState.clear();
     this.scriptScoringEnabled = true;
     this.sideScoreScreenExcluded.clear();
+    this.sideMissionAttempts.clear();
     this.scriptObjectsReceiveDifficultyBonus = true;
     this.sideAttackedBy.clear();
     this.sideAttackedFrame.clear();

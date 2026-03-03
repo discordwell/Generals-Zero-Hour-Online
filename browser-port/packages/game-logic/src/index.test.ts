@@ -34954,6 +34954,17 @@ describe('Script condition groundwork', () => {
       comparison: 'GREATER_EQUAL',
       attempts: 1,
     })).toBe(false);
+    expect(logic.setScriptMissionAttempts('America', 2)).toBe(true);
+    expect(logic.evaluateScriptMissionAttempts({
+      side: 'America',
+      comparison: 'GREATER_EQUAL',
+      attempts: 2,
+    })).toBe(true);
+    expect(logic.evaluateScriptMissionAttempts({
+      side: 'America',
+      comparison: 'LESS',
+      attempts: 1,
+    })).toBe(false);
     expect(logic.evaluateScriptPlayerDestroyedNOrMoreBuildings({
       side: 'America',
       count: 1,
