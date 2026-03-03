@@ -46313,8 +46313,8 @@ describe('Script condition groundwork', () => {
       dispatchType: 'POSITION',
       commandButtonId: 'Command_PathPowerAllowed',
       targetEntityId: null,
-      targetX: 30,
-      targetZ: 35,
+      targetX: 90,
+      targetZ: 90,
     });
     expect(logic.executeScriptAction({
       actionType: 337, // NAMED_USE_COMMANDBUTTON_ABILITY_USING_WAYPOINT_PATH (raw id)
@@ -46325,8 +46325,8 @@ describe('Script condition groundwork', () => {
       dispatchType: 'POSITION',
       commandButtonId: 'Command_PathPowerAllowed',
       targetEntityId: null,
-      targetX: 30,
-      targetZ: 35,
+      targetX: 90,
+      targetZ: 90,
     });
 
     expect(logic.executeScriptAction({
@@ -46335,8 +46335,8 @@ describe('Script condition groundwork', () => {
     })).toBe(false);
     expect(logic.getEntityState(1)?.lastSpecialPowerDispatch).toMatchObject({
       commandButtonId: 'Command_PathPowerAllowed',
-      targetX: 30,
-      targetZ: 35,
+      targetX: 90,
+      targetZ: 90,
     });
 
     expect(logic.executeScriptAction({

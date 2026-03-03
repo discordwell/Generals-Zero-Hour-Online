@@ -14062,7 +14062,7 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity subset: ScriptActions::doNamedUseCommandButtonAbilityUsingWaypointPath.
    * C++ routes through Object::doCommandButtonUsingWaypoints, which currently supports
    * special powers with CAN_USE_WAYPOINTS. Full waypoint-following special-power locomotion
-   * is pending; this subset targets the closest waypoint on the path.
+   * is pending; this subset targets the terminal waypoint on the resolved path.
    */
   private executeScriptNamedUseCommandButtonAbilityUsingWaypointPath(
     entityId: number,
@@ -14087,7 +14087,7 @@ export class GameLogicSubsystem implements Subsystem {
       return false;
     }
 
-    const closestWaypoint = route[0]!;
+    const destinationWaypoint = route[route.length - 1]!;
     let executed = false;
     for (const commandButtonDef of commandButtons) {
       const commandTypeName = this.normalizeScriptCommandTypeName(
@@ -14122,8 +14122,8 @@ export class GameLogicSubsystem implements Subsystem {
         issuingEntityIds: [sourceEntity.id],
         sourceEntityId: sourceEntity.id,
         targetEntityId: null,
-        targetX: closestWaypoint.x,
-        targetZ: closestWaypoint.z,
+        targetX: destinationWaypoint.x,
+        targetZ: destinationWaypoint.z,
       });
       executed = true;
     }
