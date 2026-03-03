@@ -12947,7 +12947,7 @@ export class GameLogicSubsystem implements Subsystem {
         });
       case 'SKIRMISH_SPECIAL_POWER_READY':
         return this.evaluateScriptSkirmishSpecialPowerIsReady({
-          side: readSide(0, ['side']),
+          side: readString(0, ['side', 'playerName', 'player']),
           specialPowerName: readString(1, ['specialPowerName', 'specialPower']),
           conditionCacheId,
         });
@@ -23653,12 +23653,14 @@ export class GameLogicSubsystem implements Subsystem {
     specialPowerName: string;
     conditionCacheId?: string;
   }): boolean {
-    const cache = this.getOrCreateScriptConditionCache(filter.conditionCacheId);
+    const selector = this.resolveScriptPlayerConditionSelector(filter.side);
+    const normalizedSide = selector.normalizedSide;
+    const targetToken = selector.explicitNamedPlayer ? selector.controllingPlayerToken : null;
+    const cache = targetToken ? null : this.getOrCreateScriptConditionCache(filter.conditionCacheId);
     if (cache && cache.customData === -1 && this.frameCounter < cache.customFrame) {
       return false;
     }
 
-    const normalizedSide = this.normalizeSide(filter.side);
     const normalizedSpecialPowerName = this.normalizeShortcutSpecialPowerName(filter.specialPowerName);
     if (!normalizedSide || !normalizedSpecialPowerName) {
       if (cache) {
@@ -23682,6 +23684,10 @@ export class GameLogicSubsystem implements Subsystem {
     for (const entity of this.spawnedEntities.values()) {
       if (entity.destroyed) continue;
       if (this.normalizeSide(entity.side) !== normalizedSide) continue;
+      if (targetToken) {
+        const ownerToken = this.resolveEntityControllingPlayerTokenForAffiliation(entity);
+        if (!ownerToken || ownerToken !== targetToken) continue;
+      }
       if (entity.objectStatusFlags.has('UNDER_CONSTRUCTION')) continue;
       if (this.isEntityScriptSpecialPowerDisabled(entity)) continue;
 

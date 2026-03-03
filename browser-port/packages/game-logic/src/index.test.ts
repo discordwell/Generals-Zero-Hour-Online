@@ -57810,6 +57810,81 @@ describe('Script condition groundwork', () => {
     })).toBe(true);
   });
 
+  it('scopes skirmish special power ready condition by controlling player identity', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('SuperweaponBuilding', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+          makeBlock('Behavior', 'SpecialPowerCreate ModuleTag_SPC', {}),
+          makeBlock('Behavior', 'OCLSpecialPower ModuleTag_SuperWeapon', {
+            SpecialPowerTemplate: 'SuperweaponParticleCannon',
+          }),
+        ]),
+      ],
+      factions: [{
+        name: 'FactionAmerica',
+        side: 'America',
+        fields: {},
+      }],
+      specialPowers: [
+        makeSpecialPowerDef('SuperweaponParticleCannon', { ReloadTime: 0 }),
+      ],
+    });
+
+    const map = makeMap([
+      makeMapObject('SuperweaponBuilding', 40, 40, { originalOwner: 'Player_1' }),
+      makeMapObject('SuperweaponBuilding', 60, 40, { originalOwner: 'Player_2' }),
+    ], 256, 256);
+    map.sidesList = {
+      sides: [
+        {
+          dict: {
+            playerName: 'Player_1',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+        {
+          dict: {
+            playerName: 'Player_2',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+      ],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(256, 256));
+
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, { objectStatusFlags: Set<string> }>;
+    };
+    privateApi.spawnedEntities.get(2)!.objectStatusFlags.add('DISABLED_EMP');
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_SPECIAL_POWER_READY',
+      params: ['Player_1', 'SuperweaponParticleCannon'],
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_SPECIAL_POWER_READY',
+      params: ['Player_2', 'SuperweaponParticleCannon'],
+    })).toBe(false);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'SKIRMISH_SPECIAL_POWER_READY',
+      params: ['America', 'SuperweaponParticleCannon'],
+    })).toBe(true);
+  });
+
   it('returns false forever for unknown skirmish special power names', () => {
     const bundle = makeBundle({
       objects: [
