@@ -44950,12 +44950,8 @@ export class GameLogicSubsystem implements Subsystem {
           : 0;
       },
       getSupplyTruckScanDistance: (truck: MapEntity, profile: SupplyTruckProfile) => {
-        const side = this.normalizeSide(truck.side);
-        if (!side) {
-          return profile.supplyWarehouseScanDistance;
-        }
         // Source parity: SupplyTruckAIUpdate::getWarehouseScanDistance (AI uses 2x scan range).
-        return this.getSidePlayerType(side) === 'COMPUTER'
+        return this.getControllingPlayerTypeForEntity(truck) === 'COMPUTER'
           ? profile.supplyWarehouseScanDistance * 2
           : profile.supplyWarehouseScanDistance;
       },

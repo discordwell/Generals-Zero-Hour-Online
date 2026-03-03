@@ -11254,6 +11254,78 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     expect(aiTarget).toBe(1);
   });
 
+  it('uses controlling player type for supply-truck warehouse scan bonus', () => {
+    const runScenario = (opts: {
+      americaPlayerType: 'HUMAN' | 'COMPUTER';
+      ownerToken: string;
+      ownerPlayerType: 'HUMAN' | 'COMPUTER';
+    }): number | null => {
+      const logic = new GameLogicSubsystem(new THREE.Scene());
+
+      const warehouseDef = makeObjectDef('SupplyWarehouse', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'SupplyWarehouseDockUpdate ModuleTag_SupplyDock', {
+          StartingBoxes: 10,
+          DeleteWhenEmpty: false,
+        }),
+        makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+      ]);
+
+      const supplyCenterDef = makeObjectDef('SupplyCenter', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'SupplyCenterDockUpdate ModuleTag_CenterDock', {}),
+        makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+      ]);
+
+      const supplyTruckDef = makeObjectDef('SupplyTruck', 'America', ['VEHICLE', 'HARVESTER'], [
+        makeBlock('Behavior', 'SupplyTruckAIUpdate ModuleTag_SupplyTruckAI', {
+          MaxBoxes: 3,
+          SupplyCenterActionDelay: 0,
+          SupplyWarehouseActionDelay: 0,
+          SupplyWarehouseScanDistance: 100,
+        }),
+        makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+      ]);
+
+      const registry = makeRegistry(makeBundle({
+        objects: [warehouseDef, supplyCenterDef, supplyTruckDef],
+      }));
+
+      const map = makeMap([
+        makeMapObject('SupplyWarehouse', 190, 10),
+        makeMapObject('SupplyCenter', 200, 10),
+        makeMapObject('SupplyTruck', 10, 10, { OriginalOwner: opts.ownerToken }),
+      ], 64, 64);
+
+      logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+      logic.submitCommand({ type: 'setSidePlayerType', side: 'America', playerType: opts.americaPlayerType });
+      logic.submitCommand({ type: 'setSidePlayerType', side: opts.ownerToken, playerType: opts.ownerPlayerType });
+      logic.submitCommand({ type: 'setSideCredits', side: 'America', amount: 0 });
+      logic.update(0);
+
+      for (let i = 0; i < 5; i++) {
+        logic.update(1 / 30);
+      }
+
+      const priv = logic as unknown as {
+        supplyTruckStates: Map<number, { targetWarehouseId: number | null }>;
+      };
+      return priv.supplyTruckStates.get(3)?.targetWarehouseId ?? null;
+    };
+
+    // Side says human, owner says AI -> gets doubled scan range and finds warehouse.
+    expect(runScenario({
+      americaPlayerType: 'HUMAN',
+      ownerToken: 'AIPlayer',
+      ownerPlayerType: 'COMPUTER',
+    })).toBe(1);
+
+    // Side says AI, owner says human -> no doubled scan range, warehouse remains out of range.
+    expect(runScenario({
+      americaPlayerType: 'COMPUTER',
+      ownerToken: 'HumanPlayer',
+      ownerPlayerType: 'HUMAN',
+    })).toBeNull();
+  });
+
   it('treats WorkerAIUpdate units as supply gatherers with supply truck delays/scan', () => {
     const logic = new GameLogicSubsystem(new THREE.Scene());
 
