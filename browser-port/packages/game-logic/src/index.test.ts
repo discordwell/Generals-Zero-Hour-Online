@@ -23412,24 +23412,32 @@ describe('DestroyDie', () => {
 });
 
 describe('DamDie', () => {
-  it('extracts DamDie profiles from INI with DieMuxData fields', () => {
+  it('extracts DamDie profiles from INI with DieMuxData fields and OCL name', () => {
     const damDef = makeObjectDef('Dam', 'Civilian', ['STRUCTURE'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
       makeBlock('Behavior', 'DamDie ModuleTag_Dam', {
         DeathTypes: 'CRUSHED',
         RequiredStatus: 'UNDER_CONSTRUCTION',
+        CreationList: 'OCLDamFlood',
       }),
     ]);
     const logic = new GameLogicSubsystem(new THREE.Scene());
     logic.loadMapObjects(makeMap([makeMapObject('Dam', 10, 10)]), makeRegistry(makeBundle({ objects: [damDef] })), makeHeightmap());
 
     const priv = logic as unknown as {
-      spawnedEntities: Map<number, { damDieProfiles: Array<{ deathTypes: Set<string>; requiredStatus: Set<string> }> }>;
+      spawnedEntities: Map<number, {
+        damDieProfiles: Array<{
+          deathTypes: Set<string>;
+          requiredStatus: Set<string>;
+          oclName: string | null;
+        }>;
+      }>;
     };
     const dam = priv.spawnedEntities.get(1)!;
     expect(dam.damDieProfiles.length).toBe(1);
     expect(dam.damDieProfiles[0]!.deathTypes.has('CRUSHED')).toBe(true);
     expect(dam.damDieProfiles[0]!.requiredStatus.has('UNDER_CONSTRUCTION')).toBe(true);
+    expect(dam.damDieProfiles[0]!.oclName).toBe('OCLDamFlood');
   });
 
   it('enables WAVEGUIDE objects when DamDie death filter matches', () => {
@@ -23489,6 +23497,68 @@ describe('DamDie', () => {
     priv2.applyWeaponDamageAmount(null, dam2, 1000, 'EXPLOSION', 'CRUSHED');
     logic2.update(1 / 30);
     expect(waveGuide2.objectStatusFlags.has('DISABLED_DEFAULT')).toBe(false);
+  });
+
+  it('executes DamDie CreationList OCL when death filter matches', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Dam', 'Civilian', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('Behavior', 'DamDie ModuleTag_Dam', {
+            DeathTypes: 'CRUSHED',
+            CreationList: 'OCLDamFlood',
+          }),
+        ]),
+        makeObjectDef('FloodWave', 'Civilian', ['WAVEGUIDE', 'STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+        ]),
+      ],
+    });
+    (bundle as Record<string, unknown>).objectCreationLists = [
+      {
+        name: 'OCLDamFlood',
+        fields: {},
+        blocks: [{
+          type: 'CreateObject',
+          name: 'CreateObject',
+          fields: { ObjectNames: 'FloodWave', Count: '1' },
+          blocks: [],
+        }],
+      },
+    ];
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Dam', 20, 20)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    const priv = logic as unknown as {
+      applyWeaponDamageAmount: (id: number | null, target: unknown, amount: number, type: string, deathType?: string) => void;
+      spawnedEntities: Map<number, unknown>;
+    };
+    const dam = priv.spawnedEntities.get(1)!;
+
+    // Non-matching death type should not trigger OCL.
+    priv.applyWeaponDamageAmount(null, dam, 1000, 'EXPLOSION', 'NORMAL');
+    logic.update(1 / 30);
+    expect(logic.getEntityIdsByTemplate('FloodWave')).toHaveLength(0);
+
+    // Matching death type should spawn FloodWave from DamDie CreationList OCL.
+    const logic2 = new GameLogicSubsystem(new THREE.Scene());
+    logic2.loadMapObjects(
+      makeMap([makeMapObject('Dam', 20, 20)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    const priv2 = logic2 as unknown as {
+      applyWeaponDamageAmount: (id: number | null, target: unknown, amount: number, type: string, deathType?: string) => void;
+      spawnedEntities: Map<number, unknown>;
+    };
+    const dam2 = priv2.spawnedEntities.get(1)!;
+    priv2.applyWeaponDamageAmount(null, dam2, 1000, 'EXPLOSION', 'CRUSHED');
+    logic2.update(1 / 30);
+    expect(logic2.getEntityIdsByTemplate('FloodWave').length).toBeGreaterThanOrEqual(1);
   });
 });
 

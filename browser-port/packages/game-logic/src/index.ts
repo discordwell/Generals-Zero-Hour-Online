@@ -2606,7 +2606,8 @@ interface DestroyDieProfile {
 }
 
 /**
- * Source parity: DamDie — on applicable death, enables all WAVEGUIDE objects.
+ * Source parity: DamDie — on applicable death, enables all WAVEGUIDE objects
+ * and can execute a configured flood OCL.
  * C++ file: DamDie.cpp.
  */
 interface DamDieProfile {
@@ -2614,6 +2615,7 @@ interface DamDieProfile {
   veterancyLevels: Set<string>;
   exemptStatus: Set<string>;
   requiredStatus: Set<string>;
+  oclName: string | null;
 }
 
 /**
@@ -30338,7 +30340,12 @@ export class GameLogicSubsystem implements Subsystem {
       if (block.type.toUpperCase() === 'BEHAVIOR') {
         const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
         if (moduleType === 'DAMDIE') {
-          profiles.push(this.extractDieMuxData(block));
+          const dieMux = this.extractDieMuxData(block);
+          const oclName = readStringField(block.fields, ['CreationList', 'GroundCreationList', 'AirCreationList', 'OCL']);
+          profiles.push({
+            ...dieMux,
+            oclName: oclName ? oclName.trim() : null,
+          });
         }
       }
       for (const child of block.blocks) {
@@ -57268,15 +57275,21 @@ export class GameLogicSubsystem implements Subsystem {
       return;
     }
 
-    let shouldEnableWaveGuides = false;
+    const matchedProfiles: DamDieProfile[] = [];
     for (const profile of entity.damDieProfiles) {
       if (this.isDieModuleApplicable(entity, profile)) {
-        shouldEnableWaveGuides = true;
-        break;
+        matchedProfiles.push(profile);
       }
     }
-    if (!shouldEnableWaveGuides) {
+    if (matchedProfiles.length === 0) {
       return;
+    }
+
+    for (const profile of matchedProfiles) {
+      if (!profile.oclName) {
+        continue;
+      }
+      this.executeOCL(profile.oclName, entity, undefined, entity.x, entity.z);
     }
 
     for (const candidate of this.spawnedEntities.values()) {
