@@ -35058,7 +35058,7 @@ describe('Script condition groundwork', () => {
     expect(defeatLogic.evaluateScriptMultiplayerPlayerDefeat()).toBe(false);
   });
 
-  it('keeps mission-attempt TODO behavior and tracks player-destroyed-N-buildings condition', () => {
+  it('tracks mission-attempt and player-destroyed-N-buildings script conditions', () => {
     const bundle = makeBundle({
       objects: [
         makeObjectDef('TankA', 'America', ['VEHICLE'], [
@@ -35121,6 +35121,78 @@ describe('Script condition groundwork', () => {
       count: 2,
       opponentSide: 'China',
     })).toBe(false);
+  });
+
+  it('scopes mission-attempt conditions to named controlling players when provided', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TankA', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+        ]),
+      ],
+      factions: [
+        { name: 'FactionAmerica', side: 'America', fields: {} },
+      ],
+    });
+
+    const map = makeMap([
+      makeMapObject('TankA', 10, 10, { originalOwner: 'Player_1' }),
+      makeMapObject('TankA', 14, 10, { originalOwner: 'Player_2' }),
+    ], 128, 128);
+    map.sidesList = {
+      sides: [
+        {
+          dict: { playerName: 'Player_1', playerFaction: 'FactionAmerica', skirmishDifficulty: 1 },
+          buildList: [],
+          scripts: { scripts: [], groups: [] },
+        },
+        {
+          dict: { playerName: 'Player_2', playerFaction: 'FactionAmerica', skirmishDifficulty: 1 },
+          buildList: [],
+          scripts: { scripts: [], groups: [] },
+        },
+      ],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
+
+    expect(logic.setScriptMissionAttempts('Player_1', 3)).toBe(true);
+    expect(logic.setScriptMissionAttempts('Player_2', 1)).toBe(true);
+
+    expect(logic.evaluateScriptMissionAttempts({
+      side: 'Player_1',
+      comparison: 'GREATER_EQUAL',
+      attempts: 3,
+    })).toBe(true);
+    expect(logic.evaluateScriptMissionAttempts({
+      side: 'Player_2',
+      comparison: 'GREATER_EQUAL',
+      attempts: 3,
+    })).toBe(false);
+    expect(logic.evaluateScriptMissionAttempts({
+      side: 'America',
+      comparison: 'GREATER_EQUAL',
+      attempts: 1,
+    })).toBe(false);
+
+    expect(logic.setScriptMissionAttempts('America', 2)).toBe(true);
+    expect(logic.evaluateScriptMissionAttempts({
+      side: 'America',
+      comparison: 'EQUAL',
+      attempts: 2,
+    })).toBe(true);
+    expect(logic.evaluateScriptMissionAttempts({
+      side: 'Player_1',
+      comparison: 'EQUAL',
+      attempts: 3,
+    })).toBe(true);
+    expect(logic.evaluateScriptMissionAttempts({
+      side: 'Player_2',
+      comparison: 'EQUAL',
+      attempts: 1,
+    })).toBe(true);
   });
 
   it('scopes player-destroyed-N-buildings condition to named controlling players when provided', () => {

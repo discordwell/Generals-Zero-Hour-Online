@@ -5412,6 +5412,8 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly sideScoreScreenExcluded = new Set<string>();
   /** Source parity bridge: mission-attempt counters keyed by side for evaluateMissionAttempts. */
   private readonly sideMissionAttempts = new Map<string, number>();
+  /** Source parity bridge: optional mission-attempt overrides keyed by controlling-player token. */
+  private readonly controllingPlayerMissionAttempts = new Map<string, number>();
   /** Source parity: ScriptEngine::setObjectsShouldReceiveDifficultyBonus. */
   private scriptObjectsReceiveDifficultyBonus = true;
   /** Source parity: Player::m_attackedBy + m_attackedFrame. */
@@ -7485,16 +7487,29 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   setScriptMissionAttempts(side: string, attempts: number): boolean {
-    const normalizedSide = this.normalizeSide(side);
+    const selector = this.resolveScriptPlayerConditionSelector(side);
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide || !Number.isFinite(attempts)) {
       return false;
     }
-    this.sideMissionAttempts.set(normalizedSide, Math.max(0, Math.trunc(attempts)));
+    const normalizedAttempts = Math.max(0, Math.trunc(attempts));
+    if (selector.explicitNamedPlayer && selector.controllingPlayerToken) {
+      this.controllingPlayerMissionAttempts.set(selector.controllingPlayerToken, normalizedAttempts);
+      return true;
+    }
+    this.sideMissionAttempts.set(normalizedSide, normalizedAttempts);
     return true;
   }
 
   getScriptMissionAttempts(side: string): number {
-    const normalizedSide = this.normalizeSide(side);
+    const selector = this.resolveScriptPlayerConditionSelector(side);
+    if (selector.explicitNamedPlayer && selector.controllingPlayerToken) {
+      const playerAttempts = this.controllingPlayerMissionAttempts.get(selector.controllingPlayerToken);
+      if (playerAttempts !== undefined) {
+        return playerAttempts;
+      }
+    }
+    const normalizedSide = selector.normalizedSide;
     if (!normalizedSide) {
       return 0;
     }
@@ -24348,7 +24363,7 @@ export class GameLogicSubsystem implements Subsystem {
       return false;
     }
 
-    const missionAttempts = this.getScriptMissionAttempts(normalizedSide);
+    const missionAttempts = this.getScriptMissionAttempts(filter.side);
     const requiredAttempts = Number.isFinite(filter.attempts)
       ? Math.max(0, Math.trunc(filter.attempts))
       : 0;
@@ -59908,6 +59923,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.scriptScoringEnabled = true;
     this.sideScoreScreenExcluded.clear();
     this.sideMissionAttempts.clear();
+    this.controllingPlayerMissionAttempts.clear();
     this.scriptObjectsReceiveDifficultyBonus = true;
     this.sideAttackedBy.clear();
     this.sideAttackedFrame.clear();
