@@ -2776,4 +2776,197 @@ describe('dispatchIssuedControlBarCommands', () => {
     ]);
     expect(audioManager.playedEvents).toEqual([]);
   });
+
+  it('executes a representative USA command card flow', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeCommandButtonBlock('Command_USA_ConstructPlant', {
+        Command: 'DOZER_CONSTRUCT',
+        Object: 'RuntimePowerPlant',
+      }),
+      makeCommandButtonBlock('Command_USA_UpgradeRadar', {
+        Command: 'PLAYER_UPGRADE',
+        Upgrade: 'Upgrade_USARadar',
+      }),
+      makeCommandButtonBlock('Command_USA_Scan', {
+        Command: 'SPECIAL_POWER_FROM_COMMAND_CENTER',
+        SpecialPower: 'SpecialPower_USAScan',
+      }),
+    ]);
+
+    const gameLogic = new FakeGameLogic();
+    gameLogic.commandCenterEntityId = 99;
+    const uiRuntime = new FakeUiRuntime();
+    const audioManager = new FakeAudioManager();
+
+    dispatchIssuedControlBarCommands(
+      [
+        makeCommand('Command_USA_ConstructPlant', GUICommandType.GUI_COMMAND_DOZER_CONSTRUCT, {
+          selectedObjectIds: [10],
+          targetPosition: [40, 0, 50],
+          contextPayload: {
+            rotation: 0.5,
+          },
+        }),
+        makeCommand('Command_USA_UpgradeRadar', GUICommandType.GUI_COMMAND_PLAYER_UPGRADE),
+        makeCommand('Command_USA_Scan', GUICommandType.GUI_COMMAND_SPECIAL_POWER_FROM_COMMAND_CENTER, {
+          commandOption: CommandOption.NEED_TARGET_POS,
+          targetPosition: [60, 0, 80],
+        }),
+      ],
+      registry,
+      gameLogic,
+      uiRuntime,
+      audioManager as unknown as AudioManager,
+      0,
+    );
+
+    expect(gameLogic.submittedCommands).toEqual([
+      {
+        type: 'constructBuilding',
+        entityId: 10,
+        templateName: 'RuntimePowerPlant',
+        targetPosition: [40, 0, 50],
+        angle: 0.5,
+        lineEndPosition: null,
+      },
+      {
+        type: 'applyPlayerUpgrade',
+        upgradeName: 'Upgrade_USARadar',
+      },
+      {
+        type: 'issueSpecialPower',
+        commandButtonId: 'Command_USA_Scan',
+        specialPowerName: 'SpecialPower_USAScan',
+        commandOption: CommandOption.NEED_TARGET_POS,
+        issuingEntityIds: [99],
+        sourceEntityId: 99,
+        targetEntityId: null,
+        targetX: 60,
+        targetZ: 80,
+      },
+    ]);
+    expect(uiRuntime.messages).toEqual([]);
+  });
+
+  it('executes a representative China command card flow', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeCommandButtonBlock('Command_China_BuildGattling', {
+        Command: 'UNIT_BUILD',
+        Object: 'RuntimeGattlingTank',
+      }),
+      makeCommandButtonBlock('Command_China_Overcharge', {
+        Command: 'TOGGLE_OVERCHARGE',
+      }),
+      makeCommandButtonBlock('Command_China_FireWeapon', {
+        Command: 'FIRE_WEAPON',
+        WeaponSlot: 'SECONDARY',
+        MaxShotsToFire: '2',
+      }),
+    ]);
+
+    const gameLogic = new FakeGameLogic();
+    const uiRuntime = new FakeUiRuntime();
+    const audioManager = new FakeAudioManager();
+
+    dispatchIssuedControlBarCommands(
+      [
+        makeCommand('Command_China_BuildGattling', GUICommandType.GUI_COMMAND_UNIT_BUILD, {
+          selectedObjectIds: [12],
+        }),
+        makeCommand('Command_China_Overcharge', GUICommandType.GUI_COMMAND_TOGGLE_OVERCHARGE, {
+          selectedObjectIds: [33],
+        }),
+        makeCommand('Command_China_FireWeapon', GUICommandType.GUI_COMMAND_FIRE_WEAPON, {
+          selectedObjectIds: [44],
+          commandOption: CommandOption.NEED_TARGET_POS,
+          targetPosition: [90, 0, 95],
+        }),
+      ],
+      registry,
+      gameLogic,
+      uiRuntime,
+      audioManager as unknown as AudioManager,
+    );
+
+    expect(gameLogic.submittedCommands).toEqual([
+      {
+        type: 'queueUnitProduction',
+        entityId: 12,
+        unitTemplateName: 'RuntimeGattlingTank',
+      },
+      {
+        type: 'toggleOvercharge',
+        entityId: 33,
+      },
+      {
+        type: 'fireWeapon',
+        entityId: 44,
+        weaponSlot: 1,
+        maxShotsToFire: 2,
+        targetObjectId: null,
+        targetPosition: [90, 0, 95],
+      },
+    ]);
+    expect(uiRuntime.messages).toEqual([]);
+  });
+
+  it('executes a representative GLA command card flow', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeCommandButtonBlock('Command_GLA_BuildWorker', {
+        Command: 'UNIT_BUILD',
+        Object: 'RuntimeWorker',
+      }),
+      makeCommandButtonBlock('Command_GLA_Sabotage', {
+        Command: 'SABOTAGE_BUILDING',
+      }),
+      makeCommandButtonBlock('Command_GLA_Sell', {
+        Command: 'SELL',
+      }),
+    ]);
+
+    const gameLogic = new FakeGameLogic();
+    const uiRuntime = new FakeUiRuntime();
+    const audioManager = new FakeAudioManager();
+
+    dispatchIssuedControlBarCommands(
+      [
+        makeCommand('Command_GLA_BuildWorker', GUICommandType.GUI_COMMAND_UNIT_BUILD, {
+          selectedObjectIds: [71],
+        }),
+        makeCommand('Command_GLA_Sabotage', GUICommandType.GUICOMMANDMODE_SABOTAGE_BUILDING, {
+          selectedObjectIds: [72],
+          targetObjectId: 200,
+        }),
+        makeCommand('Command_GLA_Sell', GUICommandType.GUI_COMMAND_SELL, {
+          selectedObjectIds: [73],
+        }),
+      ],
+      registry,
+      gameLogic,
+      uiRuntime,
+      audioManager as unknown as AudioManager,
+    );
+
+    expect(gameLogic.submittedCommands).toEqual([
+      {
+        type: 'queueUnitProduction',
+        entityId: 71,
+        unitTemplateName: 'RuntimeWorker',
+      },
+      {
+        type: 'enterObject',
+        entityId: 72,
+        targetObjectId: 200,
+        action: 'sabotageBuilding',
+      },
+      {
+        type: 'sell',
+        entityId: 73,
+      },
+    ]);
+    expect(uiRuntime.messages).toEqual([]);
+  });
 });

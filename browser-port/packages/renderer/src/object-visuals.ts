@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { AssetManager } from '@generals/assets';
 
-export type RenderableAnimationState = 'IDLE' | 'MOVE' | 'ATTACK' | 'DIE';
+export type RenderableAnimationState = 'IDLE' | 'MOVE' | 'ATTACK' | 'DIE' | 'PRONE';
 
 export interface RenderableEntityState {
   id: number;
@@ -31,6 +31,12 @@ export interface RenderableEntityState {
   isDetected?: boolean;
   scriptFlashCount?: number;
   scriptFlashColor?: number;
+  shroudStatus?: 'CLEAR' | 'FOGGED' | 'SHROUDED';
+  constructionPercent?: number;
+  toppleAngle?: number;
+  toppleDirX?: number;
+  toppleDirZ?: number;
+  turretAngles?: readonly number[];
 }
 
 export interface LoadedModelAsset {
@@ -77,6 +83,7 @@ const CLIP_HINTS_BY_STATE: Record<RenderableAnimationState, string[]> = {
   MOVE: ['Move', 'MoveLoop', 'Run', 'Walk'],
   ATTACK: ['Attack', 'Firing', 'Fire', 'AttackLoop', 'GunAttack'],
   DIE: ['Die', 'Death', 'DeathLoop', 'Dead'],
+  PRONE: ['Prone', 'ProneIdle', 'Crawl', 'CrawlLoop'],
 };
 
 export class ObjectVisualManager {
@@ -90,6 +97,10 @@ export class ObjectVisualManager {
   private readonly modelCache = new Map<string, LoadedModelAsset>();
   private readonly modelLoadPromises = new Map<string, Promise<LoadedModelAsset>>();
   private readonly unresolvedEntityIds = new Set<number>();
+  private readonly tempYawQuaternion = new THREE.Quaternion();
+  private readonly tempToppleQuaternion = new THREE.Quaternion();
+  private readonly tempToppleDirection = new THREE.Vector3();
+  private readonly tempToppleAxis = new THREE.Vector3();
   private viewGuardBandBiasX = 0;
   private viewGuardBandBiasY = 0;
 
@@ -126,6 +137,7 @@ export class ObjectVisualManager {
       visual.requestedAnimationState = state.animationState;
 
       this.syncVisualTransform(visual, state);
+      this.syncShroudVisibility(visual, state);
       this.syncVisualAsset(visual, state);
       this.syncHealthBar(visual, state);
       this.syncSelectionRing(visual, state);
@@ -236,7 +248,32 @@ export class ObjectVisualManager {
 
   private syncVisualTransform(visual: VisualAssetState, state: RenderableEntityState): void {
     visual.root.position.set(state.x, state.y, state.z);
-    visual.root.rotation.y = state.rotationY;
+    const yaw = Number.isFinite(state.rotationY) ? state.rotationY : 0;
+    this.tempYawQuaternion.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
+
+    const toppleAngle = Number.isFinite(state.toppleAngle) ? Math.max(0, state.toppleAngle ?? 0) : 0;
+    if (toppleAngle > 0.0001) {
+      const toppleDirX = Number.isFinite(state.toppleDirX) ? state.toppleDirX ?? 0 : 0;
+      const toppleDirZ = Number.isFinite(state.toppleDirZ) ? state.toppleDirZ ?? 0 : 0;
+      this.tempToppleDirection.set(toppleDirX, 0, toppleDirZ);
+      if (this.tempToppleDirection.lengthSq() < 1e-8) {
+        this.tempToppleDirection.set(0, 0, 1);
+      } else {
+        this.tempToppleDirection.normalize();
+      }
+      // Topple axis is orthogonal to fall direction and world up.
+      this.tempToppleAxis.set(this.tempToppleDirection.z, 0, -this.tempToppleDirection.x).normalize();
+      this.tempToppleQuaternion.setFromAxisAngle(this.tempToppleAxis, toppleAngle);
+      visual.root.quaternion.copy(this.tempYawQuaternion).multiply(this.tempToppleQuaternion);
+      return;
+    }
+
+    visual.root.quaternion.copy(this.tempYawQuaternion);
+  }
+
+  private syncShroudVisibility(visual: VisualAssetState, state: RenderableEntityState): void {
+    const shroudStatus = state.shroudStatus ?? 'CLEAR';
+    visual.root.visible = shroudStatus !== 'SHROUDED';
   }
 
   pickObjectByInput(
@@ -399,6 +436,7 @@ export class ObjectVisualManager {
       MOVE: [...CLIP_HINTS_BY_STATE.MOVE],
       ATTACK: [...CLIP_HINTS_BY_STATE.ATTACK],
       DIE: [...CLIP_HINTS_BY_STATE.DIE],
+      PRONE: [...CLIP_HINTS_BY_STATE.PRONE],
     };
 
     if (!renderAnimationStateClips) {
@@ -989,11 +1027,15 @@ export class ObjectVisualManager {
   private applyGuardBandFrustumPolicy(root: THREE.Object3D): void {
     const disableFrustumCulling = this.isGuardBandBiasActive();
     root.traverse((child) => {
-      const renderable = child as THREE.Mesh | THREE.Line | THREE.Points | THREE.Sprite;
-      if (!renderable.isMesh && !renderable.isLine && !renderable.isPoints && !renderable.isSprite) {
+      if (
+        !(child instanceof THREE.Mesh)
+        && !(child instanceof THREE.Line)
+        && !(child instanceof THREE.Points)
+        && !(child instanceof THREE.Sprite)
+      ) {
         return;
       }
-      renderable.frustumCulled = !disableFrustumCulling;
+      child.frustumCulled = !disableFrustumCulling;
     });
   }
 

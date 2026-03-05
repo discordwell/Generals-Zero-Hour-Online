@@ -123,8 +123,9 @@ function registerCustomAudioEventInfoIfNeeded(
       nextInfo.priority = mappedPriority;
     }
   }
-  if (Number.isFinite(customAudioDefinition.loopCountOverride)) {
-    nextInfo.loopCount = Math.max(0, Math.trunc(customAudioDefinition.loopCountOverride));
+  const loopCountOverride = customAudioDefinition.loopCountOverride;
+  if (typeof loopCountOverride === 'number' && Number.isFinite(loopCountOverride)) {
+    nextInfo.loopCount = Math.max(0, Math.trunc(loopCountOverride));
   }
   audioManager.addAudioEventInfo(nextInfo);
 }

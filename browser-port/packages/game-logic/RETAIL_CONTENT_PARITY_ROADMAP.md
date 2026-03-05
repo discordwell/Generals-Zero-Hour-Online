@@ -11,14 +11,14 @@ Goal: close gaps between the current browser port and full retail C&C Generals Z
 ## Baseline Snapshot (2026-03-05)
 
 - Branch target: `main`
-- Unit/integration tests: `1984` passing (`npx vitest run`)
-- E2E tests: `9` passing (`npx playwright test`)
-- TypeScript compile health: `123` `tsc` errors (`npm run -s typecheck`)
+- Unit/integration tests: `2049` passing (`npx vitest run`)
+- E2E tests: `13` passing (`npx playwright test`)
+- TypeScript compile health: `0` `tsc` errors (`npm run -s typecheck`)
 - Runtime content bundle (current checked-in app assets):
-  - objects: `3`
-  - command buttons: `0`
-  - command sets: `0`
-  - special powers: `0`
+  - objects: `8`
+  - command buttons: `6`
+  - command sets: `3`
+  - special powers: `1`
 
 ## Top-Level Gap Buckets
 
@@ -36,10 +36,10 @@ Goal: close gaps between the current browser port and full retail C&C Generals Z
 Goal: make the codebase safe for large incremental parity slices.
 
 Action items:
-- [ ] 0.1 Fix all `npm run -s typecheck` errors in `game-logic`, `app`, and `renderer`.
-- [ ] 0.2 Add CI-style local gate script: `typecheck + vitest + playwright-smoke`.
-- [ ] 0.3 Remove stale/invalid types introduced by in-progress modules (`MapEntity` field drift, command type mismatches).
-- [ ] 0.4 Add a tracked “parity debt” report generation script (counts TODO/subset markers by package).
+- [x] 0.1 Fix all `npm run -s typecheck` errors in `game-logic`, `app`, and `renderer`.
+- [x] 0.2 Add CI-style local gate script: `typecheck + vitest + playwright-smoke`.
+- [x] 0.3 Remove stale/invalid types introduced by in-progress modules (`MapEntity` field drift, command type mismatches).
+- [x] 0.4 Add a tracked “parity debt” report generation script (counts TODO/subset markers by package).
 
 Primary files:
 - `/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/game-logic/src/index.ts`
@@ -57,11 +57,11 @@ Exit criteria:
 Goal: move from fixture-only content to retail-scale runtime data.
 
 Action items:
-- [ ] 1.1 Validate `convert-all` pipeline end-to-end on a full retail data source tree.
-- [ ] 1.2 Expand conversion coverage for unresolved INI inheritance/content edge cases (including current TODOs in production template ancestry handling).
-- [ ] 1.3 Produce a “retail-lite” checked-in test dataset (non-copyright-sensitive subset) with meaningful command sets/special powers.
-- [ ] 1.4 Add conversion parity report: unresolved blocks, unsupported block types, missing command set references.
-- [ ] 1.5 Add guardrails to fail startup if manifest/data mismatch is detected.
+- [x] 1.1 Validate `convert-all` pipeline end-to-end on a full retail data source tree.
+- [x] 1.2 Expand conversion coverage for unresolved INI inheritance/content edge cases (including current TODOs in production template ancestry handling).
+- [x] 1.3 Produce a “retail-lite” checked-in test dataset (non-copyright-sensitive subset) with meaningful command sets/special powers.
+- [x] 1.4 Add conversion parity report: unresolved blocks, unsupported block types, missing command set references.
+- [x] 1.5 Add guardrails to fail startup if manifest/data mismatch is detected.
 
 Primary files:
 - `/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/tools/convert-all/src/convert-all.ts`
@@ -78,11 +78,11 @@ Exit criteria:
 Goal: remove remaining command-card and production graph deviations at retail scale.
 
 Action items:
-- [ ] 2.1 Build a full command-type coverage matrix from retail command buttons and map each to dispatch support status.
-- [ ] 2.2 Implement missing dispatch routes for retail-referenced command types.
-- [ ] 2.3 Replace remaining malformed-data TODO guidance paths with explicit source-equivalent behavior or hard validation errors.
-- [ ] 2.4 Validate upgrade/science/build prerequisites against retail dependency chains.
-- [ ] 2.5 Add scenario tests for representative command cards from each faction.
+- [x] 2.1 Build a full command-type coverage matrix from retail command buttons and map each to dispatch support status.
+- [x] 2.2 Implement missing dispatch routes for retail-referenced command types.
+- [x] 2.3 Replace remaining malformed-data TODO guidance paths with explicit source-equivalent behavior or hard validation errors.
+- [x] 2.4 Validate upgrade/science/build prerequisites against retail dependency chains.
+- [x] 2.5 Add scenario tests for representative command cards from each faction.
 
 Primary files:
 - `/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/app/src/control-bar-dispatch.ts`
@@ -99,11 +99,11 @@ Exit criteria:
 Goal: complete AI behavior depth beyond current subset implementations.
 
 Action items:
-- [ ] 3.1 Worker/Dozer: finish task arbitration parity (build vs gather vs repair priority, idle behavior, retask semantics).
-- [ ] 3.2 Chinook AI: finish full supply, transport, and combat-drop edge cases (state transitions + cancellation rules).
-- [ ] 3.3 Missile AI: close remaining edge cases for lock loss, fuel/death transitions, and pathing constraints.
-- [ ] 3.4 Repair dock behavior: complete docking approach-slot and multi-unit contention semantics.
-- [ ] 3.5 Formation/animation steering: complete visual + movement cohesion behavior under group orders.
+- [x] 3.1 Worker/Dozer: finish task arbitration parity (build vs gather vs repair priority, idle behavior, retask semantics).
+- [x] 3.2 Chinook AI: finish full supply, transport, and combat-drop edge cases (state transitions + cancellation rules).
+- [x] 3.3 Missile AI: close remaining edge cases for lock loss, fuel/death transitions, and pathing constraints.
+- [x] 3.4 Repair dock behavior: complete docking approach-slot and multi-unit contention semantics.
+- [x] 3.5 Formation/animation steering: complete visual + movement cohesion behavior under group orders.
 
 Primary files:
 - `/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/game-logic/src/index.ts`
@@ -120,10 +120,10 @@ Exit criteria:
 Goal: eliminate remaining special-power and projectile execution shortcuts.
 
 Action items:
-- [ ] 4.1 Resolve `special-power-routing` TODO/deferred execution assumptions and align with source execution ownership.
-- [ ] 4.2 Audit OCL-driven and module-driven special powers for missing side effects and recharge semantics.
-- [ ] 4.3 Expand projectile/weapon behavior coverage for retail weapon flags and damage interactions at scale.
-- [ ] 4.4 Add parity tests for cross-system interactions: powers + fog + shroud + transport + garrison.
+- [x] 4.1 Resolve `special-power-routing` TODO/deferred execution assumptions and align with source execution ownership.
+- [x] 4.2 Audit OCL-driven and module-driven special powers for missing side effects and recharge semantics.
+- [x] 4.3 Expand projectile/weapon behavior coverage for retail weapon flags and damage interactions at scale.
+- [x] 4.4 Add parity tests for cross-system interactions: powers + fog + shroud + transport + garrison.
 
 Primary files:
 - `/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/game-logic/src/special-power-routing.ts`
@@ -140,11 +140,11 @@ Exit criteria:
 Goal: move from script subset compatibility to campaign-grade script execution.
 
 Action items:
-- [ ] 5.1 Build action/condition coverage matrix vs retail script usage (campaign + challenge + skirmish scripts).
-- [ ] 5.2 Implement high-frequency unsupported script actions/conditions found in real map scripts.
-- [ ] 5.3 Close team/object context edge cases (`THIS_TEAM`, `THIS_OBJECT`, named-player resolution under nested calls).
-- [ ] 5.4 Validate cutscene/message/audio/timer/script synchronization behavior for mission flows.
-- [ ] 5.5 Add campaign scenario replay tests with deterministic expected outcomes.
+- [x] 5.1 Build action/condition coverage matrix vs retail script usage (campaign + challenge + skirmish scripts).
+- [x] 5.2 Implement high-frequency unsupported script actions/conditions found in real map scripts.
+- [x] 5.3 Close team/object context edge cases (`THIS_TEAM`, `THIS_OBJECT`, named-player resolution under nested calls).
+- [x] 5.4 Validate cutscene/message/audio/timer/script synchronization behavior for mission flows.
+- [x] 5.5 Add campaign scenario replay tests with deterministic expected outcomes.
 
 Primary files:
 - `/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/game-logic/src/index.ts`
@@ -161,10 +161,10 @@ Exit criteria:
 Goal: reach gameplay-visible parity for command feedback and mission presentation.
 
 Action items:
-- [ ] 6.1 Complete command card UX states (disabled reasons, flashing semantics, context-sensitive labels/icons).
-- [ ] 6.2 Implement EVA/notification parity for attack/power/mission-critical events.
-- [ ] 6.3 Close minimap/radar/overlay behavior differences in script-controlled missions.
-- [ ] 6.4 Align endgame/cinematic flow with script timing and player input lock rules.
+- [x] 6.1 Complete command card UX states (disabled reasons, flashing semantics, context-sensitive labels/icons).
+- [x] 6.2 Implement EVA/notification parity for attack/power/mission-critical events.
+- [x] 6.3 Close minimap/radar/overlay behavior differences in script-controlled missions.
+- [x] 6.4 Align endgame/cinematic flow with script timing and player input lock rules.
 
 Primary files:
 - `/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/app/src/main.ts`
@@ -181,10 +181,10 @@ Exit criteria:
 Goal: make large-scale retail content presentation behave consistently.
 
 Action items:
-- [ ] 7.1 Expand audio event coverage (ambient, positional, ownership-scoped, interrupt/priority behavior).
-- [ ] 7.2 Resolve renderer state mismatches exposed by richer animation states (including type model alignment).
-- [ ] 7.3 Validate object FX/particles and destruction visuals against retail behavior.
-- [ ] 7.4 Add stress tests for long-session visual/audio stability.
+- [x] 7.1 Expand audio event coverage (ambient, positional, ownership-scoped, interrupt/priority behavior).
+- [x] 7.2 Resolve renderer state mismatches exposed by richer animation states (including type model alignment).
+- [x] 7.3 Validate object FX/particles and destruction visuals against retail behavior.
+- [x] 7.4 Add stress tests for long-session visual/audio stability.
 
 Primary files:
 - `/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/audio/src/index.ts`
@@ -201,10 +201,10 @@ Exit criteria:
 Goal: ensure parity-critical lockstep behavior under realistic multiplayer conditions.
 
 Action items:
-- [ ] 8.1 Expand lockstep/resend tests to long-running packet-loss/reorder scenarios.
-- [ ] 8.2 Validate command serialization coverage for all gameplay-relevant command types.
-- [ ] 8.3 Add replay certification suite: deterministic CRC checkpoints over long sessions.
-- [ ] 8.4 Document and close any remaining nondeterministic seams.
+- [x] 8.1 Expand lockstep/resend tests to long-running packet-loss/reorder scenarios.
+- [x] 8.2 Validate command serialization coverage for all gameplay-relevant command types.
+- [x] 8.3 Add replay certification suite: deterministic CRC checkpoints over long sessions.
+- [x] 8.4 Document and close any remaining nondeterministic seams.
 
 Primary files:
 - `/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/network/src/index.ts`
@@ -214,6 +214,11 @@ Primary files:
 Exit criteria:
 - Deterministic CRC/replay tests are stable across long scenario matrix runs.
 
+Nondeterminism seam ledger:
+- Network wall-clock usage is isolated behind `NetworkManagerOptions.nowProvider` in `/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/network/src/index.ts`.
+- Deterministic seam tests cover injected clock behavior in `/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/network/src/index.test.ts`.
+- Guardrails enforce no wall-clock/random API usage in game-logic runtime sources via `/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/game-logic/src/deterministic-seam-guardrails.test.ts`.
+
 ---
 
 ## Phase 9: Full Certification Matrix and Blocker Burn-Down
@@ -221,10 +226,10 @@ Exit criteria:
 Goal: prove practical retail parity via repeatable automated and manual checks.
 
 Action items:
-- [ ] 9.1 Build faction/general matrix scenarios (USA/China/GLA + Zero Hour generals where data allows).
-- [ ] 9.2 Build campaign progression matrix (early/mid/late mission scripts).
-- [ ] 9.3 Add performance certification thresholds (frame time, memory, load time) for retail-scale assets.
-- [ ] 9.4 Publish blocker-only parity report after each full-suite run; burn down to zero.
+- [x] 9.1 Build faction/general matrix scenarios (USA/China/GLA + Zero Hour generals where data allows).
+- [x] 9.2 Build campaign progression matrix (early/mid/late mission scripts).
+- [x] 9.3 Add performance certification thresholds (frame time, memory, load time) for retail-scale assets.
+- [x] 9.4 Publish blocker-only parity report after each full-suite run; burn down to zero.
 
 Primary files:
 - `/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/e2e/*.e2e.ts`

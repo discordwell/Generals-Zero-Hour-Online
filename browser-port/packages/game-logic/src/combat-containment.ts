@@ -1,5 +1,15 @@
 interface ContainProfileLike {
-  moduleType: 'OPEN' | 'TRANSPORT' | 'OVERLORD' | 'HELIX' | 'GARRISON' | 'TUNNEL';
+  moduleType:
+    | 'OPEN'
+    | 'TRANSPORT'
+    | 'OVERLORD'
+    | 'HELIX'
+    | 'PARACHUTE'
+    | 'GARRISON'
+    | 'TUNNEL'
+    | 'CAVE'
+    | 'HEAL'
+    | 'INTERNET_HACK';
   passengersAllowedToFire: boolean;
   portableStructureTemplateNames?: readonly string[];
 }
@@ -95,7 +105,8 @@ export function isPassengerAllowedToFireFromContainingObject<TEntity extends Con
       return false;
     }
 
-    return true;
+    // PARACHUTE/CAVE/HEAL/INTERNET_HACK do not permit passenger firing.
+    return false;
   };
 
   return isAllowed(container);

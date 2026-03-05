@@ -1685,24 +1685,37 @@ export class AudioManager implements Subsystem {
       return false;
     }
 
-    if ((soundTypeMask & SoundType.ST_PLAYER) !== 0) {
-      return event.playerIndex === this.localPlayerIndex;
-    }
-
     const relationship = this.resolvePlayerRelationship(
       event.playerIndex,
       this.localPlayerIndex,
     );
+
+    // Source behavior: player ownership filters are OR'ed; composite bitmasks can
+    // target multiple audiences (for example, PLAYER|ENEMIES).
+    let hasScopedAudience = false;
+    if ((soundTypeMask & SoundType.ST_PLAYER) !== 0) {
+      hasScopedAudience = true;
+      if (event.playerIndex === this.localPlayerIndex) {
+        return true;
+      }
+    }
+
     if ((soundTypeMask & SoundType.ST_ALLIES) !== 0) {
+      hasScopedAudience = true;
       // Source behavior: ALLIES does not include the local player themselves.
-      return event.playerIndex !== this.localPlayerIndex && relationship === 'allies';
+      if (event.playerIndex !== this.localPlayerIndex && relationship === 'allies') {
+        return true;
+      }
     }
 
     if ((soundTypeMask & SoundType.ST_ENEMIES) !== 0) {
-      return relationship === 'enemies';
+      hasScopedAudience = true;
+      if (relationship === 'enemies') {
+        return true;
+      }
     }
 
-    return false;
+    return hasScopedAudience ? false : true;
   }
 
   private resolvePlayerRelationship(

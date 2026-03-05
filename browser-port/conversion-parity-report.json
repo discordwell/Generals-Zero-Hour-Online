@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-03-05T04:02:18.654Z",
+  "bundlePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/app/public/assets/data/ini-bundle.json",
+  "summary": {
+    "objects": 8,
+    "commandButtons": 6,
+    "commandSets": 3,
+    "upgrades": 1,
+    "specialPowers": 1,
+    "sciences": 1,
+    "unsupportedBlockTypes": 0,
+    "unresolvedRegistryErrors": 0,
+    "missingReferences": 0
+  },
+  "unresolvedRegistryErrors": [],
+  "unsupportedBlockTypes": [],
+  "missingReferences": []
+}

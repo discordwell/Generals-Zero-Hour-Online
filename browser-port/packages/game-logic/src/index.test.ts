@@ -9828,6 +9828,132 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     });
   });
 
+  it('blocks special-power dispatch while the source is enclosed in a transport container', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('SpecialPowerSource', 'America', ['INFANTRY'], [
+          makeBlock('Behavior', 'SpecialPowerModule SourceNoTarget', {
+            SpecialPowerTemplate: 'SpecialPowerNoTarget',
+          }),
+        ]),
+        makeObjectDef('TroopTransport', 'America', ['VEHICLE', 'TRANSPORT'], [
+          makeBlock('Behavior', 'TransportContain ModuleTag_Transport', {
+            ContainMax: 4,
+          }),
+        ]),
+      ],
+      specialPowers: [
+        makeSpecialPowerDef('SpecialPowerNoTarget', { ReloadTime: 0 }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('SpecialPowerSource', 10, 10), makeMapObject('TroopTransport', 12, 10)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+
+    (logic as unknown as {
+      spawnedEntities: Map<number, { transportContainerId: number | null }>;
+    }).spawnedEntities.get(1)!.transportContainerId = 2;
+
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_NO_TARGET',
+      specialPowerName: 'SpecialPowerNoTarget',
+      commandOption: 0,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: null,
+      targetX: null,
+      targetZ: null,
+    });
+    logic.update(0);
+
+    expect(logic.getEntityState(1)?.lastSpecialPowerDispatch).toBeNull();
+  });
+
+  it('blocks object-target special powers against enclosed contained targets', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('SpecialPowerSource', 'America', ['INFANTRY'], [
+          makeBlock('Behavior', 'DefectorSpecialPower SourceObject', {
+            SpecialPowerTemplate: 'SpecialPowerDefector',
+          }),
+        ]),
+        makeObjectDef('EnemyPassenger', 'China', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+        makeObjectDef('EnemyTransport', 'China', ['VEHICLE', 'TRANSPORT'], [
+          makeBlock('Behavior', 'TransportContain ModuleTag_Transport', {
+            ContainMax: 4,
+          }),
+        ]),
+        makeObjectDef('EnemyOpenTarget', 'China', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+      specialPowers: [
+        makeSpecialPowerDef('SpecialPowerDefector', {
+          ReloadTime: 0,
+          Enum: 'SPECIAL_DEFECTOR',
+        }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('SpecialPowerSource', 10, 10), // id 1
+        makeMapObject('EnemyPassenger', 24, 10),     // id 2
+        makeMapObject('EnemyTransport', 26, 10),     // id 3
+        makeMapObject('EnemyOpenTarget', 28, 10),    // id 4
+      ], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+    logic.submitCommand({ type: 'setSidePlayerType', side: 'America', playerType: 'COMPUTER' });
+    logic.update(0);
+
+    (logic as unknown as {
+      spawnedEntities: Map<number, { transportContainerId: number | null }>;
+    }).spawnedEntities.get(2)!.transportContainerId = 3;
+
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_OBJECT_CONTAINED',
+      specialPowerName: 'SpecialPowerDefector',
+      commandOption: 0x1,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: 2,
+      targetX: null,
+      targetZ: null,
+    });
+    logic.update(0);
+    expect(logic.getEntityState(1)?.lastSpecialPowerDispatch).toBeNull();
+
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_OBJECT_OPEN',
+      specialPowerName: 'SpecialPowerDefector',
+      commandOption: 0x1,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: 4,
+      targetX: null,
+      targetZ: null,
+    });
+    logic.update(0);
+    expect(logic.getEntityState(1)?.lastSpecialPowerDispatch).toMatchObject({
+      dispatchType: 'OBJECT',
+      targetEntityId: 4,
+    });
+  });
+
   it('blocks human object-target special powers on shrouded targets for non-script command sources', () => {
     const bundle = makeBundle({
       objects: [
@@ -10901,6 +11027,11 @@ describe('GameLogicSubsystem combat + upgrades', () => {
 
     const sourceState = logic.getEntityState(1);
     expect(sourceState?.lastSpecialPowerDispatch).toBeNull();
+
+    const priv = logic as unknown as {
+      shortcutSpecialPowerSourceByName: Map<string, ReadonlyMap<number, number>>;
+    };
+    expect(priv.shortcutSpecialPowerSourceByName.has('SPECIALPOWERMISSING')).toBe(false);
   });
 
   it('runs supply chain economy: truck gathers from warehouse and deposits at supply center', () => {
@@ -11957,6 +12088,73 @@ describe('GameLogicSubsystem combat + upgrades', () => {
 
     expect(baselineCredits).toBeGreaterThanOrEqual(300);
     expect(withPassengerCredits).toBe(0);
+  });
+
+  it('does not auto-takeoff from healing while passenger entry is pending', () => {
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+
+    const chinookDef = makeObjectDef('SupplyChinook', 'America', ['AIRCRAFT', 'TRANSPORT'], [
+      makeBlock('Behavior', 'ChinookAIUpdate ModuleTag_ChinookAI', {
+        NumRopes: 1,
+        PerRopeDelayMin: 0,
+        PerRopeDelayMax: 0,
+        WaitForRopesToDrop: false,
+        MinDropHeight: 0,
+      }),
+      makeBlock('Behavior', 'TransportContain ModuleTag_Contain', {
+        Slots: 5,
+        InitialPayload: 0,
+      }),
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+    ]);
+
+    const passengerDef = makeObjectDef('Passenger', 'America', ['INFANTRY'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+    ], {
+      TransportSlotCount: 1,
+    });
+
+    const airfieldDef = makeObjectDef('Airfield', 'America', ['STRUCTURE'], [
+      makeBlock('Behavior', 'ParkingPlaceBehavior ModuleTag_Parking', {
+        NumRows: 1,
+        NumCols: 1,
+        HasRunways: 'Yes',
+      }),
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+    ]);
+
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('SupplyChinook', 8, 8), // id 1
+        makeMapObject('Passenger', 80, 8),    // id 2 (far, so enter stays pending)
+        makeMapObject('Airfield', 8, 8),      // id 3
+      ], 128, 128),
+      makeRegistry(makeBundle({
+        objects: [chinookDef, passengerDef, airfieldDef],
+      })),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        health: number;
+        maxHealth: number;
+        chinookFlightStatus: string | null;
+        chinookHealingAirfieldId: number;
+      }>;
+      pendingTransportActions: Map<number, number>;
+    };
+
+    const chinook = priv.spawnedEntities.get(1)!;
+    chinook.chinookFlightStatus = 'LANDED';
+    chinook.chinookHealingAirfieldId = 3;
+    chinook.health = chinook.maxHealth;
+
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    logic.update(1 / 30);
+
+    expect(priv.pendingTransportActions.get(2)).toBe(1);
+    expect(priv.spawnedEntities.get(1)?.chinookFlightStatus).toBe('LANDED');
   });
 
   it('clears Chinook carried supply boxes when combat drop begins', () => {
@@ -15194,6 +15392,178 @@ describe('construction progress', () => {
     expect(buildingFinal!.constructionPercent).toBe(-1);
     expect(buildingFinal!.health).toBe(500);
   });
+
+  it('retasks build -> repair by releasing construction ownership', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('USADozer', 'America', ['VEHICLE', 'DOZER'], [
+          makeBlock('Behavior', 'DozerAIUpdate ModuleTag_DozerAI', {
+            RepairHealthPercentPerSecond: '20%',
+            BoredTime: 999999,
+            BoredRange: 300,
+          }),
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ], { GeometryMajorRadius: 5, GeometryMinorRadius: 5 }),
+        makeObjectDef('USABarracks', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 250 }),
+        ], { GeometryMajorRadius: 10, GeometryMinorRadius: 10 }),
+        makeObjectDef('USAPowerPlant', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ], { BuildCost: 300, BuildTime: 2, GeometryMajorRadius: 10, GeometryMinorRadius: 10 }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('USADozer', 20, 20), // id 1
+        makeMapObject('USABarracks', 24, 20), // id 2
+      ], 96, 96),
+      makeRegistry(bundle),
+      makeHeightmap(96, 96),
+    );
+    logic.submitCommand({ type: 'setSideCredits', side: 'America', amount: 1000 });
+    logic.update(0);
+
+    const priv = logic as unknown as {
+      pendingConstructionActions: Map<number, number>;
+      pendingRepairActions: Map<number, number>;
+      spawnedEntities: Map<number, { builderId: number }>;
+    };
+
+    logic.submitCommand({
+      type: 'constructBuilding',
+      entityId: 1,
+      templateName: 'USAPowerPlant',
+      targetPosition: [60, 0, 60],
+      angle: 0,
+      lineEndPosition: null,
+    });
+    logic.update(1 / 30);
+
+    const constructedId = priv.pendingConstructionActions.get(1);
+    expect(constructedId).toBeDefined();
+    expect(priv.spawnedEntities.get(constructedId!)?.builderId).toBe(1);
+
+    logic.submitCommand({ type: 'repairBuilding', entityId: 1, targetBuildingId: 2 });
+    logic.update(0);
+
+    expect(priv.pendingConstructionActions.has(1)).toBe(false);
+    expect(priv.spawnedEntities.get(constructedId!)?.builderId).toBe(0);
+    expect(priv.pendingRepairActions.get(1)).toBe(2);
+  });
+
+  it('retasks repair -> build by clearing pending repair target', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('USADozer', 'America', ['VEHICLE', 'DOZER'], [
+          makeBlock('Behavior', 'DozerAIUpdate ModuleTag_DozerAI', {
+            RepairHealthPercentPerSecond: '20%',
+            BoredTime: 999999,
+            BoredRange: 300,
+          }),
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ], { GeometryMajorRadius: 5, GeometryMinorRadius: 5 }),
+        makeObjectDef('USABarracks', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 250 }),
+        ], { GeometryMajorRadius: 10, GeometryMinorRadius: 10 }),
+        makeObjectDef('USAPowerPlant', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ], { BuildCost: 300, BuildTime: 2, GeometryMajorRadius: 10, GeometryMinorRadius: 10 }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('USADozer', 20, 20), // id 1
+        makeMapObject('USABarracks', 24, 20), // id 2
+      ], 96, 96),
+      makeRegistry(bundle),
+      makeHeightmap(96, 96),
+    );
+    logic.submitCommand({ type: 'setSideCredits', side: 'America', amount: 1000 });
+    logic.update(0);
+
+    const priv = logic as unknown as {
+      pendingConstructionActions: Map<number, number>;
+      pendingRepairActions: Map<number, number>;
+    };
+
+    logic.submitCommand({ type: 'repairBuilding', entityId: 1, targetBuildingId: 2 });
+    logic.update(0);
+    expect(priv.pendingRepairActions.get(1)).toBe(2);
+
+    logic.submitCommand({
+      type: 'constructBuilding',
+      entityId: 1,
+      templateName: 'USAPowerPlant',
+      targetPosition: [60, 0, 60],
+      angle: 0,
+      lineEndPosition: null,
+    });
+    logic.update(0);
+
+    expect(priv.pendingRepairActions.has(1)).toBe(false);
+    expect(priv.pendingConstructionActions.has(1)).toBe(true);
+  });
+
+  it('retasks build -> build by clearing previous builder assignment', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('USADozer', 'America', ['VEHICLE', 'DOZER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ], { GeometryMajorRadius: 5, GeometryMinorRadius: 5 }),
+        makeObjectDef('USAPowerPlant', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ], { BuildCost: 300, BuildTime: 3, GeometryMajorRadius: 10, GeometryMinorRadius: 10 }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('USADozer', 20, 20)], 96, 96),
+      makeRegistry(bundle),
+      makeHeightmap(96, 96),
+    );
+    logic.submitCommand({ type: 'setSideCredits', side: 'America', amount: 1000 });
+    logic.update(0);
+
+    const priv = logic as unknown as {
+      pendingConstructionActions: Map<number, number>;
+      spawnedEntities: Map<number, { builderId: number }>;
+    };
+
+    logic.submitCommand({
+      type: 'constructBuilding',
+      entityId: 1,
+      templateName: 'USAPowerPlant',
+      targetPosition: [32, 0, 20],
+      angle: 0,
+      lineEndPosition: null,
+    });
+    logic.update(0);
+
+    const firstBuildingId = priv.pendingConstructionActions.get(1);
+    expect(firstBuildingId).toBeDefined();
+    expect(priv.spawnedEntities.get(firstBuildingId!)?.builderId).toBe(1);
+
+    logic.submitCommand({
+      type: 'constructBuilding',
+      entityId: 1,
+      templateName: 'USAPowerPlant',
+      targetPosition: [60, 0, 60],
+      angle: 0,
+      lineEndPosition: null,
+    });
+    logic.update(0);
+
+    const secondBuildingId = priv.pendingConstructionActions.get(1);
+    expect(secondBuildingId).toBeDefined();
+    expect(secondBuildingId).not.toBe(firstBuildingId);
+    expect(priv.spawnedEntities.get(firstBuildingId!)?.builderId).toBe(0);
+    expect(priv.spawnedEntities.get(secondBuildingId!)?.builderId).toBe(1);
+  });
 });
 
 describe('slow death behavior', () => {
@@ -15682,6 +16052,137 @@ describe('fire weapon when dead behavior', () => {
     const bystanderAfter = logic.getEntityState(2);
     expect(bystanderAfter).not.toBeNull();
     expect(bystanderAfter!.health).toBeLessThan(200);
+  });
+
+  it('applies NOT_AIRBORNE filtering for death-weapon temporary radius damage', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Bomber', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Behavior', 'FireWeaponWhenDeadBehavior ModuleTag_FWWD', {
+            DeathWeapon: 'DeathExplosion',
+            StartsActive: 'Yes',
+          }),
+        ]),
+        makeObjectDef('GroundTarget', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ]),
+        makeObjectDef('AirTarget', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ]),
+        makeObjectDef('Attacker', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'KillGun'] }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('KillGun', {
+          AttackRange: 220,
+          PrimaryDamage: 500,
+          PrimaryDamageRadius: 0,
+          WeaponSpeed: 999999,
+          DelayBetweenShots: 5000,
+        }),
+        makeWeaponDef('DeathExplosion', {
+          AttackRange: 10,
+          PrimaryDamage: 50,
+          PrimaryDamageRadius: 100,
+          RadiusDamageAffects: 'ENEMIES NOT_AIRBORNE',
+          WeaponSpeed: 999999,
+          DelayBetweenShots: 1000,
+        }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Bomber', 50, 50),      // id 1
+        makeMapObject('GroundTarget', 52, 50), // id 2
+        makeMapObject('AirTarget', 52, 52),    // id 3
+        makeMapObject('Attacker', 20, 50),     // id 4
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    const entities = (logic as unknown as { spawnedEntities: Map<number, { y: number }> }).spawnedEntities;
+    const airTarget = entities.get(3)!;
+    airTarget.y += 20; // significantly above terrain (> 9.0)
+
+    logic.submitCommand({ type: 'attackEntity', entityId: 4, targetEntityId: 1 });
+    for (let i = 0; i < 10; i += 1) {
+      logic.update(1 / 30);
+    }
+
+    expect(logic.getEntityState(1)).toBeNull();
+    expect(logic.getEntityState(2)?.health).toBeLessThan(200);
+    expect(logic.getEntityState(3)?.health).toBe(200);
+  });
+
+  it('applies NOT_SIMILAR filtering for death-weapon temporary radius damage', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Bomber', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Behavior', 'FireWeaponWhenDeadBehavior ModuleTag_FWWD', {
+            DeathWeapon: 'DeathExplosion',
+            StartsActive: 'Yes',
+          }),
+        ]),
+        makeObjectDef('EnemyTarget', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ]),
+        makeObjectDef('Attacker', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'KillGun'] }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('KillGun', {
+          AttackRange: 220,
+          PrimaryDamage: 500,
+          PrimaryDamageRadius: 0,
+          WeaponSpeed: 999999,
+          DelayBetweenShots: 5000,
+        }),
+        makeWeaponDef('DeathExplosion', {
+          AttackRange: 10,
+          PrimaryDamage: 50,
+          PrimaryDamageRadius: 100,
+          RadiusDamageAffects: 'ALLIES ENEMIES NOT_SIMILAR',
+          WeaponSpeed: 999999,
+          DelayBetweenShots: 1000,
+        }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Bomber', 50, 50),      // id 1 (dies, source template)
+        makeMapObject('Bomber', 52, 50),      // id 2 (ally same template)
+        makeMapObject('EnemyTarget', 54, 50), // id 3 (enemy)
+        makeMapObject('Attacker', 20, 50),    // id 4 (kills id 1)
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    logic.submitCommand({ type: 'attackEntity', entityId: 4, targetEntityId: 1 });
+    for (let i = 0; i < 10; i += 1) {
+      logic.update(1 / 30);
+    }
+
+    expect(logic.getEntityState(1)).toBeNull();
+    // Same-template ally should be skipped by NOT_SIMILAR.
+    expect(logic.getEntityState(2)?.health).toBe(100);
+    // Enemy should still take damage.
+    expect(logic.getEntityState(3)?.health).toBeLessThan(200);
   });
 });
 
@@ -33254,6 +33755,86 @@ describe('SpecialPowerCreate', () => {
     const sharedReady = priv.sharedShortcutSpecialPowerReadyFrames.get('GENERALSPOWER_PALADIN');
     expect(sharedReady).toBe(0);
   });
+
+  it('keeps StartsPaused special power countdown frozen until UnpauseSpecialPowerUpgrade', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('PausedPowerBuilding', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1500, InitialHealth: 1500 }),
+          makeBlock('Behavior', 'SpecialPowerCreate ModuleTag_SPC', {}),
+          makeBlock('Behavior', 'OCLSpecialPower ModuleTag_PausedPower', {
+            SpecialPowerTemplate: 'PausedPower',
+            StartsPaused: 'Yes',
+          }),
+          makeBlock('Behavior', 'UnpauseSpecialPowerUpgrade ModuleTag_Unpause', {
+            TriggeredBy: 'Upgrade_UnpausePower',
+            SpecialPowerTemplate: 'PausedPower',
+          }),
+        ]),
+      ],
+      upgrades: [
+        makeUpgradeDef('Upgrade_UnpausePower', { Type: 'OBJECT', BuildTime: 0.1, BuildCost: 0 }),
+      ],
+      specialPowers: [
+        makeSpecialPowerDef('PausedPower', { ReloadTime: 3000 }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('PausedPowerBuilding', 100, 100)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+
+    const attemptDispatch = (): void => {
+      logic.submitCommand({
+        type: 'issueSpecialPower',
+        commandSource: 'PLAYER',
+        commandButtonId: 'CMD_PAUSED_POWER',
+        specialPowerName: 'PausedPower',
+        commandOption: 0,
+        issuingEntityIds: [1],
+        sourceEntityId: 1,
+        targetEntityId: null,
+        targetX: null,
+        targetZ: null,
+      });
+      logic.update(0);
+    };
+
+    // StartsPaused blocks dispatch even after elapsed frames.
+    attemptDispatch();
+    expect(logic.getEntityState(1)?.lastSpecialPowerDispatch).toBeNull();
+    for (let i = 0; i < 120; i += 1) {
+      logic.update(1 / 30);
+    }
+    attemptDispatch();
+    expect(logic.getEntityState(1)?.lastSpecialPowerDispatch).toBeNull();
+
+    // Unpause keeps elapsed paused time on the cooldown (does not become instantly ready).
+    logic.submitCommand({ type: 'applyUpgrade', entityId: 1, upgradeName: 'Upgrade_UnpausePower' });
+    logic.update(0);
+    attemptDispatch();
+    expect(logic.getEntityState(1)?.lastSpecialPowerDispatch).toBeNull();
+
+    // ReloadTime 3000ms = 90 frames. After unpause, the power should still be unavailable
+    // for a significant chunk of time (not instantly ready).
+    for (let i = 0; i < 60; i += 1) {
+      logic.update(1 / 30);
+    }
+    attemptDispatch();
+    expect(logic.getEntityState(1)?.lastSpecialPowerDispatch).toBeNull();
+
+    for (let i = 0; i < 60; i += 1) {
+      logic.update(1 / 30);
+    }
+    attemptDispatch();
+    expect(logic.getEntityState(1)?.lastSpecialPowerDispatch).toMatchObject({
+      specialPowerTemplateName: 'PAUSEDPOWER',
+      dispatchType: 'NO_TARGET',
+    });
+  });
 });
 
 describe('onStructureConstructionComplete parity hooks', () => {
@@ -33956,6 +34537,140 @@ describe('Map script execution', () => {
         frame: 0,
       },
     ]);
+  });
+
+  it('preserves THIS_TEAM context when CALL_SUBROUTINE executes a map subroutine', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('ScriptUnit', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+      factions: [{
+        name: 'FactionAmerica',
+        side: 'America',
+        fields: {},
+      }],
+    });
+
+    const map = makeMap([makeMapObject('ScriptUnit', 20, 20)], 64, 64);
+    map.sidesList = {
+      sides: [{
+        dict: {
+          playerName: 'Player_1',
+          playerFaction: 'FactionAmerica',
+        },
+        buildList: [],
+        scripts: {
+          scripts: [{
+            name: 'SetContextTeamState',
+            comment: '',
+            conditionComment: '',
+            actionComment: '',
+            active: true,
+            oneShot: false,
+            easy: true,
+            normal: true,
+            hard: true,
+            subroutine: true,
+            delayEvaluationSeconds: 0,
+            conditions: [{
+              conditions: [{
+                conditionType: 3, // CONDITION_TRUE
+                params: [],
+              }],
+            }],
+            actions: [{
+              actionType: 37, // TEAM_SET_STATE
+              params: [
+                { type: 3, intValue: 0, realValue: 0, stringValue: '<This Team>' },
+                { type: 10, intValue: 0, realValue: 0, stringValue: 'PATROL' },
+              ],
+            }],
+            falseActions: [],
+          }],
+          groups: [],
+        },
+      }],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+
+    expect(logic.setScriptTeamMembers('AlphaTeam', [1])).toBe(true);
+    expect(logic.setScriptConditionTeamContext('AlphaTeam')).toBe(true);
+    expect(logic.executeScriptAction({
+      actionType: 10, // CALL_SUBROUTINE
+      params: ['SetContextTeamState'],
+    })).toBe(true);
+    expect(logic.evaluateScriptTeamStateIs({ teamName: 'AlphaTeam', stateName: 'PATROL' })).toBe(true);
+  });
+
+  it('preserves THIS_OBJECT context when CALL_SUBROUTINE executes a map subroutine', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('ScriptUnit', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+      factions: [{
+        name: 'FactionAmerica',
+        side: 'America',
+        fields: {},
+      }],
+    });
+
+    const map = makeMap([makeMapObject('ScriptUnit', 20, 20)], 64, 64);
+    map.sidesList = {
+      sides: [{
+        dict: {
+          playerName: 'Player_1',
+          playerFaction: 'FactionAmerica',
+        },
+        buildList: [],
+        scripts: {
+          scripts: [{
+            name: 'DeleteContextObject',
+            comment: '',
+            conditionComment: '',
+            actionComment: '',
+            active: true,
+            oneShot: false,
+            easy: true,
+            normal: true,
+            hard: true,
+            subroutine: true,
+            delayEvaluationSeconds: 0,
+            conditions: [{
+              conditions: [{
+                conditionType: 3, // CONDITION_TRUE
+                params: [],
+              }],
+            }],
+            actions: [{
+              actionType: 71, // NAMED_DELETE
+              params: [
+                { type: 4, intValue: 0, realValue: 0, stringValue: '<This Object>' },
+              ],
+            }],
+            falseActions: [],
+          }],
+          groups: [],
+        },
+      }],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+
+    expect(logic.setScriptConditionEntityContext(1)).toBe(true);
+    expect(logic.executeScriptAction({
+      actionType: 10, // CALL_SUBROUTINE
+      params: ['DeleteContextObject'],
+    })).toBe(true);
+    expect(logic.getEntityState(1)?.alive).toBe(false);
   });
 
   it('iterates non-singleton condition-team instances for one-shot map script execution', () => {
@@ -35689,6 +36404,98 @@ describe('Script condition groundwork', () => {
     expect(logic.evaluateScriptAudioHasCompleted({ audioName: 'AudioTimed' })).toBe(false);
 
     logic.update(1 / 30); // frame 6 (200ms ~= 6 frames)
+    expect(logic.evaluateScriptAudioHasCompleted({ audioName: 'AudioTimed' })).toBe(true);
+  });
+
+  it('clears stale video/speech/audio/music completion events when playback restarts', () => {
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([], 128, 128),
+      makeRegistry(makeBundle({ objects: [] })),
+      makeHeightmap(128, 128),
+    );
+
+    logic.notifyScriptVideoCompleted('IntroMovie');
+    logic.notifyScriptSpeechCompleted('SpeechLineA');
+    logic.notifyScriptAudioCompleted('AudioCueA');
+    logic.notifyScriptMusicCompleted('TrackA', 2);
+
+    expect(logic.executeScriptAction({
+      actionType: 'MOVIE_PLAY_FULLSCREEN',
+      params: ['IntroMovie'],
+    })).toBe(true);
+    expect(logic.executeScriptAction({
+      actionType: 'SPEECH_PLAY',
+      params: ['SpeechLineA', false],
+    })).toBe(true);
+    expect(logic.executeScriptAction({
+      actionType: 'PLAY_SOUND_EFFECT',
+      params: ['AudioCueA'],
+    })).toBe(true);
+    expect(logic.executeScriptAction({
+      actionType: 'MUSIC_SET_TRACK',
+      params: ['TrackA', false, false],
+    })).toBe(true);
+
+    expect(logic.evaluateScriptVideoHasCompleted({ videoName: 'IntroMovie' })).toBe(false);
+    expect(logic.evaluateScriptSpeechHasCompleted({ speechName: 'SpeechLineA' })).toBe(false);
+    expect(logic.evaluateScriptAudioHasCompleted({ audioName: 'AudioCueA' })).toBe(false);
+    expect(logic.evaluateScriptMusicHasCompleted({ musicName: 'TrackA', index: 2 })).toBe(false);
+
+    logic.notifyScriptVideoCompleted('IntroMovie');
+    logic.notifyScriptSpeechCompleted('SpeechLineA');
+    logic.notifyScriptAudioCompleted('AudioCueA');
+    logic.notifyScriptMusicCompleted('TrackA', 2);
+
+    expect(logic.evaluateScriptVideoHasCompleted({ videoName: 'IntroMovie' })).toBe(true);
+    expect(logic.evaluateScriptSpeechHasCompleted({ speechName: 'SpeechLineA' })).toBe(true);
+    expect(logic.evaluateScriptAudioHasCompleted({ audioName: 'AudioCueA' })).toBe(true);
+    expect(logic.evaluateScriptMusicHasCompleted({ musicName: 'TrackA', index: 2 })).toBe(true);
+  });
+
+  it('restarts timed speech/audio completion deadlines when playback restarts', () => {
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([], 128, 128),
+      makeRegistry(makeBundle({ objects: [] })),
+      makeHeightmap(128, 128),
+    );
+
+    expect(logic.setScriptAudioLengthMs('SpeechTimed', 1000)).toBe(true); // ~30 frames
+    expect(logic.setScriptAudioLengthMs('AudioTimed', 1000)).toBe(true); // ~30 frames
+
+    // Prime initial completion deadlines from frame 0.
+    expect(logic.evaluateScriptSpeechHasCompleted({ speechName: 'SpeechTimed' })).toBe(false);
+    expect(logic.evaluateScriptAudioHasCompleted({ audioName: 'AudioTimed' })).toBe(false);
+
+    for (let frame = 0; frame < 20; frame += 1) {
+      logic.update(1 / 30);
+    }
+
+    // Replaying should clear stale completion state and restart both deadlines.
+    expect(logic.executeScriptAction({
+      actionType: 'SPEECH_PLAY',
+      params: ['SpeechTimed', false],
+    })).toBe(true);
+    expect(logic.executeScriptAction({
+      actionType: 'PLAY_SOUND_EFFECT',
+      params: ['AudioTimed'],
+    })).toBe(true);
+
+    // First post-replay query sets the new completion deadlines from the replay frame.
+    expect(logic.evaluateScriptSpeechHasCompleted({ speechName: 'SpeechTimed' })).toBe(false);
+    expect(logic.evaluateScriptAudioHasCompleted({ audioName: 'AudioTimed' })).toBe(false);
+
+    for (let frame = 0; frame < 11; frame += 1) {
+      logic.update(1 / 30);
+    }
+    expect(logic.evaluateScriptSpeechHasCompleted({ speechName: 'SpeechTimed' })).toBe(false);
+    expect(logic.evaluateScriptAudioHasCompleted({ audioName: 'AudioTimed' })).toBe(false);
+
+    for (let frame = 0; frame < 19; frame += 1) {
+      logic.update(1 / 30);
+    }
+    expect(logic.evaluateScriptSpeechHasCompleted({ speechName: 'SpeechTimed' })).toBe(true);
     expect(logic.evaluateScriptAudioHasCompleted({ audioName: 'AudioTimed' })).toBe(true);
   });
 
@@ -48097,6 +48904,98 @@ describe('Script condition groundwork', () => {
     })).toBe(true);
     expect(logic.getProductionState(1)?.queueEntryCount).toBe(1);
     expect(logic.getSideCredits('America')).toBe(350);
+  });
+
+  it('executes PURCHASE_SCIENCE script command-buttons for no-target invocation', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('ScriptScienceCenter', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+        ], {
+          CommandSet: 'ScriptScienceCommandSet',
+        }),
+        makeObjectDef('ScriptTarget', 'China', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+      commandButtons: [
+        makeCommandButtonDef('Command_PurchaseScriptScience', {
+          Command: 'PURCHASE_SCIENCE',
+          Science: ['SCIENCE_ALPHA', 'SCIENCE_BETA'],
+        }),
+      ],
+      commandSets: [
+        makeCommandSetDef('ScriptScienceCommandSet', {
+          1: 'Command_PurchaseScriptScience',
+        }),
+      ],
+      sciences: [
+        makeScienceDef('SCIENCE_ALPHA', {
+          SciencePurchasePointCost: 1,
+          IsGrantable: 'Yes',
+        }),
+        makeScienceDef('SCIENCE_BETA', {
+          SciencePurchasePointCost: 2,
+          PrerequisiteSciences: 'SCIENCE_ALPHA',
+          IsGrantable: 'Yes',
+        }),
+      ],
+    });
+
+    const map = makeMap([
+      makeMapObject('ScriptScienceCenter', 10, 10), // id 1
+      makeMapObject('ScriptTarget', 30, 10), // id 2
+    ], 128, 128);
+    map.waypoints = {
+      nodes: [
+        {
+          id: 1,
+          name: 'ScienceWaypoint',
+          position: { x: 48, y: 48, z: 0 },
+        },
+      ],
+      links: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      map,
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const privateApi = logic as unknown as {
+      getSideRankStateMap: (side: string) => { sciencePurchasePoints: number };
+    };
+    privateApi.getSideRankStateMap('america').sciencePurchasePoints = 3;
+
+    expect(logic.executeScriptAction({
+      actionType: 403, // NAMED_USE_COMMANDBUTTON_ABILITY_ON_NAMED
+      params: [1, 'Command_PurchaseScriptScience', 2],
+    })).toBe(false);
+    expect(logic.executeScriptAction({
+      actionType: 404, // NAMED_USE_COMMANDBUTTON_ABILITY_AT_WAYPOINT
+      params: [1, 'Command_PurchaseScriptScience', 'ScienceWaypoint'],
+    })).toBe(false);
+
+    expect(logic.executeScriptAction({
+      actionType: 445, // NAMED_USE_COMMANDBUTTON_ABILITY
+      params: [1, 'Command_PurchaseScriptScience'],
+    })).toBe(true);
+    expect(logic.getSideScienceState('America').acquired).toEqual(['SCIENCE_ALPHA']);
+    expect(privateApi.getSideRankStateMap('america').sciencePurchasePoints).toBe(2);
+
+    expect(logic.executeScriptAction({
+      actionType: 445, // NAMED_USE_COMMANDBUTTON_ABILITY
+      params: [1, 'Command_PurchaseScriptScience'],
+    })).toBe(true);
+    expect(logic.getSideScienceState('America').acquired).toEqual(['SCIENCE_ALPHA', 'SCIENCE_BETA']);
+    expect(privateApi.getSideRankStateMap('america').sciencePurchasePoints).toBe(0);
+
+    expect(logic.executeScriptAction({
+      actionType: 445, // NAMED_USE_COMMANDBUTTON_ABILITY
+      params: [1, 'Command_PurchaseScriptScience'],
+    })).toBe(false);
   });
 
   it('executes SET_RALLY_POINT script command-buttons for object/position targets only', () => {

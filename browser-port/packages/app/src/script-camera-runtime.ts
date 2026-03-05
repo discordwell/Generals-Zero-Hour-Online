@@ -96,7 +96,7 @@ export interface ScriptCameraRuntimeGameLogic {
   getScriptCameraLookTowardObjectState?(): ScriptCameraLookTowardObjectState | null;
   getScriptCameraLookTowardWaypointState?(): ScriptCameraLookTowardWaypointState | null;
   getEntityWorldPosition?(entityId: number): readonly [number, number, number] | null;
-  getRenderableEntityStates?(): readonly Array<{
+  getRenderableEntityStates?(): ReadonlyArray<{
     id: number;
     templateName: string;
     x: number;
@@ -737,13 +737,6 @@ export function createScriptCameraRuntimeBridge(
       easeIn: clamp01(easeIn),
       easeOut: clamp01(easeOut),
     };
-  };
-
-  const holdMovementForFrames = (currentLogicFrame: number, durationFrames: number): void => {
-    if (durationFrames < 1) {
-      return;
-    }
-    nonVisualMovementEndFrame = Math.max(nonVisualMovementEndFrame, currentLogicFrame + durationFrames - 1);
   };
 
   const applyActiveTransitions = (currentLogicFrame: number): void => {

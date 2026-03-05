@@ -1,0 +1,97 @@
+{
+  "generatedAt": "2026-03-05T01:53:31.293Z",
+  "rootDir": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port",
+  "packagesDir": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages",
+  "packages": [
+    {
+      "packageName": "app",
+      "sourceFileCount": 41,
+      "todoMarkers": 6,
+      "subsetMarkers": 0,
+      "totalMarkers": 6
+    },
+    {
+      "packageName": "assets",
+      "sourceFileCount": 11,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
+      "packageName": "audio",
+      "sourceFileCount": 2,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
+      "packageName": "core",
+      "sourceFileCount": 24,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
+      "packageName": "engine",
+      "sourceFileCount": 38,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
+      "packageName": "game-logic",
+      "sourceFileCount": 30,
+      "todoMarkers": 7,
+      "subsetMarkers": 245,
+      "totalMarkers": 252
+    },
+    {
+      "packageName": "ini-data",
+      "sourceFileCount": 3,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
+      "packageName": "input",
+      "sourceFileCount": 5,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
+      "packageName": "network",
+      "sourceFileCount": 2,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
+      "packageName": "renderer",
+      "sourceFileCount": 4,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
+      "packageName": "terrain",
+      "sourceFileCount": 11,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
+      "packageName": "ui",
+      "sourceFileCount": 3,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    }
+  ],
+  "totals": {
+    "sourceFileCount": 174,
+    "todoMarkers": 13,
+    "subsetMarkers": 245,
+    "totalMarkers": 258
+  }
+}

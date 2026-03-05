@@ -168,6 +168,7 @@ export class NetworkManager implements Subsystem {
   private lastPacketRouterQuerySender = -1;
   private lastPacketRouterAckSender = -1;
   private packetRouterEvents: PacketRouterEvents;
+  private readonly nowProvider: () => number;
 
   constructor(options: NetworkManagerOptions = {}) {
     this.deterministicState.onFrameHashMismatch(() => {
@@ -212,6 +213,10 @@ export class NetworkManager implements Subsystem {
       this.deterministicState.setGameLogicCrcSectionWriters(options.gameLogicCrcSectionWriters);
     }
     this.packetRouterEvents = options.packetRouterEvents ?? {};
+    this.nowProvider = options.nowProvider
+      ?? (typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? () => performance.now()
+        : () => Date.now());
   }
 
   init(): void {
@@ -223,7 +228,7 @@ export class NetworkManager implements Subsystem {
       initialExpectedNetworkFrame: 0,
       initialPendingFrameNotices: 0,
     });
-    this.lastUpdateMs = performance.now();
+    this.lastUpdateMs = this.now();
     this.lastPingMs = this.lastUpdateMs;
     this.pingFrame = 0;
     this.pingsSent = 0;
@@ -259,7 +264,7 @@ export class NetworkManager implements Subsystem {
       initialPendingFrameNotices: 0,
     });
     this.disconnectedPlayers.clear();
-    this.lastUpdateMs = performance.now();
+    this.lastUpdateMs = this.now();
     this.lastPingMs = this.lastUpdateMs;
     this.pingFrame = 0;
     this.pingsSent = 0;
@@ -500,7 +505,7 @@ export class NetworkManager implements Subsystem {
       return;
     }
 
-    const now = performance.now();
+    const now = this.now();
     this.updateDisconnectTimeoutState(now);
     if (now - this.lastUpdateMs >= 1000 / this.frameRate) {
       this.lastUpdateMs = now;
@@ -717,7 +722,7 @@ export class NetworkManager implements Subsystem {
     directSend.call(transport, message, relayMask);
   }
 
-  private tickPings(now = performance.now()): void {
+  private tickPings(now = this.now()): void {
     if (!this.started || !this.networkOn) {
       return;
     }
@@ -1381,7 +1386,7 @@ export class NetworkManager implements Subsystem {
     this.frameQueueReady.clear();
     this.pendingFrameNotices = 0;
     this.disconnectedPlayers.clear();
-    this.lastPingMs = performance.now();
+    this.lastPingMs = this.now();
     this.pingFrame = this.getGameFrameValue();
     this.pingsSent = this.pingRepeats;
     this.pingsReceived = this.pingRepeats;
@@ -2192,7 +2197,7 @@ export class NetworkManager implements Subsystem {
       return;
     }
 
-    this.frameState.resetPacketRouterTimeout(performance.now());
+    this.frameState.resetPacketRouterTimeout(this.now());
     // Source parity: DisconnectManager::processPacketRouterAck sets
     // disconnect state to SCREENON until allCommandsReady flips it off.
     this.frameState.markDisconnectScreenOn();
@@ -2246,7 +2251,7 @@ export class NetworkManager implements Subsystem {
       this.frameState.resetDisconnectPlayerTimeoutForPlayer(
         safeSender,
         this.localPlayerID,
-        performance.now(),
+        this.now(),
       );
       return;
     }
@@ -2630,6 +2635,11 @@ export class NetworkManager implements Subsystem {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
   }
 
+  private now(): number {
+    const value = this.nowProvider();
+    return Number.isFinite(value) ? value : 0;
+  }
+
 }
 
 let networkClientSingleton: NetworkManager | null = null;
@@ -2658,6 +2668,7 @@ export interface NetworkManagerOptions {
   disconnectPlayerTimeoutMs?: number;
   disconnectScreenNotifyTimeoutMs?: number;
   disconnectKeepAliveIntervalMs?: number;
+  nowProvider?: () => number;
   gameLogicCrcSectionWriters?: DeterministicGameLogicCrcSectionWriters<unknown>;
   packetRouterEvents?: PacketRouterEvents;
 }

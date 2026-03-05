@@ -91,4 +91,28 @@ describe('script cinematic runtime bridge', () => {
     bridge.syncAfterSimulationStep(70);
     expect(view.clearCount).toBe(1);
   });
+
+  it('clears cinematic text immediately when script cinematic state is reset', () => {
+    const gameLogic = new RecordingGameLogic();
+    const view = new RecordingView();
+    const bridge = createScriptCinematicRuntimeBridge({ gameLogic, view });
+
+    gameLogic.state.cinematicTextState = {
+      text: 'Temporary text',
+      fontType: 'Narrator',
+      timeSeconds: 4,
+      durationFrames: 120,
+      frame: 10,
+    };
+
+    bridge.syncAfterSimulationStep(10);
+    expect(view.shownTexts).toEqual([
+      { text: 'Temporary text', fontType: 'Narrator' },
+    ]);
+    expect(view.clearCount).toBe(0);
+
+    gameLogic.state.cinematicTextState = null;
+    bridge.syncAfterSimulationStep(11);
+    expect(view.clearCount).toBe(1);
+  });
 });

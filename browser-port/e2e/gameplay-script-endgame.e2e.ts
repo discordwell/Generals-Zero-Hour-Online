@@ -31,10 +31,19 @@ test('script actions drive radar visibility and endgame presentation', async ({ 
 
   await page.waitForFunction(() => {
     const hook = (window as Record<string, any>)['__GENERALS_E2E__'];
-    return hook.getGameEndState() !== null;
+    const endState = typeof hook?.getGameEndState === 'function'
+      ? hook.getGameEndState()
+      : null;
+    if (!endState || typeof endState !== 'object') {
+      return false;
+    }
+    return (endState as { status?: string }).status === 'VICTORY';
   }, { timeout: 15_000 });
   const endState = await page.evaluate(() => {
     const hook = (window as Record<string, any>)['__GENERALS_E2E__'];
+    if (typeof hook?.getGameEndState !== 'function') {
+      return null;
+    }
     return hook.getGameEndState() as { status?: string } | null;
   });
   expect(endState?.status).toBe('VICTORY');

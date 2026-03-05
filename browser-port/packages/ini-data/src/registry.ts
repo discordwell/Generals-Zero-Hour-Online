@@ -27,6 +27,8 @@ export interface WeaponDef {
   parent?: string;
   fields: Record<string, IniValue>;
   blocks: IniBlock[];
+  resolved?: boolean;
+  hasUnresolvedParent?: boolean;
 }
 
 export interface ArmorDef {
@@ -46,6 +48,8 @@ export interface SpecialPowerDef {
   parent?: string;
   fields: Record<string, IniValue>;
   blocks: IniBlock[];
+  resolved?: boolean;
+  hasUnresolvedParent?: boolean;
 }
 
 export interface ObjectCreationListDef {
@@ -53,6 +57,8 @@ export interface ObjectCreationListDef {
   parent?: string;
   fields: Record<string, IniValue>;
   blocks: IniBlock[];
+  resolved?: boolean;
+  hasUnresolvedParent?: boolean;
 }
 
 export interface ScienceDef {
@@ -240,6 +246,21 @@ export class IniDataRegistry {
         this.resolveObjectChain(name, new Set());
       }
     }
+    for (const [name, weapon] of this.weapons) {
+      if (weapon.parent && !weapon.resolved) {
+        this.resolveWeaponChain(name, new Set());
+      }
+    }
+    for (const [name, specialPower] of this.specialPowers) {
+      if (specialPower.parent && !specialPower.resolved) {
+        this.resolveSpecialPowerChain(name, new Set());
+      }
+    }
+    for (const [name, objectCreationList] of this.objectCreationLists) {
+      if (objectCreationList.parent && !objectCreationList.resolved) {
+        this.resolveObjectCreationListChain(name, new Set());
+      }
+    }
   }
 
   /** Load prebuilt registry state from an INI data bundle. */
@@ -268,6 +289,8 @@ export class IniDataRegistry {
         fields: { ...object.fields },
         blocks: [...object.blocks],
         kindOf: object.kindOf ? [...object.kindOf] : undefined,
+        resolved: object.resolved ?? !object.parent,
+        hasUnresolvedParent: object.hasUnresolvedParent ?? false,
       });
     }
 
@@ -276,6 +299,8 @@ export class IniDataRegistry {
         ...weapon,
         fields: { ...weapon.fields },
         blocks: [...weapon.blocks],
+        resolved: weapon.resolved ?? !weapon.parent,
+        hasUnresolvedParent: weapon.hasUnresolvedParent ?? false,
       });
     }
 
@@ -304,6 +329,8 @@ export class IniDataRegistry {
         ...specialPower,
         fields: { ...specialPower.fields },
         blocks: [...specialPower.blocks],
+        resolved: specialPower.resolved ?? !specialPower.parent,
+        hasUnresolvedParent: specialPower.hasUnresolvedParent ?? false,
       });
     }
     for (const objectCreationList of bundle.objectCreationLists ?? []) {
@@ -311,6 +338,8 @@ export class IniDataRegistry {
         ...objectCreationList,
         fields: { ...objectCreationList.fields },
         blocks: [...objectCreationList.blocks],
+        resolved: objectCreationList.resolved ?? !objectCreationList.parent,
+        hasUnresolvedParent: objectCreationList.hasUnresolvedParent ?? false,
       });
     }
     for (const locomotor of bundle.locomotors ?? []) {
@@ -574,6 +603,7 @@ export class IniDataRegistry {
           parent: block.parent,
           fields: block.fields,
           blocks: block.blocks,
+          resolved: !block.parent,
         });
         break;
 
@@ -648,6 +678,7 @@ export class IniDataRegistry {
           parent: block.parent,
           fields: block.fields,
           blocks: block.blocks,
+          resolved: !block.parent,
         });
         break;
 
@@ -657,6 +688,7 @@ export class IniDataRegistry {
           parent: block.parent,
           fields: block.fields,
           blocks: block.blocks,
+          resolved: !block.parent,
         });
         break;
 
@@ -813,59 +845,156 @@ export class IniDataRegistry {
   }
 
   private resolveObjectChain(name: string, visited: Set<string>): ObjectDef | undefined {
-    const obj = this.objects.get(name);
-    if (!obj) return undefined;
-    if (obj.resolved) return obj;
+    return this.resolveInheritedDefinitionChain(
+      this.objects,
+      'Object',
+      name,
+      visited,
+      (obj, parent) => {
+        // Inherit side and kindOf if not set
+        if (!obj.side && parent.side) {
+          obj.side = parent.side;
+        }
+        if (!obj.kindOf && parent.kindOf) {
+          obj.kindOf = parent.kindOf;
+        }
+      },
+    );
+  }
 
-    if (visited.has(name)) {
-      obj.hasUnresolvedParent = true;
-      obj.resolved = true;
+  private resolveWeaponChain(name: string, visited: Set<string>): WeaponDef | undefined {
+    return this.resolveInheritedDefinitionChain(this.weapons, 'Weapon', name, visited);
+  }
+
+  private resolveSpecialPowerChain(name: string, visited: Set<string>): SpecialPowerDef | undefined {
+    return this.resolveInheritedDefinitionChain(this.specialPowers, 'SpecialPower', name, visited);
+  }
+
+  private resolveObjectCreationListChain(
+    name: string,
+    visited: Set<string>,
+  ): ObjectCreationListDef | undefined {
+    return this.resolveInheritedDefinitionChain(this.objectCreationLists, 'ObjectCreationList', name, visited);
+  }
+
+  private findCollectionEntryCaseInsensitive<T>(
+    collection: Map<string, T>,
+    name: string,
+  ): [string, T] | undefined {
+    const direct = collection.get(name);
+    if (direct) {
+      return [name, direct];
+    }
+    const normalizedName = name.trim().toUpperCase();
+    if (!normalizedName) {
+      return undefined;
+    }
+    for (const entry of collection.entries()) {
+      if (entry[0].toUpperCase() === normalizedName) {
+        return entry;
+      }
+    }
+    return undefined;
+  }
+
+  private resolveInheritedDefinitionChain<
+    T extends {
+      name: string;
+      parent?: string;
+      fields: Record<string, IniValue>;
+      blocks: IniBlock[];
+      resolved?: boolean;
+      hasUnresolvedParent?: boolean;
+    },
+  >(
+    collection: Map<string, T>,
+    blockType: string,
+    name: string,
+    visited: Set<string>,
+    mergeExtras?: (child: T, parent: T) => void,
+  ): T | undefined {
+    const entry = this.findCollectionEntryCaseInsensitive(collection, name);
+    if (!entry) {
+      return undefined;
+    }
+    const [resolvedName, definition] = entry;
+    if (definition.resolved) {
+      return definition;
+    }
+
+    if (visited.has(resolvedName)) {
+      definition.hasUnresolvedParent = true;
+      definition.resolved = true;
       this.errors.push({
         type: 'unresolved_parent',
-        blockType: 'Object',
-        name,
+        blockType,
+        name: definition.name,
         detail: 'Circular inheritance detected',
       });
-      return obj;
+      return definition;
     }
 
-    visited.add(name);
+    visited.add(resolvedName);
+    try {
+      if (!definition.parent) {
+        definition.resolved = true;
+        definition.hasUnresolvedParent = false;
+        return definition;
+      }
 
-    if (!obj.parent) {
-      obj.resolved = true;
-      return obj;
+      const parentEntry = this.findCollectionEntryCaseInsensitive(collection, definition.parent);
+      if (!parentEntry) {
+        definition.hasUnresolvedParent = true;
+        definition.resolved = true;
+        this.errors.push({
+          type: 'unresolved_parent',
+          blockType,
+          name: definition.name,
+          detail: `Parent "${definition.parent}" not found`,
+        });
+        return definition;
+      }
+
+      const [parentName] = parentEntry;
+      const parent = this.resolveInheritedDefinitionChain(collection, blockType, parentName, visited, mergeExtras);
+      if (!parent) {
+        definition.hasUnresolvedParent = true;
+        definition.resolved = true;
+        this.errors.push({
+          type: 'unresolved_parent',
+          blockType,
+          name: definition.name,
+          detail: `Parent "${definition.parent}" not found`,
+        });
+        return definition;
+      }
+
+      // Merge: parent fields are defaults, child fields override.
+      definition.fields = { ...parent.fields, ...definition.fields };
+      definition.blocks = [...parent.blocks, ...definition.blocks];
+      mergeExtras?.(definition, parent);
+
+      definition.resolved = true;
+      definition.hasUnresolvedParent = parent.hasUnresolvedParent ?? false;
+      return definition;
+    } finally {
+      visited.delete(resolvedName);
     }
-
-    const parent = this.resolveObjectChain(obj.parent, visited);
-    if (!parent) {
-      obj.hasUnresolvedParent = true;
-      obj.resolved = true;
-      this.errors.push({
-        type: 'unresolved_parent',
-        blockType: 'Object',
-        name,
-        detail: `Parent "${obj.parent}" not found`,
-      });
-      return obj;
-    }
-
-    // Merge: parent fields are defaults, child fields override
-    obj.fields = { ...parent.fields, ...obj.fields };
-    obj.blocks = [...parent.blocks, ...obj.blocks];
-
-    // Inherit side and kindOf if not set
-    if (!obj.side && parent.side) obj.side = parent.side;
-    if (!obj.kindOf && parent.kindOf) obj.kindOf = parent.kindOf;
-
-    obj.resolved = true;
-    obj.hasUnresolvedParent = false;
-    return obj;
   }
 
   private getUnresolvedInheritanceCount(): number {
     let count = 0;
     for (const obj of this.objects.values()) {
       if (obj.hasUnresolvedParent) count++;
+    }
+    for (const weapon of this.weapons.values()) {
+      if (weapon.hasUnresolvedParent) count++;
+    }
+    for (const specialPower of this.specialPowers.values()) {
+      if (specialPower.hasUnresolvedParent) count++;
+    }
+    for (const objectCreationList of this.objectCreationLists.values()) {
+      if (objectCreationList.hasUnresolvedParent) count++;
     }
     return count;
   }

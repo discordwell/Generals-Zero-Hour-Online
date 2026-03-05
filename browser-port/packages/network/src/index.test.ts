@@ -673,6 +673,64 @@ describe('Network deterministic kernel integration', () => {
     expect(internals.frameState.hasDisconnectPlayerTimedOut(translatedSlot, keepAliveAppliedAt + 5, 20)).toBe(false);
   });
 
+  it('uses injected nowProvider for deterministic timeout and packet-router timing', () => {
+    let nowMs = 1_000;
+    const manager = new NetworkManager({
+      localPlayerName: 'Host',
+      localPlayerID: 0,
+      nowProvider: () => nowMs,
+    });
+    manager.parseUserList({
+      localPlayerName: 'Host',
+      getLocalSlotNum: () => 0,
+      getNumPlayers: () => 2,
+      getSlot: (slotNum: number) => {
+        if (slotNum > 1) {
+          return undefined;
+        }
+        return {
+          id: slotNum,
+          name: slotNum === 0 ? 'Host' : 'Peer',
+          isHuman: true,
+        };
+      },
+    });
+
+    manager.init();
+    const internals = manager as unknown as {
+      lastUpdateMs: number;
+      lastPingMs: number;
+      frameState: {
+        translatedSlotPosition: (slot: number, localPlayerId: number) => number;
+        hasDisconnectPlayerTimedOut: (translatedSlot: number, nowMs: number, playerTimeoutMs: number) => boolean;
+        getPacketRouterTimeoutResetMs: () => number | null;
+      };
+    };
+    expect(internals.lastUpdateMs).toBe(1_000);
+    expect(internals.lastPingMs).toBe(1_000);
+
+    nowMs = 1_200;
+    manager.startGame();
+    expect(internals.lastPingMs).toBe(1_200);
+
+    manager.setPacketRouterSlot(1);
+    expect(manager.processIncomingCommand({
+      commandType: 26,
+      sender: 1,
+    })).toBe(true);
+    expect(internals.frameState.getPacketRouterTimeoutResetMs()).toBe(1_200);
+
+    nowMs = 1_300;
+    expect(manager.processIncomingCommand({
+      commandType: 23,
+      sender: 1,
+    })).toBe(true);
+
+    const translatedSlot = internals.frameState.translatedSlotPosition(1, manager.getLocalPlayerID());
+    expect(internals.frameState.hasDisconnectPlayerTimedOut(translatedSlot, 1_305, 10)).toBe(false);
+    expect(internals.frameState.hasDisconnectPlayerTimedOut(translatedSlot, 1_311, 10)).toBe(true);
+  });
+
   it('disconnects timed-out peers when local player owns packet-router responsibility', () => {
     const manager = new NetworkManager({
       localPlayerName: 'Host',
@@ -1510,6 +1568,151 @@ describe('Network deterministic kernel integration', () => {
       sender: 0,
       commandId: 64001,
     });
+  });
+
+  it('recovers long-running lockstep flow under deterministic packet loss and reorder', () => {
+    const manager = new NetworkManager({
+      localPlayerName: 'Host',
+      localPlayerID: 0,
+    });
+    manager.parseUserList({
+      localPlayerName: 'Host',
+      getLocalSlotNum: () => 0,
+      getNumPlayers: () => 2,
+      getSlot: (slotNum: number) => {
+        if (slotNum > 1) {
+          return undefined;
+        }
+        return {
+          id: slotNum,
+          name: slotNum === 0 ? 'Host' : 'Peer',
+          isHuman: true,
+        };
+      },
+    });
+
+    const directSends: Array<{ command: unknown; relayMask: number }> = [];
+    manager.attachTransport({
+      sendLocalCommandDirect: (command: unknown, relayMask: number) => {
+        directSends.push({ command, relayMask });
+      },
+    });
+
+    const totalFrames = 240;
+    const expectedResendFrames = new Set<number>();
+    const deferredFrameInfos: Array<{ frame: number; deliverAt: number }> = [];
+    const deferredCommands: Array<{ frame: number; deliverAt: number; idSeed: number }> = [];
+    let nextCommandId = 10_000;
+    let nextFrameToConsume = 1;
+
+    const sendFrameInfo = (frame: number): void => {
+      expect(manager.processIncomingCommand({
+        commandType: 3,
+        sender: 1,
+        frame,
+        commandCount: 1,
+      })).toBe(true);
+    };
+    const sendFrameCommand = (frame: number, idSeed = 0): void => {
+      nextCommandId += 1;
+      expect(manager.processIncomingCommand({
+        commandType: 4,
+        sender: 1,
+        executionFrame: frame,
+        commandId: nextCommandId + idSeed,
+      })).toBe(true);
+    };
+    const drainReadyFrames = (maxFrame: number): void => {
+      while (nextFrameToConsume <= maxFrame) {
+        if (!manager.consumeReadyFrame(nextFrameToConsume)) {
+          break;
+        }
+        nextFrameToConsume += 1;
+      }
+    };
+
+    for (let tick = 1; tick <= totalFrames + 5; tick += 1) {
+      if (tick <= totalFrames) {
+        const frame = tick;
+        const shouldForceReorder = frame % 9 === 0;
+        const shouldDelayFrameInfo = frame % 7 === 0;
+        const shouldDelayCommand = frame % 11 === 0;
+
+        if (shouldForceReorder) {
+          sendFrameCommand(frame, 100);
+          expectedResendFrames.add(frame);
+          if (shouldDelayFrameInfo) {
+            deferredFrameInfos.push({ frame, deliverAt: tick + 1 });
+          } else {
+            sendFrameInfo(frame);
+          }
+          deferredCommands.push({
+            frame,
+            deliverAt: tick + (frame % 5 === 0 ? 3 : 2),
+            idSeed: 200,
+          });
+        } else {
+          if (shouldDelayFrameInfo) {
+            deferredFrameInfos.push({ frame, deliverAt: tick + 1 });
+          } else {
+            sendFrameInfo(frame);
+          }
+
+          if (shouldDelayCommand || shouldDelayFrameInfo) {
+            deferredCommands.push({
+              frame,
+              deliverAt: tick + (shouldDelayCommand ? 2 : 1),
+              idSeed: 0,
+            });
+          } else {
+            sendFrameCommand(frame);
+          }
+        }
+      }
+
+      for (let index = 0; index < deferredFrameInfos.length; ) {
+        const queued = deferredFrameInfos[index];
+        if (!queued || queued.deliverAt > tick) {
+          index += 1;
+          continue;
+        }
+        sendFrameInfo(queued.frame);
+        deferredFrameInfos.splice(index, 1);
+      }
+
+      for (let index = 0; index < deferredCommands.length; ) {
+        const queued = deferredCommands[index];
+        if (!queued || queued.deliverAt > tick) {
+          index += 1;
+          continue;
+        }
+        sendFrameCommand(queued.frame, queued.idSeed);
+        deferredCommands.splice(index, 1);
+      }
+
+      drainReadyFrames(totalFrames);
+    }
+
+    expect(nextFrameToConsume).toBe(totalFrames + 1);
+    expect(deferredFrameInfos).toEqual([]);
+    expect(deferredCommands).toEqual([]);
+
+    const resendMessages = directSends.filter((entry) => {
+      const command = entry.command as { commandType?: unknown };
+      return command.commandType === 21;
+    });
+    const resendFrames = resendMessages
+      .map((entry) => {
+        const command = entry.command as { frameToResend?: unknown };
+        return Number(command.frameToResend);
+      })
+      .sort((left, right) => left - right);
+
+    expect(resendFrames).toEqual([...expectedResendFrames].sort((left, right) => left - right));
+    for (const entry of resendMessages) {
+      expect(entry.relayMask).toBe(1 << 1);
+    }
+    expect(manager.getFrameResendRequests()).toEqual([]);
   });
 
   it('gates frame readiness on connected-player command completion', () => {

@@ -266,6 +266,7 @@ describe('buildControlBarButtonsForSelection', () => {
       isMoving: false,
     });
     expect(nonDozerButtons[0]?.enabled).toBe(false);
+    expect(nonDozerButtons[0]?.disabledReason).toBe('DOZER_REQUIRED');
 
     const dozerButtons = buildControlBarButtonsForSelection(registry, {
       templateName: 'Builder',
@@ -316,6 +317,7 @@ describe('buildControlBarButtonsForSelection', () => {
       isMoving: false,
     });
     expect(withoutRallyPointCapability[0]?.enabled).toBe(false);
+    expect(withoutRallyPointCapability[0]?.disabledReason).toBe('AUTO_RALLYPOINT_REQUIRED');
 
     const withRallyPointCapability = buildControlBarButtonsForSelection(registry, {
       templateName: 'Barracks',
@@ -366,6 +368,7 @@ describe('buildControlBarButtonsForSelection', () => {
       isMoving: true,
     });
     expect(movingButtons[0]?.enabled).toBe(false);
+    expect(movingButtons[0]?.disabledReason).toBe('MUST_BE_STOPPED');
 
     const stoppedButtons = buildControlBarButtonsForSelection(registry, {
       templateName: 'Unit_Move',
@@ -428,6 +431,7 @@ describe('buildControlBarButtonsForSelection', () => {
     );
 
     expect(buttons[0]?.enabled).toBe(false);
+    expect(buttons[0]?.disabledReason).toBe('SPECIAL_POWER_COOLDOWN');
   });
 
   it('keeps special-power commands enabled when source entity ready frame has elapsed', () => {
@@ -787,6 +791,7 @@ describe('buildControlBarButtonsForSelection', () => {
       playerScienceNames: [],
     });
     expect(missingScience[0]?.enabled).toBe(false);
+    expect(missingScience[0]?.disabledReason).toBe('SCIENCE_REQUIRED');
 
     const ownedScience = buildControlBarButtonsForSelection(registry, {
       templateName: 'WarFactory',
@@ -839,6 +844,7 @@ describe('buildControlBarButtonsForSelection', () => {
     });
 
     expect(buttons[0]?.enabled).toBe(false);
+    expect(buttons[0]?.disabledReason).toBe('SCIENCE_UNAVAILABLE');
   });
 
   it('enables PURCHASE_SCIENCE when an unowned science has all prerequisite sciences', () => {
@@ -951,6 +957,7 @@ describe('buildControlBarButtonsForSelection', () => {
     });
 
     expect(buttons[0]?.enabled).toBe(false);
+    expect(buttons[0]?.disabledReason).toBe('SCIENCE_UNAVAILABLE');
   });
 
   it('disables build-related commands when production queue is at capacity', () => {
@@ -1009,6 +1016,7 @@ describe('buildControlBarButtonsForSelection', () => {
         commandType: GUICommandType.GUI_COMMAND_UNIT_BUILD,
         commandOption: CommandOption.COMMAND_OPTION_NONE,
         enabled: false,
+        disabledReason: 'PRODUCTION_QUEUE_FULL',
       },
       {
         id: 'Command_ObjectUpgrade',
@@ -1017,6 +1025,7 @@ describe('buildControlBarButtonsForSelection', () => {
         commandType: GUICommandType.GUI_COMMAND_OBJECT_UPGRADE,
         commandOption: CommandOption.COMMAND_OPTION_NONE,
         enabled: false,
+        disabledReason: 'PRODUCTION_QUEUE_FULL',
       },
     ]);
   });
@@ -1120,6 +1129,48 @@ describe('buildControlBarButtonsForSelection', () => {
     });
 
     expect(buttons[0]?.enabled).toBe(false);
+    expect(buttons[0]?.disabledReason).toBe('SCIENCE_UNAVAILABLE');
+  });
+
+  it('propagates source button image names into control bar icon metadata', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      {
+        type: 'Object',
+        name: 'RadarVan',
+        fields: {
+          CommandSet: 'RadarVanSet',
+        },
+        blocks: [],
+      },
+      {
+        type: 'CommandSet',
+        name: 'RadarVanSet',
+        fields: {
+          1: 'Command_RadarScan',
+        },
+        blocks: [],
+      },
+      {
+        type: 'CommandButton',
+        name: 'Command_RadarScan',
+        fields: {
+          Command: 'SPECIAL_POWER',
+          ButtonImage: 'SSRadarScan',
+        },
+        blocks: [],
+      },
+    ]);
+
+    const buttons = buildControlBarButtonsForSelection(registry, {
+      templateName: 'RadarVan',
+      canMove: true,
+      isUnmanned: false,
+      isDozer: false,
+      isMoving: false,
+    });
+
+    expect(buttons[0]?.iconName).toBe('SSRadarScan');
   });
 
   it('skips disabled and hidden sciences while resolving PURCHASE_SCIENCE availability', () => {

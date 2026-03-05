@@ -376,8 +376,12 @@ export class UiRuntime implements Subsystem {
       const isFlashing = slot.sourceButtonId !== undefined
         && this.flashingControlBarButtonIds.has(slot.sourceButtonId);
       const flashPrefix = isFlashing ? '* ' : '';
-      return `${slot.slot}. ${hotkey}${flashPrefix}${slot.label} ` +
-        `(${slot.state}, ${describeTargetRequirement(slot.targetRequirement)})`;
+      const iconPrefix = slot.iconName ? `[${slot.iconName}] ` : '';
+      const disabledSuffix = slot.state === 'disabled' && slot.disabledReason
+        ? `, reason=${slot.disabledReason}`
+        : '';
+      return `${slot.slot}. ${hotkey}${flashPrefix}${iconPrefix}${slot.label} ` +
+        `(${slot.state}, ${describeTargetRequirement(slot.targetRequirement)}${disabledSuffix})`;
     };
 
     const rowLength = 6;

@@ -7,3 +7,23 @@ export function resolveScriptRadarVisibility(
   }
   return !scriptRadarHidden;
 }
+
+export function resolveScriptRadarInteractionEnabled(
+  radarVisible: boolean,
+  scriptInputDisabled: boolean,
+): boolean {
+  if (!radarVisible) {
+    return false;
+  }
+  return !scriptInputDisabled;
+}
+
+export function resolveScriptRadarEntityBlipVisibility(
+  radarVisible: boolean,
+  scriptDrawIconUiEnabled: boolean,
+): boolean {
+  if (!radarVisible) {
+    return false;
+  }
+  return scriptDrawIconUiEnabled;
+}

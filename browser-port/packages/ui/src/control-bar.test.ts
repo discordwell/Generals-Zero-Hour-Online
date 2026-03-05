@@ -498,6 +498,8 @@ describe('ControlBarModel', () => {
         label: 'Stop',
         commandType: GUICommandType.GUI_COMMAND_STOP,
         enabled: false,
+        disabledReason: 'MUST_BE_STOPPED',
+        iconName: 'SSTOP',
       },
       {
         id: 'slot-3-sp-construct',
@@ -527,6 +529,8 @@ describe('ControlBarModel', () => {
       targetRequirement: 'instant',
       sourceButtonId: 'slot-2-stop',
       hotkey: '2',
+      disabledReason: 'MUST_BE_STOPPED',
+      iconName: 'SSTOP',
     });
     expect(hud[2]).toEqual({
       slot: 3,

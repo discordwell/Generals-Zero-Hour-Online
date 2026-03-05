@@ -114,7 +114,7 @@ interface SpecialPowerCommandContext<TEntity extends SpecialPowerCommandEntity> 
     commandOption: number,
     commandButtonId: string,
     specialPowerDef: SpecialPowerDef,
-  ): void;
+  ): boolean;
   onIssueSpecialPowerTargetPosition(
     sourceEntityId: number,
     specialPowerName: string,
@@ -123,7 +123,7 @@ interface SpecialPowerCommandContext<TEntity extends SpecialPowerCommandEntity> 
     commandOption: number,
     commandButtonId: string,
     specialPowerDef: SpecialPowerDef,
-  ): void;
+  ): boolean;
   onIssueSpecialPowerTargetObject(
     sourceEntityId: number,
     specialPowerName: string,
@@ -131,7 +131,7 @@ interface SpecialPowerCommandContext<TEntity extends SpecialPowerCommandEntity> 
     commandOption: number,
     commandButtonId: string,
     specialPowerDef: SpecialPowerDef,
-  ): void;
+  ): boolean;
 }
 
 type NormalizeShortcutSpecialPowerName = (specialPowerName: string) => string | null;
@@ -332,8 +332,6 @@ export function routeIssueSpecialPowerCommand<TEntity extends SpecialPowerComman
     return;
   }
 
-  // Source parity: this only guards known/unknown special powers by INI definition lookup.
-  // The actual execution path is intentionally TODO until module owners are fully wired.
   // Try normalized name first, then original name (registry may store with original casing).
   const specialPowerDef = registry.getSpecialPower(normalizedSpecialPowerName)
     ?? registry.getSpecialPower(command.specialPowerName.trim());
@@ -406,7 +404,7 @@ export function routeIssueSpecialPowerCommand<TEntity extends SpecialPowerComman
       return;
     }
 
-    context.onIssueSpecialPowerTargetObject(
+    const dispatched = context.onIssueSpecialPowerTargetObject(
       sourceEntity.id,
       normalizedSpecialPowerName,
       targetEntity.id,
@@ -414,6 +412,9 @@ export function routeIssueSpecialPowerCommand<TEntity extends SpecialPowerComman
       command.commandButtonId,
       specialPowerDef,
     );
+    if (!dispatched) {
+      return;
+    }
 
     context.setReadyFrame(normalizedSpecialPowerName, sourceEntityId, isSharedSynced, readyFrame);
     return;
@@ -440,7 +441,7 @@ export function routeIssueSpecialPowerCommand<TEntity extends SpecialPowerComman
       return;
     }
 
-    context.onIssueSpecialPowerTargetPosition(
+    const dispatched = context.onIssueSpecialPowerTargetPosition(
       sourceEntity.id,
       normalizedSpecialPowerName,
       targetX,
@@ -449,18 +450,24 @@ export function routeIssueSpecialPowerCommand<TEntity extends SpecialPowerComman
       command.commandButtonId,
       specialPowerDef,
     );
+    if (!dispatched) {
+      return;
+    }
 
     context.setReadyFrame(normalizedSpecialPowerName, sourceEntityId, isSharedSynced, readyFrame);
     return;
   }
 
-  context.onIssueSpecialPowerNoTarget(
+  const dispatched = context.onIssueSpecialPowerNoTarget(
     sourceEntity.id,
     normalizedSpecialPowerName,
     commandOption,
     command.commandButtonId,
     specialPowerDef,
   );
+  if (!dispatched) {
+    return;
+  }
 
   context.setReadyFrame(normalizedSpecialPowerName, sourceEntityId, isSharedSynced, readyFrame);
 }

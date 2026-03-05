@@ -109,6 +109,41 @@ describe('ObjectVisualManager', () => {
     expect(placeholder?.visible).toBe(false);
   });
 
+  it('hides SHROUDED render states and restores visibility when revealed', async () => {
+    const scene = new THREE.Scene();
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => modelWithAnimationClips(['Idle']),
+    });
+
+    manager.sync([makeMeshState({ id: 51, shroudStatus: 'SHROUDED' })], 1 / 30);
+    await flushModelLoadQueue();
+    expect(manager.getVisualRoot(51)?.visible).toBe(false);
+
+    manager.sync([makeMeshState({ id: 51, shroudStatus: 'CLEAR' })], 1 / 30);
+    expect(manager.getVisualRoot(51)?.visible).toBe(true);
+  });
+
+  it('applies topple tilt from render snapshots', async () => {
+    const scene = new THREE.Scene();
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => modelWithAnimationClips(['Idle']),
+    });
+
+    manager.sync([makeMeshState({
+      id: 52,
+      rotationY: 0,
+      toppleAngle: Math.PI / 6,
+      toppleDirX: 1,
+      toppleDirZ: 0,
+    })], 1 / 30);
+    await flushModelLoadQueue();
+
+    const root = manager.getVisualRoot(52);
+    expect(root).toBeTruthy();
+    const upVector = new THREE.Vector3(0, 1, 0).applyQuaternion(root!.quaternion);
+    expect(Math.abs(upVector.y)).toBeLessThan(0.99);
+  });
+
   it('updates animation state transitions and removes stale entities', async () => {
     const scene = new THREE.Scene();
     const manager = new ObjectVisualManager(scene, null, {
@@ -299,6 +334,44 @@ describe('ObjectVisualManager', () => {
     for (const renderable of resetRenderables) {
       expect(renderable.frustumCulled).toBe(true);
     }
+  });
+
+  it('remains stable during long-running visual churn', async () => {
+    const scene = new THREE.Scene();
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => modelWithAnimationClips(['Idle', 'Move', 'Attack', 'Die']),
+    });
+
+    const maxEntityId = 15;
+    for (let frame = 0; frame < 360; frame += 1) {
+      const states: RenderableEntityState[] = [];
+      for (let id = 1; id <= maxEntityId; id += 1) {
+        if ((id + frame) % 4 === 0) {
+          continue;
+        }
+        states.push(makeMeshState({
+          id,
+          x: id * 2 + (frame % 5),
+          z: id * 3 + ((frame * 2) % 7),
+          animationState: frame % 3 === 0 ? 'MOVE' : frame % 5 === 0 ? 'ATTACK' : 'IDLE',
+          shroudStatus: (frame + id) % 11 === 0 ? 'SHROUDED' : 'CLEAR',
+        }));
+      }
+
+      manager.sync(states, 1 / 30);
+      if (frame % 60 === 0) {
+        await flushModelLoadQueue();
+      }
+    }
+
+    await flushModelLoadQueue();
+    const activeRoots = scene.children.filter((entry) => entry.name.startsWith('object-visual-'));
+    expect(activeRoots.length).toBeLessThanOrEqual(maxEntityId);
+    expect(manager.getUnresolvedEntityIds()).toEqual([]);
+
+    manager.sync([], 1 / 30);
+    const remainingRoots = scene.children.filter((entry) => entry.name.startsWith('object-visual-'));
+    expect(remainingRoots).toEqual([]);
   });
 
   it('returns unresolved entity IDs in deterministic ascending order', async () => {

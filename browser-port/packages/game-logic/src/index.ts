@@ -33,7 +33,6 @@ import {
   type MapDataJSON,
   type MapObjectJSON,
   type MapSideBuildListEntryJSON,
-  type MapSidesListJSON,
   type ScriptActionJSON,
   type ScriptConditionJSON,
   type ScriptGroupJSON,
@@ -974,6 +973,21 @@ interface SpecialPowerDispatchProfile {
   targetZ: number | null;
 }
 
+const SPECIAL_POWER_BEHAVIOR_MODULE_TYPES = new Set<string>([
+  'SPECIALPOWERMODULE',
+  'SPECIALABILITYUPDATE',
+  'BATTLEPLANUPDATE',
+  'OCLSPECIALPOWER',
+  'CASHHACKSPECIALPOWER',
+  'DEFECTORSPECIALPOWER',
+  'SPYVISIONSPECIALPOWER',
+  'CASHBOUNTYPOWER',
+  'CLEANUPAREAPOWER',
+  'FIREWEAPONPOWER',
+  'DEMORALIZESPECIALPOWER',
+  'EMPSPECIALPOWER',
+]);
+
 /**
  * Source parity: SpecialAbilityUpdate — unit-based special abilities that require
  * approach, pack/unpack animations, and preparation before triggering.
@@ -1771,6 +1785,10 @@ interface MapEntity {
   bodyType: BodyModuleType;
   /** Source parity: HiveStructureBody — damage redirection config for tunnel-like structures. */
   hiveStructureProfile: HiveStructureBodyProfile | null;
+  /** Source parity: UndeadBody::m_maxSecondLifeHealth. */
+  undeadSecondLifeMaxHealth: number;
+  /** Source parity: UndeadBody::m_isSecondLife. */
+  undeadIsSecondLife: boolean;
   canTakeDamage: boolean;
   maxHealth: number;
   /** Source parity: BodyModule::m_initialHealth (used by script unit-health condition). */
@@ -1791,6 +1809,8 @@ interface MapEntity {
   /** Source parity: AI attack state machine sub-state. */
   attackSubState: AttackSubState;
   nextAttackFrame: number;
+  /** Source parity bridge: legacy assisted-targeting cooldown counter. */
+  attackCooldownRemaining: number;
   attackAmmoInClip: number;
   attackReloadFinishFrame: number;
   attackForceReloadFrame: number;
@@ -2395,6 +2415,8 @@ interface MapEntity {
   backCrushed: boolean;
   // ── Source parity: GrantUpgradeCreate — grants upgrade on creation/build complete ──
   grantUpgradeCreateProfiles: GrantUpgradeCreateProfile[];
+  // ── Source parity: LockWeaponCreate — permanently forces a weapon slot on build complete ──
+  lockWeaponCreateSlot: number | null;
 
   // ── Source parity: UpgradeDie — removes upgrade from producer on death ──
   upgradeDieProfiles: UpgradeDieProfile[];
@@ -3898,7 +3920,6 @@ interface SupplyWarehouseCripplingProfile {
 
 /** Source parity: PoisonedBehavior default INI values. */
 const DEFAULT_POISON_DAMAGE_INTERVAL_FRAMES = 10; // ~0.33s at 30fps
-const DEFAULT_POISON_DURATION_FRAMES = 90; // ~3s at 30fps
 
 /** Source parity: FlammableUpdate default INI values. */
 const DEFAULT_FLAME_DAMAGE_LIMIT = 20.0;
@@ -4530,47 +4551,23 @@ const SCRIPT_CONDITION_TYPE_ALIASES = new Map<string, string>([
  */
 const SCRIPT_PARAMETER_TYPE_INT = 0;
 const SCRIPT_PARAMETER_TYPE_REAL = 1;
-const SCRIPT_PARAMETER_TYPE_SCRIPT = 2;
 const SCRIPT_PARAMETER_TYPE_TEAM = 3;
-const SCRIPT_PARAMETER_TYPE_COUNTER = 4;
-const SCRIPT_PARAMETER_TYPE_FLAG = 5;
 const SCRIPT_PARAMETER_TYPE_COMPARISON = 6;
-const SCRIPT_PARAMETER_TYPE_WAYPOINT = 7;
 const SCRIPT_PARAMETER_TYPE_BOOLEAN = 8;
-const SCRIPT_PARAMETER_TYPE_TRIGGER_AREA = 9;
-const SCRIPT_PARAMETER_TYPE_TEXT_STRING = 10;
-const SCRIPT_PARAMETER_TYPE_SIDE = 11;
-const SCRIPT_PARAMETER_TYPE_SOUND = 12;
-const SCRIPT_PARAMETER_TYPE_SCRIPT_SUBROUTINE = 13;
-const SCRIPT_PARAMETER_TYPE_UNIT = 14;
 const SCRIPT_PARAMETER_TYPE_OBJECT_TYPE = 15;
 const SCRIPT_PARAMETER_TYPE_COORD3D = 16;
 const SCRIPT_PARAMETER_TYPE_ANGLE = 17;
-const SCRIPT_PARAMETER_TYPE_TEAM_STATE = 18;
 const SCRIPT_PARAMETER_TYPE_RELATION = 19;
 const SCRIPT_PARAMETER_TYPE_AI_MOOD = 20;
-const SCRIPT_PARAMETER_TYPE_DIALOG = 21;
-const SCRIPT_PARAMETER_TYPE_MUSIC = 22;
-const SCRIPT_PARAMETER_TYPE_MOVIE = 23;
-const SCRIPT_PARAMETER_TYPE_WAYPOINT_PATH = 24;
-const SCRIPT_PARAMETER_TYPE_LOCALIZED_TEXT = 25;
-const SCRIPT_PARAMETER_TYPE_BRIDGE = 26;
 const SCRIPT_PARAMETER_TYPE_KIND_OF = 27;
-const SCRIPT_PARAMETER_TYPE_ATTACK_PRIORITY_SET = 28;
 const SCRIPT_PARAMETER_TYPE_RADAR_EVENT_TYPE = 29;
-const SCRIPT_PARAMETER_TYPE_SPECIAL_POWER = 30;
-const SCRIPT_PARAMETER_TYPE_SCIENCE = 31;
+// Values 30 and 31 are reserved by source parity for SPECIAL_POWER and SCIENCE.
 const SCRIPT_PARAMETER_TYPE_UPGRADE = 32;
-const SCRIPT_PARAMETER_TYPE_COMMANDBUTTON_ABILITY = 33;
 const SCRIPT_PARAMETER_TYPE_BOUNDARY = 34;
 const SCRIPT_PARAMETER_TYPE_BUILDABLE = 35;
 const SCRIPT_PARAMETER_TYPE_SURFACES_ALLOWED = 36;
 const SCRIPT_PARAMETER_TYPE_SHAKE_INTENSITY = 37;
-const SCRIPT_PARAMETER_TYPE_COMMAND_BUTTON = 38;
-const SCRIPT_PARAMETER_TYPE_FONT_NAME = 39;
 const SCRIPT_PARAMETER_TYPE_OBJECT_STATUS = 40;
-const SCRIPT_PARAMETER_TYPE_COMMANDBUTTON_ALL_ABILITIES = 41;
-const SCRIPT_PARAMETER_TYPE_SKIRMISH_WAYPOINT_PATH = 42;
 
 /**
  * Source parity: ObjectStatusBits string table from ObjectStatusBits.h.
@@ -5767,7 +5764,6 @@ export class GameLogicSubsystem implements Subsystem {
   private scriptWeatherVisible = true;
   /** Source parity: TerrainLogic::setActiveBoundary state from MAP_SWITCH_BORDER script action. */
   private scriptActiveBoundaryIndex: number | null = null;
-
   private placementSummary: MapObjectPlacementSummary = {
     totalObjects: 0,
     spawnedObjects: 0,
@@ -8580,6 +8576,21 @@ export class GameLogicSubsystem implements Subsystem {
     }
     this.scriptSubroutineCalls.push(normalizedName);
 
+    const inheritedCallingTeam = this.resolveScriptContextTeamName();
+    const inheritedCallingEntity = this.resolveScriptContextEntityId();
+    const executeWithInheritedCallingContext = (callback: () => void): void => {
+      const previousCallingTeam = this.scriptCallingTeamNameUpper;
+      const previousCallingEntity = this.scriptCallingEntityId;
+      this.scriptCallingTeamNameUpper = inheritedCallingTeam;
+      this.scriptCallingEntityId = inheritedCallingEntity;
+      try {
+        callback();
+      } finally {
+        this.scriptCallingTeamNameUpper = previousCallingTeam;
+        this.scriptCallingEntityId = previousCallingEntity;
+      }
+    };
+
     const mapGroup = this.mapScriptGroupsByNameUpper.get(normalizedName);
     if (mapGroup) {
       if (!mapGroup.subroutine) {
@@ -8588,7 +8599,9 @@ export class GameLogicSubsystem implements Subsystem {
         return true;
       }
       if (mapGroup.active) {
-        this.executeMapScriptGroup(mapGroup, true);
+        executeWithInheritedCallingContext(() => {
+          this.executeMapScriptGroup(mapGroup, true);
+        });
       }
       return true;
     }
@@ -8601,7 +8614,9 @@ export class GameLogicSubsystem implements Subsystem {
         return true;
       }
       if (mapScript.active) {
-        this.executeMapScript(mapScript, true);
+        executeWithInheritedCallingContext(() => {
+          this.executeMapScript(mapScript, true);
+        });
       }
       return true;
     }
@@ -9778,6 +9793,7 @@ export class GameLogicSubsystem implements Subsystem {
     if (!normalizedMovieName) {
       return false;
     }
+    this.clearScriptCompletedName(this.scriptCompletedVideos, normalizedMovieName);
     this.scriptMoviePlaybackRequests.push({
       movieName: normalizedMovieName,
       playbackType,
@@ -9952,6 +9968,7 @@ export class GameLogicSubsystem implements Subsystem {
     if (!normalizedAudioName) {
       return false;
     }
+    this.clearScriptAudioCompletionState(normalizedAudioName);
     this.scriptAudioPlaybackRequests.push({
       audioName: normalizedAudioName,
       playbackType: request.playbackType,
@@ -10051,6 +10068,7 @@ export class GameLogicSubsystem implements Subsystem {
     if (!normalizedTrackName) {
       return false;
     }
+    this.clearScriptMusicCompletionState(normalizedTrackName);
     this.scriptMusicTrackState = {
       trackName: normalizedTrackName,
       fadeOut,
@@ -12508,8 +12526,6 @@ export class GameLogicSubsystem implements Subsystem {
       this.resolveScriptConditionParamValue(conditionRecord, paramsObject, paramsArray, index, keyNames);
     const readString = (index: number, keyNames: readonly string[] = []): string =>
       this.coerceScriptConditionString(readValue(index, keyNames));
-    const readSide = (index: number, keyNames: readonly string[] = []): string =>
-      this.resolveScriptPlayerSideFromInput(readString(index, keyNames)) ?? '';
     const readNumber = (index: number, keyNames: readonly string[] = []): number =>
       this.coerceScriptConditionNumber(readValue(index, keyNames)) ?? 0;
     const readInteger = (index: number, keyNames: readonly string[] = []): number =>
@@ -13544,7 +13560,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     const numericSlot = readNumericField(commandButtonDef.fields, ['WeaponSlot']);
-    if (!Number.isFinite(numericSlot)) {
+    if (numericSlot === null || !Number.isFinite(numericSlot)) {
       return null;
     }
 
@@ -13557,7 +13573,7 @@ export class GameLogicSubsystem implements Subsystem {
 
   private resolveScriptMaxShotsToFireFromCommandButton(commandButtonDef: CommandButtonDef): number {
     const maxShots = readNumericField(commandButtonDef.fields, ['MaxShotsToFire']);
-    if (!Number.isFinite(maxShots)) {
+    if (maxShots === null || !Number.isFinite(maxShots)) {
       return SOURCE_DEFAULT_MAX_SHOTS_TO_FIRE;
     }
     return Math.trunc(maxShots);
@@ -13578,6 +13594,37 @@ export class GameLogicSubsystem implements Subsystem {
       return null;
     }
     return upgradeName;
+  }
+
+  private resolveScriptScienceSideInputForEntity(sourceEntity: MapEntity): string {
+    const controllingPlayerToken = this.resolveEntityControllingPlayerTokenForAffiliation(sourceEntity);
+    if (controllingPlayerToken) {
+      return controllingPlayerToken;
+    }
+    return sourceEntity.side;
+  }
+
+  private resolveScriptCommandButtonPurchasableScienceName(
+    sourceEntity: MapEntity,
+    commandButtonDef: CommandButtonDef,
+  ): string | null {
+    const sideInput = this.resolveScriptScienceSideInputForEntity(sourceEntity);
+    const scienceNames = this.extractIniValueTokens(commandButtonDef.fields['Science']).flatMap((entry) => entry);
+    for (const scienceName of scienceNames) {
+      const normalizedScienceName = scienceName.trim().toUpperCase();
+      if (!normalizedScienceName || normalizedScienceName === 'NONE') {
+        continue;
+      }
+      const canonicalScienceName = this.resolveScienceInternalName(normalizedScienceName);
+      if (!canonicalScienceName) {
+        continue;
+      }
+      if (!this.canScriptPlayerPurchaseScience(sideInput, canonicalScienceName)) {
+        continue;
+      }
+      return canonicalScienceName;
+    }
+    return null;
   }
 
   private resolveScriptCommandButtonSpecialPowerName(commandButtonDef: CommandButtonDef): string | null {
@@ -13900,6 +13947,20 @@ export class GameLogicSubsystem implements Subsystem {
           upgradeName,
         });
         return true;
+      }
+      case 'PURCHASE_SCIENCE': {
+        if (target.kind !== 'NONE') {
+          return false;
+        }
+        const scienceName = this.resolveScriptCommandButtonPurchasableScienceName(sourceEntity, commandButtonDef);
+        if (!scienceName) {
+          return false;
+        }
+        if (validateOnly) {
+          return true;
+        }
+        const sideInput = this.resolveScriptScienceSideInputForEntity(sourceEntity);
+        return this.purchaseScriptScienceForPlayerInput(sideInput, scienceName);
       }
       case 'UNIT_BUILD':
       case 'DOZER_CONSTRUCT': {
@@ -14715,6 +14776,7 @@ export class GameLogicSubsystem implements Subsystem {
         worldZ,
       ],
       angle,
+      lineEndPosition: null,
     });
 
     const afterPending = this.pendingConstructionActions.get(dozer.id);
@@ -15009,6 +15071,7 @@ export class GameLogicSubsystem implements Subsystem {
         dozer.z,
       ],
       angle: dozer.rotationY,
+      lineEndPosition: null,
     });
 
     const afterPending = this.pendingConstructionActions.get(dozer.id);
@@ -15317,6 +15380,7 @@ export class GameLogicSubsystem implements Subsystem {
         entityId: entity.id,
         targetX: target.x,
         targetZ: target.z,
+        attackDistance: this.resolveAttackMoveDistance(entity),
         commandSource: 'SCRIPT',
       });
       if (entity.moveTarget !== null || entity.attackTargetPosition !== null) {
@@ -15789,6 +15853,9 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     this.scriptActiveBoundaryIndex = Math.trunc(borderIndex);
+    if (this.scriptActiveBoundaryIndex < 0) {
+      this.scriptActiveBoundaryIndex = 0;
+    }
 
     if (observerPlayerIndex >= 0 && this.fogOfWarGrid) {
       this.fogOfWarGrid.revealMapForPlayerPermanently(observerPlayerIndex);
@@ -15905,7 +15972,7 @@ export class GameLogicSubsystem implements Subsystem {
   ): string | null {
     return (
       this.normalizeControllingPlayerToken(team.controllingPlayerToken ?? undefined)
-      ?? this.normalizeControllingPlayerToken(team.controllingSide)
+      ?? this.normalizeControllingPlayerToken(team.controllingSide ?? undefined)
       ?? this.resolveEntityControllingPlayerTokenForAffiliation(sourceEntity)
     );
   }
@@ -16517,55 +16584,12 @@ export class GameLogicSubsystem implements Subsystem {
       return true;
     }
 
-    let pausedBySource = this.pausedShortcutSpecialPowerByName.get(resolved.normalizedSpecialPowerName);
     if (stop) {
-      if (!pausedBySource) {
-        pausedBySource = new Map<number, ScriptSpecialPowerPauseState>();
-        this.pausedShortcutSpecialPowerByName.set(resolved.normalizedSpecialPowerName, pausedBySource);
-      }
-
-      const state = pausedBySource.get(resolved.sourceEntity.id) ?? {
-        pausedCount: 0,
-        pausedOnFrame: this.frameCounter,
-      };
-      if (state.pausedCount === 0) {
-        state.pausedOnFrame = this.frameCounter;
-      }
-      state.pausedCount += 1;
-      pausedBySource.set(resolved.sourceEntity.id, state);
+      this.pauseNonSharedSpecialPowerCountdown(resolved.normalizedSpecialPowerName, resolved.sourceEntity.id, true);
       return true;
     }
 
-    if (!pausedBySource) {
-      return true;
-    }
-    const state = pausedBySource.get(resolved.sourceEntity.id);
-    if (!state || state.pausedCount <= 0) {
-      return true;
-    }
-
-    state.pausedCount -= 1;
-    if (state.pausedCount > 0) {
-      pausedBySource.set(resolved.sourceEntity.id, state);
-      return true;
-    }
-
-    const pausedFrames = Math.max(0, this.frameCounter - state.pausedOnFrame);
-    const rawReadyFrame = this.resolveSpecialPowerReadyFrameForSourceEntityRaw(
-      resolved.normalizedSpecialPowerName,
-      resolved.sourceEntity.id,
-    );
-    this.setSpecialPowerReadyFrame(
-      resolved.normalizedSpecialPowerName,
-      resolved.sourceEntity.id,
-      false,
-      rawReadyFrame + pausedFrames,
-    );
-
-    pausedBySource.delete(resolved.sourceEntity.id);
-    if (pausedBySource.size === 0) {
-      this.pausedShortcutSpecialPowerByName.delete(resolved.normalizedSpecialPowerName);
-    }
+    this.unpauseNonSharedSpecialPowerCountdown(resolved.normalizedSpecialPowerName, resolved.sourceEntity.id);
     return true;
   }
 
@@ -18748,11 +18772,6 @@ export class GameLogicSubsystem implements Subsystem {
     return occupiedOwnerToken === null || (ownerToken !== null && occupiedOwnerToken === ownerToken);
   }
 
-  private canScriptSideUseBuildingContainer(building: MapEntity, normalizedSide: string): boolean {
-    const ownerToken = this.normalizeControllingPlayerToken(normalizedSide);
-    return this.canScriptOwnerUseBuildingContainer(building, ownerToken);
-  }
-
   private issueScriptEnterContainer(entity: MapEntity, container: MapEntity): boolean {
     const containProfile = container.containProfile;
     if (!containProfile) {
@@ -19255,7 +19274,7 @@ export class GameLogicSubsystem implements Subsystem {
       entity.pathfindGoalCell = null;
     }
     this.unregisterEntityEnergy(entity);
-    entity.isSelected = false;
+    entity.selected = false;
     entity.side = '';
     entity.controllingPlayerToken = null;
     for (const team of this.scriptTeamsByName.values()) {
@@ -19800,7 +19819,7 @@ export class GameLogicSubsystem implements Subsystem {
     let awayX = entity.x - repulsor.x;
     let awayZ = entity.z - repulsor.z;
     if ((awayX * awayX) + (awayZ * awayZ) < 1e-6) {
-      const angle = this.gameRandom.next() * Math.PI * 2;
+      const angle = this.gameRandom.nextFloat() * Math.PI * 2;
       awayX = Math.cos(angle);
       awayZ = Math.sin(angle);
     }
@@ -27297,7 +27316,9 @@ export class GameLogicSubsystem implements Subsystem {
     const shroudClearingRangeFromTemplateRaw = readNumericField(objectDef?.fields ?? {}, ['ShroudClearingRange']);
     // Source parity: Object ctor falls back to vision range when template shroud-clearing range is -1.
     const shroudClearingRangeFromTemplate =
-      Number.isFinite(shroudClearingRangeFromTemplateRaw) && shroudClearingRangeFromTemplateRaw >= 0
+      shroudClearingRangeFromTemplateRaw !== null
+      && Number.isFinite(shroudClearingRangeFromTemplateRaw)
+      && shroudClearingRangeFromTemplateRaw >= 0
         ? shroudClearingRangeFromTemplateRaw
         : visionRangeFromTemplate;
     const ambientSoundProfile = this.extractAmbientSoundProfile(objectDef);
@@ -27456,6 +27477,7 @@ export class GameLogicSubsystem implements Subsystem {
       attackCommandSource: 'AI',
       attackSubState: 'IDLE',
       nextAttackFrame: 0,
+      attackCooldownRemaining: 0,
       attackAmmoInClip: initialClipAmmo,
       attackReloadFinishFrame: 0,
       attackForceReloadFrame: 0,
@@ -28845,8 +28867,8 @@ export class GameLogicSubsystem implements Subsystem {
             useWeaponSpeed: readBooleanField(block.fields, ['UseWeaponSpeed']) ?? false,
             detonateOnNoFuel: readBooleanField(block.fields, ['DetonateOnNoFuel']) ?? false,
             garrisonHitKillCount: Math.max(0, Math.trunc(readNumericField(block.fields, ['GarrisonHitKillCount']) ?? 0)),
-            garrisonHitKillRequiredKindOf: this.parseKindOf(block.fields['GarrisonHitKillRequiredKindOf']),
-            garrisonHitKillForbiddenKindOf: this.parseKindOf(block.fields['GarrisonHitKillForbiddenKindOf']),
+            garrisonHitKillRequiredKindOf: new Set(this.parseKindOf(block.fields['GarrisonHitKillRequiredKindOf'])),
+            garrisonHitKillForbiddenKindOf: new Set(this.parseKindOf(block.fields['GarrisonHitKillForbiddenKindOf'])),
             distanceScatterWhenJammed: readNumericField(block.fields, ['DistanceScatterWhenJammed']) ?? 75,
             detonateCallsKill: readBooleanField(block.fields, ['DetonateCallsKill']) ?? false,
             killSelfDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['KillSelfDelay']) ?? 3),
@@ -29800,7 +29822,9 @@ export class GameLogicSubsystem implements Subsystem {
       } else if (moduleType === 'CAVECONTAIN') {
         // Source parity: CaveContain — shared tunnel tracker keyed by CaveIndex.
         const caveIndexRaw = readNumericField(block.fields, ['CaveIndex']);
-        const caveIndex = Number.isFinite(caveIndexRaw) ? Math.max(0, Math.trunc(caveIndexRaw)) : 0;
+        const caveIndex = caveIndexRaw !== null && Number.isFinite(caveIndexRaw)
+          ? Math.max(0, Math.trunc(caveIndexRaw))
+          : 0;
         profile = {
           moduleType: 'CAVE',
           allowInsideKindOf,
@@ -31696,7 +31720,7 @@ export class GameLogicSubsystem implements Subsystem {
           // Source parity: HoleHealthRegen%PerSecond uses INI::parsePercentToReal
           // which divides by 100. E.g., INI value "10" → 0.1 (10%). Default = 0.1.
           const regenRaw = readNumericField(block.fields, ['HoleHealthRegen%PerSecond']);
-          const regenPercent = regenRaw !== undefined ? regenRaw / 100 : 0.1;
+          const regenPercent = regenRaw !== null && Number.isFinite(regenRaw) ? regenRaw / 100 : 0.1;
           profile = {
             workerObjectName: workerName,
             workerRespawnDelay: this.msToLogicFrames(respawnDelayMs),
@@ -32441,6 +32465,18 @@ export class GameLogicSubsystem implements Subsystem {
     return profiles;
   }
 
+  private resolveObjectDefParent(objectDef: ObjectDef): ObjectDef | undefined {
+    const parentName = objectDef.parent?.trim();
+    if (!parentName) {
+      return undefined;
+    }
+    const registry = this.iniDataRegistry;
+    if (!registry) {
+      return undefined;
+    }
+    return findObjectDefByName(registry, parentName) ?? undefined;
+  }
+
   /**
    * Source parity: HelicopterSlowDeathBehavior — extract helicopter spiral death profiles.
    * C++ file: HelicopterSlowDeathUpdate.cpp (extends SlowDeathBehavior).
@@ -32542,8 +32578,8 @@ export class GameLogicSubsystem implements Subsystem {
     };
 
     for (const block of objectDef.blocks) visitBlock(block);
-    if (profiles.length === 0 && objectDef.parentDef) {
-      for (const block of objectDef.parentDef.blocks) visitBlock(block);
+    if (profiles.length === 0 && this.resolveObjectDefParent(objectDef)) {
+      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
     }
     return profiles;
   }
@@ -32630,8 +32666,8 @@ export class GameLogicSubsystem implements Subsystem {
     };
 
     for (const block of objectDef.blocks) visitBlock(block);
-    if (profiles.length === 0 && objectDef.parentDef) {
-      for (const block of objectDef.parentDef.blocks) visitBlock(block);
+    if (profiles.length === 0 && this.resolveObjectDefParent(objectDef)) {
+      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
     }
     return profiles;
   }
@@ -32651,8 +32687,8 @@ export class GameLogicSubsystem implements Subsystem {
       const scanRange = readNumericField(block.fields, ['ScanRange']) ?? 0;
       return { weaponSlot, scanFrames, scanRange };
     }
-    if (objectDef.parentDef) {
-      return this.extractCleanupHazardProfile(objectDef.parentDef);
+    if (this.resolveObjectDefParent(objectDef)) {
+      return this.extractCleanupHazardProfile(this.resolveObjectDefParent(objectDef));
     }
     return null;
   }
@@ -32673,8 +32709,8 @@ export class GameLogicSubsystem implements Subsystem {
       const laserToTarget = readStringField(block.fields, ['LaserToTarget']) ?? '';
       return { clipSize, weaponSlot, laserFromAssisted, laserToTarget };
     }
-    if (objectDef.parentDef) {
-      return this.extractAssistedTargetingProfile(objectDef.parentDef);
+    if (this.resolveObjectDefParent(objectDef)) {
+      return this.extractAssistedTargetingProfile(this.resolveObjectDefParent(objectDef));
     }
     return null;
   }
@@ -32813,8 +32849,8 @@ export class GameLogicSubsystem implements Subsystem {
       };
     };
     for (const block of objectDef.blocks) visitBlock(block);
-    if (objectDef.parentDef) {
-      for (const block of objectDef.parentDef.blocks) visitBlock(block);
+    if (this.resolveObjectDefParent(objectDef)) {
+      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
     }
     return profile;
   }
@@ -32836,8 +32872,8 @@ export class GameLogicSubsystem implements Subsystem {
       };
     };
     for (const block of objectDef.blocks) visitBlock(block);
-    if (objectDef.parentDef) {
-      for (const block of objectDef.parentDef.blocks) visitBlock(block);
+    if (this.resolveObjectDefParent(objectDef)) {
+      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
     }
     return profile;
   }
@@ -32861,8 +32897,8 @@ export class GameLogicSubsystem implements Subsystem {
       };
     };
     for (const block of objectDef.blocks) visitBlock(block);
-    if (objectDef.parentDef) {
-      for (const block of objectDef.parentDef.blocks) visitBlock(block);
+    if (this.resolveObjectDefParent(objectDef)) {
+      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
     }
     return profile;
   }
@@ -32884,8 +32920,8 @@ export class GameLogicSubsystem implements Subsystem {
       };
     };
     for (const block of objectDef.blocks) visitBlock(block);
-    if (objectDef.parentDef) {
-      for (const block of objectDef.parentDef.blocks) visitBlock(block);
+    if (this.resolveObjectDefParent(objectDef)) {
+      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
     }
     return profile;
   }
@@ -32915,8 +32951,8 @@ export class GameLogicSubsystem implements Subsystem {
       };
     };
     for (const block of objectDef.blocks) visitBlock(block);
-    if (objectDef.parentDef) {
-      for (const block of objectDef.parentDef.blocks) visitBlock(block);
+    if (this.resolveObjectDefParent(objectDef)) {
+      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
     }
     return profile;
   }
@@ -32945,8 +32981,8 @@ export class GameLogicSubsystem implements Subsystem {
       });
     };
     for (const block of objectDef.blocks) visitBlock(block);
-    if (objectDef.parentDef) {
-      for (const block of objectDef.parentDef.blocks) visitBlock(block);
+    if (this.resolveObjectDefParent(objectDef)) {
+      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
     }
     return profiles;
   }
@@ -32971,8 +33007,8 @@ export class GameLogicSubsystem implements Subsystem {
       };
     };
     for (const block of objectDef.blocks) visitBlock(block);
-    if (!profile && objectDef.parentDef) {
-      for (const block of objectDef.parentDef.blocks) visitBlock(block);
+    if (!profile && this.resolveObjectDefParent(objectDef)) {
+      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
     }
     return profile;
   }
@@ -32997,8 +33033,8 @@ export class GameLogicSubsystem implements Subsystem {
       };
     };
     for (const block of objectDef.blocks) visitBlock(block);
-    if (!profile && objectDef.parentDef) {
-      for (const block of objectDef.parentDef.blocks) visitBlock(block);
+    if (!profile && this.resolveObjectDefParent(objectDef)) {
+      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
     }
     return profile;
   }
@@ -33025,8 +33061,8 @@ export class GameLogicSubsystem implements Subsystem {
       };
     };
     for (const block of objectDef.blocks) visitBlock(block);
-    if (!profile && objectDef.parentDef) {
-      for (const block of objectDef.parentDef.blocks) visitBlock(block);
+    if (!profile && this.resolveObjectDefParent(objectDef)) {
+      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
     }
     return profile;
   }
@@ -33064,8 +33100,8 @@ export class GameLogicSubsystem implements Subsystem {
       profile = { blasts };
     };
     for (const block of objectDef.blocks) visitBlock(block);
-    if (!profile && objectDef.parentDef) {
-      for (const block of objectDef.parentDef.blocks) visitBlock(block);
+    if (!profile && this.resolveObjectDefParent(objectDef)) {
+      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
     }
     return profile;
   }
@@ -33088,8 +33124,8 @@ export class GameLogicSubsystem implements Subsystem {
       };
     };
     for (const block of objectDef.blocks) visitBlock(block);
-    if (!profile && objectDef.parentDef) {
-      for (const block of objectDef.parentDef.blocks) visitBlock(block);
+    if (!profile && this.resolveObjectDefParent(objectDef)) {
+      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
     }
     return profile;
   }
@@ -33114,8 +33150,8 @@ export class GameLogicSubsystem implements Subsystem {
       };
     };
     for (const block of objectDef.blocks) visitBlock(block);
-    if (!profile && objectDef.parentDef) {
-      for (const block of objectDef.parentDef.blocks) visitBlock(block);
+    if (!profile && this.resolveObjectDefParent(objectDef)) {
+      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
     }
     return profile;
   }
@@ -33499,6 +33535,12 @@ export class GameLogicSubsystem implements Subsystem {
     const visitBlock = (block: IniBlock): void => {
       if (block.type.toUpperCase() === 'BEHAVIOR') {
         const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+        if (!SPECIAL_POWER_BEHAVIOR_MODULE_TYPES.has(moduleType)) {
+          for (const child of block.blocks) {
+            visitBlock(child);
+          }
+          return;
+        }
         const specialPowerTemplate = readStringField(block.fields, ['SpecialPowerTemplate']);
         if (specialPowerTemplate) {
           const normalizedSpecialPowerTemplate = specialPowerTemplate.trim().toUpperCase();
@@ -33566,6 +33608,11 @@ export class GameLogicSubsystem implements Subsystem {
       return false;
     }
 
+    if (!entity.specialPowerModules.has(specialPowerTemplateName)) {
+      // Keep upgrade execution one-shot even if data references a missing module.
+      return true;
+    }
+
     let isSharedSynced = false;
     const specialPowerDef = this.resolveSpecialPowerDefByName(specialPowerTemplateName);
     if (specialPowerDef) {
@@ -33574,7 +33621,9 @@ export class GameLogicSubsystem implements Subsystem {
 
     // Source parity: UnpauseSpecialPowerUpgrade::upgradeImplementation() calls
     // pauseCountdown(FALSE) on the matching SpecialPowerModule.
-    this.setSpecialPowerReadyFrame(specialPowerTemplateName, entity.id, isSharedSynced, this.frameCounter);
+    if (!isSharedSynced) {
+      this.unpauseNonSharedSpecialPowerCountdown(specialPowerTemplateName, entity.id);
+    }
     return true;
   }
 
@@ -35771,6 +35820,37 @@ export class GameLogicSubsystem implements Subsystem {
     return false;
   }
 
+  private clearScriptCompletedName(list: string[], name: string): void {
+    for (let index = list.length - 1; index >= 0; index -= 1) {
+      if (list[index] === name) {
+        list.splice(index, 1);
+      }
+    }
+  }
+
+  private clearScriptAudioCompletionState(audioName: string): void {
+    const normalizedName = this.normalizeScriptCompletionName(audioName);
+    if (!normalizedName) {
+      return;
+    }
+    this.clearScriptCompletedName(this.scriptCompletedSpeech, normalizedName);
+    this.clearScriptCompletedName(this.scriptCompletedAudio, normalizedName);
+    this.scriptTestingSpeechCompletionFrameByName.delete(normalizedName);
+    this.scriptTestingAudioCompletionFrameByName.delete(normalizedName);
+  }
+
+  private clearScriptMusicCompletionState(trackName: string): void {
+    const normalizedName = this.normalizeScriptCompletionName(trackName);
+    if (!normalizedName) {
+      return;
+    }
+    for (let index = this.scriptCompletedMusic.length - 1; index >= 0; index -= 1) {
+      if (this.scriptCompletedMusic[index]!.name === normalizedName) {
+        this.scriptCompletedMusic.splice(index, 1);
+      }
+    }
+  }
+
   /**
    * Source parity: ScriptEngine::isSpeechComplete / isAudioComplete.
    * If a completion event has already arrived, consume it first.
@@ -36300,7 +36380,9 @@ export class GameLogicSubsystem implements Subsystem {
   ): boolean {
     // Source parity: Team.cpp::locoSetMatches remaps SURFACES_ALLOWED
     // bits (1=ground, 2=air) into locomotor surface bits.
-    const rawSurfaceFlags = Number.isFinite(surfacesAllowed) ? Math.trunc(surfacesAllowed) : 3;
+    const rawSurfaceFlags = surfacesAllowed !== undefined && Number.isFinite(surfacesAllowed)
+      ? Math.trunc(surfacesAllowed)
+      : 3;
     const scriptSurfaceMask = (rawSurfaceFlags & 0x01) | ((rawSurfaceFlags & 0x02) << 2);
     const locomotorMask = entity.locomotorSurfaceMask !== NO_SURFACES
       ? entity.locomotorSurfaceMask
@@ -36463,6 +36545,81 @@ export class GameLogicSubsystem implements Subsystem {
       return this.frameCounter;
     }
     return Math.max(0, Math.trunc(readyFrame!));
+  }
+
+  private pauseNonSharedSpecialPowerCountdown(
+    specialPowerName: string,
+    sourceEntityId: number,
+    stack: boolean,
+  ): void {
+    const normalizedSpecialPowerName = this.normalizeShortcutSpecialPowerName(specialPowerName);
+    if (!normalizedSpecialPowerName || !Number.isFinite(sourceEntityId)) {
+      return;
+    }
+    const normalizedSourceEntityId = Math.trunc(sourceEntityId);
+    let pausedBySource = this.pausedShortcutSpecialPowerByName.get(normalizedSpecialPowerName);
+    if (!pausedBySource) {
+      pausedBySource = new Map<number, ScriptSpecialPowerPauseState>();
+      this.pausedShortcutSpecialPowerByName.set(normalizedSpecialPowerName, pausedBySource);
+    }
+
+    const state = pausedBySource.get(normalizedSourceEntityId) ?? {
+      pausedCount: 0,
+      pausedOnFrame: this.frameCounter,
+    };
+    if (state.pausedCount <= 0) {
+      state.pausedOnFrame = this.frameCounter;
+      state.pausedCount = 1;
+      pausedBySource.set(normalizedSourceEntityId, state);
+      return;
+    }
+
+    if (stack) {
+      state.pausedCount += 1;
+      pausedBySource.set(normalizedSourceEntityId, state);
+    }
+  }
+
+  private unpauseNonSharedSpecialPowerCountdown(
+    specialPowerName: string,
+    sourceEntityId: number,
+  ): void {
+    const normalizedSpecialPowerName = this.normalizeShortcutSpecialPowerName(specialPowerName);
+    if (!normalizedSpecialPowerName || !Number.isFinite(sourceEntityId)) {
+      return;
+    }
+    const normalizedSourceEntityId = Math.trunc(sourceEntityId);
+    const pausedBySource = this.pausedShortcutSpecialPowerByName.get(normalizedSpecialPowerName);
+    if (!pausedBySource) {
+      return;
+    }
+    const state = pausedBySource.get(normalizedSourceEntityId);
+    if (!state || state.pausedCount <= 0) {
+      return;
+    }
+
+    state.pausedCount -= 1;
+    if (state.pausedCount > 0) {
+      pausedBySource.set(normalizedSourceEntityId, state);
+      return;
+    }
+
+    const pausedFrames = Math.max(0, this.frameCounter - state.pausedOnFrame);
+    const rawReadyFrame = this.resolveSpecialPowerReadyFrameForSourceEntityRaw(
+      normalizedSpecialPowerName,
+      normalizedSourceEntityId,
+    );
+    this.setSpecialPowerReadyFrame(
+      normalizedSpecialPowerName,
+      normalizedSourceEntityId,
+      false,
+      rawReadyFrame + pausedFrames,
+    );
+
+    pausedBySource.delete(normalizedSourceEntityId);
+    if (pausedBySource.size === 0) {
+      this.pausedShortcutSpecialPowerByName.delete(normalizedSpecialPowerName);
+    }
   }
 
   private resolveSpecialPowerReadyFrameForSourceEntity(
@@ -38131,16 +38288,35 @@ export class GameLogicSubsystem implements Subsystem {
     return source.visionRange > 0 ? source.visionRange : DEFAULT_SPY_VISION_RADIUS;
   }
 
+  private canEntityIssueSpecialPower(source: MapEntity): boolean {
+    if (source.destroyed) {
+      return false;
+    }
+    if (source.objectStatusFlags.has('UNDER_CONSTRUCTION') || source.objectStatusFlags.has('SOLD')) {
+      return false;
+    }
+    // Source parity: enclosed contained objects cannot execute direct object actions.
+    if (this.isEntityInEnclosingContainer(source)) {
+      return false;
+    }
+    return true;
+  }
+
   protected onIssueSpecialPowerNoTarget(
     sourceEntityId: number,
     specialPowerName: string,
     commandOption: number,
     commandButtonId: string,
     specialPowerDef: SpecialPowerDef,
-  ): void {
+  ): boolean {
     const module = this.resolveSpecialPowerModuleProfile(sourceEntityId, specialPowerName);
     if (!module) {
-      return;
+      return false;
+    }
+
+    const source = this.spawnedEntities.get(sourceEntityId);
+    if (!source || !this.canEntityIssueSpecialPower(source)) {
+      return false;
     }
 
     this.recordSpecialPowerDispatch(
@@ -38157,13 +38333,7 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity: SpecialAbilityUpdate — deferred execution via state machine.
     if (module.moduleType === 'SPECIALABILITYUPDATE') {
       this.initiateSpecialAbility(sourceEntityId, null, null, null);
-      return;
-    }
-
-    // Execute no-target effects (spy vision centered on source, cash bounty, etc.).
-    const source = this.spawnedEntities.get(sourceEntityId);
-    if (!source || source.destroyed) {
-      return;
+      return true;
     }
 
     // Source parity: BattlePlanUpdate — each battle plan has its own SpecialPower in C++
@@ -38176,7 +38346,7 @@ export class GameLogicSubsystem implements Subsystem {
       else if (upperName.includes('SEARCHANDDESTROY')) desiredPlan = 'SEARCHANDDESTROY';
       if (desiredPlan !== 'NONE') {
         this.requestBattlePlanChange(source, desiredPlan);
-        return;
+        return true;
       }
     }
 
@@ -38217,6 +38387,8 @@ export class GameLogicSubsystem implements Subsystem {
         break;
       }
     }
+
+    return true;
   }
 
   private isSpecialPowerObjectTargetShrouded(
@@ -38301,6 +38473,9 @@ export class GameLogicSubsystem implements Subsystem {
     specialPowerEnum: string | null,
     _commandSource: 'PLAYER' | 'AI' | 'SCRIPT',
   ): boolean {
+    if (this.isEntityInEnclosingContainer(target)) {
+      return false;
+    }
     if (!specialPowerEnum) {
       return true;
     }
@@ -38409,10 +38584,15 @@ export class GameLogicSubsystem implements Subsystem {
     commandOption: number,
     commandButtonId: string,
     specialPowerDef: SpecialPowerDef,
-  ): void {
+  ): boolean {
     const module = this.resolveSpecialPowerModuleProfile(sourceEntityId, specialPowerName);
     if (!module) {
-      return;
+      return false;
+    }
+
+    const source = this.spawnedEntities.get(sourceEntityId);
+    if (!source || !this.canEntityIssueSpecialPower(source)) {
+      return false;
     }
 
     this.recordSpecialPowerDispatch(
@@ -38429,13 +38609,7 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity: SpecialAbilityUpdate — deferred execution via state machine.
     if (module.moduleType === 'SPECIALABILITYUPDATE') {
       this.initiateSpecialAbility(sourceEntityId, null, targetX, targetZ);
-      return;
-    }
-
-    // Execute position-targeted effects.
-    const source = this.spawnedEntities.get(sourceEntityId);
-    if (!source || source.destroyed) {
-      return;
+      return true;
     }
 
     const effectCategory = resolveEffectCategoryImpl(module.moduleType);
@@ -38509,6 +38683,8 @@ export class GameLogicSubsystem implements Subsystem {
         this.issueFireWeaponAtPosition(sourceEntityId, targetX, targetZ, module.fireWeaponMaxShots);
         break;
     }
+
+    return true;
   }
 
   protected onIssueSpecialPowerTargetObject(
@@ -38518,10 +38694,15 @@ export class GameLogicSubsystem implements Subsystem {
     commandOption: number,
     commandButtonId: string,
     _specialPowerDef: SpecialPowerDef,
-  ): void {
+  ): boolean {
     const module = this.resolveSpecialPowerModuleProfile(sourceEntityId, specialPowerName);
     if (!module) {
-      return;
+      return false;
+    }
+
+    const source = this.spawnedEntities.get(sourceEntityId);
+    if (!source || !this.canEntityIssueSpecialPower(source)) {
+      return false;
     }
 
     this.recordSpecialPowerDispatch(
@@ -38538,13 +38719,7 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity: SpecialAbilityUpdate — deferred execution via state machine.
     if (module.moduleType === 'SPECIALABILITYUPDATE') {
       this.initiateSpecialAbility(sourceEntityId, targetEntityId, null, null);
-      return;
-    }
-
-    // Execute object-targeted effects.
-    const source = this.spawnedEntities.get(sourceEntityId);
-    if (!source || source.destroyed) {
-      return;
+      return true;
     }
 
     const effectCategory = resolveEffectCategoryImpl(module.moduleType);
@@ -38571,6 +38746,8 @@ export class GameLogicSubsystem implements Subsystem {
         }, effectContext);
         break;
     }
+
+    return true;
   }
 
   private resolveSpecialPowerModuleProfile(
@@ -39446,6 +39623,16 @@ export class GameLogicSubsystem implements Subsystem {
     if (this.isWorkerEntity(constructor)) {
       // Source parity: WorkerAIUpdate::newTask clears preferred dock when entering dozer tasks.
       this.resetSupplyTruckState(constructor.id, true);
+    }
+    // Source parity: DozerAIUpdate/WorkerAIUpdate::newTask retasks dozer work items.
+    // Construct task overrides any active repair task.
+    if (this.pendingRepairActions.has(constructor.id)) {
+      this.pendingRepairActions.delete(constructor.id);
+      this.clearDozerTaskOrder(constructor, 'REPAIR');
+    }
+    // Construct task replacement should release previous partial build ownership.
+    if (this.pendingConstructionActions.has(constructor.id)) {
+      this.cancelDozerConstructionTask(constructor.id);
     }
 
     const buildCost = this.resolveObjectBuildCost(objectDef, side);
@@ -40627,6 +40814,16 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity: DozerAIUpdate::privateResumeConstruction — if the building is
     // still under construction, resume building instead of repairing.
     if (this.canDozerResumeConstructionTarget(dozer, building, commandSource)) {
+      // Source parity: new build task cancels active repair task.
+      if (this.pendingRepairActions.has(dozer.id)) {
+        this.pendingRepairActions.delete(dozer.id);
+        this.clearDozerTaskOrder(dozer, 'REPAIR');
+      }
+      // Source parity: dozer can own only one active build target at a time.
+      const existingBuildTargetId = this.pendingConstructionActions.get(dozer.id);
+      if (existingBuildTargetId !== undefined && existingBuildTargetId !== building.id) {
+        this.cancelDozerConstructionTask(dozer.id);
+      }
       // Another dozer can resume. Claim it.
       building.builderId = dozer.id;
       this.pendingConstructionActions.set(dozer.id, building.id);
@@ -40637,6 +40834,10 @@ export class GameLogicSubsystem implements Subsystem {
 
     if (!this.canDozerRepairTarget(dozer, building, commandSource)) return;
     if (!this.canDozerAcceptNewRepairTarget(dozer, building)) return;
+    // Source parity: repair task replaces active build task for this dozer/worker.
+    if (this.pendingConstructionActions.has(dozer.id)) {
+      this.cancelDozerConstructionTask(dozer.id);
+    }
 
     // Move dozer to building if not close enough.
     const distance = Math.hypot(building.x - dozer.x, building.z - dozer.z);
@@ -41756,7 +41957,7 @@ export class GameLogicSubsystem implements Subsystem {
       // Sync veterancy: take the higher of both.
       const hijackerVet = source.experienceState.currentLevel;
       const vehicleVet = target.experienceState.currentLevel;
-      const highestVet = Math.max(hijackerVet, vehicleVet);
+      const highestVet = this.clampVeterancyLevel(Math.max(hijackerVet, vehicleVet));
       source.experienceState.currentLevel = highestVet;
       target.experienceState.currentLevel = highestVet;
       // Activate hijacker state.
@@ -41971,12 +42172,12 @@ export class GameLogicSubsystem implements Subsystem {
         // readyFrame = currentFrame + reloadTime.
         const newReadyFrame = this.frameCounter + reloadFrames;
         this.setSpecialPowerReadyFrame(module.specialPowerTemplateName, entity.id, false, newReadyFrame);
+        if (module.startsPaused) {
+          // Source parity: SpecialPowerModuleData::m_startsPaused keeps timer paused
+          // until an UnpauseSpecialPowerUpgrade clears the pause state.
+          this.pauseNonSharedSpecialPowerCountdown(module.specialPowerTemplateName, entity.id, false);
+        }
       }
-
-      // Source parity: SpecialPowerModuleData::m_startsPaused — countdown is paused
-      // until activated by an upgrade (UnpauseSpecialPowerUpgrade). We don't currently
-      // model pause state, but the timer won't be visible until UI is wired up, so the
-      // ready frame value is still correct and will be overridden by unpause.
     }
   }
 
@@ -42634,7 +42835,7 @@ export class GameLogicSubsystem implements Subsystem {
     return !entity.moving
       && entity.attackTargetEntityId === null
       && entity.guardState === 'NONE'
-      && (!entity.specialAbilityState || entity.specialAbilityState.packState === 'NONE')
+      && (!entity.specialAbilityState || entity.specialAbilityState.packingState === 'NONE')
       && entity.transportContainerId === null;
   }
 
@@ -44691,6 +44892,14 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private clampVeterancyLevel(level: number): VeterancyLevel {
+    if (!Number.isFinite(level)) {
+      return LEVEL_REGULAR;
+    }
+    const clamped = Math.max(LEVEL_REGULAR, Math.min(LEVEL_HEROIC, Math.trunc(level)));
+    return clamped as VeterancyLevel;
+  }
+
   /**
    * Source parity: ExperienceTracker::setMinVeterancyLevel — raise veterancy to at least
    * the given level (never lowers). Used by VeterancyGainCreate::onCreate.
@@ -45300,9 +45509,10 @@ export class GameLogicSubsystem implements Subsystem {
       const effectRadiusSq = effectRadius * effectRadius;
       const primaryRadiusSq = primaryDamageRadius * primaryDamageRadius;
       const sourceSide = this.normalizeSide(source.side);
+      const sourceTemplateName = source.templateName.trim().toUpperCase();
 
       for (const target of this.spawnedEntities.values()) {
-        if (target.destroyed) continue;
+        if (target.destroyed || !target.canTakeDamage) continue;
 
         // Source parity: RadiusDamageAffects mask filtering.
         if (target.id === source.id) {
@@ -45314,6 +45524,21 @@ export class GameLogicSubsystem implements Subsystem {
         } else {
           const targetSide = this.normalizeSide(target.side);
           const relationship = this.getTeamRelationshipBySides(sourceSide ?? '', targetSide ?? '');
+          if (
+            (affectsMask & WEAPON_DOESNT_AFFECT_SIMILAR) !== 0
+            && relationship === RELATIONSHIP_ALLIES
+            && sourceTemplateName === target.templateName.trim().toUpperCase()
+          ) {
+            continue;
+          }
+          if ((affectsMask & WEAPON_DOESNT_AFFECT_AIRBORNE) !== 0) {
+            const terrainY = this.resolveGroundHeight(target.x, target.z);
+            // Source parity: Weapon.cpp:1375 — NOT_AIRBORNE skips significantly airborne targets.
+            if ((target.y - target.baseHeight - terrainY) > SIGNIFICANTLY_ABOVE_TERRAIN_THRESHOLD) {
+              continue;
+            }
+          }
+
           let requiredMask = WEAPON_AFFECTS_NEUTRALS;
           if (relationship === RELATIONSHIP_ALLIES) {
             requiredMask = WEAPON_AFFECTS_ALLIES;
@@ -45725,7 +45950,7 @@ export class GameLogicSubsystem implements Subsystem {
       const isIdle = !entity.moving
         && entity.attackTargetEntityId === null
         && entity.guardState === 'NONE'
-        && (!entity.specialAbilityState || entity.specialAbilityState.packState === 'NONE')
+        && (!entity.specialAbilityState || entity.specialAbilityState.packingState === 'NONE')
         && entity.transportContainerId === null;
       if (!isIdle) continue;
 
@@ -48475,7 +48700,7 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity: FireWeaponPower reloads all ammo before firing.
     // C++ calls reloadAllAmmo(TRUE) across all weapon slots; we only track one.
     if (attacker.attackWeapon) {
-      attacker.attackWeapon.currentClipAmmo = attacker.attackWeapon.clipSize;
+      attacker.attackAmmoInClip = attacker.attackWeapon.clipSize;
     }
 
     // Issue attack at position using primary weapon slot (0).
@@ -49752,7 +49977,7 @@ export class GameLogicSubsystem implements Subsystem {
     if (entity.transportContainerId !== null || entity.tunnelContainerId !== null || entity.garrisonContainerId !== null) {
       return false;
     }
-    if (entity.specialAbilityState && entity.specialAbilityState.packState !== 'NONE') {
+    if (entity.specialAbilityState && entity.specialAbilityState.packingState !== 'NONE') {
       return false;
     }
     return true;
@@ -50211,7 +50436,7 @@ export class GameLogicSubsystem implements Subsystem {
   /**
    * Transition a JetAI entity to a new state.
    */
-  private jetAITransition(entity: MapEntity, js: JetAIRuntimeState, newState: JetAIState): void {
+  private jetAITransition(_entity: MapEntity, js: JetAIRuntimeState, newState: JetAIState): void {
     js.state = newState;
     js.stateEnteredFrame = this.frameCounter;
   }
@@ -50476,6 +50701,7 @@ export class GameLogicSubsystem implements Subsystem {
       }
 
       const status = entity.chinookFlightStatus ?? 'FLYING';
+      const waitingToEnterOrExit = this.hasPendingTransportEntryForContainer(entity.id);
       const healingAirfieldId = entity.chinookHealingAirfieldId;
       if (healingAirfieldId !== 0) {
         const airfield = this.spawnedEntities.get(healingAirfieldId);
@@ -50483,6 +50709,7 @@ export class GameLogicSubsystem implements Subsystem {
           this.setChinookAirfieldForHealing(entity, 0);
         } else if (
           status === 'LANDED'
+          && !waitingToEnterOrExit
           && !this.pendingChinookCommandByEntityId.has(entity.id)
           && entity.health >= entity.maxHealth
         ) {
@@ -50496,7 +50723,6 @@ export class GameLogicSubsystem implements Subsystem {
         continue;
       }
 
-      const waitingToEnterOrExit = this.hasPendingTransportEntryForContainer(entity.id);
       if (waitingToEnterOrExit && status !== 'LANDED') {
         this.setChinookFlightStatus(entity, 'LANDING');
         continue;
@@ -51452,7 +51678,6 @@ export class GameLogicSubsystem implements Subsystem {
         profile.preferredHeight > 0
         && !state.usePreciseTargetY
         && state.state !== 'KILL'
-        && state.state !== 'KILL_SELF'
       ) {
         guidanceTargetY = this.resolveGroundHeight(state.currentX, state.currentZ) + profile.preferredHeight;
       }
@@ -53545,9 +53770,6 @@ export class GameLogicSubsystem implements Subsystem {
       if (!prof) continue;
 
       // Save previous state for change detection.
-      const wasAllyNear = entity.checkpointAllyNear;
-      const wasEnemyNear = entity.checkpointEnemyNear;
-
       // Source parity: C++ lines 78-95 — temporarily restore full minor radius during scan
       // to prevent oscillation when the gate is partially open and units are at the boundary.
       const geom = entity.obstacleGeometry;
@@ -53676,7 +53898,6 @@ export class GameLogicSubsystem implements Subsystem {
       if (this.frameCounter < entity.hordeNextCheckFrame) continue;
       entity.hordeNextCheckFrame = this.frameCounter + profile.updateRate;
 
-      const wasInHorde = entity.isInHorde;
       let join = false;
       let trueHordeMember = false;
 
@@ -53894,7 +54115,7 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity: RebuildHoleExposeDie::onDie — create a rebuild hole when a building
    * with the RebuildHoleExposeDie module is destroyed.
    */
-  private tryCreateRebuildHoleOnDeath(entity: MapEntity, attackerId: number): void {
+  private tryCreateRebuildHoleOnDeath(entity: MapEntity, _attackerId: number): void {
     const profile = entity.rebuildHoleExposeDieProfile;
     if (!profile) return;
 
@@ -54928,7 +55149,7 @@ export class GameLogicSubsystem implements Subsystem {
   private resolveAiBaseCenterAndRadius(
     side: string | null,
   ): { centerX: number; centerZ: number; radius: number } | null {
-    const normalizedSide = this.normalizeSide(side);
+    const normalizedSide = this.normalizeSide(side ?? undefined);
     if (!normalizedSide) {
       return null;
     }
@@ -56188,7 +56409,7 @@ export class GameLogicSubsystem implements Subsystem {
     return true;
   }
 
-  private tryBeginSlowDeath(entity: MapEntity, attackerId: number): boolean {
+  private tryBeginSlowDeath(entity: MapEntity, _attackerId: number): boolean {
     if (entity.slowDeathProfiles.length === 0) return false;
 
     // Collect applicable profiles with their weights.
@@ -56896,7 +57117,7 @@ export class GameLogicSubsystem implements Subsystem {
         const hijackerVet = entity.experienceState.currentLevel;
         const vehicleVet = vehicle.experienceState.currentLevel;
         if (hijackerVet !== vehicleVet) {
-          const highestVet = Math.max(hijackerVet, vehicleVet);
+          const highestVet = this.clampVeterancyLevel(Math.max(hijackerVet, vehicleVet));
           entity.experienceState.currentLevel = highestVet;
           vehicle.experienceState.currentLevel = highestVet;
         }
@@ -57057,7 +57278,7 @@ export class GameLogicSubsystem implements Subsystem {
         let scanRange: number;
         if (!geom) {
           scanRange = entity.baseHeight;
-        } else if (geom.type === 'BOX') {
+        } else if (geom.shape === 'box') {
           scanRange = Math.sqrt(geom.majorRadius * geom.majorRadius + geom.minorRadius * geom.minorRadius);
         } else {
           scanRange = geom.majorRadius;
@@ -57744,7 +57965,9 @@ export class GameLogicSubsystem implements Subsystem {
     if (entity.destroyed) return false;
     if (!entity.attackWeapon) return false;
     // Source parity: checks isAbleToAttack() and weapon status READY_TO_FIRE.
+    if (!this.canEntityAttackFromStatus(entity)) return false;
     if (entity.attackCooldownRemaining > 0) return false;
+    if (this.frameCounter < entity.nextAttackFrame) return false;
     return true;
   }
 
@@ -58456,7 +58679,7 @@ export class GameLogicSubsystem implements Subsystem {
           victim.pathfindGoalCell = null;
         }
         // Source parity: deselectObject + setTeam to neutral player.
-        victim.isSelected = false;
+        victim.selected = false;
         // Transfer to a neutral side by clearing ownership.
         this.unregisterEntityEnergy(victim);
         victim.side = '';
@@ -58608,7 +58831,7 @@ export class GameLogicSubsystem implements Subsystem {
         z: entity.z,
         radius: 0,
         sourceEntityId: entity.id,
-        projectileType: 'GENERIC',
+        projectileType: 'BULLET',
       });
     }
   }

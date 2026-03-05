@@ -717,6 +717,41 @@ describe('AudioManager', () => {
     ).toBeGreaterThanOrEqual(AudioHandleSpecialValues.AHSV_FirstHandle);
   });
 
+  it('treats composite ownership filters as OR-scoped audiences', () => {
+    const manager = new AudioManager({
+      localPlayerIndex: 1,
+      eventInfos: [
+        {
+          audioName: 'PlayerOrEnemyScoped',
+          soundType: AudioType.AT_SoundEffect,
+          type: SoundType.ST_PLAYER | SoundType.ST_ENEMIES,
+        },
+      ],
+    });
+    manager.init();
+    manager.setPlayerRelationship(2, 1, 'allies');
+    manager.setPlayerRelationship(3, 1, 'enemies');
+
+    expect(
+      manager.addAudioEvent({
+        eventName: 'PlayerOrEnemyScoped',
+        playerIndex: 1,
+      }),
+    ).toBeGreaterThanOrEqual(AudioHandleSpecialValues.AHSV_FirstHandle);
+    expect(
+      manager.addAudioEvent({
+        eventName: 'PlayerOrEnemyScoped',
+        playerIndex: 3,
+      }),
+    ).toBeGreaterThanOrEqual(AudioHandleSpecialValues.AHSV_FirstHandle);
+    expect(
+      manager.addAudioEvent({
+        eventName: 'PlayerOrEnemyScoped',
+        playerIndex: 2,
+      }),
+    ).toBe(AudioHandleSpecialValues.AHSV_NotForLocal);
+  });
+
   it('culls positional world sounds beyond MaxRange unless global or critical', () => {
     const manager = new AudioManager({
       eventInfos: [
@@ -1488,5 +1523,53 @@ describe('AudioManager', () => {
       objectId: 77,
     });
     expect(second).toBeGreaterThanOrEqual(AudioHandleSpecialValues.AHSV_FirstHandle);
+  });
+
+  it('stays stable under long-running mixed playback load', () => {
+    const manager = new AudioManager({
+      sampleCount2D: 3,
+      sampleCount3D: 3,
+      streamCount: 2,
+      eventInfos: [
+        {
+          audioName: 'UiPing',
+          soundType: AudioType.AT_SoundEffect,
+          type: SoundType.ST_UI,
+        },
+        {
+          audioName: 'WorldBoom',
+          soundType: AudioType.AT_SoundEffect,
+          type: SoundType.ST_WORLD,
+        },
+        {
+          audioName: 'SpeechLine',
+          soundType: AudioType.AT_Streaming,
+        },
+      ],
+    });
+    manager.init();
+
+    for (let frame = 0; frame < 1200; frame += 1) {
+      if (frame % 2 === 0) {
+        manager.addAudioEvent('UiPing');
+      }
+      if (frame % 3 === 0) {
+        manager.addAudioEvent('WorldBoom', [frame % 20, 0, (frame * 3) % 20]);
+      }
+      if (frame % 10 === 0) {
+        manager.addAudioEvent('SpeechLine');
+      }
+      if (frame % 25 === 0) {
+        manager.removeAudioEvent('UiPing');
+      }
+      manager.update();
+    }
+
+    expect(manager.getActiveAudioEventCount()).toBeLessThanOrEqual(8);
+    expect(manager.getQueuedRequestCount()).toBeLessThanOrEqual(8);
+
+    manager.stopAllAudioImmediately();
+    expect(manager.getActiveAudioEventCount()).toBe(0);
+    expect(manager.getQueuedRequestCount()).toBe(0);
   });
 });

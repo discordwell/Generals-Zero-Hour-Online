@@ -1,0 +1,322 @@
+{
+  "generatedAt": "2026-03-05T04:02:18.943Z",
+  "bundlePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/app/public/assets/data/ini-bundle.json",
+  "dispatchSourcePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/app/src/control-bar-dispatch.ts",
+  "summary": {
+    "totalCommandButtons": 6,
+    "distinctBundleCommandTypes": 4,
+    "supportedBundleCommandTypes": 4,
+    "unsupportedBundleCommandTypes": 0,
+    "unknownBundleCommandTypes": 0,
+    "dispatchHandledCommandTypes": 37
+  },
+  "bundleCommandTypeCoverage": [
+    {
+      "sourceCommandName": "DOZER_CONSTRUCT",
+      "enumName": "GUI_COMMAND_DOZER_CONSTRUCT",
+      "status": "supported",
+      "buttonCount": 1,
+      "buttonIds": [
+        "Command_ConstructRuntimePowerPlant"
+      ]
+    },
+    {
+      "sourceCommandName": "PLAYER_UPGRADE",
+      "enumName": "GUI_COMMAND_PLAYER_UPGRADE",
+      "status": "supported",
+      "buttonCount": 1,
+      "buttonIds": [
+        "Command_UpgradeRuntimeArmor"
+      ]
+    },
+    {
+      "sourceCommandName": "SPECIAL_POWER",
+      "enumName": "GUI_COMMAND_SPECIAL_POWER",
+      "status": "supported",
+      "buttonCount": 1,
+      "buttonIds": [
+        "Command_UseRuntimeScan"
+      ]
+    },
+    {
+      "sourceCommandName": "UNIT_BUILD",
+      "enumName": "GUI_COMMAND_UNIT_BUILD",
+      "status": "supported",
+      "buttonCount": 3,
+      "buttonIds": [
+        "Command_BuildRuntimeInfantry",
+        "Command_BuildRuntimeMissileTank",
+        "Command_BuildRuntimeTank"
+      ]
+    }
+  ],
+  "enumCoverage": [
+    {
+      "enumName": "GUI_COMMAND_NONE",
+      "enumValue": 0,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_DOZER_CONSTRUCT",
+      "enumValue": 1,
+      "handledByDispatch": true,
+      "referencedByBundle": true,
+      "sourceCommandNames": [
+        "DOZER_CONSTRUCT"
+      ]
+    },
+    {
+      "enumName": "GUI_COMMAND_DOZER_CONSTRUCT_CANCEL",
+      "enumValue": 2,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_UNIT_BUILD",
+      "enumValue": 3,
+      "handledByDispatch": true,
+      "referencedByBundle": true,
+      "sourceCommandNames": [
+        "UNIT_BUILD"
+      ]
+    },
+    {
+      "enumName": "GUI_COMMAND_CANCEL_UNIT_BUILD",
+      "enumValue": 4,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_PLAYER_UPGRADE",
+      "enumValue": 5,
+      "handledByDispatch": true,
+      "referencedByBundle": true,
+      "sourceCommandNames": [
+        "PLAYER_UPGRADE"
+      ]
+    },
+    {
+      "enumName": "GUI_COMMAND_OBJECT_UPGRADE",
+      "enumValue": 6,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_CANCEL_UPGRADE",
+      "enumValue": 7,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_ATTACK_MOVE",
+      "enumValue": 8,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_GUARD",
+      "enumValue": 9,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_GUARD_WITHOUT_PURSUIT",
+      "enumValue": 10,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_GUARD_FLYING_UNITS_ONLY",
+      "enumValue": 11,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_STOP",
+      "enumValue": 12,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_WAYPOINTS",
+      "enumValue": 13,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_EXIT_CONTAINER",
+      "enumValue": 14,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_EVACUATE",
+      "enumValue": 15,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_EXECUTE_RAILED_TRANSPORT",
+      "enumValue": 16,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_BEACON_DELETE",
+      "enumValue": 17,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_SET_RALLY_POINT",
+      "enumValue": 18,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_SELL",
+      "enumValue": 19,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_FIRE_WEAPON",
+      "enumValue": 20,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_SPECIAL_POWER",
+      "enumValue": 21,
+      "handledByDispatch": true,
+      "referencedByBundle": true,
+      "sourceCommandNames": [
+        "SPECIAL_POWER"
+      ]
+    },
+    {
+      "enumName": "GUI_COMMAND_PURCHASE_SCIENCE",
+      "enumValue": 22,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_HACK_INTERNET",
+      "enumValue": 23,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_TOGGLE_OVERCHARGE",
+      "enumValue": 24,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_COMBATDROP",
+      "enumValue": 25,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_SWITCH_WEAPON",
+      "enumValue": 26,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUICOMMANDMODE_HIJACK_VEHICLE",
+      "enumValue": 27,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUICOMMANDMODE_CONVERT_TO_CARBOMB",
+      "enumValue": 28,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUICOMMANDMODE_SABOTAGE_BUILDING",
+      "enumValue": 29,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUICOMMANDMODE_PLACE_BEACON",
+      "enumValue": 30,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_SPECIAL_POWER_FROM_COMMAND_CENTER",
+      "enumValue": 31,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_SPECIAL_POWER_FROM_SHORTCUT",
+      "enumValue": 32,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_SPECIAL_POWER_CONSTRUCT",
+      "enumValue": 33,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_SPECIAL_POWER_CONSTRUCT_FROM_SHORTCUT",
+      "enumValue": 34,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_SELECT_ALL_UNITS_OF_TYPE",
+      "enumValue": 35,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    },
+    {
+      "enumName": "GUI_COMMAND_NUM_COMMANDS",
+      "enumValue": 36,
+      "handledByDispatch": true,
+      "referencedByBundle": false,
+      "sourceCommandNames": []
+    }
+  ]
+}

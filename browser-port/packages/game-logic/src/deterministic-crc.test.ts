@@ -92,6 +92,274 @@ function runDeterministicStressReplay(totalFrames: number): number[] {
   }
 }
 
+const LONG_STRESS_REPLAY_TOTAL_FRAMES = 1200;
+const LONG_STRESS_REPLAY_CHECKPOINT_FRAMES = [0, 1, 2, 5, 10, 30, 60, 120, 240, 480, 720, 960, 1199] as const;
+const CAMPAIGN_REPLAY_TOTAL_FRAMES = 130;
+const CAMPAIGN_REPLAY_CHECKPOINT_FRAMES = [0, 1, 2, 5, 10, 15, 20, 30, 45, 60, 90, 120, 129] as const;
+const CAMPAIGN_PROGRESS_CHECKPOINT_FRAMES_BASE = [0, 1, 2, 5, 10] as const;
+
+interface CampaignReplayOutcome {
+  crcTimeline: number[];
+  checkpointCrcs: number[];
+  missionState: {
+    missionStage: number | null;
+    missionTimer: number | null;
+    extractionTimer: number | null;
+    missionStarted: boolean;
+    objectiveComplete: boolean;
+    extractionCalled: boolean;
+    inputDisabled: boolean;
+    radarForced: boolean;
+    radarRefreshFrame: number | null;
+  };
+  completionState: {
+    speechLine1: boolean;
+    timedSpeechLine2: boolean;
+    audioExplosion: boolean;
+    musicTrackA: boolean;
+    missionOutroVideo: boolean;
+  };
+}
+
+interface CampaignProgressCertificationCase {
+  name: 'early' | 'mid' | 'late';
+  totalFrames: number;
+  checkpointCrcs: number[];
+  missionState: CampaignReplayOutcome['missionState'];
+  completionState: CampaignReplayOutcome['completionState'];
+}
+
+function applyCampaignReplayInputs(subsystem: GameLogicSubsystem, frame: number): void {
+  switch (frame) {
+    case 0:
+      subsystem.setScriptCurrentPlayerSide('America');
+      subsystem.setScriptCallingTeamContext('MissionTeam');
+      subsystem.setScriptCallingEntityContext(1);
+      subsystem.setScriptTeamMembers('MissionTeam', [1]);
+      subsystem.setScriptTeamPrototype('MissionTeam', 'MissionTeamProto');
+      subsystem.setScriptTeamState('MissionTeam', 'Advance');
+      subsystem.executeScriptAction({ actionType: 'SET_FLAG', flagName: 'MissionStarted', value: true });
+      subsystem.executeScriptAction({ actionType: 'SET_FLAG', flagName: 'ObjectiveComplete', value: false });
+      subsystem.executeScriptAction({ actionType: 'SET_COUNTER', counterName: 'MissionStage', value: 1 });
+      subsystem.executeScriptAction({ actionType: 'SET_TIMER', counterName: 'MissionTimer', value: 20 });
+      subsystem.executeScriptAction({
+        actionType: 'DISPLAY_COUNTDOWN_TIMER',
+        timerName: 'MissionTimer',
+        timerText: 'Mission Time',
+      });
+      subsystem.executeScriptAction({ actionType: 'RADAR_FORCE_ENABLE' });
+      subsystem.submitCommand({ type: 'select', entityId: 1 });
+      break;
+    case 1:
+      subsystem.executeScriptAction({ actionType: 'CALL_SUBROUTINE', scriptName: 'Mission_Subroutine_Init' });
+      break;
+    case 3:
+      subsystem.executeScriptAction({ actionType: 'INCREMENT_COUNTER', value: 2, counterName: 'MissionStage' });
+      break;
+    case 5:
+      subsystem.executeScriptAction({ actionType: 'STOP_TIMER', counterName: 'MissionTimer' });
+      subsystem.notifyScriptSpeechCompleted('MissionBriefing_Line1');
+      break;
+    case 6:
+      subsystem.setScriptAudioLengthMs('MissionBriefing_Line2', 1200);
+      subsystem.evaluateScriptSpeechHasCompleted({ speechName: 'MissionBriefing_Line2' });
+      break;
+    case 7:
+      subsystem.notifyScriptAudioCompleted('MissionExplosion');
+      break;
+    case 8:
+      subsystem.notifyScriptMusicCompleted('MissionTrackA', 0);
+      break;
+    case 10:
+      subsystem.executeScriptAction({ actionType: 'RESTART_TIMER', counterName: 'MissionTimer' });
+      break;
+    case 12:
+      subsystem.executeScriptAction({ actionType: 'DISABLE_INPUT' });
+      break;
+    case 14:
+      subsystem.executeScriptAction({ actionType: 'ENABLE_INPUT' });
+      break;
+    case 15:
+      subsystem.executeScriptAction({ actionType: 'ADD_TO_MSEC_TIMER', value: 1, counterName: 'MissionTimer' });
+      break;
+    case 16:
+      subsystem.executeScriptAction({ actionType: 'SUB_FROM_MSEC_TIMER', value: 0.5, counterName: 'MissionTimer' });
+      break;
+    case 18:
+      subsystem.executeScriptAction({ actionType: 'DECREMENT_COUNTER', value: 1, counterName: 'MissionStage' });
+      break;
+    case 20:
+      subsystem.executeScriptAction({ actionType: 'SET_FLAG', flagName: 'ObjectiveComplete', value: true });
+      break;
+    case 22:
+      subsystem.executeScriptAction({ actionType: 'RADAR_REVERT_TO_NORMAL' });
+      break;
+    case 24:
+      subsystem.executeScriptAction({ actionType: 'INCREMENT_COUNTER', value: 3, counterName: 'MissionStage' });
+      break;
+    case 30:
+      subsystem.notifyScriptUIInteraction('MissionUIPulse');
+      break;
+    case 40:
+      subsystem.executeScriptAction({ actionType: 'SET_FLAG', flagName: 'ExtractionCalled', value: true });
+      subsystem.setScriptCameraMovementFinished(false);
+      break;
+    case 45:
+      subsystem.setScriptCameraMovementFinished(true);
+      subsystem.setScriptCounter('MissionStage', 4);
+      break;
+    case 52:
+      subsystem.executeScriptAction({
+        actionType: 'SET_MILLISECOND_TIMER',
+        counterName: 'ExtractionTimer',
+        seconds: 2,
+      });
+      break;
+    case 60:
+      subsystem.setScriptFlag('MissionStarted', false);
+      break;
+    case 75:
+      subsystem.notifyScriptSubroutineCall('Mission_Subroutine_Extraction');
+      break;
+    case 90:
+      subsystem.submitCommand({ type: 'clearSelection' });
+      break;
+    case 95:
+      subsystem.submitCommand({ type: 'select', entityId: 1 });
+      break;
+    case 110:
+      subsystem.notifyScriptVideoCompleted('MissionOutro');
+      break;
+    case 120:
+      subsystem.executeScriptAction({ actionType: 'HIDE_COUNTDOWN_TIMER', timerName: 'MissionTimer' });
+      break;
+    default:
+      break;
+  }
+
+  if (frame % 9 === 0) {
+    subsystem.executeScriptAction({ actionType: 'REFRESH_RADAR' });
+  }
+}
+
+function runCampaignScenarioReplay(totalFrames = CAMPAIGN_REPLAY_TOTAL_FRAMES): CampaignReplayOutcome {
+  const subsystem = createSubsystem();
+  try {
+    const crcTimeline: number[] = [];
+    for (let frame = 0; frame < totalFrames; frame += 1) {
+      applyCampaignReplayInputs(subsystem, frame);
+      subsystem.update(1 / 30);
+      crcTimeline.push(computeGameLogicCrc(subsystem, frame));
+    }
+
+    const privateApi = subsystem as unknown as {
+      scriptCountersByName: Map<string, { value: number; isCountdownTimer: boolean }>;
+      scriptFlagsByName: Map<string, boolean>;
+    };
+
+    const missionState = {
+      missionStage: privateApi.scriptCountersByName.get('MissionStage')?.value ?? null,
+      missionTimer: privateApi.scriptCountersByName.get('MissionTimer')?.value ?? null,
+      extractionTimer: privateApi.scriptCountersByName.get('ExtractionTimer')?.value ?? null,
+      missionStarted: privateApi.scriptFlagsByName.get('MissionStarted') ?? false,
+      objectiveComplete: privateApi.scriptFlagsByName.get('ObjectiveComplete') ?? false,
+      extractionCalled: privateApi.scriptFlagsByName.get('ExtractionCalled') ?? false,
+      inputDisabled: subsystem.isScriptInputDisabled(),
+      radarForced: subsystem.isScriptRadarForced(),
+      radarRefreshFrame: subsystem.getScriptRadarRefreshRequestedFrame(),
+    };
+
+    const completionState = {
+      speechLine1: subsystem.evaluateScriptSpeechHasCompleted({ speechName: 'MissionBriefing_Line1' }),
+      timedSpeechLine2: subsystem.evaluateScriptSpeechHasCompleted({ speechName: 'MissionBriefing_Line2' }),
+      audioExplosion: subsystem.evaluateScriptAudioHasCompleted({ audioName: 'MissionExplosion' }),
+      musicTrackA: subsystem.evaluateScriptMusicHasCompleted({ musicName: 'MissionTrackA', index: 0 }),
+      missionOutroVideo: subsystem.evaluateScriptVideoHasCompleted({ videoName: 'MissionOutro' }),
+    };
+
+    return {
+      crcTimeline,
+      checkpointCrcs: CAMPAIGN_REPLAY_CHECKPOINT_FRAMES.map((frame) => crcTimeline[frame]!),
+      missionState,
+      completionState,
+    };
+  } finally {
+    subsystem.dispose();
+  }
+}
+
+const CAMPAIGN_PROGRESS_CERTIFICATION_CASES: CampaignProgressCertificationCase[] = [
+  {
+    name: 'early',
+    totalFrames: 30,
+    checkpointCrcs: [3326828329, 682446428, 2277361881, 566409877, 2799679642, 3738333345],
+    missionState: {
+      missionStage: 5,
+      missionTimer: 11,
+      extractionTimer: null,
+      missionStarted: true,
+      objectiveComplete: true,
+      extractionCalled: false,
+      inputDisabled: false,
+      radarForced: false,
+      radarRefreshFrame: 27,
+    },
+    completionState: {
+      speechLine1: true,
+      timedSpeechLine2: false,
+      audioExplosion: true,
+      musicTrackA: true,
+      missionOutroVideo: false,
+    },
+  },
+  {
+    name: 'mid',
+    totalFrames: 75,
+    checkpointCrcs: [3326828329, 682446428, 2277361881, 566409877, 2799679642, 890963251],
+    missionState: {
+      missionStage: 4,
+      missionTimer: -1,
+      extractionTimer: 37,
+      missionStarted: false,
+      objectiveComplete: true,
+      extractionCalled: true,
+      inputDisabled: false,
+      radarForced: false,
+      radarRefreshFrame: 72,
+    },
+    completionState: {
+      speechLine1: true,
+      timedSpeechLine2: true,
+      audioExplosion: true,
+      musicTrackA: true,
+      missionOutroVideo: false,
+    },
+  },
+  {
+    name: 'late',
+    totalFrames: 130,
+    checkpointCrcs: [3326828329, 682446428, 2277361881, 566409877, 2799679642, 131125365],
+    missionState: {
+      missionStage: 4,
+      missionTimer: -1,
+      extractionTimer: -1,
+      missionStarted: false,
+      objectiveComplete: true,
+      extractionCalled: true,
+      inputDisabled: false,
+      radarForced: false,
+      radarRefreshFrame: 126,
+    },
+    completionState: {
+      speechLine1: true,
+      timedSpeechLine2: true,
+      audioExplosion: true,
+      musicTrackA: true,
+      missionOutroVideo: true,
+    },
+  },
+];
+
 describe('GameLogic deterministic CRC ownership', () => {
   it('produces stable CRC values when game logic state is unchanged', () => {
     const subsystem = createSubsystem();
@@ -290,5 +558,85 @@ describe('GameLogic deterministic CRC ownership', () => {
     const firstRun = runDeterministicStressReplay(240);
     const replayRun = runDeterministicStressReplay(240);
     expect(replayRun).toEqual(firstRun);
+  });
+
+  it('replays a campaign-style scripted timeline with deterministic mission outcomes', () => {
+    const campaignReplay = runCampaignScenarioReplay();
+    expect(campaignReplay.missionState).toEqual({
+      missionStage: 4,
+      missionTimer: -1,
+      extractionTimer: -1,
+      missionStarted: false,
+      objectiveComplete: true,
+      extractionCalled: true,
+      inputDisabled: false,
+      radarForced: false,
+      radarRefreshFrame: 126,
+    });
+    expect(campaignReplay.completionState).toEqual({
+      speechLine1: true,
+      timedSpeechLine2: true,
+      audioExplosion: true,
+      musicTrackA: true,
+      missionOutroVideo: true,
+    });
+  });
+
+  it('matches fixed campaign replay CRC checkpoints and full replay timeline', () => {
+    const firstRun = runCampaignScenarioReplay();
+    const replayRun = runCampaignScenarioReplay();
+    expect(replayRun.crcTimeline).toEqual(firstRun.crcTimeline);
+    expect(firstRun.checkpointCrcs).toEqual([
+      3326828329,
+      682446428,
+      2277361881,
+      566409877,
+      2799679642,
+      2298562280,
+      3219718135,
+      1415531284,
+      2288294176,
+      2625765016,
+      2153533935,
+      1533632425,
+      131125365,
+    ]);
+  });
+
+  it('certifies long-session stress replay with fixed deterministic CRC checkpoints', () => {
+    const firstRun = runDeterministicStressReplay(LONG_STRESS_REPLAY_TOTAL_FRAMES);
+    const replayRun = runDeterministicStressReplay(LONG_STRESS_REPLAY_TOTAL_FRAMES);
+    expect(replayRun).toEqual(firstRun);
+    expect(LONG_STRESS_REPLAY_CHECKPOINT_FRAMES.map((frame) => firstRun[frame]!)).toEqual([
+      1225492793,
+      301210440,
+      854423820,
+      1707562365,
+      1544119623,
+      1377508217,
+      1404314908,
+      2050936735,
+      4019947829,
+      1252825241,
+      3525645754,
+      1327343843,
+      2873803509,
+    ]);
+  });
+
+  it('certifies campaign progression matrix (early/mid/late) with fixed checkpoints', () => {
+    for (const certificationCase of CAMPAIGN_PROGRESS_CERTIFICATION_CASES) {
+      const firstRun = runCampaignScenarioReplay(certificationCase.totalFrames);
+      const replayRun = runCampaignScenarioReplay(certificationCase.totalFrames);
+      expect(replayRun.crcTimeline).toEqual(firstRun.crcTimeline);
+
+      const checkpointFrames = [
+        ...CAMPAIGN_PROGRESS_CHECKPOINT_FRAMES_BASE,
+        certificationCase.totalFrames - 1,
+      ];
+      expect(checkpointFrames.map((frame) => firstRun.crcTimeline[frame]!)).toEqual(certificationCase.checkpointCrcs);
+      expect(firstRun.missionState).toEqual(certificationCase.missionState);
+      expect(firstRun.completionState).toEqual(certificationCase.completionState);
+    }
   });
 });

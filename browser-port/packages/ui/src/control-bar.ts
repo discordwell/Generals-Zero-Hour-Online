@@ -195,6 +195,8 @@ export interface ControlBarButton {
   commandType: GUICommandType;
   commandOption?: number;
   enabled?: boolean;
+  disabledReason?: string;
+  iconName?: string;
 }
 
 export interface PendingControlBarCommand {
@@ -238,6 +240,8 @@ export interface ControlBarHudSlot {
   targetRequirement: ControlBarTargetRequirement;
   sourceButtonId?: string;
   hotkey?: string;
+  disabledReason?: string;
+  iconName?: string;
 }
 
 export type ControlBarActivationResult =
@@ -265,6 +269,8 @@ interface NormalizedControlBarButton {
   commandType: GUICommandType;
   commandOption: number;
   enabled: boolean;
+  disabledReason?: string;
+  iconName?: string;
 }
 
 const EMPTY_SELECTION: ControlBarSelectionState = {
@@ -368,6 +374,12 @@ function normalizeButton(button: ControlBarButton): NormalizedControlBarButton |
     commandType: button.commandType,
     commandOption,
     enabled: button.enabled ?? true,
+    disabledReason: typeof button.disabledReason === 'string' && button.disabledReason.trim()
+      ? button.disabledReason.trim()
+      : undefined,
+    iconName: typeof button.iconName === 'string' && button.iconName.trim()
+      ? button.iconName.trim()
+      : undefined,
   };
 }
 
@@ -446,14 +458,23 @@ export class ControlBarModel {
   }
 
   getButtons(): readonly ControlBarButton[] {
-    return this.buttons.map((button) => ({
-      id: button.id,
-      slot: button.slot,
-      label: button.label,
-      commandType: button.commandType,
-      commandOption: button.commandOption,
-      enabled: button.enabled,
-    }));
+    return this.buttons.map((button) => {
+      const snapshot: ControlBarButton = {
+        id: button.id,
+        slot: button.slot,
+        label: button.label,
+        commandType: button.commandType,
+        commandOption: button.commandOption,
+        enabled: button.enabled,
+      };
+      if (button.disabledReason) {
+        snapshot.disabledReason = button.disabledReason;
+      }
+      if (button.iconName) {
+        snapshot.iconName = button.iconName;
+      }
+      return snapshot;
+    });
   }
 
   getPendingCommand(): PendingControlBarCommand | null {
@@ -539,14 +560,23 @@ export class ControlBarModel {
 
       slots.push({
         slot,
-        button: {
+        button: (() => {
+          const snapshot: ControlBarButton = {
           id: button.id,
           slot: button.slot,
           label: button.label,
           commandType: button.commandType,
           commandOption: button.commandOption,
           enabled: button.enabled,
-        },
+          };
+          if (button.disabledReason) {
+            snapshot.disabledReason = button.disabledReason;
+          }
+          if (button.iconName) {
+            snapshot.iconName = button.iconName;
+          }
+          return snapshot;
+        })(),
       });
     }
 
@@ -570,7 +600,7 @@ export class ControlBarModel {
         continue;
       }
 
-      slots.push({
+      const hudSlot: ControlBarHudSlot = {
         slot,
         state: this.pendingCommand?.sourceButtonId === button.id
           ? 'pending'
@@ -581,7 +611,14 @@ export class ControlBarModel {
         targetRequirement: targetRequirementFromButton(button.commandType, button.commandOption),
         sourceButtonId: button.id,
         hotkey: sourceLabelHotkey(button.label) ?? sourceSlotHotkey(slot),
-      });
+      };
+      if (!button.enabled && button.disabledReason) {
+        hudSlot.disabledReason = button.disabledReason;
+      }
+      if (button.iconName) {
+        hudSlot.iconName = button.iconName;
+      }
+      slots.push(hudSlot);
     }
 
     return slots;

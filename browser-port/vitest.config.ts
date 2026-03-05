@@ -22,6 +22,8 @@ export default defineConfig({
     include: [
       'packages/*/src/**/*.test.ts',
       'packages/*/src/**/*.spec.ts',
+      'tools/*.test.ts',
+      'tools/*.spec.ts',
       'tools/*/src/**/*.test.ts',
       'tools/*/src/**/*.spec.ts',
     ],

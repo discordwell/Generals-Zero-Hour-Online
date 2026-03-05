@@ -34,6 +34,7 @@ export function createScriptCinematicRuntimeBridge(
   let lastLetterboxState: boolean | null = null;
   let lastCinematicStateFrame = -1;
   let cinematicClearOnFrame: number | null = null;
+  let cinematicTextVisible = false;
 
   return {
     syncAfterSimulationStep(currentLogicFrame: number): void {
@@ -50,16 +51,25 @@ export function createScriptCinematicRuntimeBridge(
       ) {
         lastCinematicStateFrame = cinematicState.frame;
         view.showCinematicText(cinematicState.text, cinematicState.fontType);
+        cinematicTextVisible = true;
         cinematicClearOnFrame = cinematicState.durationFrames > 0
           ? cinematicState.frame + cinematicState.durationFrames
           : cinematicState.frame;
       }
 
+      if (!cinematicState && cinematicTextVisible) {
+        view.clearCinematicText();
+        cinematicTextVisible = false;
+        cinematicClearOnFrame = null;
+      }
+
       if (
+        cinematicTextVisible &&
         cinematicClearOnFrame !== null
         && currentLogicFrame >= cinematicClearOnFrame
       ) {
         view.clearCinematicText();
+        cinematicTextVisible = false;
         cinematicClearOnFrame = null;
       }
     },

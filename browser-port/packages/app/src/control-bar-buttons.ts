@@ -98,6 +98,30 @@ function normalizeControlBarLabel(value: unknown, fallback: string): string {
   return token.slice(colonOffset + 1);
 }
 
+function normalizeControlBarIconName(value: unknown): string | undefined {
+  const token = firstIniToken(value);
+  if (!token) {
+    return undefined;
+  }
+  const trimmed = token.trim();
+  return trimmed || undefined;
+}
+
+type CommandDisabledReason =
+  | 'MUST_BE_STOPPED'
+  | 'DOZER_REQUIRED'
+  | 'AUTO_RALLYPOINT_REQUIRED'
+  | 'UPGRADE_REQUIRED'
+  | 'SCIENCE_REQUIRED'
+  | 'PRODUCTION_QUEUE_FULL'
+  | 'SCIENCE_UNAVAILABLE'
+  | 'SPECIAL_POWER_COOLDOWN';
+
+interface CommandAvailabilityResult {
+  enabled: boolean;
+  disabledReason?: CommandDisabledReason;
+}
+
 function buildControlBarButtonsFromCommandSet(
   iniDataRegistry: IniDataRegistry,
   commandSetName: string,
@@ -139,8 +163,11 @@ function buildControlBarButtonsFromCommandSet(
       commandButton.fields['TextLabel'] ?? commandButton.fields['Label'],
       commandButton.name,
     );
+    const iconName = normalizeControlBarIconName(
+      commandButton.fields['ButtonImage'] ?? commandButton.fields['ButtonImageName'],
+    );
 
-    const isEnabled = evaluateCommandAvailability(
+    const availability = evaluateCommandAvailability(
       iniDataRegistry,
       commandButton,
       commandType,
@@ -155,7 +182,9 @@ function buildControlBarButtonsFromCommandSet(
       label,
       commandType,
       commandOption,
-      enabled: isEnabled,
+      enabled: availability.enabled,
+      ...(availability.disabledReason ? { disabledReason: availability.disabledReason } : {}),
+      ...(iconName ? { iconName } : {}),
     });
   }
 
@@ -409,15 +438,21 @@ function evaluateCommandAvailability(
   commandOption: number,
   selection: ControlBarSelectionContext,
   playerContext: ResolvedControlBarPlayerContext,
-): boolean {
+): CommandAvailabilityResult {
   if ((commandOption & CommandOption.MUST_BE_STOPPED) !== 0 && selection.isMoving) {
-    return false;
+    return {
+      enabled: false,
+      disabledReason: 'MUST_BE_STOPPED',
+    };
   }
 
   // Source behavior from ControlBar::getCommandAvailability:
   // GUI_COMMAND_DOZER_CONSTRUCT is restricted for non-dozers.
   if (commandType === GUICommandType.GUI_COMMAND_DOZER_CONSTRUCT && !selection.isDozer) {
-    return false;
+    return {
+      enabled: false,
+      disabledReason: 'DOZER_REQUIRED',
+    };
   }
 
   // Source behavior from InGameUI::canSelectedObjectsDoAction(ACTIONTYPE_SET_RALLY_POINT):
@@ -426,7 +461,10 @@ function evaluateCommandAvailability(
     commandType === GUICommandType.GUI_COMMAND_SET_RALLY_POINT &&
     !(selection.hasAutoRallyPoint ?? false)
   ) {
-    return false;
+    return {
+      enabled: false,
+      disabledReason: 'AUTO_RALLYPOINT_REQUIRED',
+    };
   }
 
   if ((commandOption & CommandOption.NEED_UPGRADE) !== 0 && !hasRequiredUpgrade(
@@ -435,7 +473,10 @@ function evaluateCommandAvailability(
     selection,
     playerContext,
   )) {
-    return false;
+    return {
+      enabled: false,
+      disabledReason: 'UPGRADE_REQUIRED',
+    };
   }
 
   // Source behavior from ControlBar::getCommandAvailability:
@@ -446,7 +487,10 @@ function evaluateCommandAvailability(
       commandType === GUICommandType.GUI_COMMAND_OBJECT_UPGRADE) &&
     !hasRequiredSciences(commandButton, playerContext)
   ) {
-    return false;
+    return {
+      enabled: false,
+      disabledReason: 'SCIENCE_REQUIRED',
+    };
   }
 
   // Source behavior from ControlBar::getCommandAvailability:
@@ -456,23 +500,34 @@ function evaluateCommandAvailability(
       || commandType === GUICommandType.GUI_COMMAND_OBJECT_UPGRADE)
     && isProductionQueueFull(selection)
   ) {
-    return false;
+    return {
+      enabled: false,
+      disabledReason: 'PRODUCTION_QUEUE_FULL',
+    };
   }
 
   if (
     commandType === GUICommandType.GUI_COMMAND_PURCHASE_SCIENCE &&
     !canPurchaseScienceFromButton(iniDataRegistry, commandButton, playerContext)
   ) {
-    return false;
+    return {
+      enabled: false,
+      disabledReason: 'SCIENCE_UNAVAILABLE',
+    };
   }
 
   // Source parity bridge: special power command buttons are disabled while the
   // bound source entity's module ready-frame is still in cooldown.
   if (!isSpecialPowerReadyForSelection(commandButton, commandType, selection, playerContext)) {
-    return false;
+    return {
+      enabled: false,
+      disabledReason: 'SPECIAL_POWER_COOLDOWN',
+    };
   }
 
-  return true;
+  return {
+    enabled: true,
+  };
 }
 
 export function buildControlBarButtonsForSelection(

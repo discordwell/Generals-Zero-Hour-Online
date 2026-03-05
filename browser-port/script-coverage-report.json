@@ -1,0 +1,30 @@
+{
+  "generatedAt": "2026-03-05T04:02:19.230Z",
+  "gameLogicSourcePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/game-logic/src/index.ts",
+  "mapsRootPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/app/public/assets/maps",
+  "summary": {
+    "mapsScanned": 2,
+    "mapsWithScripts": 0,
+    "scriptsScanned": 0,
+    "distinctActionTypesUsed": 0,
+    "distinctConditionTypesUsed": 0,
+    "implementedActionTypesUsed": 0,
+    "missingActionTypesUsed": 0,
+    "unknownActionTypeIdsUsed": 0,
+    "implementedConditionTypesUsed": 0,
+    "missingConditionTypesUsed": 0,
+    "unknownConditionTypeIdsUsed": 0,
+    "knownActionTypeIdsInEngine": 508,
+    "knownConditionTypeIdsInEngine": 109,
+    "knownActionTypeIdsMissingImplementation": 0,
+    "knownConditionTypeIdsMissingImplementation": 0,
+    "implementedActionNamesInEngine": 344,
+    "implementedConditionNamesInEngine": 109
+  },
+  "actionCoverage": [],
+  "conditionCoverage": [],
+  "missingActionTypeIds": [],
+  "missingConditionTypeIds": [],
+  "engineKnownMissingActionTypeIds": [],
+  "engineKnownMissingConditionTypeIds": []
+}

@@ -378,6 +378,63 @@ describe('IniDataRegistry', () => {
 
       expect(registry.objects.get('Tank')!.kindOf).toEqual(['VEHICLE', 'SELECTABLE']);
     });
+
+    it('resolves parent links case-insensitively', () => {
+      registry.loadBlocks([
+        makeBlock('Object', 'BaseVehicle', { Side: 'America', KindOf: ['VEHICLE'] }),
+        makeBlock('Object', 'Tank', { MaxHealth: 300 }, { parent: 'basevehicle' }),
+      ]);
+
+      registry.resolveInheritance();
+
+      const tank = registry.objects.get('Tank')!;
+      expect(tank.fields['MaxHealth']).toBe(300);
+      expect(tank.side).toBe('America');
+      expect(tank.kindOf).toEqual(['VEHICLE']);
+      expect(registry.errors).toHaveLength(0);
+    });
+
+    it('resolves weapon, special-power, and object-creation-list inheritance', () => {
+      registry.loadBlocks([
+        makeBlock('Weapon', 'BaseGun', { Damage: 30, AttackRange: 120 }),
+        makeBlock('Weapon', 'FastGun', { Damage: 45 }, { parent: 'basegun' }),
+        makeBlock('SpecialPower', 'BasePower', { ReloadTime: 15, RadiusCursorRadius: 50 }),
+        makeBlock('SpecialPower', 'ChildPower', { Type: 'INSTANT' }, { parent: 'BasePower' }),
+        makeBlock('ObjectCreationList', 'OCL_Base', { CreateAtEdge: 'No', Count: 1 }),
+        makeBlock('ObjectCreationList', 'OCL_Child', { ObjectNames: 'TankA' }, { parent: 'ocl_base' }),
+      ]);
+
+      registry.resolveInheritance();
+
+      const fastGun = registry.getWeapon('FastGun')!;
+      expect(fastGun.fields['Damage']).toBe(45);
+      expect(fastGun.fields['AttackRange']).toBe(120);
+      expect(fastGun.resolved).toBe(true);
+
+      const childPower = registry.getSpecialPower('ChildPower')!;
+      expect(childPower.fields['Type']).toBe('INSTANT');
+      expect(childPower.fields['ReloadTime']).toBe(15);
+      expect(childPower.resolved).toBe(true);
+
+      const childOcl = registry.getObjectCreationList('OCL_Child')!;
+      expect(childOcl.fields['ObjectNames']).toBe('TankA');
+      expect(childOcl.fields['CreateAtEdge']).toBe('No');
+      expect(childOcl.resolved).toBe(true);
+    });
+
+    it('counts unresolved inheritance across all inheriting block types', () => {
+      registry.loadBlocks([
+        makeBlock('Object', 'Object_Orphan', { MaxHealth: 100 }, { parent: 'MissingObjectParent' }),
+        makeBlock('Weapon', 'Weapon_Orphan', { Damage: 25 }, { parent: 'MissingWeaponParent' }),
+        makeBlock('SpecialPower', 'Power_Orphan', { Type: 'INSTANT' }, { parent: 'MissingPowerParent' }),
+        makeBlock('ObjectCreationList', 'OCL_Orphan', { Count: 1 }, { parent: 'MissingOclParent' }),
+      ]);
+
+      registry.resolveInheritance();
+
+      expect(registry.getStats().unresolvedInheritance).toBe(4);
+      expect(registry.errors.filter((error) => error.type === 'unresolved_parent')).toHaveLength(4);
+    });
   });
 
   describe('getStats', () => {

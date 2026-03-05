@@ -95,14 +95,6 @@ export interface CombatDamageEventContext<
   hugeDamageAmount: number;
 }
 
-function normalizeVector2(x: number, z: number): VectorXZLike {
-  const length = Math.hypot(x, z);
-  if (length <= 1e-6) {
-    return { x: 0, z: 0 };
-  }
-  return { x: x / length, z: z / length };
-}
-
 /**
  * Source parity: Weapon.cpp:1425-1427 — the C++ RadiusDamageAngle check uses
  * full 3D vectors for both source orientation and victim direction.

@@ -5,6 +5,7 @@ import { readNumericField, readStringField } from './ini-readers.js';
 
 type ExtractIniValueTokens = (value: IniValue | undefined) => string[][];
 type FindObjectDefByName = (templateName: string) => ObjectDef | undefined;
+const MAX_TEMPLATE_ANCESTRY_DEPTH = 64;
 
 export interface ProductionQuantityModifier {
   templateName: string;
@@ -23,6 +24,58 @@ function normalizeKindOf(kindOf: readonly string[] | undefined): Set<string> {
     }
   }
   return normalized;
+}
+
+function normalizeTemplateName(name: string | undefined): string {
+  return name?.trim().toUpperCase() ?? '';
+}
+
+function hasSetIntersection(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  for (const value of left) {
+    if (right.has(value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function collectTemplateAncestry(
+  objectDef: ObjectDef,
+  findObjectDefByName: FindObjectDefByName,
+): { names: Set<string>; definitions: ObjectDef[] } {
+  const names = new Set<string>();
+  const definitions: ObjectDef[] = [];
+  let current: ObjectDef | undefined = objectDef;
+
+  for (let depth = 0; depth < MAX_TEMPLATE_ANCESTRY_DEPTH && current; depth += 1) {
+    const normalizedName = normalizeTemplateName(current.name);
+    if (!normalizedName || names.has(normalizedName)) {
+      break;
+    }
+    names.add(normalizedName);
+    definitions.push(current);
+
+    const parentName = normalizeTemplateName(current.parent);
+    if (!parentName) {
+      break;
+    }
+    current = findObjectDefByName(parentName);
+  }
+
+  return { names, definitions };
+}
+
+function collectBuildVariationNamesFromAncestry(
+  definitions: readonly ObjectDef[],
+  extractIniValueTokens: ExtractIniValueTokens,
+): Set<string> {
+  const names = new Set<string>();
+  for (const definition of definitions) {
+    for (const variationName of extractBuildVariationNames(definition, extractIniValueTokens)) {
+      names.add(variationName);
+    }
+  }
+  return names;
 }
 
 /**
@@ -88,13 +141,14 @@ export function areEquivalentObjectTemplates(
   left: ObjectDef | undefined,
   right: ObjectDef | undefined,
   extractIniValueTokens: ExtractIniValueTokens,
+  findObjectDefByName: FindObjectDefByName,
 ): boolean {
   if (!left || !right) {
     return false;
   }
 
-  const leftName = left.name.trim().toUpperCase();
-  const rightName = right.name.trim().toUpperCase();
+  const leftName = normalizeTemplateName(left.name);
+  const rightName = normalizeTemplateName(right.name);
   if (!leftName || !rightName) {
     return false;
   }
@@ -103,8 +157,7 @@ export function areEquivalentObjectTemplates(
   }
 
   // Source parity: ThingTemplate::isEquivalentTo() compares direct equality, final overrides,
-  // reskin ancestry, and BuildVariations both directions. Registry data currently exposes
-  // BuildVariations reliably, but not final-override/reskin links.
+  // reskin ancestry, and BuildVariations both directions.
   const leftVariations = extractBuildVariationNames(left, extractIniValueTokens);
   if (leftVariations.has(rightName)) {
     return true;
@@ -114,7 +167,28 @@ export function areEquivalentObjectTemplates(
     return true;
   }
 
-  // TODO(C&C source parity): include final-override and reskin ancestry equivalence checks once represented in ini-data registry.
+  const leftAncestry = collectTemplateAncestry(left, findObjectDefByName);
+  const rightAncestry = collectTemplateAncestry(right, findObjectDefByName);
+  if (hasSetIntersection(leftAncestry.names, rightAncestry.names)) {
+    return true;
+  }
+
+  const leftAncestryVariations = collectBuildVariationNamesFromAncestry(
+    leftAncestry.definitions,
+    extractIniValueTokens,
+  );
+  if (hasSetIntersection(leftAncestryVariations, rightAncestry.names)) {
+    return true;
+  }
+
+  const rightAncestryVariations = collectBuildVariationNamesFromAncestry(
+    rightAncestry.definitions,
+    extractIniValueTokens,
+  );
+  if (hasSetIntersection(rightAncestryVariations, leftAncestry.names)) {
+    return true;
+  }
+
   return false;
 }
 
@@ -135,7 +209,7 @@ export function areEquivalentTemplateNames(
 
   const leftDef = findObjectDefByName(normalizedLeft);
   const rightDef = findObjectDefByName(normalizedRight);
-  return areEquivalentObjectTemplates(leftDef, rightDef, extractIniValueTokens);
+  return areEquivalentObjectTemplates(leftDef, rightDef, extractIniValueTokens, findObjectDefByName);
 }
 
 export function resolveProductionQuantity(

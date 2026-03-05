@@ -2814,4 +2814,42 @@ End
       expect(result.status).not.toBe(0);
     });
   });
+
+  it('ignores non-CkMp source-map files when converting maps', () => {
+    return withTempDir((dir) => {
+      const gameDir = resolve(dir, 'game');
+      const outputDir = resolve(dir, 'out');
+      const mapDir = resolve(gameDir, 'maps');
+      const nodeModulesDir = resolve(gameDir, 'node_modules', 'pkg');
+
+      mkdirSync(mapDir, { recursive: true });
+      mkdirSync(nodeModulesDir, { recursive: true });
+
+      writeFileSync(resolve(mapDir, 'SmokeTest.map'), buildMinimalMapBinary());
+      writeFileSync(
+        resolve(nodeModulesDir, 'index.js.map'),
+        JSON.stringify({ version: 3, file: 'index.js', mappings: '' }),
+      );
+
+      const result = runConvertAll([
+        '--game-dir',
+        gameDir,
+        '--output',
+        outputDir,
+        '--only',
+        'map',
+      ]);
+
+      expect(result.status).toBe(0);
+      expect(existsSync(resolve(outputDir, 'maps', 'SmokeTest.json'))).toBe(true);
+
+      const runtimeManifest = JSON.parse(
+        readFileSync(resolve(outputDir, RUNTIME_MANIFEST_FILE), 'utf8'),
+      ) as ConversionManifestSnapshot;
+      const mapEntries = runtimeManifest.entries.filter((entry) => entry.converter === 'map-converter');
+      expect(mapEntries).toHaveLength(1);
+      expect(mapEntries[0]?.outputPath).toBe('maps/SmokeTest.json');
+      expect(mapEntries[0]?.sourcePath.toLowerCase().includes('index.js.map')).toBe(false);
+    });
+  });
 });

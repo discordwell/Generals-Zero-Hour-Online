@@ -46,6 +46,7 @@ import {
   isObjectTargetAllowedForSelection,
   isObjectTargetRelationshipAllowed,
 } from './control-bar-targeting.js';
+import { planCombatVisualEffects } from './combat-visual-effects.js';
 import { collectShortcutSpecialPowerReadyFrames } from './shortcut-special-power-sources.js';
 import { resolveSfxVolumesFromAudioSettings } from './audio-settings.js';
 import {
@@ -53,17 +54,23 @@ import {
   loadOptionPreferencesFromStorage,
 } from './option-preferences.js';
 import { applyScriptInputLock } from './script-input-lock.js';
-import { resolveScriptRadarVisibility } from './script-radar-visibility.js';
+import {
+  resolveScriptRadarEntityBlipVisibility,
+  resolveScriptRadarInteractionEnabled,
+  resolveScriptRadarVisibility,
+} from './script-radar-visibility.js';
 import { syncPlayerSidesFromNetwork } from './player-side-sync.js';
 import { createScriptAudioRuntimeBridge } from './script-audio-runtime.js';
 import { createScriptCameraEffectsRuntimeBridge } from './script-camera-effects-runtime.js';
 import { createScriptCameraRuntimeBridge } from './script-camera-runtime.js';
 import { createScriptCinematicRuntimeBridge } from './script-cinematic-runtime.js';
 import { createScriptEmoticonRuntimeBridge } from './script-emoticon-runtime.js';
+import { createScriptEvaRuntimeBridge } from './script-eva-runtime.js';
 import { createScriptMessageRuntimeBridge } from './script-message-runtime.js';
 import { createScriptObjectAmbientAudioRuntimeBridge } from './script-object-ambient-audio-runtime.js';
 import { createScriptUiEffectsRuntimeBridge } from './script-ui-effects-runtime.js';
 import { syncScriptViewRuntimeBridge } from './script-view-runtime.js';
+import { assertIniBundleConsistency, assertRequiredManifestEntries } from './runtime-guardrails.js';
 import { GameShell, type SkirmishSettings } from './game-shell.js';
 
 // ============================================================================
@@ -397,6 +404,7 @@ async function preInit(): Promise<PreInitContext> {
   // Initialize registered runtime subsystems before any asset fetches so
   // AssetManager has the manifest and cache ready.
   await subsystems.initAll();
+  assertRequiredManifestEntries(assets.getManifest(), ['data/ini-bundle.json']);
 
   // ========================================================================
   // Game data (INI bundle)
@@ -409,6 +417,7 @@ async function preInit(): Promise<PreInitContext> {
       const pct = total > 0 ? Math.round(40 + (loaded / total) * 8) : 48;
       setLoadingProgress(pct, 'Loading INI bundle...');
     });
+    assertIniBundleConsistency(bundleHandle.data);
     iniDataRegistry.loadBundle(bundleHandle.data);
     iniDataInfo = `INI bundle loaded from ${bundleHandle.cached ? 'cache' : 'network'} ` +
       `(${bundleHandle.data.stats.objects} objects, ${bundleHandle.data.stats.weapons} weapons)`;
@@ -754,6 +763,7 @@ async function startGame(
   let loadedFromJSON = false;
 
   if (mapPath) {
+    assertRequiredManifestEntries(assets.getManifest(), [mapPath]);
     try {
       const handle = await assets.loadJSON<MapDataJSON>(mapPath, (loaded, total) => {
         const pct = total > 0 ? Math.round(50 + (loaded / total) * 20) : 60;
@@ -1280,7 +1290,11 @@ async function startGame(
   minimapTerrainCtx.putImageData(terrainImgData, 0, 0);
 
   // Click on minimap to move camera.
+  let radarInteractionEnabled = true;
   minimapCanvas.addEventListener('mousedown', (e) => {
+    if (!radarInteractionEnabled) {
+      return;
+    }
     const rect = minimapCanvas.getBoundingClientRect();
     const mx = (e.clientX - rect.left) / rect.width;
     const my = (e.clientY - rect.top) / rect.height;
@@ -1290,17 +1304,19 @@ async function startGame(
   });
 
   let minimapDragging = false;
-  minimapCanvas.addEventListener('mousedown', () => { minimapDragging = true; });
+  minimapCanvas.addEventListener('mousedown', () => {
+    minimapDragging = radarInteractionEnabled;
+  });
   window.addEventListener('mouseup', () => { minimapDragging = false; });
   minimapCanvas.addEventListener('mousemove', (e) => {
-    if (!minimapDragging) return;
+    if (!minimapDragging || !radarInteractionEnabled) return;
     const rect = minimapCanvas.getBoundingClientRect();
     const mx = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const my = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
     rtsCamera.lookAt(mx * heightmap.worldWidth, my * heightmap.worldDepth);
   });
 
-  const updateMinimap = (): void => {
+  const updateMinimap = (showEntityBlips: boolean): void => {
     // Draw pre-rendered terrain.
     minimapCtx.drawImage(minimapTerrainCanvas, 0, 0);
 
@@ -1334,22 +1350,24 @@ async function startGame(
     }
 
     // Draw entity dots (respect fog of war — hide enemy entities in non-visible cells).
-    const renderStates = gameLogic.getRenderableEntityStates();
-    for (const entity of renderStates) {
-      const px = (entity.x / heightmap.worldWidth) * MINIMAP_SIZE;
-      const py = (entity.z / heightmap.worldDepth) * MINIMAP_SIZE;
-      const normalizedEntitySide = entity.side?.toUpperCase() ?? '';
-      const normalizedLocalSide = localSide?.toUpperCase() ?? '';
-      const isAlly = normalizedEntitySide === normalizedLocalSide;
+    if (showEntityBlips) {
+      const renderStates = gameLogic.getRenderableEntityStates();
+      for (const entity of renderStates) {
+        const px = (entity.x / heightmap.worldWidth) * MINIMAP_SIZE;
+        const py = (entity.z / heightmap.worldDepth) * MINIMAP_SIZE;
+        const normalizedEntitySide = entity.side?.toUpperCase() ?? '';
+        const normalizedLocalSide = localSide?.toUpperCase() ?? '';
+        const isAlly = normalizedEntitySide === normalizedLocalSide;
 
-      // Non-ally entities are only visible in CELL_CLEAR fog cells.
-      if (!isAlly && localSide) {
-        const cellVis = gameLogic.getCellVisibility(localSide, entity.x, entity.z);
-        if (cellVis !== 2) continue; // Not CELL_CLEAR — skip.
+        // Non-ally entities are only visible in CELL_CLEAR fog cells.
+        if (!isAlly && localSide) {
+          const cellVis = gameLogic.getCellVisibility(localSide, entity.x, entity.z);
+          if (cellVis !== 2) continue; // Not CELL_CLEAR — skip.
+        }
+
+        minimapCtx.fillStyle = isAlly ? '#00cc00' : '#cc3333';
+        minimapCtx.fillRect(px - 1, py - 1, 3, 3);
       }
-
-      minimapCtx.fillStyle = isAlly ? '#00cc00' : '#cc3333';
-      minimapCtx.fillRect(px - 1, py - 1, 3, 3);
     }
 
     // Draw camera viewport frustum.
@@ -1851,30 +1869,28 @@ async function startGame(
     const events = gameLogic.drainVisualEvents();
     for (const event of events) {
       const pos: readonly [number, number, number] = [event.x, event.y, event.z];
-      switch (event.type) {
-        case 'WEAPON_IMPACT':
-          spawnExplosion(event.x, event.y, event.z, event.radius);
-          audioManager.addAudioEvent(
-            event.radius > 5 ? 'CombatExplosionLarge' : 'CombatExplosionSmall',
-            pos,
-          );
-          break;
-        case 'WEAPON_FIRED':
-          spawnMuzzleFlash(event.x, event.y, event.z);
-          if (event.projectileType === 'MISSILE') {
-            audioManager.addAudioEvent('CombatMissileLaunch', pos);
-          } else if (event.projectileType === 'ARTILLERY') {
-            audioManager.addAudioEvent('CombatArtilleryFire', pos);
-          } else {
-            audioManager.addAudioEvent('CombatGunshot', pos);
-          }
-          break;
-        case 'ENTITY_DESTROYED':
-          spawnDestructionEffect(event.x, event.y, event.z, event.radius);
-          spawnRubble(event.x, event.z, event.radius);
-          spawnSmokeColumn(event.x, event.y, event.z);
-          audioManager.addAudioEvent('CombatEntityDestroyed', pos);
-          break;
+      const plannedActions = planCombatVisualEffects(event);
+      for (const action of plannedActions) {
+        switch (action.type) {
+          case 'spawnExplosion':
+            spawnExplosion(event.x, event.y, event.z, action.radius);
+            break;
+          case 'spawnMuzzleFlash':
+            spawnMuzzleFlash(event.x, event.y, event.z);
+            break;
+          case 'spawnDestruction':
+            spawnDestructionEffect(event.x, event.y, event.z, action.radius);
+            break;
+          case 'spawnRubble':
+            spawnRubble(event.x, event.z, action.radius);
+            break;
+          case 'spawnSmokeColumn':
+            spawnSmokeColumn(event.x, event.y, event.z);
+            break;
+          case 'playAudio':
+            audioManager.addAudioEvent(action.eventName, pos);
+            break;
+        }
       }
     }
   };
@@ -2207,6 +2223,12 @@ async function startGame(
       gameLoop.paused = paused;
     },
   });
+  const scriptEvaRuntimeBridge = createScriptEvaRuntimeBridge({
+    gameLogic,
+    uiRuntime,
+    audioManager,
+    resolveLocalPlayerSide: () => gameLogic.getPlayerSide(networkManager.getLocalPlayerID()),
+  });
   const scriptUiEffectsRuntimeBridge = createScriptUiEffectsRuntimeBridge({
     gameLogic,
     uiRuntime,
@@ -2237,15 +2259,17 @@ async function startGame(
   scriptCameraTimeMultiplier = scriptCameraRuntimeBridge.getCameraTimeMultiplier();
   const trackedShortcutSpecialPowerSourceEntityIds = new Set<number>();
   let currentLogicFrame = 0;
+  let missionInputLocked = false;
 
   gameLoop.start({
     onSimulationStep(_frameNumber: number, dt: number) {
       currentLogicFrame = _frameNumber + 1;
       const inputState = inputManager.getState();
       const scriptInputDisabled = gameLogic.isScriptInputDisabled();
+      missionInputLocked = scriptInputDisabled || gameEnded;
       let inputStateForGameLogic: InputState = applyScriptInputLock(
         inputState,
-        scriptInputDisabled,
+        missionInputLocked,
       );
       camera.getWorldDirection(cameraForward);
       cameraUp.copy(camera.up).normalize();
@@ -2263,10 +2287,10 @@ async function startGame(
       scriptAudioRuntimeBridge.syncBeforeSimulationStep();
 
       const pendingControlBarCommand = uiRuntime.getPendingControlBarCommand();
-      if (scriptInputDisabled && pendingControlBarCommand) {
+      if (missionInputLocked && pendingControlBarCommand) {
         uiRuntime.cancelPendingControlBarCommand();
       }
-      if (!scriptInputDisabled && pendingControlBarCommand && inputState.rightMouseClick) {
+      if (!missionInputLocked && pendingControlBarCommand && inputState.rightMouseClick) {
         inputStateForGameLogic = {
           ...inputState,
           rightMouseClick: false,
@@ -2355,7 +2379,7 @@ async function startGame(
       }
 
       // Drag-select logic: track left mouse drag for box selection.
-      if (!scriptInputDisabled) {
+      if (!missionInputLocked) {
         if (inputState.leftMouseDown && !wasLeftMouseDown) {
           // Mouse just pressed — record start position.
           dragStartX = inputState.mouseX;
@@ -2403,7 +2427,7 @@ async function startGame(
         inputStateForGameLogic = { ...inputStateForGameLogic, leftMouseClick: false };
       }
 
-      if (!scriptInputDisabled) {
+      if (!missionInputLocked) {
         updateBuildingGhost(inputState);
       } else {
         buildingGhostMesh.visible = false;
@@ -2419,7 +2443,7 @@ async function startGame(
       }
 
       gameLogic.handlePointerInput(inputStateForGameLogic, camera);
-      if (!scriptInputDisabled) {
+      if (!missionInputLocked) {
         dispatchIssuedControlBarCommands(
           uiRuntime.consumeIssuedCommands(),
           iniDataRegistry,
@@ -2437,7 +2461,7 @@ async function startGame(
       // ----------------------------------------------------------------
 
       // Space — center camera on selected unit(s).
-      if (!scriptInputDisabled && inputState.keysPressed.has(' ')) {
+      if (!missionInputLocked && inputState.keysPressed.has(' ')) {
         const selIds = gameLogic.getLocalPlayerSelectionIds();
         if (selIds.length > 0) {
           let cx = 0;
@@ -2458,7 +2482,7 @@ async function startGame(
       }
 
       // S — stop all selected units (only on one-shot press with active selection).
-      if (!scriptInputDisabled && inputState.keysPressed.has('s')) {
+      if (!missionInputLocked && inputState.keysPressed.has('s')) {
         const selIds = gameLogic.getLocalPlayerSelectionIds();
         if (selIds.length > 0) {
           for (const id of selIds) {
@@ -2468,7 +2492,7 @@ async function startGame(
       }
 
       // Delete — sell selected building.
-      if (!scriptInputDisabled && inputState.keysPressed.has('delete')) {
+      if (!missionInputLocked && inputState.keysPressed.has('delete')) {
         const selIds = gameLogic.getLocalPlayerSelectionIds();
         for (const id of selIds) {
           gameLogic.submitCommand({ type: 'sell', entityId: id });
@@ -2476,7 +2500,7 @@ async function startGame(
       }
 
       // Escape — cancel pending control bar target or clear selection.
-      if (!scriptInputDisabled && inputState.keysPressed.has('escape')) {
+      if (!missionInputLocked && inputState.keysPressed.has('escape')) {
         if (uiRuntime.getPendingControlBarCommand()) {
           uiRuntime.cancelPendingControlBarCommand();
         } else {
@@ -2497,6 +2521,7 @@ async function startGame(
       scriptAudioRuntimeBridge.syncAfterSimulationStep();
       scriptObjectAmbientAudioRuntimeBridge.syncAfterSimulationStep();
       scriptMessageRuntimeBridge.syncAfterSimulationStep();
+      scriptEvaRuntimeBridge.syncAfterSimulationStep();
       scriptUiEffectsRuntimeBridge.syncAfterSimulationStep(_frameNumber + 1);
       scriptEmoticonRuntimeBridge.syncAfterSimulationStep(_frameNumber + 1);
       scriptCameraEffectsState = scriptCameraEffectsRuntimeBridge.syncAfterSimulationStep(_frameNumber + 1);
@@ -2581,9 +2606,19 @@ async function startGame(
         gameLogic.isScriptRadarHidden(),
         gameLogic.isScriptRadarForced(),
       );
+      const radarInteractionAllowed = resolveScriptRadarInteractionEnabled(
+        radarVisible,
+        missionInputLocked,
+      );
+      const radarEntityBlipsVisible = resolveScriptRadarEntityBlipVisibility(
+        radarVisible,
+        gameLogic.isScriptDrawIconUIEnabled(),
+      );
+      radarInteractionEnabled = radarInteractionAllowed;
       minimapCanvas.style.display = radarVisible ? 'block' : 'none';
+      minimapCanvas.style.pointerEvents = radarInteractionAllowed ? 'auto' : 'none';
       if (radarVisible) {
-        updateMinimap();
+        updateMinimap(radarEntityBlipsVisible);
       }
       updateProductionPanel();
       updateRallyPointVisual();
@@ -2774,6 +2809,10 @@ async function startGame(
             subtitleEl.textContent = 'Your forces have been destroyed.';
           }
           endGameOverlay.style.display = 'flex';
+          if (uiRuntime.getPendingControlBarCommand()) {
+            uiRuntime.cancelPendingControlBarCommand();
+          }
+          uiRuntime.consumeIssuedCommands();
         }
       }
 

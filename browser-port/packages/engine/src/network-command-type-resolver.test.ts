@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  NETCOMMANDTYPE_DISCONNECTEND,
+  NETCOMMANDTYPE_DISCONNECTSTART,
   NETCOMMANDTYPE_DISCONNECTSCREENOFF,
   NETCOMMANDTYPE_FRAMEINFO,
+  NETCOMMANDTYPE_MAX,
   NETCOMMANDTYPE_PACKETROUTERACK,
   NETCOMMANDTYPE_UNKNOWN,
 } from './network-command-type.js';
+import * as NetworkCommandTypes from './network-command-type.js';
 import {
   getAsciiNetworkCommandType,
   normalizeNetworkCommandTypeName,
@@ -33,6 +37,24 @@ describe('network command type resolver', () => {
     expect(getAsciiNetworkCommandType(NETCOMMANDTYPE_FRAMEINFO)).toBe('NETCOMMANDTYPE_FRAMEINFO');
     expect(getAsciiNetworkCommandType(NETCOMMANDTYPE_PACKETROUTERACK)).toBe('NETCOMMANDTYPE_PACKETROUTERACK');
     expect(getAsciiNetworkCommandType(9999)).toBe('UNKNOWN');
+  });
+
+  it('round-trips all concrete source command ids through ascii-name resolution', () => {
+    const commandEntries = Object.entries(NetworkCommandTypes)
+      .filter(([name]) => name.startsWith('NETCOMMANDTYPE_'))
+      .map(([, value]) => value)
+      .filter((value): value is number => typeof value === 'number')
+      .filter((value) => value !== NETCOMMANDTYPE_UNKNOWN)
+      .filter((value) => value !== NETCOMMANDTYPE_DISCONNECTSTART)
+      .filter((value) => value !== NETCOMMANDTYPE_DISCONNECTEND)
+      .filter((value) => value !== NETCOMMANDTYPE_MAX);
+
+    for (const commandType of commandEntries) {
+      const asciiName = getAsciiNetworkCommandType(commandType);
+      expect(asciiName).not.toBe('UNKNOWN');
+      expect(resolveNetworkCommandTypeName(asciiName)).toBe(commandType);
+      expect(resolveNetworkCommandType(asciiName)).toBe(commandType);
+    }
   });
 
   it('resolves unknown/object command type tokens safely', () => {

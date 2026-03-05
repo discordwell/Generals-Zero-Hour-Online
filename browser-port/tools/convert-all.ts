@@ -411,16 +411,25 @@ Examples:
 // File discovery helpers
 // ---------------------------------------------------------------------------
 
-function findFiles(dir: string, ext: string): string[] {
+interface FindFilesOptions {
+  excludeDirNames?: ReadonlySet<string>;
+}
+
+function findFiles(dir: string, ext: string, options?: FindFilesOptions): string[] {
   const results: string[] = [];
   if (!fs.existsSync(dir)) return results;
 
+  const excluded = options?.excludeDirNames;
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
+    const entryNameLower = entry.name.toLowerCase();
+    if (entry.isDirectory() && excluded?.has(entryNameLower)) {
+      continue;
+    }
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      results.push(...findFiles(fullPath, ext));
-    } else if (entry.name.toLowerCase().endsWith(ext)) {
+      results.push(...findFiles(fullPath, ext, options));
+    } else if (entryNameLower.endsWith(ext)) {
       results.push(fullPath);
     }
   }
@@ -449,6 +458,42 @@ function mapOutputRelativePath(file: string, gameDir: string, extractedDir: stri
   }
 
   return path.basename(absoluteFilePath);
+}
+
+function hasMapMagic(filePath: string): boolean {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const header = Buffer.allocUnsafe(4);
+      const bytesRead = fs.readSync(fd, header, 0, 4, 0);
+      if (bytesRead < 4) {
+        return false;
+      }
+      return header.toString('ascii') === 'CkMp';
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return false;
+  }
+}
+
+function listGameMapRootCandidates(gameDir: string): string[] {
+  const candidates: string[] = [
+    path.join(gameDir, 'Maps'),
+    path.join(gameDir, 'Data', 'Maps'),
+    path.join(gameDir, 'Run', 'Data', 'Maps'),
+  ];
+
+  if (hasSourceTreeMarker(gameDir, 'GeneralsMD')) {
+    candidates.push(path.join(gameDir, 'GeneralsMD', 'Run', 'Data', 'Maps'));
+  }
+
+  if (hasSourceTreeMarker(gameDir, 'Generals')) {
+    candidates.push(path.join(gameDir, 'Generals', 'Run', 'Data', 'Maps'));
+  }
+
+  return candidates;
 }
 
 interface GameIniParseConfig {
@@ -757,11 +802,37 @@ function stepConvertMaps(
   const mapDir = path.join(outputDir, 'maps');
   const extractedDir = path.join(outputDir, '_extracted');
 
-  // Maps can be in game dir or extracted from .big
-  const gameMaps = findFiles(gameDir, '.map');
+  // Maps can be in runtime map roots or extracted from .big archives.
+  const mapRootCandidates = listGameMapRootCandidates(gameDir);
+  const gameMapsFromRoots = mapRootCandidates.flatMap((candidate) => findFiles(candidate, '.map'));
   const extractedMaps = findFiles(extractedDir, '.map');
-  const allMaps = [...new Set([...gameMaps, ...extractedMaps])].sort((left, right) => left.localeCompare(right));
-  console.log(`Found ${allMaps.length} .map file(s)`);
+
+  // Fallback for unusual layouts: scan gameDir recursively but skip obvious non-game folders.
+  const fallbackMapScanExcludes = new Set([
+    '.git',
+    'browser-port',
+    'node_modules',
+    'dist',
+    'build',
+    'out',
+    'tmp',
+    'temp',
+    'temp_downloads',
+    'support',
+    'miles sound tools',
+    'openal',
+  ]);
+  const gameMaps = gameMapsFromRoots.length > 0
+    ? gameMapsFromRoots
+    : findFiles(gameDir, '.map', { excludeDirNames: fallbackMapScanExcludes });
+
+  const candidateMaps = [...new Set([...gameMaps, ...extractedMaps])].sort((left, right) => left.localeCompare(right));
+  const allMaps = candidateMaps.filter((filePath) => hasMapMagic(filePath));
+  const skippedNonMapFiles = candidateMaps.length - allMaps.length;
+  console.log(`Found ${allMaps.length} map file(s) with valid CkMp magic`);
+  if (skippedNonMapFiles > 0) {
+    console.log(`Skipped ${skippedNonMapFiles} non-map *.map files (e.g., source maps).`);
+  }
 
   let failures = 0;
   for (const file of allMaps) {
