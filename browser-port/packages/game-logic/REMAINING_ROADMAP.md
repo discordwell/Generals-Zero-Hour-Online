@@ -2,6 +2,9 @@
 
 Last updated: 2026-03-04
 
+Next roadmap for post-tranche full retail-content parity:
+`/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/game-logic/RETAIL_CONTENT_PARITY_ROADMAP.md`
+
 ## Objective
 
 Reach practical browser playability plus high-confidence source parity against retail C&C Generals Zero Hour behavior.
