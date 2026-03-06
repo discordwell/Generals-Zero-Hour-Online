@@ -1,0 +1,6 @@
+# Git LFS: browser-port runtime assets (converted from retail .big archives)
+browser-port/packages/app/public/assets/**/*.rgba filter=lfs diff=lfs merge=lfs -text
+browser-port/packages/app/public/assets/**/*.glb filter=lfs diff=lfs merge=lfs -text
+browser-port/packages/app/public/assets/maps/**/*.json filter=lfs diff=lfs merge=lfs -text
+browser-port/packages/app/public/assets/data/ini-bundle.json filter=lfs diff=lfs merge=lfs -text
+browser-port/packages/app/public/assets/manifest.json filter=lfs diff=lfs merge=lfs -text
