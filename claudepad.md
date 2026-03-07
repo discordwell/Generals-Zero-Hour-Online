@@ -1,5 +1,20 @@
 # Session Summaries
 
+## 2026-03-07T00:00Z — Port 5 C++ Update/Behavior Modules (Batch A+B)
+- **Phase 1**: Git cleanup — committed regenerated ini-bundle.json + manifest.json, deleted `_extracted/` map intermediates (commit a5ad8c38)
+- **Modules ported** (5 of 7 planned; BaseRegenerateUpdate already exists, LaserUpdate is client-only):
+  1. **PhysicsBehavior**: Gravity, friction (forward/lateral/aerodynamic), bounce, kill-when-resting, landing collision
+  2. **StructureToppleUpdate**: Building collapse state machine (STANDING→WAITING→TOPPLING→WAITING_DONE→DONE), crushing damage along topple path
+  3. **MissileLauncherBuildingUpdate**: SCUD Storm door state machine (CLOSED→OPENING→OPEN→WAITING_TO_CLOSE→CLOSING), special power readiness integration
+  4. **ParticleUplinkCannonUpdate**: Particle cannon firing (IDLE→CHARGING→READY→FIRING→POSTFIRE), area damage pulses with swath-of-death path
+  5. **NeutronMissileUpdate**: Nuke missile flight (PRELAUNCH→LAUNCH→ATTACK→DEAD), intermediate position above target, special speed phase for ascent
+- **Bug fixes during testing**:
+  - `getTerrainHeightAt` → `resolveGroundHeight` (correct method name)
+  - Gravity applied to `accelY` not `accelZ` (Y is vertical in THREE.js)
+  - `gameRandom.next()` → `gameRandom.nextRange()` (correct API)
+  - `markEntityDestroyed(entity, null, null, 'NORMAL')` → `markEntityDestroyed(entity.id, -1)` (correct signature)
+- **Results**: 2,083 tests pass (11 new), 0 failures. Code review agent launched.
+
 ## 2026-03-06T20:10Z — INI Parser Hybrid End Matching (4 Missing Objects Recovered)
 - **Hybrid End matching**: Object/ChildObject/ObjectReskin use C++ nesting-based End (pure depth counting); all other block types retain indent-based matching
   - `nestingEnd` flag propagated through parseBlock recursion

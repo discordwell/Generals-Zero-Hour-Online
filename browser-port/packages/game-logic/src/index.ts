@@ -2375,6 +2375,26 @@ interface MapEntity {
   /** Topple speed used to compute acceleration. */
   toppleSpeed: number;
 
+  // ── Source parity: PhysicsBehavior — rigid body physics for projectiles/debris ──
+  physicsBehaviorProfile: PhysicsBehaviorProfile | null;
+  physicsBehaviorState: PhysicsBehaviorState | null;
+
+  // ── Source parity: StructureToppleUpdate — building collapse on death ──
+  structureToppleProfile: StructureToppleProfile | null;
+  structureToppleState: StructureToppleRuntimeState | null;
+
+  // ── Source parity: MissileLauncherBuildingUpdate — SCUD Storm door states ──
+  missileLauncherBuildingProfile: MissileLauncherBuildingProfile | null;
+  missileLauncherBuildingState: MissileLauncherBuildingState | null;
+
+  // ── Source parity: ParticleUplinkCannonUpdate — Particle Cannon building ──
+  particleUplinkCannonProfile: ParticleUplinkCannonProfile | null;
+  particleUplinkCannonState: ParticleUplinkCannonState | null;
+
+  // ── Source parity: NeutronMissileUpdate — nuke missile flight ──
+  neutronMissileUpdateProfile: NeutronMissileUpdateProfile | null;
+  neutronMissileUpdateState: NeutronMissileRuntimeState | null;
+
   // ── Source parity: RadarUpdate — radar dish extension animation ──
   radarUpdateProfile: RadarUpdateProfile | null;
   /** Frame at which the radar extension animation completes. */
@@ -3879,6 +3899,155 @@ interface NeutronMissileSlowDeathState {
   activationFrame: number;
   completedBlasts: boolean[];
   completedScorchBlasts: boolean[];
+}
+
+/**
+ * Source parity: PhysicsBehavior — rigid body physics for projectiles, debris, and thrown units.
+ * C++ file: PhysicsUpdate.h/cpp (class PhysicsBehavior).
+ */
+interface PhysicsBehaviorProfile {
+  mass: number;
+  forwardFriction: number;
+  lateralFriction: number;
+  zFriction: number;
+  aerodynamicFriction: number;
+  centerOfMassOffset: number;
+  killWhenRestingOnGround: boolean;
+  allowBouncing: boolean;
+  allowCollideForce: boolean;
+  pitchRollYawFactor: number;
+}
+
+interface PhysicsBehaviorState {
+  velX: number;
+  velY: number;
+  velZ: number;
+  accelX: number;
+  accelY: number;
+  accelZ: number;
+  yawRate: number;
+  pitchRate: number;
+  rollRate: number;
+  wasAirborneLastFrame: boolean;
+  stickToGround: boolean;
+  allowToFall: boolean;
+  isInFreeFall: boolean;
+  extraBounciness: number;
+  extraFriction: number;
+}
+
+/**
+ * Source parity: StructureToppleUpdate — building collapse animation/physics.
+ * C++ file: StructureToppleUpdate.h/cpp.
+ */
+interface StructureToppleProfile {
+  minToppleDelayFrames: number;
+  maxToppleDelayFrames: number;
+  minToppleBurstDelayFrames: number;
+  maxToppleBurstDelayFrames: number;
+  structuralIntegrity: number;
+  structuralDecay: number;
+  crushingWeaponName: string;
+}
+
+type StructureToppleState = 'STANDING' | 'WAITING' | 'TOPPLING' | 'WAITING_DONE' | 'DONE';
+
+interface StructureToppleRuntimeState {
+  state: StructureToppleState;
+  toppleFrame: number;
+  toppleVelocity: number;
+  accumulatedAngle: number;
+  structuralIntegrity: number;
+  toppleDirX: number;
+  toppleDirZ: number;
+  buildingHeight: number;
+  lastCrushedLocation: number;
+  nextBurstFrame: number;
+}
+
+/**
+ * Source parity: MissileLauncherBuildingUpdate — SCUD Storm door state machine.
+ * C++ file: MissileLauncherBuildingUpdate.h/cpp.
+ */
+interface MissileLauncherBuildingProfile {
+  specialPowerTemplateName: string;
+  doorOpenTimeFrames: number;
+  doorWaitOpenTimeFrames: number;
+  doorClosingTimeFrames: number;
+}
+
+type MissileDoorState = 'CLOSED' | 'OPENING' | 'OPEN' | 'WAITING_TO_CLOSE' | 'CLOSING';
+
+interface MissileLauncherBuildingState {
+  doorState: MissileDoorState;
+  timeoutState: MissileDoorState;
+  timeoutFrame: number;
+}
+
+/**
+ * Source parity: ParticleUplinkCannonUpdate — Particle Cannon building state machine (game logic).
+ * C++ file: ParticleUplinkCannonUpdate.h/cpp.
+ */
+interface ParticleUplinkCannonProfile {
+  specialPowerTemplateName: string;
+  totalFiringFrames: number;
+  totalDamagePulses: number;
+  damagePerSecond: number;
+  damageType: string;
+  damageRadiusScalar: number;
+  revealRange: number;
+  swathOfDeathDistance: number;
+  swathOfDeathAmplitude: number;
+}
+
+type PUCStatus = 'IDLE' | 'CHARGING' | 'READY' | 'FIRING' | 'POSTFIRE';
+
+interface ParticleUplinkCannonState {
+  status: PUCStatus;
+  framesInState: number;
+  targetX: number;
+  targetZ: number;
+  currentTargetX: number;
+  currentTargetZ: number;
+  damagePulsesMade: number;
+  nextDamagePulseFrame: number;
+}
+
+/**
+ * Source parity: NeutronMissileUpdate — nuke missile flight behavior.
+ * C++ file: NeutronMissileUpdate.h/cpp. Distinct from NeutronMissileSlowDeathBehavior.
+ */
+interface NeutronMissileUpdateProfile {
+  initialDist: number;
+  maxTurnRate: number;
+  forwardDamping: number;
+  relativeSpeed: number;
+  targetFromDirectlyAbove: number;
+  specialAccelFactor: number;
+  specialSpeedTimeFrames: number;
+  specialSpeedHeight: number;
+}
+
+type NeutronMissileState = 'PRELAUNCH' | 'LAUNCH' | 'ATTACK' | 'DEAD';
+
+interface NeutronMissileRuntimeState {
+  state: NeutronMissileState;
+  targetX: number;
+  targetY: number;
+  targetZ: number;
+  intermedX: number;
+  intermedY: number;
+  intermedZ: number;
+  velX: number;
+  velY: number;
+  velZ: number;
+  launcherId: number;
+  isArmed: boolean;
+  isLaunched: boolean;
+  noTurnDistLeft: number;
+  reachedIntermediatePos: boolean;
+  frameAtLaunch: number;
+  heightAtLaunch: number;
 }
 
 /**
@@ -7030,7 +7199,12 @@ export class GameLogicSubsystem implements Subsystem {
     this.updateAutoDeposit();
     this.updateDynamicShroud();
     this.updatePilotFindVehicle();
+    this.updatePhysicsBehavior();
     this.updateToppleEntities();
+    this.updateStructureTopple();
+    this.updateMissileLauncherBuilding();
+    this.updateParticleUplinkCannon();
+    this.updateNeutronMissileUpdate();
     this.updateTensileFormation();
     this.updateSupplyWarehouseCrippling();
     this.updateRadarExtension();
@@ -27785,6 +27959,21 @@ export class GameLogicSubsystem implements Subsystem {
       toppleAngularVelocity: 0,
       toppleAngularAccumulation: 0,
       toppleSpeed: 0,
+      // PhysicsBehavior (rigid body physics)
+      physicsBehaviorProfile: this.extractPhysicsBehaviorProfile(objectDef),
+      physicsBehaviorState: null,
+      // StructureToppleUpdate (building collapse)
+      structureToppleProfile: this.extractStructureToppleProfile(objectDef),
+      structureToppleState: null,
+      // MissileLauncherBuildingUpdate (SCUD Storm doors)
+      missileLauncherBuildingProfile: this.extractMissileLauncherBuildingProfile(objectDef),
+      missileLauncherBuildingState: null,
+      // ParticleUplinkCannonUpdate (Particle Cannon)
+      particleUplinkCannonProfile: this.extractParticleUplinkCannonProfile(objectDef),
+      particleUplinkCannonState: null,
+      // NeutronMissileUpdate (nuke missile flight)
+      neutronMissileUpdateProfile: this.extractNeutronMissileUpdateProfile(objectDef),
+      neutronMissileUpdateState: null,
       // Special ability
       specialAbilityProfile: this.extractSpecialAbilityProfile(objectDef),
       specialAbilityState: null,
@@ -31964,6 +32153,179 @@ export class GameLogicSubsystem implements Subsystem {
             killWhenFinishedToppling: readBooleanField(block.fields, ['KillWhenFinishedToppling']) ?? true,
             killWhenStartToppling: readBooleanField(block.fields, ['KillWhenStartToppling']) ?? false,
             toppleLeftOrRightOnly: readBooleanField(block.fields, ['ToppleLeftOrRightOnly']) ?? false,
+          };
+        }
+      }
+      if (block.blocks) {
+        for (const child of block.blocks) visitBlock(child);
+      }
+    };
+    if (objectDef.blocks) {
+      for (const block of objectDef.blocks) visitBlock(block);
+    }
+    return profile;
+  }
+
+  /**
+   * Source parity: PhysicsBehavior — extract rigid body physics config from INI.
+   * C++ file: PhysicsUpdate.cpp buildFieldParse.
+   */
+  private extractPhysicsBehaviorProfile(objectDef: ObjectDef | undefined): PhysicsBehaviorProfile | null {
+    if (!objectDef) return null;
+    let profile: PhysicsBehaviorProfile | null = null;
+    const SECONDS_PER_FRAME = 1 / 30;
+    const visitBlock = (block: IniBlock): void => {
+      if (profile) return;
+      if (block.type.toUpperCase() === 'BEHAVIOR') {
+        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+        if (moduleType === 'PHYSICSBEHAVIOR') {
+          const parseFrictionPerSec = (val: number | null | undefined, def: number): number => {
+            if (val == null) return def;
+            return val * SECONDS_PER_FRAME;
+          };
+          profile = {
+            mass: readNumericField(block.fields, ['Mass']) ?? 1.0,
+            forwardFriction: parseFrictionPerSec(readNumericField(block.fields, ['ForwardFriction']), 0.15 * SECONDS_PER_FRAME),
+            lateralFriction: parseFrictionPerSec(readNumericField(block.fields, ['LateralFriction']), 0.15 * SECONDS_PER_FRAME),
+            zFriction: parseFrictionPerSec(readNumericField(block.fields, ['ZFriction']), 0.8 * SECONDS_PER_FRAME),
+            aerodynamicFriction: parseFrictionPerSec(readNumericField(block.fields, ['AerodynamicFriction']), 0),
+            centerOfMassOffset: readNumericField(block.fields, ['CenterOfMassOffset']) ?? 0,
+            killWhenRestingOnGround: readBooleanField(block.fields, ['KillWhenRestingOnGround']) ?? false,
+            allowBouncing: readBooleanField(block.fields, ['AllowBouncing']) ?? false,
+            allowCollideForce: readBooleanField(block.fields, ['AllowCollideForce']) ?? false,
+            pitchRollYawFactor: readNumericField(block.fields, ['PitchRollYawFactor']) ?? 2.0,
+          };
+        }
+      }
+      if (block.blocks) {
+        for (const child of block.blocks) visitBlock(child);
+      }
+    };
+    if (objectDef.blocks) {
+      for (const block of objectDef.blocks) visitBlock(block);
+    }
+    return profile;
+  }
+
+  /**
+   * Source parity: StructureToppleUpdate — extract building collapse config from INI.
+   * C++ file: StructureToppleUpdate.cpp buildFieldParse.
+   */
+  private extractStructureToppleProfile(objectDef: ObjectDef | undefined): StructureToppleProfile | null {
+    if (!objectDef) return null;
+    let profile: StructureToppleProfile | null = null;
+    const visitBlock = (block: IniBlock): void => {
+      if (profile) return;
+      if (block.type.toUpperCase() === 'BEHAVIOR') {
+        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+        if (moduleType === 'STRUCTURETOPPLEUPDATE') {
+          profile = {
+            minToppleDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['MinToppleDelay']) ?? 500),
+            maxToppleDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['MaxToppleDelay']) ?? 1000),
+            minToppleBurstDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['MinToppleBurstDelay']) ?? 100),
+            maxToppleBurstDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['MaxToppleBurstDelay']) ?? 500),
+            structuralIntegrity: readNumericField(block.fields, ['StructuralIntegrity']) ?? 0,
+            structuralDecay: readNumericField(block.fields, ['StructuralDecay']) ?? 0,
+            crushingWeaponName: readStringField(block.fields, ['CrushingWeaponName']) ?? '',
+          };
+        }
+      }
+      if (block.blocks) {
+        for (const child of block.blocks) visitBlock(child);
+      }
+    };
+    if (objectDef.blocks) {
+      for (const block of objectDef.blocks) visitBlock(block);
+    }
+    return profile;
+  }
+
+  /**
+   * Source parity: MissileLauncherBuildingUpdate — extract SCUD Storm door config from INI.
+   * C++ file: MissileLauncherBuildingUpdate.h buildFieldParse.
+   */
+  private extractMissileLauncherBuildingProfile(objectDef: ObjectDef | undefined): MissileLauncherBuildingProfile | null {
+    if (!objectDef) return null;
+    let profile: MissileLauncherBuildingProfile | null = null;
+    const visitBlock = (block: IniBlock): void => {
+      if (profile) return;
+      if (block.type.toUpperCase() === 'BEHAVIOR') {
+        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+        if (moduleType === 'MISSILELAUNCHERBUILDINGUPDATE') {
+          profile = {
+            specialPowerTemplateName: (readStringField(block.fields, ['SpecialPowerTemplate']) ?? '').trim().toUpperCase(),
+            doorOpenTimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['DoorOpenTime']) ?? 0),
+            doorWaitOpenTimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['DoorWaitOpenTime']) ?? 0),
+            doorClosingTimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['DoorCloseTime']) ?? 0),
+          };
+        }
+      }
+      if (block.blocks) {
+        for (const child of block.blocks) visitBlock(child);
+      }
+    };
+    if (objectDef.blocks) {
+      for (const block of objectDef.blocks) visitBlock(block);
+    }
+    return profile;
+  }
+
+  /**
+   * Source parity: ParticleUplinkCannonUpdate — extract Particle Cannon config from INI.
+   * C++ file: ParticleUplinkCannonUpdate.cpp buildFieldParse.
+   */
+  private extractParticleUplinkCannonProfile(objectDef: ObjectDef | undefined): ParticleUplinkCannonProfile | null {
+    if (!objectDef) return null;
+    let profile: ParticleUplinkCannonProfile | null = null;
+    const visitBlock = (block: IniBlock): void => {
+      if (profile) return;
+      if (block.type.toUpperCase() === 'BEHAVIOR') {
+        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+        if (moduleType === 'PARTICLEUPLINKCANNONUPDATE') {
+          profile = {
+            specialPowerTemplateName: (readStringField(block.fields, ['SpecialPowerTemplate']) ?? '').trim().toUpperCase(),
+            totalFiringFrames: this.msToLogicFrames(readNumericField(block.fields, ['TotalFiringTime']) ?? 0),
+            totalDamagePulses: readNumericField(block.fields, ['TotalDamagePulses']) ?? 0,
+            damagePerSecond: readNumericField(block.fields, ['DamagePerSecond']) ?? 0,
+            damageType: (readStringField(block.fields, ['DamageType']) ?? 'LASER').toUpperCase(),
+            damageRadiusScalar: readNumericField(block.fields, ['DamageRadiusScalar']) ?? 1.0,
+            revealRange: (readNumericField(block.fields, ['RevealRange']) ?? 0) * MAP_XY_FACTOR,
+            swathOfDeathDistance: (readNumericField(block.fields, ['SwathOfDeathDistance']) ?? 0) * MAP_XY_FACTOR,
+            swathOfDeathAmplitude: (readNumericField(block.fields, ['SwathOfDeathAmplitude']) ?? 0) * MAP_XY_FACTOR,
+          };
+        }
+      }
+      if (block.blocks) {
+        for (const child of block.blocks) visitBlock(child);
+      }
+    };
+    if (objectDef.blocks) {
+      for (const block of objectDef.blocks) visitBlock(block);
+    }
+    return profile;
+  }
+
+  /**
+   * Source parity: NeutronMissileUpdate — extract nuke missile flight config from INI.
+   * C++ file: NeutronMissileUpdate.cpp buildFieldParse.
+   */
+  private extractNeutronMissileUpdateProfile(objectDef: ObjectDef | undefined): NeutronMissileUpdateProfile | null {
+    if (!objectDef) return null;
+    let profile: NeutronMissileUpdateProfile | null = null;
+    const visitBlock = (block: IniBlock): void => {
+      if (profile) return;
+      if (block.type.toUpperCase() === 'BEHAVIOR') {
+        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+        if (moduleType === 'NEUTRONMISSILEUPDATE') {
+          profile = {
+            initialDist: readNumericField(block.fields, ['DistanceToTravelBeforeTurning']) ?? 0,
+            maxTurnRate: (readNumericField(block.fields, ['MaxTurnRate']) ?? 999) * (Math.PI / 180),
+            forwardDamping: readNumericField(block.fields, ['ForwardDamping']) ?? 0,
+            relativeSpeed: readNumericField(block.fields, ['RelativeSpeed']) ?? 1.0,
+            targetFromDirectlyAbove: readNumericField(block.fields, ['TargetFromDirectlyAbove']) ?? 0,
+            specialAccelFactor: readNumericField(block.fields, ['SpecialAccelFactor']) ?? 1.0,
+            specialSpeedTimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['SpecialSpeedTime']) ?? 0),
+            specialSpeedHeight: readNumericField(block.fields, ['SpecialSpeedHeight']) ?? 0,
           };
         }
       }
@@ -55876,6 +56238,597 @@ export class GameLogicSubsystem implements Subsystem {
       // Check if healing caused a state transition (e.g. REALLYDAMAGED → DAMAGED).
       if (oldDamageState !== newDamageState) {
         this.supplyWarehouseCripplingOnStateChange(entity, oldDamageState, newDamageState);
+      }
+    }
+  }
+
+  /**
+   * Source parity: PhysicsBehavior::update() — rigid body physics for projectiles and debris.
+   * Applies gravity, friction (forward/lateral/aerodynamic), velocity integration, ground bounce.
+   * C++ file: PhysicsUpdate.cpp.
+   */
+  private updatePhysicsBehavior(): void {
+    const GRAVITY = -0.4; // Source parity: TheGlobalData->m_gravity default
+    const GROUND_STIFFNESS = 0.5; // Source parity: TheGlobalData->m_groundStiffness default
+    const VEL_THRESH = 0.001;
+    const REST_THRESH = 0.01;
+
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) continue;
+      const prof = entity.physicsBehaviorProfile;
+      if (!prof) continue;
+
+      // Lazy-init state on first frame.
+      if (!entity.physicsBehaviorState) {
+        entity.physicsBehaviorState = {
+          velX: 0, velY: 0, velZ: 0,
+          accelX: 0, accelY: 0, accelZ: 0,
+          yawRate: 0, pitchRate: 0, rollRate: 0,
+          wasAirborneLastFrame: false,
+          stickToGround: true,
+          allowToFall: false,
+          isInFreeFall: false,
+          extraBounciness: 0, extraFriction: 0,
+        };
+      }
+      const st = entity.physicsBehaviorState;
+
+      // Apply gravity (Y is vertical in THREE.js coordinate system).
+      st.accelY += GRAVITY;
+
+      // Apply friction.
+      const terrainY = this.resolveGroundHeight(entity.x, entity.z);
+      const isAboveTerrain = entity.y > terrainY + 0.5;
+
+      if (!isAboveTerrain) {
+        // Ground friction — lateral and forward.
+        if (st.velX !== 0 || st.velZ !== 0) {
+          const ff = prof.mass * prof.forwardFriction;
+          st.accelX += -(ff * st.velX);
+          st.accelZ += -(ff * st.velZ);
+        }
+      } else {
+        // Aerodynamic friction — proportional to velocity.
+        const aero = -prof.aerodynamicFriction;
+        st.accelX += st.velX * aero;
+        st.accelY += st.velY * aero;
+        st.accelZ += st.velZ * aero;
+      }
+
+      // Integrate acceleration into velocity.
+      st.velX += st.accelX;
+      st.velY += st.accelY;
+      st.velZ += st.accelZ;
+
+      // Clamp tiny velocities.
+      if (Math.abs(st.velX) < VEL_THRESH) st.velX = 0;
+      if (Math.abs(st.velY) < VEL_THRESH) st.velY = 0;
+      if (Math.abs(st.velZ) < VEL_THRESH) st.velZ = 0;
+
+      // Integrate velocity into position.
+      const oldY = entity.y;
+      entity.x += st.velX;
+      entity.y += st.velY;
+      entity.z += st.velZ;
+
+      // Ground collision / bounce.
+      const groundY = this.resolveGroundHeight(entity.x, entity.z);
+
+      if (prof.allowBouncing && entity.y <= groundY && oldY > groundY && st.velY < 0) {
+        // Bounce force: stiffness * |downward velocity|.
+        const stiffness = Math.max(0.01, Math.min(0.99, GROUND_STIFFNESS + st.extraBounciness));
+        const bounceAccelY = Math.abs(st.velY) * stiffness;
+        st.accelX = 0;
+        st.accelY = prof.mass * bounceAccelY;
+        st.accelZ = 0;
+        // Damp pitch/roll/yaw rates on bounce.
+        st.yawRate *= 0.7;
+        st.pitchRate *= 0.7;
+        st.rollRate *= 0.7;
+      }
+
+      if (entity.y <= groundY) {
+        const excess = groundY - entity.y;
+        st.velY += excess;
+        if (st.velY > 0) st.velY = 0;
+        entity.y = groundY;
+        st.allowToFall = false;
+      } else if (st.stickToGround && !st.allowToFall) {
+        entity.y = groundY;
+      }
+
+      // Kill when resting on ground.
+      if (prof.killWhenRestingOnGround && !isAboveTerrain
+          && Math.abs(st.velX) < REST_THRESH
+          && Math.abs(st.velY) < REST_THRESH
+          && Math.abs(st.velZ) < REST_THRESH) {
+        this.markEntityDestroyed(entity.id, -1);
+      }
+
+      // Landing collision (was airborne, now grounded).
+      if (st.wasAirborneLastFrame && entity.y <= groundY + 0.5) {
+        // Source parity: onCollide(NULL, pos, normal) — ground collision event.
+      }
+      st.wasAirborneLastFrame = entity.y > groundY + 0.5;
+
+      // Reset acceleration for next frame.
+      st.accelX = 0;
+      st.accelY = 0;
+      st.accelZ = 0;
+    }
+  }
+
+  /**
+   * Source parity: StructureToppleUpdate::update() — building collapse physics.
+   * State machine: STANDING → WAITING → TOPPLING → WAITING_DONE → DONE.
+   * C++ file: StructureToppleUpdate.cpp.
+   */
+  private updateStructureTopple(): void {
+    const TOPPLE_ACCELERATION_FACTOR = 0.02;
+
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) continue;
+      const prof = entity.structureToppleProfile;
+      const st = entity.structureToppleState;
+      if (!prof || !st) continue;
+      if (st.state === 'STANDING' || st.state === 'DONE') continue;
+
+      if (st.state === 'WAITING') {
+        // Dramatic pause before topple starts.
+        if (this.frameCounter >= st.toppleFrame) {
+          st.state = 'TOPPLING';
+          st.structuralIntegrity = prof.structuralIntegrity;
+        }
+        continue;
+      }
+
+      if (st.state === 'TOPPLING') {
+        // Angular acceleration from gravity component.
+        const accel = TOPPLE_ACCELERATION_FACTOR * (Math.sin(st.accumulatedAngle) * (1 - st.structuralIntegrity));
+        st.toppleVelocity += accel;
+
+        // Structural integrity decay.
+        if (st.structuralIntegrity > 0) {
+          st.structuralIntegrity *= prof.structuralDecay;
+          if (st.structuralIntegrity < 0) st.structuralIntegrity = 0;
+        }
+
+        st.accumulatedAngle += st.toppleVelocity;
+
+        // Apply crushing damage along topple path.
+        if (prof.crushingWeaponName && st.accumulatedAngle > Math.PI / 6) {
+          const THETA_CEILING = Math.PI / 6;
+          const theta = Math.PI / 2 - st.accumulatedAngle;
+          if (theta <= THETA_CEILING) {
+            const maxDist = st.buildingHeight * (1 - Math.sin(theta));
+            if (maxDist > st.lastCrushedLocation) {
+              // Fire weapon at crush points along topple path.
+              const toppleAngle = Math.atan2(st.toppleDirZ, st.toppleDirX);
+              const crushX = entity.x + maxDist * Math.cos(toppleAngle);
+              const crushZ = entity.z + maxDist * Math.sin(toppleAngle);
+              const crushY = this.resolveGroundHeight(crushX, crushZ);
+              this.applyWeaponDamageAtPoint(entity, crushX, crushY, crushZ, prof.crushingWeaponName, 50);
+              st.lastCrushedLocation = maxDist;
+            }
+          }
+        }
+
+        // Building has fallen to horizontal.
+        if (st.accumulatedAngle >= Math.PI / 2) {
+          st.accumulatedAngle = Math.PI / 2;
+          st.state = 'WAITING_DONE';
+          st.toppleFrame = this.frameCounter;
+        }
+
+        // Update entity visual rotation (pitch along topple direction).
+        entity.rotationX = -st.toppleVelocity * st.toppleDirZ;
+      }
+
+      if (st.state === 'WAITING_DONE') {
+        if (this.frameCounter >= st.toppleFrame) {
+          st.state = 'DONE';
+        }
+      }
+    }
+  }
+
+  /**
+   * Source parity: StructureToppleUpdate::beginStructureTopple — initiate building collapse.
+   * Called from die module when a building with StructureToppleUpdate is destroyed.
+   */
+  private beginStructureTopple(entity: MapEntity, attackerEntity: MapEntity | null): void {
+    const prof = entity.structureToppleProfile;
+    if (!prof) return;
+
+    const minDelay = prof.minToppleDelayFrames;
+    const maxDelay = prof.maxToppleDelayFrames;
+    const delay = this.gameRandom.nextRange(minDelay, Math.max(minDelay, maxDelay));
+
+    // Compute topple direction (away from attacker).
+    let toppleAngle: number;
+    if (attackerEntity) {
+      const dx = entity.x - attackerEntity.x;
+      const dz = entity.z - attackerEntity.z;
+      toppleAngle = Math.atan2(dz, dx);
+      // Add small randomness (±PI/8).
+      toppleAngle += (this.gameRandom.nextFloat() - 0.5) * (Math.PI / 4);
+    } else {
+      toppleAngle = this.gameRandom.nextFloat() * 2 * Math.PI;
+    }
+
+    const geometryHeight = entity.geometryMajorRadius ?? 20;
+
+    entity.structureToppleState = {
+      state: 'WAITING',
+      toppleFrame: this.frameCounter + delay,
+      toppleVelocity: 0,
+      accumulatedAngle: 0.001, // Small nudge in right direction.
+      structuralIntegrity: prof.structuralIntegrity,
+      toppleDirX: Math.cos(toppleAngle),
+      toppleDirZ: Math.sin(toppleAngle),
+      buildingHeight: geometryHeight,
+      lastCrushedLocation: 0,
+      nextBurstFrame: -1,
+    };
+  }
+
+  /**
+   * Source parity: MissileLauncherBuildingUpdate::update() — SCUD Storm door state machine.
+   * Manages door opening/closing states based on special power readiness timer.
+   * C++ file: MissileLauncherBuildingUpdate.cpp.
+   */
+  private updateMissileLauncherBuilding(): void {
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) continue;
+      const prof = entity.missileLauncherBuildingProfile;
+      if (!prof) continue;
+      if (entity.objectStatusFlags.has('UNDER_CONSTRUCTION')) continue;
+
+      // Lazy-init state.
+      if (!entity.missileLauncherBuildingState) {
+        entity.missileLauncherBuildingState = {
+          doorState: 'CLOSED',
+          timeoutState: 'CLOSED',
+          timeoutFrame: 0,
+        };
+      }
+      const st = entity.missileLauncherBuildingState;
+
+      // Find the special power ready frame.
+      const spState = entity.specialPowerStates?.get(prof.specialPowerTemplateName);
+      const readyFrame = spState?.readyFrame ?? 0;
+      const isReady = spState ? this.frameCounter >= readyFrame : false;
+
+      // Handle timeout transitions.
+      if (st.timeoutFrame > 0 && this.frameCounter > st.timeoutFrame) {
+        st.doorState = st.timeoutState;
+        st.timeoutFrame = 0;
+      }
+
+      // Force door open if power is ready but door isn't open.
+      if (st.doorState !== 'OPEN' && isReady) {
+        st.doorState = 'OPEN';
+        st.timeoutFrame = 0;
+        st.timeoutState = 'OPEN';
+      }
+      // Start opening before power is ready.
+      else if (st.doorState === 'CLOSED') {
+        const whenToStartOpening = readyFrame >= prof.doorOpenTimeFrames
+          ? readyFrame - prof.doorOpenTimeFrames : 0;
+        if (this.frameCounter >= whenToStartOpening) {
+          st.doorState = 'OPENING';
+          st.timeoutFrame = readyFrame > 0 ? readyFrame - 1 : 0;
+          st.timeoutState = 'OPEN';
+        }
+      }
+
+      // Update model conditions based on door state.
+      entity.modelConditionFlags.delete('DOOR_1_OPENING');
+      entity.modelConditionFlags.delete('DOOR_1_WAITING_OPEN');
+      entity.modelConditionFlags.delete('DOOR_1_CLOSING');
+      entity.modelConditionFlags.delete('DOOR_1_WAITING_TO_CLOSE');
+      switch (st.doorState) {
+        case 'OPENING':
+          entity.modelConditionFlags.add('DOOR_1_OPENING');
+          break;
+        case 'OPEN':
+          entity.modelConditionFlags.add('DOOR_1_WAITING_OPEN');
+          break;
+        case 'WAITING_TO_CLOSE':
+          entity.modelConditionFlags.add('DOOR_1_WAITING_TO_CLOSE');
+          break;
+        case 'CLOSING':
+          entity.modelConditionFlags.add('DOOR_1_CLOSING');
+          break;
+      }
+    }
+  }
+
+  /**
+   * Source parity: MissileLauncherBuildingUpdate::initiateIntentToDoSpecialPower — missile fired.
+   * Transitions door to WAITING_TO_CLOSE after special power fires.
+   */
+  private missileLauncherOnFire(entity: MapEntity): void {
+    const prof = entity.missileLauncherBuildingProfile;
+    const st = entity.missileLauncherBuildingState;
+    if (!prof || !st) return;
+
+    st.doorState = 'WAITING_TO_CLOSE';
+    st.timeoutFrame = this.frameCounter + prof.doorWaitOpenTimeFrames;
+    st.timeoutState = 'CLOSING';
+
+    entity.modelConditionFlags.delete('DOOR_1_OPENING');
+    entity.modelConditionFlags.delete('DOOR_1_WAITING_OPEN');
+    entity.modelConditionFlags.delete('DOOR_1_CLOSING');
+    entity.modelConditionFlags.add('DOOR_1_WAITING_TO_CLOSE');
+  }
+
+  /**
+   * Source parity: ParticleUplinkCannonUpdate::update() — Particle Cannon state machine.
+   * Simplified game logic: IDLE → CHARGING → READY → FIRING → POSTFIRE → IDLE.
+   * Deals damage pulses during FIRING state along swath-of-death path.
+   * C++ file: ParticleUplinkCannonUpdate.cpp.
+   */
+  private updateParticleUplinkCannon(): void {
+    const LOGICFRAMES_PER_SECOND = 30;
+
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) continue;
+      const prof = entity.particleUplinkCannonProfile;
+      if (!prof) continue;
+      if (entity.objectStatusFlags.has('UNDER_CONSTRUCTION')) continue;
+
+      // Lazy-init state.
+      if (!entity.particleUplinkCannonState) {
+        entity.particleUplinkCannonState = {
+          status: 'IDLE',
+          framesInState: 0,
+          targetX: 0, targetZ: 0,
+          currentTargetX: 0, currentTargetZ: 0,
+          damagePulsesMade: 0,
+          nextDamagePulseFrame: 0,
+        };
+      }
+      const st = entity.particleUplinkCannonState;
+      st.framesInState++;
+
+      if (st.status === 'FIRING') {
+        // Damage pulse system.
+        if (prof.totalDamagePulses > 0 && st.damagePulsesMade < prof.totalDamagePulses
+            && this.frameCounter >= st.nextDamagePulseFrame) {
+          // Apply damage at current target position.
+          const damagePerPulse = prof.damagePerSecond / LOGICFRAMES_PER_SECOND
+            * (prof.totalFiringFrames / prof.totalDamagePulses);
+          const radius = 50 * prof.damageRadiusScalar;
+          this.applyAreaDamageAtPoint(entity, st.currentTargetX, st.currentTargetZ, radius,
+            damagePerPulse, prof.damageType);
+          st.damagePulsesMade++;
+          st.nextDamagePulseFrame = this.frameCounter
+            + Math.floor(prof.totalFiringFrames / prof.totalDamagePulses);
+
+          // Move target along swath-of-death path.
+          if (prof.swathOfDeathDistance > 0) {
+            const progress = st.damagePulsesMade / prof.totalDamagePulses;
+            const sineOffset = Math.sin(progress * Math.PI * 2) * prof.swathOfDeathAmplitude;
+            st.currentTargetX = st.targetX + progress * prof.swathOfDeathDistance + sineOffset;
+          }
+        }
+
+        // Transition to POSTFIRE when all pulses done.
+        if (st.damagePulsesMade >= prof.totalDamagePulses
+            || st.framesInState >= prof.totalFiringFrames) {
+          st.status = 'POSTFIRE';
+          st.framesInState = 0;
+        }
+      }
+
+      if (st.status === 'POSTFIRE') {
+        // Brief cooldown, then return to IDLE.
+        if (st.framesInState >= 30) { // ~1 second post-fire
+          st.status = 'IDLE';
+          st.framesInState = 0;
+        }
+      }
+    }
+  }
+
+  /**
+   * Source parity: ParticleUplinkCannonUpdate::initiateIntentToDoSpecialPower — cannon fires.
+   * Transitions to FIRING state and sets target position.
+   */
+  private particleUplinkCannonOnFire(entity: MapEntity, targetX: number, targetZ: number): void {
+    const prof = entity.particleUplinkCannonProfile;
+    if (!prof) return;
+
+    if (!entity.particleUplinkCannonState) {
+      entity.particleUplinkCannonState = {
+        status: 'IDLE', framesInState: 0,
+        targetX: 0, targetZ: 0, currentTargetX: 0, currentTargetZ: 0,
+        damagePulsesMade: 0, nextDamagePulseFrame: 0,
+      };
+    }
+    const st = entity.particleUplinkCannonState;
+    st.status = 'FIRING';
+    st.framesInState = 0;
+    st.targetX = targetX;
+    st.targetZ = targetZ;
+    st.currentTargetX = targetX;
+    st.currentTargetZ = targetZ;
+    st.damagePulsesMade = 0;
+    st.nextDamagePulseFrame = this.frameCounter;
+  }
+
+  /**
+   * Source parity: NeutronMissileUpdate::update() — nuke missile flight physics.
+   * State machine: PRELAUNCH → LAUNCH → ATTACK → DEAD.
+   * Missile steers toward intermediate position (directly above target),
+   * then dives straight down. C++ file: NeutronMissileUpdate.cpp.
+   */
+  private updateNeutronMissileUpdate(): void {
+    const STRAIGHT_DOWN_SLOW_FACTOR = 0.5;
+
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) continue;
+      const prof = entity.neutronMissileUpdateProfile;
+      const st = entity.neutronMissileUpdateState;
+      if (!prof || !st) continue;
+      if (st.state === 'PRELAUNCH' || st.state === 'DEAD') continue;
+
+      // Check if reached intermediate position (directly above target).
+      if (!st.reachedIntermediatePos) {
+        const dx = entity.x - st.intermedX;
+        const dy = entity.y - st.intermedY;
+        const dz = entity.z - st.intermedZ;
+        const distSqr = dx * dx + dy * dy + dz * dz;
+        const boundSqr = (entity.geometryMajorRadius ?? 5) * (entity.geometryMajorRadius ?? 5);
+        if (distSqr <= boundSqr) {
+          st.reachedIntermediatePos = true;
+          entity.x = st.intermedX;
+          entity.y = st.intermedY;
+          entity.z = st.intermedZ;
+          const vel = Math.sqrt(st.velX * st.velX + st.velY * st.velY + st.velZ * st.velZ);
+          st.velX = 0;
+          st.velY = -vel * STRAIGHT_DOWN_SLOW_FACTOR;
+          st.velZ = 0;
+        }
+      }
+
+      if (st.state === 'LAUNCH') {
+        // Move with current velocity, then transition to ATTACK.
+        entity.x += st.velX;
+        entity.y += st.velY;
+        entity.z += st.velZ;
+        st.state = 'ATTACK';
+        st.isArmed = true;
+        st.isLaunched = true;
+        st.frameAtLaunch = this.frameCounter;
+        st.heightAtLaunch = entity.y;
+        continue;
+      }
+
+      if (st.state === 'ATTACK') {
+        let speed = prof.relativeSpeed;
+        if (prof.targetFromDirectlyAbove > 0 && st.reachedIntermediatePos) {
+          speed *= STRAIGHT_DOWN_SLOW_FACTOR;
+        }
+
+        // Determine target direction.
+        const tx = st.reachedIntermediatePos ? st.targetX : st.intermedX;
+        const ty = st.reachedIntermediatePos ? st.targetY : st.intermedY;
+        const tz = st.reachedIntermediatePos ? st.targetZ : st.intermedZ;
+
+        const ddx = tx - entity.x;
+        const ddy = ty - entity.y;
+        const ddz = tz - entity.z;
+        const dist = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
+
+        if (dist > 0.01) {
+          const dirX = ddx / dist;
+          const dirY = ddy / dist;
+          const dirZ = ddz / dist;
+
+          // Apply forward damping.
+          const damping = prof.forwardDamping;
+          const accelX = speed * dirX - damping * st.velX;
+          const accelY = speed * dirY - damping * st.velY;
+          const accelZ = speed * dirZ - damping * st.velZ;
+
+          st.velX += accelX;
+          st.velY += accelY;
+          st.velZ += accelZ;
+        }
+
+        // Special speed phase (initial ascent for nuke).
+        if (prof.specialSpeedTimeFrames > 0
+            && this.frameCounter <= st.frameAtLaunch + prof.specialSpeedTimeFrames) {
+          const elapsed = this.frameCounter - st.frameAtLaunch;
+          if (elapsed < prof.specialSpeedTimeFrames) {
+            const timeFrac = elapsed / prof.specialSpeedTimeFrames;
+            const af = Math.max(0.01, prof.specialAccelFactor);
+            const newY = st.heightAtLaunch + ((af * timeFrac) ** 2 / af) * prof.specialSpeedHeight;
+            st.velX = 0;
+            st.velY = newY - entity.y;
+            st.velZ = 0;
+          }
+        }
+
+        entity.x += st.velX;
+        entity.y += st.velY;
+        entity.z += st.velZ;
+
+        // Reduce remaining no-turn distance.
+        if (st.noTurnDistLeft > 0) {
+          const moved = Math.sqrt(st.velX * st.velX + st.velY * st.velY + st.velZ * st.velZ);
+          st.noTurnDistLeft -= moved;
+        }
+
+        // Ground collision check.
+        const terrainY = this.resolveGroundHeight(entity.x, entity.z);
+        if (entity.y <= terrainY && st.isArmed) {
+          // Detonate on ground impact.
+          entity.y = terrainY;
+          st.state = 'DEAD';
+          this.markEntityDestroyed(entity.id, -1);
+        }
+      }
+    }
+  }
+
+  /**
+   * Source parity: NeutronMissileUpdate::projectileFireAtObjectOrPosition — launch missile.
+   * Called when the nuke special power fires.
+   */
+  private launchNeutronMissile(entity: MapEntity, targetX: number, targetY: number, targetZ: number, launcherId: number): void {
+    const prof = entity.neutronMissileUpdateProfile;
+    if (!prof) return;
+
+    entity.neutronMissileUpdateState = {
+      state: 'LAUNCH',
+      targetX, targetY, targetZ,
+      intermedX: targetX,
+      intermedY: targetY + prof.targetFromDirectlyAbove,
+      intermedZ: targetZ,
+      velX: 0, velY: 0, velZ: 0,
+      launcherId,
+      isArmed: false,
+      isLaunched: false,
+      noTurnDistLeft: prof.initialDist,
+      reachedIntermediatePos: prof.targetFromDirectlyAbove === 0,
+      frameAtLaunch: this.frameCounter,
+      heightAtLaunch: entity.y,
+    };
+  }
+
+  /**
+   * Helper: apply area damage at a point (used by ParticleUplinkCannonUpdate).
+   */
+  private applyAreaDamageAtPoint(source: MapEntity, targetX: number, targetZ: number,
+      radius: number, damage: number, damageType: string): void {
+    const radiusSqr = radius * radius;
+    for (const other of this.spawnedEntities.values()) {
+      if (other.destroyed || other.id === source.id) continue;
+      const dx = other.x - targetX;
+      const dz = other.z - targetZ;
+      const distSqr = dx * dx + dz * dz;
+      if (distSqr <= radiusSqr) {
+        this.applyWeaponDamageAmount(source, other, damage, damageType);
+      }
+    }
+  }
+
+  /**
+   * Helper: apply weapon damage at a point by weapon name (used by StructureToppleUpdate).
+   */
+  private applyWeaponDamageAtPoint(source: MapEntity, targetX: number, targetY: number,
+      targetZ: number, weaponName: string, radius: number): void {
+    const radiusSqr = radius * radius;
+    for (const other of this.spawnedEntities.values()) {
+      if (other.destroyed || other.id === source.id) continue;
+      const dx = other.x - targetX;
+      const dz = other.z - targetZ;
+      const distSqr = dx * dx + dz * dz;
+      if (distSqr <= radiusSqr) {
+        this.applyWeaponDamageAmount(source, other, 50, 'CRUSH');
       }
     }
   }

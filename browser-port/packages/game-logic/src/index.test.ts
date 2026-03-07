@@ -62369,3 +62369,395 @@ describe('SubdualDamageHelper', () => {
     expect(attacked.attackedFrame).toBe(0);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// PhysicsBehavior
+// ────────────────────────────────────────────────────────────────────────────
+describe('PhysicsBehavior', () => {
+  it('extracts profile from INI', () => {
+    const obj = makeObjectDef('Debris', 'America', ['PROJECTILE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1, InitialHealth: 1 }),
+      makeBlock('Behavior', 'PhysicsBehavior ModuleTag_Physics', {
+        Mass: 5.0,
+        AllowBouncing: true,
+        KillWhenRestingOnGround: true,
+        PitchRollYawFactor: 3.0,
+      }),
+    ]);
+    const bundle = makeBundle({ objects: [obj] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Debris', 5, 5)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    const entity = (logic as unknown as { spawnedEntities: Map<number, unknown> }).spawnedEntities.get(1)! as unknown as {
+      physicsBehaviorProfile: { mass: number; allowBouncing: boolean; killWhenRestingOnGround: boolean };
+    };
+    expect(entity.physicsBehaviorProfile).not.toBeNull();
+    expect(entity.physicsBehaviorProfile.mass).toBe(5.0);
+    expect(entity.physicsBehaviorProfile.allowBouncing).toBe(true);
+    expect(entity.physicsBehaviorProfile.killWhenRestingOnGround).toBe(true);
+  });
+
+  it('applies gravity and kills debris at rest', () => {
+    const obj = makeObjectDef('Debris', 'America', ['PROJECTILE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1, InitialHealth: 1 }),
+      makeBlock('Behavior', 'PhysicsBehavior ModuleTag_Physics', {
+        Mass: 1.0,
+        KillWhenRestingOnGround: true,
+        AllowBouncing: false,
+      }),
+    ]);
+    const bundle = makeBundle({ objects: [obj] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Debris', 5, 5)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    const privateApi = logic as unknown as { spawnedEntities: Map<number, unknown> };
+    const entity = privateApi.spawnedEntities.get(1)! as unknown as {
+      y: number; destroyed: boolean;
+      physicsBehaviorState: { velY: number; allowToFall: boolean; stickToGround: boolean } | null;
+    };
+    // Raise entity above ground.
+    entity.y = 100;
+    // Tick to initialize physics state.
+    logic.update(0);
+    const physState = entity.physicsBehaviorState;
+    if (physState) {
+      physState.allowToFall = true;
+      physState.stickToGround = false;
+    }
+    // Tick many frames to let it fall and rest.
+    for (let i = 0; i < 300; i++) {
+      logic.update(0);
+    }
+    // Entity should be destroyed (killed when resting on ground).
+    expect(entity.destroyed).toBe(true);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// StructureToppleUpdate
+// ────────────────────────────────────────────────────────────────────────────
+describe('StructureToppleUpdate', () => {
+  it('extracts profile from INI', () => {
+    const building = makeObjectDef('GLAScudStorm', 'GLA', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+      makeBlock('Behavior', 'StructureToppleUpdate ModuleTag_Topple', {
+        MinToppleDelay: 500,
+        MaxToppleDelay: 1000,
+        MinToppleBurstDelay: 200,
+        MaxToppleBurstDelay: 600,
+        StructuralIntegrity: 0.5,
+        StructuralDecay: 0.98,
+        CrushingWeaponName: 'StructureCrush',
+      }),
+    ]);
+    const bundle = makeBundle({ objects: [building] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('GLAScudStorm', 5, 5)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    const entity = (logic as unknown as { spawnedEntities: Map<number, unknown> }).spawnedEntities.get(1)! as unknown as {
+      structureToppleProfile: { structuralIntegrity: number; structuralDecay: number };
+    };
+    expect(entity.structureToppleProfile).not.toBeNull();
+    expect(entity.structureToppleProfile.structuralIntegrity).toBe(0.5);
+    expect(entity.structureToppleProfile.structuralDecay).toBe(0.98);
+  });
+
+  it('topple state machine progresses through states', () => {
+    const building = makeObjectDef('GLAScudStorm', 'GLA', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+      makeBlock('Behavior', 'StructureToppleUpdate ModuleTag_Topple', {
+        MinToppleDelay: 33,
+        MaxToppleDelay: 66,
+        StructuralIntegrity: 0.0,
+        StructuralDecay: 0.0,
+      }),
+    ]);
+    const bundle = makeBundle({ objects: [building] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('GLAScudStorm', 5, 5)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.update(0);
+
+    const privateApi = logic as unknown as {
+      beginStructureTopple: (entity: unknown, attacker: unknown) => void;
+      spawnedEntities: Map<number, unknown>;
+    };
+    const entity = privateApi.spawnedEntities.get(1)! as unknown as {
+      structureToppleState: { state: string } | null;
+    };
+    privateApi.beginStructureTopple(entity, null);
+
+    expect(entity.structureToppleState).not.toBeNull();
+    expect(entity.structureToppleState!.state).toBe('WAITING');
+
+    // Tick until topple starts (max ~2 frames for 66ms).
+    for (let i = 0; i < 10; i++) logic.update(0);
+    expect(entity.structureToppleState!.state).toBe('TOPPLING');
+
+    // Tick until done (structural integrity 0 = fast topple).
+    for (let i = 0; i < 200; i++) logic.update(0);
+    expect(entity.structureToppleState!.state).toBe('DONE');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// MissileLauncherBuildingUpdate
+// ────────────────────────────────────────────────────────────────────────────
+describe('MissileLauncherBuildingUpdate', () => {
+  it('extracts profile from INI', () => {
+    const building = makeObjectDef('GLAScudStorm', 'GLA', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+      makeBlock('Behavior', 'MissileLauncherBuildingUpdate ModuleTag_MLBU', {
+        SpecialPowerTemplate: 'SuperweaponScudStorm',
+        DoorOpenTime: 5000,
+        DoorWaitOpenTime: 2000,
+        DoorCloseTime: 3000,
+      }),
+    ]);
+    const bundle = makeBundle({ objects: [building] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('GLAScudStorm', 5, 5)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    const entity = (logic as unknown as { spawnedEntities: Map<number, unknown> }).spawnedEntities.get(1)! as unknown as {
+      missileLauncherBuildingProfile: { specialPowerTemplateName: string; doorOpenTimeFrames: number };
+    };
+    expect(entity.missileLauncherBuildingProfile).not.toBeNull();
+    expect(entity.missileLauncherBuildingProfile.specialPowerTemplateName).toBe('SUPERWEAPONSCUDSTORM');
+  });
+
+  it('initializes door state on first tick', () => {
+    const building = makeObjectDef('GLAScudStorm', 'GLA', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+      makeBlock('Behavior', 'MissileLauncherBuildingUpdate ModuleTag_MLBU', {
+        SpecialPowerTemplate: 'SuperweaponScudStorm',
+        DoorOpenTime: 3000,
+        DoorWaitOpenTime: 2000,
+        DoorCloseTime: 3000,
+      }),
+    ]);
+    const bundle = makeBundle({
+      objects: [building],
+      specialPowers: [makeSpecialPowerDef('SuperweaponScudStorm', { RechargeTime: 10000 })],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('GLAScudStorm', 5, 5)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    // Tick several frames.
+    for (let i = 0; i < 10; i++) logic.update(0);
+    const entity = (logic as unknown as { spawnedEntities: Map<number, unknown> }).spawnedEntities.get(1)! as unknown as {
+      missileLauncherBuildingState: { doorState: string } | null;
+    };
+    expect(entity.missileLauncherBuildingState).not.toBeNull();
+  });
+
+  it('transitions to WAITING_TO_CLOSE after firing', () => {
+    const building = makeObjectDef('GLAScudStorm', 'GLA', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+      makeBlock('Behavior', 'MissileLauncherBuildingUpdate ModuleTag_MLBU', {
+        SpecialPowerTemplate: 'SuperweaponScudStorm',
+        DoorOpenTime: 100,
+        DoorWaitOpenTime: 2000,
+        DoorCloseTime: 3000,
+      }),
+    ]);
+    const bundle = makeBundle({ objects: [building] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('GLAScudStorm', 5, 5)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.update(0);
+
+    const privateApi = logic as unknown as {
+      missileLauncherOnFire: (entity: unknown) => void;
+      spawnedEntities: Map<number, unknown>;
+    };
+    const entity = privateApi.spawnedEntities.get(1)! as unknown as {
+      missileLauncherBuildingState: { doorState: string } | null;
+      missileLauncherBuildingProfile: unknown;
+    };
+    // Force init state.
+    entity.missileLauncherBuildingState = { doorState: 'OPEN' } as unknown as typeof entity.missileLauncherBuildingState;
+    privateApi.missileLauncherOnFire(entity);
+    expect(entity.missileLauncherBuildingState!.doorState).toBe('WAITING_TO_CLOSE');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// ParticleUplinkCannonUpdate
+// ────────────────────────────────────────────────────────────────────────────
+describe('ParticleUplinkCannonUpdate', () => {
+  it('extracts profile from INI', () => {
+    const building = makeObjectDef('USAParticleCannon', 'America', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+      makeBlock('Behavior', 'ParticleUplinkCannonUpdate ModuleTag_PUC', {
+        SpecialPowerTemplate: 'SuperweaponParticleCannon',
+        TotalFiringTime: 10000,
+        TotalDamagePulses: 20,
+        DamagePerSecond: 500,
+        DamageType: 'LASER',
+        DamageRadiusScalar: 1.5,
+      }),
+    ]);
+    const bundle = makeBundle({ objects: [building] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('USAParticleCannon', 5, 5)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    const entity = (logic as unknown as { spawnedEntities: Map<number, unknown> }).spawnedEntities.get(1)! as unknown as {
+      particleUplinkCannonProfile: { totalDamagePulses: number; damagePerSecond: number };
+    };
+    expect(entity.particleUplinkCannonProfile).not.toBeNull();
+    expect(entity.particleUplinkCannonProfile.totalDamagePulses).toBe(20);
+    expect(entity.particleUplinkCannonProfile.damagePerSecond).toBe(500);
+  });
+
+  it('fires damage pulses when activated', () => {
+    const building = makeObjectDef('USAParticleCannon', 'America', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+      makeBlock('Behavior', 'ParticleUplinkCannonUpdate ModuleTag_PUC', {
+        SpecialPowerTemplate: 'SuperweaponParticleCannon',
+        TotalFiringTime: 1000,
+        TotalDamagePulses: 5,
+        DamagePerSecond: 500,
+        DamageType: 'LASER',
+        DamageRadiusScalar: 10.0,
+      }),
+    ]);
+    const target = makeObjectDef('GLAUnit', 'GLA', ['INFANTRY'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+    ]);
+    const bundle = makeBundle({ objects: [building, target] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('USAParticleCannon', 5, 5),
+        makeMapObject('GLAUnit', 5, 5),
+      ]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.setTeamRelationship('America', 'GLA', 0);
+    logic.setTeamRelationship('GLA', 'America', 0);
+    logic.update(0);
+
+    const privateApi = logic as unknown as {
+      particleUplinkCannonOnFire: (entity: unknown, targetX: number, targetZ: number) => void;
+      spawnedEntities: Map<number, unknown>;
+    };
+    const cannonEntity = privateApi.spawnedEntities.get(1)!;
+    const glaEntity = privateApi.spawnedEntities.get(2)! as unknown as { health: number; x: number; z: number };
+    privateApi.particleUplinkCannonOnFire(cannonEntity, glaEntity.x, glaEntity.z);
+
+    const initialHealth = glaEntity.health;
+    // Tick enough frames for at least 1 damage pulse.
+    for (let i = 0; i < 30; i++) logic.update(0);
+    expect(glaEntity.health).toBeLessThan(initialHealth);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// NeutronMissileUpdate
+// ────────────────────────────────────────────────────────────────────────────
+describe('NeutronMissileUpdate', () => {
+  it('extracts profile from INI', () => {
+    const missile = makeObjectDef('NukeMissile', 'China', ['PROJECTILE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1, InitialHealth: 1 }),
+      makeBlock('Behavior', 'NeutronMissileUpdate ModuleTag_NMU', {
+        DistanceToTravelBeforeTurning: 100,
+        MaxTurnRate: 45,
+        ForwardDamping: 0.1,
+        RelativeSpeed: 2.0,
+        TargetFromDirectlyAbove: 500,
+        SpecialSpeedTime: 3000,
+        SpecialSpeedHeight: 800,
+        SpecialAccelFactor: 1.5,
+      }),
+    ]);
+    const bundle = makeBundle({ objects: [missile] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('NukeMissile', 5, 5)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    const entity = (logic as unknown as { spawnedEntities: Map<number, unknown> }).spawnedEntities.get(1)! as unknown as {
+      neutronMissileUpdateProfile: { relativeSpeed: number; targetFromDirectlyAbove: number };
+    };
+    expect(entity.neutronMissileUpdateProfile).not.toBeNull();
+    expect(entity.neutronMissileUpdateProfile.relativeSpeed).toBe(2.0);
+    expect(entity.neutronMissileUpdateProfile.targetFromDirectlyAbove).toBe(500);
+  });
+
+  it('missile flies toward target and detonates on ground', () => {
+    const missile = makeObjectDef('NukeMissile', 'China', ['PROJECTILE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'NeutronMissileUpdate ModuleTag_NMU', {
+        DistanceToTravelBeforeTurning: 0,
+        RelativeSpeed: 5.0,
+        ForwardDamping: 0.5,
+        TargetFromDirectlyAbove: 0,
+      }),
+    ]);
+    const bundle = makeBundle({ objects: [missile] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('NukeMissile', 3, 3)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.update(0);
+
+    const privateApi = logic as unknown as {
+      launchNeutronMissile: (entity: unknown, tx: number, ty: number, tz: number, launcherId: number) => void;
+      spawnedEntities: Map<number, unknown>;
+    };
+    const missileEntity = privateApi.spawnedEntities.get(1)! as unknown as {
+      y: number; destroyed: boolean;
+      neutronMissileUpdateState: { state: string } | null;
+    };
+    // Place missile high up.
+    missileEntity.y = 200;
+    privateApi.launchNeutronMissile(missileEntity, 100, 0, 100, 0);
+
+    expect(missileEntity.neutronMissileUpdateState).not.toBeNull();
+    expect(missileEntity.neutronMissileUpdateState!.state).toBe('LAUNCH');
+
+    // Tick many frames — missile should eventually hit ground.
+    for (let i = 0; i < 500; i++) logic.update(0);
+    // Missile should be destroyed after ground impact.
+    expect(missileEntity.destroyed).toBe(true);
+  });
+});
