@@ -496,7 +496,7 @@ function buildLodScenes(
     return [{ nodes: [...allMeshNodes] }];
   }
 
-  // Multiple LOD levels: sort by maxScreenSize descending (highest detail first).
+  // Multiple LOD levels: sort by maxScreenSize ascending (highest detail first).
   // In W3D, LOD 0 is typically the highest-detail level (maxScreenSize=0),
   // and higher indices are lower detail with larger maxScreenSize thresholds.
   const sortedLods = [...hlod.lods].sort((a, b) => a.maxScreenSize - b.maxScreenSize);

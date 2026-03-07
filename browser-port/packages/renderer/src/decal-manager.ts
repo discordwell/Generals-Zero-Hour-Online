@@ -13,12 +13,10 @@ import { TerrainScorchManager } from './terrain-scorch.js';
 export class DecalManager implements Subsystem {
   readonly name = 'DecalManager';
 
-  private readonly scene: THREE.Scene;
   readonly decalRenderer: DecalRenderer;
   readonly terrainScorch: TerrainScorchManager;
 
   constructor(scene: THREE.Scene, maxDecals = 256, maxScorchMarks = 128) {
-    this.scene = scene;
     this.decalRenderer = new DecalRenderer(scene, maxDecals);
     this.terrainScorch = new TerrainScorchManager(this.decalRenderer, maxScorchMarks);
   }

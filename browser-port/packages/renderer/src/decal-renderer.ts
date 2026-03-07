@@ -144,6 +144,10 @@ export class DecalRenderer {
     return this.decals.size;
   }
 
+  hasDecal(handle: DecalHandle): boolean {
+    return this.decals.has(handle.id);
+  }
+
   setMaxDecals(max: number): void {
     this.maxDecals = max;
   }

@@ -104,6 +104,7 @@ export class ParticleSystemManager implements Subsystem {
   private readonly tempPosition = new THREE.Vector3();
   private readonly tempScale = new THREE.Vector3();
   private readonly tempQuaternion = new THREE.Quaternion();
+  private readonly tempColor = new THREE.Color();
 
   constructor(scene: THREE.Scene, lodManager?: GameLODManager) {
     this.scene = scene;
@@ -376,7 +377,6 @@ export class ParticleSystemManager implements Subsystem {
       data[wOff + SIZE_RATE] = data[wOff + SIZE_RATE]! * data[wOff + SIZE_RATE_DAMP]!;
 
       // Keyframe interpolation
-      const t = age / maxAge;
       data[wOff + ALPHA] = interpolateAlphaKeyframes(template.alphaKeyframes, age);
       interpolateColorKeyframes(template.colorKeyframes, age, data, wOff);
 
@@ -544,7 +544,7 @@ export class ParticleSystemManager implements Subsystem {
     mesh.count = count;
 
     const data = system.particles;
-    const color = new THREE.Color();
+    const color = this.tempColor;
 
     for (let i = 0; i < count; i++) {
       const off = i * PARTICLE_STRIDE;

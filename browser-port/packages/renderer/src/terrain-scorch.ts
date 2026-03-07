@@ -42,6 +42,14 @@ export class TerrainScorchManager {
   }
 
   addScorch(config: TerrainScorchConfig): void {
+    // Purge handles whose decals were expired by the renderer
+    for (let i = this.handles.length - 1; i >= 0; i--) {
+      const h = this.handles[i];
+      if (h && !this.decalRenderer.hasDecal(h)) {
+        this.handles.splice(i, 1);
+      }
+    }
+
     // Enforce cap
     while (this.handles.length >= this.maxScorchMarks) {
       const oldest = this.handles.shift();

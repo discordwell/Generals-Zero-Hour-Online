@@ -26,12 +26,15 @@ export interface FXEventCallbacks {
 // Manager
 // ---------------------------------------------------------------------------
 
+const MAX_FXLIST_RECURSION_DEPTH = 8;
+
 export class FXListManager implements Subsystem {
   readonly name = 'FXListManager';
 
   private readonly templates = new Map<string, FXListTemplate>();
   private particleSystemManager: ParticleSystemManager | null = null;
   private callbacks: FXEventCallbacks = {};
+  private recursionDepth = 0;
 
   constructor(particleSystemManager?: ParticleSystemManager) {
     this.particleSystemManager = particleSystemManager ?? null;
@@ -96,11 +99,18 @@ export class FXListManager implements Subsystem {
     const template = this.templates.get(name);
     if (!template) return 0;
 
+    if (this.recursionDepth >= MAX_FXLIST_RECURSION_DEPTH) return 0;
+
+    this.recursionDepth++;
     let triggered = 0;
-    for (const nugget of template.nuggets) {
-      if (this.triggerNugget(nugget, position, orientation)) {
-        triggered++;
+    try {
+      for (const nugget of template.nuggets) {
+        if (this.triggerNugget(nugget, position, orientation)) {
+          triggered++;
+        }
       }
+    } finally {
+      this.recursionDepth--;
     }
     return triggered;
   }
