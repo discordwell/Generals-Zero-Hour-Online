@@ -193,6 +193,7 @@ export class PostgameStatsScreen {
           <td>${s.structuresLost}</td>
           <td>${s.structuresDestroyed}</td>
           <td>$${s.moneyEarned.toLocaleString()}</td>
+          <td>$${s.moneySpent.toLocaleString()}</td>
         </tr>
       `;
     }).join('');
@@ -218,6 +219,7 @@ export class PostgameStatsScreen {
               <th>Bldgs Lost</th>
               <th>Bldgs Killed</th>
               <th>Income</th>
+              <th>Spent</th>
             </tr>
           </thead>
           <tbody>
@@ -250,6 +252,10 @@ export class PostgameStatsScreen {
     if (this.overlayEl) {
       this.overlayEl.remove();
       this.overlayEl = null;
+    }
+    if (this.styleEl) {
+      this.styleEl.remove();
+      this.styleEl = null;
     }
   }
 

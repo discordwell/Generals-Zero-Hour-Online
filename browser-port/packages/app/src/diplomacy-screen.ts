@@ -166,15 +166,7 @@ export class DiplomacyScreen {
 
     el.addEventListener('click', (e) => {
       const target = (e.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
-      if (target?.dataset.action === 'close') {
-        this.hide();
-        this.callbacks.onClose();
-      }
-    });
-
-    // Click on background to close
-    el.addEventListener('click', (e) => {
-      if (e.target === el) {
+      if ((target?.dataset.action === 'close') || e.target === el) {
         this.hide();
         this.callbacks.onClose();
       }
