@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { TgaDecoder } from './TgaDecoder.js';
 import { DdsDecoder } from './DdsDecoder.js';
+import { BmpDecoder } from './BmpDecoder.js';
 import type { DecodedImage } from './TgaDecoder.js';
 
 // ---------------------------------------------------------------------------
@@ -72,7 +73,7 @@ Options:
 // File discovery
 // ---------------------------------------------------------------------------
 
-const SUPPORTED_EXTENSIONS = new Set(['.tga', '.dds']);
+const SUPPORTED_EXTENSIONS = new Set(['.tga', '.dds', '.bmp']);
 
 function discoverFiles(inputPath: string): string[] {
   const stat = fs.statSync(inputPath);
@@ -119,6 +120,8 @@ function decodeFile(filePath: string): DecodedImage {
       return TgaDecoder.decode(arrayBuffer);
     case '.dds':
       return DdsDecoder.decode(arrayBuffer);
+    case '.bmp':
+      return BmpDecoder.decode(arrayBuffer);
     default:
       throw new Error(`Unsupported extension: ${ext}`);
   }
@@ -160,7 +163,7 @@ function main(): void {
       fs.statSync(args.input).isDirectory() ? args.input : path.dirname(args.input),
       filePath,
     );
-    const outputPath = path.join(args.output, rel.replace(/\.(tga|dds)$/i, '.rgba'));
+    const outputPath = path.join(args.output, rel.replace(/\.(tga|dds|bmp)$/i, '.rgba'));
 
     try {
       const image = decodeFile(filePath);

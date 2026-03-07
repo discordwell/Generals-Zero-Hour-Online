@@ -1,5 +1,34 @@
 # Session Summaries
 
+## 2026-03-07T14:30Z — All Remaining Asset Converters (7 New Types)
+- **Implemented 7 new asset converters** covering ~3,700 previously unconverted files:
+  1. **CSF converter**: Binary localization parser (bitwise-NOT UCS-2), 2 files → 6,364 entries each
+  2. **STR converter**: Text mission string parser, 11 files (6 with content)
+  3. **Audio converter**: IMA ADPCM decoder (4-bit→16-bit PCM) + PCM/MP3 passthrough, 3,530 files
+  4. **WND converter**: UI layout parser (window hierarchy, draw data, gadgets), 77/77 files
+  5. **Cursor converter**: RIFF ANI parser → JSON metadata + RGBA sprite sheets, 52/52 files
+  6. **WAK converter**: Binary water track parser (float pairs + wave type), 14/14 files
+  7. **Video converter**: BIK→MP4 via FFmpeg (graceful skip if not installed), 39 files
+  8. **BMP support**: Added to existing texture-converter, 2 retail bitmap files
+- **Pipeline wiring**: All steps added to convert-all.ts VALID_STEPS and main()
+- **Tests**: 19 new tests (synthetic + retail data), all 2,102 tests pass
+- **Retail verification**: Every converter tested against full retail data with 0 failures
+
+## 2026-03-07T00:45Z — Asset Restoration & Full Conversion Pipeline
+- **Problem**: Cleanup commit a5ad8c38 accidentally deleted 4,436 .glb models and emptied ini-bundle.json (638-byte stub)
+- **Restored from git history** (commit 506afc03):
+  - 4,436 models (.glb) — committed ff10ee11
+  - 22MB ini-bundle.json (1,993 objects) — later regenerated
+  - Manifest rebuilt to 8,297 entries (was 5)
+- **Ran convert-all pipeline** (`--only big,map,ini` against retail/installed):
+  - Extracted 16 .big archives (926MB)
+  - Converted 101 maps to JSON (203MB)
+  - Regenerated ini-bundle: **2,110 objects** (up from 1,993), 12,089 blocks, 2 parse errors (stray END in Campaign.ini)
+  - Manifest updated to 8,495 entries (3,857 textures + 4,437 models + 101 maps + 99 INI files + 1 bundle)
+- **Final asset status**: 3,857 textures + 4,437 models + 101 maps + 23MB ini-bundle = 8,495 manifest entries
+- **INI parse stats**: 169 registry errors, 12 unsupported block types (AIData, ChallengeGenerals, CommandMap, Credits, etc.)
+- All 2,083 tests pass. Commits: ff10ee11, d71f68cf — pushed.
+
 ## 2026-03-07T00:00Z — Port 5 C++ Update/Behavior Modules (Batch A+B)
 - **Phase 1**: Git cleanup — committed regenerated ini-bundle.json + manifest.json, deleted `_extracted/` map intermediates (commit a5ad8c38)
 - **Modules ported** (5 of 7 planned; BaseRegenerateUpdate already exists, LaserUpdate is client-only):

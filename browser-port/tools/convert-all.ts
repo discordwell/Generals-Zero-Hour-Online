@@ -39,7 +39,7 @@ const APP_PUBLIC_ASSETS_DISPLAY_PATH = `${path.relative(path.dirname(PROJECT_ROO
 const TOOLS_DIR = path.join(PROJECT_ROOT, 'tools');
 const TOOL_VERSION = '1.0.0';
 const RUNTIME_MANIFEST_FILENAME = RUNTIME_MANIFEST_FILE;
-const VALID_STEPS = new Set(['big', 'texture', 'w3d', 'map', 'ini']);
+const VALID_STEPS = new Set(['big', 'texture', 'w3d', 'map', 'ini', 'csf', 'str', 'audio', 'wnd', 'cursor', 'wak', 'video']);
 const DEFAULT_OUTPUT_DIR = APP_PUBLIC_ASSETS_DIR;
 const MAP_MAGIC = Buffer.from('CkMp', 'ascii');
 const EAR_WRAPPER_MAGIC = Buffer.from('EAR\0', 'ascii');
@@ -412,7 +412,7 @@ Usage: npm run convert:all -- --game-dir <path> [options]
 Options:
   --game-dir <path>   Path to C&C Generals: Zero Hour install directory (required)
   --output <path>     Output directory (default: ${APP_PUBLIC_ASSETS_DISPLAY_PATH})
-  --only <steps>      Comma-separated list of steps to run: big,texture,w3d,map,ini
+  --only <steps>      Comma-separated list of steps to run: big,texture,w3d,map,ini,csf,str,audio,wnd,cursor,wak,video
   --help              Show this help message
 
 Examples:
@@ -1108,6 +1108,272 @@ function stepParseIni(
 }
 
 // ---------------------------------------------------------------------------
+// New asset converter steps
+// ---------------------------------------------------------------------------
+
+function stepConvertCsf(
+  gameDir: string,
+  outputDir: string,
+  runtimeManifest: ConversionManifest,
+  timestamp: string,
+): void {
+  console.log('\n═══ Converting CSF localization files ═══\n');
+  const extractedDir = path.join(outputDir, '_extracted');
+  const locDir = path.join(outputDir, 'localization');
+
+  const csfFiles = findFiles(extractedDir, '.csf');
+  console.log(`Found ${csfFiles.length} .csf file(s)`);
+
+  if (csfFiles.length === 0) return;
+
+  const batchConverted = runTool('csf-converter', ['--input', extractedDir, '--output', locDir]);
+
+  let failures = 0;
+  for (const file of csfFiles) {
+    const relPath = path.relative(extractedDir, file);
+    const outPath = path.join(locDir, relPath.replace(/\.csf$/i, '.json'));
+    if (!fs.existsSync(outPath)) {
+      failures += 1;
+      continue;
+    }
+    addConvertedFileToManifest(runtimeManifest, {
+      sourcePath: file, outputPath: outPath, gameDir, outputDir,
+      converter: 'csf-converter', timestamp,
+    });
+  }
+
+  if (!batchConverted || failures > 0) {
+    throw new Error(`CSF conversion failed for ${failures} file(s).`);
+  }
+}
+
+function stepConvertStr(
+  gameDir: string,
+  outputDir: string,
+  runtimeManifest: ConversionManifest,
+  timestamp: string,
+): void {
+  console.log('\n═══ Converting STR localization files ═══\n');
+  const extractedDir = path.join(outputDir, '_extracted');
+  const locDir = path.join(outputDir, 'localization');
+
+  const strFiles = findFiles(extractedDir, '.str');
+  console.log(`Found ${strFiles.length} .str file(s)`);
+
+  if (strFiles.length === 0) return;
+
+  const batchConverted = runTool('str-converter', ['--input', extractedDir, '--output', locDir]);
+
+  let registered = 0;
+  for (const file of strFiles) {
+    const relPath = path.relative(extractedDir, file);
+    const outPath = path.join(locDir, relPath.replace(/\.str$/i, '.str.json'));
+    if (!fs.existsSync(outPath)) {
+      continue; // empty .str files are skipped, not failures
+    }
+    addConvertedFileToManifest(runtimeManifest, {
+      sourcePath: file, outputPath: outPath, gameDir, outputDir,
+      converter: 'str-converter', timestamp,
+    });
+    registered += 1;
+  }
+
+  if (!batchConverted) {
+    throw new Error('STR conversion failed.');
+  }
+  console.log(`Registered ${registered} non-empty .str conversion(s).`);
+}
+
+function stepConvertAudio(
+  gameDir: string,
+  outputDir: string,
+  runtimeManifest: ConversionManifest,
+  timestamp: string,
+): void {
+  console.log('\n═══ Converting audio files ═══\n');
+  const extractedDir = path.join(outputDir, '_extracted');
+  const audioDir = path.join(outputDir, 'audio');
+
+  const wavFiles = findFiles(extractedDir, '.wav');
+  const mp3Files = findFiles(extractedDir, '.mp3');
+  const audioFiles = [...wavFiles, ...mp3Files].sort();
+  console.log(`Found ${wavFiles.length} .wav + ${mp3Files.length} .mp3 file(s)`);
+
+  if (audioFiles.length === 0) return;
+
+  const batchConverted = runTool('audio-converter', ['--input', extractedDir, '--output', audioDir]);
+
+  let registered = 0;
+  for (const file of audioFiles) {
+    const relPath = path.relative(extractedDir, file);
+    const outPath = path.join(audioDir, relPath);
+    if (!fs.existsSync(outPath)) continue;
+    addConvertedFileToManifest(runtimeManifest, {
+      sourcePath: file, outputPath: outPath, gameDir, outputDir,
+      converter: 'audio-converter', timestamp,
+    });
+    registered += 1;
+  }
+
+  if (!batchConverted) {
+    throw new Error('Audio conversion failed.');
+  }
+  console.log(`Registered ${registered} audio file(s).`);
+}
+
+function stepConvertWnd(
+  gameDir: string,
+  outputDir: string,
+  runtimeManifest: ConversionManifest,
+  timestamp: string,
+): void {
+  console.log('\n═══ Converting WND UI layout files ═══\n');
+  const extractedDir = path.join(outputDir, '_extracted');
+  const windowsDir = path.join(outputDir, 'windows');
+
+  const wndFiles = findFiles(extractedDir, '.wnd');
+  console.log(`Found ${wndFiles.length} .wnd file(s)`);
+
+  if (wndFiles.length === 0) return;
+
+  const batchConverted = runTool('wnd-converter', ['--input', extractedDir, '--output', windowsDir]);
+
+  let failures = 0;
+  for (const file of wndFiles) {
+    const relPath = path.relative(extractedDir, file);
+    const outPath = path.join(windowsDir, relPath.replace(/\.wnd$/i, '.json'));
+    if (!fs.existsSync(outPath)) {
+      failures += 1;
+      continue;
+    }
+    addConvertedFileToManifest(runtimeManifest, {
+      sourcePath: file, outputPath: outPath, gameDir, outputDir,
+      converter: 'wnd-converter', timestamp,
+    });
+  }
+
+  if (!batchConverted || failures > 0) {
+    throw new Error(`WND conversion failed for ${failures} file(s).`);
+  }
+}
+
+function stepConvertCursors(
+  gameDir: string,
+  outputDir: string,
+  runtimeManifest: ConversionManifest,
+  timestamp: string,
+): void {
+  console.log('\n═══ Converting ANI cursor files ═══\n');
+  const cursorDir = path.join(outputDir, 'cursors');
+
+  // ANI files are in the retail install dir, not in .big archives
+  const aniFiles = findFiles(gameDir, '.ani');
+  console.log(`Found ${aniFiles.length} .ani file(s)`);
+
+  if (aniFiles.length === 0) return;
+
+  const batchConverted = runTool('cursor-converter', ['--input', gameDir, '--output', cursorDir]);
+
+  let registered = 0;
+  for (const file of aniFiles) {
+    const relPath = path.relative(gameDir, file);
+    const baseName = relPath.replace(/\.ani$/i, '');
+    const jsonPath = path.join(cursorDir, baseName + '.json');
+    const rgbaPath = path.join(cursorDir, baseName + '_frames.rgba');
+    if (fs.existsSync(jsonPath)) {
+      addConvertedFileToManifest(runtimeManifest, {
+        sourcePath: file, outputPath: jsonPath, gameDir, outputDir,
+        converter: 'cursor-converter', timestamp,
+      });
+      registered += 1;
+    }
+    if (fs.existsSync(rgbaPath)) {
+      addConvertedFileToManifest(runtimeManifest, {
+        sourcePath: file, outputPath: rgbaPath, gameDir, outputDir,
+        converter: 'cursor-converter', timestamp,
+      });
+    }
+  }
+
+  if (!batchConverted) {
+    throw new Error('Cursor conversion failed.');
+  }
+  console.log(`Registered ${registered} cursor(s).`);
+}
+
+function stepConvertWak(
+  gameDir: string,
+  outputDir: string,
+  runtimeManifest: ConversionManifest,
+  timestamp: string,
+): void {
+  console.log('\n═══ Converting WAK water track files ═══\n');
+  const extractedDir = path.join(outputDir, '_extracted');
+  const wakOutputDir = path.join(outputDir, 'watertracks');
+
+  const wakFiles = findFiles(extractedDir, '.wak');
+  console.log(`Found ${wakFiles.length} .wak file(s)`);
+
+  if (wakFiles.length === 0) return;
+
+  const batchConverted = runTool('wak-converter', ['--input', extractedDir, '--output', wakOutputDir]);
+
+  let failures = 0;
+  for (const file of wakFiles) {
+    const relPath = path.relative(extractedDir, file);
+    const outPath = path.join(wakOutputDir, relPath.replace(/\.wak$/i, '.wak.json'));
+    if (!fs.existsSync(outPath)) {
+      failures += 1;
+      continue;
+    }
+    addConvertedFileToManifest(runtimeManifest, {
+      sourcePath: file, outputPath: outPath, gameDir, outputDir,
+      converter: 'wak-converter', timestamp,
+    });
+  }
+
+  if (!batchConverted || failures > 0) {
+    throw new Error(`WAK conversion failed for ${failures} file(s).`);
+  }
+}
+
+function stepConvertVideo(
+  gameDir: string,
+  outputDir: string,
+  runtimeManifest: ConversionManifest,
+  timestamp: string,
+): void {
+  console.log('\n═══ Converting BIK video files ═══\n');
+  const videoDir = path.join(outputDir, 'videos');
+
+  // BIK files are in the retail install dir, not in .big archives
+  const bikFiles = findFiles(gameDir, '.bik');
+  console.log(`Found ${bikFiles.length} .bik file(s)`);
+
+  if (bikFiles.length === 0) return;
+
+  // Video converter gracefully skips if FFmpeg is not installed
+  const batchConverted = runTool('video-converter', ['--input', gameDir, '--output', videoDir]);
+
+  let registered = 0;
+  for (const file of bikFiles) {
+    const relPath = path.relative(gameDir, file);
+    const outPath = path.join(videoDir, relPath.replace(/\.bik$/i, '.mp4'));
+    if (!fs.existsSync(outPath)) continue;
+    addConvertedFileToManifest(runtimeManifest, {
+      sourcePath: file, outputPath: outPath, gameDir, outputDir,
+      converter: 'video-converter', timestamp,
+    });
+    registered += 1;
+  }
+
+  if (!batchConverted) {
+    console.warn('Video conversion incomplete (FFmpeg may not be installed). Continuing.');
+  }
+  console.log(`Registered ${registered} video(s).`);
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -1150,6 +1416,34 @@ function main(): void {
         || (entry.converter === 'convert-all' && entry.outputPath === 'data/ini-bundle.json'),
     );
     stepParseIni(gameDir, outputDir, runtimeManifest, timestamp);
+  }
+  if (steps.has('csf')) {
+    removeManifestEntries(runtimeManifest, outputDir, (entry) => entry.converter === 'csf-converter');
+    stepConvertCsf(gameDir, outputDir, runtimeManifest, timestamp);
+  }
+  if (steps.has('str')) {
+    removeManifestEntries(runtimeManifest, outputDir, (entry) => entry.converter === 'str-converter');
+    stepConvertStr(gameDir, outputDir, runtimeManifest, timestamp);
+  }
+  if (steps.has('audio')) {
+    removeManifestEntries(runtimeManifest, outputDir, (entry) => entry.converter === 'audio-converter');
+    stepConvertAudio(gameDir, outputDir, runtimeManifest, timestamp);
+  }
+  if (steps.has('wnd')) {
+    removeManifestEntries(runtimeManifest, outputDir, (entry) => entry.converter === 'wnd-converter');
+    stepConvertWnd(gameDir, outputDir, runtimeManifest, timestamp);
+  }
+  if (steps.has('cursor')) {
+    removeManifestEntries(runtimeManifest, outputDir, (entry) => entry.converter === 'cursor-converter');
+    stepConvertCursors(gameDir, outputDir, runtimeManifest, timestamp);
+  }
+  if (steps.has('wak')) {
+    removeManifestEntries(runtimeManifest, outputDir, (entry) => entry.converter === 'wak-converter');
+    stepConvertWak(gameDir, outputDir, runtimeManifest, timestamp);
+  }
+  if (steps.has('video')) {
+    removeManifestEntries(runtimeManifest, outputDir, (entry) => entry.converter === 'video-converter');
+    stepConvertVideo(gameDir, outputDir, runtimeManifest, timestamp);
   }
 
   writeManifest(runtimeManifest, runtimeManifestPath);
