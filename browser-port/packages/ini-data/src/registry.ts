@@ -126,6 +126,12 @@ export interface MiscAudioDef {
   noCanDoSoundName?: string;
 }
 
+export interface RawBlockDef {
+  name: string;
+  fields: Record<string, IniValue>;
+  blocks: IniBlock[];
+}
+
 export interface RegistryStats {
   objects: number;
   weapons: number;
@@ -136,6 +142,10 @@ export interface RegistryStats {
   audioEvents: number;
   commandButtons: number;
   commandSets: number;
+  particleSystems: number;
+  fxLists: number;
+  staticGameLODs: number;
+  dynamicGameLODs: number;
   unresolvedInheritance: number;
   totalBlocks: number;
 }
@@ -198,6 +208,10 @@ export interface IniDataBundle {
   miscAudio?: MiscAudioDef;
   commandButtons?: CommandButtonDef[];
   commandSets?: CommandSetDef[];
+  particleSystems?: RawBlockDef[];
+  fxLists?: RawBlockDef[];
+  staticGameLODs?: RawBlockDef[];
+  dynamicGameLODs?: RawBlockDef[];
   ai?: AiConfig;
   audioSettings?: AudioSettingsConfig;
   gameData?: GameDataConfig;
@@ -223,6 +237,10 @@ export class IniDataRegistry {
   readonly audioEvents = new Map<string, AudioEventDef>();
   readonly commandButtons = new Map<string, CommandButtonDef>();
   readonly commandSets = new Map<string, CommandSetDef>();
+  readonly particleSystems = new Map<string, RawBlockDef>();
+  readonly fxLists = new Map<string, RawBlockDef>();
+  readonly staticGameLODs = new Map<string, RawBlockDef>();
+  readonly dynamicGameLODs = new Map<string, RawBlockDef>();
   readonly errors: RegistryError[] = [];
   private ai: AiConfig | undefined;
   private audioSettings: AudioSettingsConfig | undefined;
@@ -277,6 +295,10 @@ export class IniDataRegistry {
     this.audioEvents.clear();
     this.commandButtons.clear();
     this.commandSets.clear();
+    this.particleSystems.clear();
+    this.fxLists.clear();
+    this.staticGameLODs.clear();
+    this.dynamicGameLODs.clear();
     this.errors.length = 0;
     this.unsupportedBlockTypes.clear();
     this.miscAudio = undefined;
@@ -384,6 +406,34 @@ export class IniDataRegistry {
         slottedButtons,
       });
     }
+    for (const ps of bundle.particleSystems ?? []) {
+      this.particleSystems.set(ps.name, {
+        name: ps.name,
+        fields: { ...ps.fields },
+        blocks: [...(ps.blocks ?? [])],
+      });
+    }
+    for (const fx of bundle.fxLists ?? []) {
+      this.fxLists.set(fx.name, {
+        name: fx.name,
+        fields: { ...fx.fields },
+        blocks: [...(fx.blocks ?? [])],
+      });
+    }
+    for (const lod of bundle.staticGameLODs ?? []) {
+      this.staticGameLODs.set(lod.name, {
+        name: lod.name,
+        fields: { ...lod.fields },
+        blocks: [...(lod.blocks ?? [])],
+      });
+    }
+    for (const lod of bundle.dynamicGameLODs ?? []) {
+      this.dynamicGameLODs.set(lod.name, {
+        name: lod.name,
+        fields: { ...lod.fields },
+        blocks: [...(lod.blocks ?? [])],
+      });
+    }
     this.miscAudio = bundle.miscAudio
       ? {
           entries: { ...bundle.miscAudio.entries },
@@ -487,6 +537,22 @@ export class IniDataRegistry {
     return this.commandSets.get(name);
   }
 
+  getParticleSystem(name: string): RawBlockDef | undefined {
+    return this.particleSystems.get(name);
+  }
+
+  getFXList(name: string): RawBlockDef | undefined {
+    return this.fxLists.get(name);
+  }
+
+  getStaticGameLOD(name: string): RawBlockDef | undefined {
+    return this.staticGameLODs.get(name);
+  }
+
+  getDynamicGameLOD(name: string): RawBlockDef | undefined {
+    return this.dynamicGameLODs.get(name);
+  }
+
   getMiscAudio(): MiscAudioDef | undefined {
     if (!this.miscAudio) {
       return undefined;
@@ -510,13 +576,17 @@ export class IniDataRegistry {
       audioEvents: this.audioEvents.size,
       commandButtons: this.commandButtons.size,
       commandSets: this.commandSets.size,
-      // SpecialPower and ObjectCreationList definitions are intentionally excluded here
-      // until we decide whether to expose their totals in the public stats contract.
+      particleSystems: this.particleSystems.size,
+      fxLists: this.fxLists.size,
+      staticGameLODs: this.staticGameLODs.size,
+      dynamicGameLODs: this.dynamicGameLODs.size,
       unresolvedInheritance: this.getUnresolvedInheritanceCount(),
       totalBlocks: this.objects.size + this.weapons.size + this.armors.size +
         this.upgrades.size + this.sciences.size + this.factions.size + this.locomotors.size +
         this.audioEvents.size +
-        this.commandButtons.size + this.commandSets.size,
+        this.commandButtons.size + this.commandSets.size +
+        this.particleSystems.size + this.fxLists.size +
+        this.staticGameLODs.size + this.dynamicGameLODs.size,
     };
   }
 
@@ -550,6 +620,10 @@ export class IniDataRegistry {
         : undefined,
       commandButtons: [...this.commandButtons.values()].sort((a, b) => a.name.localeCompare(b.name)),
       commandSets: [...this.commandSets.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      particleSystems: [...this.particleSystems.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      fxLists: [...this.fxLists.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      staticGameLODs: [...this.staticGameLODs.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      dynamicGameLODs: [...this.dynamicGameLODs.values()].sort((a, b) => a.name.localeCompare(b.name)),
       ai: this.ai ? { ...this.ai } : undefined,
       audioSettings: this.audioSettings ? { ...this.audioSettings } : undefined,
       gameData: this.gameData
@@ -730,13 +804,43 @@ export class IniDataRegistry {
         this.indexGameDataBlock(block);
         break;
 
+      case 'ParticleSystem':
+        addDefinition(this.particleSystems, block.type, {
+          name: block.name,
+          fields: block.fields,
+          blocks: block.blocks,
+        });
+        break;
+
+      case 'FXList':
+        addDefinition(this.fxLists, block.type, {
+          name: block.name,
+          fields: block.fields,
+          blocks: block.blocks,
+        });
+        break;
+
+      case 'StaticGameLOD':
+        addDefinition(this.staticGameLODs, block.type, {
+          name: block.name,
+          fields: block.fields,
+          blocks: block.blocks,
+        });
+        break;
+
+      case 'DynamicGameLOD':
+        addDefinition(this.dynamicGameLODs, block.type, {
+          name: block.name,
+          fields: block.fields,
+          blocks: block.blocks,
+        });
+        break;
+
       // Known but not indexed block types — skip silently
       case 'DamageFX':
-      case 'FXList':
       case 'Multisound':
       case 'EvaEvent':
       case 'MappedImage':
-      case 'ParticleSystem':
       case 'Animation':
       case 'Terrain':
       case 'Road':

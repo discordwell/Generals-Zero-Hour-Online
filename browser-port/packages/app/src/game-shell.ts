@@ -1,18 +1,56 @@
 /**
- * Game Shell — Main menu and skirmish setup screens.
+ * Game Shell — Main menu, skirmish setup, and campaign screens.
  *
  * Source parity:
  *   Generals/Code/GameEngine/Source/GameClient/Shell/Shell.cpp
  *   Generals/Code/GameEngine/Source/GameClient/Shell/ShellMenuScheme.cpp
+ *   Generals/Code/GameEngine/Source/GameClient/GUI/GUICallbacks/Menus/MainMenu.cpp
  *
  * The original engine uses a WND-based (Westwood Window) UI system for its
  * shell screens. We replicate the screen flow with DOM elements:
- *   MAIN_MENU → SKIRMISH_SETUP → (game loads) → IN_GAME
+ *   MAIN_MENU → SINGLE_PLAYER → CAMPAIGN_FACTION → CAMPAIGN_DIFFICULTY → (game loads)
+ *   MAIN_MENU → SKIRMISH_SETUP → (game loads)
+ *   MAIN_MENU → SINGLE_PLAYER → CHALLENGE_SELECT → (game loads)
  */
 
 // ──── Types ─────────────────────────────────────────────────────────────────
 
-export type ShellScreen = 'main-menu' | 'skirmish-setup' | 'options';
+export type GameDifficulty = 'EASY' | 'NORMAL' | 'HARD';
+
+export interface ShellMission {
+  name: string;
+  mapName: string;
+  nextMission: string;
+  movieLabel: string;
+  objectiveLines: string[];
+  briefingVoice: string;
+  locationNameLabel: string;
+  unitNames: string[];
+  voiceLength: number;
+  generalName: string;
+}
+
+export interface ShellCampaign {
+  name: string;
+  firstMission: string;
+  campaignNameLabel: string;
+  finalMovieName: string;
+  isChallengeCampaign: boolean;
+  playerFactionName: string;
+  missions: ShellMission[];
+}
+
+export type ShellScreen =
+  | 'main-menu'
+  | 'single-player'
+  | 'skirmish-setup'
+  | 'campaign-faction'
+  | 'campaign-difficulty'
+  | 'campaign-briefing'
+  | 'challenge-select'
+  | 'options';
+
+export type GameMode = 'SKIRMISH' | 'CAMPAIGN' | 'CHALLENGE';
 
 export interface SkirmishSettings {
   /** Map asset path (null = procedural demo terrain). */
@@ -27,6 +65,18 @@ export interface SkirmishSettings {
   startingCredits: number;
 }
 
+export interface CampaignStartSettings {
+  gameMode: GameMode;
+  campaignName: string;
+  difficulty: GameDifficulty;
+  /** Resolved map asset path for the first mission. */
+  mapPath: string;
+  /** The mission object (for briefing info). */
+  mission: ShellMission;
+  /** The campaign object. */
+  campaign: ShellCampaign;
+}
+
 export interface MapInfo {
   /** Display name (derived from path). */
   name: string;
@@ -37,17 +87,25 @@ export interface MapInfo {
 export interface GameShellCallbacks {
   /** Called when user clicks "Start Game" from skirmish setup. */
   onStartGame(settings: SkirmishSettings): void;
+  /** Called when user starts a campaign mission. */
+  onStartCampaign?(settings: CampaignStartSettings): void;
   /** Called when user opens the Options screen from the main menu. */
   onOpenOptions?(): void;
 }
 
-// ──── Faction data ──────────────────────────────────────────────────────────
+// ──── Faction / difficulty data ─────────────────────────────────────────────
 
 const FACTIONS = [
-  { side: 'America', label: 'USA', description: 'United States of America' },
-  { side: 'China', label: 'China', description: "People's Republic of China" },
-  { side: 'GLA', label: 'GLA', description: 'Global Liberation Army' },
+  { side: 'America', label: 'USA', description: 'United States of America', campaignName: 'usa' },
+  { side: 'China', label: 'China', description: "People's Republic of China", campaignName: 'china' },
+  { side: 'GLA', label: 'GLA', description: 'Global Liberation Army', campaignName: 'gla' },
 ] as const;
+
+const DIFFICULTIES: { value: GameDifficulty; label: string; description: string }[] = [
+  { value: 'EASY', label: 'Easy', description: 'For beginners' },
+  { value: 'NORMAL', label: 'Normal', description: 'Standard challenge' },
+  { value: 'HARD', label: 'Hard', description: 'For veterans' },
+];
 
 const STARTING_CREDITS_OPTIONS = [
   { value: 5000, label: '$5,000' },
@@ -55,6 +113,28 @@ const STARTING_CREDITS_OPTIONS = [
   { value: 20000, label: '$20,000' },
   { value: 40000, label: '$40,000' },
 ] as const;
+
+// ──── Challenge general data ────────────────────────────────────────────────
+
+export interface ChallengeGeneralInfo {
+  index: number;
+  name: string;
+  faction: string;
+  campaignName: string;
+  color: string;
+}
+
+const CHALLENGE_GENERALS: ChallengeGeneralInfo[] = [
+  { index: 0, name: 'General Granger', faction: 'USA Air Force', campaignName: 'challenge_0', color: '#4488cc' },
+  { index: 1, name: 'Dr. Thrax', faction: 'GLA Toxin', campaignName: 'challenge_1', color: '#66aa44' },
+  { index: 2, name: 'General Tao', faction: 'China Nuclear', campaignName: 'challenge_2', color: '#cc6622' },
+  { index: 3, name: 'General Alexander', faction: 'USA Super Weapons', campaignName: 'challenge_3', color: '#8866cc' },
+  { index: 4, name: 'General Kwai', faction: 'China Tank', campaignName: 'challenge_4', color: '#aa4444' },
+  { index: 5, name: 'General Townes', faction: 'USA Laser', campaignName: 'challenge_5', color: '#cc8844' },
+  { index: 6, name: 'Prince Kassad', faction: 'GLA Stealth', campaignName: 'challenge_6', color: '#668866' },
+  { index: 7, name: 'General Fai', faction: 'China Infantry', campaignName: 'challenge_7', color: '#886644' },
+  { index: 8, name: 'General Leang', faction: 'Boss General', campaignName: 'challenge_8', color: '#ccaa44' },
+];
 
 // ──── Styles ────────────────────────────────────────────────────────────────
 
@@ -130,15 +210,15 @@ const SHELL_STYLES = `
     color: #4a4540;
   }
 
-  /* ── Skirmish Setup ── */
-  .skirmish-panel {
+  /* ── Shared panel (skirmish, campaign, etc.) ── */
+  .shell-panel {
     background: rgba(12, 16, 28, 0.85);
     border: 1px solid rgba(201, 168, 76, 0.25);
     padding: 32px 40px;
     min-width: 520px;
     max-width: 600px;
   }
-  .skirmish-title {
+  .shell-panel-title {
     font-size: 1.6rem;
     color: #c9a84c;
     text-transform: uppercase;
@@ -146,10 +226,10 @@ const SHELL_STYLES = `
     margin-bottom: 28px;
     text-align: center;
   }
-  .skirmish-section {
+  .shell-section {
     margin-bottom: 20px;
   }
-  .skirmish-label {
+  .shell-label {
     display: block;
     font-size: 0.8rem;
     color: #8a8070;
@@ -157,7 +237,7 @@ const SHELL_STYLES = `
     letter-spacing: 0.15em;
     margin-bottom: 6px;
   }
-  .skirmish-select {
+  .shell-select {
     width: 100%;
     padding: 8px 12px;
     background: #0c101c;
@@ -169,7 +249,7 @@ const SHELL_STYLES = `
     appearance: none;
     -webkit-appearance: none;
   }
-  .skirmish-select:focus {
+  .shell-select:focus {
     outline: none;
     border-color: rgba(201, 168, 76, 0.6);
   }
@@ -236,13 +316,13 @@ const SHELL_STYLES = `
   }
 
   /* Bottom buttons */
-  .skirmish-actions {
+  .shell-actions {
     display: flex;
     gap: 12px;
     margin-top: 28px;
     justify-content: flex-end;
   }
-  .skirmish-btn {
+  .shell-btn {
     padding: 10px 28px;
     border: 1px solid rgba(201, 168, 76, 0.4);
     background: rgba(201, 168, 76, 0.08);
@@ -254,16 +334,115 @@ const SHELL_STYLES = `
     cursor: pointer;
     transition: background 0.2s, border-color 0.2s;
   }
-  .skirmish-btn:hover {
+  .shell-btn:hover {
     background: rgba(201, 168, 76, 0.18);
     border-color: rgba(201, 168, 76, 0.7);
   }
-  .skirmish-btn.primary {
+  .shell-btn.primary {
     background: rgba(201, 168, 76, 0.2);
     border-color: #c9a84c;
   }
-  .skirmish-btn.primary:hover {
+  .shell-btn.primary:hover {
     background: rgba(201, 168, 76, 0.35);
+  }
+
+  /* ── Difficulty buttons ── */
+  .difficulty-row {
+    display: flex;
+    gap: 8px;
+  }
+  .difficulty-option {
+    flex: 1;
+    padding: 14px 8px;
+    text-align: center;
+    border: 1px solid rgba(201, 168, 76, 0.2);
+    background: rgba(201, 168, 76, 0.04);
+    color: #8a8070;
+    font-size: 0.9rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .difficulty-option:hover {
+    background: rgba(201, 168, 76, 0.1);
+    color: #c9a84c;
+  }
+  .difficulty-option.selected {
+    border-color: #c9a84c;
+    background: rgba(201, 168, 76, 0.15);
+    color: #e8d48b;
+  }
+  .difficulty-option .diff-name {
+    font-weight: 600;
+    font-size: 1rem;
+  }
+  .difficulty-option .diff-desc {
+    font-size: 0.7rem;
+    margin-top: 2px;
+    opacity: 0.7;
+  }
+
+  /* ── Briefing screen ── */
+  .briefing-info {
+    color: #b0a890;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin-bottom: 8px;
+  }
+  .briefing-info strong {
+    color: #c9a84c;
+  }
+  .briefing-objectives {
+    margin-top: 12px;
+    padding-left: 16px;
+  }
+  .briefing-objectives li {
+    margin-bottom: 4px;
+    color: #d0c8b0;
+  }
+
+  /* ── Challenge grid ── */
+  .challenge-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .challenge-card {
+    padding: 16px 12px;
+    text-align: center;
+    border: 1px solid rgba(201, 168, 76, 0.2);
+    background: rgba(201, 168, 76, 0.04);
+    color: #8a8070;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .challenge-card:hover {
+    background: rgba(201, 168, 76, 0.1);
+    color: #c9a84c;
+  }
+  .challenge-card.selected {
+    border-color: #c9a84c;
+    background: rgba(201, 168, 76, 0.15);
+    color: #e8d48b;
+  }
+  .challenge-card .general-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .challenge-card .general-faction {
+    font-size: 0.7rem;
+    margin-top: 3px;
+    opacity: 0.7;
+  }
+  .challenge-card .general-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+    vertical-align: middle;
   }
 `;
 
@@ -274,8 +453,7 @@ export class GameShell {
   private callbacks: GameShellCallbacks;
   // DOM elements
   private styleEl: HTMLStyleElement | null = null;
-  private mainMenuEl: HTMLElement | null = null;
-  private skirmishEl: HTMLElement | null = null;
+  private screenEls = new Map<ShellScreen, HTMLElement>();
 
   // Skirmish state
   private availableMaps: MapInfo[] = [];
@@ -284,6 +462,12 @@ export class GameShell {
   private aiEnabled = true;
   private aiSide = 'China';
   private startingCredits = 10000;
+
+  // Campaign state
+  private campaigns: ShellCampaign[] = [];
+  private selectedCampaignFaction = 'usa';
+  private selectedDifficulty: GameDifficulty = 'NORMAL';
+  private selectedChallengeIndex = 0;
 
   // Element refs for updates
   private mapSelect: HTMLSelectElement | null = null;
@@ -321,7 +505,11 @@ export class GameShell {
    */
   setAvailableFactions(_factionNames: string[]): void {
     // Currently uses hardcoded FACTIONS array which matches the original game.
-    // When INI faction data expands (e.g., Zero Hour generals), this can filter.
+  }
+
+  /** Set parsed campaign data from CampaignManager. */
+  setCampaigns(campaigns: readonly ShellCampaign[]): void {
+    this.campaigns = [...campaigns];
   }
 
   /** Show the shell and render the current screen. */
@@ -329,19 +517,20 @@ export class GameShell {
     this.injectStyles();
     this.renderMainMenu();
     this.renderSkirmishSetup();
+    this.renderSinglePlayerMenu();
+    this.renderCampaignFactionSelect();
+    this.renderCampaignDifficultySelect();
+    this.renderCampaignBriefing();
+    this.renderChallengeSelect();
     this.showScreen('main-menu');
   }
 
   /** Remove all shell DOM elements. */
   hide(): void {
-    if (this.mainMenuEl) {
-      this.mainMenuEl.remove();
-      this.mainMenuEl = null;
+    for (const el of this.screenEls.values()) {
+      el.remove();
     }
-    if (this.skirmishEl) {
-      this.skirmishEl.remove();
-      this.skirmishEl = null;
-    }
+    this.screenEls.clear();
     if (this.styleEl) {
       this.styleEl.remove();
       this.styleEl = null;
@@ -350,19 +539,24 @@ export class GameShell {
 
   /** Check if the shell is currently visible. */
   get isVisible(): boolean {
-    return this.mainMenuEl !== null || this.skirmishEl !== null;
+    return this.screenEls.size > 0;
   }
 
   // ──── Private: screen management ────────────────────────────────────────
 
   private showScreen(screen: ShellScreen): void {
-    // Track screen transitions via DOM visibility.
-    if (this.mainMenuEl) {
-      this.mainMenuEl.classList.toggle('hidden', screen !== 'main-menu');
+    for (const [name, el] of this.screenEls) {
+      el.classList.toggle('hidden', name !== screen);
     }
-    if (this.skirmishEl) {
-      this.skirmishEl.classList.toggle('hidden', screen !== 'skirmish-setup');
+    // Refresh dynamic content on screen show
+    if (screen === 'campaign-briefing') {
+      this.updateBriefingContent();
     }
+  }
+
+  private addScreen(name: ShellScreen, el: HTMLElement): void {
+    this.screenEls.set(name, el);
+    this.root.appendChild(el);
   }
 
   private injectStyles(): void {
@@ -375,7 +569,7 @@ export class GameShell {
   // ──── Private: Main Menu ────────────────────────────────────────────────
 
   private renderMainMenu(): void {
-    if (this.mainMenuEl) return;
+    if (this.screenEls.has('main-menu')) return;
 
     const el = document.createElement('div');
     el.className = 'shell-screen';
@@ -384,6 +578,7 @@ export class GameShell {
     el.innerHTML = `
       <div class="main-menu-title">Generals</div>
       <div class="main-menu-subtitle">Zero Hour &mdash; Browser Edition</div>
+      <button class="menu-button" data-action="single-player">Single Player</button>
       <button class="menu-button" data-action="skirmish">Skirmish</button>
       <button class="menu-button disabled" data-action="multiplayer">Multiplayer</button>
       <button class="menu-button disabled" data-action="replay">Replay</button>
@@ -395,21 +590,306 @@ export class GameShell {
       const target = (e.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
       if (!target) return;
       const action = target.dataset.action;
-      if (action === 'skirmish') {
+      if (action === 'single-player') {
+        this.showScreen('single-player');
+      } else if (action === 'skirmish') {
         this.showScreen('skirmish-setup');
       } else if (action === 'options') {
         this.callbacks.onOpenOptions?.();
       }
     });
 
-    this.root.appendChild(el);
-    this.mainMenuEl = el;
+    this.addScreen('main-menu', el);
+  }
+
+  // ──── Private: Single Player Menu ───────────────────────────────────────
+
+  private renderSinglePlayerMenu(): void {
+    if (this.screenEls.has('single-player')) return;
+
+    const el = document.createElement('div');
+    el.className = 'shell-screen hidden';
+    el.id = 'single-player-screen';
+
+    el.innerHTML = `
+      <div class="main-menu-title" style="font-size:2.2rem;">Single Player</div>
+      <div class="main-menu-subtitle">Choose your path</div>
+      <button class="menu-button" data-action="campaign">Campaign</button>
+      <button class="menu-button" data-action="challenge">Generals Challenge</button>
+      <button class="menu-button" data-action="back">Back</button>
+    `;
+
+    el.addEventListener('click', (e) => {
+      const target = (e.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
+      if (!target) return;
+      const action = target.dataset.action;
+      if (action === 'campaign') {
+        this.showScreen('campaign-faction');
+      } else if (action === 'challenge') {
+        this.showScreen('challenge-select');
+      } else if (action === 'back') {
+        this.showScreen('main-menu');
+      }
+    });
+
+    this.addScreen('single-player', el);
+  }
+
+  // ──── Private: Campaign Faction Select ──────────────────────────────────
+
+  private renderCampaignFactionSelect(): void {
+    if (this.screenEls.has('campaign-faction')) return;
+
+    const el = document.createElement('div');
+    el.className = 'shell-screen hidden';
+    el.id = 'campaign-faction-screen';
+
+    el.innerHTML = `
+      <div class="shell-panel">
+        <div class="shell-panel-title">Select Faction</div>
+        <div class="shell-section">
+          <div class="faction-row" data-ref="campaign-factions">
+            ${FACTIONS.map(f => `
+              <button class="faction-option${f.campaignName === this.selectedCampaignFaction ? ' selected' : ''}"
+                      data-campaign="${f.campaignName}">
+                <div class="faction-name">${f.label}</div>
+                <div class="faction-desc">${f.description}</div>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+        <div class="shell-actions">
+          <button class="shell-btn" data-action="back">Back</button>
+          <button class="shell-btn primary" data-action="next">Next</button>
+        </div>
+      </div>
+    `;
+
+    el.addEventListener('click', (e) => {
+      const target = (e.target as HTMLElement).closest('[data-action], [data-campaign]') as HTMLElement | null;
+      if (!target) return;
+
+      if (target.dataset.campaign) {
+        this.selectedCampaignFaction = target.dataset.campaign;
+        const btns = el.querySelectorAll<HTMLButtonElement>('.faction-option');
+        btns.forEach(b => b.classList.toggle('selected', b.dataset.campaign === this.selectedCampaignFaction));
+        return;
+      }
+
+      if (target.dataset.action === 'back') {
+        this.showScreen('single-player');
+      } else if (target.dataset.action === 'next') {
+        this.showScreen('campaign-difficulty');
+      }
+    });
+
+    this.addScreen('campaign-faction', el);
+  }
+
+  // ──── Private: Campaign Difficulty Select ───────────────────────────────
+
+  private renderCampaignDifficultySelect(): void {
+    if (this.screenEls.has('campaign-difficulty')) return;
+
+    const el = document.createElement('div');
+    el.className = 'shell-screen hidden';
+    el.id = 'campaign-difficulty-screen';
+
+    el.innerHTML = `
+      <div class="shell-panel">
+        <div class="shell-panel-title">Select Difficulty</div>
+        <div class="shell-section">
+          <div class="difficulty-row" data-ref="difficulty-options">
+            ${DIFFICULTIES.map(d => `
+              <button class="difficulty-option${d.value === this.selectedDifficulty ? ' selected' : ''}"
+                      data-difficulty="${d.value}">
+                <div class="diff-name">${d.label}</div>
+                <div class="diff-desc">${d.description}</div>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+        <div class="shell-actions">
+          <button class="shell-btn" data-action="back">Back</button>
+          <button class="shell-btn primary" data-action="start">Start Campaign</button>
+        </div>
+      </div>
+    `;
+
+    el.addEventListener('click', (e) => {
+      const target = (e.target as HTMLElement).closest('[data-action], [data-difficulty]') as HTMLElement | null;
+      if (!target) return;
+
+      if (target.dataset.difficulty) {
+        this.selectedDifficulty = target.dataset.difficulty as GameDifficulty;
+        const btns = el.querySelectorAll<HTMLButtonElement>('.difficulty-option');
+        btns.forEach(b => b.classList.toggle('selected', b.dataset.difficulty === this.selectedDifficulty));
+        return;
+      }
+
+      if (target.dataset.action === 'back') {
+        this.showScreen('campaign-faction');
+      } else if (target.dataset.action === 'start') {
+        this.handleStartCampaign(this.selectedCampaignFaction, this.selectedDifficulty, 'CAMPAIGN');
+      }
+    });
+
+    this.addScreen('campaign-difficulty', el);
+  }
+
+  // ──── Private: Campaign Briefing ────────────────────────────────────────
+
+  private renderCampaignBriefing(): void {
+    if (this.screenEls.has('campaign-briefing')) return;
+
+    const el = document.createElement('div');
+    el.className = 'shell-screen hidden';
+    el.id = 'campaign-briefing-screen';
+
+    el.innerHTML = `
+      <div class="shell-panel" style="min-width:560px;">
+        <div class="shell-panel-title">Mission Briefing</div>
+        <div data-ref="briefing-content"></div>
+        <div class="shell-actions">
+          <button class="shell-btn" data-action="back">Back</button>
+          <button class="shell-btn primary" data-action="start">Start Mission</button>
+        </div>
+      </div>
+    `;
+
+    el.addEventListener('click', (e) => {
+      const target = (e.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
+      if (!target) return;
+
+      if (target.dataset.action === 'back') {
+        this.showScreen('campaign-difficulty');
+      } else if (target.dataset.action === 'start') {
+        this.handleStartCampaign(this.selectedCampaignFaction, this.selectedDifficulty, 'CAMPAIGN');
+      }
+    });
+
+    this.addScreen('campaign-briefing', el);
+  }
+
+  private updateBriefingContent(): void {
+    const briefingEl = this.screenEls.get('campaign-briefing');
+    if (!briefingEl) return;
+    const contentEl = briefingEl.querySelector('[data-ref="briefing-content"]');
+    if (!contentEl) return;
+
+    const campaign = this.campaigns.find(c => c.name === this.selectedCampaignFaction);
+    if (!campaign || campaign.missions.length === 0) {
+      contentEl.innerHTML = '<div class="briefing-info">No mission data available.</div>';
+      return;
+    }
+
+    const mission = campaign.missions[0]!;
+    const factionLabel = FACTIONS.find(f => f.campaignName === this.selectedCampaignFaction)?.label ?? campaign.name;
+
+    let html = `
+      <div class="briefing-info">
+        <strong>Campaign:</strong> ${factionLabel}<br>
+        <strong>Mission:</strong> ${mission.name}
+    `;
+    if (mission.locationNameLabel) {
+      html += `<br><strong>Location:</strong> ${mission.locationNameLabel}`;
+    }
+    html += '</div>';
+
+    if (mission.objectiveLines.length > 0) {
+      html += '<div class="briefing-info"><strong>Objectives:</strong></div>';
+      html += '<ul class="briefing-objectives">';
+      for (const obj of mission.objectiveLines) {
+        html += `<li>${obj}</li>`;
+      }
+      html += '</ul>';
+    }
+
+    if (mission.unitNames.length > 0) {
+      html += `<div class="briefing-info"><strong>Key Units:</strong> ${mission.unitNames.join(', ')}</div>`;
+    }
+
+    contentEl.innerHTML = html;
+  }
+
+  // ──── Private: Challenge Select ─────────────────────────────────────────
+
+  private renderChallengeSelect(): void {
+    if (this.screenEls.has('challenge-select')) return;
+
+    const el = document.createElement('div');
+    el.className = 'shell-screen hidden';
+    el.id = 'challenge-select-screen';
+
+    el.innerHTML = `
+      <div class="shell-panel" style="min-width:480px; max-width:520px;">
+        <div class="shell-panel-title">Generals Challenge</div>
+        <div class="shell-section">
+          <div class="shell-label">Select Your Opponent</div>
+          <div class="challenge-grid" data-ref="challenge-grid">
+            ${CHALLENGE_GENERALS.map(g => `
+              <button class="challenge-card${g.index === this.selectedChallengeIndex ? ' selected' : ''}"
+                      data-challenge="${g.index}">
+                <span class="general-indicator" style="background:${g.color};"></span>
+                <span class="general-name">${g.name}</span>
+                <div class="general-faction">${g.faction}</div>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+        <div class="shell-section">
+          <div class="shell-label">Difficulty</div>
+          <div class="difficulty-row" data-ref="challenge-difficulty">
+            ${DIFFICULTIES.map(d => `
+              <button class="difficulty-option${d.value === this.selectedDifficulty ? ' selected' : ''}"
+                      data-difficulty="${d.value}">
+                <div class="diff-name">${d.label}</div>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+        <div class="shell-actions">
+          <button class="shell-btn" data-action="back">Back</button>
+          <button class="shell-btn primary" data-action="start">Start Challenge</button>
+        </div>
+      </div>
+    `;
+
+    el.addEventListener('click', (e) => {
+      const target = (e.target as HTMLElement).closest('[data-action], [data-challenge], [data-difficulty]') as HTMLElement | null;
+      if (!target) return;
+
+      if (target.dataset.challenge !== undefined) {
+        this.selectedChallengeIndex = Number(target.dataset.challenge);
+        const cards = el.querySelectorAll<HTMLButtonElement>('.challenge-card');
+        cards.forEach(c => c.classList.toggle('selected', c.dataset.challenge === String(this.selectedChallengeIndex)));
+        return;
+      }
+
+      if (target.dataset.difficulty) {
+        this.selectedDifficulty = target.dataset.difficulty as GameDifficulty;
+        const btns = el.querySelectorAll<HTMLButtonElement>('.difficulty-option');
+        btns.forEach(b => b.classList.toggle('selected', b.dataset.difficulty === this.selectedDifficulty));
+        return;
+      }
+
+      if (target.dataset.action === 'back') {
+        this.showScreen('single-player');
+      } else if (target.dataset.action === 'start') {
+        const general = CHALLENGE_GENERALS[this.selectedChallengeIndex];
+        if (general) {
+          this.handleStartCampaign(general.campaignName, this.selectedDifficulty, 'CHALLENGE');
+        }
+      }
+    });
+
+    this.addScreen('challenge-select', el);
   }
 
   // ──── Private: Skirmish Setup ───────────────────────────────────────────
 
   private renderSkirmishSetup(): void {
-    if (this.skirmishEl) return;
+    if (this.screenEls.has('skirmish-setup')) return;
 
     const el = document.createElement('div');
     el.className = 'shell-screen hidden';
@@ -422,18 +902,18 @@ export class GameShell {
     ).join('');
 
     el.innerHTML = `
-      <div class="skirmish-panel">
-        <div class="skirmish-title">Skirmish Setup</div>
+      <div class="shell-panel">
+        <div class="shell-panel-title">Skirmish Setup</div>
 
-        <div class="skirmish-section">
-          <label class="skirmish-label">Map</label>
-          <select class="skirmish-select" data-ref="map-select">
+        <div class="shell-section">
+          <label class="shell-label">Map</label>
+          <select class="shell-select" data-ref="map-select">
             ${mapOptionsHtml}
           </select>
         </div>
 
-        <div class="skirmish-section">
-          <label class="skirmish-label">Your Faction</label>
+        <div class="shell-section">
+          <label class="shell-label">Your Faction</label>
           <div class="faction-row" data-ref="player-factions">
             ${FACTIONS.map(f => `
               <button class="faction-option${f.side === this.playerSide ? ' selected' : ''}"
@@ -445,8 +925,8 @@ export class GameShell {
           </div>
         </div>
 
-        <div class="skirmish-section">
-          <label class="skirmish-label">AI Opponent</label>
+        <div class="shell-section">
+          <label class="shell-label">AI Opponent</label>
           <div class="ai-toggle-row">
             <button class="ai-toggle-btn${this.aiEnabled ? ' active' : ''}"
                     data-ref="ai-toggle">
@@ -455,9 +935,9 @@ export class GameShell {
           </div>
         </div>
 
-        <div class="skirmish-section" data-ref="ai-side-section"
+        <div class="shell-section" data-ref="ai-side-section"
              style="${this.aiEnabled ? '' : 'display:none'}">
-          <label class="skirmish-label">AI Faction</label>
+          <label class="shell-label">AI Faction</label>
           <div class="faction-row" data-ref="ai-factions">
             ${FACTIONS.map(f => `
               <button class="faction-option${f.side === this.aiSide ? ' selected' : ''}"
@@ -469,16 +949,16 @@ export class GameShell {
           </div>
         </div>
 
-        <div class="skirmish-section">
-          <label class="skirmish-label">Starting Credits</label>
-          <select class="skirmish-select" data-ref="credits-select">
+        <div class="shell-section">
+          <label class="shell-label">Starting Credits</label>
+          <select class="shell-select" data-ref="credits-select">
             ${creditsOptionsHtml}
           </select>
         </div>
 
-        <div class="skirmish-actions">
-          <button class="skirmish-btn" data-action="back">Back</button>
-          <button class="skirmish-btn primary" data-action="start">Start Game</button>
+        <div class="shell-actions">
+          <button class="shell-btn" data-action="back">Back</button>
+          <button class="shell-btn primary" data-action="start">Start Game</button>
         </div>
       </div>
     `;
@@ -553,8 +1033,7 @@ export class GameShell {
       });
     }
 
-    this.root.appendChild(el);
-    this.skirmishEl = el;
+    this.addScreen('skirmish-setup', el);
   }
 
   private buildMapOptionsHtml(): string {
@@ -587,5 +1066,32 @@ export class GameShell {
     };
 
     this.callbacks.onStartGame(settings);
+  }
+
+  private handleStartCampaign(campaignName: string, difficulty: GameDifficulty, mode: GameMode): void {
+    const campaign = this.campaigns.find(c => c.name === campaignName);
+    if (!campaign || campaign.missions.length === 0) {
+      console.warn(`[GameShell] Campaign "${campaignName}" not found or has no missions`);
+      return;
+    }
+
+    const firstMissionName = campaign.firstMission;
+    const mission = campaign.missions.find(m => m.name === firstMissionName) ?? campaign.missions[0]!;
+
+    // Resolve map path
+    const mapParts = mission.mapName.replace(/\\/g, '/').split('/');
+    const mapDir = mapParts.length >= 2 ? mapParts[mapParts.length - 2] : mapParts[0];
+    const mapPath = `maps/_extracted/MapsZH/Maps/${mapDir}/${mapDir}.json`;
+
+    const settings: CampaignStartSettings = {
+      gameMode: mode,
+      campaignName,
+      difficulty,
+      mapPath,
+      mission,
+      campaign,
+    };
+
+    this.callbacks.onStartCampaign?.(settings);
   }
 }

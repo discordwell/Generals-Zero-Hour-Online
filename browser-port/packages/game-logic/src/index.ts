@@ -258,6 +258,7 @@ import {
 } from './types.js';
 
 export * from './types.js';
+export * from './campaign-manager.js';
 
 const TEST_CRUSH_ONLY = 0;
 const TEST_SQUISH_ONLY = 1;

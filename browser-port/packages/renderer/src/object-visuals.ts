@@ -8,6 +8,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { AssetManager } from '@generals/assets';
+import {
+  parseObjectShadowType,
+  shouldCastShadowMap,
+  shouldCreateShadowDecal,
+  createShadowDecalMesh,
+} from './shadow-decal.js';
 
 export type RenderableAnimationState = 'IDLE' | 'MOVE' | 'ATTACK' | 'DIE' | 'PRONE';
 
@@ -37,6 +43,9 @@ export interface RenderableEntityState {
   toppleDirX?: number;
   toppleDirZ?: number;
   turretAngles?: readonly number[];
+  shadowType?: string;
+  shadowSizeX?: number;
+  shadowSizeY?: number;
 }
 
 export interface LoadedModelAsset {
@@ -64,6 +73,10 @@ interface VisualAssetState {
   stealthMaterialClones: WeakMap<THREE.Mesh, THREE.Material | THREE.Material[]>;
   /** Previous stealth opacity to skip redundant traversals. */
   lastStealthOpacity: number;
+  /** Shadow decal mesh (for SHADOW_DECAL type). */
+  shadowDecal: THREE.Mesh | null;
+  /** Parsed shadow type for this entity. */
+  shadowType: string | null;
 }
 
 export interface ObjectVisualManagerConfig {
@@ -243,6 +256,8 @@ export class ObjectVisualManager {
       currentVeterancyLevel: 0,
       stealthMaterialClones: new WeakMap(),
       lastStealthOpacity: 1.0,
+      shadowDecal: null,
+      shadowType: null,
     };
   }
 
@@ -370,10 +385,25 @@ export class ObjectVisualManager {
             }
           }
 
+          // Per-object shadow configuration
+          const shadowType = parseObjectShadowType(state.shadowType);
+          const castShadow = shouldCastShadowMap(shadowType);
           clone.traverse((child) => {
-            child.castShadow = true;
+            child.castShadow = castShadow;
             child.receiveShadow = true;
           });
+          currentVisual.shadowType = state.shadowType ?? null;
+
+          // Create shadow decal for SHADOW_DECAL types
+          if (shouldCreateShadowDecal(shadowType) && !currentVisual.shadowDecal) {
+            const decal = createShadowDecalMesh({
+              sizeX: state.shadowSizeX,
+              sizeY: state.shadowSizeY,
+            });
+            currentVisual.shadowDecal = decal;
+            currentVisual.root.add(decal);
+          }
+
           this.applyGuardBandFrustumPolicy(clone);
           currentVisual.currentModel = clone;
           currentVisual.mixer = mixer;
@@ -494,6 +524,11 @@ export class ObjectVisualManager {
     }
     visual.veterancyBadge = null;
     visual.currentVeterancyLevel = 0;
+    if (visual.shadowDecal) {
+      this.disposeObject3D(visual.shadowDecal);
+      visual.shadowDecal = null;
+    }
+    visual.shadowType = null;
     this.scene.remove(visual.root);
     visual.root.clear();
     visual.activeState = null;

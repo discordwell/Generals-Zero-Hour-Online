@@ -469,6 +469,10 @@ describe('IniDataRegistry', () => {
       expect(stats.audioEvents).toBe(0);
       expect(stats.commandButtons).toBe(0);
       expect(stats.commandSets).toBe(0);
+      expect(stats.particleSystems).toBe(0);
+      expect(stats.fxLists).toBe(0);
+      expect(stats.staticGameLODs).toBe(0);
+      expect(stats.dynamicGameLODs).toBe(0);
       expect(stats.totalBlocks).toBe(7);
     });
   });
@@ -548,6 +552,10 @@ describe('IniDataRegistry', () => {
           audioEvents: 0,
           commandButtons: 0,
           commandSets: 0,
+          particleSystems: 0,
+          fxLists: 0,
+          staticGameLODs: 0,
+          dynamicGameLODs: 0,
           unresolvedInheritance: 0,
           totalBlocks: 5,
         },
@@ -646,6 +654,10 @@ describe('IniDataRegistry', () => {
           audioEvents: 0,
           commandButtons: 0,
           commandSets: 1,
+          particleSystems: 0,
+          fxLists: 0,
+          staticGameLODs: 0,
+          dynamicGameLODs: 0,
           unresolvedInheritance: 0,
           totalBlocks: 0,
         },
@@ -687,6 +699,142 @@ describe('IniDataRegistry', () => {
 
       expect(registry.objects.size).toBe(2);
       expect(registry.weapons.size).toBe(1);
+    });
+  });
+
+  describe('ParticleSystem and FXList indexing', () => {
+    it('indexes ParticleSystem blocks by name', () => {
+      registry.loadBlocks([
+        makeBlock('ParticleSystem', 'SmokePuff', {
+          Priority: 'WEAPON_EXPLOSION',
+          IsOneShot: 'Yes',
+          Lifetime: '30',
+          Size: '5 10',
+        }),
+        makeBlock('ParticleSystem', 'MuzzleFlash', {
+          Priority: 'WEAPON_TRAIL',
+          IsOneShot: 'Yes',
+        }),
+      ]);
+
+      expect(registry.particleSystems.size).toBe(2);
+      expect(registry.getParticleSystem('SmokePuff')?.fields['Priority']).toBe('WEAPON_EXPLOSION');
+      expect(registry.getParticleSystem('MuzzleFlash')?.fields['IsOneShot']).toBe('Yes');
+      expect(registry.getUnsupportedBlockTypes()).toEqual([]);
+    });
+
+    it('indexes FXList blocks by name', () => {
+      registry.loadBlocks([
+        makeBlock('FXList', 'FX_TankExplosion', {}, {
+          blocks: [
+            makeBlock('ParticleSystem', 'SmokePuff', { Name: 'SmokePuff' }),
+            makeBlock('Sound', 'ExplosionSound', { Name: 'Explosion_Large' }),
+          ],
+        }),
+      ]);
+
+      expect(registry.fxLists.size).toBe(1);
+      const fx = registry.getFXList('FX_TankExplosion');
+      expect(fx).toBeDefined();
+      expect(fx?.blocks).toHaveLength(2);
+    });
+
+    it('includes ParticleSystem and FXList in stats', () => {
+      registry.loadBlocks([
+        makeBlock('ParticleSystem', 'PS1', {}),
+        makeBlock('ParticleSystem', 'PS2', {}),
+        makeBlock('FXList', 'FX1', {}),
+      ]);
+
+      const stats = registry.getStats();
+      expect(stats.particleSystems).toBe(2);
+      expect(stats.fxLists).toBe(1);
+      expect(stats.totalBlocks).toBe(3);
+    });
+  });
+
+  describe('StaticGameLOD and DynamicGameLOD indexing', () => {
+    it('indexes StaticGameLOD blocks', () => {
+      registry.loadBlocks([
+        makeBlock('StaticGameLOD', 'Low', {
+          MaxParticleCount: '500',
+          UseShadowVolumes: 'No',
+          TextureReductionFactor: '2',
+        }),
+        makeBlock('StaticGameLOD', 'Medium', {
+          MaxParticleCount: '1500',
+          UseShadowVolumes: 'Yes',
+        }),
+        makeBlock('StaticGameLOD', 'High', {
+          MaxParticleCount: '3000',
+          UseShadowVolumes: 'Yes',
+        }),
+      ]);
+
+      expect(registry.staticGameLODs.size).toBe(3);
+      expect(registry.getStaticGameLOD('Low')?.fields['MaxParticleCount']).toBe('500');
+      expect(registry.getStaticGameLOD('High')?.fields['MaxParticleCount']).toBe('3000');
+    });
+
+    it('indexes DynamicGameLOD blocks', () => {
+      registry.loadBlocks([
+        makeBlock('DynamicGameLOD', 'Low', {
+          MinimumFPS: '10',
+          ParticleSkipMask: '3',
+          DebrisSkipMask: '1',
+          MinParticlePriority: 'AREA_EFFECT',
+        }),
+      ]);
+
+      expect(registry.dynamicGameLODs.size).toBe(1);
+      expect(registry.getDynamicGameLOD('Low')?.fields['MinimumFPS']).toBe('10');
+    });
+
+    it('includes LOD types in stats and totalBlocks', () => {
+      registry.loadBlocks([
+        makeBlock('StaticGameLOD', 'Low', {}),
+        makeBlock('StaticGameLOD', 'High', {}),
+        makeBlock('DynamicGameLOD', 'Low', {}),
+      ]);
+
+      const stats = registry.getStats();
+      expect(stats.staticGameLODs).toBe(2);
+      expect(stats.dynamicGameLODs).toBe(1);
+      expect(stats.totalBlocks).toBe(3);
+    });
+  });
+
+  describe('new block types round-trip through bundle', () => {
+    it('round-trips ParticleSystem, FXList, StaticGameLOD, DynamicGameLOD through toBundle/loadBundle', () => {
+      registry.loadBlocks([
+        makeBlock('ParticleSystem', 'PS_Smoke', { Priority: 'MEDIUM_EMITTER', Lifetime: '45' }),
+        makeBlock('FXList', 'FX_Hit', {}, {
+          blocks: [makeBlock('ParticleSystem', 'PS_Spark', { Name: 'PS_Spark' })],
+        }),
+        makeBlock('StaticGameLOD', 'High', { MaxParticleCount: '3000' }),
+        makeBlock('DynamicGameLOD', 'Medium', { MinimumFPS: '20', ParticleSkipMask: '1' }),
+      ]);
+
+      const bundle = registry.toBundle();
+
+      expect(bundle.particleSystems).toHaveLength(1);
+      expect(bundle.fxLists).toHaveLength(1);
+      expect(bundle.staticGameLODs).toHaveLength(1);
+      expect(bundle.dynamicGameLODs).toHaveLength(1);
+
+      const restored = new IniDataRegistry();
+      restored.loadBundle(bundle);
+
+      expect(restored.getParticleSystem('PS_Smoke')?.fields['Priority']).toBe('MEDIUM_EMITTER');
+      expect(restored.getFXList('FX_Hit')?.blocks).toHaveLength(1);
+      expect(restored.getStaticGameLOD('High')?.fields['MaxParticleCount']).toBe('3000');
+      expect(restored.getDynamicGameLOD('Medium')?.fields['MinimumFPS']).toBe('20');
+
+      const stats = restored.getStats();
+      expect(stats.particleSystems).toBe(1);
+      expect(stats.fxLists).toBe(1);
+      expect(stats.staticGameLODs).toBe(1);
+      expect(stats.dynamicGameLODs).toBe(1);
     });
   });
 });

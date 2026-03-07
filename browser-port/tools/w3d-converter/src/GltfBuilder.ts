@@ -8,8 +8,10 @@
  */
 
 import type { W3dFile } from './W3dParser.js';
+import type { W3dMesh } from './W3dMeshParser.js';
 import type { W3dHierarchy, W3dPivot } from './W3dHierarchyParser.js';
 import type { W3dAnimation, W3dAnimChannel } from './W3dAnimationParser.js';
+import type { W3dHlod } from './W3dHlodParser.js';
 
 /* ------------------------------------------------------------------ */
 /*  glTF JSON type helpers (minimal)                                   */
@@ -72,10 +74,15 @@ interface GltfAnimationDef {
   samplers: GltfAnimSampler[];
 }
 
+interface GltfScene {
+  nodes: number[];
+  extras?: Record<string, unknown>;
+}
+
 interface GltfDocument {
   asset: { version: string; generator: string };
   scene: number;
-  scenes: Array<{ nodes: number[] }>;
+  scenes: GltfScene[];
   nodes: GltfNode[];
   meshes: Array<{ name?: string; primitives: GltfMeshPrimitive[] }>;
   accessors: GltfAccessor[];
@@ -266,115 +273,17 @@ export class GltfBuilder {
     }
 
     // ------------------------------------------------------------------
-    //  Meshes
+    //  Meshes — build glTF mesh + node for each W3D mesh
     // ------------------------------------------------------------------
+
+    // Map mesh name → node index (for HLOD scene grouping).
+    const meshNameToNodeIdx = new Map<string, number>();
+
     for (const mesh of w3d.meshes) {
-      const primitiveAttrs: Record<string, number> = {};
-
-      // Positions.
-      if (mesh.vertices.length > 0) {
-        const posMin = [Infinity, Infinity, Infinity];
-        const posMax = [-Infinity, -Infinity, -Infinity];
-        for (let i = 0; i < mesh.vertices.length; i += 3) {
-          for (let c = 0; c < 3; c++) {
-            const v = mesh.vertices[i + c] ?? 0;
-            if (v < (posMin[c] ?? Infinity)) posMin[c] = v;
-            if (v > (posMax[c] ?? -Infinity)) posMax[c] = v;
-          }
-        }
-        primitiveAttrs['POSITION'] = addAccessor(
-          mesh.vertices,
-          FLOAT,
-          mesh.vertices.length / 3,
-          'VEC3',
-          ARRAY_BUFFER,
-          posMin,
-          posMax,
-        );
-      }
-
-      // Normals.
-      if (mesh.normals.length > 0) {
-        primitiveAttrs['NORMAL'] = addAccessor(
-          mesh.normals,
-          FLOAT,
-          mesh.normals.length / 3,
-          'VEC3',
-          ARRAY_BUFFER,
-        );
-      }
-
-      // UVs.
-      if (mesh.uvs.length > 0) {
-        primitiveAttrs['TEXCOORD_0'] = addAccessor(
-          mesh.uvs,
-          FLOAT,
-          mesh.uvs.length / 2,
-          'VEC2',
-          ARRAY_BUFFER,
-        );
-      }
-
-      // Vertex colors.
-      if (mesh.vertexColors && mesh.vertexColors.length > 0) {
-        primitiveAttrs['COLOR_0'] = addAccessor(
-          mesh.vertexColors,
-          5121, // GL_UNSIGNED_BYTE
-          mesh.vertexColors.length / 4,
-          'VEC4',
-          ARRAY_BUFFER,
-        );
-        // Mark normalized.
-        const lastAcc = accessors[accessors.length - 1];
-        if (lastAcc) (lastAcc as GltfAccessor & { normalized?: boolean }).normalized = true;
-      }
-
-      // Skinning attributes.
-      if (mesh.boneIndices && mesh.boneIndices.length > 0 && skins.length > 0) {
-        // JOINTS_0: bone indices per vertex (as VEC4 of unsigned short).
-        const numVerts = mesh.boneIndices.length;
-        const joints4 = new Uint16Array(numVerts * 4);
-        const weights4 = new Float32Array(numVerts * 4);
-        for (let i = 0; i < numVerts; i++) {
-          joints4[i * 4] = mesh.boneIndices[i] ?? 0;
-          weights4[i * 4] = 1.0; // full weight on primary bone
-        }
-        primitiveAttrs['JOINTS_0'] = addAccessor(joints4, USHORT, numVerts, 'VEC4', ARRAY_BUFFER);
-        primitiveAttrs['WEIGHTS_0'] = addAccessor(weights4, FLOAT, numVerts, 'VEC4', ARRAY_BUFFER);
-      }
-
-      // Indices.
-      let indicesAccessor: number | undefined;
-      if (mesh.indices.length > 0) {
-        // Decide between UNSIGNED_SHORT and UNSIGNED_INT.
-        const maxIndex = mesh.indices.reduce((m, v) => Math.max(m, v), 0);
-        if (maxIndex <= 0xffff) {
-          const shortIndices = new Uint16Array(mesh.indices.length);
-          for (let i = 0; i < mesh.indices.length; i++) {
-            shortIndices[i] = mesh.indices[i] ?? 0;
-          }
-          indicesAccessor = addAccessor(shortIndices, USHORT, shortIndices.length, 'SCALAR', ELEMENT_ARRAY_BUFFER);
-        } else {
-          indicesAccessor = addAccessor(mesh.indices, UINT, mesh.indices.length, 'SCALAR', ELEMENT_ARRAY_BUFFER);
-        }
-      }
-
-      const primitive: GltfMeshPrimitive = {
-        attributes: primitiveAttrs,
-        mode: 4, // TRIANGLES
-      };
-      if (indicesAccessor !== undefined) primitive.indices = indicesAccessor;
-
-      const gltfMeshIdx = gltfMeshes.length;
-      gltfMeshes.push({ name: mesh.name, primitives: [primitive] });
-
-      // Create a node for this mesh.
-      const meshNode: GltfNode = { name: mesh.name, mesh: gltfMeshIdx };
-      if (mesh.boneIndices && skins.length > 0) {
-        meshNode.skin = 0; // Reference the first (only) skin.
-      }
-      const meshNodeIdx = nodes.length;
-      nodes.push(meshNode);
+      const meshNodeIdx = buildMeshNode(
+        mesh, bin, accessors, bufferViews, nodes, gltfMeshes, skins,
+      );
+      meshNameToNodeIdx.set(mesh.name, meshNodeIdx);
       sceneNodes.push(meshNodeIdx);
     }
 
@@ -387,6 +296,12 @@ export class GltfBuilder {
     }
 
     // ------------------------------------------------------------------
+    //  Build scenes (multi-LOD if HLOD data present)
+    // ------------------------------------------------------------------
+    const hlod = w3d.hlods[0];
+    const scenes = buildLodScenes(hlod, meshNameToNodeIdx, sceneNodes, jointIndices);
+
+    // ------------------------------------------------------------------
     //  Assemble glTF JSON
     // ------------------------------------------------------------------
     const binBuffer = bin.toArrayBuffer();
@@ -394,7 +309,7 @@ export class GltfBuilder {
     const gltf: GltfDocument = {
       asset: { version: '2.0', generator: 'generals-w3d-converter' },
       scene: 0,
-      scenes: [{ nodes: sceneNodes }],
+      scenes,
       nodes,
       meshes: gltfMeshes,
       accessors,
@@ -410,6 +325,220 @@ export class GltfBuilder {
     // ------------------------------------------------------------------
     return packGlb(gltf, binBuffer);
   }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Mesh node builder (extracted to share with LOD grouping)           */
+/* ------------------------------------------------------------------ */
+
+function buildMeshNode(
+  mesh: W3dMesh,
+  bin: BinaryAccumulator,
+  accessors: GltfAccessor[],
+  bufferViews: GltfBufferView[],
+  nodes: GltfNode[],
+  gltfMeshes: Array<{ name?: string; primitives: GltfMeshPrimitive[] }>,
+  skins: GltfSkin[],
+): number {
+  function addAccessor(
+    data: ArrayBufferView,
+    componentType: number,
+    count: number,
+    type: string,
+    target?: number,
+    min?: number[],
+    max?: number[],
+  ): number {
+    const byteOffset = bin.append(data);
+    const bvIdx = bufferViews.length;
+    bufferViews.push({
+      buffer: 0,
+      byteOffset,
+      byteLength: data.byteLength,
+      ...(target !== undefined ? { target } : {}),
+    });
+    const accIdx = accessors.length;
+    accessors.push({
+      bufferView: bvIdx,
+      componentType,
+      count,
+      type,
+      ...(min ? { min } : {}),
+      ...(max ? { max } : {}),
+    });
+    return accIdx;
+  }
+
+  const primitiveAttrs: Record<string, number> = {};
+
+  // Positions.
+  if (mesh.vertices.length > 0) {
+    const posMin = [Infinity, Infinity, Infinity];
+    const posMax = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < mesh.vertices.length; i += 3) {
+      for (let c = 0; c < 3; c++) {
+        const v = mesh.vertices[i + c] ?? 0;
+        if (v < (posMin[c] ?? Infinity)) posMin[c] = v;
+        if (v > (posMax[c] ?? -Infinity)) posMax[c] = v;
+      }
+    }
+    primitiveAttrs['POSITION'] = addAccessor(
+      mesh.vertices,
+      FLOAT,
+      mesh.vertices.length / 3,
+      'VEC3',
+      ARRAY_BUFFER,
+      posMin,
+      posMax,
+    );
+  }
+
+  // Normals.
+  if (mesh.normals.length > 0) {
+    primitiveAttrs['NORMAL'] = addAccessor(
+      mesh.normals,
+      FLOAT,
+      mesh.normals.length / 3,
+      'VEC3',
+      ARRAY_BUFFER,
+    );
+  }
+
+  // UVs.
+  if (mesh.uvs.length > 0) {
+    primitiveAttrs['TEXCOORD_0'] = addAccessor(
+      mesh.uvs,
+      FLOAT,
+      mesh.uvs.length / 2,
+      'VEC2',
+      ARRAY_BUFFER,
+    );
+  }
+
+  // Vertex colors.
+  if (mesh.vertexColors && mesh.vertexColors.length > 0) {
+    primitiveAttrs['COLOR_0'] = addAccessor(
+      mesh.vertexColors,
+      5121, // GL_UNSIGNED_BYTE
+      mesh.vertexColors.length / 4,
+      'VEC4',
+      ARRAY_BUFFER,
+    );
+    const lastAcc = accessors[accessors.length - 1];
+    if (lastAcc) (lastAcc as GltfAccessor & { normalized?: boolean }).normalized = true;
+  }
+
+  // Skinning attributes.
+  if (mesh.boneIndices && mesh.boneIndices.length > 0 && skins.length > 0) {
+    const numVerts = mesh.boneIndices.length;
+    const joints4 = new Uint16Array(numVerts * 4);
+    const weights4 = new Float32Array(numVerts * 4);
+    for (let i = 0; i < numVerts; i++) {
+      joints4[i * 4] = mesh.boneIndices[i] ?? 0;
+      weights4[i * 4] = 1.0;
+    }
+    primitiveAttrs['JOINTS_0'] = addAccessor(joints4, USHORT, numVerts, 'VEC4', ARRAY_BUFFER);
+    primitiveAttrs['WEIGHTS_0'] = addAccessor(weights4, FLOAT, numVerts, 'VEC4', ARRAY_BUFFER);
+  }
+
+  // Indices.
+  let indicesAccessor: number | undefined;
+  if (mesh.indices.length > 0) {
+    const maxIndex = mesh.indices.reduce((m, v) => Math.max(m, v), 0);
+    if (maxIndex <= 0xffff) {
+      const shortIndices = new Uint16Array(mesh.indices.length);
+      for (let i = 0; i < mesh.indices.length; i++) {
+        shortIndices[i] = mesh.indices[i] ?? 0;
+      }
+      indicesAccessor = addAccessor(shortIndices, USHORT, shortIndices.length, 'SCALAR', ELEMENT_ARRAY_BUFFER);
+    } else {
+      indicesAccessor = addAccessor(mesh.indices, UINT, mesh.indices.length, 'SCALAR', ELEMENT_ARRAY_BUFFER);
+    }
+  }
+
+  const primitive: GltfMeshPrimitive = {
+    attributes: primitiveAttrs,
+    mode: 4, // TRIANGLES
+  };
+  if (indicesAccessor !== undefined) primitive.indices = indicesAccessor;
+
+  const gltfMeshIdx = gltfMeshes.length;
+  gltfMeshes.push({ name: mesh.name, primitives: [primitive] });
+
+  const meshNode: GltfNode = { name: mesh.name, mesh: gltfMeshIdx };
+  if (mesh.boneIndices && skins.length > 0) {
+    meshNode.skin = 0;
+  }
+  const meshNodeIdx = nodes.length;
+  nodes.push(meshNode);
+  return meshNodeIdx;
+}
+
+/* ------------------------------------------------------------------ */
+/*  LOD scene builder                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Build glTF scenes from HLOD data. When multiple LOD levels exist,
+ * creates one scene per LOD (highest-detail = scene 0), with
+ * maxScreenSize stored in scene extras.
+ *
+ * Falls back to a single scene with all mesh nodes when no HLOD data exists.
+ */
+function buildLodScenes(
+  hlod: W3dHlod | undefined,
+  meshNameToNodeIdx: Map<string, number>,
+  allMeshNodes: number[],
+  jointRootNodes: number[],
+): GltfScene[] {
+  // No HLOD or single LOD → single scene with all meshes
+  if (!hlod || hlod.lods.length <= 1) {
+    return [{ nodes: [...allMeshNodes] }];
+  }
+
+  // Multiple LOD levels: sort by maxScreenSize descending (highest detail first).
+  // In W3D, LOD 0 is typically the highest-detail level (maxScreenSize=0),
+  // and higher indices are lower detail with larger maxScreenSize thresholds.
+  const sortedLods = [...hlod.lods].sort((a, b) => a.maxScreenSize - b.maxScreenSize);
+
+  const scenes: GltfScene[] = [];
+  const assignedNodes = new Set<number>();
+
+  for (const lod of sortedLods) {
+    const lodNodes: number[] = [];
+
+    // Joint/skeleton root nodes are shared across all scenes
+    for (const jn of jointRootNodes) {
+      lodNodes.push(jn);
+    }
+
+    for (const subObj of lod.subObjects) {
+      // Sub-object names use format "HLODNAME.MESHNAME"
+      const nodeIdx = meshNameToNodeIdx.get(subObj.name);
+      if (nodeIdx !== undefined) {
+        lodNodes.push(nodeIdx);
+        assignedNodes.add(nodeIdx);
+      }
+    }
+
+    const scene: GltfScene = { nodes: lodNodes };
+    if (lod.maxScreenSize > 0) {
+      scene.extras = { maxScreenSize: lod.maxScreenSize };
+    }
+    scenes.push(scene);
+  }
+
+  // Any meshes not assigned to an HLOD LOD go into the first (highest-detail) scene.
+  const firstScene = scenes[0];
+  if (firstScene) {
+    for (const nodeIdx of allMeshNodes) {
+      if (!assignedNodes.has(nodeIdx)) {
+        firstScene.nodes.push(nodeIdx);
+      }
+    }
+  }
+
+  return scenes;
 }
 
 /* ------------------------------------------------------------------ */

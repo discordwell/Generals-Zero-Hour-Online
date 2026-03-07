@@ -15,6 +15,7 @@ export type {
   CommandSetButtonSlot,
   CommandSetDef,
   SpecialPowerDef,
+  RawBlockDef,
   RegistryStats,
   RegistryError,
   AudioSettingsConfig,

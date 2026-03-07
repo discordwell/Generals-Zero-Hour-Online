@@ -7,6 +7,20 @@
 export type { Subsystem } from './subsystem.js';
 export { SubsystemRegistry } from './subsystem.js';
 
+export type { Snapshot } from './snapshot.js';
+
+export { Xfer, XferMode, XferStatus } from './xfer.js';
+export type { Coord3D } from './xfer.js';
+export { XferSave } from './xfer-save.js';
+export { XferLoad } from './xfer-load.js';
+export { XferCrc } from './xfer-crc.js';
+
+export { GameState, SaveCode } from './game-state.js';
+export type { SaveGameInfo } from './game-state.js';
+
+export { SaveStorage } from './save-storage.js';
+export type { SaveMetadata } from './save-storage.js';
+
 export { EventBus, globalEventBus } from './event-bus.js';
 
 export { GameLoop } from './game-loop.js';

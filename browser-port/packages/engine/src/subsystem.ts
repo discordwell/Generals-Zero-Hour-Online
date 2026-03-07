@@ -6,6 +6,8 @@
  * Source reference: Generals/Code/GameEngine/Source/Common/System/SubsystemInterface.cpp
  */
 
+import type { Xfer } from './xfer.js';
+
 export interface Subsystem {
   /** Unique subsystem name. */
   readonly name: string;
@@ -19,6 +21,12 @@ export interface Subsystem {
   reset(): void;
   /** Release resources. */
   dispose(): void;
+  /** Optional lightweight CRC contribution for save-game validation. */
+  crc?(xfer: Xfer): void;
+  /** Optional full state serialization for save/load. */
+  xfer?(xfer: Xfer): void;
+  /** Optional post-process hook after all snapshot blocks have been loaded. */
+  snapshotPostProcess?(): void;
 }
 
 export class SubsystemRegistry {
@@ -71,6 +79,30 @@ export class SubsystemRegistry {
       const subsystem = this.updateOrder[index];
       if (subsystem) {
         subsystem.reset();
+      }
+    }
+  }
+
+  xferSnapshotAll(xfer: Xfer): void {
+    for (const subsystem of this.updateOrder) {
+      if (typeof subsystem.xfer === 'function') {
+        subsystem.xfer(xfer);
+      }
+    }
+  }
+
+  crcAll(xfer: Xfer): void {
+    for (const subsystem of this.updateOrder) {
+      if (typeof subsystem.crc === 'function') {
+        subsystem.crc(xfer);
+      }
+    }
+  }
+
+  snapshotPostProcessAll(): void {
+    for (const subsystem of this.updateOrder) {
+      if (typeof subsystem.snapshotPostProcess === 'function') {
+        subsystem.snapshotPostProcess();
       }
     }
   }

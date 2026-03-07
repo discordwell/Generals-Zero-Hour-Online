@@ -24,6 +24,7 @@ import {
   GameLODManager,
   ParticleSystemManager,
   FXListManager,
+  DecalManager,
 } from '@generals/renderer';
 import type { MapDataJSON } from '@generals/renderer';
 import { InputManager, RTSCamera, type InputState } from '@generals/input';
@@ -1706,11 +1707,17 @@ async function startGame(
   const particleSystemManager = new ParticleSystemManager(scene, gameLODManager);
   particleSystemManager.loadFromRegistry(iniRegistry);
   particleSystemManager.init();
+  const decalManager = new DecalManager(scene, 256, 128);
+  decalManager.init();
+
   const fxListManager = new FXListManager(particleSystemManager);
   fxListManager.loadFromRegistry(iniRegistry);
   fxListManager.setCallbacks({
     onSound: (name, position) => {
       audioManager.addAudioEvent(name, [position.x, position.y, position.z]);
+    },
+    onTerrainScorch: (scorchType, radius, position) => {
+      decalManager.addScorchMark(scorchType, radius, position);
     },
   });
   fxListManager.init();
@@ -2400,6 +2407,7 @@ async function startGame(
       processVisualEvents();
       gameLODManager.update(dt);
       particleSystemManager.update(dt);
+      decalManager.update(dt);
 
       // Update fog of war overlay at reduced frequency.
       fogUpdateCounter++;

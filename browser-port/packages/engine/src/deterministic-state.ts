@@ -213,7 +213,7 @@ export class XferCrcAccumulator {
     return toNetworkOrderUint32(this.crc);
   }
 
-  private xferBytes(data: Uint8Array): void {
+  xferBytes(data: Uint8Array): void {
     if (data.byteLength < 1) {
       return;
     }

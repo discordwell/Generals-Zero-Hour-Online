@@ -1,5 +1,58 @@
 # Session Summaries
 
+## 2026-03-07T22:00Z — Advanced Rendering: Particles, LOD, Shadows, Decals (Full 6-Phase)
+- **Phase 1 — INI Data Pipeline** (`ini-data/src/registry.ts` modified):
+  - Added `RawBlockDef` interface, 4 new Map collections (particleSystems, fxLists, staticGameLODs, dynamicGameLODs)
+  - Moved ParticleSystem/FXList from skip list to active indexing, added StaticGameLOD/DynamicGameLOD
+  - Updated bundle round-trip (loadBundle/toBundle/getStats) + accessor methods
+- **Phase 2 — GameLODManager** (`renderer/src/game-lod-manager.ts`):
+  - Static presets (Low/Medium/High) with 13 fields matching retail GameLOD.ini
+  - Dynamic FPS adaptation: 30-sample rolling average, auto-switching between LOD levels
+  - Query methods: getParticleCap(), shouldSkipParticle(), shouldUseShadowVolumes()
+- **Phase 3 — Particle System** (4 new files):
+  - `particle-system-template.ts`: Full ParticleSystemInfo port (~40 fields, enums, keyframes)
+  - `fx-list-template.ts`: 8 nugget types (ParticleSystem, Sound, ViewShake, LightPulse, TerrainScorch, etc.)
+  - `particle-system-manager.ts`: Flat Float32Array pool (stride 17), emission volumes, velocity distributions, InstancedMesh rendering
+  - `fx-list-manager.ts`: Event-driven orchestrator with callbacks for sound/scorch/viewShake
+  - **main.ts integration**: Deleted ~250 lines inline particle code, replaced with subsystem pipeline
+- **Phase 4 — Shadow System** (`renderer/src/shadow-decal.ts`, `object-visuals.ts` modified):
+  - Per-object shadow types: SHADOW_VOLUME→castShadow, SHADOW_DECAL→blob mesh, SHADOW_NONE→off
+  - Shadow decal meshes: PlaneGeometry with MultiplyBlending, positioned at terrain height
+- **Phase 5 — Decal System** (4 new files):
+  - `decal-renderer.ts`: Terrain-projected PlaneGeometry quads, polygon offset, lifetime/fade
+  - `radius-decal.ts`: Selection circles and radius indicators
+  - `terrain-scorch.ts`: Persistent explosion scorch marks with cap enforcement
+  - `decal-manager.ts`: Subsystem coordinating all decal types, wired to FXListManager onTerrainScorch
+- **Phase 6 — LOD Export + Runtime** (`GltfBuilder.ts` modified, `lod-manager.ts` new):
+  - GltfBuilder now creates multi-scene GLBs from HLOD data (one scene per LOD level, maxScreenSize in extras)
+  - LODManager: THREE.LOD wrapping with maxScreenSize→distance conversion
+- **Tests**: 2294 total passing (87 renderer, 30 w3d-converter, many others unchanged)
+- **New files**: 11 source + 11 test files across renderer package, GltfBuilder.ts modified
+
+## 2026-03-07T19:00Z — Save/Load System (Full 6-Phase Implementation)
+- **Phase 1 — Xfer Framework** (`engine/src/xfer.ts`, `xfer-save.ts`, `xfer-load.ts`, `xfer-crc.ts`, `snapshot.ts`):
+  - Abstract Xfer base class with return-value pattern (C++ uses void* mutation)
+  - XferSave: growing ArrayBuffer binary writer with block size patching
+  - XferLoad: ArrayBuffer reader, XferCrc: wraps XferCrcAccumulator
+  - Snapshot interface: `crc()`, `xfer()`, `loadPostProcess()`
+- **Phase 2 — Subsystem Integration** (`subsystem.ts` modified):
+  - Optional `crc?`, `xfer?`, `snapshotPostProcess?` on Subsystem interface
+  - SubsystemRegistry: `xferSnapshotAll()`, `crcAll()`, `snapshotPostProcessAll()`
+- **Phase 3 — GameState Orchestrator** (`game-state.ts`):
+  - Named SnapshotBlock registration, `[blockName][size][data]` + `"SG_EOF"` terminator
+  - Fixed CRC infinite loop: CRC mode uses save path not load path
+- **Phase 4 — Entity Serialization** (`game-logic/src/entity-xfer.ts`):
+  - `xferMapEntity()` serializes all ~400+ MapEntity properties
+  - JSON encoding for 98 complex profile types with Map/Set reviver
+- **Phase 5 — Browser Storage** (`engine/src/save-storage.ts`):
+  - IndexedDB with `save-files` + `save-metadata` object stores
+  - Download/upload via Blob+anchor / File.arrayBuffer()
+- **Phase 6 — UI Integration** (`ui/src/save-load-menu.ts`):
+  - DOM overlay with Save/Load/Delete/Download/Upload/Close buttons
+  - F5/F9 keyboard shortcuts via `installSaveLoadShortcuts()`
+- **Tests**: 71 new tests (41 xfer + 13 game-state + 6 save-storage + 11 entity-xfer), all 2,258 passing
+- **Key fix**: `deterministic-state.ts` — `xferBytes()` made public for XferCrc integration
+
 ## 2026-03-07T17:00Z — Options, Diplomacy, Post-Game Stats UI Screens
 - **Options Screen** (`options-screen.ts`): Audio (music/SFX/voice volume sliders) + Game (scroll speed slider)
   - Persists to localStorage as `Options.ini` key=value format (source parity: OptionPreferences)

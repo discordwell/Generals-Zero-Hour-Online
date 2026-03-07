@@ -423,6 +423,118 @@ describe('W3D golden fixtures', () => {
     expect(ch.data[lastIdx + 3]!).toBeCloseTo(Math.cos(Math.PI / 4), 4);
   });
 
+  it('exports multi-LOD scenes from HLOD data', () => {
+    // Build a W3D with 2 LOD levels: LOD0 (high detail, 2 meshes) and LOD1 (low detail, 1 mesh)
+    const w = new BinaryWriter();
+
+    // Mesh 1: high-detail hull (LOD0 only)
+    const m1 = w.writeChunkHeader(W3dChunkType.MESH, true);
+    writeMeshHeader(w, 'TANK.HULL_HI', 'TANK', 2, 4);
+    const v1 = w.writeChunkHeader(W3dChunkType.VERTICES, false);
+    for (let i = 0; i < 4; i++) { w.writeFloat32(i); w.writeFloat32(0); w.writeFloat32(0); }
+    w.patchChunkSize(v1, false);
+    const n1 = w.writeChunkHeader(W3dChunkType.VERTEX_NORMALS, false);
+    for (let i = 0; i < 4; i++) { w.writeFloat32(0); w.writeFloat32(1); w.writeFloat32(0); }
+    w.patchChunkSize(n1, false);
+    const t1 = w.writeChunkHeader(W3dChunkType.TRIANGLES, false);
+    w.writeUint32(0); w.writeUint32(1); w.writeUint32(2); w.writeUint32(0);
+    w.writeFloat32(0); w.writeFloat32(1); w.writeFloat32(0); w.writeFloat32(0);
+    w.writeUint32(0); w.writeUint32(2); w.writeUint32(3); w.writeUint32(0);
+    w.writeFloat32(0); w.writeFloat32(1); w.writeFloat32(0); w.writeFloat32(0);
+    w.patchChunkSize(t1, false);
+    w.patchChunkSize(m1, true);
+
+    // Mesh 2: turret (LOD0 only)
+    const m2 = w.writeChunkHeader(W3dChunkType.MESH, true);
+    writeMeshHeader(w, 'TANK.TURRET_HI', 'TANK', 1, 3);
+    const v2 = w.writeChunkHeader(W3dChunkType.VERTICES, false);
+    for (let i = 0; i < 3; i++) { w.writeFloat32(i); w.writeFloat32(1); w.writeFloat32(0); }
+    w.patchChunkSize(v2, false);
+    const n2 = w.writeChunkHeader(W3dChunkType.VERTEX_NORMALS, false);
+    for (let i = 0; i < 3; i++) { w.writeFloat32(0); w.writeFloat32(1); w.writeFloat32(0); }
+    w.patchChunkSize(n2, false);
+    const t2 = w.writeChunkHeader(W3dChunkType.TRIANGLES, false);
+    w.writeUint32(0); w.writeUint32(1); w.writeUint32(2); w.writeUint32(0);
+    w.writeFloat32(0); w.writeFloat32(1); w.writeFloat32(0); w.writeFloat32(0);
+    w.patchChunkSize(t2, false);
+    w.patchChunkSize(m2, true);
+
+    // Mesh 3: low-detail body (LOD1 only)
+    const m3 = w.writeChunkHeader(W3dChunkType.MESH, true);
+    writeMeshHeader(w, 'TANK.BODY_LO', 'TANK', 1, 3);
+    const v3 = w.writeChunkHeader(W3dChunkType.VERTICES, false);
+    for (let i = 0; i < 3; i++) { w.writeFloat32(i * 2); w.writeFloat32(0); w.writeFloat32(0); }
+    w.patchChunkSize(v3, false);
+    const n3 = w.writeChunkHeader(W3dChunkType.VERTEX_NORMALS, false);
+    for (let i = 0; i < 3; i++) { w.writeFloat32(0); w.writeFloat32(1); w.writeFloat32(0); }
+    w.patchChunkSize(n3, false);
+    const t3 = w.writeChunkHeader(W3dChunkType.TRIANGLES, false);
+    w.writeUint32(0); w.writeUint32(1); w.writeUint32(2); w.writeUint32(0);
+    w.writeFloat32(0); w.writeFloat32(1); w.writeFloat32(0); w.writeFloat32(0);
+    w.patchChunkSize(t3, false);
+    w.patchChunkSize(m3, true);
+
+    // HLOD with 2 LOD levels
+    const hlodO = w.writeChunkHeader(W3dChunkType.HLOD, true);
+    const hh = w.writeChunkHeader(W3dChunkType.HLOD_HEADER, false);
+    w.writeUint32(0x00040001);
+    w.writeUint32(2); // 2 LOD levels
+    w.writeString('TANK', 32);
+    w.writeString('TANK', 32);
+    w.patchChunkSize(hh, false);
+
+    // LOD0: high detail (maxScreenSize=0)
+    const lod0 = w.writeChunkHeader(W3dChunkType.HLOD_LOD_ARRAY, true);
+    const l0h = w.writeChunkHeader(W3dChunkType.HLOD_SUB_OBJECT_ARRAY_HEADER, false);
+    w.writeUint32(2); w.writeFloat32(0);
+    w.patchChunkSize(l0h, false);
+    const s0a = w.writeChunkHeader(W3dChunkType.HLOD_SUB_OBJECT, false);
+    w.writeUint32(0); w.writeString('TANK.HULL_HI', 32);
+    w.patchChunkSize(s0a, false);
+    const s0b = w.writeChunkHeader(W3dChunkType.HLOD_SUB_OBJECT, false);
+    w.writeUint32(0); w.writeString('TANK.TURRET_HI', 32);
+    w.patchChunkSize(s0b, false);
+    w.patchChunkSize(lod0, true);
+
+    // LOD1: low detail (maxScreenSize=50)
+    const lod1 = w.writeChunkHeader(W3dChunkType.HLOD_LOD_ARRAY, true);
+    const l1h = w.writeChunkHeader(W3dChunkType.HLOD_SUB_OBJECT_ARRAY_HEADER, false);
+    w.writeUint32(1); w.writeFloat32(50);
+    w.patchChunkSize(l1h, false);
+    const s1a = w.writeChunkHeader(W3dChunkType.HLOD_SUB_OBJECT, false);
+    w.writeUint32(0); w.writeString('TANK.BODY_LO', 32);
+    w.patchChunkSize(s1a, false);
+    w.patchChunkSize(lod1, true);
+
+    w.patchChunkSize(hlodO, true);
+
+    const w3d = W3dParser.parse(w.toArrayBuffer());
+    expect(w3d.hlods[0]!.lods).toHaveLength(2);
+
+    const glb = GltfBuilder.buildGlb(w3d);
+    const gltf = extractGltfJson(glb) as Record<string, unknown>;
+
+    // Should produce 2 scenes (one per LOD level)
+    const scenes = gltf['scenes'] as Array<Record<string, unknown>>;
+    expect(scenes).toHaveLength(2);
+
+    // Scene 0 (highest detail, maxScreenSize=0): 2 mesh nodes
+    const scene0Nodes = scenes[0]!['nodes'] as number[];
+    expect(scene0Nodes).toHaveLength(2);
+    expect(scenes[0]!['extras']).toBeUndefined(); // maxScreenSize=0 has no extras
+
+    // Scene 1 (low detail, maxScreenSize=50): 1 mesh node + maxScreenSize in extras
+    const scene1Nodes = scenes[1]!['nodes'] as number[];
+    expect(scene1Nodes).toHaveLength(1);
+    const extras = scenes[1]!['extras'] as Record<string, unknown>;
+    expect(extras).toBeDefined();
+    expect(extras['maxScreenSize']).toBe(50);
+
+    // Should have 3 meshes total
+    const meshes = gltf['meshes'] as unknown[];
+    expect(meshes).toHaveLength(3);
+  });
+
   it('parses hierarchy with chain validation', () => {
     const buffer = buildCompleteW3d();
     const result = W3dParser.parse(buffer);

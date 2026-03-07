@@ -1,9 +1,18 @@
 {
-  "generatedAt": "2026-03-05T04:02:19.787Z",
-  "status": "clear",
+  "generatedAt": "2026-03-07T20:15:19.034Z",
+  "status": "blocked",
   "summary": {
-    "blockerGroups": 0,
-    "blockerItems": 0
+    "blockerGroups": 1,
+    "blockerItems": 2
   },
-  "blockers": []
+  "blockers": [
+    {
+      "id": "conversion-missing-references",
+      "area": "conversion",
+      "count": 2,
+      "details": [
+        "Missing reference edges remain in converted data."
+      ]
+    }
+  ]
 }

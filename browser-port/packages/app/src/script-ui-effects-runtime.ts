@@ -28,9 +28,18 @@ export interface ScriptUiEffectsRuntimeBridge {
   syncAfterSimulationStep(currentLogicFrame: number): void;
 }
 
+export interface ScriptUiEffectsRuntimeVideoPlayer {
+  playFullscreen(movieName: string): Promise<void>;
+  playInRadar(movieName: string): Promise<void>;
+  readonly isPlaying: boolean;
+}
+
 export interface CreateScriptUiEffectsRuntimeBridgeOptions {
   gameLogic: ScriptUiEffectsRuntimeGameLogic;
   uiRuntime: ScriptUiEffectsRuntimeUi;
+  videoPlayer?: ScriptUiEffectsRuntimeVideoPlayer | null;
+  /** Called when a script-triggered video finishes playing. */
+  onScriptVideoCompleted?: (movieName: string) => void;
   logger?: ScriptUiEffectsRuntimeLogger;
 }
 
@@ -49,6 +58,8 @@ export function createScriptUiEffectsRuntimeBridge(
   const {
     gameLogic,
     uiRuntime,
+    videoPlayer = null,
+    onScriptVideoCompleted,
     logger = console,
   } = options;
 
@@ -60,10 +71,24 @@ export function createScriptUiEffectsRuntimeBridge(
       logger.debug(
         `[ScriptMovie frame=${request.frame} type=${request.playbackType}] ${request.movieName}`,
       );
-      uiRuntime.showMessage(
-        `[${request.playbackType} movie] ${request.movieName}`,
-        MOVIE_MESSAGE_DURATION_MS,
-      );
+
+      if (videoPlayer) {
+        const play = request.playbackType === 'RADAR'
+          ? videoPlayer.playInRadar(request.movieName)
+          : videoPlayer.playFullscreen(request.movieName);
+        play.then(() => {
+          onScriptVideoCompleted?.(request.movieName);
+        }).catch(() => {
+          onScriptVideoCompleted?.(request.movieName);
+        });
+      } else {
+        uiRuntime.showMessage(
+          `[${request.playbackType} movie] ${request.movieName}`,
+          MOVIE_MESSAGE_DURATION_MS,
+        );
+        // Auto-complete so script conditions still progress
+        onScriptVideoCompleted?.(request.movieName);
+      }
     }
   };
 

@@ -12,6 +12,8 @@
   "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"],
   "references": [
     { "path": "../assets" },
-    { "path": "../terrain" }
+    { "path": "../terrain" },
+    { "path": "../engine" },
+    { "path": "../ini-data" }
   ]
 }

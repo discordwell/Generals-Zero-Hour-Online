@@ -429,3 +429,6 @@ export type {
   IssuedControlBarCommand,
   PendingControlBarCommand,
 } from './control-bar.js';
+
+export { SaveLoadMenu, installSaveLoadShortcuts } from './save-load-menu.js';
+export type { SaveLoadMenuCallbacks } from './save-load-menu.js';
