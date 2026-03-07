@@ -31,7 +31,6 @@ export interface Coord3D {
 
 export abstract class Xfer {
   protected mode: XferMode;
-  protected blockSizeStack: number[] = [];
 
   constructor(mode: XferMode) {
     this.mode = mode;
@@ -198,6 +197,10 @@ export abstract class Xfer {
     // XFER_LOAD
     const byteLength = this.xferUnsignedInt(0);
     if (byteLength === 0) return '';
+    // Guard against corrupt saves specifying absurd lengths (max 16MB).
+    if (byteLength > 16 * 1024 * 1024) {
+      throw new Error(`xferLongString: byte length ${byteLength} exceeds 16MB safety cap`);
+    }
     const bytes = new Uint8Array(byteLength);
     const read = this.xferImplementation(bytes);
     return new TextDecoder().decode(read);

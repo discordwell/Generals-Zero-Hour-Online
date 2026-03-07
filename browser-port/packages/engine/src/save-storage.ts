@@ -106,10 +106,18 @@ export class SaveStorage {
 
   async loadFromDB(slotId: string): Promise<{ data: ArrayBuffer; metadata: SaveMetadata } | null> {
     const db = await this.getDb();
-    const data = await txGet<ArrayBuffer>(db, STORE_FILES, slotId);
-    const metadata = await txGet<SaveMetadata>(db, STORE_METADATA, slotId);
-    if (!data || !metadata) return null;
-    return { data, metadata };
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([STORE_FILES, STORE_METADATA], 'readonly');
+      const fileReq = tx.objectStore(STORE_FILES).get(slotId);
+      const metaReq = tx.objectStore(STORE_METADATA).get(slotId);
+      tx.oncomplete = () => {
+        const data = fileReq.result as ArrayBuffer | undefined;
+        const metadata = metaReq.result as SaveMetadata | undefined;
+        if (!data || !metadata) { resolve(null); return; }
+        resolve({ data, metadata });
+      };
+      tx.onerror = () => reject(tx.error);
+    });
   }
 
   async listSaves(): Promise<SaveMetadata[]> {

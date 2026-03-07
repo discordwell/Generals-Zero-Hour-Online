@@ -40,6 +40,11 @@ export class XferLoad extends Xfer {
   }
 
   skip(dataSize: number): void {
+    // Source parity: XferLoad.cpp:162 has DEBUG_ASSERTCRASH(dataSize >= 0)
+    if (dataSize < 0) {
+      throw new Error(`XferLoad: skip called with negative dataSize (${dataSize})`);
+    }
+    this.assertRemaining(dataSize);
     this.offset += dataSize;
   }
 
