@@ -72,6 +72,10 @@ const SINGLETON_BLOCK_TYPES = new Set([
   'GameData', 'MiscAudio', 'InGameUI', 'DrawGroupInfo',
   'MultiplayerSettings', 'Weather', 'AnimationSoundClientBehaviorGlobalSetting',
   'AI', 'AudioSettings',
+  'Credits', 'CommandMap', 'Mouse', 'WaterTransparency',
+  'OnlineChatColors', 'MapCache', 'MapData',
+  'SkirmishAIData', 'AIData', 'ChallengeGenerals',
+  'MultiplayerStartingMoneyChoice', 'MultiplayerColor', 'GeneralPersona',
 ]);
 
 /**
@@ -567,6 +571,14 @@ const TOP_LEVEL_BLOCK_TYPES = new Set([
   'ControlBarResizer', 'ShellMenuScheme', 'MiscAudio',
   'AnimationSoundClientBehaviorGlobalSetting',
   'AI', 'AudioSettings',
+  // Non-gameplay top-level blocks (reduces parse errors for complete INI loading)
+  'Credits', 'CommandMap', 'Mouse', 'MouseCursor',
+  'StaticGameLOD', 'DynamicGameLOD', 'LODPreset', 'BenchProfile',
+  'WaterTransparency', 'Rank', 'OnlineChatColors',
+  'MultiplayerColor', 'MultiplayerStartingMoneyChoice',
+  'Language', 'MapCache', 'MapData',
+  'SkirmishAIData', 'AIData',
+  'ChallengeGenerals', 'GeneralPersona',
 ]);
 
 function isBlockStart(token: string): boolean {
