@@ -7,8 +7,10 @@
   - Safety break: encountering `Object Foo` (not `Object = Foo`) inside nesting-end block closes current block (recovers from consumed End tokens)
 - **Expanded type sets**: SUB_BLOCK_TYPES ~80+ entries (OCL/FXList/Weapon/UI/SkirmishAI sub-blocks), DEFINITE_BLOCK_TYPES ~50+ entries
 - **Standalone keyword block detection**: single-token lines with deeper-indented content parsed as blocks (e.g. Prerequisites, Turret)
-- **Results**: Object/ dir 1863 objects (+4), 0 errors (was 145). Full scan 10727 blocks, 3385 errors (was 3580). All 4 previously missing objects found (Dam, GreekHouse1, AncientSoldierStatue02, CINE_ShiekLimo)
-- All 2,072 tests pass (+2 new), committed 6d13dce4, pushed
+- **Results**: Object/ dir 1863 objects (+4), 0 errors (was 145). All 4 previously missing objects found (Dam, GreekHouse1, AncientSoldierStatue02, CINE_ShiekLimo)
+- **Code review fixes**: Removed TrackMarks, Turret, AltTurret, Attack from DEFINITE_BLOCK_TYPES (dual-use as fields in ConditionState/Draw/AudioEvent)
+- **Top-level block types**: Added 20+ missing types (Credits, CommandMap, Mouse, AIData, LOD types, etc.) + singletons → errors 3385→2 (only stray END in Campaign.ini)
+- **Final**: 10858 blocks, 2 errors. All 2,072 tests pass. Commits: 6d13dce4, 758979e6, d6afc3f8
 - ini-bundle not regenerated (needs --game-dir) — 4 new objects will appear on next full conversion
 
 ## 2026-03-06T18:45Z — Git LFS Asset Commit + INI Parser Bug Fixes
