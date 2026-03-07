@@ -4113,7 +4113,13 @@ const OBJECT_DONT_RENDER_FLAG = 0x100;
 
 interface SideScoreState {
   structuresBuilt: number;
+  structuresLost: number;
+  structuresDestroyed: number;
+  unitsBuilt: number;
+  unitsLost: number;
+  unitsDestroyed: number;
   moneySpent: number;
+  moneyEarned: number;
 }
 
 type ScriptComparisonType =
@@ -8367,6 +8373,10 @@ export class GameLogicSubsystem implements Subsystem {
     const current = this.sideCredits.get(normalizedSide) ?? 0;
     const next = Math.max(0, current + delta);
     this.sideCredits.set(normalizedSide, next);
+    // Source parity: ScoreKeeper — track money earned (positive deltas only).
+    if (delta > 0 && this.scriptScoringEnabled && !this.sideScoreScreenExcluded.has(normalizedSide)) {
+      this.getOrCreateSideScoreState(normalizedSide).moneyEarned += delta;
+    }
     return next;
   }
 
@@ -8471,20 +8481,42 @@ export class GameLogicSubsystem implements Subsystem {
 
   getSideScoreState(side: string): {
     structuresBuilt: number;
+    structuresLost: number;
+    structuresDestroyed: number;
+    unitsBuilt: number;
+    unitsLost: number;
+    unitsDestroyed: number;
     moneySpent: number;
+    moneyEarned: number;
   } {
     const normalizedSide = this.normalizeSide(side);
+    const empty = {
+      structuresBuilt: 0, structuresLost: 0, structuresDestroyed: 0,
+      unitsBuilt: 0, unitsLost: 0, unitsDestroyed: 0,
+      moneySpent: 0, moneyEarned: 0,
+    };
     if (!normalizedSide) {
-      return { structuresBuilt: 0, moneySpent: 0 };
+      return empty;
     }
     const score = this.sideScoreState.get(normalizedSide);
     if (!score) {
-      return { structuresBuilt: 0, moneySpent: 0 };
+      return empty;
     }
-    return {
-      structuresBuilt: score.structuresBuilt,
-      moneySpent: score.moneySpent,
-    };
+    return { ...score };
+  }
+
+  /**
+   * Source parity: ScoreKeeper tracking — called from entity lifecycle hooks.
+   * Returns all active side names from playerSideByIndex for display purposes.
+   */
+  getActiveSideNames(): string[] {
+    const sides: string[] = [];
+    for (const [, side] of this.playerSideByIndex) {
+      if (!sides.includes(side)) {
+        sides.push(side);
+      }
+    }
+    return sides;
   }
 
   setScriptScoringEnabled(enabled: boolean): void {
@@ -41799,7 +41831,16 @@ export class GameLogicSubsystem implements Subsystem {
     if (existing) {
       return existing;
     }
-    const created: SideScoreState = { structuresBuilt: 0, moneySpent: 0 };
+    const created: SideScoreState = {
+      structuresBuilt: 0,
+      structuresLost: 0,
+      structuresDestroyed: 0,
+      unitsBuilt: 0,
+      unitsLost: 0,
+      unitsDestroyed: 0,
+      moneySpent: 0,
+      moneyEarned: 0,
+    };
     this.sideScoreState.set(side, created);
     return created;
   }
@@ -41824,6 +41865,52 @@ export class GameLogicSubsystem implements Subsystem {
     const objectDef = this.resolveObjectDefByTemplateName(structure.templateName);
     if (objectDef) {
       score.moneySpent += this.resolveObjectBuildCost(objectDef, side);
+    }
+  }
+
+  /**
+   * Source parity: ScoreKeeper — track unit production by side.
+   */
+  private addUnitProductionScore(entity: MapEntity): void {
+    if (!this.scriptScoringEnabled) return;
+    const side = this.normalizeSide(entity.side);
+    if (!side || this.sideScoreScreenExcluded.has(side)) return;
+    const score = this.getOrCreateSideScoreState(side);
+    score.unitsBuilt += 1;
+    const objectDef = this.resolveObjectDefByTemplateName(entity.templateName);
+    if (objectDef) {
+      score.moneySpent += this.resolveObjectBuildCost(objectDef, side);
+    }
+  }
+
+  /**
+   * Source parity: ScoreKeeper — track entity destruction (lost + destroyed counts).
+   */
+  private addEntityDestroyedScore(victim: MapEntity, attackerId: number): void {
+    if (!this.scriptScoringEnabled) return;
+    const victimSide = this.normalizeSide(victim.side);
+    const isBuilding = victim.kindOf.has('STRUCTURE');
+
+    // Victim side: lost
+    if (victimSide && !this.sideScoreScreenExcluded.has(victimSide)) {
+      const victimScore = this.getOrCreateSideScoreState(victimSide);
+      if (isBuilding) {
+        victimScore.structuresLost += 1;
+      } else {
+        victimScore.unitsLost += 1;
+      }
+    }
+
+    // Attacker side: destroyed
+    const attacker = attackerId > 0 ? this.spawnedEntities.get(attackerId) : null;
+    const attackerSide = attacker ? this.normalizeSide(attacker.side) : null;
+    if (attackerSide && attackerSide !== victimSide && !this.sideScoreScreenExcluded.has(attackerSide)) {
+      const attackerScore = this.getOrCreateSideScoreState(attackerSide);
+      if (isBuilding) {
+        attackerScore.structuresDestroyed += 1;
+      } else {
+        attackerScore.unitsDestroyed += 1;
+      }
     }
   }
 
@@ -48687,6 +48774,9 @@ export class GameLogicSubsystem implements Subsystem {
     if (created.side) {
       this.emitEvaEvent('UNIT_READY', created.side, 'own', created.id, unitDef.name);
     }
+
+    // Source parity: ScoreKeeper — track unit production.
+    this.addUnitProductionScore(created);
 
     return created;
   }
@@ -59010,6 +59100,9 @@ export class GameLogicSubsystem implements Subsystem {
         this.emitEvaEvent('UNIT_LOST', entity.side, 'own', entityId);
       }
     }
+
+    // Source parity: ScoreKeeper — track entity destruction stats.
+    this.addEntityDestroyedScore(entity, attackerId);
 
     // Unregister energy contribution before destruction.
     this.unregisterEntityEnergy(entity);

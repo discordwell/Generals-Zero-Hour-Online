@@ -17,7 +17,14 @@ import {
   RUNTIME_ASSET_BASE_URL,
   RUNTIME_MANIFEST_FILE,
 } from '@generals/assets';
-import { ObjectVisualManager, TerrainVisual, WaterVisual } from '@generals/renderer';
+import {
+  ObjectVisualManager,
+  TerrainVisual,
+  WaterVisual,
+  GameLODManager,
+  ParticleSystemManager,
+  FXListManager,
+} from '@generals/renderer';
 import type { MapDataJSON } from '@generals/renderer';
 import { InputManager, RTSCamera, type InputState } from '@generals/input';
 import {
@@ -72,6 +79,14 @@ import { createScriptUiEffectsRuntimeBridge } from './script-ui-effects-runtime.
 import { syncScriptViewRuntimeBridge } from './script-view-runtime.js';
 import { assertIniBundleConsistency, assertRequiredManifestEntries } from './runtime-guardrails.js';
 import { GameShell, type SkirmishSettings } from './game-shell.js';
+import {
+  OptionsScreen,
+  saveOptionsToStorage,
+  loadOptionsState,
+  type OptionsState,
+} from './options-screen.js';
+import { DiplomacyScreen, type DiplomacyPlayerInfo } from './diplomacy-screen.js';
+import { PostgameStatsScreen, type SideScoreDisplay } from './postgame-stats-screen.js';
 
 // ============================================================================
 // Loading screen
@@ -274,6 +289,43 @@ function registerIniAudioEvents(
   }
 
   return registeredCount;
+}
+
+// ============================================================================
+// Side-to-faction label mapping
+// ============================================================================
+
+function sideToFactionLabel(side: string): string {
+  const lower = side.toLowerCase();
+  if (lower === 'america') return 'USA';
+  if (lower === 'china') return 'China';
+  if (lower === 'gla') return 'GLA';
+  if (lower === 'civilian') return 'Civilian';
+  return side;
+}
+
+// ============================================================================
+// Options state application
+// ============================================================================
+
+/**
+ * Apply options state to audio manager and camera controller.
+ * Source parity: OptionsMenu.cpp OptionsMenuAcceptSystem applies slider values
+ * to AudioManager volumes and InGameUI scroll speed.
+ */
+function applyOptionsState(
+  state: OptionsState,
+  audioManager: AudioManager,
+  rtsCamera: RTSCamera,
+): void {
+  audioManager.setMusicVolume(state.musicVolume / 100);
+  audioManager.setSfxVolume(state.sfxVolume / 100);
+  audioManager.setVolume(
+    state.voiceVolume / 100,
+    AudioAffect.AudioAffect_Speech | AudioAffect.AudioAffect_SystemSetting,
+  );
+  // Source parity: scroll speed 0–100 maps to 100–800 world units/s.
+  rtsCamera.setScrollSpeed(100 + (state.scrollSpeed / 100) * 700);
 }
 
 // ============================================================================
@@ -1189,54 +1241,45 @@ async function startGame(
     entityInfoDetails.textContent = lines.join(' | ');
   };
 
-  // End-game overlay
-  const endGameOverlay = document.createElement('div');
-  endGameOverlay.id = 'endgame-overlay';
-  Object.assign(endGameOverlay.style, {
-    position: 'absolute',
-    top: '0',
-    left: '0',
-    width: '100%',
-    height: '100%',
-    display: 'none',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'rgba(0, 0, 0, 0.75)',
-    zIndex: '900',
-    pointerEvents: 'auto',
+  // Post-game stats screen (replaces simple endgame overlay)
+  const postgameScreen = new PostgameStatsScreen(gameContainer, {
+    onReturnToMenu: () => window.location.reload(),
+    onPlayAgain: () => window.location.reload(),
   });
-  endGameOverlay.innerHTML = `
-    <div id="endgame-title" style="
-      font-size: 3rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.2em;
-      margin-bottom: 1rem;
-      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
-    "></div>
-    <div id="endgame-subtitle" style="
-      font-size: 1.1rem;
-      color: #8a8070;
-      margin-bottom: 2rem;
-    "></div>
-    <button id="endgame-menu-btn" style="
-      padding: 10px 32px;
-      font-size: 1rem;
-      font-weight: 600;
-      background: linear-gradient(180deg, #c9a84c 0%, #a08030 100%);
-      color: #1a1a2e;
-      border: none;
-      cursor: pointer;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-    ">Return to Menu</button>
-  `;
-  gameContainer.appendChild(endGameOverlay);
 
-  document.getElementById('endgame-menu-btn')!.addEventListener('click', () => {
-    window.location.reload();
+  // Diplomacy screen (in-game overlay)
+  const diplomacyScreen = new DiplomacyScreen(gameContainer, {
+    onClose: () => { /* no-op, screen hides itself */ },
+    getPlayerInfos: (): DiplomacyPlayerInfo[] => {
+      const sides = gameLogic.getActiveSideNames();
+      const localSide = gameLogic.getPlayerSide(0);
+      return sides.map(side => {
+        const playerType = gameLogic.getSidePlayerType(side);
+        const faction = sideToFactionLabel(side);
+        return {
+          side,
+          displayName: playerType === 'HUMAN' ? 'Player' : `AI (${faction})`,
+          faction,
+          isLocal: side === localSide,
+          isDefeated: gameLogic.isSideDefeated(side),
+          playerType,
+        };
+      });
+    },
   });
+
+  // In-game Options screen (ESC key)
+  let browserStorageIngame: Storage | null = null;
+  try { browserStorageIngame = window.localStorage; } catch { browserStorageIngame = null; }
+  const ingamePrefs = loadOptionPreferencesFromStorage(browserStorageIngame);
+  const ingameOptionsState = loadOptionsState(ingamePrefs);
+  const ingameOptionsScreen = new OptionsScreen(gameContainer, {
+    onApply: (state: OptionsState) => {
+      applyOptionsState(state, audioManager, rtsCamera);
+      saveOptionsToStorage(state, browserStorageIngame);
+    },
+    onClose: () => { /* no-op */ },
+  }, ingameOptionsState);
 
   let gameEnded = false;
 
@@ -1655,245 +1698,53 @@ async function startGame(
   };
 
   // ========================================================================
-  // Particle effects system
+  // Data-driven particle & FX system (replaces inline particle effects)
   // ========================================================================
 
-  interface Particle {
-    mesh: THREE.Mesh;
-    vx: number;
-    vy: number;
-    vz: number;
-    life: number;
-    maxLife: number;
-    startScale: number;
-  }
-
-  const activeParticles: Particle[] = [];
-  const PARTICLE_POOL_LIMIT = 200;
-
-  // Shared geometries and materials.
-  const particleSphereGeometry = new THREE.SphereGeometry(1, 6, 4);
-  const explosionMaterial = new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true });
-  const smokeMaterial = new THREE.MeshBasicMaterial({ color: 0x444444, transparent: true });
-  const flashMaterial = new THREE.MeshBasicMaterial({ color: 0xffffaa, transparent: true });
-  const debrisMaterial = new THREE.MeshBasicMaterial({ color: 0x332211, transparent: true });
-
-  const spawnParticle = (
-    x: number, y: number, z: number,
-    vx: number, vy: number, vz: number,
-    material: THREE.MeshBasicMaterial, scale: number, life: number,
-  ): void => {
-    if (activeParticles.length >= PARTICLE_POOL_LIMIT) return;
-    const mat = material.clone();
-    const mesh = new THREE.Mesh(particleSphereGeometry, mat);
-    mesh.position.set(x, y, z);
-    mesh.scale.setScalar(scale);
-    mesh.renderOrder = 800;
-    scene.add(mesh);
-    activeParticles.push({ mesh, vx, vy, vz, life, maxLife: life, startScale: scale });
-  };
-
-  const spawnExplosion = (x: number, y: number, z: number, radius: number): void => {
-    const count = Math.min(12, Math.max(4, Math.ceil(radius * 1.5)));
-    const speed = Math.max(2, radius * 0.6);
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const elevation = Math.random() * Math.PI * 0.5;
-      const v = speed * (0.5 + Math.random() * 0.5);
-      const vx = Math.cos(angle) * Math.cos(elevation) * v;
-      const vy = Math.sin(elevation) * v + 2;
-      const vz = Math.sin(angle) * Math.cos(elevation) * v;
-      const scale = 0.3 + Math.random() * 0.5 * Math.min(radius * 0.15, 2);
-      // Mix fire and smoke particles.
-      const mat = i < count * 0.6 ? explosionMaterial : smokeMaterial;
-      const life = 0.3 + Math.random() * 0.5;
-      spawnParticle(x, y + 0.5, z, vx, vy, vz, mat, scale, life);
-    }
-  };
-
-  const spawnMuzzleFlash = (x: number, y: number, z: number): void => {
-    for (let i = 0; i < 3; i++) {
-      const vx = (Math.random() - 0.5) * 2;
-      const vy = Math.random() * 3;
-      const vz = (Math.random() - 0.5) * 2;
-      spawnParticle(x, y, z, vx, vy, vz, flashMaterial, 0.2 + Math.random() * 0.15, 0.1 + Math.random() * 0.1);
-    }
-  };
-
-  const spawnDestructionEffect = (x: number, y: number, z: number, radius: number): void => {
-    // Large explosion + debris.
-    spawnExplosion(x, y, z, radius);
-    const debrisCount = Math.min(8, Math.max(3, Math.ceil(radius * 0.5)));
-    for (let i = 0; i < debrisCount; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 3 + Math.random() * 5;
-      const vx = Math.cos(angle) * speed;
-      const vy = 5 + Math.random() * 8;
-      const vz = Math.sin(angle) * speed;
-      spawnParticle(x, y + 1, z, vx, vy, vz, debrisMaterial, 0.15 + Math.random() * 0.2, 0.8 + Math.random() * 0.5);
-    }
-  };
-
-  const updateParticles = (dt: number): void => {
-    for (let i = activeParticles.length - 1; i >= 0; i--) {
-      const p = activeParticles[i]!;
-      p.life -= dt;
-      if (p.life <= 0) {
-        scene.remove(p.mesh);
-        (p.mesh.material as THREE.MeshBasicMaterial).dispose();
-        activeParticles.splice(i, 1);
-        continue;
-      }
-      // Physics update.
-      p.vy -= 9.8 * dt; // Gravity.
-      p.mesh.position.x += p.vx * dt;
-      p.mesh.position.y += p.vy * dt;
-      p.mesh.position.z += p.vz * dt;
-      // Fade out and shrink.
-      const lifeRatio = p.life / p.maxLife;
-      (p.mesh.material as THREE.MeshBasicMaterial).opacity = lifeRatio;
-      p.mesh.scale.setScalar(p.startScale * (0.3 + 0.7 * lifeRatio));
-      // Floor clamp.
-      if (p.mesh.position.y < 0) {
-        p.mesh.position.y = 0;
-        p.vy = 0;
-        p.vx *= 0.8;
-        p.vz *= 0.8;
-      }
-    }
-  };
-
-  // ========================================================================
-  // Rubble and smoke columns (persistent destruction effects)
-  // ========================================================================
-
-  interface RubblePiece {
-    mesh: THREE.Mesh;
-    spawnTime: number;
-    duration: number;
-  }
-
-  interface SmokeColumn {
-    x: number;
-    y: number;
-    z: number;
-    spawnTime: number;
-    duration: number;
-  }
-
-  const rubblePieces: RubblePiece[] = [];
-  const smokeColumns: SmokeColumn[] = [];
-  const RUBBLE_DURATION = 30; // seconds
-  const SMOKE_DURATION = 15;
-  const rubbleGeometry = new THREE.BoxGeometry(1, 0.3, 1);
-  const rubbleMaterials = [
-    new THREE.MeshBasicMaterial({ color: 0x3a3a3a }),
-    new THREE.MeshBasicMaterial({ color: 0x4a4030 }),
-    new THREE.MeshBasicMaterial({ color: 0x555045 }),
-  ];
-
-  const spawnRubble = (x: number, z: number, radius: number): void => {
-    const count = Math.min(6, Math.max(2, Math.ceil(radius * 0.5)));
-    const now = performance.now() / 1000;
-    for (let i = 0; i < count; i++) {
-      const dx = (Math.random() - 0.5) * radius * 1.5;
-      const dz = (Math.random() - 0.5) * radius * 1.5;
-      const mat = rubbleMaterials[i % rubbleMaterials.length]!.clone();
-      const mesh = new THREE.Mesh(rubbleGeometry, mat);
-      const terrainY = heightmap.getInterpolatedHeight(x + dx, z + dz);
-      mesh.position.set(x + dx, terrainY + 0.15, z + dz);
-      mesh.rotation.y = Math.random() * Math.PI * 2;
-      mesh.scale.set(0.5 + Math.random(), 0.3, 0.5 + Math.random());
-      mesh.renderOrder = 100;
-      scene.add(mesh);
-      rubblePieces.push({ mesh, spawnTime: now, duration: RUBBLE_DURATION });
-    }
-  };
-
-  const spawnSmokeColumn = (x: number, y: number, z: number): void => {
-    smokeColumns.push({
-      x, y, z,
-      spawnTime: performance.now() / 1000,
-      duration: SMOKE_DURATION,
-    });
-  };
-
-  const updateRubbleAndSmoke = (dt: number): void => {
-    const now = performance.now() / 1000;
-
-    // Fade and remove old rubble.
-    for (let i = rubblePieces.length - 1; i >= 0; i--) {
-      const r = rubblePieces[i]!;
-      const age = now - r.spawnTime;
-      if (age > r.duration) {
-        scene.remove(r.mesh);
-        (r.mesh.material as THREE.MeshBasicMaterial).dispose();
-        rubblePieces.splice(i, 1);
-        continue;
-      }
-      // Fade in last 5 seconds.
-      if (age > r.duration - 5) {
-        const fadeRatio = (r.duration - age) / 5;
-        (r.mesh.material as THREE.MeshBasicMaterial).opacity = fadeRatio;
-        (r.mesh.material as THREE.MeshBasicMaterial).transparent = true;
-      }
-    }
-
-    // Emit smoke particles from active smoke columns.
-    for (let i = smokeColumns.length - 1; i >= 0; i--) {
-      const col = smokeColumns[i]!;
-      const age = now - col.spawnTime;
-      if (age > col.duration) {
-        smokeColumns.splice(i, 1);
-        continue;
-      }
-      // Emit rising smoke particles periodically (every ~0.2s worth of dt accumulated).
-      if (Math.random() < dt * 5) {
-        const fadeRatio = 1 - age / col.duration;
-        spawnParticle(
-          col.x + (Math.random() - 0.5) * 1.5,
-          col.y + 2 + Math.random() * 2,
-          col.z + (Math.random() - 0.5) * 1.5,
-          (Math.random() - 0.5) * 0.5,
-          2 + Math.random() * 3,
-          (Math.random() - 0.5) * 0.5,
-          smokeMaterial,
-          0.4 + Math.random() * 0.3,
-          1.5 + Math.random() * fadeRatio,
-        );
-      }
-    }
-  };
+  const gameLODManager = new GameLODManager(iniRegistry);
+  gameLODManager.init();
+  const particleSystemManager = new ParticleSystemManager(scene, gameLODManager);
+  particleSystemManager.loadFromRegistry(iniRegistry);
+  particleSystemManager.init();
+  const fxListManager = new FXListManager(particleSystemManager);
+  fxListManager.loadFromRegistry(iniRegistry);
+  fxListManager.setCallbacks({
+    onSound: (name, position) => {
+      audioManager.addAudioEvent(name, [position.x, position.y, position.z]);
+    },
+  });
+  fxListManager.init();
 
   const processVisualEvents = (): void => {
     const events = gameLogic.drainVisualEvents();
     for (const event of events) {
-      const pos: readonly [number, number, number] = [event.x, event.y, event.z];
+      const pos = new THREE.Vector3(event.x, event.y, event.z);
       const plannedActions = planCombatVisualEffects(event);
+      // Try to route each visual action through an FXList
+      let fxHandled = false;
       for (const action of plannedActions) {
-        switch (action.type) {
-          case 'spawnExplosion':
-            spawnExplosion(event.x, event.y, event.z, action.radius);
-            break;
-          case 'spawnMuzzleFlash':
-            spawnMuzzleFlash(event.x, event.y, event.z);
-            break;
-          case 'spawnDestruction':
-            spawnDestructionEffect(event.x, event.y, event.z, action.radius);
-            break;
-          case 'spawnRubble':
-            spawnRubble(event.x, event.z, action.radius);
-            break;
-          case 'spawnSmokeColumn':
-            spawnSmokeColumn(event.x, event.y, event.z);
-            break;
-          case 'playAudio':
-            audioManager.addAudioEvent(action.eventName, pos);
-            break;
+        if (action.type === 'playAudio') {
+          audioManager.addAudioEvent(action.eventName, [event.x, event.y, event.z]);
+          continue;
+        }
+        if (!fxHandled) {
+          const fxName = resolveFallbackFXListName(event.type, action.type);
+          if (fxName && fxListManager.hasFXList(fxName)) {
+            fxListManager.triggerFXList(fxName, pos);
+            fxHandled = true;
+          }
         }
       }
     }
   };
+
+  function resolveFallbackFXListName(eventType: string, actionType: string): string | null {
+    // Map event/action types to well-known FXList names from retail INI
+    if (actionType === 'spawnExplosion') return 'FX_GenericExplosion';
+    if (actionType === 'spawnMuzzleFlash') return 'FX_MuzzleFlash';
+    if (actionType === 'spawnDestruction') return 'FX_GenericDestruction';
+    return null;
+  }
 
   // ========================================================================
   // Projectile visuals
@@ -2499,12 +2350,21 @@ async function startGame(
         }
       }
 
-      // Escape — cancel pending control bar target or clear selection.
+      // F9 — toggle diplomacy overlay.
+      if (inputState.keysPressed.has('f9') && !gameEnded) {
+        diplomacyScreen.toggle();
+      }
+
+      // Escape — close overlays, cancel pending command, or open options.
       if (!missionInputLocked && inputState.keysPressed.has('escape')) {
-        if (uiRuntime.getPendingControlBarCommand()) {
+        if (diplomacyScreen.isVisible) {
+          diplomacyScreen.hide();
+        } else if (ingameOptionsScreen.isVisible) {
+          ingameOptionsScreen.hide();
+        } else if (uiRuntime.getPendingControlBarCommand()) {
           uiRuntime.cancelPendingControlBarCommand();
-        } else {
-          gameLogic.submitCommand({ type: 'clearSelection' });
+        } else if (!gameEnded) {
+          ingameOptionsScreen.show();
         }
       }
 
@@ -2538,8 +2398,8 @@ async function startGame(
 
       // Process visual events (explosions, muzzle flashes, etc.) and update particles.
       processVisualEvents();
-      updateParticles(dt);
-      updateRubbleAndSmoke(dt);
+      gameLODManager.update(dt);
+      particleSystemManager.update(dt);
 
       // Update fog of war overlay at reduced frequency.
       fogUpdateCounter++;
@@ -2797,18 +2657,19 @@ async function startGame(
         const endState = gameLogic.getGameEndState();
         if (endState) {
           gameEnded = true;
-          const titleEl = document.getElementById('endgame-title')!;
-          const subtitleEl = document.getElementById('endgame-subtitle')!;
-          if (endState.status === 'VICTORY') {
-            titleEl.textContent = 'Victory';
-            titleEl.style.color = '#c9a84c';
-            subtitleEl.textContent = 'All enemy forces have been eliminated.';
-          } else {
-            titleEl.textContent = 'Defeat';
-            titleEl.style.color = '#cc3333';
-            subtitleEl.textContent = 'Your forces have been destroyed.';
-          }
-          endGameOverlay.style.display = 'flex';
+          const localSide = gameLogic.getPlayerSide(0);
+          const allSides = gameLogic.getActiveSideNames();
+          const sideScores: SideScoreDisplay[] = allSides.map(side => {
+            const score = gameLogic.getSideScoreState(side);
+            return {
+              side,
+              faction: sideToFactionLabel(side),
+              isVictor: endState.victorSides.includes(side),
+              isLocal: side === localSide,
+              ...score,
+            };
+          });
+          postgameScreen.show(endState.status as 'VICTORY' | 'DEFEAT', sideScores);
           if (uiRuntime.getPendingControlBarCommand()) {
             uiRuntime.cancelPendingControlBarCommand();
           }
@@ -2949,10 +2810,29 @@ async function init(): Promise<void> {
   await hideLoadingScreen();
 
   const gameContainer = document.getElementById('game-container') as HTMLDivElement;
+
+  // Load persisted option preferences for the Options screen
+  let browserStorage: Storage | null = null;
+  try { browserStorage = window.localStorage; } catch { browserStorage = null; }
+  const shellPrefs = loadOptionPreferencesFromStorage(browserStorage);
+  const optionsState = loadOptionsState(shellPrefs);
+
+  // Options screen — shared between main menu and in-game ESC
+  const optionsScreen = new OptionsScreen(gameContainer, {
+    onApply: (state: OptionsState) => {
+      applyOptionsState(state, ctx.audioManager, ctx.rtsCamera);
+      saveOptionsToStorage(state, browserStorage);
+    },
+    onClose: () => { /* no-op, screen hides itself */ },
+  }, optionsState);
+
   const shell = new GameShell(gameContainer, {
     onStartGame: async (settings: SkirmishSettings) => {
       shell.hide();
       await startGame(ctx, settings.mapPath, settings);
+    },
+    onOpenOptions: () => {
+      optionsScreen.show();
     },
   });
 

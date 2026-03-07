@@ -12,7 +12,7 @@
 
 // ──── Types ─────────────────────────────────────────────────────────────────
 
-export type ShellScreen = 'main-menu' | 'skirmish-setup';
+export type ShellScreen = 'main-menu' | 'skirmish-setup' | 'options';
 
 export interface SkirmishSettings {
   /** Map asset path (null = procedural demo terrain). */
@@ -37,6 +37,8 @@ export interface MapInfo {
 export interface GameShellCallbacks {
   /** Called when user clicks "Start Game" from skirmish setup. */
   onStartGame(settings: SkirmishSettings): void;
+  /** Called when user opens the Options screen from the main menu. */
+  onOpenOptions?(): void;
 }
 
 // ──── Faction data ──────────────────────────────────────────────────────────
@@ -385,7 +387,7 @@ export class GameShell {
       <button class="menu-button" data-action="skirmish">Skirmish</button>
       <button class="menu-button disabled" data-action="multiplayer">Multiplayer</button>
       <button class="menu-button disabled" data-action="replay">Replay</button>
-      <button class="menu-button disabled" data-action="options">Options</button>
+      <button class="menu-button" data-action="options">Options</button>
       <div class="menu-version">Browser Port v0.1</div>
     `;
 
@@ -395,6 +397,8 @@ export class GameShell {
       const action = target.dataset.action;
       if (action === 'skirmish') {
         this.showScreen('skirmish-setup');
+      } else if (action === 'options') {
+        this.callbacks.onOpenOptions?.();
       }
     });
 

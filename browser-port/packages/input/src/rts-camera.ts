@@ -84,6 +84,11 @@ export class RTSCamera implements Subsystem {
     this.heightQuery = fn;
   }
 
+  /** Update the keyboard/edge scroll speed in world units per second. */
+  setScrollSpeed(speed: number): void {
+    (this.config as CameraConfig).scrollSpeed = speed;
+  }
+
   /**
    * Set map bounds for camera clamping.
    */

@@ -33857,7 +33857,7 @@ describe('onStructureConstructionComplete parity hooks', () => {
     );
     logic.setSideCredits('America', 5000);
 
-    expect(logic.getSideScoreState('America')).toEqual({ structuresBuilt: 0, moneySpent: 0 });
+    expect(logic.getSideScoreState('America')).toMatchObject({ structuresBuilt: 0, moneySpent: 0 });
     expect(logic.getScriptObjectTopologyVersion()).toBe(0);
 
     logic.submitCommand({
@@ -33874,9 +33874,54 @@ describe('onStructureConstructionComplete parity hooks', () => {
       logic.update(1 / 30);
     }
 
-    expect(logic.getSideScoreState('America')).toEqual({ structuresBuilt: 1, moneySpent: 500 });
+    expect(logic.getSideScoreState('America')).toMatchObject({ structuresBuilt: 1, moneySpent: 500 });
     expect(logic.getScriptObjectTopologyVersion()).toBe(2);
     expect(logic.getScriptObjectCountChangedFrame()).toBeGreaterThan(0);
+  });
+
+  it('returns expanded score state with all zero fields for fresh side', () => {
+    const bundle = makeBundle({
+      objects: [makeObjectDef('Dozer', 'America', ['DOZER'], [
+        makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+      ])],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Dozer', 100, 100)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    const score = logic.getSideScoreState('America');
+    expect(score).toEqual({
+      structuresBuilt: 0,
+      structuresLost: 0,
+      structuresDestroyed: 0,
+      unitsBuilt: 0,
+      unitsLost: 0,
+      unitsDestroyed: 0,
+      moneySpent: 0,
+      moneyEarned: 0,
+    });
+  });
+
+  it('tracks getActiveSideNames from playerSideByIndex', () => {
+    const bundle = makeBundle({
+      objects: [makeObjectDef('Tank', 'America', ['VEHICLE'], [
+        makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+      ])],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Tank', 100, 100)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.setPlayerSide(0, 'America');
+    logic.setPlayerSide(1, 'GLA');
+    const sides = logic.getActiveSideNames();
+    expect(sides).toContain('america');
+    expect(sides).toContain('gla');
+    expect(sides.length).toBe(2);
   });
 
   it('notifies skirmish AI on produced structure completion', () => {
@@ -37377,21 +37422,21 @@ describe('Script condition groundwork', () => {
     const structure = privateApi.spawnedEntities.get(1);
     expect(structure).toBeDefined();
 
-    expect(logic.getSideScoreState('America')).toEqual({ structuresBuilt: 0, moneySpent: 0 });
+    expect(logic.getSideScoreState('America')).toMatchObject({ structuresBuilt: 0, moneySpent: 0 });
 
     expect(logic.executeScriptAction({
       actionType: 314, // DISABLE_SCORING (raw id)
     })).toBe(true);
     expect(logic.isScriptScoringEnabled()).toBe(false);
     privateApi.onStructureConstructionComplete(null, structure, false);
-    expect(logic.getSideScoreState('America')).toEqual({ structuresBuilt: 0, moneySpent: 0 });
+    expect(logic.getSideScoreState('America')).toMatchObject({ structuresBuilt: 0, moneySpent: 0 });
 
     expect(logic.executeScriptAction({
       actionType: 518, // ENABLE_SCORING (offset id)
     })).toBe(true);
     expect(logic.isScriptScoringEnabled()).toBe(true);
     privateApi.onStructureConstructionComplete(null, structure, false);
-    expect(logic.getSideScoreState('America')).toEqual({ structuresBuilt: 1, moneySpent: 600 });
+    expect(logic.getSideScoreState('America')).toMatchObject({ structuresBuilt: 1, moneySpent: 600 });
 
     expect(logic.executeScriptAction({
       actionType: 311, // PLAYER_EXCLUDE_FROM_SCORE_SCREEN (raw id)
@@ -37399,7 +37444,7 @@ describe('Script condition groundwork', () => {
     })).toBe(true);
     expect(logic.isSideExcludedFromScoreScreen('America')).toBe(true);
     privateApi.onStructureConstructionComplete(null, structure, false);
-    expect(logic.getSideScoreState('America')).toEqual({ structuresBuilt: 1, moneySpent: 600 });
+    expect(logic.getSideScoreState('America')).toMatchObject({ structuresBuilt: 1, moneySpent: 600 });
 
     expect(logic.executeScriptAction({
       actionType: 516, // PLAYER_EXCLUDE_FROM_SCORE_SCREEN (offset id)

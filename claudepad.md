@@ -1,5 +1,24 @@
 # Session Summaries
 
+## 2026-03-07T17:00Z — Options, Diplomacy, Post-Game Stats UI Screens
+- **Options Screen** (`options-screen.ts`): Audio (music/SFX/voice volume sliders) + Game (scroll speed slider)
+  - Persists to localStorage as `Options.ini` key=value format (source parity: OptionPreferences)
+  - Accessible from main menu (Options button now enabled) and in-game (ESC key)
+  - Wired into AudioManager.setMusicVolume/setSfxVolume and RTSCamera.setScrollSpeed
+- **Diplomacy Screen** (`diplomacy-screen.ts`): In-game player status overlay
+  - Shows all sides: faction, player type (Human/AI), status (Active/Defeated)
+  - Toggled via F9 key, color-coded per faction (USA blue, China red, GLA green)
+  - Queries gameLogic.getActiveSideNames/isSideDefeated/getSidePlayerType
+- **Post-Game Stats Screen** (`postgame-stats-screen.ts`): Replaces simple endgame overlay
+  - Per-side stats table: Units Built/Lost/Killed, Bldgs Built/Lost/Killed, Income
+  - Victory/Defeat result display with "Return to Menu" and "Play Again" buttons
+- **Expanded SideScoreState** in game-logic: Added unitsBuilt/Lost/Destroyed, structuresLost/Destroyed, moneyEarned
+  - Score hooks added to spawnProducedUnit (unitsBuilt), markEntityDestroyed (lost/destroyed), addSideCredits (moneyEarned)
+  - getActiveSideNames() added for side enumeration
+- **RTSCamera.setScrollSpeed()** added to input package
+- **Tests**: 6 new options-screen tests, 2 new game-logic score state tests, all 2,248 passing
+- **Production build**: Verified (1,969KB gzip 483KB)
+
 ## 2026-03-07T14:30Z — All Remaining Asset Converters (7 New Types)
 - **Implemented 7 new asset converters** covering ~3,700 previously unconverted files:
   1. **CSF converter**: Binary localization parser (bitwise-NOT UCS-2), 2 files → 6,364 entries each
