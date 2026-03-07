@@ -30,7 +30,8 @@ export class XferLoad extends Xfer {
   }
 
   beginBlock(): number {
-    const size = this.readUint32();
+    // Source parity: C++ typedef Int XferBlockSize — signed 32-bit
+    const size = this.readInt32();
     return size;
   }
 
@@ -76,10 +77,10 @@ export class XferLoad extends Xfer {
   }
 
   xferAsciiString(_value: string): string {
-    // Source parity: u16 length prefix + raw bytes
-    this.assertRemaining(2);
-    const length = this.view.getUint16(this.offset, true);
-    this.offset += 2;
+    // Source parity: XferLoad.cpp:201 — UnsignedByte (u8) length prefix + raw bytes.
+    this.assertRemaining(1);
+    const length = this.view.getUint8(this.offset);
+    this.offset += 1;
     this.assertRemaining(length);
     let result = '';
     for (let i = 0; i < length; i++) {

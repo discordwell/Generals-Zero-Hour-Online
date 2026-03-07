@@ -221,10 +221,13 @@ export class SaveLoadMenu {
       const dateStr = date.toLocaleString();
       const sizeKb = (save.sizeBytes / 1024).toFixed(1);
 
-      row.innerHTML = `
-        <div style="font-weight: bold;">${save.slotId}</div>
-        <div style="color: #8890b0; font-size: 12px;">${save.description} | ${dateStr} | ${sizeKb} KB</div>
-      `;
+      const titleDiv = document.createElement('div');
+      titleDiv.style.fontWeight = 'bold';
+      titleDiv.textContent = save.slotId;
+      const detailDiv = document.createElement('div');
+      detailDiv.style.cssText = 'color: #8890b0; font-size: 12px;';
+      detailDiv.textContent = `${save.description} | ${dateStr} | ${sizeKb} KB`;
+      row.append(titleDiv, detailDiv);
       row.dataset.slotId = save.slotId;
 
       this.slotList.appendChild(row);

@@ -38,7 +38,7 @@ export class XferSave extends Xfer {
 
   beginBlock(): number {
     this.blockOffsetStack.push(this.offset);
-    this.writeUint32(0); // placeholder for block size
+    this.writeInt32(0); // placeholder for block size (C++ typedef Int XferBlockSize)
     return 0;
   }
 
@@ -49,7 +49,7 @@ export class XferSave extends Xfer {
     }
     // Patch the placeholder with actual data size (excludes the 4-byte size field itself)
     const blockDataSize = this.offset - startOffset - 4;
-    this.view.setUint32(startOffset, blockDataSize, true);
+    this.view.setInt32(startOffset, blockDataSize, true);
   }
 
   skip(_dataSize: number): void {
@@ -93,11 +93,12 @@ export class XferSave extends Xfer {
   }
 
   xferAsciiString(value: string): string {
-    // Source parity: u16 length prefix + raw bytes
-    const length = value.length;
-    this.ensureCapacity(2 + length);
-    this.view.setUint16(this.offset, length, true);
-    this.offset += 2;
+    // Source parity: XferSave.cpp:305 — UnsignedByte (u8) length prefix + raw bytes.
+    // C++ caps at 255 chars per string.
+    const length = Math.min(value.length, 255);
+    this.ensureCapacity(1 + length);
+    this.view.setUint8(this.offset, length);
+    this.offset += 1;
     for (let i = 0; i < length; i++) {
       this.view.setUint8(this.offset + i, value.charCodeAt(i) & 0xff);
     }

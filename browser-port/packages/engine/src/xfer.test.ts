@@ -329,14 +329,20 @@ describe('Xfer framework', () => {
       expect(xferCrc.getCrc()).toBe(direct.getCrc());
     });
 
-    it('produces same CRC as direct XferCrcAccumulator for strings', () => {
+    it('CRC for strings matches raw bytes without length prefix (C++ XferCRC parity)', () => {
+      // Source parity: C++ XferCRC does NOT override xferAsciiString.
+      // The base Xfer::xferAsciiString calls xferImplementation(raw_bytes, len)
+      // with NO length prefix. This differs from XferCrcAccumulator.addAsciiString()
+      // which IS used for deterministic netcode CRC and DOES include a u16 prefix.
       const xferCrc = new XferCrc();
       xferCrc.open('test');
       xferCrc.xferAsciiString('Hello');
       xferCrc.close();
 
+      // Build expected CRC by feeding raw ASCII bytes directly
       const direct = new XferCrcAccumulator();
-      direct.addAsciiString('Hello');
+      const rawBytes = new Uint8Array([72, 101, 108, 108, 111]); // "Hello"
+      direct.xferBytes(rawBytes);
 
       expect(xferCrc.getCrc()).toBe(direct.getCrc());
     });

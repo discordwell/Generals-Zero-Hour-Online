@@ -95,8 +95,13 @@ export class SaveStorage {
 
   async saveToDB(slotId: string, data: ArrayBuffer, metadata: Omit<SaveMetadata, 'slotId'>): Promise<void> {
     const db = await this.getDb();
-    await txPut(db, STORE_FILES, slotId, data);
-    await txPut(db, STORE_METADATA, slotId, { slotId, ...metadata });
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction([STORE_FILES, STORE_METADATA], 'readwrite');
+      tx.objectStore(STORE_FILES).put(data, slotId);
+      tx.objectStore(STORE_METADATA).put({ slotId, ...metadata }, slotId);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
   }
 
   async loadFromDB(slotId: string): Promise<{ data: ArrayBuffer; metadata: SaveMetadata } | null> {
@@ -120,8 +125,13 @@ export class SaveStorage {
 
   async deleteSave(slotId: string): Promise<void> {
     const db = await this.getDb();
-    await txDelete(db, STORE_FILES, slotId);
-    await txDelete(db, STORE_METADATA, slotId);
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction([STORE_FILES, STORE_METADATA], 'readwrite');
+      tx.objectStore(STORE_FILES).delete(slotId);
+      tx.objectStore(STORE_METADATA).delete(slotId);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
   }
 
   /**

@@ -76,7 +76,16 @@ export class XferCrc extends Xfer {
   }
 
   xferAsciiString(value: string): string {
-    this.accumulator.addAsciiString(value);
+    // Source parity: C++ XferCRC does NOT override xferAsciiString.
+    // The base Xfer::xferAsciiString calls xferImplementation(raw_bytes, len)
+    // with NO length prefix — only the raw string bytes are CRC'd.
+    if (value.length > 0) {
+      const asciiBytes = new Uint8Array(value.length);
+      for (let i = 0; i < value.length; i++) {
+        asciiBytes[i] = value.charCodeAt(i) & 0xff;
+      }
+      this.accumulator.xferBytes(asciiBytes);
+    }
     return value;
   }
 

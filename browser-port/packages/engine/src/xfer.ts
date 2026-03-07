@@ -94,8 +94,9 @@ export abstract class Xfer {
     return this.xferUnsignedInt(value);
   }
 
-  xferMarkerLabel(label: string): void {
-    this.xferAsciiString(label);
+  xferMarkerLabel(_label: string): void {
+    // Source parity: Xfer::xferMarkerLabel is a complete no-op in C++ (Xfer.cpp:200-202).
+    // Markers exist only for debugging readability; they produce no bytes in the stream.
   }
 
   /**
@@ -116,7 +117,7 @@ export abstract class Xfer {
   }
 
   xferNumberList(values: number[]): number[] {
-    let length = this.xferUnsignedInt(values.length);
+    const length = this.xferUnsignedInt(values.length);
     if (this.mode === XferMode.XFER_LOAD) {
       const result: number[] = [];
       for (let i = 0; i < length; i++) {
@@ -131,7 +132,7 @@ export abstract class Xfer {
   }
 
   xferIntList(values: number[]): number[] {
-    let length = this.xferUnsignedInt(values.length);
+    const length = this.xferUnsignedInt(values.length);
     if (this.mode === XferMode.XFER_LOAD) {
       const result: number[] = [];
       for (let i = 0; i < length; i++) {
@@ -146,7 +147,7 @@ export abstract class Xfer {
   }
 
   xferObjectIDList(values: number[]): number[] {
-    let length = this.xferUnsignedInt(values.length);
+    const length = this.xferUnsignedInt(values.length);
     if (this.mode === XferMode.XFER_LOAD) {
       const result: number[] = [];
       for (let i = 0; i < length; i++) {
@@ -161,7 +162,7 @@ export abstract class Xfer {
   }
 
   xferStringList(values: string[]): string[] {
-    let length = this.xferUnsignedInt(values.length);
+    const length = this.xferUnsignedInt(values.length);
     if (this.mode === XferMode.XFER_LOAD) {
       const result: string[] = [];
       for (let i = 0; i < length; i++) {
