@@ -32192,7 +32192,7 @@ export class GameLogicSubsystem implements Subsystem {
             centerOfMassOffset: readNumericField(block.fields, ['CenterOfMassOffset']) ?? 0,
             killWhenRestingOnGround: readBooleanField(block.fields, ['KillWhenRestingOnGround']) ?? false,
             allowBouncing: readBooleanField(block.fields, ['AllowBouncing']) ?? false,
-            allowCollideForce: readBooleanField(block.fields, ['AllowCollideForce']) ?? false,
+            allowCollideForce: readBooleanField(block.fields, ['AllowCollideForce']) ?? true,
             pitchRollYawFactor: readNumericField(block.fields, ['PitchRollYawFactor']) ?? 2.0,
           };
         }
@@ -32224,7 +32224,7 @@ export class GameLogicSubsystem implements Subsystem {
             maxToppleDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['MaxToppleDelay']) ?? 1000),
             minToppleBurstDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['MinToppleBurstDelay']) ?? 100),
             maxToppleBurstDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['MaxToppleBurstDelay']) ?? 500),
-            structuralIntegrity: readNumericField(block.fields, ['StructuralIntegrity']) ?? 0,
+            structuralIntegrity: readNumericField(block.fields, ['StructuralIntegrity']) ?? 0.1,
             structuralDecay: readNumericField(block.fields, ['StructuralDecay']) ?? 0,
             crushingWeaponName: readStringField(block.fields, ['CrushingWeaponName']) ?? '',
           };
@@ -56248,7 +56248,7 @@ export class GameLogicSubsystem implements Subsystem {
    * C++ file: PhysicsUpdate.cpp.
    */
   private updatePhysicsBehavior(): void {
-    const GRAVITY = -0.4; // Source parity: TheGlobalData->m_gravity default
+    const GRAVITY = -1.0; // Source parity: TheGlobalData->m_gravity default (GlobalData.cpp line 834)
     const GROUND_STIFFNESS = 0.5; // Source parity: TheGlobalData->m_groundStiffness default
     const VEL_THRESH = 0.001;
     const REST_THRESH = 0.01;
@@ -56287,6 +56287,10 @@ export class GameLogicSubsystem implements Subsystem {
           st.accelX += -(ff * st.velX);
           st.accelZ += -(ff * st.velZ);
         }
+        // Source parity: ZFriction applied to vertical velocity on ground.
+        if (st.velY !== 0) {
+          st.accelY += -(prof.mass * prof.zFriction * st.velY);
+        }
       } else {
         // Aerodynamic friction — proportional to velocity.
         const aero = -prof.aerodynamicFriction;
@@ -56315,22 +56319,20 @@ export class GameLogicSubsystem implements Subsystem {
       const groundY = this.resolveGroundHeight(entity.x, entity.z);
 
       if (prof.allowBouncing && entity.y <= groundY && oldY > groundY && st.velY < 0) {
-        // Bounce force: stiffness * |downward velocity|.
+        // Source parity: handleBounce() — reflect velocity, apply stiffness damping.
         const stiffness = Math.max(0.01, Math.min(0.99, GROUND_STIFFNESS + st.extraBounciness));
-        const bounceAccelY = Math.abs(st.velY) * stiffness;
-        st.accelX = 0;
-        st.accelY = prof.mass * bounceAccelY;
-        st.accelZ = 0;
+        // Reverse and damp vertical velocity (direct velocity modification, not via accel).
+        st.velY = Math.abs(st.velY) * stiffness;
+        // Damp horizontal velocity on bounce.
+        st.velX *= (1 - prof.forwardFriction);
+        st.velZ *= (1 - prof.forwardFriction);
         // Damp pitch/roll/yaw rates on bounce.
         st.yawRate *= 0.7;
         st.pitchRate *= 0.7;
         st.rollRate *= 0.7;
-      }
-
-      if (entity.y <= groundY) {
-        const excess = groundY - entity.y;
-        st.velY += excess;
-        if (st.velY > 0) st.velY = 0;
+        entity.y = groundY;
+      } else if (entity.y <= groundY) {
+        st.velY = 0;
         entity.y = groundY;
         st.allowToFall = false;
       } else if (st.stickToGround && !st.allowToFall) {
@@ -56501,8 +56503,14 @@ export class GameLogicSubsystem implements Subsystem {
 
       // Handle timeout transitions.
       if (st.timeoutFrame > 0 && this.frameCounter > st.timeoutFrame) {
+        const prevState = st.doorState;
         st.doorState = st.timeoutState;
         st.timeoutFrame = 0;
+        // Source parity: chain CLOSING → CLOSED with door close duration timeout.
+        if (st.doorState === 'CLOSING' && prevState === 'WAITING_TO_CLOSE') {
+          st.timeoutFrame = this.frameCounter + prof.doorClosingTimeFrames;
+          st.timeoutState = 'CLOSED';
+        }
       }
 
       // Force door open if power is ready but door isn't open.
