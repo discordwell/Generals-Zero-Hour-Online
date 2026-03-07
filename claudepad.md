@@ -1,5 +1,29 @@
 # Session Summaries
 
+## 2026-03-06T20:10Z — INI Parser Hybrid End Matching (4 Missing Objects Recovered)
+- **Hybrid End matching**: Object/ChildObject/ObjectReskin use C++ nesting-based End (pure depth counting); all other block types retain indent-based matching
+  - `nestingEnd` flag propagated through parseBlock recursion
+  - DEFINITE_BLOCK_TYPES bypass only active in nesting-end context (prevents "Sound" being misread as block inside AudioEvent)
+  - Safety break: encountering `Object Foo` (not `Object = Foo`) inside nesting-end block closes current block (recovers from consumed End tokens)
+- **Expanded type sets**: SUB_BLOCK_TYPES ~80+ entries (OCL/FXList/Weapon/UI/SkirmishAI sub-blocks), DEFINITE_BLOCK_TYPES ~50+ entries
+- **Standalone keyword block detection**: single-token lines with deeper-indented content parsed as blocks (e.g. Prerequisites, Turret)
+- **Results**: Object/ dir 1863 objects (+4), 0 errors (was 145). Full scan 10727 blocks, 3385 errors (was 3580). All 4 previously missing objects found (Dam, GreekHouse1, AncientSoldierStatue02, CINE_ShiekLimo)
+- All 2,072 tests pass (+2 new), committed 6d13dce4, pushed
+- ini-bundle not regenerated (needs --game-dir) — 4 new objects will appear on next full conversion
+
+## 2026-03-06T18:45Z — Git LFS Asset Commit + INI Parser Bug Fixes
+- **Git LFS setup**: .gitattributes tracking .rgba/.glb/map .json/ini-bundle/manifest via LFS
+  - 8,397 runtime assets committed (1.3 GB): textures (887M), models (149M), maps (203M), ini-bundle (22M), manifest (3.6M)
+  - .gitignore updated: `/assets/` (raw retail), intermediate `_extracted/` dirs ignored; runtime assets allowed through
+  - Push blocked by GitHub fork LFS restriction — refs pushed with `GIT_LFS_SKIP_PUSH=1`, blobs stay local
+- **INI parser fixes** — 3 bugs causing silent object drops:
+  1. `hasNestedSubBlockBody`: VeterancyLevels (SUB_BLOCK_TYPE) used as inline field misidentified as empty sub-block, consuming parent's End
+  2. Case-sensitive End check: retail files use both `End` and `END`
+  3. Indent-based End matching too strict for retail files with inconsistent indentation (e.g. indent 1 vs 2)
+  - Results: Objects 1993→2106 (+113), CommandSets 412→471 (+59), missing refs 79→2
+  - Remaining 2 are retail data typos (`CommandSet = = GLADemoTrapCommandSet`)
+- All 2,070 tests pass, committed c4a6a6f0, pushed
+
 ## 2026-02-21T14:10Z — HelicopterSlowDeath + CleanupHazard + AssistedTargeting
 - HelicopterSlowDeathBehavior: spiral orbit, self-spin oscillation, gravity descent, ground hit detection, final explosion
   - Fixed: `entity.heading` → `entity.rotationY`, `executeOCLByName` → `executeOCL`, profile index tracking in state
