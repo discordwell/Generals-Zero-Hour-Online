@@ -401,7 +401,7 @@ const SUB_BLOCK_TYPES = new Set([
   'VeterancyLevels', 'TransitionState', 'CrowdResponse',
   'ConditionState', 'AliasConditionState', 'DefaultConditionState',
   'ModelConditionState', 'DefaultModelConditionState',
-  'AnimationState', 'IdleAnimationState', 'TrackMarks',
+  'AnimationState', 'IdleAnimationState',
   'FireWeaponNugget', 'DamageNugget', 'MetaImpactNugget',
   'DOTNugget', 'WeaponOCLNugget', 'AttributeModifierNugget',
   'ParalyzeNugget', 'SpawnAndFadeNugget', 'FireLogicNugget',
@@ -480,9 +480,9 @@ const DEFINITE_BLOCK_TYPES = new Set([
   'ParalyzeNugget', 'SpawnAndFadeNugget', 'FireLogicNugget',
   'ObjectStatusOfContained', 'InheritableModule',
   'OverridableByLikeKind', 'OverrideableByLikeKind',
-  'Prerequisites', 'Prerequisite', 'Turret', 'AltTurret',
+  'Prerequisites', 'Prerequisite',
   'UnitSpecificFX', 'TargetingReticleDecal', 'AttackAreaDecal',
-  'GridDecalTemplate', 'DeliveryDecal', 'TrackMarks',
+  'GridDecalTemplate', 'DeliveryDecal',
   // ObjectCreationList / FXList sub-blocks
   'CreateObject', 'CreateDebris', 'DeliverPayload', 'FireWeapon',
   'FXListAtBonePos', 'Sound', 'ViewShake', 'LightPulse',
@@ -508,8 +508,6 @@ const DEFINITE_BLOCK_TYPES = new Set([
   'RadarRadiusCursor', 'ScudStormRadiusCursor',
   'SpectreGunshipRadiusCursor', 'SpyDroneRadiusCursor',
   'SpySatelliteRadiusCursor', 'SuperweaponScatterAreaRadiusCursor',
-  // SkirmishAI sub-blocks
-  'Attack',
 ]);
 
 const AMBIGUOUS_INLINE_SUB_BLOCK_TYPES = new Set([
