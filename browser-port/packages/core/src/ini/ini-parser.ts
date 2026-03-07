@@ -111,14 +111,17 @@ export function parseIni(source: string, options: IniParseOptions = {}): IniPars
 
     // Top-level block declarations
     if (isBlockStart(blockType)) {
+      // Object blocks use nesting-based End matching (all sub-block types registered).
+      // Other blocks use indent-based End matching (may have unregistered sub-types).
+      const useNestingEnd = NESTING_END_BLOCK_TYPES.has(blockType);
       // Singleton blocks (GameData, etc.) — no name required
       if (tokens.length === 1 && SINGLETON_BLOCK_TYPES.has(blockType)) {
-        const result = parseBlock(lines, cursor, errors);
+        const result = parseBlock(lines, cursor, errors, useNestingEnd);
         result.block.name = '';
         blocks.push(result.block);
         cursor = result.nextCursor;
       } else if (tokens.length >= 2) {
-        const result = parseBlock(lines, cursor, errors);
+        const result = parseBlock(lines, cursor, errors, useNestingEnd);
         blocks.push(result.block);
         cursor = result.nextCursor;
       } else {
@@ -236,6 +239,7 @@ function parseBlock(
   lines: TokenizedLine[],
   startCursor: number,
   errors: IniParseError[],
+  nestingEnd = false,
 ): { block: IniBlock; nextCursor: number } {
   const headerLine = lines[startCursor]!;
   const tokens = headerLine.tokens;
@@ -264,8 +268,7 @@ function parseBlock(
     fields: {},
     blocks: [],
   };
-  const blockIndent = lineIndentWidth(headerLine.raw);
-
+  const blockIndent = nestingEnd ? -1 : lineIndentWidth(headerLine.raw);
   let cursor = startCursor + 1;
 
   while (cursor < lines.length) {
@@ -280,9 +283,15 @@ function parseBlock(
     const firstToken = lineTokens[0]!;
 
     // End of block (case-insensitive — C++ parser accepts END, End, end).
-    // Use indent-based matching with tolerance for retail INI files that
-    // have inconsistent indentation (e.g. WeaponSet at indent 1, End at indent 2).
     if (firstToken.toUpperCase() === 'END') {
+      if (nestingEnd) {
+        // C++ nesting-based: all sub-block types are registered, so the first
+        // unmatched End always belongs to the current block.
+        cursor++;
+        break;
+      }
+      // Indent-based matching with tolerance for retail INI files that
+      // have inconsistent indentation (e.g. WeaponSet at indent 1, End at indent 2).
       const endIndent = lineIndentWidth(line.raw);
       if (endIndent <= blockIndent + 1) {
         cursor++;
@@ -295,7 +304,7 @@ function parseBlock(
 
     // AddModule / ReplaceModule — treated as sub-blocks with special type prefix
     if ((firstToken === 'AddModule' || firstToken === 'ReplaceModule') && lineTokens.length >= 2) {
-      const result = parseBlock(lines, cursor, errors);
+      const result = parseBlock(lines, cursor, errors, nestingEnd);
       result.block.type = firstToken;
       result.block.name = lineTokens.slice(1).join(' ');
       block.blocks.push(result.block);
@@ -316,8 +325,12 @@ function parseBlock(
     }
 
     // Sub-block (e.g., "Body = ActiveBody ModuleTag_02")
-    if (isSubBlockDeclaration(lineTokens) && hasNestedSubBlockBody(lines, cursor)) {
-      const result = parseBlock(lines, cursor, errors);
+    // In nesting-end context (Object blocks), definite block types bypass indent check
+    // (C++ parity — parsed by nesting depth, not indentation).
+    // Outside Object blocks, all sub-block types use hasNestedSubBlockBody heuristic
+    // since a keyword like "Sound" may be a block inside Object but a field inside AudioEvent.
+    if (isSubBlockDeclaration(lineTokens) && ((nestingEnd && DEFINITE_BLOCK_TYPES.has(lineTokens[0]!)) || hasNestedSubBlockBody(lines, cursor))) {
+      const result = parseBlock(lines, cursor, errors, nestingEnd);
       // For sub-blocks declared as "Key = Type Tag", use composite naming
       if (lineTokens.length >= 3 && lineTokens[1] === '=') {
         result.block.type = lineTokens[0]!;
@@ -326,6 +339,14 @@ function parseBlock(
       block.blocks.push(result.block);
       cursor = result.nextCursor;
       continue;
+    }
+
+    // Safety: in nesting-end mode, a block declaration (e.g. "Object Foo") that wasn't
+    // caught by sub-block detection means an End was consumed by an undetected
+    // sub-block. Close this block so subsequent blocks parse correctly.
+    // Exclude field assignments (e.g. "Object = AirF_AmericaAirfield" inside Prerequisites).
+    if (nestingEnd && NESTING_END_BLOCK_TYPES.has(firstToken) && lineTokens.length >= 2 && lineTokens[1] !== '=') {
+      break; // Don't consume this line — re-parse at the top level
     }
 
     // += additive field: "KindOf += VEHICLE"
@@ -351,8 +372,15 @@ function parseBlock(
       const key = lineTokens.slice(0, equalsIndex).join(' ');
       const valueParts = lineTokens.slice(equalsIndex + 1);
       block.fields[key] = parseFieldValue(valueParts);
+    } else if (lineTokens.length === 1 && hasNestedSubBlockBody(lines, cursor)) {
+      // Standalone keyword that opens a block (e.g. Prerequisites, Turret).
+      // Any single-token line followed by deeper-indented content is a block.
+      const result = parseBlock(lines, cursor, errors, nestingEnd);
+      block.blocks.push(result.block);
+      cursor = result.nextCursor;
+      continue;
     } else {
-      // Standalone keyword or flag (e.g., just "End" or flag names)
+      // Standalone keyword or flag
       block.fields[firstToken] = true;
     }
 
@@ -366,6 +394,7 @@ function parseBlock(
  * Determine if a line starts a sub-block.
  */
 const SUB_BLOCK_TYPES = new Set([
+  // Object sub-blocks
   'Body', 'Behavior', 'Draw', 'AI', 'Locomotor', 'LocomotorSet',
   'ArmorSet', 'WeaponSet', 'UnitSpecificSounds', 'ClientUpdate',
   'ClientBehavior', 'Flammability', 'ThreatBreakdown',
@@ -377,7 +406,38 @@ const SUB_BLOCK_TYPES = new Set([
   'DOTNugget', 'WeaponOCLNugget', 'AttributeModifierNugget',
   'ParalyzeNugget', 'SpawnAndFadeNugget', 'FireLogicNugget',
   'Prerequisite', 'ObjectStatusOfContained', 'InheritableModule',
-  'OverridableByLikeKind', 'ReplaceModule', 'AddModule',
+  'OverridableByLikeKind', 'OverrideableByLikeKind',
+  'ReplaceModule', 'AddModule',
+  'Prerequisites', 'Turret', 'AltTurret',
+  'UnitSpecificFX', 'TargetingReticleDecal', 'AttackAreaDecal',
+  'GridDecalTemplate', 'DeliveryDecal',
+  // ObjectCreationList / FXList sub-blocks
+  'CreateObject', 'CreateDebris', 'DeliverPayload', 'FireWeapon',
+  'FXListAtBonePos', 'Sound', 'ViewShake', 'LightPulse',
+  'TerrainScorch', 'ApplyRandomForce',
+  // Weapon sub-blocks
+  'Tracer',
+  // AudioEvent sub-blocks
+  'SideSounds',
+  // Window / UI sub-blocks
+  'Window', 'Blank', 'ImagePart',
+  // CommandButton sub-blocks (RadiusCursor decals)
+  'AmbulanceRadiusCursor', 'AmbushRadiusCursor',
+  'AnthraxBombRadiusCursor', 'ArtilleryRadiusCursor',
+  'AttackContinueAreaRadiusCursor', 'AttackDamageAreaRadiusCursor',
+  'AttackScatterAreaRadiusCursor', 'CarpetBombRadiusCursor',
+  'ClearMinesRadiusCursor', 'ClusterMinesRadiusCursor',
+  'DaisyCutterRadiusCursor', 'EMPPulseRadiusCursor',
+  'EmergencyRepairRadiusCursor', 'FrenzyRadiusCursor',
+  'FriendlySpecialPowerRadiusCursor', 'GuardAreaRadiusCursor',
+  'HelixNapalmBombRadiusCursor', 'NapalmStrikeRadiusCursor',
+  'NuclearMissileRadiusCursor', 'OffensiveSpecialPowerRadiusCursor',
+  'ParadropRadiusCursor', 'ParticleCannonRadiusCursor',
+  'RadarRadiusCursor', 'ScudStormRadiusCursor',
+  'SpectreGunshipRadiusCursor', 'SpyDroneRadiusCursor',
+  'SpySatelliteRadiusCursor', 'SuperweaponScatterAreaRadiusCursor',
+  // SkirmishAI sub-blocks
+  'Attack',
 ]);
 
 function isSubBlockDeclaration(tokens: string[]): boolean {
@@ -402,6 +462,55 @@ function lineIndentWidth(rawLine: string): number {
   }
   return width;
 }
+
+/**
+ * Sub-block types that ALWAYS open a block — never used as inline field values.
+ * These bypass hasNestedSubBlockBody (C++ parity: parsed by nesting, not indent).
+ */
+const DEFINITE_BLOCK_TYPES = new Set([
+  // Object sub-blocks (always blocks, never inline fields)
+  'Body', 'Behavior', 'Draw', 'AI', 'ClientUpdate', 'ClientBehavior',
+  'ArmorSet', 'WeaponSet', 'UnitSpecificSounds',
+  'Flammability', 'ThreatBreakdown', 'CrowdResponse',
+  'ConditionState', 'DefaultConditionState',
+  'ModelConditionState', 'DefaultModelConditionState',
+  'AnimationState', 'IdleAnimationState', 'TransitionState',
+  'FireWeaponNugget', 'DamageNugget', 'MetaImpactNugget',
+  'DOTNugget', 'WeaponOCLNugget', 'AttributeModifierNugget',
+  'ParalyzeNugget', 'SpawnAndFadeNugget', 'FireLogicNugget',
+  'ObjectStatusOfContained', 'InheritableModule',
+  'OverridableByLikeKind', 'OverrideableByLikeKind',
+  'Prerequisites', 'Prerequisite', 'Turret', 'AltTurret',
+  'UnitSpecificFX', 'TargetingReticleDecal', 'AttackAreaDecal',
+  'GridDecalTemplate', 'DeliveryDecal', 'TrackMarks',
+  // ObjectCreationList / FXList sub-blocks
+  'CreateObject', 'CreateDebris', 'DeliverPayload', 'FireWeapon',
+  'FXListAtBonePos', 'Sound', 'ViewShake', 'LightPulse',
+  'TerrainScorch', 'ApplyRandomForce',
+  // Weapon sub-blocks
+  'Tracer',
+  // AudioEvent sub-blocks
+  'SideSounds',
+  // Window / UI sub-blocks
+  'Blank', 'ImagePart',
+  // CommandButton sub-blocks
+  'AmbulanceRadiusCursor', 'AmbushRadiusCursor',
+  'AnthraxBombRadiusCursor', 'ArtilleryRadiusCursor',
+  'AttackContinueAreaRadiusCursor', 'AttackDamageAreaRadiusCursor',
+  'AttackScatterAreaRadiusCursor', 'CarpetBombRadiusCursor',
+  'ClearMinesRadiusCursor', 'ClusterMinesRadiusCursor',
+  'DaisyCutterRadiusCursor', 'EMPPulseRadiusCursor',
+  'EmergencyRepairRadiusCursor', 'FrenzyRadiusCursor',
+  'FriendlySpecialPowerRadiusCursor', 'GuardAreaRadiusCursor',
+  'HelixNapalmBombRadiusCursor', 'NapalmStrikeRadiusCursor',
+  'NuclearMissileRadiusCursor', 'OffensiveSpecialPowerRadiusCursor',
+  'ParadropRadiusCursor', 'ParticleCannonRadiusCursor',
+  'RadarRadiusCursor', 'ScudStormRadiusCursor',
+  'SpectreGunshipRadiusCursor', 'SpyDroneRadiusCursor',
+  'SpySatelliteRadiusCursor', 'SuperweaponScatterAreaRadiusCursor',
+  // SkirmishAI sub-blocks
+  'Attack',
+]);
 
 const AMBIGUOUS_INLINE_SUB_BLOCK_TYPES = new Set([
   'ConditionState',
@@ -436,6 +545,15 @@ function hasNestedSubBlockBody(lines: TokenizedLine[], startCursor: number): boo
   }
   return false;
 }
+
+/**
+ * Top-level block types where all sub-block types are registered in
+ * SUB_BLOCK_TYPES / DEFINITE_BLOCK_TYPES. These use C++ nesting-based
+ * End matching (pure depth counting) instead of indent-based matching.
+ */
+const NESTING_END_BLOCK_TYPES = new Set([
+  'Object', 'ChildObject', 'ObjectReskin',
+]);
 
 const TOP_LEVEL_BLOCK_TYPES = new Set([
   'Object', 'ChildObject', 'ObjectReskin', 'Weapon', 'Armor', 'DamageFX', 'Science',

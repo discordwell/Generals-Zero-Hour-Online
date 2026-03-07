@@ -480,15 +480,13 @@ End
       expect(object.blocks[1]!.name).toBe('DeletionUpdate ModuleTag_02');
     });
 
-    it('skips End tokens significantly deeper than block indent', () => {
-      // End tokens at indent > blockIndent+1 are treated as belonging to
-      // unrecognized nested structures and are skipped.
+    it('closes block on first unmatched End (C++ nesting parity)', () => {
+      // C++ parser matches End by nesting depth, not indentation.
+      // All real block types in retail INI files are registered, so unrecognized
+      // keywords are treated as fields and their End tokens close the parent block.
       const source = `
 Object TestBuilding
   Draw = W3DModelDraw ModuleTag_Draw
-    UnknownState = NIGHT
-      Model = TBld_A_N
-    End
     ConditionState = NONE
       Model = TBld_A
     End
@@ -502,7 +500,9 @@ End
       expect(result.blocks).toHaveLength(1);
       const object = result.blocks[0]!;
       expect(object.fields['CommandSet']).toBe('TestBuildingCommandSet');
-      expect(object.blocks[0]!.type).toBe('Draw');
+      const draw = object.blocks[0]!;
+      expect(draw.type).toBe('Draw');
+      expect(draw.blocks[0]!.type).toBe('ConditionState');
     });
 
     it('handles inconsistent indentation in sub-blocks', () => {
@@ -564,6 +564,57 @@ End
       expect(ejectDie!.fields['VeterancyLevels']).toEqual(['ALL', '-REGULAR']);
       // Geometry should be a field of TankA, not consumed by the behavior
       expect(result.blocks[0]!.fields['Geometry']).toBe('BOX');
+    });
+
+    it('recovers Object with deep-indent closing End via nesting-based matching', () => {
+      // Retail case (CivilianBuilding.ini): Object's closing End at indent 4
+      // instead of indent 0. Nesting-based End matching handles this correctly
+      // because all sub-blocks are detected and their End tokens consumed.
+      const source = `
+Object BuildingA
+  Draw = W3DModelDraw ModuleTag_01
+    ConditionState = NONE
+      Model = Bld_A
+    End
+  End
+  Geometry = BOX
+  Shadow = SHADOW_VOLUME
+    End
+
+Object BuildingB
+  Side = America
+End
+`;
+      const result = parseIni(source);
+      expect(result.errors).toHaveLength(0);
+      expect(result.blocks).toHaveLength(2);
+      expect(result.blocks[0]!.name).toBe('BuildingA');
+      expect(result.blocks[0]!.fields['Geometry']).toBe('BOX');
+      expect(result.blocks[1]!.name).toBe('BuildingB');
+    });
+
+    it('treats Object keyword as field inside sub-blocks (not safety break)', () => {
+      // Inside Prerequisites, "Object = Foo" is a field, not a block declaration.
+      const source = `
+Object TestUnit
+  Prerequisites
+    Object = TestBarracks
+  End
+  ArmorSet
+    Conditions = None
+    Armor = InfantryArmor
+  End
+  Geometry = BOX
+End
+`;
+      const result = parseIni(source);
+      expect(result.errors).toHaveLength(0);
+      expect(result.blocks).toHaveLength(1);
+      const obj = result.blocks[0]!;
+      const prereq = obj.blocks.find(b => b.type === 'Prerequisites');
+      expect(prereq).toBeDefined();
+      expect(prereq!.fields['Object']).toBe('TestBarracks');
+      expect(obj.fields['Geometry']).toBe('BOX');
     });
   });
 });
