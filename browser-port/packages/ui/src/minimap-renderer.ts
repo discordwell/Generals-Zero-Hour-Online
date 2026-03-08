@@ -171,12 +171,11 @@ export class MinimapRenderer {
    * Colours:
    *   own units   -> bright green (#00cc00)
    *   enemy units -> red (#cc3333)
-   *   ally units  -> yellow (#cccc00)
+   *
+   * TODO: Per-player radar colors and ally detection for full source parity
+   * (C++ Radar uses player->getPlayerColor() per dot).
    *
    * Buildings get slightly larger dots (5x5) vs. units (3x3).
-   *
-   * Source parity: C++ Radar iterates m_localObjectList and sets pixel color
-   * from the owning player's radar color.
    */
   renderUnits(entities: readonly MinimapEntity[], localSide: string): void {
     if (this.worldWidth <= 0 || this.worldDepth <= 0) return;
@@ -321,15 +320,16 @@ export class MinimapRenderer {
     // Blit pre-rendered terrain as the base layer.
     this.ctx.drawImage(this.terrainCanvas as CanvasImageSource, 0, 0);
 
-    // Apply fog-of-war overlay.
+    // Draw entity dots BEFORE fog so shrouded units are hidden.
+    // Source parity: C++ Radar only draws units in visible cells.
+    this.renderUnits(entities, localSide);
+
+    // Apply fog-of-war overlay (darkens both terrain and unit dots).
     if (fogData) {
       this.renderFogOverlay(fogData);
     }
 
-    // Draw entity dots.
-    this.renderUnits(entities, localSide);
-
-    // Draw camera viewport rectangle.
+    // Draw camera viewport rectangle (always visible, on top of fog).
     this.renderViewport(cameraBounds);
   }
 

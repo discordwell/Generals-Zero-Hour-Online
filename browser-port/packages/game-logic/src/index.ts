@@ -6744,8 +6744,10 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   getRenderableEntityStates(): RenderableEntityState[] {
+    // Cache local player side once per frame to avoid O(n²) from per-entity resolution.
+    const localSide = this.resolveLocalPlayerSide();
     const renderableStates = Array.from(this.spawnedEntities.values()).map((entity) =>
-      this.makeRenderableEntityState(entity),
+      this.makeRenderableEntityState(entity, localSide),
     );
     const pendingDyingStates = Array.from(this.pendingDyingRenderableStates.values())
       .map((pending) => pending.state);
@@ -6772,7 +6774,7 @@ export class GameLogicSubsystem implements Subsystem {
     return states;
   }
 
-  private makeRenderableEntityState(entity: MapEntity): RenderableEntityState {
+  private makeRenderableEntityState(entity: MapEntity, localSide?: string | null): RenderableEntityState {
     return {
       id: entity.id,
       templateName: entity.templateName,
@@ -6808,7 +6810,7 @@ export class GameLogicSubsystem implements Subsystem {
       turretAngles: entity.turretStates.map(ts => ts.currentAngle),
       statusEffects: this.resolveEntityStatusEffects(entity),
       selectionCircleRadius: entity.geometryMajorRadius > 0 ? entity.geometryMajorRadius : undefined,
-      isOwnedByLocalPlayer: entity.side ? this.normalizeSide(entity.side) === this.resolveLocalPlayerSide() : undefined,
+      isOwnedByLocalPlayer: entity.side ? this.normalizeSide(entity.side) === (localSide ?? this.resolveLocalPlayerSide()) : undefined,
     };
   }
 

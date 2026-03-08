@@ -608,5 +608,24 @@ describe('MinimapRenderer', () => {
       }
       expect(nonZero).toBeGreaterThan(0);
     });
+
+    it('shroud darkens unit dots (fog applied after units)', () => {
+      const hm = makeFlatHeightmap(10);
+      const entity = makeEntity({ id: 1, x: 250, z: 250, side: 'USA' });
+
+      // Render with clear fog — unit dot should be bright green.
+      renderer.renderTerrain(hm);
+      renderer.update(hm, [entity], null, defaultCamera(), 'USA');
+      const ctx = renderer.getContext();
+      const [, gClear] = getPixel(ctx, 50, 50, SIZE);
+
+      // Render with full shroud — unit dot should be darkened.
+      renderer.update(hm, [entity], makeShroudedFog(), defaultCamera(), 'USA');
+      const [, gShroud] = getPixel(ctx, 50, 50, SIZE);
+
+      expect(gShroud).toBeLessThan(gClear);
+      // Shroud multiplier is 0.15, so green ≈ 204 * 0.15 ≈ 31.
+      expect(gShroud).toBe(Math.round(204 * 0.15));
+    });
   });
 });

@@ -142,4 +142,9 @@ describe('ControlGroupManager', () => {
     expect(mgr.recallGroup(10)).toEqual([]);
     expect(mgr.recallGroup(1.5)).toEqual([]);
   });
+
+  it('clearGroup with invalid number does not throw', () => {
+    expect(() => mgr.clearGroup(-1)).not.toThrow();
+    expect(() => mgr.clearGroup(10)).not.toThrow();
+  });
 });
