@@ -389,8 +389,8 @@ export function findPath(
     neighborPassable.fill(0);
 
     for (let i = 0; i < 8; i++) {
-      const nx = currentX + DELTA_X[i];
-      const nz = currentZ + DELTA_Z[i];
+      const nx = currentX + DELTA_X[i]!;
+      const nz = currentZ + DELTA_Z[i]!;
 
       // Bounds check
       if (nx < 0 || nx >= width || nz < 0 || nz >= height) continue;
@@ -400,7 +400,9 @@ export function findPath(
       // Skip if already fully processed
       if (inClosed[neighborIndex] === 1) continue;
 
-      // Check diagonal corner-cutting: both adjacent orthogonals must be passable
+      // Diagonal corner-cutting restriction: both adjacent orthogonals must be passable.
+      // Note: C++ has this check inside #if 0 (compiled out). We keep it as an intentional
+      // improvement — prevents units from clipping through diagonal wall corners.
       if (i >= FIRST_DIAGONAL) {
         const adjIdx = i - FIRST_DIAGONAL;
         if (!neighborPassable[DIAGONAL_ADJ_A[adjIdx]!] && !neighborPassable[DIAGONAL_ADJ_B[adjIdx]!]) {

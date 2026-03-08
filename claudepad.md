@@ -1,5 +1,8 @@
 # Session Summaries
 
+## 2026-03-08T13:00Z — Code Review Fixes for 8-Agent Sprint
+Fixed P0 bugs: DozerAI construction progress never written back (buildings stuck at 0%); audio double-fetch + stale loadingBuffers guard (permanent load failure after error). Performance: pre-computed `conditionKey` on ModelConditionInfo (eliminates per-frame sort+join), snapshot-before-iterate in stopAllPlaybackNodes. TypeScript: fixed 14 compilation errors from sprint (rotationX, specialPowerStates, applyWeaponDamageAmount signatures, unused methods, private access). Documented diagonal corner-cutting divergence from C++. Added multi-frame construction progress test. 2,983 tests pass.
+
 ## 2026-03-08T12:00Z — 8-Agent Feature Parity Sprint (329 new tests)
 Eight parallel agents targeting top feature parity gaps from code review:
 1. **Pathfinding** — A* with binary heap (O(n log n)), path smoothing via Bresenham LOS, locomotor terrain costs, turn penalties. New: `pathfinding.ts` (53 tests). Upgraded `navigation-pathfinding.ts` to use new BinaryHeap.

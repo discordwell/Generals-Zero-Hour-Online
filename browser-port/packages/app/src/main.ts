@@ -1943,7 +1943,7 @@ async function startGame(
     }
   };
 
-  function resolveFallbackFXListName(eventType: string, actionType: string): string | null {
+  function resolveFallbackFXListName(_eventType: string, actionType: string): string | null {
     // Map event/action types to well-known FXList names from retail INI
     if (actionType === 'spawnExplosion') return 'FX_GenericExplosion';
     if (actionType === 'spawnMuzzleFlash') return 'FX_MuzzleFlash';
@@ -3287,7 +3287,7 @@ async function init(): Promise<void> {
 
   // Load Campaign.ini
   try {
-    const campaignIniHandle = await ctx.assets.loadRaw(
+    const campaignIniHandle = await ctx.assets.loadArrayBuffer(
       '_extracted/INIZH/Data/INI/Campaign.ini',
     );
     const campaignIniText = new TextDecoder().decode(campaignIniHandle.data);
@@ -3299,7 +3299,7 @@ async function init(): Promise<void> {
 
   // Load Video.ini and create VideoPlayer
   try {
-    const videoIniHandle = await ctx.assets.loadRaw(
+    const videoIniHandle = await ctx.assets.loadArrayBuffer(
       '_extracted/INIZH/Data/INI/Video.ini',
     );
     const videoIniText = new TextDecoder().decode(videoIniHandle.data);

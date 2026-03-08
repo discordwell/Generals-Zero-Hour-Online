@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { InputState } from '@generals/input';
-import type { ModelConditionInfo, TransitionInfo, IdleAnimationVariant } from './render-profile-helpers.js';
+import type { ModelConditionInfo, TransitionInfo } from './render-profile-helpers.js';
 
 export interface MapObjectPlacementSummary {
   totalObjects: number;

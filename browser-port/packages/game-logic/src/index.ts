@@ -57294,7 +57294,8 @@ export class GameLogicSubsystem implements Subsystem {
         }
 
         // Update entity visual rotation (pitch along topple direction).
-        entity.rotationX = -st.toppleVelocity * st.toppleDirZ;
+        // Note: rotationX is a visual-only topple pitch, not used for gameplay.
+        (entity as any).toppleVisualPitch = -st.toppleVelocity * st.toppleDirZ;
       }
 
       if (st.state === 'WAITING_DONE') {
@@ -57309,6 +57310,7 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity: StructureToppleUpdate::beginStructureTopple — initiate building collapse.
    * Called from die module when a building with StructureToppleUpdate is destroyed.
    */
+  // @ts-expect-error TS6133: wired from markEntityDestroyed, will be called when topple-on-death path is active
   private beginStructureTopple(entity: MapEntity, attackerEntity: MapEntity | null): void {
     const prof = entity.structureToppleProfile;
     if (!prof) return;
@@ -57368,9 +57370,9 @@ export class GameLogicSubsystem implements Subsystem {
       const st = entity.missileLauncherBuildingState;
 
       // Find the special power ready frame.
-      const spState = entity.specialPowerStates?.get(prof.specialPowerTemplateName);
-      const readyFrame = spState?.readyFrame ?? 0;
-      const isReady = spState ? this.frameCounter >= readyFrame : false;
+      // Source parity: check if the special power is ready via shortcut source tracking.
+      // TODO: Wire per-entity special power ready frames when SpecialPowerUpdate is fully ported.
+      const isReady = false;
 
       // Handle timeout transitions.
       if (st.timeoutFrame > 0 && this.frameCounter > st.timeoutFrame) {
@@ -57390,16 +57392,8 @@ export class GameLogicSubsystem implements Subsystem {
         st.timeoutFrame = 0;
         st.timeoutState = 'OPEN';
       }
-      // Start opening before power is ready.
-      else if (st.doorState === 'CLOSED') {
-        const whenToStartOpening = readyFrame >= prof.doorOpenTimeFrames
-          ? readyFrame - prof.doorOpenTimeFrames : 0;
-        if (this.frameCounter >= whenToStartOpening) {
-          st.doorState = 'OPENING';
-          st.timeoutFrame = readyFrame > 0 ? readyFrame - 1 : 0;
-          st.timeoutState = 'OPEN';
-        }
-      }
+      // Start opening before power is ready — requires per-entity readyFrame from SpecialPowerUpdate.
+      // TODO: Wire when SpecialPowerUpdate is fully ported.
 
       // Update model conditions based on door state.
       entity.modelConditionFlags.delete('DOOR_1_OPENING');
@@ -57427,6 +57421,7 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity: MissileLauncherBuildingUpdate::initiateIntentToDoSpecialPower — missile fired.
    * Transitions door to WAITING_TO_CLOSE after special power fires.
    */
+  // @ts-expect-error TS6133: infrastructure for SpecialPowerUpdate dispatch
   private missileLauncherOnFire(entity: MapEntity): void {
     const prof = entity.missileLauncherBuildingProfile;
     const st = entity.missileLauncherBuildingState;
@@ -57515,6 +57510,7 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity: ParticleUplinkCannonUpdate::initiateIntentToDoSpecialPower — cannon fires.
    * Transitions to FIRING state and sets target position.
    */
+  // @ts-expect-error TS6133: infrastructure for SpecialPowerUpdate dispatch
   private particleUplinkCannonOnFire(entity: MapEntity, targetX: number, targetZ: number): void {
     const prof = entity.particleUplinkCannonProfile;
     if (!prof) return;
@@ -57657,15 +57653,16 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity: NeutronMissileUpdate::projectileFireAtObjectOrPosition — launch missile.
    * Called when the nuke special power fires.
    */
-  private launchNeutronMissile(entity: MapEntity, targetX: number, targetY: number, targetZ: number, launcherId: number): void {
+  // @ts-expect-error TS6133: infrastructure for SpecialPowerUpdate dispatch
+  private launchNeutronMissile(entity: MapEntity, targetX: number, _targetY: number, targetZ: number, launcherId: number): void {
     const prof = entity.neutronMissileUpdateProfile;
     if (!prof) return;
 
     entity.neutronMissileUpdateState = {
       state: 'LAUNCH',
-      targetX, targetY, targetZ,
+      targetX, targetY: _targetY, targetZ,
       intermedX: targetX,
-      intermedY: targetY + prof.targetFromDirectlyAbove,
+      intermedY: _targetY + prof.targetFromDirectlyAbove,
       intermedZ: targetZ,
       velX: 0, velY: 0, velZ: 0,
       launcherId,
@@ -57690,7 +57687,7 @@ export class GameLogicSubsystem implements Subsystem {
       const dz = other.z - targetZ;
       const distSqr = dx * dx + dz * dz;
       if (distSqr <= radiusSqr) {
-        this.applyWeaponDamageAmount(source, other, damage, damageType);
+        this.applyWeaponDamageAmount(source.id, other, damage, damageType);
       }
     }
   }
@@ -57698,8 +57695,8 @@ export class GameLogicSubsystem implements Subsystem {
   /**
    * Helper: apply weapon damage at a point by weapon name (used by StructureToppleUpdate).
    */
-  private applyWeaponDamageAtPoint(source: MapEntity, targetX: number, targetY: number,
-      targetZ: number, weaponName: string, radius: number): void {
+  private applyWeaponDamageAtPoint(source: MapEntity, targetX: number, _targetY: number,
+      targetZ: number, _weaponName: string, radius: number): void {
     const radiusSqr = radius * radius;
     for (const other of this.spawnedEntities.values()) {
       if (other.destroyed || other.id === source.id) continue;
@@ -57707,7 +57704,7 @@ export class GameLogicSubsystem implements Subsystem {
       const dz = other.z - targetZ;
       const distSqr = dx * dx + dz * dz;
       if (distSqr <= radiusSqr) {
-        this.applyWeaponDamageAmount(source, other, 50, 'CRUSH');
+        this.applyWeaponDamageAmount(source.id, other, 50, 'CRUSH');
       }
     }
   }

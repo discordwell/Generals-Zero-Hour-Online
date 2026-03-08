@@ -95,6 +95,7 @@ function makeDozerContext(overrides: Partial<DozerAIContext> = {}): DozerAIConte
     findAutoMineTarget: vi.fn().mockReturnValue(null),
     issueRepairCommand: vi.fn(),
     issueAttackCommand: vi.fn(),
+    setConstructionPercent: vi.fn(),
     completeConstruction: vi.fn(),
     attemptHealingFromSoleBenefactor: vi.fn().mockReturnValue(true),
     onRepairComplete: vi.fn(),
@@ -305,6 +306,35 @@ describe('DozerAIUpdate', () => {
 
       expect(context.completeConstruction).toHaveBeenCalledWith(10);
       expect(state.currentTask).toBe(DozerTask.INVALID);
+    });
+
+    it('writes back construction progress incrementally across frames', () => {
+      const entity = makeEntity();
+      const state = createDozerAIState(0);
+      state.currentTask = DozerTask.BUILD;
+      state.targetBuildingId = 10;
+      let currentPercent = 0;
+      const context = makeDozerContext({
+        getBuildingInfo: vi.fn().mockImplementation(() => makeBuildingInfo({
+          constructionPercent: currentPercent, buildTotalFrames: 10,
+        })),
+        setConstructionPercent: vi.fn().mockImplementation((_id: number, pct: number) => {
+          currentPercent = pct;
+        }),
+      });
+
+      // Run 5 frames: should advance to 50%
+      for (let i = 0; i < 5; i++) {
+        updateDozerConstruction(entity, state, context);
+      }
+      expect(currentPercent).toBeCloseTo(50.0);
+      expect(context.completeConstruction).not.toHaveBeenCalled();
+
+      // Run 5 more frames: should complete at 100%
+      for (let i = 0; i < 5; i++) {
+        updateDozerConstruction(entity, state, context);
+      }
+      expect(context.completeConstruction).toHaveBeenCalledWith(10);
     });
 
     it('cancels task when building info is null', () => {

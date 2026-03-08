@@ -184,6 +184,7 @@ describe('collectModelConditionInfos', () => {
     expect(infos).toHaveLength(1);
     expect(infos[0]).toEqual({
       conditionFlags: ['MOVING', 'DAMAGED'],
+      conditionKey: 'DAMAGED|MOVING',
       modelName: 'DamagedModel',
       animationName: 'MoveDamagedAnim',
       idleAnimationName: 'IdleDamagedAnim',

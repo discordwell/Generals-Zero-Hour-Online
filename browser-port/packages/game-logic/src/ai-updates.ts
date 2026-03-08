@@ -114,6 +114,9 @@ export interface DozerAIContext {
   /** Issue an attack command for mine clearing. */
   issueAttackCommand(dozerId: number, targetId: number): void;
 
+  /** Set the construction progress percentage of a building. */
+  setConstructionPercent(buildingId: number, percent: number): void;
+
   /** Complete construction of a building. */
   completeConstruction(buildingId: number): void;
 
@@ -195,9 +198,12 @@ export function updateDozerConstruction(
   const newPercent = building.constructionPercent + percentPerFrame;
 
   if (newPercent >= 100.0) {
+    context.setConstructionPercent(building.id, 100.0);
     context.completeConstruction(building.id);
     state.currentTask = DozerTask.INVALID;
     state.targetBuildingId = null;
+  } else {
+    context.setConstructionPercent(building.id, newPercent);
   }
 }
 

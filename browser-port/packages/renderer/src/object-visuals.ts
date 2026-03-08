@@ -34,6 +34,8 @@ export interface TransitionInfo {
 
 export interface ModelConditionInfo {
   conditionFlags: string[];
+  /** Pre-computed sorted key for O(1) comparison. Set at creation time by INI parser. */
+  conditionKey?: string;
   modelName: string | null;
   animationName: string | null;
   idleAnimationName: string | null;
@@ -44,6 +46,11 @@ export interface ModelConditionInfo {
   animSpeedFactorMin: number;
   animSpeedFactorMax: number;
   idleAnimations: IdleAnimationVariant[];
+}
+
+/** Compute a stable condition key from a flags array. */
+export function computeConditionKey(flags: readonly string[]): string {
+  return flags.slice().sort().join('|');
 }
 
 export interface RenderableEntityState {
@@ -1503,7 +1510,7 @@ export class ObjectVisualManager {
       return;
     }
 
-    const conditionKey = match.conditionFlags.slice().sort().join('|');
+    const conditionKey = match.conditionKey ?? computeConditionKey(match.conditionFlags);
 
     // --- Check if a transition animation is currently playing ---
     if (visual.isInTransition) {
@@ -1516,7 +1523,7 @@ export class ObjectVisualManager {
         visual.transitionFromKey = null;
         visual.transitionTargetConditionKey = null;
         if (targetMatch) {
-          this.applyConditionState(visual, state, targetMatch, targetMatch.conditionFlags.slice().sort().join('|'));
+          this.applyConditionState(visual, state, targetMatch, targetMatch.conditionKey ?? computeConditionKey(targetMatch.conditionFlags));
         }
       }
       // While in transition, don't process further condition changes
@@ -1753,8 +1760,7 @@ export class ObjectVisualManager {
    */
   private findMatchByKey(infos: readonly ModelConditionInfo[], key: string): ModelConditionInfo | null {
     for (const info of infos) {
-      const infoKey = info.conditionFlags.slice().sort().join('|');
-      if (infoKey === key) {
+      if ((info.conditionKey ?? computeConditionKey(info.conditionFlags)) === key) {
         return info;
       }
     }

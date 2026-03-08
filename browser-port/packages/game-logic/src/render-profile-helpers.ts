@@ -17,6 +17,8 @@ export interface IdleAnimationVariant {
 
 export interface ModelConditionInfo {
   conditionFlags: string[];
+  /** Pre-computed sorted key for O(1) comparison in hot paths. */
+  conditionKey?: string;
   modelName: string | null;
   animationName: string | null;
   idleAnimationName: string | null;
@@ -251,6 +253,7 @@ function parseModelConditionStateBlock(block: IniBlock): ModelConditionInfo {
 
   return {
     conditionFlags,
+    conditionKey: conditionFlags.slice().sort().join('|'),
     modelName: modelName ?? null,
     animationName: animationName ?? null,
     idleAnimationName: idleAnimationName ?? null,

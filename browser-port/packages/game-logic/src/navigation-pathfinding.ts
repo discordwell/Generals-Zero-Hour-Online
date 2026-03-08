@@ -593,7 +593,6 @@ export function findPath<TEntity extends NavigationEntityLike>(
         continue;
       }
       const neighborIndex = neighborZ * grid.width + neighborX;
-      const alreadyOnList = openHeap.contains(neighborIndex) || inClosed[neighborIndex] === 1;
       const notZonePassable = ((movementProfile.acceptableSurfaces & LOCOMOTORSURFACE_GROUND) !== 0)
         && !isZonePassable(neighborX, neighborZ, grid);
 

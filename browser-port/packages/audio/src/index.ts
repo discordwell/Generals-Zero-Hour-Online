@@ -2124,11 +2124,9 @@ export class AudioManager implements Subsystem {
       const filenameToLoad = selectedFilename ?? resolved.info.filename ?? eventName;
       if (this.audioBufferLoader && !this.loadingBuffers.has(filenameToLoad)) {
         this.loadingBuffers.add(filenameToLoad);
-        void this.loadAndCacheBuffer(ctx, filenameToLoad, filenameToLoad);
-        // Also cache under event name if different, so future lookups succeed.
-        if (filenameToLoad !== eventName) {
-          void this.loadAndCacheBuffer(ctx, eventName, filenameToLoad);
-        }
+        // Single fetch: cache under both filename and event name to avoid double requests.
+        const aliasKeys = filenameToLoad !== eventName ? [eventName] : [];
+        void this.loadAndCacheBuffer(ctx, filenameToLoad, filenameToLoad, aliasKeys);
       }
       return;
     }
@@ -2141,8 +2139,9 @@ export class AudioManager implements Subsystem {
    */
   private async loadAndCacheBuffer(
     ctx: BrowserAudioContext,
-    eventName: string,
+    cacheKey: string,
     filename: string,
+    aliasKeys: string[] = [],
   ): Promise<void> {
     try {
       const data = await this.audioBufferLoader!(filename);
@@ -2150,9 +2149,12 @@ export class AudioManager implements Subsystem {
         return;
       }
       const audioBuffer = await ctx.decodeAudioData(data);
-      this.audioBufferCache.set(eventName, audioBuffer);
+      this.audioBufferCache.set(cacheKey, audioBuffer);
+      for (const alias of aliasKeys) {
+        this.audioBufferCache.set(alias, audioBuffer);
+      }
     } finally {
-      this.loadingBuffers.delete(eventName);
+      this.loadingBuffers.delete(cacheKey);
     }
   }
 
@@ -2289,7 +2291,8 @@ export class AudioManager implements Subsystem {
    * Stop all active playback nodes.
    */
   private stopAllPlaybackNodes(): void {
-    for (const [handle] of this.playbackNodes) {
+    const handles = [...this.playbackNodes.keys()];
+    for (const handle of handles) {
       this.stopPlaybackNode(handle);
     }
   }
