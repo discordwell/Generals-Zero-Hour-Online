@@ -118,11 +118,17 @@ export class TracerRenderer {
     });
   }
 
+  private lastUpdateTime = 0;
+
   /**
    * Update all active tracers — move forward, fade, and remove expired.
    */
   update(): void {
     const now = performance.now();
+    const dtSec = this.lastUpdateTime > 0
+      ? Math.min((now - this.lastUpdateTime) / 1000, 0.05)
+      : 0.016;
+    this.lastUpdateTime = now;
     let writeIdx = 0;
 
     for (let i = 0; i < this.activeTracers.length; i++) {
@@ -135,9 +141,7 @@ export class TracerRenderer {
         continue;
       }
 
-      // Move forward along direction.
-      // dt approximation: use elapsed delta between frames (16ms default).
-      const dtSec = 0.016; // Tracers are fast enough that per-frame approx is fine.
+      // Move forward along direction using actual frame delta.
       const moveStep = entry.speed * dtSec;
       entry.mesh.position.x += entry.direction.x * moveStep;
       entry.mesh.position.y += entry.direction.y * moveStep;

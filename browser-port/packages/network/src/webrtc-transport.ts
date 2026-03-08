@@ -63,7 +63,7 @@ export class WebRTCTransport {
   private outgoingBytes = 0;
   private incomingPackets = 0;
   private outgoingPackets = 0;
-  private lastMetricsReset = 0;
+  private lastMetricsReset = performance.now();
   private cachedIncomingBps = 0;
   private cachedOutgoingBps = 0;
   private cachedIncomingPps = 0;
@@ -89,7 +89,7 @@ export class WebRTCTransport {
 
   sendLocalCommandDirect(command: unknown, relayMask: number): void {
     const json = JSON.stringify(command);
-    const bytes = json.length * 2; // Approximate byte count for UTF-16.
+    const bytes = json.length; // Approximate byte count (UTF-8, mostly ASCII).
 
     for (const [peerId, peer] of this.peers) {
       if ((relayMask & (1 << peerId)) !== 0 && peer.channel?.readyState === 'open') {
@@ -204,29 +204,37 @@ export class WebRTCTransport {
   private async handleSignalingMessage(msg: SignalingMessage): Promise<void> {
     if (msg.to !== undefined && msg.to !== this.localPlayerId) return;
 
-    switch (msg.type) {
-      case 'join':
-        // New peer joined — create offer if we have higher ID (prevents both offering).
-        if (msg.from !== this.localPlayerId && msg.from > this.localPlayerId) {
-          await this.createPeerConnection(msg.from, true);
-        }
-        break;
+    try {
+      switch (msg.type) {
+        case 'join':
+          // Convention: lower ID creates the offer to prevent both sides offering.
+          if (msg.from !== this.localPlayerId && this.localPlayerId < msg.from) {
+            await this.createPeerConnection(msg.from, true);
+          }
+          break;
 
-      case 'offer':
-        await this.handleOffer(msg.from, msg.payload as RTCSessionDescriptionInit);
-        break;
+        case 'offer':
+          await this.handleOffer(msg.from, msg.payload as RTCSessionDescriptionInit);
+          break;
 
-      case 'answer':
-        await this.handleAnswer(msg.from, msg.payload as RTCSessionDescriptionInit);
-        break;
+        case 'answer':
+          await this.handleAnswer(msg.from, msg.payload as RTCSessionDescriptionInit);
+          break;
 
-      case 'ice-candidate':
-        await this.handleIceCandidate(msg.from, msg.payload as RTCIceCandidateInit);
-        break;
+        case 'ice-candidate':
+          await this.handleIceCandidate(msg.from, msg.payload as RTCIceCandidateInit);
+          break;
 
-      case 'leave':
-        this.removePeer(msg.from);
-        break;
+        case 'leave':
+          this.removePeer(msg.from);
+          break;
+      }
+    } catch (err) {
+      console.error(`WebRTC signaling error for ${msg.type} from ${msg.from}:`, err);
+      const peer = this.peers.get(msg.from);
+      if (peer) {
+        this.setPeerState(peer, 'failed');
+      }
     }
   }
 
@@ -352,7 +360,7 @@ export class WebRTCTransport {
     channel.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data as string);
-        const bytes = (event.data as string).length * 2;
+        const bytes = (event.data as string).length;
         this.incomingBytes += bytes;
         this.incomingPackets++;
         this.config.onMessage?.(message);

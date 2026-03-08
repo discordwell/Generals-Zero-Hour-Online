@@ -79,13 +79,34 @@ The largest package (~2.2MB). Maps directly to C++ source:
 - AI: skirmish personality, build orders, attack coordination
 - Special powers, upgrades, fog of war, script engine
 
+### Rendering Pipeline (packages/renderer/)
+Three.js-based rendering with source parity to W3D engine:
+- **ObjectVisualManager**: Model loading, animation, turret bone rotation, health bars, stealth
+- **ParticleSystemManager**: InstancedMesh particle pool, emission volumes, keyframe animation
+- **FXListManager**: Event-driven FX orchestration (particles, sounds, scorches, view shake)
+- **LaserBeamRenderer**: Dual-cylinder additive blended beams with fade
+- **TracerRenderer**: Moving box geometry for bullet tracers
+- **DebrisRenderer**: Procedural chunks with gravity, bounce, spin physics
+- **DynamicLightManager**: Short-lived point lights for explosions and muzzle flashes
+- **TerrainRoadRenderer**: Tessellated quad strips following terrain heightmap
+- **DecalManager**: Terrain-projected decals (selection, radius, scorch marks)
+- **LODManager**: Multi-scene GLB LOD switching
+
+### Network & Multiplayer (packages/network/)
+- **NetworkManager**: Lockstep deterministic sync, frame ACK/resend, CRC validation
+- **WebRTCTransport**: Peer-to-peer DataChannel with WebSocket signaling, ICE/STUN NAT traversal
+- **LobbyManager**: Pre-game lobby protocol (join/leave, faction/team, ready, chat, settings)
+
+### Replay System (packages/engine/)
+- **ReplayManager**: Frame-indexed command recording/playback with serialize/deserialize, speed control (0.25x-8x)
+
 ## Build & Test
 
 ```bash
 cd browser-port
 npm install
 tsc --build              # Type check
-npx vitest run           # Unit tests (2072 tests)
+npx vitest run           # Unit tests (2461 tests)
 vite build packages/app  # Production build
 npx playwright test      # E2E tests
 ```

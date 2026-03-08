@@ -156,10 +156,8 @@ describe('LobbyManager', () => {
   });
 
   it('non-host cannot update settings', () => {
-    const clientLobby = new LobbyManager(1, 'Client', {});
-    // Remove host flag from client.
-    const player = clientLobby.getPlayers()[0]!;
-    player.isHost = false;
+    const clientLobby = new LobbyManager(1, 'Client', {}, undefined, false);
+    expect(clientLobby.isHost()).toBe(false);
     clientLobby.updateSettings({ mapPath: 'test' });
     expect(clientLobby.getSettings().mapPath).toBe('');
   });

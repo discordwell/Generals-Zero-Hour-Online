@@ -2911,6 +2911,11 @@ async function startGame(
     gameLoop.stop();
     subsystems.disposeAll();
     objectVisualManager.dispose();
+    laserBeamRenderer.dispose();
+    dynamicLightManager.dispose();
+    tracerRenderer.dispose();
+    debrisRenderer.dispose();
+    terrainRoadRenderer.dispose();
     cursorManager.dispose();
     delete (globalThis as Record<string, unknown>)['__GENERALS_E2E__'];
   };

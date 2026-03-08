@@ -141,6 +141,7 @@ export class LobbyManager {
     localPlayerName: string,
     callbacks: LobbyCallbacks = {},
     initialSettings?: Partial<LobbySettings>,
+    isHost = true,
   ) {
     this.localPlayerId = localPlayerId;
     this.localPlayerName = localPlayerName;
@@ -151,7 +152,7 @@ export class LobbyManager {
       superweapons: initialSettings?.superweapons ?? true,
     };
 
-    // Add self as host.
+    // Add self.
     this.addPlayer({
       id: localPlayerId,
       name: localPlayerName,
@@ -159,7 +160,7 @@ export class LobbyManager {
       team: 0,
       color: COLOR_OPTIONS[localPlayerId % COLOR_OPTIONS.length]!,
       ready: false,
-      isHost: true,
+      isHost,
       isLocal: true,
     });
   }
@@ -288,14 +289,14 @@ export class LobbyManager {
 
   getState(): LobbyState {
     return {
-      players: [...this.players.values()],
+      players: [...this.players.values()].map((p) => ({ ...p })),
       settings: { ...this.settings },
       chatHistory: [...this.chatHistory],
     };
   }
 
   getPlayers(): LobbyPlayer[] {
-    return [...this.players.values()];
+    return [...this.players.values()].map((p) => ({ ...p }));
   }
 
   getPlayerCount(): number {

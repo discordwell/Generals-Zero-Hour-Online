@@ -240,7 +240,8 @@ export class ReplayManager {
   }
 
   /**
-   * Seek to a specific frame (can only seek forward in deterministic replay).
+   * Seek to a specific frame. Note: seeking backward only moves the cursor —
+   * the caller must re-simulate from frame 0 for correct deterministic state.
    */
   seekToFrame(frame: number): void {
     if (!this.loadedReplay) return;
