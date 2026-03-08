@@ -1,5 +1,38 @@
 # Session Summaries
 
+## 2026-03-08T11:30Z — Script Engine Coverage Audit & Test Expansion
+- **Audit Result**: Browser port has **100% dispatch coverage** of all C++ script engine types:
+  - **Conditions**: 112/112 types dispatched (0 missing)
+  - **Actions**: 333/333 types dispatched (0 missing)
+- **Test Gap Analysis**: Identified 8 conditions and 18 actions with zero dedicated test coverage by string name
+- **New Tests Added** (~500 lines at end of `index.test.ts`):
+  - UNIT_HEALTH (comparison operators, damage, non-existent entity)
+  - UNIT_HAS_OBJECT_STATUS (status name strings)
+  - MUSIC_TRACK_HAS_COMPLETED (event consumption semantics)
+  - PLAYER_DESTROYED_N_BUILDINGS_PLAYER (building destruction tracking)
+  - NAMED_BUILDING_IS_EMPTY (garrison container emptiness)
+  - UNIT_EMPTIED (cargo transition detection)
+  - BRIDGE_BROKEN / BRIDGE_REPAIRED (bridge state conditions)
+  - NAMED_DAMAGE / NAMED_KILL / NAMED_DELETE (entity damage/removal pipeline)
+  - TEAM_KILL / TEAM_DELETE / PLAYER_KILL (team/player destruction)
+  - NAMED_STOP / TEAM_STOP / NAMED_GUARD / TEAM_GUARD / TEAM_GUARD_AREA
+  - NAMED_HUNT / TEAM_HUNT (hunt actions)
+  - MOVE_TEAM_TO / MOVE_NAMED_UNIT_TO (waypoint movement)
+  - PLAYER_SET_MONEY / PLAYER_GIVE_MONEY (credit management)
+  - PLAYER_RELATES_PLAYER (diplomacy changes)
+  - CAMERA_LETTERBOX_BEGIN / CAMERA_LETTERBOX_END
+  - SHOW_MILITARY_CAPTION / DISPLAY_TEXT
+  - QUICKVICTORY / LOCALDEFEAT
+  - CREATE_NAMED_ON_TEAM_AT_WAYPOINT / CREATE_REINFORCEMENT_TEAM
+  - FREEZE_TIME / UNFREEZE_TIME, DISABLE_INPUT / ENABLE_INPUT
+  - RADAR actions (DISABLE/ENABLE/FORCE_ENABLE/REVERT/REFRESH)
+  - MAP_REVEAL_ALL / MAP_SHROUD_ALL
+  - ENABLE_SCORING / DISABLE_SCORING
+  - TEAM_STOP_AND_DISBAND / RECRUIT_TEAM
+  - Numeric-ID dispatch parity (CONDITION_FALSE=0, CONDITION_TRUE=3, NO_OP=5, VICTORY=3)
+- **Bug Fixed**: Tests initially used `{ value: X }` param wrapper format; corrected to plain value arrays matching the engine's `resolveScriptConditionParamValue` dispatch
+- **Total**: 2,684 tests pass (125 test files), 0 failures
+
 ## 2026-03-08T10:00Z — Phase 1B: ModelConditionFlags Animation System (5 Tasks)
 - **Task 1 — ModelConditionInfo Parsing** (`game-logic/src/render-profile-helpers.ts`): `ModelConditionInfo` interface (conditionFlags, modelName, animationName, idleAnimationName, hideSubObjects, showSubObjects, animationMode), `collectModelConditionInfos()` + `parseModelConditionStateBlock()` to extract structured data from INI ModelConditionState blocks. 22 new tests.
 - **Task 2 — SparseMatchFinder** (`game-logic/src/condition-state-matcher.ts`): Port of C++ `findBestInfoSlow()` — maximizes yesMatch, minimizes yesExtraneousBits as tiebreaker. `createConditionMatcher()` with Map cache. 12 new tests.

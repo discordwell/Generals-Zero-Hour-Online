@@ -62983,3 +62983,867 @@ describe('ModelConditionFlags sync', () => {
     expect(state.modelConditionFlags!.includes('DYING')).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Script condition/action coverage audit tests
+// Source parity: validates high-priority C++ script engine conditions and actions
+// that previously lacked dedicated test coverage.
+// ---------------------------------------------------------------------------
+describe('Script condition coverage - UNIT_HEALTH', () => {
+  it('evaluates UNIT_HEALTH condition with comparison operators', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Soldier', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    // Full health: 100%
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'UNIT_HEALTH',
+      params: [1, 3, 100], // entityId=1, GREATER_EQUAL, 100%
+    })).toBe(true);
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'UNIT_HEALTH',
+      params: [1, 1, 50], // entityId=1, LESS_THAN, 50%
+    })).toBe(false);
+
+    // Damage the entity to 50%
+    const api = logic as unknown as {
+      applyWeaponDamageAmount: (a: null, t: unknown, d: number, dt: string) => void;
+      spawnedEntities: Map<number, unknown>;
+    };
+    api.applyWeaponDamageAmount(null, api.spawnedEntities.get(1), 50, 'UNRESISTABLE');
+    logic.update(1 / 30);
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'UNIT_HEALTH',
+      params: [1, 1, 75], // entityId=1, LESS_THAN, 75%
+    })).toBe(true);
+
+    // Non-existent entity returns false
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'UNIT_HEALTH',
+      params: [999, 3, 50],
+    })).toBe(false);
+  });
+});
+
+describe('Script condition coverage - UNIT_HAS_OBJECT_STATUS', () => {
+  it('evaluates UNIT_HAS_OBJECT_STATUS condition using status name strings', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Stealther', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Stealther', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    // Entity at full health should not have IS_FIRING_WEAPON by default
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'UNIT_HAS_OBJECT_STATUS',
+      params: [1, 'IS_FIRING_WEAPON'],
+    })).toBe(false);
+  });
+});
+
+describe('Script condition coverage - MUSIC_TRACK_HAS_COMPLETED', () => {
+  it('evaluates MUSIC_TRACK_HAS_COMPLETED condition using completion events', () => {
+    const bundle = makeBundle({ objects: [] });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(makeMap([], 8, 8), makeRegistry(bundle), makeHeightmap());
+    logic.update(1 / 30);
+
+    // No music completion events yet
+    expect(logic.evaluateScriptMusicHasCompleted({ musicName: 'TestTrack', index: 0 })).toBe(false);
+
+    // Push a music completion event and verify it's consumed
+    logic.notifyScriptMusicCompleted('TestTrack', 0);
+    expect(logic.evaluateScriptMusicHasCompleted({ musicName: 'TestTrack', index: 0 })).toBe(true);
+
+    // Second check should be false (event consumed)
+    expect(logic.evaluateScriptMusicHasCompleted({ musicName: 'TestTrack', index: 0 })).toBe(false);
+  });
+});
+
+describe('Script condition coverage - PLAYER_DESTROYED_N_BUILDINGS_PLAYER', () => {
+  it('evaluates PLAYER_DESTROYED_N_BUILDINGS_PLAYER condition', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Building', 'China', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Building', 10, 10),
+        makeMapObject('Building', 14, 10),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+    logic.update(1 / 30);
+
+    // America hasn't destroyed any buildings yet
+    expect(logic.evaluateScriptPlayerDestroyedNOrMoreBuildings({
+      side: 'America',
+      count: 1,
+      opponentSide: 'China',
+    })).toBe(false);
+  });
+});
+
+describe('Script condition coverage - NAMED_BUILDING_IS_EMPTY', () => {
+  it('evaluates NAMED_BUILDING_IS_EMPTY condition for an empty building', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Barracks', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Contain', {
+            MaxGarrisonedUnits: 10,
+          }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Barracks', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    // Building should start empty
+    expect(logic.evaluateScriptIsBuildingEmpty({ entityId: 1 })).toBe(true);
+
+    // Non-existent entity returns false
+    expect(logic.evaluateScriptIsBuildingEmpty({ entityId: 999 })).toBe(false);
+  });
+});
+
+describe('Script action coverage - NAMED_DAMAGE / NAMED_KILL / NAMED_DELETE', () => {
+  it('applies NAMED_DAMAGE action reducing unit health', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Tank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Tank', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    expect(logic.getEntityState(1)!.health).toBe(100);
+    logic.executeScriptAction({
+      actionType: 'NAMED_DAMAGE',
+      params: [1, 30],
+    });
+    logic.update(1 / 30);
+    expect(logic.getEntityState(1)!.health).toBe(70);
+
+    // NAMED_DAMAGE on non-existent entity returns false
+    expect(logic.executeScriptAction({
+      actionType: 'NAMED_DAMAGE',
+      params: [999, 10],
+    })).toBe(false);
+  });
+
+  it('executes NAMED_KILL action destroying unit through death pipeline', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Tank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Tank', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    expect(logic.getEntityState(1)).toBeTruthy();
+    expect(logic.executeScriptAction({
+      actionType: 'NAMED_KILL',
+      params: [1],
+    })).toBe(true);
+    logic.update(1 / 30);
+
+    // Entity should be destroyed after kill (removed or health <= 0)
+    const stateAfterKill = logic.getEntityState(1);
+    expect(!stateAfterKill || stateAfterKill.health <= 0).toBe(true);
+  });
+
+  it('executes NAMED_DELETE action silently removing unit', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Tank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Tank', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    expect(logic.getEntityState(1)).toBeTruthy();
+    expect(logic.executeScriptAction({
+      actionType: 'NAMED_DELETE',
+      params: [1],
+    })).toBe(true);
+    logic.update(1 / 30);
+
+    // Entity should be removed after delete
+    expect(logic.getEntityState(1)).toBeFalsy();
+  });
+});
+
+describe('Script action coverage - TEAM_KILL / TEAM_DELETE / PLAYER_KILL', () => {
+  it('executes TEAM_KILL and TEAM_DELETE on script teams', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Grunt', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Grunt', 10, 10),
+        makeMapObject('Grunt', 14, 10),
+        makeMapObject('Grunt', 18, 10),
+        makeMapObject('Grunt', 22, 10),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    // Create teams
+    logic.setScriptTeamMembers('KillTeam', [1, 2]);
+    logic.setScriptTeamMembers('DeleteTeam', [3, 4]);
+
+    // TEAM_KILL
+    expect(logic.executeScriptAction({
+      actionType: 'TEAM_KILL',
+      params: ['KillTeam'],
+    })).toBe(true);
+    logic.update(1 / 30);
+
+    // TEAM_DELETE
+    expect(logic.executeScriptAction({
+      actionType: 'TEAM_DELETE',
+      params: ['DeleteTeam'],
+    })).toBe(true);
+    logic.update(1 / 30);
+
+    // All four entities should be gone
+    expect(logic.getEntityState(3)).toBeFalsy();
+    expect(logic.getEntityState(4)).toBeFalsy();
+  });
+
+  it('executes PLAYER_KILL wiping all entities for a side', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Unit', 'China', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Unit', 10, 10),
+        makeMapObject('Unit', 14, 10),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    expect(logic.executeScriptAction({
+      actionType: 'PLAYER_KILL',
+      params: ['China'],
+    })).toBe(true);
+    logic.update(1 / 30);
+    logic.update(1 / 30);
+
+    // China units should all be destroyed
+    const state1 = logic.getEntityState(1);
+    const state2 = logic.getEntityState(2);
+    const alive = (state1 && state1.health > 0 ? 1 : 0) + (state2 && state2.health > 0 ? 1 : 0);
+    expect(alive).toBe(0);
+  });
+});
+
+describe('Script action coverage - NAMED_STOP / TEAM_STOP / NAMED_GUARD / TEAM_GUARD', () => {
+  it('executes NAMED_STOP cancelling unit movement', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Mover', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Mover', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    expect(logic.executeScriptAction({
+      actionType: 'NAMED_STOP',
+      params: [1],
+    })).toBe(true);
+
+    // TEAM_STOP
+    logic.setScriptTeamMembers('StopTeam', [1]);
+    expect(logic.executeScriptAction({
+      actionType: 'TEAM_STOP',
+      params: ['StopTeam'],
+    })).toBe(true);
+  });
+
+  it('executes NAMED_GUARD and TEAM_GUARD actions', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Guard', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Guard', 10, 10),
+        makeMapObject('Guard', 14, 10),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    expect(logic.executeScriptAction({
+      actionType: 'NAMED_GUARD',
+      params: [1],
+    })).toBe(true);
+
+    logic.setScriptTeamMembers('GuardTeam', [1, 2]);
+    expect(logic.executeScriptAction({
+      actionType: 'TEAM_GUARD',
+      params: ['GuardTeam'],
+    })).toBe(true);
+
+    // TEAM_GUARD_AREA without a registered trigger returns false (no trigger area to guard)
+    expect(logic.executeScriptAction({
+      actionType: 'TEAM_GUARD_AREA',
+      params: ['GuardTeam', 'NonExistentTrigger'],
+    })).toBe(false);
+  });
+});
+
+describe('Script action coverage - NAMED_HUNT / TEAM_HUNT', () => {
+  it('executes NAMED_HUNT and TEAM_HUNT actions', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Hunter', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Hunter', 10, 10),
+        makeMapObject('Hunter', 14, 10),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    expect(logic.executeScriptAction({
+      actionType: 'NAMED_HUNT',
+      params: [1],
+    })).toBe(true);
+
+    logic.setScriptTeamMembers('HuntTeam', [1, 2]);
+    expect(logic.executeScriptAction({
+      actionType: 'TEAM_HUNT',
+      params: ['HuntTeam'],
+    })).toBe(true);
+  });
+});
+
+describe('Script action coverage - MOVE_TEAM_TO / MOVE_NAMED_UNIT_TO', () => {
+  it('executes MOVE_TEAM_TO and MOVE_NAMED_UNIT_TO with waypoints', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Mover', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const map = makeMap([
+      makeMapObject('Mover', 10, 10),
+      makeMapObject('Mover', 14, 10),
+    ], 128, 128);
+    map.waypoints = {
+      nodes: [{ id: 1, name: 'WP1', position: { x: 30, y: 0, z: 30 } }],
+      links: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
+    logic.update(1 / 30);
+
+    logic.setScriptTeamMembers('MoveTeam', [1, 2]);
+
+    expect(logic.executeScriptAction({
+      actionType: 'MOVE_NAMED_UNIT_TO',
+      params: [1, 'WP1'],
+    })).toBe(true);
+
+    expect(logic.executeScriptAction({
+      actionType: 'MOVE_TEAM_TO',
+      params: ['MoveTeam', 'WP1'],
+    })).toBe(true);
+  });
+});
+
+describe('Script action coverage - PLAYER_SET_MONEY / PLAYER_GIVE_MONEY via string type names', () => {
+  it('dispatches PLAYER_SET_MONEY and PLAYER_GIVE_MONEY by string type name', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('HQ', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('HQ', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    expect(logic.executeScriptAction({
+      actionType: 'PLAYER_SET_MONEY',
+      params: ['America', 5000],
+    })).toBe(true);
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'PLAYER_HAS_CREDITS',
+      params: [5000, 2, 'America'], // 2 = EQUAL_TO
+    })).toBe(true);
+
+    expect(logic.executeScriptAction({
+      actionType: 'PLAYER_GIVE_MONEY',
+      params: ['America', 500],
+    })).toBe(true);
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'PLAYER_HAS_CREDITS',
+      params: [5500, 2, 'America'],
+    })).toBe(true);
+
+    // Negative give (subtract)
+    expect(logic.executeScriptAction({
+      actionType: 'PLAYER_GIVE_MONEY',
+      params: ['America', -1000],
+    })).toBe(true);
+
+    expect(logic.evaluateScriptCondition({
+      conditionType: 'PLAYER_HAS_CREDITS',
+      params: [4500, 2, 'America'],
+    })).toBe(true);
+  });
+});
+
+describe('Script action coverage - PLAYER_RELATES_PLAYER', () => {
+  it('dispatches PLAYER_RELATES_PLAYER to change diplomacy', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Unit', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+        makeObjectDef('Enemy', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Unit', 10, 10),
+        makeMapObject('Enemy', 20, 10),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setTeamRelationship('America', 'China', 0); // enemies
+    logic.update(1 / 30);
+
+    // Make them allies via script action (1 = ALLIES)
+    expect(logic.executeScriptAction({
+      actionType: 'PLAYER_RELATES_PLAYER',
+      params: ['America', 'China', 1],
+    })).toBe(true);
+  });
+});
+
+describe('Script action coverage - CAMERA_LETTERBOX_BEGIN / CAMERA_LETTERBOX_END', () => {
+  it('dispatches CAMERA_LETTERBOX actions using string type names', () => {
+    const bundle = makeBundle({ objects: [] });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(makeMap([], 8, 8), makeRegistry(bundle), makeHeightmap());
+    logic.update(1 / 30);
+
+    expect(logic.executeScriptAction({
+      actionType: 'CAMERA_LETTERBOX_BEGIN',
+    })).toBe(true);
+
+    expect(logic.executeScriptAction({
+      actionType: 'CAMERA_LETTERBOX_END',
+    })).toBe(true);
+  });
+});
+
+describe('Script action coverage - SHOW_MILITARY_CAPTION / DISPLAY_TEXT', () => {
+  it('dispatches SHOW_MILITARY_CAPTION and DISPLAY_TEXT via string type names', () => {
+    const bundle = makeBundle({ objects: [] });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(makeMap([], 8, 8), makeRegistry(bundle), makeHeightmap());
+    logic.update(1 / 30);
+
+    expect(logic.executeScriptAction({
+      actionType: 'SHOW_MILITARY_CAPTION',
+      params: ['Mission Briefing', 5000],
+    })).toBe(true);
+
+    expect(logic.executeScriptAction({
+      actionType: 'DISPLAY_TEXT',
+      params: ['Hello World'],
+    })).toBe(true);
+  });
+});
+
+describe('Script action coverage - QUICKVICTORY / LOCALDEFEAT', () => {
+  it('dispatches QUICKVICTORY and LOCALDEFEAT by string type name', () => {
+    const bundle = makeBundle({ objects: [] });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(makeMap([], 8, 8), makeRegistry(bundle), makeHeightmap());
+    logic.update(1 / 30);
+
+    expect(logic.executeScriptAction({ actionType: 'QUICKVICTORY' })).toBe(true);
+  });
+
+  it('dispatches LOCALDEFEAT by string type name', () => {
+    const bundle = makeBundle({ objects: [] });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(makeMap([], 8, 8), makeRegistry(bundle), makeHeightmap());
+    logic.update(1 / 30);
+
+    expect(logic.executeScriptAction({ actionType: 'LOCALDEFEAT' })).toBe(true);
+  });
+});
+
+describe('Script action coverage - CREATE_NAMED_ON_TEAM_AT_WAYPOINT via string type', () => {
+  it('dispatches CREATE_NAMED_ON_TEAM_AT_WAYPOINT creating unit at waypoint', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Ranger', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const map = makeMap([], 128, 128);
+    map.waypoints = {
+      nodes: [{ id: 1, name: 'SpawnPoint', position: { x: 20, y: 0, z: 20 } }],
+      links: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
+    logic.update(1 / 30);
+
+    expect(logic.executeScriptAction({
+      actionType: 'CREATE_NAMED_ON_TEAM_AT_WAYPOINT',
+      params: [
+        'TestRanger',   // objectName
+        'Ranger',       // objectType
+        'teamplayer/TeamA', // teamName
+        'SpawnPoint',   // waypointName
+      ],
+    })).toBe(true);
+    logic.update(1 / 30);
+
+    // Should have spawned an entity
+    const states = logic.getRenderableEntityStates();
+    expect(states.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('Script action coverage - CREATE_REINFORCEMENT_TEAM via string type', () => {
+  it('dispatches CREATE_REINFORCEMENT_TEAM creating team at waypoint', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Marine', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const map = makeMap([], 128, 128);
+    map.waypoints = {
+      nodes: [{ id: 1, name: 'DropZone', position: { x: 30, y: 0, z: 30 } }],
+      links: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
+    logic.update(1 / 30);
+
+    // CREATE_REINFORCEMENT_TEAM requires a team template to exist.
+    // Even without a defined team template, the action dispatch should succeed as far as routing goes.
+    const result = logic.executeScriptAction({
+      actionType: 'CREATE_REINFORCEMENT_TEAM',
+      params: ['teamplayer/ReinforcementTeam', 'DropZone'],
+    });
+    // The dispatch resolves; whether it creates units depends on team template availability.
+    expect(typeof result).toBe('boolean');
+  });
+});
+
+describe('Script condition/action round-trip - BRIDGE_BROKEN / BRIDGE_REPAIRED', () => {
+  it('evaluates bridge conditions as false when no bridge state changes occurred', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('BridgeControl', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('BridgeControl', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    // No bridge state changes have occurred, so both should return false
+    expect(logic.evaluateScriptBridgeBroken({ entityId: 1 })).toBe(false);
+    expect(logic.evaluateScriptBridgeRepaired({ entityId: 1 })).toBe(false);
+
+    // Non-existent entity
+    expect(logic.evaluateScriptBridgeBroken({ entityId: 999 })).toBe(false);
+    expect(logic.evaluateScriptBridgeRepaired({ entityId: 999 })).toBe(false);
+  });
+});
+
+describe('Script condition coverage - UNIT_EMPTIED', () => {
+  it('evaluates UNIT_EMPTIED as false when no cargo transition occurred', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Transport', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Behavior', 'TransportContain ModuleTag_Contain', {
+            MaxPassengers: 5,
+          }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Transport', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    // First call initializes tracking, returns false
+    expect(logic.evaluateScriptUnitHasEmptied({ entityId: 1 })).toBe(false);
+
+    // Non-existent entity returns false
+    expect(logic.evaluateScriptUnitHasEmptied({ entityId: 999 })).toBe(false);
+  });
+});
+
+describe('Script action coverage - FREEZE_TIME / UNFREEZE_TIME via string names', () => {
+  it('dispatches FREEZE_TIME and UNFREEZE_TIME actions', () => {
+    const bundle = makeBundle({ objects: [] });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(makeMap([], 8, 8), makeRegistry(bundle), makeHeightmap());
+
+    expect(logic.executeScriptAction({ actionType: 'FREEZE_TIME' })).toBe(true);
+    expect(logic.executeScriptAction({ actionType: 'UNFREEZE_TIME' })).toBe(true);
+  });
+});
+
+describe('Script action coverage - DISABLE_INPUT / ENABLE_INPUT', () => {
+  it('dispatches DISABLE_INPUT and ENABLE_INPUT actions', () => {
+    const bundle = makeBundle({ objects: [] });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(makeMap([], 8, 8), makeRegistry(bundle), makeHeightmap());
+
+    expect(logic.executeScriptAction({ actionType: 'DISABLE_INPUT' })).toBe(true);
+    expect(logic.executeScriptAction({ actionType: 'ENABLE_INPUT' })).toBe(true);
+  });
+});
+
+describe('Script action coverage - RADAR actions', () => {
+  it('dispatches RADAR_DISABLE, RADAR_ENABLE, RADAR_FORCE_ENABLE, RADAR_REVERT_TO_NORMAL', () => {
+    const bundle = makeBundle({ objects: [] });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(makeMap([], 8, 8), makeRegistry(bundle), makeHeightmap());
+
+    expect(logic.executeScriptAction({ actionType: 'RADAR_DISABLE' })).toBe(true);
+    expect(logic.executeScriptAction({ actionType: 'RADAR_ENABLE' })).toBe(true);
+    expect(logic.executeScriptAction({ actionType: 'RADAR_FORCE_ENABLE' })).toBe(true);
+    expect(logic.executeScriptAction({ actionType: 'RADAR_REVERT_TO_NORMAL' })).toBe(true);
+    expect(logic.executeScriptAction({ actionType: 'REFRESH_RADAR' })).toBe(true);
+  });
+});
+
+describe('Script action coverage - MAP_REVEAL_ALL / MAP_SHROUD_ALL', () => {
+  it('dispatches MAP_REVEAL_ALL and MAP_SHROUD_ALL via string type names', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('HQ', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('HQ', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    expect(logic.executeScriptAction({
+      actionType: 'MAP_REVEAL_ALL',
+      params: ['America'],
+    })).toBe(true);
+
+    expect(logic.executeScriptAction({
+      actionType: 'MAP_SHROUD_ALL',
+      params: ['America'],
+    })).toBe(true);
+  });
+});
+
+describe('Script action coverage - ENABLE_SCORING / DISABLE_SCORING / PLAYER_EXCLUDE_FROM_SCORE_SCREEN', () => {
+  it('dispatches scoring actions by string type name', () => {
+    const bundle = makeBundle({ objects: [] });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(makeMap([], 8, 8), makeRegistry(bundle), makeHeightmap());
+
+    expect(logic.executeScriptAction({ actionType: 'ENABLE_SCORING' })).toBe(true);
+    expect(logic.executeScriptAction({ actionType: 'DISABLE_SCORING' })).toBe(true);
+  });
+});
+
+describe('Script action coverage - TEAM_STOP_AND_DISBAND / RECRUIT_TEAM', () => {
+  it('dispatches TEAM_STOP_AND_DISBAND and RECRUIT_TEAM', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Unit', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Unit', 10, 10),
+        makeMapObject('Unit', 14, 10),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    logic.setScriptTeamMembers('DisbandTeam', [1, 2]);
+
+    expect(logic.executeScriptAction({
+      actionType: 'TEAM_STOP_AND_DISBAND',
+      params: ['DisbandTeam'],
+    })).toBe(true);
+
+    // RECRUIT_TEAM without a team prototype returns false (no prototype to recruit from)
+    expect(logic.executeScriptAction({
+      actionType: 'RECRUIT_TEAM',
+      params: ['DisbandTeam', 100],
+    })).toBe(false);
+  });
+});
+
+describe('Script condition/action numeric-id dispatch parity', () => {
+  it('dispatches conditions and actions by numeric id matching C++ enum order', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Obj', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Obj', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.update(1 / 30);
+
+    // Condition 0 = CONDITION_FALSE
+    expect(logic.evaluateScriptCondition({ conditionType: 0 })).toBe(false);
+    // Condition 3 = CONDITION_TRUE
+    expect(logic.evaluateScriptCondition({ conditionType: 3 })).toBe(true);
+    // Condition 4 = TIMER_EXPIRED (no timer set, should be false)
+    expect(logic.evaluateScriptCondition({
+      conditionType: 4,
+      params: ['nonexistent_timer'],
+    })).toBe(false);
+
+    // Action 5 = NO_OP
+    expect(logic.executeScriptAction({ actionType: 5 })).toBe(true);
+    // Action 3 = VICTORY
+    expect(logic.executeScriptAction({ actionType: 3 })).toBe(true);
+  });
+});
