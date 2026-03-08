@@ -121,6 +121,10 @@ export interface VisualEvent {
   sourceEntityId: number | null;
   /** Visual type hint for the effect. */
   projectileType: ProjectileVisualType;
+  /** Target endpoint for directed weapon visuals (laser beams, bullet tracers). */
+  targetX?: number;
+  targetY?: number;
+  targetZ?: number;
 }
 
 /**

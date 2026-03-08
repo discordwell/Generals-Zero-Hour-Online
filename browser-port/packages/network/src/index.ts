@@ -2672,3 +2672,14 @@ export interface NetworkManagerOptions {
   gameLogicCrcSectionWriters?: DeterministicGameLogicCrcSectionWriters<unknown>;
   packetRouterEvents?: PacketRouterEvents;
 }
+
+export { WebRTCTransport } from './webrtc-transport.js';
+export type { WebRTCTransportConfig, WebRTCConnectionState } from './webrtc-transport.js';
+export { LobbyManager, FACTION_OPTIONS, COLOR_OPTIONS } from './lobby-protocol.js';
+export type {
+  LobbyMessage,
+  LobbyPlayer,
+  LobbySettings,
+  LobbyState,
+  LobbyCallbacks,
+} from './lobby-protocol.js';

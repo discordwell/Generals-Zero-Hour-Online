@@ -25,6 +25,11 @@ import {
   ParticleSystemManager,
   FXListManager,
   DecalManager,
+  LaserBeamRenderer,
+  DynamicLightManager,
+  TracerRenderer,
+  DebrisRenderer,
+  TerrainRoadRenderer,
 } from '@generals/renderer';
 import type { MapDataJSON } from '@generals/renderer';
 import { InputManager, RTSCamera, type InputState } from '@generals/input';
@@ -888,6 +893,13 @@ async function startGame(
   if (!heightmap) {
     throw new Error('Failed to initialize terrain heightmap');
   }
+
+  // Build terrain roads from map objects with road flags.
+  const terrainRoadRenderer = new TerrainRoadRenderer(scene);
+  terrainRoadRenderer.buildFromMapObjects(
+    mapData.objects,
+    (wx, wz) => heightmap.getInterpolatedHeight(wx, wz),
+  );
 
   const objectPlacement = gameLogic.loadMapObjects(mapData, iniDataRegistry, heightmap);
   if (objectPlacement.unresolvedObjects > 0) {
@@ -1767,6 +1779,10 @@ async function startGame(
   decalManager.init();
 
   const fxListManager = new FXListManager(particleSystemManager);
+  const laserBeamRenderer = new LaserBeamRenderer(scene);
+  const dynamicLightManager = new DynamicLightManager(scene);
+  const tracerRenderer = new TracerRenderer(scene);
+  const debrisRenderer = new DebrisRenderer(scene);
   fxListManager.loadFromRegistry(iniRegistry);
   fxListManager.setCallbacks({
     onSound: (name, position) => {
@@ -1782,6 +1798,26 @@ async function startGame(
     const events = gameLogic.drainVisualEvents();
     for (const event of events) {
       const pos = new THREE.Vector3(event.x, event.y, event.z);
+
+      // Spawn directed weapon visuals using target endpoint.
+      if (
+        event.targetX !== undefined &&
+        event.targetY !== undefined &&
+        event.targetZ !== undefined
+      ) {
+        if (event.projectileType === 'LASER') {
+          laserBeamRenderer.addBeam(
+            event.x, event.y, event.z,
+            event.targetX, event.targetY, event.targetZ,
+          );
+        } else if (event.projectileType === 'BULLET') {
+          tracerRenderer.addTracer(
+            event.x, event.y, event.z,
+            event.targetX, event.targetY, event.targetZ,
+          );
+        }
+      }
+
       const plannedActions = planCombatVisualEffects(event);
       // Try to route each visual action through an FXList
       let fxHandled = false;
@@ -1790,6 +1826,22 @@ async function startGame(
           audioManager.addAudioEvent(action.eventName, [event.x, event.y, event.z]);
           continue;
         }
+
+        // Spawn dynamic lights for explosions and muzzle flashes.
+        if (action.type === 'spawnExplosion') {
+          dynamicLightManager.addExplosionLight(event.x, event.y, event.z, event.radius || 5);
+        } else if (action.type === 'spawnMuzzleFlash') {
+          dynamicLightManager.addMuzzleFlashLight(event.x, event.y, event.z);
+        }
+
+        // Spawn debris for destruction events.
+        if (action.type === 'spawnDestruction') {
+          debrisRenderer.spawnDebris(event.x, event.y, event.z, {
+            radius: event.radius || 3,
+            count: Math.min(12, Math.max(4, Math.round(event.radius * 2))),
+          });
+        }
+
         if (!fxHandled) {
           const fxName = resolveFallbackFXListName(event.type, action.type);
           if (fxName && fxListManager.hasFXList(fxName)) {
@@ -2467,6 +2519,10 @@ async function startGame(
       processVisualEvents();
       gameLODManager.update(dt);
       particleSystemManager.update(dt);
+      laserBeamRenderer.update();
+      dynamicLightManager.update();
+      tracerRenderer.update();
+      debrisRenderer.update();
       decalManager.update(dt);
 
       // Update fog of war overlay at reduced frequency.

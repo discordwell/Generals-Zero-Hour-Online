@@ -56,3 +56,13 @@ export type {
   RenderableAnimationState,
   RenderableEntityState,
 } from './object-visuals.js';
+export { LaserBeamRenderer } from './laser-beam-renderer.js';
+export type { LaserBeamConfig } from './laser-beam-renderer.js';
+export { DynamicLightManager } from './dynamic-lights.js';
+export type { DynamicLightConfig } from './dynamic-lights.js';
+export { TracerRenderer } from './tracer-renderer.js';
+export type { TracerConfig } from './tracer-renderer.js';
+export { DebrisRenderer } from './debris-renderer.js';
+export type { DebrisConfig } from './debris-renderer.js';
+export { TerrainRoadRenderer, extractRoadSegments, buildRoadPaths, buildRoadMesh } from './terrain-roads.js';
+export type { RoadPoint, RoadSegment, RoadRenderConfig, HeightmapQuery } from './terrain-roads.js';

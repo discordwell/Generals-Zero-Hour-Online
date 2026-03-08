@@ -77,6 +77,12 @@ interface VisualAssetState {
   shadowDecal: THREE.Mesh | null;
   /** Parsed shadow type for this entity. */
   shadowType: string | null;
+  /**
+   * Cached turret bone references found in the loaded model hierarchy.
+   * Index 0 = main turret (INI "Turret" field), index 1 = alt turret ("AltTurret").
+   * Source parity: W3DModelDraw::handleClientTurretRotation.
+   */
+  turretBones: THREE.Object3D[];
 }
 
 export interface ObjectVisualManagerConfig {
@@ -157,6 +163,7 @@ export class ObjectVisualManager {
       this.syncScriptFlashRing(visual, state);
       this.syncVeterancyBadge(visual, state);
       this.syncStealthOpacity(visual, state);
+      this.syncTurretBones(visual, state);
       this.applyAnimationState(visual, state.animationState);
       if (visual.mixer) {
         visual.mixer.update(dt);
@@ -258,6 +265,7 @@ export class ObjectVisualManager {
       lastStealthOpacity: 1.0,
       shadowDecal: null,
       shadowType: null,
+      turretBones: [],
     };
   }
 
@@ -408,6 +416,7 @@ export class ObjectVisualManager {
           currentVisual.currentModel = clone;
           currentVisual.mixer = mixer;
           currentVisual.actions = actions;
+          currentVisual.turretBones = this.findTurretBones(clone);
           currentVisual.root.add(clone);
           this.applyAnimationState(currentVisual, currentVisual.requestedAnimationState);
           this.unresolvedEntityIds.delete(entityId);
@@ -548,6 +557,7 @@ export class ObjectVisualManager {
     }
     visual.actions.clear();
     visual.activeState = null;
+    visual.turretBones = [];
 
     if (visual.currentModel !== null) {
       visual.root.remove(visual.currentModel);
@@ -1025,6 +1035,71 @@ export class ObjectVisualManager {
       }
     });
   }
+
+  // ==========================================================================
+  // Turret bone rotation
+  // ==========================================================================
+
+  /**
+   * Common turret bone name patterns in W3D models.
+   * Index 0 patterns = main turret, index 1 patterns = alt turret.
+   * Source parity: ModelConditionInfo "Turret" / "AltTurret" fields in W3DModelDraw.
+   */
+  private static readonly TURRET_BONE_PATTERNS: readonly (readonly RegExp[])[] = [
+    [/^turret$/i, /turret01$/i, /intturret01$/i, /turret_hi$/i, /\bturret\b/i],
+    [/^altturret$/i, /turret02$/i, /intturret02$/i, /\baltturret\b/i],
+  ];
+
+  /**
+   * Find turret bones in a loaded model hierarchy by matching common naming
+   * conventions.  Returns an array where index 0 = main turret bone and
+   * index 1 = alt turret bone (either may be undefined if not found).
+   */
+  private findTurretBones(model: THREE.Object3D): THREE.Object3D[] {
+    const bones: THREE.Object3D[] = [];
+    for (let slot = 0; slot < ObjectVisualManager.TURRET_BONE_PATTERNS.length; slot++) {
+      const patterns = ObjectVisualManager.TURRET_BONE_PATTERNS[slot]!;
+      let found: THREE.Object3D | null = null;
+      // Try patterns in priority order — more specific first.
+      for (const pattern of patterns) {
+        model.traverse((child) => {
+          if (!found && pattern.test(child.name)) {
+            found = child;
+          }
+        });
+        if (found) break;
+      }
+      bones[slot] = found!;
+    }
+    return bones;
+  }
+
+  /** Quaternion re-used each frame to avoid allocations. */
+  private readonly tempTurretQuaternion = new THREE.Quaternion();
+
+  /**
+   * Apply turret rotation angles from game-logic to the corresponding bones.
+   * Source parity: W3DModelDraw::handleClientTurretRotation — rotates the
+   * turret bone around the Z axis in W3D model-space (Z-up preserved by the
+   * converter, so Z is the yaw axis inside the GLB skeleton).
+   */
+  private syncTurretBones(visual: VisualAssetState, state: RenderableEntityState): void {
+    const angles = state.turretAngles;
+    if (!angles || angles.length === 0 || visual.turretBones.length === 0) {
+      return;
+    }
+    for (let i = 0; i < angles.length && i < visual.turretBones.length; i++) {
+      const bone = visual.turretBones[i];
+      if (!bone) continue;
+      const angle = angles[i]!;
+      if (!Number.isFinite(angle)) continue;
+      // W3D Rotate_Z: rotation around Z axis (yaw in Z-up model space).
+      this.tempTurretQuaternion.setFromAxisAngle(ObjectVisualManager.Z_AXIS, angle);
+      bone.quaternion.copy(this.tempTurretQuaternion);
+    }
+  }
+
+  private static readonly Z_AXIS = new THREE.Vector3(0, 0, 1);
 
   private disposeObject3D(object3D: THREE.Object3D): void {
     object3D.traverse((child) => {

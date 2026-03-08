@@ -1,5 +1,19 @@
 # Session Summaries
 
+## 2026-03-08T04:50Z — Rendering, Network & Replay Systems (9-Task Sprint)
+- **Turret bone rotation** (`renderer/src/object-visuals.ts`): Added `findTurretBones()` using regex pattern matching on model hierarchy, `syncTurretBones()` applying Z-axis quaternion rotation from game-logic `turretAngles[]`. 4 tests.
+- **Laser beam renderer** (`renderer/src/laser-beam-renderer.ts`): Dual cylinder meshes (inner core + outer glow) with additive blending, configurable colors/widths, auto-fade and cleanup. 8 tests.
+- **Dynamic lights** (`renderer/src/dynamic-lights.ts`): THREE.PointLight manager with 16-light cap, `addExplosionLight()`/`addMuzzleFlashLight()` convenience methods, lifetime + fade. Wired to visual events for spawnExplosion/spawnMuzzleFlash actions. 8 tests.
+- **Bullet tracers** (`renderer/src/tracer-renderer.ts`): Moving box geometry traveling from muzzle toward target with additive blending, opacity fade, 64-tracer cap. 10 tests.
+- **Debris** (`renderer/src/debris-renderer.ts`): Procedural chunks with gravity (-20 u/s²), bounce damping (0.4), spin, 30% lifetime fade, 256-chunk cap. Spawns on ENTITY_DESTROYED events. 10 tests.
+- **Terrain roads** (`renderer/src/terrain-roads.ts`): Extracts road segments from map objects with ROAD_POINT1/ROAD_POINT2 flags, builds connected paths, generates tessellated quad strip meshes following terrain heightmap. 16 tests.
+- **WebRTC transport** (`network/src/webrtc-transport.ts`): Implements `TransportLike` interface with DataChannel peer-to-peer, WebSocket signaling (join/offer/answer/ICE), relay mask routing, bandwidth metrics. 12 tests.
+- **Lobby protocol** (`network/src/lobby-protocol.ts`): `LobbyManager` with player join/leave, faction/team/color selection, ready state, chat, settings, game start coordination. 8-player cap, message types for full lobby lifecycle. 21 tests.
+- **Replay system** (`engine/src/replay-manager.ts`): Record/playback with frame-indexed command storage, serialize/deserialize, speed control (0.25x-8x), seek, onFrame/onComplete callbacks. 24 tests.
+- **VisualEvent generalization**: Renamed `laserTargetX/Y/Z` → `targetX/Y/Z`, now passed for all weapon types (not just LASER), enabling both laser beams and bullet tracers.
+- **main.ts wiring**: All new renderers (laser, dynamic lights, tracers, debris, roads) instantiated and updated in render loop. Visual event processing routes to appropriate renderers by projectileType and action type.
+- **Total**: 2,461 tests pass (113 new), 9 new source files + 9 new test files
+
 ## 2026-03-08T02:20Z — Audio & Cursor Integration
 - **Audio buffer loader** (`audio-buffer-loader.ts`): Maps bare INI filenames (e.g., "vgenlo2a") to converted asset URLs via manifest index
   - `buildAudioIndex()`: O(1) Map<lowercaseBasename, outputPath> from audio-converter manifest entries

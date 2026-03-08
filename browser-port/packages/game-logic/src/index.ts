@@ -17351,7 +17351,7 @@ export class GameLogicSubsystem implements Subsystem {
       scriptWaypointPath: waypointPath,
     };
 
-    this.emitWeaponFiredVisualEvent(attacker, weapon);
+    this.emitWeaponFiredVisualEvent(attacker, weapon, { x: impactX, y: impactY, z: impactZ });
     this.registerActiveWeaponProjectileState(projectileVisualId, attacker, weapon, sourceX, sourceY, sourceZ);
     this.pendingWeaponDamageEvents.push(event);
   }
@@ -51696,8 +51696,12 @@ export class GameLogicSubsystem implements Subsystem {
       scriptWaypointPath: null,
     };
 
-    // Emit muzzle flash visual event.
-    this.emitWeaponFiredVisualEvent(attacker, weapon);
+    // Emit muzzle flash visual event (includes target endpoint for beam/tracer rendering).
+    this.emitWeaponFiredVisualEvent(
+      attacker,
+      weapon,
+      { x: impactX, y: impactY, z: impactZ },
+    );
     if (delivery === 'PROJECTILE') {
       this.registerActiveWeaponProjectileState(
         projectileVisualId,
@@ -51778,8 +51782,12 @@ export class GameLogicSubsystem implements Subsystem {
     return 'BULLET';
   }
 
-  private emitWeaponFiredVisualEvent(attacker: MapEntity, weapon: AttackWeaponProfile): void {
-    this.visualEventBuffer.push({
+  private emitWeaponFiredVisualEvent(
+    attacker: MapEntity,
+    weapon: AttackWeaponProfile,
+    target?: { x: number; y: number; z: number },
+  ): void {
+    const event: import('./types.js').VisualEvent = {
       type: 'WEAPON_FIRED',
       x: attacker.x,
       y: attacker.y + 1.5,
@@ -51787,7 +51795,13 @@ export class GameLogicSubsystem implements Subsystem {
       radius: 0,
       sourceEntityId: attacker.id,
       projectileType: this.classifyWeaponVisualType(weapon),
-    });
+    };
+    if (target) {
+      event.targetX = target.x;
+      event.targetY = target.y;
+      event.targetZ = target.z;
+    }
+    this.visualEventBuffer.push(event);
   }
 
   private emitWeaponImpactVisualEvent(event: PendingWeaponDamageEvent): void {

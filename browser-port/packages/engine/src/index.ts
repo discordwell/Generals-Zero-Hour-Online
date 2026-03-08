@@ -201,3 +201,13 @@ export type {
   FrameResendFrameInfo,
   FrameResendCommand,
 } from './frame-resend.js';
+
+export { ReplayManager } from './replay-manager.js';
+export type {
+  ReplayFile,
+  ReplayHeader,
+  ReplayCommand,
+  ReplayPlayerInfo,
+  ReplayState,
+  ReplayPlaybackCallbacks,
+} from './replay-manager.js';

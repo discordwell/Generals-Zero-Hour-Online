@@ -500,4 +500,114 @@ describe('ObjectVisualManager', () => {
     expect(placeholder1?.visible).toBe(false);
     expect(placeholder2?.visible).toBe(false);
   });
+
+  // ========================================================================
+  // Turret bone rotation
+  // ========================================================================
+
+  function modelWithTurretBones(
+    turretNames: readonly string[] = ['INTTURRET01'],
+    clips: readonly string[] = ['Idle'],
+  ): LoadedModelAsset {
+    const scene = new THREE.Group();
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
+    scene.add(mesh);
+
+    for (const boneName of turretNames) {
+      const bone = new THREE.Object3D();
+      bone.name = boneName;
+      scene.add(bone);
+    }
+
+    const createdClips = clips.map((clipName) => new THREE.AnimationClip(
+      clipName,
+      1,
+      [new THREE.NumberKeyframeTrack('.position[x]', [0, 1], [0, 0])],
+    ));
+
+    return { scene, animations: createdClips };
+  }
+
+  it('applies turret rotation from turretAngles to detected turret bone', async () => {
+    const scene = new THREE.Scene();
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => modelWithTurretBones(['INTTURRET01']),
+    });
+
+    const angle = Math.PI / 4;
+    manager.sync([makeMeshState({ id: 90, turretAngles: [angle] })], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([makeMeshState({ id: 90, turretAngles: [angle] })], 1 / 30);
+
+    const root = manager.getVisualRoot(90);
+    expect(root).toBeTruthy();
+
+    const turretBone = root!.getObjectByName('INTTURRET01');
+    expect(turretBone).toBeTruthy();
+
+    // W3D turret rotation is around the Z axis in model space.
+    const expected = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(0, 0, 1),
+      angle,
+    );
+    expect(turretBone!.quaternion.x).toBeCloseTo(expected.x, 5);
+    expect(turretBone!.quaternion.y).toBeCloseTo(expected.y, 5);
+    expect(turretBone!.quaternion.z).toBeCloseTo(expected.z, 5);
+    expect(turretBone!.quaternion.w).toBeCloseTo(expected.w, 5);
+  });
+
+  it('matches bones named TURRET, TURRET_HI, and similar patterns', async () => {
+    const scene = new THREE.Scene();
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => modelWithTurretBones(['TURRET']),
+    });
+
+    manager.sync([makeMeshState({ id: 91, turretAngles: [0.5] })], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([makeMeshState({ id: 91, turretAngles: [0.5] })], 1 / 30);
+
+    const turretBone = manager.getVisualRoot(91)!.getObjectByName('TURRET');
+    expect(turretBone).toBeTruthy();
+    // Should have non-identity rotation.
+    expect(turretBone!.quaternion.w).not.toBeCloseTo(1, 3);
+  });
+
+  it('handles multiple turret slots (main + alt)', async () => {
+    const scene = new THREE.Scene();
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => modelWithTurretBones(['INTTURRET01', 'INTTURRET02']),
+    });
+
+    const mainAngle = Math.PI / 6;
+    const altAngle = -Math.PI / 3;
+    manager.sync([makeMeshState({ id: 92, turretAngles: [mainAngle, altAngle] })], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([makeMeshState({ id: 92, turretAngles: [mainAngle, altAngle] })], 1 / 30);
+
+    const root = manager.getVisualRoot(92)!;
+    const mainBone = root.getObjectByName('INTTURRET01')!;
+    const altBone = root.getObjectByName('INTTURRET02')!;
+
+    const expectedMain = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), mainAngle);
+    const expectedAlt = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), altAngle);
+
+    expect(mainBone.quaternion.z).toBeCloseTo(expectedMain.z, 5);
+    expect(altBone.quaternion.z).toBeCloseTo(expectedAlt.z, 5);
+  });
+
+  it('does nothing when turretAngles is empty or absent', async () => {
+    const scene = new THREE.Scene();
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => modelWithTurretBones(['INTTURRET01']),
+    });
+
+    manager.sync([makeMeshState({ id: 93 })], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([makeMeshState({ id: 93 })], 1 / 30);
+
+    const turretBone = manager.getVisualRoot(93)!.getObjectByName('INTTURRET01');
+    expect(turretBone).toBeTruthy();
+    // Should remain at identity rotation since no turretAngles provided.
+    expect(turretBone!.quaternion.w).toBeCloseTo(1, 5);
+  });
 });
