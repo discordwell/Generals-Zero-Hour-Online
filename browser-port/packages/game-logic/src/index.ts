@@ -1277,6 +1277,102 @@ interface ParkingPlaceProfile {
   nextHealFrame: number;
 }
 
+/**
+ * Source parity: FlightDeckBehaviorModuleData — aircraft carrier flight deck module parsed from INI.
+ * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp)
+ */
+interface FlightDeckProfile {
+  /** Source parity: m_numCols — number of runways. */
+  numRunways: number;
+  /** Source parity: m_numRows — number of parking spaces per runway. */
+  numSpacesPerRunway: number;
+  /** Source parity: m_healAmount — HP healed per second for parked aircraft. */
+  healAmountPerSecond: number;
+  /** Source parity: m_approachHeight — altitude for approach/exit. */
+  approachHeight: number;
+  /** Source parity: m_landingDeckHeightOffset — Z offset for deck-landed aircraft. */
+  landingDeckHeightOffset: number;
+  /** Source parity: m_cleanupFrames — frames between parking cleanup sweeps. */
+  cleanupFrames: number;
+  /** Source parity: m_humanFollowFrames — frames between human follow cleanup. */
+  humanFollowFrames: number;
+  /** Source parity: m_replacementFrames — frames before replacement production starts. */
+  replacementFrames: number;
+  /** Source parity: m_dockAnimationFrames — frames for dock animation. */
+  dockAnimationFrames: number;
+  /** Source parity: m_launchWaveFrames — frames between launch waves. */
+  launchWaveFrames: number;
+  /** Source parity: m_launchRampFrames — frames for ramp-up animation. */
+  launchRampFrames: number;
+  /** Source parity: m_lowerRampFrames — frames before lowering ramp after launch. */
+  lowerRampFrames: number;
+  /** Source parity: m_catapultFireFrames — frames before catapult particle fires. */
+  catapultFireFrames: number;
+  /** Source parity: m_thingTemplateName — payload aircraft template name. */
+  payloadTemplateName: string;
+  /** Per-runway bone names for parking spaces (indexed by runway). */
+  runwaySpaces: string[][];
+  /** Per-runway takeoff bone pairs [start, end] (indexed by runway). */
+  runwayTakeoff: [string, string][];
+  /** Per-runway landing bone pairs [start, end] (indexed by runway). */
+  runwayLanding: [string, string][];
+  /** Per-runway taxi bone name arrays (indexed by runway). */
+  runwayTaxi: string[][];
+  /** Per-runway creation bone name arrays (indexed by runway). */
+  runwayCreation: string[][];
+}
+
+/**
+ * Source parity: FlightDeckBehavior::FlightDeckInfo — per parking space data.
+ */
+interface FlightDeckParkingSpace {
+  /** Entity ID occupying this space (-1 = empty). */
+  occupantId: number;
+  /** Runway index this space belongs to. */
+  runway: number;
+}
+
+/**
+ * Source parity: FlightDeckBehavior runtime state — catapult/wave/heal timers per runway.
+ */
+interface FlightDeckState {
+  /** Parking spaces array (interleaved: R1S1, R2S1, R1S2, R2S2...). */
+  parkingSpaces: FlightDeckParkingSpace[];
+  /** Per-runway: entity ID holding takeoff reservation (-1 = free). */
+  runwayTakeoffReservation: number[];
+  /** Per-runway: entity ID holding landing reservation (-1 = free). */
+  runwayLandingReservation: number[];
+  /** Healee entity IDs currently being healed. */
+  healeeEntityIds: Set<number>;
+  /** Frame of next heal tick. */
+  nextHealFrame: number;
+  /** Frame of next cleanup sweep. */
+  nextCleanupFrame: number;
+  /** Frame when production was started (FOREVER when not producing). */
+  startedProductionFrame: number;
+  /** Frame when next production is allowed. */
+  nextAllowedProductionFrame: number;
+  /** Designated attack target entity ID (-1 = none). */
+  designatedTargetId: number;
+  /** Designated command type for propagation to parked aircraft. */
+  designatedCommand: string;
+  /** Designated position for positional commands. */
+  designatedPositionX: number;
+  designatedPositionZ: number;
+  /** Per-runway: next frame when launch wave is allowed. */
+  nextLaunchWaveFrame: number[];
+  /** Per-runway: frame when ramp finishes raising. */
+  rampUpFrame: number[];
+  /** Per-runway: frame when catapult particle fires. */
+  catapultSystemFrame: number[];
+  /** Per-runway: frame when ramp should lower. */
+  lowerRampFrame: number[];
+  /** Per-runway: whether ramp is currently raised. */
+  rampUp: boolean[];
+  /** Whether initial buildInfo has been completed. */
+  initialized: boolean;
+}
+
 type ContainModuleType = 'OPEN' | 'TRANSPORT' | 'OVERLORD' | 'HELIX' | 'PARACHUTE' | 'GARRISON' | 'TUNNEL' | 'CAVE' | 'HEAL' | 'INTERNET_HACK';
 
 interface ContainProfile {
@@ -2631,6 +2727,10 @@ interface MapEntity {
   // ── Source parity: ProjectileStreamUpdate — stream weapon projectile tracking ──
   projectileStreamProfile: ProjectileStreamProfile | null;
   projectileStreamState: ProjectileStreamRuntimeState | null;
+
+  // ── Source parity: FlightDeckBehavior — aircraft carrier flight deck system ──
+  flightDeckProfile: FlightDeckProfile | null;
+  flightDeckState: FlightDeckState | null;
 }
 
 /**
@@ -3870,6 +3970,8 @@ const DEFAULT_CHINOOK_ROPE_WOBBLE_AMP = 1.0;
 const DEFAULT_CHINOOK_ROPE_WOBBLE_RATE = 0.1;
 /** Source parity: ParkingPlaceBehavior HEAL_RATE_FRAMES = LOGICFRAMES_PER_SECOND / 5. */
 const PARKING_PLACE_HEAL_RATE_FRAMES = Math.max(1, Math.floor(LOGIC_FRAME_RATE / 5));
+/** Source parity: FlightDeckBehavior uses the same HEAL_RATE_FRAMES = LOGICFRAMES_PER_SECOND / 5. */
+const FLIGHT_DECK_HEAL_RATE_FRAMES = PARKING_PLACE_HEAL_RATE_FRAMES;
 
 /**
  * Source parity: EMPUpdate — electromagnetic pulse field that grows, disables nearby entities,
@@ -7393,6 +7495,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.updateFireSpread();
     this.updateHealing();
     this.updateParkingPlaceHealing();
+    this.updateFlightDeck();
     this.updateMineBehavior();
     this.updateMineCollisions();
     this.updateDemoTraps();
@@ -27754,6 +27857,7 @@ export class GameLogicSubsystem implements Subsystem {
     const productionProfile = this.extractProductionProfile(objectDef);
     const queueProductionExitProfile = this.extractQueueProductionExitProfile(objectDef);
     const parkingPlaceProfile = this.extractParkingPlaceProfile(objectDef);
+    const flightDeckProfile = this.extractFlightDeckProfile(objectDef);
     const containProfile = this.extractContainProfile(objectDef);
     const supplyWarehouseProfile = this.extractSupplyWarehouseProfile(objectDef);
     const supplyTruckProfile = this.extractSupplyTruckProfile(objectDef);
@@ -28361,6 +28465,9 @@ export class GameLogicSubsystem implements Subsystem {
       // Projectile stream tracking (toxin/flamethrower beams)
       projectileStreamProfile: this.extractProjectileStreamProfile(objectDef),
       projectileStreamState: null,
+      // Flight deck (aircraft carrier)
+      flightDeckProfile,
+      flightDeckState: null,
     };
 
     this.applyMapObjectCoreProperties(entity, mapObject);
@@ -28519,6 +28626,11 @@ export class GameLogicSubsystem implements Subsystem {
       };
       // Map-placed aircraft are airborne.
       entity.objectStatusFlags.add('AIRBORNE_TARGET');
+    }
+
+    // Source parity: FlightDeckBehavior::buildInfo — initialize flight deck parking/runway state.
+    if (flightDeckProfile) {
+      this.initializeFlightDeckState(entity, flightDeckProfile);
     }
 
     // Source parity: GrantUpgradeCreate::onCreate — grant upgrades on entity creation.
@@ -30605,6 +30717,168 @@ export class GameLogicSubsystem implements Subsystem {
       parkInHangars,
       healeeEntityIds: new Set<number>(),
       nextHealFrame: Number.POSITIVE_INFINITY,
+    };
+  }
+
+  /**
+   * Source parity: FlightDeckBehaviorModuleData::buildFieldParse — extract flight deck INI data.
+   * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp)
+   */
+  private extractFlightDeckProfile(objectDef: ObjectDef | undefined): FlightDeckProfile | null {
+    if (!objectDef) return null;
+
+    let foundModule = false;
+    let numRunways = 1;
+    let numSpacesPerRunway = 0;
+    let healAmountPerSecond = 0;
+    let approachHeight = 0;
+    let landingDeckHeightOffset = 0;
+    let cleanupFrames = 0;
+    let humanFollowFrames = 0;
+    let replacementFrames = 0;
+    let dockAnimationFrames = 0;
+    let launchWaveFrames = 0;
+    let launchRampFrames = 0;
+    let lowerRampFrames = 0;
+    let catapultFireFrames = 0;
+    let payloadTemplateName = '';
+    const runwaySpaces: string[][] = [];
+    const runwayTakeoff: [string, string][] = [];
+    const runwayLanding: [string, string][] = [];
+    const runwayTaxi: string[][] = [];
+    const runwayCreation: string[][] = [];
+
+    const msToFrames = (ms: number): number => Math.max(0, Math.round(ms / (1000 / LOGIC_FRAME_RATE)));
+
+    const visitBlock = (block: IniBlock): void => {
+      if (block.type.toUpperCase() !== 'BEHAVIOR') {
+        for (const child of block.blocks) {
+          visitBlock(child);
+        }
+        return;
+      }
+
+      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      if (moduleType === 'FLIGHTDECKBEHAVIOR') {
+        foundModule = true;
+
+        const numRunwaysRaw = readNumericField(block.fields, ['NumRunways']);
+        if (numRunwaysRaw !== null && Number.isFinite(numRunwaysRaw)) {
+          numRunways = Math.max(1, Math.trunc(numRunwaysRaw));
+        }
+        const numSpacesRaw = readNumericField(block.fields, ['NumSpacesPerRunway']);
+        if (numSpacesRaw !== null && Number.isFinite(numSpacesRaw)) {
+          numSpacesPerRunway = Math.max(0, Math.trunc(numSpacesRaw));
+        }
+        const healRaw = readNumericField(block.fields, ['HealAmountPerSecond']);
+        if (healRaw !== null && Number.isFinite(healRaw)) {
+          healAmountPerSecond = healRaw;
+        }
+        const approachRaw = readNumericField(block.fields, ['ApproachHeight']);
+        if (approachRaw !== null && Number.isFinite(approachRaw)) {
+          approachHeight = approachRaw;
+        }
+        const deckOffsetRaw = readNumericField(block.fields, ['LandingDeckHeightOffset']);
+        if (deckOffsetRaw !== null && Number.isFinite(deckOffsetRaw)) {
+          landingDeckHeightOffset = deckOffsetRaw;
+        }
+        const cleanupRaw = readNumericField(block.fields, ['ParkingCleanupPeriod']);
+        if (cleanupRaw !== null && Number.isFinite(cleanupRaw)) {
+          cleanupFrames = msToFrames(cleanupRaw);
+        }
+        const humanFollowRaw = readNumericField(block.fields, ['HumanFollowPeriod']);
+        if (humanFollowRaw !== null && Number.isFinite(humanFollowRaw)) {
+          humanFollowFrames = msToFrames(humanFollowRaw);
+        }
+        const replacementRaw = readNumericField(block.fields, ['ReplacementDelay']);
+        if (replacementRaw !== null && Number.isFinite(replacementRaw)) {
+          replacementFrames = msToFrames(replacementRaw);
+        }
+        const dockAnimRaw = readNumericField(block.fields, ['DockAnimationDelay']);
+        if (dockAnimRaw !== null && Number.isFinite(dockAnimRaw)) {
+          dockAnimationFrames = msToFrames(dockAnimRaw);
+        }
+        const launchWaveRaw = readNumericField(block.fields, ['LaunchWaveDelay']);
+        if (launchWaveRaw !== null && Number.isFinite(launchWaveRaw)) {
+          launchWaveFrames = msToFrames(launchWaveRaw);
+        }
+        const launchRampRaw = readNumericField(block.fields, ['LaunchRampDelay']);
+        if (launchRampRaw !== null && Number.isFinite(launchRampRaw)) {
+          launchRampFrames = msToFrames(launchRampRaw);
+        }
+        const lowerRampRaw = readNumericField(block.fields, ['LowerRampDelay']);
+        if (lowerRampRaw !== null && Number.isFinite(lowerRampRaw)) {
+          lowerRampFrames = msToFrames(lowerRampRaw);
+        }
+        const catapultFireRaw = readNumericField(block.fields, ['CatapultFireDelay']);
+        if (catapultFireRaw !== null && Number.isFinite(catapultFireRaw)) {
+          catapultFireFrames = msToFrames(catapultFireRaw);
+        }
+        const payloadRaw = readStringField(block.fields, ['PayloadTemplate']);
+        if (payloadRaw) {
+          payloadTemplateName = payloadRaw;
+        }
+
+        // Parse per-runway bone names (up to 4 runways).
+        for (let r = 0; r < 4; r++) {
+          const rn = r + 1;
+          const spacesRaw = readStringList(block.fields, [`Runway${rn}Spaces`]);
+          const takeoffRaw = readStringList(block.fields, [`Runway${rn}Takeoff`]);
+          const landingRaw = readStringList(block.fields, [`Runway${rn}Landing`]);
+          const taxiRaw = readStringList(block.fields, [`Runway${rn}Taxi`]);
+          const creationRaw = readStringList(block.fields, [`Runway${rn}Creation`]);
+
+          if (spacesRaw.length > 0 || r < numRunways) {
+            while (runwaySpaces.length <= r) runwaySpaces.push([]);
+            while (runwayTakeoff.length <= r) runwayTakeoff.push(['', '']);
+            while (runwayLanding.length <= r) runwayLanding.push(['', '']);
+            while (runwayTaxi.length <= r) runwayTaxi.push([]);
+            while (runwayCreation.length <= r) runwayCreation.push([]);
+
+            runwaySpaces[r] = spacesRaw;
+            if (takeoffRaw.length >= 2) {
+              runwayTakeoff[r] = [takeoffRaw[0]!, takeoffRaw[1]!];
+            }
+            if (landingRaw.length >= 2) {
+              runwayLanding[r] = [landingRaw[0]!, landingRaw[1]!];
+            }
+            runwayTaxi[r] = taxiRaw;
+            runwayCreation[r] = creationRaw;
+          }
+        }
+      }
+
+      for (const child of block.blocks) {
+        visitBlock(child);
+      }
+    };
+
+    for (const block of objectDef.blocks) {
+      visitBlock(block);
+    }
+
+    if (!foundModule) return null;
+
+    return {
+      numRunways,
+      numSpacesPerRunway,
+      healAmountPerSecond,
+      approachHeight,
+      landingDeckHeightOffset,
+      cleanupFrames,
+      humanFollowFrames,
+      replacementFrames,
+      dockAnimationFrames,
+      launchWaveFrames,
+      launchRampFrames,
+      lowerRampFrames,
+      catapultFireFrames,
+      payloadTemplateName,
+      runwaySpaces,
+      runwayTakeoff,
+      runwayLanding,
+      runwayTaxi,
+      runwayCreation,
     };
   }
 
@@ -45683,6 +45957,473 @@ export class GameLogicSubsystem implements Subsystem {
     return false;
   }
 
+  // ── Source parity: FlightDeckBehavior — aircraft carrier flight deck system ──────────────
+
+  /**
+   * Source parity: FlightDeckBehavior::buildInfo — initialize parking spaces and runway data.
+   * C++ interleaves spaces row-first: R1S1, R2S1, R1S2, R2S2, etc.
+   */
+  private initializeFlightDeckState(entity: MapEntity, profile: FlightDeckProfile): void {
+    const totalSpaces = profile.numRunways * profile.numSpacesPerRunway;
+    const parkingSpaces: FlightDeckParkingSpace[] = [];
+
+    // Source parity: interleave spaces — for row in 0..numSpacesPerRunway, for col in 0..numRunways
+    for (let row = 0; row < profile.numSpacesPerRunway; row++) {
+      for (let col = 0; col < profile.numRunways; col++) {
+        parkingSpaces.push({
+          occupantId: -1,
+          runway: col,
+        });
+      }
+    }
+
+    const runwayTakeoffReservation: number[] = [];
+    const runwayLandingReservation: number[] = [];
+    const nextLaunchWaveFrame: number[] = [];
+    const rampUpFrame: number[] = [];
+    const catapultSystemFrame: number[] = [];
+    const lowerRampFrame: number[] = [];
+    const rampUp: boolean[] = [];
+
+    for (let i = 0; i < profile.numRunways; i++) {
+      runwayTakeoffReservation.push(-1);
+      runwayLandingReservation.push(-1);
+      nextLaunchWaveFrame.push(0);
+      rampUpFrame.push(0);
+      catapultSystemFrame.push(Number.POSITIVE_INFINITY);
+      lowerRampFrame.push(Number.POSITIVE_INFINITY);
+      rampUp.push(false);
+    }
+
+    entity.flightDeckState = {
+      parkingSpaces,
+      runwayTakeoffReservation,
+      runwayLandingReservation,
+      healeeEntityIds: new Set<number>(),
+      nextHealFrame: Number.POSITIVE_INFINITY,
+      nextCleanupFrame: 0,
+      startedProductionFrame: Number.POSITIVE_INFINITY,
+      nextAllowedProductionFrame: 0,
+      designatedTargetId: -1,
+      designatedCommand: 'NONE',
+      designatedPositionX: 0,
+      designatedPositionZ: 0,
+      nextLaunchWaveFrame,
+      rampUpFrame,
+      catapultSystemFrame,
+      lowerRampFrame,
+      rampUp,
+      initialized: true,
+    };
+
+    // Don't produce initial payload on map-placed objects (they get populated separately).
+    // C++ buildInfo creates units only when createUnits=true (default), which happens on first update.
+    void totalSpaces;
+  }
+
+  /**
+   * Source parity: FlightDeckBehavior::purgeDead — remove dead aircraft from parking spaces and runways.
+   */
+  private flightDeckPurgeDead(state: FlightDeckState): void {
+    for (const space of state.parkingSpaces) {
+      if (space.occupantId !== -1) {
+        const obj = this.spawnedEntities.get(space.occupantId);
+        if (!obj || obj.destroyed || obj.health <= 0) {
+          space.occupantId = -1;
+        }
+      }
+    }
+    for (let i = 0; i < state.runwayTakeoffReservation.length; i++) {
+      if (state.runwayTakeoffReservation[i] !== -1) {
+        const obj = this.spawnedEntities.get(state.runwayTakeoffReservation[i]!);
+        if (!obj || obj.destroyed || obj.health <= 0) {
+          state.runwayTakeoffReservation[i] = -1;
+        }
+      }
+      if (state.runwayLandingReservation[i] !== -1) {
+        const obj = this.spawnedEntities.get(state.runwayLandingReservation[i]!);
+        if (!obj || obj.destroyed || obj.health <= 0) {
+          state.runwayLandingReservation[i] = -1;
+        }
+      }
+    }
+    const toRemove: number[] = [];
+    for (const healeeId of state.healeeEntityIds) {
+      const obj = this.spawnedEntities.get(healeeId);
+      if (!obj || obj.destroyed || obj.health <= 0) {
+        toRemove.push(healeeId);
+      }
+    }
+    for (const id of toRemove) {
+      state.healeeEntityIds.delete(id);
+    }
+    if (state.healeeEntityIds.size === 0) {
+      state.nextHealFrame = Number.POSITIVE_INFINITY;
+    }
+  }
+
+  /**
+   * Source parity: FlightDeckBehavior::hasReservedSpace — check if an aircraft has a parking space.
+   */
+  // @ts-expect-error — Infrastructure method; will be called when JetAI landing/takeoff wires into flight deck.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private flightDeckHasReservedSpace(state: FlightDeckState, entityId: number): boolean {
+    if (entityId === -1) return false;
+    for (const space of state.parkingSpaces) {
+      if (space.occupantId === entityId) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Source parity: FlightDeckBehavior::findEmptyPPI — find first empty parking space.
+   */
+  private flightDeckFindEmptySpace(state: FlightDeckState): FlightDeckParkingSpace | null {
+    for (const space of state.parkingSpaces) {
+      if (space.occupantId === -1) return space;
+    }
+    return null;
+  }
+
+  /**
+   * Source parity: FlightDeckBehavior::reserveSpace — assign aircraft to a parking space.
+   */
+  // @ts-expect-error — Infrastructure method; will be called when production/JetAI wires into flight deck.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private flightDeckReserveSpace(state: FlightDeckState, entityId: number): boolean {
+    // Check if already reserved.
+    for (const space of state.parkingSpaces) {
+      if (space.occupantId === entityId) return true;
+    }
+    // Find empty space.
+    const empty = this.flightDeckFindEmptySpace(state);
+    if (!empty) return false;
+    empty.occupantId = entityId;
+    return true;
+  }
+
+  /**
+   * Source parity: FlightDeckBehavior::releaseSpace — free a parking space.
+   */
+  // @ts-expect-error — Infrastructure method; will be called when JetAI takeoff/landing wires into flight deck.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private flightDeckReleaseSpace(state: FlightDeckState, entityId: number): void {
+    for (const space of state.parkingSpaces) {
+      if (space.occupantId === entityId) {
+        space.occupantId = -1;
+      }
+    }
+  }
+
+  /**
+   * Source parity: FlightDeckBehavior::reserveRunway — claim a runway for takeoff or landing.
+   * For takeoff, only checks front spaces (first numRunways spaces).
+   * For landing, checks all spaces.
+   */
+  // @ts-expect-error — Infrastructure method; will be called when JetAI takeoff/landing wires into flight deck.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private flightDeckReserveRunway(
+    state: FlightDeckState, profile: FlightDeckProfile, entityId: number, forLanding: boolean,
+  ): boolean {
+    let runway = -1;
+
+    if (!forLanding) {
+      // Source parity: only look at front spaces for takeoff.
+      for (let i = 0; i < profile.numRunways; i++) {
+        if (state.parkingSpaces[i]?.occupantId === entityId) {
+          runway = state.parkingSpaces[i]!.runway;
+          break;
+        }
+      }
+    } else {
+      for (const space of state.parkingSpaces) {
+        if (space.occupantId === entityId) {
+          runway = space.runway;
+          break;
+        }
+      }
+    }
+
+    if (runway === -1) return false;
+
+    if (forLanding) {
+      if (state.runwayLandingReservation[runway] === entityId) return true;
+      if (state.runwayLandingReservation[runway] === -1) {
+        state.runwayLandingReservation[runway] = entityId;
+        return true;
+      }
+    } else {
+      if (state.runwayTakeoffReservation[runway] === entityId) return true;
+      if (state.runwayTakeoffReservation[runway] === -1) {
+        state.runwayTakeoffReservation[runway] = entityId;
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Source parity: FlightDeckBehavior::releaseRunway — free runway reservation.
+   */
+  // @ts-expect-error — Infrastructure method; will be called when JetAI takeoff/landing wires into flight deck.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private flightDeckReleaseRunway(state: FlightDeckState, entityId: number): void {
+    for (let i = 0; i < state.runwayTakeoffReservation.length; i++) {
+      if (state.runwayTakeoffReservation[i] === entityId) {
+        state.runwayTakeoffReservation[i] = -1;
+      }
+      if (state.runwayLandingReservation[i] === entityId) {
+        state.runwayLandingReservation[i] = -1;
+      }
+    }
+  }
+
+  /**
+   * Source parity: FlightDeckBehavior::hasAvailableSpaceFor — check if any space is available.
+   * Peeks at dead occupants without modifying state (const method in C++).
+   */
+  // @ts-expect-error — Infrastructure method; will be called when production system checks capacity.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private flightDeckHasAvailableSpace(state: FlightDeckState): boolean {
+    for (const space of state.parkingSpaces) {
+      let id = space.occupantId;
+      if (id !== -1) {
+        const obj = this.spawnedEntities.get(id);
+        if (!obj || obj.destroyed || obj.health <= 0) {
+          id = -1;
+        }
+      }
+      if (id === -1) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Source parity: FlightDeckBehavior::setHealee — add/remove aircraft from healing list.
+   */
+  private flightDeckSetHealee(state: FlightDeckState, healeeId: number, add: boolean): void {
+    if (add) {
+      if (state.healeeEntityIds.has(healeeId)) return;
+      state.healeeEntityIds.add(healeeId);
+      if (state.healeeEntityIds.size === 1) {
+        state.nextHealFrame = this.frameCounter + FLIGHT_DECK_HEAL_RATE_FRAMES;
+      }
+    } else {
+      if (state.healeeEntityIds.delete(healeeId) && state.healeeEntityIds.size === 0) {
+        state.nextHealFrame = Number.POSITIVE_INFINITY;
+      }
+    }
+  }
+
+  /**
+   * Source parity: FlightDeckBehavior::update — main update loop for flight deck.
+   * Purges dead, heals parked aircraft, manages cleanup/shuffle, replacement production,
+   * and catapult launch sequence.
+   */
+  private updateFlightDeck(): void {
+    for (const carrier of this.spawnedEntities.values()) {
+      const profile = carrier.flightDeckProfile;
+      const state = carrier.flightDeckState;
+      if (!profile || !state) continue;
+      if (carrier.destroyed || carrier.health <= 0) continue;
+
+      // Source parity: buildInfo + purgeDead every frame.
+      this.flightDeckPurgeDead(state);
+
+      const now = this.frameCounter;
+
+      // ── Healing ──
+      if (profile.healAmountPerSecond > 0 && state.healeeEntityIds.size > 0 && now >= state.nextHealFrame) {
+        state.nextHealFrame = now + FLIGHT_DECK_HEAL_RATE_FRAMES;
+        // Source parity: healAmount = HEAL_RATE_FRAMES * m_healAmount * SECONDS_PER_LOGICFRAME_REAL
+        const healAmount = FLIGHT_DECK_HEAL_RATE_FRAMES * profile.healAmountPerSecond * (1 / LOGIC_FRAME_RATE);
+        if (healAmount > 0) {
+          const toRemove: number[] = [];
+          for (const healeeId of state.healeeEntityIds) {
+            const healee = this.spawnedEntities.get(healeeId);
+            if (!healee || healee.destroyed || healee.health <= 0) {
+              toRemove.push(healeeId);
+              continue;
+            }
+            if (healee.health >= healee.maxHealth) continue;
+            const prevHealth = healee.health;
+            healee.health = Math.min(healee.maxHealth, healee.health + healAmount);
+            if (healee.health > prevHealth) {
+              this.clearPoisonFromEntity(healee);
+              if (healee.minefieldProfile) {
+                this.mineOnDamage(healee, carrier.id, 'HEALING');
+              }
+            }
+          }
+          for (const id of toRemove) {
+            state.healeeEntityIds.delete(id);
+          }
+          if (state.healeeEntityIds.size === 0) {
+            state.nextHealFrame = Number.POSITIVE_INFINITY;
+          }
+        }
+      }
+
+      // ── Cleanup / shuffle aircraft forward ──
+      // Source parity: periodically promote aircraft to frontmost available spaces.
+      if (now >= state.nextCleanupFrame) {
+        state.nextCleanupFrame = now + profile.cleanupFrames;
+        // Mark which runways have already been processed this sweep.
+        const complete = new Set<number>();
+        for (let spaceIdx = 0; spaceIdx < state.parkingSpaces.length; spaceIdx++) {
+          const space = state.parkingSpaces[spaceIdx]!;
+          const occupant = space.occupantId !== -1 ? this.spawnedEntities.get(space.occupantId) : null;
+          const isAvailable = !occupant || occupant.destroyed || occupant.health <= 0
+            || occupant.objectStatusFlags.has('AIRBORNE_TARGET');
+          if (isAvailable) {
+            // Look behind for an idle aircraft on the same runway to promote forward.
+            let runwayCount = profile.numRunways;
+            for (let tempIdx = spaceIdx + 1; tempIdx < state.parkingSpaces.length; tempIdx++) {
+              if (runwayCount > 0) {
+                runwayCount--;
+                continue;
+              }
+              const tempSpace = state.parkingSpaces[tempIdx]!;
+              if (complete.has(space.runway)) continue;
+              if (tempSpace.runway !== space.runway) continue;
+              const parkedJet = tempSpace.occupantId !== -1
+                ? this.spawnedEntities.get(tempSpace.occupantId)
+                : null;
+              if (parkedJet && !parkedJet.destroyed && parkedJet.health > 0
+                  && !parkedJet.objectStatusFlags.has('AIRBORNE_TARGET')) {
+                // Swap parking assignments.
+                space.occupantId = parkedJet.id;
+                tempSpace.occupantId = occupant ? occupant.id : -1;
+                complete.add(space.runway);
+                state.nextCleanupFrame = now + profile.humanFollowFrames;
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      // ── Replacement production ──
+      // Source parity: if production timer expired, reset startedProductionFrame.
+      if (state.nextAllowedProductionFrame <= now) {
+        state.startedProductionFrame = Number.POSITIVE_INFINITY;
+      }
+      // Source parity: find first empty space and queue production.
+      for (const space of state.parkingSpaces) {
+        if (space.occupantId === -1) {
+          // Queue replacement if not already producing.
+          if (carrier.productionQueue.length === 0
+              && now >= state.nextAllowedProductionFrame
+              && profile.payloadTemplateName) {
+            // Source parity: ProductionUpdate::queueCreateUnit.
+            // We don't directly queue production here (that would need the full production system),
+            // but we track the timing for source parity.
+            state.startedProductionFrame = now;
+            state.nextAllowedProductionFrame = now + profile.replacementFrames + profile.dockAnimationFrames;
+          }
+          break; // Only handle one empty space per frame.
+        }
+      }
+
+      // ── Set NO_ATTACK status based on aircraft presence ──
+      let hasAircraft = false;
+      for (const space of state.parkingSpaces) {
+        if (space.occupantId !== -1) {
+          hasAircraft = true;
+          break;
+        }
+      }
+      if (!hasAircraft) {
+        carrier.objectStatusFlags.add('NO_ATTACK');
+      } else {
+        carrier.objectStatusFlags.delete('NO_ATTACK');
+      }
+
+      // ── Catapult launch sequence ──
+      // Source parity: for each runway, check if front space has a jet ready to launch.
+      for (let i = 0; i < profile.numRunways; i++) {
+        const frontSpace = state.parkingSpaces[i];
+        if (!frontSpace) continue;
+        const jet = frontSpace.occupantId !== -1
+          ? this.spawnedEntities.get(frontSpace.occupantId)
+          : null;
+        const jetReady = jet && !jet.destroyed && jet.health > 0
+          && !jet.objectStatusFlags.has('AIRBORNE_TARGET')
+          && state.designatedCommand !== 'NONE' && state.designatedCommand !== 'IDLE';
+        if (jetReady && (state.nextLaunchWaveFrame[i] ?? 0) <= now) {
+          // Ramp-up phase.
+          if (!state.rampUp[i]) {
+            state.rampUp[i] = true;
+            state.rampUpFrame[i] = now + profile.launchRampFrames;
+            state.lowerRampFrame[i] = Number.POSITIVE_INFINITY;
+            // Source parity: set DOOR_OPENING model condition for this runway.
+            carrier.modelConditionFlags.add(`DOOR_${i + 2}_OPENING`);
+            carrier.modelConditionFlags.delete(`DOOR_${i + 2}_CLOSING`);
+          }
+          // Launch when ramp is fully up.
+          if (state.rampUp[i] && (state.rampUpFrame[i] ?? 0) <= now) {
+            // Source parity: propagateOrderToSpecificPlane + set wave/catapult timers.
+            state.nextLaunchWaveFrame[i] = now + profile.launchWaveFrames;
+            state.catapultSystemFrame[i] = now + profile.catapultFireFrames;
+            state.lowerRampFrame[i] = now + profile.lowerRampFrames;
+            // Mark jet as launched — set airborne.
+            jet!.objectStatusFlags.add('AIRBORNE_TARGET');
+            // Release the parking space.
+            frontSpace.occupantId = -1;
+            // Release runway reservation.
+            if (state.runwayTakeoffReservation[i] === jet!.id) {
+              state.runwayTakeoffReservation[i] = -1;
+            }
+            // Remove from healing.
+            this.flightDeckSetHealee(state, jet!.id, false);
+          }
+        }
+
+        // Source parity: catapult particle system timer (visual only — tracked for state parity).
+        if ((state.catapultSystemFrame[i] ?? Number.POSITIVE_INFINITY) <= now) {
+          state.catapultSystemFrame[i] = Number.POSITIVE_INFINITY;
+          // Source parity: would fire catapult particle here — visual-only effect.
+        }
+
+        // Source parity: lower ramp after fighter launched.
+        if (state.rampUp[i] && (state.lowerRampFrame[i] ?? Number.POSITIVE_INFINITY) <= now) {
+          state.rampUp[i] = false;
+          carrier.modelConditionFlags.delete(`DOOR_${i + 2}_OPENING`);
+          carrier.modelConditionFlags.add(`DOOR_${i + 2}_CLOSING`);
+        }
+      }
+    }
+  }
+
+  /**
+   * Source parity: FlightDeckBehavior::onDie — kill all non-airborne parked aircraft.
+   * C++ file: FlightDeckBehavior.cpp lines 1045-1077.
+   */
+  private onFlightDeckDie(entity: MapEntity): void {
+    const state = entity.flightDeckState;
+    if (!state) return;
+
+    for (const space of state.parkingSpaces) {
+      if (space.occupantId !== -1) {
+        const aircraft = this.spawnedEntities.get(space.occupantId);
+        if (!aircraft || aircraft.destroyed || aircraft.health <= 0) continue;
+        // Source parity: skip aircraft that are airborne and not in takeoff/landing.
+        // For simplicity, only kill non-airborne aircraft (matching C++ isAboveTerrain check).
+        if (aircraft.objectStatusFlags.has('AIRBORNE_TARGET')) continue;
+        // Source parity: obj->kill() — apply lethal damage.
+        this.applyWeaponDamageAmount(entity.id, aircraft, aircraft.maxHealth, 'UNRESISTABLE');
+      }
+    }
+
+    // Clear state.
+    for (const space of state.parkingSpaces) {
+      space.occupantId = -1;
+    }
+    state.healeeEntityIds.clear();
+    state.nextHealFrame = Number.POSITIVE_INFINITY;
+  }
+
   // ── Source parity: MinefieldBehavior — mine collision system ──────────────
 
   /**
@@ -60448,6 +61189,9 @@ export class GameLogicSubsystem implements Subsystem {
 
     // Source parity: CreateCrateDie::onDie — spawn salvage crate on death.
     this.trySpawnCrateOnDeath(entity, attackerId);
+
+    // Source parity: FlightDeckBehavior::onDie — kill all parked aircraft when carrier dies.
+    this.onFlightDeckDie(entity);
 
     // Source parity: SpawnBehavior::onDie — handle slaver death (orphan/kill slaves).
     this.onSlaverDeath(entity);
