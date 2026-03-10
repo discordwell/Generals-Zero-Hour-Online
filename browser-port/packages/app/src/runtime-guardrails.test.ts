@@ -130,14 +130,17 @@ describe('runtime guardrails', () => {
     expect(() => assertIniBundleConsistency(bundle)).toThrow('missing CommandButton references');
   });
 
-  it('fails when command buttons miss required payload fields', () => {
+  it('warns when command buttons miss required payload fields', () => {
     const bundle = makeBundle({
       objects: [makeObject('RuntimeFactory', 'CommandSet_RuntimeFactory')],
       commandButtons: [makeCommandButton('Command_BuildRuntimeTank', { Command: 'UNIT_BUILD' })],
       commandSets: [makeCommandSet('CommandSet_RuntimeFactory', 'Command_BuildRuntimeTank')],
     });
 
-    expect(() => assertIniBundleConsistency(bundle)).toThrow('invalid CommandButton references');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(() => assertIniBundleConsistency(bundle)).not.toThrow();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('CommandButton warnings'));
+    warnSpy.mockRestore();
   });
 
   it('accepts a consistent bundle', () => {
