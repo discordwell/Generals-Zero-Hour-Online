@@ -52443,6 +52443,29 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
 
+    // Source parity: C++ classifyMap pass 3 (lines 4648-4667) — add a border of
+    // pinched cells around the expanded cliff zone.  This does NOT convert them
+    // to cliff; it only sets the pinched flag for narrow-passage avoidance.
+    for (let z = 0; z < cellHeight; z++) {
+      for (let x = 0; x < cellWidth; x++) {
+        const index = z * cellWidth + x;
+        if (terrainType[index] !== NAV_CLIFF) {
+          continue;
+        }
+        for (let kx = x - 1; kx <= x + 1; kx++) {
+          for (let kz = z - 1; kz <= z + 1; kz++) {
+            if (!this.isMapCellInBounds(kx, kz)) {
+              continue;
+            }
+            const nIndex = kz * cellWidth + kx;
+            if (terrainType[nIndex] === NAV_CLEAR) {
+              pinched[nIndex] = 1;
+            }
+          }
+        }
+      }
+    }
+
     const grid: NavigationGrid = {
       width: cellWidth,
       height: cellHeight,
