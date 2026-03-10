@@ -1065,6 +1065,9 @@ async function startGame(
   // ========================================================================
 
   if (skirmishSettings) {
+    // Source parity: SkirmishScripts.scb — spawn command center + dozer at Player_N_Start waypoints.
+    gameLogic.spawnSkirmishStartingEntities();
+
     // Set starting credits
     gameLogic.submitCommand({
       type: 'setSideCredits',

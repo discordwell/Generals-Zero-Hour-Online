@@ -17,6 +17,7 @@ import {
   type ArmorDef,
   type CommandButtonDef,
   type CommandSetDef,
+  type FactionDef,
   type LocomotorDef,
   type SpecialPowerDef,
   type ObjectDef,
@@ -49797,6 +49798,97 @@ export class GameLogicSubsystem implements Subsystem {
     this.skirmishAIStates.delete(this.normalizeSide(side));
   }
 
+  /**
+   * Source parity: Player::buildInitialBuildList / SkirmishScripts.scb —
+   * Spawn the starting command center and construction dozer (or worker)
+   * at the player's spawn waypoint for each registered side.
+   *
+   * In the original C++ game this is handled by SkirmishScripts.scb which
+   * is loaded separately and runs on game init. Since we don't have that
+   * binary script file, we replicate the behaviour programmatically.
+   */
+  spawnSkirmishStartingEntities(): void {
+    const registry = this.iniDataRegistry;
+    if (!registry) {
+      return;
+    }
+
+    for (const [playerIndex, side] of this.playerSideByIndex) {
+      // Resolve faction definition to find StartingBuilding / StartingUnit0.
+      const factionDef = this.resolveFactionDefForSide(side, registry);
+      if (!factionDef) {
+        continue;
+      }
+
+      const startingBuildingName = this.extractStringField(factionDef.fields, 'StartingBuilding');
+      const startingUnitName = this.extractStringField(factionDef.fields, 'StartingUnit0');
+
+      // Find the Player_N_Start waypoint (1-based).
+      const waypointName = `Player_${playerIndex + 1}_Start`;
+      const spawnPos = this.resolveScriptWaypointPosition(waypointName);
+      if (!spawnPos) {
+        continue;
+      }
+
+      // Spawn command center.
+      if (startingBuildingName) {
+        const building = this.spawnEntityFromTemplate(
+          startingBuildingName, spawnPos.x, spawnPos.z, 0, side,
+        );
+        if (building) {
+          // Source parity: starting buildings are born complete — fire special power init.
+          if (building.hasSpecialPowerCreate && !building.objectStatusFlags.has('UNDER_CONSTRUCTION')) {
+            this.onBuildCompleteSpecialPowerCreate(building);
+          }
+        }
+      }
+
+      // Spawn construction dozer / worker offset from the command center.
+      if (startingUnitName) {
+        const dozerOffsetX = 40; // small offset so dozer doesn't overlap building
+        this.spawnEntityFromTemplate(
+          startingUnitName, spawnPos.x + dozerOffsetX, spawnPos.z, 0, side,
+        );
+      }
+    }
+  }
+
+  private resolveFactionDefForSide(
+    normalizedSide: string,
+    registry: IniDataRegistry,
+  ): FactionDef | undefined {
+    // Try known faction naming conventions.
+    const candidates = [
+      `Faction${normalizedSide.charAt(0).toUpperCase()}${normalizedSide.slice(1)}`,
+      normalizedSide,
+    ];
+    for (const candidate of candidates) {
+      const def = registry.getFaction(candidate);
+      if (def) {
+        return def;
+      }
+    }
+    // Brute-force search: find a faction whose Side field matches.
+    for (const faction of registry.factions.values()) {
+      if (faction.side && this.normalizeSide(faction.side) === normalizedSide) {
+        return faction;
+      }
+    }
+    return undefined;
+  }
+
+  private extractStringField(
+    fields: Record<string, unknown>,
+    fieldName: string,
+  ): string | null {
+    const value = fields[fieldName];
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+    return null;
+  }
+
   private updateSkirmishAI(): void {
     if (this.skirmishAIStates.size === 0) {
       return;
@@ -64717,6 +64809,14 @@ export class GameLogicSubsystem implements Subsystem {
       if (this.hasSingleSideBeenDefeated(side)) {
         newlyDefeated.push(side);
       }
+    }
+
+    // Source parity: In C++ starting entities exist before the first frame update
+    // (created by SkirmishScripts.scb during init). If ALL active sides have zero
+    // entities simultaneously, this is a startup race condition — skip until entities
+    // have been spawned and had at least one frame to register.
+    if (newlyDefeated.length === activeSides.size) {
+      return;
     }
 
     // Source parity: VictoryConditions::update() — on defeat: reveal map, kill remaining units.

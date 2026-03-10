@@ -25689,6 +25689,158 @@ describe('victory conditions C++ parity', () => {
   });
 });
 
+describe('skirmish starting entities', () => {
+  it('spawns command center and dozer at Player_N_Start waypoints', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('AmericaCommandCenter', 'America', ['STRUCTURE', 'COMMANDCENTER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 5000, InitialHealth: 5000 }),
+        ]),
+        makeObjectDef('AmericaVehicleDozer', 'America', ['VEHICLE', 'DOZER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ]),
+        makeObjectDef('ChinaCommandCenter', 'China', ['STRUCTURE', 'COMMANDCENTER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 5000, InitialHealth: 5000 }),
+        ]),
+        makeObjectDef('ChinaVehicleDozer', 'China', ['VEHICLE', 'DOZER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ]),
+      ],
+      factions: [
+        {
+          name: 'FactionAmerica',
+          side: 'America',
+          fields: {
+            Side: 'America',
+            StartingBuilding: 'AmericaCommandCenter',
+            StartingUnit0: 'AmericaVehicleDozer',
+          },
+        } as FactionDef,
+        {
+          name: 'FactionChina',
+          side: 'China',
+          fields: {
+            Side: 'China',
+            StartingBuilding: 'ChinaCommandCenter',
+            StartingUnit0: 'ChinaVehicleDozer',
+          },
+        } as FactionDef,
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    const mapData = makeMap([], 128, 128);
+    // Add Player_1_Start and Player_2_Start waypoints.
+    mapData.waypoints = {
+      nodes: [
+        { id: 1, name: 'Player_1_Start', position: { x: 50, y: 50, z: 0 } },
+        { id: 2, name: 'Player_2_Start', position: { x: 100, y: 100, z: 0 } },
+      ],
+      links: [],
+    };
+    logic.loadMapObjects(mapData, makeRegistry(bundle), makeHeightmap(128, 128));
+    logic.setPlayerSide(0, 'America');
+    logic.setPlayerSide(1, 'China');
+
+    logic.spawnSkirmishStartingEntities();
+
+    const entities = logic.getRenderableEntityStates();
+    const americaEntities = entities.filter(e => e.side === 'America' || e.side === 'america');
+    const chinaEntities = entities.filter(e => e.side === 'China' || e.side === 'china');
+
+    // Should have spawned 2 entities per side (command center + dozer).
+    expect(americaEntities.length).toBe(2);
+    expect(chinaEntities.length).toBe(2);
+  });
+
+  it('does not trigger immediate defeat when starting entities exist', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('AmericaCommandCenter', 'America', ['STRUCTURE', 'COMMANDCENTER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 5000, InitialHealth: 5000 }),
+        ]),
+        makeObjectDef('AmericaVehicleDozer', 'America', ['VEHICLE', 'DOZER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ]),
+        makeObjectDef('ChinaCommandCenter', 'China', ['STRUCTURE', 'COMMANDCENTER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 5000, InitialHealth: 5000 }),
+        ]),
+        makeObjectDef('ChinaVehicleDozer', 'China', ['VEHICLE', 'DOZER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ]),
+      ],
+      factions: [
+        {
+          name: 'FactionAmerica',
+          side: 'America',
+          fields: {
+            Side: 'America',
+            StartingBuilding: 'AmericaCommandCenter',
+            StartingUnit0: 'AmericaVehicleDozer',
+          },
+        } as FactionDef,
+        {
+          name: 'FactionChina',
+          side: 'China',
+          fields: {
+            Side: 'China',
+            StartingBuilding: 'ChinaCommandCenter',
+            StartingUnit0: 'ChinaVehicleDozer',
+          },
+        } as FactionDef,
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    const mapData = makeMap([], 128, 128);
+    mapData.waypoints = {
+      nodes: [
+        { id: 1, name: 'Player_1_Start', position: { x: 50, y: 50, z: 0 } },
+        { id: 2, name: 'Player_2_Start', position: { x: 100, y: 100, z: 0 } },
+      ],
+      links: [],
+    };
+    logic.loadMapObjects(mapData, makeRegistry(bundle), makeHeightmap(128, 128));
+    logic.setPlayerSide(0, 'America');
+    logic.setPlayerSide(1, 'China');
+    logic.spawnSkirmishStartingEntities();
+
+    // Run several frames — should NOT trigger defeat.
+    for (let i = 0; i < 10; i++) {
+      logic.update(1 / 30);
+    }
+
+    const endState = logic.getGameEndState();
+    expect(endState).toBeNull();
+  });
+
+  it('skips simultaneous all-side defeat on empty skirmish maps', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TankA', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+        makeObjectDef('TankC', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    // Empty map — no objects. This simulates a skirmish map before starting entities spawn.
+    logic.loadMapObjects(makeMap([], 128, 128), makeRegistry(bundle), makeHeightmap(128, 128));
+    logic.setPlayerSide(0, 'America');
+    logic.setPlayerSide(1, 'China');
+
+    // Run a frame — both sides have zero entities.
+    logic.update(1 / 30);
+
+    // Game should NOT end as a draw — the grace period should prevent it.
+    const endState = logic.getGameEndState();
+    expect(endState).toBeNull();
+  });
+});
+
 // ──── Death OCL DieMuxData Filtering ──────────────────────────────────────────
 
 describe('death OCL DieMuxData filtering', () => {

@@ -26,10 +26,10 @@ describe('syncPlayerSidesFromNetwork', () => {
       },
     );
 
+    // Null sides are skipped to prevent overwriting sides set by skirmish setup.
     expect(recorded).toEqual([
       { playerIndex: 0, side: 'America' },
       { playerIndex: 2, side: 'China' },
-      { playerIndex: 5, side: null },
     ]);
   });
 
