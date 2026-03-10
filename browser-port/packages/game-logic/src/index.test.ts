@@ -66344,3 +66344,335 @@ describe('MobMemberSlavedUpdate', () => {
     expect(slave.health <= 0 || slave.destroyed).toBe(true);
   });
 });
+
+// ── RadiusDecalUpdate Tests ─────────────────────────────────────────────────
+
+describe('RadiusDecalUpdate', () => {
+  function makeRadiusDecalSetup() {
+    const unitDef = makeObjectDef('TestUnit', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+    ]);
+
+    const bundle = makeBundle({ objects: [unitDef] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestUnit', 3, 3)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.update(0);
+    return { logic };
+  }
+
+  it('tracks radius decal position to entity position', () => {
+    const { logic } = makeRadiusDecalSetup();
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        x: number;
+        z: number;
+        radiusDecalStates: Array<{
+          positionX: number;
+          positionY: number;
+          positionZ: number;
+          radius: number;
+          visible: boolean;
+          killWhenNoLongerAttacking: boolean;
+        }>;
+      }>;
+    };
+
+    const entity = priv.spawnedEntities.get(1)!;
+
+    // Add a radius decal programmatically.
+    entity.radiusDecalStates.push({
+      positionX: 0,
+      positionY: 0,
+      positionZ: 0,
+      radius: 50,
+      visible: true,
+      killWhenNoLongerAttacking: false,
+    });
+
+    // Run a frame — decal should update to entity position.
+    logic.update(1 / 30);
+
+    expect(entity.radiusDecalStates.length).toBe(1);
+    expect(entity.radiusDecalStates[0]!.positionX).toBe(entity.x);
+    expect(entity.radiusDecalStates[0]!.positionZ).toBeCloseTo(entity.z, 1);
+  });
+
+  it('removes decal when kill-when-not-attacking and entity stops attacking', () => {
+    const { logic } = makeRadiusDecalSetup();
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        objectStatusFlags: Set<string>;
+        radiusDecalStates: Array<{
+          positionX: number;
+          positionY: number;
+          positionZ: number;
+          radius: number;
+          visible: boolean;
+          killWhenNoLongerAttacking: boolean;
+        }>;
+      }>;
+    };
+
+    const entity = priv.spawnedEntities.get(1)!;
+
+    // Mark entity as attacking and add a kill-when-not-attacking decal.
+    entity.objectStatusFlags.add('IS_ATTACKING');
+    entity.radiusDecalStates.push({
+      positionX: 0,
+      positionY: 0,
+      positionZ: 0,
+      radius: 100,
+      visible: true,
+      killWhenNoLongerAttacking: true,
+    });
+
+    // While attacking, decal persists.
+    logic.update(1 / 30);
+    expect(entity.radiusDecalStates.length).toBe(1);
+
+    // Stop attacking — decal should be removed.
+    entity.objectStatusFlags.delete('IS_ATTACKING');
+    logic.update(1 / 30);
+    expect(entity.radiusDecalStates.length).toBe(0);
+  });
+});
+
+// ── BoneFXUpdate Tests ──────────────────────────────────────────────────────
+
+describe('BoneFXUpdate', () => {
+  function makeBoneFXSetup(opts: {
+    fxListFields?: Record<string, string>;
+    oclFields?: Record<string, string>;
+    psysFields?: Record<string, string>;
+    health?: number;
+  } = {}) {
+    const fields: Record<string, string> = {
+      ...opts.fxListFields,
+      ...opts.oclFields,
+      ...opts.psysFields,
+    };
+
+    const buildingDef = makeObjectDef('BoneFXBuilding', 'America', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: opts.health ?? 500,
+        InitialHealth: opts.health ?? 500,
+      }),
+      makeBlock('Behavior', 'BoneFXUpdate ModuleTag_BoneFX', fields),
+    ]);
+
+    const bundle = makeBundle({ objects: [buildingDef] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('BoneFXBuilding', 4, 4)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.update(0);
+    return { logic };
+  }
+
+  it('extracts BoneFX profile from INI', () => {
+    const { logic } = makeBoneFXSetup({
+      fxListFields: {
+        PristineFXList1: 'Bone:FXBone01 OnlyOnce:No 100 200 FXList:FXBoneFire',
+        DamagedFXList1: 'Bone:FXBone02 OnlyOnce:Yes 0 0 FXList:FXDamageFire',
+      },
+      oclFields: {
+        PristineOCL1: 'Bone:FXBone01 OnlyOnce:No 500 1000 OCL:OCLBoneDebris',
+      },
+      psysFields: {
+        PristineParticleSystem1: 'Bone:FXBone01 OnlyOnce:No 100 200 PSys:SmokePlume',
+      },
+    });
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        boneFXProfile: {
+          fxLists: (null | { boneName: string; effectName: string; onlyOnce: boolean })[][];
+          oclLists: (null | { boneName: string; effectName: string; onlyOnce: boolean })[][];
+          particleSystems: (null | { boneName: string; effectName: string })[][];
+        } | null;
+        boneFXState: unknown;
+      }>;
+    };
+
+    const entity = priv.spawnedEntities.get(1)!;
+    expect(entity.boneFXProfile).not.toBeNull();
+
+    // Pristine FXList slot 0
+    const pristineFX0 = entity.boneFXProfile!.fxLists[0]![0];
+    expect(pristineFX0).not.toBeNull();
+    expect(pristineFX0!.boneName).toBe('FXBone01');
+    expect(pristineFX0!.effectName).toBe('FXBoneFire');
+    expect(pristineFX0!.onlyOnce).toBe(false);
+
+    // Damaged FXList slot 0
+    const damagedFX0 = entity.boneFXProfile!.fxLists[1]![0];
+    expect(damagedFX0).not.toBeNull();
+    expect(damagedFX0!.boneName).toBe('FXBone02');
+    expect(damagedFX0!.effectName).toBe('FXDamageFire');
+    expect(damagedFX0!.onlyOnce).toBe(true);
+
+    // Pristine OCL slot 0
+    const pristineOCL0 = entity.boneFXProfile!.oclLists[0]![0];
+    expect(pristineOCL0).not.toBeNull();
+    expect(pristineOCL0!.boneName).toBe('FXBone01');
+    expect(pristineOCL0!.effectName).toBe('OCLBoneDebris');
+
+    // Pristine ParticleSystem slot 0
+    const pristinePS0 = entity.boneFXProfile!.particleSystems[0]![0];
+    expect(pristinePS0).not.toBeNull();
+    expect(pristinePS0!.effectName).toBe('SmokePlume');
+
+    // State should be initialized.
+    expect(entity.boneFXState).not.toBeNull();
+  });
+
+  it('fires FX events at scheduled frames', () => {
+    const { logic } = makeBoneFXSetup({
+      fxListFields: {
+        // Delay of 0 ms = immediate fire, repeating.
+        PristineFXList1: 'Bone:FXBone01 OnlyOnce:No 0 0 FXList:FXBoneFire',
+      },
+    });
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        boneFXState: {
+          pendingVisualEvents: Array<{ type: string; effectName: string; boneName: string }>;
+          active: boolean;
+        } | null;
+      }>;
+    };
+
+    const entity = priv.spawnedEntities.get(1)!;
+    expect(entity.boneFXState).not.toBeNull();
+
+    // Run a few frames — events should fire.
+    logic.update(1 / 30);
+    expect(entity.boneFXState!.active).toBe(true);
+
+    // After a frame, there should be pending visual events.
+    logic.update(1 / 30);
+    const events = entity.boneFXState!.pendingVisualEvents;
+    // Should have at least one FX event per update cycle (delay=0 means fire every frame).
+    expect(events.length).toBeGreaterThanOrEqual(1);
+    expect(events[0]!.type).toBe('FX');
+    expect(events[0]!.effectName).toBe('FXBoneFire');
+    expect(events[0]!.boneName).toBe('FXBone01');
+  });
+
+  it('stops after first fire when onlyOnce is set', () => {
+    const { logic } = makeBoneFXSetup({
+      fxListFields: {
+        // Use a small delay so it doesn't fire on the very first frame but fires soon after.
+        PristineFXList1: 'Bone:FXBone01 OnlyOnce:Yes 100 100 FXList:FXOneShot',
+      },
+    });
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        boneFXState: {
+          pendingVisualEvents: Array<{ type: string; effectName: string }>;
+          nextFXFrame: number[][];
+        } | null;
+      }>;
+    };
+
+    const entity = priv.spawnedEntities.get(1)!;
+    expect(entity.boneFXState).not.toBeNull();
+
+    // The delay is ~3 frames (100ms * 30/1000 = 3). Run enough frames for it to fire.
+    let firedCount = 0;
+    for (let f = 0; f < 10; f++) {
+      logic.update(1 / 30);
+      firedCount += entity.boneFXState!.pendingVisualEvents.length;
+    }
+
+    // OnlyOnce should have fired exactly once across all frames.
+    expect(firedCount).toBe(1);
+
+    // The nextFXFrame for this slot should now be -1 (disabled).
+    expect(entity.boneFXState!.nextFXFrame[0]![0]).toBe(-1);
+
+    // Subsequent frames should not produce new events for this slot.
+    logic.update(1 / 30);
+    const eventsAfterFinal = entity.boneFXState!.pendingVisualEvents;
+    expect(eventsAfterFinal.length).toBe(0);
+  });
+
+  it('reinitializes timers on body damage state transition', () => {
+    const { logic } = makeBoneFXSetup({
+      fxListFields: {
+        PristineFXList1: 'Bone:FXBone01 OnlyOnce:No 100 100 FXList:FXPristine',
+        DamagedFXList1: 'Bone:FXBone01 OnlyOnce:No 0 0 FXList:FXDamaged',
+      },
+      health: 100,
+    });
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        health: number;
+        maxHealth: number;
+        boneFXState: {
+          currentBodyState: number;
+          pendingVisualEvents: Array<{ type: string; effectName: string }>;
+          nextFXFrame: number[][];
+        } | null;
+      }>;
+    };
+
+    const entity = priv.spawnedEntities.get(1)!;
+    expect(entity.boneFXState).not.toBeNull();
+
+    // Initially in PRISTINE state (0).
+    logic.update(1 / 30);
+    expect(entity.boneFXState!.currentBodyState).toBe(0);
+
+    // Damage entity to transition to DAMAGED state.
+    // DAMAGED threshold is health < maxHealth * 0.66 (UNIT_DAMAGED_THRESH).
+    // Set health to just below threshold.
+    entity.health = Math.floor(entity.maxHealth * 0.5);
+
+    // Run frames — the damage state change should be detected and BoneFX timers reinitialize.
+    // We need to trigger the body damage state tracking code path.
+    // The simplest way: apply damage through the public damage path.
+    // But since we directly modified health, the BoneFX state transition happens in the
+    // damage application code. Let's trigger via applyDamage-like mechanism.
+    // For testing purposes, we can directly call the damage handler by issuing a weapon hit.
+    // Instead, let's just check that the BoneFXState timers for DAMAGED state are initialized
+    // after the state changes via the updateBoneFX path.
+
+    // Actually, the body damage state change is tracked in the damage application code,
+    // not in the update loop. Since we directly set health, the boneFX state won't auto-update.
+    // The correct approach: simulate damage via the game logic damage system.
+    // Reset health to full first, then use an attack to cause the transition.
+    entity.health = entity.maxHealth;
+
+    // Create an attack weapon and apply damage through game commands.
+    // Simpler approach: directly test the boneFXChangeBodyDamageState integration.
+    // Access the method through the private API.
+    const privLogic = logic as unknown as {
+      boneFXChangeBodyDamageState: (e: typeof entity, old: number, newS: number) => void;
+    };
+
+    // Simulate transition from PRISTINE(0) to DAMAGED(1).
+    privLogic.boneFXChangeBodyDamageState(entity as never, 0, 1);
+
+    expect(entity.boneFXState!.currentBodyState).toBe(1);
+    // DAMAGED state FXList slot 0 should now have a valid next frame (not -1).
+    expect(entity.boneFXState!.nextFXFrame[1]![0]).not.toBe(-1);
+
+    // Run a frame — should fire DAMAGED FX events.
+    logic.update(1 / 30);
+    const events = entity.boneFXState!.pendingVisualEvents;
+    expect(events.length).toBeGreaterThanOrEqual(1);
+    expect(events[0]!.effectName).toBe('FXDamaged');
+  });
+});

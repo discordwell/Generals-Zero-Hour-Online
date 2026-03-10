@@ -73,6 +73,34 @@ export interface RenderableEntityState {
   isOwnedByLocalPlayer?: boolean;
   /** Source parity: ProjectileStreamUpdate — positions of active projectiles in stream. */
   streamPoints?: { x: number; y: number; z: number }[];
+  /** Source parity: RadiusDecalUpdate — ground radius decal states for targeting visualization. */
+  radiusDecals?: RenderableRadiusDecal[];
+  /** Source parity: BoneFXUpdate — pending bone FX/OCL/ParticleSystem visual events. */
+  boneFXEvents?: BoneFXVisualEvent[];
+}
+
+/**
+ * Source parity: RadiusDecalUpdate — renderable state for a ground radius decal.
+ */
+export interface RenderableRadiusDecal {
+  positionX: number;
+  positionY: number;
+  positionZ: number;
+  radius: number;
+  visible: boolean;
+}
+
+/**
+ * Source parity: BoneFXUpdate — visual event emitted when a bone FX/OCL/ParticleSystem fires.
+ */
+export interface BoneFXVisualEvent {
+  type: 'FX' | 'OCL' | 'PARTICLE_SYSTEM';
+  boneName: string;
+  effectName: string;
+  positionX: number;
+  positionY: number;
+  positionZ: number;
+  entityId: number;
 }
 
 export interface ScriptObjectAmbientSoundState {
