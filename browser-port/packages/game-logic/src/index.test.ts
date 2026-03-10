@@ -68491,3 +68491,200 @@ describe('SpectreGunshipUpdate', () => {
     expect(hasTarget).toBe(true);
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BaikonurLaunchPower Tests
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('BaikonurLaunchPower', () => {
+  function makeBaikonurDef(): ObjectDef {
+    return makeObjectDef('BaikonurRocketPad', 'GLA', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+      makeBlock('Behavior', 'BaikonurLaunchPower ModuleTag_Baikonur', {
+        SpecialPowerTemplate: 'SPECIAL_LAUNCH_BAIKONUR_ROCKET',
+        DetonationObject: 'BaikonurDetonation',
+      }),
+    ]);
+  }
+
+  function makeDetonationDef(): ObjectDef {
+    return makeObjectDef('BaikonurDetonation', 'GLA', ['PROJECTILE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+    ]);
+  }
+
+  it('no-target dispatch sets DOOR_1_OPENING model condition', () => {
+    const bundle = makeBundle({
+      objects: [makeBaikonurDef(), makeDetonationDef()],
+      specialPowers: [
+        makeSpecialPowerDef('SPECIAL_LAUNCH_BAIKONUR_ROCKET', {
+          ReloadTime: 0,
+          Enum: 'SPECIAL_LAUNCH_BAIKONUR_ROCKET',
+        }),
+      ],
+    });
+
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('BaikonurRocketPad', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_BAIKONUR_NO_TARGET',
+      specialPowerName: 'SPECIAL_LAUNCH_BAIKONUR_ROCKET',
+      commandOption: 0,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: null,
+      targetX: null,
+      targetZ: null,
+    });
+    logic.update(0);
+
+    const sourceState = logic.getEntityState(1);
+    expect(sourceState?.lastSpecialPowerDispatch).toMatchObject({
+      specialPowerTemplateName: 'SPECIAL_LAUNCH_BAIKONUR_ROCKET',
+      moduleType: 'BAIKONURLAUNCHPOWER',
+      dispatchType: 'NO_TARGET',
+    });
+    expect(sourceState?.modelConditionFlags).toContain('DOOR_1_OPENING');
+  });
+
+  it('position dispatch spawns DetonationObject at target location', () => {
+    const bundle = makeBundle({
+      objects: [makeBaikonurDef(), makeDetonationDef()],
+      specialPowers: [
+        makeSpecialPowerDef('SPECIAL_LAUNCH_BAIKONUR_ROCKET', {
+          ReloadTime: 0,
+          Enum: 'SPECIAL_LAUNCH_BAIKONUR_ROCKET',
+        }),
+      ],
+    });
+
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('BaikonurRocketPad', 50, 50)], 256, 256),
+      makeRegistry(bundle),
+      makeHeightmap(256, 256),
+    );
+
+    const targetX = 200;
+    const targetZ = 300;
+
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_BAIKONUR_POSITION',
+      specialPowerName: 'SPECIAL_LAUNCH_BAIKONUR_ROCKET',
+      commandOption: 0x20,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: null,
+      targetX,
+      targetZ,
+    });
+    logic.update(0);
+
+    const sourceState = logic.getEntityState(1);
+    expect(sourceState?.lastSpecialPowerDispatch).toMatchObject({
+      specialPowerTemplateName: 'SPECIAL_LAUNCH_BAIKONUR_ROCKET',
+      moduleType: 'BAIKONURLAUNCHPOWER',
+      dispatchType: 'POSITION',
+      targetX,
+      targetZ,
+    });
+
+    // Verify the detonation object was spawned
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        templateName: string;
+        x: number;
+        z: number;
+        side: string;
+      }>;
+    };
+    expect(priv.spawnedEntities.size).toBe(2);
+
+    let detonation: { templateName: string; x: number; z: number; side: string } | null = null;
+    for (const [id, ent] of priv.spawnedEntities) {
+      if (id !== 1) detonation = ent;
+    }
+    expect(detonation).not.toBeNull();
+    expect(detonation!.templateName).toBe('BaikonurDetonation');
+    expect(detonation!.x).toBe(targetX);
+    expect(detonation!.z).toBe(targetZ);
+  });
+
+  it('supports dual-mode dispatch (both no-target and position) on same entity', () => {
+    const bundle = makeBundle({
+      objects: [makeBaikonurDef(), makeDetonationDef()],
+      specialPowers: [
+        makeSpecialPowerDef('SPECIAL_LAUNCH_BAIKONUR_ROCKET', {
+          ReloadTime: 0,
+          Enum: 'SPECIAL_LAUNCH_BAIKONUR_ROCKET',
+        }),
+      ],
+    });
+
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('BaikonurRocketPad', 50, 50)], 256, 256),
+      makeRegistry(bundle),
+      makeHeightmap(256, 256),
+    );
+
+    // First: no-target dispatch
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_BAIKONUR_NO_TARGET',
+      specialPowerName: 'SPECIAL_LAUNCH_BAIKONUR_ROCKET',
+      commandOption: 0,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: null,
+      targetX: null,
+      targetZ: null,
+    });
+    logic.update(0);
+
+    expect(logic.getEntityState(1)?.lastSpecialPowerDispatch).toMatchObject({
+      dispatchType: 'NO_TARGET',
+    });
+    expect(logic.getEntityState(1)?.modelConditionFlags).toContain('DOOR_1_OPENING');
+
+    // Second: position dispatch
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_BAIKONUR_POSITION',
+      specialPowerName: 'SPECIAL_LAUNCH_BAIKONUR_ROCKET',
+      commandOption: 0x20,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: null,
+      targetX: 150,
+      targetZ: 180,
+    });
+    logic.update(0);
+
+    expect(logic.getEntityState(1)?.lastSpecialPowerDispatch).toMatchObject({
+      dispatchType: 'POSITION',
+      targetX: 150,
+      targetZ: 180,
+    });
+
+    // Verify detonation object was spawned
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, { templateName: string }>;
+    };
+    let detonationCount = 0;
+    for (const [, ent] of priv.spawnedEntities) {
+      if (ent.templateName === 'BaikonurDetonation') detonationCount++;
+    }
+    expect(detonationCount).toBe(1);
+  });
+});

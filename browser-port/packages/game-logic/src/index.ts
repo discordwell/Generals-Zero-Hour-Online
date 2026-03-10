@@ -1063,6 +1063,11 @@ interface SpecialPowerModuleProfile {
    * INI field: HealRange. Default 0 (use fallback constant).
    */
   areaHealRadius: number;
+  /**
+   * Source parity: BaikonurLaunchPowerModuleData::m_detonationObject.
+   * INI field: DetonationObject. The template to spawn at target location.
+   */
+  detonationObjectName: string;
 }
 
 interface SpecialPowerDispatchProfile {
@@ -1091,6 +1096,7 @@ const SPECIAL_POWER_BEHAVIOR_MODULE_TYPES = new Set<string>([
   'EMPSPECIALPOWER',
   'SPECTREGUNSHIPUPDATE',
   'SPECTREGUNSHIPDEPLOYMENTUPDATE',
+  'BAIKONURLAUNCHPOWER',
 ]);
 
 /**
@@ -35716,6 +35722,8 @@ export class GameLogicSubsystem implements Subsystem {
               areaDamageAmount: readNumericField(block.fields, ['Damage', 'DamageAmount']) ?? 0,
               areaHealAmount: readNumericField(block.fields, ['HealAmount', 'RepairAmount']) ?? 0,
               areaHealRadius: readNumericField(block.fields, ['HealRange', 'HealRadius', 'RepairRange']) ?? 0,
+              // Source parity: BaikonurLaunchPowerModuleData::m_detonationObject.
+              detonationObjectName: readStringField(block.fields, ['DetonationObject']) ?? '',
             });
           }
         }
@@ -40538,6 +40546,11 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
 
+    // Source parity: BaikonurLaunchPower::doSpecialPower — set DOOR_1_OPENING on source.
+    if (module.moduleType === 'BAIKONURLAUNCHPOWER') {
+      source.modelConditionFlags.add('DOOR_1_OPENING');
+    }
+
     return true;
   }
 
@@ -40765,6 +40778,14 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity: SpectreGunshipDeploymentUpdate — spawn gunship and fire its power.
     if (module.moduleType === 'SPECTREGUNSHIPDEPLOYMENTUPDATE') {
       return this.initiateSpectreGunshipDeployment(sourceEntityId, targetX, targetZ);
+    }
+
+    // Source parity: BaikonurLaunchPower::doSpecialPowerAtLocation — spawn DetonationObject at target.
+    if (module.moduleType === 'BAIKONURLAUNCHPOWER') {
+      if (module.detonationObjectName) {
+        this.spawnEntityFromTemplate(module.detonationObjectName, targetX, targetZ, 0, source.side);
+      }
+      return true;
     }
 
     const effectCategory = resolveEffectCategoryImpl(module.moduleType);
