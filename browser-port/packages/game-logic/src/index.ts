@@ -2631,6 +2631,13 @@ interface MapEntity {
   // ── Source parity: ProjectileStreamUpdate — stream weapon projectile tracking ──
   projectileStreamProfile: ProjectileStreamProfile | null;
   projectileStreamState: ProjectileStreamRuntimeState | null;
+
+  // ── Source parity: BoneFXUpdate — triggers FX/OCL/ParticleSystem on named bones ──
+  boneFXProfile: BoneFXProfile | null;
+  boneFXState: BoneFXState | null;
+
+  // ── Source parity: RadiusDecalUpdate — ground radius decals for targeting ──
+  radiusDecalStates: RadiusDecalState[];
 }
 
 /**
@@ -3612,6 +3619,61 @@ interface ProjectileStreamRuntimeState {
   nextIndex: number;
   /** Owner entity ID that created this stream. */
   ownerEntityId: number;
+}
+
+/**
+ * Source parity: BoneFXUpdate — triggers FX/OCL/ParticleSystem effects on named bones
+ * when body damage state changes.
+ * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/BoneFXUpdate.cpp)
+ */
+interface BoneFXEntry {
+  boneName: string;
+  effectName: string;
+  onlyOnce: boolean;
+  delayMinFrames: number;
+  delayMaxFrames: number;
+}
+
+/**
+ * Source parity: BoneFXUpdateModuleData — per damage state, per bone slot FX definitions.
+ * BODYDAMAGETYPE_COUNT = 4 (PRISTINE=0, DAMAGED=1, REALLYDAMAGED=2, RUBBLE=3).
+ * BONE_FX_MAX_BONES = 8 (max bone slots per damage state).
+ */
+interface BoneFXProfile {
+  /** [damageState][boneIndex] — FXList triggers. */
+  fxLists: (BoneFXEntry | null)[][];
+  /** [damageState][boneIndex] — ObjectCreationList triggers. */
+  oclLists: (BoneFXEntry | null)[][];
+  /** [damageState][boneIndex] — ParticleSystem triggers. */
+  particleSystems: (BoneFXEntry | null)[][];
+}
+
+/**
+ * Source parity: BoneFXUpdate runtime state — tracks next-fire frames and active particles.
+ */
+interface BoneFXState {
+  currentBodyState: number;
+  active: boolean;
+  /** [damageState][boneIndex] — -1 = disabled/done. */
+  nextFXFrame: number[][];
+  nextOCLFrame: number[][];
+  nextParticleFrame: number[][];
+  /** IDs of particle systems created by this module (for cleanup on state change). */
+  activeParticleIds: number[];
+  /** Pending visual events to emit this frame. */
+  pendingVisualEvents: import('./types.js').BoneFXVisualEvent[];
+}
+
+/**
+ * Source parity: RadiusDecalUpdate runtime state — position, radius, visibility.
+ */
+interface RadiusDecalState {
+  positionX: number;
+  positionY: number;
+  positionZ: number;
+  radius: number;
+  visible: boolean;
+  killWhenNoLongerAttacking: boolean;
 }
 
 interface SlowDeathRuntimeState {
@@ -6994,6 +7056,18 @@ export class GameLogicSubsystem implements Subsystem {
       streamPoints: entity.projectileStreamState
         ? this.getStreamPoints(entity.id)
         : undefined,
+      radiusDecals: entity.radiusDecalStates.length > 0
+        ? entity.radiusDecalStates.map(d => ({
+            positionX: d.positionX,
+            positionY: d.positionY,
+            positionZ: d.positionZ,
+            radius: d.radius,
+            visible: d.visible,
+          }))
+        : undefined,
+      boneFXEvents: entity.boneFXState?.pendingVisualEvents.length
+        ? entity.boneFXState.pendingVisualEvents.slice()
+        : undefined,
     };
   }
 
@@ -7350,6 +7424,8 @@ export class GameLogicSubsystem implements Subsystem {
     this.updateProduction();
     this.updateSpawnBehaviors();
     this.updateSlavedEntities();
+    this.updateBoneFX();
+    this.updateRadiusDecals();
     this.updateDeployStyleEntities();
     this.updateTurretAI();
     this.updateCombat();
@@ -28361,6 +28437,11 @@ export class GameLogicSubsystem implements Subsystem {
       // Projectile stream tracking (toxin/flamethrower beams)
       projectileStreamProfile: this.extractProjectileStreamProfile(objectDef),
       projectileStreamState: null,
+      // BoneFXUpdate (bone-attached visual effects per damage state)
+      boneFXProfile: this.extractBoneFXProfile(objectDef),
+      boneFXState: null,
+      // RadiusDecalUpdate (ground radius decals — programmatically created, not INI-driven)
+      radiusDecalStates: [],
     };
 
     this.applyMapObjectCoreProperties(entity, mapObject);
@@ -28566,6 +28647,28 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity: GrantStealthBehavior — initialize scan radius from profile.
     if (entity.grantStealthProfile) {
       entity.grantStealthCurrentRadius = entity.grantStealthProfile.startRadius;
+    }
+
+    // Source parity: BoneFXUpdate::BoneFXUpdate — initialize runtime state if profile exists.
+    if (entity.boneFXProfile) {
+      const numStates = 4; // BODYDAMAGETYPE_COUNT
+      const numBones = 8; // BONE_FX_MAX_BONES
+      const makeFrameGrid = (): number[][] => {
+        const grid: number[][] = [];
+        for (let i = 0; i < numStates; i++) {
+          grid.push(new Array(numBones).fill(-1));
+        }
+        return grid;
+      };
+      entity.boneFXState = {
+        currentBodyState: 0,
+        active: false,
+        nextFXFrame: makeFrameGrid(),
+        nextOCLFrame: makeFrameGrid(),
+        nextParticleFrame: makeFrameGrid(),
+        activeParticleIds: [],
+        pendingVisualEvents: [],
+      };
     }
 
     return entity;
@@ -33547,6 +33650,168 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     return null;
+  }
+
+  /**
+   * Source parity: BoneFXUpdateModuleData — parse BoneFXUpdate module from INI.
+   * Fields follow pattern: {DamageState}{EffectType}{1-8}
+   * Value format: Bone:{boneName} OnlyOnce:{Yes|No} {minDelayMs} {maxDelayMs} {FXList:|OCL:|PSys:}{effectName}
+   * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/BoneFXUpdate.cpp)
+   */
+  private extractBoneFXProfile(objectDef: ObjectDef | undefined): BoneFXProfile | null {
+    if (!objectDef) return null;
+
+    let profile: BoneFXProfile | null = null;
+
+    const damageStateNames = ['Pristine', 'Damaged', 'ReallyDamaged', 'Rubble'];
+    const effectTypes = [
+      { prefix: 'FXList', target: 'fxLists' as const },
+      { prefix: 'OCL', target: 'oclLists' as const },
+      { prefix: 'ParticleSystem', target: 'particleSystems' as const },
+    ];
+
+    const visitBlock = (block: IniBlock): void => {
+      if (profile !== null) return;
+      const blockType = block.type.toUpperCase();
+      if (blockType === 'BEHAVIOR' || blockType === 'CLIENTUPDATE') {
+        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+        if (moduleType === 'BONEFXUPDATE') {
+          // Initialize empty profile: 4 damage states x 8 bone slots
+          const numStates = 4;
+          const numBones = 8;
+          const makeGrid = (): (BoneFXEntry | null)[][] => {
+            const grid: (BoneFXEntry | null)[][] = [];
+            for (let i = 0; i < numStates; i++) {
+              grid.push(new Array(numBones).fill(null));
+            }
+            return grid;
+          };
+
+          const fxLists = makeGrid();
+          const oclLists = makeGrid();
+          const particleSystems = makeGrid();
+
+          for (const [fieldName, fieldValue] of Object.entries(block.fields)) {
+            if (typeof fieldValue !== 'string') continue;
+            const upperFieldName = fieldName.toUpperCase();
+
+            for (let stateIdx = 0; stateIdx < numStates; stateIdx++) {
+              const stateName = damageStateNames[stateIdx]!.toUpperCase();
+              for (const eff of effectTypes) {
+                const prefix = stateName + eff.prefix.toUpperCase();
+                if (upperFieldName.startsWith(prefix)) {
+                  const indexStr = upperFieldName.slice(prefix.length);
+                  const boneIndex = parseInt(indexStr, 10) - 1; // 1-based → 0-based
+                  if (boneIndex < 0 || boneIndex >= numBones || isNaN(boneIndex)) continue;
+
+                  const entry = this.parseBoneFXFieldValue(fieldValue, eff.prefix);
+                  if (entry) {
+                    const target =
+                      eff.target === 'fxLists' ? fxLists :
+                      eff.target === 'oclLists' ? oclLists :
+                      particleSystems;
+                    target[stateIdx]![boneIndex] = entry;
+                  }
+                }
+              }
+            }
+          }
+
+          // Only create profile if at least one entry was parsed.
+          let hasEntry = false;
+          outer:
+          for (const grid of [fxLists, oclLists, particleSystems]) {
+            for (const row of grid) {
+              for (const cell of row) {
+                if (cell !== null) { hasEntry = true; break outer; }
+              }
+            }
+          }
+
+          if (hasEntry) {
+            profile = { fxLists, oclLists, particleSystems };
+          }
+        }
+      }
+
+      for (const child of block.blocks) {
+        visitBlock(child);
+      }
+    };
+
+    for (const block of objectDef.blocks) {
+      visitBlock(block);
+    }
+
+    return profile;
+  }
+
+  /**
+   * Parse a single BoneFX field value string.
+   * Format: Bone:{boneName} OnlyOnce:{Yes|No} {minDelayMs} {maxDelayMs} {FXList:|OCL:|PSys:}{effectName}
+   */
+  private parseBoneFXFieldValue(value: string, _effectPrefix: string): BoneFXEntry | null {
+    // Tokenize by whitespace, but respect colon-separated key:value pairs.
+    const tokens = value.split(/\s+/).filter(Boolean);
+    if (tokens.length < 5) return null;
+
+    // Parse Bone:{boneName}
+    let boneName = '';
+    let tokenIdx = 0;
+    while (tokenIdx < tokens.length) {
+      const parts = tokens[tokenIdx]!.split(':');
+      if (parts[0]?.toUpperCase() === 'BONE' && parts.length >= 2) {
+        boneName = parts[1] ?? '';
+        tokenIdx++;
+        break;
+      }
+      tokenIdx++;
+    }
+    if (!boneName) return null;
+
+    // Parse OnlyOnce:{Yes|No}
+    let onlyOnce = true;
+    while (tokenIdx < tokens.length) {
+      const parts = tokens[tokenIdx]!.split(':');
+      if (parts[0]?.toUpperCase() === 'ONLYONCE' && parts.length >= 2) {
+        onlyOnce = (parts[1] ?? '').toUpperCase() === 'YES';
+        tokenIdx++;
+        break;
+      }
+      tokenIdx++;
+    }
+
+    // Parse min delay (ms)
+    const minDelayMs = parseFloat(tokens[tokenIdx] ?? '0');
+    tokenIdx++;
+    // Parse max delay (ms)
+    const maxDelayMs = parseFloat(tokens[tokenIdx] ?? '0');
+    tokenIdx++;
+
+    // Parse effect name — FXList:{name} or OCL:{name} or PSys:{name}
+    let effectName = '';
+    while (tokenIdx < tokens.length) {
+      const parts = tokens[tokenIdx]!.split(':');
+      const key = parts[0]?.toUpperCase() ?? '';
+      if ((key === 'FXLIST' || key === 'OCL' || key === 'PSYS') && parts.length >= 2) {
+        effectName = parts[1] ?? '';
+        break;
+      }
+      tokenIdx++;
+    }
+    if (!effectName) return null;
+
+    // Convert ms to frames (30 fps = 1000ms / 33.333ms per frame).
+    const delayMinFrames = Math.max(0, Math.round(minDelayMs * 30 / 1000));
+    const delayMaxFrames = Math.max(0, Math.round(maxDelayMs * 30 / 1000));
+
+    return {
+      boneName,
+      effectName,
+      onlyOnce,
+      delayMinFrames,
+      delayMaxFrames,
+    };
   }
 
   private extractSlowDeathProfiles(objectDef: ObjectDef | undefined): SlowDeathProfile[] {
@@ -54354,18 +54619,24 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
 
-    // Source parity: track body damage state transitions for SupplyWarehouseCripplingBehavior.
-    const oldDamageState = target.supplyWarehouseCripplingProfile
+    // Source parity: track body damage state transitions for SupplyWarehouseCripplingBehavior + BoneFXUpdate.
+    const needsDamageStateTracking = target.supplyWarehouseCripplingProfile || target.boneFXState;
+    const oldDamageState = needsDamageStateTracking
       ? calcBodyDamageState(target.health, target.maxHealth)
       : 0 as BodyDamageState;
 
     target.health = Math.max(0, target.health - adjustedDamage);
 
-    // Source parity: SupplyWarehouseCripplingBehavior::onBodyDamageStateChange.
-    if (target.supplyWarehouseCripplingProfile && target.health > 0) {
+    // Source parity: onBodyDamageStateChange — SupplyWarehouseCrippling + BoneFXUpdate.
+    if (needsDamageStateTracking && target.health > 0) {
       const newDamageState = calcBodyDamageState(target.health, target.maxHealth);
       if (oldDamageState !== newDamageState) {
-        this.supplyWarehouseCripplingOnStateChange(target, oldDamageState, newDamageState);
+        if (target.supplyWarehouseCripplingProfile) {
+          this.supplyWarehouseCripplingOnStateChange(target, oldDamageState, newDamageState);
+        }
+        if (target.boneFXState) {
+          this.boneFXChangeBodyDamageState(target, oldDamageState, newDamageState);
+        }
       }
     }
 
@@ -57392,6 +57663,9 @@ export class GameLogicSubsystem implements Subsystem {
       // Check if healing caused a state transition (e.g. REALLYDAMAGED → DAMAGED).
       if (oldDamageState !== newDamageState) {
         this.supplyWarehouseCripplingOnStateChange(entity, oldDamageState, newDamageState);
+        if (entity.boneFXState) {
+          this.boneFXChangeBodyDamageState(entity, oldDamageState, newDamageState);
+        }
       }
     }
   }
@@ -58079,8 +58353,13 @@ export class GameLogicSubsystem implements Subsystem {
     entity.health = Math.min(entity.maxHealth, desiredHealth);
 
     const nextState = calcBodyDamageState(entity.health, entity.maxHealth);
-    if (entity.supplyWarehouseCripplingProfile && entity.health > 0 && oldState !== nextState) {
-      this.supplyWarehouseCripplingOnStateChange(entity, oldState, nextState);
+    if (oldState !== nextState) {
+      if (entity.supplyWarehouseCripplingProfile && entity.health > 0) {
+        this.supplyWarehouseCripplingOnStateChange(entity, oldState, nextState);
+      }
+      if (entity.boneFXState) {
+        this.boneFXChangeBodyDamageState(entity, oldState, nextState);
+      }
     }
 
     // Source parity: structures in BODY_RUBBLE disable collisions.
@@ -59797,6 +60076,204 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     return points;
+  }
+
+  /**
+   * Source parity: BoneFXUpdate::update — fire FX/OCL/ParticleSystem effects on named bones
+   * when scheduled frames are reached. Initializes times on first activation.
+   * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/BoneFXUpdate.cpp:290-317)
+   */
+  private updateBoneFX(): void {
+    const now = this.frameCounter;
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) continue;
+      if (!entity.boneFXProfile || !entity.boneFXState) continue;
+      if (entity.objectStatusFlags.has('UNDER_CONSTRUCTION')) continue;
+
+      const profile = entity.boneFXProfile;
+      const state = entity.boneFXState;
+
+      // Clear pending visual events from previous frame.
+      state.pendingVisualEvents.length = 0;
+
+      // Source parity: if not active, initTimes and set active.
+      if (!state.active) {
+        this.boneFXInitTimes(entity, profile, state);
+        state.active = true;
+      }
+
+      const bodyState = state.currentBodyState;
+      const numBones = 8;
+
+      for (let i = 0; i < numBones; i++) {
+        const fxRow = state.nextFXFrame[bodyState]!;
+        const oclRow = state.nextOCLFrame[bodyState]!;
+        const psRow = state.nextParticleFrame[bodyState]!;
+
+        // Check FXList
+        if (fxRow[i] !== -1 && fxRow[i]! <= now) {
+          const entry = profile.fxLists[bodyState]?.[i];
+          if (entry) {
+            state.pendingVisualEvents.push({
+              type: 'FX',
+              boneName: entry.boneName,
+              effectName: entry.effectName,
+              positionX: entity.x,
+              positionY: entity.y,
+              positionZ: entity.z,
+              entityId: entity.id,
+            });
+            if (entry.onlyOnce) {
+              fxRow[i] = -1;
+            } else {
+              const delay = entry.delayMinFrames === entry.delayMaxFrames
+                ? entry.delayMinFrames
+                : this.gameRandom.nextRange(entry.delayMinFrames, entry.delayMaxFrames);
+              fxRow[i] = now + delay;
+            }
+          }
+        }
+
+        // Check OCL
+        if (oclRow[i] !== -1 && oclRow[i]! <= now) {
+          const entry = profile.oclLists[bodyState]?.[i];
+          if (entry) {
+            state.pendingVisualEvents.push({
+              type: 'OCL',
+              boneName: entry.boneName,
+              effectName: entry.effectName,
+              positionX: entity.x,
+              positionY: entity.y,
+              positionZ: entity.z,
+              entityId: entity.id,
+            });
+            if (entry.onlyOnce) {
+              oclRow[i] = -1;
+            } else {
+              const delay = entry.delayMinFrames === entry.delayMaxFrames
+                ? entry.delayMinFrames
+                : this.gameRandom.nextRange(entry.delayMinFrames, entry.delayMaxFrames);
+              oclRow[i] = now + delay;
+            }
+          }
+        }
+
+        // Check ParticleSystem
+        if (psRow[i] !== -1 && psRow[i]! <= now) {
+          const entry = profile.particleSystems[bodyState]?.[i];
+          if (entry) {
+            state.pendingVisualEvents.push({
+              type: 'PARTICLE_SYSTEM',
+              boneName: entry.boneName,
+              effectName: entry.effectName,
+              positionX: entity.x,
+              positionY: entity.y,
+              positionZ: entity.z,
+              entityId: entity.id,
+            });
+            if (entry.onlyOnce) {
+              psRow[i] = -1;
+            } else {
+              const delay = entry.delayMinFrames === entry.delayMaxFrames
+                ? entry.delayMinFrames
+                : this.gameRandom.nextRange(entry.delayMinFrames, entry.delayMaxFrames);
+              psRow[i] = now + delay;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Source parity: BoneFXUpdate::initTimes — schedule initial fire times for current damage state.
+   * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/BoneFXUpdate.cpp:321-343)
+   */
+  private boneFXInitTimes(_entity: MapEntity, profile: BoneFXProfile, state: BoneFXState): void {
+    const now = this.frameCounter;
+    const bodyState = state.currentBodyState;
+    const numBones = 8;
+    const fxRow = state.nextFXFrame[bodyState]!;
+    const oclRow = state.nextOCLFrame[bodyState]!;
+    const psRow = state.nextParticleFrame[bodyState]!;
+
+    for (let i = 0; i < numBones; i++) {
+      // FXList
+      const fxEntry = profile.fxLists[bodyState]?.[i];
+      if (fxEntry) {
+        const delay = fxEntry.delayMinFrames === fxEntry.delayMaxFrames
+          ? fxEntry.delayMinFrames
+          : this.gameRandom.nextRange(fxEntry.delayMinFrames, fxEntry.delayMaxFrames);
+        fxRow[i] = now + delay;
+      } else {
+        fxRow[i] = -1;
+      }
+
+      // OCL
+      const oclEntry = profile.oclLists[bodyState]?.[i];
+      if (oclEntry) {
+        const delay = oclEntry.delayMinFrames === oclEntry.delayMaxFrames
+          ? oclEntry.delayMinFrames
+          : this.gameRandom.nextRange(oclEntry.delayMinFrames, oclEntry.delayMaxFrames);
+        oclRow[i] = now + delay;
+      } else {
+        oclRow[i] = -1;
+      }
+
+      // ParticleSystem
+      const psEntry = profile.particleSystems[bodyState]?.[i];
+      if (psEntry) {
+        const delay = psEntry.delayMinFrames === psEntry.delayMaxFrames
+          ? psEntry.delayMinFrames
+          : this.gameRandom.nextRange(psEntry.delayMinFrames, psEntry.delayMaxFrames);
+        psRow[i] = now + delay;
+      } else {
+        psRow[i] = -1;
+      }
+    }
+  }
+
+  /**
+   * Source parity: BoneFXUpdate::changeBodyDamageState — handle body state transitions.
+   * Kills running particles, reinitializes times for new state.
+   * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/BoneFXUpdate.cpp:375-380)
+   */
+  private boneFXChangeBodyDamageState(entity: MapEntity, _oldState: number, newState: number): void {
+    if (!entity.boneFXState) return;
+    entity.boneFXState.currentBodyState = newState;
+    entity.boneFXState.activeParticleIds.length = 0; // killRunningParticleSystems
+    if (entity.boneFXProfile) {
+      this.boneFXInitTimes(entity, entity.boneFXProfile, entity.boneFXState);
+    }
+  }
+
+  /**
+   * Source parity: RadiusDecalUpdate::update — update ground radius decals.
+   * If killWhenNoLongerAttacking and entity is not attacking, clear the decal.
+   * Update decal positions to entity position.
+   * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/RadiusDecalUpdate.cpp:72-82)
+   */
+  private updateRadiusDecals(): void {
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) continue;
+      if (entity.radiusDecalStates.length === 0) continue;
+
+      // Process decals in reverse so we can splice.
+      for (let i = entity.radiusDecalStates.length - 1; i >= 0; i--) {
+        const decal = entity.radiusDecalStates[i]!;
+
+        // Source parity: kill-when-no-longer-attacking check.
+        if (decal.killWhenNoLongerAttacking && !entity.objectStatusFlags.has('IS_ATTACKING')) {
+          entity.radiusDecalStates.splice(i, 1);
+          continue;
+        }
+
+        // Update position to entity position.
+        decal.positionX = entity.x;
+        decal.positionY = entity.y;
+        decal.positionZ = entity.z;
+      }
+    }
   }
 
   /**
