@@ -2642,6 +2642,16 @@ interface MapEntity {
 
   // ── Source parity: RadiusDecalUpdate — ground radius decals for targeting ──
   radiusDecalStates: RadiusDecalState[];
+  // ── Source parity: BridgeBehavior — bridge lifecycle manager ──
+  bridgeBehaviorProfile: BridgeBehaviorProfile | null;
+  bridgeBehaviorState: BridgeBehaviorState | null;
+
+  // ── Source parity: BridgeTowerBehavior — corner towers attached to bridges ──
+  bridgeTowerProfile: BridgeTowerProfile | null;
+  bridgeTowerState: BridgeTowerState | null;
+
+  // ── Source parity: BridgeScaffoldBehavior — scaffold animation ──
+  bridgeScaffoldState: BridgeScaffoldState | null;
 }
 
 /**
@@ -3711,6 +3721,79 @@ interface RadiusDecalState {
   radius: number;
   visible: boolean;
   killWhenNoLongerAttacking: boolean;
+ * Source parity: BridgeBehaviorModuleData — bridge lifecycle INI profile.
+ * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/BridgeBehavior.cpp)
+ */
+interface BridgeBehaviorProfile {
+  /** Lateral movement speed for scaffold objects. Default 1.0. */
+  scaffoldLateralSpeed: number;
+  /** Vertical movement speed for scaffold objects. Default 1.0. */
+  scaffoldVerticalSpeed: number;
+  /** Template name for scaffold entities. */
+  scaffoldObjectName: string;
+}
+
+/**
+ * Source parity: BridgeBehavior runtime state — tracks towers, scaffolds, and bridge death state.
+ */
+interface BridgeBehaviorState {
+  /** Up to 4 tower entity IDs. */
+  towerIds: number[];
+  /** Active scaffold entity IDs. */
+  scaffoldIds: number[];
+  /** Whether bridge is currently destroyed (nav grid impassable). */
+  isBridgeDestroyed: boolean;
+  /** Cells this bridge occupies in nav grid (for passability toggle). */
+  bridgeCells: { x: number; z: number }[];
+  /** Frame when bridge died (for timed FX). 0 = alive. */
+  deathFrame: number;
+}
+
+/**
+ * Source parity: BridgeTowerBehavior — corner tower module (no INI-specific fields).
+ * Presence indicates this entity is a bridge tower.
+ */
+interface BridgeTowerProfile {
+  /** Marker presence — no configurable fields. */
+  readonly _marker: true;
+}
+
+/**
+ * Source parity: BridgeTowerBehavior runtime state — tracks parent bridge and tower position.
+ */
+interface BridgeTowerState {
+  /** Parent bridge entity ID. */
+  bridgeEntityId: number;
+  /** Corner position index (0-3). */
+  towerType: number;
+}
+
+/**
+ * Source parity: BridgeScaffoldBehavior runtime state — scaffold motion state machine.
+ * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/BridgeScaffoldBehavior.cpp)
+ */
+type ScaffoldTargetMotion = 0 | 1 | 2 | 3 | 4; // STM_STILL=0, STM_RISE=1, STM_BUILD_ACROSS=2, STM_TEAR_DOWN_ACROSS=3, STM_SINK=4
+const STM_STILL: ScaffoldTargetMotion = 0;
+const STM_RISE: ScaffoldTargetMotion = 1;
+const STM_BUILD_ACROSS: ScaffoldTargetMotion = 2;
+const STM_TEAR_DOWN_ACROSS: ScaffoldTargetMotion = 3;
+const STM_SINK: ScaffoldTargetMotion = 4;
+
+interface BridgeScaffoldState {
+  /** Current motion phase. */
+  targetMotion: ScaffoldTargetMotion;
+  /** Position where scaffold was created (bottom, sunken). */
+  createPos: { x: number; y: number; z: number };
+  /** Position to rise to (top of ground at bridge endpoint). */
+  riseToPos: { x: number; y: number; z: number };
+  /** Position to build across to (center of bridge). */
+  buildPos: { x: number; y: number; z: number };
+  /** Current target position (set by setMotion). */
+  targetPos: { x: number; y: number; z: number };
+  /** Lateral movement speed (along bridge surface). */
+  lateralSpeed: number;
+  /** Vertical movement speed (rising/sinking). */
+  verticalSpeed: number;
 }
 
 interface SlowDeathRuntimeState {
@@ -7548,6 +7631,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.updateParticleUplinkCannon();
     this.updateNeutronMissileUpdate();
     this.updateTensileFormation();
+    this.updateBridgeScaffolds();
     this.updateSupplyWarehouseCrippling();
     this.updateRadarExtension();
     this.updatePowerPlantUpdate();
@@ -28483,6 +28567,14 @@ export class GameLogicSubsystem implements Subsystem {
       boneFXState: null,
       // RadiusDecalUpdate (ground radius decals — programmatically created, not INI-driven)
       radiusDecalStates: [],
+      // Bridge behavior (bridge lifecycle manager)
+      bridgeBehaviorProfile: this.extractBridgeBehaviorProfile(objectDef),
+      bridgeBehaviorState: null,
+      // Bridge tower behavior (corner towers attached to bridges)
+      bridgeTowerProfile: this.extractBridgeTowerProfile(objectDef),
+      bridgeTowerState: null,
+      // Bridge scaffold behavior (scaffold animation)
+      bridgeScaffoldState: null,
     };
 
     this.applyMapObjectCoreProperties(entity, mapObject);
@@ -28709,6 +28801,14 @@ export class GameLogicSubsystem implements Subsystem {
         nextParticleFrame: makeFrameGrid(),
         activeParticleIds: [],
         pendingVisualEvents: [],
+    // Source parity: BridgeBehavior — initialize bridge behavior state.
+    if (entity.bridgeBehaviorProfile) {
+      entity.bridgeBehaviorState = {
+        towerIds: [],
+        scaffoldIds: [],
+        isBridgeDestroyed: false,
+        bridgeCells: [],
+        deathFrame: 0,
       };
     }
 
@@ -33818,6 +33918,24 @@ export class GameLogicSubsystem implements Subsystem {
         }
       }
 
+   * Source parity: BridgeBehavior — parse bridge behavior module from INI.
+   * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/BridgeBehavior.cpp)
+   */
+  private extractBridgeBehaviorProfile(objectDef: ObjectDef | undefined): BridgeBehaviorProfile | null {
+    if (!objectDef?.blocks) return null;
+    let profile: BridgeBehaviorProfile | null = null;
+    const visitBlock = (block: IniBlock): void => {
+      if (profile !== null) return;
+      if (block.type.toUpperCase() === 'BEHAVIOR') {
+        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+        if (moduleType === 'BRIDGEBEHAVIOR') {
+          profile = {
+            scaffoldLateralSpeed: readNumericField(block.fields, ['LateralScaffoldSpeed']) ?? 1.0,
+            scaffoldVerticalSpeed: readNumericField(block.fields, ['VerticalScaffoldSpeed']) ?? 1.0,
+            scaffoldObjectName: (readStringField(block.fields, ['ScaffoldObjectName']) ?? '').toUpperCase(),
+          };
+        }
+      }
       for (const child of block.blocks) {
         visitBlock(child);
       }
@@ -33827,6 +33945,9 @@ export class GameLogicSubsystem implements Subsystem {
       visitBlock(block);
     }
 
+    for (const block of objectDef.blocks) {
+      visitBlock(block);
+    }
     return profile;
   }
 
@@ -33896,6 +34017,20 @@ export class GameLogicSubsystem implements Subsystem {
       delayMinFrames,
       delayMaxFrames,
     };
+   * Source parity: BridgeTowerBehavior — parse bridge tower behavior module from INI.
+   * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/BridgeTowerBehavior.cpp)
+   */
+  private extractBridgeTowerProfile(objectDef: ObjectDef | undefined): BridgeTowerProfile | null {
+    if (!objectDef?.blocks) return null;
+    for (const block of objectDef.blocks) {
+      if (block.type.toUpperCase() === 'BEHAVIOR') {
+        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+        if (moduleType === 'BRIDGETOWERBEHAVIOR') {
+          return { _marker: true };
+        }
+      }
+    }
+    return null;
   }
 
   private extractSlowDeathProfiles(objectDef: ObjectDef | undefined): SlowDeathProfile[] {
@@ -46026,6 +46161,14 @@ export class GameLogicSubsystem implements Subsystem {
         if (target.minefieldProfile) {
           this.mineOnDamage(target, sourceId, 'HEALING');
         }
+        // Source parity: BridgeBehavior::onHealing — propagate healing to towers.
+        if (target.bridgeBehaviorState) {
+          this.bridgeBehaviorOnHealing(target, amount, sourceId);
+        }
+        // Source parity: BridgeTowerBehavior::onHealing — propagate to siblings and bridge.
+        if (target.bridgeTowerState) {
+          this.bridgeTowerOnHealing(target, amount, sourceId);
+        }
       }
       return true;
     }
@@ -54794,6 +54937,16 @@ export class GameLogicSubsystem implements Subsystem {
       this.mineOnDamage(target, sourceEntityId, normalizedDamageType);
     }
 
+    // Source parity: BridgeBehavior::onDamage — propagate bridge damage to towers.
+    if (target.bridgeBehaviorState) {
+      this.bridgeBehaviorOnDamage(target, sourceEntityId, amount, damageType);
+    }
+
+    // Source parity: BridgeTowerBehavior::onDamage — propagate tower damage to siblings and bridge.
+    if (target.bridgeTowerState) {
+      this.bridgeTowerOnDamage(target, sourceEntityId, amount, damageType);
+    }
+
     // Source parity: FireWeaponWhenDamagedBehavior::onDamage — fire reaction weapons.
     if (target.fireWhenDamagedProfiles.length > 0) {
       this.fireWhenDamagedReaction(target, adjustedDamage);
@@ -58099,6 +58252,413 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  // ── Source parity: BridgeScaffoldBehavior — scaffold motion state machine ──────
+
+  /**
+   * Source parity: BridgeScaffoldBehavior::update() — move scaffold entities
+   * through their motion chain: RISE → BUILD_ACROSS → STILL or
+   * TEAR_DOWN_ACROSS → SINK → destroy.
+   * C++ file: BridgeScaffoldBehavior.cpp.
+   */
+  private updateBridgeScaffolds(): void {
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) continue;
+      const st = entity.bridgeScaffoldState;
+      if (!st) continue;
+
+      // Do nothing if we're not in motion.
+      if (st.targetMotion === STM_STILL) continue;
+
+      // Compute direction vector from our position to the target position.
+      const dirX = st.targetPos.x - entity.x;
+      const dirY = st.targetPos.y - entity.y;
+      const dirZ = st.targetPos.z - entity.z;
+
+      // Normalize direction vector.
+      const dirLen = Math.sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ);
+      if (dirLen < 0.0001) {
+        // Already at target — advance state machine.
+        this.advanceScaffoldMotion(entity, st);
+        continue;
+      }
+      const vx = dirX / dirLen;
+      const vy = dirY / dirLen;
+      const vz = dirZ / dirLen;
+
+      // Depending on motion type, compute top speed and start/end positions.
+      let topSpeed = 1.0;
+      let startX: number, startY: number, startZ: number;
+      let endX: number, endY: number, endZ: number;
+
+      switch (st.targetMotion) {
+        case STM_RISE:
+          topSpeed = st.verticalSpeed;
+          startX = st.createPos.x; startY = st.createPos.y; startZ = st.createPos.z;
+          endX = st.riseToPos.x; endY = st.riseToPos.y; endZ = st.riseToPos.z;
+          break;
+        case STM_SINK:
+          topSpeed = st.verticalSpeed;
+          startX = st.riseToPos.x; startY = st.riseToPos.y; startZ = st.riseToPos.z;
+          endX = st.createPos.x; endY = st.createPos.y; endZ = st.createPos.z;
+          break;
+        case STM_BUILD_ACROSS:
+          topSpeed = st.lateralSpeed;
+          startX = st.riseToPos.x; startY = st.riseToPos.y; startZ = st.riseToPos.z;
+          endX = st.buildPos.x; endY = st.buildPos.y; endZ = st.buildPos.z;
+          break;
+        case STM_TEAR_DOWN_ACROSS:
+          topSpeed = st.lateralSpeed;
+          startX = st.buildPos.x; startY = st.buildPos.y; startZ = st.buildPos.z;
+          endX = st.riseToPos.x; endY = st.riseToPos.y; endZ = st.riseToPos.z;
+          break;
+        default:
+          continue;
+      }
+
+      // Adjust speed so it's slower at the end of motion.
+      // Source parity: totalDistance = length(end - start) * 0.25
+      const svx = endX - startX;
+      const svy = endY - startY;
+      const svz = endZ - startZ;
+      const totalDistance = Math.sqrt(svx * svx + svy * svy + svz * svz) * 0.25;
+
+      const odx = endX - entity.x;
+      const ody = endY - entity.y;
+      const odz = endZ - entity.z;
+      const ourDistance = Math.sqrt(odx * odx + ody * ody + odz * odz);
+
+      let speed = (ourDistance / (totalDistance || 1)) * topSpeed;
+      const minSpeed = topSpeed * 0.08;
+      if (speed < minSpeed) speed = minSpeed;
+      if (speed > topSpeed) speed = topSpeed;
+
+      // Source parity: min speed floor of 0.001 to prevent infinite approach.
+      if (speed < 0.001) speed = 0.001;
+
+      // Compute new position.
+      let newX = vx * speed + entity.x;
+      let newY = vy * speed + entity.y;
+      let newZ = vz * speed + entity.z;
+
+      // Overshoot check via dot product.
+      const tfx = st.targetPos.x - newX;
+      const tfy = st.targetPos.y - newY;
+      const tfz = st.targetPos.z - newZ;
+      if (tfx * dirX + tfy * dirY + tfz * dirZ <= 0.0) {
+        // Use destination position directly.
+        newX = st.targetPos.x;
+        newY = st.targetPos.y;
+        newZ = st.targetPos.z;
+
+        // Advance to next motion in the chain.
+        this.advanceScaffoldMotion(entity, st);
+      }
+
+      // Set the new position.
+      entity.x = newX;
+      entity.y = newY;
+      entity.z = newZ;
+    }
+  }
+
+  /**
+   * Source parity: BridgeScaffoldBehavior::update motion chain transitions.
+   * RISE → BUILD_ACROSS → STILL; TEAR_DOWN_ACROSS → SINK → destroy self.
+   */
+  private advanceScaffoldMotion(entity: MapEntity, st: BridgeScaffoldState): void {
+    switch (st.targetMotion) {
+      case STM_RISE:
+        this.setScaffoldMotion(st, STM_BUILD_ACROSS);
+        break;
+      case STM_BUILD_ACROSS:
+        this.setScaffoldMotion(st, STM_STILL);
+        break;
+      case STM_TEAR_DOWN_ACROSS:
+        this.setScaffoldMotion(st, STM_SINK);
+        break;
+      case STM_SINK:
+        // Source parity: destroy the scaffold object when sink motion completes.
+        this.markEntityDestroyed(entity.id, -1);
+        break;
+      default:
+        break;
+    }
+  }
+
+  /**
+   * Source parity: BridgeScaffoldBehavior::setMotion — set target position for requested motion.
+   */
+  private setScaffoldMotion(st: BridgeScaffoldState, targetMotion: ScaffoldTargetMotion): void {
+    st.targetMotion = targetMotion;
+    switch (targetMotion) {
+      case STM_RISE:
+      case STM_TEAR_DOWN_ACROSS:
+        st.targetPos = { ...st.riseToPos };
+        break;
+      case STM_BUILD_ACROSS:
+        st.targetPos = { ...st.buildPos };
+        break;
+      case STM_SINK:
+        st.targetPos = { ...st.createPos };
+        break;
+      default:
+        break;
+    }
+  }
+
+  // ── Source parity: BridgeBehavior — bridge damage/death/repair hooks ──────────
+
+  /**
+   * Source parity: BridgeBehavior::onDamage — propagate damage from bridge to towers.
+   * Called when the bridge entity takes damage where the source is NOT a bridge tower.
+   */
+  private bridgeBehaviorOnDamage(
+    bridge: MapEntity,
+    sourceEntityId: number | null,
+    amount: number,
+    damageType: string,
+  ): void {
+    const state = bridge.bridgeBehaviorState;
+    if (!state) return;
+
+    // Skip propagation if source is a bridge tower (already propagated from there).
+    if (sourceEntityId !== null) {
+      const source = this.spawnedEntities.get(sourceEntityId);
+      if (source && source.kindOf.has('BRIDGE_TOWER')) return;
+    }
+
+    // Calculate damage as percentage of bridge max health.
+    const damagePercentage = bridge.maxHealth > 0 ? amount / bridge.maxHealth : 0;
+    if (damagePercentage <= 0) return;
+
+    // Propagate proportional damage to all towers.
+    for (const towerId of state.towerIds) {
+      const tower = this.spawnedEntities.get(towerId);
+      if (!tower || tower.destroyed) continue;
+      const towerDamageAmount = damagePercentage * tower.maxHealth;
+      // Source parity: use bridge entity as source to prevent recursion.
+      this.applyWeaponDamageAmount(bridge.id, tower, towerDamageAmount, damageType);
+    }
+  }
+
+  /**
+   * Source parity: BridgeBehavior::onHealing — propagate healing from bridge to towers.
+   * Called when the bridge entity receives healing where the source is NOT a bridge tower.
+   */
+  private bridgeBehaviorOnHealing(
+    bridge: MapEntity,
+    healAmount: number,
+    sourceEntityId: number | null,
+  ): void {
+    const state = bridge.bridgeBehaviorState;
+    if (!state) return;
+
+    // Skip propagation if source is a bridge tower.
+    if (sourceEntityId !== null) {
+      const source = this.spawnedEntities.get(sourceEntityId);
+      if (source && source.kindOf.has('BRIDGE_TOWER')) return;
+    }
+
+    // Calculate healing as percentage of bridge max health.
+    const healPercentage = bridge.maxHealth > 0 ? healAmount / bridge.maxHealth : 0;
+    if (healPercentage <= 0) return;
+
+    // Propagate proportional healing to all towers.
+    for (const towerId of state.towerIds) {
+      const tower = this.spawnedEntities.get(towerId);
+      if (!tower || tower.destroyed) continue;
+      const towerHealAmount = healPercentage * tower.maxHealth;
+      tower.health = Math.min(tower.maxHealth, tower.health + towerHealAmount);
+    }
+  }
+
+  /**
+   * Source parity: BridgeBehavior::onDie — kill towers, handle objects on bridge, mark destroyed.
+   * Called when the bridge entity dies.
+   */
+  private bridgeBehaviorOnDie(bridge: MapEntity): void {
+    const state = bridge.bridgeBehaviorState;
+    if (!state) return;
+
+    // Kill all towers.
+    for (const towerId of state.towerIds) {
+      const tower = this.spawnedEntities.get(towerId);
+      if (tower && !tower.destroyed) {
+        this.markEntityDestroyed(tower.id, bridge.id);
+      }
+    }
+
+    // Handle objects standing on bridge — kill entities that can't fly.
+    this.handleObjectsOnBridgeDeath(bridge);
+
+    // Mark bridge cells as impassable in nav grid.
+    if (this.navigationGrid) {
+      for (const cell of state.bridgeCells) {
+        const index = cell.z * this.navigationGrid.width + cell.x;
+        if (index >= 0 && index < this.navigationGrid.bridgePassable.length) {
+          this.navigationGrid.bridgePassable[index] = 0;
+        }
+      }
+    }
+
+    // Record death frame for timed FX.
+    state.isBridgeDestroyed = true;
+    state.deathFrame = this.frameCounter;
+  }
+
+  /**
+   * Source parity: BridgeBehavior::handleObjectsOnBridgeOnDie — drop/kill entities on destroyed bridge.
+   */
+  private handleObjectsOnBridgeDeath(bridge: MapEntity): void {
+    // Simple implementation: kill non-bridge, non-aircraft entities near the bridge.
+    const scanRadius = 50; // Bridge scan radius
+    const bx = bridge.x;
+    const bz = bridge.z;
+
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) continue;
+      if (entity.id === bridge.id) continue;
+      if (entity.kindOf.has('BRIDGE') || entity.kindOf.has('BRIDGE_TOWER')) continue;
+      if (entity.kindOf.has('AIRCRAFT')) continue;
+
+      const dx = entity.x - bx;
+      const dz = entity.z - bz;
+      if (dx * dx + dz * dz > scanRadius * scanRadius) continue;
+
+      // Source parity: if they have physics, let them fall; otherwise kill them.
+      if (entity.physicsBehaviorProfile) {
+        // They have physics — they will fall.
+      } else {
+        this.markEntityDestroyed(entity.id, bridge.id);
+      }
+    }
+  }
+
+  /**
+   * Source parity: BridgeTowerBehavior::onDamage — propagate tower damage to other towers and bridge.
+   * Damage percentage is calculated from tower health and propagated proportionally.
+   */
+  private bridgeTowerOnDamage(
+    tower: MapEntity,
+    sourceEntityId: number | null,
+    amount: number,
+    damageType: string,
+  ): void {
+    const state = tower.bridgeTowerState;
+    if (!state) return;
+
+    const bridge = this.spawnedEntities.get(state.bridgeEntityId);
+    if (!bridge || bridge.destroyed) return;
+
+    const bridgeState = bridge.bridgeBehaviorState;
+    if (!bridgeState) return;
+
+    // Skip propagation if source is a bridge or bridge tower (prevents recursion).
+    if (sourceEntityId !== null) {
+      const source = this.spawnedEntities.get(sourceEntityId);
+      if (source && (source.kindOf.has('BRIDGE') || source.kindOf.has('BRIDGE_TOWER'))) return;
+    }
+
+    // Calculate damage as percentage of this tower's max health.
+    const damagePercentage = tower.maxHealth > 0 ? amount / tower.maxHealth : 0;
+    if (damagePercentage <= 0) return;
+
+    // Propagate damage to other towers (not self).
+    for (const otherTowerId of bridgeState.towerIds) {
+      const otherTower = this.spawnedEntities.get(otherTowerId);
+      if (!otherTower || otherTower.destroyed || otherTower.id === tower.id) continue;
+      const otherDamageAmount = damagePercentage * otherTower.maxHealth;
+      // Source parity: use this tower as source to prevent recursion.
+      this.applyWeaponDamageAmount(tower.id, otherTower, otherDamageAmount, damageType);
+    }
+
+    // Propagate damage to bridge.
+    const bridgeDamageAmount = damagePercentage * bridge.maxHealth;
+    this.applyWeaponDamageAmount(tower.id, bridge, bridgeDamageAmount, damageType);
+  }
+
+  /**
+   * Source parity: BridgeTowerBehavior::onHealing — propagate tower healing to other towers and bridge.
+   */
+  private bridgeTowerOnHealing(
+    tower: MapEntity,
+    healAmount: number,
+    sourceEntityId: number | null,
+  ): void {
+    const state = tower.bridgeTowerState;
+    if (!state) return;
+
+    const bridge = this.spawnedEntities.get(state.bridgeEntityId);
+    if (!bridge || bridge.destroyed) return;
+
+    const bridgeState = bridge.bridgeBehaviorState;
+    if (!bridgeState) return;
+
+    // Skip propagation if source is a bridge or bridge tower.
+    if (sourceEntityId !== null) {
+      const source = this.spawnedEntities.get(sourceEntityId);
+      if (source && (source.kindOf.has('BRIDGE') || source.kindOf.has('BRIDGE_TOWER'))) return;
+    }
+
+    // Calculate healing as percentage of this tower's max health.
+    const healPercentage = tower.maxHealth > 0 ? healAmount / tower.maxHealth : 0;
+    if (healPercentage <= 0) return;
+
+    // Propagate healing to other towers.
+    for (const otherTowerId of bridgeState.towerIds) {
+      const otherTower = this.spawnedEntities.get(otherTowerId);
+      if (!otherTower || otherTower.destroyed || otherTower.id === tower.id) continue;
+      const otherHealAmount = healPercentage * otherTower.maxHealth;
+      otherTower.health = Math.min(otherTower.maxHealth, otherTower.health + otherHealAmount);
+    }
+
+    // Propagate healing to bridge.
+    const bridgeHealAmount = healPercentage * bridge.maxHealth;
+    bridge.health = Math.min(bridge.maxHealth, bridge.health + bridgeHealAmount);
+
+    // Source parity: if bridge was destroyed and has been healed back, restore passability.
+    if (bridgeState.isBridgeDestroyed && bridge.health > 0) {
+      this.bridgeRestorePassability(bridge);
+    }
+  }
+
+  /**
+   * Source parity: BridgeTowerBehavior::onDie — kill the parent bridge entity.
+   */
+  private bridgeTowerOnDie(tower: MapEntity): void {
+    const state = tower.bridgeTowerState;
+    if (!state) return;
+
+    const bridge = this.spawnedEntities.get(state.bridgeEntityId);
+    if (bridge && !bridge.destroyed) {
+      // Source parity: tower death kills the bridge.
+      bridge.health = 0;
+      if (!bridge.slowDeathState && !bridge.structureCollapseState) {
+        this.markEntityDestroyed(bridge.id, tower.id);
+      }
+    }
+  }
+
+  /**
+   * Source parity: Restore bridge passability in nav grid after repair.
+   */
+  private bridgeRestorePassability(bridge: MapEntity): void {
+    const state = bridge.bridgeBehaviorState;
+    if (!state) return;
+
+    if (this.navigationGrid) {
+      for (const cell of state.bridgeCells) {
+        const index = cell.z * this.navigationGrid.width + cell.x;
+        if (index >= 0 && index < this.navigationGrid.bridgePassable.length) {
+          this.navigationGrid.bridgePassable[index] = 1;
+        }
+      }
+    }
+
+    state.isBridgeDestroyed = false;
+    state.deathFrame = 0;
+  }
+
   /**
    * Source parity: StructureToppleUpdate::update() — building collapse physics.
    * State machine: STANDING → WAITING → TOPPLING → WAITING_DONE → DONE.
@@ -61161,6 +61721,16 @@ export class GameLogicSubsystem implements Subsystem {
       this.executeStickyBombDetonationDamage(entity);
     }
 
+    // Source parity: BridgeBehavior::onDie — kill towers, mark cells impassable.
+    if (entity.bridgeBehaviorState) {
+      this.bridgeBehaviorOnDie(entity);
+    }
+
+    // Source parity: BridgeTowerBehavior::onDie — kill the parent bridge.
+    if (entity.bridgeTowerState) {
+      this.bridgeTowerOnDie(entity);
+    }
+
     // Emit entity destroyed visual event.
     this.visualEventBuffer.push({
       type: 'ENTITY_DESTROYED',
@@ -62658,6 +63228,10 @@ export class GameLogicSubsystem implements Subsystem {
 
   private updateEntityVerticalPosition(entity: MapEntity, dt: number): void {
     if (entity.helicopterSlowDeathState || entity.jetSlowDeathState) {
+      return;
+    }
+    // Source parity: BridgeScaffoldBehavior manages its own position — skip ground snap.
+    if (entity.bridgeScaffoldState) {
       return;
     }
     const groundY = this.resolveGroundHeight(entity.x, entity.z) + entity.baseHeight;
