@@ -1,5 +1,15 @@
 # Session Summaries
 
+## 2026-03-10T00:32Z — Previously Out-of-Scope Module Ports (Phases A-C)
+Ported 3 modules previously classified as out-of-scope:
+- **Phase A: FirestormDynamicGeometryInfoUpdate** — DAMAGE_FLAME pulses within expanding radius (4 tests)
+- **Phase B: BaikonurLaunchPower** — Spawns DetonationObject at target, DOOR_1_OPENING on no-target (3 tests)
+- **Phase C: SpawnPointProductionExitUpdate** — Circular bone-free spawn distribution for 14 GLA buildings (5 tests)
+- All 3 phases ran in parallel worktree agents, merged sequentially
+- Code review: 4 warnings fixed (bounding circle calc, FROM_BOUNDINGSPHERE_2D, self-exclusion parity, disabled guard)
+- Railroad system (4 modules) remains deferred
+- Total: 3133 tests passing across 130 files
+
 ## 2026-03-09T23:20Z — Waterfall Plan Phases 1-5 + Code Review Fixes
 Implemented all 5 phases of the remaining C++ module port waterfall plan, plus Phase 3 SpectreGunship:
 - **Phases 1,2,4,5** (from previous session): MobMemberSlavedUpdate, BoneFXUpdate, RadiusDecalUpdate, Bridge System (3 modules), FlightDeckBehavior — merged from 4 parallel worktree branches with post-merge structural fixes.

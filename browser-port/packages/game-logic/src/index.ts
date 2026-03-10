@@ -40558,7 +40558,8 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     // Source parity: BaikonurLaunchPower::doSpecialPower — set DOOR_1_OPENING on source.
-    if (module.moduleType === 'BAIKONURLAUNCHPOWER') {
+    // C++ checks isDisabled() before executing (BaikonurLaunchPower.cpp line 91).
+    if (module.moduleType === 'BAIKONURLAUNCHPOWER' && !this.isEntityDisabledForMovement(source)) {
       source.modelConditionFlags.add('DOOR_1_OPENING');
     }
 
@@ -40792,8 +40793,9 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     // Source parity: BaikonurLaunchPower::doSpecialPowerAtLocation — spawn DetonationObject at target.
+    // C++ checks isDisabled() before executing (BaikonurLaunchPower.cpp line 103).
     if (module.moduleType === 'BAIKONURLAUNCHPOWER') {
-      if (module.detonationObjectName) {
+      if (!this.isEntityDisabledForMovement(source) && module.detonationObjectName) {
         this.spawnEntityFromTemplate(module.detonationObjectName, targetX, targetZ, 0, source.side);
       }
       return true;
@@ -54007,6 +54009,23 @@ export class GameLogicSubsystem implements Subsystem {
           const dxR = entity.x - js.producerX;
           const dzR = entity.z - js.producerZ;
           if (dxR * dxR + dzR * dzR <= NEAR_AIRFIELD_DIST_SQ) {
+            // Source parity: JetAwaitingRunwayState + JetTakeoffOrLandingState::onEnter —
+            // for flight deck carriers, must reserve space + landing runway before landing.
+            const landProducer = this.spawnedEntities.get(entity.producerEntityId);
+            const fdProfileLand = landProducer?.flightDeckProfile;
+            const fdStateLand = landProducer?.flightDeckState;
+            if (fdProfileLand && fdStateLand) {
+              // Reserve a parking space first (required before runway reservation).
+              if (!this.flightDeckReserveSpace(fdStateLand, entity.id)) {
+                // No space available — keep circling.
+                break;
+              }
+              // Reserve landing runway.
+              if (!this.flightDeckReserveRunway(fdStateLand, fdProfileLand, entity.id, true)) {
+                // Runway busy — keep circling (space stays reserved).
+                break;
+              }
+            }
             this.jetAITransition(entity, js, 'LANDING');
             entity.moving = false;
             // Snap XZ to airfield.
@@ -54028,6 +54047,14 @@ export class GameLogicSubsystem implements Subsystem {
           if (framesInState >= LANDING_FRAMES) {
             js.allowAirLoco = false;
             entity.objectStatusFlags.delete('AIRBORNE_TARGET');
+
+            // Source parity: JetTakeoffOrLandingState::onExit — release landing runway
+            // when landing completes (for both airfields and flight decks).
+            const landingDoneProducer = this.spawnedEntities.get(entity.producerEntityId);
+            const fdStateLandDone = landingDoneProducer?.flightDeckState;
+            if (fdStateLandDone) {
+              this.flightDeckReleaseRunway(fdStateLandDone, entity.id);
+            }
 
             // Determine if reload is needed.
             const weapon = entity.attackWeapon;
@@ -61825,16 +61852,21 @@ export class GameLogicSubsystem implements Subsystem {
       // Source parity: damage scan at interval.
       if (this.frameCounter - state.lastDamageFrame >= profile.delayBetweenDamageFrames) {
         // Source parity: doDamageScan — iterate entities within bounding circle radius.
-        const boundingCircle = entity.obstacleGeometry?.majorRadius ?? 0;
+        // C++ uses getBoundingCircleRadius() which returns sqrt(major²+minor²) for BOX shapes.
+        const boundingCircle = this.resolveEntityBoundingCircleRadius2D(entity);
         if (boundingCircle > 0) {
           for (const other of this.spawnedEntities.values()) {
             if (other.destroyed) continue;
-            if (other.id === entity.id) continue;
-            // 2D distance check.
+            // Source parity: C++ doDamageScan does not exclude self — the firestorm object
+            // calls attemptDamage on itself too. PROJECTILE armor typically makes it immune.
+            // Source parity: C++ uses FROM_BOUNDINGSPHERE_2D — distance is measured to the
+            // target's bounding sphere edge, not its center.
             const dx = other.x - entity.x;
             const dz = other.z - entity.z;
-            const dist = Math.sqrt(dx * dx + dz * dz);
-            if (dist > boundingCircle) continue;
+            const centerDist = Math.sqrt(dx * dx + dz * dz);
+            const otherRadius = this.resolveEntityBoundingCircleRadius2D(other);
+            const edgeDist = Math.max(0, centerDist - otherRadius);
+            if (edgeDist > boundingCircle) continue;
             // Source parity: height check — skip targets above maxHeightForDamage.
             if (other.y > entity.y + profile.maxHeightForDamage) continue;
             // Apply DAMAGE_FLAME.
