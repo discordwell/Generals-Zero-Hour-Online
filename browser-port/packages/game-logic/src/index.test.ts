@@ -68532,6 +68532,7 @@ describe('BaikonurLaunchPower', () => {
       makeHeightmap(128, 128),
     );
 
+
     logic.submitCommand({
       type: 'issueSpecialPower',
       commandButtonId: 'CMD_BAIKONUR_NO_TARGET',
@@ -68686,5 +68687,216 @@ describe('BaikonurLaunchPower', () => {
       if (ent.templateName === 'BaikonurDetonation') detonationCount++;
     }
     expect(detonationCount).toBe(1);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SpawnPointProductionExitUpdate Tests
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('SpawnPointProductionExitUpdate', () => {
+  function makeSpawnPointBundle(maxQueue = 12) {
+    return makeBundle({
+      objects: [
+        makeObjectDef('StingerSite', 'GLA', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('Behavior', 'ProductionUpdate ModuleTag_Production', {
+            MaxQueueEntries: maxQueue,
+          }),
+          makeBlock('Behavior', 'SpawnPointProductionExitUpdate ModuleTag_Exit', {
+            SpawnPointBoneName: 'SpawnPoint',
+          }),
+        ], {
+          Geometry: 'BOX',
+          GeometryMajorRadius: 15,
+        }),
+        makeObjectDef('StingerMissile', 'GLA', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+          makeBlock('LocomotorSet', 'SET_NORMAL LocomotorSlow', {}),
+        ], {
+          BuildTime: 0.1,
+          BuildCost: 50,
+        }),
+      ],
+      locomotors: [
+        makeLocomotorDef('LocomotorSlow', 30),
+      ],
+    });
+  }
+
+  it('spawns units at distributed positions around the building, not at origin', () => {
+    const bundle = makeSpawnPointBundle();
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('StingerSite', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    logic.submitCommand({ type: 'setSideCredits', side: 'GLA', amount: 5000 });
+    logic.submitCommand({ type: 'queueUnitProduction', entityId: 1, unitTemplateName: 'StingerMissile' });
+    logic.submitCommand({ type: 'queueUnitProduction', entityId: 1, unitTemplateName: 'StingerMissile' });
+
+    // Run enough frames for both units to be produced (BuildTime=0.1s → ~3 logic frames).
+    for (let i = 0; i < 15; i++) {
+      logic.update(1 / 30);
+    }
+
+    const unitIds = logic.getEntityIdsByTemplate('StingerMissile');
+    expect(unitIds.length).toBe(2);
+
+    const unit1 = logic.getEntityState(unitIds[0]!)!;
+    const unit2 = logic.getEntityState(unitIds[1]!)!;
+
+    // Both units should NOT be at the building center (50, 50).
+    // They should be at different spawn point positions around the building.
+    const bothAtCenter = (
+      Math.abs(unit1.x - 50) < 1 && Math.abs(unit1.z - 50) < 1
+      && Math.abs(unit2.x - 50) < 1 && Math.abs(unit2.z - 50) < 1
+    );
+    expect(bothAtCenter).toBe(false);
+
+    // They should be at different positions from each other.
+    const samePosition = Math.abs(unit1.x - unit2.x) < 0.01 && Math.abs(unit1.z - unit2.z) < 0.01;
+    expect(samePosition).toBe(false);
+  });
+
+  it('respects MAX_SPAWN_POINTS capacity of 10 by blocking the 11th unit', () => {
+    const bundle = makeSpawnPointBundle(12);
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('StingerSite', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    logic.submitCommand({ type: 'setSideCredits', side: 'GLA', amount: 50000 });
+
+    // Queue 11 units.
+    for (let i = 0; i < 11; i++) {
+      logic.submitCommand({ type: 'queueUnitProduction', entityId: 1, unitTemplateName: 'StingerMissile' });
+    }
+
+    // Run many frames to ensure all possible production completes.
+    for (let i = 0; i < 200; i++) {
+      logic.update(1 / 30);
+    }
+
+    const unitIds = logic.getEntityIdsByTemplate('StingerMissile');
+    // Should produce exactly 10 (MAX_SPAWN_POINTS), the 11th is blocked.
+    expect(unitIds.length).toBe(10);
+
+    // The production queue should still have the 11th entry waiting.
+    const prodState = logic.getProductionState(1);
+    expect(prodState?.queueEntryCount).toBe(1);
+  });
+
+  it('sets DISABLED_HELD on produced units at spawn points', () => {
+    const bundle = makeSpawnPointBundle();
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('StingerSite', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    logic.submitCommand({ type: 'setSideCredits', side: 'GLA', amount: 5000 });
+    logic.submitCommand({ type: 'queueUnitProduction', entityId: 1, unitTemplateName: 'StingerMissile' });
+
+    for (let i = 0; i < 15; i++) {
+      logic.update(1 / 30);
+    }
+
+    const unitIds = logic.getEntityIdsByTemplate('StingerMissile');
+    expect(unitIds.length).toBe(1);
+
+    const unit = logic.getEntityState(unitIds[0]!)!;
+    expect(unit.statusFlags).toContain('DISABLED_HELD');
+  });
+
+  it('frees spawn slot when occupier is destroyed and allows reuse', () => {
+    const bundle = makeSpawnPointBundle();
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('StingerSite', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    logic.submitCommand({ type: 'setSideCredits', side: 'GLA', amount: 50000 });
+
+    // Fill all 10 slots.
+    for (let i = 0; i < 10; i++) {
+      logic.submitCommand({ type: 'queueUnitProduction', entityId: 1, unitTemplateName: 'StingerMissile' });
+    }
+    for (let i = 0; i < 200; i++) {
+      logic.update(1 / 30);
+    }
+
+    const unitIds = logic.getEntityIdsByTemplate('StingerMissile');
+    expect(unitIds.length).toBe(10);
+
+    // Destroy the first unit by setting health to 0.
+    const priv = logic as unknown as { spawnedEntities: Map<number, { health: number; destroyed: boolean }> };
+    const firstUnit = priv.spawnedEntities.get(unitIds[0]!)!;
+    firstUnit.health = 0;
+
+    // Run frames to process destruction.
+    for (let i = 0; i < 10; i++) {
+      logic.update(1 / 30);
+    }
+
+    // Now queue another unit — it should be able to occupy the freed slot.
+    logic.submitCommand({ type: 'queueUnitProduction', entityId: 1, unitTemplateName: 'StingerMissile' });
+    for (let i = 0; i < 30; i++) {
+      logic.update(1 / 30);
+    }
+
+    // Should have 10 alive StingerMissile units again (9 old + 1 new, minus the destroyed one).
+    const aliveUnitIds = logic.getEntityIdsByTemplate('StingerMissile')
+      .filter((id) => logic.getEntityState(id)?.alive);
+    expect(aliveUnitIds.length).toBe(10);
+  });
+
+  it('blocks production queue when all 10 spawn slots are occupied', () => {
+    const bundle = makeSpawnPointBundle(12);
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('StingerSite', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    logic.submitCommand({ type: 'setSideCredits', side: 'GLA', amount: 50000 });
+
+    // Queue 10 units to fill all slots.
+    for (let i = 0; i < 10; i++) {
+      logic.submitCommand({ type: 'queueUnitProduction', entityId: 1, unitTemplateName: 'StingerMissile' });
+    }
+
+    // Run many frames for all to complete.
+    for (let i = 0; i < 200; i++) {
+      logic.update(1 / 30);
+    }
+
+    const unitIds = logic.getEntityIdsByTemplate('StingerMissile');
+    expect(unitIds.length).toBe(10);
+    expect(logic.getProductionState(1)?.queueEntryCount ?? 0).toBe(0);
+
+    // Now queue one more — it should stay in the queue since all slots are full.
+    logic.submitCommand({ type: 'queueUnitProduction', entityId: 1, unitTemplateName: 'StingerMissile' });
+    for (let i = 0; i < 60; i++) {
+      logic.update(1 / 30);
+    }
+
+    // The 11th unit should not have been produced.
+    expect(logic.getEntityIdsByTemplate('StingerMissile').length).toBe(10);
+    // But the production entry should still be in the queue, blocked.
+    expect(logic.getProductionState(1)?.queueEntryCount).toBe(1);
   });
 });

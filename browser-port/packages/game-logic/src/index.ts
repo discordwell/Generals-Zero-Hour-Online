@@ -1267,6 +1267,14 @@ interface QueueProductionExitProfile {
   spawnPointBoneName: string | null;
 }
 
+/** Source parity: SpawnPointProductionExitUpdate — spawn slot positions and occupancy. */
+interface SpawnPointExitState {
+  initialized: boolean;
+  spawnPointCount: number;
+  spawnPositions: { x: number; z: number; angle: number }[];
+  occupierIds: number[]; // -1 = empty
+}
+
 interface ParkingPlaceProfile {
   totalSpaces: number;
   occupiedSpaceEntityIds: Set<number>;
@@ -2132,6 +2140,8 @@ interface MapEntity {
   productionQueue: ProductionQueueEntry[];
   productionNextId: number;
   queueProductionExitProfile: QueueProductionExitProfile | null;
+  /** Source parity: SpawnPointProductionExitUpdate — spawn slot positions and occupancy. */
+  spawnPointExitState: SpawnPointExitState | null;
   rallyPoint: VectorXZ | null;
   parkingPlaceProfile: ParkingPlaceProfile | null;
   containProfile: ContainProfile | null;
@@ -28360,6 +28370,7 @@ export class GameLogicSubsystem implements Subsystem {
       productionQueue: [],
       productionNextId: 1,
       queueProductionExitProfile,
+      spawnPointExitState: null,
       rallyPoint: null,
       parkingPlaceProfile,
       containProfile,
@@ -51436,6 +51447,14 @@ export class GameLogicSubsystem implements Subsystem {
         break;
       }
 
+      // Source parity: SpawnPointProductionExitUpdate::reserveDoorForExit —
+      // block production when all spawn point slots are occupied.
+      if (producer.queueProductionExitProfile?.moduleType === 'SPAWN_POINT') {
+        if (!this.hasAvailableSpawnPointSlot(producer)) {
+          break;
+        }
+      }
+
       const produced = this.spawnProducedUnit(producer, unitDef, production.productionId);
       if (!produced) {
         shouldRemoveEntry = true;
@@ -51693,6 +51712,61 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
+   * Source parity: SpawnPointProductionExitUpdate::initializeBonePositions —
+   * Bone-free approximation: distribute MAX_SPAWN_POINTS slots in a circle
+   * around the building at majorRadius distance from its center.
+   */
+  private initializeSpawnPointPositions(entity: MapEntity): SpawnPointExitState {
+    const MAX_SPAWN_POINTS = 10;
+    const radius = entity.obstacleGeometry?.majorRadius ?? 20;
+    const positions: { x: number; z: number; angle: number }[] = [];
+    for (let i = 0; i < MAX_SPAWN_POINTS; i++) {
+      const angle = (2 * Math.PI * i) / MAX_SPAWN_POINTS;
+      positions.push({
+        x: entity.x + radius * Math.cos(angle),
+        z: entity.z + radius * Math.sin(angle),
+        angle,
+      });
+    }
+    return {
+      initialized: true,
+      spawnPointCount: MAX_SPAWN_POINTS,
+      spawnPositions: positions,
+      occupierIds: new Array(MAX_SPAWN_POINTS).fill(-1),
+    };
+  }
+
+  /**
+   * Source parity: SpawnPointProductionExitUpdate::revalidateOccupiers —
+   * Clear occupier IDs for dead/destroyed entities.
+   */
+  private revalidateSpawnPointOccupiers(state: SpawnPointExitState): void {
+    for (let i = 0; i < state.spawnPointCount; i++) {
+      if (state.occupierIds[i] === -1) continue;
+      const occupier = this.spawnedEntities.get(state.occupierIds[i]!);
+      if (!occupier || occupier.destroyed) {
+        state.occupierIds[i] = -1;
+      }
+    }
+  }
+
+  /**
+   * Source parity: SpawnPointProductionExitUpdate::reserveDoorForExit —
+   * Returns true if at least one spawn slot is available.
+   */
+  private hasAvailableSpawnPointSlot(producer: MapEntity): boolean {
+    if (!producer.spawnPointExitState) {
+      producer.spawnPointExitState = this.initializeSpawnPointPositions(producer);
+    }
+    this.revalidateSpawnPointOccupiers(producer.spawnPointExitState);
+    const state = producer.spawnPointExitState;
+    for (let i = 0; i < state.spawnPointCount; i++) {
+      if (state.occupierIds[i] === -1) return true;
+    }
+    return false;
+  }
+
+  /**
    * Source parity: DefaultProductionExitUpdate::exitObjectViaDoor —
    * builds an exit path: natural rally point first, then player rally
    * point.  The produced unit follows the full path in order.
@@ -51707,6 +51781,31 @@ export class GameLogicSubsystem implements Subsystem {
       producedUnit.jetAIState.producerZ = producer.z;
       producedUnit.producerEntityId = producer.id;
       producedUnit.objectStatusFlags.delete('AIRBORNE_TARGET');
+      return;
+    }
+
+    // Source parity: SpawnPointProductionExitUpdate::exitObjectViaDoor —
+    // place produced units at spawn point positions with DISABLED_HELD.
+    if (producer.queueProductionExitProfile?.moduleType === 'SPAWN_POINT') {
+      if (!producer.spawnPointExitState) {
+        producer.spawnPointExitState = this.initializeSpawnPointPositions(producer);
+      }
+      this.revalidateSpawnPointOccupiers(producer.spawnPointExitState);
+      const state = producer.spawnPointExitState;
+      let freeSlot = -1;
+      for (let i = 0; i < state.spawnPointCount; i++) {
+        if (state.occupierIds[i] === -1) {
+          freeSlot = i;
+          break;
+        }
+      }
+      if (freeSlot === -1) return; // All slots occupied
+      const pos = state.spawnPositions[freeSlot]!;
+      producedUnit.x = pos.x;
+      producedUnit.z = pos.z;
+      producedUnit.rotationY = pos.angle;
+      state.occupierIds[freeSlot] = producedUnit.id;
+      producedUnit.objectStatusFlags.add('DISABLED_HELD');
       return;
     }
 
