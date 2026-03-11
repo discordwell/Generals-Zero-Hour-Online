@@ -494,8 +494,11 @@ export function computeInverseBindMatrices(pivots: readonly W3dPivot[]): Float32
     const [qx, qy, qz, qw] = pivot.rotation;
     const local = mat4FromTQ(tx, ty, tz, qx, qy, qz, qw);
 
-    if (pivot.parentIndex >= 0 && pivot.parentIndex < count) {
-      worldMatrices[i] = mat4Multiply(worldMatrices[pivot.parentIndex]!, local);
+    const parentWorld = pivot.parentIndex >= 0 && pivot.parentIndex < count
+      ? worldMatrices[pivot.parentIndex]
+      : undefined;
+    if (parentWorld) {
+      worldMatrices[i] = mat4Multiply(parentWorld, local);
     } else {
       worldMatrices[i] = local;
     }
