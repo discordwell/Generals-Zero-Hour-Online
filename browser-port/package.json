@@ -33,7 +33,10 @@
     "convert:big": "tsx tools/big-extractor/src/cli.ts",
     "convert:map": "tsx tools/map-converter/src/cli.ts",
     "convert:texture": "tsx tools/texture-converter/src/cli.ts",
-    "convert:all": "tsx tools/convert-all.ts"
+    "convert:all": "tsx tools/convert-all.ts",
+    "parity": "vitest run --reporter=verbose -t parity",
+    "parity:source": "tsx tools/parity-source-truth.ts",
+    "parity:strict": "tsx tools/parity-source-truth.ts --strict"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

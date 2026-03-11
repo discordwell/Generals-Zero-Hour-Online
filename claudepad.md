@@ -1,13 +1,24 @@
 # Session Summaries
 
+## 2026-03-11T12:45Z — Three-Layer Parity Testing System
+Implemented a complete parity testing system with 50 new tests (3,239 total, all passing):
+- **Parity Agent** (`parity-agent.ts`): Headless GameLogicSubsystem wrapper with selection-free command interface. Creates test scenarios via `createParityAgent()` factory with `step()`, `snapshot()`, `diff()` for deterministic testing.
+- **Source Truth** (`tools/parity-source-truth.ts`): Parses C++ headers (Damage.h, Weapon.h, Weapon.cpp) and compares against TS port. Found real mismatch: TS uses Generals damage types (FLESHY_SNIPER) instead of ZH types (SUBDUAL_MISSILE, SUBDUAL_VEHICLE, etc. — 7 missing types).
+- **Combat Tests** (`parity-combat.test.ts`): 10 tests verifying C++ damage formulas — armor coefficients (50%/100%/Default), UNRESISTABLE bypass, clip reload, DelayBetweenShots timing, PreAttackDelay types (PER_SHOT/PER_ATTACK), determinism.
+- **Pipeline Tests** (`parity-pipeline.test.ts`): 8 integration tests — armor upgrade mid-combat, mutual combat, victory conditions, guard position, stop command, credit management, timeline determinism.
+- **npm scripts**: `parity`, `parity:source`, `parity:strict` added to package.json.
+- **PARITY_WORKFLOW.md**: Documents the three-layer system.
+
+## 2026-03-11T09:10Z — Wet Test Passed, Commit & Push
+Wet-tested fog-of-war fix + W3D model loading on generals.discordwell.com (Tournament Desert). Models render as untextured 3D geometry with shadows, fog-of-war clears around starting base, game loop runs smoothly. Debug overlay: 784 objects, 284 unresolved (condition-state variants needing further fallback). Console clean — only expected Campaign.ini/Video.ini warnings. Committed `d70474a8` with all fixes + 7,651 re-converted GLBs + 5,640 .rgba textures. Deployed bundle `index-5FtQubZ_.js`.
+
 ## 2026-03-11T08:50Z — Fix Model Visibility (Fog-of-War Shroud Bug)
 Root cause found and fixed: all 784 entities were invisible because `syncShroudVisibility` hid SHROUDED entities, and fog-of-war grid had no lookers during the initial visual sync (before `updateFogOfWar()` ever ran).
 - **Fix 1**: Moved initial `objectVisualManager.sync()` call to AFTER `spawnSkirmishStartingEntities()` and added `gameLogic.update(0)` beforehand so fog-of-war registers entity lookers before first sync.
 - **Fix 2**: Added try-catch in `GameLoop.tick()` so `onSimulationStep` errors log to console instead of silently killing the render loop.
-- **Cleanup**: Removed all DIAG_LOAD_OK/DIAG_LOAD_FAIL/DIAG_VISUAL_SUMMARY diagnostic code from object-visuals.ts.
-- **Tests**: 3 new fog-of-war shroud status tests (SHROUDED before update, CLEAR after update near own building, own entities always CLEAR). 1 new game loop error resilience test.
-- **Pending**: Deploy blocked — ovh2 SSH port 22 is refusing connections. Need user to restore SSH access.
-- **Bundle**: `index-Dn0TIAvY.js` ready in dist/
+- **Fix 3**: Added condition-state suffix fallback (strip _D, _AD, _DNS etc.) and fixed W3dHierarchyParser PIVOT_RECORD_SIZE 76→60.
+- **Tests**: 3 fog-of-war shroud tests, 1 game loop error resilience test, 14 condition-state suffix tests, 3 fallback integration tests.
+- **Deployed**: Bundle `index-5FtQubZ_.js` on generals.discordwell.com
 
 ## 2026-03-11T01:45Z — W3D Model Rendering Pipeline Complete
 Implemented full W3D model rendering pipeline across 4 phases:
