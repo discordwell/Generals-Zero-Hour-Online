@@ -296,32 +296,31 @@ function parseVertexMaterial(
   out: W3dMaterial[],
 ): void {
   for (const sub of reader.iterateChunks(offset, endOffset)) {
-    if (sub.type === W3dChunkType.VERTEX_MATERIAL_INFO && sub.size >= 52) {
-      // VERTEX_MATERIAL_INFO layout (52 bytes):
-      //   uint32 Attributes (4)
-      //   RGBA   Ambient    (4 × float32 = 16)  offset  4
-      //   RGBA   Diffuse    (4 × float32 = 16)  offset 20
-      //   RGBA   Specular   (4 × float32 = 16)  offset 36
-      //   RGBA   Emissive   (4 × float32 = 16)  offset 52
-      //   float32 Shininess                       offset 68
-      //   float32 Opacity                         offset 72
-      //   float32 Translucency                    offset 76
-      // Total = 80 bytes for full struct; some retail files have shorter variants.
+    if (sub.type === W3dChunkType.VERTEX_MATERIAL_INFO && sub.size >= 20) {
+      // W3dVertexMaterialStruct layout (32 bytes total):
+      //   uint32       Attributes    (4 bytes)  offset  0
+      //   W3dRGBStruct Ambient       (4 bytes: R,G,B uint8 + pad)  offset  4
+      //   W3dRGBStruct Diffuse       (4 bytes)  offset  8
+      //   W3dRGBStruct Specular      (4 bytes)  offset 12
+      //   W3dRGBStruct Emissive      (4 bytes)  offset 16
+      //   float32      Shininess     (4 bytes)  offset 20
+      //   float32      Opacity       (4 bytes)  offset 24
+      //   float32      Translucency  (4 bytes)  offset 28
       const base = sub.dataOffset;
-      const readRGBA = (off: number): [number, number, number, number] => [
-        reader.readFloat32(off),
-        reader.readFloat32(off + 4),
-        reader.readFloat32(off + 8),
-        reader.readFloat32(off + 12),
+      const readRGB = (off: number): [number, number, number, number] => [
+        reader.readUint8(off) / 255,
+        reader.readUint8(off + 1) / 255,
+        reader.readUint8(off + 2) / 255,
+        1,
       ];
 
-      const ambient = sub.size >= 20 ? readRGBA(base + 4) : [0, 0, 0, 1] as [number, number, number, number];
-      const diffuse = sub.size >= 36 ? readRGBA(base + 20) : [0.8, 0.8, 0.8, 1] as [number, number, number, number];
-      const specular = sub.size >= 52 ? readRGBA(base + 36) : [0, 0, 0, 1] as [number, number, number, number];
-      const emissive = sub.size >= 68 ? readRGBA(base + 52) : [0, 0, 0, 1] as [number, number, number, number];
-      const shininess = sub.size >= 72 ? reader.readFloat32(base + 68) : 0;
-      const opacity = sub.size >= 76 ? reader.readFloat32(base + 72) : 1;
-      const translucency = sub.size >= 80 ? reader.readFloat32(base + 76) : 0;
+      const ambient = sub.size >= 8 ? readRGB(base + 4) : [0, 0, 0, 1] as [number, number, number, number];
+      const diffuse = sub.size >= 12 ? readRGB(base + 8) : [0.8, 0.8, 0.8, 1] as [number, number, number, number];
+      const specular = sub.size >= 16 ? readRGB(base + 12) : [0, 0, 0, 1] as [number, number, number, number];
+      const emissive = sub.size >= 20 ? readRGB(base + 16) : [0, 0, 0, 1] as [number, number, number, number];
+      const shininess = sub.size >= 24 ? reader.readFloat32(base + 20) : 0;
+      const opacity = sub.size >= 28 ? reader.readFloat32(base + 24) : 1;
+      const translucency = sub.size >= 32 ? reader.readFloat32(base + 28) : 0;
 
       out.push({ ambient, diffuse, specular, emissive, shininess, opacity, translucency });
     }
@@ -329,10 +328,9 @@ function parseVertexMaterial(
 }
 
 /**
- * Parse SHADERS chunk: an array of 32-byte shader records.
+ * Parse SHADERS chunk: an array of 16-byte shader records.
  *
- * Each record has 15 uint8 fields (see W3dShader interface) packed
- * in a fixed 32-byte record with padding.
+ * W3dShaderStruct has 15 uint8 fields + 1 pad byte = 16 bytes per record.
  */
 function parseShaders(
   reader: W3dChunkReader,
@@ -340,7 +338,7 @@ function parseShaders(
   size: number,
   out: W3dShader[],
 ): void {
-  const SHADER_RECORD_SIZE = 32;
+  const SHADER_RECORD_SIZE = 16;
   const count = Math.floor(size / SHADER_RECORD_SIZE);
   for (let i = 0; i < count; i++) {
     const base = dataOffset + i * SHADER_RECORD_SIZE;
