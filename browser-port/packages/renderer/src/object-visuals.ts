@@ -590,8 +590,8 @@ export class ObjectVisualManager {
           this.unresolvedEntityIds.delete(entityId);
           this.updatePlaceholderVisibility(entityId, false);
           return;
-        } catch {
-          // Keep explicit unresolved state and allow retries on subsequent state updates.
+        } catch (err) {
+          console.warn(`ObjectVisualManager: failed to load model "${candidate}"`, err);
         }
       }
 
@@ -828,8 +828,10 @@ export class ObjectVisualManager {
     if (!this.assetManager) {
       throw new Error('ObjectVisualManager model loader requires an AssetManager.');
     }
-    return this.assetManager.loadArrayBuffer(assetPath).then((handle) => {
-      return this.parseGltfAsset(handle.data, assetPath);
+    // Try manifest basename resolution as a fallback if the literal path fails.
+    const resolvedPath = this.assetManager.resolveModelPath(assetPath) ?? assetPath;
+    return this.assetManager.loadArrayBuffer(resolvedPath).then((handle) => {
+      return this.parseGltfAsset(handle.data, resolvedPath);
     });
   }
 
@@ -887,6 +889,14 @@ export class ObjectVisualManager {
       candidates.push(cleaned);
     };
 
+    // Try manifest-based basename resolution first (handles bare names like "AVThundrblt_D1").
+    if (this.assetManager) {
+      const resolved = this.assetManager.resolveModelPath(normalized);
+      if (resolved) {
+        push(resolved);
+      }
+    }
+
     if (!extension) {
       for (const ext of this.config.modelExtensions) {
         push(`${normalized}${ext}`);
@@ -896,6 +906,7 @@ export class ObjectVisualManager {
 
     if (extension === 'w3d') {
       push(normalized.replace(/\.w3d$/i, '.gltf'));
+      push(normalized.replace(/\.w3d$/i, '.glb'));
     } else {
       push(normalized);
     }

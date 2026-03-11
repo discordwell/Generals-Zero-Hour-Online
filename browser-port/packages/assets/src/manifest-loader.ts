@@ -14,11 +14,24 @@ import { RUNTIME_ASSET_BASE_URL } from './types.js';
 export class RuntimeManifest {
   private readonly byOutputPath = new Map<string, ManifestEntry>();
   private readonly bySourcePath = new Map<string, ManifestEntry>();
+  private readonly byBasenameLower = new Map<string, ManifestEntry>();
 
   constructor(public readonly raw: ConversionManifest) {
     for (const entry of raw.entries) {
       this.byOutputPath.set(entry.outputPath, entry);
       this.bySourcePath.set(entry.sourcePath, entry);
+
+      // Index .glb entries by lowercase basename (without extension) for
+      // case-insensitive bare-name lookups (e.g. "AVThundrblt_D1" → entry).
+      if (entry.outputPath.toLowerCase().endsWith('.glb')) {
+        const lastSlash = entry.outputPath.lastIndexOf('/');
+        const filename = lastSlash >= 0 ? entry.outputPath.slice(lastSlash + 1) : entry.outputPath;
+        const dotIdx = filename.lastIndexOf('.');
+        const basename = (dotIdx > 0 ? filename.slice(0, dotIdx) : filename).toLowerCase();
+        if (basename && !this.byBasenameLower.has(basename)) {
+          this.byBasenameLower.set(basename, entry);
+        }
+      }
     }
   }
 
@@ -30,6 +43,11 @@ export class RuntimeManifest {
   /** Look up a manifest entry by its source path. */
   getBySourcePath(sourcePath: string): ManifestEntry | undefined {
     return this.bySourcePath.get(sourcePath);
+  }
+
+  /** Look up a .glb manifest entry by bare model name (case-insensitive, no extension). */
+  getByBasenameLower(name: string): ManifestEntry | undefined {
+    return this.byBasenameLower.get(name.toLowerCase());
   }
 
   /** Check if an output path exists in the manifest. */

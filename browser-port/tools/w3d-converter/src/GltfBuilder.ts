@@ -8,10 +8,28 @@
  */
 
 import type { W3dFile } from './W3dParser.js';
-import type { W3dMesh } from './W3dMeshParser.js';
+import type { W3dMesh, W3dMaterial, W3dShader } from './W3dMeshParser.js';
 import type { W3dHierarchy, W3dPivot } from './W3dHierarchyParser.js';
 import type { W3dAnimation, W3dAnimChannel } from './W3dAnimationParser.js';
 import type { W3dHlod } from './W3dHlodParser.js';
+import { encodePng } from './PngEncoder.js';
+
+/** Resolved texture data for embedding in the GLB. */
+export interface TextureData {
+  width: number;
+  height: number;
+  /** Raw RGBA pixel data. */
+  data: Uint8Array;
+}
+
+/** Map from lowercase bare texture name (no extension) → texture data. */
+export type TextureMap = Map<string, TextureData>;
+
+/** Options for GLB building. */
+export interface GltfBuildOptions {
+  /** Texture data to embed. Keys are lowercase bare names (no extension). */
+  textures?: TextureMap;
+}
 
 /* ------------------------------------------------------------------ */
 /*  glTF JSON type helpers (minimal)                                   */
@@ -39,6 +57,44 @@ interface GltfMeshPrimitive {
   attributes: Record<string, number>;
   indices?: number;
   mode?: number;
+  material?: number;
+}
+
+interface GltfImage {
+  bufferView: number;
+  mimeType: string;
+}
+
+interface GltfTexture {
+  source: number;
+  sampler?: number;
+}
+
+interface GltfTextureInfo {
+  index: number;
+}
+
+interface GltfPbrMetallicRoughness {
+  baseColorFactor?: number[];
+  baseColorTexture?: GltfTextureInfo;
+  metallicFactor: number;
+  roughnessFactor: number;
+}
+
+interface GltfMaterialDef {
+  name?: string;
+  pbrMetallicRoughness: GltfPbrMetallicRoughness;
+  emissiveFactor?: number[];
+  alphaMode?: string;
+  alphaCutoff?: number;
+  doubleSided?: boolean;
+}
+
+interface GltfSampler {
+  magFilter?: number;
+  minFilter?: number;
+  wrapS?: number;
+  wrapT?: number;
 }
 
 interface GltfNode {
@@ -90,6 +146,10 @@ interface GltfDocument {
   buffers: Array<{ byteLength: number }>;
   skins?: GltfSkin[];
   animations?: GltfAnimationDef[];
+  images?: GltfImage[];
+  textures?: GltfTexture[];
+  materials?: GltfMaterialDef[];
+  samplers?: GltfSampler[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -102,6 +162,11 @@ const UINT = 5125;    // GL_UNSIGNED_INT
 const ARRAY_BUFFER = 34962;
 const ELEMENT_ARRAY_BUFFER = 34963;
 const MAX_SAFE_ANIMATION_FRAMES = 20000;
+
+// glTF sampler constants
+const GL_LINEAR = 9729;
+const GL_LINEAR_MIPMAP_LINEAR = 9987;
+const GL_REPEAT = 10497;
 
 /* ------------------------------------------------------------------ */
 /*  Binary data accumulator                                            */
@@ -159,7 +224,7 @@ export class GltfBuilder {
    *    and meshes that have bone indices get a skin.
    *  - Animations are converted to glTF animation samplers + channels.
    */
-  static buildGlb(w3d: W3dFile): ArrayBuffer {
+  static buildGlb(w3d: W3dFile, options?: GltfBuildOptions): ArrayBuffer {
     const bin = new BinaryAccumulator();
     const accessors: GltfAccessor[] = [];
     const bufferViews: GltfBufferView[] = [];
@@ -168,6 +233,11 @@ export class GltfBuilder {
     const skins: GltfSkin[] = [];
     const animationDefs: GltfAnimationDef[] = [];
     const sceneNodes: number[] = [];
+    const gltfImages: GltfImage[] = [];
+    const gltfTextures: GltfTexture[] = [];
+    const gltfMaterials: GltfMaterialDef[] = [];
+    const gltfSamplers: GltfSampler[] = [];
+    const textureMap = options?.textures;
 
     // Helper: add a buffer view + accessor, return accessor index.
     function addAccessor(
@@ -251,17 +321,9 @@ export class GltfBuilder {
         sceneNodes.push(ri);
       }
 
-      // Build inverse bind matrices (identity for now — proper computation
-      // would require accumulating the hierarchy transforms).
-      const ibmData = new Float32Array(hierarchy.pivots.length * 16);
-      for (let i = 0; i < hierarchy.pivots.length; i++) {
-        // Identity 4x4 matrix in column-major order.
-        const base = i * 16;
-        ibmData[base + 0] = 1;
-        ibmData[base + 5] = 1;
-        ibmData[base + 10] = 1;
-        ibmData[base + 15] = 1;
-      }
+      // Build inverse bind matrices by accumulating each pivot's world
+      // transform (parent chain) and then inverting.
+      const ibmData = computeInverseBindMatrices(hierarchy.pivots);
       const ibmAccessor = addAccessor(ibmData, FLOAT, hierarchy.pivots.length, 'MAT4');
 
       skins.push({
@@ -282,6 +344,7 @@ export class GltfBuilder {
     for (const mesh of w3d.meshes) {
       const meshNodeIdx = buildMeshNode(
         mesh, bin, accessors, bufferViews, nodes, gltfMeshes, skins,
+        gltfImages, gltfTextures, gltfMaterials, gltfSamplers, textureMap,
       );
       meshNameToNodeIdx.set(mesh.name, meshNodeIdx);
       sceneNodes.push(meshNodeIdx);
@@ -319,12 +382,133 @@ export class GltfBuilder {
 
     if (skins.length > 0) gltf.skins = skins;
     if (animationDefs.length > 0) gltf.animations = animationDefs;
+    if (gltfImages.length > 0) gltf.images = gltfImages;
+    if (gltfTextures.length > 0) gltf.textures = gltfTextures;
+    if (gltfMaterials.length > 0) gltf.materials = gltfMaterials;
+    if (gltfSamplers.length > 0) gltf.samplers = gltfSamplers;
 
     // ------------------------------------------------------------------
     //  Pack into GLB
     // ------------------------------------------------------------------
     return packGlb(gltf, binBuffer);
   }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Inverse bind matrix computation                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Build a 4x4 column-major transform matrix from translation + quaternion.
+ */
+function mat4FromTQ(
+  tx: number, ty: number, tz: number,
+  qx: number, qy: number, qz: number, qw: number,
+): Float32Array {
+  const m = new Float32Array(16);
+  // Rotation from quaternion (column-major)
+  const x2 = qx + qx, y2 = qy + qy, z2 = qz + qz;
+  const xx = qx * x2, xy = qx * y2, xz = qx * z2;
+  const yy = qy * y2, yz = qy * z2, zz = qz * z2;
+  const wx = qw * x2, wy = qw * y2, wz = qw * z2;
+
+  m[0] = 1 - (yy + zz);  m[1] = xy + wz;        m[2] = xz - wy;        m[3] = 0;
+  m[4] = xy - wz;        m[5] = 1 - (xx + zz);  m[6] = yz + wx;        m[7] = 0;
+  m[8] = xz + wy;        m[9] = yz - wx;        m[10] = 1 - (xx + yy); m[11] = 0;
+  m[12] = tx;             m[13] = ty;             m[14] = tz;             m[15] = 1;
+  return m;
+}
+
+/**
+ * Multiply two 4x4 column-major matrices: result = a * b.
+ */
+function mat4Multiply(a: Float32Array, b: Float32Array): Float32Array {
+  const r = new Float32Array(16);
+  for (let col = 0; col < 4; col++) {
+    for (let row = 0; row < 4; row++) {
+      r[col * 4 + row] =
+        a[0 * 4 + row]! * b[col * 4 + 0]! +
+        a[1 * 4 + row]! * b[col * 4 + 1]! +
+        a[2 * 4 + row]! * b[col * 4 + 2]! +
+        a[3 * 4 + row]! * b[col * 4 + 3]!;
+    }
+  }
+  return r;
+}
+
+/**
+ * Invert a 4x4 column-major matrix. Returns identity if singular.
+ */
+function mat4Invert(m: Float32Array): Float32Array {
+  const inv = new Float32Array(16);
+  const s = m;
+
+  inv[0] = s[5]!*s[10]!*s[15]! - s[5]!*s[11]!*s[14]! - s[9]!*s[6]!*s[15]! + s[9]!*s[7]!*s[14]! + s[13]!*s[6]!*s[11]! - s[13]!*s[7]!*s[10]!;
+  inv[4] = -s[4]!*s[10]!*s[15]! + s[4]!*s[11]!*s[14]! + s[8]!*s[6]!*s[15]! - s[8]!*s[7]!*s[14]! - s[12]!*s[6]!*s[11]! + s[12]!*s[7]!*s[10]!;
+  inv[8] = s[4]!*s[9]!*s[15]! - s[4]!*s[11]!*s[13]! - s[8]!*s[5]!*s[15]! + s[8]!*s[7]!*s[13]! + s[12]!*s[5]!*s[11]! - s[12]!*s[7]!*s[9]!;
+  inv[12] = -s[4]!*s[9]!*s[14]! + s[4]!*s[10]!*s[13]! + s[8]!*s[5]!*s[14]! - s[8]!*s[6]!*s[13]! - s[12]!*s[5]!*s[10]! + s[12]!*s[6]!*s[9]!;
+
+  inv[1] = -s[1]!*s[10]!*s[15]! + s[1]!*s[11]!*s[14]! + s[9]!*s[2]!*s[15]! - s[9]!*s[3]!*s[14]! - s[13]!*s[2]!*s[11]! + s[13]!*s[3]!*s[10]!;
+  inv[5] = s[0]!*s[10]!*s[15]! - s[0]!*s[11]!*s[14]! - s[8]!*s[2]!*s[15]! + s[8]!*s[3]!*s[14]! + s[12]!*s[2]!*s[11]! - s[12]!*s[3]!*s[10]!;
+  inv[9] = -s[0]!*s[9]!*s[15]! + s[0]!*s[11]!*s[13]! + s[8]!*s[1]!*s[15]! - s[8]!*s[3]!*s[13]! - s[12]!*s[1]!*s[11]! + s[12]!*s[3]!*s[9]!;
+  inv[13] = s[0]!*s[9]!*s[14]! - s[0]!*s[10]!*s[13]! - s[8]!*s[1]!*s[14]! + s[8]!*s[2]!*s[13]! + s[12]!*s[1]!*s[10]! - s[12]!*s[2]!*s[9]!;
+
+  inv[2] = s[1]!*s[6]!*s[15]! - s[1]!*s[7]!*s[14]! - s[5]!*s[2]!*s[15]! + s[5]!*s[3]!*s[14]! + s[13]!*s[2]!*s[7]! - s[13]!*s[3]!*s[6]!;
+  inv[6] = -s[0]!*s[6]!*s[15]! + s[0]!*s[7]!*s[14]! + s[4]!*s[2]!*s[15]! - s[4]!*s[3]!*s[14]! - s[12]!*s[2]!*s[7]! + s[12]!*s[3]!*s[6]!;
+  inv[10] = s[0]!*s[5]!*s[15]! - s[0]!*s[7]!*s[13]! - s[4]!*s[1]!*s[15]! + s[4]!*s[3]!*s[13]! + s[12]!*s[1]!*s[7]! - s[12]!*s[3]!*s[5]!;
+  inv[14] = -s[0]!*s[5]!*s[14]! + s[0]!*s[6]!*s[13]! + s[4]!*s[1]!*s[14]! - s[4]!*s[2]!*s[13]! - s[12]!*s[1]!*s[6]! + s[12]!*s[2]!*s[5]!;
+
+  inv[3] = -s[1]!*s[6]!*s[11]! + s[1]!*s[7]!*s[10]! + s[5]!*s[2]!*s[11]! - s[5]!*s[3]!*s[10]! - s[9]!*s[2]!*s[7]! + s[9]!*s[3]!*s[6]!;
+  inv[7] = s[0]!*s[6]!*s[11]! - s[0]!*s[7]!*s[10]! - s[4]!*s[2]!*s[11]! + s[4]!*s[3]!*s[10]! + s[8]!*s[2]!*s[7]! - s[8]!*s[3]!*s[6]!;
+  inv[11] = -s[0]!*s[5]!*s[11]! + s[0]!*s[7]!*s[9]! + s[4]!*s[1]!*s[11]! - s[4]!*s[3]!*s[9]! - s[8]!*s[1]!*s[7]! + s[8]!*s[3]!*s[5]!;
+  inv[15] = s[0]!*s[5]!*s[10]! - s[0]!*s[6]!*s[9]! - s[4]!*s[1]!*s[10]! + s[4]!*s[2]!*s[9]! + s[8]!*s[1]!*s[6]! - s[8]!*s[2]!*s[5]!;
+
+  const det = s[0]! * inv[0]! + s[1]! * inv[4]! + s[2]! * inv[8]! + s[3]! * inv[12]!;
+  if (Math.abs(det) < 1e-12) {
+    // Singular matrix — return identity
+    const identity = new Float32Array(16);
+    identity[0] = identity[5] = identity[10] = identity[15] = 1;
+    return identity;
+  }
+
+  const invDet = 1.0 / det;
+  for (let i = 0; i < 16; i++) {
+    inv[i]! *= invDet;
+  }
+  return inv;
+}
+
+/**
+ * Compute inverse bind matrices for a W3D hierarchy.
+ * Each pivot's world transform is accumulated from the root via parent chain,
+ * then inverted to produce the inverse bind matrix.
+ */
+export function computeInverseBindMatrices(pivots: readonly W3dPivot[]): Float32Array {
+  const count = pivots.length;
+  const worldMatrices = new Array<Float32Array>(count);
+
+  // Compute world transforms (parent-first order assumed by W3D)
+  for (let i = 0; i < count; i++) {
+    const pivot = pivots[i]!;
+    const [tx, ty, tz] = pivot.translation;
+    const [qx, qy, qz, qw] = pivot.rotation;
+    const local = mat4FromTQ(tx, ty, tz, qx, qy, qz, qw);
+
+    if (pivot.parentIndex >= 0 && pivot.parentIndex < count) {
+      worldMatrices[i] = mat4Multiply(worldMatrices[pivot.parentIndex]!, local);
+    } else {
+      worldMatrices[i] = local;
+    }
+  }
+
+  // Invert each world matrix → inverse bind matrix
+  const ibmData = new Float32Array(count * 16);
+  for (let i = 0; i < count; i++) {
+    const invWorld = mat4Invert(worldMatrices[i]!);
+    ibmData.set(invWorld, i * 16);
+  }
+
+  return ibmData;
 }
 
 /* ------------------------------------------------------------------ */
@@ -339,6 +523,11 @@ function buildMeshNode(
   nodes: GltfNode[],
   gltfMeshes: Array<{ name?: string; primitives: GltfMeshPrimitive[] }>,
   skins: GltfSkin[],
+  gltfImages: GltfImage[],
+  gltfTextures: GltfTexture[],
+  gltfMaterials: GltfMaterialDef[],
+  gltfSamplers: GltfSampler[],
+  textureMap?: TextureMap,
 ): number {
   function addAccessor(
     data: ArrayBufferView,
@@ -456,11 +645,19 @@ function buildMeshNode(
     }
   }
 
+  // ------------------------------------------------------------------
+  //  Material + texture for this mesh
+  // ------------------------------------------------------------------
+  const materialIdx = buildMeshMaterial(
+    mesh, bin, bufferViews, gltfImages, gltfTextures, gltfMaterials, gltfSamplers, textureMap,
+  );
+
   const primitive: GltfMeshPrimitive = {
     attributes: primitiveAttrs,
     mode: 4, // TRIANGLES
   };
   if (indicesAccessor !== undefined) primitive.indices = indicesAccessor;
+  if (materialIdx !== undefined) primitive.material = materialIdx;
 
   const gltfMeshIdx = gltfMeshes.length;
   gltfMeshes.push({ name: mesh.name, primitives: [primitive] });
@@ -472,6 +669,133 @@ function buildMeshNode(
   const meshNodeIdx = nodes.length;
   nodes.push(meshNode);
   return meshNodeIdx;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Material + texture builder                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Ensure the default texture sampler exists and return its index.
+ */
+function ensureSampler(gltfSamplers: GltfSampler[]): number {
+  if (gltfSamplers.length === 0) {
+    gltfSamplers.push({
+      magFilter: GL_LINEAR,
+      minFilter: GL_LINEAR_MIPMAP_LINEAR,
+      wrapS: GL_REPEAT,
+      wrapT: GL_REPEAT,
+    });
+  }
+  return 0;
+}
+
+/**
+ * Build a glTF material for a mesh, optionally embedding a texture.
+ * Returns the material index or undefined if no material data exists.
+ */
+function buildMeshMaterial(
+  mesh: W3dMesh,
+  bin: BinaryAccumulator,
+  bufferViews: GltfBufferView[],
+  gltfImages: GltfImage[],
+  gltfTextures: GltfTexture[],
+  gltfMaterials: GltfMaterialDef[],
+  gltfSamplers: GltfSampler[],
+  textureMap?: TextureMap,
+): number | undefined {
+  const w3dMat = mesh.materials[0] as W3dMaterial | undefined;
+  const w3dShader = mesh.shaders[0] as W3dShader | undefined;
+
+  // Resolve texture: use first texture name from the mesh
+  let textureIdx: number | undefined;
+  if (textureMap && mesh.textureNames.length > 0) {
+    const texName = mesh.textureNames[0]!;
+    // Strip extension and lowercase for lookup
+    const dotIdx = texName.lastIndexOf('.');
+    const bareName = (dotIdx > 0 ? texName.slice(0, dotIdx) : texName).toLowerCase();
+    const texData = textureMap.get(bareName);
+    if (texData) {
+      const pngBytes = encodePng(texData.width, texData.height, texData.data);
+      // Add image buffer view (no target — images don't use ARRAY_BUFFER/ELEMENT_ARRAY_BUFFER)
+      const byteOffset = bin.append(pngBytes);
+      const bvIdx = bufferViews.length;
+      bufferViews.push({
+        buffer: 0,
+        byteOffset,
+        byteLength: pngBytes.byteLength,
+      });
+
+      const imageIdx = gltfImages.length;
+      gltfImages.push({ bufferView: bvIdx, mimeType: 'image/png' });
+
+      const samplerIdx = ensureSampler(gltfSamplers);
+      textureIdx = gltfTextures.length;
+      gltfTextures.push({ source: imageIdx, sampler: samplerIdx });
+    }
+  }
+
+  // If we have neither texture nor W3D material, skip material creation
+  // (the mesh renders with default white material)
+  if (textureIdx === undefined && !w3dMat) {
+    return undefined;
+  }
+
+  // Build PBR material
+  const pbr: GltfPbrMetallicRoughness = {
+    metallicFactor: 0,
+    roughnessFactor: 1,
+  };
+
+  if (textureIdx !== undefined) {
+    pbr.baseColorTexture = { index: textureIdx };
+  }
+
+  if (w3dMat) {
+    const [dr, dg, db, da] = w3dMat.diffuse;
+    pbr.baseColorFactor = [dr, dg, db, w3dMat.opacity];
+    pbr.roughnessFactor = 1 - Math.max(0, Math.min(1, w3dMat.shininess / 128));
+
+    // If we have a texture, don't override its appearance with a dark baseColorFactor.
+    // Only set baseColorFactor if it's non-white (tinting the texture) or if opacity < 1.
+    if (textureIdx !== undefined) {
+      const isWhite = dr >= 0.99 && dg >= 0.99 && db >= 0.99 && w3dMat.opacity >= 0.99;
+      if (isWhite) {
+        delete pbr.baseColorFactor;
+      }
+    }
+  }
+
+  const materialDef: GltfMaterialDef = {
+    name: mesh.name,
+    pbrMetallicRoughness: pbr,
+    doubleSided: true,
+  };
+
+  // Emissive
+  if (w3dMat) {
+    const [er, eg, eb] = w3dMat.emissive;
+    if (er > 0.01 || eg > 0.01 || eb > 0.01) {
+      materialDef.emissiveFactor = [er, eg, eb];
+    }
+  }
+
+  // Alpha mode
+  if (w3dShader) {
+    if (w3dShader.alphaTest > 0) {
+      materialDef.alphaMode = 'MASK';
+      materialDef.alphaCutoff = 0.5;
+    } else if (w3dShader.destBlend === 3 || w3dShader.srcBlend === 2) {
+      // destBlend=oneMinusSrcAlpha or srcBlend=srcAlpha → alpha blending
+      materialDef.alphaMode = 'BLEND';
+    }
+  } else if (w3dMat && w3dMat.opacity < 0.99) {
+    materialDef.alphaMode = 'BLEND';
+  }
+
+  const matIdx = gltfMaterials.length;
+  gltfMaterials.push(materialDef);
+  return matIdx;
 }
 
 /* ------------------------------------------------------------------ */

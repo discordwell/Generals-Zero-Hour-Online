@@ -1044,4 +1044,74 @@ describe('AssetManager', () => {
       expect(am.hasManifest).toBe(false);
     });
   });
+
+  describe('resolveModelPath', () => {
+    function makeGlbEntry(sourcePath: string, outputPath: string): ConversionManifest['entries'][0] {
+      return {
+        sourcePath,
+        sourceHash: 'src-hash',
+        outputPath,
+        outputHash: 'out-hash',
+        converter: 'w3d-converter',
+        converterVersion: '1.0.0',
+        timestamp: '2025-01-01T00:00:00.000Z',
+      };
+    }
+
+    it('resolves a bare model name to its manifest output path', async () => {
+      const am = createManager({
+        manifestEntries: [
+          makeGlbEntry('Art/W3D/AVThundrblt_d1.w3d', 'models/W3DZH/Art/W3D/AVThundrblt_d1.glb'),
+        ],
+        integrityChecks: false,
+      });
+      await am.init();
+      expect(am.resolveModelPath('AVThundrblt_D1')).toBe('models/W3DZH/Art/W3D/AVThundrblt_d1.glb');
+      am.dispose();
+    });
+
+    it('resolves case-insensitively', async () => {
+      const am = createManager({
+        manifestEntries: [
+          makeGlbEntry('Art/W3D/ABBarracks.w3d', 'models/W3DZH/Art/W3D/ABBarracks.glb'),
+        ],
+        integrityChecks: false,
+      });
+      await am.init();
+      expect(am.resolveModelPath('abbarracks')).toBe('models/W3DZH/Art/W3D/ABBarracks.glb');
+      expect(am.resolveModelPath('ABBARRACKS')).toBe('models/W3DZH/Art/W3D/ABBarracks.glb');
+      am.dispose();
+    });
+
+    it('strips .w3d extension before resolving', async () => {
+      const am = createManager({
+        manifestEntries: [
+          makeGlbEntry('Art/W3D/ABBarracks.w3d', 'models/W3DZH/Art/W3D/ABBarracks.glb'),
+        ],
+        integrityChecks: false,
+      });
+      await am.init();
+      expect(am.resolveModelPath('ABBarracks.w3d')).toBe('models/W3DZH/Art/W3D/ABBarracks.glb');
+      am.dispose();
+    });
+
+    it('returns null for unknown model names', async () => {
+      const am = createManager({
+        manifestEntries: [
+          makeGlbEntry('Art/W3D/ABBarracks.w3d', 'models/W3DZH/Art/W3D/ABBarracks.glb'),
+        ],
+        integrityChecks: false,
+      });
+      await am.init();
+      expect(am.resolveModelPath('NonExistentModel')).toBeNull();
+      am.dispose();
+    });
+
+    it('returns null when manifest is not loaded', async () => {
+      const am = createManager({ manifest404: true });
+      await am.init();
+      expect(am.resolveModelPath('ABBarracks')).toBeNull();
+      am.dispose();
+    });
+  });
 });

@@ -1,5 +1,33 @@
 # Session Summaries
 
+## 2026-03-11T01:45Z — W3D Model Rendering Pipeline Complete
+Implemented full W3D model rendering pipeline across 4 phases:
+- **Phase 1 (Path Resolution)**: Added case-insensitive basename index to RuntimeManifest so bare model names like "AVThundrblt_D1" resolve to full manifest paths. Added resolveModelPath() to AssetManager. Updated ObjectVisualManager to use manifest-based resolution — magenta placeholder boxes should now load as geometry.
+- **Phase 2 (Textures)**: Created PngEncoder (minimal RGBA→PNG via zlib). Updated GltfBuilder to embed textures as PNG in GLBs. Added --texture-dir flag to W3D converter CLI for .rgba texture lookup.
+- **Phase 3 (Materials)**: Added VERTEX_MATERIAL_INFO + SHADERS chunk parsing to W3dMeshParser (diffuse/specular/emissive, shininess, opacity, alpha test/blend). Maps W3D materials to PBR in GltfBuilder (baseColorFactor, roughnessFactor, emissiveFactor, alphaMode).
+- **Phase 4 (Skinning)**: Replaced identity inverse bind matrices with real computed IBMs — accumulates parent chain world transforms then inverts. New mat4FromTQ/mat4Multiply/mat4Invert helpers.
+- **Pipeline**: convert-all.ts now passes --texture-dir to w3d-converter. All 3165 tests pass, clean TypeScript build.
+- **Next**: Re-run `npm run convert:all` with --game-dir to regenerate GLBs with textures/materials/skinning.
+
+## 2026-03-11T01:10Z — Browser Port Wet Testing Complete
+Performed comprehensive wet tests (7 tests) of the browser port via Playwright:
+- **All core flows working**: Loading screen, main menu, single player submenu, skirmish setup (102 maps, 3 factions, AI, credits), direct map loading, options screen
+- **Terrain rendering works**: Height maps + texture blending visible on Tournament Desert
+- **Camera controls work**: Pan, zoom, rotate all functional
+- **Hard wet test passed with 0 errors**: XSS properly escaped, survives rapid resize/keyboard spam/click spam
+- **Fixed broken smoke test**: `SmokeTest.json` didn't exist — updated to use real Tournament Desert map, increased timeouts, added main menu test
+- **Fixed Playwright config**: Changed from Vite dev server to production build + serve
+- **Key issues found**: (1) All 784 map entities render as green placeholders (no W3D models), (2) 204/784 objects unresolved to INI defs, (3) ControlBar shows no commands, (4) Campaign.ini/Video.ini missing, (5) Debug overlay dumps all unresolved entity IDs
+- All 3146 unit tests + 2 smoke tests + 2 e2e Playwright tests pass
+
+## 2026-03-10T16:30Z — Visual Oracle VM: Generals + ZH Installed
+Completed automated Generals + Zero Hour installation in QEMU VM by bypassing the retail installer entirely:
+- **Problem**: Retail installer's serial key check rejected all available keys (First Decade keys incompatible with standalone installer). Mouse clicks unreliable in XP guest (USB tablet driver issues).
+- **Solution**: Extracted game files on macOS using `msiextract` (MSI) + `cabextract` (Data2.cab/Language.cab from disc 2). Created ISOs with `hdiutil makehybrid`. Booted VM with game ISO as CD, used `xcopy` from cmd.exe to copy files, `reg add` for registry entries.
+- **Key fix**: `reg add` commands failed because trailing `\"` in paths was interpreted as escaped quote by cmd.exe. Removed trailing `\` from paths.
+- **Result**: Snapshot `generals-installed` saved with both games fully installed. Game files: 1.6GB Generals + 1.2GB Zero Hour.
+- Base image: `emperor-win10.qcow2` (actually runs Windows XP 5.1.2600).
+
 ## 2026-03-10T08:30Z — Visual Oracle: QEMU-based Original Game Comparison Tool
 Built `tools/visual-oracle/` — a QEMU-based tool for running the original C&C Generals Zero Hour in a headless Windows VM and comparing screenshots with the browser port.
 - **QemuController**: QMP protocol for VM lifecycle, input injection (USB-tablet + HMP two-device mouse for DirectInput), PPM→PNG screendump. Adapted from Emperor BFD project.

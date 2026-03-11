@@ -17,7 +17,10 @@ import { parseMeshChunk } from './W3dMeshParser.js';
 import { parseHierarchyChunk } from './W3dHierarchyParser.js';
 import { W3dParser } from './W3dParser.js';
 import type { W3dFile } from './W3dParser.js';
-import { GltfBuilder } from './GltfBuilder.js';
+import { GltfBuilder, computeInverseBindMatrices } from './GltfBuilder.js';
+import type { TextureMap } from './GltfBuilder.js';
+import { encodePng } from './PngEncoder.js';
+import type { W3dPivot } from './W3dHierarchyParser.js';
 
 /* ------------------------------------------------------------------ */
 /*  Binary helpers                                                     */
@@ -199,6 +202,85 @@ function buildMeshBuffer(opts?: {
 
   w.patchChunkSize(meshSizeOff, true);
   return w.toArrayBuffer();
+}
+
+/**
+ * Build a mesh with a texture name reference (for testing texture embedding).
+ */
+function buildMeshWithTexture(): ArrayBuffer {
+  const w = new BinaryWriter();
+
+  const meshSizeOff = w.writeChunkHeader(W3dChunkType.MESH, true);
+
+  // MESH_HEADER3
+  const hdrSizeOff = w.writeChunkHeader(W3dChunkType.MESH_HEADER3, false);
+  w.writeUint32(0x00040002);
+  w.writeUint32(0);
+  w.writeString('TexturedMesh', 32);
+  w.writeString('Container', 32);
+  w.writeUint32(1); // NumTris
+  w.writeUint32(3); // NumVertices
+  w.writeUint32(1);
+  w.writeUint32(0);
+  w.writeInt32(0);
+  w.writeUint32(0);
+  w.writeUint32(0);
+  w.writeUint32(0);
+  w.writeUint32(0);
+  w.writeFloat32(0); w.writeFloat32(0); w.writeFloat32(0);
+  w.writeFloat32(1); w.writeFloat32(1); w.writeFloat32(0);
+  w.writeFloat32(0.5); w.writeFloat32(0.5); w.writeFloat32(0);
+  w.writeFloat32(0.707);
+  w.patchChunkSize(hdrSizeOff, false);
+
+  // VERTICES
+  const vertSizeOff = w.writeChunkHeader(W3dChunkType.VERTICES, false);
+  w.writeFloat32(0); w.writeFloat32(0); w.writeFloat32(0);
+  w.writeFloat32(1); w.writeFloat32(0); w.writeFloat32(0);
+  w.writeFloat32(0); w.writeFloat32(1); w.writeFloat32(0);
+  w.patchChunkSize(vertSizeOff, false);
+
+  // VERTEX_NORMALS
+  const normSizeOff = w.writeChunkHeader(W3dChunkType.VERTEX_NORMALS, false);
+  w.writeFloat32(0); w.writeFloat32(0); w.writeFloat32(1);
+  w.writeFloat32(0); w.writeFloat32(0); w.writeFloat32(1);
+  w.writeFloat32(0); w.writeFloat32(0); w.writeFloat32(1);
+  w.patchChunkSize(normSizeOff, false);
+
+  // TEXCOORDS
+  const uvSizeOff = w.writeChunkHeader(W3dChunkType.TEXCOORDS, false);
+  w.writeFloat32(0); w.writeFloat32(0);
+  w.writeFloat32(1); w.writeFloat32(0);
+  w.writeFloat32(0); w.writeFloat32(1);
+  w.patchChunkSize(uvSizeOff, false);
+
+  // TRIANGLES
+  const triSizeOff = w.writeChunkHeader(W3dChunkType.TRIANGLES, false);
+  w.writeUint32(0); w.writeUint32(1); w.writeUint32(2);
+  w.writeUint32(0);
+  w.writeFloat32(0); w.writeFloat32(0); w.writeFloat32(1);
+  w.writeFloat32(0);
+  w.patchChunkSize(triSizeOff, false);
+
+  // TEXTURES container with one texture name
+  const texsSizeOff = w.writeChunkHeader(W3dChunkType.TEXTURES, true);
+  const texSizeOff = w.writeChunkHeader(W3dChunkType.TEXTURE, true);
+  const nameSizeOff = w.writeChunkHeader(W3dChunkType.TEXTURE_NAME, false);
+  w.writeString('TestTexture.tga', 16);
+  w.patchChunkSize(nameSizeOff, false);
+  w.patchChunkSize(texSizeOff, true);
+  w.patchChunkSize(texsSizeOff, true);
+
+  w.patchChunkSize(meshSizeOff, true);
+  return w.toArrayBuffer();
+}
+
+/** Parse the JSON chunk from a GLB file. */
+function parseGlbJson(glb: ArrayBuffer): Record<string, unknown> {
+  const view = new DataView(glb);
+  const jsonChunkLength = view.getUint32(12, true);
+  const jsonBytes = new Uint8Array(glb, 20, jsonChunkLength);
+  return JSON.parse(new TextDecoder().decode(jsonBytes).trim()) as Record<string, unknown>;
 }
 
 /**
@@ -525,5 +607,175 @@ describe('GltfBuilder', () => {
     const animations = json['animations'] as Array<Record<string, unknown>>;
     expect(animations).toHaveLength(1);
     expect((animations[0]?.samplers as unknown[]).length).toBe(1);
+  });
+
+  it('embeds textures when textureMap is provided', () => {
+    const w3d = W3dParser.parse(buildMeshWithTexture());
+    const texMap: TextureMap = new Map();
+    texMap.set('testtexture', {
+      width: 2,
+      height: 2,
+      data: new Uint8Array(2 * 2 * 4).fill(255), // 2x2 white RGBA
+    });
+
+    const glb = GltfBuilder.buildGlb(w3d, { textures: texMap });
+    const gltf = parseGlbJson(glb);
+
+    expect(gltf['images']).toBeDefined();
+    expect((gltf['images'] as unknown[]).length).toBe(1);
+    expect(gltf['textures']).toBeDefined();
+    expect((gltf['textures'] as unknown[]).length).toBe(1);
+    expect(gltf['materials']).toBeDefined();
+    expect((gltf['materials'] as unknown[]).length).toBe(1);
+    expect(gltf['samplers']).toBeDefined();
+
+    const mat = (gltf['materials'] as Record<string, unknown>[])[0]!;
+    const pbr = mat['pbrMetallicRoughness'] as Record<string, unknown>;
+    expect(pbr['metallicFactor']).toBe(0);
+    expect(pbr['baseColorTexture']).toBeDefined();
+  });
+
+  it('creates material from W3D material data without textures', () => {
+    const w3d = W3dParser.parse(buildMeshBuffer());
+    // Manually add material data
+    w3d.meshes[0]!.materials = [{
+      diffuse: [0.8, 0.2, 0.1, 1],
+      specular: [1, 1, 1, 1],
+      emissive: [0.5, 0, 0, 1],
+      ambient: [0.2, 0.2, 0.2, 1],
+      shininess: 64,
+      opacity: 0.8,
+      translucency: 0,
+    }];
+    w3d.meshes[0]!.shaders = [];
+
+    const glb = GltfBuilder.buildGlb(w3d);
+    const gltf = parseGlbJson(glb);
+
+    expect(gltf['materials']).toBeDefined();
+    const mat = (gltf['materials'] as Record<string, unknown>[])[0]!;
+    const pbr = mat['pbrMetallicRoughness'] as Record<string, unknown>;
+    expect(pbr['metallicFactor']).toBe(0);
+    expect(pbr['baseColorFactor']).toEqual([0.8, 0.2, 0.1, 0.8]);
+    // shininess 64 → roughness = 1 - 64/128 = 0.5
+    expect(pbr['roughnessFactor']).toBe(0.5);
+    // Emissive should be set
+    expect(mat['emissiveFactor']).toEqual([0.5, 0, 0]);
+    // Opacity < 1 → BLEND
+    expect(mat['alphaMode']).toBe('BLEND');
+  });
+
+  it('sets alphaMode to MASK when shader has alphaTest', () => {
+    const w3d = W3dParser.parse(buildMeshBuffer());
+    w3d.meshes[0]!.materials = [{
+      diffuse: [1, 1, 1, 1],
+      specular: [0, 0, 0, 1],
+      emissive: [0, 0, 0, 1],
+      ambient: [0, 0, 0, 1],
+      shininess: 0,
+      opacity: 1,
+      translucency: 0,
+    }];
+    w3d.meshes[0]!.shaders = [{
+      depthCompare: 0, depthMask: 0, colorMask: 0,
+      destBlend: 0, fogFunc: 0, priGradient: 0, secGradient: 0,
+      srcBlend: 0, texturing: 0, detailColorFunc: 0, detailAlphaFunc: 0,
+      shaderPreset: 0, alphaTest: 1, postDetailColorFunc: 0, postDetailAlphaFunc: 0,
+    }];
+
+    const glb = GltfBuilder.buildGlb(w3d);
+    const gltf = parseGlbJson(glb);
+    const mat = (gltf['materials'] as Record<string, unknown>[])[0]!;
+    expect(mat['alphaMode']).toBe('MASK');
+    expect(mat['alphaCutoff']).toBe(0.5);
+  });
+});
+
+describe('PngEncoder', () => {
+  it('produces valid PNG with correct signature', () => {
+    const rgba = new Uint8Array(4 * 4 * 4); // 4x4 RGBA
+    for (let i = 0; i < rgba.length; i += 4) {
+      rgba[i] = 255; rgba[i + 1] = 0; rgba[i + 2] = 0; rgba[i + 3] = 255;
+    }
+    const png = encodePng(4, 4, rgba);
+
+    // PNG signature
+    expect(png[0]).toBe(137);
+    expect(png[1]).toBe(80); // 'P'
+    expect(png[2]).toBe(78); // 'N'
+    expect(png[3]).toBe(71); // 'G'
+    expect(png[4]).toBe(13);
+    expect(png[5]).toBe(10);
+    expect(png[6]).toBe(26);
+    expect(png[7]).toBe(10);
+
+    // IHDR chunk type at offset 12
+    expect(String.fromCharCode(png[12]!, png[13]!, png[14]!, png[15]!)).toBe('IHDR');
+    expect(png.byteLength).toBeGreaterThan(50);
+  });
+
+  it('throws for mismatched data length', () => {
+    expect(() => encodePng(2, 2, new Uint8Array(10))).toThrow();
+  });
+
+  it('produces a 1x1 PNG', () => {
+    const rgba = new Uint8Array([0, 255, 0, 255]);
+    const png = encodePng(1, 1, rgba);
+    expect(png.byteLength).toBeGreaterThan(20);
+  });
+});
+
+describe('computeInverseBindMatrices', () => {
+  it('returns identity for a single root pivot at origin', () => {
+    const pivots: W3dPivot[] = [{
+      name: 'Root',
+      parentIndex: -1,
+      translation: [0, 0, 0],
+      rotation: [0, 0, 0, 1],
+    }];
+    const ibm = computeInverseBindMatrices(pivots);
+    expect(ibm.length).toBe(16);
+    // Should be identity
+    expect(ibm[0]).toBeCloseTo(1);
+    expect(ibm[5]).toBeCloseTo(1);
+    expect(ibm[10]).toBeCloseTo(1);
+    expect(ibm[15]).toBeCloseTo(1);
+    // Off-diagonal should be 0
+    expect(ibm[1]).toBeCloseTo(0);
+    expect(ibm[4]).toBeCloseTo(0);
+  });
+
+  it('computes correct inverse for a translated child pivot', () => {
+    const pivots: W3dPivot[] = [
+      { name: 'Root', parentIndex: -1, translation: [0, 0, 0], rotation: [0, 0, 0, 1] },
+      { name: 'Child', parentIndex: 0, translation: [5, 0, 0], rotation: [0, 0, 0, 1] },
+    ];
+    const ibm = computeInverseBindMatrices(pivots);
+    expect(ibm.length).toBe(32);
+
+    // Root IBM should be identity
+    expect(ibm[0]).toBeCloseTo(1);
+    expect(ibm[12]).toBeCloseTo(0); // tx = 0
+
+    // Child world transform: translate (5,0,0)
+    // Inverse should have tx = -5
+    expect(ibm[16 + 0]).toBeCloseTo(1);
+    expect(ibm[16 + 12]).toBeCloseTo(-5);
+  });
+
+  it('chains translations through parent hierarchy', () => {
+    const pivots: W3dPivot[] = [
+      { name: 'Root', parentIndex: -1, translation: [10, 0, 0], rotation: [0, 0, 0, 1] },
+      { name: 'Child', parentIndex: 0, translation: [0, 5, 0], rotation: [0, 0, 0, 1] },
+    ];
+    const ibm = computeInverseBindMatrices(pivots);
+
+    // Root IBM: inverse of translate(10,0,0) → translate(-10,0,0)
+    expect(ibm[12]).toBeCloseTo(-10);
+
+    // Child world: translate(10,0,0) * translate(0,5,0) = translate(10,5,0)
+    // Child IBM: inverse = translate(-10,-5,0)
+    expect(ibm[16 + 12]).toBeCloseTo(-10);
+    expect(ibm[16 + 13]).toBeCloseTo(-5);
   });
 });

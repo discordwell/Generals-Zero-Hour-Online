@@ -6,7 +6,7 @@ import type { ConversionManifest } from '@generals/core';
 const VALID_MANIFEST: ConversionManifest = {
   version: 1,
   generatedAt: '2025-01-01T00:00:00.000Z',
-  entryCount: 2,
+  entryCount: 4,
   entries: [
     {
       sourcePath: 'maps/Alpine.map',
@@ -23,6 +23,24 @@ const VALID_MANIFEST: ConversionManifest = {
       outputPath: 'textures/grass.png',
       outputHash: 'ddd444',
       converter: 'texture-converter',
+      converterVersion: '1.0.0',
+      timestamp: '2025-01-01T00:00:00.000Z',
+    },
+    {
+      sourcePath: 'Art/W3D/AVThundrblt_d1.w3d',
+      sourceHash: 'eee555',
+      outputPath: 'models/W3DZH/Art/W3D/AVThundrblt_d1.glb',
+      outputHash: 'fff666',
+      converter: 'w3d-converter',
+      converterVersion: '1.0.0',
+      timestamp: '2025-01-01T00:00:00.000Z',
+    },
+    {
+      sourcePath: 'Art/W3D/ABBarracks.w3d',
+      sourceHash: 'ggg777',
+      outputPath: 'models/W3DZH/Art/W3D/ABBarracks.glb',
+      outputHash: 'hhh888',
+      converter: 'w3d-converter',
       converterVersion: '1.0.0',
       timestamp: '2025-01-01T00:00:00.000Z',
     },
@@ -204,17 +222,48 @@ describe('RuntimeManifest', () => {
 
   it('lists all output paths', () => {
     const paths = manifest.getOutputPaths();
-    expect(paths).toHaveLength(2);
+    expect(paths).toHaveLength(4);
     expect(paths).toContain('maps/Alpine.json');
     expect(paths).toContain('textures/grass.png');
+    expect(paths).toContain('models/W3DZH/Art/W3D/AVThundrblt_d1.glb');
+    expect(paths).toContain('models/W3DZH/Art/W3D/ABBarracks.glb');
   });
 
   it('reports correct size', () => {
-    expect(manifest.size).toBe(2);
+    expect(manifest.size).toBe(4);
   });
 
   it('exposes raw manifest', () => {
     expect(manifest.raw).toBe(VALID_MANIFEST);
+  });
+
+  describe('getByBasenameLower', () => {
+    it('resolves a .glb entry by lowercase basename', () => {
+      const entry = manifest.getByBasenameLower('avthundrblt_d1');
+      expect(entry).toBeDefined();
+      expect(entry!.outputPath).toBe('models/W3DZH/Art/W3D/AVThundrblt_d1.glb');
+    });
+
+    it('resolves case-insensitively', () => {
+      const entry = manifest.getByBasenameLower('AVThundrblt_D1');
+      expect(entry).toBeDefined();
+      expect(entry!.outputPath).toBe('models/W3DZH/Art/W3D/AVThundrblt_d1.glb');
+    });
+
+    it('resolves another .glb entry', () => {
+      const entry = manifest.getByBasenameLower('ABBarracks');
+      expect(entry).toBeDefined();
+      expect(entry!.outputPath).toBe('models/W3DZH/Art/W3D/ABBarracks.glb');
+    });
+
+    it('returns undefined for non-.glb entries', () => {
+      // "Alpine" exists as .json but should not be in the basename index
+      expect(manifest.getByBasenameLower('Alpine')).toBeUndefined();
+    });
+
+    it('returns undefined for missing entries', () => {
+      expect(manifest.getByBasenameLower('nonexistent_model')).toBeUndefined();
+    });
   });
 });
 
@@ -238,7 +287,7 @@ describe('loadManifest', () => {
 
     const result = await loadManifest('/assets/manifest.json');
     expect(result).toBeInstanceOf(RuntimeManifest);
-    expect(result!.size).toBe(2);
+    expect(result!.size).toBe(4);
   });
 
   it('returns null on 404', async () => {

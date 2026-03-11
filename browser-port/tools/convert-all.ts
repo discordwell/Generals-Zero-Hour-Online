@@ -851,7 +851,13 @@ function stepConvertW3d(
   const w3dFiles = findFiles(extractedDir, '.w3d');
   console.log(`Found ${w3dFiles.length} .w3d model(s)`);
 
-  const batchConverted = runTool('w3d-converter', ['--input', extractedDir, '--output', modelDir, '--quiet']);
+  // Pass --texture-dir so the converter can embed textures in GLBs.
+  const textureDir = path.join(outputDir, 'textures');
+  const converterArgs = ['--input', extractedDir, '--output', modelDir, '--quiet'];
+  if (fs.existsSync(textureDir)) {
+    converterArgs.push('--texture-dir', textureDir);
+  }
+  const batchConverted = runTool('w3d-converter', converterArgs);
 
   let failures = 0;
   for (const file of w3dFiles) {

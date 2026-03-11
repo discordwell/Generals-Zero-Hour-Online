@@ -95,6 +95,20 @@ export class AssetManager implements Subsystem {
   }
 
   /**
+   * Resolve a bare model name (e.g. "AVThundrblt_D1") to its manifest output path.
+   * Strips any file extension, lowercases, and looks up in the basename index.
+   * Returns the manifest outputPath on match, or null.
+   */
+  resolveModelPath(bareName: string): string | null {
+    if (!this.manifest) return null;
+    // Strip extension if present (e.g. "model.w3d" → "model")
+    const dotIdx = bareName.lastIndexOf('.');
+    const stripped = dotIdx > 0 ? bareName.slice(0, dotIdx) : bareName;
+    const entry = this.manifest.getByBasenameLower(stripped);
+    return entry?.outputPath ?? null;
+  }
+
+  /**
    * Load a JSON asset by output path.
    * Returns parsed JSON of type T.
    */
