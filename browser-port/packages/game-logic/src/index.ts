@@ -98,14 +98,6 @@ import {
   resolveBuildableStatus as resolveBuildableStatusImpl,
 } from './production-prerequisites.js';
 import {
-  canExitProducedUnitViaParking as canExitProducedUnitViaParkingImpl,
-  hasAvailableParkingSpace as hasAvailableParkingSpaceImpl,
-  releaseParkingDoorReservationForProduction as releaseParkingDoorReservationForProductionImpl,
-  reserveParkingDoorForQueuedUnit as reserveParkingDoorForQueuedUnitImpl,
-  reserveParkingSpaceForProducedUnit as reserveParkingSpaceForProducedUnitImpl,
-  shouldReserveParkingDoorWhenQueued as shouldReserveParkingDoorWhenQueuedImpl,
-} from './production-parking.js';
-import {
   resolveQueueProductionExitPath as resolveQueueProductionExitPathImpl,
   resolveQueueSpawnLocation as resolveQueueSpawnLocationImpl,
   tickQueueExitGate as tickQueueExitGateImpl,
@@ -673,6 +665,42 @@ import {
   resolveWeaponDelayFramesWithBonus as resolveWeaponDelayFramesWithBonusImpl,
   resolveProjectileTemplateKindOf as resolveProjectileTemplateKindOfImpl,
 } from './weapon-profiles.js';
+import {
+  extractParkingPlaceProfile as extractParkingPlaceProfileImpl,
+  extractJetAIProfile as extractJetAIProfileImpl,
+  extractChinookAIProfile as extractChinookAIProfileImpl,
+  extractJetSlowDeathProfiles as extractJetSlowDeathProfilesImpl,
+  canAircraftEnterAirfieldForRepair as canAircraftEnterAirfieldForRepairImpl,
+  resolveChinookPreferredHeight as resolveChinookPreferredHeightImpl,
+  resolveChinookPreferredHeightDamping as resolveChinookPreferredHeightDampingImpl,
+  setChinookAirfieldForHealing as setChinookAirfieldForHealingImpl,
+  setChinookFlightStatus as setChinookFlightStatusImpl,
+  clearChinookSupplyBoxes as clearChinookSupplyBoxesImpl,
+  countActiveChinookRappellers as countActiveChinookRappellersImpl,
+  clearPendingChinookCommands as clearPendingChinookCommandsImpl,
+  flushPendingChinookCommand as flushPendingChinookCommandImpl,
+  abortPendingChinookRappels as abortPendingChinookRappelsImpl,
+  syncChinookCombatDropIgnoredObstacle as syncChinookCombatDropIgnoredObstacleImpl,
+  clearChinookCombatDropIgnoredObstacle as clearChinookCombatDropIgnoredObstacleImpl,
+  updatePendingChinookRappels as updatePendingChinookRappelsImpl,
+  updatePendingCombatDropActions as updatePendingCombatDropActionsImpl,
+  setParkingPlaceHealee as setParkingPlaceHealeeImpl,
+  clearParkingPlaceHealee as clearParkingPlaceHealeeImpl,
+  updateParkingPlaceHealing as updateParkingPlaceHealingImpl,
+  isChinookAvailableForSupplying as isChinookAvailableForSupplyingImpl,
+  resolveChinookCombatDropInitialDelayFrames as resolveChinookCombatDropInitialDelayFramesImpl,
+  resolveChinookCombatDropIntervalFrames as resolveChinookCombatDropIntervalFramesImpl,
+  resolveChinookRappelSpeedPerFrame as resolveChinookRappelSpeedPerFrameImpl,
+  hasAvailableParkingSpaceFor as hasAvailableParkingSpaceForImpl,
+  shouldReserveParkingDoorWhenQueued as shouldReserveParkingDoorWhenQueuedImpl,
+  reserveParkingDoorForQueuedUnit as reserveParkingDoorForQueuedUnitImpl,
+  releaseParkingDoorReservationForProduction as releaseParkingDoorReservationForProductionImpl,
+  canExitProducedUnitViaParking as canExitProducedUnitViaParkingImpl,
+  reserveParkingSpaceForProducedUnit as reserveParkingSpaceForProducedUnitImpl,
+  jetAITransition as jetAITransitionImpl,
+  updateJetAI as updateJetAIImpl,
+  updateChinookAI as updateChinookAIImpl,
+} from './aircraft-ai.js';
 
 export * from './types.js';
 export * from './campaign-manager.js';
@@ -4662,16 +4690,16 @@ const STRUCTURE_COLLAPSE_GRAVITY = SOURCE_DEFAULT_GRAVITY;
 export const HELICOPTER_GRAVITY = SOURCE_DEFAULT_GRAVITY;
 
 /** Source parity: ChinookAIUpdateModuleData constructor default for m_rappelSpeed. */
-const DEFAULT_CHINOOK_RAPPEL_SPEED = Math.abs(SOURCE_DEFAULT_GRAVITY) * LOGIC_FRAME_RATE * 0.5;
+export const DEFAULT_CHINOOK_RAPPEL_SPEED = Math.abs(SOURCE_DEFAULT_GRAVITY) * LOGIC_FRAME_RATE * 0.5;
 /** Source parity: ChinookAIUpdateModuleData constructor defaults for rope rendering params. */
-const DEFAULT_CHINOOK_ROPE_NAME = 'GenericRope';
-const DEFAULT_CHINOOK_ROPE_WIDTH = 0.5;
-const DEFAULT_CHINOOK_ROPE_COLOR: readonly [number, number, number] = [0.9, 0.8, 0.7];
-const DEFAULT_CHINOOK_ROPE_WOBBLE_LEN = 10.0;
-const DEFAULT_CHINOOK_ROPE_WOBBLE_AMP = 1.0;
-const DEFAULT_CHINOOK_ROPE_WOBBLE_RATE = 0.1;
+export const DEFAULT_CHINOOK_ROPE_NAME = 'GenericRope';
+export const DEFAULT_CHINOOK_ROPE_WIDTH = 0.5;
+export const DEFAULT_CHINOOK_ROPE_COLOR: readonly [number, number, number] = [0.9, 0.8, 0.7];
+export const DEFAULT_CHINOOK_ROPE_WOBBLE_LEN = 10.0;
+export const DEFAULT_CHINOOK_ROPE_WOBBLE_AMP = 1.0;
+export const DEFAULT_CHINOOK_ROPE_WOBBLE_RATE = 0.1;
 /** Source parity: ParkingPlaceBehavior HEAL_RATE_FRAMES = LOGICFRAMES_PER_SECOND / 5. */
-const PARKING_PLACE_HEAL_RATE_FRAMES = Math.max(1, Math.floor(LOGIC_FRAME_RATE / 5));
+export const PARKING_PLACE_HEAL_RATE_FRAMES = Math.max(1, Math.floor(LOGIC_FRAME_RATE / 5));
 /** Source parity: FlightDeckBehavior uses the same HEAL_RATE_FRAMES = LOGICFRAMES_PER_SECOND / 5. */
 const FLIGHT_DECK_HEAL_RATE_FRAMES = PARKING_PLACE_HEAL_RATE_FRAMES;
 
@@ -9775,6 +9803,43 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ resolveWeaponDelayFramesWithBonus(...args: any[]) { return (resolveWeaponDelayFramesWithBonusImpl as any)(this, ...args); }
   private resolveProjectileTemplateKindOf(...args: any[]) { return (resolveProjectileTemplateKindOfImpl as any)(this, ...args); }
 
+  // ---- Aircraft AI facades (delegate to aircraft-ai.ts) ----
+
+  private extractParkingPlaceProfile(...args: any[]) { return (extractParkingPlaceProfileImpl as any)(this, ...args); }
+  private extractJetAIProfile(...args: any[]) { return (extractJetAIProfileImpl as any)(this, ...args); }
+  private extractChinookAIProfile(...args: any[]) { return (extractChinookAIProfileImpl as any)(this, ...args); }
+  private extractJetSlowDeathProfiles(...args: any[]) { return (extractJetSlowDeathProfilesImpl as any)(this, ...args); }
+  private canAircraftEnterAirfieldForRepair(...args: any[]) { return (canAircraftEnterAirfieldForRepairImpl as any)(this, ...args); }
+  private resolveChinookPreferredHeight(...args: any[]) { return (resolveChinookPreferredHeightImpl as any)(this, ...args); }
+  private resolveChinookPreferredHeightDamping(...args: any[]) { return (resolveChinookPreferredHeightDampingImpl as any)(this, ...args); }
+  private setChinookAirfieldForHealing(...args: any[]) { return (setChinookAirfieldForHealingImpl as any)(this, ...args); }
+  private setChinookFlightStatus(...args: any[]) { return (setChinookFlightStatusImpl as any)(this, ...args); }
+  /* @internal */ clearChinookSupplyBoxes(...args: any[]) { return (clearChinookSupplyBoxesImpl as any)(this, ...args); }
+  /* @internal */ countActiveChinookRappellers(...args: any[]) { return (countActiveChinookRappellersImpl as any)(this, ...args); }
+  /* @internal */ clearPendingChinookCommands(...args: any[]) { return (clearPendingChinookCommandsImpl as any)(this, ...args); }
+  private flushPendingChinookCommand(...args: any[]) { return (flushPendingChinookCommandImpl as any)(this, ...args); }
+  /* @internal */ abortPendingChinookRappels(...args: any[]) { return (abortPendingChinookRappelsImpl as any)(this, ...args); }
+  /* @internal */ syncChinookCombatDropIgnoredObstacle(...args: any[]) { return (syncChinookCombatDropIgnoredObstacleImpl as any)(this, ...args); }
+  /* @internal */ clearChinookCombatDropIgnoredObstacle(...args: any[]) { return (clearChinookCombatDropIgnoredObstacleImpl as any)(this, ...args); }
+  private updatePendingChinookRappels(...args: any[]) { return (updatePendingChinookRappelsImpl as any)(this, ...args); }
+  private updatePendingCombatDropActions(...args: any[]) { return (updatePendingCombatDropActionsImpl as any)(this, ...args); }
+  /* @internal */ setParkingPlaceHealee(...args: any[]) { return (setParkingPlaceHealeeImpl as any)(this, ...args); }
+  /* @internal */ clearParkingPlaceHealee(...args: any[]) { return (clearParkingPlaceHealeeImpl as any)(this, ...args); }
+  private updateParkingPlaceHealing(...args: any[]) { return (updateParkingPlaceHealingImpl as any)(this, ...args); }
+  private isChinookAvailableForSupplying(...args: any[]) { return (isChinookAvailableForSupplyingImpl as any)(this, ...args); }
+  /* @internal */ resolveChinookCombatDropInitialDelayFrames(...args: any[]) { return (resolveChinookCombatDropInitialDelayFramesImpl as any)(this, ...args); }
+  /* @internal */ resolveChinookCombatDropIntervalFrames(...args: any[]) { return (resolveChinookCombatDropIntervalFramesImpl as any)(this, ...args); }
+  /* @internal */ resolveChinookRappelSpeedPerFrame(...args: any[]) { return (resolveChinookRappelSpeedPerFrameImpl as any)(this, ...args); }
+  private hasAvailableParkingSpaceFor(...args: any[]) { return (hasAvailableParkingSpaceForImpl as any)(this, ...args); }
+  /* @internal */ shouldReserveParkingDoorWhenQueued(...args: any[]) { return (shouldReserveParkingDoorWhenQueuedImpl as any)(this, ...args); }
+  private reserveParkingDoorForQueuedUnit(...args: any[]) { return (reserveParkingDoorForQueuedUnitImpl as any)(this, ...args); }
+  private releaseParkingDoorReservationForProduction(...args: any[]) { return (releaseParkingDoorReservationForProductionImpl as any)(this, ...args); }
+  private canExitProducedUnitViaParking(...args: any[]) { return (canExitProducedUnitViaParkingImpl as any)(this, ...args); }
+  private reserveParkingSpaceForProducedUnit(...args: any[]) { return (reserveParkingSpaceForProducedUnitImpl as any)(this, ...args); }
+  private jetAITransition(...args: any[]) { return (jetAITransitionImpl as any)(this, ...args); }
+  private updateJetAI(...args: any[]) { return (updateJetAIImpl as any)(this, ...args); }
+  private updateChinookAI(...args: any[]) { return (updateChinookAIImpl as any)(this, ...args); }
+
   // ---- Command dispatch facades (delegate to command-dispatch.ts) ----
 
   private flushCommands(...args: any[]) { return (flushCommandsImpl as any)(this, ...args); }
@@ -9939,14 +10004,14 @@ export class GameLogicSubsystem implements Subsystem {
   private updateTransportContainHealing(...args: any[]) { return (updateTransportContainHealingImpl as any)(this, ...args); }
   private updateContainModelConditions(...args: any[]) { return (updateContainModelConditionsImpl as any)(this, ...args); }
   private updateOverlordRiderPositions(...args: any[]) { return (updateOverlordRiderPositionsImpl as any)(this, ...args); }
-  private hasPendingTransportEntryForContainer(...args: any[]) { return (hasPendingTransportEntryForContainerImpl as any)(this, ...args); }
+  /* @internal */ hasPendingTransportEntryForContainer(...args: any[]) { return (hasPendingTransportEntryForContainerImpl as any)(this, ...args); }
   private isEntityContained(...args: any[]) { return (isEntityContainedImpl as any)(this, ...args); }
   private isEntityContainedInGarrison(...args: any[]) { return (isEntityContainedInGarrisonImpl as any)(this, ...args); }
   private collectContainedEntityIds(...args: any[]) { return (collectContainedEntityIdsImpl as any)(this, ...args); }
-  private countContainedRappellers(...args: any[]) { return (countContainedRappellersImpl as any)(this, ...args); }
+  /* @internal */ countContainedRappellers(...args: any[]) { return (countContainedRappellersImpl as any)(this, ...args); }
   private releaseEntityFromContainer(...args: any[]) { return (releaseEntityFromContainerImpl as any)(this, ...args); }
-  private evacuateOneContainedRappeller(...args: any[]) { return (evacuateOneContainedRappellerImpl as any)(this, ...args); }
-  private evacuateContainedEntities(...args: any[]) { return (evacuateContainedEntitiesImpl as any)(this, ...args); }
+  /* @internal */ evacuateOneContainedRappeller(...args: any[]) { return (evacuateOneContainedRappellerImpl as any)(this, ...args); }
+  /* @internal */ evacuateContainedEntities(...args: any[]) { return (evacuateContainedEntitiesImpl as any)(this, ...args); }
   private resolveProjectileLauncherContainer(...args: any[]) { return (resolveProjectileLauncherContainerImpl as any)(this, ...args); }
   private resolveEntityContainingObject(...args: any[]) { return (resolveEntityContainingObjectImpl as any)(this, ...args); }
   private isPassengerAllowedToFireFromContainingObject(...args: any[]) { return (isPassengerAllowedToFireFromContainingObjectImpl as any)(this, ...args); }
@@ -17998,82 +18063,6 @@ export class GameLogicSubsystem implements Subsystem {
     return profile;
   }
 
-  private extractParkingPlaceProfile(objectDef: ObjectDef | undefined): ParkingPlaceProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    let foundModule = false;
-    let numRows = 0;
-    let numCols = 0;
-    let approachHeight = 0;
-    let hasRunways = false;
-    let parkInHangars = false;
-    let healAmountPerSecond = 0;
-
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() !== 'BEHAVIOR') {
-        for (const child of block.blocks) {
-          visitBlock(child);
-        }
-        return;
-      }
-
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType === 'PARKINGPLACEBEHAVIOR') {
-        foundModule = true;
-        const rowsRaw = readNumericField(block.fields, ['NumRows']);
-        const colsRaw = readNumericField(block.fields, ['NumCols']);
-        const approachHeightRaw = readNumericField(block.fields, ['ApproachHeight']);
-        const hasRunwaysRaw = readBooleanField(block.fields, ['HasRunways']);
-        const parkInHangarsRaw = readBooleanField(block.fields, ['ParkInHangars']);
-        const healAmountRaw = readNumericField(block.fields, ['HealAmountPerSecond']);
-        if (rowsRaw !== null && Number.isFinite(rowsRaw)) {
-          numRows = Math.max(0, Math.trunc(rowsRaw));
-        }
-        if (colsRaw !== null && Number.isFinite(colsRaw)) {
-          numCols = Math.max(0, Math.trunc(colsRaw));
-        }
-        if (approachHeightRaw !== null && Number.isFinite(approachHeightRaw)) {
-          approachHeight = approachHeightRaw;
-        }
-        if (typeof hasRunwaysRaw === 'boolean') {
-          hasRunways = hasRunwaysRaw;
-        }
-        if (typeof parkInHangarsRaw === 'boolean') {
-          parkInHangars = parkInHangarsRaw;
-        }
-        if (healAmountRaw !== null && Number.isFinite(healAmountRaw)) {
-          healAmountPerSecond = healAmountRaw;
-        }
-      }
-
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    if (!foundModule) {
-      return null;
-    }
-
-    return {
-      totalSpaces: numRows * numCols,
-      occupiedSpaceEntityIds: new Set<number>(),
-      reservedProductionIds: new Set<number>(),
-      healAmountPerSecond,
-      approachHeight,
-      hasRunways,
-      parkInHangars,
-      healeeEntityIds: new Set<number>(),
-      nextHealFrame: Number.POSITIVE_INFINITY,
-    };
-  }
-
   /**
    * Source parity: FlightDeckBehaviorModuleData::buildFieldParse — extract flight deck INI data.
    * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp)
@@ -18568,85 +18557,6 @@ export class GameLogicSubsystem implements Subsystem {
     return profile;
   }
 
-  private extractJetAIProfile(objectDef: ObjectDef | undefined): JetAIProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    let foundModule = false;
-    let sneakyOffsetWhenAttacking = 0;
-    let attackersMissPersistFrames = 0;
-    let needsRunway = true;
-    let keepsParkingSpaceWhenAirborne = true;
-    let outOfAmmoDamagePerSecond = 0;
-    let returnToBaseIdleFrames = 0;
-    let minHeight = 0;
-    let parkingOffset = 0;
-    let takeoffPauseFrames = 0;
-    let takeoffDistForMaxLift = 0;
-    let attackLocomotorSet = '';
-    let attackLocoPersistFrames = 0;
-    let returnLocomotorSet = '';
-
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'JETAIUPDATE') {
-          foundModule = true;
-          const sneakyOffsetRaw = readNumericField(block.fields, ['SneakyOffsetWhenAttacking']) ?? 0;
-          if (Number.isFinite(sneakyOffsetRaw)) {
-            sneakyOffsetWhenAttacking = sneakyOffsetRaw;
-          }
-          const persistMsRaw = readNumericField(block.fields, ['AttackersMissPersistTime']) ?? 0;
-          attackersMissPersistFrames = this.msToLogicFrames(persistMsRaw);
-          needsRunway = readBooleanField(block.fields, ['NeedsRunway']) ?? true;
-          keepsParkingSpaceWhenAirborne = readBooleanField(block.fields, ['KeepsParkingSpaceWhenAirborne']) ?? true;
-          const outOfAmmoDmgRaw = readNumericField(block.fields, ['OutOfAmmoDamagePerSecond']) ?? 0;
-          outOfAmmoDamagePerSecond = outOfAmmoDmgRaw / 100;
-          const returnIdleMsRaw = readNumericField(block.fields, ['ReturnToBaseIdleTime']) ?? 0;
-          returnToBaseIdleFrames = this.msToLogicFrames(returnIdleMsRaw);
-          minHeight = readNumericField(block.fields, ['MinHeight']) ?? 0;
-          parkingOffset = readNumericField(block.fields, ['ParkingOffset']) ?? 0;
-          const takeoffPauseMsRaw = readNumericField(block.fields, ['TakeoffPause']) ?? 0;
-          takeoffPauseFrames = this.msToLogicFrames(takeoffPauseMsRaw);
-          takeoffDistForMaxLift = readNumericField(block.fields, ['TakeoffDistForMaxLift']) ?? 0;
-          attackLocomotorSet = readStringField(block.fields, ['AttackLocomotorType'])?.trim().toUpperCase() ?? '';
-          const attackLocoPersistMsRaw = readNumericField(block.fields, ['AttackLocomotorPersistTime']) ?? 0;
-          attackLocoPersistFrames = this.msToLogicFrames(attackLocoPersistMsRaw);
-          returnLocomotorSet = readStringField(block.fields, ['ReturnForAmmoLocomotorType'])?.trim().toUpperCase() ?? '';
-        }
-      }
-
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    if (!foundModule) {
-      return null;
-    }
-
-    return {
-      sneakyOffsetWhenAttacking,
-      attackersMissPersistFrames,
-      needsRunway,
-      keepsParkingSpaceWhenAirborne,
-      outOfAmmoDamagePerSecond,
-      returnToBaseIdleFrames,
-      minHeight,
-      parkingOffset,
-      takeoffPauseFrames,
-      takeoffDistForMaxLift,
-      attackLocomotorSet,
-      attackLocoPersistFrames,
-      returnLocomotorSet,
-    };
-  }
-
   /**
    * Source parity: AnimationSteeringUpdateModuleData::m_transitionFrames.
    * C++ parse field: MinTransitionTime (duration).
@@ -18976,74 +18886,6 @@ export class GameLogicSubsystem implements Subsystem {
           return;
         }
       }
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    return profile;
-  }
-
-  /**
-   * Source parity: ChinookAIUpdate module data used by current systems.
-   * C++ defaults from ChinookAIUpdateModuleData constructor.
-   */
-  private extractChinookAIProfile(objectDef: ObjectDef | undefined): ChinookAIProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    let profile: ChinookAIProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) {
-        return;
-      }
-
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'CHINOOKAIUPDATE') {
-          const perRopeDelayMinMs = readNumericField(block.fields, ['PerRopeDelayMin']) ?? 0x7fffffff;
-          const perRopeDelayMaxMs = readNumericField(block.fields, ['PerRopeDelayMax']) ?? 0x7fffffff;
-          const ropeName = readStringField(block.fields, ['RopeName']) ?? DEFAULT_CHINOOK_ROPE_NAME;
-          const ropeWidth = readNumericField(block.fields, ['RopeWidth']) ?? DEFAULT_CHINOOK_ROPE_WIDTH;
-          const ropeColorValues = readNumericListField(block.fields, ['RopeColor']);
-          const ropeColor: readonly [number, number, number] = ropeColorValues && ropeColorValues.length >= 3
-            ? [
-              ropeColorValues[0] ?? DEFAULT_CHINOOK_ROPE_COLOR[0],
-              ropeColorValues[1] ?? DEFAULT_CHINOOK_ROPE_COLOR[1],
-              ropeColorValues[2] ?? DEFAULT_CHINOOK_ROPE_COLOR[2],
-            ]
-            : DEFAULT_CHINOOK_ROPE_COLOR;
-          const ropeWobbleLen = readNumericField(block.fields, ['RopeWobbleLen']) ?? DEFAULT_CHINOOK_ROPE_WOBBLE_LEN;
-          const ropeWobbleAmp = readNumericField(block.fields, ['RopeWobbleAmplitude']) ?? DEFAULT_CHINOOK_ROPE_WOBBLE_AMP;
-          const ropeWobbleRateRaw = readNumericField(block.fields, ['RopeWobbleRate']);
-          const ropeWobbleRate = ropeWobbleRateRaw != null
-            ? (ropeWobbleRateRaw * Math.PI / 180) / LOGIC_FRAME_RATE
-            : DEFAULT_CHINOOK_ROPE_WOBBLE_RATE;
-          profile = {
-            numRopes: Math.max(1, Math.trunc(readNumericField(block.fields, ['NumRopes']) ?? 4)),
-            perRopeDelayMinFrames: this.msToLogicFrames(perRopeDelayMinMs),
-            perRopeDelayMaxFrames: this.msToLogicFrames(perRopeDelayMaxMs),
-            ropeName,
-            ropeWidth,
-            ropeColor,
-            ropeWobbleLen,
-            ropeWobbleAmp,
-            ropeWobbleRate,
-            minDropHeight: readNumericField(block.fields, ['MinDropHeight']) ?? 30.0,
-            waitForRopesToDrop: readBooleanField(block.fields, ['WaitForRopesToDrop']) ?? true,
-            rappelSpeed: readNumericField(block.fields, ['RappelSpeed']) ?? DEFAULT_CHINOOK_RAPPEL_SPEED,
-            ropeDropSpeed: readNumericField(block.fields, ['RopeDropSpeed']) ?? 1e10,
-            ropeFinalHeight: readNumericField(block.fields, ['RopeFinalHeight']) ?? 0.0,
-          };
-          return;
-        }
-      }
-
       for (const child of block.blocks) {
         visitBlock(child);
       }
@@ -21692,94 +21534,6 @@ export class GameLogicSubsystem implements Subsystem {
         oclHitGround,
         oclFinalBlowUp,
         finalRubbleObject,
-      });
-    };
-
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (profiles.length === 0 && this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: JetSlowDeathBehavior — extract jet-specific slow death profiles.
-   * C++ file: JetSlowDeathBehavior.cpp — roll, FX timeline, forward descent.
-   */
-  private extractJetSlowDeathProfiles(objectDef: ObjectDef | undefined): JetSlowDeathProfile[] {
-    if (!objectDef) return [];
-    const profiles: JetSlowDeathProfile[] = [];
-
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'DIE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'JETSLOWDEATHBEHAVIOR') return;
-
-      // DieMuxData fields.
-      const deathTypes = new Set<string>();
-      const deathTypesStr = readStringField(block.fields, ['DeathTypes']);
-      if (deathTypesStr) {
-        for (const token of deathTypesStr.toUpperCase().split(/\s+/)) {
-          if (token) deathTypes.add(token);
-        }
-      }
-      const veterancyLevels = new Set<string>();
-      const vetStr = readStringField(block.fields, ['VeterancyLevels']);
-      if (vetStr) {
-        for (const token of vetStr.toUpperCase().split(/\s+/)) {
-          if (token) veterancyLevels.add(token);
-        }
-      }
-      const exemptStatus = new Set<string>();
-      const exemptStr = readStringField(block.fields, ['ExemptStatus']);
-      if (exemptStr) {
-        for (const token of exemptStr.toUpperCase().split(/\s+/)) {
-          if (token) exemptStatus.add(token);
-        }
-      }
-      const requiredStatus = new Set<string>();
-      const reqStr = readStringField(block.fields, ['RequiredStatus']);
-      if (reqStr) {
-        for (const token of reqStr.toUpperCase().split(/\s+/)) {
-          if (token) requiredStatus.add(token);
-        }
-      }
-
-      // C++ parseReal: RollRate and PitchRate are raw floats (not degrees).
-      // C++ source comment confirms they should use parseAngularVelocityReal but don't.
-      // C++ parsePercentToReal: RollRateDelta, FallHowFast → 0-1.
-      const rollRate = readNumericField(block.fields, ['RollRate']) ?? 0;
-      const rollRateDelta = (readNumericField(block.fields, ['RollRateDelta']) ?? 100) / 100;
-      const pitchRate = readNumericField(block.fields, ['PitchRate']) ?? 0;
-      const fallHowFast = (readNumericField(block.fields, ['FallHowFast']) ?? 50) / 100;
-
-      // FX/OCL timeline.
-      const oclOnGroundDeath: string[] = [];
-      const ogStr = readStringField(block.fields, ['OCLOnGroundDeath']);
-      if (ogStr) oclOnGroundDeath.push(ogStr);
-      const oclInitialDeath: string[] = [];
-      const idStr = readStringField(block.fields, ['OCLInitialDeath']);
-      if (idStr) oclInitialDeath.push(idStr);
-      const delaySecondaryFromInitialDeath = this.msToLogicFrames(
-        readNumericField(block.fields, ['DelaySecondaryFromInitialDeath']) ?? 0);
-      const oclSecondary: string[] = [];
-      const secStr = readStringField(block.fields, ['OCLSecondary']);
-      if (secStr) oclSecondary.push(secStr);
-      const oclHitGround: string[] = [];
-      const hgStr = readStringField(block.fields, ['OCLHitGround']);
-      if (hgStr) oclHitGround.push(hgStr);
-      const delayFinalBlowUpFromHitGround = this.msToLogicFrames(
-        readNumericField(block.fields, ['DelayFinalBlowUpFromHitGround']) ?? 0);
-      const oclFinalBlowUp: string[] = [];
-      const fbStr = readStringField(block.fields, ['OCLFinalBlowUp']);
-      if (fbStr) oclFinalBlowUp.push(fbStr);
-
-      profiles.push({
-        deathTypes, veterancyLevels, exemptStatus, requiredStatus,
-        oclOnGroundDeath, oclInitialDeath, delaySecondaryFromInitialDeath,
-        oclSecondary, oclHitGround, delayFinalBlowUpFromHitGround, oclFinalBlowUp,
-        rollRate, rollRateDelta, pitchRate, fallHowFast,
       });
     };
 
@@ -26069,24 +25823,6 @@ export class GameLogicSubsystem implements Subsystem {
     return true;
   }
 
-  private canAircraftEnterAirfieldForRepair(source: MapEntity, airfield: MapEntity): boolean {
-    const parkingProfile = airfield.parkingPlaceProfile;
-    if (!parkingProfile) {
-      return false;
-    }
-    // Source parity: ActionManager::canEnterObject uses ParkingPlaceBehavior::hasReservedSpace(obj->id).
-    if (parkingProfile.occupiedSpaceEntityIds.has(source.id)) {
-      return true;
-    }
-
-    const sourceObjectDef = this.resolveObjectDefByTemplateName(source.templateName) ?? undefined;
-    if (!shouldReserveParkingDoorWhenQueuedImpl(sourceObjectDef?.kindOf)) {
-      return false;
-    }
-
-    return hasAvailableParkingSpaceImpl(parkingProfile, airfield.productionQueue, this.spawnedEntities);
-  }
-
   private resolveRepairVehicleEnterAction(
     source: MapEntity,
     target: MapEntity,
@@ -27105,247 +26841,6 @@ export class GameLogicSubsystem implements Subsystem {
     this.issueMoveTo(source.id, dock.x, dock.z);
   }
 
-  private resolveChinookPreferredHeight(entity: MapEntity): number {
-    const active = entity.locomotorSets.get(entity.activeLocomotorSet);
-    if (active) {
-      return active.preferredHeight;
-    }
-    const normal = entity.locomotorSets.get(LOCOMOTORSET_NORMAL);
-    return normal ? normal.preferredHeight : 0;
-  }
-
-  private resolveChinookPreferredHeightDamping(entity: MapEntity): number {
-    const active = entity.locomotorSets.get(entity.activeLocomotorSet);
-    if (active) {
-      return active.preferredHeightDamping;
-    }
-    const normal = entity.locomotorSets.get(LOCOMOTORSET_NORMAL);
-    return normal ? normal.preferredHeightDamping : 1;
-  }
-
-  private setChinookAirfieldForHealing(entity: MapEntity, airfieldId: number): void {
-    const previousId = entity.chinookHealingAirfieldId;
-    if (previousId === airfieldId) {
-      return;
-    }
-    if (previousId !== 0) {
-      const previousAirfield = this.spawnedEntities.get(previousId);
-      if (previousAirfield?.parkingPlaceProfile) {
-        this.setParkingPlaceHealee(previousAirfield, entity, false);
-      }
-    }
-    entity.chinookHealingAirfieldId = airfieldId;
-  }
-
-  private setChinookFlightStatus(entity: MapEntity, status: ChinookFlightStatus): void {
-    if (!entity.chinookAIProfile) {
-      return;
-    }
-    if (entity.chinookFlightStatus === status) {
-      return;
-    }
-    entity.chinookFlightStatus = status;
-    entity.chinookFlightStatusEnteredFrame = this.frameCounter;
-
-    if (status === 'LANDING') {
-      // Source parity: ChinookTakeoffOrLandingState::onEnter — clear supplies on landing.
-      this.clearChinookSupplyBoxes(entity.id);
-      this.stopEntity(entity.id);
-    } else if (status === 'TAKING_OFF') {
-      this.stopEntity(entity.id);
-    }
-
-    if (status === 'LANDED') {
-      entity.objectStatusFlags.delete('AIRBORNE_TARGET');
-      this.setEntityLocomotorSet(entity.id, LOCOMOTORSET_TAXIING);
-    } else {
-      entity.objectStatusFlags.add('AIRBORNE_TARGET');
-      this.setEntityLocomotorSet(entity.id, LOCOMOTORSET_NORMAL);
-    }
-  }
-
-  private clearChinookSupplyBoxes(entityId: number): void {
-    const state = this.supplyTruckStates.get(entityId);
-    if (!state || state.currentBoxes <= 0) {
-      return;
-    }
-
-    // Source parity: ChinookCombatDropState::onEnter — while (ai->loseOneBox()).
-    state.currentBoxes = 0;
-    if (state.aiState === SupplyTruckAIState.APPROACHING_DEPOT || state.aiState === SupplyTruckAIState.DEPOSITING) {
-      state.targetDepotId = null;
-      state.aiState = SupplyTruckAIState.IDLE;
-    }
-  }
-
-  private countActiveChinookRappellers(sourceEntityId: number): number {
-    let count = 0;
-    for (const pending of this.pendingChinookRappels.values()) {
-      if (pending.sourceEntityId === sourceEntityId) {
-        count += 1;
-      }
-    }
-    return count;
-  }
-
-  private clearPendingChinookCommands(entityId: number): void {
-    this.pendingChinookCommandByEntityId.delete(entityId);
-  }
-
-  private flushPendingChinookCommand(entityId: number): void {
-    const command = this.pendingChinookCommandByEntityId.get(entityId);
-    if (!command) {
-      return;
-    }
-    this.pendingChinookCommandByEntityId.delete(entityId);
-    this.submitCommand(command);
-  }
-
-  private abortPendingChinookRappels(sourceEntityId: number): void {
-    for (const [passengerId, pending] of this.pendingChinookRappels.entries()) {
-      if (pending.sourceEntityId !== sourceEntityId) {
-        continue;
-      }
-      const passenger = this.spawnedEntities.get(passengerId);
-      if (passenger && !passenger.destroyed) {
-        // Source parity: ChinookCombatDropState::onExit(STATE_FAILURE) -> rappellerAI->aiIdle().
-        passenger.objectStatusFlags.delete('DISABLED_HELD');
-        this.cancelEntityCommandPathActions(passenger.id);
-        this.clearAttackTarget(passenger.id);
-      }
-      this.pendingChinookRappels.delete(passengerId);
-    }
-  }
-
-  /**
-   * Source parity: ChinookAIUpdate::getBuildingToNotPathAround.
-   * During combat-drop movement/state, treat the target building as ignorable for pathing.
-   */
-  private syncChinookCombatDropIgnoredObstacle(source: MapEntity, targetObjectId: number | null): void {
-    if (!source.chinookAIProfile || targetObjectId === null) {
-      source.ignoredMovementObstacleId = null;
-      return;
-    }
-    const target = this.spawnedEntities.get(targetObjectId);
-    source.ignoredMovementObstacleId = target && !target.destroyed ? target.id : null;
-  }
-
-  private clearChinookCombatDropIgnoredObstacle(entityId: number): void {
-    const entity = this.spawnedEntities.get(entityId);
-    if (!entity || !entity.chinookAIProfile) {
-      return;
-    }
-    entity.ignoredMovementObstacleId = null;
-  }
-
-  private updatePendingChinookRappels(): void {
-    for (const [passengerId, pending] of this.pendingChinookRappels.entries()) {
-      const passenger = this.spawnedEntities.get(passengerId);
-      if (!passenger || passenger.destroyed) {
-        this.pendingChinookRappels.delete(passengerId);
-        continue;
-      }
-
-      const source = this.spawnedEntities.get(pending.sourceEntityId);
-      if (!source || source.destroyed) {
-        passenger.objectStatusFlags.delete('DISABLED_HELD');
-        this.cancelEntityCommandPathActions(passenger.id);
-        this.clearAttackTarget(passenger.id);
-        this.pendingChinookRappels.delete(passengerId);
-        continue;
-      }
-
-      const groundY = this.resolveGroundHeight(passenger.x, passenger.z) + passenger.baseHeight;
-      if (passenger.y > groundY) {
-        passenger.y = Math.max(groundY, passenger.y - Math.max(0, pending.descentSpeedPerFrame));
-        continue;
-      }
-
-      passenger.y = groundY;
-      passenger.objectStatusFlags.delete('DISABLED_HELD');
-      this.pendingChinookRappels.delete(passengerId);
-      this.issueDroppedPassengerCommand(passenger, pending.targetX, pending.targetZ, pending.targetObjectId);
-    }
-  }
-
-  private updatePendingCombatDropActions(): void {
-    for (const [sourceId, pending] of this.pendingCombatDropActions.entries()) {
-      const source = this.spawnedEntities.get(sourceId);
-      if (!source || source.destroyed) {
-        this.clearChinookCombatDropIgnoredObstacle(sourceId);
-        this.abortPendingChinookRappels(sourceId);
-        this.clearPendingChinookCommands(sourceId);
-        this.pendingCombatDropActions.delete(sourceId);
-        continue;
-      }
-
-      this.syncChinookCombatDropIgnoredObstacle(source, pending.targetObjectId);
-
-      if (source.moving) {
-        continue;
-      }
-
-      const distance = Math.hypot(pending.targetX - source.x, pending.targetZ - source.z);
-      const dropReachDistance = this.resolveEntityMajorRadius(source) + MAP_XY_FACTOR;
-      if (distance > dropReachDistance) {
-        this.issueMoveTo(source.id, pending.targetX, pending.targetZ);
-        continue;
-      }
-
-      if (source.chinookAIProfile) {
-        // Source parity: ChinookCombatDropState rappels CAN_RAPPEL passengers over time.
-        const profile = source.chinookAIProfile;
-        if (pending.nextDropFrame === 0) {
-          // Source parity: combat drop holds the transport in place while rappelling.
-          source.objectStatusFlags.add('DISABLED_HELD');
-          this.setChinookFlightStatus(source, 'DOING_COMBAT_DROP');
-          // Source parity: ChinookCombatDropState::onEnter — lose all gathered supply boxes.
-          this.clearChinookSupplyBoxes(source.id);
-          // Source parity: keep chinook at min drop height while deploying ropes.
-          const hoverGround = this.resolveGroundHeight(source.x, source.z);
-          const hoverY = hoverGround + source.baseHeight + Math.max(0, profile.minDropHeight);
-          if (source.y < hoverY) {
-            source.y = hoverY;
-          }
-          pending.nextDropFrame = this.frameCounter + this.resolveChinookCombatDropInitialDelayFrames(source);
-        }
-        if (this.frameCounter < pending.nextDropFrame) {
-          continue;
-        }
-
-        let droppedAny = false;
-        const dropsThisTick = Math.max(1, profile.numRopes);
-        for (let i = 0; i < dropsThisTick; i++) {
-          if (!this.evacuateOneContainedRappeller(source, pending.targetX, pending.targetZ, pending.targetObjectId)) {
-            break;
-          }
-          droppedAny = true;
-        }
-
-        const hasContainedRappellers = this.countContainedRappellers(source.id) > 0;
-        const hasActiveRappellers = this.countActiveChinookRappellers(source.id) > 0;
-        if (!hasContainedRappellers && !hasActiveRappellers) {
-          source.objectStatusFlags.delete('DISABLED_HELD');
-          this.clearChinookCombatDropIgnoredObstacle(sourceId);
-          this.pendingCombatDropActions.delete(sourceId);
-          this.setChinookFlightStatus(source, 'FLYING');
-          this.flushPendingChinookCommand(source.id);
-          continue;
-        }
-
-        pending.nextDropFrame = droppedAny
-          ? this.frameCounter + this.resolveChinookCombatDropIntervalFrames(profile)
-          : this.frameCounter + 1;
-        continue;
-      }
-
-      // Non-Chinook combat-drop carriers: immediate evac at destination.
-      this.evacuateContainedEntities(source, pending.targetX, pending.targetZ, pending.targetObjectId);
-      this.clearChinookCombatDropIgnoredObstacle(sourceId);
-      this.pendingCombatDropActions.delete(sourceId);
-    }
-  }
-
   private updateHackInternet(): void {
     for (const [entityId, hackState] of this.hackInternetStateByEntityId.entries()) {
       const entity = this.spawnedEntities.get(entityId);
@@ -28203,90 +27698,6 @@ export class GameLogicSubsystem implements Subsystem {
     entity.objectStatusFlags.delete('POISONED');
   }
 
-  private setParkingPlaceHealee(airfield: MapEntity, healee: MapEntity, add: boolean): void {
-    const profile = airfield.parkingPlaceProfile;
-    if (!profile) {
-      return;
-    }
-    if (add) {
-      if (profile.healeeEntityIds.has(healee.id)) {
-        return;
-      }
-      // Ensure a healee is only registered with one parking place at a time.
-      for (const other of this.spawnedEntities.values()) {
-        if (other.id === airfield.id) continue;
-        const otherProfile = other.parkingPlaceProfile;
-        if (otherProfile) {
-          otherProfile.healeeEntityIds.delete(healee.id);
-        }
-      }
-      profile.healeeEntityIds.add(healee.id);
-      if (profile.healeeEntityIds.size === 1) {
-        profile.nextHealFrame = this.frameCounter + PARKING_PLACE_HEAL_RATE_FRAMES;
-      }
-      return;
-    }
-
-    if (profile.healeeEntityIds.delete(healee.id) && profile.healeeEntityIds.size === 0) {
-      profile.nextHealFrame = Number.POSITIVE_INFINITY;
-    }
-  }
-
-  private clearParkingPlaceHealee(healee: MapEntity): void {
-    for (const other of this.spawnedEntities.values()) {
-      const profile = other.parkingPlaceProfile;
-      if (!profile) continue;
-      if (profile.healeeEntityIds.delete(healee.id) && profile.healeeEntityIds.size === 0) {
-        profile.nextHealFrame = Number.POSITIVE_INFINITY;
-      }
-    }
-  }
-
-  /**
-   * Source parity: ParkingPlaceBehavior::update — heal parked aircraft.
-   * Uses HealAmountPerSecond applied every PARKING_PLACE_HEAL_RATE_FRAMES.
-   */
-  private updateParkingPlaceHealing(): void {
-    for (const airfield of this.spawnedEntities.values()) {
-      const profile = airfield.parkingPlaceProfile;
-      if (!profile) continue;
-      if (profile.healAmountPerSecond <= 0) continue;
-      if (profile.healeeEntityIds.size === 0) continue;
-      if (this.frameCounter < profile.nextHealFrame) continue;
-
-      profile.nextHealFrame = this.frameCounter + PARKING_PLACE_HEAL_RATE_FRAMES;
-      const healAmount = profile.healAmountPerSecond * (PARKING_PLACE_HEAL_RATE_FRAMES / LOGIC_FRAME_RATE);
-      if (healAmount <= 0) continue;
-
-      const toRemove: number[] = [];
-      for (const healeeId of profile.healeeEntityIds) {
-        const healee = this.spawnedEntities.get(healeeId);
-        if (!healee || healee.destroyed) {
-          toRemove.push(healeeId);
-          continue;
-        }
-        if (healee.health >= healee.maxHealth) {
-          continue;
-        }
-        const prevHealth = healee.health;
-        healee.health = Math.min(healee.maxHealth, healee.health + healAmount);
-        if (healee.health > prevHealth) {
-          this.clearPoisonFromEntity(healee);
-          if (healee.minefieldProfile) {
-            this.mineOnDamage(healee, airfield.id, 'HEALING');
-          }
-        }
-      }
-
-      for (const healeeId of toRemove) {
-        profile.healeeEntityIds.delete(healeeId);
-      }
-      if (profile.healeeEntityIds.size === 0) {
-        profile.nextHealFrame = Number.POSITIVE_INFINITY;
-      }
-    }
-  }
-
   /**
    * Source parity: Object::attemptHealingFromSoleBenefactor — anti-stack healing.
    * Only one benefactor can heal a unit at a time.
@@ -28465,7 +27876,7 @@ export class GameLogicSubsystem implements Subsystem {
   /**
    * Source parity: FlightDeckBehavior::releaseSpace — free a parking space.
    */
-  private flightDeckReleaseSpace(state: FlightDeckState, entityId: number): void {
+  /* @internal */ flightDeckReleaseSpace(state: FlightDeckState, entityId: number): void {
     for (const space of state.parkingSpaces) {
       if (space.occupantId === entityId) {
         space.occupantId = -1;
@@ -28478,7 +27889,7 @@ export class GameLogicSubsystem implements Subsystem {
    * For takeoff, only checks front spaces (first numRunways spaces).
    * For landing, checks all spaces.
    */
-  private flightDeckReserveRunway(
+  /* @internal */ flightDeckReserveRunway(
     state: FlightDeckState, profile: FlightDeckProfile, entityId: number, forLanding: boolean,
   ): boolean {
     let runway = -1;
@@ -28522,7 +27933,7 @@ export class GameLogicSubsystem implements Subsystem {
   /**
    * Source parity: FlightDeckBehavior::releaseRunway — free runway reservation.
    */
-  private flightDeckReleaseRunway(state: FlightDeckState, entityId: number): void {
+  /* @internal */ flightDeckReleaseRunway(state: FlightDeckState, entityId: number): void {
     for (let i = 0; i < state.runwayTakeoffReservation.length; i++) {
       if (state.runwayTakeoffReservation[i] === entityId) {
         state.runwayTakeoffReservation[i] = -1;
@@ -30473,29 +29884,6 @@ export class GameLogicSubsystem implements Subsystem {
     };
   }
 
-  /**
-   * Source parity: ChinookAIUpdate::isAvailableForSupplying.
-   * Chinooks cannot gather while handling transport enter/exit or carrying passengers.
-   */
-  private isChinookAvailableForSupplying(entity: MapEntity): boolean {
-    if (!entity.chinookAIProfile) {
-      return true;
-    }
-    if (this.pendingCombatDropActions.has(entity.id)) {
-      return false;
-    }
-    if (this.collectContainedEntityIds(entity.id).length > 0) {
-      return false;
-    }
-    if (this.hasPendingTransportEntryForContainer(entity.id)) {
-      return false;
-    }
-    if (entity.containProfile?.moduleType === 'OVERLORD') {
-      return false;
-    }
-    return true;
-  }
-
   private updateSupplyChain(): void {
     const supplyChainContext: SupplyChainContext<MapEntity> = {
       frameCounter: this.frameCounter,
@@ -31285,46 +30673,7 @@ export class GameLogicSubsystem implements Subsystem {
     return combined > 0 ? combined : MAP_XY_FACTOR;
   }
 
-  private resolveChinookCombatDropInitialDelayFrames(source: MapEntity): number {
-    const profile = source.chinookAIProfile;
-    if (!profile || !profile.waitForRopesToDrop) {
-      return 0;
-    }
-    if (!Number.isFinite(profile.ropeDropSpeed) || profile.ropeDropSpeed <= 0) {
-      return 0;
-    }
-
-    const groundY = this.resolveGroundHeight(source.x, source.z);
-    const dropHeight = Math.max(0, (source.y - source.baseHeight) - groundY - profile.ropeFinalHeight);
-    if (dropHeight <= 0) {
-      return 0;
-    }
-
-    // Source parity approximation: rope speed is world-units/sec.
-    const dropSpeedPerFrame = profile.ropeDropSpeed / LOGIC_FRAME_RATE;
-    if (dropSpeedPerFrame <= 0) {
-      return 0;
-    }
-    return Math.max(0, Math.ceil(dropHeight / dropSpeedPerFrame));
-  }
-
-  private resolveChinookCombatDropIntervalFrames(profile: ChinookAIProfile): number {
-    const minFrames = Math.max(0, profile.perRopeDelayMinFrames);
-    const maxFrames = Math.max(minFrames, profile.perRopeDelayMaxFrames);
-    if (maxFrames <= minFrames) {
-      return minFrames;
-    }
-    return this.gameRandom.nextRange(minFrames, maxFrames);
-  }
-
-  /* @internal */ resolveChinookRappelSpeedPerFrame(profile: ChinookAIProfile): number {
-    if (!Number.isFinite(profile.rappelSpeed) || profile.rappelSpeed <= 0) {
-      return 0;
-    }
-    return profile.rappelSpeed / LOGIC_FRAME_RATE;
-  }
-
-  private issueDroppedPassengerCommand(
+  /* @internal */ issueDroppedPassengerCommand(
     passenger: MapEntity,
     targetX: number,
     targetZ: number,
@@ -31574,43 +30923,6 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     return result;
-  }
-
-  private hasAvailableParkingSpaceFor(producer: MapEntity, unitDef: ObjectDef): boolean {
-    if (!this.shouldReserveParkingDoorWhenQueued(unitDef)) {
-      return true;
-    }
-
-    return hasAvailableParkingSpaceImpl(
-      producer.parkingPlaceProfile,
-      producer.productionQueue,
-      this.spawnedEntities,
-    );
-  }
-
-  private shouldReserveParkingDoorWhenQueued(unitDef: ObjectDef): boolean {
-    return shouldReserveParkingDoorWhenQueuedImpl(unitDef.kindOf);
-  }
-
-  private reserveParkingDoorForQueuedUnit(
-    producer: MapEntity,
-    unitDef: ObjectDef,
-    productionId: number,
-  ): boolean {
-    if (!this.shouldReserveParkingDoorWhenQueued(unitDef)) {
-      return true;
-    }
-
-    return reserveParkingDoorForQueuedUnitImpl(
-      producer.parkingPlaceProfile,
-      producer.productionQueue,
-      this.spawnedEntities,
-      productionId,
-    );
-  }
-
-  private releaseParkingDoorReservationForProduction(producer: MapEntity, productionId: number): void {
-    releaseParkingDoorReservationForProductionImpl(producer.parkingPlaceProfile, productionId);
   }
 
   private canSideBuildUnitTemplate(
@@ -32346,23 +31658,6 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  private canExitProducedUnitViaParking(
-    producer: MapEntity,
-    unitDef: ObjectDef,
-    productionId: number,
-  ): boolean {
-    if (!this.shouldReserveParkingDoorWhenQueued(unitDef)) {
-      return true;
-    }
-
-    return canExitProducedUnitViaParkingImpl(
-      producer.parkingPlaceProfile,
-      producer.productionQueue,
-      this.spawnedEntities,
-      productionId,
-    );
-  }
-
   /**
    * Spawn a new entity from a template name at the given world position.
    * Used by pilot eject and OCL pipeline.
@@ -32454,46 +31749,6 @@ export class GameLogicSubsystem implements Subsystem {
     this.addUnitProductionScore(created);
 
     return created;
-  }
-
-  private reserveParkingSpaceForProducedUnit(
-    producer: MapEntity,
-    producedUnit: MapEntity,
-    producedUnitDef: ObjectDef,
-    productionId: number,
-  ): boolean {
-    if (!this.shouldReserveParkingDoorWhenQueued(producedUnitDef)) {
-      return true;
-    }
-
-    if (!reserveParkingSpaceForProducedUnitImpl(
-      producer.parkingPlaceProfile,
-      producer.productionQueue,
-      this.spawnedEntities,
-      productionId,
-      producedUnit.id,
-    )) {
-      return false;
-    }
-
-    producedUnit.parkingSpaceProducerId = producer.id;
-    if (producer.containProfile?.moduleType === 'HELIX') {
-      const producedKindOf = this.resolveEntityKindOfSet(producedUnit);
-      if (producedKindOf.has('PORTABLE_STRUCTURE')) {
-        const allowedPortableTemplates = producer.containProfile.portableStructureTemplateNames;
-        const producedTemplateName = producedUnit.templateName.toUpperCase();
-        const isTemplateAllowed =
-          !allowedPortableTemplates || allowedPortableTemplates.length === 0 || allowedPortableTemplates.includes(producedTemplateName);
-        // Source parity: HelixContain::addToContain/addToContainList only set
-        // m_portableStructureID when it is INVALID_ID (first portable only).
-        // (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Contain/HelixContain.cpp:252,270)
-        if (producer.helixPortableRiderId === null && isTemplateAllowed) {
-          producer.helixPortableRiderId = producedUnit.id;
-        }
-        producedUnit.helixCarrierId = producer.id;
-      }
-    }
-    return true;
   }
 
   private resolveQueueSpawnLocation(producer: MapEntity): {
@@ -34034,7 +33289,7 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity: check if entity has a clip-based weapon and is out of ammo.
    * C++ JetAIUpdate checks hasSpecialPowerClipAmmo / getSpecialPowerClipAmmo.
    */
-  private isEntityOutOfClipAmmo(entity: MapEntity): boolean {
+  /* @internal */ isEntityOutOfClipAmmo(entity: MapEntity): boolean {
     const weapon = entity.attackWeapon;
     if (!weapon || weapon.clipSize <= 0) return false;
     return entity.attackAmmoInClip <= 0;
@@ -34044,7 +33299,7 @@ export class GameLogicSubsystem implements Subsystem {
    * Find the closest allied airfield (FS_AIRFIELD kindOf) with this entity's side.
    * Returns the entity or null if no suitable airfield exists.
    */
-  private findSuitableAirfield(entity: MapEntity): MapEntity | null {
+  /* @internal */ findSuitableAirfield(entity: MapEntity): MapEntity | null {
     let bestDist = Infinity;
     let bestAirfield: MapEntity | null = null;
     for (const candidate of this.spawnedEntities.values()) {
@@ -34068,373 +33323,6 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     return bestAirfield;
-  }
-
-  /**
-   * Transition a JetAI entity to a new state.
-   */
-  private jetAITransition(_entity: MapEntity, js: JetAIRuntimeState, newState: JetAIState): void {
-    js.state = newState;
-    js.stateEnteredFrame = this.frameCounter;
-  }
-
-  /**
-   * Source parity: JetAIUpdate::update — runs the flight state machine for all
-   * aircraft with a JetAIUpdate behavior module.
-   * States: PARKED → TAKING_OFF → AIRBORNE → RETURNING_FOR_LANDING → LANDING → RELOAD_AMMO → PARKED
-   *         CIRCLING_DEAD_AIRFIELD (when producer destroyed while returning)
-   */
-  private updateJetAI(): void {
-    const TAKEOFF_FRAMES = 30;
-    const LANDING_FRAMES = 30;
-    const NEAR_AIRFIELD_DIST_SQ = 400; // 20 world units squared
-
-    for (const entity of this.spawnedEntities.values()) {
-      if (entity.destroyed) continue;
-      const js = entity.jetAIState;
-      const profile = entity.jetAIProfile;
-      if (!js || !profile) continue;
-
-      const framesInState = this.frameCounter - js.stateEnteredFrame;
-
-      switch (js.state) {
-        case 'PARKED': {
-          // If there's a pending command, take off.
-          if (js.pendingCommand) {
-            // Source parity: JetAwaitingRunwayState — must reserve runway before takeoff.
-            // For flight deck carriers, attempt to reserve a takeoff runway first.
-            const parkedProducer = this.spawnedEntities.get(entity.producerEntityId);
-            const fdProfileParked = parkedProducer?.flightDeckProfile;
-            const fdStateParked = parkedProducer?.flightDeckState;
-            if (fdProfileParked && fdStateParked) {
-              if (!this.flightDeckReserveRunway(fdStateParked, fdProfileParked, entity.id, false)) {
-                // Can't get a runway yet — stay PARKED and wait.
-                break;
-              }
-            }
-            this.jetAITransition(entity, js, 'TAKING_OFF');
-            entity.objectStatusFlags.add('AIRBORNE_TARGET');
-            js.allowAirLoco = false; // not yet airborne for movement
-            entity.moving = false;
-          }
-          break;
-        }
-
-        case 'TAKING_OFF': {
-          // Interpolate altitude from ground to cruise over TAKEOFF_FRAMES.
-          const progress = Math.min(1, framesInState / TAKEOFF_FRAMES);
-          if (this.mapHeightmap) {
-            const terrainHeight = this.mapHeightmap.getInterpolatedHeight(entity.x, entity.z);
-            const groundY = terrainHeight + entity.baseHeight;
-            entity.y = groundY + js.cruiseHeight * progress;
-          }
-
-          if (framesInState >= TAKEOFF_FRAMES) {
-            js.allowAirLoco = true;
-            this.jetAITransition(entity, js, 'AIRBORNE');
-
-            // Source parity: JetTakeoffOrLandingState::onExit — release runway and
-            // optionally release parking space when takeoff completes.
-            const takeoffProducer = this.spawnedEntities.get(entity.producerEntityId);
-            const fdStateTakeoff = takeoffProducer?.flightDeckState;
-            if (fdStateTakeoff) {
-              if (!profile.keepsParkingSpaceWhenAirborne) {
-                this.flightDeckReleaseSpace(fdStateTakeoff, entity.id);
-              }
-              this.flightDeckReleaseRunway(fdStateTakeoff, entity.id);
-            }
-
-            // Execute pending command.
-            if (js.pendingCommand) {
-              const cmd = js.pendingCommand;
-              js.pendingCommand = null;
-              if (cmd.type === 'moveTo') {
-                this.issueMoveTo(entity.id, cmd.x, cmd.z);
-              } else if (cmd.type === 'attackEntity') {
-                this.issueAttackEntity(entity.id, cmd.targetId, 'PLAYER');
-              }
-            }
-
-            // Start idle return timer if configured.
-            if (profile.returnToBaseIdleFrames > 0) {
-              js.returnToBaseFrame = this.frameCounter + profile.returnToBaseIdleFrames;
-            }
-          }
-          break;
-        }
-
-        case 'AIRBORNE': {
-          // Check ammo depletion → return to base.
-          if (this.isEntityOutOfClipAmmo(entity)) {
-            this.jetAITransition(entity, js, 'RETURNING_FOR_LANDING');
-            js.useReturnLoco = profile.returnLocomotorSet !== '';
-            this.clearAttackTarget(entity.id);
-            entity.moving = false;
-            // Issue moveTo toward producer/airfield.
-            this.issueMoveTo(entity.id, js.producerX, js.producerZ);
-            break;
-          }
-
-          // Check idle return timer.
-          if (profile.returnToBaseIdleFrames > 0
-            && js.returnToBaseFrame > 0
-            && this.frameCounter >= js.returnToBaseFrame
-            && !entity.moving
-            && entity.attackTargetEntityId === null) {
-            this.jetAITransition(entity, js, 'RETURNING_FOR_LANDING');
-            js.useReturnLoco = profile.returnLocomotorSet !== '';
-            this.issueMoveTo(entity.id, js.producerX, js.producerZ);
-            break;
-          }
-
-          // Reset idle timer when given a new command.
-          if (entity.moving || entity.attackTargetEntityId !== null) {
-            if (profile.returnToBaseIdleFrames > 0) {
-              js.returnToBaseFrame = this.frameCounter + profile.returnToBaseIdleFrames;
-            }
-          }
-
-          // Manage attack locomotor switching.
-          if (profile.attackLocomotorSet !== '' && entity.attackTargetEntityId !== null) {
-            if (js.attackLocoExpireFrame === 0) {
-              js.attackLocoExpireFrame = this.frameCounter + profile.attackLocoPersistFrames;
-            }
-          }
-          if (js.attackLocoExpireFrame > 0 && this.frameCounter >= js.attackLocoExpireFrame
-            && entity.attackTargetEntityId === null) {
-            js.attackLocoExpireFrame = 0;
-          }
-
-          break;
-        }
-
-        case 'RETURNING_FOR_LANDING': {
-          // Check if producer/airfield is dead.
-          const producer = this.spawnedEntities.get(entity.producerEntityId);
-          if (!producer || producer.destroyed) {
-            // Try to find a new airfield.
-            const newAirfield = this.findSuitableAirfield(entity);
-            if (newAirfield) {
-              js.producerX = newAirfield.x;
-              js.producerZ = newAirfield.z;
-              entity.producerEntityId = newAirfield.id;
-              this.issueMoveTo(entity.id, js.producerX, js.producerZ);
-            } else {
-              this.jetAITransition(entity, js, 'CIRCLING_DEAD_AIRFIELD');
-              js.circlingNextCheckFrame = this.frameCounter + 30;
-              break;
-            }
-          }
-
-          // Check if near airfield.
-          const dxR = entity.x - js.producerX;
-          const dzR = entity.z - js.producerZ;
-          if (dxR * dxR + dzR * dzR <= NEAR_AIRFIELD_DIST_SQ) {
-            // Source parity: JetAwaitingRunwayState + JetTakeoffOrLandingState::onEnter —
-            // for flight deck carriers, must reserve space + landing runway before landing.
-            const landProducer = this.spawnedEntities.get(entity.producerEntityId);
-            const fdProfileLand = landProducer?.flightDeckProfile;
-            const fdStateLand = landProducer?.flightDeckState;
-            if (fdProfileLand && fdStateLand) {
-              // Reserve a parking space first (required before runway reservation).
-              if (!this.flightDeckReserveSpace(fdStateLand, entity.id)) {
-                // No space available — keep circling.
-                break;
-              }
-              // Reserve landing runway.
-              if (!this.flightDeckReserveRunway(fdStateLand, fdProfileLand, entity.id, true)) {
-                // Runway busy — keep circling (space stays reserved).
-                break;
-              }
-            }
-            this.jetAITransition(entity, js, 'LANDING');
-            entity.moving = false;
-            // Snap XZ to airfield.
-            entity.x = js.producerX;
-            entity.z = js.producerZ;
-          }
-          break;
-        }
-
-        case 'LANDING': {
-          // Interpolate altitude from cruise to ground over LANDING_FRAMES.
-          const landProgress = Math.min(1, framesInState / LANDING_FRAMES);
-          if (this.mapHeightmap) {
-            const terrainHeight = this.mapHeightmap.getInterpolatedHeight(entity.x, entity.z);
-            const groundY = terrainHeight + entity.baseHeight;
-            entity.y = groundY + js.cruiseHeight * (1 - landProgress);
-          }
-
-          if (framesInState >= LANDING_FRAMES) {
-            js.allowAirLoco = false;
-            entity.objectStatusFlags.delete('AIRBORNE_TARGET');
-
-            // Source parity: JetTakeoffOrLandingState::onExit — release landing runway
-            // when landing completes (for both airfields and flight decks).
-            const landingDoneProducer = this.spawnedEntities.get(entity.producerEntityId);
-            const fdStateLandDone = landingDoneProducer?.flightDeckState;
-            if (fdStateLandDone) {
-              this.flightDeckReleaseRunway(fdStateLandDone, entity.id);
-            }
-
-            // Determine if reload is needed.
-            const weapon = entity.attackWeapon;
-            if (weapon && weapon.clipSize > 0 && entity.attackAmmoInClip < weapon.clipSize) {
-              this.jetAITransition(entity, js, 'RELOAD_AMMO');
-              // Compute reload time proportional to ammo missing.
-              const missingRatio = 1 - (entity.attackAmmoInClip / weapon.clipSize);
-              const fullReloadFrames = weapon.clipReloadFrames > 0 ? weapon.clipReloadFrames : 30;
-              js.reloadTotalFrames = Math.max(1, Math.trunc(fullReloadFrames * missingRatio));
-              js.reloadDoneFrame = this.frameCounter + js.reloadTotalFrames;
-            } else {
-              this.jetAITransition(entity, js, 'PARKED');
-            }
-          }
-          break;
-        }
-
-        case 'RELOAD_AMMO': {
-          const weapon = entity.attackWeapon;
-          if (weapon && weapon.clipSize > 0 && js.reloadTotalFrames > 0) {
-            // Proportional clip refill: linearly restore ammo over reloadTotalFrames.
-            const elapsed = this.frameCounter - js.stateEnteredFrame;
-            const progress = Math.min(1, elapsed / js.reloadTotalFrames);
-            const ammoAtStart = weapon.clipSize - Math.trunc(js.reloadTotalFrames * weapon.clipSize / Math.max(1, weapon.clipReloadFrames > 0 ? weapon.clipReloadFrames : 30));
-            entity.attackAmmoInClip = Math.min(weapon.clipSize,
-              Math.trunc(ammoAtStart + (weapon.clipSize - ammoAtStart) * progress));
-          }
-
-          if (this.frameCounter >= js.reloadDoneFrame) {
-            // Fully refill.
-            if (weapon && weapon.clipSize > 0) {
-              entity.attackAmmoInClip = weapon.clipSize;
-            }
-            // If a command is pending, go straight to takeoff.
-            if (js.pendingCommand) {
-              // Source parity: must reserve runway before takeoff (same as PARKED → TAKING_OFF).
-              const reloadProducer = this.spawnedEntities.get(entity.producerEntityId);
-              const fdProfileReload = reloadProducer?.flightDeckProfile;
-              const fdStateReload = reloadProducer?.flightDeckState;
-              if (fdProfileReload && fdStateReload) {
-                if (!this.flightDeckReserveRunway(fdStateReload, fdProfileReload, entity.id, false)) {
-                  // Runway busy — stay in RELOAD_AMMO with pending command to retry next frame.
-                  break;
-                }
-              }
-              this.jetAITransition(entity, js, 'TAKING_OFF');
-              entity.objectStatusFlags.add('AIRBORNE_TARGET');
-              js.allowAirLoco = false;
-              entity.moving = false;
-            } else {
-              this.jetAITransition(entity, js, 'PARKED');
-            }
-          }
-          break;
-        }
-
-        case 'CIRCLING_DEAD_AIRFIELD': {
-          // Apply out-of-ammo damage per second.
-          if (profile.outOfAmmoDamagePerSecond > 0) {
-            const dmgPerFrame = entity.maxHealth * profile.outOfAmmoDamagePerSecond / LOGIC_FRAME_RATE;
-            this.applyWeaponDamageAmount(null, entity, dmgPerFrame, 'UNRESISTABLE');
-            if (entity.destroyed) continue;
-          }
-
-          // Check for new airfield every 30 frames.
-          if (this.frameCounter >= js.circlingNextCheckFrame) {
-            js.circlingNextCheckFrame = this.frameCounter + 30;
-            const newAirfield = this.findSuitableAirfield(entity);
-            if (newAirfield) {
-              js.producerX = newAirfield.x;
-              js.producerZ = newAirfield.z;
-              entity.producerEntityId = newAirfield.id;
-              this.jetAITransition(entity, js, 'RETURNING_FOR_LANDING');
-              this.issueMoveTo(entity.id, js.producerX, js.producerZ);
-            }
-          }
-          break;
-        }
-      }
-
-      const airfield = this.spawnedEntities.get(entity.producerEntityId);
-      if (airfield?.parkingPlaceProfile) {
-        if (
-          !js.allowAirLoco
-          && !js.pendingCommand
-          && entity.kindOf.has('PRODUCED_AT_HELIPAD')
-          && entity.health >= entity.maxHealth
-        ) {
-          // Source parity: helipad aircraft take off once fully healed.
-          this.setParkingPlaceHealee(airfield, entity, false);
-          this.jetAITransition(entity, js, 'TAKING_OFF');
-          entity.objectStatusFlags.add('AIRBORNE_TARGET');
-          js.allowAirLoco = false;
-          entity.moving = false;
-        } else {
-          this.setParkingPlaceHealee(airfield, entity, !js.allowAirLoco);
-        }
-      } else if (airfield?.flightDeckState) {
-        // Source parity: FlightDeckBehavior healing — grounded jets at carriers get healed.
-        const isGrounded = !js.allowAirLoco;
-        this.flightDeckSetHealee(airfield.flightDeckState, entity.id, isGrounded);
-      } else {
-        this.clearParkingPlaceHealee(entity);
-      }
-    }
-  }
-
-  /**
-   * Source parity: ChinookAIUpdate::update — manage takeoff/landing around
-   * transport entry/exit and queued commands.
-   */
-  private updateChinookAI(): void {
-    for (const entity of this.spawnedEntities.values()) {
-      if (entity.destroyed || !entity.chinookAIProfile) {
-        continue;
-      }
-
-      if (!entity.chinookFlightStatus) {
-        // Source parity: ChinookAIUpdate ctor — start as FLYING even if grounded.
-        this.setChinookFlightStatus(entity, 'FLYING');
-      }
-
-      const status = entity.chinookFlightStatus ?? 'FLYING';
-      const waitingToEnterOrExit = this.hasPendingTransportEntryForContainer(entity.id);
-      const healingAirfieldId = entity.chinookHealingAirfieldId;
-      if (healingAirfieldId !== 0) {
-        const airfield = this.spawnedEntities.get(healingAirfieldId);
-        if (!airfield || airfield.destroyed || !airfield.parkingPlaceProfile) {
-          this.setChinookAirfieldForHealing(entity, 0);
-        } else if (
-          status === 'LANDED'
-          && !waitingToEnterOrExit
-          && !this.pendingChinookCommandByEntityId.has(entity.id)
-          && entity.health >= entity.maxHealth
-        ) {
-          this.setParkingPlaceHealee(airfield, entity, false);
-          this.setChinookFlightStatus(entity, 'TAKING_OFF');
-        } else {
-          this.setParkingPlaceHealee(airfield, entity, status === 'LANDED');
-        }
-      }
-      if (status === 'TAKING_OFF' || status === 'LANDING' || status === 'DOING_COMBAT_DROP') {
-        continue;
-      }
-
-      if (waitingToEnterOrExit && status !== 'LANDED') {
-        this.setChinookFlightStatus(entity, 'LANDING');
-        continue;
-      }
-
-      if (
-        !waitingToEnterOrExit
-        && status === 'LANDED'
-        && !this.pendingChinookCommandByEntityId.has(entity.id)
-        && entity.chinookHealingAirfieldId === 0
-      ) {
-        this.setChinookFlightStatus(entity, 'TAKING_OFF');
-      }
-    }
   }
 
   /**
