@@ -74,7 +74,6 @@ import type { ModelConditionInfo, TransitionInfo } from './render-profile-helper
 import {
   createRailedTransportWaypointIndex as createRailedTransportWaypointIndexImpl,
   extractRailedTransportProfile as extractRailedTransportProfileImpl,
-  type RailedTransportProfile,
   type RailedTransportRuntimeState,
   type RailedTransportWaypointIndex,
   updateRailedTransportEntity as updateRailedTransportEntityImpl,
@@ -82,15 +81,12 @@ import {
 import {
   clamp,
   coerceStringArray,
-  nominalHeightForCategory,
   pointInPolygon,
   readBooleanField,
-  readCoord3DField,
   readNumericField,
   readNumericList,
   readNumericListField,
   readStringField,
-  readStringList,
 } from './ini-readers.js';
 import {
   type BuildableStatus,
@@ -144,7 +140,6 @@ import {
 import {
   addExperiencePoints as addExperiencePointsImpl,
   applyHealthBonusForLevelChange as applyHealthBonusForLevelChangeImpl,
-  createExperienceState as createExperienceStateImpl,
   DEFAULT_VETERANCY_CONFIG,
   LEVEL_ELITE,
   LEVEL_HEROIC,
@@ -159,7 +154,6 @@ import {
   CELL_CLEAR,
   CELL_FOGGED,
   CELL_SHROUDED,
-  createEntityVisionState as createEntityVisionStateImpl,
   FogOfWarGrid,
   updateEntityVision as updateEntityVisionImpl,
   type CellVisibility,
@@ -702,6 +696,103 @@ import {
   updateChinookAI as updateChinookAIImpl,
 } from './aircraft-ai.js';
 import {
+  createMapEntity as createMapEntityImpl,
+  extractIniValueTokens as extractIniValueTokensImpl,
+  extractDynamicAudioEventName as extractDynamicAudioEventNameImpl,
+  extractAmbientSoundProfile as extractAmbientSoundProfileImpl,
+  extractWeaponNamesFromTokens as extractWeaponNamesFromTokensImpl,
+  extractWeaponTemplateSets as extractWeaponTemplateSetsImpl,
+  extractArmorTemplateSets as extractArmorTemplateSetsImpl,
+  extractConditionsMask as extractConditionsMaskImpl,
+  extractWeaponNamesBySlot as extractWeaponNamesBySlotImpl,
+  extractHiveStructureProfile as extractHiveStructureProfileImpl,
+  extractProductionProfile as extractProductionProfileImpl,
+  extractQueueProductionExitProfile as extractQueueProductionExitProfileImpl,
+  extractContainProfile as extractContainProfileImpl,
+  extractAnimationSteeringProfile as extractAnimationSteeringProfileImpl,
+  extractTensileFormationProfile as extractTensileFormationProfileImpl,
+  extractAssaultTransportProfile as extractAssaultTransportProfileImpl,
+  extractTurretProfiles as extractTurretProfilesImpl,
+  extractSupplyWarehouseProfile as extractSupplyWarehouseProfileImpl,
+  extractSupplyTruckProfile as extractSupplyTruckProfileImpl,
+  extractRepairDockProfile as extractRepairDockProfileImpl,
+  extractCommandButtonHuntProfile as extractCommandButtonHuntProfileImpl,
+  extractDozerAIProfile as extractDozerAIProfileImpl,
+  extractExperienceProfile as extractExperienceProfileImpl,
+  extractAutoHealProfile as extractAutoHealProfileImpl,
+  extractPropagandaTowerProfile as extractPropagandaTowerProfileImpl,
+  extractFlammableProfile as extractFlammableProfileImpl,
+  extractOCLUpdateProfiles as extractOCLUpdateProfilesImpl,
+  extractWeaponBonusUpdateProfiles as extractWeaponBonusUpdateProfilesImpl,
+  extractRadarUpdateProfile as extractRadarUpdateProfileImpl,
+  extractFloatUpdateProfile as extractFloatUpdateProfileImpl,
+  extractStickyBombUpdateProfile as extractStickyBombUpdateProfileImpl,
+  extractPointDefenseLaserProfile as extractPointDefenseLaserProfileImpl,
+  extractHordeUpdateProfile as extractHordeUpdateProfileImpl,
+  extractEnemyNearScanDelay as extractEnemyNearScanDelayImpl,
+  extractVeterancyGainCreateProfiles as extractVeterancyGainCreateProfilesImpl,
+  extractFXListDieProfiles as extractFXListDieProfilesImpl,
+  extractCrushDieProfiles as extractCrushDieProfilesImpl,
+  extractDieMuxData as extractDieMuxDataImpl,
+  extractDestroyDieProfiles as extractDestroyDieProfilesImpl,
+  extractDamDieProfiles as extractDamDieProfilesImpl,
+  extractSpecialPowerCompletionDieProfiles as extractSpecialPowerCompletionDieProfilesImpl,
+  extractGrantUpgradeCreateProfiles as extractGrantUpgradeCreateProfilesImpl,
+  extractLockWeaponCreateSlot as extractLockWeaponCreateSlotImpl,
+  extractUpgradeDieProfiles as extractUpgradeDieProfilesImpl,
+  extractCheckpointProfile as extractCheckpointProfileImpl,
+  extractProneDamageToFramesRatio as extractProneDamageToFramesRatioImpl,
+  extractDemoTrapProfile as extractDemoTrapProfileImpl,
+  extractRebuildHoleExposeDieProfile as extractRebuildHoleExposeDieProfileImpl,
+  extractRebuildHoleBehaviorProfile as extractRebuildHoleBehaviorProfileImpl,
+  extractAutoDepositProfile as extractAutoDepositProfileImpl,
+  extractDynamicShroudProfile as extractDynamicShroudProfileImpl,
+  extractAutoFindHealingProfile as extractAutoFindHealingProfileImpl,
+  extractCountermeasuresProfile as extractCountermeasuresProfileImpl,
+  extractPilotFindVehicleProfile as extractPilotFindVehicleProfileImpl,
+  extractToppleProfile as extractToppleProfileImpl,
+  extractPhysicsBehaviorProfile as extractPhysicsBehaviorProfileImpl,
+  extractStructureToppleProfile as extractStructureToppleProfileImpl,
+  extractMissileLauncherBuildingProfile as extractMissileLauncherBuildingProfileImpl,
+  extractParticleUplinkCannonProfile as extractParticleUplinkCannonProfileImpl,
+  extractNeutronMissileUpdateProfile as extractNeutronMissileUpdateProfileImpl,
+  extractSpecialAbilityProfile as extractSpecialAbilityProfileImpl,
+  extractGenerateMinefieldProfile as extractGenerateMinefieldProfileImpl,
+  extractCreateCrateDieProfile as extractCreateCrateDieProfileImpl,
+  extractSalvageCrateProfile as extractSalvageCrateProfileImpl,
+  extractCrateCollideProfile as extractCrateCollideProfileImpl,
+  extractDeployStyleProfile as extractDeployStyleProfileImpl,
+  extractBattlePlanProfile as extractBattlePlanProfileImpl,
+  extractHeightDieProfile as extractHeightDieProfileImpl,
+  extractProjectileStreamProfile as extractProjectileStreamProfileImpl,
+  extractBoneFXProfile as extractBoneFXProfileImpl,
+  extractSlowDeathProfiles as extractSlowDeathProfilesImpl,
+  extractHelicopterSlowDeathProfiles as extractHelicopterSlowDeathProfilesImpl,
+  extractCleanupHazardProfile as extractCleanupHazardProfileImpl,
+  extractAssistedTargetingProfile as extractAssistedTargetingProfileImpl,
+  extractStructureCollapseProfile as extractStructureCollapseProfileImpl,
+  extractEmpUpdateProfile as extractEmpUpdateProfileImpl,
+  extractHijackerUpdateProfile as extractHijackerUpdateProfileImpl,
+  extractLeafletDropProfile as extractLeafletDropProfileImpl,
+  extractSmartBombProfile as extractSmartBombProfileImpl,
+  extractDynamicGeometryProfile as extractDynamicGeometryProfileImpl,
+  extractFirestormDamageProfile as extractFirestormDamageProfileImpl,
+  extractFireOCLAfterCooldownProfiles as extractFireOCLAfterCooldownProfilesImpl,
+  extractNeutronBlastProfile as extractNeutronBlastProfileImpl,
+  extractBunkerBusterProfile as extractBunkerBusterProfileImpl,
+  extractNeutronMissileSlowDeathProfile as extractNeutronMissileSlowDeathProfileImpl,
+  extractTechBuildingProfile as extractTechBuildingProfileImpl,
+  extractSupplyWarehouseCripplingProfile as extractSupplyWarehouseCripplingProfileImpl,
+  extractInstantDeathProfiles as extractInstantDeathProfilesImpl,
+  extractFireWeaponWhenDeadProfiles as extractFireWeaponWhenDeadProfilesImpl,
+  extractMinefieldProfile as extractMinefieldProfileImpl,
+  extractEjectPilotTemplateName as extractEjectPilotTemplateNameImpl,
+  extractPowerPlantUpdateProfile as extractPowerPlantUpdateProfileImpl,
+  extractUpgradeModules as extractUpgradeModulesImpl,
+  extractSpecialPowerModules as extractSpecialPowerModulesImpl,
+  spawnEntityFromTemplate as spawnEntityFromTemplateImpl,
+} from './entity-factory.js';
+import {
   extractSpectreGunshipUpdateProfile as extractSpectreGunshipUpdateProfileImpl,
   extractSpectreGunshipDeploymentProfile as extractSpectreGunshipDeploymentProfileImpl,
   initiateSpectreGunshipDeployment as initiateSpectreGunshipDeploymentImpl,
@@ -1013,7 +1104,7 @@ export const LOCOMOTORSET_PANIC = 'SET_PANIC';
 export const LOCOMOTORSET_TAXIING = 'SET_TAXIING';
 export const LOCOMOTORSET_SUPERSONIC = 'SET_SUPERSONIC';
 const LOCOMOTORSET_SLUGGISH = 'SET_SLUGGISH';
-const NO_SURFACES = 0;
+export const NO_SURFACES = 0;
 const LOCOMOTORSURFACE_GROUND = 1 << 0;
 export const SOURCE_LOCOMOTOR_SET_NAMES = new Set<string>([
   LOCOMOTORSET_NORMAL,
@@ -1095,7 +1186,7 @@ const WEAPON_BONUS_FRENZY_ONE       = 1 << 24;
 const WEAPON_BONUS_FRENZY_TWO       = 1 << 25;
 const WEAPON_BONUS_FRENZY_THREE     = 1 << 26;
 
-const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
+export const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
   ['GARRISONED', WEAPON_BONUS_GARRISONED],
   ['HORDE', WEAPON_BONUS_HORDE],
   ['CONTINUOUS_FIRE_MEAN', WEAPON_BONUS_CONTINUOUS_FIRE_MEAN],
@@ -1178,7 +1269,7 @@ function computeWeaponBonusField(
   return result;
 }
 
-const WEAPON_SET_FLAG_MASK_BY_NAME = new Map<string, number>([
+export const WEAPON_SET_FLAG_MASK_BY_NAME = new Map<string, number>([
   ['VETERAN', WEAPON_SET_FLAG_VETERAN],
   ['ELITE', WEAPON_SET_FLAG_ELITE],
   ['HERO', WEAPON_SET_FLAG_HERO],
@@ -1211,7 +1302,7 @@ const WEAPON_COLLIDE_MASK_BY_NAME = new Map<string, number>([
   ['CONTROLLED_STRUCTURES', WEAPON_COLLIDE_CONTROLLED_STRUCTURES],
 ]);
 
-const ARMOR_SET_FLAG_MASK_BY_NAME = new Map<string, number>([
+export const ARMOR_SET_FLAG_MASK_BY_NAME = new Map<string, number>([
   ['VETERAN', ARMOR_SET_FLAG_VETERAN],
   ['ELITE', ARMOR_SET_FLAG_ELITE],
   ['HERO', ARMOR_SET_FLAG_HERO],
@@ -1345,7 +1436,7 @@ export const BEZIER_ARC_LENGTH_TOLERANCE = 1.0;
  */
 export const AUTO_TARGET_SCAN_RATE_FRAMES = LOGIC_FRAME_RATE * 2;
 export const SCRIPT_AI_ATTITUDE_PASSIVE = 1;
-const SCRIPT_AI_ATTITUDE_NORMAL = 2;
+export const SCRIPT_AI_ATTITUDE_NORMAL = 2;
 const SCRIPT_ATTACK_PRIORITY_DEFAULT = 1;
 
 /**
@@ -1616,7 +1707,7 @@ interface SpecialPowerDispatchProfile {
   targetZ: number | null;
 }
 
-const SPECIAL_POWER_BEHAVIOR_MODULE_TYPES = new Set<string>([
+export const SPECIAL_POWER_BEHAVIOR_MODULE_TYPES = new Set<string>([
   'SPECIALPOWERMODULE',
   'SPECIALABILITYUPDATE',
   'BATTLEPLANUPDATE',
@@ -3784,7 +3875,7 @@ interface MinefieldProfile {
 export const MINE_DETONATED_BY_ALLIES = 1 << 0;
 export const MINE_DETONATED_BY_ENEMIES = 1 << 1;
 export const MINE_DETONATED_BY_NEUTRAL = 1 << 2;
-const MINE_DEFAULT_DETONATED_BY = MINE_DETONATED_BY_ENEMIES | MINE_DETONATED_BY_NEUTRAL;
+export const MINE_DEFAULT_DETONATED_BY = MINE_DETONATED_BY_ENEMIES | MINE_DETONATED_BY_NEUTRAL;
 
 /** Maximum immune entries per mine (matches C++ MAX_IMMUNITY = 3). */
 export const MINE_MAX_IMMUNITY = 3;
@@ -5200,8 +5291,8 @@ interface SupplyWarehouseCripplingProfile {
 export const DEFAULT_POISON_DAMAGE_INTERVAL_FRAMES = 10; // ~0.33s at 30fps
 
 /** Source parity: FlammableUpdate default INI values. */
-const DEFAULT_FLAME_DAMAGE_LIMIT = 20.0;
-const DEFAULT_AFLAME_DAMAGE_AMOUNT = 5;
+export const DEFAULT_FLAME_DAMAGE_LIMIT = 20.0;
+export const DEFAULT_AFLAME_DAMAGE_AMOUNT = 5;
 
 /** Global base regen config from GlobalData.ini. */
 export const BASE_REGEN_HEALTH_PERCENT_PER_SECOND = 0.02; // 2% per second default
@@ -9845,7 +9936,7 @@ export class GameLogicSubsystem implements Subsystem {
   setEntityLocomotorUpgrade(...args: any[]) { return (setEntityLocomotorUpgradeImpl as any)(this, ...args); }
   private resolveAttackMoveDistance(...args: any[]) { return (resolveAttackMoveDistanceImpl as any)(this, ...args); }
   private hasLocomotorSetDefinition(...args: any[]) { return (hasLocomotorSetDefinitionImpl as any)(this, ...args); }
-  private resolveCombatCollisionProfile(...args: any[]) { return (resolveCombatCollisionProfileImpl as any)(this, ...args); }
+  /* @internal */ resolveCombatCollisionProfile(...args: any[]) { return (resolveCombatCollisionProfileImpl as any)(this, ...args); }
   private canCrushOrSquish(...args: any[]) { return (canCrushOrSquishImpl as any)(this, ...args); }
   private resolveLocomotorProfiles(...args: any[]) { return (resolveLocomotorProfilesImpl as any)(this, ...args); }
   /* @internal */ extractLocomotorSetEntries(...args: any[]) { return (extractLocomotorSetEntriesImpl as any)(this, ...args); }
@@ -9886,7 +9977,7 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ resolveWeaponScatterTargets(...args: any[]) { return (resolveWeaponScatterTargetsImpl as any)(this, ...args); }
   private resolveWeaponProfileFromDef(...args: any[]) { return (resolveWeaponProfileFromDefImpl as any)(this, ...args); }
   /* @internal */ resolveAttackWeaponProfileForSetSelection(...args: any[]) { return (resolveAttackWeaponProfileForSetSelectionImpl as any)(this, ...args); }
-  private resolveAttackWeaponProfile(...args: any[]) { return (resolveAttackWeaponProfileImpl as any)(this, ...args); }
+  /* @internal */ resolveAttackWeaponProfile(...args: any[]) { return (resolveAttackWeaponProfileImpl as any)(this, ...args); }
   /* @internal */ checkHistoricBonus(...args: any[]) { return (checkHistoricBonusImpl as any)(this, ...args); }
   /* @internal */ fireHistoricBonusWeapon(...args: any[]) { return (fireHistoricBonusWeaponImpl as any)(this, ...args); }
   private classifyWeaponVisualType(...args: any[]) { return (classifyWeaponVisualTypeImpl as any)(this, ...args); }
@@ -9896,10 +9987,10 @@ export class GameLogicSubsystem implements Subsystem {
 
   // ---- Aircraft AI facades (delegate to aircraft-ai.ts) ----
 
-  private extractParkingPlaceProfile(...args: any[]) { return (extractParkingPlaceProfileImpl as any)(this, ...args); }
-  private extractJetAIProfile(...args: any[]) { return (extractJetAIProfileImpl as any)(this, ...args); }
-  private extractChinookAIProfile(...args: any[]) { return (extractChinookAIProfileImpl as any)(this, ...args); }
-  private extractJetSlowDeathProfiles(...args: any[]) { return (extractJetSlowDeathProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractParkingPlaceProfile(...args: any[]) { return (extractParkingPlaceProfileImpl as any)(this, ...args); }
+  /* @internal */ extractJetAIProfile(...args: any[]) { return (extractJetAIProfileImpl as any)(this, ...args); }
+  /* @internal */ extractChinookAIProfile(...args: any[]) { return (extractChinookAIProfileImpl as any)(this, ...args); }
+  /* @internal */ extractJetSlowDeathProfiles(...args: any[]) { return (extractJetSlowDeathProfilesImpl as any)(this, ...args); }
   private canAircraftEnterAirfieldForRepair(...args: any[]) { return (canAircraftEnterAirfieldForRepairImpl as any)(this, ...args); }
   private resolveChinookPreferredHeight(...args: any[]) { return (resolveChinookPreferredHeightImpl as any)(this, ...args); }
   private resolveChinookPreferredHeightDamping(...args: any[]) { return (resolveChinookPreferredHeightDampingImpl as any)(this, ...args); }
@@ -9935,8 +10026,8 @@ export class GameLogicSubsystem implements Subsystem {
 
   private resetBridgeDamageStateChanges(...args: any[]) { return (resetBridgeDamageStateChangesImpl as any)(this, ...args); }
   private noteBridgeDamageStateChange(...args: any[]) { return (noteBridgeDamageStateChangeImpl as any)(this, ...args); }
-  private extractBridgeBehaviorProfile(...args: any[]) { return (extractBridgeBehaviorProfileImpl as any)(this, ...args); }
-  private extractBridgeTowerProfile(...args: any[]) { return (extractBridgeTowerProfileImpl as any)(this, ...args); }
+  /* @internal */ extractBridgeBehaviorProfile(...args: any[]) { return (extractBridgeBehaviorProfileImpl as any)(this, ...args); }
+  /* @internal */ extractBridgeTowerProfile(...args: any[]) { return (extractBridgeTowerProfileImpl as any)(this, ...args); }
   private resolveHighestBridgeLayerForDestination(...args: any[]) { return (resolveHighestBridgeLayerForDestinationImpl as any)(this, ...args); }
   /* @internal */ resolveBridgeLayerHeightAt(...args: any[]) { return (resolveBridgeLayerHeightAtImpl as any)(this, ...args); }
   private applyBridgeOverlay(...args: any[]) { return (applyBridgeOverlayImpl as any)(this, ...args); }
@@ -9959,9 +10050,9 @@ export class GameLogicSubsystem implements Subsystem {
 
   // ---- Stealth and detection facades (delegate to stealth-detection.ts) ----
 
-  private extractStealthProfile(...args: any[]) { return (extractStealthProfileImpl as any)(this, ...args); }
-  private extractDetectorProfile(...args: any[]) { return (extractDetectorProfileImpl as any)(this, ...args); }
-  private extractGrantStealthProfile(...args: any[]) { return (extractGrantStealthProfileImpl as any)(this, ...args); }
+  /* @internal */ extractStealthProfile(...args: any[]) { return (extractStealthProfileImpl as any)(this, ...args); }
+  /* @internal */ extractDetectorProfile(...args: any[]) { return (extractDetectorProfileImpl as any)(this, ...args); }
+  /* @internal */ extractGrantStealthProfile(...args: any[]) { return (extractGrantStealthProfileImpl as any)(this, ...args); }
   private applyStealthUpgrade(...args: any[]) { return (applyStealthUpgradeImpl as any)(this, ...args); }
   private removeStealthUpgradeFromEntity(...args: any[]) { return (removeStealthUpgradeFromEntityImpl as any)(this, ...args); }
   private isEntityStealthedAndUndetected(...args: any[]) { return (isEntityStealthedAndUndetectedImpl as any)(this, ...args); }
@@ -9972,10 +10063,10 @@ export class GameLogicSubsystem implements Subsystem {
 
   // ---- Status effects facades (delegate to status-effects.ts) ----
 
-  private extractFireSpreadProfile(...args: any[]) { return (extractFireSpreadProfileImpl as any)(this, ...args); }
-  private extractPoisonedBehaviorProfile(...args: any[]) { return (extractPoisonedBehaviorProfileImpl as any)(this, ...args); }
-  private extractFireWhenDamagedProfiles(...args: any[]) { return (extractFireWhenDamagedProfilesImpl as any)(this, ...args); }
-  private extractFireWeaponUpdateProfiles(...args: any[]) { return (extractFireWeaponUpdateProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractFireSpreadProfile(...args: any[]) { return (extractFireSpreadProfileImpl as any)(this, ...args); }
+  /* @internal */ extractPoisonedBehaviorProfile(...args: any[]) { return (extractPoisonedBehaviorProfileImpl as any)(this, ...args); }
+  /* @internal */ extractFireWhenDamagedProfiles(...args: any[]) { return (extractFireWhenDamagedProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractFireWeaponUpdateProfiles(...args: any[]) { return (extractFireWeaponUpdateProfilesImpl as any)(this, ...args); }
   private setDisabledHackedStatusUntil(...args: any[]) { return (setDisabledHackedStatusUntilImpl as any)(this, ...args); }
   private updateDisabledHackedStatuses(...args: any[]) { return (updateDisabledHackedStatusesImpl as any)(this, ...args); }
   private updateSubdualDamageHelpers(...args: any[]) { return (updateSubdualDamageHelpersImpl as any)(this, ...args); }
@@ -9988,8 +10079,8 @@ export class GameLogicSubsystem implements Subsystem {
 
   // ---- Flight deck facades (delegate to flight-deck.ts) ----
 
-  private extractFlightDeckProfile(...args: any[]) { return (extractFlightDeckProfileImpl as any)(this, ...args); }
-  private initializeFlightDeckState(...args: any[]) { return (initializeFlightDeckStateImpl as any)(this, ...args); }
+  /* @internal */ extractFlightDeckProfile(...args: any[]) { return (extractFlightDeckProfileImpl as any)(this, ...args); }
+  /* @internal */ initializeFlightDeckState(...args: any[]) { return (initializeFlightDeckStateImpl as any)(this, ...args); }
   /* @internal */ flightDeckPurgeDead(...args: any[]) { return (flightDeckPurgeDeadImpl as any)(this, ...args); }
   /* @internal */ flightDeckHasReservedSpace(...args: any[]) { return (flightDeckHasReservedSpaceImpl as any)(this, ...args); }
   /* @internal */ flightDeckFindEmptySpace(...args: any[]) { return (flightDeckFindEmptySpaceImpl as any)(this, ...args); }
@@ -10004,9 +10095,9 @@ export class GameLogicSubsystem implements Subsystem {
 
   // ---- Spawner behavior facades (delegate to spawner-behavior.ts) ----
 
-  private extractSpawnBehaviorState(...args: any[]) { return (extractSpawnBehaviorStateImpl as any)(this, ...args); }
-  private extractSlavedUpdateProfile(...args: any[]) { return (extractSlavedUpdateProfileImpl as any)(this, ...args); }
-  private extractMobMemberSlavedUpdateProfile(...args: any[]) { return (extractMobMemberSlavedUpdateProfileImpl as any)(this, ...args); }
+  /* @internal */ extractSpawnBehaviorState(...args: any[]) { return (extractSpawnBehaviorStateImpl as any)(this, ...args); }
+  /* @internal */ extractSlavedUpdateProfile(...args: any[]) { return (extractSlavedUpdateProfileImpl as any)(this, ...args); }
+  /* @internal */ extractMobMemberSlavedUpdateProfile(...args: any[]) { return (extractMobMemberSlavedUpdateProfileImpl as any)(this, ...args); }
   private updateSpawnBehaviors(...args: any[]) { return (updateSpawnBehaviorsImpl as any)(this, ...args); }
   /* @internal */ createSpawnSlave(...args: any[]) { return (createSpawnSlaveImpl as any)(this, ...args); }
   /* @internal */ onSlaverDeath(...args: any[]) { return (onSlaverDeathImpl as any)(this, ...args); }
@@ -10020,13 +10111,113 @@ export class GameLogicSubsystem implements Subsystem {
 
   // ---- Spectre gunship facades (delegate to spectre-gunship.ts) ----
 
-  private extractSpectreGunshipUpdateProfile(...args: any[]) { return (extractSpectreGunshipUpdateProfileImpl as any)(this, ...args); }
-  private extractSpectreGunshipDeploymentProfile(...args: any[]) { return (extractSpectreGunshipDeploymentProfileImpl as any)(this, ...args); }
+  /* @internal */ extractSpectreGunshipUpdateProfile(...args: any[]) { return (extractSpectreGunshipUpdateProfileImpl as any)(this, ...args); }
+  /* @internal */ extractSpectreGunshipDeploymentProfile(...args: any[]) { return (extractSpectreGunshipDeploymentProfileImpl as any)(this, ...args); }
   private initiateSpectreGunshipDeployment(...args: any[]) { return (initiateSpectreGunshipDeploymentImpl as any)(this, ...args); }
   /* @internal */ spawnSpectreGattlingEntity(...args: any[]) { return (spawnSpectreGattlingEntityImpl as any)(this, ...args); }
   /* @internal */ cleanUpSpectreGunship(...args: any[]) { return (cleanUpSpectreGunshipImpl as any)(this, ...args); }
   private updateSpectreGunship(...args: any[]) { return (updateSpectreGunshipImpl as any)(this, ...args); }
   /* @internal */ applySpectreHowitzerDamageAt(...args: any[]) { return (applySpectreHowitzerDamageAtImpl as any)(this, ...args); }
+
+  // ---- Entity factory facades (delegate to entity-factory.ts) ----
+
+  private createMapEntity(...args: any[]) { return (createMapEntityImpl as any)(this, ...args); }
+  private extractIniValueTokens(...args: any[]) { return (extractIniValueTokensImpl as any)(this, ...args); }
+  /* @internal */ extractDynamicAudioEventName(...args: any[]) { return (extractDynamicAudioEventNameImpl as any)(this, ...args); }
+  /* @internal */ extractAmbientSoundProfile(...args: any[]) { return (extractAmbientSoundProfileImpl as any)(this, ...args); }
+  private extractWeaponNamesFromTokens(...args: any[]) { return (extractWeaponNamesFromTokensImpl as any)(this, ...args); }
+  private extractWeaponTemplateSets(...args: any[]) { return (extractWeaponTemplateSetsImpl as any)(this, ...args); }
+  /* @internal */ extractArmorTemplateSets(...args: any[]) { return (extractArmorTemplateSetsImpl as any)(this, ...args); }
+  private extractConditionsMask(...args: any[]) { return (extractConditionsMaskImpl as any)(this, ...args); }
+  /* @internal */ extractWeaponNamesBySlot(...args: any[]) { return (extractWeaponNamesBySlotImpl as any)(this, ...args); }
+  /* @internal */ extractHiveStructureProfile(...args: any[]) { return (extractHiveStructureProfileImpl as any)(this, ...args); }
+  /* @internal */ extractProductionProfile(...args: any[]) { return (extractProductionProfileImpl as any)(this, ...args); }
+  /* @internal */ extractQueueProductionExitProfile(...args: any[]) { return (extractQueueProductionExitProfileImpl as any)(this, ...args); }
+  /* @internal */ extractContainProfile(...args: any[]) { return (extractContainProfileImpl as any)(this, ...args); }
+  /* @internal */ extractAnimationSteeringProfile(...args: any[]) { return (extractAnimationSteeringProfileImpl as any)(this, ...args); }
+  /* @internal */ extractTensileFormationProfile(...args: any[]) { return (extractTensileFormationProfileImpl as any)(this, ...args); }
+  /* @internal */ extractAssaultTransportProfile(...args: any[]) { return (extractAssaultTransportProfileImpl as any)(this, ...args); }
+  /* @internal */ extractTurretProfiles(...args: any[]) { return (extractTurretProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractSupplyWarehouseProfile(...args: any[]) { return (extractSupplyWarehouseProfileImpl as any)(this, ...args); }
+  /* @internal */ extractSupplyTruckProfile(...args: any[]) { return (extractSupplyTruckProfileImpl as any)(this, ...args); }
+  /* @internal */ extractRepairDockProfile(...args: any[]) { return (extractRepairDockProfileImpl as any)(this, ...args); }
+  /* @internal */ extractCommandButtonHuntProfile(...args: any[]) { return (extractCommandButtonHuntProfileImpl as any)(this, ...args); }
+  /* @internal */ extractDozerAIProfile(...args: any[]) { return (extractDozerAIProfileImpl as any)(this, ...args); }
+  /* @internal */ extractExperienceProfile(...args: any[]) { return (extractExperienceProfileImpl as any)(this, ...args); }
+  /* @internal */ extractAutoHealProfile(...args: any[]) { return (extractAutoHealProfileImpl as any)(this, ...args); }
+  /* @internal */ extractPropagandaTowerProfile(...args: any[]) { return (extractPropagandaTowerProfileImpl as any)(this, ...args); }
+  /* @internal */ extractFlammableProfile(...args: any[]) { return (extractFlammableProfileImpl as any)(this, ...args); }
+  /* @internal */ extractOCLUpdateProfiles(...args: any[]) { return (extractOCLUpdateProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractWeaponBonusUpdateProfiles(...args: any[]) { return (extractWeaponBonusUpdateProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractRadarUpdateProfile(...args: any[]) { return (extractRadarUpdateProfileImpl as any)(this, ...args); }
+  /* @internal */ extractFloatUpdateProfile(...args: any[]) { return (extractFloatUpdateProfileImpl as any)(this, ...args); }
+  /* @internal */ extractStickyBombUpdateProfile(...args: any[]) { return (extractStickyBombUpdateProfileImpl as any)(this, ...args); }
+  /* @internal */ extractPointDefenseLaserProfile(...args: any[]) { return (extractPointDefenseLaserProfileImpl as any)(this, ...args); }
+  /* @internal */ extractHordeUpdateProfile(...args: any[]) { return (extractHordeUpdateProfileImpl as any)(this, ...args); }
+  /* @internal */ extractEnemyNearScanDelay(...args: any[]) { return (extractEnemyNearScanDelayImpl as any)(this, ...args); }
+  /* @internal */ extractVeterancyGainCreateProfiles(...args: any[]) { return (extractVeterancyGainCreateProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractFXListDieProfiles(...args: any[]) { return (extractFXListDieProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractCrushDieProfiles(...args: any[]) { return (extractCrushDieProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractDieMuxData(...args: any[]) { return (extractDieMuxDataImpl as any)(this, ...args); }
+  /* @internal */ extractDestroyDieProfiles(...args: any[]) { return (extractDestroyDieProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractDamDieProfiles(...args: any[]) { return (extractDamDieProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractSpecialPowerCompletionDieProfiles(...args: any[]) { return (extractSpecialPowerCompletionDieProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractGrantUpgradeCreateProfiles(...args: any[]) { return (extractGrantUpgradeCreateProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractLockWeaponCreateSlot(...args: any[]) { return (extractLockWeaponCreateSlotImpl as any)(this, ...args); }
+  /* @internal */ extractUpgradeDieProfiles(...args: any[]) { return (extractUpgradeDieProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractCheckpointProfile(...args: any[]) { return (extractCheckpointProfileImpl as any)(this, ...args); }
+  /* @internal */ extractProneDamageToFramesRatio(...args: any[]) { return (extractProneDamageToFramesRatioImpl as any)(this, ...args); }
+  /* @internal */ extractDemoTrapProfile(...args: any[]) { return (extractDemoTrapProfileImpl as any)(this, ...args); }
+  /* @internal */ extractRebuildHoleExposeDieProfile(...args: any[]) { return (extractRebuildHoleExposeDieProfileImpl as any)(this, ...args); }
+  /* @internal */ extractRebuildHoleBehaviorProfile(...args: any[]) { return (extractRebuildHoleBehaviorProfileImpl as any)(this, ...args); }
+  /* @internal */ extractAutoDepositProfile(...args: any[]) { return (extractAutoDepositProfileImpl as any)(this, ...args); }
+  /* @internal */ extractDynamicShroudProfile(...args: any[]) { return (extractDynamicShroudProfileImpl as any)(this, ...args); }
+  /* @internal */ extractAutoFindHealingProfile(...args: any[]) { return (extractAutoFindHealingProfileImpl as any)(this, ...args); }
+  /* @internal */ extractCountermeasuresProfile(...args: any[]) { return (extractCountermeasuresProfileImpl as any)(this, ...args); }
+  /* @internal */ extractPilotFindVehicleProfile(...args: any[]) { return (extractPilotFindVehicleProfileImpl as any)(this, ...args); }
+  /* @internal */ extractToppleProfile(...args: any[]) { return (extractToppleProfileImpl as any)(this, ...args); }
+  /* @internal */ extractPhysicsBehaviorProfile(...args: any[]) { return (extractPhysicsBehaviorProfileImpl as any)(this, ...args); }
+  /* @internal */ extractStructureToppleProfile(...args: any[]) { return (extractStructureToppleProfileImpl as any)(this, ...args); }
+  /* @internal */ extractMissileLauncherBuildingProfile(...args: any[]) { return (extractMissileLauncherBuildingProfileImpl as any)(this, ...args); }
+  /* @internal */ extractParticleUplinkCannonProfile(...args: any[]) { return (extractParticleUplinkCannonProfileImpl as any)(this, ...args); }
+  /* @internal */ extractNeutronMissileUpdateProfile(...args: any[]) { return (extractNeutronMissileUpdateProfileImpl as any)(this, ...args); }
+  /* @internal */ extractSpecialAbilityProfile(...args: any[]) { return (extractSpecialAbilityProfileImpl as any)(this, ...args); }
+  /* @internal */ extractGenerateMinefieldProfile(...args: any[]) { return (extractGenerateMinefieldProfileImpl as any)(this, ...args); }
+  /* @internal */ extractCreateCrateDieProfile(...args: any[]) { return (extractCreateCrateDieProfileImpl as any)(this, ...args); }
+  /* @internal */ extractSalvageCrateProfile(...args: any[]) { return (extractSalvageCrateProfileImpl as any)(this, ...args); }
+  /* @internal */ extractCrateCollideProfile(...args: any[]) { return (extractCrateCollideProfileImpl as any)(this, ...args); }
+  /* @internal */ extractDeployStyleProfile(...args: any[]) { return (extractDeployStyleProfileImpl as any)(this, ...args); }
+  /* @internal */ extractBattlePlanProfile(...args: any[]) { return (extractBattlePlanProfileImpl as any)(this, ...args); }
+  /* @internal */ extractHeightDieProfile(...args: any[]) { return (extractHeightDieProfileImpl as any)(this, ...args); }
+  /* @internal */ extractProjectileStreamProfile(...args: any[]) { return (extractProjectileStreamProfileImpl as any)(this, ...args); }
+  /* @internal */ extractBoneFXProfile(...args: any[]) { return (extractBoneFXProfileImpl as any)(this, ...args); }
+  /* @internal */ extractSlowDeathProfiles(...args: any[]) { return (extractSlowDeathProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractHelicopterSlowDeathProfiles(...args: any[]) { return (extractHelicopterSlowDeathProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractCleanupHazardProfile(...args: any[]) { return (extractCleanupHazardProfileImpl as any)(this, ...args); }
+  /* @internal */ extractAssistedTargetingProfile(...args: any[]) { return (extractAssistedTargetingProfileImpl as any)(this, ...args); }
+  /* @internal */ extractStructureCollapseProfile(...args: any[]) { return (extractStructureCollapseProfileImpl as any)(this, ...args); }
+  /* @internal */ extractEmpUpdateProfile(...args: any[]) { return (extractEmpUpdateProfileImpl as any)(this, ...args); }
+  /* @internal */ extractHijackerUpdateProfile(...args: any[]) { return (extractHijackerUpdateProfileImpl as any)(this, ...args); }
+  /* @internal */ extractLeafletDropProfile(...args: any[]) { return (extractLeafletDropProfileImpl as any)(this, ...args); }
+  /* @internal */ extractSmartBombProfile(...args: any[]) { return (extractSmartBombProfileImpl as any)(this, ...args); }
+  /* @internal */ extractDynamicGeometryProfile(...args: any[]) { return (extractDynamicGeometryProfileImpl as any)(this, ...args); }
+  /* @internal */ extractFirestormDamageProfile(...args: any[]) { return (extractFirestormDamageProfileImpl as any)(this, ...args); }
+  /* @internal */ extractFireOCLAfterCooldownProfiles(...args: any[]) { return (extractFireOCLAfterCooldownProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractNeutronBlastProfile(...args: any[]) { return (extractNeutronBlastProfileImpl as any)(this, ...args); }
+  /* @internal */ extractBunkerBusterProfile(...args: any[]) { return (extractBunkerBusterProfileImpl as any)(this, ...args); }
+  /* @internal */ extractNeutronMissileSlowDeathProfile(...args: any[]) { return (extractNeutronMissileSlowDeathProfileImpl as any)(this, ...args); }
+  /* @internal */ extractTechBuildingProfile(...args: any[]) { return (extractTechBuildingProfileImpl as any)(this, ...args); }
+  /* @internal */ extractSupplyWarehouseCripplingProfile(...args: any[]) { return (extractSupplyWarehouseCripplingProfileImpl as any)(this, ...args); }
+  /* @internal */ extractInstantDeathProfiles(...args: any[]) { return (extractInstantDeathProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractFireWeaponWhenDeadProfiles(...args: any[]) { return (extractFireWeaponWhenDeadProfilesImpl as any)(this, ...args); }
+  /* @internal */ extractMinefieldProfile(...args: any[]) { return (extractMinefieldProfileImpl as any)(this, ...args); }
+  /* @internal */ extractEjectPilotTemplateName(...args: any[]) { return (extractEjectPilotTemplateNameImpl as any)(this, ...args); }
+  private extractRailedTransportProfile(...args: any[]) { return (extractRailedTransportProfileImpl as any)(...args); }
+  /* @internal */ extractPowerPlantUpdateProfile(...args: any[]) { return (extractPowerPlantUpdateProfileImpl as any)(this, ...args); }
+  /* @internal */ extractUpgradeModules(...args: any[]) { return (extractUpgradeModulesImpl as any)(this, ...args); }
+  /* @internal */ extractSpecialPowerModules(...args: any[]) { return (extractSpecialPowerModulesImpl as any)(this, ...args); }
+  private extractUpgradeModulesFromBlocks(...args: any[]) { return (extractUpgradeModulesFromBlocksImpl as any)(...args); }
+  private spawnEntityFromTemplate(...args: any[]) { return (spawnEntityFromTemplateImpl as any)(this, ...args); }
 
   // ---- Command dispatch facades (delegate to command-dispatch.ts) ----
 
@@ -10134,8 +10325,8 @@ export class GameLogicSubsystem implements Subsystem {
   private updateJetSlowDeath(...args: any[]) { return (updateJetSlowDeathImpl as any)(this, ...args); }
   private markEntityDestroyed(...args: any[]) { return (markEntityDestroyedImpl as any)(this, ...args); }
   /* @internal */ tryEjectPilotOnDeath(...args: any[]) { return (tryEjectPilotOnDeathImpl as any)(this, ...args); }
-  private hasKeepObjectDie(...args: any[]) { return (hasKeepObjectDieImpl as any)(this, ...args); }
-  private extractDeathOCLEntries(...args: any[]) { return (extractDeathOCLEntriesImpl as any)(this, ...args); }
+  /* @internal */ hasKeepObjectDie(...args: any[]) { return (hasKeepObjectDieImpl as any)(this, ...args); }
+  /* @internal */ extractDeathOCLEntries(...args: any[]) { return (extractDeathOCLEntriesImpl as any)(this, ...args); }
   /* @internal */ executeDeathOCLs(...args: any[]) { return (executeDeathOCLsImpl as any)(this, ...args); }
   /* @internal */ executeInstantDeathModules(...args: any[]) { return (executeInstantDeathModulesImpl as any)(this, ...args); }
   /* @internal */ executeFXListDieModules(...args: any[]) { return (executeFXListDieModulesImpl as any)(this, ...args); }
@@ -15664,918 +15855,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.clearSpawnedObjects();
   }
 
-  private createMapEntity(
-    mapObject: MapObjectJSON,
-    objectDef: ObjectDef | undefined,
-    iniDataRegistry: IniDataRegistry,
-    heightmap: HeightmapGrid | null,
-  ): MapEntity {
-    const kindOf = objectDef?.kindOf;
-    const category = this.inferCategory(kindOf, objectDef?.fields.KindOf);
-    const normalizedKindOf = this.normalizeKindOf(kindOf);
-    const isResolved = objectDef !== undefined;
-    const objectId = this.nextId++;
-    const controllingPlayerToken = this.resolveMapObjectControllingPlayerToken(mapObject);
-    const scriptName = this.resolveMapObjectScriptName(mapObject);
-    const renderAssetProfile = this.resolveRenderAssetProfile(objectDef);
-
-    const nominalHeight = nominalHeightForCategory(category);
-
-    const locomotorSetProfiles = this.resolveLocomotorProfiles(objectDef, iniDataRegistry);
-    const upgradeModules = this.extractUpgradeModules(objectDef);
-    const productionProfile = this.extractProductionProfile(objectDef);
-    const queueProductionExitProfile = this.extractQueueProductionExitProfile(objectDef);
-    const parkingPlaceProfile = this.extractParkingPlaceProfile(objectDef);
-    const flightDeckProfile = this.extractFlightDeckProfile(objectDef);
-    const containProfile = this.extractContainProfile(objectDef);
-    const supplyWarehouseProfile = this.extractSupplyWarehouseProfile(objectDef);
-    const supplyTruckProfile = this.extractSupplyTruckProfile(objectDef);
-    const chinookAIProfile = this.extractChinookAIProfile(objectDef);
-    const repairDockProfile = this.extractRepairDockProfile(objectDef);
-    const commandButtonHuntProfile = this.extractCommandButtonHuntProfile(objectDef);
-    const dozerAIProfile = this.extractDozerAIProfile(objectDef);
-    const isSupplyCenter = this.detectIsSupplyCenter(objectDef);
-    const experienceProfile = this.extractExperienceProfile(objectDef);
-    const visionRangeFromTemplate = readNumericField(objectDef?.fields ?? {}, ['VisionRange']) ?? 0;
-    const shroudClearingRangeFromTemplateRaw = readNumericField(objectDef?.fields ?? {}, ['ShroudClearingRange']);
-    // Source parity: Object ctor falls back to vision range when template shroud-clearing range is -1.
-    const shroudClearingRangeFromTemplate =
-      shroudClearingRangeFromTemplateRaw !== null
-      && Number.isFinite(shroudClearingRangeFromTemplateRaw)
-      && shroudClearingRangeFromTemplateRaw >= 0
-        ? shroudClearingRangeFromTemplateRaw
-        : visionRangeFromTemplate;
-    const ambientSoundProfile = this.extractAmbientSoundProfile(objectDef);
-    const jetAIProfile = this.extractJetAIProfile(objectDef);
-    const animationSteeringProfile = this.extractAnimationSteeringProfile(objectDef);
-    const tensileFormationProfile = this.extractTensileFormationProfile(objectDef);
-    const weaponTemplateSets = this.extractWeaponTemplateSets(objectDef);
-    const armorTemplateSets = this.extractArmorTemplateSets(objectDef);
-    const attackWeapon = this.resolveAttackWeaponProfile(objectDef, iniDataRegistry);
-    const specialPowerModules = this.extractSpecialPowerModules(objectDef);
-    const bodyStats = this.resolveBodyStats(objectDef);
-    const energyBonus = readNumericField(objectDef?.fields ?? {}, ['EnergyBonus']) ?? 0;
-    const largestWeaponRange = this.resolveLargestWeaponRange(objectDef, iniDataRegistry);
-    const totalWeaponAntiMask = this.resolveTotalWeaponAntiMaskForSetSelection(
-      weaponTemplateSets, 0, iniDataRegistry,
-    );
-    const armorDamageCoefficients = this.resolveArmorDamageCoefficientsForSetSelection(
-      armorTemplateSets,
-      0,
-      iniDataRegistry,
-    );
-    const locomotorProfile = locomotorSetProfiles.get(LOCOMOTORSET_NORMAL) ?? {
-      surfaceMask: NO_SURFACES,
-      downhillOnly: false,
-      movementSpeed: 0,
-      minSpeed: 0,
-      acceleration: 0,
-      braking: 0,
-      turnRate: 0,
-      appearance: 'OTHER',
-      wanderAboutPointRadius: 0,
-      preferredHeight: 0,
-      preferredHeightDamping: 1,
-    };
-    const combatProfile = this.resolveCombatCollisionProfile(objectDef);
-    const attackNeedsLineOfSight = normalizedKindOf.has('ATTACK_NEEDS_LINE_OF_SIGHT');
-    const isImmobile = normalizedKindOf.has('IMMOBILE');
-    const blocksPath = this.shouldPathfindObstacle(objectDef);
-    // Source parity: mines don't block pathfinding but still need collision geometry
-    // for MinefieldBehavior::onCollide. Crushers need geometry for crush overlap detection.
-    // Crates need geometry for CrateCollide::onCollide collection radius.
-    // DynamicGeometryInfoUpdate / FirestormDynamicGeometryInfoUpdate morph obstacle geometry at runtime.
-    const hasDynamicGeometryModule = objectDef?.blocks.some(b => {
-      const mt = b.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      return mt === 'DYNAMICGEOMETRYINFOUPDATE' || mt === 'FIRESTORMDYNAMICGEOMETRYINFOUPDATE';
-    }) ?? false;
-    const needsGeometry = blocksPath || normalizedKindOf.has('MINE') || normalizedKindOf.has('CRATE') || combatProfile.crusherLevel > 0 || hasDynamicGeometryModule;
-    const obstacleGeometry = needsGeometry ? this.resolveObstacleGeometry(objectDef) : null;
-    const obstacleFootprint = blocksPath ? this.footprintInCells(category, objectDef, obstacleGeometry) : 0;
-    const { pathDiameter, pathfindCenterInCell } = this.resolvePathRadiusAndCenter(category, objectDef, obstacleGeometry);
-    const geometryMajorRadius = objectDef
-      ? (this.pathDiameterFromGeometryFields(objectDef)
-        ?? obstacleGeometry?.majorRadius
-        ?? MAP_XY_FACTOR / 2)
-      : MAP_XY_FACTOR / 2;
-    const [worldX, worldY, worldZ] = this.objectToWorldPosition(mapObject, heightmap);
-    const baseHeight = nominalHeight / 2;
-    const x = worldX;
-    const y = worldY + baseHeight;
-    const z = worldZ;
-    const rotationY = THREE.MathUtils.degToRad(mapObject.angle);
-    const bridgeFlags = mapObject.flags & (OBJECT_FLAG_BRIDGE_POINT1 | OBJECT_FLAG_BRIDGE_POINT2);
-    const mapCellX = Math.floor(mapObject.position.x / MAP_XY_FACTOR);
-    const mapCellZ = Math.floor(mapObject.position.y / MAP_XY_FACTOR);
-
-    const [posCellX, posCellZ] = this.worldToGrid(x, z);
-    const initialClipAmmo = attackWeapon && attackWeapon.clipSize > 0 ? attackWeapon.clipSize : 0;
-    const initialScatterTargetsUnused = attackWeapon
-      ? Array.from({ length: attackWeapon.scatterTargets.length }, (_entry, index) => index)
-      : [];
-    const normalizedOriginalSide = this.normalizeSide(objectDef?.side ?? '');
-
-    const entity: MapEntity = {
-      id: objectId,
-      templateName: mapObject.templateName,
-      scriptName,
-      category,
-      kindOf: normalizedKindOf,
-      side: objectDef?.side,
-      originalOwningSide: normalizedOriginalSide,
-      capturedFromOriginalOwner: false,
-      controllingPlayerToken,
-      resolved: isResolved,
-      bridgeFlags,
-      mapCellX,
-      mapCellZ,
-      renderAssetCandidates: renderAssetProfile.renderAssetCandidates,
-      renderAssetPath: renderAssetProfile.renderAssetPath,
-      renderAssetResolved: renderAssetProfile.renderAssetResolved,
-      renderAnimationStateClips: renderAssetProfile.renderAnimationStateClips,
-      modelConditionInfos: renderAssetProfile.modelConditionInfos,
-      transitionInfos: renderAssetProfile.transitionInfos,
-      x,
-      y,
-      z,
-      rotationY,
-      animationState: 'IDLE',
-      baseHeight,
-      nominalHeight,
-      selected: false,
-      crusherLevel: combatProfile.crusherLevel,
-      crushableLevel: combatProfile.crushableLevel,
-      canBeSquished: combatProfile.canBeSquished,
-      isUnmanned: combatProfile.isUnmanned,
-      attackNeedsLineOfSight,
-      isImmobile,
-      noCollisions: false,
-      isIndestructible: false,
-      receivingDifficultyBonus: this.scriptObjectsReceiveDifficultyBonus,
-      scriptAiRecruitable: true,
-      scriptAttackPrioritySetName: '',
-      scriptAttitude: SCRIPT_AI_ATTITUDE_NORMAL,
-      keepObjectOnDeath: this.hasKeepObjectDie(objectDef),
-      canMove: category === 'infantry' || category === 'vehicle' || category === 'air',
-      locomotorSets: locomotorSetProfiles,
-      completedUpgrades: new Set<string>(),
-      locomotorUpgradeTriggers: new Set<string>(),
-      executedUpgradeModules: new Set<string>(),
-      upgradeModules,
-      objectStatusFlags: new Set<string>(),
-      modelConditionFlags: new Set<string>(),
-      scriptFlashCount: 0,
-      scriptFlashColor: 0,
-      scriptAmbientSoundEnabled: true,
-      scriptAmbientSoundRevision: 0,
-      ambientSoundProfile,
-      ambientSoundForcedOffExceptRubble: false,
-      ambientSoundCustomState: null,
-      customIndicatorColor: null,
-      commandSetStringOverride: null,
-      locomotorUpgradeEnabled: false,
-      specialPowerModules,
-      lastSpecialPowerDispatch: null,
-      activeLocomotorSet: LOCOMOTORSET_NORMAL,
-      locomotorSurfaceMask: locomotorProfile.surfaceMask,
-      locomotorDownhillOnly: locomotorProfile.downhillOnly,
-      bodyType: bodyStats.bodyType,
-      hiveStructureProfile: this.extractHiveStructureProfile(objectDef, bodyStats.bodyType),
-      // Source parity: UndeadBody — second life config and runtime state.
-      undeadSecondLifeMaxHealth: bodyStats.secondLifeMaxHealth,
-      undeadIsSecondLife: false,
-      canTakeDamage: bodyStats.bodyType !== 'INACTIVE' && bodyStats.maxHealth > 0,
-      maxHealth: bodyStats.maxHealth,
-      initialHealth: bodyStats.initialHealth,
-      health: bodyStats.bodyType === 'INACTIVE' ? 0 : bodyStats.initialHealth,
-      energyBonus,
-      attackWeapon,
-      weaponTemplateSets,
-      weaponSetFlagsMask: 0,
-      weaponBonusConditionFlags: 0,
-      forcedWeaponSlot: null,
-      weaponLockStatus: 'NOT_LOCKED' as const,
-      maxShotsRemaining: 0,
-      leechRangeActive: false,
-      turretProfiles: this.extractTurretProfiles(objectDef),
-      turretStates: [], // Initialized after entity creation below.
-      armorTemplateSets,
-      armorSetFlagsMask: 0,
-      armorDamageCoefficients,
-      attackTargetEntityId: null,
-      attackTargetPosition: null,
-      attackOriginalVictimPosition: null,
-      attackCommandSource: 'AI',
-      attackSubState: 'IDLE',
-      nextAttackFrame: 0,
-      attackCooldownRemaining: 0,
-      attackAmmoInClip: initialClipAmmo,
-      attackReloadFinishFrame: 0,
-      attackForceReloadFrame: 0,
-      attackScatterTargetsUnused: initialScatterTargetsUnused,
-      preAttackFinishFrame: 0,
-      consecutiveShotsTargetEntityId: null,
-      consecutiveShotsAtTarget: 0,
-      continuousFireState: 'NONE',
-      continuousFireCooldownFrame: 0,
-      sneakyOffsetWhenAttacking: jetAIProfile?.sneakyOffsetWhenAttacking ?? 0,
-      attackersMissPersistFrames: jetAIProfile?.attackersMissPersistFrames ?? 0,
-      attackersMissExpireFrame: 0,
-      productionProfile,
-      productionQueue: [],
-      productionNextId: 1,
-      queueProductionExitProfile,
-      spawnPointExitState: null,
-      rallyPoint: null,
-      parkingPlaceProfile,
-      containProfile,
-      scriptEvacDisposition: 0,
-      queueProductionExitDelayFramesRemaining: 0,
-      queueProductionExitBurstRemaining: queueProductionExitProfile?.initialBurst ?? 0,
-      parkingSpaceProducerId: null,
-      helixCarrierId: null,
-      garrisonContainerId: null,
-      containPlayerEnteredSide: null,
-      containPlayerEnteredToken: null,
-      transportContainerId: null,
-      tunnelContainerId: null,
-      tunnelEnteredFrame: 0,
-      healContainEnteredFrame: 0,
-      initialPayloadCreated: false,
-      helixPortableRiderId: null,
-      slaverEntityId: null,
-      spawnBehaviorState: this.extractSpawnBehaviorState(objectDef),
-      pathDiameter,
-      pathfindCenterInCell,
-      blocksPath,
-      geometryMajorRadius,
-      obstacleGeometry,
-      obstacleFootprint,
-      largestWeaponRange,
-      totalWeaponAntiMask,
-      ignoredMovementObstacleId: null,
-      movePath: [],
-      pathIndex: 0,
-      moving: false,
-      speed: locomotorProfile.movementSpeed > 0 ? locomotorProfile.movementSpeed : this.config.defaultMoveSpeed,
-      currentSpeed: 0,
-      moveTarget: null,
-      scriptStoppingDistanceOverride: null,
-      pathfindGoalCell: null,
-      pathfindPosCell: (posCellX !== null && posCellZ !== null) ? { x: posCellX, z: posCellZ } : null,
-      supplyWarehouseProfile,
-      supplyTruckProfile,
-      chinookAIProfile,
-      chinookFlightStatus: chinookAIProfile ? 'FLYING' : null,
-      chinookFlightStatusEnteredFrame: chinookAIProfile ? this.frameCounter : 0,
-      chinookHealingAirfieldId: 0,
-      repairDockProfile,
-      commandButtonHuntProfile,
-      commandButtonHuntMode: 'NONE',
-      commandButtonHuntButtonName: '',
-      commandButtonHuntNextScanFrame: 0,
-      dozerAIProfile,
-      dozerIdleTooLongTimestamp: this.frameCounter,
-      dozerBuildTaskOrderFrame: 0,
-      dozerRepairTaskOrderFrame: 0,
-      isSupplyCenter,
-      experienceProfile,
-      experienceState: createExperienceStateImpl(),
-      visionRange: visionRangeFromTemplate,
-      shroudClearingRange: shroudClearingRangeFromTemplate,
-      visionState: createEntityVisionStateImpl(),
-      stealthProfile: this.extractStealthProfile(objectDef),
-      stealthDelayRemaining: 0,
-      detectedUntilFrame: 0,
-      lastDamageFrame: 0,
-      lastDamageNoEffect: false,
-      lastAttackerEntityId: null,
-      scriptLastDamageSourceEntityId: null,
-      scriptLastDamageSourceTemplateName: null,
-      scriptLastDamageSourceSide: null,
-      lastDamageInfoFrame: 0,
-      detectorProfile: this.extractDetectorProfile(objectDef),
-      detectorNextScanFrame: 0,
-      autoHealProfile: this.extractAutoHealProfile(objectDef),
-      autoHealNextFrame: 0,
-      autoHealDamageDelayUntilFrame: 0,
-      baseRegenDelayUntilFrame: 0,
-      propagandaTowerProfile: this.extractPropagandaTowerProfile(objectDef),
-      propagandaTowerNextScanFrame: 0,
-      propagandaTowerTrackedIds: [],
-      soleHealingBenefactorId: null,
-      soleHealingBenefactorExpirationFrame: 0,
-      autoTargetScanNextFrame: this.frameCounter + AUTO_TARGET_SCAN_RATE_FRAMES,
-      // Guard state
-      guardState: 'NONE' as GuardState,
-      guardPositionX: 0,
-      guardPositionZ: 0,
-      guardObjectId: 0,
-      guardAreaTriggerIndex: -1,
-      guardMode: 0,
-      guardNextScanFrame: 0,
-      guardChaseExpireFrame: 0,
-      guardInnerRange: 0,
-      guardOuterRange: 0,
-      // Poison DoT state
-      poisonedBehaviorProfile: this.extractPoisonedBehaviorProfile(objectDef),
-      poisonDamageAmount: 0,
-      poisonNextDamageFrame: 0,
-      poisonExpireFrame: 0,
-      // Fire DoT state
-      flameStatus: 'NORMAL' as const,
-      flameDamageAccumulated: 0,
-      flameEndFrame: 0,
-      flameBurnedEndFrame: 0,
-      flameDamageNextFrame: 0,
-      flameLastDamageReceivedFrame: 0,
-      flammableProfile: this.extractFlammableProfile(objectDef),
-      fireSpreadProfile: this.extractFireSpreadProfile(objectDef),
-      fireSpreadNextFrame: 0,
-      // Mine behavior
-      minefieldProfile: this.extractMinefieldProfile(objectDef),
-      mineVirtualMinesRemaining: 0,
-      mineImmunes: [],
-      mineDetonators: [],
-      mineScootFramesLeft: 0,
-      mineDraining: false,
-      mineRegenerates: false,
-      mineNextDeathCheckFrame: 0,
-      mineIgnoreDamage: false,
-      mineCreatorId: 0,
-      // Pilot eject
-      ejectPilotTemplateName: this.extractEjectPilotTemplateName(objectDef),
-      ejectPilotMinVeterancy: 1,
-      // Prone behavior
-      proneDamageToFramesRatio: this.extractProneDamageToFramesRatio(objectDef),
-      proneFramesRemaining: 0,
-      // Demo trap
-      demoTrapProfile: this.extractDemoTrapProfile(objectDef),
-      demoTrapNextScanFrame: 0,
-      demoTrapDetonated: false,
-      demoTrapProximityMode: false,
-      // Rebuild hole expose die (buildings)
-      rebuildHoleExposeDieProfile: this.extractRebuildHoleExposeDieProfile(objectDef),
-      // Rebuild hole behavior (holes)
-      rebuildHoleProfile: this.extractRebuildHoleBehaviorProfile(objectDef),
-      rebuildHoleWorkerEntityId: 0,
-      rebuildHoleReconstructingEntityId: 0,
-      rebuildHoleSpawnerEntityId: 0,
-      rebuildHoleWorkerWaitCounter: 0,
-      rebuildHoleRebuildTemplateName: '',
-      rebuildHoleMasked: false,
-      // Auto deposit
-      autoDepositProfile: this.extractAutoDepositProfile(objectDef),
-      autoDepositNextFrame: 0,
-      autoDepositInitialized: false,
-      autoDepositCaptureBonusPending: false,
-      // Auto-find-healing
-      autoFindHealingProfile: this.extractAutoFindHealingProfile(objectDef),
-      autoFindHealingNextScanFrame: 0,
-      // Death OCLs
-      deathOCLEntries: this.extractDeathOCLEntries(objectDef),
-      // Deploy state machine
-      deployStyleProfile: this.extractDeployStyleProfile(objectDef),
-      deployState: 'READY_TO_MOVE' as DeployState,
-      deployFrameToWait: 0,
-      // Construction state — born complete unless dozer-placed.
-      constructionPercent: CONSTRUCTION_COMPLETE,
-      builderId: 0,
-      buildTotalFrames: 0,
-      destroyed: false,
-      pendingDeathType: 'NORMAL',
-      // Lifetime
-      lifetimeDieFrame: this.resolveLifetimeDieFrame(objectDef),
-      // Height die
-      heightDieProfile: this.extractHeightDieProfile(objectDef),
-      heightDieActiveFrame: 0, // Set after first update.
-      heightDieLastY: 0,
-      // Deletion
-      deletionDieFrame: this.resolveDeletionDieFrame(objectDef),
-      // Sticky bomb
-      stickyBombProfile: this.extractStickyBombUpdateProfile(objectDef),
-      stickyBombTargetId: 0,
-      stickyBombDieFrame: 0,
-      // Fire weapon when damaged
-      fireWhenDamagedProfiles: this.extractFireWhenDamagedProfiles(objectDef),
-      // Fire weapon update (autonomous fire at own position)
-      fireWeaponUpdateProfiles: this.extractFireWeaponUpdateProfiles(objectDef),
-      fireWeaponUpdateNextFireFrames: [],
-      lastShotFiredFrame: 0,
-      // OCL update (periodic Object Creation List spawning)
-      oclUpdateProfiles: this.extractOCLUpdateProfiles(objectDef),
-      oclUpdateNextCreationFrames: [],
-      oclUpdateTimerStarted: [],
-      // Weapon bonus update (aura-based weapon bonus)
-      weaponBonusUpdateProfiles: this.extractWeaponBonusUpdateProfiles(objectDef),
-      weaponBonusUpdateNextPulseFrames: [],
-      // Temp weapon bonus (target side)
-      tempWeaponBonusFlag: 0,
-      tempWeaponBonusExpiryFrame: 0,
-      // Instant death die modules
-      instantDeathProfiles: this.extractInstantDeathProfiles(objectDef),
-      // Fire weapon when dead die modules
-      fireWeaponWhenDeadProfiles: this.extractFireWeaponWhenDeadProfiles(objectDef),
-      // Slow death
-      slowDeathProfiles: this.extractSlowDeathProfiles(objectDef),
-      slowDeathState: null,
-      // Structure collapse
-      structureCollapseProfile: this.extractStructureCollapseProfile(objectDef),
-      structureCollapseState: null,
-      // EMP update (pulse field that disables nearby entities)
-      empUpdateProfile: this.extractEmpUpdateProfile(objectDef),
-      empUpdateState: null,
-      // Hijacker update (hide in vehicle, eject on death)
-      hijackerUpdateProfile: this.extractHijackerUpdateProfile(objectDef),
-      hijackerState: null,
-      // Leaflet drop (delayed radius disable)
-      leafletDropProfile: this.extractLeafletDropProfile(objectDef),
-      leafletDropState: null,
-      // SmartBomb target homing (course correction for falling projectiles)
-      smartBombProfile: this.extractSmartBombProfile(objectDef),
-      smartBombState: null,
-      // Dynamic geometry (collision shape morphing)
-      dynamicGeometryProfile: this.extractDynamicGeometryProfile(objectDef),
-      dynamicGeometryState: null,
-      // Firestorm damage pulse (extends DynamicGeometryInfoUpdate)
-      firestormDamageProfile: this.extractFirestormDamageProfile(objectDef),
-      firestormDamageState: null,
-      // Fire OCL after weapon cooldown
-      fireOCLAfterCooldownProfiles: this.extractFireOCLAfterCooldownProfiles(objectDef),
-      fireOCLAfterCooldownStates: [],
-      // Neutron blast (death-triggered radius effect)
-      neutronBlastProfile: this.extractNeutronBlastProfile(objectDef),
-      // Bunker buster (kills garrisoned units on bomb death)
-      bunkerBusterProfile: this.extractBunkerBusterProfile(objectDef),
-      bunkerBusterVictimId: null,
-      // Grant stealth (GPS Scrambler expanding radius)
-      grantStealthProfile: this.extractGrantStealthProfile(objectDef),
-      grantStealthCurrentRadius: 0,
-      // Neutron missile slow death (timed blast waves)
-      neutronMissileSlowDeathProfile: this.extractNeutronMissileSlowDeathProfile(objectDef),
-      neutronMissileSlowDeathState: null,
-      // Helicopter slow death (spiral crash)
-      helicopterSlowDeathProfiles: this.extractHelicopterSlowDeathProfiles(objectDef),
-      helicopterSlowDeathState: null,
-      // Jet slow death (roll + forward motion + FX timeline)
-      jetSlowDeathProfiles: this.extractJetSlowDeathProfiles(objectDef),
-      jetSlowDeathState: null,
-      // Cleanup hazard (workers scan and clean hazards)
-      cleanupHazardProfile: this.extractCleanupHazardProfile(objectDef),
-      cleanupHazardState: null,
-      // Assisted targeting (laser designation)
-      assistedTargetingProfile: this.extractAssistedTargetingProfile(objectDef),
-      // Tech building behavior (neutral buildings)
-      techBuildingProfile: this.extractTechBuildingProfile(objectDef),
-      // SupplyWarehouseCrippling
-      supplyWarehouseCripplingProfile: this.extractSupplyWarehouseCripplingProfile(objectDef),
-      swCripplingHealSuppressedUntilFrame: 0,
-      swCripplingNextHealFrame: 0,
-      swCripplingDockDisabled: false,
-      // Generate minefield
-      generateMinefieldProfile: this.extractGenerateMinefieldProfile(objectDef),
-      generateMinefieldDone: false,
-      // Crate spawning on death
-      createCrateDieProfile: this.extractCreateCrateDieProfile(objectDef),
-      // Salvage crate collection
-      salvageCrateProfile: this.extractSalvageCrateProfile(objectDef),
-      crateCollideProfile: this.extractCrateCollideProfile(objectDef),
-      // Battle plan
-      battlePlanProfile: this.extractBattlePlanProfile(objectDef),
-      battlePlanState: null,
-      battlePlanDamageScalar: 1.0,
-      baseVisionRange: visionRangeFromTemplate,
-      baseShroudClearingRange: shroudClearingRangeFromTemplate,
-      // Point defense laser
-      pointDefenseLaserProfile: this.extractPointDefenseLaserProfile(objectDef),
-      pdlNextScanFrame: 0,
-      pdlTargetProjectileVisualId: 0,
-      pdlNextShotFrame: 0,
-      // Horde formation bonus
-      hordeProfile: this.extractHordeUpdateProfile(objectDef),
-      hordeNextCheckFrame: 0,
-      isInHorde: false,
-      isTrueHordeMember: false,
-      // EnemyNear
-      enemyNearScanDelayFrames: this.extractEnemyNearScanDelay(objectDef),
-      enemyNearNextScanCountdown: 0,
-      enemyNearDetected: false,
-      // Slaved update (slave following behavior)
-      slavedUpdateProfile: this.extractSlavedUpdateProfile(objectDef),
-      slaveGuardOffsetX: 0,
-      slaveGuardOffsetZ: 0,
-      slavedNextUpdateFrame: 0,
-      // Countermeasures (aircraft flare defense)
-      countermeasuresProfile: this.extractCountermeasuresProfile(objectDef),
-      countermeasuresState: null,
-      // Pilot find vehicle
-      pilotFindVehicleProfile: this.extractPilotFindVehicleProfile(objectDef),
-      pilotFindVehicleNextScanFrame: 0,
-      pilotFindVehicleDidMoveToBase: false,
-      pilotFindVehicleTargetId: null,
-      // Topple
-      toppleProfile: this.extractToppleProfile(objectDef),
-      toppleState: 'NONE' as ToppleState,
-      toppleDirX: 0,
-      toppleDirZ: 0,
-      toppleAngularVelocity: 0,
-      toppleAngularAccumulation: 0,
-      toppleSpeed: 0,
-      // PhysicsBehavior (rigid body physics)
-      physicsBehaviorProfile: this.extractPhysicsBehaviorProfile(objectDef),
-      physicsBehaviorState: null,
-      // StructureToppleUpdate (building collapse)
-      structureToppleProfile: this.extractStructureToppleProfile(objectDef),
-      structureToppleState: null,
-      // MissileLauncherBuildingUpdate (SCUD Storm doors)
-      missileLauncherBuildingProfile: this.extractMissileLauncherBuildingProfile(objectDef),
-      missileLauncherBuildingState: null,
-      // ParticleUplinkCannonUpdate (Particle Cannon)
-      particleUplinkCannonProfile: this.extractParticleUplinkCannonProfile(objectDef),
-      particleUplinkCannonState: null,
-      // NeutronMissileUpdate (nuke missile flight)
-      neutronMissileUpdateProfile: this.extractNeutronMissileUpdateProfile(objectDef),
-      neutronMissileUpdateState: null,
-      // Special ability
-      specialAbilityProfile: this.extractSpecialAbilityProfile(objectDef),
-      specialAbilityState: null,
-      // RadarUpdate
-      radarUpdateProfile: this.extractRadarUpdateProfile(objectDef),
-      radarExtendDoneFrame: 0,
-      radarExtendComplete: false,
-      radarActive: false,
-      // FloatUpdate
-      floatUpdateProfile: this.extractFloatUpdateProfile(objectDef),
-      // WanderAIUpdate
-      hasWanderAI: this.hasModuleType(objectDef, 'WANDERAIUPDATE'),
-      // ScriptActions::doTeamWanderInPlace
-      scriptWanderInPlaceActive: false,
-      scriptWanderInPlaceOriginX: 0,
-      scriptWanderInPlaceOriginZ: 0,
-      // VeterancyGainCreate
-      veterancyGainCreateProfiles: this.extractVeterancyGainCreateProfiles(objectDef),
-      // FXListDie
-      fxListDieProfiles: this.extractFXListDieProfiles(objectDef),
-      // CrushDie
-      crushDieProfiles: this.extractCrushDieProfiles(objectDef),
-      // DestroyDie
-      destroyDieProfiles: this.extractDestroyDieProfiles(objectDef),
-      // DamDie
-      damDieProfiles: this.extractDamDieProfiles(objectDef),
-      // SpecialPowerCompletionDie
-      specialPowerCompletionDieProfiles: this.extractSpecialPowerCompletionDieProfiles(objectDef),
-      specialPowerCompletionCreatorId: 0,
-      specialPowerCompletionCreatorSet: false,
-      frontCrushed: false,
-      backCrushed: false,
-      // GrantUpgradeCreate
-      grantUpgradeCreateProfiles: this.extractGrantUpgradeCreateProfiles(objectDef),
-      // LockWeaponCreate
-      lockWeaponCreateSlot: this.extractLockWeaponCreateSlot(objectDef),
-      // UpgradeDie
-      upgradeDieProfiles: this.extractUpgradeDieProfiles(objectDef),
-      producerEntityId: 0,
-      // CheckpointUpdate
-      checkpointProfile: this.extractCheckpointProfile(objectDef),
-      checkpointAllyNear: false,
-      checkpointEnemyNear: false,
-      checkpointMaxMinorRadius: 0,
-      checkpointScanCountdown: 0,
-      // DynamicShroudClearingRangeUpdate
-      dynamicShroudProfile: this.extractDynamicShroudProfile(objectDef),
-      dynamicShroudState: 'NOT_STARTED' as DynamicShroudState,
-      dynamicShroudStateCountdown: 0,
-      dynamicShroudTotalFrames: 0,
-      dynamicShroudShrinkStartDeadline: 0,
-      dynamicShroudSustainDeadline: 0,
-      dynamicShroudGrowStartDeadline: 0,
-      dynamicShroudDoneForeverFrame: 0,
-      dynamicShroudChangeIntervalCountdown: 0,
-      dynamicShroudNativeClearingRange: 0,
-      dynamicShroudCurrentClearingRange: 0,
-      // JetAI
-      jetAIProfile,
-      jetAIState: null,
-      // AnimationSteeringUpdate
-      animationSteeringProfile,
-      animationSteeringCurrentTurnAnim: null,
-      animationSteeringNextTransitionFrame: 0,
-      animationSteeringLastRotationY: rotationY,
-      tensileFormationProfile,
-      tensileFormationState: tensileFormationProfile ? {
-        enabled: tensileFormationProfile.enabled,
-        linksInited: false,
-        links: [
-          { id: 0, tensorX: 0, tensorZ: 0 },
-          { id: 0, tensorX: 0, tensorZ: 0 },
-          { id: 0, tensorX: 0, tensorZ: 0 },
-          { id: 0, tensorX: 0, tensorZ: 0 },
-        ],
-        inertiaX: 0,
-        inertiaZ: 0,
-        motionlessCounter: 0,
-        life: 0,
-        lowestSlideElevation: 255,
-        nextWakeFrame: 0,
-        footprintRemoved: false,
-        originalBlocksPath: blocksPath,
-        done: false,
-      } : null,
-      // AssaultTransport
-      assaultTransportProfile: this.extractAssaultTransportProfile(objectDef),
-      // PowerPlantUpdate
-      powerPlantUpdateProfile: this.extractPowerPlantUpdateProfile(objectDef),
-      powerPlantUpdateState: null,
-      // SpecialPowerCreate
-      hasSpecialPowerCreate: this.hasModuleType(objectDef, 'SPECIALPOWERCREATE'),
-      shroudRange: 0,
-      // SubdualDamageHelper
-      subdualDamageCap: bodyStats.subdualDamageCap,
-      subdualDamageHealRate: bodyStats.subdualDamageHealRate,
-      subdualDamageHealAmount: bodyStats.subdualDamageHealAmount,
-      currentSubdualDamage: 0,
-      subdualHealingCountdown: 0,
-      // ModelConditionFlags entity state
-      cheerTimerFrames: 0,
-      raisingFlagTimerFrames: 0,
-      explodedState: 'NONE' as const,
-      battleBusEmptyHulkDestroyFrame: 0,
-      // Projectile stream tracking (toxin/flamethrower beams)
-      projectileStreamProfile: this.extractProjectileStreamProfile(objectDef),
-      projectileStreamState: null,
-      // MobMemberSlavedUpdate (angry mob member behavior)
-      mobMemberProfile: this.extractMobMemberSlavedUpdateProfile(objectDef),
-      mobMemberState: null,
-      // BoneFXUpdate (bone-attached visual effects per damage state)
-      boneFXProfile: this.extractBoneFXProfile(objectDef),
-      boneFXState: null,
-      // RadiusDecalUpdate (ground radius decals — programmatically created, not INI-driven)
-      radiusDecalStates: [],
-      // Bridge behavior (bridge lifecycle manager)
-      bridgeBehaviorProfile: this.extractBridgeBehaviorProfile(objectDef),
-      bridgeBehaviorState: null,
-      // Bridge tower behavior (corner towers attached to bridges)
-      bridgeTowerProfile: this.extractBridgeTowerProfile(objectDef),
-      bridgeTowerState: null,
-      // Bridge scaffold behavior (scaffold animation)
-      bridgeScaffoldState: null,
-      // Flight deck (aircraft carrier)
-      flightDeckProfile,
-      flightDeckState: null,
-      // SpectreGunship (gunship orbital flight + weapons)
-      spectreGunshipProfile: this.extractSpectreGunshipUpdateProfile(objectDef),
-      spectreGunshipState: null,
-      // SpectreGunshipDeployment (command center deployment)
-      spectreGunshipDeploymentProfile: this.extractSpectreGunshipDeploymentProfile(objectDef),
-    };
-
-    this.applyMapObjectCoreProperties(entity, mapObject);
-    this.applyMapObjectAmbientSoundProperties(entity, mapObject, iniDataRegistry);
-
-    // Source parity: PowerPlantUpdate init — extended=false, sleeping forever.
-    if (entity.powerPlantUpdateProfile) {
-      entity.powerPlantUpdateState = { extended: false, upgradeFinishFrame: 0 };
-    }
-
-    // Source parity: TurretAI init — create runtime state for each turret.
-    entity.turretStates = entity.turretProfiles.map((tp) => ({
-      currentAngle: tp.naturalAngle,
-      state: 'IDLE' as const,
-      holdUntilFrame: 0,
-    }));
-
-    // Source parity: StealthUpdate::init — InnateStealth sets CAN_STEALTH on creation.
-    if (entity.stealthProfile?.innateStealth) {
-      entity.objectStatusFlags.add('CAN_STEALTH');
-    }
-
-    // Source parity: StealthDetectorUpdate init — stagger initial scan with random offset.
-    if (entity.detectorProfile) {
-      entity.detectorNextScanFrame = this.frameCounter
-        + this.gameRandom.nextRange(1, entity.detectorProfile.detectionRate);
-    }
-
-    // Source parity: BattlePlanUpdate init — initialize state machine.
-    if (entity.battlePlanProfile) {
-      entity.battlePlanState = {
-        desiredPlan: 'NONE',
-        activePlan: 'NONE',
-        transitionStatus: 'IDLE',
-        transitionFinishFrame: 0,
-        idleCooldownFinishFrame: 0,
-      };
-    }
-
-    // Source parity: PointDefenseLaserUpdate init — stagger initial scan.
-    if (entity.pointDefenseLaserProfile) {
-      const rate = Math.max(1, entity.pointDefenseLaserProfile.scanRate);
-      entity.pdlNextScanFrame = this.frameCounter + this.gameRandom.nextRange(0, rate);
-    }
-
-    // Source parity: HordeUpdate init — stagger initial scan to spread load.
-    // C++ uses GameLogicRandomValue(1, delay) → [1, delay] inclusive.
-    if (entity.hordeProfile) {
-      const rate = Math.max(1, entity.hordeProfile.updateRate);
-      entity.hordeNextCheckFrame = this.frameCounter + this.gameRandom.nextRange(1, rate);
-    }
-
-    // Source parity: EnemyNearUpdate constructor — random initial delay for staggered scanning.
-    // C++ uses GameLogicRandomValue(0, m_enemyScanDelayTime).
-    if (entity.enemyNearScanDelayFrames > 0) {
-      entity.enemyNearNextScanCountdown = this.gameRandom.nextRange(0, entity.enemyNearScanDelayFrames);
-    }
-
-    // Source parity: DemoTrapUpdate::onObjectCreated — set initial mode.
-    if (entity.demoTrapProfile) {
-      entity.demoTrapProximityMode = entity.demoTrapProfile.defaultsToProximityMode;
-    }
-
-    // Source parity: SpecialAbilityUpdate::onObjectCreated — init state machine.
-    // Default to PACKED; if no unpack time or skipPackingWithNoTarget, start UNPACKED.
-    if (entity.specialAbilityProfile) {
-      const sap = entity.specialAbilityProfile;
-      const initialPacking: SpecialAbilityPackingState =
-        sap.unpackTimeFrames === 0 ? 'UNPACKED' : 'PACKED';
-      entity.specialAbilityState = {
-        active: false,
-        packingState: initialPacking,
-        prepFrames: 0,
-        animFrames: 0,
-        targetEntityId: null,
-        targetX: null,
-        targetZ: null,
-        withinStartAbilityRange: false,
-        noTargetCommand: false,
-        persistentTriggerCount: 0,
-      };
-    }
-
-    // Source parity: CountermeasuresBehavior::onObjectCreated — init state.
-    if (entity.countermeasuresProfile) {
-      const cp = entity.countermeasuresProfile;
-      entity.countermeasuresState = {
-        availableCountermeasures: cp.numberOfVolleys * cp.volleySize,
-        activeCountermeasures: 0,
-        flareIds: [],
-        reactionFrame: 0,
-        nextVolleyFrame: 0,
-        reloadFrame: 0,
-        incomingMissiles: 0,
-        divertedMissiles: 0,
-      };
-    }
-
-    // Source parity: CheckpointUpdate constructor — cache maxMinorRadius, random scan stagger.
-    if (entity.checkpointProfile) {
-      entity.checkpointMaxMinorRadius = entity.obstacleGeometry?.minorRadius ?? 0;
-      entity.checkpointScanCountdown = this.gameRandom.nextRange(0, entity.checkpointProfile.scanDelayFrames);
-    }
-
-    // Source parity: AutoDepositUpdate constructor — schedule first deposit.
-    // C++ line 78: m_depositOnFrame = TheGameLogic->getFrame() + m_depositFrame.
-    if (entity.autoDepositProfile) {
-      entity.autoDepositNextFrame = this.frameCounter + entity.autoDepositProfile.depositFrames;
-    }
-
-    // Source parity: DynamicShroudClearingRangeUpdate constructor — compute deadlines.
-    // C++ lines 89-133: timeline deadlines computed from profile timing values.
-    if (entity.dynamicShroudProfile) {
-      const prof = entity.dynamicShroudProfile;
-      const stateCountDown = prof.shrinkDelay + prof.shrinkTime;
-      entity.dynamicShroudStateCountdown = stateCountDown;
-      entity.dynamicShroudTotalFrames = Math.max(1, stateCountDown);
-      entity.dynamicShroudShrinkStartDeadline = stateCountDown - prof.shrinkDelay;
-      entity.dynamicShroudGrowStartDeadline = stateCountDown - prof.growDelay;
-      entity.dynamicShroudSustainDeadline = entity.dynamicShroudGrowStartDeadline - prof.growTime;
-      // Source parity: C++ DEBUG_ASSERTCRASH checks (DynamicShroudClearingRangeUpdate.cpp:104-105).
-      if (entity.dynamicShroudSustainDeadline < entity.dynamicShroudShrinkStartDeadline) {
-        console.warn(`DynamicShroudClearingRangeUpdate: sustainDeadline(${entity.dynamicShroudSustainDeadline}) < shrinkStartDeadline(${entity.dynamicShroudShrinkStartDeadline}) — invalid INI configuration`);
-      }
-      if (entity.dynamicShroudGrowStartDeadline < entity.dynamicShroudShrinkStartDeadline) {
-        console.warn(`DynamicShroudClearingRangeUpdate: growStartDeadline(${entity.dynamicShroudGrowStartDeadline}) < shrinkStartDeadline(${entity.dynamicShroudShrinkStartDeadline}) — invalid INI configuration`);
-      }
-      entity.dynamicShroudDoneForeverFrame = this.frameCounter + stateCountDown;
-      entity.dynamicShroudNativeClearingRange = entity.shroudClearingRange;
-      entity.dynamicShroudCurrentClearingRange = 0;
-      entity.dynamicShroudState = 'NOT_STARTED';
-      entity.dynamicShroudChangeIntervalCountdown = 0;
-    }
-
-    // Source parity: JetAIUpdate::onObjectCreated — init flight state machine.
-    // Map-placed aircraft start AIRBORNE (already flying). Produced aircraft are set
-    // to PARKED by applyQueueProductionExitPath.
-    if (jetAIProfile) {
-      // Source parity: cruise height from MinHeight INI field, fallback to 100.
-      // C++ uses locomotor preferredHeight as middle fallback but we don't parse that yet.
-      const cruiseHeight = jetAIProfile.minHeight > 0 ? jetAIProfile.minHeight : 100;
-      entity.jetAIState = {
-        state: 'AIRBORNE',
-        stateEnteredFrame: this.frameCounter,
-        allowAirLoco: true,
-        pendingCommand: null,
-        producerX: entity.x,
-        producerZ: entity.z,
-        returnToBaseFrame: 0,
-        attackLocoExpireFrame: 0,
-        useReturnLoco: false,
-        reloadDoneFrame: 0,
-        reloadTotalFrames: 0,
-        circlingNextCheckFrame: 0,
-        cruiseHeight,
-      };
-      // Map-placed aircraft are airborne.
-      entity.objectStatusFlags.add('AIRBORNE_TARGET');
-    }
-
-    // Source parity: FlightDeckBehavior::buildInfo — initialize flight deck parking/runway state.
-    if (flightDeckProfile) {
-      this.initializeFlightDeckState(entity, flightDeckProfile);
-    }
-
-    // Source parity: GrantUpgradeCreate::onCreate — grant upgrades on entity creation.
-    // C++ only grants in onCreate if ExemptStatus includes UNDER_CONSTRUCTION and entity
-    // is NOT currently under construction (i.e. placed fully built).
-    for (const prof of entity.grantUpgradeCreateProfiles) {
-      if (prof.exemptUnderConstruction && !entity.objectStatusFlags.has('UNDER_CONSTRUCTION')) {
-        this.applyGrantUpgradeCreate(entity, prof);
-      }
-    }
-
-    // Source parity: VeterancyGainCreate::onCreate — set min veterancy if player has science.
-    // C++ file: VeterancyGainCreate.cpp lines 81-93.
-    for (const prof of entity.veterancyGainCreateProfiles) {
-      if (prof.scienceRequired === null || this.hasSideScience(entity.side ?? '', prof.scienceRequired)) {
-        this.setMinVeterancyLevel(entity, prof.startingLevel);
-      }
-    }
-
-    // Source parity: LockWeaponCreate::onBuildComplete — lock weapon slot permanently.
-    // For non-building entities this fires immediately at creation.
-    if (entity.lockWeaponCreateSlot !== null && !entity.objectStatusFlags.has('UNDER_CONSTRUCTION')) {
-      entity.forcedWeaponSlot = entity.lockWeaponCreateSlot;
-      entity.weaponLockStatus = 'LOCKED_PERMANENTLY';
-    }
-
-    // Source parity: FireWeaponUpdate — initialize per-module fire timers with initial delay.
-    if (entity.fireWeaponUpdateProfiles.length > 0) {
-      entity.fireWeaponUpdateNextFireFrames = entity.fireWeaponUpdateProfiles.map(
-        p => this.frameCounter + p.initialDelayFrames,
-      );
-    }
-
-    // Source parity: OCLUpdate — initialize per-module creation timers (start at 0, first check sets timer).
-    if (entity.oclUpdateProfiles.length > 0) {
-      entity.oclUpdateNextCreationFrames = entity.oclUpdateProfiles.map(() => 0);
-      entity.oclUpdateTimerStarted = entity.oclUpdateProfiles.map(() => false);
-    }
-
-    // Source parity: WeaponBonusUpdate — initialize per-module pulse timers.
-    if (entity.weaponBonusUpdateProfiles.length > 0) {
-      entity.weaponBonusUpdateNextPulseFrames = entity.weaponBonusUpdateProfiles.map(() => 0);
-    }
-
-    // Source parity: GrantStealthBehavior — initialize scan radius from profile.
-    if (entity.grantStealthProfile) {
-      entity.grantStealthCurrentRadius = entity.grantStealthProfile.startRadius;
-    }
-
-    // Source parity: BoneFXUpdate::BoneFXUpdate — initialize runtime state if profile exists.
-    if (entity.boneFXProfile) {
-      const numStates = 4; // BODYDAMAGETYPE_COUNT
-      const numBones = 8; // BONE_FX_MAX_BONES
-      const makeFrameGrid = (): number[][] => {
-        const grid: number[][] = [];
-        for (let i = 0; i < numStates; i++) {
-          grid.push(new Array(numBones).fill(-1));
-        }
-        return grid;
-      };
-      entity.boneFXState = {
-        currentBodyState: 0,
-        active: false,
-        nextFXFrame: makeFrameGrid(),
-        nextOCLFrame: makeFrameGrid(),
-        nextParticleFrame: makeFrameGrid(),
-        activeParticleIds: [],
-        pendingVisualEvents: [],
-      };
-    }
-
-    // Source parity: BridgeBehavior — initialize bridge behavior state.
-    if (entity.bridgeBehaviorProfile) {
-      entity.bridgeBehaviorState = {
-        towerIds: [],
-        scaffoldIds: [],
-        isBridgeDestroyed: false,
-        bridgeCells: [],
-        deathFrame: 0,
-      };
-    }
-
-    return entity;
-  }
-
-  private resolveRenderAssetProfile(objectDef: ObjectDef | undefined): {
+  /* @internal */ resolveRenderAssetProfile(objectDef: ObjectDef | undefined): {
     renderAssetCandidates: string[];
     renderAssetPath: string | null;
     renderAssetResolved: boolean;
@@ -17104,7 +16384,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  private inferCategory(kindOf: string[] | undefined, fallbackKindOf?: unknown): ObjectCategory {
+  /* @internal */ inferCategory(kindOf: string[] | undefined, fallbackKindOf?: unknown): ObjectCategory {
     const kinds = kindOf ?? coerceStringArray(fallbackKindOf);
     if (kinds.length === 0) {
       return 'unknown';
@@ -17119,7 +16399,7 @@ export class GameLogicSubsystem implements Subsystem {
     return 'unknown';
   }
 
-  private shouldPathfindObstacle(objectDef: ObjectDef | undefined): boolean {
+  /* @internal */ shouldPathfindObstacle(objectDef: ObjectDef | undefined): boolean {
     return shouldPathfindObstacleImpl(
       objectDef,
       {
@@ -17131,7 +16411,7 @@ export class GameLogicSubsystem implements Subsystem {
     );
   }
 
-  private resolveLargestWeaponRange(objectDef: ObjectDef | undefined, iniDataRegistry: IniDataRegistry): number {
+  /* @internal */ resolveLargestWeaponRange(objectDef: ObjectDef | undefined, iniDataRegistry: IniDataRegistry): number {
     if (!objectDef) {
       return NO_ATTACK_DISTANCE;
     }
@@ -17141,25 +16421,6 @@ export class GameLogicSubsystem implements Subsystem {
       0,
       iniDataRegistry,
     );
-  }
-
-  private extractIniValueTokens(value: IniValue | undefined): string[][] {
-    if (typeof value === 'undefined') {
-      return [];
-    }
-    if (value === null) {
-      return [];
-    }
-    if (typeof value === 'string') {
-      return [value.split(/[\s,;|]+/).map((token) => token.trim()).filter(Boolean)];
-    }
-    if (typeof value === 'number' || typeof value === 'boolean') {
-      return [[String(value)]];
-    }
-    if (Array.isArray(value)) {
-      return value.flatMap((entry) => this.extractIniValueTokens(entry as IniValue));
-    }
-    return [];
   }
 
   private readIniFieldValue(fields: Record<string, IniValue>, fieldName: string): IniValue | undefined {
@@ -17181,81 +16442,7 @@ export class GameLogicSubsystem implements Subsystem {
     return trimmed.length > 0 ? trimmed : null;
   }
 
-  private extractDynamicAudioEventName(fields: Record<string, IniValue>, fieldName: string): string | null {
-    const value = this.readIniFieldValue(fields, fieldName);
-    for (const tokenGroup of this.extractIniValueTokens(value)) {
-      const eventName = tokenGroup[0]?.trim();
-      if (!eventName) {
-        continue;
-      }
-      const normalized = eventName.toUpperCase();
-      if (normalized === 'NONE' || normalized === 'NOSOUND') {
-        return null;
-      }
-      return eventName;
-    }
-    return null;
-  }
-
-  private extractAmbientSoundProfile(objectDef: ObjectDef | undefined): AmbientSoundProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    const pristine = this.extractDynamicAudioEventName(objectDef.fields, 'SoundAmbient');
-    const damaged = this.extractDynamicAudioEventName(objectDef.fields, 'SoundAmbientDamaged');
-    const reallyDamaged = this.extractDynamicAudioEventName(objectDef.fields, 'SoundAmbientReallyDamaged');
-    const rubble = this.extractDynamicAudioEventName(objectDef.fields, 'SoundAmbientRubble');
-    if (!pristine && !damaged && !reallyDamaged && !rubble) {
-      return null;
-    }
-    return {
-      pristine,
-      damaged,
-      reallyDamaged,
-      rubble,
-    };
-  }
-
-  private extractWeaponNamesFromTokens(tokens: string[]): string[] {
-    const filteredTokens = tokens.filter((token) => token.trim().length > 0).map((token) => token.trim());
-    if (filteredTokens.length === 0) {
-      return [];
-    }
-
-    const slotNames = new Set(['PRIMARY', 'SECONDARY', 'TERTIARY']);
-    const weapons: string[] = [];
-
-    let tokenIndex = 0;
-    while (tokenIndex < filteredTokens.length) {
-      const token = filteredTokens[tokenIndex]!;
-      const upperToken = token.toUpperCase();
-
-      if (slotNames.has(upperToken)) {
-        const weaponName = filteredTokens[tokenIndex + 1];
-        tokenIndex += 2;
-        if (weaponName === undefined) {
-          continue;
-        }
-        if (weaponName.toUpperCase() === 'NONE') {
-          continue;
-        }
-        weapons.push(weaponName);
-        continue;
-      }
-
-      if (upperToken === 'NONE') {
-        tokenIndex++;
-        continue;
-      }
-
-      weapons.push(token);
-      tokenIndex++;
-    }
-    return weapons;
-  }
-
-  private collectWeaponNamesInPriorityOrder(objectDef: ObjectDef): string[] {
+  /* @internal */ collectWeaponNamesInPriorityOrder(objectDef: ObjectDef): string[] {
     const slotPriority = new Map<string, number>([
       ['PRIMARY', 0],
       ['SECONDARY', 1],
@@ -17323,104 +16510,6 @@ export class GameLogicSubsystem implements Subsystem {
       .map((candidate) => candidate.name);
   }
 
-  private extractWeaponTemplateSets(objectDef: ObjectDef | undefined): WeaponTemplateSetProfile[] {
-    if (!objectDef) {
-      return [];
-    }
-
-    const sets: WeaponTemplateSetProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() === 'WEAPONSET') {
-        sets.push({
-          conditionsMask: this.extractConditionsMask(
-            this.readIniFieldValue(block.fields, 'Conditions'),
-            WEAPON_SET_FLAG_MASK_BY_NAME,
-          ),
-          weaponNamesBySlot: this.extractWeaponNamesBySlot(block.fields),
-        });
-      }
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    if (sets.length > 0) {
-      return sets;
-    }
-
-    const fallback = this.collectWeaponNamesInPriorityOrder(objectDef);
-    if (fallback.length === 0) {
-      return [];
-    }
-
-    const fallbackBySlot: [string | null, string | null, string | null] = [
-      fallback[0] ?? null,
-      fallback[1] ?? null,
-      fallback[2] ?? null,
-    ];
-    return [{ conditionsMask: 0, weaponNamesBySlot: fallbackBySlot }];
-  }
-
-  private extractArmorTemplateSets(objectDef: ObjectDef | undefined): ArmorTemplateSetProfile[] {
-    if (!objectDef) {
-      return [];
-    }
-
-    const sets: ArmorTemplateSetProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() === 'ARMORSET') {
-        sets.push({
-          conditionsMask: this.extractConditionsMask(
-            this.readIniFieldValue(block.fields, 'Conditions'),
-            ARMOR_SET_FLAG_MASK_BY_NAME,
-          ),
-          armorName: this.resolveIniFieldString(block.fields, 'Armor'),
-        });
-      }
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    if (sets.length > 0) {
-      return sets;
-    }
-
-    const fallbackArmor = this.resolveIniFieldString(objectDef.fields, 'Armor');
-    if (!fallbackArmor) {
-      return [];
-    }
-
-    return [{ conditionsMask: 0, armorName: fallbackArmor }];
-  }
-
-  private extractConditionsMask(value: IniValue | undefined, flagMaskByName: Map<string, number>): number {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return Math.max(0, Math.trunc(value));
-    }
-
-    let mask = 0;
-    for (const tokens of this.extractIniValueTokens(value)) {
-      for (const token of tokens) {
-        const normalized = token.trim().toUpperCase();
-        const bitMask = flagMaskByName.get(normalized);
-        if (bitMask !== undefined) {
-          mask |= bitMask;
-        }
-      }
-    }
-
-    return mask;
-  }
-
   private resolveWeaponRadiusAffectsMask(weaponDef: WeaponDef): number {
     const affectsValue = this.readIniFieldValue(weaponDef.fields, 'RadiusDamageAffects');
     if (typeof affectsValue === 'undefined') {
@@ -17435,47 +16524,6 @@ export class GameLogicSubsystem implements Subsystem {
       return WEAPON_COLLIDE_DEFAULT_MASK;
     }
     return this.extractConditionsMask(collideValue, WEAPON_COLLIDE_MASK_BY_NAME);
-  }
-
-  private extractWeaponNamesBySlot(fields: Record<string, IniValue>): [string | null, string | null, string | null] {
-    const slots: [string | null, string | null, string | null] = [null, null, null];
-
-    for (const [fieldName, fieldValue] of Object.entries(fields)) {
-      if (fieldName.toUpperCase() !== 'WEAPON') {
-        continue;
-      }
-
-      const tokenGroups = this.extractIniValueTokens(fieldValue);
-      if (
-        Array.isArray(fieldValue)
-        && fieldValue.every((entry) => typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean')
-      ) {
-        const inlineTokens = fieldValue
-          .map((entry) => String(entry).trim())
-          .filter((entry) => entry.length > 0);
-        if (inlineTokens.length > 0) {
-          tokenGroups.unshift(inlineTokens);
-        }
-      }
-
-      for (const tokens of tokenGroups) {
-        const slotName = tokens[0]?.trim().toUpperCase() ?? '';
-        const weaponName = tokens[1]?.trim();
-        if (!weaponName) {
-          continue;
-        }
-        const normalizedWeaponName = weaponName.toUpperCase() === 'NONE' ? null : weaponName;
-        if (slotName === 'PRIMARY') {
-          slots[0] = normalizedWeaponName;
-        } else if (slotName === 'SECONDARY') {
-          slots[1] = normalizedWeaponName;
-        } else if (slotName === 'TERTIARY') {
-          slots[2] = normalizedWeaponName;
-        }
-      }
-    }
-
-    return slots;
   }
 
   private selectBestSetByConditions<T extends { conditionsMask: number }>(
@@ -17775,7 +16823,7 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity: WeaponSet::m_totalAntiMask — bitwise OR of all weapon antiMasks in the
    * selected weapon set. Used for fast rejection in getAbleToAttackSpecificObject.
    */
-  private resolveTotalWeaponAntiMaskForSetSelection(
+  /* @internal */ resolveTotalWeaponAntiMaskForSetSelection(
     weaponTemplateSets: readonly WeaponTemplateSetProfile[],
     weaponSetFlagsMask: number,
     iniDataRegistry: IniDataRegistry,
@@ -17819,7 +16867,7 @@ export class GameLogicSubsystem implements Subsystem {
     return totalAntiMask;
   }
 
-  private resolveArmorDamageCoefficientsForSetSelection(
+  /* @internal */ resolveArmorDamageCoefficientsForSetSelection(
     armorTemplateSets: readonly ArmorTemplateSetProfile[],
     armorSetFlagsMask: number,
     iniDataRegistry: IniDataRegistry,
@@ -17899,7 +16947,7 @@ export class GameLogicSubsystem implements Subsystem {
     return null;
   }
 
-  private resolveBodyStats(objectDef: ObjectDef | undefined): {
+  /* @internal */ resolveBodyStats(objectDef: ObjectDef | undefined): {
     maxHealth: number;
     initialHealth: number;
     bodyType: BodyModuleType;
@@ -17991,43 +17039,7 @@ export class GameLogicSubsystem implements Subsystem {
     };
   }
 
-  /**
-   * Source parity: HiveStructureBody — extract damage redirection config from INI.
-   * Parses PropagateDamageTypesToSlavesWhenExisting and SwallowDamageTypesIfSlavesNotExisting.
-   */
-  private extractHiveStructureProfile(
-    objectDef: ObjectDef | undefined,
-    bodyType: BodyModuleType,
-  ): HiveStructureBodyProfile | null {
-    if (!objectDef || bodyType !== 'HIVE_STRUCTURE') return null;
-
-    const propagateTypes = new Set<string>();
-    const swallowTypes = new Set<string>();
-
-    for (const block of objectDef.blocks) {
-      if (block.type.toUpperCase() !== 'BODY') continue;
-      const moduleName = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleName !== 'HIVESTRUCTUREBODY') continue;
-
-      const propagateRaw = readStringField(block.fields, ['PropagateDamageTypesToSlavesWhenExisting']);
-      if (propagateRaw) {
-        for (const token of propagateRaw.trim().split(/\s+/)) {
-          if (token) propagateTypes.add(token.toUpperCase());
-        }
-      }
-      const swallowRaw = readStringField(block.fields, ['SwallowDamageTypesIfSlavesNotExisting']);
-      if (swallowRaw) {
-        for (const token of swallowRaw.trim().split(/\s+/)) {
-          if (token) swallowTypes.add(token.toUpperCase());
-        }
-      }
-      break;
-    }
-
-    return { propagateDamageTypes: propagateTypes, swallowDamageTypes: swallowTypes };
-  }
-
-  private parseUpgradeNames(value: IniValue | undefined): string[] {
+  /* @internal */ parseUpgradeNames(value: IniValue | undefined): string[] {
     if (value === undefined) {
       return [];
     }
@@ -18071,7 +17083,7 @@ export class GameLogicSubsystem implements Subsystem {
     return null;
   }
 
-  private parseObjectStatusNames(value: IniValue | undefined): string[] {
+  /* @internal */ parseObjectStatusNames(value: IniValue | undefined): string[] {
     if (value === undefined) {
       return [];
     }
@@ -18114,800 +17126,10 @@ export class GameLogicSubsystem implements Subsystem {
     return false;
   }
 
-  private extractProductionProfile(objectDef: ObjectDef | undefined): ProductionProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    let foundModule = false;
-    let maxQueueEntries = 9;
-    const quantityModifiers: Array<{ templateName: string; quantity: number }> = [];
-
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'PRODUCTIONUPDATE') {
-          foundModule = true;
-
-          const configuredMaxQueueEntries = readNumericField(block.fields, ['MaxQueueEntries']);
-          if (configuredMaxQueueEntries !== null && Number.isFinite(configuredMaxQueueEntries)) {
-            maxQueueEntries = Math.max(0, Math.trunc(configuredMaxQueueEntries));
-          }
-
-          for (const tokens of this.extractIniValueTokens(block.fields['QuantityModifier'])) {
-            const templateName = tokens[0]?.trim();
-            if (!templateName || templateName.toUpperCase() === 'NONE') {
-              continue;
-            }
-            const quantityRaw = tokens[1] !== undefined ? Number(tokens[1]) : 1;
-            const quantity = Number.isFinite(quantityRaw) ? Math.max(1, Math.trunc(quantityRaw)) : 1;
-            quantityModifiers.push({
-              templateName: templateName.toUpperCase(),
-              quantity,
-            });
-          }
-        }
-      }
-
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    if (!foundModule) {
-      return null;
-    }
-
-    return {
-      maxQueueEntries,
-      quantityModifiers,
-    };
-  }
-
-  private extractQueueProductionExitProfile(objectDef: ObjectDef | undefined): QueueProductionExitProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    let profile: QueueProductionExitProfile | null = null;
-
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) {
-        return;
-      }
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'QUEUEPRODUCTIONEXITUPDATE') {
-          const unitCreatePoint = readCoord3DField(block.fields, ['UnitCreatePoint']) ?? { x: 0, y: 0, z: 0 };
-          const naturalRallyPoint = readCoord3DField(block.fields, ['NaturalRallyPoint']);
-          const exitDelayMs = readNumericField(block.fields, ['ExitDelay']) ?? 0;
-          const initialBurstRaw = readNumericField(block.fields, ['InitialBurst']) ?? 0;
-          profile = {
-            moduleType: 'QUEUE',
-            unitCreatePoint,
-            naturalRallyPoint,
-            exitDelayFrames: this.msToLogicFrames(exitDelayMs),
-            allowAirborneCreation: readBooleanField(block.fields, ['AllowAirborneCreation']) === true,
-            initialBurst: Math.max(0, Math.trunc(initialBurstRaw)),
-            spawnPointBoneName: null,
-          };
-        } else if (moduleType === 'SUPPLYCENTERPRODUCTIONEXITUPDATE') {
-          const unitCreatePoint = readCoord3DField(block.fields, ['UnitCreatePoint']) ?? { x: 0, y: 0, z: 0 };
-          const naturalRallyPoint = readCoord3DField(block.fields, ['NaturalRallyPoint']);
-          profile = {
-            moduleType: 'SUPPLY_CENTER',
-            unitCreatePoint,
-            naturalRallyPoint,
-            exitDelayFrames: 0,
-            allowAirborneCreation: false,
-            initialBurst: 0,
-            spawnPointBoneName: null,
-          };
-        } else if (moduleType === 'SPAWNPOINTPRODUCTIONEXITUPDATE') {
-          // Source parity: SpawnPointProductionExitUpdate.cpp drives exits from named bone positions.
-          // This browser port currently lacks bone-space exit placement, so we deterministically
-          // use producer-local origin and emit no rally/airborne overrides.
-          const spawnPointBoneName = readStringField(block.fields, ['SpawnPointBoneName']);
-          profile = {
-            moduleType: 'SPAWN_POINT',
-            unitCreatePoint: { x: 0, y: 0, z: 0 },
-            naturalRallyPoint: null,
-            exitDelayFrames: 0,
-            allowAirborneCreation: false,
-            initialBurst: 0,
-            spawnPointBoneName: spawnPointBoneName ?? null,
-          };
-        }
-      }
-
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    return profile;
-  }
-
-  private extractContainProfile(objectDef: ObjectDef | undefined): ContainProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    let profile: ContainProfile | null = null;
-
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) {
-        return;
-      }
-      if (block.type.toUpperCase() !== 'BEHAVIOR') {
-        for (const child of block.blocks) {
-          visitBlock(child);
-        }
-        return;
-      }
-
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      const passengersAllowedRaw = readBooleanField(block.fields, ['PassengersAllowedToFire']);
-      const passengersAllowedToFire = passengersAllowedRaw === true;
-      const allowInsideKindOfTokens = readStringList(block.fields, ['AllowInsideKindOf'])
-        .map((kindOfName) => kindOfName.trim().toUpperCase())
-        .filter((kindOfName) => kindOfName.length > 0);
-      const forbidInsideKindOfTokens = readStringList(block.fields, ['ForbidInsideKindOf'])
-        .map((kindOfName) => kindOfName.trim().toUpperCase())
-        .filter((kindOfName) => kindOfName.length > 0);
-      const allowInsideKindOf = allowInsideKindOfTokens.length > 0 ? new Set<string>(allowInsideKindOfTokens) : null;
-      const forbidInsideKindOf = new Set<string>(forbidInsideKindOfTokens);
-      const allowAlliesInsideRaw = readBooleanField(block.fields, ['AllowAlliesInside']);
-      const allowEnemiesInsideRaw = readBooleanField(block.fields, ['AllowEnemiesInside']);
-      const allowNeutralInsideRaw = readBooleanField(block.fields, ['AllowNeutralInside']);
-      const allowAlliesInside = allowAlliesInsideRaw !== false;
-      const allowEnemiesInside = allowEnemiesInsideRaw !== false;
-      const allowNeutralInside = allowNeutralInsideRaw !== false;
-      const containMax = readNumericField(block.fields, ['ContainMax']) ?? 0;
-      // Source parity: TransportContainModuleData::m_slotCapacity — overrides ContainMax for transports.
-      const slotsRaw = readNumericField(block.fields, ['Slots']);
-      const payloadTemplateNames = readStringList(block.fields, ['PayloadTemplateName']).map((templateName) =>
-        templateName.toUpperCase(),
-      );
-      // Source parity: OpenContainModuleData — parsePercentToReal (INI percentage → 0-1 fraction).
-      const damagePercentRaw = readNumericField(block.fields, ['DamagePercentToUnits']);
-      const damagePercentToUnits = damagePercentRaw != null ? damagePercentRaw / 100 : 0;
-      // Source parity: OpenContainModuleData::m_isBurnedDeathToUnits — default TRUE.
-      const burnedDeathRaw = readBooleanField(block.fields, ['BurnedDeathToUnits']);
-      const burnedDeathToUnits = burnedDeathRaw !== false;
-      // Source parity: TransportContainModuleData::m_healthRegen (HealthRegen%PerSec).
-      const healthRegenRaw = readNumericField(block.fields, ['HealthRegen%PerSec']);
-      const healthRegenPercentPerSec = healthRegenRaw != null ? healthRegenRaw / 100 : 0;
-      // Source parity: TransportContainModuleData::m_initialPayload.
-      const initialPayloadRaw = readStringField(block.fields, ['InitialPayload']);
-      let initialPayloadTemplateName: string | null = null;
-      let initialPayloadCount = 0;
-      if (initialPayloadRaw) {
-        const payloadTokens = initialPayloadRaw.trim().split(/\s+/);
-        if (payloadTokens.length >= 1) {
-          initialPayloadTemplateName = payloadTokens[0]!;
-          initialPayloadCount = payloadTokens.length >= 2 ? (parseInt(payloadTokens[1]!, 10) || 1) : 1;
-        }
-      }
-
-      if (moduleType === 'OPENCONTAIN') {
-        profile = {
-          moduleType: 'OPEN',
-          allowInsideKindOf,
-          forbidInsideKindOf,
-          allowAlliesInside,
-          allowEnemiesInside,
-          allowNeutralInside,
-          passengersAllowedToFire,
-          passengersAllowedToFireDefault: passengersAllowedToFire,
-          garrisonCapacity: 0,
-          transportCapacity: containMax,
-          timeForFullHealFrames: 0,
-          damagePercentToUnits,
-          burnedDeathToUnits,
-          healthRegenPercentPerSec: 0,
-          initialPayloadTemplateName: null,
-          initialPayloadCount: 0,
-        };
-      } else if (moduleType === 'TRANSPORTCONTAIN') {
-        profile = {
-          moduleType: 'TRANSPORT',
-          allowInsideKindOf,
-          forbidInsideKindOf,
-          allowAlliesInside,
-          allowEnemiesInside,
-          allowNeutralInside,
-          passengersAllowedToFire,
-          passengersAllowedToFireDefault: passengersAllowedToFire,
-          garrisonCapacity: 0,
-          transportCapacity: slotsRaw != null ? slotsRaw : containMax,
-          timeForFullHealFrames: 0,
-          damagePercentToUnits,
-          burnedDeathToUnits,
-          healthRegenPercentPerSec,
-          initialPayloadTemplateName,
-          initialPayloadCount,
-        };
-      } else if (moduleType === 'OVERLORDCONTAIN') {
-        profile = {
-          moduleType: 'OVERLORD',
-          allowInsideKindOf,
-          forbidInsideKindOf,
-          allowAlliesInside,
-          allowEnemiesInside,
-          allowNeutralInside,
-          passengersAllowedToFire,
-          passengersAllowedToFireDefault: passengersAllowedToFire,
-          garrisonCapacity: 0,
-          transportCapacity: slotsRaw != null ? slotsRaw : containMax,
-          timeForFullHealFrames: 0,
-          damagePercentToUnits,
-          burnedDeathToUnits,
-          healthRegenPercentPerSec,
-          initialPayloadTemplateName,
-          initialPayloadCount,
-        };
-      } else if (moduleType === 'HELIXCONTAIN') {
-        // HELIXCONTAIN is a Zero Hour-specific container module name used by data INIs;
-        // we map it to a dedicated internal container profile to preserve source behavior.
-        profile = {
-          moduleType: 'HELIX',
-          allowInsideKindOf,
-          forbidInsideKindOf,
-          allowAlliesInside,
-          allowEnemiesInside,
-          allowNeutralInside,
-          passengersAllowedToFire,
-          passengersAllowedToFireDefault: passengersAllowedToFire,
-          portableStructureTemplateNames: payloadTemplateNames,
-          garrisonCapacity: 0,
-          transportCapacity: slotsRaw != null ? slotsRaw : containMax,
-          timeForFullHealFrames: 0,
-          damagePercentToUnits,
-          burnedDeathToUnits,
-          healthRegenPercentPerSec,
-          initialPayloadTemplateName,
-          initialPayloadCount,
-        };
-      } else if (moduleType === 'PARACHUTECONTAIN') {
-        // Source parity: ParachuteContain overrides isSpecialZeroSlotContainer() == true.
-        // The parachute shell itself contributes zero transport slots and proxies slot size
-        // checks to its contained rider.
-        profile = {
-          moduleType: 'PARACHUTE',
-          allowInsideKindOf,
-          forbidInsideKindOf,
-          allowAlliesInside,
-          allowEnemiesInside,
-          allowNeutralInside,
-          passengersAllowedToFire,
-          passengersAllowedToFireDefault: passengersAllowedToFire,
-          garrisonCapacity: 0,
-          transportCapacity: containMax,
-          timeForFullHealFrames: 0,
-          damagePercentToUnits,
-          burnedDeathToUnits,
-          healthRegenPercentPerSec: 0,
-          initialPayloadTemplateName: null,
-          initialPayloadCount: 0,
-        };
-      } else if (moduleType === 'GARRISONCONTAIN') {
-        // GarrisonContain is OpenContain-derived in source but always returns TRUE from
-        // isPassengerAllowedToFire(), so we track it explicitly for behavior parity.
-        profile = {
-          moduleType: 'GARRISON',
-          allowInsideKindOf,
-          forbidInsideKindOf,
-          allowAlliesInside,
-          allowEnemiesInside,
-          allowNeutralInside,
-          passengersAllowedToFire: true,
-          passengersAllowedToFireDefault: true,
-          garrisonCapacity: containMax > 0 ? containMax : 10,
-          transportCapacity: 0,
-          timeForFullHealFrames: 0,
-          damagePercentToUnits,
-          burnedDeathToUnits,
-          healthRegenPercentPerSec: 0,
-          initialPayloadTemplateName: null,
-          initialPayloadCount: 0,
-        };
-      } else if (moduleType === 'TUNNELCONTAIN') {
-        // Source parity: TunnelContain — per-player shared tunnel network.
-        // Capacity is managed by TunnelTracker (global maxTunnelCapacity), not per-building.
-        const timeForFullHealMs = readNumericField(block.fields, ['TimeForFullHeal']) ?? 0;
-        profile = {
-          moduleType: 'TUNNEL',
-          allowInsideKindOf,
-          forbidInsideKindOf,
-          allowAlliesInside,
-          allowEnemiesInside,
-          allowNeutralInside,
-          passengersAllowedToFire: false,
-          passengersAllowedToFireDefault: false,
-          garrisonCapacity: 0,
-          transportCapacity: 0,
-          timeForFullHealFrames: timeForFullHealMs > 0 ? this.msToLogicFrames(timeForFullHealMs) : 1,
-          damagePercentToUnits,
-          burnedDeathToUnits,
-          healthRegenPercentPerSec: 0,
-          initialPayloadTemplateName: null,
-          initialPayloadCount: 0,
-        };
-      } else if (moduleType === 'CAVECONTAIN') {
-        // Source parity: CaveContain — shared tunnel tracker keyed by CaveIndex.
-        const caveIndexRaw = readNumericField(block.fields, ['CaveIndex']);
-        const caveIndex = caveIndexRaw !== null && Number.isFinite(caveIndexRaw)
-          ? Math.max(0, Math.trunc(caveIndexRaw))
-          : 0;
-        profile = {
-          moduleType: 'CAVE',
-          allowInsideKindOf,
-          forbidInsideKindOf,
-          allowAlliesInside,
-          allowEnemiesInside,
-          allowNeutralInside,
-          passengersAllowedToFire: false,
-          passengersAllowedToFireDefault: false,
-          garrisonCapacity: 0,
-          transportCapacity: 0,
-          timeForFullHealFrames: 0,
-          damagePercentToUnits,
-          burnedDeathToUnits,
-          caveIndex,
-          healthRegenPercentPerSec: 0,
-          initialPayloadTemplateName: null,
-          initialPayloadCount: 0,
-        };
-      } else if (moduleType === 'HEALCONTAIN') {
-        // Source parity: HealContain — passengers healed inside, auto-ejected when full health.
-        // C++ file: HealContain.cpp — extends OpenContain, single param TimeForFullHeal.
-        const timeForFullHealMs = readNumericField(block.fields, ['TimeForFullHeal']) ?? 0;
-        profile = {
-          moduleType: 'HEAL',
-          allowInsideKindOf,
-          forbidInsideKindOf,
-          allowAlliesInside,
-          allowEnemiesInside,
-          allowNeutralInside,
-          passengersAllowedToFire: false,
-          passengersAllowedToFireDefault: false,
-          garrisonCapacity: 0,
-          transportCapacity: containMax,
-          timeForFullHealFrames: timeForFullHealMs > 0 ? this.msToLogicFrames(timeForFullHealMs) : 1,
-          damagePercentToUnits,
-          burnedDeathToUnits,
-          healthRegenPercentPerSec: 0,
-          initialPayloadTemplateName: null,
-          initialPayloadCount: 0,
-        };
-      } else if (moduleType === 'INTERNETHACKCONTAIN') {
-        // Source parity: InternetHackContain — extends TransportContain, auto-issues
-        // hackInternet command to entering units. C++ file: InternetHackContain.cpp.
-        profile = {
-          moduleType: 'INTERNET_HACK',
-          allowInsideKindOf,
-          forbidInsideKindOf,
-          allowAlliesInside,
-          allowEnemiesInside,
-          allowNeutralInside,
-          passengersAllowedToFire: false,
-          passengersAllowedToFireDefault: false,
-          garrisonCapacity: 0,
-          transportCapacity: slotsRaw != null ? slotsRaw : containMax,
-          timeForFullHealFrames: 0,
-          damagePercentToUnits,
-          burnedDeathToUnits,
-          healthRegenPercentPerSec,
-          initialPayloadTemplateName,
-          initialPayloadCount,
-        };
-      }
-
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    return profile;
-  }
-
-  /**
-   * Source parity: AnimationSteeringUpdateModuleData::m_transitionFrames.
-   * C++ parse field: MinTransitionTime (duration).
-   */
-  private extractAnimationSteeringProfile(objectDef: ObjectDef | undefined): AnimationSteeringProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    let transitionFrames: number | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (transitionFrames !== null) {
-        return;
-      }
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'ANIMATIONSTEERINGUPDATE') {
-          const transitionMs = readNumericField(block.fields, ['MinTransitionTime']) ?? 0;
-          transitionFrames = this.msToLogicFrames(transitionMs);
-        }
-      }
-
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    if (transitionFrames === null) {
-      return null;
-    }
-
-    return {
-      transitionFrames,
-    };
-  }
-
-  /**
-   * Source parity: TensileFormationUpdateModuleData.
-   * C++ parse fields: Enabled, CrackSound.
-   */
-  private extractTensileFormationProfile(objectDef: ObjectDef | undefined): TensileFormationProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    let profile: TensileFormationProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) {
-        return;
-      }
-
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'TENSILEFORMATIONUPDATE') {
-          profile = {
-            enabled: readBooleanField(block.fields, ['Enabled']) === true,
-            crackSound: readStringField(block.fields, ['CrackSound'])?.trim() ?? '',
-          };
-          return;
-        }
-      }
-
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    return profile;
-  }
-
-  /**
-   * Source parity: AssaultTransportAIUpdate — extract assault transport profile from INI.
-   * C++ file: AssaultTransportAIUpdate.h (buildFieldParse).
-   */
-  private extractAssaultTransportProfile(objectDef: ObjectDef | undefined): AssaultTransportProfile | null {
-    if (!objectDef) return null;
-    let profile: AssaultTransportProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'ASSAULTTRANSPORTAIUPDATE') {
-          const ratio = readNumericField(block.fields, ['MembersGetHealedAtLifeRatio']) ?? 0;
-          profile = { membersGetHealedAtLifeRatio: Math.max(0, Math.min(1, ratio)) };
-        }
-      }
-      for (const child of block.blocks) visitBlock(child);
-    };
-    for (const block of objectDef.blocks) visitBlock(block);
-    return profile;
-  }
-
-  /**
-   * Source parity: TurretAI — extract turret module profiles from INI.
-   * Each TurretAIUpdate module declares which weapon slots it controls and whether it
-   * starts disabled. Units like Nuke Cannons have InitiallyDisabled turrets that must
-   * be enabled by a deploy action before the weapon can fire.
-   * (GeneralsMD/Code/GameEngine/Source/GameLogic/AI/TurretAI.cpp:236-261)
-   */
-  private extractTurretProfiles(objectDef: ObjectDef | undefined): TurretProfile[] {
-    if (!objectDef) {
-      return [];
-    }
-
-    const profiles: TurretProfile[] = [];
-    const WEAPON_SLOT_NAMES: Record<string, number> = {
-      PRIMARY: 0,
-      SECONDARY: 1,
-      TERTIARY: 2,
-    };
-
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'TURRETAIUPDATE') {
-          const initiallyDisabled = readBooleanField(block.fields, ['InitiallyDisabled']) === true;
-
-          // Source parity: TurretAIData::m_turretWeaponSlots is a bitmask built from
-          // ControlledWeaponSlots INI field (space-separated slot names).
-          let controlledWeaponSlotsMask = 0;
-          const controlledSlotsRaw = readStringField(block.fields, ['ControlledWeaponSlots']);
-          if (controlledSlotsRaw) {
-            for (const slotToken of controlledSlotsRaw.split(/\s+/)) {
-              const slotIndex = WEAPON_SLOT_NAMES[slotToken.toUpperCase()];
-              if (slotIndex !== undefined) {
-                controlledWeaponSlotsMask |= (1 << slotIndex);
-              }
-            }
-          }
-
-          // Source parity: TurretTurnRate is parsed as AngularVelocity (degrees/sec in INI).
-          // C++ parseAngularVelocityReal converts to rad/frame: value * (PI/180) / LOGICFRAMES_PER_SECOND.
-          const turnRateDegPerSec = readNumericField(block.fields, ['TurretTurnRate']) ?? 0;
-          const turnRate = turnRateDegPerSec > 0
-            ? turnRateDegPerSec * (Math.PI / 180) / LOGIC_FRAME_RATE
-            : 0;
-
-          // Source parity: NaturalTurretAngle is an angle (degrees in INI → radians).
-          const naturalAngleDeg = readNumericField(block.fields, ['NaturalTurretAngle']) ?? 0;
-          const naturalAngle = naturalAngleDeg * (Math.PI / 180);
-
-          const firesWhileTurning = readBooleanField(block.fields, ['FiresWhileTurning']) === true;
-
-          // Source parity: RecenterTime defaults to 2 * LOGICFRAMES_PER_SECOND (60 frames).
-          // INI value is in milliseconds.
-          const recenterTimeMs = readNumericField(block.fields, ['RecenterTime']) ?? 0;
-          const recenterTimeFrames = recenterTimeMs > 0
-            ? Math.round(recenterTimeMs / 1000 * LOGIC_FRAME_RATE)
-            : 2 * LOGIC_FRAME_RATE;
-
-          if (controlledWeaponSlotsMask !== 0) {
-            profiles.push({
-              controlledWeaponSlotsMask,
-              initiallyDisabled,
-              enabled: !initiallyDisabled,
-              turnRate,
-              naturalAngle,
-              firesWhileTurning,
-              recenterTimeFrames,
-            });
-          }
-        }
-      }
-
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    return profiles;
-  }
-
-  private extractSupplyWarehouseProfile(objectDef: ObjectDef | undefined): SupplyWarehouseProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    let profile: SupplyWarehouseProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) {
-        return;
-      }
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'SUPPLYWAREHOUSEDOCKUPDATE') {
-          profile = {
-            startingBoxes: Math.max(0, Math.trunc(readNumericField(block.fields, ['StartingBoxes']) ?? 1)),
-            deleteWhenEmpty: readBooleanField(block.fields, ['DeleteWhenEmpty']) === true,
-          };
-          return;
-        }
-      }
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    return profile;
-  }
-
-  /**
-   * Source parity: SupplyTruckAIUpdate.h — max boxes, action delays, scan distance.
-   */
-  private extractSupplyTruckProfile(objectDef: ObjectDef | undefined): SupplyTruckProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    let profile: SupplyTruckProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) {
-        return;
-      }
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'SUPPLYTRUCKAIUPDATE' || moduleType === 'WORKERAIUPDATE' || moduleType === 'CHINOOKAIUPDATE') {
-          const maxBoxes = Math.max(1, Math.trunc(readNumericField(block.fields, ['MaxBoxes']) ?? 3));
-          const supplyCenterActionDelayMs = readNumericField(block.fields, ['SupplyCenterActionDelay']) ?? 0;
-          const supplyWarehouseActionDelayMs = readNumericField(block.fields, ['SupplyWarehouseActionDelay']) ?? 0;
-          const scanDistance = readNumericField(block.fields, ['SupplyWarehouseScanDistance']) ?? 200;
-          const upgradedSupplyBoost = Math.trunc(readNumericField(block.fields, ['UpgradedSupplyBoost']) ?? 0);
-          profile = {
-            maxBoxes,
-            supplyCenterActionDelayFrames: this.msToLogicFrames(supplyCenterActionDelayMs),
-            supplyWarehouseActionDelayFrames: this.msToLogicFrames(supplyWarehouseActionDelayMs),
-            supplyWarehouseScanDistance: Math.max(0, scanDistance),
-            upgradedSupplyBoost,
-          };
-          return;
-        }
-      }
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    return profile;
-  }
-
-  /**
-   * Source parity: RepairDockUpdateModuleData::m_framesForFullHeal.
-   * INI field: TimeForFullHeal (duration real, milliseconds -> frames).
-   */
-  private extractRepairDockProfile(objectDef: ObjectDef | undefined): RepairDockProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    let profile: RepairDockProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) {
-        return;
-      }
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'REPAIRDOCKUPDATE') {
-          const timeForFullHealMs = readNumericField(block.fields, ['TimeForFullHeal']) ?? 0;
-          // Source parity: INI::parseDurationReal stores fractional frame values.
-          const framesForFullHeal = timeForFullHealMs > 0
-            ? this.msToLogicFramesReal(timeForFullHealMs)
-            : 1;
-          profile = {
-            timeForFullHealFrames: Math.max(1, framesForFullHeal),
-          };
-          return;
-        }
-      }
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    return profile;
-  }
-
-  /**
-   * Source parity: CommandButtonHuntUpdateModuleData.
-   * INI fields: ScanRate (duration), ScanRange.
-   */
-  private extractCommandButtonHuntProfile(objectDef: ObjectDef | undefined): CommandButtonHuntProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    let profile: CommandButtonHuntProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) {
-        return;
-      }
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'COMMANDBUTTONHUNTUPDATE') {
-          const scanRateMs = readNumericField(block.fields, ['ScanRate']) ?? 1000;
-          profile = {
-            scanFrames: Math.max(1, this.msToLogicFrames(scanRateMs)),
-            scanRange: readNumericField(block.fields, ['ScanRange']) ?? 9999,
-          };
-          return;
-        }
-      }
-
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    return profile;
-  }
-
-  /**
-   * Source parity: DozerAIUpdateModuleData / WorkerAIUpdateModuleData shared fields.
-   * Parses DozerAIUpdate and WorkerAIUpdate modules for repair and bored behavior.
-   */
-  private extractDozerAIProfile(objectDef: ObjectDef | undefined): DozerAIProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    let profile: DozerAIProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) {
-        return;
-      }
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'DOZERAIUPDATE' || moduleType === 'WORKERAIUPDATE') {
-          const repairHealthPercentPerSecond = this.parseNumericIniValue(
-            this.readIniFieldValue(block.fields, 'RepairHealthPercentPerSecond'),
-          ) ?? 0;
-          const boredTimeMs = readNumericField(block.fields, ['BoredTime']) ?? 0;
-          const boredRange = readNumericField(block.fields, ['BoredRange']) ?? 0;
-          profile = {
-            repairHealthPercentPerSecond: Math.max(0, repairHealthPercentPerSecond),
-            boredTimeFrames: boredTimeMs > 0 ? this.msToLogicFramesReal(boredTimeMs) : 0,
-            boredRange: Math.max(0, boredRange),
-          };
-          return;
-        }
-      }
-
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    return profile;
-  }
-
   /**
    * Detect if an entity definition includes a SupplyCenterDockUpdate behavior module.
    */
-  private detectIsSupplyCenter(objectDef: ObjectDef | undefined): boolean {
+  /* @internal */ detectIsSupplyCenter(objectDef: ObjectDef | undefined): boolean {
     if (!objectDef) {
       return false;
     }
@@ -18937,420 +17159,9 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
-   * Source parity: ThingTemplate — ExperienceRequired, ExperienceValue fields.
-   * These are space-separated 4-element lists: [REGULAR] [VETERAN] [ELITE] [HEROIC].
-   */
-  private extractExperienceProfile(objectDef: ObjectDef | undefined): ExperienceProfile | null {
-    if (!objectDef) {
-      return null;
-    }
-
-    const expRequiredRaw = readNumericListField(objectDef.fields, ['ExperienceRequired']);
-    const expValueRaw = readNumericListField(objectDef.fields, ['ExperienceValue']);
-
-    if (!expRequiredRaw && !expValueRaw) {
-      return null;
-    }
-
-    const expRequired: [number, number, number, number] = [0, 0, 0, 0];
-    const expValue: [number, number, number, number] = [0, 0, 0, 0];
-
-    if (expRequiredRaw) {
-      for (let i = 0; i < 4 && i < expRequiredRaw.length; i++) {
-        expRequired[i] = Math.max(0, Math.trunc(expRequiredRaw[i] ?? 0));
-      }
-    }
-
-    if (expValueRaw) {
-      for (let i = 0; i < 4 && i < expValueRaw.length; i++) {
-        expValue[i] = Math.max(0, Math.trunc(expValueRaw[i] ?? 0));
-      }
-    }
-
-    return {
-      experienceRequired: expRequired,
-      experienceValue: expValue,
-    };
-  }
-
-  /**
-   * Source parity: AutoHealBehavior — parse self-heal module from INI.
-   */
-  private extractAutoHealProfile(objectDef: ObjectDef | undefined): AutoHealProfile | null {
-    if (!objectDef) return null;
-    let profile: AutoHealProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'AUTOHEALBEHAVIOR') {
-          profile = {
-            healingAmount: readNumericField(block.fields, ['HealingAmount']) ?? 0,
-            healingDelayFrames: readNumericField(block.fields, ['HealingDelay']) ?? 900,
-            startHealingDelayFrames: readNumericField(block.fields, ['StartHealingDelay']) ?? 0,
-            radius: readNumericField(block.fields, ['Radius']) ?? 0,
-            affectsWholePlayer: readBooleanField(block.fields, ['AffectsWholePlayer']) ?? false,
-            initiallyActive: readBooleanField(block.fields, ['StartsActive']) ?? false,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: PropagandaTowerBehavior — parse aura heal module from INI.
-   */
-  private extractPropagandaTowerProfile(objectDef: ObjectDef | undefined): PropagandaTowerProfile | null {
-    if (!objectDef) return null;
-    let profile: PropagandaTowerProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'PROPAGANDATOWERBEHAVIOR') {
-          profile = {
-            radius: readNumericField(block.fields, ['Radius']) ?? 100,
-            scanDelayFrames: readNumericField(block.fields, ['DelayBetweenUpdates']) ?? 100,
-            healPercentPerSecond: readNumericField(block.fields, ['HealPercentEachSecond']) ?? 0.01,
-            upgradedHealPercentPerSecond: readNumericField(block.fields, ['UpgradedHealPercentEachSecond']) ?? 0.02,
-            upgradeRequired: readStringField(block.fields, ['UpgradeRequired']) ?? null,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: FlammableUpdate module — extract flammability profile from INI.
-   */
-  private extractFlammableProfile(objectDef: ObjectDef | undefined): FlammableProfile | null {
-    if (!objectDef) return null;
-    let profile: FlammableProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'FLAMMABLEUPDATE') {
-          profile = {
-            flameDamageLimit: readNumericField(block.fields, ['FlameDamageLimit']) ?? DEFAULT_FLAME_DAMAGE_LIMIT,
-            flameDamageExpirationDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['FlameDamageExpiration']) ?? 2000),
-            aflameDurationFrames: this.msToLogicFrames(readNumericField(block.fields, ['AflameDuration']) ?? 3000),
-            aflameDamageDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['AflameDamageDelay']) ?? 500),
-            aflameDamageAmount: readNumericField(block.fields, ['AflameDamageAmount']) ?? DEFAULT_AFLAME_DAMAGE_AMOUNT,
-            burnedDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['BurnedDelay']) ?? 0),
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: OCLUpdate — extract periodic OCL spawning config from INI.
-   * INI fields: OCL (name), MinDelay (ms), MaxDelay (ms).
-   */
-  private extractOCLUpdateProfiles(objectDef: ObjectDef | undefined): OCLUpdateProfile[] {
-    if (!objectDef) return [];
-    const profiles: OCLUpdateProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'OCLUPDATE') {
-          const oclName = readStringField(block.fields, ['OCL']);
-          if (!oclName) return;
-          const minDelayMs = readNumericField(block.fields, ['MinDelay']) ?? 0;
-          const maxDelayMs = readNumericField(block.fields, ['MaxDelay']) ?? minDelayMs;
-          profiles.push({
-            oclName,
-            minDelayFrames: this.msToLogicFrames(minDelayMs),
-            maxDelayFrames: this.msToLogicFrames(maxDelayMs),
-          });
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: WeaponBonusUpdate — extract weapon bonus aura config from INI.
-   * INI fields: RequiredAffectKindOf, ForbiddenAffectKindOf, BonusDuration (ms),
-   * BonusDelay (ms), BonusRange, BonusConditionType.
-   */
-  private extractWeaponBonusUpdateProfiles(objectDef: ObjectDef | undefined): WeaponBonusUpdateProfile[] {
-    if (!objectDef) return [];
-    const profiles: WeaponBonusUpdateProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'WEAPONBONUSUPDATE') {
-          const conditionName = readStringField(block.fields, ['BonusConditionType'])?.toUpperCase();
-          if (!conditionName) return;
-          const bonusFlag = WEAPON_BONUS_CONDITION_BY_NAME.get(conditionName);
-          if (bonusFlag === undefined) return;
-
-          const requiredKindOf = new Set<string>();
-          const forbiddenKindOf = new Set<string>();
-          for (const tokens of this.extractIniValueTokens(block.fields['RequiredAffectKindOf'])) {
-            for (const t of tokens) { if (t) requiredKindOf.add(t.toUpperCase()); }
-          }
-          for (const tokens of this.extractIniValueTokens(block.fields['ForbiddenAffectKindOf'])) {
-            for (const t of tokens) { if (t) forbiddenKindOf.add(t.toUpperCase()); }
-          }
-
-          profiles.push({
-            requiredKindOf,
-            forbiddenKindOf,
-            bonusDurationFrames: this.msToLogicFrames(readNumericField(block.fields, ['BonusDuration']) ?? 0),
-            bonusDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['BonusDelay']) ?? 0),
-            bonusRange: readNumericField(block.fields, ['BonusRange']) ?? 0,
-            bonusConditionFlag: bonusFlag,
-          });
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: RadarUpdate — extract radar dish extension config from INI.
-   * INI fields: RadarExtendTime (ms).
-   */
-  private extractRadarUpdateProfile(objectDef: ObjectDef | undefined): RadarUpdateProfile | null {
-    if (!objectDef) return null;
-    let profile: RadarUpdateProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'RADARUPDATE') {
-          const extendTimeMs = readNumericField(block.fields, ['RadarExtendTime']) ?? 0;
-          profile = {
-            radarExtendTimeFrames: this.msToLogicFrames(extendTimeMs),
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: FloatUpdate — extract water-surface snapping config from INI.
-   * INI fields: Enabled (bool, default FALSE).
-   */
-  private extractFloatUpdateProfile(objectDef: ObjectDef | undefined): FloatUpdateProfile | null {
-    if (!objectDef) return null;
-    let profile: FloatUpdateProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'FLOATUPDATE') {
-          const enabledStr = readStringField(block.fields, ['Enabled'])?.toUpperCase();
-          profile = {
-            enabled: enabledStr === 'YES' || enabledStr === 'TRUE' || enabledStr === '1',
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: StickyBombUpdate — extract bomb attachment config from INI.
-   * C++ file: StickyBombUpdate.h (StickyBombUpdateModuleData).
-   */
-  private extractStickyBombUpdateProfile(objectDef: ObjectDef | undefined): StickyBombUpdateProfile | null {
-    if (!objectDef) return null;
-    let profile: StickyBombUpdateProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'STICKYBOMBUPDATE') {
-          profile = {
-            offsetZ: readNumericField(block.fields, ['OffsetZ']) ?? 10.0,
-            geometryBasedDamageWeaponName: readStringField(block.fields, ['GeometryBasedDamageWeapon']) ?? null,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: PointDefenseLaserUpdate — extract anti-projectile defense config from INI.
-   */
-  private extractPointDefenseLaserProfile(objectDef: ObjectDef | undefined): PointDefenseLaserProfile | null {
-    if (!objectDef) return null;
-    let profile: PointDefenseLaserProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'POINTDEFENSELASERUPDATE') {
-          const weaponName = readStringField(block.fields, ['WeaponTemplate']);
-          if (!weaponName) return;
-
-          const primaryStr = readStringField(block.fields, ['PrimaryTargetTypes']) ?? '';
-          const primaryTargetKindOf = new Set<string>();
-          for (const token of primaryStr.split(/\s+/)) {
-            if (token) primaryTargetKindOf.add(token.toUpperCase());
-          }
-
-          const secondaryStr = readStringField(block.fields, ['SecondaryTargetTypes']) ?? '';
-          const secondaryTargetKindOf = new Set<string>();
-          for (const token of secondaryStr.split(/\s+/)) {
-            if (token) secondaryTargetKindOf.add(token.toUpperCase());
-          }
-
-          const scanRateMs = readNumericField(block.fields, ['ScanRate']) ?? 0;
-          profile = {
-            weaponName,
-            primaryTargetKindOf,
-            secondaryTargetKindOf,
-            scanRate: Math.max(1, this.msToLogicFrames(scanRateMs)),
-            scanRange: readNumericField(block.fields, ['ScanRange']) ?? 0,
-            predictTargetVelocityFactor: readNumericField(block.fields, ['PredictTargetVelocityFactor']) ?? 0,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: HordeUpdate — extract horde formation bonus config from INI.
-   */
-  private extractHordeUpdateProfile(objectDef: ObjectDef | undefined): HordeUpdateProfile | null {
-    if (!objectDef) return null;
-    let profile: HordeUpdateProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'HORDEUPDATE') {
-          const kindOfStr = readStringField(block.fields, ['KindOf']) ?? '';
-          const kindOf = new Set<string>();
-          for (const token of kindOfStr.split(/\s+/)) {
-            if (token) kindOf.add(token.toUpperCase());
-          }
-
-          const updateRateMs = readNumericField(block.fields, ['UpdateRate']) ?? 1000;
-          profile = {
-            updateRate: Math.max(1, this.msToLogicFrames(updateRateMs)),
-            kindOf,
-            minCount: readNumericField(block.fields, ['Count']) ?? 2,
-            minDist: readNumericField(block.fields, ['Radius']) ?? 100,
-            rubOffRadius: readNumericField(block.fields, ['RubOffRadius']) ?? 20,
-            alliesOnly: (readStringField(block.fields, ['AlliesOnly']) ?? 'Yes').toUpperCase() !== 'NO',
-            exactMatch: (readStringField(block.fields, ['ExactMatch']) ?? 'No').toUpperCase() === 'YES',
-            allowedNationalism: (readStringField(block.fields, ['AllowedNationalism']) ?? 'Yes').toUpperCase() !== 'NO',
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: EnemyNearUpdate — extract ScanDelayTime from INI.
-   * Returns 0 if no EnemyNearUpdate behavior block is found.
-   * C++ default: LOGICFRAMES_PER_SECOND (30 frames).
-   */
-  private extractEnemyNearScanDelay(objectDef: ObjectDef | undefined): number {
-    if (!objectDef) return 0;
-    let result = 0;
-    const visitBlock = (block: IniBlock): void => {
-      if (result > 0) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'ENEMYNEARUPDATE') {
-          const scanDelayMs = readNumericField(block.fields, ['ScanDelayTime']) ?? 1000;
-          result = Math.max(1, this.msToLogicFrames(scanDelayMs));
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return result;
-  }
-
-  /**
    * Helper: check if an object definition contains a behavior/update module of the given type.
    */
-  private hasModuleType(objectDef: ObjectDef | undefined, moduleType: string): boolean {
+  /* @internal */ hasModuleType(objectDef: ObjectDef | undefined, moduleType: string): boolean {
     if (!objectDef) return false;
     const upperType = moduleType.toUpperCase();
     let found = false;
@@ -19368,1177 +17179,11 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
-   * Source parity: VeterancyGainCreate — extract all VeterancyGainCreate modules from INI.
-   * C++ file: VeterancyGainCreate.cpp — sets veterancy level on creation if science is present.
-   */
-  private extractVeterancyGainCreateProfiles(objectDef: ObjectDef | undefined): VeterancyGainCreateProfile[] {
-    if (!objectDef) return [];
-    const profiles: VeterancyGainCreateProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() === 'BEHAVIOR' || block.type.toUpperCase() === 'DRAW') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'VETERANCYGAINCREATE') {
-          const levelStr = readStringField(block.fields, ['StartingLevel'])?.trim().toUpperCase() ?? '';
-          let startingLevel: VeterancyLevel = LEVEL_REGULAR;
-          if (levelStr === 'VETERAN') startingLevel = LEVEL_VETERAN;
-          else if (levelStr === 'ELITE') startingLevel = LEVEL_ELITE;
-          else if (levelStr === 'HEROIC') startingLevel = LEVEL_HEROIC;
-
-          const scienceStr = readStringField(block.fields, ['ScienceRequired'])?.trim().toUpperCase() ?? '';
-          const scienceRequired = (scienceStr && scienceStr !== 'NONE' && scienceStr !== 'SCIENCE_INVALID')
-            ? scienceStr : null;
-
-          profiles.push({ startingLevel, scienceRequired });
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: FXListDie — extract all FXListDie modules from INI.
-   * C++ file: FXListDie.cpp — triggers death FX with isDieApplicable filtering.
-   */
-  private extractFXListDieProfiles(objectDef: ObjectDef | undefined): FXListDieProfile[] {
-    if (!objectDef) return [];
-    const profiles: FXListDieProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'FXLISTDIE') {
-          const deathFXName = readStringField(block.fields, ['DeathFX'])?.trim().toUpperCase() ?? '';
-          if (!deathFXName) { return; }
-          const orientToObject = (readStringField(block.fields, ['OrientToObject'])?.toUpperCase() ?? 'YES') !== 'NO';
-
-          // DieMuxData filtering fields.
-          const deathTypes = new Set<string>();
-          const dtStr = readStringField(block.fields, ['DeathTypes'])?.trim().toUpperCase() ?? '';
-          if (dtStr) { for (const t of dtStr.split(/\s+/)) { if (t) deathTypes.add(t); } }
-          const veterancyLevels = new Set<string>();
-          const vlStr = readStringField(block.fields, ['VeterancyLevels'])?.trim().toUpperCase() ?? '';
-          if (vlStr) { for (const t of vlStr.split(/\s+/)) { if (t) veterancyLevels.add(t); } }
-          const exemptStatus = new Set<string>();
-          const esStr = readStringField(block.fields, ['ExemptStatus'])?.trim().toUpperCase() ?? '';
-          if (esStr) { for (const t of esStr.split(/\s+/)) { if (t) exemptStatus.add(t); } }
-          const requiredStatus = new Set<string>();
-          const rsStr = readStringField(block.fields, ['RequiredStatus'])?.trim().toUpperCase() ?? '';
-          if (rsStr) { for (const t of rsStr.split(/\s+/)) { if (t) requiredStatus.add(t); } }
-
-          profiles.push({ deathFXName, orientToObject, deathTypes, veterancyLevels, exemptStatus, requiredStatus });
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: CrushDie — extract all CrushDie modules from INI.
-   * C++ file: CrushDie.h — die module that sets FRONTCRUSHED/BACKCRUSHED model conditions.
-   */
-  private extractCrushDieProfiles(objectDef: ObjectDef | undefined): CrushDieProfile[] {
-    if (!objectDef) return [];
-    const profiles: CrushDieProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'CRUSHDIE') {
-          // DieMuxData filtering fields.
-          const deathTypes = new Set<string>();
-          const dtStr = readStringField(block.fields, ['DeathTypes'])?.trim().toUpperCase() ?? '';
-          if (dtStr) { for (const t of dtStr.split(/\s+/)) { if (t) deathTypes.add(t); } }
-          const veterancyLevels = new Set<string>();
-          const vlStr = readStringField(block.fields, ['VeterancyLevels'])?.trim().toUpperCase() ?? '';
-          if (vlStr) { for (const t of vlStr.split(/\s+/)) { if (t) veterancyLevels.add(t); } }
-          const exemptStatus = new Set<string>();
-          const esStr = readStringField(block.fields, ['ExemptStatus'])?.trim().toUpperCase() ?? '';
-          if (esStr) { for (const t of esStr.split(/\s+/)) { if (t) exemptStatus.add(t); } }
-          const requiredStatus = new Set<string>();
-          const rsStr = readStringField(block.fields, ['RequiredStatus'])?.trim().toUpperCase() ?? '';
-          if (rsStr) { for (const t of rsStr.split(/\s+/)) { if (t) requiredStatus.add(t); } }
-
-          profiles.push({ deathTypes, veterancyLevels, exemptStatus, requiredStatus });
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profiles;
-  }
-
-  private extractDieMuxData(block: IniBlock): {
-    deathTypes: Set<string>;
-    veterancyLevels: Set<string>;
-    exemptStatus: Set<string>;
-    requiredStatus: Set<string>;
-  } {
-    const deathTypes = new Set<string>();
-    const dtStr = readStringField(block.fields, ['DeathTypes'])?.trim().toUpperCase() ?? '';
-    if (dtStr) {
-      for (const token of dtStr.split(/\s+/)) {
-        if (token) deathTypes.add(token);
-      }
-    }
-
-    const veterancyLevels = new Set<string>();
-    const vlStr = readStringField(block.fields, ['VeterancyLevels'])?.trim().toUpperCase() ?? '';
-    if (vlStr) {
-      for (const token of vlStr.split(/\s+/)) {
-        if (token) veterancyLevels.add(token);
-      }
-    }
-
-    const exemptStatus = new Set<string>();
-    const esStr = readStringField(block.fields, ['ExemptStatus'])?.trim().toUpperCase() ?? '';
-    if (esStr) {
-      for (const token of esStr.split(/\s+/)) {
-        if (token) exemptStatus.add(token);
-      }
-    }
-
-    const requiredStatus = new Set<string>();
-    const rsStr = readStringField(block.fields, ['RequiredStatus'])?.trim().toUpperCase() ?? '';
-    if (rsStr) {
-      for (const token of rsStr.split(/\s+/)) {
-        if (token) requiredStatus.add(token);
-      }
-    }
-
-    return { deathTypes, veterancyLevels, exemptStatus, requiredStatus };
-  }
-
-  /**
-   * Source parity: DestroyDie — extract DestroyDie modules with DieMuxData filtering.
-   * C++ file: DestroyDie.cpp.
-   */
-  private extractDestroyDieProfiles(objectDef: ObjectDef | undefined): DestroyDieProfile[] {
-    if (!objectDef) return [];
-    const profiles: DestroyDieProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'DESTROYDIE') {
-          profiles.push(this.extractDieMuxData(block));
-        }
-      }
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: DamDie — extract DamDie modules with DieMuxData filtering.
-   * C++ file: DamDie.cpp.
-   */
-  private extractDamDieProfiles(objectDef: ObjectDef | undefined): DamDieProfile[] {
-    if (!objectDef) return [];
-    const profiles: DamDieProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'DAMDIE') {
-          const dieMux = this.extractDieMuxData(block);
-          const oclName = readStringField(block.fields, ['CreationList', 'GroundCreationList', 'AirCreationList', 'OCL']);
-          profiles.push({
-            ...dieMux,
-            oclName: oclName ? oclName.trim() : null,
-          });
-        }
-      }
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: SpecialPowerCompletionDie — extract script-notification die modules.
-   * C++ file: SpecialPowerCompletionDie.cpp.
-   */
-  private extractSpecialPowerCompletionDieProfiles(objectDef: ObjectDef | undefined): SpecialPowerCompletionDieProfile[] {
-    if (!objectDef) return [];
-    const profiles: SpecialPowerCompletionDieProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'SPECIALPOWERCOMPLETIONDIE') {
-          const specialPowerTemplateName = this.normalizeShortcutSpecialPowerName(
-            readStringField(block.fields, ['SpecialPowerTemplate']) ?? '',
-          );
-          if (!specialPowerTemplateName) {
-            return;
-          }
-
-          profiles.push({
-            specialPowerTemplateName,
-            ...this.extractDieMuxData(block),
-          });
-        }
-      }
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: GrantUpgradeCreate — extract all GrantUpgradeCreate modules from INI.
-   * C++ file: GrantUpgradeCreate.cpp — grants upgrades on object creation / build complete.
-   */
-  private extractGrantUpgradeCreateProfiles(objectDef: ObjectDef | undefined): GrantUpgradeCreateProfile[] {
-    if (!objectDef) return [];
-    const profiles: GrantUpgradeCreateProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'GRANTUPGRADECREATE') {
-          const upgradeName = readStringField(block.fields, ['UpgradeToGrant'])?.trim().toUpperCase() ?? '';
-          if (upgradeName) {
-            const exemptStatus = readStringField(block.fields, ['ExemptStatus'])?.trim().toUpperCase() ?? '';
-            // Source parity: determine if this is a PLAYER upgrade by checking the UpgradeDef.
-            // We check at runtime; for now store the name and resolve type on application.
-            profiles.push({
-              upgradeName,
-              isPlayerUpgrade: false, // Resolved at application time from UpgradeDef.
-              exemptUnderConstruction: exemptStatus.includes('UNDER_CONSTRUCTION'),
-            });
-          }
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: LockWeaponCreate — extract weapon slot to lock from INI.
-   * C++ file: LockWeaponCreate.cpp — locks weapon choice to specified slot on build complete.
-   */
-  private extractLockWeaponCreateSlot(objectDef: ObjectDef | undefined): number | null {
-    if (!objectDef) return null;
-    let slot: number | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (slot !== null) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'LOCKWEAPONCREATE') {
-          const slotName = readStringField(block.fields, ['SlotToLock'])?.trim().toUpperCase() ?? '';
-          if (slotName === 'SECONDARY_WEAPON') {
-            slot = 1;
-          } else if (slotName === 'TERTIARY_WEAPON') {
-            slot = 2;
-          } else {
-            // PRIMARY_WEAPON or default.
-            slot = 0;
-          }
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return slot;
-  }
-
-  /**
-   * Source parity: UpgradeDie — extract all UpgradeDie modules from INI.
-   * C++ file: UpgradeDie.cpp — removes upgrade from producer when entity dies.
-   */
-  private extractUpgradeDieProfiles(objectDef: ObjectDef | undefined): UpgradeDieProfile[] {
-    if (!objectDef) return [];
-    const profiles: UpgradeDieProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'UPGRADEDIE') {
-          const upgradeName = readStringField(block.fields, ['UpgradeToRemove'])?.trim().toUpperCase() ?? '';
-          if (upgradeName) {
-            // DieMuxData filtering.
-            const deathTypesRaw = readStringField(block.fields, ['DeathTypes'])?.trim().toUpperCase() ?? '';
-            const deathTypes: Set<string> | null = deathTypesRaw
-              ? new Set(deathTypesRaw.split(/\s+/).filter(Boolean))
-              : null;
-            const exemptStatusRaw = readStringField(block.fields, ['ExemptStatus'])?.trim().toUpperCase() ?? '';
-            const exemptStatus = new Set(exemptStatusRaw.split(/\s+/).filter(Boolean));
-            const requiredStatusRaw = readStringField(block.fields, ['RequiredStatus'])?.trim().toUpperCase() ?? '';
-            const requiredStatus = new Set(requiredStatusRaw.split(/\s+/).filter(Boolean));
-            profiles.push({
-              upgradeName,
-              deathTypes,
-              exemptStatus,
-              requiredStatus,
-            });
-          }
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: CheckpointUpdate — extract checkpoint gate profile from INI.
-   * C++ file: CheckpointUpdate.cpp — gate opens for allies when no enemies near.
-   */
-  private extractCheckpointProfile(objectDef: ObjectDef | undefined): CheckpointProfile | null {
-    if (!objectDef) return null;
-    let profile: CheckpointProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'CHECKPOINTUPDATE') {
-          const scanDelayMs = readNumericField(block.fields, ['EnemyScanDelayTime']) ?? 1000;
-          profile = {
-            scanDelayFrames: Math.max(1, this.msToLogicFrames(scanDelayMs)),
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: ProneUpdate — extract damage-to-frames ratio from INI.
-   * Returns null if no ProneUpdate module is defined.
-   */
-  private extractProneDamageToFramesRatio(objectDef: ObjectDef | undefined): number | null {
-    if (!objectDef) return null;
-    let ratio: number | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (ratio !== null) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR' || blockType === 'PRONEUPDATE') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'PRONEUPDATE' || blockType === 'PRONEUPDATE') {
-          ratio = readNumericField(block.fields, ['DamageToFramesRatio']) ?? 1.0;
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return ratio;
-  }
-
-  /**
-   * Source parity: DemoTrapUpdateModuleData — extract demo trap profile from INI.
-   */
-  private extractDemoTrapProfile(objectDef: ObjectDef | undefined): DemoTrapProfile | null {
-    if (!objectDef) return null;
-    let profile: DemoTrapProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR' || blockType === 'DEMOTRAPUPDATE') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'DEMOTRAPUPDATE' || blockType === 'DEMOTRAPUPDATE') {
-          const ignoreStr = readStringField(block.fields, ['IgnoreTargetTypes']) ?? '';
-          const ignoreKindOf = new Set<string>(
-            ignoreStr.split(/\s+/).filter(Boolean).map(s => s.toUpperCase()),
-          );
-          profile = {
-            defaultsToProximityMode: readBooleanField(block.fields, ['DefaultProximityMode']) ?? false,
-            triggerDetonationRange: readNumericField(block.fields, ['TriggerDetonationRange']) ?? 0,
-            ignoreKindOf,
-            scanFrames: this.msToLogicFrames(readNumericField(block.fields, ['ScanRate']) ?? 0),
-            friendlyDetonation: readBooleanField(block.fields, ['AutoDetonationWithFriendsInvolved']) ?? false,
-            detonationWeaponName: readStringField(block.fields, ['DetonationWeapon']),
-            detonateWhenKilled: readBooleanField(block.fields, ['DetonateWhenKilled']) ?? false,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: RebuildHoleExposeDie — extract die module config from INI.
-   * Present on buildings that should create a hole when destroyed.
-   */
-  private extractRebuildHoleExposeDieProfile(objectDef: ObjectDef | undefined): RebuildHoleExposeDieProfile | null {
-    if (!objectDef) return null;
-    let profile: RebuildHoleExposeDieProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'DIE' || blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'REBUILDHOLEEXPOSEDIE') {
-          const holeName = readStringField(block.fields, ['HoleName']);
-          if (!holeName) return;
-          profile = {
-            holeName,
-            holeMaxHealth: readNumericField(block.fields, ['HoleMaxHealth']) ?? 50,
-            transferAttackers: readBooleanField(block.fields, ['TransferAttackers']) ?? true,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: RebuildHoleBehavior — extract behavior module config from INI.
-   * Present on hole objects that manage the worker-spawn → reconstruct lifecycle.
-   */
-  private extractRebuildHoleBehaviorProfile(objectDef: ObjectDef | undefined): RebuildHoleBehaviorProfile | null {
-    if (!objectDef) return null;
-    let profile: RebuildHoleBehaviorProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'REBUILDHOLEBEHAVIOR') {
-          const workerName = readStringField(block.fields, ['WorkerObjectName']);
-          if (!workerName) return;
-          // Source parity: WorkerRespawnDelay is in milliseconds → convert to frames.
-          const respawnDelayMs = readNumericField(block.fields, ['WorkerRespawnDelay']) ?? 5000;
-          // Source parity: HoleHealthRegen%PerSecond uses INI::parsePercentToReal
-          // which divides by 100. E.g., INI value "10" → 0.1 (10%). Default = 0.1.
-          const regenRaw = readNumericField(block.fields, ['HoleHealthRegen%PerSecond']);
-          const regenPercent = regenRaw !== null && Number.isFinite(regenRaw) ? regenRaw / 100 : 0.1;
-          profile = {
-            workerObjectName: workerName,
-            workerRespawnDelay: this.msToLogicFrames(respawnDelayMs),
-            holeHealthRegenPercentPerSecond: regenPercent,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: AutoDepositUpdate — extract periodic income config from INI.
-   */
-  private extractAutoDepositProfile(objectDef: ObjectDef | undefined): AutoDepositProfile | null {
-    if (!objectDef) return null;
-    let profile: AutoDepositProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'AUTODEPOSITUPDATE') {
-          // Source parity: DepositTiming is in milliseconds → convert to frames.
-          const depositTimingMs = readNumericField(block.fields, ['DepositTiming']) ?? 2000;
-          const depositAmount = readNumericField(block.fields, ['DepositAmount']) ?? 0;
-          const initialCaptureBonus = readNumericField(block.fields, ['InitialCaptureBonus']) ?? 0;
-          profile = {
-            depositFrames: Math.max(1, this.msToLogicFrames(depositTimingMs)),
-            depositAmount,
-            initialCaptureBonus,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: DynamicShroudClearingRangeUpdate — extract shroud-clearing animation config from INI.
-   * C++ file: DynamicShroudClearingRangeUpdate.cpp lines 61-78.
-   * All duration fields are parsed as durations (ms → frames).
-   */
-  private extractDynamicShroudProfile(objectDef: ObjectDef | undefined): DynamicShroudProfile | null {
-    if (!objectDef) return null;
-    let profile: DynamicShroudProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'DYNAMICSHROUDCLEARINGRANGEUPDATE' || moduleType === 'DYNAMICSHROUDCLEARINGRANGE') {
-          profile = {
-            shrinkDelay: Math.max(0, this.msToLogicFrames(readNumericField(block.fields, ['ShrinkDelay']) ?? 0)),
-            shrinkTime: Math.max(0, this.msToLogicFrames(readNumericField(block.fields, ['ShrinkTime']) ?? 0)),
-            growDelay: Math.max(0, this.msToLogicFrames(readNumericField(block.fields, ['GrowDelay']) ?? 0)),
-            growTime: Math.max(0, this.msToLogicFrames(readNumericField(block.fields, ['GrowTime']) ?? 0)),
-            finalVision: readNumericField(block.fields, ['FinalVision']) ?? 0,
-            changeInterval: Math.max(1, this.msToLogicFrames(readNumericField(block.fields, ['ChangeInterval']) ?? 0)),
-            growInterval: Math.max(1, this.msToLogicFrames(readNumericField(block.fields, ['GrowInterval']) ?? 0)),
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: AutoFindHealingUpdate — extract auto-heal-seeking config from INI.
-   * C++ file: AutoFindHealingUpdate.cpp — AI units automatically enter nearby heal pads.
-   */
-  private extractAutoFindHealingProfile(objectDef: ObjectDef | undefined): AutoFindHealingProfile | null {
-    if (!objectDef) return null;
-    let profile: AutoFindHealingProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'AUTOFINDHEALING' || moduleType === 'AUTOFINDHEALINGUPDATE') {
-          profile = {
-            scanRateFrames: this.msToLogicFrames(readNumericField(block.fields, ['ScanRate']) ?? 1000),
-            scanRange: (readNumericField(block.fields, ['ScanRange']) ?? 200) * MAP_XY_FACTOR,
-            neverHeal: readNumericField(block.fields, ['NeverHeal']) ?? 0.95,
-            alwaysHeal: readNumericField(block.fields, ['AlwaysHeal']) ?? 0.25,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: CountermeasuresBehavior — extract countermeasure config from INI.
-   * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/CountermeasuresBehavior.cpp)
-   */
-  private extractCountermeasuresProfile(objectDef: ObjectDef | undefined): CountermeasuresProfile | null {
-    if (!objectDef) return null;
-    let profile: CountermeasuresProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'COUNTERMEASURESBEHAVIOR') {
-          const evasionRaw = readNumericField(block.fields, ['EvasionRate']);
-          profile = {
-            flareTemplateName: readStringField(block.fields, ['FlareTemplateName']) ?? '',
-            volleySize: readNumericField(block.fields, ['VolleySize']) ?? 0,
-            volleyArcAngle: (readNumericField(block.fields, ['VolleyArcAngle']) ?? 0) * (Math.PI / 180),
-            volleyVelocityFactor: readNumericField(block.fields, ['VolleyVelocityFactor']) ?? 1.0,
-            framesBetweenVolleys: this.msToLogicFrames(readNumericField(block.fields, ['DelayBetweenVolleys']) ?? 0),
-            numberOfVolleys: readNumericField(block.fields, ['NumberOfVolleys']) ?? 0,
-            reloadFrames: this.msToLogicFrames(readNumericField(block.fields, ['ReloadTime']) ?? 0),
-            evasionRate: evasionRaw != null ? evasionRaw / 100 : 0,
-            missileDecoyFrames: this.msToLogicFrames(readNumericField(block.fields, ['MissileDecoyDelay']) ?? 0),
-            reactionFrames: this.msToLogicFrames(readNumericField(block.fields, ['ReactionLaunchLatency']) ?? 0),
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: PilotFindVehicleUpdate — extract pilot-seek-vehicle config from INI.
-   * (Generals/Code/GameEngine/Source/GameLogic/Object/Update/PilotFindVehicleUpdate.cpp)
-   */
-  private extractPilotFindVehicleProfile(objectDef: ObjectDef | undefined): PilotFindVehicleProfile | null {
-    if (!objectDef) return null;
-    let profile: PilotFindVehicleProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'PILOTFINDVEHICLEUPDATE') {
-          profile = {
-            scanFrames: this.msToLogicFrames(readNumericField(block.fields, ['ScanRate']) ?? 0),
-            scanRange: readNumericField(block.fields, ['ScanRange']) ?? 0,
-            minHealth: readNumericField(block.fields, ['MinHealth']) ?? 0.5,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: ToppleUpdate — extract topple config from INI.
-   * (Generals/Code/GameEngine/Source/GameLogic/Object/Update/ToppleUpdate.cpp)
-   */
-  private extractToppleProfile(objectDef: ObjectDef | undefined): ToppleProfile | null {
-    if (!objectDef) return null;
-    let profile: ToppleProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'TOPPLEUPDATE') {
-          // Source parity: C++ defaults are 0.2f, 0.01f, 0.3f (set in constructor).
-          // Use null to distinguish "field not present" from "field explicitly set to 0".
-          const parsePercent = (raw: number | null | undefined): number | null =>
-            raw != null ? raw / 100 : null;
-          profile = {
-            initialVelocityPercent: parsePercent(readNumericField(block.fields, ['InitialVelocityPercent'])) ?? 0.20,
-            initialAccelPercent: parsePercent(readNumericField(block.fields, ['InitialAccelPercent'])) ?? 0.01,
-            bounceVelocityPercent: parsePercent(readNumericField(block.fields, ['BounceVelocityPercent'])) ?? 0.30,
-            killWhenFinishedToppling: readBooleanField(block.fields, ['KillWhenFinishedToppling']) ?? true,
-            killWhenStartToppling: readBooleanField(block.fields, ['KillWhenStartToppling']) ?? false,
-            toppleLeftOrRightOnly: readBooleanField(block.fields, ['ToppleLeftOrRightOnly']) ?? false,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: PhysicsBehavior — extract rigid body physics config from INI.
-   * C++ file: PhysicsUpdate.cpp buildFieldParse.
-   */
-  private extractPhysicsBehaviorProfile(objectDef: ObjectDef | undefined): PhysicsBehaviorProfile | null {
-    if (!objectDef) return null;
-    let profile: PhysicsBehaviorProfile | null = null;
-    const SECONDS_PER_FRAME = 1 / 30;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'PHYSICSBEHAVIOR') {
-          const parseFrictionPerSec = (val: number | null | undefined, def: number): number => {
-            if (val == null) return def;
-            return val * SECONDS_PER_FRAME;
-          };
-          profile = {
-            mass: readNumericField(block.fields, ['Mass']) ?? 1.0,
-            forwardFriction: parseFrictionPerSec(readNumericField(block.fields, ['ForwardFriction']), 0.15 * SECONDS_PER_FRAME),
-            lateralFriction: parseFrictionPerSec(readNumericField(block.fields, ['LateralFriction']), 0.15 * SECONDS_PER_FRAME),
-            zFriction: parseFrictionPerSec(readNumericField(block.fields, ['ZFriction']), 0.8 * SECONDS_PER_FRAME),
-            aerodynamicFriction: parseFrictionPerSec(readNumericField(block.fields, ['AerodynamicFriction']), 0),
-            centerOfMassOffset: readNumericField(block.fields, ['CenterOfMassOffset']) ?? 0,
-            killWhenRestingOnGround: readBooleanField(block.fields, ['KillWhenRestingOnGround']) ?? false,
-            allowBouncing: readBooleanField(block.fields, ['AllowBouncing']) ?? false,
-            allowCollideForce: readBooleanField(block.fields, ['AllowCollideForce']) ?? true,
-            pitchRollYawFactor: readNumericField(block.fields, ['PitchRollYawFactor']) ?? 2.0,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: StructureToppleUpdate — extract building collapse config from INI.
-   * C++ file: StructureToppleUpdate.cpp buildFieldParse.
-   */
-  private extractStructureToppleProfile(objectDef: ObjectDef | undefined): StructureToppleProfile | null {
-    if (!objectDef) return null;
-    let profile: StructureToppleProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'STRUCTURETOPPLEUPDATE') {
-          profile = {
-            minToppleDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['MinToppleDelay']) ?? 500),
-            maxToppleDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['MaxToppleDelay']) ?? 1000),
-            minToppleBurstDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['MinToppleBurstDelay']) ?? 100),
-            maxToppleBurstDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['MaxToppleBurstDelay']) ?? 500),
-            structuralIntegrity: readNumericField(block.fields, ['StructuralIntegrity']) ?? 0.1,
-            structuralDecay: readNumericField(block.fields, ['StructuralDecay']) ?? 0,
-            crushingWeaponName: readStringField(block.fields, ['CrushingWeaponName']) ?? '',
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: MissileLauncherBuildingUpdate — extract SCUD Storm door config from INI.
-   * C++ file: MissileLauncherBuildingUpdate.h buildFieldParse.
-   */
-  private extractMissileLauncherBuildingProfile(objectDef: ObjectDef | undefined): MissileLauncherBuildingProfile | null {
-    if (!objectDef) return null;
-    let profile: MissileLauncherBuildingProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'MISSILELAUNCHERBUILDINGUPDATE') {
-          profile = {
-            specialPowerTemplateName: (readStringField(block.fields, ['SpecialPowerTemplate']) ?? '').trim().toUpperCase(),
-            doorOpenTimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['DoorOpenTime']) ?? 0),
-            doorWaitOpenTimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['DoorWaitOpenTime']) ?? 0),
-            doorClosingTimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['DoorCloseTime']) ?? 0),
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: ParticleUplinkCannonUpdate — extract Particle Cannon config from INI.
-   * C++ file: ParticleUplinkCannonUpdate.cpp buildFieldParse.
-   */
-  private extractParticleUplinkCannonProfile(objectDef: ObjectDef | undefined): ParticleUplinkCannonProfile | null {
-    if (!objectDef) return null;
-    let profile: ParticleUplinkCannonProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'PARTICLEUPLINKCANNONUPDATE') {
-          profile = {
-            specialPowerTemplateName: (readStringField(block.fields, ['SpecialPowerTemplate']) ?? '').trim().toUpperCase(),
-            totalFiringFrames: this.msToLogicFrames(readNumericField(block.fields, ['TotalFiringTime']) ?? 0),
-            totalDamagePulses: readNumericField(block.fields, ['TotalDamagePulses']) ?? 0,
-            damagePerSecond: readNumericField(block.fields, ['DamagePerSecond']) ?? 0,
-            damageType: (readStringField(block.fields, ['DamageType']) ?? 'LASER').toUpperCase(),
-            damageRadiusScalar: readNumericField(block.fields, ['DamageRadiusScalar']) ?? 1.0,
-            revealRange: (readNumericField(block.fields, ['RevealRange']) ?? 0) * MAP_XY_FACTOR,
-            swathOfDeathDistance: (readNumericField(block.fields, ['SwathOfDeathDistance']) ?? 0) * MAP_XY_FACTOR,
-            swathOfDeathAmplitude: (readNumericField(block.fields, ['SwathOfDeathAmplitude']) ?? 0) * MAP_XY_FACTOR,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: NeutronMissileUpdate — extract nuke missile flight config from INI.
-   * C++ file: NeutronMissileUpdate.cpp buildFieldParse.
-   */
-  private extractNeutronMissileUpdateProfile(objectDef: ObjectDef | undefined): NeutronMissileUpdateProfile | null {
-    if (!objectDef) return null;
-    let profile: NeutronMissileUpdateProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'NEUTRONMISSILEUPDATE') {
-          profile = {
-            initialDist: readNumericField(block.fields, ['DistanceToTravelBeforeTurning']) ?? 0,
-            maxTurnRate: (readNumericField(block.fields, ['MaxTurnRate']) ?? 999) * (Math.PI / 180),
-            forwardDamping: readNumericField(block.fields, ['ForwardDamping']) ?? 0,
-            relativeSpeed: readNumericField(block.fields, ['RelativeSpeed']) ?? 1.0,
-            targetFromDirectlyAbove: readNumericField(block.fields, ['TargetFromDirectlyAbove']) ?? 0,
-            specialAccelFactor: readNumericField(block.fields, ['SpecialAccelFactor']) ?? 1.0,
-            specialSpeedTimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['SpecialSpeedTime']) ?? 0),
-            specialSpeedHeight: readNumericField(block.fields, ['SpecialSpeedHeight']) ?? 0,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: SpecialAbilityUpdate — extract special ability config from INI Behavior block.
-   * Identifies SPECIALABILITY module type and reads all SpecialAbilityUpdate-specific fields.
-   */
-  private extractSpecialAbilityProfile(objectDef: ObjectDef | undefined): SpecialAbilityProfile | null {
-    if (!objectDef) return null;
-    let profile: SpecialAbilityProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'SPECIALABILITYUPDATE') {
-          const specialPowerTemplate = readStringField(block.fields, ['SpecialPowerTemplate']);
-          if (!specialPowerTemplate) return;
-          const HUGE_DISTANCE = 10000000.0;
-          profile = {
-            specialPowerTemplateName: specialPowerTemplate.trim().toUpperCase(),
-            startAbilityRange: readNumericField(block.fields, ['StartAbilityRange']) ?? HUGE_DISTANCE,
-            abilityAbortRange: readNumericField(block.fields, ['AbilityAbortRange']) ?? HUGE_DISTANCE,
-            preparationFrames: this.msToLogicFrames(readNumericField(block.fields, ['PreparationTime']) ?? 0),
-            persistentPrepFrames: this.msToLogicFrames(readNumericField(block.fields, ['PersistentPrepTime']) ?? 0),
-            packTimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['PackTime']) ?? 0),
-            unpackTimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['UnpackTime']) ?? 0),
-            packUnpackVariationFactor: readNumericField(block.fields, ['PackUnpackVariationFactor']) ?? 0,
-            skipPackingWithNoTarget: readBooleanField(block.fields, ['SkipPackingWithNoTarget']) === true,
-            effectDurationFrames: this.msToLogicFrames(readNumericField(block.fields, ['EffectDuration']) ?? 0),
-            fleeRangeAfterCompletion: readNumericField(block.fields, ['FleeRangeAfterCompletion']) ?? 0,
-            flipOwnerAfterPacking: readBooleanField(block.fields, ['FlipOwnerAfterPacking']) === true,
-            flipOwnerAfterUnpacking: readBooleanField(block.fields, ['FlipOwnerAfterUnpacking']) === true,
-            loseStealthOnTrigger: readBooleanField(block.fields, ['LoseStealthOnTrigger']) === true,
-            preTriggerUnstealthFrames: this.msToLogicFrames(readNumericField(block.fields, ['PreTriggerUnstealthTime']) ?? 0),
-            awardXPForTriggering: readNumericField(block.fields, ['AwardXPForTriggering']) ?? 0,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: GenerateMinefieldBehavior — extract mine generation config from INI.
-   */
-  private extractGenerateMinefieldProfile(objectDef: ObjectDef | undefined): GenerateMinefieldProfile | null {
-    if (!objectDef) return null;
-    let profile: GenerateMinefieldProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'GENERATEMINEFIELDBEHAVIOR') {
-          const mineName = readStringField(block.fields, ['MineName']);
-          if (!mineName) return;
-          profile = {
-            mineName,
-            distanceAroundObject: readNumericField(block.fields, ['DistanceAroundObject']) ?? 20,
-            borderOnly: readBooleanField(block.fields, ['BorderOnly']) ?? true,
-            alwaysCircular: readBooleanField(block.fields, ['AlwaysCircular']) ?? false,
-            generateOnlyOnDeath: readBooleanField(block.fields, ['GenerateOnlyOnDeath']) ?? false,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: CreateCrateDie — extract crate spawning config from INI.
-   * Parses CrateData field which references a crate object template name.
-   * In C++, CreateCrateDie uses CrateSystem to resolve templates with weighted chance
-   * selection, veterancy conditions, etc. We simplify: take the first CrateData entry
-   * directly as the object template to spawn.
-   */
-  private extractCreateCrateDieProfile(objectDef: ObjectDef | undefined): CreateCrateDieProfile | null {
-    if (!objectDef) return null;
-    let profile: CreateCrateDieProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'CREATECRATEDIE') {
-          const crateTemplateName = readStringField(block.fields, ['CrateData']);
-          if (crateTemplateName) {
-            profile = { crateTemplateName };
-          }
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: SalvageCrateCollide — extract salvage crate behavior from INI.
-   * Parsed from a Behavior block on the crate object template itself.
-   */
-  private extractSalvageCrateProfile(objectDef: ObjectDef | undefined): SalvageCrateProfile | null {
-    if (!objectDef) return null;
-    let profile: SalvageCrateProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'SALVAGECRATECOLLIDE') {
-          profile = {
-            weaponChance: this.parsePercent(this.readIniFieldValue(block.fields, 'WeaponChance')) ?? 1.0,
-            levelChance: this.parsePercent(this.readIniFieldValue(block.fields, 'LevelChance')) ?? 0.25,
-            minMoney: readNumericField(block.fields, ['MinMoney']) ?? 25,
-            maxMoney: readNumericField(block.fields, ['MaxMoney']) ?? 75,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: CrateCollide hierarchy — extract general crate collide profile from INI.
-   * Matches HealCrateCollide, MoneyCrateCollide, VeterancyCrateCollide,
-   * ShroudCrateCollide, UnitCrateCollide behavior blocks.
-   */
-  private extractCrateCollideProfile(objectDef: ObjectDef | undefined): CrateCollideProfile | null {
-    if (!objectDef) return null;
-    let profile: CrateCollideProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        let crateType: CrateCollideType | null = null;
-        if (moduleType === 'HEALCRATECOLLIDE') crateType = 'HEAL';
-        else if (moduleType === 'MONEYCRATECOLLIDE') crateType = 'MONEY';
-        else if (moduleType === 'VETERANCYCRATECOLLIDE') crateType = 'VETERANCY';
-        else if (moduleType === 'SHROUDCRATECOLLIDE') crateType = 'SHROUD';
-        else if (moduleType === 'UNITCRATECOLLIDE') crateType = 'UNIT';
-        if (crateType !== null) {
-          // Parse base CrateCollide fields.
-          const requiredKindOf = this.parseKindOf(block.fields['RequiredKindOf'] ?? block.fields['KindOf']);
-          const forbiddenKindOf = this.parseKindOf(block.fields['ForbiddenKindOf'] ?? block.fields['KindOfNot']);
-          profile = {
-            crateType,
-            requiredKindOf,
-            forbiddenKindOf,
-            forbidOwnerPlayer: readBooleanField(block.fields, ['ForbidOwnerPlayer']) ?? false,
-            buildingPickup: readBooleanField(block.fields, ['BuildingPickup']) ?? false,
-            humanOnly: readBooleanField(block.fields, ['HumanOnly']) ?? false,
-            moneyProvided: readNumericField(block.fields, ['MoneyProvided']) ?? 0,
-            unitType: readStringField(block.fields, ['UnitName']) ?? '',
-            unitCount: readNumericField(block.fields, ['UnitCount']) ?? 1,
-            veterancyRange: readNumericField(block.fields, ['EffectRange']) ?? 0,
-            addsOwnerVeterancy: readBooleanField(block.fields, ['AddsOwnerVeterancy']) ?? false,
-            isPilot: readBooleanField(block.fields, ['IsPilot']) ?? false,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: DeployStyleAIUpdate — extract deploy/undeploy config from INI.
-   */
-  private extractDeployStyleProfile(objectDef: ObjectDef | undefined): DeployStyleProfile | null {
-    if (!objectDef) return null;
-    let profile: DeployStyleProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'DEPLOYSTYLEAIUPDATE') {
-          const unpackMs = readNumericField(block.fields, ['UnpackTime']) ?? 0;
-          const packMs = readNumericField(block.fields, ['PackTime']) ?? 0;
-          profile = {
-            unpackTimeFrames: this.msToLogicFrames(unpackMs),
-            packTimeFrames: this.msToLogicFrames(packMs),
-            turretsFunctionOnlyWhenDeployed:
-              readBooleanField(block.fields, ['TurretsFunctionOnlyWhenDeployed']) ?? false,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: BattlePlanUpdate — extract battle plan profile from INI.
-   */
-  private extractBattlePlanProfile(objectDef: ObjectDef | undefined): BattlePlanProfile | null {
-    if (!objectDef) return null;
-    let profile: BattlePlanProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'BATTLEPLANUPDATE') {
-          const bombardmentMs = readNumericField(block.fields, ['BombardmentPlanAnimationTime']) ?? 2000;
-          const holdTheLineMs = readNumericField(block.fields, ['HoldTheLinePlanAnimationTime']) ?? 2000;
-          const searchAndDestroyMs = readNumericField(block.fields, ['SearchAndDestroyPlanAnimationTime']) ?? 2000;
-          const transitionIdleMs = readNumericField(block.fields, ['TransitionIdleTime']) ?? 3000;
-          const paralyzeMs = readNumericField(block.fields, ['BattlePlanChangeParalyzeTime']) ?? 2000;
-
-          const validKindOf = readStringField(block.fields, ['ValidMemberKindOf']) ?? '';
-          const invalidKindOf = readStringField(block.fields, ['InvalidMemberKindOf']) ?? '';
-
-          profile = {
-            bombardmentAnimationFrames: this.msToLogicFrames(bombardmentMs),
-            holdTheLineAnimationFrames: this.msToLogicFrames(holdTheLineMs),
-            searchAndDestroyAnimationFrames: this.msToLogicFrames(searchAndDestroyMs),
-            transitionIdleFrames: this.msToLogicFrames(transitionIdleMs),
-            battlePlanParalyzeFrames: this.msToLogicFrames(paralyzeMs),
-            holdTheLineArmorDamageScalar:
-              readNumericField(block.fields, ['HoldTheLinePlanArmorDamageScalar']) ?? 1.0,
-            searchAndDestroySightRangeScalar:
-              readNumericField(block.fields, ['SearchAndDestroyPlanSightRangeScalar']) ?? 1.0,
-            strategyCenterSearchAndDestroySightRangeScalar:
-              readNumericField(block.fields, ['StrategyCenterSearchAndDestroySightRangeScalar']) ?? 1.0,
-            strategyCenterSearchAndDestroyDetectsStealth:
-              readBooleanField(block.fields, ['StrategyCenterSearchAndDestroyDetectsStealth']) ?? false,
-            strategyCenterHoldTheLineMaxHealthScalar:
-              readNumericField(block.fields, ['StrategyCenterHoldTheLineMaxHealthScalar']) ?? 1.0,
-            validMemberKindOf: new Set(
-              validKindOf.split(/\s+/).map((t) => t.trim().toUpperCase()).filter(Boolean),
-            ),
-            invalidMemberKindOf: new Set(
-              invalidKindOf.split(/\s+/).map((t) => t.trim().toUpperCase()).filter(Boolean),
-            ),
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
    * Source parity: SlowDeathBehavior modules — extract all slow death profiles from INI.
    * An entity can have multiple SlowDeathBehavior modules; one is selected via weighted
    * random on death based on DeathTypes, VeterancyLevels, and ProbabilityModifier.
    */
-  private resolveLifetimeDieFrame(objectDef: ObjectDef | undefined): number | null {
+  /* @internal */ resolveLifetimeDieFrame(objectDef: ObjectDef | undefined): number | null {
     if (!objectDef) return null;
     let minFrames: number | null = null;
     let maxFrames: number | null = null;
@@ -20576,41 +17221,10 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
-   * Source parity: HeightDieUpdate — extract height-based death profile from INI.
-   * C++ file: HeightDieUpdate.cpp — kills entities below target height above terrain.
-   */
-  private extractHeightDieProfile(objectDef: ObjectDef | undefined): HeightDieProfile | null {
-    if (!objectDef) return null;
-    let profile: HeightDieProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'HEIGHTDIEUPDATE') {
-          profile = {
-            targetHeight: readNumericField(block.fields, ['TargetHeight']) ?? 0,
-            onlyWhenMovingDown: (readStringField(block.fields, ['OnlyWhenMovingDown'])?.toUpperCase() === 'YES'),
-            targetHeightIncludesStructures: (readStringField(block.fields, ['TargetHeightIncludesStructures'])?.toUpperCase() === 'YES'),
-            snapToGroundOnDeath: (readStringField(block.fields, ['SnapToGroundOnDeath'])?.toUpperCase() === 'YES'),
-            initialDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['InitialDelay']) ?? 0),
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
    * Source parity: DeletionUpdate — resolve die frame for silent object removal.
    * Same timer logic as LifetimeUpdate but calls destroyObject (instant removal, no death pipeline).
    */
-  private resolveDeletionDieFrame(objectDef: ObjectDef | undefined): number | null {
+  /* @internal */ resolveDeletionDieFrame(objectDef: ObjectDef | undefined): number | null {
     if (!objectDef) return null;
     let minFrames: number | null = null;
     let maxFrames: number | null = null;
@@ -20637,114 +17251,11 @@ export class GameLogicSubsystem implements Subsystem {
     return this.frameCounter + delay;
   }
 
-  private extractProjectileStreamProfile(objectDef: ObjectDef | undefined): ProjectileStreamProfile | null {
-    if (!objectDef?.blocks) return null;
-    for (const block of objectDef.blocks) {
-      const blockType = block.type.toUpperCase();
-      if ((blockType === 'BEHAVIOR' || blockType === 'CLIENTUPDATE')
-          && block.name.toUpperCase().includes('PROJECTILESTREAMUPDATE')) {
-        return { enabled: true };
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Source parity: BoneFXUpdateModuleData — parse BoneFXUpdate module from INI.
-   * Fields follow pattern: {DamageState}{EffectType}{1-8}
-   * Value format: Bone:{boneName} OnlyOnce:{Yes|No} {minDelayMs} {maxDelayMs} {FXList:|OCL:|PSys:}{effectName}
-   * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/BoneFXUpdate.cpp)
-   */
-  private extractBoneFXProfile(objectDef: ObjectDef | undefined): BoneFXProfile | null {
-    if (!objectDef) return null;
-
-    let profile: BoneFXProfile | null = null;
-
-    const damageStateNames = ['Pristine', 'Damaged', 'ReallyDamaged', 'Rubble'];
-    const effectTypes = [
-      { prefix: 'FXList', target: 'fxLists' as const },
-      { prefix: 'OCL', target: 'oclLists' as const },
-      { prefix: 'ParticleSystem', target: 'particleSystems' as const },
-    ];
-
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR' || blockType === 'CLIENTUPDATE') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'BONEFXUPDATE') {
-          // Initialize empty profile: 4 damage states x 8 bone slots
-          const numStates = 4;
-          const numBones = 8;
-          const makeGrid = (): (BoneFXEntry | null)[][] => {
-            const grid: (BoneFXEntry | null)[][] = [];
-            for (let i = 0; i < numStates; i++) {
-              grid.push(new Array(numBones).fill(null));
-            }
-            return grid;
-          };
-
-          const fxLists = makeGrid();
-          const oclLists = makeGrid();
-          const particleSystems = makeGrid();
-
-          for (const [fieldName, fieldValue] of Object.entries(block.fields)) {
-            if (typeof fieldValue !== 'string') continue;
-            const upperFieldName = fieldName.toUpperCase();
-
-            for (let stateIdx = 0; stateIdx < numStates; stateIdx++) {
-              const stateName = damageStateNames[stateIdx]!.toUpperCase();
-              for (const eff of effectTypes) {
-                const prefix = stateName + eff.prefix.toUpperCase();
-                if (upperFieldName.startsWith(prefix)) {
-                  const indexStr = upperFieldName.slice(prefix.length);
-                  const boneIndex = parseInt(indexStr, 10) - 1; // 1-based → 0-based
-                  if (boneIndex < 0 || boneIndex >= numBones || isNaN(boneIndex)) continue;
-
-                  const entry = this.parseBoneFXFieldValue(fieldValue);
-                  if (entry) {
-                    const target =
-                      eff.target === 'fxLists' ? fxLists :
-                      eff.target === 'oclLists' ? oclLists :
-                      particleSystems;
-                    target[stateIdx]![boneIndex] = entry;
-                  }
-                }
-              }
-            }
-          }
-
-          // Only create profile if at least one entry was parsed.
-          let hasEntry = false;
-          outer:
-          for (const grid of [fxLists, oclLists, particleSystems]) {
-            for (const row of grid) {
-              for (const cell of row) {
-                if (cell !== null) { hasEntry = true; break outer; }
-              }
-            }
-          }
-
-          if (hasEntry) {
-            profile = { fxLists, oclLists, particleSystems };
-          }
-        }
-      }
-    };
-
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) {
-        visitBlock(block);
-      }
-    }
-    return profile;
-  }
-
   /**
    * Parse a single BoneFX field value string.
    * Format: Bone:{boneName} OnlyOnce:{Yes|No} {minDelayMs} {maxDelayMs} {FXList:|OCL:|PSys:}{effectName}
    */
-  private parseBoneFXFieldValue(value: string): BoneFXEntry | null {
+  /* @internal */ parseBoneFXFieldValue(value: string): BoneFXEntry | null {
     // Tokenize by whitespace, but respect colon-separated key:value pairs.
     const tokens = value.split(/\s+/).filter(Boolean);
     if (tokens.length < 5) return null;
@@ -20808,120 +17319,7 @@ export class GameLogicSubsystem implements Subsystem {
     };
   }
 
-  private extractSlowDeathProfiles(objectDef: ObjectDef | undefined): SlowDeathProfile[] {
-    if (!objectDef) return [];
-    const profiles: SlowDeathProfile[] = [];
-    const phaseNames = ['INITIAL', 'MIDPOINT', 'FINAL'] as const;
-
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR' || blockType === 'DIE') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType.includes('SLOWDEATH') || moduleType === 'HELICOPTERSLOWDEATHBEHAVIOR'
-            || moduleType === 'JETSLOWDEATHBEHAVIOR') {
-          // Parse DeathTypes set.
-          const deathTypes = new Set<string>();
-          const deathTypesStr = readStringField(block.fields, ['DeathTypes']);
-          if (deathTypesStr) {
-            for (const token of deathTypesStr.toUpperCase().split(/\s+/)) {
-              if (token) deathTypes.add(token);
-            }
-          }
-
-          // Parse VeterancyLevels set.
-          const veterancyLevels = new Set<string>();
-          const vetStr = readStringField(block.fields, ['VeterancyLevels']);
-          if (vetStr) {
-            for (const token of vetStr.toUpperCase().split(/\s+/)) {
-              if (token) veterancyLevels.add(token);
-            }
-          }
-
-          // Parse ExemptStatus / RequiredStatus.
-          const exemptStatus = new Set<string>();
-          const exemptStr = readStringField(block.fields, ['ExemptStatus']);
-          if (exemptStr) {
-            for (const token of exemptStr.toUpperCase().split(/\s+/)) {
-              if (token) exemptStatus.add(token);
-            }
-          }
-          const requiredStatus = new Set<string>();
-          const reqStr = readStringField(block.fields, ['RequiredStatus']);
-          if (reqStr) {
-            for (const token of reqStr.toUpperCase().split(/\s+/)) {
-              if (token) requiredStatus.add(token);
-            }
-          }
-
-          // Parse phase-specific OCLs and Weapons.
-          // INI format: "OCL INITIAL OCLName" or "Weapon MIDPOINT WeaponName"
-          // Fields can appear multiple times — INI parser stores as string or string[].
-          const phaseOCLs: [string[], string[], string[]] = [[], [], []];
-          const phaseWeapons: [string[], string[], string[]] = [[], [], []];
-
-          const parsePhaseEntries = (fieldName: string, target: [string[], string[], string[]]): void => {
-            const raw = block.fields[fieldName];
-            const entries: string[] = [];
-            if (typeof raw === 'string') {
-              entries.push(raw);
-            } else if (Array.isArray(raw)) {
-              for (const entry of raw) {
-                if (typeof entry === 'string') entries.push(entry);
-              }
-            }
-            for (const entry of entries) {
-              const parts = entry.trim().split(/\s+/);
-              if (parts.length >= 2) {
-                const phaseIdx = phaseNames.indexOf(parts[0]!.toUpperCase() as typeof phaseNames[number]);
-                const name = parts[parts.length - 1]!;
-                if (phaseIdx >= 0 && name) {
-                  target[phaseIdx]!.push(name);
-                }
-              } else if (parts.length === 1 && parts[0]) {
-                target[0]!.push(parts[0]);
-              }
-            }
-          };
-          parsePhaseEntries('OCL', phaseOCLs);
-          parsePhaseEntries('Weapon', phaseWeapons);
-
-          profiles.push({
-            probabilityModifier: readNumericField(block.fields, ['ProbabilityModifier']) ?? 10,
-            modifierBonusPerOverkillPercent: readNumericField(block.fields, ['ModifierBonusPerOverkillPercent']) ?? 0,
-            sinkDelay: this.msToLogicFrames(readNumericField(block.fields, ['SinkDelay']) ?? 0),
-            sinkDelayVariance: this.msToLogicFrames(readNumericField(block.fields, ['SinkDelayVariance']) ?? 0),
-            sinkRate: (readNumericField(block.fields, ['SinkRate']) ?? 0) / LOGIC_FRAME_RATE,
-            destructionDelay: this.msToLogicFrames(readNumericField(block.fields, ['DestructionDelay']) ?? 0),
-            destructionDelayVariance: this.msToLogicFrames(readNumericField(block.fields, ['DestructionDelayVariance']) ?? 0),
-            destructionAltitude: readNumericField(block.fields, ['DestructionAltitude']) ?? -10,
-            flingForce: readNumericField(block.fields, ['FlingForce']) ?? 0,
-            flingForceVariance: readNumericField(block.fields, ['FlingForceVariance']) ?? 0,
-            flingPitch: (readNumericField(block.fields, ['FlingPitch']) ?? 0) * Math.PI / 180,
-            flingPitchVariance: (readNumericField(block.fields, ['FlingPitchVariance']) ?? 0) * Math.PI / 180,
-            isBattleBus: moduleType === 'BATTLEBUSSLOWDEATHBEHAVIOR',
-            throwForce: readNumericField(block.fields, ['ThrowForce']) ?? 200,
-            percentDamageToPassengers: readNumericField(block.fields, ['PercentDamageToPassengers']) ?? 50,
-            emptyHulkDestructionDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['EmptyHulkDestructionDelay']) ?? 0),
-            deathTypes,
-            veterancyLevels,
-            exemptStatus,
-            requiredStatus,
-            phaseOCLs,
-            phaseWeapons,
-          });
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profiles;
-  }
-
-  private resolveObjectDefParent(objectDef: ObjectDef): ObjectDef | undefined {
+  /* @internal */ resolveObjectDefParent(objectDef: ObjectDef): ObjectDef | undefined {
     const parentName = objectDef.parent?.trim();
     if (!parentName) {
       return undefined;
@@ -20931,858 +17329,6 @@ export class GameLogicSubsystem implements Subsystem {
       return undefined;
     }
     return findObjectDefByName(registry, parentName) ?? undefined;
-  }
-
-  /**
-   * Source parity: HelicopterSlowDeathBehavior — extract helicopter spiral death profiles.
-   * C++ file: HelicopterSlowDeathUpdate.cpp (extends SlowDeathBehavior).
-   */
-  private extractHelicopterSlowDeathProfiles(objectDef: ObjectDef | undefined): HelicopterSlowDeathProfile[] {
-    if (!objectDef) return [];
-    const profiles: HelicopterSlowDeathProfile[] = [];
-
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'DIE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'HELICOPTERSLOWDEATHBEHAVIOR') return;
-
-      // DieMuxData fields.
-      const deathTypes = new Set<string>();
-      const deathTypesStr = readStringField(block.fields, ['DeathTypes']);
-      if (deathTypesStr) {
-        for (const token of deathTypesStr.toUpperCase().split(/\s+/)) {
-          if (token) deathTypes.add(token);
-        }
-      }
-      const veterancyLevels = new Set<string>();
-      const vetStr = readStringField(block.fields, ['VeterancyLevels']);
-      if (vetStr) {
-        for (const token of vetStr.toUpperCase().split(/\s+/)) {
-          if (token) veterancyLevels.add(token);
-        }
-      }
-      const exemptStatus = new Set<string>();
-      const exemptStr = readStringField(block.fields, ['ExemptStatus']);
-      if (exemptStr) {
-        for (const token of exemptStr.toUpperCase().split(/\s+/)) {
-          if (token) exemptStatus.add(token);
-        }
-      }
-      const requiredStatus = new Set<string>();
-      const reqStr = readStringField(block.fields, ['RequiredStatus']);
-      if (reqStr) {
-        for (const token of reqStr.toUpperCase().split(/\s+/)) {
-          if (token) requiredStatus.add(token);
-        }
-      }
-
-      // C++ parseAngularVelocityReal: degrees/sec → radians/frame.
-      const degPerSecToRadPerFrame = (v: number): number => (v * Math.PI / 180) / LOGIC_FRAME_RATE;
-      // C++ parseVelocityReal: units/sec → units/frame.
-      const unitsPerSecToPerFrame = (v: number): number => v / LOGIC_FRAME_RATE;
-
-      // Helicopter-specific fields.
-      const spiralOrbitTurnRate = degPerSecToRadPerFrame(
-        readNumericField(block.fields, ['SpiralOrbitTurnRate']) ?? 0);
-      const spiralOrbitForwardSpeed = unitsPerSecToPerFrame(
-        readNumericField(block.fields, ['SpiralOrbitForwardSpeed']) ?? 0);
-      const spiralOrbitForwardSpeedDamping =
-        readNumericField(block.fields, ['SpiralOrbitForwardSpeedDamping']) ?? 1.0;
-      const minSelfSpin = degPerSecToRadPerFrame(
-        readNumericField(block.fields, ['MinSelfSpin']) ?? 0);
-      const maxSelfSpin = degPerSecToRadPerFrame(
-        readNumericField(block.fields, ['MaxSelfSpin']) ?? 0);
-      const selfSpinUpdateDelay = this.msToLogicFrames(
-        readNumericField(block.fields, ['SelfSpinUpdateDelay']) ?? 0);
-      // parseAngleReal: degrees → radians, then divided by FPS in update.
-      const selfSpinUpdateAmount = (readNumericField(block.fields, ['SelfSpinUpdateAmount']) ?? 0)
-        * Math.PI / 180;
-      // parsePercentToReal: percentage → 0-1.
-      const fallHowFast = (readNumericField(block.fields, ['FallHowFast']) ?? 50) / 100;
-      const delayFromGroundToFinalDeath = this.msToLogicFrames(
-        readNumericField(block.fields, ['DelayFromGroundToFinalDeath']) ?? 0);
-
-      // OCL references.
-      const oclHitGround: string[] = [];
-      const hitGroundStr = readStringField(block.fields, ['OCLHitGround']);
-      if (hitGroundStr) oclHitGround.push(hitGroundStr);
-      const oclFinalBlowUp: string[] = [];
-      const finalStr = readStringField(block.fields, ['OCLFinalBlowUp']);
-      if (finalStr) oclFinalBlowUp.push(finalStr);
-
-      const finalRubbleObject = readStringField(block.fields, ['FinalRubbleObject']) ?? '';
-
-      profiles.push({
-        deathTypes,
-        veterancyLevels,
-        exemptStatus,
-        requiredStatus,
-        spiralOrbitTurnRate,
-        spiralOrbitForwardSpeed,
-        spiralOrbitForwardSpeedDamping,
-        minSelfSpin,
-        maxSelfSpin,
-        selfSpinUpdateDelay,
-        selfSpinUpdateAmount,
-        fallHowFast,
-        delayFromGroundToFinalDeath,
-        oclHitGround,
-        oclFinalBlowUp,
-        finalRubbleObject,
-      });
-    };
-
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (profiles.length === 0 && this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: CleanupHazardUpdate — extract cleanup hazard profile from INI.
-   * C++ file: CleanupHazardUpdate.cpp — workers scan for CLEANUP_HAZARD entities.
-   */
-  private extractCleanupHazardProfile(objectDef: ObjectDef | undefined): CleanupHazardProfile | null {
-    if (!objectDef) return null;
-    for (const block of objectDef.blocks) {
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'CLEANUPHAZARDUPDATE') continue;
-      const weaponSlotStr = readStringField(block.fields, ['WeaponSlot'])?.toUpperCase() ?? 'PRIMARY';
-      const weaponSlot = weaponSlotStr === 'SECONDARY' ? 'SECONDARY' : weaponSlotStr === 'TERTIARY' ? 'TERTIARY' : 'PRIMARY';
-      const scanFrames = this.msToLogicFrames(readNumericField(block.fields, ['ScanRate']) ?? 0);
-      const scanRange = readNumericField(block.fields, ['ScanRange']) ?? 0;
-      return { weaponSlot, scanFrames, scanRange };
-    }
-    if (this.resolveObjectDefParent(objectDef)) {
-      return this.extractCleanupHazardProfile(this.resolveObjectDefParent(objectDef));
-    }
-    return null;
-  }
-
-  /**
-   * Source parity: AssistedTargetingUpdate — extract assisted targeting profile from INI.
-   * C++ file: AssistedTargetingUpdate.cpp — laser designation system.
-   */
-  private extractAssistedTargetingProfile(objectDef: ObjectDef | undefined): AssistedTargetingProfile | null {
-    if (!objectDef) return null;
-    for (const block of objectDef.blocks) {
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'ASSISTEDTARGETINGUPDATE') continue;
-      const clipSize = readNumericField(block.fields, ['AssistingClipSize']) ?? 1;
-      const weaponSlotStr = readStringField(block.fields, ['AssistingWeaponSlot'])?.toUpperCase() ?? 'PRIMARY';
-      const weaponSlot = weaponSlotStr === 'SECONDARY' ? 'SECONDARY' : weaponSlotStr === 'TERTIARY' ? 'TERTIARY' : 'PRIMARY';
-      const laserFromAssisted = readStringField(block.fields, ['LaserFromAssisted']) ?? '';
-      const laserToTarget = readStringField(block.fields, ['LaserToTarget']) ?? '';
-      return { clipSize, weaponSlot, laserFromAssisted, laserToTarget };
-    }
-    if (this.resolveObjectDefParent(objectDef)) {
-      return this.extractAssistedTargetingProfile(this.resolveObjectDefParent(objectDef));
-    }
-    return null;
-  }
-
-  /**
-   * Source parity: StructureCollapseUpdate — extract building collapse profile from INI.
-   * C++ file: StructureCollapseUpdate.cpp (buildFieldParse) + DieModule.cpp (DieMuxData).
-   * One per entity; combines UpdateModule + DieModuleInterface.
-   */
-  private extractStructureCollapseProfile(objectDef: ObjectDef | undefined): StructureCollapseProfile | null {
-    if (!objectDef) return null;
-    let profile: StructureCollapseProfile | null = null;
-
-    const scPhaseNames = ['INITIAL', 'DELAY', 'BURST', 'FINAL'] as const;
-
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR' || blockType === 'UPDATE') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'STRUCTURECOLLAPSEUPDATE') {
-          // Parse DieMuxData fields.
-          const deathTypes = new Set<string>();
-          const deathTypesStr = readStringField(block.fields, ['DeathTypes']);
-          if (deathTypesStr) {
-            for (const token of deathTypesStr.toUpperCase().split(/\s+/)) {
-              if (token) deathTypes.add(token);
-            }
-          }
-          const veterancyLevels = new Set<string>();
-          const vetStr = readStringField(block.fields, ['VeterancyLevels']);
-          if (vetStr) {
-            for (const token of vetStr.toUpperCase().split(/\s+/)) {
-              if (token) veterancyLevels.add(token);
-            }
-          }
-          const exemptStatus = new Set<string>();
-          const exemptStr = readStringField(block.fields, ['ExemptStatus']);
-          if (exemptStr) {
-            for (const token of exemptStr.toUpperCase().split(/\s+/)) {
-              if (token) exemptStatus.add(token);
-            }
-          }
-          const requiredStatus = new Set<string>();
-          const reqStr = readStringField(block.fields, ['RequiredStatus']);
-          if (reqStr) {
-            for (const token of reqStr.toUpperCase().split(/\s+/)) {
-              if (token) requiredStatus.add(token);
-            }
-          }
-
-          // Parse phase OCLs: "OCL INITIAL SomeOCLName AnotherOCL"
-          const phaseOCLs: [string[], string[], string[], string[]] = [[], [], [], []];
-          const rawOCL = block.fields['OCL'];
-          const oclEntries: string[] = [];
-          if (typeof rawOCL === 'string') {
-            oclEntries.push(rawOCL);
-          } else if (Array.isArray(rawOCL)) {
-            for (const e of rawOCL) {
-              if (typeof e === 'string') oclEntries.push(e);
-            }
-          }
-          for (const entry of oclEntries) {
-            const parts = entry.trim().split(/\s+/);
-            if (parts.length >= 2) {
-              const phaseIdx = scPhaseNames.indexOf(parts[0]!.toUpperCase() as typeof scPhaseNames[number]);
-              if (phaseIdx >= 0) {
-                // All subsequent tokens are OCL names for this phase.
-                for (let i = 1; i < parts.length; i++) {
-                  if (parts[i]) phaseOCLs[phaseIdx]!.push(parts[i]!);
-                }
-              }
-            }
-          }
-
-          profile = {
-            deathTypes,
-            veterancyLevels,
-            exemptStatus,
-            requiredStatus,
-            minCollapseDelay: this.msToLogicFrames(readNumericField(block.fields, ['MinCollapseDelay']) ?? 0),
-            maxCollapseDelay: this.msToLogicFrames(readNumericField(block.fields, ['MaxCollapseDelay']) ?? 0),
-            minBurstDelay: this.msToLogicFrames(readNumericField(block.fields, ['MinBurstDelay']) ?? 9999),
-            maxBurstDelay: this.msToLogicFrames(readNumericField(block.fields, ['MaxBurstDelay']) ?? 9999),
-            collapseDamping: readNumericField(block.fields, ['CollapseDamping']) ?? 0.0,
-            bigBurstFrequency: readNumericField(block.fields, ['BigBurstFrequency']) ?? 0,
-            phaseOCLs,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: EMPUpdate — extract EMP pulse configuration from INI.
-   * C++ file: EMPUpdate.h/cpp. Attached to the EMP pulse object.
-   */
-  private extractEmpUpdateProfile(objectDef: ObjectDef | undefined): EMPUpdateProfile | null {
-    if (!objectDef) return null;
-    let profile: EMPUpdateProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'UPDATE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'EMPUPDATE') return;
-
-      const victimRequiredKindOf = new Set<string>();
-      const victimForbiddenKindOf = new Set<string>();
-      const victimReqRaw = readStringField(block.fields, ['VictimRequiredKindOf']);
-      if (victimReqRaw) {
-        for (const token of victimReqRaw.trim().split(/\s+/)) {
-          if (token) victimRequiredKindOf.add(token.toUpperCase());
-        }
-      }
-      const victimForbidRaw = readStringField(block.fields, ['VictimForbiddenKindOf']);
-      if (victimForbidRaw) {
-        for (const token of victimForbidRaw.trim().split(/\s+/)) {
-          if (token) victimForbiddenKindOf.add(token.toUpperCase());
-        }
-      }
-
-      profile = {
-        lifetimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['Lifetime']) ?? 33),
-        startFadeFrame: this.msToLogicFrames(readNumericField(block.fields, ['StartFadeTime']) ?? 0),
-        disabledDurationFrames: this.msToLogicFrames(readNumericField(block.fields, ['DisabledDuration']) ?? 0),
-        effectRadius: readNumericField(block.fields, ['EffectRadius']) ?? 200.0,
-        doesNotAffectMyOwnBuildings: readStringField(block.fields, ['DoesNotAffectMyOwnBuildings'])?.toUpperCase() === 'YES',
-        victimRequiredKindOf,
-        victimForbiddenKindOf,
-      };
-    };
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: HijackerUpdate — extract hijacker profile from INI.
-   * C++ file: HijackerUpdate.h/cpp.
-   */
-  private extractHijackerUpdateProfile(objectDef: ObjectDef | undefined): HijackerUpdateProfile | null {
-    if (!objectDef) return null;
-    let profile: HijackerUpdateProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'UPDATE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'HIJACKERUPDATE') return;
-      profile = {
-        parachuteName: readStringField(block.fields, ['ParachuteName']) ?? null,
-      };
-    };
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: LeafletDropBehavior — extract leaflet drop profile from INI.
-   * C++ file: EMPUpdate.h (same header). Delays before disabling enemy infantry+vehicles in radius.
-   */
-  private extractLeafletDropProfile(objectDef: ObjectDef | undefined): LeafletDropProfile | null {
-    if (!objectDef) return null;
-    let profile: LeafletDropProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'UPDATE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'LEAFLETDROPBEHAVIOR') return;
-      profile = {
-        delayFrames: this.msToLogicFrames(readNumericField(block.fields, ['Delay']) ?? 33),
-        disabledDurationFrames: this.msToLogicFrames(readNumericField(block.fields, ['DisabledDuration']) ?? 0),
-        affectRadius: readNumericField(block.fields, ['AffectRadius']) ?? 60.0,
-      };
-    };
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: SmartBombTargetHomingUpdate — extract course correction profile from INI.
-   * C++ file: SmartBombTargetHomingUpdate.h (buildFieldParse).
-   */
-  private extractSmartBombProfile(objectDef: ObjectDef | undefined): SmartBombTargetHomingProfile | null {
-    if (!objectDef) return null;
-    let profile: SmartBombTargetHomingProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'UPDATE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'SMARTBOMBTARGETHOMINGUPDATE') return;
-      profile = {
-        courseCorrectionScalar: readNumericField(block.fields, ['CourseCorrectionScalar']) ?? 0.99,
-      };
-    };
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: DynamicGeometryInfoUpdate — extract geometry morphing profile from INI.
-   * C++ file: DynamicGeometryInfoUpdate.cpp (buildFieldParse).
-   */
-  private extractDynamicGeometryProfile(objectDef: ObjectDef | undefined): DynamicGeometryInfoUpdateProfile | null {
-    if (!objectDef) return null;
-    let profile: DynamicGeometryInfoUpdateProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'UPDATE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'DYNAMICGEOMETRYINFOUPDATE' && moduleType !== 'FIRESTORMDYNAMICGEOMETRYINFOUPDATE') return;
-      profile = {
-        initialDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['InitialDelay']) ?? 0),
-        initialHeight: readNumericField(block.fields, ['InitialHeight']) ?? 0,
-        initialMajorRadius: readNumericField(block.fields, ['InitialMajorRadius']) ?? 0,
-        initialMinorRadius: readNumericField(block.fields, ['InitialMinorRadius']) ?? 0,
-        finalHeight: readNumericField(block.fields, ['FinalHeight']) ?? 0,
-        finalMajorRadius: readNumericField(block.fields, ['FinalMajorRadius']) ?? 0,
-        finalMinorRadius: readNumericField(block.fields, ['FinalMinorRadius']) ?? 0,
-        transitionTimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['TransitionTime']) ?? 1),
-        reverseAtTransitionTime: (readStringField(block.fields, ['ReverseAtTransitionTime']) ?? '').toUpperCase() === 'YES',
-      };
-    };
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: FirestormDynamicGeometryInfoUpdate — extract firestorm damage profile from INI.
-   * C++ file: FirestormDynamicGeometryInfoUpdate.cpp (buildFieldParse).
-   */
-  private extractFirestormDamageProfile(objectDef: ObjectDef | undefined): FirestormDamageProfile | null {
-    if (!objectDef) return null;
-    let profile: FirestormDamageProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'UPDATE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'FIRESTORMDYNAMICGEOMETRYINFOUPDATE') return;
-      profile = {
-        damageAmount: readNumericField(block.fields, ['DamageAmount']) ?? 0,
-        delayBetweenDamageFrames: this.msToLogicFrames(readNumericField(block.fields, ['DelayBetweenDamageFrames']) ?? 0),
-        maxHeightForDamage: readNumericField(block.fields, ['MaxHeightForDamage']) ?? 20.0,
-      };
-    };
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (!profile && this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: FireOCLAfterWeaponCooldownUpdate — extract OCL-after-cooldown profiles from INI.
-   * C++ file: FireOCLAfterWeaponCooldownUpdate.cpp (buildFieldParse).
-   * Multiple modules per entity are allowed.
-   */
-  private extractFireOCLAfterCooldownProfiles(objectDef: ObjectDef | undefined): FireOCLAfterWeaponCooldownProfile[] {
-    if (!objectDef) return [];
-    const profiles: FireOCLAfterWeaponCooldownProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'UPDATE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'FIREOCLAFTERWEAPONCOOLDOWNUPDATE') return;
-      const slotStr = (readStringField(block.fields, ['WeaponSlot']) ?? 'PRIMARY').toUpperCase();
-      const slot = slotStr === 'SECONDARY' ? 1 : slotStr === 'TERTIARY' ? 2 : 0;
-      profiles.push({
-        weaponSlot: slot,
-        oclName: readStringField(block.fields, ['OCL']) ?? '',
-        minShotsRequired: readNumericField(block.fields, ['MinShotsToCreateOCL']) ?? 1,
-        oclLifetimePerSecond: readNumericField(block.fields, ['OCLLifetimePerSecond']) ?? 1000,
-        oclMaxFrames: this.msToLogicFrames(readNumericField(block.fields, ['OCLLifetimeMaxCap']) ?? 33333),
-      });
-    };
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: NeutronBlastBehavior — extract neutron blast profile from INI.
-   * C++ file: NeutronBlastBehavior.h (buildFieldParse).
-   */
-  private extractNeutronBlastProfile(objectDef: ObjectDef | undefined): NeutronBlastProfile | null {
-    if (!objectDef) return null;
-    let profile: NeutronBlastProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'UPDATE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'NEUTRONBLASTBEHAVIOR') return;
-      profile = {
-        blastRadius: readNumericField(block.fields, ['BlastRadius']) ?? 10.0,
-        affectAirborne: (readStringField(block.fields, ['AffectAirborne']) ?? 'Yes').toUpperCase() !== 'NO',
-        affectAllies: (readStringField(block.fields, ['AffectAllies']) ?? 'Yes').toUpperCase() !== 'NO',
-      };
-    };
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (!profile && this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: BunkerBusterBehavior — extract bunker buster profile from INI.
-   * C++ file: BunkerBusterBehavior.h (buildFieldParse).
-   */
-  private extractBunkerBusterProfile(objectDef: ObjectDef | undefined): BunkerBusterProfile | null {
-    if (!objectDef) return null;
-    let profile: BunkerBusterProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'UPDATE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'BUNKERBUSTERBEHAVIOR') return;
-      profile = {
-        upgradeRequired: (readStringField(block.fields, ['UpgradeRequired']) ?? '').trim().toUpperCase(),
-        occupantDamageWeaponName: (readStringField(block.fields, ['OccupantDamageWeaponTemplate']) ?? '').trim(),
-        shockwaveWeaponName: (readStringField(block.fields, ['ShockwaveWeaponTemplate']) ?? '').trim(),
-      };
-    };
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (!profile && this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: NeutronMissileSlowDeathBehavior — extract blast wave profile from INI.
-   * C++ file: NeutronMissileSlowDeathUpdate.h (buildFieldParse).
-   * Up to 9 blast waves with independent delay/radius/damage/topple.
-   */
-  private extractNeutronMissileSlowDeathProfile(objectDef: ObjectDef | undefined): NeutronMissileSlowDeathProfile | null {
-    if (!objectDef) return null;
-    let profile: NeutronMissileSlowDeathProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'DIE' && blockType !== 'UPDATE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'NEUTRONMISSILESLOWDEATHBEHAVIOR') return;
-      const blasts: NeutronMissileBlastInfo[] = [];
-      // Source parity: MAX_NEUTRON_BLASTS = 9 (indices 1-9 in INI).
-      for (let i = 1; i <= 9; i++) {
-        const prefix = `Blast${i}`;
-        const enabled = (readStringField(block.fields, [`${prefix}Enabled`]) ?? 'No').toUpperCase() === 'YES';
-        blasts.push({
-          enabled,
-          delay: this.msToLogicFrames(readNumericField(block.fields, [`${prefix}Delay`]) ?? 0),
-          scorchDelay: this.msToLogicFrames(readNumericField(block.fields, [`${prefix}ScorchDelay`]) ?? 0),
-          innerRadius: readNumericField(block.fields, [`${prefix}InnerRadius`]) ?? 0,
-          outerRadius: readNumericField(block.fields, [`${prefix}OuterRadius`]) ?? 0,
-          maxDamage: readNumericField(block.fields, [`${prefix}MaxDamage`]) ?? 0,
-          minDamage: readNumericField(block.fields, [`${prefix}MinDamage`]) ?? 0,
-          toppleSpeed: readNumericField(block.fields, [`${prefix}ToppleSpeed`]) ?? 0,
-        });
-      }
-      profile = { blasts };
-    };
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (!profile && this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: TechBuildingBehavior — extract profile from INI.
-   * C++ file: TechBuildingBehavior.cpp (buildFieldParse).
-   */
-  private extractTechBuildingProfile(objectDef: ObjectDef | undefined): TechBuildingBehaviorProfile | null {
-    if (!objectDef) return null;
-    let profile: TechBuildingBehaviorProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'UPDATE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'TECHBUILDINGBEHAVIOR') return;
-      profile = {
-        pulseFXRateFrames: this.msToLogicFrames(readNumericField(block.fields, ['PulseFXRate']) ?? 0),
-      };
-    };
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (!profile && this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: SupplyWarehouseCripplingBehavior — extract self-heal profile from INI.
-   * C++ file: SupplyWarehouseCripplingBehavior.cpp (buildFieldParse).
-   */
-  private extractSupplyWarehouseCripplingProfile(objectDef: ObjectDef | undefined): SupplyWarehouseCripplingProfile | null {
-    if (!objectDef) return null;
-    let profile: SupplyWarehouseCripplingProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'UPDATE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'SUPPLYWAREHOUSECRIPPLINGBEHAVIOR') return;
-      profile = {
-        selfHealSuppressionFrames: this.msToLogicFrames(readNumericField(block.fields, ['SelfHealSupression']) ?? 0),
-        selfHealDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['SelfHealDelay']) ?? 0),
-        selfHealAmount: readNumericField(block.fields, ['SelfHealAmount']) ?? 0,
-      };
-    };
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (!profile && this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: InstantDeathBehavior — extract die module profiles from INI.
-   * C++ file: InstantDeathBehavior.cpp (buildFieldParse) + DieModule.cpp (DieMuxData).
-   * An entity can have multiple InstantDeathBehavior modules; all matching ones fire on death.
-   */
-  private extractInstantDeathProfiles(objectDef: ObjectDef | undefined): InstantDeathProfile[] {
-    if (!objectDef) return [];
-    const profiles: InstantDeathProfile[] = [];
-
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR' || blockType === 'DIE') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'INSTANTDEATHBEHAVIOR' || moduleType === 'DESTROYDIE') {
-          // Parse DieMuxData fields.
-          const deathTypes = new Set<string>();
-          const deathTypesStr = readStringField(block.fields, ['DeathTypes']);
-          if (deathTypesStr) {
-            for (const token of deathTypesStr.toUpperCase().split(/\s+/)) {
-              if (token) deathTypes.add(token);
-            }
-          }
-
-          const veterancyLevels = new Set<string>();
-          const vetStr = readStringField(block.fields, ['VeterancyLevels']);
-          if (vetStr) {
-            for (const token of vetStr.toUpperCase().split(/\s+/)) {
-              if (token) veterancyLevels.add(token);
-            }
-          }
-
-          const exemptStatus = new Set<string>();
-          const exemptStr = readStringField(block.fields, ['ExemptStatus']);
-          if (exemptStr) {
-            for (const token of exemptStr.toUpperCase().split(/\s+/)) {
-              if (token) exemptStatus.add(token);
-            }
-          }
-
-          const requiredStatus = new Set<string>();
-          const reqStr = readStringField(block.fields, ['RequiredStatus']);
-          if (reqStr) {
-            for (const token of reqStr.toUpperCase().split(/\s+/)) {
-              if (token) requiredStatus.add(token);
-            }
-          }
-
-          // Parse effect lists (Weapon, OCL — space-separated or multi-valued).
-          const weaponNames: string[] = [];
-          const weaponRaw = block.fields['Weapon'];
-          if (typeof weaponRaw === 'string') {
-            const name = weaponRaw.trim();
-            if (name) weaponNames.push(name);
-          } else if (Array.isArray(weaponRaw)) {
-            for (const entry of weaponRaw) {
-              const name = typeof entry === 'string' ? entry.trim() : '';
-              if (name) weaponNames.push(name);
-            }
-          }
-
-          const oclNames: string[] = [];
-          const oclRaw = block.fields['OCL'];
-          if (typeof oclRaw === 'string') {
-            const name = oclRaw.trim();
-            if (name) oclNames.push(name);
-          } else if (Array.isArray(oclRaw)) {
-            for (const entry of oclRaw) {
-              const name = typeof entry === 'string' ? entry.trim() : '';
-              if (name) oclNames.push(name);
-            }
-          }
-
-          profiles.push({
-            deathTypes,
-            veterancyLevels,
-            exemptStatus,
-            requiredStatus,
-            weaponNames,
-            oclNames,
-          });
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: FireWeaponWhenDeadBehavior — extract profiles from INI.
-   * C++ file: FireWeaponWhenDeadBehavior.cpp (buildFieldParse) + DieModule.cpp (DieMuxData).
-   */
-  private extractFireWeaponWhenDeadProfiles(objectDef: ObjectDef | undefined): FireWeaponWhenDeadProfile[] {
-    if (!objectDef) return [];
-    const profiles: FireWeaponWhenDeadProfile[] = [];
-
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR' || blockType === 'DIE') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'FIREWEAPONWHENDEADBEHAVIOR') {
-          // Parse DieMuxData fields.
-          const deathTypes = new Set<string>();
-          const deathTypesStr = readStringField(block.fields, ['DeathTypes']);
-          if (deathTypesStr) {
-            for (const token of deathTypesStr.toUpperCase().split(/\s+/)) {
-              if (token) deathTypes.add(token);
-            }
-          }
-
-          const veterancyLevels = new Set<string>();
-          const vetStr = readStringField(block.fields, ['VeterancyLevels']);
-          if (vetStr) {
-            for (const token of vetStr.toUpperCase().split(/\s+/)) {
-              if (token) veterancyLevels.add(token);
-            }
-          }
-
-          const exemptStatus = new Set<string>();
-          const exemptStr = readStringField(block.fields, ['ExemptStatus']);
-          if (exemptStr) {
-            for (const token of exemptStr.toUpperCase().split(/\s+/)) {
-              if (token) exemptStatus.add(token);
-            }
-          }
-
-          const requiredStatus = new Set<string>();
-          const reqStr = readStringField(block.fields, ['RequiredStatus']);
-          if (reqStr) {
-            for (const token of reqStr.toUpperCase().split(/\s+/)) {
-              if (token) requiredStatus.add(token);
-            }
-          }
-
-          const deathWeaponName = readStringField(block.fields, ['DeathWeapon']) ?? '';
-          // Source parity: C++ UpgradeMuxData::m_initiallyActive defaults to false.
-          const startsActive = readBooleanField(block.fields, ['StartsActive']) ?? false;
-
-          const triggeredBy: string[] = [];
-          const triggeredByStr = readStringField(block.fields, ['TriggeredBy']);
-          if (triggeredByStr) {
-            for (const token of triggeredByStr.split(/\s+/)) {
-              if (token) triggeredBy.push(token);
-            }
-          }
-
-          const conflictsWith: string[] = [];
-          const conflictsStr = readStringField(block.fields, ['ConflictsWith']);
-          if (conflictsStr) {
-            for (const token of conflictsStr.split(/\s+/)) {
-              if (token) conflictsWith.push(token);
-            }
-          }
-
-          if (deathWeaponName) {
-            profiles.push({
-              deathTypes,
-              veterancyLevels,
-              exemptStatus,
-              requiredStatus,
-              deathWeaponName,
-              startsActive,
-              triggeredBy,
-              conflictsWith,
-            });
-          }
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: MinefieldBehavior module — extract mine configuration from INI.
-   */
-  private extractMinefieldProfile(objectDef: ObjectDef | undefined): MinefieldProfile | null {
-    if (!objectDef) return null;
-    let profile: MinefieldProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'MINEFIELDBEHAVIOR') {
-          // Parse DetonatedBy relationship mask.
-          let detonatedByMask = MINE_DEFAULT_DETONATED_BY;
-          const detonatedByStr = readStringField(block.fields, ['DetonatedBy'])?.toUpperCase();
-          if (detonatedByStr) {
-            detonatedByMask = 0;
-            if (detonatedByStr.includes('ALLIES')) detonatedByMask |= MINE_DETONATED_BY_ALLIES;
-            if (detonatedByStr.includes('ENEMIES')) detonatedByMask |= MINE_DETONATED_BY_ENEMIES;
-            if (detonatedByStr.includes('NEUTRAL')) detonatedByMask |= MINE_DETONATED_BY_NEUTRAL;
-          }
-
-          profile = {
-            detonationWeaponName: readStringField(block.fields, ['DetonationWeapon']) ?? null,
-            detonatedByMask,
-            numVirtualMines: readNumericField(block.fields, ['NumVirtualMines']) ?? 1,
-            regenerates: readBooleanField(block.fields, ['Regenerates']) ?? false,
-            workersDetonate: readBooleanField(block.fields, ['WorkersDetonate']) ?? false,
-            repeatDetonateMoveThresh: readNumericField(block.fields, ['RepeatDetonateMoveThresh']) ?? 1.0,
-            stopsRegenAfterCreatorDies: readBooleanField(block.fields, ['StopsRegenAfterCreatorDies']) ?? true,
-            degenPercentPerSecondAfterCreatorDies: readNumericField(block.fields, ['DegenPercentPerSecondAfterCreatorDies']) ?? 0,
-            scootFromStartingPointTimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['ScootFromStartingPointTime']) ?? 0),
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: EjectPilotDie module — extract pilot template name from INI.
-   * Searches for EjectPilotDie or HelicopterSlowDeathBehavior with OCLEjectPilot.
-   */
-  private extractEjectPilotTemplateName(objectDef: ObjectDef | undefined): string | null {
-    if (!objectDef) return null;
-    let pilotName: string | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (pilotName !== null) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR' || blockType === 'DIE') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'EJECTPILOTDIE' || moduleType === 'HELICOPTERSLOWDEATHBEHAVIOR') {
-          // Look for OCLEjectPilot or CreationList fields that reference an OCL containing the pilot
-          const oclName = readStringField(block.fields, ['GroundCreationList', 'AirCreationList', 'OCLEjectPilot']);
-          if (oclName) {
-            // Resolve the OCL to find the pilot unit template name.
-            // For now, use a convention-based approach:
-            // Most EjectPilot OCLs create an infantry pilot unit like 'AmericaPilot' or 'ChinaPilot'.
-            pilotName = oclName;
-          }
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return pilotName;
-  }
-
-  private extractRailedTransportProfile(objectDef: ObjectDef | undefined): RailedTransportProfile | null {
-    return extractRailedTransportProfileImpl(objectDef);
   }
 
   /* @internal */ extractHackInternetProfile(objectDef: ObjectDef | undefined): HackInternetProfile | null {
@@ -21863,108 +17409,6 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     return profile;
-  }
-
-  /**
-   * Source parity: PowerPlantUpdateModuleData::buildFieldParse — RodsExtendTime field.
-   */
-  private extractPowerPlantUpdateProfile(objectDef: ObjectDef | undefined): PowerPlantUpdateProfile | null {
-    if (!objectDef) return null;
-    let profile: PowerPlantUpdateProfile | null = null;
-    for (const block of objectDef.blocks) {
-      if (profile) break;
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR') continue;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'POWERPLANTUPDATE') continue;
-      profile = {
-        rodsExtendTimeFrames: this.msToLogicFrames(readNumericField(block.fields, ['RodsExtendTime']) ?? 0),
-      };
-    }
-    return profile;
-  }
-
-  private extractUpgradeModules(objectDef: ObjectDef | undefined): UpgradeModuleProfile[] {
-    if (!objectDef) {
-      return [];
-    }
-
-    return this.extractUpgradeModulesFromBlocks(objectDef.blocks);
-  }
-
-  private extractSpecialPowerModules(objectDef: ObjectDef | undefined): Map<string, SpecialPowerModuleProfile> {
-    const specialPowerModules = new Map<string, SpecialPowerModuleProfile>();
-    if (!objectDef) {
-      return specialPowerModules;
-    }
-
-    const visitBlock = (block: IniBlock): void => {
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (!SPECIAL_POWER_BEHAVIOR_MODULE_TYPES.has(moduleType)) {
-          for (const child of block.blocks) {
-            visitBlock(child);
-          }
-          return;
-        }
-        const specialPowerTemplate = readStringField(block.fields, ['SpecialPowerTemplate']);
-        if (specialPowerTemplate) {
-          const normalizedSpecialPowerTemplate = specialPowerTemplate.trim().toUpperCase();
-          if (normalizedSpecialPowerTemplate && normalizedSpecialPowerTemplate !== 'NONE') {
-            specialPowerModules.set(normalizedSpecialPowerTemplate, {
-              specialPowerTemplateName: normalizedSpecialPowerTemplate,
-              moduleType,
-              updateModuleStartsAttack: readBooleanField(block.fields, ['UpdateModuleStartsAttack']) === true,
-              startsPaused: readBooleanField(block.fields, ['StartsPaused']) === true,
-              // Source parity: read module-specific INI parameters.
-              cashHackMoneyAmount: readNumericField(block.fields, ['MoneyAmount']) ?? 0,
-              cashBountyPercent: readNumericField(block.fields, ['Bounty']) ?? 0,
-              spyVisionBaseDurationMs: readNumericField(block.fields, ['BaseDuration']) ?? 0,
-              fireWeaponMaxShots: readNumericField(block.fields, ['MaxShotsToFire']) ?? 1,
-              cleanupMoveRange: readNumericField(block.fields, ['MaxMoveDistanceFromLocation']) ?? 0,
-              // Source parity: OCLSpecialPower OCL name.
-              oclName: readStringField(block.fields, ['OCL']) ?? '',
-              // NOTE: In the original engine, area damage/heal parameters live on weapon templates
-              // spawned via OCL, not on the special power module itself. These field names are
-              // forward-looking placeholders for OCL-less parameter passing; real game INI files
-              // won't populate them (they'll fall through to DEFAULT_* constants).
-              areaDamageRadius: readNumericField(block.fields, ['Radius', 'WeaponRadius', 'DamageRadius']) ?? 0,
-              areaDamageAmount: readNumericField(block.fields, ['Damage', 'DamageAmount']) ?? 0,
-              areaHealAmount: readNumericField(block.fields, ['HealAmount', 'RepairAmount']) ?? 0,
-              areaHealRadius: readNumericField(block.fields, ['HealRange', 'HealRadius', 'RepairRange']) ?? 0,
-              // Source parity: BaikonurLaunchPowerModuleData::m_detonationObject.
-              detonationObjectName: readStringField(block.fields, ['DetonationObject']) ?? '',
-            });
-          }
-        }
-      }
-
-      for (const child of block.blocks) {
-        visitBlock(child);
-      }
-    };
-
-    for (const block of objectDef.blocks) {
-      visitBlock(block);
-    }
-
-    return specialPowerModules;
-  }
-
-  private extractUpgradeModulesFromBlocks(
-    blocks: IniBlock[] = [],
-    sourceUpgradeName: string | null = null,
-  ): UpgradeModuleProfile[] {
-    return extractUpgradeModulesFromBlocksImpl(
-      blocks,
-      sourceUpgradeName,
-      {
-        parseUpgradeNames: (value) => this.parseUpgradeNames(value),
-        parseObjectStatusNames: (value) => this.parseObjectStatusNames(value),
-        parseKindOf: (value) => this.parseKindOf(value),
-        parsePercent: (value) => this.parsePercent(value),
-      },
-    );
   }
 
   private applyUnpauseSpecialPowerUpgradeModule(
@@ -23018,7 +18462,7 @@ export class GameLogicSubsystem implements Subsystem {
     return Math.max(1, Math.ceil(milliseconds / LOGIC_FRAME_MS));
   }
 
-  private msToLogicFramesReal(milliseconds: number): number {
+  /* @internal */ msToLogicFramesReal(milliseconds: number): number {
     if (!Number.isFinite(milliseconds) || milliseconds <= 0) {
       return 0;
     }
@@ -23644,7 +19088,7 @@ export class GameLogicSubsystem implements Subsystem {
     return normalized.length > 0 ? normalized : null;
   }
 
-  private resolveMapObjectControllingPlayerToken(mapObject: MapObjectJSON): string | null {
+  /* @internal */ resolveMapObjectControllingPlayerToken(mapObject: MapObjectJSON): string | null {
     for (const [key, value] of Object.entries(mapObject.properties)) {
       if (key.trim().toLowerCase() !== 'originalowner') {
         continue;
@@ -23656,7 +19100,7 @@ export class GameLogicSubsystem implements Subsystem {
     return null;
   }
 
-  private resolveMapObjectScriptName(mapObject: MapObjectJSON): string | null {
+  /* @internal */ resolveMapObjectScriptName(mapObject: MapObjectJSON): string | null {
     for (const [key, value] of Object.entries(mapObject.properties)) {
       if (key.trim().toLowerCase() !== 'objectname') {
         continue;
@@ -23782,7 +19226,7 @@ export class GameLogicSubsystem implements Subsystem {
     return entity.ambientSoundProfile?.pristine ?? null;
   }
 
-  private applyMapObjectCoreProperties(entity: MapEntity, mapObject: MapObjectJSON): void {
+  /* @internal */ applyMapObjectCoreProperties(entity: MapEntity, mapObject: MapObjectJSON): void {
     const properties = this.collectNormalizedMapObjectProperties(mapObject);
     if (properties.size === 0) {
       return;
@@ -23912,7 +19356,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  private applyMapObjectAmbientSoundProperties(
+  /* @internal */ applyMapObjectAmbientSoundProperties(
     entity: MapEntity,
     mapObject: MapObjectJSON,
     iniDataRegistry: IniDataRegistry,
@@ -24283,7 +19727,7 @@ export class GameLogicSubsystem implements Subsystem {
     grid.terrainType[index] = NAV_OBSTACLE;
   }
 
-  private objectToWorldPosition(
+  /* @internal */ objectToWorldPosition(
     mapObject: MapObjectJSON,
     heightmap: HeightmapGrid | null,
   ): [number, number, number] {
@@ -29652,48 +25096,6 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  /**
-   * Spawn a new entity from a template name at the given world position.
-   * Used by pilot eject and OCL pipeline.
-   */
-  private spawnEntityFromTemplate(
-    templateName: string,
-    worldX: number,
-    worldZ: number,
-    rotationY: number,
-    side?: string,
-  ): MapEntity | null {
-    const registry = this.iniDataRegistry;
-    if (!registry) return null;
-    const objectDef = findObjectDefByName(registry, templateName);
-    if (!objectDef) return null;
-
-    const mapObject: MapObjectJSON = {
-      templateName: objectDef.name,
-      angle: THREE.MathUtils.radToDeg(rotationY),
-      flags: 0,
-      position: { x: worldX, y: worldZ, z: 0 },
-      properties: {},
-    };
-    const entity = this.createMapEntity(mapObject, objectDef, registry, this.mapHeightmap);
-    if (side !== undefined) {
-      entity.side = side;
-    }
-    // Inherit controlling player from side.
-    if (side) {
-      entity.controllingPlayerToken = this.normalizeControllingPlayerToken(side);
-    }
-    this.addEntityToWorld(entity);
-    this.registerEntityEnergy(entity);
-    this.initializeMinefieldState(entity);
-    this.registerTunnelEntity(entity);
-    // Snap to terrain.
-    if (this.mapHeightmap) {
-      entity.y = this.mapHeightmap.getInterpolatedHeight(worldX, worldZ) ?? 0;
-    }
-    return entity;
-  }
-
   private spawnProducedUnit(producer: MapEntity, unitDef: ObjectDef, productionId: number): MapEntity | null {
     const registry = this.iniDataRegistry;
     if (!registry) {
@@ -30485,7 +25887,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  private resolvePathRadiusAndCenter(
+  /* @internal */ resolvePathRadiusAndCenter(
     category: ObjectCategory,
     objectDef?: ObjectDef,
     obstacleGeometry?: ObstacleGeometry | null,
