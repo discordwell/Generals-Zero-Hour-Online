@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { RuntimeManifest } from '@generals/assets';
 import {
   CampaignManager,
   parseCampaignIni,
@@ -8,6 +9,7 @@ import {
   type Campaign,
 } from './campaign-manager.js';
 import { classifyCampaignReference } from './campaign-content-policy.js';
+import { buildVideoIndex } from '../../app/src/video-player.js';
 
 const MINIMAL_CAMPAIGN_INI = `
 Campaign USA
@@ -224,7 +226,9 @@ function auditRetailCampaignAssets(): RetailCampaignAssetAudit {
   const manifest = JSON.parse(fs.readFileSync(RETAIL_MANIFEST_PATH, 'utf8')) as {
     entries: Array<{ outputPath: string }>;
   };
-  const manifestOutputPaths = new Set(manifest.entries.map((entry) => entry.outputPath));
+  const runtimeManifest = new RuntimeManifest(manifest);
+  const manifestOutputPaths = new Set(runtimeManifest.getOutputPaths());
+  const videoOutputPathByBasename = buildVideoIndex(runtimeManifest);
   const videoFilenameMap = parseVideoFilenameMap(fs.readFileSync(RETAIL_VIDEO_INI_PATH, 'utf8'));
   const audioEventFilenameMap = parseAudioEventFilenameMap([
     fs.readFileSync(RETAIL_SPEECH_INI_PATH, 'utf8'),
@@ -293,8 +297,8 @@ function auditRetailCampaignAssets(): RetailCampaignAssetAudit {
             reason: movieClassification.reason,
           });
         } else {
-          const assetPath = `videos/${resolvedName}.mp4`;
-          if (!manifestOutputPaths.has(assetPath) || !fs.existsSync(path.join(RETAIL_ASSETS_ROOT, assetPath))) {
+          const assetPath = videoOutputPathByBasename.get(resolvedName.toLowerCase()) ?? null;
+          if (!assetPath || !fs.existsSync(path.join(RETAIL_ASSETS_ROOT, assetPath))) {
             const key = `${mission.movieLabel}::${resolvedName}`;
             if (!missingVideoAssets.has(key)) {
               missingVideoAssets.set(key, {
@@ -305,7 +309,7 @@ function auditRetailCampaignAssets(): RetailCampaignAssetAudit {
                 lifecycle: movieClassification.lifecycle,
                 reason: movieClassification.reason,
                 resolvedName,
-                assetPath,
+                assetPath: assetPath ?? `videos/${resolvedName}.mp4`,
               });
             }
           }
@@ -349,8 +353,8 @@ function auditRetailCampaignAssets(): RetailCampaignAssetAudit {
           reason: movieClassification.reason,
         });
       } else {
-        const assetPath = `videos/${resolvedName}.mp4`;
-        if (!manifestOutputPaths.has(assetPath) || !fs.existsSync(path.join(RETAIL_ASSETS_ROOT, assetPath))) {
+        const assetPath = videoOutputPathByBasename.get(resolvedName.toLowerCase()) ?? null;
+        if (!assetPath || !fs.existsSync(path.join(RETAIL_ASSETS_ROOT, assetPath))) {
           const key = `${campaign.finalMovieName}::${resolvedName}`;
           if (!missingVideoAssets.has(key)) {
             missingVideoAssets.set(key, {
@@ -361,7 +365,7 @@ function auditRetailCampaignAssets(): RetailCampaignAssetAudit {
               lifecycle: movieClassification.lifecycle,
               reason: movieClassification.reason,
               resolvedName,
-              assetPath,
+              assetPath: assetPath ?? `videos/${resolvedName}.mp4`,
             });
           }
         }
@@ -712,168 +716,7 @@ describe('CampaignManager', () => {
           reason: 'training-removed-from-zero-hour-menu',
         },
       ],
-      missingVideoAssets: [
-        {
-          campaign: 'challenge_0',
-          mission: 'mission01',
-          assetKind: 'introMovie',
-          assetName: 'GeneralsChallengeBackground',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'GC_Background',
-          assetPath: 'videos/GC_Background.mp4',
-        },
-        {
-          campaign: 'china',
-          mission: 'mission01',
-          assetKind: 'introMovie',
-          assetName: 'MD_China01',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_China01_0',
-          assetPath: 'videos/MD_China01_0.mp4',
-        },
-        {
-          campaign: 'china',
-          mission: 'mission02',
-          assetKind: 'introMovie',
-          assetName: 'MD_China02',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_China02_0',
-          assetPath: 'videos/MD_China02_0.mp4',
-        },
-        {
-          campaign: 'china',
-          mission: 'mission03',
-          assetKind: 'introMovie',
-          assetName: 'MD_China03',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_China03_0',
-          assetPath: 'videos/MD_China03_0.mp4',
-        },
-        {
-          campaign: 'china',
-          mission: 'mission04',
-          assetKind: 'introMovie',
-          assetName: 'MD_China04',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_China04_0',
-          assetPath: 'videos/MD_China04_0.mp4',
-        },
-        {
-          campaign: 'china',
-          mission: 'mission05',
-          assetKind: 'introMovie',
-          assetName: 'MD_China05',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_China05_0',
-          assetPath: 'videos/MD_China05_0.mp4',
-        },
-        {
-          campaign: 'gla',
-          mission: 'mission01',
-          assetKind: 'introMovie',
-          assetName: 'MD_GLA01',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_GLA01_0',
-          assetPath: 'videos/MD_GLA01_0.mp4',
-        },
-        {
-          campaign: 'gla',
-          mission: 'mission02',
-          assetKind: 'introMovie',
-          assetName: 'MD_GLA02',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_GLA02_0',
-          assetPath: 'videos/MD_GLA02_0.mp4',
-        },
-        {
-          campaign: 'gla',
-          mission: 'mission03',
-          assetKind: 'introMovie',
-          assetName: 'MD_GLA03',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_GLA03_0',
-          assetPath: 'videos/MD_GLA03_0.mp4',
-        },
-        {
-          campaign: 'gla',
-          mission: 'mission04',
-          assetKind: 'introMovie',
-          assetName: 'MD_GLA04',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_GLA04_0',
-          assetPath: 'videos/MD_GLA04_0.mp4',
-        },
-        {
-          campaign: 'gla',
-          mission: 'mission05',
-          assetKind: 'introMovie',
-          assetName: 'MD_GLA05',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_GLA05_0',
-          assetPath: 'videos/MD_GLA05_0.mp4',
-        },
-        {
-          campaign: 'usa',
-          mission: 'mission01',
-          assetKind: 'introMovie',
-          assetName: 'MD_USA01',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_USA01_0',
-          assetPath: 'videos/MD_USA01_0.mp4',
-        },
-        {
-          campaign: 'usa',
-          mission: 'mission02',
-          assetKind: 'introMovie',
-          assetName: 'MD_USA02',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_USA02_0',
-          assetPath: 'videos/MD_USA02_0.mp4',
-        },
-        {
-          campaign: 'usa',
-          mission: 'mission03',
-          assetKind: 'introMovie',
-          assetName: 'MD_USA03',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_USA03_0',
-          assetPath: 'videos/MD_USA03_0.mp4',
-        },
-        {
-          campaign: 'usa',
-          mission: 'mission04',
-          assetKind: 'introMovie',
-          assetName: 'MD_USA04',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_USA04_0',
-          assetPath: 'videos/MD_USA04_0.mp4',
-        },
-        {
-          campaign: 'usa',
-          mission: 'mission05',
-          assetKind: 'introMovie',
-          assetName: 'MD_USA05',
-          lifecycle: 'shipped',
-          reason: 'shipped-retail-campaign',
-          resolvedName: 'MD_USA05_0',
-          assetPath: 'videos/MD_USA05_0.mp4',
-        },
-      ],
+      missingVideoAssets: [],
     });
   });
 
