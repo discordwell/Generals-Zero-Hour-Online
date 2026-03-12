@@ -702,6 +702,33 @@ import {
   updateChinookAI as updateChinookAIImpl,
 } from './aircraft-ai.js';
 import {
+  extractFireSpreadProfile as extractFireSpreadProfileImpl,
+  extractPoisonedBehaviorProfile as extractPoisonedBehaviorProfileImpl,
+  extractFireWhenDamagedProfiles as extractFireWhenDamagedProfilesImpl,
+  extractFireWeaponUpdateProfiles as extractFireWeaponUpdateProfilesImpl,
+  setDisabledHackedStatusUntil as setDisabledHackedStatusUntilImpl,
+  updateDisabledHackedStatuses as updateDisabledHackedStatusesImpl,
+  updateSubdualDamageHelpers as updateSubdualDamageHelpersImpl,
+  updatePoisonedEntities as updatePoisonedEntitiesImpl,
+  updateFireSpread as updateFireSpreadImpl,
+  calcFireSpreadDelay as calcFireSpreadDelayImpl,
+  applyFireDamageToEntity as applyFireDamageToEntityImpl,
+  applyPoisonToEntity as applyPoisonToEntityImpl,
+  clearPoisonFromEntity as clearPoisonFromEntityImpl,
+} from './status-effects.js';
+import {
+  extractStealthProfile as extractStealthProfileImpl,
+  extractDetectorProfile as extractDetectorProfileImpl,
+  extractGrantStealthProfile as extractGrantStealthProfileImpl,
+  applyStealthUpgrade as applyStealthUpgradeImpl,
+  removeStealthUpgradeFromEntity as removeStealthUpgradeFromEntityImpl,
+  isEntityStealthedAndUndetected as isEntityStealthedAndUndetectedImpl,
+  updateStealth as updateStealthImpl,
+  updateGrantStealth as updateGrantStealthImpl,
+  grantStealthToEntity as grantStealthToEntityImpl,
+  updateDetection as updateDetectionImpl,
+} from './stealth-detection.js';
+import {
   resetBridgeDamageStateChanges as resetBridgeDamageStateChangesImpl,
   noteBridgeDamageStateChange as noteBridgeDamageStateChangeImpl,
   extractBridgeBehaviorProfile as extractBridgeBehaviorProfileImpl,
@@ -879,7 +906,7 @@ const SOURCE_FRAMES_TO_ALLOW_SCAFFOLD = LOGIC_FRAME_RATE * 1.5;
 const SOURCE_TOTAL_FRAMES_TO_SELL_OBJECT = LOGIC_FRAME_RATE * 3;
 const SOURCE_DEFAULT_SELL_PERCENTAGE = 1.0;
 /** Source parity: Object.h CONSTRUCTION_COMPLETE sentinel — indicates fully built. */
-const CONSTRUCTION_COMPLETE = -1;
+export const CONSTRUCTION_COMPLETE = -1;
 export const SOURCE_HACK_FALLBACK_CASH_AMOUNT = 1;
 export const SOURCE_DEFAULT_MAX_BEACONS_PER_PLAYER = 3;
 export const SOURCE_DEFAULT_MAX_SHOTS_TO_FIRE = 0x7fffffff;
@@ -3595,18 +3622,18 @@ interface StealthProfile {
 }
 
 /** StealthForbiddenConditions bitmask values — matches C++ TheStealthLevelNames array ordering. */
-const STEALTH_FORBIDDEN_ATTACKING        = 1 << 0; // ATTACKING
-const STEALTH_FORBIDDEN_MOVING           = 1 << 1; // MOVING
-const STEALTH_FORBIDDEN_USING_ABILITY    = 1 << 2; // USING_ABILITY
-const STEALTH_FORBIDDEN_FIRING_PRIMARY   = 1 << 3; // FIRING_PRIMARY
-const STEALTH_FORBIDDEN_FIRING_SECONDARY = 1 << 4; // FIRING_SECONDARY
-const STEALTH_FORBIDDEN_FIRING_TERTIARY  = 1 << 5; // FIRING_TERTIARY
-const STEALTH_FORBIDDEN_NO_BLACK_MARKET  = 1 << 6; // NO_BLACK_MARKET
-const STEALTH_FORBIDDEN_TAKING_DAMAGE    = 1 << 7; // TAKING_DAMAGE
-const STEALTH_FORBIDDEN_RIDERS_ATTACKING = 1 << 8; // RIDERS_ATTACKING
+export const STEALTH_FORBIDDEN_ATTACKING        = 1 << 0; // ATTACKING
+export const STEALTH_FORBIDDEN_MOVING           = 1 << 1; // MOVING
+export const STEALTH_FORBIDDEN_USING_ABILITY    = 1 << 2; // USING_ABILITY
+export const STEALTH_FORBIDDEN_FIRING_PRIMARY   = 1 << 3; // FIRING_PRIMARY
+export const STEALTH_FORBIDDEN_FIRING_SECONDARY = 1 << 4; // FIRING_SECONDARY
+export const STEALTH_FORBIDDEN_FIRING_TERTIARY  = 1 << 5; // FIRING_TERTIARY
+export const STEALTH_FORBIDDEN_NO_BLACK_MARKET  = 1 << 6; // NO_BLACK_MARKET
+export const STEALTH_FORBIDDEN_TAKING_DAMAGE    = 1 << 7; // TAKING_DAMAGE
+export const STEALTH_FORBIDDEN_RIDERS_ATTACKING = 1 << 8; // RIDERS_ATTACKING
 
 /** Source parity: default forbidden conditions — attacking and any movement. */
-const STEALTH_FORBIDDEN_DEFAULT = STEALTH_FORBIDDEN_ATTACKING | STEALTH_FORBIDDEN_MOVING;
+export const STEALTH_FORBIDDEN_DEFAULT = STEALTH_FORBIDDEN_ATTACKING | STEALTH_FORBIDDEN_MOVING;
 
 /**
  * Source parity: StealthDetectorUpdate module parsed from INI.
@@ -5131,7 +5158,7 @@ interface SupplyWarehouseCripplingProfile {
 }
 
 /** Source parity: PoisonedBehavior default INI values. */
-const DEFAULT_POISON_DAMAGE_INTERVAL_FRAMES = 10; // ~0.33s at 30fps
+export const DEFAULT_POISON_DAMAGE_INTERVAL_FRAMES = 10; // ~0.33s at 30fps
 
 /** Source parity: FlammableUpdate default INI values. */
 const DEFAULT_FLAME_DAMAGE_LIMIT = 20.0;
@@ -9891,6 +9918,35 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ bridgeTowerOnDie(...args: any[]) { return (bridgeTowerOnDieImpl as any)(this, ...args); }
   /* @internal */ bridgeRestorePassability(...args: any[]) { return (bridgeRestorePassabilityImpl as any)(this, ...args); }
 
+  // ---- Stealth and detection facades (delegate to stealth-detection.ts) ----
+
+  private extractStealthProfile(...args: any[]) { return (extractStealthProfileImpl as any)(this, ...args); }
+  private extractDetectorProfile(...args: any[]) { return (extractDetectorProfileImpl as any)(this, ...args); }
+  private extractGrantStealthProfile(...args: any[]) { return (extractGrantStealthProfileImpl as any)(this, ...args); }
+  private applyStealthUpgrade(...args: any[]) { return (applyStealthUpgradeImpl as any)(this, ...args); }
+  private removeStealthUpgradeFromEntity(...args: any[]) { return (removeStealthUpgradeFromEntityImpl as any)(this, ...args); }
+  private isEntityStealthedAndUndetected(...args: any[]) { return (isEntityStealthedAndUndetectedImpl as any)(this, ...args); }
+  private updateStealth(...args: any[]) { return (updateStealthImpl as any)(this, ...args); }
+  private updateGrantStealth(...args: any[]) { return (updateGrantStealthImpl as any)(this, ...args); }
+  /* @internal */ grantStealthToEntity(...args: any[]) { return (grantStealthToEntityImpl as any)(this, ...args); }
+  private updateDetection(...args: any[]) { return (updateDetectionImpl as any)(this, ...args); }
+
+  // ---- Status effects facades (delegate to status-effects.ts) ----
+
+  private extractFireSpreadProfile(...args: any[]) { return (extractFireSpreadProfileImpl as any)(this, ...args); }
+  private extractPoisonedBehaviorProfile(...args: any[]) { return (extractPoisonedBehaviorProfileImpl as any)(this, ...args); }
+  private extractFireWhenDamagedProfiles(...args: any[]) { return (extractFireWhenDamagedProfilesImpl as any)(this, ...args); }
+  private extractFireWeaponUpdateProfiles(...args: any[]) { return (extractFireWeaponUpdateProfilesImpl as any)(this, ...args); }
+  private setDisabledHackedStatusUntil(...args: any[]) { return (setDisabledHackedStatusUntilImpl as any)(this, ...args); }
+  private updateDisabledHackedStatuses(...args: any[]) { return (updateDisabledHackedStatusesImpl as any)(this, ...args); }
+  private updateSubdualDamageHelpers(...args: any[]) { return (updateSubdualDamageHelpersImpl as any)(this, ...args); }
+  private updatePoisonedEntities(...args: any[]) { return (updatePoisonedEntitiesImpl as any)(this, ...args); }
+  private updateFireSpread(...args: any[]) { return (updateFireSpreadImpl as any)(this, ...args); }
+  /* @internal */ calcFireSpreadDelay(...args: any[]) { return (calcFireSpreadDelayImpl as any)(this, ...args); }
+  private applyFireDamageToEntity(...args: any[]) { return (applyFireDamageToEntityImpl as any)(this, ...args); }
+  private applyPoisonToEntity(...args: any[]) { return (applyPoisonToEntityImpl as any)(this, ...args); }
+  private clearPoisonFromEntity(...args: any[]) { return (clearPoisonFromEntityImpl as any)(this, ...args); }
+
   // ---- Command dispatch facades (delegate to command-dispatch.ts) ----
 
   private flushCommands(...args: any[]) { return (flushCommandsImpl as any)(this, ...args); }
@@ -10064,7 +10120,7 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ evacuateOneContainedRappeller(...args: any[]) { return (evacuateOneContainedRappellerImpl as any)(this, ...args); }
   /* @internal */ evacuateContainedEntities(...args: any[]) { return (evacuateContainedEntitiesImpl as any)(this, ...args); }
   private resolveProjectileLauncherContainer(...args: any[]) { return (resolveProjectileLauncherContainerImpl as any)(this, ...args); }
-  private resolveEntityContainingObject(...args: any[]) { return (resolveEntityContainingObjectImpl as any)(this, ...args); }
+  /* @internal */ resolveEntityContainingObject(...args: any[]) { return (resolveEntityContainingObjectImpl as any)(this, ...args); }
   private isPassengerAllowedToFireFromContainingObject(...args: any[]) { return (isPassengerAllowedToFireFromContainingObjectImpl as any)(this, ...args); }
   /* @internal */ processDamageToContained(...args: any[]) { return (processDamageToContainedImpl as any)(this, ...args); }
 
@@ -19186,140 +19242,6 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
-   * Source parity: StealthUpdate module — parse stealth behavior from INI.
-   */
-  private extractStealthProfile(objectDef: ObjectDef | undefined): StealthProfile | null {
-    if (!objectDef) return null;
-    let profile: StealthProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'STEALTHUPDATE') {
-          const innateStealth = readBooleanField(block.fields, ['InnateStealth']) ?? true;
-          const stealthDelayMs = readNumericField(block.fields, ['StealthDelay']) ?? 2000;
-          const stealthDelayFrames = this.msToLogicFrames(stealthDelayMs);
-          const moveThresholdSpeed = readNumericField(block.fields, ['MoveThresholdSpeed']) ?? 0;
-
-          // Parse StealthForbiddenConditions — space-separated tokens.
-          let forbiddenConditions = 0;
-          const forbiddenStr = readStringField(block.fields, ['StealthForbiddenConditions']) ?? '';
-          for (const token of forbiddenStr.split(/\s+/)) {
-            switch (token.toUpperCase()) {
-              case 'ATTACKING':
-              case 'STEALTH_NOT_WHILE_ATTACKING':
-                forbiddenConditions |= STEALTH_FORBIDDEN_ATTACKING;
-                break;
-              case 'MOVING':
-              case 'STEALTH_NOT_WHILE_MOVING':
-                forbiddenConditions |= STEALTH_FORBIDDEN_MOVING;
-                break;
-              case 'USING_ABILITY':
-              case 'STEALTH_NOT_WHILE_USING_ABILITY':
-                forbiddenConditions |= STEALTH_FORBIDDEN_USING_ABILITY;
-                break;
-              case 'FIRING_PRIMARY':
-              case 'STEALTH_NOT_WHILE_FIRING_PRIMARY':
-                forbiddenConditions |= STEALTH_FORBIDDEN_FIRING_PRIMARY;
-                break;
-              case 'FIRING_SECONDARY':
-                forbiddenConditions |= STEALTH_FORBIDDEN_FIRING_SECONDARY;
-                break;
-              case 'FIRING_TERTIARY':
-                forbiddenConditions |= STEALTH_FORBIDDEN_FIRING_TERTIARY;
-                break;
-              case 'FIRING_WEAPON':
-              case 'STEALTH_NOT_WHILE_FIRING_WEAPON':
-                // Composite: all weapon slots.
-                forbiddenConditions |= STEALTH_FORBIDDEN_FIRING_PRIMARY
-                  | STEALTH_FORBIDDEN_FIRING_SECONDARY | STEALTH_FORBIDDEN_FIRING_TERTIARY;
-                break;
-              case 'NO_BLACK_MARKET':
-                forbiddenConditions |= STEALTH_FORBIDDEN_NO_BLACK_MARKET;
-                break;
-              case 'TAKING_DAMAGE':
-              case 'STEALTH_NOT_WHILE_TAKING_DAMAGE':
-                forbiddenConditions |= STEALTH_FORBIDDEN_TAKING_DAMAGE;
-                break;
-              case 'RIDERS_ATTACKING':
-                forbiddenConditions |= STEALTH_FORBIDDEN_RIDERS_ATTACKING;
-                break;
-            }
-          }
-
-          // If no explicit conditions, use default (attacking + moving).
-          if (forbiddenConditions === 0 && forbiddenStr.trim() === '') {
-            forbiddenConditions = STEALTH_FORBIDDEN_DEFAULT;
-          }
-
-          profile = {
-            stealthDelayFrames,
-            innateStealth,
-            forbiddenConditions,
-            moveThresholdSpeed,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: StealthDetectorUpdate module — parse detector profile from INI.
-   */
-  private extractDetectorProfile(objectDef: ObjectDef | undefined): DetectorProfile | null {
-    if (!objectDef) return null;
-    let profile: DetectorProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'STEALTHDETECTORUPDATE') {
-          const detectionRange = readNumericField(block.fields, ['DetectionRange']) ?? 0;
-          const detectionRateMs = readNumericField(block.fields, ['DetectionRate']) ?? 33;
-          const detectionRate = Math.max(1, this.msToLogicFrames(detectionRateMs));
-          const canDetectWhileGarrisoned = readBooleanField(block.fields, ['CanDetectWhileGarrisoned']) ?? false;
-          const canDetectWhileContained = readBooleanField(block.fields, ['CanDetectWhileContained']) ?? false;
-
-          const extraRequiredKindOf = new Set<string>();
-          const requiredStr = readStringField(block.fields, ['ExtraRequiredKindOf']) ?? '';
-          for (const token of requiredStr.split(/\s+/)) {
-            if (token) extraRequiredKindOf.add(token.toUpperCase());
-          }
-
-          const extraForbiddenKindOf = new Set<string>();
-          const forbiddenStr = readStringField(block.fields, ['ExtraForbiddenKindOf']) ?? '';
-          for (const token of forbiddenStr.split(/\s+/)) {
-            if (token) extraForbiddenKindOf.add(token.toUpperCase());
-          }
-
-          profile = {
-            detectionRange,
-            detectionRate,
-            canDetectWhileGarrisoned,
-            canDetectWhileContained,
-            extraRequiredKindOf,
-            extraForbiddenKindOf,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
    * Source parity: FlammableUpdate module — extract flammability profile from INI.
    */
   private extractFlammableProfile(objectDef: ObjectDef | undefined): FlammableProfile | null {
@@ -19348,135 +19270,6 @@ export class GameLogicSubsystem implements Subsystem {
       for (const block of objectDef.blocks) visitBlock(block);
     }
     return profile;
-  }
-
-  /**
-   * Source parity: FireSpreadUpdate — extract fire spread profile from INI.
-   * C++ file: FireSpreadUpdate.cpp — spreads fire to nearby flammable objects.
-   */
-  private extractFireSpreadProfile(objectDef: ObjectDef | undefined): FireSpreadProfile | null {
-    if (!objectDef) return null;
-    let profile: FireSpreadProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'FIRESPREADUPDATE') {
-          profile = {
-            minSpreadDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['MinSpreadDelay']) ?? 500),
-            maxSpreadDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['MaxSpreadDelay']) ?? 1500),
-            spreadTryRange: (readNumericField(block.fields, ['SpreadTryRange']) ?? 10) * MAP_XY_FACTOR,
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: PoisonedBehavior — extract per-entity poison DoT parameters from INI.
-   * C++ file: PoisonedBehavior.cpp lines 56-63 (buildFieldParse).
-   */
-  private extractPoisonedBehaviorProfile(objectDef: ObjectDef | undefined): PoisonedBehaviorProfile | null {
-    if (!objectDef) return null;
-    let profile: PoisonedBehaviorProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile !== null) return;
-      if (block.type.toUpperCase() === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'POISONEDBEHAVIOR') {
-          profile = {
-            poisonDamageIntervalFrames: this.msToLogicFrames(readNumericField(block.fields, ['PoisonDamageInterval']) ?? 333),
-            poisonDurationFrames: this.msToLogicFrames(readNumericField(block.fields, ['PoisonDuration']) ?? 3000),
-          };
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
-   * Source parity: FireWeaponWhenDamagedBehavior — extract reaction/continuous weapon config.
-   */
-  private extractFireWhenDamagedProfiles(objectDef: ObjectDef | undefined): FireWhenDamagedProfile[] {
-    if (!objectDef) return [];
-    const profiles: FireWhenDamagedProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'FIREWEAPONWHENDAMAGEDBEHAVIOR') {
-          profiles.push({
-            reactionWeapons: [
-              readStringField(block.fields, ['ReactionWeaponPristine']),
-              readStringField(block.fields, ['ReactionWeaponDamaged']),
-              readStringField(block.fields, ['ReactionWeaponReallyDamaged']),
-              readStringField(block.fields, ['ReactionWeaponRubble']),
-            ],
-            continuousWeapons: [
-              readStringField(block.fields, ['ContinuousWeaponPristine']),
-              readStringField(block.fields, ['ContinuousWeaponDamaged']),
-              readStringField(block.fields, ['ContinuousWeaponReallyDamaged']),
-              readStringField(block.fields, ['ContinuousWeaponRubble']),
-            ],
-            damageAmount: readNumericField(block.fields, ['DamageAmount']) ?? 0,
-            reactionNextFireFrame: [0, 0, 0, 0],
-            continuousNextFireFrame: [0, 0, 0, 0],
-          });
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profiles;
-  }
-
-  /**
-   * Source parity: FireWeaponUpdate — extract autonomous weapon fire config from INI.
-   * Multiple FireWeaponUpdate modules can exist on a single entity.
-   */
-  private extractFireWeaponUpdateProfiles(objectDef: ObjectDef | undefined): FireWeaponUpdateProfile[] {
-    if (!objectDef) return [];
-    const profiles: FireWeaponUpdateProfile[] = [];
-    const visitBlock = (block: IniBlock): void => {
-      const blockType = block.type.toUpperCase();
-      if (blockType === 'BEHAVIOR') {
-        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-        if (moduleType === 'FIREWEAPONUPDATE') {
-          const weaponName = readStringField(block.fields, ['Weapon']);
-          if (!weaponName) return;
-
-          profiles.push({
-            weaponName,
-            initialDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['InitialDelay']) ?? 0),
-            exclusiveWeaponDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['ExclusiveWeaponDelay']) ?? 0),
-          });
-        }
-      }
-      if (block.blocks) {
-        for (const child of block.blocks) visitBlock(child);
-      }
-    };
-    if (objectDef.blocks) {
-      for (const block of objectDef.blocks) visitBlock(block);
-    }
-    return profiles;
   }
 
   /**
@@ -21927,34 +21720,6 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
-   * Source parity: GrantStealthBehavior — extract expanding stealth grant profile from INI.
-   * C++ file: GrantStealthBehavior.h (buildFieldParse).
-   */
-  private extractGrantStealthProfile(objectDef: ObjectDef | undefined): GrantStealthProfile | null {
-    if (!objectDef) return null;
-    let profile: GrantStealthProfile | null = null;
-    const visitBlock = (block: IniBlock): void => {
-      if (profile) return;
-      const blockType = block.type.toUpperCase();
-      if (blockType !== 'BEHAVIOR' && blockType !== 'UPDATE') return;
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType !== 'GRANTSTEALTHBEHAVIOR') return;
-      const kindOfStr = readStringField(block.fields, ['KindOf']);
-      profile = {
-        startRadius: readNumericField(block.fields, ['StartRadius']) ?? 0,
-        finalRadius: readNumericField(block.fields, ['FinalRadius']) ?? 200,
-        radiusGrowRate: readNumericField(block.fields, ['RadiusGrowRate']) ?? 10,
-        kindOf: kindOfStr ? new Set(kindOfStr.split(/\s+/).map(s => s.toUpperCase())) : null,
-      };
-    };
-    for (const block of objectDef.blocks) visitBlock(block);
-    if (!profile && this.resolveObjectDefParent(objectDef)) {
-      for (const block of this.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
-    }
-    return profile;
-  }
-
-  /**
    * Source parity: NeutronMissileSlowDeathBehavior — extract blast wave profile from INI.
    * C++ file: NeutronMissileSlowDeathUpdate.h (buildFieldParse).
    * Up to 9 blast waves with independent delay/radius/damage/topple.
@@ -23297,10 +23062,6 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   // Source parity: StealthUpgrade.cpp sets OBJECT_STATUS_CAN_STEALTH.
-  private applyStealthUpgrade(entity: MapEntity): boolean {
-    entity.objectStatusFlags.add('CAN_STEALTH');
-    return true;
-  }
 
   private applyCommandSetUpgrade(entity: MapEntity, module: UpgradeModuleProfile): boolean {
     const targetCommandSetName = this.resolveCommandSetUpgradeTarget(entity, module);
@@ -23380,20 +23141,6 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     this.refreshEntityCombatProfiles(entity);
-  }
-
-  private removeStealthUpgradeFromEntity(entity: MapEntity): void {
-    // Keep CAN_STEALTH active if any other STEALTHUPGRADE module remains executed.
-    entity.objectStatusFlags.delete('CAN_STEALTH');
-    for (const module of entity.upgradeModules) {
-      if (!entity.executedUpgradeModules.has(module.id)) {
-        continue;
-      }
-      if (module.moduleType === 'STEALTHUPGRADE') {
-        entity.objectStatusFlags.add('CAN_STEALTH');
-        break;
-      }
-    }
   }
 
   private removeLocomotorUpgradeFromEntity(entity: MapEntity): void {
@@ -23532,14 +23279,6 @@ export class GameLogicSubsystem implements Subsystem {
    */
   private syncDerivedStatusFields(entity: MapEntity): void {
     entity.noCollisions = entity.objectStatusFlags.has('NO_COLLISIONS');
-  }
-
-  private isEntityStealthedAndUndetected(entity: MapEntity): boolean {
-    return (
-      this.entityHasObjectStatus(entity, 'STEALTHED')
-      && !this.entityHasObjectStatus(entity, 'DETECTED')
-      && !this.entityHasObjectStatus(entity, 'DISGUISED')
-    );
   }
 
   private isEntityOffMap(entity: MapEntity): boolean {
@@ -26186,18 +25925,6 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  private setDisabledHackedStatusUntil(entity: MapEntity, disableUntilFrame: number): void {
-    if (!Number.isFinite(disableUntilFrame)) {
-      return;
-    }
-    const resolvedDisableUntilFrame = Math.max(this.frameCounter + 1, Math.trunc(disableUntilFrame));
-    entity.objectStatusFlags.add('DISABLED_HACKED');
-    const previousDisableUntil = this.disabledHackedStatusByEntityId.get(entity.id) ?? 0;
-    if (resolvedDisableUntilFrame > previousDisableUntil) {
-      this.disabledHackedStatusByEntityId.set(entity.id, resolvedDisableUntilFrame);
-    }
-  }
-
   private resolveSabotageBuildingProfile(source: MapEntity, target: MapEntity): SabotageBuildingProfile | null {
     const sourceObjectDef = this.resolveObjectDefByTemplateName(source.templateName);
     if (!sourceObjectDef) {
@@ -27129,23 +26856,6 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  private updateDisabledHackedStatuses(): void {
-    for (const [entityId, disableUntilFrame] of this.disabledHackedStatusByEntityId.entries()) {
-      const entity = this.spawnedEntities.get(entityId);
-      if (!entity || entity.destroyed) {
-        this.disabledHackedStatusByEntityId.delete(entityId);
-        continue;
-      }
-
-      if (this.frameCounter < disableUntilFrame) {
-        continue;
-      }
-
-      entity.objectStatusFlags.delete('DISABLED_HACKED');
-      this.disabledHackedStatusByEntityId.delete(entityId);
-    }
-  }
-
   /**
    * Source parity: EMPUpdate — timed DISABLED_EMP status expiry.
    */
@@ -27175,324 +26885,6 @@ export class GameLogicSubsystem implements Subsystem {
     const previous = this.disabledEmpStatusByEntityId.get(entity.id) ?? 0;
     if (resolvedDisableUntilFrame > previous) {
       this.disabledEmpStatusByEntityId.set(entity.id, resolvedDisableUntilFrame);
-    }
-  }
-
-  /**
-   * Source parity: Object::look() / Object::unlook()
-   * Updates each entity's vision contribution to the fog of war grid.
-   */
-  /**
-   * Source parity: StealthUpdate::allowedToStealth + update — auto-stealth entities
-   * with CAN_STEALTH, break stealth based on INI-driven forbidden conditions, count
-   * down per-entity stealth delay. Fallback to default 60-frame delay for entities
-   * without an explicit StealthUpdate module.
-   */
-  private updateStealth(): void {
-    const DEFAULT_STEALTH_DELAY_FRAMES = 60; // ~2s at 30fps
-
-    for (const entity of this.spawnedEntities.values()) {
-      if (entity.destroyed) continue;
-
-      // Clear expired detection.
-      if (entity.detectedUntilFrame > 0 && this.frameCounter >= entity.detectedUntilFrame) {
-        entity.objectStatusFlags.delete('DETECTED');
-        entity.detectedUntilFrame = 0;
-      }
-
-      if (!entity.objectStatusFlags.has('CAN_STEALTH')) continue;
-
-      const profile = entity.stealthProfile;
-      const delayFrames = profile ? profile.stealthDelayFrames : DEFAULT_STEALTH_DELAY_FRAMES;
-      const forbidden = profile ? profile.forbiddenConditions : STEALTH_FORBIDDEN_DEFAULT;
-
-      // Source parity: StealthUpdate::allowedToStealth — contained in non-garrisonable = no stealth.
-      const stealthContainer = this.resolveEntityContainingObject(entity);
-      if (stealthContainer) {
-        const isGarrisonable = stealthContainer.containProfile !== null
-          && stealthContainer.containProfile.garrisonCapacity > 0;
-        if (!isGarrisonable) {
-          if (entity.objectStatusFlags.has('STEALTHED')) {
-            entity.objectStatusFlags.delete('STEALTHED');
-          }
-          entity.stealthDelayRemaining = delayFrames;
-          continue;
-        }
-      }
-
-      // Source parity: StealthUpdate::allowedToStealth — check forbidden conditions.
-      let breakStealth = false;
-
-      if ((forbidden & STEALTH_FORBIDDEN_ATTACKING) !== 0) {
-        if (entity.attackTargetEntityId !== null) {
-          breakStealth = true;
-        }
-      }
-
-      if ((forbidden & STEALTH_FORBIDDEN_FIRING_PRIMARY) !== 0) {
-        if (entity.objectStatusFlags.has('IS_FIRING_WEAPON')) {
-          breakStealth = true;
-        }
-      }
-
-      if ((forbidden & STEALTH_FORBIDDEN_MOVING) !== 0) {
-        if (profile && profile.moveThresholdSpeed > 0) {
-          // Source parity: break stealth only if speed exceeds threshold.
-          if (entity.moving && entity.currentSpeed > profile.moveThresholdSpeed) {
-            breakStealth = true;
-          }
-        } else if (entity.moving) {
-          breakStealth = true;
-        }
-      }
-
-      if ((forbidden & STEALTH_FORBIDDEN_TAKING_DAMAGE) !== 0) {
-        // Source parity: getLastDamageTimestamp >= now - 1 — stealth breaks if damaged this frame or last.
-        // Healing damage does not break stealth (C++ checks m_damageType != DAMAGE_HEALING).
-        if (entity.lastDamageFrame > 0 && (this.frameCounter - entity.lastDamageFrame) <= 1) {
-          breakStealth = true;
-        }
-      }
-
-      if ((forbidden & STEALTH_FORBIDDEN_USING_ABILITY) !== 0) {
-        if (entity.objectStatusFlags.has('IS_USING_ABILITY')) {
-          breakStealth = true;
-        }
-      }
-      if (entity.objectStatusFlags.has('SCRIPT_UNSTEALTHED')) {
-        breakStealth = true;
-      }
-
-      if (breakStealth) {
-        if (entity.objectStatusFlags.has('STEALTHED')) {
-          entity.objectStatusFlags.delete('STEALTHED');
-        }
-        entity.stealthDelayRemaining = delayFrames;
-        continue;
-      }
-
-      // Count down stealth delay.
-      if (entity.stealthDelayRemaining > 0) {
-        entity.stealthDelayRemaining--;
-        continue;
-      }
-
-      // Enter stealth.
-      if (!entity.objectStatusFlags.has('STEALTHED')) {
-        entity.objectStatusFlags.add('STEALTHED');
-      }
-    }
-  }
-
-  /**
-   * Source parity: GrantStealthBehavior::update — expanding radius stealth grant.
-   * Each frame grows scan radius, scans allied entities in range with KindOf filtering,
-   * grants permanent stealth to matching units, then self-destructs at finalRadius.
-   * C++ file: GrantStealthBehavior.cpp lines 139-179.
-   */
-  private updateGrantStealth(): void {
-    for (const entity of this.spawnedEntities.values()) {
-      if (entity.destroyed || entity.slowDeathState || entity.structureCollapseState) continue;
-      const profile = entity.grantStealthProfile;
-      if (!profile) continue;
-
-      // Source parity: grow radius each frame.
-      entity.grantStealthCurrentRadius += profile.radiusGrowRate;
-
-      let isFinalScan = false;
-      if (entity.grantStealthCurrentRadius >= profile.finalRadius) {
-        entity.grantStealthCurrentRadius = profile.finalRadius;
-        isFinalScan = true;
-      }
-
-      const radiusSqr = entity.grantStealthCurrentRadius * entity.grantStealthCurrentRadius;
-
-      // Source parity: scan allies in range.
-      for (const target of this.spawnedEntities.values()) {
-        if (target.destroyed || target.id === entity.id) continue;
-        if (target.slowDeathState || target.structureCollapseState) continue;
-
-        // Source parity: PartitionFilterRelationship(ALLOW_ALLIES).
-        const rel = this.getEntityRelationship(entity.id, target.id);
-        if (rel !== 'allies') continue;
-
-        // Source parity: FROM_CENTER_2D distance check.
-        const dx = target.x - entity.x;
-        const dz = target.z - entity.z;
-        if (dx * dx + dz * dz > radiusSqr) continue;
-
-        this.grantStealthToEntity(target, profile);
-      }
-
-      // Source parity: self-destruct when final radius reached.
-      if (isFinalScan) {
-        this.silentDestroyEntity(entity.id);
-      }
-    }
-  }
-
-  /**
-   * Source parity: GrantStealthBehavior::grantStealthToObject — grant permanent stealth.
-   * Checks KindOf filter, then sets CAN_STEALTH + STEALTHED on the target entity.
-   * C++ calls StealthUpdate::receiveGrant() which sets m_enabled=true.
-   */
-  private grantStealthToEntity(target: MapEntity, profile: GrantStealthProfile): void {
-    // Source parity: C++ checks obj->getStealth() != null — only entities with StealthUpdate can receive stealth.
-    if (!target.stealthProfile) return;
-
-    // Source parity: KindOf filter — null means all types accepted.
-    if (profile.kindOf) {
-      const targetKindOf = this.resolveEntityKindOfSet(target);
-      let matches = false;
-      for (const kind of profile.kindOf) {
-        if (targetKindOf.has(kind)) {
-          matches = true;
-          break;
-        }
-      }
-      if (!matches) return;
-    }
-
-    // Source parity: StealthUpdate::receiveGrant(TRUE, 0) — permanent stealth grant.
-    // Sets CAN_STEALTH + STEALTHED flags, clears stealth delay.
-    target.objectStatusFlags.add('CAN_STEALTH');
-    target.objectStatusFlags.add('STEALTHED');
-    target.stealthDelayRemaining = 0;
-  }
-
-  /**
-   * Source parity: StealthDetectorUpdate — detector units reveal stealthed enemies.
-   * Uses per-entity DetectorProfile for range, rate, and KindOf filters when available.
-   * Falls back to KINDOF_DETECTOR + visionRange for entities without explicit module.
-   */
-  private updateDetection(): void {
-    const DEFAULT_DETECTION_DURATION_FRAMES = 30; // ~1s at 30fps
-
-    for (const detector of this.spawnedEntities.values()) {
-      if (detector.destroyed) continue;
-
-      // Source parity: detector needs either KINDOF_DETECTOR or a StealthDetectorUpdate module.
-      const profile = detector.detectorProfile;
-      if (!detector.kindOf.has('DETECTOR') && !profile) continue;
-
-      // Source parity: detector must be fully constructed and not sold.
-      if (detector.constructionPercent !== CONSTRUCTION_COMPLETE) continue;
-      if (detector.objectStatusFlags.has('SOLD')) continue;
-
-      // Source parity: DetectionRate throttle — skip scan if not yet due.
-      if (profile) {
-        if (this.frameCounter < detector.detectorNextScanFrame) continue;
-        detector.detectorNextScanFrame = this.frameCounter + profile.detectionRate;
-      }
-
-      // Source parity: contained/garrisoned detector checks.
-      // C++ uses isGarrisonable() — garrison buildings allow fire; transports enclose passengers.
-      if (profile) {
-        const containingObject = this.resolveEntityContainingObject(detector);
-        if (containingObject) {
-          const isGarrison = containingObject.containProfile !== null
-            && containingObject.containProfile.garrisonCapacity > 0;
-          if (isGarrison && !profile.canDetectWhileGarrisoned) continue;
-          if (!isGarrison && !profile.canDetectWhileContained) continue;
-        }
-      }
-
-      // Detection range: profile override > visionRange > fallback 150.
-      const detectionRange = (profile && profile.detectionRange > 0)
-        ? profile.detectionRange
-        : (detector.visionRange > 0 ? detector.visionRange : 150);
-      const detRangeSq = detectionRange * detectionRange;
-
-      // Detection duration matches the scan interval (+ 1 frame) to prevent flicker.
-      const detectionDuration = profile
-        ? profile.detectionRate + 1
-        : DEFAULT_DETECTION_DURATION_FRAMES;
-
-      for (const target of this.spawnedEntities.values()) {
-        if (target.destroyed || target === detector) continue;
-        if (!target.objectStatusFlags.has('STEALTHED')) continue;
-
-        // Source parity: detect enemies and neutrals (PartitionFilterRelationship::ALLOW_ENEMIES | ALLOW_NEUTRAL).
-        const detRel = this.getTeamRelationship(detector, target);
-        if (detRel !== RELATIONSHIP_ENEMIES && detRel !== RELATIONSHIP_NEUTRAL) continue;
-
-        // Source parity: ExtraRequiredKindOf / ExtraForbiddenKindOf filters.
-        if (profile && profile.extraRequiredKindOf.size > 0) {
-          let hasRequired = false;
-          for (const kind of profile.extraRequiredKindOf) {
-            if (target.kindOf.has(kind)) { hasRequired = true; break; }
-          }
-          if (!hasRequired) continue;
-        }
-        if (profile && profile.extraForbiddenKindOf.size > 0) {
-          let hasForbidden = false;
-          for (const kind of profile.extraForbiddenKindOf) {
-            if (target.kindOf.has(kind)) { hasForbidden = true; break; }
-          }
-          if (hasForbidden) continue;
-        }
-
-        const dx = target.x - detector.x;
-        const dz = target.z - detector.z;
-        if (dx * dx + dz * dz <= detRangeSq) {
-          target.objectStatusFlags.add('DETECTED');
-          target.detectedUntilFrame = this.frameCounter + detectionDuration;
-        }
-      }
-    }
-  }
-
-  /**
-   * Source parity: PoisonedBehavior — tick poison DoT on all poisoned entities.
-   * Each poison tick applies UNRESISTABLE damage so it can't be re-poisoned recursively.
-   */
-  /**
-   * Source parity: SubdualDamageHelper::update (SubdualDamageHelper.cpp:56-75).
-   * Heals subdual damage over time. When no subdual damage remains, the helper sleeps.
-   */
-  private updateSubdualDamageHelpers(): void {
-    for (const entity of this.spawnedEntities.values()) {
-      if (entity.destroyed || entity.currentSubdualDamage <= 0 || entity.subdualDamageCap <= 0) continue;
-      if (entity.subdualDamageHealRate <= 0 || entity.subdualDamageHealAmount <= 0) continue;
-
-      // Source parity: SubdualDamageHelper::update — decrement countdown each frame.
-      entity.subdualHealingCountdown--;
-      if (entity.subdualHealingCountdown > 0) continue;
-
-      // Reset countdown for next heal tick.
-      entity.subdualHealingCountdown = entity.subdualDamageHealRate;
-
-      // Source parity: heal subdual damage by SubdualDamageHealAmount via SUBDUAL_UNRESISTABLE.
-      // C++ calls attemptDamage with negative amount, but we can directly adjust since the
-      // negative path would just subtract from currentSubdualDamage anyway.
-      const wasSubdued = entity.currentSubdualDamage >= entity.maxHealth;
-      entity.currentSubdualDamage = Math.max(0, entity.currentSubdualDamage - entity.subdualDamageHealAmount);
-      const nowSubdued = entity.currentSubdualDamage >= entity.maxHealth;
-
-      // Source parity: onSubdualChange — clear DISABLED_SUBDUED when un-subdued.
-      if (wasSubdued && !nowSubdued) {
-        entity.objectStatusFlags.delete('DISABLED_SUBDUED');
-      }
-    }
-  }
-
-  private updatePoisonedEntities(): void {
-    for (const entity of this.spawnedEntities.values()) {
-      if (entity.destroyed || entity.poisonDamageAmount <= 0) continue;
-
-      // Check if poison has expired
-      if (this.frameCounter >= entity.poisonExpireFrame) {
-        entity.poisonDamageAmount = 0;
-        entity.objectStatusFlags.delete('POISONED');
-        continue;
-      }
-
-      // Apply poison damage tick
-      if (this.frameCounter >= entity.poisonNextDamageFrame) {
-        this.applyWeaponDamageAmount(null, entity, entity.poisonDamageAmount, 'UNRESISTABLE');
-        const interval = entity.poisonedBehaviorProfile?.poisonDamageIntervalFrames ?? DEFAULT_POISON_DAMAGE_INTERVAL_FRAMES;
-        entity.poisonNextDamageFrame = this.frameCounter + interval;
-      }
     }
   }
 
@@ -27538,79 +26930,10 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
-   * Source parity: FireSpreadUpdate::update() — entities on fire try to ignite nearby
-   * flammable objects at random intervals. C++ uses PartitionFilterFlammable to find
-   * the closest flammable target that wouldIgnite(), then calls tryToIgnite().
-   */
-  private updateFireSpread(): void {
-    for (const entity of this.spawnedEntities.values()) {
-      if (entity.destroyed) continue;
-      const prof = entity.fireSpreadProfile;
-      if (!prof) continue;
-
-      // Source parity: sleeps forever until entity is AFLAME.
-      if (entity.flameStatus !== 'AFLAME') {
-        entity.fireSpreadNextFrame = 0;
-        continue;
-      }
-
-      // Activate spread timer when first set aflame.
-      if (entity.fireSpreadNextFrame === 0) {
-        entity.fireSpreadNextFrame = this.frameCounter + this.calcFireSpreadDelay(prof);
-        continue;
-      }
-
-      if (this.frameCounter < entity.fireSpreadNextFrame) continue;
-
-      // Schedule next attempt.
-      entity.fireSpreadNextFrame = this.frameCounter + this.calcFireSpreadDelay(prof);
-
-      if (prof.spreadTryRange <= 0) continue;
-
-      // Source parity: find closest flammable target within range.
-      const rangeSqr = prof.spreadTryRange * prof.spreadTryRange;
-      let closestTarget: MapEntity | null = null;
-      let closestDistSqr = Infinity;
-
-      for (const candidate of this.spawnedEntities.values()) {
-        if (candidate.destroyed || candidate.id === entity.id) continue;
-        if (!candidate.flammableProfile) continue;
-        // Source parity: PartitionFilterFlammable::wouldIgnite — only NORMAL status can ignite.
-        if (candidate.flameStatus !== 'NORMAL') continue;
-
-        const dx = candidate.x - entity.x;
-        // Source parity: FireSpreadUpdate.cpp:147 uses FROM_CENTER_3D for distance.
-        const dy = candidate.y - entity.y;
-        const dz = candidate.z - entity.z;
-        const distSqr = dx * dx + dy * dy + dz * dz;
-        if (distSqr < rangeSqr && distSqr < closestDistSqr) {
-          closestDistSqr = distSqr;
-          closestTarget = candidate;
-        }
-      }
-
-      // Source parity: tryToIgnite — set target aflame instantly.
-      if (closestTarget) {
-        this.igniteEntity(closestTarget);
-      }
-    }
-  }
-
-  /**
-   * Source parity: calcNextSpreadDelay — random delay between min/max spread delay.
-   */
-  private calcFireSpreadDelay(prof: FireSpreadProfile): number {
-    if (prof.minSpreadDelayFrames >= prof.maxSpreadDelayFrames) {
-      return Math.max(1, prof.minSpreadDelayFrames);
-    }
-    return Math.max(1, this.gameRandom.nextRange(prof.minSpreadDelayFrames, prof.maxSpreadDelayFrames));
-  }
-
-  /**
    * Source parity: FlammableUpdate::tryToIgnite — force-ignite a flammable entity.
    * Sets entity aflame immediately (bypasses damage accumulation threshold).
    */
-  private igniteEntity(entity: MapEntity): void {
+  /* @internal */ igniteEntity(entity: MapEntity): void {
     const prof = entity.flammableProfile;
     if (!prof) return;
     if (entity.flameStatus !== 'NORMAL') return;
@@ -27624,67 +26947,6 @@ export class GameLogicSubsystem implements Subsystem {
     entity.flameDamageNextFrame = prof.aflameDamageDelayFrames > 0
       ? this.frameCounter + prof.aflameDamageDelayFrames
       : 0;
-  }
-
-  /**
-   * Source parity: FlammableUpdate.onDamage — accumulate fire damage and try to ignite.
-   */
-  private applyFireDamageToEntity(entity: MapEntity, actualDamage: number): void {
-    const prof = entity.flammableProfile;
-    if (!prof) return;
-    if (entity.flameStatus !== 'NORMAL') return; // Can't reignite burned or already aflame
-
-    // Reset accumulation if no fire damage in a while
-    if (this.frameCounter - entity.flameLastDamageReceivedFrame > prof.flameDamageExpirationDelayFrames) {
-      entity.flameDamageAccumulated = 0;
-    }
-    entity.flameLastDamageReceivedFrame = this.frameCounter;
-    entity.flameDamageAccumulated += actualDamage;
-
-    // Check ignition threshold.
-    // C++ parity: do NOT reset flameDamageAccumulated on ignition. The accumulated
-    // value stays, so if the entity returns to NORMAL and receives fire damage
-    // before the expiration delay, it re-ignites instantly (matching C++ where
-    // m_flameDamageLimit stays depleted after tryToIgnite).
-    if (entity.flameDamageAccumulated >= prof.flameDamageLimit) {
-      this.igniteEntity(entity);
-    }
-  }
-
-  /**
-   * Source parity: PoisonedBehavior.onDamage — start or refresh poison DoT.
-   * C++ file: PoisonedBehavior.cpp lines 157-183 (startPoisonedEffects).
-   * Only entities with a PoisonedBehavior module can be poisoned.
-   */
-  private applyPoisonToEntity(entity: MapEntity, actualDamage: number): void {
-    if (actualDamage <= 0) return;
-    // C++ parity: only entities with the PoisonedBehavior module react to poison.
-    if (!entity.poisonedBehaviorProfile) return;
-    const prof = entity.poisonedBehaviorProfile;
-    entity.poisonDamageAmount = actualDamage;
-    entity.poisonExpireFrame = this.frameCounter + prof.poisonDurationFrames;
-    // C++ parity: re-poisoning uses min() of existing timer and new interval
-    // to prevent "early" damage ticks. (PoisonedBehavior.cpp line 169-173)
-    const newDamageFrame = this.frameCounter + prof.poisonDamageIntervalFrames;
-    if (entity.poisonNextDamageFrame > this.frameCounter) {
-      entity.poisonNextDamageFrame = Math.min(entity.poisonNextDamageFrame, newDamageFrame);
-    } else {
-      entity.poisonNextDamageFrame = newDamageFrame;
-    }
-    entity.objectStatusFlags.add('POISONED');
-  }
-
-  /**
-   * Source parity: PoisonedBehavior::onHealing / stopPoisonedEffects.
-   * C++ file: PoisonedBehavior.cpp lines 99-104, 186-195.
-   * Any healing immediately clears all poison state.
-   */
-  private clearPoisonFromEntity(entity: MapEntity): void {
-    if (entity.poisonDamageAmount <= 0) return;
-    entity.poisonDamageAmount = 0;
-    entity.poisonNextDamageFrame = 0;
-    entity.poisonExpireFrame = 0;
-    entity.objectStatusFlags.delete('POISONED');
   }
 
   /**
