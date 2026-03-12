@@ -13,7 +13,11 @@
  *   MAIN_MENU → SINGLE_PLAYER → CHALLENGE_SELECT → (game loads)
  */
 
-import { resolveCampaignMapAssetPath } from '@generals/game-logic';
+import {
+  classifyCampaignLifecycle,
+  isLiveCampaignLifecycle,
+  resolveCampaignMapAssetPath,
+} from '@generals/game-logic';
 import {
   DEFAULT_PERSONAS,
   type GeneralPersona,
@@ -511,7 +515,9 @@ export class GameShell {
 
   /** Set parsed campaign data from CampaignManager. */
   setCampaigns(campaigns: readonly ShellCampaign[]): void {
-    this.campaigns = [...campaigns];
+    this.campaigns = campaigns.filter((campaign) =>
+      isLiveCampaignLifecycle(classifyCampaignLifecycle(campaign.name).lifecycle),
+    );
     if (!this.getStoryCampaignChoices().some((choice) => choice.campaignName === this.selectedCampaignFaction)) {
       this.selectedCampaignFaction = this.getStoryCampaignChoices()[0]?.campaignName ?? 'usa';
     }
@@ -599,9 +605,7 @@ export class GameShell {
   }
 
   private getStoryCampaignChoices(): Array<(typeof FACTIONS)[number]> {
-    const storyCampaigns = this.campaigns.filter((campaign) =>
-      !campaign.isChallengeCampaign && campaign.name !== 'training' && !campaign.name.endsWith('_demo'),
-    );
+    const storyCampaigns = this.campaigns.filter((campaign) => !campaign.isChallengeCampaign);
     if (storyCampaigns.length === 0) {
       return [...FACTIONS];
     }

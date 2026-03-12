@@ -590,6 +590,49 @@ describe('CampaignManager', () => {
     expect(challenges[0]!.isChallengeCampaign).toBe(true);
   });
 
+  it('getShellCampaigns excludes legacy and demo content', () => {
+    const mgr = new CampaignManager();
+    mgr.init(`
+Campaign USA
+  CampaignNameLabel CAMPAIGN:USA
+  FirstMission Mission01
+  Mission Mission01
+    Map Maps\\MD_USA01\\MD_USA01.map
+  END
+END
+
+Campaign CHALLENGE_0
+  CampaignNameLabel CAMPAIGN:CHALLENGE_0
+  FirstMission Mission01
+  IsChallengeCampaign yes
+  Mission Mission01
+    Map Maps\\GC_ChemGeneral\\GC_ChemGeneral.map
+  END
+END
+
+Campaign TRAINING
+  CampaignNameLabel CAMPAIGN:TRAINING
+  FirstMission Mission01
+  Mission Mission01
+    Map Maps\\Training01\\Training01.map
+  END
+END
+
+Campaign MD_CAMPEA_DEMO
+  CampaignNameLabel CAMPAIGN:MD_CAMPEA_DEMO
+  FirstMission Mission01
+  Mission Mission01
+    Map Maps\\CampEADemo\\CampEADemo.map
+  END
+END
+`);
+
+    expect(mgr.getShellCampaigns().map((campaign) => campaign.name).sort()).toEqual([
+      'challenge_0',
+      'usa',
+    ]);
+  });
+
   it('getTrainingCampaign returns training', () => {
     const mgr = createManager();
     const training = mgr.getTrainingCampaign();

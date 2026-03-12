@@ -6,6 +6,8 @@
  *   GeneralsMD/Code/GameEngine/Source/GameClient/System/CampaignManager.cpp
  */
 
+import { classifyCampaignLifecycle, isLiveCampaignLifecycle } from './campaign-content-policy.js';
+
 // ──── Types ─────────────────────────────────────────────────────────────────
 
 export type GameDifficulty = 'EASY' | 'NORMAL' | 'HARD';
@@ -34,6 +36,10 @@ export interface Campaign {
   isChallengeCampaign: boolean;
   playerFactionName: string;
   missions: Mission[];
+}
+
+function isLiveCampaign(campaign: Pick<Campaign, 'name'>): boolean {
+  return isLiveCampaignLifecycle(classifyCampaignLifecycle(campaign.name).lifecycle);
 }
 
 export function resolveCampaignMapAssetPath(mapName: string | null | undefined): string | null {
@@ -208,16 +214,21 @@ export class CampaignManager {
   /** Get non-challenge, non-training, non-demo campaigns (USA, GLA, China). */
   getStoryCampaigns(): Campaign[] {
     return this.campaigns.filter(
-      c => !c.isChallengeCampaign && c.name !== 'training' && !c.name.endsWith('_demo'),
+      c => isLiveCampaign(c) && !c.isChallengeCampaign,
     );
   }
 
   /** Get challenge campaigns (CHALLENGE_0 through CHALLENGE_8). */
   getChallengeCampaigns(): Campaign[] {
-    return this.campaigns.filter(c => c.isChallengeCampaign);
+    return this.campaigns.filter(c => isLiveCampaign(c) && c.isChallengeCampaign);
   }
 
-  /** Get the training campaign. */
+  /** Get campaigns that should be visible in the Zero Hour shell. */
+  getShellCampaigns(): Campaign[] {
+    return this.campaigns.filter(isLiveCampaign);
+  }
+
+  /** Get the retained-but-hidden training campaign from retail Campaign.ini. */
   getTrainingCampaign(): Campaign | null {
     return this.campaigns.find(c => c.name === 'training') ?? null;
   }

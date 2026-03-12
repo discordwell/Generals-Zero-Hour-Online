@@ -888,6 +888,7 @@ import {
 
 export * from './types.js';
 export * from './campaign-manager.js';
+export * from './campaign-content-policy.js';
 export { resolveRenderAssetProfile } from './render-profile-helpers.js';
 export type { ResolvedRenderAssetProfile } from './render-profile-helpers.js';
 export {

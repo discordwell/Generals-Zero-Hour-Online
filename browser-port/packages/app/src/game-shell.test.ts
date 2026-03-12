@@ -39,6 +39,82 @@ describe('GameShell', () => {
     expect(select.value).toBe('10000');
   });
 
+  it('filters legacy and demo campaigns when shell campaign data is set', () => {
+    const shell = new GameShell(root, {
+      onStartGame: () => undefined,
+    });
+
+    shell.setCampaigns([
+      {
+        name: 'training',
+        firstMission: 'mission01',
+        campaignNameLabel: 'CAMPAIGN:TRAINING',
+        finalMovieName: '',
+        isChallengeCampaign: false,
+        playerFactionName: '',
+        missions: [],
+      },
+      {
+        name: 'md_campea_demo',
+        firstMission: 'mission01',
+        campaignNameLabel: 'CAMPAIGN:MD_CAMPEA_DEMO',
+        finalMovieName: '',
+        isChallengeCampaign: false,
+        playerFactionName: '',
+        missions: [],
+      },
+      {
+        name: 'challenge_0',
+        firstMission: 'mission01',
+        campaignNameLabel: 'CAMPAIGN:CHALLENGE_0',
+        finalMovieName: 'USACampaignVictory',
+        isChallengeCampaign: true,
+        playerFactionName: 'FactionAmericaAirForceGeneral',
+        missions: [
+          {
+            name: 'mission01',
+            mapName: 'Maps\\GC_ChemGeneral\\GC_ChemGeneral.map',
+            nextMission: '',
+            movieLabel: 'GeneralsChallengeBackground',
+            objectiveLines: [],
+            briefingVoice: '',
+            locationNameLabel: '',
+            unitNames: [],
+            voiceLength: 0,
+            generalName: '',
+          },
+        ],
+      },
+      {
+        name: 'usa',
+        firstMission: 'mission01',
+        campaignNameLabel: 'CAMPAIGN:USA',
+        finalMovieName: '',
+        isChallengeCampaign: false,
+        playerFactionName: 'FactionAmerica',
+        missions: [
+          {
+            name: 'mission01',
+            mapName: 'Maps\\MD_USA01\\MD_USA01.map',
+            nextMission: '',
+            movieLabel: 'MD_USA01',
+            objectiveLines: [],
+            briefingVoice: '',
+            locationNameLabel: '',
+            unitNames: [],
+            voiceLength: 0,
+            generalName: '',
+          },
+        ],
+      },
+    ]);
+
+    expect((shell as { campaigns: ShellCampaign[] }).campaigns.map((campaign) => campaign.name).sort()).toEqual([
+      'challenge_0',
+      'usa',
+    ]);
+  });
+
   it('starts the source-selected challenge campaign from challenge personas', () => {
     const onStartCampaign = vi.fn();
     const shell = new GameShell(root, {

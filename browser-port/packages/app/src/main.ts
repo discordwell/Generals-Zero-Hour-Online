@@ -3383,7 +3383,7 @@ async function init(): Promise<void> {
   if (manifest) {
     shell.setAvailableMaps(manifest.getOutputPaths());
   }
-  shell.setCampaigns(campaignManager.getCampaigns());
+  shell.setCampaigns(campaignManager.getShellCampaigns());
   shell.setChallengePersonas(
     getEnabledChallengePersonas(buildChallengePersonasFromRegistry(ctx.iniDataRegistry)),
   );
