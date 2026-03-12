@@ -543,7 +543,9 @@ export function enterGarrisonBuilding(self: GL, source: MapEntity, building: Map
   source.canMove = false;
   source.moving = false;
   // Source parity: Object::onContainedBy — set UNSELECTABLE on garrisoned entity (C++ Object.cpp).
+  // Source parity: GarrisonContain::onContaining — set DISABLED_HELD (C++ GarrisonContain.cpp line 1623).
   source.objectStatusFlags.add('UNSELECTABLE');
+  source.objectStatusFlags.add('DISABLED_HELD');
   self.removeEntityFromSelection(source.id);
   self.pendingGarrisonActions.delete(source.id);
 }
@@ -1086,6 +1088,8 @@ export function releaseEntityFromContainer(self: GL, entity: MapEntity): void {
   if (entity.garrisonContainerId !== null) {
     entity.garrisonContainerId = null;
     entity.canMove = true;
+    // Source parity: GarrisonContain::onRemoving — clear DISABLED_HELD (C++ GarrisonContain.cpp line 1672).
+    entity.objectStatusFlags.delete('DISABLED_HELD');
   }
 
   if (entity.transportContainerId !== null) {
@@ -1235,21 +1239,26 @@ export function isPassengerAllowedToFireFromContainingObject(self: GL,
 
 /**
  * Source parity: TransportContain::killRidersWhoAreNotFreeToExit() — called during onDie,
- * before removeAllContained(). Checks each rider: if isSpecificRiderFreeToExit() returns false
- * AND m_destroyRidersWhoAreNotFreeToExit is true, destroy the rider.
- * C++ file: TransportContain.cpp.
+ * before removeAllContained(). Checks each rider: if isSpecificRiderFreeToExit() returns false,
+ * the rider is killed. If m_destroyRidersWhoAreNotFreeToExit is true, uses destroyObject()
+ * (instant removal); otherwise uses kill() (normal death process).
+ * C++ file: TransportContain.cpp lines 536-556.
  *
  * Pragmatic implementation: passengers without locomotors (canMove=false) can't exit.
  */
 export function killRidersWhoAreNotFreeToExit(self: GL, container: MapEntity): void {
   const profile = container.containProfile;
-  if (!profile || !profile.destroyRidersWhoAreNotFreeToExit) return;
+  if (!profile) return;
+
+  // Source parity: OverlordContain/HelixContain override onDie to place riders at death
+  // position — riders are always "free to exit" from these containers.
+  if (profile.moduleType === 'OVERLORD' || profile.moduleType === 'HELIX') return;
 
   const passengerIds = collectContainedEntityIds(self, container.id);
   for (const passengerId of passengerIds) {
     const passenger = self.spawnedEntities.get(passengerId);
     if (!passenger || passenger.destroyed) continue;
-    // Pragmatic: passengers without locomotors can't exit — destroy them.
+    // Pragmatic: passengers without locomotors can't exit — kill them.
     if (!passenger.canMove) {
       self.markEntityDestroyed(passengerId, container.id);
     }

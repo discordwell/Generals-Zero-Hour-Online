@@ -1377,8 +1377,8 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   }
 
   // Source parity: TransportContain::killRidersWhoAreNotFreeToExit — kill riders who cannot exit
-  // before releasing remaining passengers (C++ TransportContain.cpp).
-  if (entity.containProfile && entity.containProfile.destroyRidersWhoAreNotFreeToExit) {
+  // before releasing remaining passengers (C++ TransportContain.cpp lines 536-556).
+  if (entity.containProfile) {
     self.killRidersWhoAreNotFreeToExit(entity);
   }
 
