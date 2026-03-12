@@ -140,9 +140,6 @@ import {
 } from './side-credits.js';
 import {
   isSpecialPowerObjectRelationshipAllowed,
-  routeIssueSpecialPowerCommand as routeIssueSpecialPowerCommandImpl,
-  resolveSharedShortcutSpecialPowerReadyFrame as resolveSharedShortcutSpecialPowerReadyFrameImpl,
-  setSpecialPowerReadyFrame as setSpecialPowerReadyFrameImpl,
 } from './special-power-routing.js';
 import {
   DEFAULT_SUPPLY_BOX_VALUE,
@@ -190,7 +187,6 @@ import {
   DEFAULT_AREA_DAMAGE_RADIUS,
   DEFAULT_AREA_DAMAGE_AMOUNT,
   DEFAULT_CASH_HACK_AMOUNT,
-  DEFAULT_SPY_VISION_RADIUS,
   DEFAULT_AREA_HEAL_AMOUNT,
   DEFAULT_AREA_HEAL_RADIUS,
   DEFAULT_EMP_RADIUS,
@@ -215,33 +211,20 @@ import {
   removeRadarUpgradeFromSide as removeRadarUpgradeFromSideImpl,
 } from './upgrade-modules.js';
 import {
-  type BeaconDeleteCommand,
-  type CancelDozerConstructionCommand,
-  type CombatDropCommand,
   type ConstructBuildingCommand,
   type EnterObjectCommand,
   type EntityRelationship,
   type GameLogicCommand,
   type GameLogicConfig,
-  type GarrisonBuildingCommand,
-  type EnterTransportCommand,
-  type HackInternetCommand,
-  type RepairBuildingCommand,
-  type IssueSpecialPowerCommand,
   type LocalScienceAvailability,
   type MapObjectPlacementSummary,
-  type PlaceBeaconCommand,
   type RenderAnimationState,
   type RenderAnimationStateClipCandidates,
   type RenderableEntityState,
   type RenderableObjectCategory,
   type ScriptObjectAmbientCustomAudioDefinition,
   type ScriptObjectAmbientSoundState,
-  type SellCommand,
   type SelectedEntityInfo,
-  type ToggleOverchargeCommand,
-  type DetonateDemoTrapCommand,
-  type ToggleDemoTrapModeCommand,
 } from './types.js';
 import {
   appendScriptSequentialScript as appendScriptSequentialScriptImpl,
@@ -560,6 +543,87 @@ import {
   checkVictoryConditions as checkVictoryConditionsImpl,
   killRemainingEntitiesForSide as killRemainingEntitiesForSideImpl,
 } from './entity-lifecycle.js';
+import {
+  flushCommands as flushCommandsImpl,
+  applyCommand as applyCommandImpl,
+  deferCommandWhileHackInternetPacking as deferCommandWhileHackInternetPackingImpl,
+  deferCommandWhileChinookBusy as deferCommandWhileChinookBusyImpl,
+  isChinookTakeoffCommandType as isChinookTakeoffCommandTypeImpl,
+  collectReadySpecialPowersForSide as collectReadySpecialPowersForSideImpl,
+  routeIssueSpecialPowerCommand as routeIssueSpecialPowerCommandImpl,
+  setSpecialPowerReadyFrame as setSpecialPowerReadyFrameImpl,
+  resolveSpyVisionRevealRadius as resolveSpyVisionRevealRadiusImpl,
+  canEntityIssueSpecialPower as canEntityIssueSpecialPowerImpl,
+  isSpecialPowerObjectTargetShrouded as isSpecialPowerObjectTargetShroudedImpl,
+  isSpecialPowerObjectEffectivelyDead as isSpecialPowerObjectEffectivelyDeadImpl,
+  isSpecialPowerObjectTargetAllowed as isSpecialPowerObjectTargetAllowedImpl,
+  isSpecialPowerLocationUnderwater as isSpecialPowerLocationUnderwaterImpl,
+  isSpecialPowerLocationTargetShrouded as isSpecialPowerLocationTargetShroudedImpl,
+  resolveSpecialPowerModuleProfile as resolveSpecialPowerModuleProfileImpl,
+  recordSpecialPowerDispatch as recordSpecialPowerDispatchImpl,
+  cancelEntityCommandPathActions as cancelEntityCommandPathActionsImpl,
+  cancelCurrentDozerTask as cancelCurrentDozerTaskImpl,
+  cancelActiveSpecialAbility as cancelActiveSpecialAbilityImpl,
+  cancelDozerConstructionTask as cancelDozerConstructionTaskImpl,
+  handleBeaconDeleteCommand as handleBeaconDeleteCommandImpl,
+  handleHackInternetCommand as handleHackInternetCommandImpl,
+  resolveHackInternetPackTimeFrames as resolveHackInternetPackTimeFramesImpl,
+  resolveHackInternetCashUpdateDelayFrames as resolveHackInternetCashUpdateDelayFramesImpl,
+  handleToggleOverchargeCommand as handleToggleOverchargeCommandImpl,
+  handleDetonateDemoTrapCommand as handleDetonateDemoTrapCommandImpl,
+  handleToggleDemoTrapModeCommand as handleToggleDemoTrapModeCommandImpl,
+  handleCombatDropCommand as handleCombatDropCommandImpl,
+  canPlayerCombatDropIntoTarget as canPlayerCombatDropIntoTargetImpl,
+  resolveCombatDropPositionWithoutTarget as resolveCombatDropPositionWithoutTargetImpl,
+  tryCombatDropPositionCandidate as tryCombatDropPositionCandidateImpl,
+  doesCombatDropPositionOverlapAnyObject as doesCombatDropPositionOverlapAnyObjectImpl,
+  handlePlaceBeaconCommand as handlePlaceBeaconCommandImpl,
+  handleEnterObjectCommand as handleEnterObjectCommandImpl,
+  canQueueEnterObjectAction as canQueueEnterObjectActionImpl,
+  passesCommonEnterObjectValidation as passesCommonEnterObjectValidationImpl,
+  isEntityEffectivelyDeadForEnter as isEntityEffectivelyDeadForEnterImpl,
+  isEntityDozerCapable as isEntityDozerCapableImpl,
+  isWorkerEntity as isWorkerEntityImpl,
+  handleConstructBuildingCommand as handleConstructBuildingCommandImpl,
+  clearRemovableForConstruction as clearRemovableForConstructionImpl,
+  moveObjectsForConstruction as moveObjectsForConstructionImpl,
+  isConstructLocationClear as isConstructLocationClearImpl,
+  isConstructTerrainLegal as isConstructTerrainLegalImpl,
+  resolveConstructCollisionGeometry as resolveConstructCollisionGeometryImpl,
+  resolveConstructCollisionGeometryForEntity as resolveConstructCollisionGeometryForEntityImpl,
+  doesConstructionGeometryOverlap as doesConstructionGeometryOverlapImpl,
+  doesCircleGeometryOverlap as doesCircleGeometryOverlapImpl,
+  doesCircleBoxGeometryOverlap as doesCircleBoxGeometryOverlapImpl,
+  doesBoxGeometryOverlap as doesBoxGeometryOverlapImpl,
+  projectBoxRadiusOntoAxis as projectBoxRadiusOntoAxisImpl,
+  isRemovableForConstruction as isRemovableForConstructionImpl,
+  isMineForConstruction as isMineForConstructionImpl,
+  isInertForConstruction as isInertForConstructionImpl,
+  isAlwaysSelectableForConstruction as isAlwaysSelectableForConstructionImpl,
+  isImmobileForConstruction as isImmobileForConstructionImpl,
+  isEntityDisabledForMovement as isEntityDisabledForMovementImpl,
+  isDisabledForConstruction as isDisabledForConstructionImpl,
+  isEntityDisabledForScriptCommandButton as isEntityDisabledForScriptCommandButtonImpl,
+  isLineBuildTemplate as isLineBuildTemplateImpl,
+  getConstructingRelationship as getConstructingRelationshipImpl,
+  handleCancelDozerConstructionCommand as handleCancelDozerConstructionCommandImpl,
+  handleSellCommand as handleSellCommandImpl,
+  canEntityGetHealedAt as canEntityGetHealedAtImpl,
+  isSameControllingPlayerOrSide as isSameControllingPlayerOrSideImpl,
+  handleGarrisonBuildingCommand as handleGarrisonBuildingCommandImpl,
+  updatePendingGarrisonActions as updatePendingGarrisonActionsImpl,
+  handleEnterTransportCommand as handleEnterTransportCommandImpl,
+  updatePendingTransportActions as updatePendingTransportActionsImpl,
+  handleRepairBuildingCommand as handleRepairBuildingCommandImpl,
+  canDozerResumeConstructionTarget as canDozerResumeConstructionTargetImpl,
+  canDozerAcceptNewRepairTarget as canDozerAcceptNewRepairTargetImpl,
+  getDozerCurrentTask as getDozerCurrentTaskImpl,
+  clearDozerTaskOrder as clearDozerTaskOrderImpl,
+  updatePendingRepairActions as updatePendingRepairActionsImpl,
+  updateDozerIdleBehavior as updateDozerIdleBehaviorImpl,
+  findDozerAutoRepairTarget as findDozerAutoRepairTargetImpl,
+  findDozerAutoMineTarget as findDozerAutoMineTargetImpl,
+} from './command-dispatch.js';
 
 export * from './types.js';
 export * from './campaign-manager.js';
@@ -700,7 +764,7 @@ interface NavigationGrid {
 }
 
 export const PATHFIND_CELL_SIZE = MAP_XY_FACTOR;
-const CLIFF_HEIGHT_DELTA = 9.8;
+export const CLIFF_HEIGHT_DELTA = 9.8;
 const PATHFIND_ZONE_BLOCK_SIZE = 10;
 export const NO_ATTACK_DISTANCE = 0;
 const ATTACK_MOVE_DISTANCE_FUDGE = 3 * MAP_XY_FACTOR;
@@ -714,8 +778,8 @@ const SOURCE_TOTAL_FRAMES_TO_SELL_OBJECT = LOGIC_FRAME_RATE * 3;
 const SOURCE_DEFAULT_SELL_PERCENTAGE = 1.0;
 /** Source parity: Object.h CONSTRUCTION_COMPLETE sentinel — indicates fully built. */
 const CONSTRUCTION_COMPLETE = -1;
-const SOURCE_HACK_FALLBACK_CASH_AMOUNT = 1;
-const SOURCE_DEFAULT_MAX_BEACONS_PER_PLAYER = 3;
+export const SOURCE_HACK_FALLBACK_CASH_AMOUNT = 1;
+export const SOURCE_DEFAULT_MAX_BEACONS_PER_PLAYER = 3;
 export const SOURCE_DEFAULT_MAX_SHOTS_TO_FIRE = 0x7fffffff;
 export const SOURCE_FLASH_COLOR_WHITE = 0xffffff;
 export const MAX_DYNAMIC_WATER = 64;
@@ -763,11 +827,11 @@ export const SCRIPT_COMMAND_OPTION_NAME_TO_MASK = new Map<string, number>([
 ]);
 
 const NAV_CLEAR = 0;
-const NAV_WATER = 1;
-const NAV_CLIFF = 2;
+export const NAV_WATER = 1;
+export const NAV_CLIFF = 2;
 const NAV_OBSTACLE = 4;
-const NAV_IMPASSABLE = 6;
-const NAV_BRIDGE_IMPASSABLE = 7;
+export const NAV_IMPASSABLE = 6;
+export const NAV_BRIDGE_IMPASSABLE = 7;
 
 const OBJECT_FLAG_BRIDGE_POINT1 = 0x010;
 const OBJECT_FLAG_BRIDGE_POINT2 = 0x020;
@@ -1111,7 +1175,7 @@ const BEZIER_ARC_LENGTH_TOLERANCE = 1.0;
  * Source parity: AIUpdateModuleData::m_moodAttackCheckRate — default interval
  * (in logic frames) between idle auto-target scans. C++ uses 2 seconds (60 frames).
  */
-const AUTO_TARGET_SCAN_RATE_FRAMES = LOGIC_FRAME_RATE * 2;
+export const AUTO_TARGET_SCAN_RATE_FRAMES = LOGIC_FRAME_RATE * 2;
 const SCRIPT_AI_ATTITUDE_PASSIVE = 1;
 const SCRIPT_AI_ATTITUDE_NORMAL = 2;
 const SCRIPT_ATTACK_PRIORITY_DEFAULT = 1;
@@ -9607,6 +9671,88 @@ export class GameLogicSubsystem implements Subsystem {
   private updateScriptSequentialScripts(...args: any[]) { return (updateScriptSequentialScriptsImpl as any)(this, ...args); }
   private updateScriptWanderInPlace(...args: any[]) { return (updateScriptWanderInPlaceImpl as any)(this, ...args); }
 
+  // ---- Command dispatch facades (delegate to command-dispatch.ts) ----
+
+  private flushCommands(...args: any[]) { return (flushCommandsImpl as any)(this, ...args); }
+  private applyCommand(...args: any[]) { return (applyCommandImpl as any)(this, ...args); }
+  /* @internal */ deferCommandWhileHackInternetPacking(...args: any[]) { return (deferCommandWhileHackInternetPackingImpl as any)(this, ...args); }
+  /* @internal */ deferCommandWhileChinookBusy(...args: any[]) { return (deferCommandWhileChinookBusyImpl as any)(this, ...args); }
+  /* @internal */ isChinookTakeoffCommandType(...args: any[]) { return (isChinookTakeoffCommandTypeImpl as any)(this, ...args); }
+  private collectReadySpecialPowersForSide(...args: any[]) { return (collectReadySpecialPowersForSideImpl as any)(this, ...args); }
+  /* @internal */ routeIssueSpecialPowerCommand(...args: any[]) { return (routeIssueSpecialPowerCommandImpl as any)(this, ...args); }
+  private setSpecialPowerReadyFrame(...args: any[]) { return (setSpecialPowerReadyFrameImpl as any)(this, ...args); }
+  private resolveSpyVisionRevealRadius(...args: any[]) { return (resolveSpyVisionRevealRadiusImpl as any)(this, ...args); }
+  private canEntityIssueSpecialPower(...args: any[]) { return (canEntityIssueSpecialPowerImpl as any)(this, ...args); }
+  /* @internal */ isSpecialPowerObjectTargetShrouded(...args: any[]) { return (isSpecialPowerObjectTargetShroudedImpl as any)(this, ...args); }
+  /* @internal */ isSpecialPowerObjectEffectivelyDead(...args: any[]) { return (isSpecialPowerObjectEffectivelyDeadImpl as any)(this, ...args); }
+  /* @internal */ isSpecialPowerObjectTargetAllowed(...args: any[]) { return (isSpecialPowerObjectTargetAllowedImpl as any)(this, ...args); }
+  /* @internal */ isSpecialPowerLocationUnderwater(...args: any[]) { return (isSpecialPowerLocationUnderwaterImpl as any)(this, ...args); }
+  /* @internal */ isSpecialPowerLocationTargetShrouded(...args: any[]) { return (isSpecialPowerLocationTargetShroudedImpl as any)(this, ...args); }
+  private resolveSpecialPowerModuleProfile(...args: any[]) { return (resolveSpecialPowerModuleProfileImpl as any)(this, ...args); }
+  private recordSpecialPowerDispatch(...args: any[]) { return (recordSpecialPowerDispatchImpl as any)(this, ...args); }
+  private cancelEntityCommandPathActions(...args: any[]) { return (cancelEntityCommandPathActionsImpl as any)(this, ...args); }
+  /* @internal */ cancelCurrentDozerTask(...args: any[]) { return (cancelCurrentDozerTaskImpl as any)(this, ...args); }
+  /* @internal */ cancelActiveSpecialAbility(...args: any[]) { return (cancelActiveSpecialAbilityImpl as any)(this, ...args); }
+  /* @internal */ cancelDozerConstructionTask(...args: any[]) { return (cancelDozerConstructionTaskImpl as any)(this, ...args); }
+  /* @internal */ handleBeaconDeleteCommand(...args: any[]) { return (handleBeaconDeleteCommandImpl as any)(this, ...args); }
+  /* @internal */ handleHackInternetCommand(...args: any[]) { return (handleHackInternetCommandImpl as any)(this, ...args); }
+  /* @internal */ resolveHackInternetPackTimeFrames(...args: any[]) { return (resolveHackInternetPackTimeFramesImpl as any)(this, ...args); }
+  /* @internal */ resolveHackInternetCashUpdateDelayFrames(...args: any[]) { return (resolveHackInternetCashUpdateDelayFramesImpl as any)(this, ...args); }
+  /* @internal */ handleToggleOverchargeCommand(...args: any[]) { return (handleToggleOverchargeCommandImpl as any)(this, ...args); }
+  /* @internal */ handleDetonateDemoTrapCommand(...args: any[]) { return (handleDetonateDemoTrapCommandImpl as any)(this, ...args); }
+  /* @internal */ handleToggleDemoTrapModeCommand(...args: any[]) { return (handleToggleDemoTrapModeCommandImpl as any)(this, ...args); }
+  /* @internal */ handleCombatDropCommand(...args: any[]) { return (handleCombatDropCommandImpl as any)(this, ...args); }
+  /* @internal */ canPlayerCombatDropIntoTarget(...args: any[]) { return (canPlayerCombatDropIntoTargetImpl as any)(this, ...args); }
+  /* @internal */ resolveCombatDropPositionWithoutTarget(...args: any[]) { return (resolveCombatDropPositionWithoutTargetImpl as any)(this, ...args); }
+  /* @internal */ tryCombatDropPositionCandidate(...args: any[]) { return (tryCombatDropPositionCandidateImpl as any)(this, ...args); }
+  /* @internal */ doesCombatDropPositionOverlapAnyObject(...args: any[]) { return (doesCombatDropPositionOverlapAnyObjectImpl as any)(this, ...args); }
+  /* @internal */ handlePlaceBeaconCommand(...args: any[]) { return (handlePlaceBeaconCommandImpl as any)(this, ...args); }
+  /* @internal */ handleEnterObjectCommand(...args: any[]) { return (handleEnterObjectCommandImpl as any)(this, ...args); }
+  /* @internal */ canQueueEnterObjectAction(...args: any[]) { return (canQueueEnterObjectActionImpl as any)(this, ...args); }
+  private passesCommonEnterObjectValidation(...args: any[]) { return (passesCommonEnterObjectValidationImpl as any)(this, ...args); }
+  private isEntityEffectivelyDeadForEnter(...args: any[]) { return (isEntityEffectivelyDeadForEnterImpl as any)(this, ...args); }
+  private isEntityDozerCapable(...args: any[]) { return (isEntityDozerCapableImpl as any)(this, ...args); }
+  private isWorkerEntity(...args: any[]) { return (isWorkerEntityImpl as any)(this, ...args); }
+  private handleConstructBuildingCommand(...args: any[]) { return (handleConstructBuildingCommandImpl as any)(this, ...args); }
+  /* @internal */ clearRemovableForConstruction(...args: any[]) { return (clearRemovableForConstructionImpl as any)(this, ...args); }
+  /* @internal */ moveObjectsForConstruction(...args: any[]) { return (moveObjectsForConstructionImpl as any)(this, ...args); }
+  /* @internal */ isConstructLocationClear(...args: any[]) { return (isConstructLocationClearImpl as any)(this, ...args); }
+  /* @internal */ isConstructTerrainLegal(...args: any[]) { return (isConstructTerrainLegalImpl as any)(this, ...args); }
+  /* @internal */ resolveConstructCollisionGeometry(...args: any[]) { return (resolveConstructCollisionGeometryImpl as any)(this, ...args); }
+  /* @internal */ resolveConstructCollisionGeometryForEntity(...args: any[]) { return (resolveConstructCollisionGeometryForEntityImpl as any)(this, ...args); }
+  /* @internal */ doesConstructionGeometryOverlap(...args: any[]) { return (doesConstructionGeometryOverlapImpl as any)(this, ...args); }
+  /* @internal */ doesCircleGeometryOverlap(...args: any[]) { return (doesCircleGeometryOverlapImpl as any)(this, ...args); }
+  /* @internal */ doesCircleBoxGeometryOverlap(...args: any[]) { return (doesCircleBoxGeometryOverlapImpl as any)(this, ...args); }
+  /* @internal */ doesBoxGeometryOverlap(...args: any[]) { return (doesBoxGeometryOverlapImpl as any)(this, ...args); }
+  /* @internal */ projectBoxRadiusOntoAxis(...args: any[]) { return (projectBoxRadiusOntoAxisImpl as any)(this, ...args); }
+  /* @internal */ isRemovableForConstruction(...args: any[]) { return (isRemovableForConstructionImpl as any)(this, ...args); }
+  /* @internal */ isMineForConstruction(...args: any[]) { return (isMineForConstructionImpl as any)(this, ...args); }
+  /* @internal */ isInertForConstruction(...args: any[]) { return (isInertForConstructionImpl as any)(this, ...args); }
+  /* @internal */ isAlwaysSelectableForConstruction(...args: any[]) { return (isAlwaysSelectableForConstructionImpl as any)(this, ...args); }
+  /* @internal */ isImmobileForConstruction(...args: any[]) { return (isImmobileForConstructionImpl as any)(this, ...args); }
+  private isEntityDisabledForMovement(...args: any[]) { return (isEntityDisabledForMovementImpl as any)(this, ...args); }
+  /* @internal */ isDisabledForConstruction(...args: any[]) { return (isDisabledForConstructionImpl as any)(this, ...args); }
+  /* @internal */ isEntityDisabledForScriptCommandButton(...args: any[]) { return (isEntityDisabledForScriptCommandButtonImpl as any)(this, ...args); }
+  /* @internal */ isLineBuildTemplate(...args: any[]) { return (isLineBuildTemplateImpl as any)(this, ...args); }
+  /* @internal */ getConstructingRelationship(...args: any[]) { return (getConstructingRelationshipImpl as any)(this, ...args); }
+  /* @internal */ handleCancelDozerConstructionCommand(...args: any[]) { return (handleCancelDozerConstructionCommandImpl as any)(this, ...args); }
+  /* @internal */ handleSellCommand(...args: any[]) { return (handleSellCommandImpl as any)(this, ...args); }
+  private canEntityGetHealedAt(...args: any[]) { return (canEntityGetHealedAtImpl as any)(this, ...args); }
+  /* @internal */ isSameControllingPlayerOrSide(...args: any[]) { return (isSameControllingPlayerOrSideImpl as any)(this, ...args); }
+  /* @internal */ handleGarrisonBuildingCommand(...args: any[]) { return (handleGarrisonBuildingCommandImpl as any)(this, ...args); }
+  private updatePendingGarrisonActions(...args: any[]) { return (updatePendingGarrisonActionsImpl as any)(this, ...args); }
+  private handleEnterTransportCommand(...args: any[]) { return (handleEnterTransportCommandImpl as any)(this, ...args); }
+  private updatePendingTransportActions(...args: any[]) { return (updatePendingTransportActionsImpl as any)(this, ...args); }
+  /* @internal */ handleRepairBuildingCommand(...args: any[]) { return (handleRepairBuildingCommandImpl as any)(this, ...args); }
+  /* @internal */ canDozerResumeConstructionTarget(...args: any[]) { return (canDozerResumeConstructionTargetImpl as any)(this, ...args); }
+  /* @internal */ canDozerAcceptNewRepairTarget(...args: any[]) { return (canDozerAcceptNewRepairTargetImpl as any)(this, ...args); }
+  private getDozerCurrentTask(...args: any[]) { return (getDozerCurrentTaskImpl as any)(this, ...args); }
+  private clearDozerTaskOrder(...args: any[]) { return (clearDozerTaskOrderImpl as any)(this, ...args); }
+  private updatePendingRepairActions(...args: any[]) { return (updatePendingRepairActionsImpl as any)(this, ...args); }
+  private updateDozerIdleBehavior(...args: any[]) { return (updateDozerIdleBehaviorImpl as any)(this, ...args); }
+  /* @internal */ findDozerAutoRepairTarget(...args: any[]) { return (findDozerAutoRepairTargetImpl as any)(this, ...args); }
+  /* @internal */ findDozerAutoMineTarget(...args: any[]) { return (findDozerAutoMineTargetImpl as any)(this, ...args); }
+
   // ---- Entity lifecycle facades (delegate to entity-lifecycle.ts) ----
 
   /* @internal */ createCraterInTerrain(...args: any[]) { return (createCraterInTerrainImpl as any)(this, ...args); }
@@ -9656,26 +9802,26 @@ export class GameLogicSubsystem implements Subsystem {
   getCaveContainIndex(...args: any[]) { return (getCaveContainIndexImpl as any)(this, ...args); }
   /* @internal */ canSwitchCaveIndexToIndex(...args: any[]) { return (canSwitchCaveIndexToIndexImpl as any)(this, ...args); }
   private isEntityInEnclosingContainer(...args: any[]) { return (isEntityInEnclosingContainerImpl as any)(this, ...args); }
-  private shouldIgnoreRailedTransportPlayerCommand(...args: any[]) { return (shouldIgnoreRailedTransportPlayerCommandImpl as any)(this, ...args); }
+  /* @internal */ shouldIgnoreRailedTransportPlayerCommand(...args: any[]) { return (shouldIgnoreRailedTransportPlayerCommandImpl as any)(this, ...args); }
   /* @internal */ isRailedTransportPlayerBlockedCommandType(...args: any[]) { return (isRailedTransportPlayerBlockedCommandTypeImpl as any)(this, ...args); }
   /* @internal */ isRailedTransportEntity(...args: any[]) { return (isRailedTransportEntityImpl as any)(this, ...args); }
-  private doesSpecialPowerTargetAppearToContainFriendlies(...args: any[]) { return (doesSpecialPowerTargetAppearToContainFriendliesImpl as any)(this, ...args); }
-  private isCaptureBlockedByGarrisonOccupants(...args: any[]) { return (isCaptureBlockedByGarrisonOccupantsImpl as any)(this, ...args); }
-  private cancelRailedTransportTransit(...args: any[]) { return (cancelRailedTransportTransitImpl as any)(this, ...args); }
+  /* @internal */ doesSpecialPowerTargetAppearToContainFriendlies(...args: any[]) { return (doesSpecialPowerTargetAppearToContainFriendliesImpl as any)(this, ...args); }
+  /* @internal */ isCaptureBlockedByGarrisonOccupants(...args: any[]) { return (isCaptureBlockedByGarrisonOccupantsImpl as any)(this, ...args); }
+  /* @internal */ cancelRailedTransportTransit(...args: any[]) { return (cancelRailedTransportTransitImpl as any)(this, ...args); }
   private resolveRailedTransportRuntimeState(...args: any[]) { return (resolveRailedTransportRuntimeStateImpl as any)(this, ...args); }
   /* @internal */ resolveContainerEvacuationPositions(...args: any[]) { return (resolveContainerEvacuationPositionsImpl as any)(this, ...args); }
-  private handleExitContainerCommand(...args: any[]) { return (handleExitContainerCommandImpl as any)(this, ...args); }
-  private handleEvacuateCommand(...args: any[]) { return (handleEvacuateCommandImpl as any)(this, ...args); }
-  private handleExecuteRailedTransportCommand(...args: any[]) { return (handleExecuteRailedTransportCommandImpl as any)(this, ...args); }
+  /* @internal */ handleExitContainerCommand(...args: any[]) { return (handleExitContainerCommandImpl as any)(this, ...args); }
+  /* @internal */ handleEvacuateCommand(...args: any[]) { return (handleEvacuateCommandImpl as any)(this, ...args); }
+  /* @internal */ handleExecuteRailedTransportCommand(...args: any[]) { return (handleExecuteRailedTransportCommandImpl as any)(this, ...args); }
   /* @internal */ noteContainerEnteredBy(...args: any[]) { return (noteContainerEnteredByImpl as any)(this, ...args); }
   private canSourceAttemptContainerEnter(...args: any[]) { return (canSourceAttemptContainerEnterImpl as any)(this, ...args); }
   private canTargetAcceptContainerEnter(...args: any[]) { return (canTargetAcceptContainerEnterImpl as any)(this, ...args); }
   private isContainerEnterTargetShrouded(...args: any[]) { return (isContainerEnterTargetShroudedImpl as any)(this, ...args); }
   /* @internal */ hasVisibleContainedUnits(...args: any[]) { return (hasVisibleContainedUnitsImpl as any)(this, ...args); }
-  private blocksNonOwnerContainerEnter(...args: any[]) { return (blocksNonOwnerContainerEnterImpl as any)(this, ...args); }
-  private shouldIgnoreCapacityForNonOwnerContainerEnter(...args: any[]) { return (shouldIgnoreCapacityForNonOwnerContainerEnterImpl as any)(this, ...args); }
-  private canExecuteGarrisonBuildingEnterAction(...args: any[]) { return (canExecuteGarrisonBuildingEnterActionImpl as any)(this, ...args); }
-  private enterGarrisonBuilding(...args: any[]) { return (enterGarrisonBuildingImpl as any)(this, ...args); }
+  /* @internal */ blocksNonOwnerContainerEnter(...args: any[]) { return (blocksNonOwnerContainerEnterImpl as any)(this, ...args); }
+  /* @internal */ shouldIgnoreCapacityForNonOwnerContainerEnter(...args: any[]) { return (shouldIgnoreCapacityForNonOwnerContainerEnterImpl as any)(this, ...args); }
+  /* @internal */ canExecuteGarrisonBuildingEnterAction(...args: any[]) { return (canExecuteGarrisonBuildingEnterActionImpl as any)(this, ...args); }
+  /* @internal */ enterGarrisonBuilding(...args: any[]) { return (enterGarrisonBuildingImpl as any)(this, ...args); }
   private enterTransport(...args: any[]) { return (enterTransportImpl as any)(this, ...args); }
   /* @internal */ isEnclosingContainer(...args: any[]) { return (isEnclosingContainerImpl as any)(this, ...args); }
   private updateHealing(...args: any[]) { return (updateHealingImpl as any)(this, ...args); }
@@ -9822,12 +9968,12 @@ export class GameLogicSubsystem implements Subsystem {
   private applyScriptObjectPanelFlag(...args: any[]) { return (applyScriptObjectPanelFlagImpl as any)(this, ...args); }
   /* @internal */ setScriptWanderInPlaceGoal(...args: any[]) { return (setScriptWanderInPlaceGoalImpl as any)(this, ...args); }
   /* @internal */ setScriptWanderAwayFromRepulsorGoal(...args: any[]) { return (setScriptWanderAwayFromRepulsorGoalImpl as any)(this, ...args); }
-  private clearScriptWanderInPlace(...args: any[]) { return (clearScriptWanderInPlaceImpl as any)(this, ...args); }
+  /* @internal */ clearScriptWanderInPlace(...args: any[]) { return (clearScriptWanderInPlaceImpl as any)(this, ...args); }
   /* @internal */ findScriptClosestEnemyInTriggerArea(...args: any[]) { return (findScriptClosestEnemyInTriggerAreaImpl as any)(this, ...args); }
   private resolveScriptEntityTransportSlotCount(...args: any[]) { return (resolveScriptEntityTransportSlotCountImpl as any)(this, ...args); }
-  private resolveScriptTransportValidationEntity(...args: any[]) { return (resolveScriptTransportValidationEntityImpl as any)(this, ...args); }
-  private isScriptContainKindAllowed(...args: any[]) { return (isScriptContainKindAllowedImpl as any)(this, ...args); }
-  private isScriptContainRelationshipAllowed(...args: any[]) { return (isScriptContainRelationshipAllowedImpl as any)(this, ...args); }
+  /* @internal */ resolveScriptTransportValidationEntity(...args: any[]) { return (resolveScriptTransportValidationEntityImpl as any)(this, ...args); }
+  /* @internal */ isScriptContainKindAllowed(...args: any[]) { return (isScriptContainKindAllowedImpl as any)(this, ...args); }
+  /* @internal */ isScriptContainRelationshipAllowed(...args: any[]) { return (isScriptContainRelationshipAllowedImpl as any)(this, ...args); }
   private resolveScriptContainerUsedTransportSlots(...args: any[]) { return (resolveScriptContainerUsedTransportSlotsImpl as any)(this, ...args); }
   /* @internal */ findScriptHuntTarget(...args: any[]) { return (findScriptHuntTargetImpl as any)(this, ...args); }
   private normalizeScriptAttackPrioritySetName(...args: any[]) { return (normalizeScriptAttackPrioritySetNameImpl as any)(this, ...args); }
@@ -9838,7 +9984,7 @@ export class GameLogicSubsystem implements Subsystem {
   private getScriptPlayerPowerState(...args: any[]) { return (getScriptPlayerPowerStateImpl as any)(this, ...args); }
   private getScriptScienceSetForPlayerToken(...args: any[]) { return (getScriptScienceSetForPlayerTokenImpl as any)(this, ...args); }
   private getScriptSciencePurchasePointsForPlayerInput(...args: any[]) { return (getScriptSciencePurchasePointsForPlayerInputImpl as any)(this, ...args); }
-  private recordScriptTriggeredSpecialPowerEvent(...args: any[]) { return (recordScriptTriggeredSpecialPowerEventImpl as any)(this, ...args); }
+  /* @internal */ recordScriptTriggeredSpecialPowerEvent(...args: any[]) { return (recordScriptTriggeredSpecialPowerEventImpl as any)(this, ...args); }
   /* @internal */ recordScriptCompletedSpecialPowerEvent(...args: any[]) { return (recordScriptCompletedSpecialPowerEventImpl as any)(this, ...args); }
   private recordScriptCompletedUpgradeEvent(...args: any[]) { return (recordScriptCompletedUpgradeEventImpl as any)(this, ...args); }
   private getScriptScienceAcquiredSet(...args: any[]) { return (getScriptScienceAcquiredSetImpl as any)(this, ...args); }
@@ -10161,7 +10307,7 @@ export class GameLogicSubsystem implements Subsystem {
     entity.commandButtonHuntNextScanFrame = 0;
   }
 
-  private clearCommandButtonHuntForEntityId(entityId: number): void {
+  /* @internal */ clearCommandButtonHuntForEntityId(entityId: number): void {
     const entity = this.spawnedEntities.get(entityId);
     if (!entity) {
       return;
@@ -10646,7 +10792,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.scriptPendingWaypointPathByEntityId.delete(entityId);
   }
 
-  private cancelScriptWaypointPathCompletionTracking(entityId: number): void {
+  /* @internal */ cancelScriptWaypointPathCompletionTracking(entityId: number): void {
     const pendingPath = this.scriptPendingWaypointPathByEntityId.get(entityId);
     if (!pendingPath) {
       return;
@@ -14511,7 +14657,7 @@ export class GameLogicSubsystem implements Subsystem {
     return scienceCost > 0 && scienceCost <= this.getSideRankStateMap(normalizedSide).sciencePurchasePoints;
   }
 
-  private getPurchasableScienceCost(side: string, scienceName: string): number {
+  /* @internal */ getPurchasableScienceCost(side: string, scienceName: string): number {
     const normalizedScienceName = scienceName.trim().toUpperCase();
     if (!normalizedScienceName || normalizedScienceName === 'NONE') {
       return 0;
@@ -22645,7 +22791,7 @@ export class GameLogicSubsystem implements Subsystem {
     return extractRailedTransportProfileImpl(objectDef);
   }
 
-  private extractHackInternetProfile(objectDef: ObjectDef | undefined): HackInternetProfile | null {
+  /* @internal */ extractHackInternetProfile(objectDef: ObjectDef | undefined): HackInternetProfile | null {
     if (!objectDef) {
       return null;
     }
@@ -22688,7 +22834,7 @@ export class GameLogicSubsystem implements Subsystem {
     return profile;
   }
 
-  private extractOverchargeBehaviorProfile(objectDef: ObjectDef | null | undefined): OverchargeBehaviorProfile | null {
+  /* @internal */ extractOverchargeBehaviorProfile(objectDef: ObjectDef | null | undefined): OverchargeBehaviorProfile | null {
     if (!objectDef) {
       return null;
     }
@@ -23272,7 +23418,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  private enableOverchargeForEntity(entity: MapEntity, profile: OverchargeBehaviorProfile): void {
+  /* @internal */ enableOverchargeForEntity(entity: MapEntity, profile: OverchargeBehaviorProfile): void {
     const normalizedSide = this.normalizeSide(entity.side);
     if (!normalizedSide) {
       return;
@@ -25720,672 +25866,6 @@ export class GameLogicSubsystem implements Subsystem {
     };
   }
 
-  private flushCommands(): void {
-    while (this.commandQueue.length > 0) {
-      const command = this.commandQueue.shift();
-      if (!command) return;
-      this.applyCommand(command);
-    }
-  }
-
-  private applyCommand(command: GameLogicCommand): void {
-    if (this.deferCommandWhileHackInternetPacking(command)) {
-      return;
-    }
-
-    if (this.deferCommandWhileChinookBusy(command)) {
-      return;
-    }
-
-    if (this.shouldIgnoreRailedTransportPlayerCommand(command)) {
-      return;
-    }
-
-    switch (command.type) {
-      case 'clearSelection': {
-        const hadSelection = this.selectedEntityIds.length > 0 || this.selectedEntityId !== null;
-        this.selectedEntityIds = [];
-        this.selectedEntityId = null;
-        this.clearEntitySelectionState();
-        if (hadSelection) {
-          this.markScriptSelectionChanged();
-        }
-        return;
-      }
-      case 'selectEntities': {
-        const nextSelectionIds = this.filterValidSelectionIds(command.entityIds);
-        const changed = !this.selectionIdsEqual(this.selectedEntityIds, nextSelectionIds);
-        this.selectedEntityIds = nextSelectionIds;
-        this.selectedEntityId = nextSelectionIds[0] ?? null;
-        this.updateSelectionHighlight();
-        if (changed) {
-          this.markScriptSelectionChanged();
-        }
-        return;
-      }
-      case 'select': {
-        const picked = this.spawnedEntities.get(command.entityId);
-        if (!picked || picked.destroyed) return;
-        // Source parity: Object::isSelectable — UNSELECTABLE or MASKED status prevents player selection.
-        if (this.entityHasObjectStatus(picked, 'UNSELECTABLE') || this.entityHasObjectStatus(picked, 'MASKED')) return;
-        const changed = this.selectedEntityIds.length !== 1 || this.selectedEntityIds[0] !== command.entityId;
-        this.selectedEntityIds = [command.entityId];
-        this.selectedEntityId = command.entityId;
-        this.updateSelectionHighlight();
-        if (changed) {
-          this.markScriptSelectionChanged();
-        }
-        return;
-      }
-      case 'moveTo': {
-        const commandSource = command.commandSource ?? 'PLAYER';
-        if (commandSource !== 'AI') {
-          this.clearCommandButtonHuntForEntityId(command.entityId);
-        }
-        if (commandSource === 'PLAYER') {
-          this.setSupplyTruckForceBusy(command.entityId, true);
-        }
-        const dozerTaskCancelMode = commandSource === 'PLAYER' ? 'current' : 'none';
-        const moveEntity = this.spawnedEntities.get(command.entityId);
-        const moveJs = moveEntity?.jetAIState;
-        if (moveJs) {
-          const s = moveJs.state;
-          if (s === 'TAKING_OFF' || s === 'LANDING' || s === 'RETURNING_FOR_LANDING') {
-            // Source parity: C++ JetAIUpdate::aiDoCommand lines 2415-2420 — queue during takeoff/landing.
-            moveJs.pendingCommand = { type: 'moveTo', x: command.targetX, z: command.targetZ };
-            return;
-          }
-          if (s === 'PARKED' || s === 'RELOAD_AMMO') {
-            // Aircraft is parked/reloading — store as pending, takeoff will execute it.
-            moveJs.pendingCommand = { type: 'moveTo', x: command.targetX, z: command.targetZ };
-            return;
-          }
-        }
-        this.cancelEntityCommandPathActions(command.entityId, dozerTaskCancelMode);
-        this.clearAttackTarget(command.entityId);
-        this.issueMoveTo(command.entityId, command.targetX, command.targetZ);
-        return;
-      }
-      case 'attackMoveTo': {
-        const commandSource = command.commandSource ?? 'PLAYER';
-        if (commandSource !== 'AI') {
-          this.clearCommandButtonHuntForEntityId(command.entityId);
-        }
-        if (commandSource === 'PLAYER') {
-          this.setSupplyTruckForceBusy(command.entityId, true);
-        }
-        const dozerTaskCancelMode = commandSource === 'PLAYER' ? 'current' : 'none';
-        const amEntity = this.spawnedEntities.get(command.entityId);
-        const amJs = amEntity?.jetAIState;
-        if (amJs) {
-          const s = amJs.state;
-          if (s === 'TAKING_OFF' || s === 'LANDING' || s === 'RETURNING_FOR_LANDING') {
-            amJs.pendingCommand = { type: 'moveTo', x: command.targetX, z: command.targetZ };
-            return;
-          }
-          if (s === 'PARKED' || s === 'RELOAD_AMMO') {
-            amJs.pendingCommand = { type: 'moveTo', x: command.targetX, z: command.targetZ };
-            return;
-          }
-        }
-        this.cancelEntityCommandPathActions(command.entityId, dozerTaskCancelMode);
-        this.clearAttackTarget(command.entityId);
-        this.issueMoveTo(
-          command.entityId,
-          command.targetX,
-          command.targetZ,
-          command.attackDistance,
-        );
-        // Source parity: AssaultTransportAIUpdate::aiDoCommand — begin assault on attack-move.
-        if (amEntity?.assaultTransportProfile) {
-          this.beginAssaultTransportAttackMove(amEntity, command.targetX, command.targetZ);
-        }
-        return;
-      }
-      case 'guardPosition': {
-        const guardSource = command.commandSource ?? 'PLAYER';
-        if (guardSource !== 'AI') {
-          this.clearCommandButtonHuntForEntityId(command.entityId);
-        }
-        if (guardSource === 'PLAYER') {
-          this.setSupplyTruckForceBusy(command.entityId, true);
-        }
-        this.cancelEntityCommandPathActions(
-          command.entityId,
-          guardSource === 'PLAYER' ? 'current' : 'none',
-        );
-        this.clearAttackTarget(command.entityId);
-        this.initGuardPosition(command.entityId, command.targetX, command.targetZ, command.guardMode);
-        return;
-      }
-      case 'guardObject': {
-        const guardSource = command.commandSource ?? 'PLAYER';
-        if (guardSource !== 'AI') {
-          this.clearCommandButtonHuntForEntityId(command.entityId);
-        }
-        if (guardSource === 'PLAYER') {
-          this.setSupplyTruckForceBusy(command.entityId, true);
-        }
-        this.cancelEntityCommandPathActions(
-          command.entityId,
-          guardSource === 'PLAYER' ? 'current' : 'none',
-        );
-        this.clearAttackTarget(command.entityId);
-        this.initGuardObject(command.entityId, command.targetEntityId, command.guardMode);
-        return;
-      }
-      case 'setRallyPoint':
-        this.setEntityRallyPoint(command.entityId, command.targetX, command.targetZ);
-        return;
-      case 'attackEntity': {
-        const commandSource = command.commandSource ?? 'PLAYER';
-        if (commandSource !== 'AI') {
-          this.clearCommandButtonHuntForEntityId(command.entityId);
-        }
-        if (commandSource === 'PLAYER') {
-          this.setSupplyTruckForceBusy(command.entityId, true);
-        }
-        const atkEntity = this.spawnedEntities.get(command.entityId);
-        const atkJs = atkEntity?.jetAIState;
-        if (atkJs) {
-          const s = atkJs.state;
-          if (s === 'TAKING_OFF' || s === 'LANDING' || s === 'RETURNING_FOR_LANDING') {
-            // Source parity: C++ JetAIUpdate::aiDoCommand lines 2415-2420 — queue during takeoff/landing.
-            atkJs.pendingCommand = { type: 'attackEntity', targetId: command.targetEntityId };
-            return;
-          }
-          if (s === 'PARKED' || s === 'RELOAD_AMMO') {
-            // Aircraft is parked/reloading — store as pending, takeoff will execute it.
-            atkJs.pendingCommand = { type: 'attackEntity', targetId: command.targetEntityId };
-            return;
-          }
-        }
-        this.cancelEntityCommandPathActions(
-          command.entityId,
-          commandSource === 'PLAYER' ? 'current' : 'none',
-        );
-        this.issueAttackEntity(
-          command.entityId,
-          command.targetEntityId,
-          commandSource,
-        );
-        // Source parity: TransportAIUpdate::privateAttackObject — propagate attack to passengers.
-        if (atkEntity) {
-          this.propagateTransportAttackToPassengers(
-            atkEntity, command.targetEntityId, commandSource,
-          );
-        }
-        // Source parity: AssaultTransportAIUpdate::aiDoCommand — begin assault on attack command.
-        if (atkEntity?.assaultTransportProfile && commandSource !== 'AI') {
-          this.beginAssaultTransportAttack(atkEntity, command.targetEntityId, false);
-        }
-        return;
-      }
-      case 'fireWeapon':
-        this.cancelEntityCommandPathActions(command.entityId);
-        this.issueFireWeapon(
-          command.entityId,
-          command.weaponSlot,
-          command.maxShotsToFire,
-          command.targetObjectId,
-          command.targetPosition,
-        );
-        return;
-      case 'switchWeapon': {
-        this.cancelEntityCommandPathActions(command.entityId);
-        const entity = this.spawnedEntities.get(command.entityId);
-        const weaponSlot = this.normalizeWeaponSlot(command.weaponSlot);
-        if (!entity || entity.destroyed || weaponSlot === null) {
-          return;
-        }
-        entity.forcedWeaponSlot = weaponSlot;
-        this.refreshEntityCombatProfiles(entity);
-        return;
-      }
-      case 'stop': {
-        const stopSource = command.commandSource ?? 'AI';
-        if (stopSource !== 'AI') {
-          this.clearCommandButtonHuntForEntityId(command.entityId);
-        }
-        this.cancelEntityCommandPathActions(
-          command.entityId,
-          stopSource === 'PLAYER' ? 'current' : 'none',
-        );
-        this.clearAttackTarget(command.entityId);
-        this.stopEntity(command.entityId);
-        // Source parity: AssaultTransportAIUpdate::aiDoCommand(AICMD_IDLE) — recall all members.
-        this.resetAssaultTransportState(command.entityId);
-        const stopEntity = this.spawnedEntities.get(command.entityId);
-        if (stopEntity) {
-          // Source parity: explicit stop resets auto-target scan timer and clears guard state.
-          stopEntity.autoTargetScanNextFrame = this.frameCounter + AUTO_TARGET_SCAN_RATE_FRAMES;
-          stopEntity.guardState = 'NONE';
-          stopEntity.guardAreaTriggerIndex = -1;
-        }
-        if (stopSource === 'PLAYER') {
-          this.setSupplyTruckForceBusy(command.entityId, true);
-        }
-        return;
-      }
-      case 'bridgeDestroyed':
-        this.onObjectDestroyed(command.entityId);
-        return;
-      case 'bridgeRepaired':
-        this.onObjectRepaired(command.entityId);
-        return;
-      case 'setLocomotorSet':
-        this.setEntityLocomotorSet(command.entityId, command.setName);
-        return;
-      case 'setLocomotorUpgrade':
-        this.setEntityLocomotorUpgrade(command.entityId, command.enabled);
-        return;
-      case 'captureEntity':
-        this.captureEntity(command.entityId, command.newSide);
-        return;
-      case 'applyUpgrade':
-        this.applyUpgradeToEntity(command.entityId, command.upgradeName);
-        return;
-      case 'queueUnitProduction':
-        this.queueUnitProduction(command.entityId, command.unitTemplateName);
-        return;
-      case 'cancelUnitProduction':
-        this.cancelUnitProduction(command.entityId, command.productionId);
-        return;
-      case 'queueUpgradeProduction':
-        this.queueUpgradeProduction(command.entityId, command.upgradeName);
-        return;
-      case 'cancelUpgradeProduction':
-        this.cancelUpgradeProduction(command.entityId, command.upgradeName);
-        return;
-      case 'setSideCredits':
-        this.setSideCredits(command.side, command.amount);
-        return;
-      case 'addSideCredits':
-        this.addSideCredits(command.side, command.amount);
-        return;
-      case 'setSidePlayerType':
-        this.setSidePlayerType(command.side, command.playerType);
-        return;
-      case 'grantSideScience':
-        this.grantSideScience(command.side, command.scienceName);
-        return;
-      case 'applyPlayerUpgrade': {
-        const localSide = this.resolveLocalPlayerSide();
-        if (!localSide) {
-          return;
-        }
-        const normalizedUpgradeName = command.upgradeName.trim().toUpperCase();
-        if (!normalizedUpgradeName) {
-          return;
-        }
-        this.setSideUpgradeCompleted(localSide, normalizedUpgradeName, true);
-        this.applyCompletedPlayerUpgrade(localSide, normalizedUpgradeName);
-        return;
-      }
-      case 'purchaseScience': {
-        // Source parity: AI players pass side explicitly; human players fall back to local player.
-        const purchaseSide = command.side
-          ? this.normalizeSide(command.side)
-          : this.resolveLocalPlayerSide();
-        if (!purchaseSide) {
-          return;
-        }
-        const normalizedScienceName = command.scienceName.trim().toUpperCase();
-        if (!normalizedScienceName || normalizedScienceName === 'NONE') {
-          return;
-        }
-
-        const registry = this.iniDataRegistry;
-        if (!registry) {
-          return;
-        }
-
-        const scienceDef = findScienceDefByName(registry, normalizedScienceName);
-        if (!scienceDef) {
-          return;
-        }
-
-        const normalizedScience = scienceDef.name.trim().toUpperCase();
-        if (!normalizedScience || normalizedScience === 'NONE') {
-          return;
-        }
-
-        const scienceCost = this.getPurchasableScienceCost(purchaseSide, normalizedScience);
-        if (scienceCost <= 0) {
-          return;
-        }
-        if (!this.addScienceToSide(purchaseSide, normalizedScience)) {
-          return;
-        }
-        const normalizedPurchaseSide = this.normalizeSide(purchaseSide);
-        if (normalizedPurchaseSide) {
-          const rankState = this.getSideRankStateMap(normalizedPurchaseSide);
-          rankState.sciencePurchasePoints = Math.max(0, rankState.sciencePurchasePoints - scienceCost);
-        }
-        return;
-      }
-      case 'issueSpecialPower':
-        this.routeIssueSpecialPowerCommand(command);
-        return;
-      case 'exitContainer':
-        this.handleExitContainerCommand(command.entityId);
-        return;
-      case 'evacuate': {
-        this.handleEvacuateCommand(command.entityId);
-        return;
-      }
-      case 'executeRailedTransport':
-        this.handleExecuteRailedTransportCommand(command);
-        return;
-      case 'beaconDelete':
-        this.handleBeaconDeleteCommand(command);
-        return;
-      case 'hackInternet':
-        this.handleHackInternetCommand(command);
-        return;
-      case 'toggleOvercharge':
-        this.handleToggleOverchargeCommand(command);
-        return;
-      case 'detonateDemoTrap':
-        this.handleDetonateDemoTrapCommand(command);
-        return;
-      case 'toggleDemoTrapMode':
-        this.handleToggleDemoTrapModeCommand(command);
-        return;
-      case 'combatDrop':
-        this.handleCombatDropCommand(command);
-        return;
-      case 'placeBeacon':
-        this.handlePlaceBeaconCommand(command);
-        return;
-      case 'enterObject':
-        this.handleEnterObjectCommand(command);
-        return;
-      case 'constructBuilding':
-        this.handleConstructBuildingCommand(command);
-        return;
-      case 'cancelDozerConstruction':
-        this.handleCancelDozerConstructionCommand(command);
-        return;
-      case 'sell':
-        this.handleSellCommand(command);
-        return;
-      case 'garrisonBuilding':
-        this.handleGarrisonBuildingCommand(command);
-        return;
-      case 'repairBuilding':
-        if ((command.commandSource ?? 'PLAYER') !== 'AI') {
-          this.clearCommandButtonHuntForEntityId(command.entityId);
-        }
-        this.handleRepairBuildingCommand(command);
-        return;
-      case 'enterTransport':
-        this.handleEnterTransportCommand(command);
-        return;
-      default:
-        return;
-    }
-  }
-
-  private deferCommandWhileHackInternetPacking(command: GameLogicCommand): boolean {
-    const hasEntityId = 'entityId' in command && typeof command.entityId === 'number';
-    if (!hasEntityId) {
-      return false;
-    }
-
-    const entity = this.spawnedEntities.get(command.entityId);
-    if (!entity || entity.destroyed) {
-      return false;
-    }
-
-    const pendingState = this.hackInternetPendingCommandByEntityId.get(entity.id);
-    if (pendingState) {
-      pendingState.command = command;
-      return true;
-    }
-
-    if (command.type === 'hackInternet') {
-      return false;
-    }
-
-    if (!this.hackInternetStateByEntityId.has(entity.id)) {
-      return false;
-    }
-
-    const objectDef = this.resolveObjectDefByTemplateName(entity.templateName);
-    const profile = this.extractHackInternetProfile(objectDef ?? undefined);
-    if (!profile) {
-      return false;
-    }
-
-    this.hackInternetStateByEntityId.delete(entity.id);
-    const packDelayFrames = this.resolveHackInternetPackTimeFrames(entity, profile);
-    if (packDelayFrames <= 0) {
-      return false;
-    }
-
-    this.stopEntity(entity.id);
-    this.clearAttackTarget(entity.id);
-    this.hackInternetPendingCommandByEntityId.set(entity.id, {
-      command,
-      executeFrame: this.frameCounter + packDelayFrames,
-    });
-    return true;
-  }
-
-  private deferCommandWhileChinookBusy(command: GameLogicCommand): boolean {
-    const hasEntityId = 'entityId' in command && typeof command.entityId === 'number';
-    if (!hasEntityId) {
-      return false;
-    }
-
-    const entity = this.spawnedEntities.get(command.entityId);
-    if (!entity || entity.destroyed || !entity.chinookAIProfile) {
-      return false;
-    }
-
-    // Source parity: ChinookAIUpdate::aiDoCommand clears healing airfield on any command.
-    this.setChinookAirfieldForHealing(entity, 0);
-
-    if (this.pendingCombatDropActions.has(entity.id)) {
-      this.pendingChinookCommandByEntityId.set(entity.id, command);
-      return true;
-    }
-
-    const status = entity.chinookFlightStatus ?? 'FLYING';
-    if (status === 'TAKING_OFF' || status === 'LANDING' || status === 'DOING_COMBAT_DROP') {
-      this.pendingChinookCommandByEntityId.set(entity.id, command);
-      return true;
-    }
-
-    if (command.type === 'combatDrop' && status !== 'FLYING') {
-      // Allow combat drop command to start while landed; takeoff will continue in update.
-      this.setChinookFlightStatus(entity, 'TAKING_OFF');
-      return false;
-    }
-
-    if (command.type === 'exitContainer' || command.type === 'evacuate') {
-      if (status !== 'LANDED') {
-        this.pendingChinookCommandByEntityId.set(entity.id, command);
-        this.setChinookFlightStatus(entity, 'LANDING');
-        return true;
-      }
-      return false;
-    }
-
-    if (this.isChinookTakeoffCommandType(command.type) && status !== 'FLYING') {
-      this.pendingChinookCommandByEntityId.set(entity.id, command);
-      this.setChinookFlightStatus(entity, 'TAKING_OFF');
-      return true;
-    }
-
-    return false;
-  }
-
-  private isChinookTakeoffCommandType(commandType: GameLogicCommand['type']): boolean {
-    switch (commandType) {
-      case 'moveTo':
-      case 'attackMoveTo':
-      case 'guardPosition':
-      case 'guardObject':
-      case 'attackEntity':
-      case 'fireWeapon':
-      case 'switchWeapon':
-      case 'combatDrop':
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  /**
-   * Source parity: AIPlayer special power usage — collect all ready special powers
-   * for entities belonging to a given side. Returns power name, source entity,
-   * targeting info derived from the effect category.
-   */
-  private collectReadySpecialPowersForSide(side: string): Array<{
-    specialPowerName: string;
-    sourceEntityId: number;
-    commandOption: number;
-    commandButtonId: string;
-    effectCategory: string;
-  }> {
-    const normalizedSide = this.normalizeSide(side);
-    if (!normalizedSide) return [];
-    const result: Array<{
-      specialPowerName: string;
-      sourceEntityId: number;
-      commandOption: number;
-      commandButtonId: string;
-      effectCategory: string;
-    }> = [];
-
-    for (const [powerName, sourcesMap] of this.shortcutSpecialPowerSourceByName.entries()) {
-      for (const [entityId, readyFrame] of sourcesMap.entries()) {
-        if (readyFrame > this.frameCounter) continue;
-        const entity = this.spawnedEntities.get(entityId);
-        if (!entity || entity.destroyed) continue;
-        if (this.normalizeSide(entity.side) !== normalizedSide) continue;
-
-        // Resolve effect category from entity's special power module.
-        const module = entity.specialPowerModules.get(powerName);
-        const effectCategory = module
-          ? resolveEffectCategoryImpl(module.moduleType)
-          : 'GENERIC';
-
-        // Derive commandOption from effect category for AI dispatch.
-        const NEED_TARGET_POS = 0x20;
-        const NEED_TARGET_ENEMY = 0x01;
-        let commandOption = 0;
-        const upperCat = effectCategory.toUpperCase();
-        if (upperCat === 'AREA_DAMAGE' || upperCat === 'EMP_PULSE'
-            || upperCat === 'SPY_VISION' || upperCat === 'AREA_HEAL'
-            || upperCat === 'OCL_SPAWN') {
-          commandOption = NEED_TARGET_POS;
-        } else if (upperCat === 'CASH_HACK' || upperCat === 'DEFECTOR') {
-          commandOption = NEED_TARGET_ENEMY;
-        }
-
-        result.push({
-          specialPowerName: powerName,
-          sourceEntityId: entityId,
-          commandOption,
-          commandButtonId: '', // AI doesn't need button ID — routing uses specialPowerName.
-          effectCategory,
-        });
-        break; // One source per power name is enough for AI.
-      }
-    }
-    return result;
-  }
-
-  private routeIssueSpecialPowerCommand(command: IssueSpecialPowerCommand): void {
-    const normalizeShortcutSpecialPowerName = this.normalizeShortcutSpecialPowerName.bind(this);
-    routeIssueSpecialPowerCommandImpl(command, {
-      iniDataRegistry: this.iniDataRegistry,
-      frameCounter: this.frameCounter,
-      selectedEntityId: this.selectedEntityId,
-      spawnedEntities: this.spawnedEntities,
-      msToLogicFrames: this.msToLogicFrames.bind(this),
-      resolveShortcutSpecialPowerSourceEntityId: this.resolveShortcutSpecialPowerSourceEntityId.bind(this),
-      resolveSharedReadyFrame: (specialPowerName) => (
-        resolveSharedShortcutSpecialPowerReadyFrameImpl(
-          specialPowerName,
-          this.frameCounter,
-          this.sharedShortcutSpecialPowerReadyFrames,
-          normalizeShortcutSpecialPowerName,
-        )
-      ),
-      resolveSourceReadyFrameBySource: (specialPowerName, sourceEntityId) => {
-        const normalizedSpecialPowerName = normalizeShortcutSpecialPowerName(specialPowerName);
-        if (!normalizedSpecialPowerName) {
-          return this.frameCounter;
-        }
-        return this.resolveSpecialPowerReadyFrameForSourceEntity(
-          normalizedSpecialPowerName,
-          sourceEntityId,
-        );
-      },
-      setReadyFrame: this.setSpecialPowerReadyFrame.bind(this),
-      isObjectShroudedForAction: this.isSpecialPowerObjectTargetShrouded.bind(this),
-      isObjectEffectivelyDead: this.isSpecialPowerObjectEffectivelyDead.bind(this),
-      isObjectTargetAllowedForSpecialPower: this.isSpecialPowerObjectTargetAllowed.bind(this),
-      isPositionUnderwater: this.isSpecialPowerLocationUnderwater.bind(this),
-      isLocationShroudedForAction: this.isSpecialPowerLocationTargetShrouded.bind(this),
-      getTeamRelationship: this.getTeamRelationship.bind(this),
-      onIssueSpecialPowerNoTarget: this.onIssueSpecialPowerNoTarget.bind(this),
-      onIssueSpecialPowerTargetPosition: this.onIssueSpecialPowerTargetPosition.bind(this),
-      onIssueSpecialPowerTargetObject: this.onIssueSpecialPowerTargetObject.bind(this),
-    });
-  }
-
-  private setSpecialPowerReadyFrame(
-    specialPowerName: string,
-    sourceEntityId: number,
-    isShared: boolean,
-    readyFrame: number,
-  ): void {
-    const normalizeShortcutSpecialPowerName = this.normalizeShortcutSpecialPowerName.bind(this);
-    setSpecialPowerReadyFrameImpl(
-      specialPowerName,
-      sourceEntityId,
-      isShared,
-      readyFrame,
-      this.frameCounter,
-      this.sharedShortcutSpecialPowerReadyFrames,
-      normalizeShortcutSpecialPowerName,
-      this.trackShortcutSpecialPowerSourceEntity.bind(this),
-    );
-  }
-
-  /**
-   * Source parity: SpecialPowerDef RadiusCursorRadius drives target-area size.
-   * Spy-vision reveal uses this radius when present, then falls back to source vision/default.
-   */
-  private resolveSpyVisionRevealRadius(source: MapEntity, specialPowerDef: SpecialPowerDef | null): number {
-    const radiusFromSpecialPower = specialPowerDef
-      ? (readNumericField(specialPowerDef.fields, ['RadiusCursorRadius']) ?? 0)
-      : 0;
-    if (radiusFromSpecialPower > 0) {
-      return radiusFromSpecialPower;
-    }
-    return source.visionRange > 0 ? source.visionRange : DEFAULT_SPY_VISION_RADIUS;
-  }
-
-  private canEntityIssueSpecialPower(source: MapEntity): boolean {
-    if (source.destroyed) {
-      return false;
-    }
-    if (source.objectStatusFlags.has('UNDER_CONSTRUCTION') || source.objectStatusFlags.has('SOLD')) {
-      return false;
-    }
-    // Source parity: enclosed contained objects cannot execute direct object actions.
-    if (this.isEntityInEnclosingContainer(source)) {
-      return false;
-    }
-    return true;
-  }
-
   protected onIssueSpecialPowerNoTarget(
     sourceEntityId: number,
     specialPowerName: string,
@@ -26479,147 +25959,6 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     return true;
-  }
-
-  private isSpecialPowerObjectTargetShrouded(
-    source: MapEntity,
-    target: MapEntity,
-    commandSource: 'PLAYER' | 'AI' | 'SCRIPT',
-  ): boolean {
-    if (commandSource === 'SCRIPT') {
-      return false;
-    }
-    const sourceOwnerToken = this.normalizeControllingPlayerToken(source.controllingPlayerToken ?? undefined);
-    const sourceSide = this.normalizeSide(source.side);
-    if (!sourceSide) {
-      return false;
-    }
-    const sourcePlayerType = (
-      sourceOwnerToken != null
-        ? this.sidePlayerTypes.get(sourceOwnerToken)
-        : undefined
-    ) ?? this.getSidePlayerType(sourceSide);
-    if (sourcePlayerType !== 'HUMAN') {
-      return false;
-    }
-    return this.resolveEntityShroudStatusForSide(target, sourceSide) !== 'CLEAR';
-  }
-
-  private isSpecialPowerObjectEffectivelyDead(target: MapEntity): boolean {
-    return this.isScriptEntityEffectivelyDead(target);
-  }
-
-  /**
-   * Source parity: ActionManager::canDoSpecialPowerAtObject.
-   * Applies enum-specific object-target legality checks before dispatch.
-   */
-  private isSpecialPowerObjectTargetAllowed(
-    source: MapEntity,
-    target: MapEntity,
-    specialPowerEnum: string | null,
-    _commandSource: 'PLAYER' | 'AI' | 'SCRIPT',
-  ): boolean {
-    if (this.isEntityInEnclosingContainer(target)) {
-      return false;
-    }
-    if (!specialPowerEnum) {
-      return true;
-    }
-    const targetKindOf = this.resolveEntityKindOfSet(target);
-    const relationship = this.getTeamRelationship(source, target);
-    const targetStealthedUndetected = target.objectStatusFlags.has('STEALTHED')
-      && !target.objectStatusFlags.has('DETECTED');
-
-    switch (specialPowerEnum) {
-      case 'SPECIAL_TANKHUNTER_TNT_ATTACK':
-        return targetKindOf.has('STRUCTURE')
-          || (targetKindOf.has('VEHICLE') && !targetKindOf.has('AIRCRAFT'));
-      case 'SPECIAL_MISSILE_DEFENDER_LASER_GUIDED_MISSILES':
-        return targetKindOf.has('VEHICLE') && relationship === RELATIONSHIP_ENEMIES;
-      case 'SPECIAL_HACKER_DISABLE_BUILDING':
-        return targetKindOf.has('STRUCTURE')
-          && relationship === RELATIONSHIP_ENEMIES
-          && targetKindOf.has('CAPTURABLE')
-          && !targetKindOf.has('REBUILD_HOLE');
-      case 'SPECIAL_INFANTRY_CAPTURE_BUILDING':
-      case 'SPECIAL_BLACKLOTUS_CAPTURE_BUILDING':
-        if (targetKindOf.has('IMMUNE_TO_CAPTURE')) {
-          return false;
-        }
-        if (!targetKindOf.has('STRUCTURE')) {
-          return false;
-        }
-        if (target.objectStatusFlags.has('UNDER_CONSTRUCTION') || target.objectStatusFlags.has('SOLD')) {
-          return false;
-        }
-        if (targetStealthedUndetected) {
-          return false;
-        }
-        if (this.isCaptureBlockedByGarrisonOccupants(target)) {
-          return false;
-        }
-        if (this.doesSpecialPowerTargetAppearToContainFriendlies(source, target)) {
-          return false;
-        }
-        return relationship === RELATIONSHIP_ENEMIES
-          || (targetKindOf.has('CAPTURABLE') && relationship !== RELATIONSHIP_ALLIES);
-      case 'SPECIAL_CASH_HACK':
-        return targetKindOf.has('STRUCTURE')
-          && relationship === RELATIONSHIP_ENEMIES
-          && targetKindOf.has('CAPTURABLE')
-          && targetKindOf.has('CASH_GENERATOR')
-          && !targetKindOf.has('REBUILD_HOLE')
-          && !target.objectStatusFlags.has('UNDER_CONSTRUCTION');
-      case 'SPECIAL_BLACKLOTUS_STEAL_CASH_HACK':
-        return relationship === RELATIONSHIP_ENEMIES
-          && targetKindOf.has('CASH_GENERATOR')
-          && targetKindOf.has('CAPTURABLE')
-          && !targetKindOf.has('REBUILD_HOLE')
-          && !target.objectStatusFlags.has('UNDER_CONSTRUCTION')
-          && !targetStealthedUndetected
-          && !this.doesSpecialPowerTargetAppearToContainFriendlies(source, target);
-      case 'SPECIAL_BLACKLOTUS_DISABLE_VEHICLE_HACK':
-        return relationship === RELATIONSHIP_ENEMIES
-          && targetKindOf.has('VEHICLE')
-          && !targetKindOf.has('AIRCRAFT')
-          && !this.entityHasObjectStatus(target, 'AIRBORNE_TARGET')
-          && !targetStealthedUndetected
-          && !this.doesSpecialPowerTargetAppearToContainFriendlies(source, target);
-      case 'SPECIAL_DISGUISE_AS_VEHICLE':
-        return targetKindOf.has('VEHICLE')
-          && !targetKindOf.has('AIRCRAFT')
-          && !targetKindOf.has('BOAT');
-      case 'SPECIAL_DEFECTOR':
-        return !targetKindOf.has('STRUCTURE') && relationship === RELATIONSHIP_ENEMIES;
-      case 'SPECIAL_REMOTE_CHARGES':
-      case 'SPECIAL_TIMED_CHARGES':
-        if (targetKindOf.has('BRIDGE') || targetKindOf.has('BRIDGE_TOWER')) {
-          return false;
-        }
-        return targetKindOf.has('STRUCTURE') || targetKindOf.has('VEHICLE');
-      default:
-        return true;
-    }
-  }
-
-  private isSpecialPowerLocationUnderwater(targetX: number, targetZ: number): boolean {
-    return this.getWaterHeightAt(targetX, targetZ) !== null;
-  }
-
-  /**
-   * Source parity: ActionManager::canDoSpecialPowerAtLocation.
-   * Location-target powers in the restricted enum set may not target SHROUDED cells.
-   */
-  private isSpecialPowerLocationTargetShrouded(
-    source: MapEntity,
-    targetX: number,
-    targetZ: number,
-  ): boolean {
-    const sourceSide = this.normalizeSide(source.side);
-    if (!sourceSide) {
-      return false;
-    }
-    return this.getCellVisibility(sourceSide, targetX, targetZ) === CELL_SHROUDED;
   }
 
   protected onIssueSpecialPowerTargetPosition(
@@ -26810,1954 +26149,7 @@ export class GameLogicSubsystem implements Subsystem {
     return true;
   }
 
-  private resolveSpecialPowerModuleProfile(
-    sourceEntityId: number,
-    specialPowerName: string,
-  ): SpecialPowerModuleProfile | null {
-    const sourceEntity = this.spawnedEntities.get(sourceEntityId);
-    if (!sourceEntity) {
-      return null;
-    }
-
-    const normalizedSpecialPowerName = specialPowerName.trim().toUpperCase();
-    if (!normalizedSpecialPowerName || normalizedSpecialPowerName === 'NONE') {
-      return null;
-    }
-
-    return sourceEntity.specialPowerModules.get(normalizedSpecialPowerName) ?? null;
-  }
-
-  private recordSpecialPowerDispatch(
-    sourceEntityId: number,
-    module: SpecialPowerModuleProfile,
-    dispatchType: SpecialPowerDispatchProfile['dispatchType'],
-    commandOption: number,
-    commandButtonId: string,
-    targetEntityId: number | null,
-    targetX: number | null,
-    targetZ: number | null,
-  ): void {
-    const sourceEntity = this.spawnedEntities.get(sourceEntityId);
-    if (!sourceEntity) {
-      return;
-    }
-
-    sourceEntity.lastSpecialPowerDispatch = {
-      specialPowerTemplateName: module.specialPowerTemplateName,
-      moduleType: module.moduleType,
-      dispatchType,
-      commandOption,
-      commandButtonId,
-      targetEntityId,
-      targetX,
-      targetZ,
-    };
-
-    const normalizedSide = this.normalizeSide(sourceEntity.side);
-    if (normalizedSide) {
-      this.recordScriptTriggeredSpecialPowerEvent(
-        normalizedSide,
-        module.specialPowerTemplateName,
-        sourceEntityId,
-      );
-    }
-
-    // Source parity: Eva SUPERWEAPON_LAUNCHED fires for FS_SUPERWEAPON entities.
-    if (sourceEntity.kindOf.has('FS_SUPERWEAPON') && sourceEntity.side) {
-      this.emitEvaEvent('SUPERWEAPON_LAUNCHED', sourceEntity.side, 'own', sourceEntityId, module.specialPowerTemplateName);
-      // Notify enemies about the launch.
-      for (const [side] of this.sidePowerBonus.entries()) {
-        if (side !== sourceEntity.side) {
-          this.emitEvaEvent('SUPERWEAPON_LAUNCHED', side, 'enemy', sourceEntityId, module.specialPowerTemplateName);
-        }
-      }
-    }
-  }
-
-  private cancelEntityCommandPathActions(
-    entityId: number,
-    cancelDozerTaskMode: 'all' | 'current' | 'none' = 'all',
-  ): void {
-    this.cancelScriptWaypointPathCompletionTracking(entityId);
-    this.cancelRailedTransportTransit(entityId);
-    this.hackInternetStateByEntityId.delete(entityId);
-    this.hackInternetPendingCommandByEntityId.delete(entityId);
-    this.pendingEnterObjectActions.delete(entityId);
-    this.pendingRepairDockActions.delete(entityId);
-    this.pendingCombatDropActions.delete(entityId);
-    this.scriptAttackAreaStateByEntityId.delete(entityId);
-    this.scriptHuntStateByEntityId.delete(entityId);
-    this.clearChinookCombatDropIgnoredObstacle(entityId);
-    this.pendingGarrisonActions.delete(entityId);
-    this.pendingTransportActions.delete(entityId);
-    if (cancelDozerTaskMode === 'all') {
-      this.pendingRepairActions.delete(entityId);
-      const dozer = this.spawnedEntities.get(entityId);
-      if (dozer) {
-        dozer.dozerRepairTaskOrderFrame = 0;
-      }
-    } else if (cancelDozerTaskMode === 'current') {
-      this.cancelCurrentDozerTask(entityId);
-    }
-    this.clearScriptWanderInPlace(entityId);
-    if (cancelDozerTaskMode === 'all') {
-      // Source parity: DozerAIUpdate::cancelTask — clear active construction assignment.
-      this.cancelDozerConstructionTask(entityId);
-    }
-    // Source parity: SpecialAbilityUpdate — cancel any active special ability.
-    this.cancelActiveSpecialAbility(entityId);
-  }
-
-  /**
-   * Source parity: WorkerAIUpdate::aiDoCommand default branch cancels only getCurrentTask
-   * for player-issued commands, not every queued dozer task.
-   */
-  private cancelCurrentDozerTask(dozerId: number): void {
-    const dozer = this.spawnedEntities.get(dozerId);
-    if (!dozer) {
-      return;
-    }
-    const currentTask = this.getDozerCurrentTask(dozer);
-    if (currentTask === 'REPAIR') {
-      this.pendingRepairActions.delete(dozerId);
-      this.clearDozerTaskOrder(dozer, 'REPAIR');
-      return;
-    }
-    if (currentTask === 'BUILD') {
-      this.cancelDozerConstructionTask(dozerId);
-    }
-  }
-
-  /**
-   * Source parity: Cancel a running special ability on the given entity (if any).
-   * Called when the entity receives a new command (stop, move, attack, etc.).
-   */
-  private cancelActiveSpecialAbility(entityId: number): void {
-    const entity = this.spawnedEntities.get(entityId);
-    if (!entity) return;
-    const state = entity.specialAbilityState;
-    if (!state || !state.active) return;
-    this.finishSpecialAbility(entity, false);
-  }
-
-  /**
-   * Source parity: DozerAIUpdate::internalCancelTask — clear dozer's active build task.
-   * Building stays partially built and can be resumed by another dozer.
-   */
-  private cancelDozerConstructionTask(dozerId: number): void {
-    const buildingId = this.pendingConstructionActions.get(dozerId);
-    if (buildingId !== undefined) {
-      this.pendingConstructionActions.delete(dozerId);
-      const building = this.spawnedEntities.get(buildingId);
-      if (building && !building.destroyed && building.builderId === dozerId) {
-        building.builderId = 0;
-      }
-    }
-    const dozer = this.spawnedEntities.get(dozerId);
-    if (dozer) {
-      dozer.dozerBuildTaskOrderFrame = 0;
-    }
-  }
-
-  private handleBeaconDeleteCommand(command: BeaconDeleteCommand): void {
-    const beacon = this.spawnedEntities.get(command.entityId);
-    if (!beacon || beacon.destroyed || !this.isBeaconEntity(beacon)) {
-      return;
-    }
-
-    const localSide = this.resolveLocalPlayerSide();
-    const beaconSide = this.normalizeSide(beacon.side);
-    if (!localSide || !beaconSide || beaconSide !== localSide) {
-      // Source parity: non-owner delete requests are client-visibility only.
-      return;
-    }
-
-    this.markEntityDestroyed(beacon.id, -1);
-  }
-
-  private handleHackInternetCommand(command: HackInternetCommand): void {
-    const entity = this.spawnedEntities.get(command.entityId);
-    if (!entity || entity.destroyed) {
-      return;
-    }
-
-    const objectDef = this.resolveObjectDefByTemplateName(entity.templateName);
-    if (!objectDef) {
-      return;
-    }
-
-    const profile = this.extractHackInternetProfile(objectDef);
-    if (!profile) {
-      return;
-    }
-
-    // Source parity: MSG_INTERNET_HACK clears active AI state and enters
-    // HackInternetAIUpdate (UNPACKING -> HACK_INTERNET persistent loop).
-    this.cancelEntityCommandPathActions(entity.id);
-    this.clearAttackTarget(entity.id);
-    this.stopEntity(entity.id);
-
-    const cashUpdateDelayFrames = this.resolveHackInternetCashUpdateDelayFrames(entity, profile);
-    const cashAmountPerCycle = profile.regularCashAmount > 0
-      ? profile.regularCashAmount
-      : SOURCE_HACK_FALLBACK_CASH_AMOUNT;
-    const initialDelayFrames = Math.max(1, profile.unpackTimeFrames + cashUpdateDelayFrames);
-    this.hackInternetStateByEntityId.set(entity.id, {
-      cashUpdateDelayFrames,
-      cashAmountPerCycle,
-      nextCashFrame: this.frameCounter + initialDelayFrames,
-    });
-  }
-
-  private resolveHackInternetPackTimeFrames(entity: MapEntity, profile: HackInternetProfile): number {
-    if (this.isEntityContained(entity)) {
-      return 0;
-    }
-    return Math.max(0, profile.packTimeFrames);
-  }
-
-  private resolveHackInternetCashUpdateDelayFrames(entity: MapEntity, profile: HackInternetProfile): number {
-    const delayFrames = this.isEntityContained(entity)
-      ? profile.cashUpdateDelayFastFrames
-      : profile.cashUpdateDelayFrames;
-    return Math.max(0, delayFrames);
-  }
-
-  private handleToggleOverchargeCommand(command: ToggleOverchargeCommand): void {
-    const entity = this.spawnedEntities.get(command.entityId);
-    if (!entity || entity.destroyed) {
-      return;
-    }
-
-    const objectDef = this.resolveObjectDefByTemplateName(entity.templateName);
-    const profile = this.extractOverchargeBehaviorProfile(objectDef);
-    if (!profile) {
-      return;
-    }
-
-    if (this.overchargeStateByEntityId.has(entity.id)) {
-      this.disableOverchargeForEntity(entity);
-      return;
-    }
-
-    const minimumAllowedHealth = entity.maxHealth * profile.notAllowedWhenHealthBelowPercent;
-    if (minimumAllowedHealth > 0 && entity.health < minimumAllowedHealth) {
-      return;
-    }
-
-    this.enableOverchargeForEntity(entity, profile);
-  }
-
-  private handleDetonateDemoTrapCommand(command: DetonateDemoTrapCommand): void {
-    const entity = this.spawnedEntities.get(command.entityId);
-    if (!entity || entity.destroyed) return;
-    const profile = entity.demoTrapProfile;
-    if (!profile || entity.demoTrapDetonated) return;
-    // Source parity: C++ update() returns early if UNDER_CONSTRUCTION or SOLD.
-    if (entity.objectStatusFlags.has('UNDER_CONSTRUCTION') ||
-        entity.objectStatusFlags.has('SOLD')) return;
-    this.detonateDemoTrap(entity, profile);
-  }
-
-  private handleToggleDemoTrapModeCommand(command: ToggleDemoTrapModeCommand): void {
-    const entity = this.spawnedEntities.get(command.entityId);
-    if (!entity || entity.destroyed) return;
-    if (!entity.demoTrapProfile || entity.demoTrapDetonated) return;
-    entity.demoTrapProximityMode = !entity.demoTrapProximityMode;
-  }
-
-  private handleCombatDropCommand(command: CombatDropCommand): void {
-    const source = this.spawnedEntities.get(command.entityId);
-    if (!source || source.destroyed) {
-      return;
-    }
-    const commandSource = command.commandSource ?? 'PLAYER';
-    if (this.countContainedRappellers(source.id) <= 0) {
-      return;
-    }
-
-    let targetObjectId: number | null = null;
-    let targetX: number;
-    let targetZ: number;
-    if (command.targetObjectId !== null) {
-      const target = this.spawnedEntities.get(command.targetObjectId);
-      if (!target || target.destroyed) {
-        return;
-      }
-      // Source parity: ChinookAIUpdate::privateCombatDrop calls
-      // ActionManager::canEnterObject(..., COMBATDROP_INTO) only for player-issued
-      // object-target combat drops.
-      if (commandSource === 'PLAYER' && !this.canPlayerCombatDropIntoTarget(source, target)) {
-        return;
-      }
-      targetObjectId = target.id;
-      targetX = target.x;
-      targetZ = target.z;
-    } else if (command.targetPosition !== null) {
-      targetX = command.targetPosition[0];
-      targetZ = command.targetPosition[2];
-      const resolvedDropPosition = this.resolveCombatDropPositionWithoutTarget(source, targetX, targetZ);
-      targetX = resolvedDropPosition.x;
-      targetZ = resolvedDropPosition.z;
-    } else {
-      return;
-    }
-
-    // Source parity: MSG_COMBATDROP routes through AIGroup::groupCombatDrop,
-    // which delegates per-unit AI combat-drop behavior.
-    this.cancelEntityCommandPathActions(source.id);
-    this.clearAttackTarget(source.id);
-    // Source parity: ChinookAIUpdate::getBuildingToNotPathAround.
-    // While in MOVE_TO_COMBAT_DROP/DO_COMBAT_DROP, pathing must not avoid the goal building.
-    this.syncChinookCombatDropIgnoredObstacle(source, targetObjectId);
-    this.issueMoveTo(source.id, targetX, targetZ);
-    this.pendingCombatDropActions.set(source.id, {
-      targetObjectId,
-      targetX,
-      targetZ,
-      nextDropFrame: 0,
-    });
-  }
-
-  private canPlayerCombatDropIntoTarget(source: MapEntity, target: MapEntity): boolean {
-    if (!this.passesCommonEnterObjectValidation(source, target, 'PLAYER')) {
-      return false;
-    }
-    // Source parity: ActionManager::canEnterObject with COMBATDROP_INTO forbids
-    // combat drop into faction structures.
-    return !this.isFactionStructure(target);
-  }
-
-  private resolveCombatDropPositionWithoutTarget(
-    source: MapEntity,
-    centerX: number,
-    centerZ: number,
-  ): { x: number; z: number } {
-    const heightmap = this.mapHeightmap;
-    if (heightmap && (
-      centerX < 0
-      || centerZ < 0
-      || centerX >= heightmap.worldWidth
-      || centerZ >= heightmap.worldDepth
-    )) {
-      // Source parity: PartitionManager::findPositionAround returns center unchanged
-      // when the requested position is off-map.
-      return { x: centerX, z: centerZ };
-    }
-
-    const maxRadius = Math.max(0, this.resolveEntityBoundingCircleRadius2D(source) * 100);
-    if (!Number.isFinite(maxRadius) || maxRadius <= 0) {
-      return { x: centerX, z: centerZ };
-    }
-
-    const ringSpacing = 5;
-    const twoPi = Math.PI * 2;
-    const startAngle = this.gameRandom.nextFloat() * twoPi;
-    const centerY = this.resolveGroundHeight(centerX, centerZ);
-
-    for (let dist = 0; dist <= maxRadius; dist += ringSpacing) {
-      const angleSpacing = dist === 0
-        ? twoPi
-        : (ringSpacing / (dist + 1)) * (twoPi / 6);
-      const samples = Math.ceil((twoPi / angleSpacing) / 2);
-      for (let i = 0; i < samples; i += 1) {
-        const left = this.tryCombatDropPositionCandidate(centerX, centerY, centerZ, dist, startAngle + (angleSpacing * i));
-        if (left) {
-          return left;
-        }
-        if (i !== 0) {
-          const right = this.tryCombatDropPositionCandidate(centerX, centerY, centerZ, dist, startAngle - (angleSpacing * i));
-          if (right) {
-            return right;
-          }
-        }
-      }
-    }
-
-    return { x: centerX, z: centerZ };
-  }
-
-  private tryCombatDropPositionCandidate(
-    centerX: number,
-    centerY: number,
-    centerZ: number,
-    distance: number,
-    angle: number,
-  ): { x: number; z: number } | null {
-    const worldX = (distance * Math.cos(angle)) + centerX;
-    const worldZ = (distance * Math.sin(angle)) + centerZ;
-
-    const heightmap = this.mapHeightmap;
-    if (heightmap && (
-      worldX < 0
-      || worldZ < 0
-      || worldX >= heightmap.worldWidth
-      || worldZ >= heightmap.worldDepth
-    )) {
-      return null;
-    }
-
-    const worldY = this.resolveGroundHeight(worldX, worldZ);
-    if (Math.abs(worldY - centerY) > 1e10) {
-      return null;
-    }
-
-    const navGrid = this.navigationGrid;
-    if (!navGrid) {
-      return null;
-    }
-    const [cellX, cellZ] = this.worldToGrid(worldX, worldZ);
-    if (cellX === null || cellZ === null) {
-      return null;
-    }
-    const cellIndex = (cellZ * navGrid.width) + cellX;
-    const terrainType = navGrid.terrainType[cellIndex]!;
-    if (terrainType === NAV_CLIFF) {
-      return null;
-    }
-    if (terrainType === NAV_IMPASSABLE || terrainType === NAV_BRIDGE_IMPASSABLE) {
-      return null;
-    }
-
-    const waterHeight = this.getWaterHeightAt(worldX, worldZ);
-    if (waterHeight !== null && worldY < waterHeight) {
-      return null;
-    }
-
-    if (this.doesCombatDropPositionOverlapAnyObject(worldX, worldZ, 5)) {
-      return null;
-    }
-
-    return { x: worldX, z: worldZ };
-  }
-
-  private doesCombatDropPositionOverlapAnyObject(worldX: number, worldZ: number, radius: number): boolean {
-    for (const entity of this.spawnedEntities.values()) {
-      if (entity.destroyed || this.isEntityOffMap(entity)) {
-        continue;
-      }
-      const geometry = entity.obstacleGeometry;
-      if (geometry) {
-        if (geometry.shape === 'box') {
-          if (this.doesCircleBoxGeometryOverlap(
-            { x: worldX, z: worldZ },
-            radius,
-            {
-              x: entity.x,
-              z: entity.z,
-              angle: entity.rotationY,
-              geometry,
-            },
-          )) {
-            return true;
-          }
-        } else if (this.doesCircleGeometryOverlap(
-          { x: worldX, z: worldZ },
-          radius,
-          { x: entity.x, z: entity.z },
-          geometry.majorRadius,
-        )) {
-          return true;
-        }
-        continue;
-      }
-
-      const entityRadius = this.resolveEntityBoundingCircleRadius2D(entity);
-      if (this.doesCircleGeometryOverlap(
-        { x: worldX, z: worldZ },
-        radius,
-        { x: entity.x, z: entity.z },
-        entityRadius,
-      )) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private handlePlaceBeaconCommand(command: PlaceBeaconCommand): void {
-    const localSide = this.resolveLocalPlayerSide();
-    if (!localSide) {
-      return;
-    }
-
-    const beaconTemplateName = this.resolveBeaconTemplateNameForSide(localSide);
-    if (!beaconTemplateName) {
-      return;
-    }
-
-    if (
-      this.countActiveEntitiesOfTemplateForSide(localSide, beaconTemplateName)
-      >= SOURCE_DEFAULT_MAX_BEACONS_PER_PLAYER
-    ) {
-      return;
-    }
-
-    const registry = this.iniDataRegistry;
-    if (!registry) {
-      return;
-    }
-    const beaconObjectDef = findObjectDefByName(registry, beaconTemplateName);
-    if (!beaconObjectDef) {
-      return;
-    }
-
-    const [x, z] = this.clampWorldPositionToMapBounds(command.targetPosition[0], command.targetPosition[2]);
-    const terrainY = this.resolveGroundHeight(x, z);
-
-    const mapObject: MapObjectJSON = {
-      templateName: beaconObjectDef.name,
-      angle: 0,
-      flags: 0,
-      position: {
-        x,
-        y: z,
-        z: 0,
-      },
-      properties: {},
-    };
-    const created = this.createMapEntity(mapObject, beaconObjectDef, registry, this.mapHeightmap);
-    created.side = localSide;
-    created.controllingPlayerToken = this.normalizeControllingPlayerToken(localSide);
-    created.x = x;
-    created.z = z;
-    created.y = terrainY + created.baseHeight;
-    this.updatePathfindPosCell(created);
-    this.addEntityToWorld(created);
-    this.registerEntityEnergy(created);
-    this.initializeMinefieldState(created);
-    this.registerTunnelEntity(created);
-  }
-
-  private handleEnterObjectCommand(command: EnterObjectCommand): void {
-    const source = this.spawnedEntities.get(command.entityId);
-    const target = this.spawnedEntities.get(command.targetObjectId);
-    if (!source || !target || source.destroyed || target.destroyed) {
-      return;
-    }
-    const commandSource = command.commandSource ?? 'PLAYER';
-
-    if (!this.canQueueEnterObjectAction(source, target, command.action, commandSource)) {
-      return;
-    }
-
-    // Source parity: MSG_ENTER routes through AIGroup::groupEnter into
-    // aiEnter target-action state. We track pending enter intent and resolve a
-    // minimal action subset on contact.
-    this.cancelEntityCommandPathActions(source.id);
-    this.clearAttackTarget(source.id);
-    this.issueMoveTo(source.id, target.x, target.z);
-    this.pendingEnterObjectActions.set(source.id, {
-      targetObjectId: target.id,
-      action: command.action,
-      commandSource,
-    });
-  }
-
-  private canQueueEnterObjectAction(
-    source: MapEntity,
-    target: MapEntity,
-    action: EnterObjectCommand['action'],
-    commandSource: 'PLAYER' | 'AI' | 'SCRIPT',
-  ): boolean {
-    if (!source.canMove) {
-      return false;
-    }
-    if (!this.passesCommonEnterObjectValidation(source, target, commandSource)) {
-      return false;
-    }
-
-    switch (action) {
-      case 'hijackVehicle':
-        return this.canExecuteHijackVehicleEnterAction(source, target);
-      case 'convertToCarBomb':
-        return this.canExecuteConvertToCarBombEnterAction(source, target);
-      case 'sabotageBuilding':
-        return this.canExecuteSabotageBuildingEnterAction(source, target);
-      case 'repairVehicle':
-        return this.canExecuteRepairVehicleEnterAction(source, target, commandSource);
-      case 'captureUnmannedFactionUnit':
-        return this.canExecuteCaptureUnmannedFactionUnitEnterAction(source, target, commandSource);
-      default:
-        return false;
-    }
-  }
-
-  /**
-   * Source parity: shared ActionManager::canEnterObject pre-checks.
-   */
-  private passesCommonEnterObjectValidation(
-    source: MapEntity,
-    target: MapEntity,
-    commandSource: 'PLAYER' | 'AI' | 'SCRIPT',
-  ): boolean {
-    if (source.id === target.id) {
-      return false;
-    }
-    // Source parity: ActionManager::canEnterObject rejects dead/effectively-dead targets.
-    if (this.isEntityEffectivelyDeadForEnter(target)) {
-      return false;
-    }
-    if (this.isContainerEnterTargetShrouded(source, target, commandSource)) {
-      return false;
-    }
-    if (this.entityHasObjectStatus(source, 'UNDER_CONSTRUCTION')) {
-      return false;
-    }
-    if (this.entityHasObjectStatus(target, 'UNDER_CONSTRUCTION')) {
-      return false;
-    }
-    if (this.entityHasObjectStatus(target, 'SOLD')) {
-      return false;
-    }
-    if (this.entityHasObjectStatus(target, 'DISABLED_SUBDUED')) {
-      return false;
-    }
-    const sourceKindOf = this.resolveEntityKindOfSet(source);
-    if (sourceKindOf.has('STRUCTURE') || sourceKindOf.has('IMMOBILE')) {
-      return false;
-    }
-    if (sourceKindOf.has('IGNORED_IN_GUI') || sourceKindOf.has('MOB_NEXUS')) {
-      return false;
-    }
-    const targetKindOf = this.resolveEntityKindOfSet(target);
-    if (targetKindOf.has('IGNORED_IN_GUI')) {
-      return false;
-    }
-    return true;
-  }
-
-  private isEntityEffectivelyDeadForEnter(entity: MapEntity): boolean {
-    if (this.isScriptEntityEffectivelyDead(entity)) {
-      return true;
-    }
-    // Source parity: ActionManager::canEnterObject checks Object::isEffectivelyDead.
-    // Body-less objects can be enterable, so health-only death applies when damageable.
-    return entity.canTakeDamage && entity.health <= 0;
-  }
-
-  private isEntityDozerCapable(entity: MapEntity): boolean {
-    const kindOf = this.resolveEntityKindOfSet(entity);
-    return kindOf.has('DOZER') || entity.dozerAIProfile !== null;
-  }
-
-  private isWorkerEntity(entity: MapEntity): boolean {
-    if (!entity.dozerAIProfile || !entity.supplyTruckProfile) {
-      return false;
-    }
-    return entity.kindOf.has('INFANTRY');
-  }
-
-  private handleConstructBuildingCommand(command: ConstructBuildingCommand): void {
-    const constructor = this.spawnedEntities.get(command.entityId);
-    if (!constructor || constructor.destroyed) {
-      return;
-    }
-
-    if (!this.isEntityDozerCapable(constructor)) {
-      return;
-    }
-
-    const registry = this.iniDataRegistry;
-    if (!registry) {
-      return;
-    }
-
-    const objectDef = findObjectDefByName(registry, command.templateName);
-    if (!objectDef) {
-      return;
-    }
-
-    const side = this.normalizeSide(constructor.side);
-    if (!side) {
-      return;
-    }
-    if (!this.canSideBuildUnitTemplate(side, objectDef, this.getControllingPlayerTypeForEntity(constructor))) {
-      return;
-    }
-    if (!this.canEntityIssueBuildCommandForTemplate(constructor, objectDef.name, ['DOZER_CONSTRUCT', 'UNIT_BUILD'])) {
-      return;
-    }
-
-    const placementPositions = this.resolveConstructPlacementPositions(command, objectDef);
-    if (placementPositions.length === 0) {
-      return;
-    }
-
-    if (this.isWorkerEntity(constructor)) {
-      // Source parity: WorkerAIUpdate::newTask clears preferred dock when entering dozer tasks.
-      this.resetSupplyTruckState(constructor.id, true);
-    }
-    // Source parity: DozerAIUpdate/WorkerAIUpdate::newTask retasks dozer work items.
-    // Construct task overrides any active repair task.
-    if (this.pendingRepairActions.has(constructor.id)) {
-      this.pendingRepairActions.delete(constructor.id);
-      this.clearDozerTaskOrder(constructor, 'REPAIR');
-    }
-    // Construct task replacement should release previous partial build ownership.
-    if (this.pendingConstructionActions.has(constructor.id)) {
-      this.cancelDozerConstructionTask(constructor.id);
-    }
-
-    const buildCost = this.resolveObjectBuildCost(objectDef, side);
-    const maxSimultaneousOfType = this.resolveMaxSimultaneousOfType(objectDef);
-    const isLineBuildTemplate = this.isLineBuildTemplate(objectDef);
-    for (const [x, y, z] of placementPositions) {
-      this.clearRemovableForConstruction(
-        objectDef,
-        x,
-        z,
-        command.angle,
-        constructor.id,
-      );
-      if (
-        !this.moveObjectsForConstruction(
-          objectDef,
-          x,
-          z,
-          command.angle,
-          side,
-          constructor.id,
-        )
-      ) {
-        continue;
-      }
-
-      if (
-        !this.isConstructLocationClear(
-          objectDef,
-          x,
-          z,
-          command.angle,
-          side,
-          constructor.id,
-        )
-      ) {
-        continue;
-      }
-
-      // Source parity: BuildAssistant::isLocationLegalToBuild —
-      // terrain tile restrictions and height flatness check.
-      if (!this.isConstructTerrainLegal(objectDef, x, z, command.angle)) {
-        continue;
-      }
-
-      if (maxSimultaneousOfType > 0) {
-        const existingCount = this.countActiveEntitiesForMaxSimultaneousForSide(side, objectDef);
-        if (existingCount >= maxSimultaneousOfType) {
-          break;
-        }
-      }
-
-      if (buildCost > 0) {
-        const withdrawn = this.withdrawSideCredits(side, buildCost);
-        if (withdrawn < buildCost) {
-          if (withdrawn > 0) {
-            this.depositSideCredits(side, withdrawn);
-          }
-          this.emitEvaEvent('INSUFFICIENT_FUNDS', side, 'own');
-          break;
-        }
-      }
-
-      const created = this.spawnConstructedObject(
-        constructor,
-        objectDef,
-        [x, y, z],
-        command.angle,
-      );
-      if (!created) {
-        if (isLineBuildTemplate) {
-          continue;
-        }
-        break;
-      }
-    }
-  }
-
-  private clearRemovableForConstruction(
-    objectDef: ObjectDef,
-    worldX: number,
-    worldZ: number,
-    angle: number,
-    ignoredEntityId: number,
-  ): void {
-    const buildGeometry = this.resolveConstructCollisionGeometry(objectDef);
-    if (!buildGeometry) {
-      return;
-    }
-
-    for (const blocker of this.spawnedEntities.values()) {
-      if (blocker.id === ignoredEntityId || blocker.destroyed) {
-        continue;
-      }
-
-      if (
-        !this.doesConstructionGeometryOverlap(
-          { x: worldX, z: worldZ },
-          angle,
-          buildGeometry,
-          blocker,
-          this.resolveConstructCollisionGeometryForEntity(blocker),
-        )
-      ) {
-        continue;
-      }
-
-      if (this.isRemovableForConstruction(blocker) && !this.isAlwaysSelectableForConstruction(blocker)) {
-        this.markEntityDestroyed(blocker.id, -1);
-      }
-    }
-  }
-
-  private moveObjectsForConstruction(
-    objectDef: ObjectDef,
-    worldX: number,
-    worldZ: number,
-    angle: number,
-    owningSide: string,
-    ignoredEntityId: number,
-  ): boolean {
-    const buildGeometry = this.resolveConstructCollisionGeometry(objectDef);
-    if (!buildGeometry) {
-      return true;
-    }
-
-    let anyUnmovables = false;
-    const clearanceRadius = Math.hypot(buildGeometry.majorRadius, buildGeometry.minorRadius) * 1.4;
-    for (const blocker of this.spawnedEntities.values()) {
-      if (blocker.id === ignoredEntityId || blocker.destroyed) {
-        continue;
-      }
-
-      if (
-        !this.doesConstructionGeometryOverlap(
-          { x: worldX, z: worldZ },
-          angle,
-          buildGeometry,
-          blocker,
-          this.resolveConstructCollisionGeometryForEntity(blocker),
-        )
-      ) {
-        continue;
-      }
-
-      if (
-        this.isRemovableForConstruction(blocker)
-        || this.isMineForConstruction(blocker)
-        || this.isInertForConstruction(blocker)
-      ) {
-        continue;
-      }
-      if (this.isAlwaysSelectableForConstruction(blocker)) {
-        continue;
-      }
-
-      const relationship = this.getConstructingRelationship(owningSide, blocker.side);
-      if (relationship === RELATIONSHIP_ENEMIES || this.isDisabledForConstruction(blocker) || blocker.canMove === false) {
-        anyUnmovables = true;
-        continue;
-      }
-
-      const variedRadius = (0.5 + this.gameRandom.nextFloat()) * clearanceRadius;
-      const direction = (this.gameRandom.nextFloat() * Math.PI * 2) - Math.PI;
-      const destinationX = worldX + Math.cos(direction) * variedRadius;
-      const destinationZ = worldZ + Math.sin(direction) * variedRadius;
-      this.issueMoveTo(blocker.id, destinationX, destinationZ, NO_ATTACK_DISTANCE, true);
-      if (!blocker.canMove) {
-        anyUnmovables = true;
-      }
-    }
-
-    return !anyUnmovables;
-  }
-
-  private isConstructLocationClear(
-    objectDef: ObjectDef,
-    worldX: number,
-    worldZ: number,
-    angle: number,
-    owningSide: string,
-    ignoredEntityId: number,
-  ): boolean {
-    const buildGeometry = this.resolveConstructCollisionGeometry(objectDef);
-    if (!buildGeometry) {
-      return true;
-    }
-
-    for (const blocker of this.spawnedEntities.values()) {
-      if (blocker.id === ignoredEntityId || blocker.destroyed) {
-        continue;
-      }
-
-      if (
-        !this.doesConstructionGeometryOverlap(
-          { x: worldX, z: worldZ },
-          angle,
-          buildGeometry,
-          blocker,
-          this.resolveConstructCollisionGeometryForEntity(blocker),
-        )
-      ) {
-        continue;
-      }
-
-      if (
-        this.isRemovableForConstruction(blocker)
-        || this.isMineForConstruction(blocker)
-        || this.isInertForConstruction(blocker)
-      ) {
-        continue;
-      }
-
-      const relationship = this.getConstructingRelationship(owningSide, blocker.side);
-      if (
-        relationship === RELATIONSHIP_ENEMIES
-        || this.isImmobileForConstruction(blocker)
-        || this.isDisabledForConstruction(blocker)
-      ) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Source parity: BuildAssistant::isLocationLegalToBuild —
-   * checks terrain tile restrictions and height flatness across the
-   * building's footprint.  Rejects placement on water, cliffs, or
-   * impassable cells, and rejects placement where the height variation
-   * across the footprint exceeds the cliff threshold.
-   */
-  private isConstructTerrainLegal(
-    objectDef: ObjectDef,
-    worldX: number,
-    worldZ: number,
-    angle: number,
-  ): boolean {
-    const navGrid = this.navigationGrid;
-    const heightmap = this.mapHeightmap;
-    if (!navGrid || !heightmap) {
-      return true;
-    }
-
-    const geometry = this.resolveConstructCollisionGeometry(objectDef);
-    if (!geometry) {
-      return true;
-    }
-
-    // Compute footprint half-extents.
-    const halfW = geometry.majorRadius;
-    const halfH = geometry.shape === 'box' ? geometry.minorRadius : geometry.majorRadius;
-
-    const cosA = Math.cos(angle);
-    const sinA = Math.sin(angle);
-
-    let loHeight = Infinity;
-    let hiHeight = -Infinity;
-
-    // Sample the footprint at cell resolution (MAP_XY_FACTOR).
-    for (let ly = -halfH; ly <= halfH + 0.01; ly += MAP_XY_FACTOR) {
-      for (let lx = -halfW; lx <= halfW + 0.01; lx += MAP_XY_FACTOR) {
-        // For circular geometry, skip points outside the circle.
-        if (geometry.shape === 'circle') {
-          const dist2 = lx * lx + ly * ly;
-          if (dist2 > halfW * halfW) {
-            continue;
-          }
-        }
-
-        // Transform local → world.
-        const wx = worldX + (lx * cosA - ly * sinA);
-        const wz = worldZ + (lx * sinA + ly * cosA);
-
-        // Check navigation cell type.
-        const cellX = Math.floor(wx / MAP_XY_FACTOR);
-        const cellZ = Math.floor(wz / MAP_XY_FACTOR);
-        if (cellX >= 0 && cellX < navGrid.width && cellZ >= 0 && cellZ < navGrid.height) {
-          const cellIndex = cellZ * navGrid.width + cellX;
-          const terrainCell = navGrid.terrainType[cellIndex]!;
-          if (
-            terrainCell === NAV_WATER
-            || terrainCell === NAV_CLIFF
-            || terrainCell === NAV_IMPASSABLE
-          ) {
-            return false;
-          }
-        } else {
-          // Out of map bounds.
-          return false;
-        }
-
-        // Track height range for flatness check.
-        const h = heightmap.getInterpolatedHeight(wx, wz);
-        if (h < loHeight) loHeight = h;
-        if (h > hiHeight) hiHeight = h;
-      }
-    }
-
-    // Source parity: BuildAssistant::checkSampleBuildLocation —
-    // reject if height variation exceeds threshold.  C++ uses
-    // TheGlobalData->m_allowedHeightVariationForBuilding (default 0.0
-    // which is overridden in INI).  We use the cliff delta as a
-    // reasonable default.
-    if (hiHeight - loHeight > CLIFF_HEIGHT_DELTA) {
-      return false;
-    }
-
-    return true;
-  }
-
-  private resolveConstructCollisionGeometry(objectDef: ObjectDef | undefined): ObstacleGeometry | null {
-    const geometry = this.resolveObstacleGeometry(objectDef);
-    if (!geometry) {
-      return null;
-    }
-
-    if (geometry.shape === 'box') {
-      return geometry;
-    }
-
-    const radius = geometry.majorRadius;
-    if (!Number.isFinite(radius) || radius <= 0) {
-      return null;
-    }
-    return {
-      shape: 'circle',
-      majorRadius: radius,
-      minorRadius: radius,
-      height: geometry.height,
-    };
-  }
-
-  private resolveConstructCollisionGeometryForEntity(entity: MapEntity): ObstacleGeometry | null {
-    if (entity.obstacleGeometry) {
-      return entity.obstacleGeometry;
-    }
-
-    const objectDef = this.resolveObjectDefByTemplateName(entity.templateName);
-    return this.resolveConstructCollisionGeometry(objectDef ?? undefined);
-  }
-
-  private doesConstructionGeometryOverlap(
-    leftPosition: { x: number; z: number },
-    leftAngle: number,
-    leftGeometry: ObstacleGeometry,
-    rightEntity: MapEntity,
-    rightGeometry: ObstacleGeometry | null,
-  ): boolean {
-    if (!rightGeometry) {
-      return false;
-    }
-
-    if (leftGeometry.shape === 'circle' && rightGeometry.shape === 'circle') {
-      return this.doesCircleGeometryOverlap(
-        leftPosition,
-        leftGeometry.majorRadius,
-        { x: rightEntity.x, z: rightEntity.z },
-        rightGeometry.majorRadius,
-      );
-    }
-
-    if (leftGeometry.shape === 'box' && rightGeometry.shape === 'box') {
-      return this.doesBoxGeometryOverlap(
-        leftPosition,
-        leftAngle,
-        leftGeometry,
-        { x: rightEntity.x, z: rightEntity.z },
-        rightEntity.rotationY,
-        rightGeometry,
-      );
-    }
-
-    if (leftGeometry.shape === 'circle') {
-      return this.doesCircleBoxGeometryOverlap(
-        leftPosition,
-        leftGeometry.majorRadius,
-        {
-          x: rightEntity.x,
-          z: rightEntity.z,
-          angle: rightEntity.rotationY,
-          geometry: rightGeometry,
-        },
-      );
-    }
-
-    return this.doesCircleBoxGeometryOverlap(
-      { x: rightEntity.x, z: rightEntity.z },
-      rightGeometry.majorRadius,
-      {
-        x: leftPosition.x,
-        z: leftPosition.z,
-        angle: leftAngle,
-        geometry: leftGeometry,
-      },
-    );
-  }
-
-  private doesCircleGeometryOverlap(
-    firstPosition: { x: number; z: number },
-    firstRadius: number,
-    secondPosition: { x: number; z: number },
-    secondRadius: number,
-  ): boolean {
-    const distanceX = firstPosition.x - secondPosition.x;
-    const distanceZ = firstPosition.z - secondPosition.z;
-    const minDistance = firstRadius + secondRadius;
-    return (distanceX * distanceX + distanceZ * distanceZ) <= (minDistance * minDistance);
-  }
-
-  private doesCircleBoxGeometryOverlap(
-    circlePosition: { x: number; z: number },
-    circleRadius: number,
-    box: {
-      x: number;
-      z: number;
-      angle: number;
-      geometry: ObstacleGeometry;
-    },
-  ): boolean {
-    if (box.geometry.majorRadius <= 0 || box.geometry.minorRadius <= 0) {
-      return false;
-    }
-
-    const cos = Math.cos(-box.angle);
-    const sin = Math.sin(-box.angle);
-    const dx = circlePosition.x - box.x;
-    const dz = circlePosition.z - box.z;
-    const localX = (dx * cos) + (dz * sin);
-    const localZ = (-dx * sin) + (dz * cos);
-    const clampedX = clamp(localX, -box.geometry.majorRadius, box.geometry.majorRadius);
-    const clampedZ = clamp(localZ, -box.geometry.minorRadius, box.geometry.minorRadius);
-    const distanceX = localX - clampedX;
-    const distanceZ = localZ - clampedZ;
-    return (distanceX * distanceX + distanceZ * distanceZ) <= (circleRadius * circleRadius);
-  }
-
-  private doesBoxGeometryOverlap(
-    leftPosition: { x: number; z: number },
-    leftAngle: number,
-    leftGeometry: ObstacleGeometry,
-    rightPosition: { x: number; z: number },
-    rightAngle: number,
-    rightGeometry: ObstacleGeometry,
-  ): boolean {
-    if (leftGeometry.majorRadius <= 0 || leftGeometry.minorRadius <= 0
-      || rightGeometry.majorRadius <= 0 || rightGeometry.minorRadius <= 0) {
-      return false;
-    }
-
-    const deltaX = rightPosition.x - leftPosition.x;
-    const deltaZ = rightPosition.z - leftPosition.z;
-
-    const leftXAxisX = Math.cos(leftAngle);
-    const leftXAxisZ = Math.sin(leftAngle);
-    const leftZAxisX = -leftXAxisZ;
-    const leftZAxisZ = leftXAxisX;
-    const rightXAxisX = Math.cos(rightAngle);
-    const rightXAxisZ = Math.sin(rightAngle);
-    const rightZAxisX = -rightXAxisZ;
-    const rightZAxisZ = rightXAxisX;
-
-    const projectionAxes = [
-      { x: leftXAxisX, z: leftXAxisZ },
-      { x: leftZAxisX, z: leftZAxisZ },
-      { x: rightXAxisX, z: rightXAxisZ },
-      { x: rightZAxisX, z: rightZAxisZ },
-    ];
-
-    for (const axis of projectionAxes) {
-      const leftRadius = this.projectBoxRadiusOntoAxis(leftGeometry, axis, leftXAxisX, leftXAxisZ, leftZAxisX, leftZAxisZ);
-      const rightRadius = this.projectBoxRadiusOntoAxis(
-        rightGeometry,
-        axis,
-        rightXAxisX,
-        rightXAxisZ,
-        rightZAxisX,
-        rightZAxisZ,
-      );
-      const distanceToAxis = Math.abs((deltaX * axis.x) + (deltaZ * axis.z));
-      if (distanceToAxis > leftRadius + rightRadius) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  private projectBoxRadiusOntoAxis(
-    geometry: ObstacleGeometry,
-    axis: { x: number; z: number },
-    axisX: number,
-    axisZ: number,
-    zAxisX: number,
-    zAxisZ: number,
-  ): number {
-    return (geometry.majorRadius * Math.abs((axis.x * axisX) + (axis.z * axisZ)))
-      + (geometry.minorRadius * Math.abs((axis.x * zAxisX) + (axis.z * zAxisZ)));
-  }
-
-  private isRemovableForConstruction(entity: MapEntity): boolean {
-    if (entity.destroyed) {
-      return false;
-    }
-
-    const kindOf = this.resolveEntityKindOfSet(entity);
-    if (kindOf.has('INERT')) {
-      return false;
-    }
-    if (kindOf.has('SHRUBBERY') || kindOf.has('CLEARED_BY_BUILD')) {
-      return true;
-    }
-    return entity.health <= 0;
-  }
-
-  private isMineForConstruction(entity: MapEntity): boolean {
-    return this.resolveEntityKindOfSet(entity).has('MINE');
-  }
-
-  private isInertForConstruction(entity: MapEntity): boolean {
-    return this.resolveEntityKindOfSet(entity).has('INERT');
-  }
-
-  private isAlwaysSelectableForConstruction(entity: MapEntity): boolean {
-    return this.resolveEntityKindOfSet(entity).has('ALWAYS_SELECTABLE');
-  }
-
-  private isImmobileForConstruction(entity: MapEntity): boolean {
-    return this.resolveEntityKindOfSet(entity).has('IMMOBILE');
-  }
-
-  /**
-   * Source parity: Object::isMobile() — returns false when isDisabled() is true.
-   * C++ Object.cpp:2902-2911: checks m_disabledMask.any() which covers all disabled types.
-   * We check the specific gameplay-relevant disabled flags we track.
-   */
-  private isEntityDisabledForMovement(entity: MapEntity): boolean {
-    return (
-      this.entityHasObjectStatus(entity, 'DISABLED_HELD')
-      || this.entityHasObjectStatus(entity, 'DISABLED_EMP')
-      || this.entityHasObjectStatus(entity, 'DISABLED_HACKED')
-      || this.entityHasObjectStatus(entity, 'DISABLED_SUBDUED')
-      || this.entityHasObjectStatus(entity, 'DISABLED_PARALYZED')
-      || this.entityHasObjectStatus(entity, 'DISABLED_UNMANNED')
-      || this.entityHasObjectStatus(entity, 'DISABLED_UNDERPOWERED')
-    );
-  }
-
-  private isDisabledForConstruction(entity: MapEntity): boolean {
-    return (
-      this.entityHasObjectStatus(entity, 'DISABLED')
-      || this.entityHasObjectStatus(entity, 'DISABLED_SUBDUED')
-      || this.entityHasObjectStatus(entity, 'DISABLED_HACKED')
-      || this.entityHasObjectStatus(entity, 'DISABLED_EMP')
-      || this.entityHasObjectStatus(entity, 'DISABLED_HELD')
-      || this.entityHasObjectStatus(entity, 'DISABLED_UNDERPOWERED')
-      || this.entityHasObjectStatus(entity, 'SCRIPT_DISABLED')
-      || this.entityHasObjectStatus(entity, 'SCRIPT_UNPOWERED')
-    );
-  }
-
-  /**
-   * Source parity: Object::doCommandButton{,AtObject,AtPosition,UsingWaypoints} early-outs
-   * when source object is disabled.
-   */
-  /* @internal */ isEntityDisabledForScriptCommandButton(entity: MapEntity): boolean {
-    return this.entityHasObjectStatus(entity, 'DISABLED')
-      || this.entityHasObjectStatus(entity, 'SCRIPT_DISABLED')
-      || this.entityHasObjectStatus(entity, 'SCRIPT_UNPOWERED')
-      || this.isEntityDisabledForMovement(entity);
-  }
-
-  private isLineBuildTemplate(objectDef: ObjectDef): boolean {
-    return this.normalizeKindOf(objectDef.kindOf).has('LINEBUILD');
-  }
-
-  private getConstructingRelationship(owningSide: string, otherSide: string | undefined): number {
-    const source = this.normalizeSide(owningSide);
-    const target = this.normalizeSide(otherSide ?? '');
-    if (!source || !target) {
-      return RELATIONSHIP_NEUTRAL;
-    }
-    return this.getTeamRelationshipBySides(source, target);
-  }
-
-  private handleCancelDozerConstructionCommand(command: CancelDozerConstructionCommand): void {
-    const building = this.spawnedEntities.get(command.entityId);
-    if (!building || building.destroyed || building.category !== 'building') {
-      return;
-    }
-
-    // Source parity: MSG_DOZER_CANCEL_CONSTRUCT only applies to structures under construction.
-    if (!this.entityHasObjectStatus(building, 'UNDER_CONSTRUCTION')) {
-      return;
-    }
-
-    if (!this.entityHasObjectStatus(building, 'RECONSTRUCTING')) {
-      const objectDef = this.resolveObjectDefByTemplateName(building.templateName);
-      if (objectDef) {
-        const amount = this.resolveObjectBuildCost(objectDef, building.side ?? '');
-        this.depositSideCredits(building.side, amount);
-      }
-    }
-
-    this.markEntityDestroyed(building.id, -1);
-  }
-
-  private handleSellCommand(command: SellCommand): void {
-    const entity = this.spawnedEntities.get(command.entityId);
-    if (!entity || entity.destroyed) {
-      return;
-    }
-    if (entity.category !== 'building') {
-      return;
-    }
-    if (this.sellingEntities.has(entity.id)) {
-      return;
-    }
-    // Source parity: buildings under construction use cancelDozerConstruction, not sell.
-    // The InGameUI prevents the sell button from appearing for UNDER_CONSTRUCTION buildings.
-    if (this.entityHasObjectStatus(entity, 'UNDER_CONSTRUCTION')) {
-      return;
-    }
-
-    // Source parity: BuildAssistant::sellObject starts a timed teardown
-    // (construction-percent countdown) and refunds queue production immediately.
-    this.cancelEntityCommandPathActions(entity.id);
-    this.clearAttackTarget(entity.id);
-    this.stopEntity(entity.id);
-    this.cancelAndRefundAllProductionOnDeath(entity);
-    entity.objectStatusFlags.add('SOLD');
-    entity.objectStatusFlags.add('UNSELECTABLE');
-    this.removeEntityFromSelection(entity.id);
-
-    // Source parity: BuildAssistant::sellObject invokes contain->onSelling().
-    // Open/Garrison contain variants map to passenger evacuation on sell start.
-    // Source parity: TunnelContain::onSelling — eject all if this is the last tunnel.
-    if (entity.containProfile?.moduleType === 'TUNNEL') {
-      this.handleTunnelSelling(entity);
-    } else if (entity.containProfile && this.collectContainedEntityIds(entity.id).length > 0) {
-      this.evacuateContainedEntities(entity, entity.x, entity.z, null);
-    }
-
-    if (entity.parkingPlaceProfile) {
-      const parkedEntityIds = Array.from(entity.parkingPlaceProfile.occupiedSpaceEntityIds.values());
-      for (const parkedEntityId of parkedEntityIds) {
-        this.markEntityDestroyed(parkedEntityId, entity.id);
-      }
-    }
-
-    this.sellingEntities.set(entity.id, {
-      sellFrame: this.frameCounter,
-      constructionPercent: 99.9,
-    });
-  }
-
-  /**
-   * Source parity: ActionManager::canGetHealedAt source/target gating.
-   */
-  private canEntityGetHealedAt(
-    source: MapEntity,
-    healTarget: MapEntity,
-    commandSource: 'PLAYER' | 'AI' | 'SCRIPT',
-  ): boolean {
-    if (this.getTeamRelationship(source, healTarget) !== RELATIONSHIP_ALLIES) {
-      return false;
-    }
-    if (this.isEntityEffectivelyDeadForEnter(healTarget)) {
-      return false;
-    }
-    if (this.entityHasObjectStatus(source, 'UNDER_CONSTRUCTION') || this.entityHasObjectStatus(healTarget, 'UNDER_CONSTRUCTION')) {
-      return false;
-    }
-    if (this.entityHasObjectStatus(healTarget, 'SOLD')) {
-      return false;
-    }
-    if (!this.resolveEntityKindOfSet(source).has('INFANTRY')) {
-      return false;
-    }
-    if (!this.resolveEntityKindOfSet(healTarget).has('HEAL_PAD')) {
-      return false;
-    }
-    if (this.isContainerEnterTargetShrouded(source, healTarget, commandSource)) {
-      return false;
-    }
-    if (source.health >= source.maxHealth) {
-      return false;
-    }
-    return true;
-  }
-
-  /* @internal */ isSameControllingPlayerOrSide(left: MapEntity, right: MapEntity): boolean {
-    const leftOwner = this.normalizeControllingPlayerToken(left.controllingPlayerToken ?? undefined);
-    const rightOwner = this.normalizeControllingPlayerToken(right.controllingPlayerToken ?? undefined);
-    if (leftOwner !== null && rightOwner !== null) {
-      return leftOwner === rightOwner;
-    }
-    const leftSide = this.normalizeSide(left.side);
-    const rightSide = this.normalizeSide(right.side);
-    return leftSide !== null && leftSide === rightSide;
-  }
-
-  private handleGarrisonBuildingCommand(command: GarrisonBuildingCommand): void {
-    const infantry = this.spawnedEntities.get(command.entityId);
-    const building = this.spawnedEntities.get(command.targetBuildingId);
-    if (!infantry || !building || infantry.destroyed || building.destroyed) {
-      return;
-    }
-    if (!this.canExecuteGarrisonBuildingEnterAction(infantry, building, 'SCRIPT')) {
-      return;
-    }
-
-    // Move infantry to building if not close enough.
-    const interactionDistance = this.resolveEntityInteractionDistance(infantry, building);
-    const distance = Math.hypot(building.x - infantry.x, building.z - infantry.z);
-    if (distance > interactionDistance) {
-      this.issueMoveTo(infantry.id, building.x, building.z);
-      // Re-issue garrison when close enough via pending action.
-      this.pendingGarrisonActions.set(infantry.id, building.id);
-      return;
-    }
-
-    this.enterGarrisonBuilding(infantry, building);
-  }
-
-  private updatePendingGarrisonActions(): void {
-    for (const [infantryId, buildingId] of this.pendingGarrisonActions.entries()) {
-      const infantry = this.spawnedEntities.get(infantryId);
-      const building = this.spawnedEntities.get(buildingId);
-      if (!infantry || !building || infantry.destroyed || building.destroyed) {
-        this.pendingGarrisonActions.delete(infantryId);
-        continue;
-      }
-      if (!this.canExecuteGarrisonBuildingEnterAction(infantry, building, 'SCRIPT')) {
-        this.pendingGarrisonActions.delete(infantryId);
-        continue;
-      }
-
-      const interactionDistance = this.resolveEntityInteractionDistance(infantry, building);
-      const distance = Math.hypot(building.x - infantry.x, building.z - infantry.z);
-      if (distance > interactionDistance) {
-        continue;
-      }
-
-      this.enterGarrisonBuilding(infantry, building);
-    }
-  }
-
-  /**
-   * Source parity: OpenContain::addToContain / TransportContain::addToContain —
-   * enter a transport-style container (Humvee, Chinook, Battle Bus, Overlord rider slots).
-   */
-  private handleEnterTransportCommand(command: EnterTransportCommand): void {
-    const passenger = this.spawnedEntities.get(command.entityId);
-    const transport = this.spawnedEntities.get(command.targetTransportId);
-    if (!passenger || !transport || passenger.destroyed || transport.destroyed) {
-      return;
-    }
-    const commandSource = command.commandSource ?? 'PLAYER';
-    // Source parity: ActionManager::canEnterObject — cannot enter self.
-    if (passenger.id === transport.id) return;
-    if (this.isEntityEffectivelyDeadForEnter(passenger) || this.isEntityEffectivelyDeadForEnter(transport)) return;
-    if (this.isContainerEnterTargetShrouded(passenger, transport, commandSource)) return;
-
-    // Source parity: OpenContain::addToContain — cannot enter if already contained.
-    if (this.isEntityContained(passenger)) return;
-    if (!this.canSourceAttemptContainerEnter(passenger)) return;
-    if (!this.canTargetAcceptContainerEnter(transport)) return;
-
-    // Validate: target must have a transport-style contain profile.
-    const containProfile = transport.containProfile;
-    if (!containProfile) return;
-    if (containProfile.moduleType === 'HEAL' && passenger.health >= passenger.maxHealth) return;
-    if (this.blocksNonOwnerContainerEnter(passenger, transport)) return;
-    const ignoreCapacityCheck = this.shouldIgnoreCapacityForNonOwnerContainerEnter(passenger, transport);
-
-    // Source parity: TunnelContain/CaveContain — route to shared-network entry.
-    if (containProfile.moduleType === 'TUNNEL' || containProfile.moduleType === 'CAVE') {
-      const kindOf = this.resolveEntityKindOfSet(passenger);
-      if (kindOf.has('AIRCRAFT')) return;
-      const tracker = this.resolveTunnelTrackerForContainer(transport);
-      if (!tracker || tracker.passengerIds.size >= this.config.maxTunnelCapacity) return;
-
-      const interactionDistance = this.resolveEntityInteractionDistance(passenger, transport);
-      const distance = Math.hypot(transport.x - passenger.x, transport.z - passenger.z);
-      if (distance > interactionDistance) {
-        this.issueMoveTo(passenger.id, transport.x, transport.z);
-        this.pendingTunnelActions.set(passenger.id, transport.id);
-        return;
-      }
-      this.enterTunnel(passenger, transport);
-      return;
-    }
-
-    const isTransportContain = containProfile.moduleType === 'TRANSPORT'
-      || containProfile.moduleType === 'OVERLORD'
-      || containProfile.moduleType === 'HELIX';
-    const isOpenStyleContain = containProfile.moduleType === 'OPEN'
-      || containProfile.moduleType === 'HEAL'
-      || containProfile.moduleType === 'INTERNET_HACK';
-    if (!isTransportContain && !isOpenStyleContain) return;
-
-    if (isTransportContain) {
-      // Source parity: TransportContain::isValidContainerFor — when a rider is a
-      // special-zero-slot container (e.g. parachute shell), validate against its rider.
-      const validationPassenger = this.resolveScriptTransportValidationEntity(passenger);
-      if (this.normalizeSide(validationPassenger.side) !== this.normalizeSide(transport.side)) return;
-      if (!this.isScriptContainRelationshipAllowed(transport, validationPassenger)) return;
-      if (!this.isScriptContainKindAllowed(transport, validationPassenger)) return;
-
-      const kindOf = this.resolveEntityKindOfSet(validationPassenger);
-      if (containProfile.moduleType === 'TRANSPORT') {
-        if (!kindOf.has('INFANTRY') && !kindOf.has('VEHICLE')) return;
-      } else if (containProfile.moduleType === 'OVERLORD' || containProfile.moduleType === 'HELIX') {
-        if (!kindOf.has('INFANTRY') && !kindOf.has('PORTABLE_STRUCTURE')) return;
-      }
-
-      if (!ignoreCapacityCheck && !this.canScriptContainerFitEntity(transport, passenger)) return;
-    } else {
-      if (!this.isScriptContainRelationshipAllowed(transport, passenger)) return;
-      if (!this.isScriptContainKindAllowed(transport, passenger)) return;
-      if (!ignoreCapacityCheck && !this.canScriptContainerFitEntity(transport, passenger)) return;
-    }
-
-    // Move passenger to transport if not close enough.
-    const interactionDistance = this.resolveEntityInteractionDistance(passenger, transport);
-    const distance = Math.hypot(transport.x - passenger.x, transport.z - passenger.z);
-    if (transport.chinookAIProfile && transport.chinookFlightStatus !== 'LANDED') {
-      if (distance > interactionDistance) {
-        this.issueMoveTo(passenger.id, transport.x, transport.z);
-      }
-      this.pendingTransportActions.set(passenger.id, transport.id);
-      this.setChinookFlightStatus(transport, 'LANDING');
-      return;
-    }
-    if (distance > interactionDistance) {
-      this.issueMoveTo(passenger.id, transport.x, transport.z);
-      this.pendingTransportActions.set(passenger.id, transport.id);
-      return;
-    }
-
-    this.enterTransport(passenger, transport);
-  }
-
-  private updatePendingTransportActions(): void {
-    for (const [passengerId, transportId] of this.pendingTransportActions.entries()) {
-      const passenger = this.spawnedEntities.get(passengerId);
-      const transport = this.spawnedEntities.get(transportId);
-      if (!passenger || !transport || passenger.destroyed || transport.destroyed) {
-        this.pendingTransportActions.delete(passengerId);
-        continue;
-      }
-      if (passenger.id === transport.id) {
-        this.pendingTransportActions.delete(passengerId);
-        continue;
-      }
-      if (this.isEntityEffectivelyDeadForEnter(passenger) || this.isEntityEffectivelyDeadForEnter(transport)) {
-        this.pendingTransportActions.delete(passengerId);
-        continue;
-      }
-      if (!this.canSourceAttemptContainerEnter(passenger) || !this.canTargetAcceptContainerEnter(transport)) {
-        this.pendingTransportActions.delete(passengerId);
-        continue;
-      }
-      if (this.blocksNonOwnerContainerEnter(passenger, transport)) {
-        this.pendingTransportActions.delete(passengerId);
-        continue;
-      }
-      const ignoreCapacityCheck = this.shouldIgnoreCapacityForNonOwnerContainerEnter(passenger, transport);
-
-      if (transport.chinookAIProfile && transport.chinookFlightStatus !== 'LANDED') {
-        this.setChinookFlightStatus(transport, 'LANDING');
-        continue;
-      }
-
-      if (this.isEntityContained(passenger)) {
-        this.pendingTransportActions.delete(passengerId);
-        continue;
-      }
-
-      const interactionDistance = this.resolveEntityInteractionDistance(passenger, transport);
-      const distance = Math.hypot(transport.x - passenger.x, transport.z - passenger.z);
-      if (distance > interactionDistance) continue;
-
-      // Close enough — check capacity again and enter.
-      const containProfile = transport.containProfile;
-      if (!containProfile) {
-        this.pendingTransportActions.delete(passengerId);
-        continue;
-      }
-
-      if (
-        containProfile.moduleType === 'TRANSPORT'
-        || containProfile.moduleType === 'OVERLORD'
-        || containProfile.moduleType === 'HELIX'
-      ) {
-        const validationPassenger = this.resolveScriptTransportValidationEntity(passenger);
-        if (this.normalizeSide(validationPassenger.side) !== this.normalizeSide(transport.side)) {
-          this.pendingTransportActions.delete(passengerId);
-          continue;
-        }
-        if (!this.isScriptContainRelationshipAllowed(transport, validationPassenger)) {
-          this.pendingTransportActions.delete(passengerId);
-          continue;
-        }
-        if (!this.isScriptContainKindAllowed(transport, validationPassenger)) {
-          this.pendingTransportActions.delete(passengerId);
-          continue;
-        }
-      } else if (
-        containProfile.moduleType !== 'OPEN'
-        && containProfile.moduleType !== 'HEAL'
-        && containProfile.moduleType !== 'INTERNET_HACK'
-      ) {
-        this.pendingTransportActions.delete(passengerId);
-        continue;
-      } else if (!this.isScriptContainRelationshipAllowed(transport, passenger)) {
-        this.pendingTransportActions.delete(passengerId);
-        continue;
-      } else if (!this.isScriptContainKindAllowed(transport, passenger)) {
-        this.pendingTransportActions.delete(passengerId);
-        continue;
-      }
-
-      if (!ignoreCapacityCheck && !this.canScriptContainerFitEntity(transport, passenger)) {
-        this.pendingTransportActions.delete(passengerId);
-        continue;
-      }
-      if (containProfile.moduleType === 'HEAL' && passenger.health >= passenger.maxHealth) {
-        this.pendingTransportActions.delete(passengerId);
-        continue;
-      }
-
-      this.enterTransport(passenger, transport);
-    }
-  }
-
-  /**
-   * Source parity: BuildAssistant::repairObject — dozer repairs a damaged friendly building.
-   */
-  private handleRepairBuildingCommand(command: RepairBuildingCommand): void {
-    const dozer = this.spawnedEntities.get(command.entityId);
-    const building = this.spawnedEntities.get(command.targetBuildingId);
-    if (!dozer || !building || dozer.destroyed || building.destroyed) return;
-    const commandSource = command.commandSource ?? 'PLAYER';
-
-    if (this.isWorkerEntity(dozer)) {
-      // Source parity: WorkerAIUpdate::newTask clears preferred dock when entering dozer tasks.
-      this.resetSupplyTruckState(dozer.id, true);
-    }
-
-    // Source parity: DozerAIUpdate::privateResumeConstruction — if the building is
-    // still under construction, resume building instead of repairing.
-    if (this.canDozerResumeConstructionTarget(dozer, building, commandSource)) {
-      // Source parity: new build task cancels active repair task.
-      if (this.pendingRepairActions.has(dozer.id)) {
-        this.pendingRepairActions.delete(dozer.id);
-        this.clearDozerTaskOrder(dozer, 'REPAIR');
-      }
-      // Source parity: dozer can own only one active build target at a time.
-      const existingBuildTargetId = this.pendingConstructionActions.get(dozer.id);
-      if (existingBuildTargetId !== undefined && existingBuildTargetId !== building.id) {
-        this.cancelDozerConstructionTask(dozer.id);
-      }
-      // Another dozer can resume. Claim it.
-      building.builderId = dozer.id;
-      this.pendingConstructionActions.set(dozer.id, building.id);
-      dozer.dozerBuildTaskOrderFrame = this.frameCounter;
-      this.issueMoveTo(dozer.id, building.x, building.z);
-      return;
-    }
-
-    if (!this.canDozerRepairTarget(dozer, building, commandSource)) return;
-    if (!this.canDozerAcceptNewRepairTarget(dozer, building)) return;
-    // Source parity: repair task replaces active build task for this dozer/worker.
-    if (this.pendingConstructionActions.has(dozer.id)) {
-      this.cancelDozerConstructionTask(dozer.id);
-    }
-
-    // Move dozer to building if not close enough.
-    const distance = Math.hypot(building.x - dozer.x, building.z - dozer.z);
-    if (distance > 20) {
-      this.issueMoveTo(dozer.id, building.x, building.z);
-    }
-    this.pendingRepairActions.set(dozer.id, building.id);
-    dozer.dozerRepairTaskOrderFrame = this.frameCounter;
-  }
-
-  /**
-   * Source parity: ActionManager::canResumeConstructionOf.
-   */
-  private canDozerResumeConstructionTarget(
-    dozer: MapEntity,
-    building: MapEntity,
-    commandSource: 'PLAYER' | 'AI' | 'SCRIPT',
-  ): boolean {
-    if (!this.isEntityDozerCapable(dozer)) {
-      return false;
-    }
-    if (this.isEntityEffectivelyDeadForEnter(dozer)) {
-      return false;
-    }
-    if (this.isEntityContained(dozer)) {
-      return false;
-    }
-
-    const isUnderConstruction = building.objectStatusFlags.has('UNDER_CONSTRUCTION');
-    if (!isUnderConstruction) {
-      return false;
-    }
-
-    if (this.getTeamRelationship(dozer, building) !== RELATIONSHIP_ALLIES) {
-      return false;
-    }
-    if (this.isDozerActionTargetShrouded(dozer, building, commandSource)) {
-      return false;
-    }
-
-    if (building.builderId === 0) {
-      return true;
-    }
-
-    const builder = this.spawnedEntities.get(building.builderId);
-    if (!builder || builder.destroyed) {
-      return true;
-    }
-
-    if (
-      this.pendingConstructionActions.get(builder.id) === building.id
-      && this.getDozerCurrentTask(builder) === 'BUILD'
-    ) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Source parity: DozerAIUpdate::canAcceptNewRepair / WorkerAIUpdate::canAcceptNewRepair.
-   * Duplicate repair orders on the same current target are ignored.
-   */
-  private canDozerAcceptNewRepairTarget(dozer: MapEntity, target: MapEntity): boolean {
-    if (this.getDozerCurrentTask(dozer) !== 'REPAIR') {
-      return true;
-    }
-
-    const currentRepairTargetId = this.pendingRepairActions.get(dozer.id);
-    if (!currentRepairTargetId) {
-      return true;
-    }
-    if (currentRepairTargetId === target.id) {
-      return false;
-    }
-
-    const currentRepairTarget = this.spawnedEntities.get(currentRepairTargetId);
-    if (!currentRepairTarget || currentRepairTarget.destroyed) {
-      return true;
-    }
-
-    if (currentRepairTarget.kindOf.has('BRIDGE_TOWER') && target.kindOf.has('BRIDGE_TOWER')) {
-      const currentSegmentId = this.bridgeSegmentByControlEntity.get(currentRepairTarget.id);
-      const nextSegmentId = this.bridgeSegmentByControlEntity.get(target.id);
-      // Source parity: keep repairing current bridge if both towers map to the same bridge segment.
-      if (currentSegmentId !== undefined && currentSegmentId === nextSegmentId) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Source parity: BuildAssistant repair update — dozers repair buildings over time.
-   * Repair rate comes from DozerAIUpdate/WorkerAIUpdate RepairHealthPercentPerSecond.
-   */
-  private getDozerCurrentTask(dozer: MapEntity): 'BUILD' | 'REPAIR' | null {
-    const hasBuild = this.pendingConstructionActions.has(dozer.id);
-    const hasRepair = this.pendingRepairActions.has(dozer.id);
-    if (!hasBuild && !hasRepair) {
-      return null;
-    }
-    if (hasBuild && !hasRepair) {
-      return 'BUILD';
-    }
-    if (hasRepair && !hasBuild) {
-      return 'REPAIR';
-    }
-    return dozer.dozerRepairTaskOrderFrame > dozer.dozerBuildTaskOrderFrame ? 'REPAIR' : 'BUILD';
-  }
-
-  private clearDozerTaskOrder(dozer: MapEntity | null, task: 'BUILD' | 'REPAIR'): void {
-    if (!dozer) {
-      return;
-    }
-    if (task === 'BUILD') {
-      dozer.dozerBuildTaskOrderFrame = 0;
-    } else {
-      dozer.dozerRepairTaskOrderFrame = 0;
-    }
-  }
-
-  private updatePendingRepairActions(): void {
-    for (const [dozerId, buildingId] of this.pendingRepairActions.entries()) {
-      const dozer = this.spawnedEntities.get(dozerId);
-      const building = this.spawnedEntities.get(buildingId);
-      if (!dozer || !building || dozer.destroyed || building.destroyed) {
-        this.pendingRepairActions.delete(dozerId);
-        this.clearDozerTaskOrder(dozer ?? null, 'REPAIR');
-        continue;
-      }
-
-      if (this.getDozerCurrentTask(dozer) !== 'REPAIR') {
-        continue;
-      }
-
-      // Building fully repaired.
-      if (building.health >= building.maxHealth) {
-        this.onObjectRepaired(building.id);
-        this.pendingRepairActions.delete(dozerId);
-        this.clearDozerTaskOrder(dozer, 'REPAIR');
-        continue;
-      }
-
-      // Must be close enough to repair.
-      const distance = Math.hypot(building.x - dozer.x, building.z - dozer.z);
-      if (distance > 20) continue; // Still moving
-
-      // Stop dozer movement while repairing.
-      if (dozer.moving) {
-        dozer.moving = false;
-        dozer.moveTarget = null;
-        dozer.movePath = [];
-      }
-
-      const repairHealthPercentPerSecond = dozer.dozerAIProfile?.repairHealthPercentPerSecond ?? 0.02;
-      if (repairHealthPercentPerSecond <= 0) {
-        continue;
-      }
-      const healAmount = (repairHealthPercentPerSecond / LOGIC_FRAME_RATE) * building.maxHealth;
-      if (healAmount <= 0) {
-        continue;
-      }
-
-      // Source parity: attemptHealingFromSoleBenefactor rejects competing dozers/workers.
-      const healed = this.attemptHealingFromSoleBenefactor(building, healAmount, dozer.id, 2);
-      if (!healed) {
-        this.pendingRepairActions.delete(dozerId);
-        this.clearDozerTaskOrder(dozer, 'REPAIR');
-        continue;
-      }
-      if (building.health >= building.maxHealth) {
-        this.onObjectRepaired(building.id);
-      }
-    }
-  }
-
-  /**
-   * Source parity: DozerPrimaryIdleState::update — bored dozers auto-seek nearby repairs.
-   */
-  private updateDozerIdleBehavior(): void {
-    for (const entity of this.spawnedEntities.values()) {
-      if (entity.destroyed) continue;
-      const profile = entity.dozerAIProfile;
-      if (!profile || profile.boredTimeFrames <= 0 || profile.boredRange <= 0) continue;
-
-      const hasTask = this.pendingConstructionActions.has(entity.id)
-        || this.pendingRepairActions.has(entity.id);
-      this.setDozerMineClearingDetail(entity, !hasTask);
-      if (this.isWorkerEntity(entity) && !hasTask) {
-        // Source parity: WorkerAIUpdate runs dozer logic only while in dozer tasks.
-        entity.dozerIdleTooLongTimestamp = this.frameCounter;
-        continue;
-      }
-      const isIdle = !entity.moving
-        && entity.moveTarget === null
-        && entity.attackTargetEntityId === null
-        && entity.attackTargetPosition === null
-        && !hasTask;
-
-      if (!isIdle) {
-        entity.dozerIdleTooLongTimestamp = this.frameCounter;
-        continue;
-      }
-
-      if ((this.frameCounter - entity.dozerIdleTooLongTimestamp) <= profile.boredTimeFrames) {
-        continue;
-      }
-
-      // Source parity: throttle expensive scans by resetting idle timestamp after each check.
-      entity.dozerIdleTooLongTimestamp = this.frameCounter;
-
-      const target = this.findDozerAutoRepairTarget(entity, profile.boredRange);
-      if (target) {
-        this.handleRepairBuildingCommand({
-          type: 'repairBuilding',
-          entityId: entity.id,
-          targetBuildingId: target.id,
-          commandSource: 'AI',
-        });
-        continue;
-      }
-
-      const mineTarget = this.findDozerAutoMineTarget(entity, profile.boredRange);
-      if (!mineTarget) {
-        continue;
-      }
-
-      // Source parity: DozerPrimaryIdleState::update issues aiAttackObject(..., CMD_FROM_DOZER)
-      // when no repair target is available.
-      this.issueAttackEntity(entity.id, mineTarget.id, 'DOZER');
-    }
-  }
-
-  private findDozerAutoRepairTarget(dozer: MapEntity, range: number): MapEntity | null {
-    const rangeSqr = range * range;
-    let closest: MapEntity | null = null;
-    let closestDistSqr = Infinity;
-    for (const candidate of this.spawnedEntities.values()) {
-      if (candidate.id === dozer.id || candidate.destroyed) continue;
-      if (!candidate.kindOf.has('STRUCTURE')) continue;
-      if (!this.canDozerRepairTarget(dozer, candidate, 'AI')) continue;
-
-      const dx = candidate.x - dozer.x;
-      const dz = candidate.z - dozer.z;
-      const distSqr = dx * dx + dz * dz;
-      if (distSqr > rangeSqr) continue;
-
-      if (distSqr < closestDistSqr) {
-        closest = candidate;
-        closestDistSqr = distSqr;
-      }
-    }
-    return closest;
-  }
-
-  private findDozerAutoMineTarget(dozer: MapEntity, range: number): MapEntity | null {
-    const rangeSqr = range * range;
-    let closest: MapEntity | null = null;
-    let closestDistSqr = Infinity;
-
-    for (const candidate of this.spawnedEntities.values()) {
-      if (candidate.id === dozer.id || candidate.destroyed) continue;
-      const kindOf = this.resolveEntityKindOfSet(candidate);
-      if (!kindOf.has('MINE') && !kindOf.has('DEMOTRAP')) continue;
-      if (!this.canAttackerTargetEntity(dozer, candidate, 'DOZER')) continue;
-
-      const dx = candidate.x - dozer.x;
-      const dz = candidate.z - dozer.z;
-      const distSqr = dx * dx + dz * dz;
-      if (distSqr > rangeSqr) continue;
-      if (distSqr < closestDistSqr) {
-        closest = candidate;
-        closestDistSqr = distSqr;
-      }
-    }
-
-    return closest;
-  }
-
-  private setDozerMineClearingDetail(entity: MapEntity, enabled: boolean): void {
+  /* @internal */ setDozerMineClearingDetail(entity: MapEntity, enabled: boolean): void {
     if (!entity.dozerAIProfile || this.isWorkerEntity(entity)) {
       return;
     }
@@ -28773,7 +26165,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  private canDozerRepairTarget(
+  /* @internal */ canDozerRepairTarget(
     dozer: MapEntity,
     building: MapEntity,
     commandSource: 'PLAYER' | 'AI' | 'SCRIPT',
@@ -30277,7 +27669,7 @@ export class GameLogicSubsystem implements Subsystem {
     return pointInPolygon(worldX, worldZ, region.points);
   }
 
-  private resetSupplyTruckState(entityId: number, clearPreferredDock = false): void {
+  /* @internal */ resetSupplyTruckState(entityId: number, clearPreferredDock = false): void {
     const state = this.supplyTruckStates.get(entityId);
     if (!state) {
       return;
@@ -30312,7 +27704,7 @@ export class GameLogicSubsystem implements Subsystem {
     return state;
   }
 
-  private setSupplyTruckForceBusy(entityId: number, enabled: boolean): void {
+  /* @internal */ setSupplyTruckForceBusy(entityId: number, enabled: boolean): void {
     const entity = this.spawnedEntities.get(entityId);
     if (!entity || !entity.supplyTruckProfile) {
       return;
@@ -30717,7 +28109,7 @@ export class GameLogicSubsystem implements Subsystem {
 
   // ── Source parity: AssaultTransportAIUpdate — auto-deploy/recall passengers ──
 
-  private beginAssaultTransportAttack(transport: MapEntity, targetEntityId: number, _isAttackMove: boolean): void {
+  /* @internal */ beginAssaultTransportAttack(transport: MapEntity, targetEntityId: number, _isAttackMove: boolean): void {
     const state = this.getOrCreateAssaultTransportState(transport.id);
     // Source parity: reset() then set attack flags.
     state.members = [];
@@ -30727,7 +28119,7 @@ export class GameLogicSubsystem implements Subsystem {
     state.newOccupantsAreNewMembers = false;
   }
 
-  private beginAssaultTransportAttackMove(transport: MapEntity, targetX: number, targetZ: number): void {
+  /* @internal */ beginAssaultTransportAttackMove(transport: MapEntity, targetX: number, targetZ: number): void {
     const state = this.getOrCreateAssaultTransportState(transport.id);
     state.members = [];
     state.designatedTargetId = null;
@@ -30738,7 +28130,7 @@ export class GameLogicSubsystem implements Subsystem {
     state.newOccupantsAreNewMembers = false;
   }
 
-  private resetAssaultTransportState(entityId: number): void {
+  /* @internal */ resetAssaultTransportState(entityId: number): void {
     const state = this.assaultTransportStateByEntityId.get(entityId);
     if (!state) return;
     // Source parity: retrieveMembers() — order all outside members back in.
@@ -31625,7 +29017,7 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity: Object::attemptHealingFromSoleBenefactor — anti-stack healing.
    * Only one benefactor can heal a unit at a time.
    */
-  private attemptHealingFromSoleBenefactor(
+  /* @internal */ attemptHealingFromSoleBenefactor(
     target: MapEntity, amount: number, sourceId: number, duration: number,
   ): boolean {
     const now = this.frameCounter;
@@ -33534,7 +30926,7 @@ export class GameLogicSubsystem implements Subsystem {
   /**
    * Source parity: TunnelContain::onSelling — if last tunnel, eject passengers safely.
    */
-  private handleTunnelSelling(entity: MapEntity): void {
+  /* @internal */ handleTunnelSelling(entity: MapEntity): void {
     if (!entity.containProfile || entity.containProfile.moduleType !== 'TUNNEL') return;
     const tracker = this.resolveTunnelTracker(entity.side);
     if (!tracker) return;
@@ -34429,7 +31821,7 @@ export class GameLogicSubsystem implements Subsystem {
     return Math.max(0, Math.trunc(cost * (sellPercentage >= 0 ? sellPercentage : SOURCE_DEFAULT_SELL_PERCENTAGE)));
   }
 
-  private resolveConstructPlacementPositions(
+  /* @internal */ resolveConstructPlacementPositions(
     command: ConstructBuildingCommand,
     objectDef: ObjectDef,
   ): Array<readonly [number, number, number]> {
@@ -34616,7 +32008,7 @@ export class GameLogicSubsystem implements Subsystem {
     return null;
   }
 
-  private isBeaconEntity(entity: MapEntity): boolean {
+  /* @internal */ isBeaconEntity(entity: MapEntity): boolean {
     const entitySide = this.normalizeSide(entity.side);
     if (entitySide) {
       const beaconTemplateName = this.resolveBeaconTemplateNameForSide(entitySide);
@@ -34848,7 +32240,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  private queueUnitProduction(entityId: number, unitTemplateName: string): boolean {
+  /* @internal */ queueUnitProduction(entityId: number, unitTemplateName: string): boolean {
     const producer = this.spawnedEntities.get(entityId);
     if (!producer || producer.destroyed) {
       return false;
@@ -35217,7 +32609,7 @@ export class GameLogicSubsystem implements Subsystem {
     return names;
   }
 
-  private cancelUnitProduction(entityId: number, productionId: number): boolean {
+  /* @internal */ cancelUnitProduction(entityId: number, productionId: number): boolean {
     const producer = this.spawnedEntities.get(entityId);
     if (!producer || producer.destroyed) {
       return false;
@@ -35245,7 +32637,7 @@ export class GameLogicSubsystem implements Subsystem {
     return true;
   }
 
-  private queueUpgradeProduction(entityId: number, upgradeName: string): boolean {
+  /* @internal */ queueUpgradeProduction(entityId: number, upgradeName: string): boolean {
     const producer = this.spawnedEntities.get(entityId);
     if (!producer || producer.destroyed) {
       return false;
@@ -35457,7 +32849,7 @@ export class GameLogicSubsystem implements Subsystem {
     return readStringField(commandSetDef.fields, [String(slot)]) ?? '';
   }
 
-  private cancelUpgradeProduction(entityId: number, upgradeName: string): boolean {
+  /* @internal */ cancelUpgradeProduction(entityId: number, upgradeName: string): boolean {
     const producer = this.spawnedEntities.get(entityId);
     if (!producer || producer.destroyed) {
       return false;
@@ -36225,7 +33617,7 @@ export class GameLogicSubsystem implements Subsystem {
     );
   }
 
-  private setEntityRallyPoint(entityId: number, targetX: number, targetZ: number): void {
+  /* @internal */ setEntityRallyPoint(entityId: number, targetX: number, targetZ: number): void {
     const entity = this.spawnedEntities.get(entityId);
     if (!entity || entity.destroyed) {
       return;
@@ -36281,7 +33673,7 @@ export class GameLogicSubsystem implements Subsystem {
    * player-issued attack, propagate the attack to all contained passengers that are allowed
    * to fire from inside. (TransportAIUpdate.cpp lines 80-110)
    */
-  private propagateTransportAttackToPassengers(
+  /* @internal */ propagateTransportAttackToPassengers(
     transport: MapEntity,
     targetEntityId: number,
     commandSource: AttackCommandSource,
@@ -37925,7 +35317,7 @@ export class GameLogicSubsystem implements Subsystem {
    * Initialize guard-position mode for an entity. Moves it to the guard point
    * and enters the RETURNING state (mirrors C++ AIGuardState::onEnter → setState(AI_GUARD_RETURN)).
    */
-  private initGuardPosition(entityId: number, targetX: number, targetZ: number, guardMode: number): void {
+  /* @internal */ initGuardPosition(entityId: number, targetX: number, targetZ: number, guardMode: number): void {
     const entity = this.spawnedEntities.get(entityId);
     if (!entity || entity.destroyed || !entity.canMove) {
       return;
@@ -37954,7 +35346,7 @@ export class GameLogicSubsystem implements Subsystem {
    * Initialize guard-object mode for an entity. The entity follows and protects
    * the target object, treating its position as a dynamic guard point.
    */
-  private initGuardObject(entityId: number, targetObjectId: number, guardMode: number): void {
+  /* @internal */ initGuardObject(entityId: number, targetObjectId: number, guardMode: number): void {
     const entity = this.spawnedEntities.get(entityId);
     if (!entity || entity.destroyed || !entity.canMove) {
       return;
@@ -47700,7 +45092,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  private selectionIdsEqual(left: readonly number[], right: readonly number[]): boolean {
+  /* @internal */ selectionIdsEqual(left: readonly number[], right: readonly number[]): boolean {
     if (left.length !== right.length) {
       return false;
     }
@@ -47716,7 +45108,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.scriptSelectionChangedFrame = this.frameCounter;
   }
 
-  private removeEntityFromSelection(entityId: number): void {
+  /* @internal */ removeEntityFromSelection(entityId: number): void {
     let changed = false;
     if (this.selectedEntityId === entityId) {
       this.selectedEntityId = null;
@@ -47738,7 +45130,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  private filterValidSelectionIds(entityIds: readonly number[]): number[] {
+  /* @internal */ filterValidSelectionIds(entityIds: readonly number[]): number[] {
     const seen = new Set<number>();
     const nextSelectionIds: number[] = [];
     for (const candidateId of entityIds) {
