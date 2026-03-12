@@ -45,7 +45,12 @@ import {
 } from '@generals/audio';
 import { IniDataRegistry, type AudioEventDef, type IniDataBundle } from '@generals/ini-data';
 import { initializeNetworkClient } from '@generals/network';
-import { GameLogicSubsystem, resolveRenderAssetProfile } from '@generals/game-logic';
+import {
+  classifyCampaignReference,
+  GameLogicSubsystem,
+  isLiveCampaignLifecycle,
+  resolveRenderAssetProfile,
+} from '@generals/game-logic';
 import {
   UiRuntime,
   initializeUiOverlay,
@@ -3116,8 +3121,18 @@ async function startGame(
               return; // Skip postgame screen for mid-campaign victory
             } else {
               // Campaign complete — play final movie then show postgame
-              const finalMovie = cm.getCurrentCampaign()?.finalMovieName;
-              if (finalMovie && vp) {
+              const currentCampaign = cm.getCurrentCampaign();
+              const finalMovie = currentCampaign?.finalMovieName;
+              const liveFinalMovie = currentCampaign && finalMovie
+                ? isLiveCampaignLifecycle(
+                    classifyCampaignReference({
+                      campaignName: currentCampaign.name,
+                      assetKind: 'finalVictoryMovie',
+                      assetName: finalMovie,
+                    }).lifecycle,
+                  )
+                : false;
+              if (finalMovie && liveFinalMovie && vp) {
                 vp.playFullscreen(finalMovie).then(() => {
                   campaignContext.onReturnToShell();
                 });

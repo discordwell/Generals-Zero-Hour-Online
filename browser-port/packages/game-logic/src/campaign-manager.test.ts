@@ -737,8 +737,8 @@ END
           mission: null,
           assetKind: 'finalVictoryMovie',
           assetName: 'USACampaignVictory',
-          lifecycle: 'shipped',
-          reason: 'live-challenge-final-movie-reference',
+          lifecycle: 'legacy',
+          reason: 'unshipped-final-victory-placeholder',
         },
         {
           campaign: 'training',

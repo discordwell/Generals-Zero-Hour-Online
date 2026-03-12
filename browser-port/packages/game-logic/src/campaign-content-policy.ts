@@ -24,7 +24,7 @@ export type CampaignClassificationReason =
   | 'shipped-retail-campaign'
   | 'demo-mission-disk-campaign'
   | 'training-removed-from-zero-hour-menu'
-  | 'live-challenge-final-movie-reference';
+  | 'unshipped-final-victory-placeholder';
 
 export interface CampaignReferenceClassification {
   lifecycle: CampaignContentLifecycle;
@@ -37,6 +37,12 @@ export interface CampaignReferenceDescriptor {
   assetName?: string | null;
   missionName?: string | null;
 }
+
+const LEGACY_FINAL_VICTORY_PLACEHOLDER_NAMES = new Set([
+  'usacampaignvictory',
+  'glacampaignvictory',
+  'chinacampaignvictory',
+]);
 
 function normalizeName(value: string | null | undefined): string {
   return value?.trim().toLowerCase() ?? '';
@@ -85,16 +91,14 @@ export function classifyCampaignReference(
     return campaignLifecycle;
   }
 
-  const normalizedCampaignName = normalizeName(reference.campaignName);
   const normalizedAssetName = normalizeName(reference.assetName);
   if (
-    normalizedCampaignName === 'challenge_0'
-    && reference.assetKind === 'finalVictoryMovie'
-    && normalizedAssetName === 'usacampaignvictory'
+    reference.assetKind === 'finalVictoryMovie'
+    && LEGACY_FINAL_VICTORY_PLACEHOLDER_NAMES.has(normalizedAssetName)
   ) {
     return {
-      lifecycle: 'shipped',
-      reason: 'live-challenge-final-movie-reference',
+      lifecycle: 'legacy',
+      reason: 'unshipped-final-victory-placeholder',
     };
   }
 

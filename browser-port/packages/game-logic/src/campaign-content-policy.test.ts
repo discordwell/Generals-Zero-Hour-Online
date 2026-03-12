@@ -63,7 +63,7 @@ describe('campaign content policy', () => {
     });
   });
 
-  it('keeps challenge final victory movies live for shipped challenge campaigns', () => {
+  it('classifies unshipped final victory placeholders as legacy content', () => {
     expect(
       classifyCampaignReference({
         campaignName: 'CHALLENGE_0',
@@ -71,8 +71,8 @@ describe('campaign content policy', () => {
         assetName: 'USACampaignVictory',
       }),
     ).toEqual({
-      lifecycle: 'shipped',
-      reason: 'live-challenge-final-movie-reference',
+      lifecycle: 'legacy',
+      reason: 'unshipped-final-victory-placeholder',
     });
   });
 
