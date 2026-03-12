@@ -136,6 +136,7 @@ soft_oal.dll
 *.wav
 *.mp3
 *.ogg
+*.iso
 
 # Game specific
 Generals/bin/backup/
