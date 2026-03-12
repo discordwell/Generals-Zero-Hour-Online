@@ -409,6 +409,71 @@ import {
   updateScriptSequentialScripts as updateScriptSequentialScriptsImpl,
   updateScriptWanderInPlace as updateScriptWanderInPlaceImpl,
 } from './script-engine.js';
+import {
+  setScriptCameraMovementFinished as setScriptCameraMovementFinishedImpl,
+  setScriptCameraTether as setScriptCameraTetherImpl,
+  clearScriptCameraTether as clearScriptCameraTetherImpl,
+  getScriptCameraTetherState as getScriptCameraTetherStateImpl,
+  setScriptCameraFollowNamed as setScriptCameraFollowNamedImpl,
+  clearScriptCameraFollowNamed as clearScriptCameraFollowNamedImpl,
+  getScriptCameraFollowState as getScriptCameraFollowStateImpl,
+  setScriptCameraSlaveMode as setScriptCameraSlaveModeImpl,
+  clearScriptCameraSlaveMode as clearScriptCameraSlaveModeImpl,
+  getScriptCameraSlaveModeState as getScriptCameraSlaveModeStateImpl,
+  setScriptCameraDefaultView as setScriptCameraDefaultViewImpl,
+  getScriptCameraDefaultViewState as getScriptCameraDefaultViewStateImpl,
+  setScriptCameraLookTowardObject as setScriptCameraLookTowardObjectImpl,
+  getScriptCameraLookTowardObjectState as getScriptCameraLookTowardObjectStateImpl,
+  setScriptCameraLookTowardWaypoint as setScriptCameraLookTowardWaypointImpl,
+  getScriptCameraLookTowardWaypointState as getScriptCameraLookTowardWaypointStateImpl,
+  requestScriptMoveCameraTo as requestScriptMoveCameraToImpl,
+  requestScriptMoveCameraAlongWaypointPath as requestScriptMoveCameraAlongWaypointPathImpl,
+  requestScriptResetCamera as requestScriptResetCameraImpl,
+  requestScriptRotateCamera as requestScriptRotateCameraImpl,
+  requestScriptSetupCamera as requestScriptSetupCameraImpl,
+  requestScriptZoomCamera as requestScriptZoomCameraImpl,
+  requestScriptPitchCamera as requestScriptPitchCameraImpl,
+  drainScriptCameraActionRequests as drainScriptCameraActionRequestsImpl,
+  requestScriptCameraModFreezeTime as requestScriptCameraModFreezeTimeImpl,
+  requestScriptCameraModFreezeAngle as requestScriptCameraModFreezeAngleImpl,
+  requestScriptCameraModFinalZoom as requestScriptCameraModFinalZoomImpl,
+  requestScriptCameraModFinalPitch as requestScriptCameraModFinalPitchImpl,
+  requestScriptCameraModFinalSpeedMultiplier as requestScriptCameraModFinalSpeedMultiplierImpl,
+  requestScriptCameraModRollingAverage as requestScriptCameraModRollingAverageImpl,
+  requestScriptCameraModFinalLookToward as requestScriptCameraModFinalLookTowardImpl,
+  requestScriptCameraModLookToward as requestScriptCameraModLookTowardImpl,
+  requestScriptCameraModMoveToSelection as requestScriptCameraModMoveToSelectionImpl,
+  drainScriptCameraModifierRequests as drainScriptCameraModifierRequestsImpl,
+  requestScriptCameraBlackWhiteMode as requestScriptCameraBlackWhiteModeImpl,
+  drainScriptCameraBlackWhiteRequests as drainScriptCameraBlackWhiteRequestsImpl,
+  requestScriptCameraFade as requestScriptCameraFadeImpl,
+  drainScriptCameraFadeRequests as drainScriptCameraFadeRequestsImpl,
+  requestScriptCameraMotionBlur as requestScriptCameraMotionBlurImpl,
+  requestScriptCameraMotionBlurJump as requestScriptCameraMotionBlurJumpImpl,
+  requestScriptCameraMotionBlurFollow as requestScriptCameraMotionBlurFollowImpl,
+  requestScriptCameraMotionBlurEndFollow as requestScriptCameraMotionBlurEndFollowImpl,
+  drainScriptCameraFilterRequests as drainScriptCameraFilterRequestsImpl,
+  requestScriptCameraAddShaker as requestScriptCameraAddShakerImpl,
+  drainScriptCameraShakerRequests as drainScriptCameraShakerRequestsImpl,
+  setScriptScreenShake as setScriptScreenShakeImpl,
+  getScriptScreenShakeState as getScriptScreenShakeStateImpl,
+  requestScriptMoviePlayback as requestScriptMoviePlaybackImpl,
+  drainScriptMoviePlaybackRequests as drainScriptMoviePlaybackRequestsImpl,
+  requestScriptCameoFlash as requestScriptCameoFlashImpl,
+  requestScriptPlaySoundEffect as requestScriptPlaySoundEffectImpl,
+  requestScriptPlaySoundEffectAt as requestScriptPlaySoundEffectAtImpl,
+  requestScriptSpeechPlay as requestScriptSpeechPlayImpl,
+  drainScriptAudioPlaybackRequests as drainScriptAudioPlaybackRequestsImpl,
+  setScriptAmbientSoundsPaused as setScriptAmbientSoundsPausedImpl,
+  setScriptCameraAudibleDistance as setScriptCameraAudibleDistanceImpl,
+  getScriptCameraAudibleDistance as getScriptCameraAudibleDistanceImpl,
+  requestScriptAudioRemoveAllDisabled as requestScriptAudioRemoveAllDisabledImpl,
+  requestScriptAudioRemoveType as requestScriptAudioRemoveTypeImpl,
+  drainScriptAudioRemovalRequests as drainScriptAudioRemovalRequestsImpl,
+  setScriptSoundVolumeScale as setScriptSoundVolumeScaleImpl,
+  setScriptSpeechVolumeScale as setScriptSpeechVolumeScaleImpl,
+  setScriptMusicVolumeScale as setScriptMusicVolumeScaleImpl,
+} from './script-camera.js';
 
 export * from './types.js';
 export * from './campaign-manager.js';
@@ -6392,7 +6457,7 @@ export class GameLogicSubsystem implements Subsystem {
   /** Source parity bridge: Radar::refreshTerrain script pulse frame. */
   private scriptRadarRefreshFrame = -1;
   /** Source parity bridge: TacticalView::shake request from scripts. */
-  private scriptScreenShakeState: ScriptScreenShakeState | null = null;
+  /* @internal */ scriptScreenShakeState: ScriptScreenShakeState | null = null;
   /** Source parity bridge: Display::setCinematicText from script action. */
   private scriptCinematicTextState: ScriptCinematicTextState | null = null;
   /** Source parity bridge: InGameUI::popupMessage script queue. */
@@ -6449,7 +6514,7 @@ export class GameLogicSubsystem implements Subsystem {
   /** Source parity bridge: ScriptActions::doTeamEmoticon / doNamedEmoticon. */
   private readonly scriptEmoticonRequests: ScriptEmoticonRequestState[] = [];
   /** Source parity bridge: ScriptActions::doCameraSetAudibleDistance (engine-side no-op). */
-  private scriptCameraAudibleDistance = 0;
+  /* @internal */ scriptCameraAudibleDistance = 0;
   /** Source parity bridge: ScriptActions::SET_FPS_LIMIT current max-FPS setting. */
   private scriptFramesPerSecondLimit = 0;
   /** Source parity: GlobalData::m_useFpsLimit flag toggled by SET_FPS_LIMIT. */
@@ -6479,13 +6544,13 @@ export class GameLogicSubsystem implements Subsystem {
   /** Source parity bridge: TacticalView lock-follow target from CAMERA_FOLLOW_NAMED actions. */
   private scriptCameraFollowState: ScriptCameraFollowState | null = null;
   /** Source parity bridge: TacticalView camera slave mode state from scripts. */
-  private scriptCameraSlaveModeState: ScriptCameraSlaveModeState | null = null;
+  /* @internal */ scriptCameraSlaveModeState: ScriptCameraSlaveModeState | null = null;
   /** Source parity bridge: TacticalView default camera values set by scripts. */
-  private scriptCameraDefaultViewState: ScriptCameraDefaultViewState | null = null;
+  /* @internal */ scriptCameraDefaultViewState: ScriptCameraDefaultViewState | null = null;
   /** Source parity bridge: TacticalView rotateCameraTowardObject request from scripts. */
   private scriptCameraLookTowardObjectState: ScriptCameraLookTowardObjectState | null = null;
   /** Source parity bridge: TacticalView rotateCameraTowardPosition request from scripts. */
-  private scriptCameraLookTowardWaypointState: ScriptCameraLookTowardWaypointState | null = null;
+  /* @internal */ scriptCameraLookTowardWaypointState: ScriptCameraLookTowardWaypointState | null = null;
   /** Source parity bridge: TacticalView camera action requests consumed by renderer integration. */
   private readonly scriptCameraActionRequests: ScriptCameraActionRequestState[] = [];
   /** Source parity bridge: TacticalView camera modifier requests during movement actions. */
@@ -8923,209 +8988,6 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
-   * Source parity bridge: mirrors TacticalView::isCameraMovementFinished state when
-   * renderer-side camera scripting is not yet directly wired.
-   */
-  setScriptCameraMovementFinished(finished: boolean): void {
-    this.scriptCameraMovementFinished = finished;
-  }
-
-  /**
-   * Source parity bridge: mirrors ScriptActions::doCameraTetherNamed.
-   * Consumed by script-camera runtime bridge after each simulation step.
-   */
-  setScriptCameraTether(entityId: number, immediate: boolean, play: number): boolean {
-    const entity = this.spawnedEntities.get(entityId);
-    if (!entity || entity.destroyed || !Number.isFinite(play)) {
-      return false;
-    }
-    this.scriptCameraTetherState = {
-      entityId,
-      immediate,
-      play,
-    };
-    return true;
-  }
-
-  /**
-   * Source parity bridge: mirrors ScriptActions::doCameraStopTetherNamed.
-   */
-  clearScriptCameraTether(): void {
-    this.scriptCameraTetherState = null;
-  }
-
-  getScriptCameraTetherState(): ScriptCameraTetherState | null {
-    if (!this.scriptCameraTetherState) {
-      return null;
-    }
-    return { ...this.scriptCameraTetherState };
-  }
-
-  /**
-   * Source parity bridge: mirrors ScriptActions::doCameraFollowNamed.
-   */
-  setScriptCameraFollowNamed(entityId: number, snapToUnit: boolean): boolean {
-    const entity = this.spawnedEntities.get(entityId);
-    if (!entity || entity.destroyed) {
-      return false;
-    }
-    this.scriptCameraFollowState = {
-      entityId,
-      snapToUnit,
-    };
-    return true;
-  }
-
-  /**
-   * Source parity bridge: mirrors ScriptActions::doStopCameraFollowUnit.
-   */
-  clearScriptCameraFollowNamed(): void {
-    this.scriptCameraFollowState = null;
-  }
-
-  getScriptCameraFollowState(): ScriptCameraFollowState | null {
-    if (!this.scriptCameraFollowState) {
-      return null;
-    }
-    return { ...this.scriptCameraFollowState };
-  }
-
-  /**
-   * Source parity bridge: ScriptActions::doC3CameraEnableSlaveMode.
-   * Consumed by script-camera runtime bridge after each simulation step.
-   */
-  setScriptCameraSlaveMode(thingTemplateName: string, boneName: string): boolean {
-    const normalizedThingTemplateName = thingTemplateName.trim();
-    const normalizedBoneName = boneName.trim();
-    if (!normalizedThingTemplateName || !normalizedBoneName) {
-      return false;
-    }
-    this.scriptCameraSlaveModeState = {
-      thingTemplateName: normalizedThingTemplateName,
-      boneName: normalizedBoneName,
-    };
-    return true;
-  }
-
-  /**
-   * Source parity bridge: ScriptActions::doC3CameraDisableSlaveMode.
-   */
-  clearScriptCameraSlaveMode(): void {
-    this.scriptCameraSlaveModeState = null;
-  }
-
-  getScriptCameraSlaveModeState(): ScriptCameraSlaveModeState | null {
-    if (!this.scriptCameraSlaveModeState) {
-      return null;
-    }
-    return { ...this.scriptCameraSlaveModeState };
-  }
-
-  /**
-   * Source parity bridge: mirrors ScriptActions::doCameraSetDefault.
-   * Consumed by script-camera runtime bridge after each simulation step.
-   */
-  setScriptCameraDefaultView(pitch: number, angle: number, maxHeight: number): boolean {
-    if (!Number.isFinite(pitch) || !Number.isFinite(angle) || !Number.isFinite(maxHeight)) {
-      return false;
-    }
-    this.scriptCameraDefaultViewState = {
-      pitch,
-      angle,
-      maxHeight,
-    };
-    return true;
-  }
-
-  getScriptCameraDefaultViewState(): ScriptCameraDefaultViewState | null {
-    if (!this.scriptCameraDefaultViewState) {
-      return null;
-    }
-    return { ...this.scriptCameraDefaultViewState };
-  }
-
-  /**
-   * Source parity bridge: mirrors ScriptActions::doRotateCameraTowardObject.
-   * Consumed by script-camera runtime bridge after each simulation step.
-   */
-  setScriptCameraLookTowardObject(
-    entityId: number,
-    durationSeconds: number,
-    holdSeconds: number,
-    easeInSeconds: number,
-    easeOutSeconds: number,
-  ): boolean {
-    const entity = this.spawnedEntities.get(entityId);
-    if (!entity || entity.destroyed) {
-      return false;
-    }
-    if (
-      !Number.isFinite(durationSeconds)
-      || !Number.isFinite(holdSeconds)
-      || !Number.isFinite(easeInSeconds)
-      || !Number.isFinite(easeOutSeconds)
-    ) {
-      return false;
-    }
-    this.scriptCameraLookTowardObjectState = {
-      entityId,
-      durationMs: durationSeconds * 1000,
-      holdMs: holdSeconds * 1000,
-      easeInMs: easeInSeconds * 1000,
-      easeOutMs: easeOutSeconds * 1000,
-    };
-    return true;
-  }
-
-  getScriptCameraLookTowardObjectState(): ScriptCameraLookTowardObjectState | null {
-    if (!this.scriptCameraLookTowardObjectState) {
-      return null;
-    }
-    return { ...this.scriptCameraLookTowardObjectState };
-  }
-
-  /**
-   * Source parity bridge: mirrors ScriptActions::doRotateCameraTowardWaypoint.
-   * Consumed by script-camera runtime bridge after each simulation step.
-   */
-  setScriptCameraLookTowardWaypoint(
-    waypointName: string,
-    durationSeconds: number,
-    easeInSeconds: number,
-    easeOutSeconds: number,
-    reverseRotation: boolean,
-  ): boolean {
-    const waypoint = this.resolveScriptWaypointPosition(waypointName);
-    if (!waypoint) {
-      return false;
-    }
-    if (
-      !Number.isFinite(durationSeconds)
-      || !Number.isFinite(easeInSeconds)
-      || !Number.isFinite(easeOutSeconds)
-    ) {
-      return false;
-    }
-    this.scriptCameraLookTowardWaypointState = {
-      waypointName: waypointName.trim(),
-      x: waypoint.x,
-      z: waypoint.z,
-      durationMs: durationSeconds * 1000,
-      easeInMs: easeInSeconds * 1000,
-      easeOutMs: easeOutSeconds * 1000,
-      reverseRotation,
-    };
-    return true;
-  }
-
-  getScriptCameraLookTowardWaypointState(): ScriptCameraLookTowardWaypointState | null {
-    if (!this.scriptCameraLookTowardWaypointState) {
-      return null;
-    }
-    return { ...this.scriptCameraLookTowardWaypointState };
-  }
-
-  /**
    * Source parity bridge: ScriptActions::doMoveCameraAlongWaypointPath follows
    * the first outgoing waypoint link chain (Waypoint::getLink(0)).
    */
@@ -9168,288 +9030,14 @@ export class GameLogicSubsystem implements Subsystem {
     return path;
   }
 
-  private queueScriptCameraActionRequest(request: Omit<ScriptCameraActionRequestState, 'frame'>): void {
+  /* @internal */ queueScriptCameraActionRequest(request: Omit<ScriptCameraActionRequestState, 'frame'>): void {
     this.scriptCameraActionRequests.push({
       ...request,
       frame: this.frameCounter,
     });
   }
 
-  /**
-   * Source parity bridge: mirrors ScriptActions::doMoveCameraTo.
-   */
-  /* @internal */ requestScriptMoveCameraTo(
-    waypointName: string,
-    durationSeconds: number,
-    cameraStutterSeconds: number,
-    easeInSeconds: number,
-    easeOutSeconds: number,
-  ): boolean {
-    const waypoint = this.resolveScriptWaypointPosition(waypointName);
-    if (!waypoint) {
-      return false;
-    }
-    if (
-      !Number.isFinite(durationSeconds)
-      || !Number.isFinite(cameraStutterSeconds)
-      || !Number.isFinite(easeInSeconds)
-      || !Number.isFinite(easeOutSeconds)
-    ) {
-      return false;
-    }
-    this.queueScriptCameraActionRequest({
-      requestType: 'MOVE_TO',
-      waypointName: waypointName.trim(),
-      lookAtWaypointName: null,
-      x: waypoint.x,
-      z: waypoint.z,
-      lookAtX: null,
-      lookAtZ: null,
-      durationMs: durationSeconds * 1000,
-      cameraStutterMs: cameraStutterSeconds * 1000,
-      easeInMs: easeInSeconds * 1000,
-      easeOutMs: easeOutSeconds * 1000,
-      rotations: null,
-      zoom: null,
-      pitch: null,
-    });
-    return true;
-  }
-
-  /**
-   * Source parity bridge: mirrors ScriptActions::doMoveCameraAlongWaypointPath.
-   */
-  /* @internal */ requestScriptMoveCameraAlongWaypointPath(
-    waypointName: string,
-    durationSeconds: number,
-    cameraStutterSeconds: number,
-    easeInSeconds: number,
-    easeOutSeconds: number,
-  ): boolean {
-    const waypoint = this.resolveScriptWaypointPosition(waypointName);
-    if (!waypoint) {
-      return false;
-    }
-    if (
-      !Number.isFinite(durationSeconds)
-      || !Number.isFinite(cameraStutterSeconds)
-      || !Number.isFinite(easeInSeconds)
-      || !Number.isFinite(easeOutSeconds)
-    ) {
-      return false;
-    }
-    this.queueScriptCameraActionRequest({
-      requestType: 'MOVE_ALONG_WAYPOINT_PATH',
-      waypointName: waypointName.trim(),
-      lookAtWaypointName: null,
-      x: waypoint.x,
-      z: waypoint.z,
-      lookAtX: null,
-      lookAtZ: null,
-      durationMs: durationSeconds * 1000,
-      cameraStutterMs: cameraStutterSeconds * 1000,
-      easeInMs: easeInSeconds * 1000,
-      easeOutMs: easeOutSeconds * 1000,
-      rotations: null,
-      zoom: null,
-      pitch: null,
-    });
-    return true;
-  }
-
-  /**
-   * Source parity bridge: mirrors ScriptActions::doResetCamera.
-   */
-  /* @internal */ requestScriptResetCamera(
-    waypointName: string,
-    durationSeconds: number,
-    easeInSeconds: number,
-    easeOutSeconds: number,
-  ): boolean {
-    const waypoint = this.resolveScriptWaypointPosition(waypointName);
-    if (!waypoint) {
-      return false;
-    }
-    if (
-      !Number.isFinite(durationSeconds)
-      || !Number.isFinite(easeInSeconds)
-      || !Number.isFinite(easeOutSeconds)
-    ) {
-      return false;
-    }
-    this.queueScriptCameraActionRequest({
-      requestType: 'RESET',
-      waypointName: waypointName.trim(),
-      lookAtWaypointName: null,
-      x: waypoint.x,
-      z: waypoint.z,
-      lookAtX: null,
-      lookAtZ: null,
-      durationMs: durationSeconds * 1000,
-      cameraStutterMs: 0,
-      easeInMs: easeInSeconds * 1000,
-      easeOutMs: easeOutSeconds * 1000,
-      rotations: null,
-      zoom: null,
-      pitch: null,
-    });
-    return true;
-  }
-
-  /**
-   * Source parity bridge: mirrors ScriptActions::doRotateCamera.
-   */
-  /* @internal */ requestScriptRotateCamera(
-    rotations: number,
-    durationSeconds: number,
-    easeInSeconds: number,
-    easeOutSeconds: number,
-  ): boolean {
-    if (
-      !Number.isFinite(rotations)
-      || !Number.isFinite(durationSeconds)
-      || !Number.isFinite(easeInSeconds)
-      || !Number.isFinite(easeOutSeconds)
-    ) {
-      return false;
-    }
-    this.queueScriptCameraActionRequest({
-      requestType: 'ROTATE',
-      waypointName: null,
-      lookAtWaypointName: null,
-      x: null,
-      z: null,
-      lookAtX: null,
-      lookAtZ: null,
-      durationMs: durationSeconds * 1000,
-      cameraStutterMs: 0,
-      easeInMs: easeInSeconds * 1000,
-      easeOutMs: easeOutSeconds * 1000,
-      rotations,
-      zoom: null,
-      pitch: null,
-    });
-    return true;
-  }
-
-  /**
-   * Source parity bridge: mirrors ScriptActions::doSetupCamera.
-   */
-  /* @internal */ requestScriptSetupCamera(
-    waypointName: string,
-    zoom: number,
-    pitch: number,
-    lookAtWaypointName: string,
-  ): boolean {
-    const waypoint = this.resolveScriptWaypointPosition(waypointName);
-    const lookAtWaypoint = this.resolveScriptWaypointPosition(lookAtWaypointName);
-    if (!waypoint || !lookAtWaypoint) {
-      return false;
-    }
-    if (!Number.isFinite(zoom) || !Number.isFinite(pitch)) {
-      return false;
-    }
-    this.queueScriptCameraActionRequest({
-      requestType: 'SETUP',
-      waypointName: waypointName.trim(),
-      lookAtWaypointName: lookAtWaypointName.trim(),
-      x: waypoint.x,
-      z: waypoint.z,
-      lookAtX: lookAtWaypoint.x,
-      lookAtZ: lookAtWaypoint.z,
-      durationMs: 0,
-      cameraStutterMs: 0,
-      easeInMs: 0,
-      easeOutMs: 0,
-      rotations: null,
-      zoom,
-      pitch,
-    });
-    return true;
-  }
-
-  /**
-   * Source parity bridge: mirrors ScriptActions::doZoomCamera.
-   */
-  /* @internal */ requestScriptZoomCamera(
-    zoom: number,
-    durationSeconds: number,
-    easeInSeconds: number,
-    easeOutSeconds: number,
-  ): boolean {
-    if (
-      !Number.isFinite(zoom)
-      || !Number.isFinite(durationSeconds)
-      || !Number.isFinite(easeInSeconds)
-      || !Number.isFinite(easeOutSeconds)
-    ) {
-      return false;
-    }
-    this.queueScriptCameraActionRequest({
-      requestType: 'ZOOM',
-      waypointName: null,
-      lookAtWaypointName: null,
-      x: null,
-      z: null,
-      lookAtX: null,
-      lookAtZ: null,
-      durationMs: durationSeconds * 1000,
-      cameraStutterMs: 0,
-      easeInMs: easeInSeconds * 1000,
-      easeOutMs: easeOutSeconds * 1000,
-      rotations: null,
-      zoom,
-      pitch: null,
-    });
-    return true;
-  }
-
-  /**
-   * Source parity bridge: mirrors ScriptActions::doPitchCamera.
-   */
-  /* @internal */ requestScriptPitchCamera(
-    pitch: number,
-    durationSeconds: number,
-    easeInSeconds: number,
-    easeOutSeconds: number,
-  ): boolean {
-    if (
-      !Number.isFinite(pitch)
-      || !Number.isFinite(durationSeconds)
-      || !Number.isFinite(easeInSeconds)
-      || !Number.isFinite(easeOutSeconds)
-    ) {
-      return false;
-    }
-    this.queueScriptCameraActionRequest({
-      requestType: 'PITCH',
-      waypointName: null,
-      lookAtWaypointName: null,
-      x: null,
-      z: null,
-      lookAtX: null,
-      lookAtZ: null,
-      durationMs: durationSeconds * 1000,
-      cameraStutterMs: 0,
-      easeInMs: easeInSeconds * 1000,
-      easeOutMs: easeOutSeconds * 1000,
-      rotations: null,
-      zoom: null,
-      pitch,
-    });
-    return true;
-  }
-
-  drainScriptCameraActionRequests(): ScriptCameraActionRequestState[] {
-    if (this.scriptCameraActionRequests.length === 0) {
-      return [];
-    }
-    const requests = this.scriptCameraActionRequests.map((request) => ({ ...request }));
-    this.scriptCameraActionRequests.length = 0;
-    return requests;
-  }
-
-  private queueScriptCameraModifierRequest(
+  /* @internal */ queueScriptCameraModifierRequest(
     request: Omit<ScriptCameraModifierRequestState, 'frame'>,
   ): void {
     this.scriptCameraModifierRequests.push({
@@ -9458,245 +9046,8 @@ export class GameLogicSubsystem implements Subsystem {
     });
   }
 
-  /* @internal */ requestScriptCameraModFreezeTime(): void {
-    this.queueScriptCameraModifierRequest({
-      requestType: 'FREEZE_TIME',
-      waypointName: null,
-      x: null,
-      z: null,
-      zoom: null,
-      pitch: null,
-      easeIn: null,
-      easeOut: null,
-      speedMultiplier: null,
-      rollingAverageFrames: null,
-    });
-  }
-
-  /* @internal */ requestScriptCameraModFreezeAngle(): void {
-    this.queueScriptCameraModifierRequest({
-      requestType: 'FREEZE_ANGLE',
-      waypointName: null,
-      x: null,
-      z: null,
-      zoom: null,
-      pitch: null,
-      easeIn: null,
-      easeOut: null,
-      speedMultiplier: null,
-      rollingAverageFrames: null,
-    });
-  }
-
-  /* @internal */ requestScriptCameraModFinalZoom(zoom: number, easeIn: number, easeOut: number): boolean {
-    if (!Number.isFinite(zoom) || !Number.isFinite(easeIn) || !Number.isFinite(easeOut)) {
-      return false;
-    }
-    this.queueScriptCameraModifierRequest({
-      requestType: 'FINAL_ZOOM',
-      waypointName: null,
-      x: null,
-      z: null,
-      zoom,
-      pitch: null,
-      easeIn,
-      easeOut,
-      speedMultiplier: null,
-      rollingAverageFrames: null,
-    });
-    return true;
-  }
-
-  /* @internal */ requestScriptCameraModFinalPitch(pitch: number, easeIn: number, easeOut: number): boolean {
-    if (!Number.isFinite(pitch) || !Number.isFinite(easeIn) || !Number.isFinite(easeOut)) {
-      return false;
-    }
-    this.queueScriptCameraModifierRequest({
-      requestType: 'FINAL_PITCH',
-      waypointName: null,
-      x: null,
-      z: null,
-      zoom: null,
-      pitch,
-      easeIn,
-      easeOut,
-      speedMultiplier: null,
-      rollingAverageFrames: null,
-    });
-    return true;
-  }
-
-  /* @internal */ requestScriptCameraModFinalSpeedMultiplier(speedMultiplier: number): void {
-    this.queueScriptCameraModifierRequest({
-      requestType: 'FINAL_SPEED_MULTIPLIER',
-      waypointName: null,
-      x: null,
-      z: null,
-      zoom: null,
-      pitch: null,
-      easeIn: null,
-      easeOut: null,
-      speedMultiplier: Math.trunc(speedMultiplier),
-      rollingAverageFrames: null,
-    });
-  }
-
-  /* @internal */ requestScriptCameraModRollingAverage(rollingAverageFrames: number): void {
-    this.queueScriptCameraModifierRequest({
-      requestType: 'ROLLING_AVERAGE',
-      waypointName: null,
-      x: null,
-      z: null,
-      zoom: null,
-      pitch: null,
-      easeIn: null,
-      easeOut: null,
-      speedMultiplier: null,
-      rollingAverageFrames: Math.max(1, Math.trunc(rollingAverageFrames)),
-    });
-  }
-
-  /* @internal */ requestScriptCameraModFinalLookToward(waypointName: string): boolean {
-    const waypoint = this.resolveScriptWaypointPosition(waypointName);
-    if (!waypoint) {
-      return false;
-    }
-    this.queueScriptCameraModifierRequest({
-      requestType: 'FINAL_LOOK_TOWARD',
-      waypointName: waypointName.trim(),
-      x: waypoint.x,
-      z: waypoint.z,
-      zoom: null,
-      pitch: null,
-      easeIn: null,
-      easeOut: null,
-      speedMultiplier: null,
-      rollingAverageFrames: null,
-    });
-    return true;
-  }
-
-  /* @internal */ requestScriptCameraModLookToward(waypointName: string): boolean {
-    const waypoint = this.resolveScriptWaypointPosition(waypointName);
-    if (!waypoint) {
-      return false;
-    }
-    this.queueScriptCameraModifierRequest({
-      requestType: 'LOOK_TOWARD',
-      waypointName: waypointName.trim(),
-      x: waypoint.x,
-      z: waypoint.z,
-      zoom: null,
-      pitch: null,
-      easeIn: null,
-      easeOut: null,
-      speedMultiplier: null,
-      rollingAverageFrames: null,
-    });
-    return true;
-  }
-
-  /* @internal */ requestScriptCameraModMoveToSelection(): boolean {
-    let selectedCount = 0;
-    let sumX = 0;
-    let sumZ = 0;
-    for (const selectedId of this.selectedEntityIds) {
-      const entity = this.spawnedEntities.get(selectedId);
-      if (!entity || entity.destroyed) {
-        continue;
-      }
-      sumX += entity.x;
-      sumZ += entity.z;
-      selectedCount += 1;
-    }
-
-    if (selectedCount === 0) {
-      // Source parity: no-op when there is no current selection.
-      return true;
-    }
-
-    this.queueScriptCameraModifierRequest({
-      requestType: 'MOVE_TO_SELECTION',
-      waypointName: null,
-      x: sumX / selectedCount,
-      z: sumZ / selectedCount,
-      zoom: null,
-      pitch: null,
-      easeIn: null,
-      easeOut: null,
-      speedMultiplier: null,
-      rollingAverageFrames: null,
-    });
-    return true;
-  }
-
-  drainScriptCameraModifierRequests(): ScriptCameraModifierRequestState[] {
-    if (this.scriptCameraModifierRequests.length === 0) {
-      return [];
-    }
-    const requests = this.scriptCameraModifierRequests.map((request) => ({ ...request }));
-    this.scriptCameraModifierRequests.length = 0;
-    return requests;
-  }
-
-  /* @internal */ requestScriptCameraBlackWhiteMode(enabled: boolean, fadeFrames: number): void {
-    const normalizedFadeFrames = Number.isFinite(fadeFrames) ? Math.trunc(fadeFrames) : 0;
-
-    // Source parity: ending BW mode is ignored if the BW filter isn't active.
-    if (!enabled && !this.scriptCameraBlackWhiteEnabled) {
-      return;
-    }
-
-    this.scriptCameraBlackWhiteEnabled = enabled;
-    this.scriptCameraBlackWhiteRequests.push({
-      enabled,
-      fadeFrames: normalizedFadeFrames,
-      frame: this.frameCounter,
-    });
-  }
-
   isScriptCameraBlackWhiteEnabled(): boolean {
     return this.scriptCameraBlackWhiteEnabled;
-  }
-
-  drainScriptCameraBlackWhiteRequests(): ScriptCameraBlackWhiteRequestState[] {
-    if (this.scriptCameraBlackWhiteRequests.length === 0) {
-      return [];
-    }
-    const requests = this.scriptCameraBlackWhiteRequests.map((request) => ({ ...request }));
-    this.scriptCameraBlackWhiteRequests.length = 0;
-    return requests;
-  }
-
-  /* @internal */ requestScriptCameraFade(
-    fadeType: ScriptCameraFadeRequestState['fadeType'],
-    minFade: number,
-    maxFade: number,
-    increaseFrames: number,
-    holdFrames: number,
-    decreaseFrames: number,
-  ): void {
-    if (!Number.isFinite(minFade) || !Number.isFinite(maxFade)) {
-      return;
-    }
-    this.scriptCameraFadeRequests.push({
-      fadeType,
-      minFade,
-      maxFade,
-      increaseFrames: Math.trunc(increaseFrames),
-      holdFrames: Math.trunc(holdFrames),
-      decreaseFrames: Math.trunc(decreaseFrames),
-      frame: this.frameCounter,
-    });
-  }
-
-  drainScriptCameraFadeRequests(): ScriptCameraFadeRequestState[] {
-    if (this.scriptCameraFadeRequests.length === 0) {
-      return [];
-    }
-    const requests = this.scriptCameraFadeRequests.map((request) => ({ ...request }));
-    this.scriptCameraFadeRequests.length = 0;
-    return requests;
   }
 
   setScriptSkyboxEnabled(enabled: boolean): void {
@@ -9707,115 +9058,11 @@ export class GameLogicSubsystem implements Subsystem {
     return this.scriptSkyboxEnabled;
   }
 
-  private queueScriptCameraFilterRequest(request: Omit<ScriptCameraFilterRequestState, 'frame'>): void {
+  /* @internal */ queueScriptCameraFilterRequest(request: Omit<ScriptCameraFilterRequestState, 'frame'>): void {
     this.scriptCameraFilterRequests.push({
       ...request,
       frame: this.frameCounter,
     });
-  }
-
-  /* @internal */ requestScriptCameraMotionBlur(zoomIn: boolean, saturate: boolean): void {
-    this.queueScriptCameraFilterRequest({
-      requestType: 'MOTION_BLUR',
-      zoomIn,
-      saturate,
-      waypointName: null,
-      x: null,
-      z: null,
-      followMode: null,
-    });
-  }
-
-  /* @internal */ requestScriptCameraMotionBlurJump(waypointName: string, saturate: boolean): boolean {
-    const waypoint = this.resolveScriptWaypointPosition(waypointName);
-    if (!waypoint) {
-      return false;
-    }
-    this.queueScriptCameraFilterRequest({
-      requestType: 'MOTION_BLUR_JUMP',
-      zoomIn: null,
-      saturate,
-      waypointName: waypointName.trim(),
-      x: waypoint.x,
-      z: waypoint.z,
-      followMode: null,
-    });
-    return true;
-  }
-
-  /* @internal */ requestScriptCameraMotionBlurFollow(followMode: number): void {
-    this.queueScriptCameraFilterRequest({
-      requestType: 'MOTION_BLUR_FOLLOW',
-      zoomIn: null,
-      saturate: null,
-      waypointName: null,
-      x: null,
-      z: null,
-      followMode: Math.trunc(followMode),
-    });
-  }
-
-  /* @internal */ requestScriptCameraMotionBlurEndFollow(): void {
-    this.queueScriptCameraFilterRequest({
-      requestType: 'MOTION_BLUR_END_FOLLOW',
-      zoomIn: null,
-      saturate: null,
-      waypointName: null,
-      x: null,
-      z: null,
-      followMode: null,
-    });
-  }
-
-  drainScriptCameraFilterRequests(): ScriptCameraFilterRequestState[] {
-    if (this.scriptCameraFilterRequests.length === 0) {
-      return [];
-    }
-    const requests = this.scriptCameraFilterRequests.map((request) => ({ ...request }));
-    this.scriptCameraFilterRequests.length = 0;
-    return requests;
-  }
-
-  /**
-   * Source parity bridge: ScriptActions::doC3CameraShake.
-   * Consumed by script-camera-effects runtime bridge.
-   */
-  /* @internal */ requestScriptCameraAddShaker(
-    waypointName: string,
-    amplitude: number,
-    durationSeconds: number,
-    radius: number,
-  ): boolean {
-    const waypoint = this.resolveScriptWaypointPosition(waypointName);
-    if (!waypoint) {
-      return false;
-    }
-    if (
-      !Number.isFinite(amplitude)
-      || !Number.isFinite(durationSeconds)
-      || !Number.isFinite(radius)
-    ) {
-      return false;
-    }
-    this.scriptCameraShakerRequests.push({
-      waypointName: waypointName.trim(),
-      x: waypoint.x,
-      z: waypoint.z,
-      amplitude,
-      durationSeconds,
-      radius,
-      frame: this.frameCounter,
-    });
-    return true;
-  }
-
-  drainScriptCameraShakerRequests(): ScriptCameraShakerRequestState[] {
-    if (this.scriptCameraShakerRequests.length === 0) {
-      return [];
-    }
-    const requests = this.scriptCameraShakerRequests.map((request) => ({ ...request }));
-    this.scriptCameraShakerRequests.length = 0;
-    return requests;
   }
 
   setScriptTimeFrozenByScript(frozen: boolean): void {
@@ -9923,28 +9170,6 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
-   * Source parity bridge: ScriptActions::doScreenShake.
-   * Consumed by script-camera-effects runtime bridge.
-   */
-  setScriptScreenShake(intensity: number): boolean {
-    if (!Number.isFinite(intensity)) {
-      return false;
-    }
-    this.scriptScreenShakeState = {
-      intensity: Math.trunc(intensity),
-      frame: this.frameCounter,
-    };
-    return true;
-  }
-
-  getScriptScreenShakeState(): ScriptScreenShakeState | null {
-    if (!this.scriptScreenShakeState) {
-      return null;
-    }
-    return { ...this.scriptScreenShakeState };
-  }
-
-  /**
    * Source parity bridge: ScriptActions::doDisplayCinematicText.
    */
   setScriptCinematicText(displayText: string, fontType: string, timeInSeconds: number): boolean {
@@ -9978,29 +9203,6 @@ export class GameLogicSubsystem implements Subsystem {
     return messages;
   }
 
-  /* @internal */ requestScriptMoviePlayback(movieName: string, playbackType: 'FULLSCREEN' | 'RADAR'): boolean {
-    const normalizedMovieName = movieName.trim();
-    if (!normalizedMovieName) {
-      return false;
-    }
-    this.clearScriptCompletedName(this.scriptCompletedVideos, normalizedMovieName);
-    this.scriptMoviePlaybackRequests.push({
-      movieName: normalizedMovieName,
-      playbackType,
-      frame: this.frameCounter,
-    });
-    return true;
-  }
-
-  drainScriptMoviePlaybackRequests(): ScriptMoviePlaybackRequestState[] {
-    if (this.scriptMoviePlaybackRequests.length === 0) {
-      return [];
-    }
-    const requests = this.scriptMoviePlaybackRequests.map((request) => ({ ...request }));
-    this.scriptMoviePlaybackRequests.length = 0;
-    return requests;
-  }
-
   drainScriptDisplayMessages(): ScriptDisplayMessageState[] {
     if (this.scriptDisplayMessages.length === 0) {
       return [];
@@ -10008,25 +9210,6 @@ export class GameLogicSubsystem implements Subsystem {
     const messages = this.scriptDisplayMessages.map((message) => ({ ...message }));
     this.scriptDisplayMessages.length = 0;
     return messages;
-  }
-
-  /* @internal */ requestScriptCameoFlash(commandButtonName: string, timeInSeconds: number): boolean {
-    const normalizedButtonName = commandButtonName.trim();
-    if (!normalizedButtonName || !Number.isFinite(timeInSeconds)) {
-      return false;
-    }
-    const frames = Math.max(0, Math.trunc(LOGIC_FRAME_RATE * timeInSeconds));
-    let flashCount = Math.max(0, Math.trunc(frames / DRAWABLE_FRAMES_PER_FLASH));
-    // Source parity: make flash count even so the cameo returns to its original state.
-    if ((flashCount & 1) === 1) {
-      flashCount += 1;
-    }
-    this.scriptCameoFlashRequests.push({
-      commandButtonName: normalizedButtonName,
-      flashCount,
-      frame: this.frameCounter,
-    });
-    return true;
   }
 
   drainScriptCameoFlashRequests(): ScriptCameoFlashRequestState[] {
@@ -10097,34 +9280,6 @@ export class GameLogicSubsystem implements Subsystem {
     return true;
   }
 
-  /* @internal */ requestScriptPlaySoundEffect(audioName: string): boolean {
-    return this.queueScriptAudioPlaybackRequest({
-      audioName,
-      playbackType: 'SOUND_EFFECT',
-      allowOverlap: true,
-      sourceEntityId: null,
-      x: null,
-      y: null,
-      z: null,
-    });
-  }
-
-  /* @internal */ requestScriptPlaySoundEffectAt(audioName: string, waypointName: string): boolean {
-    const waypoint = this.resolveScriptWaypointPosition(waypointName);
-    if (!waypoint) {
-      return false;
-    }
-    return this.queueScriptAudioPlaybackRequest({
-      audioName,
-      playbackType: 'SOUND_EFFECT',
-      allowOverlap: true,
-      sourceEntityId: null,
-      x: waypoint.x,
-      y: this.resolveGroundHeight(waypoint.x, waypoint.z),
-      z: waypoint.z,
-    });
-  }
-
   private requestScriptSoundPlayFromNamed(audioName: string, sourceEntityId: number): boolean {
     const entity = this.spawnedEntities.get(sourceEntityId);
     if (!entity || entity.destroyed) {
@@ -10141,37 +9296,12 @@ export class GameLogicSubsystem implements Subsystem {
     });
   }
 
-  /* @internal */ requestScriptSpeechPlay(speechName: string, allowOverlap: boolean): boolean {
-    return this.queueScriptAudioPlaybackRequest({
-      audioName: speechName,
-      playbackType: 'SPEECH',
-      allowOverlap,
-      sourceEntityId: null,
-      x: null,
-      y: null,
-      z: null,
-    });
-  }
-
-  drainScriptAudioPlaybackRequests(): ScriptAudioPlaybackRequestState[] {
-    if (this.scriptAudioPlaybackRequests.length === 0) {
-      return [];
-    }
-    const requests = this.scriptAudioPlaybackRequests.map((request) => ({ ...request }));
-    this.scriptAudioPlaybackRequests.length = 0;
-    return requests;
-  }
-
   setScriptBackgroundSoundsPaused(paused: boolean): void {
     this.scriptBackgroundSoundsPaused = paused;
   }
 
   isScriptBackgroundSoundsPaused(): boolean {
     return this.scriptBackgroundSoundsPaused;
-  }
-
-  setScriptAmbientSoundsPaused(paused: boolean): void {
-    this.scriptAmbientSoundsPaused = paused;
   }
 
   isScriptAmbientSoundsPaused(): boolean {
@@ -10217,17 +9347,6 @@ export class GameLogicSubsystem implements Subsystem {
     const requests = this.scriptEmoticonRequests.map((request) => ({ ...request }));
     this.scriptEmoticonRequests.length = 0;
     return requests;
-  }
-
-  setScriptCameraAudibleDistance(audibleDistance: number): void {
-    if (!Number.isFinite(audibleDistance)) {
-      return;
-    }
-    this.scriptCameraAudibleDistance = audibleDistance;
-  }
-
-  getScriptCameraAudibleDistance(): number {
-    return this.scriptCameraAudibleDistance;
   }
 
   setScriptFramesPerSecondLimit(fpsLimit: number): void {
@@ -10304,54 +9423,12 @@ export class GameLogicSubsystem implements Subsystem {
       .map(([eventName, volumeScale]) => ({ eventName, volumeScale }));
   }
 
-  /* @internal */ requestScriptAudioRemoveAllDisabled(): void {
-    this.scriptAudioRemovalRequests.push({
-      eventName: null,
-      removeDisabledOnly: true,
-      frame: this.frameCounter,
-    });
-  }
-
-  /* @internal */ requestScriptAudioRemoveType(eventName: string): boolean {
-    const normalizedName = this.normalizeScriptAudioEventName(eventName);
-    if (!normalizedName) {
-      return false;
-    }
-    this.scriptAudioRemovalRequests.push({
-      eventName: normalizedName,
-      removeDisabledOnly: false,
-      frame: this.frameCounter,
-    });
-    return true;
-  }
-
-  drainScriptAudioRemovalRequests(): ScriptAudioRemovalRequestState[] {
-    if (this.scriptAudioRemovalRequests.length === 0) {
-      return [];
-    }
-    const requests = this.scriptAudioRemovalRequests.map((request) => ({ ...request }));
-    this.scriptAudioRemovalRequests.length = 0;
-    return requests;
-  }
-
-  setScriptSoundVolumeScale(newVolumePercent: number): void {
-    this.scriptSoundVolumeScale = this.clampScriptVolumeScale(newVolumePercent);
-  }
-
   getScriptSoundVolumeScale(): number {
     return this.scriptSoundVolumeScale;
   }
 
-  setScriptSpeechVolumeScale(newVolumePercent: number): void {
-    this.scriptSpeechVolumeScale = this.clampScriptVolumeScale(newVolumePercent);
-  }
-
   getScriptSpeechVolumeScale(): number {
     return this.scriptSpeechVolumeScale;
-  }
-
-  setScriptMusicVolumeScale(newVolumePercent: number): void {
-    this.scriptMusicVolumeScale = this.clampScriptVolumeScale(newVolumePercent);
   }
 
   getScriptMusicVolumeScale(): number {
@@ -10390,7 +9467,7 @@ export class GameLogicSubsystem implements Subsystem {
     return this.scriptChooseVictimAlwaysUsesNormal;
   }
 
-  private clampScriptVolumeScale(newVolumePercent: number): number {
+  /* @internal */ clampScriptVolumeScale(newVolumePercent: number): number {
     if (!Number.isFinite(newVolumePercent)) {
       return 0;
     }
@@ -10501,6 +9578,72 @@ export class GameLogicSubsystem implements Subsystem {
   private updateScriptSequentialScripts(...args: any[]) { return (updateScriptSequentialScriptsImpl as any)(this, ...args); }
   private updateScriptWanderInPlace(...args: any[]) { return (updateScriptWanderInPlaceImpl as any)(this, ...args); }
 
+  // ---- Script camera/media facades (delegate to script-camera.ts) ----
+
+  setScriptCameraMovementFinished(...args: any[]) { return (setScriptCameraMovementFinishedImpl as any)(this, ...args); }
+  setScriptCameraTether(...args: any[]) { return (setScriptCameraTetherImpl as any)(this, ...args); }
+  clearScriptCameraTether(...args: any[]) { return (clearScriptCameraTetherImpl as any)(this, ...args); }
+  getScriptCameraTetherState(...args: any[]) { return (getScriptCameraTetherStateImpl as any)(this, ...args); }
+  setScriptCameraFollowNamed(...args: any[]) { return (setScriptCameraFollowNamedImpl as any)(this, ...args); }
+  clearScriptCameraFollowNamed(...args: any[]) { return (clearScriptCameraFollowNamedImpl as any)(this, ...args); }
+  getScriptCameraFollowState(...args: any[]) { return (getScriptCameraFollowStateImpl as any)(this, ...args); }
+  setScriptCameraSlaveMode(...args: any[]) { return (setScriptCameraSlaveModeImpl as any)(this, ...args); }
+  clearScriptCameraSlaveMode(...args: any[]) { return (clearScriptCameraSlaveModeImpl as any)(this, ...args); }
+  getScriptCameraSlaveModeState(...args: any[]) { return (getScriptCameraSlaveModeStateImpl as any)(this, ...args); }
+  setScriptCameraDefaultView(...args: any[]) { return (setScriptCameraDefaultViewImpl as any)(this, ...args); }
+  getScriptCameraDefaultViewState(...args: any[]) { return (getScriptCameraDefaultViewStateImpl as any)(this, ...args); }
+  setScriptCameraLookTowardObject(...args: any[]) { return (setScriptCameraLookTowardObjectImpl as any)(this, ...args); }
+  getScriptCameraLookTowardObjectState(...args: any[]) { return (getScriptCameraLookTowardObjectStateImpl as any)(this, ...args); }
+  setScriptCameraLookTowardWaypoint(...args: any[]) { return (setScriptCameraLookTowardWaypointImpl as any)(this, ...args); }
+  getScriptCameraLookTowardWaypointState(...args: any[]) { return (getScriptCameraLookTowardWaypointStateImpl as any)(this, ...args); }
+  /* @internal */ requestScriptMoveCameraTo(...args: any[]) { return (requestScriptMoveCameraToImpl as any)(this, ...args); }
+  /* @internal */ requestScriptMoveCameraAlongWaypointPath(...args: any[]) { return (requestScriptMoveCameraAlongWaypointPathImpl as any)(this, ...args); }
+  /* @internal */ requestScriptResetCamera(...args: any[]) { return (requestScriptResetCameraImpl as any)(this, ...args); }
+  /* @internal */ requestScriptRotateCamera(...args: any[]) { return (requestScriptRotateCameraImpl as any)(this, ...args); }
+  /* @internal */ requestScriptSetupCamera(...args: any[]) { return (requestScriptSetupCameraImpl as any)(this, ...args); }
+  /* @internal */ requestScriptZoomCamera(...args: any[]) { return (requestScriptZoomCameraImpl as any)(this, ...args); }
+  /* @internal */ requestScriptPitchCamera(...args: any[]) { return (requestScriptPitchCameraImpl as any)(this, ...args); }
+  drainScriptCameraActionRequests(...args: any[]) { return (drainScriptCameraActionRequestsImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraModFreezeTime(...args: any[]) { return (requestScriptCameraModFreezeTimeImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraModFreezeAngle(...args: any[]) { return (requestScriptCameraModFreezeAngleImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraModFinalZoom(...args: any[]) { return (requestScriptCameraModFinalZoomImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraModFinalPitch(...args: any[]) { return (requestScriptCameraModFinalPitchImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraModFinalSpeedMultiplier(...args: any[]) { return (requestScriptCameraModFinalSpeedMultiplierImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraModRollingAverage(...args: any[]) { return (requestScriptCameraModRollingAverageImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraModFinalLookToward(...args: any[]) { return (requestScriptCameraModFinalLookTowardImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraModLookToward(...args: any[]) { return (requestScriptCameraModLookTowardImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraModMoveToSelection(...args: any[]) { return (requestScriptCameraModMoveToSelectionImpl as any)(this, ...args); }
+  drainScriptCameraModifierRequests(...args: any[]) { return (drainScriptCameraModifierRequestsImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraBlackWhiteMode(...args: any[]) { return (requestScriptCameraBlackWhiteModeImpl as any)(this, ...args); }
+  drainScriptCameraBlackWhiteRequests(...args: any[]) { return (drainScriptCameraBlackWhiteRequestsImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraFade(...args: any[]) { return (requestScriptCameraFadeImpl as any)(this, ...args); }
+  drainScriptCameraFadeRequests(...args: any[]) { return (drainScriptCameraFadeRequestsImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraMotionBlur(...args: any[]) { return (requestScriptCameraMotionBlurImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraMotionBlurJump(...args: any[]) { return (requestScriptCameraMotionBlurJumpImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraMotionBlurFollow(...args: any[]) { return (requestScriptCameraMotionBlurFollowImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraMotionBlurEndFollow(...args: any[]) { return (requestScriptCameraMotionBlurEndFollowImpl as any)(this, ...args); }
+  drainScriptCameraFilterRequests(...args: any[]) { return (drainScriptCameraFilterRequestsImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameraAddShaker(...args: any[]) { return (requestScriptCameraAddShakerImpl as any)(this, ...args); }
+  drainScriptCameraShakerRequests(...args: any[]) { return (drainScriptCameraShakerRequestsImpl as any)(this, ...args); }
+  setScriptScreenShake(...args: any[]) { return (setScriptScreenShakeImpl as any)(this, ...args); }
+  getScriptScreenShakeState(...args: any[]) { return (getScriptScreenShakeStateImpl as any)(this, ...args); }
+  /* @internal */ requestScriptMoviePlayback(...args: any[]) { return (requestScriptMoviePlaybackImpl as any)(this, ...args); }
+  drainScriptMoviePlaybackRequests(...args: any[]) { return (drainScriptMoviePlaybackRequestsImpl as any)(this, ...args); }
+  /* @internal */ requestScriptCameoFlash(...args: any[]) { return (requestScriptCameoFlashImpl as any)(this, ...args); }
+  /* @internal */ requestScriptPlaySoundEffect(...args: any[]) { return (requestScriptPlaySoundEffectImpl as any)(this, ...args); }
+  /* @internal */ requestScriptPlaySoundEffectAt(...args: any[]) { return (requestScriptPlaySoundEffectAtImpl as any)(this, ...args); }
+  /* @internal */ requestScriptSpeechPlay(...args: any[]) { return (requestScriptSpeechPlayImpl as any)(this, ...args); }
+  drainScriptAudioPlaybackRequests(...args: any[]) { return (drainScriptAudioPlaybackRequestsImpl as any)(this, ...args); }
+  setScriptAmbientSoundsPaused(...args: any[]) { return (setScriptAmbientSoundsPausedImpl as any)(this, ...args); }
+  setScriptCameraAudibleDistance(...args: any[]) { return (setScriptCameraAudibleDistanceImpl as any)(this, ...args); }
+  getScriptCameraAudibleDistance(...args: any[]) { return (getScriptCameraAudibleDistanceImpl as any)(this, ...args); }
+  /* @internal */ requestScriptAudioRemoveAllDisabled(...args: any[]) { return (requestScriptAudioRemoveAllDisabledImpl as any)(this, ...args); }
+  /* @internal */ requestScriptAudioRemoveType(...args: any[]) { return (requestScriptAudioRemoveTypeImpl as any)(this, ...args); }
+  drainScriptAudioRemovalRequests(...args: any[]) { return (drainScriptAudioRemovalRequestsImpl as any)(this, ...args); }
+  setScriptSoundVolumeScale(...args: any[]) { return (setScriptSoundVolumeScaleImpl as any)(this, ...args); }
+  setScriptSpeechVolumeScale(...args: any[]) { return (setScriptSpeechVolumeScaleImpl as any)(this, ...args); }
+  setScriptMusicVolumeScale(...args: any[]) { return (setScriptMusicVolumeScaleImpl as any)(this, ...args); }
+
   // ---- Script condition facades (delegate to script-conditions.ts) ----
 
   evaluateScriptCondition(condition: unknown): boolean { return evaluateScriptConditionImpl(this, condition); }
@@ -10598,7 +9741,7 @@ export class GameLogicSubsystem implements Subsystem {
   private countScriptStructuresForSide(...args: any[]) { return (countScriptStructuresForSideImpl as any)(this, ...args); }
   private resolveScriptComparisonCode(...args: any[]) { return (resolveScriptComparisonCodeImpl as any)(this, ...args); }
   private normalizeScriptCompletionName(...args: any[]) { return (normalizeScriptCompletionNameImpl as any)(this, ...args); }
-  private clearScriptCompletedName(...args: any[]) { return (clearScriptCompletedNameImpl as any)(this, ...args); }
+  /* @internal */ clearScriptCompletedName(...args: any[]) { return (clearScriptCompletedNameImpl as any)(this, ...args); }
   private clearScriptAudioCompletionState(...args: any[]) { return (clearScriptAudioCompletionStateImpl as any)(this, ...args); }
   private normalizeScriptTeamContextName(...args: any[]) { return (normalizeScriptTeamContextNameImpl as any)(this, ...args); }
   private resolveScriptContextTeamName(...args: any[]) { return (resolveScriptContextTeamNameImpl as any)(this, ...args); }
