@@ -1,5 +1,14 @@
 # Session Summaries
 
+## 2026-03-12T04:20Z — Containment System: Comprehensive Code & Test Pass
+Implemented full containment system overhaul per plan (scalable-hugging-aurora):
+- **Code cleanup (Step 4)**: Added DISABLED_HELD on transport enter/release, garrison status flags (UNSELECTABLE on enter), fixed render-state-bridge clearing GARRISONED from garrison buildings
+- **Missing C++ behaviors (Step 3)**: Garrison auto-eject on REALLY_DAMAGED (10% threshold), `killRidersWhoAreNotFreeToExit` in death pipeline, GARRISONED model condition on garrison containers, `destroyRidersWhoAreNotFreeToExit` added to ContainProfile
+- **Bug fix**: SOURCE_DAMAGE_TYPE_NAMES was missing 7 Zero Hour damage types (SUBDUAL_MISSILE/VEHICLE/BUILDING/UNRESISTABLE, MICROWAVE, KILL_GARRISONED, STATUS) — subdual weapons were defaulting to EXPLOSION and dealing real damage
+- **Tests (Steps 1+2)**: Rewrote 22 phantom tests → 37 tests with real behavioral assertions across transport, garrison, tunnel, overlord, heal, open containers, and cross-container integration
+- Files changed: containment-system.ts, containment.test.ts, entity-lifecycle.ts, entity-factory.ts, index.ts, render-state-bridge.ts
+- All 3257 tests pass, no new type errors
+
 ## 2026-03-11T12:45Z — Three-Layer Parity Testing System
 Implemented a complete parity testing system with 50 new tests (3,239 total, all passing):
 - **Parity Agent** (`parity-agent.ts`): Headless GameLogicSubsystem wrapper with selection-free command interface. Creates test scenarios via `createParityAgent()` factory with `step()`, `snapshot()`, `diff()` for deterministic testing.

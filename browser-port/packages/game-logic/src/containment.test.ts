@@ -49,11 +49,13 @@ describe('TransportContain', () => {
     logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
     for (let i = 0; i < 5; i++) logic.update(1 / 30);
 
-    // Passenger should be hidden (UNSELECTABLE + MASKED).
+    // Passenger should be hidden (UNSELECTABLE + MASKED + DISABLED_HELD).
     const rangerState = logic.getEntityState(2);
-    // Ranger should not appear as a normal world entity — it's inside transport.
-    // The entity will have UNSELECTABLE status, so it won't show up in selection.
     expect(rangerState).toBeDefined();
+    const statusFlags = rangerState!.statusFlags ?? [];
+    expect(statusFlags).toContain('UNSELECTABLE');
+    expect(statusFlags).toContain('MASKED');
+    expect(statusFlags).toContain('DISABLED_HELD');
   });
 
   it('evacuates all passengers when evacuate command is issued', () => {
@@ -85,15 +87,25 @@ describe('TransportContain', () => {
     logic.submitCommand({ type: 'enterTransport', entityId: 3, targetTransportId: 1 });
     for (let i = 0; i < 5; i++) logic.update(1 / 30);
 
+    // Verify LOADED is set before evacuate.
+    const loadedState = logic.getEntityState(1);
+    expect(loadedState!.modelConditionFlags ?? []).toContain('LOADED');
+
     // Evacuate all.
     logic.submitCommand({ type: 'evacuate', entityId: 1 });
     for (let i = 0; i < 5; i++) logic.update(1 / 30);
 
-    // Both soldiers should be out of the transport.
+    // Both soldiers should be out — LOADED cleared on transport.
+    const transportState = logic.getEntityState(1);
+    expect(transportState!.modelConditionFlags ?? []).not.toContain('LOADED');
+
+    // Soldiers should no longer have containment status flags.
     const s1 = logic.getEntityState(2);
     const s2 = logic.getEntityState(3);
     expect(s1).toBeDefined();
     expect(s2).toBeDefined();
+    expect(s1!.statusFlags ?? []).not.toContain('DISABLED_HELD');
+    expect(s2!.statusFlags ?? []).not.toContain('DISABLED_HELD');
   });
 
   it('respects Slots capacity limit for TransportContain', () => {
@@ -126,17 +138,20 @@ describe('TransportContain', () => {
     logic.submitCommand({ type: 'enterTransport', entityId: 4, targetTransportId: 1 });
     for (let i = 0; i < 10; i++) logic.update(1 / 30);
 
-    // Evacuate to count how many were actually inside.
-    logic.submitCommand({ type: 'evacuate', entityId: 1 });
-    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+    // Verify transport has LOADED (some soldiers entered).
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).toContain('LOADED');
 
-    // All 3 soldiers should still exist (2 inside, 1 was rejected).
-    const s1 = logic.getEntityState(2);
-    const s2 = logic.getEntityState(3);
-    const s3 = logic.getEntityState(4);
-    expect(s1).toBeDefined();
-    expect(s2).toBeDefined();
-    expect(s3).toBeDefined();
+    // The third soldier should NOT have containment flags (rejected).
+    // At most 2 soldiers should have DISABLED_HELD (inside transport).
+    let insideCount = 0;
+    for (const id of [2, 3, 4]) {
+      const state = logic.getEntityState(id);
+      expect(state).toBeDefined();
+      if ((state!.statusFlags ?? []).includes('DISABLED_HELD')) {
+        insideCount++;
+      }
+    }
+    expect(insideCount).toBe(2);
   });
 
   it('applies damage to passengers when transport is destroyed (DamagePercentToUnits)', () => {
@@ -362,6 +377,177 @@ describe('TransportContain', () => {
     const emptyFlags = emptyState!.modelConditionFlags ?? [];
     expect(emptyFlags).not.toContain('LOADED');
   });
+
+  it('passengers get DISABLED_HELD while inside transport', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('APC', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('Behavior', 'TransportContain ModuleTag_Contain', {
+            ContainMax: 5,
+            AllowInsideKindOf: 'INFANTRY',
+          }),
+        ]),
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('APC', 20, 20),
+      makeMapObject('Soldier', 22, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+
+    // Verify no DISABLED_HELD before entering.
+    logic.update(1 / 30);
+    const before = logic.getEntityState(2);
+    expect(before!.statusFlags ?? []).not.toContain('DISABLED_HELD');
+
+    // Enter transport.
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    // DISABLED_HELD should be set while inside.
+    const inside = logic.getEntityState(2);
+    expect(inside!.statusFlags ?? []).toContain('DISABLED_HELD');
+
+    // Exit.
+    logic.submitCommand({ type: 'exitContainer', entityId: 2 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    // DISABLED_HELD should be cleared after release.
+    const after = logic.getEntityState(2);
+    expect(after!.statusFlags ?? []).not.toContain('DISABLED_HELD');
+  });
+
+  it('container death applies DamagePercentToUnits then releases survivors', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('ToughTransport', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+          makeBlock('Behavior', 'TransportContain ModuleTag_Contain', {
+            ContainMax: 5,
+            AllowInsideKindOf: 'INFANTRY',
+            DamagePercentToUnits: 50,
+          }),
+        ]),
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+        makeObjectDef('Attacker', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'BigGun'] }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('BigGun', {
+          AttackRange: 120,
+          PrimaryDamage: 100,
+          DelayBetweenShots: 100,
+        }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('ToughTransport', 20, 20),
+      makeMapObject('Soldier', 22, 20),
+      makeMapObject('Attacker', 50, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    // Enter soldier.
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    // Kill transport.
+    logic.submitCommand({ type: 'attackEntity', entityId: 3, targetEntityId: 1 });
+    for (let i = 0; i < 30; i++) logic.update(1 / 30);
+
+    // Soldier should survive with ~50 HP (took 50% of 100 maxHP = 50 damage).
+    const soldierState = logic.getEntityState(2);
+    expect(soldierState).toBeDefined();
+    expect(soldierState!.health).toBeGreaterThan(0);
+    expect(soldierState!.health).toBeLessThanOrEqual(50);
+    // Should be released from the container (no longer held).
+    expect(soldierState!.statusFlags ?? []).not.toContain('DISABLED_HELD');
+  });
+
+  it('passenger position inherits container position while inside', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('APC', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('Behavior', 'TransportContain ModuleTag_Contain', {
+            ContainMax: 5,
+            AllowInsideKindOf: 'INFANTRY',
+          }),
+        ]),
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('APC', 20, 20),
+      makeMapObject('Soldier', 22, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+
+    // Enter transport — soldier starts near transport.
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    // After entering, passenger position should match container position.
+    const apcState = logic.getEntityState(1);
+    const soldierState = logic.getEntityState(2);
+    expect(soldierState!.x).toBe(apcState!.x);
+    expect(soldierState!.z).toBe(apcState!.z);
+  });
+
+  it('exitContainer command releases single passenger', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Transport', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('Behavior', 'TransportContain ModuleTag_Contain', {
+            ContainMax: 5,
+            AllowInsideKindOf: 'INFANTRY',
+          }),
+        ]),
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('Transport', 20, 20),
+      makeMapObject('Soldier', 22, 20),
+      makeMapObject('Soldier', 24, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+
+    // Enter both soldiers.
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    logic.submitCommand({ type: 'enterTransport', entityId: 3, targetTransportId: 1 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    // Exit only soldier 2.
+    logic.submitCommand({ type: 'exitContainer', entityId: 2 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    // Soldier 2 should be free, soldier 3 should still be inside.
+    expect(logic.getEntityState(2)!.statusFlags ?? []).not.toContain('DISABLED_HELD');
+    expect(logic.getEntityState(3)!.statusFlags ?? []).toContain('DISABLED_HELD');
+
+    // Transport should still have LOADED (soldier 3 remains).
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).toContain('LOADED');
+  });
 });
 
 // ── TunnelContain tests ──
@@ -396,16 +582,24 @@ describe('TunnelContain', () => {
     logic.submitCommand({ type: 'enterTransport', entityId: 3, targetTransportId: 1 });
     for (let i = 0; i < 10; i++) logic.update(1 / 30);
 
+    // Verify rebel is inside (has containment flags).
+    const insideState = logic.getEntityState(3);
+    expect(insideState!.statusFlags ?? []).toContain('DISABLED_HELD');
+
     // Exit from second tunnel.
     logic.submitCommand({ type: 'evacuate', entityId: 2 });
     for (let i = 0; i < 10; i++) logic.update(1 / 30);
 
-    // Rebel should have exited near the second tunnel's position.
+    // Rebel should have exited — no longer held.
     const rebelState = logic.getEntityState(3);
     expect(rebelState).toBeDefined();
-    // The rebel's position should be closer to the second tunnel (50,50) than the first (10,10).
-    // Since scatter is random, we just check it's been released from the tunnel.
-    expect(rebelState!.health).toBe(100);
+    expect(rebelState!.statusFlags ?? []).not.toContain('DISABLED_HELD');
+    // Position should be near the second tunnel (50,50), not the first (10,10).
+    const tunnel2State = logic.getEntityState(2);
+    const dx = rebelState!.x - tunnel2State!.x;
+    const dz = rebelState!.z - tunnel2State!.z;
+    const distToTunnel2 = Math.sqrt(dx * dx + dz * dz);
+    expect(distToTunnel2).toBeLessThan(30); // Should be near tunnel 2
   });
 
   it('kills all passengers on cave-in (last tunnel destroyed)', () => {
@@ -453,20 +647,17 @@ describe('TunnelContain', () => {
     logic.submitCommand({ type: 'attackEntity', entityId: 3, targetEntityId: 1 });
     for (let i = 0; i < 30; i++) logic.update(1 / 30);
 
-    // Tunnel should be destroyed (getEntityState returns null for removed entities,
-    // or health <= 0 if the entity still exists in a dying state).
+    // Tunnel should be destroyed.
     const tunnelState = logic.getEntityState(1);
     if (tunnelState) {
       expect(tunnelState.health).toBeLessThanOrEqual(0);
     }
-    // Either way, tunnel is gone or dead — that's the expected outcome.
 
     // Rebel should be dead (cave-in kills all passengers when last tunnel is destroyed).
     const rebelState = logic.getEntityState(2);
     if (rebelState) {
       expect(rebelState.health).toBeLessThanOrEqual(0);
     }
-    // If rebelState is null, the rebel was fully removed — also a valid cave-in outcome.
   });
 
   it('heals passengers inside the tunnel network over time', () => {
@@ -496,17 +687,96 @@ describe('TunnelContain', () => {
     logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
     for (let i = 0; i < 5; i++) logic.update(1 / 30);
 
-    // Run 90 frames (~3 seconds) of healing.
+    // Run 90 frames (~3 seconds) of healing. TimeForFullHeal=2000ms=60 frames.
+    // After 3s the rebel should be fully healed.
     for (let i = 0; i < 90; i++) logic.update(1 / 30);
 
     // Exit.
     logic.submitCommand({ type: 'evacuate', entityId: 1 });
     for (let i = 0; i < 5; i++) logic.update(1 / 30);
 
-    // Rebel should have gained significant health.
+    // After 3s with TimeForFullHeal=2s, rebel should be at 100 HP.
     const rebelState = logic.getEntityState(2);
     expect(rebelState).toBeDefined();
-    expect(rebelState!.health).toBeGreaterThan(30);
+    expect(rebelState!.health).toBe(100);
+  });
+
+  it('passengers get DISABLED_HELD, MASKED, UNSELECTABLE in tunnel', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TunnelNetwork', 'GLA', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 400, InitialHealth: 400 }),
+          makeBlock('Behavior', 'TunnelContain ModuleTag_Contain', {
+            TimeForFullHeal: 0,
+          }),
+        ]),
+        makeObjectDef('Rebel', 'GLA', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('TunnelNetwork', 20, 20),
+      makeMapObject('Rebel', 22, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+
+    for (let i = 0; i < 3; i++) logic.update(1 / 30);
+
+    // Enter tunnel.
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+
+    // All three status flags should be set.
+    const rebelState = logic.getEntityState(2);
+    expect(rebelState).toBeDefined();
+    const flags = rebelState!.statusFlags ?? [];
+    expect(flags).toContain('DISABLED_HELD');
+    expect(flags).toContain('MASKED');
+    expect(flags).toContain('UNSELECTABLE');
+  });
+
+  it('tunnel healing uses TimeForFullHeal correctly', () => {
+    // TimeForFullHeal = 1000ms = 30 frames. Linear heal: maxHealth / 30 per frame.
+    // InitialHealth=1 means 1% of 100 = 1 HP — alive but nearly dead.
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('FastHealTunnel', 'GLA', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 400, InitialHealth: 400 }),
+          makeBlock('Behavior', 'TunnelContain ModuleTag_Contain', {
+            TimeForFullHeal: 1000,
+          }),
+        ]),
+        makeObjectDef('WoundedRebel', 'GLA', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 1 }),
+        ], { TransportSlotCount: 1 }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('FastHealTunnel', 20, 20),
+      makeMapObject('WoundedRebel', 22, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+
+    for (let i = 0; i < 3; i++) logic.update(1 / 30);
+
+    // Verify rebel starts at low health.
+    expect(logic.getEntityState(2)!.health).toBeLessThanOrEqual(1);
+
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    // Run enough frames for full heal (30 frames = 1000ms, plus buffer).
+    for (let i = 0; i < 40; i++) logic.update(1 / 30);
+
+    logic.submitCommand({ type: 'evacuate', entityId: 1 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    const rebelState = logic.getEntityState(2);
+    expect(rebelState).toBeDefined();
+    expect(rebelState!.health).toBe(100);
   });
 });
 
@@ -584,7 +854,136 @@ describe('OverlordContain', () => {
     expect(overlordState).toBeDefined();
     expect(gatlingState).toBeDefined();
     // The rider should be at the same position as the overlord.
-    // The states reflect renderable positions, so they should match.
+    expect(gatlingState!.x).toBe(overlordState!.x);
+    expect(gatlingState!.z).toBe(overlordState!.z);
+  });
+
+  it('multiple riders set RIDER1, RIDER2 conditions', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Overlord', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+          makeBlock('Behavior', 'OverlordContain ModuleTag_Contain', {
+            ContainMax: 2,
+            AllowInsideKindOf: 'PORTABLE_STRUCTURE',
+          }),
+        ]),
+        makeObjectDef('Tower', 'China', ['PORTABLE_STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ], { TransportSlotCount: 1 }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('Overlord', 20, 20),
+      makeMapObject('Tower', 22, 20),
+      makeMapObject('Tower', 24, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    logic.submitCommand({ type: 'enterTransport', entityId: 3, targetTransportId: 1 });
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+
+    const flags = logic.getEntityState(1)!.modelConditionFlags ?? [];
+    expect(flags).toContain('RIDER1');
+    expect(flags).toContain('RIDER2');
+    expect(flags).not.toContain('RIDER3');
+  });
+
+  it('rider position follows overlord during movement', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Overlord', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+          makeBlock('Behavior', 'OverlordContain ModuleTag_Contain', {
+            ContainMax: 1,
+            AllowInsideKindOf: 'PORTABLE_STRUCTURE',
+          }),
+        ]),
+        makeObjectDef('Tower', 'China', ['PORTABLE_STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ], { TransportSlotCount: 1 }),
+      ],
+      locomotors: [makeLocomotorDef('OverlordLoco', 30)],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('Overlord', 20, 20),
+      makeMapObject('Tower', 22, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    // Move overlord — check rider tracks continuously.
+    logic.submitCommand({ type: 'moveTo', entityId: 1, targetX: 50, targetZ: 50 });
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+
+    // Mid-movement: check positions match.
+    const overlordMid = logic.getEntityState(1);
+    const towerMid = logic.getEntityState(2);
+    expect(towerMid!.x).toBe(overlordMid!.x);
+    expect(towerMid!.z).toBe(overlordMid!.z);
+
+    // Continue movement.
+    for (let i = 0; i < 20; i++) logic.update(1 / 30);
+
+    const overlordEnd = logic.getEntityState(1);
+    const towerEnd = logic.getEntityState(2);
+    expect(towerEnd!.x).toBe(overlordEnd!.x);
+    expect(towerEnd!.z).toBe(overlordEnd!.z);
+  });
+
+  it('overlord death releases riders', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Overlord', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+          makeBlock('Behavior', 'OverlordContain ModuleTag_Contain', {
+            ContainMax: 1,
+            AllowInsideKindOf: 'PORTABLE_STRUCTURE',
+          }),
+        ]),
+        makeObjectDef('Tower', 'China', ['PORTABLE_STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ], { TransportSlotCount: 1 }),
+        makeObjectDef('Attacker', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'BigGun'] }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('BigGun', {
+          AttackRange: 120,
+          PrimaryDamage: 100,
+          DelayBetweenShots: 100,
+        }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('Overlord', 20, 20),
+      makeMapObject('Tower', 22, 20),
+      makeMapObject('Attacker', 50, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+    logic.setTeamRelationship('China', 'America', 0);
+    logic.setTeamRelationship('America', 'China', 0);
+
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    // Kill overlord.
+    logic.submitCommand({ type: 'attackEntity', entityId: 3, targetEntityId: 1 });
+    for (let i = 0; i < 30; i++) logic.update(1 / 30);
+
+    // Tower should survive (released from dead overlord).
+    const towerState = logic.getEntityState(2);
+    expect(towerState).toBeDefined();
+    expect(towerState!.health).toBeGreaterThan(0);
+    expect(towerState!.statusFlags ?? []).not.toContain('DISABLED_HELD');
   });
 });
 
@@ -631,7 +1030,9 @@ describe('HealContain', () => {
     expect(soldierState!.health).toBeGreaterThanOrEqual(99);
   });
 
-  it('does not accept already-healthy units', () => {
+  it('healthy unit enters but is auto-ejected immediately (C++ parity)', () => {
+    // C++ HealContain inherits TransportContain::isValidContainerFor which does NOT check health.
+    // The unit enters, then updateHealContainHealing auto-ejects when health >= maxHealth.
     const bundle = makeBundle({
       objects: [
         makeObjectDef('Ambulance', 'America', ['VEHICLE'], [
@@ -653,14 +1054,325 @@ describe('HealContain', () => {
     ]);
     logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
 
-    // Try to enter a healthy soldier into heal container.
+    // Enter heal container.
     logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
     for (let i = 0; i < 10; i++) logic.update(1 / 30);
 
-    // The ambulance should NOT have the LOADED condition — healthy units are rejected.
+    // After auto-eject, ambulance should NOT have LOADED (unit was ejected).
     const ambulanceState = logic.getEntityState(1);
     expect(ambulanceState).toBeDefined();
-    // No LOADED flag because heal containers reject healthy units at entry.
+    const flags = ambulanceState!.modelConditionFlags ?? [];
+    expect(flags).not.toContain('LOADED');
+
+    // Soldier should not have containment flags.
+    const soldierState = logic.getEntityState(2);
+    expect(soldierState!.statusFlags ?? []).not.toContain('DISABLED_HELD');
+  });
+
+  it('auto-ejects passenger when healing is complete', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Ambulance', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('Behavior', 'HealContain ModuleTag_Contain', {
+            ContainMax: 3,
+            TimeForFullHeal: 1000,
+          }),
+        ]),
+        makeObjectDef('WoundedSoldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 10 }),
+        ], { TransportSlotCount: 1 }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('Ambulance', 20, 20),
+      makeMapObject('WoundedSoldier', 22, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    // Verify soldier is inside.
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).toContain('LOADED');
+
+    // Run enough frames for full heal (30 frames = 1s).
+    for (let i = 0; i < 40; i++) logic.update(1 / 30);
+
+    // Should be auto-ejected — no explicit evacuate command needed.
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).not.toContain('LOADED');
+    expect(logic.getEntityState(2)!.health).toBe(100);
+    expect(logic.getEntityState(2)!.statusFlags ?? []).not.toContain('DISABLED_HELD');
+  });
+});
+
+// ── GarrisonContain tests ──
+
+describe('GarrisonContain', () => {
+  it('sets LOADED on garrison containers when occupied', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Barracks', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Contain', {
+            ContainMax: 10,
+          }),
+        ]),
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('Barracks', 20, 20),
+      makeMapObject('Soldier', 22, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+
+    // Before entering — no LOADED flag.
+    logic.update(1 / 30);
+    const emptyState = logic.getEntityState(1);
+    expect(emptyState).toBeDefined();
+    expect(emptyState!.modelConditionFlags ?? []).not.toContain('LOADED');
+
+    // Enter garrison.
+    logic.submitCommand({ type: 'garrisonBuilding', entityId: 2, targetBuildingId: 1 });
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+
+    const barracksState = logic.getEntityState(1);
+    expect(barracksState).toBeDefined();
+    const flags = barracksState!.modelConditionFlags ?? [];
+    expect(flags).toContain('LOADED');
+  });
+
+  it('sets GARRISONED model condition on building when occupied', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Building', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Contain', {
+            ContainMax: 10,
+          }),
+        ]),
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('Building', 20, 20),
+      makeMapObject('Soldier', 22, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+
+    logic.update(1 / 30);
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).not.toContain('GARRISONED');
+
+    logic.submitCommand({ type: 'garrisonBuilding', entityId: 2, targetBuildingId: 1 });
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).toContain('GARRISONED');
+
+    // Evacuate — GARRISONED should be cleared.
+    logic.submitCommand({ type: 'evacuate', entityId: 1 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).not.toContain('GARRISONED');
+  });
+
+  it('auto-ejects infantry when garrison reaches REALLY_DAMAGED', () => {
+    // REALLY_DAMAGED threshold = health/maxHealth <= 0.1 (10%).
+    // For 1000 HP building, need health <= 100.
+    // Weapon does 10 dmg/shot every 3 frames (~100ms). 280 frames ≈ 93 shots = 930 dmg.
+    // Building health = 1000 - 930 = 70 HP (REALLY_DAMAGED, still alive).
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('FragileBuilding', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Contain', {
+            ContainMax: 10,
+          }),
+        ]),
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+        makeObjectDef('Attacker', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'SmallGun'] }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('SmallGun', {
+          AttackRange: 120,
+          PrimaryDamage: 10,
+          DelayBetweenShots: 100,
+        }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('FragileBuilding', 20, 20),
+      makeMapObject('Soldier', 22, 20),
+      makeMapObject('Attacker', 50, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    // Garrison soldier.
+    logic.submitCommand({ type: 'garrisonBuilding', entityId: 2, targetBuildingId: 1 });
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).toContain('LOADED');
+
+    // Damage building past REALLY_DAMAGED threshold (10% = 100 HP).
+    logic.submitCommand({ type: 'attackEntity', entityId: 3, targetEntityId: 1 });
+    for (let i = 0; i < 280; i++) logic.update(1 / 30);
+
+    // Building should still exist but severely damaged.
+    const buildingState = logic.getEntityState(1);
+    expect(buildingState).toBeDefined();
+    expect(buildingState!.health).toBeGreaterThan(0);
+    expect(buildingState!.health).toBeLessThanOrEqual(100);
+
+    // Soldiers should have been auto-ejected when building hit REALLY_DAMAGED.
+    expect(buildingState!.modelConditionFlags ?? []).not.toContain('LOADED');
+    const soldierState = logic.getEntityState(2);
+    expect(soldierState).toBeDefined();
+    expect(soldierState!.statusFlags ?? []).not.toContain('UNSELECTABLE');
+  });
+
+  it('GARRISONABLE_UNTIL_DESTROYED buildings do NOT eject on REALLY_DAMAGED', () => {
+    // REALLY_DAMAGED threshold = health/maxHealth <= 0.1 (10%).
+    // For 1000 HP building: health <= 100 = REALLY_DAMAGED.
+    // 30 dmg/shot every 3 frames, 90 frames ≈ 30 shots = 900 dmg. Health = 100 (REALLY_DAMAGED).
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('ToughBuilding', 'America', ['STRUCTURE', 'GARRISONABLE_UNTIL_DESTROYED'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Contain', {
+            ContainMax: 10,
+          }),
+        ]),
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+        makeObjectDef('Attacker', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'SmallGun'] }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('SmallGun', {
+          AttackRange: 120,
+          PrimaryDamage: 10,
+          DelayBetweenShots: 100,
+        }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('ToughBuilding', 20, 20),
+      makeMapObject('Soldier', 22, 20),
+      makeMapObject('Attacker', 50, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    // Garrison soldier.
+    logic.submitCommand({ type: 'garrisonBuilding', entityId: 2, targetBuildingId: 1 });
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).toContain('LOADED');
+
+    // Damage building past REALLY_DAMAGED threshold (10% = 100 HP).
+    logic.submitCommand({ type: 'attackEntity', entityId: 3, targetEntityId: 1 });
+    for (let i = 0; i < 280; i++) logic.update(1 / 30);
+
+    // Building should still be alive and heavily damaged.
+    const buildingState = logic.getEntityState(1);
+    expect(buildingState).toBeDefined();
+    expect(buildingState!.health).toBeGreaterThan(0);
+    expect(buildingState!.health).toBeLessThanOrEqual(100);
+
+    // Even past REALLY_DAMAGED, GARRISONABLE_UNTIL_DESTROYED keeps soldiers inside.
+    expect(buildingState!.modelConditionFlags ?? []).toContain('LOADED');
+  });
+
+  it('subdued garrison blocks fire permission', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Building', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+            MaxHealth: 500, InitialHealth: 500,
+            SubdualDamageCap: 1000, SubdualDamageHealRate: 500000,
+          }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Contain', {
+            ContainMax: 10,
+          }),
+        ]),
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'Rifle'] }),
+        ], { TransportSlotCount: 1 }),
+        makeObjectDef('Target', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ]),
+        makeObjectDef('Subduer', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'SubdualGun'] }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('Rifle', {
+          AttackRange: 120,
+          PrimaryDamage: 10,
+          DelayBetweenShots: 100,
+        }),
+        makeWeaponDef('SubdualGun', {
+          AttackRange: 120,
+          PrimaryDamage: 600,
+          DamageType: 'SUBDUAL_BUILDING',
+          DelayBetweenShots: 100,
+        }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('Building', 20, 20),
+      makeMapObject('Soldier', 22, 20),
+      makeMapObject('Target', 40, 20),
+      makeMapObject('Subduer', 50, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    // Garrison soldier.
+    logic.submitCommand({ type: 'garrisonBuilding', entityId: 2, targetBuildingId: 1 });
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+
+    // Subdue the building using subdual weapon.
+    logic.submitCommand({ type: 'attackEntity', entityId: 4, targetEntityId: 1 });
+    for (let i = 0; i < 15; i++) logic.update(1 / 30);
+
+    // Verify building is subdued.
+    const buildingState = logic.getEntityState(1);
+    expect(buildingState!.statusFlags ?? []).toContain('DISABLED_SUBDUED');
+
+    // Record target health before attack attempt.
+    const targetBefore = logic.getEntityState(3)!.health;
+
+    // Order soldier to attack — should do nothing (building is subdued).
+    logic.submitCommand({ type: 'attackEntity', entityId: 2, targetEntityId: 3 });
+    for (let i = 0; i < 30; i++) logic.update(1 / 30);
+
+    // Target should still have same health (garrison fire was blocked).
+    const targetState = logic.getEntityState(3);
+    expect(targetState).toBeDefined();
+    expect(targetState!.health).toBe(targetBefore);
   });
 });
 
@@ -707,52 +1419,20 @@ describe('OpenContain', () => {
     logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
     for (let i = 0; i < 5; i++) logic.update(1 / 30);
 
-    // The fire-from-container logic is verified by the combat-containment module.
-    // Here we just verify the ranger entered successfully and the bus has LOADED.
+    // Verify LOADED.
     const busState = logic.getEntityState(1);
     expect(busState).toBeDefined();
-    // OPEN containers show LOADED when occupied.
     const flags = busState!.modelConditionFlags ?? [];
     expect(flags).toContain('LOADED');
-  });
 
-  it('sets LOADED on garrison containers when occupied (source parity: GarrisonContain inherits OpenContain LOADED behavior)', () => {
-    const bundle = makeBundle({
-      objects: [
-        makeObjectDef('Barracks', 'America', ['STRUCTURE'], [
-          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
-          makeBlock('Behavior', 'GarrisonContain ModuleTag_Contain', {
-            ContainMax: 10,
-          }),
-        ]),
-        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
-          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
-        ], { TransportSlotCount: 1 }),
-      ],
-    });
-    const logic = createLogic();
-    const map = makeMap([
-      makeMapObject('Barracks', 20, 20),
-      makeMapObject('Soldier', 22, 20),
-    ]);
-    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+    // Order ranger to attack from inside the bus.
+    logic.submitCommand({ type: 'attackEntity', entityId: 2, targetEntityId: 3 });
+    for (let i = 0; i < 30; i++) logic.update(1 / 30);
 
-    // Before entering — no LOADED flag.
-    logic.update(1 / 30);
-    const emptyState = logic.getEntityState(1);
-    expect(emptyState).toBeDefined();
-    expect(emptyState!.modelConditionFlags ?? []).not.toContain('LOADED');
-
-    // Enter garrison.
-    logic.submitCommand({ type: 'garrisonBuilding', entityId: 2, targetBuildingId: 1 });
-    for (let i = 0; i < 10; i++) logic.update(1 / 30);
-
-    // Source parity: GarrisonContain inherits from TransportContain which inherits
-    // from OpenContain. All OpenContain-derived containers set LOADED when occupied.
-    const barracksState = logic.getEntityState(1);
-    expect(barracksState).toBeDefined();
-    const flags = barracksState!.modelConditionFlags ?? [];
-    expect(flags).toContain('LOADED');
+    // Target should have taken damage (fire from open container works).
+    const targetState = logic.getEntityState(3);
+    expect(targetState).toBeDefined();
+    expect(targetState!.health).toBeLessThan(500);
   });
 });
 
@@ -873,25 +1553,39 @@ describe('Containment system integration', () => {
       makeMapObject('Infantry', 24, 20),
       makeMapObject('Humvee', 26, 20),
       makeMapObject('Humvee', 28, 20),
+      // 5th entity: another Humvee (3 slots) — should be rejected (2+6=8 full).
+      makeMapObject('Humvee', 30, 20),
     ]);
     logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
 
-    // Enter 2 infantry (2 slots) and 2 humvees (6 slots) = 8 total slots.
+    // Enter 2 infantry (2 slots) + 2 humvees (6 slots) = 8 total slots.
     logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
     logic.submitCommand({ type: 'enterTransport', entityId: 3, targetTransportId: 1 });
     logic.submitCommand({ type: 'enterTransport', entityId: 4, targetTransportId: 1 });
     logic.submitCommand({ type: 'enterTransport', entityId: 5, targetTransportId: 1 });
+    // Try to add a 5th unit (3 slots) — should be rejected since 8/8 occupied.
+    logic.submitCommand({ type: 'enterTransport', entityId: 6, targetTransportId: 1 });
     for (let i = 0; i < 15; i++) logic.update(1 / 30);
 
-    // Evacuate to count passengers.
+    // 5th unit (Humvee #3) should NOT be inside (not held).
+    const fifthState = logic.getEntityState(6);
+    expect(fifthState).toBeDefined();
+    expect(fifthState!.statusFlags ?? []).not.toContain('DISABLED_HELD');
+
+    // First 4 units should be inside.
+    let insideCount = 0;
+    for (const id of [2, 3, 4, 5]) {
+      if ((logic.getEntityState(id)!.statusFlags ?? []).includes('DISABLED_HELD')) {
+        insideCount++;
+      }
+    }
+    expect(insideCount).toBe(4);
+
+    // Evacuate — all should come out.
     logic.submitCommand({ type: 'evacuate', entityId: 1 });
     for (let i = 0; i < 5; i++) logic.update(1 / 30);
 
-    // All 4 units should exist.
-    expect(logic.getEntityState(2)).toBeDefined();
-    expect(logic.getEntityState(3)).toBeDefined();
-    expect(logic.getEntityState(4)).toBeDefined();
-    expect(logic.getEntityState(5)).toBeDefined();
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).not.toContain('LOADED');
   });
 
   it('blocks enemy units from entering own-side transport', () => {
@@ -926,5 +1620,121 @@ describe('Containment system integration', () => {
     expect(transportState).toBeDefined();
     const flags = transportState!.modelConditionFlags ?? [];
     expect(flags).not.toContain('LOADED');
+  });
+
+  it('subdued container blocks evacuation', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Building', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+            MaxHealth: 500, InitialHealth: 500,
+            SubdualDamageCap: 1000, SubdualDamageHealRate: 500000,
+          }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Contain', {
+            ContainMax: 10,
+          }),
+        ]),
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+        makeObjectDef('Subduer', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'SubdualGun'] }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('SubdualGun', {
+          AttackRange: 120,
+          PrimaryDamage: 600,
+          DamageType: 'SUBDUAL_BUILDING',
+          DelayBetweenShots: 100,
+        }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('Building', 20, 20),
+      makeMapObject('Soldier', 22, 20),
+      makeMapObject('Subduer', 50, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    // Garrison soldier.
+    logic.submitCommand({ type: 'garrisonBuilding', entityId: 2, targetBuildingId: 1 });
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).toContain('LOADED');
+
+    // Subdue the building.
+    logic.submitCommand({ type: 'attackEntity', entityId: 3, targetEntityId: 1 });
+    for (let i = 0; i < 15; i++) logic.update(1 / 30);
+    expect(logic.getEntityState(1)!.statusFlags ?? []).toContain('DISABLED_SUBDUED');
+
+    // Try to evacuate — should be blocked.
+    logic.submitCommand({ type: 'evacuate', entityId: 1 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    // Soldier should still be inside (LOADED still set).
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).toContain('LOADED');
+  });
+
+  it('subdued container blocks individual exit', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Transport', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+            MaxHealth: 200, InitialHealth: 200,
+            SubdualDamageCap: 1000, SubdualDamageHealRate: 500000,
+          }),
+          makeBlock('Behavior', 'TransportContain ModuleTag_Contain', {
+            ContainMax: 5,
+            AllowInsideKindOf: 'INFANTRY',
+          }),
+        ]),
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+        makeObjectDef('Subduer', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'SubdualGun'] }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('SubdualGun', {
+          AttackRange: 120,
+          PrimaryDamage: 600,
+          DamageType: 'SUBDUAL_VEHICLE',
+          DelayBetweenShots: 100,
+        }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('Transport', 20, 20),
+      makeMapObject('Soldier', 22, 20),
+      makeMapObject('Subduer', 50, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    // Enter transport.
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).toContain('LOADED');
+
+    // Subdue the transport.
+    logic.submitCommand({ type: 'attackEntity', entityId: 3, targetEntityId: 1 });
+    for (let i = 0; i < 15; i++) logic.update(1 / 30);
+    expect(logic.getEntityState(1)!.statusFlags ?? []).toContain('DISABLED_SUBDUED');
+
+    // Try to exit — should be blocked.
+    logic.submitCommand({ type: 'exitContainer', entityId: 2 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    // Soldier should still be inside.
+    expect(logic.getEntityState(1)!.modelConditionFlags ?? []).toContain('LOADED');
+    expect(logic.getEntityState(2)!.statusFlags ?? []).toContain('DISABLED_HELD');
   });
 });

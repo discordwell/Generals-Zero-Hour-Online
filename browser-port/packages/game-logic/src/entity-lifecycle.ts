@@ -1376,6 +1376,12 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
     self.processDamageToContained(entity);
   }
 
+  // Source parity: TransportContain::killRidersWhoAreNotFreeToExit — kill riders who cannot exit
+  // before releasing remaining passengers (C++ TransportContain.cpp).
+  if (entity.containProfile && entity.containProfile.destroyRidersWhoAreNotFreeToExit) {
+    self.killRidersWhoAreNotFreeToExit(entity);
+  }
+
   // Source parity: Contain::onDie — release contained entities on container death.
   // Garrison, transport, helix, and overlord passengers are ejected at the container position.
   if (entity.containProfile

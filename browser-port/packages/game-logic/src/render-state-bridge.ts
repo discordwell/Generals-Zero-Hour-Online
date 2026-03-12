@@ -266,9 +266,11 @@ export function syncModelConditionFlags(self: GL, entity: MapEntity): void {
     // ════════════════════════════════════════════════════════════════════════
 
     // ── GARRISONED — entity is inside a garrison building ──
+    // Note: garrison BUILDINGS also get GARRISONED (set by updateContainModelConditions)
+    // when they have occupants. Only clear GARRISONED here for non-garrison-container entities.
     if (entity.garrisonContainerId !== null) {
       flags.add('GARRISONED');
-    } else {
+    } else if (!entity.containProfile || entity.containProfile.moduleType !== 'GARRISON') {
       flags.delete('GARRISONED');
     }
 

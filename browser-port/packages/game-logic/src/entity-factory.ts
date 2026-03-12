@@ -1405,6 +1405,10 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
       }
     }
 
+    // Source parity: TransportContainModuleData::m_destroyRidersWhoAreNotFreeToExit.
+    const destroyRidersRaw = readBooleanField(block.fields, ['DestroyRidersWhoAreNotFreeToExit']);
+    const destroyRidersWhoAreNotFreeToExit = destroyRidersRaw === true;
+
     if (moduleType === 'OPENCONTAIN') {
       profile = {
         moduleType: 'OPEN',
@@ -1423,6 +1427,7 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         healthRegenPercentPerSec: 0,
         initialPayloadTemplateName: null,
         initialPayloadCount: 0,
+        destroyRidersWhoAreNotFreeToExit,
       };
     } else if (moduleType === 'TRANSPORTCONTAIN') {
       profile = {
@@ -1442,6 +1447,7 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         healthRegenPercentPerSec,
         initialPayloadTemplateName,
         initialPayloadCount,
+        destroyRidersWhoAreNotFreeToExit,
       };
     } else if (moduleType === 'OVERLORDCONTAIN') {
       profile = {
@@ -1461,6 +1467,7 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         healthRegenPercentPerSec,
         initialPayloadTemplateName,
         initialPayloadCount,
+        destroyRidersWhoAreNotFreeToExit,
       };
     } else if (moduleType === 'HELIXCONTAIN') {
       // HELIXCONTAIN is a Zero Hour-specific container module name used by data INIs;
@@ -1483,6 +1490,7 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         healthRegenPercentPerSec,
         initialPayloadTemplateName,
         initialPayloadCount,
+        destroyRidersWhoAreNotFreeToExit,
       };
     } else if (moduleType === 'PARACHUTECONTAIN') {
       // Source parity: ParachuteContain overrides isSpecialZeroSlotContainer() == true.
@@ -1505,6 +1513,7 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         healthRegenPercentPerSec: 0,
         initialPayloadTemplateName: null,
         initialPayloadCount: 0,
+        destroyRidersWhoAreNotFreeToExit,
       };
     } else if (moduleType === 'GARRISONCONTAIN') {
       // GarrisonContain is OpenContain-derived in source but always returns TRUE from
@@ -1526,6 +1535,7 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         healthRegenPercentPerSec: 0,
         initialPayloadTemplateName: null,
         initialPayloadCount: 0,
+        destroyRidersWhoAreNotFreeToExit,
       };
     } else if (moduleType === 'TUNNELCONTAIN') {
       // Source parity: TunnelContain — per-player shared tunnel network.
@@ -1548,6 +1558,7 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         healthRegenPercentPerSec: 0,
         initialPayloadTemplateName: null,
         initialPayloadCount: 0,
+        destroyRidersWhoAreNotFreeToExit,
       };
     } else if (moduleType === 'CAVECONTAIN') {
       // Source parity: CaveContain — shared tunnel tracker keyed by CaveIndex.
@@ -1573,6 +1584,7 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         healthRegenPercentPerSec: 0,
         initialPayloadTemplateName: null,
         initialPayloadCount: 0,
+        destroyRidersWhoAreNotFreeToExit,
       };
     } else if (moduleType === 'HEALCONTAIN') {
       // Source parity: HealContain — passengers healed inside, auto-ejected when full health.
@@ -1595,6 +1607,7 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         healthRegenPercentPerSec: 0,
         initialPayloadTemplateName: null,
         initialPayloadCount: 0,
+        destroyRidersWhoAreNotFreeToExit,
       };
     } else if (moduleType === 'INTERNETHACKCONTAIN') {
       // Source parity: InternetHackContain — extends TransportContain, auto-issues
@@ -1616,6 +1629,7 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         healthRegenPercentPerSec,
         initialPayloadTemplateName,
         initialPayloadCount,
+        destroyRidersWhoAreNotFreeToExit,
       };
     }
 

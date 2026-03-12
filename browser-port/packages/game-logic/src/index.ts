@@ -483,6 +483,7 @@ import {
   resolveEntityContainingObject as resolveEntityContainingObjectImpl,
   isPassengerAllowedToFireFromContainingObject as isPassengerAllowedToFireFromContainingObjectImpl,
   processDamageToContained as processDamageToContainedImpl,
+  killRidersWhoAreNotFreeToExit as killRidersWhoAreNotFreeToExitImpl,
 } from './containment-system.js';
 import {
   createCraterInTerrain as createCraterInTerrainImpl,
@@ -1415,6 +1416,14 @@ const SOURCE_DAMAGE_TYPE_NAMES: readonly string[] = [
   'MOLOTOV_COCKTAIL',
   'COMANCHE_VULCAN',
   'FLESHY_SNIPER',
+  // Source parity: Zero Hour additional damage types (GeneralsMD/Code/GameEngine/Source/GameLogic/System/Damage.cpp:75-81).
+  'SUBDUAL_MISSILE',
+  'SUBDUAL_VEHICLE',
+  'SUBDUAL_BUILDING',
+  'SUBDUAL_UNRESISTABLE',
+  'MICROWAVE',
+  'KILL_GARRISONED',
+  'STATUS',
 ];
 const SOURCE_DAMAGE_TYPE_NAME_SET = new Set<string>(SOURCE_DAMAGE_TYPE_NAMES);
 
@@ -2200,6 +2209,9 @@ interface ContainProfile {
   /** Source parity: TransportContainModuleData::m_initialPayload — spawn initial units inside on creation. */
   initialPayloadTemplateName: string | null;
   initialPayloadCount: number;
+  /** Source parity: TransportContainModuleData::m_destroyRidersWhoAreNotFreeToExit — kill riders
+   *  who cannot exit when the container dies. Default: false. */
+  destroyRidersWhoAreNotFreeToExit: boolean;
 }
 
 /**
@@ -10334,6 +10346,7 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ resolveEntityContainingObject(...args: any[]) { return (resolveEntityContainingObjectImpl as any)(this, ...args); }
   private isPassengerAllowedToFireFromContainingObject(...args: any[]) { return (isPassengerAllowedToFireFromContainingObjectImpl as any)(this, ...args); }
   /* @internal */ processDamageToContained(...args: any[]) { return (processDamageToContainedImpl as any)(this, ...args); }
+  /* @internal */ killRidersWhoAreNotFreeToExit(...args: any[]) { return (killRidersWhoAreNotFreeToExitImpl as any)(this, ...args); }
 
   // ---- Script camera/media facades (delegate to script-camera.ts) ----
 
@@ -26541,15 +26554,16 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
 
-    // Source parity: track body damage state transitions for SupplyWarehouseCripplingBehavior + BoneFXUpdate.
-    const needsDamageStateTracking = target.supplyWarehouseCripplingProfile || target.boneFXState;
+    // Source parity: track body damage state transitions for SupplyWarehouseCripplingBehavior + BoneFXUpdate + GarrisonContain.
+    const isGarrisonContainer = target.containProfile?.moduleType === 'GARRISON';
+    const needsDamageStateTracking = target.supplyWarehouseCripplingProfile || target.boneFXState || isGarrisonContainer;
     const oldDamageState = needsDamageStateTracking
       ? calcBodyDamageState(target.health, target.maxHealth)
       : 0 as BodyDamageState;
 
     target.health = Math.max(0, target.health - adjustedDamage);
 
-    // Source parity: onBodyDamageStateChange — SupplyWarehouseCrippling + BoneFXUpdate.
+    // Source parity: onBodyDamageStateChange — SupplyWarehouseCrippling + BoneFXUpdate + GarrisonContain.
     if (needsDamageStateTracking && target.health > 0) {
       const newDamageState = calcBodyDamageState(target.health, target.maxHealth);
       if (oldDamageState !== newDamageState) {
@@ -26558,6 +26572,16 @@ export class GameLogicSubsystem implements Subsystem {
         }
         if (target.boneFXState) {
           this.boneFXChangeBodyDamageState(target, oldDamageState, newDamageState);
+        }
+        // Source parity: GarrisonContain::onBodyDamageStateChange — auto-eject infantry on REALLY_DAMAGED.
+        // C++ file: GarrisonContain.cpp — when newState == BODY_REALLYDAMAGED and building is NOT
+        // KINDOF_GARRISONABLE_UNTIL_DESTROYED, eject all garrisoned infantry.
+        const REALLYDAMAGED: BodyDamageState = 2;
+        if (isGarrisonContainer
+            && newDamageState >= REALLYDAMAGED
+            && oldDamageState < REALLYDAMAGED
+            && !target.kindOf.has('GARRISONABLE_UNTIL_DESTROYED')) {
+          this.evacuateContainedEntities(target, target.x, target.z, null);
         }
       }
     }

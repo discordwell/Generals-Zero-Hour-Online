@@ -542,6 +542,9 @@ export function enterGarrisonBuilding(self: GL, source: MapEntity, building: Map
   source.y = building.y;
   source.canMove = false;
   source.moving = false;
+  // Source parity: Object::onContainedBy — set UNSELECTABLE on garrisoned entity (C++ Object.cpp).
+  source.objectStatusFlags.add('UNSELECTABLE');
+  self.removeEntityFromSelection(source.id);
   self.pendingGarrisonActions.delete(source.id);
 }
 
@@ -564,7 +567,9 @@ export function enterTransport(self: GL, passenger: MapEntity, transport: MapEnt
     self.commandQueue.push({ type: 'hackInternet', entityId: passenger.id });
   }
   // Source parity: Object::onContainedBy — set UNSELECTABLE and MASKED for enclosed containers.
+  // Source parity: TransportContain::onContaining — set DISABLED_HELD on the rider (C++ Object/Contain/TransportContain.cpp).
   passenger.objectStatusFlags.add('UNSELECTABLE');
+  passenger.objectStatusFlags.add('DISABLED_HELD');
   if (isEnclosingContainer(self, transport)) {
     passenger.objectStatusFlags.add('MASKED');
   }
@@ -942,7 +947,8 @@ export function updateContainModelConditions(self: GL): void {
       || profile.moduleType === 'HELIX'
       || profile.moduleType === 'OPEN'
       || profile.moduleType === 'INTERNET_HACK';
-    if (!isTransportStyle) continue;
+    const isGarrison = profile.moduleType === 'GARRISON';
+    if (!isTransportStyle && !isGarrison) continue;
 
     const passengerIds = collectContainedEntityIds(self, container.id);
     const hasPassengers = passengerIds.length > 0;
@@ -952,6 +958,16 @@ export function updateContainModelConditions(self: GL): void {
       container.modelConditionFlags.add('LOADED');
     } else {
       container.modelConditionFlags.delete('LOADED');
+    }
+
+    // Source parity: GarrisonContain::onContaining — set MODELCONDITION_GARRISONED on the building
+    // when first occupied, clear when empty. C++ file: GarrisonContain.cpp.
+    if (isGarrison) {
+      if (hasPassengers) {
+        container.modelConditionFlags.add('GARRISONED');
+      } else {
+        container.modelConditionFlags.delete('GARRISONED');
+      }
     }
 
     // Source parity: OverlordContain — set RIDER model conditions per sub-unit slot.
@@ -1075,6 +1091,8 @@ export function releaseEntityFromContainer(self: GL, entity: MapEntity): void {
   if (entity.transportContainerId !== null) {
     entity.transportContainerId = null;
     entity.healContainEnteredFrame = 0;
+    // Source parity: TransportContain::onRemoving — clear DISABLED_HELD on release.
+    entity.objectStatusFlags.delete('DISABLED_HELD');
   }
 
   if (entity.tunnelContainerId !== null) {
@@ -1213,6 +1231,29 @@ export function isPassengerAllowedToFireFromContainingObject(self: GL,
     (targetEntity) => resolveEntityContainingObject(self, targetEntity),
     (targetEntity, statusName) => self.entityHasObjectStatus(targetEntity, statusName),
   );
+}
+
+/**
+ * Source parity: TransportContain::killRidersWhoAreNotFreeToExit() — called during onDie,
+ * before removeAllContained(). Checks each rider: if isSpecificRiderFreeToExit() returns false
+ * AND m_destroyRidersWhoAreNotFreeToExit is true, destroy the rider.
+ * C++ file: TransportContain.cpp.
+ *
+ * Pragmatic implementation: passengers without locomotors (canMove=false) can't exit.
+ */
+export function killRidersWhoAreNotFreeToExit(self: GL, container: MapEntity): void {
+  const profile = container.containProfile;
+  if (!profile || !profile.destroyRidersWhoAreNotFreeToExit) return;
+
+  const passengerIds = collectContainedEntityIds(self, container.id);
+  for (const passengerId of passengerIds) {
+    const passenger = self.spawnedEntities.get(passengerId);
+    if (!passenger || passenger.destroyed) continue;
+    // Pragmatic: passengers without locomotors can't exit — destroy them.
+    if (!passenger.canMove) {
+      self.markEntityDestroyed(passengerId, container.id);
+    }
+  }
 }
 
 export function processDamageToContained(self: GL, container: MapEntity): void {
