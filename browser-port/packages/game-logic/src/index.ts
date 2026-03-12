@@ -368,6 +368,23 @@ import {
   setScriptWanderInPlaceGoal as setScriptWanderInPlaceGoalImpl,
   unregisterScriptTeamPrototypeInstance as unregisterScriptTeamPrototypeInstanceImpl,
 } from './script-actions.js';
+import {
+  evaluateScriptCondition as evaluateScriptConditionImpl,
+  evaluateScriptTeamCommandButtonIsReady as evaluateScriptTeamCommandButtonIsReadyImpl,
+  evaluateScriptSingleTeamIsContained as evaluateScriptSingleTeamIsContainedImpl,
+  evaluateScriptSingleTeamHasObjectStatus as evaluateScriptSingleTeamHasObjectStatusImpl,
+  evaluateScriptSingleTeamInsideAreaEntirely as evaluateScriptSingleTeamInsideAreaEntirelyImpl,
+  evaluateScriptSingleTeamInsideAreaPartially as evaluateScriptSingleTeamInsideAreaPartiallyImpl,
+  evaluateScriptSingleTeamEnteredAreaEntirely as evaluateScriptSingleTeamEnteredAreaEntirelyImpl,
+  evaluateScriptSingleTeamEnteredAreaPartially as evaluateScriptSingleTeamEnteredAreaPartiallyImpl,
+  evaluateScriptSingleTeamExitedAreaEntirely as evaluateScriptSingleTeamExitedAreaEntirelyImpl,
+  evaluateScriptSingleTeamExitedAreaPartially as evaluateScriptSingleTeamExitedAreaPartiallyImpl,
+  evaluateScriptTeamCommandButtonReadinessByName as evaluateScriptTeamCommandButtonReadinessByNameImpl,
+  evaluateScriptPlayerUnitCondition as evaluateScriptPlayerUnitConditionImpl,
+  evaluateScriptCounterCondition as evaluateScriptCounterConditionImpl,
+  evaluateScriptFlagCondition as evaluateScriptFlagConditionImpl,
+  evaluateScriptTimerExpired as evaluateScriptTimerExpiredImpl,
+} from './script-conditions.js';
 
 export * from './types.js';
 export * from './campaign-manager.js';
@@ -10923,6 +10940,24 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity: ScriptConditions::evaluateCondition dispatcher.
    * Accepts either positional parameter arrays (`params` / `parameters`) or named parameter objects.
    */
+  // ---- Script condition facades (delegate to script-conditions.ts) ----
+
+  evaluateScriptCondition(condition: unknown): boolean { return evaluateScriptConditionImpl(this, condition); }
+  /* @internal */ evaluateScriptTeamCommandButtonIsReady(...args: any[]) { return (evaluateScriptTeamCommandButtonIsReadyImpl as any)(this, ...args); }
+  private evaluateScriptSingleTeamIsContained(...args: any[]) { return (evaluateScriptSingleTeamIsContainedImpl as any)(this, ...args); }
+  private evaluateScriptSingleTeamHasObjectStatus(...args: any[]) { return (evaluateScriptSingleTeamHasObjectStatusImpl as any)(this, ...args); }
+  private evaluateScriptSingleTeamInsideAreaEntirely(...args: any[]) { return (evaluateScriptSingleTeamInsideAreaEntirelyImpl as any)(this, ...args); }
+  private evaluateScriptSingleTeamInsideAreaPartially(...args: any[]) { return (evaluateScriptSingleTeamInsideAreaPartiallyImpl as any)(this, ...args); }
+  private evaluateScriptSingleTeamEnteredAreaEntirely(...args: any[]) { return (evaluateScriptSingleTeamEnteredAreaEntirelyImpl as any)(this, ...args); }
+  private evaluateScriptSingleTeamEnteredAreaPartially(...args: any[]) { return (evaluateScriptSingleTeamEnteredAreaPartiallyImpl as any)(this, ...args); }
+  private evaluateScriptSingleTeamExitedAreaEntirely(...args: any[]) { return (evaluateScriptSingleTeamExitedAreaEntirelyImpl as any)(this, ...args); }
+  private evaluateScriptSingleTeamExitedAreaPartially(...args: any[]) { return (evaluateScriptSingleTeamExitedAreaPartiallyImpl as any)(this, ...args); }
+  private evaluateScriptTeamCommandButtonReadinessByName(...args: any[]) { return (evaluateScriptTeamCommandButtonReadinessByNameImpl as any)(this, ...args); }
+  evaluateScriptPlayerUnitCondition(filter: any): boolean { return evaluateScriptPlayerUnitConditionImpl(this, filter); }
+  /* @internal */ evaluateScriptCounterCondition(...args: any[]) { return (evaluateScriptCounterConditionImpl as any)(this, ...args); }
+  /* @internal */ evaluateScriptFlagCondition(...args: any[]) { return (evaluateScriptFlagConditionImpl as any)(this, ...args); }
+  /* @internal */ evaluateScriptTimerExpired(...args: any[]) { return (evaluateScriptTimerExpiredImpl as any)(this, ...args); }
+
   // ---- Script action facades (delegate to script-actions.ts) ----
 
   private readScriptDictString(...args: any[]) { return (readScriptDictStringImpl as any)(this, ...args); }
@@ -10986,17 +11021,17 @@ export class GameLogicSubsystem implements Subsystem {
   private normalizeScriptObjectTypeName(...args: any[]) { return (normalizeScriptObjectTypeNameImpl as any)(this, ...args); }
   private resolveScriptObjectTypeEntriesForCondition(...args: any[]) { return (resolveScriptObjectTypeEntriesForConditionImpl as any)(this, ...args); }
   private resolveScriptObjectTypeCandidatesForAction(...args: any[]) { return (resolveScriptObjectTypeCandidatesForActionImpl as any)(this, ...args); }
-  private resolveScriptEntityIdForCondition(...args: any[]) { return (resolveScriptEntityIdForConditionImpl as any)(this, ...args); }
-  private resolveScriptEntityConditionRef(...args: any[]) { return (resolveScriptEntityConditionRefImpl as any)(this, ...args); }
+  /* @internal */ resolveScriptEntityIdForCondition(...args: any[]) { return (resolveScriptEntityIdForConditionImpl as any)(this, ...args); }
+  /* @internal */ resolveScriptEntityConditionRef(...args: any[]) { return (resolveScriptEntityConditionRefImpl as any)(this, ...args); }
   private registerScriptNamedEntity(...args: any[]) { return (registerScriptNamedEntityImpl as any)(this, ...args); }
   private resolveScriptActionTypeName(...args: any[]) { return (resolveScriptActionTypeNameImpl as any)(this, ...args); }
-  private resolveScriptConditionTypeName(...args: any[]) { return (resolveScriptConditionTypeNameImpl as any)(this, ...args); }
-  private resolveScriptConditionParams(...args: any[]) { return (resolveScriptConditionParamsImpl as any)(this, ...args); }
-  private resolveScriptConditionParamValue(...args: any[]) { return (resolveScriptConditionParamValueImpl as any)(this, ...args); }
+  /* @internal */ resolveScriptConditionTypeName(...args: any[]) { return (resolveScriptConditionTypeNameImpl as any)(this, ...args); }
+  /* @internal */ resolveScriptConditionParams(...args: any[]) { return (resolveScriptConditionParamsImpl as any)(this, ...args); }
+  /* @internal */ resolveScriptConditionParamValue(...args: any[]) { return (resolveScriptConditionParamValueImpl as any)(this, ...args); }
   private coerceScriptConditionString(...args: any[]) { return (coerceScriptConditionStringImpl as any)(this, ...args); }
-  private coerceScriptConditionNumber(...args: any[]) { return (coerceScriptConditionNumberImpl as any)(this, ...args); }
-  private coerceScriptConditionBoolean(...args: any[]) { return (coerceScriptConditionBooleanImpl as any)(this, ...args); }
-  private resolveScriptConditionCacheId(...args: any[]) { return (resolveScriptConditionCacheIdImpl as any)(this, ...args); }
+  /* @internal */ coerceScriptConditionNumber(...args: any[]) { return (coerceScriptConditionNumberImpl as any)(this, ...args); }
+  /* @internal */ coerceScriptConditionBoolean(...args: any[]) { return (coerceScriptConditionBooleanImpl as any)(this, ...args); }
+  /* @internal */ resolveScriptConditionCacheId(...args: any[]) { return (resolveScriptConditionCacheIdImpl as any)(this, ...args); }
   private countScriptObjectsByTemplateForSide(...args: any[]) { return (countScriptObjectsByTemplateForSideImpl as any)(this, ...args); }
   private countScriptObjectsByTemplateListForSide(...args: any[]) { return (countScriptObjectsByTemplateListForSideImpl as any)(this, ...args); }
   private countScriptStructuresForSide(...args: any[]) { return (countScriptStructuresForSideImpl as any)(this, ...args); }
@@ -11021,7 +11056,7 @@ export class GameLogicSubsystem implements Subsystem {
   private isScriptTeamMemberAliveForObjects(...args: any[]) { return (isScriptTeamMemberAliveForObjectsImpl as any)(this, ...args); }
   private isScriptTeamMemberAliveForUnits(...args: any[]) { return (isScriptTeamMemberAliveForUnitsImpl as any)(this, ...args); }
   private resolveScriptTeamControllingSide(...args: any[]) { return (resolveScriptTeamControllingSideImpl as any)(this, ...args); }
-  private isScriptTeamMemberInsideTrigger(...args: any[]) { return (isScriptTeamMemberInsideTriggerImpl as any)(this, ...args); }
+  /* @internal */ isScriptTeamMemberInsideTrigger(...args: any[]) { return (isScriptTeamMemberInsideTriggerImpl as any)(this, ...args); }
   private resolveScriptRelationshipInput(...args: any[]) { return (resolveScriptRelationshipInputImpl as any)(this, ...args); }
   private isScriptEntityEffectivelyDead(...args: any[]) { return (isScriptEntityEffectivelyDeadImpl as any)(this, ...args); }
   private findScriptRepairDozerForBuilding(...args: any[]) { return (findScriptRepairDozerForBuildingImpl as any)(this, ...args); }
@@ -11034,728 +11069,6 @@ export class GameLogicSubsystem implements Subsystem {
   private notifyScriptCompletedSpecialPowerOnProjectileFired(...args: any[]) { return (notifyScriptCompletedSpecialPowerOnProjectileFiredImpl as any)(this, ...args); }
   private recordScriptLastDamageInfo(...args: any[]) { return (recordScriptLastDamageInfoImpl as any)(this, ...args); }
   private isScriptSupplySourceSafe(...args: any[]) { return (isScriptSupplySourceSafeImpl as any)(this, ...args); }
-
-  evaluateScriptCondition(condition: unknown): boolean {
-    if (!condition || typeof condition !== 'object') {
-      return false;
-    }
-
-    const conditionRecord = condition as Record<string, unknown>;
-    const conditionType = this.resolveScriptConditionTypeName(
-      conditionRecord.conditionType ?? conditionRecord.type,
-    );
-    if (!conditionType) {
-      return false;
-    }
-
-    const { paramsObject, paramsArray } = this.resolveScriptConditionParams(conditionRecord);
-    const conditionCacheId = this.resolveScriptConditionCacheId(conditionRecord, paramsObject);
-
-    const readValue = (index: number, keyNames: readonly string[] = []): unknown =>
-      this.resolveScriptConditionParamValue(conditionRecord, paramsObject, paramsArray, index, keyNames);
-    const readString = (index: number, keyNames: readonly string[] = []): string =>
-      this.coerceScriptConditionString(readValue(index, keyNames));
-    const readNumber = (index: number, keyNames: readonly string[] = []): number =>
-      this.coerceScriptConditionNumber(readValue(index, keyNames)) ?? 0;
-    const readInteger = (index: number, keyNames: readonly string[] = []): number =>
-      Math.trunc(readNumber(index, keyNames));
-    const readEntityId = (index: number, keyNames: readonly string[] = []): number | null =>
-      this.resolveScriptEntityIdForCondition(readValue(index, keyNames));
-    const readOptionalEntityId = (
-      index: number,
-      keyNames: readonly string[] = [],
-    ): number | undefined => {
-      const value = readValue(index, keyNames);
-      if (value === undefined) {
-        return undefined;
-      }
-      const resolved = this.resolveScriptEntityIdForCondition(value);
-      if (resolved !== null) {
-        return resolved;
-      }
-      const fallback = this.coerceScriptConditionNumber(value);
-      return fallback === null ? Number.NaN : Math.trunc(fallback);
-    };
-    const readEntityRef = (index: number, keyNames: readonly string[] = []): {
-      entityId: number | null;
-      didExist: boolean;
-    } => this.resolveScriptEntityConditionRef(readValue(index, keyNames));
-    const readBoolean = (
-      index: number,
-      keyNames: readonly string[] = [],
-      defaultValue = false,
-    ): boolean => this.coerceScriptConditionBoolean(readValue(index, keyNames), defaultValue);
-    const readOptionalInteger = (
-      index: number,
-      keyNames: readonly string[] = [],
-    ): number | undefined => {
-      const value = this.coerceScriptConditionNumber(readValue(index, keyNames));
-      return value === null ? undefined : Math.trunc(value);
-    };
-    const readComparison = (
-      index: number,
-      keyNames: readonly string[] = [],
-    ): ScriptComparisonInput => {
-      const value = readValue(index, keyNames);
-      if (typeof value === 'number' && Number.isFinite(value)) {
-        return Math.trunc(value);
-      }
-      return this.coerceScriptConditionString(value) as ScriptComparisonType;
-    };
-    const readRelationship = (
-      index: number,
-      keyNames: readonly string[] = [],
-    ): ScriptRelationshipInput => {
-      const value = readValue(index, keyNames);
-      if (typeof value === 'number' && Number.isFinite(value)) {
-        return Math.trunc(value);
-      }
-      return this.coerceScriptConditionString(value) as ScriptRelationshipInput;
-    };
-
-    switch (conditionType) {
-      case 'CONDITION_FALSE':
-        return false;
-      case 'CONDITION_TRUE':
-        return true;
-      case 'COUNTER':
-        return this.evaluateScriptCounterCondition({
-          counterName: readString(0, ['counterName', 'counter']),
-          comparison: readComparison(1, ['comparison']),
-          value: readInteger(2, ['value']),
-        });
-      case 'FLAG':
-        return this.evaluateScriptFlagCondition({
-          flagName: readString(0, ['flagName', 'flag']),
-          value: readBoolean(1, ['value']),
-        });
-      case 'TIMER_EXPIRED':
-        return this.evaluateScriptTimerExpired({
-          counterName: readString(0, ['counterName', 'counter']),
-        });
-
-      case 'PLAYER_ALL_DESTROYED':
-        return this.evaluateScriptAllDestroyed({
-          side: readString(0, ['side', 'playerName', 'player']),
-        });
-      case 'PLAYER_ALL_BUILDFACILITIES_DESTROYED':
-        return this.evaluateScriptAllBuildFacilitiesDestroyed({
-          side: readString(0, ['side', 'playerName', 'player']),
-        });
-      case 'TEAM_INSIDE_AREA_PARTIALLY':
-        return this.evaluateScriptTeamInsideAreaPartially({
-          teamName: readString(0, ['teamName', 'team']),
-          triggerName: readString(1, ['triggerName', 'trigger']),
-          surfacesAllowed: readOptionalInteger(2, ['surfacesAllowed']),
-        });
-      case 'TEAM_DESTROYED':
-        return this.evaluateScriptIsDestroyed({
-          teamName: readString(0, ['teamName', 'team']),
-        });
-      case 'CAMERA_MOVEMENT_FINISHED':
-        return this.evaluateScriptCameraMovementFinished();
-      case 'TEAM_HAS_UNITS':
-        return this.evaluateScriptHasUnits({
-          teamName: readString(0, ['teamName', 'team']),
-        });
-      case 'TEAM_STATE_IS':
-        return this.evaluateScriptTeamStateIs({
-          teamName: readString(0, ['teamName', 'team']),
-          stateName: readString(1, ['stateName', 'state']),
-        });
-      case 'TEAM_STATE_IS_NOT':
-        return this.evaluateScriptTeamStateIsNot({
-          teamName: readString(0, ['teamName', 'team']),
-          stateName: readString(1, ['stateName', 'state']),
-        });
-      case 'NAMED_INSIDE_AREA': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptNamedInsideArea({
-          entityId,
-          triggerName: readString(1, ['triggerName', 'trigger']),
-        });
-      }
-      case 'NAMED_OUTSIDE_AREA': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptNamedOutsideArea({
-          entityId,
-          triggerName: readString(1, ['triggerName', 'trigger']),
-        });
-      }
-      case 'NAMED_DESTROYED': {
-        const entityRef = readEntityRef(0, ['entityId']);
-        if (entityRef.entityId !== null) {
-          return this.evaluateScriptNamedUnitDestroyed({ entityId: entityRef.entityId });
-        }
-        return entityRef.didExist;
-      }
-      case 'NAMED_NOT_DESTROYED': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptNamedUnitExists({ entityId });
-      }
-      case 'TEAM_INSIDE_AREA_ENTIRELY':
-        return this.evaluateScriptTeamInsideAreaEntirely({
-          teamName: readString(0, ['teamName', 'team']),
-          triggerName: readString(1, ['triggerName', 'trigger']),
-          surfacesAllowed: readOptionalInteger(2, ['surfacesAllowed']),
-        });
-      case 'TEAM_OUTSIDE_AREA_ENTIRELY':
-        return this.evaluateScriptTeamOutsideAreaEntirely({
-          teamName: readString(0, ['teamName', 'team']),
-          triggerName: readString(1, ['triggerName', 'trigger']),
-          surfacesAllowed: readOptionalInteger(2, ['surfacesAllowed']),
-        });
-      case 'NAMED_ATTACKED_BY_OBJECTTYPE': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptNamedAttackedByType({
-          entityId,
-          objectType: readString(1, ['objectType', 'templateName', 'unitType']),
-        });
-      }
-      case 'TEAM_ATTACKED_BY_OBJECTTYPE':
-        return this.evaluateScriptTeamAttackedByType({
-          teamName: readString(0, ['teamName', 'team']),
-          objectType: readString(1, ['objectType', 'templateName', 'unitType']),
-        });
-      case 'NAMED_ATTACKED_BY_PLAYER': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptNamedAttackedByPlayer({
-          entityId,
-          attackedBySide: readString(1, ['attackedBySide', 'side', 'playerName', 'player']),
-        });
-      }
-      case 'TEAM_ATTACKED_BY_PLAYER':
-        return this.evaluateScriptTeamAttackedByPlayer({
-          teamName: readString(0, ['teamName', 'team']),
-          attackedBySide: readString(1, ['attackedBySide', 'side', 'playerName', 'player']),
-        });
-      case 'BUILT_BY_PLAYER':
-        return this.evaluateScriptBuiltByPlayer({
-          templateName: readString(0, ['templateName', 'objectType', 'unitType']),
-          side: readString(1, ['side', 'playerName', 'player']),
-          conditionCacheId,
-        });
-      case 'NAMED_CREATED': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptNamedCreated({ entityId });
-      }
-      case 'TEAM_CREATED':
-        return this.evaluateScriptTeamCreated({
-          teamName: readString(0, ['teamName', 'team']),
-        });
-      case 'PLAYER_HAS_CREDITS':
-        return this.evaluateScriptPlayerHasCredits({
-          credits: readNumber(0, ['credits']),
-          comparison: readComparison(1, ['comparison']),
-          side: readString(2, ['side', 'playerName', 'player']),
-        });
-      case 'NAMED_DISCOVERED': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptNamedDiscovered({
-          entityId,
-          side: readString(1, ['side', 'playerName', 'player']),
-        });
-      }
-      case 'TEAM_DISCOVERED':
-        return this.evaluateScriptTeamDiscovered({
-          teamName: readString(0, ['teamName', 'team']),
-          side: readString(1, ['side', 'playerName', 'player']),
-        });
-      case 'MISSION_ATTEMPTS':
-        return this.evaluateScriptMissionAttempts({
-          side: readString(0, ['side', 'playerName', 'player']),
-          comparison: readComparison(1, ['comparison']),
-          attempts: readInteger(2, ['attempts']),
-        });
-      case 'NAMED_OWNED_BY_PLAYER': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptNamedOwnedByPlayer({
-          entityId,
-          side: readString(1, ['side', 'playerName', 'player']),
-        });
-      }
-      case 'TEAM_OWNED_BY_PLAYER':
-        return this.evaluateScriptTeamOwnedByPlayer({
-          teamName: readString(0, ['teamName', 'team']),
-          side: readString(1, ['side', 'playerName', 'player']),
-        });
-      case 'PLAYER_HAS_N_OR_FEWER_BUILDINGS':
-        return this.evaluateScriptPlayerHasNOrFewerBuildings({
-          side: readString(0, ['side', 'playerName', 'player']),
-          buildingCount: readInteger(1, ['buildingCount', 'count']),
-        });
-      case 'PLAYER_HAS_POWER':
-        return this.evaluateScriptPlayerHasPower({
-          side: readString(0, ['side', 'playerName', 'player']),
-        });
-      case 'PLAYER_HAS_NO_POWER':
-        return !this.evaluateScriptPlayerHasPower({
-          side: readString(0, ['side', 'playerName', 'player']),
-        });
-      case 'NAMED_REACHED_WAYPOINTS_END': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptNamedReachedWaypointsEnd({
-          entityId,
-          waypointPathName: readString(1, ['waypointPathName', 'waypointPath']),
-        });
-      }
-      case 'TEAM_REACHED_WAYPOINTS_END':
-        return this.evaluateScriptTeamReachedWaypointsEnd({
-          teamName: readString(0, ['teamName', 'team']),
-          waypointPathName: readString(1, ['waypointPathName', 'waypointPath']),
-        });
-      case 'NAMED_SELECTED': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptNamedSelected({ entityId, conditionCacheId });
-      }
-      case 'NAMED_ENTERED_AREA': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptNamedEnteredArea({
-          entityId,
-          triggerName: readString(1, ['triggerName', 'trigger']),
-        });
-      }
-      case 'NAMED_EXITED_AREA': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptNamedExitedArea({
-          entityId,
-          triggerName: readString(1, ['triggerName', 'trigger']),
-        });
-      }
-      case 'TEAM_ENTERED_AREA_ENTIRELY':
-        return this.evaluateScriptTeamEnteredAreaEntirely({
-          teamName: readString(0, ['teamName', 'team']),
-          triggerName: readString(1, ['triggerName', 'trigger']),
-          surfacesAllowed: readOptionalInteger(2, ['surfacesAllowed']),
-        });
-      case 'TEAM_ENTERED_AREA_PARTIALLY':
-        return this.evaluateScriptTeamEnteredAreaPartially({
-          teamName: readString(0, ['teamName', 'team']),
-          triggerName: readString(1, ['triggerName', 'trigger']),
-          surfacesAllowed: readOptionalInteger(2, ['surfacesAllowed']),
-        });
-      case 'TEAM_EXITED_AREA_ENTIRELY':
-        return this.evaluateScriptTeamExitedAreaEntirely({
-          teamName: readString(0, ['teamName', 'team']),
-          triggerName: readString(1, ['triggerName', 'trigger']),
-          surfacesAllowed: readOptionalInteger(2, ['surfacesAllowed']),
-        });
-      case 'TEAM_EXITED_AREA_PARTIALLY':
-        return this.evaluateScriptTeamExitedAreaPartially({
-          teamName: readString(0, ['teamName', 'team']),
-          triggerName: readString(1, ['triggerName', 'trigger']),
-          surfacesAllowed: readOptionalInteger(2, ['surfacesAllowed']),
-        });
-      case 'MULTIPLAYER_ALLIED_VICTORY':
-        return this.evaluateScriptMultiplayerAlliedVictory();
-      case 'MULTIPLAYER_ALLIED_DEFEAT':
-        return this.evaluateScriptMultiplayerAlliedDefeat();
-      case 'MULTIPLAYER_PLAYER_DEFEAT':
-        return this.evaluateScriptMultiplayerPlayerDefeat();
-      case 'HAS_FINISHED_VIDEO':
-        return this.evaluateScriptVideoHasCompleted({
-          videoName: readString(0, ['videoName']),
-        });
-      case 'HAS_FINISHED_SPEECH':
-        return this.evaluateScriptSpeechHasCompleted({
-          speechName: readString(0, ['speechName']),
-        });
-      case 'HAS_FINISHED_AUDIO':
-        return this.evaluateScriptAudioHasCompleted({
-          audioName: readString(0, ['audioName']),
-        });
-      case 'BUILDING_ENTERED_BY_PLAYER': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptBuildingEntered({
-          entityId,
-          side: readString(1, ['side', 'playerName', 'player']),
-        });
-      }
-      case 'ENEMY_SIGHTED': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptEnemySighted({
-          entityId,
-          alliance: readRelationship(1, ['alliance']),
-          side: readString(2, ['side', 'playerName', 'player']),
-        });
-      }
-      case 'TYPE_SIGHTED': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptTypeSighted({
-          entityId,
-          objectType: readString(1, ['objectType', 'templateName', 'unitType']),
-          side: readString(2, ['side', 'playerName', 'player']),
-        });
-      }
-      case 'UNIT_HEALTH': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptUnitHealth({
-          entityId,
-          comparison: readComparison(1, ['comparison']),
-          healthPercent: readNumber(2, ['healthPercent']),
-        });
-      }
-      case 'BRIDGE_REPAIRED': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptBridgeRepaired({ entityId });
-      }
-      case 'BRIDGE_BROKEN': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptBridgeBroken({ entityId });
-      }
-      case 'NAMED_DYING': {
-        const entityRef = readEntityRef(0, ['entityId']);
-        if (entityRef.entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptNamedUnitDying({ entityId: entityRef.entityId });
-      }
-      case 'NAMED_TOTALLY_DEAD': {
-        const entityRef = readEntityRef(0, ['entityId']);
-        if (entityRef.entityId !== null) {
-          return this.evaluateScriptNamedUnitTotallyDead({ entityId: entityRef.entityId });
-        }
-        return entityRef.didExist;
-      }
-      case 'PLAYER_HAS_OBJECT_COMPARISON':
-        return this.evaluateScriptPlayerUnitCondition({
-          side: readString(0, ['side', 'playerName', 'player']),
-          comparison: readComparison(1, ['comparison']),
-          count: readInteger(2, ['count']),
-          unitType: readString(3, ['unitType', 'objectType', 'templateName']),
-          conditionCacheId,
-        });
-      case 'PLAYER_TRIGGERED_SPECIAL_POWER':
-        return this.evaluateScriptPlayerSpecialPowerFromUnitTriggered({
-          side: readString(0, ['side', 'playerName', 'player']),
-          specialPowerName: readString(1, ['specialPowerName', 'specialPower']),
-        });
-      case 'PLAYER_TRIGGERED_SPECIAL_POWER_FROM_NAMED':
-        return this.evaluateScriptPlayerSpecialPowerFromUnitTriggered({
-          side: readString(0, ['side', 'playerName', 'player']),
-          specialPowerName: readString(1, ['specialPowerName', 'specialPower']),
-          sourceEntityId: readOptionalEntityId(2, ['sourceEntityId', 'entityId']),
-        });
-      case 'PLAYER_MIDWAY_SPECIAL_POWER':
-        return this.evaluateScriptPlayerSpecialPowerFromUnitMidway({
-          side: readString(0, ['side', 'playerName', 'player']),
-          specialPowerName: readString(1, ['specialPowerName', 'specialPower']),
-        });
-      case 'PLAYER_MIDWAY_SPECIAL_POWER_FROM_NAMED':
-        return this.evaluateScriptPlayerSpecialPowerFromUnitMidway({
-          side: readString(0, ['side', 'playerName', 'player']),
-          specialPowerName: readString(1, ['specialPowerName', 'specialPower']),
-          sourceEntityId: readOptionalEntityId(2, ['sourceEntityId', 'entityId']),
-        });
-      case 'PLAYER_COMPLETED_SPECIAL_POWER':
-        return this.evaluateScriptPlayerSpecialPowerFromUnitComplete({
-          side: readString(0, ['side', 'playerName', 'player']),
-          specialPowerName: readString(1, ['specialPowerName', 'specialPower']),
-        });
-      case 'PLAYER_COMPLETED_SPECIAL_POWER_FROM_NAMED':
-        return this.evaluateScriptPlayerSpecialPowerFromUnitComplete({
-          side: readString(0, ['side', 'playerName', 'player']),
-          specialPowerName: readString(1, ['specialPowerName', 'specialPower']),
-          sourceEntityId: readOptionalEntityId(2, ['sourceEntityId', 'entityId']),
-        });
-      case 'PLAYER_ACQUIRED_SCIENCE':
-        return this.evaluateScriptScienceAcquired({
-          side: readString(0, ['side', 'playerName', 'player']),
-          scienceName: readString(1, ['scienceName']),
-        });
-      case 'PLAYER_CAN_PURCHASE_SCIENCE':
-        return this.evaluateScriptCanPurchaseScience({
-          side: readString(0, ['side', 'playerName', 'player']),
-          scienceName: readString(1, ['scienceName']),
-        });
-      case 'PLAYER_HAS_SCIENCEPURCHASEPOINTS':
-        return this.evaluateScriptSciencePurchasePoints({
-          side: readString(0, ['side', 'playerName', 'player']),
-          pointsNeeded: readNumber(1, ['pointsNeeded', 'sciencePurchasePoints']),
-        });
-      case 'NAMED_HAS_FREE_CONTAINER_SLOTS': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptNamedHasFreeContainerSlots({ entityId });
-      }
-      case 'PLAYER_BUILT_UPGRADE':
-        return this.evaluateScriptUpgradeFromUnitComplete({
-          side: readString(0, ['side', 'playerName', 'player']),
-          upgradeName: readString(1, ['upgradeName', 'upgrade']),
-        });
-      case 'PLAYER_BUILT_UPGRADE_FROM_NAMED':
-        return this.evaluateScriptUpgradeFromUnitComplete({
-          side: readString(0, ['side', 'playerName', 'player']),
-          upgradeName: readString(1, ['upgradeName', 'upgrade']),
-          sourceEntityId: readOptionalEntityId(2, ['sourceEntityId', 'entityId']),
-        });
-      case 'DEFUNCT_PLAYER_SELECTED_GENERAL':
-      case 'DEFUNCT_PLAYER_SELECTED_GENERAL_FROM_NAMED':
-        return false;
-      case 'PLAYER_DESTROYED_N_BUILDINGS_PLAYER':
-        return this.evaluateScriptPlayerDestroyedNOrMoreBuildings({
-          side: readString(0, ['side', 'playerName', 'player']),
-          count: readInteger(1, ['count']),
-          opponentSide: readString(2, ['opponentSide', 'side', 'playerName', 'player']),
-        });
-      case 'PLAYER_HAS_COMPARISON_UNIT_TYPE_IN_TRIGGER_AREA':
-        return this.evaluateScriptPlayerHasUnitTypeInArea({
-          side: readString(0, ['side', 'playerName', 'player']),
-          comparison: readComparison(1, ['comparison']),
-          count: readInteger(2, ['count']),
-          templateName: readString(3, ['templateName', 'objectType', 'unitType']),
-          triggerName: readString(4, ['triggerName', 'trigger']),
-          conditionCacheId,
-        });
-      case 'PLAYER_HAS_COMPARISON_UNIT_KIND_IN_TRIGGER_AREA':
-        return this.evaluateScriptPlayerHasUnitKindInArea({
-          side: readString(0, ['side', 'playerName', 'player']),
-          comparison: readComparison(1, ['comparison']),
-          count: readInteger(2, ['count']),
-          kindOf: readString(3, ['kindOf']),
-          triggerName: readString(4, ['triggerName', 'trigger']),
-          conditionCacheId,
-        });
-      case 'UNIT_EMPTIED': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptUnitHasEmptied({ entityId });
-      }
-      case 'NAMED_BUILDING_IS_EMPTY': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptIsBuildingEmpty({ entityId });
-      }
-      case 'PLAYER_HAS_N_OR_FEWER_FACTION_BUILDINGS':
-        return this.evaluateScriptPlayerHasNOrFewerFactionBuildings({
-          side: readString(0, ['side', 'playerName', 'player']),
-          buildingCount: readInteger(1, ['buildingCount', 'count']),
-        });
-      case 'UNIT_HAS_OBJECT_STATUS': {
-        const entityId = readEntityId(0, ['entityId']);
-        if (entityId === null) {
-          return false;
-        }
-        return this.evaluateScriptUnitHasObjectStatus({
-          entityId,
-          objectStatus: readString(1, ['objectStatus']),
-        });
-      }
-      case 'TEAM_ALL_HAS_OBJECT_STATUS':
-        return this.evaluateScriptTeamHasObjectStatus({
-          teamName: readString(0, ['teamName', 'team']),
-          objectStatus: readString(1, ['objectStatus']),
-          entireTeam: true,
-        });
-      case 'TEAM_SOME_HAVE_OBJECT_STATUS':
-        return this.evaluateScriptTeamHasObjectStatus({
-          teamName: readString(0, ['teamName', 'team']),
-          objectStatus: readString(1, ['objectStatus']),
-          entireTeam: false,
-        });
-      case 'PLAYER_POWER_COMPARE_PERCENT':
-        return this.evaluateScriptPlayerHasComparisonPercentPower({
-          side: readString(0, ['side', 'playerName', 'player']),
-          comparison: readComparison(1, ['comparison']),
-          percent: readNumber(2, ['percent']),
-        });
-      case 'PLAYER_EXCESS_POWER_COMPARE_VALUE':
-        return this.evaluateScriptPlayerHasComparisonValueExcessPower({
-          side: readString(0, ['side', 'playerName', 'player']),
-          comparison: readComparison(1, ['comparison']),
-          kilowatts: readNumber(2, ['kilowatts']),
-        });
-      case 'SKIRMISH_SPECIAL_POWER_READY':
-        return this.evaluateScriptSkirmishSpecialPowerIsReady({
-          side: readString(0, ['side', 'playerName', 'player']),
-          specialPowerName: readString(1, ['specialPowerName', 'specialPower']),
-          conditionCacheId,
-        });
-      case 'SKIRMISH_VALUE_IN_AREA':
-        return this.evaluateScriptSkirmishValueInArea({
-          side: readString(0, ['side', 'playerName', 'player']),
-          comparison: readComparison(1, ['comparison']),
-          money: readInteger(2, ['money', 'value']),
-          triggerName: readString(3, ['triggerName', 'trigger']),
-          conditionCacheId,
-        });
-      case 'SKIRMISH_PLAYER_FACTION':
-        return this.evaluateScriptSkirmishPlayerIsFaction({
-          side: readString(0, ['side', 'playerName', 'player']),
-          factionName: readString(1, ['factionName', 'faction']),
-        });
-      case 'SKIRMISH_SUPPLIES_VALUE_WITHIN_DISTANCE':
-        return this.evaluateScriptSkirmishSuppliesWithinDistancePerimeter({
-          side: readString(0, ['side', 'playerName', 'player']),
-          distance: readNumber(1, ['distance']),
-          triggerName: readString(2, ['triggerName', 'trigger']),
-          value: readInteger(3, ['value']),
-        });
-      case 'SKIRMISH_TECH_BUILDING_WITHIN_DISTANCE':
-        return this.evaluateScriptSkirmishPlayerTechBuildingWithinDistancePerimeter({
-          side: readString(0, ['side', 'playerName', 'player']),
-          distance: readNumber(1, ['distance']),
-          triggerName: readString(2, ['triggerName', 'trigger']),
-          conditionCacheId,
-        });
-      case 'SKIRMISH_COMMAND_BUTTON_READY_ALL':
-        return this.evaluateScriptSkirmishCommandButtonIsReady({
-          side: readString(0, ['side', 'playerName', 'player']),
-          teamName: readString(1, ['teamName', 'team']),
-          commandButtonName: readString(2, ['commandButtonName', 'commandButton']),
-          allReady: true,
-        });
-      case 'SKIRMISH_COMMAND_BUTTON_READY_PARTIAL':
-        return this.evaluateScriptSkirmishCommandButtonIsReady({
-          side: readString(0, ['side', 'playerName', 'player']),
-          teamName: readString(1, ['teamName', 'team']),
-          commandButtonName: readString(2, ['commandButtonName', 'commandButton']),
-          allReady: false,
-        });
-      case 'SKIRMISH_UNOWNED_FACTION_UNIT_EXISTS':
-        return this.evaluateScriptSkirmishUnownedFactionUnitComparison({
-          comparison: readComparison(1, ['comparison']),
-          count: readInteger(2, ['count']),
-        });
-      case 'SKIRMISH_PLAYER_HAS_PREREQUISITE_TO_BUILD':
-        return this.evaluateScriptSkirmishPlayerHasPrereqsToBuild({
-          side: readString(0, ['side', 'playerName', 'player']),
-          templateName: readString(1, ['templateName', 'objectType', 'unitType']),
-        });
-      case 'SKIRMISH_PLAYER_HAS_COMPARISON_GARRISONED':
-        return this.evaluateScriptSkirmishPlayerHasComparisonGarrisoned({
-          side: readString(0, ['side', 'playerName', 'player']),
-          comparison: readComparison(1, ['comparison']),
-          count: readInteger(2, ['count']),
-        });
-      case 'SKIRMISH_PLAYER_HAS_COMPARISON_CAPTURED_UNITS':
-        return this.evaluateScriptSkirmishPlayerHasComparisonCapturedUnits({
-          side: readString(0, ['side', 'playerName', 'player']),
-          comparison: readComparison(1, ['comparison']),
-          count: readInteger(2, ['count']),
-        });
-      case 'SKIRMISH_NAMED_AREA_EXIST':
-        return this.evaluateScriptSkirmishNamedAreaExists(
-          readString(1, ['triggerName', 'trigger']),
-        );
-      case 'SKIRMISH_PLAYER_HAS_UNITS_IN_AREA':
-        return this.evaluateScriptSkirmishPlayerHasUnitsInArea({
-          side: readString(0, ['side', 'playerName', 'player']),
-          triggerName: readString(1, ['triggerName', 'trigger']),
-          conditionCacheId,
-        });
-      case 'SKIRMISH_PLAYER_HAS_BEEN_ATTACKED_BY_PLAYER':
-        return this.evaluateScriptSkirmishPlayerHasBeenAttackedByPlayer({
-          side: readString(0, ['side', 'playerName', 'player']),
-          attackedBySide: readString(1, ['attackedBySide', 'side', 'playerName', 'player']),
-        });
-      case 'SKIRMISH_PLAYER_IS_OUTSIDE_AREA':
-        return this.evaluateScriptSkirmishPlayerIsOutsideArea({
-          side: readString(0, ['side', 'playerName', 'player']),
-          triggerName: readString(1, ['triggerName', 'trigger']),
-          conditionCacheId,
-        });
-      case 'SKIRMISH_PLAYER_HAS_DISCOVERED_PLAYER':
-        return this.evaluateScriptSkirmishPlayerHasDiscoveredPlayer({
-          side: readString(0, ['side', 'playerName', 'player']),
-          discoveredBySide: readString(1, ['discoveredBySide', 'side', 'playerName', 'player']),
-        });
-      case 'MUSIC_TRACK_HAS_COMPLETED':
-        return this.evaluateScriptMusicHasCompleted({
-          musicName: readString(0, ['musicName']),
-          index: readInteger(1, ['index']),
-        });
-      case 'PLAYER_LOST_OBJECT_TYPE':
-        return this.evaluateScriptPlayerLostObjectType({
-          side: readString(0, ['side', 'playerName', 'player']),
-          templateName: readString(1, ['templateName', 'objectType', 'unitType']),
-        });
-      case 'SUPPLY_SOURCE_SAFE':
-        return this.evaluateScriptSkirmishSupplySourceSafe({
-          side: readString(0, ['side', 'playerName', 'player']),
-          minSupplyAmount: readNumber(1, ['minSupplyAmount', 'supplyAmount']),
-          conditionCacheId,
-        });
-      case 'SUPPLY_SOURCE_ATTACKED':
-        return this.evaluateScriptSkirmishSupplySourceAttacked({
-          side: readString(0, ['side', 'playerName', 'player']),
-        });
-      case 'START_POSITION_IS':
-        return this.evaluateScriptSkirmishStartPosition({
-          side: readString(0, ['side', 'playerName', 'player']),
-          startPosition: readInteger(1, ['startPosition']),
-        });
-      case 'OBSOLETE_SCRIPT_1':
-      case 'OBSOLETE_SCRIPT_2':
-      case 'UNIT_COMPLETED_SEQUENTIAL_EXECUTION':
-      case 'TEAM_COMPLETED_SEQUENTIAL_EXECUTION':
-        // Source parity: these condition handlers are unimplemented in C++ and return FALSE.
-        return false;
-
-      default:
-        return false;
-    }
-  }
 
   /**
    * Source parity: explicit script-team membership assignment.
@@ -12172,64 +11485,6 @@ export class GameLogicSubsystem implements Subsystem {
       this.normalizeControllingPlayerToken(entity.controllingPlayerToken ?? undefined)
       ?? this.normalizeControllingPlayerToken(this.normalizeSide(entity.side ?? '') ?? undefined)
     );
-  }
-
-  /**
-   * Source parity: ScriptConditions::evaluateSkirmishCommandButtonIsReady over explicit team members.
-   */
-  private evaluateScriptTeamCommandButtonIsReady(
-    team: ScriptTeamRecord,
-    commandButtonName: string,
-    allReady: boolean,
-  ): boolean {
-    const registry = this.iniDataRegistry;
-    if (!registry) {
-      return false;
-    }
-
-    const commandButtonDef = findCommandButtonDefByName(registry, commandButtonName);
-    if (!commandButtonDef) {
-      return false;
-    }
-
-    const specialPowerName = this.normalizeShortcutSpecialPowerName(
-      readStringField(commandButtonDef.fields, ['SpecialPower'])
-      ?? readStringField(commandButtonDef.fields, ['SpecialPowerTemplate'])
-      ?? '',
-    );
-    const upgradeName = readStringField(commandButtonDef.fields, ['Upgrade'])?.trim().toUpperCase() ?? '';
-    const upgradeDef = upgradeName ? findUpgradeDefByName(registry, upgradeName) ?? null : null;
-
-    if (!specialPowerName && !upgradeDef) {
-      return false;
-    }
-
-    for (const entity of this.getScriptTeamMemberEntities(team)) {
-      if (entity.destroyed) {
-        continue;
-      }
-
-      let ready: boolean | null = null;
-      if (specialPowerName) {
-        ready = this.evaluateScriptCommandButtonSpecialPowerReady(entity, specialPowerName);
-      } else if (upgradeDef) {
-        ready = this.evaluateScriptCommandButtonUpgradeReady(entity, upgradeDef);
-      }
-
-      if (ready === null) {
-        continue;
-      }
-
-      if (ready) {
-        if (!allReady) {
-          return true;
-        }
-      } else if (allReady) {
-        return false;
-      }
-    }
-
-    return allReady;
   }
 
   /**
@@ -13930,25 +13185,6 @@ export class GameLogicSubsystem implements Subsystem {
     return true;
   }
 
-  private evaluateScriptSingleTeamIsContained(team: ScriptTeamRecord, allContained: boolean): boolean {
-    let anyConsidered = false;
-    for (const entity of this.getScriptTeamMemberEntities(team)) {
-      const isContained = this.isEntityContained(entity);
-      if (isContained) {
-        if (!allContained) {
-          return true;
-        }
-      } else if (allContained) {
-        return false;
-      }
-      anyConsidered = true;
-    }
-    if (!anyConsidered) {
-      return false;
-    }
-    return allContained;
-  }
-
   /**
    * Source parity: ScriptConditions::evaluateTeamHasObjectStatus.
    */
@@ -13983,27 +13219,6 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     return false;
-  }
-
-  private evaluateScriptSingleTeamHasObjectStatus(
-    team: ScriptTeamRecord,
-    statusMask: number | null,
-    statusTokens: readonly string[],
-    entireTeam: boolean,
-  ): boolean {
-    for (const entity of this.getScriptTeamMemberEntities(team)) {
-      const hasStatus = (
-        (statusMask !== null && statusMask !== 0 && this.entityHasAnyStatusMask(entity, statusMask))
-        || statusTokens.some((token) => this.entityHasObjectStatus(entity, token))
-      );
-      if (entireTeam && !hasStatus) {
-        return false;
-      }
-      if (!entireTeam && hasStatus) {
-        return true;
-      }
-    }
-    return entireTeam;
   }
 
   /**
@@ -14185,183 +13400,6 @@ export class GameLogicSubsystem implements Subsystem {
 
     for (const team of teams) {
       if (this.evaluateScriptSingleTeamExitedAreaPartially(team, triggerIndex, filter.surfacesAllowed)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private evaluateScriptSingleTeamInsideAreaEntirely(
-    team: ScriptTeamRecord,
-    triggerIndex: number,
-    surfacesAllowed: number | undefined,
-  ): boolean {
-    let anyConsidered = false;
-    let anyOutside = false;
-    for (const entity of this.getScriptTeamMemberEntities(team)) {
-      if (!this.doesScriptSurfaceMaskMatchEntity(entity, surfacesAllowed)) {
-        continue;
-      }
-      if (this.isScriptEntityEffectivelyDead(entity)) {
-        continue;
-      }
-      if (entity.kindOf.has('INERT')) {
-        continue;
-      }
-
-      if (!this.isScriptTeamMemberInsideTrigger(entity.id, triggerIndex)) {
-        anyOutside = true;
-      }
-      anyConsidered = true;
-    }
-
-    return anyConsidered && !anyOutside;
-  }
-
-  private evaluateScriptSingleTeamInsideAreaPartially(
-    team: ScriptTeamRecord,
-    triggerIndex: number,
-    surfacesAllowed: number | undefined,
-  ): boolean {
-    let anyConsidered = false;
-    let anyInside = false;
-    let anyOutside = false;
-    for (const entity of this.getScriptTeamMemberEntities(team)) {
-      if (!this.doesScriptSurfaceMaskMatchEntity(entity, surfacesAllowed)) {
-        continue;
-      }
-      if (this.isScriptEntityEffectivelyDead(entity)) {
-        continue;
-      }
-      if (entity.kindOf.has('INERT')) {
-        continue;
-      }
-
-      if (this.isScriptTeamMemberInsideTrigger(entity.id, triggerIndex)) {
-        anyInside = true;
-      } else {
-        anyOutside = true;
-      }
-      anyConsidered = true;
-    }
-
-    const someInsideSomeOutside = anyConsidered && anyInside && anyOutside;
-    const allInside = anyConsidered && !anyOutside;
-    return someInsideSomeOutside || allInside;
-  }
-
-  private evaluateScriptSingleTeamEnteredAreaEntirely(
-    team: ScriptTeamRecord,
-    triggerIndex: number,
-    surfacesAllowed: number | undefined,
-  ): boolean {
-    if (!this.didScriptTeamMemberEnterOrExitThisFrame(team)) {
-      return false;
-    }
-
-    let entered = false;
-    let outside = false;
-    for (const entity of this.getScriptTeamMemberEntities(team)) {
-      if (!this.doesScriptSurfaceMaskMatchEntity(entity, surfacesAllowed)) {
-        continue;
-      }
-      if (this.isScriptEntityEffectivelyDead(entity)) {
-        continue;
-      }
-      if (entity.kindOf.has('INERT')) {
-        continue;
-      }
-
-      if (this.didScriptTeamMemberEnterTrigger(entity.id, triggerIndex)) {
-        entered = true;
-      } else if (!this.isScriptTeamMemberInsideTrigger(entity.id, triggerIndex)) {
-        outside = true;
-      }
-    }
-
-    return entered && !outside;
-  }
-
-  private evaluateScriptSingleTeamEnteredAreaPartially(
-    team: ScriptTeamRecord,
-    triggerIndex: number,
-    surfacesAllowed: number | undefined,
-  ): boolean {
-    if (!this.didScriptTeamMemberEnterOrExitThisFrame(team)) {
-      return false;
-    }
-
-    for (const entity of this.getScriptTeamMemberEntities(team)) {
-      if (!this.doesScriptSurfaceMaskMatchEntity(entity, surfacesAllowed)) {
-        continue;
-      }
-      if (this.isScriptEntityEffectivelyDead(entity)) {
-        continue;
-      }
-      if (entity.kindOf.has('INERT')) {
-        continue;
-      }
-      if (this.didScriptTeamMemberEnterTrigger(entity.id, triggerIndex)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private evaluateScriptSingleTeamExitedAreaEntirely(
-    team: ScriptTeamRecord,
-    triggerIndex: number,
-    surfacesAllowed: number | undefined,
-  ): boolean {
-    if (!this.didScriptTeamMemberEnterOrExitThisFrame(team)) {
-      return false;
-    }
-
-    let anyConsidered = false;
-    let exited = false;
-    let inside = false;
-    for (const entity of this.getScriptTeamMemberEntities(team)) {
-      if (!this.doesScriptSurfaceMaskMatchEntity(entity, surfacesAllowed)) {
-        continue;
-      }
-      if (this.isScriptEntityEffectivelyDead(entity)) {
-        continue;
-      }
-      if (entity.kindOf.has('INERT')) {
-        continue;
-      }
-
-      if (this.didScriptTeamMemberExitTrigger(entity.id, triggerIndex)) {
-        exited = true;
-      } else if (this.isScriptTeamMemberInsideTrigger(entity.id, triggerIndex)) {
-        inside = true;
-      }
-      anyConsidered = true;
-    }
-
-    return anyConsidered && exited && !inside;
-  }
-
-  private evaluateScriptSingleTeamExitedAreaPartially(
-    team: ScriptTeamRecord,
-    triggerIndex: number,
-    surfacesAllowed: number | undefined,
-  ): boolean {
-    if (!this.didScriptTeamMemberEnterOrExitThisFrame(team)) {
-      return false;
-    }
-
-    for (const entity of this.getScriptTeamMemberEntities(team)) {
-      if (!this.doesScriptSurfaceMaskMatchEntity(entity, surfacesAllowed)) {
-        continue;
-      }
-      if (this.isScriptEntityEffectivelyDead(entity)) {
-        continue;
-      }
-      if (entity.kindOf.has('INERT')) {
-        continue;
-      }
-      if (this.didScriptTeamMemberExitTrigger(entity.id, triggerIndex)) {
         return true;
       }
     }
@@ -14984,18 +14022,6 @@ export class GameLogicSubsystem implements Subsystem {
       filter.commandButtonName,
       filter.allReady,
     );
-  }
-
-  private evaluateScriptTeamCommandButtonReadinessByName(
-    teamName: string,
-    commandButtonName: string,
-    allReady: boolean,
-  ): boolean {
-    const team = this.getScriptTeamRecord(teamName);
-    if (!team) {
-      return false;
-    }
-    return this.evaluateScriptTeamCommandButtonIsReady(team, commandButtonName, allReady);
   }
 
   /**
@@ -16440,25 +15466,6 @@ export class GameLogicSubsystem implements Subsystem {
       cache.customFrame = this.scriptObjectCountChangedFrame;
     }
     return comparison;
-  }
-
-  /**
-   * Source parity: ScriptConditions::evaluatePlayerUnitCondition.
-   */
-  evaluateScriptPlayerUnitCondition(filter: {
-    side: string;
-    comparison: ScriptComparisonInput;
-    count: number;
-    unitType: string;
-    conditionCacheId?: string;
-  }): boolean {
-    return this.evaluateScriptPlayerHasObjectComparison({
-      side: filter.side,
-      comparison: filter.comparison,
-      count: filter.count,
-      templateName: filter.unitType,
-      conditionCacheId: filter.conditionCacheId,
-    });
   }
 
   /**
@@ -26837,46 +25844,6 @@ export class GameLogicSubsystem implements Subsystem {
     return created;
   }
 
-  private evaluateScriptCounterCondition(filter: {
-    counterName: string;
-    comparison: ScriptComparisonInput;
-    value: number;
-  }): boolean {
-    const counter = this.getOrCreateScriptCounter(filter.counterName);
-    if (!counter) {
-      return false;
-    }
-    return this.compareScriptCount(filter.comparison, counter.value, filter.value);
-  }
-
-  private evaluateScriptFlagCondition(filter: {
-    flagName: string;
-    value: boolean;
-  }): boolean {
-    const normalizedName = this.normalizeScriptVariableName(filter.flagName);
-    if (!normalizedName) {
-      return false;
-    }
-
-    const currentValue = this.scriptFlagsByName.get(normalizedName) ?? false;
-    if (currentValue === filter.value) {
-      return true;
-    }
-
-    // Source parity: shell/UI hooks are one-frame flag satisfiers.
-    return this.scriptUIInteractions.has(normalizedName);
-  }
-
-  private evaluateScriptTimerExpired(filter: {
-    counterName: string;
-  }): boolean {
-    const counter = this.getOrCreateScriptCounter(filter.counterName);
-    if (!counter || !counter.isCountdownTimer) {
-      return false;
-    }
-    return counter.value < 1;
-  }
-
   private getOrCreateScriptConditionCache(conditionCacheId?: string): ScriptConditionCacheState | null {
     const normalizedId = conditionCacheId?.trim() ?? '';
     if (!normalizedId) {
@@ -27067,7 +26034,7 @@ export class GameLogicSubsystem implements Subsystem {
     return false;
   }
 
-  private didScriptTeamMemberEnterOrExitThisFrame(team: ScriptTeamRecord): boolean {
+  /* @internal */ didScriptTeamMemberEnterOrExitThisFrame(team: ScriptTeamRecord): boolean {
     for (const entityId of team.memberEntityIds) {
       if (this.scriptTriggerEnterExitFrameByEntityId.get(entityId) === this.frameCounter) {
         return true;
@@ -27076,7 +26043,7 @@ export class GameLogicSubsystem implements Subsystem {
     return false;
   }
 
-  private doesScriptSurfaceMaskMatchEntity(
+  /* @internal */ doesScriptSurfaceMaskMatchEntity(
     entity: Pick<MapEntity, 'locomotorSurfaceMask'>,
     surfacesAllowed: number | undefined,
   ): boolean {
@@ -27116,11 +26083,11 @@ export class GameLogicSubsystem implements Subsystem {
     return false;
   }
 
-  private didScriptTeamMemberEnterTrigger(entityId: number, triggerIndex: number): boolean {
+  /* @internal */ didScriptTeamMemberEnterTrigger(entityId: number, triggerIndex: number): boolean {
     return this.scriptTriggerEnteredByEntityId.get(entityId)?.has(triggerIndex) ?? false;
   }
 
-  private didScriptTeamMemberExitTrigger(entityId: number, triggerIndex: number): boolean {
+  /* @internal */ didScriptTeamMemberExitTrigger(entityId: number, triggerIndex: number): boolean {
     return this.scriptTriggerExitedByEntityId.get(entityId)?.has(triggerIndex) ?? false;
   }
 
@@ -27152,7 +26119,7 @@ export class GameLogicSubsystem implements Subsystem {
     return this.resolveSpecialPowerReadyFrameForSourceEntity(normalizedSpecialPowerName, entity.id) <= this.frameCounter;
   }
 
-  private evaluateScriptCommandButtonUpgradeReady(
+  /* @internal */ evaluateScriptCommandButtonUpgradeReady(
     entity: MapEntity,
     upgradeDef: UpgradeDef,
   ): boolean | null {
@@ -28223,7 +27190,7 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity: ScriptConditions::evaluateCondition proxies TacticalView camera movement state.
    * If a view callback is provided, use it; otherwise fall back to local script camera state.
    */
-  private evaluateScriptCameraMovementFinished(): boolean {
+  /* @internal */ evaluateScriptCameraMovementFinished(): boolean {
     const viewResult = this.config.isCameraMovementFinished?.();
     if (typeof viewResult === 'boolean') {
       return viewResult;
