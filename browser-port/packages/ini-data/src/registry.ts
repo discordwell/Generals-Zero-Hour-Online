@@ -255,6 +255,15 @@ export interface IniDataBundle {
   fxLists?: RawBlockDef[];
   staticGameLODs?: RawBlockDef[];
   dynamicGameLODs?: RawBlockDef[];
+  commandMaps?: RawBlockDef[];
+  creditsBlocks?: RawBlockDef[];
+  mouseBlocks?: RawBlockDef[];
+  mouseCursors?: RawBlockDef[];
+  multiplayerColors?: RawBlockDef[];
+  multiplayerStartingMoneyChoices?: RawBlockDef[];
+  onlineChatColorBlocks?: RawBlockDef[];
+  waterTransparencyBlocks?: RawBlockDef[];
+  challengeGeneralsBlocks?: RawBlockDef[];
   ai?: AiConfig;
   audioSettings?: AudioSettingsConfig;
   gameData?: GameDataConfig;
@@ -284,6 +293,15 @@ export class IniDataRegistry {
   readonly fxLists = new Map<string, RawBlockDef>();
   readonly staticGameLODs = new Map<string, RawBlockDef>();
   readonly dynamicGameLODs = new Map<string, RawBlockDef>();
+  private commandMaps: RawBlockDef[] = [];
+  private creditsBlocks: RawBlockDef[] = [];
+  private mouseBlocks: RawBlockDef[] = [];
+  private mouseCursors: RawBlockDef[] = [];
+  private multiplayerColors: RawBlockDef[] = [];
+  private multiplayerStartingMoneyChoices: RawBlockDef[] = [];
+  private onlineChatColorBlocks: RawBlockDef[] = [];
+  private waterTransparencyBlocks: RawBlockDef[] = [];
+  private challengeGeneralsBlocks: RawBlockDef[] = [];
   readonly errors: RegistryError[] = [];
   private ai: AiConfig | undefined;
   private audioSettings: AudioSettingsConfig | undefined;
@@ -342,6 +360,15 @@ export class IniDataRegistry {
     this.fxLists.clear();
     this.staticGameLODs.clear();
     this.dynamicGameLODs.clear();
+    this.commandMaps = [];
+    this.creditsBlocks = [];
+    this.mouseBlocks = [];
+    this.mouseCursors = [];
+    this.multiplayerColors = [];
+    this.multiplayerStartingMoneyChoices = [];
+    this.onlineChatColorBlocks = [];
+    this.waterTransparencyBlocks = [];
+    this.challengeGeneralsBlocks = [];
     this.errors.length = 0;
     this.unsupportedBlockTypes.clear();
     this.miscAudio = undefined;
@@ -477,6 +504,15 @@ export class IniDataRegistry {
         blocks: [...(lod.blocks ?? [])],
       });
     }
+    this.commandMaps = cloneRawBlocks(bundle.commandMaps ?? []);
+    this.creditsBlocks = cloneRawBlocks(bundle.creditsBlocks ?? []);
+    this.mouseBlocks = cloneRawBlocks(bundle.mouseBlocks ?? []);
+    this.mouseCursors = cloneRawBlocks(bundle.mouseCursors ?? []);
+    this.multiplayerColors = cloneRawBlocks(bundle.multiplayerColors ?? []);
+    this.multiplayerStartingMoneyChoices = cloneRawBlocks(bundle.multiplayerStartingMoneyChoices ?? []);
+    this.onlineChatColorBlocks = cloneRawBlocks(bundle.onlineChatColorBlocks ?? []);
+    this.waterTransparencyBlocks = cloneRawBlocks(bundle.waterTransparencyBlocks ?? []);
+    this.challengeGeneralsBlocks = cloneRawBlocks(bundle.challengeGeneralsBlocks ?? []);
     this.miscAudio = bundle.miscAudio
       ? {
           entries: { ...bundle.miscAudio.entries },
@@ -596,6 +632,54 @@ export class IniDataRegistry {
     return this.dynamicGameLODs.get(name);
   }
 
+  getCommandMaps(): RawBlockDef[] {
+    return cloneRawBlocks(this.commandMaps);
+  }
+
+  getCommandMap(name: string): RawBlockDef | undefined {
+    return findLastRawBlockByName(this.commandMaps, name);
+  }
+
+  getCreditsBlocks(): RawBlockDef[] {
+    return cloneRawBlocks(this.creditsBlocks);
+  }
+
+  getMouseBlocks(): RawBlockDef[] {
+    return cloneRawBlocks(this.mouseBlocks);
+  }
+
+  getMouseCursors(): RawBlockDef[] {
+    return cloneRawBlocks(this.mouseCursors);
+  }
+
+  getMouseCursor(name: string): RawBlockDef | undefined {
+    return findLastRawBlockByName(this.mouseCursors, name);
+  }
+
+  getMultiplayerColors(): RawBlockDef[] {
+    return cloneRawBlocks(this.multiplayerColors);
+  }
+
+  getMultiplayerColor(name: string): RawBlockDef | undefined {
+    return findLastRawBlockByName(this.multiplayerColors, name);
+  }
+
+  getMultiplayerStartingMoneyChoices(): RawBlockDef[] {
+    return cloneRawBlocks(this.multiplayerStartingMoneyChoices);
+  }
+
+  getOnlineChatColorBlocks(): RawBlockDef[] {
+    return cloneRawBlocks(this.onlineChatColorBlocks);
+  }
+
+  getWaterTransparencyBlocks(): RawBlockDef[] {
+    return cloneRawBlocks(this.waterTransparencyBlocks);
+  }
+
+  getChallengeGeneralsBlocks(): RawBlockDef[] {
+    return cloneRawBlocks(this.challengeGeneralsBlocks);
+  }
+
   /**
    * Categorize music tracks (soundType === 'music') by name pattern.
    * Names containing Menu/Shell -> menu, Ambient -> ambient, Battle/Score -> battle.
@@ -658,7 +742,11 @@ export class IniDataRegistry {
         this.audioEvents.size +
         this.commandButtons.size + this.commandSets.size +
         this.particleSystems.size + this.fxLists.size +
-        this.staticGameLODs.size + this.dynamicGameLODs.size,
+        this.staticGameLODs.size + this.dynamicGameLODs.size +
+        this.commandMaps.length + this.creditsBlocks.length + this.mouseBlocks.length +
+        this.mouseCursors.length + this.multiplayerColors.length +
+        this.multiplayerStartingMoneyChoices.length + this.onlineChatColorBlocks.length +
+        this.waterTransparencyBlocks.length + this.challengeGeneralsBlocks.length,
     };
   }
 
@@ -696,6 +784,15 @@ export class IniDataRegistry {
       fxLists: [...this.fxLists.values()].sort((a, b) => a.name.localeCompare(b.name)),
       staticGameLODs: [...this.staticGameLODs.values()].sort((a, b) => a.name.localeCompare(b.name)),
       dynamicGameLODs: [...this.dynamicGameLODs.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      commandMaps: cloneRawBlocks(this.commandMaps),
+      creditsBlocks: cloneRawBlocks(this.creditsBlocks),
+      mouseBlocks: cloneRawBlocks(this.mouseBlocks),
+      mouseCursors: cloneRawBlocks(this.mouseCursors),
+      multiplayerColors: cloneRawBlocks(this.multiplayerColors),
+      multiplayerStartingMoneyChoices: cloneRawBlocks(this.multiplayerStartingMoneyChoices),
+      onlineChatColorBlocks: cloneRawBlocks(this.onlineChatColorBlocks),
+      waterTransparencyBlocks: cloneRawBlocks(this.waterTransparencyBlocks),
+      challengeGeneralsBlocks: cloneRawBlocks(this.challengeGeneralsBlocks),
       ai: this.ai ? { ...this.ai } : undefined,
       audioSettings: this.audioSettings ? { ...this.audioSettings } : undefined,
       gameData: this.gameData
@@ -727,6 +824,13 @@ export class IniDataRegistry {
         });
       }
       collection.set(definition.name, definition);
+    };
+    const appendRawBlock = (collection: RawBlockDef[]): void => {
+      collection.push(cloneRawBlock({
+        name: block.name,
+        fields: block.fields,
+        blocks: block.blocks,
+      }));
     };
 
     switch (block.type) {
@@ -906,6 +1010,42 @@ export class IniDataRegistry {
           fields: block.fields,
           blocks: block.blocks,
         });
+        break;
+
+      case 'CommandMap':
+        appendRawBlock(this.commandMaps);
+        break;
+
+      case 'Credits':
+        appendRawBlock(this.creditsBlocks);
+        break;
+
+      case 'Mouse':
+        appendRawBlock(this.mouseBlocks);
+        break;
+
+      case 'MouseCursor':
+        appendRawBlock(this.mouseCursors);
+        break;
+
+      case 'MultiplayerColor':
+        appendRawBlock(this.multiplayerColors);
+        break;
+
+      case 'MultiplayerStartingMoneyChoice':
+        appendRawBlock(this.multiplayerStartingMoneyChoices);
+        break;
+
+      case 'OnlineChatColors':
+        appendRawBlock(this.onlineChatColorBlocks);
+        break;
+
+      case 'WaterTransparency':
+        appendRawBlock(this.waterTransparencyBlocks);
+        break;
+
+      case 'ChallengeGenerals':
+        appendRawBlock(this.challengeGeneralsBlocks);
         break;
 
       // Known but not indexed block types — skip silently
@@ -1272,6 +1412,28 @@ function normalizeCommandSetButtonSlots(slottedButtons: readonly CommandSetButto
       commandButtonName: entry.commandButtonName.trim(),
     }))
     .sort((a, b) => a.slot - b.slot);
+}
+
+function cloneRawBlock(block: RawBlockDef): RawBlockDef {
+  return {
+    name: block.name,
+    fields: { ...block.fields },
+    blocks: [...block.blocks],
+  };
+}
+
+function cloneRawBlocks(blocks: readonly RawBlockDef[]): RawBlockDef[] {
+  return blocks.map((block) => cloneRawBlock(block));
+}
+
+function findLastRawBlockByName(blocks: readonly RawBlockDef[], name: string): RawBlockDef | undefined {
+  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+    const block = blocks[index];
+    if (block?.name === name) {
+      return cloneRawBlock(block);
+    }
+  }
+  return undefined;
 }
 
 function extractCommandSetButtonSlots(fields: Record<string, IniValue>): CommandSetButtonSlot[] {

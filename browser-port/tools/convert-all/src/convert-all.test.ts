@@ -1159,6 +1159,105 @@ End
     });
   });
 
+  it('serializes the remaining raw blocker INI block families in ini-only mode', () => {
+    return withTempDir((dir) => {
+      const gameDir = resolve(dir, 'game');
+      const outputDir = resolve(dir, 'out');
+      const sampleIni = resolve(gameDir, 'data', 'sample.ini');
+      mkdirSync(resolve(gameDir, 'data'), { recursive: true });
+      writeFileSync(sampleIni, `CommandMap MOVE
+  Key = M
+  Transition = DOWN
+End
+
+Credits
+  ScrollRate = 2
+  Text = CREDIT:ONE
+End
+
+Mouse
+  TooltipFontName = Arial
+End
+
+MouseCursor Move
+  Image = SCMove
+  HotSpot = 5 6
+End
+
+MultiplayerColor PlayerColor01
+  TooltipName = CONTROLBAR:ColorRed
+  RGBColor = 255 0 0
+End
+
+MultiplayerStartingMoneyChoice
+  Value = 10000
+  Default = yes
+End
+
+OnlineChatColors
+  ChatNormal = 255 255 255
+End
+
+WaterTransparency
+  TransparentWaterDepth = 2.5
+End
+
+ChallengeGenerals
+  GeneralPersona0
+    StartsEnabled = yes
+    BioNameString = NAME:General0
+  End
+End
+`);
+
+      const result = runConvertAll([
+        '--game-dir',
+        gameDir,
+        '--output',
+        outputDir,
+        '--only',
+        'ini',
+      ]);
+
+      expect(result.status).toBe(0);
+
+      const bundle = JSON.parse(
+        readFileSync(resolve(outputDir, 'data', 'ini-bundle.json'), 'utf8'),
+      ) as {
+        unsupportedBlockTypes: string[];
+        commandMaps?: Array<{ name: string; fields: Record<string, unknown> }>;
+        creditsBlocks?: Array<{ fields: Record<string, unknown> }>;
+        mouseBlocks?: Array<{ fields: Record<string, unknown> }>;
+        mouseCursors?: Array<{ name: string; fields: Record<string, unknown> }>;
+        multiplayerColors?: Array<{ name: string; fields: Record<string, unknown> }>;
+        multiplayerStartingMoneyChoices?: Array<{ fields: Record<string, unknown> }>;
+        onlineChatColorBlocks?: Array<{ fields: Record<string, unknown> }>;
+        waterTransparencyBlocks?: Array<{ fields: Record<string, unknown> }>;
+        challengeGeneralsBlocks?: Array<{ blocks: Array<{ type: string; fields: Record<string, unknown> }> }>;
+      };
+
+      expect(bundle.unsupportedBlockTypes).toEqual([]);
+      expect(bundle.commandMaps?.[0]).toMatchObject({
+        name: 'MOVE',
+        fields: { Key: 'M', Transition: 'DOWN' },
+      });
+      expect(bundle.creditsBlocks?.[0]?.fields['Text']).toBe('CREDIT:ONE');
+      expect(bundle.mouseBlocks?.[0]?.fields['TooltipFontName']).toBe('Arial');
+      expect(bundle.mouseCursors?.[0]).toMatchObject({
+        name: 'Move',
+        fields: { Image: 'SCMove', HotSpot: [5, 6] },
+      });
+      expect(bundle.multiplayerColors?.[0]?.name).toBe('PlayerColor01');
+      expect(bundle.multiplayerStartingMoneyChoices?.[0]?.fields['Default']).toBe(true);
+      expect(bundle.onlineChatColorBlocks?.[0]?.fields['ChatNormal']).toEqual([255, 255, 255]);
+      expect(bundle.waterTransparencyBlocks?.[0]?.fields['TransparentWaterDepth']).toBe(2.5);
+      expect(bundle.challengeGeneralsBlocks?.[0]?.blocks[0]).toMatchObject({
+        type: 'GeneralPersona0',
+        fields: { StartsEnabled: true, BioNameString: 'NAME:General0' },
+      });
+    });
+  });
+
   it('resolves INI manifest paths correctly when launched outside project root', () => {
     return withTempDir((dir) => {
       const gameDir = resolve(dir, 'game');

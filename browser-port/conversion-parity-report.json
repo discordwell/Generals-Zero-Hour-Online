@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-12T16:06:04.134Z",
+  "generatedAt": "2026-03-12T17:03:37.121Z",
   "bundlePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/app/public/assets/data/ini-bundle.json",
   "summary": {
     "objects": 2110,
@@ -8,21 +8,11 @@
     "upgrades": 80,
     "specialPowers": 79,
     "sciences": 95,
-    "unsupportedBlockTypes": 9,
+    "unsupportedBlockTypes": 0,
     "unresolvedRegistryErrors": 0,
     "missingReferences": 0
   },
   "unresolvedRegistryErrors": [],
-  "unsupportedBlockTypes": [
-    "ChallengeGenerals",
-    "CommandMap",
-    "Credits",
-    "Mouse",
-    "MouseCursor",
-    "MultiplayerColor",
-    "MultiplayerStartingMoneyChoice",
-    "OnlineChatColors",
-    "WaterTransparency"
-  ],
+  "unsupportedBlockTypes": [],
   "missingReferences": []
 }

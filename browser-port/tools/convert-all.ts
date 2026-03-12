@@ -695,10 +695,24 @@ function combineLists(left: string[], right: string[]): string[] {
   return [...left, ...right].sort();
 }
 
+function mergeRawBlocks<T>(left: T[], right: T[]): T[] {
+  return [...left, ...right];
+}
+
 function mergeStats(bundle: IniDataBundle): RegistryStats {
   const locomotorCount = bundle.locomotors?.length ?? 0;
   const commandButtonCount = bundle.commandButtons?.length ?? 0;
   const commandSetCount = bundle.commandSets?.length ?? 0;
+  const rawBlockCount =
+    (bundle.commandMaps?.length ?? 0)
+    + (bundle.creditsBlocks?.length ?? 0)
+    + (bundle.mouseBlocks?.length ?? 0)
+    + (bundle.mouseCursors?.length ?? 0)
+    + (bundle.multiplayerColors?.length ?? 0)
+    + (bundle.multiplayerStartingMoneyChoices?.length ?? 0)
+    + (bundle.onlineChatColorBlocks?.length ?? 0)
+    + (bundle.waterTransparencyBlocks?.length ?? 0)
+    + (bundle.challengeGeneralsBlocks?.length ?? 0);
   return {
     objects: bundle.objects.length,
     weapons: bundle.weapons.length,
@@ -716,7 +730,8 @@ function mergeStats(bundle: IniDataBundle): RegistryStats {
       + commandSetCount
       + bundle.sciences.length
       + bundle.factions.length
-      + locomotorCount,
+      + locomotorCount
+      + rawBlockCount,
   };
 }
 
@@ -732,6 +747,27 @@ function mergeBundles(baseBundle: IniDataBundle, patchBundle: IniDataBundle): In
     sciences: mergeByName(baseBundle.sciences, patchBundle.sciences),
     factions: mergeByName(baseBundle.factions, patchBundle.factions),
     locomotors: mergeByName(baseBundle.locomotors ?? [], patchBundle.locomotors ?? []),
+    commandMaps: mergeRawBlocks(baseBundle.commandMaps ?? [], patchBundle.commandMaps ?? []),
+    creditsBlocks: mergeRawBlocks(baseBundle.creditsBlocks ?? [], patchBundle.creditsBlocks ?? []),
+    mouseBlocks: mergeRawBlocks(baseBundle.mouseBlocks ?? [], patchBundle.mouseBlocks ?? []),
+    mouseCursors: mergeRawBlocks(baseBundle.mouseCursors ?? [], patchBundle.mouseCursors ?? []),
+    multiplayerColors: mergeRawBlocks(baseBundle.multiplayerColors ?? [], patchBundle.multiplayerColors ?? []),
+    multiplayerStartingMoneyChoices: mergeRawBlocks(
+      baseBundle.multiplayerStartingMoneyChoices ?? [],
+      patchBundle.multiplayerStartingMoneyChoices ?? [],
+    ),
+    onlineChatColorBlocks: mergeRawBlocks(
+      baseBundle.onlineChatColorBlocks ?? [],
+      patchBundle.onlineChatColorBlocks ?? [],
+    ),
+    waterTransparencyBlocks: mergeRawBlocks(
+      baseBundle.waterTransparencyBlocks ?? [],
+      patchBundle.waterTransparencyBlocks ?? [],
+    ),
+    challengeGeneralsBlocks: mergeRawBlocks(
+      baseBundle.challengeGeneralsBlocks ?? [],
+      patchBundle.challengeGeneralsBlocks ?? [],
+    ),
     errors: [...baseBundle.errors, ...patchBundle.errors],
     unsupportedBlockTypes: combineLists(
       baseBundle.unsupportedBlockTypes,

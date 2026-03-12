@@ -1,18 +1,9 @@
 {
-  "generatedAt": "2026-03-12T16:07:51.595Z",
-  "status": "blocked",
+  "generatedAt": "2026-03-12T17:03:45.508Z",
+  "status": "clear",
   "summary": {
-    "blockerGroups": 1,
-    "blockerItems": 9
+    "blockerGroups": 0,
+    "blockerItems": 0
   },
-  "blockers": [
-    {
-      "id": "conversion-unsupported-block-types",
-      "area": "conversion",
-      "count": 9,
-      "details": [
-        "Unsupported INI block types were emitted by conversion."
-      ]
-    }
-  ]
+  "blockers": []
 }

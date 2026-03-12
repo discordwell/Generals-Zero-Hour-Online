@@ -877,4 +877,112 @@ describe('IniDataRegistry', () => {
       expect(stats.dynamicGameLODs).toBe(1);
     });
   });
+
+  describe('remaining raw blocker block families', () => {
+    it('indexes source-faithful raw blocks and keeps them supported', () => {
+      registry.loadBlocks([
+        makeBlock('CommandMap', 'MOVE', {
+          Key: 'M',
+          Transition: 'DOWN',
+          UseableIn: 'COMMANDUSABLE_INGAME',
+        }),
+        makeBlock('Credits', '', {
+          ScrollRate: 2,
+          Text: ['CREDIT:ONE', 'CREDIT:TWO'],
+        }),
+        makeBlock('Mouse', '', {
+          TooltipFontName: 'Arial',
+          TooltipWidth: 0.6,
+        }),
+        makeBlock('MouseCursor', 'Move', {
+          Image: 'SCMove',
+          HotSpot: [5, 6],
+        }),
+        makeBlock('MultiplayerColor', 'PlayerColor01', {
+          TooltipName: 'CONTROLBAR:ColorRed',
+          RGBColor: [255, 0, 0],
+        }),
+        makeBlock('MultiplayerStartingMoneyChoice', '', {
+          Value: 10000,
+          Default: true,
+        }),
+        makeBlock('OnlineChatColors', '', {
+          ChatNormal: [255, 255, 255],
+          MOTDHeading: [255, 255, 0],
+        }),
+        makeBlock('WaterTransparency', '', {
+          TransparentWaterDepth: 2.5,
+          SkyboxTextureN: 'Sky_N',
+        }),
+        makeBlock('ChallengeGenerals', '', {}, {
+          blocks: [
+            makeBlock('GeneralPersona0', '', {
+              StartsEnabled: true,
+              BioNameString: 'NAME:General0',
+              PlayerTemplate: 'FactionAmerica',
+            }),
+          ],
+        }),
+      ]);
+
+      expect(registry.getCommandMap('MOVE')?.fields['Key']).toBe('M');
+      expect(registry.getCreditsBlocks()).toHaveLength(1);
+      expect(registry.getCreditsBlocks()[0]?.fields['Text']).toEqual(['CREDIT:ONE', 'CREDIT:TWO']);
+      expect(registry.getMouseBlocks()[0]?.fields['TooltipFontName']).toBe('Arial');
+      expect(registry.getMouseCursor('Move')?.fields['HotSpot']).toEqual([5, 6]);
+      expect(registry.getMultiplayerColor('PlayerColor01')?.fields['RGBColor']).toEqual([255, 0, 0]);
+      expect(registry.getMultiplayerStartingMoneyChoices()[0]?.fields['Value']).toBe(10000);
+      expect(registry.getOnlineChatColorBlocks()[0]?.fields['MOTDHeading']).toEqual([255, 255, 0]);
+      expect(registry.getWaterTransparencyBlocks()[0]?.fields['TransparentWaterDepth']).toBe(2.5);
+      expect(registry.getChallengeGeneralsBlocks()[0]?.blocks[0]?.type).toBe('GeneralPersona0');
+      expect(registry.getUnsupportedBlockTypes()).toEqual([]);
+
+      const stats = registry.getStats();
+      expect(stats.totalBlocks).toBe(9);
+    });
+
+    it('round-trips remaining raw blocker block families through toBundle/loadBundle', () => {
+      registry.loadBlocks([
+        makeBlock('CommandMap', 'SELL', { Key: 'Backspace' }),
+        makeBlock('Credits', '', { ScrollDown: false }),
+        makeBlock('Mouse', '', { TooltipDelayTime: 250 }),
+        makeBlock('MouseCursor', 'Attack', { Image: 'SCAttack' }),
+        makeBlock('MultiplayerColor', 'PlayerColor02', { TooltipName: 'CONTROLBAR:ColorBlue' }),
+        makeBlock('MultiplayerStartingMoneyChoice', '', { Value: 5000 }),
+        makeBlock('OnlineChatColors', '', { ChatOwner: [255, 255, 0] }),
+        makeBlock('WaterTransparency', '', { AdditiveBlending: true }),
+        makeBlock('ChallengeGenerals', '', {}, {
+          blocks: [
+            makeBlock('GeneralPersona1', '', { BioNameString: 'NAME:General1' }),
+          ],
+        }),
+      ]);
+
+      const bundle = registry.toBundle();
+
+      expect(bundle.commandMaps).toHaveLength(1);
+      expect(bundle.creditsBlocks).toHaveLength(1);
+      expect(bundle.mouseBlocks).toHaveLength(1);
+      expect(bundle.mouseCursors).toHaveLength(1);
+      expect(bundle.multiplayerColors).toHaveLength(1);
+      expect(bundle.multiplayerStartingMoneyChoices).toHaveLength(1);
+      expect(bundle.onlineChatColorBlocks).toHaveLength(1);
+      expect(bundle.waterTransparencyBlocks).toHaveLength(1);
+      expect(bundle.challengeGeneralsBlocks).toHaveLength(1);
+
+      const restored = new IniDataRegistry();
+      restored.loadBundle(bundle);
+
+      expect(restored.getCommandMap('SELL')?.fields['Key']).toBe('Backspace');
+      expect(restored.getCreditsBlocks()[0]?.fields['ScrollDown']).toBe(false);
+      expect(restored.getMouseBlocks()[0]?.fields['TooltipDelayTime']).toBe(250);
+      expect(restored.getMouseCursor('Attack')?.fields['Image']).toBe('SCAttack');
+      expect(restored.getMultiplayerColor('PlayerColor02')?.fields['TooltipName']).toBe('CONTROLBAR:ColorBlue');
+      expect(restored.getMultiplayerStartingMoneyChoices()[0]?.fields['Value']).toBe(5000);
+      expect(restored.getOnlineChatColorBlocks()[0]?.fields['ChatOwner']).toEqual([255, 255, 0]);
+      expect(restored.getWaterTransparencyBlocks()[0]?.fields['AdditiveBlending']).toBe(true);
+      expect(restored.getChallengeGeneralsBlocks()[0]?.blocks[0]?.type).toBe('GeneralPersona1');
+      expect(restored.getStats().totalBlocks).toBe(9);
+    });
+  });
 });
