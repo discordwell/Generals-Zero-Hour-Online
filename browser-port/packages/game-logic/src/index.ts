@@ -49,7 +49,6 @@ import {
   resolveWeaponPreAttackDelayFrames as resolveWeaponPreAttackDelayFramesImpl,
   updateWeaponIdleAutoReload as updateWeaponIdleAutoReloadImpl,
 } from './combat-helpers.js';
-import { isPassengerAllowedToFireFromContainingObject as isPassengerAllowedToFireFromContainingObjectImpl } from './combat-containment.js';
 import {
   applyWeaponDamageEvent as applyWeaponDamageEventImpl,
   type CombatDamageEventContext,
@@ -76,13 +75,10 @@ import {
 } from './render-profile-helpers.js';
 import type { ModelConditionInfo, TransitionInfo } from './render-profile-helpers.js';
 import {
-  createRailedTransportRuntimeState as createRailedTransportRuntimeStateImpl,
   createRailedTransportWaypointIndex as createRailedTransportWaypointIndexImpl,
-  executeRailedTransportCommand as executeRailedTransportCommandImpl,
   extractRailedTransportProfile as extractRailedTransportProfileImpl,
   type RailedTransportProfile,
   type RailedTransportRuntimeState,
-  type RailedTransportWaypointData,
   type RailedTransportWaypointIndex,
   updateRailedTransportEntity as updateRailedTransportEntityImpl,
 } from './railed-transport.js';
@@ -227,7 +223,6 @@ import {
   type ConstructBuildingCommand,
   type EnterObjectCommand,
   type EntityRelationship,
-  type ExecuteRailedTransportCommand,
   type GameLogicCommand,
   type GameLogicConfig,
   type GarrisonBuildingCommand,
@@ -474,6 +469,58 @@ import {
   setScriptSpeechVolumeScale as setScriptSpeechVolumeScaleImpl,
   setScriptMusicVolumeScale as setScriptMusicVolumeScaleImpl,
 } from './script-camera.js';
+import {
+  resolveRailedTransportWaypointData as resolveRailedTransportWaypointDataImpl,
+  resetContainPlayerEnteredSides as resetContainPlayerEnteredSidesImpl,
+  getCaveContainIndex as getCaveContainIndexImpl,
+  canSwitchCaveIndexToIndex as canSwitchCaveIndexToIndexImpl,
+  isEntityInEnclosingContainer as isEntityInEnclosingContainerImpl,
+  shouldIgnoreRailedTransportPlayerCommand as shouldIgnoreRailedTransportPlayerCommandImpl,
+  isRailedTransportPlayerBlockedCommandType as isRailedTransportPlayerBlockedCommandTypeImpl,
+  isRailedTransportEntity as isRailedTransportEntityImpl,
+  doesSpecialPowerTargetAppearToContainFriendlies as doesSpecialPowerTargetAppearToContainFriendliesImpl,
+  isCaptureBlockedByGarrisonOccupants as isCaptureBlockedByGarrisonOccupantsImpl,
+  cancelRailedTransportTransit as cancelRailedTransportTransitImpl,
+  resolveRailedTransportRuntimeState as resolveRailedTransportRuntimeStateImpl,
+  resolveContainerEvacuationPositions as resolveContainerEvacuationPositionsImpl,
+  handleExitContainerCommand as handleExitContainerCommandImpl,
+  handleEvacuateCommand as handleEvacuateCommandImpl,
+  handleExecuteRailedTransportCommand as handleExecuteRailedTransportCommandImpl,
+  noteContainerEnteredBy as noteContainerEnteredByImpl,
+  canSourceAttemptContainerEnter as canSourceAttemptContainerEnterImpl,
+  canTargetAcceptContainerEnter as canTargetAcceptContainerEnterImpl,
+  isContainerEnterTargetShrouded as isContainerEnterTargetShroudedImpl,
+  hasVisibleContainedUnits as hasVisibleContainedUnitsImpl,
+  blocksNonOwnerContainerEnter as blocksNonOwnerContainerEnterImpl,
+  shouldIgnoreCapacityForNonOwnerContainerEnter as shouldIgnoreCapacityForNonOwnerContainerEnterImpl,
+  canExecuteGarrisonBuildingEnterAction as canExecuteGarrisonBuildingEnterActionImpl,
+  enterGarrisonBuilding as enterGarrisonBuildingImpl,
+  enterTransport as enterTransportImpl,
+  isEnclosingContainer as isEnclosingContainerImpl,
+  updateHealing as updateHealingImpl,
+  resolveTunnelTracker as resolveTunnelTrackerImpl,
+  resolveCaveTracker as resolveCaveTrackerImpl,
+  resolveTunnelTrackerForContainer as resolveTunnelTrackerForContainerImpl,
+  enterTunnel as enterTunnelImpl,
+  exitTunnel as exitTunnelImpl,
+  updateTunnelHealing as updateTunnelHealingImpl,
+  updateHealContainHealing as updateHealContainHealingImpl,
+  updateTransportContainHealing as updateTransportContainHealingImpl,
+  updateContainModelConditions as updateContainModelConditionsImpl,
+  updateOverlordRiderPositions as updateOverlordRiderPositionsImpl,
+  hasPendingTransportEntryForContainer as hasPendingTransportEntryForContainerImpl,
+  isEntityContained as isEntityContainedImpl,
+  isEntityContainedInGarrison as isEntityContainedInGarrisonImpl,
+  collectContainedEntityIds as collectContainedEntityIdsImpl,
+  countContainedRappellers as countContainedRappellersImpl,
+  releaseEntityFromContainer as releaseEntityFromContainerImpl,
+  evacuateOneContainedRappeller as evacuateOneContainedRappellerImpl,
+  evacuateContainedEntities as evacuateContainedEntitiesImpl,
+  resolveProjectileLauncherContainer as resolveProjectileLauncherContainerImpl,
+  resolveEntityContainingObject as resolveEntityContainingObjectImpl,
+  isPassengerAllowedToFireFromContainingObject as isPassengerAllowedToFireFromContainingObjectImpl,
+  processDamageToContained as processDamageToContainedImpl,
+} from './containment-system.js';
 
 export * from './types.js';
 export * from './campaign-manager.js';
@@ -4886,7 +4933,7 @@ const DEFAULT_FLAME_DAMAGE_LIMIT = 20.0;
 const DEFAULT_AFLAME_DAMAGE_AMOUNT = 5;
 
 /** Global base regen config from GlobalData.ini. */
-const BASE_REGEN_HEALTH_PERCENT_PER_SECOND = 0.02; // 2% per second default
+export const BASE_REGEN_HEALTH_PERCENT_PER_SECOND = 0.02; // 2% per second default
 const BASE_REGEN_DELAY_FRAMES = 60; // ~2s delay after damage before regen starts
 
 const DEFAULT_GAME_LOGIC_CONFIG: Readonly<GameLogicConfig> = {
@@ -6913,26 +6960,6 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  private resolveRailedTransportWaypointData(mapData: MapDataJSON): RailedTransportWaypointData | null {
-    if (!mapData.waypoints) {
-      return null;
-    }
-
-    return {
-      nodes: mapData.waypoints.nodes.map((node) => ({
-        id: node.id,
-        name: node.name,
-        x: node.position.x,
-        z: node.position.y,
-        biDirectional: node.biDirectional ?? false,
-      })),
-      links: mapData.waypoints.links.map((link) => ({
-        waypoint1: link.waypoint1,
-        waypoint2: link.waypoint2,
-      })),
-    };
-  }
-
   getPlacementSummary(): MapObjectPlacementSummary {
     return { ...this.placementSummary };
   }
@@ -7531,14 +7558,6 @@ export class GameLogicSubsystem implements Subsystem {
       return 0;
     }
     return dt * combinedMultiplier;
-  }
-
-  private resetContainPlayerEnteredSides(): void {
-    for (const entity of this.spawnedEntities.values()) {
-      if (!entity.containProfile) continue;
-      entity.containPlayerEnteredSide = null;
-      entity.containPlayerEnteredToken = null;
-    }
   }
 
   submitCommand(command: GameLogicCommand): void {
@@ -9481,35 +9500,6 @@ export class GameLogicSubsystem implements Subsystem {
     return normalized;
   }
 
-  getCaveContainIndex(entityId: number): number | null {
-    const entity = this.spawnedEntities.get(entityId);
-    if (!entity || entity.destroyed) {
-      return null;
-    }
-    if (entity.containProfile?.moduleType !== 'CAVE') {
-      return null;
-    }
-    const trackerIndex = this.caveTrackerIndexByEntityId.get(entity.id);
-    if (trackerIndex !== undefined) {
-      return trackerIndex;
-    }
-    return entity.containProfile.caveIndex ?? 0;
-  }
-
-  /* @internal */ canSwitchCaveIndexToIndex(oldIndex: number, newIndex: number): boolean {
-    const oldTracker = this.resolveCaveTracker(oldIndex, false);
-    if (oldTracker && oldTracker.passengerIds.size > 0) {
-      return false;
-    }
-
-    const newTracker = this.resolveCaveTracker(newIndex, false);
-    if (newTracker && newTracker.passengerIds.size > 0) {
-      return false;
-    }
-
-    return true;
-  }
-
   getScriptNamedToppleDirection(entityId: number): { x: number; z: number } | null {
     const direction = this.scriptToppleDirectionByEntityId.get(entityId);
     if (!direction) {
@@ -9577,6 +9567,59 @@ export class GameLogicSubsystem implements Subsystem {
   private executeMapScripts(...args: any[]) { return (executeMapScriptsImpl as any)(this, ...args); }
   private updateScriptSequentialScripts(...args: any[]) { return (updateScriptSequentialScriptsImpl as any)(this, ...args); }
   private updateScriptWanderInPlace(...args: any[]) { return (updateScriptWanderInPlaceImpl as any)(this, ...args); }
+
+  // ---- Containment facades (delegate to containment-system.ts) ----
+
+  private resolveRailedTransportWaypointData(...args: any[]) { return (resolveRailedTransportWaypointDataImpl as any)(this, ...args); }
+  private resetContainPlayerEnteredSides(...args: any[]) { return (resetContainPlayerEnteredSidesImpl as any)(this, ...args); }
+  getCaveContainIndex(...args: any[]) { return (getCaveContainIndexImpl as any)(this, ...args); }
+  /* @internal */ canSwitchCaveIndexToIndex(...args: any[]) { return (canSwitchCaveIndexToIndexImpl as any)(this, ...args); }
+  private isEntityInEnclosingContainer(...args: any[]) { return (isEntityInEnclosingContainerImpl as any)(this, ...args); }
+  private shouldIgnoreRailedTransportPlayerCommand(...args: any[]) { return (shouldIgnoreRailedTransportPlayerCommandImpl as any)(this, ...args); }
+  /* @internal */ isRailedTransportPlayerBlockedCommandType(...args: any[]) { return (isRailedTransportPlayerBlockedCommandTypeImpl as any)(this, ...args); }
+  /* @internal */ isRailedTransportEntity(...args: any[]) { return (isRailedTransportEntityImpl as any)(this, ...args); }
+  private doesSpecialPowerTargetAppearToContainFriendlies(...args: any[]) { return (doesSpecialPowerTargetAppearToContainFriendliesImpl as any)(this, ...args); }
+  private isCaptureBlockedByGarrisonOccupants(...args: any[]) { return (isCaptureBlockedByGarrisonOccupantsImpl as any)(this, ...args); }
+  private cancelRailedTransportTransit(...args: any[]) { return (cancelRailedTransportTransitImpl as any)(this, ...args); }
+  private resolveRailedTransportRuntimeState(...args: any[]) { return (resolveRailedTransportRuntimeStateImpl as any)(this, ...args); }
+  /* @internal */ resolveContainerEvacuationPositions(...args: any[]) { return (resolveContainerEvacuationPositionsImpl as any)(this, ...args); }
+  private handleExitContainerCommand(...args: any[]) { return (handleExitContainerCommandImpl as any)(this, ...args); }
+  private handleEvacuateCommand(...args: any[]) { return (handleEvacuateCommandImpl as any)(this, ...args); }
+  private handleExecuteRailedTransportCommand(...args: any[]) { return (handleExecuteRailedTransportCommandImpl as any)(this, ...args); }
+  /* @internal */ noteContainerEnteredBy(...args: any[]) { return (noteContainerEnteredByImpl as any)(this, ...args); }
+  private canSourceAttemptContainerEnter(...args: any[]) { return (canSourceAttemptContainerEnterImpl as any)(this, ...args); }
+  private canTargetAcceptContainerEnter(...args: any[]) { return (canTargetAcceptContainerEnterImpl as any)(this, ...args); }
+  private isContainerEnterTargetShrouded(...args: any[]) { return (isContainerEnterTargetShroudedImpl as any)(this, ...args); }
+  /* @internal */ hasVisibleContainedUnits(...args: any[]) { return (hasVisibleContainedUnitsImpl as any)(this, ...args); }
+  private blocksNonOwnerContainerEnter(...args: any[]) { return (blocksNonOwnerContainerEnterImpl as any)(this, ...args); }
+  private shouldIgnoreCapacityForNonOwnerContainerEnter(...args: any[]) { return (shouldIgnoreCapacityForNonOwnerContainerEnterImpl as any)(this, ...args); }
+  private canExecuteGarrisonBuildingEnterAction(...args: any[]) { return (canExecuteGarrisonBuildingEnterActionImpl as any)(this, ...args); }
+  private enterGarrisonBuilding(...args: any[]) { return (enterGarrisonBuildingImpl as any)(this, ...args); }
+  private enterTransport(...args: any[]) { return (enterTransportImpl as any)(this, ...args); }
+  /* @internal */ isEnclosingContainer(...args: any[]) { return (isEnclosingContainerImpl as any)(this, ...args); }
+  private updateHealing(...args: any[]) { return (updateHealingImpl as any)(this, ...args); }
+  private resolveTunnelTracker(...args: any[]) { return (resolveTunnelTrackerImpl as any)(this, ...args); }
+  private resolveCaveTracker(...args: any[]) { return (resolveCaveTrackerImpl as any)(this, ...args); }
+  private resolveTunnelTrackerForContainer(...args: any[]) { return (resolveTunnelTrackerForContainerImpl as any)(this, ...args); }
+  private enterTunnel(...args: any[]) { return (enterTunnelImpl as any)(this, ...args); }
+  private exitTunnel(...args: any[]) { return (exitTunnelImpl as any)(this, ...args); }
+  private updateTunnelHealing(...args: any[]) { return (updateTunnelHealingImpl as any)(this, ...args); }
+  private updateHealContainHealing(...args: any[]) { return (updateHealContainHealingImpl as any)(this, ...args); }
+  private updateTransportContainHealing(...args: any[]) { return (updateTransportContainHealingImpl as any)(this, ...args); }
+  private updateContainModelConditions(...args: any[]) { return (updateContainModelConditionsImpl as any)(this, ...args); }
+  private updateOverlordRiderPositions(...args: any[]) { return (updateOverlordRiderPositionsImpl as any)(this, ...args); }
+  private hasPendingTransportEntryForContainer(...args: any[]) { return (hasPendingTransportEntryForContainerImpl as any)(this, ...args); }
+  private isEntityContained(...args: any[]) { return (isEntityContainedImpl as any)(this, ...args); }
+  private isEntityContainedInGarrison(...args: any[]) { return (isEntityContainedInGarrisonImpl as any)(this, ...args); }
+  private collectContainedEntityIds(...args: any[]) { return (collectContainedEntityIdsImpl as any)(this, ...args); }
+  private countContainedRappellers(...args: any[]) { return (countContainedRappellersImpl as any)(this, ...args); }
+  private releaseEntityFromContainer(...args: any[]) { return (releaseEntityFromContainerImpl as any)(this, ...args); }
+  private evacuateOneContainedRappeller(...args: any[]) { return (evacuateOneContainedRappellerImpl as any)(this, ...args); }
+  private evacuateContainedEntities(...args: any[]) { return (evacuateContainedEntitiesImpl as any)(this, ...args); }
+  private resolveProjectileLauncherContainer(...args: any[]) { return (resolveProjectileLauncherContainerImpl as any)(this, ...args); }
+  private resolveEntityContainingObject(...args: any[]) { return (resolveEntityContainingObjectImpl as any)(this, ...args); }
+  private isPassengerAllowedToFireFromContainingObject(...args: any[]) { return (isPassengerAllowedToFireFromContainingObjectImpl as any)(this, ...args); }
+  private processDamageToContained(...args: any[]) { return (processDamageToContainedImpl as any)(this, ...args); }
 
   // ---- Script camera/media facades (delegate to script-camera.ts) ----
 
@@ -24015,29 +24058,6 @@ export class GameLogicSubsystem implements Subsystem {
     return WEAPON_ANTI_GROUND;
   }
 
-  /**
-   * Source parity: Contain::isEnclosingContainerFor — garrisoned and transport-carried
-   * entities are shielded from direct attack.
-   */
-  private isEntityInEnclosingContainer(entity: MapEntity): boolean {
-    if (entity.garrisonContainerId !== null) return true;
-    if (entity.tunnelContainerId !== null) return true;
-    if (entity.helixCarrierId !== null) {
-      // Source parity: HelixContain::isEnclosingContainerFor returns FALSE for the
-      // portable structure rider — it sits visibly on top and is attackable.
-      const carrier = this.spawnedEntities.get(entity.helixCarrierId);
-      if (carrier?.helixPortableRiderId === entity.id) return false;
-      return true;
-    }
-    if (entity.transportContainerId !== null) {
-      // Source parity: TransportContain/OverlordContain are enclosing by default.
-      // OPEN containers are not (passengers visible and attackable, e.g., Battle Bus).
-      const transport = this.spawnedEntities.get(entity.transportContainerId);
-      if (transport) return this.isEnclosingContainer(transport);
-    }
-    return false;
-  }
-
   private refreshEntityCombatProfiles(entity: MapEntity): void {
     const registry = this.iniDataRegistry;
     if (!registry) {
@@ -26193,56 +26213,6 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
-  private shouldIgnoreRailedTransportPlayerCommand(command: GameLogicCommand): boolean {
-    const hasEntityId = 'entityId' in command && typeof command.entityId === 'number';
-    if (!hasEntityId) {
-      return false;
-    }
-
-    const blockedCommandType = this.isRailedTransportPlayerBlockedCommandType(command.type);
-    if (!blockedCommandType) {
-      return false;
-    }
-
-    return this.isRailedTransportEntity(command.entityId);
-  }
-
-  private isRailedTransportPlayerBlockedCommandType(commandType: GameLogicCommand['type']): boolean {
-    switch (commandType) {
-      case 'moveTo':
-      case 'attackMoveTo':
-      case 'guardPosition':
-      case 'guardObject':
-      case 'attackEntity':
-      case 'fireWeapon':
-      case 'switchWeapon':
-      case 'stop':
-      case 'enterObject':
-      case 'combatDrop':
-      case 'hackInternet':
-      case 'toggleOvercharge':
-      case 'detonateDemoTrap':
-      case 'toggleDemoTrapMode':
-      case 'setRallyPoint':
-      case 'garrisonBuilding':
-      case 'repairBuilding':
-      case 'enterTransport':
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  private isRailedTransportEntity(entityId: number): boolean {
-    const entity = this.spawnedEntities.get(entityId);
-    if (!entity || entity.destroyed) {
-      return false;
-    }
-
-    const objectDef = this.resolveObjectDefByTemplateName(entity.templateName);
-    return this.extractRailedTransportProfile(objectDef ?? undefined) !== null;
-  }
-
   /**
    * Source parity: AIPlayer special power usage — collect all ready special powers
    * for entities belonging to a given side. Returns power name, source entity,
@@ -26512,50 +26482,6 @@ export class GameLogicSubsystem implements Subsystem {
 
   private isSpecialPowerObjectEffectivelyDead(target: MapEntity): boolean {
     return this.isScriptEntityEffectivelyDead(target);
-  }
-
-  /**
-   * Source parity: appearsToContainFriendlies(ActionManager.cpp) —
-   * only stealth-contained passengers can spoof apparent allegiance.
-   */
-  private doesSpecialPowerTargetAppearToContainFriendlies(source: MapEntity, target: MapEntity): boolean {
-    if (!target.containProfile) {
-      return false;
-    }
-    for (const passengerId of this.collectContainedEntityIds(target.id)) {
-      const passenger = this.spawnedEntities.get(passengerId);
-      if (!passenger || passenger.destroyed) {
-        continue;
-      }
-      if (!passenger.objectStatusFlags.has('STEALTHED')) {
-        continue;
-      }
-      if (this.getTeamRelationship(source, passenger) !== RELATIONSHIP_ENEMIES) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Source parity: canCaptureBuilding() garrison gate —
-   * capture is blocked when a garrisonable building has any non-stealth occupants.
-   */
-  private isCaptureBlockedByGarrisonOccupants(target: MapEntity): boolean {
-    const profile = target.containProfile;
-    if (!profile || profile.garrisonCapacity <= 0) {
-      return false;
-    }
-    for (const passengerId of this.collectContainedEntityIds(target.id)) {
-      const passenger = this.spawnedEntities.get(passengerId);
-      if (!passenger || passenger.destroyed) {
-        continue;
-      }
-      if (!passenger.objectStatusFlags.has('STEALTHED')) {
-        return true;
-      }
-    }
-    return false;
   }
 
   /**
@@ -27006,202 +26932,6 @@ export class GameLogicSubsystem implements Subsystem {
     if (dozer) {
       dozer.dozerBuildTaskOrderFrame = 0;
     }
-  }
-
-  private cancelRailedTransportTransit(entityId: number): void {
-    const state = this.railedTransportStateByEntityId.get(entityId);
-    if (!state) {
-      return;
-    }
-    state.inTransit = false;
-    state.transitWaypointIds = [];
-    state.transitWaypointIndex = 0;
-  }
-
-  private resolveRailedTransportRuntimeState(entityId: number): RailedTransportRuntimeState {
-    let state = this.railedTransportStateByEntityId.get(entityId);
-    if (!state) {
-      state = createRailedTransportRuntimeStateImpl();
-      this.railedTransportStateByEntityId.set(entityId, state);
-    }
-    return state;
-  }
-
-  /**
-   * Source parity: GarrisonContain evacuation side override (left/right).
-   * Mirrors the local door/walk target generation used by m_evacDisposition.
-   */
-  private resolveContainerEvacuationPositions(
-    container: MapEntity,
-    defaultTargetX: number,
-    defaultTargetZ: number,
-  ): { spawnX: number; spawnZ: number; targetX: number; targetZ: number } {
-    if (container.scriptEvacDisposition !== 1 && container.scriptEvacDisposition !== 2) {
-      return {
-        spawnX: container.x,
-        spawnZ: container.z,
-        targetX: defaultTargetX,
-        targetZ: defaultTargetZ,
-      };
-    }
-
-    const scalar = container.scriptEvacDisposition === 1 ? 1 : -1;
-    const majorRadius = Math.max(
-      container.obstacleGeometry?.majorRadius ?? container.geometryMajorRadius,
-      MAP_XY_FACTOR / 2,
-    );
-    const minorRadius = Math.max(
-      container.obstacleGeometry?.minorRadius ?? majorRadius,
-      MAP_XY_FACTOR / 4,
-    );
-    const randomReal = (min: number, max: number): number => min + this.gameRandom.nextFloat() * (max - min);
-
-    const doorLocalX = randomReal(-majorRadius / 4, majorRadius / 4);
-    const doorLocalZ = randomReal(minorRadius / 2, minorRadius * 2) * scalar;
-    const walkLocalX = randomReal(-majorRadius, majorRadius);
-    const walkLocalZ = minorRadius * 10 * scalar;
-    const cosTheta = Math.cos(container.rotationY);
-    const sinTheta = Math.sin(container.rotationY);
-
-    return {
-      spawnX: container.x + (doorLocalX * cosTheta) - (doorLocalZ * sinTheta),
-      spawnZ: container.z + (doorLocalX * sinTheta) + (doorLocalZ * cosTheta),
-      targetX: container.x + (walkLocalX * cosTheta) - (walkLocalZ * sinTheta),
-      targetZ: container.z + (walkLocalX * sinTheta) + (walkLocalZ * cosTheta),
-    };
-  }
-
-  private handleExitContainerCommand(entityId: number): void {
-    const entity = this.spawnedEntities.get(entityId);
-    if (!entity || entity.destroyed) {
-      return;
-    }
-
-    // Source parity: TunnelContain — use exitTunnel for proper scatter behavior.
-    if (entity.tunnelContainerId !== null) {
-      const tunnel = this.spawnedEntities.get(entity.tunnelContainerId);
-      if (tunnel && !tunnel.destroyed) {
-        this.exitTunnel(entity, tunnel);
-      } else {
-        this.releaseEntityFromContainer(entity);
-      }
-      return;
-    }
-
-    const containerId = entity.parkingSpaceProducerId
-      ?? entity.helixCarrierId
-      ?? entity.garrisonContainerId
-      ?? entity.transportContainerId;
-    if (containerId === null) {
-      return;
-    }
-
-    const container = this.spawnedEntities.get(containerId);
-    if (!container || container.destroyed) {
-      this.releaseEntityFromContainer(entity);
-      return;
-    }
-
-    // Source parity: ChinookAIUpdate::getAiFreeToExit — combat-drop exits are owned by
-    // ChinookCombatDropState (rappel), not by generic passenger exit commands.
-    if (container.chinookAIProfile && this.pendingCombatDropActions.has(container.id)) {
-      return;
-    }
-
-    if (container.chinookAIProfile && container.chinookFlightStatus !== 'LANDED') {
-      this.pendingChinookCommandByEntityId.set(container.id, { type: 'exitContainer', entityId });
-      this.setChinookFlightStatus(container, 'LANDING');
-      return;
-    }
-
-    // Source parity: AIUpdate::privateExit — blocked when container is DISABLED_SUBDUED.
-    // C++ AIUpdate.cpp:3819-3840: prevents passengers exiting subdued containers.
-    if (this.entityHasObjectStatus(container, 'DISABLED_SUBDUED')) {
-      return;
-    }
-
-    this.cancelEntityCommandPathActions(entity.id);
-    this.releaseEntityFromContainer(entity);
-    const evacuation = this.resolveContainerEvacuationPositions(
-      container,
-      container.x + MAP_XY_FACTOR,
-      container.z,
-    );
-    entity.x = evacuation.spawnX;
-    entity.z = evacuation.spawnZ;
-    entity.y = this.resolveGroundHeight(entity.x, entity.z) + entity.baseHeight;
-    this.updatePathfindPosCell(entity);
-
-    if (entity.canMove) {
-      this.issueMoveTo(entity.id, evacuation.targetX, evacuation.targetZ);
-    }
-  }
-
-  private handleEvacuateCommand(entityId: number): void {
-    const container = this.spawnedEntities.get(entityId);
-    if (!container || container.destroyed) {
-      return;
-    }
-
-    if (container.chinookAIProfile && container.chinookFlightStatus !== 'LANDED') {
-      this.pendingChinookCommandByEntityId.set(container.id, { type: 'evacuate', entityId });
-      this.setChinookFlightStatus(container, 'LANDING');
-      return;
-    }
-
-    // Source parity: AIUpdate::privateEvacuate — blocked when container is DISABLED_SUBDUED.
-    // C++ AIUpdate.cpp:3894-3896: prevents evacuation of subdued buildings (e.g., Microwave Tank).
-    if (this.entityHasObjectStatus(container, 'DISABLED_SUBDUED')) {
-      return;
-    }
-
-    // Source parity: TunnelContain/CaveContain evacuate — exit all shared passengers from this node.
-    if (container.containProfile?.moduleType === 'TUNNEL' || container.containProfile?.moduleType === 'CAVE') {
-      const tracker = this.resolveTunnelTrackerForContainer(container);
-      if (tracker) {
-        for (const passengerId of Array.from(tracker.passengerIds)) {
-          const passenger = this.spawnedEntities.get(passengerId);
-          if (!passenger || passenger.destroyed) continue;
-          this.exitTunnel(passenger, container);
-        }
-      }
-      return;
-    }
-
-    const objectDef = this.resolveObjectDefByTemplateName(container.templateName);
-    const railedProfile = this.extractRailedTransportProfile(objectDef ?? undefined);
-    if (railedProfile) {
-      const railedState = this.resolveRailedTransportRuntimeState(container.id);
-      if (railedState.inTransit) {
-        return;
-      }
-    }
-
-    this.cancelEntityCommandPathActions(container.id);
-    this.evacuateContainedEntities(container, container.x, container.z, null);
-  }
-
-  private handleExecuteRailedTransportCommand(command: ExecuteRailedTransportCommand): void {
-    const entity = this.spawnedEntities.get(command.entityId);
-    if (!entity || entity.destroyed || !entity.canMove) {
-      return;
-    }
-
-    const objectDef = this.resolveObjectDefByTemplateName(entity.templateName);
-    const profile = this.extractRailedTransportProfile(objectDef ?? undefined);
-    if (!profile) {
-      return;
-    }
-
-    executeRailedTransportCommandImpl(entity, profile, {
-      waypointIndex: this.railedTransportWaypointIndex,
-      resolveRuntimeState: this.resolveRailedTransportRuntimeState.bind(this),
-      cancelEntityCommandPathActions: this.cancelEntityCommandPathActions.bind(this),
-      clearAttackTarget: this.clearAttackTarget.bind(this),
-      stopEntity: this.stopEntity.bind(this),
-      issueMoveTo: this.issueMoveTo.bind(this),
-      isValidEntity: (candidate) => !candidate.destroyed && candidate.canMove,
-    });
   }
 
   private handleBeaconDeleteCommand(command: BeaconDeleteCommand): void {
@@ -28399,56 +28129,6 @@ export class GameLogicSubsystem implements Subsystem {
     });
   }
 
-  private noteContainerEnteredBy(container: MapEntity, rider: MapEntity): void {
-    if (!container.containProfile) {
-      return;
-    }
-    container.containPlayerEnteredSide = this.normalizeSide(rider.side);
-    container.containPlayerEnteredToken = this.resolveEntityControllingPlayerTokenForAffiliation(rider);
-  }
-
-  /**
-   * Source parity: ActionManager::canEnterObject source-object gates.
-   */
-  private canSourceAttemptContainerEnter(source: MapEntity): boolean {
-    if (this.isEntityDisabledForMovement(source)) {
-      return false;
-    }
-    if (this.entityHasObjectStatus(source, 'UNDER_CONSTRUCTION')) {
-      return false;
-    }
-    const kindOf = this.resolveEntityKindOfSet(source);
-    if (kindOf.has('STRUCTURE') || kindOf.has('IMMOBILE')) {
-      return false;
-    }
-    if (kindOf.has('IGNORED_IN_GUI') || kindOf.has('MOB_NEXUS')) {
-      return false;
-    }
-    return true;
-  }
-
-  /**
-   * Source parity: ActionManager::canEnterObject target-object gates.
-   */
-  private canTargetAcceptContainerEnter(target: MapEntity): boolean {
-    if (this.isEntityEffectivelyDeadForEnter(target)) {
-      return false;
-    }
-    if (this.entityHasObjectStatus(target, 'UNDER_CONSTRUCTION')) {
-      return false;
-    }
-    if (this.entityHasObjectStatus(target, 'SOLD')) {
-      return false;
-    }
-    if (this.entityHasObjectStatus(target, 'DISABLED_SUBDUED')) {
-      return false;
-    }
-    if (this.resolveEntityKindOfSet(target).has('IGNORED_IN_GUI')) {
-      return false;
-    }
-    return true;
-  }
-
   /**
    * Source parity: ActionManager::canGetHealedAt source/target gating.
    */
@@ -28484,34 +28164,7 @@ export class GameLogicSubsystem implements Subsystem {
     return true;
   }
 
-  /**
-   * Source parity: ActionManager::isObjectShroudedForAction gate used by canEnterObject.
-   */
-  private isContainerEnterTargetShrouded(
-    source: MapEntity,
-    target: MapEntity,
-    commandSource: 'PLAYER' | 'AI' | 'SCRIPT',
-  ): boolean {
-    if (commandSource === 'SCRIPT') {
-      return false;
-    }
-    const sourceOwnerToken = this.normalizeControllingPlayerToken(source.controllingPlayerToken ?? undefined);
-    const sourceSide = this.normalizeSide(source.side);
-    if (!sourceSide) {
-      return false;
-    }
-    const sourcePlayerType = (
-      sourceOwnerToken != null
-        ? this.sidePlayerTypes.get(sourceOwnerToken)
-        : undefined
-    ) ?? this.getSidePlayerType(sourceSide);
-    if (sourcePlayerType !== 'HUMAN') {
-      return false;
-    }
-    return this.resolveEntityShroudStatusForSide(target, sourceSide) !== 'CLEAR';
-  }
-
-  private isSameControllingPlayerOrSide(left: MapEntity, right: MapEntity): boolean {
+  /* @internal */ isSameControllingPlayerOrSide(left: MapEntity, right: MapEntity): boolean {
     const leftOwner = this.normalizeControllingPlayerToken(left.controllingPlayerToken ?? undefined);
     const rightOwner = this.normalizeControllingPlayerToken(right.controllingPlayerToken ?? undefined);
     if (leftOwner !== null && rightOwner !== null) {
@@ -28520,112 +28173,6 @@ export class GameLogicSubsystem implements Subsystem {
     const leftSide = this.normalizeSide(left.side);
     const rightSide = this.normalizeSide(right.side);
     return leftSide !== null && leftSide === rightSide;
-  }
-
-  private hasVisibleContainedUnits(containerId: number): boolean {
-    for (const containedId of this.collectContainedEntityIds(containerId)) {
-      const contained = this.spawnedEntities.get(containedId);
-      if (!contained || contained.destroyed) {
-        continue;
-      }
-      if (!contained.objectStatusFlags.has('STEALTHED')) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private blocksNonOwnerContainerEnter(source: MapEntity, target: MapEntity): boolean {
-    if (this.isSameControllingPlayerOrSide(source, target)) {
-      return false;
-    }
-    // Source parity: ActionManager::canEnterObject blocks non-owner enters
-    // into containers with visible occupants.
-    if (this.hasVisibleContainedUnits(target.id)) {
-      return true;
-    }
-    // Source parity: ActionManager::canEnterObject blocks non-owner faction-structure enters.
-    return this.isFactionStructure(target);
-  }
-
-  private shouldIgnoreCapacityForNonOwnerContainerEnter(source: MapEntity, target: MapEntity): boolean {
-    if (this.isSameControllingPlayerOrSide(source, target)) {
-      return false;
-    }
-    let stealthContainCount = 0;
-    for (const containedId of this.collectContainedEntityIds(target.id)) {
-      const contained = this.spawnedEntities.get(containedId);
-      if (!contained || contained.destroyed) {
-        continue;
-      }
-      if (!contained.objectStatusFlags.has('STEALTHED')) {
-        return false;
-      }
-      stealthContainCount += 1;
-    }
-    // Source parity: ActionManager::canEnterObject disables capacity checks
-    // when non-owner target has only stealthed contained units.
-    return stealthContainCount > 0;
-  }
-
-  private canExecuteGarrisonBuildingEnterAction(
-    source: MapEntity,
-    building: MapEntity,
-    commandSource: 'PLAYER' | 'AI' | 'SCRIPT',
-  ): boolean {
-    if (source.id === building.id) {
-      return false;
-    }
-    if (this.isEntityEffectivelyDeadForEnter(source)) {
-      return false;
-    }
-    if (this.isEntityContained(source)) {
-      return false;
-    }
-    if (this.isContainerEnterTargetShrouded(source, building, commandSource)) {
-      return false;
-    }
-    if (!this.canSourceAttemptContainerEnter(source)) {
-      return false;
-    }
-    if (!this.canTargetAcceptContainerEnter(building)) {
-      return false;
-    }
-
-    const sourceKindOf = this.resolveEntityKindOfSet(source);
-    if (!sourceKindOf.has('INFANTRY') || sourceKindOf.has('NO_GARRISON')) {
-      return false;
-    }
-
-    const containProfile = building.containProfile;
-    if (!containProfile || containProfile.moduleType !== 'GARRISON' || containProfile.garrisonCapacity <= 0) {
-      return false;
-    }
-    if (!this.isScriptContainRelationshipAllowed(building, source)) {
-      return false;
-    }
-    if (!this.isScriptContainKindAllowed(building, source)) {
-      return false;
-    }
-    const currentOccupants = this.collectContainedEntityIds(building.id).length;
-    if (currentOccupants >= containProfile.garrisonCapacity) {
-      return false;
-    }
-
-    return true;
-  }
-
-  private enterGarrisonBuilding(source: MapEntity, building: MapEntity): void {
-    this.cancelEntityCommandPathActions(source.id);
-    this.clearAttackTarget(source.id);
-    source.garrisonContainerId = building.id;
-    this.noteContainerEnteredBy(building, source);
-    source.x = building.x;
-    source.z = building.z;
-    source.y = building.y;
-    source.canMove = false;
-    source.moving = false;
-    this.pendingGarrisonActions.delete(source.id);
   }
 
   private handleGarrisonBuildingCommand(command: GarrisonBuildingCommand): void {
@@ -28768,49 +28315,6 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     this.enterTransport(passenger, transport);
-  }
-
-  private enterTransport(passenger: MapEntity, transport: MapEntity): void {
-    this.cancelEntityCommandPathActions(passenger.id);
-    this.clearAttackTarget(passenger.id);
-    passenger.transportContainerId = transport.id;
-    this.noteContainerEnteredBy(transport, passenger);
-    passenger.x = transport.x;
-    passenger.z = transport.z;
-    passenger.y = transport.y;
-    passenger.moving = false;
-    // Source parity: HealContain — track entry frame for healing calculation.
-    if (transport.containProfile?.moduleType === 'HEAL') {
-      passenger.healContainEnteredFrame = this.frameCounter;
-    }
-    // Source parity: InternetHackContain::onContaining — auto-issue hackInternet to entering unit.
-    // C++ file: InternetHackContain.cpp — rider->getAI()->aiHackInternet(CMD_FROM_AI).
-    if (transport.containProfile?.moduleType === 'INTERNET_HACK') {
-      this.commandQueue.push({ type: 'hackInternet', entityId: passenger.id });
-    }
-    // Source parity: Object::onContainedBy — set UNSELECTABLE and MASKED for enclosed containers.
-    passenger.objectStatusFlags.add('UNSELECTABLE');
-    if (this.isEnclosingContainer(transport)) {
-      passenger.objectStatusFlags.add('MASKED');
-    }
-    this.removeEntityFromSelection(passenger.id);
-    this.pendingTransportActions.delete(passenger.id);
-  }
-
-  /**
-   * Source parity: Contain::isEnclosingContainerFor — TRANSPORT and OVERLORD are enclosed
-   * (passengers hidden), OPEN containers are not.
-   */
-  private isEnclosingContainer(container: MapEntity): boolean {
-    const profile = container.containProfile;
-    if (!profile) return false;
-    return profile.moduleType === 'TRANSPORT'
-      || profile.moduleType === 'OVERLORD'
-      || profile.moduleType === 'HELIX'
-      || profile.moduleType === 'TUNNEL'
-      || profile.moduleType === 'CAVE'
-      || profile.moduleType === 'HEAL'
-      || profile.moduleType === 'INTERNET_HACK';
   }
 
   private updatePendingTransportActions(): void {
@@ -32039,134 +31543,6 @@ export class GameLogicSubsystem implements Subsystem {
     entity.objectStatusFlags.delete('POISONED');
   }
 
-  /**
-   * Source parity: AutoHealBehavior, BaseRegenerateUpdate, PropagandaTowerBehavior.
-   * Runs all healing systems in a single pass.
-   */
-  private updateHealing(): void {
-    const LOGICFRAMES_PER_SECOND = 30;
-    const BASE_REGEN_INTERVAL = 3; // BaseRegenerateUpdate heals every 3 frames
-
-    for (const entity of this.spawnedEntities.values()) {
-      if (entity.destroyed) continue;
-
-      // C++ parity: full-health check only skips self-heal and base-regen.
-      // Radius and whole-player AutoHeal must still run to heal OTHER entities.
-      const atFullHealth = entity.health >= entity.maxHealth && entity.health > 0;
-      const hasRadiusOrPlayerHeal = entity.autoHealProfile
-        && (entity.autoHealProfile.radius > 0 || entity.autoHealProfile.affectsWholePlayer);
-      if (atFullHealth && !entity.propagandaTowerProfile && !hasRadiusOrPlayerHeal) continue;
-
-      const isDisabled = entity.objectStatusFlags.has('DISABLED_EMP')
-        || entity.objectStatusFlags.has('DISABLED_HACKED')
-        || entity.objectStatusFlags.has('DISABLED_SUBDUED');
-
-      // ── AutoHealBehavior ──
-      if (entity.autoHealProfile && !isDisabled) {
-        const prof = entity.autoHealProfile;
-        if (prof.initiallyActive || entity.completedUpgrades.size > 0) {
-          // Check damage delay.
-          if (this.frameCounter >= entity.autoHealDamageDelayUntilFrame) {
-            if (this.frameCounter >= entity.autoHealNextFrame) {
-              if (prof.radius > 0) {
-                // Radius heal mode — heal nearby allies.
-                const radiusSq = prof.radius * prof.radius;
-                for (const target of this.spawnedEntities.values()) {
-                  if (target.destroyed || target === entity) continue;
-                  if (target.health >= target.maxHealth) continue;
-                  if (this.getTeamRelationship(entity, target) === RELATIONSHIP_ENEMIES) continue;
-                  const dx = target.x - entity.x;
-                  const dz = target.z - entity.z;
-                  if (dx * dx + dz * dz <= radiusSq) {
-                    this.attemptHealingFromSoleBenefactor(target, prof.healingAmount, entity.id, prof.healingDelayFrames);
-                  }
-                }
-              } else if (prof.affectsWholePlayer) {
-                // Whole-player mode — heal all entities on same side.
-                const side = this.normalizeSide(entity.side);
-                for (const target of this.spawnedEntities.values()) {
-                  if (target.destroyed || target.health >= target.maxHealth) continue;
-                  if (this.normalizeSide(target.side) !== side) continue;
-                  const prevHealth = target.health;
-                  target.health = Math.min(target.maxHealth, target.health + prof.healingAmount);
-                  if (target.health > prevHealth) {
-                    this.clearPoisonFromEntity(target);
-                    if (target.minefieldProfile) {
-                      this.mineOnDamage(target, entity.id, 'HEALING');
-                    }
-                  }
-                }
-              } else if (entity.health < entity.maxHealth) {
-                // Self-heal mode — only when entity is damaged.
-                const prevHealth = entity.health;
-                entity.health = Math.min(entity.maxHealth, entity.health + prof.healingAmount);
-                if (entity.health > prevHealth) {
-                  this.clearPoisonFromEntity(entity);
-                  if (entity.minefieldProfile) {
-                    this.mineOnDamage(entity, entity.id, 'HEALING');
-                  }
-                }
-              }
-              entity.autoHealNextFrame = this.frameCounter + prof.healingDelayFrames;
-            }
-          }
-        }
-      }
-
-      // ── BaseRegenerateUpdate (structure regen) ──
-      if (entity.kindOf.has('STRUCTURE') && !isDisabled && entity.health < entity.maxHealth
-          && !entity.objectStatusFlags.has('UNDER_CONSTRUCTION')
-          && !entity.objectStatusFlags.has('SOLD')
-          && BASE_REGEN_HEALTH_PERCENT_PER_SECOND > 0) {
-        if (this.frameCounter >= entity.baseRegenDelayUntilFrame) {
-          if (this.frameCounter % BASE_REGEN_INTERVAL === 0) {
-            const prevHealth = entity.health;
-            const amount = BASE_REGEN_INTERVAL * entity.maxHealth * BASE_REGEN_HEALTH_PERCENT_PER_SECOND / LOGICFRAMES_PER_SECOND;
-            entity.health = Math.min(entity.maxHealth, entity.health + amount);
-            if (entity.health > prevHealth) {
-              this.clearPoisonFromEntity(entity);
-            }
-          }
-        }
-      }
-
-      // ── PropagandaTowerBehavior (radius heal aura) ──
-      if (entity.propagandaTowerProfile && !isDisabled
-          && !entity.objectStatusFlags.has('UNDER_CONSTRUCTION')
-          && !entity.objectStatusFlags.has('SOLD')) {
-        const prof = entity.propagandaTowerProfile;
-        const isUpgraded = prof.upgradeRequired !== null
-          && entity.completedUpgrades.has(prof.upgradeRequired.toUpperCase());
-        const healPct = isUpgraded ? prof.upgradedHealPercentPerSecond : prof.healPercentPerSecond;
-
-        // Rescan for units in range periodically.
-        if (this.frameCounter >= entity.propagandaTowerNextScanFrame) {
-          entity.propagandaTowerTrackedIds = [];
-          const radiusSq = prof.radius * prof.radius;
-          for (const target of this.spawnedEntities.values()) {
-            if (target.destroyed || target === entity) continue;
-            if (target.kindOf.has('STRUCTURE')) continue; // Only troops
-            if (this.getTeamRelationship(entity, target) === RELATIONSHIP_ENEMIES) continue;
-            const dx = target.x - entity.x;
-            const dz = target.z - entity.z;
-            if (dx * dx + dz * dz <= radiusSq) {
-              entity.propagandaTowerTrackedIds.push(target.id);
-            }
-          }
-          entity.propagandaTowerNextScanFrame = this.frameCounter + prof.scanDelayFrames;
-        }
-
-        // Heal tracked units each frame.
-        for (const targetId of entity.propagandaTowerTrackedIds) {
-          const target = this.spawnedEntities.get(targetId);
-          if (!target || target.destroyed || target.health >= target.maxHealth) continue;
-          const amount = healPct / LOGICFRAMES_PER_SECOND * target.maxHealth;
-          this.attemptHealingFromSoleBenefactor(target, amount, entity.id, prof.scanDelayFrames);
-        }
-      }
-    }
-  }
-
   private setParkingPlaceHealee(airfield: MapEntity, healee: MapEntity, add: boolean): void {
     const profile = airfield.parkingPlaceProfile;
     if (!profile) {
@@ -34074,58 +33450,6 @@ export class GameLogicSubsystem implements Subsystem {
   // ── Tunnel Network System ──────────────────────────────────────────────────
 
   /**
-   * Source parity: TunnelTracker — resolve or create per-side tunnel state.
-   */
-  private resolveTunnelTracker(side: string | undefined): TunnelTrackerState | null {
-    const normalized = this.normalizeSide(side);
-    if (!normalized) return null;
-    let tracker = this.tunnelTrackers.get(normalized);
-    if (!tracker) {
-      tracker = { tunnelIds: new Set(), passengerIds: new Set(), timeForFullHealFrames: 1 };
-      this.tunnelTrackers.set(normalized, tracker);
-    }
-    return tracker;
-  }
-
-  /**
-   * Source parity: CaveSystem::getTunnelTrackerForCaveIndex.
-   */
-  private resolveCaveTracker(caveIndex: number, createIfMissing = true): TunnelTrackerState | null {
-    if (!Number.isFinite(caveIndex)) {
-      return null;
-    }
-    const normalizedIndex = Math.trunc(caveIndex);
-    if (normalizedIndex < 0) {
-      return null;
-    }
-
-    let tracker = this.caveTrackers.get(normalizedIndex);
-    if (!tracker && createIfMissing) {
-      tracker = { tunnelIds: new Set(), passengerIds: new Set(), timeForFullHealFrames: 0 };
-      this.caveTrackers.set(normalizedIndex, tracker);
-    }
-    return tracker ?? null;
-  }
-
-  /**
-   * Source parity: TunnelContain uses side tracker, CaveContain uses cave-index tracker.
-   */
-  private resolveTunnelTrackerForContainer(container: MapEntity): TunnelTrackerState | null {
-    const containProfile = container.containProfile;
-    if (!containProfile) {
-      return null;
-    }
-    if (containProfile.moduleType === 'TUNNEL') {
-      return this.resolveTunnelTracker(container.side);
-    }
-    if (containProfile.moduleType === 'CAVE') {
-      const caveIndex = this.caveTrackerIndexByEntityId.get(container.id) ?? containProfile.caveIndex ?? 0;
-      return this.resolveCaveTracker(caveIndex);
-    }
-    return null;
-  }
-
-  /**
    * Register a tunnel-type building with the side's TunnelTracker.
    * Called after entity creation at all spawn points.
    */
@@ -34170,88 +33494,6 @@ export class GameLogicSubsystem implements Subsystem {
       return tracker;
     }
     return null;
-  }
-
-  /**
-   * Source parity: TunnelContain::onContaining — enter the shared tunnel network.
-   */
-  private enterTunnel(passenger: MapEntity, tunnel: MapEntity): void {
-    const tracker = this.resolveTunnelTrackerForContainer(tunnel);
-    if (!tracker) return;
-
-    // Source parity: TunnelTracker::isValidContainerFor — no aircraft.
-    if (passenger.kindOf.has('AIRCRAFT')) return;
-
-    // Check shared capacity.
-    if (tracker.passengerIds.size >= this.config.maxTunnelCapacity) return;
-
-    // Cannot enter if already contained.
-    if (this.isEntityContained(passenger)) return;
-
-    this.cancelEntityCommandPathActions(passenger.id);
-    this.clearAttackTarget(passenger.id);
-
-    passenger.tunnelContainerId = tunnel.id;
-    this.noteContainerEnteredBy(tunnel, passenger);
-    passenger.tunnelEnteredFrame = this.frameCounter;
-    passenger.x = tunnel.x;
-    passenger.z = tunnel.z;
-    passenger.y = tunnel.y;
-    passenger.moving = false;
-
-    // Source parity: Object::onContainedBy + TunnelContain::onContaining — DISABLED_HELD, MASKED, UNSELECTABLE.
-    passenger.objectStatusFlags.add('DISABLED_HELD');
-    passenger.objectStatusFlags.add('MASKED');
-    passenger.objectStatusFlags.add('UNSELECTABLE');
-
-    tracker.passengerIds.add(passenger.id);
-    this.removeEntityFromSelection(passenger.id);
-    this.pendingTunnelActions.delete(passenger.id);
-  }
-
-  /**
-   * Source parity: TunnelContain::removeFromContain — exit the tunnel network.
-   * The passenger exits from the specified tunnel building.
-   */
-  private exitTunnel(passenger: MapEntity, exitTunnel: MapEntity): void {
-    const tracker = this.resolveTunnelTrackerForContainer(exitTunnel);
-    if (tracker) {
-      tracker.passengerIds.delete(passenger.id);
-    }
-
-    passenger.tunnelContainerId = null;
-    passenger.tunnelEnteredFrame = 0;
-
-    // Source parity: TunnelContain::onRemoving — clear DISABLED_HELD.
-    passenger.objectStatusFlags.delete('DISABLED_HELD');
-    passenger.objectStatusFlags.delete('MASKED');
-    passenger.objectStatusFlags.delete('UNSELECTABLE');
-
-    // Source parity: TunnelContain::scatterToNearbyPosition — scatter around the exit tunnel.
-    const angle = this.gameRandom.nextFloat() * Math.PI * 2;
-    const geom = exitTunnel.obstacleGeometry;
-    const baseRadius = geom ? Math.max(geom.majorRadius, geom.minorRadius) : 10;
-    const minRadius = baseRadius;
-    const maxRadius = baseRadius * 1.5;
-    const dist = minRadius + this.gameRandom.nextFloat() * (maxRadius - minRadius);
-    const exitX = exitTunnel.x + Math.cos(angle) * dist;
-    const exitZ = exitTunnel.z + Math.sin(angle) * dist;
-
-    passenger.x = exitTunnel.x;
-    passenger.z = exitTunnel.z;
-    passenger.y = this.resolveGroundHeight(passenger.x, passenger.z) + passenger.baseHeight;
-    passenger.rotationY = angle;
-    this.updatePathfindPosCell(passenger);
-
-    if (passenger.canMove) {
-      this.issueMoveTo(passenger.id, exitX, exitZ);
-    } else {
-      // Source parity: scatterToNearbyPosition — non-AI units are placed directly.
-      passenger.x = exitX;
-      passenger.z = exitZ;
-      passenger.y = this.resolveGroundHeight(exitX, exitZ) + passenger.baseHeight;
-      this.updatePathfindPosCell(passenger);
-    }
   }
 
   /**
@@ -34306,7 +33548,7 @@ export class GameLogicSubsystem implements Subsystem {
     // Check if this is the last tunnel (count 1 means this is the only one left).
     if (tracker.tunnelIds.size <= 1) {
       // Eject all passengers safely before the tunnel is destroyed.
-      for (const passengerId of Array.from(tracker.passengerIds)) {
+      for (const passengerId of tracker.passengerIds as Set<number>) {
         const passenger = this.spawnedEntities.get(passengerId);
         if (!passenger || passenger.destroyed) continue;
         this.exitTunnel(passenger, entity);
@@ -34317,92 +33559,6 @@ export class GameLogicSubsystem implements Subsystem {
     // even if not the last tunnel. Prevents double-sell cave-in race condition
     // when two tunnels are sold in the same frame.
     tracker.tunnelIds.delete(entity.id);
-  }
-
-  /**
-   * Source parity: TunnelContain::update → TunnelTracker::healObjects — heal passengers.
-   */
-  private updateTunnelHealing(): void {
-    for (const tracker of this.tunnelTrackers.values()) {
-      if (tracker.passengerIds.size === 0) continue;
-      const healFrames = tracker.timeForFullHealFrames;
-      if (healFrames <= 0) continue;
-
-      for (const passengerId of tracker.passengerIds) {
-        const passenger = this.spawnedEntities.get(passengerId);
-        if (!passenger || passenger.destroyed) continue;
-        if (passenger.health >= passenger.maxHealth) continue;
-
-        const framesInside = this.frameCounter - passenger.tunnelEnteredFrame;
-        if (framesInside >= healFrames) {
-          // Fully healed.
-          passenger.health = passenger.maxHealth;
-        } else {
-          // Linear heal: maxHealth / framesForFullHeal per frame.
-          const healPerFrame = passenger.maxHealth / healFrames;
-          passenger.health = Math.min(passenger.maxHealth, passenger.health + healPerFrame);
-        }
-      }
-    }
-  }
-
-  /**
-   * Source parity: HealContain::update — heal all passengers per frame, auto-eject when full.
-   * C++ file: HealContain.cpp lines 92-132.
-   */
-  private updateHealContainHealing(): void {
-    // Find all heal containers and process their passengers.
-    for (const container of this.spawnedEntities.values()) {
-      if (container.destroyed) continue;
-      const profile = container.containProfile;
-      if (!profile || profile.moduleType !== 'HEAL') continue;
-      const healFrames = profile.timeForFullHealFrames;
-      if (healFrames <= 0) continue;
-
-      // Collect passengers inside this heal container.
-      const passengerIds: number[] = [];
-      for (const entity of this.spawnedEntities.values()) {
-        if (entity.transportContainerId === container.id && !entity.destroyed) {
-          passengerIds.push(entity.id);
-        }
-      }
-
-      const toEject: number[] = [];
-      for (const passengerId of passengerIds) {
-        const passenger = this.spawnedEntities.get(passengerId);
-        if (!passenger || passenger.destroyed) continue;
-
-        // Source parity: HealContain::doHeal — two-phase: if elapsed >= total, full heal; else linear.
-        const framesInside = this.frameCounter - passenger.healContainEnteredFrame;
-        if (passenger.health < passenger.maxHealth) {
-          if (framesInside >= healFrames) {
-            passenger.health = passenger.maxHealth;
-          } else {
-            const healPerFrame = passenger.maxHealth / healFrames;
-            passenger.health = Math.min(passenger.maxHealth, passenger.health + healPerFrame);
-          }
-        }
-
-        // Source parity: HealContain::update — auto-eject when fully healed.
-        if (passenger.health >= passenger.maxHealth) {
-          toEject.push(passengerId);
-        }
-      }
-
-      // Eject healed passengers.
-      for (const passengerId of toEject) {
-        const passenger = this.spawnedEntities.get(passengerId);
-        if (!passenger || passenger.destroyed) continue;
-        this.releaseEntityFromContainer(passenger);
-        passenger.x = container.x;
-        passenger.z = container.z;
-        passenger.y = this.resolveGroundHeight(container.x, container.z) + passenger.baseHeight;
-        this.updatePathfindPosCell(passenger);
-        if (passenger.canMove) {
-          this.issueMoveTo(passenger.id, container.x + MAP_XY_FACTOR, container.z);
-        }
-      }
-    }
   }
 
   /**
@@ -34451,101 +33607,6 @@ export class GameLogicSubsystem implements Subsystem {
 
         // Source parity: contain->addToContain(payload) — enter as transport passenger.
         this.enterTransport(payload, container);
-      }
-    }
-  }
-
-  /**
-   * Source parity: TransportContain::update — HealthRegen%PerSec per-frame heal for passengers.
-   * C++ file: TransportContain.cpp lines 366-414.
-   */
-  private updateTransportContainHealing(): void {
-    for (const container of this.spawnedEntities.values()) {
-      if (container.destroyed) continue;
-      const profile = container.containProfile;
-      if (!profile) continue;
-      if (profile.healthRegenPercentPerSec <= 0) continue;
-      // Source parity: only transport-derived containers have HealthRegen%PerSec.
-      const isTransportDerived = profile.moduleType === 'TRANSPORT'
-        || profile.moduleType === 'OVERLORD'
-        || profile.moduleType === 'HELIX'
-        || profile.moduleType === 'INTERNET_HACK';
-      if (!isTransportDerived) continue;
-
-      for (const entity of this.spawnedEntities.values()) {
-        if (entity.destroyed) continue;
-        if (entity.transportContainerId !== container.id) continue;
-        if (entity.health >= entity.maxHealth) continue;
-
-        // Source parity: regen = maxHealth * (healthRegen / 100) * SECONDS_PER_LOGICFRAME_REAL.
-        // healthRegenPercentPerSec is already fraction (0-1), multiply by maxHealth / framesPerSecond.
-        const healPerFrame = entity.maxHealth * profile.healthRegenPercentPerSec / LOGIC_FRAME_RATE;
-        entity.health = Math.min(entity.maxHealth, entity.health + healPerFrame);
-      }
-    }
-  }
-
-  /**
-   * Source parity: TransportContain — MODELCONDITION_LOADED set when transport has any passengers.
-   * Also sets RIDER1/RIDER2/etc model conditions for Overlord sub-units.
-   */
-  private updateContainModelConditions(): void {
-    for (const container of this.spawnedEntities.values()) {
-      if (container.destroyed) continue;
-      const profile = container.containProfile;
-      if (!profile) continue;
-
-      const isTransportStyle = profile.moduleType === 'TRANSPORT'
-        || profile.moduleType === 'OVERLORD'
-        || profile.moduleType === 'HELIX'
-        || profile.moduleType === 'OPEN'
-        || profile.moduleType === 'INTERNET_HACK';
-      if (!isTransportStyle) continue;
-
-      const passengerIds = this.collectContainedEntityIds(container.id);
-      const hasPassengers = passengerIds.length > 0;
-
-      // Source parity: TransportContain::onContaining / onRemoving — MODELCONDITION_LOADED.
-      if (hasPassengers) {
-        container.modelConditionFlags.add('LOADED');
-      } else {
-        container.modelConditionFlags.delete('LOADED');
-      }
-
-      // Source parity: OverlordContain — set RIDER model conditions per sub-unit slot.
-      if (profile.moduleType === 'OVERLORD' || profile.moduleType === 'HELIX') {
-        // Clear all rider conditions first.
-        for (let i = 1; i <= 4; i++) {
-          container.modelConditionFlags.delete(`RIDER${i}`);
-        }
-        // Set rider conditions for each occupied slot.
-        for (let i = 0; i < passengerIds.length && i < 4; i++) {
-          container.modelConditionFlags.add(`RIDER${i + 1}`);
-        }
-      }
-    }
-  }
-
-  /**
-   * Source parity: OverlordContain — sub-units inherit parent position each frame.
-   * C++ OpenContain.cpp handles position synchronization for riders.
-   */
-  private updateOverlordRiderPositions(): void {
-    for (const entity of this.spawnedEntities.values()) {
-      if (entity.destroyed) continue;
-      if (entity.transportContainerId === null) continue;
-
-      const container = this.spawnedEntities.get(entity.transportContainerId);
-      if (!container || container.destroyed) continue;
-
-      const profile = container.containProfile;
-      if (!profile) continue;
-
-      // Source parity: riders inside enclosed containers track parent position.
-      if (profile.moduleType === 'OVERLORD' || profile.moduleType === 'HELIX') {
-        entity.x = container.x;
-        entity.z = container.z;
-        entity.y = container.y;
       }
     }
   }
@@ -34916,19 +33977,6 @@ export class GameLogicSubsystem implements Subsystem {
       },
       normalizeSide: (side) => this.normalizeSide(side),
     };
-  }
-
-  /**
-   * Source parity: SupplyTruckAIUpdate / SupplyWarehouseDockUpdate / SupplyCenterDockUpdate
-   * Runs the supply truck AI state machine for all trucks each frame.
-   */
-  private hasPendingTransportEntryForContainer(containerId: number): boolean {
-    for (const targetTransportId of this.pendingTransportActions.values()) {
-      if (targetTransportId === containerId) {
-        return true;
-      }
-    }
-    return false;
   }
 
   /**
@@ -35743,59 +34791,6 @@ export class GameLogicSubsystem implements Subsystem {
     return combined > 0 ? combined : MAP_XY_FACTOR;
   }
 
-  private isEntityContained(entity: MapEntity): boolean {
-    return entity.parkingSpaceProducerId !== null
-      || entity.helixCarrierId !== null
-      || entity.garrisonContainerId !== null
-      || entity.transportContainerId !== null
-      || entity.tunnelContainerId !== null;
-  }
-
-  private isEntityContainedInGarrison(entity: MapEntity): boolean {
-    return entity.garrisonContainerId !== null;
-  }
-
-  private collectContainedEntityIds(containerId: number): number[] {
-    const entityIds = new Set<number>();
-    const container = this.spawnedEntities.get(containerId);
-    if (container?.parkingPlaceProfile) {
-      for (const entityId of container.parkingPlaceProfile.occupiedSpaceEntityIds.values()) {
-        entityIds.add(entityId);
-      }
-    }
-
-    for (const entity of this.spawnedEntities.values()) {
-      if (entity.destroyed) {
-        continue;
-      }
-      if (
-        entity.parkingSpaceProducerId === containerId
-        || entity.helixCarrierId === containerId
-        || entity.garrisonContainerId === containerId
-        || entity.transportContainerId === containerId
-        || entity.tunnelContainerId === containerId
-      ) {
-        entityIds.add(entity.id);
-      }
-    }
-
-    return Array.from(entityIds.values()).sort((left, right) => left - right);
-  }
-
-  private countContainedRappellers(containerId: number): number {
-    let count = 0;
-    for (const passengerId of this.collectContainedEntityIds(containerId)) {
-      const passenger = this.spawnedEntities.get(passengerId);
-      if (!passenger || passenger.destroyed) {
-        continue;
-      }
-      if (this.resolveEntityKindOfSet(passenger).has('CAN_RAPPEL')) {
-        count += 1;
-      }
-    }
-    return count;
-  }
-
   private resolveChinookCombatDropInitialDelayFrames(source: MapEntity): number {
     const profile = source.chinookAIProfile;
     if (!profile || !profile.waitForRopesToDrop) {
@@ -35828,126 +34823,11 @@ export class GameLogicSubsystem implements Subsystem {
     return this.gameRandom.nextRange(minFrames, maxFrames);
   }
 
-  private resolveChinookRappelSpeedPerFrame(profile: ChinookAIProfile): number {
+  /* @internal */ resolveChinookRappelSpeedPerFrame(profile: ChinookAIProfile): number {
     if (!Number.isFinite(profile.rappelSpeed) || profile.rappelSpeed <= 0) {
       return 0;
     }
     return profile.rappelSpeed / LOGIC_FRAME_RATE;
-  }
-
-  private releaseEntityFromContainer(entity: MapEntity): void {
-    if (entity.parkingSpaceProducerId !== null) {
-      const parkingProducer = this.spawnedEntities.get(entity.parkingSpaceProducerId);
-      if (parkingProducer?.parkingPlaceProfile) {
-        parkingProducer.parkingPlaceProfile.occupiedSpaceEntityIds.delete(entity.id);
-      }
-      entity.parkingSpaceProducerId = null;
-    }
-
-    if (entity.helixCarrierId !== null) {
-      const helixCarrier = this.spawnedEntities.get(entity.helixCarrierId);
-      if (helixCarrier?.helixPortableRiderId === entity.id) {
-        helixCarrier.helixPortableRiderId = null;
-      }
-      entity.helixCarrierId = null;
-    }
-
-    if (entity.garrisonContainerId !== null) {
-      entity.garrisonContainerId = null;
-      entity.canMove = true;
-    }
-
-    if (entity.transportContainerId !== null) {
-      entity.transportContainerId = null;
-      entity.healContainEnteredFrame = 0;
-    }
-
-    if (entity.tunnelContainerId !== null) {
-      // Remove from the shared tunnel/cave tracker passenger list.
-      const tunnel = this.spawnedEntities.get(entity.tunnelContainerId);
-      if (tunnel) {
-        const tracker = this.resolveTunnelTrackerForContainer(tunnel);
-        if (tracker) {
-          tracker.passengerIds.delete(entity.id);
-        }
-      }
-      entity.tunnelContainerId = null;
-      entity.tunnelEnteredFrame = 0;
-      entity.objectStatusFlags.delete('DISABLED_HELD');
-    }
-
-    // Source parity: Object::onRemovedFrom — clear MASKED and UNSELECTABLE on release.
-    entity.objectStatusFlags.delete('MASKED');
-    entity.objectStatusFlags.delete('UNSELECTABLE');
-  }
-
-  private evacuateOneContainedRappeller(
-    container: MapEntity,
-    targetX: number,
-    targetZ: number,
-    targetObjectId: number | null,
-  ): boolean {
-    const isChinookCombatDrop = container.chinookAIProfile !== null
-      && this.pendingCombatDropActions.has(container.id);
-    for (const passengerId of this.collectContainedEntityIds(container.id)) {
-      const passenger = this.spawnedEntities.get(passengerId);
-      if (!passenger || passenger.destroyed) continue;
-      if (!this.resolveEntityKindOfSet(passenger).has('CAN_RAPPEL')) continue;
-
-      this.releaseEntityFromContainer(passenger);
-      passenger.x = container.x;
-      passenger.z = container.z;
-      passenger.y = Math.max(container.y, this.resolveGroundHeight(passenger.x, passenger.z) + passenger.baseHeight);
-      this.updatePathfindPosCell(passenger);
-
-      if (isChinookCombatDrop && container.chinookAIProfile) {
-        passenger.objectStatusFlags.add('DISABLED_HELD');
-        this.pendingChinookRappels.set(passenger.id, {
-          sourceEntityId: container.id,
-          targetObjectId,
-          targetX,
-          targetZ,
-          descentSpeedPerFrame: this.resolveChinookRappelSpeedPerFrame(container.chinookAIProfile),
-        });
-      } else {
-        this.issueDroppedPassengerCommand(passenger, targetX, targetZ, targetObjectId);
-      }
-      return true;
-    }
-    return false;
-  }
-
-  private evacuateContainedEntities(
-    container: MapEntity,
-    targetX: number,
-    targetZ: number,
-    targetObjectId: number | null,
-  ): void {
-    const passengerIds = this.collectContainedEntityIds(container.id);
-    if (passengerIds.length === 0) {
-      return;
-    }
-
-    for (const passengerId of passengerIds) {
-      const passenger = this.spawnedEntities.get(passengerId);
-      if (!passenger || passenger.destroyed) {
-        continue;
-      }
-
-      this.releaseEntityFromContainer(passenger);
-      const evacuation = this.resolveContainerEvacuationPositions(container, targetX, targetZ);
-      passenger.x = evacuation.spawnX;
-      passenger.z = evacuation.spawnZ;
-      passenger.y = this.resolveGroundHeight(passenger.x, passenger.z) + passenger.baseHeight;
-      this.updatePathfindPosCell(passenger);
-
-      this.issueDroppedPassengerCommand(
-        passenger,
-        evacuation.targetX,
-        evacuation.targetZ,
-        targetObjectId,
-      );
-    }
   }
 
   private issueDroppedPassengerCommand(
@@ -40993,13 +39873,6 @@ export class GameLogicSubsystem implements Subsystem {
     updatePendingWeaponDamageImpl(this.createCombatDamageEventContext());
   }
 
-  private resolveProjectileLauncherContainer(projectileLauncher: MapEntity): MapEntity | null {
-    // Source parity: Object::getContainedBy() — single containment pointer.
-    // In our model containment is split across multiple ID fields; delegate to the
-    // unified resolver.
-    return this.resolveEntityContainingObject(projectileLauncher);
-  }
-
   private resolveEntityBoundingRadius(entity: MapEntity): number {
     const geom = entity.obstacleGeometry;
     if (geom && geom.majorRadius > 0) {
@@ -41037,49 +39910,6 @@ export class GameLogicSubsystem implements Subsystem {
       kindOf.add(flag);
     }
     return kindOf;
-  }
-
-  private resolveEntityContainingObject(entity: MapEntity): MapEntity | null {
-    // Source parity: Object::getContainedBy() — single m_containedBy pointer.
-    // In our model, containment is tracked across multiple ID fields for different
-    // container types. At most one will be non-null at any time (mutual exclusion).
-    const containerId = entity.parkingSpaceProducerId
-      ?? entity.helixCarrierId
-      ?? entity.garrisonContainerId
-      ?? entity.transportContainerId
-      ?? entity.tunnelContainerId;
-
-    if (containerId === null) {
-      return null;
-    }
-
-    const container = this.spawnedEntities.get(containerId);
-    if (!container || container.destroyed) {
-      return null;
-    }
-
-    return container;
-  }
-
-  private isPassengerAllowedToFireFromContainingObject(
-    entity: MapEntity,
-    container: MapEntity,
-  ): boolean {
-    // Source parity:
-    // - Object::isAbleToAttack() first gates attacks when container->isPassengerAllowedToFire() is false.
-    //   (Generals/Code/GameEngine/Source/GameLogic/Object/Object.cpp:2865)
-    // - WeaponSet::getAbleToUseWeaponAgainstTarget() checks container riders when allowed.
-    //   (Generals/Code/GameEngine/Source/GameLogic/Object/WeaponSet.cpp:711)
-    // - OpenContain recursively delegates to a parent container; OverlordContain redirect chains
-    //   similarly in the engine.
-    //   (OpenContain.cpp:1035, OverlordContain.cpp:99)
-    return isPassengerAllowedToFireFromContainingObjectImpl(
-      entity,
-      container,
-      (targetEntity) => this.resolveEntityKindOfSet(targetEntity),
-      (targetEntity) => this.resolveEntityContainingObject(targetEntity),
-      (targetEntity, statusName) => this.entityHasObjectStatus(targetEntity, statusName),
-    );
   }
 
   private resolveEntityFenceWidth(entity: MapEntity): number {
@@ -49145,42 +47975,6 @@ export class GameLogicSubsystem implements Subsystem {
       if (entity.bunkerBusterVictimId !== null) continue;
       if (entity.attackTargetEntityId !== null) {
         entity.bunkerBusterVictimId = entity.attackTargetEntityId;
-      }
-    }
-  }
-
-  /**
-   * Source parity: BunkerBusterBehavior::onDie → bustTheBunker — on death, kill all
-   * garrisoned units inside the targeted building.
-   * C++ file: BunkerBusterBehavior.cpp lines 184-248.
-   *
-   * - Checks upgrade gate (player must have UpgradeRequired)
-   * - Finds victim by captured victimID
-   * - If victim has bustable contain (garrison or tunnel):
-   *   - OccupantDamageWeaponTemplate: force-exit then apply 100 damage per occupant
-   *   - Otherwise: kill all contained outright
-   * - Fires ShockwaveWeaponTemplate at victim position
-   */
-  /**
-   * Source parity: OpenContain::processDamageToContained (C++ OpenContain.cpp line 1441).
-   * Applies percentDamage * maxHealth as UNRESISTABLE damage to each contained unit.
-   * If percentDamage == 1.0 and the unit survives (e.g., fireproof), force-kill it.
-   * Death type: BURNED if burnedDeathToUnits, else NORMAL.
-   */
-  private processDamageToContained(container: MapEntity): void {
-    const profile = container.containProfile;
-    if (!profile || profile.damagePercentToUnits <= 0) return;
-    const percentDamage = profile.damagePercentToUnits;
-    const deathType = profile.burnedDeathToUnits ? 'BURNED' : undefined;
-    const passengerIds = this.collectContainedEntityIds(container.id);
-    for (const passengerId of passengerIds) {
-      const passenger = this.spawnedEntities.get(passengerId);
-      if (!passenger || passenger.destroyed) continue;
-      const damage = passenger.maxHealth * percentDamage;
-      this.applyWeaponDamageAmount(container.id, passenger, damage, 'UNRESISTABLE', deathType);
-      // Source parity: if percentDamage == 1.0 and unit survived (fireproof), force kill (C++ line 1470-1471).
-      if (percentDamage >= 1.0 && !passenger.destroyed && passenger.health > 0) {
-        this.applyWeaponDamageAmount(container.id, passenger, passenger.health, 'UNRESISTABLE', deathType);
       }
     }
   }
