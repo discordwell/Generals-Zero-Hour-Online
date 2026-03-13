@@ -1,0 +1,232 @@
+{
+  "armors": [
+    {
+      "fields": {
+        "Default": 1
+      },
+      "name": "RuntimeE2EArmor"
+    }
+  ],
+  "audioEvents": [],
+  "challengeGeneralsBlocks": [],
+  "commandButtons": [],
+  "commandMaps": [],
+  "commandSets": [],
+  "creditsBlocks": [],
+  "dynamicGameLODs": [],
+  "errors": [],
+  "factions": [],
+  "fxLists": [],
+  "locomotors": [
+    {
+      "downhillOnly": false,
+      "fields": {
+        "Acceleration": 80,
+        "Braking": 120,
+        "Speed": 60,
+        "Surfaces": "GROUND",
+        "TurnRate": 180
+      },
+      "name": "RuntimeTankLocomotor",
+      "speed": 60,
+      "surfaceMask": 1,
+      "surfaces": [
+        "GROUND"
+      ]
+    }
+  ],
+  "mouseBlocks": [],
+  "mouseCursors": [],
+  "multiplayerColors": [],
+  "multiplayerStartingMoneyChoices": [],
+  "objectCreationLists": [],
+  "objects": [
+    {
+      "blocks": [
+        {
+          "blocks": [],
+          "fields": {
+            "InitialHealth": 300,
+            "MaxHealth": 300
+          },
+          "name": "ActiveBody ModuleTag_Body",
+          "type": "Body"
+        },
+        {
+          "blocks": [],
+          "fields": {
+            "Conditions": "NONE",
+            "Weapon": [
+              "PRIMARY",
+              "RuntimeEnemyGun"
+            ]
+          },
+          "name": "",
+          "type": "WeaponSet"
+        },
+        {
+          "blocks": [],
+          "fields": {
+            "Armor": "RuntimeE2EArmor",
+            "Conditions": "NONE"
+          },
+          "name": "",
+          "type": "ArmorSet"
+        }
+      ],
+      "fields": {
+        "KindOf": [
+          "VEHICLE",
+          "SELECTABLE",
+          "CAN_ATTACK"
+        ],
+        "Locomotor": [
+          "SET_NORMAL",
+          "RuntimeTankLocomotor"
+        ],
+        "ShroudClearingRange": 120,
+        "VisionRange": 120
+      },
+      "kindOf": [
+        "VEHICLE",
+        "SELECTABLE",
+        "CAN_ATTACK"
+      ],
+      "name": "RuntimeEnemy",
+      "resolved": true
+    },
+    {
+      "blocks": [
+        {
+          "blocks": [],
+          "fields": {
+            "InitialHealth": 1000,
+            "MaxHealth": 1000
+          },
+          "name": "StructureBody ModuleTag_Body",
+          "type": "Body"
+        }
+      ],
+      "fields": {
+        "EnergyBonus": 100,
+        "KindOf": [
+          "STRUCTURE",
+          "SELECTABLE",
+          "POWERED",
+          "IMMOBILE"
+        ],
+        "ShroudClearingRange": 1,
+        "VisionRange": 1
+      },
+      "kindOf": [
+        "STRUCTURE",
+        "SELECTABLE",
+        "POWERED",
+        "IMMOBILE"
+      ],
+      "name": "RuntimePowerPlant",
+      "resolved": true
+    },
+    {
+      "blocks": [
+        {
+          "blocks": [],
+          "fields": {
+            "InitialHealth": 300,
+            "MaxHealth": 300
+          },
+          "name": "ActiveBody ModuleTag_Body",
+          "type": "Body"
+        },
+        {
+          "blocks": [],
+          "fields": {
+            "Conditions": "NONE",
+            "Weapon": [
+              "PRIMARY",
+              "RuntimeTankGun"
+            ]
+          },
+          "name": "",
+          "type": "WeaponSet"
+        },
+        {
+          "blocks": [],
+          "fields": {
+            "Armor": "RuntimeE2EArmor",
+            "Conditions": "NONE"
+          },
+          "name": "",
+          "type": "ArmorSet"
+        }
+      ],
+      "fields": {
+        "KindOf": [
+          "VEHICLE",
+          "SELECTABLE",
+          "CAN_ATTACK"
+        ],
+        "Locomotor": [
+          "SET_NORMAL",
+          "RuntimeTankLocomotor"
+        ],
+        "ShroudClearingRange": 120,
+        "VisionRange": 120
+      },
+      "kindOf": [
+        "VEHICLE",
+        "SELECTABLE",
+        "CAN_ATTACK"
+      ],
+      "name": "RuntimeTank",
+      "resolved": true
+    }
+  ],
+  "onlineChatColorBlocks": [],
+  "particleSystems": [],
+  "sciences": [],
+  "specialPowers": [],
+  "staticGameLODs": [],
+  "stats": {
+    "armors": 1,
+    "audioEvents": 0,
+    "commandButtons": 0,
+    "commandSets": 0,
+    "dynamicGameLODs": 0,
+    "factions": 0,
+    "fxLists": 0,
+    "objects": 3,
+    "particleSystems": 0,
+    "sciences": 0,
+    "staticGameLODs": 0,
+    "totalBlocks": 7,
+    "unresolvedInheritance": 0,
+    "upgrades": 0,
+    "weapons": 2
+  },
+  "unsupportedBlockTypes": [],
+  "upgrades": [],
+  "waterTransparencyBlocks": [],
+  "weapons": [
+    {
+      "blocks": [],
+      "fields": {
+        "AttackRange": 80,
+        "DelayBetweenShots": 250,
+        "PrimaryDamage": 30
+      },
+      "name": "RuntimeEnemyGun",
+      "resolved": true
+    },
+    {
+      "blocks": [],
+      "fields": {
+        "AttackRange": 80,
+        "DelayBetweenShots": 250,
+        "PrimaryDamage": 25
+      },
+      "name": "RuntimeTankGun",
+      "resolved": true
+    }
+  ]
+}

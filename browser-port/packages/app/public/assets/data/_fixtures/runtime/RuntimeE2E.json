@@ -1,0 +1,166 @@
+[
+  {
+    "blocks": [],
+    "fields": {
+      "Acceleration": 80,
+      "Braking": 120,
+      "Speed": 60,
+      "Surfaces": "GROUND",
+      "TurnRate": 180
+    },
+    "name": "RuntimeTankLocomotor",
+    "type": "Locomotor"
+  },
+  {
+    "blocks": [],
+    "fields": {
+      "Default": 1
+    },
+    "name": "RuntimeE2EArmor",
+    "type": "Armor"
+  },
+  {
+    "blocks": [],
+    "fields": {
+      "AttackRange": 80,
+      "DelayBetweenShots": 250,
+      "PrimaryDamage": 25
+    },
+    "name": "RuntimeTankGun",
+    "type": "Weapon"
+  },
+  {
+    "blocks": [],
+    "fields": {
+      "AttackRange": 80,
+      "DelayBetweenShots": 250,
+      "PrimaryDamage": 30
+    },
+    "name": "RuntimeEnemyGun",
+    "type": "Weapon"
+  },
+  {
+    "blocks": [
+      {
+        "blocks": [],
+        "fields": {
+          "InitialHealth": 300,
+          "MaxHealth": 300
+        },
+        "name": "ActiveBody ModuleTag_Body",
+        "type": "Body"
+      },
+      {
+        "blocks": [],
+        "fields": {
+          "Conditions": "NONE",
+          "Weapon": [
+            "PRIMARY",
+            "RuntimeTankGun"
+          ]
+        },
+        "name": "",
+        "type": "WeaponSet"
+      },
+      {
+        "blocks": [],
+        "fields": {
+          "Armor": "RuntimeE2EArmor",
+          "Conditions": "NONE"
+        },
+        "name": "",
+        "type": "ArmorSet"
+      }
+    ],
+    "fields": {
+      "KindOf": [
+        "VEHICLE",
+        "SELECTABLE",
+        "CAN_ATTACK"
+      ],
+      "Locomotor": [
+        "SET_NORMAL",
+        "RuntimeTankLocomotor"
+      ],
+      "ShroudClearingRange": 120,
+      "VisionRange": 120
+    },
+    "name": "RuntimeTank",
+    "type": "Object"
+  },
+  {
+    "blocks": [
+      {
+        "blocks": [],
+        "fields": {
+          "InitialHealth": 300,
+          "MaxHealth": 300
+        },
+        "name": "ActiveBody ModuleTag_Body",
+        "type": "Body"
+      },
+      {
+        "blocks": [],
+        "fields": {
+          "Conditions": "NONE",
+          "Weapon": [
+            "PRIMARY",
+            "RuntimeEnemyGun"
+          ]
+        },
+        "name": "",
+        "type": "WeaponSet"
+      },
+      {
+        "blocks": [],
+        "fields": {
+          "Armor": "RuntimeE2EArmor",
+          "Conditions": "NONE"
+        },
+        "name": "",
+        "type": "ArmorSet"
+      }
+    ],
+    "fields": {
+      "KindOf": [
+        "VEHICLE",
+        "SELECTABLE",
+        "CAN_ATTACK"
+      ],
+      "Locomotor": [
+        "SET_NORMAL",
+        "RuntimeTankLocomotor"
+      ],
+      "ShroudClearingRange": 120,
+      "VisionRange": 120
+    },
+    "name": "RuntimeEnemy",
+    "type": "Object"
+  },
+  {
+    "blocks": [
+      {
+        "blocks": [],
+        "fields": {
+          "InitialHealth": 1000,
+          "MaxHealth": 1000
+        },
+        "name": "StructureBody ModuleTag_Body",
+        "type": "Body"
+      }
+    ],
+    "fields": {
+      "EnergyBonus": 100,
+      "KindOf": [
+        "STRUCTURE",
+        "SELECTABLE",
+        "POWERED",
+        "IMMOBILE"
+      ],
+      "ShroudClearingRange": 1,
+      "VisionRange": 1
+    },
+    "name": "RuntimePowerPlant",
+    "type": "Object"
+  }
+]

@@ -13,6 +13,8 @@ import {
   RUNTIME_MANIFEST_FILE,
   RUNTIME_MANIFEST_PUBLIC_PATH,
 } from '@generals/assets';
+import { loadRuntimeIniFixtures } from './runtime-ini-fixtures.js';
+import { RUNTIME_MAP_FIXTURE_CONVERTER, loadRuntimeMapFixtures } from './runtime-map-fixtures.js';
 
 interface CliResult {
   readonly status: number;
@@ -62,6 +64,31 @@ function withTempDir<T>(fn: (dir: string) => T): T {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+function expectRuntimeIniFixtureEntries(
+  outputDir: string,
+  runtimeManifest: ConversionManifestSnapshot,
+): void {
+  const fixtureConfig = loadRuntimeIniFixtures(PROJECT_ROOT);
+  expect(fixtureConfig).not.toBeNull();
+  expect(fixtureConfig!.fixtures.map((fixture) => fixture.relativePath)).toEqual(['RuntimeE2E.ini']);
+
+  for (const fixture of fixtureConfig!.fixtures) {
+    const normalizedRelativePath = fixture.relativePath.replace(/\\/g, '/');
+    const expectedSourceSuffix = `tools/convert-all/fixtures/ini/${normalizedRelativePath}`;
+    const expectedOutputPath = `data/_fixtures/runtime/${normalizedRelativePath.replace(/\.ini$/i, '.json')}`;
+
+    expect(
+      runtimeManifest.entries.some(
+        (entry) => entry.converter === 'ini-parser' && entry.sourcePath.endsWith(expectedSourceSuffix),
+      ),
+    ).toBe(true);
+    expect(existsSync(resolve(outputDir, expectedOutputPath))).toBe(true);
+  }
+
+  expect(runtimeManifest.entries.some((entry) => entry.outputPath === 'data/ini-bundle.json')).toBe(true);
+  expect(existsSync(resolve(outputDir, 'data', 'ini-bundle.json'))).toBe(true);
 }
 
 function writeAscii(view: DataView, offset: number, text: string): number {
@@ -364,8 +391,7 @@ describe('convert-all integration smoke', () => {
         const runtimeManifest = JSON.parse(
           readFileSync(runtimeManifestPath, 'utf8'),
         ) as ConversionManifestSnapshot;
-        expect(runtimeManifest.entryCount).toBe(0);
-        expect(runtimeManifest.entries).toHaveLength(0);
+        expectRuntimeIniFixtureEntries(runtimeAssetsDir, runtimeManifest);
       } finally {
         rmSync(runtimeAssetsDir, { recursive: true, force: true });
         if (hadExistingRuntimeAssets) {
@@ -408,8 +434,7 @@ describe('convert-all integration smoke', () => {
         const runtimeManifest = JSON.parse(
           readFileSync(runtimeManifestPath, 'utf8'),
         ) as ConversionManifestSnapshot;
-        expect(runtimeManifest.entryCount).toBe(0);
-        expect(runtimeManifest.entries).toHaveLength(0);
+        expectRuntimeIniFixtureEntries(runtimeAssetsDir, runtimeManifest);
       } finally {
         rmSync(runtimeAssetsDir, { recursive: true, force: true });
         if (hadExistingRuntimeAssets) {
@@ -994,7 +1019,11 @@ End
         readFileSync(runtimeManifestPath, 'utf8'),
       ) as ConversionManifestSnapshot;
 
-      expect(runtimeManifest.entries).toHaveLength(0);
+      expect(runtimeManifest.entries.some((entry) => entry.converter === 'texture-converter')).toBe(false);
+      expect(runtimeManifest.entries.map((entry) => entry.outputPath).sort()).toEqual([
+        'maps/ScenarioSkirmish.json',
+        'maps/SmokeTest.json',
+      ]);
     });
   });
 
@@ -1052,7 +1081,11 @@ End
         readFileSync(runtimeManifestPath, 'utf8'),
       ) as ConversionManifestSnapshot;
 
-      expect(runtimeManifest.entries).toHaveLength(0);
+      expect(runtimeManifest.entries.some((entry) => entry.converter === 'texture-converter')).toBe(false);
+      expect(runtimeManifest.entries.map((entry) => entry.outputPath).sort()).toEqual([
+        'maps/ScenarioSkirmish.json',
+        'maps/SmokeTest.json',
+      ]);
     });
   });
 
@@ -1122,11 +1155,11 @@ End
       const runtimeManifest = JSON.parse(runtimeManifestText) as ConversionManifestSnapshot;
 
       expect(runtimeManifest.version).toBe(1);
-      expect(runtimeManifest.entryCount).toBe(2);
-      expect(runtimeManifest.entries).toHaveLength(2);
+      expect(runtimeManifest.entryCount).toBe(3);
+      expect(runtimeManifest.entries).toHaveLength(3);
       expect(runtimeManifest.entries.some((entry) => entry.outputPath.includes('sample.json'))).toBe(true);
-      expect(runtimeManifest.entries.some((entry) => entry.outputPath === 'data/ini-bundle.json')).toBe(true);
       expect(runtimeManifest.entries.some((entry) => entry.sourcePath.includes('game/data/sample.ini'))).toBe(true);
+      expectRuntimeIniFixtureEntries(outputDir, runtimeManifest);
       expect(runtimeManifest.entries.every((entry) => entry.sourceHash.length === 64)).toBe(true);
       expect(runtimeManifest.entries.every((entry) => !entry.outputPath.startsWith('..'))).toBe(true);
       expect(runtimeManifest.entries.every((entry) => !entry.outputPath.startsWith('/'))).toBe(true);
@@ -1137,8 +1170,8 @@ End
         'utf8',
       );
       const bundle = JSON.parse(bundleText) as {
-        objects: unknown[];
-        weapons: unknown[];
+        objects: Array<{ name?: string }>;
+        weapons: Array<{ name?: string }>;
         stats: { objects: number; weapons: number };
         ai?: {
           attackUsesLineOfSight?: boolean;
@@ -1148,9 +1181,18 @@ End
           guardEnemyScanRateFrames?: number;
         };
       };
-      expect(bundle.objects).toHaveLength(1);
-      expect(bundle.stats.objects).toBe(1);
-      expect(bundle.stats.weapons).toBe(0);
+      expect(bundle.objects.map((object) => object.name).sort((left, right) => String(left).localeCompare(String(right)))).toEqual([
+        'RuntimeEnemy',
+        'RuntimePowerPlant',
+        'RuntimeTank',
+        'Tank',
+      ]);
+      expect(bundle.weapons.map((weapon) => weapon.name).sort((left, right) => String(left).localeCompare(String(right)))).toEqual([
+        'RuntimeEnemyGun',
+        'RuntimeTankGun',
+      ]);
+      expect(bundle.stats.objects).toBe(4);
+      expect(bundle.stats.weapons).toBe(2);
       expect(bundle.ai?.attackUsesLineOfSight).toBe(false);
       expect(bundle.ai?.skirmishBaseDefenseExtraDistance).toBeCloseTo(37.5);
       expect(bundle.ai?.resourcesPoor).toBe(2000);
@@ -1326,9 +1368,7 @@ End
         readFileSync(resolve(outputDir, RUNTIME_MANIFEST_FILE), 'utf8'),
       ) as ConversionManifestSnapshot;
 
-      expect(runtimeManifest.entryCount).toBe(0);
-      expect(runtimeManifest.entries).toHaveLength(0);
-      expect(existsSync(resolve(outputDir, 'data', 'ini-bundle.json'))).toBe(false);
+      expectRuntimeIniFixtureEntries(outputDir, runtimeManifest);
     });
   });
 
@@ -1360,9 +1400,7 @@ End
         readFileSync(resolve(outputDir, RUNTIME_MANIFEST_FILE), 'utf8'),
       ) as ConversionManifestSnapshot;
 
-      expect(runtimeManifest.entryCount).toBe(0);
-      expect(runtimeManifest.entries).toHaveLength(0);
-      expect(existsSync(resolve(outputDir, 'data', 'ini-bundle.json'))).toBe(false);
+      expectRuntimeIniFixtureEntries(outputDir, runtimeManifest);
       expect(existsSync(resolve(outputDir, 'RootOnly.json'))).toBe(false);
     });
   });
@@ -1939,7 +1977,7 @@ End
       ) as ConversionManifestSnapshot;
 
       expect(runtimeManifest.entries.some((entry) => entry.sourcePath.includes('RuntimeObject.ini'))).toBe(false);
-      expect(runtimeManifest.entryCount).toBe(0);
+      expectRuntimeIniFixtureEntries(outputDir, runtimeManifest);
     });
   });
 
@@ -1974,7 +2012,7 @@ End
       ) as ConversionManifestSnapshot;
 
       expect(runtimeManifest.entries.some((entry) => entry.sourcePath.includes('RuntimeObject.ini'))).toBe(false);
-      expect(runtimeManifest.entryCount).toBe(0);
+      expectRuntimeIniFixtureEntries(outputDir, runtimeManifest);
     });
   });
 
@@ -2296,6 +2334,11 @@ End
       expect(runtimeManifest.entries.some((entry) => entry.outputPath === 'textures/MultProjectorGradient.rgba')).toBe(true);
       expect(runtimeManifest.entries.some((entry) => entry.outputPath === 'models/SmokeMesh.glb')).toBe(true);
       expect(runtimeManifest.entries.some((entry) => entry.outputPath === 'maps/SmokeTest.json')).toBe(true);
+      expect(
+        runtimeManifest.entries.some(
+          (entry) => entry.outputPath === 'maps/ScenarioSkirmish.json' && entry.converter === RUNTIME_MAP_FIXTURE_CONVERTER,
+        ),
+      ).toBe(true);
       expect(runtimeManifest.entries.every((entry) => entry.outputPath.length > 0)).toBe(true);
       expect(runtimeManifest.entries.every((entry) => !entry.outputPath.startsWith('..'))).toBe(true);
       expect(runtimeManifest.entries.every((entry) => !entry.outputPath.startsWith('/'))).toBe(true);
@@ -2648,6 +2691,54 @@ End
     });
   });
 
+  it('namespaces extracted maps even when the output directory lives under the game root', () => {
+    return withTempDir((dir) => {
+      const gameDir = resolve(dir, 'game-root');
+      const outputDir = resolve(gameDir, 'browser-port', 'packages', 'app', 'public', 'assets');
+      const extractedMapDir = resolve(outputDir, '_extracted', 'PackA');
+      const extractedMapInput = resolve(extractedMapDir, 'Collision.map');
+      const extractedMapOutput = resolve(outputDir, 'maps', '_extracted', 'PackA', 'Collision.json');
+      const badNestedOutput = resolve(
+        outputDir,
+        'maps',
+        'browser-port',
+        'packages',
+        'app',
+        'public',
+        'assets',
+        '_extracted',
+        'PackA',
+        'Collision.json',
+      );
+
+      mkdirSync(extractedMapDir, { recursive: true });
+      writeFileSync(extractedMapInput, buildMinimalMapBinary());
+
+      const result = runConvertAll([
+        '--game-dir',
+        gameDir,
+        '--output',
+        outputDir,
+        '--only',
+        'map',
+      ]);
+
+      expect(result.status).toBe(0);
+      expect(existsSync(extractedMapOutput)).toBe(true);
+      expect(existsSync(badNestedOutput)).toBe(false);
+
+      const runtimeManifest = JSON.parse(
+        readFileSync(resolve(outputDir, RUNTIME_MANIFEST_FILE), 'utf8'),
+      ) as ConversionManifestSnapshot;
+      expect(
+        runtimeManifest.entries.some((entry) => entry.outputPath === 'maps/_extracted/PackA/Collision.json'),
+      ).toBe(true);
+      expect(
+        runtimeManifest.entries.some((entry) => entry.outputPath.includes('browser-port/packages/app/public/assets/_extracted')),
+      ).toBe(false);
+    });
+  });
+
   it('prunes stale map entries/files on map-only reruns and preserves non-map outputs', () => {
     return withTempDir((dir) => {
       const gameDir = resolve(dir, 'game');
@@ -2707,9 +2798,10 @@ End
       const secondManifest = JSON.parse(
         readFileSync(resolve(outputDir, RUNTIME_MANIFEST_FILE), 'utf8'),
       ) as ConversionManifestSnapshot;
-      expect(secondManifest.entries.some((entry) => entry.outputPath === 'maps/SmokeTest.json')).toBe(false);
+      const smokeFixtureEntry = secondManifest.entries.find((entry) => entry.outputPath === 'maps/SmokeTest.json');
+      expect(smokeFixtureEntry?.converter).toBe(RUNTIME_MAP_FIXTURE_CONVERTER);
       expect(secondManifest.entries.some((entry) => entry.outputPath === 'textures/MultProjectorGradient.rgba')).toBe(true);
-      expect(existsSync(resolve(outputDir, 'maps', 'SmokeTest.json'))).toBe(false);
+      expect(existsSync(resolve(outputDir, 'maps', 'SmokeTest.json'))).toBe(true);
       expect(existsSync(resolve(outputDir, 'textures', 'MultProjectorGradient.rgba'))).toBe(true);
     });
   });
@@ -2954,10 +3046,9 @@ End
           (entry) => entry.converter === 'ini-parser' && entry.outputPath.endsWith('sample.json'),
         ),
       ).toBe(false);
-      expect(secondManifest.entries.some((entry) => entry.outputPath === 'data/ini-bundle.json')).toBe(false);
+      expectRuntimeIniFixtureEntries(outputDir, secondManifest);
       expect(secondManifest.entries.some((entry) => entry.outputPath === 'maps/SmokeTest.json')).toBe(true);
       expect(existsSync(resolve(outputDir, firstIniEntry!.outputPath))).toBe(false);
-      expect(existsSync(resolve(outputDir, 'data', 'ini-bundle.json'))).toBe(false);
     });
   });
 
@@ -3019,6 +3110,95 @@ End
       expect(mapEntries).toHaveLength(1);
       expect(mapEntries[0]?.outputPath).toBe('maps/SmokeTest.json');
       expect(mapEntries[0]?.sourcePath.toLowerCase().includes('index.js.map')).toBe(false);
+    });
+  });
+
+  it('installs checked-in runtime map fixtures during map conversion', () => {
+    return withTempDir((dir) => {
+      const gameDir = resolve(dir, 'game');
+      const outputDir = resolve(dir, 'out');
+
+      mkdirSync(gameDir, { recursive: true });
+
+      const result = runConvertAll([
+        '--game-dir',
+        gameDir,
+        '--output',
+        outputDir,
+        '--only',
+        'map',
+      ]);
+
+      expect(result.status).toBe(0);
+
+      const runtimeManifest = JSON.parse(
+        readFileSync(resolve(outputDir, RUNTIME_MANIFEST_FILE), 'utf8'),
+      ) as ConversionManifestSnapshot;
+      const fixturePaths = loadRuntimeMapFixtures(PROJECT_ROOT).map((fixture) => fixture.outputPath);
+
+      expect(fixturePaths).toEqual(['maps/ScenarioSkirmish.json', 'maps/SmokeTest.json']);
+      for (const fixturePath of fixturePaths) {
+        expect(existsSync(resolve(outputDir, fixturePath))).toBe(true);
+        expect(
+          runtimeManifest.entries.some(
+            (entry) => entry.outputPath === fixturePath && entry.converter === RUNTIME_MAP_FIXTURE_CONVERTER,
+          ),
+        ).toBe(true);
+      }
+
+      const scenario = JSON.parse(
+        readFileSync(resolve(outputDir, 'maps', 'ScenarioSkirmish.json'), 'utf8'),
+      ) as { heightmap: { width: number; height: number }; waypoints?: { nodes: unknown[]; links: unknown[] } };
+      expect(scenario.heightmap.width).toBe(16);
+      expect(scenario.heightmap.height).toBe(16);
+      expect(scenario.waypoints?.nodes).toEqual([]);
+      expect(scenario.waypoints?.links).toEqual([]);
+    });
+  });
+
+  it('installs checked-in runtime INI fixtures during INI conversion', () => {
+    return withTempDir((dir) => {
+      const gameDir = resolve(dir, 'game');
+      const outputDir = resolve(dir, 'out');
+
+      mkdirSync(gameDir, { recursive: true });
+
+      const result = runConvertAll([
+        '--game-dir',
+        gameDir,
+        '--output',
+        outputDir,
+        '--only',
+        'ini',
+      ]);
+
+      expect(result.status).toBe(0);
+
+      const runtimeManifest = JSON.parse(
+        readFileSync(resolve(outputDir, RUNTIME_MANIFEST_FILE), 'utf8'),
+      ) as ConversionManifestSnapshot;
+      expectRuntimeIniFixtureEntries(outputDir, runtimeManifest);
+
+      const bundle = JSON.parse(
+        readFileSync(resolve(outputDir, 'data', 'ini-bundle.json'), 'utf8'),
+      ) as {
+        objects: Array<{ name: string; kindOf?: string[]; fields: Record<string, unknown> }>;
+        weapons: Array<{ name: string; fields: Record<string, unknown> }>;
+        armors: Array<{ name: string; fields: Record<string, unknown> }>;
+        locomotors: Array<{ name: string; fields: Record<string, unknown> }>;
+      };
+      const objectNames = bundle.objects.map((object) => object.name).sort((left, right) => left.localeCompare(right));
+      const weaponNames = bundle.weapons.map((weapon) => weapon.name).sort((left, right) => left.localeCompare(right));
+      const armorNames = bundle.armors.map((armor) => armor.name).sort((left, right) => left.localeCompare(right));
+      const locomotorNames = bundle.locomotors.map((locomotor) => locomotor.name).sort((left, right) => left.localeCompare(right));
+
+      expect(objectNames).toEqual(['RuntimeEnemy', 'RuntimePowerPlant', 'RuntimeTank']);
+      expect(weaponNames).toEqual(['RuntimeEnemyGun', 'RuntimeTankGun']);
+      expect(armorNames).toEqual(['RuntimeE2EArmor']);
+      expect(locomotorNames).toEqual(['RuntimeTankLocomotor']);
+      expect(
+        bundle.objects.find((object) => object.name === 'RuntimePowerPlant')?.fields['EnergyBonus'],
+      ).toBe(100);
     });
   });
 

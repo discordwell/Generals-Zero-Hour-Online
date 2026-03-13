@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-// Use a real extracted map — SmokeTest.json doesn't exist
+// Use a real extracted map for smoke coverage instead of the synthetic test fixtures.
 const TEST_MAP_URL =
   '/?map=assets/maps/_extracted/MapsZH/Maps/Tournament%20Desert/Tournament%20Desert.json';
 

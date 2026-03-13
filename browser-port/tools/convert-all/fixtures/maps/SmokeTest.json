@@ -1,0 +1,16 @@
+{
+  "heightmap": {
+    "width": 2,
+    "height": 2,
+    "borderSize": 0,
+    "data": "AECA/w=="
+  },
+  "objects": [],
+  "triggers": [],
+  "waypoints": {
+    "nodes": [],
+    "links": []
+  },
+  "textureClasses": [],
+  "blendTileCount": 0
+}
