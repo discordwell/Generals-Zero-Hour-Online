@@ -205,11 +205,10 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       const report = await runSourceParityCheck(rootDir);
       expect(report.summary.totalCategories).toBeGreaterThan(0);
 
-      // The report should find the ZH damage type mismatch (FLESHY_SNIPER vs SUBDUAL_*)
       const damageCategory = report.categories.find((c) => c.category === 'damage-types');
       expect(damageCategory).toBeDefined();
-      // We expect mismatches since the TS port uses Generals damage types, not ZH
-      expect(damageCategory!.mismatches.length).toBeGreaterThan(0);
+      expect(damageCategory!.status).toBe('match');
+      expect(damageCategory!.mismatches).toEqual([]);
     });
   });
 });

@@ -1418,8 +1418,9 @@ const SOURCE_DAMAGE_TYPE_NAMES: readonly string[] = [
   'STEALTHJET_MISSILES',
   'MOLOTOV_COCKTAIL',
   'COMANCHE_VULCAN',
-  'FLESHY_SNIPER',
-  // Source parity: Zero Hour additional damage types (GeneralsMD/Code/GameEngine/Source/GameLogic/System/Damage.cpp:75-81).
+  // Source parity: Zero Hour `DamageType` order from
+  // GeneralsMD/Code/GameEngine/Include/GameLogic/Damage.h and
+  // GeneralsMD/Code/GameEngine/Source/GameLogic/System/Damage.cpp.
   'SUBDUAL_MISSILE',
   'SUBDUAL_VEHICLE',
   'SUBDUAL_BUILDING',

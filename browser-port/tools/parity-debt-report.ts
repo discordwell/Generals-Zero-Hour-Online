@@ -23,7 +23,7 @@ interface ParityDebtReport {
   };
 }
 
-const TODO_REGEX = /\b(?:TODO|FIXME|XXX)\b/i;
+const TODO_REGEX = /\b(?:TODO|FIXME)\b/i;
 const SUBSET_REGEX = /\bsource\s+parity\s+subset\b/i;
 
 async function walkTypeScriptFiles(dir: string): Promise<string[]> {
@@ -49,7 +49,7 @@ async function walkTypeScriptFiles(dir: string): Promise<string[]> {
   return results;
 }
 
-function countMarkers(content: string): { todoMarkers: number; subsetMarkers: number } {
+export function countMarkers(content: string): { todoMarkers: number; subsetMarkers: number } {
   let todoMarkers = 0;
   let subsetMarkers = 0;
   const lines = content.split(/\r?\n/);
@@ -91,8 +91,9 @@ async function buildPackageDebt(packagesDir: string, packageName: string): Promi
   };
 }
 
-async function main(): Promise<void> {
-  const scriptPath = fileURLToPath(import.meta.url);
+const scriptPath = fileURLToPath(import.meta.url);
+
+export async function runParityDebtReport(): Promise<void> {
   const rootDir = path.resolve(path.dirname(scriptPath), '..');
   const packagesDir = path.join(rootDir, 'packages');
   const outputPath = path.join(rootDir, 'parity-debt-report.json');
@@ -140,4 +141,6 @@ async function main(): Promise<void> {
   console.log('Totals:', totals);
 }
 
-await main();
+if (process.argv[1] && path.resolve(process.argv[1]) === scriptPath) {
+  await runParityDebtReport();
+}

@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-03-05T05:05:35.451Z",
+  "generatedAt": "2026-03-14T07:11:26.213Z",
   "rootDir": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port",
   "packagesDir": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages",
   "packages": [
     {
       "packageName": "app",
-      "sourceFileCount": 47,
+      "sourceFileCount": 72,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
@@ -33,14 +33,14 @@
     },
     {
       "packageName": "engine",
-      "sourceFileCount": 38,
+      "sourceFileCount": 50,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
     },
     {
       "packageName": "game-logic",
-      "sourceFileCount": 32,
+      "sourceFileCount": 82,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
@@ -54,21 +54,21 @@
     },
     {
       "packageName": "input",
-      "sourceFileCount": 5,
+      "sourceFileCount": 7,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
     },
     {
       "packageName": "network",
-      "sourceFileCount": 2,
+      "sourceFileCount": 6,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
     },
     {
       "packageName": "renderer",
-      "sourceFileCount": 4,
+      "sourceFileCount": 38,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
@@ -82,14 +82,14 @@
     },
     {
       "packageName": "ui",
-      "sourceFileCount": 3,
+      "sourceFileCount": 8,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
     }
   ],
   "totals": {
-    "sourceFileCount": 182,
+    "sourceFileCount": 314,
     "todoMarkers": 0,
     "subsetMarkers": 0,
     "totalMarkers": 0
