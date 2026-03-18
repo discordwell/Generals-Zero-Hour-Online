@@ -2,6 +2,18 @@
 
 ## Session Summaries
 
+### 2026-03-18T23:00Z — Fix init hang, deploy, wet test
+- **Root cause**: Page hung on "Initializing subsystems..." due to two issues:
+  1. IDB deadlock: multiple open Generals tabs blocked `CacheStore.open()` — no timeout, hung forever
+  2. Stale `ini-bundle.json` on server (hash mismatch) — masked by the IDB hang
+- **Fix**: Added 3-second timeout + `onblocked` handler to `CacheStore.open()` in `packages/assets/src/cache.ts`
+- **Deploy**: Rebuilt with new bundle hash `index-Ci5Yp0j1.js`, rsync'd dist + corrected ini-bundle.json to ovh2
+- **Wet test results**: Main menu loads, Skirmish on Tournament Desert works (784 objects, terrain/minimap/command card render)
+- **Remaining**: 273 unresolved visuals (3D model pipeline), debug HUD still visible (separate from UiRuntime debug toggle)
+- Previous session's code changes confirmed intact: hotkey resolver, CommandCardRenderer, F2 debug toggle, enableDebugOverlay:false
+- SSH was down on ovh2 for ~30min (port 22 refused, daemon crashed) — came back on its own
+- All 3295 tests pass
+
 ### 2026-03-13T03:10Z — Test infrastructure: shared helpers + test decomposition
 - Created `test-helpers.ts` — single shared module with 18 reusable test builders (makeBlock, makeObjectDef, makeBundle, etc.)
 - Eliminated duplicate helper definitions from index.test.ts, containment.test.ts, parity-agent.ts

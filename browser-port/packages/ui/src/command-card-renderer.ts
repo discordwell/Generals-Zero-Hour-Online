@@ -175,6 +175,11 @@ export interface CommandCardOverlayData {
 // CommandCardRenderer
 // ---------------------------------------------------------------------------
 
+export interface CommandCardRendererOptions {
+  /** Called when a slot button is clicked (1-based slot index). */
+  onSlotActivated?: (slot: number) => void;
+}
+
 export class CommandCardRenderer {
   private readonly container: HTMLElement;
   private readonly controlBar: ControlBarModel;
@@ -183,11 +188,13 @@ export class CommandCardRenderer {
   private readonly overlayData: (CommandCardOverlayData | null)[] = new Array(
     SLOT_COUNT,
   ).fill(null);
+  private readonly onSlotActivated?: (slot: number) => void;
   private disposed = false;
 
-  constructor(container: HTMLElement, controlBar: ControlBarModel) {
+  constructor(container: HTMLElement, controlBar: ControlBarModel, options?: CommandCardRendererOptions) {
     this.container = container;
     this.controlBar = controlBar;
+    this.onSlotActivated = options?.onSlotActivated;
 
     // Create grid wrapper
     this.grid = document.createElement('div');
@@ -217,7 +224,11 @@ export class CommandCardRenderer {
         const hudSlots = this.controlBar.getHudSlots();
         const hudSlot = hudSlots[slotIndex - 1];
         if (hudSlot && (hudSlot.state === 'ready' || hudSlot.state === 'pending')) {
-          this.controlBar.activateSlot(slotIndex);
+          if (this.onSlotActivated) {
+            this.onSlotActivated(slotIndex);
+          } else {
+            this.controlBar.activateSlot(slotIndex);
+          }
         }
       });
 

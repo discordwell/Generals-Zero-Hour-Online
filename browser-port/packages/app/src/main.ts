@@ -55,6 +55,7 @@ import {
   UiRuntime,
   initializeUiOverlay,
   GUICommandType,
+  CommandCardRenderer,
 } from '@generals/ui';
 import {
   playUiFeedbackAudio,
@@ -607,7 +608,7 @@ async function preInit(): Promise<PreInitContext> {
   subsystems.register(networkManager);
 
   // UI
-  const uiRuntime = new UiRuntime({ enableDebugOverlay: true });
+  const uiRuntime = new UiRuntime({ enableDebugOverlay: false });
   subsystems.register(uiRuntime);
 
   // Initialize registered runtime subsystems before any asset fetches so
@@ -1654,41 +1655,76 @@ async function startGame(
     }
   };
 
-  const resolveControlBarSlotFromKey = (key: string): number | null => {
-    if (/^[1-9]$/.test(key)) {
-      return Number.parseInt(key, 10);
-    }
-    if (key === '0') {
-      return 10;
-    }
-    if (key === '-') {
-      return 11;
-    }
-    if (key === '=') {
-      return 12;
+  /**
+   * Resolve a control bar slot from a pressed key by matching against
+   * current HUD slot hotkeys. In C++ Generals, letter hotkeys from '&'
+   * markers in command labels are the primary activation mechanism.
+   * Number keys 0, -, = activate slots 10-12 directly.
+   */
+  const resolveControlBarSlotFromHotkey = (key: string): number | null => {
+    // 0, -, = always map to slots 10-12
+    if (key === '0') return 10;
+    if (key === '-') return 11;
+    if (key === '=') return 12;
+
+    // Match letter/digit keys against current button hotkeys
+    const lowerKey = key.toLowerCase();
+    const hudSlots = uiRuntime.getControlBarHudSlots();
+    for (const slot of hudSlots) {
+      if (slot.state !== 'empty' && slot.hotkey === lowerKey) {
+        return slot.slot;
+      }
     }
     return null;
   };
 
-  // F1 toggle wireframe
+  // F1 toggle wireframe, F2 toggle debug overlay
   window.addEventListener('keydown', (e) => {
     if (e.key === 'F1') {
       e.preventDefault();
       terrainVisual.toggleWireframe();
       return;
     }
+    if (e.key === 'F2') {
+      e.preventDefault();
+      uiRuntime.toggleDebugOverlay();
+      return;
+    }
 
-    // Only activate control bar slots via number keys when Ctrl is NOT held
-    // (Ctrl+1-9 is reserved for control group assignment).
-    // Skip plain digit keys 1-9 as they recall control groups.
-    if (!e.ctrlKey && !e.metaKey) {
-      const resolvedSlot = resolveControlBarSlotFromKey(e.key);
-      if (resolvedSlot !== null && !/^[1-9]$/.test(e.key)) {
+    // Activate control bar slots via hotkeys when Ctrl is NOT held.
+    // Digits 1-9 are reserved for control group recall (handled elsewhere).
+    if (!e.ctrlKey && !e.metaKey && !/^[1-9]$/.test(e.key)) {
+      const resolvedSlot = resolveControlBarSlotFromHotkey(e.key);
+      if (resolvedSlot !== null) {
         e.preventDefault();
         activateControlBarSlot(resolvedSlot - 1);
       }
     }
   });
+
+  // ========================================================================
+  // Command card button grid (clickable 4x3 panel)
+  // ========================================================================
+
+  const commandCardContainer = document.createElement('div');
+  commandCardContainer.id = 'command-card';
+  Object.assign(commandCardContainer.style, {
+    position: 'absolute',
+    bottom: '8px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: '100',
+    pointerEvents: 'auto',
+  });
+  document.getElementById('game-container')!.appendChild(commandCardContainer);
+
+  const commandCardRenderer = new CommandCardRenderer(
+    commandCardContainer,
+    uiRuntime.getControlBarModel(),
+    {
+      onSlotActivated: (slot) => activateControlBarSlot(slot - 1),
+    },
+  );
 
   // ========================================================================
   // Production queue UI panel
@@ -2910,6 +2946,7 @@ async function startGame(
         updateMinimap(radarEntityBlipsVisible);
       }
       updateProductionPanel();
+      commandCardRenderer.sync();
       updateRallyPointVisual();
       updateMoveIndicators();
       updateProjectileVisuals();
@@ -3192,6 +3229,7 @@ async function startGame(
   const disposeGame = (): void => {
     gameAbort.abort();
     gameLoop.stop();
+    commandCardRenderer.dispose();
     subsystems.disposeAll();
     objectVisualManager.dispose();
     laserBeamRenderer.dispose();

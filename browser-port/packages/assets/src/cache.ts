@@ -26,6 +26,12 @@ export class CacheStore {
     this.openPromise = new Promise<void>((resolve, reject) => {
       const request = indexedDB.open(this.dbName, 1);
 
+      // Timeout: if blocked by other tabs for >3s, proceed without cache.
+      const timeout = setTimeout(() => {
+        this.openPromise = null;
+        reject(new Error('IndexedDB open blocked (other tabs may hold connections)'));
+      }, 3000);
+
       request.onupgradeneeded = () => {
         const db = request.result;
         if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -34,13 +40,21 @@ export class CacheStore {
       };
 
       request.onsuccess = () => {
+        clearTimeout(timeout);
         this.db = request.result;
         resolve();
       };
 
       request.onerror = () => {
+        clearTimeout(timeout);
         this.openPromise = null;
         reject(request.error);
+      };
+
+      request.onblocked = () => {
+        clearTimeout(timeout);
+        this.openPromise = null;
+        reject(new Error('IndexedDB open blocked by other connections'));
       };
     });
 

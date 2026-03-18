@@ -105,6 +105,9 @@ export class UiRuntime implements Subsystem {
       'white-space: pre-wrap',
     ].join(';');
     this.commandNode.textContent = 'ControlBar: no commands loaded';
+    if (!this.debugEnabled) {
+      this.commandNode.style.display = 'none';
+    }
 
     this.messageNode = document.createElement('div');
     this.messageNode.style.cssText = [
@@ -120,21 +123,21 @@ export class UiRuntime implements Subsystem {
       'display: none',
     ].join(';');
 
-    this.overlay.append(this.selectedNode, this.commandNode, this.messageNode);
-
-    if (this.debugEnabled) {
-      this.debugNode = document.createElement('div');
-      this.debugNode.style.cssText = [
-        'position: absolute',
-        'left: 12px',
-        'top: 12px',
-        'background: rgba(0, 0, 0, 0.42)',
-        'border: 1px solid rgba(0, 0, 0, 0.5)',
-        'padding: 6px 10px',
-      ].join(';');
-      this.debugNode.textContent = 'Debug overlay enabled';
-      this.overlay.append(this.debugNode);
+    this.debugNode = document.createElement('div');
+    this.debugNode.style.cssText = [
+      'position: absolute',
+      'left: 12px',
+      'top: 12px',
+      'background: rgba(0, 0, 0, 0.42)',
+      'border: 1px solid rgba(0, 0, 0, 0.5)',
+      'padding: 6px 10px',
+    ].join(';');
+    this.debugNode.textContent = 'Debug overlay enabled';
+    if (!this.debugEnabled) {
+      this.debugNode.style.display = 'none';
     }
+
+    this.overlay.append(this.selectedNode, this.commandNode, this.messageNode, this.debugNode);
 
     this.root.appendChild(this.overlay);
     this.containerWidth = this.root.clientWidth;
@@ -268,6 +271,16 @@ export class UiRuntime implements Subsystem {
     this.messageNode.textContent = '';
   }
 
+  toggleDebugOverlay(): void {
+    this.debugEnabled = !this.debugEnabled;
+    if (this.commandNode) {
+      this.commandNode.style.display = this.debugEnabled ? '' : 'none';
+    }
+    if (this.debugNode) {
+      this.debugNode.style.display = this.debugEnabled ? '' : 'none';
+    }
+  }
+
   getState(): string {
     return this.selectedText;
   }
@@ -311,6 +324,14 @@ export class UiRuntime implements Subsystem {
 
   getControlBarButtons(): readonly ControlBarButton[] {
     return this.controlBarModel.getButtons();
+  }
+
+  getControlBarHudSlots(): ReadonlyArray<ControlBarHudSlot> {
+    return this.controlBarModel.getHudSlots();
+  }
+
+  getControlBarModel(): ControlBarModel {
+    return this.controlBarModel;
   }
 
   activateControlBarButton(buttonId: string): ControlBarActivationResult {
