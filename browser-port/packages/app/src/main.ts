@@ -642,7 +642,9 @@ async function preInit(): Promise<PreInitContext> {
   try {
     const bundleHandle = await assets.loadJSON<IniDataBundle>('data/ini-bundle.json', (loaded, total) => {
       const pct = total > 0 ? Math.round(40 + (loaded / total) * 8) : 48;
-      setLoadingProgress(pct, 'Loading INI bundle...');
+      const loadedMB = (loaded / 1024 / 1024).toFixed(1);
+      const totalMB = total > 0 ? (total / 1024 / 1024).toFixed(1) : '?';
+      setLoadingProgress(pct, `Loading game data... ${loadedMB}/${totalMB} MB`);
     });
     assertIniBundleConsistency(bundleHandle.data);
     iniDataRegistry.loadBundle(bundleHandle.data);
