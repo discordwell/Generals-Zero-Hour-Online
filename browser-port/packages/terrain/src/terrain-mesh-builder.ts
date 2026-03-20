@@ -38,6 +38,9 @@ const COLOR_STOPS: Array<{ height: number; color: [number, number, number] }> = 
   { height: 1.0, color: [0.68, 0.65, 0.58] },    // light rock (peaks)
 ];
 
+/** Rocky/cliff colors for steep slopes. */
+const SLOPE_ROCK_COLOR: [number, number, number] = [0.48, 0.44, 0.38];
+
 function getHeightColor(normalizedHeight: number): [number, number, number] {
   const t = Math.max(0, Math.min(1, normalizedHeight));
 
@@ -57,6 +60,25 @@ function getHeightColor(normalizedHeight: number): [number, number, number] {
 
   const last = COLOR_STOPS[COLOR_STOPS.length - 1]!;
   return [...last.color];
+}
+
+/**
+ * Blend height color with rocky color based on slope steepness.
+ * Steep slopes (normal.y < 0.85) transition to rock color.
+ */
+function blendSlopeColor(
+  heightColor: [number, number, number],
+  normalY: number,
+): [number, number, number] {
+  // normalY = 1.0 for flat, 0.0 for vertical
+  // Start blending at normalY = 0.7 (steep slope), full rock at normalY = 0.3
+  const slopeFactor = Math.max(0, Math.min(1, (0.7 - normalY) / 0.4));
+  if (slopeFactor <= 0) return heightColor;
+  return [
+    heightColor[0] + (SLOPE_ROCK_COLOR[0] - heightColor[0]) * slopeFactor,
+    heightColor[1] + (SLOPE_ROCK_COLOR[1] - heightColor[1]) * slopeFactor,
+    heightColor[2] + (SLOPE_ROCK_COLOR[2] - heightColor[2]) * slopeFactor,
+  ];
 }
 
 export class TerrainMeshBuilder {
@@ -159,9 +181,10 @@ export class TerrainMeshBuilder {
         uvs[vi * 2] = globalCol / (heightmap.width - 1);
         uvs[vi * 2 + 1] = globalRow / (heightmap.height - 1);
 
-        // Vertex color — height-based gradient
+        // Vertex color — height-based gradient blended with slope rock color
         const normalizedHeight = (worldY - minHeight) / heightRange;
-        const [r, g, b] = getHeightColor(normalizedHeight);
+        const heightColor = getHeightColor(normalizedHeight);
+        const [r, g, b] = blendSlopeColor(heightColor, ny);
         colors[vi * 3] = r;
         colors[vi * 3 + 1] = g;
         colors[vi * 3 + 2] = b;

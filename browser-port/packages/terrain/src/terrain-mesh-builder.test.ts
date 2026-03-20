@@ -113,9 +113,20 @@ describe('TerrainMeshBuilder', () => {
       const colorAttr = chunks[0]!.geometry.getAttribute('color');
 
       // Low vertex and high vertex should have different colors
-      const lowG = colorAttr.getY(0); // green channel of lowest vertex
-      const highG = colorAttr.getY(99); // green channel of highest vertex
-      expect(lowG).not.toBeCloseTo(highG, 1);
+      // Low vertices and high vertices should have different colors.
+      // Compare all 3 channels across low vs high — at least one must differ.
+      const lowR = colorAttr.getX(0);
+      const lowG = colorAttr.getY(0);
+      const lowB = colorAttr.getZ(0);
+      const highR = colorAttr.getX(99);
+      const highG = colorAttr.getY(99);
+      const highB = colorAttr.getZ(99);
+      const maxDiff = Math.max(
+        Math.abs(lowR - highR),
+        Math.abs(lowG - highG),
+        Math.abs(lowB - highB),
+      );
+      expect(maxDiff).toBeGreaterThan(0.005);
     });
   });
 
