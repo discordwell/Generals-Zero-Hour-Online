@@ -169,6 +169,8 @@ export interface CommandCardOverlayData {
   productionProgress?: number;
   /** 0..1 cooldown remaining (0 = ready, 1 = fully on cooldown). */
   cooldownPercent?: number;
+  /** Number of items queued for this slot (shown as badge when > 1). */
+  queueCount?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -332,6 +334,22 @@ export class CommandCardRenderer {
       } else {
         el.cooldownOverlay.style.display = 'none';
         el.cooldownOverlay.style.height = '0%';
+      }
+
+      // -- Queue count badge (source parity: queued unit count on production buttons) --
+      const queueCount = overlay?.queueCount ?? 0;
+      let badge = el.button.querySelector('.queue-badge') as HTMLSpanElement | null;
+      if (queueCount > 1) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'queue-badge';
+          badge.style.cssText = 'position:absolute;bottom:1px;right:1px;background:#d4af37;color:#000;font-size:9px;font-weight:bold;padding:0 3px;border-radius:2px;line-height:14px;pointer-events:none;z-index:5';
+          el.button.appendChild(badge);
+        }
+        badge.textContent = `×${queueCount}`;
+        badge.style.display = 'block';
+      } else if (badge) {
+        badge.style.display = 'none';
       }
     }
   }
