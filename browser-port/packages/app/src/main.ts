@@ -2827,7 +2827,8 @@ async function startGame(
         diplomacyScreen.toggle();
       }
 
-      // Escape — close overlays, cancel pending command, or open options.
+      // Escape — close overlays, cancel pending command, deselect, or open options.
+      // Source parity: cascading priority matches C++ InGameUI::processEscape.
       if (!missionInputLocked && inputState.keysPressed.has('escape')) {
         if (diplomacyScreen.isVisible) {
           diplomacyScreen.hide();
@@ -2835,6 +2836,8 @@ async function startGame(
           ingameOptionsScreen.hide();
         } else if (uiRuntime.getPendingControlBarCommand()) {
           uiRuntime.cancelPendingControlBarCommand();
+        } else if (gameLogic.getLocalPlayerSelectionIds().length > 0) {
+          gameLogic.submitCommand({ type: 'clearSelection' });
         } else if (!gameEnded) {
           ingameOptionsScreen.show();
         }
