@@ -1910,4 +1910,55 @@ describe('condition-state model fallback resolution', () => {
     // Minimum radius 5 → diameter 10
     expect(placeholder!.scale.x).toBe(10);
   });
+
+  it('limits concurrent model loads to MAX_CONCURRENT_MODEL_LOADS', async () => {
+    // Verify that the load queue prevents more than MAX_CONCURRENT loads
+    // from running simultaneously.  This prevents hundreds of HTTP
+    // requests from overwhelming the browser on map load.
+    const scene = new THREE.Scene();
+    let peakConcurrent = 0;
+    let currentConcurrent = 0;
+    const resolvers: Array<(value: LoadedModelAsset) => void> = [];
+
+    const modelLoader = (_path: string): Promise<LoadedModelAsset> => {
+      currentConcurrent++;
+      peakConcurrent = Math.max(peakConcurrent, currentConcurrent);
+      return new Promise<LoadedModelAsset>((resolve) => {
+        resolvers.push((result) => {
+          currentConcurrent--;
+          resolve(result);
+        });
+      });
+    };
+
+    const savedMax = ObjectVisualManager.MAX_CONCURRENT_MODEL_LOADS;
+    ObjectVisualManager.MAX_CONCURRENT_MODEL_LOADS = 3;
+    try {
+      const manager = new ObjectVisualManager(scene, null, { modelLoader });
+
+      // Sync 10 entities, each requesting a different model.
+      const states = Array.from({ length: 10 }, (_, i) =>
+        makeMeshState({ id: i + 200, renderAssetPath: `model-${i}.glb` }),
+      );
+      manager.sync(states);
+
+      // Allow microtasks to settle.
+      await new Promise((r) => setTimeout(r, 0));
+
+      // Only 3 loads should have started (the limit).
+      expect(peakConcurrent).toBe(3);
+      expect(currentConcurrent).toBe(3);
+
+      // Resolve one — should drain one from queue.
+      const asset = modelWithAnimationClips();
+      resolvers[0]!(asset);
+      await new Promise((r) => setTimeout(r, 0));
+
+      // Still at most 3 concurrent.
+      expect(currentConcurrent).toBe(3);
+      expect(peakConcurrent).toBe(3);
+    } finally {
+      ObjectVisualManager.MAX_CONCURRENT_MODEL_LOADS = savedMax;
+    }
+  });
 });

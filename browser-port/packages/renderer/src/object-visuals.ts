@@ -247,6 +247,20 @@ export class ObjectVisualManager {
   private readonly visuals = new Map<number, VisualAssetState>();
   private readonly modelCache = new Map<string, LoadedModelAsset>();
   private readonly modelLoadPromises = new Map<string, Promise<LoadedModelAsset>>();
+  /** Pending model loads waiting for a concurrency slot. */
+  private readonly modelLoadQueue: Array<{
+    assetPath: string;
+    resolve: (result: LoadedModelAsset) => void;
+    reject: (error: unknown) => void;
+  }> = [];
+  /** Number of model loads currently in flight. */
+  private activeModelLoads = 0;
+  /**
+   * Maximum concurrent model load requests.  Limits HTTP connection
+   * pressure so the render loop remains responsive while models load
+   * progressively in the background.
+   */
+  static MAX_CONCURRENT_MODEL_LOADS = 8;
   private readonly unresolvedEntityIds = new Set<number>();
   private readonly tempYawQuaternion = new THREE.Quaternion();
   private readonly tempToppleQuaternion = new THREE.Quaternion();
@@ -849,7 +863,29 @@ export class ObjectVisualManager {
       return existingPromise;
     }
 
-    const promise = this.modelLoader(assetPath).then((result) => {
+    const promise = this.enqueueModelLoad(assetPath);
+    this.modelLoadPromises.set(assetPath, promise);
+    return promise;
+  }
+
+  /**
+   * Queue a model load request, respecting the concurrent load limit.
+   * When a slot is available the request proceeds immediately; otherwise
+   * it waits in the queue until a running load completes.
+   */
+  private enqueueModelLoad(assetPath: string): Promise<LoadedModelAsset> {
+    if (this.activeModelLoads < ObjectVisualManager.MAX_CONCURRENT_MODEL_LOADS) {
+      return this.executeModelLoad(assetPath);
+    }
+    return new Promise<LoadedModelAsset>((resolve, reject) => {
+      this.modelLoadQueue.push({ assetPath, resolve, reject });
+    });
+  }
+
+  private async executeModelLoad(assetPath: string): Promise<LoadedModelAsset> {
+    this.activeModelLoads++;
+    try {
+      const result = await this.modelLoader(assetPath);
       const loaded: LoadedModelAsset = {
         scene: result.scene,
         animations: result.animations,
@@ -857,13 +893,23 @@ export class ObjectVisualManager {
       this.modelCache.set(assetPath, loaded);
       this.modelLoadPromises.delete(assetPath);
       return loaded;
-    }).catch((error) => {
+    } catch (error) {
       this.modelLoadPromises.delete(assetPath);
       throw error;
-    });
+    } finally {
+      this.activeModelLoads--;
+      this.drainModelLoadQueue();
+    }
+  }
 
-    this.modelLoadPromises.set(assetPath, promise);
-    return promise;
+  private drainModelLoadQueue(): void {
+    while (
+      this.modelLoadQueue.length > 0 &&
+      this.activeModelLoads < ObjectVisualManager.MAX_CONCURRENT_MODEL_LOADS
+    ) {
+      const next = this.modelLoadQueue.shift()!;
+      this.executeModelLoad(next.assetPath).then(next.resolve, next.reject);
+    }
   }
 
   private createDefaultModelLoader(assetPath: string): Promise<LoadedModelAsset> {
