@@ -7384,6 +7384,38 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     expect(logic.getSideCredits('America')).toBe(500);
   });
 
+  it('recognizes DefaultProductionExitUpdate for production exit profile', () => {
+    // Source parity: C++ uses DefaultProductionExitUpdate on most
+    // buildings (Command Center, Barracks, War Factory). Previously
+    // only QueueProductionExitUpdate was recognized, causing
+    // queueProductionExitProfile to be null and produced units to
+    // silently fail to spawn.
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TestCC', 'America', ['STRUCTURE', 'COMMANDCENTER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 5000, InitialHealth: 5000 }),
+          makeBlock('Behavior', 'ProductionUpdate ModuleTag_Prod', { MaxQueueEntries: 5 }),
+          makeBlock('Behavior', 'DefaultProductionExitUpdate ModuleTag_Exit', {
+            UnitCreatePoint: [30, 0, 0],
+            NaturalRallyPoint: [60, 35, 0],
+          }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestCC', 50, 50)]),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    // The entity should have the exit profile parsed from
+    // DefaultProductionExitUpdate — without this, spawning fails.
+    const ccId = logic.getRenderableEntityStates()[0]!.id;
+    const info = logic.getSelectedEntityInfoById(ccId);
+    expect(info?.hasAutoRallyPoint).toBe(true);
+  });
+
   it('refunds all queued unit production when a producer dies before completion', () => {
     const timeline = runProducerDeathUnitRefundTimeline();
     expect(timeline.credits).toEqual([500, 500, 500]);

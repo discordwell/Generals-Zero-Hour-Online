@@ -1288,7 +1288,9 @@ export function extractQueueProductionExitProfile(self: GL, objectDef: ObjectDef
     }
     if (block.type.toUpperCase() === 'BEHAVIOR') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType === 'QUEUEPRODUCTIONEXITUPDATE') {
+      // Source parity: C++ uses DefaultProductionExitUpdate (most buildings)
+      // and QueueProductionExitUpdate (identical behavior, same fields).
+      if (moduleType === 'DEFAULTPRODUCTIONEXITUPDATE' || moduleType === 'QUEUEPRODUCTIONEXITUPDATE') {
         const unitCreatePoint = readCoord3DField(block.fields, ['UnitCreatePoint']) ?? { x: 0, y: 0, z: 0 };
         const naturalRallyPoint = readCoord3DField(block.fields, ['NaturalRallyPoint']);
         const exitDelayMs = readNumericField(block.fields, ['ExitDelay']) ?? 0;
