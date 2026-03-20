@@ -2957,7 +2957,8 @@ async function startGame(
           }
         }
         const pendingAbility = uiRuntime.getPendingControlBarCommand() !== null;
-        const cursorName = resolveGameCursor({ hasSelection, hoverTarget, edgeScrollDir, pendingAbility });
+        const isAttackMode = inputState.keysDown.has('a');
+        const cursorName = resolveGameCursor({ hasSelection, hoverTarget, edgeScrollDir, pendingAbility, isAttackMode });
         cursorManager.setCursor(cursorName);
         cursorManager.update(dt);
       }

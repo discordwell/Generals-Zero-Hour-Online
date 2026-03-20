@@ -283,6 +283,7 @@ export function resolveGameCursor(opts: {
   hoverTarget: 'none' | 'own-unit' | 'enemy' | 'ground';
   edgeScrollDir: number | null;
   pendingAbility: boolean;
+  isAttackMode?: boolean;
 }): string {
   // Edge scroll cursors: SCCScroll0 through SCCScroll7
   if (opts.edgeScrollDir !== null) {
@@ -291,6 +292,11 @@ export function resolveGameCursor(opts: {
 
   if (opts.pendingAbility) {
     return 'SCCTarget';
+  }
+
+  // Source parity: holding 'A' key shows attack cursor over ground/units.
+  if (opts.hasSelection && opts.isAttackMode) {
+    return 'SCCAttack';
   }
 
   if (opts.hasSelection) {
