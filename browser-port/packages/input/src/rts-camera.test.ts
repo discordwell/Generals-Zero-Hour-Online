@@ -279,4 +279,42 @@ describe('RTSCamera', () => {
       expect(Math.abs(forwardPitched.y)).toBeLessThan(Math.abs(forwardDefault.y));
     });
   });
+
+  describe('edge scroll suppression during click', () => {
+    it('suppresses edge scroll when left mouse is down', () => {
+      // Source parity: edge scroll should not drift the camera
+      // while the user is clicking to select entities.
+      rtsCamera.lookAt(100, 100);
+      const stateBefore = rtsCamera.getState();
+
+      // Mouse at right edge with left button down
+      rtsCamera.setInputState({
+        ...idleInput(),
+        mouseX: 1910, // near right edge (viewportWidth=1920, edgeScrollSize=20)
+        leftMouseDown: true,
+        leftMouseClick: true,
+      });
+      rtsCamera.update(1 / 30);
+
+      const stateAfter = rtsCamera.getState();
+      expect(stateAfter.targetX).toBe(stateBefore.targetX);
+      expect(stateAfter.targetZ).toBe(stateBefore.targetZ);
+    });
+
+    it('allows edge scroll when no mouse button is down', () => {
+      rtsCamera.lookAt(100, 100);
+      const stateBefore = rtsCamera.getState();
+
+      // Mouse at right edge, no button down
+      rtsCamera.setInputState({
+        ...idleInput(),
+        mouseX: 1910,
+      });
+      rtsCamera.update(1 / 30);
+
+      const stateAfter = rtsCamera.getState();
+      // Camera should have scrolled right (targetX increased)
+      expect(stateAfter.targetX).toBeGreaterThan(stateBefore.targetX);
+    });
+  });
 });

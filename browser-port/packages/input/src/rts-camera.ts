@@ -240,6 +240,9 @@ export class RTSCamera implements Subsystem {
 
   private processEdgeScroll(input: InputState, dt: number): void {
     if (!input.pointerInCanvas) return;
+    // Source parity: suppress edge scroll when user is clicking/dragging.
+    // Prevents the camera from drifting away from the click target at low FPS.
+    if (input.leftMouseDown || input.rightMouseDown) return;
 
     const edge = this.config.edgeScrollSize;
     const speed = this.config.scrollSpeed * dt;
