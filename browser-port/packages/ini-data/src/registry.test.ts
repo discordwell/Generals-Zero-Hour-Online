@@ -876,6 +876,42 @@ describe('IniDataRegistry', () => {
       expect(stats.staticGameLODs).toBe(1);
       expect(stats.dynamicGameLODs).toBe(1);
     });
+
+    it('round-trips SpecialPower and ObjectCreationList through toBundle/loadBundle', () => {
+      // Source parity: SpecialPower and ObjectCreationList are defined
+      // in SpecialPower.ini and are referenced by CommandButton entries.
+      // The bundle must include them so the runtime can resolve
+      // special-power-based command buttons.
+      registry.loadBlocks([
+        makeBlock('SpecialPower', 'SuperweaponDaisyCutter', {
+          ReloadTime: '360000',
+          PublicTimer: 'Yes',
+          Type: 'SPECIAL_DAISY_CUTTER',
+        }),
+        makeBlock('ObjectCreationList', 'OCL_AmericaParadrop', {}, {
+          blocks: [
+            makeBlock('DeliverPayload', '', { Payload: 'AmericaInfantryRanger', FormationSize: '1 1' }),
+          ],
+        }),
+      ]);
+
+      const bundle = registry.toBundle();
+      expect(bundle.specialPowers).toHaveLength(1);
+      expect(bundle.specialPowers[0]!.name).toBe('SuperweaponDaisyCutter');
+      expect(bundle.objectCreationLists).toHaveLength(1);
+
+      const restored = new IniDataRegistry();
+      restored.loadBundle(bundle);
+
+      const sp = restored.getSpecialPower('SuperweaponDaisyCutter');
+      expect(sp).toBeDefined();
+      expect(sp!.fields['ReloadTime']).toBe('360000');
+      expect(sp!.fields['Type']).toBe('SPECIAL_DAISY_CUTTER');
+
+      const ocl = restored.getObjectCreationList('OCL_AmericaParadrop');
+      expect(ocl).toBeDefined();
+      expect(ocl!.blocks).toHaveLength(1);
+    });
   });
 
   describe('remaining raw blocker block families', () => {

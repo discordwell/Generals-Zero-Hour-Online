@@ -748,7 +748,14 @@ function mergeBundles(baseBundle: IniDataBundle, patchBundle: IniDataBundle): In
     commandSets: mergeByName(baseBundle.commandSets ?? [], patchBundle.commandSets ?? []),
     sciences: mergeByName(baseBundle.sciences, patchBundle.sciences),
     factions: mergeByName(baseBundle.factions, patchBundle.factions),
+    specialPowers: mergeByName(baseBundle.specialPowers ?? [], patchBundle.specialPowers ?? []),
+    objectCreationLists: mergeByName(baseBundle.objectCreationLists ?? [], patchBundle.objectCreationLists ?? []),
     locomotors: mergeByName(baseBundle.locomotors ?? [], patchBundle.locomotors ?? []),
+    audioEvents: mergeByName(baseBundle.audioEvents ?? [], patchBundle.audioEvents ?? []),
+    particleSystems: mergeByName(baseBundle.particleSystems ?? [], patchBundle.particleSystems ?? []),
+    fxLists: mergeByName(baseBundle.fxLists ?? [], patchBundle.fxLists ?? []),
+    staticGameLODs: mergeByName(baseBundle.staticGameLODs ?? [], patchBundle.staticGameLODs ?? []),
+    dynamicGameLODs: mergeByName(baseBundle.dynamicGameLODs ?? [], patchBundle.dynamicGameLODs ?? []),
     commandMaps: mergeRawBlocks(baseBundle.commandMaps ?? [], patchBundle.commandMaps ?? []),
     creditsBlocks: mergeRawBlocks(baseBundle.creditsBlocks ?? [], patchBundle.creditsBlocks ?? []),
     mouseBlocks: mergeRawBlocks(baseBundle.mouseBlocks ?? [], patchBundle.mouseBlocks ?? []),
@@ -776,6 +783,15 @@ function mergeBundles(baseBundle: IniDataBundle, patchBundle: IniDataBundle): In
       patchBundle.unsupportedBlockTypes,
     ),
     ...(mergedAi ? { ai: mergedAi } : {}),
+    ...(patchBundle.miscAudio ?? baseBundle.miscAudio
+      ? { miscAudio: patchBundle.miscAudio ?? baseBundle.miscAudio }
+      : {}),
+    ...(patchBundle.audioSettings ?? baseBundle.audioSettings
+      ? { audioSettings: patchBundle.audioSettings ?? baseBundle.audioSettings }
+      : {}),
+    ...(patchBundle.gameData ?? baseBundle.gameData
+      ? { gameData: patchBundle.gameData ?? baseBundle.gameData }
+      : {}),
     stats: {
       objects: 0,
       weapons: 0,
