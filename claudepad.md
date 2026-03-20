@@ -43,7 +43,8 @@
   - ChinaPowerPlant (1), ChinaBarracks (1), ChinaInfantryTankHunter (4), ChinaInfantryRedguard (4) = 12 total entities after 3 minutes of game time
   - The AI follows the correct build order: Power Plant → Barracks → train infantry
   - This is the first time the AI has been observed building multiple structures AND training combat units in the live game
-- 29 new tests (3318 total), 31 commits, deployed to generals.discordwell.com.
+- **Additional fixes**: Desert terrain colors, minimap desert palette, production progress overlay on command card, ESC deselect before options, loading screen MB counter, shroud entity sync skip, optimized raycast for picking.
+- 29 new tests (3318 total), 38 commits, deployed to generals.discordwell.com.
 
 ## 2026-03-12T17:55Z — Containment Round 2: HealContain Exit Fix + Overlord Damage Propagation
 - **HealContain bug fix**: Auto-ejected units now use `resolveContainerEvacuationPositions` for scatter exit instead of teleporting to container center
