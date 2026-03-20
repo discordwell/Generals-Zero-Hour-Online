@@ -527,7 +527,9 @@ async function preInit(): Promise<PreInitContext> {
     powerPreference: 'high-performance',
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.shadowMap.enabled = true;
+  // Shadow map disabled for performance — re-enable with sunLight.castShadow
+  // once FPS is stable above 30.
+  renderer.shadowMap.enabled = false;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x1a1a2e);
@@ -551,9 +553,12 @@ async function preInit(): Promise<PreInitContext> {
 
   const sunLight = new THREE.DirectionalLight(0xfff4e0, 1.3);
   sunLight.position.set(200, 400, 200);
-  sunLight.castShadow = true;
-  sunLight.shadow.mapSize.width = 2048;
-  sunLight.shadow.mapSize.height = 2048;
+  // Shadows disabled for performance — shadow map rendering at 2048x2048
+  // with 580+ entities doubles the per-frame GPU cost. Re-enable once FPS
+  // is stable above 30 with other optimizations in place.
+  sunLight.castShadow = false;
+  sunLight.shadow.mapSize.width = 1024;
+  sunLight.shadow.mapSize.height = 1024;
   sunLight.shadow.camera.near = 10;
   sunLight.shadow.camera.far = 1000;
   sunLight.shadow.camera.left = -300;
@@ -2862,7 +2867,9 @@ async function startGame(
             )
           : null;
         let hoverTarget: 'none' | 'own-unit' | 'enemy' | 'ground' = 'none';
-        if (inputState.pointerInCanvas) {
+        // Throttle hover raycast to every 3 frames — raycasting against
+        // all scene meshes is expensive and cursor hover tolerates latency.
+        if (inputState.pointerInCanvas && (currentLogicFrame % 3 === 0)) {
           const hoverObjectId = gameLogic.resolveObjectTargetFromInput(inputState, camera);
           if (hoverObjectId !== null) {
             const firstSelectedId = selIds[0] ?? null;
