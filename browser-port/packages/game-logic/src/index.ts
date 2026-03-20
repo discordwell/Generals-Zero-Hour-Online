@@ -22653,10 +22653,9 @@ export class GameLogicSubsystem implements Subsystem {
           .map(qm => qm.templateName);
       },
       isDozerBusy: (entity: MapEntity) => {
-        // Source parity: DozerAIUpdate only considers the dozer busy when
-        // it has an active construction task — not when merely walking.
-        // A dozer walking back from a completed build is available for
-        // new build commands.
+        // Source parity: DozerAIUpdate considers the dozer busy when it
+        // has an active construction or repair task. Moving dozers are
+        // available for new commands (they'll be re-tasked).
         return this.pendingConstructionActions.has(entity.id)
           || this.pendingRepairActions.has(entity.id);
       },

@@ -846,9 +846,17 @@ function evaluateStructures<TEntity extends AIEntity>(
       continue;
     }
 
-    // If we previously built this and it's gone, rebuild it (if we have credits).
-    const isRebuild = state.builtStructureKeywords.has(keyword);
-    if (!isRebuild && DEFENSE_KEYWORDS.has(keyword) && credits < 800) {
+    // If we already issued a build command for this keyword AND
+    // either the structure exists or a dozer is busy building it,
+    // skip it. Otherwise allow retry (construction may have failed).
+    if (state.builtStructureKeywords.has(keyword)) {
+      // Check if any dozer is actively constructing this type
+      const anyDozerBuilding = dozers.some((d) => context.isDozerBusy(d));
+      if (anyDozerBuilding) continue; // dozer still working on it
+      // If the building doesn't exist yet, clear the keyword so we retry
+      state.builtStructureKeywords.delete(keyword);
+    }
+    if (DEFENSE_KEYWORDS.has(keyword) && credits < 800) {
       continue; // Don't build defenses until we can afford them.
     }
 
