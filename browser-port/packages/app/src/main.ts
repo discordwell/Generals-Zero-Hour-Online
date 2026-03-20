@@ -1167,6 +1167,8 @@ async function startGame(
   creditsHud.style.display = 'block';
   let displayedCredits = 0; // Animated credit counter (ticks toward actual value)
   let tabCycleIndex = -1; // Tab key cycle index for idle dozer/factory selection
+  let lastClickTime = 0; // For double-click detection
+  const DOUBLE_CLICK_MS = 350;
 
   // Power HUD indicator (below credits) — reuse existing element on restart.
   let powerHud = document.getElementById('power-hud') as HTMLDivElement | null;
@@ -2731,6 +2733,34 @@ async function startGame(
           if (isAttackCommand) {
             musicManager.notifyCombat();
           }
+        }
+      }
+
+      // Double-click to select all visible units of same type.
+      // Source parity: C++ InGameUI double-click selects all on-screen units of same template.
+      if (inputStateForGameLogic.leftMouseClick && !isDragSelecting && !missionInputLocked) {
+        const now = performance.now();
+        if (now - lastClickTime < DOUBLE_CLICK_MS) {
+          const selIds = gameLogic.getLocalPlayerSelectionIds();
+          if (selIds.length === 1) {
+            const clickedState = gameLogic.getRenderableEntityStates().find(e => e.id === selIds[0]);
+            if (clickedState && clickedState.isOwnedByLocalPlayer) {
+              const sameType = gameLogic.getRenderableEntityStates().filter(e =>
+                e.isOwnedByLocalPlayer
+                && e.templateName === clickedState.templateName
+                && e.category !== 'building',
+              );
+              if (sameType.length > 1) {
+                gameLogic.submitCommand({
+                  type: 'selectEntities',
+                  entityIds: sameType.map(e => e.id),
+                });
+              }
+            }
+          }
+          lastClickTime = 0; // Reset to prevent triple-click
+        } else {
+          lastClickTime = now;
         }
       }
 
