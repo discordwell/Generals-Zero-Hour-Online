@@ -417,7 +417,9 @@ export class IniDataRegistry {
       this.factions.set(faction.name, { ...faction, fields: { ...faction.fields } });
     }
     for (const specialPower of bundle.specialPowers ?? []) {
-      this.specialPowers.set(specialPower.name, {
+      // Source parity: C++ NameKeyGenerator lowercases all names.
+      // Store with uppercase key for case-insensitive lookup.
+      this.specialPowers.set(specialPower.name.toUpperCase(), {
         ...specialPower,
         fields: { ...specialPower.fields },
         blocks: [...specialPower.blocks],
@@ -579,7 +581,7 @@ export class IniDataRegistry {
   }
 
   getSpecialPower(name: string): SpecialPowerDef | undefined {
-    return this.specialPowers.get(name);
+    return this.specialPowers.get(name.toUpperCase());
   }
 
   getObjectCreationList(name: string): ObjectCreationListDef | undefined {
@@ -925,7 +927,7 @@ export class IniDataRegistry {
 
       case 'SpecialPower':
         addDefinition(this.specialPowers, block.type, {
-          name: block.name,
+          name: block.name.toUpperCase(),
           parent: block.parent,
           fields: block.fields,
           blocks: block.blocks,

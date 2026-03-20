@@ -112,11 +112,11 @@ describe('IniDataRegistry', () => {
         }),
       ]);
 
-      const sp = registry.getSpecialPower('SP_Tactical_Ability');
+      const sp = registry.getSpecialPower('SP_TACTICAL_ABILITY');
       const ocl = registry.getObjectCreationList('OCL_Fx');
 
       expect(sp).toBeDefined();
-      expect(sp?.name).toBe('SP_Tactical_Ability');
+      expect(sp?.name).toBe('SP_TACTICAL_ABILITY');
       expect(sp?.parent).toBe('BaseSpecialPower');
       expect(sp?.fields).toMatchObject({ Type: 'Instant' });
       expect(ocl).toBeDefined();
@@ -526,8 +526,8 @@ describe('IniDataRegistry', () => {
       expect(bundle.objects[1]!.name).toBe('TankZ');
       expect(bundle.weapons[0]!.name).toBe('GunA');
       expect(bundle.weapons[1]!.name).toBe('GunC');
-      expect(bundle.specialPowers?.[0]!.name).toBe('Power_A');
-      expect(bundle.specialPowers?.[1]!.name).toBe('Power_Z');
+      expect(bundle.specialPowers?.[0]!.name).toBe('POWER_A');
+      expect(bundle.specialPowers?.[1]!.name).toBe('POWER_Z');
       expect(bundle.objectCreationLists?.[0]!.name).toBe('Spawn_A');
       expect(bundle.objectCreationLists?.[1]!.name).toBe('Spawn_Z');
       expect(bundle.stats.objects).toBe(2);
@@ -897,13 +897,13 @@ describe('IniDataRegistry', () => {
 
       const bundle = registry.toBundle();
       expect(bundle.specialPowers).toHaveLength(1);
-      expect(bundle.specialPowers[0]!.name).toBe('SuperweaponDaisyCutter');
+      expect(bundle.specialPowers[0]!.name).toBe('SUPERWEAPONDAISYCUTTER');
       expect(bundle.objectCreationLists).toHaveLength(1);
 
       const restored = new IniDataRegistry();
       restored.loadBundle(bundle);
 
-      const sp = restored.getSpecialPower('SuperweaponDaisyCutter');
+      const sp = restored.getSpecialPower('SuperweaponDaisyCutter'); // case-insensitive lookup
       expect(sp).toBeDefined();
       expect(sp!.fields['ReloadTime']).toBe('360000');
       expect(sp!.fields['Type']).toBe('SPECIAL_DAISY_CUTTER');
