@@ -846,15 +846,12 @@ function evaluateStructures<TEntity extends AIEntity>(
       continue;
     }
 
-    // If we already issued a build command for this keyword AND
-    // either the structure exists or a dozer is busy building it,
-    // skip it. Otherwise allow retry (construction may have failed).
+    // Skip keywords we've already issued build commands for.
+    // The alreadyHave check above already handles completed buildings.
+    // This prevents re-issuing the same build command while the dozer
+    // is walking to the build site or construction is in progress.
     if (state.builtStructureKeywords.has(keyword)) {
-      // Check if any dozer is actively constructing this type
-      const anyDozerBuilding = dozers.some((d) => context.isDozerBusy(d));
-      if (anyDozerBuilding) continue; // dozer still working on it
-      // If the building doesn't exist yet, clear the keyword so we retry
-      state.builtStructureKeywords.delete(keyword);
+      continue;
     }
     if (DEFENSE_KEYWORDS.has(keyword) && credits < 800) {
       continue; // Don't build defenses until we can afford them.
