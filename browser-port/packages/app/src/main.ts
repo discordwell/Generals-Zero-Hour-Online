@@ -1164,9 +1164,11 @@ async function startGame(
   const creditsHud = document.getElementById('credits-hud') as HTMLDivElement;
   creditsHud.style.display = 'block';
   let displayedCredits = 0; // Animated credit counter (ticks toward actual value)
-  let tabCycleIndex = -1; // Tab key cycle index for idle dozer/factory selection
   let lastClickTime = 0; // For double-click detection
   const DOUBLE_CLICK_MS = 350;
+  let lastGhostCellX = -1; // Cached ghost validity grid cell
+  let lastGhostCellZ = -1;
+  let lastTabEntityId = -1; // For Tab cycling by entity ID
 
   // Power HUD indicator (below credits) — reuse existing element on restart.
   let powerHud = document.getElementById('power-hud') as HTMLDivElement | null;
@@ -2323,12 +2325,19 @@ async function startGame(
     buildingGhostGroup.position.set(worldTarget.x, y + 1, worldTarget.z);
 
     // Source parity: ghost turns red when placement is invalid.
-    const isValid = buildingGhostTemplateName
-      ? gameLogic.isBuildLocationValid(buildingGhostTemplateName, worldTarget.x, worldTarget.z)
-      : true;
-    const ghostMaterial = isValid ? ghostValidMaterial : ghostInvalidMaterial;
-    if (buildingGhostModel) {
-      applyGhostMaterial(buildingGhostModel, ghostMaterial);
+    // Only re-evaluate when cursor moves to a different grid cell.
+    const cellX = Math.floor(worldTarget.x / 10);
+    const cellZ = Math.floor(worldTarget.z / 10);
+    if (cellX !== lastGhostCellX || cellZ !== lastGhostCellZ) {
+      lastGhostCellX = cellX;
+      lastGhostCellZ = cellZ;
+      const isValid = buildingGhostTemplateName
+        ? gameLogic.isBuildLocationValid(buildingGhostTemplateName, worldTarget.x, worldTarget.z)
+        : true;
+      const ghostMaterial = isValid ? ghostValidMaterial : ghostInvalidMaterial;
+      if (buildingGhostModel) {
+        applyGhostMaterial(buildingGhostModel, ghostMaterial);
+      }
     }
 
     buildingGhostGroup.visible = true;
@@ -2890,8 +2899,12 @@ async function startGame(
             || e.templateName.includes('ArmsDealer') || e.templateName.includes('AirField')),
         );
         if (idle.length > 0) {
-          tabCycleIndex = (tabCycleIndex + 1) % idle.length;
-          const target = idle[tabCycleIndex]!;
+          // Cycle by entity ID (robust to entity creation/destruction between presses).
+          idle.sort((a, b) => a.id - b.id);
+          let nextIdx = idle.findIndex(e => e.id > lastTabEntityId);
+          if (nextIdx < 0) nextIdx = 0; // wrap around
+          const target = idle[nextIdx]!;
+          lastTabEntityId = target.id;
           gameLogic.submitCommand({ type: 'clearSelection' });
           gameLogic.submitCommand({ type: 'select', entityId: target.id });
           rtsCamera.panTo(target.x, target.z);
