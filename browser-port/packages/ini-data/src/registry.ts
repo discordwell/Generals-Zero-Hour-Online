@@ -447,9 +447,10 @@ export class IniDataRegistry {
       this.audioEvents.set(audioEvent.name, {
         ...audioEvent,
         fields: { ...audioEvent.fields },
-        blocks: [...audioEvent.blocks],
-        typeNames: [...audioEvent.typeNames],
-        controlNames: [...audioEvent.controlNames],
+        blocks: [...(audioEvent.blocks ?? [])],
+        soundType: audioEvent.soundType ?? 'sound',
+        typeNames: [...(audioEvent.typeNames ?? [])],
+        controlNames: [...(audioEvent.controlNames ?? [])],
       });
     }
     for (const commandButton of bundle.commandButtons ?? []) {

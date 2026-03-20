@@ -387,8 +387,8 @@ function resolveAudioEventDefaults(
   return {
     ...audioEvent,
     priorityName: audioEvent.priorityName ?? defaults.priorityName,
-    typeNames: audioEvent.typeNames.length > 0 ? [...audioEvent.typeNames] : [...defaults.typeNames],
-    controlNames: audioEvent.controlNames.length > 0 ? [...audioEvent.controlNames] : [...defaults.controlNames],
+    typeNames: (audioEvent.typeNames?.length ?? 0) > 0 ? [...audioEvent.typeNames!] : [...(defaults.typeNames ?? [])],
+    controlNames: (audioEvent.controlNames?.length ?? 0) > 0 ? [...audioEvent.controlNames!] : [...(defaults.controlNames ?? [])],
     volume: audioEvent.volume ?? defaults.volume,
     minVolume: audioEvent.minVolume ?? defaults.minVolume,
     limit: audioEvent.limit ?? defaults.limit,
