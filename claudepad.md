@@ -39,7 +39,11 @@
 - **AI builds multiple structures**: Fixed builtStructureKeywords logic to allow retry when dozer is idle and building doesn't exist. AI now builds power plant → barracks → war factory in sequence. isDozerBusy uses pendingConstructionActions (not entity.moving).
 - **AudioEvent crash fix**: loadBundle and resolveAudioEventDefaults handle missing typeNames/controlNames/soundType fields on raw extracted audio blocks.
 - **Wet test verified**: Fresh load → main menu → skirmish → game loads → 4945 audio events loaded → $8,200 credits after training dozer + building power plant → dozer command card shows all build buttons → AI builds power plant autonomously.
-- 29 new tests (3318 total), 28 commits, deployed to generals.discordwell.com.
+- **AI BUILD ORDER FIX — WET TEST CONFIRMED**: After fixing keyword retry logic and expanding build placement radius, the China AI now builds a full base and trains an army in the live game:
+  - ChinaPowerPlant (1), ChinaBarracks (1), ChinaInfantryTankHunter (4), ChinaInfantryRedguard (4) = 12 total entities after 3 minutes of game time
+  - The AI follows the correct build order: Power Plant → Barracks → train infantry
+  - This is the first time the AI has been observed building multiple structures AND training combat units in the live game
+- 29 new tests (3318 total), 31 commits, deployed to generals.discordwell.com.
 
 ## 2026-03-12T17:55Z — Containment Round 2: HealContain Exit Fix + Overlord Damage Propagation
 - **HealContain bug fix**: Auto-ejected units now use `resolveContainerEvacuationPositions` for scatter exit instead of teleporting to container center
