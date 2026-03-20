@@ -23031,6 +23031,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
     const productionProfile = producer.productionProfile;
     if (!productionProfile) {
+
       return false;
     }
     if (producer.productionQueue.length >= productionProfile.maxQueueEntries) {
