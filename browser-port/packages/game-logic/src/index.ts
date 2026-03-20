@@ -7949,6 +7949,16 @@ export class GameLogicSubsystem implements Subsystem {
     ];
   }
 
+  /**
+   * Look up a named waypoint's world position.
+   *
+   * Source parity: TheTerrainLogic->getWaypointByName returns the
+   * Waypoint struct with a position Coord3D.
+   */
+  getWaypointPosition(waypointName: string): { x: number; z: number } | null {
+    return this.resolveScriptWaypointPosition(waypointName) ?? null;
+  }
+
   getEntityRelationship(sourceEntityId: number, targetEntityId: number): EntityRelationship | null {
     const source = this.spawnedEntities.get(sourceEntityId);
     const target = this.spawnedEntities.get(targetEntityId);

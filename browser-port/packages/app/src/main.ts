@@ -1113,8 +1113,15 @@ async function startGame(
   // Set map bounds
   rtsCamera.setMapBounds(0, heightmap.worldWidth, 0, heightmap.worldDepth);
 
-  // Center camera on map
-  rtsCamera.lookAt(heightmap.worldWidth / 2, heightmap.worldDepth / 2);
+  // Source parity: TheWritableGlobalData->m_initialCameraPosition or
+  // the player's start waypoint determines the initial camera position.
+  // Fall back to map center if no waypoint is found.
+  const playerStartPos = gameLogic.getWaypointPosition('Player_1_Start');
+  if (playerStartPos) {
+    rtsCamera.lookAt(playerStartPos.x, playerStartPos.z);
+  } else {
+    rtsCamera.lookAt(heightmap.worldWidth / 2, heightmap.worldDepth / 2);
+  }
 
   setLoadingProgress(90, 'Starting game loop...');
 
@@ -3204,9 +3211,9 @@ async function startGame(
         cursorManager.draw(cursorInputState.mouseX, cursorInputState.mouseY);
       }
 
-      const unresolvedVisualIds = objectVisualManager.getUnresolvedEntityIds();
-      const unresolvedVisualStatus = unresolvedVisualIds.length > 0
-        ? ` | Unresolved visuals: ${unresolvedVisualIds.length} (${unresolvedVisualIds.join(', ')})`
+      const unresolvedCount = objectVisualManager.getUnresolvedEntityIds().length;
+      const unresolvedVisualStatus = unresolvedCount > 0
+        ? ` | Unresolved: ${unresolvedCount}`
         : '';
       debugInfo.textContent =
         `FPS: ${displayFps} | Map: ${mapInfo}${wireInfo}${dataSuffix}${objectStatus} | Sel: ` +

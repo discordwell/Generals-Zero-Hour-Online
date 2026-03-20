@@ -100,6 +100,38 @@ export interface MapInfo {
   path: string;
 }
 
+/**
+ * Filter out non-skirmish maps by naming convention.
+ *
+ * Source parity: the original engine filters by an isMultiplayer flag
+ * embedded in each .map file header.  We approximate this with name
+ * heuristics since the browser port's map converter doesn't yet extract
+ * that flag.
+ */
+const NON_SKIRMISH_PREFIXES = ['MD ', 'GC ', 'ShellMap', 'USA05 ', 'USA07'];
+const NON_SKIRMISH_SUFFIXES = ['CINE', 'INTRO', 'END', 'END1', 'Sound'];
+const NON_SKIRMISH_EXACT = new Set([
+  'AllBuildingsAllSidesUnitTest Save',
+  'BUG SavedGameandEnabledFolders',
+  'Art Review New Units',
+  'ScenarioSkirmish',
+  'SmokeTest',
+  'Hovercraft',
+]);
+
+export function isSkirmishMapName(name: string): boolean {
+  if (!name) return false;
+  if (NON_SKIRMISH_EXACT.has(name)) return false;
+  for (const prefix of NON_SKIRMISH_PREFIXES) {
+    if (name.startsWith(prefix)) return false;
+  }
+  const lastWord = name.split(' ').pop() ?? '';
+  for (const suffix of NON_SKIRMISH_SUFFIXES) {
+    if (lastWord === suffix) return false;
+  }
+  return true;
+}
+
 export interface GameShellCallbacks {
   /** Called when user clicks "Start Game" from skirmish setup. */
   onStartGame(settings: SkirmishSettings): void;
@@ -490,18 +522,28 @@ export class GameShell {
 
   /**
    * Populate available maps from an asset manifest.
-   * Filters output paths starting with "maps/" and ending with ".json".
+   * Filters output paths starting with "maps/" and ending with ".json",
+   * then strips internal extraction prefixes so only the map's display
+   * name is shown.  Non-skirmish maps (campaign, cinematics, shell maps,
+   * challenge and test maps) are excluded.
+   *
+   * Source parity: SkirmishGameOptionsMenu.cpp populates the map list
+   * from the Maps/ directory, filtering by isMultiplayer flag.  We
+   * approximate this with naming-convention heuristics.
    */
   setAvailableMaps(outputPaths: string[]): void {
     this.availableMaps = outputPaths
       .filter(p => /^maps\//i.test(p) && p.endsWith('.json'))
-      .map(p => ({
-        path: p,
-        name: p
-          .replace(/^maps\//i, '')
-          .replace(/\.json$/i, '')
-          .replace(/_/g, ' '),
-      }))
+      .map(p => {
+        // Extract the basename (final path segment without extension).
+        const segments = p.replace(/\.json$/i, '').split('/');
+        const basename = segments[segments.length - 1] ?? '';
+        return {
+          path: p,
+          name: basename.replace(/_/g, ' ').trim(),
+        };
+      })
+      .filter(m => isSkirmishMapName(m.name))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 

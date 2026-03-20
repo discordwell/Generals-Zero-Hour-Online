@@ -14778,6 +14778,32 @@ describe('skirmish starting entities', () => {
     expect(endState).toBeNull();
   });
 
+  it('getWaypointPosition returns position for Player_N_Start waypoints', () => {
+    // Source parity: TheTerrainLogic->getWaypointByName resolves named
+    // waypoints embedded in the map data.  The browser port replicates
+    // this via resolveScriptWaypointPosition (private) exposed through
+    // the public getWaypointPosition API.
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    const mapData = makeMap([], 128, 128);
+    mapData.waypoints = {
+      nodes: [
+        { id: 1, name: 'Player_1_Start', position: { x: 200, y: 300, z: 0 } },
+        { id: 2, name: 'Player_2_Start', position: { x: 800, y: 700, z: 0 } },
+      ],
+      links: [],
+    };
+    logic.loadMapObjects(mapData, makeRegistry(makeBundle({ objects: [] })), makeHeightmap(128, 128));
+
+    const p1 = logic.getWaypointPosition('Player_1_Start');
+    expect(p1).toEqual({ x: 200, z: 300 });
+
+    const p2 = logic.getWaypointPosition('Player_2_Start');
+    expect(p2).toEqual({ x: 800, z: 700 });
+
+    const missing = logic.getWaypointPosition('NonExistentWaypoint');
+    expect(missing).toBeNull();
+  });
+
   it('skips simultaneous all-side defeat on empty skirmish maps', () => {
     const bundle = makeBundle({
       objects: [

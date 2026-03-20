@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GameShell, type ShellCampaign } from './game-shell.js';
+import { GameShell, isSkirmishMapName, type ShellCampaign } from './game-shell.js';
 import type { GeneralPersona } from './challenge-generals.js';
 import type { StartingCreditsOption } from './shell-runtime-data.js';
 
@@ -293,5 +293,75 @@ describe('GameShell', () => {
     expect(briefingContent).toContain('- GLA controls a Chemical Weapons Plant');
     expect(briefingContent).toContain('Ranger');
     expect(briefingContent).not.toContain('mission01');
+  });
+
+  describe('isSkirmishMapName', () => {
+    it('accepts standard skirmish maps', () => {
+      expect(isSkirmishMapName('Tournament Desert')).toBe(true);
+      expect(isSkirmishMapName('Alpine Assault')).toBe(true);
+      expect(isSkirmishMapName('Winter Wolf')).toBe(true);
+      expect(isSkirmishMapName('Golden Oasis')).toBe(true);
+      expect(isSkirmishMapName('Flash Fire')).toBe(true);
+    });
+
+    it('rejects campaign maps (MD_ prefix)', () => {
+      expect(isSkirmishMapName('MD USA01')).toBe(false);
+      expect(isSkirmishMapName('MD CHI03')).toBe(false);
+      expect(isSkirmishMapName('MD GLA05')).toBe(false);
+      expect(isSkirmishMapName('MD ShellMap')).toBe(false);
+    });
+
+    it('rejects campaign cinematics and intros', () => {
+      expect(isSkirmishMapName('MD USA01 CINE')).toBe(false);
+      expect(isSkirmishMapName('MD GLA04 INTRO')).toBe(false);
+      expect(isSkirmishMapName('MD CHI05 END')).toBe(false);
+      expect(isSkirmishMapName('MD USA03 END1')).toBe(false);
+      expect(isSkirmishMapName('MD GLA04 Sound')).toBe(false);
+    });
+
+    it('rejects Generals Challenge maps (GC_ prefix)', () => {
+      expect(isSkirmishMapName('GC AirGeneral')).toBe(false);
+      expect(isSkirmishMapName('GC TankGeneral')).toBe(false);
+      expect(isSkirmishMapName('GC ChinaBoss')).toBe(false);
+    });
+
+    it('rejects shell and test maps', () => {
+      expect(isSkirmishMapName('ShellMapMD')).toBe(false);
+      expect(isSkirmishMapName('ScenarioSkirmish')).toBe(false);
+      expect(isSkirmishMapName('SmokeTest')).toBe(false);
+      expect(isSkirmishMapName('AllBuildingsAllSidesUnitTest Save')).toBe(false);
+      expect(isSkirmishMapName('BUG SavedGameandEnabledFolders')).toBe(false);
+      expect(isSkirmishMapName('Art Review New Units')).toBe(false);
+      expect(isSkirmishMapName('Hovercraft')).toBe(false);
+    });
+
+    it('rejects USA campaign overflow maps', () => {
+      expect(isSkirmishMapName('USA05 EndsConflict')).toBe(false);
+      expect(isSkirmishMapName('USA05 EndsConflict INTRO')).toBe(false);
+      expect(isSkirmishMapName('USA07-TaskForces')).toBe(false);
+    });
+
+    it('rejects empty string', () => {
+      expect(isSkirmishMapName('')).toBe(false);
+    });
+  });
+
+  it('map dropdown shows clean names and filters non-skirmish maps', () => {
+    const shell = new GameShell(root, { onStartGame: () => undefined });
+    shell.setAvailableMaps([
+      'maps/_extracted/MapsZH/Maps/Tournament Desert/Tournament Desert.json',
+      'maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json',
+      'maps/_extracted/MapsZH/Maps/GC_AirGeneral/GC_AirGeneral.json',
+      'maps/_extracted/MapsZH/Maps/ShellMapMD/ShellMapMD.json',
+      'maps/_extracted/MapsZH/Maps/Alpine Assault/Alpine Assault.json',
+      'maps/_extracted/MapsZH/Maps/MD_USA01_CINE/MD_USA01_CINE.json',
+    ]);
+    shell.show();
+
+    const select = root.querySelector('[data-ref="map-select"]') as HTMLSelectElement;
+    const optionTexts = [...select.options]
+      .map(o => o.textContent)
+      .filter(t => t !== 'Procedural Demo Terrain');
+    expect(optionTexts).toEqual(['Alpine Assault', 'Tournament Desert']);
   });
 });

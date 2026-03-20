@@ -547,6 +547,7 @@ export class ObjectVisualManager {
       visual.assetPath = null;
       this.unresolvedEntityIds.add(entityId);
       this.updatePlaceholderVisibility(entityId, true);
+      this.scalePlaceholder(visual, state);
       return;
     }
 
@@ -561,6 +562,7 @@ export class ObjectVisualManager {
     visual.assetPath = candidateAssetPaths[0] ?? null;
     const normalizedCandidates = candidateAssetPaths;
     this.updatePlaceholderVisibility(entityId, true);
+    this.scalePlaceholder(visual, state);
     this.removeModel(visual);
 
     void (async () => {
@@ -2067,6 +2069,20 @@ export class ObjectVisualManager {
       (mouseX / viewportWidth) * 2 - 1,
       -(mouseY / viewportHeight) * 2 + 1,
     );
+  }
+
+  /**
+   * Scale the placeholder box to approximate the entity's real bounding
+   * volume.  Source parity: the C++ renderer uses GeometryMajorRadius
+   * for bounding-sphere based picking — we use the same radius as the
+   * selection circle, with a minimum of 5 units so tiny entities are
+   * still visible and clickable.
+   */
+  private scalePlaceholder(visual: VisualAssetState, state: RenderableEntityState): void {
+    if (!visual.placeholder) return;
+    const radius = Math.max(state.selectionCircleRadius ?? 1, 5);
+    const diameter = radius * 2;
+    visual.placeholder.scale.set(diameter, diameter, diameter);
   }
 
   private syncPlaceholder(visual: VisualAssetState, entityId: number, visible: boolean): void {

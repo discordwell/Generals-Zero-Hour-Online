@@ -1854,4 +1854,60 @@ describe('condition-state model fallback resolution', () => {
     // resolveModelPath should only be called once (no fallback attempt).
     expect(resolveCallArgs).toEqual(['AVThundrblt_D1']);
   });
+
+  it('placeholder boxes scale to entity selectionCircleRadius', () => {
+    // Source parity: C++ uses GeometryMajorRadius for bounding sphere
+    // based picking.  The TS placeholder box should approximate the
+    // entity's actual footprint so it is visible and clickable.
+    const scene = new THREE.Scene();
+    const modelLoader = () => Promise.reject(new Error('no model'));
+    const manager = new ObjectVisualManager(scene, null, { modelLoader });
+
+    // Use an unresolvable asset path to force placeholder creation.
+    const state = makeMeshState({
+      id: 99,
+      renderAssetPath: '',
+      renderAssetResolved: false,
+      selectionCircleRadius: 15,
+    });
+    manager.sync([state]);
+
+    // Find the placeholder mesh in the scene.
+    let placeholder: THREE.Mesh | null = null;
+    scene.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.name === 'placeholder-99') {
+        placeholder = child;
+      }
+    });
+    expect(placeholder).not.toBeNull();
+    // Diameter = radius * 2 = 30
+    expect(placeholder!.scale.x).toBe(30);
+    expect(placeholder!.scale.y).toBe(30);
+    expect(placeholder!.scale.z).toBe(30);
+  });
+
+  it('placeholder boxes have minimum size of 10 (radius 5)', () => {
+    const scene = new THREE.Scene();
+    const modelLoader = () => Promise.reject(new Error('no model'));
+    const manager = new ObjectVisualManager(scene, null, { modelLoader });
+
+    // Tiny entity with radius < 5 should still get a visible placeholder.
+    const state = makeMeshState({
+      id: 100,
+      renderAssetPath: '',
+      renderAssetResolved: false,
+      selectionCircleRadius: 1,
+    });
+    manager.sync([state]);
+
+    let placeholder: THREE.Mesh | null = null;
+    scene.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.name === 'placeholder-100') {
+        placeholder = child;
+      }
+    });
+    expect(placeholder).not.toBeNull();
+    // Minimum radius 5 → diameter 10
+    expect(placeholder!.scale.x).toBe(10);
+  });
 });
