@@ -208,7 +208,7 @@ export interface PendingControlBarCommand {
 
 export type ControlBarCommandTarget =
   | { kind: 'object'; objectId: number }
-  | { kind: 'position'; x: number; y: number; z: number }
+  | { kind: 'position'; x: number; y: number; z: number; angle?: number }
   | { kind: 'context'; payload: unknown }
   | { kind: 'cancel' };
 
@@ -219,6 +219,7 @@ export interface IssuedControlBarCommand {
   selectedObjectIds: number[];
   targetObjectId?: number;
   targetPosition?: readonly [number, number, number];
+  angle?: number;
   contextPayload?: unknown;
 }
 
@@ -694,6 +695,9 @@ export class ControlBarModel {
 
     if (target?.kind === 'position') {
       command.targetPosition = [target.x, target.y, target.z];
+      if (target.angle !== undefined) {
+        command.angle = target.angle;
+      }
     }
 
     if (target?.kind === 'context') {

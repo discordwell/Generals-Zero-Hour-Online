@@ -1059,7 +1059,7 @@ export function dispatchIssuedControlBarCommands(
             entityId,
             templateName,
             targetPosition,
-            angle: contextPayload.buildRotation ?? 0,
+            angle: command.angle ?? contextPayload.buildRotation ?? 0,
             lineEndPosition: contextPayload.placeLineEndPosition,
           }),
           gameLogic,

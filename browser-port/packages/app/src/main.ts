@@ -1169,6 +1169,7 @@ async function startGame(
   let lastGhostCellX = -1; // Cached ghost validity grid cell
   let lastGhostCellZ = -1;
   let lastTabEntityId = -1; // For Tab cycling by entity ID
+  let buildingGhostAngle = 0; // Building placement rotation (radians)
 
   // Power HUD indicator (below credits) — reuse existing element on restart.
   let powerHud = document.getElementById('power-hud') as HTMLDivElement | null;
@@ -2370,6 +2371,7 @@ async function startGame(
         }
         buildingGhostTemplateName = null;
         buildingGhostLoadingTemplate = null;
+        buildingGhostAngle = 0;
       }
       return;
     }
@@ -2400,8 +2402,17 @@ async function startGame(
       return;
     }
 
+    // Source parity: Z/C keys rotate building placement (15° per press).
+    if (inputState.keysPressed.has('z')) {
+      buildingGhostAngle += Math.PI / 12;
+    }
+    if (inputState.keysPressed.has('c')) {
+      buildingGhostAngle -= Math.PI / 12;
+    }
+
     const y = heightmap.getInterpolatedHeight(worldTarget.x, worldTarget.z);
     buildingGhostGroup.position.set(worldTarget.x, y + 1, worldTarget.z);
+    buildingGhostGroup.rotation.y = buildingGhostAngle;
 
     // Source parity: ghost turns red when placement is invalid.
     // Only re-evaluate when cursor moves to a different grid cell.
@@ -2683,6 +2694,7 @@ async function startGame(
               x: worldTarget.x,
               y: 0,
               z: worldTarget.z,
+              angle: buildingGhostAngle,
             });
           } else {
             uiRuntime.showMessage('Select a valid ground target.');
@@ -2948,11 +2960,23 @@ async function startGame(
         }
       }
 
-      // X — scatter/spread out selected units.
+      // X — scatter selected units in random directions.
+      // Source parity: C++ InGameUI scatter moves each unit 30-60 units in a random direction.
       if (!missionInputLocked && inputState.keysPressed.has('x')) {
         const selIds = gameLogic.getLocalPlayerSelectionIds();
         for (const id of selIds) {
-          gameLogic.submitCommand({ type: 'stop', entityId: id, commandSource: 'PLAYER' });
+          const pos = gameLogic.getEntityWorldPosition(id);
+          if (pos) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 30 + Math.random() * 30;
+            gameLogic.submitCommand({
+              type: 'moveTo',
+              entityId: id,
+              targetX: pos[0] + Math.cos(angle) * dist,
+              targetZ: pos[2] + Math.sin(angle) * dist,
+              commandSource: 'PLAYER',
+            });
+          }
         }
       }
 
