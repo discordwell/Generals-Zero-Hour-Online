@@ -181,10 +181,13 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
         // pathIndex to 0, preventing the entity from advancing along its path.
         // Only re-issue when the entity has stopped (path exhausted or blocked),
         // or when the target has moved significantly from where we're heading.
+        // Re-chase if target has moved more than half the weapon range from original position.
+        // Squared threshold: (0.5 * range)^2 = 0.25 * range^2.
+        const CHASE_REPATH_THRESHOLD_SQR_FACTOR = 0.25;
         const origPos = attacker.attackOriginalVictimPosition;
         const targetMoved = origPos
           ? (target.x - origPos.x) * (target.x - origPos.x)
-            + (target.z - origPos.z) * (target.z - origPos.z) > attackRangeSqr * 0.25
+            + (target.z - origPos.z) * (target.z - origPos.z) > attackRangeSqr * CHASE_REPATH_THRESHOLD_SQR_FACTOR
           : false;
         if (!attacker.moving || targetMoved) {
           context.issueMoveTo(attacker.id, target.x, target.z, attackRange);

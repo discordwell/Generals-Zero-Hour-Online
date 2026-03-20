@@ -1516,6 +1516,8 @@ export class ObjectVisualManager {
 
     const colorHex = side ? (ObjectVisualManager.TEAM_COLORS[side] ?? null) : null;
     if (colorHex === null) {
+      // Clear any previously applied tint for neutral/civilian/unknown sides.
+      this.clearModelEmissive(visual);
       return;
     }
 
@@ -1531,6 +1533,21 @@ export class ObjectVisualManager {
         if (stdMat.isMeshStandardMaterial) {
           stdMat.emissive.copy(tintColor);
           stdMat.emissiveIntensity = tintIntensity;
+        }
+      }
+    });
+  }
+
+  private clearModelEmissive(visual: VisualAssetState): void {
+    if (!visual.currentModel) return;
+    visual.currentModel.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const mat of materials) {
+        const stdMat = mat as THREE.MeshStandardMaterial;
+        if (stdMat.isMeshStandardMaterial) {
+          stdMat.emissiveIntensity = 0;
         }
       }
     });
