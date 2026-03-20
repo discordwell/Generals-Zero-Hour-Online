@@ -2220,6 +2220,16 @@ async function startGame(
       if (selectedIds.length > 0) {
         controlGroups.set(digit, [...selectedIds]);
       }
+    } else if (e.shiftKey && !e.altKey && !(e.ctrlKey || e.metaKey)) {
+      // Shift+N: append current selection to group N.
+      // Source parity: C++ InGameUI adds to existing group without replacing.
+      e.preventDefault();
+      const selectedIds = gameLogic.getLocalPlayerSelectionIds();
+      if (selectedIds.length > 0) {
+        const existing = controlGroups.get(digit) ?? [];
+        const merged = [...new Set([...existing, ...selectedIds])];
+        controlGroups.set(digit, merged);
+      }
     } else if (!e.altKey && !e.shiftKey) {
       // N: recall group N.
       const group = controlGroups.get(digit);
@@ -2956,6 +2966,20 @@ async function startGame(
               targetZ: pos[2],
               guardMode: 1, // GUARDMODE_GUARD_WITHOUT_PURSUIT
             });
+          }
+        }
+      }
+
+      // Home — center camera on player's Command Center.
+      // Source parity: C++ InGameUI Home key snaps to the player's primary base.
+      if (inputState.keysPressed.has('home')) {
+        const ccId = gameLogic.resolveCommandCenterEntityId(
+          networkManager.getLocalPlayerID(),
+        );
+        if (ccId !== null) {
+          const pos = gameLogic.getEntityWorldPosition(ccId);
+          if (pos) {
+            rtsCamera.panTo(pos[0], pos[2]);
           }
         }
       }
