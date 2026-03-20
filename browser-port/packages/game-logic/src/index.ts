@@ -22637,11 +22637,13 @@ export class GameLogicSubsystem implements Subsystem {
         return result;
       },
       getBuildableStructures: (entity: MapEntity) => {
-        if (!entity.productionProfile) return [];
-        // Source parity: buildable structures come from command set DOZER_CONSTRUCT buttons.
+        // Source parity: buildable structures come from DOZER_CONSTRUCT
+        // buttons in the entity's CommandSet. Dozers don't have
+        // ProductionUpdate modules — they use CommandSet buttons.
         const fromCommandSet = this.collectCommandSetTemplates(entity, ['DOZER_CONSTRUCT']);
         if (fromCommandSet.length > 0) return fromCommandSet;
-        // Fallback to quantityModifiers for tests without command set data.
+        // Fallback to quantityModifiers for production buildings without command set data.
+        if (!entity.productionProfile) return [];
         return entity.productionProfile.quantityModifiers
           .filter(qm => {
             const upper = qm.templateName.toUpperCase();
