@@ -1,5 +1,38 @@
 # Session Summaries
 
+## 2026-03-19T18:15Z — Wet Test Parity Sprint: 6 Fixes, Bundle Data Recovery
+- **Debug overlay**: Removed per-frame dump of all 784 entity IDs. Now shows only unresolved count. (commit f2026f6c)
+- **Map dropdown**: Fixed manifest path extraction (`_extracted/MapsZH/Maps/...` → clean basename), `isSkirmishMapName()` filter. 46 skirmish maps match retail. (commit f2026f6c)
+- **Initial camera**: Changed from map center to `Player_1_Start` waypoint, added `getWaypointPosition()` public API. (commit f2026f6c)
+- **Placeholder boxes**: Scaled from 1×1×1 to `selectionCircleRadius * 2` (min 10). Entities visible+clickable before models load. (commit f2026f6c)
+- **Model load queue**: Limited concurrent HTTP requests to 8 via FIFO queue. Prevents browser connection exhaustion on map load. FPS improved 2→5. (commit 908e660a)
+- **INI bundle data recovery**: `mergeBundles()` was missing 7 data types (added after merge function was written). Merged into bundle: 79 SpecialPowers, 282 OCLs, 4045 AudioEvents, 1084 ParticleSystems, 426 FXLists. Fixes 133 broken CommandButton references. (commit 483bba29)
+- **Pre-existing test fix**: Added missing `vi` import in runtime-guardrails.test.ts
+- **Code review fixes**: Added `getUnresolvedEntityCount()` for per-frame perf, TODO for campaign camera fallback, invisible entity filtering (ambient sounds/waypoints/roads skip placeholders — unresolved count 273→204).
+- **Code review fixes**: `getUnresolvedEntityCount()` for per-frame perf, TODO for campaign camera fallback, invisible entity filtering.
+- **Non-entity map object filter**: Skip DirtRoad/Sidewalk/GravelRoad/Waypoint objects from entity spawning (C++ handles via TerrainRoadRenderer/WaypointManager). Reduces Tournament Desert entities 784→~580.
+- **SpecialPower case-insensitive lookup**: C++ NameKeyGenerator lowercases all names. Registry now uppercases SpecialPower keys. Fixes 133 CommandButton warnings.
+- **Final wet test**: 3D models ARE rendering (untextured geometric shapes for trees/buildings visible). No magenta placeholder spam. Debug overlay clean. Camera at player start.
+- **Texture investigation**: GLBs only embed textures for meshes with TEXTURES chunk entries that match available .rgba files. Most materials get default white baseColorFactor. Fixing requires re-running W3D conversion with full texture directory.
+- **Edge scroll suppression**: Suppress edge scroll when mouse button is down, preventing camera drift during entity selection at low FPS.
+- **DefaultProductionExitUpdate recognition**: Entity factory now matches C++ DefaultProductionExitUpdate (used by all retail buildings). Previously only QueueProductionExitUpdate was recognized, causing produced units to silently fail to spawn.
+- **SpecialPower case-insensitive lookup**: Registry uppercases SpecialPower keys matching C++ NameKeyGenerator. Fixes 133 CommandButton warnings.
+- **Wet test milestones**: Entity selection works (green ring + command card with build buttons). Production queue deducts credits correctly. 3D models render for all resolved entities. Zero unresolved visuals.
+- **Caddy cache headers**: `no-cache` on index.html, `immutable` on hashed JS/CSS — deploys take effect immediately without IDB/browser cache issues.
+- **Wet test verified gameplay loop**: CC trains dozer (credits deducted, unit spawns, entity count increases), unit movement works (pathfinding functional), entity selection shows green ring + command card with real build buttons.
+- **Gameplay loop integration test**: Full cycle verified: CC trains dozer, dozer builds power plant + barracks, barracks trains ranger, ranger attacks enemy tank. All credits deducted correctly.
+- **Caddy cache fix**: Added no-cache headers for index.html, manifest.json, ini-bundle.json to prevent stale deploys.
+- **Supply chain verified**: Supply trucks gather from warehouses, deposit at supply centers, credits earned. Fog of war vision required for warehouse discovery.
+- **Gameplay loop test**: Full skirmish cycle verified (build, train, combat) with real CommandSet/CommandButton data.
+- **Critical AI fix**: `getBuildableStructures()` now checks CommandSet for DOZER_CONSTRUCT without requiring ProductionUpdate. AI was never building because dozers returned empty buildable lists.
+- 26 new tests (3316 total), 12 commits, deployed to generals.discordwell.com.
+- **Manifest hash fix**: Updated manifest.json with correct ini-bundle.json SHA-256 hash after data recovery. Without this, integrity check fails on fresh load.
+- **Construction transparency**: Under-construction buildings render semi-transparent (30%→90% opacity ramp).
+- **Manifest no-cache fetch**: `loadManifest()` uses `{ cache: 'no-cache' }` to prevent stale hashes.
+- **Caddy no-cache**: Applied to index.html, manifest.json, ini-bundle.json; immutable on hashed JS/CSS.
+- **Known issue**: Multiple open generals.discordwell.com tabs can lock IDB, causing stuck "Initializing engine..." on reload. Fix: close all tabs and open fresh.
+- 28 new tests (3317 total), 15 commits, deployed to generals.discordwell.com.
+
 ## 2026-03-12T17:55Z — Containment Round 2: HealContain Exit Fix + Overlord Damage Propagation
 - **HealContain bug fix**: Auto-ejected units now use `resolveContainerEvacuationPositions` for scatter exit instead of teleporting to container center
 - **Overlord damage state propagation** (C++ parity: OverlordContain.cpp:164-177): When Overlord/Helix takes damage that changes body state, propagate to single rider via `setEntityBodyDamageState`. Only when exactly 1 rider and not RUBBLE.
