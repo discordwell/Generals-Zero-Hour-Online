@@ -23,7 +23,12 @@
 - **Slope-based terrain coloring**: Cliff faces now blend toward darker rocky color for visual variety.
 - **Minimap throttle**: Minimap renders every 3rd frame instead of every frame.
 - **Cached render states**: `getRenderableEntityStates()` cached per frame — 9 calls reduced to 1 (eliminates ~4600 object allocations/frame).
-- 3323 tests passing (5 new), 19 commits, deployed to generals.discordwell.com.
+- **Scatter command (X)**: Units now scatter in random directions (30-60 units) instead of just stopping.
+- **Building rotation (Z/C)**: Players can rotate building placement ghost by 15° per keypress. Angle propagated to constructBuilding command.
+- **Right-click transport entry**: Right-clicking on a friendly transport with units selected issues enterTransport command.
+- **Shift+N control group append**: Adds current selection to existing group without replacing.
+- **Home key**: Centers camera on player's Command Center.
+- 3323 tests passing (5 new), 23 commits, deployed to generals.discordwell.com.
 
 ## 2026-03-19T18:15Z — Wet Test Parity Sprint: 6 Fixes, Bundle Data Recovery
 - **Debug overlay**: Removed per-frame dump of all 784 entity IDs. Now shows only unresolved count. (commit f2026f6c)
