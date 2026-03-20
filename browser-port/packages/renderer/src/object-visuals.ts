@@ -321,7 +321,9 @@ export class ObjectVisualManager {
       }
       this.syncAnimationSpeed(visual, state);
       this.syncTreadScrolling(visual, state, dt);
-      if (visual.mixer) {
+      // Only tick animation mixer when there are active animation actions.
+      // Static entities (trees, props) have mixers but no playing clips.
+      if (visual.mixer && visual.actions.size > 0) {
         visual.mixer.update(dt);
       }
     }
@@ -553,8 +555,18 @@ export class ObjectVisualManager {
   }
 
   private syncVisualAsset(visual: VisualAssetState, state: RenderableEntityState): void {
-    const candidateAssetPaths = this.collectCandidateAssetPaths(state);
     const entityId = visual.root.userData.entityId as number;
+
+    // Fast path: if the model is already loaded and the primary asset path
+    // hasn't changed, skip the full candidate collection.
+    const primaryPath = this.selectAssetPath(state.renderAssetPath, state.renderAssetResolved);
+    if (visual.currentModel !== null && visual.assetPath !== null && visual.assetPath === primaryPath) {
+      this.unresolvedEntityIds.delete(entityId);
+      this.updatePlaceholderVisibility(entityId, false);
+      return;
+    }
+
+    const candidateAssetPaths = this.collectCandidateAssetPaths(state);
 
     if (candidateAssetPaths.length === 0) {
       if (visual.currentModel !== null) {
