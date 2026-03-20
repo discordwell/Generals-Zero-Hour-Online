@@ -778,19 +778,32 @@ function findMultipleTargets<TEntity extends AIEntity>(
 
 // Generic build order priorities by keyword match.
 // Source parity: AISkirmishPlayer.cpp tracks build list templates.
+// Source parity: AIPlayer::m_buildList / SkirmishGameInfo build priorities.
+// Keywords match against the buildable template name (case-insensitive).
+// Order matters — first unbuilt keyword is built first.
 const BUILD_ORDER_KEYWORDS = [
+  // Power (USA/China have power plants; GLA doesn't need power)
   'POWERPLANT', 'REACTOR', 'COLDFU',
+  // Infantry production
   'BARRACKS', 'ARMSTRAINING',
-  'WARFACTORY', 'ARMSFACTORY',
-  'SUPPLYC',
-  'AIRFIELD', 'STRATCENTER', 'COMMANDCENTER',
+  // Vehicle/heavy production
+  'WARFACTORY', 'ARMSFACTORY', 'ARMSDEALER',
+  // Economy
+  'SUPPLYC', 'SUPPLYSTASH', 'BLACKMARKET',
+  // Tech / advanced
+  'AIRFIELD', 'STRATCENTER', 'STRATEGYCENTER', 'INTERNETCENTER',
+  'PROPAGANDACENTER', 'PALACE', 'COMMANDCENTER',
   'RADAR',
   // Defense structures (built later).
-  'PATRIOT', 'GATTLINGCANNON', 'BUNKER', 'STINGERMISSILE', 'TUNNELNETWORK',
+  'PATRIOT', 'GATTLINGCANNON', 'GATTLING', 'BUNKER',
+  'STINGERMISSILE', 'STINGERSITE', 'TUNNELNETWORK',
+  'SPEAKERTOWER', 'FIREBASE',
 ];
 
 const DEFENSE_KEYWORDS = new Set([
-  'PATRIOT', 'GATTLINGCANNON', 'BUNKER', 'STINGERMISSILE', 'TUNNELNETWORK',
+  'PATRIOT', 'GATTLINGCANNON', 'GATTLING', 'BUNKER',
+  'STINGERMISSILE', 'STINGERSITE', 'TUNNELNETWORK',
+  'SPEAKERTOWER', 'FIREBASE',
 ]);
 
 function evaluateStructures<TEntity extends AIEntity>(
