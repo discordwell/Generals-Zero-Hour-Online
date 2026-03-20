@@ -1097,10 +1097,10 @@ interface NavigationGrid {
 
 export const PATHFIND_CELL_SIZE = MAP_XY_FACTOR;
 // Source parity: C++ uses ~9.8 but the browser port heightmap has
-// different resolution, causing over-classification of cliffs.
-// Raised to 15.0 to reduce impassable terrain on maps like
-// Tournament Desert (was 51% cliff → ~35% with this threshold).
-export const CLIFF_HEIGHT_DELTA = 15.0;
+// different resolution (per-vertex vs per-cell), causing steeper
+// apparent gradients. Raised to 25.0 to allow pathfinding across
+// the full map on Tournament Desert.
+export const CLIFF_HEIGHT_DELTA = 25.0;
 const PATHFIND_ZONE_BLOCK_SIZE = 10;
 export const NO_ATTACK_DISTANCE = 0;
 export const ATTACK_MOVE_DISTANCE_FUDGE = 3 * MAP_XY_FACTOR;
