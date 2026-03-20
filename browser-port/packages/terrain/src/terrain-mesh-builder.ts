@@ -24,14 +24,18 @@ export interface TerrainChunk {
   cellsTall: number;
 }
 
-/** Height-based color gradient for vertex coloring. */
+/**
+ * Height-based color gradient for vertex coloring.
+ * Approximates the Generals desert terrain palette — sandy tans,
+ * dry earth browns, and rocky greys for elevation.
+ */
 const COLOR_STOPS: Array<{ height: number; color: [number, number, number] }> = [
-  { height: 0, color: [0.18, 0.32, 0.12] },     // deep green (low areas)
-  { height: 0.2, color: [0.35, 0.55, 0.20] },    // grass green
-  { height: 0.4, color: [0.55, 0.50, 0.28] },    // yellow-green
-  { height: 0.6, color: [0.60, 0.45, 0.25] },    // brown
-  { height: 0.8, color: [0.52, 0.48, 0.42] },    // gray-brown (rock)
-  { height: 1.0, color: [0.72, 0.70, 0.66] },    // light gray (peaks)
+  { height: 0, color: [0.55, 0.45, 0.30] },     // dark sand (low/valleys)
+  { height: 0.2, color: [0.68, 0.58, 0.38] },    // warm sand
+  { height: 0.4, color: [0.72, 0.62, 0.42] },    // light sand
+  { height: 0.6, color: [0.62, 0.52, 0.35] },    // dry earth
+  { height: 0.8, color: [0.55, 0.50, 0.42] },    // rocky brown
+  { height: 1.0, color: [0.68, 0.65, 0.58] },    // light rock (peaks)
 ];
 
 function getHeightColor(normalizedHeight: number): [number, number, number] {
