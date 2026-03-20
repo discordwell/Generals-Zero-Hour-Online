@@ -175,12 +175,21 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
     // Source parity: Weapon.cpp:873 — skip range check for leech range weapons with active lock.
     if (distanceSqr > attackRangeSqr && !(weapon.leechRangeWeapon && attacker.leechRangeActive)) {
       context.setEntityAimingWeaponStatus(attacker, false);
-      if (attacker.canMove && !attacker.moving) {
+      if (attacker.canMove) {
         // Source parity: C++ AIAttackState only issues moveToObject on state
         // entry, not every frame. Re-issuing issueMoveTo every frame resets
         // pathIndex to 0, preventing the entity from advancing along its path.
-        // Only re-issue when the entity has stopped (path exhausted or blocked).
-        context.issueMoveTo(attacker.id, target.x, target.z, attackRange);
+        // Only re-issue when the entity has stopped (path exhausted or blocked),
+        // or when the target has moved significantly from where we're heading.
+        const origPos = attacker.attackOriginalVictimPosition;
+        const targetMoved = origPos
+          ? (target.x - origPos.x) * (target.x - origPos.x)
+            + (target.z - origPos.z) * (target.z - origPos.z) > attackRangeSqr * 0.25
+          : false;
+        if (!attacker.moving || targetMoved) {
+          context.issueMoveTo(attacker.id, target.x, target.z, attackRange);
+          attacker.attackOriginalVictimPosition = { x: target.x, z: target.z };
+        }
       }
       attacker.preAttackFinishFrame = 0;
       continue;
