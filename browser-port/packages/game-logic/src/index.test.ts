@@ -7416,6 +7416,60 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     expect(info?.hasAutoRallyPoint).toBe(true);
   });
 
+  it('dozer constructs building with full CommandSet data', () => {
+    // Verify end-to-end construction pipeline with real retail-like
+    // CommandSet/CommandButton data (not the permissive fallback).
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TestDozer', 'America', ['VEHICLE', 'DOZER'], [], {
+          CommandSet: 'TestDozerCommandSet',
+        }),
+        makeObjectDef('TestPowerPlant', 'America', ['STRUCTURE'], [], {
+          BuildCost: 500,
+          BuildTime: 2,
+        }),
+      ],
+      commandSets: [
+        makeCommandSetDef('TestDozerCommandSet', { '1': 'Command_BuildTestPP' }),
+      ],
+      commandButtons: [
+        makeCommandButtonDef('Command_BuildTestPP', {
+          Command: 'DOZER_CONSTRUCT',
+          Object: 'TestPowerPlant',
+        }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestDozer', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setPlayerSide(0, 'America');
+    logic.submitCommand({ type: 'setSideCredits', side: 'America', amount: 5000 });
+
+    const dozerId = logic.getRenderableEntityStates()[0]!.id;
+    logic.submitCommand({
+      type: 'constructBuilding',
+      entityId: dozerId,
+      templateName: 'TestPowerPlant',
+      targetPosition: [60, 0, 60],
+      angle: 0,
+      lineEndPosition: null,
+    });
+    logic.update(1 / 30);
+
+    // Credits should be deducted
+    const sideCredits = logic.getSideCredits('america');
+    expect(sideCredits).toBe(4500); // 5000 - 500
+
+    // Building should exist (under construction)
+    const entities = logic.getRenderableEntityStates();
+    const buildings = entities.filter(e => e.templateName === 'TestPowerPlant');
+    expect(buildings.length).toBe(1);
+  });
+
   it('refunds all queued unit production when a producer dies before completion', () => {
     const timeline = runProducerDeathUnitRefundTimeline();
     expect(timeline.credits).toEqual([500, 500, 500]);
