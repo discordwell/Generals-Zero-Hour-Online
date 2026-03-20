@@ -2794,6 +2794,31 @@ async function startGame(
         }
       }
 
+      // G — guard position (selected units hold position and defend area).
+      if (!missionInputLocked && inputState.keysPressed.has('g')) {
+        const selIds = gameLogic.getLocalPlayerSelectionIds();
+        for (const id of selIds) {
+          const pos = gameLogic.getEntityWorldPosition(id);
+          if (pos) {
+            gameLogic.submitCommand({
+              type: 'guardPosition',
+              entityId: id,
+              targetX: pos[0],
+              targetZ: pos[2],
+              guardMode: 1, // GUARDMODE_GUARD_WITHOUT_PURSUIT
+            });
+          }
+        }
+      }
+
+      // X — scatter/spread out selected units.
+      if (!missionInputLocked && inputState.keysPressed.has('x')) {
+        const selIds = gameLogic.getLocalPlayerSelectionIds();
+        for (const id of selIds) {
+          gameLogic.submitCommand({ type: 'stop', entityId: id, commandSource: 'PLAYER' });
+        }
+      }
+
       // F9 — toggle diplomacy overlay.
       if (inputState.keysPressed.has('f9') && !gameEnded) {
         diplomacyScreen.toggle();
