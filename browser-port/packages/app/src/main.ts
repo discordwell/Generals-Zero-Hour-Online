@@ -1125,14 +1125,12 @@ async function startGame(
   // Set map bounds
   rtsCamera.setMapBounds(0, heightmap.worldWidth, 0, heightmap.worldDepth);
 
-  // Source parity: GameLogic.cpp:1790 first checks InitialCameraPosition
-  // waypoint, then overrides to Player_N_Start for multiplayer/skirmish.
-  // We go directly to Player_1_Start (correct for skirmish).
-  // TODO: For campaign maps, also try 'InitialCameraPosition' waypoint
-  // before falling back to map center (see GameLogic.cpp:1790).
-  const playerStartPos = gameLogic.getWaypointPosition('Player_1_Start');
-  if (playerStartPos) {
-    rtsCamera.lookAt(playerStartPos.x, playerStartPos.z);
+  // Source parity: GameLogic.cpp:1790 checks InitialCameraPosition first
+  // (used by campaign maps), then Player_N_Start for skirmish, else map center.
+  const cameraWaypoint = gameLogic.getWaypointPosition('InitialCameraPosition')
+    ?? gameLogic.getWaypointPosition('Player_1_Start');
+  if (cameraWaypoint) {
+    rtsCamera.lookAt(cameraWaypoint.x, cameraWaypoint.z);
   } else {
     rtsCamera.lookAt(heightmap.worldWidth / 2, heightmap.worldDepth / 2);
   }
