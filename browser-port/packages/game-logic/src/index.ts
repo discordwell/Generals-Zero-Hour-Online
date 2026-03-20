@@ -22653,8 +22653,12 @@ export class GameLogicSubsystem implements Subsystem {
           .map(qm => qm.templateName);
       },
       isDozerBusy: (entity: MapEntity) => {
-        return entity.moving || entity.productionQueue.length > 0
-          || this.pendingConstructionActions.has(entity.id);
+        // Source parity: DozerAIUpdate only considers the dozer busy when
+        // it has an active construction task — not when merely walking.
+        // A dozer walking back from a completed build is available for
+        // new build commands.
+        return this.pendingConstructionActions.has(entity.id)
+          || this.pendingRepairActions.has(entity.id);
       },
       getSidePowerBalance: (side: string) => {
         const ps = this.getSidePowerState(side);
