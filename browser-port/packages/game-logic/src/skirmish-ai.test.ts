@@ -99,4 +99,68 @@ describe('skirmish AI', () => {
     // It starts with CC + Dozer (2 entities) and should have more after 30 seconds
     expect(chinaEntities.length).toBeGreaterThan(2);
   });
+
+  it('AI builds multiple structures in sequence (power plant then barracks)', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('AICC', 'China', ['STRUCTURE', 'COMMANDCENTER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 5000, InitialHealth: 5000 }),
+        ], { VisionRange: 200, ShroudClearingRange: 200 }),
+        makeObjectDef('AIDozer', 'China', ['VEHICLE', 'DOZER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('LocomotorSet', 'SET_NORMAL Loco', {}),
+        ], { CommandSet: 'AIDozerCS', VisionRange: 200, ShroudClearingRange: 200 }),
+        makeObjectDef('AIPowerPlant', 'China', ['STRUCTURE', 'FS_POWER'], [
+          makeBlock('Body', 'StructureBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+        ], { BuildCost: 500, BuildTime: 1 }),
+        makeObjectDef('AIBarracks', 'China', ['STRUCTURE', 'FS_FACTORY'], [
+          makeBlock('Body', 'StructureBody ModuleTag_Body', { MaxHealth: 2000, InitialHealth: 2000 }),
+        ], { BuildCost: 600, BuildTime: 1 }),
+      ],
+      locomotors: [makeLocomotorDef('Loco', 60)],
+      commandSets: [
+        makeCommandSetDef('AIDozerCS', {
+          '1': 'Cmd_BuildPP',
+          '2': 'Cmd_BuildBarracks',
+        }),
+      ],
+      commandButtons: [
+        makeCommandButtonDef('Cmd_BuildPP', { Command: 'DOZER_CONSTRUCT', Object: 'AIPowerPlant' }),
+        makeCommandButtonDef('Cmd_BuildBarracks', { Command: 'DOZER_CONSTRUCT', Object: 'AIBarracks' }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    const mapData = makeMap([
+      makeMapObject('AICC', 100, 100),
+      makeMapObject('AIDozer', 120, 100),
+    ], 256, 256);
+    mapData.waypoints = {
+      nodes: [
+        { id: 1, name: 'Player_1_Start', position: { x: 50, y: 50, z: 0 } },
+        { id: 2, name: 'Player_2_Start', position: { x: 100, y: 100, z: 0 } },
+      ],
+      links: [],
+    };
+
+    logic.loadMapObjects(mapData, makeRegistry(bundle), makeHeightmap(256, 256));
+    logic.setPlayerSide(0, 'America');
+    logic.setPlayerSide(1, 'China');
+    logic.submitCommand({ type: 'setSideCredits', side: 'China', amount: 10000 });
+    logic.enableSkirmishAI('China');
+
+    // Run 3 game-minutes (5400 frames) in chunks
+    for (let i = 0; i < 54; i++) {
+      for (let j = 0; j < 100; j++) logic.update(1 / 30);
+    }
+
+    const entities = logic.getRenderableEntityStates();
+    const chinaEntities = entities.filter(e => e.side?.toLowerCase() === 'china');
+    const chinaTemplates = chinaEntities.map(e => e.templateName);
+
+    // AI should have built BOTH power plant AND barracks
+    expect(chinaTemplates).toContain('AIPowerPlant');
+    expect(chinaTemplates).toContain('AIBarracks');
+    expect(chinaEntities.length).toBeGreaterThanOrEqual(4); // CC + Dozer + PP + Barracks
+  });
 });
