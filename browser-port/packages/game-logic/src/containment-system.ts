@@ -12,7 +12,7 @@ import {
   executeRailedTransportCommand as executeRailedTransportCommandImpl,
 } from './railed-transport.js';
 import { isPassengerAllowedToFireFromContainingObject as isPassengerAllowedToFireFromContainingObjectImpl } from './combat-containment.js';
-import { RELATIONSHIP_ENEMIES, BASE_REGEN_HEALTH_PERCENT_PER_SECOND, LOGIC_FRAME_RATE } from './index.js';
+import { RELATIONSHIP_ENEMIES, BASE_REGEN_HEALTH_PERCENT_PER_SECOND, LOGIC_FRAME_RATE, calcBodyDamageState } from './index.js';
 type GL = any;
 
 // ---- Containment implementations ----
@@ -507,6 +507,16 @@ export function canExecuteGarrisonBuildingEnterAction(self: GL,
   }
   if (!canTargetAcceptContainerEnter(self, building)) {
     return false;
+  }
+
+  // Source parity: GarrisonContain::isValidContainerFor (GarrisonContain.cpp:518-547)
+  // ReallyDamaged buildings are not garrisonable unless GARRISONABLE_UNTIL_DESTROYED.
+  const buildingDamageState = calcBodyDamageState(building.health, building.maxHealth);
+  if (buildingDamageState >= 2) {
+    const buildingKindOf = self.resolveEntityKindOfSet(building);
+    if (!buildingKindOf.has('GARRISONABLE_UNTIL_DESTROYED')) {
+      return false;
+    }
   }
 
   const sourceKindOf = self.resolveEntityKindOfSet(source);

@@ -420,15 +420,12 @@ describe('garrison entry rejection at REALLYDAMAGED', () => {
    * In C++, buildings at BODY_REALLYDAMAGED (health <= 10% of max) reject new
    * garrison entries unless the building has KINDOF_GARRISONABLE_UNTIL_DESTROYED.
    *
-   * TS behavior: canExecuteGarrisonBuildingEnterAction() in containment-system.ts
-   * does NOT check the building's damage state. It only checks capacity,
-   * kindOf flags (INFANTRY required, NO_GARRISON rejected), and containment
-   * module type. A REALLYDAMAGED building will still accept garrison entries.
-   *
-   * Parity gap: TS allows garrisoning REALLYDAMAGED buildings; C++ rejects it.
+   * TS parity: canExecuteGarrisonBuildingEnterAction() in containment-system.ts
+   * now checks the building's body damage state. Buildings at REALLYDAMAGED or
+   * RUBBLE reject garrison entry unless they have GARRISONABLE_UNTIL_DESTROYED.
    */
 
-  it('allows garrisoning a REALLYDAMAGED building (TS parity gap — C++ rejects this)', () => {
+  it('rejects garrisoning a REALLYDAMAGED building (C++ parity)', () => {
     // REALLYDAMAGED threshold: health/maxHealth <= 0.1 (10%).
     // For MaxHealth=1000, health <= 100 = REALLYDAMAGED.
     // Weapon does 10 damage/shot every ~3 frames. 280 frames ≈ 93 shots = 930 damage.
@@ -501,17 +498,15 @@ describe('garrison entry rejection at REALLYDAMAGED', () => {
     logic.submitCommand({ type: 'garrisonBuilding', entityId: 2, targetBuildingId: 1 });
     for (let i = 0; i < 30; i++) logic.update(1 / 30);
 
-    // TS behavior: garrison entry succeeds even at REALLYDAMAGED.
-    // C++ behavior: GarrisonContain::isValidContainerFor() would reject this.
-    //
-    // Document parity gap: check that the garrison DID succeed in TS.
+    // C++ parity: GarrisonContain::isValidContainerFor() rejects entry at REALLYDAMAGED.
+    // TS now matches — garrison entry should be rejected.
     const buildingState = logic.getEntityState(1);
     const infantryState = logic.getEntityState(2);
 
-    // In TS, the infantry should be garrisoned (LOADED model condition set).
-    // In C++, this entry would be rejected — building is REALLYDAMAGED.
-    expect(buildingState!.modelConditionFlags ?? []).toContain('LOADED');
-    expect(infantryState!.statusFlags ?? []).toContain('DISABLED_HELD');
+    // Building should NOT have LOADED condition (no one garrisoned).
+    expect(buildingState!.modelConditionFlags ?? []).not.toContain('LOADED');
+    // Infantry should NOT be held (garrison rejected).
+    expect(infantryState!.statusFlags ?? []).not.toContain('DISABLED_HELD');
   });
 
   it('GARRISONABLE_UNTIL_DESTROYED building accepts garrison at REALLYDAMAGED (matches C++)', () => {
