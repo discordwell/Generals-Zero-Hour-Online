@@ -139,18 +139,8 @@ describe('parity veterancy: health bonus on level-up', () => {
     expect(result.newHealth).toBe(150);
   });
 
-  /**
-   * PARITY GAP: The TS game logic (index.ts:30732) hardcodes DEFAULT_VETERANCY_CONFIG
-   * which has all 1.0 bonuses. The C++ source loads these from GameData.ini via
-   * TheGlobalData->m_healthBonus[level]. If the retail INI had non-1.0 values, the
-   * TS port would not apply health bonuses on promotion.
-   *
-   * The applyHealthBonusForLevelChange function itself is correctly implemented —
-   * it properly handles the multiplier math. The gap is only that the config values
-   * are not loaded from INI (they use hardcoded defaults).
-   */
-  it('integration: unit promoted via combat uses DEFAULT_VETERANCY_CONFIG (no health change)', () => {
-    // Create a scenario where the attacker can level up by killing the target.
+  it('integration: unit promoted via combat with no gameData config (defaults to no health change)', () => {
+    // When no gameData is provided, health bonuses default to [1,1,1,1] — no change.
     const agent = createParityAgent({
       bundles: {
         objects: [
@@ -199,8 +189,79 @@ describe('parity veterancy: health bonus on level-up', () => {
     const killerAfter = agent.entity(1)!;
     expect(killerAfter.veterancy).toBeGreaterThanOrEqual(LEVEL_VETERAN);
 
-    // With DEFAULT_VETERANCY_CONFIG [1,1,1,1], maxHealth should NOT change
+    // With default [1,1,1,1] health bonuses, maxHealth should NOT change
     expect(killerAfter.maxHealth).toBe(100);
+  });
+
+  /**
+   * Source parity: GameData.ini (retail Zero Hour) defines:
+   *   HealthBonus_Veteran = 120%  → 1.2
+   *   HealthBonus_Elite   = 130%  → 1.3
+   *   HealthBonus_Heroic  = 150%  → 1.5
+   *
+   * When gameData is loaded from INI, the health bonus is applied on level-up.
+   * Previously this was hardcoded to [1,1,1,1] (no bonus). Now it reads from
+   * GameDataConfig.healthBonuses loaded from the INI registry.
+   */
+  it('integration: unit promoted via combat uses GameData.ini health bonuses (retail values)', () => {
+    // Retail Zero Hour GameData.ini health bonus values
+    const agent = createParityAgent({
+      bundles: {
+        objects: [
+          makeObjectDef('Killer', 'America', ['VEHICLE'], [
+            makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+            makeWeaponBlock('BigGun'),
+          ], {
+            ExperienceValue: [0, 0, 0, 0],
+            ExperienceRequired: [0, 50, 100, 200],
+          }),
+          makeObjectDef('Victim', 'China', ['VEHICLE'], [
+            makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+          ], {
+            ExperienceValue: [100, 100, 100, 100],
+            ExperienceRequired: [0, 1000, 2000, 3000],
+          }),
+        ],
+        weapons: [
+          makeWeaponDef('BigGun', {
+            PrimaryDamage: 100,
+            AttackRange: 120,
+            DelayBetweenShots: 100,
+          }),
+        ],
+        gameData: {
+          weaponBonusEntries: [],
+          healthBonuses: [1.0, 1.2, 1.3, 1.5],
+        },
+      },
+      mapObjects: [place('Killer', 10, 10), place('Victim', 30, 10)],
+      mapSize: 8,
+      sides: { America: {}, China: {} },
+      enemies: [['America', 'China']],
+    });
+
+    // Verify initial state
+    const killer = agent.entity(1)!;
+    expect(killer.veterancy).toBe(LEVEL_REGULAR);
+    expect(killer.maxHealth).toBe(100);
+
+    // Attack and kill the victim
+    agent.attack(1, 2);
+    agent.step(30);
+
+    // Victim should be dead
+    const victim = agent.entity(2);
+    expect(victim === null || !victim.alive).toBe(true);
+
+    // Killer should have leveled up (100 XP >= 50 VETERAN and >= 100 ELITE threshold)
+    const killerAfter = agent.entity(1)!;
+    expect(killerAfter.veterancy).toBeGreaterThanOrEqual(LEVEL_ELITE);
+
+    // With retail health bonuses [1.0, 1.2, 1.3, 1.5]:
+    // REGULAR->ELITE: mult = 1.3/1.0 = 1.3, newMaxHealth = trunc(100 * 1.3) = 130
+    expect(killerAfter.maxHealth).toBe(130);
+    // Full health unit: newHealth = trunc(130 * (100/100)) = 130
+    expect(killerAfter.health).toBe(130);
   });
 });
 
@@ -359,11 +420,10 @@ describe('parity veterancy: XP for killing under-construction buildings', () => 
     const buildingAfter = agent.entity(1);
     expect(buildingAfter === null || !buildingAfter.alive).toBe(true);
 
-    // Verify unit XP was awarded (parity gap — should be 0 in C++)
+    // Source parity: no unit XP for killing under-construction entities (fixed in 6d8222f6).
     const attacker = agent.gameLogic.getEntityState(2);
     expect(attacker).not.toBeNull();
-    // TS currently awards XP (parity gap)
-    expect(attacker!.currentExperience).toBe(100);
+    expect(attacker!.currentExperience).toBe(0);
   });
 });
 

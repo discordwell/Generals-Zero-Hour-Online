@@ -215,6 +215,14 @@ export interface WeaponBonusEntry {
  */
 export interface GameDataConfig {
   weaponBonusEntries: WeaponBonusEntry[];
+  /**
+   * Source parity: GlobalData::m_healthBonus[LEVEL_COUNT]
+   * Indexed by VeterancyLevel: [REGULAR, VETERAN, ELITE, HEROIC].
+   * Loaded from GameData.ini fields: HealthBonus_Veteran, HealthBonus_Elite, HealthBonus_Heroic.
+   * REGULAR is always 1.0 (hardcoded in C++, not settable via INI).
+   * C++ default: all 1.0. Retail ZH values: [1.0, 1.2, 1.3, 1.5].
+   */
+  healthBonuses: [number, number, number, number];
 }
 
 export interface AudioSettingsConfig {
@@ -528,7 +536,12 @@ export class IniDataRegistry {
     this.ai = bundle.ai ? { ...bundle.ai } : undefined;
     this.audioSettings = bundle.audioSettings ? { ...bundle.audioSettings } : undefined;
     this.gameData = bundle.gameData
-      ? { weaponBonusEntries: [...bundle.gameData.weaponBonusEntries] }
+      ? {
+          weaponBonusEntries: [...bundle.gameData.weaponBonusEntries],
+          healthBonuses: bundle.gameData.healthBonuses
+            ? ([...bundle.gameData.healthBonuses] as [number, number, number, number])
+            : [1.0, 1.0, 1.0, 1.0],
+        }
       : undefined;
     for (const unsupported of bundle.unsupportedBlockTypes) {
       this.unsupportedBlockTypes.add(unsupported);
@@ -595,7 +608,10 @@ export class IniDataRegistry {
 
   getGameData(): GameDataConfig | undefined {
     return this.gameData
-      ? { weaponBonusEntries: [...this.gameData.weaponBonusEntries] }
+      ? {
+          weaponBonusEntries: [...this.gameData.weaponBonusEntries],
+          healthBonuses: [...this.gameData.healthBonuses] as [number, number, number, number],
+        }
       : undefined;
   }
 
@@ -799,7 +815,10 @@ export class IniDataRegistry {
       ai: this.ai ? { ...this.ai } : undefined,
       audioSettings: this.audioSettings ? { ...this.audioSettings } : undefined,
       gameData: this.gameData
-        ? { weaponBonusEntries: [...this.gameData.weaponBonusEntries] }
+        ? {
+            weaponBonusEntries: [...this.gameData.weaponBonusEntries],
+            healthBonuses: [...this.gameData.healthBonuses] as [number, number, number, number],
+          }
         : undefined,
       stats,
       errors: [...this.errors],
@@ -1128,34 +1147,49 @@ export class IniDataRegistry {
 
   /**
    * Source parity: GlobalData::parseGameDataDefinition — extract WeaponBonus entries
-   * from the GameData INI block. Format: `WeaponBonus = CONDITION FIELD PERCENT%`.
+   * and HealthBonus fields from the GameData INI block.
+   * WeaponBonus format: `WeaponBonus = CONDITION FIELD PERCENT%`.
+   * HealthBonus format: `HealthBonus_Veteran = 120%` (parsePercentToReal, no clamping).
    */
   private indexGameDataBlock(block: IniBlock): void {
-    const weaponBonusValue = block.fields['WeaponBonus'];
-    if (!weaponBonusValue) {
-      return;
-    }
+    // ── Health bonuses (source parity: GlobalData.cpp:404-406, m_healthBonus[]) ──
+    // C++ default is 1.0 for all levels. REGULAR is always 1.0 (commented out in C++).
+    const prevBonuses = this.gameData?.healthBonuses ?? [1.0, 1.0, 1.0, 1.0];
+    const healthBonuses: [number, number, number, number] = [...prevBonuses];
 
+    const veteranBonus = extractUnclampedPercentToReal(block.fields['HealthBonus_Veteran']);
+    if (veteranBonus !== undefined) healthBonuses[1] = veteranBonus;
+
+    const eliteBonus = extractUnclampedPercentToReal(block.fields['HealthBonus_Elite']);
+    if (eliteBonus !== undefined) healthBonuses[2] = eliteBonus;
+
+    const heroicBonus = extractUnclampedPercentToReal(block.fields['HealthBonus_Heroic']);
+    if (heroicBonus !== undefined) healthBonuses[3] = heroicBonus;
+
+    // ── Weapon bonuses ──
     const entries: WeaponBonusEntry[] = this.gameData?.weaponBonusEntries
       ? [...this.gameData.weaponBonusEntries]
       : [];
 
-    const lines = Array.isArray(weaponBonusValue) ? weaponBonusValue : [weaponBonusValue];
-    for (const line of lines) {
-      const tokens = String(line).trim().split(/\s+/);
-      if (tokens.length < 3) continue;
-      const condition = tokens[0]!.toUpperCase();
-      const field = tokens[1]!.toUpperCase();
-      const rawPercent = tokens[2]!;
-      // Source parity: INI::scanPercentToReal — "125%" → 1.25 (no clamping).
-      const percentStr = rawPercent.endsWith('%') ? rawPercent.slice(0, -1) : rawPercent;
-      const multiplier = Number(percentStr) / 100;
-      if (Number.isFinite(multiplier)) {
-        entries.push({ condition, field, multiplier });
+    const weaponBonusValue = block.fields['WeaponBonus'];
+    if (weaponBonusValue) {
+      const lines = Array.isArray(weaponBonusValue) ? weaponBonusValue : [weaponBonusValue];
+      for (const line of lines) {
+        const tokens = String(line).trim().split(/\s+/);
+        if (tokens.length < 3) continue;
+        const condition = tokens[0]!.toUpperCase();
+        const field = tokens[1]!.toUpperCase();
+        const rawPercent = tokens[2]!;
+        // Source parity: INI::scanPercentToReal — "125%" → 1.25 (no clamping).
+        const percentStr = rawPercent.endsWith('%') ? rawPercent.slice(0, -1) : rawPercent;
+        const multiplier = Number(percentStr) / 100;
+        if (Number.isFinite(multiplier)) {
+          entries.push({ condition, field, multiplier });
+        }
       }
     }
 
-    this.gameData = { weaponBonusEntries: entries };
+    this.gameData = { weaponBonusEntries: entries, healthBonuses };
   }
 
   private resolveObjectChain(name: string, visited: Set<string>): ObjectDef | undefined {
@@ -1499,6 +1533,40 @@ function extractDurationFrames(value: IniValue | undefined): number | undefined 
     return undefined;
   }
   return Math.max(0, Math.ceil(durationMs * 30 / 1000));
+}
+
+/**
+ * Source parity: INI::parsePercentToReal — converts "120%" → 1.2 with NO clamping.
+ * Unlike extractPercentToReal which clamps to [0,1], this preserves the raw value.
+ * Used for health bonuses which are commonly > 100% (e.g., HealthBonus_Veteran = 120%).
+ */
+function extractUnclampedPercentToReal(value: IniValue | undefined): number | undefined {
+  if (typeof value === 'undefined') return undefined;
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const parsed = extractUnclampedPercentToReal(entry as IniValue);
+      if (parsed !== undefined) return parsed;
+    }
+    return undefined;
+  }
+
+  if (typeof value === 'string') {
+    const token = value.trim();
+    if (!token) return undefined;
+    if (token.endsWith('%')) {
+      const rawPercent = Number(token.slice(0, -1).trim());
+      return Number.isFinite(rawPercent) ? rawPercent / 100 : undefined;
+    }
+    const parsed = Number(token);
+    return Number.isFinite(parsed) ? (parsed > 1 ? parsed / 100 : parsed) : undefined;
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? (value > 1 ? value / 100 : value) : undefined;
+  }
+
+  return undefined;
 }
 
 function extractPercentToReal(value: IniValue | undefined): number | undefined {

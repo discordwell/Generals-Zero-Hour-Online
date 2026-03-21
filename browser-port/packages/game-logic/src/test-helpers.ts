@@ -15,6 +15,7 @@ import {
   type CommandButtonDef,
   type CommandSetDef,
   type FactionDef,
+  type GameDataConfig,
   IniDataRegistry,
   type IniDataBundle,
   type LocomotorDef,
@@ -174,6 +175,7 @@ export function makeBundle(params: {
   audioEvents?: AudioEventDef[];
   factions?: FactionDef[];
   ai?: Partial<AiConfig>;
+  gameData?: GameDataConfig;
 }): IniDataBundle {
   const weapons = params.weapons ?? [];
   const armors = params.armors ?? [];
@@ -201,6 +203,7 @@ export function makeBundle(params: {
       ...DEFAULT_AI_CONFIG,
       ...params.ai,
     },
+    gameData: params.gameData,
     stats: {
       objects: params.objects.length,
       weapons: weapons.length,
