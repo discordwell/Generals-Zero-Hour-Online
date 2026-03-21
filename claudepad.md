@@ -34,8 +34,11 @@
 - **Round 1**: 17 areas audited, 39 tests. Fixed: MultiFactory guard, LowEnergy cap, veterancy health from INI, XP under-construction block. Verified correct: 8 areas. Reverted: poison UNRESISTABLE (C++ matches TS).
 - **Round 2**: 12 areas audited, 27 tests. Fixed: stealth RevealDistanceFromTarget, garrison entry rejection. Verified correct: 5 areas (crush velocity, AutoHeal delay, AI scan distance, topple direction, garrisoned stealth detection).
 - **Round 3**: 15 areas audited, 61 tests. Verified correct: 9 areas (helicopter spiral, garrison auto-eject, death weapon guard, auto-reload timer, bridge damage, locomotor surfaces, prerequisites, subdual damage, scatter targets). Fix pending: clip reload ROF bonus.
-- **Total**: 44 C++ divergence areas audited, 128 parity tests, 8 fixes applied, 22 areas verified correct, 14 gaps documented for future work.
-- 1836 game-logic tests passing across 46 test files.
+- **Round 4**: 10 areas audited, 36 tests. ALL correct: CashBounty, warehouse depletion, dozer repair, transport capacity, tunnel networks, missile tracking, min range, XP scaling, StatusBitsUpgrade, radar brownout.
+- **Round 5**: 10 areas audited, 30 tests. Verified: range fudge, pre-attack delay, leech range, scatter reset, secondary radius, continuous fire, guard pursuit, capture transfer. Gaps: reload time sharing (per-entity vs per-slot).
+- **Round 6**: 10 areas audited, 27 tests. ALL correct: armor default coeff, sell refund, DAMAGE stacking, death type filtering, Overlord propagation, spawn offset, ConflictsWith, slave respawn, dozer idle, fire events.
+- **Grand Total**: 74 C++ divergence areas audited, 220 parity tests, 9 fixes applied, 57 areas verified correct, 17 gaps documented.
+- 1929 game-logic tests passing across 61 test files.
 
 ## 2026-03-19T18:15Z — Wet Test Parity Sprint: 6 Fixes, Bundle Data Recovery
 - **Debug overlay**: Removed per-frame dump of all 784 entity IDs. Now shows only unresolved count. (commit f2026f6c)
