@@ -28,9 +28,8 @@ import {
 // m_damageFXOverride = DAMAGE_POISON for visual effects.
 //
 // TS: status-effects.ts — updatePoisonedEntities calls
-//   applyWeaponDamageAmount(null, entity, amount, 'POISON')
-// with a guard flag (_poisonTickInProgress) to prevent re-infection,
-// so armor reduces each tick.
+//   applyWeaponDamageAmount(null, entity, amount, 'UNRESISTABLE')
+// matching C++ behavior: poison ticks bypass armor to avoid re-infection.
 
 describe('Poison damage type parity', () => {
   function makePoisonSetup(opts: {
@@ -104,14 +103,13 @@ describe('Poison damage type parity', () => {
     return { logic };
   }
 
-  it('poison ticks use POISON damage type, so armor reduces each tick', () => {
-    // Setup: target with 500 HP, armor that reduces POISON to 10% pass-through,
-    // poisoned by a weapon dealing 10 POISON damage.
+  it('poison ticks use UNRESISTABLE damage type, bypassing armor (C++ parity)', () => {
+    // Source parity: PoisonedBehavior.cpp:126 — C++ uses DAMAGE_UNRESISTABLE
+    // with comment "Not poison, as that will infect us again".
+    // This means poison ticks bypass armor entirely.
     //
-    // Each poison tick deals 10 * 0.10 = 1 damage (armor reduces POISON).
-    // Note: C++ PoisonedBehavior.cpp:126 uses DAMAGE_UNRESISTABLE to avoid
-    // re-triggering onDamage, but we use POISON with a guard flag instead,
-    // so armor applies to poison ticks.
+    // Setup: target with 500 HP, armor that reduces POISON to 10% pass-through,
+    // poisoned by a weapon dealing 10 POISON damage per tick.
     const { logic } = makePoisonSetup({
       poisonDamage: 10,
       poisonArmorPercent: 10,
@@ -136,11 +134,9 @@ describe('Poison damage type parity', () => {
     const healthAfterPoisonTicks = logic.getEntityState(1)!.health;
     const poisonDamageDealt = healthAfterHit - healthAfterPoisonTicks;
 
-    // Poison ticks use POISON damage type, so armor coefficient 0.10 applies.
-    // Each tick deals 10 * 0.10 = 1 damage (not 10 as it was with UNRESISTABLE).
-    expect(poisonDamageDealt).toBeGreaterThan(0);
-    // With armor, damage per tick is 1. Even with multiple ticks, total should be << 10.
-    expect(poisonDamageDealt).toBeLessThan(10);
+    // Poison ticks use UNRESISTABLE, so armor does NOT reduce them.
+    // Each tick deals full 10 damage. With ~1 tick in 15 frames, expect >= 10 damage.
+    expect(poisonDamageDealt).toBeGreaterThanOrEqual(10);
   });
 
   it('verifies the initial POISON hit IS reduced by armor', () => {
