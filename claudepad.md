@@ -30,6 +30,13 @@
 - **Home key**: Centers camera on player's Command Center.
 - 3323 tests passing (5 new), 23 commits, deployed to generals.discordwell.com.
 
+## 2026-03-20T19:55Z — C++ Parity Audit (3 Rounds, 44 Areas, 128 Tests)
+- **Round 1**: 17 areas audited, 39 tests. Fixed: MultiFactory guard, LowEnergy cap, veterancy health from INI, XP under-construction block. Verified correct: 8 areas. Reverted: poison UNRESISTABLE (C++ matches TS).
+- **Round 2**: 12 areas audited, 27 tests. Fixed: stealth RevealDistanceFromTarget, garrison entry rejection. Verified correct: 5 areas (crush velocity, AutoHeal delay, AI scan distance, topple direction, garrisoned stealth detection).
+- **Round 3**: 15 areas audited, 61 tests. Verified correct: 9 areas (helicopter spiral, garrison auto-eject, death weapon guard, auto-reload timer, bridge damage, locomotor surfaces, prerequisites, subdual damage, scatter targets). Fix pending: clip reload ROF bonus.
+- **Total**: 44 C++ divergence areas audited, 128 parity tests, 8 fixes applied, 22 areas verified correct, 14 gaps documented for future work.
+- 1836 game-logic tests passing across 46 test files.
+
 ## 2026-03-19T18:15Z — Wet Test Parity Sprint: 6 Fixes, Bundle Data Recovery
 - **Debug overlay**: Removed per-frame dump of all 784 entity IDs. Now shows only unresolved count. (commit f2026f6c)
 - **Map dropdown**: Fixed manifest path extraction (`_extracted/MapsZH/Maps/...` → clean basename), `isSkirmishMapName()` filter. 46 skirmish maps match retail. (commit f2026f6c)
