@@ -658,6 +658,7 @@ import {
   classifyWeaponVisualType as classifyWeaponVisualTypeImpl,
   resolveContinuousFireRateOfFireBonus as resolveContinuousFireRateOfFireBonusImpl,
   resolveWeaponDelayFramesWithBonus as resolveWeaponDelayFramesWithBonusImpl,
+  resolveClipReloadFramesWithBonus as resolveClipReloadFramesWithBonusImpl,
   resolveProjectileTemplateKindOf as resolveProjectileTemplateKindOfImpl,
 } from './weapon-profiles.js';
 import {
@@ -10072,6 +10073,7 @@ export class GameLogicSubsystem implements Subsystem {
   private classifyWeaponVisualType(...args: any[]) { return (classifyWeaponVisualTypeImpl as any)(this, ...args); }
   /* @internal */ resolveContinuousFireRateOfFireBonus(...args: any[]) { return (resolveContinuousFireRateOfFireBonusImpl as any)(this, ...args); }
   /* @internal */ resolveWeaponDelayFramesWithBonus(...args: any[]) { return (resolveWeaponDelayFramesWithBonusImpl as any)(this, ...args); }
+  /* @internal */ resolveClipReloadFramesWithBonus(...args: any[]) { return (resolveClipReloadFramesWithBonusImpl as any)(this, ...args); }
   private resolveProjectileTemplateKindOf(...args: any[]) { return (resolveProjectileTemplateKindOfImpl as any)(this, ...args); }
 
   // ---- Aircraft AI facades (delegate to aircraft-ai.ts) ----
@@ -25159,6 +25161,7 @@ export class GameLogicSubsystem implements Subsystem {
       recordConsecutiveAttackShot: (attacker, targetEntityId) =>
         this.recordConsecutiveAttackShot(attacker, targetEntityId),
       resolveWeaponDelayFrames: (attacker, weapon) => this.resolveWeaponDelayFramesWithBonus(attacker, weapon as AttackWeaponProfile),
+      resolveClipReloadFrames: (attacker, weapon) => this.resolveClipReloadFramesWithBonus(attacker, weapon as AttackWeaponProfile),
       resolveTargetAnchorPosition: (target) => ({
         x: (target as { mesh?: { position?: { x?: number } } }).mesh?.position?.x ?? target.x,
         z: (target as { mesh?: { position?: { z?: number } } }).mesh?.position?.z ?? target.z,

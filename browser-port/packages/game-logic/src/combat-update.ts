@@ -78,6 +78,8 @@ interface CombatUpdateContext<TEntity extends CombatUpdateEntityLike> {
   queueWeaponDamageEvent(attacker: TEntity, target: TEntity, weapon: CombatUpdateWeaponLike): void;
   recordConsecutiveAttackShot(attacker: TEntity, targetEntityId: number): void;
   resolveWeaponDelayFrames(attacker: TEntity, weapon: CombatUpdateWeaponLike): number;
+  /** Source parity: Weapon::getClipReloadTime(bonus) — divide clipReloadFrames by ROF bonus. */
+  resolveClipReloadFrames(attacker: TEntity, weapon: CombatUpdateWeaponLike): number;
   resolveTargetAnchorPosition(target: TEntity): VectorXZLike;
   /** Check if terrain blocks line of sight from attacker to target. */
   isAttackLineOfSightBlocked(attackerX: number, attackerZ: number, targetX: number, targetZ: number): boolean;
@@ -286,7 +288,7 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
     if (weapon.clipSize > 0) {
       attacker.attackAmmoInClip = Math.max(0, attacker.attackAmmoInClip - 1);
       if (attacker.attackAmmoInClip <= 0) {
-        attacker.attackReloadFinishFrame = context.frameCounter + weapon.clipReloadFrames;
+        attacker.attackReloadFinishFrame = context.frameCounter + context.resolveClipReloadFrames(attacker, weapon);
         attacker.nextAttackFrame = attacker.attackReloadFinishFrame;
         continue;
       }

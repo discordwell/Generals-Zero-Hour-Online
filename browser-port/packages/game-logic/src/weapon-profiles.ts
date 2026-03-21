@@ -351,6 +351,21 @@ export function resolveWeaponDelayFramesWithBonus(self: GL, attacker: MapEntity,
   return Math.max(0, Math.floor(baseDelay / totalRofBonus));
 }
 
+/**
+ * Source parity: Weapon.cpp getClipReloadTime(bonus) — divide m_clipReloadTime by ROF bonus.
+ * Unlike delay-between-shots, clip reload is NOT affected by continuous-fire bonus — only by the
+ * global weapon bonus table (veterancy, upgrades, etc.).
+ */
+export function resolveClipReloadFramesWithBonus(self: GL, attacker: MapEntity, weapon: AttackWeaponProfile): number {
+  const baseReload = weapon.clipReloadFrames;
+  const globalRofBonus = self.resolveWeaponRateOfFireBonusMultiplier(attacker);
+  if (globalRofBonus <= 0 || globalRofBonus === 1.0) {
+    return baseReload;
+  }
+  // Source parity: REAL_TO_INT_FLOOR(m_clipReloadTime / bonus.getField(WeaponBonus::RATE_OF_FIRE)).
+  return Math.max(0, Math.floor(baseReload / globalRofBonus));
+}
+
 export function resolveProjectileTemplateKindOf(self: GL, weapon: AttackWeaponProfile): Set<string> {
   const templateName = weapon.projectileObjectName;
   if (!templateName) return EMPTY_KINDOF_SET;

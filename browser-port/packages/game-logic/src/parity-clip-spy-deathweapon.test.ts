@@ -267,19 +267,19 @@ describe('parity clip reload / spy vision / death weapon', () => {
   // ── Test 1: Clip Reload Time Not Shortened by ROF Bonus ─────────────────
 
   describe('clip reload time and ROF bonus', () => {
-    it('TS uses static clipReloadFrames with no ROF bonus (C++ divides by ROF bonus)', () => {
+    it('VETERAN clip reload is shortened by ROF bonus (C++ parity: divide by ROF bonus)', () => {
       // C++ source parity: Weapon.cpp:504-509 (Generals), 517-521 (ZH)
       //   WeaponTemplate::getClipReloadTime(const WeaponBonus& bonus) const
       //     return REAL_TO_INT_FLOOR(m_clipReloadTime / bonus.getField(WeaponBonus::RATE_OF_FIRE));
       //
-      // TS source: combat-update.ts:288-290
-      //   attacker.attackReloadFinishFrame = context.frameCounter + weapon.clipReloadFrames;
-      //   (No ROF bonus division — clipReloadFrames is a static value from INI.)
+      // TS source: combat-update.ts:289
+      //   attacker.attackReloadFinishFrame = context.frameCounter + context.resolveClipReloadFrames(attacker, weapon);
+      //   (ROF bonus now applied via resolveClipReloadFramesWithBonus.)
       //
       // Setup: ClipSize=3, ClipReloadTime=3000ms (90 frames), VETERAN ROF bonus 1.5x.
       // Fire 3 shots to exhaust the clip, then measure frames until next shot fires.
       // C++ expected reload: floor(90 / 1.5) = 60 frames.
-      // TS expected reload: 90 frames (no bonus applied).
+      // TS expected reload: 60 frames (ROF bonus applied).
 
       const clipReloadMs = 3000; // 90 frames at 30 FPS
       const rofBonus = 1.5;
@@ -379,35 +379,19 @@ describe('parity clip reload / spy vision / death weapon', () => {
       // Find the reload gap for the VETERAN attacker
       const veteranReloadGap = findReloadGap(veteranDamageFrames);
 
-      // ── Parity Gap Documentation ──
-      // C++ expected:
+      // C++ parity achieved:
       //   Regular reload = 90 frames (3000ms / 33.33ms)
       //   Veteran reload = floor(90 / 1.5) = 60 frames
-      //
-      // TS actual: Both REGULAR and VETERAN use the same static clipReloadFrames = 90.
-      // The reload gap should NOT change between regular and veteran in the current TS impl.
 
       // REGULAR reload gap should be ~90 frames (ClipReloadTime=3000ms at 30 FPS)
       expect(regularReloadGap).toBeGreaterThanOrEqual(85);
       expect(regularReloadGap).toBeLessThanOrEqual(95);
 
-      // PARITY GAP: In C++, VETERAN reload would be ~60 frames (90/1.5).
-      // In TS, VETERAN reload is ALSO ~90 frames because ROF bonus is NOT applied to clip reload.
-      // This assertion documents the actual TS behavior:
-      expect(veteranReloadGap).toBeGreaterThanOrEqual(85);
-      expect(veteranReloadGap).toBeLessThanOrEqual(95);
-
-      // Both reload gaps should be approximately equal (TS does not differentiate)
-      expect(Math.abs(regularReloadGap - veteranReloadGap)).toBeLessThanOrEqual(5);
-
-      // Document: If C++ parity were achieved, the veteran reload gap would be shorter.
-      // C++ expected veteran reload: floor(90 / 1.5) = 60 frames
-      // TS actual veteran reload: ~90 frames (same as regular)
+      // VETERAN reload gap should be ~60 frames (90 / 1.5 ROF bonus)
       const cppExpectedVeteranReload = Math.floor(90 / rofBonus); // 60
       expect(cppExpectedVeteranReload).toBe(60);
-      // When this parity gap is fixed, change the assertion above to:
-      //   expect(veteranReloadGap).toBeGreaterThanOrEqual(55);
-      //   expect(veteranReloadGap).toBeLessThanOrEqual(65);
+      expect(veteranReloadGap).toBeGreaterThanOrEqual(55);
+      expect(veteranReloadGap).toBeLessThanOrEqual(65);
     });
   });
 
