@@ -1203,24 +1203,44 @@ async function startGame(
   let lastTabEntityId = -1; // For Tab cycling by entity ID
   let buildingGhostAngle = 0; // Building placement rotation (radians)
 
-  // Power HUD indicator (below credits) — reuse existing element on restart.
+  // Power HUD indicator (below credits) — graphical bar + text overlay. Reuse on restart.
   let powerHud = document.getElementById('power-hud') as HTMLDivElement | null;
   if (!powerHud) {
     powerHud = document.createElement('div');
     powerHud.id = 'power-hud';
     Object.assign(powerHud.style, {
-      position: 'absolute',
-      top: '40px',
-      right: '10px',
-      color: '#66cc66',
-      fontFamily: "'Segoe UI', Arial, sans-serif",
-      fontSize: '13px',
-      fontWeight: '600',
-      textShadow: '0 0 4px rgba(0,0,0,0.8)',
-      zIndex: '100',
-      pointerEvents: 'none',
+      position: 'absolute', top: '38px', right: '10px', width: '120px', height: '16px',
+      background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)',
+      borderRadius: '3px', overflow: 'hidden', zIndex: '100', pointerEvents: 'none',
     });
+    const powerBar = document.createElement('div');
+    powerBar.id = 'power-bar-fill';
+    Object.assign(powerBar.style, { height: '100%', width: '100%', transition: 'width 0.2s, background 0.2s' });
+    powerHud.appendChild(powerBar);
+    const powerLabel = document.createElement('span');
+    powerLabel.id = 'power-bar-label';
+    Object.assign(powerLabel.style, {
+      position: 'absolute', top: '0', left: '0', width: '100%', height: '100%',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', fontFamily: "'Segoe UI', Arial, sans-serif", fontSize: '11px',
+      fontWeight: '600', textShadow: '0 0 3px rgba(0,0,0,0.9)', pointerEvents: 'none',
+    });
+    powerHud.appendChild(powerLabel);
     document.getElementById('ui-overlay')!.appendChild(powerHud);
+  }
+
+  // Game clock HUD (right of credits) — reuse on restart.
+  let clockHud = document.getElementById('clock-hud') as HTMLDivElement | null;
+  if (!clockHud) {
+    clockHud = document.createElement('div');
+    clockHud.id = 'clock-hud';
+    Object.assign(clockHud.style, {
+      position: 'absolute', top: '10px', right: '10px',
+      color: '#aaccaa', fontFamily: 'monospace', fontSize: '12px',
+      background: 'rgba(0,0,0,0.4)', padding: '2px 8px', borderRadius: '3px',
+      zIndex: '100', pointerEvents: 'none',
+    });
+    document.getElementById('ui-overlay')!.appendChild(clockHud);
   }
 
   // Rank HUD indicator (below power HUD) — reuse on restart.
@@ -1667,6 +1687,13 @@ async function startGame(
     }
   }
   minimapTerrainCtx.putImageData(terrainImgData, 0, 0);
+
+  // Minimap beacon pings — expanding circles that fade out when the player clicks on the minimap.
+  const minimapPings: Array<{ x: number; y: number; startTime: number }> = [];
+  const MINIMAP_PING_DURATION_MS = 1000;
+  const MINIMAP_PING_RADIUS_MIN = 2;
+  const MINIMAP_PING_RADIUS_MAX = 8;
+  const MINIMAP_PING_INITIAL_OPACITY = 0.8;
 
   // Click on minimap to move camera (left-click) or issue move command (right-click).
   let radarInteractionEnabled = true;
@@ -2274,9 +2301,9 @@ async function startGame(
   rallyLine.renderOrder = 700;
   scene.add(rallyLine);
 
-  // Rally flag marker (small cone at target).
-  const rallyMarkerGeometry = new THREE.ConeGeometry(0.3, 1.5, 6);
-  const rallyMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+  // Rally flag marker (cone at target — bright green with emissive glow).
+  const rallyMarkerGeometry = new THREE.ConeGeometry(1.5, 3, 8);
+  const rallyMarkerMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.6 });
   const rallyMarker = new THREE.Mesh(rallyMarkerGeometry, rallyMarkerMaterial);
   rallyMarker.name = 'rally-marker';
   rallyMarker.visible = false;
@@ -3955,14 +3982,17 @@ async function startGame(
           creditsHud.style.color = '#d4af37';
         }
 
-        // Update power HUD
+        // Update power HUD (graphical bar)
         const powerState = gameLogic.getSidePowerState(localPlayerSide);
         const totalProd = powerState.energyProduction + powerState.powerBonus;
         const surplus = totalProd - powerState.energyConsumption;
         if (totalProd > 0 || powerState.energyConsumption > 0) {
           powerHud.style.display = 'block';
-          powerHud.textContent = `\u26A1 ${totalProd}/${powerState.energyConsumption}`;
-          powerHud.style.color = surplus >= 0 ? '#66cc66' : '#ff4444';
+          const pct = totalProd > 0 ? Math.min(100, (powerState.energyConsumption / totalProd) * 100) : 100;
+          const bar = document.getElementById('power-bar-fill')!;
+          bar.style.width = `${pct}%`;
+          bar.style.background = surplus >= 0 ? '#44aa44' : '#cc3333';
+          document.getElementById('power-bar-label')!.textContent = `\u26A1 ${totalProd}/${powerState.energyConsumption}`;
         } else {
           powerHud.style.display = 'none';
         }
@@ -3976,6 +4006,12 @@ async function startGame(
         rankHud.style.display = 'block';
         rankHud.textContent = `${rankStars} Rank ${rankLevel} | XP: ${skillPoints}/${nextThreshold} | GP: ${purchasePoints}`;
       }
+
+      // Update game clock HUD (MM:SS from logic frames at 30fps)
+      const elapsedSec = Math.floor(currentLogicFrame / 30);
+      const clockMin = Math.floor(elapsedSec / 60);
+      const clockSec = elapsedSec % 60;
+      clockHud.textContent = `${clockMin.toString().padStart(2, '0')}:${clockSec.toString().padStart(2, '0')}`;
 
       // Update superweapon countdown timers with progress bars.
       const countdowns = gameLogic.getSuperweaponCountdowns();
