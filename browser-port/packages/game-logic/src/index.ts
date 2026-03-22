@@ -2997,6 +2997,8 @@ export interface MapEntity {
   autoHealProfile: AutoHealProfile | null;
   autoHealNextFrame: number;
   autoHealDamageDelayUntilFrame: number;
+  /** Source parity: AutoHealBehavior SingleBurst — true after first pulse (UPDATE_SLEEP_FOREVER). */
+  autoHealSingleBurstDone: boolean;
   /** Source parity: BaseRegenerateUpdate — structure regen after damage delay. */
   baseRegenDelayUntilFrame: number;
   /** Source parity: PropagandaTowerBehavior — radius heal/buff aura. */
@@ -3579,6 +3581,12 @@ interface AutoHealProfile {
   radius: number;
   affectsWholePlayer: boolean;
   initiallyActive: boolean;
+  /** Source parity: AutoHealBehavior.h:89 — SingleBurst stops healing after one pulse. */
+  singleBurst: boolean;
+  /** Source parity: AutoHealBehavior.h:80 — KindOf filter for radius heal targets. */
+  kindOf: Set<string> | null;
+  /** Source parity: AutoHealBehavior.h:64 — ForbiddenKindOf excludes targets from radius heal. */
+  forbiddenKindOf: Set<string> | null;
 }
 
 /**

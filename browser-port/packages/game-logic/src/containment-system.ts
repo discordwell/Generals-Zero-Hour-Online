@@ -620,7 +620,7 @@ export function updateHealing(self: GL): void {
       || entity.objectStatusFlags.has('DISABLED_SUBDUED');
 
     // ── AutoHealBehavior ──
-    if (entity.autoHealProfile && !isDisabled) {
+    if (entity.autoHealProfile && !isDisabled && !entity.autoHealSingleBurstDone) {
       const prof = entity.autoHealProfile;
       if (prof.initiallyActive || entity.completedUpgrades.size > 0) {
         // Check damage delay.
@@ -633,11 +633,33 @@ export function updateHealing(self: GL): void {
                 if (target.destroyed || target === entity) continue;
                 if (target.health >= target.maxHealth) continue;
                 if (self.getTeamRelationship(entity, target) === RELATIONSHIP_ENEMIES) continue;
+                // Source parity: AutoHealBehavior.cpp:264 — KindOf filter.
+                if (prof.kindOf) {
+                  const targetKindOf = self.resolveEntityKindOfSet(target);
+                  let anyMatch = false;
+                  for (const kind of prof.kindOf) {
+                    if (targetKindOf.has(kind)) { anyMatch = true; break; }
+                  }
+                  if (!anyMatch) continue;
+                }
+                // Source parity: AutoHealBehavior.cpp:264 — ForbiddenKindOf filter.
+                if (prof.forbiddenKindOf) {
+                  const targetKindOf = self.resolveEntityKindOfSet(target);
+                  let anyForbidden = false;
+                  for (const kind of prof.forbiddenKindOf) {
+                    if (targetKindOf.has(kind)) { anyForbidden = true; break; }
+                  }
+                  if (anyForbidden) continue;
+                }
                 const dx = target.x - entity.x;
                 const dz = target.z - entity.z;
                 if (dx * dx + dz * dz <= radiusSq) {
                   self.attemptHealingFromSoleBenefactor(target, prof.healingAmount, entity.id, prof.healingDelayFrames);
                 }
+              }
+              // Source parity: AutoHealBehavior.cpp:293 — SingleBurst stops after one pulse.
+              if (prof.singleBurst) {
+                entity.autoHealSingleBurstDone = true;
               }
             } else if (prof.affectsWholePlayer) {
               // Whole-player mode — heal all entities on same side.
