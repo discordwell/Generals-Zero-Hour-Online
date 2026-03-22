@@ -166,14 +166,13 @@ describe('Poison damage type parity', () => {
 // ---------------------------------------------------------------------------
 // Test 2: Production Time Change Percent (General's Abilities)
 // ---------------------------------------------------------------------------
-// C++ source: ThingTemplate.cpp:1384 —
-//   factionModifier = 1 + player.getProductionTimeChangePercent()
-//   totalFrames = baseFrames * factionModifier
+// C++ source: ThingTemplate.cpp:1553 —
+//   factionModifier = 1 + player->getProductionTimeChangePercent(getName())
+//   buildTime *= factionModifier
 // This allows General's point abilities to speed up or slow down production.
 //
-// TS: resolveObjectBuildTimeFrames (index.ts:23718-23723) has no equivalent
-// getProductionTimeChangePercent mechanism — it reads BuildTime from INI
-// and converts to frames with no player-level modifier.
+// TS: resolveObjectBuildTimeFrames now applies the same factionModifier using
+// getProductionTimeChangePercent(), matching C++ parity.
 
 describe('Production time change percent parity', () => {
   function makeProductionSetup() {
@@ -211,41 +210,103 @@ describe('Production time change percent parity', () => {
     return { logic };
   }
 
-  it('documents that no production time modifier mechanism exists (C++ has getProductionTimeChangePercent)', () => {
+  it('setting productionTimeChangePercent=-0.25 reduces build time by 25% (C++ parity)', () => {
     const { logic } = makeProductionSetup();
 
-    // PARITY GAP DOCUMENTATION:
-    // In C++, ThingTemplate.cpp:1384 applies:
-    //   factionModifier = 1 + player.getProductionTimeChangePercent()
-    // which can be set by General's point science abilities (e.g., SCIENCE_WorkerSpeed
-    // reduces production time). The TS port has no equivalent mechanism.
-    //
-    // resolveObjectBuildTimeFrames simply does:
-    //   Math.trunc(buildTimeSeconds * LOGIC_FRAME_RATE)
-    // with no player-level modifier applied.
-    //
-    // This test verifies the current behavior (no modifier) and serves as a
-    // regression anchor for when the feature is implemented.
+    // Source parity: ThingTemplate.cpp:1553
+    //   factionModifier = 1 + player->getProductionTimeChangePercent(getName())
+    //   buildTime *= factionModifier
+    // -0.25 => factionModifier = 0.75 => 25% faster build time.
 
-    // Access internal state to verify no production time modifier exists.
+    // Access internal resolveObjectBuildTimeFrames to verify the modifier is applied.
     const priv = logic as unknown as {
-      resolveObjectBuildTimeFrames(objectDef: { fields: Record<string, unknown> }): number;
+      resolveObjectBuildTimeFrames(objectDef: { name: string; fields: Record<string, unknown> }, side?: string): number;
     };
 
-    // BuildTime = 10 seconds, at 30fps = 300 frames.
-    const buildFrames = priv.resolveObjectBuildTimeFrames({ fields: { BuildTime: 10 } });
-    expect(buildFrames).toBe(300);
+    // Without modifier: BuildTime = 10 seconds, at 30fps = 300 frames.
+    const baseFrames = priv.resolveObjectBuildTimeFrames({ name: 'Tank', fields: { BuildTime: 10 } }, 'America');
+    expect(baseFrames).toBe(300);
 
-    // Verify there is no getProductionTimeChangePercent or equivalent on the logic subsystem.
-    const logicAny = logic as unknown as Record<string, unknown>;
-    expect(typeof logicAny['getProductionTimeChangePercent']).toBe('undefined');
-    expect(typeof logicAny['productionTimeChangePercent']).toBe('undefined');
+    // Apply -25% production time change for Tank on America's side.
+    logic.setProductionTimeChangePercent('America', 'Tank', -0.25);
 
-    // EXPECTED C++ BEHAVIOR (when implemented):
-    // If a player had a -25% production time bonus (from a General's ability):
-    //   factionModifier = 1 + (-0.25) = 0.75
-    //   totalFrames = 300 * 0.75 = 225 frames
-    // Currently in TS, the result would always be 300 regardless of any bonuses.
+    // With modifier: factionModifier = 1 + (-0.25) = 0.75
+    // totalFrames = 300 * 0.75 = 225
+    const modifiedFrames = priv.resolveObjectBuildTimeFrames({ name: 'Tank', fields: { BuildTime: 10 } }, 'America');
+    expect(modifiedFrames).toBe(225);
+
+    // Verify getProductionTimeChangePercent returns the set value.
+    expect(logic.getProductionTimeChangePercent('America', 'Tank')).toBe(-0.25);
+  });
+
+  it('modifier is per-template — other templates are unaffected', () => {
+    const { logic } = makeProductionSetup();
+
+    const priv = logic as unknown as {
+      resolveObjectBuildTimeFrames(objectDef: { name: string; fields: Record<string, unknown> }, side?: string): number;
+    };
+
+    // Apply modifier only for Tank.
+    logic.setProductionTimeChangePercent('America', 'Tank', -0.25);
+
+    // Tank is modified.
+    const tankFrames = priv.resolveObjectBuildTimeFrames({ name: 'Tank', fields: { BuildTime: 10 } }, 'America');
+    expect(tankFrames).toBe(225);
+
+    // WarFactory is NOT modified (different template name).
+    const factoryFrames = priv.resolveObjectBuildTimeFrames({ name: 'WarFactory', fields: { BuildTime: 30 } }, 'America');
+    expect(factoryFrames).toBe(900); // 30 * 30 = 900, unmodified.
+  });
+
+  it('modifier is per-side — other sides are unaffected', () => {
+    const { logic } = makeProductionSetup();
+
+    const priv = logic as unknown as {
+      resolveObjectBuildTimeFrames(objectDef: { name: string; fields: Record<string, unknown> }, side?: string): number;
+    };
+
+    // Apply modifier for America only.
+    logic.setProductionTimeChangePercent('America', 'Tank', -0.25);
+
+    // America's Tank is faster.
+    const americaFrames = priv.resolveObjectBuildTimeFrames({ name: 'Tank', fields: { BuildTime: 10 } }, 'America');
+    expect(americaFrames).toBe(225);
+
+    // China's Tank is unaffected.
+    const chinaFrames = priv.resolveObjectBuildTimeFrames({ name: 'Tank', fields: { BuildTime: 10 } }, 'China');
+    expect(chinaFrames).toBe(300);
+  });
+
+  it('positive modifier increases build time (penalty)', () => {
+    const { logic } = makeProductionSetup();
+
+    const priv = logic as unknown as {
+      resolveObjectBuildTimeFrames(objectDef: { name: string; fields: Record<string, unknown> }, side?: string): number;
+    };
+
+    // +50% production time penalty.
+    logic.setProductionTimeChangePercent('America', 'Tank', 0.5);
+
+    // factionModifier = 1 + 0.5 = 1.5 => 300 * 1.5 = 450.
+    const frames = priv.resolveObjectBuildTimeFrames({ name: 'Tank', fields: { BuildTime: 10 } }, 'America');
+    expect(frames).toBe(450);
+  });
+
+  it('setting modifier to zero removes the entry', () => {
+    const { logic } = makeProductionSetup();
+
+    logic.setProductionTimeChangePercent('America', 'Tank', -0.25);
+    expect(logic.getProductionTimeChangePercent('America', 'Tank')).toBe(-0.25);
+
+    // Clear the modifier.
+    logic.setProductionTimeChangePercent('America', 'Tank', 0);
+    expect(logic.getProductionTimeChangePercent('America', 'Tank')).toBe(0);
+
+    const priv = logic as unknown as {
+      resolveObjectBuildTimeFrames(objectDef: { name: string; fields: Record<string, unknown> }, side?: string): number;
+    };
+    const frames = priv.resolveObjectBuildTimeFrames({ name: 'Tank', fields: { BuildTime: 10 } }, 'America');
+    expect(frames).toBe(300); // Back to base.
   });
 });
 

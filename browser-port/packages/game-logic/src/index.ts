@@ -6861,6 +6861,8 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly sideUpgradesInProduction = new Map<string, Set<string>>();
   private readonly sideCompletedUpgrades = new Map<string, Set<string>>();
   private readonly sideKindOfProductionCostModifiers = new Map<string, KindOfProductionCostModifier[]>();
+  /** Source parity: Player::m_productionTimeChanges — per-template build time modifier (e.g. -0.25 = 25% faster). */
+  private readonly sideProductionTimeChangePercent = new Map<string, Map<string, number>>();
   private readonly sideSciences = new Map<string, Set<string>>();
   /** Source parity: ScriptEngine::m_acquiredSciences (consumed by evaluateScienceAcquired). */
   private readonly sideScriptAcquiredSciences = new Map<string, Set<string>>();
@@ -9051,6 +9053,54 @@ export class GameLogicSubsystem implements Subsystem {
       this.getOrCreateSideScoreState(normalizedSide).moneyEarned += delta;
     }
     return next;
+  }
+
+  /**
+   * Source parity: Player::getProductionTimeChangePercent — returns the per-template
+   * production time modifier for a side. A value of -0.25 means 25% faster build time.
+   * C++ (ThingTemplate.cpp:1553): factionModifier = 1 + player->getProductionTimeChangePercent(getName())
+   */
+  getProductionTimeChangePercent(side: string, templateName: string): number {
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return 0;
+    }
+    const sideMap = this.sideProductionTimeChangePercent.get(normalizedSide);
+    if (!sideMap) {
+      return 0;
+    }
+    const normalizedName = templateName.trim().toUpperCase();
+    return sideMap.get(normalizedName) ?? 0;
+  }
+
+  /**
+   * Source parity: Player::m_productionTimeChanges — sets the per-template production
+   * time modifier for a side. Negative values speed up production (e.g. -0.25 = 25% faster),
+   * positive values slow it down (e.g. 0.5 = 50% slower).
+   * Typically set by General's point science abilities or upgrades.
+   */
+  setProductionTimeChangePercent(side: string, templateName: string, percent: number): void {
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return;
+    }
+    if (!Number.isFinite(percent)) {
+      return;
+    }
+    const normalizedName = templateName.trim().toUpperCase();
+    let sideMap = this.sideProductionTimeChangePercent.get(normalizedSide);
+    if (!sideMap) {
+      sideMap = new Map<string, number>();
+      this.sideProductionTimeChangePercent.set(normalizedSide, sideMap);
+    }
+    if (percent === 0) {
+      sideMap.delete(normalizedName);
+      if (sideMap.size === 0) {
+        this.sideProductionTimeChangePercent.delete(normalizedSide);
+      }
+    } else {
+      sideMap.set(normalizedName, percent);
+    }
   }
 
   /* @internal */ addScriptCreditsForPlayerInput(sideInput: string, amount: number): number | null {
@@ -15933,6 +15983,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.sideUpgradesInProduction.clear();
     this.sideCompletedUpgrades.clear();
     this.sideKindOfProductionCostModifiers.clear();
+    this.sideProductionTimeChangePercent.clear();
     this.sideSciences.clear();
     this.sideScienceAvailability.clear();
     this.sideScriptAcquiredSciences.clear();
@@ -22947,7 +22998,7 @@ export class GameLogicSubsystem implements Subsystem {
     created.controllingPlayerToken = constructor.controllingPlayerToken;
 
     // Source parity: DozerAIUpdate::construct — start at 0% construction, health=1.
-    const buildTimeFrames = this.resolveObjectBuildTimeFrames(objectDef);
+    const buildTimeFrames = this.resolveObjectBuildTimeFrames(objectDef, constructor.side);
     if (buildTimeFrames > 0) {
       created.constructionPercent = 0;
       created.buildTotalFrames = buildTimeFrames;
@@ -23209,7 +23260,7 @@ export class GameLogicSubsystem implements Subsystem {
       return false;
     }
 
-    const totalProductionFrames = this.resolveObjectBuildTimeFrames(unitDef);
+    const totalProductionFrames = this.resolveObjectBuildTimeFrames(unitDef, producerSide);
     const productionQuantityTotal = this.resolveProductionQuantity(producer, normalizedTemplateName);
     const productionId = producer.productionNextId++;
 
@@ -23748,12 +23799,22 @@ export class GameLogicSubsystem implements Subsystem {
     return true;
   }
 
-  private resolveObjectBuildTimeFrames(objectDef: ObjectDef): number {
+  private resolveObjectBuildTimeFrames(objectDef: ObjectDef, side: string = ''): number {
     const buildTimeSeconds = readNumericField(objectDef.fields, ['BuildTime']) ?? 1;
     if (!Number.isFinite(buildTimeSeconds)) {
       return 0;
     }
-    return Math.trunc(buildTimeSeconds * LOGIC_FRAME_RATE);
+    let buildTimeFrames = buildTimeSeconds * LOGIC_FRAME_RATE;
+
+    // Source parity: ThingTemplate::calcTimeToBuild — apply player production time modifier.
+    // C++ (ThingTemplate.cpp:1553): factionModifier = 1 + player->getProductionTimeChangePercent(getName())
+    const normalizedSide = this.normalizeSide(side);
+    if (normalizedSide) {
+      const factionModifier = 1 + this.getProductionTimeChangePercent(normalizedSide, objectDef.name);
+      buildTimeFrames *= factionModifier;
+    }
+
+    return Math.trunc(buildTimeFrames);
   }
 
   private resolveObjectBuildCost(objectDef: ObjectDef, side: string = ''): number {
