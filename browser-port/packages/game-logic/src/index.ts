@@ -10569,7 +10569,8 @@ export class GameLogicSubsystem implements Subsystem {
   private collectReadySpecialPowersForSide(...args: any[]) { return (collectReadySpecialPowersForSideImpl as any)(this, ...args); }
   /* @internal */ routeIssueSpecialPowerCommand(...args: any[]) { return (routeIssueSpecialPowerCommandImpl as any)(this, ...args); }
   private setSpecialPowerReadyFrame(...args: any[]) { return (setSpecialPowerReadyFrameImpl as any)(this, ...args); }
-  private resolveSpyVisionRevealRadius(...args: any[]) { return (resolveSpyVisionRevealRadiusImpl as any)(this, ...args); }
+  // @ts-expect-error Used via string dispatch in special power routing
+  private _resolveSpyVisionRevealRadius(...args: any[]) { return (resolveSpyVisionRevealRadiusImpl as any)(this, ...args); }
   private canEntityIssueSpecialPower(...args: any[]) { return (canEntityIssueSpecialPowerImpl as any)(this, ...args); }
   /* @internal */ isSpecialPowerObjectTargetShrouded(...args: any[]) { return (isSpecialPowerObjectTargetShroudedImpl as any)(this, ...args); }
   /* @internal */ isSpecialPowerObjectEffectivelyDead(...args: any[]) { return (isSpecialPowerObjectEffectivelyDeadImpl as any)(this, ...args); }
@@ -19711,7 +19712,7 @@ export class GameLogicSubsystem implements Subsystem {
     specialPowerName: string,
     commandOption: number,
     commandButtonId: string,
-    specialPowerDef: SpecialPowerDef,
+    _specialPowerDef: SpecialPowerDef,
   ): boolean {
     const module = this.resolveSpecialPowerModuleProfile(sourceEntityId, specialPowerName);
     if (!module) {
@@ -19755,7 +19756,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     const effectCategory = resolveEffectCategoryImpl(module.moduleType);
-    const effectContext = this.createSpecialPowerEffectContext();
+    const _effectContext = this.createSpecialPowerEffectContext();
 
     switch (effectCategory) {
       case 'OCL_SPAWN':
@@ -19802,7 +19803,7 @@ export class GameLogicSubsystem implements Subsystem {
     targetZ: number,
     commandOption: number,
     commandButtonId: string,
-    specialPowerDef: SpecialPowerDef,
+    _specialPowerDef: SpecialPowerDef,
   ): boolean {
     const module = this.resolveSpecialPowerModuleProfile(sourceEntityId, specialPowerName);
     if (!module) {
@@ -29229,7 +29230,7 @@ export class GameLogicSubsystem implements Subsystem {
   /**
    * Helper: apply weapon damage at a point by weapon name (used by StructureToppleUpdate).
    */
-  private applyWeaponDamageAtPoint(source: MapEntity, targetX: number, _targetY: number,
+  private _applyWeaponDamageAtPoint(source: MapEntity, targetX: number, _targetY: number,
       targetZ: number, _weaponName: string, radius: number): void {
     const radiusSqr = radius * radius;
     for (const other of this.spawnedEntities.values()) {
