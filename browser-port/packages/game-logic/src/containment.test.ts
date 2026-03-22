@@ -1854,3 +1854,78 @@ describe('Containment system integration', () => {
     expect(logic.getEntityState(2)!.statusFlags ?? []).toContain('DISABLED_HELD');
   });
 });
+
+// ── Garrison occupancy count in getEntityState ──
+
+describe('getEntityState garrison occupancy', () => {
+  it('exposes garrisonCount and garrisonCapacity for garrison buildings', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Building', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Contain', {
+            ContainMax: 10,
+          }),
+        ]),
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([
+      makeMapObject('Building', 20, 20),
+      makeMapObject('Soldier', 22, 20),
+      makeMapObject('Soldier', 24, 20),
+    ]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+    logic.update(1 / 30);
+
+    // Empty building should show 0/10.
+    const emptyState = logic.getEntityState(1)!;
+    expect(emptyState.garrisonCount).toBe(0);
+    expect(emptyState.garrisonCapacity).toBe(10);
+
+    // Garrison one soldier.
+    logic.submitCommand({ type: 'garrisonBuilding', entityId: 2, targetBuildingId: 1 });
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+
+    const oneState = logic.getEntityState(1)!;
+    expect(oneState.garrisonCount).toBe(1);
+    expect(oneState.garrisonCapacity).toBe(10);
+
+    // Garrison a second soldier.
+    logic.submitCommand({ type: 'garrisonBuilding', entityId: 3, targetBuildingId: 1 });
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+
+    const twoState = logic.getEntityState(1)!;
+    expect(twoState.garrisonCount).toBe(2);
+    expect(twoState.garrisonCapacity).toBe(10);
+
+    // Evacuate — count should drop to 0.
+    logic.submitCommand({ type: 'evacuate', entityId: 1 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    const evacuatedState = logic.getEntityState(1)!;
+    expect(evacuatedState.garrisonCount).toBe(0);
+    expect(evacuatedState.garrisonCapacity).toBe(10);
+  });
+
+  it('returns null garrisonCount/garrisonCapacity for non-garrison entities', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Ranger', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = createLogic();
+    const map = makeMap([makeMapObject('Ranger', 20, 20)]);
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap());
+    logic.update(1 / 30);
+
+    const state = logic.getEntityState(1)!;
+    expect(state.garrisonCount).toBeNull();
+    expect(state.garrisonCapacity).toBeNull();
+  });
+});

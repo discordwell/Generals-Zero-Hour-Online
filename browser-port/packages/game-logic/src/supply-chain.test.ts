@@ -104,4 +104,37 @@ describe('supply chain economy', () => {
     // Should have earned credits from supply chain
     expect(finalCredits).toBeGreaterThan(0);
   });
+
+  it('getEntityState exposes supplyBoxes and supplyMaxBoxes for supply trucks', () => {
+    const bundle = makeSupplyBundle();
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('TestWarehouse', 20, 20),
+        makeMapObject('TestDepot', 200, 20),
+        makeMapObject('TestTruck', 30, 20),
+      ], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+    logic.setPlayerSide(0, 'America');
+    logic.submitCommand({ type: 'setSideCredits', side: 'America', amount: 0 });
+    logic.update(0);
+
+    // Get truck entity id.
+    const states = logic.getRenderableEntityStates();
+    const truck = states.find(e => e.templateName === 'TestTruck')!;
+
+    // Initially 0 boxes, max 3.
+    const initialState = logic.getEntityState(truck.id)!;
+    expect(initialState.supplyBoxes).toBe(0);
+    expect(initialState.supplyMaxBoxes).toBe(3);
+
+    // Non-supply entities should have null.
+    const warehouse = states.find(e => e.templateName === 'TestWarehouse')!;
+    const warehouseState = logic.getEntityState(warehouse.id)!;
+    expect(warehouseState.supplyBoxes).toBeNull();
+    expect(warehouseState.supplyMaxBoxes).toBeNull();
+  });
 });
