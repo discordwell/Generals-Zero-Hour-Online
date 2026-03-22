@@ -2976,6 +2976,9 @@ export interface MapEntity {
   stealthProfile: StealthProfile | null;
   /** Frames remaining before CAN_STEALTH entity re-enters stealth. 0 = ready to stealth. */
   stealthDelayRemaining: number;
+  /** Source parity: StealthUpdate disguise — template name of the object this entity is disguised as.
+   *  null when not disguised. Set when DISGUISED status is active. */
+  disguiseTemplateName: string | null;
   /** Frame at which DETECTED expires. 0 = not detected. */
   detectedUntilFrame: number;
   /** Frame at which entity last took damage (for STEALTH_NOT_WHILE_TAKING_DAMAGE). */
@@ -3857,6 +3860,8 @@ interface StealthProfile {
   friendlyOpacityMin: number;
   /** Source parity: StealthUpdate.h:80 — ObjectStatusMask for visual hint when leaving stealth (client-side only). */
   hintDetectableConditions: string[];
+  /** Source parity: StealthUpdate.cpp:111 — DisguisesAsTeam enables disguise system (Bomb Truck). */
+  disguisesAsTeam: boolean;
 }
 
 /** StealthForbiddenConditions bitmask values — matches C++ TheStealthLevelNames array ordering. */

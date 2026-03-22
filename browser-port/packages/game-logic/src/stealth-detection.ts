@@ -110,6 +110,11 @@ export function extractStealthProfile(self: GL, objectDef: ObjectDef | undefined
           if (token) hintDetectableConditions.push(token.toUpperCase());
         }
 
+        // Source parity: StealthUpdate.cpp:111 — DisguisesAsTeam enables the disguise system.
+        // When true, stealth starts disabled (m_enabled = !m_teamDisguised) and activates
+        // via disguiseAsObject(). In our simplified model, we auto-disguise on stealth enter.
+        const disguisesAsTeam = readBooleanField(block.fields, ['DisguisesAsTeam']) ?? false;
+
         profile = {
           stealthDelayFrames,
           innateStealth,
@@ -119,6 +124,7 @@ export function extractStealthProfile(self: GL, objectDef: ObjectDef | undefined
           orderIdleEnemiesToAttackMeUponReveal,
           friendlyOpacityMin,
           hintDetectableConditions,
+          disguisesAsTeam,
         };
       }
     }
@@ -353,6 +359,11 @@ export function updateStealth(self: GL): void {
       if (entity.objectStatusFlags.has('STEALTHED')) {
         entity.objectStatusFlags.delete('STEALTHED');
       }
+      // Source parity: StealthUpdate.cpp:901 — remove disguise on stealth break.
+      if (entity.objectStatusFlags.has('DISGUISED')) {
+        entity.objectStatusFlags.delete('DISGUISED');
+        entity.disguiseTemplateName = null;
+      }
       entity.stealthDelayRemaining = delayFrames;
       continue;
     }
@@ -366,6 +377,18 @@ export function updateStealth(self: GL): void {
     // Enter stealth.
     if (!entity.objectStatusFlags.has('STEALTHED')) {
       entity.objectStatusFlags.add('STEALTHED');
+
+      // Source parity: StealthUpdate.cpp:939-1042 — when a DisguisesAsTeam unit enters
+      // stealth, pick a nearby enemy unit as the disguise target. The unit appears as the
+      // target's template to opponents. In C++ this is triggered by SpecialAbilityUpdate
+      // calling disguiseAsObject(target); here we auto-pick the nearest enemy.
+      if (profile && profile.disguisesAsTeam && !entity.objectStatusFlags.has('DISGUISED')) {
+        const disguiseTarget = findDisguiseTarget(self, entity);
+        if (disguiseTarget) {
+          entity.disguiseTemplateName = disguiseTarget.templateName;
+          entity.objectStatusFlags.add('DISGUISED');
+        }
+      }
     }
 
   }
@@ -561,4 +584,33 @@ function orderIdleEnemiesToAttack(self: GL, revealedTarget: MapEntity): void {
     enemy.attackTargetEntityId = revealedTarget.id;
     enemy.attackCommandSource = 'AI';
   }
+}
+
+/**
+ * Source parity: StealthUpdate::disguiseAsObject — find the nearest enemy unit to
+ * use as a disguise template. C++ picks the target passed to the special ability;
+ * in our simplified model we auto-pick the nearest enemy unit of the same general
+ * category (vehicle, infantry, etc.) for a plausible disguise.
+ */
+function findDisguiseTarget(self: GL, entity: MapEntity): MapEntity | null {
+  let bestTarget: MapEntity | null = null;
+  let bestDistSq = Infinity;
+
+  for (const candidate of self.spawnedEntities.values()) {
+    if (candidate.destroyed || candidate.id === entity.id) continue;
+    // Source parity: disguise as enemy units only.
+    if (self.getTeamRelationship(entity, candidate) !== RELATIONSHIP_ENEMIES) continue;
+    // Skip stealthed/disguised targets.
+    if (candidate.objectStatusFlags.has('STEALTHED')) continue;
+
+    const dx = candidate.x - entity.x;
+    const dz = candidate.z - entity.z;
+    const distSq = dx * dx + dz * dz;
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
+      bestTarget = candidate;
+    }
+  }
+
+  return bestTarget;
 }

@@ -46,26 +46,20 @@ function setupEnemyRelationships(logic: GameLogicSubsystem, sideA: string, sideB
 describe('Parity: stealth disguise state machine (StealthUpdate.cpp:97-150)', () => {
   /**
    * C++ StealthUpdate.cpp uses DisguisesAsTeam (INI field) to enable the disguise system.
-   * When m_teamDisguised is true, the stealth module starts disabled (line 138:
-   * "m_enabled = !data->m_teamDisguised") and must be manually activated via
-   * disguiseAsObject(). The disguise creates a visual transition where the unit
+   * When m_teamDisguised is true, stealth starts disabled and must be manually activated
+   * via disguiseAsObject(). The disguise creates a visual transition where the unit
    * fades out, swaps its drawable at the midpoint, and fades back in as the
    * target's template and team color.
    *
-   * TS stealth-detection.ts extractStealthProfile does NOT parse DisguisesAsTeam,
-   * DisguiseTransitionTime, DisguiseRevealTransitionTime, DisguiseFX, or
-   * DisguiseRevealFX. The disguise subsystem is entirely absent from the TS port.
-   * The DISGUISED object status flag is checked in visibility code (index.ts lines
-   * 12825-12828) but is never set by any code path.
+   * TS stealth-detection.ts now parses DisguisesAsTeam from INI and implements a
+   * simplified disguise system: when a DisguisesAsTeam unit enters stealth and an
+   * enemy is nearby, it auto-picks the nearest enemy as a disguise target and sets
+   * the DISGUISED object status flag + disguiseTemplateName.
    */
 
-  it('stealthed unit with DisguisesAsTeam has STEALTHED but not DISGUISED (disguise not implemented)', () => {
-    // C++ behavior: a unit with DisguisesAsTeam=Yes starts with stealth DISABLED
-    // (m_enabled = false). It only gains STEALTHED after disguiseAsObject() is called.
-    // After disguising, it gets both STEALTHED and DISGUISED status.
-    //
-    // TS behavior: DisguisesAsTeam is not parsed. The unit gets innate stealth
-    // normally (if InnateStealth=Yes). DISGUISED is never set.
+  it('stealthed unit with DisguisesAsTeam without enemies has STEALTHED but not DISGUISED', () => {
+    // When no enemies are nearby, the unit cannot pick a disguise target.
+    // It gets STEALTHED from InnateStealth but DISGUISED is not set.
     const bundle = makeBundle({
       objects: [
         makeObjectDef('BombTruck', 'GLA', ['VEHICLE'], [
@@ -93,12 +87,7 @@ describe('Parity: stealth disguise state machine (StealthUpdate.cpp:97-150)', ()
 
     const flags = logic.getEntityState(1)?.statusFlags ?? [];
 
-    // PARITY DOCUMENTATION:
-    // C++: With DisguisesAsTeam=Yes, m_enabled starts false. Unit is NOT stealthed
-    //      until disguiseAsObject() is called. Once disguised, both STEALTHED and
-    //      DISGUISED are set.
-    // TS:  DisguisesAsTeam is not parsed. InnateStealth=Yes causes normal stealth
-    //      activation after delay. STEALTHED is set, DISGUISED is never set.
+    // No enemies to disguise as — STEALTHED but not DISGUISED.
     expect(flags).toContain('STEALTHED');
     expect(flags).not.toContain('DISGUISED');
   });
@@ -191,16 +180,10 @@ describe('Parity: stealth disguise state machine (StealthUpdate.cpp:97-150)', ()
     expect(idleEnemy!.attackTargetEntityId).toBe(1);
   });
 
-  it('DISGUISED status flag is never set by any TS code path', () => {
-    // The DISGUISED flag exists in the visibility checks (index.ts:12825-12828)
-    // where stealthed + not detected + not disguised objects are invisible.
-    // In C++, DISGUISED means the unit appears as a different template to enemies
-    // (e.g., Bomb Truck disguised as a Battlemaster). Enemies see the disguise model
-    // and do not auto-attack because it looks like a friendly unit.
-    //
-    // In TS, DISGUISED is never set because disguiseAsObject() and the entire
-    // disguise state machine (m_transitioningToDisguise, m_disguiseHalfpointReached,
-    // changeVisualDisguise, m_disguiseTransitionFrames) are not implemented.
+  it('DISGUISED status flag is set when DisguisesAsTeam unit has a nearby enemy', () => {
+    // Source parity: when a DisguisesAsTeam unit enters stealth and an enemy is
+    // nearby, it auto-disguises as the nearest enemy. The DISGUISED object status
+    // flag is set and the disguiseTemplateName is populated.
     const bundle = makeBundle({
       objects: [
         // Unit with stealth that has DisguisesAsTeam and all disguise fields.
@@ -236,12 +219,21 @@ describe('Parity: stealth disguise state machine (StealthUpdate.cpp:97-150)', ()
 
     const flags = logic.getEntityState(1)?.statusFlags ?? [];
 
-    // DISGUISED should never appear — no code path sets it in TS.
-    expect(flags).not.toContain('DISGUISED');
+    // Source parity: DISGUISED is now set when the unit stealths near an enemy.
+    expect(flags).toContain('DISGUISED');
 
-    // Verify the unit is stealthed (InnateStealth=Yes is honored even though
-    // DisguisesAsTeam has no effect in TS).
+    // Verify the unit is also stealthed.
     expect(flags).toContain('STEALTHED');
+
+    // Verify disguiseTemplateName is set to the enemy template.
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, {
+        disguiseTemplateName: string | null;
+      }>;
+    };
+    const disguiser = privateApi.spawnedEntities.get(1);
+    expect(disguiser).not.toBeUndefined();
+    expect(disguiser!.disguiseTemplateName).toBe('EnemyTank');
   });
 
   it('detector within range breaks stealth and sets DETECTED on stealthed unit', () => {
@@ -289,6 +281,69 @@ describe('Parity: stealth disguise state machine (StealthUpdate.cpp:97-150)', ()
     // Both C++ and TS agree: detector in range sets DETECTED on a stealthed enemy.
     expect(postDetectFlags).toContain('STEALTHED');
     expect(postDetectFlags).toContain('DETECTED');
+  });
+
+  it('DISGUISED is cleared when stealth breaks due to forbidden conditions', () => {
+    // Source parity: StealthUpdate.cpp:901 — when stealth breaks (e.g., due to
+    // attacking), the disguise is also removed. Both DISGUISED flag and
+    // disguiseTemplateName are cleared.
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('BombTruck', 'GLA', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+          makeBlock('Behavior', 'StealthUpdate ModuleTag_Stealth', {
+            StealthDelay: 100,
+            InnateStealth: 'Yes',
+            DisguisesAsTeam: 'Yes',
+            StealthForbiddenConditions: 'ATTACKING',
+          }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'TruckGun'] }),
+        ]),
+        makeObjectDef('EnemyTank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('TruckGun', {
+          PrimaryDamage: 5,
+          AttackRange: 150,
+          DelayBetweenShots: 500,
+          DamageType: 'SMALL_ARMS',
+        }),
+      ],
+    });
+    const logic = createLogic();
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('BombTruck', 50, 50),
+        makeMapObject('EnemyTank', 55, 50),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    setupEnemyRelationships(logic, 'GLA', 'America');
+
+    // Let stealth activate and disguise apply.
+    for (let i = 0; i < 15; i++) logic.update(1 / 30);
+    const preAttackFlags = logic.getEntityState(1)?.statusFlags ?? [];
+    expect(preAttackFlags).toContain('STEALTHED');
+    expect(preAttackFlags).toContain('DISGUISED');
+
+    // Issue attack command to break stealth.
+    logic.submitCommand({ type: 'attackEntity', entityId: 1, targetEntityId: 2 });
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    const postAttackFlags = logic.getEntityState(1)?.statusFlags ?? [];
+    // Attacking breaks stealth, which clears DISGUISED.
+    expect(postAttackFlags).not.toContain('STEALTHED');
+    expect(postAttackFlags).not.toContain('DISGUISED');
+
+    // Verify disguiseTemplateName is also cleared.
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, { disguiseTemplateName: string | null }>;
+    };
+    const truck = privateApi.spawnedEntities.get(1);
+    expect(truck!.disguiseTemplateName).toBeNull();
   });
 });
 

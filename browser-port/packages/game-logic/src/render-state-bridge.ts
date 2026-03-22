@@ -625,6 +625,7 @@ export function makeRenderableEntityState(self: GL, entity: MapEntity, localSide
       veterancyLevel: entity.experienceState.currentLevel,
       isStealthed: entity.objectStatusFlags.has('STEALTHED'),
       isDetected: entity.objectStatusFlags.has('DETECTED'),
+      disguiseTemplateName: entity.objectStatusFlags.has('DISGUISED') ? entity.disguiseTemplateName : null,
       stealthFriendlyOpacity: (() => {
         // Source parity: StealthUpdate.h:86 / Drawable.cpp:2567-2588 — stealthed allies render at
         // per-module friendlyOpacityMin. Applies when stealthed and allied to local player (includes self).

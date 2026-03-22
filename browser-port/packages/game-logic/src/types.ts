@@ -46,6 +46,9 @@ export interface RenderableEntityState {
   /** Source parity: StealthUpdate.h:86 — per-module friendly opacity for stealthed ally rendering.
    *  Set when entity is stealthed and owned by local player. 0 = fully transparent, 1 = fully opaque. */
   stealthFriendlyOpacity: number;
+  /** Source parity: StealthUpdate disguise — template name the unit is visually disguised as.
+   *  null when not disguised. Used by the renderer to swap the visual model. */
+  disguiseTemplateName: string | null;
   /** Source parity bridge: Drawable::setFlash count remaining. */
   scriptFlashCount?: number;
   /** Source parity bridge: Drawable indicator flash color (0xRRGGBB). */

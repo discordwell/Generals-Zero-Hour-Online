@@ -61,6 +61,9 @@ export interface RenderableEntityState {
   isDetected?: boolean;
   /** Source parity: StealthUpdate.h:86 — per-module friendly opacity for stealthed ally rendering. */
   stealthFriendlyOpacity?: number;
+  /** Source parity: StealthUpdate disguise — template name the unit is visually disguised as.
+   *  null/undefined when not disguised. Used to swap the visual model. */
+  disguiseTemplateName?: string | null;
   scriptFlashCount?: number;
   scriptFlashColor?: number;
   shroudStatus?: 'CLEAR' | 'FOGGED' | 'SHROUDED';
@@ -171,6 +174,21 @@ interface VisualAssetState {
   // --- Team color ---
   /** Side string last applied for team color tinting (null = never applied). */
   appliedTeamColorSide: string | null;
+  // --- Disguise model swap ---
+  /** Template name of the current disguise (null = not disguised). */
+  disguiseTemplateName: string | null;
+  /** The model asset path loaded for the disguise (null = no disguise model loaded). */
+  disguiseAssetPath: string | null;
+  /** Saved real model when disguise is active (so we can restore on undisguise). */
+  realModel: THREE.Object3D | null;
+  /** Saved real model asset path. */
+  realAssetPath: string | null;
+  /** Disguise transition opacity progress (0..1, where 0.5 is the swap point). */
+  disguiseTransitionProgress: number;
+  /** Whether a disguise fade transition is currently in progress. */
+  disguiseTransitioning: boolean;
+  /** Direction of disguise transition: true = applying disguise, false = removing. */
+  disguiseTransitionApplying: boolean;
 }
 
 export interface ObjectVisualManagerConfig {
@@ -344,6 +362,7 @@ export class ObjectVisualManager {
       }
 
       this.syncVisualAsset(visual, state);
+      this.syncDisguise(visual, state, dt);
       this.syncTeamColor(visual, state);
       this.syncHealthBar(visual, state);
       this.syncSelectionRing(visual, state);
@@ -525,6 +544,13 @@ export class ObjectVisualManager {
       modelSwapLoadToken: 0,
       conditionAnimSpeedFactor: 1.0,
       appliedTeamColorSide: null,
+      disguiseTemplateName: null,
+      disguiseAssetPath: null,
+      realModel: null,
+      realAssetPath: null,
+      disguiseTransitionProgress: 0,
+      disguiseTransitioning: false,
+      disguiseTransitionApplying: false,
     };
   }
 
@@ -727,6 +753,200 @@ export class ObjectVisualManager {
         this.unresolvedEntityIds.add(entityId);
       }
     })();
+  }
+
+  // ==========================================================================
+  // Disguise model swap (source parity: StealthUpdate::changeVisualDisguise)
+  // ==========================================================================
+
+  /** Transition speed: progress per second. ~15 frames at 30fps = 0.5s total, so 2.0/s. */
+  private static readonly DISGUISE_TRANSITION_SPEED = 2.0;
+
+  /**
+   * Sync disguise visual model swap. When an entity's disguiseTemplateName changes,
+   * initiate a fade transition: opacity 1 -> 0 at the midpoint, swap the model,
+   * then 0 -> 1. This mirrors C++ StealthUpdate::changeVisualDisguise behaviour
+   * where the drawable is swapped at the transition midpoint.
+   */
+  private syncDisguise(visual: VisualAssetState, state: RenderableEntityState, dt: number): void {
+    const wantDisguise = state.disguiseTemplateName ?? null;
+
+    // Detect disguise state change.
+    if (wantDisguise !== visual.disguiseTemplateName) {
+      if (wantDisguise && !visual.disguiseTemplateName) {
+        // Applying disguise: start fade-out transition.
+        visual.disguiseTemplateName = wantDisguise;
+        visual.disguiseTransitioning = true;
+        visual.disguiseTransitionProgress = 0;
+        visual.disguiseTransitionApplying = true;
+      } else if (!wantDisguise && visual.disguiseTemplateName) {
+        // Removing disguise: start fade-out transition to reveal real model.
+        visual.disguiseTemplateName = null;
+        visual.disguiseTransitioning = true;
+        visual.disguiseTransitionProgress = 0;
+        visual.disguiseTransitionApplying = false;
+      } else if (wantDisguise && visual.disguiseTemplateName && wantDisguise !== visual.disguiseTemplateName) {
+        // Changing disguise target: restart transition.
+        visual.disguiseTemplateName = wantDisguise;
+        visual.disguiseTransitioning = true;
+        visual.disguiseTransitionProgress = 0;
+        visual.disguiseTransitionApplying = true;
+        // If currently showing a disguise model, remove it first.
+        if (visual.realModel && visual.currentModel !== visual.realModel) {
+          this.removeModel(visual);
+          visual.currentModel = visual.realModel;
+          visual.root.add(visual.realModel);
+        }
+        visual.disguiseAssetPath = null;
+      }
+    }
+
+    if (!visual.disguiseTransitioning) return;
+
+    // Advance transition.
+    visual.disguiseTransitionProgress += dt * ObjectVisualManager.DISGUISE_TRANSITION_SPEED;
+
+    // Source parity: opacity = |1 - progress * 2|. At progress=0.5, opacity=0 (swap point).
+    const clampedProgress = Math.min(visual.disguiseTransitionProgress, 1.0);
+    const opacity = Math.abs(1.0 - clampedProgress * 2.0);
+
+    // At the midpoint (progress >= 0.5), perform the model swap.
+    if (clampedProgress >= 0.5 && visual.currentModel) {
+      if (visual.disguiseTransitionApplying && visual.disguiseAssetPath === null) {
+        // Save the real model and load the disguise model.
+        visual.realModel = visual.currentModel;
+        visual.realAssetPath = visual.assetPath;
+        visual.currentModel.visible = false;
+
+        // Construct disguise asset path from the template name.
+        const disguisePath = this.buildDisguiseAssetPath(visual.disguiseTemplateName!);
+        if (disguisePath) {
+          visual.disguiseAssetPath = disguisePath;
+          this.loadDisguiseModel(visual, disguisePath);
+        }
+      } else if (!visual.disguiseTransitionApplying && visual.realModel) {
+        // Restore the real model.
+        if (visual.currentModel !== visual.realModel) {
+          visual.currentModel.visible = false;
+          if (visual.currentModel.parent) {
+            visual.currentModel.parent.remove(visual.currentModel);
+          }
+        }
+        visual.realModel.visible = true;
+        visual.currentModel = visual.realModel;
+        visual.assetPath = visual.realAssetPath;
+        visual.realModel = null;
+        visual.realAssetPath = null;
+        visual.disguiseAssetPath = null;
+      }
+    }
+
+    // Apply opacity to the visible model.
+    this.setModelOpacity(visual, opacity);
+
+    // Complete transition.
+    if (clampedProgress >= 1.0) {
+      visual.disguiseTransitioning = false;
+      visual.disguiseTransitionProgress = 0;
+      this.setModelOpacity(visual, 1.0);
+    }
+  }
+
+  /**
+   * Build a disguise asset path from a template name.
+   * Uses the same naming convention as real assets: lowercase template name.
+   */
+  private buildDisguiseAssetPath(templateName: string): string | null {
+    if (!templateName) return null;
+    // Try the same asset resolution as normal entities — look for GLB/GLTF
+    // using the template name as the base path.
+    const baseName = templateName.toLowerCase();
+    const ext = this.config.modelExtensions?.[0] ?? '.glb';
+    return `${baseName}${ext}`;
+  }
+
+  /**
+   * Load a disguise model and swap it into the visual once loaded.
+   */
+  private loadDisguiseModel(visual: VisualAssetState, assetPath: string): void {
+    const loadToken = ++visual.modelSwapLoadToken;
+    void (async () => {
+      for (const candidate of this.resolveCandidateAssetPaths(assetPath)) {
+        try {
+          const source = await this.loadModelAsset(candidate);
+          // Verify this visual still wants this disguise.
+          if (visual.modelSwapLoadToken !== loadToken) return;
+          if (visual.disguiseAssetPath !== assetPath) return;
+
+          const clone = source.scene.clone(true);
+          this.applyGuardBandFrustumPolicy(clone);
+          clone.traverse((child) => {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          });
+
+          // Show the disguise model, hide the real model.
+          if (visual.realModel) {
+            visual.realModel.visible = false;
+          }
+          visual.root.add(clone);
+          visual.currentModel = clone;
+
+          // Apply current transition opacity.
+          const clampedProgress = Math.min(visual.disguiseTransitionProgress, 1.0);
+          const opacity = Math.abs(1.0 - clampedProgress * 2.0);
+          this.setModelOpacity(visual, opacity);
+          return;
+        } catch {
+          // Try next candidate.
+        }
+      }
+      // If all candidates fail, just keep the real model visible.
+      if (visual.realModel) {
+        visual.realModel.visible = true;
+        visual.currentModel = visual.realModel;
+      }
+    })();
+  }
+
+  /**
+   * Set opacity on the current visible model during disguise transitions.
+   */
+  private setModelOpacity(visual: VisualAssetState, opacity: number): void {
+    if (!visual.currentModel) return;
+    visual.currentModel.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.material) return;
+
+      // Clone materials if needed (same pattern as stealth opacity).
+      if (!visual.stealthMaterialClones.has(mesh)) {
+        if (Array.isArray(mesh.material)) {
+          mesh.material = mesh.material.map((m) => {
+            const clonedMat = m.clone();
+            clonedMat.transparent = true;
+            return clonedMat;
+          });
+        } else {
+          const clonedMat = mesh.material.clone();
+          clonedMat.transparent = true;
+          mesh.material = clonedMat;
+        }
+        visual.stealthMaterialClones.set(mesh, mesh.material);
+      }
+
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const mat of mats) {
+        if ('opacity' in mat) {
+          const wantTransparent = opacity < 0.99;
+          if (mat.transparent !== wantTransparent) {
+            mat.transparent = wantTransparent;
+            mat.needsUpdate = true;
+          }
+          mat.depthWrite = !wantTransparent;
+          mat.opacity = opacity;
+        }
+      }
+    });
   }
 
   private collectCandidateAssetPaths(state: RenderableEntityState): string[] {
