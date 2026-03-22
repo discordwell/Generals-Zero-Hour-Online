@@ -449,6 +449,7 @@ export function createMapEntity(self: GL,
     deployFrameToWait: 0,
     // Construction state — born complete unless dozer-placed.
     constructionPercent: CONSTRUCTION_COMPLETE,
+    capturePercent: -1,
     builderId: 0,
     buildTotalFrames: 0,
     destroyed: false,

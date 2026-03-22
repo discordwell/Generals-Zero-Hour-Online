@@ -9,6 +9,19 @@
 import { addExperiencePoints as addExperiencePointsImpl, LEVEL_REGULAR, LEVEL_HEROIC } from './experience.js';
 import { depositSideCredits as depositSideCreditsImpl } from './side-credits.js';
 import {
+  resolveEffectCategory as resolveEffectCategoryImpl,
+  executeCashHack as executeCashHackImpl,
+  executeDefector as executeDefectorImpl,
+  executeAreaDamage as executeAreaDamageImpl,
+  executeEmpPulse as executeEmpPulseImpl,
+  DEFAULT_CASH_HACK_AMOUNT,
+  DEFAULT_AREA_DAMAGE_RADIUS,
+  DEFAULT_AREA_DAMAGE_AMOUNT,
+  DEFAULT_EMP_RADIUS,
+  DEFAULT_EMP_DAMAGE,
+} from './special-power-effects.js';
+import { readStringField } from './ini-readers.js';
+import {
   LOGIC_FRAME_RATE,
   PATHFIND_CELL_SIZE,
   RELATIONSHIP_ALLIES,
@@ -1391,6 +1404,11 @@ export function updateSpecialAbility(self: GL): void {
       if (state.prepFrames > 0) {
         // Source parity: abort if target moved beyond abort range.
         if (!self.continueSpecialAbilityPreparation(entity, profile, state)) {
+          // Clear capture progress on abort.
+          if (state.targetEntityId !== null) {
+            const abortTarget = self.spawnedEntities.get(state.targetEntityId);
+            if (abortTarget) abortTarget.capturePercent = -1;
+          }
           self.startSpecialAbilityPacking(entity, profile, state, false);
           continue;
         }
@@ -1405,6 +1423,17 @@ export function updateSpecialAbility(self: GL): void {
         }
 
         state.prepFrames--;
+
+        // Source parity: update capture progress on the target building during preparation.
+        if (state.targetEntityId !== null && profile.preparationFrames > 0) {
+          const captureTarget = self.spawnedEntities.get(state.targetEntityId);
+          if (captureTarget) {
+            const totalFrames = Math.max(1, profile.preparationFrames);
+            const elapsed = totalFrames - state.prepFrames;
+            captureTarget.capturePercent = Math.min(100, Math.round((elapsed / totalFrames) * 100));
+          }
+        }
+
         if (state.prepFrames <= 0) {
           self.triggerSpecialAbilityEffect(entity, profile, state);
 
@@ -1599,7 +1628,7 @@ export function triggerSpecialAbilityEffect(self: GL,
     const sourceSide = entity.side ?? '';
 
     if (state.targetEntityId !== null) {
-      // Object-targeted ability: cash hack, defector, etc.
+      // Object-targeted ability: cash hack, defector, capture building, etc.
       const module = entity.specialPowerModules.get(profile.specialPowerTemplateName);
       if (!module) return;
       const effectCategory = resolveEffectCategoryImpl(module.moduleType);
@@ -1620,6 +1649,31 @@ export function triggerSpecialAbilityEffect(self: GL,
             targetEntityId: state.targetEntityId,
           }, effectContext);
           break;
+        default: {
+          // Source parity: SpecialAbilityUpdate::triggerAbilityEffect —
+          // SPECIAL_INFANTRY_CAPTURE_BUILDING / SPECIAL_BLACKLOTUS_CAPTURE_BUILDING
+          // transfer ownership of target building to source's side via Object::defect().
+          const specialPowerDef = self.resolveSpecialPowerDefByName(profile.specialPowerTemplateName);
+          const spEnum = specialPowerDef
+            ? (readStringField(specialPowerDef.fields, ['Enum'])?.trim().toUpperCase() ?? '')
+            : '';
+          if (spEnum === 'SPECIAL_INFANTRY_CAPTURE_BUILDING'
+              || spEnum === 'SPECIAL_BLACKLOTUS_CAPTURE_BUILDING') {
+            const target = self.spawnedEntities.get(state.targetEntityId);
+            if (target && !target.destroyed) {
+              // Source parity: if target building has garrison occupants, evacuate them first.
+              if (target.containProfile
+                  && target.containProfile.garrisonCapacity > 0) {
+                self.evacuateContainedEntities(target.id, true);
+              }
+              // Source parity: target->defect(object->getControllingPlayer()->getDefaultTeam())
+              effectContext.changeEntitySide(state.targetEntityId, sourceSide);
+              // Clear capture progress on the target.
+              target.capturePercent = -1;
+            }
+          }
+          break;
+        }
       }
     } else if (state.targetX !== null && state.targetZ !== null) {
       // Position-targeted ability.
@@ -1661,6 +1715,14 @@ export function finishSpecialAbility(self: GL, entity: MapEntity, _success: bool
     const profile = entity.specialAbilityProfile;
     const state = entity.specialAbilityState;
     if (!state) return;
+
+    // Clear capture progress on the target building when ability finishes/aborts.
+    if (state.targetEntityId !== null) {
+      const captureTarget = self.spawnedEntities.get(state.targetEntityId);
+      if (captureTarget && captureTarget.capturePercent >= 0) {
+        captureTarget.capturePercent = -1;
+      }
+    }
 
     state.active = false;
     state.targetEntityId = null;

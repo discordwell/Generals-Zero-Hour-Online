@@ -63,6 +63,8 @@ export interface RenderableEntityState {
   shroudStatus: 'CLEAR' | 'FOGGED' | 'SHROUDED';
   /** Source parity: Object::m_constructionPercent — 0..100 during build, -1 when complete. */
   constructionPercent: number;
+  /** Source parity: capture progress — 0..100 during capture, -1 when not being captured. */
+  capturePercent: number;
   /** Source parity: ToppleUpdate — angular tilt in radians (0 = upright, PI/2 = fallen). */
   toppleAngle: number;
   /** Source parity: ToppleUpdate — topple direction X component (unit vector). */

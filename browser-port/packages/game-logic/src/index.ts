@@ -3174,6 +3174,11 @@ export interface MapEntity {
    * Objects are born with -1 (complete) unless placed by a dozer.
    */
   constructionPercent: number;
+  /**
+   * Source parity: capture progress when a building is being captured.
+   * 0..100 during capture, -1 when not being captured.
+   */
+  capturePercent: number;
   /** ID of the dozer currently building this entity. 0 = no active builder. */
   builderId: number;
   /** Total frames to build from INI BuildTime. 0 = instant. */
@@ -8846,6 +8851,8 @@ export class GameLogicSubsystem implements Subsystem {
     currentExperience: number;
     rallyPoint: { x: number; z: number } | null;
     constructionPercent: number;
+    /** Capture progress: 0..100 during capture, -1 when not being captured. */
+    capturePercent: number;
     side: string;
     weaponBonusConditionFlags: number;
     visionRange: number;
@@ -8907,6 +8914,7 @@ export class GameLogicSubsystem implements Subsystem {
       currentExperience: entity.experienceState.currentExperience,
       rallyPoint: entity.rallyPoint ? { x: entity.rallyPoint.x, z: entity.rallyPoint.z } : null,
       constructionPercent: entity.constructionPercent,
+      capturePercent: entity.capturePercent,
       side: entity.side ?? '',
       weaponBonusConditionFlags: entity.weaponBonusConditionFlags,
       visionRange: entity.visionRange,

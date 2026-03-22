@@ -651,6 +651,7 @@ export function makeRenderableEntityState(self: GL, entity: MapEntity, localSide
       scriptAmbientSoundRevision: entity.scriptAmbientSoundRevision,
       shroudStatus: self.resolveEntityShroudStatusForLocalPlayer(entity),
       constructionPercent: entity.constructionPercent,
+      capturePercent: entity.capturePercent,
       toppleAngle: entity.toppleAngularAccumulation,
       toppleDirX: entity.toppleDirX,
       toppleDirZ: entity.toppleDirZ,
