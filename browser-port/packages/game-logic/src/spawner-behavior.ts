@@ -263,6 +263,10 @@ export function createSpawnSlave(self: GL, slaver: MapEntity, state: SpawnBehavi
   slave.slaverEntityId = slaver.id;
   state.slaveIds.push(slave.id);
 
+  // Source parity: ExperienceTracker.cpp — spawned slaves redirect all earned XP to master.
+  // C++ sets m_experienceSink = slaver->getID() so kill XP flows to the carrier/spawner.
+  slave.experienceState.experienceSinkEntityId = slaver.id;
+
   // Source parity: onEnslave marks slaves as UNSELECTABLE.
   slave.objectStatusFlags.add('UNSELECTABLE');
 

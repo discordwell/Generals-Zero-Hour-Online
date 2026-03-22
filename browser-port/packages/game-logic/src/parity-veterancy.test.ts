@@ -451,24 +451,12 @@ describe('parity veterancy: experience sink redirect', () => {
    * The experience sink mechanism redirects all XP earned by one entity to another.
    * Primary use cases in C++:
    *   1. Projectiles (missiles, etc.) redirect their kill XP to the launcher
-   *      (Weapon.cpp:2761 — projectile->getExperienceTracker()->setExperienceSink(launcher->getID()))
-   *   2. Special abilities create helper objects that sink XP back to the caster
-   *      (SpecialAbilityUpdate.cpp:1508)
-   *   3. Neutron missiles sink XP to the launcher
-   *      (NeutronMissileUpdate.cpp:243)
-   *
-   * TS source: experience.ts — No sink field exists in ExperienceState.
-   * The addExperiencePoints function has no sink redirect logic.
-   *
-   * PARITY GAP: The entire experience sink mechanism is missing from the TS port.
-   * This means projectile kills credit XP to the projectile entity (which is then
-   * discarded) rather than to the launcher.
+   *   2. Spawned slaves (aircraft from carriers) redirect XP to the master
+   *   3. Tunnel defenders redirect XP to the tunnel network
    */
 
-  it('documents that ExperienceState has no experienceSink field', () => {
-    // The TS ExperienceState interface only has:
-    //   currentLevel, currentExperience, experienceScalar
-    // It does NOT have an experienceSink field.
+  it('ExperienceState has experienceSinkEntityId field, defaulting to -1 (INVALID_ID)', () => {
+    // Source parity: ExperienceTracker.cpp:49 — m_experienceSink initialized to INVALID_ID
 
     const agent = createParityAgent({
       bundles: {
@@ -501,19 +489,17 @@ describe('parity veterancy: experience sink redirect', () => {
       enemies: [['America', 'China']],
     });
 
-    // Verify that the internal entity state has no experienceSink property
     const launcherInternal = (agent.gameLogic as any).spawnedEntities.get(1);
     expect(launcherInternal).toBeDefined();
 
-    // The experienceState object should NOT have an experienceSink field
-    // because the TS port has not implemented this mechanism.
-    expect('experienceSink' in (launcherInternal.experienceState ?? {})).toBe(false);
+    // ExperienceState now has experienceSinkEntityId, defaulting to -1 (no redirect)
+    expect(launcherInternal.experienceState.experienceSinkEntityId).toBe(-1);
   });
 
-  it('documents that direct kills credit XP to the killer (no sink needed for direct combat)', () => {
+  it('direct kills credit XP to the killer (no sink needed for direct combat)', () => {
     // For direct-fire weapons (non-projectile), the attacker entity IS the killer,
     // so XP goes directly to it. The sink mechanism is only needed for projectile
-    // entities that are separate objects (missiles, rockets).
+    // entities that are separate objects (missiles, rockets) or spawned slaves.
     const agent = createParityAgent({
       bundles: {
         objects: [
@@ -560,16 +546,99 @@ describe('parity veterancy: experience sink redirect', () => {
     expect(killer!.veterancyLevel).toBeGreaterThanOrEqual(LEVEL_VETERAN);
   });
 
-  it('documents the missing sink: if a hypothetical projectile entity killed a target, its launcher would get no XP', () => {
-    // This test documents what WOULD happen if a projectile entity existed
-    // as a separate entity (like a missile). In C++, the projectile's
-    // experience sink would redirect XP to the launcher.
-    //
-    // In the TS port, there is no projectile entity system yet, so this
-    // test simply verifies the gap exists in the ExperienceState type.
-    // When the sink is implemented, experienceState should gain:
-    //   experienceSink: number | null  (entity ID of XP recipient, or null)
+  it('spawned slave redirects kill XP to master via experienceSinkEntityId', () => {
+    // Source parity: SpawnBehavior creates slaves that redirect XP to the spawner.
+    // When a slave kills an enemy, XP goes to the master (carrier/spawner), not the slave.
+    const agent = createParityAgent({
+      bundles: {
+        objects: [
+          makeObjectDef('Carrier', 'America', ['VEHICLE'], [
+            makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+            makeBlock('Behavior', 'SpawnBehavior ModuleTag_Spawn', {
+              SpawnNumber: 1,
+              SpawnTemplateName: 'SlaveUnit',
+              SpawnReplaceDelay: 0,
+              InitialBurst: 1,
+            }),
+          ], {
+            ExperienceValue: [0, 0, 0, 0],
+            ExperienceRequired: [0, 50, 100, 200],
+          }),
+          makeObjectDef('SlaveUnit', 'America', ['VEHICLE'], [
+            makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+            makeWeaponBlock('SlaveGun'),
+          ], {
+            ExperienceValue: [0, 0, 0, 0],
+            ExperienceRequired: [0, 50, 100, 200],
+          }),
+          makeObjectDef('Enemy', 'China', ['VEHICLE'], [
+            makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+          ], {
+            ExperienceValue: [100, 100, 100, 100],
+            ExperienceRequired: [0, 1000, 2000, 3000],
+          }),
+        ],
+        weapons: [
+          makeWeaponDef('SlaveGun', {
+            PrimaryDamage: 100,
+            AttackRange: 120,
+            DelayBetweenShots: 100,
+          }),
+        ],
+      },
+      mapObjects: [place('Carrier', 10, 10), place('Enemy', 30, 10)],
+      mapSize: 8,
+      sides: { America: {}, China: {} },
+      enemies: [['America', 'China']],
+    });
 
+    // Let SpawnBehavior create the slave (initial burst fires on first update)
+    agent.step(5);
+
+    // Find the spawned slave entity
+    const carrierInternal = (agent.gameLogic as any).spawnedEntities.get(1);
+    expect(carrierInternal).toBeDefined();
+    expect(carrierInternal.spawnBehaviorState).toBeDefined();
+    expect(carrierInternal.spawnBehaviorState.slaveIds.length).toBe(1);
+
+    const slaveId = carrierInternal.spawnBehaviorState.slaveIds[0];
+    const slaveInternal = (agent.gameLogic as any).spawnedEntities.get(slaveId);
+    expect(slaveInternal).toBeDefined();
+
+    // Verify the slave's experienceSinkEntityId is set to the carrier's ID
+    expect(slaveInternal.experienceState.experienceSinkEntityId).toBe(1);
+
+    // Verify carrier starts with 0 XP
+    const carrierBefore = agent.gameLogic.getEntityState(1);
+    expect(carrierBefore).not.toBeNull();
+    expect(carrierBefore!.currentExperience).toBe(0);
+    expect(carrierBefore!.veterancyLevel).toBe(LEVEL_REGULAR);
+
+    // Slave attacks and kills the enemy
+    // Entity 2 is the enemy (carrier=1, enemy=2, slave spawned as 3+)
+    agent.attack(slaveId, 2);
+    agent.step(30);
+
+    // Enemy should be dead
+    const enemy = agent.entity(2);
+    expect(enemy === null || !enemy.alive).toBe(true);
+
+    // XP should go to the CARRIER (master), not the slave
+    const carrierAfter = agent.gameLogic.getEntityState(1);
+    expect(carrierAfter).not.toBeNull();
+    expect(carrierAfter!.currentExperience).toBe(100);
+    expect(carrierAfter!.veterancyLevel).toBeGreaterThanOrEqual(LEVEL_VETERAN);
+
+    // Slave should have 0 XP (all redirected to carrier)
+    const slaveAfter = agent.gameLogic.getEntityState(slaveId);
+    expect(slaveAfter).not.toBeNull();
+    expect(slaveAfter!.currentExperience).toBe(0);
+    expect(slaveAfter!.veterancyLevel).toBe(LEVEL_REGULAR);
+  });
+
+  it('entity with experienceSinkEntityId pointing to dead entity discards XP silently', () => {
+    // Source parity: ExperienceTracker.cpp:154 — if sinkPointer is null (dead/invalid),
+    // XP is silently discarded. "Not a fatal failure if not valid, he died when I was in the air."
     const agent = createParityAgent({
       bundles: {
         objects: [
@@ -579,35 +648,55 @@ describe('parity veterancy: experience sink redirect', () => {
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 50, 100, 200],
           }),
-          makeObjectDef('Projectile', 'America', ['PROJECTILE'], [
-            makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1, InitialHealth: 1 }),
+          makeObjectDef('Projectile', 'America', ['VEHICLE'], [
+            makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+            makeWeaponBlock('ProjGun'),
           ], {
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 50, 100, 200],
           }),
+          makeObjectDef('Enemy', 'China', ['VEHICLE'], [
+            makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+          ], {
+            ExperienceValue: [100, 100, 100, 100],
+            ExperienceRequired: [0, 1000, 2000, 3000],
+          }),
+        ],
+        weapons: [
+          makeWeaponDef('ProjGun', {
+            PrimaryDamage: 100,
+            AttackRange: 120,
+            DelayBetweenShots: 100,
+          }),
         ],
       },
-      mapObjects: [place('Launcher', 10, 10), place('Projectile', 20, 10)],
+      mapObjects: [place('Launcher', 10, 10), place('Projectile', 20, 10), place('Enemy', 40, 10)],
       mapSize: 8,
-      sides: { America: {} },
+      sides: { America: {}, China: {} },
+      enemies: [['America', 'China']],
     });
 
-    // Verify neither entity has an experienceSink field
-    const launcher = (agent.gameLogic as any).spawnedEntities.get(1);
-    const projectile = (agent.gameLogic as any).spawnedEntities.get(2);
+    // Manually set the projectile's experience sink to the launcher
+    const projectileInternal = (agent.gameLogic as any).spawnedEntities.get(2);
+    projectileInternal.experienceState.experienceSinkEntityId = 1;
 
-    expect(launcher).toBeDefined();
-    expect(projectile).toBeDefined();
+    // Now destroy the launcher (sink target)
+    const launcherInternal = (agent.gameLogic as any).spawnedEntities.get(1);
+    launcherInternal.destroyed = true;
+    launcherInternal.health = 0;
 
-    // ExperienceState type lacks experienceSink — this is the documented parity gap.
-    // C++ equivalent: m_experienceSink initialized to INVALID_ID in ExperienceTracker.cpp:49
-    expect(launcher.experienceState).toBeDefined();
-    expect(launcher.experienceState.currentLevel).toBe(LEVEL_REGULAR);
-    expect(launcher.experienceState.currentExperience).toBe(0);
-    expect('experienceSink' in launcher.experienceState).toBe(false);
+    // Projectile kills the enemy
+    agent.attack(2, 3);
+    agent.step(30);
 
-    // When implementing the sink, ExperienceState should have:
-    //   experienceSink: number | null
-    // And addExperiencePoints should check for it before applying XP locally.
+    // Enemy should be dead
+    const enemy = agent.entity(3);
+    expect(enemy === null || !enemy.alive).toBe(true);
+
+    // Projectile should have 0 XP — XP silently discarded because sink entity is dead
+    const projAfter = agent.gameLogic.getEntityState(2);
+    expect(projAfter).not.toBeNull();
+    expect(projAfter!.currentExperience).toBe(0);
+    expect(projAfter!.veterancyLevel).toBe(LEVEL_REGULAR);
   });
 });

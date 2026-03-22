@@ -1784,16 +1784,35 @@ export function awardExperienceOnKill(self: GL, victimId: number, attackerId: nu
     return;
   }
 
+  // Source parity: ExperienceTracker.cpp:150-160 — experience sink redirect.
+  // When an entity has m_experienceSink set (e.g. spawned slaves redirect XP to master),
+  // all XP is forwarded to the sink entity instead of being applied locally.
+  let xpRecipient = attacker;
+  let xpRecipientProfile = attackerProfile;
+  const sinkEntityId = attacker.experienceState.experienceSinkEntityId;
+  if (sinkEntityId >= 0) {
+    const sinkEntity = self.spawnedEntities.get(sinkEntityId);
+    if (sinkEntity && !sinkEntity.destroyed && sinkEntity.experienceProfile) {
+      xpRecipient = sinkEntity;
+      xpRecipientProfile = sinkEntity.experienceProfile;
+    }
+    // Source parity: if sink entity is dead/invalid, XP is silently discarded
+    // (the C++ code returns without applying XP when sinkPointer is null).
+    else {
+      return;
+    }
+  }
+
   // Source parity: unit-level veterancy XP.
   const result = addExperiencePointsImpl(
-    attacker.experienceState,
-    attackerProfile,
+    xpRecipient.experienceState,
+    xpRecipientProfile,
     xpGain,
     true,
   );
 
   if (result.didLevelUp) {
-    self.onEntityLevelUp(attacker, result.oldLevel, result.newLevel);
+    self.onEntityLevelUp(xpRecipient, result.oldLevel, result.newLevel);
   }
 
   // Source parity: Player::addSkillPointsForKill — also award player-level rank points.

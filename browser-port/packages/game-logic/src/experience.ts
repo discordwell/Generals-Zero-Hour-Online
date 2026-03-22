@@ -41,6 +41,10 @@ export interface ExperienceState {
   currentLevel: VeterancyLevel;
   currentExperience: number;
   experienceScalar: number;
+  /** Source parity: ExperienceTracker.h:74 — m_experienceSink.
+   *  Entity ID to redirect all earned XP to, or -1 (INVALID_ID) for no redirect.
+   *  Used by spawned slaves (aircraft → carrier, tunnel defenders). */
+  experienceSinkEntityId: number;
 }
 
 // ──── Global veterancy config (from INI GlobalData) ────────────────────────
@@ -58,6 +62,7 @@ export function createExperienceState(): ExperienceState {
     currentLevel: LEVEL_REGULAR,
     currentExperience: 0,
     experienceScalar: 1.0,
+    experienceSinkEntityId: -1,  // Source parity: ExperienceTracker.cpp:49 — INVALID_ID
   };
 }
 
