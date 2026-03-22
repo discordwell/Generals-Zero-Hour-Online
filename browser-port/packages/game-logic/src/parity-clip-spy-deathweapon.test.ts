@@ -1,15 +1,16 @@
 /**
- * Parity Tests — Clip Reload ROF Bonus, Spy Vision Scope, FireWeaponWhenDead Under-Construction Guard.
+ * Parity Tests — Clip Reload ROF Bonus, Spy Vision Global Reveal, FireWeaponWhenDead Under-Construction Guard.
  *
- * Three parity gaps documented with tests:
+ * Three parity tests:
  *
  * 1. Clip Reload Time Not Shortened by ROF Bonus
  *    C++ Weapon.cpp:504-509 — getClipReloadTime() divides m_clipReloadTime by ROF bonus.
  *    TS combat-update.ts:289 — uses static clipReloadFrames, no ROF bonus applied.
  *
- * 2. Spy Vision — Area vs Global Reveal
+ * 2. Spy Vision — Global Enemy Vision Spying (C++ parity achieved)
  *    C++ SpyVisionUpdate.cpp:194-210 — globally spies on ALL enemy unit vision ranges.
- *    TS index.ts:19510-19518 — explicitly documented as "approximate as area reveal" with finite radius.
+ *    TS now uses activateGlobalSpyVision() which shares enemy units' fog-of-war vision
+ *    with the spying player, matching the C++ setUnitsVisionSpied behavior.
  *
  * 3. FireWeaponWhenDead Under-Construction Guard
  *    C++ FireWeaponWhenDeadBehavior.cpp:89-99 — checks UNDER_CONSTRUCTION and returns early.
@@ -395,99 +396,159 @@ describe('parity clip reload / spy vision / death weapon', () => {
     });
   });
 
-  // ── Test 2: Spy Vision — Area vs Global Reveal ──────────────────────────
+  // ── Test 2: Spy Vision — Global Enemy Vision Spying (C++ parity) ────────
 
-  describe('spy vision scope: area reveal vs global vision spy', () => {
-    it('TS uses radius-based area reveal, not global enemy vision spying', () => {
+  describe('spy vision scope: global enemy vision spying', () => {
+    it('spy vision reveals distant enemy units globally, not just within a radius', () => {
       // C++ source parity: SpyVisionUpdate.cpp:194-210
       //   doActivationWork() iterates ALL enemy players and calls
       //   player->setUnitsVisionSpied(setting, kindof, playerIndex)
       //   This globally reveals ALL enemy units' vision ranges to the activating player.
       //
-      // TS source: index.ts:19510-19518
-      //   "Simplified: C++ spy vision globally spies on all enemy unit vision for a duration.
-      //    Until the full SpyVisionUpdate system is ported, approximate as area reveal."
-      //   executeSpyVisionImpl({ revealRadius, ... }) -> context.revealFogOfWar(side, x, z, radius)
+      // TS implementation now matches C++:
+      //   activateGlobalSpyVision() adds a spy vision entry that shares enemy unit
+      //   vision contributions with the spying player's fog grid each frame.
       //
-      // This is a DOCUMENTATION TEST: verify the TS implementation uses a finite radius reveal
-      // rather than global vision spying on all enemy units.
+      // This test places an enemy unit far from the spy source and verifies that
+      // spy vision makes the area around the enemy unit visible to the spying player.
 
-      // The TS spy vision system is implemented as:
-      //   1. executeSpyVision() in special-power-effects.ts calls revealFogOfWar(side, x, z, RADIUS)
-      //   2. revealFogOfWar() adds a single "looker" at a specific position with a finite radius
-      //   3. The reveal is time-limited and expires after a duration
-      //
-      // In contrast, C++ SpyVisionUpdate::doActivationWork():
-      //   1. Iterates ALL enemy players
-      //   2. Calls setUnitsVisionSpied() which shares ALL of that enemy's unit vision ranges
-      //   3. The spy sees through ALL enemy units' "eyes" — no radius constraint
-      //
-      // Gap: TS reveals a fixed area around the source/target position.
-      //       C++ reveals everything every enemy unit can see, globally.
-
-      // Verify the special-power-effects module has a radius parameter (not global)
-      // by checking that the executeSpyVision function takes a revealRadius field.
-      // We construct a minimal scenario to verify the mechanism.
-
-      const bundle = makeBundle({
-        objects: [
-          makeObjectDef('Spy', 'America', ['VEHICLE'], [
-            makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
-            makeBlock('Behavior', 'SpyVisionSpecialPower SpyModule', {
-              SpecialPowerTemplate: 'SpyPower',
-              BaseDuration: 10000, // 10 seconds
+      const spyAgent = createBonusParityAgent({
+        bundleParams: {
+          objects: [
+            makeObjectDef('Spy', 'America', ['VEHICLE'], [
+              makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+              makeBlock('Behavior', 'SpyVisionSpecialPower SpyModule', {
+                SpecialPowerTemplate: 'SpyPower',
+                BaseDuration: 10000, // 10 seconds = 300 frames
+              }),
+            ], { VisionRange: 50, ShroudClearingRange: 50 }),
+            makeObjectDef('EnemyUnit', 'China', ['VEHICLE'], [
+              makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+            ], { VisionRange: 80, ShroudClearingRange: 80 }),
+          ],
+          specialPowers: [
+            makeSpecialPowerDef('SpyPower', {
+              ReloadTime: 0,
+              Enum: 'SPECIAL_SPY_SATELLITE',
             }),
-          ], { VisionRange: 100 }),
+          ],
+        },
+        weaponBonusEntries: [],
+        mapObjects: [
+          place('Spy', 10, 10),         // id 1 — spy unit at (10,10)
+          place('EnemyUnit', 100, 100),  // id 2 — enemy far away at (100,100)
         ],
-        specialPowers: [
-          makeSpecialPowerDef('SpyPower', {
-            ReloadTime: 0,
-            RadiusCursorRadius: 150, // This is the reveal radius (finite, not global)
-          }),
-        ],
+        mapSize: 16,
+        sides: { America: {}, China: {} },
+        enemies: [['America', 'China']],
       });
 
-      // Verify the constants used by the system
-      // DEFAULT_SPY_VISION_RADIUS is 200 (from special-power-effects.ts:336)
-      // RadiusCursorRadius overrides it when present (from command-dispatch.ts:674)
-      // Both are finite values — this is the parity gap.
+      const logic = spyAgent.gameLogic;
 
-      // Document the gap:
-      // C++ SpyVisionUpdate.cpp:200-206:
-      //   for (Int i=0; i < ThePlayerList->getPlayerCount(); ++i)
-      //     Player *player = ThePlayerList->getNthPlayer(i);
-      //     if (playerToSetFor->getRelationship(player->getDefaultTeam()) == ENEMIES)
-      //       player->setUnitsVisionSpied(setting, data->m_spyOnKindof, playerToSetFor->getPlayerIndex());
-      //
-      // TS index.ts:22397-22418:
-      //   revealFogOfWar: (side, worldX, worldZ, radius, durationMs) => {
-      //     grid.addLooker(playerIdx, worldX, worldZ, radius);
-      //     this.temporaryVisionReveals.push({ ... radius, expiryFrame ... });
-      //   }
+      // Run a few frames to establish fog of war.
+      spyAgent.step(3);
 
-      // The TS revealFogOfWar function signature proves it uses radius-based reveal:
-      // It takes (side, worldX, worldZ, RADIUS, durationMs) — a single point + radius.
-      // This is fundamentally different from C++ which iterates ALL enemy objects.
+      // Before spy vision: the area around the enemy (100,100) should NOT be visible
+      // to America because it's far outside the spy unit's vision range of 50.
+      const visBefore = logic.getCellVisibility('America', 100, 100);
+      // Should be SHROUDED (0) since America has no vision there.
+      expect(visBefore).toBe(0);
 
-      // Verification: The TS implementation uses DEFAULT_SPY_VISION_RADIUS (200) or
-      // RadiusCursorRadius from the SpecialPower definition — both are finite values.
-      // A truly global spy would not need any radius parameter.
+      // Activate spy vision — issue the special power.
+      // SPECIAL_SPY_SATELLITE is a position-target power (commandOption 0x20).
+      // The target position is irrelevant for global spy vision, but the routing requires it.
+      logic.submitCommand({
+        type: 'issueSpecialPower',
+        commandButtonId: 'CMD_SPY',
+        specialPowerName: 'SpyPower',
+        commandOption: 0x20,
+        issuingEntityIds: [1],
+        sourceEntityId: 1,
+        targetEntityId: null,
+        targetX: 50,
+        targetZ: 50,
+      });
 
-      const registry = makeRegistry(bundle);
-      const spyDef = registry.getObject('Spy');
-      expect(spyDef).toBeDefined();
+      // Run a frame to process the command and update fog of war.
+      spyAgent.step(1);
 
-      // RadiusCursorRadius should be on the special power definition (used as reveal radius)
-      const spyPowerDef = registry.getSpecialPower('SpyPower');
-      expect(spyPowerDef).toBeDefined();
-      const radiusCursorRadius = Number(spyPowerDef!.fields['RadiusCursorRadius'] ?? 0);
-      expect(radiusCursorRadius).toBe(150);
+      // After spy vision: the area around the enemy (100,100) SHOULD be visible
+      // to America because we're now seeing through the enemy unit's eyes.
+      const visAfter = logic.getCellVisibility('America', 100, 100);
+      // Should be CLEAR (2) — the spying player sees through the enemy unit's vision.
+      expect(visAfter).toBe(2);
 
-      // This confirms: TS spy vision uses a FINITE radius (150 or default 200),
-      // while C++ globally reveals ALL enemy unit vision. The gap means that in TS,
-      // enemy units outside the reveal radius are invisible even during spy vision.
-      expect(radiusCursorRadius).toBeGreaterThan(0);
-      expect(radiusCursorRadius).toBeLessThan(Infinity);
+      // Also verify the spy vision is tracked in activeSpyVisions.
+      const priv = logic as unknown as {
+        activeSpyVisions: Array<{ spyingPlayerIndex: number; spyingSide: string; expiryFrame: number }>;
+      };
+      expect(priv.activeSpyVisions.length).toBeGreaterThan(0);
+      expect(priv.activeSpyVisions[0]!.spyingSide).toBe('america');
+    });
+
+    it('spy vision expires after the specified duration', () => {
+      // Source parity: SpyVisionUpdate::update — deactivates spy vision when
+      // m_deactivateFrame <= TheGameLogic->getFrame().
+
+      const spyAgent = createBonusParityAgent({
+        bundleParams: {
+          objects: [
+            makeObjectDef('Spy', 'America', ['VEHICLE'], [
+              makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+              makeBlock('Behavior', 'SpyVisionSpecialPower SpyModule', {
+                SpecialPowerTemplate: 'SpyPower',
+                BaseDuration: 1000, // 1 second = 30 frames
+              }),
+            ], { VisionRange: 50, ShroudClearingRange: 50 }),
+            makeObjectDef('EnemyUnit', 'China', ['VEHICLE'], [
+              makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+            ], { VisionRange: 80, ShroudClearingRange: 80 }),
+          ],
+          specialPowers: [
+            makeSpecialPowerDef('SpyPower', {
+              ReloadTime: 0,
+              Enum: 'SPECIAL_SPY_SATELLITE',
+            }),
+          ],
+        },
+        weaponBonusEntries: [],
+        mapObjects: [
+          place('Spy', 10, 10),
+          place('EnemyUnit', 100, 100),
+        ],
+        mapSize: 16,
+        sides: { America: {}, China: {} },
+        enemies: [['America', 'China']],
+      });
+
+      const logic = spyAgent.gameLogic;
+      spyAgent.step(3);
+
+      // Activate spy vision.
+      logic.submitCommand({
+        type: 'issueSpecialPower',
+        commandButtonId: 'CMD_SPY',
+        specialPowerName: 'SpyPower',
+        commandOption: 0x20,
+        issuingEntityIds: [1],
+        sourceEntityId: 1,
+        targetEntityId: null,
+        targetX: 50,
+        targetZ: 50,
+      });
+      spyAgent.step(1);
+
+      // Should be visible during spy vision.
+      expect(logic.getCellVisibility('America', 100, 100)).toBe(2);
+
+      // Advance past the duration (30 frames for 1000ms at 30fps).
+      spyAgent.step(35);
+
+      // After expiry: the area around the enemy should no longer be CLEAR.
+      // It transitions to FOGGED (1) because it was previously seen.
+      const visExpired = logic.getCellVisibility('America', 100, 100);
+      expect(visExpired).not.toBe(2); // No longer CLEAR
+      expect(visExpired).toBe(1); // Should be FOGGED (was seen before)
     });
   });
 

@@ -13851,7 +13851,9 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     expect(targetState === null || (targetState.health < 200)).toBe(true);
   });
 
-  it('uses RadiusCursorRadius for position-target Spy Vision reveal radius', () => {
+  it('activates global spy vision for position-target Spy Vision power', () => {
+    // Source parity: SpyVisionUpdate::doActivationWork — spy vision is global,
+    // not radius-based. It reveals all enemy unit vision ranges to the spying player.
     const logic = new GameLogicSubsystem();
 
     const sourceDef = makeObjectDef('SpySource', 'America', ['INFANTRY'], [
@@ -13882,7 +13884,7 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     logic.update(1 / 30);
 
     const priv = logic as unknown as {
-      temporaryVisionReveals: Array<{ radius: number; worldX: number; worldZ: number }>;
+      activeSpyVisions: Array<{ spyingPlayerIndex: number; spyingSide: string; expiryFrame: number }>;
     };
 
     logic.submitCommand({
@@ -13898,14 +13900,16 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     });
     logic.update(0);
 
-    const reveal = priv.temporaryVisionReveals.at(-1);
-    expect(reveal).toBeDefined();
-    expect(reveal?.radius).toBe(180);
-    expect(reveal?.worldX).toBe(200);
-    expect(reveal?.worldZ).toBe(200);
+    // Global spy vision should be activated (no radius-based reveal).
+    const spyVision = priv.activeSpyVisions.at(-1);
+    expect(spyVision).toBeDefined();
+    expect(spyVision?.spyingSide).toBe('america');
+    expect(spyVision?.expiryFrame).toBeGreaterThan(0);
   });
 
-  it('uses RadiusCursorRadius for no-target Spy Vision reveal radius', () => {
+  it('activates global spy vision for no-target Spy Vision power', () => {
+    // Source parity: SpyVisionUpdate::doActivationWork — spy vision is global,
+    // not radius-based. It reveals all enemy unit vision ranges to the spying player.
     const logic = new GameLogicSubsystem();
 
     const sourceDef = makeObjectDef('SpySource', 'America', ['INFANTRY'], [
@@ -13936,7 +13940,7 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     logic.update(1 / 30);
 
     const priv = logic as unknown as {
-      temporaryVisionReveals: Array<{ radius: number; worldX: number; worldZ: number }>;
+      activeSpyVisions: Array<{ spyingPlayerIndex: number; spyingSide: string; expiryFrame: number }>;
     };
 
     logic.submitCommand({
@@ -13952,11 +13956,11 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     });
     logic.update(0);
 
-    const reveal = priv.temporaryVisionReveals.at(-1);
-    expect(reveal).toBeDefined();
-    expect(reveal?.radius).toBe(150);
-    expect(reveal?.worldX).toBe(40);
-    expect(reveal?.worldZ).toBe(50);
+    // Global spy vision should be activated (no radius-based reveal).
+    const spyVision = priv.activeSpyVisions.at(-1);
+    expect(spyVision).toBeDefined();
+    expect(spyVision?.spyingSide).toBe('america');
+    expect(spyVision?.expiryFrame).toBeGreaterThan(0);
   });
 
   it('executes cash hack special power to steal enemy credits', () => {
