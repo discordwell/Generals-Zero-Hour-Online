@@ -428,50 +428,145 @@ describe('DOESNT_AFFECT_SIMILAR template equivalence parity', () => {
     expect(bystander1HealthAfter).toBeLessThan(bystander1HealthBefore);
   });
 
-  it('documents that TS uses string equality, not isEquivalentTo (C++ ancestry check)', () => {
-    // PARITY DIVERGENCE DOCUMENTATION:
+  it('spares allied ChildObject/ObjectReskin variants sharing a parent template (C++ parity)', () => {
+    // Source parity: Weapon.cpp:1202-1210 — isEquivalentTo() checks ancestry.
+    // If "HumveeReskin" is an ObjectReskin of "Humvee", they share a parent
+    // template and are considered equivalent. A Humvee's splash weapon with
+    // DOESNT_AFFECT_SIMILAR should spare HumveeReskin allies.
     //
-    // C++ (Weapon.cpp:1202-1210):
-    //   Uses ThingTemplate::isEquivalentTo() which checks:
-    //   - Direct name equality
-    //   - FinalOverride chain
-    //   - ObjectReskin / ChildObject ancestry (shared parent templates)
-    //   - BuildVariations (template lists that produce the same unit type)
-    //
-    // TS (combat-damage-events.ts:306-308):
-    //   source.templateName.trim().toUpperCase() === candidate.templateName.trim().toUpperCase()
-    //   Simple string comparison — no ancestry, no variations, no reskin.
-    //
-    // Practical impact:
-    //   In C++, if "HumveeRocketUpgrade" is an ObjectReskin of "Humvee", they are
-    //   considered equivalent. A Humvee's splash weapon with DOESNT_AFFECT_SIMILAR
-    //   would spare HumveeRocketUpgrade allies.
-    //   In TS, "Humvee" !== "HumveeRocketUpgrade", so the reskinned variant takes
-    //   splash damage — a behavioral difference affecting gameplay balance.
-    //
-    // This test simply confirms the current TS behavior (string equality).
-    // A future parity fix should integrate areEquivalentTemplateNames from
-    // production-templates.ts into the DOESNT_AFFECT_SIMILAR check.
+    // TS now uses areEquivalentTemplateNames (production-templates.ts) which
+    // walks the ObjectDef.parent chain, matching C++ isEquivalentTo behavior.
 
-    // Two units with different names but would be "equivalent" in C++ if one
-    // were a reskin of the other. In our test, they're plain different objects,
-    // so both C++ and TS would treat them as non-equivalent.
-    const { logic } = makeDoesntAffectSimilarSetup({
-      sourceTemplate: 'Humvee',
-      targetTemplate: 'EnemyTank',
-      bystander1Template: 'HumveeVariant',
+    const sourceDef = makeObjectDef('Humvee', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 500,
+        InitialHealth: 500,
+      }),
+      makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'SplashGun'] }),
+    ]);
+
+    // HumveeReskin inherits from Humvee via parent (ObjectReskin/ChildObject).
+    const reskinDef = makeObjectDef('HumveeReskin', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 500,
+        InitialHealth: 500,
+      }),
+    ], {}, 'Humvee');
+
+    const targetDef = makeObjectDef('EnemyTank', 'China', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 500,
+        InitialHealth: 500,
+      }),
+    ]);
+
+    const splashWeapon = makeWeaponDef('SplashGun', {
+      AttackRange: 200,
+      PrimaryDamage: 50,
+      PrimaryDamageRadius: 100,
+      DamageType: 'EXPLOSION',
+      DeliveryType: 'DIRECT',
+      DelayBetweenShots: 5000,
+      WeaponSpeed: 999999,
+      RadiusDamageAffects: 'NOT_SIMILAR ENEMIES ALLIES',
     });
 
-    const bystander1HealthBefore = logic.getEntityState(3)!.health;
+    const bundle = makeBundle({
+      objects: [sourceDef, targetDef, reskinDef],
+      weapons: [splashWeapon],
+    });
+
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Humvee', 5, 5),
+        makeMapObject('EnemyTank', 5, 5),
+        makeMapObject('HumveeReskin', 5, 5),
+      ]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+    logic.update(0);
+
+    const reskinHealthBefore = logic.getEntityState(3)!.health;
 
     logic.submitCommand({ type: 'attackEntity', entityId: 1, targetEntityId: 2 });
     for (let i = 0; i < 10; i++) logic.update(1 / 30);
 
-    const bystander1HealthAfter = logic.getEntityState(3)!.health;
+    const reskinHealthAfter = logic.getEntityState(3)!.health;
 
-    // Different template name in TS means NOT spared — takes splash damage.
-    // In C++, if HumveeVariant had ObjectReskin/ChildObject ancestry to Humvee,
-    // it WOULD be spared. This documents the gap.
-    expect(bystander1HealthAfter).toBeLessThan(bystander1HealthBefore);
+    // HumveeReskin shares parent "Humvee" — DOESNT_AFFECT_SIMILAR spares it.
+    expect(reskinHealthAfter).toBe(reskinHealthBefore);
+  });
+
+  it('does NOT spare allied units with different ancestry from splash damage', () => {
+    // Two different templates with no shared parent — NOT equivalent.
+    // DOESNT_AFFECT_SIMILAR should NOT spare them.
+    const sourceDef = makeObjectDef('Humvee', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 500,
+        InitialHealth: 500,
+      }),
+      makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'SplashGun'] }),
+    ]);
+
+    // Unrelated template — no parent relationship to Humvee.
+    const unrelatedDef = makeObjectDef('Crusader', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 500,
+        InitialHealth: 500,
+      }),
+    ]);
+
+    const targetDef = makeObjectDef('EnemyTank', 'China', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 500,
+        InitialHealth: 500,
+      }),
+    ]);
+
+    const splashWeapon = makeWeaponDef('SplashGun', {
+      AttackRange: 200,
+      PrimaryDamage: 50,
+      PrimaryDamageRadius: 100,
+      DamageType: 'EXPLOSION',
+      DeliveryType: 'DIRECT',
+      DelayBetweenShots: 5000,
+      WeaponSpeed: 999999,
+      RadiusDamageAffects: 'NOT_SIMILAR ENEMIES ALLIES',
+    });
+
+    const bundle = makeBundle({
+      objects: [sourceDef, targetDef, unrelatedDef],
+      weapons: [splashWeapon],
+    });
+
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Humvee', 5, 5),
+        makeMapObject('EnemyTank', 5, 5),
+        makeMapObject('Crusader', 5, 5),
+      ]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+    logic.update(0);
+
+    const unrelatedHealthBefore = logic.getEntityState(3)!.health;
+
+    logic.submitCommand({ type: 'attackEntity', entityId: 1, targetEntityId: 2 });
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+
+    const unrelatedHealthAfter = logic.getEntityState(3)!.health;
+
+    // No shared ancestry — Crusader takes normal splash damage.
+    expect(unrelatedHealthAfter).toBeLessThan(unrelatedHealthBefore);
   });
 });

@@ -90,6 +90,13 @@ export interface CombatDamageEventContext<
   isEntitySignificantlyAboveTerrain(entity: TEntity): boolean;
   /** Source parity: GeometryInfo::getBoundingSphereRadius — bounding sphere for 3D distance. */
   resolveBoundingSphereRadius(entity: TEntity): number;
+  /**
+   * Source parity: ThingTemplate::isEquivalentTo() — checks template ancestry
+   * (ChildObject/ObjectReskin inheritance, BuildVariations) in addition to direct
+   * name equality. Used by DOESNT_AFFECT_SIMILAR to determine if two entities
+   * share a common base template.
+   */
+  areTemplatesEquivalent(leftTemplateName: string, rightTemplateName: string): boolean;
   masks: CombatDamageMasks;
   relationships: CombatDamageRelationships;
   hugeDamageAmount: number;
@@ -305,7 +312,7 @@ export function applyWeaponDamageEvent<
         if (
           (weapon.radiusDamageAffectsMask & context.masks.doesntAffectSimilar) !== 0
           && context.getTeamRelationship(source, candidate) === context.relationships.allies
-          && source.templateName.trim().toUpperCase() === candidate.templateName.trim().toUpperCase()
+          && context.areTemplatesEquivalent(source.templateName, candidate.templateName)
         ) {
           continue;
         }

@@ -49,9 +49,11 @@ export function makeObjectDef(
   kindOf: string[],
   blocks: IniBlock[],
   fields: Record<string, unknown> = {},
+  parent?: string,
 ): ObjectDef {
   return {
     name,
+    parent,
     side,
     kindOf,
     fields: fields as Record<string, string | number | boolean | string[] | number[]>,

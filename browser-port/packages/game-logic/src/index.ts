@@ -156,6 +156,7 @@ import {
   CELL_SHROUDED,
   FogOfWarGrid,
   updateEntityVision as updateEntityVisionImpl,
+  createEntityVisionState as createEntityVisionStateImpl,
   type CellVisibility,
   type EntityVisionState,
 } from './fog-of-war.js';
@@ -163,7 +164,6 @@ import {
   executeAreaDamage as executeAreaDamageImpl,
   executeCashHack as executeCashHackImpl,
   executeDefector as executeDefectorImpl,
-  executeSpyVision as executeSpyVisionImpl,
   executeAreaHeal as executeAreaHealImpl,
   executeEmpPulse as executeEmpPulseImpl,
   resolveEffectCategory as resolveEffectCategoryImpl,
@@ -3853,6 +3853,10 @@ interface StealthProfile {
   revealDistanceFromTarget: number;
   /** Source parity: StealthUpdate.cpp:916-935 — when detected, idle enemy units in vision range auto-attack. */
   orderIdleEnemiesToAttackMeUponReveal: boolean;
+  /** Source parity: StealthUpdate.h:86 — per-module min opacity for friendly-view stealthed units (default 0.5). */
+  friendlyOpacityMin: number;
+  /** Source parity: StealthUpdate.h:80 — ObjectStatusMask for visual hint when leaving stealth (client-side only). */
+  hintDetectableConditions: string[];
 }
 
 /** StealthForbiddenConditions bitmask values — matches C++ TheStealthLevelNames array ordering. */
@@ -6863,6 +6867,10 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly sideKindOfProductionCostModifiers = new Map<string, KindOfProductionCostModifier[]>();
   /** Source parity: Player::m_productionTimeChanges — per-template build time modifier (e.g. -0.25 = 25% faster). */
   private readonly sideProductionTimeChangePercent = new Map<string, Map<string, number>>();
+  /** Source parity: Handicap::BUILDTIME — per-side build time multiplier set from lobby/skirmish setup.
+   *  Default is 1.0 (no handicap). Values < 1.0 make units build faster; > 1.0 slower.
+   *  C++ ref: ThingTemplate.cpp:1382 — buildTime *= player->getHandicap()->getHandicap(Handicap::BUILDTIME, this) */
+  private readonly sideHandicapBuildTime = new Map<string, number>();
   private readonly sideSciences = new Map<string, Set<string>>();
   /** Source parity: ScriptEngine::m_acquiredSciences (consumed by evaluateScienceAcquired). */
   private readonly sideScriptAcquiredSciences = new Map<string, Set<string>>();
@@ -7227,6 +7235,22 @@ export class GameLogicSubsystem implements Subsystem {
     radius: number;
     expiryFrame: number;
   }[] = [];
+  /**
+   * Source parity: SpyVisionUpdate::doActivationWork — global spy vision.
+   * C++ iterates ALL enemy players and calls player->setUnitsVisionSpied(true, playerIndex),
+   * granting the spying player complete visibility through all enemy units' sight ranges.
+   */
+  private readonly activeSpyVisions: {
+    spyingPlayerIndex: number;
+    spyingSide: string;
+    expiryFrame: number;
+  }[] = [];
+  /**
+   * Per-entity spy vision looker states, keyed by `${entityId}:${spyingPlayerIndex}`.
+   * Tracks addLooker/removeLooker contributions so spy vision lookers are correctly
+   * cleaned up when entities move or spy vision expires.
+   */
+  private readonly spyVisionEntityStates = new Map<string, EntityVisionState>();
   private readonly sidePlayerIndex = new Map<string, number>();
   private nextPlayerIndex = 0;
   private readonly skirmishAIStates = new Map<string, SkirmishAIState>();
@@ -7901,6 +7925,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.updateOverlordRiderPositions();
     this.updateAutoFindHealing();
     this.updateFogOfWar();
+    this.updateSpyVisionFog();
     this.updateSupplyChain();
     this.updateSkirmishAI();
     this.updateEva();
@@ -9037,6 +9062,22 @@ export class GameLogicSubsystem implements Subsystem {
     }
     const normalizedAmount = Number.isFinite(amount) ? Math.max(0, Math.trunc(amount)) : 0;
     this.sideCredits.set(normalizedSide, normalizedAmount);
+  }
+
+  /**
+   * Source parity: Handicap::BUILDTIME — set the build time multiplier for a side.
+   * C++ ref: ThingTemplate.cpp:1382 — buildTime *= player->getHandicap()->getHandicap(Handicap::BUILDTIME, this)
+   * @param side — faction/side name (e.g. 'America', 'GLA')
+   * @param buildTimeMultiplier — multiplier applied to build time. 1.0 = normal,
+   *   0.5 = units build in half the time (twice as fast), 2.0 = double build time (half as fast).
+   */
+  setHandicap(side: string, buildTimeMultiplier: number): void {
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return;
+    }
+    const clamped = Number.isFinite(buildTimeMultiplier) ? Math.max(0, buildTimeMultiplier) : 1.0;
+    this.sideHandicapBuildTime.set(normalizedSide, clamped);
   }
 
   addSideCredits(side: string, amount: number): number {
@@ -16000,6 +16041,8 @@ export class GameLogicSubsystem implements Subsystem {
     this.sidePowerBonus.clear();
     this.sideRadarState.clear();
     this.temporaryVisionReveals.length = 0;
+    this.activeSpyVisions.length = 0;
+    this.spyVisionEntityStates.clear();
     this.sideRankState.clear();
     this.rankLevelLimit = RANK_TABLE.length;
     this.frameCounter = 0;
@@ -19585,15 +19628,9 @@ export class GameLogicSubsystem implements Subsystem {
         }
         break;
       case 'SPY_VISION':
-        // Simplified: C++ spy vision globally spies on all enemy unit vision for a duration.
-        // Until the full SpyVisionUpdate system is ported, approximate as area reveal.
-        executeSpyVisionImpl({
-          sourceSide: source.side ?? '',
-          targetX: source.x,
-          targetZ: source.z,
-          revealRadius: this.resolveSpyVisionRevealRadius(source, specialPowerDef),
-          durationMs: module.spyVisionBaseDurationMs,
-        }, effectContext);
+        // Source parity: SpyVisionUpdate::doActivationWork — globally spy on all enemy
+        // units' vision ranges for the duration (no radius constraint).
+        this.activateGlobalSpyVision(source.side ?? '', module.spyVisionBaseDurationMs);
         break;
       case 'CASH_BOUNTY': {
         // Source parity: CashBountyPower::onSpecialPowerCreation — sets the player's cash bounty
@@ -19706,13 +19743,9 @@ export class GameLogicSubsystem implements Subsystem {
         }, effectContext);
         break;
       case 'SPY_VISION':
-        executeSpyVisionImpl({
-          sourceSide,
-          targetX,
-          targetZ,
-          revealRadius: this.resolveSpyVisionRevealRadius(source, specialPowerDef),
-          durationMs: module.spyVisionBaseDurationMs,
-        }, effectContext);
+        // Source parity: SpyVisionUpdate::doActivationWork — globally spy on all enemy
+        // units' vision ranges for the duration (no radius constraint).
+        this.activateGlobalSpyVision(sourceSide, module.spyVisionBaseDurationMs);
         break;
       case 'AREA_HEAL':
         executeAreaHealImpl({
@@ -21933,7 +21966,6 @@ export class GameLogicSubsystem implements Subsystem {
       const effectRadiusSq = effectRadius * effectRadius;
       const primaryRadiusSq = primaryDamageRadius * primaryDamageRadius;
       const sourceSide = this.normalizeSide(source.side);
-      const sourceTemplateName = source.templateName.trim().toUpperCase();
 
       for (const target of this.spawnedEntities.values()) {
         if (target.destroyed || !target.canTakeDamage) continue;
@@ -21951,7 +21983,7 @@ export class GameLogicSubsystem implements Subsystem {
           if (
             (affectsMask & WEAPON_DOESNT_AFFECT_SIMILAR) !== 0
             && relationship === RELATIONSHIP_ALLIES
-            && sourceTemplateName === target.templateName.trim().toUpperCase()
+            && this.areEquivalentTemplateNames(source.templateName, target.templateName)
           ) {
             continue;
           }
@@ -23806,10 +23838,15 @@ export class GameLogicSubsystem implements Subsystem {
     }
     let buildTimeFrames = buildTimeSeconds * LOGIC_FRAME_RATE;
 
-    // Source parity: ThingTemplate::calcTimeToBuild — apply player production time modifier.
-    // C++ (ThingTemplate.cpp:1553): factionModifier = 1 + player->getProductionTimeChangePercent(getName())
     const normalizedSide = this.normalizeSide(side);
     if (normalizedSide) {
+      // Source parity: ThingTemplate::calcTimeToBuild — apply handicap before faction modifier.
+      // C++ (ThingTemplate.cpp:1382): buildTime *= player->getHandicap()->getHandicap(Handicap::BUILDTIME, this)
+      const handicapMultiplier = this.sideHandicapBuildTime.get(normalizedSide) ?? 1.0;
+      buildTimeFrames *= handicapMultiplier;
+
+      // Source parity: ThingTemplate::calcTimeToBuild — apply player production time modifier.
+      // C++ (ThingTemplate.cpp:1553): factionModifier = 1 + player->getProductionTimeChangePercent(getName())
       const factionModifier = 1 + this.getProductionTimeChangePercent(normalizedSide, objectDef.name);
       buildTimeFrames *= factionModifier;
     }
@@ -25798,6 +25835,8 @@ export class GameLogicSubsystem implements Subsystem {
         return (entity.y - entity.baseHeight - terrainY) > SIGNIFICANTLY_ABOVE_TERRAIN_THRESHOLD;
       },
       resolveBoundingSphereRadius: (entity) => this.resolveBoundingSphereRadius(entity),
+      areTemplatesEquivalent: (leftTemplateName, rightTemplateName) =>
+        this.areEquivalentTemplateNames(leftTemplateName, rightTemplateName),
       masks: {
         affectsSelf: WEAPON_AFFECTS_SELF,
         affectsAllies: WEAPON_AFFECTS_ALLIES,
@@ -29960,6 +29999,127 @@ export class GameLogicSubsystem implements Subsystem {
         this.temporaryVisionReveals.splice(i, 1);
       }
     }
+
+    // Source parity: SpyVisionUpdate::doActivationWork — expire global spy visions
+    // and clean up per-entity spy vision lookers when they expire.
+    for (let i = this.activeSpyVisions.length - 1; i >= 0; i--) {
+      const sv = this.activeSpyVisions[i]!;
+      if (this.frameCounter >= sv.expiryFrame) {
+        // Remove all spy vision lookers contributed by this spy vision entry.
+        this.removeSpyVisionLookers(sv.spyingPlayerIndex);
+        this.activeSpyVisions.splice(i, 1);
+      }
+    }
+  }
+
+  /**
+   * Source parity: SpyVisionUpdate::doActivationWork — activate global spy vision.
+   * C++ iterates ALL enemy players and calls player->setUnitsVisionSpied(true, playerIndex),
+   * granting complete visibility of all enemy units' sight ranges for the duration.
+   *
+   * Instead of a single radius reveal, this adds the spying side's player index to each
+   * enemy entity's fog-of-war vision contribution, so the spying player sees through
+   * every enemy unit's eyes.
+   */
+  private activateGlobalSpyVision(sourceSide: string, durationMs: number): void {
+    const spyingSide = this.normalizeSide(sourceSide);
+    if (!spyingSide) return;
+    const spyingPlayerIdx = this.resolvePlayerIndexForSide(spyingSide);
+    if (spyingPlayerIdx < 0) return;
+
+    const DEFAULT_SPY_DURATION_FRAMES = 900;
+    const durationFrames = durationMs > 0
+      ? this.msToLogicFrames(durationMs)
+      : DEFAULT_SPY_DURATION_FRAMES;
+
+    this.activeSpyVisions.push({
+      spyingPlayerIndex: spyingPlayerIdx,
+      spyingSide,
+      expiryFrame: this.frameCounter + durationFrames,
+    });
+  }
+
+  /**
+   * Update spy vision fog-of-war contributions.
+   * For each active spy vision, iterate all enemy entities and contribute their
+   * vision to the spying player's fog grid — just like C++ setUnitsVisionSpied.
+   */
+  private updateSpyVisionFog(): void {
+    const grid = this.fogOfWarGrid;
+    if (!grid || this.activeSpyVisions.length === 0) return;
+
+    for (const sv of this.activeSpyVisions) {
+      for (const entity of this.spawnedEntities.values()) {
+        const entitySide = this.normalizeSide(entity.side);
+        // Determine if this entity is a valid spy target (alive enemy).
+        const isValidTarget = !entity.destroyed
+          && !!entitySide
+          && this.getTeamRelationshipBySides(sv.spyingSide, entitySide) === 0;
+
+        const key = `${entity.id}:${sv.spyingPlayerIndex}`;
+        const existingState = this.spyVisionEntityStates.get(key);
+
+        if (!isValidTarget) {
+          // If entity was previously contributing spy vision, clean up.
+          if (existingState?.isLooking) {
+            updateEntityVisionImpl(grid, existingState, sv.spyingPlayerIndex, entity.x, entity.z, 0, false);
+            this.spyVisionEntityStates.delete(key);
+          }
+          continue;
+        }
+
+        const effectiveRange = entity.objectStatusFlags.has('UNDER_CONSTRUCTION')
+          ? this.resolveEntityBoundingCircleRadius2D(entity)
+          : entity.shroudClearingRange;
+
+        if (effectiveRange <= 0) {
+          if (existingState?.isLooking) {
+            updateEntityVisionImpl(grid, existingState, sv.spyingPlayerIndex, entity.x, entity.z, 0, false);
+            this.spyVisionEntityStates.delete(key);
+          }
+          continue;
+        }
+
+        let visionState = existingState;
+        if (!visionState) {
+          visionState = createEntityVisionStateImpl();
+          this.spyVisionEntityStates.set(key, visionState);
+        }
+
+        updateEntityVisionImpl(
+          grid,
+          visionState,
+          sv.spyingPlayerIndex,
+          entity.x,
+          entity.z,
+          effectiveRange,
+          true,
+        );
+      }
+    }
+  }
+
+  /**
+   * Remove all spy vision lookers for a given spying player index.
+   * Called when a spy vision entry expires.
+   */
+  private removeSpyVisionLookers(spyingPlayerIndex: number): void {
+    const grid = this.fogOfWarGrid;
+    if (!grid) return;
+
+    const keysToRemove: string[] = [];
+    const suffix = `:${spyingPlayerIndex}`;
+    for (const [key, visionState] of this.spyVisionEntityStates) {
+      if (key.endsWith(suffix)) {
+        if (visionState.isLooking) {
+          grid.removeLooker(spyingPlayerIndex, visionState.lastLookX, visionState.lastLookZ, visionState.lastLookRadius);
+        }
+        keysToRemove.push(key);
+      }
+    }
+    for (const key of keysToRemove) {
+      this.spyVisionEntityStates.delete(key);
+    }
   }
 
   /**
@@ -31159,6 +31319,8 @@ export class GameLogicSubsystem implements Subsystem {
     this.railedTransportStateByEntityId.clear();
     this.railedTransportWaypointIndex = createRailedTransportWaypointIndexImpl(null);
     this.fogOfWarGrid = null;
+    this.activeSpyVisions.length = 0;
+    this.spyVisionEntityStates.clear();
     this.sidePlayerIndex.clear();
     this.nextPlayerIndex = 0;
     this.skirmishAIStates.clear();
