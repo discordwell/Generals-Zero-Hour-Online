@@ -278,6 +278,14 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.attackCommandSource = xfer.xferAsciiString(e.attackCommandSource as string);
   e.attackSubState = xfer.xferAsciiString(e.attackSubState as string);
   e.nextAttackFrame = xfer.xferInt(e.nextAttackFrame as number);
+  e.lastShotFrame = xfer.xferInt(e.lastShotFrame as number);
+  {
+    const arr = e.lastShotFrameBySlot as [number, number, number];
+    arr[0] = xfer.xferInt(arr[0]);
+    arr[1] = xfer.xferInt(arr[1]);
+    arr[2] = xfer.xferInt(arr[2]);
+  }
+  e.attackWeaponSlotIndex = xfer.xferInt(e.attackWeaponSlotIndex as number);
   e.attackCooldownRemaining = xfer.xferInt(e.attackCooldownRemaining as number);
   e.attackAmmoInClip = xfer.xferInt(e.attackAmmoInClip as number);
   e.attackReloadFinishFrame = xfer.xferInt(e.attackReloadFinishFrame as number);

@@ -325,26 +325,14 @@ describe('parity: FireOCLAfterWeaponCooldownUpdate shot count gating', () => {
    *     ObjectCreationList::create(m_ocl, obj, obj, oclFrames)
    *     resetStats()
    *
-   * TS source: index.ts:29641-29704 -- updateFireOCLAfterCooldown:
+   * TS source: index.ts updateFireOCLAfterCooldown:
    *   - isFiring = entity.attackTargetEntityId !== null && entity.nextAttackFrame > 0
-   *   - On !state.valid: sets consecutiveShots = 1, startFrame = frameCounter
-   *   - On nextAttackFrame === frameCounter: consecutiveShots++ (increment path)
+   *   - On lastShotFrame === frameCounter: consecutiveShots++ (backward-looking, matches C++)
    *   - On stop (isFiring false && enough shots) -> fireOCLAfterCooldown()
    *   - Lifetime: firingSeconds * oclLifetimePerSecond * 0.001 * LOGIC_FRAME_RATE
    *
-   * PARITY GAP (documented): The TS consecutive shot increment path
-   *   (entity.nextAttackFrame === this.frameCounter at index.ts:29668) never fires
-   *   because combat-update.ts:297 sets nextAttackFrame = frameCounter + delayFrames
-   *   BEFORE updateFireOCLAfterCooldown runs. So by the time the check occurs,
-   *   nextAttackFrame has already advanced past frameCounter. This means
-   *   consecutiveShots stays at 1 (the initial value set on the !state.valid path).
-   *
-   *   C++ does not have this issue because it checks weapon->getLastShotFrame() == now-1
-   *   (a historical check) rather than a future-frame comparison.
-   *
-   *   Consequence: MinShotsToCreateOCL=1 works correctly in TS; values > 1 will never
-   *   trigger the OCL. In practice this matters for units like the Dragon Tank which
-   *   uses MinShotsToCreateOCL=5 in retail INI.
+   * Uses entity.lastShotFrame (set by combat-update when weapon fires) for a backward-
+   * looking check that matches C++ weapon->getLastShotFrame() == now-1.
    */
 
   function makeFireOCLSetup(opts: {
@@ -408,36 +396,30 @@ describe('parity: FireOCLAfterWeaponCooldownUpdate shot count gating', () => {
     return { logic };
   }
 
-  it('tracks firing state and initializes consecutiveShots on first attack', () => {
+  it('tracks firing state and counts consecutive shots correctly', () => {
     // C++ parity: FireOCLAfterWeaponCooldownUpdate.cpp:141-152
     //   if (weapon->getLastShotFrame() == now - 1) {
     //     m_consecutiveShots++;
     //     if (m_consecutiveShots == 1) m_startFrame = now;
     //   }
     //
-    // TS parity: index.ts:29662-29671
-    //   if (isFiring) {
-    //     if (!state.valid) { state.consecutiveShots = 1; state.startFrame = frameCounter; }
-    //     else if (entity.nextAttackFrame === this.frameCounter) { state.consecutiveShots++; }
-    //   }
-    //
-    // The TS sets consecutiveShots=1 on the first frame isFiring transitions to true.
-    // Due to the parity gap (see describe block), the increment path never fires,
-    // so consecutiveShots stays at 1 throughout continuous fire.
+    // TS uses entity.lastShotFrame === this.frameCounter (backward-looking, matches C++).
+    // Each shot fired by combat-update increments consecutiveShots.
+    // With DelayBetweenShots=200ms (6 frames), 30 frames yields ~4-5 shots.
     const { logic } = makeFireOCLSetup({ minShots: 1 });
 
     // Command attacker to attack target
     logic.submitCommand({ type: 'attackEntity', entityId: 1, targetEntityId: 2 });
 
-    // Run enough frames for weapon to fire
+    // Run enough frames for weapon to fire multiple times
     for (let i = 0; i < 30; i++) logic.update(1 / 30);
 
     // Verify the tracking state has been initialized
     const attacker = priv(logic).spawnedEntities.get(1)!;
     expect(attacker.fireOCLAfterCooldownStates.length).toBe(1);
     const state = attacker.fireOCLAfterCooldownStates[0]!;
-    // consecutiveShots should be 1 (set on initial !state.valid path)
-    expect(state.consecutiveShots).toBe(1);
+    // consecutiveShots should reflect actual shots fired (> 1 with fixed counting)
+    expect(state.consecutiveShots).toBeGreaterThan(1);
     expect(state.startFrame).toBeGreaterThan(0);
     // valid should be true while actively firing
     expect(state.valid).toBe(true);
@@ -531,17 +513,16 @@ describe('parity: FireOCLAfterWeaponCooldownUpdate shot count gating', () => {
     expect(effects.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('does not fire OCL when shot count is below minimum (parity gap)', () => {
+  it('does not fire OCL when shot count is below minimum', () => {
     // C++ parity: FireOCLAfterWeaponCooldownUpdate.cpp:157-158
     //   if (data->m_minShotsRequired <= m_consecutiveShots) fireOCL();
     //
-    // With MinShotsToCreateOCL > 1, the TS implementation never fires the OCL because
-    // consecutiveShots stays at 1 due to the increment path parity gap.
-    // In C++, weapon->getLastShotFrame() == now-1 would correctly count each shot.
+    // With MinShotsToCreateOCL=5 and target dying in 3 shots (30HP / 10dmg),
+    // consecutiveShots=3 < minShots=5, so the OCL should not fire.
     const { logic } = makeFireOCLSetup({
-      minShots: 5, // Higher than TS can ever count (stuck at 1)
+      minShots: 5,
       delayBetweenShotsMs: 200,
-      targetHealth: 30, // Target dies quickly
+      targetHealth: 30, // Target dies in 3 shots (30HP / 10dmg)
     });
 
     logic.submitCommand({ type: 'attackEntity', entityId: 1, targetEntityId: 2 });
@@ -556,7 +537,7 @@ describe('parity: FireOCLAfterWeaponCooldownUpdate shot count gating', () => {
     // Run more frames for the cooldown OCL logic to trigger (if it would)
     for (let i = 0; i < 30; i++) logic.update(1 / 30);
 
-    // CooldownEffect should NOT have been spawned -- consecutiveShots=1 < minShots=5
+    // CooldownEffect should NOT have been spawned -- consecutiveShots(3) < minShots(5)
     const states = logic.getRenderableEntityStates();
     const effects = states.filter(s => s.templateName === 'CooldownEffect');
     expect(effects.length).toBe(0);
@@ -598,7 +579,7 @@ describe('parity: FireOCLAfterWeaponCooldownUpdate shot count gating', () => {
     //   state.consecutiveShots = 0;
     //   state.startFrame = 0;
     //
-    // With MinShotsToCreateOCL=1 the OCL can fire in TS (consecutiveShots=1 >= 1).
+    // With MinShotsToCreateOCL=1 the OCL fires when consecutiveShots >= 1.
     // We observe the reset by checking state after the target dies and firing ceases.
     const { logic } = makeFireOCLSetup({
       minShots: 1,

@@ -250,6 +250,9 @@ export function createMapEntity(self: GL,
     attackCommandSource: 'AI',
     attackSubState: 'IDLE',
     nextAttackFrame: 0,
+    lastShotFrame: 0,
+    lastShotFrameBySlot: [0, 0, 0],
+    attackWeaponSlotIndex: 0,
     attackCooldownRemaining: 0,
     attackAmmoInClip: initialClipAmmo,
     attackReloadFinishFrame: 0,
@@ -341,6 +344,7 @@ export function createMapEntity(self: GL,
     autoHealProfile: extractAutoHealProfile(self, objectDef),
     autoHealNextFrame: 0,
     autoHealDamageDelayUntilFrame: 0,
+    autoHealSingleBurstDone: false,
     baseRegenDelayUntilFrame: 0,
     propagandaTowerProfile: extractPropagandaTowerProfile(self, objectDef),
     propagandaTowerNextScanFrame: 0,
@@ -2034,6 +2038,18 @@ export function extractAutoHealProfile(self: GL, objectDef: ObjectDef | undefine
     if (block.type.toUpperCase() === 'BEHAVIOR') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType === 'AUTOHEALBEHAVIOR') {
+        // Source parity: AutoHealBehavior.h — KindOf defaults to ALL (null = no filter).
+        const kindOfStr = readStringField(block.fields, ['KindOf']) ?? '';
+        const kindOfSet = new Set<string>();
+        for (const token of kindOfStr.split(/\s+/)) {
+          if (token) kindOfSet.add(token.toUpperCase());
+        }
+        // Source parity: AutoHealBehavior.h — ForbiddenKindOf defaults to NONE (null = no filter).
+        const forbiddenKindOfStr = readStringField(block.fields, ['ForbiddenKindOf']) ?? '';
+        const forbiddenKindOfSet = new Set<string>();
+        for (const token of forbiddenKindOfStr.split(/\s+/)) {
+          if (token) forbiddenKindOfSet.add(token.toUpperCase());
+        }
         profile = {
           healingAmount: readNumericField(block.fields, ['HealingAmount']) ?? 0,
           healingDelayFrames: readNumericField(block.fields, ['HealingDelay']) ?? 900,
@@ -2041,6 +2057,9 @@ export function extractAutoHealProfile(self: GL, objectDef: ObjectDef | undefine
           radius: readNumericField(block.fields, ['Radius']) ?? 0,
           affectsWholePlayer: readBooleanField(block.fields, ['AffectsWholePlayer']) ?? false,
           initiallyActive: readBooleanField(block.fields, ['StartsActive']) ?? false,
+          singleBurst: readBooleanField(block.fields, ['SingleBurst']) ?? false,
+          kindOf: kindOfSet.size > 0 ? kindOfSet : null,
+          forbiddenKindOf: forbiddenKindOfSet.size > 0 ? forbiddenKindOfSet : null,
         };
       }
     }

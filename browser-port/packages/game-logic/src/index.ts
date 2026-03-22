@@ -652,6 +652,7 @@ import {
   resolveWeaponScatterTargets as resolveWeaponScatterTargetsImpl,
   resolveWeaponProfileFromDef as resolveWeaponProfileFromDefImpl,
   resolveAttackWeaponProfileForSetSelection as resolveAttackWeaponProfileForSetSelectionImpl,
+  resolveAttackWeaponSlotIndex as resolveAttackWeaponSlotIndexImpl,
   resolveAttackWeaponProfile as resolveAttackWeaponProfileImpl,
   checkHistoricBonus as checkHistoricBonusImpl,
   fireHistoricBonusWeapon as fireHistoricBonusWeaponImpl,
@@ -2821,6 +2822,12 @@ export interface MapEntity {
   /** Source parity: AI attack state machine sub-state. */
   attackSubState: AttackSubState;
   nextAttackFrame: number;
+  /** Source parity: Weapon::m_lastFireFrame — frame when the weapon last fired a shot. */
+  lastShotFrame: number;
+  /** Source parity: per-weapon-slot last fire frame (StealthUpdate.cpp:358-386). */
+  lastShotFrameBySlot: [number, number, number];
+  /** Index of the weapon slot currently selected for attack (0=PRIMARY, 1=SECONDARY, 2=TERTIARY). */
+  attackWeaponSlotIndex: number;
   /** Source parity bridge: legacy assisted-targeting cooldown counter. */
   attackCooldownRemaining: number;
   attackAmmoInClip: number;
@@ -2997,6 +3004,8 @@ export interface MapEntity {
   autoHealProfile: AutoHealProfile | null;
   autoHealNextFrame: number;
   autoHealDamageDelayUntilFrame: number;
+  /** Source parity: AutoHealBehavior SingleBurst — true after first pulse (UPDATE_SLEEP_FOREVER). */
+  autoHealSingleBurstDone: boolean;
   /** Source parity: BaseRegenerateUpdate — structure regen after damage delay. */
   baseRegenDelayUntilFrame: number;
   /** Source parity: PropagandaTowerBehavior — radius heal/buff aura. */
@@ -3579,6 +3588,12 @@ interface AutoHealProfile {
   radius: number;
   affectsWholePlayer: boolean;
   initiallyActive: boolean;
+  /** Source parity: AutoHealBehavior.h:89 — SingleBurst stops healing after one pulse. */
+  singleBurst: boolean;
+  /** Source parity: AutoHealBehavior.h:80 — KindOf filter for radius heal targets. */
+  kindOf: Set<string> | null;
+  /** Source parity: AutoHealBehavior.h:64 — ForbiddenKindOf excludes targets from radius heal. */
+  forbiddenKindOf: Set<string> | null;
 }
 
 /**
@@ -3836,6 +3851,8 @@ interface StealthProfile {
   /** Distance at which a stealthed unit auto-reveals when approaching its attack target.
    *  Source parity: StealthUpdate.cpp:699-714 — markAsDetected() when within this range of getCurrentVictim(). */
   revealDistanceFromTarget: number;
+  /** Source parity: StealthUpdate.cpp:916-935 — when detected, idle enemy units in vision range auto-attack. */
+  orderIdleEnemiesToAttackMeUponReveal: boolean;
 }
 
 /** StealthForbiddenConditions bitmask values — matches C++ TheStealthLevelNames array ordering. */
@@ -10067,6 +10084,7 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ resolveWeaponScatterTargets(...args: any[]) { return (resolveWeaponScatterTargetsImpl as any)(this, ...args); }
   private resolveWeaponProfileFromDef(...args: any[]) { return (resolveWeaponProfileFromDefImpl as any)(this, ...args); }
   /* @internal */ resolveAttackWeaponProfileForSetSelection(...args: any[]) { return (resolveAttackWeaponProfileForSetSelectionImpl as any)(this, ...args); }
+  /* @internal */ resolveAttackWeaponSlotIndex(...args: any[]) { return (resolveAttackWeaponSlotIndexImpl as any)(this, ...args); }
   /* @internal */ resolveAttackWeaponProfile(...args: any[]) { return (resolveAttackWeaponProfileImpl as any)(this, ...args); }
   /* @internal */ checkHistoricBonus(...args: any[]) { return (checkHistoricBonusImpl as any)(this, ...args); }
   /* @internal */ fireHistoricBonusWeapon(...args: any[]) { return (fireHistoricBonusWeaponImpl as any)(this, ...args); }
@@ -17367,6 +17385,12 @@ export class GameLogicSubsystem implements Subsystem {
 
   private transferOverchargeBetweenSides(entity: MapEntity, oldSide: string, newSide: string): void {
     if (!this.overchargeStateByEntityId.has(entity.id)) {
+      return;
+    }
+
+    // Source parity: OverchargeBehavior.cpp:270-271 — onCapture() checks isDisabled()
+    // before transferring power bonus. Disabled buildings skip overcharge transfer.
+    if (this.isObjectDisabledForUpgradeSideEffects(entity)) {
       return;
     }
 
@@ -29635,8 +29659,8 @@ export class GameLogicSubsystem implements Subsystem {
    * fires OCL when weapon stops after enough consecutive shots.
    * C++ file: FireOCLAfterWeaponCooldownUpdate.cpp lines 102-183.
    *
-   * Simplified: uses entity.attackTargetEntityId presence and nextAttackFrame timing to
-   * detect consecutive shots and firing cessation.
+   * Uses entity.lastShotFrame (backward-looking, set by combat-update when weapon fires)
+   * to count consecutive shots, matching C++ weapon->getLastShotFrame() == now-1.
    */
   private updateFireOCLAfterCooldown(): void {
     for (const entity of this.spawnedEntities.values()) {
@@ -29660,18 +29684,22 @@ export class GameLogicSubsystem implements Subsystem {
         const isFiring = entity.attackTargetEntityId !== null && entity.nextAttackFrame > 0;
 
         if (isFiring) {
-          // Entity is actively attacking — count shots via nextAttackFrame transitions.
-          if (!state.valid) {
-            // Just started firing.
-            state.consecutiveShots = 1;
-            state.startFrame = this.frameCounter;
-          } else if (entity.nextAttackFrame === this.frameCounter) {
-            // A new shot is firing this frame.
+          // Source parity: C++ checks weapon->getLastShotFrame() == now-1 (backward-looking).
+          // In TS, combat-update runs before this method, so we check lastShotFrame === frameCounter
+          // (the shot was recorded this frame by combat-update).
+          if (entity.lastShotFrame === this.frameCounter) {
             state.consecutiveShots++;
+            if (state.consecutiveShots === 1) {
+              state.startFrame = this.frameCounter;
+            }
           }
         } else if (state.valid && state.consecutiveShots >= profile.minShotsRequired) {
           // Entity stopped firing — fire OCL if enough shots.
           this.fireOCLAfterCooldown(entity, profile, state);
+        } else if (state.valid) {
+          // Entity stopped firing but not enough shots — reset.
+          state.consecutiveShots = 0;
+          state.startFrame = 0;
         }
 
         state.valid = isFiring;

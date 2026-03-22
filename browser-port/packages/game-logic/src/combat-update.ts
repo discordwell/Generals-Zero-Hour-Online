@@ -31,6 +31,12 @@ interface CombatUpdateEntityLike {
   attackCommandSource: string;
   attackOriginalVictimPosition: VectorXZLike | null;
   nextAttackFrame: number;
+  /** Source parity: Weapon::m_lastFireFrame — frame when the weapon last fired a shot. */
+  lastShotFrame: number;
+  /** Source parity: per-weapon-slot last fire frame (StealthUpdate.cpp:358-386). */
+  lastShotFrameBySlot: [number, number, number];
+  /** Index of the weapon slot currently selected for attack (0=PRIMARY, 1=SECONDARY, 2=TERTIARY). */
+  attackWeaponSlotIndex: number;
   attackAmmoInClip: number;
   attackReloadFinishFrame: number;
   attackForceReloadFrame: number;
@@ -264,6 +270,10 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
     context.queueWeaponDamageEvent(attacker, target, weapon);
     context.setEntityIgnoringStealthStatus(attacker, false);
     attacker.preAttackFinishFrame = 0;
+    // Source parity: Weapon::m_lastFireFrame = TheGameLogic->getFrame()
+    attacker.lastShotFrame = context.frameCounter;
+    // Source parity: per-slot last fire frame for stealth checks (StealthUpdate.cpp:358-386).
+    attacker.lastShotFrameBySlot[attacker.attackWeaponSlotIndex] = context.frameCounter;
     // Source parity: Weapon.cpp:2511 — activate leech range after first shot fires.
     if (weapon.leechRangeWeapon) {
       attacker.leechRangeActive = true;
