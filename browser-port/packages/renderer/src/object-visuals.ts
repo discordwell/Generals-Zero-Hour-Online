@@ -283,7 +283,10 @@ export class ObjectVisualManager {
    * pressure so the render loop remains responsive while models load
    * progressively in the background.
    */
-  static MAX_CONCURRENT_MODEL_LOADS = 8;
+  static MAX_CONCURRENT_MODEL_LOADS = Math.min(
+    typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency ?? 8) : 8,
+    24,
+  );
   private readonly unresolvedEntityIds = new Set<number>();
   private readonly tempYawQuaternion = new THREE.Quaternion();
   private readonly tempToppleQuaternion = new THREE.Quaternion();

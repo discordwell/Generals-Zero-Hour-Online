@@ -1229,9 +1229,12 @@ async function startGame(
       zIndex: '100',
       pointerEvents: 'none',
       display: 'none',
+      gap: '4px',
     });
     document.getElementById('ui-overlay')!.appendChild(superweaponHud);
   }
+  /** Track the frame at which each superweapon countdown started, keyed by `entityId:powerName`. */
+  const superweaponStartFrames = new Map<string, number>();
 
   // Entity info panel (bottom-center, shows selected unit details) — reuse on restart.
   let entityInfoPanel = document.getElementById('entity-info-panel') as HTMLDivElement | null;
@@ -3398,28 +3401,105 @@ async function startGame(
         rankHud.textContent = `${rankStars} Rank ${rankLevel} | XP: ${skillPoints}/${nextThreshold} | GP: ${purchasePoints}`;
       }
 
-      // Update superweapon countdown timers.
+      // Update superweapon countdown timers with progress bars.
       const countdowns = gameLogic.getSuperweaponCountdowns();
       if (countdowns.length > 0) {
         const normalizedLocal = localPlayerSide?.toUpperCase() ?? '';
-        const lines: string[] = [];
+        const activeKeys = new Set<string>();
+        let childIdx = 0;
         for (const cd of countdowns) {
           const isPlayer = cd.side.toUpperCase() === normalizedLocal;
           const prefix = isPlayer ? '\u2622' : '\u26A0'; // ☢ for player, ⚠ for enemy
+          const color = isPlayer ? '#ff6644' : '#ffaa22';
+          let label: string;
+          let progressPct = 100;
+
+          const cdKey = `${cd.entityId}:${cd.powerName}`;
+          activeKeys.add(cdKey);
+
           if (cd.isReady) {
-            lines.push(`${prefix} ${cd.powerName}: READY`);
+            label = `${prefix} ${cd.powerName}: READY`;
+            progressPct = 100;
+            superweaponStartFrames.delete(cdKey);
           } else if (cd.readyFrame > 0) {
+            // Track start frame for percentage calculation.
+            if (!superweaponStartFrames.has(cdKey)) {
+              superweaponStartFrames.set(cdKey, cd.currentFrame);
+            }
+            const startFrame = superweaponStartFrames.get(cdKey)!;
+            const totalFrames = cd.readyFrame - startFrame;
+            const elapsed = cd.currentFrame - startFrame;
+            progressPct = totalFrames > 0 ? Math.min(100, (elapsed / totalFrames) * 100) : 0;
+
             const remainingFrames = cd.readyFrame - cd.currentFrame;
             const remainingSec = Math.max(0, Math.ceil(remainingFrames / 30));
             const min = Math.floor(remainingSec / 60);
             const sec = remainingSec % 60;
-            lines.push(`${prefix} ${cd.powerName}: ${min}:${sec.toString().padStart(2, '0')}`);
+            label = `${prefix} ${cd.powerName}: ${min}:${sec.toString().padStart(2, '0')}`;
+          } else {
+            continue;
           }
+
+          // Reuse or create a child bar element.
+          let bar = superweaponHud.children[childIdx] as HTMLDivElement | undefined;
+          if (!bar) {
+            bar = document.createElement('div');
+            Object.assign(bar.style, {
+              position: 'relative',
+              padding: '2px 8px',
+              borderRadius: '3px',
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+            });
+            superweaponHud.appendChild(bar);
+          }
+
+          // Background progress fill.
+          let fill = bar.firstElementChild as HTMLDivElement | null;
+          if (!fill) {
+            fill = document.createElement('div');
+            Object.assign(fill.style, {
+              position: 'absolute',
+              top: '0',
+              left: '0',
+              height: '100%',
+              borderRadius: '3px',
+              transition: 'width 0.3s linear',
+              pointerEvents: 'none',
+            });
+            bar.insertBefore(fill, bar.firstChild);
+          }
+          fill.style.width = `${progressPct}%`;
+          fill.style.background = `linear-gradient(90deg, transparent, ${color}44)`;
+
+          // Text span overlay.
+          let span = bar.lastElementChild as HTMLSpanElement | null;
+          if (!span || span === fill) {
+            span = document.createElement('span');
+            span.style.position = 'relative';
+            bar.appendChild(span);
+          }
+          span.textContent = label;
+          span.style.color = color;
+
+          childIdx++;
         }
-        superweaponHud.textContent = lines.join(' | ');
-        superweaponHud.style.display = lines.length > 0 ? 'block' : 'none';
+
+        // Remove stale start-frame entries.
+        for (const key of superweaponStartFrames.keys()) {
+          if (!activeKeys.has(key)) superweaponStartFrames.delete(key);
+        }
+
+        // Remove excess child elements.
+        while (superweaponHud.children.length > childIdx) {
+          superweaponHud.removeChild(superweaponHud.lastChild!);
+        }
+
+        superweaponHud.style.display = childIdx > 0 ? 'flex' : 'none';
       } else {
         superweaponHud.style.display = 'none';
+        superweaponHud.innerHTML = '';
+        superweaponStartFrames.clear();
       }
 
       // Check for game end
