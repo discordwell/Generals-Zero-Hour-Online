@@ -168,6 +168,8 @@ export interface MultiWeaponEntityState {
   totalDamageTypeMask: number;
   /** Whether any slot has a damage-dealing weapon. */
   hasDamageWeapon: boolean;
+  /** Source parity: WeaponTemplateSet::m_isReloadTimeShared — firing one weapon sets cooldown on ALL slots. */
+  shareReloadTime: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,6 +208,7 @@ export function createMultiWeaponEntityState(): MultiWeaponEntityState {
     totalAntiMask: 0,
     totalDamageTypeMask: 0,
     hasDamageWeapon: false,
+    shareReloadTime: false,
   };
 }
 
@@ -404,7 +407,7 @@ export function classifyProjectileFlightModel(
 export function updateWeaponSetFromProfiles(
   state: MultiWeaponEntityState,
   profiles: readonly [WeaponSlotProfile | null, WeaponSlotProfile | null, WeaponSlotProfile | null],
-  _shareReloadTime: boolean,
+  shareReloadTime: boolean,
   weaponLockSharedAcrossSets: boolean,
 ): void {
   // Source parity: WeaponSet.cpp:296-297 — release locks if not shared across sets.
@@ -412,6 +415,9 @@ export function updateWeaponSetFromProfiles(
     state.weaponLockStatus = 'NOT_LOCKED';
     state.currentWeaponSlot = WEAPON_SLOT_PRIMARY;
   }
+
+  // Source parity: WeaponTemplateSet::m_isReloadTimeShared propagated to runtime state.
+  state.shareReloadTime = shareReloadTime;
 
   state.filledWeaponSlotMask = 0;
   state.totalAntiMask = 0;
@@ -800,13 +806,40 @@ export function fireWeaponSlot(
     if (slot.ammoInClip <= 0) {
       slot.reloadFinishFrame = frameCounter + profile.clipReloadFrames;
       slot.nextFireFrame = slot.reloadFinishFrame;
+      // Source parity: Weapon.cpp:2400-2412 — share reload timing across all slots.
+      propagateSharedReloadTime(state, slot.nextFireFrame);
       return true; // clip empty, reloading
     }
   }
 
   // Set between-shots delay.
   slot.nextFireFrame = frameCounter + resolveDelayFrames(profile);
+
+  // Source parity: Weapon.cpp:2400-2412 — share delay-between-shots timing across all slots.
+  propagateSharedReloadTime(state, slot.nextFireFrame);
+
   return false;
+}
+
+/**
+ * Source parity: Weapon.cpp:2400-2412 — when isReloadTimeShared(), firing one
+ * weapon sets m_whenWeCanFireAgain and BETWEEN_FIRING_SHOTS status on ALL
+ * weapons in the set.
+ */
+function propagateSharedReloadTime(
+  state: MultiWeaponEntityState,
+  nextFireFrame: number,
+): void {
+  if (!state.shareReloadTime) {
+    return;
+  }
+  for (let i = 0; i < WEAPON_SLOT_COUNT; i++) {
+    const slotIdx = i as 0 | 1 | 2;
+    if (!state.weaponSlotProfiles[slotIdx]) {
+      continue;
+    }
+    state.weaponSlots[slotIdx].nextFireFrame = nextFireFrame;
+  }
 }
 
 /**

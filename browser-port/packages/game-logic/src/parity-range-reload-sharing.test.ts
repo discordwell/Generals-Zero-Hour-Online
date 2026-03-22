@@ -3,8 +3,7 @@
  *
  * Source references:
  *   Weapon.cpp:461-475 — getAttackRange(): subtracts PATHFIND_CELL_SIZE*0.25 before RANGE bonus
- *   Weapon.cpp:1900-1932 — reloadWithBonus(): when isReloadTimeShared(), propagates timing to all slots
- *   Weapon.cpp:2669-2689 — privateFireWeapon(): shares delay-between-shots timing across slots
+ *   Weapon.cpp:2400-2412 — privateFireWeapon(): when isReloadTimeShared(), propagates timing to all slots
  *   WeaponSet.h:132 — m_isReloadTimeShared flag on WeaponTemplateSet
  *   weapon-profiles.ts:65 — TS applies ATTACK_RANGE_CELL_EDGE_FUDGE
  *   combat-weapon-set.ts:141 — shareReloadTime flag in WeaponTemplateSetDef
@@ -201,7 +200,7 @@ describe('Weapon attack range UNDERSIZE fudge (PATHFIND_CELL_EDGE_FUDGE)', () =>
 
 describe('Reload time sharing across weapon slots', () => {
   /**
-   * C++ parity: Weapon.cpp:2669-2689 — privateFireWeapon()
+   * C++ parity: Weapon.cpp:2400-2412 — privateFireWeapon()
    *
    *   When isReloadTimeShared():
    *     for (Int wt = 0; wt < WEAPONSLOT_COUNT; wt++) {
@@ -216,12 +215,10 @@ describe('Reload time sharing across weapon slots', () => {
    * set to the same value, effectively preventing any weapon from firing until
    * the shared cooldown expires.
    *
-   * TS status: The multi-weapon slot system (combat-weapon-set.ts) defines
-   * WeaponSlotState.nextFireFrame per slot and fireWeaponSlot() to manage
-   * per-slot cooldowns. The WeaponTemplateSetDef.shareReloadTime flag exists
-   * but is not yet wired into the fire loop (updateWeaponSetFromProfiles
-   * receives _shareReloadTime as unused parameter). This test documents the
-   * expected behavior using the lower-level slot APIs.
+   * TS implementation: fireWeaponSlot() calls propagateSharedReloadTime()
+   * which sets nextFireFrame on all sibling slots when shareReloadTime is true.
+   * Additionally, the main combat loop uses entity-level nextAttackFrame which
+   * provides equivalent shared-cooldown behavior at the gameplay level.
    */
 
   function makeTestWeaponSlotProfile(overrides: Partial<WeaponSlotProfile> = {}): WeaponSlotProfile {
@@ -305,17 +302,15 @@ describe('Reload time sharing across weapon slots', () => {
     expect(secondaryStatus).toBe('READY_TO_FIRE');
   });
 
-  it('documents gap: shared reload is not yet propagated via fireWeaponSlot', () => {
-    // Source parity gap: In C++, when isReloadTimeShared() is true, firing one weapon
-    // sets m_whenWeCanFireAgain on ALL weapon slots (Weapon.cpp:2679-2689).
+  it('shared reload propagates nextFireFrame to all sibling slots (Weapon.cpp:2400-2412)', () => {
+    // Source parity: In C++, when isReloadTimeShared() is true, firing one weapon
+    // sets m_whenWeCanFireAgain on ALL weapon slots (Weapon.cpp:2400-2412).
     //
-    // In the TS port, fireWeaponSlot (combat-weapon-set.ts:772) only sets nextFireFrame
-    // on the fired slot. The shareReloadTime flag exists on WeaponTemplateSetDef but
-    // updateWeaponSetFromProfiles receives it as _shareReloadTime (unused).
-    //
-    // This test documents the current behavior and the expected C++ behavior.
+    // The TS port propagates nextFireFrame to all sibling slots via
+    // propagateSharedReloadTime() called from fireWeaponSlot().
 
     const state = createMultiWeaponEntityState();
+    state.shareReloadTime = true;
     const primaryProfile = makeTestWeaponSlotProfile({ name: 'SharedPrimary', slotIndex: 0, minDelayFrames: 10, maxDelayFrames: 10 });
     const secondaryProfile = makeTestWeaponSlotProfile({ name: 'SharedSecondary', slotIndex: 1, minDelayFrames: 8, maxDelayFrames: 8 });
 
@@ -333,27 +328,23 @@ describe('Reload time sharing across weapon slots', () => {
     // Primary nextFireFrame is set.
     expect(state.weaponSlots[0].nextFireFrame).toBe(frameCounter + 10);
 
-    // C++ EXPECTED (when shareReloadTime=true): secondary nextFireFrame should ALSO
-    // be set to frameCounter + 10. But TS currently does NOT propagate this.
-    //
-    // Document the gap: secondary is still at 0 (READY_TO_FIRE).
-    // When shareReloadTime is implemented, this assertion should change to:
-    //   expect(state.weaponSlots[1].nextFireFrame).toBe(frameCounter + 10);
-    expect(state.weaponSlots[1].nextFireFrame).toBe(0);
+    // Source parity: secondary nextFireFrame is ALSO set to the same value.
+    expect(state.weaponSlots[1].nextFireFrame).toBe(frameCounter + 10);
 
-    // Verify the status reflects the gap.
+    // Secondary should be BETWEEN_FIRING_SHOTS (shared cooldown).
     const secondaryStatus = getWeaponSlotStatus(state.weaponSlots[1], secondaryProfile, frameCounter);
-    expect(secondaryStatus).toBe('READY_TO_FIRE');
-    // C++ expected: BETWEEN_FIRING_SHOTS (because all weapons share the cooldown)
+    expect(secondaryStatus).toBe('BETWEEN_FIRING_SHOTS');
   });
 
-  it('multi-weapon entity fires at target using per-entity nextAttackFrame', () => {
-    // The main combat system uses entity-level nextAttackFrame, not per-slot.
-    // This means all weapons on an entity implicitly share a single cooldown,
-    // which is functionally similar to shareReloadTime=true at the entity level.
+  it('per-entity nextAttackFrame provides implicit shared cooldown at combat level', () => {
+    // The main combat loop (combat-update.ts) uses entity-level nextAttackFrame,
+    // not per-slot nextFireFrame. This means all weapons on an entity implicitly
+    // share a single cooldown at the gameplay level, equivalent to the C++
+    // isReloadTimeShared() behavior. The per-slot propagation via fireWeaponSlot()
+    // ensures parity at the slot API level as well.
     //
-    // Verify this with a real combat scenario: entity with weapon fires, then
-    // cannot fire again until nextAttackFrame passes.
+    // Verify with a real combat scenario: entity fires, then cannot fire again
+    // until nextAttackFrame passes.
 
     const agent = createParityAgent({
       bundles: {
@@ -399,12 +390,11 @@ describe('Reload time sharing across weapon slots', () => {
     expect(totalDamage).toBeLessThanOrEqual(40);    // at most 4 shots (timing imprecision)
   });
 
-  it('fireWeaponSlot with clip depleted triggers reload on fired slot only', () => {
-    // Source parity: When clipSize > 0 and ammo reaches 0, the slot enters RELOADING_CLIP.
-    // In C++ with shareReloadTime, ALL slots would enter RELOADING_CLIP.
-    // In TS, only the fired slot reloads.
+  it('fireWeaponSlot with clip depleted triggers reload on fired slot only (no sharing)', () => {
+    // When shareReloadTime is false, only the fired slot gets cooldown.
 
     const state = createMultiWeaponEntityState();
+    // shareReloadTime defaults to false
     const primaryProfile = makeTestWeaponSlotProfile({
       name: 'ClipPrimary',
       slotIndex: 0,
@@ -450,8 +440,53 @@ describe('Reload time sharing across weapon slots', () => {
     expect(state.weaponSlots[1].nextFireFrame).toBe(0);
     const secondaryStatus = getWeaponSlotStatus(state.weaponSlots[1], secondaryProfile, frameCounter);
     expect(secondaryStatus).toBe('READY_TO_FIRE');
+  });
 
-    // C++ with shareReloadTime=true: secondary would ALSO be in RELOADING_CLIP
-    // with nextFireFrame = frameCounter + 30. Document this gap.
+  it('fireWeaponSlot with clip depleted propagates nextFireFrame when shared', () => {
+    // Source parity: When shareReloadTime is true AND clip depletes,
+    // ALL slots get nextFireFrame set to the reload finish time.
+
+    const state = createMultiWeaponEntityState();
+    state.shareReloadTime = true;
+    const primaryProfile = makeTestWeaponSlotProfile({
+      name: 'ClipPrimary',
+      slotIndex: 0,
+      clipSize: 1,
+      clipReloadFrames: 30,
+      minDelayFrames: 5,
+      maxDelayFrames: 5,
+    });
+    const secondaryProfile = makeTestWeaponSlotProfile({
+      name: 'ClipSecondary',
+      slotIndex: 1,
+      clipSize: 3,
+      clipReloadFrames: 20,
+      minDelayFrames: 3,
+      maxDelayFrames: 3,
+    });
+
+    state.weaponSlotProfiles[0] = primaryProfile;
+    state.weaponSlotProfiles[1] = secondaryProfile;
+    state.weaponSlots[0].weaponName = 'ClipPrimary';
+    state.weaponSlots[0].ammoInClip = 1;
+    state.weaponSlots[1].weaponName = 'ClipSecondary';
+    state.weaponSlots[1].ammoInClip = 3;
+    state.filledWeaponSlotMask = 0b11;
+
+    const frameCounter = 300;
+
+    const clipEmpty = fireWeaponSlot(state, WEAPON_SLOT_PRIMARY, frameCounter, () => 5);
+    expect(clipEmpty).toBe(true);
+
+    // Primary is reloading.
+    expect(state.weaponSlots[0].nextFireFrame).toBe(frameCounter + 30);
+
+    // Source parity: secondary nextFireFrame is also set (shared cooldown).
+    expect(state.weaponSlots[1].nextFireFrame).toBe(frameCounter + 30);
+
+    // Secondary still has ammo, but its nextFireFrame blocks it.
+    expect(state.weaponSlots[1].ammoInClip).toBe(3);
+    const secondaryStatus = getWeaponSlotStatus(state.weaponSlots[1], secondaryProfile, frameCounter);
+    expect(secondaryStatus).toBe('BETWEEN_FIRING_SHOTS');
   });
 });
