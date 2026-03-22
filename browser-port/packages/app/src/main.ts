@@ -1871,16 +1871,178 @@ async function startGame(
     return null;
   };
 
-  // F1 toggle wireframe, F2 toggle debug overlay
+  // ========================================================================
+  // Keyboard shortcut help overlay (F1 or ?)
+  // ========================================================================
+
+  const helpOverlay = document.createElement('div');
+  helpOverlay.id = 'help-overlay';
+  helpOverlay.style.cssText = `
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.7); z-index: 950;
+    font-family: 'Segoe UI', Arial, sans-serif; color: #e0d8c0;
+  `;
+
+  const helpPanel = document.createElement('div');
+  helpPanel.style.cssText = `
+    background: rgba(12, 16, 28, 0.95); border: 1px solid rgba(201, 168, 76, 0.35);
+    padding: 28px 36px; max-width: 720px; width: 90%;
+    pointer-events: auto;
+  `;
+
+  const helpTitle = document.createElement('div');
+  helpTitle.style.cssText = `
+    font-size: 1.3rem; color: #c9a84c; text-transform: uppercase;
+    letter-spacing: 0.25em; margin-bottom: 20px; text-align: center;
+  `;
+  helpTitle.textContent = 'Keyboard Shortcuts';
+
+  const shortcutSections: { heading: string; entries: [string, string][] }[] = [
+    {
+      heading: 'Camera',
+      entries: [
+        ['Space', 'Center on selection'],
+        ['Home', 'Center on Command Center'],
+        ['Mouse Wheel', 'Zoom in/out'],
+        ['Middle-drag', 'Rotate camera'],
+      ],
+    },
+    {
+      heading: 'Selection',
+      entries: [
+        ['Click', 'Select unit/building'],
+        ['Ctrl+A', 'Select all own units'],
+        ['Double-click', 'Select same type'],
+        ['1\u20139', 'Recall control group'],
+        ['Ctrl+1\u20139', 'Save control group'],
+        ['Shift+1\u20139', 'Add to control group'],
+        ['Tab', 'Cycle idle buildings'],
+      ],
+    },
+    {
+      heading: 'Commands',
+      entries: [
+        ['Right-click', 'Move / Attack'],
+        ['A', 'Attack-move mode'],
+        ['G', 'Guard'],
+        ['S', 'Stop'],
+        ['X', 'Scatter'],
+        ['Delete', 'Sell structure'],
+      ],
+    },
+    {
+      heading: 'Building',
+      entries: [
+        ['Z / C', 'Rotate placement'],
+        ['Shift+click', 'Queue waypoints'],
+        ['Ctrl+click', 'Force-fire ground'],
+      ],
+    },
+    {
+      heading: 'Game',
+      entries: [
+        ['P', 'Pause'],
+        ['+ / \u2212', 'Adjust speed'],
+        ['Backspace', 'Reset speed'],
+        ['Escape', 'Menu / Cancel'],
+        ['F9', 'Diplomacy'],
+        ['F1 or ?', 'This help'],
+      ],
+    },
+  ];
+
+  const columnsWrap = document.createElement('div');
+  columnsWrap.style.cssText = `
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px 32px;
+  `;
+
+  for (const section of shortcutSections) {
+    const sectionDiv = document.createElement('div');
+
+    const heading = document.createElement('div');
+    heading.style.cssText = `
+      font-size: 0.8rem; color: #c9a84c; text-transform: uppercase;
+      letter-spacing: 0.15em; margin-bottom: 8px; border-bottom: 1px solid rgba(201,168,76,0.25);
+      padding-bottom: 4px;
+    `;
+    heading.textContent = section.heading;
+    sectionDiv.appendChild(heading);
+
+    for (const [key, desc] of section.entries) {
+      const row = document.createElement('div');
+      row.style.cssText = `
+        display: flex; justify-content: space-between; align-items: baseline;
+        padding: 3px 0; font-size: 0.85rem;
+      `;
+
+      const keySpan = document.createElement('span');
+      keySpan.style.cssText = `
+        background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 3px; padding: 1px 7px; font-size: 0.75rem;
+        font-family: 'Consolas', 'Courier New', monospace; color: #fff;
+        margin-right: 12px; white-space: nowrap;
+      `;
+      keySpan.textContent = key;
+
+      const descSpan = document.createElement('span');
+      descSpan.style.cssText = 'color: #b0a890; flex: 1; text-align: right;';
+      descSpan.textContent = desc;
+
+      row.appendChild(keySpan);
+      row.appendChild(descSpan);
+      sectionDiv.appendChild(row);
+    }
+
+    columnsWrap.appendChild(sectionDiv);
+  }
+
+  const helpFooter = document.createElement('div');
+  helpFooter.style.cssText = `
+    text-align: center; margin-top: 20px; font-size: 0.7rem;
+    color: #6a6258; letter-spacing: 0.1em;
+  `;
+  helpFooter.textContent = 'Press F1, ?, or Escape to close';
+
+  helpPanel.appendChild(helpTitle);
+  helpPanel.appendChild(columnsWrap);
+  helpPanel.appendChild(helpFooter);
+  helpOverlay.appendChild(helpPanel);
+  document.body.appendChild(helpOverlay);
+
+  // Click outside the panel closes the overlay
+  helpOverlay.addEventListener('mousedown', (e) => {
+    if (e.target === helpOverlay) {
+      helpVisible = false;
+      helpOverlay.style.display = 'none';
+    }
+  });
+
+  let helpVisible = false;
+  function toggleHelp(): void {
+    helpVisible = !helpVisible;
+    helpOverlay.style.display = helpVisible ? 'flex' : 'none';
+  }
+  function hideHelp(): void {
+    helpVisible = false;
+    helpOverlay.style.display = 'none';
+  }
+
+  // F1/? help overlay, F2 toggle debug overlay, F3 toggle wireframe
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'F1') {
+    if (e.key === 'F1' || e.key === '?') {
       e.preventDefault();
-      terrainVisual.toggleWireframe();
+      toggleHelp();
       return;
     }
     if (e.key === 'F2') {
       e.preventDefault();
       uiRuntime.toggleDebugOverlay();
+      return;
+    }
+    if (e.key === 'F3') {
+      e.preventDefault();
+      terrainVisual.toggleWireframe();
       return;
     }
 
@@ -3186,6 +3348,7 @@ async function startGame(
           || currentSelectionIds.some((id, i) => previousSelectionSnapshot[i] !== id);
         if (changed) {
           voiceBridge.playGroupVoice(currentSelectionIds, 'select');
+          playUiFeedbackAudio(iniDataRegistry, audioManager, 'select');
         }
       }
       previousSelectionSnapshot = currentSelectionIds;
@@ -3305,7 +3468,9 @@ async function startGame(
       // Escape — close overlays, cancel pending command, deselect, or open options.
       // Source parity: cascading priority matches C++ InGameUI::processEscape.
       if (!missionInputLocked && inputState.keysPressed.has('escape')) {
-        if (diplomacyScreen.isVisible) {
+        if (helpVisible) {
+          hideHelp();
+        } else if (diplomacyScreen.isVisible) {
           diplomacyScreen.hide();
         } else if (ingameOptionsScreen.isVisible) {
           ingameOptionsScreen.hide();
@@ -4057,7 +4222,7 @@ async function startGame(
   console.log('Stage 3: Terrain + map entities bootstrapped.');
   console.log(`Terrain: ${heightmap.width}x${heightmap.height} (${mapPath ?? 'procedural demo'})`);
   console.log(`Placed ${objectPlacement.spawnedObjects}/${objectPlacement.totalObjects} objects from map data.`);
-  console.log('Controls: LMB=select, RMB=move/confirm target, 1-12=ControlBar slot, WASD=scroll, Q/E=rotate, Wheel=zoom, Middle-drag=pan, F1=wireframe');
+  console.log('Controls: LMB=select, RMB=move/confirm target, 1-12=ControlBar slot, WASD=scroll, Q/E=rotate, Wheel=zoom, Middle-drag=pan, F1=help, F3=wireframe');
 }
 
 // ============================================================================
