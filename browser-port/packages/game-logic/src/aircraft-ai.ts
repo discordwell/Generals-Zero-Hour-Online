@@ -804,7 +804,14 @@ export function reserveParkingSpaceForProducedUnit(self: GL,
     return false;
   }
 
-  producedUnit.parkingSpaceProducerId = producer.id;
+  // Source parity: ParkingPlaceBehavior::reserveSpaceForUnit only sets the containment
+  // pointer (m_containedBy → parking place) when the producer has a ParkingPlaceBehavior
+  // module. Buildings without parking (Barracks, War Factory without hangars) must NOT
+  // set parkingSpaceProducerId, or produced units will be treated as "contained" and
+  // blocked from attacking by canEntityAttackFromStatus (Object::isAbleToAttack).
+  if (producer.parkingPlaceProfile) {
+    producedUnit.parkingSpaceProducerId = producer.id;
+  }
   if (producer.containProfile?.moduleType === 'HELIX') {
     const producedKindOf = self.resolveEntityKindOfSet(producedUnit);
     if (producedKindOf.has('PORTABLE_STRUCTURE')) {
