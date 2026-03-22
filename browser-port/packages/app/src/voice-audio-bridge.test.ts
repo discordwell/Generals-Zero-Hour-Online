@@ -134,6 +134,43 @@ describe('VoiceAudioBridge', () => {
     expect(audio.played[0]!.name).toBe('RangerSelect');
   });
 
+  it('playGroupVoice picks a random entity for command voices (move/attack)', () => {
+    const registry = createMockRegistry({
+      Ranger: { VoiceMove: 'RangerMove' },
+      Humvee: { VoiceMove: 'HumveeMove' },
+      Tank: { VoiceMove: 'TankMove' },
+    });
+    const audio = createMockAudioManager();
+    const logic = createMockGameLogic(new Map([
+      [1, { x: 0, y: 0, z: 0, templateName: 'Ranger' }],
+      [2, { x: 5, y: 0, z: 5, templateName: 'Humvee' }],
+      [3, { x: 10, y: 0, z: 10, templateName: 'Tank' }],
+    ]));
+    const bridge = new VoiceAudioBridge(registry, audio, logic);
+
+    // Seed Math.random to return predictable values for the test.
+    const mathRandomSpy = vi.spyOn(Math, 'random');
+    let mockTime = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => mockTime);
+
+    // Math.floor(0.7 * 3) = 2 → picks entity at index 2 (Tank)
+    mathRandomSpy.mockReturnValueOnce(0.7);
+    expect(bridge.playGroupVoice([1, 2, 3], 'move')).toBe(true);
+    expect(audio.played).toHaveLength(1);
+    expect(audio.played[0]!.name).toBe('TankMove');
+
+    // Advance past cooldown.
+    mockTime += 500;
+
+    // Math.floor(0.1 * 3) = 0 → picks entity at index 0 (Ranger)
+    mathRandomSpy.mockReturnValueOnce(0.1);
+    expect(bridge.playGroupVoice([1, 2, 3], 'move')).toBe(true);
+    expect(audio.played).toHaveLength(2);
+    expect(audio.played[1]!.name).toBe('RangerMove');
+
+    vi.restoreAllMocks();
+  });
+
   it('caches voice lookups', () => {
     const objects: Record<string, Record<string, string>> = {
       Tank: { VoiceSelect: 'TankSelect' },

@@ -109,12 +109,20 @@ export class VoiceAudioBridge {
   }
 
   /**
-   * Play a voice for a group selection. Uses the first entity in the group.
+   * Play a voice for a group command or selection.
    * Source parity: InGameUI.cpp plays one voice for group select, not N voices.
+   * For selection, uses the first entity (deterministic, matching C++).
+   * For command voices (move, attack, guard, etc.), picks a random entity from
+   * the group for variety — the C++ list order effectively varies because of
+   * selection-order differences, so randomization is the faithful approximation.
    */
   playGroupVoice(entityIds: readonly number[], voiceType: VoiceEventType): boolean {
     if (entityIds.length === 0) return false;
-    return this.playVoice(entityIds[0]!, voiceType);
+    if (voiceType === 'select' || voiceType === 'selectElite' || entityIds.length === 1) {
+      return this.playVoice(entityIds[0]!, voiceType);
+    }
+    const randomIndex = Math.floor(Math.random() * entityIds.length);
+    return this.playVoice(entityIds[randomIndex]!, voiceType);
   }
 
   /**
