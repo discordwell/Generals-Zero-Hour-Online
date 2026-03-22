@@ -3378,11 +3378,11 @@ async function startGame(
           // hovered object is a friendly building with health < maxHealth.
           let isRepairHover = false;
           if (hoverObjectId !== null && hoverTarget === 'own-unit' && selIds.length > 0) {
-            const hoverEntityState = gameLogic.getEntityState(hoverObjectId);
-            if (hoverEntityState
-              && hoverEntityState.category === 'building'
-              && hoverEntityState.maxHealth > 0
-              && hoverEntityState.health < hoverEntityState.maxHealth) {
+            const hoverRenderState = getCachedRenderStates().find(e => e.id === hoverObjectId);
+            if (hoverRenderState
+              && hoverRenderState.category === 'building'
+              && hoverRenderState.maxHealth > 0
+              && hoverRenderState.health < hoverRenderState.maxHealth) {
               const selectedInfos = gameLogic.getSelectedEntityInfos(selIds);
               if (selectedInfos.some(info => info.isDozer)) {
                 hoverTarget = 'repair';
