@@ -198,6 +198,9 @@ interface VisualAssetState {
   damageFlashEndTime: number;
   /** Last known health value for detecting health decreases between frames. */
   lastKnownHealth: number;
+  // --- Veterancy promotion flash ---
+  /** Accumulated time (seconds) when the gold veterancy flash should end. -1 = no flash. */
+  veterancyFlashEndTime: number;
 }
 
 export interface ObjectVisualManagerConfig {
@@ -580,6 +583,7 @@ export class ObjectVisualManager {
       disguiseTransitionApplying: false,
       damageFlashEndTime: -1,
       lastKnownHealth: -1,
+      veterancyFlashEndTime: -1,
     };
   }
 
@@ -1656,6 +1660,10 @@ export class ObjectVisualManager {
 
     // Rebuild badge if level changed.
     if (visual.currentVeterancyLevel !== level) {
+      // Trigger gold promotion flash when veterancy increases (not on initial spawn).
+      if (level > visual.currentVeterancyLevel && visual.currentVeterancyLevel > 0) {
+        visual.veterancyFlashEndTime = this.accumulatedTime + 0.3;
+      }
       if (visual.veterancyBadge) {
         this.disposeObject3D(visual.veterancyBadge);
         visual.root.remove(visual.veterancyBadge);
@@ -1860,6 +1868,10 @@ export class ObjectVisualManager {
   private static readonly DAMAGE_FLASH_COLOR = new THREE.Color(0xff0000);
   /** Emissive intensity during damage flash. */
   private static readonly DAMAGE_FLASH_INTENSITY = 0.5;
+  /** Gold tint color for the veterancy promotion flash. */
+  private static readonly VETERANCY_FLASH_COLOR = new THREE.Color(0xffdd44);
+  /** Emissive intensity for veterancy promotion flash. */
+  private static readonly VETERANCY_FLASH_INTENSITY = 0.8;
 
   /**
    * Flash the model red briefly when health decreases.
@@ -1876,10 +1888,14 @@ export class ObjectVisualManager {
     }
     visual.lastKnownHealth = currentHealth;
 
-    const isFlashing = visual.damageFlashEndTime > 0 && this.accumulatedTime < visual.damageFlashEndTime;
+    const isDamageFlash = visual.damageFlashEndTime > 0 && this.accumulatedTime < visual.damageFlashEndTime;
+    const isVetFlash = visual.veterancyFlashEndTime > 0 && this.accumulatedTime < visual.veterancyFlashEndTime;
+    const isFlashing = isDamageFlash || isVetFlash;
+    // Veterancy flash takes priority over damage flash.
+    const flashColor = isVetFlash ? ObjectVisualManager.VETERANCY_FLASH_COLOR : ObjectVisualManager.DAMAGE_FLASH_COLOR;
+    const flashIntensity = isVetFlash ? ObjectVisualManager.VETERANCY_FLASH_INTENSITY : ObjectVisualManager.DAMAGE_FLASH_INTENSITY;
 
     if (isFlashing) {
-      // Apply red emissive tint to all standard materials.
       visual.currentModel.traverse((child) => {
         const mesh = child as THREE.Mesh;
         if (!mesh.isMesh) return;
@@ -1887,14 +1903,16 @@ export class ObjectVisualManager {
         for (const mat of materials) {
           const stdMat = mat as THREE.MeshStandardMaterial;
           if (stdMat.isMeshStandardMaterial) {
-            stdMat.emissive.copy(ObjectVisualManager.DAMAGE_FLASH_COLOR);
-            stdMat.emissiveIntensity = ObjectVisualManager.DAMAGE_FLASH_INTENSITY;
+            stdMat.emissive.copy(flashColor);
+            stdMat.emissiveIntensity = flashIntensity;
           }
         }
       });
-    } else if (visual.damageFlashEndTime > 0 && this.accumulatedTime >= visual.damageFlashEndTime) {
+    } else if ((visual.damageFlashEndTime > 0 && this.accumulatedTime >= visual.damageFlashEndTime) ||
+               (visual.veterancyFlashEndTime > 0 && this.accumulatedTime >= visual.veterancyFlashEndTime)) {
       // Flash just ended — restore original emissive (team color or zero).
       visual.damageFlashEndTime = -1;
+      visual.veterancyFlashEndTime = -1;
       this.restoreEmissiveAfterFlash(visual, state);
     }
   }

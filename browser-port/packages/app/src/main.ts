@@ -1570,7 +1570,11 @@ async function startGame(
       lines.push(`Cargo: ${state.supplyBoxes}/${state.supplyMaxBoxes} boxes`);
     }
 
-    if (state.attackTargetEntityId !== null) {
+    // Sell countdown timer display.
+    if (state.sellPercent !== null) {
+      const pct = Math.max(0, Math.round(state.sellPercent));
+      lines.push(`Selling... ${pct}%`);
+    } else if (state.attackTargetEntityId !== null) {
       lines.push('Status: Attacking');
     } else if (state.guardState !== 'NONE') {
       lines.push('Status: Guarding');
@@ -1756,18 +1760,32 @@ async function startGame(
   });
 
   let minimapDragging = false;
+  let minimapRightDragging = false;
+  let minimapRightDragMoveCount = 0;
   minimapCanvas.addEventListener('mousedown', (e) => {
     if (e.button === 0) {
       minimapDragging = radarInteractionEnabled;
+    } else if (e.button === 2) {
+      minimapRightDragging = radarInteractionEnabled;
+      minimapRightDragMoveCount = 0;
     }
   });
-  window.addEventListener('mouseup', () => { minimapDragging = false; });
+  window.addEventListener('mouseup', () => { minimapDragging = false; minimapRightDragging = false; });
   minimapCanvas.addEventListener('mousemove', (e) => {
-    if (!minimapDragging || !radarInteractionEnabled) return;
+    if (!radarInteractionEnabled) return;
     const rect = minimapCanvas.getBoundingClientRect();
     const mx = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const my = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-    rtsCamera.lookAt(mx * heightmap.worldWidth, my * heightmap.worldDepth);
+    if (minimapDragging) {
+      rtsCamera.lookAt(mx * heightmap.worldWidth, my * heightmap.worldDepth);
+    }
+    if (minimapRightDragging && ++minimapRightDragMoveCount % 5 === 0) {
+      const selIds = gameLogic.getLocalPlayerSelectionIds();
+      const wx = mx * heightmap.worldWidth, wz = my * heightmap.worldDepth;
+      for (const id of selIds) {
+        gameLogic.submitCommand({ type: 'moveTo', entityId: id, targetX: wx, targetZ: wz, commandSource: 'PLAYER' });
+      }
+    }
   });
 
   const updateMinimap = (showEntityBlips: boolean): void => {
