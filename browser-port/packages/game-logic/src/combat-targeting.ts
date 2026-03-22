@@ -156,7 +156,7 @@ export function canEntityAttackFromStatus(self: GL, entity: MapEntity): boolean 
   return true;
 }
 
-export function canAttackerTargetEntity(self: GL, 
+export function canAttackerTargetEntity(self: GL,
   attacker: MapEntity,
   target: MapEntity,
   commandSource: AttackCommandSource,
@@ -266,6 +266,12 @@ export function refreshEntityCombatProfiles(self: GL, entity: MapEntity): void {
     registry,
     entity.forcedWeaponSlot,
   );
+  entity.attackWeaponSlotIndex = self.resolveAttackWeaponSlotIndex(
+    entity.weaponTemplateSets,
+    entity.weaponSetFlagsMask,
+    registry,
+    entity.forcedWeaponSlot,
+  );
   entity.largestWeaponRange = self.resolveLargestWeaponRangeForSetSelection(
     entity.weaponTemplateSets,
     entity.weaponSetFlagsMask,
@@ -329,7 +335,7 @@ export function refreshEntityCombatProfiles(self: GL, entity: MapEntity): void {
   }
 }
 
-export function issueAttackEntity(self: GL, 
+export function issueAttackEntity(self: GL,
   entityId: number,
   targetEntityId: number,
   commandSource: AttackCommandSource,

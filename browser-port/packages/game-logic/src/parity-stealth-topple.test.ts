@@ -174,23 +174,15 @@ describe('Parity: garrisoned stealth unit detection', () => {
 
 describe('Parity: per-weapon slot stealth firing check', () => {
   /**
-   * C++ StealthUpdate.cpp:159-199 — STEALTH_NOT_WHILE_FIRING_PRIMARY only breaks
+   * C++ StealthUpdate.cpp:348-386 — STEALTH_NOT_WHILE_FIRING_PRIMARY only breaks
    * stealth when the primary weapon fires (checks per-slot lastShotFrame against
    * current frame). STEALTH_NOT_WHILE_FIRING_SECONDARY only checks secondary, etc.
    *
-   * TS stealth-detection.ts:249-252 — STEALTH_FORBIDDEN_FIRING_PRIMARY checks the
-   * global IS_FIRING_WEAPON status flag. This flag is set whenever ANY weapon fires,
-   * regardless of slot. Additionally, STEALTH_FORBIDDEN_FIRING_SECONDARY and
-   * STEALTH_FORBIDDEN_FIRING_TERTIARY flags are parsed from INI but never checked
-   * in the updateStealth loop.
-   *
-   * Behavioral difference:
-   * - C++: FIRING_PRIMARY only breaks stealth when primary weapon fires.
-   *        Secondary fire alone would NOT break stealth.
-   * - TS:  FIRING_PRIMARY breaks stealth when ANY weapon fires (global flag).
-   *        All weapon slots are treated equally.
+   * TS stealth-detection.ts — uses per-slot lastShotFrameBySlot checks matching C++.
+   * IS_FIRING_WEAPON is used as a quick gate (same as C++), then per-slot
+   * lastShotFrameBySlot is checked for each forbidden firing condition.
    */
-  it('documents that FIRING_PRIMARY breaks stealth on any weapon fire (TS) vs primary-only (C++)', () => {
+  it('FIRING_PRIMARY breaks stealth when primary weapon fires', () => {
     const bundle = makeBundle({
       objects: [
         // Stealthed unit with FIRING_PRIMARY forbidden condition.
@@ -238,15 +230,14 @@ describe('Parity: per-weapon slot stealth firing check', () => {
     for (let i = 0; i < 10; i++) logic.update(1 / 30);
 
     // Stealth should be broken by primary fire.
-    // In both C++ and TS, primary fire with FIRING_PRIMARY forbidden breaks stealth.
+    // Both C++ and TS check per-slot lastShotFrame for the primary weapon slot.
     const flags = logic.getEntityState(1)?.statusFlags ?? [];
     expect(flags).not.toContain('STEALTHED');
   });
 
-  it('documents that FIRING_SECONDARY/TERTIARY conditions are parsed but not enforced', () => {
-    // Create a stealth unit with only FIRING_SECONDARY as forbidden condition.
-    // In C++, only secondary weapon fire would break stealth.
-    // In TS, the FIRING_SECONDARY flag is parsed but never checked in updateStealth().
+  it('FIRING_SECONDARY condition does not break stealth when only primary weapon fires', () => {
+    // Source parity: StealthUpdate.cpp:369-376 — FIRING_SECONDARY only checks
+    // the secondary weapon slot's lastShotFrame. Firing primary does not trigger it.
     const bundle = makeBundle({
       objects: [
         makeObjectDef('StealthUnit', 'America', ['INFANTRY'], [
@@ -291,27 +282,71 @@ describe('Parity: per-weapon slot stealth firing check', () => {
     logic.submitCommand({ type: 'attackEntity', entityId: 1, targetEntityId: 2 });
     for (let i = 0; i < 10; i++) logic.update(1 / 30);
 
-    // PARITY DOCUMENTATION:
-    // In C++: stealth would remain active because only secondary fire breaks it,
-    //         and we are firing the primary weapon.
-    // In TS:  FIRING_SECONDARY is parsed into the forbiddenConditions bitmask
-    //         but updateStealth() only checks FIRING_PRIMARY against IS_FIRING_WEAPON.
-    //         Since there is no check for FIRING_SECONDARY, stealth is NOT broken.
-    //
-    // Both C++ and TS agree on the outcome here (stealth stays), but for
-    // different reasons:
-    // - C++: secondary slot didn't fire, so no break.
-    // - TS:  FIRING_SECONDARY condition is never checked at all.
+    // Source parity: stealth remains active because only secondary fire would
+    // break it, and we are firing the primary weapon. The per-slot check sees
+    // lastShotFrameBySlot[1] (secondary) was never updated, so stealth holds.
     const flags = logic.getEntityState(1)?.statusFlags ?? [];
-
-    // The unit should still be stealthed (or re-entered stealth if briefly broken).
-    // Since FIRING_SECONDARY is not enforced in TS, stealth remains unbroken.
     expect(flags).toContain('STEALTHED');
   });
 
-  it('documents that IS_FIRING_WEAPON is a global flag (not per-weapon-slot)', () => {
-    // Access internal entity state to verify that IS_FIRING_WEAPON is set regardless
-    // of which weapon slot fires.
+  it('FIRING_PRIMARY does NOT break stealth when unit fires secondary weapon', () => {
+    // Source parity: StealthUpdate.cpp:360-367 — FIRING_PRIMARY only checks
+    // primary weapon slot. A unit firing its secondary weapon should remain stealthed.
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('StealthUnit', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Behavior', 'StealthUpdate ModuleTag_Stealth', {
+            StealthDelay: 100,
+            InnateStealth: 'Yes',
+            StealthForbiddenConditions: 'FIRING_PRIMARY',
+          }),
+          // Only has a secondary weapon, no primary.
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['SECONDARY', 'SecondaryGun'] }),
+        ]),
+        makeObjectDef('TargetDummy', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 9999, InitialHealth: 9999 }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('SecondaryGun', {
+          PrimaryDamage: 1,
+          PrimaryDamageRadius: 0,
+          AttackRange: 200,
+          DelayBetweenShots: 100,
+          DamageType: 'SMALL_ARMS',
+        }),
+      ],
+    });
+    const logic = createLogic();
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('StealthUnit', 50, 50),
+        makeMapObject('TargetDummy', 60, 50),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    setupEnemyRelationships(logic);
+
+    // Wait for stealth to activate.
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+    expect(logic.getEntityState(1)?.statusFlags ?? []).toContain('STEALTHED');
+
+    // Issue attack — the unit only has a secondary weapon so it fires that.
+    logic.submitCommand({ type: 'attackEntity', entityId: 1, targetEntityId: 2 });
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+
+    // Source parity: FIRING_PRIMARY only checks primary slot (index 0).
+    // Since the weapon is in the secondary slot (index 1), lastShotFrameBySlot[0]
+    // is never updated, so stealth should NOT be broken.
+    const flags = logic.getEntityState(1)?.statusFlags ?? [];
+    expect(flags).toContain('STEALTHED');
+  });
+
+  it('IS_FIRING_WEAPON global flag is set when any weapon fires, with per-slot tracking', () => {
+    // IS_FIRING_WEAPON is still a global flag set during any weapon fire.
+    // Per-slot tracking via lastShotFrameBySlot is used for stealth checks.
     const bundle = makeBundle({
       objects: [
         makeObjectDef('Attacker', 'America', ['INFANTRY'], [
@@ -361,7 +396,7 @@ describe('Parity: per-weapon slot stealth firing check', () => {
     }
 
     // IS_FIRING_WEAPON should have been set at some point during combat.
-    // This is a global flag -- TS has no per-slot firing tracking.
+    // Per-slot lastShotFrameBySlot is also updated alongside this global flag.
     expect(isFiringObserved).toBe(true);
   });
 });

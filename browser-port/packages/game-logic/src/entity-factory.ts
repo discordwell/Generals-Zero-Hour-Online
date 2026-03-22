@@ -94,6 +94,7 @@ export function createMapEntity(self: GL,
   const weaponTemplateSets = extractWeaponTemplateSets(self, objectDef);
   const armorTemplateSets = extractArmorTemplateSets(self, objectDef);
   const attackWeapon = self.resolveAttackWeaponProfile(objectDef, iniDataRegistry);
+  const attackWeaponSlotIndex = self.resolveAttackWeaponSlotIndex(weaponTemplateSets, 0, iniDataRegistry);
   const specialPowerModules = extractSpecialPowerModules(self, objectDef);
   const bodyStats = self.resolveBodyStats(objectDef);
   const energyBonus = readNumericField(objectDef?.fields ?? {}, ['EnergyBonus']) ?? 0;
@@ -252,7 +253,7 @@ export function createMapEntity(self: GL,
     nextAttackFrame: 0,
     lastShotFrame: 0,
     lastShotFrameBySlot: [0, 0, 0],
-    attackWeaponSlotIndex: 0,
+    attackWeaponSlotIndex,
     attackCooldownRemaining: 0,
     attackAmmoInClip: initialClipAmmo,
     attackReloadFinishFrame: 0,

@@ -93,12 +93,16 @@ export function extractStealthProfile(self: GL, objectDef: ObjectDef | undefined
         // Source parity: StealthUpdate.cpp:112 — RevealDistanceFromTarget parsed as Real.
         const revealDistanceFromTarget = readNumericField(block.fields, ['RevealDistanceFromTarget']) ?? 0;
 
+        // Source parity: StealthUpdate.cpp:881 — m_orderIdleEnemiesToAttackMeUponReveal parsed as Bool.
+        const orderIdleEnemiesToAttackMeUponReveal = readBooleanField(block.fields, ['OrderIdleEnemiesToAttackMeUponReveal']) ?? false;
+
         profile = {
           stealthDelayFrames,
           innateStealth,
           forbiddenConditions,
           moveThresholdSpeed,
           revealDistanceFromTarget,
+          orderIdleEnemiesToAttackMeUponReveal,
         };
       }
     }
@@ -270,9 +274,34 @@ export function updateStealth(self: GL): void {
       }
     }
 
-    if ((forbidden & STEALTH_FORBIDDEN_FIRING_PRIMARY) !== 0) {
-      if (entity.objectStatusFlags.has('IS_FIRING_WEAPON')) {
+    // Source parity: StealthUpdate.cpp:348-386 — per-weapon-slot firing checks.
+    // C++ first gates on IS_FIRING_WEAPON, then checks per-slot getLastShotFrame()
+    // against (currentFrame - 1). We replicate the per-slot check using lastShotFrameBySlot.
+    const firingForbiddenMask = forbidden & (STEALTH_FORBIDDEN_FIRING_PRIMARY
+      | STEALTH_FORBIDDEN_FIRING_SECONDARY | STEALTH_FORBIDDEN_FIRING_TERTIARY);
+    if (firingForbiddenMask !== 0 && entity.objectStatusFlags.has('IS_FIRING_WEAPON')) {
+      // Source parity: if ALL three firing slots are forbidden, skip per-slot checks.
+      const allSlotsForbidden = firingForbiddenMask === (STEALTH_FORBIDDEN_FIRING_PRIMARY
+        | STEALTH_FORBIDDEN_FIRING_SECONDARY | STEALTH_FORBIDDEN_FIRING_TERTIARY);
+      if (allSlotsForbidden) {
         breakStealth = true;
+      } else {
+        const lastFrame = self.frameCounter - 1;
+        if ((firingForbiddenMask & STEALTH_FORBIDDEN_FIRING_PRIMARY) !== 0) {
+          if (entity.lastShotFrameBySlot[0] >= lastFrame) {
+            breakStealth = true;
+          }
+        }
+        if ((firingForbiddenMask & STEALTH_FORBIDDEN_FIRING_SECONDARY) !== 0) {
+          if (entity.lastShotFrameBySlot[1] >= lastFrame) {
+            breakStealth = true;
+          }
+        }
+        if ((firingForbiddenMask & STEALTH_FORBIDDEN_FIRING_TERTIARY) !== 0) {
+          if (entity.lastShotFrameBySlot[2] >= lastFrame) {
+            breakStealth = true;
+          }
+        }
       }
     }
 
@@ -461,9 +490,60 @@ export function updateDetection(self: GL): void {
       const dx = target.x - detector.x;
       const dz = target.z - detector.z;
       if (dx * dx + dz * dz <= detRangeSq) {
+        // Source parity: StealthUpdate.cpp:916-935 — markAsDetected checks
+        // m_orderIdleEnemiesToAttackMeUponReveal. If true, iterates all enemy
+        // players and calls setWakeupIfInRange on their idle units within
+        // vision range, causing them to auto-attack the revealed unit.
+        const wasAlreadyDetected = target.objectStatusFlags.has('DETECTED');
         target.objectStatusFlags.add('DETECTED');
         target.detectedUntilFrame = self.frameCounter + detectionDuration;
+
+        if (!wasAlreadyDetected
+            && target.stealthProfile
+            && target.stealthProfile.orderIdleEnemiesToAttackMeUponReveal) {
+          console.log('[DEBUG-wakeup] first detection at frame', self.frameCounter, 'target=', target.id);
+          orderIdleEnemiesToAttack(self, target);
+        }
       }
     }
+  }
+}
+
+/**
+ * Source parity: StealthUpdate.cpp:841-866 setWakeupIfInRange + lines 916-935.
+ * When a stealthed unit with OrderIdleEnemiesToAttackMeUponReveal is detected,
+ * iterate all enemy entities. If an enemy is idle, armed, and within its own
+ * vision range of the revealed unit, order it to attack the revealed unit.
+ */
+function orderIdleEnemiesToAttack(self: GL, revealedTarget: MapEntity): void {
+  for (const enemy of self.spawnedEntities.values()) {
+    if (enemy.destroyed) continue;
+
+    // Source parity: only enemy players' objects.
+    if (self.getTeamRelationship(enemy, revealedTarget) !== RELATIONSHIP_ENEMIES) continue;
+
+    // Source parity: setWakeupIfInRange checks for AI interface — need an armed entity.
+    if (!enemy.attackWeapon) continue;
+
+    // Source parity: only wake up idle units — already attacking or moving units are skipped.
+    // C++ wakeUpAndAttemptToTarget() only acts on idle AI states.
+    if (enemy.attackTargetEntityId !== null || enemy.attackTargetPosition !== null) continue;
+    if (enemy.moving) continue;
+
+    // Source parity: StealthUpdate.cpp:849-855 — check the enemy's vision range.
+    const vision = enemy.visionRange;
+    if (vision <= 0) continue;
+
+    const edx = enemy.x - revealedTarget.x;
+    const edz = enemy.z - revealedTarget.z;
+    const distSq = edx * edx + edz * edz;
+    if (distSq > vision * vision) continue;
+
+    // Source parity: ai->wakeUpAndAttemptToTarget() — directly assign attack target.
+    // C++ wakeUpAndAttemptToTarget() triggers the AI to find and attack a target
+    // without going through the normal command dispatch validation chain (no fog
+    // check, no anti-mask check). We replicate this by directly setting the target.
+    enemy.attackTargetEntityId = revealedTarget.id;
+    enemy.attackCommandSource = 'AI';
   }
 }

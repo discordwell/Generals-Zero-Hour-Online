@@ -249,7 +249,55 @@ export function resolveAttackWeaponProfileForSetSelection(self: GL,
   return null;
 }
 
-export function resolveAttackWeaponProfile(self: GL, 
+/**
+ * Source parity: resolve the weapon slot index (0=PRIMARY, 1=SECONDARY, 2=TERTIARY)
+ * that resolveAttackWeaponProfileForSetSelection would select. Used for per-slot
+ * stealth firing checks (StealthUpdate.cpp:358-386).
+ */
+export function resolveAttackWeaponSlotIndex(self: GL,
+  weaponTemplateSets: readonly WeaponTemplateSetProfile[],
+  weaponSetFlagsMask: number,
+  iniDataRegistry: IniDataRegistry,
+  forcedWeaponSlot: number | null = null,
+): number {
+  const selectedSet = self.selectBestSetByConditions(weaponTemplateSets, weaponSetFlagsMask);
+  if (!selectedSet) {
+    return 0;
+  }
+
+  const normalizedForcedWeaponSlot = self.normalizeWeaponSlot(forcedWeaponSlot);
+  if (normalizedForcedWeaponSlot !== null) {
+    const weaponName = selectedSet.weaponNamesBySlot[normalizedForcedWeaponSlot];
+    if (weaponName) {
+      const forcedWeapon = findWeaponDefByName(iniDataRegistry, weaponName);
+      if (forcedWeapon) {
+        const profile = resolveWeaponProfileFromDef(self, forcedWeapon);
+        if (profile) {
+          return normalizedForcedWeaponSlot;
+        }
+      }
+    }
+  }
+
+  for (let i = 0; i < selectedSet.weaponNamesBySlot.length; i++) {
+    const weaponName = selectedSet.weaponNamesBySlot[i];
+    if (!weaponName) {
+      continue;
+    }
+    const weapon = findWeaponDefByName(iniDataRegistry, weaponName);
+    if (!weapon) {
+      continue;
+    }
+    const profile = resolveWeaponProfileFromDef(self, weapon);
+    if (profile) {
+      return i;
+    }
+  }
+
+  return 0;
+}
+
+export function resolveAttackWeaponProfile(self: GL,
   objectDef: ObjectDef | undefined,
   iniDataRegistry: IniDataRegistry,
 ): AttackWeaponProfile | null {
