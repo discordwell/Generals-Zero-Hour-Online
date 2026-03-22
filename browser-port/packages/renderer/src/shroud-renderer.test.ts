@@ -121,9 +121,13 @@ describe('ShroudRenderer', () => {
     const mesh = renderer.getMesh()!;
     const texData = (mesh.material as THREE.MeshBasicMaterial).map!.image.data as Uint8Array;
 
-    expect(texData[0 * 4 + 3]).toBe(230); // SHROUDED
-    expect(texData[1 * 4 + 3]).toBe(140); // FOGGED
-    expect(texData[2 * 4 + 3]).toBe(0);   // CLEAR
+    // After 3x3 box blur with edge clamping, values are smoothed:
+    // Cell 0 (SHROUDED=230): neighbors are 230,230,140 → avg 200
+    // Cell 1 (FOGGED=140):   neighbors are 230,140,0   → avg 123
+    // Cell 2 (CLEAR=0):      neighbors are 140,0,0     → avg 47
+    expect(texData[0 * 4 + 3]).toBe(200);
+    expect(texData[1 * 4 + 3]).toBe(123);
+    expect(texData[2 * 4 + 3]).toBe(47);
   });
 
   it('throttles updates based on updateInterval', () => {
@@ -188,6 +192,52 @@ describe('ShroudRenderer', () => {
     const mesh = renderer.getMesh()!;
     expect(mesh.position.y).toBe(2.5);
     expect(mesh.renderOrder).toBe(999);
+  });
+
+  it('box blur feathers a clear cell surrounded by shrouded cells', () => {
+    const scene = createScene();
+    const renderer = new ShroudRenderer(scene, { worldWidth: 30, worldDepth: 30 });
+
+    // 3x3 grid: all shrouded except center cell is clear.
+    // S S S
+    // S C S
+    // S S S
+    const fogData: FogOfWarData = {
+      cellsWide: 3,
+      cellsDeep: 3,
+      cellSize: 10,
+      data: new Uint8Array([
+        CELL_SHROUDED, CELL_SHROUDED, CELL_SHROUDED,
+        CELL_SHROUDED, CELL_CLEAR,    CELL_SHROUDED,
+        CELL_SHROUDED, CELL_SHROUDED, CELL_SHROUDED,
+      ]),
+    };
+    renderer.forceUpdate(fogData);
+
+    const mesh = renderer.getMesh()!;
+    const texData = (mesh.material as THREE.MeshBasicMaterial).map!.image.data as Uint8Array;
+
+    // Center cell (1,1): 8 shrouded neighbors (230) + self (0) → (8*230)/9 ≈ 204
+    const centerAlpha = texData[(1 * 3 + 1) * 4 + 3]!;
+    expect(centerAlpha).toBe(Math.round((8 * 230) / 9)); // 204
+
+    // Corner cell (0,0): 4 copies of self + 2 copies of (1,0) + 2 copies of (0,1) + 1 of (1,1)
+    // = 4*230 + 2*230 + 2*230 + 1*0 = 1840, avg ≈ 204
+    const cornerAlpha = texData[(0 * 3 + 0) * 4 + 3]!;
+    expect(cornerAlpha).toBe(Math.round(1840 / 9)); // 204
+
+    // Edge cell (1,0): 2 copies of (0,0) + (1,0) normal + 2 copies of (2,0) + etc
+    // row y=-1→0: clamp(0,0)=230, clamp(1,0)=230, clamp(2,0)=230
+    // row y=0:     (0,0)=230,     (1,0)=230,       (2,0)=230
+    // row y=1:     (0,1)=230,     (1,1)=0,         (2,1)=230
+    // sum = 230*8 + 0 = 1840, avg ≈ 204
+    const edgeAlpha = texData[(0 * 3 + 1) * 4 + 3]!;
+    expect(edgeAlpha).toBe(Math.round(1840 / 9)); // 204
+
+    // The blur creates a gradual transition: center is darker (more opaque)
+    // than raw CLEAR (0), showing the feathering effect.
+    expect(centerAlpha).toBeGreaterThan(0); // Not fully transparent anymore
+    expect(centerAlpha).toBeLessThan(230);  // But not fully shrouded either
   });
 
   it('subsequent updates modify existing texture without recreating mesh', () => {

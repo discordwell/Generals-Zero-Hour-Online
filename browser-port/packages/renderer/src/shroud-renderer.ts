@@ -53,6 +53,8 @@ export class ShroudRenderer {
   private mesh: THREE.Mesh | null = null;
   private texture: THREE.DataTexture | null = null;
   private frameCounter = 0;
+  /** Reusable buffer for raw (pre-blur) alpha values. */
+  private rawAlpha: Uint8Array | null = null;
 
   constructor(scene: THREE.Scene, config: ShroudRendererConfig) {
     this.scene = scene;
@@ -88,21 +90,43 @@ export class ShroudRenderer {
 
     const texData = this.texture.image.data as Uint8Array;
     const src = fogData.data;
+    const w = fogData.cellsWide;
+    const h = fogData.cellsDeep;
     const len = src.length;
 
+    // First pass: compute raw alpha per cell into a temporary buffer.
+    if (!this.rawAlpha || this.rawAlpha.length !== len) {
+      this.rawAlpha = new Uint8Array(len);
+    }
+    const raw = this.rawAlpha;
     for (let i = 0; i < len; i++) {
       const vis = src[i]!;
-      const base = i * 4;
-      // RGB always 0 (black); only alpha varies.
-      texData[base] = 0;
-      texData[base + 1] = 0;
-      texData[base + 2] = 0;
-      texData[base + 3] =
+      raw[i] =
         vis === CELL_CLEAR
           ? CLEAR_ALPHA
           : vis === CELL_FOGGED
             ? FOGGED_ALPHA
             : SHROUDED_ALPHA;
+    }
+
+    // Second pass: 3x3 box blur on alpha to feather fog edges.
+    // Uses edge-clamped sampling so border cells blend smoothly.
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let sum = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          const sy = Math.max(0, Math.min(h - 1, y + dy));
+          for (let dx = -1; dx <= 1; dx++) {
+            const sx = Math.max(0, Math.min(w - 1, x + dx));
+            sum += raw[sy * w + sx]!;
+          }
+        }
+        const base = (y * w + x) * 4;
+        texData[base] = 0;
+        texData[base + 1] = 0;
+        texData[base + 2] = 0;
+        texData[base + 3] = Math.round(sum / 9);
+      }
     }
 
     this.texture.needsUpdate = true;
