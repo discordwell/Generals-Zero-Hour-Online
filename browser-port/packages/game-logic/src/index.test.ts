@@ -44346,3 +44346,221 @@ describe('Script action targeting variants', () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // ── FlightDeckBehavior Tests ──────────────────────────────────────────────────
+
+// ══════════════════════════════════════════════════════════════════════════════
+// getLocalPlayerAllSciences Tests
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('getLocalPlayerAllSciences', () => {
+  function setupLogicWithSciences(
+    scienceDefs: ReturnType<typeof makeScienceDef>[],
+    grantSciences: string[] = [],
+  ) {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('CommandCenter', 'America', ['STRUCTURE', 'COMMANDCENTER'], []),
+      ],
+      sciences: scienceDefs,
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('CommandCenter', 10, 10)]),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    // Grant intrinsic sciences via script action (same as the game does for factions).
+    for (const scienceName of grantSciences) {
+      logic.executeScriptAction({
+        actionType: 276, // PLAYER_GRANT_SCIENCE
+        params: ['America', scienceName],
+      });
+    }
+
+    return logic;
+  }
+
+  it('returns purchasable sciences for the local player', () => {
+    const logic = setupLogicWithSciences(
+      [
+        makeScienceDef('SCIENCE_AMERICA', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_Rank1', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_PaladinTank', {
+          PrerequisiteSciences: 'SCIENCE_AMERICA SCIENCE_Rank1',
+          SciencePurchasePointCost: 1,
+          IsGrantable: 'Yes',
+          DisplayName: 'SCIENCE:USAPaladin',
+        }),
+      ],
+      ['SCIENCE_AMERICA', 'SCIENCE_Rank1'],
+    );
+
+    // Player starts with rank 1 and 1 purchase point (RANK_TABLE[0])
+    const sciences = logic.getLocalPlayerAllSciences();
+    const paladin = sciences.find(s => s.name === 'SCIENCE_PALADINTANK');
+    expect(paladin).toBeDefined();
+    expect(paladin!.status).toBe('purchasable');
+    expect(paladin!.cost).toBe(1);
+    expect(paladin!.displayName).toBe('USAPaladin');
+  });
+
+  it('excludes sciences from other factions', () => {
+    const logic = setupLogicWithSciences(
+      [
+        makeScienceDef('SCIENCE_AMERICA', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_CHINA', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_Rank1', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_PaladinTank', {
+          PrerequisiteSciences: 'SCIENCE_AMERICA SCIENCE_Rank1',
+          SciencePurchasePointCost: 1,
+          IsGrantable: 'Yes',
+        }),
+        makeScienceDef('SCIENCE_RedGuardTraining', {
+          PrerequisiteSciences: 'SCIENCE_CHINA SCIENCE_Rank1',
+          SciencePurchasePointCost: 1,
+          IsGrantable: 'Yes',
+        }),
+      ],
+      ['SCIENCE_AMERICA', 'SCIENCE_Rank1'],
+    );
+
+    const sciences = logic.getLocalPlayerAllSciences();
+    const names = sciences.map(s => s.name);
+    expect(names).toContain('SCIENCE_PALADINTANK');
+    expect(names).not.toContain('SCIENCE_REDGUARDTRAINING');
+  });
+
+  it('marks sciences with unmet prerequisites', () => {
+    const logic = setupLogicWithSciences(
+      [
+        makeScienceDef('SCIENCE_AMERICA', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_Rank1', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_Rank3', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_Pathfinder', {
+          PrerequisiteSciences: 'SCIENCE_AMERICA SCIENCE_Rank3',
+          SciencePurchasePointCost: 1,
+          IsGrantable: 'Yes',
+        }),
+      ],
+      ['SCIENCE_AMERICA', 'SCIENCE_Rank1'],
+    );
+
+    // Player has Rank1 but not Rank3
+    const sciences = logic.getLocalPlayerAllSciences();
+    const pathfinder = sciences.find(s => s.name === 'SCIENCE_PATHFINDER');
+    expect(pathfinder).toBeDefined();
+    expect(pathfinder!.status).toBe('prerequisites_unmet');
+  });
+
+  it('marks already purchased sciences', () => {
+    const logic = setupLogicWithSciences(
+      [
+        makeScienceDef('SCIENCE_AMERICA', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_Rank1', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_PaladinTank', {
+          PrerequisiteSciences: 'SCIENCE_AMERICA SCIENCE_Rank1',
+          SciencePurchasePointCost: 1,
+          IsGrantable: 'Yes',
+        }),
+      ],
+      ['SCIENCE_AMERICA', 'SCIENCE_Rank1'],
+    );
+
+    // Purchase the science first
+    logic.submitCommand({
+      type: 'purchaseScience',
+      scienceName: 'SCIENCE_PaladinTank',
+      scienceCost: 1,
+    });
+
+    const sciences = logic.getLocalPlayerAllSciences();
+    const paladin = sciences.find(s => s.name === 'SCIENCE_PALADINTANK');
+    expect(paladin).toBeDefined();
+    expect(paladin!.status).toBe('purchased');
+  });
+
+  it('marks sciences as insufficient_points when too expensive', () => {
+    const logic = setupLogicWithSciences(
+      [
+        makeScienceDef('SCIENCE_AMERICA', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_Rank1', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_PaladinTank', {
+          PrerequisiteSciences: 'SCIENCE_AMERICA SCIENCE_Rank1',
+          SciencePurchasePointCost: 1,
+          IsGrantable: 'Yes',
+        }),
+        makeScienceDef('SCIENCE_StealthFighter', {
+          PrerequisiteSciences: 'SCIENCE_AMERICA SCIENCE_Rank1',
+          SciencePurchasePointCost: 1,
+          IsGrantable: 'Yes',
+        }),
+      ],
+      ['SCIENCE_AMERICA', 'SCIENCE_Rank1'],
+    );
+
+    // Purchase one science to spend the only point (rank 1 gives 1 point)
+    logic.submitCommand({
+      type: 'purchaseScience',
+      scienceName: 'SCIENCE_PaladinTank',
+      scienceCost: 1,
+    });
+
+    const sciences = logic.getLocalPlayerAllSciences();
+    const stealth = sciences.find(s => s.name === 'SCIENCE_STEALTHFIGHTER');
+    expect(stealth).toBeDefined();
+    expect(stealth!.status).toBe('insufficient_points');
+  });
+
+  it('excludes non-grantable and zero-cost sciences', () => {
+    const logic = setupLogicWithSciences([
+      makeScienceDef('SCIENCE_AMERICA', { SciencePurchasePointCost: 0, IsGrantable: 'No' }),
+      makeScienceDef('SCIENCE_Rank1', { SciencePurchasePointCost: 0, IsGrantable: 'No' }),
+    ]);
+
+    const sciences = logic.getLocalPlayerAllSciences();
+    expect(sciences.length).toBe(0);
+  });
+
+  it('cleans up display name from SCIENCE: prefix', () => {
+    const logic = setupLogicWithSciences(
+      [
+        makeScienceDef('SCIENCE_AMERICA', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_Rank1', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_PaladinTank', {
+          PrerequisiteSciences: 'SCIENCE_AMERICA SCIENCE_Rank1',
+          SciencePurchasePointCost: 1,
+          IsGrantable: 'Yes',
+          DisplayName: 'SCIENCE:USAPaladin',
+        }),
+      ],
+      ['SCIENCE_AMERICA', 'SCIENCE_Rank1'],
+    );
+
+    const sciences = logic.getLocalPlayerAllSciences();
+    const paladin = sciences.find(s => s.name === 'SCIENCE_PALADINTANK');
+    expect(paladin).toBeDefined();
+    expect(paladin!.displayName).toBe('USAPaladin');
+  });
+
+  it('falls back to cleaned science name when no DisplayName', () => {
+    const logic = setupLogicWithSciences(
+      [
+        makeScienceDef('SCIENCE_AMERICA', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_Rank1', { SciencePurchasePointCost: 0, IsGrantable: 'Yes' }),
+        makeScienceDef('SCIENCE_PaladinTank', {
+          PrerequisiteSciences: 'SCIENCE_AMERICA SCIENCE_Rank1',
+          SciencePurchasePointCost: 1,
+          IsGrantable: 'Yes',
+        }),
+      ],
+      ['SCIENCE_AMERICA', 'SCIENCE_Rank1'],
+    );
+
+    const sciences = logic.getLocalPlayerAllSciences();
+    const paladin = sciences.find(s => s.name === 'SCIENCE_PALADINTANK');
+    expect(paladin).toBeDefined();
+    // Falls back to PALADINTANK with underscores replaced by spaces
+    expect(paladin!.displayName).toBe('PALADINTANK');
+  });
+});

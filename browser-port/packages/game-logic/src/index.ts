@@ -8392,6 +8392,106 @@ export class GameLogicSubsystem implements Subsystem {
     return RANK_TABLE[level]?.skillPointsNeeded ?? 0;
   }
 
+  /**
+   * Returns all grantable sciences relevant to the local player's faction,
+   * with their purchase status. Used by the General's Powers UI panel.
+   *
+   * Source parity: Player::canPurchaseScience + Science.ini data.
+   */
+  getLocalPlayerAllSciences(): Array<{
+    name: string;
+    displayName: string;
+    cost: number;
+    status: 'purchased' | 'purchasable' | 'prerequisites_unmet' | 'insufficient_points' | 'disabled' | 'hidden';
+    prerequisites: string[];
+  }> {
+    const side = this.resolveLocalPlayerSide();
+    if (!side) return [];
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) return [];
+
+    const registry = this.iniDataRegistry;
+    if (!registry) return [];
+
+    const purchasePoints = this.getSideRankStateMap(normalizedSide).sciencePurchasePoints;
+    const result: Array<{
+      name: string;
+      displayName: string;
+      cost: number;
+      status: 'purchased' | 'purchasable' | 'prerequisites_unmet' | 'insufficient_points' | 'disabled' | 'hidden';
+      prerequisites: string[];
+    }> = [];
+
+    for (const scienceDef of iterAllScienceDefs(registry)) {
+      const scienceName = scienceDef.name.trim().toUpperCase();
+      if (!scienceName || scienceName === 'NONE') continue;
+
+      // Skip non-grantable sciences (intrinsic faction/rank sciences)
+      const isGrantable = readBooleanField(scienceDef.fields, ['IsGrantable']);
+      if (isGrantable === false) continue;
+
+      const cost = this.getSciencePurchaseCost(scienceDef);
+      // Skip sciences with 0 cost (not purchasable per C++ convention)
+      if (cost <= 0) continue;
+
+      const prerequisites = this.getSciencePrerequisites(scienceDef);
+
+      // Check if this science's faction prerequisite matches the player's faction
+      const hasFactionPrereq = prerequisites.some(p =>
+        p === 'SCIENCE_AMERICA' || p === 'SCIENCE_CHINA' || p === 'SCIENCE_GLA',
+      );
+      if (hasFactionPrereq) {
+        const playerFactionSciences = this.getSideScienceSet(normalizedSide);
+        const factionPrereqs = prerequisites.filter(p =>
+          p === 'SCIENCE_AMERICA' || p === 'SCIENCE_CHINA' || p === 'SCIENCE_GLA',
+        );
+        const matchesFaction = factionPrereqs.some(fp => playerFactionSciences.has(fp));
+        if (!matchesFaction) continue; // Not this player's faction
+      }
+
+      // Resolve display name from INI field, falling back to cleaned-up science name
+      const rawDisplayName = readStringField(scienceDef.fields, ['DisplayName']);
+      let displayName: string;
+      if (rawDisplayName) {
+        const colonIdx = rawDisplayName.indexOf(':');
+        displayName = colonIdx >= 0 ? rawDisplayName.slice(colonIdx + 1) : rawDisplayName;
+      } else {
+        // Clean up the SCIENCE_ prefix for display
+        displayName = scienceName.replace(/^SCIENCE_/i, '').replace(/_/g, ' ');
+      }
+
+      // Determine status
+      let status: 'purchased' | 'purchasable' | 'prerequisites_unmet' | 'insufficient_points' | 'disabled' | 'hidden';
+
+      if (this.hasSideScience(normalizedSide, scienceName)) {
+        status = 'purchased';
+      } else {
+        // Check local player availability (disabled/hidden)
+        const localAvailability = this.localPlayerScienceAvailability.get(scienceName);
+        const sideAvailability = this.sideScienceAvailability.get(normalizedSide)?.get(scienceName);
+        if (localAvailability === 'hidden' || sideAvailability === 'hidden') {
+          status = 'hidden';
+        } else if (localAvailability === 'disabled' || sideAvailability === 'disabled') {
+          status = 'disabled';
+        } else {
+          // Check prerequisites (exclude faction prerequisites already verified above)
+          const unmetPrereqs = prerequisites.filter(p => !this.hasSideScience(normalizedSide, p));
+          if (unmetPrereqs.length > 0) {
+            status = 'prerequisites_unmet';
+          } else if (cost > purchasePoints) {
+            status = 'insufficient_points';
+          } else {
+            status = 'purchasable';
+          }
+        }
+      }
+
+      result.push({ name: scienceName, displayName, cost, status, prerequisites });
+    }
+
+    return result;
+  }
+
   setScriptMissionAttempts(side: string, attempts: number): boolean {
     const selector = this.resolveScriptPlayerConditionSelector(side);
     const normalizedSide = selector.normalizedSide;
