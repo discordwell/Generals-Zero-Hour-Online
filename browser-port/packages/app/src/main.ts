@@ -61,7 +61,7 @@ import {
   playUiFeedbackAudio,
 } from './control-bar-audio.js';
 import { buildControlBarButtonsForSelections } from './control-bar-buttons.js';
-import { dispatchIssuedControlBarCommands } from './control-bar-dispatch.js';
+import { cancelProductionForButton, dispatchIssuedControlBarCommands } from './control-bar-dispatch.js';
 import {
   isObjectTargetAllowedForSelection,
   isObjectTargetRelationshipAllowed,
@@ -110,6 +110,7 @@ import {
   type OptionsState,
 } from './options-screen.js';
 import { DiplomacyScreen, type DiplomacyPlayerInfo } from './diplomacy-screen.js';
+import { GeneralsPowersPanel } from './generals-powers-panel.js';
 import { PostgameStatsScreen, type SideScoreDisplay } from './postgame-stats-screen.js';
 import { createAudioBufferLoader } from './audio-buffer-loader.js';
 import { CursorManager, resolveGameCursor, detectEdgeScrollDir } from './cursor-manager.js';
@@ -1588,6 +1589,21 @@ async function startGame(
     },
   });
 
+  // General's Powers panel (F4 hotkey)
+  const generalsPowersPanel = new GeneralsPowersPanel(gameContainer, {
+    onClose: () => { /* no-op, panel hides itself */ },
+    getRankLevel: () => gameLogic.getLocalPlayerRankLevel(),
+    getPurchasePoints: () => gameLogic.getLocalPlayerSciencePurchasePoints(),
+    getAllSciences: () => gameLogic.getLocalPlayerAllSciences(),
+    onPurchase: (scienceName: string, cost: number) => {
+      gameLogic.submitCommand({
+        type: 'purchaseScience',
+        scienceName,
+        scienceCost: cost,
+      });
+    },
+  });
+
   // In-game Options screen (ESC key)
   let browserStorageIngame: Storage | null = null;
   try { browserStorageIngame = window.localStorage; } catch { browserStorageIngame = null; }
@@ -1946,6 +1962,7 @@ async function startGame(
         ['+ / \u2212', 'Adjust speed'],
         ['Backspace', 'Reset speed'],
         ['Escape', 'Menu / Cancel'],
+        ['F4', 'General\'s Powers'],
         ['F9', 'Diplomacy'],
         ['F1 or ?', 'This help'],
       ],
@@ -2045,6 +2062,11 @@ async function startGame(
       terrainVisual.toggleWireframe();
       return;
     }
+    if (e.key === 'F4') {
+      e.preventDefault();
+      generalsPowersPanel.toggle();
+      return;
+    }
 
     // Activate control bar slots via hotkeys when Ctrl is NOT held.
     // Digits 1-9 are reserved for control group recall (handled elsewhere).
@@ -2073,11 +2095,40 @@ async function startGame(
   });
   document.getElementById('game-container')!.appendChild(commandCardContainer);
 
+  // Source behavior from ControlBar: right-clicking a production command button
+  // cancels the most recent queued instance of that item and refunds the cost.
+  const cancelProductionAtSlot = (slotIndex: number): void => {
+    const controlBarModel = uiRuntime.getControlBarModel();
+    const slotEntries = controlBarModel.getButtonsBySlot();
+    const entry = slotEntries.find((s) => s.slot === slotIndex);
+    const button = entry?.button ?? null;
+    if (!button) {
+      return;
+    }
+
+    const selectedEntityIds = gameLogic.getLocalPlayerSelectionIds();
+    if (selectedEntityIds.length !== 1) {
+      return;
+    }
+    const selectedEntityId = selectedEntityIds[0]!;
+
+    const cancelled = cancelProductionForButton(
+      button,
+      selectedEntityId,
+      iniDataRegistry,
+      gameLogic,
+    );
+    if (cancelled) {
+      playUiFeedbackAudio(iniDataRegistry, audioManager, 'accept');
+    }
+  };
+
   const commandCardRenderer = new CommandCardRenderer(
     commandCardContainer,
     uiRuntime.getControlBarModel(),
     {
       onSlotActivated: (slot) => activateControlBarSlot(slot - 1),
+      onSlotRightClicked: (slot) => cancelProductionAtSlot(slot),
     },
   );
 
@@ -3470,6 +3521,8 @@ async function startGame(
       if (!missionInputLocked && inputState.keysPressed.has('escape')) {
         if (helpVisible) {
           hideHelp();
+        } else if (generalsPowersPanel.isVisible) {
+          generalsPowersPanel.hide();
         } else if (diplomacyScreen.isVisible) {
           diplomacyScreen.hide();
         } else if (ingameOptionsScreen.isVisible) {

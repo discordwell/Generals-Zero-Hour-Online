@@ -180,6 +180,8 @@ export interface CommandCardOverlayData {
 export interface CommandCardRendererOptions {
   /** Called when a slot button is clicked (1-based slot index). */
   onSlotActivated?: (slot: number) => void;
+  /** Called when a slot button is right-clicked (1-based slot index). */
+  onSlotRightClicked?: (slot: number) => void;
 }
 
 export class CommandCardRenderer {
@@ -191,12 +193,14 @@ export class CommandCardRenderer {
     SLOT_COUNT,
   ).fill(null);
   private readonly onSlotActivated?: (slot: number) => void;
+  private readonly onSlotRightClicked?: (slot: number) => void;
   private disposed = false;
 
   constructor(container: HTMLElement, controlBar: ControlBarModel, options?: CommandCardRendererOptions) {
     this.container = container;
     this.controlBar = controlBar;
     this.onSlotActivated = options?.onSlotActivated;
+    this.onSlotRightClicked = options?.onSlotRightClicked;
 
     // Create grid wrapper
     this.grid = document.createElement('div');
@@ -231,6 +235,20 @@ export class CommandCardRenderer {
           } else {
             this.controlBar.activateSlot(slotIndex);
           }
+        }
+      });
+
+      // Source behavior from ControlBar: right-clicking a production button
+      // cancels the most recent queued instance of that item.
+      slotEl.button.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        if (this.disposed) {
+          return;
+        }
+        const hudSlots = this.controlBar.getHudSlots();
+        const hudSlot = hudSlots[slotIndex - 1];
+        if (hudSlot && hudSlot.state !== 'empty' && this.onSlotRightClicked) {
+          this.onSlotRightClicked(slotIndex);
         }
       });
 

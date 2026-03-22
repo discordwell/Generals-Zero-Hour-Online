@@ -9,6 +9,7 @@ import {
   COMMAND_OPTION_NEED_OBJECT_TARGET,
   CommandOption,
   GUICommandType,
+  type ControlBarButton,
   type IssuedControlBarCommand,
   type UiRuntime,
 } from '@generals/ui';
@@ -1255,4 +1256,99 @@ export function dispatchIssuedControlBarCommands(
       }
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Right-click cancel production
+// ---------------------------------------------------------------------------
+
+type CancelProductionGameLogic = Pick<
+  GameLogicSubsystem,
+  'getProductionState' | 'submitCommand'
+>;
+
+/**
+ * Source behavior from ControlBar: right-clicking a production command button
+ * cancels the most recent queued instance of that item and refunds the cost.
+ *
+ * Returns `true` if a cancel command was issued, `false` otherwise.
+ */
+export function cancelProductionForButton(
+  button: ControlBarButton,
+  selectedEntityId: number,
+  iniDataRegistry: IniDataRegistry,
+  gameLogic: CancelProductionGameLogic,
+): boolean {
+  if (button.commandType === GUICommandType.GUI_COMMAND_UNIT_BUILD) {
+    const commandButtonDef = iniDataRegistry.getCommandButton(button.id);
+    if (!commandButtonDef) {
+      return false;
+    }
+    const objectField = commandButtonDef.fields['Object'];
+    const unitTemplateName = typeof objectField === 'string'
+      ? objectField.trim().toUpperCase()
+      : null;
+    if (!unitTemplateName) {
+      return false;
+    }
+    const productionState = gameLogic.getProductionState(selectedEntityId);
+    if (!productionState) {
+      return false;
+    }
+    // Iterate in reverse to find the most recent queued instance
+    let productionId: number | null = null;
+    for (let i = productionState.queue.length - 1; i >= 0; i--) {
+      const queueEntry = productionState.queue[i]!;
+      if (
+        queueEntry.type === 'UNIT'
+        && queueEntry.templateName.toUpperCase() === unitTemplateName
+      ) {
+        productionId = queueEntry.productionId;
+        break;
+      }
+    }
+    if (productionId === null) {
+      return false;
+    }
+    gameLogic.submitCommand({
+      type: 'cancelUnitProduction',
+      entityId: selectedEntityId,
+      productionId,
+    });
+    return true;
+  }
+
+  if (button.commandType === GUICommandType.GUI_COMMAND_OBJECT_UPGRADE) {
+    const commandButtonDef = iniDataRegistry.getCommandButton(button.id);
+    if (!commandButtonDef) {
+      return false;
+    }
+    const upgradeField = commandButtonDef.fields['Upgrade'];
+    const upgradeName = typeof upgradeField === 'string'
+      ? upgradeField.trim().toUpperCase()
+      : null;
+    if (!upgradeName) {
+      return false;
+    }
+    const productionState = gameLogic.getProductionState(selectedEntityId);
+    if (!productionState) {
+      return false;
+    }
+    const hasQueuedUpgrade = productionState.queue.some(
+      (queueEntry) =>
+        queueEntry.type === 'UPGRADE'
+        && queueEntry.upgradeName.toUpperCase() === upgradeName,
+    );
+    if (!hasQueuedUpgrade) {
+      return false;
+    }
+    gameLogic.submitCommand({
+      type: 'cancelUpgradeProduction',
+      entityId: selectedEntityId,
+      upgradeName,
+    });
+    return true;
+  }
+
+  return false;
 }

@@ -5,7 +5,7 @@ import { GuardMode, type GameLogicCommand, type GameLogicSubsystem } from '@gene
 import { IniDataRegistry } from '@generals/ini-data';
 import { CommandOption, GUICommandType, type IssuedControlBarCommand } from '@generals/ui';
 
-import { dispatchIssuedControlBarCommands } from './control-bar-dispatch.js';
+import { cancelProductionForButton, dispatchIssuedControlBarCommands } from './control-bar-dispatch.js';
 
 class FakeAudioManager {
   readonly validEvents = new Set<string>();
@@ -2968,5 +2968,271 @@ describe('dispatchIssuedControlBarCommands', () => {
       },
     ]);
     expect(uiRuntime.messages).toEqual([]);
+  });
+});
+
+describe('cancelProductionForButton', () => {
+  it('cancels the most recent queued unit matching the button template', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeCommandButtonBlock('Command_BuildCrusader', {
+        Command: 'UNIT_BUILD',
+        Object: 'AmericaTankCrusader',
+      }),
+    ]);
+
+    const gameLogic = new FakeGameLogic();
+    gameLogic.setProductionState(5, {
+      queueEntryCount: 3,
+      queue: [
+        {
+          type: 'UNIT',
+          templateName: 'AmericaTankCrusader',
+          productionId: 10,
+          buildCost: 900,
+          totalProductionFrames: 300,
+          framesUnderConstruction: 200,
+          percentComplete: 66,
+          productionQuantityTotal: 1,
+          productionQuantityProduced: 0,
+        },
+        {
+          type: 'UNIT',
+          templateName: 'AmericaTankCrusader',
+          productionId: 11,
+          buildCost: 900,
+          totalProductionFrames: 300,
+          framesUnderConstruction: 0,
+          percentComplete: 0,
+          productionQuantityTotal: 1,
+          productionQuantityProduced: 0,
+        },
+        {
+          type: 'UNIT',
+          templateName: 'AmericaTankCrusader',
+          productionId: 12,
+          buildCost: 900,
+          totalProductionFrames: 300,
+          framesUnderConstruction: 0,
+          percentComplete: 0,
+          productionQuantityTotal: 1,
+          productionQuantityProduced: 0,
+        },
+      ],
+    });
+
+    const result = cancelProductionForButton(
+      {
+        id: 'Command_BuildCrusader',
+        slot: 1,
+        label: '&Crusader Tank',
+        commandType: GUICommandType.GUI_COMMAND_UNIT_BUILD,
+      },
+      5,
+      registry,
+      gameLogic,
+    );
+
+    expect(result).toBe(true);
+    // Should cancel the LAST queued entry (productionId 12), not the first
+    expect(gameLogic.submittedCommands).toEqual([
+      {
+        type: 'cancelUnitProduction',
+        entityId: 5,
+        productionId: 12,
+      },
+    ]);
+  });
+
+  it('returns false when the button is not a production command', () => {
+    const registry = new IniDataRegistry();
+    const gameLogic = new FakeGameLogic();
+
+    const result = cancelProductionForButton(
+      {
+        id: 'Command_Stop',
+        slot: 2,
+        label: '&Stop',
+        commandType: GUICommandType.GUI_COMMAND_STOP,
+      },
+      5,
+      registry,
+      gameLogic,
+    );
+
+    expect(result).toBe(false);
+    expect(gameLogic.submittedCommands).toEqual([]);
+  });
+
+  it('returns false when no queued unit matches the template', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeCommandButtonBlock('Command_BuildCrusader', {
+        Command: 'UNIT_BUILD',
+        Object: 'AmericaTankCrusader',
+      }),
+    ]);
+
+    const gameLogic = new FakeGameLogic();
+    gameLogic.setProductionState(5, {
+      queueEntryCount: 1,
+      queue: [
+        {
+          type: 'UNIT',
+          templateName: 'AmericaInfantryRanger',
+          productionId: 10,
+          buildCost: 225,
+          totalProductionFrames: 100,
+          framesUnderConstruction: 50,
+          percentComplete: 50,
+          productionQuantityTotal: 1,
+          productionQuantityProduced: 0,
+        },
+      ],
+    });
+
+    const result = cancelProductionForButton(
+      {
+        id: 'Command_BuildCrusader',
+        slot: 1,
+        label: '&Crusader Tank',
+        commandType: GUICommandType.GUI_COMMAND_UNIT_BUILD,
+      },
+      5,
+      registry,
+      gameLogic,
+    );
+
+    expect(result).toBe(false);
+    expect(gameLogic.submittedCommands).toEqual([]);
+  });
+
+  it('cancels a queued upgrade matching the button Upgrade field', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeCommandButtonBlock('Command_UpgradeArmor', {
+        Command: 'OBJECT_UPGRADE',
+        Upgrade: 'Upgrade_CompositeArmor',
+      }),
+    ]);
+
+    const gameLogic = new FakeGameLogic();
+    gameLogic.setProductionState(7, {
+      queueEntryCount: 1,
+      queue: [
+        {
+          type: 'UPGRADE',
+          upgradeName: 'Upgrade_CompositeArmor',
+          productionId: 20,
+          buildCost: 1500,
+          totalProductionFrames: 450,
+          framesUnderConstruction: 100,
+          percentComplete: 22,
+          upgradeType: 'OBJECT' as const,
+        },
+      ],
+    });
+
+    const result = cancelProductionForButton(
+      {
+        id: 'Command_UpgradeArmor',
+        slot: 5,
+        label: '&Composite Armor',
+        commandType: GUICommandType.GUI_COMMAND_OBJECT_UPGRADE,
+      },
+      7,
+      registry,
+      gameLogic,
+    );
+
+    expect(result).toBe(true);
+    expect(gameLogic.submittedCommands).toEqual([
+      {
+        type: 'cancelUpgradeProduction',
+        entityId: 7,
+        upgradeName: 'UPGRADE_COMPOSITEARMOR',
+      },
+    ]);
+  });
+
+  it('returns false when the upgrade is not queued', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeCommandButtonBlock('Command_UpgradeArmor', {
+        Command: 'OBJECT_UPGRADE',
+        Upgrade: 'Upgrade_CompositeArmor',
+      }),
+    ]);
+
+    const gameLogic = new FakeGameLogic();
+    gameLogic.setProductionState(7, {
+      queueEntryCount: 0,
+      queue: [],
+    });
+
+    const result = cancelProductionForButton(
+      {
+        id: 'Command_UpgradeArmor',
+        slot: 5,
+        label: '&Composite Armor',
+        commandType: GUICommandType.GUI_COMMAND_OBJECT_UPGRADE,
+      },
+      7,
+      registry,
+      gameLogic,
+    );
+
+    expect(result).toBe(false);
+    expect(gameLogic.submittedCommands).toEqual([]);
+  });
+
+  it('returns false when the entity has no production state', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeCommandButtonBlock('Command_BuildCrusader', {
+        Command: 'UNIT_BUILD',
+        Object: 'AmericaTankCrusader',
+      }),
+    ]);
+
+    const gameLogic = new FakeGameLogic();
+    // No production state set for entity 5
+
+    const result = cancelProductionForButton(
+      {
+        id: 'Command_BuildCrusader',
+        slot: 1,
+        label: '&Crusader Tank',
+        commandType: GUICommandType.GUI_COMMAND_UNIT_BUILD,
+      },
+      5,
+      registry,
+      gameLogic,
+    );
+
+    expect(result).toBe(false);
+    expect(gameLogic.submittedCommands).toEqual([]);
+  });
+
+  it('returns false when the command button definition is missing', () => {
+    const registry = new IniDataRegistry();
+    // No command button registered
+
+    const gameLogic = new FakeGameLogic();
+
+    const result = cancelProductionForButton(
+      {
+        id: 'Command_BuildCrusader',
+        slot: 1,
+        label: '&Crusader Tank',
+        commandType: GUICommandType.GUI_COMMAND_UNIT_BUILD,
+      },
+      5,
+      registry,
+      gameLogic,
+    );
+
+    expect(result).toBe(false);
+    expect(gameLogic.submittedCommands).toEqual([]);
   });
 });
