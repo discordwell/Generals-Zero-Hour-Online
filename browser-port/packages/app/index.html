@@ -78,6 +78,14 @@
       background: linear-gradient(90deg, #c9a84c, #e8d48b);
       transition: width 0.3s;
     }
+    #loading-minimap {
+      display: none;
+      width: 200px;
+      height: 200px;
+      border: 2px solid rgba(201, 168, 76, 0.5);
+      margin-bottom: 1.5rem;
+      image-rendering: pixelated;
+    }
     #loading-status {
       margin-top: 1rem;
       font-size: 0.85rem;
@@ -118,6 +126,7 @@
     <div id="loading-screen">
       <h1>Generals</h1>
       <div class="subtitle">Zero Hour — Browser Edition</div>
+      <canvas id="loading-minimap" width="200" height="200"></canvas>
       <div class="loading-bar-container">
         <div class="loading-bar" id="loading-bar"></div>
       </div>

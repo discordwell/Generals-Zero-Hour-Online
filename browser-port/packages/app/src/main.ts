@@ -122,6 +122,7 @@ import { formatTemplateName } from './hover-tooltip.js';
 const loadingBar = document.getElementById('loading-bar') as HTMLDivElement;
 const loadingStatus = document.getElementById('loading-status') as HTMLDivElement;
 const loadingScreen = document.getElementById('loading-screen') as HTMLDivElement;
+const loadingMinimap = document.getElementById('loading-minimap') as HTMLCanvasElement;
 
 function setLoadingProgress(percent: number, status: string): void {
   loadingBar.style.width = `${percent}%`;
@@ -139,6 +140,7 @@ async function hideLoadingScreen(): Promise<void> {
   loadingScreen.style.opacity = '0';
   await new Promise((resolve) => setTimeout(resolve, 500));
   loadingScreen.style.display = 'none';
+  loadingMinimap.style.display = 'none';
 }
 
 function escapeRegExp(value: string): string {
@@ -1061,6 +1063,34 @@ async function startGame(
   const heightmap = terrainVisual.getHeightmap();
   if (!heightmap) {
     throw new Error('Failed to initialize terrain heightmap');
+  }
+
+  // Render minimap terrain preview on the loading screen.
+  {
+    const PREVIEW_SIZE = 200;
+    const previewCtx = loadingMinimap.getContext('2d');
+    if (previewCtx) {
+      const imgData = previewCtx.createImageData(PREVIEW_SIZE, PREVIEW_SIZE);
+      for (let py = 0; py < PREVIEW_SIZE; py++) {
+        for (let px = 0; px < PREVIEW_SIZE; px++) {
+          const worldX = (px / PREVIEW_SIZE) * heightmap.worldWidth;
+          const worldZ = (py / PREVIEW_SIZE) * heightmap.worldDepth;
+          const h = heightmap.getInterpolatedHeight(worldX, worldZ);
+          // Desert color palette — same as in-game minimap terrain layer.
+          const t = Math.max(0, Math.min(1, h / 30));
+          const r = Math.round(140 + t * 40);
+          const g = Math.round(115 + t * 40);
+          const b = Math.round(75 + t * 50);
+          const idx = (py * PREVIEW_SIZE + px) * 4;
+          imgData.data[idx] = r;
+          imgData.data[idx + 1] = g;
+          imgData.data[idx + 2] = b;
+          imgData.data[idx + 3] = 255;
+        }
+      }
+      previewCtx.putImageData(imgData, 0, 0);
+      loadingMinimap.style.display = 'block';
+    }
   }
 
   // Build terrain roads from map objects with road flags.
