@@ -57,6 +57,20 @@
 - **Superweapon progress bars**: Color-coded gradient fills behind countdown text.
 - **Battle music**: WEAPON_FIRED events trigger battle music transition.
 - **Weapon audio confirmed wired**: fireSoundEvent → planCombatVisualEffects → audioManager.addAudioEvent 3D.
+- **Damage flash**: Red emissive 0.2s flash on taking damage, restores team color after.
+- **Loading screen map preview**: 200x200 terrain minimap with gold border during loading.
+- **Minimap category icons**: Buildings 6x6+outline, vehicles 4x4, infantry 2x2, air 3x3.
+- **Hover tooltip**: Unit name (prefix-stripped), color-coded health bar, faction text. 12 tests.
+- **Fog edge softening**: 3x3 box blur on shroud alpha, edge-clamped.
+- **Building footprint outline**: Green/red rectangle from INI geometry, rotates with ghost.
+- **Minimap right-click move**: Right-click minimap to move selected units.
+- **Repair cursor context**: Tooltip shows "Click to repair" for dozer hovering damaged building.
+- **Construction progress bar**: Yellow bar during construction, switches to health bar on complete.
+- **Corpse persistence**: Dead units visible for 3 seconds instead of 1 frame.
+- **F1 help overlay**: Two-column keyboard shortcut reference with 5 sections.
+- **Production queue cancel**: Right-click command card buttons to cancel queued units/upgrades with refund. 11 tests.
+- **General's Powers panel**: F4 to open, purchase sciences with rank points, faction filtering, prerequisite checking. 27 tests.
+- **Shadow decals**: Blob shadows under all ground entities, INI-specified sizes, air excluded. 3 tests.
 
 ## 2026-03-19T18:15Z — Wet Test Parity Sprint: 6 Fixes, Bundle Data Recovery
 - **Debug overlay**: Removed per-frame dump of all 784 entity IDs. Now shows only unresolved count. (commit f2026f6c)
