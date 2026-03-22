@@ -522,3 +522,207 @@ describe('projectile tracking — missiles follow moving targets', () => {
     expect(targetAfter!.health).toBeLessThan(500);
   });
 });
+
+// ── Test 3: Tunnel Enter/Exit Visual Transition ─────────────────────────────
+
+describe('tunnel enter/exit visual transition opacity', () => {
+  /**
+   * When a unit enters a tunnel, the renderer should fade it out over ~9 frames
+   * (0.3s at 30fps). When exiting, it should fade in over the same duration.
+   * The tunnelTransitionOpacity field in RenderableEntityState controls this.
+   */
+
+  it('unit entering tunnel has fading-out opacity in render state', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TunnelNetwork', 'GLA', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 400, InitialHealth: 400 }),
+          makeBlock('Behavior', 'TunnelContain ModuleTag_Contain', {
+            TimeForFullHeal: 0,
+          }),
+        ]),
+        makeObjectDef('Rebel', 'GLA', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+      ],
+    });
+    const logic = createLogic();
+
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('TunnelNetwork', 10, 10),
+        makeMapObject('Rebel', 10, 10),     // at tunnel position for instant enter
+      ]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.update(0);
+
+    // Force the rebel into the tunnel directly.
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    // Run one frame to process command.
+    logic.update(1 / 30);
+
+    // The rebel should now be inside the tunnel.
+    const rebelState = logic.getEntityState(2);
+    expect(rebelState!.statusFlags ?? []).toContain('DISABLED_HELD');
+
+    // Check render state: tunnelTransitionOpacity should be defined and < 1
+    // on the first frame after entering (fading out).
+    const renderStates = logic.getRenderableEntityStates();
+    const rebelRender = renderStates.find((s) => s.id === 2);
+    expect(rebelRender).toBeDefined();
+    expect(rebelRender!.tunnelTransitionOpacity).toBeDefined();
+    expect(rebelRender!.tunnelTransitionOpacity!).toBeLessThanOrEqual(1.0);
+    expect(rebelRender!.tunnelTransitionOpacity!).toBeGreaterThanOrEqual(0);
+  });
+
+  it('unit exiting tunnel has fading-in opacity in render state', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TunnelNetwork', 'GLA', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 400, InitialHealth: 400 }),
+          makeBlock('Behavior', 'TunnelContain ModuleTag_Contain', {
+            TimeForFullHeal: 0,
+          }),
+        ]),
+        makeObjectDef('Rebel', 'GLA', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+      ],
+    });
+    const logic = createLogic();
+
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('TunnelNetwork', 10, 10),
+        makeMapObject('Rebel', 10, 10),
+      ]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.update(0);
+
+    // Enter the rebel into the tunnel.
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    for (let i = 0; i < 15; i++) logic.update(1 / 30);
+
+    // Confirm rebel is inside.
+    expect(logic.getEntityState(2)!.statusFlags ?? []).toContain('DISABLED_HELD');
+
+    // Evacuate — rebel exits the tunnel.
+    logic.submitCommand({ type: 'evacuate', entityId: 1 });
+    logic.update(1 / 30);
+
+    // Rebel should be released.
+    const rebelAfter = logic.getEntityState(2);
+    expect(rebelAfter!.statusFlags ?? []).not.toContain('DISABLED_HELD');
+
+    // Check render state: tunnelTransitionOpacity should be defined and < 1
+    // on the first frame after exiting (fading in).
+    const renderStates = logic.getRenderableEntityStates();
+    const rebelRender = renderStates.find((s) => s.id === 2);
+    expect(rebelRender).toBeDefined();
+    expect(rebelRender!.tunnelTransitionOpacity).toBeDefined();
+    expect(rebelRender!.tunnelTransitionOpacity!).toBeLessThan(1.0);
+    expect(rebelRender!.tunnelTransitionOpacity!).toBeGreaterThanOrEqual(0);
+
+    // After enough frames (9+), the transition should complete (undefined = fully visible).
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+    const renderStatesAfter = logic.getRenderableEntityStates();
+    const rebelRenderAfter = renderStatesAfter.find((s) => s.id === 2);
+    expect(rebelRenderAfter!.tunnelTransitionOpacity).toBeUndefined();
+  });
+
+  it('unit fully inside tunnel has opacity 0 in render state', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TunnelNetwork', 'GLA', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 400, InitialHealth: 400 }),
+          makeBlock('Behavior', 'TunnelContain ModuleTag_Contain', {
+            TimeForFullHeal: 0,
+          }),
+        ]),
+        makeObjectDef('Rebel', 'GLA', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ], { TransportSlotCount: 1 }),
+      ],
+    });
+    const logic = createLogic();
+
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('TunnelNetwork', 10, 10),
+        makeMapObject('Rebel', 10, 10),
+      ]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.update(0);
+
+    // Enter the rebel into the tunnel.
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    // Run many frames so the fade completes.
+    for (let i = 0; i < 15; i++) logic.update(1 / 30);
+
+    // Rebel should be fully inside — opacity 0.
+    const renderStates = logic.getRenderableEntityStates();
+    const rebelRender = renderStates.find((s) => s.id === 2);
+    expect(rebelRender).toBeDefined();
+    expect(rebelRender!.tunnelTransitionOpacity).toBe(0);
+  });
+});
+
+// ── Test 4: Dozer Mine Clearing ─────────────────────────────────────────────
+
+describe('dozer mine clearing ability', () => {
+  /**
+   * Source parity: DozerAIUpdate.cpp — dozers with DISARM weapons can target
+   * and clear mines. The combat targeting system allows dozers (commandSource
+   * 'DOZER') to engage neutral MINE/DEMOTRAP KindOf entities.
+   *
+   * DozerPrimaryIdleState::update auto-scans for nearby mines when idle.
+   */
+
+  it('dozer auto-seeks mines when idle via updateDozerIdleBehavior', async () => {
+    const {
+      updateDozerIdleBehavior,
+      createDozerAIState,
+    } = await import('./ai-updates.js');
+    const { vi } = await import('vitest');
+
+    const entity = {
+      id: 1,
+      x: 100,
+      z: 100,
+      moving: false,
+      destroyed: false,
+      health: 200,
+      maxHealth: 200,
+      kindOfFlags: new Set(['DOZER']),
+      objectStatusFlags: new Set<string>(),
+    };
+    const state = createDozerAIState(0);
+    const profile = { repairHealthPercentPerSecond: 0.01, boredTimeFrames: 90, boredRange: 200 };
+    const mineTarget = { id: 55 };
+    const context = {
+      frameCounter: 200,
+      logicFrameRate: 15,
+      getBuildingInfo: vi.fn().mockReturnValue(null),
+      findAutoRepairTarget: vi.fn().mockReturnValue(null),
+      findAutoMineTarget: vi.fn().mockReturnValue(mineTarget),
+      issueRepairCommand: vi.fn(),
+      issueAttackCommand: vi.fn(),
+      setConstructionPercent: vi.fn(),
+      completeConstruction: vi.fn(),
+      addConstructionHealth: vi.fn(),
+      attemptHealingFromSoleBenefactor: vi.fn().mockReturnValue(true),
+      onRepairComplete: vi.fn(),
+      cancelConstructionTask: vi.fn(),
+    };
+
+    updateDozerIdleBehavior(entity as any, state, profile, context as any);
+
+    expect(context.issueAttackCommand).toHaveBeenCalledWith(1, 55);
+  });
+});

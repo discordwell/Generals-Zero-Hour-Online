@@ -85,6 +85,8 @@ export interface RenderableEntityState {
   isOwnedByLocalPlayer?: boolean;
   /** True when the entity is in guard mode (guardState !== 'NONE'). */
   isGuarding?: boolean;
+  /** Tunnel enter/exit transition opacity override (0..1). Undefined = no transition active. */
+  tunnelTransitionOpacity?: number;
 }
 
 export interface LoadedModelAsset {
@@ -1980,6 +1982,11 @@ export class ObjectVisualManager {
     } else if (isStealthed && isDetected) {
       // Pulse between 0.4 and 0.8.
       targetOpacity = 0.6 + 0.2 * Math.sin(this.accumulatedTime * 6.0);
+    }
+
+    // Tunnel enter/exit visual transition: override opacity during fade.
+    if (state.tunnelTransitionOpacity != null) {
+      targetOpacity = Math.min(targetOpacity, state.tunnelTransitionOpacity);
     }
 
     // Skip traversal when opacity hasn't changed (within tolerance for pulsing).

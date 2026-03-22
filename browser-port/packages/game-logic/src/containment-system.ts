@@ -809,6 +809,8 @@ export function enterTunnel(self: GL, passenger: MapEntity, tunnel: MapEntity): 
   passenger.tunnelContainerId = tunnel.id;
   noteContainerEnteredBy(self, tunnel, passenger);
   passenger.tunnelEnteredFrame = self.frameCounter;
+  // Source parity (visual): start fade-out transition for tunnel enter visual.
+  passenger.tunnelFadeStartFrame = self.frameCounter;
   passenger.x = tunnel.x;
   passenger.z = tunnel.z;
   passenger.y = tunnel.y;
@@ -832,6 +834,8 @@ export function exitTunnel(self: GL, passenger: MapEntity, exitTunnel: MapEntity
 
   passenger.tunnelContainerId = null;
   passenger.tunnelEnteredFrame = 0;
+  // Source parity (visual): start fade-in transition for tunnel exit visual.
+  passenger.tunnelFadeStartFrame = self.frameCounter;
 
   // Source parity: TunnelContain::onRemoving — clear DISABLED_HELD.
   passenger.objectStatusFlags.delete('DISABLED_HELD');
@@ -1143,6 +1147,8 @@ export function releaseEntityFromContainer(self: GL, entity: MapEntity): void {
     }
     entity.tunnelContainerId = null;
     entity.tunnelEnteredFrame = 0;
+    // Visual: start fade-in transition for tunnel exit.
+    entity.tunnelFadeStartFrame = self.frameCounter;
     entity.objectStatusFlags.delete('DISABLED_HELD');
   }
 

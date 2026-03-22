@@ -2879,6 +2879,8 @@ export interface MapEntity {
   tunnelContainerId: number | null;
   /** Frame at which this entity entered the tunnel (for heal calculation). */
   tunnelEnteredFrame: number;
+  /** Frame at which a tunnel enter/exit transition started (for visual fade). */
+  tunnelFadeStartFrame: number;
   /** Source parity: HealContain — frame at which this entity entered the heal container. */
   healContainEnteredFrame: number;
   /** Source parity: TransportContain::m_payloadCreated — tracks whether initial payload has been spawned. */

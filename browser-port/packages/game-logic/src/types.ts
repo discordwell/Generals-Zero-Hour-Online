@@ -91,6 +91,8 @@ export interface RenderableEntityState {
   shadowSizeX?: number;
   /** Source parity: ThingTemplate::m_shadowSizeY — shadow decal Y extent. */
   shadowSizeY?: number;
+  /** Tunnel enter/exit transition opacity override (0..1). Undefined = no transition active. */
+  tunnelTransitionOpacity?: number;
 }
 
 /**

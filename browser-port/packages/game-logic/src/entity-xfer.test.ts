@@ -122,6 +122,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     transportContainerId: null,
     tunnelContainerId: null,
     tunnelEnteredFrame: 0,
+    tunnelFadeStartFrame: 0,
     healContainEnteredFrame: 0,
     helixPortableRiderId: null,
 

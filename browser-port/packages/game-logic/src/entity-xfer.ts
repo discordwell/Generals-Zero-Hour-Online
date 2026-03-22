@@ -327,6 +327,7 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.transportContainerId = xferNullableInt(xfer, e.transportContainerId as number | null);
   e.tunnelContainerId = xferNullableInt(xfer, e.tunnelContainerId as number | null);
   e.tunnelEnteredFrame = xfer.xferInt(e.tunnelEnteredFrame as number);
+  e.tunnelFadeStartFrame = xfer.xferInt(e.tunnelFadeStartFrame as number);
   e.healContainEnteredFrame = xfer.xferInt(e.healContainEnteredFrame as number);
   e.helixPortableRiderId = xferNullableInt(xfer, e.helixPortableRiderId as number | null);
 

@@ -678,6 +678,21 @@ export function makeRenderableEntityState(self: GL, entity: MapEntity, localSide
       shadowType: entity.shadowType ?? undefined,
       shadowSizeX: entity.shadowSizeX > 0 ? entity.shadowSizeX : undefined,
       shadowSizeY: entity.shadowSizeY > 0 ? entity.shadowSizeY : undefined,
+      tunnelTransitionOpacity: (() => {
+        // Tunnel enter/exit visual transition: 0.3s fade (9 frames at 30fps).
+        const TUNNEL_FADE_FRAMES = 9;
+        if (entity.tunnelFadeStartFrame <= 0) return undefined;
+        const elapsed = self.frameCounter - entity.tunnelFadeStartFrame;
+        if (entity.tunnelContainerId !== null) {
+          // Entering tunnel: fade out from 1 to 0 over TUNNEL_FADE_FRAMES.
+          if (elapsed >= TUNNEL_FADE_FRAMES) return 0;
+          return 1.0 - elapsed / TUNNEL_FADE_FRAMES;
+        } else {
+          // Exiting tunnel: fade in from 0 to 1 over TUNNEL_FADE_FRAMES.
+          if (elapsed >= TUNNEL_FADE_FRAMES) return undefined; // fully visible, no override
+          return elapsed / TUNNEL_FADE_FRAMES;
+        }
+      })(),
     };
 }
 
