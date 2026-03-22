@@ -113,6 +113,7 @@ import { DiplomacyScreen, type DiplomacyPlayerInfo } from './diplomacy-screen.js
 import { PostgameStatsScreen, type SideScoreDisplay } from './postgame-stats-screen.js';
 import { createAudioBufferLoader } from './audio-buffer-loader.js';
 import { CursorManager, resolveGameCursor, detectEdgeScrollDir } from './cursor-manager.js';
+import { formatTemplateName } from './hover-tooltip.js';
 
 // ============================================================================
 // Loading screen
@@ -1325,6 +1326,65 @@ async function startGame(
     color: '#a09880',
   });
   entityInfoPanel.appendChild(entityInfoDetails);
+
+  // Hover tooltip — shows unit name, health, and faction when hovering over entities.
+  let hoverTooltip = document.getElementById('hover-tooltip') as HTMLDivElement | null;
+  if (!hoverTooltip) {
+    hoverTooltip = document.createElement('div');
+    hoverTooltip.id = 'hover-tooltip';
+    Object.assign(hoverTooltip.style, {
+      position: 'absolute',
+      display: 'none',
+      background: 'rgba(0, 0, 0, 0.75)',
+      color: '#ffffff',
+      fontFamily: "'Segoe UI', Arial, sans-serif",
+      fontSize: '11px',
+      lineHeight: '1.4',
+      padding: '5px 8px',
+      borderRadius: '4px',
+      pointerEvents: 'none',
+      zIndex: '100',
+      whiteSpace: 'nowrap',
+      maxWidth: '250px',
+    });
+    document.getElementById('ui-overlay')!.appendChild(hoverTooltip);
+  } else {
+    hoverTooltip.innerHTML = '';
+    hoverTooltip.style.display = 'none';
+  }
+
+  const hoverTooltipName = document.createElement('div');
+  Object.assign(hoverTooltipName.style, {
+    fontWeight: '600',
+    marginBottom: '2px',
+  });
+  hoverTooltip.appendChild(hoverTooltipName);
+
+  const hoverTooltipHealthBar = document.createElement('div');
+  Object.assign(hoverTooltipHealthBar.style, {
+    width: '100%',
+    height: '4px',
+    background: '#444',
+    borderRadius: '2px',
+    overflow: 'hidden',
+    marginBottom: '2px',
+  });
+  hoverTooltip.appendChild(hoverTooltipHealthBar);
+
+  const hoverTooltipHealthFill = document.createElement('div');
+  Object.assign(hoverTooltipHealthFill.style, {
+    height: '100%',
+    background: '#44cc44',
+    transition: 'width 0.1s, background 0.1s',
+  });
+  hoverTooltipHealthBar.appendChild(hoverTooltipHealthFill);
+
+  const hoverTooltipSide = document.createElement('div');
+  Object.assign(hoverTooltipSide.style, {
+    fontSize: '10px',
+    color: '#aaaaaa',
+  });
+  hoverTooltip.appendChild(hoverTooltipSide);
 
   // Script-driven cinematic overlays (letterbox + text).
   const cinematicLetterboxTop = document.createElement('div');
@@ -2613,6 +2673,7 @@ async function startGame(
   let dragStartY = 0;
   let isDragSelecting = false;
   let wasLeftMouseDown = false;
+  let lastHoverObjectId: number | null = null;
 
   const _projVec = new THREE.Vector3();
   const projectToScreen = (worldX: number, worldY: number, worldZ: number): { sx: number; sy: number } => {
@@ -3285,7 +3346,49 @@ async function startGame(
           } else {
             hoverTarget = 'ground';
           }
+
+          // Update hover tooltip content.
+          if (hoverObjectId !== null) {
+            const hoverState = gameLogic.getEntityState(hoverObjectId);
+            if (hoverState) {
+              // Clean template name: remove faction prefix (e.g. "AmericaTankCrusader" -> "Tank Crusader")
+              hoverTooltipName.textContent = formatTemplateName(hoverState.templateName);
+
+              // Health bar.
+              const healthPct = hoverState.maxHealth > 0 ? hoverState.health / hoverState.maxHealth : 0;
+              hoverTooltipHealthFill.style.width = `${Math.round(healthPct * 100)}%`;
+              hoverTooltipHealthFill.style.background = healthPct > 0.6 ? '#44cc44'
+                : healthPct > 0.3 ? '#cccc44' : '#cc4444';
+
+              // Side / faction.
+              hoverTooltipSide.textContent = hoverState.side || '';
+
+              hoverTooltip.style.display = 'block';
+              hoverTooltip.style.left = `${inputState.mouseX + 20}px`;
+              hoverTooltip.style.top = `${inputState.mouseY + 20}px`;
+              lastHoverObjectId = hoverObjectId;
+            } else {
+              hoverTooltip.style.display = 'none';
+              lastHoverObjectId = null;
+            }
+          } else {
+            hoverTooltip.style.display = 'none';
+            lastHoverObjectId = null;
+          }
         }
+
+        // Keep tooltip position updated every frame (even when raycast is throttled).
+        if (lastHoverObjectId !== null && hoverTooltip.style.display !== 'none') {
+          hoverTooltip.style.left = `${inputState.mouseX + 20}px`;
+          hoverTooltip.style.top = `${inputState.mouseY + 20}px`;
+        }
+
+        // Hide tooltip when pointer leaves canvas.
+        if (!inputState.pointerInCanvas) {
+          hoverTooltip.style.display = 'none';
+          lastHoverObjectId = null;
+        }
+
         const pendingAbility = uiRuntime.getPendingControlBarCommand() !== null;
         const isAttackMode = inputState.keysDown.has('a');
         const cursorName = resolveGameCursor({ hasSelection, hoverTarget, edgeScrollDir, pendingAbility, isAttackMode });
