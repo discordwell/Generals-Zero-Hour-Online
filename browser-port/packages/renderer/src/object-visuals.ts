@@ -189,6 +189,11 @@ interface VisualAssetState {
   disguiseTransitioning: boolean;
   /** Direction of disguise transition: true = applying disguise, false = removing. */
   disguiseTransitionApplying: boolean;
+  // --- Damage flash ---
+  /** Accumulated time (seconds) when the red damage flash should end. -1 = no flash. */
+  damageFlashEndTime: number;
+  /** Last known health value for detecting health decreases between frames. */
+  lastKnownHealth: number;
 }
 
 export interface ObjectVisualManagerConfig {
@@ -367,6 +372,7 @@ export class ObjectVisualManager {
       this.syncVisualAsset(visual, state);
       this.syncDisguise(visual, state, dt);
       this.syncTeamColor(visual, state);
+      this.syncDamageFlash(visual, state);
       this.syncHealthBar(visual, state);
       this.syncSelectionRing(visual, state);
       this.syncScriptFlashRing(visual, state);
@@ -554,6 +560,8 @@ export class ObjectVisualManager {
       disguiseTransitionProgress: 0,
       disguiseTransitioning: false,
       disguiseTransitionApplying: false,
+      damageFlashEndTime: -1,
+      lastKnownHealth: -1,
     };
   }
 
@@ -1802,6 +1810,79 @@ export class ObjectVisualManager {
         }
       }
     });
+  }
+
+  /** Duration of the red damage flash in seconds. */
+  private static readonly DAMAGE_FLASH_DURATION = 0.2;
+  /** Red tint color for the damage flash. */
+  private static readonly DAMAGE_FLASH_COLOR = new THREE.Color(0xff0000);
+  /** Emissive intensity during damage flash. */
+  private static readonly DAMAGE_FLASH_INTENSITY = 0.5;
+
+  /**
+   * Flash the model red briefly when health decreases.
+   * Tracks lastKnownHealth to detect damage between frames.
+   */
+  private syncDamageFlash(visual: VisualAssetState, state: RenderableEntityState): void {
+    if (!visual.currentModel) return;
+
+    const currentHealth = state.health ?? -1;
+
+    // Detect health decrease — trigger flash.
+    if (visual.lastKnownHealth >= 0 && currentHealth >= 0 && currentHealth < visual.lastKnownHealth) {
+      visual.damageFlashEndTime = this.accumulatedTime + ObjectVisualManager.DAMAGE_FLASH_DURATION;
+    }
+    visual.lastKnownHealth = currentHealth;
+
+    const isFlashing = visual.damageFlashEndTime > 0 && this.accumulatedTime < visual.damageFlashEndTime;
+
+    if (isFlashing) {
+      // Apply red emissive tint to all standard materials.
+      visual.currentModel.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const mat of materials) {
+          const stdMat = mat as THREE.MeshStandardMaterial;
+          if (stdMat.isMeshStandardMaterial) {
+            stdMat.emissive.copy(ObjectVisualManager.DAMAGE_FLASH_COLOR);
+            stdMat.emissiveIntensity = ObjectVisualManager.DAMAGE_FLASH_INTENSITY;
+          }
+        }
+      });
+    } else if (visual.damageFlashEndTime > 0 && this.accumulatedTime >= visual.damageFlashEndTime) {
+      // Flash just ended — restore original emissive (team color or zero).
+      visual.damageFlashEndTime = -1;
+      this.restoreEmissiveAfterFlash(visual, state);
+    }
+  }
+
+  /**
+   * Restore the emissive color after a damage flash ends.
+   * Re-applies team color tint if applicable, otherwise clears emissive.
+   */
+  private restoreEmissiveAfterFlash(visual: VisualAssetState, state: RenderableEntityState): void {
+    const side = state.side?.toLowerCase() ?? null;
+    const colorHex = side ? (ObjectVisualManager.TEAM_COLORS[side] ?? null) : null;
+
+    if (colorHex !== null) {
+      const tintColor = new THREE.Color(colorHex);
+      const tintIntensity = 0.4;
+      visual.currentModel!.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const mat of materials) {
+          const stdMat = mat as THREE.MeshStandardMaterial;
+          if (stdMat.isMeshStandardMaterial) {
+            stdMat.emissive.copy(tintColor);
+            stdMat.emissiveIntensity = tintIntensity;
+          }
+        }
+      });
+    } else {
+      this.clearModelEmissive(visual);
+    }
   }
 
   /**

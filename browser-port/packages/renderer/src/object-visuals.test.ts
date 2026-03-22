@@ -1994,4 +1994,142 @@ describe('condition-state model fallback resolution', () => {
     expect(foundOpacity).toBeGreaterThanOrEqual(0.2);
     expect(foundOpacity).toBeLessThanOrEqual(0.4);
   });
+
+  it('flashes model emissive red when health decreases then restores after 200ms', async () => {
+    const scene = new THREE.Scene();
+    // Create a model with MeshStandardMaterial so emissive changes are visible.
+    const stdModel = (() => {
+      const root = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial();
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);
+      root.add(mesh);
+      return { scene: root, animations: [] } as LoadedModelAsset;
+    })();
+
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => stdModel,
+    });
+
+    // Initial sync at full health to establish lastKnownHealth.
+    const state = makeMeshState({ id: 400, health: 100, maxHealth: 100 });
+    manager.sync([state], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([state], 1 / 30); // model is now loaded
+
+    // Damage: reduce health.
+    const damagedState = makeMeshState({ id: 400, health: 70, maxHealth: 100 });
+    manager.sync([damagedState], 1 / 30);
+
+    // Emissive should now be red (damage flash active).
+    let foundEmissiveRed = false;
+    let foundIntensity = 0;
+    scene.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+        if (child.material.emissive.getHex() === 0xff0000) {
+          foundEmissiveRed = true;
+          foundIntensity = child.material.emissiveIntensity;
+        }
+      }
+    });
+    expect(foundEmissiveRed).toBe(true);
+    expect(foundIntensity).toBeCloseTo(0.5, 2);
+
+    // Advance time past the 200ms flash duration.
+    manager.sync([damagedState], 0.25);
+
+    // Emissive should be restored (no team color => emissiveIntensity = 0).
+    let postFlashIntensity = -1;
+    scene.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+        postFlashIntensity = child.material.emissiveIntensity;
+      }
+    });
+    expect(postFlashIntensity).toBe(0);
+  });
+
+  it('restores team color emissive after damage flash ends', async () => {
+    const scene = new THREE.Scene();
+    const stdModel = (() => {
+      const root = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial();
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);
+      root.add(mesh);
+      return { scene: root, animations: [] } as LoadedModelAsset;
+    })();
+
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => stdModel,
+    });
+
+    // Initial sync with team color and full health.
+    const state = makeMeshState({ id: 401, health: 100, maxHealth: 100, side: 'america' });
+    manager.sync([state], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([state], 1 / 30);
+
+    // Damage the unit.
+    const damagedState = makeMeshState({ id: 401, health: 80, maxHealth: 100, side: 'america' });
+    manager.sync([damagedState], 1 / 30);
+
+    // Verify flash is active (red).
+    let flashColor = 0;
+    scene.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+        flashColor = child.material.emissive.getHex();
+      }
+    });
+    expect(flashColor).toBe(0xff0000);
+
+    // Advance past flash duration.
+    manager.sync([damagedState], 0.25);
+
+    // Emissive should be restored to team color (america = 0x3366cc), not zero.
+    let restoredColor = 0;
+    let restoredIntensity = 0;
+    scene.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+        restoredColor = child.material.emissive.getHex();
+        restoredIntensity = child.material.emissiveIntensity;
+      }
+    });
+    expect(restoredColor).toBe(0x3366cc);
+    expect(restoredIntensity).toBeCloseTo(0.4, 2);
+  });
+
+  it('does not flash when health increases (healing)', async () => {
+    const scene = new THREE.Scene();
+    const stdModel = (() => {
+      const root = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial();
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);
+      root.add(mesh);
+      return { scene: root, animations: [] } as LoadedModelAsset;
+    })();
+
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => stdModel,
+    });
+
+    const state = makeMeshState({ id: 402, health: 50, maxHealth: 100 });
+    manager.sync([state], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([state], 1 / 30);
+
+    // Heal: increase health.
+    const healedState = makeMeshState({ id: 402, health: 80, maxHealth: 100 });
+    manager.sync([healedState], 1 / 30);
+
+    // No flash should be active — emissive should NOT be the red damage flash color.
+    let emissiveHex = -1;
+    let intensity = -1;
+    scene.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+        emissiveHex = child.material.emissive.getHex();
+        intensity = child.material.emissiveIntensity;
+      }
+    });
+    // Emissive must not be damage-flash red at damage-flash intensity.
+    expect(emissiveHex).not.toBe(0xff0000);
+    expect(intensity).not.toBe(0.5);
+  });
 });
