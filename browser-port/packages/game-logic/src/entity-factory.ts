@@ -61,6 +61,19 @@ export function createMapEntity(self: GL,
   const scriptName = self.resolveMapObjectScriptName(mapObject);
   const renderAssetProfile = self.resolveRenderAssetProfile(objectDef);
 
+  // Source parity: unresolved objects (no INI definition) still have a templateName
+  // from the map file that corresponds to a W3D model name (e.g. "TREEDesert01",
+  // "Rock1", "CivBuilding01").  Use templateName as a render asset candidate so
+  // the renderer can resolve it against the asset manifest.
+  if (!isResolved && renderAssetProfile.renderAssetCandidates.length === 0) {
+    const name = mapObject.templateName;
+    if (name && name.length > 0) {
+      renderAssetProfile.renderAssetCandidates.push(name);
+      renderAssetProfile.renderAssetPath = name;
+      renderAssetProfile.renderAssetResolved = true;
+    }
+  }
+
   const nominalHeight = nominalHeightForCategory(category);
 
   const locomotorSetProfiles = self.resolveLocomotorProfiles(objectDef, iniDataRegistry);

@@ -4188,12 +4188,39 @@ describe('GameLogicSubsystem combat + upgrades', () => {
         expect.objectContaining({
           templateName: 'MissingVehicle',
           resolved: false,
-          renderAssetPath: null,
-          renderAssetResolved: false,
+          // Unresolved objects use their templateName as a render asset
+          // candidate so the renderer can look up the model in the manifest.
+          renderAssetPath: 'MissingVehicle',
+          renderAssetResolved: true,
           animationState: 'IDLE',
         }),
       ]),
     );
+  });
+
+  it('uses templateName as render asset path for unresolved map objects', () => {
+    const bundle = makeBundle({ objects: [] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('TREEDesert01', 10, 10),
+        makeMapObject('Rock1', 20, 20),
+        makeMapObject('CivBuilding01', 30, 30),
+      ], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+    const renderable = logic.getRenderableEntityStates();
+
+    expect(renderable).toHaveLength(3);
+    for (const state of renderable) {
+      expect(state.resolved).toBe(false);
+      // Each unresolved object should use its templateName as the render asset path
+      expect(state.renderAssetPath).toBe(state.templateName);
+      expect(state.renderAssetResolved).toBe(true);
+      expect(state.renderAssetCandidates).toContain(state.templateName);
+    }
   });
 
   it('reports render asset metadata independently from placeholder geometry visibility', () => {
