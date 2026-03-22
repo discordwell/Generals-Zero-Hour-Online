@@ -276,65 +276,50 @@ describe('structure topple crushing geometry (StructureToppleUpdate.cpp:359-444)
    * the topple direction, dealing damage at multiple sample points across
    * the building's width. This covers a wide swath of the topple path.
    *
-   * TS behavior: applyWeaponDamageAtPoint fires a single point per interval
-   * with a fixed 50-unit radius. This means only entities within 50 units of
-   * the single crush point take damage, rather than the C++ grid pattern which
-   * explicitly covers the full width of the toppled structure.
-   *
-   * This test documents the geometry difference.
+   * TS now implements the same 2D grid pattern using fireTemporaryWeaponAtPosition
+   * with the actual CrushingWeaponName weapon stats (PrimaryDamage, PrimaryDamageRadius).
    */
-  it('structure topple deals crush damage to nearby infantry', () => {
-    // Setup: building with StructureToppleUpdate at (100,100).
-    // Three infantry perpendicular to topple direction, spaced 20 units apart:
-    //   Infantry A at (100, 80)  — 20 units to one side
-    //   Infantry B at (100, 100) — at building center
-    //   Infantry C at (100, 120) — 20 units to other side
-    //
-    // Destroy building, initiate topple, step frames, count survivors.
-    //
-    // C++ expectation: grid pattern covers width, all 3 die.
-    // TS expectation: single-point crush with radius=50 should hit all 3
-    //   (they are within 20 units of crush line), but only if the crush
-    //   point's radius reaches them.
-    const bundle = makeBundle({
+
+  function makeToppleBundle(crushWeapon: string, crushDamage: number, crushRadius: number,
+      geoMajor: number, geoMinor: number) {
+    return makeBundle({
       objects: [
         makeObjectDef('ToppleBuilding', 'America', ['STRUCTURE'], [
-          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
           makeBlock('Behavior', 'StructureToppleUpdate ModuleTag_Topple', {
-            MinToppleDelay: 33,
-            MaxToppleDelay: 33,
-            MinToppleBurstDelay: 33,
-            MaxToppleBurstDelay: 33,
+            MinToppleDelay: 0,
+            MaxToppleDelay: 0,
+            MinToppleBurstDelay: 0,
+            MaxToppleBurstDelay: 0,
             StructuralIntegrity: 0.0,
             StructuralDecay: 0.0,
-            CrushingWeaponName: 'ToppleCrush',
+            CrushingWeaponName: crushWeapon,
           }),
-        ], { GeometryMajorRadius: 15, GeometryMinorRadius: 15 }),
-        makeObjectDef('Killer', 'China', ['VEHICLE'], [
-          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 5000, InitialHealth: 5000 }),
-          makeWeaponBlock('KillGun'),
-        ]),
+        ], { GeometryMajorRadius: geoMajor, GeometryMinorRadius: geoMinor }),
         makeObjectDef('InfantryVictim', 'China', ['INFANTRY'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
         ]),
       ],
       weapons: [
-        makeWeaponDef('KillGun', {
-          PrimaryDamage: 200,
-          DamageType: 'EXPLOSION',
-          AttackRange: 200,
-          DelayBetweenShots: 33,
-        }),
-        // The crushing weapon used during topple.
-        makeWeaponDef('ToppleCrush', {
-          PrimaryDamage: 500,
-          PrimaryDamageRadius: 50,
+        makeWeaponDef(crushWeapon, {
+          PrimaryDamage: crushDamage,
+          PrimaryDamageRadius: crushRadius,
           DamageType: 'CRUSH',
-          AttackRange: 50,
+          AttackRange: crushRadius,
           DelayBetweenShots: 33,
         }),
       ],
     });
+  }
+
+  it('2D grid crush damages infantry perpendicular to topple direction', () => {
+    // Building at (100,100) with 3 infantry perpendicular to topple direction.
+    // Topple direction: +X (east), so perpendicular is along Z axis.
+    // Infantry at (120, 80), (120, 100), (120, 120) — in the topple path,
+    // spread 20 units perpendicular.
+    //
+    // With PrimaryDamageRadius=50 and 2D grid, all 3 should be killed.
+    const bundle = makeToppleBundle('ToppleCrush', 500, 50, 15, 15);
 
     const scene = new THREE.Scene();
     const logic = new GameLogicSubsystem(scene);
@@ -342,10 +327,9 @@ describe('structure topple crushing geometry (StructureToppleUpdate.cpp:359-444)
     logic.loadMapObjects(
       makeMap([
         makeMapObject('ToppleBuilding', 100, 100),
-        makeMapObject('Killer', 200, 100),       // East of building (topple will go west, away from killer)
-        makeMapObject('InfantryVictim', 100, 80),  // Infantry A — perpendicular
-        makeMapObject('InfantryVictim', 100, 100), // Infantry B — at center
-        makeMapObject('InfantryVictim', 100, 120), // Infantry C — perpendicular
+        makeMapObject('InfantryVictim', 120, 80),  // perpendicular -20
+        makeMapObject('InfantryVictim', 120, 100), // at center line
+        makeMapObject('InfantryVictim', 120, 120), // perpendicular +20
       ], 256, 256),
       makeRegistry(bundle),
       makeHeightmap(256, 256),
@@ -357,130 +341,60 @@ describe('structure topple crushing geometry (StructureToppleUpdate.cpp:359-444)
     logic.setTeamRelationship('China', 'America', 0);
 
     // Verify initial state: all infantry alive.
+    expect(logic.getEntityState(2)?.health).toBe(50);
     expect(logic.getEntityState(3)?.health).toBe(50);
     expect(logic.getEntityState(4)?.health).toBe(50);
-    expect(logic.getEntityState(5)?.health).toBe(50);
 
-    // Destroy the building via attack command from Killer.
-    logic.submitCommand({
-      type: 'attackEntity',
-      entityId: 2,
-      targetEntityId: 1,
-      commandSource: 'PLAYER',
-    });
+    // Directly initiate topple with a mock attacker to the west (building topples east).
+    const priv = logic as unknown as {
+      beginStructureTopple: (entity: unknown, attacker: unknown) => void;
+      spawnedEntities: Map<number, unknown>;
+    };
+    const building = priv.spawnedEntities.get(1)!;
+    // Mock attacker at (50, 100) — west of building. Building topples away = east (+X).
+    const mockAttacker = { x: 50, z: 100 };
+    priv.beginStructureTopple(building, mockAttacker);
 
-    // Step enough frames for the building to die and topple.
-    // Building has 100 HP, gun does 200 damage — should die quickly.
-    // Then topple delay is 33ms (1 frame), and topple itself takes some frames.
-    for (let i = 0; i < 60; i++) {
-      logic.update(1 / 30);
+    // Tick frames: topple delay=0 so topple starts immediately,
+    // structural integrity=0 so it falls fast.
+    // Need enough frames for accumulatedAngle to exceed PI/6 (THETA_CEILING) and
+    // the crush damage to fire.
+    for (let i = 0; i < 200; i++) {
+      logic.update(0);
     }
 
-    // Check building status.
-    const buildingState = logic.getEntityState(1);
-    // Building should be dead or removed.
-    const buildingDead = buildingState === null || buildingState.health <= 0;
-
     // Count surviving infantry.
-    const infantryA = logic.getEntityState(3);
-    const infantryB = logic.getEntityState(4);
-    const infantryC = logic.getEntityState(5);
+    const infantryA = logic.getEntityState(2);
+    const infantryB = logic.getEntityState(3);
+    const infantryC = logic.getEntityState(4);
 
     const aAlive = infantryA !== null && infantryA.health > 0;
     const bAlive = infantryB !== null && infantryB.health > 0;
     const cAlive = infantryC !== null && infantryC.health > 0;
     const survivors = [aAlive, bAlive, cAlive].filter(Boolean).length;
 
-    // Document behavior:
-    // The TS implementation fires a single crush point along the topple line
-    // with radius=50. Infantry within 20 units of the topple line should be
-    // within the 50-unit crush radius.
-    //
-    // C++ fires a 2D grid pattern covering the full width — guaranteed kill
-    // for all infantry in the topple path.
-    //
-    // TS may or may not kill all three depending on whether the single crush
-    // point's radius (50) reaches them and whether the building actually
-    // initiates StructureToppleUpdate on death.
-
-    // At minimum, the building should be dead.
-    expect(buildingDead).toBe(true);
-
-    // Document the number of survivors — the gap is that C++ would kill all 3
-    // via grid pattern, while TS uses a single point.
-    // We don't assert an exact survivor count because the topple direction has
-    // randomness and the building may or may not have StructureToppleUpdate
-    // trigger on death vs SlowDeath. Instead, we verify the building died and
-    // record what happens to the infantry.
-    //
-    // If all 3 die, TS behavior matches C++ for this scenario (the radius is
-    // large enough to cover the perpendicular spread).
-    // If some survive, that documents the geometry gap.
-    expect(typeof survivors).toBe('number');
-    expect(survivors).toBeGreaterThanOrEqual(0);
-    expect(survivors).toBeLessThanOrEqual(3);
+    // With 2D grid pattern and PrimaryDamageRadius=50, all infantry within
+    // 20 units of the topple line should be killed by grid fire points + weapon radius.
+    expect(survivors).toBe(0);
   });
 
-  it('single crush point has limited lateral coverage compared to C++ grid', () => {
-    // This test uses wider infantry spacing (40 units apart) to expose the
-    // single-point-vs-grid difference more clearly.
-    //
-    // C++ grid pattern: fires weapons at many points across the width, each
-    // with its own radius — covers a wider swath.
-    //
-    // TS single point: fires at one point on the topple line with radius=50.
-    // Infantry at 40 units perpendicular may be right at the edge of the radius.
-    const bundle = makeBundle({
-      objects: [
-        makeObjectDef('WideToppleBuilding', 'America', ['STRUCTURE'], [
-          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
-          makeBlock('Behavior', 'StructureToppleUpdate ModuleTag_Topple', {
-            MinToppleDelay: 33,
-            MaxToppleDelay: 33,
-            StructuralIntegrity: 0.0,
-            StructuralDecay: 0.0,
-            CrushingWeaponName: 'SmallCrush',
-          }),
-        ], { GeometryMajorRadius: 25, GeometryMinorRadius: 25 }),
-        makeObjectDef('Killer2', 'China', ['VEHICLE'], [
-          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 5000, InitialHealth: 5000 }),
-          makeWeaponBlock('KillGun2'),
-        ]),
-        makeObjectDef('FarInfantry', 'China', ['INFANTRY'], [
-          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
-        ]),
-      ],
-      weapons: [
-        makeWeaponDef('KillGun2', {
-          PrimaryDamage: 200,
-          DamageType: 'EXPLOSION',
-          AttackRange: 200,
-          DelayBetweenShots: 33,
-        }),
-        // Small crush radius — amplifies the gap.
-        makeWeaponDef('SmallCrush', {
-          PrimaryDamage: 500,
-          PrimaryDamageRadius: 15,
-          DamageType: 'CRUSH',
-          AttackRange: 15,
-          DelayBetweenShots: 33,
-        }),
-      ],
-    });
+  it('2D grid pattern covers perpendicular width even with small weapon radius', () => {
+    // With the 2D grid pattern, weapons fire at grid points across the building width.
+    // Building has GeometryMajorRadius=25, GeometryMinorRadius=25.
+    // Grid fires at facingWidth ~12.5 units offset, with PrimaryDamageRadius=15.
+    // Infantry at 20 units perpendicular should be within grid point + weapon radius.
+    const bundle = makeToppleBundle('SmallCrush', 500, 15, 25, 25);
 
     const scene = new THREE.Scene();
     const logic = new GameLogicSubsystem(scene);
 
-    // Wider spacing: infantry at 40 units perpendicular from center.
-    // With crush radius=15, these should be out of range of a single crush point
-    // at the center line.
+    // Infantry at 20 units perpendicular from topple center line.
     logic.loadMapObjects(
       makeMap([
-        makeMapObject('WideToppleBuilding', 120, 120),
-        makeMapObject('Killer2', 220, 120),
-        makeMapObject('FarInfantry', 120, 80),   // 40 units perpendicular
-        makeMapObject('FarInfantry', 120, 120),  // at center
-        makeMapObject('FarInfantry', 120, 160),  // 40 units perpendicular
+        makeMapObject('ToppleBuilding', 120, 120),
+        makeMapObject('InfantryVictim', 140, 100),  // 20 units perpendicular
+        makeMapObject('InfantryVictim', 140, 120),   // at center line
+        makeMapObject('InfantryVictim', 140, 140),   // 20 units perpendicular
       ], 256, 256),
       makeRegistry(bundle),
       makeHeightmap(256, 256),
@@ -491,36 +405,35 @@ describe('structure topple crushing geometry (StructureToppleUpdate.cpp:359-444)
     logic.setTeamRelationship('America', 'China', 0);
     logic.setTeamRelationship('China', 'America', 0);
 
-    // Destroy the building.
-    logic.submitCommand({
-      type: 'attackEntity',
-      entityId: 2,
-      targetEntityId: 1,
-      commandSource: 'PLAYER',
-    });
+    // Directly initiate topple — attacker west, building topples east.
+    const priv = logic as unknown as {
+      beginStructureTopple: (entity: unknown, attacker: unknown) => void;
+      spawnedEntities: Map<number, unknown>;
+    };
+    const building = priv.spawnedEntities.get(1)!;
+    const mockAttacker = { x: 70, z: 120 };
+    priv.beginStructureTopple(building, mockAttacker);
 
-    for (let i = 0; i < 60; i++) {
-      logic.update(1 / 30);
+    for (let i = 0; i < 200; i++) {
+      logic.update(0);
     }
 
-    const farA = logic.getEntityState(3);
-    const center = logic.getEntityState(4);
-    const farC = logic.getEntityState(5);
+    const farA = logic.getEntityState(2);
+    const center = logic.getEntityState(3);
+    const farC = logic.getEntityState(4);
 
     const farAAlive = farA !== null && farA.health > 0;
     const centerAlive = center !== null && center.health > 0;
     const farCAlive = farC !== null && farC.health > 0;
     const survivors = [farAAlive, centerAlive, farCAlive].filter(Boolean).length;
 
-    // In C++, the grid pattern would cover the full 25-unit-radius building
-    // width, catching infantry at 40 units perpendicular (within grid + weapon radius).
-    // In TS, the single crush point with radius=15 is unlikely to reach
-    // infantry 40 units away from the topple center line.
-    //
-    // Document the result: this is where the geometry gap is most visible.
-    // C++ would likely kill all 3; TS may only kill the center one.
-    expect(typeof survivors).toBe('number');
-    expect(survivors).toBeGreaterThanOrEqual(0);
-    expect(survivors).toBeLessThanOrEqual(3);
+    // The 2D grid fires across the building's perpendicular width.
+    // Infantry at 20 units perpendicular should be hit by grid edge points
+    // (facingWidth ~12.5) + weapon radius (15) = ~27.5 total coverage.
+    // At minimum the center one must die.
+    expect(centerAlive).toBe(false);
+
+    // With 2D grid coverage, all 3 should be killed.
+    expect(survivors).toBe(0);
   });
 });

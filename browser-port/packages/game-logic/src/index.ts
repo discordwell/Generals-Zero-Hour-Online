@@ -28499,20 +28499,66 @@ export class GameLogicSubsystem implements Subsystem {
 
         st.accumulatedAngle += st.toppleVelocity;
 
-        // Apply crushing damage along topple path.
+        // Source parity: StructureToppleUpdate::applyCrushingDamage — 2D grid pattern.
+        // Fires weapons at WEAPON_SPACING intervals along the topple path AND
+        // across the building's perpendicular width (doDamageLine).
         if (prof.crushingWeaponName && st.accumulatedAngle > Math.PI / 6) {
           const THETA_CEILING = Math.PI / 6;
+          const WEAPON_SPACING_PERPENDICULAR = 25;
+          const WEAPON_SPACING_PARALLEL = 25;
           const theta = Math.PI / 2 - st.accumulatedAngle;
           if (theta <= THETA_CEILING) {
-            const maxDist = st.buildingHeight * (1 - Math.sin(theta));
-            if (maxDist > st.lastCrushedLocation) {
-              // Fire weapon at crush points along topple path.
+            const registry = this.iniDataRegistry;
+            const weaponDef = registry ? findWeaponDefByName(registry, prof.crushingWeaponName) : undefined;
+            if (weaponDef) {
+              const maxDist = st.buildingHeight * (1 - Math.sin(theta));
               const toppleAngle = Math.atan2(st.toppleDirZ, st.toppleDirX);
-              const crushX = entity.x + maxDist * Math.cos(toppleAngle);
-              const crushZ = entity.z + maxDist * Math.sin(toppleAngle);
-              const crushY = this.resolveGroundHeight(crushX, crushZ);
-              this.applyWeaponDamageAtPoint(entity, crushX, crushY, crushZ, prof.crushingWeaponName, 50);
-              st.lastCrushedLocation = maxDist;
+
+              // Source parity: compute facing width — perpendicular projection of building geometry.
+              const orientationAngle = entity.rotationY;
+              const angleDiff = orientationAngle - toppleAngle;
+              const geom = entity.obstacleGeometry;
+              const minorRadius = geom ? geom.minorRadius : (entity.geometryMajorRadius ?? 15);
+              const majorRadius = geom ? geom.majorRadius : (entity.geometryMajorRadius ?? 15);
+              const minorComponent = minorRadius * Math.cos(angleDiff);
+              const majorComponent = majorRadius * Math.sin(angleDiff);
+              const facingWidth = Math.sqrt(majorComponent * majorComponent + minorComponent * minorComponent) / 2;
+
+              const cosTopple = Math.cos(toppleAngle);
+              const sinTopple = Math.sin(toppleAngle);
+
+              // Fire at intervals from lastCrushedLocation to maxDist along topple path.
+              let j = st.lastCrushedLocation;
+              for (; j < maxDist; j += WEAPON_SPACING_PERPENDICULAR) {
+                const jcos = j * cosTopple;
+                const jsin = j * sinTopple;
+                // Source parity: doDamageLine — fire across building width.
+                for (let i = -facingWidth; i < facingWidth; i += WEAPON_SPACING_PARALLEL) {
+                  const tx = entity.x + jcos + i * sinTopple;
+                  const tz = entity.z + jsin + i * cosTopple;
+                  this.fireTemporaryWeaponAtPosition(entity, weaponDef, tx, tz);
+                }
+                // Source parity: also fire at the edge of the building width.
+                const edgeX = entity.x + jcos + facingWidth * sinTopple;
+                const edgeZ = entity.z + jsin + facingWidth * cosTopple;
+                this.fireTemporaryWeaponAtPosition(entity, weaponDef, edgeX, edgeZ);
+              }
+
+              // Source parity: also fire at maxDist exactly.
+              {
+                const jcos = maxDist * cosTopple;
+                const jsin = maxDist * sinTopple;
+                for (let i = -facingWidth; i < facingWidth; i += WEAPON_SPACING_PARALLEL) {
+                  const tx = entity.x + jcos + i * sinTopple;
+                  const tz = entity.z + jsin + i * cosTopple;
+                  this.fireTemporaryWeaponAtPosition(entity, weaponDef, tx, tz);
+                }
+                const edgeX = entity.x + jcos + facingWidth * sinTopple;
+                const edgeZ = entity.z + jsin + facingWidth * cosTopple;
+                this.fireTemporaryWeaponAtPosition(entity, weaponDef, edgeX, edgeZ);
+              }
+
+              st.lastCrushedLocation = j;
             }
           }
         }
