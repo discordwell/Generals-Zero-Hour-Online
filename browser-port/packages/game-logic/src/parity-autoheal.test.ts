@@ -184,6 +184,7 @@ describe('AutoHeal damage delay reset', () => {
 
 describe('AutoHeal SingleBurst mode', () => {
   it('heals once then stops when SingleBurst is true (C++ parity)', () => {
+    // Create an object definition with SingleBurst=Yes.
     const healPadDef = makeObjectDef('HealPad', 'America', ['STRUCTURE'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', {
         MaxHealth: 500,
@@ -198,11 +199,10 @@ describe('AutoHeal SingleBurst mode', () => {
       }),
     ]);
 
-    // Use InitialHealth < MaxHealth so ally spawns already damaged.
     const targetDef = makeObjectDef('DamagedAlly', 'America', ['INFANTRY'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', {
         MaxHealth: 100,
-        InitialHealth: 50, // Spawns damaged: 50/100
+        InitialHealth: 100,
       }),
     ]);
 
@@ -221,8 +221,9 @@ describe('AutoHeal SingleBurst mode', () => {
       makeHeightmap(128, 128),
     );
     logic.setTeamRelationship('America', 'America', 2); // allies
+    logic.update(0);
 
-    // Access internals for verification.
+    // Damage the ally.
     const priv = logic as unknown as {
       spawnedEntities: Map<number, {
         health: number;
@@ -231,6 +232,8 @@ describe('AutoHeal SingleBurst mode', () => {
         autoHealSingleBurstDone: boolean;
       }>;
     };
+    const ally = priv.spawnedEntities.get(2)!;
+    ally.health = 50; // Damage to 50/100.
 
     // Verify that singleBurst IS present and true in the parsed profile.
     const healPad = priv.spawnedEntities.get(1)!;
@@ -248,7 +251,6 @@ describe('AutoHeal SingleBurst mode', () => {
     expect(healPad.autoHealSingleBurstDone).toBe(true);
 
     // Damage the ally again to test whether healing continues.
-    const ally = priv.spawnedEntities.get(2)!;
     ally.health = 50;
 
     // Run more frames.
@@ -269,9 +271,15 @@ describe('AutoHeal SingleBurst mode', () => {
 //   if( obj->isAnyKindOf( d->m_kindOf ) && !obj->isAnyKindOf( d->m_forbiddenKindOf ) )
 // In radius heal mode, only entities matching the KindOf mask (and not
 // matching ForbiddenKindOf) receive healing.
+//
+// C++ header: AutoHealBehavior.h:80 — SET_ALL_KINDOFMASK_BITS( m_kindOf );
+// Default is ALL kinds (everything heals). But INI can restrict via:
+//   KindOf = VEHICLE
+// so only vehicles get healed.
 
 describe('AutoHeal KindOf filter', () => {
   it('only heals entities matching the KindOf filter (C++ parity)', () => {
+    // Repair pad that should only heal VEHICLE types.
     const repairPadDef = makeObjectDef('RepairPad', 'America', ['STRUCTURE'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', {
         MaxHealth: 1000,
@@ -352,6 +360,9 @@ describe('AutoHeal KindOf filter', () => {
   });
 
   it('excludes entities matching the ForbiddenKindOf filter (C++ parity)', () => {
+    // C++ header: AutoHealBehavior.h:64 —
+    //   KindOfMaskType m_forbiddenKindOf;
+    // Used to exclude certain entity types from healing even if in range.
     const repairPadDef = makeObjectDef('RepairPad2', 'America', ['STRUCTURE'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', {
         MaxHealth: 1000,

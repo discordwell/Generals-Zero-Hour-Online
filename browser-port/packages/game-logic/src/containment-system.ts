@@ -620,7 +620,7 @@ export function updateHealing(self: GL): void {
       || entity.objectStatusFlags.has('DISABLED_SUBDUED');
 
     // ── AutoHealBehavior ──
-    if (entity.autoHealProfile && !isDisabled) {
+    if (entity.autoHealProfile && !isDisabled && !entity.autoHealSingleBurstDone) {
       const prof = entity.autoHealProfile;
       // Source parity: SingleBurst mode heals once then sleeps forever.
       if (prof.singleBurst && entity.autoHealSingleBurstDone) continue;

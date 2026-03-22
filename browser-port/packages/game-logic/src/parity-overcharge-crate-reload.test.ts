@@ -86,7 +86,8 @@ describe('overcharge disabled-state guard on capture', () => {
     // Verify China did NOT receive the power bonus.
     const chinaSide = logic.normalizeSide('China');
     const chinaPower = logic.getSidePowerStateMap(chinaSide);
-    expect(chinaPower.powerBonus).toBe(0);
+    const chinaTotalBonus = chinaPower ? Array.from(chinaPower.values()).reduce((a: number, b: number) => a + b, 0) : 0;
+    expect(chinaTotalBonus).toBe(0);
   });
 
   it('allows overcharge transfer when building is not disabled', () => {
@@ -160,7 +161,8 @@ describe('crate collection isAboveTerrain check', () => {
               MaxHealth: 1,
               InitialHealth: 1,
             }),
-            makeBlock('Behavior', 'MoneyCrateCollide ModuleTag_CrateCollide', {
+            makeBlock('Behavior', 'CrateCollide ModuleTag_CrateCollide', {
+              CrateType: 'MONEY',
               MoneyProvided: 500,
             }),
           ]),
@@ -191,18 +193,15 @@ describe('crate collection isAboveTerrain check', () => {
     });
 
     agent.setCredits('America', 0);
+    agent.step(1);
 
-    // Find the crate entity BEFORE stepping — must set AIRBORNE_TARGET before
-    // the collision system runs on the first frame.
+    // Set the crate's AIRBORNE_TARGET status flag — simulating a crate
+    // that is above terrain (e.g., dropped by a dying aircraft, still falling).
     const logic = agent.gameLogic as unknown as { spawnedEntities: Map<number, any> };
-    let crate: any = null;
-    let crateId = 0;
-    for (const [id, ent] of logic.spawnedEntities.entries()) {
-      if (ent.templateName === 'TestCrate') { crate = ent; crateId = id; break; }
-    }
-    expect(crate).not.toBeNull();
+    const crate = logic.spawnedEntities.get(1);
+    expect(crate).toBeDefined();
 
-    // Add AIRBORNE_TARGET status to the crate BEFORE first step.
+    // Add AIRBORNE_TARGET status to the crate.
     crate.objectStatusFlags.add('AIRBORNE_TARGET');
 
     // Also elevate the crate's Y position to simulate being above terrain.
@@ -215,7 +214,7 @@ describe('crate collection isAboveTerrain check', () => {
 
     // Source parity: CrateCollide.cpp:166-168 — crates cannot be collected while
     // airborne. The crate should NOT be collected.
-    const crateAfter = agent.entity(crateId);
+    const crateAfter = agent.entity(1);
     const creditsAfter = agent.state().credits['America'] ?? 0;
 
     // Crate must still be alive — AIRBORNE_TARGET blocks collection.
@@ -234,7 +233,8 @@ describe('crate collection isAboveTerrain check', () => {
               MaxHealth: 1,
               InitialHealth: 1,
             }),
-            makeBlock('Behavior', 'MoneyCrateCollide ModuleTag_CrateCollide', {
+            makeBlock('Behavior', 'CrateCollide ModuleTag_CrateCollide', {
+              CrateType: 'MONEY',
               MoneyProvided: 500,
             }),
           ]),
@@ -263,18 +263,15 @@ describe('crate collection isAboveTerrain check', () => {
     });
 
     agent.setCredits('America', 0);
+    agent.step(1);
 
-    // Verify crate exists before step.
+    // Crate is NOT airborne — should be collected normally.
     const logic = agent.gameLogic as unknown as { spawnedEntities: Map<number, any> };
-    let crate: any = null;
-    for (const ent of logic.spawnedEntities.values()) {
-      if (ent.templateName === 'TestCrate') { crate = ent; break; }
-    }
-    expect(crate).not.toBeNull();
+    const crate = logic.spawnedEntities.get(1);
+    expect(crate).toBeDefined();
     expect(crate.objectStatusFlags.has('AIRBORNE_TARGET')).toBe(false);
 
-    // Step — ground crate at same position should be collected immediately.
-    agent.step(1);
+    agent.step(10);
 
     // Ground crate at same position should be collected — credits increase.
     const creditsAfter = agent.state().credits['America'] ?? 0;
