@@ -1,9 +1,8 @@
 /**
  * Parity tests for AutoHealBehavior: damage delay reset, SingleBurst mode,
- * and KindOf filter.
+ * KindOf filter, and ForbiddenKindOf filter.
  *
- * These tests document behavioral differences between the C++ source and the
- * TypeScript port, serving as regression anchors for future parity fixes.
+ * These tests verify C++ source parity for AutoHealBehavior features.
  */
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
@@ -182,15 +181,9 @@ describe('AutoHeal damage delay reset', () => {
 // sleep forever. This is used for things like repair pads that heal once.
 //
 // C++ header: AutoHealBehavior.h:89 — { "SingleBurst", INI::parseBool, ... }
-//
-// TS: entity-factory.ts:extractAutoHealProfile — does NOT parse SingleBurst.
-// The AutoHealProfile interface has no singleBurst field.
-// This means SingleBurst mode is not implemented in TS; radius healing
-// will repeat indefinitely instead of stopping after one burst.
 
 describe('AutoHeal SingleBurst mode', () => {
-  it('documents that SingleBurst field is not parsed by extractAutoHealProfile', () => {
-    // Create an object definition with SingleBurst=Yes.
+  it('heals once then stops when SingleBurst is true (C++ parity)', () => {
     const healPadDef = makeObjectDef('HealPad', 'America', ['STRUCTURE'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', {
         MaxHealth: 500,
@@ -201,14 +194,15 @@ describe('AutoHeal SingleBurst mode', () => {
         HealingDelay: 3,
         Radius: 50,
         StartsActive: true,
-        SingleBurst: true, // C++ field — NOT parsed in TS
+        SingleBurst: true,
       }),
     ]);
 
+    // Use InitialHealth < MaxHealth so ally spawns already damaged.
     const targetDef = makeObjectDef('DamagedAlly', 'America', ['INFANTRY'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', {
         MaxHealth: 100,
-        InitialHealth: 100,
+        InitialHealth: 50, // Spawns damaged: 50/100
       }),
     ]);
 
@@ -227,25 +221,21 @@ describe('AutoHeal SingleBurst mode', () => {
       makeHeightmap(128, 128),
     );
     logic.setTeamRelationship('America', 'America', 2); // allies
-    logic.update(0);
 
-    // Damage the ally.
+    // Access internals for verification.
     const priv = logic as unknown as {
       spawnedEntities: Map<number, {
         health: number;
         maxHealth: number;
         autoHealProfile: Record<string, unknown> | null;
+        autoHealSingleBurstDone: boolean;
       }>;
     };
-    const ally = priv.spawnedEntities.get(2)!;
-    ally.health = 50; // Damage to 50/100.
 
-    // Verify that SingleBurst is NOT present in the parsed profile.
+    // Verify that singleBurst IS present and true in the parsed profile.
     const healPad = priv.spawnedEntities.get(1)!;
     expect(healPad.autoHealProfile).not.toBeNull();
-    // The TS AutoHealProfile interface does not include singleBurst.
-    // The INI field SingleBurst=true is ignored during parsing.
-    expect('singleBurst' in (healPad.autoHealProfile as Record<string, unknown>)).toBe(false);
+    expect((healPad.autoHealProfile as Record<string, unknown>).singleBurst).toBe(true);
 
     // Run enough frames for the first heal pulse.
     for (let i = 0; i < 10; i++) logic.update(1 / 30);
@@ -254,7 +244,11 @@ describe('AutoHeal SingleBurst mode', () => {
     // Healing should have occurred (radius heal applies to damaged allies).
     expect(healthAfterFirstPulse).toBeGreaterThan(50);
 
+    // SingleBurst should be marked done after the first pulse.
+    expect(healPad.autoHealSingleBurstDone).toBe(true);
+
     // Damage the ally again to test whether healing continues.
+    const ally = priv.spawnedEntities.get(2)!;
     ally.health = 50;
 
     // Run more frames.
@@ -262,16 +256,9 @@ describe('AutoHeal SingleBurst mode', () => {
 
     const healthAfterSecondRound = logic.getEntityState(2)!.health;
 
-    // C++ behavior: SingleBurst=Yes would cause healing to stop after the
-    // first pulse (UPDATE_SLEEP_FOREVER). The ally would remain at 50 HP.
-    //
-    // TS behavior: Since SingleBurst is not parsed, healing continues
-    // indefinitely. The ally heals again.
-    //
-    // Document the divergence: TS heals again (SingleBurst not implemented).
-    expect(healthAfterSecondRound).toBeGreaterThan(50);
-    // When SingleBurst is implemented, the above assertion would need to
-    // change to: expect(healthAfterSecondRound).toBe(50);
+    // C++ parity: SingleBurst=Yes causes healing to stop after the first pulse
+    // (UPDATE_SLEEP_FOREVER). The ally should remain at 50 HP.
+    expect(healthAfterSecondRound).toBe(50);
   });
 });
 
@@ -282,20 +269,9 @@ describe('AutoHeal SingleBurst mode', () => {
 //   if( obj->isAnyKindOf( d->m_kindOf ) && !obj->isAnyKindOf( d->m_forbiddenKindOf ) )
 // In radius heal mode, only entities matching the KindOf mask (and not
 // matching ForbiddenKindOf) receive healing.
-//
-// C++ header: AutoHealBehavior.h:80 — SET_ALL_KINDOFMASK_BITS( m_kindOf );
-// Default is ALL kinds (everything heals). But INI can restrict via:
-//   KindOf = VEHICLE
-// so only vehicles get healed.
-//
-// TS: entity-factory.ts:extractAutoHealProfile — does NOT parse KindOf or
-// ForbiddenKindOf. The AutoHealProfile interface has no kindOf field.
-// containment-system.ts:619-630 — radius heal checks only ally relationship
-// and health < maxHealth, with no KindOf filter.
 
 describe('AutoHeal KindOf filter', () => {
-  it('documents that KindOf filter is not applied during radius healing', () => {
-    // Simulate a repair pad that should only heal VEHICLE types (C++ behavior).
+  it('only heals entities matching the KindOf filter (C++ parity)', () => {
     const repairPadDef = makeObjectDef('RepairPad', 'America', ['STRUCTURE'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', {
         MaxHealth: 1000,
@@ -306,7 +282,7 @@ describe('AutoHeal KindOf filter', () => {
         HealingDelay: 3,
         Radius: 50,
         StartsActive: true,
-        KindOf: 'VEHICLE', // C++ field — NOT parsed in TS
+        KindOf: 'VEHICLE',
       }),
     ]);
 
@@ -355,11 +331,12 @@ describe('AutoHeal KindOf filter', () => {
     vehicle.health = 100; // 100/200
     infantry.health = 50; // 50/100
 
-    // Verify that KindOf is NOT present in the parsed profile.
+    // Verify that kindOf IS present in the parsed profile.
     const repairPad = priv.spawnedEntities.get(1)!;
     expect(repairPad.autoHealProfile).not.toBeNull();
-    expect('kindOf' in (repairPad.autoHealProfile as Record<string, unknown>)).toBe(false);
-    expect('forbiddenKindOf' in (repairPad.autoHealProfile as Record<string, unknown>)).toBe(false);
+    const profileKindOf = (repairPad.autoHealProfile as Record<string, unknown>).kindOf as Set<string>;
+    expect(profileKindOf).not.toBeNull();
+    expect(profileKindOf.has('VEHICLE')).toBe(true);
 
     // Run enough frames for healing to occur.
     for (let i = 0; i < 20; i++) logic.update(1 / 30);
@@ -367,26 +344,14 @@ describe('AutoHeal KindOf filter', () => {
     const vehicleHealth = logic.getEntityState(2)!.health;
     const infantryHealth = logic.getEntityState(3)!.health;
 
-    // C++ behavior: Only the vehicle would heal (KindOf=VEHICLE filter).
-    // Infantry would remain at 50 HP.
-    //
-    // TS behavior: Since KindOf is not parsed, BOTH the vehicle AND the
-    // infantry heal (no filter applied).
-
-    // Vehicle should heal in both C++ and TS.
+    // C++ parity: Only the vehicle should heal (KindOf=VEHICLE filter).
     expect(vehicleHealth).toBeGreaterThan(100);
 
-    // Infantry heals in TS but would NOT heal in C++ with KindOf=VEHICLE.
-    // Document the parity gap: TS heals infantry too.
-    expect(infantryHealth).toBeGreaterThan(50);
-    // When KindOf filter is implemented, the above assertion would need to
-    // change to: expect(infantryHealth).toBe(50);
+    // Infantry should NOT heal because it doesn't match the KindOf filter.
+    expect(infantryHealth).toBe(50);
   });
 
-  it('documents that ForbiddenKindOf filter is not parsed', () => {
-    // C++ header: AutoHealBehavior.h:64 —
-    //   KindOfMaskType m_forbiddenKindOf;
-    // Used to exclude certain entity types from healing even if in range.
+  it('excludes entities matching the ForbiddenKindOf filter (C++ parity)', () => {
     const repairPadDef = makeObjectDef('RepairPad2', 'America', ['STRUCTURE'], [
       makeBlock('Body', 'ActiveBody ModuleTag_Body', {
         MaxHealth: 1000,
@@ -397,7 +362,7 @@ describe('AutoHeal KindOf filter', () => {
         HealingDelay: 3,
         Radius: 50,
         StartsActive: true,
-        ForbiddenKindOf: 'AIRCRAFT', // C++ field — NOT parsed in TS
+        ForbiddenKindOf: 'AIRCRAFT',
       }),
     ]);
 
@@ -445,18 +410,20 @@ describe('AutoHeal KindOf filter', () => {
     ground.health = 100;
     aircraft.health = 100;
 
+    // Verify that forbiddenKindOf IS present in the parsed profile.
+    const repairPad = priv.spawnedEntities.get(1)!;
+    expect(repairPad.autoHealProfile).not.toBeNull();
+    const profileForbidden = (repairPad.autoHealProfile as Record<string, unknown>).forbiddenKindOf as Set<string>;
+    expect(profileForbidden).not.toBeNull();
+    expect(profileForbidden.has('AIRCRAFT')).toBe(true);
+
     for (let i = 0; i < 20; i++) logic.update(1 / 30);
 
     const groundHealth = logic.getEntityState(2)!.health;
     const aircraftHealth = logic.getEntityState(3)!.health;
 
-    // C++ behavior: Ground unit heals, aircraft does NOT (ForbiddenKindOf=AIRCRAFT).
-    // TS behavior: Both heal because ForbiddenKindOf is not parsed.
-
+    // C++ parity: Ground unit heals, aircraft does NOT (ForbiddenKindOf=AIRCRAFT).
     expect(groundHealth).toBeGreaterThan(100);
-    // Aircraft heals in TS but would NOT in C++ with ForbiddenKindOf=AIRCRAFT.
-    expect(aircraftHealth).toBeGreaterThan(100);
-    // When ForbiddenKindOf is implemented:
-    // expect(aircraftHealth).toBe(100);
+    expect(aircraftHealth).toBe(100);
   });
 });

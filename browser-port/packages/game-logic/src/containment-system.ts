@@ -622,6 +622,8 @@ export function updateHealing(self: GL): void {
     // ── AutoHealBehavior ──
     if (entity.autoHealProfile && !isDisabled) {
       const prof = entity.autoHealProfile;
+      // Source parity: SingleBurst mode heals once then sleeps forever.
+      if (prof.singleBurst && entity.autoHealSingleBurstDone) continue;
       if (prof.initiallyActive || entity.completedUpgrades.size > 0) {
         // Check damage delay.
         if (self.frameCounter >= entity.autoHealDamageDelayUntilFrame) {
@@ -633,11 +635,31 @@ export function updateHealing(self: GL): void {
                 if (target.destroyed || target === entity) continue;
                 if (target.health >= target.maxHealth) continue;
                 if (self.getTeamRelationship(entity, target) === RELATIONSHIP_ENEMIES) continue;
+                // Source parity: KindOf filter — only heal matching entity types.
+                if (prof.kindOf && prof.kindOf.size > 0) {
+                  let matchesKindOf = false;
+                  for (const k of prof.kindOf) {
+                    if (target.kindOf.has(k)) { matchesKindOf = true; break; }
+                  }
+                  if (!matchesKindOf) continue;
+                }
+                // Source parity: ForbiddenKindOf filter — exclude matching types.
+                if (prof.forbiddenKindOf && prof.forbiddenKindOf.size > 0) {
+                  let matchesForbidden = false;
+                  for (const k of prof.forbiddenKindOf) {
+                    if (target.kindOf.has(k)) { matchesForbidden = true; break; }
+                  }
+                  if (matchesForbidden) continue;
+                }
                 const dx = target.x - entity.x;
                 const dz = target.z - entity.z;
                 if (dx * dx + dz * dz <= radiusSq) {
                   self.attemptHealingFromSoleBenefactor(target, prof.healingAmount, entity.id, prof.healingDelayFrames);
                 }
+              }
+              // Source parity: SingleBurst — mark done after one radius heal pass.
+              if (prof.singleBurst) {
+                entity.autoHealSingleBurstDone = true;
               }
             } else if (prof.affectsWholePlayer) {
               // Whole-player mode — heal all entities on same side.
