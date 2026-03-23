@@ -846,6 +846,9 @@ async function startGame(
     isCameraMovementFinished: () => scriptCameraMovementFinished,
     isCameraTimeFrozen: () => scriptCameraTimeFrozen,
     getCameraTimeMultiplier: () => scriptCameraTimeMultiplier,
+    // Source parity: VictoryConditions::update() skips for non-multiplayer.
+    // Campaign missions use script-based victory/defeat exclusively.
+    isCampaignMode: !!campaignContext,
   });
   const maybeSetDeterministicGameLogicCrcSectionWriters = (
     networkManager as unknown as {
@@ -1115,6 +1118,24 @@ async function startGame(
   // ========================================================================
   // Apply post-load skirmish settings (credits, AI)
   // ========================================================================
+
+  // Campaign mode: resolve local player side from sidesList human player's faction.
+  // Source parity: C++ Player objects map player names to factions; entities belong
+  // to the faction side, not the player name.  loadMapScripts populates
+  // scriptPlayerSideByName (e.g. "THE_PLAYER" -> "america") which we use here.
+  if (campaignContext && mapData.sidesList) {
+    const priv = gameLogic as unknown as { scriptPlayerSideByName: Map<string, string> };
+    for (const side of mapData.sidesList.sides) {
+      const dict = side?.dict as Record<string, unknown> | undefined;
+      const playerName = typeof dict?.playerName === 'string' ? dict.playerName : '';
+      const isHuman = !!dict?.playerIsHuman;
+      if (isHuman && playerName) {
+        const resolved = priv.scriptPlayerSideByName.get(playerName.trim().toUpperCase());
+        gameLogic.setPlayerSide(0, resolved ?? playerName);
+        break;
+      }
+    }
+  }
 
   if (skirmishSettings) {
     // Source parity: SkirmishScripts.scb — spawn command center + dozer at Player_N_Start waypoints.

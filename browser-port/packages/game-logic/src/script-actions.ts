@@ -868,11 +868,17 @@ export function setScriptLocalGameEndState(self: GL, localDefeated: boolean, dur
   return true;
 }
 
+/**
+ * Source parity: ScriptActions::doLocalDefeat — UI-only notification action.
+ * In C++ this shows a LocalDefeat.wnd dialog and starts a close-window timer
+ * but does NOT mark the player as defeated in the victory-conditions sense
+ * and does NOT set the end-game timer.  Campaign intro cinematics use this
+ * action to signal "you aren't in control yet" without ending the game.
+ */
 export function setScriptLocalDefeatState(self: GL): boolean {
-  const localSide = self.resolveLocalPlayerSide();
-  if (localSide) {
-    self.defeatedSides.add(localSide);
-  }
+  // Source parity: doLocalDefeat only calls startCloseWindowTimer (UI),
+  // NOT startEndGameTimer.  It does NOT add the player to defeatedSides.
+  void self;
   return true;
 }
 

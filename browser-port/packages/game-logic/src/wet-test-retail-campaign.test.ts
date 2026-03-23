@@ -97,16 +97,22 @@ function assertNoCriticalAnomalies(anomalies: string[], testName: string): void 
 
 /** Load a campaign map into the game engine. No skirmish spawn — campaign maps have pre-placed entities. */
 function loadCampaignGame(mapData: MapDataJSON): GameLogicSubsystem {
-  const logic = new GameLogicSubsystem(new THREE.Scene());
+  // Source parity: VictoryConditions::update() exits early for non-multiplayer.
+  // Campaign missions use script-based victory/defeat exclusively.
+  const logic = new GameLogicSubsystem(new THREE.Scene(), { isCampaignMode: true });
   const heightmap = HeightmapGrid.fromJSON(mapData.heightmap);
   logic.loadMapObjects(mapData, iniRegistry, heightmap);
   // Campaign maps define their own player sides via sidesList; do NOT call spawnSkirmishStartingEntities.
-  // Set player side 0 to match the map's human player for getGameEndState to work.
+  // Set player side 0 to the FACTION side (e.g. "america"), not the player name (e.g. "The_Player").
+  // Source parity: C++ Player objects resolve entities by ownership, not by name matching.
+  // loadMapScripts populates scriptPlayerSideByName mapping player names to faction sides.
   if (mapData.sidesList) {
+    const priv = logic as unknown as { scriptPlayerSideByName: Map<string, string> };
     for (let i = 0; i < mapData.sidesList.sides.length; i++) {
       const side = mapData.sidesList.sides[i];
       if (side?.dict?.playerIsHuman && side.dict.playerName) {
-        logic.setPlayerSide(0, side.dict.playerName);
+        const resolvedSide = priv.scriptPlayerSideByName.get(side.dict.playerName.trim().toUpperCase());
+        logic.setPlayerSide(0, resolvedSide ?? side.dict.playerName);
         break;
       }
     }
@@ -361,22 +367,16 @@ describe('retail campaign wet tests', () => {
     expect(endState100).toBeNull();
 
     // Run 500 more frames — campaign victory is script-based, should NOT trigger from
-    // the default "all buildings destroyed" check because the player still has structures
+    // the default "all buildings destroyed" check because isCampaignMode suppresses it.
+    // Source parity: VictoryConditions::update() exits early for non-multiplayer.
     runFrames(logic, 500, anomalies, 'victory-600-frames');
     const endState600 = logic.getGameEndState();
     console.log(`VICTORY: End state after 600 frames: ${endState600 ? JSON.stringify(endState600) : 'null (game active)'}`);
 
-    // If game ended this early it would be a bug — campaign missions take much longer.
-    // The script engine may fire LOCAL_VICTORY/LOCAL_DEFEAT actions, but only after
-    // specific scripted conditions are met (e.g., "destroy all GLA buildings").
-    if (endState600 !== null) {
-      console.log(`VICTORY: WARNING — game ended prematurely at frame ${endState600.endFrame} with status ${endState600.status}`);
-      console.log(`VICTORY:   victors: ${endState600.victorSides.join(', ')}`);
-      console.log(`VICTORY:   defeated: ${endState600.defeatedSides.join(', ')}`);
-      // This is a soft warning, not a hard failure — the script engine may have
-      // legitimately triggered a game end condition. But it's suspicious.
-      anomalies.push(`VICTORY: Game ended after only 600 frames (${endState600.status})`);
-    }
+    // Campaign mode must suppress default victory checking — game should still be active.
+    // Only script-triggered victory/defeat (LOCAL_VICTORY/LOCAL_DEFEAT actions) can end
+    // the game in campaign mode, and those require specific scripted conditions to be met.
+    expect(endState600).toBeNull();
 
     // Verify the game is still functional (entities exist, no crashes)
     const entities = logic.getRenderableEntityStates();

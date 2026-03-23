@@ -664,4 +664,11 @@ export interface GameLogicConfig {
    * When <= 0 the cap is not applied.
    */
   maxLowEnergyProductionSpeed: number;
+  /**
+   * Source parity: VictoryConditions::update() exits early when
+   * `!TheRecorder->isMultiplayer()` — campaign missions use script-based
+   * victory/defeat exclusively.  When true, the default "all objects
+   * destroyed = defeat" check in checkVictoryConditions is suppressed.
+   */
+  isCampaignMode: boolean;
 }

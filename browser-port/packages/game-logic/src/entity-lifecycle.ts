@@ -2024,6 +2024,13 @@ export function checkVictoryConditions(self: GL): void {
     return; // Game already ended.
   }
 
+  // Source parity: VictoryConditions::update() — `if (!TheRecorder->isMultiplayer()) return;`
+  // Campaign missions use script-based victory/defeat exclusively.  The default
+  // "all objects destroyed = defeat" check must not run in campaign mode.
+  if (self.config.isCampaignMode) {
+    return;
+  }
+
   // Collect all active sides from playerSideByIndex.
   const activeSides = new Set<string>();
   for (const [, side] of self.playerSideByIndex) {

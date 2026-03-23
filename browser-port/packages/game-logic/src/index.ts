@@ -5462,6 +5462,7 @@ const DEFAULT_GAME_LOGIC_CONFIG: Readonly<GameLogicConfig> = {
   partitionCellSize: PATHFIND_CELL_SIZE,
   multipleFactory: 0, // C++ default: 0.0 (GlobalData.cpp:842), retail INI: 0.85
   maxLowEnergyProductionSpeed: 0, // C++ default: 0.0 (GlobalData.cpp), retail INI: ~0.5
+  isCampaignMode: false, // Source parity: VictoryConditions::update() skips for non-multiplayer
 };
 
 const OBJECT_DONT_RENDER_FLAG = 0x100;
