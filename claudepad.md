@@ -57,6 +57,25 @@
 - **Superweapon progress bars**: Color-coded gradient fills behind countdown text.
 - **Battle music**: WEAPON_FIRED events trigger battle music transition.
 - **Weapon audio confirmed wired**: fireSoundEvent → planCombatVisualEffects → audioManager.addAudioEvent 3D.
+
+## Coverage/INI Audit Sprint
+- **ShockWave knockback**: 11 weapons push units on explosion via physics velocity.
+- **ShotsPerBarrel**: 6 weapons fire multiple projectiles per cycle.
+- **AcceptableAimDelta**: 47 weapons have proper turret aim tolerance.
+- **MinTargetPitch/MaxTargetPitch**: 28 weapons have vertical angle limits.
+- **RequestAssistRange**: 6 weapons trigger cooperative targeting.
+- **AllowAttackGarrisonedBldgs**: 17 weapons with garrison targeting filter.
+- **ShroudRevealToAllRange**: 18 objects reveal fog to ALL players.
+- **FireOCL**: 35 weapons spawn objects on fire.
+- **FactoryExitWidth**: 58 objects spread spawned units across exit zone.
+- **Supply dock approach slots**: Harvesters skip full docks (max 3 concurrent).
+- **Container death evacuation**: Stale containment refs cleaned on simultaneous death.
+
+## Wet Testing Results (8 Rounds)
+- **63 wet tests** across 4 maps with real retail data.
+- **18 real gameplay bugs** found and fixed that 400+ unit tests missed.
+- Critical fixes: moveObjectsForConstruction, A* attack pathfinding, sell refund, energy fields, parkingSpaceProducerId containment, ChildObject INI parser, NaN position guards.
+- Last 3 rounds found ZERO new bugs — game stabilized.
 - **Damage flash**: Red emissive 0.2s flash on taking damage, restores team color after.
 - **Loading screen map preview**: 200x200 terrain minimap with gold border during loading.
 - **Minimap category icons**: Buildings 6x6+outline, vehicles 4x4, infantry 2x2, air 3x3.
