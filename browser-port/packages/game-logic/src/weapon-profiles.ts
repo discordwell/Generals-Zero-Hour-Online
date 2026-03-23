@@ -94,6 +94,27 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
     ['CapableOfFollowingWaypoints'],
   ) ?? false;
   const leechRangeWeapon = readBooleanField(weaponDef.fields, ['LeechRangeWeapon']) ?? false;
+  // Source parity: WeaponTemplate::m_allowAttackGarrisonedBldgs (Weapon.cpp line 239/322).
+  // Default TRUE — most weapons can target garrisoned buildings. Weapons with
+  // AllowAttackGarrisonedBldgs = No (e.g., flashbangs, toxin sprayers) are blocked.
+  const allowAttackGarrisonedBldgs = readBooleanField(weaponDef.fields, ['AllowAttackGarrisonedBldgs']) ?? true;
+  // Source parity: WeaponTemplate::m_shotsPerBarrel — shots per barrel before cycling (default 1).
+  const shotsPerBarrelRaw = readNumericField(weaponDef.fields, ['ShotsPerBarrel']) ?? 1;
+  const shotsPerBarrel = Math.max(1, Math.trunc(shotsPerBarrelRaw));
+  // Source parity: WeaponTemplate::m_shockWaveAmount/Radius/TaperOff — shockwave knockback parameters.
+  const shockWaveAmount = readNumericField(weaponDef.fields, ['ShockWaveAmount']) ?? 0;
+  const shockWaveRadius = Math.max(0, readNumericField(weaponDef.fields, ['ShockWaveRadius']) ?? 0);
+  const shockWaveTaperOff = readNumericField(weaponDef.fields, ['ShockWaveTaperOff']) ?? 0;
+  // Source parity: WeaponTemplate::m_acceptableAimDelta — turret alignment tolerance (degrees→radians).
+  const acceptableAimDeltaDeg = readNumericField(weaponDef.fields, ['AcceptableAimDelta']) ?? 1;
+  const acceptableAimDelta = acceptableAimDeltaDeg * (Math.PI / 180);
+  // Source parity: WeaponTemplate::m_minTargetPitch / m_maxTargetPitch (degrees→radians).
+  const minTargetPitch = (readNumericField(weaponDef.fields, ['MinTargetPitch']) ?? -90) * (Math.PI / 180);
+  const maxTargetPitch = (readNumericField(weaponDef.fields, ['MaxTargetPitch']) ?? 90) * (Math.PI / 180);
+  // Source parity: WeaponTemplate::m_requestAssistRange — allies within range auto-engage target.
+  const requestAssistRange = Math.max(0, readNumericField(weaponDef.fields, ['RequestAssistRange']) ?? 0);
+  // Source parity: WeaponTemplate::m_fireOCLNames — OCL spawned on each weapon fire.
+  const fireOCLName = readStringField(weaponDef.fields, ['FireOCL'])?.trim() || null;
   const clipSizeRaw = readNumericField(weaponDef.fields, ['ClipSize']) ?? 0;
   const clipSize = Math.max(0, Math.trunc(clipSizeRaw));
   const clipReloadFrames = self.msToLogicFrames(readNumericField(weaponDef.fields, ['ClipReloadTime']) ?? 0);
@@ -204,6 +225,16 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
     historicBonusRadius: readNumericField(weaponDef.fields, ['HistoricBonusRadius']) ?? 0,
     historicBonusTime: readNumericField(weaponDef.fields, ['HistoricBonusTime']) ?? 0,
     historicBonusWeapon: readStringField(weaponDef.fields, ['HistoricBonusWeapon'])?.trim() || null,
+    shotsPerBarrel,
+    shockWaveAmount,
+    shockWaveRadius,
+    shockWaveTaperOff,
+    acceptableAimDelta,
+    minTargetPitch,
+    maxTargetPitch,
+    requestAssistRange,
+    fireOCLName,
+    allowAttackGarrisonedBldgs,
   };
 }
 

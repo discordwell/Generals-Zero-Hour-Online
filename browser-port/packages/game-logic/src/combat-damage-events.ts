@@ -30,6 +30,12 @@ interface CombatDamageWeaponLike {
   damageType: string;
   deathType: string;
   continueAttackRange: number;
+  /** Source parity: WeaponTemplate::m_shockWaveAmount — shockwave impulse magnitude. */
+  shockWaveAmount?: number;
+  /** Source parity: WeaponTemplate::m_shockWaveRadius — shockwave effect radius. */
+  shockWaveRadius?: number;
+  /** Source parity: WeaponTemplate::m_shockWaveTaperOff — shockwave taper factor at edge (0..1). */
+  shockWaveTaperOff?: number;
 }
 
 interface PendingWeaponDamageEventLike<TWeapon extends CombatDamageWeaponLike> {
@@ -97,6 +103,17 @@ export interface CombatDamageEventContext<
    * share a common base template.
    */
   areTemplatesEquivalent(leftTemplateName: string, rightTemplateName: string): boolean;
+  /**
+   * Source parity: Object.cpp:attemptDamage — apply shockwave velocity impulse.
+   * Called for each entity within shockwave radius. Implementation should add
+   * velocity to the entity's physics behavior state if it exists.
+   */
+  applyShockWaveImpulse?(
+    entity: TEntity,
+    impulseX: number,
+    impulseY: number,
+    impulseZ: number,
+  ): void;
   masks: CombatDamageMasks;
   relationships: CombatDamageRelationships;
   hugeDamageAmount: number;
@@ -281,6 +298,10 @@ export function applyWeaponDamageEvent<
     return;
   }
 
+  // Source parity: track which entities received damage — shockwave is applied
+  // inside Object::attemptDamage(), so only damaged entities get knocked back.
+  const damagedEntities: TEntity[] = [];
+
   for (const victim of victims) {
     const candidate = victim.entity;
     let killSelf = false;
@@ -342,10 +363,63 @@ export function applyWeaponDamageEvent<
       ? context.hugeDamageAmount
       : (victim.distanceSqr <= primaryRadiusSqr ? weapon.primaryDamage : weapon.secondaryDamage);
     context.applyWeaponDamageAmount(source?.id ?? null, candidate, rawAmount, weapon.damageType, weapon.deathType);
+    damagedEntities.push(candidate);
   }
 
   if (source && primaryVictimWasAlive && primaryVictim && primaryVictim.destroyed) {
     tryContinueAttackOnVictimDeath(context, source, primaryVictim, weapon);
+  }
+
+  // Source parity: Object.cpp:1825-1849 — apply shockwave knockback impulse to damaged entities.
+  // Shockwave pushes entities away from the impact point with tapered force based on distance.
+  const shockWaveAmount = weapon.shockWaveAmount ?? 0;
+  const shockWaveRadius = weapon.shockWaveRadius ?? 0;
+  const shockWaveTaperOff = weapon.shockWaveTaperOff ?? 0;
+  if (shockWaveAmount > 0 && shockWaveRadius > 0 && context.applyShockWaveImpulse) {
+    for (const entity of damagedEntities) {
+      if (entity.destroyed) continue;
+
+      // Source parity: Object.cpp:1832 — skip airborne and projectile entities.
+      // We approximate: skip entities that are significantly above terrain.
+      if (context.isEntitySignificantlyAboveTerrain(entity)) continue;
+
+      // Source parity: damageDirection = victim.pos - impact.pos, used as shockWaveVector.
+      const dx = entity.x - impactX;
+      const dz = entity.z - impactZ;
+      const vectorLength = Math.hypot(dx, dz);
+
+      // Source parity: Weapon.cpp:1443-1449 — guard against zero vector.
+      // If entity is at impact center, push straight up.
+      let normDx: number, normDz: number;
+      if (vectorLength > 1e-6) {
+        normDx = dx / vectorLength;
+        normDz = dz / vectorLength;
+      } else {
+        normDx = 0;
+        normDz = 0;
+      }
+
+      // Source parity: Object.cpp:1836-1838 — compute taper based on distance from center.
+      // distanceFromCenter = min(1, vectorLength / shockWaveRadius)
+      // distanceTaper = distanceFromCenter * (1 - shockWaveTaperOff)
+      // shockTaperMult = 1 - distanceTaper
+      const distanceFromCenter = Math.min(1.0, vectorLength / shockWaveRadius);
+      const distanceTaper = distanceFromCenter * (1.0 - shockWaveTaperOff);
+      const shockTaperMult = 1.0 - distanceTaper;
+
+      // Source parity: Object.cpp:1843-1846 — scale normalized direction by amount * taper.
+      const lateralForce = shockWaveAmount * shockTaperMult;
+      const impulseX = normDx * lateralForce;
+      const impulseZ = normDz * lateralForce;
+      // Source parity: shockWaveForce.z = shockWaveForce.length() — vertical impulse equals
+      // total lateral magnitude. In our Y-up coordinate system, this becomes impulseY.
+      // If at ground zero (zero lateral), apply full force upward (C++ sets z=1 in direction
+      // then scales by amount * taper, giving impulseY = lateralForce).
+      const lateralMagnitude = Math.hypot(impulseX, impulseZ);
+      const impulseY = lateralMagnitude > 0 ? lateralMagnitude : lateralForce;
+
+      context.applyShockWaveImpulse(entity, impulseX, impulseY, impulseZ);
+    }
   }
 
   // Source parity: FROM_BOUNDINGSPHERE_3D bounding-sphere subtraction implemented above.

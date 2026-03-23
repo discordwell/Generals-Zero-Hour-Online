@@ -128,6 +128,14 @@ export interface WeaponSlotProfile {
   preferredAgainstKindOf: ReadonlySet<string>;
   /** Source parity: Weapon auto-reloads its clip (e.g. after AutoReloadWhenIdle). */
   autoReloadsClip?: boolean;
+  /** Source parity: WeaponTemplate::m_shotsPerBarrel — shots fired per barrel before cycling (default 1). */
+  shotsPerBarrel?: number;
+  /** Source parity: WeaponTemplate::m_shockWaveAmount — shockwave impulse magnitude. */
+  shockWaveAmount?: number;
+  /** Source parity: WeaponTemplate::m_shockWaveRadius — shockwave effect radius. */
+  shockWaveRadius?: number;
+  /** Source parity: WeaponTemplate::m_shockWaveTaperOff — shockwave taper factor at edge (0..1). */
+  shockWaveTaperOff?: number;
 }
 
 // ---------------------------------------------------------------------------

@@ -1704,6 +1704,26 @@ interface AttackWeaponProfile {
   historicBonusTime: number;
   /** Source parity: WeaponTemplate::m_historicBonusWeapon — bonus weapon template name. */
   historicBonusWeapon: string | null;
+  /** Source parity: WeaponTemplate::m_shotsPerBarrel — shots fired per barrel before cycling (default 1). */
+  shotsPerBarrel: number;
+  /** Source parity: WeaponTemplate::m_shockWaveAmount — shockwave impulse magnitude. */
+  shockWaveAmount: number;
+  /** Source parity: WeaponTemplate::m_shockWaveRadius — shockwave effect radius. */
+  shockWaveRadius: number;
+  /** Source parity: WeaponTemplate::m_shockWaveTaperOff — shockwave taper factor at edge (0..1). */
+  shockWaveTaperOff: number;
+  /** Source parity: WeaponTemplate::m_acceptableAimDelta — turret alignment tolerance (radians). */
+  acceptableAimDelta: number;
+  /** Source parity: WeaponTemplate::m_minTargetPitch — minimum pitch angle to target (radians). */
+  minTargetPitch: number;
+  /** Source parity: WeaponTemplate::m_maxTargetPitch — maximum pitch angle to target (radians). */
+  maxTargetPitch: number;
+  /** Source parity: WeaponTemplate::m_requestAssistRange — allies within range auto-engage same target. */
+  requestAssistRange: number;
+  /** Source parity: WeaponTemplate::m_fireOCLNames — OCL spawned on each weapon fire. */
+  fireOCLName: string | null;
+  /** Source parity: WeaponTemplate::m_allowAttackGarrisonedBldgs — allow targeting garrisoned buildings (default true). */
+  allowAttackGarrisonedBldgs: boolean;
 }
 
 interface WeaponTemplateSetProfile {
@@ -2859,6 +2879,8 @@ export interface MapEntity {
   productionQueue: ProductionQueueEntry[];
   productionNextId: number;
   queueProductionExitProfile: QueueProductionExitProfile | null;
+  /** Source parity: ThingTemplate::m_factoryExitWidth — lateral offset for spawned units. */
+  factoryExitWidth: number;
   /** Source parity: SpawnPointProductionExitUpdate — spawn slot positions and occupancy. */
   spawnPointExitState: SpawnPointExitState | null;
   rallyPoint: VectorXZ | null;
@@ -2981,6 +3003,8 @@ export interface MapEntity {
   visionRange: number;
   /** Source parity: Object::m_shroudClearingRange — fog reveal radius, separate from vision range. */
   shroudClearingRange: number;
+  /** Source parity: ThingTemplate::m_shroudRevealToAllRange — reveals fog for ALL sides. */
+  shroudRevealToAllRange: number;
   visionState: EntityVisionState;
   /** Source parity: StealthUpdate — parsed stealth module profile. */
   stealthProfile: StealthProfile | null;
@@ -7271,6 +7295,8 @@ export class GameLogicSubsystem implements Subsystem {
    * cleaned up when entities move or spy vision expires.
    */
   private readonly spyVisionEntityStates = new Map<string, EntityVisionState>();
+  /** Source parity: per-entity per-player vision state for ShroudRevealToAllRange. */
+  private readonly revealToAllVisionStates = new Map<string, EntityVisionState>();
   private readonly sidePlayerIndex = new Map<string, number>();
   private nextPlayerIndex = 0;
   private readonly skirmishAIStates = new Map<string, SkirmishAIState>();
@@ -22498,6 +22524,17 @@ export class GameLogicSubsystem implements Subsystem {
         effectiveShroudClearingRange,
         !entity.destroyed,
       );
+
+      // Source parity: ShroudRevealToAllRange — reveals fog for ALL player indices.
+      if (entity.shroudRevealToAllRange > 0) {
+        for (const [, pi] of this.sidePlayerIndex) {
+          if (pi === playerIdx) continue;
+          const key = `rta:${entity.id}:${pi}`;
+          let vs = this.revealToAllVisionStates.get(key);
+          if (!vs) { vs = createEntityVisionStateImpl(); this.revealToAllVisionStates.set(key, vs); }
+          updateEntityVisionImpl(grid, vs, pi, entity.x, entity.z, entity.shroudRevealToAllRange, !entity.destroyed);
+        }
+      }
     }
   }
 
@@ -24387,13 +24424,25 @@ export class GameLogicSubsystem implements Subsystem {
       return null;
     }
 
+    // Source parity: FactoryExitWidth — randomly offset spawned unit laterally.
+    let spawnX = spawnLocation.x;
+    let spawnZ = spawnLocation.z;
+    if (producer.factoryExitWidth > 0) {
+      const halfWidth = producer.factoryExitWidth / 2;
+      const lateral = (this.gameRandom.nextFloat() * 2 - 1) * halfWidth;
+      const perpX = -Math.sin(producer.rotationY);
+      const perpZ = Math.cos(producer.rotationY);
+      spawnX += lateral * perpX;
+      spawnZ += lateral * perpZ;
+    }
+
     const mapObject: MapObjectJSON = {
       templateName: unitDef.name,
       angle: THREE.MathUtils.radToDeg(producer.rotationY),
       flags: 0,
       position: {
-        x: spawnLocation.x,
-        y: spawnLocation.z,
+        x: spawnX,
+        y: spawnZ,
         z: spawnLocation.heightOffset,
       },
       properties: {},
@@ -25405,7 +25454,9 @@ export class GameLogicSubsystem implements Subsystem {
       }
       if (targetAngle === null) return false;
       const angleDiff = Math.abs(this.normalizeAngle(targetAngle - ts.currentAngle));
-      return angleDiff <= GameLogicSubsystem.TURRET_ALIGN_THRESHOLD;
+      // Source parity: use per-weapon AcceptableAimDelta when available, else static threshold.
+      const threshold = entity.attackWeapon?.acceptableAimDelta ?? GameLogicSubsystem.TURRET_ALIGN_THRESHOLD;
+      return angleDiff <= threshold;
     }
     // No turret controls this slot — firing is unrestricted.
     return true;
@@ -26005,6 +26056,31 @@ export class GameLogicSubsystem implements Subsystem {
       resolveBoundingSphereRadius: (entity) => this.resolveBoundingSphereRadius(entity),
       areTemplatesEquivalent: (leftTemplateName, rightTemplateName) =>
         this.areEquivalentTemplateNames(leftTemplateName, rightTemplateName),
+      applyShockWaveImpulse: (entity, impulseX, impulseY, impulseZ) => {
+        // Source parity: Object.cpp:1831-1849 — apply shockwave velocity via PhysicsBehavior::applyShock().
+        // Initialize physics state if entity has a physics behavior profile.
+        if (!entity.physicsBehaviorProfile) return;
+        if (!entity.physicsBehaviorState) {
+          entity.physicsBehaviorState = {
+            velX: 0, velY: 0, velZ: 0,
+            accelX: 0, accelY: 0, accelZ: 0,
+            yawRate: 0, pitchRate: 0, rollRate: 0,
+            wasAirborneLastFrame: false,
+            stickToGround: true,
+            allowToFall: false,
+            isInFreeFall: false,
+            extraBounciness: 0, extraFriction: 0,
+          };
+        }
+        const st = entity.physicsBehaviorState;
+        st.velX += impulseX;
+        st.velY += impulseY;
+        st.velZ += impulseZ;
+        // Source parity: PhysicsBehavior::applyShock sets allowToFall=true and stickToGround=false
+        // so the entity can leave the ground plane.
+        st.allowToFall = true;
+        st.stickToGround = false;
+      },
       masks: {
         affectsSelf: WEAPON_AFFECTS_SELF,
         affectsAllies: WEAPON_AFFECTS_ALLIES,
@@ -31489,6 +31565,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.fogOfWarGrid = null;
     this.activeSpyVisions.length = 0;
     this.spyVisionEntityStates.clear();
+    this.revealToAllVisionStates.clear();
     this.sidePlayerIndex.clear();
     this.nextPlayerIndex = 0;
     this.skirmishAIStates.clear();

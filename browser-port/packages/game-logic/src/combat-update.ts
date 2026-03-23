@@ -11,6 +11,8 @@ interface CombatUpdateWeaponLike {
   clipReloadFrames: number;
   /** Source parity: Weapon::m_leechRangeWeapon — unlimited range after first shot connects. */
   leechRangeWeapon: boolean;
+  /** Source parity: WeaponTemplate::m_shotsPerBarrel — damage events queued per firing cycle (default 1). */
+  shotsPerBarrel?: number;
 }
 
 interface CombatUpdateEntityLike {
@@ -267,7 +269,11 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
 
     context.setEntityAimingWeaponStatus(attacker, false);
     context.setEntityFiringWeaponStatus(attacker, true);
-    context.queueWeaponDamageEvent(attacker, target, weapon);
+    // Source parity: Weapon.cpp — fire ShotsPerBarrel damage events per firing cycle.
+    const shotsPerBarrel = Math.max(1, weapon.shotsPerBarrel ?? 1);
+    for (let shotIdx = 0; shotIdx < shotsPerBarrel; shotIdx++) {
+      context.queueWeaponDamageEvent(attacker, target, weapon);
+    }
     context.setEntityIgnoringStealthStatus(attacker, false);
     attacker.preAttackFinishFrame = 0;
     // Source parity: Weapon::m_lastFireFrame = TheGameLogic->getFrame()
