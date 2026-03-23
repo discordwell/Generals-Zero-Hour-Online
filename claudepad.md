@@ -1,5 +1,13 @@
 # Session Summaries
 
+## 2026-03-22T23:30Z — Fix Campaign Premature DEFEAT (3 Root Causes)
+- **Root cause 1 — Missing isCampaignMode guard**: C++ `VictoryConditions::update()` exits early when `!TheRecorder->isMultiplayer()`, but the browser port's `checkVictoryConditions` had no such guard. Added `isCampaignMode` to `GameLogicConfig`, guarded `checkVictoryConditions` in `entity-lifecycle.ts`.
+- **Root cause 2 — LOCALDEFEAT wrongly marked player defeated**: C++ `doLocalDefeat()` is UI-only (shows LocalDefeat.wnd, starts close-window timer), but the browser port's `setScriptLocalDefeatState` was adding the player to `defeatedSides`. Fixed to be a no-op matching C++ behavior. Campaign intro cinematics use LOCALDEFEAT to signal "player not in control yet" without ending the game.
+- **Root cause 3 — Campaign player side set to player name instead of faction**: `setPlayerSide(0, 'The_Player')` stored `'the_player'`, but entities have side `'america'`. Script conditions like `PLAYER_ALL_DESTROYED('<Local Player>')` found zero matching entities and returned true immediately. Fixed to resolve faction side via `scriptPlayerSideByName` (e.g. `THE_PLAYER` -> `america`).
+- **Wet test**: All 6 retail campaign wet tests pass. USA Mission 1 no longer triggers DEFEAT at frame 272. Skirmish victory conditions unaffected (4 parity tests pass).
+- **Deploy**: ovh2 SSH unreachable (connection timed out).
+- Committed a4537fe6, pushed to origin/main.
+
 ## 2026-03-20T13:45Z — Combat Chase Fix + Team Colors + Ghost Validation + Hotkeys + Perf
 - **CRITICAL FIX — Units stuck when attacking beyond weapon range**: `updateCombat` was calling `issueMoveTo` every frame for out-of-range targets, which reset `pathIndex` to 0. Since `findPath` prepends the entity's current position as path[0], the entity could never advance. Fix: only re-issue `issueMoveTo` when entity has stopped, matching C++ AIAttackState behavior. Also added moving target tracking — re-issues path when target moves >50% of weapon range from original position.
 - **5 new auto-attack tests**: explicit attack in-range, idle auto-targeting, moveTo baseline, walk-to-target-and-fire (the critical regression test), and mutual combat.
