@@ -210,6 +210,31 @@ export function canAttackerTargetEntity(self: GL,
     }
   }
 
+  // Source parity: WeaponTemplate pitch limits — reject targets outside vertical arc.
+  const weapon = attacker.attackWeapon;
+  if (weapon && (weapon.minTargetPitch > -Math.PI / 2 || weapon.maxTargetPitch < Math.PI / 2)) {
+    const dx = target.x - attacker.x;
+    const dz = target.z - attacker.z;
+    const horizontalDist = Math.hypot(dx, dz);
+    const dy = (target.y ?? 0) - (attacker.y ?? 0);
+    const pitch = Math.atan2(dy, Math.max(horizontalDist, 0.001));
+    if (pitch < weapon.minTargetPitch || pitch > weapon.maxTargetPitch) {
+      return false;
+    }
+  }
+
+  // Source parity: WeaponTemplate::m_allowAttackGarrisonedBldgs (Weapon.cpp line 613).
+  // When the attacker's weapon disallows targeting garrisoned buildings, reject if the
+  // target is a garrisoned structure with occupants inside.
+  if (
+    attacker.attackWeapon
+    && !attacker.attackWeapon.allowAttackGarrisonedBldgs
+    && target.containProfile?.moduleType === 'GARRISON'
+    && self.collectContainedEntityIds(target.id).length > 0
+  ) {
+    return false;
+  }
+
   // Source parity: WeaponSet.cpp line 673 — weapon anti-mask vs target anti-mask.
   // If no weapon on the attacker can engage this target type, reject.
   if (attacker.totalWeaponAntiMask !== 0) {
@@ -1183,4 +1208,28 @@ export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: Ma
 
   // Source parity: HistoricBonus — track hit location for bonus weapon triggering.
   self.checkHistoricBonus(bonusedWeapon, impactX, impactZ, attacker.id);
+
+  // Source parity: FireOCL — spawn OCL at weapon fire position.
+  if (weapon.fireOCLName) {
+    self.executeOCL(weapon.fireOCLName, attacker, undefined, impactX, impactZ);
+  }
+
+  // Source parity: RequestAssistRange — rally idle allies to attack same target.
+  if (weapon.requestAssistRange > 0 && target && !target.destroyed) {
+    requestAssistFromNearbyAllies(self, attacker, target, weapon.requestAssistRange);
+  }
+}
+
+export function requestAssistFromNearbyAllies(self: GL, attacker: MapEntity, target: MapEntity, range: number): void {
+  const rangeSq = range * range;
+  for (const ally of self.spawnedEntities.values()) {
+    if (ally.destroyed || ally.id === attacker.id || !ally.attackWeapon) continue;
+    if (ally.attackTargetEntityId !== null || ally.moving) continue;
+    if (self.getTeamRelationship(attacker, ally) !== RELATIONSHIP_ALLIES) continue;
+    const dx = ally.x - attacker.x;
+    const dz = ally.z - attacker.z;
+    if (dx * dx + dz * dz > rangeSq) continue;
+    if (!canAttackerTargetEntity(self, ally, target, 'AI')) continue;
+    issueAttackEntity(self, ally.id, target.id, 'AI');
+  }
 }

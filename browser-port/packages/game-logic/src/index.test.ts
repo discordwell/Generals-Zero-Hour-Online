@@ -44623,4 +44623,319 @@ describe('getLocalPlayerAllSciences', () => {
     // Falls back to PALADINTANK with underscores replaced by spaces
     expect(paladin!.displayName).toBe('PALADINTANK');
   });
+
+  // ---- AllowAttackGarrisonedBldgs weapon filter ----
+
+  it('weapon with AllowAttackGarrisonedBldgs=No cannot target a garrisoned building', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Attacker', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'NoGarrisonWeapon'] }),
+        ]),
+        makeObjectDef('Bunker', 'China', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Garrison', { ContainMax: 5 }),
+        ], { GeometryMajorRadius: 8, GeometryMinorRadius: 8 }),
+        makeObjectDef('Defender', 'China', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('NoGarrisonWeapon', {
+          PrimaryDamage: 30,
+          AttackRange: 200,
+          DelayBetweenShots: 100,
+          AllowAttackGarrisonedBldgs: 'No',
+        }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Attacker', 10, 10),   // id 1
+        makeMapObject('Bunker', 50, 10),      // id 2
+        makeMapObject('Defender', 50, 10),    // id 3
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    // Garrison the defender into the bunker.
+    logic.submitCommand({ type: 'garrisonBuilding', entityId: 3, targetBuildingId: 2 });
+    for (let i = 0; i < 30; i++) logic.update(1 / 30);
+
+    const priv = logic as unknown as { spawnedEntities: Map<number, MapEntity> };
+    expect(priv.spawnedEntities.get(3)?.garrisonContainerId).toBe(2);
+
+    // Try to attack the garrisoned building — should be rejected.
+    logic.submitCommand({ type: 'attackEntity', entityId: 1, targetEntityId: 2 });
+    for (let i = 0; i < 60; i++) logic.update(1 / 30);
+
+    // Building should be undamaged because the weapon cannot target it while garrisoned.
+    const bunker = priv.spawnedEntities.get(2);
+    expect(bunker).toBeDefined();
+    expect(bunker!.health).toBe(500);
+  });
+
+  it('weapon with AllowAttackGarrisonedBldgs=No CAN target an ungarrisoned building', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Attacker', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'NoGarrisonWeapon'] }),
+        ]),
+        makeObjectDef('Bunker', 'China', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 5000, InitialHealth: 5000 }),
+          makeBlock('Behavior', 'GarrisonContain ModuleTag_Garrison', { ContainMax: 5 }),
+        ], { GeometryMajorRadius: 8, GeometryMinorRadius: 8 }),
+      ],
+      weapons: [
+        makeWeaponDef('NoGarrisonWeapon', {
+          PrimaryDamage: 30,
+          AttackRange: 200,
+          DelayBetweenShots: 100,
+          AllowAttackGarrisonedBldgs: 'No',
+        }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Attacker', 10, 10),   // id 1
+        makeMapObject('Bunker', 50, 10),      // id 2
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    // No garrison — bunker is empty. Attack should succeed.
+    logic.submitCommand({ type: 'attackEntity', entityId: 1, targetEntityId: 2 });
+    for (let i = 0; i < 60; i++) logic.update(1 / 30);
+
+    const priv = logic as unknown as { spawnedEntities: Map<number, MapEntity> };
+    const bunker = priv.spawnedEntities.get(2);
+    expect(bunker).toBeDefined();
+    // Should have taken damage since the building is not garrisoned.
+    expect(bunker!.health).toBeLessThan(5000);
+  });
+
+  // ---- handlePointerInput test coverage ----
+
+  it('handlePointerInput: left-click on entity selects it', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Tank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene(), {
+      pickObjectByInput: () => 1,
+    });
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Tank', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    const camera = new THREE.PerspectiveCamera();
+
+    expect(logic.getLocalPlayerSelectionIds()).toEqual([]);
+
+    logic.handlePointerInput(makeInputState({ leftMouseClick: true }), camera);
+    logic.update(1 / 30);
+
+    expect(logic.getLocalPlayerSelectionIds()).toEqual([1]);
+  });
+
+  it('handlePointerInput: left-click on empty ground clears selection', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Tank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+
+    let pickResult: number | null = 1;
+    const logic = new GameLogicSubsystem(new THREE.Scene(), {
+      pickObjectByInput: () => pickResult,
+    });
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Tank', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    const camera = new THREE.PerspectiveCamera();
+
+    // Select entity by left-clicking (picker returns 1).
+    logic.handlePointerInput(makeInputState({ leftMouseClick: true }), camera);
+    logic.update(1 / 30);
+    expect(logic.getLocalPlayerSelectionIds()).toEqual([1]);
+
+    // Left-click on empty ground (picker returns null).
+    pickResult = null;
+    logic.handlePointerInput(makeInputState({ leftMouseClick: true }), camera);
+    logic.update(1 / 30);
+    expect(logic.getLocalPlayerSelectionIds()).toEqual([]);
+  });
+
+  it('handlePointerInput: right-click with selection on ground issues moveTo', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Tank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+      locomotors: [makeLocomotorDef('TankLocomotor', 30)],
+    });
+
+    let pickResult: number | null = 1;
+    const logic = new GameLogicSubsystem(new THREE.Scene(), {
+      pickObjectByInput: () => pickResult,
+    });
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Tank', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    const camera = new THREE.PerspectiveCamera();
+    // Position camera above looking down for raycasting to ground plane.
+    camera.position.set(64, 100, 64);
+    camera.lookAt(64, 0, 64);
+    camera.updateMatrixWorld();
+
+    // Select entity.
+    logic.handlePointerInput(makeInputState({ leftMouseClick: true }), camera);
+    logic.update(1 / 30);
+    expect(logic.getLocalPlayerSelectionIds()).toEqual([1]);
+
+    // Right-click on empty ground — should issue moveTo.
+    pickResult = null;
+    logic.handlePointerInput(makeInputState({
+      rightMouseClick: true,
+      mouseX: 400,
+      mouseY: 300,
+      viewportWidth: 800,
+      viewportHeight: 600,
+    }), camera);
+    logic.update(1 / 30);
+
+    // Entity should be moving.
+    const priv = logic as unknown as { spawnedEntities: Map<number, MapEntity> };
+    const tank = priv.spawnedEntities.get(1);
+    expect(tank).toBeDefined();
+    expect(tank!.moving).toBe(true);
+  });
+
+  it('handlePointerInput: right-click on enemy issues attackEntity', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Tank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'TankGun'] }),
+        ]),
+        makeObjectDef('Enemy', 'China', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+      weapons: [
+        makeWeaponDef('TankGun', {
+          PrimaryDamage: 20,
+          AttackRange: 200,
+          DelayBetweenShots: 100,
+        }),
+      ],
+    });
+
+    let pickCallCount = 0;
+    const logic = new GameLogicSubsystem(new THREE.Scene(), {
+      pickObjectByInput: () => {
+        pickCallCount++;
+        // First call (left-click select): pick entity 1 (our tank).
+        // Second call (right-click): pick entity 2 (enemy).
+        return pickCallCount <= 1 ? 1 : 2;
+      },
+    });
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Tank', 10, 10),    // id 1
+        makeMapObject('Enemy', 60, 10),   // id 2
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+    const camera = new THREE.PerspectiveCamera();
+
+    // Select our tank.
+    logic.handlePointerInput(makeInputState({ leftMouseClick: true }), camera);
+    logic.update(1 / 30);
+    expect(logic.getLocalPlayerSelectionIds()).toEqual([1]);
+
+    // Right-click on enemy — should issue attack.
+    logic.handlePointerInput(makeInputState({ rightMouseClick: true }), camera);
+    logic.update(1 / 30);
+
+    const priv = logic as unknown as { spawnedEntities: Map<number, MapEntity> };
+    const tank = priv.spawnedEntities.get(1);
+    expect(tank).toBeDefined();
+    expect(tank!.attackTargetEntityId).toBe(2);
+  });
+
+  it('handlePointerInput: right-click on damaged friendly building with dozer issues repairBuilding', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Dozer', 'America', ['VEHICLE', 'DOZER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+        makeObjectDef('Building', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 250 }),
+        ]),
+      ],
+      locomotors: [makeLocomotorDef('DozerLoco', 20)],
+    });
+
+    let pickCallCount = 0;
+    const logic = new GameLogicSubsystem(new THREE.Scene(), {
+      pickObjectByInput: () => {
+        pickCallCount++;
+        // First call (left-click select): pick entity 1 (dozer).
+        // Second call (right-click): pick entity 2 (building).
+        return pickCallCount <= 1 ? 1 : 2;
+      },
+    });
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Dozer', 10, 10),      // id 1
+        makeMapObject('Building', 50, 10),   // id 2
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    const camera = new THREE.PerspectiveCamera();
+
+    // Select the dozer.
+    logic.handlePointerInput(makeInputState({ leftMouseClick: true }), camera);
+    logic.update(1 / 30);
+    expect(logic.getLocalPlayerSelectionIds()).toEqual([1]);
+
+    // Right-click on damaged friendly building — should issue repair.
+    logic.handlePointerInput(makeInputState({ rightMouseClick: true }), camera);
+    logic.update(1 / 30);
+
+    // The dozer should be moving toward the building for repair.
+    const priv = logic as unknown as { spawnedEntities: Map<number, MapEntity> };
+    const dozer = priv.spawnedEntities.get(1);
+    expect(dozer).toBeDefined();
+    expect(dozer!.moving).toBe(true);
+  });
 });

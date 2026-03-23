@@ -78,6 +78,8 @@ export function createMapEntity(self: GL,
 
   const locomotorSetProfiles = self.resolveLocomotorProfiles(objectDef, iniDataRegistry);
   const upgradeModules = extractUpgradeModules(self, objectDef);
+  // Source parity: ThingTemplate::m_factoryExitWidth — lateral offset for spawned units.
+  const factoryExitWidth = Math.max(0, readNumericField(objectDef?.fields ?? {}, ['FactoryExitWidth']) ?? 0);
   const productionProfile = extractProductionProfile(self, objectDef);
   const queueProductionExitProfile = extractQueueProductionExitProfile(self, objectDef);
   const parkingPlaceProfile = self.extractParkingPlaceProfile(objectDef);
@@ -100,6 +102,8 @@ export function createMapEntity(self: GL,
     && shroudClearingRangeFromTemplateRaw >= 0
       ? shroudClearingRangeFromTemplateRaw
       : visionRangeFromTemplate;
+  // Source parity: ThingTemplate::m_shroudRevealToAllRange — reveals to all sides.
+  const shroudRevealToAllRange = Math.max(0, readNumericField(objectDef?.fields ?? {}, ['ShroudRevealToAllRange']) ?? 0);
   const ambientSoundProfile = extractAmbientSoundProfile(self, objectDef);
   const jetAIProfile = self.extractJetAIProfile(objectDef);
   const animationSteeringProfile = extractAnimationSteeringProfile(self, objectDef);
@@ -296,6 +300,7 @@ export function createMapEntity(self: GL,
     productionQueue: [],
     productionNextId: 1,
     queueProductionExitProfile,
+    factoryExitWidth,
     spawnPointExitState: null,
     rallyPoint: null,
     parkingPlaceProfile,
@@ -358,6 +363,7 @@ export function createMapEntity(self: GL,
     experienceState: createExperienceStateImpl(),
     visionRange: visionRangeFromTemplate,
     shroudClearingRange: shroudClearingRangeFromTemplate,
+    shroudRevealToAllRange,
     visionState: createEntityVisionStateImpl(),
     stealthProfile: self.extractStealthProfile(objectDef),
     stealthDelayRemaining: 0,
