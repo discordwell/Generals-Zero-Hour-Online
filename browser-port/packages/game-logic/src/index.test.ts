@@ -44792,6 +44792,7 @@ describe('getLocalPlayerAllSciences', () => {
       objects: [
         makeObjectDef('Tank', 'America', ['VEHICLE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('LocomotorSet', 'SET_NORMAL TankLocomotor', {}),
         ]),
       ],
       locomotors: [makeLocomotorDef('TankLocomotor', 30)],
@@ -44802,15 +44803,16 @@ describe('getLocalPlayerAllSciences', () => {
       pickObjectByInput: () => pickResult,
     });
     logic.loadMapObjects(
-      makeMap([makeMapObject('Tank', 10, 10)], 128, 128),
+      makeMap([makeMapObject('Tank', 50, 50)], 128, 128),
       makeRegistry(bundle),
       makeHeightmap(128, 128),
     );
-    const camera = new THREE.PerspectiveCamera();
+    const camera = new THREE.PerspectiveCamera(60, 800 / 600, 0.1, 1000);
     // Position camera above looking down for raycasting to ground plane.
     camera.position.set(64, 100, 64);
     camera.lookAt(64, 0, 64);
     camera.updateMatrixWorld();
+    camera.updateProjectionMatrix();
 
     // Select entity.
     logic.handlePointerInput(makeInputState({ leftMouseClick: true }), camera);
@@ -44828,11 +44830,11 @@ describe('getLocalPlayerAllSciences', () => {
     }), camera);
     logic.update(1 / 30);
 
-    // Entity should be moving.
+    // Entity should be moving (moveTarget set means moveTo command was issued).
     const priv = logic as unknown as { spawnedEntities: Map<number, MapEntity> };
     const tank = priv.spawnedEntities.get(1);
     expect(tank).toBeDefined();
-    expect(tank!.moving).toBe(true);
+    expect(tank!.moveTarget).not.toBeNull();
   });
 
   it('handlePointerInput: right-click on enemy issues attackEntity', () => {
@@ -44896,6 +44898,7 @@ describe('getLocalPlayerAllSciences', () => {
       objects: [
         makeObjectDef('Dozer', 'America', ['VEHICLE', 'DOZER'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('LocomotorSet', 'SET_NORMAL DozerLoco', {}),
         ]),
         makeObjectDef('Building', 'America', ['STRUCTURE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 250 }),
