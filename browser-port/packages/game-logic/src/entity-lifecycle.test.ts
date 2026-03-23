@@ -3727,3 +3727,69 @@ describe('BattleBusSlowDeathBehavior', () => {
     expect(busEntity.destroyed).toBe(true);
   });
 });
+
+describe('container death evacuation edge cases', () => {
+  it('cleans up containment references when passenger is already destroyed on same frame', () => {
+    // Scenario: AOE kills both a transport and its passengers on the same frame.
+    // When the container's markEntityDestroyed runs, passengers already have
+    // destroyed=true. Their containment IDs should still be cleaned up.
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Transport', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Behavior', 'TransportContain ModuleTag_Contain', {
+            ContainMax: 5,
+            AllowInsideKindOf: 'INFANTRY',
+          }),
+        ]),
+        makeObjectDef('Soldier', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+          makeBlock('LocomotorSet', 'SET_NORMAL SoldierLoco', {}),
+        ], { TransportSlotCount: 1 }),
+      ],
+      locomotors: [makeLocomotorDef('SoldierLoco', 20)],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Transport', 20, 20),
+        makeMapObject('Soldier', 22, 20),
+      ]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.setPlayerSide(0, 'America');
+    logic.update(0);
+
+    // Enter transport.
+    logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
+    for (let i = 0; i < 10; i++) logic.update(1 / 30);
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        destroyed: boolean;
+        transportContainerId: number | null;
+        garrisonContainerId: number | null;
+      }>;
+      markEntityDestroyed(entityId: number, attackerId: number): void;
+    };
+
+    const soldier = priv.spawnedEntities.get(2)!;
+    // Verify soldier is inside transport.
+    expect(soldier.transportContainerId).toBe(1);
+
+    // Simulate AOE: kill soldier first, then kill transport.
+    priv.markEntityDestroyed(2, -1);
+    expect(soldier.destroyed).toBe(true);
+    // Before the fix, transportContainerId would still be 1 at this point.
+    // But markEntityDestroyed doesn't clean it up immediately (deferred to finalizeDestroyedEntities).
+    // The container's death should clean it up.
+
+    priv.markEntityDestroyed(1, -1);
+
+    // After container death, the destroyed passenger's containment reference
+    // should be cleaned up (no reference leak).
+    expect(soldier.transportContainerId).toBeNull();
+  });
+});

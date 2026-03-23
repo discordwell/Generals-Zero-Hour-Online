@@ -46,9 +46,19 @@ export interface SupplyTruckProfile {
   upgradedSupplyBoost: number;
 }
 
+// Source parity: DockUpdate::isClearToApproach — maximum concurrent approach slots.
+// C++ ResourceGatheringManager::computeRelativeCost checks DockUpdate::isClearToApproach.
+export const DEFAULT_MAX_APPROACH_SLOTS = 3;
+
 // ──── Per-entity runtime state ─────────────────────────────────────────────
 export interface SupplyWarehouseState {
   currentBoxes: number;
+}
+
+/** Tracks how many trucks are currently approaching/docking at a supply entity. */
+export interface DockApproachState {
+  currentDockerCount: number;
+  maxDockers: number;
 }
 
 export interface SupplyTruckState {
@@ -125,6 +135,10 @@ export interface SupplyChainContext<TEntity extends SupplyChainEntity> {
     carryingBoxes: boolean,
   ) => { x: number; z: number } | null;
 
+  /** Source parity: DockUpdate::isClearToApproach — per-dock approach slot tracking. */
+  getDockApproachState(entityId: number): DockApproachState | undefined;
+  setDockApproachState(entityId: number, state: DockApproachState): void;
+
   /** Mark an entity for destruction. */
   destroyEntity(entityId: number): void;
 
@@ -146,6 +160,49 @@ const DOCK_PROXIMITY_THRESHOLD_SQ = 25 * 25; // 25 world-units arrival radius
 
 function hasObjectStatus(entity: SupplyChainEntity, flag: string): boolean {
   return entity.objectStatusFlags ? entity.objectStatusFlags.has(flag) : false;
+}
+
+function ensureDockApproachState<TEntity extends SupplyChainEntity>(
+  dock: TEntity,
+  context: SupplyChainContext<TEntity>,
+): DockApproachState {
+  let approachState = context.getDockApproachState(dock.id);
+  if (!approachState) {
+    approachState = { currentDockerCount: 0, maxDockers: DEFAULT_MAX_APPROACH_SLOTS };
+    context.setDockApproachState(dock.id, approachState);
+  }
+  return approachState;
+}
+
+function isDockFull<TEntity extends SupplyChainEntity>(
+  dock: TEntity,
+  context: SupplyChainContext<TEntity>,
+): boolean {
+  const approachState = context.getDockApproachState(dock.id);
+  if (!approachState) {
+    return false; // No state yet → no dockers → not full.
+  }
+  return approachState.currentDockerCount >= approachState.maxDockers;
+}
+
+function incrementDockerCount<TEntity extends SupplyChainEntity>(
+  dock: TEntity,
+  context: SupplyChainContext<TEntity>,
+): void {
+  const approachState = ensureDockApproachState(dock, context);
+  approachState.currentDockerCount++;
+  context.setDockApproachState(dock.id, approachState);
+}
+
+function decrementDockerCount<TEntity extends SupplyChainEntity>(
+  dock: TEntity,
+  context: SupplyChainContext<TEntity>,
+): void {
+  const approachState = context.getDockApproachState(dock.id);
+  if (approachState && approachState.currentDockerCount > 0) {
+    approachState.currentDockerCount--;
+    context.setDockApproachState(dock.id, approachState);
+  }
 }
 
 function isSupplyTransferShrouded<TEntity extends SupplyChainEntity>(
@@ -231,8 +288,11 @@ function computeRelativeCost<TEntity extends SupplyChainEntity>(
   if (!canTransferSuppliesAt(truck, dock, state, context)) {
     return null;
   }
-  // Source parity gap: ResourceGatheringManager::computeRelativeCost also checks
-  // DockUpdate::isClearToApproach approach slots, which are not represented in this module yet.
+  // Source parity: ResourceGatheringManager::computeRelativeCost checks
+  // DockUpdate::isClearToApproach — skip docks that are full.
+  if (isDockFull(dock, context)) {
+    return null;
+  }
   const distanceSq = distSquared(truck.x, truck.z, dock.x, dock.z);
   return { cost: distanceSq, distanceSq };
 }
@@ -252,7 +312,7 @@ export function findNearestWarehouseWithBoxes<TEntity extends SupplyChainEntity>
   if (truckState.preferredDockId !== null) {
     const preferred = context.spawnedEntities.get(truckState.preferredDockId);
     if (preferred && !preferred.destroyed && context.getWarehouseProfile(preferred)) {
-      if (canTransferSuppliesAt(truck, preferred, truckState, context)) {
+      if (canTransferSuppliesAt(truck, preferred, truckState, context) && !isDockFull(preferred, context)) {
         return preferred;
       }
     }
@@ -306,7 +366,7 @@ export function findNearestSupplyCenter<TEntity extends SupplyChainEntity>(
   if (truckState.preferredDockId !== null) {
     const preferred = context.spawnedEntities.get(truckState.preferredDockId);
     if (preferred && !preferred.destroyed && context.isSupplyCenter(preferred)) {
-      if (canTransferSuppliesAt(truck, preferred, truckState, context)) {
+      if (canTransferSuppliesAt(truck, preferred, truckState, context) && !isDockFull(preferred, context)) {
         return preferred;
       }
     }
@@ -401,6 +461,7 @@ function tickIdle<TEntity extends SupplyChainEntity>(
     if (depot) {
       state.targetDepotId = depot.id;
       state.aiState = SupplyTruckAIState.APPROACHING_DEPOT;
+      incrementDockerCount(depot, context);
       context.moveEntityTo(truck.id, depot.x, depot.z);
       return;
     }
@@ -417,12 +478,39 @@ function tickIdle<TEntity extends SupplyChainEntity>(
   if (warehouse) {
     state.targetWarehouseId = warehouse.id;
     state.aiState = SupplyTruckAIState.APPROACHING_WAREHOUSE;
+    incrementDockerCount(warehouse, context);
     context.moveEntityTo(truck.id, warehouse.x, warehouse.z);
     return;
   }
 
   // No warehouse with boxes — regroup and retry.
   enterWaiting(truck, state, context, 60);
+}
+
+function releaseWarehouseDock<TEntity extends SupplyChainEntity>(
+  state: SupplyTruckState,
+  context: SupplyChainContext<TEntity>,
+): void {
+  if (state.targetWarehouseId !== null) {
+    const dock = context.spawnedEntities.get(state.targetWarehouseId);
+    if (dock) {
+      decrementDockerCount(dock, context);
+    }
+    state.targetWarehouseId = null;
+  }
+}
+
+function releaseDepotDock<TEntity extends SupplyChainEntity>(
+  state: SupplyTruckState,
+  context: SupplyChainContext<TEntity>,
+): void {
+  if (state.targetDepotId !== null) {
+    const dock = context.spawnedEntities.get(state.targetDepotId);
+    if (dock) {
+      decrementDockerCount(dock, context);
+    }
+    state.targetDepotId = null;
+  }
 }
 
 function tickApproachingWarehouse<TEntity extends SupplyChainEntity>(
@@ -438,24 +526,26 @@ function tickApproachingWarehouse<TEntity extends SupplyChainEntity>(
 
   const warehouse = context.spawnedEntities.get(state.targetWarehouseId);
   if (!warehouse || warehouse.destroyed) {
-    state.targetWarehouseId = null;
+    releaseWarehouseDock(state, context);
     state.aiState = SupplyTruckAIState.IDLE;
     return;
   }
 
   if (context.isWarehouseDockCrippled(warehouse)) {
-    state.targetWarehouseId = null;
+    releaseWarehouseDock(state, context);
     state.aiState = SupplyTruckAIState.IDLE;
     return;
   }
 
   if (!canTransferSuppliesAt(truck, warehouse, state, context)) {
-    state.targetWarehouseId = null;
+    releaseWarehouseDock(state, context);
     state.aiState = SupplyTruckAIState.IDLE;
     return;
   }
 
   if (isNearTarget(truck, warehouse)) {
+    // Arrived at warehouse — release the approach slot.
+    decrementDockerCount(warehouse, context);
     state.aiState = SupplyTruckAIState.GATHERING;
     state.actionDelayFinishFrame = context.frameCounter + truckProfile.supplyWarehouseActionDelayFrames;
   }
@@ -551,6 +641,7 @@ function transitionToDeposit<TEntity extends SupplyChainEntity>(
   if (depot) {
     state.targetDepotId = depot.id;
     state.aiState = SupplyTruckAIState.APPROACHING_DEPOT;
+    incrementDockerCount(depot, context);
     context.moveEntityTo(truck.id, depot.x, depot.z);
   } else {
     enterWaiting(truck, state, context, 30);
@@ -585,14 +676,14 @@ function tickApproachingDepot<TEntity extends SupplyChainEntity>(
 
   const depot = context.spawnedEntities.get(state.targetDepotId);
   if (!depot || depot.destroyed) {
-    state.targetDepotId = null;
+    releaseDepotDock(state, context);
     // Try another depot.
     transitionToDeposit(truck, state, context);
     return;
   }
 
   if (!canTransferSuppliesAt(truck, depot, state, context)) {
-    state.targetDepotId = null;
+    releaseDepotDock(state, context);
     if (state.currentBoxes > 0) {
       transitionToDeposit(truck, state, context);
     } else {
@@ -602,6 +693,8 @@ function tickApproachingDepot<TEntity extends SupplyChainEntity>(
   }
 
   if (isNearTarget(truck, depot)) {
+    // Arrived at depot — release the approach slot.
+    decrementDockerCount(depot, context);
     state.aiState = SupplyTruckAIState.DEPOSITING;
     state.actionDelayFinishFrame = context.frameCounter;
   }

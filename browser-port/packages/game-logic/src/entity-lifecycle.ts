@@ -749,6 +749,7 @@ export function silentDestroyEntity(self: GL, entityId: number): void {
   self.railedTransportStateByEntityId.delete(entityId);
   self.supplyWarehouseStates.delete(entityId);
   self.supplyTruckStates.delete(entityId);
+  self.dockApproachStates.delete(entityId);
   self.disableOverchargeForEntity(entity);
   self.sellingEntities.delete(entityId);
   self.disabledHackedStatusByEntityId.delete(entityId);
@@ -1299,6 +1300,7 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   self.railedTransportStateByEntityId.delete(entityId);
   self.supplyWarehouseStates.delete(entityId);
   self.supplyTruckStates.delete(entityId);
+  self.dockApproachStates.delete(entityId);
   self.disableOverchargeForEntity(entity);
   self.sellingEntities.delete(entityId);
   self.disabledHackedStatusByEntityId.delete(entityId);
@@ -1392,6 +1394,25 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
       const passenger = self.spawnedEntities.get(passengerId);
       if (passenger && !passenger.destroyed) {
         self.releaseEntityFromContainer(passenger);
+      }
+    }
+    // Edge case: AOE damage may kill passengers on the same frame as the container
+    // (or processDamageToContained / killRidersWhoAreNotFreeToExit killed them above).
+    // collectContainedEntityIds skips destroyed entities, so their containment IDs
+    // remain stale. Clean them up to prevent reference leaks.
+    for (const other of self.spawnedEntities.values()) {
+      if (!other.destroyed) continue;
+      if (other.garrisonContainerId === entityId) {
+        other.garrisonContainerId = null;
+      }
+      if (other.transportContainerId === entityId) {
+        other.transportContainerId = null;
+      }
+      if (other.helixCarrierId === entityId) {
+        other.helixCarrierId = null;
+      }
+      if (other.parkingSpaceProducerId === entityId) {
+        other.parkingSpaceProducerId = null;
       }
     }
   }

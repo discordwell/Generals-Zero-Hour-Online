@@ -133,6 +133,7 @@ import {
   SupplyTruckAIState,
   initializeWarehouseState as initializeWarehouseStateImpl,
   updateSupplyTruck as updateSupplyTruckImpl,
+  type DockApproachState,
   type SupplyChainContext,
   type SupplyTruckProfile,
   type SupplyTruckState,
@@ -7247,6 +7248,8 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly pendingConstructionActions = new Map<number, number>();
   private readonly supplyWarehouseStates = new Map<number, SupplyWarehouseState>();
   private readonly supplyTruckStates = new Map<number, SupplyTruckState>();
+  /** Source parity: DockUpdate::isClearToApproach — per-dock approach slot tracking. */
+  private readonly dockApproachStates = new Map<number, DockApproachState>();
   private fogOfWarGrid: FogOfWarGrid | null = null;
   /** Source parity: Cached water polygon trigger data for FloatUpdate water height queries. */
   private waterPolygonData: Array<{
@@ -22748,6 +22751,10 @@ export class GameLogicSubsystem implements Subsystem {
       setTruckState: (entityId: number, state: SupplyTruckState) => {
         this.supplyTruckStates.set(entityId, state);
       },
+      getDockApproachState: (entityId: number) => this.dockApproachStates.get(entityId),
+      setDockApproachState: (entityId: number, state: DockApproachState) => {
+        this.dockApproachStates.set(entityId, state);
+      },
       depositCredits: (side: string, amount: number) => {
         this.depositSideCredits(side, amount);
       },
@@ -31560,6 +31567,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.pendingConstructionActions.clear();
     this.supplyWarehouseStates.clear();
     this.supplyTruckStates.clear();
+    this.dockApproachStates.clear();
     this.railedTransportStateByEntityId.clear();
     this.railedTransportWaypointIndex = createRailedTransportWaypointIndexImpl(null);
     this.fogOfWarGrid = null;
