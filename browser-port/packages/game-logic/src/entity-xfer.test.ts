@@ -269,6 +269,9 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     mineIgnoreDamage: false,
     mineCreatorId: 0,
 
+    // Fire weapon collide
+    fireWeaponCollideProfiles: [],
+
     // Eject
     ejectPilotTemplateName: null,
     ejectPilotMinVeterancy: 1,
