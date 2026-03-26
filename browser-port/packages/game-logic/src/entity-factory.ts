@@ -140,6 +140,18 @@ export function createMapEntity(self: GL,
     wanderAboutPointRadius: 0,
     preferredHeight: 0,
     preferredHeightDamping: 1,
+    zAxisBehavior: 'Z_NO_Z_MOTIVE_FORCE',
+    lift: 0,
+    liftDamaged: -1,
+    closeEnoughDist: 1.0,
+    circlingRadius: 0,
+    minTurnSpeed: 99999.0,
+    speedLimitZ: 999999.0,
+    canMoveBackwards: false,
+    groupMovementPriority: 'MOVES_MIDDLE',
+    speedDamaged: -1.0,
+    turnRateDamaged: -1.0,
+    accelerationDamaged: -1.0,
   };
   const combatProfile = self.resolveCombatCollisionProfile(objectDef);
   const attackNeedsLineOfSight = normalizedKindOf.has('ATTACK_NEEDS_LINE_OF_SIGHT');
@@ -155,6 +167,12 @@ export function createMapEntity(self: GL,
   }) ?? false;
   const needsGeometry = blocksPath || normalizedKindOf.has('MINE') || normalizedKindOf.has('CRATE') || combatProfile.crusherLevel > 0 || hasDynamicGeometryModule;
   const obstacleGeometry = needsGeometry ? self.resolveObstacleGeometry(objectDef) : null;
+  // Source parity: ThingTemplate constructor defaults m_geometryInfo to
+  // GEOMETRY_SPHERE with majorRadius=1, minorRadius=1, height=1.
+  // obstacleGeometry is null for entities that don't need pathfinding geometry,
+  // but geometryInfo is always present (matching C++ behavior).
+  const geometryInfo: { shape: 'circle' | 'box'; majorRadius: number; minorRadius: number; height: number } =
+    obstacleGeometry ?? self.resolveObstacleGeometry(objectDef) ?? { shape: 'circle', majorRadius: 1, minorRadius: 1, height: 1 };
   const obstacleFootprint = blocksPath ? self.footprintInCells(category, objectDef, obstacleGeometry) : 0;
   const { pathDiameter, pathfindCenterInCell } = self.resolvePathRadiusAndCenter(category, objectDef, obstacleGeometry);
   const geometryMajorRadius = objectDef
@@ -330,6 +348,7 @@ export function createMapEntity(self: GL,
     shadowSizeX,
     shadowSizeY,
     obstacleGeometry,
+    geometryInfo,
     obstacleFootprint,
     largestWeaponRange,
     totalWeaponAntiMask,
@@ -1810,10 +1829,11 @@ export function extractTurretProfiles(self: GL, objectDef: ObjectDef | undefined
 
         // Source parity: TurretTurnRate is parsed as AngularVelocity (degrees/sec in INI).
         // C++ parseAngularVelocityReal converts to rad/frame: value * (PI/180) / LOGICFRAMES_PER_SECOND.
-        const turnRateDegPerSec = readNumericField(block.fields, ['TurretTurnRate']) ?? 0;
-        const turnRate = turnRateDegPerSec > 0
+        // C++ TurretAI.h:37 — DEFAULT_TURN_RATE = 0.01 rad/frame when no INI value is specified.
+        const turnRateDegPerSec = readNumericField(block.fields, ['TurretTurnRate']);
+        const turnRate = turnRateDegPerSec != null && turnRateDegPerSec > 0
           ? turnRateDegPerSec * (Math.PI / 180) / LOGIC_FRAME_RATE
-          : 0;
+          : 0.01;
 
         // Source parity: NaturalTurretAngle is an angle (degrees in INI → radians).
         const naturalAngleDeg = readNumericField(block.fields, ['NaturalTurretAngle']) ?? 0;
@@ -3066,9 +3086,13 @@ export function extractPhysicsBehaviorProfile(self: GL, objectDef: ObjectDef | u
         };
         profile = {
           mass: readNumericField(block.fields, ['Mass']) ?? 1.0,
-          forwardFriction: parseFrictionPerSec(readNumericField(block.fields, ['ForwardFriction']), 0.15 * SECONDS_PER_FRAME),
-          lateralFriction: parseFrictionPerSec(readNumericField(block.fields, ['LateralFriction']), 0.15 * SECONDS_PER_FRAME),
-          zFriction: parseFrictionPerSec(readNumericField(block.fields, ['ZFriction']), 0.8 * SECONDS_PER_FRAME),
+          // Source parity: C++ defaults (PhysicsUpdate.cpp:55-57) are per-frame values:
+          // DEFAULT_FORWARD_FRICTION=0.15, DEFAULT_LATERAL_FRICTION=0.15, DEFAULT_Z_FRICTION=0.8.
+          // INI-loaded values are per-second and get converted via parseFrictionPerSec (÷30),
+          // but the defaults are already per-frame and must NOT be divided.
+          forwardFriction: parseFrictionPerSec(readNumericField(block.fields, ['ForwardFriction']), 0.15),
+          lateralFriction: parseFrictionPerSec(readNumericField(block.fields, ['LateralFriction']), 0.15),
+          zFriction: parseFrictionPerSec(readNumericField(block.fields, ['ZFriction']), 0.8),
           aerodynamicFriction: parseFrictionPerSec(readNumericField(block.fields, ['AerodynamicFriction']), 0),
           centerOfMassOffset: readNumericField(block.fields, ['CenterOfMassOffset']) ?? 0,
           killWhenRestingOnGround: readBooleanField(block.fields, ['KillWhenRestingOnGround']) ?? false,

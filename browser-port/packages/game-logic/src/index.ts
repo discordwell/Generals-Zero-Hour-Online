@@ -1600,6 +1600,49 @@ interface LocomotorSetProfile {
   preferredHeight: number;
   /** Source parity: Locomotor::m_preferredHeightDamping. */
   preferredHeightDamping: number;
+  /**
+   * Source parity: Locomotor::m_behaviorZ — controls Z-axis motive force behavior.
+   * Default: 'Z_NO_Z_MOTIVE_FORCE' (Locomotor.cpp:297).
+   */
+  zAxisBehavior: string;
+  /** Source parity: Locomotor::m_lift — vertical thrust. Default 0. */
+  lift: number;
+  /**
+   * Source parity: Locomotor::m_liftDamaged — lift when damaged. Default -1 (sentinel = use lift).
+   */
+  liftDamaged: number;
+  /** Source parity: Locomotor::m_closeEnoughDist. Default 1.0. */
+  closeEnoughDist: number;
+  /** Source parity: Locomotor::m_circlingRadius. Default 0. */
+  circlingRadius: number;
+  /**
+   * Source parity: Locomotor::m_minTurnSpeed — minimum speed for turning. Default BIGNUM (99999).
+   */
+  minTurnSpeed: number;
+  /** Source parity: Locomotor::m_speedLimitZ. Default 999999. */
+  speedLimitZ: number;
+  /** Source parity: Locomotor::m_canMoveBackward. Default false. */
+  canMoveBackwards: boolean;
+  /**
+   * Source parity: Locomotor::m_movePriority — group movement ordering.
+   * Default: 'MOVES_MIDDLE' (Locomotor.cpp:299).
+   */
+  groupMovementPriority: string;
+  /**
+   * Source parity: Locomotor::m_maxSpeedDamaged — speed when damaged.
+   * Default -1 (sentinel = use movementSpeed).
+   */
+  speedDamaged: number;
+  /**
+   * Source parity: Locomotor::m_maxTurnRateDamaged — turn rate when damaged.
+   * Default -1 (sentinel = use turnRate).
+   */
+  turnRateDamaged: number;
+  /**
+   * Source parity: Locomotor::m_accelerationDamaged — acceleration when damaged.
+   * Default -1 (sentinel = use acceleration).
+   */
+  accelerationDamaged: number;
 }
 
 interface BridgeSegmentState {
@@ -2960,6 +3003,13 @@ export interface MapEntity {
   /** Source parity: ThingTemplate::m_shadowSizeY — shadow decal Y extent. */
   shadowSizeY: number;
   obstacleGeometry: ObstacleGeometry | null;
+  /**
+   * Source parity: ThingTemplate::m_geometryInfo — always present on every entity.
+   * Defaults to GEOMETRY_SPHERE with radius=1, height=1 when INI doesn't specify geometry.
+   * Unlike obstacleGeometry (which is only for pathfinding), this is the general-purpose
+   * geometry used for collision detection, bounding sphere, etc.
+   */
+  geometryInfo: ObstacleGeometry;
   obstacleFootprint: number;
   ignoredMovementObstacleId: number | null;
   movePath: VectorXZ[];

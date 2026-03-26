@@ -180,6 +180,19 @@ export function resolveLocomotorProfiles(self: GL,
     let wanderAboutPointRadius = 0;
     let preferredHeight = 0;
     let preferredHeightDamping = 1;
+    // Source parity: Locomotor.cpp constructor defaults (lines 281-354).
+    let zAxisBehavior = 'Z_NO_Z_MOTIVE_FORCE';
+    let lift = 0;
+    let liftDamaged = -1;
+    let closeEnoughDist = 1.0;
+    let circlingRadius = 0;
+    let minTurnSpeed = 99999.0;
+    let speedLimitZ = 999999.0;
+    let canMoveBackwards = false;
+    let groupMovementPriority = 'MOVES_MIDDLE';
+    let speedDamaged = -1.0;
+    let turnRateDamaged = -1.0;
+    let accelerationDamaged = -1.0;
     let primaryLocomotor: LocomotorDef | null = null;
     for (const locomotorName of locomotorNames) {
       const locomotor = iniDataRegistry.getLocomotor(locomotorName);
@@ -208,6 +221,27 @@ export function resolveLocomotorProfiles(self: GL,
       if (appearanceToken) {
         appearance = appearanceToken;
       }
+      // Source parity: new locomotor fields from Locomotor.cpp constructor.
+      const zBehaviorToken = readStringField(f, ['ZAxisBehavior'])?.toUpperCase().trim();
+      if (zBehaviorToken) {
+        zAxisBehavior = zBehaviorToken;
+      }
+      lift = readNumericField(f, ['Lift']) ?? 0;
+      liftDamaged = readNumericField(f, ['LiftDamaged']) ?? -1;
+      closeEnoughDist = readNumericField(f, ['CloseEnoughDist']) ?? 1.0;
+      circlingRadius = readNumericField(f, ['CirclingRadius']) ?? 0;
+      minTurnSpeed = readNumericField(f, ['MinTurnSpeed']) ?? 99999.0;
+      speedLimitZ = readNumericField(f, ['SpeedLimitZ']) ?? 999999.0;
+      canMoveBackwards = readBooleanField(f, ['CanMoveBackwards']) === true;
+      const movePriorityToken = readStringField(f, ['GroupMovementPriority'])?.toUpperCase().trim();
+      if (movePriorityToken) {
+        groupMovementPriority = movePriorityToken;
+      }
+      speedDamaged = readNumericField(f, ['SpeedDamaged']) ?? -1.0;
+      // Source parity: TurnRateDamaged in INI is degrees/sec, convert to radians/sec.
+      const turnRateDamagedRaw = readNumericField(f, ['TurnRateDamaged']);
+      turnRateDamaged = turnRateDamagedRaw != null ? turnRateDamagedRaw * (Math.PI / 180) : -1.0;
+      accelerationDamaged = readNumericField(f, ['AccelerationDamaged']) ?? -1.0;
     }
     profiles.set(setName, {
       surfaceMask,
@@ -221,6 +255,18 @@ export function resolveLocomotorProfiles(self: GL,
       wanderAboutPointRadius,
       preferredHeight,
       preferredHeightDamping,
+      zAxisBehavior,
+      lift,
+      liftDamaged,
+      closeEnoughDist,
+      circlingRadius,
+      minTurnSpeed,
+      speedLimitZ,
+      canMoveBackwards,
+      groupMovementPriority,
+      speedDamaged,
+      turnRateDamaged,
+      accelerationDamaged,
     });
   }
 
