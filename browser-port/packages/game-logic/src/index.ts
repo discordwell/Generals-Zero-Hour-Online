@@ -1721,10 +1721,22 @@ interface AttackWeaponProfile {
   maxTargetPitch: number;
   /** Source parity: WeaponTemplate::m_requestAssistRange — allies within range auto-engage same target. */
   requestAssistRange: number;
-  /** Source parity: WeaponTemplate::m_fireOCLNames — OCL spawned on each weapon fire. */
+  /** Source parity: WeaponTemplate::m_fireOCLNames — OCL spawned on each weapon fire (first/default level). */
   fireOCLName: string | null;
+  /**
+   * Source parity: WeaponTemplate::m_fireOCLNames[LEVEL_COUNT] — per-veterancy-level OCL names.
+   * Index 0 = REGULAR, 1 = VETERAN, 2 = ELITE, 3 = HEROIC.
+   * "FireOCL" sets all 4 levels to the same value; "VeterancyFireOCL" overrides individual levels.
+   */
+  fireOCLNames: [string | null, string | null, string | null, string | null];
   /** Source parity: WeaponTemplate::m_allowAttackGarrisonedBldgs — allow targeting garrisoned buildings (default true). */
   allowAttackGarrisonedBldgs: boolean;
+  /** Source parity: WeaponTemplate::m_damageStatusType — object status effect applied to damaged targets (default "NONE"). */
+  damageStatusType: string;
+  /** Source parity: WeaponTemplate::m_fireSoundLoopTime — duration (ms) for looping fire sounds. 0 = no loop. */
+  fireSoundLoopTime: number;
+  /** Source parity: WeaponTemplate::m_projectileStreamName — visual projectile stream effect name. */
+  projectileStreamName: string | null;
 }
 
 interface WeaponTemplateSetProfile {
