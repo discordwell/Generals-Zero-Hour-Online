@@ -643,6 +643,8 @@ export function createMapEntity(self: GL,
     // Jet slow death (roll + forward motion + FX timeline)
     jetSlowDeathProfiles: self.extractJetSlowDeathProfiles(objectDef),
     jetSlowDeathState: null,
+    // Battle Bus slow death (passenger ejection + hulk destruction)
+    battleBusSlowDeathProfile: extractBattleBusSlowDeathProfile(self, objectDef),
     // Cleanup hazard (workers scan and clean hazards)
     cleanupHazardProfile: extractCleanupHazardProfile(self, objectDef),
     cleanupHazardState: null,
@@ -4954,6 +4956,35 @@ export function extractNeutronMissileSlowDeathProfile(self: GL, objectDef: Objec
     profile = {
       blasts,
       scorchSize: readNumericField(block.fields, ['ScorchMarkSize']) ?? 0,
+    };
+  };
+  for (const block of objectDef.blocks) visitBlock(block);
+  if (!profile && self.resolveObjectDefParent(objectDef)) {
+    for (const block of self.resolveObjectDefParent(objectDef)?.blocks ?? []) visitBlock(block);
+  }
+  return profile;
+}
+
+export function extractBattleBusSlowDeathProfile(self: GL, objectDef: ObjectDef | undefined): BattleBusSlowDeathProfile | null {
+  if (!objectDef) return null;
+  let profile: BattleBusSlowDeathProfile | null = null;
+  const visitBlock = (block: IniBlock): void => {
+    if (profile) return;
+    const blockType = block.type.toUpperCase();
+    if (blockType !== 'BEHAVIOR' && blockType !== 'DIE' && blockType !== 'UPDATE') return;
+    const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+    if (moduleType !== 'BATTLEBUSSLOWDEATHBEHAVIOR') return;
+    profile = {
+      fxStartUndeath: readStringField(block.fields, ['FXStartUndeath']) ?? null,
+      oclStartUndeath: readStringField(block.fields, ['OCLStartUndeath']) ?? null,
+      fxHitGround: readStringField(block.fields, ['FXHitGround']) ?? null,
+      oclHitGround: readStringField(block.fields, ['OCLHitGround']) ?? null,
+      // Source parity: BattleBusSlowDeathBehavior.cpp:74 — m_throwForce = 1.0f
+      throwForce: readNumericField(block.fields, ['ThrowForce']) ?? 1.0,
+      // Source parity: parsePercentToReal — INI parser already stores as 0-1 fraction.
+      percentDamageToPassengers: readNumericField(block.fields, ['PercentDamageToPassengers']) ?? 0,
+      // Source parity: parseDurationUnsignedInt — ms to logic frames.
+      emptyHulkDestructionDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['EmptyHulkDestructionDelay']) ?? 0),
     };
   };
   for (const block of objectDef.blocks) visitBlock(block);
