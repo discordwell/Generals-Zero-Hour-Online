@@ -23,6 +23,7 @@ import {
   extractTurretProfiles,
   extractPropagandaTowerProfile,
   extractMinefieldProfile,
+  extractSlowDeathProfiles,
 } from './entity-factory.js';
 import { resolveLocomotorProfiles } from './entity-movement.js';
 import {
@@ -567,5 +568,215 @@ describe('LocomotorSurfaceType constants (Fix 8)', () => {
   it('NO_SURFACES has value 0', () => {
     // Source parity: LocomotorSet.h:60 — NO_SURFACES = 0x0000
     expect(NO_SURFACES).toBe(0);
+  });
+});
+
+// ── SlowDeathBehavior field parsing and defaults ─────────────────────────
+
+describe('SlowDeathBehavior field parsing', () => {
+  const mockSelf = { msToLogicFrames: (ms: number) => Math.ceil(ms * 30 / 1000) } as any;
+
+  it('FlingForce and FlingForceVariance default to 0 (C++ SlowDeathBehavior.cpp:75-76)', () => {
+    const objectDef = makeObjectDef('Debris', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_SD', {}),
+    ]);
+    const profiles = extractSlowDeathProfiles(mockSelf, objectDef);
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]!.flingForce).toBe(0);
+    expect(profiles[0]!.flingForceVariance).toBe(0);
+  });
+
+  it('FlingForce and FlingForceVariance are parsed as raw reals (C++ parseReal)', () => {
+    const objectDef = makeObjectDef('Debris', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_SD', {
+        FlingForce: 8.0,
+        FlingForceVariance: 3.0,
+      }),
+    ]);
+    const profiles = extractSlowDeathProfiles(mockSelf, objectDef);
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]!.flingForce).toBe(8.0);
+    expect(profiles[0]!.flingForceVariance).toBe(3.0);
+  });
+
+  it('FlingPitch and FlingPitchVariance default to 0 (C++ SlowDeathBehavior.cpp:77-78)', () => {
+    const objectDef = makeObjectDef('Debris', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_SD', {}),
+    ]);
+    const profiles = extractSlowDeathProfiles(mockSelf, objectDef);
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]!.flingPitch).toBe(0);
+    expect(profiles[0]!.flingPitchVariance).toBe(0);
+  });
+
+  it('FlingPitch and FlingPitchVariance convert degrees to radians (C++ parseAngleReal)', () => {
+    // Source parity: INI::parseAngleReal converts degrees to radians (* PI / 180).
+    const objectDef = makeObjectDef('Debris', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_SD', {
+        FlingPitch: 45,
+        FlingPitchVariance: 10,
+      }),
+    ]);
+    const profiles = extractSlowDeathProfiles(mockSelf, objectDef);
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]!.flingPitch).toBeCloseTo(45 * Math.PI / 180, 6);
+    expect(profiles[0]!.flingPitchVariance).toBeCloseTo(10 * Math.PI / 180, 6);
+  });
+
+  it('DestructionDelayVariance defaults to 0 and converts ms to frames (C++ parseDurationUnsignedInt)', () => {
+    // Default case: no field specified -> 0 frames.
+    const objectDef = makeObjectDef('Debris', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_SD', {}),
+    ]);
+    const profiles = extractSlowDeathProfiles(mockSelf, objectDef);
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]!.destructionDelayVariance).toBe(0);
+  });
+
+  it('DestructionDelayVariance converts ms to logic frames', () => {
+    // Source parity: parseDurationUnsignedInt -- ms to logic frames.
+    // 2000 ms -> ceil(2000 * 30 / 1000) = 60 frames.
+    const objectDef = makeObjectDef('Debris', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_SD', {
+        DestructionDelayVariance: 2000,
+      }),
+    ]);
+    const profiles = extractSlowDeathProfiles(mockSelf, objectDef);
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]!.destructionDelayVariance).toBe(60);
+  });
+
+  it('DestructionAltitude defaults to -10 (C++ SlowDeathBehavior.cpp:73)', () => {
+    const objectDef = makeObjectDef('Debris', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_SD', {}),
+    ]);
+    const profiles = extractSlowDeathProfiles(mockSelf, objectDef);
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]!.destructionAltitude).toBe(-10);
+  });
+
+  it('DestructionAltitude is parsed as raw real (C++ parseReal)', () => {
+    const objectDef = makeObjectDef('Debris', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_SD', {
+        DestructionAltitude: -50,
+      }),
+    ]);
+    const profiles = extractSlowDeathProfiles(mockSelf, objectDef);
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]!.destructionAltitude).toBe(-50);
+  });
+
+  it('ModifierBonusPerOverkillPercent defaults to 0 (C++ SlowDeathBehavior.cpp:68)', () => {
+    const objectDef = makeObjectDef('Debris', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_SD', {}),
+    ]);
+    const profiles = extractSlowDeathProfiles(mockSelf, objectDef);
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]!.modifierBonusPerOverkillPercent).toBe(0);
+  });
+
+  it('ModifierBonusPerOverkillPercent uses INI value directly (already fractional from parsePercentToReal)', () => {
+    // Source parity: INI parser already converts "20%" to 0.2 during bundle generation.
+    // Entity factory should NOT divide by 100 again.
+    const objectDef = makeObjectDef('Debris', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+      makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_SD', {
+        ModifierBonusPerOverkillPercent: 0.2, // Already fractional (= 20%)
+      }),
+    ]);
+    const profiles = extractSlowDeathProfiles(mockSelf, objectDef);
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]!.modifierBonusPerOverkillPercent).toBeCloseTo(0.2, 5);
+  });
+});
+
+// ── MinefieldBehavior field parsing and defaults ─────────────────────────
+
+describe('MinefieldBehavior field parsing', () => {
+  const mockSelf = { msToLogicFrames: (ms: number) => Math.ceil(ms * 30 / 1000) } as any;
+
+  it('ScootFromStartingPointTime defaults to 0 frames (C++ MinefieldBehavior.cpp:67)', () => {
+    const objectDef = makeObjectDef('Mine', 'China', ['MINE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+      makeBlock('Behavior', 'MinefieldBehavior ModuleTag_MF', {
+        DetonationWeapon: 'MineWeapon',
+      }),
+    ]);
+    const profile = extractMinefieldProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.scootFromStartingPointTimeFrames).toBe(0);
+  });
+
+  it('ScootFromStartingPointTime converts ms to logic frames (C++ parseDurationUnsignedInt)', () => {
+    // Source parity: 500 ms -> ceil(500 * 30 / 1000) = 15 frames.
+    const objectDef = makeObjectDef('Mine', 'China', ['MINE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+      makeBlock('Behavior', 'MinefieldBehavior ModuleTag_MF', {
+        DetonationWeapon: 'MineWeapon',
+        ScootFromStartingPointTime: 500,
+      }),
+    ]);
+    const profile = extractMinefieldProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.scootFromStartingPointTimeFrames).toBe(15);
+  });
+
+  it('NumVirtualMines defaults to 1 (C++ MinefieldBehavior.cpp:69)', () => {
+    const objectDef = makeObjectDef('Mine', 'China', ['MINE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+      makeBlock('Behavior', 'MinefieldBehavior ModuleTag_MF', {
+        DetonationWeapon: 'MineWeapon',
+      }),
+    ]);
+    const profile = extractMinefieldProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.numVirtualMines).toBe(1);
+  });
+
+  it('NumVirtualMines is parsed as unsigned integer (C++ parseUnsignedInt)', () => {
+    const objectDef = makeObjectDef('Mine', 'China', ['MINE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+      makeBlock('Behavior', 'MinefieldBehavior ModuleTag_MF', {
+        DetonationWeapon: 'MineWeapon',
+        NumVirtualMines: 4,
+      }),
+    ]);
+    const profile = extractMinefieldProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.numVirtualMines).toBe(4);
+  });
+
+  it('RepeatDetonateMoveThresh defaults to 1.0 (C++ MinefieldBehavior.cpp:68)', () => {
+    const objectDef = makeObjectDef('Mine', 'China', ['MINE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+      makeBlock('Behavior', 'MinefieldBehavior ModuleTag_MF', {
+        DetonationWeapon: 'MineWeapon',
+      }),
+    ]);
+    const profile = extractMinefieldProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.repeatDetonateMoveThresh).toBe(1.0);
+  });
+
+  it('RepeatDetonateMoveThresh is parsed as raw real (C++ parseReal)', () => {
+    const objectDef = makeObjectDef('Mine', 'China', ['MINE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+      makeBlock('Behavior', 'MinefieldBehavior ModuleTag_MF', {
+        DetonationWeapon: 'MineWeapon',
+        RepeatDetonateMoveThresh: 5.0,
+      }),
+    ]);
+    const profile = extractMinefieldProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.repeatDetonateMoveThresh).toBe(5.0);
   });
 });
