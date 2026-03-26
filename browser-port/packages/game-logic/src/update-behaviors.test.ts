@@ -2038,6 +2038,129 @@ describe('crush damage during movement', () => {
   });
 });
 
+describe('CrushableLevel / CrusherLevel defaults (ThingTemplate.cpp parity)', () => {
+  // Source parity: ThingTemplate constructor sets:
+  //   m_crusherLevel = 0    — cannot crush anything
+  //   m_crushableLevel = 255 — immune to being crushed
+  // The browser port must match these defaults when the INI field is absent.
+
+  it('objects without CrushableLevel default to 255 (immune to crush)', () => {
+    // Object with no CrushableLevel field — should be immune (255).
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('NoCrushFields', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('NoCrushFields', 205, 205)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    const priv = logic as unknown as { spawnedEntities: Map<number, { crushableLevel: number }> };
+    const entity = priv.spawnedEntities.get(1)!;
+    expect(entity).toBeDefined();
+    expect(entity.crushableLevel).toBe(255);
+  });
+
+  it('objects without CrusherLevel default to 0 (cannot crush)', () => {
+    // Object with no CrusherLevel field — should be unable to crush (0).
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('NoCrushFields', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('NoCrushFields', 205, 205)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    const priv = logic as unknown as { spawnedEntities: Map<number, { crusherLevel: number }> };
+    const entity = priv.spawnedEntities.get(1)!;
+    expect(entity).toBeDefined();
+    expect(entity.crusherLevel).toBe(0);
+  });
+
+  it('CrusherLevel=2 crushes CrushableLevel=1 but not CrushableLevel=3', () => {
+    // Source parity: canCrushOrSquish uses strict greater-than (crusher > crushable).
+    // Use private API (updateCrushCollisions) for deterministic vehicle-to-vehicle crush tests.
+    function makeCrushLevelBundle(crushableLevel: number) {
+      return makeBundle({
+        objects: [
+          makeObjectDef('MediumCrusher', 'America', ['VEHICLE'], [
+            makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+            makeBlock('LocomotorSet', 'SET_NORMAL TankLocomotor', {}),
+          ], { CrusherLevel: 2, GeometryMajorRadius: 5, GeometryMinorRadius: 5 }),
+          makeObjectDef('Target', 'China', ['VEHICLE'], [
+            makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+            makeBlock('LocomotorSet', 'SET_NORMAL TankLocomotor', {}),
+          ], { CrushableLevel: crushableLevel, GeometryMajorRadius: 10, GeometryMinorRadius: 10 }),
+        ],
+        locomotors: [
+          makeLocomotorDef('TankLocomotor', 120),
+        ],
+      });
+    }
+
+    // Phase 1: CrusherLevel=2 vs CrushableLevel=1 — should crush (2 > 1).
+    const bundle1 = makeCrushLevelBundle(1);
+    const logic1 = new GameLogicSubsystem(new THREE.Scene());
+    logic1.loadMapObjects(
+      makeMap([
+        makeMapObject('MediumCrusher', 225, 205),
+        makeMapObject('Target', 220, 205),
+      ], 128, 128),
+      makeRegistry(bundle1),
+      makeHeightmap(128, 128),
+    );
+    logic1.setTeamRelationship('America', 'China', 0);
+    logic1.setTeamRelationship('China', 'America', 0);
+    const priv1 = logic1 as unknown as {
+      spawnedEntities: Map<number, { moving: boolean; rotationY: number; speed: number; health: number; destroyed: boolean }>;
+      updateCrushCollisions: () => void;
+    };
+    const crusher1 = priv1.spawnedEntities.get(1)!;
+    const victim1 = priv1.spawnedEntities.get(2)!;
+    crusher1.moving = true;
+    crusher1.rotationY = Math.PI / 2;
+    crusher1.speed = 1;
+    victim1.rotationY = 0;
+    priv1.updateCrushCollisions();
+    expect(victim1.health <= 0 || victim1.destroyed).toBe(true);
+
+    // Phase 2: CrusherLevel=2 vs CrushableLevel=3 — should NOT crush (2 <= 3).
+    const bundle2 = makeCrushLevelBundle(3);
+    const logic2 = new GameLogicSubsystem(new THREE.Scene());
+    logic2.loadMapObjects(
+      makeMap([
+        makeMapObject('MediumCrusher', 225, 205),
+        makeMapObject('Target', 220, 205),
+      ], 128, 128),
+      makeRegistry(bundle2),
+      makeHeightmap(128, 128),
+    );
+    logic2.setTeamRelationship('America', 'China', 0);
+    logic2.setTeamRelationship('China', 'America', 0);
+    const priv2 = logic2 as unknown as {
+      spawnedEntities: Map<number, { moving: boolean; rotationY: number; speed: number; health: number; destroyed: boolean }>;
+      updateCrushCollisions: () => void;
+    };
+    const crusher2 = priv2.spawnedEntities.get(1)!;
+    const victim2 = priv2.spawnedEntities.get(2)!;
+    crusher2.moving = true;
+    crusher2.rotationY = Math.PI / 2;
+    crusher2.speed = 1;
+    victim2.rotationY = 0;
+    priv2.updateCrushCollisions();
+    expect(victim2.health).toBe(200);
+  });
+});
+
 describe('salvage crate system', () => {
   /** Destroyed entities are cleaned up from spawnedEntities, so getEntityState returns null. */
   function isEntityDead(logic: GameLogicSubsystem, entityId: number): boolean {
