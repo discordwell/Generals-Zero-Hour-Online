@@ -4811,6 +4811,7 @@ describe('SlavedUpdate', () => {
     repairBelowHealthPercent?: number;
     spawnedRequireSpawner?: boolean;
     oneShot?: boolean;
+    initialBurst?: number;
     distToTargetToGrantRangeBonus?: number;
   }) {
     const guardRange = opts?.guardMaxRange ?? 50;
@@ -4821,6 +4822,7 @@ describe('SlavedUpdate', () => {
     const requireSpawner = opts?.spawnedRequireSpawner ?? true;
     const isOneShot = opts?.oneShot ?? false;
     const spawnCount = opts?.spawnNumber ?? 1;
+    const initialBurst = opts?.initialBurst ?? spawnCount;
     const droneSpottingDist = opts?.distToTargetToGrantRangeBonus ?? 0;
     const sz = 128;
 
@@ -4834,7 +4836,7 @@ describe('SlavedUpdate', () => {
           SpawnTemplateName: 'DroneUnit',
           SpawnedRequireSpawner: requireSpawner ? 'Yes' : 'No',
           OneShot: isOneShot ? 'Yes' : 'No',
-          InitialBurst: spawnCount,
+          InitialBurst: initialBurst,
         }),
         makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'MasterGun'] }),
       ]),
@@ -5041,6 +5043,18 @@ describe('SlavedUpdate', () => {
       return e && !e.destroyed;
     });
     expect(liveSlaves?.length ?? 0).toBe(0);
+  });
+
+  it('creates one-shot slaves when InitialBurst is zero on the next update', () => {
+    const { logic } = makeSlavedSetup({ spawnNumber: 1, oneShot: true, initialBurst: 0 });
+
+    logic.update(0);
+    expect(getEntity(logic, 3)).toBeUndefined();
+
+    logic.update(1 / 30);
+    const slave = getEntity(logic, 3);
+    expect(slave).toBeDefined();
+    expect(slave!.slaverEntityId).toBe(1);
   });
 
   it('slave follows master via guard logic', () => {

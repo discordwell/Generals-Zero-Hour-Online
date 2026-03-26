@@ -2398,6 +2398,8 @@ interface SpawnBehaviorState {
   replacementFrames: number[];
   /** Index into spawnTemplateNames for cycling. */
   templateNameIndex: number;
+  /** Source parity: m_oneShotCountdown decremented by successful spawns. */
+  oneShotRemaining: number;
   /** True if one-shot spawner has already spawned. */
   oneShotCompleted: boolean;
   /** Source parity: m_initialBurstTimesInited — prevents burst logic from re-firing. */
@@ -7428,7 +7430,7 @@ export class GameLogicSubsystem implements Subsystem {
         continue;
       }
 
-      const objectDef = iniDataRegistry.getObject(mapObject.templateName);
+      const objectDef = findObjectDefByName(iniDataRegistry, mapObject.templateName);
       const resolved = objectDef !== undefined;
 
       if (!resolved && !this.config.renderUnknownObjects) {
@@ -8849,7 +8851,7 @@ export class GameLogicSubsystem implements Subsystem {
    */
   isBuildLocationValid(templateName: string, worldX: number, worldZ: number, angle = 0): boolean {
     if (!this.iniDataRegistry) return false;
-    const objectDef = this.iniDataRegistry.getObject(templateName);
+    const objectDef = findObjectDefByName(this.iniDataRegistry, templateName);
     if (!objectDef) return false;
 
     // Check terrain legality (cliff, water, out-of-bounds).
@@ -19808,7 +19810,6 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     const effectCategory = resolveEffectCategoryImpl(module.moduleType);
-    const _effectContext = this.createSpecialPowerEffectContext();
 
     switch (effectCategory) {
       case 'OCL_SPAWN':
@@ -29336,23 +29337,6 @@ export class GameLogicSubsystem implements Subsystem {
       const distSqr = dx * dx + dz * dz;
       if (distSqr <= radiusSqr) {
         this.applyWeaponDamageAmount(source.id, other, damage, damageType);
-      }
-    }
-  }
-
-  /**
-   * Helper: apply weapon damage at a point by weapon name (used by StructureToppleUpdate).
-   */
-  private _applyWeaponDamageAtPoint(source: MapEntity, targetX: number, _targetY: number,
-      targetZ: number, _weaponName: string, radius: number): void {
-    const radiusSqr = radius * radius;
-    for (const other of this.spawnedEntities.values()) {
-      if (other.destroyed || other.id === source.id) continue;
-      const dx = other.x - targetX;
-      const dz = other.z - targetZ;
-      const distSqr = dx * dx + dz * dz;
-      if (distSqr <= radiusSqr) {
-        this.applyWeaponDamageAmount(source.id, other, 50, 'CRUSH');
       }
     }
   }

@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-03-12T15:27:28.464Z",
+  "generatedAt": "2026-03-25T17:40:55.049Z",
   "gameLogicSourcePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/game-logic/src/index.ts",
   "scriptActionsSourcePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/game-logic/src/script-actions.ts",
   "scriptConditionsSourcePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/game-logic/src/script-conditions.ts",
   "mapsRootPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/app/public/assets/maps",
   "summary": {
-    "mapsScanned": 101,
+    "mapsScanned": 103,
     "mapsWithScripts": 59,
     "scriptsScanned": 16259,
     "distinctActionTypesUsed": 259,

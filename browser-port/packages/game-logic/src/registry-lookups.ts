@@ -10,6 +10,71 @@ import {
 } from '@generals/ini-data';
 import { readNumericField, readStringField } from './ini-readers.js';
 
+function coerceKindOfList(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) {
+    const tokens = value.filter((entry): entry is string => typeof entry === 'string');
+    return tokens.length > 0 ? tokens : undefined;
+  }
+  if (typeof value === 'string') {
+    const tokens = value.split(/\s+/).filter(Boolean);
+    return tokens.length > 0 ? tokens : undefined;
+  }
+  return undefined;
+}
+
+function promoteDisplacedObjectFields(objectDef: ObjectDef | undefined): ObjectDef | undefined {
+  if (!objectDef) {
+    return undefined;
+  }
+
+  const topLevelHasKindOf = Array.isArray(objectDef.kindOf) && objectDef.kindOf.length > 0;
+  const topLevelHasSide = !!objectDef.side || readStringField(objectDef.fields, ['Side']) !== null;
+  const topLevelHasRootFields = Object.keys(objectDef.fields).length > 2;
+  if (topLevelHasKindOf && topLevelHasSide && topLevelHasRootFields) {
+    return objectDef;
+  }
+
+  const promotedFields: Record<string, unknown> = { ...objectDef.fields };
+  let promoted = false;
+  const promoteFromBlocks = (blocks: readonly IniBlock[]): void => {
+    for (const block of blocks) {
+      const blockFields = block.fields ?? {};
+      // Conversion artifact: some ChildObject/ObjectReskin entries keep object-level
+      // fields on a top-level Draw block instead of the object root.
+      if (
+        ('KindOf' in blockFields || 'Locomotor' in blockFields || 'Side' in blockFields || 'BuildCost' in blockFields)
+      ) {
+        for (const [fieldName, fieldValue] of Object.entries(blockFields)) {
+          if (!(fieldName in promotedFields)) {
+            promotedFields[fieldName] = fieldValue;
+            promoted = true;
+          }
+        }
+      }
+      if (block.blocks?.length) {
+        promoteFromBlocks(block.blocks);
+      }
+    }
+  };
+
+  promoteFromBlocks(objectDef.blocks);
+  if (!promoted) {
+    return objectDef;
+  }
+
+  const promotedKindOf = topLevelHasKindOf
+    ? objectDef.kindOf
+    : coerceKindOfList(promotedFields.KindOf);
+  const promotedSide = objectDef.side ?? readStringField(promotedFields, ['Side']) ?? undefined;
+
+  return {
+    ...objectDef,
+    fields: promotedFields,
+    kindOf: promotedKindOf,
+    side: promotedSide,
+  };
+}
+
 function findByNameCaseInsensitive<T>(
   direct: T | undefined,
   name: string,
@@ -46,11 +111,11 @@ export function findArmorDefByName(iniDataRegistry: IniDataRegistry, armorName: 
 }
 
 export function findObjectDefByName(iniDataRegistry: IniDataRegistry, objectName: string): ObjectDef | undefined {
-  return findByNameCaseInsensitive(
+  return promoteDisplacedObjectFields(findByNameCaseInsensitive(
     iniDataRegistry.getObject(objectName),
     objectName,
     iniDataRegistry.objects.entries(),
-  );
+  ));
 }
 
 export function findUpgradeDefByName(iniDataRegistry: IniDataRegistry, upgradeName: string): UpgradeDef | undefined {

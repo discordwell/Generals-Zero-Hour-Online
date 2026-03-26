@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-03-13T00:16:32.301Z",
+  "generatedAt": "2026-03-25T17:40:45.156Z",
   "bundlePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/app/public/assets/data/ini-bundle.json",
   "summary": {
-    "objects": 2110,
+    "objects": 2113,
     "commandButtons": 816,
     "commandSets": 471,
     "upgrades": 80,

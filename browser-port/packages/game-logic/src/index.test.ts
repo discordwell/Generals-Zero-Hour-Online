@@ -4701,6 +4701,64 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     expect(timeline.credits).toEqual([400, 400, 400, 400, 400, 400]);
   });
 
+  it('routes one-shot SpawnBehavior aircraft offspring through supply-center exit without enslaving them', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('SupplyCenter', 'America', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 1000, InitialHealth: 1000 }),
+          makeBlock('Behavior', 'SupplyCenterProductionExitUpdate ModuleTag_Exit', {
+            UnitCreatePoint: [12, 0, 10],
+            NaturalRallyPoint: [18, 0, 0],
+          }),
+          makeBlock('Behavior', 'SpawnBehavior ModuleTag_Spawn', {
+            SpawnNumber: 1,
+            SpawnReplaceDelay: 9999,
+            SpawnTemplateName: 'SupplyChinook',
+            OneShot: 'Yes',
+            InitialBurst: 0,
+          }),
+        ]),
+        makeObjectDef('SupplyChinook', 'America', ['AIRCRAFT', 'TRANSPORT', 'HARVESTER'], [
+          makeBlock('Behavior', 'ChinookAIUpdate ModuleTag_ChinookAI', {
+            MaxBoxes: 6,
+            SupplyCenterActionDelay: 0,
+            SupplyWarehouseActionDelay: 0,
+            SupplyWarehouseScanDistance: 500,
+          }),
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 300, InitialHealth: 300 }),
+        ], { BuildTime: 0.1, BuildCost: 1200 }),
+      ],
+    });
+
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(makeMap([makeMapObject('SupplyCenter', 20, 20)], 96, 96), makeRegistry(bundle), makeHeightmap(96, 96));
+
+    logic.update(0);
+    expect(logic.getEntityIdsByTemplate('SupplyChinook')).toEqual([]);
+
+    logic.update(1 / 30);
+    const [chinookId] = logic.getEntityIdsByTemplate('SupplyChinook');
+    expect(chinookId).toBeDefined();
+
+    const chinook = (logic as unknown as {
+      spawnedEntities: Map<number, {
+        producerEntityId: number;
+        slaverEntityId: number | null;
+        objectStatusFlags: Set<string>;
+        moveTarget: { x: number; z: number } | null;
+        chinookFlightStatus: string | null;
+      }>;
+    }).spawnedEntities.get(chinookId!);
+
+    expect(chinook).toBeDefined();
+    expect(chinook!.producerEntityId).toBe(1);
+    expect(chinook!.slaverEntityId).toBe(null);
+    expect(chinook!.objectStatusFlags.has('UNSELECTABLE')).toBe(false);
+    expect(chinook!.chinookFlightStatus).toBe('FLYING');
+    expect(chinook!.moveTarget).toEqual({ x: 38, z: 20 });
+  });
+
   it('enforces ProductionUpdate MaxQueueEntries when queueing units', () => {
     const bundle = makeBundle({
       objects: [

@@ -803,6 +803,13 @@ export function createMapEntity(self: GL,
     entity.hordeNextCheckFrame = self.frameCounter + self.gameRandom.nextRange(1, rate);
   }
 
+  // Source parity: AutoHealBehavior constructor — active modules wake after a
+  // random delay in [1, HealingDelay] rather than running on the creation frame.
+  if (entity.autoHealProfile?.initiallyActive) {
+    const delay = Math.max(1, entity.autoHealProfile.healingDelayFrames);
+    entity.autoHealNextFrame = self.frameCounter + self.gameRandom.nextRange(1, delay);
+  }
+
   // Source parity: EnemyNearUpdate constructor — random initial delay for staggered scanning.
   // C++ uses GameLogicRandomValue(0, m_enemyScanDelayTime).
   if (entity.enemyNearScanDelayFrames > 0) {

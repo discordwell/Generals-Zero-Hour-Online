@@ -447,7 +447,7 @@ describe.skipIf(!hasRetailData)('retail verify-fixes wet test (hard-fail)', () =
     console.log('CHILDOBJECT: China Power Plant built');
 
     // Build China Supply Center (prerequisite for War Factory)
-    const chinaSupply = buildStructure(logic, chinaDozer!.id, 'ChinaSupplyCenter', chinaCC!.x + 200, chinaCC!.z + 50, 'CHINA', 900);
+    const chinaSupply = buildStructure(logic, chinaDozer!.id, 'ChinaSupplyCenter', chinaCC!.x + 250, chinaCC!.z, 'CHINA', 900);
     if (chinaSupply) {
       console.log('CHILDOBJECT: China Supply Center built');
     } else {

@@ -58,8 +58,7 @@ describe('overcharge disabled-state guard on capture', () => {
       spawnedEntities: Map<number, any>;
       overchargeStateByEntityId: Map<number, any>;
       transferOverchargeBetweenSides(entity: any, oldSide: string, newSide: string): void;
-      getSidePowerStateMap(side: string): any;
-      normalizeSide(side: string): string;
+      getSidePowerState(side: string): { powerBonus: number };
     };
 
     const entity = logic.spawnedEntities.get(1);
@@ -84,9 +83,7 @@ describe('overcharge disabled-state guard on capture', () => {
 
     // The transfer should have been skipped because the entity is disabled.
     // Verify China did NOT receive the power bonus.
-    const chinaSide = logic.normalizeSide('China');
-    const chinaPower = logic.getSidePowerStateMap(chinaSide);
-    const chinaTotalBonus = chinaPower ? Array.from(chinaPower.values()).reduce((a: number, b: number) => a + b, 0) : 0;
+    const chinaTotalBonus = logic.getSidePowerState('China').powerBonus;
     expect(chinaTotalBonus).toBe(0);
   });
 
@@ -155,14 +152,13 @@ describe('crate collection isAboveTerrain check', () => {
     const agent = createParityAgent({
       bundles: {
         objects: [
-          // The crate: uses CRATE KindOf, has a CrateCollide module for MONEY type.
+          // The crate: uses the source-authentic MoneyCrateCollide module.
           makeObjectDef('TestCrate', 'Neutral', ['CRATE'], [
             makeBlock('Body', 'ActiveBody ModuleTag_Body', {
               MaxHealth: 1,
               InitialHealth: 1,
             }),
-            makeBlock('Behavior', 'CrateCollide ModuleTag_CrateCollide', {
-              CrateType: 'MONEY',
+            makeBlock('Behavior', 'MoneyCrateCollide ModuleTag_CrateCollide', {
               MoneyProvided: 500,
             }),
           ]),
@@ -193,9 +189,10 @@ describe('crate collection isAboveTerrain check', () => {
     });
 
     agent.setCredits('America', 0);
-    agent.step(1);
 
-    // Set the crate's AIRBORNE_TARGET status flag — simulating a crate
+    // Set the crate's AIRBORNE_TARGET status flag before the first simulation step,
+    // matching the C++ guard that rejects airborne crates at collision time.
+    // Simulate a crate
     // that is above terrain (e.g., dropped by a dying aircraft, still falling).
     const logic = agent.gameLogic as unknown as { spawnedEntities: Map<number, any> };
     const crate = logic.spawnedEntities.get(1);
@@ -233,8 +230,7 @@ describe('crate collection isAboveTerrain check', () => {
               MaxHealth: 1,
               InitialHealth: 1,
             }),
-            makeBlock('Behavior', 'CrateCollide ModuleTag_CrateCollide', {
-              CrateType: 'MONEY',
+            makeBlock('Behavior', 'MoneyCrateCollide ModuleTag_CrateCollide', {
               MoneyProvided: 500,
             }),
           ]),
@@ -263,7 +259,6 @@ describe('crate collection isAboveTerrain check', () => {
     });
 
     agent.setCredits('America', 0);
-    agent.step(1);
 
     // Crate is NOT airborne — should be collected normally.
     const logic = agent.gameLogic as unknown as { spawnedEntities: Map<number, any> };

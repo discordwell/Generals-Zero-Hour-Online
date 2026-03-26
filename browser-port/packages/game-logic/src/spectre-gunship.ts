@@ -7,6 +7,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { readNumericField, readStringField } from './ini-readers.js';
+import { findObjectDefByName } from './registry-lookups.js';
 type GL = any;
 
 // ---- Spectre gunship implementations ----
@@ -68,7 +69,7 @@ export function initiateSpectreGunshipDeployment(self: GL,
   // Resolve the gunship template
   const iniDataRegistry = self.iniDataRegistry;
   if (!iniDataRegistry) return false;
-  const gunshipDef = iniDataRegistry.getObject(profile.gunshipTemplateName);
+  const gunshipDef = findObjectDefByName(iniDataRegistry, profile.gunshipTemplateName);
   if (!gunshipDef) return false;
 
   // Source parity: find creation point at map edge based on createLocation strategy

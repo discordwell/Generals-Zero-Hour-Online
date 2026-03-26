@@ -495,7 +495,8 @@ export function issueMoveTo(self: GL,
 
   // Source parity: airborne aircraft fly point-to-point, skip A* pathfinding.
   const js = entity.jetAIState;
-  if (js && js.allowAirLoco) {
+  const isAirborneAircraft = entity.category === 'air' && entity.chinookFlightStatus !== 'LANDED';
+  if ((js && js.allowAirLoco) || isAirborneAircraft) {
     entity.moving = true;
     entity.movePath = [{ x: targetX, z: targetZ }];
     entity.pathIndex = 0;

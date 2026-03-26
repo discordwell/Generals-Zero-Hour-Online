@@ -18,7 +18,7 @@ import {
 } from './parity-source-truth.js';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const rootDir = path.resolve(scriptDir, '..');
+const rootDir = path.resolve(scriptDir, '../../..');
 const repoRoot = path.resolve(rootDir, '..');
 
 async function readFileOrEmpty(filePath: string): Promise<string> {

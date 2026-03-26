@@ -88,6 +88,7 @@ export function extractSpawnBehaviorState(self: GL, objectDef: ObjectDef | undef
     slaveIds: [],
     replacementFrames: [],
     templateNameIndex: 0,
+    oneShotRemaining: profile.oneShot ? profile.spawnNumber : -1,
     oneShotCompleted: false,
     initialBurstApplied: false,
   };
@@ -215,9 +216,6 @@ export function updateSpawnBehaviors(self: GL): void {
           state.replacementFrames.push(0);
         }
       }
-      if (state.profile.oneShot) {
-        state.oneShotCompleted = true;
-      }
     }
 
     // Source parity: attack forwarding for SPAWNS_ARE_THE_WEAPONS masters.
@@ -248,10 +246,25 @@ export function createSpawnSlave(self: GL, slaver: MapEntity, state: SpawnBehavi
   const templateName = templateNames[state.templateNameIndex % templateNames.length]!;
   state.templateNameIndex = (state.templateNameIndex + 1) % templateNames.length;
 
+  let spawnX = slaver.x;
+  let spawnZ = slaver.z;
+  let spawnHeightOffset = 0;
+  if (
+    slaver.queueProductionExitProfile
+    && typeof self.resolveQueueSpawnLocation === 'function'
+  ) {
+    const spawnLocation = self.resolveQueueSpawnLocation(slaver);
+    if (spawnLocation) {
+      spawnX = spawnLocation.x;
+      spawnZ = spawnLocation.z;
+      spawnHeightOffset = spawnLocation.heightOffset;
+    }
+  }
+
   const slave = self.spawnEntityFromTemplate(
     templateName,
-    slaver.x,
-    slaver.z,
+    spawnX,
+    spawnZ,
     slaver.rotationY,
     slaver.side,
   );
@@ -259,35 +272,59 @@ export function createSpawnSlave(self: GL, slaver: MapEntity, state: SpawnBehavi
     return;
   }
 
-  // Source parity: SlavedUpdate::onEnslave — link slave to slaver.
-  slave.slaverEntityId = slaver.id;
-  state.slaveIds.push(slave.id);
-
-  // Source parity: ExperienceTracker.cpp — spawned slaves redirect all earned XP to master.
-  // C++ sets m_experienceSink = slaver->getID() so kill XP flows to the carrier/spawner.
-  slave.experienceState.experienceSinkEntityId = slaver.id;
-
-  // Source parity: onEnslave marks slaves as UNSELECTABLE.
-  slave.objectStatusFlags.add('UNSELECTABLE');
-
-  // Source parity: randomize initial guard offset at guardMaxRange distance (on circle perimeter).
-  const guardRange = slave.slavedUpdateProfile?.guardMaxRange ?? 30;
-  if (guardRange > 0) {
-    const angle = self.gameRandom.nextFloat() * Math.PI * 2;
-    slave.slaveGuardOffsetX = Math.cos(angle) * guardRange;
-    slave.slaveGuardOffsetZ = Math.sin(angle) * guardRange;
+  if (slaver.queueProductionExitProfile) {
+    const terrainHeight = self.mapHeightmap ? (self.mapHeightmap.getInterpolatedHeight(spawnX, spawnZ) ?? 0) : 0;
+    slave.x = spawnX;
+    slave.z = spawnZ;
+    slave.y = terrainHeight + spawnHeightOffset + slave.baseHeight;
   }
 
-  // Source parity: MobMemberSlavedUpdate — initialize mob member runtime state on enslave.
-  // C++ constructor: m_framesToWait = GameLogicRandomValue(0,20), onObjectCreated clamps squirrelliness.
-  if (slave.mobMemberProfile) {
-    slave.mobMemberState = {
-      framesToWait: self.gameRandom.nextRange(0, 20),
-      catchUpCrisisTimer: 0,
-      primaryVictimId: -1,
-      isSelfTasking: false,
-      mobState: 0, // MOB_STATE_NONE
-    };
+  // Source parity: Object::setProducer(parent) — all SpawnBehavior offspring record their producer.
+  slave.producerEntityId = slaver.id;
+  state.slaveIds.push(slave.id);
+
+  if (state.profile.oneShot && state.oneShotRemaining > 0) {
+    state.oneShotRemaining -= 1;
+    if (state.oneShotRemaining <= 0) {
+      state.oneShotCompleted = true;
+    }
+  }
+
+  const hasSlavedUpdate = !!slave.slavedUpdateProfile || !!slave.mobMemberProfile;
+  if (hasSlavedUpdate) {
+    // Source parity: only SlavedUpdate-style spawns are enslaved to the parent.
+    slave.slaverEntityId = slaver.id;
+
+    // Source parity: ExperienceTracker.cpp — spawned slaves redirect earned XP to master.
+    slave.experienceState.experienceSinkEntityId = slaver.id;
+
+    // Source parity: onEnslave marks slaves as UNSELECTABLE.
+    slave.objectStatusFlags.add('UNSELECTABLE');
+
+    // Source parity: randomize initial guard offset at guardMaxRange distance.
+    const guardRange = slave.slavedUpdateProfile?.guardMaxRange ?? 30;
+    if (guardRange > 0) {
+      const angle = self.gameRandom.nextFloat() * Math.PI * 2;
+      slave.slaveGuardOffsetX = Math.cos(angle) * guardRange;
+      slave.slaveGuardOffsetZ = Math.sin(angle) * guardRange;
+    }
+
+    // Source parity: MobMemberSlavedUpdate — initialize runtime state on enslave.
+    if (slave.mobMemberProfile) {
+      slave.mobMemberState = {
+        framesToWait: self.gameRandom.nextRange(0, 20),
+        catchUpCrisisTimer: 0,
+        primaryVictimId: -1,
+        isSelfTasking: false,
+        mobState: 0, // MOB_STATE_NONE
+      };
+    }
+  }
+
+  if (typeof self.applyQueueProductionExitPath === 'function') {
+    // Source parity: SpawnBehavior::createSpawn routes newly created objects through the
+    // parent's exit interface when one exists, including SupplyCenterProductionExitUpdate.
+    self.applyQueueProductionExitPath(slaver, slave);
   }
 }
 
@@ -302,16 +339,23 @@ export function onSlaverDeath(self: GL, slaver: MapEntity): void {
     if (!slave || slave.destroyed) {
       continue;
     }
-    // Source parity: sdu->onSlaverDie() → stopSlavedEffects() — clear slaver link and flags.
-    slave.slaverEntityId = null;
-    slave.objectStatusFlags.delete('UNSELECTABLE');
+    slave.producerEntityId = 0;
 
-    if (state.profile.spawnedRequireSpawner) {
-      // Source parity: SpawnBehavior::onDie kills slaves when spawnedRequireSpawner.
+    const hasSlavedUpdate = !!slave.slavedUpdateProfile || !!slave.mobMemberProfile;
+    if (hasSlavedUpdate) {
+      // Source parity: sdu->onSlaverDie() → stopSlavedEffects() for true slaved units only.
+      slave.slaverEntityId = null;
+      slave.objectStatusFlags.delete('UNSELECTABLE');
+
+      if (state.profile.spawnedRequireSpawner) {
+        // Source parity: SpawnBehavior::onDie kills slaves when spawnedRequireSpawner.
+        self.applyWeaponDamageAmount(null, slave, slave.health, 'UNRESISTABLE');
+      } else {
+        // Source parity: orphaned slave gets DISABLED_UNMANNED.
+        slave.objectStatusFlags.add('DISABLED_UNMANNED');
+      }
+    } else if (state.profile.spawnedRequireSpawner) {
       self.applyWeaponDamageAmount(null, slave, slave.health, 'UNRESISTABLE');
-    } else {
-      // Source parity: orphaned slave gets DISABLED_UNMANNED (crashes/dies on next update).
-      slave.objectStatusFlags.add('DISABLED_UNMANNED');
     }
   }
 
@@ -320,11 +364,11 @@ export function onSlaverDeath(self: GL, slaver: MapEntity): void {
 }
 
 export function onSlaveDeath(self: GL, slave: MapEntity): void {
-  const slaverId = slave.slaverEntityId;
-  if (slaverId === null) {
+  const spawnerId = slave.slaverEntityId ?? (slave.producerEntityId !== 0 ? slave.producerEntityId : null);
+  if (spawnerId === null) {
     return;
   }
-  const slaver = self.spawnedEntities.get(slaverId);
+  const slaver = self.spawnedEntities.get(spawnerId);
   if (!slaver || slaver.destroyed) {
     return;
   }

@@ -150,8 +150,8 @@
       }
     ],
     "fields": {
-      "EnergyProduction": 100,
       "EnergyBonus": 100,
+      "EnergyProduction": 100,
       "KindOf": [
         "STRUCTURE",
         "SELECTABLE",
