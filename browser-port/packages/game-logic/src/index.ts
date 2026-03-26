@@ -5038,6 +5038,32 @@ export const PARKING_PLACE_HEAL_RATE_FRAMES = Math.max(1, Math.floor(LOGIC_FRAME
 /** Source parity: FlightDeckBehavior uses the same HEAL_RATE_FRAMES = LOGICFRAMES_PER_SECOND / 5. */
 export const FLIGHT_DECK_HEAL_RATE_FRAMES = PARKING_PLACE_HEAL_RATE_FRAMES;
 
+// ---------------------------------------------------------------------------
+// DumbProjectileBehavior magic-number constants
+// Source: GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/DumbProjectileBehavior.cpp
+// ---------------------------------------------------------------------------
+
+/** Source parity: DumbProjectileBehavior.cpp:60 — DEFAULT_MAX_LIFESPAN = 10 * LOGICFRAMES_PER_SECOND (300 frames). */
+export const PROJECTILE_DEFAULT_MAX_LIFESPAN = 10 * LOGIC_FRAME_RATE; // 300
+
+/** Source parity: DumbProjectileBehavior.cpp:196 — SHALLOW_ANGLE = 0.5f * PI / 180.0f (0.5 degrees in radians). */
+export const PROJECTILE_SHALLOW_ANGLE = 0.5 * Math.PI / 180;
+
+/** Source parity: DumbProjectileBehavior.cpp:222 — MIN_ANGLE_DIFF = PI/(180*16) (1/16th degree pitch convergence). */
+export const PROJECTILE_MIN_ANGLE_DIFF = Math.PI / (180 * 16);
+
+/** Source parity: DumbProjectileBehavior.cpp:299 — CLOSE_ENOUGH_RANGE = 5.0f (projectile impact distance tolerance). */
+export const PROJECTILE_CLOSE_ENOUGH_RANGE = 5.0;
+
+/** Source parity: DumbProjectileBehavior.cpp:687 — FUDGE = 2.0f (bridge-layer height fudge for detonation). */
+export const PROJECTILE_DISTANCE_FUDGE = 2.0;
+
+/** Source parity: DumbProjectileBehaviorModuleData constructor — m_detonateCallsKill defaults to FALSE. */
+export const PROJECTILE_DEFAULT_DETONATE_CALLS_KILL = false;
+
+/** Source parity: DumbProjectileBehaviorModuleData constructor — m_orientToFlightPath defaults to TRUE. */
+export const PROJECTILE_DEFAULT_ORIENT_TO_FLIGHT_PATH = true;
+
 /**
  * Source parity: EMPUpdate — electromagnetic pulse field that grows, disables nearby entities,
  * and fades. C++ file: EMPUpdate.h/cpp. Attached to the EMP pulse object spawned by OCL/special power.
@@ -16659,7 +16685,7 @@ export class GameLogicSubsystem implements Subsystem {
             garrisonHitKillRequiredKindOf: new Set(this.parseKindOf(block.fields['GarrisonHitKillRequiredKindOf'])),
             garrisonHitKillForbiddenKindOf: new Set(this.parseKindOf(block.fields['GarrisonHitKillForbiddenKindOf'])),
             distanceScatterWhenJammed: readNumericField(block.fields, ['DistanceScatterWhenJammed']) ?? 75,
-            detonateCallsKill: readBooleanField(block.fields, ['DetonateCallsKill']) ?? false,
+            detonateCallsKill: readBooleanField(block.fields, ['DetonateCallsKill']) ?? PROJECTILE_DEFAULT_DETONATE_CALLS_KILL,
             killSelfDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['KillSelfDelay']) ?? 3),
             preferredHeight: Math.max(0, locomotorProfile?.preferredHeight ?? 0),
             turnRatePerFrame: Math.max(0, (locomotorProfile?.turnRate ?? 0) / LOGIC_FRAME_RATE),
