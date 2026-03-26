@@ -93,6 +93,7 @@ export function createMapEntity(self: GL,
   const dozerAIProfile = extractDozerAIProfile(self, objectDef);
   const workerAIProfile = extractWorkerAIProfile(self, objectDef);
   const powTruckAIProfile = extractPOWTruckAIProfile(self, objectDef);
+  const prisonBehaviorProfile = extractPrisonBehaviorProfile(self, objectDef);
   const isSupplyCenter = self.detectIsSupplyCenter(objectDef);
   const experienceProfile = extractExperienceProfile(self, objectDef);
   const visionRangeFromTemplate = readNumericField(objectDef?.fields ?? {}, ['VisionRange']) ?? 0;
@@ -445,6 +446,7 @@ export function createMapEntity(self: GL,
     dozerIdleTooLongTimestamp: self.frameCounter,
     dozerBuildTaskOrderFrame: 0,
     dozerRepairTaskOrderFrame: 0,
+    prisonBehaviorProfile,
     isSupplyCenter,
     experienceProfile,
     experienceState: createExperienceStateImpl(),
@@ -2428,6 +2430,55 @@ export function extractPOWTruckAIProfile(self: GL, objectDef: ObjectDef | undefi
       }
     }
 
+    for (const child of block.blocks) {
+      visitBlock(child);
+    }
+  };
+
+  for (const block of objectDef.blocks) {
+    visitBlock(block);
+  }
+
+  return profile;
+}
+
+/**
+ * Source parity: PrisonBehavior.cpp / PropagandaCenterBehavior.cpp
+ */
+export interface PrisonBehaviorProfile {
+  showPrisoners: boolean;
+  yardBonePrefix: string;
+  brainwashDurationFrames: number;
+}
+
+export function extractPrisonBehaviorProfile(self: GL, objectDef: ObjectDef | undefined): PrisonBehaviorProfile | null {
+  if (!objectDef) {
+    return null;
+  }
+
+  let profile: PrisonBehaviorProfile | null = null;
+  const visitBlock = (block: IniBlock): void => {
+    if (profile !== null) {
+      return;
+    }
+    if (block.type.toUpperCase() === 'BEHAVIOR') {
+      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      if (moduleType === 'PRISONBEHAVIOR' || moduleType === 'PROPAGANDACENTERBEHAVIOR') {
+        const showPrisoners = readBooleanField(block.fields, ['ShowPrisoners']) === true;
+        const yardBonePrefix = readStringField(block.fields, ['YardBonePrefix']) ?? '';
+        let brainwashDurationFrames = 0;
+        if (moduleType === 'PROPAGANDACENTERBEHAVIOR') {
+          const brainwashMs = readNumericField(block.fields, ['BrainwashDuration']) ?? 0;
+          brainwashDurationFrames = brainwashMs > 0 ? self.msToLogicFrames(brainwashMs) : 0;
+        }
+        profile = {
+          showPrisoners,
+          yardBonePrefix,
+          brainwashDurationFrames,
+        };
+        return;
+      }
+    }
     for (const child of block.blocks) {
       visitBlock(child);
     }

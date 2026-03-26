@@ -725,6 +725,7 @@ import {
   extractDozerAIProfile as extractDozerAIProfileImpl,
   extractWorkerAIProfile as extractWorkerAIProfileImpl,
   extractPOWTruckAIProfile as extractPOWTruckAIProfileImpl,
+  extractPrisonBehaviorProfile as extractPrisonBehaviorProfileImpl,
   extractExperienceProfile as extractExperienceProfileImpl,
   extractAutoHealProfile as extractAutoHealProfileImpl,
   extractPropagandaTowerProfile as extractPropagandaTowerProfileImpl,
@@ -3058,6 +3059,23 @@ interface POWTruckAIProfile {
 }
 
 /**
+ * Source parity: PrisonBehavior / PropagandaCenterBehavior module data.
+ * PrisonBehavior extends OpenContain (containment handled separately).
+ * PropagandaCenterBehavior extends PrisonBehavior, adding brainwash duration.
+ *
+ * C++ files: PrisonBehavior.cpp, PropagandaCenterBehavior.cpp.
+ */
+interface PrisonBehaviorProfile {
+  /** Source parity: PrisonBehaviorModuleData::m_showPrisoners — display captured units visually. */
+  showPrisoners: boolean;
+  /** Source parity: PrisonBehaviorModuleData::m_yardBonePrefix — bone name pattern for prisoner cages. */
+  yardBonePrefix: string;
+  /** Source parity: PropagandaCenterBehaviorModuleData::m_brainwashDuration (frames).
+   *  0 for regular PrisonBehavior (no brainwash). */
+  brainwashDurationFrames: number;
+}
+
+/**
  * Source parity: ChinookAIUpdate module data used by gameplay systems
  * currently implemented in this port (supply availability + combat-drop timing).
  */
@@ -3359,6 +3377,8 @@ export interface MapEntity {
   dozerBuildTaskOrderFrame: number;
   /** Source parity: Dozer/Worker task ordering timestamp for repair tasks. */
   dozerRepairTaskOrderFrame: number;
+  /** Source parity: PrisonBehavior / PropagandaCenterBehavior module data. */
+  prisonBehaviorProfile: PrisonBehaviorProfile | null;
   isSupplyCenter: boolean;
   experienceProfile: ExperienceProfile | null;
   experienceState: ExperienceState;
@@ -11097,6 +11117,7 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ extractDozerAIProfile(...args: any[]) { return (extractDozerAIProfileImpl as any)(this, ...args); }
   /* @internal */ extractWorkerAIProfile(...args: any[]) { return (extractWorkerAIProfileImpl as any)(this, ...args); }
   /* @internal */ extractPOWTruckAIProfile(...args: any[]) { return (extractPOWTruckAIProfileImpl as any)(this, ...args); }
+  /* @internal */ extractPrisonBehaviorProfile(...args: any[]) { return (extractPrisonBehaviorProfileImpl as any)(this, ...args); }
   /* @internal */ extractExperienceProfile(...args: any[]) { return (extractExperienceProfileImpl as any)(this, ...args); }
   /* @internal */ extractAutoHealProfile(...args: any[]) { return (extractAutoHealProfileImpl as any)(this, ...args); }
   /* @internal */ extractPropagandaTowerProfile(...args: any[]) { return (extractPropagandaTowerProfileImpl as any)(this, ...args); }

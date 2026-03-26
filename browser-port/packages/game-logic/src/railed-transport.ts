@@ -1,7 +1,7 @@
 import type { IniBlock } from '@generals/core';
 import type { ObjectDef } from '@generals/ini-data';
 
-import { readStringField } from './ini-readers.js';
+import { readNumericField, readStringField } from './ini-readers.js';
 
 export const INVALID_RAILED_TRANSPORT_PATH = -1;
 const MAX_WAYPOINT_PATHS = 32;
@@ -47,6 +47,10 @@ export interface RailedTransportRuntimeState {
 
 export interface RailedTransportProfile {
   pathPrefixName: string;
+  /** Source parity: RailedTransportDockUpdateModuleData::m_pullInsideDuration (frames). */
+  pullInsideDurationFrames: number;
+  /** Source parity: RailedTransportDockUpdateModuleData::m_pushOutsideDuration (frames). */
+  pushOutsideDurationFrames: number;
 }
 
 export interface RailedTransportEntityLike {
@@ -135,23 +139,36 @@ export function createRailedTransportRuntimeState(): RailedTransportRuntimeState
   };
 }
 
+// Source parity: parseDurationUnsignedInt — ms * LOGICFRAMES_PER_SECOND / 1000
+const LOGIC_FRAME_RATE = 30;
+const LOGIC_FRAME_MS = 1000 / LOGIC_FRAME_RATE;
+
+function msToLogicFramesLocal(ms: number): number {
+  if (!Number.isFinite(ms) || ms <= 0) {
+    return 0;
+  }
+  return Math.max(1, Math.ceil(ms / LOGIC_FRAME_MS));
+}
+
 export function extractRailedTransportProfile(objectDef: ObjectDef | undefined): RailedTransportProfile | null {
   if (!objectDef) {
     return null;
   }
 
-  let profile: RailedTransportProfile | null = null;
+  let pathPrefixName: string | null = null;
+  let pullInsideDurationFrames = 0;
+  let pushOutsideDurationFrames = 0;
+
   const visitBlock = (block: IniBlock): void => {
-    if (profile !== null) {
-      return;
-    }
     if (block.type.toUpperCase() === 'BEHAVIOR') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType === 'RAILEDTRANSPORTAIUPDATE') {
-        profile = {
-          pathPrefixName: readStringField(block.fields, ['PathPrefixName']) ?? '',
-        };
-        return;
+        pathPrefixName = readStringField(block.fields, ['PathPrefixName']) ?? '';
+      } else if (moduleType === 'RAILEDTRANSPORTDOCKUPDATE') {
+        const pullMs = readNumericField(block.fields, ['PullInsideDuration']) ?? 0;
+        const pushMs = readNumericField(block.fields, ['PushOutsideDuration']) ?? 0;
+        pullInsideDurationFrames = msToLogicFramesLocal(pullMs);
+        pushOutsideDurationFrames = msToLogicFramesLocal(pushMs);
       }
     }
     for (const child of block.blocks) {
@@ -163,7 +180,15 @@ export function extractRailedTransportProfile(objectDef: ObjectDef | undefined):
     visitBlock(block);
   }
 
-  return profile;
+  if (pathPrefixName === null) {
+    return null;
+  }
+
+  return {
+    pathPrefixName,
+    pullInsideDurationFrames,
+    pushOutsideDurationFrames,
+  };
 }
 
 export function executeRailedTransportCommand<TEntity extends RailedTransportEntityLike>(
