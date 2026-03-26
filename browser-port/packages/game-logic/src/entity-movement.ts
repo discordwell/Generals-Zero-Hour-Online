@@ -180,6 +180,45 @@ export function resolveLocomotorProfiles(self: GL,
     let wanderAboutPointRadius = 0;
     let preferredHeight = 0;
     let preferredHeightDamping = 1;
+    // Gameplay fields — defaults from Locomotor.cpp constructor
+    let stickToGround = false;
+    let allowAirborneMotiveForce = false;
+    let locomotorWorksWhenDead = false;
+    let apply2DFrictionWhenAirborne = false;
+    let airborneTargetingHeight = 2147483647; // INT_MAX
+    let extra2DFriction = 0;
+    let slideIntoPlaceTime = 0;
+    let closeEnoughDist3D = false;
+    // Visual/suspension fields — defaults from Locomotor.cpp constructor
+    let pitchStiffness = 0.1;
+    let rollStiffness = 0.1;
+    let pitchDamping = 0.9;
+    let rollDamping = 0.9;
+    let forwardVelCoef = 0;
+    let lateralVelCoef = 0;
+    let pitchByZVelCoef = 0;
+    let forwardAccelCoef = 0;
+    let lateralAccelCoef = 0;
+    let uniformAxialDamping = 1.0;
+    let turnPivotOffset = 0;
+    let thrustRoll = 0;
+    let wobbleRate = 0;
+    let minWobble = 0;
+    let maxWobble = 0;
+    let accelPitchLimit = 0;
+    let decelPitchLimit = 0;
+    let bounceKick = 0;
+    let hasSuspension = false;
+    let wheelTurnAngle = 0;
+    let maximumWheelExtension = 0;
+    let maximumWheelCompression = 0;
+    let wanderWidthFactor = 0;
+    let wanderLengthFactor = 1.0;
+    let rudderCorrectionDegree = 0;
+    let rudderCorrectionRate = 0;
+    let elevatorCorrectionDegree = 0;
+    let elevatorCorrectionRate = 0;
+
     let primaryLocomotor: LocomotorDef | null = null;
     for (const locomotorName of locomotorNames) {
       const locomotor = iniDataRegistry.getLocomotor(locomotorName);
@@ -208,6 +247,49 @@ export function resolveLocomotorProfiles(self: GL,
       if (appearanceToken) {
         appearance = appearanceToken;
       }
+
+      // ---- Gameplay fields ----
+      stickToGround = readBooleanField(f, ['StickToGround']) ?? false;
+      allowAirborneMotiveForce = readBooleanField(f, ['AllowAirborneMotiveForce']) ?? false;
+      locomotorWorksWhenDead = readBooleanField(f, ['LocomotorWorksWhenDead']) ?? false;
+      apply2DFrictionWhenAirborne = readBooleanField(f, ['Apply2DFrictionWhenAirborne']) ?? false;
+      airborneTargetingHeight = readNumericField(f, ['AirborneTargetingHeight']) ?? 2147483647;
+      extra2DFriction = readNumericField(f, ['Extra2DFriction']) ?? 0;
+      slideIntoPlaceTime = readNumericField(f, ['SlideIntoPlaceTime']) ?? 0;
+      closeEnoughDist3D = readBooleanField(f, ['CloseEnoughDist3D']) ?? false;
+
+      // ---- Visual/suspension fields ----
+      pitchStiffness = readNumericField(f, ['PitchStiffness']) ?? 0.1;
+      rollStiffness = readNumericField(f, ['RollStiffness']) ?? 0.1;
+      pitchDamping = readNumericField(f, ['PitchDamping']) ?? 0.9;
+      rollDamping = readNumericField(f, ['RollDamping']) ?? 0.9;
+      forwardVelCoef = readNumericField(f, ['ForwardVelocityPitchFactor']) ?? 0;
+      lateralVelCoef = readNumericField(f, ['LateralVelocityRollFactor']) ?? 0;
+      pitchByZVelCoef = readNumericField(f, ['PitchInDirectionOfZVelFactor']) ?? 0;
+      forwardAccelCoef = readNumericField(f, ['ForwardAccelerationPitchFactor']) ?? 0;
+      lateralAccelCoef = readNumericField(f, ['LateralAccelerationRollFactor']) ?? 0;
+      uniformAxialDamping = readNumericField(f, ['UniformAxialDamping']) ?? 1.0;
+      turnPivotOffset = readNumericField(f, ['TurnPivotOffset']) ?? 0;
+      thrustRoll = readNumericField(f, ['ThrustRoll']) ?? 0;
+      wobbleRate = readNumericField(f, ['ThrustWobbleRate']) ?? 0;
+      minWobble = readNumericField(f, ['ThrustMinWobble']) ?? 0;
+      maxWobble = readNumericField(f, ['ThrustMaxWobble']) ?? 0;
+      // Source parity: AccelerationPitchLimit/DecelerationPitchLimit use parseAngleReal (degrees→radians).
+      accelPitchLimit = (readNumericField(f, ['AccelerationPitchLimit']) ?? 0) * (Math.PI / 180);
+      decelPitchLimit = (readNumericField(f, ['DecelerationPitchLimit']) ?? 0) * (Math.PI / 180);
+      // Source parity: BounceAmount uses parseAngularVelocityReal (degrees/sec→radians/sec).
+      bounceKick = (readNumericField(f, ['BounceAmount']) ?? 0) * (Math.PI / 180);
+      hasSuspension = readBooleanField(f, ['HasSuspension']) ?? false;
+      // Source parity: FrontWheelTurnAngle uses parseAngleReal (degrees→radians).
+      wheelTurnAngle = (readNumericField(f, ['FrontWheelTurnAngle']) ?? 0) * (Math.PI / 180);
+      maximumWheelExtension = readNumericField(f, ['MaximumWheelExtension']) ?? 0;
+      maximumWheelCompression = readNumericField(f, ['MaximumWheelCompression']) ?? 0;
+      wanderWidthFactor = readNumericField(f, ['WanderWidthFactor']) ?? 0;
+      wanderLengthFactor = readNumericField(f, ['WanderLengthFactor']) ?? 1.0;
+      rudderCorrectionDegree = readNumericField(f, ['RudderCorrectionDegree']) ?? 0;
+      rudderCorrectionRate = readNumericField(f, ['RudderCorrectionRate']) ?? 0;
+      elevatorCorrectionDegree = readNumericField(f, ['ElevatorCorrectionDegree']) ?? 0;
+      elevatorCorrectionRate = readNumericField(f, ['ElevatorCorrectionRate']) ?? 0;
     }
     profiles.set(setName, {
       surfaceMask,
@@ -221,6 +303,44 @@ export function resolveLocomotorProfiles(self: GL,
       wanderAboutPointRadius,
       preferredHeight,
       preferredHeightDamping,
+      // Gameplay fields
+      stickToGround,
+      allowAirborneMotiveForce,
+      locomotorWorksWhenDead,
+      apply2DFrictionWhenAirborne,
+      airborneTargetingHeight,
+      extra2DFriction,
+      slideIntoPlaceTime,
+      closeEnoughDist3D,
+      // Visual/suspension fields
+      pitchStiffness,
+      rollStiffness,
+      pitchDamping,
+      rollDamping,
+      forwardVelCoef,
+      lateralVelCoef,
+      pitchByZVelCoef,
+      forwardAccelCoef,
+      lateralAccelCoef,
+      uniformAxialDamping,
+      turnPivotOffset,
+      thrustRoll,
+      wobbleRate,
+      minWobble,
+      maxWobble,
+      accelPitchLimit,
+      decelPitchLimit,
+      bounceKick,
+      hasSuspension,
+      wheelTurnAngle,
+      maximumWheelExtension,
+      maximumWheelCompression,
+      wanderWidthFactor,
+      wanderLengthFactor,
+      rudderCorrectionDegree,
+      rudderCorrectionRate,
+      elevatorCorrectionDegree,
+      elevatorCorrectionRate,
     });
   }
 
@@ -577,13 +697,17 @@ export function updatePhysicsBehavior(self: GL): void {
     if (!prof) continue;
 
     // Lazy-init state on first frame.
+    // Source parity: PhysicsBehavior flags start at 0 (stickToGround=false), then
+    // Locomotor::transferLocomotorPhysicsToPhysicsBehavior sets stickToGround from the
+    // locomotor template's StickToGround field.
     if (!entity.physicsBehaviorState) {
+      const activeLocoProfile = entity.locomotorSets?.get(entity.activeLocomotorSet);
       entity.physicsBehaviorState = {
         velX: 0, velY: 0, velZ: 0,
         accelX: 0, accelY: 0, accelZ: 0,
         yawRate: 0, pitchRate: 0, rollRate: 0,
         wasAirborneLastFrame: false,
-        stickToGround: true,
+        stickToGround: activeLocoProfile?.stickToGround ?? false,
         allowToFall: false,
         isInFreeFall: false,
         extraBounciness: 0, extraFriction: 0,

@@ -77,10 +77,10 @@ export function makeArmorDef(name: string, fields: Record<string, unknown>): Arm
   };
 }
 
-export function makeLocomotorDef(name: string, speed: number): LocomotorDef {
+export function makeLocomotorDef(name: string, speed: number, extraFields?: Record<string, unknown>): LocomotorDef {
   return {
     name,
-    fields: { Speed: speed },
+    fields: { Speed: speed, ...extraFields } as Record<string, string | number | boolean | string[] | number[]>,
     surfaces: ['GROUND'],
     surfaceMask: 1,
     downhillOnly: false,
