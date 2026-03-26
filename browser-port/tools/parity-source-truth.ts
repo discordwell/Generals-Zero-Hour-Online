@@ -247,7 +247,7 @@ export function compareWeaponBonusConditions(
 
   for (const name of cppNameStrings) {
     if (name.includes('OBSOLETE')) continue;
-    if (name.startsWith('SOLO_')) continue; // difficulty bonuses, not gameplay
+    // SOLO_* difficulty bonuses now implemented in the browser port.
     if (name.startsWith('DEMORALIZED')) continue; // #ifdef'd out
     if (!tsSet.has(name)) {
       mismatches.push({

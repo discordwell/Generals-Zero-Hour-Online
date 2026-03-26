@@ -230,6 +230,17 @@ export interface GameDataConfig {
    * Parsed from INI via parsePercentToReal.
    */
   sellPercentage?: number;
+  /**
+   * Source parity: GlobalData::m_soloPlayerHealthBonusForDifficulty[PLAYERTYPE_COUNT][DIFFICULTY_COUNT]
+   * 2x3 matrix indexed by [playerType][difficulty]:
+   *   playerType: 0 = HUMAN, 1 = COMPUTER
+   *   difficulty: 0 = EASY, 1 = NORMAL, 2 = HARD
+   * Loaded from GameData.ini fields:
+   *   HumanSoloPlayerHealthBonus_Easy/Normal/Hard
+   *   AISoloPlayerHealthBonus_Easy/Normal/Hard
+   * C++ default: all 1.0. Parsed via parsePercentToReal.
+   */
+  soloPlayerHealthBonuses: [[number, number, number], [number, number, number]];
 }
 
 export interface AudioSettingsConfig {
@@ -549,6 +560,12 @@ export class IniDataRegistry {
             ? ([...bundle.gameData.healthBonuses] as [number, number, number, number])
             : [1.0, 1.0, 1.0, 1.0],
           sellPercentage: bundle.gameData.sellPercentage,
+          soloPlayerHealthBonuses: bundle.gameData.soloPlayerHealthBonuses
+            ? [
+                [...bundle.gameData.soloPlayerHealthBonuses[0]] as [number, number, number],
+                [...bundle.gameData.soloPlayerHealthBonuses[1]] as [number, number, number],
+              ]
+            : [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]],
         }
       : undefined;
     for (const unsupported of bundle.unsupportedBlockTypes) {
@@ -620,6 +637,10 @@ export class IniDataRegistry {
           weaponBonusEntries: [...this.gameData.weaponBonusEntries],
           healthBonuses: [...this.gameData.healthBonuses] as [number, number, number, number],
           sellPercentage: this.gameData.sellPercentage,
+          soloPlayerHealthBonuses: [
+            [...this.gameData.soloPlayerHealthBonuses[0]] as [number, number, number],
+            [...this.gameData.soloPlayerHealthBonuses[1]] as [number, number, number],
+          ],
         }
       : undefined;
   }
@@ -1207,7 +1228,35 @@ export class IniDataRegistry {
       sellPercentage = sellPctValue;
     }
 
-    this.gameData = { weaponBonusEntries: entries, healthBonuses, sellPercentage };
+    // ── Solo player health bonuses (source parity: GlobalData.cpp:408-414) ──
+    // m_soloPlayerHealthBonusForDifficulty[PLAYERTYPE_COUNT][DIFFICULTY_COUNT], all default 1.0.
+    // INI fields: HumanSoloPlayerHealthBonus_Easy/Normal/Hard, AISoloPlayerHealthBonus_Easy/Normal/Hard.
+    // Parsed via parsePercentToReal (e.g. "100%" → 1.0).
+    const prevSolo = this.gameData?.soloPlayerHealthBonuses ?? [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]];
+    const soloPlayerHealthBonuses: [[number, number, number], [number, number, number]] = [
+      [...prevSolo[0]],
+      [...prevSolo[1]],
+    ];
+
+    const humanEasy = extractUnclampedPercentToReal(block.fields['HumanSoloPlayerHealthBonus_Easy']);
+    if (humanEasy !== undefined) soloPlayerHealthBonuses[0][0] = humanEasy;
+
+    const humanNormal = extractUnclampedPercentToReal(block.fields['HumanSoloPlayerHealthBonus_Normal']);
+    if (humanNormal !== undefined) soloPlayerHealthBonuses[0][1] = humanNormal;
+
+    const humanHard = extractUnclampedPercentToReal(block.fields['HumanSoloPlayerHealthBonus_Hard']);
+    if (humanHard !== undefined) soloPlayerHealthBonuses[0][2] = humanHard;
+
+    const aiEasy = extractUnclampedPercentToReal(block.fields['AISoloPlayerHealthBonus_Easy']);
+    if (aiEasy !== undefined) soloPlayerHealthBonuses[1][0] = aiEasy;
+
+    const aiNormal = extractUnclampedPercentToReal(block.fields['AISoloPlayerHealthBonus_Normal']);
+    if (aiNormal !== undefined) soloPlayerHealthBonuses[1][1] = aiNormal;
+
+    const aiHard = extractUnclampedPercentToReal(block.fields['AISoloPlayerHealthBonus_Hard']);
+    if (aiHard !== undefined) soloPlayerHealthBonuses[1][2] = aiHard;
+
+    this.gameData = { weaponBonusEntries: entries, healthBonuses, sellPercentage, soloPlayerHealthBonuses };
   }
 
   private resolveObjectChain(name: string, visited: Set<string>): ObjectDef | undefined {
