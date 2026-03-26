@@ -194,7 +194,7 @@ function makeTestContext(
     warehouseStates.set(whId, { currentBoxes: boxes });
   }
 
-  const warehouseProfile: SupplyWarehouseProfile = { startingBoxes: 50, deleteWhenEmpty: false };
+  const warehouseProfile: SupplyWarehouseProfile = { startingBoxes: 50, deleteWhenEmpty: false, numberApproachPositions: -1, allowsPassthrough: false };
 
   return {
     frameCounter: 0,

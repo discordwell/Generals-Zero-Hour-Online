@@ -721,6 +721,7 @@ import {
   extractSupplyWarehouseProfile as extractSupplyWarehouseProfileImpl,
   extractSupplyTruckProfile as extractSupplyTruckProfileImpl,
   extractRepairDockProfile as extractRepairDockProfileImpl,
+  extractFireWeaponCollideProfiles as extractFireWeaponCollideProfilesImpl,
   extractCommandButtonHuntProfile as extractCommandButtonHuntProfileImpl,
   extractDozerAIProfile as extractDozerAIProfileImpl,
   extractExperienceProfile as extractExperienceProfileImpl,
@@ -3001,6 +3002,10 @@ interface PendingChinookRappelState {
 interface RepairDockProfile {
   /** Source parity: RepairDockUpdateModuleData::m_framesForFullHeal (duration real in frames). */
   timeForFullHealFrames: number;
+  /** Source parity: DockUpdate base — number of docking slots. -1 = unlimited. C++ default: -1. */
+  numberApproachPositions: number;
+  /** Source parity: DockUpdate base — can entities pass through while docking. C++ default: FALSE. */
+  allowsPassthrough: boolean;
 }
 
 /**
@@ -3487,6 +3492,10 @@ export interface MapEntity {
   mineIgnoreDamage: boolean;
   /** Source parity: m_producerID — entity that created this mine (for creator death detection). */
   mineCreatorId: number;
+
+  // ── Source parity: FireWeaponCollide — fires weapon on collision ──
+  /** Parsed FireWeaponCollide modules from INI (multiple allowed per entity). */
+  fireWeaponCollideProfiles: FireWeaponCollideProfile[];
 
   // ── Source parity: EjectPilotDie — pilot eject on death ──
   /** Template name of pilot unit to eject on death. Null = no eject. */
@@ -4426,6 +4435,21 @@ interface MineDetonatorEntry {
   entityId: number;
   x: number;
   z: number;
+}
+
+/**
+ * Source parity: FireWeaponCollide module parsed from INI.
+ * C++ file: FireWeaponCollide.cpp — fires a weapon on collision (used by mines, burning trees, ramming vehicles).
+ */
+interface FireWeaponCollideProfile {
+  /** Weapon template name to fire on collision. */
+  collideWeapon: string;
+  /** Only fire weapon once, then stop. C++ default: FALSE. */
+  fireOnce: boolean;
+  /** Required object status bits (all must be set). C++ default: 0 (none). */
+  requiredStatus: Set<string>;
+  /** Forbidden object status bits (none may be set). C++ default: 0 (none). */
+  forbiddenStatus: Set<string>;
 }
 
 /**
@@ -11021,6 +11045,7 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ extractSupplyWarehouseProfile(...args: any[]) { return (extractSupplyWarehouseProfileImpl as any)(this, ...args); }
   /* @internal */ extractSupplyTruckProfile(...args: any[]) { return (extractSupplyTruckProfileImpl as any)(this, ...args); }
   /* @internal */ extractRepairDockProfile(...args: any[]) { return (extractRepairDockProfileImpl as any)(this, ...args); }
+  /* @internal */ extractFireWeaponCollideProfiles(...args: any[]) { return (extractFireWeaponCollideProfilesImpl as any)(this, ...args); }
   /* @internal */ extractCommandButtonHuntProfile(...args: any[]) { return (extractCommandButtonHuntProfileImpl as any)(this, ...args); }
   /* @internal */ extractDozerAIProfile(...args: any[]) { return (extractDozerAIProfileImpl as any)(this, ...args); }
   /* @internal */ extractExperienceProfile(...args: any[]) { return (extractExperienceProfileImpl as any)(this, ...args); }

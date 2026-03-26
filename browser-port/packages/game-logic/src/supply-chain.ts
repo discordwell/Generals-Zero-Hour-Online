@@ -35,6 +35,10 @@ type SupplyChainShroudStatus = 'CLEAR' | 'FOGGED' | 'SHROUDED';
 export interface SupplyWarehouseProfile {
   startingBoxes: number;
   deleteWhenEmpty: boolean;
+  /** Source parity: DockUpdate base — number of docking slots. -1 = unlimited. C++ default: -1. */
+  numberApproachPositions: number;
+  /** Source parity: DockUpdate base — can entities pass through while docking. C++ default: FALSE. */
+  allowsPassthrough: boolean;
 }
 
 export interface SupplyTruckProfile {

@@ -502,6 +502,8 @@ export function createMapEntity(self: GL,
     flammableProfile: extractFlammableProfile(self, objectDef),
     fireSpreadProfile: self.extractFireSpreadProfile(objectDef),
     fireSpreadNextFrame: 0,
+    // Fire weapon collide
+    fireWeaponCollideProfiles: extractFireWeaponCollideProfiles(self, objectDef),
     // Mine behavior
     minefieldProfile: extractMinefieldProfile(self, objectDef),
     mineVirtualMinesRemaining: 0,
@@ -2163,9 +2165,12 @@ export function extractSupplyWarehouseProfile(self: GL, objectDef: ObjectDef | u
     if (block.type.toUpperCase() === 'BEHAVIOR') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType === 'SUPPLYWAREHOUSEDOCKUPDATE') {
+        const numApproach = readNumericField(block.fields, ['NumberApproachPositions']);
         profile = {
           startingBoxes: Math.max(0, Math.trunc(readNumericField(block.fields, ['StartingBoxes']) ?? 1)),
           deleteWhenEmpty: readBooleanField(block.fields, ['DeleteWhenEmpty']) === true,
+          numberApproachPositions: numApproach !== null ? Math.trunc(numApproach) : -1,
+          allowsPassthrough: readBooleanField(block.fields, ['AllowsPassthrough']) === true,
         };
         return;
       }
@@ -2240,8 +2245,11 @@ export function extractRepairDockProfile(self: GL, objectDef: ObjectDef | undefi
         const framesForFullHeal = timeForFullHealMs > 0
           ? self.msToLogicFramesReal(timeForFullHealMs)
           : 1;
+        const numApproach = readNumericField(block.fields, ['NumberApproachPositions']);
         profile = {
           timeForFullHealFrames: Math.max(1, framesForFullHeal),
+          numberApproachPositions: numApproach !== null ? Math.trunc(numApproach) : -1,
+          allowsPassthrough: readBooleanField(block.fields, ['AllowsPassthrough']) === true,
         };
         return;
       }
@@ -2256,6 +2264,39 @@ export function extractRepairDockProfile(self: GL, objectDef: ObjectDef | undefi
   }
 
   return profile;
+}
+
+export function extractFireWeaponCollideProfiles(self: GL, objectDef: ObjectDef | undefined): FireWeaponCollideProfile[] {
+  if (!objectDef) return [];
+  const profiles: FireWeaponCollideProfile[] = [];
+  const visitBlock = (block: IniBlock): void => {
+    const blockType = block.type.toUpperCase();
+    if (blockType === 'BEHAVIOR') {
+      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      if (moduleType === 'FIREWEAPONCOLLIDE') {
+        const collideWeapon = readStringField(block.fields, ['CollideWeapon']);
+        if (!collideWeapon) return;
+        const fireOnce = readBooleanField(block.fields, ['FireOnce']) === true;
+        const rsStr = readStringField(block.fields, ['RequiredStatus'])?.trim().toUpperCase() ?? '';
+        const requiredStatus = new Set(rsStr.split(/\s+/).filter(Boolean));
+        const fsStr = readStringField(block.fields, ['ForbiddenStatus'])?.trim().toUpperCase() ?? '';
+        const forbiddenStatus = new Set(fsStr.split(/\s+/).filter(Boolean));
+        profiles.push({
+          collideWeapon,
+          fireOnce,
+          requiredStatus,
+          forbiddenStatus,
+        });
+      }
+    }
+    if (block.blocks) {
+      for (const child of block.blocks) visitBlock(child);
+    }
+  };
+  if (objectDef.blocks) {
+    for (const block of objectDef.blocks) visitBlock(block);
+  }
+  return profiles;
 }
 
 export function extractCommandButtonHuntProfile(self: GL, objectDef: ObjectDef | undefined): CommandButtonHuntProfile | null {
