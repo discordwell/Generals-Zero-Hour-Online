@@ -1936,6 +1936,35 @@ describe('SpectreGunshipUpdate', () => {
     expect(entity.spectreGunshipDeploymentProfile!.gunshipTemplateName).toBe('TestGunship');
     expect(entity.spectreGunshipDeploymentProfile!.attackAreaRadius).toBe(200);
     expect(entity.spectreGunshipDeploymentProfile!.createLocation).toBe('FARTHEST_FROM_TARGET');
+    // RequiredScience defaults to empty string when not specified (C++ SCIENCE_INVALID).
+    expect(entity.spectreGunshipDeploymentProfile!.requiredScience).toBe('');
+  });
+
+  it('extracts RequiredScience from SpectreGunshipDeploymentUpdate (C++ m_extraRequiredScience)', () => {
+    // C++ source: SpectreGunshipDeploymentUpdate.cpp:105 — RequiredScience parsed via INI::parseScience.
+    // SpectreGunshipDeploymentUpdateModuleData::m_extraRequiredScience — additional science prerequisite.
+    const ccDef = makeObjectDef('TestCC', 'America', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 2000, InitialHealth: 2000 }),
+      makeBlock('Behavior', 'SpectreGunshipDeploymentUpdate ModuleTag_Deploy', {
+        SpecialPowerTemplate: 'SPECIAL_SPECTRE_GUNSHIP',
+        GunshipTemplateName: 'TestGunship',
+        AttackAreaRadius: 200,
+        GunshipOrbitRadius: 100,
+        CreateLocation: 'CREATE_AT_EDGE_FARTHEST_FROM_TARGET',
+        RequiredScience: 'SCIENCE_GLA_ADVANCED_SPECIAL_POWER',
+      }),
+    ]);
+    const bundle = makeBundle({ objects: [ccDef, makeGunshipDef()] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestCC', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    const entity = (logic as any).spawnedEntities.get(1)!;
+    expect(entity.spectreGunshipDeploymentProfile).not.toBeNull();
+    expect(entity.spectreGunshipDeploymentProfile!.requiredScience).toBe('SCIENCE_GLA_ADVANCED_SPECIAL_POWER');
   });
 
   it('transitions gunship through INSERTING -> ORBITING -> DEPARTING lifecycle', () => {
