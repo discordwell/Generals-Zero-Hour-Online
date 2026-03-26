@@ -2154,6 +2154,12 @@ interface ProductionProfile {
     templateName: string;
     quantity: number;
   }>;
+  /** Source parity: ProductionUpdateModuleData::m_numDoorAnimations — number of door animations. Default 0. */
+  numDoorAnimations: number;
+  /** Source parity: ProductionUpdateModuleData::m_doorOpeningTime — door opening duration in frames. Default 0. */
+  doorOpeningTimeFrames: number;
+  /** Source parity: ProductionUpdateModuleData::m_constructionCompleteDuration — frames. Default 0. */
+  constructionCompleteDurationFrames: number;
 }
 
 interface ProductionPrerequisiteGroup {
@@ -2412,6 +2418,17 @@ interface ContainProfile {
   /** Source parity: TransportContainModuleData::m_destroyRidersWhoAreNotFreeToExit — kill riders
    *  who cannot exit when the container dies. Default: false. */
   destroyRidersWhoAreNotFreeToExit: boolean;
+  /** Source parity: GarrisonContainModuleData::m_doIHealObjects — enables healing garrisoned units. Default false. */
+  healObjects?: boolean;
+  /** Source parity: GarrisonContainModuleData::m_mobileGarrison — garrison can move. Default false. */
+  mobileGarrison?: boolean;
+  /** Source parity: GarrisonContainModuleData::m_initialRoster — initial units to spawn. */
+  initialRosterTemplateName?: string | null;
+  initialRosterCount?: number;
+  /** Source parity: GarrisonContainModuleData::m_immuneToClearBuildingAttacks — immunity to clear-building. Default false. */
+  immuneToClearBuildingAttacks?: boolean;
+  /** Source parity: GarrisonContainModuleData::m_isEnclosingContainer — enclosing container flag. Default true for garrison. */
+  isEnclosingContainer?: boolean;
 }
 
 /**
@@ -2560,6 +2577,10 @@ interface SpawnBehaviorProfile {
   initialBurst: number;
   /** If true, slaves handle their own targeting (not forwarded from master). */
   slavesHaveFreeWill: boolean;
+  /** Source parity: SpawnBehaviorModuleData::m_canReclaimOrphans — can reclaim orphaned spawned units. Default false. */
+  canReclaimOrphans: boolean;
+  /** Source parity: SpawnBehaviorModuleData::m_exitByBudding — spawn exit by budding mechanism. Default false. */
+  exitByBudding: boolean;
 }
 
 /**
@@ -3844,6 +3865,12 @@ interface AutoHealProfile {
   kindOf: Set<string> | null;
   /** Source parity: AutoHealBehavior.h:64 — ForbiddenKindOf excludes targets from radius heal. */
   forbiddenKindOf: Set<string> | null;
+  /** Source parity: AutoHealBehaviorModuleData::m_radiusParticleSystemTmpl — particle system for heal radius. */
+  radiusParticleSystemName: string;
+  /** Source parity: AutoHealBehaviorModuleData::m_unitHealPulseParticleSystemTmpl — particle system for heal pulse. */
+  unitHealPulseParticleSystemName: string;
+  /** Source parity: AutoHealBehaviorModuleData::m_skipSelfForHealing — skip self when healing in radius. Default false. */
+  skipSelfForHealing: boolean;
 }
 
 /**

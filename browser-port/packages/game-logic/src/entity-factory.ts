@@ -1359,6 +1359,9 @@ export function extractProductionProfile(self: GL, objectDef: ObjectDef | undefi
 
   let foundModule = false;
   let maxQueueEntries = 9;
+  let numDoorAnimations = 0;
+  let doorOpeningTimeFrames = 0;
+  let constructionCompleteDurationFrames = 0;
   const quantityModifiers: Array<{ templateName: string; quantity: number }> = [];
 
   const visitBlock = (block: IniBlock): void => {
@@ -1371,6 +1374,20 @@ export function extractProductionProfile(self: GL, objectDef: ObjectDef | undefi
         if (configuredMaxQueueEntries !== null && Number.isFinite(configuredMaxQueueEntries)) {
           maxQueueEntries = Math.max(0, Math.trunc(configuredMaxQueueEntries));
         }
+
+        // Source parity: ProductionUpdateModuleData::m_numDoorAnimations (parseInt).
+        const numDoorRaw = readNumericField(block.fields, ['NumDoorAnimations']);
+        if (numDoorRaw !== null && Number.isFinite(numDoorRaw)) {
+          numDoorAnimations = Math.max(0, Math.trunc(numDoorRaw));
+        }
+
+        // Source parity: ProductionUpdateModuleData::m_doorOpeningTime (parseDurationUnsignedInt).
+        const doorOpeningMs = readNumericField(block.fields, ['DoorOpeningTime']) ?? 0;
+        doorOpeningTimeFrames = self.msToLogicFrames(doorOpeningMs);
+
+        // Source parity: ProductionUpdateModuleData::m_constructionCompleteDuration (parseDurationUnsignedInt).
+        const constructionCompleteMs = readNumericField(block.fields, ['ConstructionCompleteDuration']) ?? 0;
+        constructionCompleteDurationFrames = self.msToLogicFrames(constructionCompleteMs);
 
         for (const tokens of extractIniValueTokens(self, block.fields['QuantityModifier'])) {
           const templateName = tokens[0]?.trim();
@@ -1403,6 +1420,9 @@ export function extractProductionProfile(self: GL, objectDef: ObjectDef | undefi
   return {
     maxQueueEntries,
     quantityModifiers,
+    numDoorAnimations,
+    doorOpeningTimeFrames,
+    constructionCompleteDurationFrames,
   };
 }
 
@@ -1651,6 +1671,27 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
     } else if (moduleType === 'GARRISONCONTAIN') {
       // GarrisonContain is OpenContain-derived in source but always returns TRUE from
       // isPassengerAllowedToFire(), so we track it explicitly for behavior parity.
+      // Source parity: GarrisonContainModuleData — garrison-specific fields.
+      const healObjects = readBooleanField(block.fields, ['HealObjects']) === true;
+      const timeForFullHealMs = readNumericField(block.fields, ['TimeForFullHeal']) ?? 0;
+      const garrisonTimeForFullHealFrames = healObjects && timeForFullHealMs > 0
+        ? self.msToLogicFrames(timeForFullHealMs) : 0;
+      const mobileGarrison = readBooleanField(block.fields, ['MobileGarrison']) === true;
+      const immuneToClearBuildingAttacks = readBooleanField(block.fields, ['ImmuneToClearBuildingAttacks']) === true;
+      // Source parity: GarrisonContainModuleData constructor — m_isEnclosingContainer defaults to TRUE.
+      const isEnclosingContainerRaw = readBooleanField(block.fields, ['IsEnclosingContainer']);
+      const isEnclosingContainer = isEnclosingContainerRaw !== false;
+      // Source parity: GarrisonContainModuleData::parseInitialRoster — "templateName count" format.
+      const initialRosterRaw = readStringField(block.fields, ['InitialRoster']);
+      let initialRosterTemplateName: string | null = null;
+      let initialRosterCount = 0;
+      if (initialRosterRaw) {
+        const rosterTokens = initialRosterRaw.trim().split(/\s+/);
+        if (rosterTokens.length >= 1 && rosterTokens[0]) {
+          initialRosterTemplateName = rosterTokens[0].toUpperCase();
+          initialRosterCount = rosterTokens.length >= 2 ? (parseInt(rosterTokens[1]!, 10) || 1) : 1;
+        }
+      }
       profile = {
         moduleType: 'GARRISON',
         allowInsideKindOf,
@@ -1662,13 +1703,19 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         passengersAllowedToFireDefault: true,
         garrisonCapacity: containMax > 0 ? containMax : 10,
         transportCapacity: 0,
-        timeForFullHealFrames: 0,
+        timeForFullHealFrames: garrisonTimeForFullHealFrames,
         damagePercentToUnits,
         burnedDeathToUnits,
         healthRegenPercentPerSec: 0,
         initialPayloadTemplateName: null,
         initialPayloadCount: 0,
         destroyRidersWhoAreNotFreeToExit,
+        healObjects,
+        mobileGarrison,
+        initialRosterTemplateName,
+        initialRosterCount,
+        immuneToClearBuildingAttacks,
+        isEnclosingContainer,
       };
     } else if (moduleType === 'TUNNELCONTAIN') {
       // Source parity: TunnelContain — per-player shared tunnel network.
@@ -2206,6 +2253,10 @@ export function extractAutoHealProfile(self: GL, objectDef: ObjectDef | undefine
           singleBurst: readBooleanField(block.fields, ['SingleBurst']) ?? false,
           kindOf: kindOfSet.size > 0 ? kindOfSet : null,
           forbiddenKindOf: forbiddenKindOfSet.size > 0 ? forbiddenKindOfSet : null,
+          // Source parity: AutoHealBehaviorModuleData — particle system and self-skip fields.
+          radiusParticleSystemName: readStringField(block.fields, ['RadiusParticleSystemName']) ?? '',
+          unitHealPulseParticleSystemName: readStringField(block.fields, ['UnitHealPulseParticleSystemName']) ?? '',
+          skipSelfForHealing: readBooleanField(block.fields, ['SkipSelfForHealing']) === true,
         };
       }
     }
