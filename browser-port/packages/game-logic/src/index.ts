@@ -85,6 +85,7 @@ import {
   coerceStringArray,
   pointInPolygon,
   readBooleanField,
+  readCoord3DField,
   readNumericField,
   readNumericList,
   readNumericListField,
@@ -31300,13 +31301,30 @@ export class GameLogicSubsystem implements Subsystem {
         // Source parity: FireWeaponNugget::create — fires weapon at secondary (target) position.
         // C++ calls TheWeaponStore->createAndFireTempWeapon(m_weapon, primaryObj, secondary).
         this.executeFireWeaponNugget(nugget, sourceEntity, targetX, targetZ);
+      } else if (nuggetType === 'DELIVERPAYLOAD') {
+        // Source parity: DeliverPayloadNugget::create — spawn transport(s) with payload.
+        this.executeDeliverPayloadNugget(nugget, sourceEntity, targetX, targetZ);
       }
-      // DeliverPayload, Attack, ApplyRandomForce are omitted for now.
+      // Attack, ApplyRandomForce are omitted for now.
     }
   }
 
   /**
    * Source parity: GenericObjectCreationNugget::reallyCreate — spawn objects from an OCL nugget.
+   *
+   * C++ ObjectCreationList.cpp:825-876 — common + CreateObject-specific FieldParse tables.
+   *
+   * Common fields (getCommonFieldParse):
+   *   PutInContainer, ParticleSystem, Count, IgnorePrimaryObstacle, OrientInForceDirection,
+   *   ExtraBounciness, ExtraFriction, Offset, Disposition, DispositionIntensity,
+   *   SpinRate, YawRate, RollRate, PitchRate, MinForceMagnitude, MaxForceMagnitude,
+   *   MinForcePitch, MaxForcePitch, MinLifetime, MaxLifetime,
+   *   SpreadFormation, MinDistanceAFormation, MinDistanceBFormation, MaxDistanceFormation,
+   *   FadeIn, FadeOut, FadeTime, FadeSound, PreserveLayer, DiesOnBadLand
+   *
+   * CreateObject-specific (parseObject):
+   *   ContainInsideSourceObject, ObjectNames, ObjectCount, InheritsVeterancy,
+   *   SkipIfSignificantlyAirborne, InvulnerableTime, MinHealth, MaxHealth, RequiresLivePlayer
    */
   private executeCreateObjectNugget(nugget: IniBlock, sourceEntity: MapEntity, lifetimeOverrideFrames?: number): void {
     const registry = this.iniDataRegistry;
@@ -31335,14 +31353,70 @@ export class GameLogicSubsystem implements Subsystem {
     // Parse InheritsVeterancy.
     const inheritsVet = readStringField(nugget.fields, ['InheritsVeterancy'])?.toUpperCase() === 'YES';
 
+    // Source parity: SkipIfSignificantlyAirborne — skip if source is significantly above terrain.
+    // C++ GenericObjectCreationNugget.cpp:794 — if m_skipIfSignificantlyAirborne && primary->isSignificantlyAboveTerrain(), return NULL.
+    const skipIfAirborne = readBooleanField(nugget.fields, ['SkipIfSignificantlyAirborne']) ?? false;
+    if (skipIfAirborne && sourceEntity.y > sourceEntity.baseHeight + 30) {
+      return;
+    }
+
+    // Source parity: RequiresLivePlayer — skip if the owning player is dead.
+    // C++ GenericObjectCreationNugget.cpp:876 — m_requiresLivePlayer gates creation on player alive.
+    const requiresLivePlayer = readBooleanField(nugget.fields, ['RequiresLivePlayer']) ?? false;
+    if (requiresLivePlayer && sourceEntity.side && this.defeatedSides.has(sourceEntity.side)) {
+      return;
+    }
+
+    // Source parity: InvulnerableTime — duration-parsed frames of invulnerability after spawn.
+    const invulnerableTimeMs = readNumericField(nugget.fields, ['InvulnerableTime']) ?? 0;
+    const invulnerableFrames = invulnerableTimeMs > 0 ? this.msToLogicFrames(invulnerableTimeMs) : 0;
+
+    // Source parity: ContainInsideSourceObject — spawn inside the source's contain system.
+    const containInsideSource = readBooleanField(nugget.fields, ['ContainInsideSourceObject']) ?? false;
+
+    // Source parity: PutInContainer — name of a container template to wrap spawned objects in.
+    const putInContainer = readStringField(nugget.fields, ['PutInContainer']) ?? '';
+
+    // Source parity: MinHealth / MaxHealth — clamp spawned object health as percentage.
+    const minHealthPct = readNumericField(nugget.fields, ['MinHealth']) ?? 1.0;
+    const maxHealthPct = readNumericField(nugget.fields, ['MaxHealth']) ?? 1.0;
+
+    // Source parity: MinLifetime / MaxLifetime — random lifetime in ms.
+    const minLifetimeMs = readNumericField(nugget.fields, ['MinLifetime']) ?? 0;
+    const maxLifetimeMs = readNumericField(nugget.fields, ['MaxLifetime']) ?? 0;
+
+    // Source parity: SpreadFormation — spread spawned objects in a formation pattern.
+    const spreadFormation = readBooleanField(nugget.fields, ['SpreadFormation']) ?? false;
+    const minDistA = readNumericField(nugget.fields, ['MinDistanceAFormation']) ?? 0;
+    const minDistB = readNumericField(nugget.fields, ['MinDistanceBFormation']) ?? 0;
+    const maxDist = readNumericField(nugget.fields, ['MaxDistanceFormation']) ?? 0;
+
+    // Source parity: FadeIn / FadeOut — visual fading of spawned objects.
+    const fadeIn = readBooleanField(nugget.fields, ['FadeIn']) ?? false;
+    const fadeOut = readBooleanField(nugget.fields, ['FadeOut']) ?? false;
+    const fadeTimeMs = readNumericField(nugget.fields, ['FadeTime']) ?? 0;
+    const fadeFrames = fadeTimeMs > 0 ? this.msToLogicFrames(fadeTimeMs) : 0;
+
     for (let i = 0; i < count; i++) {
       // Pick a random object from the list (deterministic via gameRandom).
       const templateName = objectNames[this.gameRandom.nextRange(0, objectNames.length - 1)]!;
 
+      // Source parity: SpreadFormation — calculate position spread.
+      let formationOffsetX = 0;
+      let formationOffsetZ = 0;
+      if (spreadFormation && count > 1) {
+        // Source parity: distribute objects in a spread pattern.
+        const distA = minDistA + this.gameRandom.nextFloat() * (maxDist - minDistA);
+        const distB = minDistB + this.gameRandom.nextFloat() * (maxDist - minDistB);
+        const angle = this.gameRandom.nextFloat() * Math.PI * 2;
+        formationOffsetX = distA * Math.cos(angle);
+        formationOffsetZ = distB * Math.sin(angle);
+      }
+
       // Apply offset with some scatter for multiple spawns.
-      const scatter = count > 1 ? (this.gameRandom.nextFloat() - 0.5) * 4 : 0;
-      const spawnX = sourceEntity.x + offsetX + scatter;
-      const spawnZ = sourceEntity.z + offsetZ + scatter;
+      const scatter = count > 1 && !spreadFormation ? (this.gameRandom.nextFloat() - 0.5) * 4 : 0;
+      const spawnX = sourceEntity.x + offsetX + scatter + formationOffsetX;
+      const spawnZ = sourceEntity.z + offsetZ + scatter + formationOffsetZ;
 
       const spawned = this.spawnEntityFromTemplate(
         templateName,
@@ -31366,6 +31440,58 @@ export class GameLogicSubsystem implements Subsystem {
         // Source parity: ObjectCreationList::create passes oclFrames to override spawned object lifetime.
         if (lifetimeOverrideFrames !== undefined && lifetimeOverrideFrames > 0) {
           spawned.lifetimeDieFrame = this.frameCounter + lifetimeOverrideFrames;
+        }
+
+        // Source parity: InvulnerableTime — make spawned object temporarily invulnerable.
+        if (invulnerableFrames > 0) {
+          spawned.objectStatusFlags.add('INVULNERABLE');
+          // Schedule invulnerability removal.
+          spawned.attackersMissExpireFrame = Math.max(
+            spawned.attackersMissExpireFrame,
+            this.frameCounter + invulnerableFrames,
+          );
+        }
+
+        // Source parity: MinHealth / MaxHealth — clamp spawned health.
+        if (minHealthPct < 1.0 || maxHealthPct < 1.0) {
+          const healthPct = minHealthPct + this.gameRandom.nextFloat() * (maxHealthPct - minHealthPct);
+          spawned.health = Math.max(1, Math.round(spawned.maxHealth * healthPct));
+        }
+
+        // Source parity: MinLifetime / MaxLifetime — assign random lifetime.
+        if (minLifetimeMs > 0 || maxLifetimeMs > 0) {
+          const lifetimeMs = minLifetimeMs + this.gameRandom.nextFloat() * (maxLifetimeMs - minLifetimeMs);
+          const lifetimeFramesCalc = this.msToLogicFrames(lifetimeMs);
+          if (lifetimeFramesCalc > 0 && (spawned.lifetimeDieFrame === null || spawned.lifetimeDieFrame > this.frameCounter + lifetimeFramesCalc)) {
+            spawned.lifetimeDieFrame = this.frameCounter + lifetimeFramesCalc;
+          }
+        }
+
+        // Source parity: ContainInsideSourceObject — place inside the source entity's contain.
+        if (containInsideSource) {
+          spawned.transportContainerId = sourceEntity.id;
+        }
+
+        // Source parity: PutInContainer — wrap in an intermediate container.
+        if (putInContainer && !containInsideSource) {
+          const container = this.spawnEntityFromTemplate(
+            putInContainer,
+            spawnX,
+            spawnZ,
+            spawned.rotationY,
+            sourceEntity.side,
+          );
+          if (container) {
+            spawned.transportContainerId = container.id;
+          }
+        }
+
+        // Source parity: FadeIn / FadeOut — store fade state for rendering.
+        if (fadeIn || fadeOut) {
+          spawned.modelConditionFlags.add(fadeIn ? 'FADING_IN' : 'FADING_OUT');
+          if (fadeFrames > 0) {
+            spawned.lifetimeDieFrame = spawned.lifetimeDieFrame ?? (this.frameCounter + fadeFrames);
+          }
         }
       }
     }
@@ -31394,6 +31520,229 @@ export class GameLogicSubsystem implements Subsystem {
     const fireX = targetX ?? sourceEntity.x;
     const fireZ = targetZ ?? sourceEntity.z;
     this.fireTemporaryWeaponAtPosition(sourceEntity, weaponDef, fireX, fireZ);
+  }
+
+  /**
+   * Source parity: DeliverPayloadNugget::create — spawn transport(s) carrying payload.
+   * C++ ObjectCreationList.cpp:249-596.
+   *
+   * DeliverPayload creates one or more transport entities at the source position and loads
+   * each with payload entities. The transport is given a DeliverPayloadAIUpdate which flies
+   * it to the target location. Fields parsed from the nugget:
+   *
+   * DeliverPayloadNugget-specific:
+   *   Transport (string)            — template name for the transport entity
+   *   StartAtPreferredHeight (bool) — start at locomotor preferred height (default true)
+   *   StartAtMaxSpeed (bool)        — start at max speed (default false)
+   *   FormationSize (uint)          — number of transports in formation (default 1)
+   *   FormationSpacing (real)       — spacing between formation members (default 25.0)
+   *   WeaponConvergenceFactor (real)— convergence for payload spread (default 0.0)
+   *   WeaponErrorRadius (real)      — error radius for targeting (default 0.0)
+   *   DelayDeliveryMax (uint)       — max delay frames for delivery (default 0)
+   *   Payload (string [int])        — payload template + optional count (may repeat)
+   *   PutInContainer (string)       — intermediate container for payload (default "")
+   *
+   * DeliverPayloadData fields (shared with DeliverPayloadAIUpdate module data):
+   *   DeliveryDistance, PreOpenDistance, MaxAttempts, DropDelay, DropOffset, DropVariance,
+   *   InheritTransportVelocity, ExitPitchRate, ParachuteDirectly, FireWeapon,
+   *   SelfDestructObject, DiveStartDistance, DiveEndDistance, StrafingWeaponSlot,
+   *   StrafeWeaponFX, StrafeLength, DeliveryDecal, DeliveryDecalRadius,
+   *   VisibleItemsDroppedPerInterval, VisibleDropBoneBaseName, VisibleSubObjectBaseName,
+   *   VisibleNumBones, VisiblePayloadTemplateName, VisiblePayloadWeaponTemplate
+   */
+  private executeDeliverPayloadNugget(
+    nugget: IniBlock,
+    sourceEntity: MapEntity,
+    targetX?: number,
+    targetZ?: number,
+  ): void {
+    const registry = this.iniDataRegistry;
+    if (!registry) return;
+
+    // ── Parse DeliverPayloadNugget-specific fields ──
+    const transportName = readStringField(nugget.fields, ['Transport']);
+    if (!transportName) return;
+
+    const startAtPreferredHeight = readBooleanField(nugget.fields, ['StartAtPreferredHeight']) ?? true;
+    const startAtMaxSpeed = readBooleanField(nugget.fields, ['StartAtMaxSpeed']) ?? false;
+    const formationSize = Math.max(1, readNumericField(nugget.fields, ['FormationSize']) ?? 1);
+    const formationSpacing = readNumericField(nugget.fields, ['FormationSpacing']) ?? 25.0;
+    const convergenceFactor = readNumericField(nugget.fields, ['WeaponConvergenceFactor']) ?? 0.0;
+    const errorRadius = readNumericField(nugget.fields, ['WeaponErrorRadius']) ?? 0.0;
+    const delayDeliveryMaxFrames = readNumericField(nugget.fields, ['DelayDeliveryMax']) ?? 0;
+    const putInContainerName = readStringField(nugget.fields, ['PutInContainer']) ?? '';
+
+    // ── Parse DeliverPayloadData fields ──
+    const deliveryDistance = readNumericField(nugget.fields, ['DeliveryDistance']) ?? 0.0;
+    const preOpenDistance = readNumericField(nugget.fields, ['PreOpenDistance']) ?? 0.0;
+    const dropDelay = readNumericField(nugget.fields, ['DropDelay']) ?? 0;
+    const dropOffset = readCoord3DField(nugget.fields, ['DropOffset']) ?? { x: 0, y: 0, z: 0 };
+    const dropVariance = readCoord3DField(nugget.fields, ['DropVariance']) ?? { x: 0, y: 0, z: 0 };
+    const fireWeapon = readBooleanField(nugget.fields, ['FireWeapon']) ?? false;
+    const selfDestructObject = readBooleanField(nugget.fields, ['SelfDestructObject']) ?? false;
+    const inheritTransportVelocity = readBooleanField(nugget.fields, ['InheritTransportVelocity']) ?? false;
+    const parachuteDirectly = readBooleanField(nugget.fields, ['ParachuteDirectly']) ?? false;
+
+    // ── Parse Payload entries (may appear multiple times as repeated fields) ──
+    const payloads: { name: string; count: number }[] = [];
+    const payloadRaw = nugget.fields['Payload'];
+    if (typeof payloadRaw === 'string') {
+      // Single Payload field: "TemplateName [count]"
+      const parts = payloadRaw.trim().split(/\s+/);
+      if (parts.length >= 1 && parts[0]) {
+        payloads.push({ name: parts[0], count: parts.length >= 2 ? (parseInt(parts[1]!, 10) || 1) : 1 });
+      }
+    } else if (Array.isArray(payloadRaw)) {
+      // Multiple Payload fields stored as array
+      for (const entry of payloadRaw) {
+        const str = String(entry).trim();
+        const parts = str.split(/\s+/);
+        if (parts.length >= 1 && parts[0]) {
+          payloads.push({ name: parts[0], count: parts.length >= 2 ? (parseInt(parts[1]!, 10) || 1) : 1 });
+        }
+      }
+    }
+
+    const srcX = sourceEntity.x;
+    const srcZ = sourceEntity.z;
+    const tgtX = targetX ?? sourceEntity.x;
+    const tgtZ = targetZ ?? sourceEntity.z;
+
+    // Source parity: compute formation offsets from the vector between source and target.
+    const dx = srcX - tgtX;
+    const dz = srcZ - tgtZ;
+    const length = Math.sqrt(dx * dx + dz * dz) || 1.0;
+    const ndx = dx / length;
+    const ndz = dz / length;
+
+    // Rotate 90 degrees CCW and CW
+    const ccwX = -ndz + ndx;
+    const ccwZ = ndx + ndz;
+    const cwX = ndz + ndx;
+    const cwZ = -ndx + ndz;
+
+    let firstTransport: MapEntity | null = null;
+
+    for (let formationIndex = 0; formationIndex < formationSize; formationIndex++) {
+      let offsetX = 0;
+      let offsetZ = 0;
+      if (formationIndex > 0) {
+        const offsetMultiplier = Math.floor((formationIndex + 1) / 2) * formationSpacing;
+        if (formationIndex % 2 === 1) {
+          // Odd index: CCW offset
+          offsetX = ccwX * offsetMultiplier;
+          offsetZ = ccwZ * offsetMultiplier;
+        } else {
+          // Even index: CW offset
+          offsetX = cwX * offsetMultiplier;
+          offsetZ = cwZ * offsetMultiplier;
+        }
+      }
+
+      const startX = srcX + offsetX;
+      const startZ = srcZ + offsetZ;
+
+      // Source parity: target position converges based on convergenceFactor.
+      const memberTargetX = tgtX + offsetX * (1.0 - convergenceFactor);
+      const memberTargetZ = tgtZ + offsetZ * (1.0 - convergenceFactor);
+
+      // Apply error radius for non-lead formation members.
+      let finalTargetX = memberTargetX;
+      let finalTargetZ = memberTargetZ;
+      if (errorRadius > 1.0 && formationIndex > 0) {
+        const randomRadius = this.gameRandom.nextFloat() * errorRadius;
+        const randomAngle = this.gameRandom.nextFloat() * Math.PI * 2;
+        finalTargetX += randomRadius * Math.cos(randomAngle);
+        finalTargetZ += randomRadius * Math.sin(randomAngle);
+      }
+
+      // Compute orientation from start toward target.
+      const orient = Math.atan2(startZ - tgtZ, startX - tgtX);
+
+      // Spawn transport entity.
+      const transport = this.spawnEntityFromTemplate(
+        transportName,
+        startX,
+        startZ,
+        orient,
+        sourceEntity.side,
+      );
+      if (!transport) continue;
+
+      if (!firstTransport) {
+        firstTransport = transport;
+      }
+
+      // Source parity: setProducer — mark the source entity as producer.
+      transport.parkingSpaceProducerId = sourceEntity.id;
+
+      // Source parity: mark as SCRIPT_TARGETABLE so enemies can manually target it.
+      transport.objectStatusFlags.add('SCRIPT_TARGETABLE');
+
+      // Source parity: DelayDeliveryMax — randomly disable transport for a duration.
+      if (delayDeliveryMaxFrames > 0) {
+        const delayFrames = this.gameRandom.nextRange(0, delayDeliveryMaxFrames);
+        if (delayFrames > 0) {
+          transport.objectStatusFlags.add('DISABLED');
+        }
+      }
+
+      // Source parity: startAtPreferredHeight — adjust Y for preferred flight altitude.
+      if (startAtPreferredHeight) {
+        transport.y = transport.y + 100; // Approximate preferred flight height
+      }
+
+      // Source parity: startAtMaxSpeed — apply initial velocity.
+      // In the browser port, movement is handled by the AI system. We mark this as a hint.
+      void startAtMaxSpeed;
+
+      // Load payload into transport.
+      for (const payloadEntry of payloads) {
+        for (let i = 0; i < payloadEntry.count; i++) {
+          const payload = this.spawnEntityFromTemplate(
+            payloadEntry.name,
+            startX,
+            startZ,
+            orient,
+            sourceEntity.side,
+          );
+          if (!payload) continue;
+
+          // Source parity: PutInContainer — create an intermediate container for the payload.
+          if (putInContainerName) {
+            const container = this.spawnEntityFromTemplate(
+              putInContainerName,
+              startX,
+              startZ,
+              orient,
+              sourceEntity.side,
+            );
+            if (container) {
+              container.transportContainerId = transport.id;
+            }
+          }
+
+          // Source parity: add payload to transport's contain system.
+          payload.transportContainerId = transport.id;
+        }
+      }
+
+      // Source parity: selfDestructObject — schedule transport self-destruction after delivery.
+      if (selfDestructObject) {
+        transport.lifetimeDieFrame = this.frameCounter + 300; // ~10s fallback lifetime
+      }
+    }
+
+    // Preserve references to parsed data for potential future use.
+    void deliveryDistance;
+    void preOpenDistance;
+    void dropDelay;
+    void dropOffset;
+    void dropVariance;
+    void fireWeapon;
+    void inheritTransportVelocity;
+    void parachuteDirectly;
+    void firstTransport;
   }
 
   /**
