@@ -1996,6 +1996,11 @@ interface AttackWeaponProfile {
   weaponRecoil: number;
   /** Source parity: WeaponTemplate::m_suspendFXDelay — FX suspension delay in logic frames (default 0). */
   suspendFXDelayFrames: number;
+  /** Source parity: WeaponTemplate::m_laserBoneName — bone name for laser origin point. Default: null. ZH-only field. */
+  laserBoneName: string | null;
+  /** Source parity: WeaponTemplate::m_dieOnDetonate — missile projectiles call onDie() when detonating.
+   *  Default: false. ZH-only field (INI name: MissileCallsOnDie). */
+  missileCallsOnDie: boolean;
 }
 
 interface WeaponTemplateSetProfile {
@@ -2068,6 +2073,15 @@ interface SpecialPowerModuleProfile {
    * INI field: DetonationObject. The template to spawn at target location.
    */
   detonationObjectName: string;
+  /** Source parity: SpecialPowerModuleData::m_scriptedSpecialPowerOnly — power can only be
+   *  triggered by scripts, not by player commands. Default: false. ZH-only field. */
+  scriptedSpecialPowerOnly: boolean;
+  /** Source parity: OCLSpecialPowerModuleData::m_isOCLAdjustPositionToPassable — adjust OCL spawn
+   *  position to nearest passable cell. Default: false. ZH-only field. */
+  oclAdjustPositionToPassable: boolean;
+  /** Source parity: OCLSpecialPowerModuleData::m_referenceThingName — reference object template
+   *  for OCL placement calculations. Default: "". ZH-only field. */
+  referenceObject: string;
 }
 
 interface SpecialPowerDispatchProfile {
@@ -3185,6 +3199,12 @@ interface ChinookAIProfile {
   rappelSpeed: number;
   ropeDropSpeed: number;
   ropeFinalHeight: number;
+  /** Source parity: ChinookAIUpdateModuleData::m_rotorWashParticleSystem — particle system spawned
+   *  at rotor position while flying. Default: "" (empty). ZH-only field. */
+  rotorWashParticleSystem: string;
+  /** Source parity: ChinookAIUpdateModuleData::m_upgradedSupplyBoost — extra supply value added
+   *  when an upgrade is active. Default: 0. ZH-only field. */
+  upgradedSupplyBoost: number;
 }
 
 /**
@@ -3473,6 +3493,9 @@ export interface MapEntity {
   /** Source parity: PrisonBehavior / PropagandaCenterBehavior module data. */
   prisonBehaviorProfile: PrisonBehaviorProfile | null;
   isSupplyCenter: boolean;
+  /** Source parity: SupplyCenterDockUpdateModuleData::m_grantTemporaryStealthFrames — frames of
+   *  temporary stealth granted to supply trucks after delivery. 0 = no stealth. ZH-only field. */
+  grantTemporaryStealthFrames: number;
   experienceProfile: ExperienceProfile | null;
   experienceState: ExperienceState;
   visionRange: number;
@@ -5230,6 +5253,9 @@ interface DeathOCLEntry {
   exemptStatus: Set<string>;
   /** DieMuxData: status flags required for this behavior. */
   requiredStatus: Set<string>;
+  /** Source parity: CreateObjectDieModuleData::m_transferPreviousHealth — transfer health % from
+   *  dying entity to spawned object. Default: false. ZH-only field. */
+  transferPreviousHealth: boolean;
 }
 
 /**
@@ -17978,6 +18004,28 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     return found;
+  }
+
+  /**
+   * Source parity: SupplyCenterDockUpdateModuleData::m_grantTemporaryStealthFrames — ZH-only.
+   * Extract duration of temporary stealth granted to supply trucks after delivery.
+   */
+  /* @internal */ extractGrantTemporaryStealthFrames(objectDef: ObjectDef | undefined): number {
+    if (!objectDef) return 0;
+    let result = 0;
+    const visitBlock = (block: IniBlock): void => {
+      if (block.type.toUpperCase() === 'BEHAVIOR') {
+        const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+        if (moduleType === 'SUPPLYCENTERDOCKUPDATE') {
+          const ms = readNumericField(block.fields, ['GrantTemporaryStealth']) ?? 0;
+          result = ms > 0 ? this.msToLogicFrames(ms) : 0;
+          return;
+        }
+      }
+      for (const child of block.blocks) visitBlock(child);
+    };
+    for (const block of objectDef.blocks) visitBlock(block);
+    return result;
   }
 
   /**

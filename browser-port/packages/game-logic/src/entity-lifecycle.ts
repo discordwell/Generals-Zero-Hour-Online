@@ -9,7 +9,7 @@
 import { MAP_XY_FACTOR, MAP_HEIGHT_SCALE } from '@generals/terrain';
 import { getExperienceValue as getExperienceValueImpl, getSkillPointValue as getSkillPointValueImpl, addExperiencePoints as addExperiencePointsImpl } from './experience.js';
 import { findObjectDefByName } from './registry-lookups.js';
-import { readStringField } from './ini-readers.js';
+import { readBooleanField, readStringField } from './ini-readers.js';
 import {
   RELATIONSHIP_ALLIES,
   LOGIC_FRAME_RATE,
@@ -1568,6 +1568,9 @@ export function extractDeathOCLEntries(self: GL, objectDef: ObjectDef | undefine
         }
       }
 
+      // Source parity: ZH-only — CreateObjectDieModuleData::m_transferPreviousHealth (default FALSE).
+      const transferPreviousHealth = readBooleanField(block.fields, ['TransferPreviousHealth']) === true;
+
       const oclName = readStringField(block.fields, [
         'CreationList', 'GroundCreationList', 'AirCreationList',
       ]);
@@ -1575,6 +1578,7 @@ export function extractDeathOCLEntries(self: GL, objectDef: ObjectDef | undefine
         entries.push({
           oclName: oclName.trim(),
           deathTypes, veterancyLevels, exemptStatus, requiredStatus,
+          transferPreviousHealth,
         });
       }
       // SlowDeathBehavior can have OCL fields with phase names.
@@ -1587,6 +1591,7 @@ export function extractDeathOCLEntries(self: GL, objectDef: ObjectDef | undefine
           entries.push({
             oclName: oclPart,
             deathTypes, veterancyLevels, exemptStatus, requiredStatus,
+            transferPreviousHealth,
           });
         }
       }

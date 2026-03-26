@@ -51,6 +51,9 @@ export interface RailedTransportProfile {
   pullInsideDurationFrames: number;
   /** Source parity: RailedTransportDockUpdateModuleData::m_pushOutsideDuration (frames). */
   pushOutsideDurationFrames: number;
+  /** Source parity: RailedTransportDockUpdateModuleData::m_toleranceDistance — distance
+   *  threshold for considering a railed transport at its target waypoint. Default: 50.0. ZH-only field. */
+  toleranceDistance: number;
 }
 
 export interface RailedTransportEntityLike {
@@ -158,6 +161,7 @@ export function extractRailedTransportProfile(objectDef: ObjectDef | undefined):
   let pathPrefixName: string | null = null;
   let pullInsideDurationFrames = 0;
   let pushOutsideDurationFrames = 0;
+  let toleranceDistance = 50.0;
 
   const visitBlock = (block: IniBlock): void => {
     if (block.type.toUpperCase() === 'BEHAVIOR') {
@@ -169,6 +173,8 @@ export function extractRailedTransportProfile(objectDef: ObjectDef | undefined):
         const pushMs = readNumericField(block.fields, ['PushOutsideDuration']) ?? 0;
         pullInsideDurationFrames = msToLogicFramesLocal(pullMs);
         pushOutsideDurationFrames = msToLogicFramesLocal(pushMs);
+        // Source parity: ZH-only field — RailedTransportDockUpdate.cpp:55,69 (default 50.0).
+        toleranceDistance = readNumericField(block.fields, ['ToleranceDistance']) ?? 50.0;
       }
     }
     for (const child of block.blocks) {
@@ -188,6 +194,7 @@ export function extractRailedTransportProfile(objectDef: ObjectDef | undefined):
     pathPrefixName,
     pullInsideDurationFrames,
     pushOutsideDurationFrames,
+    toleranceDistance,
   };
 }
 

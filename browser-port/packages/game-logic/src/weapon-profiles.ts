@@ -228,6 +228,15 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
   // C++ default 0. Parsed via parseDurationUnsignedInt (ms → frames conversion).
   const suspendFXDelayFrames = self.msToLogicFrames(readNumericField(weaponDef.fields, ['SuspendFXDelay']) ?? 0);
 
+  // Source parity: WeaponTemplate::m_laserBoneName — ZH-only bone name for laser origin point.
+  // C++ default: empty string (Weapon.cpp line 314). INI field: LaserBoneName.
+  const laserBoneNameRaw = readStringField(weaponDef.fields, ['LaserBoneName'])?.trim() ?? '';
+  const laserBoneName = laserBoneNameRaw || null;
+
+  // Source parity: WeaponTemplate::m_dieOnDetonate — ZH-only MissileCallsOnDie field.
+  // When true, missile projectiles call onDie() when detonating. Default: false (Weapon.cpp line 329).
+  const missileCallsOnDie = readBooleanField(weaponDef.fields, ['MissileCallsOnDie']) ?? false;
+
   // Source parity: DumbProjectileBehavior arc parameters — parsed from the projectile
   // object template referenced by ProjectileObject on this weapon.
   const bezierArc = projectileObjectName
@@ -314,6 +323,8 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
     playFXWhenStealthed,
     weaponRecoil,
     suspendFXDelayFrames,
+    laserBoneName,
+    missileCallsOnDie,
   };
 }
 

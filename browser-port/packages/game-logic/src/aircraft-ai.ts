@@ -258,6 +258,9 @@ export function extractChinookAIProfile(self: GL, objectDef: ObjectDef | undefin
           rappelSpeed: readNumericField(block.fields, ['RappelSpeed']) ?? DEFAULT_CHINOOK_RAPPEL_SPEED,
           ropeDropSpeed: readNumericField(block.fields, ['RopeDropSpeed']) ?? 1e10,
           ropeFinalHeight: readNumericField(block.fields, ['RopeFinalHeight']) ?? 0.0,
+          // Source parity: ZH-only fields — ChinookAIUpdate.cpp:888-889, 913-914.
+          rotorWashParticleSystem: readStringField(block.fields, ['RotorWashParticleSystem']) ?? '',
+          upgradedSupplyBoost: readNumericField(block.fields, ['UpgradedSupplyBoost']) ?? 0,
         };
         return;
       }

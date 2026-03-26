@@ -98,6 +98,7 @@ export function createMapEntity(self: GL,
   const powTruckAIProfile = extractPOWTruckAIProfile(self, objectDef);
   const prisonBehaviorProfile = extractPrisonBehaviorProfile(self, objectDef);
   const isSupplyCenter = self.detectIsSupplyCenter(objectDef);
+  const grantTemporaryStealthFrames = self.extractGrantTemporaryStealthFrames(objectDef);
   const experienceProfile = extractExperienceProfile(self, objectDef);
   const visionRangeFromTemplate = readNumericField(objectDef?.fields ?? {}, ['VisionRange']) ?? 0;
   const shroudClearingRangeFromTemplateRaw = readNumericField(objectDef?.fields ?? {}, ['ShroudClearingRange']);
@@ -452,6 +453,7 @@ export function createMapEntity(self: GL,
     dozerRepairTaskOrderFrame: 0,
     prisonBehaviorProfile,
     isSupplyCenter,
+    grantTemporaryStealthFrames,
     experienceProfile,
     experienceState: createExperienceStateImpl(),
     visionRange: visionRangeFromTemplate,
@@ -1628,6 +1630,11 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
     // Source parity: TransportContainModuleData::m_isDelayExitInAir (default FALSE).
     const delayExitInAirRaw = readBooleanField(block.fields, ['DelayExitInAir']);
     const delayExitInAir = delayExitInAirRaw === true;
+    // Source parity: OverlordContainModuleData::m_experienceSinkForRider — ZH-only field.
+    // XP earned by riders is funneled to the overlord. Default TRUE (C++ constructor).
+    // For OverlordContain/HelixContain we read from INI; for other types we hardcode true.
+    const experienceSinkForRiderRaw = readBooleanField(block.fields, ['ExperienceSinkForRider']);
+    const experienceSinkForRiderParsed = experienceSinkForRiderRaw !== false;
 
     // Common OpenContain fields shared across all container profiles.
     const openContainFields = {
@@ -1636,6 +1643,11 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
       weaponBonusPassedToPassengers,
       enterSound,
       exitSound,
+      // Source parity: ZH-only — OverlordContainModuleData::m_experienceSinkForRider.
+      // Uses parsed value for OverlordContain/HelixContain, true for other types.
+      experienceSinkForRider: (moduleType === 'OVERLORDCONTAIN' || moduleType === 'HELIXCONTAIN')
+        ? experienceSinkForRiderParsed
+        : true,
     };
     // Common TransportContain fields (use parsed values for transport-derived modules,
     // C++ defaults for non-transport modules).
@@ -2760,6 +2772,7 @@ export function extractPropagandaTowerProfile(self: GL, objectDef: ObjectDef | u
           healPercentPerSecond: readNumericField(block.fields, ['HealPercentEachSecond']) ?? 0.01,
           upgradedHealPercentPerSecond: readNumericField(block.fields, ['UpgradedHealPercentEachSecond']) ?? 0.02,
           upgradeRequired: readStringField(block.fields, ['UpgradeRequired']) ?? null,
+          affectsSelf: readBooleanField(block.fields, ['AffectsSelf']) === true,
         };
       }
     }
@@ -2850,8 +2863,24 @@ export function extractOCLUpdateProfiles(self: GL, objectDef: ObjectDef | undefi
     if (blockType === 'BEHAVIOR') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType === 'OCLUPDATE') {
-        const oclName = readStringField(block.fields, ['OCL']);
-        if (!oclName) return;
+        const oclName = readStringField(block.fields, ['OCL']) ?? '';
+        const factionTriggered = readBooleanField(block.fields, ['FactionTriggered']) === true;
+        // Source parity: ZH-only FactionOCL — parse "Faction:<name> OCL:<ocl_name>" entries.
+        const factionOCLMap = new Map<string, string>();
+        const factionOCLRaw = block.fields['FactionOCL'];
+        if (factionOCLRaw !== undefined) {
+          const entries = Array.isArray(factionOCLRaw) ? factionOCLRaw : [factionOCLRaw];
+          for (const entry of entries) {
+            if (typeof entry !== 'string') continue;
+            // Format: "Faction:<name> OCL:<ocl_name>" or "Faction:<name>OCL:<ocl_name>"
+            const factionMatch = entry.match(/Faction[:\s]+(\S+)/i);
+            const oclMatch = entry.match(/OCL[:\s]+(\S+)/i);
+            if (factionMatch?.[1] && oclMatch?.[1]) {
+              factionOCLMap.set(factionMatch[1].toUpperCase(), oclMatch[1]);
+            }
+          }
+        }
+        if (!oclName && factionOCLMap.size === 0) return;
         const minDelayMs = readNumericField(block.fields, ['MinDelay']) ?? 0;
         const maxDelayMs = readNumericField(block.fields, ['MaxDelay']) ?? minDelayMs;
         profiles.push({
@@ -2859,6 +2888,8 @@ export function extractOCLUpdateProfiles(self: GL, objectDef: ObjectDef | undefi
           minDelayFrames: self.msToLogicFrames(minDelayMs),
           maxDelayFrames: self.msToLogicFrames(maxDelayMs),
           createAtEdge: readBooleanField(block.fields, ['CreateAtEdge']) ?? false,
+          factionTriggered,
+          factionOCLMap,
         });
       }
     }
@@ -3788,6 +3819,11 @@ export function extractPhysicsBehaviorProfile(self: GL, objectDef: ObjectDef | u
           allowBouncing: readBooleanField(block.fields, ['AllowBouncing']) ?? false,
           allowCollideForce: readBooleanField(block.fields, ['AllowCollideForce']) ?? true,
           pitchRollYawFactor: readNumericField(block.fields, ['PitchRollYawFactor']) ?? 2.0,
+          // Source parity: ZH-only shockwave fields (PhysicsUpdate.cpp:116-119, 172-175).
+          shockResistance: readNumericField(block.fields, ['ShockResistance']) ?? 0.0,
+          shockMaxYaw: readNumericField(block.fields, ['ShockMaxYaw']) ?? 0.05,
+          shockMaxPitch: readNumericField(block.fields, ['ShockMaxPitch']) ?? 0.025,
+          shockMaxRoll: readNumericField(block.fields, ['ShockMaxRoll']) ?? 0.025,
         };
       }
     }
@@ -4002,6 +4038,9 @@ export function extractGenerateMinefieldProfile(self: GL, objectDef: ObjectDef |
           smartBorderSkipInterior: readBooleanField(block.fields, ['SmartBorderSkipInterior']) ?? true,
           randomJitter: randomJitterRaw !== null && Number.isFinite(randomJitterRaw) ? randomJitterRaw / 100 : 0,
           skipIfThisMuchUnderStructure: skipUnderRaw !== null && Number.isFinite(skipUnderRaw) ? skipUnderRaw / 100 : 0.33,
+          upgradable: readBooleanField(block.fields, ['Upgradable']) === true,
+          upgradedMineName: readStringField(block.fields, ['UpgradedMineName']) ?? '',
+          upgradedTriggeredBy: readStringField(block.fields, ['UpgradedTriggeredBy']) ?? '',
         };
       }
     }
@@ -5346,6 +5385,11 @@ export function extractSpecialPowerModules(self: GL, objectDef: ObjectDef | unde
             areaHealRadius: readNumericField(block.fields, ['HealRange', 'HealRadius', 'RepairRange']) ?? 0,
             // Source parity: BaikonurLaunchPowerModuleData::m_detonationObject.
             detonationObjectName: readStringField(block.fields, ['DetonationObject']) ?? '',
+            // Source parity: ZH-only fields — SpecialPowerModule.cpp:71,87.
+            scriptedSpecialPowerOnly: readBooleanField(block.fields, ['ScriptedSpecialPowerOnly']) === true,
+            // Source parity: ZH-only fields — OCLSpecialPower.cpp:77,104-105.
+            oclAdjustPositionToPassable: readBooleanField(block.fields, ['OCLAdjustPositionToPassable']) === true,
+            referenceObject: readStringField(block.fields, ['ReferenceObject']) ?? '',
           });
         }
       }
