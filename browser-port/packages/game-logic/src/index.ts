@@ -5242,6 +5242,28 @@ interface HelicopterSlowDeathProfile {
   bladeObjectName: string;
   /** Source parity: m_bladeBone — bone name for blade detachment. */
   bladeBoneName: string;
+  /** Source parity: m_minBladeFlyOffDelay — min frame for blade fly-off (frames, from parseDurationReal). C++ default: 0. */
+  minBladeFlyOffDelay: number;
+  /** Source parity: m_maxBladeFlyOffDelay — max frame for blade fly-off (frames, from parseDurationReal). C++ default: 0. */
+  maxBladeFlyOffDelay: number;
+  /** Source parity: m_attachParticleSystem — particle system template name to attach during death. C++ default: NULL. */
+  attachParticle: string | null;
+  /** Source parity: m_attachParticleBone — bone to attach particle system to. C++ default: empty. */
+  attachParticleBone: string;
+  /** Source parity: m_attachParticleLoc — location to attach particle system if bone not present. C++ default: {0,0,0}. */
+  attachParticleLoc: { x: number; y: number; z: number };
+  /** Source parity: m_oclEjectPilot — OCL for ejecting pilot on death. C++ default: NULL. */
+  oclEjectPilot: string | null;
+  /** Source parity: m_fxBlade — FX list for blade detachment event. C++ default: NULL. */
+  fxBlade: string | null;
+  /** Source parity: m_oclBlade — OCL for blade debris creation. C++ default: NULL. */
+  oclBlade: string | null;
+  /** Source parity: m_fxHitGround — FX list for ground impact. C++ default: NULL. */
+  fxHitGround: string | null;
+  /** Source parity: m_fxFinalBlowUp — FX list for final explosion. C++ default: NULL. */
+  fxFinalBlowUp: string | null;
+  /** Source parity: m_deathSound — looping sound played during death sequence. C++ default: NULL. */
+  soundDeathLoop: string | null;
 }
 
 interface HelicopterSlowDeathState {
