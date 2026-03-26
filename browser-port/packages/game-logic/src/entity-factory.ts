@@ -12,7 +12,6 @@ import {
   nominalHeightForCategory,
   readBooleanField,
   readCoord3DField,
-  readIniFieldValue,
   readNumericField,
   readNumericListField,
   readStringField,
@@ -41,6 +40,7 @@ import {
   SCRIPT_AI_ATTITUDE_NORMAL,
   WEAPON_BONUS_CONDITION_BY_NAME,
   WEAPON_SET_FLAG_MASK_BY_NAME,
+  parseAutoAcquireEnemiesBitfield,
 } from './index.js';
 type GL = any;
 
@@ -106,6 +106,7 @@ export function createMapEntity(self: GL,
   const shroudRevealToAllRange = Math.max(0, readNumericField(objectDef?.fields ?? {}, ['ShroudRevealToAllRange']) ?? 0);
   const ambientSoundProfile = extractAmbientSoundProfile(self, objectDef);
   const jetAIProfile = self.extractJetAIProfile(objectDef);
+  const aiUpdateModuleData = extractAIUpdateModuleData(self, objectDef);
   const animationSteeringProfile = extractAnimationSteeringProfile(self, objectDef);
   const tensileFormationProfile = extractTensileFormationProfile(self, objectDef);
   const weaponTemplateSets = extractWeaponTemplateSets(self, objectDef);
@@ -470,7 +471,11 @@ export function createMapEntity(self: GL,
     propagandaTowerTrackedIds: [],
     soleHealingBenefactorId: null,
     soleHealingBenefactorExpirationFrame: 0,
-    autoTargetScanNextFrame: self.frameCounter + AUTO_TARGET_SCAN_RATE_FRAMES,
+    autoTargetScanNextFrame: self.frameCounter + (aiUpdateModuleData.moodAttackCheckRate > 0 ? aiUpdateModuleData.moodAttackCheckRate : AUTO_TARGET_SCAN_RATE_FRAMES),
+    turretsLinked: aiUpdateModuleData.turretsLinked,
+    forbidPlayerCommands: aiUpdateModuleData.forbidPlayerCommands,
+    autoAcquireEnemiesWhenIdle: aiUpdateModuleData.autoAcquireEnemiesWhenIdle,
+    moodAttackCheckRate: aiUpdateModuleData.moodAttackCheckRate,
     // Guard state
     guardState: 'NONE' as GuardState,
     guardPositionX: 0,
@@ -2008,6 +2013,61 @@ export function extractAssaultTransportProfile(self: GL, objectDef: ObjectDef | 
   };
   for (const block of objectDef.blocks) visitBlock(block);
   return profile;
+}
+
+/**
+ * Source parity: AIUpdateModuleData fields — TurretsLinked, ForbidPlayerCommands,
+ * AutoAcquireEnemiesWhenIdle, MoodAttackCheckRate.
+ *
+ * These fields live on the base AIUpdateModuleData class, so they can appear on
+ * any AIUpdate-derived behavior module (AIUpdateInterface, JetAIUpdate,
+ * DozerAIUpdate, etc.). We match any Behavior block whose module type name
+ * contains "AIUPDATE".
+ */
+interface AIUpdateModuleDataFields {
+  turretsLinked: boolean;
+  forbidPlayerCommands: boolean;
+  autoAcquireEnemiesWhenIdle: number;
+  /** Interval in logic frames; 0 = use global AUTO_TARGET_SCAN_RATE_FRAMES default. */
+  moodAttackCheckRate: number;
+}
+
+const AI_UPDATE_MODULE_DATA_DEFAULTS: AIUpdateModuleDataFields = {
+  turretsLinked: false,
+  forbidPlayerCommands: false,
+  autoAcquireEnemiesWhenIdle: 0,
+  moodAttackCheckRate: 0,
+};
+
+export function extractAIUpdateModuleData(self: GL, objectDef: ObjectDef | undefined): AIUpdateModuleDataFields {
+  if (!objectDef) return { ...AI_UPDATE_MODULE_DATA_DEFAULTS };
+
+  let result: AIUpdateModuleDataFields | null = null;
+
+  const visitBlock = (block: IniBlock): void => {
+    if (result) return; // take first match
+    if (block.type.toUpperCase() === 'BEHAVIOR') {
+      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      // Match any AIUpdate-derived module (AIUpdateInterface, JetAIUpdate, etc.)
+      if (moduleType.includes('AIUPDATE') || moduleType === 'AISTATESEQUENCE') {
+        const turretsLinked = readBooleanField(block.fields, ['TurretsLinked']) === true;
+        const forbidPlayerCommands = readBooleanField(block.fields, ['ForbidPlayerCommands']) === true;
+        const autoAcquireRaw = block.fields['AutoAcquireEnemiesWhenIdle'];
+        const autoAcquireEnemiesWhenIdle = parseAutoAcquireEnemiesBitfield(autoAcquireRaw);
+        // Source parity: MoodAttackCheckRate is INI::parseDurationUnsignedInt (ms → frames).
+        const moodAttackCheckRateMs = readNumericField(block.fields, ['MoodAttackCheckRate']) ?? 0;
+        const moodAttackCheckRate = moodAttackCheckRateMs > 0
+          ? Math.ceil(moodAttackCheckRateMs / 1000 * LOGIC_FRAME_RATE)
+          : 0;
+        result = { turretsLinked, forbidPlayerCommands, autoAcquireEnemiesWhenIdle, moodAttackCheckRate };
+      }
+    }
+    for (const child of block.blocks) visitBlock(child);
+  };
+
+  for (const block of objectDef.blocks) visitBlock(block);
+
+  return result ?? { ...AI_UPDATE_MODULE_DATA_DEFAULTS };
 }
 
 export function extractTurretProfiles(self: GL, objectDef: ObjectDef | undefined): TurretProfile[] {

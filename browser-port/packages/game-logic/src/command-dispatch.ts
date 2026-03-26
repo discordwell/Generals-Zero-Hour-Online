@@ -274,7 +274,8 @@ export function applyCommand(self: GL, command: GameLogicCommand): void {
       const stopEntity = self.spawnedEntities.get(command.entityId);
       if (stopEntity) {
         // Source parity: explicit stop resets auto-target scan timer and clears guard state.
-        stopEntity.autoTargetScanNextFrame = self.frameCounter + AUTO_TARGET_SCAN_RATE_FRAMES;
+        const stopScanRate = stopEntity.moodAttackCheckRate > 0 ? stopEntity.moodAttackCheckRate : AUTO_TARGET_SCAN_RATE_FRAMES;
+        stopEntity.autoTargetScanNextFrame = self.frameCounter + stopScanRate;
         stopEntity.guardState = 'NONE';
         stopEntity.guardAreaTriggerIndex = -1;
       }

@@ -7,6 +7,8 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
+  AAS_IDLE_NO,
+  AAS_IDLE_STEALTHED,
   approximateCubicBezierArcLength3D,
   AUTO_TARGET_SCAN_RATE_FRAMES,
   BEZIER_ARC_LENGTH_TOLERANCE,
@@ -726,17 +728,23 @@ export function updateIdleAutoTargeting(self: GL): void {
       continue;
     }
 
-    // Source parity: stealthed units do not auto-acquire targets (would break stealth).
-    // C++ gates this on AutoAcquireEnemiesWhenIdle / AAS_Idle_Stealthed flag.
-    if (entity.objectStatusFlags.has('STEALTHED')) {
+    // Source parity: AutoAcquireEnemiesWhenIdle AAS_Idle_No — unit never auto-targets.
+    if (entity.autoAcquireEnemiesWhenIdle & AAS_IDLE_NO) {
       continue;
     }
 
-    // Throttle scanning to once per AUTO_TARGET_SCAN_RATE_FRAMES.
+    // Source parity: stealthed units do not auto-acquire targets (would break stealth)
+    // unless AAS_Idle_Stealthed flag is set in AutoAcquireEnemiesWhenIdle.
+    if (entity.objectStatusFlags.has('STEALTHED') && !(entity.autoAcquireEnemiesWhenIdle & AAS_IDLE_STEALTHED)) {
+      continue;
+    }
+
+    // Throttle scanning to once per entity moodAttackCheckRate (or global default).
     if (self.frameCounter < entity.autoTargetScanNextFrame) {
       continue;
     }
-    entity.autoTargetScanNextFrame = self.frameCounter + AUTO_TARGET_SCAN_RATE_FRAMES;
+    const scanRate = entity.moodAttackCheckRate > 0 ? entity.moodAttackCheckRate : AUTO_TARGET_SCAN_RATE_FRAMES;
+    entity.autoTargetScanNextFrame = self.frameCounter + scanRate;
 
     // Source parity: findClosestEnemy — C++ uses vision range for AI-controlled
     // units and weapon range for human-controlled units.

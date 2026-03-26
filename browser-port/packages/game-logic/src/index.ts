@@ -1563,6 +1563,53 @@ export const BEZIER_ARC_LENGTH_TOLERANCE = 1.0;
  * (in logic frames) between idle auto-target scans. C++ uses 2 seconds (60 frames).
  */
 export const AUTO_TARGET_SCAN_RATE_FRAMES = LOGIC_FRAME_RATE * 2;
+
+/**
+ * Source parity: AutoAcquireStates enum from AIUpdate.h.
+ * Bitfield flags controlling idle auto-targeting behavior.
+ * INI field: AutoAcquireEnemiesWhenIdle (parseBitString32 with TheAutoAcquireEnemiesNames).
+ */
+export const AAS_IDLE              = 0x01;  // "YES"
+export const AAS_IDLE_STEALTHED    = 0x02;  // "STEALTHED"
+export const AAS_IDLE_NO           = 0x04;  // "NO"
+export const AAS_IDLE_NOT_WHILE_ATTACKING = 0x08;  // "NOTWHILEATTACKING"
+export const AAS_IDLE_ATTACK_BUILDINGS    = 0x10;  // "ATTACK_BUILDINGS"
+
+/**
+ * Source parity: TheAutoAcquireEnemiesNames — maps INI token names to bit positions.
+ * Used by parseAutoAcquireEnemiesBitfield().
+ */
+const AUTO_ACQUIRE_BIT_NAMES: Record<string, number> = {
+  YES:                AAS_IDLE,
+  STEALTHED:          AAS_IDLE_STEALTHED,
+  NO:                 AAS_IDLE_NO,
+  NOTWHILEATTACKING:  AAS_IDLE_NOT_WHILE_ATTACKING,
+  ATTACK_BUILDINGS:   AAS_IDLE_ATTACK_BUILDINGS,
+};
+
+/**
+ * Parse an AutoAcquireEnemiesWhenIdle INI value into a bitfield.
+ * The C++ parser uses parseBitString32, which ORs together multiple named flags.
+ * INI values can be: a boolean (true → AAS_IDLE), a string ("YES STEALTHED"),
+ * or an array of strings (["YES", "STEALTHED"]).
+ */
+export function parseAutoAcquireEnemiesBitfield(value: unknown): number {
+  if (value === undefined || value === null) return 0;
+  if (value === true) return AAS_IDLE; // shorthand "Yes"
+  if (value === false) return 0;
+  let mask = 0;
+  const tokens: string[] = Array.isArray(value)
+    ? value.map(String)
+    : String(value).split(/\s+/);
+  for (const token of tokens) {
+    const bit = AUTO_ACQUIRE_BIT_NAMES[token.toUpperCase()];
+    if (bit !== undefined) {
+      mask |= bit;
+    }
+  }
+  return mask;
+}
+
 export const SCRIPT_AI_ATTITUDE_PASSIVE = 1;
 export const SCRIPT_AI_ATTITUDE_NORMAL = 2;
 const SCRIPT_ATTACK_PRIORITY_DEFAULT = 1;
@@ -3330,6 +3377,28 @@ export interface MapEntity {
    * per-frame overhead. C++ default: every 2 seconds (60 logic frames).
    */
   autoTargetScanNextFrame: number;
+  /**
+   * Source parity: AIUpdateModuleData::m_turretsLinked — when true, all turrets
+   * on the unit fire synchronously at the same target. Default false.
+   */
+  turretsLinked: boolean;
+  /**
+   * Source parity: AIUpdateModuleData::m_forbidPlayerCommands — when true,
+   * the unit ignores player commands and is only AI-controllable. Default false.
+   */
+  forbidPlayerCommands: boolean;
+  /**
+   * Source parity: AIUpdateModuleData::m_autoAcquireEnemiesWhenIdle — bitfield
+   * controlling idle auto-targeting behavior. 0 = default (no special flags).
+   * See AAS_IDLE, AAS_IDLE_STEALTHED, AAS_IDLE_NO, etc.
+   */
+  autoAcquireEnemiesWhenIdle: number;
+  /**
+   * Source parity: AIUpdateModuleData::m_moodAttackCheckRate — per-unit interval
+   * (in logic frames) between idle auto-target scans. 0 = use global default
+   * (AUTO_TARGET_SCAN_RATE_FRAMES). INI field parsed as duration ms→frames.
+   */
+  moodAttackCheckRate: number;
 
   // ── Source parity: AIGuardMachine — guard position/object state ──
   /** Current guard state machine phase. 'NONE' = not guarding. */
