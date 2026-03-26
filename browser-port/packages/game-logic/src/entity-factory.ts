@@ -2020,7 +2020,11 @@ export function extractAssaultTransportProfile(self: GL, objectDef: ObjectDef | 
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType === 'ASSAULTTRANSPORTAIUPDATE') {
         const ratio = readNumericField(block.fields, ['MembersGetHealedAtLifeRatio']) ?? 0;
-        profile = { membersGetHealedAtLifeRatio: Math.max(0, Math.min(1, ratio)) };
+        profile = {
+          membersGetHealedAtLifeRatio: Math.max(0, Math.min(1, ratio)),
+          clearRangeRequiredToContinueAttackMove:
+            readNumericField(block.fields, ['ClearRangeRequiredToContinueAttackMove']) ?? 0,
+        };
       }
     }
     for (const child of block.blocks) visitBlock(child);
@@ -3543,6 +3547,8 @@ export function extractCountermeasuresProfile(self: GL, objectDef: ObjectDef | u
           evasionRate: evasionRaw != null ? evasionRaw / 100 : 0,
           missileDecoyFrames: self.msToLogicFrames(readNumericField(block.fields, ['MissileDecoyDelay']) ?? 0),
           reactionFrames: self.msToLogicFrames(readNumericField(block.fields, ['ReactionLaunchLatency']) ?? 0),
+          flareBoneBaseName: readStringField(block.fields, ['FlareBoneBaseName']) ?? '',
+          mustReloadAtAirfield: readBooleanField(block.fields, ['MustReloadAtAirfield']) ?? false,
         };
       }
     }
@@ -3956,6 +3962,10 @@ export function extractDeployStyleProfile(self: GL, objectDef: ObjectDef | undef
           packTimeFrames: self.msToLogicFrames(packMs),
           turretsFunctionOnlyWhenDeployed:
             readBooleanField(block.fields, ['TurretsFunctionOnlyWhenDeployed']) ?? false,
+          resetTurretBeforePacking:
+            readBooleanField(block.fields, ['ResetTurretBeforePacking']) ?? false,
+          turretsMustCenterBeforePacking:
+            readBooleanField(block.fields, ['TurretsMustCenterBeforePacking']) ?? false,
         };
       }
     }
