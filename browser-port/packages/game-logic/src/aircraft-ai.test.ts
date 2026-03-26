@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
-import { GameLogicSubsystem } from './index.js';
+import { GameLogicSubsystem, LOGIC_FRAME_RATE } from './index.js';
+import { resolveScriptReinforcementDeliverPayloadProfile } from './script-actions.js';
 import {
   makeBlock,
   makeObjectDef,
@@ -2558,5 +2559,278 @@ describe('SpectreGunshipUpdate', () => {
     const hasTarget = gattling.attackTargetEntityId === enemy.id
       || (gattling.attackTargetPosition !== null);
     expect(hasTarget).toBe(true);
+  });
+});
+
+describe('JetAIUpdate lockon fields', () => {
+  function makeJetBundle(jetAIFields: Record<string, unknown> = {}) {
+    return makeBundle({
+      objects: [
+        makeObjectDef('TestJet', 'America', ['AIRCRAFT', 'VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+          makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'JetGun'] }),
+          makeBlock('LocomotorSet', 'SET_NORMAL JetLoco', {}),
+          makeBlock('Behavior', 'JetAIUpdate ModuleTag_JetAI', {
+            MinHeight: 80,
+            ...jetAIFields,
+          }),
+        ], { IsAirborneTarget: 'Yes' }),
+      ],
+      weapons: [
+        makeWeaponDef('JetGun', {
+          AttackRange: 300,
+          PrimaryDamage: 20,
+          PrimaryDamageRadius: 0,
+          SecondaryDamage: 0,
+          SecondaryDamageRadius: 0,
+          WeaponSpeed: 999999,
+          DelayBetweenShots: 500,
+          ClipSize: 4,
+          ClipReloadTime: 3000,
+        }),
+      ],
+      locomotors: [
+        makeLocomotorDef('JetLoco', 300),
+      ],
+    });
+  }
+
+  it('parses LockonTime as duration ms to frames', () => {
+    // 2000ms at 30fps = 60 frames
+    const bundle = makeJetBundle({ LockonTime: 2000 });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestJet', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    const priv = logic as any;
+    const jet = priv.spawnedEntities.get(1)!;
+    expect(jet.jetAIProfile).not.toBeNull();
+    expect(jet.jetAIProfile.lockonTimeFrames).toBe(60);
+  });
+
+  it('parses LockonInitialDist with C++ default 100', () => {
+    // No override → default 100
+    const bundleDefault = makeJetBundle();
+    const scene1 = new THREE.Scene();
+    const logic1 = new GameLogicSubsystem(scene1);
+    logic1.loadMapObjects(
+      makeMap([makeMapObject('TestJet', 50, 50)], 128, 128),
+      makeRegistry(bundleDefault),
+      makeHeightmap(128, 128),
+    );
+    const jet1 = (logic1 as any).spawnedEntities.get(1)!;
+    expect(jet1.jetAIProfile.lockonInitialDist).toBe(100);
+
+    // Explicit override
+    const bundleCustom = makeJetBundle({ LockonInitialDist: 250 });
+    const scene2 = new THREE.Scene();
+    const logic2 = new GameLogicSubsystem(scene2);
+    logic2.loadMapObjects(
+      makeMap([makeMapObject('TestJet', 50, 50)], 128, 128),
+      makeRegistry(bundleCustom),
+      makeHeightmap(128, 128),
+    );
+    const jet2 = (logic2 as any).spawnedEntities.get(1)!;
+    expect(jet2.jetAIProfile.lockonInitialDist).toBe(250);
+  });
+
+  it('parses LockonFreq with C++ default 0.5', () => {
+    const bundleDefault = makeJetBundle();
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestJet', 50, 50)], 128, 128),
+      makeRegistry(bundleDefault),
+      makeHeightmap(128, 128),
+    );
+    const jet = (logic as any).spawnedEntities.get(1)!;
+    expect(jet.jetAIProfile.lockonFreq).toBe(0.5);
+  });
+
+  it('converts LockonAngleSpin from degrees to radians (parseAngleReal)', () => {
+    // C++ default is 720 degrees → 720 * PI / 180 radians
+    const bundleDefault = makeJetBundle();
+    const scene1 = new THREE.Scene();
+    const logic1 = new GameLogicSubsystem(scene1);
+    logic1.loadMapObjects(
+      makeMap([makeMapObject('TestJet', 50, 50)], 128, 128),
+      makeRegistry(bundleDefault),
+      makeHeightmap(128, 128),
+    );
+    const jet1 = (logic1 as any).spawnedEntities.get(1)!;
+    expect(jet1.jetAIProfile.lockonAngleSpinRad).toBeCloseTo(720 * Math.PI / 180);
+
+    // Custom 360 degrees
+    const bundleCustom = makeJetBundle({ LockonAngleSpin: 360 });
+    const scene2 = new THREE.Scene();
+    const logic2 = new GameLogicSubsystem(scene2);
+    logic2.loadMapObjects(
+      makeMap([makeMapObject('TestJet', 50, 50)], 128, 128),
+      makeRegistry(bundleCustom),
+      makeHeightmap(128, 128),
+    );
+    const jet2 = (logic2 as any).spawnedEntities.get(1)!;
+    expect(jet2.jetAIProfile.lockonAngleSpinRad).toBeCloseTo(2 * Math.PI);
+  });
+
+  it('parses LockonBlinky as boolean (default false)', () => {
+    const bundleDefault = makeJetBundle();
+    const scene1 = new THREE.Scene();
+    const logic1 = new GameLogicSubsystem(scene1);
+    logic1.loadMapObjects(
+      makeMap([makeMapObject('TestJet', 50, 50)], 128, 128),
+      makeRegistry(bundleDefault),
+      makeHeightmap(128, 128),
+    );
+    const jet1 = (logic1 as any).spawnedEntities.get(1)!;
+    expect(jet1.jetAIProfile.lockonBlinky).toBe(false);
+
+    const bundleTrue = makeJetBundle({ LockonBlinky: 'Yes' });
+    const scene2 = new THREE.Scene();
+    const logic2 = new GameLogicSubsystem(scene2);
+    logic2.loadMapObjects(
+      makeMap([makeMapObject('TestJet', 50, 50)], 128, 128),
+      makeRegistry(bundleTrue),
+      makeHeightmap(128, 128),
+    );
+    const jet2 = (logic2 as any).spawnedEntities.get(1)!;
+    expect(jet2.jetAIProfile.lockonBlinky).toBe(true);
+  });
+
+  it('parses LockonCursor as string (default empty)', () => {
+    const bundleDefault = makeJetBundle();
+    const scene1 = new THREE.Scene();
+    const logic1 = new GameLogicSubsystem(scene1);
+    logic1.loadMapObjects(
+      makeMap([makeMapObject('TestJet', 50, 50)], 128, 128),
+      makeRegistry(bundleDefault),
+      makeHeightmap(128, 128),
+    );
+    const jet1 = (logic1 as any).spawnedEntities.get(1)!;
+    expect(jet1.jetAIProfile.lockonCursor).toBe('');
+
+    const bundleCustom = makeJetBundle({ LockonCursor: 'Lockon' });
+    const scene2 = new THREE.Scene();
+    const logic2 = new GameLogicSubsystem(scene2);
+    logic2.loadMapObjects(
+      makeMap([makeMapObject('TestJet', 50, 50)], 128, 128),
+      makeRegistry(bundleCustom),
+      makeHeightmap(128, 128),
+    );
+    const jet2 = (logic2 as any).spawnedEntities.get(1)!;
+    expect(jet2.jetAIProfile.lockonCursor).toBe('Lockon');
+  });
+
+  it('parses all six lockon fields together', () => {
+    const bundle = makeJetBundle({
+      LockonTime: 1000,        // 30 frames
+      LockonInitialDist: 200,
+      LockonFreq: 0.25,
+      LockonAngleSpin: 180,    // PI radians
+      LockonBlinky: 'Yes',
+      LockonCursor: 'JetLockon',
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestJet', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    const jet = (logic as any).spawnedEntities.get(1)!;
+    const profile = jet.jetAIProfile;
+    expect(profile.lockonTimeFrames).toBe(30);
+    expect(profile.lockonInitialDist).toBe(200);
+    expect(profile.lockonFreq).toBe(0.25);
+    expect(profile.lockonAngleSpinRad).toBeCloseTo(Math.PI);
+    expect(profile.lockonBlinky).toBe(true);
+    expect(profile.lockonCursor).toBe('JetLockon');
+  });
+});
+
+describe('DeliverPayloadAIUpdate missing fields', () => {
+  /**
+   * Source parity: DeliverPayloadData fields parsed by resolveScriptReinforcementDeliverPayloadProfile.
+   * C++ source: DeliverPayloadAIUpdate.cpp:60-102
+   */
+
+  /** Minimal mock of GameLogicSubsystem self — only msToLogicFrames is needed. */
+  const mockSelf = {
+    msToLogicFrames(ms: number): number {
+      return Math.max(0, Math.round(ms * LOGIC_FRAME_RATE / 1000));
+    },
+  };
+
+  function makeDeliverPayloadObjectDef(dpFields: Record<string, unknown> = {}) {
+    return makeObjectDef('PayloadTransport', 'America', ['VEHICLE', 'TRANSPORT'], [
+      makeBlock('Behavior', 'TransportContain ModuleTag_Contain', { ContainMax: 8 }),
+      makeBlock('Behavior', 'DeliverPayloadAIUpdate ModuleTag_DeliverPayload', {
+        ...dpFields,
+      }),
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+    ]);
+  }
+
+  it('parses ExitPitchRate via parseAngularVelocityReal (deg/sec to rad/frame)', () => {
+    // 180 deg/sec → 180 * PI / (180 * 30) = PI / 30 rad/frame
+    const objectDef = makeDeliverPayloadObjectDef({ ExitPitchRate: 180 });
+    const profile = resolveScriptReinforcementDeliverPayloadProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.exitPitchRate).toBeCloseTo(Math.PI / 30);
+  });
+
+  it('defaults ExitPitchRate to 0', () => {
+    const objectDef = makeDeliverPayloadObjectDef();
+    const profile = resolveScriptReinforcementDeliverPayloadProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.exitPitchRate).toBe(0);
+  });
+
+  it('parses ParachuteDirectly as boolean (default false)', () => {
+    const def1 = makeDeliverPayloadObjectDef();
+    const profile1 = resolveScriptReinforcementDeliverPayloadProfile(mockSelf, def1);
+    expect(profile1!.parachuteDirectly).toBe(false);
+
+    const def2 = makeDeliverPayloadObjectDef({ ParachuteDirectly: 'Yes' });
+    const profile2 = resolveScriptReinforcementDeliverPayloadProfile(mockSelf, def2);
+    expect(profile2!.parachuteDirectly).toBe(true);
+  });
+
+  it('parses MaxAttempts as integer (C++ default 1)', () => {
+    const def1 = makeDeliverPayloadObjectDef();
+    const profile1 = resolveScriptReinforcementDeliverPayloadProfile(mockSelf, def1);
+    expect(profile1!.maxAttempts).toBe(1);
+
+    const def2 = makeDeliverPayloadObjectDef({ MaxAttempts: 5 });
+    const profile2 = resolveScriptReinforcementDeliverPayloadProfile(mockSelf, def2);
+    expect(profile2!.maxAttempts).toBe(5);
+  });
+
+  it('parses DiveStartDistance as float (default 0)', () => {
+    const def1 = makeDeliverPayloadObjectDef();
+    const profile1 = resolveScriptReinforcementDeliverPayloadProfile(mockSelf, def1);
+    expect(profile1!.diveStartDistance).toBe(0);
+
+    const def2 = makeDeliverPayloadObjectDef({ DiveStartDistance: 150.5 });
+    const profile2 = resolveScriptReinforcementDeliverPayloadProfile(mockSelf, def2);
+    expect(profile2!.diveStartDistance).toBeCloseTo(150.5);
+  });
+
+  it('parses all four new DeliverPayload fields together', () => {
+    const objectDef = makeDeliverPayloadObjectDef({
+      ExitPitchRate: 90,           // 90 * PI / 5400 rad/frame
+      ParachuteDirectly: 'Yes',
+      MaxAttempts: 3,
+      DiveStartDistance: 200,
+    });
+    const profile = resolveScriptReinforcementDeliverPayloadProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.exitPitchRate).toBeCloseTo(90 * Math.PI / 5400);
+    expect(profile!.parachuteDirectly).toBe(true);
+    expect(profile!.maxAttempts).toBe(3);
+    expect(profile!.diveStartDistance).toBe(200);
   });
 });

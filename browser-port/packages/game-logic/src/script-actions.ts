@@ -10066,6 +10066,14 @@ export function resolveScriptReinforcementDeliverPayloadProfile(self: GL, object
   dropOffsetZ: number;
   dropVarianceX: number;
   dropVarianceZ: number;
+  /** Source parity: DeliverPayloadData::m_exitPitchRate — rad/frame (C++ parseAngularVelocityReal). */
+  exitPitchRate: number;
+  /** Source parity: DeliverPayloadData::m_isParachuteDirectly — parachute without transport landing (C++ parseBool). */
+  parachuteDirectly: boolean;
+  /** Source parity: DeliverPayloadData::m_maxAttempts — max delivery attempts (C++ parseInt, default 1). */
+  maxAttempts: number;
+  /** Source parity: DeliverPayloadData::m_diveStartDistance — distance to begin dive approach (C++ parseReal). */
+  diveStartDistance: number;
 } | null {
   if (!objectDef) {
     return null;
@@ -10084,6 +10092,13 @@ export function resolveScriptReinforcementDeliverPayloadProfile(self: GL, object
     const dropDelayMs = Math.max(0, readNumericField(block.fields, ['DropDelay']) ?? 0);
     const dropOffset = readCoord3DField(block.fields, ['DropOffset']) ?? { x: 0, y: 0, z: 0 };
     const dropVariance = readCoord3DField(block.fields, ['DropVariance']) ?? { x: 0, y: 0, z: 0 };
+    // Source parity: DeliverPayloadData fields (DeliverPayloadAIUpdate.cpp:67-90)
+    // C++ INI::parseAngularVelocityReal: degrees/sec → radians/frame = value * PI / (180 * 30)
+    const exitPitchRateDegPerSec = readNumericField(block.fields, ['ExitPitchRate']) ?? 0;
+    const exitPitchRate = exitPitchRateDegPerSec * Math.PI / 5400;
+    const parachuteDirectly = readBooleanField(block.fields, ['ParachuteDirectly']) ?? false;
+    const maxAttempts = readNumericField(block.fields, ['MaxAttempts']) ?? 1;
+    const diveStartDistance = readNumericField(block.fields, ['DiveStartDistance']) ?? 0;
     return {
       putInContainerTemplateName: putInContainerTemplateName || null,
       deliveryDistance,
@@ -10093,6 +10108,10 @@ export function resolveScriptReinforcementDeliverPayloadProfile(self: GL, object
       dropOffsetZ: dropOffset.y,
       dropVarianceX: Math.max(0, dropVariance.x),
       dropVarianceZ: Math.max(0, dropVariance.y),
+      exitPitchRate,
+      parachuteDirectly,
+      maxAttempts,
+      diveStartDistance,
     };
   }
   return null;

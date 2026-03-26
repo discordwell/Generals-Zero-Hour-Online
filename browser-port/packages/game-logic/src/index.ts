@@ -2530,6 +2530,18 @@ interface JetAIProfile {
   attackLocomotorSet: string;
   attackLocoPersistFrames: number;
   returnLocomotorSet: string;
+  /** Source parity: JetAIUpdateModuleData::m_lockonTime — lock-on time in logic frames (C++ parseDurationUnsignedInt). */
+  lockonTimeFrames: number;
+  /** Source parity: JetAIUpdateModuleData::m_lockonInitialDist — initial lock-on distance (C++ parseReal, default 100). */
+  lockonInitialDist: number;
+  /** Source parity: JetAIUpdateModuleData::m_lockonFreq — lock-on check frequency (C++ parseReal, default 0.5). */
+  lockonFreq: number;
+  /** Source parity: JetAIUpdateModuleData::m_lockonAngleSpin — lock-on reticle spin speed in rad (C++ parseAngleReal, default 720 deg). */
+  lockonAngleSpinRad: number;
+  /** Source parity: JetAIUpdateModuleData::m_lockonBlinky — blinky lock-on indicator (C++ parseBool, default false). */
+  lockonBlinky: boolean;
+  /** Source parity: JetAIUpdateModuleData::m_lockonCursor — cursor name during lock-on (C++ parseAsciiString, default ''). */
+  lockonCursor: string;
 }
 
 type JetAIState =
