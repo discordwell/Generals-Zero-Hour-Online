@@ -123,6 +123,14 @@ export function extractStealthProfile(self: GL, objectDef: ObjectDef | undefined
           if (token) forbiddenStatus.push(token.toUpperCase());
         }
 
+        // Source parity (ZH): StealthUpdate.h:81 — m_requiredStatus is an ObjectStatusMaskType
+        // parsed from RequiredStatus. ALL listed status bits must be set for stealth to activate.
+        const requiredStatusStr = readStringField(block.fields, ['RequiredStatus']) ?? '';
+        const requiredStatus: string[] = [];
+        for (const token of requiredStatusStr.split(/\s+/)) {
+          if (token) requiredStatus.push(token.toUpperCase());
+        }
+
         // Source parity: StealthUpdate.h:87 — m_friendlyOpacityMax (default 1.0).
         // C++ parsePercentToReal — values like "100%" become 1.0. Raw numeric also accepted.
         const friendlyOpacityMax = readNumericField(block.fields, ['FriendlyOpacityMax']) ?? 1.0;
@@ -176,6 +184,7 @@ export function extractStealthProfile(self: GL, objectDef: ObjectDef | undefined
           hintDetectableConditions,
           disguisesAsTeam,
           forbiddenStatus,
+          requiredStatus,
           friendlyOpacityMax,
           pulseFrequencyFrames,
           disguiseFX,
@@ -415,6 +424,28 @@ export function updateStealth(self: GL): void {
     }
     if (entity.objectStatusFlags.has('SCRIPT_UNSTEALTHED')) {
       breakStealth = true;
+    }
+
+    // Source parity: StealthUpdate.cpp:337-340 — RequiredStatus check (ZH only).
+    // ALL required status bits must be set for stealth to activate.
+    if (profile && profile.requiredStatus.length > 0) {
+      for (const status of profile.requiredStatus) {
+        if (!entity.objectStatusFlags.has(status)) {
+          breakStealth = true;
+          break;
+        }
+      }
+    }
+
+    // Source parity: StealthUpdate.cpp:342-344 — ForbiddenStatus check.
+    // If the entity has ANY forbidden status bit set, stealth is prevented.
+    if (profile && profile.forbiddenStatus.length > 0) {
+      for (const status of profile.forbiddenStatus) {
+        if (entity.objectStatusFlags.has(status)) {
+          breakStealth = true;
+          break;
+        }
+      }
     }
 
     if (breakStealth) {

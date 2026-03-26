@@ -677,3 +677,158 @@ describe('GrantStealthBehavior', () => {
     expect(far.objectStatusFlags.has('CAN_STEALTH')).toBe(true);
   });
 });
+
+describe('StealthUpdate RequiredStatus and ForbiddenStatus runtime checks', () => {
+  function makeStealthBundleWithStatusChecks(options: {
+    requiredStatus?: string;
+    forbiddenStatus?: string;
+    stealthDelay?: number;
+  } = {}) {
+    const fields: Record<string, unknown> = {
+      StealthDelay: options.stealthDelay ?? 100,
+      InnateStealth: 'Yes',
+    };
+    if (options.requiredStatus) fields.RequiredStatus = options.requiredStatus;
+    if (options.forbiddenStatus) fields.ForbiddenStatus = options.forbiddenStatus;
+
+    return makeBundle({
+      objects: [
+        makeObjectDef('StealthUnit', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Behavior', 'StealthUpdate ModuleTag_Stealth', fields),
+        ]),
+      ],
+    });
+  }
+
+  it('RequiredStatus prevents stealth when required status bits are missing', () => {
+    const bundle = makeStealthBundleWithStatusChecks({
+      requiredStatus: 'RIDER1',
+      stealthDelay: 100,
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('StealthUnit', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        objectStatusFlags: Set<string>;
+      }>;
+    };
+
+    // Run well past stealth delay — entity should NOT enter stealth because RIDER1 is missing.
+    for (let i = 0; i < 30; i++) logic.update(1 / 30);
+    const entity = priv.spawnedEntities.get(1)!;
+    expect(entity.objectStatusFlags.has('CAN_STEALTH')).toBe(true);
+    expect(entity.objectStatusFlags.has('STEALTHED')).toBe(false);
+
+    // Add the required status — entity should now enter stealth.
+    entity.objectStatusFlags.add('RIDER1');
+    for (let i = 0; i < 15; i++) logic.update(1 / 30);
+    expect(entity.objectStatusFlags.has('STEALTHED')).toBe(true);
+  });
+
+  it('RequiredStatus with multiple bits requires ALL bits to be set', () => {
+    const bundle = makeStealthBundleWithStatusChecks({
+      requiredStatus: 'RIDER1 AIRBORNE_TARGET',
+      stealthDelay: 100,
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('StealthUnit', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        objectStatusFlags: Set<string>;
+      }>;
+    };
+
+    const entity = priv.spawnedEntities.get(1)!;
+
+    // Only set one of two required bits — should NOT stealth.
+    entity.objectStatusFlags.add('RIDER1');
+    for (let i = 0; i < 30; i++) logic.update(1 / 30);
+    expect(entity.objectStatusFlags.has('STEALTHED')).toBe(false);
+
+    // Now set both — should stealth after delay.
+    entity.objectStatusFlags.add('AIRBORNE_TARGET');
+    for (let i = 0; i < 15; i++) logic.update(1 / 30);
+    expect(entity.objectStatusFlags.has('STEALTHED')).toBe(true);
+  });
+
+  it('ForbiddenStatus prevents stealth when entity has a forbidden status bit', () => {
+    const bundle = makeStealthBundleWithStatusChecks({
+      forbiddenStatus: 'IMMOBILE SOLD',
+      stealthDelay: 100,
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('StealthUnit', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        objectStatusFlags: Set<string>;
+      }>;
+    };
+
+    const entity = priv.spawnedEntities.get(1)!;
+
+    // Without forbidden status, entity should enter stealth.
+    for (let i = 0; i < 30; i++) logic.update(1 / 30);
+    expect(entity.objectStatusFlags.has('STEALTHED')).toBe(true);
+
+    // Add a forbidden status bit — stealth should break.
+    entity.objectStatusFlags.add('SOLD');
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+    expect(entity.objectStatusFlags.has('STEALTHED')).toBe(false);
+
+    // Remove the forbidden status bit and wait — should re-stealth.
+    entity.objectStatusFlags.delete('SOLD');
+    for (let i = 0; i < 30; i++) logic.update(1 / 30);
+    expect(entity.objectStatusFlags.has('STEALTHED')).toBe(true);
+  });
+
+  it('RequiredStatus removal breaks active stealth', () => {
+    const bundle = makeStealthBundleWithStatusChecks({
+      requiredStatus: 'RIDER1',
+      stealthDelay: 100,
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('StealthUnit', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        objectStatusFlags: Set<string>;
+      }>;
+    };
+
+    const entity = priv.spawnedEntities.get(1)!;
+
+    // Set required status and enter stealth.
+    entity.objectStatusFlags.add('RIDER1');
+    for (let i = 0; i < 30; i++) logic.update(1 / 30);
+    expect(entity.objectStatusFlags.has('STEALTHED')).toBe(true);
+
+    // Remove the required status — stealth should break.
+    entity.objectStatusFlags.delete('RIDER1');
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+    expect(entity.objectStatusFlags.has('STEALTHED')).toBe(false);
+  });
+});
