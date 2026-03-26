@@ -4617,6 +4617,16 @@ interface GenerateMinefieldProfile {
   borderOnly: boolean;
   alwaysCircular: boolean;
   generateOnlyOnDeath: boolean;
+  /** Source parity: m_minesPerSquareFoot — mine density (parseReal). Default = GlobalData::m_standardMinefieldDensity (0.01). */
+  minesPerSquareFoot: number;
+  /** Source parity: m_smartBorder — use smart border algorithm. Default = false. */
+  smartBorder: boolean;
+  /** Source parity: m_smartBorderSkipInterior — skip interior in border generation. Default = true. */
+  smartBorderSkipInterior: boolean;
+  /** Source parity: m_randomJitter — randomize mine placement (parsePercentToReal, 0-1). Default = 0. */
+  randomJitter: number;
+  /** Source parity: m_skipIfThisMuchUnderStructure — skip threshold (parsePercentToReal, 0-1). Default = 0.33. */
+  skipIfThisMuchUnderStructure: number;
 }
 
 /**
@@ -4657,6 +4667,8 @@ interface OCLUpdateProfile {
   minDelayFrames: number;
   /** Maximum delay in logic frames between OCL spawns. */
   maxDelayFrames: number;
+  /** Source parity: m_isCreateAtEdge — whether to create OCL objects at map edge. Default = false. */
+  createAtEdge: boolean;
 }
 
 /**
@@ -4741,6 +4753,12 @@ interface DemoTrapProfile {
   detonationWeaponName: string | null;
   /** Whether the trap detonates when killed. */
   detonateWhenKilled: boolean;
+  /** Source parity: m_detonationWeaponSlot — weapon slot index for detonation (0=PRIMARY, 1=SECONDARY, 2=TERTIARY). Default = 0. */
+  detonationWeaponSlot: number;
+  /** Source parity: m_proximityModeWeaponSlot — weapon slot for proximity mode (0=PRIMARY, 1=SECONDARY, 2=TERTIARY). Default = 0. */
+  proximityModeWeaponSlot: number;
+  /** Source parity: m_manualModeWeaponSlot — weapon slot for manual mode (0=PRIMARY, 1=SECONDARY, 2=TERTIARY). Default = 0. */
+  manualModeWeaponSlot: number;
 }
 
 /**
