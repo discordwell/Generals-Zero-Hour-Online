@@ -714,6 +714,7 @@ import {
   extractProductionProfile as extractProductionProfileImpl,
   extractQueueProductionExitProfile as extractQueueProductionExitProfileImpl,
   extractContainProfile as extractContainProfileImpl,
+  extractRiderChangeContainProfile as extractRiderChangeContainProfileImpl,
   extractAnimationSteeringProfile as extractAnimationSteeringProfileImpl,
   extractTensileFormationProfile as extractTensileFormationProfileImpl,
   extractAssaultTransportProfile as extractAssaultTransportProfileImpl,
@@ -2482,7 +2483,7 @@ interface SpectreGunshipDeploymentProfile {
   requiredScience: string;
 }
 
-type ContainModuleType = 'OPEN' | 'TRANSPORT' | 'OVERLORD' | 'HELIX' | 'PARACHUTE' | 'GARRISON' | 'TUNNEL' | 'CAVE' | 'HEAL' | 'INTERNET_HACK';
+type ContainModuleType = 'OPEN' | 'TRANSPORT' | 'OVERLORD' | 'HELIX' | 'PARACHUTE' | 'GARRISON' | 'TUNNEL' | 'CAVE' | 'HEAL' | 'INTERNET_HACK' | 'RIDERCHANGE';
 
 interface ContainProfile {
   moduleType: ContainModuleType;
@@ -2570,6 +2571,41 @@ interface ContainProfile {
   immuneToClearBuildingAttacks?: boolean;
   /** Source parity: GarrisonContainModuleData::m_isEnclosingContainer — enclosing container flag. Default true for garrison. */
   isEnclosingContainer?: boolean;
+}
+
+/**
+ * Source parity: RiderChangeContainModuleData — rider slot info struct.
+ * Each rider defines a template name that matches when entering, plus the model condition,
+ * weapon set, object status, command set, and locomotor set to apply when that rider enters.
+ * (GeneralsMD/Code/GameEngine/Include/GameLogic/Module/RiderChangeContain.h)
+ */
+interface RiderInfo {
+  /** Source parity: RiderInfo::m_templateName — object template name matching this rider slot. */
+  templateName: string;
+  /** Source parity: RiderInfo::m_modelConditionFlagType — model condition flag to set on entry. */
+  modelConditionFlag: string;
+  /** Source parity: RiderInfo::m_weaponSetFlag — weapon set flag to activate. */
+  weaponSetFlag: string;
+  /** Source parity: RiderInfo::m_objectStatusType — object status bit to set. */
+  objectStatus: string;
+  /** Source parity: RiderInfo::m_commandSet — command set override name. */
+  commandSet: string;
+  /** Source parity: RiderInfo::m_locomotorSetType — locomotor set to switch to. */
+  locomotorSetType: string;
+}
+
+/**
+ * Source parity: RiderChangeContainModuleData — ZH-only module for GLA combat bike / rider-change vehicles.
+ * Extends TransportContain. When infantry enter, the vehicle's weapon/model/status changes based on the rider type.
+ * (GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Contain/RiderChangeContain.cpp)
+ */
+interface RiderChangeContainProfile {
+  /** Source parity: RiderChangeContainModuleData::m_riders — up to MAX_RIDERS (8) rider slot definitions. */
+  riders: RiderInfo[];
+  /** Source parity: RiderChangeContainModuleData::m_scuttleFrames — delay before scuttled bike is killed (ms → frames). Default 0. */
+  scuttleDelayFrames: number;
+  /** Source parity: RiderChangeContainModuleData::m_scuttleState — model condition set during scuttle. Default 'TOPPLED'. */
+  scuttleStatus: string;
 }
 
 /**
@@ -3289,6 +3325,8 @@ export interface MapEntity {
   rallyPoint: VectorXZ | null;
   parkingPlaceProfile: ParkingPlaceProfile | null;
   containProfile: ContainProfile | null;
+  /** Source parity: RiderChangeContainModuleData — ZH rider-change vehicle profile (null = not a rider-change vehicle). */
+  riderChangeContainProfile: RiderChangeContainProfile | null;
   /** Source parity: ContainModule::m_evacDisposition (0 default, 1 left, 2 right). */
   scriptEvacDisposition: number;
   queueProductionExitDelayFramesRemaining: number;
@@ -11297,6 +11335,7 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ extractProductionProfile(...args: any[]) { return (extractProductionProfileImpl as any)(this, ...args); }
   /* @internal */ extractQueueProductionExitProfile(...args: any[]) { return (extractQueueProductionExitProfileImpl as any)(this, ...args); }
   /* @internal */ extractContainProfile(...args: any[]) { return (extractContainProfileImpl as any)(this, ...args); }
+  /* @internal */ extractRiderChangeContainProfile(...args: any[]) { return (extractRiderChangeContainProfileImpl as any)(this, ...args); }
   /* @internal */ extractAnimationSteeringProfile(...args: any[]) { return (extractAnimationSteeringProfileImpl as any)(this, ...args); }
   /* @internal */ extractTensileFormationProfile(...args: any[]) { return (extractTensileFormationProfileImpl as any)(this, ...args); }
   /* @internal */ extractAssaultTransportProfile(...args: any[]) { return (extractAssaultTransportProfileImpl as any)(this, ...args); }

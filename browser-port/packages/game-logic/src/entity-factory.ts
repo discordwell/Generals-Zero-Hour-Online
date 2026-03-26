@@ -87,6 +87,7 @@ export function createMapEntity(self: GL,
   const parkingPlaceProfile = self.extractParkingPlaceProfile(objectDef);
   const flightDeckProfile = self.extractFlightDeckProfile(objectDef);
   const containProfile = extractContainProfile(self, objectDef);
+  const riderChangeContainProfile = extractRiderChangeContainProfile(self, objectDef);
   const supplyWarehouseProfile = extractSupplyWarehouseProfile(self, objectDef);
   const supplyTruckProfile = extractSupplyTruckProfile(self, objectDef);
   const chinookAIProfile = self.extractChinookAIProfile(objectDef);
@@ -382,6 +383,7 @@ export function createMapEntity(self: GL,
     rallyPoint: null,
     parkingPlaceProfile,
     containProfile,
+    riderChangeContainProfile,
     scriptEvacDisposition: 0,
     queueProductionExitDelayFramesRemaining: 0,
     queueProductionExitBurstRemaining: queueProductionExitProfile?.initialBurst ?? 0,
@@ -1927,11 +1929,115 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         ...openContainFields,
         ...transportContainFields,
       };
+    } else if (moduleType === 'RIDERCHANGECONTAIN') {
+      // Source parity: RiderChangeContain — ZH-only module for GLA combat bike / rider-change vehicles.
+      // Extends TransportContain. C++ file: RiderChangeContain.cpp.
+      profile = {
+        moduleType: 'RIDERCHANGE',
+        allowInsideKindOf,
+        forbidInsideKindOf,
+        allowAlliesInside,
+        allowEnemiesInside,
+        allowNeutralInside,
+        passengersAllowedToFire,
+        passengersAllowedToFireDefault: passengersAllowedToFire,
+        garrisonCapacity: 0,
+        transportCapacity: slotsRaw != null ? slotsRaw : containMax,
+        timeForFullHealFrames: 0,
+        damagePercentToUnits,
+        burnedDeathToUnits,
+        healthRegenPercentPerSec,
+        initialPayloadTemplateName,
+        initialPayloadCount,
+        destroyRidersWhoAreNotFreeToExit,
+        ...openContainFields,
+        ...transportContainFields,
+      };
     }
 
     for (const child of block.blocks) {
       visitBlock(child);
     }
+  };
+
+  for (const block of objectDef.blocks) {
+    visitBlock(block);
+  }
+
+  return profile;
+}
+
+/**
+ * Source parity: RiderChangeContainModuleData — extracts rider slot definitions and scuttle config.
+ * C++ file: RiderChangeContain.h / RiderChangeContain.cpp — parseRiderInfo custom parser.
+ *
+ * Each Rider field is parsed as a sequence of 6 tokens:
+ *   templateName  modelConditionFlag  weaponSetFlag  objectStatus  commandSet  locomotorSetType
+ */
+export function extractRiderChangeContainProfile(self: GL, objectDef: ObjectDef | undefined): {
+  riders: { templateName: string; modelConditionFlag: string; weaponSetFlag: string; objectStatus: string; commandSet: string; locomotorSetType: string }[];
+  scuttleDelayFrames: number;
+  scuttleStatus: string;
+} | null {
+  if (!objectDef) {
+    return null;
+  }
+
+  let profile: {
+    riders: { templateName: string; modelConditionFlag: string; weaponSetFlag: string; objectStatus: string; commandSet: string; locomotorSetType: string }[];
+    scuttleDelayFrames: number;
+    scuttleStatus: string;
+  } | null = null;
+
+  const visitBlock = (block: IniBlock): void => {
+    if (profile !== null) {
+      return;
+    }
+    if (block.type.toUpperCase() !== 'BEHAVIOR') {
+      for (const child of block.blocks) {
+        visitBlock(child);
+      }
+      return;
+    }
+
+    const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+    if (moduleType !== 'RIDERCHANGECONTAIN') {
+      for (const child of block.blocks) {
+        visitBlock(child);
+      }
+      return;
+    }
+
+    // Parse rider slots (Rider1 through Rider8).
+    // Each rider is stored as an array of 6 string tokens in the INI data.
+    const riders: { templateName: string; modelConditionFlag: string; weaponSetFlag: string; objectStatus: string; commandSet: string; locomotorSetType: string }[] = [];
+    for (let i = 1; i <= 8; i++) {
+      const riderKey = `Rider${i}`;
+      const riderTokens = readStringList(block.fields, [riderKey]);
+      if (riderTokens.length >= 6) {
+        riders.push({
+          templateName: riderTokens[0]!.toUpperCase(),
+          modelConditionFlag: riderTokens[1]!.toUpperCase(),
+          weaponSetFlag: riderTokens[2]!.toUpperCase(),
+          objectStatus: riderTokens[3]!.toUpperCase(),
+          commandSet: riderTokens[4]!,
+          locomotorSetType: riderTokens[5]!.toUpperCase(),
+        });
+      }
+    }
+
+    // Source parity: parseDurationUnsignedInt — ms → frames. Default 0.
+    const scuttleDelayMs = readNumericField(block.fields, ['ScuttleDelay']) ?? 0;
+    const scuttleDelayFrames = scuttleDelayMs > 0 ? self.msToLogicFrames(scuttleDelayMs) : 0;
+
+    // Source parity: RiderChangeContainModuleData constructor defaults m_scuttleState = MODELCONDITION_TOPPLED.
+    const scuttleStatus = readStringField(block.fields, ['ScuttleStatus']) ?? 'TOPPLED';
+
+    profile = {
+      riders,
+      scuttleDelayFrames,
+      scuttleStatus: scuttleStatus.toUpperCase(),
+    };
   };
 
   for (const block of objectDef.blocks) {
