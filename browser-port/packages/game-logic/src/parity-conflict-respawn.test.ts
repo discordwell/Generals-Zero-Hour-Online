@@ -232,6 +232,7 @@ describe('SpawnBehavior slave respawn timing', () => {
         MaxHealth: 50,
         InitialHealth: 50,
       }),
+      makeBlock('Behavior', 'SlavedUpdate ModuleTag_SlavedUpdate', {}),
     ]);
 
     const bundle = makeBundle({
@@ -413,6 +414,7 @@ describe('SpawnBehavior slave respawn timing', () => {
         MaxHealth: 50,
         InitialHealth: 50,
       }),
+      makeBlock('Behavior', 'SlavedUpdate ModuleTag_SlavedUpdate', {}),
     ]);
 
     const bundle = makeBundle({ objects: [masterDef, slaveDef] });

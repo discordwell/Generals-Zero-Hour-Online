@@ -1325,6 +1325,7 @@ describe('GarrisonContain', () => {
           AttackRange: 120,
           PrimaryDamage: 10,
           DelayBetweenShots: 100,
+          AllowAttackGarrisonedBldgs: 'Yes',
         }),
       ],
     });
@@ -1385,6 +1386,7 @@ describe('GarrisonContain', () => {
           AttackRange: 120,
           PrimaryDamage: 10,
           DelayBetweenShots: 100,
+          AllowAttackGarrisonedBldgs: 'Yes',
         }),
       ],
     });
@@ -1452,6 +1454,7 @@ describe('GarrisonContain', () => {
           PrimaryDamage: 600,
           DamageType: 'SUBDUAL_BUILDING',
           DelayBetweenShots: 100,
+          AllowAttackGarrisonedBldgs: 'Yes',
         }),
       ],
     });
@@ -1764,6 +1767,7 @@ describe('Containment system integration', () => {
           PrimaryDamage: 600,
           DamageType: 'SUBDUAL_BUILDING',
           DelayBetweenShots: 100,
+          AllowAttackGarrisonedBldgs: 'Yes',
         }),
       ],
     });

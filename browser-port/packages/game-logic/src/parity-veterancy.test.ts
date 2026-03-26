@@ -570,6 +570,7 @@ describe('parity veterancy: experience sink redirect', () => {
           }),
           makeObjectDef('SlaveUnit', 'America', ['VEHICLE'], [
             makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+            makeBlock('Behavior', 'SlavedUpdate ModuleTag_SlavedUpdate', {}),
             makeWeaponBlock('SlaveGun'),
           ], {
             IsTrainable: 'Yes',

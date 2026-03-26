@@ -376,6 +376,7 @@ describe('Parity: garrison auto-eject at REALLYDAMAGED', () => {
           DamageType: 'ARMOR_PIERCING',
           AttackRange: 200,
           DelayBetweenShots: 100,
+          AllowAttackGarrisonedBldgs: 'Yes',
         }),
       ],
     });

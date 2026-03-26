@@ -9471,7 +9471,7 @@ describe('GameLogicSubsystem combat + upgrades', () => {
       targetObjectId: null,
       targetPosition: [8, 0, 8],
     });
-    for (let frame = 0; frame < 12; frame += 1) {
+    for (let frame = 0; frame < 30; frame += 1) {
       logic.update(1 / 30);
     }
 
@@ -12332,7 +12332,7 @@ describe('GameLogicSubsystem combat + upgrades', () => {
       targetPosition: [8, 0, 8],
     });
 
-    for (let frame = 0; frame < 8; frame += 1) {
+    for (let frame = 0; frame < 25; frame += 1) {
       logic.update(1 / 30);
     }
 
@@ -12411,13 +12411,21 @@ describe('GameLogicSubsystem combat + upgrades', () => {
       targetPosition: [8, 0, 8],
     });
     const startX = logic.getEntityState(1)?.x ?? 0;
-    logic.submitCommand({ type: 'moveTo', entityId: 1, targetX: 30, targetZ: 8 });
 
-    logic.update(1 / 30);
+    // Advance enough frames for the combat drop to be established (Chinook starts
+    // moving to the offset drop position) but not yet completed.
+    for (let frame = 0; frame < 3; frame += 1) {
+      logic.update(1 / 30);
+    }
     expect(priv.pendingCombatDropActions.has(1)).toBe(true);
+
+    // Issue a moveTo while the combat drop is active — should be deferred.
+    logic.submitCommand({ type: 'moveTo', entityId: 1, targetX: 30, targetZ: 8 });
+    logic.update(1 / 30);
     expect(priv.pendingChinookCommandByEntityId.has(1)).toBe(true);
 
-    for (let frame = 0; frame < 120; frame += 1) {
+    // Run enough frames for the combat drop to finish and the deferred command to replay.
+    for (let frame = 0; frame < 150; frame += 1) {
       logic.update(1 / 30);
     }
     expect(priv.pendingChinookCommandByEntityId.has(1)).toBe(false);
