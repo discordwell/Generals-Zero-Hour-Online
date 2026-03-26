@@ -50,7 +50,7 @@ describe('INI field gap: AcceptableAimDelta', () => {
     expect(entity.attackWeapon.acceptableAimDelta).toBeCloseTo(5 * Math.PI / 180, 4);
   });
 
-  it('defaults AcceptableAimDelta to ~1 degree when not specified', () => {
+  it('defaults AcceptableAimDelta to 0 radians when not specified (C++ parity)', () => {
     const agent = createParityAgent({
       bundles: {
         objects: [
@@ -74,8 +74,8 @@ describe('INI field gap: AcceptableAimDelta', () => {
 
     const entity = agent.gameLogic.spawnedEntities.values().next().value;
     expect(entity.attackWeapon).toBeDefined();
-    // Default 1 degree in radians
-    expect(entity.attackWeapon.acceptableAimDelta).toBeCloseTo(Math.PI / 180, 4);
+    // Source parity: Weapon.cpp line 267 — m_aimDelta = 0.0f
+    expect(entity.attackWeapon.acceptableAimDelta).toBe(0);
   });
 });
 
@@ -110,7 +110,7 @@ describe('INI field gap: MinTargetPitch / MaxTargetPitch', () => {
     expect(entity.attackWeapon.maxTargetPitch).toBeCloseTo(80 * Math.PI / 180, 4);
   });
 
-  it('defaults to -90/+90 degrees (no restriction)', () => {
+  it('defaults to -180/+180 degrees (full sphere, C++ parity)', () => {
     const agent = createParityAgent({
       bundles: {
         objects: [
@@ -134,8 +134,9 @@ describe('INI field gap: MinTargetPitch / MaxTargetPitch', () => {
 
     const entity = agent.gameLogic.spawnedEntities.values().next().value;
     expect(entity.attackWeapon).toBeDefined();
-    expect(entity.attackWeapon.minTargetPitch).toBeCloseTo(-Math.PI / 2, 4);
-    expect(entity.attackWeapon.maxTargetPitch).toBeCloseTo(Math.PI / 2, 4);
+    // Source parity: Weapon.cpp lines 279-280 — m_minTargetPitch = -PI, m_maxTargetPitch = PI
+    expect(entity.attackWeapon.minTargetPitch).toBeCloseTo(-Math.PI, 4);
+    expect(entity.attackWeapon.maxTargetPitch).toBeCloseTo(Math.PI, 4);
   });
 });
 
