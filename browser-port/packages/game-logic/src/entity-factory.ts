@@ -4104,6 +4104,7 @@ export function extractHeightDieProfile(self: GL, objectDef: ObjectDef | undefin
           targetHeightIncludesStructures: (readStringField(block.fields, ['TargetHeightIncludesStructures'])?.toUpperCase() === 'YES'),
           snapToGroundOnDeath: (readStringField(block.fields, ['SnapToGroundOnDeath'])?.toUpperCase() === 'YES'),
           initialDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['InitialDelay']) ?? 0),
+          destroyAttachedParticlesAtHeight: readNumericField(block.fields, ['DestroyAttachedParticlesAtHeight']) ?? -1,
         };
       }
     }

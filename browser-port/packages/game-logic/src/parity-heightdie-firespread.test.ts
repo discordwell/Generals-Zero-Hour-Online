@@ -63,6 +63,7 @@ describe('HeightDieUpdate — unit dies when below target height (C++ parity)', 
       snapToGroundOnDeath: boolean;
       initialDelayFrames: number;
       targetHeightIncludesStructures: boolean;
+      destroyAttachedParticlesAtHeight: number;
     } | null;
     heightDieActiveFrame: number;
     heightDieLastY: number;
@@ -233,6 +234,42 @@ describe('HeightDieUpdate — unit dies when below target height (C++ parity)', 
     // heightDieLastY should match entity.y after update.
     expect(entity.heightDieLastY).toBe(entity.y);
     expect(entity.destroyed).toBe(false);
+  });
+
+  it('extracts DestroyAttachedParticlesAtHeight from INI (C++ line 77)', () => {
+    // C++ source: HeightDieUpdate.cpp:77 — DestroyAttachedParticlesAtHeight parsed via INI::parseReal.
+    // Default is -1.0f (effectively disabled since positions are rarely below -1).
+    // C++ line 254: if (pos->z < m_destroyAttachedParticlesAtHeight) → destroy attached particles.
+    const { entity } = makeHeightDieLogic({ targetHeight: 50 });
+    expect(entity.heightDieProfile).not.toBeNull();
+    // Default value when not specified in INI: -1 (C++ m_destroyAttachedParticlesAtHeight = -1.0f).
+    expect(entity.heightDieProfile!.destroyAttachedParticlesAtHeight).toBe(-1);
+  });
+
+  it('extracts explicit DestroyAttachedParticlesAtHeight value from INI (C++ line 77)', () => {
+    // C++ source: HeightDieUpdate.cpp:77 — { "DestroyAttachedParticlesAtHeight", INI::parseReal, ... }.
+    // When specified, the value is stored as a height threshold for particle cleanup.
+    const objectDef = makeObjectDef('TestAircraft2', 'America', ['AIRCRAFT'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+      makeBlock('Behavior', 'HeightDieUpdate ModuleTag_HeightDie', {
+        TargetHeight: 50,
+        DestroyAttachedParticlesAtHeight: 25,
+      }),
+    ]);
+
+    const bundle = makeBundle({ objects: [objectDef] });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([makeMapObject('TestAircraft2', 50, 50)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as unknown as { spawnedEntities: Map<number, HeightDieEntity> };
+    const entity = priv.spawnedEntities.get(1)!;
+    expect(entity.heightDieProfile).not.toBeNull();
+    expect(entity.heightDieProfile!.destroyAttachedParticlesAtHeight).toBe(25);
   });
 });
 

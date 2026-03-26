@@ -2441,6 +2441,8 @@ interface SpectreGunshipDeploymentProfile {
   gunshipOrbitRadius: number;
   /** Source parity: m_createLoc — edge selection strategy for gunship spawn. */
   createLocation: 'NEAR_SOURCE' | 'FARTHEST_FROM_SOURCE' | 'NEAR_TARGET' | 'FARTHEST_FROM_TARGET';
+  /** Source parity: m_extraRequiredScience — additional science prerequisite for deployment (SCIENCE_INVALID if none). */
+  requiredScience: string;
 }
 
 type ContainModuleType = 'OPEN' | 'TRANSPORT' | 'OVERLORD' | 'HELIX' | 'PARACHUTE' | 'GARRISON' | 'TUNNEL' | 'CAVE' | 'HEAL' | 'INTERNET_HACK';
@@ -4198,6 +4200,8 @@ interface HeightDieProfile {
   snapToGroundOnDeath: boolean;
   /** Initial delay frames before height checks begin. */
   initialDelayFrames: number;
+  /** Source parity: m_destroyAttachedParticlesAtHeight — height threshold below which attached particles are destroyed. Default -1 (disabled). */
+  destroyAttachedParticlesAtHeight: number;
 }
 
 /**

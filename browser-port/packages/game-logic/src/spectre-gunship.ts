@@ -51,6 +51,7 @@ export function extractSpectreGunshipDeploymentProfile(self: GL, objectDef: Obje
       attackAreaRadius: readNumericField(block.fields, ['AttackAreaRadius']) ?? 200,
       gunshipOrbitRadius: readNumericField(block.fields, ['GunshipOrbitRadius']) ?? 250,
       createLocation,
+      requiredScience: readStringField(block.fields, ['RequiredScience']) ?? '',
     };
   }
   return null;
