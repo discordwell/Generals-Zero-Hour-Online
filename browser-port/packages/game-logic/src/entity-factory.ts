@@ -4038,6 +4038,27 @@ export function extractHelicopterSlowDeathProfiles(self: GL, objectDef: ObjectDe
     const bladeObjectName = readStringField(block.fields, ['BladeObjectName']) ?? '';
     const bladeBoneName = readStringField(block.fields, ['BladeBoneName']) ?? '';
 
+    // C++ parseDurationReal: ms → logic frames. Blade fly-off delay range.
+    const minBladeFlyOffDelay = self.msToLogicFrames(
+      readNumericField(block.fields, ['MinBladeFlyOffDelay']) ?? 0);
+    const maxBladeFlyOffDelay = self.msToLogicFrames(
+      readNumericField(block.fields, ['MaxBladeFlyOffDelay']) ?? 0);
+
+    // Particle system attachment fields.
+    const attachParticle = readStringField(block.fields, ['AttachParticle']) ?? null;
+    const attachParticleBone = readStringField(block.fields, ['AttachParticleBone']) ?? '';
+    const attachParticleLoc = readCoord3DField(block.fields, ['AttachParticleLoc']) ?? { x: 0, y: 0, z: 0 };
+
+    // OCL/FX pointer fields (NULL default in C++).
+    const oclEjectPilot = readStringField(block.fields, ['OCLEjectPilot']) ?? null;
+    const fxBlade = readStringField(block.fields, ['FXBlade']) ?? null;
+    const oclBlade = readStringField(block.fields, ['OCLBlade']) ?? null;
+    const fxHitGround = readStringField(block.fields, ['FXHitGround']) ?? null;
+    const fxFinalBlowUp = readStringField(block.fields, ['FXFinalBlowUp']) ?? null;
+
+    // C++ parseAudioEventRTS: looping death sound.
+    const soundDeathLoop = readStringField(block.fields, ['SoundDeathLoop']) ?? null;
+
     profiles.push({
       deathTypes,
       veterancyLevels,
@@ -4058,6 +4079,17 @@ export function extractHelicopterSlowDeathProfiles(self: GL, objectDef: ObjectDe
       finalRubbleObject,
       bladeObjectName,
       bladeBoneName,
+      minBladeFlyOffDelay,
+      maxBladeFlyOffDelay,
+      attachParticle,
+      attachParticleBone,
+      attachParticleLoc,
+      oclEjectPilot,
+      fxBlade,
+      oclBlade,
+      fxHitGround,
+      fxFinalBlowUp,
+      soundDeathLoop,
     });
   };
 
