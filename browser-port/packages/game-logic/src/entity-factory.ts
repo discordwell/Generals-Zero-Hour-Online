@@ -2042,13 +2042,23 @@ export function extractExperienceProfile(self: GL, objectDef: ObjectDef | undefi
 
   const expRequiredRaw = readNumericListField(objectDef.fields, ['ExperienceRequired']);
   const expValueRaw = readNumericListField(objectDef.fields, ['ExperienceValue']);
+  // Source parity: ThingTemplate.cpp:133 — SkillPointValue parsed as space-separated int list.
+  const skillPointRaw = readNumericListField(objectDef.fields, ['SkillPointValue']);
+  // Source parity: ThingTemplate.cpp:136 — IsTrainable parsed as bool, default FALSE.
+  const isTrainable = readBooleanField(objectDef.fields, ['IsTrainable']) ?? false;
 
-  if (!expRequiredRaw && !expValueRaw) {
+  if (!expRequiredRaw && !expValueRaw && !isTrainable) {
     return null;
   }
 
   const expRequired: [number, number, number, number] = [0, 0, 0, 0];
   const expValue: [number, number, number, number] = [0, 0, 0, 0];
+  // Source parity: ThingTemplate.cpp:1016 — m_skillPointValues initialized to USE_EXP_VALUE_FOR_SKILL_VALUE (-999).
+  const USE_EXP_VALUE_FOR_SKILL_VALUE = -999;
+  const skillPointValues: [number, number, number, number] = [
+    USE_EXP_VALUE_FOR_SKILL_VALUE, USE_EXP_VALUE_FOR_SKILL_VALUE,
+    USE_EXP_VALUE_FOR_SKILL_VALUE, USE_EXP_VALUE_FOR_SKILL_VALUE,
+  ];
 
   if (expRequiredRaw) {
     for (let i = 0; i < 4 && i < expRequiredRaw.length; i++) {
@@ -2062,9 +2072,17 @@ export function extractExperienceProfile(self: GL, objectDef: ObjectDef | undefi
     }
   }
 
+  if (skillPointRaw) {
+    for (let i = 0; i < 4 && i < skillPointRaw.length; i++) {
+      skillPointValues[i] = Math.trunc(skillPointRaw[i] ?? USE_EXP_VALUE_FOR_SKILL_VALUE);
+    }
+  }
+
   return {
     experienceRequired: expRequired,
     experienceValue: expValue,
+    skillPointValues,
+    isTrainable,
   };
 }
 

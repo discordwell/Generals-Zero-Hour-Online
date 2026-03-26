@@ -7,7 +7,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { MAP_XY_FACTOR, MAP_HEIGHT_SCALE } from '@generals/terrain';
-import { getExperienceValue as getExperienceValueImpl, addExperiencePoints as addExperiencePointsImpl } from './experience.js';
+import { getExperienceValue as getExperienceValueImpl, getSkillPointValue as getSkillPointValueImpl, addExperiencePoints as addExperiencePointsImpl } from './experience.js';
 import { findObjectDefByName } from './registry-lookups.js';
 import { readStringField } from './ini-readers.js';
 import {
@@ -1806,11 +1806,16 @@ export function awardExperienceOnKill(self: GL, victimId: number, attackerId: nu
     return;
   }
 
-  // Source parity: no XP for killing allies.
+  // Source parity: ExperienceTracker.cpp:64 — "No experience for killing an ally, cheater."
+  // C++ checks killer->getRelationship(victim) == ALLIES, which covers both same-side
+  // and explicitly allied players (e.g. via script diplomacy changes).
   const victimSide = self.normalizeSide(victim.side);
   const attackerSide = self.normalizeSide(attacker.side);
-  if (victimSide && attackerSide && victimSide === attackerSide) {
-    return;
+  if (victimSide && attackerSide) {
+    const relationship = self.getTeamRelationshipBySides(attackerSide, victimSide);
+    if (relationship === RELATIONSHIP_ALLIES) {
+      return;
+    }
   }
 
   // Source parity: Object.cpp:2661 — no XP or skill points for killing things under construction.
@@ -1842,22 +1847,26 @@ export function awardExperienceOnKill(self: GL, victimId: number, attackerId: nu
     }
   }
 
-  // Source parity: unit-level veterancy XP.
-  const result = addExperiencePointsImpl(
-    xpRecipient.experienceState,
-    xpRecipientProfile,
-    xpGain,
-    true,
-  );
+  // Source parity: ExperienceTracker.cpp:162 — isTrainable() check.
+  // Only trainable units can receive unit-level veterancy XP.
+  if (xpRecipientProfile.isTrainable) {
+    const result = addExperiencePointsImpl(
+      xpRecipient.experienceState,
+      xpRecipientProfile,
+      xpGain,
+      true,
+    );
 
-  if (result.didLevelUp) {
-    self.onEntityLevelUp(xpRecipient, result.oldLevel, result.newLevel);
+    if (result.didLevelUp) {
+      self.onEntityLevelUp(xpRecipient, result.oldLevel, result.newLevel);
+    }
   }
 
-  // Source parity: Player::addSkillPointsForKill — also award player-level rank points.
-  // SkillPointValue defaults to ExperienceValue when not set in INI (USE_EXP_VALUE_FOR_SKILL_VALUE sentinel).
+  // Source parity: Player::addSkillPointsForKill (Player.cpp:2494-2507).
+  // Uses getSkillPointValue (falls back to ExperienceValue when sentinel -999).
   if (attackerSide) {
-    self.addPlayerSkillPoints(attackerSide, xpGain);
+    const skillPointGain = getSkillPointValueImpl(victimProfile, victim.experienceState.currentLevel);
+    self.addPlayerSkillPoints(attackerSide, skillPointGain);
   }
 }
 

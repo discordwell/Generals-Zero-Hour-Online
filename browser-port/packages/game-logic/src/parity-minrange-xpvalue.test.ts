@@ -235,6 +235,7 @@ describe('parity: experience value scales with victim veterancy level', () => {
             makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
             makeWeaponBlock('BigGun'),
           ], {
+            IsTrainable: 'Yes',
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 1000, 2000, 3000],
           }),
@@ -287,6 +288,7 @@ describe('parity: experience value scales with victim veterancy level', () => {
             makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
             makeWeaponBlock('BigGun'),
           ], {
+            IsTrainable: 'Yes',
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 1000, 2000, 3000],
           }),
@@ -345,6 +347,7 @@ describe('parity: experience value scales with victim veterancy level', () => {
             makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
             makeWeaponBlock('BigGun'),
           ], {
+            IsTrainable: 'Yes',
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 1000, 2000, 3000],
           }),
@@ -402,6 +405,7 @@ describe('parity: experience value scales with victim veterancy level', () => {
             makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
             makeWeaponBlock('BigGun'),
           ], {
+            IsTrainable: 'Yes',
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 1000, 2000, 3000],
           }),
