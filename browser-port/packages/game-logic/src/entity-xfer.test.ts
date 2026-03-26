@@ -110,6 +110,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     rallyPoint: null,
     parkingPlaceProfile: null,
     containProfile: null,
+    riderChangeContainProfile: null,
     scriptEvacDisposition: 0,
     queueProductionExitDelayFramesRemaining: 0,
     queueProductionExitBurstRemaining: 0,

@@ -315,6 +315,7 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.rallyPoint = xferNullableVectorXZ(xfer, e.rallyPoint as { x: number; z: number } | null);
   e.parkingPlaceProfile = xferNullableJsonObject(xfer, e.parkingPlaceProfile as object | null);
   e.containProfile = xferNullableJsonObject(xfer, e.containProfile as object | null);
+  e.riderChangeContainProfile = xferNullableJsonObject(xfer, e.riderChangeContainProfile as object | null);
   e.scriptEvacDisposition = xfer.xferInt(e.scriptEvacDisposition as number);
   e.queueProductionExitDelayFramesRemaining = xfer.xferInt(e.queueProductionExitDelayFramesRemaining as number);
   e.queueProductionExitBurstRemaining = xfer.xferInt(e.queueProductionExitBurstRemaining as number);
