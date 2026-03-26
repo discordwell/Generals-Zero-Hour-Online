@@ -1116,6 +1116,7 @@ export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: Ma
         usePreciseTargetY: false,
         travelDistance: 0,
         totalDistanceEstimate: Math.max(1, Math.hypot(impactX - sourceX, impactZ - sourceZ)),
+        isJammed: false,
       };
     } else {
       // Source parity: non-missile projectiles detonate from projectile-flight update path.
