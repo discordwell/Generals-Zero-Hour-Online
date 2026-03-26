@@ -84,20 +84,26 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
   const damageDealtAtSelfPosition = readBooleanField(weaponDef.fields, ['DamageDealtAtSelfPosition']) ?? false;
   const radiusDamageAffectsMask = self.resolveWeaponRadiusAffectsMask(weaponDef);
   const projectileCollideMask = self.resolveWeaponProjectileCollideMask(weaponDef);
-  const weaponSpeedRaw = readNumericField(weaponDef.fields, ['WeaponSpeed']) ?? 999999;
-  const weaponSpeed = Number.isFinite(weaponSpeedRaw) && weaponSpeedRaw > 0 ? weaponSpeedRaw : 999999;
-  const minWeaponSpeedRaw = readNumericField(weaponDef.fields, ['MinWeaponSpeed']) ?? 999999;
-  const minWeaponSpeed = Number.isFinite(minWeaponSpeedRaw) && minWeaponSpeedRaw > 0 ? minWeaponSpeedRaw : 999999;
+  // Source parity: WeaponSpeed/MinWeaponSpeed are parsed via INI::parseVelocityReal which
+  // calls ConvertVelocityInSecsToFrames (÷ LOGICFRAMES_PER_SECOND = 30) to convert from
+  // dist/sec (INI) to dist/frame (runtime). Default 999999 is effectively instant.
+  const LOGICFRAMES_PER_SECOND = 30;
+  const weaponSpeedIni = readNumericField(weaponDef.fields, ['WeaponSpeed']);
+  const weaponSpeedConverted = weaponSpeedIni !== null ? weaponSpeedIni / LOGICFRAMES_PER_SECOND : 999999;
+  const weaponSpeed = Number.isFinite(weaponSpeedConverted) && weaponSpeedConverted > 0 ? weaponSpeedConverted : 999999;
+  const minWeaponSpeedIni = readNumericField(weaponDef.fields, ['MinWeaponSpeed']);
+  const minWeaponSpeedConverted = minWeaponSpeedIni !== null ? minWeaponSpeedIni / LOGICFRAMES_PER_SECOND : 999999;
+  const minWeaponSpeed = Number.isFinite(minWeaponSpeedConverted) && minWeaponSpeedConverted > 0 ? minWeaponSpeedConverted : 999999;
   const scaleWeaponSpeed = readBooleanField(weaponDef.fields, ['ScaleWeaponSpeed']) ?? false;
   const capableOfFollowingWaypoints = readBooleanField(
     weaponDef.fields,
     ['CapableOfFollowingWaypoints'],
   ) ?? false;
   const leechRangeWeapon = readBooleanField(weaponDef.fields, ['LeechRangeWeapon']) ?? false;
-  // Source parity: WeaponTemplate::m_allowAttackGarrisonedBldgs (Weapon.cpp line 239/322).
-  // Default TRUE — most weapons can target garrisoned buildings. Weapons with
-  // AllowAttackGarrisonedBldgs = No (e.g., flashbangs, toxin sprayers) are blocked.
-  const allowAttackGarrisonedBldgs = readBooleanField(weaponDef.fields, ['AllowAttackGarrisonedBldgs']) ?? true;
+  // Source parity: WeaponTemplate::m_allowAttackGarrisonedBldgs (Weapon.cpp line 322).
+  // Default FALSE — C++ constructor initializes to FALSE. Weapons must opt-in with
+  // AllowAttackGarrisonedBldgs = Yes to target garrisoned buildings.
+  const allowAttackGarrisonedBldgs = readBooleanField(weaponDef.fields, ['AllowAttackGarrisonedBldgs']) ?? false;
   // Source parity: WeaponTemplate::m_shotsPerBarrel — shots per barrel before cycling (default 1).
   const shotsPerBarrelRaw = readNumericField(weaponDef.fields, ['ShotsPerBarrel']) ?? 1;
   const shotsPerBarrel = Math.max(1, Math.trunc(shotsPerBarrelRaw));
@@ -105,12 +111,14 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
   const shockWaveAmount = readNumericField(weaponDef.fields, ['ShockWaveAmount']) ?? 0;
   const shockWaveRadius = Math.max(0, readNumericField(weaponDef.fields, ['ShockWaveRadius']) ?? 0);
   const shockWaveTaperOff = readNumericField(weaponDef.fields, ['ShockWaveTaperOff']) ?? 0;
-  // Source parity: WeaponTemplate::m_acceptableAimDelta — turret alignment tolerance (degrees→radians).
-  const acceptableAimDeltaDeg = readNumericField(weaponDef.fields, ['AcceptableAimDelta']) ?? 1;
+  // Source parity: WeaponTemplate::m_aimDelta — turret alignment tolerance (Weapon.cpp line 267).
+  // C++ default is 0.0 radians. INI value is in degrees, converted to radians.
+  const acceptableAimDeltaDeg = readNumericField(weaponDef.fields, ['AcceptableAimDelta']) ?? 0;
   const acceptableAimDelta = acceptableAimDeltaDeg * (Math.PI / 180);
-  // Source parity: WeaponTemplate::m_minTargetPitch / m_maxTargetPitch (degrees→radians).
-  const minTargetPitch = (readNumericField(weaponDef.fields, ['MinTargetPitch']) ?? -90) * (Math.PI / 180);
-  const maxTargetPitch = (readNumericField(weaponDef.fields, ['MaxTargetPitch']) ?? 90) * (Math.PI / 180);
+  // Source parity: WeaponTemplate::m_minTargetPitch / m_maxTargetPitch (Weapon.cpp lines 279-280).
+  // C++ defaults to -PI / +PI (full sphere ±180°). INI values are in degrees, converted to radians.
+  const minTargetPitch = (readNumericField(weaponDef.fields, ['MinTargetPitch']) ?? -180) * (Math.PI / 180);
+  const maxTargetPitch = (readNumericField(weaponDef.fields, ['MaxTargetPitch']) ?? 180) * (Math.PI / 180);
   // Source parity: WeaponTemplate::m_requestAssistRange — allies within range auto-engage target.
   const requestAssistRange = Math.max(0, readNumericField(weaponDef.fields, ['RequestAssistRange']) ?? 0);
   // Source parity: WeaponTemplate::m_fireOCLNames — OCL spawned on each weapon fire.
@@ -119,6 +127,11 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
   const clipSize = Math.max(0, Math.trunc(clipSizeRaw));
   const clipReloadFrames = self.msToLogicFrames(readNumericField(weaponDef.fields, ['ClipReloadTime']) ?? 0);
   const autoReloadWhenIdleFrames = self.msToLogicFrames(readNumericField(weaponDef.fields, ['AutoReloadWhenIdle']) ?? 0);
+  // Source parity: WeaponTemplate::m_reloadType (Weapon.cpp line 298).
+  // Default is AUTO_RELOAD. getAutoReloadsClip() returns (m_reloadType == AUTO_RELOAD).
+  // INI field "AutoReloadsClip" uses TheWeaponReloadNames: YES=AUTO_RELOAD, NO=NO_RELOAD.
+  const autoReloadsClipRaw = readStringField(weaponDef.fields, ['AutoReloadsClip'])?.trim().toUpperCase();
+  const autoReloadsClip = autoReloadsClipRaw === 'NO' || autoReloadsClipRaw === 'RETURN_TO_BASE' ? false : true;
   const preAttackDelayFrames = self.msToLogicFrames(readNumericField(weaponDef.fields, ['PreAttackDelay']) ?? 0);
   const preAttackTypeToken = readStringField(weaponDef.fields, ['PreAttackType'])?.trim().toUpperCase();
   const preAttackType: WeaponPrefireTypeName =
@@ -235,10 +248,11 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
     requestAssistRange,
     fireOCLName,
     allowAttackGarrisonedBldgs,
+    autoReloadsClip,
   };
 }
 
-export function resolveAttackWeaponProfileForSetSelection(self: GL, 
+export function resolveAttackWeaponProfileForSetSelection(self: GL,
   weaponTemplateSets: readonly WeaponTemplateSetProfile[],
   weaponSetFlagsMask: number,
   iniDataRegistry: IniDataRegistry,

@@ -2991,7 +2991,7 @@ describe('PointDefenseLaserUpdate', () => {
       ],
       weapons: [
         makeWeaponDef('PDLLaser', { AttackRange: 40, PrimaryDamage: 100, WeaponSpeed: 999999, DelayBetweenShots: 33 }),
-        makeWeaponDef('AllyMissile', { AttackRange: 120, PrimaryDamage: 200, WeaponSpeed: 5, DelayBetweenShots: 5000, ProjectileObject: 'MissileProjectile' }),
+        makeWeaponDef('AllyMissile', { AttackRange: 120, PrimaryDamage: 200, WeaponSpeed: 150, DelayBetweenShots: 5000, ProjectileObject: 'MissileProjectile' }),
       ],
     });
 
@@ -3051,7 +3051,7 @@ describe('PointDefenseLaserUpdate', () => {
       ],
       weapons: [
         makeWeaponDef('PDLLaser', { AttackRange: 3, PrimaryDamage: 100, WeaponSpeed: 999999, DelayBetweenShots: 33 }),
-        makeWeaponDef('EnemyMissile', { AttackRange: 120, PrimaryDamage: 200, WeaponSpeed: 5, DelayBetweenShots: 5000, ProjectileObject: 'MissileProjectile' }),
+        makeWeaponDef('EnemyMissile', { AttackRange: 120, PrimaryDamage: 200, WeaponSpeed: 150, DelayBetweenShots: 5000, ProjectileObject: 'MissileProjectile' }),
       ],
     });
 
@@ -8494,7 +8494,7 @@ describe('FireOCLAfterWeaponCooldownUpdate', () => {
           DelayBetweenShots: 100,
           DamageType: 'ARMOR_PIERCING',
           DeathType: 'NORMAL',
-          WeaponSpeed: 999,
+          WeaponSpeed: 29970,
           ProjectileNudge: '0 0 0',
         }),
       ],

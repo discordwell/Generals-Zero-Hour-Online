@@ -1723,8 +1723,10 @@ interface AttackWeaponProfile {
   requestAssistRange: number;
   /** Source parity: WeaponTemplate::m_fireOCLNames — OCL spawned on each weapon fire. */
   fireOCLName: string | null;
-  /** Source parity: WeaponTemplate::m_allowAttackGarrisonedBldgs — allow targeting garrisoned buildings (default true). */
+  /** Source parity: WeaponTemplate::m_allowAttackGarrisonedBldgs — allow targeting garrisoned buildings (default false). */
   allowAttackGarrisonedBldgs: boolean;
+  /** Source parity: WeaponTemplate::getAutoReloadsClip() — m_reloadType == AUTO_RELOAD (default true). */
+  autoReloadsClip: boolean;
 }
 
 interface WeaponTemplateSetProfile {
