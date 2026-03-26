@@ -2924,6 +2924,8 @@ interface HackInternetPendingCommandState {
 interface AssaultTransportProfile {
   /** Health ratio below which members are recalled for healing. 0 = never recall. */
   membersGetHealedAtLifeRatio: number;
+  /** Range clearance required for assault to continue attack-move. */
+  clearRangeRequiredToContinueAttackMove: number;
 }
 
 interface AssaultTransportMember {
@@ -4566,6 +4568,10 @@ interface DeployStyleProfile {
   unpackTimeFrames: number;
   packTimeFrames: number;
   turretsFunctionOnlyWhenDeployed: boolean;
+  /** Reset turret position before packing. */
+  resetTurretBeforePacking: boolean;
+  /** Turrets must center before packing completes. */
+  turretsMustCenterBeforePacking: boolean;
 }
 
 /**
@@ -4867,6 +4873,10 @@ interface CountermeasuresProfile {
   missileDecoyFrames: number;
   /** Frames of delay before first volley after detecting missile. */
   reactionFrames: number;
+  /** Base name for bones where flares spawn. */
+  flareBoneBaseName: string;
+  /** Forces reload at airfield only (no auto-reload). */
+  mustReloadAtAirfield: boolean;
 }
 
 /** Source parity: CountermeasuresBehavior runtime state per entity. */
