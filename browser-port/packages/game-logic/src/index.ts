@@ -3973,6 +3973,46 @@ export interface MapEntity {
   spectreGunshipState: SpectreGunshipState | null;
   // ── Source parity: SpectreGunshipDeploymentUpdate — command center deployment ──
   spectreGunshipDeploymentProfile: SpectreGunshipDeploymentProfile | null;
+  // ── Source parity: WaveGuideUpdate — flood wave mechanics (dam break / GLA Sneak Attack) ──
+  waveGuideProfile: WaveGuideProfile | null;
+}
+
+/**
+ * Source parity: WaveGuideUpdate module parsed from INI.
+ * C++ file: WaveGuideUpdate.cpp lines 86–105.
+ * Controls flood wave mechanics — used by dam breaks and GLA Sneak Attack tunnel water floods.
+ */
+interface WaveGuideProfile {
+  /** Time between wave pulses in logic frames (parseDurationReal). */
+  waveDelayFrames: number;
+  /** Wave width. */
+  ySize: number;
+  /** Distance between waves. */
+  linearWaveSpacing: number;
+  /** Wave curvature magnitude. */
+  waveBendMagnitude: number;
+  /** Wave propagation speed in units/frame (parseVelocityReal: units/sec ÷ LOGIC_FRAME_RATE). */
+  waterVelocity: number;
+  /** Idle water height. */
+  preferredHeight: number;
+  /** Effect radius at wave edges. */
+  shorelineEffectDistance: number;
+  /** Damage area per wave. */
+  damageRadius: number;
+  /** Damage per hit. */
+  damageAmount: number;
+  /** Force to topple units. */
+  toppleForce: number;
+  /** Splash sound event name. */
+  randomSplashSound: string;
+  /** How often splash sound plays. */
+  randomSplashSoundFrequency: number;
+  /** Bridge particle effect name. */
+  bridgeParticle: string;
+  /** Angle adjustment in radians (parseAngleReal: degrees → radians). */
+  bridgeParticleAngleFudge: number;
+  /** Ambient loop sound name. */
+  loopingSound: string;
 }
 
 /**

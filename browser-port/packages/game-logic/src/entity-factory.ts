@@ -838,6 +838,8 @@ export function createMapEntity(self: GL,
     spectreGunshipState: null,
     // SpectreGunshipDeployment (command center deployment)
     spectreGunshipDeploymentProfile: self.extractSpectreGunshipDeploymentProfile(objectDef),
+    // WaveGuideUpdate (flood wave mechanics — dam break / GLA Sneak Attack)
+    waveGuideProfile: extractWaveGuideProfile(self, objectDef),
   };
 
   self.applyMapObjectCoreProperties(entity, mapObject);
@@ -2471,6 +2473,47 @@ export function extractFlammableProfile(self: GL, objectDef: ObjectDef | undefin
           aflameDamageDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['AflameDamageDelay']) ?? 500),
           aflameDamageAmount: readNumericField(block.fields, ['AflameDamageAmount']) ?? DEFAULT_AFLAME_DAMAGE_AMOUNT,
           burnedDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['BurnedDelay']) ?? 0),
+        };
+      }
+    }
+    if (block.blocks) {
+      for (const child of block.blocks) visitBlock(child);
+    }
+  };
+  if (objectDef.blocks) {
+    for (const block of objectDef.blocks) visitBlock(block);
+  }
+  return profile;
+}
+
+/**
+ * Source parity: WaveGuideUpdate module — flood wave mechanics.
+ * C++ file: WaveGuideUpdate.cpp lines 86–105 (FieldParse table).
+ */
+export function extractWaveGuideProfile(self: GL, objectDef: ObjectDef | undefined): WaveGuideProfile | null {
+  if (!objectDef) return null;
+  let profile: WaveGuideProfile | null = null;
+  const visitBlock = (block: IniBlock): void => {
+    if (profile !== null) return;
+    if (block.type.toUpperCase() === 'BEHAVIOR') {
+      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      if (moduleType === 'WAVEGUIDEUPDATE') {
+        profile = {
+          waveDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['WaveDelay']) ?? 0),
+          ySize: readNumericField(block.fields, ['YSize']) ?? 0,
+          linearWaveSpacing: readNumericField(block.fields, ['LinearWaveSpacing']) ?? 0,
+          waveBendMagnitude: readNumericField(block.fields, ['WaveBendMagnitude']) ?? 0,
+          waterVelocity: (readNumericField(block.fields, ['WaterVelocity']) ?? 0) / LOGIC_FRAME_RATE,
+          preferredHeight: readNumericField(block.fields, ['PreferredHeight']) ?? 0,
+          shorelineEffectDistance: readNumericField(block.fields, ['ShorelineEffectDistance']) ?? 0,
+          damageRadius: readNumericField(block.fields, ['DamageRadius']) ?? 0,
+          damageAmount: readNumericField(block.fields, ['DamageAmount']) ?? 0,
+          toppleForce: readNumericField(block.fields, ['ToppleForce']) ?? 0,
+          randomSplashSound: readStringField(block.fields, ['RandomSplashSound']) ?? '',
+          randomSplashSoundFrequency: readNumericField(block.fields, ['RandomSplashSoundFrequency']) ?? 0,
+          bridgeParticle: readStringField(block.fields, ['BridgeParticle']) ?? '',
+          bridgeParticleAngleFudge: (readNumericField(block.fields, ['BridgeParticleAngleFudge']) ?? 0) * Math.PI / 180,
+          loopingSound: readStringField(block.fields, ['LoopingSound']) ?? '',
         };
       }
     }
