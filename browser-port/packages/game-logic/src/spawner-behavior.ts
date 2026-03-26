@@ -17,6 +17,10 @@ import {
 } from './index.js';
 type GL = any;
 
+// Source parity: SpawnBehavior.cpp — minimum spawn delay clamp.
+// "about as rapidly as you'd expect people to successively exit through the same door"
+export const SPAWN_DELAY_MIN_FRAMES = 16;
+
 // ---- Spawner behavior implementations ----
 
 export function extractSpawnBehaviorState(self: GL, objectDef: ObjectDef | undefined): SpawnBehaviorState | null {
@@ -198,6 +202,8 @@ export function updateSpawnBehaviors(self: GL): void {
     // Source parity: SpawnBehavior initializes m_replacementTimes once via
     // m_initialBurstTimesInited guard. The burst creates slaves immediately up
     // to initialBurst count, then schedules the rest with spawnReplaceDelay.
+    // C++ staggers burst spawns by listIndex * SPAWN_DELAY_MIN_FRAMES for
+    // runtime-produced objects (factory-built, not script-placed).
     if (
       !state.initialBurstApplied
       && state.slaveIds.length < state.profile.spawnNumber
@@ -205,9 +211,16 @@ export function updateSpawnBehaviors(self: GL): void {
     ) {
       state.initialBurstApplied = true;
       const deficit = state.profile.spawnNumber - state.slaveIds.length;
+      const runtimeProduced = entity.producerEntityId !== 0;
+      let burstInitCount = state.profile.initialBurst;
       for (let i = 0; i < deficit; i += 1) {
-        if (state.profile.initialBurst > 0 && state.slaveIds.length < state.profile.initialBurst) {
-          // Initial burst spawns immediately.
+        if (state.profile.initialBurst > 0 && runtimeProduced && burstInitCount > 0) {
+          // Source parity: stagger burst spawns by SPAWN_DELAY_MIN_FRAMES intervals
+          // for runtime-produced (factory-built) objects.
+          burstInitCount -= 1;
+          state.replacementFrames.push(self.frameCounter + i * SPAWN_DELAY_MIN_FRAMES);
+        } else if (state.profile.initialBurst > 0 && state.slaveIds.length < state.profile.initialBurst) {
+          // Non-runtime spawner: burst spawns immediately.
           createSpawnSlave(self, entity, state);
         } else {
           // Source parity: C++ schedules at listIndex (0, 1, 2...) when
@@ -384,8 +397,11 @@ export function onSlaveDeath(self: GL, slave: MapEntity): void {
   }
 
   // Schedule replacement (unless one-shot).
+  // Source parity: clamp replacement delay to SPAWN_DELAY_MIN_FRAMES minimum
+  // to prevent spawn timers from being set to extremely low values.
   if (!state.profile.oneShot || !state.oneShotCompleted) {
-    state.replacementFrames.push(self.frameCounter + state.profile.spawnReplaceDelayFrames);
+    const clampedDelay = Math.max(SPAWN_DELAY_MIN_FRAMES, state.profile.spawnReplaceDelayFrames);
+    state.replacementFrames.push(self.frameCounter + clampedDelay);
   }
 
   // Source parity: aggregate health — spawner dies when all slaves are dead.

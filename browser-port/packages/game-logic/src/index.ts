@@ -3106,6 +3106,9 @@ export interface MapEntity {
   detectedUntilFrame: number;
   /** Frame at which entity last took damage (for STEALTH_NOT_WHILE_TAKING_DAMAGE). */
   lastDamageFrame: number;
+  /** Source parity: ActiveBody.cpp — frame at which yellow damage fear audio was triggered.
+   *  Set when health crosses below YELLOW_DAMAGE_PERCENT (25%) of max health. 0 = never. */
+  yellowDamageFearFrame?: number;
   /** Source parity: Body::getLastDamageInfo()->out.m_noEffect snapshot for latest damage event. */
   lastDamageNoEffect: boolean;
   /**
@@ -4502,6 +4505,13 @@ export const SLAVE_CLOSE_ENOUGH = 15.0;
 // Body damage state thresholds (source parity: GlobalData defaults).
 const UNIT_DAMAGED_THRESH = 0.5;
 const UNIT_REALLY_DAMAGED_THRESH = 0.1;
+
+/**
+ * Source parity: ActiveBody.cpp — health ratio threshold for "yellow damage" fear audio.
+ * When health crosses below 25% of max health (and was above before), a fear voice cue
+ * triggers with 25% probability. This prevents the sound from firing on every hit.
+ */
+export const YELLOW_DAMAGE_PERCENT = 0.25;
 
 type BodyDamageState = 0 | 1 | 2 | 3; // PRISTINE=0, DAMAGED=1, REALLYDAMAGED=2, RUBBLE=3
 
@@ -27329,6 +27339,9 @@ export class GameLogicSubsystem implements Subsystem {
       ? calcBodyDamageState(target.health, target.maxHealth)
       : 0 as BodyDamageState;
 
+    // Source parity: ActiveBody.cpp — capture previous health ratio for yellow damage check.
+    const prevHealthRatio = target.maxHealth > 0 ? target.health / target.maxHealth : 1;
+
     target.health = Math.max(0, target.health - adjustedDamage);
 
     // Source parity: onBodyDamageStateChange — SupplyWarehouseCrippling + BoneFXUpdate + GarrisonContain.
@@ -27361,6 +27374,19 @@ export class GameLogicSubsystem implements Subsystem {
               this.setEntityBodyDamageState(rider, newDamageState);
             }
           }
+        }
+      }
+    }
+
+    // Source parity: ActiveBody.cpp — yellow damage fear audio trigger.
+    // When health crosses below YELLOW_DAMAGE_PERCENT (25%) of max health and the unit
+    // is still alive, emit a fear voice cue with 25% probability.
+    if (target.maxHealth > 0 && target.health > 0) {
+      const newHealthRatio = target.health / target.maxHealth;
+      if (prevHealthRatio > YELLOW_DAMAGE_PERCENT && newHealthRatio < YELLOW_DAMAGE_PERCENT) {
+        // Source parity: 25% chance to play fear sound (GameLogicRandomValue(0,99) < 25).
+        if (this.gameRandom.nextRange(0, 99) < 25) {
+          this.emitYellowDamageFearEvent(target);
         }
       }
     }
@@ -31450,6 +31476,16 @@ export class GameLogicSubsystem implements Subsystem {
     this.evaCooldowns.set(cooldownKey, this.frameCounter + cooldown);
 
     this.evaEventBuffer.push({ type, side, relationship, entityId, detail });
+  }
+
+  /**
+   * Source parity: ActiveBody.cpp — emit yellow damage fear audio event.
+   * When health crosses below YELLOW_DAMAGE_PERCENT (25%) of max, the unit
+   * plays a VoiceFear cue. In the browser port this sets a frame marker on
+   * the entity that the audio/rendering layer can read.
+   */
+  private emitYellowDamageFearEvent(target: MapEntity): void {
+    target.yellowDamageFearFrame = this.frameCounter;
   }
 
   /**
