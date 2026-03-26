@@ -790,6 +790,7 @@ import {
   extractNeutronBlastProfile as extractNeutronBlastProfileImpl,
   extractBunkerBusterProfile as extractBunkerBusterProfileImpl,
   extractNeutronMissileSlowDeathProfile as extractNeutronMissileSlowDeathProfileImpl,
+  extractBattleBusSlowDeathProfile as extractBattleBusSlowDeathProfileImpl,
   extractTechBuildingProfile as extractTechBuildingProfileImpl,
   extractSupplyWarehouseCripplingProfile as extractSupplyWarehouseCripplingProfileImpl,
   extractInstantDeathProfiles as extractInstantDeathProfilesImpl,
@@ -3814,6 +3815,9 @@ export interface MapEntity {
   jetSlowDeathProfiles: JetSlowDeathProfile[];
   jetSlowDeathState: JetSlowDeathState | null;
 
+  // ── Source parity: BattleBusSlowDeathBehavior — Battle Bus death with passenger ejection ──
+  battleBusSlowDeathProfile: BattleBusSlowDeathProfile | null;
+
   // ── Source parity: CleanupHazardUpdate — passive hazard cleanup scanning ──
   cleanupHazardProfile: CleanupHazardProfile | null;
   cleanupHazardState: CleanupHazardState | null;
@@ -5961,6 +5965,28 @@ interface NeutronMissileSlowDeathProfile {
   blasts: NeutronMissileBlastInfo[];
   /** Source parity: m_scorchSize — size of the scorch mark placed at detonation point. */
   scorchSize: number;
+}
+
+/**
+ * Source parity: BattleBusSlowDeathBehaviorModuleData — death behavior for the GLA Battle Bus.
+ * C++ file: BattleBusSlowDeathBehavior.cpp (extends SlowDeathBehaviorModuleData).
+ * Passengers are thrown out, hulk lingers then self-destructs when empty.
+ */
+interface BattleBusSlowDeathProfile {
+  /** Source parity: m_fxStartUndeath — FX list played when undeath begins. */
+  fxStartUndeath: string | null;
+  /** Source parity: m_oclStartUndeath — OCL triggered when undeath begins. */
+  oclStartUndeath: string | null;
+  /** Source parity: m_fxHitGround — FX list played on ground impact. */
+  fxHitGround: string | null;
+  /** Source parity: m_oclHitGround — OCL triggered on ground impact. */
+  oclHitGround: string | null;
+  /** Source parity: m_throwForce — upward force applied to throw passengers (default 1.0). */
+  throwForce: number;
+  /** Source parity: m_percentDamageToPassengers — fraction of damage applied to passengers (0-1, default 0). */
+  percentDamageToPassengers: number;
+  /** Source parity: m_emptyHulkDestructionDelay — frames until empty hulk self-destructs (default 0). */
+  emptyHulkDestructionDelayFrames: number;
 }
 
 interface NeutronMissileSlowDeathState {
@@ -11373,6 +11399,7 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ extractNeutronBlastProfile(...args: any[]) { return (extractNeutronBlastProfileImpl as any)(this, ...args); }
   /* @internal */ extractBunkerBusterProfile(...args: any[]) { return (extractBunkerBusterProfileImpl as any)(this, ...args); }
   /* @internal */ extractNeutronMissileSlowDeathProfile(...args: any[]) { return (extractNeutronMissileSlowDeathProfileImpl as any)(this, ...args); }
+  /* @internal */ extractBattleBusSlowDeathProfile(...args: any[]) { return (extractBattleBusSlowDeathProfileImpl as any)(this, ...args); }
   /* @internal */ extractTechBuildingProfile(...args: any[]) { return (extractTechBuildingProfileImpl as any)(this, ...args); }
   /* @internal */ extractSupplyWarehouseCripplingProfile(...args: any[]) { return (extractSupplyWarehouseCripplingProfileImpl as any)(this, ...args); }
   /* @internal */ extractInstantDeathProfiles(...args: any[]) { return (extractInstantDeathProfilesImpl as any)(this, ...args); }

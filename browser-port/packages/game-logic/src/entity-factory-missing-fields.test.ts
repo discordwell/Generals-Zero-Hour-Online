@@ -7,6 +7,8 @@
  *   - ParticleUplinkCannonProfile: BeginChargeTime, RaiseAntennaTime, ReadyDelayTime,
  *       WidthGrowTime, BeamTravelTime, ManualDrivingSpeed, ManualFastDrivingSpeed
  *   - NeutronMissileSlowDeathProfile: PushForce (per-blast), ScorchMarkSize
+ *   - BattleBusSlowDeathProfile: FXStartUndeath, OCLStartUndeath, FXHitGround,
+ *       OCLHitGround, ThrowForce, PercentDamageToPassengers, EmptyHulkDestructionDelay
  *
  * Source parity references:
  *   ToppleUpdate.cpp:62-69 — constructor defaults
@@ -16,6 +18,7 @@
  *   ParticleUplinkCannonUpdate.cpp:74-93 — timing/driving field defaults
  *   NeutronMissileSlowDeathUpdate.cpp:68 — m_blastInfo[i].pushForceMag = 0.0f
  *   NeutronMissileSlowDeathUpdate.cpp:71 — m_scorchSize = 0.0f
+ *   BattleBusSlowDeathBehavior.cpp:65-77 — constructor defaults for all 7 fields
  */
 
 import { describe, expect, it } from 'vitest';
@@ -27,10 +30,11 @@ import {
   extractNeutronMissileUpdateProfile,
   extractParticleUplinkCannonProfile,
   extractNeutronMissileSlowDeathProfile,
+  extractBattleBusSlowDeathProfile,
 } from './entity-factory.js';
 import { makeBlock, makeObjectDef } from './test-helpers.js';
 
-const mockSelf = { msToLogicFrames: (ms: number) => Math.ceil(ms * 30 / 1000) } as any;
+const mockSelf = { msToLogicFrames: (ms: number) => Math.ceil(ms * 30 / 1000), resolveObjectDefParent: () => undefined } as any;
 
 // ── ToppleProfile: new fields ────────────────────────────────────────────────
 
@@ -376,5 +380,97 @@ describe('NeutronMissileSlowDeathProfile missing fields', () => {
     const profile = extractNeutronMissileSlowDeathProfile(mockSelf, objectDef);
     expect(profile).not.toBeNull();
     expect(profile!.scorchSize).toBe(320);
+  });
+});
+
+// ── BattleBusSlowDeathProfile: GLA Battle Bus death behavior ─────────────────
+
+describe('BattleBusSlowDeathProfile extraction', () => {
+  it('returns null for objectDef without BattleBusSlowDeathBehavior', () => {
+    const objectDef = makeObjectDef('GLATank', 'GLA', ['VEHICLE'], [
+      makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_01', {}),
+    ]);
+    const profile = extractBattleBusSlowDeathProfile(mockSelf, objectDef);
+    expect(profile).toBeNull();
+  });
+
+  it('defaults all fields per C++ constructor', () => {
+    // Source parity: BattleBusSlowDeathBehavior.cpp:65-77
+    // m_fxStartUndeath = NULL, m_oclStartUndeath = NULL,
+    // m_fxHitGround = NULL, m_oclHitGround = NULL,
+    // m_throwForce = 1.0f, m_percentDamageToPassengers = 0.0f,
+    // m_emptyHulkDestructionDelay = 0
+    const objectDef = makeObjectDef('GLABattleBus', 'GLA', ['VEHICLE'], [
+      makeBlock('Behavior', 'BattleBusSlowDeathBehavior ModuleTag_08', {}),
+    ]);
+    const profile = extractBattleBusSlowDeathProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.fxStartUndeath).toBeNull();
+    expect(profile!.oclStartUndeath).toBeNull();
+    expect(profile!.fxHitGround).toBeNull();
+    expect(profile!.oclHitGround).toBeNull();
+    expect(profile!.throwForce).toBe(1.0);
+    expect(profile!.percentDamageToPassengers).toBe(0);
+    expect(profile!.emptyHulkDestructionDelayFrames).toBe(0);
+  });
+
+  it('parses all 7 fields from retail INI data', () => {
+    // Source parity: retail GLAVehicle.ini BattleBus definition
+    const objectDef = makeObjectDef('GLABattleBus', 'GLA', ['VEHICLE'], [
+      makeBlock('Behavior', 'BattleBusSlowDeathBehavior ModuleTag_08', {
+        FXStartUndeath: 'FX_BattleBusStartUndeath',
+        OCLStartUndeath: 'OCL_BattleBusStartUndeath',
+        FXHitGround: 'FX_BattleBusHitGround',
+        OCLHitGround: 'OCL_BattleBusHitGround',
+        ThrowForce: 100,
+        PercentDamageToPassengers: 0.5,
+        EmptyHulkDestructionDelay: 1000,
+      }),
+    ]);
+    const profile = extractBattleBusSlowDeathProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.fxStartUndeath).toBe('FX_BattleBusStartUndeath');
+    expect(profile!.oclStartUndeath).toBe('OCL_BattleBusStartUndeath');
+    expect(profile!.fxHitGround).toBe('FX_BattleBusHitGround');
+    expect(profile!.oclHitGround).toBe('OCL_BattleBusHitGround');
+    expect(profile!.throwForce).toBe(100);
+    // parsePercentToReal: INI parser already stores as 0-1 fraction
+    expect(profile!.percentDamageToPassengers).toBe(0.5);
+    // parseDurationUnsignedInt: 1000ms -> ceil(1000 * 30 / 1000) = 30 frames
+    expect(profile!.emptyHulkDestructionDelayFrames).toBe(30);
+  });
+
+  it('converts EmptyHulkDestructionDelay ms to frames via msToLogicFrames', () => {
+    // Source parity: parseDurationUnsignedInt — ms to logic frames with ceiling.
+    const objectDef = makeObjectDef('GLABattleBus', 'GLA', ['VEHICLE'], [
+      makeBlock('Behavior', 'BattleBusSlowDeathBehavior ModuleTag_08', {
+        EmptyHulkDestructionDelay: 500,
+      }),
+    ]);
+    const profile = extractBattleBusSlowDeathProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    // 500ms * 30fps / 1000 = 15 frames
+    expect(profile!.emptyHulkDestructionDelayFrames).toBe(15);
+  });
+
+  it('returns null for undefined objectDef', () => {
+    const profile = extractBattleBusSlowDeathProfile(mockSelf, undefined);
+    expect(profile).toBeNull();
+  });
+
+  it('resolves from parent objectDef when not present on child', () => {
+    const parentObjectDef = makeObjectDef('GLABattleBusBase', 'GLA', ['VEHICLE'], [
+      makeBlock('Behavior', 'BattleBusSlowDeathBehavior ModuleTag_08', {
+        ThrowForce: 75,
+      }),
+    ]);
+    const childObjectDef = makeObjectDef('GLABattleBus', 'GLA', ['VEHICLE'], [], {}, 'GLABattleBusBase');
+    const mockSelfWithParent = {
+      msToLogicFrames: (ms: number) => Math.ceil(ms * 30 / 1000),
+      resolveObjectDefParent: () => parentObjectDef,
+    } as any;
+    const profile = extractBattleBusSlowDeathProfile(mockSelfWithParent, childObjectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.throwForce).toBe(75);
   });
 });
