@@ -1269,6 +1269,14 @@ export const WEAPON_BONUS_BOMBARDMENT      = 1 << 12;
 export const WEAPON_BONUS_HOLDTHELINE      = 1 << 13;
 export const WEAPON_BONUS_SEARCHANDDESTROY = 1 << 14;
 const WEAPON_BONUS_SUBLIMINAL       = 1 << 15;
+// Source parity: WeaponBonusConditionType bits 16-21 — solo player difficulty conditions.
+// Applied per-object at creation time in single-player games via Player::friend_applyDifficultyBonusesForObject.
+export const WEAPON_BONUS_SOLO_HUMAN_EASY   = 1 << 16;
+export const WEAPON_BONUS_SOLO_HUMAN_NORMAL = 1 << 17;
+export const WEAPON_BONUS_SOLO_HUMAN_HARD   = 1 << 18;
+export const WEAPON_BONUS_SOLO_AI_EASY      = 1 << 19;
+export const WEAPON_BONUS_SOLO_AI_NORMAL    = 1 << 20;
+export const WEAPON_BONUS_SOLO_AI_HARD      = 1 << 21;
 const WEAPON_BONUS_FAERIE_FIRE      = 1 << 22;
 export const WEAPON_BONUS_FANATICISM       = 1 << 23;
 const WEAPON_BONUS_FRENZY_ONE       = 1 << 24;
@@ -1291,12 +1299,28 @@ export const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
   ['BATTLEPLAN_HOLDTHELINE', WEAPON_BONUS_HOLDTHELINE],
   ['BATTLEPLAN_SEARCHANDDESTROY', WEAPON_BONUS_SEARCHANDDESTROY],
   ['SUBLIMINAL', WEAPON_BONUS_SUBLIMINAL],
+  ['SOLO_HUMAN_EASY', WEAPON_BONUS_SOLO_HUMAN_EASY],
+  ['SOLO_HUMAN_NORMAL', WEAPON_BONUS_SOLO_HUMAN_NORMAL],
+  ['SOLO_HUMAN_HARD', WEAPON_BONUS_SOLO_HUMAN_HARD],
+  ['SOLO_AI_EASY', WEAPON_BONUS_SOLO_AI_EASY],
+  ['SOLO_AI_NORMAL', WEAPON_BONUS_SOLO_AI_NORMAL],
+  ['SOLO_AI_HARD', WEAPON_BONUS_SOLO_AI_HARD],
   ['TARGET_FAERIE_FIRE', WEAPON_BONUS_FAERIE_FIRE],
   ['FANATICISM', WEAPON_BONUS_FANATICISM],
   ['FRENZY_ONE', WEAPON_BONUS_FRENZY_ONE],
   ['FRENZY_TWO', WEAPON_BONUS_FRENZY_TWO],
   ['FRENZY_THREE', WEAPON_BONUS_FRENZY_THREE],
 ]);
+
+/**
+ * Source parity: Player::friend_applyDifficultyBonusesForObject — static lookup table
+ * mapping [playerType][difficulty] to the appropriate SOLO_* weapon bonus condition flag.
+ * playerType: 0 = HUMAN, 1 = COMPUTER. difficulty: 0 = EASY, 1 = NORMAL, 2 = HARD.
+ */
+const SOLO_WEAPON_BONUS_TABLE: readonly (readonly [number, number, number])[] = [
+  [WEAPON_BONUS_SOLO_HUMAN_EASY, WEAPON_BONUS_SOLO_HUMAN_NORMAL, WEAPON_BONUS_SOLO_HUMAN_HARD],
+  [WEAPON_BONUS_SOLO_AI_EASY, WEAPON_BONUS_SOLO_AI_NORMAL, WEAPON_BONUS_SOLO_AI_HARD],
+];
 
 // Source parity: WeaponBonus::Field — bonus field types.
 const WEAPON_BONUS_FIELD_DAMAGE = 0;
@@ -6936,6 +6960,11 @@ export class GameLogicSubsystem implements Subsystem {
   private globalWeaponBonusTable: WeaponBonusTable = { entries: new Map() };
   /** Source parity: TheGlobalData->m_healthBonus[] — veterancy health bonus multipliers from GameData.ini. */
   private globalHealthBonuses: readonly [number, number, number, number] = [1.0, 1.0, 1.0, 1.0];
+  /**
+   * Source parity: TheGlobalData->m_soloPlayerHealthBonusForDifficulty[PLAYERTYPE_COUNT][DIFFICULTY_COUNT]
+   * 2x3 matrix: [0=HUMAN,1=COMPUTER][0=EASY,1=NORMAL,2=HARD]. Default all 1.0.
+   */
+  private globalSoloPlayerHealthBonuses: readonly [readonly [number, number, number], readonly [number, number, number]] = [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]];
   private readonly commandQueue: GameLogicCommand[] = [];
   private frameCounter = 0;
   private readonly bridgeSegments = new Map<number, BridgeSegmentState>();
@@ -7064,6 +7093,12 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly controllingPlayerMissionAttempts = new Map<string, number>();
   /** Source parity: ScriptEngine::setObjectsShouldReceiveDifficultyBonus. */
   private scriptObjectsReceiveDifficultyBonus = true;
+  /**
+   * Tracks whether the initial difficulty bonus pass for map-load entities has been
+   * completed (via setSidePlayerType). Entities spawned before this flag is set do not
+   * receive bonuses from addEntityToWorld — they get them from setSidePlayerType instead.
+   */
+  private difficultyBonusesInitialized = false;
   /** Source parity: Player::m_attackedBy + m_attackedFrame. */
   private readonly sideAttackedBy = new Map<string, Set<string>>();
   private readonly sideAttackedFrame = new Map<string, number>();
@@ -7451,6 +7486,9 @@ export class GameLogicSubsystem implements Subsystem {
     if (gameDataConfig) {
       this.globalWeaponBonusTable = buildWeaponBonusTable(gameDataConfig.weaponBonusEntries);
       this.globalHealthBonuses = gameDataConfig.healthBonuses;
+      if (gameDataConfig.soloPlayerHealthBonuses) {
+        this.globalSoloPlayerHealthBonuses = gameDataConfig.soloPlayerHealthBonuses;
+      }
       // Source parity: TheGlobalData->m_sellPercentage — apply from INI if not
       // explicitly overridden by the caller's config.
       if (gameDataConfig.sellPercentage !== undefined
@@ -9443,10 +9481,31 @@ export class GameLogicSubsystem implements Subsystem {
       return false;
     }
 
+    const previousType = this.sidePlayerTypes.get(normalizedSide);
     this.sidePlayerTypes.set(normalizedSide, normalizedType);
     if (normalizedType !== 'HUMAN') {
       this.sideUnitsShouldIdleOrResume.delete(normalizedSide);
     }
+
+    // Source parity: when player type changes (or is set for the first time) in campaign mode,
+    // apply/update difficulty bonuses for all existing entities on this side.
+    if (this.config.isCampaignMode) {
+      this.difficultyBonusesInitialized = true;
+      if (previousType !== normalizedType) {
+        for (const entity of this.spawnedEntities.values()) {
+          const entitySide = this.normalizeSide(entity.side);
+          if (entitySide === normalizedSide && entity.receivingDifficultyBonus) {
+            // Remove old bonus if player type changed (not first assignment)
+            if (previousType !== undefined) {
+              this.applyDifficultyBonusesForEntity(entity, false);
+            }
+            // Apply new bonus
+            this.applyDifficultyBonusesForEntity(entity, true);
+          }
+        }
+      }
+    }
+
     return true;
   }
 
@@ -9500,8 +9559,20 @@ export class GameLogicSubsystem implements Subsystem {
 
   setScriptObjectsReceiveDifficultyBonus(enabled: boolean): void {
     this.scriptObjectsReceiveDifficultyBonus = enabled;
+    // Source parity: ScriptActions::doEnableOrDisableObjectDifficultyBonuses —
+    // toggle the flag and apply/remove actual health & weapon bonus effects for each entity.
     for (const entity of this.spawnedEntities.values()) {
-      entity.receivingDifficultyBonus = enabled;
+      if (this.config.isCampaignMode) {
+        if (enabled && !entity.receivingDifficultyBonus) {
+          entity.receivingDifficultyBonus = true;
+          this.applyDifficultyBonusesForEntity(entity, true);
+        } else if (!enabled && entity.receivingDifficultyBonus) {
+          this.applyDifficultyBonusesForEntity(entity, false);
+          entity.receivingDifficultyBonus = false;
+        }
+      } else {
+        entity.receivingDifficultyBonus = enabled;
+      }
     }
   }
 
@@ -20326,10 +20397,23 @@ export class GameLogicSubsystem implements Subsystem {
     if (this.mapTriggerRegions.length > 0) {
       this.initializeScriptTriggerMembershipForEntity(entity);
     }
+    // Source parity: Object::initObject — apply difficulty bonuses for single-player games.
+    // Only applies to entities spawned after initial setup (difficultyBonusesInitialized).
+    // Map-load entities get their bonuses from setSidePlayerType instead.
+    if (entity.receivingDifficultyBonus && this.config.isCampaignMode && this.difficultyBonusesInitialized) {
+      this.applyDifficultyBonusesForEntity(entity, true);
+    }
     this.notifyScriptObjectCreationOrDestruction();
   }
 
   /* @internal */ removeEntityFromWorld(entityId: number): void {
+    // Source parity: Object destruction — remove difficulty bonuses before removal.
+    if (this.config.isCampaignMode) {
+      const entity = this.spawnedEntities.get(entityId);
+      if (entity && entity.receivingDifficultyBonus) {
+        this.applyDifficultyBonusesForEntity(entity, false);
+      }
+    }
     if (this.spawnedEntities.delete(entityId)) {
       this.scriptToppleDirectionByEntityId.delete(entityId);
       this.caveTrackerIndexByEntityId.delete(entityId);
@@ -20344,6 +20428,68 @@ export class GameLogicSubsystem implements Subsystem {
       this.scriptTransportStatusByEntityId.delete(entityId);
       this.notifyScriptObjectCreationOrDestruction();
     }
+  }
+
+  /**
+   * Source parity: Player::friend_applyDifficultyBonusesForObject.
+   * In single-player games, multiplies the object's max health by the appropriate
+   * soloPlayerHealthBonusForDifficulty factor and sets/clears the SOLO_* weapon
+   * bonus condition flag based on player type and difficulty.
+   *
+   * @param entity The entity to modify
+   * @param apply  true to apply bonuses (creation), false to remove them (destruction)
+   */
+  private applyDifficultyBonusesForEntity(entity: MapEntity, apply: boolean): void {
+    // Resolve player type: 0 = HUMAN, 1 = COMPUTER
+    const playerType = this.getControllingPlayerTypeForEntity(entity);
+    const playerTypeIndex = playerType === 'COMPUTER' ? 1 : 0;
+
+    // Resolve difficulty for the entity's side
+    const difficulty = this.resolveDifficultyForEntitySide(entity);
+
+    // Health bonus multiplier
+    const healthFactor = this.globalSoloPlayerHealthBonuses[playerTypeIndex]![difficulty]!;
+    if (healthFactor !== 1.0 && entity.maxHealth > 0) {
+      if (apply) {
+        const ratio = entity.health / entity.maxHealth;
+        entity.maxHealth = entity.maxHealth * healthFactor;
+        entity.health = entity.maxHealth * ratio;
+      } else {
+        const ratio = entity.health / entity.maxHealth;
+        entity.maxHealth = entity.maxHealth / healthFactor;
+        entity.health = entity.maxHealth * ratio;
+      }
+    }
+
+    // Weapon bonus condition flag
+    const bonusFlag = SOLO_WEAPON_BONUS_TABLE[playerTypeIndex]![difficulty]!;
+    if (apply) {
+      entity.weaponBonusConditionFlags |= bonusFlag;
+    } else {
+      entity.weaponBonusConditionFlags &= ~bonusFlag;
+    }
+  }
+
+  /**
+   * Resolve the difficulty level (0=EASY, 1=NORMAL, 2=HARD) for the side owning
+   * this entity, by looking up the mapScriptDifficultyByIndex via side name.
+   */
+  private resolveDifficultyForEntitySide(entity: MapEntity): number {
+    const normalizedSide = this.normalizeSide(entity.side);
+    if (normalizedSide) {
+      for (let i = 0; i < this.mapScriptSideByIndex.length; i++) {
+        if (this.mapScriptSideByIndex[i] === normalizedSide) {
+          const difficulty = this.mapScriptDifficultyByIndex[i];
+          if (difficulty === SCRIPT_DIFFICULTY_EASY
+            || difficulty === SCRIPT_DIFFICULTY_NORMAL
+            || difficulty === SCRIPT_DIFFICULTY_HARD) {
+            return difficulty;
+          }
+          break;
+        }
+      }
+    }
+    return SCRIPT_DIFFICULTY_NORMAL;
   }
 
   private getOrCreateSideScoreState(side: string): SideScoreState {
@@ -31641,6 +31787,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.sideMissionAttempts.clear();
     this.controllingPlayerMissionAttempts.clear();
     this.scriptObjectsReceiveDifficultyBonus = true;
+    this.difficultyBonusesInitialized = false;
     this.sideAttackedBy.clear();
     this.sideAttackedFrame.clear();
     this.controllingPlayerAttackedByPlayer.clear();
