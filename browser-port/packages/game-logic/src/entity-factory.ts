@@ -38,6 +38,8 @@ import {
   OBJECT_FLAG_BRIDGE_POINT2,
   SPECIAL_POWER_BEHAVIOR_MODULE_TYPES,
   SCRIPT_AI_ATTITUDE_NORMAL,
+  PROJECTILE_DEFAULT_DETONATE_CALLS_KILL,
+  PROJECTILE_DEFAULT_ORIENT_TO_FLIGHT_PATH,
   WEAPON_BONUS_CONDITION_BY_NAME,
   WEAPON_SET_FLAG_MASK_BY_NAME,
   parseAutoAcquireEnemiesBitfield,
@@ -838,6 +840,8 @@ export function createMapEntity(self: GL,
     spectreGunshipState: null,
     // SpectreGunshipDeployment (command center deployment)
     spectreGunshipDeploymentProfile: self.extractSpectreGunshipDeploymentProfile(objectDef),
+    // DumbProjectileBehavior (projectile flight path and detonation)
+    dumbProjectileProfile: extractDumbProjectileBehaviorProfile(self, objectDef),
   };
 
   self.applyMapObjectCoreProperties(entity, mapObject);
@@ -4922,7 +4926,81 @@ export function extractUpgradeModulesFromBlocks(self: GL,
   );
 }
 
-export function spawnEntityFromTemplate(self: GL, 
+/**
+ * Source parity: DumbProjectileBehaviorModuleData — extract all 13 FieldParse fields
+ * from the DumbProjectileBehavior module block.
+ * C++ file: DumbProjectileBehavior.cpp:82-103.
+ */
+export function extractDumbProjectileBehaviorProfile(self: GL, objectDef: ObjectDef | undefined): DumbProjectileBehaviorProfile | null {
+  if (!objectDef) {
+    return null;
+  }
+
+  let profile: DumbProjectileBehaviorProfile | null = null;
+  const visitBlock = (block: IniBlock): void => {
+    if (profile !== null) {
+      return;
+    }
+    if (block.type.toUpperCase() === 'BEHAVIOR') {
+      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      if (moduleType === 'DUMBPROJECTILEBEHAVIOR') {
+        // Source parity: parseDurationUnsignedInt → ms to logic frames.
+        const maxLifespanMs = readNumericField(block.fields, ['MaxLifespan']) ?? 0;
+        const maxLifespan = maxLifespanMs > 0 ? self.msToLogicFrames(maxLifespanMs) : 0;
+
+        // Source parity: parsePercentToReal — INI parser already stores as 0..1 fraction.
+        const firstPercentIndent = readNumericField(block.fields, ['FirstPercentIndent']) ?? 0.30;
+        const secondPercentIndent = readNumericField(block.fields, ['SecondPercentIndent']) ?? 0.70;
+
+        // Source parity: parseVelocityReal — "distance per second" in INI, convert to per-frame.
+        const flightPathAdjustRaw = readNumericField(block.fields, ['FlightPathAdjustDistPerSecond']) ?? 0;
+        const flightPathAdjustDistPerFrame = flightPathAdjustRaw / LOGIC_FRAME_RATE;
+
+        // Source parity: GarrisonHitKillRequiredKindOf / ForbiddenKindOf — space-separated KindOf tokens.
+        const garrisonHitKillRequiredRaw = readStringField(block.fields, ['GarrisonHitKillRequiredKindOf']) ?? '';
+        const garrisonHitKillForbiddenRaw = readStringField(block.fields, ['GarrisonHitKillForbiddenKindOf']) ?? '';
+        const parseKindOfSet = (raw: string): Set<string> => {
+          const tokens = raw.trim().split(/\s+/).filter(t => t.length > 0).map(t => t.toUpperCase());
+          return new Set(tokens);
+        };
+
+        // Source parity: GarrisonHitKillFX — FXList name string.
+        const garrisonHitKillFXRaw = readStringField(block.fields, ['GarrisonHitKillFX']);
+        const garrisonHitKillFX = garrisonHitKillFXRaw && garrisonHitKillFXRaw.trim().length > 0
+          ? garrisonHitKillFXRaw.trim()
+          : null;
+
+        profile = {
+          maxLifespan,
+          tumbleRandomly: readBooleanField(block.fields, ['TumbleRandomly']) ?? false,
+          detonateCallsKill: readBooleanField(block.fields, ['DetonateCallsKill']) ?? PROJECTILE_DEFAULT_DETONATE_CALLS_KILL,
+          orientToFlightPath: readBooleanField(block.fields, ['OrientToFlightPath']) ?? PROJECTILE_DEFAULT_ORIENT_TO_FLIGHT_PATH,
+          firstHeight: readNumericField(block.fields, ['FirstHeight']) ?? 0,
+          secondHeight: readNumericField(block.fields, ['SecondHeight']) ?? 0,
+          firstPercentIndent,
+          secondPercentIndent,
+          garrisonHitKillRequiredKindOf: parseKindOfSet(garrisonHitKillRequiredRaw),
+          garrisonHitKillForbiddenKindOf: parseKindOfSet(garrisonHitKillForbiddenRaw),
+          garrisonHitKillCount: Math.max(0, Math.trunc(readNumericField(block.fields, ['GarrisonHitKillCount']) ?? 0)),
+          garrisonHitKillFX,
+          flightPathAdjustDistPerFrame,
+        };
+        return;
+      }
+    }
+    for (const child of block.blocks) {
+      visitBlock(child);
+    }
+  };
+
+  for (const block of objectDef.blocks) {
+    visitBlock(block);
+  }
+
+  return profile;
+}
+
+export function spawnEntityFromTemplate(self: GL,
   templateName: string,
   worldX: number,
   worldZ: number,

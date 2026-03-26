@@ -3973,6 +3973,10 @@ export interface MapEntity {
   spectreGunshipState: SpectreGunshipState | null;
   // ── Source parity: SpectreGunshipDeploymentUpdate — command center deployment ──
   spectreGunshipDeploymentProfile: SpectreGunshipDeploymentProfile | null;
+
+  // ── Source parity: DumbProjectileBehavior — projectile flight path and detonation config ──
+  /** DumbProjectileBehavior profile (null = entity has no DumbProjectileBehavior module). */
+  dumbProjectileProfile: DumbProjectileBehaviorProfile | null;
 }
 
 /**
@@ -5482,6 +5486,39 @@ export const PROJECTILE_DEFAULT_DETONATE_CALLS_KILL = false;
 
 /** Source parity: DumbProjectileBehaviorModuleData constructor — m_orientToFlightPath defaults to TRUE. */
 export const PROJECTILE_DEFAULT_ORIENT_TO_FLIGHT_PATH = true;
+
+/**
+ * Source parity: DumbProjectileBehaviorModuleData — all 13 FieldParse fields.
+ * C++ file: DumbProjectileBehavior.cpp:82-103.
+ */
+export interface DumbProjectileBehaviorProfile {
+  /** Source parity: m_maxLifespan — max frames before self-destruct (parseDurationUnsignedInt). 0 = use default. */
+  maxLifespan: number;
+  /** Source parity: m_tumbleRandomly — enable random rotation. Default FALSE. */
+  tumbleRandomly: boolean;
+  /** Source parity: m_detonateCallsKill — detonation triggers kill vs destroyObject. Default FALSE. */
+  detonateCallsKill: boolean;
+  /** Source parity: m_orientToFlightPath — face direction of flight. Default TRUE. */
+  orientToFlightPath: boolean;
+  /** Source parity: m_firstHeight — Bezier arc first control point height. */
+  firstHeight: number;
+  /** Source parity: m_secondHeight — Bezier arc second control point height. */
+  secondHeight: number;
+  /** Source parity: m_firstPercentIndent — first control point position (0..1 fraction). Default 0.30. */
+  firstPercentIndent: number;
+  /** Source parity: m_secondPercentIndent — second control point position (0..1 fraction). Default 0.70. */
+  secondPercentIndent: number;
+  /** Source parity: m_garrisonHitKillRequiredKindOf — garrison kill target filter. */
+  garrisonHitKillRequiredKindOf: Set<string>;
+  /** Source parity: m_garrisonHitKillForbiddenKindOf — garrison kill exclusion filter. */
+  garrisonHitKillForbiddenKindOf: Set<string>;
+  /** Source parity: m_garrisonHitKillCount — number of garrison kills per hit. Default 0. */
+  garrisonHitKillCount: number;
+  /** Source parity: m_garrisonHitKillFX — visual effect name on garrison kill. Null if unset. */
+  garrisonHitKillFX: string | null;
+  /** Source parity: m_flightPathAdjustDistPerFrame — path correction speed per frame (parseVelocityReal / LOGIC_FRAME_RATE). */
+  flightPathAdjustDistPerFrame: number;
+}
 
 /**
  * Source parity: EMPUpdate — electromagnetic pulse field that grows, disables nearby entities,
