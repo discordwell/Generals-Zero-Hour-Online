@@ -813,3 +813,204 @@ describe('Parity: horde bonus offMap guard', () => {
     expect(logic.getEntityState(2)!.weaponBonusConditionFlags & WEAPON_BONUS_HORDE).toBe(0);
   });
 });
+
+// ── Test 4: HordeUpdate Action and FlagSubObjectNames field parsing ──────────
+
+describe('Parity: HordeUpdate Action and FlagSubObjectNames fields', () => {
+  /**
+   * C++ parity: HordeUpdate.h:47-52 — HordeActionType enum with HORDEACTION_HORDE.
+   * HordeUpdate.h:55-59 — TheHordeActionTypeNames = { "HORDE", NULL }.
+   * HordeUpdate.cpp:147 — FieldParse: "Action", INI::parseIndexList, TheHordeActionTypeNames.
+   * HordeUpdate.cpp:148 — FieldParse: "FlagSubObjectNames", INI::parseAsciiStringVector.
+   * HordeUpdate.cpp:129 — m_action default = HORDEACTION_HORDE.
+   *
+   * All retail INI data uses Action = HORDE (the only valid enum value).
+   * FlagSubObjectNames is not used in retail ZH INI data.
+   */
+
+  function makeHordeBlockWithAction(overrides: Record<string, unknown> = {}) {
+    return makeBlock('Behavior', 'HordeUpdate ModuleTag_Horde', {
+      KindOf: 'INFANTRY',
+      Count: 3,
+      Radius: 80,
+      RubOffRadius: 20,
+      AlliesOnly: 'Yes',
+      ExactMatch: 'No',
+      UpdateRate: 100,
+      AllowedNationalism: 'No',
+      Action: 'HORDE',
+      ...overrides,
+    });
+  }
+
+  it('parses Action field from INI and stores as uppercase string', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('HordeInf', 'China', ['INFANTRY'], [
+          makeHordeBlockWithAction({ Action: 'HORDE' }),
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = createLogic();
+
+    logic.loadMapObjects(
+      makeMap([makeMapObject('HordeInf', 5, 5)], 20, 20),
+      makeRegistry(bundle),
+      makeHeightmap(20, 20),
+    );
+    logic.update(0);
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, { hordeProfile: { action: string; flagSubObjectNames: string[] } | null }>;
+    };
+    const entity = priv.spawnedEntities.get(1)!;
+    expect(entity.hordeProfile).not.toBeNull();
+    expect(entity.hordeProfile!.action).toBe('HORDE');
+  });
+
+  it('defaults Action to HORDE when not specified in INI', () => {
+    // C++ default: m_action(HORDEACTION_HORDE) — constructor default.
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('HordeInf', 'China', ['INFANTRY'], [
+          makeBlock('Behavior', 'HordeUpdate ModuleTag_Horde', {
+            KindOf: 'INFANTRY',
+            Count: 3,
+            Radius: 80,
+            UpdateRate: 100,
+            // Action field intentionally omitted
+          }),
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = createLogic();
+
+    logic.loadMapObjects(
+      makeMap([makeMapObject('HordeInf', 5, 5)], 20, 20),
+      makeRegistry(bundle),
+      makeHeightmap(20, 20),
+    );
+    logic.update(0);
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, { hordeProfile: { action: string } | null }>;
+    };
+    const entity = priv.spawnedEntities.get(1)!;
+    expect(entity.hordeProfile).not.toBeNull();
+    expect(entity.hordeProfile!.action).toBe('HORDE');
+  });
+
+  it('normalizes Action to uppercase regardless of INI casing', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('HordeInf', 'China', ['INFANTRY'], [
+          makeHordeBlockWithAction({ Action: 'horde' }),
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = createLogic();
+
+    logic.loadMapObjects(
+      makeMap([makeMapObject('HordeInf', 5, 5)], 20, 20),
+      makeRegistry(bundle),
+      makeHeightmap(20, 20),
+    );
+    logic.update(0);
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, { hordeProfile: { action: string } | null }>;
+    };
+    const entity = priv.spawnedEntities.get(1)!;
+    expect(entity.hordeProfile!.action).toBe('HORDE');
+  });
+
+  it('parses FlagSubObjectNames as string array (empty when absent)', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('HordeInf', 'China', ['INFANTRY'], [
+          makeHordeBlockWithAction(),
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = createLogic();
+
+    logic.loadMapObjects(
+      makeMap([makeMapObject('HordeInf', 5, 5)], 20, 20),
+      makeRegistry(bundle),
+      makeHeightmap(20, 20),
+    );
+    logic.update(0);
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, { hordeProfile: { flagSubObjectNames: string[] } | null }>;
+    };
+    const entity = priv.spawnedEntities.get(1)!;
+    expect(entity.hordeProfile).not.toBeNull();
+    expect(entity.hordeProfile!.flagSubObjectNames).toEqual([]);
+  });
+
+  it('parses FlagSubObjectNames with values when specified', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('HordeInf', 'China', ['INFANTRY'], [
+          makeHordeBlockWithAction({ FlagSubObjectNames: 'FLAG01 FLAG02' }),
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = createLogic();
+
+    logic.loadMapObjects(
+      makeMap([makeMapObject('HordeInf', 5, 5)], 20, 20),
+      makeRegistry(bundle),
+      makeHeightmap(20, 20),
+    );
+    logic.update(0);
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, { hordeProfile: { flagSubObjectNames: string[] } | null }>;
+    };
+    const entity = priv.spawnedEntities.get(1)!;
+    expect(entity.hordeProfile).not.toBeNull();
+    expect(entity.hordeProfile!.flagSubObjectNames).toEqual(['FLAG01', 'FLAG02']);
+  });
+
+  it('horde bonus still activates with Action = HORDE (source parity with HORDEACTION_HORDE switch case)', () => {
+    // C++ parity: HordeUpdate.cpp:206-225 — switch(d->m_action) case HORDEACTION_HORDE
+    // triggers evaluateMoraleBonus(). The TS updateHorde() always applies HORDE bonus
+    // which matches the only valid action type.
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('HordeInf', 'China', ['INFANTRY'], [
+          makeHordeBlockWithAction({ Action: 'HORDE', Count: 3 }),
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+    });
+    const logic = createLogic();
+
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('HordeInf', 5, 5),
+        makeMapObject('HordeInf', 5, 6),
+        makeMapObject('HordeInf', 6, 5),
+      ], 20, 20),
+      makeRegistry(bundle),
+      makeHeightmap(20, 20),
+    );
+    logic.setPlayerSide(0, 'China');
+    logic.update(0);
+
+    for (let i = 0; i < 30; i++) logic.update(1 / 30);
+
+    const WEAPON_BONUS_HORDE = 1 << 1;
+    for (let id = 1; id <= 3; id++) {
+      const flags = logic.getEntityState(id)!.weaponBonusConditionFlags;
+      expect(flags & WEAPON_BONUS_HORDE).toBe(WEAPON_BONUS_HORDE);
+    }
+  });
+});
