@@ -2804,6 +2804,8 @@ interface MissileAIRuntimeState {
   usePreciseTargetY: boolean;
   travelDistance: number;
   totalDistanceEstimate: number;
+  /** Source parity: m_isJammed — set by ECM, scatters target by DistanceScatterWhenJammed. */
+  isJammed: boolean;
 }
 
 interface SellingEntityState {
@@ -17041,7 +17043,13 @@ export class GameLogicSubsystem implements Subsystem {
             garrisonHitKillForbiddenKindOf: new Set(this.parseKindOf(block.fields['GarrisonHitKillForbiddenKindOf'])),
             distanceScatterWhenJammed: readNumericField(block.fields, ['DistanceScatterWhenJammed']) ?? 75,
             detonateCallsKill: readBooleanField(block.fields, ['DetonateCallsKill']) ?? PROJECTILE_DEFAULT_DETONATE_CALLS_KILL,
-            killSelfDelayFrames: this.msToLogicFrames(readNumericField(block.fields, ['KillSelfDelay']) ?? 3),
+            // Source parity: m_killSelfDelay defaults to 3 frames in the C++ constructor.
+            // The INI parser uses parseDurationUnsignedInt (ms→frames), but the fallback
+            // is in frames directly — so only convert when an INI value is present.
+            killSelfDelayFrames: (() => {
+              const rawMs = readNumericField(block.fields, ['KillSelfDelay']);
+              return rawMs != null ? this.msToLogicFrames(rawMs) : 3;
+            })(),
             preferredHeight: Math.max(0, locomotorProfile?.preferredHeight ?? 0),
             turnRatePerFrame: Math.max(0, (locomotorProfile?.turnRate ?? 0) / LOGIC_FRAME_RATE),
           };
@@ -26649,6 +26657,12 @@ export class GameLogicSubsystem implements Subsystem {
           event.impactY = state.currentY;
           event.impactZ = state.currentZ;
           event.executeFrame = this.frameCounter;
+          // Source parity: MissileAIUpdate::doKillSelfState — when DetonateCallsKill = Yes,
+          // the C++ calls obj->kill() which runs Die modules (visual death FX). When No,
+          // destroyObject() silently removes. Unsuppress impact visual for kill semantics.
+          if (profile.detonateCallsKill) {
+            event.suppressImpactVisual = false;
+          }
         }
         continue;
       }
@@ -26847,6 +26861,31 @@ export class GameLogicSubsystem implements Subsystem {
         }
       }
     }
+  }
+
+  /**
+   * Source parity: MissileAIUpdate::projectileNowJammed — apply ECM jam scatter.
+   * Randomizes the missile's target position by DistanceScatterWhenJammed and
+   * stops target tracking. Called externally when an ECM source jams a missile.
+   * C++ file: MissileAIUpdate.cpp:801-833.
+   */
+  /* @internal */ applyMissileJamScatter(event: PendingWeaponDamageEvent): void {
+    const profile = event.missileAIProfile;
+    const state = event.missileAIState;
+    if (!profile || !state) return;
+    if (state.isJammed) return; // Already jammed
+
+    state.isJammed = true;
+    const scatter = profile.distanceScatterWhenJammed;
+    // Source parity: GameLogicRandomValue(-scatter, scatter) for XZ scatter.
+    state.targetX += (this.gameRandom.nextFloat() * 2 - 1) * scatter;
+    state.targetZ += (this.gameRandom.nextFloat() * 2 - 1) * scatter;
+    state.targetY = this.resolveGroundHeight(state.targetX, state.targetZ);
+    state.originalTargetX = state.targetX;
+    state.originalTargetY = state.targetY;
+    state.originalTargetZ = state.targetZ;
+    state.trackingTarget = false;
+    state.targetEntityId = null;
   }
 
   /**
