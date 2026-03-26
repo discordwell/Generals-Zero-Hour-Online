@@ -1677,6 +1677,84 @@ interface LocomotorSetProfile {
    * Default -1 (sentinel = use acceleration).
    */
   accelerationDamaged: number;
+
+  // ---- Gameplay fields (source parity: Locomotor.cpp constructor lines 334-357) ----
+
+  /** Source parity: Locomotor::m_stickToGround — ground units stay clamped to terrain. */
+  stickToGround: boolean;
+  /** Source parity: Locomotor::m_allowMotiveForceWhileAirborne — INI "AllowAirborneMotiveForce". */
+  allowAirborneMotiveForce: boolean;
+  /** Source parity: Locomotor::m_locomotorWorksWhenDead — locomotor keeps running after death. */
+  locomotorWorksWhenDead: boolean;
+  /** Source parity: Locomotor::m_apply2DFrictionWhenAirborne — apply lateral friction in air. */
+  apply2DFrictionWhenAirborne: boolean;
+  /** Source parity: Locomotor::m_airborneTargetingHeight — height for airborne targeting (default INT_MAX). */
+  airborneTargetingHeight: number;
+  /** Source parity: Locomotor::m_extra2DFriction — additional lateral friction (per-second value from INI). */
+  extra2DFriction: number;
+  /** Source parity: Locomotor::m_ultraAccurateSlideIntoPlaceFactor — INI "SlideIntoPlaceTime". */
+  slideIntoPlaceTime: number;
+  /** Source parity: Locomotor::m_isCloseEnoughDist3D — use 3D distance for close-enough check. */
+  closeEnoughDist3D: boolean;
+
+  // ---- Visual/suspension fields (source parity: Locomotor.cpp constructor lines 308-356) ----
+
+  /** Source parity: Locomotor::m_pitchStiffness — suspension pitch spring stiffness (0-1). */
+  pitchStiffness: number;
+  /** Source parity: Locomotor::m_rollStiffness — suspension roll spring stiffness (0-1). */
+  rollStiffness: number;
+  /** Source parity: Locomotor::m_pitchDamping — suspension pitch damping (0=bouncy, 1=rigid). */
+  pitchDamping: number;
+  /** Source parity: Locomotor::m_rollDamping — suspension roll damping (0=bouncy, 1=rigid). */
+  rollDamping: number;
+  /** Source parity: Locomotor::m_forwardVelCoef — pitch factor from forward velocity. */
+  forwardVelCoef: number;
+  /** Source parity: Locomotor::m_lateralVelCoef — roll factor from lateral velocity. */
+  lateralVelCoef: number;
+  /** Source parity: Locomotor::m_pitchByZVelCoef — pitch factor from Z velocity. */
+  pitchByZVelCoef: number;
+  /** Source parity: Locomotor::m_forwardAccelCoef — pitch factor from forward acceleration. */
+  forwardAccelCoef: number;
+  /** Source parity: Locomotor::m_lateralAccelCoef — roll factor from lateral acceleration. */
+  lateralAccelCoef: number;
+  /** Source parity: Locomotor::m_uniformAxialDamping — uniform damping for all suspension axes. */
+  uniformAxialDamping: number;
+  /** Source parity: Locomotor::m_turnPivotOffset — offset from center for turn pivot point. */
+  turnPivotOffset: number;
+  /** Source parity: Locomotor::m_thrustRoll — roll induced by thrust. */
+  thrustRoll: number;
+  /** Source parity: Locomotor::m_wobbleRate — INI "ThrustWobbleRate". */
+  wobbleRate: number;
+  /** Source parity: Locomotor::m_minWobble — INI "ThrustMinWobble". */
+  minWobble: number;
+  /** Source parity: Locomotor::m_maxWobble — INI "ThrustMaxWobble". */
+  maxWobble: number;
+  /** Source parity: Locomotor::m_accelPitchLimit — max pitch from acceleration (INI angle->radians). */
+  accelPitchLimit: number;
+  /** Source parity: Locomotor::m_decelPitchLimit — max pitch from deceleration (INI angle->radians). */
+  decelPitchLimit: number;
+  /** Source parity: Locomotor::m_bounceKick — bounce angular velocity (INI angular-vel->radians/frame). */
+  bounceKick: number;
+  /** Source parity: Locomotor::m_hasSuspension — whether vehicle has wheel suspension. */
+  hasSuspension: boolean;
+  /** Source parity: Locomotor::m_wheelTurnAngle — front wheel turn angle (INI angle->radians). */
+  wheelTurnAngle: number;
+  /** Source parity: Locomotor::m_maximumWheelExtension — max wheel extension distance. */
+  maximumWheelExtension: number;
+  /** Source parity: Locomotor::m_maximumWheelCompression — max wheel compression distance. */
+  maximumWheelCompression: number;
+  /** Source parity: Locomotor::m_wanderWidthFactor — lateral wander scale. */
+  wanderWidthFactor: number;
+  /** Source parity: Locomotor::m_wanderLengthFactor — longitudinal wander scale. */
+  wanderLengthFactor: number;
+  /** Source parity: Locomotor::m_rudderCorrectionDegree — rudder correction magnitude. */
+  rudderCorrectionDegree: number;
+  /** Source parity: Locomotor::m_rudderCorrectionRate — rudder correction rate. */
+  rudderCorrectionRate: number;
+  /** Source parity: Locomotor::m_elevatorCorrectionDegree — elevator correction magnitude. */
+  elevatorCorrectionDegree: number;
+  /** Source parity: Locomotor::m_elevatorCorrectionRate — elevator correction rate. */
+  elevatorCorrectionRate: number;
 }
 
 interface BridgeSegmentState {
@@ -26289,12 +26367,13 @@ export class GameLogicSubsystem implements Subsystem {
         // Initialize physics state if entity has a physics behavior profile.
         if (!entity.physicsBehaviorProfile) return;
         if (!entity.physicsBehaviorState) {
+          const activeLocoProfile = entity.locomotorSets?.get(entity.activeLocomotorSet);
           entity.physicsBehaviorState = {
             velX: 0, velY: 0, velZ: 0,
             accelX: 0, accelY: 0, accelZ: 0,
             yawRate: 0, pitchRate: 0, rollRate: 0,
             wasAirborneLastFrame: false,
-            stickToGround: true,
+            stickToGround: activeLocoProfile?.stickToGround ?? false,
             allowToFall: false,
             isInFreeFall: false,
             extraBounciness: 0, extraFriction: 0,
