@@ -64,6 +64,7 @@ describe('parity: death XP goes to last hitter (no proportional split)', () => {
             makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
             makeWeaponBlock('WeakGun'),
           ], {
+            IsTrainable: 'Yes',
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 40, 100, 200],
           }),
@@ -72,6 +73,7 @@ describe('parity: death XP goes to last hitter (no proportional split)', () => {
             makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
             makeWeaponBlock('StrongGun'),
           ], {
+            IsTrainable: 'Yes',
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 40, 100, 200],
           }),
@@ -155,6 +157,7 @@ describe('parity: death XP goes to last hitter (no proportional split)', () => {
             makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
             makeWeaponBlock('BigGun'),
           ], {
+            IsTrainable: 'Yes',
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 1000, 2000, 3000],
           }),
@@ -200,6 +203,7 @@ describe('parity: death XP goes to last hitter (no proportional split)', () => {
             makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
             makeWeaponBlock('Gun'),
           ], {
+            IsTrainable: 'Yes',
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 1000, 2000, 3000],
           }),
@@ -207,6 +211,7 @@ describe('parity: death XP goes to last hitter (no proportional split)', () => {
             makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
             makeWeaponBlock('Gun'),
           ], {
+            IsTrainable: 'Yes',
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 1000, 2000, 3000],
           }),

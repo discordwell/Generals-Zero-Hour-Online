@@ -28,12 +28,25 @@ export const ARMORSET_HERO_FLAG = 0x04;
 // Source parity: GlobalData.cpp:940 — all default to 1.0
 export const DEFAULT_HEALTH_BONUSES: readonly number[] = [1.0, 1.0, 1.0, 1.0];
 
+// ──── Sentinel for SkillPointValue fallback ─────────────────────────────────
+// Source parity: ThingTemplate.cpp:83 — USE_EXP_VALUE_FOR_SKILL_VALUE = -999
+// When a SkillPointValue entry is this sentinel, getSkillPointValue falls back
+// to the corresponding ExperienceValue.
+export const USE_EXP_VALUE_FOR_SKILL_VALUE = -999;
+
 // ──── Experience profile from INI (per object template) ────────────────────
 export interface ExperienceProfile {
   /** XP thresholds to reach each level. Index 0 (REGULAR) is typically 0. */
   experienceRequired: readonly [number, number, number, number];
   /** XP value awarded to killer at each level of this unit. */
   experienceValue: readonly [number, number, number, number];
+  /** Source parity: ThingTemplate.h:689 — m_skillPointValues[LEVEL_COUNT].
+   *  Per-level skill point values for player rank XP. When -999 (sentinel),
+   *  falls back to experienceValue. */
+  skillPointValues: readonly [number, number, number, number];
+  /** Source parity: ThingTemplate.h:749 — m_isTrainable.
+   *  Whether this unit can gain experience. Default FALSE in C++. */
+  isTrainable: boolean;
 }
 
 // ──── Per-entity experience state ──────────────────────────────────────────
@@ -66,12 +79,26 @@ export function createExperienceState(): ExperienceState {
   };
 }
 
-// ──── Resolve the XP value a killed unit grants ────────────────────────────
+// ──── Resolve the XP value a killed unit grants (unit-level veterancy) ─────
 export function getExperienceValue(
   profile: ExperienceProfile,
   victimLevel: VeterancyLevel,
 ): number {
   return Math.max(0, Math.trunc(profile.experienceValue[victimLevel] ?? 0));
+}
+
+// ──── Resolve the skill point value a killed unit grants (player rank XP) ──
+// Source parity: ThingTemplate.cpp:1392-1399 — getSkillPointValue
+// Falls back to experienceValue when skillPointValues entry is the sentinel.
+export function getSkillPointValue(
+  profile: ExperienceProfile,
+  victimLevel: VeterancyLevel,
+): number {
+  const value = profile.skillPointValues[victimLevel] ?? USE_EXP_VALUE_FOR_SKILL_VALUE;
+  if (value === USE_EXP_VALUE_FOR_SKILL_VALUE) {
+    return getExperienceValue(profile, victimLevel);
+  }
+  return Math.max(0, Math.trunc(value));
 }
 
 // ──── Add XP and check for level-up ────────────────────────────────────────

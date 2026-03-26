@@ -13549,6 +13549,7 @@ describe('GameLogicSubsystem combat + upgrades', () => {
       makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
       makeBlock('WeaponSet', 'WeaponSet', { Weapon: ['PRIMARY', 'VetCannon'] }),
     ], {
+      IsTrainable: 'Yes',
       // ExperienceRequired: [regular=0, veteran=50, elite=200, heroic=500]
       ExperienceRequired: '0 50 200 500',
       // XP the attacker is worth if killed at each level

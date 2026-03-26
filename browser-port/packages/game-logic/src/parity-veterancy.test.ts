@@ -148,6 +148,7 @@ describe('parity veterancy: health bonus on level-up', () => {
             makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
             makeWeaponBlock('BigGun'),
           ], {
+            IsTrainable: 'Yes',
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 50, 100, 200],
           }),
@@ -212,6 +213,7 @@ describe('parity veterancy: health bonus on level-up', () => {
             makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
             makeWeaponBlock('BigGun'),
           ], {
+            IsTrainable: 'Yes',
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 50, 100, 200],
           }),
@@ -507,6 +509,7 @@ describe('parity veterancy: experience sink redirect', () => {
             makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
             makeWeaponBlock('DirectGun'),
           ], {
+            IsTrainable: 'Yes',
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 50, 100, 200],
           }),
@@ -561,6 +564,7 @@ describe('parity veterancy: experience sink redirect', () => {
               InitialBurst: 1,
             }),
           ], {
+            IsTrainable: 'Yes',
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 50, 100, 200],
           }),
@@ -568,6 +572,7 @@ describe('parity veterancy: experience sink redirect', () => {
             makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
             makeWeaponBlock('SlaveGun'),
           ], {
+            IsTrainable: 'Yes',
             ExperienceValue: [0, 0, 0, 0],
             ExperienceRequired: [0, 50, 100, 200],
           }),
