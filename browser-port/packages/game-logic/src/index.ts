@@ -2412,6 +2412,41 @@ interface ContainProfile {
   /** Source parity: TransportContainModuleData::m_destroyRidersWhoAreNotFreeToExit — kill riders
    *  who cannot exit when the container dies. Default: false. */
   destroyRidersWhoAreNotFreeToExit: boolean;
+
+  // ── OpenContain fields ──
+  /** Source parity: OpenContainModuleData::m_passengersInTurret — passengers fire from turret position. Default: false. */
+  passengersInTurret: boolean;
+  /** Source parity: OpenContainModuleData::m_numberOfExitPaths — number of exit paths for unloading. Default: 1 (C++ constructor). */
+  numberOfExitPaths: number;
+  /** Source parity: OpenContainModuleData::m_weaponBonusPassedToPassengers — weapon bonus condition flags
+   *  passed to passengers. Default: false (0/NONE). */
+  weaponBonusPassedToPassengers: boolean;
+  /** Source parity: OpenContainModuleData::m_enterSound — audio event name on unit entering. Default: "". */
+  enterSound: string;
+  /** Source parity: OpenContainModuleData::m_exitSound — audio event name on unit exiting. Default: "". */
+  exitSound: string;
+
+  // ── TransportContain fields ──
+  /** Source parity: TransportContainModuleData::m_scatterNearbyOnExit — scatter units on exit. Default: true. */
+  scatterNearbyOnExit: boolean;
+  /** Source parity: TransportContainModuleData::m_orientLikeContainerOnExit — inherit container orientation. Default: false. */
+  orientLikeContainerOnExit: boolean;
+  /** Source parity: TransportContainModuleData::m_keepContainerVelocityOnExit — keep velocity on exit. Default: false. */
+  keepContainerVelocityOnExit: boolean;
+  /** Source parity: TransportContainModuleData::m_goAggressiveOnExit — set aggressive stance on exit. Default: false. */
+  goAggressiveOnExit: boolean;
+  /** Source parity: TransportContainModuleData::m_resetMoodCheckTimeOnExit — reset mood timer. Default: true. */
+  resetMoodCheckTimeOnExit: boolean;
+  /** Source parity: TransportContainModuleData::m_exitBone — bone name for exit animation. Default: "". */
+  exitBone: string;
+  /** Source parity: TransportContainModuleData::m_exitPitchRate — rad/frame (C++ parseAngularVelocityReal:
+   *  deg/sec → rad/frame). Default: 0. */
+  exitPitchRate: number;
+  /** Source parity: TransportContainModuleData::m_armedRidersUpgradeWeaponSet — armed riders upgrade
+   *  weapon set. Default: false. */
+  armedRidersUpgradeMyWeaponSet: boolean;
+  /** Source parity: TransportContainModuleData::m_isDelayExitInAir — delay exit while airborne. Default: false. */
+  delayExitInAir: boolean;
 }
 
 /**

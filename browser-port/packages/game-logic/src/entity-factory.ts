@@ -1542,6 +1542,83 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
     const destroyRidersRaw = readBooleanField(block.fields, ['DestroyRidersWhoAreNotFreeToExit']);
     const destroyRidersWhoAreNotFreeToExit = destroyRidersRaw === true;
 
+    // ── OpenContain fields ──
+    // Source parity: OpenContainModuleData::m_passengersInTurret (default FALSE).
+    const passengersInTurretRaw = readBooleanField(block.fields, ['PassengersInTurret']);
+    const passengersInTurret = passengersInTurretRaw === true;
+    // Source parity: OpenContainModuleData::m_numberOfExitPaths (default 1 in C++ constructor).
+    const numberOfExitPaths = readNumericField(block.fields, ['NumberOfExitPaths']) ?? 1;
+    // Source parity: OpenContainModuleData::m_weaponBonusPassedToPassengers (default FALSE/NONE).
+    const weaponBonusPassedRaw = readBooleanField(block.fields, ['WeaponBonusPassedToPassengers']);
+    const weaponBonusPassedToPassengers = weaponBonusPassedRaw === true;
+    // Source parity: OpenContainModuleData::m_enterSound — audio event name.
+    const enterSound = readStringField(block.fields, ['EnterSound']) ?? '';
+    // Source parity: OpenContainModuleData::m_exitSound — audio event name.
+    const exitSound = readStringField(block.fields, ['ExitSound']) ?? '';
+
+    // ── TransportContain fields ──
+    // Source parity: TransportContainModuleData::m_scatterNearbyOnExit (default true).
+    const scatterNearbyRaw = readBooleanField(block.fields, ['ScatterNearbyOnExit']);
+    const scatterNearbyOnExit = scatterNearbyRaw !== false;
+    // Source parity: TransportContainModuleData::m_orientLikeContainerOnExit (default false).
+    const orientLikeContainerRaw = readBooleanField(block.fields, ['OrientLikeContainerOnExit']);
+    const orientLikeContainerOnExit = orientLikeContainerRaw === true;
+    // Source parity: TransportContainModuleData::m_keepContainerVelocityOnExit (default false).
+    const keepContainerVelocityRaw = readBooleanField(block.fields, ['KeepContainerVelocityOnExit']);
+    const keepContainerVelocityOnExit = keepContainerVelocityRaw === true;
+    // Source parity: TransportContainModuleData::m_goAggressiveOnExit (default FALSE).
+    const goAggressiveRaw = readBooleanField(block.fields, ['GoAggressiveOnExit']);
+    const goAggressiveOnExit = goAggressiveRaw === true;
+    // Source parity: TransportContainModuleData::m_resetMoodCheckTimeOnExit (default true).
+    const resetMoodCheckTimeRaw = readBooleanField(block.fields, ['ResetMoodCheckTimeOnExit']);
+    const resetMoodCheckTimeOnExit = resetMoodCheckTimeRaw !== false;
+    // Source parity: TransportContainModuleData::m_exitBone — bone name string.
+    const exitBone = readStringField(block.fields, ['ExitBone']) ?? '';
+    // Source parity: TransportContainModuleData::m_exitPitchRate — parseAngularVelocityReal (deg/sec → rad/frame).
+    const exitPitchRateDegPerSec = readNumericField(block.fields, ['ExitPitchRate']);
+    const exitPitchRate = exitPitchRateDegPerSec != null && exitPitchRateDegPerSec !== 0
+      ? exitPitchRateDegPerSec * (Math.PI / 180) / LOGIC_FRAME_RATE
+      : 0;
+    // Source parity: TransportContainModuleData::m_armedRidersUpgradeWeaponSet (default FALSE).
+    const armedRidersRaw = readBooleanField(block.fields, ['ArmedRidersUpgradeMyWeaponSet']);
+    const armedRidersUpgradeMyWeaponSet = armedRidersRaw === true;
+    // Source parity: TransportContainModuleData::m_isDelayExitInAir (default FALSE).
+    const delayExitInAirRaw = readBooleanField(block.fields, ['DelayExitInAir']);
+    const delayExitInAir = delayExitInAirRaw === true;
+
+    // Common OpenContain fields shared across all container profiles.
+    const openContainFields = {
+      passengersInTurret,
+      numberOfExitPaths,
+      weaponBonusPassedToPassengers,
+      enterSound,
+      exitSound,
+    };
+    // Common TransportContain fields (use parsed values for transport-derived modules,
+    // C++ defaults for non-transport modules).
+    const transportContainFields = {
+      scatterNearbyOnExit,
+      orientLikeContainerOnExit,
+      keepContainerVelocityOnExit,
+      goAggressiveOnExit,
+      resetMoodCheckTimeOnExit,
+      exitBone,
+      exitPitchRate,
+      armedRidersUpgradeMyWeaponSet,
+      delayExitInAir,
+    };
+    const transportContainDefaults = {
+      scatterNearbyOnExit: true,
+      orientLikeContainerOnExit: false,
+      keepContainerVelocityOnExit: false,
+      goAggressiveOnExit: false,
+      resetMoodCheckTimeOnExit: true,
+      exitBone: '',
+      exitPitchRate: 0,
+      armedRidersUpgradeMyWeaponSet: false,
+      delayExitInAir: false,
+    };
+
     if (moduleType === 'OPENCONTAIN') {
       profile = {
         moduleType: 'OPEN',
@@ -1561,6 +1638,8 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         initialPayloadTemplateName: null,
         initialPayloadCount: 0,
         destroyRidersWhoAreNotFreeToExit,
+        ...openContainFields,
+        ...transportContainDefaults,
       };
     } else if (moduleType === 'TRANSPORTCONTAIN') {
       profile = {
@@ -1581,6 +1660,8 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         initialPayloadTemplateName,
         initialPayloadCount,
         destroyRidersWhoAreNotFreeToExit,
+        ...openContainFields,
+        ...transportContainFields,
       };
     } else if (moduleType === 'OVERLORDCONTAIN') {
       profile = {
@@ -1601,6 +1682,8 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         initialPayloadTemplateName,
         initialPayloadCount,
         destroyRidersWhoAreNotFreeToExit,
+        ...openContainFields,
+        ...transportContainFields,
       };
     } else if (moduleType === 'HELIXCONTAIN') {
       // HELIXCONTAIN is a Zero Hour-specific container module name used by data INIs;
@@ -1624,6 +1707,8 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         initialPayloadTemplateName,
         initialPayloadCount,
         destroyRidersWhoAreNotFreeToExit,
+        ...openContainFields,
+        ...transportContainFields,
       };
     } else if (moduleType === 'PARACHUTECONTAIN') {
       // Source parity: ParachuteContain overrides isSpecialZeroSlotContainer() == true.
@@ -1647,6 +1732,8 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         initialPayloadTemplateName: null,
         initialPayloadCount: 0,
         destroyRidersWhoAreNotFreeToExit,
+        ...openContainFields,
+        ...transportContainDefaults,
       };
     } else if (moduleType === 'GARRISONCONTAIN') {
       // GarrisonContain is OpenContain-derived in source but always returns TRUE from
@@ -1669,6 +1756,8 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         initialPayloadTemplateName: null,
         initialPayloadCount: 0,
         destroyRidersWhoAreNotFreeToExit,
+        ...openContainFields,
+        ...transportContainDefaults,
       };
     } else if (moduleType === 'TUNNELCONTAIN') {
       // Source parity: TunnelContain — per-player shared tunnel network.
@@ -1692,6 +1781,8 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         initialPayloadTemplateName: null,
         initialPayloadCount: 0,
         destroyRidersWhoAreNotFreeToExit,
+        ...openContainFields,
+        ...transportContainDefaults,
       };
     } else if (moduleType === 'CAVECONTAIN') {
       // Source parity: CaveContain — shared tunnel tracker keyed by CaveIndex.
@@ -1718,6 +1809,8 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         initialPayloadTemplateName: null,
         initialPayloadCount: 0,
         destroyRidersWhoAreNotFreeToExit,
+        ...openContainFields,
+        ...transportContainDefaults,
       };
     } else if (moduleType === 'HEALCONTAIN') {
       // Source parity: HealContain — passengers healed inside, auto-ejected when full health.
@@ -1741,6 +1834,8 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         initialPayloadTemplateName: null,
         initialPayloadCount: 0,
         destroyRidersWhoAreNotFreeToExit,
+        ...openContainFields,
+        ...transportContainDefaults,
       };
     } else if (moduleType === 'INTERNETHACKCONTAIN') {
       // Source parity: InternetHackContain — extends TransportContain, auto-issues
@@ -1763,6 +1858,8 @@ export function extractContainProfile(self: GL, objectDef: ObjectDef | undefined
         initialPayloadTemplateName,
         initialPayloadCount,
         destroyRidersWhoAreNotFreeToExit,
+        ...openContainFields,
+        ...transportContainFields,
       };
     }
 
