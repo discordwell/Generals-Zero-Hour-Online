@@ -129,6 +129,12 @@ export function extractJetAIProfile(self: GL, objectDef: ObjectDef | undefined):
   let attackLocomotorSet = '';
   let attackLocoPersistFrames = 0;
   let returnLocomotorSet = '';
+  let lockonTimeFrames = 0;
+  let lockonInitialDist = 100;
+  let lockonFreq = 0.5;
+  let lockonAngleSpinRad = 720 * Math.PI / 180;
+  let lockonBlinky = false;
+  let lockonCursor = '';
 
   const visitBlock = (block: IniBlock): void => {
     if (block.type.toUpperCase() === 'BEHAVIOR') {
@@ -156,6 +162,16 @@ export function extractJetAIProfile(self: GL, objectDef: ObjectDef | undefined):
         const attackLocoPersistMsRaw = readNumericField(block.fields, ['AttackLocomotorPersistTime']) ?? 0;
         attackLocoPersistFrames = self.msToLogicFrames(attackLocoPersistMsRaw);
         returnLocomotorSet = readStringField(block.fields, ['ReturnForAmmoLocomotorType'])?.trim().toUpperCase() ?? '';
+        // Source parity: JetAIUpdate lockon fields (JetAIUpdate.cpp:1691-1696)
+        const lockonTimeMsRaw = readNumericField(block.fields, ['LockonTime']) ?? 0;
+        lockonTimeFrames = self.msToLogicFrames(lockonTimeMsRaw);
+        lockonInitialDist = readNumericField(block.fields, ['LockonInitialDist']) ?? 100;
+        lockonFreq = readNumericField(block.fields, ['LockonFreq']) ?? 0.5;
+        // C++ INI::parseAngleReal: degrees → radians
+        const lockonAngleSpinDeg = readNumericField(block.fields, ['LockonAngleSpin']) ?? 720;
+        lockonAngleSpinRad = lockonAngleSpinDeg * Math.PI / 180;
+        lockonBlinky = readBooleanField(block.fields, ['LockonBlinky']) ?? false;
+        lockonCursor = readStringField(block.fields, ['LockonCursor']) ?? '';
       }
     }
 
@@ -186,6 +202,12 @@ export function extractJetAIProfile(self: GL, objectDef: ObjectDef | undefined):
     attackLocomotorSet,
     attackLocoPersistFrames,
     returnLocomotorSet,
+    lockonTimeFrames,
+    lockonInitialDist,
+    lockonFreq,
+    lockonAngleSpinRad,
+    lockonBlinky,
+    lockonCursor,
   };
 }
 
