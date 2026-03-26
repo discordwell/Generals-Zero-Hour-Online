@@ -1597,6 +1597,12 @@ export const SCRIPT_ENDGAME_QUICK_DURATION_FRAMES = 1;
  */
 type GuardState = 'NONE' | 'IDLE' | 'PURSUING' | 'RETURNING';
 
+/** Source parity: RadarPriorityType enum — minimap display priority (Radar.h). */
+type RadarPriorityType = 'INVALID' | 'NOT_ON_RADAR' | 'STRUCTURE' | 'UNIT' | 'LOCAL_UNIT_ONLY';
+
+/** Source parity: BuildCompletionType enum — where completed units appear (ThingTemplate.h). */
+type BuildCompletionType = 'INVALID' | 'APPEARS_AT_RALLY_POINT' | 'PLACED_BY_PLAYER';
+
 type ChinookFlightStatus = 'TAKING_OFF' | 'FLYING' | 'DOING_COMBAT_DROP' | 'LANDING' | 'LANDED';
 
 interface LocomotorSetProfile {
@@ -3118,6 +3124,26 @@ export interface MapEntity {
   shadowSizeX: number;
   /** Source parity: ThingTemplate::m_shadowSizeY — shadow decal Y extent. */
   shadowSizeY: number;
+  /** Source parity: ThingTemplate::m_shadowOffsetX — shadow rendering X offset. */
+  shadowOffsetX: number;
+  /** Source parity: ThingTemplate::m_shadowOffsetY — shadow rendering Y offset. */
+  shadowOffsetY: number;
+  /** Source parity: ThingTemplate::m_threatValue — AI target prioritization value. */
+  threatValue: number;
+  /** Source parity: ThingTemplate::m_radarPriority — minimap display priority. */
+  radarPriority: RadarPriorityType;
+  /** Source parity: ThingTemplate::m_occlusionDelay — frames before occlusion kicks in. */
+  occlusionDelay: number;
+  /** Source parity: ThingTemplate::m_structureRubbleHeight — height of rubble after destruction. */
+  structureRubbleHeight: number;
+  /** Source parity: ThingTemplate::m_instanceScaleFuzziness — random scale variation per instance. */
+  instanceScaleFuzziness: number;
+  /** Source parity: ThingTemplate::m_buildCompletion — where completed units appear. */
+  buildCompletion: BuildCompletionType;
+  /** Source parity: ThingTemplate::m_enterGuard — ZH: can garrison enemy buildings. */
+  enterGuard: boolean;
+  /** Source parity: ThingTemplate::m_hijackGuard — ZH: can hijack enemy vehicles. */
+  hijackGuard: boolean;
   obstacleGeometry: ObstacleGeometry | null;
   /**
    * Source parity: ThingTemplate::m_geometryInfo — always present on every entity.

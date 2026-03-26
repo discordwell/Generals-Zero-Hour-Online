@@ -222,6 +222,21 @@ export function createMapEntity(self: GL,
   const shadowType = readStringField(objectDef?.fields ?? {}, ['Shadow']) ?? null;
   const shadowSizeX = readNumericField(objectDef?.fields ?? {}, ['ShadowSizeX']) ?? 0;
   const shadowSizeY = readNumericField(objectDef?.fields ?? {}, ['ShadowSizeY']) ?? 0;
+  const shadowOffsetX = readNumericField(objectDef?.fields ?? {}, ['ShadowOffsetX']) ?? 0;
+  const shadowOffsetY = readNumericField(objectDef?.fields ?? {}, ['ShadowOffsetY']) ?? 0;
+  // Source parity: ThingTemplate fields — AI targeting, radar, occlusion, rubble, scale, build completion, guards.
+  const threatValue = readNumericField(objectDef?.fields ?? {}, ['ThreatValue']) ?? 0;
+  const radarPriorityRaw = readStringField(objectDef?.fields ?? {}, ['RadarPriority']);
+  const VALID_RADAR_PRIORITIES = new Set(['INVALID', 'NOT_ON_RADAR', 'STRUCTURE', 'UNIT', 'LOCAL_UNIT_ONLY']);
+  const radarPriority = (radarPriorityRaw && VALID_RADAR_PRIORITIES.has(radarPriorityRaw)) ? radarPriorityRaw : 'INVALID';
+  const occlusionDelay = readNumericField(objectDef?.fields ?? {}, ['OcclusionDelay']) ?? 0;
+  const structureRubbleHeight = readNumericField(objectDef?.fields ?? {}, ['StructureRubbleHeight']) ?? 0;
+  const instanceScaleFuzziness = readNumericField(objectDef?.fields ?? {}, ['InstanceScaleFuzziness']) ?? 0;
+  const buildCompletionRaw = readStringField(objectDef?.fields ?? {}, ['BuildCompletion']);
+  const VALID_BUILD_COMPLETIONS = new Set(['INVALID', 'APPEARS_AT_RALLY_POINT', 'PLACED_BY_PLAYER']);
+  const buildCompletion = (buildCompletionRaw && VALID_BUILD_COMPLETIONS.has(buildCompletionRaw)) ? buildCompletionRaw : 'APPEARS_AT_RALLY_POINT';
+  const enterGuard = readBooleanField(objectDef?.fields ?? {}, ['EnterGuard']) === true;
+  const hijackGuard = readBooleanField(objectDef?.fields ?? {}, ['HijackGuard']) === true;
   const [worldX, worldY, worldZ] = self.objectToWorldPosition(mapObject, heightmap);
   const baseHeight = nominalHeight / 2;
   const x = worldX;
@@ -385,6 +400,16 @@ export function createMapEntity(self: GL,
     shadowType,
     shadowSizeX,
     shadowSizeY,
+    shadowOffsetX,
+    shadowOffsetY,
+    threatValue,
+    radarPriority,
+    occlusionDelay,
+    structureRubbleHeight,
+    instanceScaleFuzziness,
+    buildCompletion,
+    enterGuard,
+    hijackGuard,
     obstacleGeometry,
     geometryInfo,
     obstacleFootprint,
