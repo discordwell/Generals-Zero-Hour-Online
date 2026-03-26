@@ -58,6 +58,9 @@ export function extractSpawnBehaviorState(self: GL, objectDef: ObjectDef | undef
         const initialBurst = Math.max(0, Math.trunc(readNumericField(block.fields, ['InitialBurst']) ?? 0));
 
         const slavesHaveFreeWill = readBooleanField(block.fields, ['SlavesHaveFreeWill']) === true;
+        // Source parity: SpawnBehaviorModuleData — canReclaimOrphans defaults to FALSE, exitByBudding defaults to FALSE.
+        const canReclaimOrphans = readBooleanField(block.fields, ['CanReclaimOrphans']) === true;
+        const exitByBudding = readBooleanField(block.fields, ['ExitByBudding']) === true;
 
         if (spawnNumber > 0 && templateNames.length > 0) {
           profile = {
@@ -69,6 +72,8 @@ export function extractSpawnBehaviorState(self: GL, objectDef: ObjectDef | undef
             aggregateHealth,
             initialBurst,
             slavesHaveFreeWill,
+            canReclaimOrphans,
+            exitByBudding,
           };
         }
       }
