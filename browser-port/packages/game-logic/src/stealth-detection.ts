@@ -115,6 +115,56 @@ export function extractStealthProfile(self: GL, objectDef: ObjectDef | undefined
         // via disguiseAsObject(). In our simplified model, we auto-disguise on stealth enter.
         const disguisesAsTeam = readBooleanField(block.fields, ['DisguisesAsTeam']) ?? false;
 
+        // Source parity: StealthUpdate.h:82 — m_forbiddenStatus is an ObjectStatusMaskType
+        // parsed from ForbiddenStatus. Status conditions that prevent stealth activation.
+        const forbiddenStatusStr = readStringField(block.fields, ['ForbiddenStatus']) ?? '';
+        const forbiddenStatus: string[] = [];
+        for (const token of forbiddenStatusStr.split(/\s+/)) {
+          if (token) forbiddenStatus.push(token.toUpperCase());
+        }
+
+        // Source parity: StealthUpdate.h:87 — m_friendlyOpacityMax (default 1.0).
+        // C++ parsePercentToReal — values like "100%" become 1.0. Raw numeric also accepted.
+        const friendlyOpacityMax = readNumericField(block.fields, ['FriendlyOpacityMax']) ?? 1.0;
+
+        // Source parity: StealthUpdate.h:91 — m_pulseFrames (default 30 in constructor).
+        // C++ parseDurationUnsignedInt — INI value is in milliseconds, converted to frames.
+        const pulseFrequencyMs = readNumericField(block.fields, ['PulseFrequency']) ?? 0;
+        const pulseFrequencyFrames = pulseFrequencyMs > 0 ? self.msToLogicFrames(pulseFrequencyMs) : 0;
+
+        // Source parity: StealthUpdate.h:84 — m_disguiseFX is an FXList pointer.
+        // We store the FX list name as a string for future rendering use.
+        const disguiseFX = readStringField(block.fields, ['DisguiseFX']) ?? '';
+
+        // Source parity: StealthUpdate.h:83 — m_disguiseRevealFX is an FXList pointer.
+        const disguiseRevealFX = readStringField(block.fields, ['DisguiseRevealFX']) ?? '';
+
+        // Source parity: StealthUpdate.h:89 — m_disguiseTransitionFrames (default 0).
+        // C++ parseDurationUnsignedInt — INI value is in milliseconds, converted to frames.
+        const disguiseTransitionMs = readNumericField(block.fields, ['DisguiseTransitionTime']) ?? 0;
+        const disguiseTransitionFrames = disguiseTransitionMs > 0 ? self.msToLogicFrames(disguiseTransitionMs) : 0;
+
+        // Source parity: StealthUpdate.h:90 — m_disguiseRevealTransitionFrames (default 0).
+        const disguiseRevealTransitionMs = readNumericField(block.fields, ['DisguiseRevealTransitionTime']) ?? 0;
+        const disguiseRevealTransitionFrames = disguiseRevealTransitionMs > 0 ? self.msToLogicFrames(disguiseRevealTransitionMs) : 0;
+
+        // Source parity: StealthUpdate.h:100 — m_useRiderStealth (default false).
+        const useRiderStealth = readBooleanField(block.fields, ['UseRiderStealth']) ?? false;
+
+        // Source parity: StealthUpdate.h:95 — m_enemyDetectionEvaEvent (default EVA_Invalid → "").
+        const enemyDetectionEvaEvent = readStringField(block.fields, ['EnemyDetectionEvaEvent']) ?? '';
+
+        // Source parity: StealthUpdate.h:96 — m_ownDetectionEvaEvent (default EVA_Invalid → "").
+        const ownDetectionEvaEvent = readStringField(block.fields, ['OwnDetectionEvaEvent']) ?? '';
+
+        // Source parity: StealthUpdate.h:94 — m_blackMarketCheckFrames (default 0).
+        // C++ parseDurationUnsignedInt — INI value is in milliseconds, converted to frames.
+        const blackMarketCheckDelayMs = readNumericField(block.fields, ['BlackMarketCheckDelay']) ?? 0;
+        const blackMarketCheckDelayFrames = blackMarketCheckDelayMs > 0 ? self.msToLogicFrames(blackMarketCheckDelayMs) : 0;
+
+        // Source parity: StealthUpdate.h:101 — m_grantedBySpecialPower (default false).
+        const grantedBySpecialPower = readBooleanField(block.fields, ['GrantedBySpecialPower']) ?? false;
+
         profile = {
           stealthDelayFrames,
           innateStealth,
@@ -125,6 +175,18 @@ export function extractStealthProfile(self: GL, objectDef: ObjectDef | undefined
           friendlyOpacityMin,
           hintDetectableConditions,
           disguisesAsTeam,
+          forbiddenStatus,
+          friendlyOpacityMax,
+          pulseFrequencyFrames,
+          disguiseFX,
+          disguiseRevealFX,
+          disguiseTransitionFrames,
+          disguiseRevealTransitionFrames,
+          useRiderStealth,
+          enemyDetectionEvaEvent,
+          ownDetectionEvaEvent,
+          blackMarketCheckDelayFrames,
+          grantedBySpecialPower,
         };
       }
     }

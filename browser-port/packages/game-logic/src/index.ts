@@ -4149,6 +4149,30 @@ interface StealthProfile {
   hintDetectableConditions: string[];
   /** Source parity: StealthUpdate.cpp:111 — DisguisesAsTeam enables disguise system (Bomb Truck). */
   disguisesAsTeam: boolean;
+  /** Source parity: StealthUpdate.h:82 — ObjectStatusMask conditions that prevent stealth (default empty). */
+  forbiddenStatus: string[];
+  /** Source parity: StealthUpdate.h:87 — max opacity for friendly-view stealthed units (default 1.0). */
+  friendlyOpacityMax: number;
+  /** Source parity: StealthUpdate.h:91 — pulse animation frequency in frames (default 0). */
+  pulseFrequencyFrames: number;
+  /** Source parity: StealthUpdate.h:84 — FX list name for disguise effect (default ""). */
+  disguiseFX: string;
+  /** Source parity: StealthUpdate.h:83 — FX list name for disguise reveal effect (default ""). */
+  disguiseRevealFX: string;
+  /** Source parity: StealthUpdate.h:89 — disguise transition duration in frames (default 0). */
+  disguiseTransitionFrames: number;
+  /** Source parity: StealthUpdate.h:90 — disguise reveal transition duration in frames (default 0). */
+  disguiseRevealTransitionFrames: number;
+  /** Source parity: StealthUpdate.h:100 — riders can use stealth (default false). */
+  useRiderStealth: boolean;
+  /** Source parity: StealthUpdate.h:95 — EVA event name on enemy detection (default ""). */
+  enemyDetectionEvaEvent: string;
+  /** Source parity: StealthUpdate.h:96 — EVA event name on own detection (default ""). */
+  ownDetectionEvaEvent: string;
+  /** Source parity: StealthUpdate.h:94 — black market check interval in frames (default 0). */
+  blackMarketCheckDelayFrames: number;
+  /** Source parity: StealthUpdate.h:101 — stealth granted by special power (default false). */
+  grantedBySpecialPower: boolean;
 }
 
 /** StealthForbiddenConditions bitmask values — matches C++ TheStealthLevelNames array ordering. */
