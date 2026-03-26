@@ -4574,6 +4574,8 @@ interface DeployStyleProfile {
  * faction-wide weapon bonus flags, armor scaling, and sight range bonuses.
  */
 interface BattlePlanProfile {
+  /** The special power template name this update is tied to. */
+  specialPowerTemplateName: string;
   bombardmentAnimationFrames: number;
   holdTheLineAnimationFrames: number;
   searchAndDestroyAnimationFrames: number;
@@ -4904,6 +4906,12 @@ interface ToppleProfile {
   killWhenStartToppling: boolean;
   /** Constrain topple to left/right only (fences). */
   toppleLeftOrRightOnly: boolean;
+  /** Template name for stump object created after topple. */
+  stumpName: string;
+  /** Kill the stump when toppling completes. */
+  killStumpWhenToppled: boolean;
+  /** Reorient rubble to upright after topple finishes. */
+  reorientToppledRubble: boolean;
 }
 
 type ToppleState = 'NONE' | 'TOPPLING' | 'BOUNCING' | 'DONE';
@@ -5576,6 +5584,8 @@ interface StructureCollapseProfile {
   collapseDamping: number;
   /** 1 in N chance that a burst is "big" (BURST phase) vs "small" (DELAY phase). */
   bigBurstFrequency: number;
+  /** Maximum shake distance during collapse. */
+  maxShudder: number;
   /** OCL names per phase: [INITIAL, DELAY, BURST, FINAL]. */
   phaseOCLs: [string[], string[], string[], string[]];
 }
@@ -6017,6 +6027,10 @@ interface NeutronMissileUpdateProfile {
   specialAccelFactor: number;
   specialSpeedTimeFrames: number;
   specialSpeedHeight: number;
+  /** Impact decal radius. */
+  deliveryDecalRadius: number;
+  /** Jitter distance during special speed phase. */
+  specialJitterDistance: number;
 }
 
 type NeutronMissileState = 'PRELAUNCH' | 'LAUNCH' | 'ATTACK' | 'DEAD';

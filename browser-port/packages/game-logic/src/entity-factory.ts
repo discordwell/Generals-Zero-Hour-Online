@@ -3615,6 +3615,9 @@ export function extractToppleProfile(self: GL, objectDef: ObjectDef | undefined)
           killWhenFinishedToppling: readBooleanField(block.fields, ['KillWhenFinishedToppling']) ?? true,
           killWhenStartToppling: readBooleanField(block.fields, ['KillWhenStartToppling']) ?? false,
           toppleLeftOrRightOnly: readBooleanField(block.fields, ['ToppleLeftOrRightOnly']) ?? false,
+          stumpName: (readStringField(block.fields, ['StumpName']) ?? '').trim(),
+          killStumpWhenToppled: readBooleanField(block.fields, ['KillStumpWhenToppled']) ?? false,
+          reorientToppledRubble: readBooleanField(block.fields, ['ReorientToppledRubble']) ?? false,
         };
       }
     }
@@ -3772,6 +3775,8 @@ export function extractNeutronMissileUpdateProfile(self: GL, objectDef: ObjectDe
           specialAccelFactor: readNumericField(block.fields, ['SpecialAccelFactor']) ?? 1.0,
           specialSpeedTimeFrames: self.msToLogicFrames(readNumericField(block.fields, ['SpecialSpeedTime']) ?? 0),
           specialSpeedHeight: readNumericField(block.fields, ['SpecialSpeedHeight']) ?? 0,
+          deliveryDecalRadius: readNumericField(block.fields, ['DeliveryDecalRadius']) ?? 0,
+          specialJitterDistance: readNumericField(block.fields, ['SpecialJitterDistance']) ?? 0,
         };
       }
     }
@@ -4017,6 +4022,7 @@ export function extractBattlePlanProfile(self: GL, objectDef: ObjectDef | undefi
         const invalidKindOf = readStringField(block.fields, ['InvalidMemberKindOf']) ?? '';
 
         profile = {
+          specialPowerTemplateName: (readStringField(block.fields, ['SpecialPowerTemplate']) ?? '').trim().toUpperCase(),
           bombardmentAnimationFrames: self.msToLogicFrames(bombardmentMs),
           holdTheLineAnimationFrames: self.msToLogicFrames(holdTheLineMs),
           searchAndDestroyAnimationFrames: self.msToLogicFrames(searchAndDestroyMs),
@@ -4546,6 +4552,7 @@ export function extractStructureCollapseProfile(self: GL, objectDef: ObjectDef |
           maxBurstDelay: self.msToLogicFrames(readNumericField(block.fields, ['MaxBurstDelay']) ?? 9999),
           collapseDamping: readNumericField(block.fields, ['CollapseDamping']) ?? 0.0,
           bigBurstFrequency: readNumericField(block.fields, ['BigBurstFrequency']) ?? 0,
+          maxShudder: readNumericField(block.fields, ['MaxShudder']) ?? 0,
           phaseOCLs,
         };
       }
