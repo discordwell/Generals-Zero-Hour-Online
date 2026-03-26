@@ -121,8 +121,11 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
   const maxTargetPitch = (readNumericField(weaponDef.fields, ['MaxTargetPitch']) ?? 180) * (Math.PI / 180);
   // Source parity: WeaponTemplate::m_requestAssistRange — allies within range auto-engage target.
   const requestAssistRange = Math.max(0, readNumericField(weaponDef.fields, ['RequestAssistRange']) ?? 0);
-  // Source parity: WeaponTemplate::m_fireOCLNames — OCL spawned on each weapon fire.
-  const fireOCLName = readStringField(weaponDef.fields, ['FireOCL'])?.trim() || null;
+  // Source parity: WeaponTemplate::m_fireOCLNames[LEVEL_COUNT] — per-veterancy-level OCL names.
+  // "FireOCL" uses parseAllVetLevelsAsciiString (sets all 4 levels to the same OCL name).
+  // "VeterancyFireOCL" uses parsePerVetLevelAsciiString (e.g., "VETERAN OCL_VetEffect").
+  const fireOCLNames = resolvePerVetLevelFireOCL(self, weaponDef);
+  const fireOCLName = fireOCLNames[0];
   const clipSizeRaw = readNumericField(weaponDef.fields, ['ClipSize']) ?? 0;
   const clipSize = Math.max(0, Math.trunc(clipSizeRaw));
   const clipReloadFrames = self.msToLogicFrames(readNumericField(weaponDef.fields, ['ClipReloadTime']) ?? 0);
@@ -178,6 +181,20 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
   // Source parity: Weapon::isLaser() — weapon is a laser if LaserName is non-empty.
   const laserNameRaw = readStringField(weaponDef.fields, ['LaserName'])?.trim() ?? '';
   const laserName = laserNameRaw && laserNameRaw.toUpperCase() !== 'NONE' ? laserNameRaw : null;
+
+  // Source parity: WeaponTemplate::m_damageStatusType — object status applied to damaged targets.
+  // Parsed via ObjectStatusMaskType::parseSingleBitFromINI. Default is OBJECT_STATUS_NONE → "NONE".
+  const damageStatusTypeRaw = readStringField(weaponDef.fields, ['DamageStatusType'])?.trim().toUpperCase() ?? '';
+  const damageStatusType = damageStatusTypeRaw || 'NONE';
+
+  // Source parity: WeaponTemplate::m_fireSoundLoopTime — duration (ms) for looping fire sounds (default 0).
+  const fireSoundLoopTime = Math.max(0, Math.trunc(readNumericField(weaponDef.fields, ['FireSoundLoopTime']) ?? 0));
+
+  // Source parity: WeaponTemplate::m_projectileStreamName — visual projectile stream effect name.
+  const projectileStreamNameRaw = readStringField(weaponDef.fields, ['ProjectileStreamName'])?.trim() ?? '';
+  const projectileStreamName = projectileStreamNameRaw && projectileStreamNameRaw.toUpperCase() !== 'NONE'
+    ? projectileStreamNameRaw
+    : null;
 
   // Source parity: DumbProjectileBehavior arc parameters — parsed from the projectile
   // object template referenced by ProjectileObject on this weapon.
@@ -247,8 +264,12 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
     maxTargetPitch,
     requestAssistRange,
     fireOCLName,
+    fireOCLNames,
     allowAttackGarrisonedBldgs,
     autoReloadsClip,
+    damageStatusType,
+    fireSoundLoopTime,
+    projectileStreamName,
   };
 }
 
@@ -457,6 +478,58 @@ export function resolveClipReloadFramesWithBonus(self: GL, attacker: MapEntity, 
   }
   // Source parity: REAL_TO_INT_FLOOR(m_clipReloadTime / bonus.getField(WeaponBonus::RATE_OF_FIRE)).
   return Math.max(0, Math.floor(baseReload / globalRofBonus));
+}
+
+/**
+ * Source parity: WeaponTemplate::m_fireOCLNames[LEVEL_COUNT] — resolve per-veterancy-level
+ * FireOCL names from INI fields.
+ *
+ * C++ INI parsing:
+ * - "FireOCL" uses parseAllVetLevelsAsciiString: sets the SAME OCL for all 4 vet levels.
+ * - "VeterancyFireOCL" uses parsePerVetLevelAsciiString: "VeterancyFireOCL = VETERAN OCL_Name"
+ *   overrides a specific vet level slot.
+ *
+ * Processing order matches C++: FireOCL is parsed first (fills all slots), then
+ * VeterancyFireOCL entries override individual slots.
+ */
+function resolvePerVetLevelFireOCL(self: GL, weaponDef: WeaponDef): [string | null, string | null, string | null, string | null] {
+  // Start with all null (C++ clears all m_fireOCLNames in constructor).
+  const result: [string | null, string | null, string | null, string | null] = [null, null, null, null];
+
+  // "FireOCL" sets all 4 levels to the same value (parseAllVetLevelsAsciiString).
+  const baseOCL = readStringField(weaponDef.fields, ['FireOCL'])?.trim() || null;
+  if (baseOCL) {
+    result[0] = baseOCL;
+    result[1] = baseOCL;
+    result[2] = baseOCL;
+    result[3] = baseOCL;
+  }
+
+  // "VeterancyFireOCL" overrides individual levels (parsePerVetLevelAsciiString).
+  // INI format: "VeterancyFireOCL = VETERAN OCL_VetEffect"
+  // When multiple VeterancyFireOCL lines exist, they appear as an array in the parsed INI.
+  const vetOCLValue = weaponDef.fields['VeterancyFireOCL'];
+  if (vetOCLValue !== undefined) {
+    const vetLevelMap: Record<string, number> = {
+      REGULAR: 0,
+      VETERAN: 1,
+      ELITE: 2,
+      HEROIC: 3,
+    };
+
+    for (const tokens of self.extractIniValueTokens(vetOCLValue)) {
+      if (tokens.length >= 2) {
+        const levelName = tokens[0]!.toUpperCase();
+        const oclName = tokens[1]!.trim();
+        const levelIndex = vetLevelMap[levelName];
+        if (levelIndex !== undefined && oclName) {
+          result[levelIndex] = oclName;
+        }
+      }
+    }
+  }
+
+  return result;
 }
 
 export function resolveProjectileTemplateKindOf(self: GL, weapon: AttackWeaponProfile): Set<string> {
