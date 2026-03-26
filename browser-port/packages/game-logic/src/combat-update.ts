@@ -56,6 +56,8 @@ interface CombatUpdateEntityLike {
 interface CombatUpdateConstants {
   attackMinRangeDistanceSqrFudge: number;
   pathfindCellSize: number;
+  /** Source parity: Weapon.cpp:2114 — approach to 90% of attack range before engaging. */
+  attackRangeApproachFudge: number;
 }
 
 interface CombatUpdateContext<TEntity extends CombatUpdateEntityLike> {
@@ -200,7 +202,9 @@ export function updateCombat<TEntity extends CombatUpdateEntityLike>(
             + (target.z - origPos.z) * (target.z - origPos.z) > attackRangeSqr * CHASE_REPATH_THRESHOLD_SQR_FACTOR
           : false;
         if (!attacker.moving || targetMoved) {
-          context.issueMoveTo(attacker.id, target.x, target.z, attackRange);
+          // Source parity: Weapon.cpp:2114 — approach to attackRange * 0.9 to avoid
+          // teetering at the edge of firing range.
+          context.issueMoveTo(attacker.id, target.x, target.z, attackRange * context.constants.attackRangeApproachFudge);
           attacker.attackOriginalVictimPosition = { x: target.x, z: target.z };
         }
       }

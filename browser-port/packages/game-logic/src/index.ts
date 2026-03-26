@@ -1107,6 +1107,16 @@ const PATHFIND_ZONE_BLOCK_SIZE = 10;
 export const NO_ATTACK_DISTANCE = 0;
 export const ATTACK_MOVE_DISTANCE_FUDGE = 3 * MAP_XY_FACTOR;
 export const ATTACK_RANGE_CELL_EDGE_FUDGE = PATHFIND_CELL_SIZE * 0.25;
+/**
+ * Source parity: Weapon.cpp:472 — 5% overshoot tolerance on attack range checks.
+ * Only used in the non-RATIONALIZE_ATTACK_RANGE code path (currently inactive).
+ */
+export const ATTACK_RANGE_FUDGE = 1.05;
+/**
+ * Source parity: Weapon.cpp:2114 — approach to 90% of attack range before engaging.
+ * Used in approach-target calculations to avoid teetering at range boundary.
+ */
+export const ATTACK_RANGE_APPROACH_FUDGE = 0.9;
 const ATTACK_MIN_RANGE_DISTANCE_SQR_FUDGE = 0.5;
 export const LOGIC_FRAME_RATE = 30;
 export const LOGIC_FRAME_MS = 1000 / LOGIC_FRAME_RATE;
@@ -4512,7 +4522,7 @@ function isSubdualDamage(damageType: string): boolean {
 /**
  * Source parity: IsHealthDamagingDamage — does this damage type affect health?
  * C++ file: Damage.h:134-151. Returns false for non-health damage types
- * (STATUS, SUBDUAL_*, KILLPILOT, KILL_GARRISONED) which cause special effects
+ * (STATUS, SUBDUAL_*, KILL_PILOT, KILL_GARRISONED) which cause special effects
  * instead of reducing health.
  */
 function isHealthDamagingDamage(damageType: string): boolean {
@@ -4522,7 +4532,7 @@ function isHealthDamagingDamage(damageType: string): boolean {
     case 'SUBDUAL_VEHICLE':
     case 'SUBDUAL_BUILDING':
     case 'SUBDUAL_UNRESISTABLE':
-    case 'KILLPILOT':
+    case 'KILL_PILOT':
     case 'KILL_GARRISONED':
       return false;
     default:
@@ -25537,6 +25547,7 @@ export class GameLogicSubsystem implements Subsystem {
       constants: {
         attackMinRangeDistanceSqrFudge: ATTACK_MIN_RANGE_DISTANCE_SQR_FUDGE,
         pathfindCellSize: PATHFIND_CELL_SIZE,
+        attackRangeApproachFudge: ATTACK_RANGE_APPROACH_FUDGE,
       },
       findEntityById: (entityId) => this.spawnedEntities.get(entityId) ?? null,
       findFireWeaponTargetForPosition: (attacker, targetX, targetZ) =>

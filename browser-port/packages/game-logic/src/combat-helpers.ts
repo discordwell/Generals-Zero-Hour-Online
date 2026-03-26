@@ -218,7 +218,8 @@ export function adjustDamageByArmorSet(
   amount: number,
   damageType: string,
 ): number {
-  if (damageType === 'UNRESISTABLE') {
+  // Source parity: Armor.cpp:69-72 — UNRESISTABLE and SUBDUAL_UNRESISTABLE bypass armor.
+  if (damageType === 'UNRESISTABLE' || damageType === 'SUBDUAL_UNRESISTABLE') {
     return amount;
   }
 

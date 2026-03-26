@@ -376,6 +376,15 @@ describe('Damage type vs armor type calculation', () => {
     expect(adjustDamageByArmor(armor, 100, 'UNRESISTABLE')).toBe(100);
   });
 
+  it('SUBDUAL_UNRESISTABLE damage bypasses armor completely (source parity: Armor.cpp:71-72)', () => {
+    const armor = new Map<string, number>([
+      ['ARMOR_PIERCING', 0.0],
+      ['SUBDUAL_UNRESISTABLE', 0.0], // Even if defined as 0%, it should be bypassed
+    ]);
+
+    expect(adjustDamageByArmor(armor, 100, 'SUBDUAL_UNRESISTABLE')).toBe(100);
+  });
+
   it('returns full damage when no armor coefficients', () => {
     expect(adjustDamageByArmor(null, 100, 'ARMOR_PIERCING')).toBe(100);
   });
