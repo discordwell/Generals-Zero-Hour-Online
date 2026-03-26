@@ -122,6 +122,14 @@ export function extractSlavedUpdateProfile(self: GL, objectDef: ObjectDef | unde
           distToTargetToGrantRangeBonus: readNumericField(block.fields, ['DistToTargetToGrantRangeBonus']) ?? 0,
           repairRatePerSecond: readNumericField(block.fields, ['RepairRatePerSecond']) ?? 0,
           repairWhenBelowHealthPercent: readNumericField(block.fields, ['RepairWhenBelowHealth%']) ?? 0,
+          // Source parity: SlavedUpdateModuleData repair fields (parseInt / parseReal / parseDurationUnsignedInt).
+          repairRange: readNumericField(block.fields, ['RepairRange']) ?? 0,
+          repairMinAltitude: readNumericField(block.fields, ['RepairMinAltitude']) ?? 0,
+          repairMaxAltitude: readNumericField(block.fields, ['RepairMaxAltitude']) ?? 0,
+          repairMinReadyFrames: self.msToLogicFrames(readNumericField(block.fields, ['RepairMinReadyTime']) ?? 0),
+          repairMaxReadyFrames: self.msToLogicFrames(readNumericField(block.fields, ['RepairMaxReadyTime']) ?? 0),
+          repairMinWeldFrames: self.msToLogicFrames(readNumericField(block.fields, ['RepairMinWeldTime']) ?? 0),
+          repairMaxWeldFrames: self.msToLogicFrames(readNumericField(block.fields, ['RepairMaxWeldTime']) ?? 0),
           stayOnSameLayerAsMaster: readStringField(block.fields, ['StayOnSameLayerAsMaster'])?.toUpperCase() === 'YES',
         };
       }

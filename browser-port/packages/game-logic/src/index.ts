@@ -4804,6 +4804,20 @@ interface SlavedUpdateProfile {
   repairRatePerSecond: number;
   /** Master health % threshold for emergency repair priority. */
   repairWhenBelowHealthPercent: number;
+  /** Range for repair operations. Source parity: RepairRange (parseInt). */
+  repairRange: number;
+  /** Minimum altitude for repair approach. Source parity: RepairMinAltitude (parseReal). */
+  repairMinAltitude: number;
+  /** Maximum altitude for repair approach. Source parity: RepairMaxAltitude (parseReal). */
+  repairMaxAltitude: number;
+  /** Minimum ready delay in frames before repair starts. Source parity: RepairMinReadyTime (parseDurationUnsignedInt). */
+  repairMinReadyFrames: number;
+  /** Maximum ready delay in frames before repair starts. Source parity: RepairMaxReadyTime (parseDurationUnsignedInt). */
+  repairMaxReadyFrames: number;
+  /** Minimum welding time in frames per repair cycle. Source parity: RepairMinWeldTime (parseDurationUnsignedInt). */
+  repairMinWeldFrames: number;
+  /** Maximum welding time in frames per repair cycle. Source parity: RepairMaxWeldTime (parseDurationUnsignedInt). */
+  repairMaxWeldFrames: number;
   /** If true, slave is forced to same pathfinding layer as master. */
   stayOnSameLayerAsMaster: boolean;
 }

@@ -5218,6 +5218,127 @@ describe('SlavedUpdate', () => {
     // Master should have healed somewhat.
     expect(master!.health).toBeGreaterThan(400);
   });
+
+  it('extracts 7 repair fields (RepairRange, altitude, ready/weld times) from SlavedUpdate INI data', () => {
+    const sz = 128;
+    const objects = [
+      makeObjectDef('RepairMaster', 'America', ['VEHICLE'], [
+        makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        makeBlock('Behavior', 'SpawnBehavior ModuleTag_Spawn', {
+          SpawnNumber: 1,
+          SpawnReplaceDelay: 3000,
+          SpawnTemplateName: 'RepairDrone',
+          SpawnedRequireSpawner: 'Yes',
+          InitialBurst: 1,
+        }),
+      ]),
+      makeObjectDef('RepairDrone', 'America', ['VEHICLE'], [
+        makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        makeBlock('Behavior', 'SlavedUpdate ModuleTag_Slaved', {
+          GuardMaxRange: 50,
+          GuardWanderRange: 10,
+          RepairRange: 25,
+          RepairMinAltitude: 10.5,
+          RepairMaxAltitude: 20.0,
+          RepairRatePerSecond: 5,
+          'RepairWhenBelowHealth%': 80,
+          RepairMinReadyTime: 1000,  // 1000ms = 30 frames
+          RepairMaxReadyTime: 2000,  // 2000ms = 60 frames
+          RepairMinWeldTime: 500,    // 500ms  = 15 frames
+          RepairMaxWeldTime: 1500,   // 1500ms = 45 frames
+        }),
+      ]),
+    ];
+
+    const bundle = makeBundle({ objects, weapons: [] });
+    const scene = new THREE.Scene();
+    const registry = makeRegistry(bundle);
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(makeMap([makeMapObject('RepairMaster', 60, 60)], sz, sz), registry, makeHeightmap(sz, sz));
+
+    // Let spawn happen.
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    const master = getEntity(logic, 1);
+    expect(master).toBeDefined();
+    const slaveId = (master as unknown as { spawnBehaviorState: { slaveIds: number[] } }).spawnBehaviorState.slaveIds[0]!;
+    const slave = getEntity(logic, slaveId);
+    expect(slave).toBeDefined();
+
+    const profile = (slave as unknown as { slavedUpdateProfile: {
+      repairRange: number;
+      repairMinAltitude: number;
+      repairMaxAltitude: number;
+      repairMinReadyFrames: number;
+      repairMaxReadyFrames: number;
+      repairMinWeldFrames: number;
+      repairMaxWeldFrames: number;
+    } }).slavedUpdateProfile;
+
+    expect(profile).not.toBeNull();
+    expect(profile.repairRange).toBe(25);
+    expect(profile.repairMinAltitude).toBeCloseTo(10.5);
+    expect(profile.repairMaxAltitude).toBeCloseTo(20.0);
+    // Duration fields: ms → frames at 30fps (1000ms=30, 2000ms=60, 500ms=15, 1500ms=45).
+    expect(profile.repairMinReadyFrames).toBe(30);
+    expect(profile.repairMaxReadyFrames).toBe(60);
+    expect(profile.repairMinWeldFrames).toBe(15);
+    expect(profile.repairMaxWeldFrames).toBe(45);
+  });
+
+  it('defaults repair fields to 0 when absent from INI', () => {
+    const sz = 128;
+    const objects = [
+      makeObjectDef('DefaultMaster', 'America', ['VEHICLE'], [
+        makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        makeBlock('Behavior', 'SpawnBehavior ModuleTag_Spawn', {
+          SpawnNumber: 1,
+          SpawnReplaceDelay: 3000,
+          SpawnTemplateName: 'DefaultDrone',
+          SpawnedRequireSpawner: 'Yes',
+          InitialBurst: 1,
+        }),
+      ]),
+      makeObjectDef('DefaultDrone', 'America', ['VEHICLE'], [
+        makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        makeBlock('Behavior', 'SlavedUpdate ModuleTag_Slaved', {
+          GuardMaxRange: 50,
+          GuardWanderRange: 10,
+          // No repair fields specified — all should default to 0.
+        }),
+      ]),
+    ];
+
+    const bundle = makeBundle({ objects, weapons: [] });
+    const scene = new THREE.Scene();
+    const registry = makeRegistry(bundle);
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(makeMap([makeMapObject('DefaultMaster', 60, 60)], sz, sz), registry, makeHeightmap(sz, sz));
+
+    for (let i = 0; i < 5; i++) logic.update(1 / 30);
+
+    const master = getEntity(logic, 1);
+    const slaveId = (master as unknown as { spawnBehaviorState: { slaveIds: number[] } }).spawnBehaviorState.slaveIds[0]!;
+    const slave = getEntity(logic, slaveId);
+
+    const profile = (slave as unknown as { slavedUpdateProfile: {
+      repairRange: number;
+      repairMinAltitude: number;
+      repairMaxAltitude: number;
+      repairMinReadyFrames: number;
+      repairMaxReadyFrames: number;
+      repairMinWeldFrames: number;
+      repairMaxWeldFrames: number;
+    } }).slavedUpdateProfile;
+
+    expect(profile.repairRange).toBe(0);
+    expect(profile.repairMinAltitude).toBe(0);
+    expect(profile.repairMaxAltitude).toBe(0);
+    expect(profile.repairMinReadyFrames).toBe(0);
+    expect(profile.repairMaxReadyFrames).toBe(0);
+    expect(profile.repairMinWeldFrames).toBe(0);
+    expect(profile.repairMaxWeldFrames).toBe(0);
+  });
 });
 
 describe('PilotFindVehicleUpdate', () => {
