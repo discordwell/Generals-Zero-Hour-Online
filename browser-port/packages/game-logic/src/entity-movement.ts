@@ -110,7 +110,7 @@ export function resolveCombatCollisionProfile(self: GL, objectDef: ObjectDef | u
   if (!objectDef) {
     return {
       crusherLevel: 0,
-      crushableLevel: 0,
+      crushableLevel: 255, // Source parity: ThingTemplate constructor sets m_crushableLevel = 255 (immune)
       canBeSquished: false,
       isUnmanned: false,
     };
@@ -118,7 +118,7 @@ export function resolveCombatCollisionProfile(self: GL, objectDef: ObjectDef | u
 
   return {
     crusherLevel: toByte(readNumericField(objectDef.fields, ['CrusherLevel', 'Crusherlevel'])),
-    crushableLevel: toByte(readNumericField(objectDef.fields, ['CrushableLevel', 'Crushablelevel'])),
+    crushableLevel: toByte(readNumericField(objectDef.fields, ['CrushableLevel', 'Crushablelevel']) ?? 255),
     canBeSquished: self.hasSquishCollideModule(objectDef),
     isUnmanned: readBooleanField(objectDef.fields, ['Unmanned', 'IsUnmanned']) === true,
   };
