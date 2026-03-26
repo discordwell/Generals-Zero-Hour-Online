@@ -1914,8 +1914,10 @@ export function extractTurretProfiles(self: GL, objectDef: ObjectDef | undefined
         // Source parity: RecenterTime defaults to 2 * LOGICFRAMES_PER_SECOND (60 frames).
         // INI value is in milliseconds.
         const recenterTimeMs = readNumericField(block.fields, ['RecenterTime']) ?? 0;
+        // Source parity: TurretAI.cpp uses parseDurationUnsignedInt which applies ceilf(),
+        // not round(). See INI.cpp:1720.
         const recenterTimeFrames = recenterTimeMs > 0
-          ? Math.round(recenterTimeMs / 1000 * LOGIC_FRAME_RATE)
+          ? Math.ceil(recenterTimeMs / 1000 * LOGIC_FRAME_RATE)
           : 2 * LOGIC_FRAME_RATE;
 
         if (controlledWeaponSlotsMask !== 0) {

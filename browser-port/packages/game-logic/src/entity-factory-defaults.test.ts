@@ -21,8 +21,18 @@ import { GameLogicSubsystem } from './index.js';
 import {
   extractPhysicsBehaviorProfile,
   extractTurretProfiles,
+  extractPropagandaTowerProfile,
+  extractMinefieldProfile,
 } from './entity-factory.js';
 import { resolveLocomotorProfiles } from './entity-movement.js';
+import {
+  LOCOMOTORSURFACE_GROUND,
+  LOCOMOTORSURFACE_WATER,
+  LOCOMOTORSURFACE_CLIFF,
+  LOCOMOTORSURFACE_AIR,
+  LOCOMOTORSURFACE_RUBBLE,
+  NO_SURFACES,
+} from './index.js';
 import {
   makeBlock,
   makeObjectDef,
@@ -375,5 +385,187 @@ describe('Locomotor profile missing fields (Fix 4)', () => {
     // (from the fallback profile in createMapEntity).
     const entity = (logic as any).spawnedEntities?.get?.(1);
     expect(entity).toBeDefined();
+  });
+});
+
+// ── Fix 5: RecenterTime uses ceil, not round ─────────────────────────────
+
+describe('TurretAI RecenterTime rounding (Fix 5)', () => {
+  it('RecenterTime uses ceil (parseDurationUnsignedInt) not round', () => {
+    // Source parity: TurretAI.cpp:258 — RecenterTime uses INI::parseDurationUnsignedInt
+    // which applies ceilf() (INI.cpp:1720), not round().
+    // Example: 50ms at 30fps = 50/1000*30 = 1.5 → ceil = 2, round = 2 (same)
+    // Example: 40ms at 30fps = 40/1000*30 = 1.2 → ceil = 2, round = 1 (DIFFERS)
+    const objectDef = makeObjectDef('CeilTurretUnit', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 100,
+        InitialHealth: 100,
+      }),
+      makeBlock('Behavior', 'TurretAIUpdate ModuleTag_Turret', {
+        ControlledWeaponSlots: 'PRIMARY',
+        RecenterTime: 40, // 40ms → 1.2 frames → ceil = 2, round would give 1
+      }),
+    ]);
+
+    const profiles = extractTurretProfiles({} as any, objectDef);
+    expect(profiles.length).toBe(1);
+    // With ceil: 40/1000*30 = 1.2 → 2
+    // With round: 40/1000*30 = 1.2 → 1 (wrong)
+    expect(profiles[0]!.recenterTimeFrames).toBe(2);
+  });
+
+  it('RecenterTime boundary case: 17ms rounds up to 1 frame with ceil', () => {
+    // 17ms at 30fps = 17/1000*30 = 0.51 → ceil = 1, round = 1 (same)
+    // But 10ms at 30fps = 10/1000*30 = 0.3 → ceil = 1, round = 0 (DIFFERS)
+    const objectDef = makeObjectDef('BoundaryTurretUnit', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 100,
+        InitialHealth: 100,
+      }),
+      makeBlock('Behavior', 'TurretAIUpdate ModuleTag_Turret', {
+        ControlledWeaponSlots: 'PRIMARY',
+        RecenterTime: 10, // 10ms → 0.3 frames → ceil = 1, round would give 0
+      }),
+    ]);
+
+    const profiles = extractTurretProfiles({} as any, objectDef);
+    expect(profiles.length).toBe(1);
+    expect(profiles[0]!.recenterTimeFrames).toBe(1);
+  });
+
+  it('RecenterTime defaults to 2 * LOGIC_FRAME_RATE (60) when not specified', () => {
+    // Source parity: TurretAI.cpp — default RecenterTime = 2 * LOGICFRAMES_PER_SECOND
+    const objectDef = makeObjectDef('DefaultTurretUnit', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 100,
+        InitialHealth: 100,
+      }),
+      makeBlock('Behavior', 'TurretAIUpdate ModuleTag_Turret', {
+        ControlledWeaponSlots: 'PRIMARY',
+        // No RecenterTime field — should default to 60.
+      }),
+    ]);
+
+    const profiles = extractTurretProfiles({} as any, objectDef);
+    expect(profiles.length).toBe(1);
+    expect(profiles[0]!.recenterTimeFrames).toBe(60);
+  });
+});
+
+// ── Fix 6: PropagandaTower percentage values are correct (no double-conversion) ──
+
+describe('PropagandaTower percentage values (Fix 6)', () => {
+  it('HealPercentEachSecond from INI bundle is used directly (already fractional)', () => {
+    // Source parity: PropagandaTowerBehavior.cpp:105 — parsePercentToReal.
+    // The browser INI parser already converts "1%" → 0.01 during parsing.
+    // The INI bundle stores the already-converted fractional value (0.01).
+    // Entity factory should use these values directly without further division.
+    //
+    // C++ defaults: m_autoHealPercentPerSecond = 0.01f (PropagandaTowerBehavior.cpp:86)
+    //               m_upgradedAutoHealPercentPerSecond = 0.02f (line 87)
+    const objectDef = makeObjectDef('PropTower', 'China', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 500,
+        InitialHealth: 500,
+      }),
+      makeBlock('Behavior', 'PropagandaTowerBehavior ModuleTag_PT', {
+        Radius: 200,
+        DelayBetweenUpdates: 100,
+        HealPercentEachSecond: 0.01,           // Already fractional (= 1%)
+        UpgradedHealPercentEachSecond: 0.02,   // Already fractional (= 2%)
+        UpgradeRequired: 'Upgrade_ChinaSubliminalMessaging',
+      }),
+    ]);
+
+    const profile = extractPropagandaTowerProfile({} as any, objectDef);
+    expect(profile).not.toBeNull();
+    // Values should be used exactly as provided — no further /100 conversion.
+    expect(profile!.healPercentPerSecond).toBe(0.01);
+    expect(profile!.upgradedHealPercentPerSecond).toBe(0.02);
+    expect(profile!.radius).toBe(200);
+    expect(profile!.upgradeRequired).toBe('Upgrade_ChinaSubliminalMessaging');
+  });
+
+  it('PropagandaTower defaults match C++ constructor (0.01, 0.02)', () => {
+    // When no healing fields are specified, defaults should match C++:
+    //   m_autoHealPercentPerSecond = 0.01f
+    //   m_upgradedAutoHealPercentPerSecond = 0.02f
+    const objectDef = makeObjectDef('PropTowerDefault', 'China', ['STRUCTURE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 500,
+        InitialHealth: 500,
+      }),
+      makeBlock('Behavior', 'PropagandaTowerBehavior ModuleTag_PT', {
+        Radius: 100,
+      }),
+    ]);
+
+    const profile = extractPropagandaTowerProfile({} as any, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.healPercentPerSecond).toBe(0.01);
+    expect(profile!.upgradedHealPercentPerSecond).toBe(0.02);
+  });
+});
+
+// ── Fix 7: Minefield DegenPercent is used directly (no double-conversion) ──
+
+describe('Minefield DegenPercentPerSecondAfterCreatorDies (Fix 7)', () => {
+  it('DegenPercent from INI bundle is used directly (already fractional)', () => {
+    // Source parity: MinefieldBehavior.cpp:92 — parsePercentToReal.
+    // The browser INI parser converts "3.33%" → 0.0333 during parsing.
+    // Entity factory should use the value directly without further division.
+    const objectDef = makeObjectDef('Mine', 'China', ['MINE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 50,
+        InitialHealth: 50,
+      }),
+      makeBlock('Behavior', 'MinefieldBehavior ModuleTag_MF', {
+        DetonationWeapon: 'MineWeapon',
+        NumVirtualMines: 4,
+        DegenPercentPerSecondAfterCreatorDies: 0.0333, // Already fractional (= 3.33%)
+      }),
+    ]);
+
+    const mockSelf = { msToLogicFrames: (ms: number) => Math.ceil(ms * 30 / 1000) } as any;
+    const profile = extractMinefieldProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    // Value should be used exactly as provided — no further /100 conversion.
+    expect(profile!.degenPercentPerSecondAfterCreatorDies).toBeCloseTo(0.0333, 5);
+  });
+});
+
+// ── Fix 8: LocomotorSurfaceType constants ────────────────────────────────
+
+describe('LocomotorSurfaceType constants (Fix 8)', () => {
+  it('surface type constants match C++ LocomotorSet.h enum values', () => {
+    // Source parity: LocomotorSet.h:49-56
+    expect(LOCOMOTORSURFACE_GROUND).toBe(1 << 0);  // 1
+    expect(LOCOMOTORSURFACE_WATER).toBe(1 << 1);   // 2
+    expect(LOCOMOTORSURFACE_CLIFF).toBe(1 << 2);   // 4
+    expect(LOCOMOTORSURFACE_AIR).toBe(1 << 3);     // 8
+    expect(LOCOMOTORSURFACE_RUBBLE).toBe(1 << 4);  // 16
+  });
+
+  it('surface type constants are distinct bit flags', () => {
+    const allFlags = [
+      LOCOMOTORSURFACE_GROUND,
+      LOCOMOTORSURFACE_WATER,
+      LOCOMOTORSURFACE_CLIFF,
+      LOCOMOTORSURFACE_AIR,
+      LOCOMOTORSURFACE_RUBBLE,
+    ];
+    // Each flag should be a single bit (power of 2).
+    for (const flag of allFlags) {
+      expect(flag > 0).toBe(true);
+      expect(flag & (flag - 1)).toBe(0); // Power of 2 check
+    }
+    // All flags combined should have no overlap.
+    const combined = allFlags.reduce((a, b) => a | b, 0);
+    expect(combined).toBe(0b11111); // 31
+  });
+
+  it('NO_SURFACES has value 0', () => {
+    // Source parity: LocomotorSet.h:60 — NO_SURFACES = 0x0000
+    expect(NO_SURFACES).toBe(0);
   });
 });

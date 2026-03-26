@@ -1194,7 +1194,12 @@ export const LOCOMOTORSET_TAXIING = 'SET_TAXIING';
 export const LOCOMOTORSET_SUPERSONIC = 'SET_SUPERSONIC';
 const LOCOMOTORSET_SLUGGISH = 'SET_SLUGGISH';
 export const NO_SURFACES = 0;
-const LOCOMOTORSURFACE_GROUND = 1 << 0;
+// Source parity: LocomotorSet.h — LocomotorSurfaceType enum bit flags.
+export const LOCOMOTORSURFACE_GROUND = 1 << 0;
+export const LOCOMOTORSURFACE_WATER = 1 << 1;
+export const LOCOMOTORSURFACE_CLIFF = 1 << 2;
+export const LOCOMOTORSURFACE_AIR = 1 << 3;
+export const LOCOMOTORSURFACE_RUBBLE = 1 << 4;
 export const SOURCE_LOCOMOTOR_SET_NAMES = new Set<string>([
   LOCOMOTORSET_NORMAL,
   LOCOMOTORSET_NORMAL_UPGRADED,
