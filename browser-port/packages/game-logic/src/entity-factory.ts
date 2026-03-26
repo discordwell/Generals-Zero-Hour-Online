@@ -2746,6 +2746,7 @@ export function extractOCLUpdateProfiles(self: GL, objectDef: ObjectDef | undefi
           oclName,
           minDelayFrames: self.msToLogicFrames(minDelayMs),
           maxDelayFrames: self.msToLogicFrames(maxDelayMs),
+          createAtEdge: readBooleanField(block.fields, ['CreateAtEdge']) ?? false,
         });
       }
     }
@@ -3340,6 +3341,15 @@ export function extractProneDamageToFramesRatio(self: GL, objectDef: ObjectDef |
   return ratio;
 }
 
+/** Source parity: parseLookupList with TheWeaponSlotTypeNames — PRIMARY_WEAPON=0, SECONDARY_WEAPON=1, TERTIARY_WEAPON=2. */
+function parseWeaponSlotIndex(slotName: string | null): number {
+  if (!slotName) return 0; // PRIMARY_WEAPON default
+  const upper = slotName.trim().toUpperCase();
+  if (upper === 'SECONDARY' || upper === 'SECONDARY_WEAPON') return 1;
+  if (upper === 'TERTIARY' || upper === 'TERTIARY_WEAPON') return 2;
+  return 0; // PRIMARY_WEAPON or unrecognized
+}
+
 export function extractDemoTrapProfile(self: GL, objectDef: ObjectDef | undefined): DemoTrapProfile | null {
   if (!objectDef) return null;
   let profile: DemoTrapProfile | null = null;
@@ -3361,6 +3371,9 @@ export function extractDemoTrapProfile(self: GL, objectDef: ObjectDef | undefine
           friendlyDetonation: readBooleanField(block.fields, ['AutoDetonationWithFriendsInvolved']) ?? false,
           detonationWeaponName: readStringField(block.fields, ['DetonationWeapon']),
           detonateWhenKilled: readBooleanField(block.fields, ['DetonateWhenKilled']) ?? false,
+          detonationWeaponSlot: parseWeaponSlotIndex(readStringField(block.fields, ['DetonationWeaponSlot'])),
+          proximityModeWeaponSlot: parseWeaponSlotIndex(readStringField(block.fields, ['ProximityModeWeaponSlot'])),
+          manualModeWeaponSlot: parseWeaponSlotIndex(readStringField(block.fields, ['ManualModeWeaponSlot'])),
         };
       }
     }
@@ -3825,12 +3838,20 @@ export function extractGenerateMinefieldProfile(self: GL, objectDef: ObjectDef |
       if (moduleType === 'GENERATEMINEFIELDBEHAVIOR') {
         const mineName = readStringField(block.fields, ['MineName']);
         if (!mineName) return;
+        // Source parity: parsePercentToReal divides by 100.
+        const randomJitterRaw = readNumericField(block.fields, ['RandomJitter']);
+        const skipUnderRaw = readNumericField(block.fields, ['SkipIfThisMuchUnderStructure']);
         profile = {
           mineName,
           distanceAroundObject: readNumericField(block.fields, ['DistanceAroundObject']) ?? 20,
           borderOnly: readBooleanField(block.fields, ['BorderOnly']) ?? true,
           alwaysCircular: readBooleanField(block.fields, ['AlwaysCircular']) ?? false,
           generateOnlyOnDeath: readBooleanField(block.fields, ['GenerateOnlyOnDeath']) ?? false,
+          minesPerSquareFoot: readNumericField(block.fields, ['MinesPerSquareFoot']) ?? 0.01,
+          smartBorder: readBooleanField(block.fields, ['SmartBorder']) ?? false,
+          smartBorderSkipInterior: readBooleanField(block.fields, ['SmartBorderSkipInterior']) ?? true,
+          randomJitter: randomJitterRaw !== null && Number.isFinite(randomJitterRaw) ? randomJitterRaw / 100 : 0,
+          skipIfThisMuchUnderStructure: skipUnderRaw !== null && Number.isFinite(skipUnderRaw) ? skipUnderRaw / 100 : 0.33,
         };
       }
     }
