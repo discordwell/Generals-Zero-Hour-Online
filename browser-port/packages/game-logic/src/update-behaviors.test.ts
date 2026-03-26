@@ -5938,6 +5938,55 @@ describe('SpecialAbilityUpdate', () => {
     const rotDiff = Math.abs(entity.rotationY - rotBefore);
     expect(rotDiff).toBeCloseTo(Math.PI, 1);
   });
+
+  it('extracts SpecialObject and related fields from INI', () => {
+    const { logic } = makeSpecialAbilitySetup({
+      SpecialObject: 'HackerLaptop',
+      SpecialObjectAttachToBone: 'INTHAND_R',
+      MaxSpecialObjects: 3,
+      SpecialObjectsPersistent: true,
+      EffectValue: 42,
+      UniqueSpecialObjectTargets: true,
+      SpecialObjectsPersistWhenOwnerDies: true,
+      AlwaysValidateSpecialObjects: true,
+    });
+
+    const entity = (logic as any).spawnedEntities.get(1);
+    expect(entity).toBeDefined();
+    expect(entity.specialAbilityProfile).not.toBeNull();
+
+    const profile = entity.specialAbilityProfile;
+    expect(profile.specialObject).toBe('HackerLaptop');
+    expect(profile.specialObjectAttachToBone).toBe('INTHAND_R');
+    expect(profile.maxSpecialObjects).toBe(3);
+    expect(profile.specialObjectsPersistent).toBe(true);
+    expect(profile.effectValue).toBe(42);
+    expect(profile.uniqueSpecialObjectTargets).toBe(true);
+    expect(profile.specialObjectsPersistWhenOwnerDies).toBe(true);
+    expect(profile.alwaysValidateSpecialObjects).toBe(true);
+  });
+
+  it('uses correct defaults for SpecialObject fields when not specified', () => {
+    const { logic } = makeSpecialAbilitySetup({
+      PreparationTime: 500,
+    });
+
+    const entity = (logic as any).spawnedEntities.get(1);
+    expect(entity).toBeDefined();
+    expect(entity.specialAbilityProfile).not.toBeNull();
+
+    const profile = entity.specialAbilityProfile;
+    // C++ defaults: m_specialObjectName = empty string → null,
+    // m_maxSpecialObjects = 1, m_effectValue = 1, bools = FALSE
+    expect(profile.specialObject).toBeNull();
+    expect(profile.specialObjectAttachToBone).toBeNull();
+    expect(profile.maxSpecialObjects).toBe(1);
+    expect(profile.specialObjectsPersistent).toBe(false);
+    expect(profile.effectValue).toBe(1);
+    expect(profile.uniqueSpecialObjectTargets).toBe(false);
+    expect(profile.specialObjectsPersistWhenOwnerDies).toBe(false);
+    expect(profile.alwaysValidateSpecialObjects).toBe(false);
+  });
 });
 
 describe('FireWeaponUpdate', () => {

@@ -2084,6 +2084,14 @@ interface SpecialAbilityProfile {
   loseStealthOnTrigger: boolean;
   preTriggerUnstealthFrames: number;
   awardXPForTriggering: number;
+  specialObject: string | null;
+  specialObjectAttachToBone: string | null;
+  maxSpecialObjects: number;
+  specialObjectsPersistent: boolean;
+  effectValue: number;
+  uniqueSpecialObjectTargets: boolean;
+  specialObjectsPersistWhenOwnerDies: boolean;
+  alwaysValidateSpecialObjects: boolean;
 }
 
 interface SpecialAbilityRuntimeState {

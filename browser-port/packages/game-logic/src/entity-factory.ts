@@ -3801,6 +3801,14 @@ export function extractSpecialAbilityProfile(self: GL, objectDef: ObjectDef | un
           loseStealthOnTrigger: readBooleanField(block.fields, ['LoseStealthOnTrigger']) === true,
           preTriggerUnstealthFrames: self.msToLogicFrames(readNumericField(block.fields, ['PreTriggerUnstealthTime']) ?? 0),
           awardXPForTriggering: readNumericField(block.fields, ['AwardXPForTriggering']) ?? 0,
+          specialObject: readStringField(block.fields, ['SpecialObject']) ?? null,
+          specialObjectAttachToBone: readStringField(block.fields, ['SpecialObjectAttachToBone']) ?? null,
+          maxSpecialObjects: readNumericField(block.fields, ['MaxSpecialObjects']) ?? 1,
+          specialObjectsPersistent: readBooleanField(block.fields, ['SpecialObjectsPersistent']) === true,
+          effectValue: readNumericField(block.fields, ['EffectValue']) ?? 1,
+          uniqueSpecialObjectTargets: readBooleanField(block.fields, ['UniqueSpecialObjectTargets']) === true,
+          specialObjectsPersistWhenOwnerDies: readBooleanField(block.fields, ['SpecialObjectsPersistWhenOwnerDies']) === true,
+          alwaysValidateSpecialObjects: readBooleanField(block.fields, ['AlwaysValidateSpecialObjects']) === true,
         };
       }
     }
