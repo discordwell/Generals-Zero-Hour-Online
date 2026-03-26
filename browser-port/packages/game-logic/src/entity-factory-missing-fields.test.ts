@@ -4,12 +4,15 @@
  *   - StructureCollapseProfile: MaxShudder
  *   - BattlePlanProfile: SpecialPowerTemplate, StrategyCenterHoldTheLineMaxHealthScalar
  *   - NeutronMissileUpdateProfile: DeliveryDecalRadius, SpecialJitterDistance
+ *   - ParticleUplinkCannonProfile: BeginChargeTime, RaiseAntennaTime, ReadyDelayTime,
+ *       WidthGrowTime, BeamTravelTime, ManualDrivingSpeed, ManualFastDrivingSpeed
  *
  * Source parity references:
  *   ToppleUpdate.cpp:62-69 — constructor defaults
  *   StructureCollapseUpdate.h:84 — m_maxShudder = 0
  *   BattlePlanUpdate.cpp:74 — m_specialPowerTemplate = NULL
  *   NeutronMissileUpdate.cpp:70-71 — m_specialJitterDistance = 0, m_deliveryDecalRadius = 0
+ *   ParticleUplinkCannonUpdate.cpp:74-93 — timing/driving field defaults
  */
 
 import { describe, expect, it } from 'vitest';
@@ -19,6 +22,7 @@ import {
   extractStructureCollapseProfile,
   extractBattlePlanProfile,
   extractNeutronMissileUpdateProfile,
+  extractParticleUplinkCannonProfile,
 } from './entity-factory.js';
 import { makeBlock, makeObjectDef } from './test-helpers.js';
 
@@ -177,5 +181,133 @@ describe('NeutronMissileUpdateProfile missing fields', () => {
     const profile = extractNeutronMissileUpdateProfile(mockSelf, objectDef);
     expect(profile).not.toBeNull();
     expect(profile!.specialJitterDistance).toBe(25.0);
+  });
+});
+
+// ── ParticleUplinkCannonProfile: timing + driving fields ─────────────────────
+
+describe('ParticleUplinkCannonProfile missing fields', () => {
+  it('defaults all timing fields to 0 frames and driving speeds to 0', () => {
+    // Source parity: ParticleUplinkCannonUpdate.cpp:74-93 — all default to 0
+    const objectDef = makeObjectDef('ParticleCannon', 'China', ['STRUCTURE'], [
+      makeBlock('Behavior', 'ParticleUplinkCannonUpdate ModuleTag_PUC', {}),
+    ]);
+    const profile = extractParticleUplinkCannonProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.beginChargeFrames).toBe(0);
+    expect(profile!.raiseAntennaFrames).toBe(0);
+    expect(profile!.readyDelayFrames).toBe(0);
+    expect(profile!.widthGrowFrames).toBe(0);
+    expect(profile!.beamTravelFrames).toBe(0);
+    expect(profile!.manualDrivingSpeed).toBe(0);
+    expect(profile!.manualFastDrivingSpeed).toBe(0);
+  });
+
+  it('converts BeginChargeTime from ms to frames', () => {
+    const objectDef = makeObjectDef('ParticleCannon', 'China', ['STRUCTURE'], [
+      makeBlock('Behavior', 'ParticleUplinkCannonUpdate ModuleTag_PUC', {
+        BeginChargeTime: 5000,
+      }),
+    ]);
+    const profile = extractParticleUplinkCannonProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    // 5000ms * 30 / 1000 = 150 frames
+    expect(profile!.beginChargeFrames).toBe(150);
+  });
+
+  it('converts RaiseAntennaTime from ms to frames', () => {
+    const objectDef = makeObjectDef('ParticleCannon', 'China', ['STRUCTURE'], [
+      makeBlock('Behavior', 'ParticleUplinkCannonUpdate ModuleTag_PUC', {
+        RaiseAntennaTime: 4667,
+      }),
+    ]);
+    const profile = extractParticleUplinkCannonProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    // ceil(4667 * 30 / 1000) = ceil(140.01) = 141 frames
+    expect(profile!.raiseAntennaFrames).toBe(141);
+  });
+
+  it('converts ReadyDelayTime from ms to frames', () => {
+    const objectDef = makeObjectDef('ParticleCannon', 'China', ['STRUCTURE'], [
+      makeBlock('Behavior', 'ParticleUplinkCannonUpdate ModuleTag_PUC', {
+        ReadyDelayTime: 2000,
+      }),
+    ]);
+    const profile = extractParticleUplinkCannonProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    // 2000ms * 30 / 1000 = 60 frames
+    expect(profile!.readyDelayFrames).toBe(60);
+  });
+
+  it('converts WidthGrowTime from ms to frames', () => {
+    const objectDef = makeObjectDef('ParticleCannon', 'China', ['STRUCTURE'], [
+      makeBlock('Behavior', 'ParticleUplinkCannonUpdate ModuleTag_PUC', {
+        WidthGrowTime: 2000,
+      }),
+    ]);
+    const profile = extractParticleUplinkCannonProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.widthGrowFrames).toBe(60);
+  });
+
+  it('converts BeamTravelTime from ms to frames', () => {
+    const objectDef = makeObjectDef('ParticleCannon', 'China', ['STRUCTURE'], [
+      makeBlock('Behavior', 'ParticleUplinkCannonUpdate ModuleTag_PUC', {
+        BeamTravelTime: 2500,
+      }),
+    ]);
+    const profile = extractParticleUplinkCannonProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    // 2500ms * 30 / 1000 = 75 frames
+    expect(profile!.beamTravelFrames).toBe(75);
+  });
+
+  it('converts ManualDrivingSpeed from units/sec to units/frame', () => {
+    // Source parity: ParticleUplinkCannonUpdate.cpp:518 — speed /= LOGICFRAMES_PER_SECOND
+    const objectDef = makeObjectDef('ParticleCannon', 'China', ['STRUCTURE'], [
+      makeBlock('Behavior', 'ParticleUplinkCannonUpdate ModuleTag_PUC', {
+        ManualDrivingSpeed: 20,
+      }),
+    ]);
+    const profile = extractParticleUplinkCannonProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    // 20 / 30 = 0.6667
+    expect(profile!.manualDrivingSpeed).toBeCloseTo(20 / 30, 10);
+  });
+
+  it('converts ManualFastDrivingSpeed from units/sec to units/frame', () => {
+    const objectDef = makeObjectDef('ParticleCannon', 'China', ['STRUCTURE'], [
+      makeBlock('Behavior', 'ParticleUplinkCannonUpdate ModuleTag_PUC', {
+        ManualFastDrivingSpeed: 40,
+      }),
+    ]);
+    const profile = extractParticleUplinkCannonProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    // 40 / 30 = 1.3333
+    expect(profile!.manualFastDrivingSpeed).toBeCloseTo(40 / 30, 10);
+  });
+
+  it('parses all 7 new fields together with retail-like values', () => {
+    // Values from retail ChinaParticleCannon INI
+    const objectDef = makeObjectDef('ParticleCannon', 'China', ['STRUCTURE'], [
+      makeBlock('Behavior', 'ParticleUplinkCannonUpdate ModuleTag_PUC', {
+        BeginChargeTime: 5000,
+        RaiseAntennaTime: 4667,
+        ReadyDelayTime: 2000,
+        WidthGrowTime: 2000,
+        BeamTravelTime: 2500,
+        ManualDrivingSpeed: 20,
+        ManualFastDrivingSpeed: 40,
+      }),
+    ]);
+    const profile = extractParticleUplinkCannonProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.beginChargeFrames).toBe(150);
+    expect(profile!.raiseAntennaFrames).toBe(141);
+    expect(profile!.readyDelayFrames).toBe(60);
+    expect(profile!.widthGrowFrames).toBe(60);
+    expect(profile!.beamTravelFrames).toBe(75);
+    expect(profile!.manualDrivingSpeed).toBeCloseTo(20 / 30, 10);
+    expect(profile!.manualFastDrivingSpeed).toBeCloseTo(40 / 30, 10);
   });
 });

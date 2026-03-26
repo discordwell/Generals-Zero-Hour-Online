@@ -3741,8 +3741,14 @@ export function extractParticleUplinkCannonProfile(self: GL, objectDef: ObjectDe
     if (block.type.toUpperCase() === 'BEHAVIOR') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType === 'PARTICLEUPLINKCANNONUPDATE') {
+        const LOGICFRAMES_PER_SECOND = 30;
         profile = {
           specialPowerTemplateName: (readStringField(block.fields, ['SpecialPowerTemplate']) ?? '').trim().toUpperCase(),
+          beginChargeFrames: self.msToLogicFrames(readNumericField(block.fields, ['BeginChargeTime']) ?? 0),
+          raiseAntennaFrames: self.msToLogicFrames(readNumericField(block.fields, ['RaiseAntennaTime']) ?? 0),
+          readyDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['ReadyDelayTime']) ?? 0),
+          widthGrowFrames: self.msToLogicFrames(readNumericField(block.fields, ['WidthGrowTime']) ?? 0),
+          beamTravelFrames: self.msToLogicFrames(readNumericField(block.fields, ['BeamTravelTime']) ?? 0),
           totalFiringFrames: self.msToLogicFrames(readNumericField(block.fields, ['TotalFiringTime']) ?? 0),
           totalDamagePulses: readNumericField(block.fields, ['TotalDamagePulses']) ?? 0,
           damagePerSecond: readNumericField(block.fields, ['DamagePerSecond']) ?? 0,
@@ -3751,6 +3757,8 @@ export function extractParticleUplinkCannonProfile(self: GL, objectDef: ObjectDe
           revealRange: (readNumericField(block.fields, ['RevealRange']) ?? 0) * MAP_XY_FACTOR,
           swathOfDeathDistance: (readNumericField(block.fields, ['SwathOfDeathDistance']) ?? 0) * MAP_XY_FACTOR,
           swathOfDeathAmplitude: (readNumericField(block.fields, ['SwathOfDeathAmplitude']) ?? 0) * MAP_XY_FACTOR,
+          manualDrivingSpeed: (readNumericField(block.fields, ['ManualDrivingSpeed']) ?? 0) / LOGICFRAMES_PER_SECOND,
+          manualFastDrivingSpeed: (readNumericField(block.fields, ['ManualFastDrivingSpeed']) ?? 0) / LOGICFRAMES_PER_SECOND,
         };
       }
     }

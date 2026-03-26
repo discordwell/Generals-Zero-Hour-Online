@@ -6001,6 +6001,11 @@ interface MissileLauncherBuildingState {
  */
 interface ParticleUplinkCannonProfile {
   specialPowerTemplateName: string;
+  beginChargeFrames: number;
+  raiseAntennaFrames: number;
+  readyDelayFrames: number;
+  widthGrowFrames: number;
+  beamTravelFrames: number;
   totalFiringFrames: number;
   totalDamagePulses: number;
   damagePerSecond: number;
@@ -6009,6 +6014,10 @@ interface ParticleUplinkCannonProfile {
   revealRange: number;
   swathOfDeathDistance: number;
   swathOfDeathAmplitude: number;
+  /** Manual driving speed in units/frame (INI value in units/sec, divided by 30). */
+  manualDrivingSpeed: number;
+  /** Fast manual driving speed in units/frame (INI value in units/sec, divided by 30). */
+  manualFastDrivingSpeed: number;
 }
 
 type PUCStatus = 'IDLE' | 'CHARGING' | 'READY' | 'FIRING' | 'POSTFIRE';
