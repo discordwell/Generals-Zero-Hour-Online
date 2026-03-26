@@ -2941,6 +2941,19 @@ export function extractHordeUpdateProfile(self: GL, objectDef: ObjectDef | undef
         }
 
         const updateRateMs = readNumericField(block.fields, ['UpdateRate']) ?? 1000;
+
+        // Source parity: Action field — C++ parseIndexList with TheHordeActionTypeNames.
+        // Only value is "HORDE" (HORDEACTION_HORDE = 0). Default is HORDEACTION_HORDE.
+        const actionRaw = readStringField(block.fields, ['Action']) ?? 'HORDE';
+
+        // Source parity: FlagSubObjectNames — C++ parseAsciiStringVector.
+        // Not used in retail ZH INI data but present in C++ FieldParse.
+        const flagSubObjRaw = readStringField(block.fields, ['FlagSubObjectNames']) ?? '';
+        const flagSubObjectNames: string[] = [];
+        for (const token of flagSubObjRaw.split(/\s+/)) {
+          if (token) flagSubObjectNames.push(token);
+        }
+
         profile = {
           updateRate: Math.max(1, self.msToLogicFrames(updateRateMs)),
           kindOf,
@@ -2949,7 +2962,9 @@ export function extractHordeUpdateProfile(self: GL, objectDef: ObjectDef | undef
           rubOffRadius: readNumericField(block.fields, ['RubOffRadius']) ?? 20,
           alliesOnly: (readStringField(block.fields, ['AlliesOnly']) ?? 'Yes').toUpperCase() !== 'NO',
           exactMatch: (readStringField(block.fields, ['ExactMatch']) ?? 'No').toUpperCase() === 'YES',
+          action: actionRaw.toUpperCase(),
           allowedNationalism: (readStringField(block.fields, ['AllowedNationalism']) ?? 'Yes').toUpperCase() !== 'NO',
+          flagSubObjectNames,
         };
       }
     }

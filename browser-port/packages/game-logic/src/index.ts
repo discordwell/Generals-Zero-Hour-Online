@@ -4739,8 +4739,20 @@ interface HordeUpdateProfile {
   alliesOnly: boolean;
   /** Only exact-match template types count. */
   exactMatch: boolean;
+  /**
+   * Source parity: HordeActionType — what to do when horde status is gained.
+   * C++ enum: HORDEACTION_HORDE (= "HORDE"), the only value.
+   * INI field: Action = HORDE (parsed via parseIndexList with TheHordeActionTypeNames).
+   */
+  action: string;
   /** Allow NATIONALISM weapon bonus when in horde. */
   allowedNationalism: boolean;
+  /**
+   * Source parity: FlagSubObjectNames — sub-object name(s) shown/hidden on horde flag display.
+   * C++ type: std::vector<AsciiString>, parsed via parseAsciiStringVector.
+   * Not used in retail ZH INI data but present in the C++ FieldParse.
+   */
+  flagSubObjectNames: string[];
 }
 
 /**
