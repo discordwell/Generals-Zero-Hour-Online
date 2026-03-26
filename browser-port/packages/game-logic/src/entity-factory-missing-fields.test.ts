@@ -4,12 +4,15 @@
  *   - StructureCollapseProfile: MaxShudder
  *   - BattlePlanProfile: SpecialPowerTemplate, StrategyCenterHoldTheLineMaxHealthScalar
  *   - NeutronMissileUpdateProfile: DeliveryDecalRadius, SpecialJitterDistance
+ *   - NeutronMissileSlowDeathProfile: PushForce (per-blast), ScorchMarkSize
  *
  * Source parity references:
  *   ToppleUpdate.cpp:62-69 — constructor defaults
  *   StructureCollapseUpdate.h:84 — m_maxShudder = 0
  *   BattlePlanUpdate.cpp:74 — m_specialPowerTemplate = NULL
  *   NeutronMissileUpdate.cpp:70-71 — m_specialJitterDistance = 0, m_deliveryDecalRadius = 0
+ *   NeutronMissileSlowDeathUpdate.cpp:68 — m_blastInfo[i].pushForceMag = 0.0f
+ *   NeutronMissileSlowDeathUpdate.cpp:71 — m_scorchSize = 0.0f
  */
 
 import { describe, expect, it } from 'vitest';
@@ -19,6 +22,7 @@ import {
   extractStructureCollapseProfile,
   extractBattlePlanProfile,
   extractNeutronMissileUpdateProfile,
+  extractNeutronMissileSlowDeathProfile,
 } from './entity-factory.js';
 import { makeBlock, makeObjectDef } from './test-helpers.js';
 
@@ -177,5 +181,68 @@ describe('NeutronMissileUpdateProfile missing fields', () => {
     const profile = extractNeutronMissileUpdateProfile(mockSelf, objectDef);
     expect(profile).not.toBeNull();
     expect(profile!.specialJitterDistance).toBe(25.0);
+  });
+});
+
+// ── NeutronMissileSlowDeathProfile: PushForce + ScorchMarkSize ───────────────
+
+describe('NeutronMissileSlowDeathProfile missing fields', () => {
+  it('defaults pushForce to 0 for each blast and scorchSize to 0', () => {
+    // Source parity: NeutronMissileSlowDeathUpdate.cpp:68 — m_blastInfo[i].pushForceMag = 0.0f
+    // Source parity: NeutronMissileSlowDeathUpdate.cpp:71 — m_scorchSize = 0.0f
+    const objectDef = makeObjectDef('NukeDetonation', 'China', [], [
+      makeBlock('Behavior', 'NeutronMissileSlowDeathBehavior ModuleTag_08', {
+        Blast1Enabled: true,
+      }),
+    ]);
+    const profile = extractNeutronMissileSlowDeathProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.blasts[0]!.pushForce).toBe(0);
+    expect(profile!.scorchSize).toBe(0);
+  });
+
+  it('parses Blast1PushForce from INI', () => {
+    // Source parity: FieldParse "Blast1PushForce" -> m_blastInfo[NEUTRON_BLAST_1].pushForceMag
+    const objectDef = makeObjectDef('NukeDetonation', 'China', [], [
+      makeBlock('Behavior', 'NeutronMissileSlowDeathBehavior ModuleTag_08', {
+        Blast1Enabled: true,
+        Blast1PushForce: 6,
+      }),
+    ]);
+    const profile = extractNeutronMissileSlowDeathProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.blasts[0]!.pushForce).toBe(6);
+  });
+
+  it('parses PushForce for multiple blasts independently', () => {
+    // Source parity: each blast index has its own PushForce field
+    const objectDef = makeObjectDef('NukeDetonation', 'China', [], [
+      makeBlock('Behavior', 'NeutronMissileSlowDeathBehavior ModuleTag_08', {
+        Blast1Enabled: true,
+        Blast1PushForce: 10,
+        Blast4Enabled: true,
+        Blast4PushForce: 6,
+        Blast6Enabled: true,
+        Blast6PushForce: 4,
+      }),
+    ]);
+    const profile = extractNeutronMissileSlowDeathProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.blasts[0]!.pushForce).toBe(10); // Blast1
+    expect(profile!.blasts[1]!.pushForce).toBe(0);  // Blast2 — not set
+    expect(profile!.blasts[3]!.pushForce).toBe(6);  // Blast4
+    expect(profile!.blasts[5]!.pushForce).toBe(4);  // Blast6
+  });
+
+  it('parses ScorchMarkSize from INI', () => {
+    // Source parity: FieldParse "ScorchMarkSize" -> m_scorchSize
+    const objectDef = makeObjectDef('NukeDetonation', 'China', [], [
+      makeBlock('Behavior', 'NeutronMissileSlowDeathBehavior ModuleTag_08', {
+        ScorchMarkSize: 320,
+      }),
+    ]);
+    const profile = extractNeutronMissileSlowDeathProfile(mockSelf, objectDef);
+    expect(profile).not.toBeNull();
+    expect(profile!.scorchSize).toBe(320);
   });
 });

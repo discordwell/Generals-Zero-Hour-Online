@@ -5900,10 +5900,14 @@ interface NeutronMissileBlastInfo {
   maxDamage: number;
   minDamage: number;
   toppleSpeed: number;
+  /** Source parity: BlastInfo::pushForceMag — magnitude of physics force to push objects. */
+  pushForce: number;
 }
 
 interface NeutronMissileSlowDeathProfile {
   blasts: NeutronMissileBlastInfo[];
+  /** Source parity: m_scorchSize — size of the scorch mark placed at detonation point. */
+  scorchSize: number;
 }
 
 interface NeutronMissileSlowDeathState {

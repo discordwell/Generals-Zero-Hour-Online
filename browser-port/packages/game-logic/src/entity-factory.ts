@@ -4818,9 +4818,13 @@ export function extractNeutronMissileSlowDeathProfile(self: GL, objectDef: Objec
         maxDamage: readNumericField(block.fields, [`${prefix}MaxDamage`]) ?? 0,
         minDamage: readNumericField(block.fields, [`${prefix}MinDamage`]) ?? 0,
         toppleSpeed: readNumericField(block.fields, [`${prefix}ToppleSpeed`]) ?? 0,
+        pushForce: readNumericField(block.fields, [`${prefix}PushForce`]) ?? 0,
       });
     }
-    profile = { blasts };
+    profile = {
+      blasts,
+      scorchSize: readNumericField(block.fields, ['ScorchMarkSize']) ?? 0,
+    };
   };
   for (const block of objectDef.blocks) visitBlock(block);
   if (!profile && self.resolveObjectDefParent(objectDef)) {
