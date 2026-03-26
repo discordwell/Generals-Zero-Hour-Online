@@ -1957,6 +1957,43 @@ interface AttackWeaponProfile {
   fireSoundLoopTime: number;
   /** Source parity: WeaponTemplate::m_projectileStreamName — visual projectile stream effect name. */
   projectileStreamName: string | null;
+  /** Source parity: WeaponTemplate::m_fireFXs — fire visual effect name (first/default level). */
+  fireFX: string | null;
+  /**
+   * Source parity: WeaponTemplate::m_fireFXs[LEVEL_COUNT] — per-veterancy-level fire FX names.
+   * Index 0 = REGULAR, 1 = VETERAN, 2 = ELITE, 3 = HEROIC.
+   * "FireFX" sets all 4 levels to the same value; "VeterancyFireFX" overrides individual levels.
+   */
+  fireFXNames: [string | null, string | null, string | null, string | null];
+  /** Source parity: WeaponTemplate::m_projectileDetonateFXs — detonation FX name (first/default level). */
+  projectileDetonationFX: string | null;
+  /**
+   * Source parity: WeaponTemplate::m_projectileDetonateFXs[LEVEL_COUNT] — per-veterancy-level detonation FX names.
+   * Index 0 = REGULAR, 1 = VETERAN, 2 = ELITE, 3 = HEROIC.
+   */
+  projectileDetonationFXNames: [string | null, string | null, string | null, string | null];
+  /** Source parity: WeaponTemplate::m_projectileDetonationOCLNames — detonation OCL name (first/default level). */
+  projectileDetonationOCL: string | null;
+  /**
+   * Source parity: WeaponTemplate::m_projectileDetonationOCLNames[LEVEL_COUNT] — per-veterancy-level detonation OCL names.
+   * Index 0 = REGULAR, 1 = VETERAN, 2 = ELITE, 3 = HEROIC.
+   */
+  projectileDetonationOCLNames: [string | null, string | null, string | null, string | null];
+  /** Source parity: WeaponTemplate::m_projectileExhausts — projectile exhaust particle system name (first/default level). */
+  projectileExhaust: string | null;
+  /**
+   * Source parity: WeaponTemplate::m_projectileExhausts[LEVEL_COUNT] — per-veterancy-level exhaust particle system names.
+   * Index 0 = REGULAR, 1 = VETERAN, 2 = ELITE, 3 = HEROIC.
+   */
+  projectileExhaustNames: [string | null, string | null, string | null, string | null];
+  /** Source parity: WeaponTemplate::m_isShowsAmmoPips — whether this weapon shows ammo pip UI (default false). */
+  showsAmmoPips: boolean;
+  /** Source parity: WeaponTemplate::m_playFXWhenStealthed — play fire FX even when unit is stealthed (default false). */
+  playFXWhenStealthed: boolean;
+  /** Source parity: WeaponTemplate::m_weaponRecoil — turret recoil angle in radians (default 0). */
+  weaponRecoil: number;
+  /** Source parity: WeaponTemplate::m_suspendFXDelay — FX suspension delay in logic frames (default 0). */
+  suspendFXDelayFrames: number;
 }
 
 interface WeaponTemplateSetProfile {

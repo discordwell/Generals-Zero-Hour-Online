@@ -196,6 +196,38 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
     ? projectileStreamNameRaw
     : null;
 
+  // Source parity: WeaponTemplate::m_fireFXs[LEVEL_COUNT] — per-veterancy fire FX names.
+  // "FireFX" sets all 4 levels (parseAllVetLevelsFXList); "VeterancyFireFX" overrides individual levels.
+  const fireFXNames = resolvePerVetLevelNames(self, weaponDef, 'FireFX', 'VeterancyFireFX');
+  const fireFX = fireFXNames[0];
+
+  // Source parity: WeaponTemplate::m_projectileDetonateFXs[LEVEL_COUNT] — detonation FX names.
+  const projectileDetonationFXNames = resolvePerVetLevelNames(self, weaponDef, 'ProjectileDetonationFX', 'VeterancyProjectileDetonationFX');
+  const projectileDetonationFX = projectileDetonationFXNames[0];
+
+  // Source parity: WeaponTemplate::m_projectileDetonationOCLNames[LEVEL_COUNT] — detonation OCL names.
+  const projectileDetonationOCLNames = resolvePerVetLevelNames(self, weaponDef, 'ProjectileDetonationOCL', 'VeterancyProjectileDetonationOCL');
+  const projectileDetonationOCL = projectileDetonationOCLNames[0];
+
+  // Source parity: WeaponTemplate::m_projectileExhausts[LEVEL_COUNT] — exhaust particle system names.
+  const projectileExhaustNames = resolvePerVetLevelNames(self, weaponDef, 'ProjectileExhaust', 'VeterancyProjectileExhaust');
+  const projectileExhaust = projectileExhaustNames[0];
+
+  // Source parity: WeaponTemplate::m_isShowsAmmoPips — ammo pip UI display (default false).
+  const showsAmmoPips = readBooleanField(weaponDef.fields, ['ShowsAmmoPips']) ?? false;
+
+  // Source parity: WeaponTemplate::m_playFXWhenStealthed — play weapon FX during stealth (default false).
+  const playFXWhenStealthed = readBooleanField(weaponDef.fields, ['PlayFXWhenStealthed']) ?? false;
+
+  // Source parity: WeaponTemplate::m_weaponRecoil — turret recoil angle (Weapon.cpp line 187).
+  // C++ default 0.0. INI value is in degrees, converted to radians via parseAngleReal.
+  const weaponRecoilDeg = readNumericField(weaponDef.fields, ['WeaponRecoil']) ?? 0;
+  const weaponRecoil = weaponRecoilDeg * (Math.PI / 180);
+
+  // Source parity: WeaponTemplate::m_suspendFXDelay — FX suspension delay (Weapon.cpp line 239).
+  // C++ default 0. Parsed via parseDurationUnsignedInt (ms → frames conversion).
+  const suspendFXDelayFrames = self.msToLogicFrames(readNumericField(weaponDef.fields, ['SuspendFXDelay']) ?? 0);
+
   // Source parity: DumbProjectileBehavior arc parameters — parsed from the projectile
   // object template referenced by ProjectileObject on this weapon.
   const bezierArc = projectileObjectName
@@ -270,6 +302,18 @@ export function resolveWeaponProfileFromDef(self: GL, weaponDef: WeaponDef): Att
     damageStatusType,
     fireSoundLoopTime,
     projectileStreamName,
+    fireFX,
+    fireFXNames,
+    projectileDetonationFX,
+    projectileDetonationFXNames,
+    projectileDetonationOCL,
+    projectileDetonationOCLNames,
+    projectileExhaust,
+    projectileExhaustNames,
+    showsAmmoPips,
+    playFXWhenStealthed,
+    weaponRecoil,
+    suspendFXDelayFrames,
   };
 }
 
@@ -524,6 +568,60 @@ function resolvePerVetLevelFireOCL(self: GL, weaponDef: WeaponDef): [string | nu
         const levelIndex = vetLevelMap[levelName];
         if (levelIndex !== undefined && oclName) {
           result[levelIndex] = oclName;
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Source parity: Generic per-veterancy-level name resolver for FX, OCL, and particle system fields.
+ *
+ * C++ INI parsing pattern (shared by FireFX, ProjectileDetonationFX, ProjectileDetonationOCL,
+ * ProjectileExhaust):
+ * - "BaseField" uses parseAllVetLevels*: sets the SAME name for all 4 vet levels.
+ * - "VeterancyBaseField" uses parsePerVetLevel*: "VeterancyBaseField = VETERAN FX_Name"
+ *   overrides a specific vet level slot.
+ *
+ * Processing order matches C++: base field is parsed first (fills all slots), then
+ * veterancy entries override individual slots.
+ */
+function resolvePerVetLevelNames(
+  self: GL,
+  weaponDef: WeaponDef,
+  baseFieldName: string,
+  vetFieldName: string,
+): [string | null, string | null, string | null, string | null] {
+  const result: [string | null, string | null, string | null, string | null] = [null, null, null, null];
+
+  // Base field sets all 4 levels to the same value.
+  const baseValue = readStringField(weaponDef.fields, [baseFieldName])?.trim() || null;
+  if (baseValue) {
+    result[0] = baseValue;
+    result[1] = baseValue;
+    result[2] = baseValue;
+    result[3] = baseValue;
+  }
+
+  // Veterancy field overrides individual levels.
+  const vetValue = weaponDef.fields[vetFieldName];
+  if (vetValue !== undefined) {
+    const vetLevelMap: Record<string, number> = {
+      REGULAR: 0,
+      VETERAN: 1,
+      ELITE: 2,
+      HEROIC: 3,
+    };
+
+    for (const tokens of self.extractIniValueTokens(vetValue)) {
+      if (tokens.length >= 2) {
+        const levelName = tokens[0]!.toUpperCase();
+        const name = tokens[1]!.trim();
+        const levelIndex = vetLevelMap[levelName];
+        if (levelIndex !== undefined && name) {
+          result[levelIndex] = name;
         }
       }
     }
