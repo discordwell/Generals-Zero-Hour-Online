@@ -4016,6 +4016,12 @@ export function extractHelicopterSlowDeathProfiles(self: GL, objectDef: ObjectDe
       * Math.PI / 180;
     // parsePercentToReal: percentage → 0-1.
     const fallHowFast = (readNumericField(block.fields, ['FallHowFast']) ?? 50) / 100;
+    // C++ parseAccelerationReal: dist/sec² → dist/frame² (÷ LOGIC_FRAME_RATE²).
+    // C++ default: m_maxBraking = 99999.0f (already in frame units after parse).
+    const maxBrakingRaw = readNumericField(block.fields, ['MaxBraking']);
+    const maxBraking = maxBrakingRaw != null
+      ? maxBrakingRaw / (LOGIC_FRAME_RATE * LOGIC_FRAME_RATE)
+      : 99999.0;
     const delayFromGroundToFinalDeath = self.msToLogicFrames(
       readNumericField(block.fields, ['DelayFromGroundToFinalDeath']) ?? 0);
 
@@ -4028,6 +4034,9 @@ export function extractHelicopterSlowDeathProfiles(self: GL, objectDef: ObjectDe
     if (finalStr) oclFinalBlowUp.push(finalStr);
 
     const finalRubbleObject = readStringField(block.fields, ['FinalRubbleObject']) ?? '';
+    // C++ parseAsciiString: blade debris template name and bone name.
+    const bladeObjectName = readStringField(block.fields, ['BladeObjectName']) ?? '';
+    const bladeBoneName = readStringField(block.fields, ['BladeBoneName']) ?? '';
 
     profiles.push({
       deathTypes,
@@ -4042,10 +4051,13 @@ export function extractHelicopterSlowDeathProfiles(self: GL, objectDef: ObjectDe
       selfSpinUpdateDelay,
       selfSpinUpdateAmount,
       fallHowFast,
+      maxBraking,
       delayFromGroundToFinalDeath,
       oclHitGround,
       oclFinalBlowUp,
       finalRubbleObject,
+      bladeObjectName,
+      bladeBoneName,
     });
   };
 

@@ -5145,6 +5145,8 @@ interface HelicopterSlowDeathProfile {
   selfSpinUpdateAmount: number;
   /** Fraction of gravity applied for fall (0 = float, 1 = full gravity). */
   fallHowFast: number;
+  /** Source parity: m_maxBraking — max braking deceleration (dist/frame²). C++ default 99999. */
+  maxBraking: number;
   /** Frames after ground hit before final explosion. */
   delayFromGroundToFinalDeath: number;
   /** OCL names to execute on ground hit. */
@@ -5153,6 +5155,10 @@ interface HelicopterSlowDeathProfile {
   oclFinalBlowUp: string[];
   /** Final rubble object template name. */
   finalRubbleObject: string;
+  /** Source parity: m_bladeObjectName — blade debris template name. */
+  bladeObjectName: string;
+  /** Source parity: m_bladeBone — bone name for blade detachment. */
+  bladeBoneName: string;
 }
 
 interface HelicopterSlowDeathState {
