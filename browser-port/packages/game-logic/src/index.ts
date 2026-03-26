@@ -4420,6 +4420,8 @@ interface StealthProfile {
   disguisesAsTeam: boolean;
   /** Source parity: StealthUpdate.h:82 — ObjectStatusMask conditions that prevent stealth (default empty). */
   forbiddenStatus: string[];
+  /** Source parity (ZH): StealthUpdate.h:81 — ObjectStatusMask required status bits; ALL must be set for stealth (default empty). */
+  requiredStatus: string[];
   /** Source parity: StealthUpdate.h:87 — max opacity for friendly-view stealthed units (default 1.0). */
   friendlyOpacityMax: number;
   /** Source parity: StealthUpdate.h:91 — pulse animation frequency in frames (default 0). */

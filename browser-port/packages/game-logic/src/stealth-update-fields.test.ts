@@ -67,6 +67,31 @@ function spawnAndGetProfile(fields: Record<string, unknown>) {
 
 describe('StealthUpdate FieldParse: 12 missing fields from C++ source', () => {
 
+  // 0. RequiredStatus (ZH-only field)
+  describe('RequiredStatus (ObjectStatusMaskType, default empty)', () => {
+    it('parses space-separated status tokens into requiredStatus array', () => {
+      const { profile } = spawnAndGetProfile({
+        RequiredStatus: 'IMMOBILE STEALTHED',
+      });
+      expect(profile).not.toBeNull();
+      expect(profile!.requiredStatus).toEqual(['IMMOBILE', 'STEALTHED']);
+    });
+
+    it('defaults to empty array when not specified', () => {
+      const { profile } = spawnAndGetProfile({});
+      expect(profile).not.toBeNull();
+      expect(profile!.requiredStatus).toEqual([]);
+    });
+
+    it('handles single token', () => {
+      const { profile } = spawnAndGetProfile({
+        RequiredStatus: 'AIRBORNE_TARGET',
+      });
+      expect(profile).not.toBeNull();
+      expect(profile!.requiredStatus).toEqual(['AIRBORNE_TARGET']);
+    });
+  });
+
   // 1. ForbiddenStatus
   describe('ForbiddenStatus (ObjectStatusMaskType, default empty)', () => {
     it('parses space-separated status tokens into forbiddenStatus array', () => {
@@ -275,10 +300,11 @@ describe('StealthUpdate FieldParse: 12 missing fields from C++ source', () => {
     });
   });
 
-  // Comprehensive test: all 12 fields set at once
-  describe('All 12 fields parsed together', () => {
+  // Comprehensive test: all 13 fields set at once
+  describe('All 13 fields parsed together', () => {
     it('correctly parses all new fields in a single StealthUpdate block', () => {
       const { profile } = spawnAndGetProfile({
+        RequiredStatus: 'CAN_STEALTH RIDER1',
         ForbiddenStatus: 'IMMOBILE SOLD UNDER_CONSTRUCTION',
         FriendlyOpacityMax: 0.75,
         PulseFrequency: 660,
@@ -295,6 +321,7 @@ describe('StealthUpdate FieldParse: 12 missing fields from C++ source', () => {
       expect(profile).not.toBeNull();
 
       // ObjectStatusMask fields
+      expect(profile!.requiredStatus).toEqual(['CAN_STEALTH', 'RIDER1']);
       expect(profile!.forbiddenStatus).toEqual(['IMMOBILE', 'SOLD', 'UNDER_CONSTRUCTION']);
 
       // Real/percent field
