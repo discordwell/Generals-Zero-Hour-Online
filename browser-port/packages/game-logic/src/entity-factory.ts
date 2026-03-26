@@ -91,6 +91,8 @@ export function createMapEntity(self: GL,
   const repairDockProfile = extractRepairDockProfile(self, objectDef);
   const commandButtonHuntProfile = extractCommandButtonHuntProfile(self, objectDef);
   const dozerAIProfile = extractDozerAIProfile(self, objectDef);
+  const workerAIProfile = extractWorkerAIProfile(self, objectDef);
+  const powTruckAIProfile = extractPOWTruckAIProfile(self, objectDef);
   const isSupplyCenter = self.detectIsSupplyCenter(objectDef);
   const experienceProfile = extractExperienceProfile(self, objectDef);
   const visionRangeFromTemplate = readNumericField(objectDef?.fields ?? {}, ['VisionRange']) ?? 0;
@@ -438,6 +440,8 @@ export function createMapEntity(self: GL,
     commandButtonHuntButtonName: '',
     commandButtonHuntNextScanFrame: 0,
     dozerAIProfile,
+    workerAIProfile,
+    powTruckAIProfile,
     dozerIdleTooLongTimestamp: self.frameCounter,
     dozerBuildTaskOrderFrame: 0,
     dozerRepairTaskOrderFrame: 0,
@@ -2316,6 +2320,109 @@ export function extractDozerAIProfile(self: GL, objectDef: ObjectDef | undefined
           repairHealthPercentPerSecond: Math.max(0, repairHealthPercentPerSecond),
           boredTimeFrames: boredTimeMs > 0 ? self.msToLogicFramesReal(boredTimeMs) : 0,
           boredRange: Math.max(0, boredRange),
+        };
+        return;
+      }
+    }
+
+    for (const child of block.blocks) {
+      visitBlock(child);
+    }
+  };
+
+  for (const block of objectDef.blocks) {
+    visitBlock(block);
+  }
+
+  return profile;
+}
+
+/**
+ * Source parity: WorkerAIUpdateModuleData unique fields (WorkerAIUpdate.h lines 96-108).
+ * WorkerAIUpdate inherits from SupplyTruckAIUpdate; shared supply fields are extracted
+ * by extractSupplyTruckProfile(). This extracts the Worker-specific fields only.
+ */
+export interface WorkerAIProfile {
+  /** Source parity: WorkerAIUpdateModuleData::m_repairHealthPercentPerSecond (parsePercentToReal → 0..1). */
+  repairHealthPercentPerSecond: number;
+  /** Source parity: WorkerAIUpdateModuleData::m_boredTime (parseDurationReal → frames). */
+  boredTimeFrames: number;
+  /** Source parity: WorkerAIUpdateModuleData::m_boredRange. */
+  boredRange: number;
+  /** Source parity: WorkerAIUpdateModuleData::m_suppliesDepletedVoice (parseAudioEventRTS). */
+  suppliesDepletedVoice: string;
+}
+
+export function extractWorkerAIProfile(self: GL, objectDef: ObjectDef | undefined): WorkerAIProfile | null {
+  if (!objectDef) {
+    return null;
+  }
+
+  let profile: WorkerAIProfile | null = null;
+  const visitBlock = (block: IniBlock): void => {
+    if (profile !== null) {
+      return;
+    }
+    if (block.type.toUpperCase() === 'BEHAVIOR') {
+      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      if (moduleType === 'WORKERAIUPDATE') {
+        // Source parity: INI::parsePercentToReal divides by 100.
+        const rawPercent = readNumericField(block.fields, ['RepairHealthPercentPerSecond']) ?? 0;
+        const repairHealthPercentPerSecond = Math.max(0, rawPercent / 100);
+        const boredTimeMs = readNumericField(block.fields, ['BoredTime']) ?? 0;
+        const boredRange = readNumericField(block.fields, ['BoredRange']) ?? 0;
+        const suppliesDepletedVoice = readStringField(block.fields, ['SuppliesDepletedVoice']) ?? '';
+        profile = {
+          repairHealthPercentPerSecond,
+          boredTimeFrames: boredTimeMs > 0 ? self.msToLogicFramesReal(boredTimeMs) : 0,
+          boredRange: Math.max(0, boredRange),
+          suppliesDepletedVoice,
+        };
+        return;
+      }
+    }
+
+    for (const child of block.blocks) {
+      visitBlock(child);
+    }
+  };
+
+  for (const block of objectDef.blocks) {
+    visitBlock(block);
+  }
+
+  return profile;
+}
+
+/**
+ * Source parity: POWTruckAIUpdateModuleData fields (POWTruckAIUpdate.cpp lines 68-73).
+ */
+export interface POWTruckAIProfile {
+  /** Source parity: POWTruckAIUpdateModuleData::m_boredTimeInFrames (parseDurationUnsignedInt → frames). */
+  boredTimeFrames: number;
+  /** Source parity: POWTruckAIUpdateModuleData::m_hangAroundPrisonDistance (parseReal). */
+  atPrisonDistance: number;
+}
+
+export function extractPOWTruckAIProfile(self: GL, objectDef: ObjectDef | undefined): POWTruckAIProfile | null {
+  if (!objectDef) {
+    return null;
+  }
+
+  let profile: POWTruckAIProfile | null = null;
+  const visitBlock = (block: IniBlock): void => {
+    if (profile !== null) {
+      return;
+    }
+    if (block.type.toUpperCase() === 'BEHAVIOR') {
+      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      if (moduleType === 'POWTRUCKAIUPDATE') {
+        // Source parity: INI::parseDurationUnsignedInt converts ms → frames (truncated).
+        const boredTimeMs = readNumericField(block.fields, ['BoredTime']) ?? 0;
+        const atPrisonDistance = readNumericField(block.fields, ['AtPrisonDistance']) ?? 0;
+        profile = {
+          boredTimeFrames: boredTimeMs > 0 ? self.msToLogicFrames(boredTimeMs) : 0,
+          atPrisonDistance: Math.max(0, atPrisonDistance),
         };
         return;
       }

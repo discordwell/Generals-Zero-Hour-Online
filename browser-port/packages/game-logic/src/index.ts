@@ -723,6 +723,8 @@ import {
   extractRepairDockProfile as extractRepairDockProfileImpl,
   extractCommandButtonHuntProfile as extractCommandButtonHuntProfileImpl,
   extractDozerAIProfile as extractDozerAIProfileImpl,
+  extractWorkerAIProfile as extractWorkerAIProfileImpl,
+  extractPOWTruckAIProfile as extractPOWTruckAIProfileImpl,
   extractExperienceProfile as extractExperienceProfileImpl,
   extractAutoHealProfile as extractAutoHealProfileImpl,
   extractPropagandaTowerProfile as extractPropagandaTowerProfileImpl,
@@ -3030,6 +3032,32 @@ interface DozerAIProfile {
 }
 
 /**
+ * Source parity: WorkerAIUpdateModuleData unique fields (WorkerAIUpdate.h lines 96-108).
+ * WorkerAIUpdate inherits from SupplyTruckAIUpdate; shared supply fields are extracted
+ * by extractSupplyTruckProfile(). This extracts the Worker-specific fields only.
+ */
+interface WorkerAIProfile {
+  /** Source parity: WorkerAIUpdateModuleData::m_repairHealthPercentPerSecond (parsePercentToReal → 0..1). */
+  repairHealthPercentPerSecond: number;
+  /** Source parity: WorkerAIUpdateModuleData::m_boredTime (parseDurationReal → frames). */
+  boredTimeFrames: number;
+  /** Source parity: WorkerAIUpdateModuleData::m_boredRange. */
+  boredRange: number;
+  /** Source parity: WorkerAIUpdateModuleData::m_suppliesDepletedVoice (parseAudioEventRTS). */
+  suppliesDepletedVoice: string;
+}
+
+/**
+ * Source parity: POWTruckAIUpdateModuleData fields (POWTruckAIUpdate.cpp lines 68-73).
+ */
+interface POWTruckAIProfile {
+  /** Source parity: POWTruckAIUpdateModuleData::m_boredTimeInFrames (parseDurationUnsignedInt → frames). */
+  boredTimeFrames: number;
+  /** Source parity: POWTruckAIUpdateModuleData::m_hangAroundPrisonDistance (parseReal). */
+  atPrisonDistance: number;
+}
+
+/**
  * Source parity: ChinookAIUpdate module data used by gameplay systems
  * currently implemented in this port (supply availability + combat-drop timing).
  */
@@ -3321,6 +3349,10 @@ export interface MapEntity {
   commandButtonHuntButtonName: string;
   commandButtonHuntNextScanFrame: number;
   dozerAIProfile: DozerAIProfile | null;
+  /** Source parity: WorkerAIUpdateModuleData unique fields. */
+  workerAIProfile: WorkerAIProfile | null;
+  /** Source parity: POWTruckAIUpdateModuleData fields. */
+  powTruckAIProfile: POWTruckAIProfile | null;
   /** Source parity: DozerPrimaryIdleState::m_idleTooLongTimestamp. */
   dozerIdleTooLongTimestamp: number;
   /** Source parity: Dozer/Worker task ordering timestamp for build tasks. */
@@ -11063,6 +11095,8 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ extractRepairDockProfile(...args: any[]) { return (extractRepairDockProfileImpl as any)(this, ...args); }
   /* @internal */ extractCommandButtonHuntProfile(...args: any[]) { return (extractCommandButtonHuntProfileImpl as any)(this, ...args); }
   /* @internal */ extractDozerAIProfile(...args: any[]) { return (extractDozerAIProfileImpl as any)(this, ...args); }
+  /* @internal */ extractWorkerAIProfile(...args: any[]) { return (extractWorkerAIProfileImpl as any)(this, ...args); }
+  /* @internal */ extractPOWTruckAIProfile(...args: any[]) { return (extractPOWTruckAIProfileImpl as any)(this, ...args); }
   /* @internal */ extractExperienceProfile(...args: any[]) { return (extractExperienceProfileImpl as any)(this, ...args); }
   /* @internal */ extractAutoHealProfile(...args: any[]) { return (extractAutoHealProfileImpl as any)(this, ...args); }
   /* @internal */ extractPropagandaTowerProfile(...args: any[]) { return (extractPropagandaTowerProfileImpl as any)(this, ...args); }
