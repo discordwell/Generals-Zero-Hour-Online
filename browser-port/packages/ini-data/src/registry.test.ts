@@ -209,14 +209,17 @@ describe('IniDataRegistry', () => {
         makeBlock('CommandSet', 'SparseSet', {
           1: 'BtnA',
           3: 'BtnC',
-          13: 'BtnOutOfRange',
+          13: 'BtnZHSlot',
+          19: 'BtnOutOfRange',
         }),
       ]);
 
-      expect(registry.commandSets.get('SparseSet')?.buttons).toEqual(['BtnA', 'BtnC']);
+      // Source parity: ZH MAX_COMMANDS_PER_SET = 18, so slot 13 is valid but 19 is not
+      expect(registry.commandSets.get('SparseSet')?.buttons).toEqual(['BtnA', 'BtnC', 'BtnZHSlot']);
       expect(registry.commandSets.get('SparseSet')?.slottedButtons).toEqual([
         { slot: 1, commandButtonName: 'BtnA' },
         { slot: 3, commandButtonName: 'BtnC' },
+        { slot: 13, commandButtonName: 'BtnZHSlot' },
       ]);
     });
 

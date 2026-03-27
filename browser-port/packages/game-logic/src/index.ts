@@ -6941,6 +6941,17 @@ export const SCRIPT_PARAMETER_TYPE_OBJECT_STATUS = 40;
 /**
  * Source parity: ObjectStatusBits string table from ObjectStatusBits.h.
  */
+/**
+ * Source parity: GeneralsMD/Code/GameEngine/Source/Common/System/ObjectStatusTypes.cpp
+ * `ObjectStatusMaskType::s_bitNameList[]`.
+ *
+ * IMPORTANT: Index 0 is NONE in the C++ list, but NONE is not a real status bit --
+ * it's just a placeholder.  The first actual status bit (DESTROYED) maps to enum
+ * value 1 (OBJECT_STATUS_DESTROYED) in C++.  The script system uses bit-index
+ * offsets where bit 0 = DESTROYED, so we start from DESTROYED here.
+ *
+ * ZH adds 14 new status values after IS_CARBOMB.
+ */
 const SCRIPT_OBJECT_STATUS_NAMES_BY_BIT_INDEX = [
   'DESTROYED',
   'CAN_ATTACK',
@@ -6970,6 +6981,23 @@ const SCRIPT_OBJECT_STATUS_NAMES_BY_BIT_INDEX = [
   'NO_ATTACK_FROM_AI',
   'IGNORING_STEALTH',
   'IS_CARBOMB',
+  // ── Zero Hour additions (GeneralsMD ObjectStatusTypes.cpp) ──
+  'DECK_HEIGHT_OFFSET',
+  'STATUS_RIDER1',
+  'STATUS_RIDER2',
+  'STATUS_RIDER3',
+  'STATUS_RIDER4',
+  'STATUS_RIDER5',
+  'STATUS_RIDER6',
+  'STATUS_RIDER7',
+  'STATUS_RIDER8',
+  'FAERIE_FIRE',
+  'KILLING_SELF',
+  'REASSIGN_PARKING',
+  'BOOBY_TRAPPED',
+  'IMMOBILE',
+  'DISGUISED',
+  'DEPLOYED',
 ] as const;
 
 export const SCRIPT_OBJECT_STATUS_BIT_INDEX_BY_NAME = new Map<string, number>(
@@ -7536,8 +7564,12 @@ export const SCRIPT_SKIRMISH_DEFENSE_TEMPLATE_KEYWORDS = [
 ] as const;
 
 /**
- * Source parity bridge: Common/System/Kindof.cpp `KindOfMaskType::s_bitNameList`
- * in retail (non-ALLOW_SURRENDER) builds.
+ * Source parity bridge: GeneralsMD/Code/GameEngine/Source/Common/System/KindOf.cpp
+ * `KindOfMaskType::s_bitNameList` in retail (non-ALLOW_SURRENDER) builds.
+ *
+ * IMPORTANT: This follows the Zero Hour (GeneralsMD) bit layout, NOT the Generals
+ * layout.  ZH removed KINDOF_AIRFIELD (replaced by FS_AIRFIELD later in the list)
+ * and added 28 new values after DONT_AUTO_CRUSH_INFANTRY.
  */
 export const SCRIPT_KIND_OF_NAMES_BY_SOURCE_BIT = [
   'OBSTACLE',
@@ -7555,6 +7587,7 @@ export const SCRIPT_KIND_OF_NAMES_BY_SOURCE_BIT = [
   'DOZER',
   'HARVESTER',
   'COMMANDCENTER',
+  // (ALLOW_SURRENDER: PRISON, COLLECTS_PRISON_BOUNTY, POW_TRUCK would be here)
   'LINEBUILD',
   'SALVAGER',
   'WEAPON_SALVAGER',
@@ -7572,7 +7605,7 @@ export const SCRIPT_KIND_OF_NAMES_BY_SOURCE_BIT = [
   'HEAL_PAD',
   'STEALTH_GARRISON',
   'CASH_GENERATOR',
-  'AIRFIELD',
+  // Note: Generals had AIRFIELD here; ZH removed it (replaced by FS_AIRFIELD below).
   'DRAWABLE_ONLY',
   'MP_COUNT_FOR_VICTORY',
   'REBUILD_HOLE',
@@ -7582,6 +7615,7 @@ export const SCRIPT_KIND_OF_NAMES_BY_SOURCE_BIT = [
   'NO_HEAL_ICON',
   'CAN_RAPPEL',
   'PARACHUTABLE',
+  // (ALLOW_SURRENDER: CAN_SURRENDER would be here)
   'CAN_BE_REPULSED',
   'MOB_NEXUS',
   'IGNORED_IN_GUI',
@@ -7629,6 +7663,35 @@ export const SCRIPT_KIND_OF_NAMES_BY_SOURCE_BIT = [
   'HERO',
   'IGNORES_SELECT_ALL',
   'DONT_AUTO_CRUSH_INFANTRY',
+  // ── Zero Hour additions (GeneralsMD only) ──
+  'CLIFF_JUMPER',
+  'FS_SUPPLY_DROPZONE',
+  'FS_SUPERWEAPON',
+  'FS_BLACK_MARKET',
+  'FS_SUPPLY_CENTER',
+  'FS_STRATEGY_CENTER',
+  'MONEY_HACKER',
+  'ARMOR_SALVAGER',
+  'REVEALS_ENEMY_PATHS',
+  'BOOBY_TRAP',
+  'FS_FAKE',
+  'FS_INTERNET_CENTER',
+  'BLAST_CRATER',
+  'PROP',
+  'OPTIMIZED_TREE',
+  'FS_ADVANCED_TECH',
+  'FS_BARRACKS',
+  'FS_WARFACTORY',
+  'FS_AIRFIELD',
+  'AIRCRAFT_CARRIER',
+  'NO_SELECT',
+  'REJECT_UNMANNED',
+  'CANNOT_RETALIATE',
+  'TECH_BASE_DEFENSE',
+  'EMP_HARDENED',
+  'DEMOTRAP',
+  'CONSERVATIVE_BUILDING',
+  'IGNORE_DOCKING_BONES',
 ] as const;
 
 export const SCRIPT_KIND_OF_NAME_TO_BIT = new Map<string, number>(
@@ -7636,17 +7699,19 @@ export const SCRIPT_KIND_OF_NAME_TO_BIT = new Map<string, number>(
 );
 
 /**
- * Source parity bridge: Common/System/Kindof.cpp `KindOfMaskType::s_bitNameList`
- * in ALLOW_SURRENDER builds.
+ * Source parity bridge: GeneralsMD/Code/GameEngine/Source/Common/System/KindOf.cpp
+ * `KindOfMaskType::s_bitNameList` in ALLOW_SURRENDER builds.
+ * Inserts PRISON/COLLECTS_PRISON_BOUNTY/POW_TRUCK after COMMANDCENTER (index 14)
+ * and CAN_SURRENDER after PARACHUTABLE (index 40 in non-surrender layout).
  */
 export const SCRIPT_KIND_OF_NAMES_BY_SOURCE_BIT_ALLOW_SURRENDER = [
   ...SCRIPT_KIND_OF_NAMES_BY_SOURCE_BIT.slice(0, 15),
   'PRISON',
   'COLLECTS_PRISON_BOUNTY',
   'POW_TRUCK',
-  ...SCRIPT_KIND_OF_NAMES_BY_SOURCE_BIT.slice(15, 42),
+  ...SCRIPT_KIND_OF_NAMES_BY_SOURCE_BIT.slice(15, 41),
   'CAN_SURRENDER',
-  ...SCRIPT_KIND_OF_NAMES_BY_SOURCE_BIT.slice(42),
+  ...SCRIPT_KIND_OF_NAMES_BY_SOURCE_BIT.slice(41),
 ] as const;
 
 export const SCRIPT_KIND_OF_NAME_TO_BIT_ALLOW_SURRENDER = new Map<string, number>(

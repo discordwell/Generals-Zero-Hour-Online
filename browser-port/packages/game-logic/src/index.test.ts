@@ -27483,13 +27483,13 @@ describe('Script condition groundwork', () => {
 
     expect(allowLogic.executeScriptAction({
       actionType: 470, // TEAM_ALL_USE_COMMANDBUTTON_ON_NEAREST_KINDOF
-      params: ['AllUseTeam', 'Command_ScriptOnNamed', 62], // ALLOW_SURRENDER bit index for FS_POWER
+      params: ['AllUseTeam', 'Command_ScriptOnNamed', 61], // ALLOW_SURRENDER bit index for FS_POWER (ZH layout)
     })).toBe(true);
     expect(allowLogic.getEntityState(1)?.lastSpecialPowerDispatch?.targetEntityId).toBe(2);
 
     expect(allowLogic.executeScriptAction({
       actionType: 130, // SET_ATTACK_PRIORITY_KIND_OF
-      params: ['PowerSet', 62, 9],
+      params: ['PowerSet', 61, 9],
     })).toBe(true);
     const allowPrivate = allowLogic as unknown as {
       scriptAttackPrioritySetsByName: Map<string, {
@@ -27517,7 +27517,7 @@ describe('Script condition groundwork', () => {
 
     expect(retailLogic.executeScriptAction({
       actionType: 470,
-      params: ['AllUseTeam', 'Command_ScriptOnNamed', 58], // retail bit index for FS_POWER
+      params: ['AllUseTeam', 'Command_ScriptOnNamed', 57], // retail bit index for FS_POWER (ZH layout)
     })).toBe(true);
     expect(retailLogic.getEntityState(1)?.lastSpecialPowerDispatch?.targetEntityId).toBe(2);
   });
