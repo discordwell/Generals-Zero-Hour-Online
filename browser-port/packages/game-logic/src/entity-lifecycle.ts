@@ -223,6 +223,35 @@ export function tryCreateRebuildHoleOnDeath(self: GL, entity: MapEntity, _attack
   }
 }
 
+/**
+ * Source parity: Object.cpp:4640-4667 — when a RECONSTRUCTING object dies, find the
+ * rebuild hole (its producer) and transfer all AI attack commands from the dying
+ * building to the hole. This ensures units don't lose their attack target when a
+ * GLA building being reconstructed is destroyed.
+ */
+export function tryTransferAttackersToRebuildHole(self: GL, entity: MapEntity): void {
+  if (!entity.objectStatusFlags.has('RECONSTRUCTING')) {
+    return;
+  }
+  // The producer is the rebuild hole that spawned the reconstruction.
+  const holeId = entity.producerEntityId;
+  if (!holeId || holeId <= 0) {
+    return;
+  }
+  const hole = self.spawnedEntities.get(holeId);
+  if (!hole || hole.destroyed) {
+    return;
+  }
+
+  // Transfer all attackers from the dying building to the hole.
+  for (const other of self.spawnedEntities.values()) {
+    if (other.destroyed || other.id === entity.id) continue;
+    if (other.attackTargetEntityId === entity.id) {
+      other.attackTargetEntityId = hole.id;
+    }
+  }
+}
+
 export function tryGenerateMinefieldOnDeath(self: GL, entity: MapEntity): void {
   const profile = entity.generateMinefieldProfile;
   if (!profile || entity.generateMinefieldDone) return;
@@ -1228,6 +1257,10 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   // Source parity: Player::addCashBounty — if the killer's player has cash bounty active,
   // award a percentage of the victim's build cost as credits.
   awardCashBountyOnKill(self, entity, attackerId);
+
+  // Source parity: Object.cpp:4640-4667 — when a RECONSTRUCTING building dies, transfer
+  // all attackers to the rebuild hole (producer), so AI units continue attacking the hole.
+  tryTransferAttackersToRebuildHole(self, entity);
 
   // Source parity: RebuildHoleExposeDie::onDie — create rebuild hole on building death.
   tryCreateRebuildHoleOnDeath(self, entity, attackerId);

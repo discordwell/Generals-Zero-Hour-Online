@@ -47,6 +47,8 @@ import {
   resolveScaledProjectileTravelSpeed as resolveScaledProjectileTravelSpeedImpl,
   resolveWeaponDelayFrames as resolveWeaponDelayFramesImpl,
   resolveWeaponPreAttackDelayFrames as resolveWeaponPreAttackDelayFramesImpl,
+  resolveSniperDamageVsEmptyStructure as resolveSniperDamageVsEmptyStructureImpl,
+  resolveDisarmDamage as resolveDisarmDamageImpl,
   updateWeaponIdleAutoReload as updateWeaponIdleAutoReloadImpl,
 } from './combat-helpers.js';
 import {
@@ -22828,6 +22830,18 @@ export class GameLogicSubsystem implements Subsystem {
       }
       entity.objectStatusFlags.delete('DISABLED_EMP');
       this.disabledEmpStatusByEntityId.delete(entityId);
+
+      // Source parity: Object.cpp:2293-2303 — when a SPAWNS_ARE_THE_WEAPONS entity is
+      // undisabled, propagate clearDisabled to all spawned slaves.
+      if (entity.kindOf.has('SPAWNS_ARE_THE_WEAPONS') && entity.spawnBehaviorState) {
+        for (const slaveId of entity.spawnBehaviorState.slaveIds) {
+          const slave = this.spawnedEntities.get(slaveId);
+          if (slave && !slave.destroyed && slave.objectStatusFlags.has('DISABLED_EMP')) {
+            slave.objectStatusFlags.delete('DISABLED_EMP');
+            this.disabledEmpStatusByEntityId.delete(slaveId);
+          }
+        }
+      }
     }
   }
 
@@ -22842,6 +22856,17 @@ export class GameLogicSubsystem implements Subsystem {
     const previous = this.disabledEmpStatusByEntityId.get(entity.id) ?? 0;
     if (resolvedDisableUntilFrame > previous) {
       this.disabledEmpStatusByEntityId.set(entity.id, resolvedDisableUntilFrame);
+    }
+
+    // Source parity: Object.cpp:2153-2163 — when a SPAWNS_ARE_THE_WEAPONS entity is
+    // disabled, propagate the disable to all spawned slaves via orderSlavesDisabledUntil.
+    if (entity.kindOf.has('SPAWNS_ARE_THE_WEAPONS') && entity.spawnBehaviorState) {
+      for (const slaveId of entity.spawnBehaviorState.slaveIds) {
+        const slave = this.spawnedEntities.get(slaveId);
+        if (slave && !slave.destroyed) {
+          this.applyEmpDisable(slave, durationFrames);
+        }
+      }
     }
   }
 
@@ -28061,6 +28086,22 @@ export class GameLogicSubsystem implements Subsystem {
     if (!target.canTakeDamage || target.destroyed || !Number.isFinite(amount) || amount <= 0) {
       return;
     }
+
+    // Source parity: Weapon.cpp:601-606 — DAMAGE_SNIPER vs empty garrisonable structure returns 0.
+    const containCount = target.containProfile
+      ? this.collectContainedEntityIds(target.id).length
+      : null;
+    amount = resolveSniperDamageVsEmptyStructureImpl(amount, damageType.toUpperCase(), target.kindOf, containCount);
+    if (amount <= 0) {
+      return;
+    }
+
+    // Source parity: Weapon.cpp:622-628 — DAMAGE_DISARM only damages MINE/BOOBY_TRAP/DEMOTRAP.
+    amount = resolveDisarmDamageImpl(amount, damageType.toUpperCase(), target.kindOf);
+    if (amount <= 0) {
+      return;
+    }
+
     // Source parity: ActiveBody::attemptDamage — indestructible bodies ignore all damage.
     if (target.isIndestructible) {
       return;

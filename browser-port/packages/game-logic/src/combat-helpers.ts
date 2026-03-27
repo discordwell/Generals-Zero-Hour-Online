@@ -236,6 +236,56 @@ export function adjustDamageByArmorSet(
   return Math.max(0, amount * coefficient);
 }
 
+/**
+ * Source parity: Weapon.cpp:601-606 — DAMAGE_SNIPER vs empty garrisonable structure.
+ * If the weapon's damageType is SNIPER and the target is a STRUCTURE with a contain
+ * module that has 0 occupants, damage is zeroed (snipers can't hurt empty structures).
+ */
+export function resolveSniperDamageVsEmptyStructure(
+  amount: number,
+  damageType: string,
+  targetKindOf: ReadonlySet<string>,
+  targetContainCount: number | null,
+): number {
+  if (damageType !== 'SNIPER') {
+    return amount;
+  }
+  if (!targetKindOf.has('STRUCTURE')) {
+    return amount;
+  }
+  // null means no contain module — sniper damage proceeds normally.
+  if (targetContainCount === null) {
+    return amount;
+  }
+  if (targetContainCount === 0) {
+    return 0;
+  }
+  return amount;
+}
+
+/**
+ * Source parity: Weapon.cpp:622-628 — DAMAGE_DISARM only damages mines/traps.
+ * Returns 1.0 for MINE, BOOBY_TRAP, or DEMOTRAP targets; 0.0 for everything else.
+ * The returned value replaces the original damage amount.
+ */
+export function resolveDisarmDamage(
+  amount: number,
+  damageType: string,
+  targetKindOf: ReadonlySet<string>,
+): number {
+  if (damageType !== 'DISARM') {
+    return amount;
+  }
+  if (
+    targetKindOf.has('MINE')
+    || targetKindOf.has('BOOBY_TRAP')
+    || targetKindOf.has('DEMOTRAP')
+  ) {
+    return 1.0;
+  }
+  return 0;
+}
+
 export function refreshEntitySneakyMissWindow(
   entity: CombatSneakyWindowEntityLike,
   frameCounter: number,
