@@ -6096,6 +6096,8 @@ interface PhysicsBehaviorState {
   isInFreeFall: boolean;
   extraBounciness: number;
   extraFriction: number;
+  /** Source parity: PhysicsBehavior::IS_STUNNED — set by shockwave impact, cleared when velocity falls below threshold. */
+  isStunned: boolean;
 }
 
 /**
@@ -24498,6 +24500,27 @@ export class GameLogicSubsystem implements Subsystem {
     ];
   }
 
+  /**
+   * Source parity: AIGroup.cpp:643-674 — clamp move destination to map boundaries.
+   * Insets by one PATHFIND_CELL_SIZE on each edge so units don't walk to the very edge.
+   * C++ differentiates PLAYER_COMPUTER (pathable extent) vs human (visible extent);
+   * we use visible extent for both since our map loading doesn't distinguish border areas.
+   */
+  /* @internal */ clampMoveDestinationToMap(worldX: number, worldZ: number): [number, number] {
+    if (!this.mapHeightmap) {
+      return [worldX, worldZ];
+    }
+    const cellSize = PATHFIND_CELL_SIZE;
+    const minX = cellSize;
+    const minZ = cellSize;
+    const maxX = Math.max(cellSize, this.mapHeightmap.worldWidth - cellSize);
+    const maxZ = Math.max(cellSize, this.mapHeightmap.worldDepth - cellSize);
+    return [
+      clamp(worldX, minX, maxX),
+      clamp(worldZ, minZ, maxZ),
+    ];
+  }
+
   private resolveEntityInteractionDistance(source: MapEntity, target: MapEntity): number {
     const sourceRadius = this.resolveEntityMajorRadius(source);
     const targetRadius = this.resolveEntityMajorRadius(target);
@@ -27217,6 +27240,7 @@ export class GameLogicSubsystem implements Subsystem {
             allowToFall: false,
             isInFreeFall: false,
             extraBounciness: 0, extraFriction: 0,
+            isStunned: false,
           };
         }
         const st = entity.physicsBehaviorState;
@@ -27227,6 +27251,8 @@ export class GameLogicSubsystem implements Subsystem {
         // so the entity can leave the ground plane.
         st.allowToFall = true;
         st.stickToGround = false;
+        // Source parity: Object.cpp:1856 — setStunned(true) after shockwave impact.
+        st.isStunned = true;
       },
       masks: {
         affectsSelf: WEAPON_AFFECTS_SELF,

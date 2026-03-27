@@ -655,8 +655,19 @@ export function issueMoveTo(self: GL,
   if (!entity || !entity.canMove) return;
   // Source parity: Object::isMobile — KINDOF_IMMOBILE or any DISABLED state blocks movement.
   // C++ Object.cpp:2902 — isMobile() returns false when isDisabled() is true (any flag set).
-  if (entity.isImmobile || self.isEntityDisabledForMovement(entity)) {
+  // Source parity: AIStates.cpp:1623 — OBJECT_STATUS_IMMOBILE blocks AI movement state entry.
+  if (entity.isImmobile || self.isEntityDisabledForMovement(entity)
+    || self.entityHasObjectStatus(entity, 'IMMOBILE')) {
     return;
+  }
+
+  // Source parity: AIGroup.cpp:643-674 — clamp move destination to map boundaries.
+  // Inset by one pathfind cell on each edge so units don't walk to the very edge.
+  // Off-map exits (allowNoPathMove) bypass clamping so script movers can leave the map.
+  if (!allowNoPathMove) {
+    const clamped = self.clampMoveDestinationToMap(targetX, targetZ);
+    targetX = clamped[0];
+    targetZ = clamped[1];
   }
 
   // Source parity: airborne aircraft fly point-to-point, skip A* pathfinding.
@@ -758,6 +769,7 @@ export function updatePhysicsBehavior(self: GL): void {
         allowToFall: false,
         isInFreeFall: false,
         extraBounciness: 0, extraFriction: 0,
+        isStunned: false,
       };
     }
     const st = entity.physicsBehaviorState;
@@ -797,6 +809,18 @@ export function updatePhysicsBehavior(self: GL): void {
     if (Math.abs(st.velX) < VEL_THRESH) st.velX = 0;
     if (Math.abs(st.velY) < VEL_THRESH) st.velY = 0;
     if (Math.abs(st.velZ) < VEL_THRESH) st.velZ = 0;
+
+    // Source parity: PhysicsUpdate.cpp:696-708 — clear stunned when velocity drops below
+    // STUN_RELIEF_EPSILON or entity is no longer significantly above terrain.
+    if (st.isStunned) {
+      const STUN_RELIEF_EPSILON = 0.5;
+      if ((Math.abs(st.velX) < STUN_RELIEF_EPSILON
+        && Math.abs(st.velY) < STUN_RELIEF_EPSILON
+        && Math.abs(st.velZ) < STUN_RELIEF_EPSILON)
+        || !isAboveTerrain) {
+        st.isStunned = false;
+      }
+    }
 
     // Integrate velocity into position.
     const oldY = entity.y;
@@ -868,6 +892,14 @@ export function updateEntityMovement(self: GL, dt: number): void {
       if (entity.currentSpeed > 0) {
         entity.currentSpeed = 0;
       }
+      self.updateEntityVerticalPosition(entity, dt);
+      continue;
+    }
+
+    // Source parity: Locomotor.cpp:886,979 — skip movement while physics-stunned (shockwave knockback).
+    // C++ checks physics->getIsStunned() at the top of moveTowardsAngle and moveTowardsPosition.
+    if (entity.physicsBehaviorState?.isStunned) {
+      entity.currentSpeed = 0;
       self.updateEntityVerticalPosition(entity, dt);
       continue;
     }

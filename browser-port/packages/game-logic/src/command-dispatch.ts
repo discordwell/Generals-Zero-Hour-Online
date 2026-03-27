@@ -57,6 +57,13 @@ export function applyCommand(self: GL, command: GameLogicCommand): void {
     return;
   }
 
+  // Source parity: AIUpdate.cpp:2612-2615 — ForbidPlayerCommands rejects player commands.
+  // When an entity has forbidPlayerCommands = true (e.g., Spectre gunship), only AI/script
+  // commands are accepted. Player commands are silently dropped.
+  if (shouldRejectForbiddenPlayerCommand(self, command)) {
+    return;
+  }
+
   switch (command.type) {
     case 'clearSelection': {
       const hadSelection = self.selectedEntityIds.length > 0 || self.selectedEntityId !== null;
@@ -537,6 +544,29 @@ export function deferCommandWhileChinookBusy(self: GL, command: GameLogicCommand
   }
 
   return false;
+}
+
+/**
+ * Source parity: AIUpdate.cpp:2612-2615 — when ForbidPlayerCommands is true on an entity's
+ * AIUpdateModuleData, player-sourced commands (CMD_FROM_PLAYER) are silently rejected.
+ * Only AI and script commands are allowed through. Used by Spectre gunship and similar units.
+ */
+export function shouldRejectForbiddenPlayerCommand(self: GL, command: GameLogicCommand): boolean {
+  // Only commands with an entityId and a player command source can be rejected.
+  const hasEntityId = 'entityId' in command && typeof command.entityId === 'number';
+  if (!hasEntityId) {
+    return false;
+  }
+  // Check if the command has a commandSource field and if it's from the player.
+  const commandSource = ('commandSource' in command ? command.commandSource : undefined) ?? 'PLAYER';
+  if (commandSource !== 'PLAYER') {
+    return false;
+  }
+  const entity = self.spawnedEntities.get(command.entityId);
+  if (!entity) {
+    return false;
+  }
+  return entity.forbidPlayerCommands === true;
 }
 
 export function isChinookTakeoffCommandType(self: GL, commandType: GameLogicCommand['type']): boolean {
