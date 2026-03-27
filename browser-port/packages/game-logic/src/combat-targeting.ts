@@ -699,6 +699,8 @@ export function updateIdleAutoTargeting(self: GL): void {
     // C++ BodyModule::getClearableLastAttacker() returns the last damage source;
     // guard/idle AI checks this EVERY FRAME and immediately retaliates, bypassing
     // the 2-second auto-target scan interval. This makes units feel responsive.
+    // Note: DAMAGE_HEALING never sets lastAttackerEntityId (filtered at damage
+    // application time — see ActiveBody.cpp line 379 early return for DAMAGE_HEALING).
     if (entity.lastAttackerEntityId !== null) {
       const attackerId = entity.lastAttackerEntityId;
       entity.lastAttackerEntityId = null; // Source parity: clearLastAttacker().
@@ -750,6 +752,8 @@ export function updateIdleAutoTargeting(self: GL): void {
     // units and weapon range for human-controlled units.
     const weapon = entity.attackWeapon;
     const entitySidePlayerType = self.getControllingPlayerTypeForEntity(entity);
+    const entityKindOf = self.resolveEntityKindOfSet(entity);
+    const entityIsAircraft = entityKindOf.has('AIRCRAFT');
     const scanRange = entitySidePlayerType === 'HUMAN'
       ? weapon.attackRange
       : Math.max(weapon.attackRange, entity.visionRange);
@@ -775,6 +779,17 @@ export function updateIdleAutoTargeting(self: GL): void {
         !candidate.objectStatusFlags.has('DETECTED')
       ) {
         continue;
+      }
+      // Source parity: AIStates.cpp line 2622 — Computer AI don't chase aircraft
+      // unless they are in hunt mode. Non-aircraft units controlled by the computer
+      // skip airborne aircraft targets during idle auto-acquire.
+      if (entitySidePlayerType === 'COMPUTER' && !entityIsAircraft) {
+        const candidateKindOf = self.resolveEntityKindOfSet(candidate);
+        if (candidateKindOf.has('AIRCRAFT') && (
+          self.entityHasObjectStatus(candidate, 'AIRBORNE_TARGET') || candidate.category === 'air'
+        )) {
+          continue;
+        }
       }
       if (!canAttackerTargetEntity(self, entity, candidate, 'AI')) {
         continue;
@@ -835,6 +850,27 @@ export function findGuardTarget(self: GL,
       !candidate.objectStatusFlags.has('DETECTED')
     ) {
       continue;
+    }
+    // Source parity: AIGuardRetaliate.cpp line 249/275 — PartitionFilterRejectBuildings.
+    // Guard retaliation rejects buildings unless:
+    //   1. Computer AI units can acquire enemy buildings, OR
+    //   2. Building is a base defense (KINDOF FS_BASE_DEFENSE), OR
+    //   3. Building is garrisoned and can attack.
+    const candidateKindOf = self.resolveEntityKindOfSet(candidate);
+    if (candidateKindOf.has('STRUCTURE')) {
+      const entityPlayerType = self.getControllingPlayerTypeForEntity(entity);
+      if (entityPlayerType !== 'COMPUTER') {
+        // Human player: only allow base defenses or garrisoned buildings that can attack.
+        const isBaseDefense = candidateKindOf.has('FS_BASE_DEFENSE');
+        const isGarrisonedAttacker = candidate.containProfile !== null
+          && candidate.containProfile.moduleType === 'GARRISON'
+          && self.collectContainedEntityIds(candidate.id).length > 0
+          && candidate.attackWeapon !== null;
+        if (!isBaseDefense && !isGarrisonedAttacker) {
+          continue;
+        }
+      }
+      // Computer player: allow all enemy buildings (m_acquireEnemies = true).
     }
     if (!canAttackerTargetEntity(self, entity, candidate, 'AI')) {
       continue;

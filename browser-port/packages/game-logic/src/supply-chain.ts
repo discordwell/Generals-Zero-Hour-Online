@@ -153,17 +153,10 @@ export interface SupplyChainContext<TEntity extends SupplyChainEntity> {
   readonly supplyBoxValue: number;
 
   /**
-   * Source parity: SupplyCenterDockUpdate::action() — after deposit, grant temporary stealth
-   * to the supply truck if the supply center has grantTemporaryStealthFrames > 0 AND the
-   * supply center itself is currently stealthed. ZH-only feature.
+   * Source parity: SupplyCenterDockUpdate::action() — optional callback invoked after a supply
+   * truck completes a deposit at a supply center. Used for GrantTemporaryStealth logic.
    */
-  grantTemporaryStealth?: (entityId: number, frames: number) => void;
-
-  /** Check if an entity is currently stealthed. */
-  isEntityStealthed?: (entity: TEntity) => boolean;
-
-  /** Get grantTemporaryStealthFrames for a supply center entity. 0 = no stealth grant. */
-  getGrantTemporaryStealthFrames?: (entity: TEntity) => number;
+  onTruckDeposit?: (truck: TEntity, depot: TEntity) => void;
 }
 
 // ──── Distance helpers ─────────────────────────────────────────────────────
@@ -759,15 +752,9 @@ function tickDepositing<TEntity extends SupplyChainEntity>(
     state.currentBoxes = 0;
     context.depositCredits(side, totalValue);
 
-    // Source parity: SupplyCenterDockUpdate::action() — after deposit, grant temporary
-    // stealth to the supply truck if the supply center has grantTemporaryStealthFrames > 0
-    // AND the supply center itself is stealthed. ZH-only.
-    if (context.grantTemporaryStealth && context.isEntityStealthed && context.getGrantTemporaryStealthFrames) {
-      const stealthFrames = context.getGrantTemporaryStealthFrames(depot);
-      if (stealthFrames > 0 && context.isEntityStealthed(depot)) {
-        context.grantTemporaryStealth(truck.id, stealthFrames);
-      }
-    }
+    // Source parity: SupplyCenterDockUpdate::action() — post-deposit callback for
+    // GrantTemporaryStealth and other supply center effects.
+    context.onTruckDeposit?.(truck, depot);
   }
 
   // Done depositing — schedule action delay then go back for more.

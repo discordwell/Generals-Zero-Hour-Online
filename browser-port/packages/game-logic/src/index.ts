@@ -3510,6 +3510,10 @@ export interface MapEntity {
   stealthProfile: StealthProfile | null;
   /** Frames remaining before CAN_STEALTH entity re-enters stealth. 0 = ready to stealth. */
   stealthDelayRemaining: number;
+  /** Source parity: SupplyCenterDockUpdate — whether this entity's current stealth is a temporary grant. */
+  temporaryStealthGrant: boolean;
+  /** Frame at which a temporary stealth grant expires. 0 = no pending expiry. */
+  temporaryStealthExpireFrame: number;
   /** Source parity: StealthUpdate disguise — template name of the object this entity is disguised as.
    *  null when not disguised. Set when DISGUISED status is active. */
   disguiseTemplateName: string | null;
@@ -23901,6 +23905,30 @@ export class GameLogicSubsystem implements Subsystem {
         this.markEntityDestroyed(entityId, -1);
       },
       normalizeSide: (side: string | undefined) => this.normalizeSide(side),
+      // Source parity: SupplyCenterDockUpdate::action() — after deposit, grant temporary
+      // stealth to the truck if the supply center is stealthed and has grantTemporaryStealthFrames.
+      onTruckDeposit: (truck: MapEntity, depot: MapEntity) => {
+        if (depot.grantTemporaryStealthFrames <= 0) {
+          return;
+        }
+        // Source parity: only grant if the supply center itself is stealthed.
+        if (!depot.objectStatusFlags.has('STEALTHED')) {
+          return;
+        }
+        // Source parity: only grant if the truck's stealth is temporary or truck
+        // doesn't already have permanent CAN_STEALTH. This prevents overriding
+        // permanent stealth sources like GPS Scrambler.
+        const hasPermStealth = truck.objectStatusFlags.has('CAN_STEALTH') && !truck.temporaryStealthGrant;
+        if (truck.objectStatusFlags.has('STEALTHED') && hasPermStealth) {
+          return;
+        }
+        // Grant temporary stealth.
+        truck.objectStatusFlags.add('CAN_STEALTH');
+        truck.objectStatusFlags.add('STEALTHED');
+        truck.temporaryStealthGrant = true;
+        truck.temporaryStealthExpireFrame = this.frameCounter + depot.grantTemporaryStealthFrames;
+        truck.stealthDelayRemaining = 0;
+      },
     };
 
     for (const entity of this.spawnedEntities.values()) {

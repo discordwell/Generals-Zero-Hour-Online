@@ -318,6 +318,15 @@ export function updateStealth(self: GL): void {
       entity.detectedUntilFrame = 0;
     }
 
+    // Source parity: SupplyCenterDockUpdate GrantTemporaryStealth — expire temporary stealth.
+    if (entity.temporaryStealthGrant && entity.temporaryStealthExpireFrame > 0
+        && self.frameCounter >= entity.temporaryStealthExpireFrame) {
+      entity.objectStatusFlags.delete('STEALTHED');
+      entity.objectStatusFlags.delete('CAN_STEALTH');
+      entity.temporaryStealthGrant = false;
+      entity.temporaryStealthExpireFrame = 0;
+    }
+
     if (!entity.objectStatusFlags.has('CAN_STEALTH')) continue;
 
     const profile = entity.stealthProfile;
