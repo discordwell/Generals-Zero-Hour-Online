@@ -21977,6 +21977,34 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
+   * Source parity: SpecialPowerTemplate::isShortcutPower() (SpecialPower.h line 127).
+   * ZH-only field — determines if this power can be fired from the side shortcut panel.
+   * INI field: ShortcutPower (Bool). Default: false.
+   */
+  resolveSpecialPowerIsShortcutPower(specialPowerName: string): boolean {
+    const specialPowerDef = this.resolveSpecialPowerDefByName(
+      specialPowerName.trim().toUpperCase(),
+    );
+    if (!specialPowerDef) return false;
+    return readBooleanField(specialPowerDef.fields, ['ShortcutPower']) === true;
+  }
+
+  /**
+   * Source parity: SpecialPowerTemplate::getAcademyClassificationType() (SpecialPower.h line 128).
+   * ZH-only field — classifies this power for the Academy tutorial advice system.
+   * INI field: AcademyClassify (IndexList). Values: ACT_NONE, ACT_UPGRADE_RADAR, ACT_SUPERPOWER.
+   * Default: ACT_NONE.
+   */
+  resolveSpecialPowerAcademyClassification(specialPowerName: string): string {
+    const specialPowerDef = this.resolveSpecialPowerDefByName(
+      specialPowerName.trim().toUpperCase(),
+    );
+    if (!specialPowerDef) return 'ACT_NONE';
+    const raw = readStringField(specialPowerDef.fields, ['AcademyClassify']);
+    return raw ? raw.trim().toUpperCase() : 'ACT_NONE';
+  }
+
+  /**
    * Source parity: SpecialPowerCreate::onBuildComplete (SpecialPowerCreate.cpp line 58-72).
    * On building construction completion, iterates all SpecialPowerModules and calls
    * onSpecialPowerCreation() which starts the recharge timer.

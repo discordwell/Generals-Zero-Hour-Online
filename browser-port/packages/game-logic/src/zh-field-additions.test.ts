@@ -17,6 +17,7 @@
  *   - CreateObjectDie.cpp: TransferPreviousHealth
  *   - RailedTransportDockUpdate.cpp: ToleranceDistance
  *   - SupplyCenterDockUpdate.cpp: GrantTemporaryStealth
+ *   - SpecialPower.cpp: ShortcutPower, AcademyClassify
  */
 import { describe, expect, it } from 'vitest';
 import { GameLogicSubsystem } from './index.js';
@@ -31,6 +32,7 @@ import {
   makeHeightmap,
   makeMap,
   makeMapObject,
+  makeSpecialPowerDef,
 } from './test-helpers.js';
 import {
   extractContainProfile,
@@ -481,5 +483,121 @@ describe('SupplyCenterDockUpdate ZH fields', () => {
       ]),
     );
     expect(result).toBe(90);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SpecialPowerTemplate: ShortcutPower, AcademyClassify
+// ---------------------------------------------------------------------------
+describe('SpecialPowerTemplate ZH fields', () => {
+  function makeGLWithSpecialPowers(specialPowers: ReturnType<typeof makeSpecialPowerDef>[]) {
+    const bundle = makeBundle({
+      objects: [makeObjectDef('DummyUnit', 'America', ['INFANTRY'], [])],
+      specialPowers,
+    });
+    const gl = makeSelf();
+    gl.loadMapObjects(
+      makeMap([makeMapObject('DummyUnit', 50, 50)]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    return gl;
+  }
+
+  it('defaults ShortcutPower to false when field is absent', () => {
+    const gl = makeGLWithSpecialPowers([
+      makeSpecialPowerDef('SuperweaponNukeCannon', {
+        ReloadTime: 360000,
+        Enum: 'SPECIAL_NEUTRON_MISSILE',
+      }),
+    ]);
+    expect(gl.resolveSpecialPowerIsShortcutPower('SuperweaponNukeCannon')).toBe(false);
+  });
+
+  it('extracts ShortcutPower = true (Yes)', () => {
+    const gl = makeGLWithSpecialPowers([
+      makeSpecialPowerDef('SuperweaponParticleUplink', {
+        ReloadTime: 240000,
+        Enum: 'SPECIAL_PARTICLE_UPLINK_CANNON',
+        ShortcutPower: true,
+      }),
+    ]);
+    expect(gl.resolveSpecialPowerIsShortcutPower('SuperweaponParticleUplink')).toBe(true);
+  });
+
+  it('extracts ShortcutPower = false when explicitly set', () => {
+    const gl = makeGLWithSpecialPowers([
+      makeSpecialPowerDef('SpecialPowerRepairVehicles', {
+        ReloadTime: 120000,
+        Enum: 'SPECIAL_REPAIR_VEHICLES',
+        ShortcutPower: false,
+      }),
+    ]);
+    expect(gl.resolveSpecialPowerIsShortcutPower('SpecialPowerRepairVehicles')).toBe(false);
+  });
+
+  it('returns false for unknown special power name', () => {
+    const gl = makeGLWithSpecialPowers([]);
+    expect(gl.resolveSpecialPowerIsShortcutPower('NonexistentPower')).toBe(false);
+  });
+
+  it('defaults AcademyClassify to ACT_NONE when field is absent', () => {
+    const gl = makeGLWithSpecialPowers([
+      makeSpecialPowerDef('SuperweaponScudStorm', {
+        ReloadTime: 300000,
+        Enum: 'SPECIAL_SCUD_STORM',
+      }),
+    ]);
+    expect(gl.resolveSpecialPowerAcademyClassification('SuperweaponScudStorm')).toBe('ACT_NONE');
+  });
+
+  it('extracts AcademyClassify = ACT_SUPERPOWER', () => {
+    const gl = makeGLWithSpecialPowers([
+      makeSpecialPowerDef('SuperweaponParticleUplink', {
+        ReloadTime: 240000,
+        Enum: 'SPECIAL_PARTICLE_UPLINK_CANNON',
+        AcademyClassify: 'ACT_SUPERPOWER',
+        ShortcutPower: true,
+      }),
+    ]);
+    expect(gl.resolveSpecialPowerAcademyClassification('SuperweaponParticleUplink')).toBe('ACT_SUPERPOWER');
+  });
+
+  it('extracts AcademyClassify = ACT_UPGRADE_RADAR', () => {
+    const gl = makeGLWithSpecialPowers([
+      makeSpecialPowerDef('SpecialPowerRadarUpgrade', {
+        ReloadTime: 0,
+        AcademyClassify: 'ACT_UPGRADE_RADAR',
+      }),
+    ]);
+    expect(gl.resolveSpecialPowerAcademyClassification('SpecialPowerRadarUpgrade')).toBe('ACT_UPGRADE_RADAR');
+  });
+
+  it('returns ACT_NONE for unknown special power name', () => {
+    const gl = makeGLWithSpecialPowers([]);
+    expect(gl.resolveSpecialPowerAcademyClassification('NonexistentPower')).toBe('ACT_NONE');
+  });
+
+  it('normalizes special power name case for ShortcutPower lookup', () => {
+    const gl = makeGLWithSpecialPowers([
+      makeSpecialPowerDef('SuperweaponParticleUplink', {
+        ReloadTime: 240000,
+        ShortcutPower: true,
+      }),
+    ]);
+    // Should work regardless of case
+    expect(gl.resolveSpecialPowerIsShortcutPower('superweaponparticleuplink')).toBe(true);
+    expect(gl.resolveSpecialPowerIsShortcutPower('SUPERWEAPONPARTICLEUPLINK')).toBe(true);
+  });
+
+  it('normalizes special power name case for AcademyClassify lookup', () => {
+    const gl = makeGLWithSpecialPowers([
+      makeSpecialPowerDef('SuperweaponParticleUplink', {
+        ReloadTime: 240000,
+        AcademyClassify: 'ACT_SUPERPOWER',
+      }),
+    ]);
+    // Should work regardless of case
+    expect(gl.resolveSpecialPowerAcademyClassification('superweaponparticleuplink')).toBe('ACT_SUPERPOWER');
   });
 });
