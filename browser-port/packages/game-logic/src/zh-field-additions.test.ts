@@ -20,6 +20,8 @@
  *   - AI.cpp: MaxRetaliationDistance, RetaliationFriendsRadius
  *   - PlayerTemplate.cpp: BaseSide, OldFaction, ScoreScreenMusic, GeneralImage,
  *       ArmyTooltip, Features, MedallionRegular, MedallionHilite, MedallionSelect
+ *   - SpecialPower.cpp: ShortcutPower, AcademyClassify
+ *   - Upgrade.cpp: AcademyClassify
  */
 import { describe, expect, it } from 'vitest';
 import { GameLogicSubsystem } from './index.js';
@@ -648,5 +650,121 @@ describe('PlayerTemplate ZH fields', () => {
     expect(faction!.medallionRegular).toBe('TankGeneral_slvr');
     expect(faction!.medallionHilite).toBe('TankGeneral_blue');
     expect(faction!.medallionSelect).toBe('TankGeneral_orng');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SpecialPower: ShortcutPower, AcademyClassify
+// ---------------------------------------------------------------------------
+describe('SpecialPower ZH fields', () => {
+  it('defaults ShortcutPower to undefined and AcademyClassify to undefined', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeBlock('SpecialPower', 'SuperweaponNukeCannon', {
+        ReloadTime: 1000,
+        Enum: 'SPECIAL_NEUTRON_MISSILE',
+      }),
+    ]);
+    const sp = registry.getSpecialPower('SuperweaponNukeCannon');
+    expect(sp).not.toBeUndefined();
+    expect(sp!.shortcutPower).toBeUndefined();
+    expect(sp!.academyClassify).toBeUndefined();
+  });
+
+  it('extracts ShortcutPower = true', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeBlock('SpecialPower', 'SuperweaponParticleCannon', {
+        ReloadTime: 240000,
+        Enum: 'SPECIAL_PARTICLE_UPLINK_CANNON',
+        ShortcutPower: 'Yes',
+      }),
+    ]);
+    const sp = registry.getSpecialPower('SuperweaponParticleCannon');
+    expect(sp).not.toBeUndefined();
+    expect(sp!.shortcutPower).toBe(true);
+  });
+
+  it('extracts AcademyClassify enum value', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeBlock('SpecialPower', 'SuperweaponNukeCannon', {
+        ReloadTime: 360000,
+        Enum: 'SPECIAL_NEUTRON_MISSILE',
+        AcademyClassify: 'ACT_SUPERPOWER',
+      }),
+    ]);
+    const sp = registry.getSpecialPower('SuperweaponNukeCannon');
+    expect(sp).not.toBeUndefined();
+    expect(sp!.academyClassify).toBe('ACT_SUPERPOWER');
+  });
+
+  it('preserves ShortcutPower and AcademyClassify through bundle round-trip', () => {
+    const bundle = makeBundle({
+      objects: [],
+      specialPowers: [
+        {
+          name: 'SUPERWEAPONPARTICLECANNON',
+          fields: {},
+          blocks: [],
+          resolved: true,
+          shortcutPower: true,
+          academyClassify: 'ACT_SUPERPOWER',
+        },
+      ],
+    });
+    const registry = makeRegistry(bundle);
+    const sp = registry.getSpecialPower('SuperweaponParticleCannon');
+    expect(sp).not.toBeUndefined();
+    expect(sp!.shortcutPower).toBe(true);
+    expect(sp!.academyClassify).toBe('ACT_SUPERPOWER');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Upgrade: AcademyClassify
+// ---------------------------------------------------------------------------
+describe('Upgrade ZH fields', () => {
+  it('defaults AcademyClassify to undefined', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeBlock('Upgrade', 'Upgrade_AmericaDrone', {
+        Type: 'PLAYER',
+      }),
+    ]);
+    const upgrade = registry.getUpgrade('Upgrade_AmericaDrone');
+    expect(upgrade).not.toBeUndefined();
+    expect(upgrade!.academyClassify).toBeUndefined();
+  });
+
+  it('extracts AcademyClassify enum value', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeBlock('Upgrade', 'Upgrade_AmericaRadar', {
+        Type: 'PLAYER',
+        AcademyClassify: 'ACT_UPGRADE_RADAR',
+      }),
+    ]);
+    const upgrade = registry.getUpgrade('Upgrade_AmericaRadar');
+    expect(upgrade).not.toBeUndefined();
+    expect(upgrade!.academyClassify).toBe('ACT_UPGRADE_RADAR');
+  });
+
+  it('preserves AcademyClassify through bundle round-trip', () => {
+    const bundle = makeBundle({
+      objects: [],
+      upgrades: [
+        {
+          name: 'Upgrade_AmericaRadar',
+          fields: {},
+          kindOf: [],
+          academyClassify: 'ACT_UPGRADE_RADAR',
+        },
+      ],
+    });
+    const registry = makeRegistry(bundle);
+    const upgrade = registry.getUpgrade('Upgrade_AmericaRadar');
+    expect(upgrade).not.toBeUndefined();
+    expect(upgrade!.academyClassify).toBe('ACT_UPGRADE_RADAR');
   });
 });

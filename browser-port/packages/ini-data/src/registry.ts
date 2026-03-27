@@ -41,6 +41,13 @@ export interface UpgradeDef {
   fields: Record<string, IniValue>;
   blocks?: IniBlock[];
   kindOf?: string[];
+  /**
+   * Source parity (ZH-only): UpgradeTemplate::m_academyClassificationType — enum used by
+   * the Academy advisor to classify upgrades for player guidance.
+   * C++ default: ACT_NONE.
+   * Parsed via INI::parseIndexList with TheAcademyClassificationTypeNames.
+   */
+  academyClassify?: string;
 }
 
 export interface SpecialPowerDef {
@@ -50,6 +57,19 @@ export interface SpecialPowerDef {
   blocks: IniBlock[];
   resolved?: boolean;
   hasUnresolvedParent?: boolean;
+  /**
+   * Source parity (ZH-only): SpecialPowerTemplate::m_shortcutPower — whether this power
+   * can be fired from the side panel shortcut bar.
+   * C++ default: FALSE.
+   */
+  shortcutPower?: boolean;
+  /**
+   * Source parity (ZH-only): SpecialPowerTemplate::m_academyClassificationType — enum used
+   * by the Academy advisor to classify special powers for player guidance.
+   * C++ default: ACT_NONE.
+   * Parsed via INI::parseIndexList with TheAcademyClassificationTypeNames.
+   */
+  academyClassify?: string;
 }
 
 export interface ObjectCreationListDef {
@@ -469,6 +489,7 @@ export class IniDataRegistry {
         fields: { ...upgrade.fields },
         blocks: [...(upgrade.blocks ?? [])],
         kindOf: upgrade.kindOf ? [...upgrade.kindOf] : undefined,
+        academyClassify: upgrade.academyClassify,
       });
     }
 
@@ -961,6 +982,7 @@ export class IniDataRegistry {
           fields: block.fields,
           blocks: block.blocks,
           kindOf: extractStringArray(block.fields['KindOf']),
+          academyClassify: extractTokenString(block.fields['AcademyClassify']),
         });
         break;
 
@@ -1030,6 +1052,8 @@ export class IniDataRegistry {
           fields: block.fields,
           blocks: block.blocks,
           resolved: !block.parent,
+          shortcutPower: extractBoolean(block.fields['ShortcutPower']),
+          academyClassify: extractTokenString(block.fields['AcademyClassify']),
         });
         break;
 
@@ -1498,7 +1522,7 @@ export class IniDataRegistry {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const MAX_COMMAND_SET_SLOTS = 12;
+const MAX_COMMAND_SET_SLOTS = 18; // Source parity: ZH ControlBar.h MAX_COMMANDS_PER_SET = 18 (Generals was 12)
 
 function extractString(value: IniValue | undefined): string | undefined {
   if (typeof value === 'string') return value;
