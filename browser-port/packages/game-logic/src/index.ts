@@ -19176,7 +19176,11 @@ export class GameLogicSubsystem implements Subsystem {
   private applyWeaponBonusUpgrade(entity: MapEntity): boolean {
     entity.weaponSetFlagsMask |= WEAPON_SET_FLAG_PLAYER_UPGRADE;
     // Source parity: WeaponBonusUpgrade sets WEAPONBONUSCONDITION_PLAYER_UPGRADE.
+    const oldFlags = entity.weaponBonusConditionFlags;
     entity.weaponBonusConditionFlags |= WEAPON_BONUS_PLAYER_UPGRADE;
+    if (entity.weaponBonusConditionFlags !== oldFlags) {
+      this.onWeaponBonusChange(entity);
+    }
     this.refreshEntityCombatProfiles(entity);
     return true;
   }
@@ -19248,6 +19252,7 @@ export class GameLogicSubsystem implements Subsystem {
   private removeWeaponBonusUpgradeFromEntity(entity: MapEntity): void {
     // Recompute weapon-set flags from all currently active modules so that removing
     // one WEAPONBONUSUPGRADE does not clear a remaining WEAPONSETUPGRADE source.
+    const oldFlags = entity.weaponBonusConditionFlags;
     entity.weaponSetFlagsMask &= ~WEAPON_SET_FLAG_PLAYER_UPGRADE;
     entity.weaponBonusConditionFlags &= ~WEAPON_BONUS_PLAYER_UPGRADE;
     for (const module of entity.upgradeModules) {
@@ -19259,6 +19264,9 @@ export class GameLogicSubsystem implements Subsystem {
         entity.weaponBonusConditionFlags |= WEAPON_BONUS_PLAYER_UPGRADE;
         break;
       }
+    }
+    if (entity.weaponBonusConditionFlags !== oldFlags) {
+      this.onWeaponBonusChange(entity);
     }
     this.refreshEntityCombatProfiles(entity);
   }
@@ -21315,10 +21323,14 @@ export class GameLogicSubsystem implements Subsystem {
 
     // Weapon bonus condition flag
     const bonusFlag = SOLO_WEAPON_BONUS_TABLE[playerTypeIndex]![difficulty]!;
+    const oldFlags = entity.weaponBonusConditionFlags;
     if (apply) {
       entity.weaponBonusConditionFlags |= bonusFlag;
     } else {
       entity.weaponBonusConditionFlags &= ~bonusFlag;
+    }
+    if (entity.weaponBonusConditionFlags !== oldFlags) {
+      this.onWeaponBonusChange(entity);
     }
   }
 
@@ -26589,8 +26601,13 @@ export class GameLogicSubsystem implements Subsystem {
       rebuildEntityScatterTargets: (entity) => this.rebuildEntityScatterTargets(entity),
       resolveWeaponPreAttackDelayFrames: (attacker, target, weapon) =>
         this.resolveWeaponPreAttackDelayFrames(attacker, target, weapon as AttackWeaponProfile),
-      queueWeaponDamageEvent: (attacker, target, weapon) =>
-        this.queueWeaponDamageEvent(attacker, target, weapon as AttackWeaponProfile),
+      queueWeaponDamageEvent: (attacker, target, weapon) => {
+        this.queueWeaponDamageEvent(attacker, target, weapon as AttackWeaponProfile);
+        // Source parity: AIStates.cpp:5292-5304 — linked turrets fire ALL weapon slots simultaneously.
+        if (attacker.turretsLinked) {
+          this.fireLinkedTurretAdditionalSlots(attacker, target, weapon as AttackWeaponProfile);
+        }
+      },
       recordConsecutiveAttackShot: (attacker, targetEntityId) =>
         this.recordConsecutiveAttackShot(attacker, targetEntityId),
       resolveWeaponDelayFrames: (attacker, weapon) => this.resolveWeaponDelayFramesWithBonus(attacker, weapon as AttackWeaponProfile),
@@ -26604,8 +26621,44 @@ export class GameLogicSubsystem implements Subsystem {
       clearMaxShotsAttackState: (attacker) =>
         this.clearMaxShotsAttackState(attacker),
       isTurretAlignedForFiring: (attacker) =>
-        this.isTurretAlignedForWeaponSlot(attacker, 0), // Primary weapon slot.
+        // Source parity: for linked turrets, check that the primary turret is aligned.
+        // Non-linked turrets also check primary weapon slot alignment.
+        this.isTurretAlignedForWeaponSlot(attacker, attacker.attackWeaponSlotIndex),
     });
+  }
+
+  /**
+   * Source parity: AIStates.cpp:5292-5304 — when TurretsLinked = Yes, fire ALL weapon slots
+   * simultaneously at the same target. Called after the primary weapon fires to also fire
+   * secondary/tertiary weapons. Matches C++ loop: for(slot=PRIMARY; slot<WEAPONSLOT_COUNT; slot++)
+   * weapon->fireWeapon(obj, goalPosition).
+   */
+  private fireLinkedTurretAdditionalSlots(attacker: MapEntity, target: MapEntity, primaryWeapon: AttackWeaponProfile): void {
+    const registry = this.iniDataRegistry;
+    if (!registry) return;
+
+    const weaponSlots = this.resolveActiveWeaponSetSlots(attacker);
+    for (let slotIndex = 0; slotIndex < weaponSlots.length; slotIndex++) {
+      const weaponName = weaponSlots[slotIndex];
+      if (!weaponName) continue;
+
+      // Skip the primary weapon — it was already fired by the main combat update.
+      const slotProfile = this.resolveWeaponProfileForSlotName(weaponName);
+      if (!slotProfile || slotProfile.name === primaryWeapon.name) continue;
+
+      this.queueWeaponDamageEvent(attacker, target, slotProfile);
+    }
+  }
+
+  /**
+   * Resolve a weapon profile by weapon template name. Used for linked turret firing.
+   */
+  private resolveWeaponProfileForSlotName(weaponName: string): AttackWeaponProfile | null {
+    const registry = this.iniDataRegistry;
+    if (!registry) return null;
+    const weaponDef = findWeaponDefByName(registry, weaponName);
+    if (!weaponDef) return null;
+    return this.resolveWeaponProfileFromDef(weaponDef);
   }
 
   /**
@@ -27992,6 +28045,17 @@ export class GameLogicSubsystem implements Subsystem {
     if (this.isEntityContainedInGarrison(entity)) {
       flags |= WEAPON_BONUS_GARRISONED;
     }
+    // Source parity: Weapon.cpp:1828-1833 — if source is inside a container with
+    // WeaponBonusPassedToPassengers, merge the container's weapon bonus flags.
+    const container = this.resolveEntityContainingObject(entity);
+    if (container) {
+      const containProfile = container.containProfile;
+      if (containProfile && containProfile.weaponBonusPassedToPassengers) {
+        // Source parity: OpenContain::getWeaponBonusPassedToPassengers() returns
+        // getObject()->getWeaponBonusCondition() — the container's full bonus flags.
+        flags |= container.weaponBonusConditionFlags;
+      }
+    }
     return flags;
   }
 
@@ -28038,6 +28102,33 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ resolveWeaponRadiusBonusMultiplier(entity: MapEntity): number {
     const flags = this.resolveEntityWeaponBonusConditionFlags(entity);
     return computeWeaponBonusField(this.globalWeaponBonusTable, flags, WEAPON_BONUS_FIELD_RADIUS);
+  }
+
+  /**
+   * Source parity: Weapon::onWeaponBonusChange() — recalculate reload/delay timers when
+   * weapon bonus conditions change (e.g., entering/exiting a container that passes weapon bonuses).
+   * C++ checks if the weapon is RELOADING_CLIP or BETWEEN_FIRING_SHOTS, then resets
+   * m_whenWeCanFireAgain = currentFrame + newDelay based on the updated ROF bonus.
+   */
+  /* @internal */ onWeaponBonusChange(entity: MapEntity): void {
+    const weapon = entity.attackWeapon;
+    if (!weapon) return;
+
+    const isReloading = weapon.clipSize > 0
+      && entity.attackAmmoInClip <= 0
+      && entity.attackReloadFinishFrame > this.frameCounter;
+    const isBetweenShots = !isReloading && entity.nextAttackFrame > this.frameCounter;
+
+    if (isReloading) {
+      // Source parity: Weapon.cpp:1969-1973 — recalc clip reload time.
+      const newReload = this.resolveClipReloadFramesWithBonus(entity, weapon);
+      entity.attackReloadFinishFrame = this.frameCounter + newReload;
+      entity.nextAttackFrame = entity.attackReloadFinishFrame;
+    } else if (isBetweenShots) {
+      // Source parity: Weapon.cpp:1974-1977 — recalc delay between shots.
+      const newDelay = this.resolveWeaponDelayFramesWithBonus(entity, weapon);
+      entity.nextAttackFrame = this.frameCounter + newDelay;
+    }
   }
 
   /* @internal */ resolveWeaponDelayFrames(weapon: AttackWeaponProfile): number {
@@ -28697,6 +28788,7 @@ export class GameLogicSubsystem implements Subsystem {
    * If the entity has a different temp bonus, clears it first.
    */
   private applyTempWeaponBonus(target: MapEntity, flag: number, durationFrames: number): void {
+    const oldFlags = target.weaponBonusConditionFlags;
     // Clear any different bonus first.
     if (target.tempWeaponBonusFlag !== 0 && target.tempWeaponBonusFlag !== flag) {
       target.weaponBonusConditionFlags &= ~target.tempWeaponBonusFlag;
@@ -28706,6 +28798,9 @@ export class GameLogicSubsystem implements Subsystem {
     target.weaponBonusConditionFlags |= flag;
     target.tempWeaponBonusFlag = flag;
     target.tempWeaponBonusExpiryFrame = this.frameCounter + durationFrames;
+    if (target.weaponBonusConditionFlags !== oldFlags) {
+      this.onWeaponBonusChange(target);
+    }
   }
 
   /**
@@ -28715,9 +28810,13 @@ export class GameLogicSubsystem implements Subsystem {
     for (const entity of this.spawnedEntities.values()) {
       if (entity.tempWeaponBonusFlag === 0) continue;
       if (this.frameCounter >= entity.tempWeaponBonusExpiryFrame) {
+        const oldFlags = entity.weaponBonusConditionFlags;
         entity.weaponBonusConditionFlags &= ~entity.tempWeaponBonusFlag;
         entity.tempWeaponBonusFlag = 0;
         entity.tempWeaponBonusExpiryFrame = 0;
+        if (entity.weaponBonusConditionFlags !== oldFlags) {
+          this.onWeaponBonusChange(entity);
+        }
       }
     }
   }
@@ -32805,6 +32904,7 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity: Object::setVeterancyLevel — update weapon bonus condition flags.
     // Veterancy levels are mutually exclusive: only one of VETERAN/ELITE/HERO is active.
     const vetBonusMask = WEAPON_BONUS_VETERAN | WEAPON_BONUS_ELITE | WEAPON_BONUS_HERO;
+    const oldBonusFlags = entity.weaponBonusConditionFlags;
     entity.weaponBonusConditionFlags &= ~vetBonusMask;
     if (newLevel === LEVEL_VETERAN) {
       entity.weaponBonusConditionFlags |= WEAPON_BONUS_VETERAN;
@@ -32812,6 +32912,9 @@ export class GameLogicSubsystem implements Subsystem {
       entity.weaponBonusConditionFlags |= WEAPON_BONUS_ELITE;
     } else if (newLevel === LEVEL_HEROIC) {
       entity.weaponBonusConditionFlags |= WEAPON_BONUS_HERO;
+    }
+    if (entity.weaponBonusConditionFlags !== oldBonusFlags) {
+      this.onWeaponBonusChange(entity);
     }
 
     // Source parity: Object::setVeterancyLevel → refreshWeaponSet() — update weapon set

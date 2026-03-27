@@ -151,6 +151,19 @@ export interface SupplyChainContext<TEntity extends SupplyChainEntity> {
 
   /** Value per supply box for this context (from INI GlobalData or default). */
   readonly supplyBoxValue: number;
+
+  /**
+   * Source parity: SupplyCenterDockUpdate::action() — after deposit, grant temporary stealth
+   * to the supply truck if the supply center has grantTemporaryStealthFrames > 0 AND the
+   * supply center itself is currently stealthed. ZH-only feature.
+   */
+  grantTemporaryStealth?: (entityId: number, frames: number) => void;
+
+  /** Check if an entity is currently stealthed. */
+  isEntityStealthed?: (entity: TEntity) => boolean;
+
+  /** Get grantTemporaryStealthFrames for a supply center entity. 0 = no stealth grant. */
+  getGrantTemporaryStealthFrames?: (entity: TEntity) => number;
 }
 
 // ──── Distance helpers ─────────────────────────────────────────────────────
@@ -745,6 +758,16 @@ function tickDepositing<TEntity extends SupplyChainEntity>(
     const totalValue = baseValue + boostValue;
     state.currentBoxes = 0;
     context.depositCredits(side, totalValue);
+
+    // Source parity: SupplyCenterDockUpdate::action() — after deposit, grant temporary
+    // stealth to the supply truck if the supply center has grantTemporaryStealthFrames > 0
+    // AND the supply center itself is stealthed. ZH-only.
+    if (context.grantTemporaryStealth && context.isEntityStealthed && context.getGrantTemporaryStealthFrames) {
+      const stealthFrames = context.getGrantTemporaryStealthFrames(depot);
+      if (stealthFrames > 0 && context.isEntityStealthed(depot)) {
+        context.grantTemporaryStealth(truck.id, stealthFrames);
+      }
+    }
   }
 
   // Done depositing — schedule action delay then go back for more.

@@ -415,6 +415,7 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.lastDamageFrame = xfer.xferInt(e.lastDamageFrame as number);
   e.lastDamageNoEffect = xfer.xferBool(e.lastDamageNoEffect as boolean);
   e.lastAttackerEntityId = xferNullableInt(xfer, e.lastAttackerEntityId as number | null);
+  e.lastAttackerDamageType = xferNullableString(xfer, e.lastAttackerDamageType as string | null);
   e.scriptLastDamageSourceEntityId = xferNullableInt(xfer, e.scriptLastDamageSourceEntityId as number | null);
   e.scriptLastDamageSourceTemplateName = xferNullableString(xfer, e.scriptLastDamageSourceTemplateName as string | null);
   e.scriptLastDamageSourceSide = xferNullableString(xfer, e.scriptLastDamageSourceSide as string | null);

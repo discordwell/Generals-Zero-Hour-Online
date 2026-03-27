@@ -1136,6 +1136,7 @@ export function updateHorde(self: GL): void {
 
       // Source parity: AIUpdateInterface::evaluateMoraleBonus() — always recalculate
       // and write the correct flags (C++ is idempotent, not gated on change detection).
+      const oldBonusFlags = entity.weaponBonusConditionFlags;
       if (join) {
         entity.weaponBonusConditionFlags |= WEAPON_BONUS_HORDE;
       } else {
@@ -1168,6 +1169,10 @@ export function updateHorde(self: GL): void {
           entity.weaponBonusConditionFlags &= ~WEAPON_BONUS_NATIONALISM;
           entity.weaponBonusConditionFlags &= ~WEAPON_BONUS_FANATICISM;
         }
+      }
+      // Source parity: Object::setWeaponBonusCondition — recalculate weapon timers on change.
+      if (entity.weaponBonusConditionFlags !== oldBonusFlags) {
+        self.onWeaponBonusChange(entity);
       }
     }
 }
@@ -2162,10 +2167,14 @@ export function applyBattlePlanBonuses(self: GL, source: MapEntity, plan: Battle
         if (!self.isBattlePlanMember(entity, profile)) continue;
 
         // Weapon bonus condition flag.
+        const oldBattlePlanFlags = entity.weaponBonusConditionFlags;
         if (apply) {
           entity.weaponBonusConditionFlags |= weaponBonusFlag;
         } else {
           entity.weaponBonusConditionFlags &= ~weaponBonusFlag;
+        }
+        if (entity.weaponBonusConditionFlags !== oldBattlePlanFlags) {
+          self.onWeaponBonusChange(entity);
         }
 
         // Armor damage scalar.

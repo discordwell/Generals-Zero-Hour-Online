@@ -1,5 +1,17 @@
 # Session Summaries
 
+## 2026-03-27T00:00Z — Systematic ZH Parity Audit (FieldParse + Enums + Runtime Logic)
+- **FieldParse audits**: Diffed all ~233 C++ module FieldParse tables between Generals/ and GeneralsMD/. Added 41 missing ZH-only fields across 13+ modules (GenerateMinefield, PropagandaTower, OverlordContain, CreateObjectDie, ChinookAI, RailedTransportDock, SupplyCenterDock, OCLUpdate, PhysicsBehavior, SpecialPowerModule, OCLSpecialPower, WeaponTemplate, MinefieldBehavior, SpecialPower, Upgrade, AI, PlayerTemplate).
+- **Enum audits**: Added 28 ZH-only KindOf values, 16 ObjectStatus values, 1 DamageType. Fixed critical AIRFIELD bit-position shift (ZH removed KINDOF_AIRFIELD, shifting all subsequent bits by -1).
+- **Slot count fixes**: MAX_COMMAND_SET_SLOTS 12→18, ControlBar slots 12→18/14 visible.
+- **Verified at parity**: ThingTemplate, Science, CrateSystem, RankInfo, TurretAI, Locomotor, Weapon, ScriptEngine, SidesList, GameClient draw modules, Armor, DamageFX, FXList, ExperienceLevel, GlobalData, CommandButton, AI personality — all either identical or already implemented.
+- **Retail INI validation**: 12,089 blocks parsed, 0 unrecognized types, 2 benign errors (Campaign.ini), 4 expected duplicates.
+- **Runtime logic audits** (research only, no code changes):
+  - Combat: 20 implemented, 17 not (sniper vs empty structure, inflictDamage param, parameterized kill(), container weapon bonus propagation, weapon stat transfer)
+  - AI/Pathfinding: ~108 changes found, ~93 not implemented (Guard Retaliate 860-line system, map boundary clamping, linked turrets, ForbidPlayerCommands, countermeasures, stunned movement block)
+  - Player/Economy: GrantTemporaryStealth runtime missing, sabotage cash theft missing, retaliation mode toggle missing, teammate positioning algorithm unverified
+- Commits: 4e69434a, 0a89da4c, e2096fb1, bd33cddb, 0eeb2e39, e1666600 — all pushed to origin/main.
+
 ## 2026-03-22T23:30Z — Fix Campaign Premature DEFEAT (3 Root Causes)
 - **Root cause 1 — Missing isCampaignMode guard**: C++ `VictoryConditions::update()` exits early when `!TheRecorder->isMultiplayer()`, but the browser port's `checkVictoryConditions` had no such guard. Added `isCampaignMode` to `GameLogicConfig`, guarded `checkVictoryConditions` in `entity-lifecycle.ts`.
 - **Root cause 2 — LOCALDEFEAT wrongly marked player defeated**: C++ `doLocalDefeat()` is UI-only (shows LocalDefeat.wnd, starts close-window timer), but the browser port's `setScriptLocalDefeatState` was adding the player to `defeatedSides`. Fixed to be a no-op matching C++ behavior. Campaign intro cinematics use LOCALDEFEAT to signal "player not in control yet" without ending the game.
