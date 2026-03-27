@@ -17,10 +17,13 @@
  *   - CreateObjectDie.cpp: TransferPreviousHealth
  *   - RailedTransportDockUpdate.cpp: ToleranceDistance
  *   - SupplyCenterDockUpdate.cpp: GrantTemporaryStealth
- *   - SpecialPower.cpp: ShortcutPower, AcademyClassify
+ *   - AI.cpp: MaxRetaliationDistance, RetaliationFriendsRadius
+ *   - PlayerTemplate.cpp: BaseSide, OldFaction, ScoreScreenMusic, GeneralImage,
+ *       ArmyTooltip, Features, MedallionRegular, MedallionHilite, MedallionSelect
  */
 import { describe, expect, it } from 'vitest';
 import { GameLogicSubsystem } from './index.js';
+import { IniDataRegistry, DEFAULT_AI_CONFIG } from '@generals/ini-data';
 import {
   makeBlock,
   makeObjectDef,
@@ -32,7 +35,6 @@ import {
   makeHeightmap,
   makeMap,
   makeMapObject,
-  makeSpecialPowerDef,
 } from './test-helpers.js';
 import {
   extractContainProfile,
@@ -487,117 +489,164 @@ describe('SupplyCenterDockUpdate ZH fields', () => {
 });
 
 // ---------------------------------------------------------------------------
-// SpecialPowerTemplate: ShortcutPower, AcademyClassify
+// AIData: MaxRetaliationDistance, RetaliationFriendsRadius
 // ---------------------------------------------------------------------------
-describe('SpecialPowerTemplate ZH fields', () => {
-  function makeGLWithSpecialPowers(specialPowers: ReturnType<typeof makeSpecialPowerDef>[]) {
+describe('AIData ZH fields', () => {
+  it('uses C++ default values for MaxRetaliationDistance and RetaliationFriendsRadius', () => {
+    // Source parity: TAiData constructor defaults in GeneralsMD AI.cpp.
+    expect(DEFAULT_AI_CONFIG.maxRetaliationDistance).toBe(210);
+    expect(DEFAULT_AI_CONFIG.retaliationFriendsRadius).toBe(120);
+  });
+
+  it('extracts MaxRetaliationDistance from AIData INI block', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeBlock('AIData', '', {
+        MaxRetaliationDistance: '200.0',
+      }),
+    ]);
+    const config = registry.getAiConfig();
+    expect(config).not.toBeUndefined();
+    expect(config!.maxRetaliationDistance).toBe(200.0);
+  });
+
+  it('extracts RetaliationFriendsRadius from AIData INI block', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeBlock('AIData', '', {
+        RetaliationFriendsRadius: '150.0',
+      }),
+    ]);
+    const config = registry.getAiConfig();
+    expect(config).not.toBeUndefined();
+    expect(config!.retaliationFriendsRadius).toBe(150.0);
+  });
+
+  it('resolves MaxRetaliationDistance and RetaliationFriendsRadius at runtime', () => {
     const bundle = makeBundle({
-      objects: [makeObjectDef('DummyUnit', 'America', ['INFANTRY'], [])],
-      specialPowers,
+      objects: [],
+      ai: {
+        maxRetaliationDistance: 200,
+        retaliationFriendsRadius: 150,
+      },
     });
     const gl = makeSelf();
-    gl.loadMapObjects(
-      makeMap([makeMapObject('DummyUnit', 50, 50)]),
-      makeRegistry(bundle),
-      makeHeightmap(),
-    );
-    return gl;
-  }
+    gl.loadMapObjects(makeMap([]), makeRegistry(bundle), makeHeightmap());
+    expect(gl.resolveMaxRetaliationDistance()).toBe(200);
+    expect(gl.resolveRetaliationFriendsRadius()).toBe(150);
+    gl.dispose();
+  });
 
-  it('defaults ShortcutPower to false when field is absent', () => {
-    const gl = makeGLWithSpecialPowers([
-      makeSpecialPowerDef('SuperweaponNukeCannon', {
-        ReloadTime: 360000,
-        Enum: 'SPECIAL_NEUTRON_MISSILE',
+  it('falls back to defaults when not specified in bundle', () => {
+    const bundle = makeBundle({ objects: [] });
+    const gl = makeSelf();
+    gl.loadMapObjects(makeMap([]), makeRegistry(bundle), makeHeightmap());
+    expect(gl.resolveMaxRetaliationDistance()).toBe(210);
+    expect(gl.resolveRetaliationFriendsRadius()).toBe(120);
+    gl.dispose();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PlayerTemplate: BaseSide, OldFaction, ScoreScreenMusic, GeneralImage,
+//   ArmyTooltip, Features, MedallionRegular, MedallionHilite, MedallionSelect
+// ---------------------------------------------------------------------------
+describe('PlayerTemplate ZH fields', () => {
+  it('extracts all ZH-only PlayerTemplate fields from registry', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeBlock('PlayerTemplate', 'FactionAmericaSuperWeapon', {
+        Side: 'America',
+        BaseSide: 'USA',
+        OldFaction: 'No',
+        ScoreScreenMusic: 'Score_USA',
+        GeneralImage: 'USA_Superweapon',
+        ArmyTooltip: 'TOOLTIP:BioStrategyLong_Pos3',
+        Features: 'GUI:BioFeatures_Pos3',
+        MedallionRegular: 'SuperWGeneral_slvr',
+        MedallionHilite: 'SuperWGeneral_blue',
+        MedallionSelect: 'SuperWGeneral_orng',
       }),
     ]);
-    expect(gl.resolveSpecialPowerIsShortcutPower('SuperweaponNukeCannon')).toBe(false);
+    const faction = registry.getFaction('FactionAmericaSuperWeapon');
+    expect(faction).not.toBeUndefined();
+    expect(faction!.side).toBe('America');
+    expect(faction!.baseSide).toBe('USA');
+    expect(faction!.oldFaction).toBe(false);
+    expect(faction!.scoreScreenMusic).toBe('Score_USA');
+    expect(faction!.generalImage).toBe('USA_Superweapon');
+    expect(faction!.armyTooltip).toBe('TOOLTIP:BioStrategyLong_Pos3');
+    expect(faction!.features).toBe('GUI:BioFeatures_Pos3');
+    expect(faction!.medallionRegular).toBe('SuperWGeneral_slvr');
+    expect(faction!.medallionHilite).toBe('SuperWGeneral_blue');
+    expect(faction!.medallionSelect).toBe('SuperWGeneral_orng');
   });
 
-  it('extracts ShortcutPower = true (Yes)', () => {
-    const gl = makeGLWithSpecialPowers([
-      makeSpecialPowerDef('SuperweaponParticleUplink', {
-        ReloadTime: 240000,
-        Enum: 'SPECIAL_PARTICLE_UPLINK_CANNON',
-        ShortcutPower: true,
+  it('defaults ZH-only fields to undefined when absent (Generals-style template)', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeBlock('PlayerTemplate', 'FactionAmerica', {
+        Side: 'America',
+        PlayableSide: 'Yes',
       }),
     ]);
-    expect(gl.resolveSpecialPowerIsShortcutPower('SuperweaponParticleUplink')).toBe(true);
+    const faction = registry.getFaction('FactionAmerica');
+    expect(faction).not.toBeUndefined();
+    expect(faction!.side).toBe('America');
+    expect(faction!.baseSide).toBeUndefined();
+    expect(faction!.oldFaction).toBeUndefined();
+    expect(faction!.scoreScreenMusic).toBeUndefined();
+    expect(faction!.generalImage).toBeUndefined();
+    expect(faction!.armyTooltip).toBeUndefined();
+    expect(faction!.features).toBeUndefined();
+    expect(faction!.medallionRegular).toBeUndefined();
+    expect(faction!.medallionHilite).toBeUndefined();
+    expect(faction!.medallionSelect).toBeUndefined();
   });
 
-  it('extracts ShortcutPower = false when explicitly set', () => {
-    const gl = makeGLWithSpecialPowers([
-      makeSpecialPowerDef('SpecialPowerRepairVehicles', {
-        ReloadTime: 120000,
-        Enum: 'SPECIAL_REPAIR_VEHICLES',
-        ShortcutPower: false,
+  it('extracts OldFaction = Yes correctly', () => {
+    const registry = new IniDataRegistry();
+    registry.loadBlocks([
+      makeBlock('PlayerTemplate', 'FactionAmerica', {
+        Side: 'America',
+        OldFaction: 'Yes',
       }),
     ]);
-    expect(gl.resolveSpecialPowerIsShortcutPower('SpecialPowerRepairVehicles')).toBe(false);
+    const faction = registry.getFaction('FactionAmerica');
+    expect(faction!.oldFaction).toBe(true);
   });
 
-  it('returns false for unknown special power name', () => {
-    const gl = makeGLWithSpecialPowers([]);
-    expect(gl.resolveSpecialPowerIsShortcutPower('NonexistentPower')).toBe(false);
-  });
-
-  it('defaults AcademyClassify to ACT_NONE when field is absent', () => {
-    const gl = makeGLWithSpecialPowers([
-      makeSpecialPowerDef('SuperweaponScudStorm', {
-        ReloadTime: 300000,
-        Enum: 'SPECIAL_SCUD_STORM',
-      }),
-    ]);
-    expect(gl.resolveSpecialPowerAcademyClassification('SuperweaponScudStorm')).toBe('ACT_NONE');
-  });
-
-  it('extracts AcademyClassify = ACT_SUPERPOWER', () => {
-    const gl = makeGLWithSpecialPowers([
-      makeSpecialPowerDef('SuperweaponParticleUplink', {
-        ReloadTime: 240000,
-        Enum: 'SPECIAL_PARTICLE_UPLINK_CANNON',
-        AcademyClassify: 'ACT_SUPERPOWER',
-        ShortcutPower: true,
-      }),
-    ]);
-    expect(gl.resolveSpecialPowerAcademyClassification('SuperweaponParticleUplink')).toBe('ACT_SUPERPOWER');
-  });
-
-  it('extracts AcademyClassify = ACT_UPGRADE_RADAR', () => {
-    const gl = makeGLWithSpecialPowers([
-      makeSpecialPowerDef('SpecialPowerRadarUpgrade', {
-        ReloadTime: 0,
-        AcademyClassify: 'ACT_UPGRADE_RADAR',
-      }),
-    ]);
-    expect(gl.resolveSpecialPowerAcademyClassification('SpecialPowerRadarUpgrade')).toBe('ACT_UPGRADE_RADAR');
-  });
-
-  it('returns ACT_NONE for unknown special power name', () => {
-    const gl = makeGLWithSpecialPowers([]);
-    expect(gl.resolveSpecialPowerAcademyClassification('NonexistentPower')).toBe('ACT_NONE');
-  });
-
-  it('normalizes special power name case for ShortcutPower lookup', () => {
-    const gl = makeGLWithSpecialPowers([
-      makeSpecialPowerDef('SuperweaponParticleUplink', {
-        ReloadTime: 240000,
-        ShortcutPower: true,
-      }),
-    ]);
-    // Should work regardless of case
-    expect(gl.resolveSpecialPowerIsShortcutPower('superweaponparticleuplink')).toBe(true);
-    expect(gl.resolveSpecialPowerIsShortcutPower('SUPERWEAPONPARTICLEUPLINK')).toBe(true);
-  });
-
-  it('normalizes special power name case for AcademyClassify lookup', () => {
-    const gl = makeGLWithSpecialPowers([
-      makeSpecialPowerDef('SuperweaponParticleUplink', {
-        ReloadTime: 240000,
-        AcademyClassify: 'ACT_SUPERPOWER',
-      }),
-    ]);
-    // Should work regardless of case
-    expect(gl.resolveSpecialPowerAcademyClassification('superweaponparticleuplink')).toBe('ACT_SUPERPOWER');
+  it('preserves ZH fields through bundle round-trip', () => {
+    const bundle = makeBundle({
+      objects: [],
+      factions: [
+        {
+          name: 'FactionChinaTank',
+          side: 'China',
+          fields: {},
+          baseSide: 'China',
+          oldFaction: false,
+          scoreScreenMusic: 'Score_China',
+          generalImage: 'China_Tank',
+          armyTooltip: 'TOOLTIP:BioStrategyLong_Pos7',
+          features: 'GUI:BioFeatures_Pos7',
+          medallionRegular: 'TankGeneral_slvr',
+          medallionHilite: 'TankGeneral_blue',
+          medallionSelect: 'TankGeneral_orng',
+        },
+      ],
+    });
+    const registry = makeRegistry(bundle);
+    const faction = registry.getFaction('FactionChinaTank');
+    expect(faction).not.toBeUndefined();
+    expect(faction!.baseSide).toBe('China');
+    expect(faction!.oldFaction).toBe(false);
+    expect(faction!.scoreScreenMusic).toBe('Score_China');
+    expect(faction!.generalImage).toBe('China_Tank');
+    expect(faction!.armyTooltip).toBe('TOOLTIP:BioStrategyLong_Pos7');
+    expect(faction!.features).toBe('GUI:BioFeatures_Pos7');
+    expect(faction!.medallionRegular).toBe('TankGeneral_slvr');
+    expect(faction!.medallionHilite).toBe('TankGeneral_blue');
+    expect(faction!.medallionSelect).toBe('TankGeneral_orng');
   });
 });

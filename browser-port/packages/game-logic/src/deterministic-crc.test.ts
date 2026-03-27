@@ -292,7 +292,7 @@ const CAMPAIGN_PROGRESS_CERTIFICATION_CASES: CampaignProgressCertificationCase[]
   {
     name: 'early',
     totalFrames: 30,
-    checkpointCrcs: [1247141348, 4165165484, 4240548500, 2434184540, 3778685781, 4094620724],
+    checkpointCrcs: [3145627795, 1916373169, 2184285778, 3582187378, 353742932, 1617286099],
     missionState: {
       missionStage: 5,
       missionTimer: 11,
@@ -315,7 +315,7 @@ const CAMPAIGN_PROGRESS_CERTIFICATION_CASES: CampaignProgressCertificationCase[]
   {
     name: 'mid',
     totalFrames: 75,
-    checkpointCrcs: [1247141348, 4165165484, 4240548500, 2434184540, 3778685781, 2666993030],
+    checkpointCrcs: [3145627795, 1916373169, 2184285778, 3582187378, 353742932, 168319768],
     missionState: {
       missionStage: 4,
       missionTimer: -1,
@@ -338,7 +338,7 @@ const CAMPAIGN_PROGRESS_CERTIFICATION_CASES: CampaignProgressCertificationCase[]
   {
     name: 'late',
     totalFrames: 130,
-    checkpointCrcs: [1247141348, 4165165484, 4240548500, 2434184540, 3778685781, 2395008068],
+    checkpointCrcs: [3145627795, 1916373169, 2184285778, 3582187378, 353742932, 3375085075],
     missionState: {
       missionStage: 4,
       missionTimer: -1,
@@ -604,19 +604,19 @@ describe('GameLogic deterministic CRC ownership', () => {
     const replayRun = runCampaignScenarioReplay();
     expect(replayRun.crcTimeline).toEqual(firstRun.crcTimeline);
     expect(firstRun.checkpointCrcs).toEqual([
-      1247141348,
-      4165165484,
-      4240548500,
-      2434184540,
-      3778685781,
-      2009707145,
-      44257137,
-      1069296287,
-      4241047255,
-      3667014763,
-      665198258,
-      2500940383,
-      2395008068,
+      3145627795,
+      1916373169,
+      2184285778,
+      3582187378,
+      353742932,
+      1850723878,
+      2578792901,
+      2384113276,
+      2203188828,
+      4185183660,
+      784498120,
+      3849276285,
+      3375085075,
     ]);
   });
 
@@ -625,19 +625,19 @@ describe('GameLogic deterministic CRC ownership', () => {
     const replayRun = runDeterministicStressReplay(LONG_STRESS_REPLAY_TOTAL_FRAMES);
     expect(replayRun).toEqual(firstRun);
     expect(LONG_STRESS_REPLAY_CHECKPOINT_FRAMES.map((frame) => firstRun[frame]!)).toEqual([
-      1611102629,
-      1520991201,
-      2897043545,
-      1870187208,
-      1209321989,
-      854858206,
-      3924868552,
-      2443945646,
-      2710248353,
-      604265684,
-      2149924295,
-      2172346998,
-      3012624923,
+      306702229,
+      4224381317,
+      1105233253,
+      1326132515,
+      2960796439,
+      1543137912,
+      938342946,
+      3604454842,
+      374894980,
+      591033169,
+      2478831388,
+      2501348825,
+      1550847340,
     ]);
   });
 

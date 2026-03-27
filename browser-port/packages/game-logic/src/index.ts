@@ -8482,6 +8482,8 @@ export class GameLogicSubsystem implements Subsystem {
           guardEnemyScanRateFrames: this.runtimeAiConfig.guardEnemyScanRateFrames,
           guardEnemyReturnScanRateFrames: this.runtimeAiConfig.guardEnemyReturnScanRateFrames,
           skirmishBaseDefenseExtraDistance: this.runtimeAiConfig.skirmishBaseDefenseExtraDistance,
+          maxRetaliationDistance: this.runtimeAiConfig.maxRetaliationDistance,
+          retaliationFriendsRadius: this.runtimeAiConfig.retaliationFriendsRadius,
         },
         config: this.config,
         commandQueue: this.commandQueue,
@@ -12297,6 +12299,23 @@ export class GameLogicSubsystem implements Subsystem {
 
   /* @internal */ resolveSkirmishBaseDefenseExtraDistance(): number {
     return this.runtimeAiConfig.skirmishBaseDefenseExtraDistance;
+  }
+
+  /**
+   * Source parity (ZH-only): TAiData::m_maxRetaliateDistance — max distance at
+   * which a unit will chase an attacker when retaliating. Prevents chasing
+   * artillery across the map.
+   */
+  /* @internal */ resolveMaxRetaliationDistance(): number {
+    return this.runtimeAiConfig.maxRetaliationDistance;
+  }
+
+  /**
+   * Source parity (ZH-only): TAiData::m_retaliateFriendsRadius — radius within
+   * which friendly units are recruited to help retaliate against an attacker.
+   */
+  /* @internal */ resolveRetaliationFriendsRadius(): number {
+    return this.runtimeAiConfig.retaliationFriendsRadius;
   }
 
   /* @internal */ resolveCachedSkirmishBaseCenterAndRadius(side: string): ScriptBaseCenterAndRadius | null {
@@ -21974,34 +21993,6 @@ export class GameLogicSubsystem implements Subsystem {
       if (key.toUpperCase() === normalizedName) return value;
     }
     return undefined;
-  }
-
-  /**
-   * Source parity: SpecialPowerTemplate::isShortcutPower() (SpecialPower.h line 127).
-   * ZH-only field — determines if this power can be fired from the side shortcut panel.
-   * INI field: ShortcutPower (Bool). Default: false.
-   */
-  resolveSpecialPowerIsShortcutPower(specialPowerName: string): boolean {
-    const specialPowerDef = this.resolveSpecialPowerDefByName(
-      specialPowerName.trim().toUpperCase(),
-    );
-    if (!specialPowerDef) return false;
-    return readBooleanField(specialPowerDef.fields, ['ShortcutPower']) === true;
-  }
-
-  /**
-   * Source parity: SpecialPowerTemplate::getAcademyClassificationType() (SpecialPower.h line 128).
-   * ZH-only field — classifies this power for the Academy tutorial advice system.
-   * INI field: AcademyClassify (IndexList). Values: ACT_NONE, ACT_UPGRADE_RADAR, ACT_SUPERPOWER.
-   * Default: ACT_NONE.
-   */
-  resolveSpecialPowerAcademyClassification(specialPowerName: string): string {
-    const specialPowerDef = this.resolveSpecialPowerDefByName(
-      specialPowerName.trim().toUpperCase(),
-    );
-    if (!specialPowerDef) return 'ACT_NONE';
-    const raw = readStringField(specialPowerDef.fields, ['AcademyClassify']);
-    return raw ? raw.trim().toUpperCase() : 'ACT_NONE';
   }
 
   /**

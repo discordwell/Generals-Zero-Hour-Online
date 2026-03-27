@@ -202,6 +202,8 @@ interface RuntimeAiConfigLike {
   guardEnemyScanRateFrames: number;
   guardEnemyReturnScanRateFrames: number;
   skirmishBaseDefenseExtraDistance: number;
+  maxRetaliationDistance: number;
+  retaliationFriendsRadius: number;
 }
 
 interface DeterministicObjectsOwnerSnapshot {
@@ -519,6 +521,8 @@ function writeDeterministicAiCrc(
   crc.addUnsignedInt(Math.trunc(aiSnapshot.runtimeAiConfig.guardEnemyScanRateFrames) >>> 0);
   crc.addUnsignedInt(Math.trunc(aiSnapshot.runtimeAiConfig.guardEnemyReturnScanRateFrames) >>> 0);
   addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.skirmishBaseDefenseExtraDistance);
+  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.maxRetaliationDistance);
+  addFloat32Crc(context, crc, aiSnapshot.runtimeAiConfig.retaliationFriendsRadius);
 
   crc.addUnsignedInt(aiSnapshot.commandQueue.length >>> 0);
   for (const command of aiSnapshot.commandQueue) {

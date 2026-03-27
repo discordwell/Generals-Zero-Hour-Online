@@ -70,6 +70,29 @@ export interface FactionDef {
   name: string;
   side?: string;
   fields: Record<string, IniValue>;
+  /**
+   * Source parity (ZH-only): PlayerTemplate::m_baseSide — the base faction this
+   * general inherits from (e.g., "USA", "China", "GLA"). Used for sub-faction
+   * resolution in Zero Hour's Generals Challenge mode.
+   */
+  baseSide?: string;
+  /** Source parity (ZH-only): PlayerTemplate::m_oldFaction — true if this faction
+   * existed in the original Generals (not a ZH general). Controls oldFactionsOnly filter. */
+  oldFaction?: boolean;
+  /** Source parity (ZH-only): PlayerTemplate::m_scoreScreenMusic — music track name for score screen. */
+  scoreScreenMusic?: string;
+  /** Source parity (ZH-only): PlayerTemplate::m_generalImage — mapped image name for the general portrait. */
+  generalImage?: string;
+  /** Source parity (ZH-only): PlayerTemplate::m_tooltip — army tooltip label (INI key: ArmyTooltip). */
+  armyTooltip?: string;
+  /** Source parity (ZH-only): PlayerTemplate::m_strGeneralFeatures — general features label (INI key: Features). */
+  features?: string;
+  /** Source parity (ZH-only): PlayerTemplate::m_strMedallionNormal — medallion image in normal state. */
+  medallionRegular?: string;
+  /** Source parity (ZH-only): PlayerTemplate::m_strMedallionHilite — medallion image in highlighted state. */
+  medallionHilite?: string;
+  /** Source parity (ZH-only): PlayerTemplate::m_strMedallionSelected — medallion image in selected state. */
+  medallionSelect?: string;
 }
 
 export interface LocomotorDef {
@@ -179,6 +202,18 @@ export interface AiConfig {
   guardEnemyScanRateFrames?: number;
   /** Source parity: INI::parseDurationUnsignedInt stores duration fields as logic frames. */
   guardEnemyReturnScanRateFrames?: number;
+  /**
+   * Source parity (ZH-only): TAiData::m_maxRetaliateDistance — if the attacker is farther
+   * than this distance, don't retaliate. Prevents chasing artillery across the map.
+   * C++ default: 210.0. Retail AIData.ini: 200.0.
+   */
+  maxRetaliationDistance?: number;
+  /**
+   * Source parity (ZH-only): TAiData::m_retaliateFriendsRadius — when retaliating,
+   * gather allied units within this radius to help attack.
+   * C++ default: 120.0. Retail AIData.ini: 120.0.
+   */
+  retaliationFriendsRadius?: number;
 }
 
 /**
@@ -198,6 +233,8 @@ export const DEFAULT_AI_CONFIG: Required<AiConfig> = {
   guardChaseUnitFrames: 300,
   guardEnemyScanRateFrames: 15,
   guardEnemyReturnScanRateFrames: 30,
+  maxRetaliationDistance: 210,
+  retaliationFriendsRadius: 120,
 };
 
 /**
@@ -940,6 +977,16 @@ export class IniDataRegistry {
           name: block.name,
           side: extractString(block.fields['Side']),
           fields: block.fields,
+          // ZH-only fields (source parity: PlayerTemplate.cpp GeneralsMD FieldParse additions)
+          baseSide: extractString(block.fields['BaseSide']),
+          oldFaction: extractBoolean(block.fields['OldFaction']),
+          scoreScreenMusic: extractString(block.fields['ScoreScreenMusic']),
+          generalImage: extractString(block.fields['GeneralImage']),
+          armyTooltip: extractString(block.fields['ArmyTooltip']),
+          features: extractString(block.fields['Features']),
+          medallionRegular: extractString(block.fields['MedallionRegular']),
+          medallionHilite: extractString(block.fields['MedallionHilite']),
+          medallionSelect: extractString(block.fields['MedallionSelect']),
         });
         break;
 
@@ -1439,6 +1486,10 @@ export class IniDataRegistry {
       guardEnemyReturnScanRateFrames:
         extractDurationFrames(block.fields['GuardEnemyReturnScanRate']) ??
         this.ai?.guardEnemyReturnScanRateFrames,
+      maxRetaliationDistance:
+        extractNumber(block.fields['MaxRetaliationDistance']) ?? this.ai?.maxRetaliationDistance,
+      retaliationFriendsRadius:
+        extractNumber(block.fields['RetaliationFriendsRadius']) ?? this.ai?.retaliationFriendsRadius,
     };
   }
 }
