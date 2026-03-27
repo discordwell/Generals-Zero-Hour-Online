@@ -862,6 +862,25 @@ export function clearLeechRangeAllSlots(state: MultiWeaponEntityState): void {
   }
 }
 
+/**
+ * Source parity (ZH): Weapon::transferNextShotStatsFrom() — Patch 1.01 addition
+ * for Jarmen Kell and combat bike. Transfers key weapon timing state between
+ * weapon slots so a hero retains sniper cooldown when mounting/dismounting.
+ *
+ * Transfers: nextFireFrame (m_whenWeCanFireAgain), reloadFinishFrame
+ * (m_whenLastReloadStarted), and weapon status (via ammoInClip state).
+ *
+ * C++ reference: Weapon.cpp:3146-3156
+ */
+export function transferNextShotStatsFrom(
+  targetSlot: WeaponSlotState,
+  sourceSlot: Readonly<WeaponSlotState>,
+): void {
+  targetSlot.nextFireFrame = sourceSlot.nextFireFrame;
+  targetSlot.reloadFinishFrame = sourceSlot.reloadFinishFrame;
+  targetSlot.ammoInClip = sourceSlot.ammoInClip;
+}
+
 // ---------------------------------------------------------------------------
 // Source parity: Weapon::m_weaponRecoil — recoil amount
 // ---------------------------------------------------------------------------

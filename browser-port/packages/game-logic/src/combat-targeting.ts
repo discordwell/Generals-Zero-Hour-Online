@@ -934,7 +934,7 @@ export function findGuardTarget(self: GL,
   return bestTarget;
 }
 
-export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: MapEntity, weapon: AttackWeaponProfile): void {
+export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: MapEntity, weapon: AttackWeaponProfile, inflictDamage: boolean = true): void {
   // Source parity: Object::getLastShotFiredFrame() — track last normal weapon fire for ExclusiveWeaponDelay.
   attacker.lastShotFiredFrame = self.frameCounter;
   let sourceX = attacker.x;
@@ -1270,7 +1270,10 @@ export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: Ma
     // Source parity: laser weapons always deal damage synchronously (instant hit).
     // createLaser() is called for the visual beam; damage is applied immediately.
     self.emitWeaponImpactVisualEvent(event);
-    applyWeaponDamageEventImpl(self.createCombatDamageEventContext(), event);
+    // Source parity (ZH): Weapon.cpp:1052 — inflictDamage gates dealDamageInternal.
+    if (inflictDamage) {
+      applyWeaponDamageEventImpl(self.createCombatDamageEventContext(), event);
+    }
     return;
   }
 
@@ -1278,7 +1281,10 @@ export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: Ma
     // Source parity: WeaponTemplate::fireWeaponTemplate() applies non-projectile
     // damage immediately when delayInFrames < 1.0f instead of queuing delayed damage.
     self.emitWeaponImpactVisualEvent(event);
-    applyWeaponDamageEventImpl(self.createCombatDamageEventContext(), event);
+    // Source parity (ZH): Weapon.cpp:1064 — inflictDamage gates dealDamageInternal.
+    if (inflictDamage) {
+      applyWeaponDamageEventImpl(self.createCombatDamageEventContext(), event);
+    }
     return;
   }
 
@@ -1293,7 +1299,11 @@ export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: Ma
     }
   }
 
-  self.pendingWeaponDamageEvents.push(event);
+  // Source parity (ZH): Weapon.cpp:1082 — inflictDamage gates setDelayedDamage (queued damage).
+  // When inflictDamage is false, projectile visual still flies but deals no damage on impact.
+  if (inflictDamage) {
+    self.pendingWeaponDamageEvents.push(event);
+  }
 
   // Source parity: HistoricBonus — track hit location for bonus weapon triggering.
   self.checkHistoricBonus(bonusedWeapon, impactX, impactZ, attacker.id);

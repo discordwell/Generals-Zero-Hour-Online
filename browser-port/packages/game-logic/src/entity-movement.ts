@@ -1510,3 +1510,61 @@ export function shouldCrushVehicleTarget(self: GL, crusher: MapEntity, victim: M
   const distanceTooFarSquared = 2.25 * crushPointOffsetDistance * crushPointOffsetDistance;
   return dot < 0 && distanceSquared < distanceTooFarSquared;
 }
+
+/**
+ * Source parity: AIGroup.cpp:1823-1850 — getHelicopterOffset.
+ * Returns a spiral offset position for helicopter index `idx` in a group.
+ * Index 0 gets no offset (stays at center). Each subsequent helicopter is placed
+ * on a growing spiral to prevent helicopter stacking during formation tightening.
+ */
+const ASSUMED_HELI_DIAMETER = 70.0;
+const TWO_PI = Math.PI * 2;
+
+export function getHelicopterOffset(baseX: number, baseZ: number, idx: number): { x: number; z: number } {
+  if (idx <= 0) {
+    return { x: baseX, z: baseZ };
+  }
+
+  let radius = ASSUMED_HELI_DIAMETER;
+  let circumference = radius * TWO_PI;
+  let angleBetweenEachChopper = (ASSUMED_HELI_DIAMETER / circumference) * TWO_PI;
+  let angle = 0;
+
+  for (let h = 1; h < idx; h++) {
+    angle += angleBetweenEachChopper;
+
+    if (angle > TWO_PI) {
+      radius += ASSUMED_HELI_DIAMETER;
+      circumference = radius * TWO_PI;
+      angleBetweenEachChopper = (ASSUMED_HELI_DIAMETER / circumference) * TWO_PI;
+      angle -= TWO_PI;
+    }
+  }
+
+  return {
+    x: baseX + Math.sin(angle) * radius,
+    z: baseZ + Math.cos(angle) * radius,
+  };
+}
+
+/**
+ * Source parity: AIGroup.cpp:1901-1928 — helicopters (PRODUCED_AT_HELIPAD) get discrete
+ * spiral offsets during group tighten-to-position, preventing stacking since they don't
+ * reserve ground in pathfinding.
+ */
+export function issueGroupMoveTo(self: GL, entityIds: number[], targetX: number, targetZ: number): void {
+  let heliIdx = 0;
+  for (const entityId of entityIds) {
+    const entity = self.spawnedEntities.get(entityId);
+    if (!entity || entity.destroyed || !entity.canMove) continue;
+    if (self.isEntityDisabledForMovement(entity)) continue;
+
+    if (entity.kindOf.has('PRODUCED_AT_HELIPAD')) {
+      const offset = getHelicopterOffset(targetX, targetZ, heliIdx);
+      heliIdx++;
+      self.issueMoveTo(entityId, offset.x, offset.z);
+    } else {
+      self.issueMoveTo(entityId, targetX, targetZ);
+    }
+  }
+}

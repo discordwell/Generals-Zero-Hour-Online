@@ -633,6 +633,8 @@ import {
   updateCrushCollisions as updateCrushCollisionsImpl,
   resolveVehicleCrushTarget as resolveVehicleCrushTargetImpl,
   shouldCrushVehicleTarget as shouldCrushVehicleTargetImpl,
+  getHelicopterOffset as getHelicopterOffsetImpl,
+  issueGroupMoveTo as issueGroupMoveToImpl,
 } from './entity-movement.js';
 import {
   findFireWeaponTargetForPositionUsingWeapon as findFireWeaponTargetForPositionUsingWeaponImpl,
@@ -932,6 +934,7 @@ export {
   resetWeaponSlotState,
   selectBestWeaponTemplateSet,
   setWeaponLock,
+  transferNextShotStatsFrom,
   updateWeaponSetFromProfiles,
   updateWeaponSlotIdleAutoReload,
   WEAPON_SLOT_COUNT,
@@ -11278,6 +11281,7 @@ export class GameLogicSubsystem implements Subsystem {
   private updateCrushCollisions(...args: any[]) { return (updateCrushCollisionsImpl as any)(this, ...args); }
   /* @internal */ resolveVehicleCrushTarget(...args: any[]) { return (resolveVehicleCrushTargetImpl as any)(this, ...args); }
   /* @internal */ shouldCrushVehicleTarget(...args: any[]) { return (shouldCrushVehicleTargetImpl as any)(this, ...args); }
+  /* @internal */ issueGroupMoveTo(...args: any[]) { return (issueGroupMoveToImpl as any)(this, ...args); }
 
   // ---- Combat targeting facades (delegate to combat-targeting.ts) ----
 
@@ -22876,6 +22880,12 @@ export class GameLogicSubsystem implements Subsystem {
       this.disabledEmpStatusByEntityId.set(entity.id, resolvedDisableUntilFrame);
     }
 
+    // Source parity: Object.cpp:3820-3826 — when a dozer becomes disabled, cancel its
+    // current construction/repair task so someone else can take over.
+    if (entity.dozerAIProfile !== null || entity.kindOf.has('DOZER')) {
+      this.cancelCurrentDozerTask(entity.id);
+    }
+
     // Source parity: Object.cpp:2153-2163 — when a SPAWNS_ARE_THE_WEAPONS entity is
     // disabled, propagate the disable to all spawned slaves via orderSlavesDisabledUntil.
     if (entity.kindOf.has('SPAWNS_ARE_THE_WEAPONS') && entity.spawnBehaviorState) {
@@ -23602,6 +23612,27 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  /**
+   * Source parity: Object.cpp:4954-4956 — check if entity is inside a container
+   * that is not garrisonable. Units in transports/tunnels don't reveal shroud,
+   * but units garrisoned in buildings do (they can fire from inside).
+   */
+  private isEntityInNonGarrisonableContainer(entity: MapEntity): boolean {
+    // Garrison containers are garrisonable — occupants CAN look.
+    if (entity.garrisonContainerId !== null) return false;
+    // Tunnel, helix, transport containers are non-garrisonable — occupants cannot look.
+    if (entity.tunnelContainerId !== null) return true;
+    if (entity.helixCarrierId !== null) {
+      // Source parity: HelixContain::isEnclosingContainerFor returns FALSE for the
+      // portable structure rider — it sits visibly on top and is attackable.
+      const carrier = this.spawnedEntities.get(entity.helixCarrierId);
+      if (carrier?.helixPortableRiderId === entity.id) return false;
+      return true;
+    }
+    if (entity.transportContainerId !== null) return true;
+    return false;
+  }
+
   private updateFogOfWar(): void {
     const grid = this.fogOfWarGrid;
     if (!grid) {
@@ -23611,6 +23642,15 @@ export class GameLogicSubsystem implements Subsystem {
     for (const entity of this.spawnedEntities.values()) {
       const playerIdx = this.resolvePlayerIndexForSide(entity.side);
       if (playerIdx < 0) {
+        continue;
+      }
+
+      // Source parity: Object.cpp:4944-4973 — units inside non-garrisonable containers
+      // (transports, tunnels) do not reveal shroud. Garrison buildings allow occupants
+      // to look because the garrisoned infantry can fire from inside.
+      if (this.isEntityInNonGarrisonableContainer(entity)) {
+        // Ensure any existing vision contribution is removed.
+        updateEntityVisionImpl(grid, entity.visionState, playerIdx, entity.x, entity.z, 0, false);
         continue;
       }
 
@@ -28206,18 +28246,38 @@ export class GameLogicSubsystem implements Subsystem {
     return this.gameRandom.nextRange(minFrames, maxFrames);
   }
 
+  /**
+   * Source parity (ZH): Object::kill(DamageType, DeathType) — force-kill an entity with
+   * specified damage and death types. Sets m_kill = TRUE on DamageInfoInput, which forces
+   * death regardless of armor or body type protections.
+   *
+   * Generals used kill() with hardcoded DAMAGE_UNRESISTABLE + DEATH_NORMAL. ZH parameterized
+   * this so scripts/die modules can specify the visual death cause.
+   *
+   * C++ reference: Object.cpp:1951-1966 — DamageInfo with m_kill = TRUE.
+   */
+  /* @internal */ killEntity(
+    target: MapEntity,
+    damageType: string = 'UNRESISTABLE',
+    deathType: string = 'NORMAL',
+  ): void {
+    this.applyWeaponDamageAmount(null, target, target.maxHealth, damageType, deathType, true);
+  }
+
   private applyWeaponDamageAmount(
     sourceEntityId: number | null,
     target: MapEntity,
     amount: number,
     damageType: string,
     weaponDeathType?: string,
+    forceKill?: boolean,
   ): void {
     // Source parity: InactiveBody::attemptDamage — only UNRESISTABLE triggers death.
     // Must check before canTakeDamage guard since InactiveBody has canTakeDamage=false.
+    // Source parity (ZH): m_kill = TRUE also forces death on InactiveBody.
     if (target.bodyType === 'INACTIVE') {
       if (target.destroyed) return;
-      if (damageType.toUpperCase() === 'UNRESISTABLE') {
+      if (damageType.toUpperCase() === 'UNRESISTABLE' || forceKill) {
         target.health = 0;
         target.pendingDeathType = weaponDeathType || damageTypeToDeathType(damageType);
         if (!target.slowDeathState && !target.structureCollapseState) {
@@ -28248,7 +28308,8 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     // Source parity: ActiveBody::attemptDamage — indestructible bodies ignore all damage.
-    if (target.isIndestructible) {
+    // Source parity (ZH): m_kill = TRUE bypasses indestructible check.
+    if (target.isIndestructible && !forceKill) {
       return;
     }
 
@@ -28315,8 +28376,9 @@ export class GameLogicSubsystem implements Subsystem {
 
     // Source parity: HighlanderBody::attemptDamage — cap raw damage before armor adjustment
     // so health doesn't drop below 1, UNLESS damage type is UNRESISTABLE.
+    // Source parity (ZH): m_kill = TRUE bypasses HighlanderBody protection.
     // C++ caps damageInfo->in.m_amount (pre-armor) then calls ActiveBody::attemptDamage.
-    if (target.bodyType === 'HIGHLANDER' && damageType.toUpperCase() !== 'UNRESISTABLE') {
+    if (target.bodyType === 'HIGHLANDER' && damageType.toUpperCase() !== 'UNRESISTABLE' && !forceKill) {
       inputAmount = Math.min(inputAmount, target.health - 1);
       if (inputAmount <= 0) {
         return;
@@ -28379,9 +28441,16 @@ export class GameLogicSubsystem implements Subsystem {
       adjustedDamage = Math.max(0, adjustedDamage * target.battlePlanDamageScalar);
     }
 
+    // Source parity (ZH): ActiveBody.cpp:525,530-532 — m_kill forces amount = currentHealth,
+    // guaranteeing death regardless of armor absorption or body type protections.
+    if (forceKill) {
+      adjustedDamage = target.health;
+    }
+
     // Source parity: ImmortalBody::internalChangeHealth — clamp delta so health never drops below 1.
     // C++ overrides internalChangeHealth (post-armor), so this is correctly placed post-armor.
-    if (target.bodyType === 'IMMORTAL') {
+    // Source parity (ZH): m_kill = TRUE bypasses ImmortalBody protection.
+    if (target.bodyType === 'IMMORTAL' && !forceKill) {
       adjustedDamage = Math.min(adjustedDamage, target.health - 1);
       if (adjustedDamage <= 0) {
         return;

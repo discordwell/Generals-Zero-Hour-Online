@@ -9255,8 +9255,12 @@ export function executeScriptPlayerSellEverything(self: GL, side: string): boole
     if (entity.destroyed || self.normalizeSide(entity.side) !== normalizedSide) {
       continue;
     }
-    const kindOf = self.resolveEntityKindOfSet(entity);
-    if (!kindOf.has('STRUCTURE') && !kindOf.has('COMMANDCENTER') && !kindOf.has('FS_POWER')) {
+    // Source parity: Player.cpp:2311-2317 — sellBuildings only sells faction structures
+    // (STRUCTURE + any FS_* kindOf), COMMANDCENTER, or FS_POWER entities.
+    // In Generals, all structures were sold indiscriminately; ZH restricts this.
+    if (!self.isFactionStructure(entity)
+      && !entity.kindOf.has('COMMANDCENTER')
+      && !entity.kindOf.has('FS_POWER')) {
       continue;
     }
     self.applyCommand({ type: 'sell', entityId: entity.id });

@@ -137,6 +137,12 @@ export function setDisabledHackedStatusUntil(self: GL, entity: MapEntity, disabl
   if (resolvedDisableUntilFrame > previousDisableUntil) {
     self.disabledHackedStatusByEntityId.set(entity.id, resolvedDisableUntilFrame);
   }
+
+  // Source parity: Object.cpp:3820-3826 — when a dozer becomes disabled, cancel its
+  // current construction/repair task so someone else can take over.
+  if (entity.dozerAIProfile !== null || entity.kindOf.has('DOZER')) {
+    self.cancelCurrentDozerTask(entity.id);
+  }
 }
 
 export function updateDisabledHackedStatuses(self: GL): void {
