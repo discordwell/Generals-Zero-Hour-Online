@@ -86,12 +86,12 @@ describe('CommandCardRenderer', () => {
     const renderer = new CommandCardRenderer(container, model);
 
     const buttons = queryButtons(container);
-    expect(buttons).toHaveLength(12);
+    expect(buttons).toHaveLength(14);
 
     // Verify grid wrapper exists
     const grid = container.querySelector('.command-card-grid');
     expect(grid).not.toBeNull();
-    expect(grid!.children).toHaveLength(12);
+    expect(grid!.children).toHaveLength(14);
 
     renderer.dispose();
   });
@@ -285,7 +285,7 @@ describe('CommandCardRenderer', () => {
     model.setButtons(makeButtons());
     const renderer = new CommandCardRenderer(container, model);
 
-    expect(queryButtons(container)).toHaveLength(12);
+    expect(queryButtons(container)).toHaveLength(14);
     expect(container.querySelector('.command-card-grid')).not.toBeNull();
 
     renderer.dispose();

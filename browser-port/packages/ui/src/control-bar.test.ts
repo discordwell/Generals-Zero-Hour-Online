@@ -453,7 +453,7 @@ describe('ControlBarModel', () => {
     ]);
 
     const slotted = model.getButtonsBySlot();
-    expect(slotted).toHaveLength(12);
+    expect(slotted).toHaveLength(18);
     expect(slotted[0]).toEqual({
       slot: 1,
       button: {
@@ -513,7 +513,7 @@ describe('ControlBarModel', () => {
     expect(activation.status).toBe('needs-target');
 
     const hud = model.getHudSlots();
-    expect(hud).toHaveLength(12);
+    expect(hud).toHaveLength(14);
     expect(hud[0]).toEqual({
       slot: 1,
       state: 'pending',
@@ -572,14 +572,19 @@ describe('ControlBarModel', () => {
     expect(hud[1]?.hotkey).toBe('2');
   });
 
-  it('assigns numeric/top-row hotkeys for 12 control bar slots', () => {
+  it('assigns numeric/top-row hotkeys for 14 visible control bar slots', () => {
     const model = new ControlBarModel();
     const hud = model.getHudSlots();
 
+    // Source parity: ZH has 14 visible HUD slots
+    expect(hud).toHaveLength(14);
     expect(hud[0]?.hotkey).toBe('1');
     expect(hud[8]?.hotkey).toBe('9');
     expect(hud[9]?.hotkey).toBe('0');
     expect(hud[10]?.hotkey).toBe('-');
     expect(hud[11]?.hotkey).toBe('=');
+    // Slots 13-14 have no position-based hotkey; use label-based (&) hotkeys only
+    expect(hud[12]?.hotkey).toBeUndefined();
+    expect(hud[13]?.hotkey).toBeUndefined();
   });
 });

@@ -87,7 +87,17 @@ export enum GUICommandType {
   GUI_COMMAND_NUM_COMMANDS,
 }
 
-const SOURCE_CONTROL_BAR_SLOT_COUNT = 12;
+/**
+ * Source parity: ZH ControlBar.h MAX_COMMANDS_PER_SET = 18.
+ * Generals used 12. ZH expanded to 18 (14 visible + 4 script-only).
+ */
+const SOURCE_MAX_COMMANDS_PER_SET = 18;
+
+/**
+ * Source parity: ZH UI layout has 14 visible command buttons.
+ * Slots 15-18 are script-only (not rendered in the HUD).
+ */
+const SOURCE_VISIBLE_HUD_SLOTS = 14;
 
 const GUI_COMMAND_NAME_TO_TYPE = new Map<string, GUICommandType>([
   ['NONE', GUICommandType.GUI_COMMAND_NONE],
@@ -446,7 +456,7 @@ export class ControlBarModel {
       if (
         normalized.slot !== undefined
         && normalized.slot >= 1
-        && normalized.slot <= SOURCE_CONTROL_BAR_SLOT_COUNT
+        && normalized.slot <= SOURCE_MAX_COMMANDS_PER_SET
         && !this.buttonsBySlot.has(normalized.slot)
       ) {
         this.buttonsBySlot.set(normalized.slot, normalized);
@@ -545,7 +555,7 @@ export class ControlBarModel {
   }
 
   getButtonsBySlot(
-    maxSlots = SOURCE_CONTROL_BAR_SLOT_COUNT,
+    maxSlots = SOURCE_MAX_COMMANDS_PER_SET,
   ): ReadonlyArray<{ slot: number; button: ControlBarButton | null }> {
     const slots: Array<{ slot: number; button: ControlBarButton | null }> = [];
     const clampedMax = Math.max(1, Math.trunc(maxSlots));
@@ -584,7 +594,7 @@ export class ControlBarModel {
     return slots;
   }
 
-  getHudSlots(maxSlots = SOURCE_CONTROL_BAR_SLOT_COUNT): ReadonlyArray<ControlBarHudSlot> {
+  getHudSlots(maxSlots = SOURCE_VISIBLE_HUD_SLOTS): ReadonlyArray<ControlBarHudSlot> {
     const slots: ControlBarHudSlot[] = [];
     const clampedMax = Math.max(1, Math.trunc(maxSlots));
 

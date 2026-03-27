@@ -13,8 +13,8 @@ import {
   type ControlBarHudSlot,
 } from './control-bar.js';
 
-/** Number of command card slots (source: SOURCE_CONTROL_BAR_SLOT_COUNT). */
-const SLOT_COUNT = 12;
+/** Number of visible command card slots. Source parity: ZH has 14 visible (of 18 internal). */
+const SLOT_COUNT = 14;
 /** Grid column count matching C++ 4-column layout. */
 const COLUMNS = 4;
 /** Individual button dimension in pixels. */
