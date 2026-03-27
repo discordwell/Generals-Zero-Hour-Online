@@ -379,6 +379,19 @@ export function issueAttackEntity(self: GL,
   if (!weapon || weapon.primaryDamage <= 0) {
     return;
   }
+
+  // Source parity: ZH AIAttackState::onEnter/update (AIStates.cpp:5547-5551, 5660-5666) —
+  // chooseWeapon() returns STATE_FAILURE when no suitable weapon is available for the target.
+  // Check weapon anti-mask against target type: if the specific weapon can't engage this
+  // target category, fail the attack to prevent units getting stuck.
+  if (weapon.antiMask !== 0) {
+    const targetKindOf = self.resolveEntityKindOfSet(target);
+    const targetAntiMask = resolveTargetAntiMask(self, target, targetKindOf);
+    if (targetAntiMask !== 0 && (weapon.antiMask & targetAntiMask) === 0) {
+      return;
+    }
+  }
+
   self.setEntityIgnoringStealthStatus(attacker, weapon.continueAttackRange > 0);
   if (!canAttackerTargetEntity(self, attacker, target, commandSource)) {
     self.setEntityIgnoringStealthStatus(attacker, false);
@@ -403,9 +416,32 @@ export function issueAttackEntity(self: GL,
   }
 
   self.issueMoveTo(attacker.id, target.x, target.z, attackRange);
+
+  // Source parity: ZH AIUpdate.cpp:1980-1997 — after computing attack path, verify
+  // the path endpoint is within weapon range of the target. If not, the unit can't
+  // reach a valid firing position, so clear the attack state.
+  if (attacker.movePath.length > 0) {
+    const lastNode = attacker.movePath[attacker.movePath.length - 1]!;
+    const dx = lastNode.x - target.x;
+    const dz = lastNode.z - target.z;
+    const endpointDistSqr = dx * dx + dz * dz;
+    const maxRangeSqr = attackRange * attackRange;
+    if (endpointDistSqr > maxRangeSqr) {
+      // Path endpoint is outside weapon range — attack cannot succeed.
+      attacker.attackTargetEntityId = null;
+      attacker.attackOriginalVictimPosition = null;
+      attacker.attackCommandSource = 'AI';
+      self.setEntityIgnoringStealthStatus(attacker, false);
+      attacker.moving = false;
+      attacker.moveTarget = null;
+      attacker.movePath = [];
+      attacker.pathIndex = 0;
+      attacker.pathfindGoalCell = null;
+    }
+  }
 }
 
-export function issueFireWeapon(self: GL, 
+export function issueFireWeapon(self: GL,
   entityId: number,
   weaponSlot: number,
   maxShotsToFire: number,
@@ -664,13 +700,21 @@ export function updateIdleAutoTargeting(self: GL): void {
       continue;
     }
 
-    // Source parity: skip disabled entities (paralyzed, EMP, hacked, unmanned).
+    // Source parity: skip disabled entities (paralyzed, EMP, hacked, unmanned, subdued).
+    // ZH adds DISABLED_SUBDUED guard — AIStates.cpp:1436 (AIIdleState::update).
     if (
       self.entityHasObjectStatus(entity, 'DISABLED_PARALYZED') ||
       self.entityHasObjectStatus(entity, 'DISABLED_EMP') ||
       self.entityHasObjectStatus(entity, 'DISABLED_HACKED') ||
-      self.entityHasObjectStatus(entity, 'DISABLED_UNMANNED')
+      self.entityHasObjectStatus(entity, 'DISABLED_UNMANNED') ||
+      self.entityHasObjectStatus(entity, 'DISABLED_SUBDUED')
     ) {
+      continue;
+    }
+
+    // Source parity: GeneralsMD Object::isAbleToAttack() — units under construction cannot attack.
+    // Prevents auto-acquire for buildings/units still being built.
+    if (self.entityHasObjectStatus(entity, 'UNDER_CONSTRUCTION')) {
       continue;
     }
 
