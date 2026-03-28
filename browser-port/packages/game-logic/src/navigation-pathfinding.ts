@@ -18,6 +18,10 @@ interface PathfindingProfile {
   canUseBridge: boolean;
   avoidPinched: boolean;
   pathDiameter: number;
+  /** Source parity: ZH KINDOF_CLIFF_JUMPER — can traverse cliff cells as ground. */
+  isCliffJumper: boolean;
+  /** Source parity: ZH KINDOF_DOZER — can path through non-enemy obstacle cells. */
+  isDozer: boolean;
 }
 
 interface PathingOccupationResult {
@@ -78,6 +82,14 @@ export interface NavigationEntityLike {
   attackNeedsLineOfSight: boolean;
   isImmobile: boolean;
   noCollisions: boolean;
+  /** Source parity: KindOf flags for pathfinding decisions (CLIFF_JUMPER, DOZER, etc.). */
+  kindOf?: Set<string>;
+  /** Source parity: Patch 1.01 — OBJECT_STATUS_IS_USING_ABILITY blocks ally shove. */
+  isUsingAbility?: boolean;
+  /** Source parity: Patch 1.01 — AIUpdate::isBusy() blocks ally shove. */
+  isBusy?: boolean;
+  /** Source parity: AIUpdate::isAttacking() blocks ally shove. */
+  isAttacking?: boolean;
 }
 
 export interface NavigationPathfindingContext<TEntity extends NavigationEntityLike> {
@@ -734,7 +746,7 @@ export function findPath<TEntity extends NavigationEntityLike>(
 
 function getMovementProfile(entity?: Pick<
   NavigationEntityLike,
-  'locomotorSurfaceMask' | 'locomotorDownhillOnly' | 'pathDiameter'
+  'locomotorSurfaceMask' | 'locomotorDownhillOnly' | 'pathDiameter' | 'kindOf'
 >): PathfindingProfile {
   const rawMask = entity?.locomotorSurfaceMask;
   const rawDownhillOnly = entity?.locomotorDownhillOnly;
@@ -744,6 +756,7 @@ function getMovementProfile(entity?: Pick<
   const pathDiameter = typeof rawDiameter === 'number' && rawDiameter >= 0 && Number.isFinite(rawDiameter)
     ? Math.max(0, Math.trunc(rawDiameter))
     : 0;
+  const kindOf = entity?.kindOf;
 
   return {
     acceptableSurfaces: mask,
@@ -752,6 +765,10 @@ function getMovementProfile(entity?: Pick<
     canUseBridge: true,
     avoidPinched: false,
     pathDiameter,
+    // Source parity: ZH AIGroup.cpp:1664-1674 — CLIFF_JUMPER vehicles bypass cliff terrain.
+    isCliffJumper: kindOf?.has('CLIFF_JUMPER') === true,
+    // Source parity: ZH AIPathfind.cpp:6236-6243 — dozers can path through non-enemy obstacle cells.
+    isDozer: kindOf?.has('DOZER') === true,
   };
 }
 
@@ -1043,7 +1060,11 @@ function pathCost(
   const isDiagonal = Math.abs(toX - fromX) === 1 && Math.abs(toZ - fromZ) === 1;
   let cost = isDiagonal ? COST_DIAGONAL : COST_ORTHOGONAL;
 
-  const toSurfaces = validLocomotorSurfacesForCellType(type, grid, index);
+  let toSurfaces = validLocomotorSurfacesForCellType(type, grid, index);
+  // Source parity: ZH CLIFF_JUMPER treats cliff as ground in cost evaluation.
+  if (profile.isCliffJumper && type === NAV_CLIFF) {
+    toSurfaces |= LOCOMOTORSURFACE_GROUND;
+  }
   if ((profile.acceptableSurfaces & toSurfaces) === 0) {
     return MAX_PATH_COST;
   }
@@ -1052,7 +1073,8 @@ function pathCost(
   }
 
   const blocked = grid.blocked[index];
-  if (blocked === undefined || (blocked === 1 && !profile.canPassObstacle)) {
+  // Source parity: ZH dozers can path through obstacle cells.
+  if (blocked === undefined || (blocked === 1 && !profile.canPassObstacle && !profile.isDozer)) {
     return MAX_PATH_COST;
   }
 
@@ -1527,10 +1549,15 @@ function canOccupyCellCenter(
     }
     return true;
   }
-  if (nav.blocked[index] === 1 && !profile.canPassObstacle) {
+  // Source parity: ZH AIPathfind.cpp:6236-6243 — dozers can path through non-enemy obstacle cells.
+  if (nav.blocked[index] === 1 && !profile.canPassObstacle && !profile.isDozer) {
     return false;
   }
-  const cellSurfaces = validLocomotorSurfacesForCellType(terrain, nav, index);
+  let cellSurfaces = validLocomotorSurfacesForCellType(terrain, nav, index);
+  // Source parity: ZH AIGroup.cpp:1664-1674 — CLIFF_JUMPER vehicles treat cliff terrain as ground.
+  if (profile.isCliffJumper && terrain === NAV_CLIFF) {
+    cellSurfaces |= LOCOMOTORSURFACE_GROUND;
+  }
   if ((profile.acceptableSurfaces & cellSurfaces) === 0) {
     return false;
   }
@@ -1683,4 +1710,120 @@ function findNearestPassableCell(
   }
 
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// moveAlliesAlongPath — post-pathfind ally shove
+// Source parity: ZH AIPathfind.cpp Pathfinder::moveAllies (lines 10112-10188)
+// ---------------------------------------------------------------------------
+
+/**
+ * Result describing which allies should be moved out of the way.
+ * Callers use this to issue move-away commands to the identified entities.
+ */
+export interface MoveAllyResult {
+  entityId: number;
+}
+
+/**
+ * Source parity: Pathfinder::moveAllies — after a path is computed, identify
+ * allied units sitting on the path that should move out of the way.
+ *
+ * ZH differences from Generals:
+ *   - Fix 2: Dozers and harvesters always request clear paths (line 10120-10122).
+ *   - Fix 3 (Patch 1.01): Don't tell busy or ability-using units to move (lines 10173-10178).
+ */
+export function moveAlliesAlongPath<TEntity extends NavigationEntityLike>(
+  context: NavigationPathfindingContext<TEntity>,
+  mover: TEntity,
+  pathCells: GridCell[],
+  movementOccupancy?: MovementOccupancyGrid,
+  blockedByAlly = false,
+): MoveAllyResult[] {
+  const grid = context.navigationGrid;
+  if (!grid) {
+    return [];
+  }
+
+  const kindOf = mover.kindOf;
+  const isDozerOrHarvester = kindOf?.has('DOZER') === true || kindOf?.has('HARVESTER') === true;
+
+  // Source parity: AIPathfind.cpp:10120-10122 — dozers/harvesters always want a clear path;
+  // other units only shove allies when their path is actually blocked by one.
+  if (!isDozerOrHarvester && !blockedByAlly) {
+    return [];
+  }
+
+  const occupancy = movementOccupancy ?? buildMovementOccupancyGrid(context, grid);
+  const { pathRadius: movementRadius, centerInCell } = getPathfindRadiusAndCenter(mover);
+  const numCellsAbove = movementRadius === 0 ? 1 : movementRadius + (centerInCell ? 1 : 0);
+  const ignoreId = mover.ignoredMovementObstacleId;
+
+  const results: MoveAllyResult[] = [];
+  const seenIds = new Set<number>();
+
+  for (const cell of pathCells) {
+    for (let ci = cell.x - movementRadius; ci < cell.x + numCellsAbove; ci++) {
+      for (let cj = cell.z - movementRadius; cj < cell.z + numCellsAbove; cj++) {
+        if (!context.isCellInBounds(ci, cj, grid)) {
+          continue;
+        }
+        const cellIndex = cj * occupancy.width + ci;
+        if (cellIndex < 0 || cellIndex >= occupancy.flags.length) {
+          continue;
+        }
+        const posUnit = occupancy.unitIds[cellIndex] ?? -1;
+        if (posUnit <= 0 || posUnit === mover.id) {
+          continue;
+        }
+        if (ignoreId !== null && posUnit === ignoreId) {
+          continue;
+        }
+        if (seenIds.has(posUnit)) {
+          continue;
+        }
+
+        const otherObj = context.spawnedEntities.get(posUnit);
+        if (!otherObj) {
+          continue;
+        }
+
+        // Source parity: only move allies.
+        if (context.getTeamRelationship(mover, otherObj) !== context.relationshipAllies) {
+          continue;
+        }
+
+        // Source parity: infantry can walk through other infantry.
+        if (mover.kindOf?.has('INFANTRY') && otherObj.kindOf?.has('INFANTRY')) {
+          continue;
+        }
+
+        // Source parity: infantry don't push vehicles (unless directly blocked).
+        if (mover.kindOf?.has('INFANTRY') && !otherObj.kindOf?.has('INFANTRY')) {
+          if (!blockedByAlly) {
+            continue;
+          }
+        }
+
+        // Only shove non-moving units.
+        if (!otherObj.moving) {
+          // Source parity: don't move units that are attacking.
+          if (otherObj.isAttacking) {
+            continue;
+          }
+
+          // Source parity: ZH Patch 1.01 — don't tell busy/using-ability units to move.
+          // AIPathfind.cpp:10173-10178 — Black Lotus exploit fix.
+          if (otherObj.isUsingAbility || otherObj.isBusy) {
+            continue;
+          }
+
+          seenIds.add(posUnit);
+          results.push({ entityId: posUnit });
+        }
+      }
+    }
+  }
+
+  return results;
 }

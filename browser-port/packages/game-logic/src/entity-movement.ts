@@ -1107,6 +1107,20 @@ export function updateEntityMovement(self: GL, dt: number): void {
   }
 }
 
+/**
+ * Source parity: Locomotor.cpp:1080-1092 — check if locomotor appearance uses
+ * wheel-based movement mechanics (moveTowardsPositionWheels / maintainCurrentPositionWheels).
+ *
+ * ZH addition: LOCO_MOTORCYCLE is added alongside LOCO_WHEELS_FOUR, sharing the
+ * same wheel-based turning and suspension mechanics.
+ */
+export function isWheelBasedLocomotor(appearance: string): boolean {
+  const normalized = appearance.toUpperCase().trim();
+  // Source parity: Locomotor.cpp switch cases — FOUR_WHEELS and MOTORCYCLE both
+  // dispatch to moveTowardsPositionWheels / maintainCurrentPositionWheels.
+  return normalized === 'FOUR_WHEELS' || normalized === 'MOTORCYCLE';
+}
+
 export function updateAnimationSteering(self: GL): void {
   const now = self.frameCounter;
   const TURN_EPSILON = 1e-4;
@@ -1567,4 +1581,57 @@ export function issueGroupMoveTo(self: GL, entityIds: number[], targetX: number,
       self.issueMoveTo(entityId, targetX, targetZ);
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Aircraft waypoint clamping with extra margin
+// Source parity: ZH AIGroup.cpp:1518-1616
+// ---------------------------------------------------------------------------
+
+/**
+ * Source parity: ZH AIGroup.cpp:1518-1616 — clampWaypointPosition.
+ *
+ * STD_WAYPOINT_CLAMP_MARGIN = PATHFIND_CELL_SIZE * 4
+ * STD_AIRCRAFT_EXTRA_MARGIN = PATHFIND_CELL_SIZE * 10
+ *
+ * Aircraft get a wider margin from map edges when clamping waypoints,
+ * preventing them from flying too close to the boundary where they
+ * might fail to turn or overshoot.
+ */
+export const STD_WAYPOINT_CLAMP_MARGIN = PATHFIND_CELL_SIZE * 4;
+export const STD_AIRCRAFT_EXTRA_MARGIN = PATHFIND_CELL_SIZE * 10;
+
+/**
+ * Compute the waypoint clamp margin for an entity.
+ * Aircraft get extra margin; ground units use the standard margin.
+ */
+export function computeWaypointClampMargin(entity: { kindOf?: Set<string>; category?: string }): number {
+  const isAircraft = entity.kindOf?.has('AIRCRAFT') || entity.category === 'air';
+  return STD_WAYPOINT_CLAMP_MARGIN + (isAircraft ? STD_AIRCRAFT_EXTRA_MARGIN : 0);
+}
+
+/**
+ * Source parity: AIGroup.cpp:1521-1545 — clampWaypointPosition.
+ * Clamps a waypoint position to within `margin` world units from each map edge.
+ */
+export function clampWaypointPosition(
+  self: GL,
+  worldX: number,
+  worldZ: number,
+  margin: number,
+): [number, number] {
+  if (!self.mapHeightmap) {
+    return [worldX, worldZ];
+  }
+  const mapWidth = self.mapHeightmap.worldWidth;
+  const mapDepth = self.mapHeightmap.worldDepth;
+  const minX = margin;
+  const minZ = margin;
+  const maxX = Math.max(margin, mapWidth - margin);
+  const maxZ = Math.max(margin, mapDepth - margin);
+  const clampVal = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+  return [
+    clampVal(worldX, minX, maxX),
+    clampVal(worldZ, minZ, maxZ),
+  ];
 }
