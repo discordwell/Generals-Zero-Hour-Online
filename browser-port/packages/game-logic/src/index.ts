@@ -2664,6 +2664,12 @@ interface TurretRuntimeState {
   state: 'IDLE' | 'AIM' | 'RECENTER' | 'HOLD';
   /** Frame at which the turret should begin recentering (hold→recenter transition). */
   holdUntilFrame: number;
+  /**
+   * Source parity (ZH): TurretAI per-turret target entity ID.
+   * C++ stores independent getTurretTargetObject/setTurretTargetObject per turret.
+   * When null, the turret falls back to the entity's main attackTargetEntityId.
+   */
+  targetEntityId: number | null;
 }
 
 /**
@@ -7802,6 +7808,13 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly playerRelationshipOverrides = new Map<string, number>();
   private readonly sideCredits = new Map<string, number>();
   private readonly sidePlayerTypes = new Map<string, SidePlayerType>();
+  /**
+   * Source parity (ZH): Player::m_logicalRetaliationModeEnabled — per-player toggle.
+   * When enabled, human player units retaliate using guard behavior (recruit nearby friends)
+   * instead of full pursuit. Set via MSG_ENABLE_RETALIATION_MODE from client preferences.
+   * Default: false (C++ Player::init sets m_logicalRetaliationModeEnabled = FALSE).
+   */
+  private readonly sideRetaliationModeEnabled = new Map<string, boolean>();
   /** Source parity: Player::setUnitsShouldIdleOrResume script toggle. */
   private readonly sideUnitsShouldIdleOrResume = new Map<string, boolean>();
   /** Source parity: Player::setCanBuildBase script toggle by side. */
@@ -9141,6 +9154,125 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
+   * Source parity (ZH): GameLogic.cpp:960-1038 — team-aware start position assignment.
+   * ZH places teammates close together while keeping different teams far apart.
+   *
+   * @param players Array of { side, team } where team < 0 or null means "no team".
+   * @param startSpots Array of { x, z } map coordinates for available start positions.
+   * @param randomSeed Optional seed index for the first random pick (for deterministic tests).
+   * @returns Array of 1-based start position indices, one per player.
+   */
+  assignTeamClusteredStartPositions(
+    players: Array<{ side: string; team: number | null }>,
+    startSpots: Array<{ x: number; z: number }>,
+    randomSeed?: number,
+  ): number[] {
+    const numPlayers = players.length;
+    const numSpots = startSpots.length;
+    if (numPlayers === 0 || numSpots === 0) {
+      return [];
+    }
+
+    // Precompute distance matrix.
+    const dist: number[][] = [];
+    for (let a = 0; a < numSpots; a++) {
+      dist[a] = [];
+      for (let b = 0; b < numSpots; b++) {
+        const dx = startSpots[a]!.x - startSpots[b]!.x;
+        const dz = startSpots[a]!.z - startSpots[b]!.z;
+        dist[a]![b] = Math.sqrt(dx * dx + dz * dz);
+      }
+    }
+
+    const taken = new Array<boolean>(numSpots).fill(false);
+    const result = new Array<number>(numPlayers).fill(0);
+    // Track which position index was first assigned to each team.
+    const teamPosIdx = new Map<number, number>();
+
+    for (let i = 0; i < numPlayers; i++) {
+      const team = players[i]!.team;
+      const hasTeam = team !== null && team !== undefined && team >= 0;
+
+      if (i === 0) {
+        // First player: pick a starting position. Use provided seed or frame counter
+        // for deterministic behavior (Math.random is banned in game logic).
+        let posIdx: number;
+        if (randomSeed !== undefined) {
+          posIdx = randomSeed % numSpots;
+        } else {
+          posIdx = this.frameCounter % numSpots;
+        }
+        // Ensure not taken (shouldn't be for first pick, but be safe).
+        let attempts = 0;
+        while (taken[posIdx] && attempts < numSpots) {
+          posIdx = (posIdx + 1) % numSpots;
+          attempts++;
+        }
+        taken[posIdx] = true;
+        result[i] = posIdx;
+        if (hasTeam) {
+          teamPosIdx.set(team!, posIdx);
+        }
+      } else if (!hasTeam || !teamPosIdx.has(team!)) {
+        // No team or team not yet placed — pick position farthest from all taken.
+        let farthestIdx = -1;
+        let farthestDist = -1;
+        for (let p = 0; p < numSpots; p++) {
+          if (taken[p]) continue;
+          let totalDist = 0;
+          for (let n = 0; n < numSpots; n++) {
+            if (taken[n] && n !== p) {
+              totalDist += dist[p]![n]!;
+            }
+          }
+          if (farthestIdx < 0 || totalDist > farthestDist) {
+            farthestIdx = p;
+            farthestDist = totalDist;
+          }
+        }
+        if (farthestIdx < 0) {
+          // Fallback: find any untaken spot.
+          farthestIdx = taken.indexOf(false);
+          if (farthestIdx < 0) farthestIdx = 0; // All taken — shouldn't happen.
+        }
+        taken[farthestIdx] = true;
+        result[i] = farthestIdx;
+        if (hasTeam) {
+          teamPosIdx.set(team!, farthestIdx);
+        }
+      } else {
+        // Team already placed — pick position closest to team's first position.
+        const teamPos = teamPosIdx.get(team!)!;
+        let closestIdx = -1;
+        let closestDist = Number.POSITIVE_INFINITY;
+        for (let n = 0; n < numSpots; n++) {
+          if (taken[n]) continue;
+          const d = dist[teamPos]![n]!;
+          if (d < closestDist) {
+            closestIdx = n;
+            closestDist = d;
+          }
+        }
+        if (closestIdx < 0) {
+          closestIdx = taken.indexOf(false);
+          if (closestIdx < 0) closestIdx = 0;
+        }
+        taken[closestIdx] = true;
+        result[i] = closestIdx;
+      }
+    }
+
+    // Apply positions via setSkirmishPlayerStartPosition.
+    for (let i = 0; i < numPlayers; i++) {
+      const side = players[i]!.side;
+      this.setSkirmishPlayerStartPosition(side, result[i]! + 1); // 1-based
+    }
+
+    // Return 1-based positions for caller convenience.
+    return result.map(idx => idx + 1);
+  }
+
+  /**
    * Source parity: ScriptEngine::m_currentPlayer side bridge.
    * Needed by script actions that operate on the current player (e.g. SKIRMISH_BUILD_BUILDING).
    */
@@ -10328,6 +10460,31 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     return true;
+  }
+
+  /**
+   * Source parity (ZH): Player::setLogicalRetaliationModeEnabled.
+   * When enabled, human player units under attack recruit nearby friendly units
+   * to retaliate (guard retaliation behavior) rather than individual full pursuit.
+   */
+  setRetaliationModeEnabled(side: string, enabled: boolean): boolean {
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return false;
+    }
+    this.sideRetaliationModeEnabled.set(normalizedSide, enabled);
+    return true;
+  }
+
+  /**
+   * Source parity (ZH): Player::isLogicalRetaliationModeEnabled.
+   */
+  isRetaliationModeEnabled(side: string): boolean {
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return false;
+    }
+    return this.sideRetaliationModeEnabled.get(normalizedSide) ?? false;
   }
 
   getSideScoreState(side: string): {
@@ -17174,6 +17331,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.sideCredits.clear();
     this.sidePlayerTypes.clear();
     this.sideUnitsShouldIdleOrResume.clear();
+    this.sideRetaliationModeEnabled.clear();
     this.sideCanBuildBaseByScript.clear();
     this.sideCanBuildUnitsByScript.clear();
     this.sideTeamBuildDelaySecondsByScript.clear();
@@ -28554,6 +28712,36 @@ export class GameLogicSubsystem implements Subsystem {
       target.lastDamageNoEffect = false;
     }
 
+    // ZH addition (ActiveBody.cpp:692-724): logicalRetaliationModeEnabled — when a human
+    // player has retaliation mode enabled and their unit is attacked, recruit nearby friendly
+    // mobile units to retaliate against the attacker using guard behavior.
+    if (damageType !== 'HEALING' && sourceEntityId !== null && sourceEntityId > 0) {
+      const targetSide = this.normalizeSide(target.side);
+      if (targetSide && this.isRetaliationModeEnabled(targetSide)
+          && this.getSidePlayerType(targetSide) === 'HUMAN') {
+        const damager = this.spawnedEntities.get(sourceEntityId);
+        if (damager && !damager.destroyed
+            && this.getTeamRelationship(target, damager) === RELATIONSHIP_ENEMIES
+            && !this.entityHasObjectStatus(damager, 'AIRBORNE_TARGET')) {
+          const friendsRadius = this.resolveRetaliationFriendsRadius();
+          const scanRangeSqr = friendsRadius * friendsRadius;
+          for (const ally of this.spawnedEntities.values()) {
+            if (ally.destroyed || ally.id === target.id) continue;
+            if (this.getTeamRelationship(target, ally) !== RELATIONSHIP_ALLIES) continue;
+            if (this.isEntityOffMap(ally)) continue;
+            if (ally.kindOf.has('IMMOBILE')) continue;
+            if (!ally.canMove) continue;
+            if (ally.attackTargetEntityId !== null) continue; // already attacking
+            const dx = ally.x - target.x;
+            const dz = ally.z - target.z;
+            if (dx * dx + dz * dz > scanRangeSqr) continue;
+            // Recruit ally to retaliate.
+            ally.lastAttackerEntityId = sourceEntityId;
+          }
+        }
+      }
+    }
+
     // Source parity: onDamage resets heal timers for AutoHeal and BaseRegen.
     if (target.autoHealProfile && target.autoHealProfile.startHealingDelayFrames > 0) {
       target.autoHealDamageDelayUntilFrame = this.frameCounter + target.autoHealProfile.startHealingDelayFrames;
@@ -32805,6 +32993,24 @@ export class GameLogicSubsystem implements Subsystem {
           victim.pathIndex = 0;
           victim.pathfindGoalCell = null;
         }
+        // ZH addition (AIUpdate.cpp:2366-2370): DISABLED_UNMANNED + KINDOF_PRODUCED_AT_HELIPAD
+        // forces helicopter to ground. isDoingGroundMovement() returns true, causing the heli
+        // to descend. We clear AIRBORNE_TARGET and set category to ground so vertical update
+        // will bring it down.
+        if (victimKindOf.has('PRODUCED_AT_HELIPAD')) {
+          victim.objectStatusFlags.delete('AIRBORNE_TARGET');
+          victim.category = 'ground';
+          victim.y = 0; // Will be corrected by updateEntityVerticalPosition.
+          // Clear chinook flight status if applicable.
+          if (victim.chinookFlightStatus) {
+            victim.chinookFlightStatus = 'LANDED';
+          }
+          // Clear jet AI state if applicable.
+          if (victim.jetAIState) {
+            victim.jetAIState.state = 'PARKED';
+            victim.jetAIState.allowAirLoco = false;
+          }
+        }
         // Source parity: deselectObject + setTeam to neutral player.
         victim.selected = false;
         // Transfer to a neutral side by clearing ownership.
@@ -33362,6 +33568,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.scriptSkirmishBaseDefenseStateBySide.clear();
     this.scriptSkirmishBaseCenterAndRadiusBySide.clear();
     this.sideUnitsShouldIdleOrResume.clear();
+    this.sideRetaliationModeEnabled.clear();
     this.sideCanBuildBaseByScript.clear();
     this.sideCanBuildUnitsByScript.clear();
     this.sideTeamBuildDelaySecondsByScript.clear();

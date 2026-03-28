@@ -875,6 +875,7 @@ export function createMapEntity(self: GL,
     currentAngle: tp.naturalAngle,
     state: 'IDLE' as const,
     holdUntilFrame: 0,
+    targetEntityId: null,
   }));
 
   // Source parity: StealthUpdate::init — InnateStealth sets CAN_STEALTH on creation.

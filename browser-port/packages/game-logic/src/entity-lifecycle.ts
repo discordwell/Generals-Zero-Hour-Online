@@ -213,11 +213,20 @@ export function tryCreateRebuildHoleOnDeath(self: GL, entity: MapEntity, _attack
   }
 
   // Source parity: TransferAttackers — redirect all AI attacks from building to hole.
+  // ZH addition (AIUpdate.cpp:4177-4185): also transfer per-turret targets.
   if (profile.transferAttackers) {
     for (const other of self.spawnedEntities.values()) {
       if (other.destroyed || other.id === entity.id) continue;
       if (other.attackTargetEntityId === entity.id) {
         other.attackTargetEntityId = hole.id;
+      }
+      // Source parity: transferAttack also updates turret target references.
+      if (other.turretStates) {
+        for (const ts of other.turretStates) {
+          if (ts.targetEntityId === entity.id) {
+            ts.targetEntityId = hole.id;
+          }
+        }
       }
     }
   }
@@ -244,10 +253,18 @@ export function tryTransferAttackersToRebuildHole(self: GL, entity: MapEntity): 
   }
 
   // Transfer all attackers from the dying building to the hole.
+  // ZH addition (AIUpdate.cpp:4177-4185): also transfer per-turret targets.
   for (const other of self.spawnedEntities.values()) {
     if (other.destroyed || other.id === entity.id) continue;
     if (other.attackTargetEntityId === entity.id) {
       other.attackTargetEntityId = hole.id;
+    }
+    if (other.turretStates) {
+      for (const ts of other.turretStates) {
+        if (ts.targetEntityId === entity.id) {
+          ts.targetEntityId = hole.id;
+        }
+      }
     }
   }
 }
@@ -1997,6 +2014,14 @@ export function finalizeDestroyedEntities(self: GL): void {
       entity.attackOriginalVictimPosition = null;
       entity.attackTargetPosition = null;
       entity.attackCommandSource = 'AI';
+    }
+    // Source parity (ZH): also clear per-turret targets referencing destroyed entities.
+    if (entity.turretStates) {
+      for (const ts of entity.turretStates) {
+        if (ts.targetEntityId !== null && destroyedEntityIds.includes(ts.targetEntityId)) {
+          ts.targetEntityId = null;
+        }
+      }
     }
   }
 

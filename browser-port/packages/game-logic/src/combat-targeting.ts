@@ -781,8 +781,12 @@ export function updateIdleAutoTargeting(self: GL): void {
 
     // Source parity: stealthed units do not auto-acquire targets (would break stealth)
     // unless AAS_Idle_Stealthed flag is set in AutoAcquireEnemiesWhenIdle.
+    // ZH addition (AIUpdate.cpp:4483-4488): units whose stealth was granted by a special
+    // power (e.g., GPS Scrambler) CAN auto-acquire while stealthed.
     if (entity.objectStatusFlags.has('STEALTHED') && !(entity.autoAcquireEnemiesWhenIdle & AAS_IDLE_STEALTHED)) {
-      continue;
+      if (!(entity.stealthProfile && entity.stealthProfile.grantedBySpecialPower)) {
+        continue;
+      }
     }
 
     // Throttle scanning to once per entity moodAttackCheckRate (or global default).

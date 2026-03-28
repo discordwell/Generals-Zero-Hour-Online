@@ -435,10 +435,10 @@ describe('ModelConditionFlags sync', () => {
     logic.update(0);
 
     const privateApi = logic as unknown as {
-      spawnedEntities: Map<number, { turretStates: Array<{ state: string; currentAngle: number; holdUntilFrame: number }> }>;
+      spawnedEntities: Map<number, { turretStates: Array<{ state: string; currentAngle: number; holdUntilFrame: number; targetEntityId: number | null }> }>;
     };
     const internalEntity = [...privateApi.spawnedEntities.values()][0]!;
-    internalEntity.turretStates = [{ state: 'AIM', currentAngle: 0, holdUntilFrame: 0 }];
+    internalEntity.turretStates = [{ state: 'AIM', currentAngle: 0, holdUntilFrame: 0, targetEntityId: null }];
     logic.update(0);
 
     const updated = logic.getRenderableEntityStates()[0]!;
