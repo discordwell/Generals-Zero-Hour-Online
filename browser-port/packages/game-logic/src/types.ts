@@ -211,7 +211,9 @@ export type EvaEventType =
   | 'SUPERWEAPON_READY'
   | 'CONSTRUCTION_COMPLETE'
   | 'UNIT_READY'
-  | 'BEACON_DETECTED';
+  | 'BEACON_DETECTED'
+  | 'CASH_STOLEN'
+  | 'BUILDING_SABOTAGED';
 
 export interface EvaEvent {
   type: EvaEventType;

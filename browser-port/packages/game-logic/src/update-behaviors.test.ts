@@ -3367,13 +3367,12 @@ describe('HordeUpdate', () => {
     expect(logic.getEntityState(3)!.weaponBonusConditionFlags & WEAPON_BONUS_HORDE).toBe(0);
   });
 
-  it('grants NATIONALISM bonus when horde is active and player has science', () => {
+  it('grants NATIONALISM bonus when horde is active and player has upgrade', () => {
     const { logic } = makeHordeSetup({ unitCount: 3 });
 
-    // Directly add nationalism science for China via private method.
-    // normalizeSide('China') = 'china' (lowercase), so use lowercase key.
-    const priv = logic as unknown as { addScienceToSide: (side: string, science: string) => boolean };
-    priv.addScienceToSide('china', 'SCIENCE_NATIONALISM');
+    // Source parity: C++ checks player->hasUpgradeComplete(Upgrade_Nationalism).
+    const priv = logic as unknown as { setSideUpgradeCompleted: (side: string, upgradeName: string, enabled: boolean) => void };
+    priv.setSideUpgradeCompleted('China', 'Upgrade_Nationalism', true);
     logic.update(0);
     for (let i = 0; i < 20; i++) logic.update(1 / 30);
 
@@ -3384,12 +3383,12 @@ describe('HordeUpdate', () => {
     expect(logic.getEntityState(1)!.weaponBonusConditionFlags & WEAPON_BONUS_FANATICISM).toBe(0);
   });
 
-  it('grants FANATICISM bonus when both nationalism and fanaticism sciences are active', () => {
+  it('grants FANATICISM bonus when both nationalism and fanaticism upgrades are active', () => {
     const { logic } = makeHordeSetup({ unitCount: 3 });
 
-    const priv = logic as unknown as { addScienceToSide: (side: string, science: string) => boolean };
-    priv.addScienceToSide('china', 'SCIENCE_NATIONALISM');
-    priv.addScienceToSide('china', 'SCIENCE_FANATICISM');
+    const priv = logic as unknown as { setSideUpgradeCompleted: (side: string, upgradeName: string, enabled: boolean) => void };
+    priv.setSideUpgradeCompleted('China', 'Upgrade_Nationalism', true);
+    priv.setSideUpgradeCompleted('China', 'Upgrade_Fanaticism', true);
     logic.update(0);
     for (let i = 0; i < 20; i++) logic.update(1 / 30);
 

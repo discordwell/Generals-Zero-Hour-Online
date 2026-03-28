@@ -1209,14 +1209,13 @@ export function updateHorde(self: GL): void {
         entity.weaponBonusConditionFlags &= ~WEAPON_BONUS_FANATICISM;
       }
 
-      // Source parity: NATIONALISM/FANATICISM bonuses require horde + allowedNationalism + player science.
+      // Source parity: NATIONALISM/FANATICISM bonuses require horde + allowedNationalism + player upgrade.
+      // C++ AIUpdate.cpp:4689-4700 checks player->hasUpgradeComplete() for Upgrade_Nationalism / Upgrade_Fanaticism.
       if (join) {
         if (profile.allowedNationalism) {
-          const sideSciences = self.getSideScienceSet(self.normalizeSide(entity.side ?? ''));
-          const hasNationalism = sideSciences.has('SCIENCE_NATIONALISM')
-            || sideSciences.has('NATIONALISM');
-          const hasFanaticism = sideSciences.has('SCIENCE_FANATICISM')
-            || sideSciences.has('FANATICISM');
+          const normalizedSide = self.normalizeSide(entity.side ?? '');
+          const hasNationalism = self.hasSideUpgradeCompleted(normalizedSide, 'UPGRADE_NATIONALISM');
+          const hasFanaticism = self.hasSideUpgradeCompleted(normalizedSide, 'UPGRADE_FANATICISM');
           if (hasNationalism) {
             entity.weaponBonusConditionFlags |= WEAPON_BONUS_NATIONALISM;
             if (hasFanaticism) {
@@ -1230,6 +1229,7 @@ export function updateHorde(self: GL): void {
           }
         } else {
           // Source parity: allowedNationalism=false forces nationalism/fanaticism off.
+          // C++ HordeUpdate.cpp:181-184 + AIUpdate.cpp:4712-4717
           entity.weaponBonusConditionFlags &= ~WEAPON_BONUS_NATIONALISM;
           entity.weaponBonusConditionFlags &= ~WEAPON_BONUS_FANATICISM;
         }

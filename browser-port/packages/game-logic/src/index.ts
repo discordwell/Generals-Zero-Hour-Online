@@ -19078,6 +19078,13 @@ export class GameLogicSubsystem implements Subsystem {
       const totalProduction = powerState.energyProduction + powerState.powerBonus;
       // Source parity: SabotagePowerPlantCrateCollide forces brownout until timer expires.
       const isSabotaged = powerState.powerSabotagedUntilFrame > this.frameCounter;
+
+      // Source parity: Player::update (Player.cpp:730-733) — when sabotage timer expires,
+      // reset the sabotaged frame to 0 and trigger onPowerBrownOutChange().
+      if (!isSabotaged && powerState.powerSabotagedUntilFrame !== 0) {
+        powerState.powerSabotagedUntilFrame = 0;
+      }
+
       const isNowBrownedOut = isSabotaged
         || (powerState.energyConsumption > 0 && totalProduction < powerState.energyConsumption);
 
@@ -22210,6 +22217,13 @@ export class GameLogicSubsystem implements Subsystem {
         const withdrawn = this.withdrawSideCredits(targetSide, sabotageProfile.stealsCashAmount);
         if (withdrawn > 0) {
           this.depositSideCredits(sourceSide, withdrawn);
+          // Source parity: SabotageSupplyCenterCrateCollide.cpp:152-155 — EVA_CashStolen
+          // fires on the victim's side when cash is actually stolen.
+          this.emitEvaEvent('CASH_STOLEN', targetSide, 'own', target.id);
+        } else {
+          // Source parity: SabotageSupplyCenterCrateCollide.cpp:173-176 — EVA_BuildingSabotaged
+          // fires when the target has no cash to steal.
+          this.emitEvaEvent('BUILDING_SABOTAGED', targetSide, 'own', target.id);
         }
       }
     }
@@ -25725,10 +25739,17 @@ export class GameLogicSubsystem implements Subsystem {
       this.recordScriptCompletedUpgradeEvent(producerSide, production.upgradeName, producer.id);
     }
 
-    // Source parity: Eva UPGRADE_COMPLETE fires when an upgrade finishes research.
+    // Source parity: Eva UPGRADE_COMPLETE fires when an upgrade finishes research,
+    // but only if the upgrade has a non-empty DisplayName label.
+    // C++ ProductionUpdate.cpp:912: if( us->isLocallyControlled() && !upgrade->getDisplayNameLabel().isEmpty() )
     const upgradeSide = producerSide ?? producer.side;
     if (upgradeSide) {
-      this.emitEvaEvent('UPGRADE_COMPLETE', upgradeSide, 'own', producer.id, production.upgradeName);
+      const registry = this.iniDataRegistry;
+      const upgradeDef = registry ? findUpgradeDefByName(registry, production.upgradeName) : undefined;
+      const displayName = upgradeDef ? (readStringField(upgradeDef.fields, ['DisplayName']) ?? '') : '';
+      if (displayName.length > 0) {
+        this.emitEvaEvent('UPGRADE_COMPLETE', upgradeSide, 'own', producer.id, production.upgradeName);
+      }
     }
 
     this.removeProductionEntry(producer, production.productionId);
