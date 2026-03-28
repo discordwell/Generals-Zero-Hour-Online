@@ -23843,13 +23843,21 @@ export class GameLogicSubsystem implements Subsystem {
       );
 
       // Source parity: ShroudRevealToAllRange — reveals fog for ALL player indices.
+      // C++ Object.cpp:5009-5025 — only reveals when not under construction and not stealthed-undetected.
+      // Used by Scud Storm to reveal itself to enemies; stealth general suppresses while hidden.
       if (entity.shroudRevealToAllRange > 0) {
+        const stealthedAndNotDetected = entity.objectStatusFlags.has('STEALTHED')
+          && !entity.objectStatusFlags.has('DETECTED')
+          && !entity.objectStatusFlags.has('DISGUISED');
+        const shouldRevealToAll = !entity.destroyed
+          && !entity.objectStatusFlags.has('UNDER_CONSTRUCTION')
+          && !stealthedAndNotDetected;
         for (const [, pi] of this.sidePlayerIndex) {
           if (pi === playerIdx) continue;
           const key = `rta:${entity.id}:${pi}`;
           let vs = this.revealToAllVisionStates.get(key);
           if (!vs) { vs = createEntityVisionStateImpl(); this.revealToAllVisionStates.set(key, vs); }
-          updateEntityVisionImpl(grid, vs, pi, entity.x, entity.z, entity.shroudRevealToAllRange, !entity.destroyed);
+          updateEntityVisionImpl(grid, vs, pi, entity.x, entity.z, entity.shroudRevealToAllRange, shouldRevealToAll);
         }
       }
     }
