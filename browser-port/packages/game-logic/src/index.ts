@@ -2896,6 +2896,17 @@ interface PendingWeaponDamageEvent {
    * pre-impact collision checks traverse this polyline instead of direct source→impact.
    */
   scriptWaypointPath?: readonly VectorXZ[] | null;
+  /**
+   * Source parity: DamageInfoInput::m_damageFXOverride — allows a weapon to override
+   * which damage FX plays on the victim. Default 'UNRESISTABLE' means no override.
+   * (Damage.h:269, ActiveBody.cpp:321-329)
+   */
+  damageFXOverride: string;
+  /**
+   * Source parity: DamageInfoInput::m_sourceTemplate — template name of the unit that
+   * dealt the damage. Used for kill tracking and death behavior. (Damage.cpp:148-157)
+   */
+  sourceTemplateName: string | null;
 }
 
 interface ActiveWeaponProjectileState {
@@ -12534,6 +12545,8 @@ export class GameLogicSubsystem implements Subsystem {
       missileAIProfile: null,
       missileAIState: null,
       scriptWaypointPath: waypointPath,
+      damageFXOverride: 'UNRESISTABLE',
+      sourceTemplateName: attacker.templateName,
     };
 
     this.emitWeaponFiredVisualEvent(attacker, weapon, { x: impactX, y: impactY, z: impactZ });
@@ -32295,6 +32308,10 @@ export class GameLogicSubsystem implements Subsystem {
     const fadeTimeMs = readNumericField(nugget.fields, ['FadeTime']) ?? 0;
     const fadeFrames = fadeTimeMs > 0 ? this.msToLogicFrames(fadeTimeMs) : 0;
 
+    // Source parity: DiesOnBadLand — ZH-only: kill unit if spawned on water/impassable/cliff/off-map.
+    // C++ ObjectCreationList.cpp:1267-1300 — if m_diesOnBadLand, check isUnderwater, isOffMap, impassable.
+    const diesOnBadLand = readBooleanField(nugget.fields, ['DiesOnBadLand']) ?? false;
+
     for (let i = 0; i < count; i++) {
       // Pick a random object from the list (deterministic via gameRandom).
       const templateName = objectNames[this.gameRandom.nextRange(0, objectNames.length - 1)]!;
@@ -32389,6 +32406,28 @@ export class GameLogicSubsystem implements Subsystem {
           spawned.modelConditionFlags.add(fadeIn ? 'FADING_IN' : 'FADING_OUT');
           if (fadeFrames > 0) {
             spawned.lifetimeDieFrame = spawned.lifetimeDieFrame ?? (this.frameCounter + fadeFrames);
+          }
+        }
+
+        // Source parity: ObjectCreationList.cpp:1267-1300 — DiesOnBadLand check.
+        // If unit spawns on water, impassable terrain, cliff, or off-map, kill it.
+        if (diesOnBadLand && !spawned.destroyed) {
+          let shouldKill = false;
+          // Check off-map.
+          if (this.isEntityOffMap(spawned)) {
+            shouldKill = true;
+          }
+          // Check underwater: use cached water polygon trigger data.
+          if (!shouldKill && this.waterPolygonData) {
+            for (const poly of this.waterPolygonData) {
+              if (pointInPolygon(spawned.x, spawned.z, poly.points)) {
+                shouldKill = true;
+                break;
+              }
+            }
+          }
+          if (shouldKill) {
+            this.applyWeaponDamageAmount(null, spawned, HUGE_DAMAGE_AMOUNT, 'WATER', 'FLOODED');
           }
         }
       }

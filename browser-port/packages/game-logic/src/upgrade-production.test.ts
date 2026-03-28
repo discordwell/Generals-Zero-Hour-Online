@@ -255,6 +255,43 @@ describe('construction progress', () => {
     expect(building).toBeNull();
   });
 
+  it('sell on an under-construction building normalizes to cancel construction', () => {
+    const { logic } = makeConstructionSetup(2);
+
+    logic.submitCommand({
+      type: 'constructBuilding',
+      entityId: 1,
+      templateName: 'USAPowerPlant',
+      targetPosition: [18, 0, 18],
+      angle: 0,
+      lineEndPosition: null,
+    });
+    logic.update(1 / 30);
+
+    expect(logic.getSideCredits('America')).toBe(1500);
+    expect(logic.getEntityState(2)?.statusFlags).toContain('UNDER_CONSTRUCTION');
+
+    logic.submitCommand({ type: 'sell', entityId: 2 });
+    logic.update(1 / 30);
+
+    expect(logic.getSideCredits('America')).toBe(2000);
+    expect(logic.getEntityState(2)).toBeNull();
+
+    // The same dozer should be free to start a new construction immediately.
+    logic.submitCommand({
+      type: 'constructBuilding',
+      entityId: 1,
+      templateName: 'USAPowerPlant',
+      targetPosition: [26, 0, 18],
+      angle: 0,
+      lineEndPosition: null,
+    });
+    logic.update(1 / 30);
+
+    expect(logic.getSideCredits('America')).toBe(1500);
+    expect(logic.getEntityState(3)?.statusFlags).toContain('UNDER_CONSTRUCTION');
+  });
+
   it('another dozer can resume partially built construction', () => {
     const bundle = makeBundle({
       objects: [

@@ -154,14 +154,16 @@ function expectNoCriticalAnomalies(anomalies: string[]): void {
 describe.skipIf(!hasRetailData)('stress test wet test round 6: weird edge cases', () => {
 
   // == 1. Mass unit production ==
-  it('mass production: queue 20 Rangers at once, verify all produced with no loss or duplication', () => {
+  it('mass production queue cap: queue 20 Rangers, verify only the source-authentic 9-entry queue is accepted', () => {
     const logic = createFreshGame(100000);
     const anomalies: string[] = [];
     const { barracks } = buildPPAndBarracks(logic, anomalies);
 
     const creditsBefore = logic.getSideCredits('america');
 
-    // Queue 20 Rangers at once — this is well above normal player behavior
+    // Source parity: ProductionUpdateModuleData defaults m_maxQueueEntries to 9 and
+    // retail barracks do not override it. The control bar also exposes only 9 queue
+    // buttons, so only the first 9 requests should be accepted.
     for (let i = 0; i < 20; i++) {
       logic.submitCommand({
         type: 'queueUnitProduction',
@@ -171,32 +173,33 @@ describe.skipIf(!hasRetailData)('stress test wet test round 6: weird edge cases'
     }
     logic.update(1 / 30);
 
-    // Verify credits were deducted (Rangers cost 225 each, 20 * 225 = 4500)
+    // Verify only the first 9 entries were charged.
     const creditsAfterQueue = logic.getSideCredits('america');
     console.log(`MASS-PROD: Credits before=${creditsBefore}, after queue=${creditsAfterQueue}`);
+    expect(creditsBefore - creditsAfterQueue).toBe(225 * 9);
 
-    // Run enough frames for all 20 to produce.
-    // A Ranger takes ~150 frames (5 sec). 20 * 150 = 3000 frames = 100 sec game time.
-    // With multipleFactory bonus from 1 barracks, still need full time.
-    // Track production over time.
+    // Run enough frames for the accepted queue to finish. A Ranger takes ~150 frames (5 sec).
+    // Track production over time to catch duplication or stalls.
     const countLog: number[] = [];
     for (let phase = 0; phase < 40; phase++) {
       runFrames(logic, 150, anomalies, `mass-prod-phase-${phase}`);
       const rangers = findEntities(logic, 'AmericaInfantryRanger', 'America');
-      countLog.push(rangers.length);
-      if (rangers.length >= 20) break;
+      const aliveRangers = rangers.filter((r) => logic.getEntityState(r.id)?.alive);
+      countLog.push(aliveRangers.length);
+      if (aliveRangers.length >= 9) break;
     }
 
-    const finalRangers = findEntities(logic, 'AmericaInfantryRanger', 'America');
-    console.log(`MASS-PROD: Produced ${finalRangers.length}/20 Rangers`);
+    const finalRangers = findEntities(logic, 'AmericaInfantryRanger', 'America')
+      .filter((r) => logic.getEntityState(r.id)?.alive);
+    console.log(`MASS-PROD: Produced ${finalRangers.length}/9 accepted Rangers`);
     console.log(`MASS-PROD: Count progression: ${countLog.join(', ')}`);
 
-    // Verify no duplication — count should be exactly 20 (or close)
-    if (finalRangers.length > 20) {
-      anomalies.push(`MASS-PROD DUPLICATION: ${finalRangers.length} Rangers produced, expected 20`);
+    // Verify the source-authentic queue cap is respected without duplication or loss.
+    if (finalRangers.length > 9) {
+      anomalies.push(`MASS-PROD DUPLICATION: ${finalRangers.length} Rangers produced, expected 9`);
     }
-    if (finalRangers.length < 20) {
-      anomalies.push(`MASS-PROD LOSS: Only ${finalRangers.length}/20 Rangers produced`);
+    if (finalRangers.length < 9) {
+      anomalies.push(`MASS-PROD LOSS: Only ${finalRangers.length}/9 accepted Rangers produced`);
     }
 
     // Verify each Ranger has valid position

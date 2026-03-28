@@ -2132,9 +2132,13 @@ export function handleSellCommand(self: GL, command: SellCommand): void {
   if (self.sellingEntities.has(entity.id)) {
     return;
   }
-  // Source parity: buildings under construction use cancelDozerConstruction, not sell.
-  // The InGameUI prevents the sell button from appearing for UNDER_CONSTRUCTION buildings.
+  // Source parity: unfinished structures do not enter the BuildAssistant sell flow.
+  // The player-visible action for an under-construction building is construction cancel
+  // (MSG_DOZER_CANCEL_CONSTRUCT), which refunds full cost and destroys the scaffold.
+  // Our command API can receive a raw sell request from tests/scripts, so normalize it
+  // to the source-authentic cancel path instead of silently ignoring the request.
   if (self.entityHasObjectStatus(entity, 'UNDER_CONSTRUCTION')) {
+    handleCancelDozerConstructionCommand(self, { type: 'cancelDozerConstruction', entityId: entity.id });
     return;
   }
 

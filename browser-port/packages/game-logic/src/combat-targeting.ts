@@ -1241,6 +1241,10 @@ export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: Ma
     missileAIProfile,
     missileAIState,
     scriptWaypointPath: null,
+    // Source parity: DamageInfoInput::m_damageFXOverride (Damage.h:269). Default UNRESISTABLE = no override.
+    damageFXOverride: 'UNRESISTABLE',
+    // Source parity: DamageInfoInput::m_sourceTemplate (Damage.cpp:148-157).
+    sourceTemplateName: attacker.templateName,
   };
 
   // Emit muzzle flash visual event (includes target endpoint for beam/tracer rendering).

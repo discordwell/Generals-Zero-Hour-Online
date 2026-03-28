@@ -817,12 +817,38 @@ export function updateGuardIdle(self: GL, entity: MapEntity, anchor: { x: number
       return;
     }
 
+    // Source parity: AIStates.cpp:6744 — JetAI units that are out of ammo (and don't auto-reload)
+    // should exit guard to return to base for reload, unless they are EnterGuard units.
+    if (entity.jetAIProfile && !entity.enterGuard) {
+      if (entity.attackWeapon && entity.attackWeapon.clipSize > 0
+          && entity.attackAmmoInClip <= 0 && !entity.kindOf.has('PROJECTILE')) {
+        // Out of ammo — exit guard state so JetAI return-to-base logic takes over.
+        entity.guardState = 'NONE';
+        return;
+      }
+    }
+
     const target = self.findGuardTarget(entity, anchor.x, anchor.z, entity.guardInnerRange);
     if (target) {
-      // Source parity: GUARDMODE_GUARD_WITHOUT_PURSUIT — attack only within inner range, don't chase.
-      entity.guardState = 'PURSUING';
-      entity.guardChaseExpireFrame = self.frameCounter + self.getGuardChaseUnitFrames();
-      self.issueAttackEntity(entity.id, target.id, 'AI');
+      // Source parity: AIGuardRetaliate.cpp:255-276 — EnterGuard/HijackGuard behavior.
+      // Units with EnterGuard=Yes issue enter commands instead of attack commands during guard.
+      if (entity.enterGuard) {
+        const action = entity.hijackGuard ? 'hijackVehicle' : 'captureUnmannedFactionUnit';
+        entity.guardState = 'PURSUING';
+        entity.guardChaseExpireFrame = self.frameCounter + self.getGuardChaseUnitFrames();
+        self.clearAttackTarget(entity.id);
+        self.issueMoveTo(entity.id, target.x, target.z);
+        self.pendingEnterObjectActions.set(entity.id, {
+          targetObjectId: target.id,
+          action,
+          commandSource: 'AI',
+        });
+      } else {
+        // Source parity: GUARDMODE_GUARD_WITHOUT_PURSUIT — attack only within inner range, don't chase.
+        entity.guardState = 'PURSUING';
+        entity.guardChaseExpireFrame = self.frameCounter + self.getGuardChaseUnitFrames();
+        self.issueAttackEntity(entity.id, target.id, 'AI');
+      }
     }
 }
 
@@ -916,9 +942,23 @@ export function updateGuardReturning(self: GL, entity: MapEntity, anchor: { x: n
 
     const target = self.findGuardTarget(entity, anchor.x, anchor.z, entity.guardInnerRange);
     if (target) {
-      entity.guardState = 'PURSUING';
-      entity.guardChaseExpireFrame = self.frameCounter + self.getGuardChaseUnitFrames();
-      self.issueAttackEntity(entity.id, target.id, 'AI');
+      // Source parity: AIGuardRetaliate.cpp:255-276 — EnterGuard/HijackGuard during return scan.
+      if (entity.enterGuard) {
+        const action = entity.hijackGuard ? 'hijackVehicle' : 'captureUnmannedFactionUnit';
+        entity.guardState = 'PURSUING';
+        entity.guardChaseExpireFrame = self.frameCounter + self.getGuardChaseUnitFrames();
+        self.clearAttackTarget(entity.id);
+        self.issueMoveTo(entity.id, target.x, target.z);
+        self.pendingEnterObjectActions.set(entity.id, {
+          targetObjectId: target.id,
+          action,
+          commandSource: 'AI',
+        });
+      } else {
+        entity.guardState = 'PURSUING';
+        entity.guardChaseExpireFrame = self.frameCounter + self.getGuardChaseUnitFrames();
+        self.issueAttackEntity(entity.id, target.id, 'AI');
+      }
     }
 }
 
