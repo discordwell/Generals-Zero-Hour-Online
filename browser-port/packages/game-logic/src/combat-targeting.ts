@@ -718,6 +718,64 @@ export function updateIdleAutoTargeting(self: GL): void {
       continue;
     }
 
+    // Source parity: ActiveBody::shouldRetaliate — skip if using a special ability.
+    if (entity.objectStatusFlags.has('IS_USING_ABILITY')) {
+      continue;
+    }
+
+    // Source parity (ZH): AIGuardRetaliate — immediate retaliation when attacked.
+    // C++ hasAttackedMeAndICanReturnFire is a STATE CONDITION checked on every
+    // guard state (IDLE, RETURN, etc.), meaning it fires even when the entity is
+    // currently moving (e.g., returning to guard position). This is processed
+    // BEFORE the moving/already-attacking skip to match C++ behavior.
+    // Note: DAMAGE_HEALING never sets lastAttackerEntityId (filtered at damage
+    // application time — see ActiveBody.cpp line 379 early return for DAMAGE_HEALING).
+    if (entity.lastAttackerEntityId !== null) {
+      const attackerId = entity.lastAttackerEntityId;
+      entity.lastAttackerEntityId = null; // Source parity: clearLastAttacker().
+      const attacker = self.spawnedEntities.get(attackerId);
+      if (attacker && !attacker.destroyed
+          && self.getTeamRelationship(entity, attacker) === RELATIONSHIP_ENEMIES
+          // Source parity: retaliation uses 'PLAYER' source to bypass fog-of-war
+          // gating. The C++ hasAttackedMeAndICanReturnFire calls
+          // getAbleToAttackSpecificObject which checks weapon capability but NOT
+          // fog of war (the unit was directly attacked, so it knows the attacker).
+          && canAttackerTargetEntity(self, entity, attacker, 'PLAYER')
+          // Source parity: ActiveBody.cpp lines 783-786 — stealthed units skip
+          // retaliation UNLESS they are detected (inside a detector's radius).
+          && !(entity.objectStatusFlags.has('STEALTHED') && !entity.objectStatusFlags.has('DETECTED'))) {
+        // Source parity (ZH): AIGuardRetaliate.cpp — guarding units enforce
+        // MaxRetaliationDistance from the guard anchor. If the attacker is beyond
+        // this distance, the guard ignores it to prevent chasing across the map.
+        if (entity.guardState !== 'NONE') {
+          const maxRetDist = self.resolveMaxRetaliationDistance();
+          const anchor = self.resolveGuardAnchorPosition(entity);
+          if (anchor && maxRetDist > 0) {
+            const adx = attacker.x - anchor.x;
+            const adz = attacker.z - anchor.z;
+            if (adx * adx + adz * adz > maxRetDist * maxRetDist) {
+              // Attacker is beyond MaxRetaliationDistance — skip retaliation.
+              continue;
+            }
+          }
+        }
+        // Source parity: retaliation uses 'PLAYER' command source to bypass fog-of-war
+        // visibility gating inside issueAttackEntity→canAttackerTargetEntity. The unit
+        // was directly attacked, so it knows the attacker's location regardless of fog.
+        issueAttackEntity(self, entity.id, attacker.id, 'PLAYER');
+        // Source parity (ZH): AIGuardRetaliate.cpp — transition guard state to PURSUING
+        // when retaliating. The C++ ATTACK_AGGRESSOR state handles this via state
+        // condition transitions; we do it directly since our guard SM is simpler.
+        if (entity.guardState !== 'NONE') {
+          entity.guardState = 'PURSUING';
+          entity.guardChaseExpireFrame = self.frameCounter + self.getGuardChaseUnitFrames();
+          // Recruit nearby friendly units within RetaliationFriendsRadius to help.
+          recruitRetaliationFriends(self, entity, attacker);
+        }
+        continue;
+      }
+    }
+
     // Source parity: don't auto-acquire while already attacking or moving.
     if (entity.attackTargetEntityId !== null || entity.attackTargetPosition !== null) {
       continue;
@@ -732,32 +790,6 @@ export function updateIdleAutoTargeting(self: GL): void {
     if (autoTargetJs && (autoTargetJs.state === 'PARKED' || autoTargetJs.state === 'RELOAD_AMMO'
       || autoTargetJs.state === 'TAKING_OFF' || autoTargetJs.state === 'LANDING')) {
       continue;
-    }
-
-    // Source parity: ActiveBody::shouldRetaliate — skip if using a special ability.
-    if (entity.objectStatusFlags.has('IS_USING_ABILITY')) {
-      continue;
-    }
-
-    // Source parity: AIGuardRetaliate — immediate retaliation when attacked.
-    // C++ BodyModule::getClearableLastAttacker() returns the last damage source;
-    // guard/idle AI checks this EVERY FRAME and immediately retaliates, bypassing
-    // the 2-second auto-target scan interval. This makes units feel responsive.
-    // Note: DAMAGE_HEALING never sets lastAttackerEntityId (filtered at damage
-    // application time — see ActiveBody.cpp line 379 early return for DAMAGE_HEALING).
-    if (entity.lastAttackerEntityId !== null) {
-      const attackerId = entity.lastAttackerEntityId;
-      entity.lastAttackerEntityId = null; // Source parity: clearLastAttacker().
-      const attacker = self.spawnedEntities.get(attackerId);
-      if (attacker && !attacker.destroyed
-          && self.getTeamRelationship(entity, attacker) === RELATIONSHIP_ENEMIES
-          && canAttackerTargetEntity(self, entity, attacker, 'AI')
-          // Source parity: ActiveBody.cpp lines 783-786 — stealthed units skip
-          // retaliation UNLESS they are detected (inside a detector's radius).
-          && !(entity.objectStatusFlags.has('STEALTHED') && !entity.objectStatusFlags.has('DETECTED'))) {
-        issueAttackEntity(self, entity.id, attacker.id, 'AI');
-        continue;
-      }
     }
 
     // Source parity: passive AI units only retaliate to last attacker and
@@ -936,6 +968,67 @@ export function findGuardTarget(self: GL,
   }
 
   return bestTarget;
+}
+
+/**
+ * Source parity (ZH): AIGuardRetaliate.cpp — when a guarding unit retaliates against
+ * an attacker, nearby idle friendly units within RetaliationFriendsRadius are recruited
+ * to join the fight. This prevents isolated units getting picked off while their
+ * squadmates stand idle.
+ *
+ * C++ reference: The retaliation friend recruitment happens in the guard state machine
+ * when transitioning to ATTACK_AGGRESSOR state. Friendly units within the radius that
+ * are idle (no current attack target, not moving) and can attack the aggressor are
+ * issued attack commands against the same target.
+ */
+export function recruitRetaliationFriends(self: GL,
+  retaliator: MapEntity,
+  aggressor: MapEntity,
+): void {
+  const friendsRadius = self.resolveRetaliationFriendsRadius();
+  if (friendsRadius <= 0) {
+    return;
+  }
+  const friendsRadiusSqr = friendsRadius * friendsRadius;
+
+  for (const candidate of self.spawnedEntities.values()) {
+    if (candidate.destroyed || candidate.id === retaliator.id) {
+      continue;
+    }
+    // Must be a friendly unit.
+    const rel = self.getTeamRelationship(retaliator, candidate);
+    if (rel !== RELATIONSHIP_ALLIES) {
+      continue;
+    }
+    // Must have a weapon.
+    if (!candidate.attackWeapon) {
+      continue;
+    }
+    // Must be idle (not attacking, not moving).
+    if (candidate.attackTargetEntityId !== null || candidate.attackTargetPosition !== null) {
+      continue;
+    }
+    if (candidate.moving) {
+      continue;
+    }
+    // Must be within RetaliationFriendsRadius of the retaliator.
+    const dx = candidate.x - retaliator.x;
+    const dz = candidate.z - retaliator.z;
+    if (dx * dx + dz * dz > friendsRadiusSqr) {
+      continue;
+    }
+    // Must be able to attack the aggressor. Use 'PLAYER' source to bypass
+    // fog-of-war gating — the retaliator's knowledge of the attacker is shared.
+    if (!canAttackerTargetEntity(self, candidate, aggressor, 'PLAYER')) {
+      continue;
+    }
+    // Stealthed friends skip recruitment (would break stealth).
+    if (candidate.objectStatusFlags.has('STEALTHED') && !candidate.objectStatusFlags.has('DETECTED')) {
+      continue;
+    }
+    // Recruit this friend to attack the aggressor.
+    issueAttackEntity(self, candidate.id, aggressor.id, 'PLAYER');
+  }
 }
 
 export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: MapEntity, weapon: AttackWeaponProfile, inflictDamage: boolean = true): void {

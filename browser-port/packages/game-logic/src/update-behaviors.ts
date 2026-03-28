@@ -871,6 +871,30 @@ export function updateGuardPursuing(self: GL, entity: MapEntity, anchor: { x: nu
       return;
     }
 
+    // Source parity (ZH): AIGuardRetaliate.cpp — MaxRetaliationDistance hard cap.
+    // Regardless of guard mode or outer range, if the target has moved beyond
+    // MaxRetaliationDistance from the guard anchor, the unit must return.
+    // This prevents guarding units from chasing artillery across the map.
+    const maxRetDist = self.resolveMaxRetaliationDistance();
+    if (maxRetDist > 0) {
+      const retDx = target.x - anchor.x;
+      const retDz = target.z - anchor.z;
+      if (retDx * retDx + retDz * retDz > maxRetDist * maxRetDist) {
+        self.transitionGuardToReturning(entity, anchor);
+        return;
+      }
+      // Source parity (ZH): AIGuardRetaliate.cpp line 153-167 — also check
+      // that the guarding unit itself hasn't wandered beyond the standard guard
+      // range from the anchor (prevents being lured too far even if target stays nearby).
+      const myDx = entity.x - anchor.x;
+      const myDz = entity.z - anchor.z;
+      const guardRangeSqr = entity.guardOuterRange * entity.guardOuterRange;
+      if (myDx * myDx + myDz * myDz > guardRangeSqr) {
+        self.transitionGuardToReturning(entity, anchor);
+        return;
+      }
+    }
+
     // GUARD_WITHOUT_PURSUIT: no outer-range chase, return immediately if target escapes inner range.
     if (entity.guardMode === 1) {
       const dx = target.x - anchor.x;
