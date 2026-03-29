@@ -448,6 +448,7 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.guardInnerRange = xfer.xferReal(e.guardInnerRange as number);
   e.guardOuterRange = xfer.xferReal(e.guardOuterRange as number);
   e.guardRetaliating = xfer.xferBool(e.guardRetaliating as boolean);
+  e.tunnelNetworkGuardState = xfer.xferAsciiString(e.tunnelNetworkGuardState as string);
   e.temporaryMoveExpireFrame = xfer.xferInt(e.temporaryMoveExpireFrame as number);
 
   // ── Poison ──

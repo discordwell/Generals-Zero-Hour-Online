@@ -1664,6 +1664,42 @@ export const SCRIPT_ENDGAME_QUICK_DURATION_FRAMES = 1;
  */
 type GuardState = 'NONE' | 'IDLE' | 'PURSUING' | 'RETURNING';
 
+/**
+ * Source parity: AIGuardIdleState::isGuardIdle() — returns TRUE.
+ * AIGuardMachine::isInGuardIdleState() delegates to current state's isGuardIdle().
+ * C++ AIGuard.h:172-173, StateMachine.h:270.
+ */
+export function isGuardIdle(guardState: GuardState): boolean {
+  return guardState === 'IDLE';
+}
+
+/**
+ * Source parity: AIGuardInnerState::isAttack(), AIGuardOuterState::isAttack(),
+ * AIGuardAttackAggressorState::isAttack() — delegates to inner attack sub-state.
+ * AIGuardIdleState::isAttack() returns FALSE, AIGuardReturnState::isAttack() returns FALSE.
+ * C++ AIGuard.h:148,199,227,248,261.
+ */
+export function isGuardAttacking(guardState: GuardState): boolean {
+  return guardState === 'PURSUING';
+}
+
+/**
+ * Source parity: AIHuntState::isAttack() — delegates to m_huntMachine->isInAttackState().
+ * C++ AIStates.cpp:7093-7100. Returns true when hunt state machine has an active attack.
+ */
+export function isHuntAttacking(huntState: string): boolean {
+  return huntState === 'ATTACKING';
+}
+
+/**
+ * Source parity: AITunnelNetworkGuardState::isAttack() — delegates to m_guardMachine.
+ * C++ AIStates.cpp:6966-6975. Returns true when the tunnel network guard's inner
+ * guard machine is in an attack sub-state.
+ */
+export function isTunnelNetworkGuardAttacking(tunnelNetworkGuardState: string): boolean {
+  return tunnelNetworkGuardState === 'ATTACKING';
+}
+
 /** Source parity: RadarPriorityType enum — minimap display priority (Radar.h). */
 type RadarPriorityType = 'INVALID' | 'NOT_ON_RADAR' | 'STRUCTURE' | 'UNIT' | 'LOCAL_UNIT_ONLY';
 
@@ -3634,6 +3670,15 @@ export interface MapEntity {
   guardInnerRange: number;
   /** Outer guard range (vision * modifier, pursuit limit). */
   guardOuterRange: number;
+
+  /**
+   * Source parity: AITunnelNetworkGuardState — tunnel network guard phase.
+   * 'NONE' = not in tunnel guard state.
+   * 'GUARDING' = tunnel guard active, inner guard machine running.
+   * 'ATTACKING' = tunnel guard's inner guard machine is in attack sub-state.
+   * C++ AIStateMachine.h:1221-1246, AIStates.cpp:6906-7035.
+   */
+  tunnelNetworkGuardState: string;
 
   // ── Source parity: PoisonedBehavior — per-entity poison DoT state ──
   /** INI-extracted poison behavior profile (null = entity cannot be poisoned). */
@@ -6362,6 +6407,18 @@ interface SideScoreState {
  */
 interface AcademyStats {
   guardAbilityUsedCount: number;
+  /**
+   * Source parity: AcademyStats.h:261 — m_mines.
+   * Tracks total mines/booby traps/demo traps created (neutral player stat).
+   * C++ Object.cpp:597 — called when MINE/BOOBY_TRAP/DEMOTRAP is created.
+   */
+  mineCount: number;
+  /**
+   * Source parity: AcademyStats.h:261 — m_minesCleared.
+   * Tracks mines cleared by workers/dozers via DISARM damage.
+   * C++ Weapon.cpp:2562 — called on source player when mine is disarmed.
+   */
+  minesClearedCount: number;
 }
 
 type ScriptComparisonType =
@@ -8410,6 +8467,11 @@ export class GameLogicSubsystem implements Subsystem {
       this.registerEntityEnergy(mapEntity);
       this.initializeMinefieldState(mapEntity);
       this.registerTunnelEntity(mapEntity);
+
+      // Source parity: Object.cpp:595-598 — record mine creation for academy stats.
+      if (mapEntity.kindOf.has('MINE') || mapEntity.kindOf.has('BOOBY_TRAP') || mapEntity.kindOf.has('DEMOTRAP')) {
+        this.recordMineCreated(mapEntity.id);
+      }
 
       // Initialize supply warehouse state from profile if applicable.
       if (mapEntity.supplyWarehouseProfile) {
@@ -21815,6 +21877,8 @@ export class GameLogicSubsystem implements Subsystem {
     }
     const created: AcademyStats = {
       guardAbilityUsedCount: 0,
+      mineCount: 0,
+      minesClearedCount: 0,
     };
     this.sideAcademyStats.set(side, created);
     return created;
@@ -21834,6 +21898,41 @@ export class GameLogicSubsystem implements Subsystem {
       return;
     }
     this.getOrCreateSideAcademyStats(side).guardAbilityUsedCount++;
+  }
+
+  /**
+   * Source parity: AcademyStats.h:122 / Object.cpp:597 — record mine creation.
+   * Called when a MINE/BOOBY_TRAP/DEMOTRAP entity is created.
+   * In C++, this is tracked on the NEUTRAL player's academy stats.
+   * Here we track on the entity's owning side for simplicity, and also on 'Neutral'.
+   */
+  recordMineCreated(entityId: number): void {
+    const entity = this.spawnedEntities.get(entityId);
+    if (!entity || entity.destroyed) {
+      return;
+    }
+    // Source parity: C++ records on neutral player's academy stats.
+    const neutralSide = this.normalizeSide('Neutral');
+    if (neutralSide) {
+      this.getOrCreateSideAcademyStats(neutralSide).mineCount++;
+    }
+  }
+
+  /**
+   * Source parity: AcademyStats.h:114 / Weapon.cpp:2562 — record mine cleared.
+   * Called when a mine is destroyed via DISARM damage.
+   * In C++, tracked on the source (clearing) player's academy stats.
+   */
+  recordMineCleared(clearerEntityId: number): void {
+    const entity = this.spawnedEntities.get(clearerEntityId);
+    if (!entity || entity.destroyed) {
+      return;
+    }
+    const side = this.normalizeSide(entity.side);
+    if (!side) {
+      return;
+    }
+    this.getOrCreateSideAcademyStats(side).minesClearedCount++;
   }
 
   /**
@@ -28947,6 +29046,12 @@ export class GameLogicSubsystem implements Subsystem {
     amount = resolveDisarmDamageImpl(amount, damageType.toUpperCase(), target.kindOf);
     if (amount <= 0) {
       return;
+    }
+
+    // Source parity: Weapon.cpp:2562 — record mine cleared for academy stats.
+    // Called when DISARM damage successfully targets a MINE/BOOBY_TRAP/DEMOTRAP.
+    if (damageType.toUpperCase() === 'DISARM' && sourceEntityId !== null) {
+      this.recordMineCleared(sourceEntityId);
     }
 
     // Source parity: ActiveBody::attemptDamage — indestructible bodies ignore all damage.

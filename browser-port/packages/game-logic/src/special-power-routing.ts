@@ -320,6 +320,42 @@ export function setSpecialPowerReadyFrame(
   trackShortcutSpecialPowerSourceEntity(normalizedSpecialPowerName, sourceEntityId, normalizedReadyFrame);
 }
 
+/**
+ * Source parity (ZH): AIGroup::groupDoSpecialPowerAtLocation — iterate all issuing
+ * entities, processing each one's special power. The entity ID list is snapshot before
+ * iteration so that entity removal during processing (e.g. rebel ambush drowning where
+ * a unit dies during special power execution and deselects, modifying the group list)
+ * does not invalidate the iteration.
+ *
+ * C++ AIGroup.cpp:2676-2715 — ZH increments the iterator before processing (`++i`
+ * before `(*i)->doSpecialPowerAtLocation()`) to survive list mutation.
+ * In TypeScript, we snapshot the array and re-check destroyed status after getting
+ * each entity reference (equivalent safety guarantee).
+ */
+export function groupDoSpecialPowerAtLocation<TEntity extends SpecialPowerCommandEntity>(
+  issuingEntityIds: readonly number[],
+  callback: (entity: TEntity) => void,
+  spawnedEntities: ReadonlyMap<number, TEntity>,
+): void {
+  // Snapshot the list before iterating — equivalent to ZH's pre-increment pattern.
+  // If an entity is destroyed during processing, the snapshot still holds the ID
+  // but the destroyed check below skips it safely.
+  const snapshot = issuingEntityIds.slice();
+  for (let i = 0; i < snapshot.length; i++) {
+    const entityId = snapshot[i]!;
+    if (!Number.isFinite(entityId)) {
+      continue;
+    }
+    const entity = spawnedEntities.get(Math.trunc(entityId));
+    // Re-check destroyed status after snapshot — the entity may have been killed
+    // by a prior iteration's special power effect (e.g. rebel ambush drowning).
+    if (!entity || entity.destroyed) {
+      continue;
+    }
+    callback(entity);
+  }
+}
+
 export function routeIssueSpecialPowerCommand<TEntity extends SpecialPowerCommandEntity>(
   command: IssueSpecialPowerCommand,
   context: SpecialPowerCommandContext<TEntity>,

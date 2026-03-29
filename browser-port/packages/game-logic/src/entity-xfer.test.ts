@@ -241,6 +241,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     guardInnerRange: 0,
     guardOuterRange: 0,
     guardRetaliating: false,
+    tunnelNetworkGuardState: 'NONE',
     temporaryMoveExpireFrame: 0,
 
     // Poison

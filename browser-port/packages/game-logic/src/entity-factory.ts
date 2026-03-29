@@ -502,6 +502,12 @@ export function createMapEntity(self: GL,
     guardInnerRange: 0,
     guardOuterRange: 0,
     guardRetaliating: false,
+    /**
+     * Source parity: AITunnelNetworkGuardState — tracks whether a tunnel network
+     * entity is in a guard state with an inner guard machine.
+     * C++ AIStates.cpp:6906-7035, AIStateMachine.h:1221-1246.
+     */
+    tunnelNetworkGuardState: 'NONE' as string,
     temporaryMoveExpireFrame: 0,
     // Poison DoT state
     poisonedBehaviorProfile: self.extractPoisonedBehaviorProfile(objectDef),
@@ -5537,6 +5543,10 @@ export function spawnEntityFromTemplate(self: GL,
   // Snap to terrain.
   if (self.mapHeightmap) {
     entity.y = self.mapHeightmap.getInterpolatedHeight(worldX, worldZ) ?? 0;
+  }
+  // Source parity: Object.cpp:595-598 — record mine creation for academy stats.
+  if (entity.kindOf.has('MINE') || entity.kindOf.has('BOOBY_TRAP') || entity.kindOf.has('DEMOTRAP')) {
+    self.recordMineCreated(entity.id);
   }
   return entity;
 }
