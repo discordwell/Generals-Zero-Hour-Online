@@ -7829,6 +7829,13 @@ export class GameLogicSubsystem implements Subsystem {
    * Default: false (C++ Player::init sets m_logicalRetaliationModeEnabled = FALSE).
    */
   private readonly sideRetaliationModeEnabled = new Map<string, boolean>();
+  /**
+   * Source parity (ZH): Player::m_isPreorder — per-player flag indicating the player
+   * had a preorder copy. Set during game initialization from playerIsPreorder dict key.
+   * Cosmetic-only (e.g., unlocks preorder content in lobby). Default: false.
+   * C++ file: Player.cpp:303,815-817.
+   */
+  private readonly sideIsPreorder = new Map<string, boolean>();
   /** Source parity: Player::setUnitsShouldIdleOrResume script toggle. */
   private readonly sideUnitsShouldIdleOrResume = new Map<string, boolean>();
   /** Source parity: Player::setCanBuildBase script toggle by side. */
@@ -9973,6 +9980,90 @@ export class GameLogicSubsystem implements Subsystem {
    * Counts how many entities owned by the given side have the specified special power
    * type ready (readyFrame <= current frame).
    */
+  /**
+   * Source parity (ZH): Object::findAnyShortcutSpecialPowerModuleInterface (Object.cpp:5892-5907).
+   * Search an entity's special power modules for the first occurrence of a shortcut special power.
+   * Returns the module profile if found, null otherwise.
+   *
+   * A shortcut power is one whose SpecialPowerTemplate has m_shortcutPower = TRUE (INI: ShortcutPower = Yes).
+   * Used by the shortcut bar power system to find entities that can fire powers from the side panel.
+   */
+  findAnyShortcutSpecialPowerModule(
+    entityId: number,
+  ): { specialPowerTemplateName: string; moduleType: string } | null {
+    const entity = this.spawnedEntities.get(entityId);
+    if (!entity || entity.destroyed) {
+      return null;
+    }
+
+    for (const [powerName, module] of entity.specialPowerModules) {
+      const specialPowerDef = this.resolveSpecialPowerDefByName(powerName);
+      if (specialPowerDef && specialPowerDef.shortcutPower) {
+        return {
+          specialPowerTemplateName: module.specialPowerTemplateName,
+          moduleType: module.moduleType,
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Source parity (ZH): Object::findSpecialPowerWithOverridableDestination (Object.cpp:5961-5975).
+   * Find a special power module on an entity that supports overridable destination targeting
+   * (e.g., SpectreGunshipUpdate allows the player to redirect the targeting reticle).
+   * The `type` parameter filters by power type; pass null/undefined to match any.
+   *
+   * Returns the power template name if found, null otherwise.
+   */
+  findSpecialPowerWithOverridableDestination(
+    entityId: number,
+    specialPowerType?: string | null,
+  ): { specialPowerTemplateName: string } | null {
+    const entity = this.spawnedEntities.get(entityId);
+    if (!entity || entity.destroyed) {
+      return null;
+    }
+
+    // Source parity: SpectreGunshipUpdate returns true for doesSpecialPowerHaveOverridableDestination.
+    // In the TS port, an entity with a spectreGunshipProfile has overridable destination capability.
+    if (entity.spectreGunshipProfile) {
+      const powerName = entity.spectreGunshipProfile.specialPowerTemplate.trim().toUpperCase();
+      if (!specialPowerType || specialPowerType.trim().toUpperCase() === powerName || specialPowerType.trim().toUpperCase() === '') {
+        return { specialPowerTemplateName: powerName };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Source parity (ZH): Object::findSpecialPowerWithOverridableDestinationActive (Object.cpp:5942-5956).
+   * Like findSpecialPowerWithOverridableDestination, but only matches powers that are
+   * currently active (i.e., SpectreGunship is in INSERTING or ORBITING status, not DEPARTING).
+   */
+  findSpecialPowerWithOverridableDestinationActive(
+    entityId: number,
+    specialPowerType?: string | null,
+  ): { specialPowerTemplateName: string } | null {
+    const entity = this.spawnedEntities.get(entityId);
+    if (!entity || entity.destroyed) {
+      return null;
+    }
+
+    // Source parity: SpectreGunshipUpdate::doesSpecialPowerHaveOverridableDestinationActive
+    // returns m_status < GUNSHIP_STATUS_DEPARTING (i.e., IDLE/INSERTING/ORBITING).
+    if (entity.spectreGunshipProfile && entity.spectreGunshipState) {
+      const status = entity.spectreGunshipState.status;
+      if (status !== 'DEPARTING') {
+        const powerName = entity.spectreGunshipProfile.specialPowerTemplate.trim().toUpperCase();
+        if (!specialPowerType || specialPowerType.trim().toUpperCase() === powerName || specialPowerType.trim().toUpperCase() === '') {
+          return { specialPowerTemplateName: powerName };
+        }
+      }
+    }
+    return null;
+  }
+
   countReadyShortcutSpecialPowersOfType(
     side: string,
     specialPowerType: string,
@@ -10596,6 +10687,31 @@ export class GameLogicSubsystem implements Subsystem {
       return false;
     }
     return this.sideRetaliationModeEnabled.get(normalizedSide) ?? false;
+  }
+
+  /**
+   * Source parity (ZH): Player::m_isPreorder — set during game initialization.
+   * C++ file: Player.cpp:815-817 — reads TheKey_playerIsPreorder from Dict during initFromDict.
+   * C++ file: GameLogic.cpp:1352,2773 — sets playerIsPreorder in Dict when isPlayerPreorder(i).
+   */
+  setSideIsPreorder(side: string, isPreorder: boolean): boolean {
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return false;
+    }
+    this.sideIsPreorder.set(normalizedSide, isPreorder);
+    return true;
+  }
+
+  /**
+   * Source parity (ZH): Player::m_isPreorder getter.
+   */
+  isSidePreorder(side: string): boolean {
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return false;
+    }
+    return this.sideIsPreorder.get(normalizedSide) ?? false;
   }
 
   getSideScoreState(side: string): {
@@ -17447,6 +17563,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.sidePlayerTypes.clear();
     this.sideUnitsShouldIdleOrResume.clear();
     this.sideRetaliationModeEnabled.clear();
+    this.sideIsPreorder.clear();
     this.sideCanBuildBaseByScript.clear();
     this.sideCanBuildUnitsByScript.clear();
     this.sideTeamBuildDelaySecondsByScript.clear();
@@ -33969,6 +34086,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.scriptSkirmishBaseCenterAndRadiusBySide.clear();
     this.sideUnitsShouldIdleOrResume.clear();
     this.sideRetaliationModeEnabled.clear();
+    this.sideIsPreorder.clear();
     this.sideCanBuildBaseByScript.clear();
     this.sideCanBuildUnitsByScript.clear();
     this.sideTeamBuildDelaySecondsByScript.clear();
