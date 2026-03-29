@@ -1635,3 +1635,162 @@ export function clampWaypointPosition(
     clampVal(worldZ, minZ, maxZ),
   ];
 }
+
+/**
+ * Source parity: ZH AIGroup.cpp — after adjusting a waypoint position (e.g. for
+ * formation offsets), clamp it back to map bounds if the original waypoint was
+ * within bounds. This prevents script-driven waypoint paths from accidentally
+ * sending units off the edge when position adjustments push them past the boundary.
+ *
+ * If the original position was off-map, the adjusted position is returned as-is
+ * (the waypoint intentionally exits the map).
+ */
+export function clampAdjustedWaypointToMap(
+  self: GL,
+  originalX: number,
+  originalZ: number,
+  adjustedX: number,
+  adjustedZ: number,
+  margin: number,
+): [number, number] {
+  if (!self.mapHeightmap) {
+    return [adjustedX, adjustedZ];
+  }
+  const mapWidth = self.mapHeightmap.worldWidth;
+  const mapDepth = self.mapHeightmap.worldDepth;
+
+  // Check if the original waypoint is within map bounds.
+  const originalOnMap = originalX >= 0 && originalX <= mapWidth
+    && originalZ >= 0 && originalZ <= mapDepth;
+
+  if (!originalOnMap) {
+    // Original was off-map — don't clamp the adjusted position.
+    return [adjustedX, adjustedZ];
+  }
+
+  // Original was on-map — clamp the adjusted position back to within the margin.
+  return clampWaypointPosition(self, adjustedX, adjustedZ, margin);
+}
+
+/**
+ * Source parity: AIUpdateInterface::hasLocomotorForSurface (AIUpdate.cpp:5295-5302).
+ *
+ * Checks whether an entity has a locomotor capable of traversing a specific
+ * surface type. Used to validate whether a unit can actually reach a position
+ * on a given terrain type (e.g. water, cliff, air).
+ *
+ * @param locomotorSets - The entity's locomotor set profiles (from resolveLocomotorProfiles)
+ * @param surfaceBit - The LOCOMOTOR_SURFACE_* bit flag to test (e.g. LOCOMOTOR_SURFACE_WATER)
+ * @returns true if any locomotor set in the entity has a matching surface mask bit
+ */
+export function hasLocomotorForSurface(
+  locomotorSets: Map<string, { surfaceMask: number }>,
+  surfaceBit: number,
+): boolean {
+  for (const profile of locomotorSets.values()) {
+    if ((profile.surfaceMask & surfaceBit) !== 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Source parity: ZH AIAttackApproachTargetState::computePath (AIStates.cpp:2410-2514).
+ *
+ * In Generals, blocked-and-stuck units in attack approach would fall back to
+ * `requestPath` with destination adjustment, which could give up on reaching
+ * the exact attack position. ZH removed this branch — units always compute a
+ * full attack path via `requestAttackPath`, never giving up when stuck.
+ *
+ * This function computes whether an attack approach path should be computed.
+ * ZH always returns true (always try to path), removing the Generals behavior
+ * where `isBlockedAndStuck()` would cause a fallback to basic pathfinding.
+ *
+ * @returns true — ZH always computes the attack path
+ */
+export function shouldComputeAttackPath(
+  _isBlockedAndStuck: boolean,
+): boolean {
+  // Source parity: ZH removed the isBlockedAndStuck branch that fell back to
+  // requestPath. ZH always uses requestAttackPath, even when stuck.
+  return true;
+}
+
+/**
+ * Source parity: ZH AIAttackApproachTargetState::computePath (AIStates.cpp:2471-2487).
+ *
+ * ZH wraps approach movement with `setAdjustsDestination(false/true)` to prevent
+ * the pathfinder from adjusting the attack destination. The unit should path to
+ * the exact computed attack position, not a nearby cell.
+ *
+ * For contact weapons, destination adjustment is disabled so the unit runs into
+ * the target. For ranged weapons, adjustment is also disabled during the actual
+ * attack path request (requestAttackPath), though it's temporarily set to true
+ * before determining weapon type.
+ *
+ * @param isContactWeapon - Whether the weapon requires contact (melee)
+ * @returns The adjustsDestination value for the approach path request
+ */
+export function resolveAttackApproachAdjustsDestination(
+  isContactWeapon: boolean,
+): boolean {
+  // Source parity: ZH AIStates.cpp:2471-2477
+  // For contact weapons: setAdjustsDestination(false) — run into target.
+  // For ranged weapons: setAdjustsDestination(true) initially, but the path is
+  // requested via requestAttackPath which computes the exact firing position.
+  // In ZH, the isBlockedAndStuck branch that used getAdjustsDestination() with
+  // requestPath is removed — so the adjusts flag only matters for contact weapons.
+  return !isContactWeapon;
+}
+
+/**
+ * Source parity: ZH Weapon::isWithinAttackRange (Weapon.cpp:2176-2208).
+ *
+ * ZH replaced simple position-based center-to-center range checks with
+ * object-to-object range checks that account for both entities' geometries.
+ * The effective attack range is the weapon range plus the source and target
+ * geometry radii — matching the C++ PartitionManager::getDistanceSquared
+ * with FROM_CENTER_2D calculation which uses geometry extents.
+ *
+ * @param sourceX - Attacker X position
+ * @param sourceZ - Attacker Z position
+ * @param sourceRadius - Attacker collision/geometry major radius
+ * @param targetX - Target X position
+ * @param targetZ - Target Z position
+ * @param targetRadius - Target collision/geometry major radius
+ * @param attackRange - Weapon attack range
+ * @param minAttackRange - Weapon minimum attack range (0 if none)
+ * @returns true if target is within attack range accounting for geometry
+ */
+export function isWithinAttackRange(
+  sourceX: number,
+  sourceZ: number,
+  sourceRadius: number,
+  targetX: number,
+  targetZ: number,
+  targetRadius: number,
+  attackRange: number,
+  minAttackRange = 0,
+): boolean {
+  const dx = targetX - sourceX;
+  const dz = targetZ - sourceZ;
+  const centerDistSqr = dx * dx + dz * dz;
+
+  // Source parity: effective range includes both entities' radii.
+  // C++ uses getDistanceSquared with FROM_CENTER_2D which subtracts geometry
+  // extents from distance. Equivalently, we add radii to the weapon range.
+  const effectiveRange = attackRange + sourceRadius + targetRadius;
+  const effectiveRangeSqr = effectiveRange * effectiveRange;
+
+  // Min range check (Source parity: Weapon.cpp:2146-2154)
+  if (minAttackRange > 0) {
+    const effectiveMinRange = Math.max(0, minAttackRange - sourceRadius - targetRadius);
+    const effectiveMinRangeSqr = effectiveMinRange * effectiveMinRange;
+    if (centerDistSqr < effectiveMinRangeSqr) {
+      return false;
+    }
+  }
+
+  return centerDistSqr <= effectiveRangeSqr;
+}
