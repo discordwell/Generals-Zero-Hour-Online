@@ -21152,6 +21152,7 @@ export class GameLogicSubsystem implements Subsystem {
     commandOption: number,
     commandButtonId: string,
     _specialPowerDef: SpecialPowerDef,
+    angle?: number,
   ): boolean {
     const module = this.resolveSpecialPowerModuleProfile(sourceEntityId, specialPowerName);
     if (!module) {
@@ -21200,11 +21201,11 @@ export class GameLogicSubsystem implements Subsystem {
 
     switch (effectCategory) {
       case 'OCL_SPAWN':
-        // Source parity: OCLSpecialPower::initiateInternal — execute OCL at source,
+        // Source parity (ZH): OCLSpecialPower::initiateInternal — execute OCL at source,
         // passing target position so FireWeapon nuggets fire at the target location.
-        // CreateObject nuggets spawn at source entity; FireWeapon nuggets fire at target.
+        // ZH passes angle for creation orientation (AIGroup.cpp:2710).
         if (module.oclName) {
-          this.executeOCL(module.oclName, source, undefined, targetX, targetZ);
+          this.executeOCL(module.oclName, source, undefined, targetX, targetZ, angle);
         } else {
           // Fallback: if no OCL name, apply flat area damage (legacy behavior).
           executeAreaDamageImpl({
@@ -32635,8 +32636,10 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
-   * Source parity: ObjectCreationList::create — execute an OCL by name.
-   * Resolves CreateObject nuggets and spawns entities.
+   * Source parity (ZH): ObjectCreationList::createInternal — execute an OCL by name.
+   * ZH changed return type from void to Object* (returns the first created object).
+   * ZH added an angle overload for creation orientation.
+   * C++ ObjectCreationList.cpp:1533-1560.
    */
   private executeOCL(
     oclName: string,
@@ -32644,18 +32647,23 @@ export class GameLogicSubsystem implements Subsystem {
     lifetimeOverrideFrames?: number,
     targetX?: number,
     targetZ?: number,
-  ): void {
+    angle?: number,
+  ): number | null {
     const registry = this.iniDataRegistry;
-    if (!registry) return;
+    if (!registry) return null;
     const oclDef = registry.getObjectCreationList(oclName);
-    if (!oclDef) return;
+    if (!oclDef) return null;
 
+    let firstCreatedEntityId: number | null = null;
     for (const nugget of oclDef.blocks) {
       // OCL nuggets use block.type for the nugget kind (e.g., 'CreateObject', 'CreateDebris').
       // If type is empty, fall back to the first token of name.
       const nuggetType = (nugget.type || nugget.name.split(/\s+/)[0] || '').toUpperCase();
       if (nuggetType === 'CREATEOBJECT' || nuggetType === 'CREATEDEBRIS') {
-        this.executeCreateObjectNugget(nugget, sourceEntity, lifetimeOverrideFrames);
+        const createdId = this.executeCreateObjectNugget(nugget, sourceEntity, lifetimeOverrideFrames, angle);
+        if (firstCreatedEntityId === null && createdId !== null) {
+          firstCreatedEntityId = createdId;
+        }
       } else if (nuggetType === 'FIREWEAPON') {
         // Source parity: FireWeaponNugget::create — fires weapon at secondary (target) position.
         // C++ calls TheWeaponStore->createAndFireTempWeapon(m_weapon, primaryObj, secondary).
@@ -32666,6 +32674,7 @@ export class GameLogicSubsystem implements Subsystem {
       }
       // Attack, ApplyRandomForce are omitted for now.
     }
+    return firstCreatedEntityId;
   }
 
   /**
@@ -32685,15 +32694,15 @@ export class GameLogicSubsystem implements Subsystem {
    *   ContainInsideSourceObject, ObjectNames, ObjectCount, InheritsVeterancy,
    *   SkipIfSignificantlyAirborne, InvulnerableTime, MinHealth, MaxHealth, RequiresLivePlayer
    */
-  private executeCreateObjectNugget(nugget: IniBlock, sourceEntity: MapEntity, lifetimeOverrideFrames?: number): void {
+  private executeCreateObjectNugget(nugget: IniBlock, sourceEntity: MapEntity, lifetimeOverrideFrames?: number, angleOverride?: number): number | null {
     const registry = this.iniDataRegistry;
-    if (!registry) return;
+    if (!registry) return null;
 
     // Parse ObjectNames field (space-separated list of template names).
     const objectNamesRaw = readStringField(nugget.fields, ['ObjectNames']);
-    if (!objectNamesRaw) return;
+    if (!objectNamesRaw) return null;
     const objectNames = objectNamesRaw.trim().split(/\s+/).filter(Boolean);
-    if (objectNames.length === 0) return;
+    if (objectNames.length === 0) return null;
 
     // Parse Count (default 1).
     const countRaw = readStringField(nugget.fields, ['Count', 'ObjectCount']);
@@ -32716,14 +32725,14 @@ export class GameLogicSubsystem implements Subsystem {
     // C++ GenericObjectCreationNugget.cpp:794 — if m_skipIfSignificantlyAirborne && primary->isSignificantlyAboveTerrain(), return NULL.
     const skipIfAirborne = readBooleanField(nugget.fields, ['SkipIfSignificantlyAirborne']) ?? false;
     if (skipIfAirborne && sourceEntity.y > sourceEntity.baseHeight + 30) {
-      return;
+      return null;
     }
 
     // Source parity: RequiresLivePlayer — skip if the owning player is dead.
     // C++ GenericObjectCreationNugget.cpp:876 — m_requiresLivePlayer gates creation on player alive.
     const requiresLivePlayer = readBooleanField(nugget.fields, ['RequiresLivePlayer']) ?? false;
     if (requiresLivePlayer && sourceEntity.side && this.defeatedSides.has(sourceEntity.side)) {
-      return;
+      return null;
     }
 
     // Source parity: InvulnerableTime — duration-parsed frames of invulnerability after spawn.
@@ -32760,6 +32769,7 @@ export class GameLogicSubsystem implements Subsystem {
     // C++ ObjectCreationList.cpp:1267-1300 — if m_diesOnBadLand, check isUnderwater, isOffMap, impassable.
     const diesOnBadLand = readBooleanField(nugget.fields, ['DiesOnBadLand']) ?? false;
 
+    let firstCreatedEntityId: number | null = null;
     for (let i = 0; i < count; i++) {
       // Pick a random object from the list (deterministic via gameRandom).
       const templateName = objectNames[this.gameRandom.nextRange(0, objectNames.length - 1)]!;
@@ -32781,15 +32791,26 @@ export class GameLogicSubsystem implements Subsystem {
       const spawnX = sourceEntity.x + offsetX + scatter + formationOffsetX;
       const spawnZ = sourceEntity.z + offsetZ + scatter + formationOffsetZ;
 
+      // Source parity (ZH): ObjectCreationList::createInternal with angle overload —
+      // when an angle is provided, use it directly instead of inheriting from source.
+      // C++ ObjectCreationList.cpp:1548-1560.
+      const spawnAngle = angleOverride !== undefined
+        ? angleOverride
+        : sourceEntity.rotationY + (this.gameRandom.nextFloat() - 0.5) * 0.3;
+
       const spawned = this.spawnEntityFromTemplate(
         templateName,
         spawnX,
         spawnZ,
-        sourceEntity.rotationY + (this.gameRandom.nextFloat() - 0.5) * 0.3,
+        spawnAngle,
         sourceEntity.side,
       );
 
       if (spawned) {
+        // Source parity (ZH): track first created entity for return value.
+        if (firstCreatedEntityId === null) {
+          firstCreatedEntityId = spawned.id;
+        }
         if (inheritsVet) {
           spawned.experienceState.currentLevel = sourceEntity.experienceState.currentLevel;
           if (sourceEntity.scriptName) {
@@ -32880,6 +32901,7 @@ export class GameLogicSubsystem implements Subsystem {
         }
       }
     }
+    return firstCreatedEntityId;
   }
 
   /**

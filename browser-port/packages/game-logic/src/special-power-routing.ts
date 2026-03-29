@@ -124,6 +124,7 @@ interface SpecialPowerCommandContext<TEntity extends SpecialPowerCommandEntity> 
     commandOption: number,
     commandButtonId: string,
     specialPowerDef: SpecialPowerDef,
+    angle?: number,
   ): boolean;
   onIssueSpecialPowerTargetObject(
     sourceEntityId: number,
@@ -442,6 +443,8 @@ export function routeIssueSpecialPowerCommand<TEntity extends SpecialPowerComman
       return;
     }
 
+    // Source parity (ZH): pass angle from command to dispatch handler.
+    // C++ AIGroup.cpp:2676 — groupDoSpecialPowerAtLocation(specialPowerID, location, angle, ...).
     const dispatched = context.onIssueSpecialPowerTargetPosition(
       sourceEntity.id,
       normalizedSpecialPowerName,
@@ -450,6 +453,7 @@ export function routeIssueSpecialPowerCommand<TEntity extends SpecialPowerComman
       commandOption,
       command.commandButtonId,
       specialPowerDef,
+      command.angle,
     );
     if (!dispatched) {
       return;

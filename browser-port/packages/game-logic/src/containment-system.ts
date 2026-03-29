@@ -1255,11 +1255,18 @@ export function evacuateOneContainedRappeller(self: GL,
   return false;
 }
 
-export function evacuateContainedEntities(self: GL, 
+/**
+ * Source parity (ZH): OpenContain::orderAllPassengersToExit(commandSource, instantly).
+ * ZH added a second bool parameter. When instantly=true, uses aiExitInstantly
+ * (immediate exit without animation delays). When false, uses normal exit.
+ * C++ OpenContain.cpp:1377-1398.
+ */
+export function evacuateContainedEntities(self: GL,
   container: MapEntity,
   targetX: number,
   targetZ: number,
   targetObjectId: number | null,
+  instantly = false,
 ): void {
   const passengerIds = collectContainedEntityIds(self, container.id);
   if (passengerIds.length === 0) {
@@ -1272,19 +1279,24 @@ export function evacuateContainedEntities(self: GL,
       continue;
     }
 
-    releaseEntityFromContainer(self, passenger);
-    const evacuation = resolveContainerEvacuationPositions(self, container, targetX, targetZ);
-    passenger.x = evacuation.spawnX;
-    passenger.z = evacuation.spawnZ;
-    passenger.y = self.resolveGroundHeight(passenger.x, passenger.z) + passenger.baseHeight;
-    self.updatePathfindPosCell(passenger);
+    if (instantly) {
+      // Source parity (ZH): rider->getAI()->aiExitInstantly(getObject(), commandSource)
+      handleExitContainerInstantlyCommand(self, passengerId);
+    } else {
+      releaseEntityFromContainer(self, passenger);
+      const evacuation = resolveContainerEvacuationPositions(self, container, targetX, targetZ);
+      passenger.x = evacuation.spawnX;
+      passenger.z = evacuation.spawnZ;
+      passenger.y = self.resolveGroundHeight(passenger.x, passenger.z) + passenger.baseHeight;
+      self.updatePathfindPosCell(passenger);
 
-    self.issueDroppedPassengerCommand(
-      passenger,
-      evacuation.targetX,
-      evacuation.targetZ,
-      targetObjectId,
-    );
+      self.issueDroppedPassengerCommand(
+        passenger,
+        evacuation.targetX,
+        evacuation.targetZ,
+        targetObjectId,
+      );
+    }
   }
 }
 

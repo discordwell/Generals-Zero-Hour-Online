@@ -20,6 +20,7 @@ import {
   type IniDataBundle,
   type LocomotorDef,
   type ObjectDef,
+  type ObjectCreationListDef,
   type ScienceDef,
   type SpecialPowerDef,
   type UpgradeDef,
@@ -156,6 +157,18 @@ export function makeSpecialPowerDef(name: string, fields: Record<string, unknown
   };
 }
 
+export function makeObjectCreationListDef(
+  name: string,
+  nuggets: IniBlock[],
+  fields?: Record<string, unknown>,
+): ObjectCreationListDef {
+  return {
+    name,
+    fields: (fields ?? {}) as Record<string, string | number | boolean | string[] | number[]>,
+    blocks: nuggets,
+  };
+}
+
 // ── Convenience compound builder ────────────────────────────────────────────
 
 export function makeWeaponBlock(weaponName: string, slot: string = 'PRIMARY'): IniBlock {
@@ -173,6 +186,7 @@ export function makeBundle(params: {
   commandSets?: CommandSetDef[];
   sciences?: ScienceDef[];
   specialPowers?: SpecialPowerDef[];
+  objectCreationLists?: ObjectCreationListDef[];
   locomotors?: LocomotorDef[];
   audioEvents?: AudioEventDef[];
   factions?: FactionDef[];
@@ -186,6 +200,7 @@ export function makeBundle(params: {
   const commandSets = params.commandSets ?? [];
   const sciences = params.sciences ?? [];
   const specialPowers = params.specialPowers ?? [];
+  const objectCreationLists = params.objectCreationLists ?? [];
   const locomotors = params.locomotors ?? [];
   const audioEvents = params.audioEvents ?? [];
   const factions = params.factions ?? [];
@@ -198,6 +213,7 @@ export function makeBundle(params: {
     commandSets,
     sciences,
     specialPowers,
+    objectCreationLists,
     factions,
     locomotors,
     audioEvents,

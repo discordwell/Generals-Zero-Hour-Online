@@ -416,6 +416,11 @@ export interface IssueSpecialPowerCommand {
   targetEntityId: number | null;
   targetX: number | null;
   targetZ: number | null;
+  /**
+   * Source parity (ZH): AIGroup::groupDoSpecialPowerAtLocation gains an angle parameter
+   * for creation orientation. C++ AIGroup.cpp:2676. Defaults to 0 when not provided.
+   */
+  angle?: number;
 }
 
 export interface SwitchWeaponCommand {

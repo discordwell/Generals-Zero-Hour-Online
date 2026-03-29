@@ -679,7 +679,9 @@ export function issueMoveTo(self: GL,
   // Source parity: AIGroup.cpp:643-674 — clamp move destination to map boundaries.
   // Inset by one pathfind cell on each edge so units don't walk to the very edge.
   // Off-map exits (allowNoPathMove) bypass clamping so script movers can leave the map.
-  if (!allowNoPathMove) {
+  // Source parity (ZH): AIStates.cpp:1662 — skip destination adjustment for RIDER8 status.
+  // RIDER8 is the topmost rider on a transport and should not have its destination clamped.
+  if (!allowNoPathMove && !entity.objectStatusFlags.has('RIDER8')) {
     const clamped = self.clampMoveDestinationToMap(targetX, targetZ);
     targetX = clamped[0];
     targetZ = clamped[1];
