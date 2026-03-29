@@ -658,6 +658,7 @@ function writeGameLogicCommandCrc(
       writeSignedNumberArrayCrc(context, crc, command.issuingEntityIds, true);
       return;
     case 'exitContainer':
+    case 'exitContainerInstantly':
     case 'evacuate':
     case 'executeRailedTransport':
     case 'beaconDelete':

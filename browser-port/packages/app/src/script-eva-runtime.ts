@@ -20,6 +20,8 @@ const EVA_PRIORITY_BY_TYPE: Record<EvaEventType, number> = {
   BUILDING_STOLEN: 40,
   SUPERWEAPON_READY: 35,
   BEACON_DETECTED: 30,
+  CASH_STOLEN: 40,
+  BUILDING_SABOTAGED: 35,
 };
 
 export interface ScriptEvaRuntimeGameLogic {
@@ -89,6 +91,8 @@ const EVA_AUDIO_SUFFIX_MAP: Record<EvaEventType, string> = {
   CONSTRUCTION_COMPLETE: 'ConstructionComplete',
   UNIT_READY: 'UnitReady',
   BEACON_DETECTED: 'BeaconDetected',
+  CASH_STOLEN: 'CashStolen',
+  BUILDING_SABOTAGED: 'BuildingSabotaged',
 };
 
 function formatEvaMessage(event: EvaEvent): string {

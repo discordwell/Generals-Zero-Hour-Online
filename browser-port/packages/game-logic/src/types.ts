@@ -15,7 +15,7 @@ export type RenderAnimationStateClipCandidates = Partial<Record<RenderAnimationS
 
 export type { ModelConditionInfo, TransitionInfo, IdleAnimationVariant } from './render-profile-helpers.js';
 
-export type RenderableObjectCategory = 'air' | 'building' | 'infantry' | 'vehicle' | 'unknown';
+export type RenderableObjectCategory = 'air' | 'building' | 'ground' | 'infantry' | 'vehicle' | 'unknown';
 
 export interface RenderableEntityState {
   id: number;

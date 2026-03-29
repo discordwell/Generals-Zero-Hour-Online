@@ -15,5 +15,5 @@
     { "path": "../ini-data" }
   ],
   "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts", "src/parity-debt-report.ts", "src/parity-source-truth.ts"]
 }

@@ -635,7 +635,6 @@ import {
   updateCrushCollisions as updateCrushCollisionsImpl,
   resolveVehicleCrushTarget as resolveVehicleCrushTargetImpl,
   shouldCrushVehicleTarget as shouldCrushVehicleTargetImpl,
-  getHelicopterOffset as getHelicopterOffsetImpl,
   issueGroupMoveTo as issueGroupMoveToImpl,
 } from './entity-movement.js';
 import {
@@ -3660,6 +3659,8 @@ export interface MapEntity {
   guardObjectId: number;
   /** Trigger-area index being guarded (for GUARDTARGET_AREA). -1 = no area guard. */
   guardAreaTriggerIndex: number;
+  /** Source parity (ZH): AIGuardMachine retaliation flag — true when pursuing an attacker. */
+  guardRetaliating: boolean;
   /** Guard behavior variant (NORMAL / GUARD_WITHOUT_PURSUIT / GUARD_FLYING_UNITS_ONLY). */
   guardMode: number;
   /** Frame at which next guard-mode enemy scan is allowed. */

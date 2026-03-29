@@ -1,3 +1,4 @@
+import type { IniBlock, IniValue } from '@generals/core';
 import {
   IniDataRegistry,
   type ArmorDef,
@@ -34,7 +35,7 @@ function promoteDisplacedObjectFields(objectDef: ObjectDef | undefined): ObjectD
     return objectDef;
   }
 
-  const promotedFields: Record<string, unknown> = { ...objectDef.fields };
+  const promotedFields: Record<string, IniValue> = { ...objectDef.fields };
   let promoted = false;
   const promoteFromBlocks = (blocks: readonly IniBlock[]): void => {
     for (const block of blocks) {

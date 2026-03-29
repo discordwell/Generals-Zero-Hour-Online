@@ -907,6 +907,10 @@ export class IniDataRegistry {
             weaponBonusEntries: [...this.gameData.weaponBonusEntries],
             healthBonuses: [...this.gameData.healthBonuses] as [number, number, number, number],
             sellPercentage: this.gameData.sellPercentage,
+            soloPlayerHealthBonuses: [
+              [...this.gameData.soloPlayerHealthBonuses[0]] as [number, number, number],
+              [...this.gameData.soloPlayerHealthBonuses[1]] as [number, number, number],
+            ],
           }
         : undefined,
       stats,
