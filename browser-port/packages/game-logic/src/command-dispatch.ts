@@ -910,12 +910,14 @@ export function recordSpecialPowerDispatch(self: GL,
   }
 
   // Source parity: Eva SUPERWEAPON_LAUNCHED fires for FS_SUPERWEAPON entities.
+  // ZH expanded to 3 variants: Own, Ally, Enemy (SpecialPowerModule.cpp:555-632).
   if (sourceEntity.kindOf.has('FS_SUPERWEAPON') && sourceEntity.side) {
+    const ownerSide = self.normalizeSide(sourceEntity.side);
     self.emitEvaEvent('SUPERWEAPON_LAUNCHED', sourceEntity.side, 'own', sourceEntityId, module.specialPowerTemplateName);
-    // Notify enemies about the launch.
     for (const [side] of self.sidePowerBonus.entries()) {
-      if (side !== sourceEntity.side) {
-        self.emitEvaEvent('SUPERWEAPON_LAUNCHED', side, 'enemy', sourceEntityId, module.specialPowerTemplateName);
+      if (side !== ownerSide) {
+        const relationship = self.resolveEvaRelationshipVariant(ownerSide, side);
+        self.emitEvaEvent('SUPERWEAPON_LAUNCHED', side, relationship, sourceEntityId, module.specialPowerTemplateName);
       }
     }
   }

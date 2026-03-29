@@ -3087,6 +3087,8 @@ interface SabotageBuildingProfile {
   powerSabotageDurationFrames: number;
   /** Source parity: SabotageCommandCenter/SabotageSuperweapon — resets all special power cooldowns. */
   resetsSpecialPowers: boolean;
+  /** Source parity: SabotageSupplyDropzoneCrateCollide.cpp:136-141 — resets OCLUpdate timers. */
+  resetsOclTimer: boolean;
 }
 
 interface PendingEnterObjectActionState {
@@ -6344,6 +6346,15 @@ interface SideScoreState {
   moneyEarned: number;
 }
 
+/**
+ * Source parity: AcademyStats.h — tracks gameplay statistics per side for the
+ * ZH Academy tutorial system. The academy uses these counts to provide advice
+ * to the player about how to improve their play.
+ */
+interface AcademyStats {
+  guardAbilityUsedCount: number;
+}
+
 type ScriptComparisonType =
   | 'LESS_THAN'
   | 'LESS_EQUAL'
@@ -7913,6 +7924,14 @@ export class GameLogicSubsystem implements Subsystem {
   /** Source parity: GameLogic::m_rankLevelLimit consumed by Player rank/skill progression. */
   private rankLevelLimit = RANK_TABLE.length;
   private readonly sideScoreState = new Map<string, SideScoreState>();
+  /** Source parity: Player::m_academyStats — per-side academy tracking for ZH tutorial system. */
+  private readonly sideAcademyStats = new Map<string, AcademyStats>();
+  /**
+   * Source parity: ControlBar::markUIDirty() — frame number when the control bar was last
+   * dirtied. The UI layer checks this to know when to refresh button states, tooltips, etc.
+   * ZH calls markUIDirty after science/upgrade/vision changes and construction completion.
+   */
+  private controlBarDirtyFrame = -1;
   /** Source parity: ScriptActions::enableScoring / scorekeeper global gate. */
   private scriptScoringEnabled = true;
   /** Source parity: ScriptActions::excludePlayerFromScoreScreen per-player hidden set. */
@@ -9887,6 +9906,95 @@ export class GameLogicSubsystem implements Subsystem {
       normalizedSpecialPowerName,
       normalizedSourceEntityId,
     );
+  }
+
+  /**
+   * Source parity: Player::findMostReadyShortcutSpecialPowerOfType (Player.cpp:1476-1485).
+   * Iterates all entities owned by the given side that have a special power module matching
+   * the requested power type and returns the entity with the lowest (most ready) ready frame.
+   */
+  findMostReadyShortcutSpecialPowerOfType(
+    side: string,
+    specialPowerType: string,
+  ): { entityId: number; readyFrame: number } | null {
+    const normalizedSide = this.normalizeSide(side);
+    const normalizedType = specialPowerType.trim().toUpperCase();
+    if (!normalizedSide || !normalizedType) {
+      return null;
+    }
+
+    let bestEntityId: number | null = null;
+    let lowestReadyFrame = Number.POSITIVE_INFINITY;
+
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) continue;
+      const entitySide = this.normalizeSide(entity.side);
+      if (entitySide !== normalizedSide) continue;
+
+      for (const [powerName] of entity.specialPowerModules) {
+        if (powerName !== normalizedType) continue;
+        const readyFrame = this.resolveSpecialPowerReadyFrameForSourceEntity(powerName, entity.id);
+        if (readyFrame < lowestReadyFrame) {
+          lowestReadyFrame = readyFrame;
+          bestEntityId = entity.id;
+        }
+      }
+    }
+
+    return bestEntityId !== null ? { entityId: bestEntityId, readyFrame: lowestReadyFrame } : null;
+  }
+
+  /**
+   * Source parity: Player::hasAnyShortcutSpecialPower (Player.cpp:1527-1536).
+   * Returns true if any entity owned by the given side has at least one special power module.
+   */
+  hasAnyShortcutSpecialPower(side: string): boolean {
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return false;
+    }
+
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) continue;
+      const entitySide = this.normalizeSide(entity.side);
+      if (entitySide !== normalizedSide) continue;
+      if (entity.specialPowerModules.size > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Source parity: Player::countReadyShortcutSpecialPowersOfType (Player.cpp:1539-1546).
+   * Counts how many entities owned by the given side have the specified special power
+   * type ready (readyFrame <= current frame).
+   */
+  countReadyShortcutSpecialPowersOfType(
+    side: string,
+    specialPowerType: string,
+  ): number {
+    const normalizedSide = this.normalizeSide(side);
+    const normalizedType = specialPowerType.trim().toUpperCase();
+    if (!normalizedSide || !normalizedType) {
+      return 0;
+    }
+
+    let count = 0;
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) continue;
+      const entitySide = this.normalizeSide(entity.side);
+      if (entitySide !== normalizedSide) continue;
+
+      for (const [powerName] of entity.specialPowerModules) {
+        if (powerName !== normalizedType) continue;
+        const readyFrame = this.resolveSpecialPowerReadyFrameForSourceEntity(powerName, entity.id);
+        if (readyFrame <= this.frameCounter) {
+          count++;
+        }
+      }
+    }
+    return count;
   }
 
   resolveMoveTargetFromInput(input: InputState, camera: THREE.Camera): { x: number; z: number } | null {
@@ -16648,6 +16756,8 @@ export class GameLogicSubsystem implements Subsystem {
 
     sideSciences.add(normalizedScience);
     this.getScriptScienceAcquiredSet(normalizedSide).add(normalizedScience);
+    // Source parity: Player.cpp:1177 — markUIDirty after granting science.
+    this.markUIDirty();
     return true;
   }
 
@@ -21395,6 +21505,9 @@ export class GameLogicSubsystem implements Subsystem {
       this.emitEvaEvent('CONSTRUCTION_COMPLETE', building.side, 'own', building.id, building.templateName);
     }
 
+    // Source parity: Player.cpp:1693 — markUIDirty after structure construction completion.
+    this.markUIDirty();
+
     // Source parity: GrantUpgradeCreate::onBuildComplete — grant upgrades when construction finishes.
     for (const prof of building.grantUpgradeCreateProfiles) {
       this.applyGrantUpgradeCreate(building, prof);
@@ -21561,6 +21674,66 @@ export class GameLogicSubsystem implements Subsystem {
     };
     this.sideScoreState.set(side, created);
     return created;
+  }
+
+  /**
+   * Source parity: AcademyStats.h:111 — get or create academy stats for a side.
+   */
+  private getOrCreateSideAcademyStats(side: string): AcademyStats {
+    const existing = this.sideAcademyStats.get(side);
+    if (existing) {
+      return existing;
+    }
+    const created: AcademyStats = {
+      guardAbilityUsedCount: 0,
+    };
+    this.sideAcademyStats.set(side, created);
+    return created;
+  }
+
+  /**
+   * Source parity: AIStates.cpp:6718 — record guard ability usage for academy system.
+   * Called when an entity enters guard state (AIGuardState::onEnter).
+   */
+  recordGuardAbilityUsed(entityId: number): void {
+    const entity = this.spawnedEntities.get(entityId);
+    if (!entity || entity.destroyed) {
+      return;
+    }
+    const side = this.normalizeSide(entity.side);
+    if (!side) {
+      return;
+    }
+    this.getOrCreateSideAcademyStats(side).guardAbilityUsedCount++;
+  }
+
+  /**
+   * Source parity: Player::getAcademyStats — retrieve academy stats for a side.
+   */
+  getAcademyStats(side: string): Readonly<AcademyStats> | null {
+    const normalized = this.normalizeSide(side);
+    if (!normalized) {
+      return null;
+    }
+    return this.sideAcademyStats.get(normalized) ?? null;
+  }
+
+  /**
+   * Source parity: ControlBar::markUIDirty (ControlBar.cpp:138) — mark the control bar
+   * as needing a refresh. ZH calls this after science grants, upgrade completions,
+   * vision changes, and construction completions so the UI reflects new button states.
+   */
+  markUIDirty(): void {
+    this.controlBarDirtyFrame = this.frameCounter;
+  }
+
+  /**
+   * Returns the frame number when the control bar was last dirtied.
+   * The UI layer can compare this against its last-rendered frame to detect
+   * when a refresh is needed. Returns -1 if never dirtied.
+   */
+  getControlBarDirtyFrame(): number {
+    return this.controlBarDirtyFrame;
   }
 
   /**
@@ -22248,6 +22421,12 @@ export class GameLogicSubsystem implements Subsystem {
       this.resetEntitySpecialPowerCooldowns(target);
     }
 
+    if (sabotageProfile.resetsOclTimer) {
+      // Source parity: SabotageSupplyDropzoneCrateCollide.cpp:136-141 — resets the OCLUpdate
+      // timer on the target supply drop zone, delaying the next supply drop delivery.
+      this.resetEntityOclTimers(target);
+    }
+
     this.markEntityDestroyed(source.id, target.id);
   }
 
@@ -22322,6 +22501,18 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  /**
+   * Source parity: SabotageSupplyDropzoneCrateCollide.cpp:136-141 — reset all OCLUpdate
+   * timers on the target entity, delaying the next supply delivery.
+   */
+  private resetEntityOclTimers(entity: MapEntity): void {
+    for (let i = 0; i < entity.oclUpdateProfiles.length; i++) {
+      const profile = entity.oclUpdateProfiles[i]!;
+      const delay = this.gameRandom.nextRange(profile.minDelayFrames, profile.maxDelayFrames);
+      entity.oclUpdateNextCreationFrames[i] = this.frameCounter + delay;
+    }
+  }
+
   private resolveSabotageBuildingProfile(source: MapEntity, target: MapEntity): SabotageBuildingProfile | null {
     const sourceObjectDef = this.resolveObjectDefByTemplateName(source.templateName);
     if (!sourceObjectDef) {
@@ -22355,6 +22546,7 @@ export class GameLogicSubsystem implements Subsystem {
             destroysTarget: false,
             powerSabotageDurationFrames: 0,
             resetsSpecialPowers: false,
+            resetsOclTimer: false,
           };
           return;
         }
@@ -22371,6 +22563,7 @@ export class GameLogicSubsystem implements Subsystem {
             destroysTarget: false,
             powerSabotageDurationFrames: 0,
             resetsSpecialPowers: false,
+            resetsOclTimer: false,
           };
           return;
         }
@@ -22387,6 +22580,7 @@ export class GameLogicSubsystem implements Subsystem {
             destroysTarget: false,
             powerSabotageDurationFrames: 0,
             resetsSpecialPowers: false,
+            resetsOclTimer: false,
           };
           return;
         }
@@ -22403,6 +22597,7 @@ export class GameLogicSubsystem implements Subsystem {
             destroysTarget: false,
             powerSabotageDurationFrames: 0,
             resetsSpecialPowers: false,
+            resetsOclTimer: true,
           };
           return;
         }
@@ -22419,6 +22614,7 @@ export class GameLogicSubsystem implements Subsystem {
             destroysTarget: true,
             powerSabotageDurationFrames: 0,
             resetsSpecialPowers: false,
+            resetsOclTimer: false,
           };
           return;
         }
@@ -22435,6 +22631,7 @@ export class GameLogicSubsystem implements Subsystem {
             destroysTarget: false,
             powerSabotageDurationFrames: sabotagePowerDurationFrames,
             resetsSpecialPowers: false,
+            resetsOclTimer: false,
           };
           return;
         }
@@ -22451,6 +22648,7 @@ export class GameLogicSubsystem implements Subsystem {
             destroysTarget: false,
             powerSabotageDurationFrames: 0,
             resetsSpecialPowers: true,
+            resetsOclTimer: false,
           };
           return;
         }
@@ -22468,6 +22666,7 @@ export class GameLogicSubsystem implements Subsystem {
             destroysTarget: false,
             powerSabotageDurationFrames: 0,
             resetsSpecialPowers: true,
+            resetsOclTimer: false,
           };
           return;
         }
@@ -25752,6 +25951,9 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
 
+    // Source parity: ProductionUpdate.cpp:970 — markUIDirty after upgrade completion.
+    this.markUIDirty();
+
     this.removeProductionEntry(producer, production.productionId);
   }
 
@@ -27110,6 +27312,9 @@ export class GameLogicSubsystem implements Subsystem {
     entity.guardInnerRange = Math.max(0, entity.visionRange * innerMod);
     entity.guardOuterRange = Math.max(0, entity.visionRange * outerMod);
 
+    // Source parity: AIStates.cpp:6718 — record guard ability used for academy stats.
+    this.recordGuardAbilityUsed(entityId);
+
     // Move to the guard point.
     this.issueMoveTo(entityId, targetX, targetZ);
   }
@@ -27140,6 +27345,9 @@ export class GameLogicSubsystem implements Subsystem {
     entity.guardChaseExpireFrame = 0;
     entity.guardInnerRange = Math.max(0, entity.visionRange * innerMod);
     entity.guardOuterRange = Math.max(0, entity.visionRange * outerMod);
+
+    // Source parity: AIStates.cpp:6718 — record guard ability used for academy stats.
+    this.recordGuardAbilityUsed(entityId);
 
     // Move to the guarded object.
     this.issueMoveTo(entityId, target.x, target.z);
@@ -33236,6 +33444,30 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
+   * Source parity: ZH Player.cpp:1696-1751 — resolve own/ally/enemy relationship variant
+   * for EVA events. In ZH, the local player hears 'own' for their structures, 'ally' for
+   * non-enemy allies, and 'enemy' for hostile structures. NEUTRAL is treated as 'ally'
+   * (matching the C++ comment: "Note: treating NEUTRAL as ally").
+   */
+  private resolveEvaRelationshipVariant(
+    ownerSide: string | null,
+    observerSide: string | null,
+  ): 'own' | 'ally' | 'enemy' {
+    if (!ownerSide || !observerSide) {
+      return 'enemy';
+    }
+    if (ownerSide === observerSide) {
+      return 'own';
+    }
+    const relationship = this.getTeamRelationshipBySides(observerSide, ownerSide);
+    if (relationship === RELATIONSHIP_ENEMIES) {
+      return 'enemy';
+    }
+    // Source parity: C++ treats NEUTRAL as ally for EVA purposes.
+    return 'ally';
+  }
+
+  /**
    * Source parity: ActiveBody.cpp — emit yellow damage fear audio event.
    * When health crosses below YELLOW_DAMAGE_PERCENT (25%) of max, the unit
    * plays a VoiceFear cue. In the browser port this sets a frame marker on
@@ -33260,16 +33492,25 @@ export class GameLogicSubsystem implements Subsystem {
 
     // Source parity: Eva fires SUPERWEAPON_READY / SUPERWEAPON_DETECTED when
     // a superweapon countdown reaches zero for the first time.
+    // ZH expanded these to 3 relationship variants: Own, Ally, Enemy (Player.cpp:1696-1751,
+    // InGameUI.cpp:3577-3636). The variant depends on the relationship between the
+    // superweapon owner and the local player.
+    const localSideForEva = this.resolveLocalPlayerSide();
     for (const entity of this.spawnedEntities.values()) {
       if (entity.destroyed || !entity.kindOf.has('FS_SUPERWEAPON')) continue;
       for (const [, module] of entity.specialPowerModules) {
         const normalizedPower = module.specialPowerTemplateName.toUpperCase().replace(/\s+/g, '');
         const sharedFrame = this.sharedShortcutSpecialPowerReadyFrames.get(normalizedPower) ?? 0;
         if (sharedFrame > 0 && this.frameCounter === sharedFrame && entity.side) {
-          this.emitEvaEvent('SUPERWEAPON_READY', entity.side, 'own', entity.id, module.specialPowerTemplateName);
+          const ownerSide = this.normalizeSide(entity.side);
+          const readyRelationship = this.resolveEvaRelationshipVariant(ownerSide, localSideForEva);
+          this.emitEvaEvent('SUPERWEAPON_READY', entity.side, readyRelationship, entity.id, module.specialPowerTemplateName);
+          // Source parity: SUPERWEAPON_DETECTED fires on construction complete (Player.cpp:1696-1751).
+          // Each other side gets the event with relationship variant from their perspective.
           for (const [side] of this.sidePowerBonus.entries()) {
-            if (side !== entity.side) {
-              this.emitEvaEvent('SUPERWEAPON_DETECTED', side, 'enemy', entity.id, module.specialPowerTemplateName);
+            if (side !== ownerSide) {
+              const detectedRelationship = this.resolveEvaRelationshipVariant(ownerSide, side);
+              this.emitEvaEvent('SUPERWEAPON_DETECTED', side, detectedRelationship, entity.id, module.specialPowerTemplateName);
             }
           }
         }
@@ -33578,6 +33819,8 @@ export class GameLogicSubsystem implements Subsystem {
     this.scriptConditionEntityId = null;
     this.scriptLocalPlayerTeamNameUpper = null;
     this.sideScoreState.clear();
+    this.sideAcademyStats.clear();
+    this.controlBarDirtyFrame = -1;
     this.scriptScoringEnabled = true;
     this.sideScoreScreenExcluded.clear();
     this.controllingPlayerScriptCredits.clear();
