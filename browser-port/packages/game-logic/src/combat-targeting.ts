@@ -700,6 +700,13 @@ export function updateIdleAutoTargeting(self: GL): void {
       continue;
     }
 
+    // Source parity: ZH Object.cpp:705 — entities inside non-garrison enclosing containers
+    // (transports, tunnels, helix) do not participate in auto-targeting or pathfinding.
+    // Garrison occupants CAN auto-acquire since they fire from windows.
+    if (self.isEntityInNonGarrisonableContainer(entity)) {
+      continue;
+    }
+
     // Source parity: skip disabled entities (paralyzed, EMP, hacked, unmanned, subdued).
     // ZH adds DISABLED_SUBDUED guard — AIStates.cpp:1436 (AIIdleState::update).
     if (
@@ -868,16 +875,32 @@ export function updateIdleAutoTargeting(self: GL): void {
       // Source parity: AIStates.cpp line 2622 — Computer AI don't chase aircraft
       // unless they are in hunt mode. Non-aircraft units controlled by the computer
       // skip airborne aircraft targets during idle auto-acquire.
+      // ZH exception: if the unit is in hunt mode (scriptHuntStateByEntityId), it
+      // CAN chase aircraft — matching C++ `Bool hunt = ai->getCurrentStateID() == AI_HUNT`.
       if (entitySidePlayerType === 'COMPUTER' && !entityIsAircraft) {
-        const candidateKindOf = self.resolveEntityKindOfSet(candidate);
-        if (candidateKindOf.has('AIRCRAFT') && (
-          self.entityHasObjectStatus(candidate, 'AIRBORNE_TARGET') || candidate.category === 'air'
-        )) {
-          continue;
+        const isHunting = self.scriptHuntStateByEntityId.has(entity.id);
+        if (!isHunting) {
+          const candidateKindOf = self.resolveEntityKindOfSet(candidate);
+          if (candidateKindOf.has('AIRCRAFT') && (
+            self.entityHasObjectStatus(candidate, 'AIRBORNE_TARGET') || candidate.category === 'air'
+          )) {
+            continue;
+          }
         }
       }
       if (!canAttackerTargetEntity(self, entity, candidate, 'AI')) {
         continue;
+      }
+      // Source parity: WeaponSet.cpp:863 — during auto-acquire, validate the primary weapon's
+      // anti-mask against the target. canAttackerTargetEntity uses totalWeaponAntiMask (union of
+      // all weapons) which may pass targets the primary weapon cannot engage. This prevents
+      // anti-ground weapons auto-acquiring air targets and vice versa.
+      if (weapon.antiMask !== 0) {
+        const candidateKindOf = self.resolveEntityKindOfSet(candidate);
+        const targetAntiMask = resolveTargetAntiMask(self, candidate, candidateKindOf);
+        if (targetAntiMask !== 0 && (weapon.antiMask & targetAntiMask) === 0) {
+          continue;
+        }
       }
       const dx = candidate.x - entity.x;
       const dz = candidate.z - entity.z;

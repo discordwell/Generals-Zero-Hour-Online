@@ -29,6 +29,7 @@ import {
 } from '@generals/ini-data';
 import {
   MAP_XY_FACTOR,
+  MAP_HEIGHT_SCALE,
   base64ToUint8Array,
   type HeightmapGrid,
   type MapDataJSON,
@@ -21877,6 +21878,79 @@ export class GameLogicSubsystem implements Subsystem {
     this.navigationGrid = this.buildNavigationGrid(this.loadedMapData, this.mapHeightmap);
   }
 
+  /**
+   * Source parity: TerrainLogic::flattenTerrain — flatten the terrain beneath a structure.
+   * C++ computes the average height under the building's footprint and sets all covered
+   * heightmap cells to that average. We use a simplified circular footprint (geometry
+   * major radius) to flatten the area under the structure.
+   *
+   * C++ reference: TerrainLogic.cpp:2644-2788
+   */
+  /* @internal */ flattenTerrainForStructure(entity: MapEntity): void {
+    const heightmap = this.mapHeightmap;
+    if (!heightmap) {
+      return;
+    }
+    const objectDef = this.resolveObjectDefByTemplateName(entity.templateName);
+    if (objectDef && this.isSmallGeometry(objectDef.fields)) {
+      return;
+    }
+
+    const radius = entity.geometryMajorRadius;
+    if (!(radius > 0)) {
+      return;
+    }
+
+    // First pass: compute the average terrain height under the footprint.
+    const minCellX = Math.max(0, Math.floor((entity.x - radius) / MAP_XY_FACTOR));
+    const maxCellX = Math.min(heightmap.width - 1, Math.floor((entity.x + radius) / MAP_XY_FACTOR));
+    const minCellZ = Math.max(0, Math.floor((entity.z - radius) / MAP_XY_FACTOR));
+    const maxCellZ = Math.min(heightmap.height - 1, Math.floor((entity.z + radius) / MAP_XY_FACTOR));
+
+    let totalHeight = 0;
+    let numSamples = 0;
+
+    for (let cellX = minCellX; cellX <= maxCellX; cellX++) {
+      for (let cellZ = minCellZ; cellZ <= maxCellZ; cellZ++) {
+        const worldX = cellX * MAP_XY_FACTOR;
+        const worldZ = cellZ * MAP_XY_FACTOR;
+        const dx = worldX - entity.x;
+        const dz = worldZ - entity.z;
+        if (dx * dx + dz * dz > radius * radius) continue;
+
+        const idx = cellZ * heightmap.width + cellX;
+        totalHeight += heightmap.worldHeights[idx] ?? 0;
+        numSamples++;
+      }
+    }
+
+    if (numSamples === 0) return;
+
+    const avgHeight = totalHeight / numSamples;
+    // C++ clamps to center height: rawDataHeight = min(avgHeight, centerHeight).
+    const centerHeight = heightmap.getInterpolatedHeight(entity.x, entity.z) ?? 0;
+    const targetHeight = Math.min(avgHeight, centerHeight);
+    const targetRaw = Math.max(1, Math.round(targetHeight / MAP_HEIGHT_SCALE));
+
+    // Second pass: set all cells under the footprint to the target height.
+    for (let cellX = minCellX; cellX <= maxCellX; cellX++) {
+      for (let cellZ = minCellZ; cellZ <= maxCellZ; cellZ++) {
+        const worldX = cellX * MAP_XY_FACTOR;
+        const worldZ = cellZ * MAP_XY_FACTOR;
+        const dx = worldX - entity.x;
+        const dz = worldZ - entity.z;
+        if (dx * dx + dz * dz > radius * radius) continue;
+
+        const idx = cellZ * heightmap.width + cellX;
+        heightmap.rawData[idx] = targetRaw;
+        heightmap.worldHeights[idx] = targetRaw * MAP_HEIGHT_SCALE;
+      }
+    }
+
+    // Snap entity to the flattened terrain height.
+    entity.y = heightmap.getInterpolatedHeight(entity.x, entity.z) ?? 0;
+  }
+
   private updatePendingEnterObjectActions(): void {
     for (const [sourceId, pending] of this.pendingEnterObjectActions.entries()) {
       const source = this.spawnedEntities.get(sourceId);
@@ -32868,6 +32942,15 @@ export class GameLogicSubsystem implements Subsystem {
           if (container) {
             spawned.transportContainerId = container.id;
           }
+        }
+
+        // Source parity: ObjectCreationList.cpp:1065-1074 — OCL-created structures flatten
+        // terrain and register in the pathfind map. Normal dozer-built structures get this via
+        // DozerAIUpdate::build, but OCL-created structures (sneak attack, paradrop) bypass that
+        // path entirely, so we must handle it here.
+        if (spawned.kindOf.has('STRUCTURE')) {
+          this.flattenTerrainForStructure(spawned);
+          this.refreshNavigationGridFromCurrentMap();
         }
 
         // Source parity: FadeIn / FadeOut — store fade state for rendering.
