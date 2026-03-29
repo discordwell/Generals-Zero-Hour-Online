@@ -892,7 +892,41 @@ export function updateIdleAutoTargeting(self: GL): void {
   }
 }
 
-export function findGuardTarget(self: GL, 
+/**
+ * Source parity (ZH): AIStates.cpp:1255 / AIStates.cpp:7185 — team victim validation.
+ * Before a unit auto-acquires a team-shared victim, verify that the specific unit
+ * can actually attack that target. This prevents cases like toxin tractors (ground-only
+ * weapons) trying to acquire aircraft that a teammate reported as a victim.
+ *
+ * Returns true if the attacker can actually engage the proposed team victim.
+ */
+export function validateTeamVictim(self: GL, attacker: MapEntity, teamVictim: MapEntity): boolean {
+  // Victim must still be alive and targetable.
+  if (teamVictim.destroyed || !teamVictim.canTakeDamage) {
+    return false;
+  }
+  // Attacker must be able to attack in general.
+  if (!canEntityAttackFromStatus(self, attacker)) {
+    return false;
+  }
+  // Attacker must be able to target this specific entity (anti-mask, relationship, etc.).
+  if (!canAttackerTargetEntity(self, attacker, teamVictim, 'AI')) {
+    return false;
+  }
+  // Source parity: WeaponSet.cpp:673 — weapon anti-mask must match target type.
+  // This is already checked inside canAttackerTargetEntity via totalWeaponAntiMask,
+  // but we do an explicit per-weapon check for full coverage.
+  if (attacker.totalWeaponAntiMask !== 0) {
+    const targetKindOf = self.resolveEntityKindOfSet(teamVictim);
+    const targetAntiMask = resolveTargetAntiMask(self, teamVictim, targetKindOf);
+    if (targetAntiMask !== 0 && (attacker.totalWeaponAntiMask & targetAntiMask) === 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function findGuardTarget(self: GL,
   entity: MapEntity,
   centerX: number,
   centerZ: number,
@@ -1039,19 +1073,26 @@ export function queueWeaponDamageEvent(self: GL, attacker: MapEntity, target: Ma
   const targetX = target.x;
   const targetZ = target.z;
 
-  // Source parity: GarrisonContain.cpp — trackTargets() fires from FIREPOINT bones at the
-  // building edge. Without the full bone system, approximate by offsetting the fire origin
-  // toward the target by a fraction of the building's geometry radius.
-  if (attacker.garrisonContainerId !== null) {
-    const building = self.spawnedEntities.get(attacker.garrisonContainerId);
-    if (building && !building.destroyed) {
-      const dx = targetX - building.x;
-      const dz = targetZ - building.z;
+  // Source parity (ZH): AIStates.cpp:4931, WeaponSet.cpp:656 — when the attacker is inside
+  // an enclosing container, fire from the container's position (offset toward the target).
+  // C++ checks contain->isEnclosingContainerFor(source) to determine this.
+  // Garrison containers use FIREPOINT bones; we approximate by offsetting the fire origin
+  // toward the target by a fraction of the container's geometry radius.
+  const enclosingContainerId = attacker.garrisonContainerId
+    ?? (attacker.transportContainerId !== null && self.isEntityInEnclosingContainer(attacker)
+      ? attacker.transportContainerId : null)
+    ?? (attacker.helixCarrierId !== null && self.isEntityInEnclosingContainer(attacker)
+      ? attacker.helixCarrierId : null);
+  if (enclosingContainerId !== null) {
+    const container = self.spawnedEntities.get(enclosingContainerId);
+    if (container && !container.destroyed) {
+      const dx = targetX - container.x;
+      const dz = targetZ - container.z;
       const dist = Math.hypot(dx, dz);
       if (dist > 0) {
-        const offset = building.geometryMajorRadius * 0.8;
-        sourceX = building.x + (dx / dist) * offset;
-        sourceZ = building.z + (dz / dist) * offset;
+        const offset = container.geometryMajorRadius * 0.8;
+        sourceX = container.x + (dx / dist) * offset;
+        sourceZ = container.z + (dz / dist) * offset;
       }
     }
   }

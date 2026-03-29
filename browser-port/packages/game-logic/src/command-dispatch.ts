@@ -64,6 +64,15 @@ export function applyCommand(self: GL, command: GameLogicCommand): void {
     return;
   }
 
+  // Source parity (ZH): AIGroup.cpp:2183 — when a command targets a slave whose master's
+  // SpawnBehavior has SlavesHaveFreeWill=No, redirect the command to the master entity.
+  // This prevents players from individually ordering unfree slaves (e.g., Stinger soldiers).
+  const redirectedCommand = redirectSlaveCommandToMaster(self, command);
+  if (redirectedCommand !== command) {
+    applyCommand(self, redirectedCommand);
+    return;
+  }
+
   switch (command.type) {
     case 'clearSelection': {
       const hadSelection = self.selectedEntityIds.length > 0 || self.selectedEntityId !== null;
@@ -394,6 +403,9 @@ export function applyCommand(self: GL, command: GameLogicCommand): void {
     case 'exitContainer':
       self.handleExitContainerCommand(command.entityId);
       return;
+    case 'exitContainerInstantly':
+      self.handleExitContainerInstantlyCommand(command.entityId);
+      return;
     case 'evacuate': {
       self.handleEvacuateCommand(command.entityId);
       return;
@@ -567,6 +579,46 @@ export function shouldRejectForbiddenPlayerCommand(self: GL, command: GameLogicC
     return false;
   }
   return entity.forbidPlayerCommands === true;
+}
+
+/**
+ * Source parity (ZH): AIGroup.cpp:2183 — doSlavesHaveFreedom() check.
+ * If a command targets a slave entity whose spawn master has SlavesHaveFreeWill=No,
+ * redirect the command to the master. This ensures commands to unfree slaves
+ * (e.g., Stinger soldiers on a Stinger Site) go to the master instead.
+ */
+export function redirectSlaveCommandToMaster(self: GL, command: GameLogicCommand): GameLogicCommand {
+  const hasEntityId = 'entityId' in command && typeof command.entityId === 'number';
+  if (!hasEntityId) {
+    return command;
+  }
+  const entity = self.spawnedEntities.get(command.entityId);
+  if (!entity || entity.destroyed) {
+    return command;
+  }
+  // Only redirect movement-type player commands — attack commands to slaves should pass
+  // through so they can engage targets. C++ only redirects in AIGroup context for movement.
+  const isMovementCommand = command.type === 'moveTo' || command.type === 'attackMoveTo' ||
+    command.type === 'guardPosition' || command.type === 'guardObject';
+  if (!isMovementCommand) {
+    return command;
+  }
+  // Only redirect if the entity is a slave with a living master.
+  if (entity.slaverEntityId === null) {
+    return command;
+  }
+  const master = self.spawnedEntities.get(entity.slaverEntityId);
+  if (!master || master.destroyed) {
+    return command;
+  }
+  // Check if the master's SpawnBehavior has SlavesHaveFreeWill.
+  // If slaves have freedom, they can receive individual commands — no redirect.
+  const spawnState = master.spawnBehaviorState;
+  if (!spawnState || spawnState.profile.slavesHaveFreeWill) {
+    return command;
+  }
+  // Redirect the command to the master entity.
+  return { ...command, entityId: master.id } as GameLogicCommand;
 }
 
 export function isChinookTakeoffCommandType(self: GL, commandType: GameLogicCommand['type']): boolean {

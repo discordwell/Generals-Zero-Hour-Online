@@ -1,5 +1,16 @@
 # Session Summaries
 
+## 2026-03-27T18:30Z — ZH Runtime Logic Implementation (cont.)
+- **3 more batches of runtime fixes** implemented and pushed:
+  - Pathfinding: CLIFF_JUMPER, dozer priority, busy unit check, MOTORCYCLE locomotor, aircraft margin (26 tests)
+  - Production/upgrade: sabotage EVA events, upgrade display suppression, power sabotage recovery, fanaticism upgrade-based check, isAllowedNationalism (15 tests)
+  - Object lifecycle: ShroudRevealToAllRange stealth suppression fix, verified vision spying/ArmorSetFlags/canProduceUpgrade/countermeasures (10 tests)
+  - Enter Guard/HijackGuard, DamageFXOverride, SourceTemplate, JetAI ammo, DiesOnBadLand (11 tests)
+  - Stealth auto-acquire, unmanned heli grounding, turret target transfer, retaliation toggle, teammate clustering (15 tests)
+  - **Guard Retaliate system**: full state machine with MaxRetaliationDistance, friend recruitment, return-to-guard (14 tests)
+- **Session total: ~70 ZH runtime fixes, ~223 new tests, test suite at 4711 passing** (up from 4493)
+- All pushed to origin/main.
+
 ## 2026-03-27T00:00Z — Systematic ZH Parity Audit (FieldParse + Enums + Runtime Logic)
 - **FieldParse audits**: Diffed all ~233 C++ module FieldParse tables between Generals/ and GeneralsMD/. Added 41 missing ZH-only fields across 13+ modules (GenerateMinefield, PropagandaTower, OverlordContain, CreateObjectDie, ChinookAI, RailedTransportDock, SupplyCenterDock, OCLUpdate, PhysicsBehavior, SpecialPowerModule, OCLSpecialPower, WeaponTemplate, MinefieldBehavior, SpecialPower, Upgrade, AI, PlayerTemplate).
 - **Enum audits**: Added 28 ZH-only KindOf values, 16 ObjectStatus values, 1 DamageType. Fixed critical AIRFIELD bit-position shift (ZH removed KINDOF_AIRFIELD, shifting all subsequent bits by -1).

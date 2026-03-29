@@ -434,6 +434,16 @@ export interface ExitContainerCommand {
   entityId: number;
 }
 
+/**
+ * Source parity (ZH): AIUpdate.cpp:2756 — AICMD_EXIT_INSTANTLY.
+ * Immediately exits the entity from its container without waiting for
+ * exit animations or door coordination. Used by orderAllPassengersToExit(instantly=true).
+ */
+export interface ExitContainerInstantlyCommand {
+  type: 'exitContainerInstantly';
+  entityId: number;
+}
+
 export interface EvacuateCommand {
   type: 'evacuate';
   entityId: number;
@@ -559,6 +569,7 @@ export type GameLogicCommand =
   | PurchaseScienceCommand
   | IssueSpecialPowerCommand
   | ExitContainerCommand
+  | ExitContainerInstantlyCommand
   | EvacuateCommand
   | ExecuteRailedTransportCommand
   | BeaconDeleteCommand

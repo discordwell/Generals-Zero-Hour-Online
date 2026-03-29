@@ -304,6 +304,68 @@ export function handleExitContainerCommand(self: GL, entityId: number): void {
   }
 }
 
+/**
+ * Source parity (ZH): AIUpdate.cpp:3846 — privateExitInstantly.
+ * Immediately exits the entity from its container without waiting for chinook
+ * to land or exit animation delays. Still respects the DISABLED_SUBDUED block.
+ * Used by orderAllPassengersToExit(instantly=true) in C++.
+ */
+export function handleExitContainerInstantlyCommand(self: GL, entityId: number): void {
+  const entity = self.spawnedEntities.get(entityId);
+  if (!entity || entity.destroyed) {
+    return;
+  }
+
+  // Source parity: TunnelContain — use exitTunnel for proper scatter behavior.
+  if (entity.tunnelContainerId !== null) {
+    const tunnel = self.spawnedEntities.get(entity.tunnelContainerId);
+    if (tunnel && !tunnel.destroyed) {
+      exitTunnel(self, entity, tunnel);
+    } else {
+      releaseEntityFromContainer(self, entity);
+    }
+    return;
+  }
+
+  const containerId = entity.parkingSpaceProducerId
+    ?? entity.helixCarrierId
+    ?? entity.garrisonContainerId
+    ?? entity.transportContainerId;
+  if (containerId === null) {
+    return;
+  }
+
+  const container = self.spawnedEntities.get(containerId);
+  if (!container || container.destroyed) {
+    releaseEntityFromContainer(self, entity);
+    return;
+  }
+
+  // Source parity: AIUpdate.cpp:3857 — DISABLED_SUBDUED still blocks instant exit.
+  if (self.entityHasObjectStatus(container, 'DISABLED_SUBDUED')) {
+    return;
+  }
+
+  // Key difference from handleExitContainerCommand: skip chinook landing wait.
+  // In C++ the AI_EXIT_INSTANTLY state calls exitObjectViaDoor directly without
+  // coordinating with the container's door state machine.
+  self.cancelEntityCommandPathActions(entity.id);
+  releaseEntityFromContainer(self, entity);
+  const evacuation = resolveContainerEvacuationPositions(self,
+    container,
+    container.x + MAP_XY_FACTOR,
+    container.z,
+  );
+  entity.x = evacuation.spawnX;
+  entity.z = evacuation.spawnZ;
+  entity.y = self.resolveGroundHeight(entity.x, entity.z) + entity.baseHeight;
+  self.updatePathfindPosCell(entity);
+
+  if (entity.canMove) {
+    self.issueMoveTo(entity.id, evacuation.targetX, evacuation.targetZ);
+  }
+}
+
 export function handleEvacuateCommand(self: GL, entityId: number): void {
   const container = self.spawnedEntities.get(entityId);
   if (!container || container.destroyed) {

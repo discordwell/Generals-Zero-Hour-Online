@@ -452,6 +452,7 @@ import {
   resolveRailedTransportRuntimeState as resolveRailedTransportRuntimeStateImpl,
   resolveContainerEvacuationPositions as resolveContainerEvacuationPositionsImpl,
   handleExitContainerCommand as handleExitContainerCommandImpl,
+  handleExitContainerInstantlyCommand as handleExitContainerInstantlyCommandImpl,
   handleEvacuateCommand as handleEvacuateCommandImpl,
   handleExecuteRailedTransportCommand as handleExecuteRailedTransportCommandImpl,
   noteContainerEnteredBy as noteContainerEnteredByImpl,
@@ -651,6 +652,7 @@ import {
   findCommandButtonHuntTarget as findCommandButtonHuntTargetImpl,
   isCommandButtonHuntTargetValidForMode as isCommandButtonHuntTargetValidForModeImpl,
   updateIdleAutoTargeting as updateIdleAutoTargetingImpl,
+  validateTeamVictim as validateTeamVictimImpl,
   findGuardTarget as findGuardTargetImpl,
   queueWeaponDamageEvent as queueWeaponDamageEventImpl,
 } from './combat-targeting.js';
@@ -11575,6 +11577,7 @@ export class GameLogicSubsystem implements Subsystem {
   private findCommandButtonHuntTarget(...args: any[]) { return (findCommandButtonHuntTargetImpl as any)(this, ...args); }
   /* @internal */ isCommandButtonHuntTargetValidForMode(...args: any[]) { return (isCommandButtonHuntTargetValidForModeImpl as any)(this, ...args); }
   private updateIdleAutoTargeting(...args: any[]) { return (updateIdleAutoTargetingImpl as any)(this, ...args); }
+  /* @internal */ validateTeamVictim(...args: any[]) { return (validateTeamVictimImpl as any)(this, ...args); }
   /* @internal */ findGuardTarget(...args: any[]) { return (findGuardTargetImpl as any)(this, ...args); }
   private queueWeaponDamageEvent(...args: any[]) { return (queueWeaponDamageEventImpl as any)(this, ...args); }
 
@@ -11976,6 +11979,7 @@ export class GameLogicSubsystem implements Subsystem {
   private resolveRailedTransportRuntimeState(...args: any[]) { return (resolveRailedTransportRuntimeStateImpl as any)(this, ...args); }
   /* @internal */ resolveContainerEvacuationPositions(...args: any[]) { return (resolveContainerEvacuationPositionsImpl as any)(this, ...args); }
   /* @internal */ handleExitContainerCommand(...args: any[]) { return (handleExitContainerCommandImpl as any)(this, ...args); }
+  /* @internal */ handleExitContainerInstantlyCommand(...args: any[]) { return (handleExitContainerInstantlyCommandImpl as any)(this, ...args); }
   /* @internal */ handleEvacuateCommand(...args: any[]) { return (handleEvacuateCommandImpl as any)(this, ...args); }
   /* @internal */ handleExecuteRailedTransportCommand(...args: any[]) { return (handleExecuteRailedTransportCommandImpl as any)(this, ...args); }
   /* @internal */ noteContainerEnteredBy(...args: any[]) { return (noteContainerEnteredByImpl as any)(this, ...args); }
