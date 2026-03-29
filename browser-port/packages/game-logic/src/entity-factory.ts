@@ -501,6 +501,8 @@ export function createMapEntity(self: GL,
     guardChaseExpireFrame: 0,
     guardInnerRange: 0,
     guardOuterRange: 0,
+    guardRetaliating: false,
+    temporaryMoveExpireFrame: 0,
     // Poison DoT state
     poisonedBehaviorProfile: self.extractPoisonedBehaviorProfile(objectDef),
     poisonDamageAmount: 0,

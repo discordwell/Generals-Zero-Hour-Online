@@ -769,6 +769,11 @@ export function updateIdleAutoTargeting(self: GL): void {
         if (entity.guardState !== 'NONE') {
           entity.guardState = 'PURSUING';
           entity.guardChaseExpireFrame = self.frameCounter + self.getGuardChaseUnitFrames();
+          // Source parity (ZH): AIGuardRetaliateAttackAggressorState uses
+          // ATTACK_ExitIfOutsideRadius to exit when the target leaves the guard
+          // radius. Mark this pursuit as retaliation-initiated so updateGuardPursuing
+          // can enforce the guard-radius exit condition.
+          entity.guardRetaliating = true;
           // Recruit nearby friendly units within RetaliationFriendsRadius to help.
           recruitRetaliationFriends(self, entity, attacker);
         }

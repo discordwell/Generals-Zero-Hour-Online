@@ -855,18 +855,32 @@ export function updateGuardIdle(self: GL, entity: MapEntity, anchor: { x: number
 
   /**
    * Guard PURSUING state: entity is chasing an enemy. Monitor for:
-   * 1. Target dies/becomes invalid → RETURNING
+   * 1. Target dies/becomes invalid → GUARD_INNER scan (ZH) or RETURNING
    * 2. Target escapes outer range → RETURNING
    * 3. Chase timer expires → RETURNING
    * 4. GUARDMODE_GUARD_WITHOUT_PURSUIT — immediately return after inner-range target lost
-   * Source parity: AIGuardOuterState.
+   * 5. (ZH) ATTACK_ExitIfOutsideRadius — retaliation exits if target beyond guard range
+   * Source parity: AIGuardOuterState, AIGuardRetaliateAttackAggressorState.
    */
 export function updateGuardPursuing(self: GL, entity: MapEntity, anchor: { x: number; z: number }): void {
     const targetId = entity.attackTargetEntityId;
     const target = targetId !== null ? self.spawnedEntities.get(targetId) ?? null : null;
 
-    // Target gone — return to guard point.
+    // Target gone — Source parity (ZH): defineState(AI_GUARD_ATTACK_AGGRESSOR, ...,
+    // AI_GUARD_INNER, AI_GUARD_INNER) — on success (target killed), transition to
+    // GUARD_INNER which scans for new nearby targets, allowing chained attacks on
+    // clustered enemies instead of immediately returning.
     if (!target || target.destroyed) {
+      entity.guardRetaliating = false;
+      // Source parity (ZH): AI_GUARD_INNER scan — look for another target nearby.
+      if (!entity.objectStatusFlags.has('STEALTHED') && entity.attackWeapon) {
+        const newTarget = self.findGuardTarget(entity, anchor.x, anchor.z, entity.guardInnerRange);
+        if (newTarget) {
+          entity.guardChaseExpireFrame = self.frameCounter + self.getGuardChaseUnitFrames();
+          self.issueAttackEntity(entity.id, newTarget.id, 'AI');
+          return;
+        }
+      }
       self.transitionGuardToReturning(entity, anchor);
       return;
     }
@@ -890,6 +904,22 @@ export function updateGuardPursuing(self: GL, entity: MapEntity, anchor: { x: nu
       const myDz = entity.z - anchor.z;
       const guardRangeSqr = entity.guardOuterRange * entity.guardOuterRange;
       if (myDx * myDx + myDz * myDz > guardRangeSqr) {
+        self.transitionGuardToReturning(entity, anchor);
+        return;
+      }
+    }
+
+    // Source parity (ZH): AIGuardRetaliateAttackAggressorState — ATTACK_ExitIfOutsideRadius.
+    // When a guard unit is retaliating against an aggressor, exit if the target moves
+    // beyond the guard inner range from the anchor. This prevents indefinite pursuit of
+    // aggressors that kite the guard unit away from its post.
+    // C++ reference: AIGuardRetaliate.cpp:140-168, m_radiusSqr = sqr(1.5 * stdGuardRange).
+    if (entity.guardRetaliating) {
+      const retRadiusSqr = (1.5 * entity.guardInnerRange) * (1.5 * entity.guardInnerRange);
+      const tdx = target.x - anchor.x;
+      const tdz = target.z - anchor.z;
+      if (tdx * tdx + tdz * tdz > retRadiusSqr) {
+        entity.guardRetaliating = false;
         self.transitionGuardToReturning(entity, anchor);
         return;
       }
@@ -994,6 +1024,7 @@ export function updateGuardReturning(self: GL, entity: MapEntity, anchor: { x: n
 export function transitionGuardToReturning(self: GL, entity: MapEntity, anchor: { x: number; z: number }): void {
     self.clearAttackTarget(entity.id);
     entity.guardState = 'RETURNING';
+    entity.guardRetaliating = false;
     entity.guardNextScanFrame = self.frameCounter + self.getGuardEnemyReturnScanRateFrames();
     self.issueMoveTo(entity.id, anchor.x, anchor.z);
 }
@@ -1360,9 +1391,12 @@ export function updateWanderAI(self: GL): void {
       if (!entity.canMove || entity.isImmobile) continue;
       if (self.isEntityDisabledForMovement(entity)) continue;
 
-      // Source parity: isIdle() — only wander when entity has no current activity.
+      // Source parity (ZH): AIUpdate.cpp:3119-3127 — isIdle() checks both
+      // getCurrentStateID() == AI_IDLE and isInIdleState(). We check all activity
+      // states including attackTargetPosition (attack-ground) to match.
       const isIdle = !entity.moving
         && entity.attackTargetEntityId === null
+        && entity.attackTargetPosition === null
         && entity.guardState === 'NONE';
       if (!isIdle) continue;
 

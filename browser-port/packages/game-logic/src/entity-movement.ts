@@ -644,12 +644,13 @@ export function updateCrateCollisions(self: GL): void {
   }
 }
 
-export function issueMoveTo(self: GL, 
+export function issueMoveTo(self: GL,
   entityId: number,
   targetX: number,
   targetZ: number,
   attackDistance = NO_ATTACK_DISTANCE,
   allowNoPathMove = false,
+  commandSource: string = 'PLAYER',
 ): void {
   const entity = self.spawnedEntities.get(entityId);
   if (!entity || !entity.canMove) return;
@@ -659,6 +660,20 @@ export function issueMoveTo(self: GL,
   if (entity.isImmobile || self.isEntityDisabledForMovement(entity)
     || self.entityHasObjectStatus(entity, 'IMMOBILE')) {
     return;
+  }
+
+  // Source parity (ZH): AIUpdate.cpp:2899-2908 — privateMoveToPosition uses
+  // setTemporaryState(AI_MOVE_TO, 20sec) for AI-internal moves when the entity
+  // is not idle. This prevents corrupting the main state machine (e.g., attack
+  // or guard states) when AI subsystems issue movement commands for path conflict
+  // resolution or ally clearing.
+  const entityIsIdle = !entity.moving
+    && entity.attackTargetEntityId === null
+    && entity.guardState === 'NONE';
+  if (commandSource === 'AI' && !entityIsIdle) {
+    entity.temporaryMoveExpireFrame = self.frameCounter + LOGIC_FRAME_RATE * 20;
+  } else {
+    entity.temporaryMoveExpireFrame = 0;
   }
 
   // Source parity: AIGroup.cpp:643-674 — clamp move destination to map boundaries.
@@ -887,6 +902,17 @@ export function updateEntityMovement(self: GL, dt: number): void {
     if (entity.destroyed) {
       continue;
     }
+    // Source parity (ZH): AIUpdate.cpp:2899-2908 — temporary move state auto-expires.
+    // If the entity has an active temporary move and the frame limit has passed, stop it.
+    if (entity.temporaryMoveExpireFrame > 0 && self.frameCounter >= entity.temporaryMoveExpireFrame) {
+      entity.temporaryMoveExpireFrame = 0;
+      entity.moving = false;
+      entity.moveTarget = null;
+      entity.movePath = [];
+      entity.pathfindGoalCell = null;
+      entity.currentSpeed = 0;
+    }
+
     if (!entity.canMove || !entity.moving || entity.moveTarget === null) {
       // Decelerate stopped entities.
       if (entity.currentSpeed > 0) {
@@ -1269,8 +1295,9 @@ export function updateUnitCollisionSeparation(self: GL): void {
       // Determine who moves: moving entities yield to stationary ones.
       const aMoving = a.moving;
       const bMoving = b.moving;
-      const aIdle = !aMoving && a.attackTargetEntityId === null;
-      const bIdle = !bMoving && b.attackTargetEntityId === null;
+      // Source parity (ZH): isIdle() also checks attackTargetPosition and guardState.
+      const aIdle = !aMoving && a.attackTargetEntityId === null && a.attackTargetPosition === null && a.guardState === 'NONE';
+      const bIdle = !bMoving && b.attackTargetEntityId === null && b.attackTargetPosition === null && b.guardState === 'NONE';
 
       // Source parity: immobile structures never get pushed.
       const aImmobile = a.isImmobile;

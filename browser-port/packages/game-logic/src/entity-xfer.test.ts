@@ -240,6 +240,8 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     guardChaseExpireFrame: 0,
     guardInnerRange: 0,
     guardOuterRange: 0,
+    guardRetaliating: false,
+    temporaryMoveExpireFrame: 0,
 
     // Poison
     poisonedBehaviorProfile: null,

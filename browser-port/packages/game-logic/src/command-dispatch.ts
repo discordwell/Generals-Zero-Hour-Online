@@ -182,10 +182,15 @@ export function applyCommand(self: GL, command: GameLogicCommand): void {
       if (guardSource === 'PLAYER') {
         self.setSupplyTruckForceBusy(command.entityId, true);
       }
-      cancelEntityCommandPathActions(self, 
+      cancelEntityCommandPathActions(self,
         command.entityId,
         guardSource === 'PLAYER' ? 'current' : 'none',
       );
+      // Source parity (ZH): AIUpdate.cpp:2773-2781 — Kris Aug 18, 2003:
+      // If retaliating and ordered to enter guard mode, clear the guard retaliation
+      // state first. Otherwise the stale state is cleared too late (after the new
+      // guard data is set), causing units to move to position zero.
+      self.clearGuardRetaliationState(command.entityId);
       self.clearAttackTarget(command.entityId);
       self.initGuardPosition(command.entityId, command.targetX, command.targetZ, command.guardMode);
       return;
@@ -198,10 +203,13 @@ export function applyCommand(self: GL, command: GameLogicCommand): void {
       if (guardSource === 'PLAYER') {
         self.setSupplyTruckForceBusy(command.entityId, true);
       }
-      cancelEntityCommandPathActions(self, 
+      cancelEntityCommandPathActions(self,
         command.entityId,
         guardSource === 'PLAYER' ? 'current' : 'none',
       );
+      // Source parity (ZH): AIUpdate.cpp:2789-2797 — clear guard retaliation
+      // state before entering new guard mode (same rationale as guardPosition).
+      self.clearGuardRetaliationState(command.entityId);
       self.clearAttackTarget(command.entityId);
       self.initGuardObject(command.entityId, command.targetEntityId, command.guardMode);
       return;
@@ -1749,7 +1757,8 @@ export function moveObjectsForConstruction(self: GL,
     const direction = (self.gameRandom.nextFloat() * Math.PI * 2) - Math.PI;
     const destinationX = worldX + Math.cos(direction) * variedRadius;
     const destinationZ = worldZ + Math.sin(direction) * variedRadius;
-    self.issueMoveTo(blocker.id, destinationX, destinationZ, NO_ATTACK_DISTANCE, true);
+    // Source parity (ZH): AI-internal moves use temporary state for non-idle entities.
+    self.issueMoveTo(blocker.id, destinationX, destinationZ, NO_ATTACK_DISTANCE, true, 'AI');
     if (!blocker.canMove) {
       anyUnmovables = true;
     }

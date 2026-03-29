@@ -23923,11 +23923,12 @@ export class GameLogicSubsystem implements Subsystem {
       const healthRatio = entity.health / Math.max(1, entity.maxHealth);
       if (healthRatio > prof.neverHeal) continue;
 
-      // Source parity: AutoFindHealingUpdate.cpp:130 — ai->isIdle() checks all activity states.
-      // The following C++ always returns when not idle (the m_alwaysHeal branch is unreachable).
-      // Approximation: check movement, attack, guard, special ability, and enter-transport states.
+      // Source parity (ZH): AIUpdate.cpp:3119-3127 — isIdle() checks both
+      // getCurrentStateID() == AI_IDLE and isInIdleState(). Check all activity
+      // states including attackTargetPosition (attack-ground) to match.
       const isIdle = !entity.moving
         && entity.attackTargetEntityId === null
+        && entity.attackTargetPosition === null
         && entity.guardState === 'NONE'
         && (!entity.specialAbilityState || entity.specialAbilityState.packingState === 'NONE')
         && entity.transportContainerId === null;
@@ -27291,6 +27292,24 @@ export class GameLogicSubsystem implements Subsystem {
           innerMod: this.runtimeAiConfig.guardInnerModifierAI,
           outerMod: this.runtimeAiConfig.guardOuterModifierAI,
         };
+  }
+
+  /**
+   * Source parity (ZH): AIUpdate.cpp:2773-2781 — clear guard retaliation state
+   * before entering a new guard mode. Prevents stale retaliation data from
+   * persisting and causing units to move to position zero.
+   */
+  /* @internal */ clearGuardRetaliationState(entityId: number): void {
+    const entity = this.spawnedEntities.get(entityId);
+    if (!entity) return;
+    if (entity.guardRetaliating) {
+      entity.guardRetaliating = false;
+      entity.guardState = 'NONE' as any;
+      entity.guardPositionX = 0;
+      entity.guardPositionZ = 0;
+      entity.guardObjectId = 0;
+      entity.guardAreaTriggerIndex = -1;
+    }
   }
 
   /**
