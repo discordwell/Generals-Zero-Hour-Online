@@ -573,6 +573,7 @@ export function createMapEntity(self: GL,
     buildTotalFrames: 0,
     destroyed: false,
     pendingDeathType: 'NORMAL',
+    pendingDeathSourceTemplateName: null,
     // Lifetime
     lifetimeDieFrame: self.resolveLifetimeDieFrame(objectDef),
     // Height die

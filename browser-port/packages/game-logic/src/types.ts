@@ -189,6 +189,12 @@ export interface VisualEvent {
   targetZ?: number;
   /** Weapon fire sound AudioEvent name (from INI FireSound field). */
   fireSoundEvent?: string;
+  /**
+   * Source parity: DamageInfoInput::m_damageFXOverride — allows a weapon to override
+   * which damage FX plays on the victim. 'UNRESISTABLE' means no override (default).
+   * (Damage.h:269, ActiveBody.cpp:321-329)
+   */
+  damageFXOverride?: string;
 }
 
 /**

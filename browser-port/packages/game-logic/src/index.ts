@@ -3782,6 +3782,12 @@ export interface MapEntity {
   // ── Source parity: DamageInfo.in.m_deathType — death cause for die module filtering ──
   /** Set before death pipeline runs. Maps from damage type (CRUSH→CRUSHED, POISON→POISONED, etc.). */
   pendingDeathType: string;
+  /**
+   * Source parity: DamageInfoInput::m_sourceTemplate — template name of the unit that dealt the
+   * killing blow. Set alongside pendingDeathType so die modules can inspect which template killed
+   * this entity. (Damage.cpp:148-157, Object.cpp:onDie)
+   */
+  pendingDeathSourceTemplateName: string | null;
 
   // ── Source parity: LifetimeUpdate — timed self-destruction ──
   /** Frame at which this entity should self-destruct (null = no lifetime limit). */
@@ -27709,7 +27715,7 @@ export class GameLogicSubsystem implements Subsystem {
   private emitWeaponImpactVisualEvent(event: PendingWeaponDamageEvent): void {
     const heightmap = this.mapHeightmap;
     const impactY = heightmap ? heightmap.getInterpolatedHeight(event.impactX, event.impactZ) : 0;
-    this.visualEventBuffer.push({
+    const visualEvent: import('./types.js').VisualEvent = {
       type: 'WEAPON_IMPACT',
       x: event.impactX,
       y: impactY,
@@ -27717,7 +27723,13 @@ export class GameLogicSubsystem implements Subsystem {
       radius: Math.max(event.weapon.primaryDamageRadius, 1),
       sourceEntityId: event.sourceEntityId,
       projectileType: this.classifyWeaponVisualType(event.weapon),
-    });
+    };
+    // Source parity: DamageInfoInput::m_damageFXOverride — pass through to renderer so
+    // the visual FX system can use the weapon's override instead of the default FX.
+    if (event.damageFXOverride && event.damageFXOverride !== 'UNRESISTABLE') {
+      visualEvent.damageFXOverride = event.damageFXOverride;
+    }
+    this.visualEventBuffer.push(visualEvent);
   }
 
   private registerActiveWeaponProjectileState(
@@ -28898,11 +28910,18 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity: InactiveBody::attemptDamage — only UNRESISTABLE triggers death.
     // Must check before canTakeDamage guard since InactiveBody has canTakeDamage=false.
     // Source parity (ZH): m_kill = TRUE also forces death on InactiveBody.
+    // Source parity: DamageInfoInput::m_sourceTemplate — resolve source template name once.
+    const sourceEntity = sourceEntityId !== null && sourceEntityId > 0
+      ? this.spawnedEntities.get(sourceEntityId) ?? null
+      : null;
+    const sourceTemplateName = sourceEntity?.templateName ?? null;
+
     if (target.bodyType === 'INACTIVE') {
       if (target.destroyed) return;
       if (damageType.toUpperCase() === 'UNRESISTABLE' || forceKill) {
         target.health = 0;
         target.pendingDeathType = weaponDeathType || damageTypeToDeathType(damageType);
+        target.pendingDeathSourceTemplateName = sourceTemplateName;
         if (!target.slowDeathState && !target.structureCollapseState) {
           this.tryBeginStructureCollapse(target) ||
             this.tryBeginSlowDeath(target, sourceEntityId ?? -1) ||
@@ -29152,6 +29171,7 @@ export class GameLogicSubsystem implements Subsystem {
       target.armorSetFlagsMask |= ARMOR_SET_FLAG_SECOND_LIFE;
       target.modelConditionFlags.add('SECOND_LIFE');
       target.pendingDeathType = weaponDeathType || damageTypeToDeathType(damageType);
+      target.pendingDeathSourceTemplateName = sourceTemplateName;
       this.tryBeginUndeadSecondLifeSlowDeathVisual(target);
     }
 
@@ -29263,6 +29283,8 @@ export class GameLogicSubsystem implements Subsystem {
     if (target.health <= 0 && !target.destroyed && !target.slowDeathState && !target.structureCollapseState) {
       // Source parity: DamageInfo.in.m_deathType — set death cause for die module filtering.
       target.pendingDeathType = weaponDeathType || damageTypeToDeathType(damageType);
+      // Source parity: DamageInfoInput::m_sourceTemplate — record killer's template for die modules.
+      target.pendingDeathSourceTemplateName = sourceTemplateName;
       // Source parity: DemoTrapUpdate::update() — detonate on kill if configured.
       if (target.demoTrapProfile?.detonateWhenKilled && !target.demoTrapDetonated) {
         this.detonateDemoTrap(target, target.demoTrapProfile);

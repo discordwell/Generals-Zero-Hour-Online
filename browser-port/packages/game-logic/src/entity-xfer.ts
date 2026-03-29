@@ -533,6 +533,7 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   // ── Destroyed / Death ──
   e.destroyed = xfer.xferBool(e.destroyed as boolean);
   e.pendingDeathType = xfer.xferAsciiString(e.pendingDeathType as string);
+  e.pendingDeathSourceTemplateName = xferNullableString(xfer, e.pendingDeathSourceTemplateName as string | null);
   e.lifetimeDieFrame = xferNullableInt(xfer, e.lifetimeDieFrame as number | null);
   e.heightDieProfile = xferNullableJsonObject(xfer, e.heightDieProfile as object | null);
   e.heightDieActiveFrame = xfer.xferInt(e.heightDieActiveFrame as number);
