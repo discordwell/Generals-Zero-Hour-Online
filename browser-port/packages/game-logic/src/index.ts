@@ -1898,7 +1898,7 @@ interface CliffStateBits {
   stride: number;
 }
 
-type MaxHealthChangeTypeName = 'SAME_CURRENTHEALTH' | 'PRESERVE_RATIO' | 'ADD_CURRENT_HEALTH_TOO';
+type MaxHealthChangeTypeName = 'SAME_CURRENTHEALTH' | 'PRESERVE_RATIO' | 'ADD_CURRENT_HEALTH_TOO' | 'FULLY_HEAL';
 type WeaponPrefireTypeName = 'PER_SHOT' | 'PER_ATTACK' | 'PER_CLIP';
 
 interface AttackWeaponProfile {
@@ -19637,6 +19637,11 @@ export class GameLogicSubsystem implements Subsystem {
       case 'ADD_CURRENT_HEALTH_TOO':
         entity.health += nextMaxHealth - previousMaxHealth;
         break;
+      case 'FULLY_HEAL':
+        // Source parity (ZH): ActiveBody.cpp:930 — FULLY_HEAL sets current health to new max.
+        // Example: 400/500 (80%) + 100 → 600/600 (100%).
+        entity.health = nextMaxHealth;
+        break;
       case 'SAME_CURRENTHEALTH':
       default:
         break;
@@ -29039,11 +29044,85 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     // Source parity: Weapon.cpp:601-606 — DAMAGE_SNIPER vs empty garrisonable structure returns 0.
+    // Source parity (ZH): ActiveBody.cpp:305-311 — SNIPER damage zeroed vs UNDER_CONSTRUCTION structures.
     const containCount = target.containProfile
       ? this.collectContainedEntityIds(target.id).length
       : null;
-    amount = resolveSniperDamageVsEmptyStructureImpl(amount, damageType.toUpperCase(), target.kindOf, containCount);
+    const targetIsUnderConstruction = target.objectStatusFlags.has('UNDER_CONSTRUCTION');
+    amount = resolveSniperDamageVsEmptyStructureImpl(amount, damageType.toUpperCase(), target.kindOf, containCount, targetIsUnderConstruction);
     if (amount <= 0) {
+      return;
+    }
+
+    // Source parity (ZH): ActiveBody.cpp:294-303 — DAMAGE_KILL_GARRISONED.
+    // This special damage type kills N garrisoned infantry (N = floor(amount)) without
+    // reducing building health. Only affects garrisonable containers that are not immune.
+    if (damageType.toUpperCase() === 'KILL_GARRISONED') {
+      if (target.containProfile
+        && target.containProfile.moduleType === 'GARRISON'
+        && !target.containProfile.immuneToClearBuildingAttacks
+        && containCount !== null && containCount > 0) {
+        const killsToMake = Math.floor(amount);
+        let numKilled = 0;
+        const passengerIds = this.collectContainedEntityIds(target.id);
+        for (const passId of passengerIds) {
+          if (numKilled >= killsToMake) break;
+          const passenger = this.spawnedEntities.get(passId);
+          if (!passenger || passenger.destroyed) continue;
+          // Source parity: scoreTheKill + kill — kill credit is recorded in markEntityDestroyed.
+          this.killEntity(passenger);
+          numKilled++;
+        }
+      }
+      // KILL_GARRISONED is fully handled — never falls through to normal damage.
+      return;
+    }
+
+    // Source parity (ZH): ActiveBody.cpp:444-451 — DAMAGE_STATUS.
+    // Applies a timed status effect to the target. Amount is duration in msec.
+    // The status type is carried in damageStatusType (DamageInfo::m_damageStatusType).
+    // Currently the browser port does not model per-frame object status timers,
+    // so this is a recognized no-op that prevents STATUS damage from reducing health.
+    if (damageType.toUpperCase() === 'STATUS') {
+      // STATUS damage never reduces health — handled via status timers (future implementation).
+      return;
+    }
+
+    // Source parity: ActiveBody.cpp:366-442 — DAMAGE_KILL_PILOT.
+    // Kills the pilot of a vehicle, making it unmanned and capturable, or (ZH) kills the
+    // combat bike rider and scuttles the bike. Does NOT reduce vehicle health.
+    if (damageType.toUpperCase() === 'KILL_PILOT') {
+      // Source parity (ZH): ActiveBody.cpp:395-412 — RiderChangeContain special case.
+      // If the vehicle is a combat bike (has RiderChangeContain), the rider is ejected and killed,
+      // or if the bike is moving, the whole bike is destroyed.
+      if (target.riderChangeContainProfile) {
+        const riderIds = this.collectContainedEntityIds(target.id);
+        if (riderIds.length > 0 && target.moving) {
+          // Bike is moving — destroy it entirely.
+          this.killEntity(target);
+        } else if (riderIds.length > 0) {
+          // Bike is stationary — eject and kill rider, bike will scuttle.
+          for (const riderId of riderIds) {
+            const rider = this.spawnedEntities.get(riderId);
+            if (!rider || rider.destroyed) continue;
+            this.releaseEntityFromContainer(rider);
+            this.killEntity(rider);
+          }
+        }
+      } else {
+        // Source parity: ActiveBody.cpp:422-435 — standard KILL_PILOT: set DISABLED_UNMANNED,
+        // deselect, convert to neutral team, idle the AI.
+        target.objectStatusFlags.add('DISABLED_UNMANNED');
+        target.selected = false;
+        // Source parity: ZH adds aiIdle on the unmanned vehicle.
+        target.attackTargetEntityId = null;
+        target.moving = false;
+        // Convert to neutral side.
+        this.unregisterEntityEnergy(target);
+        target.side = '';
+        target.controllingPlayerToken = null;
+      }
+      // KILL_PILOT is fully handled — never falls through to normal damage.
       return;
     }
 
@@ -29099,9 +29178,35 @@ export class GameLogicSubsystem implements Subsystem {
               this.applyWeaponDamageAmount(sourceEntityId, closestSlave, amount, damageType, weaponDeathType);
               return;
             }
-          } else if (hiveProf.swallowDamageTypes.has(upperDamageType)) {
-            // No slaves and damage type is swallowed — silently ignore.
-            return;
+          } else {
+            // Source parity (ZH): HiveStructureBody.cpp:102-125 — when no slaves exist
+            // but a contain module is present, redirect damage to closest contained rider.
+            if (target.containProfile && shooter) {
+              const riderIds = this.collectContainedEntityIds(target.id);
+              if (riderIds.length > 0) {
+                let closestRider: MapEntity | null = null;
+                let closestRiderDistSqr = Infinity;
+                for (const riderId of riderIds) {
+                  const rider = this.spawnedEntities.get(riderId);
+                  if (!rider || rider.destroyed) continue;
+                  const dx = rider.x - shooter.x;
+                  const dz = rider.z - shooter.z;
+                  const distSqr = dx * dx + dz * dz;
+                  if (distSqr < closestRiderDistSqr) {
+                    closestRiderDistSqr = distSqr;
+                    closestRider = rider;
+                  }
+                }
+                if (closestRider) {
+                  this.applyWeaponDamageAmount(sourceEntityId, closestRider, amount, damageType, weaponDeathType);
+                  return;
+                }
+              }
+            }
+            if (hiveProf.swallowDamageTypes.has(upperDamageType)) {
+              // No slave/rider to redirect to and damage type is swallowed — silently ignore.
+              return;
+            }
           }
         }
         // Fall through to normal StructureBody damage if shooter is null or no redirect.
@@ -29302,23 +29407,43 @@ export class GameLogicSubsystem implements Subsystem {
       if (targetSide && this.isRetaliationModeEnabled(targetSide)
           && this.getSidePlayerType(targetSide) === 'HUMAN') {
         const damager = this.spawnedEntities.get(sourceEntityId);
+        // Source parity (ZH): shouldRetaliateAgainstAggressor checks:
+        // 1. damager exists, 2. damager not airborne, 3. enemies, 4. within maxRetaliateDistance,
+        // 5. target player is HUMAN, 6. target is not a DRONE.
         if (damager && !damager.destroyed
             && this.getTeamRelationship(target, damager) === RELATIONSHIP_ENEMIES
-            && !this.entityHasObjectStatus(damager, 'AIRBORNE_TARGET')) {
-          const friendsRadius = this.resolveRetaliationFriendsRadius();
-          const scanRangeSqr = friendsRadius * friendsRadius;
-          for (const ally of this.spawnedEntities.values()) {
-            if (ally.destroyed || ally.id === target.id) continue;
-            if (this.getTeamRelationship(target, ally) !== RELATIONSHIP_ALLIES) continue;
-            if (this.isEntityOffMap(ally)) continue;
-            if (ally.kindOf.has('IMMOBILE')) continue;
-            if (!ally.canMove) continue;
-            if (ally.attackTargetEntityId !== null) continue; // already attacking
-            const dx = ally.x - target.x;
-            const dz = ally.z - target.z;
-            if (dx * dx + dz * dz > scanRangeSqr) continue;
-            // Recruit ally to retaliate.
-            ally.lastAttackerEntityId = sourceEntityId;
+            && !this.entityHasObjectStatus(damager, 'AIRBORNE_TARGET')
+            && !target.kindOf.has('DRONE')) {
+          // Source parity (ZH): ActiveBody.cpp:758 — sqr(maxRetaliateDistance) check.
+          const maxRetaliateDist = this.resolveMaxRetaliationDistance();
+          const dxDamager = target.x - damager.x;
+          const dzDamager = target.z - damager.z;
+          const damagerDistSqr = dxDamager * dxDamager + dzDamager * dzDamager;
+          if (damagerDistSqr <= maxRetaliateDist * maxRetaliateDist) {
+            const friendsRadius = this.resolveRetaliationFriendsRadius();
+            const scanRangeSqr = friendsRadius * friendsRadius;
+            for (const ally of this.spawnedEntities.values()) {
+              if (ally.destroyed || ally.id === target.id) continue;
+              if (this.getTeamRelationship(target, ally) !== RELATIONSHIP_ALLIES) continue;
+              if (this.isEntityOffMap(ally)) continue;
+              // Source parity (ZH): shouldRetaliate checks:
+              // 1. not CANNOT_RETALIATE, 2. not IMMOBILE, 3. not DRONE, 4. must have AI and be idle,
+              // 5. stealthed+!detected units don't retaliate, 6. not IS_USING_ABILITY.
+              if (ally.kindOf.has('CANNOT_RETALIATE')) continue;
+              if (ally.kindOf.has('IMMOBILE')) continue;
+              if (ally.kindOf.has('DRONE')) continue;
+              if (!ally.canMove) continue;
+              if (ally.attackTargetEntityId !== null) continue; // not idle
+              // Source parity: stealthed but not detected units don't retaliate.
+              if (ally.objectStatusFlags.has('STEALTHED') && !ally.objectStatusFlags.has('DETECTED')) continue;
+              // Source parity: units using abilities don't retaliate.
+              if (ally.objectStatusFlags.has('USING_ABILITY')) continue;
+              const dx = ally.x - target.x;
+              const dz = ally.z - target.z;
+              if (dx * dx + dz * dz > scanRangeSqr) continue;
+              // Recruit ally to retaliate.
+              ally.lastAttackerEntityId = sourceEntityId;
+            }
           }
         }
       }

@@ -240,18 +240,27 @@ export function adjustDamageByArmorSet(
  * Source parity: Weapon.cpp:601-606 — DAMAGE_SNIPER vs empty garrisonable structure.
  * If the weapon's damageType is SNIPER and the target is a STRUCTURE with a contain
  * module that has 0 occupants, damage is zeroed (snipers can't hurt empty structures).
+ *
+ * Source parity (ZH): ActiveBody.cpp:305-311 — DAMAGE_SNIPER vs STRUCTURE that is
+ * UNDER_CONSTRUCTION returns 0. This prevents snipers (e.g. Pathfinder) from
+ * damaging structures like Stinger Sites while being built.
  */
 export function resolveSniperDamageVsEmptyStructure(
   amount: number,
   damageType: string,
   targetKindOf: ReadonlySet<string>,
   targetContainCount: number | null,
+  targetIsUnderConstruction?: boolean,
 ): number {
   if (damageType !== 'SNIPER') {
     return amount;
   }
   if (!targetKindOf.has('STRUCTURE')) {
     return amount;
+  }
+  // Source parity (ZH): ActiveBody.cpp:305-311 — sniper damage zeroed vs structures under construction.
+  if (targetIsUnderConstruction) {
+    return 0;
   }
   // null means no contain module — sniper damage proceeds normally.
   if (targetContainCount === null) {
