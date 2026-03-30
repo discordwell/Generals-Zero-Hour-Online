@@ -344,6 +344,11 @@ export function detonateMineOnce(self: GL, mine: MapEntity, detX: number, detZ: 
     } else {
       mine.objectStatusFlags.delete('MASKED');
     }
+
+    // ZH addition: MinefieldBehavior.cpp:327-333 — execute CreationList OCL on detonation.
+    if (prof.creationListName) {
+      self.executeOCL(prof.creationListName, mine, undefined, mine.x, mine.z);
+    }
 }
 
 

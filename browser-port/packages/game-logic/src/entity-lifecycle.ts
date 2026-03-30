@@ -581,10 +581,13 @@ export function tryBeginSlowDeath(self: GL, entity: MapEntity, _attackerId: numb
       if (!isDieModuleApplicable(self, entity, jetProfile)) continue;
 
       // C++ parity: isSignificantlyAboveTerrain check (height > 9.0).
+      // ZH addition: JetSlowDeathBehavior.cpp:157 — also treat jets with DECK_HEIGHT_OFFSET
+      // as on-ground (aircraft parked on carrier decks).
       const terrainY = self.resolveGroundHeight(entity.x, entity.z) + entity.baseHeight;
       const heightAbove = entity.y - terrainY;
+      const hasDeckOffset = entity.objectStatusFlags.has('DECK_HEIGHT_OFFSET');
 
-      if (heightAbove <= 9.0) {
+      if (heightAbove <= 9.0 || hasDeckOffset) {
         // On ground: instant destroy with ground OCL (C++ line 157-169).
         // C++ calls destroyObject directly — does NOT go through SlowDeathBehavior.
         for (const oclName of jetProfile.oclOnGroundDeath) {
@@ -594,6 +597,8 @@ export function tryBeginSlowDeath(self: GL, entity: MapEntity, _attackerId: numb
         entity.slowDeathState = null;
         markEntityDestroyed(self, entity.id, -1);
       } else {
+        // ZH addition: JetSlowDeathBehavior.cpp:179 — clear DECK_HEIGHT_OFFSET before slow death.
+        entity.objectStatusFlags.delete('DECK_HEIGHT_OFFSET');
         // Airborne: initialize jet slow death state (C++ beginSlowDeath lines 185-221).
         entity.jetSlowDeathState = {
           deathFrame: self.frameCounter,
@@ -1215,6 +1220,8 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
     // Revert to civilian/neutral side.
     entity.side = 'civilian';
     entity.controllingPlayerToken = self.normalizeControllingPlayerToken('civilian');
+    // ZH addition: TechBuildingBehavior.cpp:129 — clear CAPTURED model condition on revert.
+    entity.modelConditionFlags.delete('CAPTURED');
     // Restore full health to prevent re-death loop (pragmatic deviation from C++).
     entity.health = entity.maxHealth;
     return;

@@ -694,7 +694,9 @@ export function updateHealing(self: GL): void {
               // Radius heal mode — heal nearby allies.
               const radiusSq = prof.radius * prof.radius;
               for (const target of self.spawnedEntities.values()) {
-                if (target.destroyed || target === entity) continue;
+                if (target.destroyed) continue;
+                // Source parity: AutoHealBehavior.cpp:266 — skip self only when skipSelfForHealing is set.
+                if (prof.skipSelfForHealing && target === entity) continue;
                 if (target.health >= target.maxHealth) continue;
                 if (self.getTeamRelationship(entity, target) === RELATIONSHIP_ENEMIES) continue;
                 // Source parity: KindOf filter — only heal matching entity types.
@@ -786,8 +788,10 @@ export function updateHealing(self: GL): void {
         entity.propagandaTowerTrackedIds = [];
         const radiusSq = prof.radius * prof.radius;
         for (const target of self.spawnedEntities.values()) {
-          if (target.destroyed || target === entity) continue;
-          if (target.kindOf.has('STRUCTURE')) continue; // Only troops
+          if (target.destroyed) continue;
+          // ZH addition: PropagandaTowerBehavior.cpp:506 — skip self unless AffectsSelf is set.
+          if (target === entity && !prof.affectsSelf) continue;
+          if (target.kindOf.has('STRUCTURE') && target !== entity) continue; // Only troops (self can be structure)
           if (self.getTeamRelationship(entity, target) === RELATIONSHIP_ENEMIES) continue;
           const dx = target.x - entity.x;
           const dz = target.z - entity.z;

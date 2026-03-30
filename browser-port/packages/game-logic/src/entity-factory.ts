@@ -5288,6 +5288,8 @@ export function extractMinefieldProfile(self: GL, objectDef: ObjectDef | undefin
           stopsRegenAfterCreatorDies: readBooleanField(block.fields, ['StopsRegenAfterCreatorDies']) ?? true,
           degenPercentPerSecondAfterCreatorDies: readNumericField(block.fields, ['DegenPercentPerSecondAfterCreatorDies']) ?? 0,
           scootFromStartingPointTimeFrames: self.msToLogicFrames(readNumericField(block.fields, ['ScootFromStartingPointTime']) ?? 0),
+          // ZH addition: MinefieldBehavior.cpp:93 — CreationList OCL on detonation.
+          creationListName: readStringField(block.fields, ['CreationList']) ?? null,
         };
       }
     }

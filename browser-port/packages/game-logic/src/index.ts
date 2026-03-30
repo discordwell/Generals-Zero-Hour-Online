@@ -4310,6 +4310,8 @@ interface PropagandaTowerProfile {
   healPercentPerSecond: number;
   upgradedHealPercentPerSecond: number;
   upgradeRequired: string | null;
+  /** ZH addition: PropagandaTowerBehavior.cpp:91 — m_affectsSelf allows tower to heal itself. Default false. */
+  affectsSelf: boolean;
 }
 
 /**
@@ -4712,6 +4714,8 @@ interface MinefieldProfile {
   degenPercentPerSecondAfterCreatorDies: number;
   /** Scoot animation time in frames (0 = instant placement). */
   scootFromStartingPointTimeFrames: number;
+  /** ZH addition: MinefieldBehavior.cpp:93 — OCL executed on mine detonation. */
+  creationListName: string | null;
 }
 
 // Relationship bitmask constants for MinefieldBehavior DetonatedBy.
@@ -30223,6 +30227,9 @@ export class GameLogicSubsystem implements Subsystem {
 
       // Source parity: mark as RECONSTRUCTING (no cost refund on cancel).
       reconstructing.objectStatusFlags.add('RECONSTRUCTING');
+      // ZH addition: RebuildHoleBehavior.cpp:281 — setProducer links building back to hole,
+      // so tryTransferAttackersToRebuildHole can find the hole when the building dies.
+      reconstructing.producerEntityId = hole.id;
       hole.rebuildHoleReconstructingEntityId = reconstructing.id;
     } else {
       // Resume existing construction with the new worker.
