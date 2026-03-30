@@ -77,6 +77,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     attackTargetPosition: { x: 150.0, z: 250.0 },
     attackOriginalVictimPosition: null,
     attackCommandSource: 'PLAYER',
+    lastCommandSource: 'PLAYER',
     attackSubState: 'FIRING',
     nextAttackFrame: 100,
     lastShotFrame: 0,
@@ -353,6 +354,8 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     oclUpdateProfiles: [],
     oclUpdateNextCreationFrames: [],
     oclUpdateTimerStarted: [],
+    oclUpdateFactionNeutral: [],
+    oclUpdateFactionOwnerSide: [],
 
     // Weapon Bonus Update
     weaponBonusUpdateProfiles: [],

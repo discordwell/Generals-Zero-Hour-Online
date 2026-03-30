@@ -318,13 +318,23 @@ export function updateStealth(self: GL): void {
       entity.detectedUntilFrame = 0;
     }
 
-    // Source parity: SupplyCenterDockUpdate GrantTemporaryStealth — expire temporary stealth.
-    if (entity.temporaryStealthGrant && entity.temporaryStealthExpireFrame > 0
-        && self.frameCounter >= entity.temporaryStealthExpireFrame) {
-      entity.objectStatusFlags.delete('STEALTHED');
-      entity.objectStatusFlags.delete('CAN_STEALTH');
-      entity.temporaryStealthGrant = false;
-      entity.temporaryStealthExpireFrame = 0;
+    // Source parity (ZH): StealthUpdate.cpp:719-738 — m_framesGranted countdown.
+    // Temporary stealth grant counts down each frame. If the player issues a command
+    // during temporary stealth, the grant is cancelled immediately (no exploits).
+    if (entity.temporaryStealthGrant && entity.temporaryStealthExpireFrame > 0) {
+      if (entity.lastCommandSource === 'PLAYER') {
+        // Source parity: ai->getLastCommandSource() == CMD_FROM_PLAYER → cancel stealth.
+        entity.objectStatusFlags.delete('STEALTHED');
+        entity.objectStatusFlags.delete('CAN_STEALTH');
+        entity.temporaryStealthGrant = false;
+        entity.temporaryStealthExpireFrame = 0;
+      } else if (self.frameCounter >= entity.temporaryStealthExpireFrame) {
+        // Timer expired normally.
+        entity.objectStatusFlags.delete('STEALTHED');
+        entity.objectStatusFlags.delete('CAN_STEALTH');
+        entity.temporaryStealthGrant = false;
+        entity.temporaryStealthExpireFrame = 0;
+      }
     }
 
     if (!entity.objectStatusFlags.has('CAN_STEALTH')) continue;
@@ -433,6 +443,58 @@ export function updateStealth(self: GL): void {
     }
     if (entity.objectStatusFlags.has('SCRIPT_UNSTEALTHED')) {
       breakStealth = true;
+    }
+
+    // Source parity (ZH): StealthUpdate.cpp:303-315 — STEALTH_ONLY_WITH_BLACK_MARKET check.
+    // If the stealth requires a Black Market building, iterate same-player structures to find one.
+    if ((forbidden & STEALTH_FORBIDDEN_NO_BLACK_MARKET) !== 0) {
+      let hasBlackMarket = false;
+      for (const candidate of self.spawnedEntities.values()) {
+        if (candidate.destroyed) continue;
+        if (candidate.kindOf.has('FS_BLACK_MARKET')
+            && candidate.side === entity.side
+            && !candidate.objectStatusFlags.has('UNDER_CONSTRUCTION')
+            && !candidate.objectStatusFlags.has('SOLD')) {
+          hasBlackMarket = true;
+          break;
+        }
+      }
+      if (!hasBlackMarket) {
+        breakStealth = true;
+      }
+    }
+
+    // Source parity (ZH): StealthUpdate.cpp:389-412 — STEALTH_NOT_WHILE_RIDERS_ATTACKING.
+    // If any passenger in a fire-through container is attacking, break stealth.
+    if ((forbidden & STEALTH_FORBIDDEN_RIDERS_ATTACKING) !== 0) {
+      if (entity.containProfile) {
+        const riderIds = self.collectContainedEntityIds(entity.id);
+        for (const riderId of riderIds) {
+          const rider = self.spawnedEntities.get(riderId);
+          if (rider && !rider.destroyed && rider.attackTargetEntityId !== null) {
+            breakStealth = true;
+            break;
+          }
+        }
+      }
+    }
+
+    // Source parity (ZH): StealthUpdate.cpp:281-296 — SPAWNS_ARE_THE_WEAPONS slave stealth check.
+    // If the entity has slaves that are weapons, ALL slaves must be allowed to stealth.
+    if (entity.kindOf.has('SPAWNS_ARE_THE_WEAPONS') && entity.spawnBehaviorState) {
+      let allSlavesCanStealth = true;
+      for (const slaveId of entity.spawnBehaviorState.slaveIds) {
+        const slave = self.spawnedEntities.get(slaveId);
+        if (slave && !slave.destroyed) {
+          if (!slave.objectStatusFlags.has('CAN_STEALTH')) {
+            allSlavesCanStealth = false;
+            break;
+          }
+        }
+      }
+      if (!allSlavesCanStealth) {
+        breakStealth = true;
+      }
     }
 
     // Source parity: StealthUpdate.cpp:337-340 — RequiredStatus check (ZH only).

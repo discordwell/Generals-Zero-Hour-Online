@@ -3363,6 +3363,9 @@ export interface MapEntity {
   attackTargetPosition: VectorXZ | null;
   attackOriginalVictimPosition: VectorXZ | null;
   attackCommandSource: AttackCommandSource;
+  /** Source parity (ZH): AIUpdateInterface::getLastCommandSource — tracks the most recent command source.
+   *  Used by StealthUpdate to cancel temporary stealth grants on player commands. */
+  lastCommandSource: 'PLAYER' | 'AI' | 'SCRIPT';
   /** Source parity: AI attack state machine sub-state. */
   attackSubState: AttackSubState;
   nextAttackFrame: number;
@@ -3878,6 +3881,10 @@ export interface MapEntity {
   oclUpdateNextCreationFrames: number[];
   /** Per-profile flag: true once the initial timer has been set (first shouldCreate skips). */
   oclUpdateTimerStarted: boolean[];
+  /** Source parity (ZH): Per-profile flag for faction-triggered OCL — true when the owning player is neutral/non-playable. */
+  oclUpdateFactionNeutral: boolean[];
+  /** Source parity (ZH): Per-profile tracking of the controlling player's faction (for capture detection). */
+  oclUpdateFactionOwnerSide: string[];
 
   // ── Source parity: WeaponBonusUpdate — aura-based weapon bonus application ──
   /** Parsed WeaponBonusUpdate modules from INI (aura source). */
@@ -4872,6 +4879,10 @@ interface OCLUpdateProfile {
   maxDelayFrames: number;
   /** Source parity: m_isCreateAtEdge — whether to create OCL objects at map edge. Default = false. */
   createAtEdge: boolean;
+  /** Source parity (ZH): m_isFactionTriggered — when true, OCL depends on controlling faction. */
+  factionTriggered: boolean;
+  /** Source parity (ZH): Faction name (uppercase) -> OCL name mapping for faction-triggered mode. */
+  factionOCLMap: Map<string, string>;
 }
 
 /**
@@ -29724,6 +29735,41 @@ export class GameLogicSubsystem implements Subsystem {
           continue;
         }
 
+        // Source parity (ZH): OCLUpdate::update — faction-triggered OCL logic.
+        // When FactionTriggered is true, the OCL only fires when a playable faction controls the
+        // building. On capture, the timer resets. While neutral (no player), OCL is paused.
+        if (profile.factionTriggered) {
+          const currentSide = entity.side ?? '';
+          const isPlayable = currentSide !== '' && currentSide.toUpperCase() !== 'NEUTRAL';
+          const wasNeutral = entity.oclUpdateFactionNeutral[i] ?? true;
+          const previousSide = entity.oclUpdateFactionOwnerSide[i] ?? '';
+
+          if (wasNeutral) {
+            if (isPlayable) {
+              // Player has captured the building — mark as non-neutral and reset timer.
+              entity.oclUpdateFactionNeutral[i] = false;
+              entity.oclUpdateFactionOwnerSide[i] = currentSide;
+              const delay = this.gameRandom.nextRange(profile.minDelayFrames, profile.maxDelayFrames);
+              entity.oclUpdateNextCreationFrames[i] = this.frameCounter + delay;
+              entity.oclUpdateTimerStarted[i] = true;
+            }
+            // While neutral, skip further update.
+            continue;
+          } else {
+            if (!isPlayable) {
+              // Building became neutral — pause OCL.
+              entity.oclUpdateFactionNeutral[i] = true;
+              continue;
+            } else if (currentSide !== previousSide) {
+              // Faction changed (building captured by different player) — reset timer.
+              entity.oclUpdateFactionOwnerSide[i] = currentSide;
+              const delay = this.gameRandom.nextRange(profile.minDelayFrames, profile.maxDelayFrames);
+              entity.oclUpdateNextCreationFrames[i] = this.frameCounter + delay;
+              entity.oclUpdateTimerStarted[i] = true;
+            }
+          }
+        }
+
         // Source parity: OCLUpdate::shouldCreate — check timer and UNDER_CONSTRUCTION.
         const nextCreationFrame = entity.oclUpdateNextCreationFrames[i] ?? 0;
         if (this.frameCounter < nextCreationFrame) continue;
@@ -29741,7 +29787,17 @@ export class GameLogicSubsystem implements Subsystem {
         const delay = this.gameRandom.nextRange(profile.minDelayFrames, profile.maxDelayFrames);
         entity.oclUpdateNextCreationFrames[i] = this.frameCounter + delay;
 
-        this.executeOCL(profile.oclName, entity);
+        // Source parity (ZH): faction-triggered mode — look up the faction-specific OCL.
+        if (profile.factionTriggered && profile.factionOCLMap.size > 0) {
+          const entitySide = (entity.side ?? '').toUpperCase();
+          const factionOCLName = profile.factionOCLMap.get(entitySide);
+          if (factionOCLName) {
+            this.executeOCL(factionOCLName, entity);
+          }
+          // If no matching faction OCL, skip silently (C++ does the same — just break out of the loop).
+        } else {
+          this.executeOCL(profile.oclName, entity);
+        }
       }
     }
   }

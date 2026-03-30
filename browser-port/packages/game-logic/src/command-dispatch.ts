@@ -117,6 +117,11 @@ export function applyCommand(self: GL, command: GameLogicCommand): void {
       if (commandSource === 'PLAYER') {
         self.setSupplyTruckForceBusy(command.entityId, true);
       }
+      // Source parity (ZH): AIUpdateInterface::setLastCommandSource — track command origin for stealth.
+      {
+        const cmdEntity = self.spawnedEntities.get(command.entityId);
+        if (cmdEntity) cmdEntity.lastCommandSource = commandSource;
+      }
       const dozerTaskCancelMode = commandSource === 'PLAYER' ? 'current' : 'none';
       const moveEntity = self.spawnedEntities.get(command.entityId);
       const moveJs = moveEntity?.jetAIState;
@@ -225,6 +230,11 @@ export function applyCommand(self: GL, command: GameLogicCommand): void {
       if (commandSource === 'PLAYER') {
         self.setSupplyTruckForceBusy(command.entityId, true);
       }
+      // Source parity (ZH): track command source for stealth temporary grant cancellation.
+      {
+        const cmdEntity = self.spawnedEntities.get(command.entityId);
+        if (cmdEntity) cmdEntity.lastCommandSource = commandSource;
+      }
       const atkEntity = self.spawnedEntities.get(command.entityId);
       const atkJs = atkEntity?.jetAIState;
       if (atkJs) {
@@ -287,7 +297,12 @@ export function applyCommand(self: GL, command: GameLogicCommand): void {
       if (stopSource !== 'AI') {
         self.clearCommandButtonHuntForEntityId(command.entityId);
       }
-      cancelEntityCommandPathActions(self, 
+      // Source parity (ZH): track command source for stealth temporary grant cancellation.
+      {
+        const cmdEntity = self.spawnedEntities.get(command.entityId);
+        if (cmdEntity) cmdEntity.lastCommandSource = stopSource;
+      }
+      cancelEntityCommandPathActions(self,
         command.entityId,
         stopSource === 'PLAYER' ? 'current' : 'none',
       );

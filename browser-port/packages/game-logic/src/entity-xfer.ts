@@ -277,6 +277,7 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.attackTargetPosition = xferNullableVectorXZ(xfer, e.attackTargetPosition as { x: number; z: number } | null);
   e.attackOriginalVictimPosition = xferNullableVectorXZ(xfer, e.attackOriginalVictimPosition as { x: number; z: number } | null);
   e.attackCommandSource = xfer.xferAsciiString(e.attackCommandSource as string);
+  e.lastCommandSource = xfer.xferAsciiString(e.lastCommandSource as string);
   e.attackSubState = xfer.xferAsciiString(e.attackSubState as string);
   e.nextAttackFrame = xfer.xferInt(e.nextAttackFrame as number);
   e.lastShotFrame = xfer.xferInt(e.lastShotFrame as number);
@@ -558,6 +559,8 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.oclUpdateProfiles = xferJsonObject(xfer, e.oclUpdateProfiles as unknown[]);
   e.oclUpdateNextCreationFrames = xfer.xferIntList(e.oclUpdateNextCreationFrames as number[]);
   e.oclUpdateTimerStarted = xferJsonObject(xfer, e.oclUpdateTimerStarted as boolean[]);
+  e.oclUpdateFactionNeutral = xferJsonObject(xfer, e.oclUpdateFactionNeutral as boolean[]);
+  e.oclUpdateFactionOwnerSide = xferJsonObject(xfer, e.oclUpdateFactionOwnerSide as string[]);
 
   // ── Weapon Bonus Update ──
   e.weaponBonusUpdateProfiles = xferJsonObject(xfer, e.weaponBonusUpdateProfiles as unknown[]);
