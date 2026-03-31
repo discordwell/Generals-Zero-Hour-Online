@@ -281,6 +281,18 @@ export function extractGrantStealthProfile(self: GL, objectDef: ObjectDef | unde
 
 export function applyStealthUpgrade(self: GL, entity: MapEntity): boolean {
   entity.objectStatusFlags.add('CAN_STEALTH');
+
+  // Source parity (ZH): StealthUpgrade.cpp:54-64 — grant stealth to spawned slaves
+  // if the entity is a SPAWNS_ARE_THE_WEAPONS master (e.g. GLA Jarmen Kell / Stealth fighters).
+  if (entity.kindOf.has('SPAWNS_ARE_THE_WEAPONS') && entity.spawnBehaviorState) {
+    for (const slaveId of entity.spawnBehaviorState.slaveIds) {
+      const slave = self.spawnedEntities.get(slaveId);
+      if (slave && !slave.destroyed) {
+        slave.objectStatusFlags.add('CAN_STEALTH');
+      }
+    }
+  }
+
   return true;
 }
 

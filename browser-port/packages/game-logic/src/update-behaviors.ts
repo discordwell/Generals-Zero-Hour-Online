@@ -407,6 +407,28 @@ export function isEntityClearingMines(self: GL, entity: MapEntity): boolean {
 
   // ──── Salvage Crate Collision System ─────────────────────────────────────
 
+/**
+ * Source parity (ZH): MoneyCrateCollide::getUpgradedSupplyBoost — check if collector's
+ * player has any completed upgrades that grant bonus money from crate pickup.
+ * Returns the first matching boost amount (or 0 if none match).
+ * C++ file: MoneyCrateCollide.cpp:72-94.
+ */
+function getUpgradedSupplyBoost(
+  self: GL,
+  collector: MapEntity,
+  boosts: ReadonlyArray<{ upgradeName: string; amount: number }>,
+): number {
+  if (!collector.side) return 0;
+  const side = self.normalizeSide(collector.side);
+  if (!side) return 0;
+  for (const boost of boosts) {
+    if (self.hasSideUpgradeCompleted(side, boost.upgradeName)) {
+      return boost.amount;
+    }
+  }
+  return 0;
+}
+
   /**
    * Source parity: CrateCollide::isValidToExecute — validate collector eligibility.
    * Checks KindOf requirements, death ownership, building pickup, human-only, etc.
@@ -421,6 +443,8 @@ export function isCrateCollideEligible(self: GL, crate: MapEntity, collector: Ma
     // except by buildings with BuildingPickup flag.
     const validBuildingAttempt = prof.buildingPickup && collector.kindOf.has('STRUCTURE');
     if (self.entityHasObjectStatus(crate, 'AIRBORNE_TARGET') && !validBuildingAttempt) return false;
+    // Source parity (ZH): CrateCollide.cpp:188-189 — parachuting units cannot collect crates.
+    if (collector.kindOf.has('PARACHUTE')) return false;
     // Source parity: must have KindOf requirements.
     if (prof.requiredKindOf.length > 0) {
       if (!prof.requiredKindOf.every(k => collector.kindOf.has(k))) return false;
@@ -452,9 +476,15 @@ export function executeGeneralCrateBehavior(self: GL, crate: MapEntity, collecto
       case 'HEAL':
         success = self.executeCrateHeal(collector);
         break;
-      case 'MONEY':
-        success = self.executeCrateMoney(collector, prof.moneyProvided);
+      case 'MONEY': {
+        // Source parity (ZH): MoneyCrateCollide.cpp:57 — add UpgradedBoost supply bonus.
+        let totalMoney = prof.moneyProvided;
+        if (prof.upgradedBoosts && prof.upgradedBoosts.length > 0) {
+          totalMoney += getUpgradedSupplyBoost(self, collector, prof.upgradedBoosts);
+        }
+        success = self.executeCrateMoney(collector, totalMoney);
         break;
+      }
       case 'VETERANCY':
         success = self.executeCrateVeterancy(crate, collector, prof);
         break;

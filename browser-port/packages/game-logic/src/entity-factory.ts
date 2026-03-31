@@ -4147,6 +4147,7 @@ export function extractCrateCollideProfile(self: GL, objectDef: ObjectDef | unde
           buildingPickup: readBooleanField(block.fields, ['BuildingPickup']) ?? false,
           humanOnly: readBooleanField(block.fields, ['HumanOnly']) ?? false,
           moneyProvided: readNumericField(block.fields, ['MoneyProvided']) ?? 0,
+          upgradedBoosts: extractUpgradedBoosts(block.fields['UpgradedBoost']),
           unitType: readStringField(block.fields, ['UnitName']) ?? '',
           unitCount: readNumericField(block.fields, ['UnitCount']) ?? 1,
           veterancyRange: readNumericField(block.fields, ['EffectRange']) ?? 0,
@@ -4163,6 +4164,45 @@ export function extractCrateCollideProfile(self: GL, objectDef: ObjectDef | unde
     for (const block of objectDef.blocks) visitBlock(block);
   }
   return profile;
+}
+
+/**
+ * Source parity (ZH): parseUpgradePair — parse UpgradedBoost field(s) from INI.
+ * Format: "UpgradeType:Upgrade_Name Boost:25"
+ * Returns array of { upgradeName, amount } pairs.
+ */
+function extractUpgradedBoosts(value: unknown): Array<{ upgradeName: string; amount: number }> {
+  if (value === undefined || value === null) return [];
+  const entries: string[] = [];
+  if (typeof value === 'string') {
+    entries.push(value);
+  } else if (Array.isArray(value)) {
+    for (const v of value) {
+      if (typeof v === 'string') entries.push(v);
+    }
+  }
+  const result: Array<{ upgradeName: string; amount: number }> = [];
+  for (const entry of entries) {
+    // Parse colon-separated key:value pairs: "UpgradeType:Name Boost:25"
+    const tokens = entry.trim().split(/\s+/);
+    let upgradeName = '';
+    let amount = 0;
+    for (const token of tokens) {
+      const colonIndex = token.indexOf(':');
+      if (colonIndex < 0) continue;
+      const key = token.substring(0, colonIndex).toUpperCase();
+      const val = token.substring(colonIndex + 1);
+      if (key === 'UPGRADETYPE') {
+        upgradeName = val.trim().toUpperCase();
+      } else if (key === 'BOOST') {
+        amount = parseInt(val, 10) || 0;
+      }
+    }
+    if (upgradeName && amount !== 0) {
+      result.push({ upgradeName, amount });
+    }
+  }
+  return result;
 }
 
 export function extractDeployStyleProfile(self: GL, objectDef: ObjectDef | undefined): DeployStyleProfile | null {

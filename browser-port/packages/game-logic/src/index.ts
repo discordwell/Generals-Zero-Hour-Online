@@ -4696,6 +4696,8 @@ interface CrateCollideProfile {
   addsOwnerVeterancy: boolean;
   /** VeterancyCrateCollide: pilot mode restrictions. */
   isPilot: boolean;
+  /** Source parity (ZH): MoneyCrateCollide UpgradedBoost — upgrade/amount pairs for bonus money. */
+  upgradedBoosts: ReadonlyArray<{ upgradeName: string; amount: number }>;
 }
 
 /**
@@ -6441,6 +6443,10 @@ interface AcademyStats {
    * C++ Weapon.cpp:2562 — called on source player when mine is disarmed.
    */
   minesClearedCount: number;
+  /** Source parity (ZH): AcademyStats — upgrades completed via GrantUpgradeCreate. */
+  upgradesBuiltCount: number;
+  /** Source parity (ZH): AcademyStats — salvage crates collected. */
+  salvageCollectedCount: number;
 }
 
 type ScriptComparisonType =
@@ -22012,6 +22018,8 @@ export class GameLogicSubsystem implements Subsystem {
       specialPowerUsedCount: 0,
       mineCount: 0,
       minesClearedCount: 0,
+      upgradesBuiltCount: 0,
+      salvageCollectedCount: 0,
     };
     this.sideAcademyStats.set(side, created);
     return created;
@@ -22745,6 +22753,13 @@ export class GameLogicSubsystem implements Subsystem {
 
   private resolveConvertToCarBombEnterAction(source: MapEntity, target: MapEntity): void {
     if (!this.canExecuteConvertToCarBombEnterAction(source, target)) {
+      return;
+    }
+
+    // Source parity (ZH): ConvertToCarBombCrateCollide.cpp:121-129 — check booby trap first.
+    this.checkAndDetonateBoobyTrap(target.id);
+    if (target.destroyed || (target.canTakeDamage && target.health <= 0)
+      || source.destroyed || (source.canTakeDamage && source.health <= 0)) {
       return;
     }
 
@@ -23973,6 +23988,12 @@ export class GameLogicSubsystem implements Subsystem {
       this.doSalvageLevelGain(collector);
     } else {
       this.doSalvageMoney(collector, prof);
+    }
+
+    // Source parity (ZH): SalvageCrateCollide.cpp:117 — record salvage for academy stats.
+    const collectorSide = this.normalizeSide(collector.side);
+    if (collectorSide) {
+      this.getOrCreateSideAcademyStats(collectorSide).salvageCollectedCount++;
     }
 
     // Destroy the crate after collection.
@@ -30460,6 +30481,8 @@ export class GameLogicSubsystem implements Subsystem {
           if (side) {
             this.setSideUpgradeCompleted(side, prof.upgradeName, true);
             this.applyCompletedPlayerUpgrade(side, prof.upgradeName);
+            // Source parity (ZH): GrantUpgradeCreate.cpp:110 — record for academy stats.
+            this.getOrCreateSideAcademyStats(side).upgradesBuiltCount++;
           }
           return;
         }
@@ -30469,6 +30492,12 @@ export class GameLogicSubsystem implements Subsystem {
     // Can't use applyUpgradeToEntity() because entity may not be in spawnedEntities yet.
     const normalizedUpgrade = prof.upgradeName.trim().toUpperCase();
     entity.completedUpgrades.add(normalizedUpgrade);
+
+    // Source parity (ZH): GrantUpgradeCreate.cpp:109 — record for academy stats.
+    const side = this.resolveEntityOwnerSide(entity);
+    if (side) {
+      this.getOrCreateSideAcademyStats(side).upgradesBuiltCount++;
+    }
   }
 
   // ── RebuildHoleBehavior implementation ──────────────────────────────────────
