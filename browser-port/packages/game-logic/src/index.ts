@@ -6424,6 +6424,12 @@ interface SideScoreState {
 interface AcademyStats {
   guardAbilityUsedCount: number;
   /**
+   * Source parity (ZH): AcademyStats::recordSpecialPowerUsed — SpecialPowerModule.cpp:458.
+   * Tracks total special power usages per side. Called from initiateIntentToDoSpecialPower
+   * after the update module processes the power request.
+   */
+  specialPowerUsedCount: number;
+  /**
    * Source parity: AcademyStats.h:261 — m_mines.
    * Tracks total mines/booby traps/demo traps created (neutral player stat).
    * C++ Object.cpp:597 — called when MINE/BOOBY_TRAP/DEMOTRAP is created.
@@ -10025,8 +10031,12 @@ export class GameLogicSubsystem implements Subsystem {
       const entitySide = this.normalizeSide(entity.side);
       if (entitySide !== normalizedSide) continue;
 
-      for (const [powerName] of entity.specialPowerModules) {
+      for (const [powerName, module] of entity.specialPowerModules) {
         if (powerName !== normalizedType) continue;
+        // Source parity (ZH): Player.cpp:1291 — skip ScriptedSpecialPowerOnly modules
+        // from shortcut power queries. Script-only powers (e.g., cargo plane units)
+        // should not appear in the shortcut bar or be counted as ready.
+        if (module.scriptedSpecialPowerOnly) continue;
         const readyFrame = this.resolveSpecialPowerReadyFrameForSourceEntity(powerName, entity.id);
         if (readyFrame < lowestReadyFrame) {
           lowestReadyFrame = readyFrame;
@@ -10040,7 +10050,8 @@ export class GameLogicSubsystem implements Subsystem {
 
   /**
    * Source parity: Player::hasAnyShortcutSpecialPower (Player.cpp:1527-1536).
-   * Returns true if any entity owned by the given side has at least one special power module.
+   * Returns true if any entity owned by the given side has at least one special power module
+   * that is not script-only.
    */
   hasAnyShortcutSpecialPower(side: string): boolean {
     const normalizedSide = this.normalizeSide(side);
@@ -10052,8 +10063,11 @@ export class GameLogicSubsystem implements Subsystem {
       if (entity.destroyed) continue;
       const entitySide = this.normalizeSide(entity.side);
       if (entitySide !== normalizedSide) continue;
-      if (entity.specialPowerModules.size > 0) {
-        return true;
+      // Source parity (ZH): Player.cpp:1281 — skip ScriptedSpecialPowerOnly modules.
+      for (const [, module] of entity.specialPowerModules) {
+        if (!module.scriptedSpecialPowerOnly) {
+          return true;
+        }
       }
     }
     return false;
@@ -10081,6 +10095,8 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     for (const [powerName, module] of entity.specialPowerModules) {
+      // Source parity (ZH): Player.cpp:1281 — skip ScriptedSpecialPowerOnly modules.
+      if (module.scriptedSpecialPowerOnly) continue;
       const specialPowerDef = this.resolveSpecialPowerDefByName(powerName);
       if (specialPowerDef && specialPowerDef.shortcutPower) {
         return {
@@ -10164,8 +10180,10 @@ export class GameLogicSubsystem implements Subsystem {
       const entitySide = this.normalizeSide(entity.side);
       if (entitySide !== normalizedSide) continue;
 
-      for (const [powerName] of entity.specialPowerModules) {
+      for (const [powerName, module] of entity.specialPowerModules) {
         if (powerName !== normalizedType) continue;
+        // Source parity (ZH): Player.cpp:1341 — skip ScriptedSpecialPowerOnly modules.
+        if (module.scriptedSpecialPowerOnly) continue;
         const readyFrame = this.resolveSpecialPowerReadyFrameForSourceEntity(powerName, entity.id);
         if (readyFrame <= this.frameCounter) {
           count++;
@@ -12048,7 +12066,27 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ isChinookTakeoffCommandType(...args: any[]) { return (isChinookTakeoffCommandTypeImpl as any)(this, ...args); }
   private collectReadySpecialPowersForSide(...args: any[]) { return (collectReadySpecialPowersForSideImpl as any)(this, ...args); }
   /* @internal */ routeIssueSpecialPowerCommand(...args: any[]) { return (routeIssueSpecialPowerCommandImpl as any)(this, ...args); }
-  private setSpecialPowerReadyFrame(...args: any[]) { return (setSpecialPowerReadyFrameImpl as any)(this, ...args); }
+  private setSpecialPowerReadyFrame(...args: any[]) {
+    // Source parity (ZH): SpecialPowerModule::setReadyFrame (SpecialPowerModule.cpp:169-176).
+    // When a script changes the ready frame, also update pausedOnFrame to the current frame
+    // so that paused duration calculations use the new reference point.
+    const result = (setSpecialPowerReadyFrameImpl as any)(this, ...args);
+    const specialPowerName = args[0] as string;
+    const sourceEntityId = args[1] as number;
+    if (specialPowerName && Number.isFinite(sourceEntityId)) {
+      const normalizedName = this.normalizeShortcutSpecialPowerName(specialPowerName);
+      if (normalizedName) {
+        const pausedBySource = this.pausedShortcutSpecialPowerByName.get(normalizedName);
+        if (pausedBySource) {
+          const pauseState = pausedBySource.get(sourceEntityId);
+          if (pauseState && pauseState.pausedCount > 0) {
+            pauseState.pausedOnFrame = this.frameCounter;
+          }
+        }
+      }
+    }
+    return result;
+  }
   // @ts-expect-error Used via string dispatch in special power routing
   private _resolveSpyVisionRevealRadius(...args: any[]) { return (resolveSpyVisionRevealRadiusImpl as any)(this, ...args); }
   private canEntityIssueSpecialPower(...args: any[]) { return (canEntityIssueSpecialPowerImpl as any)(this, ...args); }
@@ -20509,6 +20547,67 @@ export class GameLogicSubsystem implements Subsystem {
     return readyFrame + pausedFrames;
   }
 
+  /**
+   * Source parity (ZH): SpecialPowerModule::getPercentReady (SpecialPowerModule.cpp:321-371).
+   * Returns a value 0.0-1.0 indicating how ready the power is. ZH adds a critical fix:
+   * when pausedCount > 0 and pausedPercent would be 1.0, clamp to 0.99999 so the power
+   * is never considered ready while paused. This prevents a paused-but-fully-charged
+   * power from being usable.
+   */
+  getSpecialPowerPercentReady(
+    specialPowerName: string,
+    sourceEntityId: number,
+  ): number {
+    const normalizedName = this.normalizeShortcutSpecialPowerName(specialPowerName);
+    if (!normalizedName) {
+      return 0;
+    }
+
+    // Check if the power is paused.
+    const pausedBySource = this.pausedShortcutSpecialPowerByName.get(normalizedName);
+    if (pausedBySource) {
+      const pauseState = pausedBySource.get(sourceEntityId);
+      if (pauseState && pauseState.pausedCount > 0) {
+        // Compute what percent ready the power would be without pausing.
+        const rawReadyFrame = this.resolveSpecialPowerReadyFrameForSourceEntityRaw(
+          normalizedName,
+          sourceEntityId,
+        );
+        const specialPowerDef = this.resolveSpecialPowerDefByName(normalizedName);
+        const reloadTime = specialPowerDef
+          ? this.msToLogicFrames(readNumericField(specialPowerDef.fields, ['ReloadTime']) ?? 0)
+          : 0;
+        if (reloadTime <= 0) {
+          // Source parity: if no reload time, return 0.99999 while paused.
+          return 0.99999;
+        }
+        const percent = 1.0 - ((rawReadyFrame - pauseState.pausedOnFrame) / reloadTime);
+        const clampedPercent = Math.max(0, Math.min(1.0, percent));
+        // Source parity (ZH): if pausedPercent == 1.0 and we're paused, clamp to 0.99999.
+        if (clampedPercent >= 1.0) {
+          return 0.99999;
+        }
+        return clampedPercent;
+      }
+    }
+
+    // Not paused — check if ready.
+    const readyFrame = this.resolveSpecialPowerReadyFrameForSourceEntity(normalizedName, sourceEntityId);
+    if (this.frameCounter >= readyFrame) {
+      return 1.0;
+    }
+
+    const specialPowerDef = this.resolveSpecialPowerDefByName(normalizedName);
+    const reloadTime = specialPowerDef
+      ? this.msToLogicFrames(readNumericField(specialPowerDef.fields, ['ReloadTime']) ?? 0)
+      : 0;
+    if (reloadTime <= 0) {
+      return 0;
+    }
+    const percent = 1.0 - ((readyFrame - this.frameCounter) / reloadTime);
+    return Math.max(0, Math.min(1.0, percent));
+  }
+
   private normalizeSide(side?: string): string {
     return side ? side.trim().toLowerCase() : '';
   }
@@ -21406,20 +21505,32 @@ export class GameLogicSubsystem implements Subsystem {
     const effectContext = this.createSpecialPowerEffectContext();
     const sourceSide = source.side ?? '';
 
+    // Source parity (ZH): OCLSpecialPower.cpp:167-178 — OCLAdjustPositionToPassable adjusts target
+    // position to nearest passable cell before spawning OCL. MAX_ADJUST_RADIUS = 500 world units.
+    let adjustedTargetX = targetX;
+    let adjustedTargetZ = targetZ;
+    if (module.oclAdjustPositionToPassable && effectCategory === 'OCL_SPAWN') {
+      const adjusted = this.findNearestPassableWorldPosition(targetX, targetZ, 500);
+      if (adjusted) {
+        adjustedTargetX = adjusted.x;
+        adjustedTargetZ = adjusted.z;
+      }
+    }
+
     switch (effectCategory) {
       case 'OCL_SPAWN':
         // Source parity (ZH): OCLSpecialPower::initiateInternal — execute OCL at source,
         // passing target position so FireWeapon nuggets fire at the target location.
         // ZH passes angle for creation orientation (AIGroup.cpp:2710).
         if (module.oclName) {
-          this.executeOCL(module.oclName, source, undefined, targetX, targetZ, angle);
+          this.executeOCL(module.oclName, source, undefined, adjustedTargetX, adjustedTargetZ, angle);
         } else {
           // Fallback: if no OCL name, apply flat area damage (legacy behavior).
           executeAreaDamageImpl({
             sourceEntityId,
             sourceSide,
-            targetX,
-            targetZ,
+            targetX: adjustedTargetX,
+            targetZ: adjustedTargetZ,
             radius: module.areaDamageRadius > 0 ? module.areaDamageRadius : DEFAULT_AREA_DAMAGE_RADIUS,
             damage: module.areaDamageAmount > 0 ? module.areaDamageAmount : DEFAULT_AREA_DAMAGE_AMOUNT,
             damageType: 'EXPLOSION',
@@ -21898,6 +22009,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
     const created: AcademyStats = {
       guardAbilityUsedCount: 0,
+      specialPowerUsedCount: 0,
       mineCount: 0,
       minesClearedCount: 0,
     };
@@ -21919,6 +22031,18 @@ export class GameLogicSubsystem implements Subsystem {
       return;
     }
     this.getOrCreateSideAcademyStats(side).guardAbilityUsedCount++;
+  }
+
+  /**
+   * Source parity (ZH): SpecialPowerModule::initiateIntentToDoSpecialPower (SpecialPowerModule.cpp:458).
+   * Records that a special power was used for the academy tracking system.
+   * Called from recordSpecialPowerDispatch after the update module processes the intent.
+   */
+  /* @internal */ recordSpecialPowerUsedForAcademy(normalizedSide: string): void {
+    if (!normalizedSide) {
+      return;
+    }
+    this.getOrCreateSideAcademyStats(normalizedSide).specialPowerUsedCount++;
   }
 
   /**
@@ -27240,6 +27364,67 @@ export class GameLogicSubsystem implements Subsystem {
       x: cellX * MAP_XY_FACTOR + halfCell,
       z: cellZ * MAP_XY_FACTOR + halfCell,
     };
+  }
+
+  /**
+   * Source parity (ZH): PartitionManager::findPositionAround with FPF_CLEAR_CELLS_ONLY.
+   * Used by OCLSpecialPower when OCLAdjustPositionToPassable = true (OCLSpecialPower.cpp:167-178).
+   * Searches outward from the given world position for the nearest unblocked navigation cell.
+   * Returns null if no passable cell found within maxRadius world units.
+   */
+  private findNearestPassableWorldPosition(
+    worldX: number,
+    worldZ: number,
+    maxRadius: number,
+  ): { x: number; z: number } | null {
+    const grid = this.navigationGrid;
+    if (!grid) {
+      return null;
+    }
+
+    const cellSize = MAP_XY_FACTOR;
+    const centerCellX = Math.floor(worldX / cellSize);
+    const centerCellZ = Math.floor(worldZ / cellSize);
+
+    // Check center cell first.
+    if (this.isCellInBounds(centerCellX, centerCellZ, grid)) {
+      const index = centerCellZ * grid.width + centerCellX;
+      if (grid.blocked[index] === 0) {
+        return { x: worldX, z: worldZ };
+      }
+    }
+
+    // Spiral outward searching for a passable cell.
+    const maxCellRadius = Math.ceil(maxRadius / cellSize);
+    for (let r = 1; r <= maxCellRadius; r++) {
+      // Check ring at distance r: top/bottom edges, left/right edges.
+      for (let dx = -r; dx <= r; dx++) {
+        for (const dz of [-r, r]) {
+          const cx = centerCellX + dx;
+          const cz = centerCellZ + dz;
+          if (this.isCellInBounds(cx, cz, grid)) {
+            const idx = cz * grid.width + cx;
+            if (grid.blocked[idx] === 0) {
+              return this.gridToWorld(cx, cz);
+            }
+          }
+        }
+      }
+      for (let dz = -r + 1; dz <= r - 1; dz++) {
+        for (const dx of [-r, r]) {
+          const cx = centerCellX + dx;
+          const cz = centerCellZ + dz;
+          if (this.isCellInBounds(cx, cz, grid)) {
+            const idx = cz * grid.width + cx;
+            if (grid.blocked[idx] === 0) {
+              return this.gridToWorld(cx, cz);
+            }
+          }
+        }
+      }
+    }
+
+    return null;
   }
 
   private pixelToNDC(mouseX: number, mouseY: number, viewportWidth: number, viewportHeight: number): THREE.Vector2 | null {

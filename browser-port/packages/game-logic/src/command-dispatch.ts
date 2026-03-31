@@ -982,6 +982,10 @@ export function recordSpecialPowerDispatch(self: GL,
       module.specialPowerTemplateName,
       sourceEntityId,
     );
+
+    // Source parity (ZH): SpecialPowerModule::initiateIntentToDoSpecialPower (SpecialPowerModule.cpp:458)
+    // — records special power usage for the AcademyStats tutorial system.
+    self.recordSpecialPowerUsedForAcademy(normalizedSide);
   }
 
   // Source parity: Eva SUPERWEAPON_LAUNCHED fires for FS_SUPERWEAPON entities.
