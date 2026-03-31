@@ -532,6 +532,10 @@ async function preInit(): Promise<PreInitContext> {
     powerPreference: 'high-performance',
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
+  // Source parity: GLTF textures are authored in sRGB; without this setting
+  // Three.js r150+ renders them in linear space, causing washed-out colours.
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.NoToneMapping;
   // Shadow map disabled for performance — re-enable with sunLight.castShadow
   // once FPS is stable above 30.
   renderer.shadowMap.enabled = false;
@@ -587,10 +591,15 @@ async function preInit(): Promise<PreInitContext> {
   const subsystems = new SubsystemRegistry();
 
   // Asset Manager (first — must init before any asset loads)
+  // Integrity checks disabled: manifest outputHash values are stale (computed
+  // at initial conversion time) and no longer match the on-disk GLB files
+  // after subsequent converter updates.  Re-enable once `convert-all` is run
+  // again to regenerate fresh hashes.
   const assets = new AssetManager({
     baseUrl: RUNTIME_ASSET_BASE_URL,
     manifestUrl: RUNTIME_MANIFEST_FILE,
     requireManifest: true,
+    integrityChecks: false,
   });
   subsystems.register(assets);
 

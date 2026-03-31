@@ -793,8 +793,16 @@ export class ObjectVisualManager {
           this.unresolvedEntityIds.delete(entityId);
           this.updatePlaceholderVisibility(entityId, false);
           return;
-        } catch {
+        } catch (error) {
           // Model load failed for this candidate — try next.
+          // Log the first failure per entity to aid debugging (e.g. stale
+          // manifest hashes, missing files, GLTF parse errors).
+          if (candidate === normalizedCandidates[0]) {
+            console.warn(
+              `[ObjectVisualManager] Model load failed for entity ${entityId} candidate "${candidate}":`,
+              error instanceof Error ? error.message : error,
+            );
+          }
         }
       }
 

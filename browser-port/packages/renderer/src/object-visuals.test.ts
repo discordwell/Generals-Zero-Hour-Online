@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { LoadedModelAsset } from './object-visuals.js';
 import { ObjectVisualManager, stripConditionStateSuffix, type RenderableEntityState } from './object-visuals.js';
 
@@ -2232,5 +2232,30 @@ describe('condition-state model fallback resolution', () => {
     const ring = root.getObjectByName('selection-ring') as THREE.Mesh;
     const mat = ring.material as THREE.MeshBasicMaterial;
     expect(mat.color.getHex()).toBe(0xff3333);
+  });
+
+  it('logs a warning when model load fails for the first candidate', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const scene = new THREE.Scene();
+      const manager = new ObjectVisualManager(scene, null, {
+        modelLoader: async (path: string) => {
+          throw new Error(`Integrity check failed for ${path}`);
+        },
+      });
+
+      manager.sync([makeMeshState({ id: 100, renderAssetPath: 'broken-model.glb' })], 1 / 30);
+      await flushModelLoadQueue();
+
+      // The entity should remain unresolved (placeholder visible).
+      expect(manager.getUnresolvedEntityIds()).toContain(100);
+      // A diagnostic warning should have been logged.
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[ObjectVisualManager]'),
+        expect.stringContaining('Integrity check failed'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
