@@ -579,6 +579,7 @@ describe('IniDataRegistry', () => {
           fxLists: 0,
           staticGameLODs: 0,
           dynamicGameLODs: 0,
+          mappedImages: 0,
           unresolvedInheritance: 0,
           totalBlocks: 5,
         },
@@ -701,6 +702,7 @@ describe('IniDataRegistry', () => {
           fxLists: 0,
           staticGameLODs: 0,
           dynamicGameLODs: 0,
+          mappedImages: 0,
           unresolvedInheritance: 0,
           totalBlocks: 0,
         },
@@ -1022,6 +1024,148 @@ describe('IniDataRegistry', () => {
       expect(restored.getWaterTransparencyBlocks()[0]?.fields['AdditiveBlending']).toBe(true);
       expect(restored.getChallengeGeneralsBlocks()[0]?.blocks[0]?.type).toBe('GeneralPersona1');
       expect(restored.getStats().totalBlocks).toBe(9);
+    });
+  });
+
+  describe('MappedImage parsing', () => {
+    it('indexes MappedImage blocks with parsed Coords and Status', () => {
+      registry.loadBlocks([
+        makeBlock('MappedImage', 'SSRally', {
+          Texture: 'SSUserInterface512_001.tga',
+          TextureWidth: 512,
+          TextureHeight: 512,
+          Coords: ['Left:431', 'Top:443', 'Right:491', 'Bottom:491'],
+          Status: 'NONE',
+        }),
+      ]);
+
+      expect(registry.mappedImages.size).toBe(1);
+      const mi = registry.getMappedImage('SSRally');
+      expect(mi).toBeDefined();
+      expect(mi!.name).toBe('SSRally');
+      expect(mi!.texture).toBe('SSUserInterface512_001.tga');
+      expect(mi!.textureWidth).toBe(512);
+      expect(mi!.textureHeight).toBe(512);
+      expect(mi!.left).toBe(431);
+      expect(mi!.top).toBe(443);
+      expect(mi!.right).toBe(491);
+      expect(mi!.bottom).toBe(491);
+      expect(mi!.rotated).toBe(false);
+    });
+
+    it('detects ROTATED_90_CLOCKWISE status', () => {
+      registry.loadBlocks([
+        makeBlock('MappedImage', 'SSObserverUSA', {
+          Texture: 'SSUserInterface512_001.tga',
+          TextureWidth: 512,
+          TextureHeight: 512,
+          Coords: ['Left:489', 'Top:53', 'Right:511', 'Bottom:77'],
+          Status: 'ROTATED_90_CLOCKWISE',
+        }),
+      ]);
+
+      const mi = registry.getMappedImage('SSObserverUSA');
+      expect(mi).toBeDefined();
+      expect(mi!.rotated).toBe(true);
+      expect(mi!.left).toBe(489);
+      expect(mi!.top).toBe(53);
+      expect(mi!.right).toBe(511);
+      expect(mi!.bottom).toBe(77);
+    });
+
+    it('handles Coords as a single space-separated string', () => {
+      registry.loadBlocks([
+        makeBlock('MappedImage', 'TestImage', {
+          Texture: 'test.tga',
+          TextureWidth: 256,
+          TextureHeight: 256,
+          Coords: 'Left:10 Top:20 Right:50 Bottom:60',
+          Status: 'NONE',
+        }),
+      ]);
+
+      const mi = registry.getMappedImage('TestImage');
+      expect(mi).toBeDefined();
+      expect(mi!.left).toBe(10);
+      expect(mi!.top).toBe(20);
+      expect(mi!.right).toBe(50);
+      expect(mi!.bottom).toBe(60);
+    });
+
+    it('round-trips through toBundle/loadBundle', () => {
+      registry.loadBlocks([
+        makeBlock('MappedImage', 'SSRally', {
+          Texture: 'SSUserInterface512_001.tga',
+          TextureWidth: 512,
+          TextureHeight: 512,
+          Coords: ['Left:431', 'Top:443', 'Right:491', 'Bottom:491'],
+          Status: 'NONE',
+        }),
+        makeBlock('MappedImage', 'SSObserverUSA', {
+          Texture: 'SSUserInterface512_001.tga',
+          TextureWidth: 512,
+          TextureHeight: 512,
+          Coords: ['Left:489', 'Top:53', 'Right:511', 'Bottom:77'],
+          Status: 'ROTATED_90_CLOCKWISE',
+        }),
+      ]);
+
+      const bundle = registry.toBundle();
+      expect(bundle.mappedImages).toHaveLength(2);
+      expect(bundle.stats.mappedImages).toBe(2);
+
+      const restored = new IniDataRegistry();
+      restored.loadBundle(bundle);
+      expect(restored.mappedImages.size).toBe(2);
+
+      const rally = restored.getMappedImage('SSRally');
+      expect(rally).toBeDefined();
+      expect(rally!.texture).toBe('SSUserInterface512_001.tga');
+      expect(rally!.rotated).toBe(false);
+      expect(rally!.left).toBe(431);
+
+      const observer = restored.getMappedImage('SSObserverUSA');
+      expect(observer).toBeDefined();
+      expect(observer!.rotated).toBe(true);
+    });
+
+    it('includes mappedImages count in stats.totalBlocks', () => {
+      registry.loadBlocks([
+        makeBlock('MappedImage', 'TestIcon', {
+          Texture: 'test.tga',
+          TextureWidth: 64,
+          TextureHeight: 64,
+          Coords: ['Left:0', 'Top:0', 'Right:31', 'Bottom:31'],
+          Status: 'NONE',
+        }),
+      ]);
+
+      const stats = registry.getStats();
+      expect(stats.mappedImages).toBe(1);
+      expect(stats.totalBlocks).toBeGreaterThanOrEqual(1);
+    });
+
+    it('getAllMappedImages returns all entries', () => {
+      registry.loadBlocks([
+        makeBlock('MappedImage', 'IconA', {
+          Texture: 'atlas.tga',
+          TextureWidth: 256,
+          TextureHeight: 256,
+          Coords: ['Left:0', 'Top:0', 'Right:31', 'Bottom:31'],
+          Status: 'NONE',
+        }),
+        makeBlock('MappedImage', 'IconB', {
+          Texture: 'atlas.tga',
+          TextureWidth: 256,
+          TextureHeight: 256,
+          Coords: ['Left:32', 'Top:0', 'Right:63', 'Bottom:31'],
+          Status: 'NONE',
+        }),
+      ]);
+
+      const all = registry.getAllMappedImages();
+      expect(all).toHaveLength(2);
+      expect(all.map((mi) => mi.name).sort()).toEqual(['IconA', 'IconB']);
     });
   });
 });

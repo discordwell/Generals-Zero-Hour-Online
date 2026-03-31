@@ -175,6 +175,19 @@ export interface MusicTracksByType {
   battle: string[];
 }
 
+export interface MappedImageDef {
+  name: string;
+  texture: string;
+  textureWidth: number;
+  textureHeight: number;
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  /** Source parity: MappedImage::Status — NONE or ROTATED_90_CLOCKWISE. */
+  rotated: boolean;
+}
+
 export interface RawBlockDef {
   name: string;
   fields: Record<string, IniValue>;
@@ -195,6 +208,7 @@ export interface RegistryStats {
   fxLists: number;
   staticGameLODs: number;
   dynamicGameLODs: number;
+  mappedImages: number;
   unresolvedInheritance: number;
   totalBlocks: number;
 }
@@ -347,6 +361,7 @@ export interface IniDataBundle {
   onlineChatColorBlocks?: RawBlockDef[];
   waterTransparencyBlocks?: RawBlockDef[];
   challengeGeneralsBlocks?: RawBlockDef[];
+  mappedImages?: MappedImageDef[];
   ai?: AiConfig;
   audioSettings?: AudioSettingsConfig;
   gameData?: GameDataConfig;
@@ -376,6 +391,7 @@ export class IniDataRegistry {
   readonly fxLists = new Map<string, RawBlockDef>();
   readonly staticGameLODs = new Map<string, RawBlockDef>();
   readonly dynamicGameLODs = new Map<string, RawBlockDef>();
+  readonly mappedImages = new Map<string, MappedImageDef>();
   private commandMaps: RawBlockDef[] = [];
   private creditsBlocks: RawBlockDef[] = [];
   private mouseBlocks: RawBlockDef[] = [];
@@ -443,6 +459,7 @@ export class IniDataRegistry {
     this.fxLists.clear();
     this.staticGameLODs.clear();
     this.dynamicGameLODs.clear();
+    this.mappedImages.clear();
     this.commandMaps = [];
     this.creditsBlocks = [];
     this.mouseBlocks = [];
@@ -600,6 +617,9 @@ export class IniDataRegistry {
     this.onlineChatColorBlocks = cloneRawBlocks(bundle.onlineChatColorBlocks ?? []);
     this.waterTransparencyBlocks = cloneRawBlocks(bundle.waterTransparencyBlocks ?? []);
     this.challengeGeneralsBlocks = cloneRawBlocks(bundle.challengeGeneralsBlocks ?? []);
+    for (const mi of bundle.mappedImages ?? []) {
+      this.mappedImages.set(mi.name, { ...mi });
+    }
     this.miscAudio = bundle.miscAudio
       ? {
           entries: { ...bundle.miscAudio.entries },
@@ -787,6 +807,14 @@ export class IniDataRegistry {
     return cloneRawBlocks(this.challengeGeneralsBlocks);
   }
 
+  getMappedImage(name: string): MappedImageDef | undefined {
+    return this.mappedImages.get(name);
+  }
+
+  getAllMappedImages(): MappedImageDef[] {
+    return [...this.mappedImages.values()];
+  }
+
   /**
    * Categorize music tracks (soundType === 'music') by name pattern.
    * Names containing Menu/Shell -> menu, Ambient -> ambient, Battle/Score -> battle.
@@ -843,6 +871,7 @@ export class IniDataRegistry {
       fxLists: this.fxLists.size,
       staticGameLODs: this.staticGameLODs.size,
       dynamicGameLODs: this.dynamicGameLODs.size,
+      mappedImages: this.mappedImages.size,
       unresolvedInheritance: this.getUnresolvedInheritanceCount(),
       totalBlocks: this.objects.size + this.weapons.size + this.armors.size +
         this.upgrades.size + this.sciences.size + this.factions.size + this.locomotors.size +
@@ -850,6 +879,7 @@ export class IniDataRegistry {
         this.commandButtons.size + this.commandSets.size +
         this.particleSystems.size + this.fxLists.size +
         this.staticGameLODs.size + this.dynamicGameLODs.size +
+        this.mappedImages.size +
         this.commandMaps.length + this.creditsBlocks.length + this.mouseBlocks.length +
         this.mouseCursors.length + this.multiplayerColors.length +
         this.multiplayerStartingMoneyChoices.length + this.onlineChatColorBlocks.length +
@@ -900,6 +930,7 @@ export class IniDataRegistry {
       onlineChatColorBlocks: cloneRawBlocks(this.onlineChatColorBlocks),
       waterTransparencyBlocks: cloneRawBlocks(this.waterTransparencyBlocks),
       challengeGeneralsBlocks: cloneRawBlocks(this.challengeGeneralsBlocks),
+      mappedImages: [...this.mappedImages.values()].sort((a, b) => a.name.localeCompare(b.name)),
       ai: this.ai ? { ...this.ai } : undefined,
       audioSettings: this.audioSettings ? { ...this.audioSettings } : undefined,
       gameData: this.gameData
@@ -1176,11 +1207,27 @@ export class IniDataRegistry {
         appendRawBlock(this.challengeGeneralsBlocks);
         break;
 
+      case 'MappedImage': {
+        const coords = parseMappedImageCoords(block.fields['Coords']);
+        const statusStr = extractTokenString(block.fields['Status']);
+        addDefinition(this.mappedImages, block.type, {
+          name: block.name,
+          texture: extractTokenString(block.fields['Texture']) ?? '',
+          textureWidth: extractInteger(block.fields['TextureWidth']) ?? 0,
+          textureHeight: extractInteger(block.fields['TextureHeight']) ?? 0,
+          left: coords.left,
+          top: coords.top,
+          right: coords.right,
+          bottom: coords.bottom,
+          rotated: statusStr === 'ROTATED_90_CLOCKWISE',
+        });
+        break;
+      }
+
       // Known but not indexed block types — skip silently
       case 'DamageFX':
       case 'Multisound':
       case 'EvaEvent':
-      case 'MappedImage':
       case 'Animation':
       case 'Terrain':
       case 'Road':
@@ -1567,6 +1614,40 @@ function extractOptions(value: IniValue | undefined): string[] {
     .flatMap((entry) => entry.split(/[\s,;|]+/))
     .map((entry) => entry.trim().toUpperCase())
     .filter(Boolean);
+}
+
+/**
+ * Source parity: MappedImage Coords field parser.
+ * Format: `Left:489 Top:53 Right:511 Bottom:77` — space-separated key:value pairs.
+ * The INI parser stores these as an array of strings like ["Left:489", "Top:53", "Right:511", "Bottom:77"].
+ */
+function parseMappedImageCoords(
+  value: IniValue | undefined,
+): { left: number; top: number; right: number; bottom: number } {
+  const result = { left: 0, top: 0, right: 0, bottom: 0 };
+  if (value === undefined) return result;
+
+  const tokens = flattenIniStrings(value)
+    .flatMap((entry) => entry.split(/\s+/))
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  for (const token of tokens) {
+    const colonIdx = token.indexOf(':');
+    if (colonIdx < 0) continue;
+    const key = token.slice(0, colonIdx).toLowerCase();
+    const val = parseInt(token.slice(colonIdx + 1), 10);
+    if (!Number.isFinite(val)) continue;
+
+    switch (key) {
+      case 'left': result.left = val; break;
+      case 'top': result.top = val; break;
+      case 'right': result.right = val; break;
+      case 'bottom': result.bottom = val; break;
+    }
+  }
+
+  return result;
 }
 
 function extractAudioEventEntries(fields: Record<string, IniValue>): Record<string, string> {

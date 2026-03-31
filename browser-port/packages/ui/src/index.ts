@@ -457,6 +457,9 @@ export type { SaveLoadMenuCallbacks } from './save-load-menu.js';
 export { CommandCardRenderer } from './command-card-renderer.js';
 export type { CommandCardOverlayData } from './command-card-renderer.js';
 
+export { MappedImageResolver } from './mapped-image-resolver.js';
+export type { MappedImageEntry } from './mapped-image-resolver.js';
+
 export { MinimapRenderer } from './minimap-renderer.js';
 export type {
   MinimapHeightmap,

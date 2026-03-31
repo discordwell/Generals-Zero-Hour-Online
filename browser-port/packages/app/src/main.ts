@@ -56,6 +56,7 @@ import {
   initializeUiOverlay,
   GUICommandType,
   CommandCardRenderer,
+  MappedImageResolver,
 } from '@generals/ui';
 import {
   playUiFeedbackAudio,
@@ -653,7 +654,8 @@ async function preInit(): Promise<PreInitContext> {
     assertIniBundleConsistency(bundleHandle.data);
     iniDataRegistry.loadBundle(bundleHandle.data);
     iniDataInfo = `INI bundle loaded from ${bundleHandle.cached ? 'cache' : 'network'} ` +
-      `(${bundleHandle.data.stats.objects} objects, ${bundleHandle.data.stats.weapons} weapons)`;
+      `(${bundleHandle.data.stats.objects} objects, ${bundleHandle.data.stats.weapons} weapons, ` +
+      `${bundleHandle.data.stats.mappedImages ?? 0} mapped images)`;
   } catch (bundleErr) {
     throw new Error(
       `Required runtime asset "data/ini-bundle.json" failed to load: ${
@@ -2240,12 +2242,19 @@ async function startGame(
     }
   };
 
+  // Initialize MappedImage resolver for command card button icons
+  const mappedImageResolver = new MappedImageResolver(
+    `${RUNTIME_ASSET_BASE_URL}/textures/Art/Textures`,
+  );
+  mappedImageResolver.addEntries(iniDataRegistry.getAllMappedImages());
+
   const commandCardRenderer = new CommandCardRenderer(
     commandCardContainer,
     uiRuntime.getControlBarModel(),
     {
       onSlotActivated: (slot, count) => { for (let i = 0; i < count; i++) activateControlBarSlot(slot - 1); },
       onSlotRightClicked: (slot) => cancelProductionAtSlot(slot),
+      mappedImageResolver,
     },
   );
 

@@ -705,6 +705,7 @@ function mergeStats(bundle: IniDataBundle): RegistryStats {
   const locomotorCount = bundle.locomotors?.length ?? 0;
   const commandButtonCount = bundle.commandButtons?.length ?? 0;
   const commandSetCount = bundle.commandSets?.length ?? 0;
+  const mappedImageCount = bundle.mappedImages?.length ?? 0;
   const rawBlockCount =
     (bundle.commandMaps?.length ?? 0)
     + (bundle.creditsBlocks?.length ?? 0)
@@ -722,6 +723,7 @@ function mergeStats(bundle: IniDataBundle): RegistryStats {
     upgrades: bundle.upgrades.length,
     sciences: bundle.sciences.length,
     factions: bundle.factions.length,
+    mappedImages: mappedImageCount,
     unresolvedInheritance: bundle.errors.filter((entry) => entry.type === 'unresolved_parent').length,
     totalBlocks:
       bundle.objects.length
@@ -733,6 +735,7 @@ function mergeStats(bundle: IniDataBundle): RegistryStats {
       + bundle.sciences.length
       + bundle.factions.length
       + locomotorCount
+      + mappedImageCount
       + rawBlockCount,
   };
 }
@@ -777,6 +780,7 @@ function mergeBundles(baseBundle: IniDataBundle, patchBundle: IniDataBundle): In
       baseBundle.challengeGeneralsBlocks ?? [],
       patchBundle.challengeGeneralsBlocks ?? [],
     ),
+    mappedImages: mergeByName(baseBundle.mappedImages ?? [], patchBundle.mappedImages ?? []),
     errors: [...baseBundle.errors, ...patchBundle.errors],
     unsupportedBlockTypes: combineLists(
       baseBundle.unsupportedBlockTypes,

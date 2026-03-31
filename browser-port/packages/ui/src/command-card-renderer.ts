@@ -12,6 +12,7 @@ import {
   ControlBarModel,
   type ControlBarHudSlot,
 } from './control-bar.js';
+import type { MappedImageResolver } from './mapped-image-resolver.js';
 
 /** Number of visible command card slots. Source parity: ZH has 14 visible (of 18 internal). */
 const SLOT_COUNT = 14;
@@ -182,6 +183,8 @@ export interface CommandCardRendererOptions {
   onSlotActivated?: (slot: number, count: number) => void;
   /** Called when a slot button is right-clicked (1-based slot index). */
   onSlotRightClicked?: (slot: number) => void;
+  /** Optional MappedImage resolver for rendering button icons from atlas textures. */
+  mappedImageResolver?: MappedImageResolver;
 }
 
 export class CommandCardRenderer {
@@ -194,6 +197,9 @@ export class CommandCardRenderer {
   ).fill(null);
   private readonly onSlotActivated?: (slot: number, count: number) => void;
   private readonly onSlotRightClicked?: (slot: number) => void;
+  private readonly mappedImageResolver?: MappedImageResolver;
+  /** Tracks the last iconName set per slot to avoid redundant resolve calls. */
+  private readonly slotIconNames: (string | undefined)[] = new Array(SLOT_COUNT).fill(undefined);
   private disposed = false;
 
   constructor(container: HTMLElement, controlBar: ControlBarModel, options?: CommandCardRendererOptions) {
@@ -201,6 +207,7 @@ export class CommandCardRenderer {
     this.controlBar = controlBar;
     this.onSlotActivated = options?.onSlotActivated;
     this.onSlotRightClicked = options?.onSlotRightClicked;
+    this.mappedImageResolver = options?.mappedImageResolver;
 
     // Create grid wrapper
     this.grid = document.createElement('div');
@@ -306,11 +313,42 @@ export class CommandCardRenderer {
 
       // -- Icon --
       if (hud.iconName) {
-        el.icon.src = hud.iconName;
-        el.icon.style.display = 'block';
+        // Only re-resolve if the icon name changed for this slot
+        if (this.slotIconNames[i] !== hud.iconName) {
+          this.slotIconNames[i] = hud.iconName;
+          if (this.mappedImageResolver) {
+            // Async resolve — hide icon until resolved
+            el.icon.style.display = 'none';
+            el.label.style.display = 'block';
+            const resolver = this.mappedImageResolver;
+            const iconName = hud.iconName;
+            const slotIcon = el.icon;
+            const slotLabel = el.label;
+            const slotIdx = i;
+            void resolver.resolve(iconName).then((url) => {
+              // Guard: slot may have changed by the time the promise resolves
+              if (this.disposed || this.slotIconNames[slotIdx] !== iconName) return;
+              if (url) {
+                slotIcon.src = url;
+                slotIcon.style.display = 'block';
+                slotLabel.style.display = 'none';
+              } else {
+                // No MappedImage found — show the text label as fallback
+                slotIcon.style.display = 'none';
+                slotLabel.style.display = 'block';
+              }
+            });
+          } else {
+            // No resolver — treat iconName as a direct URL (legacy behavior)
+            el.icon.src = hud.iconName;
+            el.icon.style.display = 'block';
+          }
+        }
       } else {
+        this.slotIconNames[i] = undefined;
         el.icon.style.display = 'none';
         el.icon.removeAttribute('src');
+        el.label.style.display = 'block';
       }
 
       // -- Hotkey --

@@ -236,6 +236,7 @@ export function makeBundle(params: {
       fxLists: 0,
       staticGameLODs: 0,
       dynamicGameLODs: 0,
+      mappedImages: 0,
       unresolvedInheritance: 0,
       totalBlocks:
         params.objects.length
