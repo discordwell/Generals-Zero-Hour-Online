@@ -1290,6 +1290,40 @@ export class ObjectVisualManager {
         data,
         path,
         (gltf) => {
+          // Convert MeshStandardMaterial → MeshLambertMaterial.
+          // PBR materials appear very dark without an environment map because
+          // MeshStandardMaterial relies on image-based lighting for correct
+          // brightness. MeshLambertMaterial uses simple diffuse shading that
+          // works well with our directional + ambient light setup.
+          gltf.scene.traverse((child) => {
+            const mesh = child as THREE.Mesh;
+            if (!mesh.isMesh) return;
+            const convertMat = (mat: THREE.Material): THREE.Material => {
+              const std = mat as THREE.MeshStandardMaterial;
+              if (!std.isMeshStandardMaterial) return mat;
+              const lambert = new THREE.MeshLambertMaterial();
+              lambert.name = std.name;
+              lambert.map = std.map;
+              lambert.color.copy(std.color);
+              lambert.emissive.copy(std.emissive);
+              lambert.emissiveMap = std.emissiveMap;
+              lambert.emissiveIntensity = std.emissiveIntensity;
+              lambert.alphaMap = std.alphaMap;
+              lambert.alphaTest = std.alphaTest;
+              lambert.opacity = std.opacity;
+              lambert.transparent = std.transparent;
+              lambert.side = std.side;
+              lambert.depthWrite = std.depthWrite;
+              lambert.visible = std.visible;
+              std.dispose();
+              return lambert;
+            };
+            if (Array.isArray(mesh.material)) {
+              mesh.material = mesh.material.map(convertMat);
+            } else {
+              mesh.material = convertMat(mesh.material);
+            }
+          });
           resolve({
             scene: gltf.scene,
             animations: gltf.animations,
@@ -1899,7 +1933,7 @@ export class ObjectVisualManager {
         const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         for (const mat of materials) {
           const stdMat = mat as THREE.MeshStandardMaterial;
-          if (stdMat.isMeshStandardMaterial) {
+          if ((stdMat.isMeshStandardMaterial || (stdMat as any).isMeshLambertMaterial)) {
             // Replace base color entirely with team color (strong recolor).
             stdMat.color.copy(tintColor);
             stdMat.emissive.copy(tintColor);
@@ -1917,7 +1951,7 @@ export class ObjectVisualManager {
         const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         for (const mat of materials) {
           const stdMat = mat as THREE.MeshStandardMaterial;
-          if (stdMat.isMeshStandardMaterial) {
+          if ((stdMat.isMeshStandardMaterial || (stdMat as any).isMeshLambertMaterial)) {
             stdMat.emissive.copy(tintColor);
             stdMat.emissiveIntensity = fallbackIntensity;
           }
@@ -1937,7 +1971,7 @@ export class ObjectVisualManager {
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const mat of materials) {
         const stdMat = mat as THREE.MeshStandardMaterial;
-        if (stdMat.isMeshStandardMaterial) {
+        if ((stdMat.isMeshStandardMaterial || (stdMat as any).isMeshLambertMaterial)) {
           stdMat.emissiveIntensity = 0;
           // Reset house-color meshes back to white base color.
           if (ObjectVisualManager.isHouseColorMesh(mesh.name)) {
@@ -1988,7 +2022,7 @@ export class ObjectVisualManager {
         const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         for (const mat of materials) {
           const stdMat = mat as THREE.MeshStandardMaterial;
-          if (stdMat.isMeshStandardMaterial) {
+          if ((stdMat.isMeshStandardMaterial || (stdMat as any).isMeshLambertMaterial)) {
             stdMat.emissive.copy(flashColor);
             stdMat.emissiveIntensity = flashIntensity;
           }
@@ -2024,7 +2058,7 @@ export class ObjectVisualManager {
         const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         for (const mat of materials) {
           const stdMat = mat as THREE.MeshStandardMaterial;
-          if (stdMat.isMeshStandardMaterial) {
+          if ((stdMat.isMeshStandardMaterial || (stdMat as any).isMeshLambertMaterial)) {
             if (hasHouseColor && isHC) {
               // Restore strong house-color recolor.
               stdMat.emissive.copy(tintColor);
