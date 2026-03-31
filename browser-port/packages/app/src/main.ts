@@ -4477,24 +4477,26 @@ async function init(): Promise<void> {
   const campaignManager = new CampaignManager();
   let videoPlayer: VideoPlayer | null = null;
 
-  // Load Campaign.ini
+  // Load Campaign.ini — fetch directly since raw INI isn't in the converted manifest
   try {
-    const campaignIniHandle = await ctx.assets.loadArrayBuffer(
-      '_extracted/INIZH/Data/INI/Campaign.ini',
+    const campaignResp = await fetch(
+      `${RUNTIME_ASSET_BASE_URL}/_extracted/INIZH/Data/INI/Campaign.ini`,
     );
-    const campaignIniText = new TextDecoder().decode(campaignIniHandle.data);
+    if (!campaignResp.ok) throw new Error(`HTTP ${campaignResp.status}`);
+    const campaignIniText = await campaignResp.text();
     campaignManager.init(campaignIniText);
     console.log(`Campaign data loaded: ${campaignManager.getCampaigns().length} campaigns`);
   } catch (err) {
     console.warn('Campaign.ini not available, campaign mode disabled:', err);
   }
 
-  // Load Video.ini and create VideoPlayer
+  // Load Video.ini and create VideoPlayer — fetch directly since raw INI isn't in manifest
   try {
-    const videoIniHandle = await ctx.assets.loadArrayBuffer(
-      '_extracted/INIZH/Data/INI/Video.ini',
+    const videoResp = await fetch(
+      `${RUNTIME_ASSET_BASE_URL}/_extracted/INIZH/Data/INI/Video.ini`,
     );
-    const videoIniText = new TextDecoder().decode(videoIniHandle.data);
+    if (!videoResp.ok) throw new Error(`HTTP ${videoResp.status}`);
+    const videoIniText = await videoResp.text();
     const manifest = ctx.assets.getManifest();
     videoPlayer = new VideoPlayer({
       root: gameContainer,
