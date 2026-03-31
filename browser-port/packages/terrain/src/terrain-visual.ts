@@ -14,6 +14,8 @@ import type { MapDataJSON, TerrainConfig, BlendTileTextureClass } from './types.
 import { DEFAULT_TERRAIN_CONFIG } from './types.js';
 import { generateProceduralTerrain } from './procedural-terrain.js';
 import { base64ToUint8Array } from './heightmap.js';
+import { createTerrainMaterial } from './terrain-shader.js';
+import type { TerrainShaderOptions } from './terrain-shader.js';
 
 export class TerrainVisual implements Subsystem {
   readonly name = 'TerrainVisual';
@@ -28,21 +30,20 @@ export class TerrainVisual implements Subsystem {
   private meshes: THREE.Mesh[] = [];
 
   /** Shared material for all terrain chunks. */
-  private material: THREE.MeshLambertMaterial;
+  private material: THREE.ShaderMaterial;
 
   /** Terrain chunks data (for reference). */
   private chunks: TerrainChunk[] = [];
   /** Source parity bridge: ScriptActions::doOversizeTheTerrain amount. */
   private scriptTerrainOversizeAmount = 0;
 
-  constructor(scene: THREE.Scene, config?: Partial<TerrainConfig>) {
+  constructor(scene: THREE.Scene, config?: Partial<TerrainConfig>, shaderOptions?: TerrainShaderOptions) {
     this.scene = scene;
     this.config = { ...DEFAULT_TERRAIN_CONFIG, ...config };
 
-    this.material = new THREE.MeshLambertMaterial({
-      vertexColors: this.config.vertexColors,
+    this.material = createTerrainMaterial({
       wireframe: this.config.wireframe,
-      side: THREE.FrontSide,
+      ...shaderOptions,
     });
   }
 

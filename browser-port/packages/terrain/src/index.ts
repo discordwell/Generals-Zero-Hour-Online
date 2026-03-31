@@ -3,6 +3,8 @@ export { HeightmapGrid, base64ToUint8Array } from './heightmap.js';
 export { TerrainMeshBuilder, getTextureClassColor } from './terrain-mesh-builder.js';
 export type { TerrainChunk, BlendTileColorData } from './terrain-mesh-builder.js';
 export { TerrainVisual } from './terrain-visual.js';
+export { createTerrainMaterial } from './terrain-shader.js';
+export type { TerrainShaderOptions } from './terrain-shader.js';
 export { WaterVisual } from './water-visual.js';
 export { generateProceduralTerrain, uint8ArrayToBase64 } from './procedural-terrain.js';
 export type { ProceduralTerrainOptions } from './procedural-terrain.js';
