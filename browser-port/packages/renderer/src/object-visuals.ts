@@ -21,8 +21,9 @@ import {
   parseObjectShadowType,
   shouldCastShadowMap,
   shouldCreateShadowDecal,
-  shouldCreateBlobShadowFallback,
   createShadowDecalMesh,
+  createShadowDecalTexture,
+  applyShadowDecalMaterialMode,
 } from './shadow-decal.js';
 
 // Re-export types and computeConditionKey so existing consumers of
@@ -77,6 +78,9 @@ export interface RenderableEntityState {
   shadowType?: string;
   shadowSizeX?: number;
   shadowSizeY?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  shadowTextureName?: string;
   /** Active status effects for overlay icons (poisoned, burning, EMP'd, etc.). */
   statusEffects?: readonly string[];
   /** Source parity: Geometry MajorRadius — used for selection circle sizing. */
@@ -128,6 +132,10 @@ interface VisualAssetState {
   shadowDecal: THREE.Mesh | null;
   /** Parsed shadow type for this entity. */
   shadowType: string | null;
+  /** Current shadow texture cache key (used to discard stale async loads). */
+  shadowTextureKey: string | null;
+  /** Token for pending shadow texture loads. */
+  shadowTextureLoadToken: number;
   /**
    * Cached turret bone references found in the loaded model hierarchy.
    * Index 0 = main turret (INI "Turret" field), index 1 = alt turret ("AltTurret").
@@ -279,6 +287,7 @@ export function stripConditionStateSuffix(modelPath: string): string | null {
 }
 
 export class ObjectVisualManager {
+  private static readonly DEFAULT_SOURCE_SHADOW_DECAL_SIZE = 20;
   private readonly scene: THREE.Scene;
   private readonly assetManager: AssetManager | null;
   private readonly config: Required<ObjectVisualManagerConfig>;
@@ -288,6 +297,7 @@ export class ObjectVisualManager {
   private readonly visuals = new Map<number, VisualAssetState>();
   private readonly modelCache = new Map<string, LoadedModelAsset>();
   private readonly modelLoadPromises = new Map<string, Promise<LoadedModelAsset>>();
+  private readonly shadowTexturePromises = new Map<string, Promise<THREE.Texture | null>>();
   /** Pending model loads waiting for a concurrency slot. */
   private readonly modelLoadQueue: Array<{
     assetPath: string;
@@ -386,6 +396,11 @@ export class ObjectVisualManager {
         continue;
       }
 
+      // Keep model loads source-facing: a fast scripted camera move should not
+      // wait until an entity is inside the full-sync radius before requesting
+      // its asset. Expensive per-frame visual updates still stay throttled.
+      this.syncVisualAsset(visual, state);
+
       // Skip expensive sync for entities far from camera.
       // Position + shroud are already updated above; full visual sync
       // (animations, health bars, effects) only needed for nearby entities.
@@ -396,7 +411,6 @@ export class ObjectVisualManager {
         continue;
       }
 
-      this.syncVisualAsset(visual, state);
       this.syncDisguise(visual, state, dt);
       this.syncTeamColor(visual, state);
       this.syncDamageFlash(visual, state);
@@ -521,6 +535,7 @@ export class ObjectVisualManager {
     this.unresolvedEntityIds.clear();
     this.modelLoadPromises.clear();
     this.modelCache.clear();
+    this.shadowTexturePromises.clear();
   }
 
   // ==========================================================================
@@ -557,6 +572,8 @@ export class ObjectVisualManager {
       lastStealthOpacity: 1.0,
       shadowDecal: null,
       shadowType: null,
+      shadowTextureKey: null,
+      shadowTextureLoadToken: 0,
       turretBones: [],
       statusEffectGroup: null,
       activeStatusEffects: [],
@@ -672,8 +689,21 @@ export class ObjectVisualManager {
     // hasn't changed, skip the full candidate collection.
     const primaryPath = this.selectAssetPath(state.renderAssetPath, state.renderAssetResolved);
     if (visual.currentModel !== null && visual.assetPath !== null && visual.assetPath === primaryPath) {
+      this.syncShadowConfiguration(visual, visual.currentModel, state);
       this.unresolvedEntityIds.delete(entityId);
       this.updatePlaceholderVisibility(entityId, false);
+      return;
+    }
+
+    // A matching asset is already loading or has already failed all candidates
+    // for the current requested path. Avoid restarting the async load chain
+    // every frame while the request is in flight.
+    if (visual.currentModel === null && visual.assetPath !== null && visual.assetPath === primaryPath) {
+      const isUnresolved = this.unresolvedEntityIds.has(entityId);
+      this.updatePlaceholderVisibility(entityId, isUnresolved);
+      if (isUnresolved) {
+        this.scalePlaceholder(visual, state);
+      }
       return;
     }
 
@@ -712,7 +742,8 @@ export class ObjectVisualManager {
     const loadToken = visual.loadToken;
     visual.assetPath = candidateAssetPaths[0] ?? null;
     const normalizedCandidates = candidateAssetPaths;
-    this.updatePlaceholderVisibility(entityId, true);
+    this.ensurePlaceholderMesh(entityId);
+    this.updatePlaceholderVisibility(entityId, false);
     this.scalePlaceholder(visual, state);
     this.removeModel(visual);
 
@@ -745,39 +776,7 @@ export class ObjectVisualManager {
             }
           }
 
-          // Per-object shadow configuration
-          const shadowType = parseObjectShadowType(state.shadowType);
-          const castShadow = shouldCastShadowMap(shadowType);
-          clone.traverse((child) => {
-            child.castShadow = castShadow;
-            child.receiveShadow = true;
-          });
-          currentVisual.shadowType = state.shadowType ?? null;
-
-          // Create shadow decal for entities that need blob shadows.
-          // SHADOW_DECAL types get one directly; SHADOW_VOLUME/SHADOW_PROJECTION
-          // types also get a blob shadow as a lightweight fallback since shadow
-          // map rendering is disabled for performance.
-          // Air units are excluded — they fly above the ground.
-          const isAirUnit = state.category === 'air';
-          const wantsBlobShadow = !isAirUnit && shadowType !== 'SHADOW_NONE' &&
-            (shouldCreateShadowDecal(shadowType) || shouldCreateBlobShadowFallback(shadowType));
-          if (wantsBlobShadow && !currentVisual.shadowDecal) {
-            // Use INI ShadowSizeX/Y when available; fall back to geometry-based size.
-            const fallbackSize = (state.selectionCircleRadius ?? 1.5) * 2;
-            const decal = createShadowDecalMesh({
-              sizeX: state.shadowSizeX ?? fallbackSize,
-              sizeY: state.shadowSizeY ?? fallbackSize,
-            });
-            // Position the decal at terrain level. The entity root is at
-            // terrainY + baseHeight, so offset the decal by -baseHeight + epsilon
-            // to sit flat on the ground.
-            const baseHeight = ObjectVisualManager.nominalHeightForCategory(state.category) / 2;
-            decal.position.y = -baseHeight + 0.1;
-            this.applyGuardBandFrustumPolicy(decal);
-            currentVisual.shadowDecal = decal;
-            currentVisual.root.add(decal);
-          }
+          this.syncShadowConfiguration(currentVisual, clone, state);
 
           this.applyGuardBandFrustumPolicy(clone);
           currentVisual.currentModel = clone;
@@ -814,6 +813,8 @@ export class ObjectVisualManager {
       const currentVisual = this.visuals.get(entityId);
       if (currentVisual && currentVisual === visual && currentVisual.loadToken === loadToken) {
         this.unresolvedEntityIds.add(entityId);
+        this.updatePlaceholderVisibility(entityId, true);
+        this.scalePlaceholder(currentVisual, state);
       }
     })();
   }
@@ -1278,9 +1279,95 @@ export class ObjectVisualManager {
       throw new Error('ObjectVisualManager model loader requires an AssetManager.');
     }
     // Try manifest basename resolution as a fallback if the literal path fails.
-    const resolvedPath = this.assetManager.resolveModelPath(assetPath) ?? assetPath;
+    const resolvedPath = this.assetManager.resolveModelPath?.(assetPath) ?? assetPath;
     return this.assetManager.loadArrayBuffer(resolvedPath).then((handle) => {
       return this.parseGltfAsset(handle.data, resolvedPath);
+    });
+  }
+
+  private resolveShadowTextureOutputPaths(textureName: string): string[] {
+    const normalized = textureName.trim().toLowerCase();
+    if (!normalized) {
+      return [];
+    }
+
+    const fallbackPaths = [
+      `textures/Art/Textures/${normalized}.rgba`,
+      `textures/TexturesZH/Art/Textures/${normalized}.rgba`,
+    ];
+
+    const manifest = this.assetManager?.getManifest();
+    if (!manifest) {
+      return fallbackPaths;
+    }
+
+    const matches = manifest.raw.entries
+      .map((entry) => entry.outputPath)
+      .filter((outputPath) => outputPath.toLowerCase().endsWith(`/${normalized}.rgba`));
+
+    return matches.length > 0 ? matches : fallbackPaths;
+  }
+
+  private loadShadowTexture(textureName: string): Promise<THREE.Texture | null> {
+    const normalized = textureName.trim().toLowerCase();
+    if (!this.assetManager || !normalized) {
+      return Promise.resolve(null);
+    }
+
+    const cached = this.shadowTexturePromises.get(normalized);
+    if (cached) {
+      return cached;
+    }
+
+    const promise = (async () => {
+      for (const outputPath of this.resolveShadowTextureOutputPaths(normalized)) {
+        try {
+          const handle = await this.assetManager!.loadArrayBuffer(outputPath);
+          return createShadowDecalTexture(handle.data);
+        } catch {
+          // Try the next source-truth candidate.
+        }
+      }
+      return null;
+    })().catch(() => null);
+
+    this.shadowTexturePromises.set(normalized, promise);
+    return promise;
+  }
+
+  private syncShadowTexture(
+    visual: VisualAssetState,
+    state: RenderableEntityState,
+    shadowType: ReturnType<typeof parseObjectShadowType>,
+  ): void {
+    if (!visual.shadowDecal) {
+      return;
+    }
+
+    const requestedTextureKey = (state.shadowTextureName?.trim() || 'shadow').toLowerCase();
+    const material = visual.shadowDecal.material as THREE.MeshBasicMaterial;
+    applyShadowDecalMaterialMode(material, shadowType);
+
+    if (visual.shadowTextureKey === requestedTextureKey) {
+      return;
+    }
+
+    visual.shadowTextureKey = requestedTextureKey;
+    visual.shadowTextureLoadToken += 1;
+    const loadToken = visual.shadowTextureLoadToken;
+    material.map = null;
+    material.needsUpdate = true;
+    visual.shadowDecal.visible = false;
+
+    void this.loadShadowTexture(requestedTextureKey).then((texture) => {
+      if (!visual.shadowDecal || visual.shadowTextureLoadToken !== loadToken) {
+        return;
+      }
+
+      const currentMaterial = visual.shadowDecal.material as THREE.MeshBasicMaterial;
+      currentMaterial.map = texture;
+      applyShadowDecalMaterialMode(currentMaterial, shadowType);
+      visual.shadowDecal.visible = texture !== null;
     });
   }
 
@@ -1374,7 +1461,7 @@ export class ObjectVisualManager {
 
     // Try manifest-based basename resolution first (handles bare names like "AVThundrblt_D1").
     if (this.assetManager) {
-      const resolved = this.assetManager.resolveModelPath(normalized);
+      const resolved = this.assetManager.resolveModelPath?.(normalized) ?? null;
       if (resolved) {
         push(resolved);
       }
@@ -1387,7 +1474,7 @@ export class ObjectVisualManager {
       if (candidates.length === 0) {
         const baseName = stripConditionStateSuffix(normalized);
         if (baseName !== null) {
-          const fallback = this.assetManager.resolveModelPath(baseName);
+          const fallback = this.assetManager.resolveModelPath?.(baseName) ?? null;
           if (fallback) {
             push(fallback);
           }
@@ -2742,7 +2829,7 @@ export class ObjectVisualManager {
     const material = new THREE.MeshBasicMaterial({
       color: 0xff33ff,
       transparent: true,
-      opacity: 0.95,
+      opacity: 0.4,
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `placeholder-${entityId}`;
@@ -2802,15 +2889,19 @@ export class ObjectVisualManager {
   }
 
   /**
-   * Scale the placeholder box to approximate the entity's real bounding
-   * volume.  Source parity: the C++ renderer uses GeometryMajorRadius
-   * for bounding-sphere based picking — we use the same radius as the
-   * selection circle, with a minimum of 5 units so tiny entities are
-   * still visible and clickable.
+   * Scale the placeholder box to a small, fixed-ish marker so that
+   * entities with unloaded models are still visible and clickable
+   * without obscuring the scene.  Capped at MAX_PLACEHOLDER_SIZE to
+   * prevent large structures from spawning screen-filling pink boxes.
    */
+  private static readonly MAX_PLACEHOLDER_SIZE = 5;
+
   private scalePlaceholder(visual: VisualAssetState, state: RenderableEntityState): void {
     if (!visual.placeholder) return;
-    const radius = Math.max(state.selectionCircleRadius ?? 1, 5);
+    const radius = Math.min(
+      Math.max(state.selectionCircleRadius ?? 1, 1),
+      ObjectVisualManager.MAX_PLACEHOLDER_SIZE / 2,
+    );
     const diameter = radius * 2;
     visual.placeholder.scale.set(diameter, diameter, diameter);
   }
@@ -2822,6 +2913,58 @@ export class ObjectVisualManager {
     }
     if (visual.placeholder) {
       visual.placeholder.visible = visible;
+    }
+  }
+
+  private syncShadowConfiguration(
+    visual: VisualAssetState,
+    modelRoot: THREE.Object3D,
+    state: RenderableEntityState,
+  ): void {
+    const shadowType = parseObjectShadowType(state.shadowType);
+    const castShadow = shouldCastShadowMap(shadowType);
+    modelRoot.traverse((child) => {
+      child.castShadow = castShadow;
+      child.receiveShadow = true;
+    });
+    visual.shadowType = state.shadowType ?? null;
+
+    // Source parity: SHADOW_DECAL/ALPHA_DECAL/ADDITIVE_DECAL use projected
+    // textures. SHADOW_VOLUME/SHADOW_PROJECTION are separate systems in the
+    // original renderer; do not approximate them with solid quads here.
+    const isAirUnit = state.category === 'air';
+    const wantsDecalShadow = !isAirUnit && shouldCreateShadowDecal(shadowType);
+    if (wantsDecalShadow && !visual.shadowDecal) {
+      const decal = createShadowDecalMesh({
+        sizeX: state.shadowSizeX ?? ObjectVisualManager.DEFAULT_SOURCE_SHADOW_DECAL_SIZE,
+        sizeY: state.shadowSizeY ?? state.shadowSizeX ?? ObjectVisualManager.DEFAULT_SOURCE_SHADOW_DECAL_SIZE,
+        offsetX: state.shadowOffsetX ?? 0,
+        offsetY: state.shadowOffsetY ?? 0,
+      });
+      const baseHeight = ObjectVisualManager.nominalHeightForCategory(state.category) / 2;
+      decal.position.y = -baseHeight + 0.1;
+      this.applyGuardBandFrustumPolicy(decal);
+      visual.shadowDecal = decal;
+      visual.root.add(decal);
+    }
+
+    if (!wantsDecalShadow && visual.shadowDecal) {
+      this.disposeObject3D(visual.shadowDecal);
+      visual.root.remove(visual.shadowDecal);
+      visual.shadowDecal = null;
+      visual.shadowTextureKey = null;
+      return;
+    }
+
+    if (visual.shadowDecal) {
+      visual.shadowDecal.scale.set(
+        state.shadowSizeX ?? ObjectVisualManager.DEFAULT_SOURCE_SHADOW_DECAL_SIZE,
+        state.shadowSizeY ?? state.shadowSizeX ?? ObjectVisualManager.DEFAULT_SOURCE_SHADOW_DECAL_SIZE,
+        1,
+      );
+      visual.shadowDecal.position.x = state.shadowOffsetX ?? 0;
+      visual.shadowDecal.position.z = state.shadowOffsetY ?? 0;
+      this.syncShadowTexture(visual, state, shadowType);
     }
   }
 }

@@ -23,6 +23,19 @@ function makeMeshState(overrides: Partial<RenderableEntityState> = {}): Renderab
   };
 }
 
+function makeRgbaTextureBuffer(
+  width: number,
+  height: number,
+  pixels: readonly number[],
+): ArrayBuffer {
+  const buffer = new ArrayBuffer(8 + width * height * 4);
+  const view = new DataView(buffer);
+  view.setUint32(0, width, true);
+  view.setUint32(4, height, true);
+  new Uint8Array(buffer, 8).set(pixels);
+  return buffer;
+}
+
 function modelWithAnimationClips(clips: readonly string[] = []): LoadedModelAsset {
   const scene = new THREE.Group();
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
@@ -65,6 +78,15 @@ function getScriptFlashRing(manager: ObjectVisualManager, entityId: number): THR
   }
   const ring = root.getObjectByName('script-flash-ring');
   return ring instanceof THREE.Mesh ? ring : null;
+}
+
+function getShadowDecal(manager: ObjectVisualManager, entityId: number): THREE.Mesh | null {
+  const root = manager.getVisualRoot(entityId);
+  if (!root) {
+    return null;
+  }
+  const decal = root.getObjectByName('shadow-decal');
+  return decal instanceof THREE.Mesh ? decal : null;
 }
 
 function collectRenderableNodes(manager: ObjectVisualManager, entityId: number): THREE.Object3D[] {
@@ -467,6 +489,160 @@ describe('ObjectVisualManager', () => {
     const placeholder = getPlaceholderMesh(manager, 5);
     expect(placeholder).toBeTruthy();
     expect(placeholder?.visible).toBe(false);
+  });
+
+  it('keeps placeholders hidden while a matching model load is still pending', async () => {
+    const scene = new THREE.Scene();
+    let resolvePending: ((asset: LoadedModelAsset) => void) | null = null;
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => new Promise<LoadedModelAsset>((resolve) => {
+        resolvePending = resolve;
+      }),
+    });
+
+    manager.sync([makeMeshState({ id: 53, renderAssetPath: 'pending-model.glb' })], 1 / 30);
+
+    const placeholder = getPlaceholderMesh(manager, 53);
+    expect(placeholder).toBeTruthy();
+    expect(placeholder?.visible).toBe(false);
+    expect(manager.getUnresolvedEntityIds()).toEqual([]);
+
+    manager.sync([makeMeshState({ id: 53, renderAssetPath: 'pending-model.glb' })], 1 / 30);
+    expect(placeholder?.visible).toBe(false);
+
+    resolvePending?.(modelWithAnimationClips(['Idle']));
+    await flushModelLoadQueue();
+    expect(manager.getVisualState(53)?.hasModel).toBe(true);
+    expect(placeholder?.visible).toBe(false);
+  });
+
+  it('starts model loads before entities enter the full-sync radius', async () => {
+    const scene = new THREE.Scene();
+    const requested: string[] = [];
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async (assetPath: string) => {
+        requested.push(assetPath);
+        return modelWithAnimationClips(['Idle']);
+      },
+    });
+    manager.setCameraPosition(0, 0);
+
+    manager.sync([makeMeshState({
+      id: 54,
+      renderAssetPath: 'far-model.glb',
+      x: 5000,
+      z: 5000,
+    })], 1 / 30);
+    await flushModelLoadQueue();
+
+    expect(requested).toEqual(['far-model.glb']);
+    expect(manager.getVisualState(54)?.hasModel).toBe(true);
+    expect(getPlaceholderMesh(manager, 54)?.visible).toBe(false);
+  });
+
+  it('removes stale decal shadows when a later render state resolves to NONE', async () => {
+    const scene = new THREE.Scene();
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => modelWithAnimationClips(['Idle']),
+    });
+
+    manager.sync([makeMeshState({
+      id: 55,
+      renderAssetPath: 'shadow-model.glb',
+      category: 'building',
+      shadowType: 'SHADOW_DECAL',
+      selectionCircleRadius: 10,
+    })], 1 / 30);
+    await flushModelLoadQueue();
+    expect(getShadowDecal(manager, 55)).not.toBeNull();
+
+    manager.sync([makeMeshState({
+      id: 55,
+      renderAssetPath: 'shadow-model.glb',
+      category: 'building',
+      shadowType: 'NONE',
+      selectionCircleRadius: 10,
+    })], 1 / 30);
+
+    expect(getShadowDecal(manager, 55)).toBeNull();
+  });
+
+  it('does not synthesize solid decal fallbacks for SHADOW_VOLUME objects', async () => {
+    const scene = new THREE.Scene();
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => modelWithAnimationClips(['Idle']),
+    });
+
+    manager.sync([makeMeshState({
+      id: 56,
+      renderAssetPath: 'shadow-volume-model.glb',
+      category: 'building',
+      shadowType: 'SHADOW_VOLUME',
+      selectionCircleRadius: 45,
+    })], 1 / 30);
+    await flushModelLoadQueue();
+
+    expect(getShadowDecal(manager, 56)).toBeNull();
+  });
+
+  it('loads source shadow textures for decal shadows and applies source offsets', async () => {
+    const scene = new THREE.Scene();
+    const requestedTexturePaths: string[] = [];
+    const textureBuffer = makeRgbaTextureBuffer(2, 2, [
+      255, 255, 255, 0,
+      255, 255, 255, 64,
+      255, 255, 255, 128,
+      255, 255, 255, 255,
+    ]);
+    const mockAssetManager = {
+      getManifest: () => ({
+        raw: {
+          entries: [
+            {
+              outputPath: 'textures/Art/Textures/shadowi.rgba',
+            },
+          ],
+        },
+      }),
+      loadArrayBuffer: async (path: string) => {
+        requestedTexturePaths.push(path);
+        return { path, data: textureBuffer, hash: null, cached: false };
+      },
+    } as unknown as import('@generals/assets').AssetManager;
+    const manager = new ObjectVisualManager(scene, mockAssetManager, {
+      modelLoader: async () => modelWithAnimationClips(['Idle']),
+    });
+    const state = makeMeshState({
+      id: 57,
+      renderAssetPath: 'shadow-texture-model.glb',
+      category: 'ground',
+      shadowType: 'SHADOW_DECAL',
+      shadowSizeX: 14,
+      shadowSizeY: 12,
+      shadowOffsetX: 2,
+      shadowOffsetY: -3,
+      shadowTextureName: 'ShadowI',
+    });
+
+    manager.sync([state], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([state], 1 / 30);
+    await flushModelLoadQueue();
+
+    const decal = getShadowDecal(manager, 57);
+    const material = decal?.material as THREE.MeshBasicMaterial | undefined;
+
+    expect(requestedTexturePaths).toEqual(['textures/Art/Textures/shadowi.rgba']);
+    expect(decal).not.toBeNull();
+    expect(decal?.scale.x).toBe(14);
+    expect(decal?.scale.y).toBe(12);
+    expect(decal?.position.x).toBe(2);
+    expect(decal?.position.z).toBe(-3);
+    expect(material?.map).toBeInstanceOf(THREE.DataTexture);
+    expect(material?.blending).toBe(THREE.CustomBlending);
+    expect(material?.blendSrc).toBe(THREE.ZeroFactor);
+    expect(material?.blendDst).toBe(THREE.OneMinusSrcAlphaFactor);
+    expect(decal?.visible).toBe(true);
   });
 
   it('prioritizes extension conversions and explicit defaults for source asset hints', async () => {
@@ -1942,17 +2118,13 @@ describe('condition-state model fallback resolution', () => {
     expect(resolveCallArgs).toEqual(['AVThundrblt_D1']);
   });
 
-  it('placeholder boxes scale to entity selectionCircleRadius', () => {
-    // Source parity: C++ uses GeometryMajorRadius for bounding sphere
-    // based picking.  The TS placeholder box should approximate the
-    // entity's actual footprint so it is visible and clickable.
+  it('placeholder boxes are capped at MAX_PLACEHOLDER_SIZE for large entities', () => {
+    // Large structures should NOT produce screen-filling placeholders.
+    // Placeholders are capped at 5 units to remain visible but unobtrusive.
     const scene = new THREE.Scene();
     const modelLoader = () => Promise.reject(new Error('no model'));
     const manager = new ObjectVisualManager(scene, null, { modelLoader });
 
-    // Use an unresolvable asset path to force placeholder creation.
-    // renderAssetPath must be non-empty so the entity is treated as
-    // "has a model but it failed to load" rather than "intentionally invisible".
     const state = makeMeshState({
       id: 99,
       renderAssetPath: 'missing-model.w3d',
@@ -1961,7 +2133,6 @@ describe('condition-state model fallback resolution', () => {
     });
     manager.sync([state]);
 
-    // Find the placeholder mesh in the scene.
     let placeholder: THREE.Mesh | null = null;
     scene.traverse((child) => {
       if (child instanceof THREE.Mesh && child.name === 'placeholder-99') {
@@ -1969,23 +2140,23 @@ describe('condition-state model fallback resolution', () => {
       }
     });
     expect(placeholder).not.toBeNull();
-    // Diameter = radius * 2 = 30
-    expect(placeholder!.scale.x).toBe(30);
-    expect(placeholder!.scale.y).toBe(30);
-    expect(placeholder!.scale.z).toBe(30);
+    // Capped: max radius = 2.5, diameter = 5
+    expect(placeholder!.scale.x).toBe(5);
+    expect(placeholder!.scale.y).toBe(5);
+    expect(placeholder!.scale.z).toBe(5);
   });
 
-  it('placeholder boxes have minimum size of 10 (radius 5)', () => {
+  it('placeholder boxes scale to entity radius when within cap', () => {
     const scene = new THREE.Scene();
     const modelLoader = () => Promise.reject(new Error('no model'));
     const manager = new ObjectVisualManager(scene, null, { modelLoader });
 
-    // Tiny entity with radius < 5 should still get a visible placeholder.
+    // Entity with radius 2 — within the cap of 2.5
     const state = makeMeshState({
       id: 100,
-      renderAssetPath: 'missing-tiny.w3d',
+      renderAssetPath: 'missing-model.w3d',
       renderAssetResolved: false,
-      selectionCircleRadius: 1,
+      selectionCircleRadius: 2,
     });
     manager.sync([state]);
 
@@ -1996,8 +2167,33 @@ describe('condition-state model fallback resolution', () => {
       }
     });
     expect(placeholder).not.toBeNull();
-    // Minimum radius 5 → diameter 10
-    expect(placeholder!.scale.x).toBe(10);
+    // Diameter = radius * 2 = 4
+    expect(placeholder!.scale.x).toBe(4);
+  });
+
+  it('placeholder boxes have minimum size of 2 (radius 1)', () => {
+    const scene = new THREE.Scene();
+    const modelLoader = () => Promise.reject(new Error('no model'));
+    const manager = new ObjectVisualManager(scene, null, { modelLoader });
+
+    // Tiny entity with radius < 1 should still get a visible placeholder.
+    const state = makeMeshState({
+      id: 101,
+      renderAssetPath: 'missing-tiny.w3d',
+      renderAssetResolved: false,
+      selectionCircleRadius: 0.3,
+    });
+    manager.sync([state]);
+
+    let placeholder: THREE.Mesh | null = null;
+    scene.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.name === 'placeholder-101') {
+        placeholder = child;
+      }
+    });
+    expect(placeholder).not.toBeNull();
+    // Minimum radius 1 → diameter 2
+    expect(placeholder!.scale.x).toBe(2);
   });
 
   it('limits concurrent model loads to MAX_CONCURRENT_MODEL_LOADS', async () => {
