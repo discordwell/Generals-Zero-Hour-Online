@@ -80,16 +80,18 @@ export function generateProceduralTerrain(
     // Water height — average height of the area, slightly below
     const waterHeight = 70 * 0.625; // ~43.75 world units
 
+    // Store in original engine coordinate convention:
+    //   x = horizontal X, y = horizontal Y (Three.js Z), z = height (Three.js Y)
     triggers.push({
       name: 'WaterArea_Demo',
       id: 1,
       isWaterArea: true,
       isRiver: false,
       points: [
-        { x: wx0, y: waterHeight, z: wz0 },
-        { x: wx1, y: waterHeight, z: wz0 },
-        { x: wx1, y: waterHeight, z: wz1 },
-        { x: wx0, y: waterHeight, z: wz1 },
+        { x: wx0, y: wz0, z: waterHeight },
+        { x: wx1, y: wz0, z: waterHeight },
+        { x: wx1, y: wz1, z: waterHeight },
+        { x: wx0, y: wz1, z: waterHeight },
       ],
     });
   }

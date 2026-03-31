@@ -101,20 +101,16 @@ export class WaterVisual implements Subsystem {
     const points = trigger.points;
     if (points.length < 3) return;
 
-    // Convert trigger points to Three.js coordinates
-    // Original engine: X→X, Y→height (Y in Three.js), Z→Z (in Three.js)
-    // The trigger points use original engine coordinates
+    // Convert trigger points from original engine coordinates to Three.js:
+    //   Original engine X -> Three.js X (horizontal)
+    //   Original engine Y -> Three.js Z (horizontal)
+    //   Original engine Z -> Three.js Y (height / elevation)
     const shape = new THREE.Shape();
+    const waterHeight = points[0]!.z;
 
-    // Map the polygon points. In the original engine:
-    // trigger.points[].x → Three.js X
-    // trigger.points[].z → Three.js Z
-    // trigger.points[].y → Three.js Y (water height)
-    const waterHeight = points[0]!.y;
-
-    shape.moveTo(points[0]!.x, points[0]!.z);
+    shape.moveTo(points[0]!.x, points[0]!.y);
     for (let i = 1; i < points.length; i++) {
-      shape.lineTo(points[i]!.x, points[i]!.z);
+      shape.lineTo(points[i]!.x, points[i]!.y);
     }
     shape.closePath();
 
