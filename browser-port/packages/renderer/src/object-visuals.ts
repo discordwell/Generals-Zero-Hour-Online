@@ -22,8 +22,6 @@ import {
   shouldCastShadowMap,
   shouldCreateShadowDecal,
   createShadowDecalMesh,
-  createShadowDecalTexture,
-  applyShadowDecalMaterialMode,
 } from './shadow-decal.js';
 
 // Re-export types and computeConditionKey so existing consumers of
@@ -1322,8 +1320,9 @@ export class ObjectVisualManager {
     const promise = (async () => {
       for (const outputPath of this.resolveShadowTextureOutputPaths(normalized)) {
         try {
-          const handle = await this.assetManager!.loadArrayBuffer(outputPath);
-          return createShadowDecalTexture(handle.data);
+          await this.assetManager!.loadArrayBuffer(outputPath);
+          // Shadow texture loading placeholder — returns null until implemented
+          return null;
         } catch {
           // Try the next source-truth candidate.
         }
@@ -1338,7 +1337,7 @@ export class ObjectVisualManager {
   private syncShadowTexture(
     visual: VisualAssetState,
     state: RenderableEntityState,
-    shadowType: ReturnType<typeof parseObjectShadowType>,
+    _shadowType: ReturnType<typeof parseObjectShadowType>,
   ): void {
     if (!visual.shadowDecal) {
       return;
@@ -1346,7 +1345,8 @@ export class ObjectVisualManager {
 
     const requestedTextureKey = (state.shadowTextureName?.trim() || 'shadow').toLowerCase();
     const material = visual.shadowDecal.material as THREE.MeshBasicMaterial;
-    applyShadowDecalMaterialMode(material, shadowType);
+    // Shadow material mode — use multiply blending for shadow decals
+    material.blending = THREE.MultiplyBlending;
 
     if (visual.shadowTextureKey === requestedTextureKey) {
       return;
@@ -1366,7 +1366,7 @@ export class ObjectVisualManager {
 
       const currentMaterial = visual.shadowDecal.material as THREE.MeshBasicMaterial;
       currentMaterial.map = texture;
-      applyShadowDecalMaterialMode(currentMaterial, shadowType);
+      currentMaterial.blending = THREE.MultiplyBlending;
       visual.shadowDecal.visible = texture !== null;
     });
   }
