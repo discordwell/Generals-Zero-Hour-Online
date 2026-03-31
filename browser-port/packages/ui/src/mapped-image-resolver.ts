@@ -28,7 +28,13 @@ export interface MappedImageEntry {
  * textures and extracting the specified sub-region.
  */
 export class MappedImageResolver {
+  /** Exact-name lookup map (preserves original casing). */
   private readonly entries = new Map<string, MappedImageEntry>();
+  /**
+   * Case-insensitive lookup map.
+   * Source parity: C++ ImageCollection::findImageByName uses nameToLowercaseKey.
+   */
+  private readonly entriesByLowerName = new Map<string, MappedImageEntry>();
   private readonly atlasCache = new Map<string, Promise<ImageData>>();
   private readonly imageUrlCache = new Map<string, Promise<string>>();
   private readonly textureBasePath: string;
@@ -47,32 +53,37 @@ export class MappedImageResolver {
   addEntries(entries: readonly MappedImageEntry[]): void {
     for (const entry of entries) {
       this.entries.set(entry.name, entry);
+      this.entriesByLowerName.set(entry.name.toLowerCase(), entry);
     }
   }
 
-  /** Look up a MappedImage entry by name. */
+  /** Look up a MappedImage entry by name (case-insensitive). */
   getEntry(name: string): MappedImageEntry | undefined {
-    return this.entries.get(name);
+    return this.entries.get(name) ?? this.entriesByLowerName.get(name.toLowerCase());
   }
 
   /**
    * Resolve a MappedImage name to an image URL (data: or blob: URL).
    * Returns null if the name is not registered.
    * Results are cached — repeated calls for the same name return the same URL.
+   * Source parity: C++ ImageCollection::findImageByName uses case-insensitive lookup.
    */
   async resolve(name: string): Promise<string | null> {
-    const entry = this.entries.get(name);
+    const entry = this.entries.get(name) ?? this.entriesByLowerName.get(name.toLowerCase());
     if (!entry) {
+      // No MappedImage definition found — the ButtonImage name on this
+      // CommandButton does not have a corresponding MappedImage block in the INI.
       return null;
     }
 
-    const cached = this.imageUrlCache.get(name);
+    const cacheKey = entry.name;
+    const cached = this.imageUrlCache.get(cacheKey);
     if (cached) {
       return cached;
     }
 
     const promise = this.cropImage(entry);
-    this.imageUrlCache.set(name, promise);
+    this.imageUrlCache.set(cacheKey, promise);
     return promise;
   }
 

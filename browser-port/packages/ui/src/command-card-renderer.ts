@@ -337,6 +337,12 @@ export class CommandCardRenderer {
                 slotIcon.style.display = 'none';
                 slotLabel.style.display = 'block';
               }
+            }).catch(() => {
+              // Atlas texture fetch failed — show text label as fallback
+              if (!this.disposed && this.slotIconNames[slotIdx] === iconName) {
+                slotIcon.style.display = 'none';
+                slotLabel.style.display = 'block';
+              }
             });
           } else {
             // No resolver — treat iconName as a direct URL (legacy behavior)

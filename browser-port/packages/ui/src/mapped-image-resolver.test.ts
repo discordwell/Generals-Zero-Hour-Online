@@ -120,6 +120,25 @@ describe('MappedImageResolver', () => {
       expect(resolver.getEntry('NonExistent')).toBeUndefined();
     });
 
+    // Source parity: C++ ImageCollection::findImageByName uses nameToLowercaseKey
+    // for case-insensitive lookup. ButtonImage values in CommandButton INI may
+    // differ in casing from the MappedImage block name.
+    it('retrieves entries case-insensitively', () => {
+      resolver.addEntries([
+        makeEntry({ name: 'SAPathFinder1' }),
+        makeEntry({ name: 'SAleaflet' }),
+      ]);
+
+      // Exact match still works
+      expect(resolver.getEntry('SAPathFinder1')).toBeDefined();
+      expect(resolver.getEntry('SAleaflet')).toBeDefined();
+
+      // Case-insensitive match works
+      expect(resolver.getEntry('SAPathfinder1')?.name).toBe('SAPathFinder1');
+      expect(resolver.getEntry('SALeaflet')?.name).toBe('SAleaflet');
+      expect(resolver.getEntry('sapathfinder1')?.name).toBe('SAPathFinder1');
+    });
+
     it('overwrites entries with the same name', () => {
       const entry1 = makeEntry({ left: 10 });
       const entry2 = makeEntry({ left: 20 });
@@ -148,6 +167,28 @@ describe('MappedImageResolver', () => {
     it('returns null for unknown image names', async () => {
       const result = await resolver.resolve('NonExistent');
       expect(result).toBeNull();
+    });
+
+    it('resolves entries with case-insensitive name lookup', async () => {
+      const atlasBuffer = createRgbaBuffer(64, 64);
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+        ok: true,
+        arrayBuffer: () => Promise.resolve(atlasBuffer),
+      } as Response);
+
+      resolver.addEntries([
+        makeEntry({
+          name: 'SAPathFinder1',
+          textureWidth: 64,
+          textureHeight: 64,
+          left: 0, top: 0, right: 31, bottom: 31,
+        }),
+      ]);
+
+      // Resolve with different casing (as C++ ButtonImage would reference it)
+      const url = await resolver.resolve('SAPathfinder1');
+      expect(url).not.toBeNull();
+      expect(url!.startsWith('data:')).toBe(true);
     });
 
     it('fetches atlas texture and returns a data URL', async () => {
