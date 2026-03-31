@@ -118,6 +118,10 @@ interface VisualAssetState {
   currentVeterancyLevel: number;
   /** Cloned materials for stealth opacity mutation (avoids mutating shared GLTF materials). */
   stealthMaterialClones: WeakMap<THREE.Mesh, THREE.Material | THREE.Material[]>;
+  /** Original material transparency state before stealth/transition opacity overrides.
+   *  Saved per-material so materials that are inherently transparent (tree foliage,
+   *  glass, fences with alphaMode BLEND/MASK) are correctly restored when stealth ends. */
+  originalMaterialAlpha: WeakMap<THREE.Material, { transparent: boolean; depthWrite: boolean; opacity: number }>;
   /** Previous stealth opacity to skip redundant traversals. */
   lastStealthOpacity: number;
   /** Shadow decal mesh (for SHADOW_DECAL type). */
@@ -549,6 +553,7 @@ export class ObjectVisualManager {
       veterancyBadge: null,
       currentVeterancyLevel: 0,
       stealthMaterialClones: new WeakMap(),
+      originalMaterialAlpha: new WeakMap(),
       lastStealthOpacity: 1.0,
       shadowDecal: null,
       shadowType: null,
@@ -977,17 +982,22 @@ export class ObjectVisualManager {
       if (!mesh.isMesh || !mesh.material) return;
 
       // Clone materials if needed (same pattern as stealth opacity).
+      // Save original transparency state so inherently transparent materials
+      // (alphaMode BLEND/MASK) are correctly restored when the transition ends.
       if (!visual.stealthMaterialClones.has(mesh)) {
-        if (Array.isArray(mesh.material)) {
-          mesh.material = mesh.material.map((m) => {
-            const clonedMat = m.clone();
-            clonedMat.transparent = true;
-            return clonedMat;
+        const cloneAndSaveAlpha = (m: THREE.Material): THREE.Material => {
+          const clonedMat = m.clone();
+          visual.originalMaterialAlpha.set(clonedMat, {
+            transparent: m.transparent,
+            depthWrite: m.depthWrite,
+            opacity: 'opacity' in m ? (m as THREE.MeshStandardMaterial).opacity : 1.0,
           });
+          return clonedMat;
+        };
+        if (Array.isArray(mesh.material)) {
+          mesh.material = mesh.material.map((m) => cloneAndSaveAlpha(m));
         } else {
-          const clonedMat = mesh.material.clone();
-          clonedMat.transparent = true;
-          mesh.material = clonedMat;
+          mesh.material = cloneAndSaveAlpha(mesh.material);
         }
         visual.stealthMaterialClones.set(mesh, mesh.material);
       }
@@ -995,13 +1005,14 @@ export class ObjectVisualManager {
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const mat of mats) {
         if ('opacity' in mat) {
-          const wantTransparent = opacity < 0.99;
+          const orig = visual.originalMaterialAlpha.get(mat);
+          const wantTransparent = opacity < 0.99 || (orig?.transparent ?? false);
           if (mat.transparent !== wantTransparent) {
             mat.transparent = wantTransparent;
             mat.needsUpdate = true;
           }
-          mat.depthWrite = !wantTransparent;
-          mat.opacity = opacity;
+          mat.depthWrite = opacity < 0.99 ? false : (orig?.depthWrite ?? true);
+          mat.opacity = opacity < 0.99 ? opacity : (orig?.opacity ?? 1.0);
         }
       }
     });
@@ -2085,17 +2096,22 @@ export class ObjectVisualManager {
       if (!mesh.isMesh || !mesh.material) return;
 
       // Clone materials on first stealth mutation to avoid mutating shared GLTF cache.
+      // Save the original transparency state so we can restore it when opacity returns to 1.0
+      // (materials with alphaMode BLEND/MASK, e.g. tree foliage, glass, fences, must stay transparent).
       if (!visual.stealthMaterialClones.has(mesh)) {
-        if (Array.isArray(mesh.material)) {
-          mesh.material = mesh.material.map((m) => {
-            const clonedMat = m.clone();
-            clonedMat.transparent = true;
-            return clonedMat;
+        const cloneAndSaveAlpha = (m: THREE.Material): THREE.Material => {
+          const clonedMat = m.clone();
+          visual.originalMaterialAlpha.set(clonedMat, {
+            transparent: m.transparent,
+            depthWrite: m.depthWrite,
+            opacity: 'opacity' in m ? (m as THREE.MeshStandardMaterial).opacity : 1.0,
           });
+          return clonedMat;
+        };
+        if (Array.isArray(mesh.material)) {
+          mesh.material = mesh.material.map((m) => cloneAndSaveAlpha(m));
         } else {
-          const clonedMat = mesh.material.clone();
-          clonedMat.transparent = true;
-          mesh.material = clonedMat;
+          mesh.material = cloneAndSaveAlpha(mesh.material);
         }
         visual.stealthMaterialClones.set(mesh, mesh.material);
       }
@@ -2103,14 +2119,16 @@ export class ObjectVisualManager {
       const clonedMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const mat of clonedMaterials) {
         if ('opacity' in mat) {
-          const wantTransparent = targetOpacity < 0.99;
+          const orig = visual.originalMaterialAlpha.get(mat);
+          const wantTransparent = targetOpacity < 0.99 || (orig?.transparent ?? false);
           if (mat.transparent !== wantTransparent) {
             mat.transparent = wantTransparent;
             mat.needsUpdate = true;
           }
-          // Avoid sorting artifacts when fully opaque
-          mat.depthWrite = !wantTransparent;
-          mat.opacity = targetOpacity;
+          // Restore original depthWrite when returning to full opacity;
+          // override to false when semi-transparent to avoid sorting artifacts.
+          mat.depthWrite = targetOpacity < 0.99 ? false : (orig?.depthWrite ?? true);
+          mat.opacity = targetOpacity < 0.99 ? targetOpacity : (orig?.opacity ?? 1.0);
         }
       }
     });

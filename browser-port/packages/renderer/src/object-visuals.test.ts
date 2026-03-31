@@ -842,6 +842,93 @@ describe('ObjectVisualManager', () => {
     expect(mat.opacity).toBe(opacityAfterAdvance);
   });
 
+  it('stealth opacity preserves original alpha-transparent materials', async () => {
+    // Create a model with an inherently transparent material (e.g. tree foliage
+    // with alphaMode BLEND from the W3D converter).
+    const scene = new THREE.Group();
+    const transparentMat = new THREE.MeshStandardMaterial({
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), transparentMat);
+    mesh.name = 'foliage';
+    scene.add(mesh);
+    const model: LoadedModelAsset = { scene, animations: [] };
+
+    const manager = new ObjectVisualManager(new THREE.Scene(), null, {
+      modelLoader: async () => model,
+    });
+
+    const state = makeMeshState({ id: 60 });
+    manager.sync([state], 0.01);
+    await flushModelLoadQueue();
+
+    // Activate stealth — should apply semi-transparent opacity.
+    const stealthState = makeMeshState({ id: 60, isStealthed: true, isDetected: false });
+    manager.sync([stealthState], 0.1);
+
+    const root = manager.getVisualRoot(60)!;
+    // Find the model mesh (not the placeholder) by name.
+    let found: THREE.Mesh | null = null;
+    root.traverse(c => { if (!found && (c as THREE.Mesh).isMesh && c.name === 'foliage') found = c as THREE.Mesh; });
+    expect(found).toBeTruthy();
+
+    const mat = (Array.isArray(found!.material) ? found!.material[0] : found!.material) as THREE.MeshStandardMaterial;
+    expect(mat.opacity).toBeCloseTo(0.35, 1);
+    expect(mat.transparent).toBe(true);
+
+    // Deactivate stealth — opacity should return to the ORIGINAL values,
+    // NOT to opaque (transparent=false, opacity=1, depthWrite=true).
+    const normalState = makeMeshState({ id: 60 });
+    manager.sync([normalState], 0.1);
+
+    expect(mat.transparent).toBe(true);  // Was originally transparent
+    expect(mat.opacity).toBeCloseTo(0.8, 1);  // Was originally 0.8
+    expect(mat.depthWrite).toBe(false);  // Was originally false
+  });
+
+  it('stealth opacity restores opaque materials to fully opaque', async () => {
+    // Ensure that non-transparent materials still go back to opaque after stealth.
+    const scene = new THREE.Group();
+    const opaqueMat = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1.0,
+    });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), opaqueMat);
+    mesh.name = 'hull';
+    scene.add(mesh);
+    const model: LoadedModelAsset = { scene, animations: [] };
+
+    const manager = new ObjectVisualManager(new THREE.Scene(), null, {
+      modelLoader: async () => model,
+    });
+
+    const state = makeMeshState({ id: 61 });
+    manager.sync([state], 0.01);
+    await flushModelLoadQueue();
+
+    // Activate stealth.
+    const stealthState = makeMeshState({ id: 61, isStealthed: true, isDetected: false });
+    manager.sync([stealthState], 0.1);
+
+    const root = manager.getVisualRoot(61)!;
+    // Find the model mesh (not the placeholder) by name.
+    let found: THREE.Mesh | null = null;
+    root.traverse(c => { if (!found && (c as THREE.Mesh).isMesh && c.name === 'hull') found = c as THREE.Mesh; });
+    const mat = (Array.isArray(found!.material) ? found!.material[0] : found!.material) as THREE.MeshStandardMaterial;
+    expect(mat.opacity).toBeCloseTo(0.35, 1);
+    expect(mat.transparent).toBe(true);
+
+    // Deactivate stealth — should restore to fully opaque.
+    const normalState = makeMeshState({ id: 61 });
+    manager.sync([normalState], 0.1);
+
+    expect(mat.transparent).toBe(false);
+    expect(mat.opacity).toBeCloseTo(1.0, 1);
+    expect(mat.depthWrite).toBe(true);
+  });
+
   // =========================================================================
   // cloneModelForGhost
   // =========================================================================
