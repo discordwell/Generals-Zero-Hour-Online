@@ -2133,6 +2133,121 @@ describe('condition-state model fallback resolution', () => {
     expect(restoredIntensity).toBeCloseTo(0.4, 2);
   });
 
+  it('applies strong team color only to HOUSECOLOR meshes', async () => {
+    const scene = new THREE.Scene();
+    // Build a model with both HOUSECOLOR and regular meshes.
+    const hcMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const hcMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), hcMat);
+    hcMesh.name = 'HOUSECOLOR01';
+
+    const regularMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
+    const regularMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), regularMat);
+    regularMesh.name = 'BODY';
+
+    const root = new THREE.Group();
+    root.add(hcMesh);
+    root.add(regularMesh);
+    const model = { scene: root, animations: [] } as LoadedModelAsset;
+
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => model,
+    });
+
+    const state = makeMeshState({ id: 500, side: 'america' });
+    manager.sync([state], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([state], 1 / 30);
+
+    // HOUSECOLOR mesh should have team color applied to base color.
+    expect(hcMat.color.getHex()).toBe(0x3366cc);
+    expect(hcMat.emissive.getHex()).toBe(0x3366cc);
+    expect(hcMat.emissiveIntensity).toBeCloseTo(0.3, 2);
+
+    // Regular mesh should NOT be tinted at all — base color and emissive
+    // color remain at their original values (THREE default emissive = black).
+    expect(regularMat.color.getHex()).toBe(0x888888);
+    expect(regularMat.emissive.getHex()).toBe(0x000000);
+  });
+
+  it('falls back to emissive tint when model has no HOUSECOLOR meshes', async () => {
+    const scene = new THREE.Scene();
+    const mat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);
+    mesh.name = 'BODY';
+    const root = new THREE.Group();
+    root.add(mesh);
+    const model = { scene: root, animations: [] } as LoadedModelAsset;
+
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => model,
+    });
+
+    const state = makeMeshState({ id: 501, side: 'china' });
+    manager.sync([state], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([state], 1 / 30);
+
+    // Should get fallback emissive tint (not base color replacement).
+    expect(mat.color.getHex()).toBe(0xaaaaaa); // base color unchanged
+    expect(mat.emissive.getHex()).toBe(0xcc3333); // china red emissive
+    expect(mat.emissiveIntensity).toBeCloseTo(0.4, 2);
+  });
+
+  it('matches HOUSECOLOR mesh names case-insensitively after dot separator', async () => {
+    const scene = new THREE.Scene();
+    // Test HLOD compound name format: "MODELNAME.HOUSECOLOR01"
+    const hcMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const hcMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), hcMat);
+    hcMesh.name = 'ABBtCmdHQ.HouseColor06'; // mixed case, HLOD format
+
+    const root = new THREE.Group();
+    root.add(hcMesh);
+    const model = { scene: root, animations: [] } as LoadedModelAsset;
+
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => model,
+    });
+
+    const state = makeMeshState({ id: 502, side: 'gla' });
+    manager.sync([state], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([state], 1 / 30);
+
+    // Should be identified as house color and get strong recolor.
+    expect(hcMat.color.getHex()).toBe(0x33aa33); // GLA green
+    expect(hcMat.emissive.getHex()).toBe(0x33aa33);
+    expect(hcMat.emissiveIntensity).toBeCloseTo(0.3, 2);
+  });
+
+  it('clears team color when side changes to null', async () => {
+    const scene = new THREE.Scene();
+    const hcMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const hcMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), hcMat);
+    hcMesh.name = 'HOUSECOLOR01';
+    const root = new THREE.Group();
+    root.add(hcMesh);
+    const model = { scene: root, animations: [] } as LoadedModelAsset;
+
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async () => model,
+    });
+
+    // Apply team color first.
+    const stateWithSide = makeMeshState({ id: 503, side: 'america' });
+    manager.sync([stateWithSide], 1 / 30);
+    await flushModelLoadQueue();
+    manager.sync([stateWithSide], 1 / 30);
+    expect(hcMat.color.getHex()).toBe(0x3366cc);
+
+    // Clear side.
+    const stateNoSide = makeMeshState({ id: 503, side: undefined });
+    manager.sync([stateNoSide], 1 / 30);
+
+    // HOUSECOLOR mesh should be reset to white.
+    expect(hcMat.color.getHex()).toBe(0xffffff);
+    expect(hcMat.emissiveIntensity).toBe(0);
+  });
+
   it('does not flash when health increases (healing)', async () => {
     const scene = new THREE.Scene();
     const stdModel = (() => {

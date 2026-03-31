@@ -1810,9 +1810,12 @@ export class ObjectVisualManager {
   }
 
   // ---- Team color mapping ----
-  // Source parity: C++ MultiplayerColor.ini defines per-player colors.
-  // In the original game, "house color" texture regions are recolored.
-  // Here we tint the model's emissive to give a subtle team color.
+  // Source parity: C++ W3DAssetManager checks mesh names starting with
+  // "HOUSECOLOR" (case-insensitive, after the '.' separator in HLOD names
+  // like "MODEL.HOUSECOLOR01") and recolors only those meshes with the
+  // player's team color.  Non-house-color meshes retain their original
+  // textures.  For models that lack any HOUSECOLOR meshes we fall back to
+  // a subtle emissive tint so players can still distinguish sides.
   private static readonly TEAM_COLORS: Record<string, number> = {
     america: 0x3366cc,   // Blue (USA)
     china: 0xcc3333,     // Red (China)
@@ -1820,9 +1823,44 @@ export class ObjectVisualManager {
   };
 
   /**
-   * Apply team color tint to model meshes based on entity side.
-   * Uses emissive color for a subtle tint that doesn't wash out
-   * the model's base color.
+   * Check whether a mesh/node name designates a house-color region.
+   * Source parity: C++ uses `_strnicmp(meshName,"HOUSECOLOR", 10) == 0`
+   * where meshName is the portion after the '.' in HLOD compound names,
+   * or the full name for standalone meshes.
+   */
+  private static isHouseColorMesh(name: string): boolean {
+    if (!name) return false;
+    // HLOD sub-object names use "MODELNAME.MESHNAME" format.
+    const dotIdx = name.lastIndexOf('.');
+    const localName = dotIdx >= 0 ? name.substring(dotIdx + 1) : name;
+    return localName.toUpperCase().startsWith('HOUSECOLOR');
+  }
+
+  /**
+   * Check whether a model has any house-color meshes.
+   */
+  private static modelHasHouseColorMeshes(model: THREE.Object3D): boolean {
+    let found = false;
+    model.traverse((child) => {
+      if (found) return;
+      if ((child as THREE.Mesh).isMesh && ObjectVisualManager.isHouseColorMesh(child.name)) {
+        found = true;
+      }
+    });
+    return found;
+  }
+
+  /**
+   * Apply team color to model meshes based on entity side.
+   *
+   * Source parity: only meshes whose names start with "HOUSECOLOR" get
+   * recolored.  For those meshes the material base color is replaced
+   * entirely with the team color (strong, opaque recolor).  All other
+   * meshes are left untouched.
+   *
+   * Fallback: if the model contains no HOUSECOLOR meshes, a subtle
+   * emissive tint is applied to all meshes so players can still
+   * distinguish sides during gameplay.
    */
   private syncTeamColor(visual: VisualAssetState, state: RenderableEntityState): void {
     const side = state.side?.toLowerCase() ?? null;
@@ -1834,30 +1872,53 @@ export class ObjectVisualManager {
     const colorHex = side ? (ObjectVisualManager.TEAM_COLORS[side] ?? null) : null;
     if (colorHex === null) {
       // Clear any previously applied tint for neutral/civilian/unknown sides.
-      this.clearModelEmissive(visual);
+      this.clearTeamColor(visual);
       return;
     }
 
     const tintColor = new THREE.Color(colorHex);
-    const tintIntensity = 0.4; // Clearly visible team coloring
+    const hasHouseColor = ObjectVisualManager.modelHasHouseColorMeshes(visual.currentModel);
 
-    visual.currentModel.traverse((child) => {
-      const mesh = child as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      for (const mat of materials) {
-        const stdMat = mat as THREE.MeshStandardMaterial;
-        if (stdMat.isMeshStandardMaterial) {
-          stdMat.emissive.copy(tintColor);
-          stdMat.emissiveIntensity = tintIntensity;
-          // Subtle base color blend on top of emissive for richer team tint
-          stdMat.color.lerp(tintColor, 0.12);
+    if (hasHouseColor) {
+      // Source-accurate path: recolor only HOUSECOLOR meshes.
+      visual.currentModel.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        if (!ObjectVisualManager.isHouseColorMesh(mesh.name)) return;
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const mat of materials) {
+          const stdMat = mat as THREE.MeshStandardMaterial;
+          if (stdMat.isMeshStandardMaterial) {
+            // Replace base color entirely with team color (strong recolor).
+            stdMat.color.copy(tintColor);
+            stdMat.emissive.copy(tintColor);
+            stdMat.emissiveIntensity = 0.3;
+          }
         }
-      }
-    });
+      });
+    } else {
+      // Fallback: no HOUSECOLOR meshes — apply subtle emissive tint
+      // to all meshes for gameplay visibility.
+      const fallbackIntensity = 0.4;
+      visual.currentModel.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const mat of materials) {
+          const stdMat = mat as THREE.MeshStandardMaterial;
+          if (stdMat.isMeshStandardMaterial) {
+            stdMat.emissive.copy(tintColor);
+            stdMat.emissiveIntensity = fallbackIntensity;
+          }
+        }
+      });
+    }
   }
 
-  private clearModelEmissive(visual: VisualAssetState): void {
+  /**
+   * Clear team color from all meshes (both house-color and fallback emissive).
+   */
+  private clearTeamColor(visual: VisualAssetState): void {
     if (!visual.currentModel) return;
     visual.currentModel.traverse((child) => {
       const mesh = child as THREE.Mesh;
@@ -1867,6 +1928,10 @@ export class ObjectVisualManager {
         const stdMat = mat as THREE.MeshStandardMaterial;
         if (stdMat.isMeshStandardMaterial) {
           stdMat.emissiveIntensity = 0;
+          // Reset house-color meshes back to white base color.
+          if (ObjectVisualManager.isHouseColorMesh(mesh.name)) {
+            stdMat.color.setHex(0xffffff);
+          }
         }
       }
     });
@@ -1930,28 +1995,42 @@ export class ObjectVisualManager {
   /**
    * Restore the emissive color after a damage flash ends.
    * Re-applies team color tint if applicable, otherwise clears emissive.
+   * House-color-aware: only HOUSECOLOR meshes get the strong recolor;
+   * other meshes get fallback emissive or nothing.
    */
   private restoreEmissiveAfterFlash(visual: VisualAssetState, state: RenderableEntityState): void {
     const side = state.side?.toLowerCase() ?? null;
     const colorHex = side ? (ObjectVisualManager.TEAM_COLORS[side] ?? null) : null;
 
-    if (colorHex !== null) {
+    if (colorHex !== null && visual.currentModel) {
       const tintColor = new THREE.Color(colorHex);
-      const tintIntensity = 0.4;
-      visual.currentModel!.traverse((child) => {
+      const hasHouseColor = ObjectVisualManager.modelHasHouseColorMeshes(visual.currentModel);
+
+      visual.currentModel.traverse((child) => {
         const mesh = child as THREE.Mesh;
         if (!mesh.isMesh) return;
+        const isHC = ObjectVisualManager.isHouseColorMesh(mesh.name);
         const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         for (const mat of materials) {
           const stdMat = mat as THREE.MeshStandardMaterial;
           if (stdMat.isMeshStandardMaterial) {
-            stdMat.emissive.copy(tintColor);
-            stdMat.emissiveIntensity = tintIntensity;
+            if (hasHouseColor && isHC) {
+              // Restore strong house-color recolor.
+              stdMat.emissive.copy(tintColor);
+              stdMat.emissiveIntensity = 0.3;
+            } else if (hasHouseColor && !isHC) {
+              // Non-house-color mesh on a model that has HC — no tint.
+              stdMat.emissiveIntensity = 0;
+            } else {
+              // Fallback model (no HC meshes) — restore subtle emissive.
+              stdMat.emissive.copy(tintColor);
+              stdMat.emissiveIntensity = 0.4;
+            }
           }
         }
       });
     } else {
-      this.clearModelEmissive(visual);
+      this.clearTeamColor(visual);
     }
   }
 
