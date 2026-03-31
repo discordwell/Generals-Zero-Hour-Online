@@ -168,6 +168,10 @@ function distSquared(ax: number, az: number, bx: number, bz: number): number {
 
 const DOCK_PROXIMITY_THRESHOLD_SQ = 25 * 25; // 25 world-units arrival radius
 
+// Source parity (ZH): SupplyTruckAIUpdate.cpp:65-67 — if the truck is already within this
+// distance of the regroup target, skip the move command entirely. 15^2 = 225.
+export const REGROUP_SUCCESS_DISTANCE_SQ = 225;
+
 function hasObjectStatus(entity: SupplyChainEntity, flag: string): boolean {
   return entity.objectStatusFlags ? entity.objectStatusFlags.has(flag) : false;
 }
@@ -669,6 +673,13 @@ function enterWaiting<TEntity extends SupplyChainEntity>(
 
   const regroupPosition = context.findRegroupPosition?.(truck, state.currentBoxes > 0);
   if (!regroupPosition) {
+    return;
+  }
+  // Source parity (ZH): SupplyTruckAIUpdate::RegroupingState::onEnter — skip the move
+  // if the truck is already within REGROUP_SUCCESS_DISTANCE_SQ of the destination.
+  // SupplyTruckAIUpdate.cpp:595-596
+  const dSq = distSquared(truck.x, truck.z, regroupPosition.x, regroupPosition.z);
+  if (dSq < REGROUP_SUCCESS_DISTANCE_SQ) {
     return;
   }
   context.moveEntityTo(truck.id, regroupPosition.x, regroupPosition.z);

@@ -335,6 +335,16 @@ export function createSpawnSlave(self: GL, slaver: MapEntity, state: SpawnBehavi
       slave.slaveGuardOffsetZ = Math.sin(angle) * guardRange;
     }
 
+    // Source parity (ZH): SlavedUpdate::startSlavedEffects — if slaver is stealthed, grant
+    // stealth to the slave so drones inherit their master's stealth state on creation.
+    // SlavedUpdate.cpp:728-737
+    if (slaver.objectStatusFlags.has('STEALTHED') && slave.stealthProfile) {
+      slave.objectStatusFlags.add('CAN_STEALTH');
+      slave.objectStatusFlags.add('STEALTHED');
+      slave.temporaryStealthGrant = true;
+      slave.stealthDelayRemaining = 0;
+    }
+
     // Source parity: MobMemberSlavedUpdate — initialize runtime state on enslave.
     if (slave.mobMemberProfile) {
       slave.mobMemberState = {
@@ -379,6 +389,13 @@ export function onSlaverDeath(self: GL, slaver: MapEntity): void {
       } else {
         // Source parity: orphaned slave gets DISABLED_UNMANNED.
         slave.objectStatusFlags.add('DISABLED_UNMANNED');
+        // Source parity (ZH): SlavedUpdate::update — call aiIdle on slave when master dies
+        // before disabling, so the slave can start crashing/falling behavior properly.
+        // SlavedUpdate.cpp:162-163
+        slave.attackTargetEntityId = null;
+        slave.attackTargetPosition = null;
+        slave.moveTarget = null;
+        slave.moving = false;
       }
     } else if (state.profile.spawnedRequireSpawner) {
       self.applyWeaponDamageAmount(null, slave, slave.health, 'UNRESISTABLE');

@@ -24748,6 +24748,15 @@ export class GameLogicSubsystem implements Subsystem {
         if (!side) {
           return 0;
         }
+        // Source parity (ZH): ChinookAIUpdate::getUpgradedSupplyBoost checks
+        // Upgrade_AmericaSupplyLines; WorkerAIUpdate::getUpgradedSupplyBoost checks
+        // Upgrade_GLAWorkerShoes. Each truck type has its own upgrade requirement.
+        // ChinookAIUpdate.cpp:1668-1677, WorkerAIUpdate.cpp:1399-1409
+        if (truck.workerAIProfile) {
+          return this.hasSideUpgradeCompleted(side, 'UPGRADE_GLAWORKERSHOES')
+            ? profile.upgradedSupplyBoost
+            : 0;
+        }
         return this.hasSideUpgradeCompleted(side, 'UPGRADE_AMERICASUPPLYLINES')
           ? profile.upgradedSupplyBoost
           : 0;
