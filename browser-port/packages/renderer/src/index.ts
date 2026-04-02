@@ -67,6 +67,8 @@ export { DebrisRenderer } from './debris-renderer.js';
 export type { DebrisConfig } from './debris-renderer.js';
 export { TerrainRoadRenderer, extractRoadSegments, buildRoadPaths, buildRoadMesh } from './terrain-roads.js';
 export type { RoadPoint, RoadSegment, RoadRenderConfig, HeightmapQuery } from './terrain-roads.js';
+export { TerrainBridgeRenderer, extractBridgeSegments, calculateSectionalBridgeSpanCount } from './terrain-bridges.js';
+export type { BridgePoint, BridgeSegment, TerrainBridgeDefinition, TerrainBridgeRendererConfig } from './terrain-bridges.js';
 export { ShroudRenderer, CELL_SHROUDED, CELL_FOGGED, CELL_CLEAR } from './shroud-renderer.js';
 export type { ShroudRendererConfig, FogOfWarData } from './shroud-renderer.js';
 export { DisplayStringRenderer } from './display-strings.js';

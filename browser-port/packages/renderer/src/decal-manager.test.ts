@@ -44,6 +44,16 @@ describe('DecalManager', () => {
     expect(manager.decalRenderer.getActiveDecalCount()).toBeGreaterThanOrEqual(0);
   });
 
+  it('preserves permanent scorch lifetimes for pre-placed map decals', async () => {
+    manager.addScorchMark('SCORCH_4', 12, new THREE.Vector3(0, 0, 0), 0);
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    manager.update(0.016);
+
+    expect(manager.terrainScorch.getActiveCount()).toBe(1);
+    expect(manager.decalRenderer.getActiveDecalCount()).toBe(1);
+  });
+
   it('disposes cleanly', () => {
     manager.addScorchMark('RANDOM', 5, new THREE.Vector3(0, 0, 0));
     manager.dispose();

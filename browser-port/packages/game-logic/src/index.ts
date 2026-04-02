@@ -3298,6 +3298,8 @@ export interface MapEntity {
   /** Source parity: Object::isCaptured() runtime state. */
   capturedFromOriginalOwner: boolean;
   controllingPlayerToken: string | null;
+  /** Source parity: MapObject originalOwner team token used for script-team membership on map load. */
+  sourceTeamNameUpper?: string | null;
   resolved: boolean;
   bridgeFlags: number;
   mapCellX: number;
@@ -6399,12 +6401,66 @@ const NON_ENTITY_TEMPLATE_NAMES = new Set([
   'DirtRoad4', 'DirtPath1', 'Sidewalk', 'GravelRoad', 'DirtRoad1',
   'DirtRoad2', 'DirtRoad3', 'PavedRoad1', 'PavedRoad2', 'BrokenPavedRoad',
   'AsphaltRoad', 'BrokenAsphaltRoad', 'CobblestoneRoad',
+  // Terrain scorch decals are projected by W3DTerrainLogic, not spawned as entities.
+  'Scorch',
   // Map-embedded waypoint markers
   '*Waypoints/Waypoint',
-]);
+].map((templateName) => templateName.toUpperCase()));
 
-function isNonEntityMapObject(templateName: string): boolean {
-  return NON_ENTITY_TEMPLATE_NAMES.has(templateName);
+export interface SupplementalMapObjectDefinition {
+  templateName: string;
+  objectDefName?: string;
+  modelName?: string | null;
+  kindOf?: readonly string[];
+  side?: string;
+}
+
+function normalizeMapTemplateName(templateName: string): string {
+  return templateName.trim().toUpperCase();
+}
+
+function isBaseNonEntityMapObject(templateName: string): boolean {
+  return NON_ENTITY_TEMPLATE_NAMES.has(normalizeMapTemplateName(templateName));
+}
+
+function createSupplementalMapObjectDef(definition: SupplementalMapObjectDefinition): ObjectDef {
+  const fields: Record<string, IniValue> = {};
+  if (definition.kindOf && definition.kindOf.length > 0) {
+    fields.KindOf = definition.kindOf.join(' ');
+  }
+  if (definition.side && definition.side.trim().length > 0) {
+    fields.Side = definition.side.trim();
+  }
+
+  const normalizedModelName = definition.modelName?.trim() ?? '';
+  const blocks: IniBlock[] = normalizedModelName.length > 0
+    ? [
+        {
+          type: 'Draw',
+          name: 'W3DModelDraw ModuleTag_SupplementalDraw',
+          fields: {},
+          blocks: [
+            {
+              type: 'DefaultConditionState',
+              name: '',
+              fields: {
+                Model: normalizedModelName,
+              },
+              blocks: [],
+            },
+          ],
+        },
+      ]
+    : [];
+
+  return {
+    name: definition.templateName,
+    side: definition.side?.trim() || undefined,
+    kindOf: definition.kindOf ? Array.from(definition.kindOf) : undefined,
+    fields,
+    blocks,
+    resolved: true,
+  };
 }
 
 interface SideScoreState {
@@ -7896,6 +7952,9 @@ export class GameLogicSubsystem implements Subsystem {
    */
   private globalSoloPlayerHealthBonuses: readonly [readonly [number, number, number], readonly [number, number, number]] = [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]];
   private readonly commandQueue: GameLogicCommand[] = [];
+  /** Source parity: TerrainRoadCollection names from Roads.ini, covering roads and bridges. */
+  private readonly roadTemplateNames = new Set<string>();
+  private readonly supplementalMapObjectDefs = new Map<string, SupplementalMapObjectDefinition>();
   private frameCounter = 0;
   private readonly bridgeSegments = new Map<number, BridgeSegmentState>();
   private readonly bridgeSegmentByControlEntity = new Map<number, number>();
@@ -8419,6 +8478,38 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
+   * Source parity: TerrainRoadCollection entries from Data/INI/Roads.ini include
+   * both roads and bridges, and are rendered by the terrain subsystem rather
+   * than spawned as ThingFactory entities.
+   */
+  setRoadTemplateNames(templateNames: Iterable<string>): void {
+    this.roadTemplateNames.clear();
+    for (const templateName of templateNames) {
+      const normalized = normalizeMapTemplateName(templateName);
+      if (normalized.length > 0) {
+        this.roadTemplateNames.add(normalized);
+      }
+    }
+  }
+
+  /**
+   * Source parity bridge: some retail maps reference source-backed helper props
+   * whose art/model names exist in source content but do not survive the normal
+   * bundle extraction path. Register them here so map placement resolves them as
+   * first-class templates instead of falling back to unresolved placeholders.
+   */
+  setSupplementalMapObjectDefinitions(definitions: Iterable<SupplementalMapObjectDefinition>): void {
+    this.supplementalMapObjectDefs.clear();
+    for (const definition of definitions) {
+      const normalized = normalizeMapTemplateName(definition.templateName);
+      if (!normalized) {
+        continue;
+      }
+      this.supplementalMapObjectDefs.set(normalized, { ...definition });
+    }
+  }
+
+  /**
    * Resolve map objects against INI definitions and create simulation entities.
    * Returns a compact summary for debug overlays and future HUD wiring.
    */
@@ -8477,12 +8568,12 @@ export class GameLogicSubsystem implements Subsystem {
       // Source parity: road objects and waypoint markers are handled by
       // separate C++ subsystems (TerrainRoads, WaypointManager), not
       // spawned as game entities via ThingFactory.
-      if (isNonEntityMapObject(mapObject.templateName)) {
+      if (this.isNonEntityMapObject(mapObject.templateName)) {
         this.placementSummary.skippedObjects++;
         continue;
       }
 
-      const objectDef = findObjectDefByName(iniDataRegistry, mapObject.templateName);
+      const objectDef = this.resolveMapObjectDef(mapObject.templateName, iniDataRegistry);
       const resolved = objectDef !== undefined;
 
       if (!resolved && !this.config.renderUnknownObjects) {
@@ -8604,6 +8695,31 @@ export class GameLogicSubsystem implements Subsystem {
 
   getPlacementSummary(): MapObjectPlacementSummary {
     return { ...this.placementSummary };
+  }
+
+  private isNonEntityMapObject(templateName: string): boolean {
+    const normalizedTemplateName = normalizeMapTemplateName(templateName);
+    return isBaseNonEntityMapObject(normalizedTemplateName)
+      || this.roadTemplateNames.has(normalizedTemplateName);
+  }
+
+  private resolveMapObjectDef(templateName: string, iniDataRegistry: IniDataRegistry): ObjectDef | undefined {
+    const direct = findObjectDefByName(iniDataRegistry, templateName);
+    if (direct) {
+      return direct;
+    }
+
+    const supplemental = this.supplementalMapObjectDefs.get(normalizeMapTemplateName(templateName));
+    if (!supplemental) {
+      return undefined;
+    }
+
+    const aliasName = supplemental.objectDefName?.trim();
+    if (aliasName) {
+      return findObjectDefByName(iniDataRegistry, aliasName);
+    }
+
+    return createSupplementalMapObjectDef(supplemental);
   }
 
   getRenderableEntityStates(): RenderableEntityState[] {
@@ -20259,8 +20375,8 @@ export class GameLogicSubsystem implements Subsystem {
     return [cellX, cellZ];
   }
 
-  private getOrCreateScriptTeamRecord(teamName: string): ScriptTeamRecord | null {
-    const teamNameUpper = this.resolveScriptTeamName(teamName);
+  private getOrCreateLiteralScriptTeamRecord(teamName: string): ScriptTeamRecord | null {
+    const teamNameUpper = teamName.trim().toUpperCase();
     if (!teamNameUpper) {
       return null;
     }
@@ -20296,7 +20412,24 @@ export class GameLogicSubsystem implements Subsystem {
     return created;
   }
 
+  private getOrCreateScriptTeamRecord(teamName: string): ScriptTeamRecord | null {
+    const teamNameUpper = this.resolveScriptTeamName(teamName);
+    if (!teamNameUpper) {
+      return null;
+    }
+    return this.getOrCreateLiteralScriptTeamRecord(teamNameUpper);
+  }
+
   private assignEntityToScriptTeam(entity: MapEntity): void {
+    const sourceTeamNameUpper = entity.sourceTeamNameUpper?.trim().toUpperCase() ?? '';
+    if (sourceTeamNameUpper) {
+      const sourceTeam = this.scriptTeamsByName.get(sourceTeamNameUpper);
+      if (sourceTeam) {
+        sourceTeam.memberEntityIds.add(entity.id);
+        return;
+      }
+    }
+
     const ownerToken = this.normalizeControllingPlayerToken(entity.controllingPlayerToken ?? undefined);
     if (!ownerToken) {
       return;
@@ -20672,16 +20805,43 @@ export class GameLogicSubsystem implements Subsystem {
     return normalized.length > 0 ? normalized : null;
   }
 
-  /* @internal */ resolveMapObjectControllingPlayerToken(mapObject: MapObjectJSON): string | null {
+  private readMapObjectOriginalOwner(mapObject: MapObjectJSON): string | null {
     for (const [key, value] of Object.entries(mapObject.properties)) {
       if (key.trim().toLowerCase() !== 'originalowner') {
         continue;
       }
 
-      return this.normalizeControllingPlayerToken(value);
+      const rawOwner = typeof value === 'string' ? value : String(value ?? '');
+      const trimmedOwner = rawOwner.trim();
+      return trimmedOwner.length > 0 ? trimmedOwner : null;
     }
 
     return null;
+  }
+
+  /* @internal */ resolveMapObjectOwningTeamNameUpper(mapObject: MapObjectJSON): string | null {
+    const originalOwner = this.readMapObjectOriginalOwner(mapObject);
+    if (!originalOwner) {
+      return null;
+    }
+
+    const teamNameUpper = originalOwner.toUpperCase();
+    return this.scriptTeamsByName.has(teamNameUpper) ? teamNameUpper : null;
+  }
+
+  /* @internal */ resolveMapObjectControllingPlayerToken(mapObject: MapObjectJSON): string | null {
+    const originalOwner = this.readMapObjectOriginalOwner(mapObject);
+    if (!originalOwner) {
+      return null;
+    }
+
+    const sourceTeamNameUpper = this.resolveMapObjectOwningTeamNameUpper(mapObject);
+    if (sourceTeamNameUpper) {
+      const sourceTeam = this.scriptTeamsByName.get(sourceTeamNameUpper);
+      return this.normalizeControllingPlayerToken(sourceTeam?.controllingPlayerToken ?? undefined);
+    }
+
+    return this.normalizeControllingPlayerToken(originalOwner);
   }
 
   /* @internal */ resolveMapObjectScriptName(mapObject: MapObjectJSON): string | null {

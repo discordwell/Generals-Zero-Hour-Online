@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { buildAudioIndex } from './audio-buffer-loader.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { buildAudioIndex, createAudioBufferLoader } from './audio-buffer-loader.js';
 import type { RuntimeManifest } from '@generals/assets';
 
 function makeManifest(entries: Array<{ outputPath: string; converter: string }>): RuntimeManifest {
@@ -20,6 +20,16 @@ function makeManifest(entries: Array<{ outputPath: string; converter: string }>)
   // Minimal RuntimeManifest stub — only raw.entries is used by buildAudioIndex
   return { raw } as RuntimeManifest;
 }
+
+const originalFetch = globalThis.fetch;
+
+afterEach(() => {
+  if (originalFetch) {
+    globalThis.fetch = originalFetch;
+  } else {
+    delete (globalThis as Record<string, unknown>)['fetch'];
+  }
+});
 
 describe('buildAudioIndex', () => {
   it('indexes audio-converter entries by lowercase basename', () => {
@@ -67,5 +77,20 @@ describe('buildAudioIndex', () => {
     const index = buildAudioIndex(manifest);
 
     expect(index.get('mysound')).toBe('mysound.wav');
+  });
+});
+
+describe('createAudioBufferLoader', () => {
+  it('returns null for HTML fallback responses instead of decode payload bytes', async () => {
+    const manifest = makeManifest([
+      { outputPath: 'audio/Speech/vgenlo2a.wav', converter: 'audio-converter' },
+    ]);
+    globalThis.fetch = vi.fn(async () => new Response('<!DOCTYPE html>', {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    })) as typeof fetch;
+
+    const loader = createAudioBufferLoader(manifest);
+    await expect(loader('vgenlo2a')).resolves.toBeNull();
   });
 });

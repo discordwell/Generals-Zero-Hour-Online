@@ -46,7 +46,32 @@ npx vitest run tools/parity-source-truth.test.ts
 - `parity-pipeline.test.ts` — Multi-system integration (combat+armor+upgrade, mutual combat, victory, guard, stop)
 - `parity-source-truth.test.ts` — Parser unit tests + live source comparison
 
-## Layer 3: Visual Comparison
+## Layer 3: Runtime Visual Scene Parity
+
+Retail-map scene probes using Playwright against the built app. This catches
+runtime visual blockers that the logic/source-truth layers can miss, such as
+unresolved model placeholders, missing skybox state, and page/runtime errors.
+
+```bash
+npm run report:visual-scenes
+```
+
+**Reports:**
+- `visual-scene-parity-report.json` — per-scene runtime probe results
+- `test-results/visual-scenes/*.png` — scene captures for inspected maps
+
+**Current probe scenes:**
+- `Tournament Desert`
+- `MD_USA01`
+
+**What it checks:**
+- No uncaught page errors
+- No unresolved placed-map objects
+- No unresolved rendered entities / visible placeholders after warm-up
+- Minimum renderable population for the scene
+- Script skybox visible on campaign intro scenes that expect it
+
+## Layer 4: Visual Comparison
 
 Screenshot comparison using the Visual Oracle tool (QEMU-based).
 
@@ -63,6 +88,7 @@ See `tools/visual-oracle/` for details.
 | `npm run parity` | Run all parity vitest suites |
 | `npm run parity:source` | Generate source truth report |
 | `npm run parity:strict` | Source truth with non-zero exit on failure |
+| `npm run report:visual-scenes` | Probe canonical retail scenes for runtime visual blockers |
 | `npm test` | Run all tests including parity |
 
 ## Architecture

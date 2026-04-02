@@ -32,6 +32,18 @@ describe('blocker parity report', () => {
         objectCycles: [],
         scienceCycles: [],
       },
+      visualSceneParity: {
+        summary: {
+          blockedScenarios: 0,
+        },
+        scenarios: [],
+      },
+      uiLayoutParity: {
+        summary: {
+          blockedScenarios: 0,
+        },
+        scenarios: [],
+      },
     });
 
     expect(report.status).toBe('clear');
@@ -72,6 +84,35 @@ describe('blocker parity report', () => {
         objectCycles: [['A', 'B', 'A']],
         scienceCycles: [['SCI_A', 'SCI_B', 'SCI_A']],
       },
+      visualSceneParity: {
+        summary: {
+          blockedScenarios: 2,
+        },
+        scenarios: [
+          {
+            name: 'MD_USA01',
+            status: 'blocked',
+            blockingIssues: ['skybox missing'],
+          },
+          {
+            name: 'Tournament Desert',
+            status: 'blocked',
+            blockingIssues: ['unresolved entities'],
+          },
+        ],
+      },
+      uiLayoutParity: {
+        summary: {
+          blockedScenarios: 1,
+        },
+        scenarios: [
+          {
+            name: 'Main Menu',
+            status: 'blocked',
+            blockingIssues: ['button order mismatch'],
+          },
+        ],
+      },
     });
 
     expect(report.status).toBe('blocked');
@@ -88,6 +129,8 @@ describe('blocker parity report', () => {
       'prerequisite-missing-references',
       'prerequisite-object-cycles',
       'prerequisite-science-cycles',
+      'visual-scene-blocked-scenarios',
+      'ui-layout-blocked-scenarios',
     ]));
   });
 });

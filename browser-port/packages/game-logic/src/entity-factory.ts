@@ -59,6 +59,7 @@ export function createMapEntity(self: GL,
   const normalizedKindOf = self.normalizeKindOf(kindOf);
   const isResolved = objectDef !== undefined;
   const objectId = self.nextId++;
+  const sourceTeamNameUpper = self.resolveMapObjectOwningTeamNameUpper(mapObject);
   const controllingPlayerToken = self.resolveMapObjectControllingPlayerToken(mapObject);
   const scriptName = self.resolveMapObjectScriptName(mapObject);
   const renderAssetProfile = self.resolveRenderAssetProfile(objectDef);
@@ -275,6 +276,7 @@ export function createMapEntity(self: GL,
     originalOwningSide: normalizedOriginalSide,
     capturedFromOriginalOwner: false,
     controllingPlayerToken,
+    sourceTeamNameUpper,
     resolved: isResolved,
     bridgeFlags,
     mapCellX,

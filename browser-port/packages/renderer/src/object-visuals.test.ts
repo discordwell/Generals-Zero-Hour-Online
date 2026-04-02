@@ -285,6 +285,32 @@ describe('ObjectVisualManager', () => {
     expect(placeholder?.visible).toBe(true);
   });
 
+  it('returns a structured visual debug snapshot', async () => {
+    const scene = new THREE.Scene();
+    const manager = new ObjectVisualManager(scene, null, {
+      modelLoader: async (assetPath: string) => {
+        if (assetPath === 'missing-model.gltf') {
+          throw new Error('missing asset');
+        }
+        return modelWithAnimationClips(['Idle']);
+      },
+    });
+
+    manager.sync([
+      makeMeshState({ id: 21, renderAssetPath: 'loaded-model.gltf' }),
+      makeMeshState({ id: 22, renderAssetPath: 'missing-model.gltf' }),
+    ], 1 / 30);
+    await flushModelLoadQueue();
+
+    expect(manager.getDebugSnapshot()).toEqual({
+      visualEntityCount: 2,
+      modelEntityCount: 1,
+      placeholderEntityCount: 1,
+      unresolvedEntityCount: 1,
+      unresolvedEntityIds: [22],
+    });
+  });
+
   it('renders script flash ring with scripted color while flash count is active', async () => {
     const scene = new THREE.Scene();
     const manager = new ObjectVisualManager(scene, null, {

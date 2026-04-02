@@ -181,6 +181,20 @@ function evaluateFadeAmount(
   return minFade;
 }
 
+function hasFadeExpired(
+  fade: ActiveFadeState | null,
+  currentLogicFrame: number,
+): boolean {
+  if (!fade) {
+    return false;
+  }
+  const totalFrames =
+    Math.max(0, Math.trunc(fade.increaseFrames))
+    + Math.max(0, Math.trunc(fade.holdFrames))
+    + Math.max(0, Math.trunc(fade.decreaseFrames));
+  return (currentLogicFrame - fade.startFrame) > totalFrames;
+}
+
 export function createScriptCameraEffectsRuntimeBridge(
   options: CreateScriptCameraEffectsRuntimeBridgeOptions,
 ): ScriptCameraEffectsRuntimeBridge {
@@ -422,7 +436,13 @@ export function createScriptCameraEffectsRuntimeBridge(
         Number.isFinite(followBlurPixels) ? Math.max(0, followBlurPixels) : 0,
       );
       const saturation = oneShotBlurPixels > 0 ? oneShotSaturation : 1;
-      const fadeAmount = clamp01(evaluateFadeAmount(activeFade, currentLogicFrame));
+      if (hasFadeExpired(activeFade, currentLogicFrame)) {
+        activeFade = null;
+      }
+
+      const fadeAmount = activeFade
+        ? clamp01(evaluateFadeAmount(activeFade, currentLogicFrame))
+        : 0;
       const fadeType = activeFade ? activeFade.fadeType : null;
 
       return {

@@ -43,6 +43,10 @@ export function createAudioBufferLoader(manifest: RuntimeManifest): AudioBufferL
     try {
       const response = await fetch(url);
       if (!response.ok) return null;
+      const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+      if (contentType.includes('text/html')) {
+        return null;
+      }
       return await response.arrayBuffer();
     } catch {
       return null;

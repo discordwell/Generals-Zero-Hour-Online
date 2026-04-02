@@ -10,7 +10,7 @@ import {
   GUICommandType,
   type ControlBarButton,
 } from './control-bar.js';
-import { CommandCardRenderer } from './command-card-renderer.js';
+import { CommandCardRenderer, resolveRetailCommandGridPosition } from './command-card-renderer.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -81,7 +81,7 @@ describe('CommandCardRenderer', () => {
     container.remove();
   });
 
-  it('creates exactly 12 button elements in a grid', () => {
+  it('creates exactly 14 button elements in the retail command grid', () => {
     model.setButtons(makeButtons());
     const renderer = new CommandCardRenderer(container, model);
 
@@ -92,6 +92,23 @@ describe('CommandCardRenderer', () => {
     const grid = container.querySelector('.command-card-grid');
     expect(grid).not.toBeNull();
     expect(grid!.children).toHaveLength(14);
+
+    renderer.dispose();
+  });
+
+  it('positions slots in the retail 7x2 column-major layout', () => {
+    model.setButtons(makeButtons());
+    const renderer = new CommandCardRenderer(container, model);
+
+    const buttons = queryButtons(container);
+    const grid = container.querySelector('.command-card-grid') as HTMLDivElement;
+
+    expect(grid).not.toBeNull();
+    expect(resolveRetailCommandGridPosition(1)).toEqual({ column: 1, row: 1 });
+    expect(resolveRetailCommandGridPosition(2)).toEqual({ column: 1, row: 2 });
+    expect(resolveRetailCommandGridPosition(3)).toEqual({ column: 2, row: 1 });
+    expect(resolveRetailCommandGridPosition(14)).toEqual({ column: 7, row: 2 });
+    expect(buttons[0]).toBeDefined();
 
     renderer.dispose();
   });

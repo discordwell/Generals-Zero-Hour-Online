@@ -1,0 +1,2314 @@
+{
+  "generatedAt": "2026-04-02T03:55:33.727Z",
+  "baseUrl": "http://127.0.0.1:63555",
+  "summary": {
+    "scenarioCount": 37,
+    "blockedScenarios": 0,
+    "blockerItems": 0
+  },
+  "scenarios": [
+    {
+      "id": "tournament-desert",
+      "name": "Tournament Desert",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/Tournament%20Desert/Tournament%20Desert.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/tournament-desert.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "[.WebGL-0x12c0019ba00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x12c0019ba00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x12c0019ba00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x12c0019ba00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 262,
+        "mapPath": "maps/_extracted/MapsZH/Maps/Tournament Desert/Tournament Desert.json",
+        "placementResolvedObjects": 580,
+        "placementSpawnedObjects": 580,
+        "placementTotalObjects": 784,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 580,
+        "sceneObjectCount": 711,
+        "debugInfoText": "FPS: 68 | Map: 270x340 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 580/784 (unresolved: 0) | Sel: none | Frame: 262",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 1.5841305961973844e-25,
+          "y": 440,
+          "z": 456.128880494422
+        },
+        "cameraQuaternion": {
+          "x": -0.3214394653031616,
+          "y": 0,
+          "z": 0,
+          "w": 0.9469301294951057
+        },
+        "rtsCameraState": {
+          "targetX": 0,
+          "targetZ": 0,
+          "angle": 0,
+          "zoom": 574.9378710966035,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 580,
+          "modelEntityCount": 511,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_chi01",
+      "name": "MD_CHI01",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_CHI01/MD_CHI01.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_chi01.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade.",
+        "[AudioManager] Failed to load/decode \"xc1xoc17.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xc1xoc01.wav\": Unable to decode audio data"
+      ],
+      "debugState": {
+        "frame": 441,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_CHI01/MD_CHI01.json",
+        "placementResolvedObjects": 1224,
+        "placementSpawnedObjects": 1224,
+        "placementTotalObjects": 3349,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1230,
+        "sceneObjectCount": 1715,
+        "debugInfoText": "FPS: 16 | Map: 385x530 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1224/3349 (unresolved: 0) | Sel: none | Frame: 441",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 3172.9346430602,
+          "y": 276.28297616852717,
+          "z": 4509.254976636124
+        },
+        "cameraQuaternion": {
+          "x": -0.27517535227533046,
+          "y": 0.3711700291677165,
+          "z": 0.11616843157694381,
+          "w": 0.8792134157602108
+        },
+        "rtsCameraState": {
+          "targetX": 2979.1190442145703,
+          "targetZ": 4320.614214758016,
+          "angle": 0.7989278670154136,
+          "zoom": 340.91019285907186,
+          "pitch": 0.9043508701157151
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": "MULTIPLY",
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1230,
+          "modelEntityCount": 1160,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_chi02",
+      "name": "MD_CHI02",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_CHI02/MD_CHI02.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_chi02.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade.",
+        "[AudioManager] Failed to load/decode \"xc2re101.wav\": Unable to decode audio data"
+      ],
+      "debugState": {
+        "frame": 379,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_CHI02/MD_CHI02.json",
+        "placementResolvedObjects": 1846,
+        "placementSpawnedObjects": 1846,
+        "placementTotalObjects": 2581,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1850,
+        "sceneObjectCount": 2184,
+        "debugInfoText": "FPS: 7 | Map: 490x490 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1846/2581 (unresolved: 0) | Sel: none | Frame: 379",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 2323.769938043402,
+          "y": 385.1938619704917,
+          "z": 1921.2894551219856
+        },
+        "cameraQuaternion": {
+          "x": -0.3015672419242499,
+          "y": 0.3277844368512734,
+          "z": 0.11126782307829806,
+          "w": 0.8883884471917176
+        },
+        "rtsCameraState": {
+          "targetX": 2024.9300537109375,
+          "targetZ": 1571.449951171875,
+          "angle": 0.706938867930949,
+          "zoom": 579.9446521165644,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": "MULTIPLY",
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1850,
+          "modelEntityCount": 1541,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_chi03",
+      "name": "MD_CHI03",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_CHI03/MD_CHI03.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_chi03.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 414,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_CHI03/MD_CHI03.json",
+        "placementResolvedObjects": 1548,
+        "placementSpawnedObjects": 1548,
+        "placementTotalObjects": 2995,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1587,
+        "sceneObjectCount": 1883,
+        "debugInfoText": "FPS: 18 | Map: 420x420 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1548/2995 (unresolved: 0) | Sel: none | Frame: 414",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 1530.1735606539576,
+          "y": 265.41218040648863,
+          "z": 893.248520985521
+        },
+        "cameraQuaternion": {
+          "x": -0.3309527299769953,
+          "y": -0.0948596986804958,
+          "z": -0.0334594990780055,
+          "w": 0.9382709576707937
+        },
+        "rtsCameraState": {
+          "targetX": 1590.958602627841,
+          "targetZ": 595.7044137665719,
+          "angle": -0.20151634999866808,
+          "zoom": 401.9318409307749,
+          "pitch": 1.0499999523162842
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1587,
+          "modelEntityCount": 1461,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_chi04",
+      "name": "MD_CHI04",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_CHI04/MD_CHI04.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_chi04.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 392,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_CHI04/MD_CHI04.json",
+        "placementResolvedObjects": 1648,
+        "placementSpawnedObjects": 1648,
+        "placementTotalObjects": 2256,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1652,
+        "sceneObjectCount": 2047,
+        "debugInfoText": "FPS: 6 | Map: 560x560 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1648/2256 (unresolved: 0) | Sel: none | Frame: 392",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 4368.638592758922,
+          "y": 377.82178910230266,
+          "z": 3484.79221002848
+        },
+        "cameraQuaternion": {
+          "x": -0.10543901903975161,
+          "y": 0.8945367666964592,
+          "z": 0.3036543151649872,
+          "w": 0.3106133338636028
+        },
+        "rtsCameraState": {
+          "targetX": 4073.6329516601563,
+          "targetZ": 3858.3683064778647,
+          "angle": 2.4731760343552573,
+          "zoom": 600,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1652,
+          "modelEntityCount": 1430,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_chi05",
+      "name": "MD_CHI05",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_CHI05/MD_CHI05.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_chi05.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade.",
+        "[AudioManager] Failed to load/decode \"xc5xoc10.wav\": Unable to decode audio data"
+      ],
+      "debugState": {
+        "frame": 346,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_CHI05/MD_CHI05.json",
+        "placementResolvedObjects": 1964,
+        "placementSpawnedObjects": 1964,
+        "placementTotalObjects": 3251,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 2014,
+        "sceneObjectCount": 2732,
+        "debugInfoText": "FPS: 3 | Map: 700x700 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1964/3251 (unresolved: 0) | Sel: none | Frame: 346",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 620.1763524285379,
+          "y": 639.3061958079522,
+          "z": 3633.6370791066315
+        },
+        "cameraQuaternion": {
+          "x": -0.26799126089990805,
+          "y": -0.5228795823913513,
+          "z": -0.17749370111544763,
+          "w": 0.7894767966595748
+        },
+        "rtsCameraState": {
+          "targetX": 1196.05859375,
+          "targetZ": 3389.5920138888887,
+          "angle": -1.1699628860130629,
+          "zoom": 788.3731999733463,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 2014,
+          "modelEntityCount": 124,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_chi05_end",
+      "name": "MD_CHI05_END",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_CHI05_END/MD_CHI05_END.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_chi05_end.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 480,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_CHI05_END/MD_CHI05_END.json",
+        "placementResolvedObjects": 270,
+        "placementSpawnedObjects": 270,
+        "placementTotalObjects": 485,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 270,
+        "sceneObjectCount": 787,
+        "debugInfoText": "FPS: 78 | Map: 700x700 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 270/485 (unresolved: 0) | Sel: none | Frame: 480",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 6.1309926629189386e-30,
+          "y": 502.5,
+          "z": 447.16920605613876
+        },
+        "cameraQuaternion": {
+          "x": -0.3214394653031616,
+          "y": 0,
+          "z": 0,
+          "w": 0.9469301294951057
+        },
+        "rtsCameraState": {
+          "targetX": 0,
+          "targetZ": 0,
+          "angle": 0,
+          "zoom": 563.6444486286346,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 270,
+          "modelEntityCount": 262,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_chi05_intro",
+      "name": "MD_CHI05_Intro",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_CHI05_Intro/MD_CHI05_Intro.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_chi05_intro.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 263,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_CHI05_Intro/MD_CHI05_Intro.json",
+        "placementResolvedObjects": 1452,
+        "placementSpawnedObjects": 1452,
+        "placementTotalObjects": 2153,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1544,
+        "sceneObjectCount": 1984,
+        "debugInfoText": "FPS: 2 | Map: 600x600 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1452/2153 (unresolved: 0) | Sel: none | Frame: 263",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 1010.1595173463145,
+          "y": 508.11165118983297,
+          "z": 3682.1172304546053
+        },
+        "cameraQuaternion": {
+          "x": -0.26799126089990793,
+          "y": -0.5228795823913513,
+          "z": -0.1774937011154476,
+          "w": 0.7894767966595748
+        },
+        "rtsCameraState": {
+          "targetX": 1520.8622884114584,
+          "targetZ": 3465.6936595775464,
+          "angle": -1.1699628860130629,
+          "zoom": 699.1435904256937,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1544,
+          "modelEntityCount": 111,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_gla01",
+      "name": "MD_GLA01",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_GLA01/MD_GLA01.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_gla01.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade.",
+        "[AudioManager] Failed to load/decode \"xg1hu101.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"chumdria\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"chumdrib\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xg1ofu01.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"gpanic1b\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"ctecdria\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xg1hu102.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"ctecdric\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"ctecdrib\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xg1hu202.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xg1hu103.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"cleftria\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"cleftrib\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"cleftric\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"crighorn\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"cleftrid\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xg1hu203.wav\": Unable to decode audio data"
+      ],
+      "debugState": {
+        "frame": 410,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA01/MD_GLA01.json",
+        "placementResolvedObjects": 1415,
+        "placementSpawnedObjects": 1415,
+        "placementTotalObjects": 1985,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1426,
+        "sceneObjectCount": 1918,
+        "debugInfoText": "FPS: 4 | Map: 675x640 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1415/1985 (unresolved: 0) | Sel: none | Frame: 410",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 3947.3319279552097,
+          "y": 58.70091432069765,
+          "z": 2529.130938675872
+        },
+        "cameraQuaternion": {
+          "x": 0,
+          "y": 0.8653748532729134,
+          "z": 0,
+          "w": 0.5011250974785473
+        },
+        "rtsCameraState": {
+          "targetX": 3892.284496166088,
+          "targetZ": 2560.722095630787,
+          "angle": 2.0917958251536395,
+          "zoom": 80,
+          "pitch": 0
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1426,
+          "modelEntityCount": 1274,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_gla02",
+      "name": "MD_GLA02",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_GLA02/MD_GLA02.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_gla02.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade.",
+        "[AudioManager] Failed to load/decode \"xg2cyc01.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xg2ofg01.wav\": Unable to decode audio data"
+      ],
+      "debugState": {
+        "frame": 278,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA02/MD_GLA02.json",
+        "placementResolvedObjects": 1149,
+        "placementSpawnedObjects": 1149,
+        "placementTotalObjects": 2097,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1151,
+        "sceneObjectCount": 1477,
+        "debugInfoText": "FPS: 3 | Map: 490x490 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1149/2097 (unresolved: 0) | Sel: none | Frame: 278",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 1370.6108683254474,
+          "y": 49.401556663376844,
+          "z": 856.4939720889946
+        },
+        "cameraQuaternion": {
+          "x": 0,
+          "y": -0.6375630973843835,
+          "z": 0,
+          "w": 0.7703981417771146
+        },
+        "rtsCameraState": {
+          "targetX": 1432.959228515625,
+          "targetZ": 844.6237182617188,
+          "angle": -1.3826618724080164,
+          "zoom": 80,
+          "pitch": 0
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1151,
+          "modelEntityCount": 540,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_gla02_cine",
+      "name": "MD_GLA02_CINE",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_GLA02_CINE/MD_GLA02_CINE.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_gla02_cine.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 492,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA02_CINE/MD_GLA02_CINE.json",
+        "placementResolvedObjects": 667,
+        "placementSpawnedObjects": 667,
+        "placementTotalObjects": 1277,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 680,
+        "sceneObjectCount": 981,
+        "debugInfoText": "FPS: 31 | Map: 490x490 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 667/1277 (unresolved: 0) | Sel: none | Frame: 492",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 1585.0082912434332,
+          "y": 158.56250505894423,
+          "z": 681.009466532552
+        },
+        "cameraQuaternion": {
+          "x": -0.23602870388033587,
+          "y": 0.19741108878034513,
+          "z": 0.049035767575770085,
+          "w": 0.9502182941142433
+        },
+        "rtsCameraState": {
+          "targetX": 1518.9211141854746,
+          "targetZ": 528.822415907118,
+          "angle": 0.4096790454628705,
+          "zoom": 209.13365892161417,
+          "pitch": 0.6899999976158142
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 680,
+          "modelEntityCount": 659,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_gla03",
+      "name": "MD_GLA03",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_GLA03/MD_GLA03.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_gla03.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 414,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA03/MD_GLA03.json",
+        "placementResolvedObjects": 1295,
+        "placementSpawnedObjects": 1295,
+        "placementTotalObjects": 1907,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1383,
+        "sceneObjectCount": 1723,
+        "debugInfoText": "FPS: 13 | Map: 480x480 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1295/1907 (unresolved: 0) | Sel: none | Frame: 414",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 3400.491394948185,
+          "y": 108.22367529600113,
+          "z": 13.133826641435718
+        },
+        "cameraQuaternion": {
+          "x": -0.14784063237183784,
+          "y": 0.8396892525730686,
+          "z": 0.2823054617423745,
+          "w": 0.439737117837011
+        },
+        "rtsCameraState": {
+          "targetX": 3284.562641059028,
+          "targetZ": 93.46290215386287,
+          "angle": 2.176753179629704,
+          "zoom": 177.77682707695135,
+          "pitch": 0.9879665746662278
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1383,
+          "modelEntityCount": 1086,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_gla03_cine",
+      "name": "MD_GLA03_CINE",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_GLA03_CINE/MD_GLA03_CINE.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_gla03_cine.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 482,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA03_CINE/MD_GLA03_CINE.json",
+        "placementResolvedObjects": 1107,
+        "placementSpawnedObjects": 1107,
+        "placementTotalObjects": 1423,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1112,
+        "sceneObjectCount": 1417,
+        "debugInfoText": "FPS: 19 | Map: 480x480 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1107/1423 (unresolved: 0) | Sel: none | Frame: 482",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 3470.566775537046,
+          "y": 107.0493031569178,
+          "z": 59.78112003036715
+        },
+        "cameraQuaternion": {
+          "x": -0.14224529018456594,
+          "y": 0.8432060483164461,
+          "z": 0.2716210129921047,
+          "w": 0.44157882966013523
+        },
+        "rtsCameraState": {
+          "targetX": 3355.896004231771,
+          "targetZ": 139.23851725260417,
+          "angle": 2.1767531796297046,
+          "zoom": 175.84770988403784,
+          "pitch": 0.936824516997696
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1112,
+          "modelEntityCount": 1101,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_gla03_end",
+      "name": "MD_GLA03_END",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_GLA03_END/MD_GLA03_END.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_gla03_end.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 497,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA03_END/MD_GLA03_END.json",
+        "placementResolvedObjects": 1110,
+        "placementSpawnedObjects": 1110,
+        "placementTotalObjects": 1450,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1114,
+        "sceneObjectCount": 1419,
+        "debugInfoText": "FPS: 50 | Map: 480x480 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1110/1450 (unresolved: 0) | Sel: none | Frame: 497",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 3.789958053327412e-65,
+          "y": 341.25,
+          "z": 403.9998655807738
+        },
+        "cameraQuaternion": {
+          "x": -0.3214394653031615,
+          "y": 0,
+          "z": 0,
+          "w": 0.9469301294951057
+        },
+        "rtsCameraState": {
+          "targetX": 0,
+          "targetZ": 0,
+          "angle": 0,
+          "zoom": 509.2306858284203,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1114,
+          "modelEntityCount": 1095,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_gla04",
+      "name": "MD_GLA04",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_GLA04/MD_GLA04.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_gla04.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 1,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA04/MD_GLA04.json",
+        "placementResolvedObjects": 2701,
+        "placementSpawnedObjects": 2701,
+        "placementTotalObjects": 4428,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 2725,
+        "sceneObjectCount": 3139,
+        "debugInfoText": "FPS: 52 | Map: 440x560 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 2701/4428 (unresolved: 0) | Sel: none | Frame: 1",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 710.0541405877967,
+          "y": 55.80000221729279,
+          "z": 556.022525601934
+        },
+        "cameraQuaternion": {
+          "x": -0.12940716664905558,
+          "y": 0.7428063142832295,
+          "z": 0.15032383657353635,
+          "w": 0.6394492230338858
+        },
+        "rtsCameraState": {
+          "targetX": 638.142822265625,
+          "targetZ": 566.8372192382812,
+          "angle": 1.720066997179087,
+          "zoom": 91.66152709141735,
+          "pitch": 0.550000011920929
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": "MULTIPLY",
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 2725,
+          "modelEntityCount": 2571,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_gla04_intro",
+      "name": "MD_GLA04_INTRO",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_GLA04_INTRO/MD_GLA04_INTRO.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_gla04_intro.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 398,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA04_INTRO/MD_GLA04_INTRO.json",
+        "placementResolvedObjects": 2204,
+        "placementSpawnedObjects": 2204,
+        "placementTotalObjects": 3653,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 2207,
+        "sceneObjectCount": 2599,
+        "debugInfoText": "FPS: 3 | Map: 440x560 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 2204/3653 (unresolved: 0) | Sel: none | Frame: 398",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 1132.0939504707987,
+          "y": 109.22454380730356,
+          "z": 477.7189827097912
+        },
+        "cameraQuaternion": {
+          "x": -0.14363937483948197,
+          "y": 0.7392681500410042,
+          "z": 0.16685646141571547,
+          "w": 0.6364033733525458
+        },
+        "rtsCameraState": {
+          "targetX": 991.3326489257812,
+          "targetZ": 498.88797790527343,
+          "angle": 1.720066997179087,
+          "zoom": 179.42093339448235,
+          "pitch": 0.6198664448894124
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 2207,
+          "modelEntityCount": 1542,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_gla04_sound",
+      "name": "MD_GLA04_Sound",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_GLA04_Sound/MD_GLA04_Sound.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_gla04_sound.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 346,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA04_Sound/MD_GLA04_Sound.json",
+        "placementResolvedObjects": 2135,
+        "placementSpawnedObjects": 2135,
+        "placementTotalObjects": 3419,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 2138,
+        "sceneObjectCount": 2514,
+        "debugInfoText": "FPS: 3 | Map: 440x560 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 2135/3419 (unresolved: 0) | Sel: none | Frame: 346",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 1053.4342009585546,
+          "y": 99.2672815754736,
+          "z": 492.3131914208716
+        },
+        "cameraQuaternion": {
+          "x": -0.14103530023300168,
+          "y": 0.7399444053964418,
+          "z": 0.163831478366427,
+          "w": 0.6369855317877826
+        },
+        "rtsCameraState": {
+          "targetX": 925.5051543511285,
+          "targetZ": 511.55235263400607,
+          "angle": 1.720066997179087,
+          "zoom": 163.06434153871396,
+          "pitch": 0.606844744121093
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 2138,
+          "modelEntityCount": 1521,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_gla05",
+      "name": "MD_GLA05",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_GLA05/MD_GLA05.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_gla05.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade.",
+        "[AudioManager] Failed to load/decode \"xg3rb201.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xc3re101.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xg5xog13.wav\": Unable to decode audio data"
+      ],
+      "debugState": {
+        "frame": 259,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA05/MD_GLA05.json",
+        "placementResolvedObjects": 2243,
+        "placementSpawnedObjects": 2243,
+        "placementTotalObjects": 6660,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 2249,
+        "sceneObjectCount": 3112,
+        "debugInfoText": "FPS: 3 | Map: 710x710 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 2243/6660 (unresolved: 0) | Sel: none | Frame: 259",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 778.6332916934443,
+          "y": 242.89996904767682,
+          "z": 944.8849678100003
+        },
+        "cameraQuaternion": {
+          "x": -0.19664451334173902,
+          "y": -0.38596526530308545,
+          "z": -0.08458163916698547,
+          "w": 0.8973336590521584
+        },
+        "rtsCameraState": {
+          "targetX": 930.0800170898438,
+          "targetZ": 801.4056103515625,
+          "angle": -0.8124063903952073,
+          "zoom": 262.9601545346522,
+          "pitch": 0.6000000238418579
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 2249,
+          "modelEntityCount": 1622,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_gla05_end",
+      "name": "MD_GLA05_END",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_GLA05_END/MD_GLA05_END.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_gla05_end.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 400,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA05_END/MD_GLA05_END.json",
+        "placementResolvedObjects": 1799,
+        "placementSpawnedObjects": 1799,
+        "placementTotalObjects": 6083,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1801,
+        "sceneObjectCount": 2723,
+        "debugInfoText": "FPS: 3 | Map: 710x710 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1799/6083 (unresolved: 0) | Sel: none | Frame: 400",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 4.068680823256315e-18,
+          "y": 499.6875,
+          "z": 443.5038846950228
+        },
+        "cameraQuaternion": {
+          "x": -0.3214394653031616,
+          "y": 0,
+          "z": 0,
+          "w": 0.9469301294951057
+        },
+        "rtsCameraState": {
+          "targetX": 0,
+          "targetZ": 0,
+          "angle": 0,
+          "zoom": 559.0244121644654,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1801,
+          "modelEntityCount": 1191,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_gla05_intro",
+      "name": "MD_GLA05_INTRO",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_GLA05_INTRO/MD_GLA05_INTRO.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_gla05_intro.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 421,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_GLA05_INTRO/MD_GLA05_INTRO.json",
+        "placementResolvedObjects": 2105,
+        "placementSpawnedObjects": 2105,
+        "placementTotalObjects": 3263,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 2112,
+        "sceneObjectCount": 2561,
+        "debugInfoText": "FPS: 4 | Map: 550x550 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 2105/3263 (unresolved: 0) | Sel: none | Frame: 421",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 528.5661438264552,
+          "y": 408.4853942163464,
+          "z": -85.5360721604643
+        },
+        "cameraQuaternion": {
+          "x": -0.05961580464919574,
+          "y": 0.9305016972577964,
+          "z": 0.3158627640137586,
+          "w": 0.17562249726608972
+        },
+        "rtsCameraState": {
+          "targetX": 355.3099060058594,
+          "targetZ": 357.0960388183594,
+          "angle": 2.7685023349418545,
+          "zoom": 599.1434030409332,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 2112,
+          "modelEntityCount": 1139,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_shellmap",
+      "name": "MD_ShellMap",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_ShellMap/MD_ShellMap.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_shellmap.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 483,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_ShellMap/MD_ShellMap.json",
+        "placementResolvedObjects": 420,
+        "placementSpawnedObjects": 420,
+        "placementTotalObjects": 752,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 423,
+        "sceneObjectCount": 627,
+        "debugInfoText": "FPS: 32 | Map: 315x315 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 420/752 (unresolved: 0) | Sel: none | Frame: 483",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 781.7411811670232,
+          "y": 327.5,
+          "z": 724.1135410727072
+        },
+        "cameraQuaternion": {
+          "x": -0.290101592872131,
+          "y": -0.40781791745316454,
+          "z": -0.13843552892026934,
+          "w": 0.8546117342687155
+        },
+        "rtsCameraState": {
+          "targetX": 1095.7996435546875,
+          "targetZ": 469.9813439941406,
+          "angle": -0.8904782744035191,
+          "zoom": 509.2306858284203,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 423,
+          "modelEntityCount": 423,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa01",
+      "name": "MD_USA01",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa01.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade.",
+        "[AudioManager] Failed to load/decode \"xu1xou08.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xu1xou18.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xu1bom01.wav\": Unable to decode audio data"
+      ],
+      "debugState": {
+        "frame": 310,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json",
+        "placementResolvedObjects": 2061,
+        "placementSpawnedObjects": 2061,
+        "placementTotalObjects": 3134,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 2079,
+        "sceneObjectCount": 2527,
+        "debugInfoText": "FPS: 3 | Map: 610x460 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 2061/3134 (unresolved: 0) | Sel: none | Frame: 310",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 1058.1740317874483,
+          "y": 430.21927854154706,
+          "z": 2199.6978437799007
+        },
+        "cameraQuaternion": {
+          "x": -0.32143946530316153,
+          "y": 0,
+          "z": 0,
+          "w": 0.9469301294951057
+        },
+        "rtsCameraState": {
+          "targetX": 1058.1740317874483,
+          "targetZ": 1771.796112540916,
+          "angle": 0,
+          "zoom": 539.3583281339742,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": "MULTIPLY",
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 2079,
+          "modelEntityCount": 1589,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa01_cine",
+      "name": "MD_USA01_CINE",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA01_CINE/MD_USA01_CINE.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa01_cine.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 234,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA01_CINE/MD_USA01_CINE.json",
+        "placementResolvedObjects": 1969,
+        "placementSpawnedObjects": 1969,
+        "placementTotalObjects": 3060,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1994,
+        "sceneObjectCount": 2444,
+        "debugInfoText": "FPS: 2 | Map: 610x460 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1969/3060 (unresolved: 0) | Sel: none | Frame: 234",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 779.854998143514,
+          "y": 472.1888259620961,
+          "z": 2329.055931864934
+        },
+        "cameraQuaternion": {
+          "x": -0.3214394653031616,
+          "y": 0,
+          "z": 0,
+          "w": 0.9469301294951057
+        },
+        "rtsCameraState": {
+          "targetX": 779.854998143514,
+          "targetZ": 1901.1542006259494,
+          "angle": 0,
+          "zoom": 539.3583281339742,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1994,
+          "modelEntityCount": 1581,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa02",
+      "name": "MD_USA02",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA02/MD_USA02.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa02.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade.",
+        "[AudioManager] Failed to load/decode \"xu2car01.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"gshescrj\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"gshescri\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"gshescrh\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xu2shi01.wav\": Unable to decode audio data"
+      ],
+      "debugState": {
+        "frame": 403,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA02/MD_USA02.json",
+        "placementResolvedObjects": 1770,
+        "placementSpawnedObjects": 1770,
+        "placementTotalObjects": 3521,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1782,
+        "sceneObjectCount": 2242,
+        "debugInfoText": "FPS: 4 | Map: 490x490 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1770/3521 (unresolved: 0) | Sel: none | Frame: 403",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 750.6553196132315,
+          "y": 241.6292711166665,
+          "z": 995.0186905804635
+        },
+        "cameraQuaternion": {
+          "x": -0.2645533526554171,
+          "y": -0.5378584714728158,
+          "z": -0.18257834880719295,
+          "w": 0.7793490455569594
+        },
+        "rtsCameraState": {
+          "targetX": 1033.339599609375,
+          "targetZ": 887.7615966796875,
+          "angle": -1.2081530624854295,
+          "zoom": 381.1016745554629,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": "MULTIPLY",
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1782,
+          "modelEntityCount": 200,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa02_intro",
+      "name": "MD_USA02_INTRO",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA02_INTRO/MD_USA02_INTRO.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa02_intro.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 358,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA02_INTRO/MD_USA02_INTRO.json",
+        "placementResolvedObjects": 2098,
+        "placementSpawnedObjects": 2098,
+        "placementTotalObjects": 3716,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 2242,
+        "sceneObjectCount": 2698,
+        "debugInfoText": "FPS: 3 | Map: 490x490 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 2098/3716 (unresolved: 0) | Sel: none | Frame: 358",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 453.7733667463171,
+          "y": 445.2568574052324,
+          "z": 2177.4761536055166
+        },
+        "cameraQuaternion": {
+          "x": -0.2936756480618874,
+          "y": 0.3849785439113523,
+          "z": 0.13068260630172965,
+          "w": 0.8651405613387414
+        },
+        "rtsCameraState": {
+          "targetX": 51.12690138825095,
+          "targetZ": 1861.3706071594029,
+          "angle": 0.8373589246488562,
+          "zoom": 600,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 2242,
+          "modelEntityCount": 201,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa02_intro_ns",
+      "name": "MD_USA02_INTRO_NS",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA02_INTRO_NS/MD_USA02_INTRO_NS.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa02_intro_ns.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 320,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA02_INTRO_NS/MD_USA02_INTRO_NS.json",
+        "placementResolvedObjects": 2113,
+        "placementSpawnedObjects": 2113,
+        "placementTotalObjects": 3784,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 2265,
+        "sceneObjectCount": 2721,
+        "debugInfoText": "FPS: 3 | Map: 490x490 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 2113/3784 (unresolved: 0) | Sel: none | Frame: 320",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 999.0093248024272,
+          "y": 348,
+          "z": 955.6369162375286
+        },
+        "cameraQuaternion": {
+          "x": 0.03815863994789834,
+          "y": 0.9402341588488349,
+          "z": 0.31916648955006083,
+          "w": -0.11241172838917451
+        },
+        "rtsCameraState": {
+          "targetX": 1105.9247940775806,
+          "targetZ": 1396.376835821487,
+          "angle": -2.903607948995341,
+          "zoom": 571.6525118331944,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 2265,
+          "modelEntityCount": 189,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa03",
+      "name": "MD_USA03",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA03/MD_USA03.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa03.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade.",
+        "[AudioManager] Failed to load/decode \"cavhitc\": Unable to decode audio data"
+      ],
+      "debugState": {
+        "frame": 417,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA03/MD_USA03.json",
+        "placementResolvedObjects": 1643,
+        "placementSpawnedObjects": 1643,
+        "placementTotalObjects": 2515,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1672,
+        "sceneObjectCount": 2063,
+        "debugInfoText": "FPS: 10 | Map: 390x540 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1643/2515 (unresolved: 0) | Sel: none | Frame: 417",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 1220.285425404947,
+          "y": 58.700905954962224,
+          "z": 1647.786163309054
+        },
+        "cameraQuaternion": {
+          "x": -0.05536372604740994,
+          "y": 0.8659074653200867,
+          "z": -0.098378652117782,
+          "w": -0.4872994563393012
+        },
+        "rtsCameraState": {
+          "targetX": 1274.5384521484375,
+          "targetZ": 1680.722900390625,
+          "angle": -2.1164163567762797,
+          "zoom": 80,
+          "pitch": -0.30000001192092896
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1672,
+          "modelEntityCount": 1471,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa03_cine",
+      "name": "MD_USA03_CINE",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA03_CINE/MD_USA03_CINE.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa03_cine.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 496,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA03_CINE/MD_USA03_CINE.json",
+        "placementResolvedObjects": 885,
+        "placementSpawnedObjects": 885,
+        "placementTotalObjects": 1695,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 917,
+        "sceneObjectCount": 1231,
+        "debugInfoText": "FPS: 11 | Map: 390x540 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 885/1695 (unresolved: 0) | Sel: none | Frame: 496",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 1220.2854160854806,
+          "y": 58.70091432069764,
+          "z": 1647.7861576512532
+        },
+        "cameraQuaternion": {
+          "x": -0.05536372604741007,
+          "y": 0.8659074653200868,
+          "z": -0.09837865211778224,
+          "w": -0.4872994563393011
+        },
+        "rtsCameraState": {
+          "targetX": 1274.5384521484375,
+          "targetZ": 1680.722900390625,
+          "angle": -2.1164163567762797,
+          "zoom": 80,
+          "pitch": -0.30000001192092896
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 917,
+          "modelEntityCount": 917,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa03_end",
+      "name": "MD_USA03_END",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA03_END/MD_USA03_END.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa03_end.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 540,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA03_END/MD_USA03_END.json",
+        "placementResolvedObjects": 1308,
+        "placementSpawnedObjects": 1308,
+        "placementTotalObjects": 2227,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1347,
+        "sceneObjectCount": 1774,
+        "debugInfoText": "FPS: 31 | Map: 390x540 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1308/2227 (unresolved: 0) | Sel: none | Frame: 540",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 4.9297591248487294e-55,
+          "y": 330,
+          "z": 417.0321193091859
+        },
+        "cameraQuaternion": {
+          "x": -0.32143946530316153,
+          "y": 0,
+          "z": 0,
+          "w": 0.9469301294951057
+        },
+        "rtsCameraState": {
+          "targetX": 0,
+          "targetZ": 0,
+          "angle": 0,
+          "zoom": 525.6574821454661,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1347,
+          "modelEntityCount": 1233,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa03_end1",
+      "name": "MD_USA03_END1",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA03_END1/MD_USA03_END1.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa03_end1.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade.",
+        "[AudioManager] Failed to load/decode \"cavhitc\": Unable to decode audio data"
+      ],
+      "debugState": {
+        "frame": 511,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA03_END1/MD_USA03_END1.json",
+        "placementResolvedObjects": 1393,
+        "placementSpawnedObjects": 1393,
+        "placementTotalObjects": 2324,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1432,
+        "sceneObjectCount": 1884,
+        "debugInfoText": "FPS: 9 | Map: 390x540 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1393/2324 (unresolved: 0) | Sel: none | Frame: 511",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 6.116852499121112e-51,
+          "y": 330,
+          "z": 417.0321193091859
+        },
+        "cameraQuaternion": {
+          "x": -0.32143946530316153,
+          "y": 0,
+          "z": 0,
+          "w": 0.9469301294951057
+        },
+        "rtsCameraState": {
+          "targetX": 0,
+          "targetZ": 0,
+          "angle": 0,
+          "zoom": 525.6574821454661,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1432,
+          "modelEntityCount": 1215,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa03_intro",
+      "name": "MD_USA03_Intro",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA03_Intro/MD_USA03_Intro.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa03_intro.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 505,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA03_Intro/MD_USA03_Intro.json",
+        "placementResolvedObjects": 1070,
+        "placementSpawnedObjects": 1070,
+        "placementTotalObjects": 2004,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1103,
+        "sceneObjectCount": 1532,
+        "debugInfoText": "FPS: 24 | Map: 390x540 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1070/2004 (unresolved: 0) | Sel: none | Frame: 505",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 3851.3152295069226,
+          "y": 55.07361950831661,
+          "z": 294.0446354610681
+        },
+        "cameraQuaternion": {
+          "x": -0.020144115627567124,
+          "y": 0.9345526712776419,
+          "z": -0.0536061071179425,
+          "w": -0.35118642412978696
+        },
+        "rtsCameraState": {
+          "targetX": 3890,
+          "targetZ": 341.0465940230578,
+          "angle": -2.4226835776362474,
+          "zoom": 80,
+          "pitch": -0.15000000596046448
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1103,
+          "modelEntityCount": 1103,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa03_mid_cine",
+      "name": "MD_USA03_MID_CINE",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA03_MID_CINE/MD_USA03_MID_CINE.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa03_mid_cine.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade.",
+        "[AudioManager] Failed to load/decode \"xu3bur07.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xu3bla07.wav\": Unable to decode audio data"
+      ],
+      "debugState": {
+        "frame": 470,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA03_MID_CINE/MD_USA03_MID_CINE.json",
+        "placementResolvedObjects": 50,
+        "placementSpawnedObjects": 50,
+        "placementTotalObjects": 104,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 55,
+        "sceneObjectCount": 289,
+        "debugInfoText": "FPS: 10 | Map: 390x540 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 50/104 (unresolved: 0) | Sel: none | Frame: 470",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 652.6074527677814,
+          "y": 163.29605397380084,
+          "z": 1050.7676459556762
+        },
+        "cameraQuaternion": {
+          "x": -0.3018931545659705,
+          "y": -0.3251704446734546,
+          "z": -0.11038049230090183,
+          "w": 0.8893485548740074
+        },
+        "rtsCameraState": {
+          "targetX": 752.8216552734375,
+          "targetZ": 932.0441284179688,
+          "angle": -0.7010572548669481,
+          "zoom": 195.83279674287837,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 55,
+          "modelEntityCount": 55,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa04",
+      "name": "MD_USA04",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA04/MD_USA04.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa04.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade.",
+        "[AudioManager] Failed to load/decode \"xu4ofu03.wav\": Unable to decode audio data"
+      ],
+      "debugState": {
+        "frame": 398,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA04/MD_USA04.json",
+        "placementResolvedObjects": 1516,
+        "placementSpawnedObjects": 1516,
+        "placementTotalObjects": 2581,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1565,
+        "sceneObjectCount": 1939,
+        "debugInfoText": "FPS: 4 | Map: 540x540 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1516/2581 (unresolved: 0) | Sel: none | Frame: 398",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 621.5263364652056,
+          "y": 470.559009759691,
+          "z": 3346.0954954334024
+        },
+        "cameraQuaternion": {
+          "x": -0.31597769983969876,
+          "y": 0.1738189567256663,
+          "z": 0.05900358513171625,
+          "w": 0.9308402872826351
+        },
+        "rtsCameraState": {
+          "targetX": 414.91408379448785,
+          "targetZ": 2812.15825249566,
+          "angle": 0.36921453442133023,
+          "zoom": 721.6439623565536,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1565,
+          "modelEntityCount": 182,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa04_cine",
+      "name": "MD_USA04_CINE",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA04_CINE/MD_USA04_CINE.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa04_cine.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 489,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA04_CINE/MD_USA04_CINE.json",
+        "placementResolvedObjects": 1220,
+        "placementSpawnedObjects": 1220,
+        "placementTotalObjects": 2068,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1302,
+        "sceneObjectCount": 1668,
+        "debugInfoText": "FPS: 7 | Map: 540x540 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1220/2068 (unresolved: 0) | Sel: none | Frame: 489",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 598.9111572368896,
+          "y": 90.59601253707677,
+          "z": 2226.7672660520166
+        },
+        "cameraQuaternion": {
+          "x": 0.35579580661977767,
+          "y": 0.4677956836697841,
+          "z": -0.21326238915556284,
+          "w": 0.7804458313703536
+        },
+        "rtsCameraState": {
+          "targetX": 483.72191017154717,
+          "targetZ": 2204.563158518644,
+          "angle": 1.0799497256617747,
+          "zoom": 97.48648601754074,
+          "pitch": -1.5
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1302,
+          "modelEntityCount": 1167,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa04_intro",
+      "name": "MD_USA04_Intro",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA04_Intro/MD_USA04_Intro.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa04_intro.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 496,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA04_Intro/MD_USA04_Intro.json",
+        "placementResolvedObjects": 1174,
+        "placementSpawnedObjects": 1174,
+        "placementTotalObjects": 1992,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1229,
+        "sceneObjectCount": 1595,
+        "debugInfoText": "FPS: 4 | Map: 540x540 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1174/1992 (unresolved: 0) | Sel: none | Frame: 496",
+        "skyboxLoaded": true,
+        "skyboxVisible": false,
+        "cameraPosition": {
+          "x": 1.1819148265141389e-49,
+          "y": 372.5,
+          "z": 444.7256584820615
+        },
+        "cameraQuaternion": {
+          "x": -0.3214394653031616,
+          "y": 0,
+          "z": 0,
+          "w": 0.9469301294951057
+        },
+        "rtsCameraState": {
+          "targetX": 0,
+          "targetZ": 0,
+          "angle": 0,
+          "zoom": 560.5644243191884,
+          "pitch": 1
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1229,
+          "modelEntityCount": 776,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa05",
+      "name": "MD_USA05",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA05/MD_USA05.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa05.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade.",
+        "[AudioManager] Failed to load/decode \"xu5ofu01.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xu5ofu02.wav\": Unable to decode audio data",
+        "[AudioManager] Failed to load/decode \"xu5ra103.wav\": Unable to decode audio data"
+      ],
+      "debugState": {
+        "frame": 421,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA05/MD_USA05.json",
+        "placementResolvedObjects": 1801,
+        "placementSpawnedObjects": 1801,
+        "placementTotalObjects": 3091,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 1833,
+        "sceneObjectCount": 2267,
+        "debugInfoText": "FPS: 4 | Map: 560x560 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 1801/3091 (unresolved: 0) | Sel: none | Frame: 421",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 4678.700396980341,
+          "y": 506.63376475386525,
+          "z": 2802.52455502083
+        },
+        "cameraQuaternion": {
+          "x": -0.019109072418382125,
+          "y": 0.7159910157828331,
+          "z": 0.6975722286295042,
+          "w": 0.019613630832731883
+        },
+        "rtsCameraState": {
+          "targetX": 4678.17919921875,
+          "targetZ": 2812.030517578125,
+          "angle": 3.0868189860582715,
+          "zoom": 600,
+          "pitch": 50
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0.5714285714285714,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 1833,
+          "modelEntityCount": 883,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "md_usa06_intro",
+      "name": "MD_USA06_INTRO",
+      "url": "/?map=assets/maps/_extracted/MapsZH/Maps/MD_USA06_INTRO/MD_USA06_INTRO.json",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/visual-scenes/md_usa06_intro.png",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "frame": 485,
+        "mapPath": "maps/_extracted/MapsZH/Maps/MD_USA06_INTRO/MD_USA06_INTRO.json",
+        "placementResolvedObjects": 241,
+        "placementSpawnedObjects": 241,
+        "placementTotalObjects": 1088,
+        "placementUnresolvedObjects": 0,
+        "renderableCount": 271,
+        "sceneObjectCount": 664,
+        "debugInfoText": "FPS: 8 | Map: 560x560 | INI: 2113 objects, 362 weapons, 4046 audio | Objects: 241/1088 (unresolved: 0) | Sel: none | Frame: 485",
+        "skyboxLoaded": true,
+        "skyboxVisible": true,
+        "cameraPosition": {
+          "x": 5063.793322628996,
+          "y": 505.88185740523244,
+          "z": 2617.9085642825244
+        },
+        "cameraQuaternion": {
+          "x": -0.019109072418382125,
+          "y": 0.7159910157828331,
+          "z": 0.6975722286295042,
+          "w": 0.019613630832731883
+        },
+        "rtsCameraState": {
+          "targetX": 5096.034256085713,
+          "targetZ": 2663.977658939997,
+          "angle": 3.0868189860582715,
+          "zoom": 600,
+          "pitch": 50
+        },
+        "scriptCameraEffectsState": {
+          "grayscale": 0,
+          "saturation": 1,
+          "blurPixels": 0,
+          "fadeType": null,
+          "fadeAmount": 0,
+          "shakeOffsetX": 0,
+          "shakeOffsetY": 0
+        },
+        "objectVisuals": {
+          "visualEntityCount": 271,
+          "modelEntityCount": 271,
+          "placeholderEntityCount": 0,
+          "unresolvedEntityCount": 0,
+          "unresolvedEntityIds": []
+        }
+      },
+      "blockingIssues": []
+    }
+  ]
+}

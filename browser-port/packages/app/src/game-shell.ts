@@ -68,6 +68,13 @@ export type ShellScreen =
 
 export type GameMode = 'SKIRMISH' | 'CAMPAIGN' | 'CHALLENGE';
 
+interface SourceRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface SkirmishSettings {
   /** Map asset path (null = procedural demo terrain). */
   mapPath: string | null;
@@ -158,9 +165,70 @@ const DIFFICULTIES: { value: GameDifficulty; label: string; description: string 
   { value: 'HARD', label: 'Hard', description: 'For veterans' },
 ];
 
+const SHELL_SOURCE_RESOLUTION = { width: 800, height: 600 } as const;
+const MAIN_MENU_PREVIEW_RECT: SourceRect = { x: 88, y: 108, width: 388, height: 388 };
+const MAIN_MENU_ACTION_PANEL_RECT: SourceRect = { x: 532, y: 108, width: 224, height: 212 };
+const MAIN_MENU_LOGO_RECT: SourceRect = { x: 504, y: 16, width: 287, height: 94 };
+const SINGLE_PLAYER_ACTION_PANEL_RECT: SourceRect = { x: 532, y: 108, width: 224, height: 252 };
+const MAIN_MENU_BUTTON_LAYOUT = [
+  { action: 'single-player', label: 'Single Player', rect: { x: 540, y: 116, width: 208, height: 36 }, disabled: false },
+  { action: 'multiplayer', label: 'Multiplayer', rect: { x: 540, y: 156, width: 208, height: 36 }, disabled: true },
+  { action: 'replay', label: 'Replay', rect: { x: 540, y: 196, width: 208, height: 35 }, disabled: true },
+  { action: 'options', label: 'Options', rect: { x: 540, y: 236, width: 208, height: 36 }, disabled: false },
+  { action: 'exit', label: 'Exit', rect: { x: 540, y: 316, width: 208, height: 36 }, disabled: false },
+] as const satisfies ReadonlyArray<{
+  action: 'single-player' | 'multiplayer' | 'replay' | 'options' | 'exit';
+  label: string;
+  rect: SourceRect;
+  disabled: boolean;
+}>;
+const SINGLE_PLAYER_BUTTON_LAYOUT = [
+  { action: 'campaign-usa', label: 'USA', rect: { x: 540, y: 116, width: 208, height: 36 } },
+  { action: 'campaign-gla', label: 'GLA', rect: { x: 540, y: 156, width: 208, height: 36 } },
+  { action: 'campaign-china', label: 'CHINA', rect: { x: 540, y: 196, width: 208, height: 35 } },
+  { action: 'challenge', label: 'Generals Challenge', rect: { x: 540, y: 236, width: 208, height: 36 } },
+  { action: 'skirmish', label: 'Skirmish', rect: { x: 540, y: 276, width: 208, height: 36 } },
+  { action: 'back', label: 'Back', rect: { x: 540, y: 316, width: 208, height: 35 } },
+] as const satisfies ReadonlyArray<{
+  action: 'campaign-usa' | 'campaign-gla' | 'campaign-china' | 'challenge' | 'skirmish' | 'back';
+  label: string;
+  rect: SourceRect;
+}>;
+const DIFFICULTY_DIALOG_PARENT_RECT: SourceRect = { x: 156, y: 120, width: 436, height: 296 };
+const DIFFICULTY_DIALOG_PANEL_RECT: SourceRect = { x: 224, y: 180, width: 288, height: 188 };
+const DIFFICULTY_DIALOG_TITLE_RECT: SourceRect = { x: 232, y: 188, width: 268, height: 28 };
+const DIFFICULTY_OPTION_LAYOUT = [
+  { value: 'EASY', label: 'Easy', rect: { x: 288, y: 220, width: 152, height: 32 } },
+  { value: 'NORMAL', label: 'Medium', rect: { x: 288, y: 256, width: 152, height: 32 } },
+  { value: 'HARD', label: 'Hard', rect: { x: 288, y: 292, width: 152, height: 32 } },
+] as const satisfies ReadonlyArray<{
+  value: GameDifficulty;
+  label: string;
+  rect: SourceRect;
+}>;
+const DIFFICULTY_OK_RECT: SourceRect = { x: 236, y: 328, width: 128, height: 28 };
+const DIFFICULTY_CANCEL_RECT: SourceRect = { x: 372, y: 328, width: 128, height: 28 };
+
 /** Escape HTML to prevent XSS from INI-sourced data. */
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatSourcePercent(value: number, total: number): string {
+  return `${((value / total) * 100).toFixed(6)}%`;
+}
+
+function formatSourceRectStyle(rect: SourceRect): string {
+  return [
+    `left:${formatSourcePercent(rect.x, SHELL_SOURCE_RESOLUTION.width)}`,
+    `top:${formatSourcePercent(rect.y, SHELL_SOURCE_RESOLUTION.height)}`,
+    `width:${formatSourcePercent(rect.width, SHELL_SOURCE_RESOLUTION.width)}`,
+    `height:${formatSourcePercent(rect.height, SHELL_SOURCE_RESOLUTION.height)}`,
+  ].join(';');
+}
+
+function formatSourceRectData(rect: SourceRect): string {
+  return `${rect.x},${rect.y},${rect.width},${rect.height}`;
 }
 
 // ──── Challenge general data ────────────────────────────────────────────────
@@ -192,6 +260,212 @@ const SHELL_STYLES = `
   }
   .shell-screen.hidden {
     display: none;
+  }
+
+  .retail-main-menu-screen {
+    display: block;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 20% 36%, rgba(34, 88, 166, 0.28) 0%, rgba(18, 35, 72, 0.18) 26%, rgba(0, 0, 0, 0) 56%),
+      linear-gradient(180deg, #07101d 0%, #090d16 58%, #05070d 100%);
+  }
+  .retail-main-menu-screen::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(90deg, rgba(6, 8, 14, 0.88) 0%, rgba(6, 8, 14, 0.2) 18%, rgba(6, 8, 14, 0.12) 82%, rgba(6, 8, 14, 0.9) 100%),
+      linear-gradient(90deg, transparent 55%, rgba(111, 149, 224, 0.16) 55.12%, transparent 55.24%);
+    pointer-events: none;
+  }
+  .retail-source-rect {
+    position: absolute;
+    box-sizing: border-box;
+  }
+  .main-menu-preview-panel {
+    z-index: 1;
+    border: 1px solid rgba(68, 95, 153, 0.72);
+    background:
+      radial-gradient(circle at 34% 32%, rgba(101, 154, 226, 0.26) 0%, rgba(44, 84, 138, 0.16) 18%, rgba(0, 0, 0, 0) 44%),
+      linear-gradient(180deg, rgba(9, 17, 31, 0.92) 0%, rgba(4, 7, 13, 0.98) 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(5, 9, 17, 0.92),
+      0 0 26px rgba(0, 0, 0, 0.28);
+  }
+  .main-menu-preview-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(rgba(142, 178, 239, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(142, 178, 239, 0.08) 1px, transparent 1px);
+    background-size: 11% 11%, 11% 11%;
+    opacity: 0.45;
+  }
+  .main-menu-preview-panel::after {
+    content: '';
+    position: absolute;
+    inset: 8% 11%;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 40% 34%, rgba(157, 205, 255, 0.44) 0%, rgba(76, 131, 205, 0.22) 22%, rgba(10, 18, 34, 0.14) 52%, rgba(0, 0, 0, 0) 70%);
+    filter: blur(2px);
+    opacity: 0.9;
+  }
+  .main-menu-action-panel {
+    z-index: 1;
+    border: 1px solid rgba(68, 95, 153, 0.88);
+    background:
+      linear-gradient(180deg, rgba(7, 11, 21, 0.78) 0%, rgba(3, 4, 9, 0.92) 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(4, 8, 14, 0.92),
+      0 0 22px rgba(0, 0, 0, 0.24);
+  }
+  .main-menu-logo {
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-end;
+    padding: 0 0.75rem 0.5rem 0;
+    color: #d0ab4d;
+    font-family: Georgia, 'Times New Roman', serif;
+    text-align: right;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.56);
+  }
+  .main-menu-logo-mark {
+    font-size: clamp(2.25rem, 5.1vw, 4.4rem);
+    line-height: 0.9;
+    letter-spacing: 0.22em;
+    font-weight: 700;
+  }
+  .main-menu-logo-submark {
+    margin-top: 0.35rem;
+    font-size: clamp(0.8rem, 1.3vw, 1rem);
+    line-height: 1;
+    letter-spacing: 0.42em;
+    color: #9a8757;
+  }
+  .retail-main-menu-screen .menu-button {
+    margin: 0;
+    padding: 0;
+  }
+  .retail-main-menu-button {
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(132, 157, 216, 0.84);
+    background:
+      linear-gradient(180deg, rgba(44, 64, 132, 0.96) 0%, rgba(20, 30, 74, 0.98) 58%, rgba(9, 14, 37, 0.99) 100%);
+    box-shadow: inset 0 0 0 1px rgba(7, 11, 19, 0.76);
+    color: #f6f8ff;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(0.95rem, 1.35vw, 1.35rem);
+    text-transform: none;
+    letter-spacing: 0.12em;
+  }
+  .retail-main-menu-button:hover {
+    background:
+      linear-gradient(180deg, rgba(72, 94, 168, 0.98) 0%, rgba(29, 45, 96, 0.99) 58%, rgba(11, 17, 43, 1) 100%);
+    color: #c7ff5b;
+  }
+  .retail-main-menu-button:active {
+    background:
+      linear-gradient(180deg, rgba(30, 44, 90, 0.98) 0%, rgba(17, 25, 58, 1) 100%);
+  }
+  .retail-main-menu-button.disabled {
+    opacity: 1;
+    border-color: rgba(74, 83, 112, 0.88);
+    background:
+      linear-gradient(180deg, rgba(22, 27, 46, 0.92) 0%, rgba(11, 15, 27, 0.98) 100%);
+    color: #5d698a;
+  }
+  .retail-dialog-screen {
+    display: block;
+    overflow: hidden;
+    background: rgba(4, 6, 11, 0.52);
+  }
+  .retail-dialog-parent {
+    z-index: 1;
+    border: 1px solid rgba(34, 44, 72, 0.72);
+    background: rgba(0, 0, 0, 0.22);
+  }
+  .retail-dialog-panel {
+    z-index: 2;
+    border: 1px solid rgba(73, 96, 148, 0.9);
+    background:
+      linear-gradient(180deg, rgba(9, 15, 31, 0.96) 0%, rgba(4, 7, 15, 0.98) 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(3, 6, 12, 0.86),
+      0 0 22px rgba(0, 0, 0, 0.2);
+  }
+  .retail-dialog-title {
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #f1f4ff;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(0.95rem, 1.2vw, 1.2rem);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .retail-difficulty-option {
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    padding: 0 0.9rem;
+    border: 1px solid rgba(88, 111, 171, 0.8);
+    background:
+      linear-gradient(180deg, rgba(18, 28, 67, 0.95) 0%, rgba(8, 14, 34, 0.98) 100%);
+    box-shadow: inset 0 0 0 1px rgba(4, 7, 14, 0.78);
+    color: #f3f6ff;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(0.85rem, 1.05vw, 1rem);
+    letter-spacing: 0.08em;
+    text-transform: none;
+  }
+  .retail-difficulty-option::before {
+    content: '';
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 50%;
+    border: 1px solid rgba(155, 176, 229, 0.9);
+    background: rgba(7, 12, 28, 0.92);
+    box-shadow: inset 0 0 0 1px rgba(5, 8, 14, 0.82);
+    flex: 0 0 auto;
+  }
+  .retail-difficulty-option.selected {
+    color: #cbff63;
+    border-color: rgba(139, 166, 82, 0.88);
+    background:
+      linear-gradient(180deg, rgba(42, 60, 28, 0.95) 0%, rgba(12, 20, 10, 0.98) 100%);
+  }
+  .retail-difficulty-option.selected::before {
+    background: #cbff63;
+    border-color: #cbff63;
+    box-shadow: 0 0 10px rgba(203, 255, 99, 0.5);
+  }
+  .retail-dialog-button {
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(88, 111, 171, 0.88);
+    background:
+      linear-gradient(180deg, rgba(34, 50, 108, 0.96) 0%, rgba(12, 18, 44, 0.99) 100%);
+    box-shadow: inset 0 0 0 1px rgba(5, 9, 17, 0.8);
+    color: #f4f7ff;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(0.85rem, 1.05vw, 1rem);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .retail-dialog-button:hover {
+    color: #cbff63;
   }
 
   /* ── Main Menu ── */
@@ -662,18 +936,41 @@ export class GameShell {
     if (this.screenEls.has('main-menu')) return;
 
     const el = document.createElement('div');
-    el.className = 'shell-screen';
+    el.className = 'shell-screen retail-main-menu-screen';
     el.id = 'main-menu-screen';
 
+    const buttonsHtml = MAIN_MENU_BUTTON_LAYOUT.map((button) => `
+      <button
+        class="menu-button retail-main-menu-button retail-source-rect${button.disabled ? ' disabled' : ''}"
+        data-action="${button.action}"
+        data-source-rect="${formatSourceRectData(button.rect)}"
+        style="${formatSourceRectStyle(button.rect)}"
+      >${button.label}</button>
+    `).join('');
+
     el.innerHTML = `
-      <div class="main-menu-title">Generals</div>
-      <div class="main-menu-subtitle">Zero Hour &mdash; Browser Edition</div>
-      <button class="menu-button" data-action="single-player">Single Player</button>
-      <button class="menu-button" data-action="skirmish">Skirmish</button>
-      <button class="menu-button disabled" data-action="multiplayer">Multiplayer</button>
-      <button class="menu-button disabled" data-action="replay">Replay</button>
-      <button class="menu-button" data-action="options">Options</button>
-      <div class="menu-version">Browser Port v0.1</div>
+      <div
+        class="main-menu-preview-panel retail-source-rect"
+        data-ref="main-menu-preview"
+        data-source-rect="${formatSourceRectData(MAIN_MENU_PREVIEW_RECT)}"
+        style="${formatSourceRectStyle(MAIN_MENU_PREVIEW_RECT)}"
+      ></div>
+      <div
+        class="main-menu-action-panel retail-source-rect"
+        data-ref="main-menu-action-panel"
+        data-source-rect="${formatSourceRectData(MAIN_MENU_ACTION_PANEL_RECT)}"
+        style="${formatSourceRectStyle(MAIN_MENU_ACTION_PANEL_RECT)}"
+      ></div>
+      <div
+        class="main-menu-logo retail-source-rect"
+        data-ref="main-menu-logo"
+        data-source-rect="${formatSourceRectData(MAIN_MENU_LOGO_RECT)}"
+        style="${formatSourceRectStyle(MAIN_MENU_LOGO_RECT)}"
+      >
+        <div class="main-menu-logo-mark">GENERALS</div>
+        <div class="main-menu-logo-submark">ZERO HOUR</div>
+      </div>
+      ${buttonsHtml}
     `;
 
     el.addEventListener('click', (e) => {
@@ -682,10 +979,10 @@ export class GameShell {
       const action = target.dataset.action;
       if (action === 'single-player') {
         this.showScreen('single-player');
-      } else if (action === 'skirmish') {
-        this.showScreen('skirmish-setup');
       } else if (action === 'options') {
         this.callbacks.onOpenOptions?.();
+      } else if (action === 'exit') {
+        window.close();
       }
     });
 
@@ -698,23 +995,58 @@ export class GameShell {
     if (this.screenEls.has('single-player')) return;
 
     const el = document.createElement('div');
-    el.className = 'shell-screen hidden';
+    el.className = 'shell-screen hidden retail-main-menu-screen';
     el.id = 'single-player-screen';
 
+    const buttonsHtml = SINGLE_PLAYER_BUTTON_LAYOUT.map((button) => `
+      <button
+        class="menu-button retail-main-menu-button retail-source-rect"
+        data-action="${button.action}"
+        data-source-rect="${formatSourceRectData(button.rect)}"
+        style="${formatSourceRectStyle(button.rect)}"
+      >${button.label}</button>
+    `).join('');
+
     el.innerHTML = `
-      <div class="main-menu-title" style="font-size:2.2rem;">Single Player</div>
-      <div class="main-menu-subtitle">Choose your path</div>
-      <button class="menu-button" data-action="campaign">Campaign</button>
-      <button class="menu-button" data-action="challenge">Generals Challenge</button>
-      <button class="menu-button" data-action="back">Back</button>
+      <div
+        class="main-menu-preview-panel retail-source-rect"
+        data-ref="single-player-preview"
+        data-source-rect="${formatSourceRectData(MAIN_MENU_PREVIEW_RECT)}"
+        style="${formatSourceRectStyle(MAIN_MENU_PREVIEW_RECT)}"
+      ></div>
+      <div
+        class="main-menu-action-panel retail-source-rect"
+        data-ref="single-player-action-panel"
+        data-source-rect="${formatSourceRectData(SINGLE_PLAYER_ACTION_PANEL_RECT)}"
+        style="${formatSourceRectStyle(SINGLE_PLAYER_ACTION_PANEL_RECT)}"
+      ></div>
+      <div
+        class="main-menu-logo retail-source-rect"
+        data-ref="single-player-logo"
+        data-source-rect="${formatSourceRectData(MAIN_MENU_LOGO_RECT)}"
+        style="${formatSourceRectStyle(MAIN_MENU_LOGO_RECT)}"
+      >
+        <div class="main-menu-logo-mark">GENERALS</div>
+        <div class="main-menu-logo-submark">ZERO HOUR</div>
+      </div>
+      ${buttonsHtml}
     `;
 
     el.addEventListener('click', (e) => {
       const target = (e.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
       if (!target) return;
       const action = target.dataset.action;
-      if (action === 'campaign') {
-        this.showScreen('campaign-faction');
+      if (action === 'campaign-usa') {
+        this.selectedCampaignFaction = 'usa';
+        this.showScreen('campaign-difficulty');
+      } else if (action === 'campaign-gla') {
+        this.selectedCampaignFaction = 'gla';
+        this.showScreen('campaign-difficulty');
+      } else if (action === 'campaign-china') {
+        this.selectedCampaignFaction = 'china';
+        this.showScreen('campaign-difficulty');
+      } else if (action === 'skirmish') {
+        this.showScreen('skirmish-setup');
       } else if (action === 'challenge') {
         this.showScreen('challenge-select');
       } else if (action === 'back') {
@@ -789,28 +1121,52 @@ export class GameShell {
     if (this.screenEls.has('campaign-difficulty')) return;
 
     const el = document.createElement('div');
-    el.className = 'shell-screen hidden';
+    el.className = 'shell-screen hidden retail-dialog-screen';
     el.id = 'campaign-difficulty-screen';
 
+    const difficultyButtonsHtml = DIFFICULTY_OPTION_LAYOUT.map((difficulty) => `
+      <button
+        class="difficulty-option retail-difficulty-option retail-source-rect${difficulty.value === this.selectedDifficulty ? ' selected' : ''}"
+        data-difficulty="${difficulty.value}"
+        data-source-rect="${formatSourceRectData(difficulty.rect)}"
+        style="${formatSourceRectStyle(difficulty.rect)}"
+      >${difficulty.label}</button>
+    `).join('');
+
     el.innerHTML = `
-      <div class="shell-panel">
-        <div class="shell-panel-title">Select Difficulty</div>
-        <div class="shell-section">
-          <div class="difficulty-row" data-ref="difficulty-options">
-            ${DIFFICULTIES.map(d => `
-              <button class="difficulty-option${d.value === this.selectedDifficulty ? ' selected' : ''}"
-                      data-difficulty="${d.value}">
-                <div class="diff-name">${d.label}</div>
-                <div class="diff-desc">${d.description}</div>
-              </button>
-            `).join('')}
-          </div>
-        </div>
-        <div class="shell-actions">
-          <button class="shell-btn" data-action="back">Back</button>
-          <button class="shell-btn primary" data-action="start">Start Campaign</button>
-        </div>
-      </div>
+      <div
+        class="retail-dialog-parent retail-source-rect"
+        data-ref="campaign-difficulty-parent"
+        data-source-rect="${formatSourceRectData(DIFFICULTY_DIALOG_PARENT_RECT)}"
+        style="${formatSourceRectStyle(DIFFICULTY_DIALOG_PARENT_RECT)}"
+      ></div>
+      <div
+        class="retail-dialog-panel retail-source-rect"
+        data-ref="campaign-difficulty-panel"
+        data-source-rect="${formatSourceRectData(DIFFICULTY_DIALOG_PANEL_RECT)}"
+        style="${formatSourceRectStyle(DIFFICULTY_DIALOG_PANEL_RECT)}"
+      ></div>
+      <div
+        class="retail-dialog-title retail-source-rect"
+        data-ref="campaign-difficulty-title"
+        data-source-rect="${formatSourceRectData(DIFFICULTY_DIALOG_TITLE_RECT)}"
+        style="${formatSourceRectStyle(DIFFICULTY_DIALOG_TITLE_RECT)}"
+      >Select Difficulty</div>
+      <div data-ref="difficulty-options">${difficultyButtonsHtml}</div>
+      <button
+        class="shell-btn retail-dialog-button retail-source-rect"
+        data-action="start"
+        data-ref="campaign-difficulty-ok"
+        data-source-rect="${formatSourceRectData(DIFFICULTY_OK_RECT)}"
+        style="${formatSourceRectStyle(DIFFICULTY_OK_RECT)}"
+      >OK</button>
+      <button
+        class="shell-btn retail-dialog-button retail-source-rect"
+        data-action="back"
+        data-ref="campaign-difficulty-cancel"
+        data-source-rect="${formatSourceRectData(DIFFICULTY_CANCEL_RECT)}"
+        style="${formatSourceRectStyle(DIFFICULTY_CANCEL_RECT)}"
+      >Cancel</button>
     `;
 
     el.addEventListener('click', (e) => {
@@ -825,7 +1181,7 @@ export class GameShell {
       }
 
       if (target.dataset.action === 'back') {
-        this.showScreen('campaign-faction');
+        this.showScreen('single-player');
       } else if (target.dataset.action === 'start') {
         this.showScreen('campaign-briefing');
       }

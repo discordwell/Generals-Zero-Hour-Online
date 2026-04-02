@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { countMarkers } from './parity-debt-report.js';
+import { countMarkers, shouldCountParityDebtFile } from './parity-debt-report.js';
 
 describe('parity debt report', () => {
   it('counts TODO and FIXME markers', () => {
@@ -35,5 +35,11 @@ const x = 1; // FIXME align with source
       todoMarkers: 0,
       subsetMarkers: 0,
     });
+  });
+
+  it('excludes test files from debt scanning', () => {
+    expect(shouldCountParityDebtFile('/tmp/foo.ts')).toBe(true);
+    expect(shouldCountParityDebtFile('/tmp/foo.test.ts')).toBe(false);
+    expect(shouldCountParityDebtFile('/tmp/foo.spec.ts')).toBe(false);
   });
 });

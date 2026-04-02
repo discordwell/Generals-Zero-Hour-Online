@@ -1,7 +1,7 @@
 /**
  * Command card button UI renderer.
  *
- * Creates a 4-column x 3-row grid of DOM button elements that mirror the
+ * Creates the retail 7-column x 2-row command grid from `ControlBar.wnd`.
  * C++ ControlBar HUD panel rendered on the right side of the in-game screen.
  * Each button displays an icon placeholder, a label, and a hotkey indicator.
  * The renderer synchronises visual state from `ControlBarModel.getHudSlots()`
@@ -16,10 +16,16 @@ import type { MappedImageResolver } from './mapped-image-resolver.js';
 
 /** Number of visible command card slots. Source parity: ZH has 14 visible (of 18 internal). */
 const SLOT_COUNT = 14;
-/** Grid column count matching C++ 4-column layout. */
-const COLUMNS = 4;
-/** Individual button dimension in pixels. */
-const BUTTON_SIZE = 48;
+/** Source parity: retail `ControlBar.wnd` exposes 7 command columns. */
+const COLUMNS = 7;
+/** Source parity: retail `ControlBar.wnd` command slots occupy 2 rows. */
+const ROWS = 2;
+/** Source parity: command buttons are 50x44 at 800x600 creation resolution. */
+const BUTTON_WIDTH = 50;
+const BUTTON_HEIGHT = 44;
+/** Source parity: adjacent command buttons are spaced by 5 px horizontally and 7 px vertically. */
+const COLUMN_GAP = 5;
+const ROW_GAP = 7;
 
 // -- Colours (source-aligned palette) ----------------------------------------
 const COLOR_BG = '#1a1a1a';
@@ -66,14 +72,25 @@ interface SlotElements {
   cooldownOverlay: HTMLDivElement;
 }
 
+export function resolveRetailCommandGridPosition(slotIndex: number): { column: number; row: number } {
+  const clampedSlot = Math.max(1, Math.min(SLOT_COUNT, Math.trunc(slotIndex)));
+  return {
+    column: Math.floor((clampedSlot - 1) / 2) + 1,
+    row: clampedSlot % 2 === 1 ? 1 : 2,
+  };
+}
+
 function createSlotElements(slotIndex: number): SlotElements {
   const button = document.createElement('button');
   button.type = 'button';
   button.dataset.slot = String(slotIndex);
+  const sourceGridPosition = resolveRetailCommandGridPosition(slotIndex);
   button.style.cssText = [
     'position: relative',
-    `width: ${BUTTON_SIZE}px`,
-    `height: ${BUTTON_SIZE}px`,
+    `width: ${BUTTON_WIDTH}px`,
+    `height: ${BUTTON_HEIGHT}px`,
+    `grid-column: ${sourceGridPosition.column}`,
+    `grid-row: ${sourceGridPosition.row}`,
     `background: ${COLOR_BG}`,
     `border: 1px solid ${COLOR_BORDER_EMPTY}`,
     'padding: 0',
@@ -86,15 +103,15 @@ function createSlotElements(slotIndex: number): SlotElements {
     'justify-content: center',
     `color: ${COLOR_TEXT}`,
     'font-family: inherit',
-    'font-size: 9px',
+    'font-size: 8px',
     'line-height: 1.1',
     'box-sizing: border-box',
   ].join(';');
 
   const icon = document.createElement('img');
   icon.style.cssText = [
-    'width: 28px',
-    'height: 28px',
+    'width: 26px',
+    'height: 26px',
     'object-fit: contain',
     'display: none',
     'pointer-events: none',
@@ -108,7 +125,7 @@ function createSlotElements(slotIndex: number): SlotElements {
     'overflow: hidden',
     'text-overflow: ellipsis',
     'white-space: nowrap',
-    'font-size: 8px',
+    'font-size: 7px',
     'padding: 0 2px',
     'pointer-events: none',
   ].join(';');
@@ -214,15 +231,18 @@ export class CommandCardRenderer {
     this.grid.className = 'command-card-grid';
     this.grid.style.cssText = [
       'display: grid',
-      `grid-template-columns: repeat(${COLUMNS}, 1fr)`,
-      'gap: 2px',
-      `width: ${COLUMNS * BUTTON_SIZE + (COLUMNS - 1) * 2}px`,
+      `grid-template-columns: repeat(${COLUMNS}, ${BUTTON_WIDTH}px)`,
+      `grid-template-rows: repeat(${ROWS}, ${BUTTON_HEIGHT}px)`,
+      `column-gap: ${COLUMN_GAP}px`,
+      `row-gap: ${ROW_GAP}px`,
+      `width: ${COLUMNS * BUTTON_WIDTH + (COLUMNS - 1) * COLUMN_GAP}px`,
+      `height: ${ROWS * BUTTON_HEIGHT + (ROWS - 1) * ROW_GAP}px`,
       `background: ${COLOR_BG}`,
-      'padding: 2px',
+      'padding: 0',
       'box-sizing: content-box',
     ].join(';');
 
-    // Create 12 slot buttons (1-indexed to match source)
+    // Create 14 visible slots (1-indexed to match source)
     for (let i = 1; i <= SLOT_COUNT; i++) {
       const slotEl = createSlotElements(i);
       this.slots.push(slotEl);

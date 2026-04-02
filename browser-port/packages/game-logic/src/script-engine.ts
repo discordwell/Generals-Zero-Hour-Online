@@ -82,7 +82,7 @@ export function loadMapScripts(self: GL, mapData: MapDataJSON): void {
     if (!teamName) {
       continue;
     }
-    const teamRecord = self.getOrCreateScriptTeamRecord(teamName);
+    const teamRecord = self.getOrCreateLiteralScriptTeamRecord(teamName);
     if (!teamRecord) {
       continue;
     }

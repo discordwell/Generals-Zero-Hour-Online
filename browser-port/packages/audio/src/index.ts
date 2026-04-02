@@ -282,6 +282,8 @@ export class AudioManager implements Subsystem {
   private audioBufferLoader: AudioBufferLoader | null = null;
   /** Set of event names currently being loaded. */
   private readonly loadingBuffers = new Set<string>();
+  /** Sample keys that already failed to load/decode in this runtime session. */
+  private readonly failedBuffers = new Set<string>();
 
   private musicNames: string[] = [];
   private disallowSpeech = false;
@@ -487,6 +489,7 @@ export class AudioManager implements Subsystem {
     this.pannerNodePool.length = 0;
     this.crossfadingMusicHandles.length = 0;
     this.musicDucked = false;
+    this.failedBuffers.clear();
 
     if (this.context && this.context.state !== 'closed') {
       void this.context.close();
@@ -2114,7 +2117,11 @@ export class AudioManager implements Subsystem {
     if (!buffer) {
       // Trigger async load if a loader is available.
       const filenameToLoad = selectedFilename ?? resolved.info.filename ?? eventName;
-      if (this.audioBufferLoader && !this.loadingBuffers.has(filenameToLoad)) {
+      if (
+        this.audioBufferLoader
+        && !this.loadingBuffers.has(filenameToLoad)
+        && !this.failedBuffers.has(filenameToLoad)
+      ) {
         this.loadingBuffers.add(filenameToLoad);
         // Single fetch: cache under both filename and event name to avoid double requests.
         const aliasKeys = filenameToLoad !== eventName ? [eventName] : [];
@@ -2138,13 +2145,26 @@ export class AudioManager implements Subsystem {
     try {
       const data = await this.audioBufferLoader!(filename);
       if (!data) {
+        this.failedBuffers.add(cacheKey);
         return;
       }
       const audioBuffer = await ctx.decodeAudioData(data);
       this.audioBufferCache.set(cacheKey, audioBuffer);
       for (const alias of aliasKeys) {
         this.audioBufferCache.set(alias, audioBuffer);
+        this.failedBuffers.delete(alias);
       }
+      this.failedBuffers.delete(cacheKey);
+    } catch (error) {
+      this.failedBuffers.add(cacheKey);
+      for (const alias of aliasKeys) {
+        this.failedBuffers.add(alias);
+      }
+      console.warn(
+        `[AudioManager] Failed to load/decode "${filename}": ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     } finally {
       this.loadingBuffers.delete(cacheKey);
     }

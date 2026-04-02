@@ -50,6 +50,26 @@ export interface BlockerReportInputs {
     objectCycles?: unknown[];
     scienceCycles?: unknown[];
   } | null;
+  visualSceneParity?: {
+    summary?: {
+      blockedScenarios?: number;
+    };
+    scenarios?: Array<{
+      name?: string;
+      status?: string;
+      blockingIssues?: string[];
+    }>;
+  } | null;
+  uiLayoutParity?: {
+    summary?: {
+      blockedScenarios?: number;
+    };
+    scenarios?: Array<{
+      name?: string;
+      status?: string;
+      blockingIssues?: string[];
+    }>;
+  } | null;
 }
 
 function normalizeCount(value: unknown): number {
@@ -188,6 +208,52 @@ export function collectBlockerFindings(inputs: BlockerReportInputs): BlockerFind
     );
   }
 
+  if (!inputs.visualSceneParity) {
+    pushBlocker(blockers, 'visual-scene-report-missing', 'visual-scenes', 1, ['visual-scene-parity-report.json missing']);
+  } else {
+    const blockedScenarios = normalizeCount(inputs.visualSceneParity.summary?.blockedScenarios);
+    const scenarioDetails = (inputs.visualSceneParity.scenarios ?? [])
+      .filter((scenario) => scenario.status === 'blocked')
+      .slice(0, 5)
+      .map((scenario) => {
+        const issues = (scenario.blockingIssues ?? []).slice(0, 2);
+        const suffix = issues.length > 0 ? `: ${issues.join(' | ')}` : '';
+        return `${scenario.name ?? '(unnamed scene)'}${suffix}`;
+      });
+    pushBlocker(
+      blockers,
+      'visual-scene-blocked-scenarios',
+      'visual-scenes',
+      blockedScenarios,
+      scenarioDetails.length > 0
+        ? scenarioDetails
+        : ['Visual scene parity report contains blocked retail-map scenarios.'],
+    );
+  }
+
+  if (!inputs.uiLayoutParity) {
+    pushBlocker(blockers, 'ui-layout-report-missing', 'ui-layout', 1, ['ui-layout-parity-report.json missing']);
+  } else {
+    const blockedScenarios = normalizeCount(inputs.uiLayoutParity.summary?.blockedScenarios);
+    const scenarioDetails = (inputs.uiLayoutParity.scenarios ?? [])
+      .filter((scenario) => scenario.status === 'blocked')
+      .slice(0, 5)
+      .map((scenario) => {
+        const issues = (scenario.blockingIssues ?? []).slice(0, 2);
+        const suffix = issues.length > 0 ? `: ${issues.join(' | ')}` : '';
+        return `${scenario.name ?? '(unnamed UI scene)'}${suffix}`;
+      });
+    pushBlocker(
+      blockers,
+      'ui-layout-blocked-scenarios',
+      'ui-layout',
+      blockedScenarios,
+      scenarioDetails.length > 0
+        ? scenarioDetails
+        : ['UI layout parity report contains blocked retail UI scenarios.'],
+    );
+  }
+
   return blockers;
 }
 
@@ -231,12 +297,20 @@ async function main(): Promise<void> {
   const prerequisiteCoverage = await readJsonOrNull<BlockerReportInputs['prerequisiteCoverage']>(
     path.join(rootDir, 'prerequisite-chain-report.json'),
   );
+  const visualSceneParity = await readJsonOrNull<BlockerReportInputs['visualSceneParity']>(
+    path.join(rootDir, 'visual-scene-parity-report.json'),
+  );
+  const uiLayoutParity = await readJsonOrNull<BlockerReportInputs['uiLayoutParity']>(
+    path.join(rootDir, 'ui-layout-parity-report.json'),
+  );
 
   const report = buildBlockerParityReport({
     conversionParity,
     commandCoverage,
     scriptCoverage,
     prerequisiteCoverage,
+    visualSceneParity,
+    uiLayoutParity,
   });
 
   await fs.writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');

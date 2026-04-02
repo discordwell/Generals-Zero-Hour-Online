@@ -42,12 +42,12 @@ export class DecalManager implements Subsystem {
    * Add a scorch mark at the given position.
    * Called by FXListManager when a TerrainScorch nugget fires.
    */
-  addScorchMark(scorchType: string, radius: number, position: THREE.Vector3): void {
+  addScorchMark(scorchType: string, radius: number, position: THREE.Vector3, lifetime = 30): void {
     this.terrainScorch.addScorch({
       scorchType,
       radius,
       position: [position.x, position.y, position.z],
-      lifetime: 30,
+      lifetime,
     });
   }
 }

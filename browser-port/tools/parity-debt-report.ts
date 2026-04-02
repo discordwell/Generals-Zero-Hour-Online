@@ -26,6 +26,14 @@ interface ParityDebtReport {
 const TODO_REGEX = /\b(?:TODO|FIXME)\b/i;
 const SUBSET_REGEX = /\bsource\s+parity\s+subset\b/i;
 
+export function shouldCountParityDebtFile(filePath: string): boolean {
+  if (!filePath.endsWith('.ts')) {
+    return false;
+  }
+  const normalizedName = path.basename(filePath).toLowerCase();
+  return !normalizedName.endsWith('.test.ts') && !normalizedName.endsWith('.spec.ts');
+}
+
 async function walkTypeScriptFiles(dir: string): Promise<string[]> {
   const results: string[] = [];
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -41,7 +49,7 @@ async function walkTypeScriptFiles(dir: string): Promise<string[]> {
     if (!entry.isFile()) {
       continue;
     }
-    if (!fullPath.endsWith('.ts')) {
+    if (!shouldCountParityDebtFile(fullPath)) {
       continue;
     }
     results.push(fullPath);

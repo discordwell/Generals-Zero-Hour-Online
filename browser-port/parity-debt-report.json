@@ -1,95 +1,95 @@
 {
-  "generatedAt": "2026-03-14T07:11:26.213Z",
+  "generatedAt": "2026-04-01T23:25:34.571Z",
   "rootDir": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port",
   "packagesDir": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages",
   "packages": [
     {
       "packageName": "app",
-      "sourceFileCount": 72,
+      "sourceFileCount": 43,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
     },
     {
       "packageName": "assets",
-      "sourceFileCount": 11,
-      "todoMarkers": 0,
-      "subsetMarkers": 0,
-      "totalMarkers": 0
-    },
-    {
-      "packageName": "audio",
-      "sourceFileCount": 2,
-      "todoMarkers": 0,
-      "subsetMarkers": 0,
-      "totalMarkers": 0
-    },
-    {
-      "packageName": "core",
-      "sourceFileCount": 24,
-      "todoMarkers": 0,
-      "subsetMarkers": 0,
-      "totalMarkers": 0
-    },
-    {
-      "packageName": "engine",
-      "sourceFileCount": 50,
-      "todoMarkers": 0,
-      "subsetMarkers": 0,
-      "totalMarkers": 0
-    },
-    {
-      "packageName": "game-logic",
-      "sourceFileCount": 82,
-      "todoMarkers": 0,
-      "subsetMarkers": 0,
-      "totalMarkers": 0
-    },
-    {
-      "packageName": "ini-data",
-      "sourceFileCount": 3,
-      "todoMarkers": 0,
-      "subsetMarkers": 0,
-      "totalMarkers": 0
-    },
-    {
-      "packageName": "input",
       "sourceFileCount": 7,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
     },
     {
+      "packageName": "audio",
+      "sourceFileCount": 1,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
+      "packageName": "core",
+      "sourceFileCount": 20,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
+      "packageName": "engine",
+      "sourceFileCount": 27,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
+      "packageName": "game-logic",
+      "sourceFileCount": 56,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
+      "packageName": "ini-data",
+      "sourceFileCount": 2,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
+      "packageName": "input",
+      "sourceFileCount": 5,
+      "todoMarkers": 0,
+      "subsetMarkers": 0,
+      "totalMarkers": 0
+    },
+    {
       "packageName": "network",
-      "sourceFileCount": 6,
+      "sourceFileCount": 3,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
     },
     {
       "packageName": "renderer",
-      "sourceFileCount": 38,
+      "sourceFileCount": 20,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
     },
     {
       "packageName": "terrain",
-      "sourceFileCount": 11,
+      "sourceFileCount": 8,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
     },
     {
       "packageName": "ui",
-      "sourceFileCount": 8,
+      "sourceFileCount": 6,
       "todoMarkers": 0,
       "subsetMarkers": 0,
       "totalMarkers": 0
     }
   ],
   "totals": {
-    "sourceFileCount": 314,
+    "sourceFileCount": 198,
     "todoMarkers": 0,
     "subsetMarkers": 0,
     "totalMarkers": 0

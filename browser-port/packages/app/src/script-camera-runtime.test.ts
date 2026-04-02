@@ -14,6 +14,10 @@ import {
   type ScriptCameraSlaveModeState,
   type ScriptCameraTetherState,
 } from './script-camera-runtime.js';
+import {
+  resolveSourceAbsoluteZoomWorldDistance,
+  resolveSourceHeightScaledZoomWorldDistance,
+} from './source-camera.js';
 
 interface MutableScriptCameraState {
   actionRequests: ScriptCameraActionRequestState[];
@@ -609,7 +613,12 @@ describe('script camera runtime bridge', () => {
   it('applies RESET defaults from script camera default view state', () => {
     const gameLogic = new RecordingGameLogic();
     const cameraController = new RecordingCameraController();
-    const bridge = createScriptCameraRuntimeBridge({ gameLogic, cameraController });
+    const terrainHeightAt = () => 60;
+    const bridge = createScriptCameraRuntimeBridge({
+      gameLogic,
+      cameraController,
+      getTerrainHeightAt: terrainHeightAt,
+    });
 
     gameLogic.state.defaultViewState = {
       pitch: 35,
@@ -630,14 +639,32 @@ describe('script camera runtime bridge', () => {
     expect(state.targetX).toBeCloseTo(64, 4);
     expect(state.targetZ).toBeCloseTo(96, 4);
     expect(state.angle).toBeCloseTo(Math.PI / 2, 4);
-    expect(state.zoom).toBeCloseTo(480, 4);
+    expect(state.zoom).toBeCloseTo(resolveSourceHeightScaledZoomWorldDistance({
+      zoomMultiplier: 1,
+      targetX: 64,
+      targetZ: 96,
+      getTerrainHeightAt: terrainHeightAt,
+      settings: { maxCameraHeight: 480 },
+    }), 4);
     expect(state.pitch).toBeCloseTo(1, 4);
   });
 
-  it('applies SETUP requests immediately with look-at orientation and zoom', () => {
+  it('applies SETUP requests immediately with look-at orientation and source height-scaled zoom', () => {
     const gameLogic = new RecordingGameLogic();
     const cameraController = new RecordingCameraController();
-    const bridge = createScriptCameraRuntimeBridge({ gameLogic, cameraController });
+    const terrainHeightAt = (worldX: number, worldZ: number) => (
+      worldX === 50 && worldZ === 60 ? 90 : 0
+    );
+    const bridge = createScriptCameraRuntimeBridge({
+      gameLogic,
+      cameraController,
+      getTerrainHeightAt: terrainHeightAt,
+    });
+    gameLogic.state.defaultViewState = {
+      pitch: 20,
+      angle: 45,
+      maxHeight: 400,
+    };
 
     gameLogic.state.actionRequests.push(makeActionRequest({
       requestType: 'SETUP',
@@ -645,7 +672,7 @@ describe('script camera runtime bridge', () => {
       z: 60,
       lookAtX: 50,
       lookAtZ: 90,
-      zoom: 420,
+      zoom: 0.6,
       pitch: 35,
     }));
 
@@ -653,9 +680,40 @@ describe('script camera runtime bridge', () => {
     const state = cameraController.getState();
     expect(state.targetX).toBe(50);
     expect(state.targetZ).toBe(60);
-    expect(state.zoom).toBe(420);
+    expect(state.zoom).toBeCloseTo(resolveSourceHeightScaledZoomWorldDistance({
+      zoomMultiplier: 0.6,
+      targetX: 50,
+      targetZ: 60,
+      getTerrainHeightAt: terrainHeightAt,
+      settings: { maxCameraHeight: 400 },
+    }), 4);
     expect(state.pitch).toBe(35);
     expect(state.angle).toBeCloseTo(0, 6);
+    expect(bridge.isCameraMovementFinished()).toBe(true);
+  });
+
+  it('animates ZOOM requests using source absolute zoom multipliers', () => {
+    const gameLogic = new RecordingGameLogic();
+    const cameraController = new RecordingCameraController();
+    const bridge = createScriptCameraRuntimeBridge({ gameLogic, cameraController });
+
+    gameLogic.state.actionRequests.push(makeActionRequest({
+      requestType: 'ZOOM',
+      zoom: 0.45,
+      durationMs: 1000,
+    }));
+
+    bridge.syncAfterSimulationStep(1);
+    const earlyState = cameraController.getState();
+    expect(bridge.isCameraMovementFinished()).toBe(false);
+    expect(earlyState.zoom).toBeLessThan(300);
+    expect(earlyState.zoom).toBeGreaterThan(resolveSourceAbsoluteZoomWorldDistance(0.45, undefined));
+
+    bridge.syncAfterSimulationStep(30);
+    expect(cameraController.getState().zoom).toBeCloseTo(
+      resolveSourceAbsoluteZoomWorldDistance(0.45, undefined),
+      4,
+    );
     expect(bridge.isCameraMovementFinished()).toBe(true);
   });
 
@@ -704,6 +762,49 @@ describe('script camera runtime bridge', () => {
 
     bridge.syncAfterSimulationStep(30);
     expect(cameraController.getState().pitch).toBeCloseTo(0.6, 4);
+    expect(bridge.isCameraMovementFinished()).toBe(true);
+  });
+
+  it('applies FINAL_ZOOM over the remaining scripted movement duration using source terrain-scaled zoom', () => {
+    const gameLogic = new RecordingGameLogic();
+    const cameraController = new RecordingCameraController();
+    const terrainHeightAt = (worldX: number, worldZ: number) => (
+      worldX === 100 && worldZ === 100 ? 60 : 0
+    );
+    const bridge = createScriptCameraRuntimeBridge({
+      gameLogic,
+      cameraController,
+      getTerrainHeightAt: terrainHeightAt,
+    });
+
+    gameLogic.state.defaultViewState = {
+      pitch: 35,
+      angle: 90,
+      maxHeight: 400,
+    };
+    gameLogic.state.actionRequests.push(makeActionRequest({
+      requestType: 'MOVE_TO',
+      x: 100,
+      z: 100,
+      durationMs: 1000,
+    }));
+    bridge.syncAfterSimulationStep(1);
+
+    gameLogic.state.modifierRequests.push(makeModifierRequest({
+      requestType: 'FINAL_ZOOM',
+      zoom: 0.5,
+    }));
+    bridge.syncAfterSimulationStep(2);
+    expect(bridge.isCameraMovementFinished()).toBe(false);
+
+    bridge.syncAfterSimulationStep(30);
+    expect(cameraController.getState().zoom).toBeCloseTo(resolveSourceHeightScaledZoomWorldDistance({
+      zoomMultiplier: 0.5,
+      targetX: 100,
+      targetZ: 100,
+      getTerrainHeightAt: terrainHeightAt,
+      settings: { maxCameraHeight: 400 },
+    }), 4);
     expect(bridge.isCameraMovementFinished()).toBe(true);
   });
 

@@ -4223,6 +4223,58 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     }
   });
 
+  it('resolves supplemental map object aliases and synthetic definitions before falling back to unresolved placement', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Fountain1', '', ['IMMOBILE', 'CLEARED_BY_BUILD'], [
+          makeBlock('Draw', 'W3DModelDraw ModuleTag_Draw', {}, [
+            makeBlock('DefaultConditionState', '', { Model: 'PMFountain3' }),
+          ]),
+        ]),
+      ],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.setSupplementalMapObjectDefinitions([
+      {
+        templateName: 'Fountain01',
+        objectDefName: 'Fountain1',
+      },
+      {
+        templateName: 'AmericaDetentionCamp',
+        modelName: 'ABDetCamp',
+      },
+    ]);
+
+    const placement = logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Fountain01', 10, 10),
+        makeMapObject('AmericaDetentionCamp', 20, 20),
+      ], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+
+    expect(placement.unresolvedObjects).toBe(0);
+    expect(placement.resolvedObjects).toBe(2);
+    expect(logic.getRenderableEntityStates()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          templateName: 'Fountain01',
+          resolved: true,
+          renderAssetPath: 'PMFountain3',
+          renderAssetResolved: true,
+        }),
+        expect.objectContaining({
+          templateName: 'AmericaDetentionCamp',
+          resolved: true,
+          renderAssetPath: 'ABDetCamp',
+          renderAssetResolved: true,
+        }),
+      ]),
+    );
+  });
+
   it('reports render asset metadata independently from placeholder geometry visibility', () => {
     const bundle = makeBundle({
       objects: [
@@ -14980,6 +15032,7 @@ describe('skirmish starting entities', () => {
       makeMapObject('Tree01', 10, 10),           // real entity
       makeMapObject('DirtRoad4', 20, 20),         // road → should be skipped
       makeMapObject('Sidewalk', 30, 30),          // road → should be skipped
+      makeMapObject('Scorch', 35, 35),            // terrain decal → should be skipped
       makeMapObject('*Waypoints/Waypoint', 40, 40), // waypoint → should be skipped
       makeMapObject('GravelRoad', 50, 50),        // road → should be skipped
     ]);
@@ -14987,6 +15040,30 @@ describe('skirmish starting entities', () => {
 
     const entities = logic.getRenderableEntityStates();
     // Only the Tree01 should be spawned — roads and waypoints are filtered.
+    expect(entities.length).toBe(1);
+    expect(entities[0]!.templateName).toBe('Tree01');
+  });
+
+  it('filters source terrain road and bridge templates registered from Roads.ini from entity spawning', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Tree01', '', ['SHRUBBERY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 50, InitialHealth: 50 }),
+        ]),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.setRoadTemplateNames(['TrainTrack3', 'Cobblestone', 'EuropeanBridgeWide']);
+
+    const mapData = makeMap([
+      makeMapObject('Tree01', 10, 10),
+      makeMapObject('TrainTrack3', 20, 20),
+      makeMapObject('Cobblestone', 30, 30),
+      makeMapObject('EuropeanBridgeWide', 40, 40, 0x010),
+    ]);
+    logic.loadMapObjects(mapData, makeRegistry(bundle), makeHeightmap(64, 64));
+
+    const entities = logic.getRenderableEntityStates();
     expect(entities.length).toBe(1);
     expect(entities[0]!.templateName).toBe('Tree01');
   });
@@ -16910,6 +16987,66 @@ describe('Script condition groundwork', () => {
       conditionType: 'PLAYER_ALL_DESTROYED',
       params: ['Player_1'],
     })).toBe(true);
+  });
+
+  it('dereferences team-owned map objects to the owning player for explicit named-player conditions', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('AmericaInfantry', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+        ]),
+      ],
+      factions: [{
+        name: 'FactionAmerica',
+        side: 'America',
+        fields: {},
+      }],
+    });
+
+    const map = makeMap([
+      makeMapObject('AmericaInfantry', 10, 10, { originalOwner: 'teamThePlayer' }),
+    ], 128, 128);
+    map.sidesList = {
+      sides: [
+        {
+          dict: {
+            playerName: 'ThePlayer',
+            playerFaction: 'FactionAmerica',
+            playerIsHuman: true,
+          },
+          buildList: [],
+          scripts: {
+            scripts: [],
+            groups: [],
+          },
+        },
+      ],
+      teams: [
+        {
+          dict: {
+            teamName: 'teamThePlayer',
+            teamOwner: 'ThePlayer',
+            teamIsSingleton: true,
+          },
+        },
+      ],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
+
+    const privateApi = logic as unknown as {
+      spawnedEntities: Map<number, {
+        controllingPlayerToken: string | null;
+        sourceTeamNameUpper?: string | null;
+      }>;
+    };
+
+    expect(privateApi.spawnedEntities.get(1)?.controllingPlayerToken).toBe('theplayer');
+    expect(privateApi.spawnedEntities.get(1)?.sourceTeamNameUpper).toBe('TEAMTHEPLAYER');
+    expect(logic.evaluateScriptHasUnits({ teamName: 'teamThePlayer' })).toBe(true);
+    expect(logic.evaluateScriptNamedOwnedByPlayer({ entityId: 1, side: 'ThePlayer' })).toBe(true);
+    expect(logic.evaluateScriptAllDestroyed({ side: 'ThePlayer' })).toBe(false);
   });
 
   it('tracks script credit overrides separately for named players sharing a side', () => {
@@ -40251,7 +40388,6 @@ describe('Script condition groundwork', () => {
 
     const logic = new GameLogicSubsystem(new THREE.Scene());
     logic.loadMapObjects(map, makeRegistry(bundle), makeHeightmap(128, 128));
-    expect(logic.setScriptTeamMembers('teamPlayer_1', [1])).toBe(true);
 
     expect(logic.evaluateScriptHasUnits({ teamName: 'teamThePlayer' })).toBe(true);
     expect(logic.clearScriptTeam('teamPlayer_1')).toBe(true);

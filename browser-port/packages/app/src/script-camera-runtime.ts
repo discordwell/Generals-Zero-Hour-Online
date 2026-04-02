@@ -1,5 +1,10 @@
 import type { CameraState } from '@generals/input';
 
+import {
+  resolveSourceAbsoluteZoomWorldDistance,
+  resolveSourceHeightScaledZoomWorldDistance,
+} from './source-camera.js';
+
 const TWO_PI = Math.PI * 2;
 const MIN_DIRECTION_LENGTH = 0.1;
 const WAYPOINT_PATH_MIN_DELTA = 10;
@@ -122,6 +127,7 @@ export interface ScriptCameraRuntimeBridge {
 export interface CreateScriptCameraRuntimeBridgeOptions {
   gameLogic: ScriptCameraRuntimeGameLogic;
   cameraController: ScriptCameraRuntimeController;
+  getTerrainHeightAt?: (worldX: number, worldZ: number) => number;
 }
 
 interface ScalarTransition {
@@ -541,9 +547,7 @@ function resolveLookTowardAngle(
 export function createScriptCameraRuntimeBridge(
   options: CreateScriptCameraRuntimeBridgeOptions,
 ): ScriptCameraRuntimeBridge {
-  const { gameLogic, cameraController } = options;
-
-  const defaultCameraState = cameraController.getState();
+  const { gameLogic, cameraController, getTerrainHeightAt } = options;
 
   let targetTransition: TargetTransition | null = null;
   let waypointPathTransition: WaypointPathTransition | null = null;
@@ -560,6 +564,51 @@ export function createScriptCameraRuntimeBridge(
   let lastCameraLockSignature: string | null = null;
   let lastLookTowardObjectSignature: string | null = null;
   let lastLookTowardWaypointSignature: string | null = null;
+
+  const resolveSourceMaxHeightOverride = (): { maxCameraHeight: number } | undefined => {
+    const scriptDefaultView = gameLogic.getScriptCameraDefaultViewState?.() ?? null;
+    return scriptDefaultView
+      && Number.isFinite(scriptDefaultView.maxHeight)
+      && scriptDefaultView.maxHeight > 0
+      ? { maxCameraHeight: scriptDefaultView.maxHeight }
+      : undefined;
+  };
+
+  const resolveSourceAbsoluteZoom = (zoomMultiplier: number): number => {
+    return resolveSourceAbsoluteZoomWorldDistance(
+      zoomMultiplier,
+      resolveSourceMaxHeightOverride(),
+    );
+  };
+
+  const resolveSourceHeightScaledZoom = (
+    zoomMultiplier: number,
+    targetX: number,
+    targetZ: number,
+  ): number => {
+    return resolveSourceHeightScaledZoomWorldDistance({
+      zoomMultiplier,
+      targetX,
+      targetZ,
+      getTerrainHeightAt,
+      settings: resolveSourceMaxHeightOverride(),
+    });
+  };
+
+  const resolveFinalZoomTarget = (): { x: number; z: number } | null => {
+    if (waypointPathTransition) {
+      const finalPoint = waypointPathTransition.points[waypointPathTransition.points.length - 1];
+      return finalPoint ? { x: finalPoint.x, z: finalPoint.z } : null;
+    }
+    if (targetTransition) {
+      return { x: targetTransition.toX, z: targetTransition.toZ };
+    }
+    if (angleTransition) {
+      const state = cameraController.getState();
+      return { x: state.targetX, z: state.targetZ };
+    }
+    return null;
+  };
 
   const beginTargetTransition = (
     currentLogicFrame: number,
@@ -918,11 +967,7 @@ export function createScriptCameraRuntimeBridge(
           const resetAngle = scriptDefaultView && Number.isFinite(scriptDefaultView.angle)
             ? normalizeAngle((scriptDefaultView.angle * Math.PI) / 180)
             : 0;
-          const resetZoom = scriptDefaultView
-            && Number.isFinite(scriptDefaultView.maxHeight)
-            && scriptDefaultView.maxHeight > 0
-            ? scriptDefaultView.maxHeight
-            : defaultCameraState.zoom;
+          const resetZoom = resolveSourceHeightScaledZoom(1, request.x, request.z);
           const easeIn = toEaseRatioFromDuration(request.easeInMs, request.durationMs);
           const easeOut = toEaseRatioFromDuration(request.easeOutMs, request.durationMs);
 
@@ -968,7 +1013,7 @@ export function createScriptCameraRuntimeBridge(
             }
           }
           if (request.zoom !== null && Number.isFinite(request.zoom)) {
-            nextState.zoom = request.zoom;
+            nextState.zoom = resolveSourceHeightScaledZoom(request.zoom, request.x, request.z);
           }
           if (request.pitch !== null && Number.isFinite(request.pitch)) {
             nextState.pitch = request.pitch;
@@ -989,7 +1034,7 @@ export function createScriptCameraRuntimeBridge(
           }
           beginZoomTransition(
             currentLogicFrame,
-            request.zoom,
+            resolveSourceAbsoluteZoom(request.zoom),
             toDurationFrames(request.durationMs),
             toEaseRatioFromDuration(request.easeInMs, request.durationMs),
             toEaseRatioFromDuration(request.easeOutMs, request.durationMs),
@@ -1040,12 +1085,13 @@ export function createScriptCameraRuntimeBridge(
             break;
           }
           const remainingFrames = getMaxVisualMovementRemainingFrames(currentLogicFrame);
-          if (remainingFrames < 1) {
+          const finalZoomTarget = resolveFinalZoomTarget();
+          if (remainingFrames < 1 || !finalZoomTarget) {
             break;
           }
           beginZoomTransition(
             currentLogicFrame,
-            request.zoom,
+            resolveSourceHeightScaledZoom(request.zoom, finalZoomTarget.x, finalZoomTarget.z),
             remainingFrames,
             clamp01(request.easeIn ?? 0),
             clamp01(request.easeOut ?? 0),

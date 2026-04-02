@@ -222,6 +222,14 @@ export interface ObjectVisualManagerConfig {
   modelLoader?: (assetPath: string) => Promise<LoadedModelAsset>;
 }
 
+export interface ObjectVisualDebugSnapshot {
+  visualEntityCount: number;
+  modelEntityCount: number;
+  placeholderEntityCount: number;
+  unresolvedEntityCount: number;
+  unresolvedEntityIds: number[];
+}
+
 const DEFAULT_MODEL_EXTENSIONS: readonly string[] = ['.gltf', '.glb'];
 
 /**
@@ -485,6 +493,31 @@ export class ObjectVisualManager {
   /** Fast count without allocating a sorted array — use in per-frame paths. */
   getUnresolvedEntityCount(): number {
     return this.unresolvedEntityIds.size;
+  }
+
+  /**
+   * Structured renderer summary for parity probes and browser-side diagnostics.
+   */
+  getDebugSnapshot(): ObjectVisualDebugSnapshot {
+    let modelEntityCount = 0;
+    let placeholderEntityCount = 0;
+
+    for (const visual of this.visuals.values()) {
+      if (visual.currentModel !== null) {
+        modelEntityCount += 1;
+      }
+      if (visual.placeholder?.visible) {
+        placeholderEntityCount += 1;
+      }
+    }
+
+    return {
+      visualEntityCount: this.visuals.size,
+      modelEntityCount,
+      placeholderEntityCount,
+      unresolvedEntityCount: this.unresolvedEntityIds.size,
+      unresolvedEntityIds: this.getUnresolvedEntityIds(),
+    };
   }
 
   /**
@@ -1320,9 +1353,10 @@ export class ObjectVisualManager {
     const promise = (async () => {
       for (const outputPath of this.resolveShadowTextureOutputPaths(normalized)) {
         try {
-          await this.assetManager!.loadArrayBuffer(outputPath);
-          // Shadow texture loading placeholder — returns null until implemented
-          return null;
+          const handle = await this.assetManager!.loadArrayBuffer(outputPath);
+          const texture = this.parseRgbaTexture(handle.data);
+          texture.name = normalized;
+          return texture;
         } catch {
           // Try the next source-truth candidate.
         }
@@ -1332,6 +1366,31 @@ export class ObjectVisualManager {
 
     this.shadowTexturePromises.set(normalized, promise);
     return promise;
+  }
+
+  private parseRgbaTexture(data: ArrayBuffer): THREE.DataTexture {
+    const header = new DataView(data);
+    const width = header.getUint32(0, true);
+    const height = header.getUint32(4, true);
+    const expectedByteLength = width * height * 4;
+    const pixels = new Uint8Array(data, 8);
+    if (width <= 0 || height <= 0 || pixels.byteLength < expectedByteLength) {
+      throw new Error('Invalid .rgba texture payload.');
+    }
+
+    const texture = new THREE.DataTexture(
+      new Uint8Array(pixels.buffer, pixels.byteOffset, expectedByteLength),
+      width,
+      height,
+      THREE.RGBAFormat,
+    );
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+    return texture;
   }
 
   private syncShadowTexture(
@@ -1345,8 +1404,11 @@ export class ObjectVisualManager {
 
     const requestedTextureKey = (state.shadowTextureName?.trim() || 'shadow').toLowerCase();
     const material = visual.shadowDecal.material as THREE.MeshBasicMaterial;
-    // Shadow material mode — use multiply blending for shadow decals
-    material.blending = THREE.MultiplyBlending;
+    // Source parity: shadow decals multiply destination color by shadow alpha.
+    material.blending = THREE.CustomBlending;
+    material.blendSrc = THREE.ZeroFactor;
+    material.blendDst = THREE.OneMinusSrcAlphaFactor;
+    material.blendEquation = THREE.AddEquation;
 
     if (visual.shadowTextureKey === requestedTextureKey) {
       return;
@@ -1366,7 +1428,11 @@ export class ObjectVisualManager {
 
       const currentMaterial = visual.shadowDecal.material as THREE.MeshBasicMaterial;
       currentMaterial.map = texture;
-      currentMaterial.blending = THREE.MultiplyBlending;
+      currentMaterial.blending = THREE.CustomBlending;
+      currentMaterial.blendSrc = THREE.ZeroFactor;
+      currentMaterial.blendDst = THREE.OneMinusSrcAlphaFactor;
+      currentMaterial.blendEquation = THREE.AddEquation;
+      currentMaterial.needsUpdate = true;
       visual.shadowDecal.visible = texture !== null;
     });
   }

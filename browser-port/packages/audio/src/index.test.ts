@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   AudioAffect,
@@ -1944,6 +1944,42 @@ describe('AudioManager', () => {
     expect(lastSource.playbackRate.value).toBeCloseTo(1.5);
     expect(manager.getActiveAudioEventCount()).toBe(1);
 
+    manager.dispose();
+  });
+
+  it('suppresses async decode failures and does not retry failed sample loads', async () => {
+    const { fakeContext } = createRecordingAudioContext();
+    const loader = vi.fn(async () => new ArrayBuffer(8));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    (fakeContext as unknown as { decodeAudioData: (data: ArrayBuffer) => Promise<AudioBuffer> }).decodeAudioData =
+      async (_data: ArrayBuffer) => {
+        throw new Error('bad sample');
+      };
+
+    const manager = new AudioManager({ context: fakeContext });
+    manager.init();
+    manager.addAudioEventInfo({
+      audioName: 'BrokenSound',
+      filename: 'broken_sample',
+      soundType: AudioType.AT_SoundEffect,
+      type: SoundType.ST_UI | SoundType.ST_EVERYONE,
+      volume: 0.8,
+    });
+    manager.setAudioBufferLoader(loader);
+
+    manager.addAudioEvent('BrokenSound');
+    manager.update();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    manager.addAudioEvent('BrokenSound');
+    manager.update();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect((manager as unknown as { loadingBuffers: Set<string> }).loadingBuffers.size).toBe(0);
+    expect((manager as unknown as { failedBuffers: Set<string> }).failedBuffers.has('broken_sample')).toBe(true);
+
+    warnSpy.mockRestore();
     manager.dispose();
   });
 

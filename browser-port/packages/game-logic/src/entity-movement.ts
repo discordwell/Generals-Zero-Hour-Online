@@ -12,7 +12,6 @@ import { findObjectDefByName } from './registry-lookups.js';
 import {
   LOGIC_FRAME_RATE,
   NO_ATTACK_DISTANCE,
-  PATHFIND_CELL_SIZE,
   LOCOMOTORSET_NORMAL,
   SOURCE_LOCOMOTOR_SET_NAMES,
   TEST_CRUSH_OR_SQUISH,
@@ -30,6 +29,8 @@ import {
   MINE_MAX_IMMUNITY,
 } from './index.js';
 type GL = any;
+
+const PATHFIND_CELL_SIZE = MAP_XY_FACTOR;
 
 // ---- Entity movement implementations ----
 

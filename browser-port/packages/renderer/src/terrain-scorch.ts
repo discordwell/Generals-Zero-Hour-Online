@@ -15,7 +15,7 @@ export interface TerrainScorchConfig {
   scorchType: string;
   radius: number;
   position: [number, number, number];
-  lifetime: number;
+  lifetime?: number;
 }
 
 const DEFAULT_SCORCH_LIFETIME = 30; // seconds
@@ -59,6 +59,7 @@ export class TerrainScorchManager {
     }
 
     const color = SCORCH_COLORS[config.scorchType] ?? SCORCH_COLORS['RANDOM']!;
+    const lifetime = config.lifetime === undefined ? DEFAULT_SCORCH_LIFETIME : Math.max(0, config.lifetime);
     const handle = this.decalRenderer.addDecal({
       position: config.position,
       sizeX: config.radius * 2,
@@ -67,7 +68,7 @@ export class TerrainScorchManager {
       blendMode: 'MULTIPLY',
       opacity: 0.7,
       color,
-      lifetime: config.lifetime || DEFAULT_SCORCH_LIFETIME,
+      lifetime,
       terrainConform: true,
     });
 

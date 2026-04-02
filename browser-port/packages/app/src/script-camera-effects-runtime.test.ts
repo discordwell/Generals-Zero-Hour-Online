@@ -131,7 +131,31 @@ describe('script camera effects runtime bridge', () => {
     expect(tail.fadeAmount).toBeGreaterThan(0.1);
 
     const settled = bridge.syncAfterSimulationStep(30);
-    expect(settled.fadeAmount).toBeCloseTo(0.1, 4);
+    expect(settled.fadeType).toBeNull();
+    expect(settled.fadeAmount).toBe(0);
+  });
+
+  it('clears expired multiply fades instead of holding minFade forever', () => {
+    const gameLogic = new RecordingGameLogic();
+    const bridge = createScriptCameraEffectsRuntimeBridge({ gameLogic });
+
+    gameLogic.state.fadeRequests.push({
+      fadeType: 'MULTIPLY',
+      minFade: 1,
+      maxFade: 0,
+      increaseFrames: 0,
+      holdFrames: 10,
+      decreaseFrames: 0,
+      frame: 1,
+    });
+
+    const active = bridge.syncAfterSimulationStep(5);
+    expect(active.fadeType).toBe('MULTIPLY');
+    expect(active.fadeAmount).toBeCloseTo(0, 6);
+
+    const expired = bridge.syncAfterSimulationStep(16);
+    expect(expired.fadeType).toBeNull();
+    expect(expired.fadeAmount).toBe(0);
   });
 
   it('enables and clears motion blur filter states from camera filter requests', () => {

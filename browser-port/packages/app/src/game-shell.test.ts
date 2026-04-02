@@ -39,6 +39,43 @@ describe('GameShell', () => {
     expect(select.value).toBe('10000');
   });
 
+  it('matches the retail main menu button order and routes skirmish through single player', () => {
+    const shell = new GameShell(root, {
+      onStartGame: () => undefined,
+    });
+
+    shell.show();
+
+    expect(
+      [...root.querySelectorAll('#main-menu-screen .menu-button')].map((button) => button.textContent?.trim()),
+    ).toEqual([
+      'Single Player',
+      'Multiplayer',
+      'Replay',
+      'Options',
+      'Exit',
+    ]);
+    expect(
+      (root.querySelector('#main-menu-screen [data-action="single-player"]') as HTMLButtonElement).dataset.sourceRect,
+    ).toBe('540,116,208,36');
+    expect(root.querySelector('#main-menu-screen [data-ref="main-menu-logo"]')).not.toBeNull();
+    expect(root.querySelector('#main-menu-screen [data-ref="main-menu-action-panel"]')).not.toBeNull();
+
+    (root.querySelector('#main-menu-screen [data-action="single-player"]') as HTMLButtonElement).click();
+
+    expect(
+      [...root.querySelectorAll('#single-player-screen .menu-button')].map((button) => button.textContent?.trim()),
+    ).toEqual([
+      'USA',
+      'GLA',
+      'CHINA',
+      'Generals Challenge',
+      'Skirmish',
+      'Back',
+    ]);
+    expect(root.querySelector('#single-player-screen [data-ref="single-player-action-panel"]')).not.toBeNull();
+  });
+
   it('filters legacy and demo campaigns when shell campaign data is set', () => {
     const shell = new GameShell(root, {
       onStartGame: () => undefined,
@@ -283,8 +320,7 @@ describe('GameShell', () => {
     expect(root.querySelector('#challenge-select-screen .general-name')?.textContent).toBe('General Juhziz');
 
     (root.querySelector('#challenge-select-screen [data-action="back"]') as HTMLButtonElement).click();
-    (root.querySelector('#single-player-screen [data-action="campaign"]') as HTMLButtonElement).click();
-    (root.querySelector('#campaign-faction-screen [data-action="next"]') as HTMLButtonElement).click();
+    (root.querySelector('#single-player-screen [data-action="campaign-usa"]') as HTMLButtonElement).click();
     (root.querySelector('#campaign-difficulty-screen [data-action="start"]') as HTMLButtonElement).click();
 
     const briefingContent = root.querySelector('#campaign-briefing-screen [data-ref="briefing-content"]')?.textContent ?? '';

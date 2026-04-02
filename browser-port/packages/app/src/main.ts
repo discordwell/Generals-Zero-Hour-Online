@@ -30,6 +30,8 @@ import {
   TracerRenderer,
   DebrisRenderer,
   TerrainRoadRenderer,
+  TerrainBridgeRenderer,
+  type TerrainBridgeDefinition,
 } from '@generals/renderer';
 import type { MapDataJSON } from '@generals/renderer';
 import { ShroudRenderer } from '@generals/renderer';
@@ -92,6 +94,7 @@ import { createScriptEmoticonRuntimeBridge } from './script-emoticon-runtime.js'
 import { createScriptEvaRuntimeBridge } from './script-eva-runtime.js';
 import { createScriptMessageRuntimeBridge } from './script-message-runtime.js';
 import { createScriptObjectAmbientAudioRuntimeBridge } from './script-object-ambient-audio-runtime.js';
+import { ScriptSkyboxController } from './script-skybox.js';
 import { createScriptUiEffectsRuntimeBridge } from './script-ui-effects-runtime.js';
 import { syncScriptViewRuntimeBridge } from './script-view-runtime.js';
 import { assertIniBundleConsistency, assertRequiredManifestEntries } from './runtime-guardrails.js';
@@ -116,6 +119,11 @@ import { PostgameStatsScreen, type SideScoreDisplay } from './postgame-stats-scr
 import { createAudioBufferLoader } from './audio-buffer-loader.js';
 import { CursorManager, resolveGameCursor, detectEdgeScrollDir } from './cursor-manager.js';
 import { formatTemplateName } from './hover-tooltip.js';
+import { collectSourceMapObjectSupplements } from './map-object-supplements.js';
+import {
+  getSourceCameraOrbitPitchAngle,
+  resolveSourceHeightScaledZoomWorldDistance,
+} from './source-camera.js';
 
 // ============================================================================
 // Loading screen
@@ -134,6 +142,101 @@ function setLoadingProgress(percent: number, status: string): void {
 function showLoadingScreen(): void {
   loadingScreen.style.display = 'flex';
   loadingScreen.style.opacity = '1';
+}
+
+interface RoadIniEntry {
+  name?: string;
+  type?: string;
+  fields?: Record<string, unknown>;
+}
+
+const ROADS_INI_JSON_PATH = 'data/_extracted/INIZH/Data/INI/Roads.json';
+
+async function loadTerrainRoadEntries(assets: AssetManager): Promise<RoadIniEntry[]> {
+  try {
+    const handle = await assets.loadJSON<RoadIniEntry[]>(ROADS_INI_JSON_PATH);
+    return Array.isArray(handle.data) ? handle.data : [];
+  } catch (error) {
+    console.warn('Failed to load Roads.ini JSON; road helper filtering will use fallback names only.', error);
+    return [];
+  }
+}
+
+function collectTerrainRoadTemplateNames(entries: readonly RoadIniEntry[]): Set<string> {
+  return new Set(
+    entries
+      .filter((entry) => typeof entry.name === 'string')
+      .map((entry) => entry.name!.trim().toUpperCase())
+      .filter((name) => name.length > 0),
+  );
+}
+
+function collectTerrainBridgeDefinitions(entries: readonly RoadIniEntry[]): Map<string, TerrainBridgeDefinition> {
+  const definitions = new Map<string, TerrainBridgeDefinition>();
+  for (const entry of entries) {
+    if (entry.type !== 'Bridge' || typeof entry.name !== 'string') {
+      continue;
+    }
+    const modelName = typeof entry.fields?.BridgeModelName === 'string'
+      ? entry.fields.BridgeModelName
+      : null;
+    if (!modelName || modelName.trim().length === 0) {
+      continue;
+    }
+    const bridgeScale = entry.fields?.BridgeScale;
+    const scale = typeof bridgeScale === 'number' && Number.isFinite(bridgeScale)
+      ? bridgeScale
+      : 1;
+    definitions.set(entry.name.trim().toUpperCase(), {
+      name: entry.name.trim(),
+      modelName: modelName.trim(),
+      scale,
+    });
+  }
+  return definitions;
+}
+
+function normalizeMapScorchType(rawValue: unknown): string {
+  const normalized = String(rawValue ?? '').trim().toUpperCase();
+  if (!normalized || normalized === '0' || normalized === 'RANDOM') {
+    return 'RANDOM';
+  }
+  if (/^[1-4]$/.test(normalized)) {
+    return `SCORCH_${normalized}`;
+  }
+  if (/^SCORCH_[1-4]$/.test(normalized)) {
+    return normalized;
+  }
+  return 'RANDOM';
+}
+
+function addPreplacedMapScorchMarks(
+  mapData: MapDataJSON,
+  heightmap: { getInterpolatedHeight(x: number, z: number): number },
+  decalManager: DecalManager,
+): void {
+  for (const mapObject of mapData.objects) {
+    if (mapObject.templateName !== 'Scorch') {
+      continue;
+    }
+
+    const properties = (mapObject.properties ?? {}) as Record<string, string | undefined>;
+    const radius = Number.parseFloat(properties.objectRadius ?? '');
+    if (!Number.isFinite(radius) || radius <= 0) {
+      continue;
+    }
+
+    const worldX = Number.isFinite(mapObject.position.x) ? mapObject.position.x : 0;
+    const worldZ = Number.isFinite(mapObject.position.y) ? mapObject.position.y : 0;
+    const rawElevation = Number.isFinite(mapObject.position.z) ? mapObject.position.z : 0;
+    const terrainHeight = heightmap.getInterpolatedHeight(worldX, worldZ);
+    decalManager.addScorchMark(
+      normalizeMapScorchType(properties.scorchType),
+      radius,
+      new THREE.Vector3(worldX, terrainHeight + rawElevation, worldZ),
+      0,
+    );
+  }
 }
 
 async function hideLoadingScreen(): Promise<void> {
@@ -608,7 +711,9 @@ async function preInit(): Promise<PreInitContext> {
   subsystems.register(inputManager);
 
   // RTS Camera
-  const rtsCamera = new RTSCamera(camera);
+  const rtsCamera = new RTSCamera(camera, {
+    pitchAngle: getSourceCameraOrbitPitchAngle(undefined),
+  });
   subsystems.register(rtsCamera);
 
   // Terrain
@@ -818,6 +923,12 @@ async function startGame(
     iniDataRegistry, iniDataInfo,
   } = ctx;
   const canvas = renderer.domElement as HTMLCanvasElement;
+  const gameSubsystems = new SubsystemRegistry();
+
+  // Mission restarts and campaign transitions reuse the pre-init context, so
+  // only reset the shared runtime subsystems here. Disposing them would tear
+  // down the loaded manifest/cache and break the next mission load.
+  subsystems.resetAll();
 
   // Attach cursor overlay and preload essential cursors
   cursorManager.attach(canvas);
@@ -848,6 +959,8 @@ async function startGame(
   // Game logic + object visuals
   const attackUsesLineOfSight = iniDataRegistry.getAiConfig()?.attackUsesLineOfSight ?? true;
   const objectVisualManager = new ObjectVisualManager(scene, assets);
+  const scriptSkyboxController = new ScriptSkyboxController(scene, assets);
+  const scriptSkyboxPreloadPromise = scriptSkyboxController.preload();
   let scriptCameraMovementFinished = true;
   let scriptCameraTimeFrozen = false;
   let scriptCameraTimeMultiplier = 1;
@@ -880,7 +993,7 @@ async function startGame(
       maybeCreateDeterministicGameLogicCrcSectionWriters.call(gameLogic),
     );
   }
-  subsystems.register(gameLogic);
+  gameSubsystems.register(gameLogic);
   await gameLogic.init();
   audioManager.setObjectPositionResolver((objectId) => gameLogic.getEntityWorldPosition(objectId));
   audioManager.setDrawablePositionResolver((drawableId) => gameLogic.getEntityWorldPosition(drawableId));
@@ -1045,6 +1158,10 @@ async function startGame(
   // Load terrain (map JSON or procedural demo)
   // ========================================================================
 
+  const terrainRoadEntries = await loadTerrainRoadEntries(assets);
+  gameLogic.setRoadTemplateNames(collectTerrainRoadTemplateNames(terrainRoadEntries));
+  gameLogic.setSupplementalMapObjectDefinitions(collectSourceMapObjectSupplements());
+
   let mapData: MapDataJSON;
   let loadedFromJSON = false;
 
@@ -1110,9 +1227,15 @@ async function startGame(
 
   // Build terrain roads from map objects with road flags.
   const terrainRoadRenderer = new TerrainRoadRenderer(scene);
+  const terrainBridgeRenderer = new TerrainBridgeRenderer(scene, assets);
   terrainRoadRenderer.buildFromMapObjects(
     mapData.objects,
     (wx, wz) => heightmap.getInterpolatedHeight(wx, wz),
+  );
+  await terrainBridgeRenderer.buildFromMapObjects(
+    mapData.objects,
+    (wx, wz) => heightmap.getInterpolatedHeight(wx, wz),
+    collectTerrainBridgeDefinitions(terrainRoadEntries),
   );
 
   const objectPlacement = gameLogic.loadMapObjects(mapData, iniDataRegistry, heightmap);
@@ -1178,6 +1301,7 @@ async function startGame(
   // because the fog grid has no lookers yet.
   gameLogic.update(0);
   objectVisualManager.sync(gameLogic.getRenderableEntityStates());
+  await scriptSkyboxPreloadPromise;
 
   // ========================================================================
   // Camera setup
@@ -1198,6 +1322,21 @@ async function startGame(
   } else {
     rtsCamera.lookAt(heightmap.worldWidth / 2, heightmap.worldDepth / 2);
   }
+  {
+    const initialCameraState = rtsCamera.getState();
+    rtsCamera.setState({
+      ...initialCameraState,
+      zoom: resolveSourceHeightScaledZoomWorldDistance({
+        zoomMultiplier: 1,
+        targetX: initialCameraState.targetX,
+        targetZ: initialCameraState.targetZ,
+        getTerrainHeightAt: (worldX, worldZ) => heightmap.getInterpolatedHeight(worldX, worldZ),
+      }),
+      pitch: 1,
+    });
+  }
+  syncScriptViewRuntimeBridge(gameLogic, objectVisualManager, terrainVisual, scriptSkyboxController);
+  scriptSkyboxController.update(camera);
 
   setLoadingProgress(90, 'Starting game loop...');
 
@@ -1227,6 +1366,13 @@ async function startGame(
   const debugInfo = document.getElementById('debug-info') as HTMLDivElement;
   const creditsHud = document.getElementById('credits-hud') as HTMLDivElement;
   creditsHud.style.display = 'block';
+  Object.assign(creditsHud.style, {
+    boxSizing: 'border-box',
+    padding: '0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  });
   let displayedCredits = 0; // Animated credit counter (ticks toward actual value)
   let lastClickTime = 0; // For double-click detection
   const DOUBLE_CLICK_MS = 350;
@@ -2290,6 +2436,51 @@ async function startGame(
   });
   document.getElementById('game-container')!.appendChild(productionPanel);
 
+  const SOURCE_UI_RESOLUTION = { width: 800, height: 600 } as const;
+  const applySourceHudBox = (
+    element: HTMLElement,
+    left: number,
+    top: number,
+    width?: number,
+    height?: number,
+    scaleContent = false,
+  ): void => {
+    const scaleX = window.innerWidth / SOURCE_UI_RESOLUTION.width;
+    const scaleY = window.innerHeight / SOURCE_UI_RESOLUTION.height;
+    element.style.left = `${left * scaleX}px`;
+    element.style.top = `${top * scaleY}px`;
+    element.style.right = '';
+    element.style.bottom = '';
+    if (scaleContent) {
+      if (width !== undefined) {
+        element.style.width = `${width}px`;
+      }
+      if (height !== undefined) {
+        element.style.height = `${height}px`;
+      }
+      element.style.transformOrigin = 'top left';
+      element.style.transform = `scale(${scaleX}, ${scaleY})`;
+      return;
+    }
+    if (width !== undefined) {
+      element.style.width = `${width * scaleX}px`;
+    }
+    if (height !== undefined) {
+      element.style.height = `${height * scaleY}px`;
+    }
+    element.style.transform = 'none';
+  };
+
+  const updateSourceHudLayout = (): void => {
+    // Source parity: retail ControlBar.wnd anchors the radar inside LeftHUD and
+    // the command grid in a 223..603 x 494..589 panel at 800x600.
+    applySourceHudBox(minimapCanvas, 7, 443, 167, 152);
+    applySourceHudBox(commandCardContainer, 223, 494, undefined, undefined, true);
+    applySourceHudBox(creditsHud, 360, 437, 79, 19, true);
+    applySourceHudBox(powerHud, 261, 470, 283, 16, true);
+  };
+  updateSourceHudLayout();
+
   const updateProductionPanel = (): void => {
     const selectedIds = gameLogic.getLocalPlayerSelectionIds();
     if (selectedIds.length !== 1) {
@@ -2554,6 +2745,7 @@ async function startGame(
   particleSystemManager.init();
   const decalManager = new DecalManager(scene, 256, 128);
   decalManager.init();
+  addPreplacedMapScorchMarks(mapData, heightmap, decalManager);
 
   const fxListManager = new FXListManager(particleSystemManager);
   const laserBeamRenderer = new LaserBeamRenderer(scene);
@@ -3283,6 +3475,7 @@ async function startGame(
   const scriptCameraRuntimeBridge = createScriptCameraRuntimeBridge({
     gameLogic,
     cameraController: rtsCamera,
+    getTerrainHeightAt: (worldX, worldZ) => heightmap.getInterpolatedHeight(worldX, worldZ),
   });
   scriptCameraMovementFinished = scriptCameraRuntimeBridge.isCameraMovementFinished();
   scriptCameraTimeFrozen = scriptCameraRuntimeBridge.isCameraTimeFrozen();
@@ -3733,6 +3926,7 @@ async function startGame(
       // Update all subsystems (InputManager resets accumulators,
       // RTSCamera processes input, WaterVisual animates UVs)
       subsystems.updateAll(dt);
+      gameSubsystems.updateAll(dt);
       scriptCameraRuntimeBridge.syncAfterSimulationStep(_frameNumber + 1);
       scriptCameraMovementFinished = scriptCameraRuntimeBridge.isCameraMovementFinished();
       scriptCameraTimeFrozen = scriptCameraRuntimeBridge.isCameraTimeFrozen();
@@ -3752,8 +3946,9 @@ async function startGame(
       sunLight.target.position.set(camState.targetX, 0, camState.targetZ);
       sunLight.target.updateMatrixWorld();
 
-      syncScriptViewRuntimeBridge(gameLogic, objectVisualManager, terrainVisual);
+      syncScriptViewRuntimeBridge(gameLogic, objectVisualManager, terrainVisual, scriptSkyboxController);
       objectVisualManager.setCameraPosition(camState.targetX, camState.targetZ);
+      scriptSkyboxController.update(camera);
       objectVisualManager.sync(getCachedRenderStates(), dt);
 
       // Process visual events (explosions, muzzle flashes, etc.) and update particles.
@@ -4348,19 +4543,22 @@ async function startGame(
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     uiRuntime.resize(window.innerWidth, window.innerHeight);
+    updateSourceHudLayout();
   }, { signal: gameAbort.signal });
 
   const disposeGame = (): void => {
     gameAbort.abort();
     gameLoop.stop();
     commandCardRenderer.dispose();
-    subsystems.disposeAll();
+    gameSubsystems.disposeAll();
     objectVisualManager.dispose();
     laserBeamRenderer.dispose();
     dynamicLightManager.dispose();
     tracerRenderer.dispose();
     debrisRenderer.dispose();
+    terrainBridgeRenderer.dispose();
     terrainRoadRenderer.dispose();
+    scriptSkyboxController.dispose();
     voiceBridge.dispose();
     musicManager.dispose();
     cursorManager.dispose();
@@ -4387,6 +4585,36 @@ async function startGame(
       gameLogic.setScriptTeamMembers(teamName, entityIds),
     setScriptTeamControllingSide: (teamName: string, side: string): boolean =>
       gameLogic.setScriptTeamControllingSide(teamName, side),
+    getVisualDebugState: () => {
+      const skyboxRoot = scene.getObjectByName('script-skybox');
+      return {
+        frame: gameLoop.getFrameNumber(),
+        mapPath,
+        placementResolvedObjects: objectPlacement.resolvedObjects,
+        placementSpawnedObjects: objectPlacement.spawnedObjects,
+        placementTotalObjects: objectPlacement.totalObjects,
+        placementUnresolvedObjects: objectPlacement.unresolvedObjects,
+        renderableCount: getCachedRenderStates().length,
+        sceneObjectCount: scene.children.length,
+        debugInfoText: debugInfo.textContent ?? '',
+        skyboxLoaded: skyboxRoot !== undefined,
+        skyboxVisible: Boolean(skyboxRoot?.visible),
+        cameraPosition: {
+          x: camera.position.x,
+          y: camera.position.y,
+          z: camera.position.z,
+        },
+        cameraQuaternion: {
+          x: camera.quaternion.x,
+          y: camera.quaternion.y,
+          z: camera.quaternion.z,
+          w: camera.quaternion.w,
+        },
+        rtsCameraState: rtsCamera.getState(),
+        scriptCameraEffectsState,
+        objectVisuals: objectVisualManager.getDebugSnapshot(),
+      };
+    },
     getSidePowerState: (side: string): ReturnType<GameLogicSubsystem['getSidePowerState']> =>
       gameLogic.getSidePowerState(side),
     buildControlBarButtonsForEntity: (entityId: number) => {
