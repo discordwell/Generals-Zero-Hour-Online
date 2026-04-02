@@ -29,6 +29,11 @@ export interface MainMenuLayoutDebugState {
   logo: UiRect | null;
   actionPanel: UiRect | null;
   preview: UiRect | null;
+  rulerLoaded: boolean;
+  logoArtLoaded: boolean;
+  actionMapLoaded: boolean;
+  pulseLoaded: boolean;
+  buttonSkinsLoaded: boolean;
   buttons: MainMenuRuntimeButton[];
 }
 
@@ -536,6 +541,21 @@ export function collectUiLayoutBlockingIssues(
     if (actionPanelIssue) issues.push(actionPanelIssue);
     const previewIssue = mainMenuRectIssue(`${menuLabel} preview panel`, menuDebugState.preview, expectedSource.mainMenuPreview, menuDebugState.viewport);
     if (previewIssue) issues.push(previewIssue);
+    if (!menuDebugState.rulerLoaded) {
+      issues.push(`${menuLabel} ruler artwork missing`);
+    }
+    if (!menuDebugState.logoArtLoaded) {
+      issues.push(`${menuLabel} logo artwork missing`);
+    }
+    if (!menuDebugState.actionMapLoaded) {
+      issues.push(`${menuLabel} action-panel map artwork missing`);
+    }
+    if (!menuDebugState.pulseLoaded) {
+      issues.push(`${menuLabel} pulse artwork missing`);
+    }
+    if (!menuDebugState.buttonSkinsLoaded) {
+      issues.push(`${menuLabel} button skin artwork missing`);
+    }
     for (let index = 0; index < Math.min(menuDebugState.buttons.length, expectedButtons.length); index++) {
       const actualButton = menuDebugState.buttons[index]!;
       const expectedButton = expectedButtons[index]!;
@@ -746,24 +766,9 @@ async function probeMainMenu(baseUrl: string, screenshotPath: string): Promise<U
     await page.waitForTimeout(1000);
     await page.screenshot({ path: screenshotPath });
 
-    const debugState = await page.evaluate<MainMenuLayoutDebugState>(() => ({
-      viewport: { width: window.innerWidth, height: window.innerHeight },
-      logo: (() => {
-        const element = document.querySelector('#main-menu-screen [data-ref="main-menu-logo"]');
-        const rect = element?.getBoundingClientRect() ?? null;
-        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
-      })(),
-      actionPanel: (() => {
-        const element = document.querySelector('#main-menu-screen [data-ref="main-menu-action-panel"]');
-        const rect = element?.getBoundingClientRect() ?? null;
-        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
-      })(),
-      preview: (() => {
-        const element = document.querySelector('#main-menu-screen [data-ref="main-menu-preview"]');
-        const rect = element?.getBoundingClientRect() ?? null;
-        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
-      })(),
-      buttons: [...document.querySelectorAll('#main-menu-screen .menu-button')].map((element) => {
+    const debugState = await page.evaluate<MainMenuLayoutDebugState>(() => {
+      const mainMenu = document.getElementById('main-menu-screen');
+      const buttons = [...document.querySelectorAll('#main-menu-screen .menu-button')].map((element) => {
         const rect = element.getBoundingClientRect();
         return {
           text: element.textContent?.trim() ?? '',
@@ -774,8 +779,49 @@ async function probeMainMenu(baseUrl: string, screenshotPath: string): Promise<U
             height: rect.height,
           },
         };
-      }),
-    }));
+      });
+      const firstButton = mainMenu?.querySelector<HTMLElement>('.retail-main-menu-button');
+
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        logo: (() => {
+          const element = document.querySelector('#main-menu-screen [data-ref="main-menu-logo"]');
+          const rect = element?.getBoundingClientRect() ?? null;
+          return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+        })(),
+        actionPanel: (() => {
+          const element = document.querySelector('#main-menu-screen [data-ref="main-menu-action-panel"]');
+          const rect = element?.getBoundingClientRect() ?? null;
+          return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+        })(),
+        preview: (() => {
+          const element = document.querySelector('#main-menu-screen [data-ref="main-menu-preview"]');
+          const rect = element?.getBoundingClientRect() ?? null;
+          return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+        })(),
+        rulerLoaded: (() => {
+          const element = mainMenu?.querySelector<HTMLElement>('[data-ref="retail-menu-ruler"]');
+          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
+        })(),
+        logoArtLoaded: (() => {
+          const element = mainMenu?.querySelector<HTMLElement>('[data-ref="retail-menu-logo-art"]');
+          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
+        })(),
+        actionMapLoaded: (() => {
+          const element = mainMenu?.querySelector<HTMLElement>('[data-ref="retail-menu-action-panel-map"]');
+          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
+        })(),
+        pulseLoaded: (() => {
+          const element = mainMenu?.querySelector<HTMLElement>('[data-ref="retail-menu-pulse"]');
+          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
+        })(),
+        buttonSkinsLoaded: Boolean(
+          firstButton
+          && window.getComputedStyle(firstButton).getPropertyValue('--retail-button-left-enabled-image').trim() !== '',
+        ),
+        buttons,
+      };
+    });
 
     return {
       id: 'main-menu',
@@ -825,24 +871,9 @@ async function probeSinglePlayer(baseUrl: string, screenshotPath: string): Promi
     await page.waitForTimeout(1000);
     await page.screenshot({ path: screenshotPath });
 
-    const debugState = await page.evaluate<MainMenuLayoutDebugState>(() => ({
-      viewport: { width: window.innerWidth, height: window.innerHeight },
-      logo: (() => {
-        const element = document.querySelector('#single-player-screen [data-ref="single-player-logo"]');
-        const rect = element?.getBoundingClientRect() ?? null;
-        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
-      })(),
-      actionPanel: (() => {
-        const element = document.querySelector('#single-player-screen [data-ref="single-player-action-panel"]');
-        const rect = element?.getBoundingClientRect() ?? null;
-        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
-      })(),
-      preview: (() => {
-        const element = document.querySelector('#single-player-screen [data-ref="single-player-preview"]');
-        const rect = element?.getBoundingClientRect() ?? null;
-        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
-      })(),
-      buttons: [...document.querySelectorAll('#single-player-screen .menu-button')].map((element) => {
+    const debugState = await page.evaluate<MainMenuLayoutDebugState>(() => {
+      const screen = document.getElementById('single-player-screen');
+      const buttons = [...document.querySelectorAll('#single-player-screen .menu-button')].map((element) => {
         const rect = element.getBoundingClientRect();
         return {
           text: element.textContent?.trim() ?? '',
@@ -853,8 +884,49 @@ async function probeSinglePlayer(baseUrl: string, screenshotPath: string): Promi
             height: rect.height,
           },
         };
-      }),
-    }));
+      });
+      const firstButton = screen?.querySelector<HTMLElement>('.retail-main-menu-button');
+
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        logo: (() => {
+          const element = document.querySelector('#single-player-screen [data-ref="single-player-logo"]');
+          const rect = element?.getBoundingClientRect() ?? null;
+          return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+        })(),
+        actionPanel: (() => {
+          const element = document.querySelector('#single-player-screen [data-ref="single-player-action-panel"]');
+          const rect = element?.getBoundingClientRect() ?? null;
+          return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+        })(),
+        preview: (() => {
+          const element = document.querySelector('#single-player-screen [data-ref="single-player-preview"]');
+          const rect = element?.getBoundingClientRect() ?? null;
+          return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+        })(),
+        rulerLoaded: (() => {
+          const element = screen?.querySelector<HTMLElement>('[data-ref="retail-menu-ruler"]');
+          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
+        })(),
+        logoArtLoaded: (() => {
+          const element = screen?.querySelector<HTMLElement>('[data-ref="retail-menu-logo-art"]');
+          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
+        })(),
+        actionMapLoaded: (() => {
+          const element = screen?.querySelector<HTMLElement>('[data-ref="retail-menu-action-panel-map"]');
+          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
+        })(),
+        pulseLoaded: (() => {
+          const element = screen?.querySelector<HTMLElement>('[data-ref="retail-menu-pulse"]');
+          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
+        })(),
+        buttonSkinsLoaded: Boolean(
+          firstButton
+          && window.getComputedStyle(firstButton).getPropertyValue('--retail-button-left-enabled-image').trim() !== '',
+        ),
+        buttons,
+      };
+    });
 
     return {
       id: 'single-player',
@@ -1317,13 +1389,13 @@ async function main(): Promise<void> {
     mainMenuWnd.windows,
     MAIN_MENU_BUTTON_SEQUENCE,
     MAIN_MENU_TEXT_BY_TOKEN,
-    'MapBorder4',
+    'MapBorder2',
   );
   const sourceSinglePlayerLayout = buildSourceShellMenuLayout(
     mainMenuWnd.windows,
     SINGLE_PLAYER_BUTTON_SEQUENCE,
     SINGLE_PLAYER_TEXT_BY_TOKEN,
-    'MapBorder2',
+    'MapBorder',
   );
   const sourceDifficultyLayout = buildSourceDifficultyLayout(difficultyWnd.windows);
   const sourceChallengeLayout = buildSourceChallengeLayout(challengeWnd.windows);

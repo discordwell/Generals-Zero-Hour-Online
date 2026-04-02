@@ -172,10 +172,13 @@ const FACTION_BY_CAMPAIGN = new Map<string, (typeof FACTIONS)[number]>(
 );
 
 const SHELL_SOURCE_RESOLUTION = { width: 800, height: 600 } as const;
+const FULL_SCREEN_SOURCE_RECT: SourceRect = { x: 0, y: 0, width: 800, height: 600 };
 const MAIN_MENU_PREVIEW_RECT: SourceRect = { x: 88, y: 108, width: 388, height: 388 };
-const MAIN_MENU_ACTION_PANEL_RECT: SourceRect = { x: 532, y: 108, width: 224, height: 212 };
+const MAIN_MENU_ACTION_PANEL_RECT: SourceRect = { x: 532, y: 108, width: 224, height: 252 };
 const MAIN_MENU_LOGO_RECT: SourceRect = { x: 504, y: 16, width: 287, height: 94 };
 const SINGLE_PLAYER_ACTION_PANEL_RECT: SourceRect = { x: 532, y: 108, width: 224, height: 252 };
+const RETAIL_MENU_ACTION_MAP_INSET_BOTTOM = 8;
+const RETAIL_MENU_PULSE_SOURCE_SIZE = { width: 139, height: 21 } as const;
 const MAIN_MENU_BUTTON_LAYOUT = [
   { action: 'single-player', label: 'Single Player', rect: { x: 540, y: 116, width: 208, height: 36 }, disabled: false },
   { action: 'multiplayer', label: 'Multiplayer', rect: { x: 540, y: 156, width: 208, height: 36 }, disabled: true },
@@ -215,7 +218,23 @@ const DIFFICULTY_OPTION_LAYOUT = [
 const DIFFICULTY_OK_RECT: SourceRect = { x: 236, y: 328, width: 128, height: 28 };
 const DIFFICULTY_CANCEL_RECT: SourceRect = { x: 372, y: 328, width: 128, height: 28 };
 const MAIN_MENU_BACKDROP_IMAGE = 'MainMenuBackdrop';
+const MAIN_MENU_LOGO_IMAGE = 'GeneralsLogo';
+const MAIN_MENU_RULER_IMAGE = 'MainMenuRuler';
+const MAIN_MENU_ACTION_MAP_IMAGE = 'EarthMap';
+const MAIN_MENU_PULSE_IMAGE = 'MainMenuPulse';
 const CHALLENGE_MENU_BACKGROUND_IMAGE = 'GCBackgroundMinSpec';
+const RETAIL_MENU_BUTTON_SKINS = {
+  enabled: { left: 'Buttons-Left', middle: 'Buttons-Middle', right: 'Buttons-Right' },
+  hilite: { left: 'Buttons-HiLite-Left', middle: 'Buttons-HiLite-Middle', right: 'Buttons-HiLite-Right' },
+  pushed: { left: 'Buttons-Pushed-Left', middle: 'Buttons-Pushed-Middle', right: 'Buttons-Pushed-Right' },
+  disabled: { left: 'Buttons-Disabled-Left', middle: 'Buttons-Disabled-Middle', right: 'Buttons-Disabled-Right' },
+} as const;
+const RETAIL_MENU_FRAME_CORNERS = {
+  ul: 'FrameCornerUL',
+  ur: 'FrameCornerUR',
+  ll: 'FrameCornerLL',
+  lr: 'FrameCornerLR',
+} as const;
 const CAMPAIGN_LOAD_BACKGROUND_BY_CAMPAIGN: Record<string, string> = {
   usa: 'MissionLoad_USA',
   gla: 'MissionLoad_GLA',
@@ -304,6 +323,52 @@ function formatSourceRectData(rect: SourceRect): string {
   return `${rect.x},${rect.y},${rect.width},${rect.height}`;
 }
 
+function formatSourceSizeStyle(width: number, height: number): string {
+  return [
+    `width:${formatSourcePercent(width, SHELL_SOURCE_RESOLUTION.width)}`,
+    `height:${formatSourcePercent(height, SHELL_SOURCE_RESOLUTION.height)}`,
+  ].join(';');
+}
+
+function renderRetailMenuButton(config: {
+  action: string;
+  label: string;
+  rect: SourceRect;
+  disabled?: boolean;
+}): string {
+  return `
+    <button
+      class="menu-button retail-main-menu-button retail-source-rect${config.disabled ? ' disabled' : ''}"
+      data-action="${config.action}"
+      data-source-rect="${formatSourceRectData(config.rect)}"
+      style="${formatSourceRectStyle(config.rect)}"
+      ${config.disabled ? 'disabled aria-disabled="true"' : ''}
+    >
+      <span class="retail-main-menu-button-slice retail-main-menu-button-slice-left" aria-hidden="true"></span>
+      <span class="retail-main-menu-button-slice retail-main-menu-button-slice-middle" aria-hidden="true"></span>
+      <span class="retail-main-menu-button-slice retail-main-menu-button-slice-right" aria-hidden="true"></span>
+      <span class="retail-main-menu-button-label">${config.label}</span>
+    </button>
+  `;
+}
+
+function renderRetailMenuPanel(actionPanelRef: string, rect: SourceRect): string {
+  return `
+    <div
+      class="main-menu-action-panel retail-source-rect"
+      data-ref="${actionPanelRef}"
+      data-source-rect="${formatSourceRectData(rect)}"
+      style="${formatSourceRectStyle(rect)}"
+    >
+      <div class="main-menu-action-panel-map" data-ref="retail-menu-action-panel-map"></div>
+      <div class="main-menu-frame-corner is-top-left" data-ref="retail-menu-frame-corner-ul"></div>
+      <div class="main-menu-frame-corner is-top-right" data-ref="retail-menu-frame-corner-ur"></div>
+      <div class="main-menu-frame-corner is-bottom-left" data-ref="retail-menu-frame-corner-ll"></div>
+      <div class="main-menu-frame-corner is-bottom-right" data-ref="retail-menu-frame-corner-lr"></div>
+    </div>
+  `;
+}
+
 // ──── Challenge general data ────────────────────────────────────────────────
 
 // Display colors per general (indexed by GeneralPersona.index)
@@ -338,17 +403,27 @@ const SHELL_STYLES = `
   .retail-main-menu-screen {
     display: block;
     overflow: hidden;
-    background:
-      radial-gradient(circle at 20% 36%, rgba(34, 88, 166, 0.28) 0%, rgba(18, 35, 72, 0.18) 26%, rgba(0, 0, 0, 0) 56%),
-      linear-gradient(180deg, #07101d 0%, #090d16 58%, #05070d 100%);
+    background: #02050b;
   }
   .retail-main-menu-screen::before {
     content: '';
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(90deg, rgba(6, 8, 14, 0.88) 0%, rgba(6, 8, 14, 0.2) 18%, rgba(6, 8, 14, 0.12) 82%, rgba(6, 8, 14, 0.9) 100%),
-      linear-gradient(90deg, transparent 55%, rgba(111, 149, 224, 0.16) 55.12%, transparent 55.24%);
+      linear-gradient(90deg, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.12) 14%, rgba(0, 0, 0, 0.08) 86%, rgba(0, 0, 0, 0.7) 100%),
+      linear-gradient(#a7865e, #a7865e) 0 0 / 100% 2px no-repeat,
+      linear-gradient(#261e15, #261e15) 0 1px / 100% 2px no-repeat,
+      linear-gradient(#a7865e, #a7865e) 0 10% / 100% 1px no-repeat,
+      linear-gradient(#261e15, #261e15) 0 12% / 100% 1px no-repeat,
+      linear-gradient(#a7865e, #a7865e) 0 90% / 100% 1px no-repeat,
+      linear-gradient(#261e15, #261e15) 0 92% / 100% 1px no-repeat,
+      linear-gradient(#a7865e, #a7865e) 0 100% / 100% 2px no-repeat,
+      linear-gradient(#261e15, #261e15) 0 calc(100% - 1px) / 100% 2px no-repeat,
+      linear-gradient(#a7865e, #a7865e) 22.5% 0 / 3px 100% no-repeat,
+      linear-gradient(#a7865e, #a7865e) 44.5% 0 / 3px 100% no-repeat,
+      linear-gradient(#a7865e, #a7865e) 66.62% 0 / 3px 100% no-repeat,
+      linear-gradient(#a7865e, #a7865e) 88.5% 0 / 3px 100% no-repeat;
+    z-index: 1;
     pointer-events: none;
   }
   .retail-source-rect {
@@ -356,103 +431,159 @@ const SHELL_STYLES = `
     box-sizing: border-box;
   }
   .main-menu-preview-panel {
-    z-index: 1;
-    border: 1px solid rgba(68, 95, 153, 0.72);
-    background:
-      radial-gradient(circle at 34% 32%, rgba(101, 154, 226, 0.26) 0%, rgba(44, 84, 138, 0.16) 18%, rgba(0, 0, 0, 0) 44%),
-      linear-gradient(180deg, rgba(9, 17, 31, 0.92) 0%, rgba(4, 7, 13, 0.98) 100%);
-    box-shadow:
-      inset 0 0 0 1px rgba(5, 9, 17, 0.92),
-      0 0 26px rgba(0, 0, 0, 0.28);
+    z-index: 0;
+    opacity: 0;
+    pointer-events: none;
   }
-  .main-menu-preview-panel::before {
+  .main-menu-action-panel {
+    z-index: 2;
+    overflow: visible;
+    border: 1px solid rgba(147, 161, 200, 0.45);
+    background: rgba(2, 4, 9, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.56);
+  }
+  .main-menu-action-panel-map {
+    position: absolute;
+    inset: 0 0 ${((RETAIL_MENU_ACTION_MAP_INSET_BOTTOM / MAIN_MENU_ACTION_PANEL_RECT.height) * 100).toFixed(6)}% 0;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    box-shadow: inset 0 0 0 1px rgba(16, 20, 30, 0.48);
+  }
+  .main-menu-action-panel-map::after {
     content: '';
     position: absolute;
     inset: 0;
-    background:
-      linear-gradient(rgba(142, 178, 239, 0.08) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(142, 178, 239, 0.08) 1px, transparent 1px);
-    background-size: 11% 11%, 11% 11%;
-    opacity: 0.45;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.34) 100%);
   }
-  .main-menu-preview-panel::after {
-    content: '';
+  .main-menu-frame-corner {
     position: absolute;
-    inset: 8% 11%;
-    border-radius: 50%;
-    background:
-      radial-gradient(circle at 40% 34%, rgba(157, 205, 255, 0.44) 0%, rgba(76, 131, 205, 0.22) 22%, rgba(10, 18, 34, 0.14) 52%, rgba(0, 0, 0, 0) 70%);
-    filter: blur(2px);
-    opacity: 0.9;
+    width: 8.928571%;
+    height: 7.936508%;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    pointer-events: none;
+    z-index: 3;
   }
-  .main-menu-action-panel {
-    z-index: 1;
-    border: 1px solid rgba(68, 95, 153, 0.88);
-    background:
-      linear-gradient(180deg, rgba(7, 11, 21, 0.78) 0%, rgba(3, 4, 9, 0.92) 100%);
-    box-shadow:
-      inset 0 0 0 1px rgba(4, 8, 14, 0.92),
-      0 0 22px rgba(0, 0, 0, 0.24);
+  .main-menu-frame-corner.is-top-left {
+    left: -4.464286%;
+    top: -3.968254%;
+  }
+  .main-menu-frame-corner.is-top-right {
+    right: -4.464286%;
+    top: -3.968254%;
+  }
+  .main-menu-frame-corner.is-bottom-left {
+    left: -4.464286%;
+    bottom: -3.968254%;
+  }
+  .main-menu-frame-corner.is-bottom-right {
+    right: -4.464286%;
+    bottom: -3.968254%;
+  }
+  .main-menu-ruler {
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.98;
+  }
+  .main-menu-pulse {
+    z-index: 2;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    opacity: 0.94;
+    mix-blend-mode: screen;
+    animation: retail-main-menu-pulse 10s linear infinite;
   }
   .main-menu-logo {
     z-index: 2;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    align-items: flex-end;
-    padding: 0 0.75rem 0.5rem 0;
-    color: #d0ab4d;
-    font-family: Georgia, 'Times New Roman', serif;
-    text-align: right;
-    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.56);
+    pointer-events: none;
   }
-  .main-menu-logo-mark {
-    font-size: clamp(2.25rem, 5.1vw, 4.4rem);
-    line-height: 0.9;
-    letter-spacing: 0.22em;
-    font-weight: 700;
-  }
-  .main-menu-logo-submark {
-    margin-top: 0.35rem;
-    font-size: clamp(0.8rem, 1.3vw, 1rem);
-    line-height: 1;
-    letter-spacing: 0.42em;
-    color: #9a8757;
+  .main-menu-logo-art {
+    position: absolute;
+    inset: 0;
+    background-position: right center;
+    background-repeat: no-repeat;
+    background-size: contain;
   }
   .retail-main-menu-screen .menu-button {
     margin: 0;
     padding: 0;
   }
   .retail-main-menu-button {
-    z-index: 2;
+    --retail-button-left-image: var(--retail-button-left-enabled-image);
+    --retail-button-middle-image: var(--retail-button-middle-enabled-image);
+    --retail-button-right-image: var(--retail-button-right-enabled-image);
+    z-index: 4;
+    position: absolute;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba(132, 157, 216, 0.84);
-    background:
-      linear-gradient(180deg, rgba(44, 64, 132, 0.96) 0%, rgba(20, 30, 74, 0.98) 58%, rgba(9, 14, 37, 0.99) 100%);
-    box-shadow: inset 0 0 0 1px rgba(7, 11, 19, 0.76);
-    color: #f6f8ff;
+    border: 0;
+    background: transparent;
+    color: #f5f7ff;
     font-family: Georgia, 'Times New Roman', serif;
-    font-size: clamp(0.95rem, 1.35vw, 1.35rem);
+    font-size: clamp(0.92rem, 1.28vw, 1.22rem);
     text-transform: none;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
+    text-shadow:
+      0 1px 0 rgba(0, 0, 0, 0.92),
+      0 2px 6px rgba(0, 0, 0, 0.5);
+    overflow: visible;
   }
-  .retail-main-menu-button:hover {
-    background:
-      linear-gradient(180deg, rgba(72, 94, 168, 0.98) 0%, rgba(29, 45, 96, 0.99) 58%, rgba(11, 17, 43, 1) 100%);
-    color: #c7ff5b;
+  .retail-main-menu-button:hover:not(:disabled),
+  .retail-main-menu-button:focus-visible:not(:disabled) {
+    --retail-button-left-image: var(--retail-button-left-hilite-image);
+    --retail-button-middle-image: var(--retail-button-middle-hilite-image);
+    --retail-button-right-image: var(--retail-button-right-hilite-image);
+    color: #baff0c;
   }
-  .retail-main-menu-button:active {
-    background:
-      linear-gradient(180deg, rgba(30, 44, 90, 0.98) 0%, rgba(17, 25, 58, 1) 100%);
+  .retail-main-menu-button:active:not(:disabled) {
+    --retail-button-left-image: var(--retail-button-left-pushed-image);
+    --retail-button-middle-image: var(--retail-button-middle-pushed-image);
+    --retail-button-right-image: var(--retail-button-right-pushed-image);
   }
+  .retail-main-menu-button:disabled,
   .retail-main-menu-button.disabled {
-    opacity: 1;
-    border-color: rgba(74, 83, 112, 0.88);
-    background:
-      linear-gradient(180deg, rgba(22, 27, 46, 0.92) 0%, rgba(11, 15, 27, 0.98) 100%);
-    color: #5d698a;
+    --retail-button-left-image: var(--retail-button-left-disabled-image);
+    --retail-button-middle-image: var(--retail-button-middle-disabled-image);
+    --retail-button-right-image: var(--retail-button-right-disabled-image);
+    color: #4b5371;
+    text-shadow: 0 1px 0 rgba(7, 11, 19, 0.92);
+  }
+  .retail-main-menu-button-slice {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background-position: center;
+    background-size: 100% 100%;
+    pointer-events: none;
+  }
+  .retail-main-menu-button-slice-left {
+    left: 0;
+    width: var(--retail-button-left-width, 22.115385%);
+    background-image: var(--retail-button-left-image);
+  }
+  .retail-main-menu-button-slice-middle {
+    left: var(--retail-button-left-width, 22.115385%);
+    right: var(--retail-button-right-width, 22.115385%);
+    background-image: var(--retail-button-middle-image);
+    background-repeat: repeat-x;
+    background-size: auto 100%;
+  }
+  .retail-main-menu-button-slice-right {
+    right: 0;
+    width: var(--retail-button-right-width, 22.115385%);
+    background-image: var(--retail-button-right-image);
+  }
+  .retail-main-menu-button-label {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .retail-main-menu-button:active:not(:disabled) .retail-main-menu-button-label {
+    transform: translate(1px, 1px);
   }
   .retail-dialog-screen {
     display: block;
@@ -563,6 +694,28 @@ const SHELL_STYLES = `
   }
   .retail-source-image.contain {
     background-size: contain;
+  }
+  .retail-source-image.stretch {
+    background-size: 100% 100%;
+  }
+
+  @keyframes retail-main-menu-pulse {
+    0% {
+      left: calc(-1 * ${formatSourcePercent(RETAIL_MENU_PULSE_SOURCE_SIZE.width, SHELL_SOURCE_RESOLUTION.width)});
+      top: calc(-0.5 * ${formatSourcePercent(RETAIL_MENU_PULSE_SOURCE_SIZE.height, SHELL_SOURCE_RESOLUTION.height)});
+    }
+    49.999% {
+      left: 100%;
+      top: calc(-0.5 * ${formatSourcePercent(RETAIL_MENU_PULSE_SOURCE_SIZE.height, SHELL_SOURCE_RESOLUTION.height)});
+    }
+    50% {
+      left: 100%;
+      top: calc(100% - (0.5 * ${formatSourcePercent(RETAIL_MENU_PULSE_SOURCE_SIZE.height, SHELL_SOURCE_RESOLUTION.height)}));
+    }
+    100% {
+      left: calc(-1 * ${formatSourcePercent(RETAIL_MENU_PULSE_SOURCE_SIZE.width, SHELL_SOURCE_RESOLUTION.width)});
+      top: calc(100% - (0.5 * ${formatSourcePercent(RETAIL_MENU_PULSE_SOURCE_SIZE.height, SHELL_SOURCE_RESOLUTION.height)}));
+    }
   }
 
   .retail-challenge-screen {
@@ -1323,10 +1476,115 @@ export class GameShell {
     };
   }
 
+  private applyMappedImageCssVariable(
+    element: HTMLElement | null,
+    propertyName: string,
+    imageName: string | undefined,
+  ): void {
+    if (!element) {
+      return;
+    }
+
+    if (!imageName || !this.mappedImageResolver) {
+      if (!imageName) {
+        element.style.removeProperty(propertyName);
+      }
+      return;
+    }
+
+    void this.mappedImageResolver.resolve(imageName).then((url) => {
+      if (!url) {
+        element.style.removeProperty(propertyName);
+        return;
+      }
+      element.style.setProperty(propertyName, `url("${url}")`);
+    }).catch(() => {
+      element.style.removeProperty(propertyName);
+    });
+  }
+
+  private applyRetailButtonSkin(button: HTMLElement | null): void {
+    if (!button) {
+      return;
+    }
+
+    const sourceWidth = Number(button.dataset.sourceRect?.split(',')[2] ?? '208') || 208;
+    const leftWidth = this.getMappedImageDimensions(RETAIL_MENU_BUTTON_SKINS.enabled.left)?.width ?? 46;
+    const rightWidth = this.getMappedImageDimensions(RETAIL_MENU_BUTTON_SKINS.enabled.right)?.width ?? 46;
+
+    button.style.setProperty('--retail-button-left-width', `${((leftWidth / sourceWidth) * 100).toFixed(6)}%`);
+    button.style.setProperty('--retail-button-right-width', `${((rightWidth / sourceWidth) * 100).toFixed(6)}%`);
+
+    for (const [stateName, skin] of Object.entries(RETAIL_MENU_BUTTON_SKINS)) {
+      this.applyMappedImageCssVariable(button, `--retail-button-left-${stateName}-image`, skin.left);
+      this.applyMappedImageCssVariable(button, `--retail-button-middle-${stateName}-image`, skin.middle);
+      this.applyMappedImageCssVariable(button, `--retail-button-right-${stateName}-image`, skin.right);
+    }
+  }
+
+  private refreshRetailMenuScreenArt(
+    screenName: 'main-menu' | 'single-player',
+    backdropRef: 'main-menu-backdrop' | 'single-player-backdrop',
+  ): void {
+    const screen = this.screenEls.get(screenName);
+    if (!screen) {
+      return;
+    }
+
+    this.applyMappedImageBackground(
+      screen.querySelector<HTMLElement>(`[data-ref="${backdropRef}"]`),
+      MAIN_MENU_BACKDROP_IMAGE,
+    );
+    this.applyMappedImageBackground(
+      screen.querySelector<HTMLElement>('[data-ref="retail-menu-ruler"]'),
+      MAIN_MENU_RULER_IMAGE,
+      'stretch',
+    );
+    this.applyMappedImageBackground(
+      screen.querySelector<HTMLElement>('[data-ref="retail-menu-pulse"]'),
+      MAIN_MENU_PULSE_IMAGE,
+      'stretch',
+    );
+    this.applyMappedImageBackground(
+      screen.querySelector<HTMLElement>('[data-ref="retail-menu-action-panel-map"]'),
+      MAIN_MENU_ACTION_MAP_IMAGE,
+      'stretch',
+    );
+    this.applyMappedImageBackground(
+      screen.querySelector<HTMLElement>('[data-ref="retail-menu-logo-art"]'),
+      MAIN_MENU_LOGO_IMAGE,
+      'contain',
+    );
+    this.applyMappedImageBackground(
+      screen.querySelector<HTMLElement>('[data-ref="retail-menu-frame-corner-ul"]'),
+      RETAIL_MENU_FRAME_CORNERS.ul,
+      'stretch',
+    );
+    this.applyMappedImageBackground(
+      screen.querySelector<HTMLElement>('[data-ref="retail-menu-frame-corner-ur"]'),
+      RETAIL_MENU_FRAME_CORNERS.ur,
+      'stretch',
+    );
+    this.applyMappedImageBackground(
+      screen.querySelector<HTMLElement>('[data-ref="retail-menu-frame-corner-ll"]'),
+      RETAIL_MENU_FRAME_CORNERS.ll,
+      'stretch',
+    );
+    this.applyMappedImageBackground(
+      screen.querySelector<HTMLElement>('[data-ref="retail-menu-frame-corner-lr"]'),
+      RETAIL_MENU_FRAME_CORNERS.lr,
+      'stretch',
+    );
+
+    for (const button of screen.querySelectorAll<HTMLElement>('.retail-main-menu-button')) {
+      this.applyRetailButtonSkin(button);
+    }
+  }
+
   private applyMappedImageBackground(
     element: HTMLElement | null,
     imageName: string | undefined,
-    sizeMode: 'cover' | 'contain' = 'cover',
+    sizeMode: 'cover' | 'contain' | 'stretch' = 'cover',
   ): void {
     if (!element) {
       return;
@@ -1334,6 +1592,7 @@ export class GameShell {
 
     element.classList.add('retail-source-image');
     element.classList.toggle('contain', sizeMode === 'contain');
+    element.classList.toggle('stretch', sizeMode === 'stretch');
 
     if (!imageName || !this.mappedImageResolver) {
       if (!imageName) {
@@ -1357,14 +1616,8 @@ export class GameShell {
   }
 
   private refreshRetailArtwork(): void {
-    this.applyMappedImageBackground(
-      this.screenEls.get('main-menu')?.querySelector('[data-ref="main-menu-backdrop"]') as HTMLElement | null,
-      MAIN_MENU_BACKDROP_IMAGE,
-    );
-    this.applyMappedImageBackground(
-      this.screenEls.get('single-player')?.querySelector('[data-ref="single-player-backdrop"]') as HTMLElement | null,
-      MAIN_MENU_BACKDROP_IMAGE,
-    );
+    this.refreshRetailMenuScreenArt('main-menu', 'main-menu-backdrop');
+    this.refreshRetailMenuScreenArt('single-player', 'single-player-backdrop');
     this.applyMappedImageBackground(
       this.screenEls.get('challenge-select')?.querySelector('[data-ref="challenge-menu-background"]') as HTMLElement | null,
       CHALLENGE_MENU_BACKGROUND_IMAGE,
@@ -1392,38 +1645,33 @@ export class GameShell {
     el.className = 'shell-screen retail-main-menu-screen';
     el.id = 'main-menu-screen';
 
-    const buttonsHtml = MAIN_MENU_BUTTON_LAYOUT.map((button) => `
-      <button
-        class="menu-button retail-main-menu-button retail-source-rect${button.disabled ? ' disabled' : ''}"
-        data-action="${button.action}"
-        data-source-rect="${formatSourceRectData(button.rect)}"
-        style="${formatSourceRectStyle(button.rect)}"
-      >${button.label}</button>
-    `).join('');
+    const buttonsHtml = MAIN_MENU_BUTTON_LAYOUT.map((button) => renderRetailMenuButton(button)).join('');
 
     el.innerHTML = `
       <div class="retail-backdrop-layer" data-ref="main-menu-backdrop"></div>
+      <div
+        class="main-menu-ruler retail-source-rect"
+        data-ref="retail-menu-ruler"
+        style="${formatSourceRectStyle(FULL_SCREEN_SOURCE_RECT)}"
+      ></div>
+      <div
+        class="main-menu-pulse"
+        data-ref="retail-menu-pulse"
+        style="${formatSourceSizeStyle(RETAIL_MENU_PULSE_SOURCE_SIZE.width, RETAIL_MENU_PULSE_SOURCE_SIZE.height)}"
+      ></div>
       <div
         class="main-menu-preview-panel retail-source-rect"
         data-ref="main-menu-preview"
         data-source-rect="${formatSourceRectData(MAIN_MENU_PREVIEW_RECT)}"
         style="${formatSourceRectStyle(MAIN_MENU_PREVIEW_RECT)}"
       ></div>
-      <div
-        class="main-menu-action-panel retail-source-rect"
-        data-ref="main-menu-action-panel"
-        data-source-rect="${formatSourceRectData(MAIN_MENU_ACTION_PANEL_RECT)}"
-        style="${formatSourceRectStyle(MAIN_MENU_ACTION_PANEL_RECT)}"
-      ></div>
+      ${renderRetailMenuPanel('main-menu-action-panel', MAIN_MENU_ACTION_PANEL_RECT)}
       <div
         class="main-menu-logo retail-source-rect"
         data-ref="main-menu-logo"
         data-source-rect="${formatSourceRectData(MAIN_MENU_LOGO_RECT)}"
         style="${formatSourceRectStyle(MAIN_MENU_LOGO_RECT)}"
-      >
-        <div class="main-menu-logo-mark">GENERALS</div>
-        <div class="main-menu-logo-submark">ZERO HOUR</div>
-      </div>
+      ><div class="main-menu-logo-art" data-ref="retail-menu-logo-art"></div></div>
       ${buttonsHtml}
     `;
 
@@ -1453,38 +1701,33 @@ export class GameShell {
     el.className = 'shell-screen hidden retail-main-menu-screen';
     el.id = 'single-player-screen';
 
-    const buttonsHtml = SINGLE_PLAYER_BUTTON_LAYOUT.map((button) => `
-      <button
-        class="menu-button retail-main-menu-button retail-source-rect"
-        data-action="${button.action}"
-        data-source-rect="${formatSourceRectData(button.rect)}"
-        style="${formatSourceRectStyle(button.rect)}"
-      >${button.label}</button>
-    `).join('');
+    const buttonsHtml = SINGLE_PLAYER_BUTTON_LAYOUT.map((button) => renderRetailMenuButton(button)).join('');
 
     el.innerHTML = `
       <div class="retail-backdrop-layer" data-ref="single-player-backdrop"></div>
+      <div
+        class="main-menu-ruler retail-source-rect"
+        data-ref="retail-menu-ruler"
+        style="${formatSourceRectStyle(FULL_SCREEN_SOURCE_RECT)}"
+      ></div>
+      <div
+        class="main-menu-pulse"
+        data-ref="retail-menu-pulse"
+        style="${formatSourceSizeStyle(RETAIL_MENU_PULSE_SOURCE_SIZE.width, RETAIL_MENU_PULSE_SOURCE_SIZE.height)}"
+      ></div>
       <div
         class="main-menu-preview-panel retail-source-rect"
         data-ref="single-player-preview"
         data-source-rect="${formatSourceRectData(MAIN_MENU_PREVIEW_RECT)}"
         style="${formatSourceRectStyle(MAIN_MENU_PREVIEW_RECT)}"
       ></div>
-      <div
-        class="main-menu-action-panel retail-source-rect"
-        data-ref="single-player-action-panel"
-        data-source-rect="${formatSourceRectData(SINGLE_PLAYER_ACTION_PANEL_RECT)}"
-        style="${formatSourceRectStyle(SINGLE_PLAYER_ACTION_PANEL_RECT)}"
-      ></div>
+      ${renderRetailMenuPanel('single-player-action-panel', SINGLE_PLAYER_ACTION_PANEL_RECT)}
       <div
         class="main-menu-logo retail-source-rect"
         data-ref="single-player-logo"
         data-source-rect="${formatSourceRectData(MAIN_MENU_LOGO_RECT)}"
         style="${formatSourceRectStyle(MAIN_MENU_LOGO_RECT)}"
-      >
-        <div class="main-menu-logo-mark">GENERALS</div>
-        <div class="main-menu-logo-submark">ZERO HOUR</div>
-      </div>
+      ><div class="main-menu-logo-art" data-ref="retail-menu-logo-art"></div></div>
       ${buttonsHtml}
     `;
 

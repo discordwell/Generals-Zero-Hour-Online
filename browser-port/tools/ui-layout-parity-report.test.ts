@@ -17,8 +17,13 @@ describe('ui layout parity report', () => {
     const issues = collectUiLayoutBlockingIssues('main-menu', {
       viewport,
       logo: scaleSourceRect({ x: 504, y: 16, width: 287, height: 94 }, viewport),
-      actionPanel: scaleSourceRect({ x: 532, y: 108, width: 224, height: 212 }, viewport),
+      actionPanel: scaleSourceRect({ x: 532, y: 108, width: 224, height: 252 }, viewport),
       preview: scaleSourceRect({ x: 88, y: 108, width: 388, height: 388 }, viewport),
+      rulerLoaded: true,
+      logoArtLoaded: true,
+      actionMapLoaded: true,
+      pulseLoaded: true,
+      buttonSkinsLoaded: true,
       buttons: expectedButtons.map((button) => ({
         text: button.text,
         rect: scaleSourceRect(button.rect, viewport),
@@ -26,7 +31,7 @@ describe('ui layout parity report', () => {
     }, {
       mainMenuButtons: expectedButtons,
       mainMenuLogo: { x: 504, y: 16, width: 287, height: 94 },
-      mainMenuActionPanel: { x: 532, y: 108, width: 224, height: 212 },
+      mainMenuActionPanel: { x: 532, y: 108, width: 224, height: 252 },
       mainMenuPreview: { x: 88, y: 108, width: 388, height: 388 },
     });
 
@@ -39,6 +44,11 @@ describe('ui layout parity report', () => {
       logo: { x: 500, y: 20, width: 210, height: 70 },
       actionPanel: { x: 500, y: 108, width: 180, height: 180 },
       preview: { x: 120, y: 120, width: 240, height: 280 },
+      rulerLoaded: false,
+      logoArtLoaded: false,
+      actionMapLoaded: false,
+      pulseLoaded: false,
+      buttonSkinsLoaded: false,
       buttons: [
         { text: 'Single Player', rect: { x: 500, y: 260, width: 280, height: 50 } },
         { text: 'Skirmish', rect: { x: 500, y: 320, width: 280, height: 50 } },
@@ -49,13 +59,18 @@ describe('ui layout parity report', () => {
         { text: 'Multiplayer', rect: { x: 540, y: 156, width: 208, height: 36 } },
       ],
       mainMenuLogo: { x: 504, y: 16, width: 287, height: 94 },
-      mainMenuActionPanel: { x: 532, y: 108, width: 224, height: 212 },
+      mainMenuActionPanel: { x: 532, y: 108, width: 224, height: 252 },
       mainMenuPreview: { x: 88, y: 108, width: 388, height: 388 },
     });
     expect(mainMenuIssues).toEqual(expect.arrayContaining([
       expect.stringContaining('main menu logo bounds diverge from retail'),
       expect.stringContaining('main menu action panel bounds diverge from retail'),
       expect.stringContaining('main menu preview panel bounds diverge from retail'),
+      expect.stringContaining('main menu ruler artwork missing'),
+      expect.stringContaining('main menu logo artwork missing'),
+      expect.stringContaining('main menu action-panel map artwork missing'),
+      expect.stringContaining('main menu pulse artwork missing'),
+      expect.stringContaining('main menu button skin artwork missing'),
       expect.stringContaining('main menu button order mismatch'),
       expect.stringContaining('bounds diverge from retail'),
     ]));
