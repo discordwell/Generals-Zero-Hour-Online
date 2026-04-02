@@ -59,6 +59,8 @@ export interface ShellCampaign {
 export type ShellScreen =
   | 'main-menu'
   | 'single-player'
+  | 'multiplayer-menu'
+  | 'load-replay-menu'
   | 'skirmish-setup'
   | 'campaign-faction'
   | 'campaign-difficulty'
@@ -78,14 +80,27 @@ interface SourceRect {
 export interface SkirmishSettings {
   /** Map asset path (null = procedural demo terrain). */
   mapPath: string | null;
-  /** Player faction side (America, China, GLA). */
-  playerSide: string;
-  /** Whether AI opponent is enabled. */
-  aiEnabled: boolean;
-  /** AI faction side. */
-  aiSide: string;
+  /** Retail skirmish slot state for each occupied human/AI player. */
+  slots: SkirmishSlotSettings[];
   /** Starting credits for all players. */
   startingCredits: number;
+  /** Whether to enforce the retail single-superweapon cap. */
+  limitSuperweapons: boolean;
+}
+
+export type SkirmishSlotMode = 'human' | 'open' | 'closed' | 'easy-ai' | 'medium-ai' | 'hard-ai';
+
+export interface SkirmishSlotSettings {
+  slotIndex: number;
+  playerName: string;
+  mode: SkirmishSlotMode;
+  side: string;
+  /** Source parity: team -1 means no team, 0..3 mean Team 1..4. */
+  team: number;
+  /** Multiplayer color index; 0..7 match Multiplayer.ini order. */
+  color: number;
+  /** Null means the slot is currently unassigned to a start position. */
+  startPosition: number | null;
 }
 
 export interface CampaignStartSettings {
@@ -146,6 +161,14 @@ export interface GameShellCallbacks {
   onStartCampaign?(settings: CampaignStartSettings): void;
   /** Called when user opens the Options screen from the main menu. */
   onOpenOptions?(): void;
+  /** Called when the user selects the retail online branch. */
+  onOpenOnlineMenu?(): void;
+  /** Called when the user selects the retail network lobby branch. */
+  onOpenNetworkMenu?(): void;
+  /** Called when the user selects the retail load-game branch. */
+  onOpenLoadGame?(): void;
+  /** Called when the user selects the retail replay-browser branch. */
+  onOpenReplayMenu?(): void;
 }
 
 export interface ShellMappedImageEntry {
@@ -167,9 +190,36 @@ const FACTIONS = [
   { side: 'China', label: 'China', description: "People's Republic of China", campaignName: 'china' },
   { side: 'GLA', label: 'GLA', description: 'Global Liberation Army', campaignName: 'gla' },
 ] as const;
+const SKIRMISH_SLOT_TYPE_OPTIONS = [
+  { value: 'open', label: 'GUI:Open' },
+  { value: 'closed', label: 'GUI:Closed' },
+  { value: 'easy-ai', label: 'GUI:EasyAI' },
+  { value: 'medium-ai', label: 'GUI:MediumAI' },
+  { value: 'hard-ai', label: 'GUI:HardAI' },
+] as const satisfies ReadonlyArray<{ value: Exclude<SkirmishSlotMode, 'human'>; label: string }>;
+const SKIRMISH_RANDOM_SIDE = 'Random';
+const SKIRMISH_COLOR_OPTIONS = [
+  { value: -1, label: 'Random' },
+  { value: 0, label: 'Gold' },
+  { value: 1, label: 'Red' },
+  { value: 2, label: 'Blue' },
+  { value: 3, label: 'Green' },
+  { value: 4, label: 'Orange' },
+  { value: 5, label: 'Sky Blue' },
+  { value: 6, label: 'Purple' },
+  { value: 7, label: 'Pink' },
+] as const satisfies ReadonlyArray<{ value: number; label: string }>;
+const SKIRMISH_TEAM_OPTIONS = [
+  { value: -1, label: 'Team:0' },
+  { value: 0, label: 'Team:1' },
+  { value: 1, label: 'Team:2' },
+  { value: 2, label: 'Team:3' },
+  { value: 3, label: 'Team:4' },
+] as const satisfies ReadonlyArray<{ value: number; label: string }>;
 const FACTION_BY_CAMPAIGN = new Map<string, (typeof FACTIONS)[number]>(
   FACTIONS.map((faction) => [faction.campaignName, faction] as const),
 );
+const SKIRMISH_SLOT_COUNT = 8;
 
 const SHELL_SOURCE_RESOLUTION = { width: 800, height: 600 } as const;
 const FULL_SCREEN_SOURCE_RECT: SourceRect = { x: 0, y: 0, width: 800, height: 600 };
@@ -177,12 +227,14 @@ const MAIN_MENU_PREVIEW_RECT: SourceRect = { x: 88, y: 108, width: 388, height: 
 const MAIN_MENU_ACTION_PANEL_RECT: SourceRect = { x: 532, y: 108, width: 224, height: 252 };
 const MAIN_MENU_LOGO_RECT: SourceRect = { x: 504, y: 16, width: 287, height: 94 };
 const SINGLE_PLAYER_ACTION_PANEL_RECT: SourceRect = { x: 532, y: 108, width: 224, height: 252 };
+const MULTIPLAYER_ACTION_PANEL_RECT: SourceRect = { x: 532, y: 108, width: 224, height: 132 };
+const LOAD_REPLAY_ACTION_PANEL_RECT: SourceRect = { x: 532, y: 108, width: 224, height: 132 };
 const RETAIL_MENU_ACTION_MAP_INSET_BOTTOM = 8;
 const RETAIL_MENU_PULSE_SOURCE_SIZE = { width: 139, height: 21 } as const;
 const MAIN_MENU_BUTTON_LAYOUT = [
   { action: 'single-player', label: 'Single Player', rect: { x: 540, y: 116, width: 208, height: 36 }, disabled: false },
-  { action: 'multiplayer', label: 'Multiplayer', rect: { x: 540, y: 156, width: 208, height: 36 }, disabled: true },
-  { action: 'replay', label: 'Replay', rect: { x: 540, y: 196, width: 208, height: 35 }, disabled: true },
+  { action: 'multiplayer', label: 'Multiplayer', rect: { x: 540, y: 156, width: 208, height: 36 }, disabled: false },
+  { action: 'replay', label: 'Replay', rect: { x: 540, y: 196, width: 208, height: 35 }, disabled: false },
   { action: 'options', label: 'Options', rect: { x: 540, y: 236, width: 208, height: 36 }, disabled: false },
   { action: 'exit', label: 'Exit', rect: { x: 540, y: 316, width: 208, height: 36 }, disabled: false },
 ] as const satisfies ReadonlyArray<{
@@ -200,6 +252,24 @@ const SINGLE_PLAYER_BUTTON_LAYOUT = [
   { action: 'back', label: 'Back', rect: { x: 540, y: 316, width: 208, height: 35 } },
 ] as const satisfies ReadonlyArray<{
   action: 'campaign-usa' | 'campaign-gla' | 'campaign-china' | 'challenge' | 'skirmish' | 'back';
+  label: string;
+  rect: SourceRect;
+}>;
+const MULTIPLAYER_BUTTON_LAYOUT = [
+  { action: 'online', label: 'Online', rect: { x: 540, y: 116, width: 208, height: 35 } },
+  { action: 'network', label: 'Network', rect: { x: 540, y: 156, width: 208, height: 35 } },
+  { action: 'back', label: 'Back', rect: { x: 540, y: 196, width: 208, height: 36 } },
+] as const satisfies ReadonlyArray<{
+  action: 'online' | 'network' | 'back';
+  label: string;
+  rect: SourceRect;
+}>;
+const LOAD_REPLAY_BUTTON_LAYOUT = [
+  { action: 'load-game', label: 'Load Game', rect: { x: 540, y: 116, width: 208, height: 35 } },
+  { action: 'replay-browser', label: 'Load Replay', rect: { x: 540, y: 156, width: 208, height: 35 } },
+  { action: 'back', label: 'Back', rect: { x: 540, y: 196, width: 208, height: 36 } },
+] as const satisfies ReadonlyArray<{
+  action: 'load-game' | 'replay-browser' | 'back';
   label: string;
   rect: SourceRect;
 }>;
@@ -300,6 +370,90 @@ const CAMPAIGN_LOAD_PROGRESS_RECT: SourceRect = { x: 140, y: 564, width: 519, he
 const CAMPAIGN_LOAD_PERCENT_RECT: SourceRect = { x: 760, y: 520, width: 40, height: 32 };
 const CAMPAIGN_LOAD_BACK_ACTION_RECT: SourceRect = { x: 620, y: 552, width: 84, height: 28 };
 const CAMPAIGN_LOAD_START_ACTION_RECT: SourceRect = { x: 710, y: 552, width: 84, height: 28 };
+const SKIRMISH_FRAME_RECT: SourceRect = { x: 42, y: 41, width: 718, height: 518 };
+const SKIRMISH_START_RECT: SourceRect = { x: 94, y: 513, width: 174, height: 36 };
+const SKIRMISH_BACK_RECT: SourceRect = { x: 530, y: 513, width: 171, height: 36 };
+const SKIRMISH_MAP_PREVIEW_LABEL_RECT: SourceRect = { x: 578, y: 88, width: 164, height: 24 };
+const SKIRMISH_MAP_PREVIEW_RECT: SourceRect = { x: 583, y: 115, width: 164, height: 136 };
+const SKIRMISH_MAP_DISPLAY_RECT: SourceRect = { x: 570, y: 252, width: 184, height: 28 };
+const SKIRMISH_SELECT_MAP_RECT: SourceRect = { x: 581, y: 281, width: 166, height: 24 };
+const SKIRMISH_STARTING_CASH_RECT: SourceRect = { x: 453, y: 334, width: 104, height: 24 };
+const SKIRMISH_LIMIT_SUPERWEAPONS_RECT: SourceRect = { x: 593, y: 336, width: 152, height: 24 };
+const SKIRMISH_PLAYERS_LABEL_RECT: SourceRect = { x: 59, y: 88, width: 120, height: 24 };
+const SKIRMISH_COLOR_LABEL_RECT: SourceRect = { x: 198, y: 88, width: 80, height: 24 };
+const SKIRMISH_FACTION_LABEL_RECT: SourceRect = { x: 286, y: 87, width: 108, height: 24 };
+const SKIRMISH_TEAM_LABEL_RECT: SourceRect = { x: 493, y: 88, width: 73, height: 24 };
+const SKIRMISH_PLAYER_NAME_RECT: SourceRect = { x: 49, y: 112, width: 144, height: 24 };
+const SKIRMISH_SLOT_TYPE_ROW1_RECT: SourceRect = { x: 49, y: 136, width: 144, height: 24 };
+const SKIRMISH_COLOR_ROW0_RECT: SourceRect = { x: 196, y: 112, width: 84, height: 24 };
+const SKIRMISH_COLOR_ROW1_RECT: SourceRect = { x: 196, y: 136, width: 84, height: 24 };
+const SKIRMISH_FACTION_ROW0_RECT: SourceRect = { x: 283, y: 112, width: 208, height: 24 };
+const SKIRMISH_FACTION_ROW1_RECT: SourceRect = { x: 283, y: 136, width: 208, height: 24 };
+const SKIRMISH_TEAM_ROW0_RECT: SourceRect = { x: 493, y: 112, width: 76, height: 24 };
+const SKIRMISH_TEAM_ROW1_RECT: SourceRect = { x: 493, y: 136, width: 76, height: 24 };
+const SKIRMISH_EXTRA_SLOT_TYPE_BASE_RECT: SourceRect = { x: 49, y: 160, width: 144, height: 24 };
+const SKIRMISH_EXTRA_COLOR_BASE_RECT: SourceRect = { x: 196, y: 160, width: 84, height: 24 };
+const SKIRMISH_EXTRA_FACTION_BASE_RECT: SourceRect = { x: 283, y: 160, width: 208, height: 24 };
+const SKIRMISH_EXTRA_TEAM_BASE_RECT: SourceRect = { x: 493, y: 160, width: 76, height: 24 };
+const SKIRMISH_MAP_START_POSITION_RECTS: readonly SourceRect[] = [
+  { x: 584, y: 118, width: 16, height: 17 },
+  { x: 583, y: 138, width: 16, height: 17 },
+  { x: 591, y: 146, width: 16, height: 17 },
+  { x: 599, y: 154, width: 16, height: 17 },
+  { x: 607, y: 162, width: 16, height: 17 },
+  { x: 615, y: 170, width: 16, height: 17 },
+  { x: 623, y: 178, width: 16, height: 17 },
+  { x: 631, y: 186, width: 16, height: 17 },
+] as const;
+
+function createDefaultSkirmishSlots(): SkirmishSlotSettings[] {
+  return Array.from({ length: SKIRMISH_SLOT_COUNT }, (_, slotIndex) => {
+    if (slotIndex === 0) {
+      return {
+        slotIndex,
+        playerName: 'Player',
+        mode: 'human',
+        side: 'America',
+        team: -1,
+        color: 2,
+        startPosition: 1,
+      };
+    }
+    if (slotIndex === 1) {
+      return {
+        slotIndex,
+        playerName: `Computer ${slotIndex}`,
+        mode: 'easy-ai',
+        side: 'China',
+        team: -1,
+        color: 1,
+        startPosition: 2,
+      };
+    }
+    return {
+      slotIndex,
+      playerName: `Computer ${slotIndex}`,
+      mode: 'open',
+      side: FACTIONS[slotIndex % FACTIONS.length]!.side,
+      team: -1,
+      color: slotIndex % SKIRMISH_COLOR_OPTIONS.length,
+      startPosition: null,
+    };
+  });
+}
+
+function isSkirmishSlotOccupied(mode: SkirmishSlotMode): boolean {
+  return mode === 'human' || mode === 'easy-ai' || mode === 'medium-ai' || mode === 'hard-ai';
+}
+
+function offsetRect(rect: SourceRect, dy: number): SourceRect {
+  return {
+    x: rect.x,
+    y: rect.y + dy,
+    width: rect.width,
+    height: rect.height,
+  };
+}
 
 /** Escape HTML to prevent XSS from INI-sourced data. */
 function esc(s: string): string {
@@ -367,6 +521,15 @@ function renderRetailMenuPanel(actionPanelRef: string, rect: SourceRect): string
       <div class="main-menu-frame-corner is-bottom-right" data-ref="retail-menu-frame-corner-lr"></div>
     </div>
   `;
+}
+
+function renderOptionItems(
+  options: ReadonlyArray<{ value: string | number; label: string }>,
+  selectedValue: string | number,
+): string {
+  return options.map((option) => `
+    <option value="${option.value}"${option.value === selectedValue ? ' selected' : ''}>${option.label}</option>
+  `).join('');
 }
 
 // ──── Challenge general data ────────────────────────────────────────────────
@@ -956,6 +1119,150 @@ const SHELL_STYLES = `
     color: #cbff63;
   }
 
+  .retail-skirmish-screen {
+    display: block;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 35% 26%, rgba(60, 89, 150, 0.16) 0%, rgba(9, 16, 30, 0.08) 30%, rgba(0, 0, 0, 0) 70%),
+      linear-gradient(180deg, #060c18 0%, #02050b 100%);
+  }
+  .retail-skirmish-frame {
+    z-index: 2;
+    border: 1px solid rgba(76, 91, 132, 0.92);
+    background: rgba(2, 4, 10, 0.76);
+    box-shadow:
+      inset 0 0 0 1px rgba(6, 10, 18, 0.92),
+      0 0 16px rgba(0, 0, 0, 0.3);
+  }
+  .retail-skirmish-label {
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    color: #f4f7ff;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(0.76rem, 0.92vw, 0.9rem);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.56);
+  }
+  .retail-skirmish-map-preview {
+    z-index: 3;
+    border: 1px solid rgba(98, 116, 168, 0.88);
+    background:
+      linear-gradient(180deg, rgba(18, 28, 60, 0.92) 0%, rgba(5, 8, 17, 0.98) 100%);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.72);
+    overflow: hidden;
+  }
+  .retail-skirmish-map-preview::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(135deg, rgba(77, 132, 220, 0.18) 0%, rgba(0, 0, 0, 0) 48%),
+      linear-gradient(180deg, rgba(8, 12, 26, 0.2) 0%, rgba(0, 0, 0, 0.42) 100%);
+  }
+  .retail-skirmish-map-preview-name,
+  .retail-skirmish-map-preview-meta {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 1;
+    padding: 0 0.75rem;
+    text-align: center;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  }
+  .retail-skirmish-map-preview-name {
+    top: 36%;
+    color: #f0f4ff;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(0.82rem, 1vw, 0.94rem);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .retail-skirmish-map-preview-meta {
+    top: 56%;
+    color: #bac6e2;
+    font-size: clamp(0.68rem, 0.82vw, 0.76rem);
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  .retail-skirmish-select,
+  .retail-skirmish-display,
+  .retail-skirmish-checkbox {
+    z-index: 4;
+    border: 1px solid rgba(74, 94, 150, 0.88);
+    background:
+      linear-gradient(180deg, rgba(11, 18, 38, 0.96) 0%, rgba(4, 8, 18, 0.98) 100%);
+    box-shadow: inset 0 0 0 1px rgba(2, 4, 9, 0.88);
+    color: #eef3ff;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: clamp(0.7rem, 0.82vw, 0.78rem);
+  }
+  .retail-skirmish-select,
+  .retail-skirmish-display {
+    padding: 0 0.5rem;
+  }
+  .retail-skirmish-select {
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .retail-skirmish-select:disabled {
+    opacity: 0.45;
+  }
+  .retail-skirmish-display {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .retail-skirmish-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0 0.55rem;
+  }
+  .retail-skirmish-checkbox input {
+    margin: 0;
+  }
+  .retail-skirmish-entry {
+    z-index: 4;
+    padding: 0 0.5rem;
+    border: 1px solid rgba(74, 94, 150, 0.88);
+    background:
+      linear-gradient(180deg, rgba(11, 18, 38, 0.96) 0%, rgba(4, 8, 18, 0.98) 100%);
+    box-shadow: inset 0 0 0 1px rgba(2, 4, 9, 0.88);
+    color: #eef3ff;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: clamp(0.7rem, 0.82vw, 0.78rem);
+  }
+  .retail-skirmish-start-position {
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(112, 132, 188, 0.72);
+    background: rgba(9, 15, 33, 0.72);
+    color: rgba(233, 240, 255, 0.92);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(0.56rem, 0.68vw, 0.64rem);
+    line-height: 1;
+    cursor: pointer;
+  }
+  .retail-skirmish-start-position.is-occupied {
+    border-color: rgba(182, 204, 255, 0.88);
+    background:
+      linear-gradient(180deg, rgba(53, 79, 156, 0.92) 0%, rgba(18, 29, 72, 0.94) 100%);
+  }
+  .retail-skirmish-start-position.is-human {
+    color: #d8ff63;
+  }
+  .retail-skirmish-start-position.is-ai {
+    color: #f5f7ff;
+  }
+  .retail-skirmish-disabled-row {
+    opacity: 0.36;
+  }
+
   /* ── Main Menu ── */
   .main-menu-title {
     font-size: 3.2rem;
@@ -1255,10 +1562,9 @@ export class GameShell {
   // Skirmish state
   private availableMaps: MapInfo[] = [];
   private selectedMapIndex = -1; // -1 = procedural demo
-  private playerSide = 'America';
-  private aiEnabled = true;
-  private aiSide = 'China';
+  private skirmishSlots: SkirmishSlotSettings[] = createDefaultSkirmishSlots();
   private startingCredits = getDefaultStartingCreditsValue(DEFAULT_STARTING_CREDITS_OPTIONS);
+  private limitSuperweapons = false;
   private startingCreditsOptions: StartingCreditsOption[] = [...DEFAULT_STARTING_CREDITS_OPTIONS];
 
   // Campaign state
@@ -1277,11 +1583,6 @@ export class GameShell {
 
   // Element refs for updates
   private mapSelect: HTMLSelectElement | null = null;
-  private playerFactionBtns: HTMLButtonElement[] = [];
-  private aiFactionBtns: HTMLButtonElement[] = [];
-  private aiToggleBtn: HTMLButtonElement | null = null;
-  private aiSideSection: HTMLElement | null = null;
-  private creditsSelect: HTMLSelectElement | null = null;
 
   constructor(root: HTMLElement, callbacks: GameShellCallbacks) {
     this.root = root;
@@ -1360,6 +1661,8 @@ export class GameShell {
     this.renderMainMenu();
     this.renderSkirmishSetup();
     this.renderSinglePlayerMenu();
+    this.renderMultiplayerMenu();
+    this.renderLoadReplayMenu();
     this.renderCampaignFactionSelect();
     this.renderCampaignDifficultySelect();
     this.renderCampaignBriefing();
@@ -1523,8 +1826,8 @@ export class GameShell {
   }
 
   private refreshRetailMenuScreenArt(
-    screenName: 'main-menu' | 'single-player',
-    backdropRef: 'main-menu-backdrop' | 'single-player-backdrop',
+    screenName: 'main-menu' | 'single-player' | 'multiplayer-menu' | 'load-replay-menu',
+    backdropRef: 'main-menu-backdrop' | 'single-player-backdrop' | 'multiplayer-backdrop' | 'load-replay-backdrop',
   ): void {
     const screen = this.screenEls.get(screenName);
     if (!screen) {
@@ -1618,6 +1921,28 @@ export class GameShell {
   private refreshRetailArtwork(): void {
     this.refreshRetailMenuScreenArt('main-menu', 'main-menu-backdrop');
     this.refreshRetailMenuScreenArt('single-player', 'single-player-backdrop');
+    this.refreshRetailMenuScreenArt('multiplayer-menu', 'multiplayer-backdrop');
+    this.refreshRetailMenuScreenArt('load-replay-menu', 'load-replay-backdrop');
+    const skirmishScreen = this.screenEls.get('skirmish-setup');
+    if (skirmishScreen) {
+      this.applyMappedImageBackground(
+        skirmishScreen.querySelector<HTMLElement>('[data-ref="skirmish-backdrop"]'),
+        MAIN_MENU_BACKDROP_IMAGE,
+      );
+      this.applyMappedImageBackground(
+        skirmishScreen.querySelector<HTMLElement>('[data-ref="retail-menu-ruler"]'),
+        MAIN_MENU_RULER_IMAGE,
+        'stretch',
+      );
+      this.applyMappedImageBackground(
+        skirmishScreen.querySelector<HTMLElement>('[data-ref="retail-menu-pulse"]'),
+        MAIN_MENU_PULSE_IMAGE,
+        'stretch',
+      );
+      for (const button of skirmishScreen.querySelectorAll<HTMLElement>('.retail-main-menu-button')) {
+        this.applyRetailButtonSkin(button);
+      }
+    }
     this.applyMappedImageBackground(
       this.screenEls.get('challenge-select')?.querySelector('[data-ref="challenge-menu-background"]') as HTMLElement | null,
       CHALLENGE_MENU_BACKGROUND_IMAGE,
@@ -1681,6 +2006,10 @@ export class GameShell {
       const action = target.dataset.action;
       if (action === 'single-player') {
         this.showScreen('single-player');
+      } else if (action === 'multiplayer') {
+        this.showScreen('multiplayer-menu');
+      } else if (action === 'replay') {
+        this.showScreen('load-replay-menu');
       } else if (action === 'options') {
         this.callbacks.onOpenOptions?.();
       } else if (action === 'exit') {
@@ -1758,6 +2087,118 @@ export class GameShell {
     });
 
     this.addScreen('single-player', el);
+    this.refreshRetailArtwork();
+  }
+
+  // ──── Private: Multiplayer Menu ────────────────────────────────────────
+
+  private renderMultiplayerMenu(): void {
+    if (this.screenEls.has('multiplayer-menu')) return;
+
+    const el = document.createElement('div');
+    el.className = 'shell-screen hidden retail-main-menu-screen';
+    el.id = 'multiplayer-menu-screen';
+
+    const buttonsHtml = MULTIPLAYER_BUTTON_LAYOUT.map((button) => renderRetailMenuButton(button)).join('');
+
+    el.innerHTML = `
+      <div class="retail-backdrop-layer" data-ref="multiplayer-backdrop"></div>
+      <div
+        class="main-menu-ruler retail-source-rect"
+        data-ref="retail-menu-ruler"
+        style="${formatSourceRectStyle(FULL_SCREEN_SOURCE_RECT)}"
+      ></div>
+      <div
+        class="main-menu-pulse"
+        data-ref="retail-menu-pulse"
+        style="${formatSourceSizeStyle(RETAIL_MENU_PULSE_SOURCE_SIZE.width, RETAIL_MENU_PULSE_SOURCE_SIZE.height)}"
+      ></div>
+      <div
+        class="main-menu-preview-panel retail-source-rect"
+        data-ref="multiplayer-preview"
+        data-source-rect="${formatSourceRectData(MAIN_MENU_PREVIEW_RECT)}"
+        style="${formatSourceRectStyle(MAIN_MENU_PREVIEW_RECT)}"
+      ></div>
+      ${renderRetailMenuPanel('multiplayer-action-panel', MULTIPLAYER_ACTION_PANEL_RECT)}
+      <div
+        class="main-menu-logo retail-source-rect"
+        data-ref="multiplayer-logo"
+        data-source-rect="${formatSourceRectData(MAIN_MENU_LOGO_RECT)}"
+        style="${formatSourceRectStyle(MAIN_MENU_LOGO_RECT)}"
+      ><div class="main-menu-logo-art" data-ref="retail-menu-logo-art"></div></div>
+      ${buttonsHtml}
+    `;
+
+    el.addEventListener('click', (e) => {
+      const target = (e.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
+      if (!target) return;
+      const action = target.dataset.action;
+      if (action === 'back') {
+        this.showScreen('main-menu');
+      } else if (action === 'online') {
+        this.callbacks.onOpenOnlineMenu?.();
+      } else if (action === 'network') {
+        this.callbacks.onOpenNetworkMenu?.();
+      }
+    });
+
+    this.addScreen('multiplayer-menu', el);
+    this.refreshRetailArtwork();
+  }
+
+  // ──── Private: Load / Replay Menu ──────────────────────────────────────
+
+  private renderLoadReplayMenu(): void {
+    if (this.screenEls.has('load-replay-menu')) return;
+
+    const el = document.createElement('div');
+    el.className = 'shell-screen hidden retail-main-menu-screen';
+    el.id = 'load-replay-menu-screen';
+
+    const buttonsHtml = LOAD_REPLAY_BUTTON_LAYOUT.map((button) => renderRetailMenuButton(button)).join('');
+
+    el.innerHTML = `
+      <div class="retail-backdrop-layer" data-ref="load-replay-backdrop"></div>
+      <div
+        class="main-menu-ruler retail-source-rect"
+        data-ref="retail-menu-ruler"
+        style="${formatSourceRectStyle(FULL_SCREEN_SOURCE_RECT)}"
+      ></div>
+      <div
+        class="main-menu-pulse"
+        data-ref="retail-menu-pulse"
+        style="${formatSourceSizeStyle(RETAIL_MENU_PULSE_SOURCE_SIZE.width, RETAIL_MENU_PULSE_SOURCE_SIZE.height)}"
+      ></div>
+      <div
+        class="main-menu-preview-panel retail-source-rect"
+        data-ref="load-replay-preview"
+        data-source-rect="${formatSourceRectData(MAIN_MENU_PREVIEW_RECT)}"
+        style="${formatSourceRectStyle(MAIN_MENU_PREVIEW_RECT)}"
+      ></div>
+      ${renderRetailMenuPanel('load-replay-action-panel', LOAD_REPLAY_ACTION_PANEL_RECT)}
+      <div
+        class="main-menu-logo retail-source-rect"
+        data-ref="load-replay-logo"
+        data-source-rect="${formatSourceRectData(MAIN_MENU_LOGO_RECT)}"
+        style="${formatSourceRectStyle(MAIN_MENU_LOGO_RECT)}"
+      ><div class="main-menu-logo-art" data-ref="retail-menu-logo-art"></div></div>
+      ${buttonsHtml}
+    `;
+
+    el.addEventListener('click', (e) => {
+      const target = (e.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
+      if (!target) return;
+      const action = target.dataset.action;
+      if (action === 'back') {
+        this.showScreen('main-menu');
+      } else if (action === 'load-game') {
+        this.callbacks.onOpenLoadGame?.();
+      } else if (action === 'replay-browser') {
+        this.callbacks.onOpenReplayMenu?.();
+      }
+    });
+
+    this.addScreen('load-replay-menu', el);
     this.refreshRetailArtwork();
   }
 
@@ -2283,99 +2724,12 @@ export class GameShell {
     if (this.screenEls.has('skirmish-setup')) return;
 
     const el = document.createElement('div');
-    el.className = 'shell-screen hidden';
+    el.className = 'shell-screen hidden retail-skirmish-screen';
     el.id = 'skirmish-setup-screen';
-
-    // Build map options
-    const mapOptionsHtml = this.buildMapOptionsHtml();
-    const creditsOptionsHtml = this.startingCreditsOptions.map(opt =>
-      `<option value="${opt.value}"${opt.value === this.startingCredits ? ' selected' : ''}>${opt.label}</option>`,
-    ).join('');
-
-    el.innerHTML = `
-      <div class="shell-panel">
-        <div class="shell-panel-title">Skirmish Setup</div>
-
-        <div class="shell-section">
-          <label class="shell-label">Map</label>
-          <select class="shell-select" data-ref="map-select">
-            ${mapOptionsHtml}
-          </select>
-        </div>
-
-        <div class="shell-section">
-          <label class="shell-label">Your Faction</label>
-          <div class="faction-row" data-ref="player-factions">
-            ${FACTIONS.map(f => `
-              <button class="faction-option${f.side === this.playerSide ? ' selected' : ''}"
-                      data-side="${f.side}">
-                <div class="faction-name">${f.label}</div>
-                <div class="faction-desc">${f.description}</div>
-              </button>
-            `).join('')}
-          </div>
-        </div>
-
-        <div class="shell-section">
-          <label class="shell-label">AI Opponent</label>
-          <div class="ai-toggle-row">
-            <button class="ai-toggle-btn${this.aiEnabled ? ' active' : ''}"
-                    data-ref="ai-toggle">
-              ${this.aiEnabled ? 'Enabled' : 'Disabled'}
-            </button>
-          </div>
-        </div>
-
-        <div class="shell-section" data-ref="ai-side-section"
-             style="${this.aiEnabled ? '' : 'display:none'}">
-          <label class="shell-label">AI Faction</label>
-          <div class="faction-row" data-ref="ai-factions">
-            ${FACTIONS.map(f => `
-              <button class="faction-option${f.side === this.aiSide ? ' selected' : ''}"
-                      data-side="${f.side}">
-                <div class="faction-name">${f.label}</div>
-                <div class="faction-desc">${f.description}</div>
-              </button>
-            `).join('')}
-          </div>
-        </div>
-
-        <div class="shell-section">
-          <label class="shell-label">Starting Credits</label>
-          <select class="shell-select" data-ref="credits-select">
-            ${creditsOptionsHtml}
-          </select>
-        </div>
-
-        <div class="shell-actions">
-          <button class="shell-btn" data-action="back">Back</button>
-          <button class="shell-btn primary" data-action="start">Start Game</button>
-        </div>
-      </div>
-    `;
-
-    // Cache refs
-    this.mapSelect = el.querySelector('[data-ref="map-select"]');
-    this.creditsSelect = el.querySelector('[data-ref="credits-select"]');
-    this.aiToggleBtn = el.querySelector('[data-ref="ai-toggle"]');
-    this.aiSideSection = el.querySelector('[data-ref="ai-side-section"]');
-
-    const playerFactionRow = el.querySelector('[data-ref="player-factions"]');
-    this.playerFactionBtns = playerFactionRow
-      ? [...playerFactionRow.querySelectorAll<HTMLButtonElement>('.faction-option')]
-      : [];
-
-    const aiFactionRow = el.querySelector('[data-ref="ai-factions"]');
-    this.aiFactionBtns = aiFactionRow
-      ? [...aiFactionRow.querySelectorAll<HTMLButtonElement>('.faction-option')]
-      : [];
-
-    // Event delegation
     el.addEventListener('click', (e) => {
-      const target = (e.target as HTMLElement).closest('[data-action], [data-side], [data-ref]') as HTMLElement | null;
+      const target = (e.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
       if (!target) return;
 
-      // Action buttons
       if (target.dataset.action === 'back') {
         this.showScreen('main-menu');
         return;
@@ -2384,62 +2738,437 @@ export class GameShell {
         this.handleStartGame();
         return;
       }
-
-      // Player faction selection
-      if (target.dataset.side && target.closest('[data-ref="player-factions"]')) {
-        this.playerSide = target.dataset.side;
-        this.updateFactionSelection(this.playerFactionBtns, this.playerSide);
+      if (target.dataset.action === 'select-map') {
+        this.mapSelect?.focus();
+        this.mapSelect?.click();
         return;
       }
-
-      // AI faction selection
-      if (target.dataset.side && target.closest('[data-ref="ai-factions"]')) {
-        this.aiSide = target.dataset.side;
-        this.updateFactionSelection(this.aiFactionBtns, this.aiSide);
-        return;
-      }
-
-      // AI toggle
-      if (target.dataset.ref === 'ai-toggle' || target.closest('[data-ref="ai-toggle"]')) {
-        this.aiEnabled = !this.aiEnabled;
-        if (this.aiToggleBtn) {
-          this.aiToggleBtn.textContent = this.aiEnabled ? 'Enabled' : 'Disabled';
-          this.aiToggleBtn.classList.toggle('active', this.aiEnabled);
-        }
-        if (this.aiSideSection) {
-          this.aiSideSection.style.display = this.aiEnabled ? '' : 'none';
+      if (target.dataset.action === 'start-position') {
+        const startPosition = Number(target.dataset.startPosition);
+        if (Number.isFinite(startPosition) && startPosition > 0) {
+          this.handleSkirmishStartPositionClick(startPosition);
         }
       }
     });
 
-    // Select change handlers
-    if (this.mapSelect) {
-      this.mapSelect.addEventListener('change', () => {
-        this.selectedMapIndex = Number(this.mapSelect!.value);
-      });
-    }
-    if (this.creditsSelect) {
-      this.creditsSelect.addEventListener('change', () => {
-        this.startingCredits = Number(this.creditsSelect!.value);
-      });
-    }
+    el.addEventListener('contextmenu', (e) => {
+      const target = (e.target as HTMLElement).closest('[data-action="start-position"]') as HTMLElement | null;
+      if (!target) {
+        return;
+      }
+      e.preventDefault();
+      const startPosition = Number(target.dataset.startPosition);
+      if (Number.isFinite(startPosition) && startPosition > 0) {
+        this.handleSkirmishStartPositionClear(startPosition);
+      }
+    });
+
+    el.addEventListener('change', (e) => {
+      const target = e.target;
+      if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      if (target.dataset.ref === 'map-select') {
+        this.selectedMapIndex = Number(target.value);
+        this.refreshSkirmishSetupScreen();
+        return;
+      }
+      if (target.dataset.ref === 'credits-select') {
+        this.startingCredits = Number(target.value);
+        this.refreshSkirmishSetupScreen();
+        return;
+      }
+      if (target.dataset.ref === 'limit-superweapons-input' && target instanceof HTMLInputElement) {
+        this.limitSuperweapons = target.checked;
+        this.refreshSkirmishSetupScreen();
+        return;
+      }
+
+      const slotIndex = Number(target.dataset.slotIndex);
+      const slotField = target.dataset.slotField;
+      if (!Number.isFinite(slotIndex) || !slotField) {
+        return;
+      }
+      const slot = this.skirmishSlots[slotIndex];
+      if (!slot) {
+        return;
+      }
+
+      switch (slotField) {
+        case 'mode':
+          slot.mode = target.value as SkirmishSlotMode;
+          break;
+        case 'side':
+          slot.side = target.value;
+          break;
+        case 'team':
+          slot.team = Number(target.value);
+          break;
+        case 'color':
+          slot.color = Number(target.value);
+          break;
+        default:
+          break;
+      }
+      this.refreshSkirmishSetupScreen();
+    });
+
+    el.addEventListener('input', (e) => {
+      const target = e.target;
+      if (!(target instanceof HTMLInputElement)) {
+        return;
+      }
+      if (target.dataset.slotField !== 'playerName') {
+        return;
+      }
+      const slotIndex = Number(target.dataset.slotIndex);
+      const slot = Number.isFinite(slotIndex) ? this.skirmishSlots[slotIndex] : undefined;
+      if (!slot) {
+        return;
+      }
+      slot.playerName = target.value.slice(0, 12);
+      this.refreshSkirmishSetupScreen();
+    });
 
     this.addScreen('skirmish-setup', el);
+    this.refreshSkirmishSetupScreen();
+  }
+
+  private refreshSkirmishSetupScreen(): void {
+    const el = this.screenEls.get('skirmish-setup');
+    if (!el) {
+      return;
+    }
+
+    const mapOptionsHtml = this.buildMapOptionsHtml();
+    const creditsOptionsHtml = renderOptionItems(this.startingCreditsOptions, this.startingCredits);
+    const mapName = this.selectedMapIndex >= 0
+      ? (this.availableMaps[this.selectedMapIndex]?.name ?? 'Unknown Map')
+      : 'Procedural Demo Terrain';
+    const mapPreviewMeta = this.selectedMapIndex >= 0
+      ? 'Retail skirmish flow, browser runtime map picker'
+      : 'Demo terrain without a retail map file';
+
+    const slotRowsHtml = this.skirmishSlots.map((slot) => this.renderSkirmishSlotRow(slot)).join('');
+    const startPositionButtonsHtml = SKIRMISH_MAP_START_POSITION_RECTS.map((rect, index) => {
+      const occupant = this.getSkirmishStartPositionOccupant(index + 1);
+      const occupantLabel = occupant ? String(occupant.slotIndex + 1) : '';
+      const occupantClass = occupant
+        ? (occupant.mode === 'human' ? ' is-human' : ' is-ai')
+        : '';
+      return `
+        <button
+          type="button"
+          class="retail-skirmish-start-position retail-source-rect${occupant ? ' is-occupied' : ''}${occupantClass}"
+          data-action="start-position"
+          data-start-position="${index + 1}"
+          data-source-rect="${formatSourceRectData(rect)}"
+          style="${formatSourceRectStyle(rect)}"
+        >${occupantLabel}</button>
+      `;
+    }).join('');
+
+    el.innerHTML = `
+      <div class="retail-backdrop-layer" data-ref="skirmish-backdrop"></div>
+      <div
+        class="main-menu-ruler retail-source-rect"
+        data-ref="retail-menu-ruler"
+        style="${formatSourceRectStyle(FULL_SCREEN_SOURCE_RECT)}"
+      ></div>
+      <div
+        class="main-menu-pulse"
+        data-ref="retail-menu-pulse"
+        style="${formatSourceSizeStyle(RETAIL_MENU_PULSE_SOURCE_SIZE.width, RETAIL_MENU_PULSE_SOURCE_SIZE.height)}"
+      ></div>
+      <div
+        class="retail-skirmish-frame retail-source-rect"
+        data-ref="skirmish-frame"
+        data-source-rect="${formatSourceRectData(SKIRMISH_FRAME_RECT)}"
+        style="${formatSourceRectStyle(SKIRMISH_FRAME_RECT)}"
+      ></div>
+      <div
+        class="retail-skirmish-label retail-source-rect"
+        data-ref="skirmish-map-preview-label"
+        data-source-rect="${formatSourceRectData(SKIRMISH_MAP_PREVIEW_LABEL_RECT)}"
+        style="${formatSourceRectStyle(SKIRMISH_MAP_PREVIEW_LABEL_RECT)}"
+      >Map Preview</div>
+      <div
+        class="retail-skirmish-map-preview retail-source-rect"
+        data-ref="skirmish-map-preview"
+        data-source-rect="${formatSourceRectData(SKIRMISH_MAP_PREVIEW_RECT)}"
+        style="${formatSourceRectStyle(SKIRMISH_MAP_PREVIEW_RECT)}"
+      >
+        <div class="retail-skirmish-map-preview-name" data-ref="skirmish-map-preview-name">${esc(mapName)}</div>
+        <div class="retail-skirmish-map-preview-meta" data-ref="skirmish-map-preview-meta">${esc(mapPreviewMeta)}</div>
+        ${startPositionButtonsHtml}
+      </div>
+      <select
+        class="retail-skirmish-select retail-source-rect"
+        data-ref="map-select"
+        data-source-rect="${formatSourceRectData(SKIRMISH_MAP_DISPLAY_RECT)}"
+        style="${formatSourceRectStyle(SKIRMISH_MAP_DISPLAY_RECT)}"
+      >
+        ${mapOptionsHtml}
+      </select>
+      ${renderRetailMenuButton({ action: 'select-map', label: 'Select Map', rect: SKIRMISH_SELECT_MAP_RECT })}
+      <div
+        class="retail-skirmish-label retail-source-rect"
+        data-ref="skirmish-players-label"
+        data-source-rect="${formatSourceRectData(SKIRMISH_PLAYERS_LABEL_RECT)}"
+        style="${formatSourceRectStyle(SKIRMISH_PLAYERS_LABEL_RECT)}"
+      >Players</div>
+      <div
+        class="retail-skirmish-label retail-source-rect"
+        data-ref="skirmish-color-label"
+        data-source-rect="${formatSourceRectData(SKIRMISH_COLOR_LABEL_RECT)}"
+        style="${formatSourceRectStyle(SKIRMISH_COLOR_LABEL_RECT)}"
+      >Color</div>
+      <div
+        class="retail-skirmish-label retail-source-rect"
+        data-ref="skirmish-faction-label"
+        data-source-rect="${formatSourceRectData(SKIRMISH_FACTION_LABEL_RECT)}"
+        style="${formatSourceRectStyle(SKIRMISH_FACTION_LABEL_RECT)}"
+      >Faction</div>
+      <div
+        class="retail-skirmish-label retail-source-rect"
+        data-ref="skirmish-team-label"
+        data-source-rect="${formatSourceRectData(SKIRMISH_TEAM_LABEL_RECT)}"
+        style="${formatSourceRectStyle(SKIRMISH_TEAM_LABEL_RECT)}"
+      >Team</div>
+      ${slotRowsHtml}
+      <select
+        class="retail-skirmish-select retail-source-rect"
+        data-ref="credits-select"
+        data-source-rect="${formatSourceRectData(SKIRMISH_STARTING_CASH_RECT)}"
+        style="${formatSourceRectStyle(SKIRMISH_STARTING_CASH_RECT)}"
+      >
+        ${creditsOptionsHtml}
+      </select>
+      <label
+        class="retail-skirmish-checkbox retail-source-rect"
+        data-ref="skirmish-limit-superweapons"
+        data-source-rect="${formatSourceRectData(SKIRMISH_LIMIT_SUPERWEAPONS_RECT)}"
+        style="${formatSourceRectStyle(SKIRMISH_LIMIT_SUPERWEAPONS_RECT)}"
+      >
+        <input type="checkbox" data-ref="limit-superweapons-input"${this.limitSuperweapons ? ' checked' : ''}>
+        <span>Limit Superweapons</span>
+      </label>
+      ${renderRetailMenuButton({ action: 'start', label: 'Start', rect: SKIRMISH_START_RECT })}
+      ${renderRetailMenuButton({ action: 'back', label: 'Main Menu', rect: SKIRMISH_BACK_RECT })}
+    `;
+
+    this.mapSelect = el.querySelector('[data-ref="map-select"]');
+    this.refreshRetailArtwork();
+  }
+
+  private renderSkirmishSlotRow(slot: SkirmishSlotSettings): string {
+    const occupied = isSkirmishSlotOccupied(slot.mode);
+    const typeRect = slot.slotIndex === 1
+      ? SKIRMISH_SLOT_TYPE_ROW1_RECT
+      : offsetRect(SKIRMISH_EXTRA_SLOT_TYPE_BASE_RECT, Math.max(0, slot.slotIndex - 2) * 24);
+    const colorRect = slot.slotIndex === 0
+      ? SKIRMISH_COLOR_ROW0_RECT
+      : slot.slotIndex === 1
+        ? SKIRMISH_COLOR_ROW1_RECT
+        : offsetRect(SKIRMISH_EXTRA_COLOR_BASE_RECT, Math.max(0, slot.slotIndex - 2) * 24);
+    const factionRect = slot.slotIndex === 0
+      ? SKIRMISH_FACTION_ROW0_RECT
+      : slot.slotIndex === 1
+        ? SKIRMISH_FACTION_ROW1_RECT
+        : offsetRect(SKIRMISH_EXTRA_FACTION_BASE_RECT, Math.max(0, slot.slotIndex - 2) * 24);
+    const teamRect = slot.slotIndex === 0
+      ? SKIRMISH_TEAM_ROW0_RECT
+      : slot.slotIndex === 1
+        ? SKIRMISH_TEAM_ROW1_RECT
+        : offsetRect(SKIRMISH_EXTRA_TEAM_BASE_RECT, Math.max(0, slot.slotIndex - 2) * 24);
+    const slotRefPrefix = slot.slotIndex === 0
+      ? 'player'
+      : slot.slotIndex === 1
+        ? 'ai'
+        : `slot-${slot.slotIndex}`;
+    const factionOptionsHtml = renderOptionItems(
+      [
+        { value: SKIRMISH_RANDOM_SIDE, label: this.resolveText('GUI:Random') },
+        ...FACTIONS.map((faction) => ({ value: faction.side, label: this.resolveText(`SIDE:${faction.side}`) })),
+      ],
+      slot.side,
+    );
+    const colorOptionsHtml = renderOptionItems(
+      SKIRMISH_COLOR_OPTIONS.map((option) => ({ ...option, label: option.value < 0 ? this.resolveText('GUI:???') : option.label })),
+      slot.color,
+    );
+    const teamOptionsHtml = renderOptionItems(
+      SKIRMISH_TEAM_OPTIONS.map((option) => ({ ...option, label: this.resolveText(option.label) })),
+      slot.team,
+    );
+
+    if (slot.slotIndex === 0) {
+      return `
+        <input
+          type="text"
+          maxlength="12"
+          class="retail-skirmish-entry retail-source-rect"
+          data-ref="skirmish-player-name"
+          data-slot-index="${slot.slotIndex}"
+          data-slot-field="playerName"
+          data-source-rect="${formatSourceRectData(SKIRMISH_PLAYER_NAME_RECT)}"
+          style="${formatSourceRectStyle(SKIRMISH_PLAYER_NAME_RECT)}"
+          value="${esc(slot.playerName)}"
+        >
+        <select
+          class="retail-skirmish-select retail-source-rect"
+          data-ref="player-color"
+          data-slot-index="${slot.slotIndex}"
+          data-slot-field="color"
+          data-source-rect="${formatSourceRectData(colorRect)}"
+          style="${formatSourceRectStyle(colorRect)}"
+        >
+          ${colorOptionsHtml}
+        </select>
+        <select
+          class="retail-skirmish-select retail-source-rect"
+          data-ref="player-side"
+          data-slot-index="${slot.slotIndex}"
+          data-slot-field="side"
+          data-source-rect="${formatSourceRectData(factionRect)}"
+          style="${formatSourceRectStyle(factionRect)}"
+        >
+          ${factionOptionsHtml}
+        </select>
+        <select
+          class="retail-skirmish-select retail-source-rect"
+          data-ref="player-team"
+          data-slot-index="${slot.slotIndex}"
+          data-slot-field="team"
+          data-source-rect="${formatSourceRectData(teamRect)}"
+          style="${formatSourceRectStyle(teamRect)}"
+        >
+          ${teamOptionsHtml}
+        </select>
+      `;
+    }
+
+    const modeOptionsHtml = renderOptionItems(
+      SKIRMISH_SLOT_TYPE_OPTIONS.map((option) => ({ ...option, label: this.resolveText(option.label) })),
+      slot.mode,
+    );
+    return `
+      <select
+        class="retail-skirmish-select retail-source-rect"
+        data-ref="${slot.slotIndex === 1 ? 'ai-enabled' : `${slotRefPrefix}-mode`}"
+        data-slot-index="${slot.slotIndex}"
+        data-slot-field="mode"
+        data-source-rect="${formatSourceRectData(typeRect)}"
+        style="${formatSourceRectStyle(typeRect)}"
+      >
+        ${modeOptionsHtml}
+      </select>
+      <select
+        class="retail-skirmish-select retail-source-rect"
+        data-ref="${slot.slotIndex === 1 ? 'ai-color' : `${slotRefPrefix}-color`}"
+        data-slot-index="${slot.slotIndex}"
+        data-slot-field="color"
+        data-source-rect="${formatSourceRectData(colorRect)}"
+        style="${formatSourceRectStyle(colorRect)}"
+        ${occupied ? '' : 'disabled'}
+      >
+        ${colorOptionsHtml}
+      </select>
+      <select
+        class="retail-skirmish-select retail-source-rect"
+        data-ref="${slot.slotIndex === 1 ? 'ai-side' : `${slotRefPrefix}-side`}"
+        data-slot-index="${slot.slotIndex}"
+        data-slot-field="side"
+        data-source-rect="${formatSourceRectData(factionRect)}"
+        style="${formatSourceRectStyle(factionRect)}"
+        ${occupied ? '' : 'disabled'}
+      >
+        ${factionOptionsHtml}
+      </select>
+      <select
+        class="retail-skirmish-select retail-source-rect"
+        data-ref="${slot.slotIndex === 1 ? 'ai-team' : `${slotRefPrefix}-team`}"
+        data-slot-index="${slot.slotIndex}"
+        data-slot-field="team"
+        data-source-rect="${formatSourceRectData(teamRect)}"
+        style="${formatSourceRectStyle(teamRect)}"
+        ${occupied ? '' : 'disabled'}
+      >
+        ${teamOptionsHtml}
+      </select>
+    `;
+  }
+
+  private getSkirmishStartPositionOccupant(startPosition: number): SkirmishSlotSettings | null {
+    return this.skirmishSlots.find((slot) =>
+      isSkirmishSlotOccupied(slot.mode) && slot.startPosition === startPosition,
+    ) ?? null;
+  }
+
+  private findNextSelectableSkirmishSlot(startIndex: number): number {
+    for (let slotIndex = Math.max(0, startIndex); slotIndex < this.skirmishSlots.length; slotIndex += 1) {
+      const slot = this.skirmishSlots[slotIndex]!;
+      if (isSkirmishSlotOccupied(slot.mode) && slot.startPosition === null) {
+        return slotIndex;
+      }
+    }
+    return -1;
+  }
+
+  private assignSkirmishSlotToStartPosition(slotIndex: number, startPosition: number | null): void {
+    const slot = this.skirmishSlots[slotIndex];
+    if (!slot) {
+      return;
+    }
+    if (startPosition !== null) {
+      for (const otherSlot of this.skirmishSlots) {
+        if (otherSlot.slotIndex !== slotIndex && otherSlot.startPosition === startPosition) {
+          otherSlot.startPosition = null;
+        }
+      }
+    }
+    slot.startPosition = startPosition;
+  }
+
+  private handleSkirmishStartPositionClick(startPosition: number): void {
+    const occupant = this.getSkirmishStartPositionOccupant(startPosition);
+    if (occupant) {
+      const nextSlot = this.findNextSelectableSkirmishSlot(occupant.slotIndex + 1);
+      this.assignSkirmishSlotToStartPosition(occupant.slotIndex, null);
+      if (nextSlot >= 0) {
+        this.assignSkirmishSlotToStartPosition(nextSlot, startPosition);
+      }
+      this.refreshSkirmishSetupScreen();
+      return;
+    }
+
+    let nextSlot = this.findNextSelectableSkirmishSlot(0);
+    if (nextSlot < 0 && isSkirmishSlotOccupied(this.skirmishSlots[0]!.mode)) {
+      nextSlot = 0;
+    }
+    if (nextSlot >= 0) {
+      this.assignSkirmishSlotToStartPosition(nextSlot, startPosition);
+      this.refreshSkirmishSetupScreen();
+    }
+  }
+
+  private handleSkirmishStartPositionClear(startPosition: number): void {
+    const occupant = this.getSkirmishStartPositionOccupant(startPosition);
+    if (!occupant) {
+      return;
+    }
+    this.assignSkirmishSlotToStartPosition(occupant.slotIndex, null);
+    this.refreshSkirmishSetupScreen();
   }
 
   private buildMapOptionsHtml(): string {
-    let html = '<option value="-1">Procedural Demo Terrain</option>';
+    let html = `<option value="-1"${this.selectedMapIndex === -1 ? ' selected' : ''}>Procedural Demo Terrain</option>`;
     for (let i = 0; i < this.availableMaps.length; i++) {
       const mapInfo = this.availableMaps[i]!;
-      html += `<option value="${i}">${mapInfo.name}</option>`;
+      html += `<option value="${i}"${i === this.selectedMapIndex ? ' selected' : ''}>${mapInfo.name}</option>`;
     }
     return html;
-  }
-
-  private updateFactionSelection(buttons: HTMLButtonElement[], selectedSide: string): void {
-    for (const btn of buttons) {
-      btn.classList.toggle('selected', btn.dataset.side === selectedSide);
-    }
   }
 
   private handleStartGame(): void {
@@ -2450,10 +3179,11 @@ export class GameShell {
 
     const settings: SkirmishSettings = {
       mapPath,
-      playerSide: this.playerSide,
-      aiEnabled: this.aiEnabled,
-      aiSide: this.aiSide,
+      slots: this.skirmishSlots
+        .filter((slot) => isSkirmishSlotOccupied(slot.mode))
+        .map((slot) => ({ ...slot })),
       startingCredits: this.startingCredits,
+      limitSuperweapons: this.limitSuperweapons,
     };
 
     this.callbacks.onStartGame(settings);

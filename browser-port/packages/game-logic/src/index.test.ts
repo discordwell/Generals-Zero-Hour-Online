@@ -15016,6 +15016,136 @@ describe('skirmish starting entities', () => {
     expect(chinaEntities.length).toBe(2);
   });
 
+  it('honors explicit skirmish start-position overrides when spawning starting entities', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('AmericaCommandCenter', 'America', ['STRUCTURE', 'COMMANDCENTER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 5000, InitialHealth: 5000 }),
+        ]),
+        makeObjectDef('AmericaVehicleDozer', 'America', ['VEHICLE', 'DOZER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ]),
+        makeObjectDef('ChinaCommandCenter', 'China', ['STRUCTURE', 'COMMANDCENTER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 5000, InitialHealth: 5000 }),
+        ]),
+        makeObjectDef('ChinaVehicleDozer', 'China', ['VEHICLE', 'DOZER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ]),
+      ],
+      factions: [
+        {
+          name: 'FactionAmerica',
+          side: 'America',
+          fields: {
+            Side: 'America',
+            StartingBuilding: 'AmericaCommandCenter',
+            StartingUnit0: 'AmericaVehicleDozer',
+          },
+        } as FactionDef,
+        {
+          name: 'FactionChina',
+          side: 'China',
+          fields: {
+            Side: 'China',
+            StartingBuilding: 'ChinaCommandCenter',
+            StartingUnit0: 'ChinaVehicleDozer',
+          },
+        } as FactionDef,
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    const mapData = makeMap([], 128, 128);
+    mapData.waypoints = {
+      nodes: [
+        { id: 1, name: 'Player_1_Start', position: { x: 50, y: 50, z: 0 } },
+        { id: 2, name: 'Player_2_Start', position: { x: 100, y: 100, z: 0 } },
+      ],
+      links: [],
+    };
+    logic.loadMapObjects(mapData, makeRegistry(bundle), makeHeightmap(128, 128));
+    logic.setPlayerSide(0, 'America');
+    logic.setPlayerSide(1, 'China');
+    expect(logic.setSkirmishPlayerStartPosition('America', 2)).toBe(true);
+    expect(logic.setSkirmishPlayerStartPosition('China', 1)).toBe(true);
+
+    logic.spawnSkirmishStartingEntities();
+
+    const entities = logic.getRenderableEntityStates();
+    const americaCommandCenter = entities.find((entity) => entity.templateName === 'AmericaCommandCenter');
+    const chinaCommandCenter = entities.find((entity) => entity.templateName === 'ChinaCommandCenter');
+
+    expect(americaCommandCenter?.x).toBe(100);
+    expect(americaCommandCenter?.z).toBe(100);
+    expect(chinaCommandCenter?.x).toBe(50);
+    expect(chinaCommandCenter?.z).toBe(50);
+  });
+
+  it('resolves named skirmish player tokens back to faction templates for starting entities', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('AmericaCommandCenter', 'America', ['STRUCTURE', 'COMMANDCENTER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 5000, InitialHealth: 5000 }),
+        ]),
+        makeObjectDef('AmericaVehicleDozer', 'America', ['VEHICLE', 'DOZER'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 200, InitialHealth: 200 }),
+        ]),
+      ],
+      factions: [
+        {
+          name: 'FactionAmerica',
+          side: 'America',
+          fields: {
+            Side: 'America',
+            StartingBuilding: 'AmericaCommandCenter',
+            StartingUnit0: 'AmericaVehicleDozer',
+          },
+        } as FactionDef,
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    const mapData = makeMap([], 128, 128);
+    mapData.waypoints = {
+      nodes: [
+        { id: 1, name: 'Player_1_Start', position: { x: 50, y: 50, z: 0 } },
+        { id: 2, name: 'Player_2_Start', position: { x: 100, y: 100, z: 0 } },
+      ],
+      links: [],
+    };
+    mapData.sidesList = {
+      sides: [
+        {
+          dict: {
+            playerName: 'Player_1',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: { scripts: [], groups: [] },
+        },
+        {
+          dict: {
+            playerName: 'Player_2',
+            playerFaction: 'FactionAmerica',
+          },
+          buildList: [],
+          scripts: { scripts: [], groups: [] },
+        },
+      ],
+      teams: [],
+    };
+    logic.loadMapObjects(mapData, makeRegistry(bundle), makeHeightmap(128, 128));
+    logic.setPlayerSide(0, 'Player_1');
+    logic.setPlayerSide(1, 'Player_2');
+
+    logic.spawnSkirmishStartingEntities();
+
+    const entities = logic.getRenderableEntityStates().filter((entity) => entity.templateName === 'AmericaCommandCenter');
+    expect(entities).toHaveLength(2);
+    expect(logic.getResolvedFactionSide('Player_1')).toBe('america');
+    expect(logic.getResolvedFactionSide('Player_2')).toBe('america');
+  });
+
   it('filters road and waypoint template names from entity spawning', () => {
     // Source parity: C++ TerrainRoads handles road objects and
     // WaypointManager handles waypoints — neither goes through
@@ -17734,6 +17864,35 @@ describe('Script condition groundwork', () => {
       comparison: 'EQUAL',
       attempts: 1,
     })).toBe(true);
+  });
+
+  it('resolves skirmish difficulty by controlling-player token for Player_N-owned entities', () => {
+    const map = makeMap([], 128, 128);
+    map.sidesList = {
+      sides: [
+        {
+          dict: { playerName: 'Player_1', playerFaction: 'FactionAmerica', skirmishDifficulty: 2 },
+          buildList: [],
+          scripts: { scripts: [], groups: [] },
+        },
+      ],
+      teams: [],
+    };
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, makeRegistry(makeBundle({
+      objects: [],
+      factions: [{ name: 'FactionAmerica', side: 'America', fields: {} }],
+    })), makeHeightmap(128, 128));
+
+    const privateApi = logic as unknown as {
+      resolveDifficultyForEntitySide: (entity: { side: string; controllingPlayerToken: string | null }) => number;
+    };
+
+    expect(privateApi.resolveDifficultyForEntitySide({
+      side: 'Player_1',
+      controllingPlayerToken: 'player_1',
+    })).toBe(2);
   });
 
   it('scopes player-destroyed-N-buildings condition to named controlling players when provided', () => {

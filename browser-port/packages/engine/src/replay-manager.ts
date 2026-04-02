@@ -25,6 +25,10 @@ export interface ReplayPlayerInfo {
   side: string;
   team: number;
   color: number;
+  slotIndex?: number;
+  playerType?: 'HUMAN' | 'COMPUTER';
+  slotMode?: string;
+  startPosition?: number | null;
 }
 
 export interface ReplayCommand {
@@ -39,6 +43,7 @@ export interface ReplayHeader {
   playerCount: number;
   players: ReplayPlayerInfo[];
   startingCredits: number;
+  limitSuperweapons?: boolean;
   frameRate: number;
   totalFrames: number;
   recordedAt: string;
@@ -94,6 +99,16 @@ export class ReplayManager {
     return this.recordedCommands.length;
   }
 
+  /**
+   * Advance the recorded frame span even when no new commands were issued.
+   * Source parity: replay playback must preserve the entire match duration,
+   * not only frames that contained local commands.
+   */
+  recordFrame(frame: number): void {
+    if (this.state !== 'recording') return;
+    this.totalFrames = Math.max(this.totalFrames, frame + 1);
+  }
+
   // ========================================================================
   // Recording
   // ========================================================================
@@ -106,6 +121,7 @@ export class ReplayManager {
     players: ReplayPlayerInfo[],
     frameRate: number,
     startingCredits: number,
+    limitSuperweapons: boolean = false,
   ): void {
     this.reset();
     this.state = 'recording';
@@ -115,6 +131,7 @@ export class ReplayManager {
       playerCount: players.length,
       players: players.map((p) => ({ ...p })),
       startingCredits,
+      limitSuperweapons,
       frameRate,
       totalFrames: 0,
       recordedAt: new Date().toISOString(),
@@ -136,7 +153,7 @@ export class ReplayManager {
       playerId,
       command: { ...command },
     });
-    this.totalFrames = Math.max(this.totalFrames, frame + 1);
+    this.recordFrame(frame);
   }
 
   /**

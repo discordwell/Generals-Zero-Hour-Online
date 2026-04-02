@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { loadOptionsState, saveOptionsToStorage } from './options-screen.js';
+import { OptionsScreen, loadOptionsState, saveOptionsToStorage } from './options-screen.js';
 
 describe('loadOptionsState', () => {
   it('returns defaults for empty preferences', () => {
@@ -69,5 +70,78 @@ describe('saveOptionsToStorage', () => {
         null,
       );
     }).not.toThrow();
+  });
+});
+
+describe('OptionsScreen', () => {
+  it('renders the source-backed options layout and resets live controls to defaults', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const onApply = (): void => undefined;
+    const onClose = (): void => undefined;
+    const screen = new OptionsScreen(root, { onApply, onClose }, {
+      musicVolume: 10,
+      sfxVolume: 20,
+      voiceVolume: 30,
+      scrollSpeed: 40,
+    });
+
+    screen.show();
+
+    expect(root.querySelector('[data-ref="options-parent"]')?.getAttribute('data-source-rect')).toBe('120,12,541,585');
+    expect(root.querySelector('[data-ref="options-panel"]')?.getAttribute('data-source-rect')).toBe('135,19,515,567');
+    expect(root.querySelector('[data-ref="options-video-parent"]')?.getAttribute('data-source-rect')).toBe('151,69,236,202');
+    expect(root.querySelector('[data-ref="options-audio-parent"]')?.getAttribute('data-source-rect')).toBe('391,69,244,202');
+    expect(root.querySelector('[data-ref="options-scroll-parent"]')?.getAttribute('data-source-rect')).toBe('151,272,484,128');
+
+    const musicInput = root.querySelector('[data-ref="music"]') as HTMLInputElement;
+    const scrollInput = root.querySelector('[data-ref="scroll"]') as HTMLInputElement;
+    musicInput.value = '85';
+    musicInput.dispatchEvent(new Event('input', { bubbles: true }));
+    scrollInput.value = '65';
+    scrollInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(root.querySelector('[data-ref="music-val"]')?.textContent).toBe('85%');
+    expect(root.querySelector('[data-ref="scroll-val"]')?.textContent).toBe('65%');
+
+    (root.querySelector('[data-action="defaults"]') as HTMLButtonElement).click();
+
+    expect((root.querySelector('[data-ref="music"]') as HTMLInputElement).value).toBe('70');
+    expect((root.querySelector('[data-ref="sfx"]') as HTMLInputElement).value).toBe('70');
+    expect((root.querySelector('[data-ref="voice"]') as HTMLInputElement).value).toBe('70');
+    expect((root.querySelector('[data-ref="scroll"]') as HTMLInputElement).value).toBe('50');
+    expect(root.querySelector('[data-ref="music-val"]')?.textContent).toBe('70%');
+    expect(root.querySelector('[data-ref="scroll-val"]')?.textContent).toBe('50%');
+  });
+
+  it('applies the current state and hides the overlay', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const appliedStates: Array<Record<string, number>> = [];
+    const screen = new OptionsScreen(root, {
+      onApply: (state) => appliedStates.push(state),
+      onClose: () => undefined,
+    }, {
+      musicVolume: 25,
+      sfxVolume: 35,
+      voiceVolume: 45,
+      scrollSpeed: 55,
+    });
+
+    screen.show();
+    const sfxInput = root.querySelector('[data-ref="sfx"]') as HTMLInputElement;
+    sfxInput.value = '80';
+    sfxInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    (root.querySelector('[data-action="apply"]') as HTMLButtonElement).click();
+
+    expect(appliedStates).toEqual([{
+      musicVolume: 25,
+      sfxVolume: 80,
+      voiceVolume: 45,
+      scrollSpeed: 55,
+    }]);
+    expect(screen.isVisible).toBe(false);
+    expect(root.querySelector('.options-overlay')).toBeNull();
   });
 });

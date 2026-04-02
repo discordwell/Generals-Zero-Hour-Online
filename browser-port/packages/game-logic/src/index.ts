@@ -8076,6 +8076,7 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly scriptDefaultTeamNameBySide = new Map<string, string>();
   private readonly mapScriptSideByIndex: string[] = [];
   private readonly mapScriptDifficultyByIndex: number[] = [];
+  private readonly mapScriptDifficultyByPlayerToken = new Map<string, number>();
   /** Source parity: Player::getBuildList mapped by normalized side. */
   private readonly scriptAiBuildListEntriesBySide = new Map<string, ScriptAiBuildListEntry[]>();
   private readonly sidePowerBonus = new Map<string, SidePowerState>();
@@ -9350,6 +9351,10 @@ export class GameLogicSubsystem implements Subsystem {
       return null;
     }
     return this.playerSideByIndex.get(normalizedPlayerIndex) ?? null;
+  }
+
+  getResolvedFactionSide(side: string): string | null {
+    return this.resolveFactionSideForSide(side);
   }
 
   setSkirmishPlayerStartPosition(side: string, startPositionOneBased: number): boolean {
@@ -22129,6 +22134,15 @@ export class GameLogicSubsystem implements Subsystem {
    * this entity, by looking up the mapScriptDifficultyByIndex via side name.
    */
   private resolveDifficultyForEntitySide(entity: MapEntity): number {
+    const controllingPlayerToken = this.normalizeControllingPlayerToken(entity.controllingPlayerToken ?? undefined);
+    if (controllingPlayerToken) {
+      const playerDifficulty = this.mapScriptDifficultyByPlayerToken.get(controllingPlayerToken);
+      if (playerDifficulty === SCRIPT_DIFFICULTY_EASY
+        || playerDifficulty === SCRIPT_DIFFICULTY_NORMAL
+        || playerDifficulty === SCRIPT_DIFFICULTY_HARD) {
+        return playerDifficulty;
+      }
+    }
     const normalizedSide = this.normalizeSide(entity.side);
     if (normalizedSide) {
       for (let i = 0; i < this.mapScriptSideByIndex.length; i++) {
@@ -25125,8 +25139,10 @@ export class GameLogicSubsystem implements Subsystem {
       const startingBuildingName = this.extractStringField(factionDef.fields, 'StartingBuilding');
       const startingUnitName = this.extractStringField(factionDef.fields, 'StartingUnit0');
 
-      // Find the Player_N_Start waypoint (1-based).
-      const waypointName = `Player_${playerIndex + 1}_Start`;
+      // Source parity: explicit skirmish slot selection overrides the default
+      // Player_(index+1)_Start waypoint when the lobby assigns a different slot.
+      const startPosition = this.getSkirmishPlayerStartPosition(side) ?? (playerIndex + 1);
+      const waypointName = `Player_${startPosition}_Start`;
       const spawnPos = this.resolveScriptWaypointPosition(waypointName);
       if (!spawnPos) {
         continue;
@@ -25156,9 +25172,13 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   private resolveFactionDefForSide(
-    normalizedSide: string,
+    side: string,
     registry: IniDataRegistry,
   ): FactionDef | undefined {
+    const normalizedSide = this.resolveFactionSideForSide(side);
+    if (!normalizedSide) {
+      return undefined;
+    }
     // Try known faction naming conventions.
     const candidates = [
       `Faction${normalizedSide.charAt(0).toUpperCase()}${normalizedSide.slice(1)}`,
@@ -25177,6 +25197,20 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     return undefined;
+  }
+
+  private resolveFactionSideForSide(side: string): string | null {
+    const trimmedSide = side.trim();
+    if (!trimmedSide) {
+      return null;
+    }
+
+    const mappedSide = this.scriptPlayerSideByName.get(trimmedSide.toUpperCase());
+    if (mappedSide) {
+      return this.normalizeSide(mappedSide);
+    }
+
+    return this.normalizeSide(trimmedSide);
   }
 
   private extractStringField(
@@ -25509,7 +25543,7 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   private resolveBeaconTemplateNameForSide(side: string): string | null {
-    const normalizedSide = this.normalizeSide(side);
+    const normalizedSide = this.resolveFactionSideForSide(side);
     const registry = this.iniDataRegistry;
     if (!normalizedSide || !registry) {
       return null;
@@ -34820,6 +34854,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.scriptDefaultTeamNameBySide.clear();
     this.mapScriptSideByIndex.length = 0;
     this.mapScriptDifficultyByIndex.length = 0;
+    this.mapScriptDifficultyByPlayerToken.clear();
     this.scriptAiBuildListEntriesBySide.clear();
     this.scriptObjectTopologyVersion = 0;
     this.scriptObjectCountChangedFrame = 0;

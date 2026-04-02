@@ -211,3 +211,5 @@ export type {
   ReplayState,
   ReplayPlaybackCallbacks,
 } from './replay-manager.js';
+export { ReplayStorage } from './replay-storage.js';
+export type { ReplayMetadata } from './replay-storage.js';

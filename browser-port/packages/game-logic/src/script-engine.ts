@@ -38,6 +38,7 @@ export function loadMapScripts(self: GL, mapData: MapDataJSON): void {
   self.scriptDefaultTeamNameBySide.clear();
   self.mapScriptSideByIndex.length = 0;
   self.mapScriptDifficultyByIndex.length = 0;
+  self.mapScriptDifficultyByPlayerToken.clear();
   self.scriptAiBuildListEntriesBySide.clear();
 
   const sidesList = mapData.sidesList;
@@ -71,9 +72,17 @@ export function loadMapScripts(self: GL, mapData: MapDataJSON): void {
       self.scriptPlayerSideByName.set(normalizedPlayerName, resolvedSide);
     }
     const difficulty = self.readScriptDictNumber(dict, 'skirmishDifficulty');
-    self.mapScriptDifficultyByIndex[sideIndex] = difficulty !== null
+    const resolvedDifficulty = difficulty !== null
       ? Math.trunc(difficulty)
       : SCRIPT_DIFFICULTY_NORMAL;
+    self.mapScriptDifficultyByIndex[sideIndex] = resolvedDifficulty;
+    if (normalizedPlayerName) {
+      const controllingPlayerToken = self.normalizeControllingPlayerToken(playerName);
+      self.mapScriptDifficultyByPlayerToken.set(
+        controllingPlayerToken ?? normalizedPlayerName,
+        resolvedDifficulty,
+      );
+    }
   }
 
   for (const teamEntry of sidesList.teams) {

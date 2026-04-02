@@ -39,6 +39,80 @@ describe('GameShell', () => {
     expect(select.value).toBe('10000');
   });
 
+  it('renders the retail skirmish layout and passes source-backed slot settings into game start', () => {
+    const onStartGame = vi.fn();
+    const shell = new GameShell(root, {
+      onStartGame,
+    });
+    shell.setAvailableMaps([
+      'maps/_extracted/MapsZH/Maps/Tournament Desert/Tournament Desert.json',
+    ]);
+    shell.setStartingCreditsOptions([
+      { value: 5000, label: '$5,000', isDefault: true },
+      { value: 10000, label: '$10,000', isDefault: false },
+    ]);
+
+    shell.show();
+    (root.querySelector('#main-menu-screen [data-action="single-player"]') as HTMLButtonElement).click();
+    (root.querySelector('#single-player-screen [data-action="skirmish"]') as HTMLButtonElement).click();
+
+    const skirmishScreen = root.querySelector('#skirmish-setup-screen') as HTMLElement;
+    expect(skirmishScreen.classList.contains('hidden')).toBe(false);
+    expect(root.querySelector('#skirmish-setup-screen [data-ref="skirmish-frame"]')?.getAttribute('data-source-rect')).toBe('42,41,718,518');
+    expect(root.querySelector('#skirmish-setup-screen [data-ref="skirmish-map-preview"]')?.getAttribute('data-source-rect')).toBe('583,115,164,136');
+    expect(root.querySelector('#skirmish-setup-screen [data-ref="skirmish-limit-superweapons"]')?.getAttribute('data-source-rect')).toBe('593,336,152,24');
+    expect(root.querySelector('#skirmish-setup-screen [data-action="start"]')?.getAttribute('data-source-rect')).toBe('94,513,174,36');
+    expect(root.querySelector('#skirmish-setup-screen [data-action="back"]')?.getAttribute('data-source-rect')).toBe('530,513,171,36');
+
+    const setSelectValue = (ref: string, value: string) => {
+      const select = root.querySelector(`#skirmish-setup-screen [data-ref="${ref}"]`) as HTMLSelectElement;
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    const setCheckboxValue = (ref: string, checked: boolean) => {
+      const input = root.querySelector(`#skirmish-setup-screen [data-ref="${ref}"]`) as HTMLInputElement;
+      input.checked = checked;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    setSelectValue('map-select', '0');
+    setSelectValue('player-side', 'GLA');
+    setSelectValue('player-team', '2');
+    setSelectValue('ai-enabled', 'hard-ai');
+    setSelectValue('ai-side', 'America');
+    setSelectValue('ai-team', '2');
+    setSelectValue('credits-select', '5000');
+    setCheckboxValue('limit-superweapons-input', true);
+
+    (root.querySelector('#skirmish-setup-screen [data-action="start"]') as HTMLButtonElement).click();
+
+    expect(onStartGame).toHaveBeenCalledWith({
+      mapPath: 'maps/_extracted/MapsZH/Maps/Tournament Desert/Tournament Desert.json',
+      slots: [
+        {
+          slotIndex: 0,
+          playerName: 'Player',
+          mode: 'human',
+          side: 'GLA',
+          team: 2,
+          color: 2,
+          startPosition: 1,
+        },
+        {
+          slotIndex: 1,
+          playerName: 'Computer 1',
+          mode: 'hard-ai',
+          side: 'America',
+          team: 2,
+          color: 1,
+          startPosition: 2,
+        },
+      ],
+      startingCredits: 5000,
+      limitSuperweapons: true,
+    });
+  });
+
   it('matches the retail main menu button order and routes skirmish through single player', () => {
     const shell = new GameShell(root, {
       onStartGame: () => undefined,
@@ -74,6 +148,62 @@ describe('GameShell', () => {
       'Back',
     ]);
     expect(root.querySelector('#single-player-screen [data-ref="single-player-action-panel"]')).not.toBeNull();
+  });
+
+  it('matches the retail multiplayer and load-replay dropdown button order and back flow', () => {
+    const onOpenLoadGame = vi.fn();
+    const onOpenReplayMenu = vi.fn();
+    const shell = new GameShell(root, {
+      onStartGame: () => undefined,
+      onOpenLoadGame,
+      onOpenReplayMenu,
+    });
+
+    shell.show();
+
+    const multiplayerButton = root.querySelector('#main-menu-screen [data-action="multiplayer"]') as HTMLButtonElement;
+    expect(multiplayerButton.disabled).toBe(false);
+    multiplayerButton.click();
+
+    expect(
+      [...root.querySelectorAll('#multiplayer-menu-screen .menu-button')].map((button) => button.textContent?.trim()),
+    ).toEqual([
+      'Online',
+      'Network',
+      'Back',
+    ]);
+    expect(
+      (root.querySelector('#multiplayer-menu-screen [data-action="online"]') as HTMLButtonElement).dataset.sourceRect,
+    ).toBe('540,116,208,35');
+    expect(root.querySelector('#multiplayer-menu-screen [data-ref="multiplayer-action-panel"]')).not.toBeNull();
+
+    (root.querySelector('#multiplayer-menu-screen [data-action="back"]') as HTMLButtonElement).click();
+    expect(root.querySelector('#main-menu-screen')?.classList.contains('hidden')).toBe(false);
+
+    const replayButton = root.querySelector('#main-menu-screen [data-action="replay"]') as HTMLButtonElement;
+    expect(replayButton.disabled).toBe(false);
+    replayButton.click();
+
+    expect(
+      [...root.querySelectorAll('#load-replay-menu-screen .menu-button')].map((button) => button.textContent?.trim()),
+    ).toEqual([
+      'Load Game',
+      'Load Replay',
+      'Back',
+    ]);
+    expect(
+      (root.querySelector('#load-replay-menu-screen [data-action="load-game"]') as HTMLButtonElement).dataset.sourceRect,
+    ).toBe('540,116,208,35');
+    expect(root.querySelector('#load-replay-menu-screen [data-ref="load-replay-action-panel"]')).not.toBeNull();
+
+    (root.querySelector('#load-replay-menu-screen [data-action="load-game"]') as HTMLButtonElement).click();
+    expect(onOpenLoadGame).toHaveBeenCalledTimes(1);
+
+    (root.querySelector('#load-replay-menu-screen [data-action="replay-browser"]') as HTMLButtonElement).click();
+    expect(onOpenReplayMenu).toHaveBeenCalledTimes(1);
+
+    (root.querySelector('#load-replay-menu-screen [data-action="back"]') as HTMLButtonElement).click();
+    expect(root.querySelector('#main-menu-screen')?.classList.contains('hidden')).toBe(false);
   });
 
   it('filters legacy and demo campaigns when shell campaign data is set', () => {

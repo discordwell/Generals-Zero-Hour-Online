@@ -38,6 +38,116 @@ describe('ui layout parity report', () => {
     expect(issues).toEqual([]);
   });
 
+  it('passes when multiplayer and load-replay dropdowns match retail bounds', () => {
+    const viewport = { width: 1280, height: 720 };
+
+    const multiplayerIssues = collectUiLayoutBlockingIssues('multiplayer-menu', {
+      viewport,
+      logo: scaleSourceRect({ x: 504, y: 16, width: 287, height: 94 }, viewport),
+      actionPanel: scaleSourceRect({ x: 532, y: 108, width: 224, height: 132 }, viewport),
+      preview: scaleSourceRect({ x: 88, y: 108, width: 388, height: 388 }, viewport),
+      rulerLoaded: true,
+      logoArtLoaded: true,
+      actionMapLoaded: true,
+      pulseLoaded: true,
+      buttonSkinsLoaded: true,
+      buttons: [
+        { text: 'Online', rect: scaleSourceRect({ x: 540, y: 116, width: 208, height: 35 }, viewport) },
+        { text: 'Network', rect: scaleSourceRect({ x: 540, y: 156, width: 208, height: 35 }, viewport) },
+        { text: 'Back', rect: scaleSourceRect({ x: 540, y: 196, width: 208, height: 36 }, viewport) },
+      ],
+    }, {
+      mainMenuButtons: [
+        { text: 'Online', rect: { x: 540, y: 116, width: 208, height: 35 } },
+        { text: 'Network', rect: { x: 540, y: 156, width: 208, height: 35 } },
+        { text: 'Back', rect: { x: 540, y: 196, width: 208, height: 36 } },
+      ],
+      mainMenuLogo: { x: 504, y: 16, width: 287, height: 94 },
+      mainMenuActionPanel: { x: 532, y: 108, width: 224, height: 132 },
+      mainMenuPreview: { x: 88, y: 108, width: 388, height: 388 },
+    });
+    expect(multiplayerIssues).toEqual([]);
+
+    const loadReplayIssues = collectUiLayoutBlockingIssues('load-replay-menu', {
+      viewport,
+      logo: scaleSourceRect({ x: 504, y: 16, width: 287, height: 94 }, viewport),
+      actionPanel: scaleSourceRect({ x: 532, y: 108, width: 224, height: 132 }, viewport),
+      preview: scaleSourceRect({ x: 88, y: 108, width: 388, height: 388 }, viewport),
+      rulerLoaded: true,
+      logoArtLoaded: true,
+      actionMapLoaded: true,
+      pulseLoaded: true,
+      buttonSkinsLoaded: true,
+      buttons: [
+        { text: 'Load Game', rect: scaleSourceRect({ x: 540, y: 116, width: 208, height: 35 }, viewport) },
+        { text: 'Load Replay', rect: scaleSourceRect({ x: 540, y: 156, width: 208, height: 35 }, viewport) },
+        { text: 'Back', rect: scaleSourceRect({ x: 540, y: 196, width: 208, height: 36 }, viewport) },
+      ],
+    }, {
+      mainMenuButtons: [
+        { text: 'Load Game', rect: { x: 540, y: 116, width: 208, height: 35 } },
+        { text: 'Load Replay', rect: { x: 540, y: 156, width: 208, height: 35 } },
+        { text: 'Back', rect: { x: 540, y: 196, width: 208, height: 36 } },
+      ],
+      mainMenuLogo: { x: 504, y: 16, width: 287, height: 94 },
+      mainMenuActionPanel: { x: 532, y: 108, width: 224, height: 132 },
+      mainMenuPreview: { x: 88, y: 108, width: 388, height: 388 },
+    });
+    expect(loadReplayIssues).toEqual([]);
+  });
+
+  it('passes when the replay browser matches retail bounds', () => {
+    const viewport = { width: 1280, height: 720 };
+    const issues = collectUiLayoutBlockingIssues('replay-browser', {
+      viewport,
+      parent: scaleSourceRect({ x: 42, y: 42, width: 716, height: 516 }, viewport),
+      panel: scaleSourceRect({ x: 52, y: 86, width: 696, height: 358 }, viewport),
+      title: scaleSourceRect({ x: 57, y: 88, width: 479, height: 44 }, viewport),
+      divider: scaleSourceRect({ x: 52, y: 134, width: 696, height: 1 }, viewport),
+      listbox: scaleSourceRect({ x: 68, y: 152, width: 484, height: 276 }, viewport),
+      loadButton: scaleSourceRect({ x: 563, y: 153, width: 172, height: 36 }, viewport),
+      deleteButton: scaleSourceRect({ x: 563, y: 201, width: 172, height: 36 }, viewport),
+      copyButton: scaleSourceRect({ x: 563, y: 249, width: 172, height: 36 }, viewport),
+      backButton: scaleSourceRect({ x: 563, y: 393, width: 172, height: 36 }, viewport),
+    }, {
+      replayBrowserParent: { x: 42, y: 42, width: 716, height: 516 },
+      replayBrowserPanel: { x: 52, y: 86, width: 696, height: 358 },
+      replayBrowserTitle: { x: 57, y: 88, width: 479, height: 44 },
+      replayBrowserDivider: { x: 52, y: 134, width: 696, height: 1 },
+      replayBrowserListbox: { x: 68, y: 152, width: 484, height: 276 },
+      replayBrowserLoadButton: { x: 563, y: 153, width: 172, height: 36 },
+      replayBrowserDeleteButton: { x: 563, y: 201, width: 172, height: 36 },
+      replayBrowserCopyButton: { x: 563, y: 249, width: 172, height: 36 },
+      replayBrowserBackButton: { x: 563, y: 393, width: 172, height: 36 },
+    });
+
+    expect(issues).toEqual([]);
+  });
+
+  it('passes when the load-game browser matches retail bounds', () => {
+    const viewport = { width: 1280, height: 720 };
+    const issues = collectUiLayoutBlockingIssues('load-game', {
+      viewport,
+      panel: scaleSourceRect({ x: 40, y: 40, width: 718, height: 518 }, viewport),
+      title: scaleSourceRect({ x: 54, y: 41, width: 352, height: 44 }, viewport),
+      listbox: scaleSourceRect({ x: 60, y: 100, width: 672, height: 392 }, viewport),
+      saveButton: scaleSourceRect({ x: 60, y: 508, width: 156, height: 32 }, viewport),
+      loadButton: scaleSourceRect({ x: 232, y: 508, width: 156, height: 32 }, viewport),
+      deleteButton: scaleSourceRect({ x: 404, y: 508, width: 157, height: 32 }, viewport),
+      backButton: scaleSourceRect({ x: 576, y: 508, width: 156, height: 32 }, viewport),
+    }, {
+      loadGamePanel: { x: 40, y: 40, width: 718, height: 518 },
+      loadGameTitle: { x: 54, y: 41, width: 352, height: 44 },
+      loadGameListbox: { x: 60, y: 100, width: 672, height: 392 },
+      loadGameSaveButton: { x: 60, y: 508, width: 156, height: 32 },
+      loadGameLoadButton: { x: 232, y: 508, width: 156, height: 32 },
+      loadGameDeleteButton: { x: 404, y: 508, width: 157, height: 32 },
+      loadGameBackButton: { x: 576, y: 508, width: 156, height: 32 },
+    });
+
+    expect(issues).toEqual([]);
+  });
+
   it('flags retail UI layout mismatches for the main menu and HUD', () => {
     const mainMenuIssues = collectUiLayoutBlockingIssues('main-menu', {
       viewport: { width: 1280, height: 720 },
@@ -125,6 +235,82 @@ describe('ui layout parity report', () => {
     });
 
     expect(issues).toEqual([]);
+  });
+
+  it('passes when options-menu and skirmish-menu layouts match retail bounds', () => {
+    const viewport = { width: 1280, height: 720 };
+
+    const optionsIssues = collectUiLayoutBlockingIssues('options-menu', {
+      viewport,
+      parent: scaleSourceRect({ x: 120, y: 12, width: 541, height: 585 }, viewport),
+      panel: scaleSourceRect({ x: 135, y: 19, width: 515, height: 567 }, viewport),
+      video: scaleSourceRect({ x: 151, y: 69, width: 236, height: 202 }, viewport),
+      audio: scaleSourceRect({ x: 391, y: 69, width: 244, height: 202 }, viewport),
+      scroll: scaleSourceRect({ x: 151, y: 272, width: 484, height: 128 }, viewport),
+      defaultsButton: scaleSourceRect({ x: 152, y: 528, width: 156, height: 32 }, viewport),
+      acceptButton: scaleSourceRect({ x: 312, y: 528, width: 159, height: 32 }, viewport),
+      backButton: scaleSourceRect({ x: 476, y: 528, width: 159, height: 32 }, viewport),
+      versionLabel: scaleSourceRect({ x: 152, y: 560, width: 480, height: 18 }, viewport),
+    }, {
+      optionsParent: { x: 120, y: 12, width: 541, height: 585 },
+      optionsPanel: { x: 135, y: 19, width: 515, height: 567 },
+      optionsVideo: { x: 151, y: 69, width: 236, height: 202 },
+      optionsAudio: { x: 391, y: 69, width: 244, height: 202 },
+      optionsScroll: { x: 151, y: 272, width: 484, height: 128 },
+      optionsDefaultsButton: { x: 152, y: 528, width: 156, height: 32 },
+      optionsAcceptButton: { x: 312, y: 528, width: 159, height: 32 },
+      optionsBackButton: { x: 476, y: 528, width: 159, height: 32 },
+      optionsVersionLabel: { x: 152, y: 560, width: 480, height: 18 },
+    });
+    expect(optionsIssues).toEqual([]);
+
+    const skirmishIssues = collectUiLayoutBlockingIssues('skirmish-menu', {
+      viewport,
+      frame: scaleSourceRect({ x: 42, y: 41, width: 718, height: 518 }, viewport),
+      startButton: scaleSourceRect({ x: 94, y: 513, width: 174, height: 36 }, viewport),
+      backButton: scaleSourceRect({ x: 530, y: 513, width: 171, height: 36 }, viewport),
+      previewLabel: scaleSourceRect({ x: 578, y: 88, width: 164, height: 24 }, viewport),
+      preview: scaleSourceRect({ x: 583, y: 115, width: 164, height: 136 }, viewport),
+      mapDisplay: scaleSourceRect({ x: 570, y: 252, width: 184, height: 28 }, viewport),
+      selectMapButton: scaleSourceRect({ x: 581, y: 281, width: 166, height: 24 }, viewport),
+      startingCash: scaleSourceRect({ x: 453, y: 334, width: 104, height: 24 }, viewport),
+      limitSuperweapons: scaleSourceRect({ x: 593, y: 336, width: 152, height: 24 }, viewport),
+      playersLabel: scaleSourceRect({ x: 59, y: 88, width: 120, height: 24 }, viewport),
+      colorLabel: scaleSourceRect({ x: 198, y: 88, width: 80, height: 24 }, viewport),
+      factionLabel: scaleSourceRect({ x: 286, y: 87, width: 108, height: 24 }, viewport),
+      teamLabel: scaleSourceRect({ x: 493, y: 88, width: 73, height: 24 }, viewport),
+      playerName: scaleSourceRect({ x: 49, y: 112, width: 144, height: 24 }, viewport),
+      aiSlot: scaleSourceRect({ x: 49, y: 136, width: 144, height: 24 }, viewport),
+      playerColor: scaleSourceRect({ x: 196, y: 112, width: 84, height: 24 }, viewport),
+      aiColor: scaleSourceRect({ x: 196, y: 136, width: 84, height: 24 }, viewport),
+      playerFaction: scaleSourceRect({ x: 283, y: 112, width: 208, height: 24 }, viewport),
+      aiFaction: scaleSourceRect({ x: 283, y: 136, width: 208, height: 24 }, viewport),
+      playerTeam: scaleSourceRect({ x: 493, y: 112, width: 76, height: 24 }, viewport),
+      aiTeam: scaleSourceRect({ x: 493, y: 136, width: 76, height: 24 }, viewport),
+    }, {
+      skirmishFrame: { x: 42, y: 41, width: 718, height: 518 },
+      skirmishStartButton: { x: 94, y: 513, width: 174, height: 36 },
+      skirmishBackButton: { x: 530, y: 513, width: 171, height: 36 },
+      skirmishPreviewLabel: { x: 578, y: 88, width: 164, height: 24 },
+      skirmishPreview: { x: 583, y: 115, width: 164, height: 136 },
+      skirmishMapDisplay: { x: 570, y: 252, width: 184, height: 28 },
+      skirmishSelectMapButton: { x: 581, y: 281, width: 166, height: 24 },
+      skirmishStartingCash: { x: 453, y: 334, width: 104, height: 24 },
+      skirmishLimitSuperweapons: { x: 593, y: 336, width: 152, height: 24 },
+      skirmishPlayersLabel: { x: 59, y: 88, width: 120, height: 24 },
+      skirmishColorLabel: { x: 198, y: 88, width: 80, height: 24 },
+      skirmishFactionLabel: { x: 286, y: 87, width: 108, height: 24 },
+      skirmishTeamLabel: { x: 493, y: 88, width: 73, height: 24 },
+      skirmishPlayerName: { x: 49, y: 112, width: 144, height: 24 },
+      skirmishAiSlot: { x: 49, y: 136, width: 144, height: 24 },
+      skirmishPlayerColor: { x: 196, y: 112, width: 84, height: 24 },
+      skirmishAiColor: { x: 196, y: 136, width: 84, height: 24 },
+      skirmishPlayerFaction: { x: 283, y: 112, width: 208, height: 24 },
+      skirmishAiFaction: { x: 283, y: 136, width: 208, height: 24 },
+      skirmishPlayerTeam: { x: 493, y: 112, width: 76, height: 24 },
+      skirmishAiTeam: { x: 493, y: 136, width: 76, height: 24 },
+    });
+    expect(skirmishIssues).toEqual([]);
   });
 
   it('passes when challenge-menu layout matches retail bounds', () => {

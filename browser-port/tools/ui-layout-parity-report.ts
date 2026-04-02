@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { chromium } from '@playwright/test';
+import { chromium, type Page } from '@playwright/test';
 
 import { parseWnd, type WndWindow } from './wnd-converter/src/WndParser.js';
 
@@ -52,6 +52,44 @@ export interface DifficultyLayoutDebugState {
   cancelButton: UiRect | null;
 }
 
+export interface OptionsLayoutDebugState {
+  viewport: UiViewport;
+  parent: UiRect | null;
+  panel: UiRect | null;
+  video: UiRect | null;
+  audio: UiRect | null;
+  scroll: UiRect | null;
+  defaultsButton: UiRect | null;
+  acceptButton: UiRect | null;
+  backButton: UiRect | null;
+  versionLabel: UiRect | null;
+}
+
+export interface SkirmishLayoutDebugState {
+  viewport: UiViewport;
+  frame: UiRect | null;
+  startButton: UiRect | null;
+  backButton: UiRect | null;
+  previewLabel: UiRect | null;
+  preview: UiRect | null;
+  mapDisplay: UiRect | null;
+  selectMapButton: UiRect | null;
+  startingCash: UiRect | null;
+  limitSuperweapons: UiRect | null;
+  playersLabel: UiRect | null;
+  colorLabel: UiRect | null;
+  factionLabel: UiRect | null;
+  teamLabel: UiRect | null;
+  playerName: UiRect | null;
+  aiSlot: UiRect | null;
+  playerColor: UiRect | null;
+  aiColor: UiRect | null;
+  playerFaction: UiRect | null;
+  aiFaction: UiRect | null;
+  playerTeam: UiRect | null;
+  aiTeam: UiRect | null;
+}
+
 export interface ChallengeRuntimeButton {
   index: number;
   rect: UiRect | null;
@@ -82,6 +120,30 @@ export interface CampaignLoadLayoutDebugState {
   unitTexts: Array<{ key: string; rect: UiRect | null }>;
 }
 
+export interface ReplayBrowserLayoutDebugState {
+  viewport: UiViewport;
+  parent: UiRect | null;
+  panel: UiRect | null;
+  title: UiRect | null;
+  divider: UiRect | null;
+  listbox: UiRect | null;
+  loadButton: UiRect | null;
+  deleteButton: UiRect | null;
+  copyButton: UiRect | null;
+  backButton: UiRect | null;
+}
+
+export interface LoadGameLayoutDebugState {
+  viewport: UiViewport;
+  panel: UiRect | null;
+  title: UiRect | null;
+  listbox: UiRect | null;
+  saveButton: UiRect | null;
+  loadButton: UiRect | null;
+  deleteButton: UiRect | null;
+  backButton: UiRect | null;
+}
+
 export interface HudLayoutDebugState {
   viewport: UiViewport;
   buttonCount: number;
@@ -94,8 +156,12 @@ export interface HudLayoutDebugState {
 export type UiLayoutDebugState =
   | MainMenuLayoutDebugState
   | DifficultyLayoutDebugState
+  | OptionsLayoutDebugState
+  | SkirmishLayoutDebugState
   | ChallengeMenuLayoutDebugState
   | CampaignLoadLayoutDebugState
+  | ReplayBrowserLayoutDebugState
+  | LoadGameLayoutDebugState
   | HudLayoutDebugState;
 
 export interface UiLayoutScenarioResult {
@@ -138,6 +204,16 @@ const SINGLE_PLAYER_BUTTON_SEQUENCE = [
   'ButtonSkirmish',
   'ButtonSingleBack',
 ] as const;
+const MULTIPLAYER_BUTTON_SEQUENCE = [
+  'ButtonOnline',
+  'ButtonNetwork',
+  'ButtonMultiBack',
+] as const;
+const LOAD_REPLAY_BUTTON_SEQUENCE = [
+  'ButtonLoadGame',
+  'ButtonReplay',
+  'ButtonLoadReplayBack',
+] as const;
 const HUD_COMMAND_BUTTON_SEQUENCE = [
   'ButtonCommand01',
   'ButtonCommand02',
@@ -167,6 +243,16 @@ const SINGLE_PLAYER_TEXT_BY_TOKEN: Record<string, string> = {
   'GUI:CHINA_Caps': 'CHINA',
   'GUI:Generals_Challenge': 'Generals Challenge',
   'GUI:Skirmish': 'Skirmish',
+  'GUI:Back': 'Back',
+};
+const MULTIPLAYER_TEXT_BY_TOKEN: Record<string, string> = {
+  'GUI:GeneralsOnline': 'Online',
+  'GUI:Network': 'Network',
+  'GUI:Back': 'Back',
+};
+const LOAD_REPLAY_TEXT_BY_TOKEN: Record<string, string> = {
+  'GUI:MainMenuLoadGame': 'Load Game',
+  'GUI:MainMenuLoadReplay': 'Load Replay',
   'GUI:Back': 'Back',
 };
 const DIFFICULTY_OPTION_SEQUENCE = [
@@ -402,6 +488,91 @@ function buildSourceDifficultyLayout(difficultyWindows: readonly WndWindow[]): {
   };
 }
 
+function buildSourceOptionsLayout(optionsWindows: readonly WndWindow[]): {
+  parent: UiRect;
+  panel: UiRect;
+  video: UiRect;
+  audio: UiRect;
+  scroll: UiRect;
+  defaultsButton: UiRect;
+  acceptButton: UiRect;
+  backButton: UiRect;
+  versionLabel: UiRect;
+} {
+  return {
+    parent: uiRectFromWnd(lookupWindowBySuffix(optionsWindows, 'OptionsMenuParent')),
+    panel: uiRectFromWnd(lookupWindowBySuffix(optionsWindows, 'OptionsMenuParentOld')),
+    video: uiRectFromWnd(lookupWindowBySuffix(optionsWindows, 'VideoParent')),
+    audio: uiRectFromWnd(lookupWindowBySuffix(optionsWindows, 'AudioParent')),
+    scroll: uiRectFromWnd(lookupWindowBySuffix(optionsWindows, 'ScrollParent')),
+    defaultsButton: uiRectFromWnd(lookupWindowBySuffix(optionsWindows, 'ButtonDefaults')),
+    acceptButton: uiRectFromWnd(lookupWindowBySuffix(optionsWindows, 'ButtonAccept')),
+    backButton: uiRectFromWnd(lookupWindowBySuffix(optionsWindows, 'ButtonBack')),
+    versionLabel: uiRectFromWnd(lookupWindowBySuffix(optionsWindows, 'LabelVersion')),
+  };
+}
+
+function buildSourceSkirmishLayout(skirmishWindows: readonly WndWindow[]): {
+  frame: UiRect;
+  startButton: UiRect;
+  backButton: UiRect;
+  previewLabel: UiRect;
+  preview: UiRect;
+  mapDisplay: UiRect;
+  selectMapButton: UiRect;
+  startingCash: UiRect;
+  limitSuperweapons: UiRect;
+  playersLabel: UiRect;
+  colorLabel: UiRect;
+  factionLabel: UiRect;
+  teamLabel: UiRect;
+  playerName: UiRect;
+  aiSlot: UiRect;
+  playerColor: UiRect;
+  aiColor: UiRect;
+  playerFaction: UiRect;
+  aiFaction: UiRect;
+  playerTeam: UiRect;
+  aiTeam: UiRect;
+} {
+  return {
+    frame: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'SubParent')),
+    startButton: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'ButtonStart')),
+    backButton: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'ButtonBack')),
+    previewLabel: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'StaticTextMapPreview')),
+    preview: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'MapWindow')),
+    mapDisplay: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'TextEntryMapDisplay')),
+    selectMapButton: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'ButtonSelectMap')),
+    startingCash: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'ComboBoxStartingCash')),
+    limitSuperweapons: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'CheckboxLimitSuperweapons')),
+    playersLabel: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'StaticTextPlayers')),
+    colorLabel: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'StaticTextColor')),
+    factionLabel: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'StaticTextFaction')),
+    teamLabel: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'StaticTextTeam')),
+    playerName: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'TextEntryPlayerName')),
+    aiSlot: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'ComboBoxPlayer1')),
+    playerColor: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'ComboBoxColor0')),
+    aiColor: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'ComboBoxColor1')),
+    playerFaction: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'ComboBoxPlayerTemplate0')),
+    aiFaction: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'ComboBoxPlayerTemplate1')),
+    playerTeam: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'ComboBoxTeam0')),
+    aiTeam: uiRectFromWnd(lookupWindowBySuffix(skirmishWindows, 'ComboBoxTeam1')),
+  };
+}
+
+function collectNamedRectIssues(
+  viewport: UiViewport,
+  entries: ReadonlyArray<{ label: string; actual: UiRect | null; expected?: UiRect }>,
+  issues: string[],
+): void {
+  for (const entry of entries) {
+    const issue = mainMenuRectIssue(entry.label, entry.actual, entry.expected, viewport);
+    if (issue) {
+      issues.push(issue);
+    }
+  }
+}
+
 function buildSourceChallengeLayout(challengeWindows: readonly WndWindow[]): {
   background: UiRect;
   frame: UiRect;
@@ -465,6 +636,70 @@ function buildSourceCampaignLoadLayout(loadScreenWindows: readonly WndWindow[]):
   };
 }
 
+function buildSourceReplayBrowserLayout(replayWindows: readonly WndWindow[]): {
+  parent: UiRect;
+  panel: UiRect;
+  title: UiRect;
+  divider: UiRect;
+  listbox: UiRect;
+  loadButton: UiRect;
+  deleteButton: UiRect;
+  copyButton: UiRect;
+  backButton: UiRect;
+} {
+  const allWindows = flattenWindows(replayWindows);
+  const titleWindow = allWindows.find((window) =>
+    window.windowType === 'STATICTEXT' && window.text === 'GUI:LoadReplay',
+  );
+  if (!titleWindow) {
+    throw new Error('Retail replay browser is missing its title window.');
+  }
+
+  return {
+    parent: uiRectFromWnd(lookupWindowBySuffix(replayWindows, 'GadgetParent')),
+    panel: uiRectFromWnd(allWindows.find((window) =>
+      window.windowType === 'USER'
+      && window.name === 'ReplayMenu.wnd:'
+      && window.children.some((child) => child.name.endsWith(':ListboxReplayFiles')),
+    ) ?? lookupWindowBySuffix(replayWindows, 'GadgetParent')),
+    title: uiRectFromWnd(titleWindow),
+    divider: uiRectFromWnd(lookupWindowBySuffix(replayWindows, 'Line')),
+    listbox: uiRectFromWnd(lookupWindowBySuffix(replayWindows, 'ListboxReplayFiles')),
+    loadButton: uiRectFromWnd(lookupWindowBySuffix(replayWindows, 'ButtonLoadReplay')),
+    deleteButton: uiRectFromWnd(lookupWindowBySuffix(replayWindows, 'ButtonDeleteReplay')),
+    copyButton: uiRectFromWnd(lookupWindowBySuffix(replayWindows, 'ButtonCopyReplay')),
+    backButton: uiRectFromWnd(lookupWindowBySuffix(replayWindows, 'ButtonBack')),
+  };
+}
+
+function buildSourceLoadGameLayout(saveLoadWindows: readonly WndWindow[]): {
+  panel: UiRect;
+  title: UiRect;
+  listbox: UiRect;
+  saveButton: UiRect;
+  loadButton: UiRect;
+  deleteButton: UiRect;
+  backButton: UiRect;
+} {
+  const allWindows = flattenWindows(saveLoadWindows);
+  const titleWindow = allWindows.find((window) =>
+    window.windowType === 'STATICTEXT' && window.text === 'GUI:SelectAGame',
+  );
+  if (!titleWindow) {
+    throw new Error('Retail load-game screen is missing its title window.');
+  }
+
+  return {
+    panel: uiRectFromWnd(lookupWindowBySuffix(saveLoadWindows, 'SaveLoadMenu')),
+    title: uiRectFromWnd(titleWindow),
+    listbox: uiRectFromWnd(lookupWindowBySuffix(saveLoadWindows, 'ListboxGames')),
+    saveButton: uiRectFromWnd(lookupWindowBySuffix(saveLoadWindows, 'ButtonSave')),
+    loadButton: uiRectFromWnd(lookupWindowBySuffix(saveLoadWindows, 'ButtonLoad')),
+    deleteButton: uiRectFromWnd(lookupWindowBySuffix(saveLoadWindows, 'ButtonDelete')),
+    backButton: uiRectFromWnd(lookupWindowBySuffix(saveLoadWindows, 'ButtonBack')),
+  };
+}
+
 function mainMenuRectIssue(
   label: string,
   actualRect: UiRect | null,
@@ -484,7 +719,19 @@ function mainMenuRectIssue(
 }
 
 export function collectUiLayoutBlockingIssues(
-  scenarioId: 'main-menu' | 'single-player' | 'campaign-difficulty' | 'challenge-menu' | 'campaign-load' | 'in-game-hud',
+  scenarioId:
+    | 'main-menu'
+    | 'single-player'
+    | 'multiplayer-menu'
+    | 'load-replay-menu'
+    | 'load-game'
+    | 'replay-browser'
+    | 'campaign-difficulty'
+    | 'options-menu'
+    | 'skirmish-menu'
+    | 'challenge-menu'
+    | 'campaign-load'
+    | 'in-game-hud',
   debugState: UiLayoutDebugState | null,
   expectedSource: {
     mainMenuButtons?: Array<{ text: string; rect: UiRect }>;
@@ -497,6 +744,36 @@ export function collectUiLayoutBlockingIssues(
     difficultyOptions?: Array<{ text: string; rect: UiRect }>;
     difficultyConfirmButton?: UiRect;
     difficultyCancelButton?: UiRect;
+    optionsParent?: UiRect;
+    optionsPanel?: UiRect;
+    optionsVideo?: UiRect;
+    optionsAudio?: UiRect;
+    optionsScroll?: UiRect;
+    optionsDefaultsButton?: UiRect;
+    optionsAcceptButton?: UiRect;
+    optionsBackButton?: UiRect;
+    optionsVersionLabel?: UiRect;
+    skirmishFrame?: UiRect;
+    skirmishStartButton?: UiRect;
+    skirmishBackButton?: UiRect;
+    skirmishPreviewLabel?: UiRect;
+    skirmishPreview?: UiRect;
+    skirmishMapDisplay?: UiRect;
+    skirmishSelectMapButton?: UiRect;
+    skirmishStartingCash?: UiRect;
+    skirmishLimitSuperweapons?: UiRect;
+    skirmishPlayersLabel?: UiRect;
+    skirmishColorLabel?: UiRect;
+    skirmishFactionLabel?: UiRect;
+    skirmishTeamLabel?: UiRect;
+    skirmishPlayerName?: UiRect;
+    skirmishAiSlot?: UiRect;
+    skirmishPlayerColor?: UiRect;
+    skirmishAiColor?: UiRect;
+    skirmishPlayerFaction?: UiRect;
+    skirmishAiFaction?: UiRect;
+    skirmishPlayerTeam?: UiRect;
+    skirmishAiTeam?: UiRect;
     challengeBackground?: UiRect;
     challengeFrame?: UiRect;
     challengeMainBackdrop?: UiRect;
@@ -514,6 +791,22 @@ export function collectUiLayoutBlockingIssues(
     campaignLoadPercent?: UiRect;
     campaignLoadObjectiveLines?: Array<{ index: number; rect: UiRect }>;
     campaignLoadUnitTexts?: Array<{ key: string; rect: UiRect }>;
+    replayBrowserParent?: UiRect;
+    replayBrowserPanel?: UiRect;
+    replayBrowserTitle?: UiRect;
+    replayBrowserDivider?: UiRect;
+    replayBrowserListbox?: UiRect;
+    replayBrowserLoadButton?: UiRect;
+    replayBrowserDeleteButton?: UiRect;
+    replayBrowserCopyButton?: UiRect;
+    replayBrowserBackButton?: UiRect;
+    loadGamePanel?: UiRect;
+    loadGameTitle?: UiRect;
+    loadGameListbox?: UiRect;
+    loadGameSaveButton?: UiRect;
+    loadGameLoadButton?: UiRect;
+    loadGameDeleteButton?: UiRect;
+    loadGameBackButton?: UiRect;
     minimap?: UiRect;
     commandCard?: UiRect;
     creditsHud?: UiRect;
@@ -526,9 +819,20 @@ export function collectUiLayoutBlockingIssues(
 
   const issues: string[] = [];
 
-  if (scenarioId === 'main-menu' || scenarioId === 'single-player') {
+  if (
+    scenarioId === 'main-menu'
+    || scenarioId === 'single-player'
+    || scenarioId === 'multiplayer-menu'
+    || scenarioId === 'load-replay-menu'
+  ) {
     const menuDebugState = debugState as MainMenuLayoutDebugState;
-    const menuLabel = scenarioId === 'single-player' ? 'single-player menu' : 'main menu';
+    const menuLabel = scenarioId === 'single-player'
+      ? 'single-player menu'
+      : scenarioId === 'multiplayer-menu'
+        ? 'multiplayer menu'
+        : scenarioId === 'load-replay-menu'
+          ? 'load/replay menu'
+          : 'main menu';
     const expectedButtons = expectedSource.mainMenuButtons ?? [];
     const actualTexts = menuDebugState.buttons.map((button) => button.text);
     const expectedTexts = expectedButtons.map((button) => button.text);
@@ -602,6 +906,50 @@ export function collectUiLayoutBlockingIssues(
       if (optionIssue) issues.push(optionIssue);
     }
 
+    return issues;
+  }
+
+  if (scenarioId === 'options-menu') {
+    const optionsDebugState = debugState as OptionsLayoutDebugState;
+    collectNamedRectIssues(optionsDebugState.viewport, [
+      { label: 'options-menu parent', actual: optionsDebugState.parent, expected: expectedSource.optionsParent },
+      { label: 'options-menu panel', actual: optionsDebugState.panel, expected: expectedSource.optionsPanel },
+      { label: 'options-menu video group', actual: optionsDebugState.video, expected: expectedSource.optionsVideo },
+      { label: 'options-menu audio group', actual: optionsDebugState.audio, expected: expectedSource.optionsAudio },
+      { label: 'options-menu scroll group', actual: optionsDebugState.scroll, expected: expectedSource.optionsScroll },
+      { label: 'options-menu defaults button', actual: optionsDebugState.defaultsButton, expected: expectedSource.optionsDefaultsButton },
+      { label: 'options-menu accept button', actual: optionsDebugState.acceptButton, expected: expectedSource.optionsAcceptButton },
+      { label: 'options-menu back button', actual: optionsDebugState.backButton, expected: expectedSource.optionsBackButton },
+      { label: 'options-menu version label', actual: optionsDebugState.versionLabel, expected: expectedSource.optionsVersionLabel },
+    ], issues);
+    return issues;
+  }
+
+  if (scenarioId === 'skirmish-menu') {
+    const skirmishDebugState = debugState as SkirmishLayoutDebugState;
+    collectNamedRectIssues(skirmishDebugState.viewport, [
+      { label: 'skirmish-menu frame', actual: skirmishDebugState.frame, expected: expectedSource.skirmishFrame },
+      { label: 'skirmish-menu start button', actual: skirmishDebugState.startButton, expected: expectedSource.skirmishStartButton },
+      { label: 'skirmish-menu back button', actual: skirmishDebugState.backButton, expected: expectedSource.skirmishBackButton },
+      { label: 'skirmish-menu preview label', actual: skirmishDebugState.previewLabel, expected: expectedSource.skirmishPreviewLabel },
+      { label: 'skirmish-menu preview', actual: skirmishDebugState.preview, expected: expectedSource.skirmishPreview },
+      { label: 'skirmish-menu map display', actual: skirmishDebugState.mapDisplay, expected: expectedSource.skirmishMapDisplay },
+      { label: 'skirmish-menu select-map button', actual: skirmishDebugState.selectMapButton, expected: expectedSource.skirmishSelectMapButton },
+      { label: 'skirmish-menu starting cash', actual: skirmishDebugState.startingCash, expected: expectedSource.skirmishStartingCash },
+      { label: 'skirmish-menu limit superweapons', actual: skirmishDebugState.limitSuperweapons, expected: expectedSource.skirmishLimitSuperweapons },
+      { label: 'skirmish-menu players label', actual: skirmishDebugState.playersLabel, expected: expectedSource.skirmishPlayersLabel },
+      { label: 'skirmish-menu color label', actual: skirmishDebugState.colorLabel, expected: expectedSource.skirmishColorLabel },
+      { label: 'skirmish-menu faction label', actual: skirmishDebugState.factionLabel, expected: expectedSource.skirmishFactionLabel },
+      { label: 'skirmish-menu team label', actual: skirmishDebugState.teamLabel, expected: expectedSource.skirmishTeamLabel },
+      { label: 'skirmish-menu player name', actual: skirmishDebugState.playerName, expected: expectedSource.skirmishPlayerName },
+      { label: 'skirmish-menu ai slot', actual: skirmishDebugState.aiSlot, expected: expectedSource.skirmishAiSlot },
+      { label: 'skirmish-menu player color', actual: skirmishDebugState.playerColor, expected: expectedSource.skirmishPlayerColor },
+      { label: 'skirmish-menu ai color', actual: skirmishDebugState.aiColor, expected: expectedSource.skirmishAiColor },
+      { label: 'skirmish-menu player faction', actual: skirmishDebugState.playerFaction, expected: expectedSource.skirmishPlayerFaction },
+      { label: 'skirmish-menu ai faction', actual: skirmishDebugState.aiFaction, expected: expectedSource.skirmishAiFaction },
+      { label: 'skirmish-menu player team', actual: skirmishDebugState.playerTeam, expected: expectedSource.skirmishPlayerTeam },
+      { label: 'skirmish-menu ai team', actual: skirmishDebugState.aiTeam, expected: expectedSource.skirmishAiTeam },
+    ], issues);
     return issues;
   }
 
@@ -682,6 +1030,36 @@ export function collectUiLayoutBlockingIssues(
     return issues;
   }
 
+  if (scenarioId === 'replay-browser') {
+    const replayDebugState = debugState as ReplayBrowserLayoutDebugState;
+    collectNamedRectIssues(replayDebugState.viewport, [
+      { label: 'replay-browser parent', actual: replayDebugState.parent, expected: expectedSource.replayBrowserParent },
+      { label: 'replay-browser panel', actual: replayDebugState.panel, expected: expectedSource.replayBrowserPanel },
+      { label: 'replay-browser title', actual: replayDebugState.title, expected: expectedSource.replayBrowserTitle },
+      { label: 'replay-browser divider', actual: replayDebugState.divider, expected: expectedSource.replayBrowserDivider },
+      { label: 'replay-browser listbox', actual: replayDebugState.listbox, expected: expectedSource.replayBrowserListbox },
+      { label: 'replay-browser load button', actual: replayDebugState.loadButton, expected: expectedSource.replayBrowserLoadButton },
+      { label: 'replay-browser delete button', actual: replayDebugState.deleteButton, expected: expectedSource.replayBrowserDeleteButton },
+      { label: 'replay-browser copy button', actual: replayDebugState.copyButton, expected: expectedSource.replayBrowserCopyButton },
+      { label: 'replay-browser back button', actual: replayDebugState.backButton, expected: expectedSource.replayBrowserBackButton },
+    ], issues);
+    return issues;
+  }
+
+  if (scenarioId === 'load-game') {
+    const loadGameDebugState = debugState as LoadGameLayoutDebugState;
+    collectNamedRectIssues(loadGameDebugState.viewport, [
+      { label: 'load-game panel', actual: loadGameDebugState.panel, expected: expectedSource.loadGamePanel },
+      { label: 'load-game title', actual: loadGameDebugState.title, expected: expectedSource.loadGameTitle },
+      { label: 'load-game listbox', actual: loadGameDebugState.listbox, expected: expectedSource.loadGameListbox },
+      { label: 'load-game save button', actual: loadGameDebugState.saveButton, expected: expectedSource.loadGameSaveButton },
+      { label: 'load-game load button', actual: loadGameDebugState.loadButton, expected: expectedSource.loadGameLoadButton },
+      { label: 'load-game delete button', actual: loadGameDebugState.deleteButton, expected: expectedSource.loadGameDeleteButton },
+      { label: 'load-game back button', actual: loadGameDebugState.backButton, expected: expectedSource.loadGameBackButton },
+    ], issues);
+    return issues;
+  }
+
   const hudDebugState = debugState as HudLayoutDebugState;
   if (hudDebugState.buttonCount !== HUD_COMMAND_BUTTON_SEQUENCE.length) {
     issues.push(`command-card button count ${hudDebugState.buttonCount} !== retail ${HUD_COMMAND_BUTTON_SEQUENCE.length}`);
@@ -744,7 +1122,97 @@ function browserLaunchArgs(): string[] {
   return ['--use-gl=angle', '--use-angle=swiftshader'];
 }
 
-async function probeMainMenu(baseUrl: string, screenshotPath: string): Promise<UiLayoutScenarioResult> {
+async function waitForVisibleScreen(page: Page, screenId: string): Promise<void> {
+  await page.waitForFunction(
+    (id) => {
+      const screen = document.getElementById(id);
+      return Boolean(screen) && !screen?.classList.contains('hidden');
+    },
+    screenId,
+    { timeout: SCENARIO_BOOT_TIMEOUT_MS },
+  );
+}
+
+async function readRetailMenuDebugState(
+  page: Page,
+  config: {
+    screenId: string;
+    logoRef: string;
+    actionPanelRef: string;
+    previewRef: string;
+  },
+): Promise<MainMenuLayoutDebugState> {
+  return page.evaluate<MainMenuLayoutDebugState, typeof config>(({ screenId, logoRef, actionPanelRef, previewRef }) => {
+    const screen = document.getElementById(screenId);
+    const buttons = [...document.querySelectorAll(`#${screenId} .menu-button`)].map((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        text: element.textContent?.trim() ?? '',
+        rect: {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+        },
+      };
+    });
+    const firstButton = screen?.querySelector<HTMLElement>('.retail-main-menu-button');
+
+    return {
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      logo: (() => {
+        const element = document.querySelector<HTMLElement>(`#${screenId} [data-ref="${logoRef}"]`);
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      actionPanel: (() => {
+        const element = document.querySelector<HTMLElement>(`#${screenId} [data-ref="${actionPanelRef}"]`);
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      preview: (() => {
+        const element = document.querySelector<HTMLElement>(`#${screenId} [data-ref="${previewRef}"]`);
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      rulerLoaded: (() => {
+        const element = screen?.querySelector<HTMLElement>('[data-ref="retail-menu-ruler"]');
+        return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
+      })(),
+      logoArtLoaded: (() => {
+        const element = screen?.querySelector<HTMLElement>('[data-ref="retail-menu-logo-art"]');
+        return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
+      })(),
+      actionMapLoaded: (() => {
+        const element = screen?.querySelector<HTMLElement>('[data-ref="retail-menu-action-panel-map"]');
+        return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
+      })(),
+      pulseLoaded: (() => {
+        const element = screen?.querySelector<HTMLElement>('[data-ref="retail-menu-pulse"]');
+        return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
+      })(),
+      buttonSkinsLoaded: Boolean(
+        firstButton
+        && window.getComputedStyle(firstButton).getPropertyValue('--retail-button-left-enabled-image').trim() !== '',
+      ),
+      buttons,
+    };
+  }, config);
+}
+
+async function probeRetailMenu(
+  baseUrl: string,
+  screenshotPath: string,
+  config: {
+    id: string;
+    name: string;
+    screenId: string;
+    logoRef: string;
+    actionPanelRef: string;
+    previewRef: string;
+    navigate?: (page: Page) => Promise<void>;
+  },
+): Promise<UiLayoutScenarioResult> {
   const browser = await chromium.launch({ headless: true, args: browserLaunchArgs() });
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const pageErrors: string[] = [];
@@ -758,74 +1226,24 @@ async function probeMainMenu(baseUrl: string, screenshotPath: string): Promise<U
 
   try {
     await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(
-      () => Boolean(document.getElementById('main-menu-screen')),
-      undefined,
-      { timeout: SCENARIO_BOOT_TIMEOUT_MS },
-    );
+    await waitForVisibleScreen(page, 'main-menu-screen');
+    if (config.navigate) {
+      await config.navigate(page);
+    }
+    await waitForVisibleScreen(page, config.screenId);
     await page.waitForTimeout(1000);
     await page.screenshot({ path: screenshotPath });
 
-    const debugState = await page.evaluate<MainMenuLayoutDebugState>(() => {
-      const mainMenu = document.getElementById('main-menu-screen');
-      const buttons = [...document.querySelectorAll('#main-menu-screen .menu-button')].map((element) => {
-        const rect = element.getBoundingClientRect();
-        return {
-          text: element.textContent?.trim() ?? '',
-          rect: {
-            x: rect.x,
-            y: rect.y,
-            width: rect.width,
-            height: rect.height,
-          },
-        };
-      });
-      const firstButton = mainMenu?.querySelector<HTMLElement>('.retail-main-menu-button');
-
-      return {
-        viewport: { width: window.innerWidth, height: window.innerHeight },
-        logo: (() => {
-          const element = document.querySelector('#main-menu-screen [data-ref="main-menu-logo"]');
-          const rect = element?.getBoundingClientRect() ?? null;
-          return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
-        })(),
-        actionPanel: (() => {
-          const element = document.querySelector('#main-menu-screen [data-ref="main-menu-action-panel"]');
-          const rect = element?.getBoundingClientRect() ?? null;
-          return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
-        })(),
-        preview: (() => {
-          const element = document.querySelector('#main-menu-screen [data-ref="main-menu-preview"]');
-          const rect = element?.getBoundingClientRect() ?? null;
-          return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
-        })(),
-        rulerLoaded: (() => {
-          const element = mainMenu?.querySelector<HTMLElement>('[data-ref="retail-menu-ruler"]');
-          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
-        })(),
-        logoArtLoaded: (() => {
-          const element = mainMenu?.querySelector<HTMLElement>('[data-ref="retail-menu-logo-art"]');
-          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
-        })(),
-        actionMapLoaded: (() => {
-          const element = mainMenu?.querySelector<HTMLElement>('[data-ref="retail-menu-action-panel-map"]');
-          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
-        })(),
-        pulseLoaded: (() => {
-          const element = mainMenu?.querySelector<HTMLElement>('[data-ref="retail-menu-pulse"]');
-          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
-        })(),
-        buttonSkinsLoaded: Boolean(
-          firstButton
-          && window.getComputedStyle(firstButton).getPropertyValue('--retail-button-left-enabled-image').trim() !== '',
-        ),
-        buttons,
-      };
+    const debugState = await readRetailMenuDebugState(page, {
+      screenId: config.screenId,
+      logoRef: config.logoRef,
+      actionPanelRef: config.actionPanelRef,
+      previewRef: config.previewRef,
     });
 
     return {
-      id: 'main-menu',
-      name: 'Main Menu',
+      id: config.id,
+      name: config.name,
       url: '/',
       status: 'pass',
       screenshotPath,
@@ -840,7 +1258,45 @@ async function probeMainMenu(baseUrl: string, screenshotPath: string): Promise<U
   }
 }
 
-async function probeSinglePlayer(baseUrl: string, screenshotPath: string): Promise<UiLayoutScenarioResult> {
+async function readReplayBrowserDebugState(page: Page): Promise<ReplayBrowserLayoutDebugState> {
+  return page.evaluate<ReplayBrowserLayoutDebugState>(() => {
+    const overlay = document.querySelector<HTMLElement>('.replay-menu-overlay');
+    const parentElement = overlay?.querySelector<HTMLElement>('[data-ref="replay-menu-gadget-parent"]') ?? null;
+    const panelElement = overlay?.querySelector<HTMLElement>('[data-ref="replay-menu-panel"]') ?? null;
+    const titleElement = overlay?.querySelector<HTMLElement>('[data-ref="replay-menu-title"]') ?? null;
+    const dividerElement = overlay?.querySelector<HTMLElement>('[data-ref="replay-menu-divider"]') ?? null;
+    const listboxElement = overlay?.querySelector<HTMLElement>('[data-ref="replay-menu-listbox"]') ?? null;
+    const loadButtonElement = overlay?.querySelector<HTMLElement>('[data-action="load"]') ?? null;
+    const deleteButtonElement = overlay?.querySelector<HTMLElement>('[data-action="delete"]') ?? null;
+    const copyButtonElement = overlay?.querySelector<HTMLElement>('[data-action="copy"]') ?? null;
+    const backButtonElement = overlay?.querySelector<HTMLElement>('[data-action="back"]') ?? null;
+
+    const parentRect = parentElement?.getBoundingClientRect() ?? null;
+    const panelRect = panelElement?.getBoundingClientRect() ?? null;
+    const titleRect = titleElement?.getBoundingClientRect() ?? null;
+    const dividerRect = dividerElement?.getBoundingClientRect() ?? null;
+    const listboxRect = listboxElement?.getBoundingClientRect() ?? null;
+    const loadButtonRect = loadButtonElement?.getBoundingClientRect() ?? null;
+    const deleteButtonRect = deleteButtonElement?.getBoundingClientRect() ?? null;
+    const copyButtonRect = copyButtonElement?.getBoundingClientRect() ?? null;
+    const backButtonRect = backButtonElement?.getBoundingClientRect() ?? null;
+
+    return {
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      parent: parentRect ? { x: parentRect.x, y: parentRect.y, width: parentRect.width, height: parentRect.height } : null,
+      panel: panelRect ? { x: panelRect.x, y: panelRect.y, width: panelRect.width, height: panelRect.height } : null,
+      title: titleRect ? { x: titleRect.x, y: titleRect.y, width: titleRect.width, height: titleRect.height } : null,
+      divider: dividerRect ? { x: dividerRect.x, y: dividerRect.y, width: dividerRect.width, height: dividerRect.height } : null,
+      listbox: listboxRect ? { x: listboxRect.x, y: listboxRect.y, width: listboxRect.width, height: listboxRect.height } : null,
+      loadButton: loadButtonRect ? { x: loadButtonRect.x, y: loadButtonRect.y, width: loadButtonRect.width, height: loadButtonRect.height } : null,
+      deleteButton: deleteButtonRect ? { x: deleteButtonRect.x, y: deleteButtonRect.y, width: deleteButtonRect.width, height: deleteButtonRect.height } : null,
+      copyButton: copyButtonRect ? { x: copyButtonRect.x, y: copyButtonRect.y, width: copyButtonRect.width, height: copyButtonRect.height } : null,
+      backButton: backButtonRect ? { x: backButtonRect.x, y: backButtonRect.y, width: backButtonRect.width, height: backButtonRect.height } : null,
+    };
+  });
+}
+
+async function probeReplayBrowser(baseUrl: string, screenshotPath: string): Promise<UiLayoutScenarioResult> {
   const browser = await chromium.launch({ headless: true, args: browserLaunchArgs() });
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const pageErrors: string[] = [];
@@ -854,83 +1310,349 @@ async function probeSinglePlayer(baseUrl: string, screenshotPath: string): Promi
 
   try {
     await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(
-      () => Boolean(document.getElementById('main-menu-screen')),
-      undefined,
-      { timeout: SCENARIO_BOOT_TIMEOUT_MS },
-    );
-    await page.click('#main-menu-screen [data-action="single-player"]');
-    await page.waitForFunction(
-      () => {
-        const screen = document.getElementById('single-player-screen');
-        return Boolean(screen) && !screen?.classList.contains('hidden');
-      },
-      undefined,
-      { timeout: SCENARIO_BOOT_TIMEOUT_MS },
-    );
+    await waitForVisibleScreen(page, 'main-menu-screen');
+    await page.click('#main-menu-screen [data-action="replay"]');
+    await waitForVisibleScreen(page, 'load-replay-menu-screen');
+    await page.click('#load-replay-menu-screen [data-action="replay-browser"]');
+    await page.waitForSelector('[data-ref="replay-menu-listbox"]', { timeout: SCENARIO_BOOT_TIMEOUT_MS });
     await page.waitForTimeout(1000);
     await page.screenshot({ path: screenshotPath });
 
-    const debugState = await page.evaluate<MainMenuLayoutDebugState>(() => {
-      const screen = document.getElementById('single-player-screen');
-      const buttons = [...document.querySelectorAll('#single-player-screen .menu-button')].map((element) => {
-        const rect = element.getBoundingClientRect();
-        return {
-          text: element.textContent?.trim() ?? '',
-          rect: {
-            x: rect.x,
-            y: rect.y,
-            width: rect.width,
-            height: rect.height,
-          },
-        };
-      });
-      const firstButton = screen?.querySelector<HTMLElement>('.retail-main-menu-button');
+    return {
+      id: 'replay-browser',
+      name: 'Replay Browser',
+      url: '/',
+      status: 'pass',
+      screenshotPath,
+      pageErrors,
+      consoleErrors,
+      consoleWarnings,
+      debugState: await readReplayBrowserDebugState(page),
+      blockingIssues: [],
+    };
+  } finally {
+    await browser.close();
+  }
+}
 
-      return {
-        viewport: { width: window.innerWidth, height: window.innerHeight },
-        logo: (() => {
-          const element = document.querySelector('#single-player-screen [data-ref="single-player-logo"]');
-          const rect = element?.getBoundingClientRect() ?? null;
-          return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
-        })(),
-        actionPanel: (() => {
-          const element = document.querySelector('#single-player-screen [data-ref="single-player-action-panel"]');
-          const rect = element?.getBoundingClientRect() ?? null;
-          return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
-        })(),
-        preview: (() => {
-          const element = document.querySelector('#single-player-screen [data-ref="single-player-preview"]');
-          const rect = element?.getBoundingClientRect() ?? null;
-          return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
-        })(),
-        rulerLoaded: (() => {
-          const element = screen?.querySelector<HTMLElement>('[data-ref="retail-menu-ruler"]');
-          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
-        })(),
-        logoArtLoaded: (() => {
-          const element = screen?.querySelector<HTMLElement>('[data-ref="retail-menu-logo-art"]');
-          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
-        })(),
-        actionMapLoaded: (() => {
-          const element = screen?.querySelector<HTMLElement>('[data-ref="retail-menu-action-panel-map"]');
-          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
-        })(),
-        pulseLoaded: (() => {
-          const element = screen?.querySelector<HTMLElement>('[data-ref="retail-menu-pulse"]');
-          return Boolean(element) && window.getComputedStyle(element).backgroundImage !== 'none';
-        })(),
-        buttonSkinsLoaded: Boolean(
-          firstButton
-          && window.getComputedStyle(firstButton).getPropertyValue('--retail-button-left-enabled-image').trim() !== '',
-        ),
-        buttons,
-      };
-    });
+async function readLoadGameDebugState(page: Page): Promise<LoadGameLayoutDebugState> {
+  return page.evaluate<LoadGameLayoutDebugState>(() => {
+    const overlay = document.querySelector<HTMLElement>('.load-game-overlay');
+    const panelElement = overlay?.querySelector<HTMLElement>('[data-ref="load-game-panel"]') ?? null;
+    const titleElement = overlay?.querySelector<HTMLElement>('[data-ref="load-game-title"]') ?? null;
+    const listboxElement = overlay?.querySelector<HTMLElement>('[data-ref="load-game-listbox"]') ?? null;
+    const saveButtonElement = overlay?.querySelector<HTMLElement>('[data-action="save"]') ?? null;
+    const loadButtonElement = overlay?.querySelector<HTMLElement>('[data-action="load"]') ?? null;
+    const deleteButtonElement = overlay?.querySelector<HTMLElement>('[data-action="delete"]') ?? null;
+    const backButtonElement = overlay?.querySelector<HTMLElement>('[data-action="back"]') ?? null;
+
+    const panelRect = panelElement?.getBoundingClientRect() ?? null;
+    const titleRect = titleElement?.getBoundingClientRect() ?? null;
+    const listboxRect = listboxElement?.getBoundingClientRect() ?? null;
+    const saveButtonRect = saveButtonElement?.getBoundingClientRect() ?? null;
+    const loadButtonRect = loadButtonElement?.getBoundingClientRect() ?? null;
+    const deleteButtonRect = deleteButtonElement?.getBoundingClientRect() ?? null;
+    const backButtonRect = backButtonElement?.getBoundingClientRect() ?? null;
 
     return {
-      id: 'single-player',
-      name: 'Single Player',
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      panel: panelRect ? { x: panelRect.x, y: panelRect.y, width: panelRect.width, height: panelRect.height } : null,
+      title: titleRect ? { x: titleRect.x, y: titleRect.y, width: titleRect.width, height: titleRect.height } : null,
+      listbox: listboxRect ? { x: listboxRect.x, y: listboxRect.y, width: listboxRect.width, height: listboxRect.height } : null,
+      saveButton: saveButtonRect ? { x: saveButtonRect.x, y: saveButtonRect.y, width: saveButtonRect.width, height: saveButtonRect.height } : null,
+      loadButton: loadButtonRect ? { x: loadButtonRect.x, y: loadButtonRect.y, width: loadButtonRect.width, height: loadButtonRect.height } : null,
+      deleteButton: deleteButtonRect ? { x: deleteButtonRect.x, y: deleteButtonRect.y, width: deleteButtonRect.width, height: deleteButtonRect.height } : null,
+      backButton: backButtonRect ? { x: backButtonRect.x, y: backButtonRect.y, width: backButtonRect.width, height: backButtonRect.height } : null,
+    };
+  });
+}
+
+async function probeLoadGame(baseUrl: string, screenshotPath: string): Promise<UiLayoutScenarioResult> {
+  const browser = await chromium.launch({ headless: true, args: browserLaunchArgs() });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  const consoleWarnings: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+    if (message.type() === 'warning') consoleWarnings.push(message.text());
+  });
+
+  try {
+    await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+    await waitForVisibleScreen(page, 'main-menu-screen');
+    await page.click('#main-menu-screen [data-action="replay"]');
+    await waitForVisibleScreen(page, 'load-replay-menu-screen');
+    await page.click('#load-replay-menu-screen [data-action="load-game"]');
+    await page.waitForSelector('[data-ref="load-game-listbox"]', { timeout: SCENARIO_BOOT_TIMEOUT_MS });
+    await page.waitForTimeout(1000);
+    await page.screenshot({ path: screenshotPath });
+
+    return {
+      id: 'load-game',
+      name: 'Load Game',
+      url: '/',
+      status: 'pass',
+      screenshotPath,
+      pageErrors,
+      consoleErrors,
+      consoleWarnings,
+      debugState: await readLoadGameDebugState(page),
+      blockingIssues: [],
+    };
+  } finally {
+    await browser.close();
+  }
+}
+
+async function probeMainMenu(baseUrl: string, screenshotPath: string): Promise<UiLayoutScenarioResult> {
+  return probeRetailMenu(baseUrl, screenshotPath, {
+    id: 'main-menu',
+    name: 'Main Menu',
+    screenId: 'main-menu-screen',
+    logoRef: 'main-menu-logo',
+    actionPanelRef: 'main-menu-action-panel',
+    previewRef: 'main-menu-preview',
+  });
+}
+
+async function probeSinglePlayer(baseUrl: string, screenshotPath: string): Promise<UiLayoutScenarioResult> {
+  return probeRetailMenu(baseUrl, screenshotPath, {
+    id: 'single-player',
+    name: 'Single Player',
+    screenId: 'single-player-screen',
+    logoRef: 'single-player-logo',
+    actionPanelRef: 'single-player-action-panel',
+    previewRef: 'single-player-preview',
+    navigate: async (page) => {
+      await page.click('#main-menu-screen [data-action="single-player"]');
+    },
+  });
+}
+
+async function probeMultiplayerMenu(baseUrl: string, screenshotPath: string): Promise<UiLayoutScenarioResult> {
+  return probeRetailMenu(baseUrl, screenshotPath, {
+    id: 'multiplayer-menu',
+    name: 'Multiplayer Menu',
+    screenId: 'multiplayer-menu-screen',
+    logoRef: 'multiplayer-logo',
+    actionPanelRef: 'multiplayer-action-panel',
+    previewRef: 'multiplayer-preview',
+    navigate: async (page) => {
+      await page.click('#main-menu-screen [data-action="multiplayer"]');
+    },
+  });
+}
+
+async function probeLoadReplayMenu(baseUrl: string, screenshotPath: string): Promise<UiLayoutScenarioResult> {
+  return probeRetailMenu(baseUrl, screenshotPath, {
+    id: 'load-replay-menu',
+    name: 'Load / Replay Menu',
+    screenId: 'load-replay-menu-screen',
+    logoRef: 'load-replay-logo',
+    actionPanelRef: 'load-replay-action-panel',
+    previewRef: 'load-replay-preview',
+    navigate: async (page) => {
+      await page.click('#main-menu-screen [data-action="replay"]');
+    },
+  });
+}
+
+async function probeOptionsMenu(baseUrl: string, screenshotPath: string): Promise<UiLayoutScenarioResult> {
+  const browser = await chromium.launch({ headless: true, args: browserLaunchArgs() });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  const consoleWarnings: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+    if (message.type() === 'warning') consoleWarnings.push(message.text());
+  });
+
+  try {
+    await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+    await waitForVisibleScreen(page, 'main-menu-screen');
+    await page.click('#main-menu-screen [data-action="options"]');
+    await page.waitForFunction(
+      () => Boolean(document.querySelector('.options-overlay [data-ref="options-parent"]')),
+      undefined,
+      { timeout: SCENARIO_BOOT_TIMEOUT_MS },
+    );
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: screenshotPath });
+
+    const debugState = await page.evaluate<OptionsLayoutDebugState>(() => ({
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      parent: (() => {
+        const rect = document.querySelector<HTMLElement>('.options-overlay [data-ref="options-parent"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      panel: (() => {
+        const rect = document.querySelector<HTMLElement>('.options-overlay [data-ref="options-panel"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      video: (() => {
+        const rect = document.querySelector<HTMLElement>('.options-overlay [data-ref="options-video-parent"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      audio: (() => {
+        const rect = document.querySelector<HTMLElement>('.options-overlay [data-ref="options-audio-parent"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      scroll: (() => {
+        const rect = document.querySelector<HTMLElement>('.options-overlay [data-ref="options-scroll-parent"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      defaultsButton: (() => {
+        const rect = document.querySelector<HTMLElement>('.options-overlay [data-ref="options-defaults"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      acceptButton: (() => {
+        const rect = document.querySelector<HTMLElement>('.options-overlay [data-ref="options-accept"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      backButton: (() => {
+        const rect = document.querySelector<HTMLElement>('.options-overlay [data-ref="options-back"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      versionLabel: (() => {
+        const rect = document.querySelector<HTMLElement>('.options-overlay [data-ref="options-version"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+    }));
+
+    return {
+      id: 'options-menu',
+      name: 'Options Menu',
+      url: '/',
+      status: 'pass',
+      screenshotPath,
+      pageErrors,
+      consoleErrors,
+      consoleWarnings,
+      debugState,
+      blockingIssues: [],
+    };
+  } finally {
+    await browser.close();
+  }
+}
+
+async function probeSkirmishMenu(baseUrl: string, screenshotPath: string): Promise<UiLayoutScenarioResult> {
+  const browser = await chromium.launch({ headless: true, args: browserLaunchArgs() });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  const consoleWarnings: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+    if (message.type() === 'warning') consoleWarnings.push(message.text());
+  });
+
+  try {
+    await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+    await waitForVisibleScreen(page, 'main-menu-screen');
+    await page.click('#main-menu-screen [data-action="single-player"]');
+    await waitForVisibleScreen(page, 'single-player-screen');
+    await page.click('#single-player-screen [data-action="skirmish"]');
+    await waitForVisibleScreen(page, 'skirmish-setup-screen');
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: screenshotPath });
+
+    const debugState = await page.evaluate<SkirmishLayoutDebugState>(() => ({
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      frame: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="skirmish-frame"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      startButton: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-action="start"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      backButton: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-action="back"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      previewLabel: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="skirmish-map-preview-label"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      preview: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="skirmish-map-preview"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      mapDisplay: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="map-select"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      selectMapButton: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-action="select-map"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      startingCash: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="credits-select"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      limitSuperweapons: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="skirmish-limit-superweapons"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      playersLabel: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="skirmish-players-label"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      colorLabel: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="skirmish-color-label"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      factionLabel: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="skirmish-faction-label"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      teamLabel: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="skirmish-team-label"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      playerName: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="skirmish-player-name"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      aiSlot: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="ai-enabled"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      playerColor: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="player-color"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      aiColor: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="ai-color"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      playerFaction: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="player-side"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      aiFaction: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="ai-side"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      playerTeam: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="player-team"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      aiTeam: (() => {
+        const rect = document.querySelector<HTMLElement>('#skirmish-setup-screen [data-ref="ai-team"]')?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+    }));
+
+    return {
+      id: 'skirmish-menu',
+      name: 'Skirmish Menu',
       url: '/',
       status: 'pass',
       screenshotPath,
@@ -1377,12 +2099,28 @@ async function main(): Promise<void> {
     path.join(distDir, 'assets', '_extracted', 'WindowZH', 'Window', 'Menus', 'DifficultySelect.wnd'),
     'utf8',
   ));
+  const optionsWnd = parseWnd(await fs.readFile(
+    path.join(distDir, 'assets', '_extracted', 'WindowZH', 'Window', 'Menus', 'OptionsMenu.wnd'),
+    'utf8',
+  ));
+  const skirmishWnd = parseWnd(await fs.readFile(
+    path.join(distDir, 'assets', '_extracted', 'WindowZH', 'Window', 'Menus', 'SkirmishGameOptionsMenu.wnd'),
+    'utf8',
+  ));
   const challengeWnd = parseWnd(await fs.readFile(
     path.join(distDir, 'assets', '_extracted', 'WindowZH', 'Window', 'Menus', 'ChallengeMenu.wnd'),
     'utf8',
   ));
   const campaignLoadWnd = parseWnd(await fs.readFile(
     path.join(distDir, 'assets', '_extracted', 'WindowZH', 'Window', 'Menus', 'SinglePlayerLoadScreen.wnd'),
+    'utf8',
+  ));
+  const saveLoadWnd = parseWnd(await fs.readFile(
+    path.join(distDir, 'assets', '_extracted', 'WindowZH', 'Window', 'Menus', 'SaveLoad.wnd'),
+    'utf8',
+  ));
+  const replayWnd = parseWnd(await fs.readFile(
+    path.join(distDir, 'assets', '_extracted', 'WindowZH', 'Window', 'Menus', 'ReplayMenu.wnd'),
     'utf8',
   ));
   const sourceMainMenuLayout = buildSourceShellMenuLayout(
@@ -1397,9 +2135,25 @@ async function main(): Promise<void> {
     SINGLE_PLAYER_TEXT_BY_TOKEN,
     'MapBorder',
   );
+  const sourceMultiplayerLayout = buildSourceShellMenuLayout(
+    mainMenuWnd.windows,
+    MULTIPLAYER_BUTTON_SEQUENCE,
+    MULTIPLAYER_TEXT_BY_TOKEN,
+    'MapBorder1',
+  );
+  const sourceLoadReplayLayout = buildSourceShellMenuLayout(
+    mainMenuWnd.windows,
+    LOAD_REPLAY_BUTTON_SEQUENCE,
+    LOAD_REPLAY_TEXT_BY_TOKEN,
+    'MapBorder3',
+  );
   const sourceDifficultyLayout = buildSourceDifficultyLayout(difficultyWnd.windows);
+  const sourceOptionsLayout = buildSourceOptionsLayout(optionsWnd.windows);
+  const sourceSkirmishLayout = buildSourceSkirmishLayout(skirmishWnd.windows);
   const sourceChallengeLayout = buildSourceChallengeLayout(challengeWnd.windows);
   const sourceCampaignLoadLayout = buildSourceCampaignLoadLayout(campaignLoadWnd.windows);
+  const sourceLoadGameLayout = buildSourceLoadGameLayout(saveLoadWnd.windows);
+  const sourceReplayBrowserLayout = buildSourceReplayBrowserLayout(replayWnd.windows);
   const sourceHudRects = buildSourceHudRects(controlBarWnd.windows);
 
   const server = await createStaticServer(distDir);
@@ -1427,6 +2181,108 @@ async function main(): Promise<void> {
       mainMenuPreview: sourceSinglePlayerLayout.preview,
     });
     singlePlayerScenario.status = singlePlayerScenario.blockingIssues.length > 0 ? 'blocked' : 'pass';
+
+    const multiplayerMenuScenario = await probeMultiplayerMenu(
+      server.baseUrl,
+      path.join(screenshotDir, 'multiplayer-menu.png'),
+    );
+    multiplayerMenuScenario.blockingIssues = collectUiLayoutBlockingIssues('multiplayer-menu', multiplayerMenuScenario.debugState, {
+      mainMenuButtons: sourceMultiplayerLayout.buttons,
+      mainMenuLogo: sourceMultiplayerLayout.logo,
+      mainMenuActionPanel: sourceMultiplayerLayout.actionPanel,
+      mainMenuPreview: sourceMultiplayerLayout.preview,
+    });
+    multiplayerMenuScenario.status = multiplayerMenuScenario.blockingIssues.length > 0 ? 'blocked' : 'pass';
+
+    const loadReplayMenuScenario = await probeLoadReplayMenu(
+      server.baseUrl,
+      path.join(screenshotDir, 'load-replay-menu.png'),
+    );
+    loadReplayMenuScenario.blockingIssues = collectUiLayoutBlockingIssues('load-replay-menu', loadReplayMenuScenario.debugState, {
+      mainMenuButtons: sourceLoadReplayLayout.buttons,
+      mainMenuLogo: sourceLoadReplayLayout.logo,
+      mainMenuActionPanel: sourceLoadReplayLayout.actionPanel,
+      mainMenuPreview: sourceLoadReplayLayout.preview,
+    });
+    loadReplayMenuScenario.status = loadReplayMenuScenario.blockingIssues.length > 0 ? 'blocked' : 'pass';
+
+    const loadGameScenario = await probeLoadGame(
+      server.baseUrl,
+      path.join(screenshotDir, 'load-game.png'),
+    );
+    loadGameScenario.blockingIssues = collectUiLayoutBlockingIssues('load-game', loadGameScenario.debugState, {
+      loadGamePanel: sourceLoadGameLayout.panel,
+      loadGameTitle: sourceLoadGameLayout.title,
+      loadGameListbox: sourceLoadGameLayout.listbox,
+      loadGameSaveButton: sourceLoadGameLayout.saveButton,
+      loadGameLoadButton: sourceLoadGameLayout.loadButton,
+      loadGameDeleteButton: sourceLoadGameLayout.deleteButton,
+      loadGameBackButton: sourceLoadGameLayout.backButton,
+    });
+    loadGameScenario.status = loadGameScenario.blockingIssues.length > 0 ? 'blocked' : 'pass';
+
+    const replayBrowserScenario = await probeReplayBrowser(
+      server.baseUrl,
+      path.join(screenshotDir, 'replay-browser.png'),
+    );
+    replayBrowserScenario.blockingIssues = collectUiLayoutBlockingIssues('replay-browser', replayBrowserScenario.debugState, {
+      replayBrowserParent: sourceReplayBrowserLayout.parent,
+      replayBrowserPanel: sourceReplayBrowserLayout.panel,
+      replayBrowserTitle: sourceReplayBrowserLayout.title,
+      replayBrowserDivider: sourceReplayBrowserLayout.divider,
+      replayBrowserListbox: sourceReplayBrowserLayout.listbox,
+      replayBrowserLoadButton: sourceReplayBrowserLayout.loadButton,
+      replayBrowserDeleteButton: sourceReplayBrowserLayout.deleteButton,
+      replayBrowserCopyButton: sourceReplayBrowserLayout.copyButton,
+      replayBrowserBackButton: sourceReplayBrowserLayout.backButton,
+    });
+    replayBrowserScenario.status = replayBrowserScenario.blockingIssues.length > 0 ? 'blocked' : 'pass';
+
+    const optionsMenuScenario = await probeOptionsMenu(
+      server.baseUrl,
+      path.join(screenshotDir, 'options-menu.png'),
+    );
+    optionsMenuScenario.blockingIssues = collectUiLayoutBlockingIssues('options-menu', optionsMenuScenario.debugState, {
+      optionsParent: sourceOptionsLayout.parent,
+      optionsPanel: sourceOptionsLayout.panel,
+      optionsVideo: sourceOptionsLayout.video,
+      optionsAudio: sourceOptionsLayout.audio,
+      optionsScroll: sourceOptionsLayout.scroll,
+      optionsDefaultsButton: sourceOptionsLayout.defaultsButton,
+      optionsAcceptButton: sourceOptionsLayout.acceptButton,
+      optionsBackButton: sourceOptionsLayout.backButton,
+      optionsVersionLabel: sourceOptionsLayout.versionLabel,
+    });
+    optionsMenuScenario.status = optionsMenuScenario.blockingIssues.length > 0 ? 'blocked' : 'pass';
+
+    const skirmishMenuScenario = await probeSkirmishMenu(
+      server.baseUrl,
+      path.join(screenshotDir, 'skirmish-menu.png'),
+    );
+    skirmishMenuScenario.blockingIssues = collectUiLayoutBlockingIssues('skirmish-menu', skirmishMenuScenario.debugState, {
+      skirmishFrame: sourceSkirmishLayout.frame,
+      skirmishStartButton: sourceSkirmishLayout.startButton,
+      skirmishBackButton: sourceSkirmishLayout.backButton,
+      skirmishPreviewLabel: sourceSkirmishLayout.previewLabel,
+      skirmishPreview: sourceSkirmishLayout.preview,
+      skirmishMapDisplay: sourceSkirmishLayout.mapDisplay,
+      skirmishSelectMapButton: sourceSkirmishLayout.selectMapButton,
+      skirmishStartingCash: sourceSkirmishLayout.startingCash,
+      skirmishLimitSuperweapons: sourceSkirmishLayout.limitSuperweapons,
+      skirmishPlayersLabel: sourceSkirmishLayout.playersLabel,
+      skirmishColorLabel: sourceSkirmishLayout.colorLabel,
+      skirmishFactionLabel: sourceSkirmishLayout.factionLabel,
+      skirmishTeamLabel: sourceSkirmishLayout.teamLabel,
+      skirmishPlayerName: sourceSkirmishLayout.playerName,
+      skirmishAiSlot: sourceSkirmishLayout.aiSlot,
+      skirmishPlayerColor: sourceSkirmishLayout.playerColor,
+      skirmishAiColor: sourceSkirmishLayout.aiColor,
+      skirmishPlayerFaction: sourceSkirmishLayout.playerFaction,
+      skirmishAiFaction: sourceSkirmishLayout.aiFaction,
+      skirmishPlayerTeam: sourceSkirmishLayout.playerTeam,
+      skirmishAiTeam: sourceSkirmishLayout.aiTeam,
+    });
+    skirmishMenuScenario.status = skirmishMenuScenario.blockingIssues.length > 0 ? 'blocked' : 'pass';
 
     const campaignDifficultyScenario = await probeCampaignDifficulty(
       server.baseUrl,
@@ -1485,6 +2341,12 @@ async function main(): Promise<void> {
     const report = buildUiLayoutParityReport(server.baseUrl, [
       mainMenuScenario,
       singlePlayerScenario,
+      multiplayerMenuScenario,
+      loadReplayMenuScenario,
+      loadGameScenario,
+      replayBrowserScenario,
+      optionsMenuScenario,
+      skirmishMenuScenario,
       campaignDifficultyScenario,
       challengeMenuScenario,
       campaignLoadScenario,

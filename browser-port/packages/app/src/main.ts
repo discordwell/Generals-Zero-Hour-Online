@@ -11,7 +11,16 @@
  */
 
 import * as THREE from 'three';
-import { GameLoop, SubsystemRegistry } from '@generals/engine';
+import { GameRandom } from '@generals/core';
+import {
+  GameLoop,
+  ReplayManager,
+  ReplayStorage,
+  SaveStorage,
+  SubsystemRegistry,
+  type ReplayFile,
+  type ReplayPlayerInfo,
+} from '@generals/engine';
 import {
   AssetManager,
   RUNTIME_ASSET_BASE_URL,
@@ -98,7 +107,12 @@ import { ScriptSkyboxController } from './script-skybox.js';
 import { createScriptUiEffectsRuntimeBridge } from './script-ui-effects-runtime.js';
 import { syncScriptViewRuntimeBridge } from './script-view-runtime.js';
 import { assertIniBundleConsistency, assertRequiredManifestEntries } from './runtime-guardrails.js';
-import { GameShell, type SkirmishSettings, type CampaignStartSettings } from './game-shell.js';
+import {
+  GameShell,
+  type SkirmishSettings,
+  type SkirmishSlotMode,
+  type CampaignStartSettings,
+} from './game-shell.js';
 import { CampaignManager } from '@generals/game-logic';
 import { createVideoUrlResolver, VideoPlayer } from './video-player.js';
 import {
@@ -113,6 +127,8 @@ import {
   loadOptionsState,
   type OptionsState,
 } from './options-screen.js';
+import { LoadGameScreen } from './load-game-screen.js';
+import { ReplayMenuScreen } from './replay-menu-screen.js';
 import { DiplomacyScreen, type DiplomacyPlayerInfo } from './diplomacy-screen.js';
 import { GeneralsPowersPanel } from './generals-powers-panel.js';
 import { PostgameStatsScreen, type SideScoreDisplay } from './postgame-stats-screen.js';
@@ -290,6 +306,333 @@ function normalizeRuntimeAssetPath(pathValue: string | null): string | null {
     return '';
   }
   return normalized.replace(runtimeAssetPrefixPattern, '');
+}
+
+type ReplayRecordableCommand = Parameters<GameLogicSubsystem['submitCommand']>[0];
+
+const REPLAY_RECORDABLE_COMMAND_TYPES = new Set<ReplayRecordableCommand['type']>([
+  'moveTo',
+  'attackMoveTo',
+  'guardPosition',
+  'guardObject',
+  'setRallyPoint',
+  'attackEntity',
+  'stop',
+  'queueUnitProduction',
+  'cancelUnitProduction',
+  'queueUpgradeProduction',
+  'cancelUpgradeProduction',
+  'purchaseScience',
+  'issueSpecialPower',
+  'switchWeapon',
+  'sell',
+  'exitContainer',
+  'exitContainerInstantly',
+  'evacuate',
+  'hackInternet',
+  'toggleOvercharge',
+  'detonateDemoTrap',
+  'toggleDemoTrapMode',
+  'combatDrop',
+  'placeBeacon',
+  'enterObject',
+  'constructBuilding',
+  'cancelDozerConstruction',
+  'garrisonBuilding',
+  'repairBuilding',
+  'enterTransport',
+]);
+
+interface ReplayPlaybackContext {
+  replay: ReplayFile;
+  settings: SkirmishSettings;
+  onReturnToShell: () => void;
+}
+
+interface ResolvedSkirmishRuntimeSlot {
+  slotIndex: number;
+  playerName: string;
+  mode: SkirmishSlotMode;
+  factionSide: string;
+  team: number;
+  color: number;
+  startPosition: number | null;
+  runtimeSide: string;
+  playerType: 'HUMAN' | 'COMPUTER';
+  difficulty: number;
+}
+
+const SKIRMISH_RUNTIME_SIDE_PREFIX = 'Player_';
+const SKIRMISH_PLAYABLE_FACTION_SIDES = ['America', 'China', 'GLA'] as const;
+const SKIRMISH_MULTIPLAYER_COLORS = [0, 1, 2, 3, 4, 5, 6, 7] as const;
+const SCRIPT_DIFFICULTY_EASY = 0;
+const SCRIPT_DIFFICULTY_NORMAL = 1;
+const SCRIPT_DIFFICULTY_HARD = 2;
+
+function getSkirmishRuntimeSide(slotIndex: number): string {
+  return `${SKIRMISH_RUNTIME_SIDE_PREFIX}${slotIndex + 1}`;
+}
+
+function normalizeFactionSideName(side: string): string {
+  switch (side.trim().toLowerCase()) {
+    case 'america':
+      return 'America';
+    case 'china':
+      return 'China';
+    case 'gla':
+      return 'GLA';
+    default:
+      return side;
+  }
+}
+
+function isRandomFactionSide(side: string): boolean {
+  return side.trim().toLowerCase() === 'random';
+}
+
+function resolvePlayerFactionNameForSide(side: string): string {
+  switch (side.trim().toLowerCase()) {
+    case 'america':
+      return 'FactionAmerica';
+    case 'china':
+      return 'FactionChina';
+    case 'gla':
+      return 'FactionGLA';
+    default:
+      return side;
+  }
+}
+
+function resolveSkirmishPlayerType(mode: SkirmishSlotMode): 'HUMAN' | 'COMPUTER' {
+  return mode === 'human' ? 'HUMAN' : 'COMPUTER';
+}
+
+function resolveSkirmishDifficulty(mode: SkirmishSlotMode): number {
+  switch (mode) {
+    case 'easy-ai':
+      return SCRIPT_DIFFICULTY_EASY;
+    case 'hard-ai':
+      return SCRIPT_DIFFICULTY_HARD;
+    case 'human':
+    case 'medium-ai':
+    default:
+      return SCRIPT_DIFFICULTY_NORMAL;
+  }
+}
+
+function resolveReplaySlotMode(player: ReplayPlayerInfo): 'human' | 'easy-ai' | 'medium-ai' | 'hard-ai' {
+  if (player.slotMode === 'human'
+    || player.slotMode === 'easy-ai'
+    || player.slotMode === 'medium-ai'
+    || player.slotMode === 'hard-ai') {
+    return player.slotMode;
+  }
+  return player.playerType === 'COMPUTER' ? 'easy-ai' : 'human';
+}
+
+function resolveResolvedFactionSide(
+  side: string,
+  gameLogic?: Pick<GameLogicSubsystem, 'getResolvedFactionSide'>,
+): string {
+  const resolved = gameLogic?.getResolvedFactionSide(side);
+  if (resolved) {
+    return normalizeFactionSideName(resolved);
+  }
+  return normalizeFactionSideName(side);
+}
+
+function resolveSkirmishRuntimeSlots(
+  settings: SkirmishSettings,
+  gameLogic: Pick<GameLogicSubsystem, 'assignTeamClusteredStartPositions'>,
+  startSpots: Array<{ x: number; z: number }>,
+): ResolvedSkirmishRuntimeSlot[] {
+  const rng = new GameRandom((Date.now() >>> 0) || 1);
+  const occupiedSlots = settings.slots
+    .filter((slot) => slot.mode === 'human' || slot.mode === 'easy-ai' || slot.mode === 'medium-ai' || slot.mode === 'hard-ai')
+    .slice()
+    .sort((a, b) => a.slotIndex - b.slotIndex);
+  const resolvedSlots: ResolvedSkirmishRuntimeSlot[] = [];
+  const usedColors = new Set<number>();
+
+  for (const slot of occupiedSlots) {
+    const factionSide = isRandomFactionSide(slot.side)
+      ? SKIRMISH_PLAYABLE_FACTION_SIDES[rng.nextRange(0, SKIRMISH_PLAYABLE_FACTION_SIDES.length - 1)]!
+      : normalizeFactionSideName(slot.side);
+    let color = Number.isFinite(slot.color) ? Math.trunc(slot.color) : -1;
+    if (
+      color < 0
+      || color >= SKIRMISH_MULTIPLAYER_COLORS.length
+      || usedColors.has(color)
+    ) {
+      const availableColors = SKIRMISH_MULTIPLAYER_COLORS.filter((candidate) => !usedColors.has(candidate));
+      const colorPool = availableColors.length > 0 ? availableColors : [...SKIRMISH_MULTIPLAYER_COLORS];
+      color = colorPool[rng.nextRange(0, colorPool.length - 1)]!;
+    }
+    usedColors.add(color);
+    resolvedSlots.push({
+      slotIndex: slot.slotIndex,
+      playerName: slot.playerName,
+      mode: slot.mode,
+      factionSide,
+      team: slot.team,
+      color,
+      startPosition: Number.isFinite(slot.startPosition) ? Math.trunc(slot.startPosition as number) : null,
+      runtimeSide: getSkirmishRuntimeSide(slot.slotIndex),
+      playerType: resolveSkirmishPlayerType(slot.mode),
+      difficulty: resolveSkirmishDifficulty(slot.mode),
+    });
+  }
+
+  if (startSpots.length > 0) {
+    const takenStartPositions = new Set<number>();
+    for (const slot of resolvedSlots) {
+      if (
+        slot.startPosition === null
+        || slot.startPosition <= 0
+        || slot.startPosition > startSpots.length
+        || takenStartPositions.has(slot.startPosition)
+      ) {
+        slot.startPosition = null;
+        continue;
+      }
+      takenStartPositions.add(slot.startPosition);
+    }
+
+    const slotsNeedingStartPositions = resolvedSlots.filter((slot) => slot.startPosition === null);
+    if (slotsNeedingStartPositions.length > 0) {
+      const remainingStartIndices = startSpots
+        .map((_spot, index) => index)
+        .filter((index) => !takenStartPositions.has(index + 1));
+      const remainingStartSpots = remainingStartIndices.map((index) => startSpots[index]!);
+      const assignedPositions = gameLogic.assignTeamClusteredStartPositions(
+        slotsNeedingStartPositions.map((slot) => ({ side: slot.runtimeSide, team: slot.team })),
+        remainingStartSpots,
+        remainingStartSpots.length > 1 ? rng.nextRange(0, remainingStartSpots.length - 1) : 0,
+      );
+      slotsNeedingStartPositions.forEach((slot, index) => {
+        const assignedIndex = assignedPositions[index];
+        if (assignedIndex === undefined) {
+          return;
+        }
+        const originalIndex = remainingStartIndices[assignedIndex - 1];
+        if (originalIndex !== undefined) {
+          slot.startPosition = originalIndex + 1;
+          takenStartPositions.add(slot.startPosition);
+        }
+      });
+    }
+  }
+
+  return resolvedSlots;
+}
+
+function mergeSkirmishSidesIntoMapData(
+  mapData: MapDataJSON,
+  resolvedSlots: readonly ResolvedSkirmishRuntimeSlot[],
+): void {
+  const existingSides = mapData.sidesList?.sides ?? [];
+  const preservedSides = existingSides.filter((side) => {
+    const playerName = typeof side.dict?.playerName === 'string' ? side.dict.playerName.trim().toUpperCase() : '';
+    return !playerName.startsWith(SKIRMISH_RUNTIME_SIDE_PREFIX.toUpperCase());
+  });
+  mapData.sidesList = {
+    sides: [
+      ...preservedSides,
+      ...resolvedSlots.map((slot) => ({
+        dict: {
+          playerName: slot.runtimeSide,
+          playerFaction: resolvePlayerFactionNameForSide(slot.factionSide),
+          playerIsHuman: slot.playerType === 'HUMAN',
+          skirmishDifficulty: slot.difficulty,
+        },
+        buildList: [],
+      })),
+    ],
+    teams: mapData.sidesList?.teams ? [...mapData.sidesList.teams] : [],
+  };
+}
+
+function extractSkirmishStartSpots(mapData: MapDataJSON): Array<{ x: number; z: number }> {
+  const startSpots: Array<{ x: number; z: number }> = [];
+  for (let index = 1; index <= 8; index += 1) {
+    const waypointName = `Player_${index}_Start`;
+    const node = mapData.waypoints?.nodes.find((candidate) => candidate.name === waypointName);
+    if (!node) {
+      break;
+    }
+    startSpots.push({ x: node.position.x, z: node.position.y });
+  }
+  return startSpots;
+}
+
+function shouldRecordReplayCommand(command: ReplayRecordableCommand): boolean {
+  if (!REPLAY_RECORDABLE_COMMAND_TYPES.has(command.type)) {
+    return false;
+  }
+
+  const commandSource = 'commandSource' in command ? command.commandSource : undefined;
+  return commandSource !== 'AI' && commandSource !== 'SCRIPT';
+}
+
+function cloneReplayCommand(command: ReplayRecordableCommand): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(command)) as Record<string, unknown>;
+}
+
+function buildReplayPlayers(settings: SkirmishSettings): ReplayPlayerInfo[] {
+  return settings.slots
+    .slice()
+    .sort((a, b) => a.slotIndex - b.slotIndex)
+    .map((slot) => ({
+      id: slot.slotIndex,
+      name: slot.playerName,
+      side: slot.side,
+      team: slot.team,
+      color: slot.color,
+      slotIndex: slot.slotIndex,
+      playerType: resolveSkirmishPlayerType(slot.mode),
+      slotMode: slot.mode,
+      startPosition: slot.startPosition,
+    }));
+}
+
+function buildReplayId(mapPath: string, timestampMs: number): string {
+  const mapLabel = (mapPath.replace(/\\/g, '/').split('/').pop() ?? 'replay')
+    .replace(/\.json$/i, '')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+  const isoStamp = new Date(timestampMs).toISOString().replace(/[:.]/g, '-');
+  return `${mapLabel || 'replay'}-${isoStamp}`;
+}
+
+function buildReplayDescription(mapPath: string, timestampMs: number): string {
+  const mapLabel = (mapPath.replace(/\\/g, '/').split('/').pop() ?? 'Replay').replace(/\.json$/i, '');
+  return `${mapLabel} ${new Date(timestampMs).toLocaleString()}`;
+}
+
+function buildSkirmishSettingsFromReplay(replay: ReplayFile): SkirmishSettings {
+  if (replay.players.length === 0) {
+    throw new Error('Replay is missing its local player definition.');
+  }
+  return {
+    mapPath: replay.mapPath,
+    slots: replay.players
+      .map((player) => {
+        const slotIndex = Number.isFinite(player.slotIndex) ? Math.trunc(player.slotIndex as number) : player.id;
+        return {
+          slotIndex,
+          playerName: player.name,
+          mode: resolveReplaySlotMode(player),
+          side: normalizeFactionSideName(player.side),
+          team: Number.isFinite(player.team) ? Math.trunc(player.team) : -1,
+          color: Number.isFinite(player.color) ? Math.trunc(player.color) : -1,
+          startPosition: Number.isFinite(player.startPosition) ? Math.trunc(player.startPosition as number) : null,
+        };
+      })
+      .sort((a, b) => a.slotIndex - b.slotIndex),
+    startingCredits: replay.startingCredits,
+    limitSuperweapons: replay.limitSuperweapons ?? false,
+  };
 }
 
 const AUDIO_PRIORITY_BY_NAME = new Map<string, AudioPriority>([
@@ -637,6 +980,8 @@ interface PreInitContext {
   uiRuntime: UiRuntime;
   iniDataRegistry: IniDataRegistry;
   iniDataInfo: string;
+  saveStorage: SaveStorage;
+  replayStorage: ReplayStorage;
 }
 
 // ============================================================================
@@ -646,6 +991,8 @@ interface PreInitContext {
 async function preInit(): Promise<PreInitContext> {
   initializeAudioContext();
   const networkManager = initializeNetworkClient({ forceSinglePlayer: true });
+  const saveStorage = new SaveStorage();
+  const replayStorage = new ReplayStorage();
   initializeUiOverlay();
 
   setLoadingProgress(10, 'Creating renderer...');
@@ -921,6 +1268,8 @@ async function preInit(): Promise<PreInitContext> {
     uiRuntime,
     iniDataRegistry,
     iniDataInfo,
+    saveStorage,
+    replayStorage,
   };
 }
 
@@ -938,14 +1287,20 @@ async function startGame(
     settings: CampaignStartSettings;
     onReturnToShell: () => void;
   },
+  replayContext?: ReplayPlaybackContext,
 ): Promise<void> {
   const {
     renderer, scene, camera, sunLight, subsystems, assets, inputManager, rtsCamera,
     terrainVisual, waterVisual, audioManager, cursorManager, networkManager, uiRuntime,
-    iniDataRegistry, iniDataInfo,
+    iniDataRegistry, iniDataInfo, replayStorage,
   } = ctx;
   const canvas = renderer.domElement as HTMLCanvasElement;
   const gameSubsystems = new SubsystemRegistry();
+  const replayManager = new ReplayManager();
+  let replayRecordFrame = 0;
+  let replayRecordingPersisted = false;
+  let replaySkirmishSettings = skirmishSettings;
+  let resolvedSkirmishRuntimeSlots: ResolvedSkirmishRuntimeSlot[] = [];
 
   // Mission restarts and campaign transitions reuse the pre-init context, so
   // only reset the shared runtime subsystems here. Disposing them would tear
@@ -992,6 +1347,7 @@ async function startGame(
     isCameraMovementFinished: () => scriptCameraMovementFinished,
     isCameraTimeFrozen: () => scriptCameraTimeFrozen,
     getCameraTimeMultiplier: () => scriptCameraTimeMultiplier,
+    superweaponRestriction: skirmishSettings?.limitSuperweapons ? 1 : 0,
     // Source parity: VictoryConditions::update() skips for non-multiplayer.
     // Campaign missions use script-based victory/defeat exclusively.
     isCampaignMode: !!campaignContext,
@@ -1163,20 +1519,6 @@ async function startGame(
   });
 
   // ========================================================================
-  // Apply skirmish settings (player side, AI, credits)
-  // ========================================================================
-
-  if (skirmishSettings) {
-    // Set local player side
-    gameLogic.setPlayerSide(0, skirmishSettings.playerSide);
-
-    // Set AI player side and enable AI
-    if (skirmishSettings.aiEnabled) {
-      gameLogic.setPlayerSide(1, skirmishSettings.aiSide);
-    }
-  }
-
-  // ========================================================================
   // Load terrain (map JSON or procedural demo)
   // ========================================================================
 
@@ -1217,6 +1559,34 @@ async function startGame(
   const heightmap = terrainVisual.getHeightmap();
   if (!heightmap) {
     throw new Error('Failed to initialize terrain heightmap');
+  }
+
+  if (skirmishSettings) {
+    resolvedSkirmishRuntimeSlots = resolveSkirmishRuntimeSlots(
+      skirmishSettings,
+      gameLogic,
+      extractSkirmishStartSpots(mapData),
+    );
+    replaySkirmishSettings = {
+      ...skirmishSettings,
+      slots: resolvedSkirmishRuntimeSlots.map((slot) => ({
+        slotIndex: slot.slotIndex,
+        playerName: slot.playerName,
+        mode: slot.mode,
+        side: slot.factionSide,
+        team: slot.team,
+        color: slot.color,
+        startPosition: slot.startPosition,
+      })),
+    };
+    mergeSkirmishSidesIntoMapData(mapData, resolvedSkirmishRuntimeSlots);
+    for (const slot of resolvedSkirmishRuntimeSlots) {
+      gameLogic.setPlayerSide(slot.slotIndex, slot.runtimeSide);
+      gameLogic.setSidePlayerType(slot.runtimeSide, slot.playerType);
+      if (slot.startPosition !== null) {
+        gameLogic.setSkirmishPlayerStartPosition(slot.runtimeSide, slot.startPosition);
+      }
+    }
   }
 
   // Render minimap terrain preview on the loading screen.
@@ -1297,24 +1667,26 @@ async function startGame(
     // Source parity: SkirmishScripts.scb — spawn command center + dozer at Player_N_Start waypoints.
     gameLogic.spawnSkirmishStartingEntities();
 
-    // Set starting credits
-    gameLogic.submitCommand({
-      type: 'setSideCredits',
-      side: skirmishSettings.playerSide,
-      amount: skirmishSettings.startingCredits,
-    });
-
-    if (skirmishSettings.aiEnabled) {
+    for (const slot of resolvedSkirmishRuntimeSlots) {
       gameLogic.submitCommand({
         type: 'setSideCredits',
-        side: skirmishSettings.aiSide,
+        side: slot.runtimeSide,
         amount: skirmishSettings.startingCredits,
       });
-      // Source parity: SkirmishScripts.scb sets team relationships
-      // between all sides. Different sides are enemies (0).
-      gameLogic.setTeamRelationship(skirmishSettings.playerSide, skirmishSettings.aiSide, 0);
-      gameLogic.setTeamRelationship(skirmishSettings.aiSide, skirmishSettings.playerSide, 0);
-      gameLogic.enableSkirmishAI(skirmishSettings.aiSide);
+    }
+
+    for (let i = 0; i < resolvedSkirmishRuntimeSlots.length; i += 1) {
+      const source = resolvedSkirmishRuntimeSlots[i]!;
+      if (source.playerType === 'COMPUTER') {
+        gameLogic.enableSkirmishAI(source.runtimeSide);
+      }
+      for (let j = i + 1; j < resolvedSkirmishRuntimeSlots.length; j += 1) {
+        const target = resolvedSkirmishRuntimeSlots[j]!;
+        const areAllies = source.team >= 0 && source.team === target.team;
+        const relationship = areAllies ? 2 : 0;
+        gameLogic.setTeamRelationship(source.runtimeSide, target.runtimeSide, relationship);
+        gameLogic.setTeamRelationship(target.runtimeSide, source.runtimeSide, relationship);
+      }
     }
   }
 
@@ -1322,6 +1694,38 @@ async function startGame(
   // the initial visual sync.  Without this, every entity starts SHROUDED
   // because the fog grid has no lookers yet.
   gameLogic.update(0);
+
+  const persistRecordedReplay = async (): Promise<void> => {
+    if (replayRecordingPersisted || replayManager.getState() !== 'recording') {
+      return;
+    }
+
+    const replay = replayManager.stopRecording();
+    if (!replay) {
+      return;
+    }
+
+    replayRecordingPersisted = true;
+    const timestampMs = Date.parse(replay.recordedAt) || Date.now();
+    const replayId = buildReplayId(replay.mapPath, timestampMs);
+    await replayStorage.saveToDB(
+      replayId,
+      replay,
+      buildReplayDescription(replay.mapPath, timestampMs),
+    );
+  };
+
+  const originalSubmitCommand = gameLogic.submitCommand.bind(gameLogic);
+  gameLogic.submitCommand = ((command: ReplayRecordableCommand): void => {
+    if (replayManager.getState() === 'recording' && shouldRecordReplayCommand(command)) {
+      replayManager.recordCommand(
+        replayRecordFrame,
+        networkManager.getLocalPlayerID(),
+        cloneReplayCommand(command),
+      );
+    }
+    originalSubmitCommand(command);
+  }) as GameLogicSubsystem['submitCommand'];
   objectVisualManager.sync(gameLogic.getRenderableEntityStates());
   await scriptSkyboxPreloadPromise;
 
@@ -1795,14 +2199,19 @@ async function startGame(
   // Post-game stats screen (replaces simple endgame overlay)
   const postgameScreen = new PostgameStatsScreen(gameContainer, {
     onReturnToMenu: () => {
-      if (campaignContext) {
+      if (replayContext) {
+        replayContext.onReturnToShell();
+      } else if (campaignContext) {
         campaignContext.onReturnToShell();
       } else {
         window.location.reload();
       }
     },
     onPlayAgain: () => {
-      if (campaignContext) {
+      if (replayContext) {
+        disposeGame();
+        void startGame(ctx, replayContext.replay.mapPath, replayContext.settings, undefined, replayContext);
+      } else if (campaignContext) {
         // Retry same mission — restart with the same campaign context
         disposeGame();
         void startGame(ctx, mapPath, null, campaignContext);
@@ -1820,7 +2229,7 @@ async function startGame(
       const localSide = gameLogic.getPlayerSide(0);
       return sides.map(side => {
         const playerType = gameLogic.getSidePlayerType(side);
-        const faction = sideToFactionLabel(side);
+        const faction = sideToFactionLabel(resolveResolvedFactionSide(side, gameLogic));
         return {
           side,
           displayName: playerType === 'HUMAN' ? 'Player' : `AI (${faction})`,
@@ -3434,6 +3843,18 @@ async function startGame(
   // ========================================================================
 
   const gameLoop = new GameLoop(30);
+  if (replaySkirmishSettings && !campaignContext && !replayContext) {
+    replayManager.startRecording(
+      mapPath ?? replaySkirmishSettings.mapPath ?? '',
+      buildReplayPlayers(replaySkirmishSettings),
+      Math.round(1000 / gameLoop.simulationDt),
+      replaySkirmishSettings.startingCredits,
+      replaySkirmishSettings.limitSuperweapons,
+    );
+  } else if (replayContext) {
+    replayManager.loadReplay(replayContext.replay);
+    replayManager.play();
+  }
   const scriptCinematicRuntimeBridge = createScriptCinematicRuntimeBridge({
     gameLogic,
     view: {
@@ -3471,7 +3892,10 @@ async function startGame(
     gameLogic,
     uiRuntime,
     audioManager,
-    resolveLocalPlayerSide: () => gameLogic.getPlayerSide(networkManager.getLocalPlayerID()),
+    resolveLocalPlayerSide: () => {
+      const localSide = gameLogic.getPlayerSide(networkManager.getLocalPlayerID());
+      return localSide ? resolveResolvedFactionSide(localSide, gameLogic) : null;
+    },
   });
   const scriptUiEffectsRuntimeBridge = createScriptUiEffectsRuntimeBridge({
     gameLogic,
@@ -3533,9 +3957,13 @@ async function startGame(
   gameLoop.start({
     onSimulationStep(_frameNumber: number, dt: number) {
       currentLogicFrame = _frameNumber + 1;
+      replayRecordFrame = _frameNumber;
+      replayManager.recordFrame(_frameNumber);
       const inputState = inputManager.getState();
       const scriptInputDisabled = gameLogic.isScriptInputDisabled();
       missionInputLocked = scriptInputDisabled || gameEnded;
+      const replayPlaybackActive = replayContext !== undefined;
+      const gameplayInputLocked = missionInputLocked || replayPlaybackActive;
       let inputStateForGameLogic: InputState = applyScriptInputLock(
         inputState,
         missionInputLocked,
@@ -3563,10 +3991,10 @@ async function startGame(
       scriptAudioRuntimeBridge.syncBeforeSimulationStep();
 
       const pendingControlBarCommand = uiRuntime.getPendingControlBarCommand();
-      if (missionInputLocked && pendingControlBarCommand) {
+      if (gameplayInputLocked && pendingControlBarCommand) {
         uiRuntime.cancelPendingControlBarCommand();
       }
-      if (!missionInputLocked && pendingControlBarCommand && inputState.rightMouseClick) {
+      if (!gameplayInputLocked && pendingControlBarCommand && inputState.rightMouseClick) {
         inputStateForGameLogic = {
           ...inputState,
           rightMouseClick: false,
@@ -3656,7 +4084,7 @@ async function startGame(
       }
 
       // Drag-select logic: track left mouse drag for box selection.
-      if (!missionInputLocked) {
+      if (!gameplayInputLocked) {
         if (inputState.leftMouseDown && !wasLeftMouseDown) {
           // Mouse just pressed — record start position.
           dragStartX = inputState.mouseX;
@@ -3704,14 +4132,14 @@ async function startGame(
         inputStateForGameLogic = { ...inputStateForGameLogic, leftMouseClick: false };
       }
 
-      if (!missionInputLocked) {
+      if (!gameplayInputLocked) {
         updateBuildingGhost(inputState);
       } else {
         buildingGhostGroup.visible = false;
       }
 
       // Spawn move indicator and play voice on right-click command.
-      if (inputStateForGameLogic.rightMouseClick && gameLogic.getLocalPlayerSelectionIds().length > 0) {
+      if (!replayPlaybackActive && inputStateForGameLogic.rightMouseClick && gameLogic.getLocalPlayerSelectionIds().length > 0) {
         const selIds = gameLogic.getLocalPlayerSelectionIds();
         const target = gameLogic.resolveMoveTargetFromInput(inputStateForGameLogic, camera);
         if (target) {
@@ -3734,7 +4162,7 @@ async function startGame(
 
       // Double-click to select all visible units of same type.
       // Source parity: C++ InGameUI double-click selects all on-screen units of same template.
-      if (inputStateForGameLogic.leftMouseClick && !isDragSelecting && !missionInputLocked) {
+      if (inputStateForGameLogic.leftMouseClick && !isDragSelecting && !gameplayInputLocked) {
         const now = performance.now();
         if (now - lastClickTime < DOUBLE_CLICK_MS) {
           const selIds = gameLogic.getLocalPlayerSelectionIds();
@@ -3760,7 +4188,9 @@ async function startGame(
         }
       }
 
-      gameLogic.handlePointerInput(inputStateForGameLogic, camera);
+      if (!replayPlaybackActive) {
+        gameLogic.handlePointerInput(inputStateForGameLogic, camera);
+      }
 
       // Detect selection changes and play select voice.
       const currentSelectionIds = gameLogic.getLocalPlayerSelectionIds();
@@ -3774,7 +4204,7 @@ async function startGame(
       }
       previousSelectionSnapshot = currentSelectionIds;
 
-      if (!missionInputLocked) {
+      if (!gameplayInputLocked) {
         dispatchIssuedControlBarCommands(
           uiRuntime.consumeIssuedCommands(),
           iniDataRegistry,
@@ -3792,7 +4222,7 @@ async function startGame(
       // ----------------------------------------------------------------
 
       // Space — center camera on selected unit(s).
-      if (!missionInputLocked && inputState.keysPressed.has(' ')) {
+      if (!gameplayInputLocked && inputState.keysPressed.has(' ')) {
         const selIds = gameLogic.getLocalPlayerSelectionIds();
         if (selIds.length > 0) {
           let cx = 0;
@@ -3813,7 +4243,7 @@ async function startGame(
       }
 
       // S — stop all selected units (only on one-shot press with active selection).
-      if (!missionInputLocked && inputState.keysPressed.has('s')) {
+      if (!gameplayInputLocked && inputState.keysPressed.has('s')) {
         const selIds = gameLogic.getLocalPlayerSelectionIds();
         if (selIds.length > 0) {
           for (const id of selIds) {
@@ -3823,7 +4253,7 @@ async function startGame(
       }
 
       // Delete — sell selected building.
-      if (!missionInputLocked && inputState.keysPressed.has('delete')) {
+      if (!gameplayInputLocked && inputState.keysPressed.has('delete')) {
         const selIds = gameLogic.getLocalPlayerSelectionIds();
         for (const id of selIds) {
           gameLogic.submitCommand({ type: 'sell', entityId: id });
@@ -3831,7 +4261,7 @@ async function startGame(
       }
 
       // G — guard position (selected units hold position and defend area).
-      if (!missionInputLocked && inputState.keysPressed.has('g')) {
+      if (!gameplayInputLocked && inputState.keysPressed.has('g')) {
         const selIds = gameLogic.getLocalPlayerSelectionIds();
         for (const id of selIds) {
           const pos = gameLogic.getEntityWorldPosition(id);
@@ -3888,7 +4318,7 @@ async function startGame(
 
       // Escape — close overlays, cancel pending command, deselect, or open options.
       // Source parity: cascading priority matches C++ InGameUI::processEscape.
-      if (!missionInputLocked && inputState.keysPressed.has('escape')) {
+      if (!gameplayInputLocked && inputState.keysPressed.has('escape')) {
         if (helpVisible) {
           hideHelp();
         } else if (generalsPowersPanel.isVisible) {
@@ -3908,7 +4338,7 @@ async function startGame(
 
       // Tab — cycle through idle production structures and dozers.
       // Source parity: C++ InGameUI::selectNextIdleWorker / selectNextIdleFactory.
-      if (!missionInputLocked && inputState.keysPressed.has('tab')) {
+      if (!gameplayInputLocked && inputState.keysPressed.has('tab')) {
         const allStates = getCachedRenderStates();
         const localSide = gameLogic.getPlayerSide(networkManager.getLocalPlayerID());
         const idle = allStates.filter(e =>
@@ -3932,7 +4362,7 @@ async function startGame(
       }
 
       // Ctrl+A / Cmd+A — select all own combat units on screen.
-      if (!missionInputLocked && inputState.keysPressed.has('a')
+      if (!gameplayInputLocked && inputState.keysPressed.has('a')
         && (inputState.keysDown.has('control') || inputState.keysDown.has('meta'))) {
         const allStates = getCachedRenderStates();
         const ownUnits = allStates.filter(e =>
@@ -3948,6 +4378,12 @@ async function startGame(
 
       // Feed input to camera
       rtsCamera.setInputState(inputStateForGameLogic);
+
+      if (replayContext) {
+        for (const replayCommand of replayManager.advanceFrame()) {
+          gameLogic.submitCommand(replayCommand.command as unknown as ReplayRecordableCommand);
+        }
+      }
 
       // Update all subsystems (InputManager resets accumulators,
       // RTSCamera processes input, WaterVisual animates UVs)
@@ -4459,6 +4895,7 @@ async function startGame(
         const endState = gameLogic.getGameEndState();
         if (endState) {
           gameEnded = true;
+          void persistRecordedReplay();
 
           // Campaign mode: handle mission transitions
           if (campaignContext && endState.status === 'VICTORY') {
@@ -4520,7 +4957,7 @@ async function startGame(
             const score = gameLogic.getSideScoreState(side);
             return {
               side,
-              faction: sideToFactionLabel(side),
+              faction: sideToFactionLabel(resolveResolvedFactionSide(side, gameLogic)),
               isVictor: endState.victorSides.includes(side),
               isLocal: side === localSide,
               ...score,
@@ -4528,7 +4965,7 @@ async function startGame(
           });
           // Play victory/defeat music stinger. Source parity: MusicManager plays
           // faction-specific end-of-match stinger in the retail game.
-          const localFaction = sideToFactionLabel(localSide ?? 'America');
+          const localFaction = sideToFactionLabel(resolveResolvedFactionSide(localSide ?? 'America', gameLogic));
           if (endState.status === 'VICTORY') {
             musicManager.playVictory(localFaction);
           } else {
@@ -4788,6 +5225,54 @@ async function init(): Promise<void> {
     'localization/W3DEnglishZH/Data/English/generals.json',
   ]);
 
+  const replayMenuScreen = new ReplayMenuScreen(gameContainer, {
+    listReplays: () => ctx.replayStorage.listReplays(),
+    onLoadReplay: async (replayId: string) => {
+      const loadedReplay = await ctx.replayStorage.loadFromDB(replayId);
+      if (!loadedReplay) {
+        throw new Error(`Replay "${replayId}" was not found.`);
+      }
+
+      const replaySettings = buildSkirmishSettingsFromReplay(loadedReplay.replay);
+      replayMenuScreen.hide();
+      shell.hide();
+      await startGame(
+        ctx,
+        loadedReplay.replay.mapPath,
+        replaySettings,
+        undefined,
+        {
+          replay: loadedReplay.replay,
+          settings: replaySettings,
+          onReturnToShell: () => {
+            window.location.reload();
+          },
+        },
+      );
+    },
+    onDeleteReplay: async (replayId: string) => {
+      await ctx.replayStorage.deleteReplay(replayId);
+    },
+    onCopyReplay: async (replayId: string) => {
+      await ctx.replayStorage.downloadReplayFile(replayId);
+    },
+    onClose: () => { /* no-op, screen hides itself */ },
+  });
+  const loadGameScreen = new LoadGameScreen(gameContainer, {
+    listSaves: () => ctx.saveStorage.listSaves(),
+    onLoadSave: async (slotId: string) => {
+      const loadedSave = await ctx.saveStorage.loadFromDB(slotId);
+      if (!loadedSave) {
+        throw new Error(`Save "${slotId}" was not found.`);
+      }
+      throw new Error('Save-game loading is not available yet because runtime snapshot serialization is not wired.');
+    },
+    onDeleteSave: async (slotId: string) => {
+      await ctx.saveStorage.deleteSave(slotId);
+    },
+    onClose: () => { /* no-op, screen hides itself */ },
+  });
+
   const shell = new GameShell(gameContainer, {
     onStartGame: async (settings: SkirmishSettings) => {
       shell.hide();
@@ -4814,6 +5299,12 @@ async function init(): Promise<void> {
     onOpenOptions: () => {
       optionsScreen.show();
     },
+    onOpenLoadGame: () => {
+      loadGameScreen.show();
+    },
+    onOpenReplayMenu: () => {
+      replayMenuScreen.show();
+    },
   });
 
   // Populate available maps and campaigns
@@ -4836,6 +5327,10 @@ async function init(): Promise<void> {
   );
   shellMappedImageResolver.addEntries(ctx.iniDataRegistry.getAllMappedImages());
   shell.setMappedImageResolver(shellMappedImageResolver);
+  loadGameScreen.setLocalizedStrings(localizedStrings);
+  loadGameScreen.setMappedImageResolver(shellMappedImageResolver);
+  replayMenuScreen.setLocalizedStrings(localizedStrings);
+  replayMenuScreen.setMappedImageResolver(shellMappedImageResolver);
 
   shell.show();
 }

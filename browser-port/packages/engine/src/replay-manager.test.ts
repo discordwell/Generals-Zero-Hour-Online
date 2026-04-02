@@ -68,6 +68,13 @@ describe('ReplayManager', () => {
       manager.recordCommand(100, 0, { type: 'B' });
       expect(manager.getTotalFrames()).toBe(101);
     });
+
+    it('tracks totalFrames even when later frames contain no commands', () => {
+      manager.startRecording('maps/test.json', testPlayers, 30, 10000);
+      manager.recordCommand(0, 0, { type: 'A' });
+      manager.recordFrame(180);
+      expect(manager.getTotalFrames()).toBe(181);
+    });
   });
 
   describe('serialization', () => {
