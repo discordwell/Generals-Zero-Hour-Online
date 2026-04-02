@@ -51,11 +51,9 @@ test('USA campaign mission 1 -> mission 2 transition does not auto-defeat', asyn
   await expect(page.locator('#loading-screen')).toBeHidden({ timeout: 120_000 });
 
   await page.getByRole('button', { name: 'Single Player' }).click();
-  await page.getByRole('button', { name: 'Campaign' }).click();
-  await page.locator('[data-campaign="usa"]').click();
-  await page.locator('#campaign-faction-screen [data-action="next"]').click();
+  await page.getByRole('button', { name: 'USA' }).click();
   await page.locator('#campaign-difficulty-screen [data-action="start"]').click();
-  await page.locator('#campaign-briefing-screen [data-action="start"]').click();
+  await page.locator('#campaign-briefing-screen [data-ref="campaign-load-start"]').click();
 
   await waitForE2EHook(page);
   await expect(page.locator('#loading-screen')).toBeHidden({ timeout: 120_000 });

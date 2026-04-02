@@ -112,6 +112,78 @@ describe('ui layout parity report', () => {
     expect(issues).toEqual([]);
   });
 
+  it('passes when challenge-menu layout matches retail bounds', () => {
+    const viewport = { width: 1280, height: 720 };
+    const issues = collectUiLayoutBlockingIssues('challenge-menu', {
+      viewport,
+      background: scaleSourceRect({ x: 0, y: 0, width: 799, height: 599 }, viewport),
+      frame: scaleSourceRect({ x: 41, y: 40, width: 719, height: 521 }, viewport),
+      mainBackdrop: scaleSourceRect({ x: 42, y: 78, width: 717, height: 481 }, viewport),
+      playButton: scaleSourceRect({ x: 382, y: 505, width: 172, height: 36 }, viewport),
+      backButton: scaleSourceRect({ x: 576, y: 505, width: 172, height: 36 }, viewport),
+      bioPanel: scaleSourceRect({ x: 199, y: 379, width: 548, height: 114 }, viewport),
+      bioPortrait: scaleSourceRect({ x: 641, y: 386, width: 97, height: 100 }, viewport),
+      generalButtons: [
+        { index: 0, rect: scaleSourceRect({ x: 152, y: 198, width: 41, height: 41 }, viewport) },
+        { index: 8, rect: scaleSourceRect({ x: 535, y: 189, width: 41, height: 41 }, viewport) },
+      ],
+    }, {
+      challengeBackground: { x: 0, y: 0, width: 799, height: 599 },
+      challengeFrame: { x: 41, y: 40, width: 719, height: 521 },
+      challengeMainBackdrop: { x: 42, y: 78, width: 717, height: 481 },
+      challengePlayButton: { x: 382, y: 505, width: 172, height: 36 },
+      challengeBackButton: { x: 576, y: 505, width: 172, height: 36 },
+      challengeBioPanel: { x: 199, y: 379, width: 548, height: 114 },
+      challengeBioPortrait: { x: 641, y: 386, width: 97, height: 100 },
+      challengeGeneralButtons: [
+        { index: 0, rect: { x: 152, y: 198, width: 41, height: 41 } },
+        { index: 8, rect: { x: 535, y: 189, width: 41, height: 41 } },
+      ],
+    });
+
+    expect(issues).toEqual([]);
+  });
+
+  it('passes when campaign-load layout matches retail bounds', () => {
+    const viewport = { width: 1280, height: 720 };
+    const issues = collectUiLayoutBlockingIssues('campaign-load', {
+      viewport,
+      background: scaleSourceRect({ x: 0, y: 0, width: 799, height: 599 }, viewport),
+      cameoFrame: scaleSourceRect({ x: 396, y: 32, width: 112, height: 172 }, viewport),
+      head: scaleSourceRect({ x: 426, y: 209, width: 200, height: 150 }, viewport),
+      location: scaleSourceRect({ x: 92, y: 312, width: 167, height: 42 }, viewport),
+      objectives: scaleSourceRect({ x: 255, y: 369, width: 513, height: 144 }, viewport),
+      progress: scaleSourceRect({ x: 140, y: 564, width: 519, height: 20 }, viewport),
+      percent: scaleSourceRect({ x: 760, y: 520, width: 40, height: 32 }, viewport),
+      objectiveLines: [
+        { index: 0, rect: scaleSourceRect({ x: 255, y: 369, width: 513, height: 25 }, viewport) },
+        { index: 4, rect: scaleSourceRect({ x: 255, y: 465, width: 513, height: 28 }, viewport) },
+      ],
+      unitTexts: [
+        { key: 'unit0', rect: scaleSourceRect({ x: 441, y: 146, width: 98, height: 46 }, viewport) },
+        { key: 'unit2', rect: scaleSourceRect({ x: 647, y: 146, width: 99, height: 46 }, viewport) },
+      ],
+    }, {
+      campaignLoadBackground: { x: 0, y: 0, width: 799, height: 599 },
+      campaignLoadCameoFrame: { x: 396, y: 32, width: 112, height: 172 },
+      campaignLoadHead: { x: 426, y: 209, width: 200, height: 150 },
+      campaignLoadLocation: { x: 92, y: 312, width: 167, height: 42 },
+      campaignLoadObjectives: { x: 255, y: 369, width: 513, height: 144 },
+      campaignLoadProgress: { x: 140, y: 564, width: 519, height: 20 },
+      campaignLoadPercent: { x: 760, y: 520, width: 40, height: 32 },
+      campaignLoadObjectiveLines: [
+        { index: 0, rect: { x: 255, y: 369, width: 513, height: 25 } },
+        { index: 4, rect: { x: 255, y: 465, width: 513, height: 28 } },
+      ],
+      campaignLoadUnitTexts: [
+        { key: 'unit0', rect: { x: 441, y: 146, width: 98, height: 46 } },
+        { key: 'unit2', rect: { x: 647, y: 146, width: 99, height: 46 } },
+      ],
+    });
+
+    expect(issues).toEqual([]);
+  });
+
   it('summarizes blocked scenarios in the final report', () => {
     const report = buildUiLayoutParityReport('http://127.0.0.1:4177', [
       {

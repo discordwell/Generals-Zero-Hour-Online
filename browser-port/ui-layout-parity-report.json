@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-04-02T04:34:49.032Z",
-  "baseUrl": "http://127.0.0.1:65521",
+  "generatedAt": "2026-04-02T05:05:35.287Z",
+  "baseUrl": "http://127.0.0.1:51020",
   "summary": {
-    "scenarioCount": 4,
+    "scenarioCount": 6,
     "blockedScenarios": 0,
     "blockerItems": 0
   },
@@ -14,13 +14,15 @@
       "status": "pass",
       "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/main-menu.png",
       "pageErrors": [],
-      "consoleErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+      ],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A030530024010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x12c0019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x12c0019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x12c0019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x12c0019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050002C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "[.WebGL-0x11400199c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x11400199c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x11400199c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x11400199c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
         "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
       ],
       "debugState": {
@@ -103,13 +105,15 @@
       "status": "pass",
       "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/single-player.png",
       "pageErrors": [],
-      "consoleErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+      ],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A030500014010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x1240019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1240019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1240019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1240019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+        "[GroupMarkerNotSet(crbug.com/242999)!:A06050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "[.WebGL-0x114000b9c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x114000b9c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x114000b9c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x114000b9c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
         "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
       ],
       "debugState": {
@@ -201,13 +205,15 @@
       "status": "pass",
       "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/campaign-difficulty.png",
       "pageErrors": [],
-      "consoleErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+      ],
       "consoleWarnings": [
         "[GroupMarkerNotSet(crbug.com/242999)!:A03050002C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x1240019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1240019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1240019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x1240019a800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+        "[.WebGL-0x13c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x13c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x13c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x13c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
         "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
       ],
       "debugState": {
@@ -278,6 +284,301 @@
       "blockingIssues": []
     },
     {
+      "id": "challenge-menu",
+      "name": "Challenge Menu",
+      "url": "/",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/challenge-menu.png",
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+      ],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A030500004010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "[.WebGL-0x12c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x12c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x12c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x12c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "background": {
+          "x": 0,
+          "y": 0,
+          "width": 1278.390625,
+          "height": 718.796875
+        },
+        "frame": {
+          "x": 65.59375,
+          "y": 48,
+          "width": 1150.390625,
+          "height": 625.1875
+        },
+        "mainBackdrop": {
+          "x": 67.1875,
+          "y": 93.59375,
+          "width": 1147.1875,
+          "height": 577.1875
+        },
+        "playButton": {
+          "x": 611.1875,
+          "y": 606,
+          "width": 275.1875,
+          "height": 43.1875
+        },
+        "backButton": {
+          "x": 921.59375,
+          "y": 606,
+          "width": 275.1875,
+          "height": 43.1875
+        },
+        "bioPanel": {
+          "x": 318.390625,
+          "y": 454.796875,
+          "width": 876.796875,
+          "height": 136.796875
+        },
+        "bioPortrait": {
+          "x": 1025.59375,
+          "y": 463.1875,
+          "width": 155.1875,
+          "height": 120
+        },
+        "generalButtons": [
+          {
+            "index": 0,
+            "rect": {
+              "x": 243.1875,
+              "y": 237.59375,
+              "width": 65.59375,
+              "height": 49.1875
+            }
+          },
+          {
+            "index": 1,
+            "rect": {
+              "x": 800,
+              "y": 266.390625,
+              "width": 65.59375,
+              "height": 49.1875
+            }
+          },
+          {
+            "index": 2,
+            "rect": {
+              "x": 998.390625,
+              "y": 237.59375,
+              "width": 65.59375,
+              "height": 49.1875
+            }
+          },
+          {
+            "index": 3,
+            "rect": {
+              "x": 352,
+              "y": 190.796875,
+              "width": 65.59375,
+              "height": 49.1875
+            }
+          },
+          {
+            "index": 4,
+            "rect": {
+              "x": 1060.796875,
+              "y": 261.59375,
+              "width": 65.59375,
+              "height": 49.1875
+            }
+          },
+          {
+            "index": 5,
+            "rect": {
+              "x": 163.1875,
+              "y": 223.1875,
+              "width": 65.59375,
+              "height": 49.1875
+            }
+          },
+          {
+            "index": 6,
+            "rect": {
+              "x": 700.796875,
+              "y": 247.1875,
+              "width": 65.59375,
+              "height": 49.1875
+            }
+          },
+          {
+            "index": 7,
+            "rect": {
+              "x": 1105.59375,
+              "y": 219.59375,
+              "width": 65.59375,
+              "height": 49.1875
+            }
+          },
+          {
+            "index": 8,
+            "rect": {
+              "x": 856,
+              "y": 226.796875,
+              "width": 65.59375,
+              "height": 49.1875
+            }
+          }
+        ]
+      },
+      "blockingIssues": []
+    },
+    {
+      "id": "campaign-load",
+      "name": "Campaign Load Screen",
+      "url": "/",
+      "status": "pass",
+      "screenshotPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/test-results/ui-layout/campaign-load.png",
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+      ],
+      "consoleWarnings": [
+        "[GroupMarkerNotSet(crbug.com/242999)!:A03050000C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "[.WebGL-0x10c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x10c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x10c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x10c0019a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+        "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
+      ],
+      "debugState": {
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "background": {
+          "x": 0,
+          "y": 0,
+          "width": 1278.390625,
+          "height": 718.796875
+        },
+        "cameoFrame": {
+          "x": 633.59375,
+          "y": 38.390625,
+          "width": 179.1875,
+          "height": 206.390625
+        },
+        "head": {
+          "x": 681.59375,
+          "y": 250.796875,
+          "width": 320,
+          "height": 180
+        },
+        "location": {
+          "x": 147.1875,
+          "y": 374.390625,
+          "width": 267.1875,
+          "height": 50.390625
+        },
+        "objectives": {
+          "x": 408,
+          "y": 442.796875,
+          "width": 820.796875,
+          "height": 172.796875
+        },
+        "progress": {
+          "x": 224,
+          "y": 676.796875,
+          "width": 830.390625,
+          "height": 23.984375
+        },
+        "percent": {
+          "x": 1216,
+          "y": 624,
+          "width": 64,
+          "height": 38.390625
+        },
+        "objectiveLines": [
+          {
+            "index": 0,
+            "rect": {
+              "x": 408,
+              "y": 442.796875,
+              "width": 820.796875,
+              "height": 30
+            }
+          },
+          {
+            "index": 1,
+            "rect": {
+              "x": 408,
+              "y": 471.59375,
+              "width": 820.796875,
+              "height": 32.390625
+            }
+          },
+          {
+            "index": 2,
+            "rect": {
+              "x": 408,
+              "y": 500.390625,
+              "width": 820.796875,
+              "height": 30
+            }
+          },
+          {
+            "index": 3,
+            "rect": {
+              "x": 408,
+              "y": 529.1875,
+              "width": 820.796875,
+              "height": 30
+            }
+          },
+          {
+            "index": 4,
+            "rect": {
+              "x": 408,
+              "y": 558,
+              "width": 820.796875,
+              "height": 33.59375
+            }
+          }
+        ],
+        "unitTexts": [
+          {
+            "key": "unit0",
+            "rect": {
+              "x": 705.59375,
+              "y": 175.1875,
+              "width": 156.796875,
+              "height": 55.1875
+            }
+          },
+          {
+            "key": "unit1",
+            "rect": {
+              "x": 870.390625,
+              "y": 175.1875,
+              "width": 156.796875,
+              "height": 55.1875
+            }
+          },
+          {
+            "key": "unit2",
+            "rect": {
+              "x": 1035.1875,
+              "y": 175.1875,
+              "width": 158.390625,
+              "height": 55.1875
+            }
+          }
+        ]
+      },
+      "blockingIssues": []
+    },
+    {
       "id": "in-game-hud",
       "name": "In-Game HUD",
       "url": "/?map=assets/maps/_extracted/MapsZH/Maps/Tournament%20Desert/Tournament%20Desert.json",
@@ -286,11 +587,11 @@
       "pageErrors": [],
       "consoleErrors": [],
       "consoleWarnings": [
-        "[GroupMarkerNotSet(crbug.com/242999)!:A03050001C010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
-        "[.WebGL-0x11c0019b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x11c0019b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x11c0019b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-        "[.WebGL-0x11c0019b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+        "[GroupMarkerNotSet(crbug.com/242999)!:A030500034010000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "[.WebGL-0x1040019b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x1040019b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x1040019b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "[.WebGL-0x1040019b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
         "INI bundle CommandButton warnings (1): Command_CancelUpgradeCreate: command CANCEL_UPGRADE requires Upgrade."
       ],
       "debugState": {

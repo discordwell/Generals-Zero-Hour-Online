@@ -252,6 +252,28 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function buildTextureUrlMap(
+  manifest: { getOutputPaths(): string[] } | null,
+): ReadonlyMap<string, string> {
+  const textureUrls = new Map<string, string>();
+  if (!manifest) {
+    return textureUrls;
+  }
+
+  for (const outputPath of manifest.getOutputPaths()) {
+    if (!outputPath.toLowerCase().endsWith('.rgba')) {
+      continue;
+    }
+    const fileName = outputPath.split('/').pop()?.toLowerCase();
+    if (!fileName || textureUrls.has(fileName)) {
+      continue;
+    }
+    textureUrls.set(fileName, `${RUNTIME_ASSET_BASE_URL}/${outputPath}`);
+  }
+
+  return textureUrls;
+}
+
 const runtimeAssetPrefixPattern = new RegExp(`^${escapeRegExp(RUNTIME_ASSET_BASE_URL)}/`, 'i');
 const runtimeAssetBasePattern = new RegExp(`^${escapeRegExp(RUNTIME_ASSET_BASE_URL)}$`, 'i');
 
@@ -2397,9 +2419,13 @@ async function startGame(
     }
   };
 
+  const runtimeManifest = ctx.assets.getManifest();
+  const textureUrlMap = buildTextureUrlMap(runtimeManifest);
+
   // Initialize MappedImage resolver for command card button icons
   const mappedImageResolver = new MappedImageResolver(
     `${RUNTIME_ASSET_BASE_URL}/textures/Art/Textures`,
+    textureUrlMap,
   );
   mappedImageResolver.addEntries(iniDataRegistry.getAllMappedImages());
 
@@ -4768,7 +4794,9 @@ async function init(): Promise<void> {
       await startGame(ctx, settings.mapPath, settings);
     },
     onStartCampaign: async (settings: CampaignStartSettings) => {
-      shell.hide();
+      if (settings.gameMode !== 'CAMPAIGN') {
+        shell.hide();
+      }
       campaignManager.setCampaign(settings.campaignName);
       campaignManager.difficulty = settings.difficulty;
       await startGame(ctx, settings.mapPath, null, {
@@ -4779,6 +4807,9 @@ async function init(): Promise<void> {
           window.location.reload();
         },
       });
+      if (settings.gameMode === 'CAMPAIGN') {
+        shell.hide();
+      }
     },
     onOpenOptions: () => {
       optionsScreen.show();
@@ -4786,9 +4817,9 @@ async function init(): Promise<void> {
   });
 
   // Populate available maps and campaigns
-  const manifest = ctx.assets.getManifest();
-  if (manifest) {
-    shell.setAvailableMaps(manifest.getOutputPaths());
+  const shellManifest = ctx.assets.getManifest();
+  if (shellManifest) {
+    shell.setAvailableMaps(shellManifest.getOutputPaths());
   }
   shell.setCampaigns(campaignManager.getShellCampaigns());
   shell.setChallengePersonas(
@@ -4798,6 +4829,13 @@ async function init(): Promise<void> {
   shell.setStartingCreditsOptions(
     buildStartingCreditsOptionsFromRegistry(ctx.iniDataRegistry),
   );
+  const shellTextureUrlMap = buildTextureUrlMap(shellManifest);
+  const shellMappedImageResolver = new MappedImageResolver(
+    `${RUNTIME_ASSET_BASE_URL}/textures/Art/Textures`,
+    shellTextureUrlMap,
+  );
+  shellMappedImageResolver.addEntries(ctx.iniDataRegistry.getAllMappedImages());
+  shell.setMappedImageResolver(shellMappedImageResolver);
 
   shell.show();
 }

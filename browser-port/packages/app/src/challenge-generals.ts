@@ -17,10 +17,17 @@ export interface GeneralPersona {
   name: string;
   faction: string;
   bioNameLabel: string;
+  bioRankLabel?: string;
+  bioBranchLabel?: string;
+  bioStrategyLabel?: string;
   campaignName: string;
   playerTemplateName: string;
   bioPortraitSmallName: string;
   bioPortraitLargeName: string;
+  generalImageName?: string;
+  medallionRegularName?: string;
+  medallionHiliteName?: string;
+  medallionSelectName?: string;
   portraitMovieLeftName: string;
   portraitMovieRightName: string;
   defeatedImageName: string;
@@ -164,7 +171,7 @@ export function buildChallengePersonasFromRegistry(
   }
 
   const personas = sourceBlock.blocks
-    .map((block) => buildChallengePersonaFromBlock(block))
+    .map((block) => buildChallengePersonaFromBlock(block, iniDataRegistry))
     .filter((persona): persona is GeneralPersona => persona !== null)
     .sort((a, b) => a.index - b.index);
 
@@ -177,7 +184,10 @@ export function getEnabledChallengePersonas(personas: readonly GeneralPersona[])
   );
 }
 
-function buildChallengePersonaFromBlock(block: IniBlock): GeneralPersona | null {
+function buildChallengePersonaFromBlock(
+  block: IniBlock,
+  iniDataRegistry: IniDataRegistry,
+): GeneralPersona | null {
   const match = /^GeneralPersona(\d+)$/i.exec(block.type);
   if (!match) {
     return null;
@@ -203,6 +213,9 @@ function buildChallengePersonaFromBlock(block: IniBlock): GeneralPersona | null 
     ?? humanizePlayerTemplateName(playerTemplateName)
     ?? playerTemplateName
     ?? `GeneralPersona${index}`;
+  const playerTemplate = playerTemplateName
+    ? iniDataRegistry.getFaction(playerTemplateName)
+    : undefined;
 
   return {
     index,
@@ -210,10 +223,17 @@ function buildChallengePersonaFromBlock(block: IniBlock): GeneralPersona | null 
     name,
     faction,
     bioNameLabel: extractString(block.fields['BioNameString']) ?? '',
+    bioRankLabel: extractString(block.fields['BioRankString']) ?? '',
+    bioBranchLabel: extractString(block.fields['BioBranchString']) ?? '',
+    bioStrategyLabel: extractString(block.fields['BioStrategyString']) ?? '',
     campaignName,
     playerTemplateName,
     bioPortraitSmallName: normalizeSourceToken(extractString(block.fields['BioPortraitSmall'])) ?? '',
     bioPortraitLargeName: normalizeSourceToken(extractString(block.fields['BioPortraitLarge'])) ?? '',
+    generalImageName: normalizeSourceToken(playerTemplate?.generalImage) ?? '',
+    medallionRegularName: normalizeSourceToken(playerTemplate?.medallionRegular) ?? '',
+    medallionHiliteName: normalizeSourceToken(playerTemplate?.medallionHilite) ?? '',
+    medallionSelectName: normalizeSourceToken(playerTemplate?.medallionSelect) ?? '',
     portraitMovieLeftName: normalizeSourceToken(extractString(block.fields['PortraitMovieLeftName'])) ?? '',
     portraitMovieRightName: normalizeSourceToken(extractString(block.fields['PortraitMovieRightName'])) ?? '',
     defeatedImageName: normalizeSourceToken(extractString(block.fields['DefeatedImage'])) ?? '',

@@ -38,6 +38,7 @@ export class MappedImageResolver {
   private readonly atlasCache = new Map<string, Promise<ImageData>>();
   private readonly imageUrlCache = new Map<string, Promise<string>>();
   private readonly textureBasePath: string;
+  private readonly textureUrlByName: ReadonlyMap<string, string>;
 
   /**
    * @param textureBasePath Base URL path for atlas textures
@@ -45,8 +46,9 @@ export class MappedImageResolver {
    *   MappedImage INI blocks (like "SSUserInterface512_001.tga") are lowercased
    *   and the extension replaced with ".rgba".
    */
-  constructor(textureBasePath: string) {
+  constructor(textureBasePath: string, textureUrlByName?: ReadonlyMap<string, string>) {
     this.textureBasePath = textureBasePath.replace(/\/+$/, '');
+    this.textureUrlByName = textureUrlByName ?? new Map();
   }
 
   /** Register MappedImage entries (typically from IniDataRegistry). */
@@ -168,7 +170,7 @@ export class MappedImageResolver {
       return cached;
     }
 
-    const url = `${this.textureBasePath}/${normalizedName}`;
+    const url = this.textureUrlByName.get(normalizedName) ?? `${this.textureBasePath}/${normalizedName}`;
     const promise = fetchAndDecodeRgba(url);
     this.atlasCache.set(normalizedName, promise);
     return promise;

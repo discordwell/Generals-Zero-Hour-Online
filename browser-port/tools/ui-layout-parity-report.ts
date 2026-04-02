@@ -47,6 +47,36 @@ export interface DifficultyLayoutDebugState {
   cancelButton: UiRect | null;
 }
 
+export interface ChallengeRuntimeButton {
+  index: number;
+  rect: UiRect | null;
+}
+
+export interface ChallengeMenuLayoutDebugState {
+  viewport: UiViewport;
+  background: UiRect | null;
+  frame: UiRect | null;
+  mainBackdrop: UiRect | null;
+  playButton: UiRect | null;
+  backButton: UiRect | null;
+  bioPanel: UiRect | null;
+  bioPortrait: UiRect | null;
+  generalButtons: ChallengeRuntimeButton[];
+}
+
+export interface CampaignLoadLayoutDebugState {
+  viewport: UiViewport;
+  background: UiRect | null;
+  cameoFrame: UiRect | null;
+  head: UiRect | null;
+  location: UiRect | null;
+  objectives: UiRect | null;
+  progress: UiRect | null;
+  percent: UiRect | null;
+  objectiveLines: Array<{ index: number; rect: UiRect | null }>;
+  unitTexts: Array<{ key: string; rect: UiRect | null }>;
+}
+
 export interface HudLayoutDebugState {
   viewport: UiViewport;
   buttonCount: number;
@@ -56,7 +86,12 @@ export interface HudLayoutDebugState {
   powerHud: UiRect | null;
 }
 
-export type UiLayoutDebugState = MainMenuLayoutDebugState | DifficultyLayoutDebugState | HudLayoutDebugState;
+export type UiLayoutDebugState =
+  | MainMenuLayoutDebugState
+  | DifficultyLayoutDebugState
+  | ChallengeMenuLayoutDebugState
+  | CampaignLoadLayoutDebugState
+  | HudLayoutDebugState;
 
 export interface UiLayoutScenarioResult {
   id: string;
@@ -139,6 +174,19 @@ const DIFFICULTY_TEXT_BY_TOKEN: Record<string, string> = {
   'GUI:Medium': 'Medium',
   'GUI:Hard': 'Hard',
 };
+const CHALLENGE_GENERAL_SEQUENCE = Array.from({ length: 12 }, (_, index) => `GeneralPosition${index}` as const);
+const CAMPAIGN_LOAD_UNIT_TEXT_SEQUENCE = [
+  'StaticTextCameoText0',
+  'StaticTextCameoText1',
+  'StaticTextCameoText2',
+] as const;
+const CAMPAIGN_LOAD_OBJECTIVE_LINE_SEQUENCE = [
+  'StaticTextLine0',
+  'StaticTextLine1',
+  'StaticTextLine2',
+  'StaticTextLine3',
+  'StaticTextLine4',
+] as const;
 const UI_LAYOUT_TOLERANCE_PX = 24;
 const SCENARIO_BOOT_TIMEOUT_MS = 45_000;
 
@@ -349,6 +397,69 @@ function buildSourceDifficultyLayout(difficultyWindows: readonly WndWindow[]): {
   };
 }
 
+function buildSourceChallengeLayout(challengeWindows: readonly WndWindow[]): {
+  background: UiRect;
+  frame: UiRect;
+  mainBackdrop: UiRect;
+  playButton: UiRect;
+  backButton: UiRect;
+  bioPanel: UiRect;
+  bioPortrait: UiRect;
+  generalButtons: Array<{ index: number; rect: UiRect }>;
+} {
+  return {
+    background: uiRectFromWnd(lookupWindowBySuffix(challengeWindows, 'BackgroundWindow')),
+    frame: uiRectFromWnd(lookupWindowBySuffix(challengeWindows, 'Frame')),
+    mainBackdrop: uiRectFromWnd(lookupWindowBySuffix(challengeWindows, 'MainBackdrop')),
+    playButton: uiRectFromWnd(lookupWindowBySuffix(challengeWindows, 'ButtonPlay')),
+    backButton: uiRectFromWnd(lookupWindowBySuffix(challengeWindows, 'ButtonBack')),
+    bioPanel: uiRectFromWnd(lookupWindowBySuffix(challengeWindows, 'GeneralsBioParent')),
+    bioPortrait: uiRectFromWnd(lookupWindowBySuffix(challengeWindows, 'BioPortrait')),
+    generalButtons: CHALLENGE_GENERAL_SEQUENCE.map((buttonName, index) => {
+      const wndRect = uiRectFromWnd(lookupWindowBySuffix(challengeWindows, buttonName));
+      return {
+        index,
+        rect: {
+          x: wndRect.x,
+          y: wndRect.y,
+          width: Math.max(wndRect.width, 41),
+          height: Math.max(wndRect.height, 41),
+        },
+      };
+    }),
+  };
+}
+
+function buildSourceCampaignLoadLayout(loadScreenWindows: readonly WndWindow[]): {
+  background: UiRect;
+  cameoFrame: UiRect;
+  head: UiRect;
+  location: UiRect;
+  objectives: UiRect;
+  progress: UiRect;
+  percent: UiRect;
+  objectiveLines: Array<{ index: number; rect: UiRect }>;
+  unitTexts: Array<{ key: string; rect: UiRect }>;
+} {
+  return {
+    background: uiRectFromWnd(lookupWindowBySuffix(loadScreenWindows, 'ParentSinglePlayerLoadScreen')),
+    cameoFrame: uiRectFromWnd(lookupWindowBySuffix(loadScreenWindows, 'WindowHiliteCameo')),
+    head: uiRectFromWnd(lookupWindowBySuffix(loadScreenWindows, 'WindowHead')),
+    location: uiRectFromWnd(lookupWindowBySuffix(loadScreenWindows, 'StaticTextCameoText3')),
+    objectives: uiRectFromWnd(lookupWindowBySuffix(loadScreenWindows, 'ObjectivesWin')),
+    progress: uiRectFromWnd(lookupWindowBySuffix(loadScreenWindows, 'ProgressLoad')),
+    percent: uiRectFromWnd(lookupWindowBySuffix(loadScreenWindows, 'Percent')),
+    objectiveLines: CAMPAIGN_LOAD_OBJECTIVE_LINE_SEQUENCE.map((lineName, index) => ({
+      index,
+      rect: uiRectFromWnd(lookupWindowBySuffix(loadScreenWindows, lineName)),
+    })),
+    unitTexts: CAMPAIGN_LOAD_UNIT_TEXT_SEQUENCE.map((windowName, index) => ({
+      key: `unit${index}`,
+      rect: uiRectFromWnd(lookupWindowBySuffix(loadScreenWindows, windowName)),
+    })),
+  };
+}
+
 function mainMenuRectIssue(
   label: string,
   actualRect: UiRect | null,
@@ -368,7 +479,7 @@ function mainMenuRectIssue(
 }
 
 export function collectUiLayoutBlockingIssues(
-  scenarioId: 'main-menu' | 'single-player' | 'campaign-difficulty' | 'in-game-hud',
+  scenarioId: 'main-menu' | 'single-player' | 'campaign-difficulty' | 'challenge-menu' | 'campaign-load' | 'in-game-hud',
   debugState: UiLayoutDebugState | null,
   expectedSource: {
     mainMenuButtons?: Array<{ text: string; rect: UiRect }>;
@@ -381,6 +492,23 @@ export function collectUiLayoutBlockingIssues(
     difficultyOptions?: Array<{ text: string; rect: UiRect }>;
     difficultyConfirmButton?: UiRect;
     difficultyCancelButton?: UiRect;
+    challengeBackground?: UiRect;
+    challengeFrame?: UiRect;
+    challengeMainBackdrop?: UiRect;
+    challengePlayButton?: UiRect;
+    challengeBackButton?: UiRect;
+    challengeBioPanel?: UiRect;
+    challengeBioPortrait?: UiRect;
+    challengeGeneralButtons?: Array<{ index: number; rect: UiRect }>;
+    campaignLoadBackground?: UiRect;
+    campaignLoadCameoFrame?: UiRect;
+    campaignLoadHead?: UiRect;
+    campaignLoadLocation?: UiRect;
+    campaignLoadObjectives?: UiRect;
+    campaignLoadProgress?: UiRect;
+    campaignLoadPercent?: UiRect;
+    campaignLoadObjectiveLines?: Array<{ index: number; rect: UiRect }>;
+    campaignLoadUnitTexts?: Array<{ key: string; rect: UiRect }>;
     minimap?: UiRect;
     commandCard?: UiRect;
     creditsHud?: UiRect;
@@ -452,6 +580,83 @@ export function collectUiLayoutBlockingIssues(
         dialogDebugState.viewport,
       );
       if (optionIssue) issues.push(optionIssue);
+    }
+
+    return issues;
+  }
+
+  if (scenarioId === 'challenge-menu') {
+    const challengeDebugState = debugState as ChallengeMenuLayoutDebugState;
+    const expectedButtons = expectedSource.challengeGeneralButtons ?? [];
+
+    const backgroundIssue = mainMenuRectIssue('challenge-menu background', challengeDebugState.background, expectedSource.challengeBackground, challengeDebugState.viewport);
+    if (backgroundIssue) issues.push(backgroundIssue);
+    const frameIssue = mainMenuRectIssue('challenge-menu frame', challengeDebugState.frame, expectedSource.challengeFrame, challengeDebugState.viewport);
+    if (frameIssue) issues.push(frameIssue);
+    const backdropIssue = mainMenuRectIssue('challenge-menu main backdrop', challengeDebugState.mainBackdrop, expectedSource.challengeMainBackdrop, challengeDebugState.viewport);
+    if (backdropIssue) issues.push(backdropIssue);
+    const playIssue = mainMenuRectIssue('challenge-menu play button', challengeDebugState.playButton, expectedSource.challengePlayButton, challengeDebugState.viewport);
+    if (playIssue) issues.push(playIssue);
+    const backIssue = mainMenuRectIssue('challenge-menu back button', challengeDebugState.backButton, expectedSource.challengeBackButton, challengeDebugState.viewport);
+    if (backIssue) issues.push(backIssue);
+    const bioPanelIssue = mainMenuRectIssue('challenge-menu bio panel', challengeDebugState.bioPanel, expectedSource.challengeBioPanel, challengeDebugState.viewport);
+    if (bioPanelIssue) issues.push(bioPanelIssue);
+    const bioPortraitIssue = mainMenuRectIssue('challenge-menu bio portrait', challengeDebugState.bioPortrait, expectedSource.challengeBioPortrait, challengeDebugState.viewport);
+    if (bioPortraitIssue) issues.push(bioPortraitIssue);
+
+    for (const actualButton of challengeDebugState.generalButtons) {
+      const expectedButton = expectedButtons.find((button) => button.index === actualButton.index);
+      const buttonIssue = mainMenuRectIssue(
+        `challenge-menu general button ${actualButton.index}`,
+        actualButton.rect,
+        expectedButton?.rect,
+        challengeDebugState.viewport,
+      );
+      if (buttonIssue) issues.push(buttonIssue);
+    }
+
+    return issues;
+  }
+
+  if (scenarioId === 'campaign-load') {
+    const loadDebugState = debugState as CampaignLoadLayoutDebugState;
+    const backgroundIssue = mainMenuRectIssue('campaign-load background', loadDebugState.background, expectedSource.campaignLoadBackground, loadDebugState.viewport);
+    if (backgroundIssue) issues.push(backgroundIssue);
+    const cameoFrameIssue = mainMenuRectIssue('campaign-load cameo frame', loadDebugState.cameoFrame, expectedSource.campaignLoadCameoFrame, loadDebugState.viewport);
+    if (cameoFrameIssue) issues.push(cameoFrameIssue);
+    const headIssue = mainMenuRectIssue('campaign-load head', loadDebugState.head, expectedSource.campaignLoadHead, loadDebugState.viewport);
+    if (headIssue) issues.push(headIssue);
+    const locationIssue = mainMenuRectIssue('campaign-load location', loadDebugState.location, expectedSource.campaignLoadLocation, loadDebugState.viewport);
+    if (locationIssue) issues.push(locationIssue);
+    const objectivesIssue = mainMenuRectIssue('campaign-load objectives', loadDebugState.objectives, expectedSource.campaignLoadObjectives, loadDebugState.viewport);
+    if (objectivesIssue) issues.push(objectivesIssue);
+    const progressIssue = mainMenuRectIssue('campaign-load progress', loadDebugState.progress, expectedSource.campaignLoadProgress, loadDebugState.viewport);
+    if (progressIssue) issues.push(progressIssue);
+    const percentIssue = mainMenuRectIssue('campaign-load percent', loadDebugState.percent, expectedSource.campaignLoadPercent, loadDebugState.viewport);
+    if (percentIssue) issues.push(percentIssue);
+
+    const expectedLines = expectedSource.campaignLoadObjectiveLines ?? [];
+    for (const actualLine of loadDebugState.objectiveLines) {
+      const expectedLine = expectedLines.find((line) => line.index === actualLine.index);
+      const lineIssue = mainMenuRectIssue(
+        `campaign-load objective line ${actualLine.index}`,
+        actualLine.rect,
+        expectedLine?.rect,
+        loadDebugState.viewport,
+      );
+      if (lineIssue) issues.push(lineIssue);
+    }
+
+    const expectedUnitTexts = expectedSource.campaignLoadUnitTexts ?? [];
+    for (const actualUnitText of loadDebugState.unitTexts) {
+      const expectedUnitText = expectedUnitTexts.find((entry) => entry.key === actualUnitText.key);
+      const unitIssue = mainMenuRectIssue(
+        `campaign-load unit text ${actualUnitText.key}`,
+        actualUnitText.rect,
+        expectedUnitText?.rect,
+        loadDebugState.viewport,
+      );
+      if (unitIssue) issues.push(unitIssue);
     }
 
     return issues;
@@ -766,6 +971,237 @@ async function probeCampaignDifficulty(baseUrl: string, screenshotPath: string):
   }
 }
 
+async function probeChallengeMenu(baseUrl: string, screenshotPath: string): Promise<UiLayoutScenarioResult> {
+  const browser = await chromium.launch({ headless: true, args: browserLaunchArgs() });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  const consoleWarnings: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+    if (message.type() === 'warning') consoleWarnings.push(message.text());
+  });
+
+  try {
+    await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(
+      () => Boolean(document.getElementById('main-menu-screen')),
+      undefined,
+      { timeout: SCENARIO_BOOT_TIMEOUT_MS },
+    );
+    await page.click('#main-menu-screen [data-action="single-player"]');
+    await page.click('#single-player-screen [data-action="challenge"]');
+    await page.waitForFunction(
+      () => {
+        const screen = document.getElementById('campaign-difficulty-screen');
+        return Boolean(screen) && !screen?.classList.contains('hidden');
+      },
+      undefined,
+      { timeout: SCENARIO_BOOT_TIMEOUT_MS },
+    );
+    await page.click('#campaign-difficulty-screen [data-action="start"]');
+    await page.waitForFunction(
+      () => {
+        const screen = document.getElementById('challenge-select-screen');
+        return Boolean(screen) && !screen?.classList.contains('hidden');
+      },
+      undefined,
+      { timeout: SCENARIO_BOOT_TIMEOUT_MS },
+    );
+    await page.click('#challenge-select-screen [data-challenge]');
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: screenshotPath });
+
+    const debugState = await page.evaluate<ChallengeMenuLayoutDebugState>(() => ({
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      background: (() => {
+        const element = document.querySelector('#challenge-select-screen [data-ref="challenge-menu-background"]');
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      frame: (() => {
+        const element = document.querySelector('#challenge-select-screen [data-ref="challenge-menu-frame"]');
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      mainBackdrop: (() => {
+        const element = document.querySelector('#challenge-select-screen [data-ref="challenge-menu-main-backdrop"]');
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      playButton: (() => {
+        const element = document.querySelector('#challenge-select-screen [data-ref="challenge-menu-start"]');
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      backButton: (() => {
+        const element = document.querySelector('#challenge-select-screen [data-ref="challenge-menu-back"]');
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      bioPanel: (() => {
+        const element = document.querySelector('#challenge-select-screen [data-ref="challenge-bio-panel"]');
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      bioPortrait: (() => {
+        const element = document.querySelector('#challenge-select-screen [data-ref="challenge-bio-portrait"]');
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      generalButtons: [...document.querySelectorAll('#challenge-select-screen [data-challenge]')].map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          index: Number((element as HTMLElement).dataset.challenge),
+          rect: {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+          },
+        };
+      }),
+    }));
+
+    return {
+      id: 'challenge-menu',
+      name: 'Challenge Menu',
+      url: '/',
+      status: 'pass',
+      screenshotPath,
+      pageErrors,
+      consoleErrors,
+      consoleWarnings,
+      debugState,
+      blockingIssues: [],
+    };
+  } finally {
+    await browser.close();
+  }
+}
+
+async function probeCampaignLoad(baseUrl: string, screenshotPath: string): Promise<UiLayoutScenarioResult> {
+  const browser = await chromium.launch({ headless: true, args: browserLaunchArgs() });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  const consoleWarnings: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+    if (message.type() === 'warning') consoleWarnings.push(message.text());
+  });
+
+  try {
+    await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(
+      () => Boolean(document.getElementById('main-menu-screen')),
+      undefined,
+      { timeout: SCENARIO_BOOT_TIMEOUT_MS },
+    );
+    await page.click('#main-menu-screen [data-action="single-player"]');
+    await page.click('#single-player-screen [data-action="campaign-usa"]');
+    await page.waitForFunction(
+      () => {
+        const screen = document.getElementById('campaign-difficulty-screen');
+        return Boolean(screen) && !screen?.classList.contains('hidden');
+      },
+      undefined,
+      { timeout: SCENARIO_BOOT_TIMEOUT_MS },
+    );
+    await page.click('#campaign-difficulty-screen [data-action="start"]');
+    await page.waitForFunction(
+      () => {
+        const screen = document.getElementById('campaign-briefing-screen');
+        return Boolean(screen) && !screen?.classList.contains('hidden');
+      },
+      undefined,
+      { timeout: SCENARIO_BOOT_TIMEOUT_MS },
+    );
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: screenshotPath });
+
+    const debugState = await page.evaluate<CampaignLoadLayoutDebugState>(() => ({
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      background: (() => {
+        const element = document.querySelector('#campaign-briefing-screen [data-ref="campaign-load-background"]');
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      cameoFrame: (() => {
+        const element = document.querySelector('#campaign-briefing-screen [data-ref="campaign-load-cameo-frame"]');
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      head: (() => {
+        const element = document.querySelector('#campaign-briefing-screen [data-ref="campaign-load-head"]');
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      location: (() => {
+        const element = document.querySelector('#campaign-briefing-screen [data-ref="campaign-load-location"]');
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      objectives: (() => {
+        const element = document.querySelector('#campaign-briefing-screen [data-ref="campaign-load-objectives"]');
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      progress: (() => {
+        const element = document.querySelector('#campaign-briefing-screen [data-ref="campaign-load-progress"]');
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      percent: (() => {
+        const element = document.querySelector('#campaign-briefing-screen [data-ref="campaign-load-percent"]');
+        const rect = element?.getBoundingClientRect() ?? null;
+        return rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+      })(),
+      objectiveLines: [...document.querySelectorAll('#campaign-briefing-screen [data-ref^="campaign-load-line-"]')].map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          index: Number((element as HTMLElement).dataset.ref?.replace('campaign-load-line-', '') ?? '-1'),
+          rect: {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+          },
+        };
+      }),
+      unitTexts: [...document.querySelectorAll('#campaign-briefing-screen [data-ref$="-text"]')].map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          key: (element as HTMLElement).dataset.ref?.replace('campaign-load-', '').replace('-text', '') ?? '',
+          rect: {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+          },
+        };
+      }),
+    }));
+
+    return {
+      id: 'campaign-load',
+      name: 'Campaign Load Screen',
+      url: '/',
+      status: 'pass',
+      screenshotPath,
+      pageErrors,
+      consoleErrors,
+      consoleWarnings,
+      debugState,
+      blockingIssues: [],
+    };
+  } finally {
+    await browser.close();
+  }
+}
+
 async function probeHud(baseUrl: string, screenshotPath: string): Promise<UiLayoutScenarioResult> {
   const browser = await chromium.launch({ headless: true, args: browserLaunchArgs() });
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
@@ -869,6 +1305,14 @@ async function main(): Promise<void> {
     path.join(distDir, 'assets', '_extracted', 'WindowZH', 'Window', 'Menus', 'DifficultySelect.wnd'),
     'utf8',
   ));
+  const challengeWnd = parseWnd(await fs.readFile(
+    path.join(distDir, 'assets', '_extracted', 'WindowZH', 'Window', 'Menus', 'ChallengeMenu.wnd'),
+    'utf8',
+  ));
+  const campaignLoadWnd = parseWnd(await fs.readFile(
+    path.join(distDir, 'assets', '_extracted', 'WindowZH', 'Window', 'Menus', 'SinglePlayerLoadScreen.wnd'),
+    'utf8',
+  ));
   const sourceMainMenuLayout = buildSourceShellMenuLayout(
     mainMenuWnd.windows,
     MAIN_MENU_BUTTON_SEQUENCE,
@@ -882,6 +1326,8 @@ async function main(): Promise<void> {
     'MapBorder2',
   );
   const sourceDifficultyLayout = buildSourceDifficultyLayout(difficultyWnd.windows);
+  const sourceChallengeLayout = buildSourceChallengeLayout(challengeWnd.windows);
+  const sourceCampaignLoadLayout = buildSourceCampaignLoadLayout(campaignLoadWnd.windows);
   const sourceHudRects = buildSourceHudRects(controlBarWnd.windows);
 
   const server = await createStaticServer(distDir);
@@ -924,6 +1370,39 @@ async function main(): Promise<void> {
     });
     campaignDifficultyScenario.status = campaignDifficultyScenario.blockingIssues.length > 0 ? 'blocked' : 'pass';
 
+    const challengeMenuScenario = await probeChallengeMenu(
+      server.baseUrl,
+      path.join(screenshotDir, 'challenge-menu.png'),
+    );
+    challengeMenuScenario.blockingIssues = collectUiLayoutBlockingIssues('challenge-menu', challengeMenuScenario.debugState, {
+      challengeBackground: sourceChallengeLayout.background,
+      challengeFrame: sourceChallengeLayout.frame,
+      challengeMainBackdrop: sourceChallengeLayout.mainBackdrop,
+      challengePlayButton: sourceChallengeLayout.playButton,
+      challengeBackButton: sourceChallengeLayout.backButton,
+      challengeBioPanel: sourceChallengeLayout.bioPanel,
+      challengeBioPortrait: sourceChallengeLayout.bioPortrait,
+      challengeGeneralButtons: sourceChallengeLayout.generalButtons,
+    });
+    challengeMenuScenario.status = challengeMenuScenario.blockingIssues.length > 0 ? 'blocked' : 'pass';
+
+    const campaignLoadScenario = await probeCampaignLoad(
+      server.baseUrl,
+      path.join(screenshotDir, 'campaign-load.png'),
+    );
+    campaignLoadScenario.blockingIssues = collectUiLayoutBlockingIssues('campaign-load', campaignLoadScenario.debugState, {
+      campaignLoadBackground: sourceCampaignLoadLayout.background,
+      campaignLoadCameoFrame: sourceCampaignLoadLayout.cameoFrame,
+      campaignLoadHead: sourceCampaignLoadLayout.head,
+      campaignLoadLocation: sourceCampaignLoadLayout.location,
+      campaignLoadObjectives: sourceCampaignLoadLayout.objectives,
+      campaignLoadProgress: sourceCampaignLoadLayout.progress,
+      campaignLoadPercent: sourceCampaignLoadLayout.percent,
+      campaignLoadObjectiveLines: sourceCampaignLoadLayout.objectiveLines,
+      campaignLoadUnitTexts: sourceCampaignLoadLayout.unitTexts,
+    });
+    campaignLoadScenario.status = campaignLoadScenario.blockingIssues.length > 0 ? 'blocked' : 'pass';
+
     const hudScenario = await probeHud(
       server.baseUrl,
       path.join(screenshotDir, 'in-game-hud.png'),
@@ -935,6 +1414,8 @@ async function main(): Promise<void> {
       mainMenuScenario,
       singlePlayerScenario,
       campaignDifficultyScenario,
+      challengeMenuScenario,
+      campaignLoadScenario,
       hudScenario,
     ]);
     await fs.writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');

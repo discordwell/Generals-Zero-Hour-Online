@@ -237,8 +237,10 @@ describe('GameShell', () => {
 
     (root.querySelector('#main-menu-screen [data-action="single-player"]') as HTMLButtonElement).click();
     (root.querySelector('#single-player-screen [data-action="challenge"]') as HTMLButtonElement).click();
+    (root.querySelector('#campaign-difficulty-screen [data-action="start"]') as HTMLButtonElement).click();
 
-    expect(root.querySelectorAll('#challenge-select-screen .challenge-card')).toHaveLength(2);
+    expect(root.querySelectorAll('#challenge-select-screen [data-challenge]')).toHaveLength(2);
+    expect((root.querySelector('#challenge-select-screen [data-ref="challenge-menu-start"]') as HTMLElement).classList.contains('hidden')).toBe(true);
 
     (root.querySelector('#challenge-select-screen [data-challenge="8"]') as HTMLButtonElement).click();
     (root.querySelector('#challenge-select-screen [data-action="start"]') as HTMLButtonElement).click();
@@ -316,14 +318,17 @@ describe('GameShell', () => {
 
     (root.querySelector('#main-menu-screen [data-action="single-player"]') as HTMLButtonElement).click();
     (root.querySelector('#single-player-screen [data-action="challenge"]') as HTMLButtonElement).click();
+    (root.querySelector('#campaign-difficulty-screen [data-action="start"]') as HTMLButtonElement).click();
 
-    expect(root.querySelector('#challenge-select-screen .general-name')?.textContent).toBe('General Juhziz');
+    expect(root.querySelector('#challenge-select-screen [data-ref="challenge-bio-name"]')?.textContent).toBe('');
+    (root.querySelector('#challenge-select-screen [data-challenge="8"]') as HTMLButtonElement).click();
+    expect(root.querySelector('#challenge-select-screen [data-ref="challenge-bio-name"]')?.textContent).toBe('General Juhziz');
 
     (root.querySelector('#challenge-select-screen [data-action="back"]') as HTMLButtonElement).click();
     (root.querySelector('#single-player-screen [data-action="campaign-usa"]') as HTMLButtonElement).click();
     (root.querySelector('#campaign-difficulty-screen [data-action="start"]') as HTMLButtonElement).click();
 
-    const briefingContent = root.querySelector('#campaign-briefing-screen [data-ref="briefing-content"]')?.textContent ?? '';
+    const briefingContent = root.querySelector('#campaign-briefing-screen')?.textContent ?? '';
     expect(briefingContent).toContain('USA');
     expect(briefingContent).toContain('Mazar');
     expect(briefingContent).toContain('- GLA controls a Chemical Weapons Plant');

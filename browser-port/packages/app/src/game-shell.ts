@@ -8,9 +8,9 @@
  *
  * The original engine uses a WND-based (Westwood Window) UI system for its
  * shell screens. We replicate the screen flow with DOM elements:
- *   MAIN_MENU → SINGLE_PLAYER → CAMPAIGN_FACTION → CAMPAIGN_DIFFICULTY → CAMPAIGN_BRIEFING → (game loads)
+ *   MAIN_MENU → SINGLE_PLAYER → CAMPAIGN_DIFFICULTY → CAMPAIGN_BRIEFING → (game loads)
  *   MAIN_MENU → SKIRMISH_SETUP → (game loads)
- *   MAIN_MENU → SINGLE_PLAYER → CHALLENGE_SELECT → (game loads)
+ *   MAIN_MENU → SINGLE_PLAYER → CAMPAIGN_DIFFICULTY → CHALLENGE_SELECT → (game loads)
  */
 
 import {
@@ -148,6 +148,18 @@ export interface GameShellCallbacks {
   onOpenOptions?(): void;
 }
 
+export interface ShellMappedImageEntry {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+export interface ShellMappedImageResolver {
+  resolve(name: string): Promise<string | null>;
+  getEntry?(name: string): ShellMappedImageEntry | undefined;
+}
+
 // ──── Faction / difficulty data ─────────────────────────────────────────────
 
 const FACTIONS = [
@@ -158,12 +170,6 @@ const FACTIONS = [
 const FACTION_BY_CAMPAIGN = new Map<string, (typeof FACTIONS)[number]>(
   FACTIONS.map((faction) => [faction.campaignName, faction] as const),
 );
-
-const DIFFICULTIES: { value: GameDifficulty; label: string; description: string }[] = [
-  { value: 'EASY', label: 'Easy', description: 'For beginners' },
-  { value: 'NORMAL', label: 'Normal', description: 'Standard challenge' },
-  { value: 'HARD', label: 'Hard', description: 'For veterans' },
-];
 
 const SHELL_SOURCE_RESOLUTION = { width: 800, height: 600 } as const;
 const MAIN_MENU_PREVIEW_RECT: SourceRect = { x: 88, y: 108, width: 388, height: 388 };
@@ -208,6 +214,73 @@ const DIFFICULTY_OPTION_LAYOUT = [
 }>;
 const DIFFICULTY_OK_RECT: SourceRect = { x: 236, y: 328, width: 128, height: 28 };
 const DIFFICULTY_CANCEL_RECT: SourceRect = { x: 372, y: 328, width: 128, height: 28 };
+const MAIN_MENU_BACKDROP_IMAGE = 'MainMenuBackdrop';
+const CHALLENGE_MENU_BACKGROUND_IMAGE = 'GCBackgroundMinSpec';
+const CAMPAIGN_LOAD_BACKGROUND_BY_CAMPAIGN: Record<string, string> = {
+  usa: 'MissionLoad_USA',
+  gla: 'MissionLoad_GLA',
+  china: 'MissionLoad_China',
+};
+const CHALLENGE_MENU_BACKGROUND_RECT: SourceRect = { x: 0, y: 0, width: 799, height: 599 };
+const CHALLENGE_MENU_FRAME_RECT: SourceRect = { x: 41, y: 40, width: 719, height: 521 };
+const CHALLENGE_MENU_MAIN_BACKDROP_RECT: SourceRect = { x: 42, y: 78, width: 717, height: 481 };
+const CHALLENGE_MENU_BACK_RECT: SourceRect = { x: 576, y: 505, width: 172, height: 36 };
+const CHALLENGE_MENU_PLAY_RECT: SourceRect = { x: 382, y: 505, width: 172, height: 36 };
+const CHALLENGE_MENU_BIO_PARENT_RECT: SourceRect = { x: 199, y: 379, width: 548, height: 114 };
+const CHALLENGE_MENU_BIO_TITLE_RECT: SourceRect = { x: 203, y: 383, width: 131, height: 23 };
+const CHALLENGE_MENU_BIO_PORTRAIT_RECT: SourceRect = { x: 641, y: 386, width: 97, height: 100 };
+const CHALLENGE_MENU_BIO_LABEL_LAYOUT = [
+  { text: 'Name', rect: { x: 204, y: 405, width: 101, height: 18 } },
+  { text: 'Rank', rect: { x: 204, y: 421, width: 92, height: 19 } },
+  { text: 'Branch', rect: { x: 204, y: 437, width: 95, height: 18 } },
+  { text: 'Strategy', rect: { x: 203, y: 453, width: 123, height: 20 } },
+] as const satisfies ReadonlyArray<{ text: string; rect: SourceRect }>;
+const CHALLENGE_MENU_BIO_ENTRY_LAYOUT = [
+  { key: 'name', rect: { x: 321, y: 404, width: 243, height: 18 } },
+  { key: 'rank', rect: { x: 321, y: 421, width: 244, height: 18 } },
+  { key: 'branch', rect: { x: 321, y: 438, width: 312, height: 18 } },
+  { key: 'strategy', rect: { x: 321, y: 455, width: 314, height: 18 } },
+] as const satisfies ReadonlyArray<{ key: 'name' | 'rank' | 'branch' | 'strategy'; rect: SourceRect }>;
+const CHALLENGE_MENU_GENERAL_LAYOUT = [
+  { index: 0, rect: { x: 152, y: 198, width: 41, height: 41 } },
+  { index: 1, rect: { x: 500, y: 222, width: 41, height: 41 } },
+  { index: 2, rect: { x: 624, y: 198, width: 41, height: 41 } },
+  { index: 3, rect: { x: 220, y: 159, width: 41, height: 41 } },
+  { index: 4, rect: { x: 663, y: 218, width: 41, height: 41 } },
+  { index: 5, rect: { x: 102, y: 186, width: 41, height: 41 } },
+  { index: 6, rect: { x: 438, y: 206, width: 41, height: 41 } },
+  { index: 7, rect: { x: 691, y: 183, width: 41, height: 41 } },
+  { index: 8, rect: { x: 535, y: 189, width: 41, height: 41 } },
+  { index: 9, rect: { x: 641, y: 176, width: 41, height: 41 } },
+  { index: 10, rect: { x: 292, y: 199, width: 41, height: 41 } },
+  { index: 11, rect: { x: 293, y: 228, width: 41, height: 41 } },
+] as const satisfies ReadonlyArray<{ index: number; rect: SourceRect }>;
+const CAMPAIGN_LOAD_BACKGROUND_RECT: SourceRect = { x: 0, y: 0, width: 799, height: 599 };
+const CAMPAIGN_LOAD_CAMEO_FRAME_RECT: SourceRect = { x: 396, y: 32, width: 112, height: 172 };
+const CAMPAIGN_LOAD_CAMEO_WINDOW_LAYOUT = [
+  { key: 'unit0', rect: { x: 400, y: 40, width: 104, height: 72 } },
+  { key: 'unit1', rect: { x: 516, y: 40, width: 104, height: 72 } },
+  { key: 'unit2', rect: { x: 632, y: 40, width: 104, height: 73 } },
+] as const satisfies ReadonlyArray<{ key: 'unit0' | 'unit1' | 'unit2'; rect: SourceRect }>;
+const CAMPAIGN_LOAD_CAMEO_TEXT_LAYOUT = [
+  { key: 'unit0', rect: { x: 441, y: 146, width: 98, height: 46 } },
+  { key: 'unit1', rect: { x: 544, y: 146, width: 98, height: 46 } },
+  { key: 'unit2', rect: { x: 647, y: 146, width: 99, height: 46 } },
+] as const satisfies ReadonlyArray<{ key: 'unit0' | 'unit1' | 'unit2'; rect: SourceRect }>;
+const CAMPAIGN_LOAD_LOCATION_RECT: SourceRect = { x: 92, y: 312, width: 167, height: 42 };
+const CAMPAIGN_LOAD_HEAD_RECT: SourceRect = { x: 426, y: 209, width: 200, height: 150 };
+const CAMPAIGN_LOAD_OBJECTIVES_RECT: SourceRect = { x: 255, y: 369, width: 513, height: 144 };
+const CAMPAIGN_LOAD_OBJECTIVE_LINE_LAYOUT = [
+  { index: 0, rect: { x: 255, y: 369, width: 513, height: 25 } },
+  { index: 1, rect: { x: 255, y: 393, width: 513, height: 27 } },
+  { index: 2, rect: { x: 255, y: 417, width: 513, height: 25 } },
+  { index: 3, rect: { x: 255, y: 441, width: 513, height: 25 } },
+  { index: 4, rect: { x: 255, y: 465, width: 513, height: 28 } },
+] as const satisfies ReadonlyArray<{ index: number; rect: SourceRect }>;
+const CAMPAIGN_LOAD_PROGRESS_RECT: SourceRect = { x: 140, y: 564, width: 519, height: 20 };
+const CAMPAIGN_LOAD_PERCENT_RECT: SourceRect = { x: 760, y: 520, width: 40, height: 32 };
+const CAMPAIGN_LOAD_BACK_ACTION_RECT: SourceRect = { x: 620, y: 552, width: 84, height: 28 };
+const CAMPAIGN_LOAD_START_ACTION_RECT: SourceRect = { x: 710, y: 552, width: 84, height: 28 };
 
 /** Escape HTML to prevent XSS from INI-sourced data. */
 function esc(s: string): string {
@@ -465,6 +538,268 @@ const SHELL_STYLES = `
     text-transform: uppercase;
   }
   .retail-dialog-button:hover {
+    color: #cbff63;
+  }
+  .retail-backdrop-layer {
+    position: absolute;
+    inset: 0;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    opacity: 0.96;
+    pointer-events: none;
+  }
+  .retail-backdrop-layer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgba(3, 5, 11, 0.2) 0%, rgba(3, 5, 11, 0.48) 100%);
+  }
+  .retail-source-image {
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+  }
+  .retail-source-image.contain {
+    background-size: contain;
+  }
+
+  .retail-challenge-screen {
+    display: block;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 40% 38%, rgba(52, 92, 158, 0.18) 0%, rgba(9, 20, 42, 0.08) 30%, rgba(0, 0, 0, 0) 70%),
+      linear-gradient(180deg, #08111f 0%, #03060e 100%);
+  }
+  .retail-challenge-frame {
+    z-index: 2;
+    border: 1px solid rgba(214, 220, 235, 0.9);
+    box-shadow: inset 0 0 0 1px rgba(5, 9, 15, 0.92);
+  }
+  .retail-challenge-main-backdrop {
+    z-index: 1;
+    border: 1px solid rgba(62, 78, 116, 0.88);
+    background:
+      linear-gradient(180deg, rgba(6, 11, 21, 0.7) 0%, rgba(3, 5, 10, 0.84) 100%);
+  }
+  .retail-challenge-general {
+    z-index: 3;
+    border: 0;
+    background-color: transparent;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.45));
+  }
+  .retail-challenge-general::after {
+    content: '';
+    position: absolute;
+    inset: 18%;
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px rgba(235, 242, 255, 0.06);
+  }
+  .retail-challenge-general.is-fallback {
+    border-radius: 50%;
+    border: 1px solid rgba(222, 230, 255, 0.85);
+    background:
+      radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.05) 24%, rgba(0, 0, 0, 0) 30%),
+      linear-gradient(180deg, rgba(59, 86, 145, 0.92) 0%, rgba(16, 26, 59, 0.98) 100%);
+  }
+  .retail-challenge-general.is-hilite {
+    filter: drop-shadow(0 0 12px rgba(186, 255, 12, 0.4));
+  }
+  .retail-challenge-general.is-selected {
+    filter: drop-shadow(0 0 12px rgba(255, 166, 56, 0.38));
+  }
+  .retail-challenge-button {
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(118, 142, 196, 0.88);
+    background:
+      linear-gradient(180deg, rgba(36, 53, 112, 0.95) 0%, rgba(11, 17, 40, 0.98) 100%);
+    box-shadow: inset 0 0 0 1px rgba(4, 8, 14, 0.86);
+    color: #f3f5ff;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(0.86rem, 1.06vw, 1rem);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .retail-challenge-button.hidden {
+    display: none;
+  }
+  .retail-challenge-button:hover {
+    color: #cbff63;
+  }
+  .retail-challenge-bio {
+    z-index: 4;
+    border: 1px solid rgba(217, 223, 238, 0.92);
+    background: rgba(1, 8, 41, 0.68);
+    box-shadow:
+      inset 0 0 0 1px rgba(5, 10, 20, 0.9),
+      0 0 18px rgba(0, 0, 0, 0.28);
+  }
+  .retail-challenge-bio.hidden {
+    display: none;
+  }
+  .retail-challenge-bio-title,
+  .retail-challenge-bio-label,
+  .retail-challenge-bio-entry {
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    color: #f4f6ff;
+    font-family: Arial, Helvetica, sans-serif;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .retail-challenge-bio-title {
+    font-size: clamp(0.9rem, 1.05vw, 1rem);
+    font-weight: 700;
+  }
+  .retail-challenge-bio-label {
+    font-size: clamp(0.74rem, 0.9vw, 0.85rem);
+    font-weight: 700;
+  }
+  .retail-challenge-bio-entry {
+    font-size: clamp(0.72rem, 0.88vw, 0.82rem);
+    font-weight: 500;
+  }
+  .retail-challenge-portrait {
+    z-index: 5;
+    border: 1px solid rgba(224, 230, 243, 0.88);
+    background:
+      linear-gradient(180deg, rgba(0, 0, 0, 0.78) 0%, rgba(9, 18, 30, 0.92) 100%);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    overflow: hidden;
+  }
+
+  .retail-load-screen {
+    display: block;
+    overflow: hidden;
+    background:
+      linear-gradient(180deg, #06101d 0%, #04070d 100%);
+  }
+  .retail-load-frame,
+  .retail-load-head,
+  .retail-load-cameo-frame,
+  .retail-load-cameo,
+  .retail-load-objectives,
+  .retail-load-progress,
+  .retail-load-percent,
+  .retail-load-location,
+  .retail-load-unit-text,
+  .retail-load-objective-line,
+  .retail-load-action {
+    z-index: 3;
+  }
+  .retail-load-cameo-frame {
+    border: 1px solid rgba(207, 213, 223, 0.95);
+    background: rgba(0, 0, 0, 0.2);
+  }
+  .retail-load-cameo {
+    border: 1px solid rgba(0, 0, 0, 0.9);
+    background:
+      linear-gradient(180deg, rgba(46, 7, 7, 0.8) 0%, rgba(17, 2, 2, 0.9) 100%);
+  }
+  .retail-load-head {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    border: 1px solid rgba(199, 208, 222, 0.88);
+    background:
+      linear-gradient(180deg, rgba(9, 16, 31, 0.78) 0%, rgba(3, 6, 12, 0.92) 100%);
+    color: #f2f5ff;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(1.1rem, 1.7vw, 1.5rem);
+    line-height: 1.2;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.56);
+  }
+  .retail-load-location,
+  .retail-load-unit-text,
+  .retail-load-objective-line,
+  .retail-load-percent {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.45rem;
+    color: #f2f4f9;
+    font-family: Arial, Helvetica, sans-serif;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.56);
+    text-align: center;
+    overflow: hidden;
+  }
+  .retail-load-location {
+    justify-content: flex-start;
+    color: #dfe6ff;
+    font-size: clamp(0.86rem, 1.02vw, 0.98rem);
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .retail-load-unit-text {
+    font-size: clamp(0.7rem, 0.86vw, 0.8rem);
+    line-height: 1.2;
+  }
+  .retail-load-objectives {
+    border: 1px solid rgba(0, 0, 0, 0);
+    background: transparent;
+  }
+  .retail-load-objective-line {
+    justify-content: flex-start;
+    padding: 0 0.75rem;
+    color: #e8edf9;
+    font-size: clamp(0.82rem, 0.95vw, 0.94rem);
+    line-height: 1.18;
+    text-align: left;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .retail-load-progress {
+    border: 1px solid rgba(141, 151, 176, 0.88);
+    background:
+      linear-gradient(180deg, rgba(16, 24, 47, 0.92) 0%, rgba(4, 6, 14, 0.98) 100%);
+    overflow: hidden;
+  }
+  .retail-load-progress::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    background:
+      linear-gradient(90deg, rgba(60, 93, 201, 0.88) 0%, rgba(111, 162, 255, 0.96) 50%, rgba(60, 93, 201, 0.88) 100%);
+    opacity: 0.76;
+  }
+  .retail-load-percent {
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.86);
+    font-size: clamp(0.7rem, 0.82vw, 0.76rem);
+    font-weight: 700;
+  }
+  .retail-load-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(99, 122, 184, 0.92);
+    background:
+      linear-gradient(180deg, rgba(28, 42, 91, 0.94) 0%, rgba(11, 16, 37, 0.98) 100%);
+    box-shadow: inset 0 0 0 1px rgba(4, 7, 14, 0.86);
+    color: #f5f6fa;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(0.74rem, 0.88vw, 0.84rem);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .retail-load-action:hover {
     color: #cbff63;
   }
 
@@ -780,6 +1115,12 @@ export class GameShell {
   private selectedCampaignFaction = 'usa';
   private selectedDifficulty: GameDifficulty = 'NORMAL';
   private selectedChallengeIndex = 0;
+  private pendingSinglePlayerMode: 'CAMPAIGN' | 'CHALLENGE' = 'CAMPAIGN';
+  private currentScreen: ShellScreen | null = null;
+  private challengeSelectionCommitted = false;
+  private hoveredChallengeIndex: number | null = null;
+  private mappedImageResolver: ShellMappedImageResolver | null = null;
+  private imageRequestSerial = 0;
 
   // Element refs for updates
   private mapSelect: HTMLSelectElement | null = null;
@@ -855,6 +1196,11 @@ export class GameShell {
     this.localizedStrings = new Map(localizedStrings);
   }
 
+  setMappedImageResolver(resolver: ShellMappedImageResolver | null): void {
+    this.mappedImageResolver = resolver;
+    this.refreshRetailArtwork();
+  }
+
   /** Show the shell and render the current screen. */
   show(): void {
     this.injectStyles();
@@ -874,6 +1220,9 @@ export class GameShell {
       el.remove();
     }
     this.screenEls.clear();
+    this.currentScreen = null;
+    this.hoveredChallengeIndex = null;
+    this.challengeSelectionCommitted = false;
     if (this.styleEl) {
       this.styleEl.remove();
       this.styleEl = null;
@@ -888,13 +1237,21 @@ export class GameShell {
   // ──── Private: screen management ────────────────────────────────────────
 
   private showScreen(screen: ShellScreen): void {
+    const previousScreen = this.currentScreen;
     for (const [name, el] of this.screenEls) {
       el.classList.toggle('hidden', name !== screen);
     }
     // Refresh dynamic content on screen show
     if (screen === 'campaign-briefing') {
       this.updateBriefingContent();
+    } else if (screen === 'challenge-select') {
+      if (previousScreen !== 'challenge-select') {
+        this.challengeSelectionCommitted = false;
+        this.hoveredChallengeIndex = null;
+      }
+      this.updateChallengeSelectContent();
     }
+    this.currentScreen = screen;
   }
 
   private addScreen(name: ShellScreen, el: HTMLElement): void {
@@ -918,6 +1275,102 @@ export class GameShell {
       return this.resolveText(persona.bioNameLabel);
     }
     return persona.name;
+  }
+
+  private resolveChallengeBioLine(
+    persona: GeneralPersona,
+    line: 'name' | 'rank' | 'branch' | 'strategy',
+  ): string {
+    switch (line) {
+      case 'name':
+        return this.resolveChallengeName(persona);
+      case 'rank':
+        return persona.bioRankLabel ? this.resolveText(persona.bioRankLabel) : persona.faction;
+      case 'branch':
+        return persona.bioBranchLabel ? this.resolveText(persona.bioBranchLabel) : persona.playerTemplateName;
+      case 'strategy':
+        return persona.bioStrategyLabel ? this.resolveText(persona.bioStrategyLabel) : '';
+      default:
+        return '';
+    }
+  }
+
+  private getChallengePersonaByIndex(index: number): GeneralPersona | null {
+    return this.challengePersonas.find((persona) => persona.index === index) ?? null;
+  }
+
+  private getChallengePreviewPersona(): GeneralPersona | null {
+    if (this.hoveredChallengeIndex !== null) {
+      return this.getChallengePersonaByIndex(this.hoveredChallengeIndex);
+    }
+    if (this.challengeSelectionCommitted) {
+      return this.getChallengePersonaByIndex(this.selectedChallengeIndex);
+    }
+    return null;
+  }
+
+  private getMappedImageDimensions(imageName: string | undefined): { width: number; height: number } | null {
+    if (!imageName) {
+      return null;
+    }
+    const entry = this.mappedImageResolver?.getEntry?.(imageName);
+    if (!entry) {
+      return null;
+    }
+    return {
+      width: entry.right - entry.left + 1,
+      height: entry.bottom - entry.top + 1,
+    };
+  }
+
+  private applyMappedImageBackground(
+    element: HTMLElement | null,
+    imageName: string | undefined,
+    sizeMode: 'cover' | 'contain' = 'cover',
+  ): void {
+    if (!element) {
+      return;
+    }
+
+    element.classList.add('retail-source-image');
+    element.classList.toggle('contain', sizeMode === 'contain');
+
+    if (!imageName || !this.mappedImageResolver) {
+      if (!imageName) {
+        element.style.backgroundImage = '';
+      }
+      return;
+    }
+
+    const requestId = String(++this.imageRequestSerial);
+    element.dataset.imageRequestId = requestId;
+    void this.mappedImageResolver.resolve(imageName).then((url) => {
+      if (!url || element.dataset.imageRequestId !== requestId) {
+        return;
+      }
+      element.style.backgroundImage = `url("${url}")`;
+    }).catch(() => {
+      if (element.dataset.imageRequestId === requestId) {
+        element.style.backgroundImage = '';
+      }
+    });
+  }
+
+  private refreshRetailArtwork(): void {
+    this.applyMappedImageBackground(
+      this.screenEls.get('main-menu')?.querySelector('[data-ref="main-menu-backdrop"]') as HTMLElement | null,
+      MAIN_MENU_BACKDROP_IMAGE,
+    );
+    this.applyMappedImageBackground(
+      this.screenEls.get('single-player')?.querySelector('[data-ref="single-player-backdrop"]') as HTMLElement | null,
+      MAIN_MENU_BACKDROP_IMAGE,
+    );
+    this.applyMappedImageBackground(
+      this.screenEls.get('challenge-select')?.querySelector('[data-ref="challenge-menu-background"]') as HTMLElement | null,
+      CHALLENGE_MENU_BACKGROUND_IMAGE,
+    );
+    this.updateChallengeSelectContent();
+    this.updateBriefingContent();
   }
 
   private getStoryCampaignChoices(): Array<(typeof FACTIONS)[number]> {
@@ -949,6 +1402,7 @@ export class GameShell {
     `).join('');
 
     el.innerHTML = `
+      <div class="retail-backdrop-layer" data-ref="main-menu-backdrop"></div>
       <div
         class="main-menu-preview-panel retail-source-rect"
         data-ref="main-menu-preview"
@@ -987,6 +1441,7 @@ export class GameShell {
     });
 
     this.addScreen('main-menu', el);
+    this.refreshRetailArtwork();
   }
 
   // ──── Private: Single Player Menu ───────────────────────────────────────
@@ -1008,6 +1463,7 @@ export class GameShell {
     `).join('');
 
     el.innerHTML = `
+      <div class="retail-backdrop-layer" data-ref="single-player-backdrop"></div>
       <div
         class="main-menu-preview-panel retail-source-rect"
         data-ref="single-player-preview"
@@ -1038,23 +1494,28 @@ export class GameShell {
       const action = target.dataset.action;
       if (action === 'campaign-usa') {
         this.selectedCampaignFaction = 'usa';
+        this.pendingSinglePlayerMode = 'CAMPAIGN';
         this.showScreen('campaign-difficulty');
       } else if (action === 'campaign-gla') {
         this.selectedCampaignFaction = 'gla';
+        this.pendingSinglePlayerMode = 'CAMPAIGN';
         this.showScreen('campaign-difficulty');
       } else if (action === 'campaign-china') {
         this.selectedCampaignFaction = 'china';
+        this.pendingSinglePlayerMode = 'CAMPAIGN';
         this.showScreen('campaign-difficulty');
       } else if (action === 'skirmish') {
         this.showScreen('skirmish-setup');
       } else if (action === 'challenge') {
-        this.showScreen('challenge-select');
+        this.pendingSinglePlayerMode = 'CHALLENGE';
+        this.showScreen('campaign-difficulty');
       } else if (action === 'back') {
         this.showScreen('main-menu');
       }
     });
 
     this.addScreen('single-player', el);
+    this.refreshRetailArtwork();
   }
 
   // ──── Private: Campaign Faction Select ──────────────────────────────────
@@ -1183,7 +1644,11 @@ export class GameShell {
       if (target.dataset.action === 'back') {
         this.showScreen('single-player');
       } else if (target.dataset.action === 'start') {
-        this.showScreen('campaign-briefing');
+        if (this.pendingSinglePlayerMode === 'CHALLENGE') {
+          this.showScreen('challenge-select');
+        } else {
+          this.showScreen('campaign-briefing');
+        }
       }
     });
 
@@ -1196,18 +1661,89 @@ export class GameShell {
     if (this.screenEls.has('campaign-briefing')) return;
 
     const el = document.createElement('div');
-    el.className = 'shell-screen hidden';
+    el.className = 'shell-screen hidden retail-load-screen';
     el.id = 'campaign-briefing-screen';
 
     el.innerHTML = `
-      <div class="shell-panel" style="min-width:560px;">
-        <div class="shell-panel-title">Mission Briefing</div>
-        <div data-ref="briefing-content"></div>
-        <div class="shell-actions">
-          <button class="shell-btn" data-action="back">Back</button>
-          <button class="shell-btn primary" data-action="start">Start Mission</button>
-        </div>
-      </div>
+      <div
+        class="retail-backdrop-layer retail-source-rect"
+        data-ref="campaign-load-background"
+        data-source-rect="${formatSourceRectData(CAMPAIGN_LOAD_BACKGROUND_RECT)}"
+        style="${formatSourceRectStyle(CAMPAIGN_LOAD_BACKGROUND_RECT)}"
+      ></div>
+      <div
+        class="retail-load-cameo-frame retail-source-rect"
+        data-ref="campaign-load-cameo-frame"
+        data-source-rect="${formatSourceRectData(CAMPAIGN_LOAD_CAMEO_FRAME_RECT)}"
+        style="${formatSourceRectStyle(CAMPAIGN_LOAD_CAMEO_FRAME_RECT)}"
+      ></div>
+      ${CAMPAIGN_LOAD_CAMEO_WINDOW_LAYOUT.map((window) => `
+        <div
+          class="retail-load-cameo retail-source-rect"
+          data-ref="campaign-load-${window.key}"
+          data-source-rect="${formatSourceRectData(window.rect)}"
+          style="${formatSourceRectStyle(window.rect)}"
+        ></div>
+      `).join('')}
+      ${CAMPAIGN_LOAD_CAMEO_TEXT_LAYOUT.map((entry) => `
+        <div
+          class="retail-load-unit-text retail-source-rect"
+          data-ref="campaign-load-${entry.key}-text"
+          data-source-rect="${formatSourceRectData(entry.rect)}"
+          style="${formatSourceRectStyle(entry.rect)}"
+        ></div>
+      `).join('')}
+      <div
+        class="retail-load-head retail-source-rect"
+        data-ref="campaign-load-head"
+        data-source-rect="${formatSourceRectData(CAMPAIGN_LOAD_HEAD_RECT)}"
+        style="${formatSourceRectStyle(CAMPAIGN_LOAD_HEAD_RECT)}"
+      ></div>
+      <div
+        class="retail-load-location retail-source-rect"
+        data-ref="campaign-load-location"
+        data-source-rect="${formatSourceRectData(CAMPAIGN_LOAD_LOCATION_RECT)}"
+        style="${formatSourceRectStyle(CAMPAIGN_LOAD_LOCATION_RECT)}"
+      ></div>
+      <div
+        class="retail-load-objectives retail-source-rect"
+        data-ref="campaign-load-objectives"
+        data-source-rect="${formatSourceRectData(CAMPAIGN_LOAD_OBJECTIVES_RECT)}"
+        style="${formatSourceRectStyle(CAMPAIGN_LOAD_OBJECTIVES_RECT)}"
+      ></div>
+      ${CAMPAIGN_LOAD_OBJECTIVE_LINE_LAYOUT.map((line) => `
+        <div
+          class="retail-load-objective-line retail-source-rect"
+          data-ref="campaign-load-line-${line.index}"
+          data-source-rect="${formatSourceRectData(line.rect)}"
+          style="${formatSourceRectStyle(line.rect)}"
+        ></div>
+      `).join('')}
+      <button
+        class="retail-load-progress retail-source-rect"
+        data-action="start"
+        data-ref="campaign-load-progress"
+        data-source-rect="${formatSourceRectData(CAMPAIGN_LOAD_PROGRESS_RECT)}"
+        style="${formatSourceRectStyle(CAMPAIGN_LOAD_PROGRESS_RECT)}"
+      ></button>
+      <div
+        class="retail-load-percent retail-source-rect"
+        data-ref="campaign-load-percent"
+        data-source-rect="${formatSourceRectData(CAMPAIGN_LOAD_PERCENT_RECT)}"
+        style="${formatSourceRectStyle(CAMPAIGN_LOAD_PERCENT_RECT)}"
+      >100%</div>
+      <button
+        class="retail-load-action retail-source-rect"
+        data-action="back"
+        data-ref="campaign-load-back"
+        style="${formatSourceRectStyle(CAMPAIGN_LOAD_BACK_ACTION_RECT)}"
+      >Back</button>
+      <button
+        class="retail-load-action retail-source-rect"
+        data-action="start"
+        data-ref="campaign-load-start"
+        style="${formatSourceRectStyle(CAMPAIGN_LOAD_START_ACTION_RECT)}"
+      >Start</button>
     `;
 
     el.addEventListener('click', (e) => {
@@ -1227,12 +1763,12 @@ export class GameShell {
   private updateBriefingContent(): void {
     const briefingEl = this.screenEls.get('campaign-briefing');
     if (!briefingEl) return;
-    const contentEl = briefingEl.querySelector('[data-ref="briefing-content"]');
-    if (!contentEl) return;
-
     const campaign = this.campaigns.find(c => c.name === this.selectedCampaignFaction);
     if (!campaign || campaign.missions.length === 0) {
-      contentEl.innerHTML = '<div class="briefing-info">No mission data available.</div>';
+      const headEl = briefingEl.querySelector<HTMLElement>('[data-ref="campaign-load-head"]');
+      if (headEl) {
+        headEl.textContent = 'Mission Data Unavailable';
+      }
       return;
     }
 
@@ -1248,32 +1784,40 @@ export class GameShell {
     const unitNames = mission.unitNames
       .map((unitName) => this.resolveText(unitName))
       .filter((unitName) => unitName.trim().length > 0);
+    const headEl = briefingEl.querySelector<HTMLElement>('[data-ref="campaign-load-head"]');
+    const locationEl = briefingEl.querySelector<HTMLElement>('[data-ref="campaign-load-location"]');
+    const percentEl = briefingEl.querySelector<HTMLElement>('[data-ref="campaign-load-percent"]');
 
-    let html = `
-      <div class="briefing-info">
-        <strong>Campaign:</strong> ${esc(factionLabel)}
-    `;
-    if (locationLabel) {
-      html += `<br><strong>Location:</strong> ${esc(locationLabel)}`;
+    if (headEl) {
+      headEl.textContent = generalName || factionLabel;
     }
-    if (generalName) {
-      html += `<br><strong>Opponent:</strong> ${esc(generalName)}`;
+    if (locationEl) {
+      locationEl.textContent = locationLabel || factionLabel;
     }
-    html += '</div>';
+    if (percentEl) {
+      percentEl.textContent = '100%';
+    }
 
-    if (objectiveLines.length > 0) {
-      html += '<ul class="briefing-objectives">';
-      for (const obj of objectiveLines) {
-        html += `<li>${esc(obj)}</li>`;
+    for (const entry of CAMPAIGN_LOAD_CAMEO_TEXT_LAYOUT) {
+      const cameoTextEl = briefingEl.querySelector<HTMLElement>(`[data-ref="campaign-load-${entry.key}-text"]`);
+      if (cameoTextEl) {
+        const unitIndex = Number(entry.key.replace('unit', ''));
+        cameoTextEl.textContent = unitNames[unitIndex] ?? '';
       }
-      html += '</ul>';
     }
 
-    if (unitNames.length > 0) {
-      html += `<div class="briefing-info"><strong>Key Units:</strong> ${unitNames.map(esc).join(', ')}</div>`;
+    for (const line of CAMPAIGN_LOAD_OBJECTIVE_LINE_LAYOUT) {
+      const lineEl = briefingEl.querySelector<HTMLElement>(`[data-ref="campaign-load-line-${line.index}"]`);
+      if (lineEl) {
+        lineEl.textContent = objectiveLines[line.index] ?? '';
+      }
     }
 
-    contentEl.innerHTML = html;
+    const backgroundImage = CAMPAIGN_LOAD_BACKGROUND_BY_CAMPAIGN[campaign.name];
+    this.applyMappedImageBackground(
+      briefingEl.querySelector<HTMLElement>('[data-ref="campaign-load-background"]'),
+      backgroundImage,
+    );
   }
 
   // ──── Private: Challenge Select ─────────────────────────────────────────
@@ -1282,65 +1826,136 @@ export class GameShell {
     if (this.screenEls.has('challenge-select')) return;
 
     const el = document.createElement('div');
-    el.className = 'shell-screen hidden';
+    el.className = 'shell-screen hidden retail-challenge-screen';
     el.id = 'challenge-select-screen';
 
+    const generalButtonsHtml = CHALLENGE_MENU_GENERAL_LAYOUT.map((entry) => {
+      const persona = this.getChallengePersonaByIndex(entry.index);
+      if (!persona) {
+        return '';
+      }
+
+      return `
+        <button
+          class="retail-challenge-general retail-source-rect"
+          data-ref="challenge-general-${entry.index}"
+          data-challenge="${entry.index}"
+          data-source-rect="${formatSourceRectData(entry.rect)}"
+          style="${formatSourceRectStyle(entry.rect)}"
+          aria-label="${esc(this.resolveChallengeName(persona))}"
+        ></button>
+      `;
+    }).join('');
+
     el.innerHTML = `
-      <div class="shell-panel" style="min-width:480px; max-width:520px;">
-        <div class="shell-panel-title">Generals Challenge</div>
-        <div class="shell-section">
-          <div class="shell-label">Select Your General</div>
-          <div class="challenge-grid" data-ref="challenge-grid">
-            ${this.challengePersonas.map(g => `
-              <button class="challenge-card${g.index === this.selectedChallengeIndex ? ' selected' : ''}"
-                      data-challenge="${g.index}">
-                <span class="general-indicator" style="background:${CHALLENGE_GENERAL_COLORS[g.index] ?? '#888'};"></span>
-                <span class="general-name">${esc(this.resolveChallengeName(g))}</span>
-                <div class="general-faction">${esc(g.faction)}</div>
-              </button>
-            `).join('')}
-          </div>
-        </div>
-        <div class="shell-section">
-          <div class="shell-label">Difficulty</div>
-          <div class="difficulty-row" data-ref="challenge-difficulty">
-            ${DIFFICULTIES.map(d => `
-              <button class="difficulty-option${d.value === this.selectedDifficulty ? ' selected' : ''}"
-                      data-difficulty="${d.value}">
-                <div class="diff-name">${d.label}</div>
-              </button>
-            `).join('')}
-          </div>
-        </div>
-        <div class="shell-actions">
-          <button class="shell-btn" data-action="back">Back</button>
-          <button class="shell-btn primary" data-action="start">Start Challenge</button>
-        </div>
-      </div>
+      <div
+        class="retail-backdrop-layer retail-source-rect"
+        data-ref="challenge-menu-background"
+        data-source-rect="${formatSourceRectData(CHALLENGE_MENU_BACKGROUND_RECT)}"
+        style="${formatSourceRectStyle(CHALLENGE_MENU_BACKGROUND_RECT)}"
+      ></div>
+      <div
+        class="retail-challenge-frame retail-source-rect"
+        data-ref="challenge-menu-frame"
+        data-source-rect="${formatSourceRectData(CHALLENGE_MENU_FRAME_RECT)}"
+        style="${formatSourceRectStyle(CHALLENGE_MENU_FRAME_RECT)}"
+      ></div>
+      <div
+        class="retail-challenge-main-backdrop retail-source-rect"
+        data-ref="challenge-menu-main-backdrop"
+        data-source-rect="${formatSourceRectData(CHALLENGE_MENU_MAIN_BACKDROP_RECT)}"
+        style="${formatSourceRectStyle(CHALLENGE_MENU_MAIN_BACKDROP_RECT)}"
+      ></div>
+      <button
+        class="retail-challenge-button retail-source-rect"
+        data-action="back"
+        data-ref="challenge-menu-back"
+        data-source-rect="${formatSourceRectData(CHALLENGE_MENU_BACK_RECT)}"
+        style="${formatSourceRectStyle(CHALLENGE_MENU_BACK_RECT)}"
+      >Back</button>
+      <button
+        class="retail-challenge-button retail-source-rect hidden"
+        data-action="start"
+        data-ref="challenge-menu-start"
+        data-source-rect="${formatSourceRectData(CHALLENGE_MENU_PLAY_RECT)}"
+        style="${formatSourceRectStyle(CHALLENGE_MENU_PLAY_RECT)}"
+      >Start</button>
+      ${generalButtonsHtml}
+      <div
+        class="retail-challenge-bio retail-source-rect hidden"
+        data-ref="challenge-bio-panel"
+        data-source-rect="${formatSourceRectData(CHALLENGE_MENU_BIO_PARENT_RECT)}"
+        style="${formatSourceRectStyle(CHALLENGE_MENU_BIO_PARENT_RECT)}"
+      ></div>
+      <div
+        class="retail-challenge-bio-title retail-source-rect hidden"
+        data-ref="challenge-bio-title"
+        data-source-rect="${formatSourceRectData(CHALLENGE_MENU_BIO_TITLE_RECT)}"
+        style="${formatSourceRectStyle(CHALLENGE_MENU_BIO_TITLE_RECT)}"
+      >Biography</div>
+      <div
+        class="retail-challenge-portrait retail-source-rect hidden"
+        data-ref="challenge-bio-portrait"
+        data-source-rect="${formatSourceRectData(CHALLENGE_MENU_BIO_PORTRAIT_RECT)}"
+        style="${formatSourceRectStyle(CHALLENGE_MENU_BIO_PORTRAIT_RECT)}"
+      ></div>
+      ${CHALLENGE_MENU_BIO_LABEL_LAYOUT.map((entry) => `
+        <div
+          class="retail-challenge-bio-label retail-source-rect hidden"
+          data-ref="challenge-bio-label-${entry.text.toLowerCase()}"
+          data-source-rect="${formatSourceRectData(entry.rect)}"
+          style="${formatSourceRectStyle(entry.rect)}"
+        >${entry.text}</div>
+      `).join('')}
+      ${CHALLENGE_MENU_BIO_ENTRY_LAYOUT.map((entry) => `
+        <div
+          class="retail-challenge-bio-entry retail-source-rect hidden"
+          data-ref="challenge-bio-${entry.key}"
+          data-source-rect="${formatSourceRectData(entry.rect)}"
+          style="${formatSourceRectStyle(entry.rect)}"
+        ></div>
+      `).join('')}
     `;
 
+    el.addEventListener('mouseover', (e) => {
+      const target = (e.target as HTMLElement).closest('[data-challenge]') as HTMLElement | null;
+      if (!target) return;
+      this.hoveredChallengeIndex = Number(target.dataset.challenge);
+      this.updateChallengeSelectContent();
+    });
+
+    el.addEventListener('mouseout', (e) => {
+      const target = (e.target as HTMLElement).closest('[data-challenge]') as HTMLElement | null;
+      if (!target) return;
+      const related = e.relatedTarget;
+      if (related instanceof Node && target.contains(related)) {
+        return;
+      }
+      const targetIndex = Number(target.dataset.challenge);
+      if (this.hoveredChallengeIndex === targetIndex) {
+        this.hoveredChallengeIndex = null;
+        this.updateChallengeSelectContent();
+      }
+    });
+
     el.addEventListener('click', (e) => {
-      const target = (e.target as HTMLElement).closest('[data-action], [data-challenge], [data-difficulty]') as HTMLElement | null;
+      const target = (e.target as HTMLElement).closest('[data-action], [data-challenge]') as HTMLElement | null;
       if (!target) return;
 
       if (target.dataset.challenge !== undefined) {
         this.selectedChallengeIndex = Number(target.dataset.challenge);
-        const cards = el.querySelectorAll<HTMLButtonElement>('.challenge-card');
-        cards.forEach(c => c.classList.toggle('selected', c.dataset.challenge === String(this.selectedChallengeIndex)));
-        return;
-      }
-
-      if (target.dataset.difficulty) {
-        this.selectedDifficulty = target.dataset.difficulty as GameDifficulty;
-        const btns = el.querySelectorAll<HTMLButtonElement>('.difficulty-option');
-        btns.forEach(b => b.classList.toggle('selected', b.dataset.difficulty === this.selectedDifficulty));
+        this.challengeSelectionCommitted = true;
+        this.hoveredChallengeIndex = this.selectedChallengeIndex;
+        this.updateChallengeSelectContent();
         return;
       }
 
       if (target.dataset.action === 'back') {
         this.showScreen('single-player');
       } else if (target.dataset.action === 'start') {
-        const general = this.challengePersonas.find((persona) => persona.index === this.selectedChallengeIndex);
+        const general = this.challengeSelectionCommitted
+          ? this.getChallengePersonaByIndex(this.selectedChallengeIndex)
+          : null;
         if (general) {
           this.handleStartCampaign(general.campaignName, this.selectedDifficulty, 'CHALLENGE');
         }
@@ -1348,6 +1963,75 @@ export class GameShell {
     });
 
     this.addScreen('challenge-select', el);
+    this.refreshRetailArtwork();
+    this.updateChallengeSelectContent();
+  }
+
+  private updateChallengeSelectContent(): void {
+    const challengeEl = this.screenEls.get('challenge-select');
+    if (!challengeEl) {
+      return;
+    }
+
+    const previewPersona = this.getChallengePreviewPersona();
+    const playButton = challengeEl.querySelector<HTMLElement>('[data-ref="challenge-menu-start"]');
+    if (playButton) {
+      playButton.classList.toggle('hidden', !this.challengeSelectionCommitted);
+    }
+
+    for (const buttonEl of challengeEl.querySelectorAll<HTMLElement>('[data-challenge]')) {
+      const buttonIndex = Number(buttonEl.dataset.challenge);
+      const persona = this.getChallengePersonaByIndex(buttonIndex);
+      if (!persona) {
+        buttonEl.style.display = 'none';
+        continue;
+      }
+
+      const isSelected = this.challengeSelectionCommitted && buttonIndex === this.selectedChallengeIndex;
+      const isHilite = this.hoveredChallengeIndex === buttonIndex && !isSelected;
+      buttonEl.classList.toggle('is-selected', isSelected);
+      buttonEl.classList.toggle('is-hilite', isHilite);
+
+      const imageName = isSelected
+        ? (persona.medallionSelectName ?? persona.medallionRegularName)
+        : (isHilite ? (persona.medallionHiliteName ?? persona.medallionRegularName) : persona.medallionRegularName);
+      this.applyMappedImageBackground(buttonEl, imageName, 'contain');
+      const hasMappedImage = Boolean(imageName && this.getMappedImageDimensions(imageName));
+      buttonEl.classList.toggle('is-fallback', !hasMappedImage);
+      buttonEl.style.backgroundColor = hasMappedImage ? 'transparent' : (CHALLENGE_GENERAL_COLORS[buttonIndex] ?? '#51658e');
+    }
+
+    const bioElements = [
+      challengeEl.querySelector<HTMLElement>('[data-ref="challenge-bio-panel"]'),
+      challengeEl.querySelector<HTMLElement>('[data-ref="challenge-bio-title"]'),
+      challengeEl.querySelector<HTMLElement>('[data-ref="challenge-bio-portrait"]'),
+      ...CHALLENGE_MENU_BIO_LABEL_LAYOUT.map((entry) =>
+        challengeEl.querySelector<HTMLElement>(`[data-ref="challenge-bio-label-${entry.text.toLowerCase()}"]`),
+      ),
+      ...CHALLENGE_MENU_BIO_ENTRY_LAYOUT.map((entry) =>
+        challengeEl.querySelector<HTMLElement>(`[data-ref="challenge-bio-${entry.key}"]`),
+      ),
+    ];
+    for (const element of bioElements) {
+      element?.classList.toggle('hidden', !previewPersona);
+    }
+
+    if (!previewPersona) {
+      return;
+    }
+
+    const portraitEl = challengeEl.querySelector<HTMLElement>('[data-ref="challenge-bio-portrait"]');
+    this.applyMappedImageBackground(
+      portraitEl,
+      previewPersona.bioPortraitSmallName || previewPersona.generalImageName,
+    );
+
+    for (const entry of CHALLENGE_MENU_BIO_ENTRY_LAYOUT) {
+      const textEl = challengeEl.querySelector<HTMLElement>(`[data-ref="challenge-bio-${entry.key}"]`);
+      if (textEl) {
+        textEl.textContent = this.resolveChallengeBioLine(previewPersona, entry.key);
+      }
+    }
   }
 
   // ──── Private: Skirmish Setup ───────────────────────────────────────────
