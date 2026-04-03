@@ -42,6 +42,25 @@ describe('runtime-save-game', () => {
             sideCredits: new Map([['USA', 1337]]),
           },
         }),
+        captureSourceRadarRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            scriptRadarHidden: true,
+            scriptRadarForced: false,
+            scriptRadarRefreshFrame: 33,
+            scriptRadarEvents: [{ eventType: 'UNIT_DISCOVERED', frame: 31 }],
+            scriptLastRadarEventState: new Map([['USA', 31]]),
+          },
+        }),
+        captureSourceInGameUiRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            scriptDisplayedCounters: new Map([['SupplyDrop', { value: 3, visible: true }]]),
+            scriptNamedTimerDisplayEnabled: false,
+            scriptSpecialPowerDisplayEnabled: true,
+            scriptHiddenSpecialPowerDisplayEntityIds: new Set<number>([7]),
+          },
+        }),
         captureSourceGameLogicRuntimeSaveState: () => ({
           version: 1,
           nextId: 41,
@@ -79,11 +98,15 @@ describe('runtime-save-game', () => {
       'CHUNK_GameStateMap',
       'CHUNK_Players',
       'CHUNK_GameLogic',
+      'CHUNK_Radar',
+      'CHUNK_InGameUI',
       'CHUNK_TS_RuntimeState',
     ]);
 
     const parsed = parseRuntimeSaveFile(saveFile.data);
     const playerState = parsed.gameLogicPlayersState;
+    const radarState = parsed.gameLogicRadarState;
+    const inGameUiState = parsed.gameLogicInGameUiState;
     const coreState = parsed.gameLogicCoreState;
     const logicState = parsed.gameLogicState as {
       version: number;
@@ -101,6 +124,10 @@ describe('runtime-save-game', () => {
       pitch: 1,
     });
     expect(playerState?.state.playerSideByIndex).toEqual(new Map([[0, 'USA']]));
+    expect(radarState?.state.scriptRadarHidden).toBe(true);
+    expect(radarState?.state.scriptLastRadarEventState).toEqual(new Map([['USA', 31]]));
+    expect(inGameUiState?.state.scriptNamedTimerDisplayEnabled).toBe(false);
+    expect(inGameUiState?.state.scriptHiddenSpecialPowerDisplayEntityIds).toEqual(new Set([7]));
     expect(coreState?.spawnedEntities).toEqual([]);
     expect(coreState?.selectedEntityId).toBeNull();
     expect(logicState.version).toBe(1);
@@ -131,6 +158,8 @@ describe('runtime-save-game', () => {
       cameraState: null,
       gameLogic: {
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
           version: 1,
           nextId: 10,
@@ -184,6 +213,8 @@ describe('runtime-save-game', () => {
       cameraState: null,
       gameLogic: {
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
           version: 1,
           nextId: 22,
@@ -252,6 +283,8 @@ describe('runtime-save-game', () => {
       cameraState: null,
       gameLogic: {
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
           version: 1,
           nextId: 5,

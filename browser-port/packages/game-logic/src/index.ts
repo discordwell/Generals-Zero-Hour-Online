@@ -7918,6 +7918,8 @@ export const SCRIPT_KIND_OF_ALLOW_SURRENDER_NAMES = new Set<string>([
 const BROWSER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION = 1;
+const SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION = 1;
+const SOURCE_IN_GAME_UI_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
   'teamRelationshipOverrides',
   'playerRelationshipOverrides',
@@ -7969,6 +7971,25 @@ const SOURCE_GAME_LOGIC_RUNTIME_STATE_KEYS = [
   'scriptEndGameTimerActive',
   'spawnedEntities',
 ] as const;
+const SOURCE_RADAR_RUNTIME_STATE_KEYS = [
+  'scriptRadarHidden',
+  'scriptRadarForced',
+  'scriptRadarRefreshFrame',
+  'scriptRadarEvents',
+  'scriptLastRadarEventState',
+] as const;
+const SOURCE_IN_GAME_UI_RUNTIME_STATE_KEYS = [
+  'scriptCinematicTextState',
+  'scriptPopupMessages',
+  'scriptMoviePlaybackRequests',
+  'scriptDisplayMessages',
+  'scriptCameoFlashRequests',
+  'scriptDisplayedCounters',
+  'scriptLetterboxEnabled',
+  'scriptNamedTimerDisplayEnabled',
+  'scriptSpecialPowerDisplayEnabled',
+  'scriptHiddenSpecialPowerDisplayEntityIds',
+] as const;
 const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'name',
   'config',
@@ -7994,6 +8015,8 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'railedTransportWaypointIndex',
   ...SOURCE_PLAYER_RUNTIME_STATE_KEYS,
   ...SOURCE_GAME_LOGIC_RUNTIME_STATE_KEYS,
+  ...SOURCE_RADAR_RUNTIME_STATE_KEYS,
+  ...SOURCE_IN_GAME_UI_RUNTIME_STATE_KEYS,
 ]);
 
 export interface GameLogicPlayersSaveState {
@@ -8017,6 +8040,16 @@ export interface GameLogicCoreSaveState {
   gameEndFrame: number | null;
   scriptEndGameTimerActive: boolean;
   spawnedEntities: MapEntity[];
+}
+
+export interface GameLogicRadarSaveState {
+  version: number;
+  state: Record<string, unknown>;
+}
+
+export interface GameLogicInGameUiSaveState {
+  version: number;
+  state: Record<string, unknown>;
 }
 
 export class GameLogicSubsystem implements Subsystem {
@@ -8938,14 +8971,27 @@ export class GameLogicSubsystem implements Subsystem {
     });
   }
 
-  captureSourcePlayerRuntimeSaveState(): GameLogicPlayersSaveState {
+  private captureSourceRuntimeStateByKeys(keys: readonly string[]): Record<string, unknown> {
     const state: Record<string, unknown> = {};
-    for (const key of SOURCE_PLAYER_RUNTIME_STATE_KEYS) {
+    for (const key of keys) {
       state[key] = (this as unknown as Record<string, unknown>)[key];
     }
+    return state;
+  }
+
+  private restoreSourceRuntimeStateByKeys(keys: readonly string[], state: Record<string, unknown>): void {
+    for (const key of keys) {
+      if (!Object.prototype.hasOwnProperty.call(state, key)) {
+        continue;
+      }
+      (this as unknown as Record<string, unknown>)[key] = state[key];
+    }
+  }
+
+  captureSourcePlayerRuntimeSaveState(): GameLogicPlayersSaveState {
     return {
       version: SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION,
-      state,
+      state: this.captureSourceRuntimeStateByKeys(SOURCE_PLAYER_RUNTIME_STATE_KEYS),
     };
   }
 
@@ -8963,12 +9009,59 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     const runtimeState = snapshot.state as Record<string, unknown>;
-    for (const key of SOURCE_PLAYER_RUNTIME_STATE_KEYS) {
-      if (!Object.prototype.hasOwnProperty.call(runtimeState, key)) {
-        continue;
-      }
-      (this as unknown as Record<string, unknown>)[key] = runtimeState[key];
+    this.restoreSourceRuntimeStateByKeys(SOURCE_PLAYER_RUNTIME_STATE_KEYS, runtimeState);
+  }
+
+  captureSourceRadarRuntimeSaveState(): GameLogicRadarSaveState {
+    return {
+      version: SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION,
+      state: this.captureSourceRuntimeStateByKeys(SOURCE_RADAR_RUNTIME_STATE_KEYS),
+    };
+  }
+
+  restoreSourceRadarRuntimeSaveState(state: unknown): void {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      throw new Error('Source radar save-state payload is malformed.');
     }
+
+    const snapshot = state as GameLogicRadarSaveState;
+    if (snapshot.version !== SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION) {
+      throw new Error(`Unsupported source radar save-state version ${snapshot.version}.`);
+    }
+    if (!snapshot.state || typeof snapshot.state !== 'object' || Array.isArray(snapshot.state)) {
+      throw new Error('Source radar save-state content is malformed.');
+    }
+
+    this.restoreSourceRuntimeStateByKeys(
+      SOURCE_RADAR_RUNTIME_STATE_KEYS,
+      snapshot.state as Record<string, unknown>,
+    );
+  }
+
+  captureSourceInGameUiRuntimeSaveState(): GameLogicInGameUiSaveState {
+    return {
+      version: SOURCE_IN_GAME_UI_RUNTIME_SAVE_STATE_VERSION,
+      state: this.captureSourceRuntimeStateByKeys(SOURCE_IN_GAME_UI_RUNTIME_STATE_KEYS),
+    };
+  }
+
+  restoreSourceInGameUiRuntimeSaveState(state: unknown): void {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      throw new Error('Source in-game UI save-state payload is malformed.');
+    }
+
+    const snapshot = state as GameLogicInGameUiSaveState;
+    if (snapshot.version !== SOURCE_IN_GAME_UI_RUNTIME_SAVE_STATE_VERSION) {
+      throw new Error(`Unsupported source in-game UI save-state version ${snapshot.version}.`);
+    }
+    if (!snapshot.state || typeof snapshot.state !== 'object' || Array.isArray(snapshot.state)) {
+      throw new Error('Source in-game UI save-state content is malformed.');
+    }
+
+    this.restoreSourceRuntimeStateByKeys(
+      SOURCE_IN_GAME_UI_RUNTIME_STATE_KEYS,
+      snapshot.state as Record<string, unknown>,
+    );
   }
 
   captureSourceGameLogicRuntimeSaveState(): GameLogicCoreSaveState {

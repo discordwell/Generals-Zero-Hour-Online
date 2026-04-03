@@ -1694,6 +1694,16 @@ async function startGame(
         runtimeSaveLoadContext.runtimeSave.gameLogicPlayersState,
       );
     }
+    if (runtimeSaveLoadContext.runtimeSave.gameLogicRadarState) {
+      gameLogic.restoreSourceRadarRuntimeSaveState(
+        runtimeSaveLoadContext.runtimeSave.gameLogicRadarState,
+      );
+    }
+    if (runtimeSaveLoadContext.runtimeSave.gameLogicInGameUiState) {
+      gameLogic.restoreSourceInGameUiRuntimeSaveState(
+        runtimeSaveLoadContext.runtimeSave.gameLogicInGameUiState,
+      );
+    }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicCoreState) {
       gameLogic.restoreSourceGameLogicRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicCoreState,

@@ -15,7 +15,9 @@ import {
   xferMapEntity,
   type GameDifficulty,
   type GameLogicCoreSaveState,
+  type GameLogicInGameUiSaveState,
   type GameLogicPlayersSaveState,
+  type GameLogicRadarSaveState,
   type GameLogicSubsystem,
   type MapEntity,
 } from '@generals/game-logic';
@@ -23,6 +25,8 @@ import type { MapDataJSON } from '@generals/renderer';
 
 const SOURCE_CAMPAIGN_BLOCK = 'CHUNK_Campaign';
 const SOURCE_PLAYERS_BLOCK = 'CHUNK_Players';
+const SOURCE_RADAR_BLOCK = 'CHUNK_Radar';
+const SOURCE_IN_GAME_UI_BLOCK = 'CHUNK_InGameUI';
 const SOURCE_GAME_LOGIC_BLOCK = 'CHUNK_GameLogic';
 export const BROWSER_RUNTIME_STATE_BLOCK = 'CHUNK_TS_RuntimeState';
 
@@ -97,6 +101,8 @@ export interface RuntimeSaveBootstrap {
   mapPath: string | null;
   cameraState: CameraState | null;
   gameLogicPlayersState: GameLogicPlayersSaveState | null;
+  gameLogicRadarState: GameLogicRadarSaveState | null;
+  gameLogicInGameUiState: GameLogicInGameUiSaveState | null;
   gameLogicCoreState: GameLogicCoreSaveState | null;
   gameLogicState: unknown;
   campaign: RuntimeSaveCampaignBootstrap | null;
@@ -449,6 +455,70 @@ class PlayersSnapshot implements Snapshot {
   }
 }
 
+class RadarSnapshot implements Snapshot {
+  payload: GameLogicRadarSaveState | null;
+
+  constructor(payload: GameLogicRadarSaveState | null = null) {
+    this.payload = payload;
+  }
+
+  crc(_xfer: Xfer): void {
+    // Radar snapshot is not part of source parity CRC yet.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error(`Unsupported radar snapshot version ${version}`);
+    }
+
+    const serialized = xfer.xferLongString(
+      this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
+    );
+    if (serialized.length === 0) {
+      this.payload = null;
+      return;
+    }
+    this.payload = JSON.parse(serialized, runtimeJsonReviver) as GameLogicRadarSaveState;
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
+class InGameUiSnapshot implements Snapshot {
+  payload: GameLogicInGameUiSaveState | null;
+
+  constructor(payload: GameLogicInGameUiSaveState | null = null) {
+    this.payload = payload;
+  }
+
+  crc(_xfer: Xfer): void {
+    // In-game UI snapshot is not part of source parity CRC yet.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error(`Unsupported in-game UI snapshot version ${version}`);
+    }
+
+    const serialized = xfer.xferLongString(
+      this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
+    );
+    if (serialized.length === 0) {
+      this.payload = null;
+      return;
+    }
+    this.payload = JSON.parse(serialized, runtimeJsonReviver) as GameLogicInGameUiSaveState;
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
 class GameLogicSnapshot implements Snapshot {
   payload: GameLogicCoreSaveState | null;
 
@@ -569,6 +639,8 @@ export function buildRuntimeSaveFile(params: {
   gameLogic: Pick<
     GameLogicSubsystem,
     | 'captureBrowserRuntimeSaveState'
+    | 'captureSourceRadarRuntimeSaveState'
+    | 'captureSourceInGameUiRuntimeSaveState'
     | 'captureSourcePlayerRuntimeSaveState'
     | 'captureSourceGameLogicRuntimeSaveState'
     | 'getObjectIdCounter'
@@ -591,6 +663,8 @@ export function buildRuntimeSaveFile(params: {
     cameraState: params.cameraState,
     gameLogicState: params.gameLogic.captureBrowserRuntimeSaveState(),
   };
+  const radarPayload = params.gameLogic.captureSourceRadarRuntimeSaveState();
+  const inGameUiPayload = params.gameLogic.captureSourceInGameUiRuntimeSaveState();
   const playerPayload = params.gameLogic.captureSourcePlayerRuntimeSaveState();
   const gameLogicPayload = params.gameLogic.captureSourceGameLogicRuntimeSaveState();
 
@@ -625,6 +699,8 @@ export function buildRuntimeSaveFile(params: {
   state.addSnapshotBlock('CHUNK_GameStateMap', new MapSnapshot(mapState));
   state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, new PlayersSnapshot(playerPayload));
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new GameLogicSnapshot(gameLogicPayload));
+  state.addSnapshotBlock(SOURCE_RADAR_BLOCK, new RadarSnapshot(radarPayload));
+  state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, new InGameUiSnapshot(inGameUiPayload));
   state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, new BrowserRuntimeSnapshot(runtimePayload));
   const saveResult = state.saveGame(params.description);
 
@@ -655,17 +731,17 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     isChallengeCampaign: false,
     playerTemplateNum: -1,
   });
-  const playersSnapshot = hasBrowserRuntimeBlock ? new PlayersSnapshot() : null;
-  const gameLogicSnapshot = hasBrowserRuntimeBlock ? new GameLogicSnapshot() : null;
+  const playersSnapshot = new PlayersSnapshot();
+  const gameLogicSnapshot = new GameLogicSnapshot();
+  const radarSnapshot = new RadarSnapshot();
+  const inGameUiSnapshot = new InGameUiSnapshot();
   const runtimeSnapshot = new BrowserRuntimeSnapshot();
   const state = new GameState();
   state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, campaignSnapshot);
-  if (playersSnapshot) {
-    state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, playersSnapshot);
-  }
-  if (gameLogicSnapshot) {
-    state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, gameLogicSnapshot);
-  }
+  state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, playersSnapshot);
+  state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, gameLogicSnapshot);
+  state.addSnapshotBlock(SOURCE_RADAR_BLOCK, radarSnapshot);
+  state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, inGameUiSnapshot);
   state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, runtimeSnapshot);
   const loadCode = state.loadGame(data);
   if (loadCode !== SaveCode.SC_OK) {
@@ -675,7 +751,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     }
     throw new Error('Runtime save load failed before the browser snapshot payload could be restored.');
   }
-  if (runtimeSnapshot.payload === null) {
+  if (!hasBrowserRuntimeBlock || runtimeSnapshot.payload === null) {
     throw new Error(
       'This save file contains retail metadata, but no browser runtime snapshot block. ' +
       'Retail C++ save-state chunk restore is not wired yet.',
@@ -711,6 +787,8 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     mapPath: resolvedMapPath,
     cameraState: payload.cameraState,
     gameLogicPlayersState: playersSnapshot?.payload ?? null,
+    gameLogicRadarState: radarSnapshot?.payload ?? null,
+    gameLogicInGameUiState: inGameUiSnapshot?.payload ?? null,
     gameLogicCoreState: gameLogicSnapshot?.payload ?? null,
     gameLogicState: payload.gameLogicState,
     campaign,
