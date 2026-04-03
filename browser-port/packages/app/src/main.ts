@@ -1709,6 +1709,11 @@ async function startGame(
         runtimeSaveLoadContext.runtimeSave.gameLogicCoreState,
       );
     }
+    if (runtimeSaveLoadContext.runtimeSave.gameLogicScriptEngineState) {
+      gameLogic.restoreSourceScriptEngineRuntimeSaveState(
+        runtimeSaveLoadContext.runtimeSave.gameLogicScriptEngineState,
+      );
+    }
     gameLogic.restoreBrowserRuntimeSaveState(runtimeSaveLoadContext.runtimeSave.gameLogicState);
   }
   if (objectPlacement.unresolvedObjects > 0) {

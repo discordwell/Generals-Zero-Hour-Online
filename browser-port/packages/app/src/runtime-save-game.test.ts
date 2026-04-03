@@ -95,6 +95,14 @@ describe('runtime-save-game', () => {
           nextFreeRadarEvent: 1,
           lastRadarEvent: 0,
         }),
+        captureSourceScriptEngineRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            scriptCountersByName: new Map([['missiontimer', { value: 90, isCountdownTimer: true }]]),
+            scriptFlagsByName: new Map([['intro_complete', true]]),
+            scriptCompletedVideos: ['USA_BNN_INTRO'],
+          },
+        }),
         captureSourceInGameUiRuntimeSaveState: () => ({
           version: 1,
           state: {
@@ -142,6 +150,7 @@ describe('runtime-save-game', () => {
       'CHUNK_Players',
       'CHUNK_GameLogic',
       'CHUNK_Radar',
+      'CHUNK_ScriptEngine',
       'CHUNK_TacticalView',
       'CHUNK_InGameUI',
       'CHUNK_TS_RuntimeState',
@@ -150,6 +159,7 @@ describe('runtime-save-game', () => {
     const parsed = parseRuntimeSaveFile(saveFile.data);
     const playerState = parsed.gameLogicPlayersState;
     const radarState = parsed.gameLogicRadarState;
+    const scriptEngineState = parsed.gameLogicScriptEngineState;
     const inGameUiState = parsed.gameLogicInGameUiState;
     const coreState = parsed.gameLogicCoreState;
     const logicState = parsed.gameLogicState as {
@@ -199,6 +209,11 @@ describe('runtime-save-game', () => {
     });
     expect(radarState.nextFreeRadarEvent).toBe(1);
     expect(radarState.lastRadarEvent).toBe(0);
+    expect(scriptEngineState?.state.scriptCountersByName).toEqual(
+      new Map([['missiontimer', { value: 90, isCountdownTimer: true }]]),
+    );
+    expect(scriptEngineState?.state.scriptFlagsByName).toEqual(new Map([['intro_complete', true]]));
+    expect(scriptEngineState?.state.scriptCompletedVideos).toEqual(['USA_BNN_INTRO']);
     expect(inGameUiState?.state.scriptNamedTimerDisplayEnabled).toBe(false);
     expect(inGameUiState?.state.scriptHiddenSpecialPowerDisplayEntityIds).toEqual(new Set([7]));
     expect(coreState?.spawnedEntities).toEqual([]);
@@ -232,6 +247,7 @@ describe('runtime-save-game', () => {
       gameLogic: {
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
           version: 1,
@@ -287,6 +303,7 @@ describe('runtime-save-game', () => {
       gameLogic: {
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
           version: 1,
@@ -357,6 +374,7 @@ describe('runtime-save-game', () => {
       gameLogic: {
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
           version: 1,

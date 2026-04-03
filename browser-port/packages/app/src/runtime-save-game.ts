@@ -20,6 +20,7 @@ import {
   type GameLogicRadarObjectSaveState,
   type GameLogicPlayersSaveState,
   type GameLogicRadarSaveState,
+  type GameLogicScriptEngineSaveState,
   type GameLogicSubsystem,
   type LegacyGameLogicRadarSaveState,
   type MapEntity,
@@ -30,6 +31,7 @@ import type { MapDataJSON } from '@generals/renderer';
 const SOURCE_CAMPAIGN_BLOCK = 'CHUNK_Campaign';
 const SOURCE_PLAYERS_BLOCK = 'CHUNK_Players';
 const SOURCE_RADAR_BLOCK = 'CHUNK_Radar';
+const SOURCE_SCRIPT_ENGINE_BLOCK = 'CHUNK_ScriptEngine';
 const SOURCE_TACTICAL_VIEW_BLOCK = 'CHUNK_TacticalView';
 const SOURCE_IN_GAME_UI_BLOCK = 'CHUNK_InGameUI';
 const SOURCE_GAME_LOGIC_BLOCK = 'CHUNK_GameLogic';
@@ -129,6 +131,7 @@ export interface RuntimeSaveBootstrap {
   tacticalViewState: RuntimeSaveTacticalViewState | null;
   gameLogicPlayersState: GameLogicPlayersSaveState | null;
   gameLogicRadarState: GameLogicRadarSaveState | null;
+  gameLogicScriptEngineState: GameLogicScriptEngineSaveState | null;
   gameLogicInGameUiState: GameLogicInGameUiSaveState | null;
   gameLogicCoreState: GameLogicCoreSaveState | null;
   gameLogicState: unknown;
@@ -729,6 +732,38 @@ class RadarSnapshot implements Snapshot {
   }
 }
 
+class ScriptEngineSnapshot implements Snapshot {
+  payload: GameLogicScriptEngineSaveState | null;
+
+  constructor(payload: GameLogicScriptEngineSaveState | null = null) {
+    this.payload = payload;
+  }
+
+  crc(_xfer: Xfer): void {
+    // Script-engine snapshot is not part of source parity CRC yet.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error(`Unsupported script-engine snapshot version ${version}`);
+    }
+
+    const serialized = xfer.xferLongString(
+      this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
+    );
+    if (serialized.length === 0) {
+      this.payload = null;
+      return;
+    }
+    this.payload = JSON.parse(serialized, runtimeJsonReviver) as GameLogicScriptEngineSaveState;
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
 class TacticalViewSnapshot implements Snapshot {
   payload: RuntimeSaveTacticalViewState | null;
 
@@ -918,6 +953,7 @@ export function buildRuntimeSaveFile(params: {
     GameLogicSubsystem,
     | 'captureBrowserRuntimeSaveState'
     | 'captureSourceRadarRuntimeSaveState'
+    | 'captureSourceScriptEngineRuntimeSaveState'
     | 'captureSourceInGameUiRuntimeSaveState'
     | 'captureSourcePlayerRuntimeSaveState'
     | 'captureSourceGameLogicRuntimeSaveState'
@@ -944,6 +980,7 @@ export function buildRuntimeSaveFile(params: {
   const tacticalViewPayload = params.tacticalViewState
     ?? buildTacticalViewSaveState(params.cameraState);
   const radarPayload = params.gameLogic.captureSourceRadarRuntimeSaveState();
+  const scriptEnginePayload = params.gameLogic.captureSourceScriptEngineRuntimeSaveState();
   const inGameUiPayload = params.gameLogic.captureSourceInGameUiRuntimeSaveState();
   const playerPayload = params.gameLogic.captureSourcePlayerRuntimeSaveState();
   const gameLogicPayload = params.gameLogic.captureSourceGameLogicRuntimeSaveState();
@@ -980,6 +1017,7 @@ export function buildRuntimeSaveFile(params: {
   state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, new PlayersSnapshot(playerPayload));
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new GameLogicSnapshot(gameLogicPayload));
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, new RadarSnapshot(radarPayload));
+  state.addSnapshotBlock(SOURCE_SCRIPT_ENGINE_BLOCK, new ScriptEngineSnapshot(scriptEnginePayload));
   state.addSnapshotBlock(SOURCE_TACTICAL_VIEW_BLOCK, new TacticalViewSnapshot(tacticalViewPayload));
   state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, new InGameUiSnapshot(inGameUiPayload));
   state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, new BrowserRuntimeSnapshot(runtimePayload));
@@ -1015,6 +1053,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const playersSnapshot = new PlayersSnapshot();
   const gameLogicSnapshot = new GameLogicSnapshot();
   const radarSnapshot = new RadarSnapshot();
+  const scriptEngineSnapshot = new ScriptEngineSnapshot();
   const tacticalViewSnapshot = new TacticalViewSnapshot();
   const inGameUiSnapshot = new InGameUiSnapshot();
   const runtimeSnapshot = new BrowserRuntimeSnapshot();
@@ -1023,6 +1062,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, playersSnapshot);
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, gameLogicSnapshot);
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, radarSnapshot);
+  state.addSnapshotBlock(SOURCE_SCRIPT_ENGINE_BLOCK, scriptEngineSnapshot);
   state.addSnapshotBlock(SOURCE_TACTICAL_VIEW_BLOCK, tacticalViewSnapshot);
   state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, inGameUiSnapshot);
   state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, runtimeSnapshot);
@@ -1073,6 +1113,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     tacticalViewState: tacticalViewSnapshot.payload,
     gameLogicPlayersState: playersSnapshot?.payload ?? null,
     gameLogicRadarState: radarSnapshot?.payload ?? null,
+    gameLogicScriptEngineState: scriptEngineSnapshot?.payload ?? null,
     gameLogicInGameUiState: inGameUiSnapshot?.payload ?? null,
     gameLogicCoreState: gameLogicSnapshot?.payload ?? null,
     gameLogicState: payload.gameLogicState,

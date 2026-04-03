@@ -7923,6 +7923,7 @@ const BROWSER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION = 2;
+const SOURCE_SCRIPT_ENGINE_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_IN_GAME_UI_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
   'teamRelationshipOverrides',
@@ -7981,6 +7982,33 @@ const SOURCE_RADAR_RUNTIME_STATE_KEYS = [
   'scriptRadarEvents',
   'scriptLastRadarEventState',
 ] as const;
+const SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS = [
+  'scriptSequentialScripts',
+  'scriptCountersByName',
+  'scriptFlagsByName',
+  'scriptCompletedVideos',
+  'scriptCompletedSpeech',
+  'scriptCompletedAudio',
+  'scriptTestingSpeechCompletionFrameByName',
+  'scriptTestingAudioCompletionFrameByName',
+  'scriptCompletedMusic',
+  'scriptUIInteractions',
+  'sideScriptTriggeredSpecialPowerEvents',
+  'sideScriptMidwaySpecialPowerEvents',
+  'sideScriptCompletedSpecialPowerEvents',
+  'sideScriptCompletedUpgradeEvents',
+  'sideScriptAcquiredSciences',
+  'scriptTimeFrozenByScript',
+  'scriptObjectsReceiveDifficultyBonus',
+  'scriptBreezeState',
+  'scriptChooseVictimAlwaysUsesNormal',
+  'scriptToppleDirectionByEntityId',
+  'scriptObjectTypeListsByName',
+  'scriptNamedMapRevealByName',
+  'scriptNamedEntitiesByName',
+  'scriptAttackPrioritySetsByName',
+  'scriptMusicTrackState',
+] as const;
 const SOURCE_IN_GAME_UI_RUNTIME_STATE_KEYS = [
   'scriptCinematicTextState',
   'scriptPopupMessages',
@@ -8019,6 +8047,7 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   ...SOURCE_PLAYER_RUNTIME_STATE_KEYS,
   ...SOURCE_GAME_LOGIC_RUNTIME_STATE_KEYS,
   ...SOURCE_RADAR_RUNTIME_STATE_KEYS,
+  ...SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS,
   ...SOURCE_IN_GAME_UI_RUNTIME_STATE_KEYS,
 ]);
 
@@ -8096,6 +8125,11 @@ export interface StructuredGameLogicRadarSaveState {
 }
 
 export type GameLogicRadarSaveState = LegacyGameLogicRadarSaveState | StructuredGameLogicRadarSaveState;
+
+export interface GameLogicScriptEngineSaveState {
+  version: number;
+  state: Record<string, unknown>;
+}
 
 export interface GameLogicInGameUiSaveState {
   version: number;
@@ -9429,6 +9463,32 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     this.scriptLastRadarEventState = resolvedLastRadarEventState;
+  }
+
+  captureSourceScriptEngineRuntimeSaveState(): GameLogicScriptEngineSaveState {
+    return {
+      version: SOURCE_SCRIPT_ENGINE_RUNTIME_SAVE_STATE_VERSION,
+      state: this.captureSourceRuntimeStateByKeys(SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS),
+    };
+  }
+
+  restoreSourceScriptEngineRuntimeSaveState(state: unknown): void {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      throw new Error('Source script-engine save-state payload is malformed.');
+    }
+
+    const snapshot = state as GameLogicScriptEngineSaveState;
+    if (snapshot.version !== SOURCE_SCRIPT_ENGINE_RUNTIME_SAVE_STATE_VERSION) {
+      throw new Error(`Unsupported source script-engine save-state version ${snapshot.version}.`);
+    }
+    if (!snapshot.state || typeof snapshot.state !== 'object' || Array.isArray(snapshot.state)) {
+      throw new Error('Source script-engine save-state content is malformed.');
+    }
+
+    this.restoreSourceRuntimeStateByKeys(
+      SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS,
+      snapshot.state as Record<string, unknown>,
+    );
   }
 
   captureSourceInGameUiRuntimeSaveState(): GameLogicInGameUiSaveState {
