@@ -7914,6 +7914,32 @@ export const SCRIPT_KIND_OF_ALLOW_SURRENDER_NAMES = new Set<string>([
   'CAN_SURRENDER',
 ]);
 
+const BROWSER_RUNTIME_SAVE_STATE_VERSION = 1;
+const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
+  'name',
+  'config',
+  'raycaster',
+  'groundPlane',
+  'gameRandom',
+  'loadedMapData',
+  'mapHeightmap',
+  'navigationGrid',
+  'iniDataRegistry',
+  'scriptKindOfNamesBySourceBit',
+  'scriptKindOfNameToBit',
+  'globalWeaponBonusTable',
+  'globalHealthBonuses',
+  'globalSoloPlayerHealthBonuses',
+  'roadTemplateNames',
+  'supplementalMapObjectDefs',
+  'buildFacilityTemplateNamesCache',
+  'buildFacilityTemplateNamesRegistry',
+  'fogOfWarGrid',
+  'waterPolygonData',
+  'mapTriggerRegions',
+  'railedTransportWaypointIndex',
+]);
+
 export class GameLogicSubsystem implements Subsystem {
   readonly name = 'GameLogic';
 
@@ -8831,6 +8857,64 @@ export class GameLogicSubsystem implements Subsystem {
         commandQueue: this.commandQueue,
       }),
     });
+  }
+
+  captureBrowserRuntimeSaveState(): Record<string, unknown> {
+    const snapshot: Record<string, unknown> = {
+      version: BROWSER_RUNTIME_SAVE_STATE_VERSION,
+      gameRandomSeed: this.gameRandom.getSeed(),
+    };
+
+    for (const key of Object.keys(this)) {
+      if (NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS.has(key)) {
+        continue;
+      }
+      snapshot[key] = (this as unknown as Record<string, unknown>)[key];
+    }
+
+    return snapshot;
+  }
+
+  restoreBrowserRuntimeSaveState(state: unknown): void {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      throw new Error('Browser runtime save-state payload is malformed.');
+    }
+
+    const snapshot = state as Record<string, unknown>;
+    const version = Number(snapshot.version ?? 0);
+    if (version !== BROWSER_RUNTIME_SAVE_STATE_VERSION) {
+      throw new Error(`Unsupported browser runtime save-state version ${version}.`);
+    }
+
+    for (const [key, value] of Object.entries(snapshot)) {
+      if (key === 'version' || key === 'gameRandomSeed') {
+        continue;
+      }
+      if (NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS.has(key)) {
+        continue;
+      }
+      (this as unknown as Record<string, unknown>)[key] = value;
+    }
+
+    this.gameRandom.setSeed(Number(snapshot.gameRandomSeed ?? 1));
+
+    const maxEntityId = Array.from(this.spawnedEntities.keys()).reduce(
+      (currentMax, entityId) => Math.max(currentMax, entityId),
+      0,
+    );
+    this.nextId = Math.max(this.nextId, maxEntityId + 1);
+    this.nextProjectileVisualId = Math.max(1, this.nextProjectileVisualId);
+    this.selectedEntityIds = this.filterValidSelectionIds(this.selectedEntityIds);
+    if (this.selectedEntityId === null || !this.selectedEntityIds.includes(this.selectedEntityId)) {
+      this.selectedEntityId = this.selectedEntityIds[0] ?? null;
+    }
+    this.markScriptSelectionChanged();
+    this.controlBarDirtyFrame = this.frameCounter;
+    this.updateSelectionHighlight();
+  }
+
+  getObjectIdCounter(): number {
+    return this.nextId;
   }
 
   /**

@@ -140,6 +140,11 @@ import {
   getSourceCameraOrbitPitchAngle,
   resolveSourceHeightScaledZoomWorldDistance,
 } from './source-camera.js';
+import {
+  buildRuntimeSaveFile,
+  parseRuntimeSaveFile,
+  type RuntimeSaveBootstrap,
+} from './runtime-save-game.js';
 
 // ============================================================================
 // Loading screen
@@ -984,6 +989,10 @@ interface PreInitContext {
   replayStorage: ReplayStorage;
 }
 
+interface RuntimeSaveLoadContext {
+  runtimeSave: RuntimeSaveBootstrap;
+}
+
 // ============================================================================
 // Phase 1: Pre-initialization (assets, renderer, INI data, audio)
 // ============================================================================
@@ -1288,6 +1297,7 @@ async function startGame(
     onReturnToShell: () => void;
   },
   replayContext?: ReplayPlaybackContext,
+  runtimeSaveLoadContext?: RuntimeSaveLoadContext,
 ): Promise<void> {
   const {
     renderer, scene, camera, sunLight, subsystems, assets, inputManager, rtsCamera,
@@ -1297,6 +1307,7 @@ async function startGame(
   const canvas = renderer.domElement as HTMLCanvasElement;
   const gameSubsystems = new SubsystemRegistry();
   const replayManager = new ReplayManager();
+  const activeMapPath = runtimeSaveLoadContext?.runtimeSave.mapPath ?? mapPath;
   let replayRecordFrame = 0;
   let replayRecordingPersisted = false;
   let replaySkirmishSettings = skirmishSettings;
@@ -1529,10 +1540,14 @@ async function startGame(
   let mapData: MapDataJSON;
   let loadedFromJSON = false;
 
-  if (mapPath) {
-    assertRequiredManifestEntries(assets.getManifest(), [mapPath]);
+  if (runtimeSaveLoadContext) {
+    mapData = runtimeSaveLoadContext.runtimeSave.mapData;
+    loadedFromJSON = true;
+    console.log('Map loaded from embedded runtime save data.');
+  } else if (activeMapPath) {
+    assertRequiredManifestEntries(assets.getManifest(), [activeMapPath]);
     try {
-      const handle = await assets.loadJSON<MapDataJSON>(mapPath, (loaded, total) => {
+      const handle = await assets.loadJSON<MapDataJSON>(activeMapPath, (loaded, total) => {
         const pct = total > 0 ? Math.round(50 + (loaded / total) * 20) : 60;
         setLoadingProgress(pct, 'Loading map data...');
       });
@@ -1541,7 +1556,7 @@ async function startGame(
       console.log(`Map loaded via AssetManager (cached: ${handle.cached}, hash: ${handle.hash ?? 'n/a'})`);
     } catch (err) {
       throw new Error(
-        `Requested map "${mapPath}" failed to load: ${err instanceof Error ? err.message : String(err)}`,
+        `Requested map "${activeMapPath}" failed to load: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   } else {
@@ -1631,6 +1646,9 @@ async function startGame(
   );
 
   const objectPlacement = gameLogic.loadMapObjects(mapData, iniDataRegistry, heightmap);
+  if (runtimeSaveLoadContext) {
+    gameLogic.restoreBrowserRuntimeSaveState(runtimeSaveLoadContext.runtimeSave.gameLogicState);
+  }
   if (objectPlacement.unresolvedObjects > 0) {
     console.warn(
       `Object resolve summary: ${objectPlacement.resolvedObjects}/${objectPlacement.spawnedObjects} objects resolved`,
@@ -1760,6 +1778,9 @@ async function startGame(
       }),
       pitch: 1,
     });
+  }
+  if (runtimeSaveLoadContext?.runtimeSave.cameraState) {
+    rtsCamera.setState(runtimeSaveLoadContext.runtimeSave.cameraState);
   }
   syncScriptViewRuntimeBridge(gameLogic, objectVisualManager, terrainVisual, scriptSkyboxController);
   scriptSkyboxController.update(camera);
@@ -2214,7 +2235,7 @@ async function startGame(
       } else if (campaignContext) {
         // Retry same mission — restart with the same campaign context
         disposeGame();
-        void startGame(ctx, mapPath, null, campaignContext);
+        void startGame(ctx, activeMapPath, null, campaignContext);
       } else {
         window.location.reload();
       }
@@ -3845,7 +3866,7 @@ async function startGame(
   const gameLoop = new GameLoop(30);
   if (replaySkirmishSettings && !campaignContext && !replayContext) {
     replayManager.startRecording(
-      mapPath ?? replaySkirmishSettings.mapPath ?? '',
+      activeMapPath ?? replaySkirmishSettings.mapPath ?? '',
       buildReplayPlayers(replaySkirmishSettings),
       Math.round(1000 / gameLoop.simulationDt),
       replaySkirmishSettings.startingCredits,
@@ -5029,6 +5050,30 @@ async function startGame(
     delete (globalThis as Record<string, unknown>)['__GENERALS_E2E__'];
   };
 
+  const saveCurrentGame = async (slotId: string, description: string): Promise<void> => {
+    const saveFile = buildRuntimeSaveFile({
+      description,
+      mapPath: activeMapPath,
+      mapData,
+      cameraState: rtsCamera.getState(),
+      gameLogic,
+    });
+    await ctx.saveStorage.saveToDB(slotId, saveFile.data, saveFile.metadata);
+  };
+
+  const loadSavedGameData = async (data: ArrayBuffer): Promise<void> => {
+    disposeGame();
+    await startGameFromRuntimeSave(ctx, data);
+  };
+
+  const loadSavedGameSlot = async (slotId: string): Promise<void> => {
+    const loadedSave = await ctx.saveStorage.loadFromDB(slotId);
+    if (!loadedSave) {
+      throw new Error(`Save "${slotId}" was not found.`);
+    }
+    await loadSavedGameData(loadedSave.data);
+  };
+
   window.addEventListener('pagehide', disposeGame, { signal: gameAbort.signal });
   window.addEventListener('beforeunload', disposeGame, { signal: gameAbort.signal });
 
@@ -5052,7 +5097,7 @@ async function startGame(
       const skyboxRoot = scene.getObjectByName('script-skybox');
       return {
         frame: gameLoop.getFrameNumber(),
-        mapPath,
+        mapPath: activeMapPath,
         placementResolvedObjects: objectPlacement.resolvedObjects,
         placementSpawnedObjects: objectPlacement.spawnedObjects,
         placementTotalObjects: objectPlacement.totalObjects,
@@ -5123,6 +5168,9 @@ async function startGame(
         },
       );
     },
+    saveGame: (slotId: string, description: string) => saveCurrentGame(slotId, description),
+    loadGameFromSlot: (slotId: string) => loadSavedGameSlot(slotId),
+    listSaves: () => ctx.saveStorage.listSaves(),
   };
 
   // Hide loading screen
@@ -5133,9 +5181,17 @@ async function startGame(
     'background: #1a1a2e; color: #c9a84c; font-size: 16px; padding: 8px;',
   );
   console.log('Stage 3: Terrain + map entities bootstrapped.');
-  console.log(`Terrain: ${heightmap.width}x${heightmap.height} (${mapPath ?? 'procedural demo'})`);
+  console.log(`Terrain: ${heightmap.width}x${heightmap.height} (${activeMapPath ?? 'procedural demo'})`);
   console.log(`Placed ${objectPlacement.spawnedObjects}/${objectPlacement.totalObjects} objects from map data.`);
   console.log('Controls: LMB=select, RMB=move/confirm target, 1-12=ControlBar slot, WASD=scroll, Q/E=rotate, Wheel=zoom, Middle-drag=pan, F1=help, F3=wireframe');
+}
+
+async function startGameFromRuntimeSave(
+  ctx: PreInitContext,
+  data: ArrayBuffer,
+): Promise<void> {
+  const runtimeSave = parseRuntimeSaveFile(data);
+  await startGame(ctx, runtimeSave.mapPath, null, undefined, undefined, { runtimeSave });
 }
 
 // ============================================================================
@@ -5265,7 +5321,9 @@ async function init(): Promise<void> {
       if (!loadedSave) {
         throw new Error(`Save "${slotId}" was not found.`);
       }
-      throw new Error('Save-game loading is not available yet because runtime snapshot serialization is not wired.');
+      loadGameScreen.hide();
+      shell.hide();
+      await startGameFromRuntimeSave(ctx, loadedSave.data);
     },
     onDeleteSave: async (slotId: string) => {
       await ctx.saveStorage.deleteSave(slotId);
