@@ -99,6 +99,7 @@ describe('runtime-save-game', () => {
       'CHUNK_Players',
       'CHUNK_GameLogic',
       'CHUNK_Radar',
+      'CHUNK_TacticalView',
       'CHUNK_InGameUI',
       'CHUNK_TS_RuntimeState',
     ]);
@@ -122,6 +123,15 @@ describe('runtime-save-game', () => {
       angle: 0.25,
       zoom: 140,
       pitch: 1,
+    });
+    expect(parsed.tacticalViewState).toEqual({
+      version: 1,
+      angle: 0.25,
+      position: {
+        x: 18,
+        y: 0,
+        z: 24,
+      },
     });
     expect(playerState?.state.playerSideByIndex).toEqual(new Map([[0, 'USA']]));
     expect(radarState?.state.scriptRadarHidden).toBe(true);

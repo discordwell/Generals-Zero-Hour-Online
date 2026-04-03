@@ -5120,11 +5120,21 @@ async function startGame(
     const activeMission = campaignContext?.campaignManager.getCurrentMission()
       ?? campaignContext?.settings.mission
       ?? null;
+    const currentCameraState = rtsCamera.getState();
     const saveFile = buildRuntimeSaveFile({
       description,
       mapPath: activeMapPath,
       mapData,
-      cameraState: rtsCamera.getState(),
+      cameraState: currentCameraState,
+      tacticalViewState: {
+        version: 1,
+        angle: currentCameraState.angle,
+        position: {
+          x: currentCameraState.targetX,
+          y: heightmap.getInterpolatedHeight(currentCameraState.targetX, currentCameraState.targetZ),
+          z: currentCameraState.targetZ,
+        },
+      },
       gameLogic,
       embeddedMapBytes,
       sourceGameMode: skirmishSettings ? SOURCE_GAME_MODE_SKIRMISH : SOURCE_GAME_MODE_SINGLE_PLAYER,

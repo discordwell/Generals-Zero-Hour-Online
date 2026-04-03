@@ -26,6 +26,7 @@ import type { MapDataJSON } from '@generals/renderer';
 const SOURCE_CAMPAIGN_BLOCK = 'CHUNK_Campaign';
 const SOURCE_PLAYERS_BLOCK = 'CHUNK_Players';
 const SOURCE_RADAR_BLOCK = 'CHUNK_Radar';
+const SOURCE_TACTICAL_VIEW_BLOCK = 'CHUNK_TacticalView';
 const SOURCE_IN_GAME_UI_BLOCK = 'CHUNK_InGameUI';
 const SOURCE_GAME_LOGIC_BLOCK = 'CHUNK_GameLogic';
 export const BROWSER_RUNTIME_STATE_BLOCK = 'CHUNK_TS_RuntimeState';
@@ -78,10 +79,28 @@ interface RuntimeSaveCampaignState {
   playerTemplateNum: number;
 }
 
+export interface BrowserRuntimeCameraSaveState {
+  zoom: number;
+  pitch: number;
+  targetX?: number;
+  targetZ?: number;
+  angle?: number;
+}
+
+export interface RuntimeSaveTacticalViewState {
+  version: number;
+  angle: number;
+  position: {
+    x: number;
+    y: number;
+    z: number;
+  };
+}
+
 export interface BrowserRuntimeSavePayload {
   version: number;
   mapPath: string | null;
-  cameraState: CameraState | null;
+  cameraState: BrowserRuntimeCameraSaveState | null;
   gameLogicState: unknown;
 }
 
@@ -100,6 +119,7 @@ export interface RuntimeSaveBootstrap {
   mapData: MapDataJSON | null;
   mapPath: string | null;
   cameraState: CameraState | null;
+  tacticalViewState: RuntimeSaveTacticalViewState | null;
   gameLogicPlayersState: GameLogicPlayersSaveState | null;
   gameLogicRadarState: GameLogicRadarSaveState | null;
   gameLogicInGameUiState: GameLogicInGameUiSaveState | null;
@@ -190,6 +210,93 @@ function decodeSourceDifficulty(rawDifficulty: number): GameDifficulty {
     default:
       throw new Error(`Unsupported campaign difficulty value ${rawDifficulty}`);
   }
+}
+
+function buildBrowserRuntimeCameraSaveState(
+  cameraState: CameraState | null,
+): BrowserRuntimeCameraSaveState | null {
+  if (cameraState === null) {
+    return null;
+  }
+  return {
+    zoom: cameraState.zoom,
+    pitch: cameraState.pitch,
+  };
+}
+
+function buildTacticalViewSaveState(
+  cameraState: CameraState | null,
+  targetY = 0,
+): RuntimeSaveTacticalViewState {
+  return {
+    version: 1,
+    angle: cameraState?.angle ?? 0,
+    position: {
+      x: cameraState?.targetX ?? 0,
+      y: targetY,
+      z: cameraState?.targetZ ?? 0,
+    },
+  };
+}
+
+function coerceBrowserRuntimeCameraSaveState(value: unknown): BrowserRuntimeCameraSaveState | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const zoom = Number(record.zoom);
+  const pitch = Number(record.pitch);
+  if (!Number.isFinite(zoom) || !Number.isFinite(pitch)) {
+    return null;
+  }
+
+  const state: BrowserRuntimeCameraSaveState = { zoom, pitch };
+  const targetX = Number(record.targetX);
+  const targetZ = Number(record.targetZ);
+  const angle = Number(record.angle);
+  if (Number.isFinite(targetX)) {
+    state.targetX = targetX;
+  }
+  if (Number.isFinite(targetZ)) {
+    state.targetZ = targetZ;
+  }
+  if (Number.isFinite(angle)) {
+    state.angle = angle;
+  }
+  return state;
+}
+
+function resolveRestoredCameraState(
+  tacticalViewState: RuntimeSaveTacticalViewState | null,
+  browserCameraState: BrowserRuntimeCameraSaveState | null,
+): CameraState | null {
+  if (browserCameraState === null && tacticalViewState === null) {
+    return null;
+  }
+
+  const targetX = tacticalViewState?.position.x ?? browserCameraState?.targetX;
+  const targetZ = tacticalViewState?.position.z ?? browserCameraState?.targetZ;
+  const angle = tacticalViewState?.angle ?? browserCameraState?.angle;
+  const zoom = browserCameraState?.zoom;
+  const pitch = browserCameraState?.pitch;
+  if (
+    !Number.isFinite(targetX)
+    || !Number.isFinite(targetZ)
+    || !Number.isFinite(angle)
+    || !Number.isFinite(zoom)
+    || !Number.isFinite(pitch)
+  ) {
+    return null;
+  }
+
+  return {
+    targetX: Number(targetX),
+    targetZ: Number(targetZ),
+    angle: Number(angle),
+    zoom: Number(zoom),
+    pitch: Number(pitch),
+  };
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -487,6 +594,41 @@ class RadarSnapshot implements Snapshot {
   }
 }
 
+class TacticalViewSnapshot implements Snapshot {
+  payload: RuntimeSaveTacticalViewState | null;
+
+  constructor(payload: RuntimeSaveTacticalViewState | null = null) {
+    this.payload = payload;
+  }
+
+  crc(_xfer: Xfer): void {
+    // Tactical-view snapshot is not part of source parity CRC yet.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error(`Unsupported tactical-view snapshot version ${version}`);
+    }
+
+    const payload = this.payload ?? {
+      version,
+      angle: 0,
+      position: { x: 0, y: 0, z: 0 },
+    };
+    payload.version = version;
+    payload.angle = xfer.xferReal(payload.angle);
+    payload.position.x = xfer.xferReal(payload.position.x);
+    payload.position.y = xfer.xferReal(payload.position.y);
+    payload.position.z = xfer.xferReal(payload.position.z);
+    this.payload = payload;
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
 class InGameUiSnapshot implements Snapshot {
   payload: GameLogicInGameUiSaveState | null;
 
@@ -636,6 +778,7 @@ export function buildRuntimeSaveFile(params: {
   mapPath: string | null;
   mapData: MapDataJSON;
   cameraState: CameraState | null;
+  tacticalViewState?: RuntimeSaveTacticalViewState | null;
   gameLogic: Pick<
     GameLogicSubsystem,
     | 'captureBrowserRuntimeSaveState'
@@ -660,9 +803,11 @@ export function buildRuntimeSaveFile(params: {
   const runtimePayload: BrowserRuntimeSavePayload = {
     version: BROWSER_RUNTIME_STATE_VERSION,
     mapPath: params.mapPath,
-    cameraState: params.cameraState,
+    cameraState: buildBrowserRuntimeCameraSaveState(params.cameraState),
     gameLogicState: params.gameLogic.captureBrowserRuntimeSaveState(),
   };
+  const tacticalViewPayload = params.tacticalViewState
+    ?? buildTacticalViewSaveState(params.cameraState);
   const radarPayload = params.gameLogic.captureSourceRadarRuntimeSaveState();
   const inGameUiPayload = params.gameLogic.captureSourceInGameUiRuntimeSaveState();
   const playerPayload = params.gameLogic.captureSourcePlayerRuntimeSaveState();
@@ -700,6 +845,7 @@ export function buildRuntimeSaveFile(params: {
   state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, new PlayersSnapshot(playerPayload));
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new GameLogicSnapshot(gameLogicPayload));
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, new RadarSnapshot(radarPayload));
+  state.addSnapshotBlock(SOURCE_TACTICAL_VIEW_BLOCK, new TacticalViewSnapshot(tacticalViewPayload));
   state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, new InGameUiSnapshot(inGameUiPayload));
   state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, new BrowserRuntimeSnapshot(runtimePayload));
   const saveResult = state.saveGame(params.description);
@@ -734,6 +880,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const playersSnapshot = new PlayersSnapshot();
   const gameLogicSnapshot = new GameLogicSnapshot();
   const radarSnapshot = new RadarSnapshot();
+  const tacticalViewSnapshot = new TacticalViewSnapshot();
   const inGameUiSnapshot = new InGameUiSnapshot();
   const runtimeSnapshot = new BrowserRuntimeSnapshot();
   const state = new GameState();
@@ -741,6 +888,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, playersSnapshot);
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, gameLogicSnapshot);
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, radarSnapshot);
+  state.addSnapshotBlock(SOURCE_TACTICAL_VIEW_BLOCK, tacticalViewSnapshot);
   state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, inGameUiSnapshot);
   state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, runtimeSnapshot);
   const loadCode = state.loadGame(data);
@@ -762,6 +910,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   if (payload.version !== BROWSER_RUNTIME_STATE_VERSION) {
     throw new Error(`Unsupported browser runtime save payload version ${payload.version}`);
   }
+  const browserCameraState = coerceBrowserRuntimeCameraSaveState(payload.cameraState);
 
   const resolvedMapPath = (
     typeof payload.mapPath === 'string' && payload.mapPath.length > 0
@@ -785,7 +934,8 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     metadata,
     mapData,
     mapPath: resolvedMapPath,
-    cameraState: payload.cameraState,
+    cameraState: resolveRestoredCameraState(tacticalViewSnapshot.payload, browserCameraState),
+    tacticalViewState: tacticalViewSnapshot.payload,
     gameLogicPlayersState: playersSnapshot?.payload ?? null,
     gameLogicRadarState: radarSnapshot?.payload ?? null,
     gameLogicInGameUiState: inGameUiSnapshot?.payload ?? null,
