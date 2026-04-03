@@ -58,6 +58,18 @@ describe('script-engine save-state', () => {
       }>;
       sideScriptAcquiredSciences: Map<string, Set<string>>;
       scriptTimeFrozenByScript: boolean;
+      scriptWeatherVisible: boolean;
+      scriptBackgroundSoundsPaused: boolean;
+      scriptCameraDefaultViewState: { pitch: number; angle: number; maxHeight: number } | null;
+      scriptCameraFadeRequests: Array<{
+        fadeType: 'ADD' | 'SUBTRACT' | 'SATURATE' | 'MULTIPLY';
+        minFade: number;
+        maxFade: number;
+        increaseFrames: number;
+        holdFrames: number;
+        decreaseFrames: number;
+        frame: number;
+      }>;
       scriptChooseVictimAlwaysUsesNormal: boolean;
       scriptObjectTypeListsByName: Map<string, string[]>;
       scriptNamedMapRevealByName: Map<string, {
@@ -126,6 +138,22 @@ describe('script-engine save-state', () => {
     });
     privateLogic.sideScriptAcquiredSciences.set('america', new Set(['SCIENCE_PARTICLE_UPLINK_CANNON']));
     privateLogic.scriptTimeFrozenByScript = true;
+    privateLogic.scriptWeatherVisible = false;
+    privateLogic.scriptBackgroundSoundsPaused = true;
+    privateLogic.scriptCameraDefaultViewState = {
+      pitch: 0.9,
+      angle: 1.4,
+      maxHeight: 420,
+    };
+    privateLogic.scriptCameraFadeRequests.push({
+      fadeType: 'MULTIPLY',
+      minFade: 1,
+      maxFade: 0,
+      increaseFrames: 0,
+      holdFrames: 0,
+      decreaseFrames: 45,
+      frame: 22,
+    });
     privateLogic.scriptChooseVictimAlwaysUsesNormal = true;
     privateLogic.scriptObjectTypeListsByName.set('RAIDTARGETS', ['SupplyCenter', 'Dozer']);
     privateLogic.scriptNamedMapRevealByName.set('FOCUS_AREA', {
@@ -172,6 +200,22 @@ describe('script-engine save-state', () => {
       new Map([['america', new Set(['SCIENCE_PARTICLE_UPLINK_CANNON'])]]),
     );
     expect(restoredPrivate.scriptTimeFrozenByScript).toBe(true);
+    expect(restoredPrivate.scriptWeatherVisible).toBe(false);
+    expect(restoredPrivate.scriptBackgroundSoundsPaused).toBe(true);
+    expect(restoredPrivate.scriptCameraDefaultViewState).toEqual({
+      pitch: 0.9,
+      angle: 1.4,
+      maxHeight: 420,
+    });
+    expect(restoredPrivate.scriptCameraFadeRequests).toEqual([{
+      fadeType: 'MULTIPLY',
+      minFade: 1,
+      maxFade: 0,
+      increaseFrames: 0,
+      holdFrames: 0,
+      decreaseFrames: 45,
+      frame: 22,
+    }]);
     expect(restoredPrivate.scriptChooseVictimAlwaysUsesNormal).toBe(true);
     expect(restoredPrivate.scriptObjectTypeListsByName).toEqual(
       new Map([['RAIDTARGETS', ['SupplyCenter', 'Dozer']]]),
