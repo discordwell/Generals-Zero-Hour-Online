@@ -90,6 +90,14 @@ describe('Xfer framework', () => {
       expect(result).toBe(-1234);
     });
 
+    it('xferUnsignedShort', () => {
+      const result = roundTrip(
+        (x) => x.xferUnsignedShort(65530),
+        (x) => x.xferUnsignedShort(0),
+      );
+      expect(result).toBe(65530);
+    });
+
     it('xferReal', () => {
       const result = roundTrip(
         (x) => x.xferReal(3.14),
@@ -120,6 +128,14 @@ describe('Xfer framework', () => {
         (x) => x.xferAsciiString('unused'),
       );
       expect(result).toBe('');
+    });
+
+    it('xferUnicodeString', () => {
+      const result = roundTrip(
+        (x) => x.xferUnicodeString('将军'),
+        (x) => x.xferUnicodeString(''),
+      );
+      expect(result).toBe('将军');
     });
 
     it('xferObjectID', () => {
@@ -429,6 +445,15 @@ describe('Xfer framework', () => {
   });
 
   describe('xferUser custom serialization', () => {
+    it('round-trips raw byte payloads', () => {
+      const result = roundTrip(
+        (x) => x.xferUser(new Uint8Array([0xde, 0xad, 0xbe, 0xef])),
+        (x) => x.xferUser(new Uint8Array(4)),
+      );
+
+      expect(result).toEqual(new Uint8Array([0xde, 0xad, 0xbe, 0xef]));
+    });
+
     it('round-trips custom objects', () => {
       interface Pos { px: number; py: number }
 
@@ -510,14 +535,11 @@ describe('Xfer framework', () => {
   });
 
   describe('xferAsciiString u8 length limit', () => {
-    it('truncates strings longer than 255 chars', () => {
+    it('throws for strings longer than 255 chars', () => {
       const longString = 'A'.repeat(300);
-      const result = roundTrip(
-        (x) => x.xferAsciiString(longString),
-        (x) => x.xferAsciiString(''),
-      );
-      expect(result).toBe('A'.repeat(255));
-      expect(result.length).toBe(255);
+      const saver = new XferSave();
+      saver.open('test');
+      expect(() => saver.xferAsciiString(longString)).toThrow('length exceeds 255');
     });
 
     it('handles exactly 255 char string', () => {
@@ -541,6 +563,13 @@ describe('Xfer framework', () => {
       expect(buf[0]).toBe(2);   // length prefix
       expect(buf[1]).toBe(72);  // 'H'
       expect(buf[2]).toBe(105); // 'i'
+    });
+
+    it('throws for unicode strings longer than 255 UTF-16 code units', () => {
+      const longString = '将'.repeat(256);
+      const saver = new XferSave();
+      saver.open('test');
+      expect(() => saver.xferUnicodeString(longString)).toThrow('length exceeds 255');
     });
   });
 

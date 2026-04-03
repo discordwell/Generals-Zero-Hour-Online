@@ -67,6 +67,11 @@ export class XferCrc extends Xfer {
     return value;
   }
 
+  xferUnsignedShort(value: number): number {
+    this.accumulator.addUnsignedShort(value & 0xffff);
+    return value & 0xffff;
+  }
+
   xferReal(value: number): number {
     // Source parity: float32 written as 4 bytes into CRC
     const buf = new ArrayBuffer(4);
@@ -85,6 +90,18 @@ export class XferCrc extends Xfer {
         asciiBytes[i] = value.charCodeAt(i) & 0xff;
       }
       this.accumulator.xferBytes(asciiBytes);
+    }
+    return value;
+  }
+
+  xferUnicodeString(value: string): string {
+    if (value.length > 0) {
+      const utf16Bytes = new Uint8Array(value.length * 2);
+      const view = new DataView(utf16Bytes.buffer);
+      for (let i = 0; i < value.length; i++) {
+        view.setUint16(i * 2, value.charCodeAt(i), true);
+      }
+      this.accumulator.xferBytes(utf16Bytes);
     }
     return value;
   }

@@ -85,6 +85,13 @@ export class XferSave extends Xfer {
     return value;
   }
 
+  xferUnsignedShort(value: number): number {
+    this.ensureCapacity(2);
+    this.view.setUint16(this.offset, value & 0xffff, true);
+    this.offset += 2;
+    return value & 0xffff;
+  }
+
   xferReal(value: number): number {
     this.ensureCapacity(4);
     this.view.setFloat32(this.offset, value, true);
@@ -94,8 +101,10 @@ export class XferSave extends Xfer {
 
   xferAsciiString(value: string): string {
     // Source parity: XferSave.cpp:305 — UnsignedByte (u8) length prefix + raw bytes.
-    // C++ caps at 255 chars per string.
-    const length = Math.min(value.length, 255);
+    if (value.length > 255) {
+      throw new Error('XferSave: ASCII string length exceeds 255 characters');
+    }
+    const length = value.length;
     this.ensureCapacity(1 + length);
     this.view.setUint8(this.offset, length);
     this.offset += 1;
@@ -103,6 +112,21 @@ export class XferSave extends Xfer {
       this.view.setUint8(this.offset + i, value.charCodeAt(i) & 0xff);
     }
     this.offset += length;
+    return value;
+  }
+
+  xferUnicodeString(value: string): string {
+    if (value.length > 255) {
+      throw new Error('XferSave: Unicode string length exceeds 255 UTF-16 code units');
+    }
+    const length = value.length;
+    this.ensureCapacity(1 + (length * 2));
+    this.view.setUint8(this.offset, length);
+    this.offset += 1;
+    for (let i = 0; i < length; i++) {
+      this.view.setUint16(this.offset + (i * 2), value.charCodeAt(i), true);
+    }
+    this.offset += length * 2;
     return value;
   }
 

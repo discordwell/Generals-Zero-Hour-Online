@@ -8,6 +8,8 @@
  * Also provides download/upload helpers for file import/export.
  */
 
+import { parseSaveGameInfo, saveDateToTimestamp } from './save-game-file.js';
+
 export interface SaveMetadata {
   slotId: string;
   description: string;
@@ -144,12 +146,24 @@ export class SaveStorage {
   async uploadSaveFile(file: File): Promise<string> {
     const data = await file.arrayBuffer();
     const slotId = file.name.replace(/\.sav$/i, '');
-    const metadata: Omit<SaveMetadata, 'slotId'> = {
-      description: `Imported: ${file.name}`,
-      mapName: '',
-      timestamp: Date.now(),
-      sizeBytes: data.byteLength,
-    };
+    let metadata: Omit<SaveMetadata, 'slotId'>;
+    try {
+      const info = parseSaveGameInfo(data);
+      const timestamp = saveDateToTimestamp(info.date);
+      metadata = {
+        description: info.description.trim() || `Imported: ${file.name}`,
+        mapName: info.mapLabel.trim() || info.missionMapName.trim(),
+        timestamp: timestamp > 0 ? timestamp : Date.now(),
+        sizeBytes: data.byteLength,
+      };
+    } catch {
+      metadata = {
+        description: `Imported: ${file.name}`,
+        mapName: '',
+        timestamp: Date.now(),
+        sizeBytes: data.byteLength,
+      };
+    }
     await this.saveToDB(slotId, data, metadata);
     return slotId;
   }

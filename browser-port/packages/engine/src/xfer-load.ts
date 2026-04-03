@@ -74,6 +74,13 @@ export class XferLoad extends Xfer {
     return result;
   }
 
+  xferUnsignedShort(_value: number): number {
+    this.assertRemaining(2);
+    const result = this.view.getUint16(this.offset, true);
+    this.offset += 2;
+    return result;
+  }
+
   xferReal(_value: number): number {
     this.assertRemaining(4);
     const result = this.view.getFloat32(this.offset, true);
@@ -93,6 +100,19 @@ export class XferLoad extends Xfer {
     }
     this.offset += length;
     return result;
+  }
+
+  xferUnicodeString(_value: string): string {
+    this.assertRemaining(1);
+    const length = this.view.getUint8(this.offset);
+    this.offset += 1;
+    this.assertRemaining(length * 2);
+    const codeUnits: number[] = [];
+    for (let i = 0; i < length; i++) {
+      codeUnits.push(this.view.getUint16(this.offset + (i * 2), true));
+    }
+    this.offset += length * 2;
+    return String.fromCharCode(...codeUnits);
   }
 
   xferSnapshot(snapshot: Snapshot): void {

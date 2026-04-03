@@ -75,12 +75,17 @@ export abstract class Xfer {
   }
 
   abstract xferByte(value: number): number;
+  xferUnsignedByte(value: number): number {
+    return this.xferByte(value & 0xff);
+  }
   abstract xferBool(value: boolean): boolean;
   abstract xferInt(value: number): number;
   abstract xferUnsignedInt(value: number): number;
   abstract xferShort(value: number): number;
+  abstract xferUnsignedShort(value: number): number;
   abstract xferReal(value: number): number;
   abstract xferAsciiString(value: string): string;
+  abstract xferUnicodeString(value: string): string;
 
   xferCoord3D(value: Coord3D): Coord3D {
     const x = this.xferReal(value.x);
@@ -98,19 +103,32 @@ export abstract class Xfer {
     // Markers exist only for debugging readability; they produce no bytes in the stream.
   }
 
-  /**
-   * Serialize a typed value using a custom read/write pair.
-   * Save: calls writer(xfer, value).
-   * Load: calls reader(xfer).
-   */
+  xferUser(data: Uint8Array): Uint8Array;
   xferUser<T>(
     value: T,
     writer: (xfer: Xfer, v: T) => void,
     reader: (xfer: Xfer) => T,
-  ): T {
+  ): T;
+
+  /**
+   * Two source-backed forms:
+   * - raw bytes: xferUser(Uint8Array)
+   * - typed adapter: xferUser(value, writer, reader)
+   */
+  xferUser<T>(
+    valueOrData: T | Uint8Array,
+    writer?: (xfer: Xfer, v: T) => void,
+    reader?: (xfer: Xfer) => T,
+  ): T | Uint8Array {
+    if (valueOrData instanceof Uint8Array) {
+      return this.xferImplementation(valueOrData);
+    }
+    if (!writer || !reader) {
+      throw new Error('xferUser requires either raw bytes or a writer/reader pair');
+    }
     if (this.mode === XferMode.XFER_SAVE || this.mode === XferMode.XFER_CRC) {
-      writer(this, value);
-      return value;
+      writer(this, valueOrData);
+      return valueOrData;
     }
     return reader(this);
   }

@@ -20,6 +20,22 @@ export type { SaveGameInfo } from './game-state.js';
 
 export { SaveStorage } from './save-storage.js';
 export type { SaveMetadata } from './save-storage.js';
+export {
+  SaveFileType,
+  SOURCE_GAME_STATE_BLOCK,
+  SOURCE_GAME_STATE_MAP_BLOCK,
+  SOURCE_SAVE_FILE_EOF,
+  listSaveGameChunks,
+  parseSaveGameInfo,
+  parseSaveGameMapInfo,
+  saveDateToTimestamp,
+} from './save-game-file.js';
+export type {
+  ParsedSaveGameInfo,
+  ParsedSaveGameMapInfo,
+  SaveDate,
+  SaveGameChunkInfo,
+} from './save-game-file.js';
 
 export { EventBus, globalEventBus } from './event-bus.js';
 

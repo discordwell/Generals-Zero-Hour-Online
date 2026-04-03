@@ -5,6 +5,62 @@ import { SaveStorage } from './save-storage.js';
 
 let testCounter = 0;
 
+function pushInt32(bytes: number[], value: number): void {
+  const buffer = new ArrayBuffer(4);
+  const view = new DataView(buffer);
+  view.setInt32(0, value, true);
+  bytes.push(...new Uint8Array(buffer));
+}
+
+function pushUint16(bytes: number[], value: number): void {
+  const buffer = new ArrayBuffer(2);
+  const view = new DataView(buffer);
+  view.setUint16(0, value, true);
+  bytes.push(...new Uint8Array(buffer));
+}
+
+function pushAsciiString(bytes: number[], value: string): void {
+  bytes.push(value.length & 0xff);
+  for (let i = 0; i < value.length; i++) {
+    bytes.push(value.charCodeAt(i) & 0xff);
+  }
+}
+
+function pushUnicodeString(bytes: number[], value: string): void {
+  bytes.push(value.length & 0xff);
+  for (let i = 0; i < value.length; i++) {
+    pushUint16(bytes, value.charCodeAt(i));
+  }
+}
+
+function buildImportedSaveFile(): ArrayBuffer {
+  const bytes: number[] = [];
+  const gameStateData: number[] = [];
+
+  gameStateData.push(2);
+  pushInt32(gameStateData, 0);
+  pushAsciiString(gameStateData, '');
+  pushUint16(gameStateData, 2026);
+  pushUint16(gameStateData, 4);
+  pushUint16(gameStateData, 2);
+  pushUint16(gameStateData, 4);
+  pushUint16(gameStateData, 19);
+  pushUint16(gameStateData, 8);
+  pushUint16(gameStateData, 7);
+  pushUint16(gameStateData, 123);
+  pushUnicodeString(gameStateData, 'Imported Campaign Save');
+  pushAsciiString(gameStateData, 'Downtown Assault');
+  pushAsciiString(gameStateData, 'America');
+  pushInt32(gameStateData, 2);
+
+  pushAsciiString(bytes, 'CHUNK_GameState');
+  pushInt32(bytes, gameStateData.length);
+  bytes.push(...gameStateData);
+  pushAsciiString(bytes, 'SG_EOF');
+
+  return Uint8Array.from(bytes).buffer;
+}
+
 describe('SaveStorage', () => {
   let storage: SaveStorage;
 
@@ -116,5 +172,21 @@ describe('SaveStorage', () => {
 
     const result = await storage.loadFromDB('binary');
     expect(new Uint8Array(result!.data)).toEqual(data);
+  });
+
+  it('extracts source save metadata when importing a .sav file', async () => {
+    const file = new File([buildImportedSaveFile()], '00000042.sav', {
+      type: 'application/octet-stream',
+    });
+
+    const slotId = await storage.uploadSaveFile(file);
+    const loaded = await storage.loadFromDB(slotId);
+
+    expect(slotId).toBe('00000042');
+    expect(loaded).not.toBeNull();
+    expect(loaded?.metadata.description).toBe('Imported Campaign Save');
+    expect(loaded?.metadata.mapName).toBe('Downtown Assault');
+    expect(loaded?.metadata.sizeBytes).toBe(file.size);
+    expect(loaded?.metadata.timestamp).toBeGreaterThan(0);
   });
 });
