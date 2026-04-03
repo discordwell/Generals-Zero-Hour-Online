@@ -615,6 +615,16 @@ describe('Xfer framework', () => {
       );
       expect(JSON.parse(result)).toEqual(bigObj);
     });
+
+    it('rejects corrupt long-string lengths above the 64MB safety cap', () => {
+      const buffer = new ArrayBuffer(4);
+      const view = new DataView(buffer);
+      view.setUint32(0, (64 * 1024 * 1024) + 1, true);
+
+      const loader = new XferLoad(buffer);
+      loader.open('test');
+      expect(() => loader.xferLongString('')).toThrow('exceeds 64MB safety cap');
+    });
   });
 
   describe('xferImplementation bounded read', () => {

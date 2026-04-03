@@ -16,14 +16,14 @@ import { XferMode } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 1;
+const ENTITY_XFER_VERSION = 2;
 
 /**
  * Serialize or deserialize a nullable string.
  * Layout: bool hasValue + string value (if true).
  */
 function xferNullableString(xfer: Xfer, value: string | null): string | null {
-  const hasValue = xfer.xferBool(value !== null);
+  const hasValue = xfer.xferBool(value !== null && value !== undefined);
   if (hasValue) {
     return xfer.xferAsciiString(value ?? '');
   }
@@ -35,7 +35,7 @@ function xferNullableString(xfer: Xfer, value: string | null): string | null {
  * Layout: bool hasValue + int32 value (if true).
  */
 function xferNullableInt(xfer: Xfer, value: number | null): number | null {
-  const hasValue = xfer.xferBool(value !== null);
+  const hasValue = xfer.xferBool(value !== null && value !== undefined);
   if (hasValue) {
     return xfer.xferInt(value ?? 0);
   }
@@ -46,7 +46,7 @@ function xferNullableInt(xfer: Xfer, value: number | null): number | null {
  * Serialize or deserialize a nullable real.
  */
 function xferNullableReal(xfer: Xfer, value: number | null): number | null {
-  const hasValue = xfer.xferBool(value !== null);
+  const hasValue = xfer.xferBool(value !== null && value !== undefined);
   if (hasValue) {
     return xfer.xferReal(value ?? 0);
   }
@@ -56,14 +56,17 @@ function xferNullableReal(xfer: Xfer, value: number | null): number | null {
 /**
  * Serialize a Set<string>.
  */
-function xferStringSet(xfer: Xfer, value: Set<string>): Set<string> {
-  return xfer.xferStringSet(value);
+function xferStringSet(xfer: Xfer, value: Set<string> | null | undefined): Set<string> {
+  return xfer.xferStringSet(value ?? new Set<string>());
 }
 
 /**
  * Serialize a Map<string, number>.
  */
-function xferStringNumberMap(xfer: Xfer, value: Map<string, number> | null): Map<string, number> | null {
+function xferStringNumberMap(
+  xfer: Xfer,
+  value: Map<string, number> | null | undefined,
+): Map<string, number> | null {
   const hasValue = xfer.xferBool(value !== null);
   if (!hasValue) return null;
 
@@ -83,7 +86,7 @@ function xferStringNumberMap(xfer: Xfer, value: Map<string, number> | null): Map
       xfer.xferReal(val);
     }
   }
-  return value;
+  return value ?? null;
 }
 
 /**
@@ -93,7 +96,7 @@ function xferNullableVectorXZ(
   xfer: Xfer,
   value: { x: number; z: number } | null,
 ): { x: number; z: number } | null {
-  const hasValue = xfer.xferBool(value !== null);
+  const hasValue = xfer.xferBool(value !== null && value !== undefined);
   if (hasValue) {
     const x = xfer.xferReal(value?.x ?? 0);
     const z = xfer.xferReal(value?.z ?? 0);
@@ -107,9 +110,10 @@ function xferNullableVectorXZ(
  */
 function xferVectorXZList(
   xfer: Xfer,
-  values: Array<{ x: number; z: number }>,
+  values: Array<{ x: number; z: number }> | null | undefined,
 ): Array<{ x: number; z: number }> {
-  const length = xfer.xferUnsignedInt(values.length);
+  const sourceValues = values ?? [];
+  const length = xfer.xferUnsignedInt(sourceValues.length);
   if (xfer.getMode() === XferMode.XFER_LOAD) {
     const result: Array<{ x: number; z: number }> = [];
     for (let i = 0; i < length; i++) {
@@ -119,11 +123,11 @@ function xferVectorXZList(
     }
     return result;
   }
-  for (const v of values) {
+  for (const v of sourceValues) {
     xfer.xferReal(v.x);
     xfer.xferReal(v.z);
   }
-  return values;
+  return sourceValues;
 }
 
 /**
@@ -135,7 +139,7 @@ function xferVectorXZList(
 function xferJsonObject<T>(xfer: Xfer, value: T): T {
   if (xfer.getMode() === XferMode.XFER_LOAD) {
     const json = xfer.xferLongString('');
-    return JSON.parse(json) as T;
+    return JSON.parse(json, jsonReviver) as T;
   }
   const json = JSON.stringify(value, jsonReplacer);
   xfer.xferLongString(json);
@@ -146,7 +150,7 @@ function xferJsonObject<T>(xfer: Xfer, value: T): T {
  * Serialize a nullable complex object as JSON string.
  */
 function xferNullableJsonObject<T>(xfer: Xfer, value: T | null): T | null {
-  const hasValue = xfer.xferBool(value !== null);
+  const hasValue = xfer.xferBool(value !== null && value !== undefined);
   if (!hasValue) return null;
   return xferJsonObject(xfer, value!);
 }
@@ -206,7 +210,7 @@ function xferJsonObjectWithCollections<T>(xfer: Xfer, value: T): T {
 export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   // Read version from stream (will be used for conditional field loading
   // when ENTITY_XFER_VERSION is incremented).
-  xfer.xferVersion(ENTITY_XFER_VERSION);
+  const version = xfer.xferVersion(ENTITY_XFER_VERSION);
 
   // ── Identity ──
   e.id = xfer.xferUnsignedInt(e.id as number);
@@ -222,7 +226,9 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.bridgeFlags = xfer.xferInt(e.bridgeFlags as number);
   e.mapCellX = xfer.xferInt(e.mapCellX as number);
   e.mapCellZ = xfer.xferInt(e.mapCellZ as number);
-  e.renderAssetCandidates = xfer.xferStringList(e.renderAssetCandidates as string[]);
+  e.renderAssetCandidates = xfer.xferStringList(
+    (e.renderAssetCandidates as string[] | undefined) ?? [],
+  );
   e.renderAssetPath = xferNullableString(xfer, e.renderAssetPath as string | null);
   e.renderAssetResolved = xfer.xferBool(e.renderAssetResolved as boolean);
   e.renderAnimationStateClips = xferNullableJsonObject(xfer, (e.renderAnimationStateClips as object) ?? null) ?? undefined;
@@ -282,10 +288,14 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.nextAttackFrame = xfer.xferInt(e.nextAttackFrame as number);
   e.lastShotFrame = xfer.xferInt(e.lastShotFrame as number);
   {
-    const arr = e.lastShotFrameBySlot as [number, number, number];
+    const arr = (
+      (e.lastShotFrameBySlot as [number, number, number] | undefined)
+      ?? [0, 0, 0]
+    ) as [number, number, number];
     arr[0] = xfer.xferInt(arr[0]);
     arr[1] = xfer.xferInt(arr[1]);
     arr[2] = xfer.xferInt(arr[2]);
+    e.lastShotFrameBySlot = arr;
   }
   e.attackWeaponSlotIndex = xfer.xferInt(e.attackWeaponSlotIndex as number);
   e.attackCooldownRemaining = xfer.xferInt(e.attackCooldownRemaining as number);
@@ -298,7 +308,9 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.leechRangeActive = xfer.xferBool(e.leechRangeActive as boolean);
   e.turretProfiles = xferJsonObject(xfer, e.turretProfiles as unknown[]);
   e.turretStates = xferJsonObject(xfer, e.turretStates as unknown[]);
-  e.attackScatterTargetsUnused = xfer.xferIntList(e.attackScatterTargetsUnused as number[]);
+  e.attackScatterTargetsUnused = xfer.xferIntList(
+    (e.attackScatterTargetsUnused as number[] | undefined) ?? [],
+  );
   e.preAttackFinishFrame = xfer.xferInt(e.preAttackFinishFrame as number);
   e.consecutiveShotsTargetEntityId = xferNullableInt(xfer, e.consecutiveShotsTargetEntityId as number | null);
   e.consecutiveShotsAtTarget = xfer.xferInt(e.consecutiveShotsAtTarget as number);
@@ -432,7 +444,9 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.baseRegenDelayUntilFrame = xfer.xferInt(e.baseRegenDelayUntilFrame as number);
   e.propagandaTowerProfile = xferNullableJsonObject(xfer, e.propagandaTowerProfile as object | null);
   e.propagandaTowerNextScanFrame = xfer.xferInt(e.propagandaTowerNextScanFrame as number);
-  e.propagandaTowerTrackedIds = xfer.xferIntList(e.propagandaTowerTrackedIds as number[]);
+  e.propagandaTowerTrackedIds = xfer.xferIntList(
+    (e.propagandaTowerTrackedIds as number[] | undefined) ?? [],
+  );
   e.soleHealingBenefactorId = xferNullableInt(xfer, e.soleHealingBenefactorId as number | null);
   e.soleHealingBenefactorExpirationFrame = xfer.xferInt(e.soleHealingBenefactorExpirationFrame as number);
   e.autoTargetScanNextFrame = xfer.xferInt(e.autoTargetScanNextFrame as number);
@@ -552,19 +566,25 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
 
   // ── Fire Weapon Update ──
   e.fireWeaponUpdateProfiles = xferJsonObject(xfer, e.fireWeaponUpdateProfiles as unknown[]);
-  e.fireWeaponUpdateNextFireFrames = xfer.xferIntList(e.fireWeaponUpdateNextFireFrames as number[]);
+  e.fireWeaponUpdateNextFireFrames = xfer.xferIntList(
+    (e.fireWeaponUpdateNextFireFrames as number[] | undefined) ?? [],
+  );
   e.lastShotFiredFrame = xfer.xferInt(e.lastShotFiredFrame as number);
 
   // ── OCL Update ──
   e.oclUpdateProfiles = xferJsonObject(xfer, e.oclUpdateProfiles as unknown[]);
-  e.oclUpdateNextCreationFrames = xfer.xferIntList(e.oclUpdateNextCreationFrames as number[]);
+  e.oclUpdateNextCreationFrames = xfer.xferIntList(
+    (e.oclUpdateNextCreationFrames as number[] | undefined) ?? [],
+  );
   e.oclUpdateTimerStarted = xferJsonObject(xfer, e.oclUpdateTimerStarted as boolean[]);
   e.oclUpdateFactionNeutral = xferJsonObject(xfer, e.oclUpdateFactionNeutral as boolean[]);
   e.oclUpdateFactionOwnerSide = xferJsonObject(xfer, e.oclUpdateFactionOwnerSide as string[]);
 
   // ── Weapon Bonus Update ──
   e.weaponBonusUpdateProfiles = xferJsonObject(xfer, e.weaponBonusUpdateProfiles as unknown[]);
-  e.weaponBonusUpdateNextPulseFrames = xfer.xferIntList(e.weaponBonusUpdateNextPulseFrames as number[]);
+  e.weaponBonusUpdateNextPulseFrames = xfer.xferIntList(
+    (e.weaponBonusUpdateNextPulseFrames as number[] | undefined) ?? [],
+  );
   e.tempWeaponBonusFlag = xfer.xferInt(e.tempWeaponBonusFlag as number);
   e.tempWeaponBonusExpiryFrame = xfer.xferInt(e.tempWeaponBonusExpiryFrame as number);
 
@@ -789,4 +809,61 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.subdualDamageHealAmount = xfer.xferReal(e.subdualDamageHealAmount as number);
   e.currentSubdualDamage = xfer.xferReal(e.currentSubdualDamage as number);
   e.subdualHealingCountdown = xfer.xferInt(e.subdualHealingCountdown as number);
+
+  if (version >= 2) {
+    // ── Source parity: post-v1 MapEntity runtime additions ──
+    e.cheerTimerFrames = xfer.xferInt((e.cheerTimerFrames as number | undefined) ?? 0);
+    e.raisingFlagTimerFrames = xfer.xferInt((e.raisingFlagTimerFrames as number | undefined) ?? 0);
+    e.explodedState = xfer.xferAsciiString((e.explodedState as string | undefined) ?? 'NONE');
+    e.battleBusEmptyHulkDestroyFrame = xfer.xferInt(
+      (e.battleBusEmptyHulkDestroyFrame as number | undefined) ?? 0,
+    );
+    e.projectileStreamProfile = xferNullableJsonObject(xfer, e.projectileStreamProfile as object | null);
+    e.projectileStreamState = xferNullableJsonObject(xfer, e.projectileStreamState as object | null);
+    e.mobMemberProfile = xferNullableJsonObject(xfer, e.mobMemberProfile as object | null);
+    e.mobMemberState = xferNullableJsonObject(xfer, e.mobMemberState as object | null);
+    e.boneFXProfile = xferNullableJsonObject(xfer, e.boneFXProfile as object | null);
+    e.boneFXState = xferNullableJsonObject(xfer, e.boneFXState as object | null);
+    e.radiusDecalStates = xferJsonObject(xfer, (e.radiusDecalStates as unknown[]) ?? []);
+    e.bridgeBehaviorProfile = xferNullableJsonObject(xfer, e.bridgeBehaviorProfile as object | null);
+    e.bridgeBehaviorState = xferNullableJsonObject(xfer, e.bridgeBehaviorState as object | null);
+    e.bridgeTowerProfile = xferNullableJsonObject(xfer, e.bridgeTowerProfile as object | null);
+    e.bridgeTowerState = xferNullableJsonObject(xfer, e.bridgeTowerState as object | null);
+    e.bridgeScaffoldState = xferNullableJsonObject(xfer, e.bridgeScaffoldState as object | null);
+    e.flightDeckProfile = xferNullableJsonObject(xfer, e.flightDeckProfile as object | null);
+    e.flightDeckState = xferNullableJsonObject(xfer, e.flightDeckState as object | null);
+    e.spectreGunshipProfile = xferNullableJsonObject(xfer, e.spectreGunshipProfile as object | null);
+    e.spectreGunshipState = xferNullableJsonObject(xfer, e.spectreGunshipState as object | null);
+    e.spectreGunshipDeploymentProfile = xferNullableJsonObject(
+      xfer,
+      e.spectreGunshipDeploymentProfile as object | null,
+    );
+    e.waveGuideProfile = xferNullableJsonObject(xfer, e.waveGuideProfile as object | null);
+    e.dumbProjectileProfile = xferNullableJsonObject(xfer, e.dumbProjectileProfile as object | null);
+    return;
+  }
+
+  e.cheerTimerFrames = 0;
+  e.raisingFlagTimerFrames = 0;
+  e.explodedState = 'NONE';
+  e.battleBusEmptyHulkDestroyFrame = 0;
+  e.projectileStreamProfile = null;
+  e.projectileStreamState = null;
+  e.mobMemberProfile = null;
+  e.mobMemberState = null;
+  e.boneFXProfile = null;
+  e.boneFXState = null;
+  e.radiusDecalStates = [];
+  e.bridgeBehaviorProfile = null;
+  e.bridgeBehaviorState = null;
+  e.bridgeTowerProfile = null;
+  e.bridgeTowerState = null;
+  e.bridgeScaffoldState = null;
+  e.flightDeckProfile = null;
+  e.flightDeckState = null;
+  e.spectreGunshipProfile = null;
+  e.spectreGunshipState = null;
+  e.spectreGunshipDeploymentProfile = null;
+  e.waveGuideProfile = null;
+  e.dumbProjectileProfile = null;
 }

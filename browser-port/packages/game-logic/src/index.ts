@@ -214,6 +214,7 @@ import {
   type ScriptObjectAmbientSoundState,
   type SelectedEntityInfo,
 } from './types.js';
+export { xferMapEntity } from './entity-xfer.js';
 import {
   appendScriptSequentialScript as appendScriptSequentialScriptImpl,
   applyScriptObjectPanelFlag as applyScriptObjectPanelFlagImpl,
@@ -7915,6 +7916,59 @@ export const SCRIPT_KIND_OF_ALLOW_SURRENDER_NAMES = new Set<string>([
 ]);
 
 const BROWSER_RUNTIME_SAVE_STATE_VERSION = 1;
+const SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION = 1;
+const SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION = 1;
+const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
+  'teamRelationshipOverrides',
+  'playerRelationshipOverrides',
+  'sideCredits',
+  'sidePlayerTypes',
+  'sideRetaliationModeEnabled',
+  'sideIsPreorder',
+  'sideUnitsShouldIdleOrResume',
+  'sideCanBuildBaseByScript',
+  'sideCanBuildUnitsByScript',
+  'sideTeamBuildDelaySecondsByScript',
+  'sideCashBountyPercent',
+  'sideSkillPointsModifier',
+  'sideScriptSkillset',
+  'sideUpgradesInProduction',
+  'sideCompletedUpgrades',
+  'sideKindOfProductionCostModifiers',
+  'sideProductionTimeChangePercent',
+  'sideHandicapBuildTime',
+  'sideSciences',
+  'sideScienceAvailability',
+  'sidePowerBonus',
+  'sideRadarState',
+  'sideRankState',
+  'sideScoreState',
+  'sideAcademyStats',
+  'sideScoreScreenExcluded',
+  'sideAttackedBy',
+  'sideAttackedFrame',
+  'sideBattlePlanBonuses',
+  'playerSideByIndex',
+  'sidePlayerIndex',
+  'nextPlayerIndex',
+  'localPlayerIndex',
+] as const;
+const SOURCE_GAME_LOGIC_RUNTIME_STATE_KEYS = [
+  'nextId',
+  'nextProjectileVisualId',
+  'animationTime',
+  'selectedEntityId',
+  'selectedEntityIds',
+  'scriptSelectionChangedFrame',
+  'frameCounter',
+  'controlBarDirtyFrame',
+  'scriptObjectTopologyVersion',
+  'scriptObjectCountChangedFrame',
+  'defeatedSides',
+  'gameEndFrame',
+  'scriptEndGameTimerActive',
+  'spawnedEntities',
+] as const;
 const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'name',
   'config',
@@ -7938,7 +7992,32 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'waterPolygonData',
   'mapTriggerRegions',
   'railedTransportWaypointIndex',
+  ...SOURCE_PLAYER_RUNTIME_STATE_KEYS,
+  ...SOURCE_GAME_LOGIC_RUNTIME_STATE_KEYS,
 ]);
+
+export interface GameLogicPlayersSaveState {
+  version: number;
+  state: Record<string, unknown>;
+}
+
+export interface GameLogicCoreSaveState {
+  version: number;
+  nextId: number;
+  nextProjectileVisualId: number;
+  animationTime: number;
+  selectedEntityId: number | null;
+  selectedEntityIds: readonly number[];
+  scriptSelectionChangedFrame: number;
+  frameCounter: number;
+  controlBarDirtyFrame: number;
+  scriptObjectTopologyVersion: number;
+  scriptObjectCountChangedFrame: number;
+  defeatedSides: Set<string>;
+  gameEndFrame: number | null;
+  scriptEndGameTimerActive: boolean;
+  spawnedEntities: MapEntity[];
+}
 
 export class GameLogicSubsystem implements Subsystem {
   readonly name = 'GameLogic';
@@ -8857,6 +8936,90 @@ export class GameLogicSubsystem implements Subsystem {
         commandQueue: this.commandQueue,
       }),
     });
+  }
+
+  captureSourcePlayerRuntimeSaveState(): GameLogicPlayersSaveState {
+    const state: Record<string, unknown> = {};
+    for (const key of SOURCE_PLAYER_RUNTIME_STATE_KEYS) {
+      state[key] = (this as unknown as Record<string, unknown>)[key];
+    }
+    return {
+      version: SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION,
+      state,
+    };
+  }
+
+  restoreSourcePlayerRuntimeSaveState(state: unknown): void {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      throw new Error('Source player save-state payload is malformed.');
+    }
+
+    const snapshot = state as GameLogicPlayersSaveState;
+    if (snapshot.version !== SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION) {
+      throw new Error(`Unsupported source player save-state version ${snapshot.version}.`);
+    }
+    if (!snapshot.state || typeof snapshot.state !== 'object' || Array.isArray(snapshot.state)) {
+      throw new Error('Source player save-state content is malformed.');
+    }
+
+    const runtimeState = snapshot.state as Record<string, unknown>;
+    for (const key of SOURCE_PLAYER_RUNTIME_STATE_KEYS) {
+      if (!Object.prototype.hasOwnProperty.call(runtimeState, key)) {
+        continue;
+      }
+      (this as unknown as Record<string, unknown>)[key] = runtimeState[key];
+    }
+  }
+
+  captureSourceGameLogicRuntimeSaveState(): GameLogicCoreSaveState {
+    return {
+      version: SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION,
+      nextId: this.nextId,
+      nextProjectileVisualId: this.nextProjectileVisualId,
+      animationTime: this.animationTime,
+      selectedEntityId: this.selectedEntityId,
+      selectedEntityIds: [...this.selectedEntityIds],
+      scriptSelectionChangedFrame: this.scriptSelectionChangedFrame,
+      frameCounter: this.frameCounter,
+      controlBarDirtyFrame: this.controlBarDirtyFrame,
+      scriptObjectTopologyVersion: this.scriptObjectTopologyVersion,
+      scriptObjectCountChangedFrame: this.scriptObjectCountChangedFrame,
+      defeatedSides: new Set(this.defeatedSides),
+      gameEndFrame: this.gameEndFrame,
+      scriptEndGameTimerActive: this.scriptEndGameTimerActive,
+      spawnedEntities: Array.from(this.spawnedEntities.values()),
+    };
+  }
+
+  restoreSourceGameLogicRuntimeSaveState(state: unknown): void {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      throw new Error('Source game-logic save-state payload is malformed.');
+    }
+
+    const snapshot = state as GameLogicCoreSaveState;
+    if (snapshot.version !== SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION) {
+      throw new Error(`Unsupported source game-logic save-state version ${snapshot.version}.`);
+    }
+    if (!Array.isArray(snapshot.spawnedEntities)) {
+      throw new Error('Source game-logic save-state entities are malformed.');
+    }
+
+    this.nextId = snapshot.nextId;
+    this.nextProjectileVisualId = snapshot.nextProjectileVisualId;
+    this.animationTime = snapshot.animationTime;
+    this.selectedEntityId = snapshot.selectedEntityId;
+    this.selectedEntityIds = [...snapshot.selectedEntityIds];
+    this.scriptSelectionChangedFrame = snapshot.scriptSelectionChangedFrame;
+    this.frameCounter = snapshot.frameCounter;
+    this.controlBarDirtyFrame = snapshot.controlBarDirtyFrame;
+    this.scriptObjectTopologyVersion = snapshot.scriptObjectTopologyVersion;
+    this.scriptObjectCountChangedFrame = snapshot.scriptObjectCountChangedFrame;
+    (this as unknown as Record<string, unknown>).defeatedSides = new Set(snapshot.defeatedSides);
+    this.gameEndFrame = snapshot.gameEndFrame;
+    this.scriptEndGameTimerActive = snapshot.scriptEndGameTimerActive;
+    (this as unknown as Record<string, unknown>).spawnedEntities = new Map(
+      snapshot.spawnedEntities.map((entity) => [entity.id, entity]),
+    );
   }
 
   captureBrowserRuntimeSaveState(): Record<string, unknown> {

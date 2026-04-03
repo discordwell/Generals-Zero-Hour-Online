@@ -143,6 +143,8 @@ import {
 import {
   buildRuntimeSaveFile,
   parseRuntimeSaveFile,
+  SOURCE_GAME_MODE_SINGLE_PLAYER,
+  SOURCE_GAME_MODE_SKIRMISH,
   type RuntimeSaveBootstrap,
 } from './runtime-save-game.js';
 
@@ -311,6 +313,36 @@ function normalizeRuntimeAssetPath(pathValue: string | null): string | null {
     return '';
   }
   return normalized.replace(runtimeAssetPrefixPattern, '');
+}
+
+function encodeRuntimeSaveJsonFallback(value: unknown): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify(value));
+}
+
+async function resolveRuntimeSaveEmbeddedMapBytes(
+  assets: AssetManager,
+  mapPath: string | null,
+  mapData: MapDataJSON,
+): Promise<Uint8Array> {
+  if (!mapPath) {
+    return encodeRuntimeSaveJsonFallback(mapData);
+  }
+
+  const manifest = assets.getManifest();
+  const entry = manifest?.getByOutputPath(mapPath);
+  if (!entry || !entry.sourcePath.toLowerCase().endsWith('.map')) {
+    return encodeRuntimeSaveJsonFallback(mapData);
+  }
+
+  const response = await fetch(`${RUNTIME_ASSET_BASE_URL}/${entry.sourcePath}`, {
+    cache: 'no-cache',
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load retail map bytes for "${mapPath}" from "${entry.sourcePath}" (HTTP ${response.status})`,
+    );
+  }
+  return new Uint8Array(await response.arrayBuffer());
 }
 
 type ReplayRecordableCommand = Parameters<GameLogicSubsystem['submitCommand']>[0];
@@ -993,6 +1025,12 @@ interface RuntimeSaveLoadContext {
   runtimeSave: RuntimeSaveBootstrap;
 }
 
+interface RuntimeSaveCampaignServices {
+  campaignManager: CampaignManager;
+  videoPlayer: VideoPlayer | null;
+  onReturnToShell: () => void;
+}
+
 // ============================================================================
 // Phase 1: Pre-initialization (assets, renderer, INI data, audio)
 // ============================================================================
@@ -1540,7 +1578,7 @@ async function startGame(
   let mapData: MapDataJSON;
   let loadedFromJSON = false;
 
-  if (runtimeSaveLoadContext) {
+  if (runtimeSaveLoadContext?.runtimeSave.mapData) {
     mapData = runtimeSaveLoadContext.runtimeSave.mapData;
     loadedFromJSON = true;
     console.log('Map loaded from embedded runtime save data.');
@@ -1559,6 +1597,10 @@ async function startGame(
         `Requested map "${activeMapPath}" failed to load: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  } else if (runtimeSaveLoadContext) {
+    throw new Error(
+      'Runtime save did not contain embedded JSON map data and no runtime map path was available for reload.',
+    );
   } else {
     const demo = terrainVisual.loadDemoTerrain();
     mapData = demo.mapData;
@@ -1647,6 +1689,16 @@ async function startGame(
 
   const objectPlacement = gameLogic.loadMapObjects(mapData, iniDataRegistry, heightmap);
   if (runtimeSaveLoadContext) {
+    if (runtimeSaveLoadContext.runtimeSave.gameLogicPlayersState) {
+      gameLogic.restoreSourcePlayerRuntimeSaveState(
+        runtimeSaveLoadContext.runtimeSave.gameLogicPlayersState,
+      );
+    }
+    if (runtimeSaveLoadContext.runtimeSave.gameLogicCoreState) {
+      gameLogic.restoreSourceGameLogicRuntimeSaveState(
+        runtimeSaveLoadContext.runtimeSave.gameLogicCoreState,
+      );
+    }
     gameLogic.restoreBrowserRuntimeSaveState(runtimeSaveLoadContext.runtimeSave.gameLogicState);
   }
   if (objectPlacement.unresolvedObjects > 0) {
@@ -5051,19 +5103,49 @@ async function startGame(
   };
 
   const saveCurrentGame = async (slotId: string, description: string): Promise<void> => {
+    const embeddedMapBytes = await resolveRuntimeSaveEmbeddedMapBytes(ctx.assets, activeMapPath, mapData);
+    const activeCampaign = campaignContext?.campaignManager.getCurrentCampaign()
+      ?? campaignContext?.settings.campaign
+      ?? null;
+    const activeMission = campaignContext?.campaignManager.getCurrentMission()
+      ?? campaignContext?.settings.mission
+      ?? null;
     const saveFile = buildRuntimeSaveFile({
       description,
       mapPath: activeMapPath,
       mapData,
       cameraState: rtsCamera.getState(),
       gameLogic,
+      embeddedMapBytes,
+      sourceGameMode: skirmishSettings ? SOURCE_GAME_MODE_SKIRMISH : SOURCE_GAME_MODE_SINGLE_PLAYER,
+      campaign: activeCampaign && activeMission
+        ? {
+            campaignName: activeCampaign.name,
+            missionName: activeMission.name,
+            missionNumber: campaignContext?.campaignManager.getCurrentMissionNumber() ?? -1,
+            difficulty: campaignContext?.campaignManager.difficulty ?? campaignContext!.settings.difficulty,
+            rankPoints: 0,
+            isChallengeCampaign: activeCampaign.isChallengeCampaign,
+            playerTemplateNum: -1,
+          }
+        : null,
     });
     await ctx.saveStorage.saveToDB(slotId, saveFile.data, saveFile.metadata);
   };
 
   const loadSavedGameData = async (data: ArrayBuffer): Promise<void> => {
     disposeGame();
-    await startGameFromRuntimeSave(ctx, data);
+    await startGameFromRuntimeSave(
+      ctx,
+      data,
+      campaignContext
+        ? {
+            campaignManager: campaignContext.campaignManager,
+            videoPlayer: campaignContext.videoPlayer,
+            onReturnToShell: campaignContext.onReturnToShell,
+          }
+        : undefined,
+    );
   };
 
   const loadSavedGameSlot = async (slotId: string): Promise<void> => {
@@ -5189,9 +5271,66 @@ async function startGame(
 async function startGameFromRuntimeSave(
   ctx: PreInitContext,
   data: ArrayBuffer,
+  campaignServices?: RuntimeSaveCampaignServices,
 ): Promise<void> {
   const runtimeSave = parseRuntimeSaveFile(data);
-  await startGame(ctx, runtimeSave.mapPath, null, undefined, undefined, { runtimeSave });
+  let restoredCampaignContext: Parameters<typeof startGame>[3];
+  let resolvedMapPath = runtimeSave.mapPath;
+
+  if (runtimeSave.campaign) {
+    if (!campaignServices) {
+      throw new Error(
+        `Save "${runtimeSave.metadata.description}" contains CHUNK_Campaign data, ` +
+        'but no CampaignManager services were provided for restore.',
+      );
+    }
+
+    if (runtimeSave.campaign.isChallengeCampaign) {
+      throw new Error(
+        'Challenge campaign save restore is not wired yet. ' +
+        'The retail CHUNK_Campaign challenge payload still needs source-backed support.',
+      );
+    }
+
+    const { campaignManager, videoPlayer, onReturnToShell } = campaignServices;
+    const restored = campaignManager.setCampaignAndMission(
+      runtimeSave.campaign.campaignName,
+      runtimeSave.campaign.missionName,
+    );
+    if (!restored) {
+      throw new Error(
+        `Unable to restore campaign save for ${runtimeSave.campaign.campaignName}/` +
+        `${runtimeSave.campaign.missionName}.`,
+      );
+    }
+
+    campaignManager.difficulty = runtimeSave.campaign.difficulty;
+
+    const currentCampaign = campaignManager.getCurrentCampaign();
+    const currentMission = campaignManager.getCurrentMission();
+    resolvedMapPath = resolvedMapPath ?? campaignManager.resolveMapAssetPath(currentMission);
+    if (!currentCampaign || !currentMission || !resolvedMapPath) {
+      throw new Error(
+        'Campaign save restore did not resolve a valid campaign, mission, and runtime map path.',
+      );
+    }
+
+    restoredCampaignContext = {
+      campaignManager,
+      videoPlayer,
+      settings: {
+        gameMode: 'CAMPAIGN',
+        campaignName: currentCampaign.name,
+        difficulty: runtimeSave.campaign.difficulty,
+        mapPath: resolvedMapPath,
+        mission: currentMission,
+        campaign: currentCampaign,
+      },
+      onReturnToShell,
+    };
+  }
+
+  await startGame(ctx, resolvedMapPath, null, restoredCampaignContext, undefined, { runtimeSave });
 }
 
 // ============================================================================
@@ -5323,7 +5462,13 @@ async function init(): Promise<void> {
       }
       loadGameScreen.hide();
       shell.hide();
-      await startGameFromRuntimeSave(ctx, loadedSave.data);
+      await startGameFromRuntimeSave(ctx, loadedSave.data, {
+        campaignManager,
+        videoPlayer,
+        onReturnToShell: () => {
+          window.location.reload();
+        },
+      });
     },
     onDeleteSave: async (slotId: string) => {
       await ctx.saveStorage.deleteSave(slotId);

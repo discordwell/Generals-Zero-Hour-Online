@@ -3,6 +3,7 @@ import {
   SaveCode,
   SaveFileType,
   XferMode,
+  listSaveGameChunks,
   parseSaveGameInfo,
   parseSaveGameMapInfo,
   type ParsedSaveGameInfo,
@@ -10,15 +11,31 @@ import {
   type Xfer,
 } from '@generals/engine';
 import type { CameraState } from '@generals/input';
-import type { GameLogicSubsystem } from '@generals/game-logic';
+import {
+  xferMapEntity,
+  type GameDifficulty,
+  type GameLogicCoreSaveState,
+  type GameLogicPlayersSaveState,
+  type GameLogicSubsystem,
+  type MapEntity,
+} from '@generals/game-logic';
 import type { MapDataJSON } from '@generals/renderer';
 
+const SOURCE_CAMPAIGN_BLOCK = 'CHUNK_Campaign';
+const SOURCE_PLAYERS_BLOCK = 'CHUNK_Players';
+const SOURCE_GAME_LOGIC_BLOCK = 'CHUNK_GameLogic';
 export const BROWSER_RUNTIME_STATE_BLOCK = 'CHUNK_TS_RuntimeState';
 
 const GAME_STATE_VERSION = 2;
+const CAMPAIGN_VERSION = 5;
 const GAME_STATE_MAP_VERSION = 2;
 const BROWSER_RUNTIME_STATE_VERSION = 1;
 const INVALID_MISSION_NUMBER = -1;
+export const SOURCE_GAME_MODE_SINGLE_PLAYER = 0;
+export const SOURCE_GAME_MODE_SKIRMISH = 2;
+const SOURCE_DIFFICULTY_EASY = 0;
+const SOURCE_DIFFICULTY_NORMAL = 1;
+const SOURCE_DIFFICULTY_HARD = 2;
 
 interface RuntimeSaveMetadataState {
   saveFileType: SaveFileType;
@@ -48,6 +65,15 @@ interface RuntimeSaveMapState {
   drawableIdCounter: number;
 }
 
+interface RuntimeSaveCampaignState {
+  currentCampaign: string;
+  currentMission: string;
+  currentRankPoints: number;
+  difficulty: GameDifficulty;
+  isChallengeCampaign: boolean;
+  playerTemplateNum: number;
+}
+
 export interface BrowserRuntimeSavePayload {
   version: number;
   mapPath: string | null;
@@ -55,12 +81,25 @@ export interface BrowserRuntimeSavePayload {
   gameLogicState: unknown;
 }
 
+export interface RuntimeSaveCampaignBootstrap {
+  campaignName: string;
+  missionName: string;
+  missionNumber: number;
+  difficulty: GameDifficulty;
+  rankPoints: number;
+  isChallengeCampaign: boolean;
+  playerTemplateNum: number;
+}
+
 export interface RuntimeSaveBootstrap {
   metadata: ParsedSaveGameInfo;
-  mapData: MapDataJSON;
+  mapData: MapDataJSON | null;
   mapPath: string | null;
   cameraState: CameraState | null;
+  gameLogicPlayersState: GameLogicPlayersSaveState | null;
+  gameLogicCoreState: GameLogicCoreSaveState | null;
   gameLogicState: unknown;
+  campaign: RuntimeSaveCampaignBootstrap | null;
 }
 
 function getLeafName(path: string | null): string {
@@ -94,6 +133,17 @@ function createMetadataState(description: string, mapPath: string | null): Runti
   };
 }
 
+function applyCampaignMetadata(
+  metadata: RuntimeSaveMetadataState,
+  campaign: RuntimeSaveCampaignBootstrap | null | undefined,
+): void {
+  if (!campaign) {
+    return;
+  }
+  metadata.campaignSide = campaign.campaignName;
+  metadata.missionNumber = campaign.missionNumber;
+}
+
 function encodeJsonBytes(value: unknown): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(value));
 }
@@ -102,6 +152,38 @@ function decodeJsonBytes<T>(bytes: ArrayBuffer | Uint8Array): T {
   const array = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   const text = new TextDecoder().decode(array);
   return JSON.parse(text, runtimeJsonReviver) as T;
+}
+
+function tryDecodeJsonBytes<T>(bytes: ArrayBuffer | Uint8Array): T | null {
+  try {
+    return decodeJsonBytes<T>(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function encodeSourceDifficulty(difficulty: GameDifficulty): number {
+  switch (difficulty) {
+    case 'EASY':
+      return SOURCE_DIFFICULTY_EASY;
+    case 'HARD':
+      return SOURCE_DIFFICULTY_HARD;
+    default:
+      return SOURCE_DIFFICULTY_NORMAL;
+  }
+}
+
+function decodeSourceDifficulty(rawDifficulty: number): GameDifficulty {
+  switch (rawDifficulty) {
+    case SOURCE_DIFFICULTY_EASY:
+      return 'EASY';
+    case SOURCE_DIFFICULTY_NORMAL:
+      return 'NORMAL';
+    case SOURCE_DIFFICULTY_HARD:
+      return 'HARD';
+    default:
+      throw new Error(`Unsupported campaign difficulty value ${rawDifficulty}`);
+  }
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -277,6 +359,176 @@ class MapSnapshot implements Snapshot {
   }
 }
 
+class CampaignSnapshot implements Snapshot {
+  constructor(readonly state: RuntimeSaveCampaignState) {}
+
+  crc(_xfer: Xfer): void {
+    // Campaign save metadata does not participate in browser runtime CRC checks.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(CAMPAIGN_VERSION);
+    this.state.currentCampaign = xfer.xferAsciiString(this.state.currentCampaign);
+    this.state.currentMission = xfer.xferAsciiString(this.state.currentMission);
+
+    if (version >= 2) {
+      this.state.currentRankPoints = xfer.xferInt(this.state.currentRankPoints);
+    }
+
+    if (version >= 3) {
+      this.state.difficulty = decodeSourceDifficulty(
+        xfer.xferInt(encodeSourceDifficulty(this.state.difficulty)),
+      );
+    }
+
+    if (version >= 4) {
+      this.state.isChallengeCampaign = xfer.xferBool(this.state.isChallengeCampaign);
+      if (this.state.isChallengeCampaign) {
+        throw new Error(
+          'Challenge campaign save-state interoperability is not wired yet. ' +
+          'The CHUNK_Campaign challenge payload cannot be restored accurately.',
+        );
+      }
+    }
+
+    if (version >= 5) {
+      this.state.playerTemplateNum = xfer.xferInt(this.state.playerTemplateNum);
+    }
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
+function xferNullableObjectId(xfer: Xfer, value: number | null): number | null {
+  const hasValue = xfer.xferBool(value !== null);
+  if (hasValue) {
+    return xfer.xferObjectID(value ?? 0);
+  }
+  return null;
+}
+
+function xferNullableInt(xfer: Xfer, value: number | null): number | null {
+  const hasValue = xfer.xferBool(value !== null);
+  if (hasValue) {
+    return xfer.xferInt(value ?? 0);
+  }
+  return null;
+}
+
+class PlayersSnapshot implements Snapshot {
+  payload: GameLogicPlayersSaveState | null;
+
+  constructor(payload: GameLogicPlayersSaveState | null = null) {
+    this.payload = payload;
+  }
+
+  crc(_xfer: Xfer): void {
+    // Player snapshot is not part of source parity CRC yet.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error(`Unsupported player snapshot version ${version}`);
+    }
+
+    const serialized = xfer.xferLongString(
+      this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
+    );
+    if (serialized.length === 0) {
+      this.payload = null;
+      return;
+    }
+    this.payload = JSON.parse(serialized, runtimeJsonReviver) as GameLogicPlayersSaveState;
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
+class GameLogicSnapshot implements Snapshot {
+  payload: GameLogicCoreSaveState | null;
+
+  constructor(payload: GameLogicCoreSaveState | null = null) {
+    this.payload = payload;
+  }
+
+  crc(_xfer: Xfer): void {
+    // Game-logic snapshot is not part of source parity CRC yet.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error(`Unsupported game-logic snapshot version ${version}`);
+    }
+
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      const defeatedSides = xfer.xferStringSet(new Set<string>());
+      const selectedEntityIds = xfer.xferObjectIDList([]);
+      const entityCount = xfer.xferUnsignedInt(0);
+      const spawnedEntities: MapEntity[] = [];
+      for (let index = 0; index < entityCount; index += 1) {
+        xfer.beginBlock();
+        const entity = {} as Record<string, unknown>;
+        xferMapEntity(xfer, entity);
+        xfer.endBlock();
+        spawnedEntities.push(entity as unknown as MapEntity);
+      }
+
+      this.payload = {
+        version,
+        nextId: xfer.xferObjectID(0),
+        nextProjectileVisualId: xfer.xferUnsignedInt(0),
+        animationTime: xfer.xferReal(0),
+        selectedEntityId: xferNullableObjectId(xfer, null),
+        selectedEntityIds,
+        scriptSelectionChangedFrame: xfer.xferInt(0),
+        frameCounter: xfer.xferUnsignedInt(0),
+        controlBarDirtyFrame: xfer.xferInt(0),
+        scriptObjectTopologyVersion: xfer.xferUnsignedInt(0),
+        scriptObjectCountChangedFrame: xfer.xferUnsignedInt(0),
+        defeatedSides,
+        gameEndFrame: xferNullableInt(xfer, null),
+        scriptEndGameTimerActive: xfer.xferBool(false),
+        spawnedEntities,
+      };
+      return;
+    }
+
+    if (this.payload === null) {
+      throw new Error('Game-logic snapshot payload is missing during save.');
+    }
+
+    xfer.xferStringSet(this.payload.defeatedSides);
+    xfer.xferObjectIDList([...this.payload.selectedEntityIds]);
+    xfer.xferUnsignedInt(this.payload.spawnedEntities.length);
+    for (const entity of this.payload.spawnedEntities) {
+      xfer.beginBlock();
+      xferMapEntity(xfer, entity as unknown as Record<string, unknown>);
+      xfer.endBlock();
+    }
+    xfer.xferObjectID(this.payload.nextId);
+    xfer.xferUnsignedInt(this.payload.nextProjectileVisualId);
+    xfer.xferReal(this.payload.animationTime);
+    xferNullableObjectId(xfer, this.payload.selectedEntityId);
+    xfer.xferInt(this.payload.scriptSelectionChangedFrame);
+    xfer.xferUnsignedInt(this.payload.frameCounter);
+    xfer.xferInt(this.payload.controlBarDirtyFrame);
+    xfer.xferUnsignedInt(this.payload.scriptObjectTopologyVersion);
+    xfer.xferUnsignedInt(this.payload.scriptObjectCountChangedFrame);
+    xferNullableInt(xfer, this.payload.gameEndFrame);
+    xfer.xferBool(this.payload.scriptEndGameTimerActive);
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
 class BrowserRuntimeSnapshot implements Snapshot {
   payload: BrowserRuntimeSavePayload | null;
 
@@ -314,7 +566,16 @@ export function buildRuntimeSaveFile(params: {
   mapPath: string | null;
   mapData: MapDataJSON;
   cameraState: CameraState | null;
-  gameLogic: Pick<GameLogicSubsystem, 'captureBrowserRuntimeSaveState' | 'getObjectIdCounter'>;
+  gameLogic: Pick<
+    GameLogicSubsystem,
+    | 'captureBrowserRuntimeSaveState'
+    | 'captureSourcePlayerRuntimeSaveState'
+    | 'captureSourceGameLogicRuntimeSaveState'
+    | 'getObjectIdCounter'
+  >;
+  embeddedMapBytes?: Uint8Array | null;
+  sourceGameMode?: number;
+  campaign?: RuntimeSaveCampaignBootstrap | null;
 }): {
   data: ArrayBuffer;
   metadata: {
@@ -330,20 +591,40 @@ export function buildRuntimeSaveFile(params: {
     cameraState: params.cameraState,
     gameLogicState: params.gameLogic.captureBrowserRuntimeSaveState(),
   };
+  const playerPayload = params.gameLogic.captureSourcePlayerRuntimeSaveState();
+  const gameLogicPayload = params.gameLogic.captureSourceGameLogicRuntimeSaveState();
 
   const metadataState = createMetadataState(params.description, params.mapPath);
+  const campaignState: RuntimeSaveCampaignState = {
+    currentCampaign: params.campaign?.campaignName ?? '',
+    currentMission: params.campaign?.missionName ?? '',
+    currentRankPoints: params.campaign?.rankPoints ?? 0,
+    difficulty: params.campaign?.difficulty ?? 'NORMAL',
+    isChallengeCampaign: params.campaign?.isChallengeCampaign ?? false,
+    playerTemplateNum: params.campaign?.playerTemplateNum ?? -1,
+  };
+  if (campaignState.isChallengeCampaign) {
+    throw new Error(
+      'Challenge campaign save-state interoperability is not wired yet. ' +
+      'Saving challenge campaigns would produce an incomplete CHUNK_Campaign payload.',
+    );
+  }
+  applyCampaignMetadata(metadataState, params.campaign ?? null);
   const mapState: RuntimeSaveMapState = {
     saveGameMapPath: params.mapPath ?? '',
     pristineMapPath: params.mapPath ?? '',
-    gameMode: 0,
-    embeddedMapBytes: encodeJsonBytes(params.mapData),
+    gameMode: params.sourceGameMode ?? SOURCE_GAME_MODE_SINGLE_PLAYER,
+    embeddedMapBytes: params.embeddedMapBytes ?? encodeJsonBytes(params.mapData),
     objectIdCounter: params.gameLogic.getObjectIdCounter(),
     drawableIdCounter: params.gameLogic.getObjectIdCounter(),
   };
 
   const state = new GameState();
   state.addSnapshotBlock('CHUNK_GameState', new MetadataSnapshot(metadataState));
+  state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, new CampaignSnapshot(campaignState));
   state.addSnapshotBlock('CHUNK_GameStateMap', new MapSnapshot(mapState));
+  state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, new PlayersSnapshot(playerPayload));
+  state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new GameLogicSnapshot(gameLogicPayload));
   state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, new BrowserRuntimeSnapshot(runtimePayload));
   const saveResult = state.saveGame(params.description);
 
@@ -361,12 +642,40 @@ export function buildRuntimeSaveFile(params: {
 export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const metadata = parseSaveGameInfo(data);
   const mapInfo = parseSaveGameMapInfo(data);
+  const chunkNames = new Set(
+    listSaveGameChunks(data).map((chunk) => chunk.blockName.toLowerCase()),
+  );
+  const hasBrowserRuntimeBlock = chunkNames.has(BROWSER_RUNTIME_STATE_BLOCK.toLowerCase());
 
+  const campaignSnapshot = new CampaignSnapshot({
+    currentCampaign: '',
+    currentMission: '',
+    currentRankPoints: 0,
+    difficulty: 'NORMAL',
+    isChallengeCampaign: false,
+    playerTemplateNum: -1,
+  });
+  const playersSnapshot = hasBrowserRuntimeBlock ? new PlayersSnapshot() : null;
+  const gameLogicSnapshot = hasBrowserRuntimeBlock ? new GameLogicSnapshot() : null;
   const runtimeSnapshot = new BrowserRuntimeSnapshot();
   const state = new GameState();
+  state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, campaignSnapshot);
+  if (playersSnapshot) {
+    state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, playersSnapshot);
+  }
+  if (gameLogicSnapshot) {
+    state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, gameLogicSnapshot);
+  }
   state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, runtimeSnapshot);
   const loadCode = state.loadGame(data);
-  if (loadCode !== SaveCode.SC_OK || runtimeSnapshot.payload === null) {
+  if (loadCode !== SaveCode.SC_OK) {
+    const loadError = state.getLastLoadError();
+    if (loadError) {
+      throw loadError;
+    }
+    throw new Error('Runtime save load failed before the browser snapshot payload could be restored.');
+  }
+  if (runtimeSnapshot.payload === null) {
     throw new Error(
       'This save file contains retail metadata, but no browser runtime snapshot block. ' +
       'Retail C++ save-state chunk restore is not wired yet.',
@@ -383,12 +692,27 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
       ? payload.mapPath
       : (mapInfo.pristineMapPath || mapInfo.saveGameMapPath || null)
   );
+  const mapData = tryDecodeJsonBytes<MapDataJSON>(mapInfo.embeddedMapData);
+  const campaign = campaignSnapshot.state.currentCampaign.length > 0
+    ? {
+        campaignName: campaignSnapshot.state.currentCampaign,
+        missionName: campaignSnapshot.state.currentMission,
+        missionNumber: metadata.missionNumber,
+        difficulty: campaignSnapshot.state.difficulty,
+        rankPoints: campaignSnapshot.state.currentRankPoints,
+        isChallengeCampaign: campaignSnapshot.state.isChallengeCampaign,
+        playerTemplateNum: campaignSnapshot.state.playerTemplateNum,
+      }
+    : null;
 
   return {
     metadata,
-    mapData: decodeJsonBytes<MapDataJSON>(mapInfo.embeddedMapData),
+    mapData,
     mapPath: resolvedMapPath,
     cameraState: payload.cameraState,
+    gameLogicPlayersState: playersSnapshot?.payload ?? null,
+    gameLogicCoreState: gameLogicSnapshot?.payload ?? null,
     gameLogicState: payload.gameLogicState,
+    campaign,
   };
 }

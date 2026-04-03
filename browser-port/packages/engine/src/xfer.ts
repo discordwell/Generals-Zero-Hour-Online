@@ -215,9 +215,11 @@ export abstract class Xfer {
     // XFER_LOAD
     const byteLength = this.xferUnsignedInt(0);
     if (byteLength === 0) return '';
-    // Guard against corrupt saves specifying absurd lengths (max 16MB).
-    if (byteLength > 16 * 1024 * 1024) {
-      throw new Error(`xferLongString: byte length ${byteLength} exceeds 16MB safety cap`);
+    // Guard against corrupt saves specifying absurd lengths. Live campaign
+    // browser-runtime saves are currently ~35MB, so the cap needs to clear
+    // real mission payloads while still rejecting obviously bogus sizes.
+    if (byteLength > 64 * 1024 * 1024) {
+      throw new Error(`xferLongString: byte length ${byteLength} exceeds 64MB safety cap`);
     }
     const bytes = new Uint8Array(byteLength);
     const read = this.xferImplementation(bytes);

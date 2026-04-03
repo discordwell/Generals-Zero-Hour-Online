@@ -44,6 +44,7 @@ interface SnapshotBlock {
 export class GameState {
   private readonly blocks: SnapshotBlock[] = [];
   private readonly postProcessList: Snapshot[] = [];
+  private lastLoadError: Error | null = null;
 
   /**
    * Register a named snapshot block.
@@ -101,10 +102,14 @@ export class GameState {
   loadGame(data: ArrayBuffer): SaveCode {
     const xferLoad = new XferLoad(data);
     xferLoad.open('load');
+    this.lastLoadError = null;
 
     try {
       this.xferSaveData(xferLoad);
-    } catch {
+    } catch (error) {
+      this.lastLoadError = error instanceof Error
+        ? error
+        : new Error(String(error));
       return SaveCode.SC_ERROR;
     }
 
@@ -201,5 +206,10 @@ export class GameState {
   clearBlocks(): void {
     this.blocks.length = 0;
     this.postProcessList.length = 0;
+    this.lastLoadError = null;
+  }
+
+  getLastLoadError(): Error | null {
+    return this.lastLoadError;
   }
 }
