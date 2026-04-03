@@ -3048,8 +3048,6 @@ interface TunnelTrackerState {
   tunnelIds: Set<number>;
   /** IDs of all passengers inside the tunnel network. */
   passengerIds: Set<number>;
-  /** Frames for full heal (from the TunnelContain module data). */
-  timeForFullHealFrames: number;
 }
 
 interface HackInternetProfile {
@@ -7975,6 +7973,9 @@ const SOURCE_GAME_LOGIC_RUNTIME_STATE_KEYS = [
   'gameEndFrame',
   'scriptEndGameTimerActive',
   'spawnedEntities',
+  'rankLevelLimit',
+  'difficultyBonusesInitialized',
+  'scriptScoringEnabled',
 ] as const;
 const SOURCE_RADAR_RUNTIME_STATE_KEYS = [
   'scriptRadarHidden',
@@ -8065,6 +8066,33 @@ const SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS = [
   'scriptNamedEntitiesByName',
   'scriptAttackPrioritySetsByName',
   'scriptMusicTrackState',
+  'scriptAttackAreaStateByEntityId',
+  'scriptCallingEntityId',
+  'scriptCallingTeamNameUpper',
+  'scriptCompletedWaypointPathsByEntityId',
+  'scriptConditionEntityId',
+  'scriptConditionTeamNameUpper',
+  'scriptCurrentPlayerSide',
+  'scriptCurrentSupplyWarehouseBySide',
+  'scriptEvaEnabled',
+  'scriptExistedEntityIds',
+  'scriptHuntStateByEntityId',
+  'scriptInputDisabled',
+  'scriptLocalPlayerTeamNameUpper',
+  'scriptObjectCountBySideAndType',
+  'scriptPendingWaypointPathByEntityId',
+  'scriptRadarRefreshFrame',
+  'scriptSideRepairQueue',
+  'scriptSidesUnitsShouldHunt',
+  'scriptSkirmishBaseCenterAndRadiusBySide',
+  'scriptSkirmishBaseDefenseStateBySide',
+  'scriptTeamCreatedAutoClearFrameByName',
+  'scriptTeamCreatedReadyFrameByName',
+  'scriptTransportStatusByEntityId',
+  'scriptTriggerEnterExitFrameByEntityId',
+  'scriptTriggerEnteredByEntityId',
+  'scriptTriggerExitedByEntityId',
+  'scriptTriggerMembershipByEntityId',
 ] as const;
 const SOURCE_IN_GAME_UI_RUNTIME_STATE_KEYS = [
   'scriptCinematicTextState',
@@ -8101,6 +8129,9 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'waterPolygonData',
   'mapTriggerRegions',
   'railedTransportWaypointIndex',
+  'tunnelTrackers',
+  'caveTrackers',
+  'caveTrackerIndexByEntityId',
   ...SOURCE_PLAYER_RUNTIME_STATE_KEYS,
   ...SOURCE_GAME_LOGIC_RUNTIME_STATE_KEYS,
   ...SOURCE_RADAR_RUNTIME_STATE_KEYS,
@@ -8111,6 +8142,23 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
 export interface GameLogicPlayersSaveState {
   version: number;
   state: Record<string, unknown>;
+  tunnelTrackers?: GameLogicPlayerTunnelTrackerSaveState[];
+}
+
+export interface GameLogicTunnelTrackerSaveState {
+  tunnelIds: number[];
+  passengerIds: number[];
+  tunnelCount: number;
+}
+
+export interface GameLogicPlayerTunnelTrackerSaveState {
+  side: string;
+  tracker: GameLogicTunnelTrackerSaveState;
+}
+
+export interface GameLogicCaveTrackerSaveState {
+  caveIndex: number;
+  tracker: GameLogicTunnelTrackerSaveState;
 }
 
 export interface GameLogicCoreSaveState {
@@ -8128,7 +8176,11 @@ export interface GameLogicCoreSaveState {
   defeatedSides: Set<string>;
   gameEndFrame: number | null;
   scriptEndGameTimerActive: boolean;
+  rankLevelLimit?: number;
+  difficultyBonusesInitialized?: boolean;
+  scriptScoringEnabled?: boolean;
   spawnedEntities: MapEntity[];
+  caveTrackers?: GameLogicCaveTrackerSaveState[];
 }
 
 export interface LegacyGameLogicRadarSaveState {
@@ -9421,10 +9473,115 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private captureTunnelTrackerSaveState(tracker: TunnelTrackerState): GameLogicTunnelTrackerSaveState {
+    return {
+      tunnelIds: [...tracker.tunnelIds],
+      passengerIds: [...tracker.passengerIds],
+      tunnelCount: tracker.tunnelIds.size,
+    };
+  }
+
+  private restoreTunnelTrackerSaveState(state: GameLogicTunnelTrackerSaveState): TunnelTrackerState {
+    return {
+      tunnelIds: new Set(state.tunnelIds),
+      passengerIds: new Set(state.passengerIds),
+    };
+  }
+
+  private restoreLegacyContainmentBrowserRuntimeState(key: string, value: unknown): boolean {
+    if (key === 'tunnelTrackers') {
+      if (this.tunnelTrackers.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      this.tunnelTrackers.clear();
+      for (const [side, tracker] of value.entries()) {
+        if (typeof side !== 'string' || !tracker || typeof tracker !== 'object') {
+          continue;
+        }
+        const record = tracker as { tunnelIds?: unknown; passengerIds?: unknown };
+        if (!(record.tunnelIds instanceof Set) || !(record.passengerIds instanceof Set)) {
+          continue;
+        }
+        this.tunnelTrackers.set(side, {
+          tunnelIds: new Set(record.tunnelIds),
+          passengerIds: new Set(record.passengerIds),
+        });
+      }
+      return true;
+    }
+    if (key === 'caveTrackers') {
+      if (this.caveTrackers.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      this.caveTrackers.clear();
+      for (const [caveIndex, tracker] of value.entries()) {
+        if (typeof caveIndex !== 'number' || !tracker || typeof tracker !== 'object') {
+          continue;
+        }
+        const record = tracker as { tunnelIds?: unknown; passengerIds?: unknown };
+        if (!(record.tunnelIds instanceof Set) || !(record.passengerIds instanceof Set)) {
+          continue;
+        }
+        this.caveTrackers.set(caveIndex, {
+          tunnelIds: new Set(record.tunnelIds),
+          passengerIds: new Set(record.passengerIds),
+        });
+      }
+      return true;
+    }
+    if (key === 'caveTrackerIndexByEntityId') {
+      if (this.caveTrackerIndexByEntityId.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      this.caveTrackerIndexByEntityId.clear();
+      for (const [entityId, caveIndex] of value.entries()) {
+        if (typeof entityId !== 'number' || typeof caveIndex !== 'number') {
+          continue;
+        }
+        this.caveTrackerIndexByEntityId.set(entityId, caveIndex);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  finalizeSourceContainmentRuntimeSaveState(): void {
+    const normalizeTracker = (tracker: TunnelTrackerState): void => {
+      tracker.tunnelIds = new Set(
+        Array.from(tracker.tunnelIds).filter((entityId) => this.spawnedEntities.has(entityId)),
+      );
+      tracker.passengerIds = new Set(
+        Array.from(tracker.passengerIds).filter((entityId) => this.spawnedEntities.has(entityId)),
+      );
+    };
+
+    for (const tracker of this.tunnelTrackers.values()) {
+      normalizeTracker(tracker);
+    }
+    for (const tracker of this.caveTrackers.values()) {
+      normalizeTracker(tracker);
+    }
+
+    this.caveTrackerIndexByEntityId.clear();
+    for (const [caveIndex, tracker] of this.caveTrackers.entries()) {
+      for (const tunnelId of tracker.tunnelIds) {
+        const tunnel = this.spawnedEntities.get(tunnelId);
+        if (!tunnel?.containProfile || tunnel.containProfile.moduleType !== 'CAVE') {
+          continue;
+        }
+        this.caveTrackerIndexByEntityId.set(tunnelId, caveIndex);
+      }
+    }
+  }
+
   captureSourcePlayerRuntimeSaveState(): GameLogicPlayersSaveState {
     return {
       version: SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION,
       state: this.captureSourceRuntimeStateByKeys(SOURCE_PLAYER_RUNTIME_STATE_KEYS),
+      tunnelTrackers: Array.from(this.tunnelTrackers.entries()).map(([side, tracker]) => ({
+        side,
+        tracker: this.captureTunnelTrackerSaveState(tracker),
+      })),
     };
   }
 
@@ -9443,6 +9600,16 @@ export class GameLogicSubsystem implements Subsystem {
 
     const runtimeState = snapshot.state as Record<string, unknown>;
     this.restoreSourceRuntimeStateByKeys(SOURCE_PLAYER_RUNTIME_STATE_KEYS, runtimeState);
+    this.tunnelTrackers.clear();
+    for (const tunnelTracker of snapshot.tunnelTrackers ?? []) {
+      if (!tunnelTracker || typeof tunnelTracker.side !== 'string') {
+        continue;
+      }
+      this.tunnelTrackers.set(
+        tunnelTracker.side,
+        this.restoreTunnelTrackerSaveState(tunnelTracker.tracker),
+      );
+    }
   }
 
   captureSourceRadarRuntimeSaveState(): GameLogicRadarSaveState {
@@ -9590,7 +9757,14 @@ export class GameLogicSubsystem implements Subsystem {
       defeatedSides: new Set(this.defeatedSides),
       gameEndFrame: this.gameEndFrame,
       scriptEndGameTimerActive: this.scriptEndGameTimerActive,
+      rankLevelLimit: this.rankLevelLimit,
+      difficultyBonusesInitialized: this.difficultyBonusesInitialized,
+      scriptScoringEnabled: this.scriptScoringEnabled,
       spawnedEntities: Array.from(this.spawnedEntities.values()),
+      caveTrackers: Array.from(this.caveTrackers.entries()).map(([caveIndex, tracker]) => ({
+        caveIndex,
+        tracker: this.captureTunnelTrackerSaveState(tracker),
+      })),
     };
   }
 
@@ -9620,9 +9794,25 @@ export class GameLogicSubsystem implements Subsystem {
     (this as unknown as Record<string, unknown>).defeatedSides = new Set(snapshot.defeatedSides);
     this.gameEndFrame = snapshot.gameEndFrame;
     this.scriptEndGameTimerActive = snapshot.scriptEndGameTimerActive;
+    this.rankLevelLimit = Number.isFinite(snapshot.rankLevelLimit)
+      ? Math.trunc(snapshot.rankLevelLimit ?? RANK_TABLE.length)
+      : RANK_TABLE.length;
+    this.difficultyBonusesInitialized = snapshot.difficultyBonusesInitialized ?? false;
+    this.scriptScoringEnabled = snapshot.scriptScoringEnabled ?? true;
     (this as unknown as Record<string, unknown>).spawnedEntities = new Map(
       snapshot.spawnedEntities.map((entity) => [entity.id, entity]),
     );
+    this.caveTrackers.clear();
+    for (const caveTracker of snapshot.caveTrackers ?? []) {
+      if (!caveTracker || typeof caveTracker.caveIndex !== 'number') {
+        continue;
+      }
+      this.caveTrackers.set(
+        caveTracker.caveIndex,
+        this.restoreTunnelTrackerSaveState(caveTracker.tracker),
+      );
+    }
+    this.caveTrackerIndexByEntityId.clear();
   }
 
   captureBrowserRuntimeSaveState(): Record<string, unknown> {
@@ -9657,6 +9847,9 @@ export class GameLogicSubsystem implements Subsystem {
         continue;
       }
       if (NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS.has(key)) {
+        if (this.restoreLegacyContainmentBrowserRuntimeState(key, value)) {
+          continue;
+        }
         continue;
       }
       (this as unknown as Record<string, unknown>)[key] = value;
@@ -25223,10 +25416,6 @@ export class GameLogicSubsystem implements Subsystem {
       const tracker = this.resolveTunnelTracker(entity.side);
       if (!tracker) return;
       tracker.tunnelIds.add(entity.id);
-      // Use the most recently registered tunnel's heal rate.
-      if (entity.containProfile.timeForFullHealFrames > 0) {
-        tracker.timeForFullHealFrames = entity.containProfile.timeForFullHealFrames;
-      }
       return;
     }
     if (entity.containProfile.moduleType === 'CAVE') {

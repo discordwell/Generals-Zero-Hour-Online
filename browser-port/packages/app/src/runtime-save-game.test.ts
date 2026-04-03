@@ -71,6 +71,14 @@ describe('runtime-save-game', () => {
             playerSideByIndex: new Map([[0, 'USA']]),
             sideCredits: new Map([['USA', 1337]]),
           },
+          tunnelTrackers: [{
+            side: 'america',
+            tracker: {
+              tunnelIds: [21, 22],
+              passengerIds: [77],
+              tunnelCount: 2,
+            },
+          }],
         }),
         captureSourceRadarRuntimeSaveState: () => ({
           ...createEmptyRadarState(),
@@ -127,7 +135,18 @@ describe('runtime-save-game', () => {
           defeatedSides: new Set<string>(['Observer']),
           gameEndFrame: null,
           scriptEndGameTimerActive: false,
+          rankLevelLimit: 7,
+          difficultyBonusesInitialized: true,
+          scriptScoringEnabled: false,
           spawnedEntities: [],
+          caveTrackers: [{
+            caveIndex: 4,
+            tracker: {
+              tunnelIds: [91],
+              passengerIds: [92, 93],
+              tunnelCount: 1,
+            },
+          }],
         }),
         captureBrowserRuntimeSaveState: () => ({
           version: 1,
@@ -187,6 +206,14 @@ describe('runtime-save-game', () => {
       },
     });
     expect(playerState?.state.playerSideByIndex).toEqual(new Map([[0, 'USA']]));
+    expect(playerState?.tunnelTrackers).toEqual([{
+      side: 'america',
+      tracker: {
+        tunnelIds: [21, 22],
+        passengerIds: [77],
+        tunnelCount: 2,
+      },
+    }]);
     expect(radarState?.version).toBe(2);
     if (!radarState || radarState.version !== 2) {
       throw new Error('Expected structured radar payload');
@@ -218,6 +245,17 @@ describe('runtime-save-game', () => {
     expect(inGameUiState?.state.scriptHiddenSpecialPowerDisplayEntityIds).toEqual(new Set([7]));
     expect(coreState?.spawnedEntities).toEqual([]);
     expect(coreState?.selectedEntityId).toBeNull();
+    expect(coreState?.rankLevelLimit).toBe(7);
+    expect(coreState?.difficultyBonusesInitialized).toBe(true);
+    expect(coreState?.scriptScoringEnabled).toBe(false);
+    expect(coreState?.caveTrackers).toEqual([{
+      caveIndex: 4,
+      tracker: {
+        tunnelIds: [91],
+        passengerIds: [92, 93],
+        tunnelCount: 1,
+      },
+    }]);
     expect(logicState.version).toBe(1);
     expect(logicState.spawnedEntities.get(7)?.templateName).toBe('RuntimeTank');
     expect(logicState.spawnedEntities.get(7)?.kindOf.has('VEHICLE')).toBe(true);

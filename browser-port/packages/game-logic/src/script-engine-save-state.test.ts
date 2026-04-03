@@ -72,6 +72,12 @@ describe('script-engine save-state', () => {
       }>;
       scriptChooseVictimAlwaysUsesNormal: boolean;
       scriptObjectTypeListsByName: Map<string, string[]>;
+      scriptCallingTeamNameUpper: string | null;
+      scriptConditionEntityId: number | null;
+      scriptCurrentPlayerSide: string | null;
+      scriptEvaEnabled: boolean;
+      scriptExistedEntityIds: Set<number>;
+      scriptInputDisabled: boolean;
       scriptNamedMapRevealByName: Map<string, {
         playerIndex: number;
         worldX: number;
@@ -85,6 +91,9 @@ describe('script-engine save-state', () => {
         templatePriorityByName: Map<string, number>;
       }>;
       scriptMusicTrackState: { trackName: string; fadeOut: boolean; fadeIn: boolean; frame: number } | null;
+      scriptTeamCreatedReadyFrameByName: Map<string, number>;
+      scriptTriggerMembershipByEntityId: Map<number, Set<number>>;
+      scriptTransportStatusByEntityId: Map<number, { frameNumber: number; unitCount: number }>;
     };
 
     privateLogic.scriptSequentialScripts.push({
@@ -154,6 +163,12 @@ describe('script-engine save-state', () => {
       decreaseFrames: 45,
       frame: 22,
     });
+    privateLogic.scriptCallingTeamNameUpper = 'TEAMTHEPLAYER';
+    privateLogic.scriptConditionEntityId = 7;
+    privateLogic.scriptCurrentPlayerSide = 'america';
+    privateLogic.scriptEvaEnabled = false;
+    privateLogic.scriptExistedEntityIds.add(7);
+    privateLogic.scriptInputDisabled = true;
     privateLogic.scriptChooseVictimAlwaysUsesNormal = true;
     privateLogic.scriptObjectTypeListsByName.set('RAIDTARGETS', ['SupplyCenter', 'Dozer']);
     privateLogic.scriptNamedMapRevealByName.set('FOCUS_AREA', {
@@ -168,6 +183,9 @@ describe('script-engine save-state', () => {
       defaultPriority: 3,
       templatePriorityByName: new Map([['BattlemasterTank', 11]]),
     });
+    privateLogic.scriptTeamCreatedReadyFrameByName.set('TEAMTHEPLAYER', 180);
+    privateLogic.scriptTriggerMembershipByEntityId.set(7, new Set([1, 2]));
+    privateLogic.scriptTransportStatusByEntityId.set(7, { frameNumber: 300, unitCount: 2 });
     privateLogic.scriptMusicTrackState = {
       trackName: 'Score_usa',
       fadeOut: true,
@@ -216,6 +234,12 @@ describe('script-engine save-state', () => {
       decreaseFrames: 45,
       frame: 22,
     }]);
+    expect(restoredPrivate.scriptCallingTeamNameUpper).toBe('TEAMTHEPLAYER');
+    expect(restoredPrivate.scriptConditionEntityId).toBe(7);
+    expect(restoredPrivate.scriptCurrentPlayerSide).toBe('america');
+    expect(restoredPrivate.scriptEvaEnabled).toBe(false);
+    expect(restoredPrivate.scriptExistedEntityIds).toEqual(new Set([7]));
+    expect(restoredPrivate.scriptInputDisabled).toBe(true);
     expect(restoredPrivate.scriptChooseVictimAlwaysUsesNormal).toBe(true);
     expect(restoredPrivate.scriptObjectTypeListsByName).toEqual(
       new Map([['RAIDTARGETS', ['SupplyCenter', 'Dozer']]]),
@@ -235,6 +259,15 @@ describe('script-engine save-state', () => {
         defaultPriority: 3,
         templatePriorityByName: new Map([['BattlemasterTank', 11]]),
       }]]),
+    );
+    expect(restoredPrivate.scriptTeamCreatedReadyFrameByName).toEqual(
+      new Map([['TEAMTHEPLAYER', 180]]),
+    );
+    expect(restoredPrivate.scriptTriggerMembershipByEntityId).toEqual(
+      new Map([[7, new Set([1, 2])]]),
+    );
+    expect(restoredPrivate.scriptTransportStatusByEntityId).toEqual(
+      new Map([[7, { frameNumber: 300, unitCount: 2 }]]),
     );
     expect(restoredPrivate.scriptMusicTrackState).toEqual({
       trackName: 'Score_usa',

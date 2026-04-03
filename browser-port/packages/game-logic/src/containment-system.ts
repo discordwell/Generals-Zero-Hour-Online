@@ -818,7 +818,7 @@ export function resolveTunnelTracker(self: GL, side: string | undefined): Tunnel
   if (!normalized) return null;
   let tracker = self.tunnelTrackers.get(normalized);
   if (!tracker) {
-    tracker = { tunnelIds: new Set(), passengerIds: new Set(), timeForFullHealFrames: 1 };
+    tracker = { tunnelIds: new Set(), passengerIds: new Set() };
     self.tunnelTrackers.set(normalized, tracker);
   }
   return tracker;
@@ -835,7 +835,7 @@ export function resolveCaveTracker(self: GL, caveIndex: number, createIfMissing 
 
   let tracker = self.caveTrackers.get(normalizedIndex);
   if (!tracker && createIfMissing) {
-    tracker = { tunnelIds: new Set(), passengerIds: new Set(), timeForFullHealFrames: 0 };
+    tracker = { tunnelIds: new Set(), passengerIds: new Set() };
     self.caveTrackers.set(normalizedIndex, tracker);
   }
   return tracker ?? null;
@@ -936,9 +936,14 @@ export function exitTunnel(self: GL, passenger: MapEntity, exitTunnel: MapEntity
 }
 
 export function updateTunnelHealing(self: GL): void {
-  for (const tracker of self.tunnelTrackers.values()) {
+  for (const tunnel of self.spawnedEntities.values()) {
+    if (tunnel.destroyed) continue;
+    const profile = tunnel.containProfile;
+    if (!profile || profile.moduleType !== 'TUNNEL') continue;
+
+    const tracker = resolveTunnelTracker(self, tunnel.side);
     if (tracker.passengerIds.size === 0) continue;
-    const healFrames = tracker.timeForFullHealFrames;
+    const healFrames = profile.timeForFullHealFrames;
     if (healFrames <= 0) continue;
 
     for (const passengerId of tracker.passengerIds) {

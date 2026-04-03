@@ -14,14 +14,17 @@ import type { CameraState } from '@generals/input';
 import {
   xferMapEntity,
   type GameDifficulty,
+  type GameLogicCaveTrackerSaveState,
   type GameLogicCoreSaveState,
   type GameLogicInGameUiSaveState,
+  type GameLogicPlayerTunnelTrackerSaveState,
   type GameLogicRadarEventSaveState,
   type GameLogicRadarObjectSaveState,
   type GameLogicPlayersSaveState,
   type GameLogicRadarSaveState,
   type GameLogicScriptEngineSaveState,
   type GameLogicSubsystem,
+  type GameLogicTunnelTrackerSaveState,
   type LegacyGameLogicRadarSaveState,
   type MapEntity,
   type StructuredGameLogicRadarSaveState,
@@ -41,6 +44,8 @@ const GAME_STATE_VERSION = 2;
 const CAMPAIGN_VERSION = 5;
 const GAME_STATE_MAP_VERSION = 2;
 const BROWSER_RUNTIME_STATE_VERSION = 1;
+const SOURCE_PLAYER_SNAPSHOT_VERSION = 2;
+const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 2;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
 const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
 const SOURCE_RADAR_EVENT_COUNT = 64;
@@ -548,6 +553,82 @@ function xferNullableAsciiString(xfer: Xfer, value: string | null): string | nul
   return null;
 }
 
+function xferSourceTunnelTrackerState(
+  xfer: Xfer,
+  state: GameLogicTunnelTrackerSaveState,
+): GameLogicTunnelTrackerSaveState {
+  const tunnelIds = xfer.xferObjectIDList(state.tunnelIds);
+  const savedPassengerCount = xfer.xferInt(state.passengerIds.length);
+  if (savedPassengerCount < 0) {
+    throw new Error(`Tunnel tracker passenger count ${savedPassengerCount} is invalid.`);
+  }
+
+  const passengerIds: number[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < savedPassengerCount; index += 1) {
+      passengerIds.push(xfer.xferObjectID(0));
+    }
+  } else {
+    for (const passengerId of state.passengerIds) {
+      xfer.xferObjectID(passengerId);
+      passengerIds.push(passengerId);
+    }
+  }
+
+  const tunnelCount = xfer.xferUnsignedInt(state.tunnelCount);
+  return {
+    tunnelIds,
+    passengerIds,
+    tunnelCount,
+  };
+}
+
+function xferSourcePlayerTunnelTrackers(
+  xfer: Xfer,
+  trackers: GameLogicPlayerTunnelTrackerSaveState[],
+): GameLogicPlayerTunnelTrackerSaveState[] {
+  const count = xfer.xferUnsignedShort(trackers.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: GameLogicPlayerTunnelTrackerSaveState[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push({
+        side: xfer.xferAsciiString(''),
+        tracker: xferSourceTunnelTrackerState(xfer, { tunnelIds: [], passengerIds: [], tunnelCount: 0 }),
+      });
+    }
+    return loaded;
+  }
+
+  for (const tracker of trackers) {
+    xfer.xferAsciiString(tracker.side);
+    xferSourceTunnelTrackerState(xfer, tracker.tracker);
+  }
+  return trackers;
+}
+
+function xferSourceCaveTrackers(
+  xfer: Xfer,
+  trackers: GameLogicCaveTrackerSaveState[],
+): GameLogicCaveTrackerSaveState[] {
+  const count = xfer.xferUnsignedShort(trackers.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: GameLogicCaveTrackerSaveState[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push({
+        caveIndex: xfer.xferInt(0),
+        tracker: xferSourceTunnelTrackerState(xfer, { tunnelIds: [], passengerIds: [], tunnelCount: 0 }),
+      });
+    }
+    return loaded;
+  }
+
+  for (const tracker of trackers) {
+    xfer.xferInt(tracker.caveIndex);
+    xferSourceTunnelTrackerState(xfer, tracker.tracker);
+  }
+  return trackers;
+}
+
 class PlayersSnapshot implements Snapshot {
   payload: GameLogicPlayersSaveState | null;
 
@@ -560,19 +641,48 @@ class PlayersSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
-    const version = xfer.xferVersion(1);
-    if (version !== 1) {
+    const version = xfer.xferVersion(SOURCE_PLAYER_SNAPSHOT_VERSION);
+    if (version === 1) {
+      const serialized = xfer.xferLongString(
+        this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
+      );
+      if (serialized.length === 0) {
+        this.payload = null;
+        return;
+      }
+      this.payload = JSON.parse(serialized, runtimeJsonReviver) as GameLogicPlayersSaveState;
+      return;
+    }
+    if (version !== SOURCE_PLAYER_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported player snapshot version ${version}`);
     }
 
-    const serialized = xfer.xferLongString(
-      this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
+    const serializedState = xfer.xferLongString(
+      this.payload === null
+        ? ''
+        : JSON.stringify(
+            {
+              version: this.payload.version,
+              state: this.payload.state,
+            },
+            runtimeJsonReplacer,
+          ),
     );
-    if (serialized.length === 0) {
+    const tunnelTrackers = xferSourcePlayerTunnelTrackers(
+      xfer,
+      this.payload?.tunnelTrackers ?? [],
+    );
+
+    if (serializedState.length === 0) {
       this.payload = null;
       return;
     }
-    this.payload = JSON.parse(serialized, runtimeJsonReviver) as GameLogicPlayersSaveState;
+    const basePayload = JSON.parse(serializedState, runtimeJsonReviver) as GameLogicPlayersSaveState;
+    this.payload = {
+      version: basePayload.version,
+      state: basePayload.state,
+      tunnelTrackers,
+    };
   }
 
   loadPostProcess(): void {
@@ -843,8 +953,8 @@ class GameLogicSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
-    const version = xfer.xferVersion(1);
-    if (version !== 1) {
+    const version = xfer.xferVersion(SOURCE_GAME_LOGIC_SNAPSHOT_VERSION);
+    if (version !== 1 && version !== SOURCE_GAME_LOGIC_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported game-logic snapshot version ${version}`);
     }
 
@@ -860,9 +970,10 @@ class GameLogicSnapshot implements Snapshot {
         xfer.endBlock();
         spawnedEntities.push(entity as unknown as MapEntity);
       }
+      const caveTrackers = version >= 2 ? xferSourceCaveTrackers(xfer, []) : [];
 
       this.payload = {
-        version,
+        version: 1,
         nextId: xfer.xferObjectID(0),
         nextProjectileVisualId: xfer.xferUnsignedInt(0),
         animationTime: xfer.xferReal(0),
@@ -876,7 +987,11 @@ class GameLogicSnapshot implements Snapshot {
         defeatedSides,
         gameEndFrame: xferNullableInt(xfer, null),
         scriptEndGameTimerActive: xfer.xferBool(false),
+        rankLevelLimit: xfer.xferInt(0),
+        difficultyBonusesInitialized: xfer.xferBool(false),
+        scriptScoringEnabled: xfer.xferBool(true),
         spawnedEntities,
+        caveTrackers,
       };
       return;
     }
@@ -893,6 +1008,9 @@ class GameLogicSnapshot implements Snapshot {
       xferMapEntity(xfer, entity as unknown as Record<string, unknown>);
       xfer.endBlock();
     }
+    if (version >= 2) {
+      xferSourceCaveTrackers(xfer, this.payload.caveTrackers ?? []);
+    }
     xfer.xferObjectID(this.payload.nextId);
     xfer.xferUnsignedInt(this.payload.nextProjectileVisualId);
     xfer.xferReal(this.payload.animationTime);
@@ -904,6 +1022,9 @@ class GameLogicSnapshot implements Snapshot {
     xfer.xferUnsignedInt(this.payload.scriptObjectCountChangedFrame);
     xferNullableInt(xfer, this.payload.gameEndFrame);
     xfer.xferBool(this.payload.scriptEndGameTimerActive);
+    xfer.xferInt(this.payload.rankLevelLimit ?? 0);
+    xfer.xferBool(this.payload.difficultyBonusesInitialized ?? false);
+    xfer.xferBool(this.payload.scriptScoringEnabled ?? true);
   }
 
   loadPostProcess(): void {
