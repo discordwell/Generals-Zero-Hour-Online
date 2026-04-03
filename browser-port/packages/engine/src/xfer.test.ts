@@ -155,6 +155,30 @@ describe('Xfer framework', () => {
       expect(result.y).toBeCloseTo(2.5);
       expect(result.z).toBeCloseTo(3.5);
     });
+
+    it('xferICoord2D', () => {
+      const result = roundTrip(
+        (x) => x.xferICoord2D({ x: 42, y: -9 }),
+        (x) => x.xferICoord2D({ x: 0, y: 0 }),
+      );
+      expect(result).toEqual({ x: 42, y: -9 });
+    });
+
+    it('xferColor', () => {
+      const result = roundTrip(
+        (x) => x.xferColor(-16711936),
+        (x) => x.xferColor(0),
+      );
+      expect(result).toBe(-16711936);
+    });
+
+    it('xferRGBAColorInt', () => {
+      const result = roundTrip(
+        (x) => x.xferRGBAColorInt({ red: 1, green: 2, blue: 3, alpha: 255 }),
+        (x) => x.xferRGBAColorInt({ red: 0, green: 0, blue: 0, alpha: 0 }),
+      );
+      expect(result).toEqual({ red: 1, green: 2, blue: 3, alpha: 255 });
+    });
   });
 
   describe('collection round-trips', () => {

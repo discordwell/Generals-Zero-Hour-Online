@@ -16,10 +16,14 @@ import {
   type GameDifficulty,
   type GameLogicCoreSaveState,
   type GameLogicInGameUiSaveState,
+  type GameLogicRadarEventSaveState,
+  type GameLogicRadarObjectSaveState,
   type GameLogicPlayersSaveState,
   type GameLogicRadarSaveState,
   type GameLogicSubsystem,
+  type LegacyGameLogicRadarSaveState,
   type MapEntity,
+  type StructuredGameLogicRadarSaveState,
 } from '@generals/game-logic';
 import type { MapDataJSON } from '@generals/renderer';
 
@@ -35,6 +39,9 @@ const GAME_STATE_VERSION = 2;
 const CAMPAIGN_VERSION = 5;
 const GAME_STATE_MAP_VERSION = 2;
 const BROWSER_RUNTIME_STATE_VERSION = 1;
+const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
+const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
+const SOURCE_RADAR_EVENT_COUNT = 64;
 const INVALID_MISSION_NUMBER = -1;
 export const SOURCE_GAME_MODE_SINGLE_PLAYER = 0;
 export const SOURCE_GAME_MODE_SKIRMISH = 2;
@@ -530,6 +537,14 @@ function xferNullableInt(xfer: Xfer, value: number | null): number | null {
   return null;
 }
 
+function xferNullableAsciiString(xfer: Xfer, value: string | null): string | null {
+  const hasValue = xfer.xferBool(value !== null && value.length > 0);
+  if (hasValue) {
+    return xfer.xferAsciiString(value ?? '');
+  }
+  return null;
+}
+
 class PlayersSnapshot implements Snapshot {
   payload: GameLogicPlayersSaveState | null;
 
@@ -562,6 +577,95 @@ class PlayersSnapshot implements Snapshot {
   }
 }
 
+function createEmptySourceRadarEventState(): GameLogicRadarEventSaveState {
+  return {
+    type: 0,
+    active: false,
+    createFrame: 0,
+    dieFrame: 0,
+    fadeFrame: 0,
+    color1: { red: 0, green: 0, blue: 0, alpha: 0 },
+    color2: { red: 0, green: 0, blue: 0, alpha: 0 },
+    worldLoc: { x: 0, y: 0, z: 0 },
+    radarLoc: { x: 0, y: 0 },
+    soundPlayed: false,
+    sourceEntityId: null,
+    sourceTeamName: null,
+  };
+}
+
+function createEmptyStructuredRadarSaveState(): StructuredGameLogicRadarSaveState {
+  return {
+    version: SOURCE_RADAR_SNAPSHOT_VERSION,
+    radarHidden: false,
+    radarForced: false,
+    localObjectList: [],
+    objectList: [],
+    events: Array.from({ length: SOURCE_RADAR_EVENT_COUNT }, () => createEmptySourceRadarEventState()),
+    nextFreeRadarEvent: 0,
+    lastRadarEvent: -1,
+  };
+}
+
+function xferSourceRadarObject(
+  xfer: Xfer,
+  objectState: GameLogicRadarObjectSaveState,
+): GameLogicRadarObjectSaveState {
+  const version = xfer.xferVersion(SOURCE_RADAR_OBJECT_LIST_VERSION);
+  if (version !== SOURCE_RADAR_OBJECT_LIST_VERSION) {
+    throw new Error(`Unsupported radar object snapshot version ${version}`);
+  }
+
+  return {
+    objectId: xfer.xferObjectID(objectState.objectId),
+    color: xfer.xferColor(objectState.color),
+  };
+}
+
+function xferSourceRadarObjectList(
+  xfer: Xfer,
+  objectList: GameLogicRadarObjectSaveState[],
+): GameLogicRadarObjectSaveState[] {
+  const version = xfer.xferVersion(SOURCE_RADAR_OBJECT_LIST_VERSION);
+  if (version !== SOURCE_RADAR_OBJECT_LIST_VERSION) {
+    throw new Error(`Unsupported radar object list version ${version}`);
+  }
+
+  const count = xfer.xferUnsignedShort(objectList.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: GameLogicRadarObjectSaveState[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push(xferSourceRadarObject(xfer, { objectId: 0, color: 0 }));
+    }
+    return loaded;
+  }
+
+  for (const objectState of objectList) {
+    xferSourceRadarObject(xfer, objectState);
+  }
+  return objectList;
+}
+
+function xferSourceRadarEvent(
+  xfer: Xfer,
+  eventState: GameLogicRadarEventSaveState,
+): GameLogicRadarEventSaveState {
+  return {
+    type: xfer.xferInt(eventState.type),
+    active: xfer.xferBool(eventState.active),
+    createFrame: xfer.xferUnsignedInt(eventState.createFrame),
+    dieFrame: xfer.xferUnsignedInt(eventState.dieFrame),
+    fadeFrame: xfer.xferUnsignedInt(eventState.fadeFrame),
+    color1: xfer.xferRGBAColorInt(eventState.color1),
+    color2: xfer.xferRGBAColorInt(eventState.color2),
+    worldLoc: xfer.xferCoord3D(eventState.worldLoc),
+    radarLoc: xfer.xferICoord2D(eventState.radarLoc),
+    soundPlayed: xfer.xferBool(eventState.soundPlayed),
+    sourceEntityId: xferNullableObjectId(xfer, eventState.sourceEntityId),
+    sourceTeamName: xferNullableAsciiString(xfer, eventState.sourceTeamName),
+  };
+}
+
 class RadarSnapshot implements Snapshot {
   payload: GameLogicRadarSaveState | null;
 
@@ -574,19 +678,50 @@ class RadarSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
-    const version = xfer.xferVersion(1);
-    if (version !== 1) {
+    const version = xfer.xferVersion(SOURCE_RADAR_SNAPSHOT_VERSION);
+    if (version === 1) {
+      const legacyPayload = this.payload?.version === 1 ? this.payload : null;
+      const serialized = xfer.xferLongString(
+        legacyPayload === null ? '' : JSON.stringify(legacyPayload, runtimeJsonReplacer),
+      );
+      if (serialized.length === 0) {
+        this.payload = null;
+        return;
+      }
+      this.payload = JSON.parse(serialized, runtimeJsonReviver) as LegacyGameLogicRadarSaveState;
+      return;
+    }
+    if (version !== SOURCE_RADAR_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported radar snapshot version ${version}`);
     }
 
-    const serialized = xfer.xferLongString(
-      this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
-    );
-    if (serialized.length === 0) {
-      this.payload = null;
-      return;
+    const payload = this.payload?.version === SOURCE_RADAR_SNAPSHOT_VERSION
+      ? this.payload
+      : createEmptyStructuredRadarSaveState();
+    payload.version = version;
+    payload.radarHidden = xfer.xferBool(payload.radarHidden);
+    payload.radarForced = xfer.xferBool(payload.radarForced);
+    payload.localObjectList = xferSourceRadarObjectList(xfer, payload.localObjectList);
+    payload.objectList = xferSourceRadarObjectList(xfer, payload.objectList);
+
+    const eventCountVerify = SOURCE_RADAR_EVENT_COUNT;
+    const eventCount = xfer.xferUnsignedShort(eventCountVerify);
+    if (eventCount !== eventCountVerify) {
+      throw new Error(
+        `Radar snapshot event count mismatch: expected ${eventCountVerify}, got ${eventCount}`,
+      );
     }
-    this.payload = JSON.parse(serialized, runtimeJsonReviver) as GameLogicRadarSaveState;
+
+    const events: GameLogicRadarEventSaveState[] = [];
+    for (let index = 0; index < eventCount; index += 1) {
+      events.push(
+        xferSourceRadarEvent(xfer, payload.events[index] ?? createEmptySourceRadarEventState()),
+      );
+    }
+    payload.events = events;
+    payload.nextFreeRadarEvent = xfer.xferInt(payload.nextFreeRadarEvent);
+    payload.lastRadarEvent = xfer.xferInt(payload.lastRadarEvent);
+    this.payload = payload;
   }
 
   loadPostProcess(): void {

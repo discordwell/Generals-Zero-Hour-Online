@@ -1646,6 +1646,10 @@ export const SCRIPT_THIS_PLAYER_ENEMY = "<This Player's Enemy>";
 export const SCRIPT_THE_PLAYER = 'ThePlayer';
 export const SCRIPT_TEAM_THE_PLAYER = 'teamThePlayer';
 export const RADAR_EVENT_BEACON_PULSE = 5;
+const SOURCE_MAX_RADAR_EVENTS = 64;
+const SOURCE_RADAR_CELL_WIDTH = 128;
+const SOURCE_RADAR_CELL_HEIGHT = 128;
+const SOURCE_RADAR_EVENT_FADE_FRAMES = LOGIC_FRAME_RATE / 2;
 export const SCRIPT_SKIRMISH_PATH_CENTER_LABEL = 'CENTER';
 export const SCRIPT_SKIRMISH_PATH_FLANK_LABEL = 'FLANK';
 export const SCRIPT_SKIRMISH_PATH_BACKDOOR_LABEL = 'BACKDOOR';
@@ -7918,7 +7922,7 @@ export const SCRIPT_KIND_OF_ALLOW_SURRENDER_NAMES = new Set<string>([
 const BROWSER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION = 1;
-const SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION = 1;
+const SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION = 2;
 const SOURCE_IN_GAME_UI_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
   'teamRelationshipOverrides',
@@ -7974,7 +7978,6 @@ const SOURCE_GAME_LOGIC_RUNTIME_STATE_KEYS = [
 const SOURCE_RADAR_RUNTIME_STATE_KEYS = [
   'scriptRadarHidden',
   'scriptRadarForced',
-  'scriptRadarRefreshFrame',
   'scriptRadarEvents',
   'scriptLastRadarEventState',
 ] as const;
@@ -8042,14 +8045,111 @@ export interface GameLogicCoreSaveState {
   spawnedEntities: MapEntity[];
 }
 
-export interface GameLogicRadarSaveState {
-  version: number;
+export interface LegacyGameLogicRadarSaveState {
+  version: 1;
   state: Record<string, unknown>;
 }
+
+export interface GameLogicRadarObjectSaveState {
+  objectId: number;
+  color: number;
+}
+
+export interface GameLogicRadarColorSaveState {
+  red: number;
+  green: number;
+  blue: number;
+  alpha: number;
+}
+
+export interface GameLogicRadarEventSaveState {
+  type: number;
+  active: boolean;
+  createFrame: number;
+  dieFrame: number;
+  fadeFrame: number;
+  color1: GameLogicRadarColorSaveState;
+  color2: GameLogicRadarColorSaveState;
+  worldLoc: {
+    x: number;
+    y: number;
+    z: number;
+  };
+  radarLoc: {
+    x: number;
+    y: number;
+  };
+  soundPlayed: boolean;
+  sourceEntityId: number | null;
+  sourceTeamName: string | null;
+}
+
+export interface StructuredGameLogicRadarSaveState {
+  version: 2;
+  radarHidden: boolean;
+  radarForced: boolean;
+  localObjectList: GameLogicRadarObjectSaveState[];
+  objectList: GameLogicRadarObjectSaveState[];
+  events: GameLogicRadarEventSaveState[];
+  nextFreeRadarEvent: number;
+  lastRadarEvent: number;
+}
+
+export type GameLogicRadarSaveState = LegacyGameLogicRadarSaveState | StructuredGameLogicRadarSaveState;
 
 export interface GameLogicInGameUiSaveState {
   version: number;
   state: Record<string, unknown>;
+}
+
+function createGameLogicRadarColorSaveState(
+  red: number,
+  green: number,
+  blue: number,
+  alpha: number,
+): GameLogicRadarColorSaveState {
+  return { red, green, blue, alpha };
+}
+
+function cloneGameLogicRadarColorSaveState(
+  color: GameLogicRadarColorSaveState,
+): GameLogicRadarColorSaveState {
+  return { ...color };
+}
+
+const SOURCE_RADAR_EVENT_DEFAULT_COLOR_1 = createGameLogicRadarColorSaveState(255, 255, 255, 255);
+const SOURCE_RADAR_EVENT_DEFAULT_COLOR_2 = createGameLogicRadarColorSaveState(255, 255, 255, 255);
+const SOURCE_RADAR_EVENT_COLOR_LOOKUP = new Map<
+  number,
+  readonly [GameLogicRadarColorSaveState, GameLogicRadarColorSaveState]
+>([
+  [1, [createGameLogicRadarColorSaveState(128, 128, 255, 255), createGameLogicRadarColorSaveState(128, 255, 255, 255)]],
+  [2, [createGameLogicRadarColorSaveState(128, 0, 64, 255), createGameLogicRadarColorSaveState(255, 185, 220, 255)]],
+  [3, [createGameLogicRadarColorSaveState(255, 0, 0, 255), createGameLogicRadarColorSaveState(255, 128, 128, 255)]],
+  [4, [createGameLogicRadarColorSaveState(255, 255, 0, 255), createGameLogicRadarColorSaveState(255, 255, 128, 255)]],
+  [5, [createGameLogicRadarColorSaveState(255, 255, 0, 255), createGameLogicRadarColorSaveState(255, 255, 128, 255)]],
+  [6, [createGameLogicRadarColorSaveState(0, 255, 255, 255), createGameLogicRadarColorSaveState(128, 255, 255, 255)]],
+  [7, [createGameLogicRadarColorSaveState(255, 255, 255, 255), createGameLogicRadarColorSaveState(255, 255, 255, 255)]],
+  [8, [createGameLogicRadarColorSaveState(0, 255, 0, 255), createGameLogicRadarColorSaveState(0, 128, 0, 255)]],
+  [9, [createGameLogicRadarColorSaveState(0, 255, 0, 255), createGameLogicRadarColorSaveState(0, 128, 0, 255)]],
+  [10, [createGameLogicRadarColorSaveState(0, 0, 0, 0), createGameLogicRadarColorSaveState(0, 0, 0, 0)]],
+]);
+
+function createEmptyGameLogicRadarEventSaveState(): GameLogicRadarEventSaveState {
+  return {
+    type: 0,
+    active: false,
+    createFrame: 0,
+    dieFrame: 0,
+    fadeFrame: 0,
+    color1: createGameLogicRadarColorSaveState(0, 0, 0, 0),
+    color2: createGameLogicRadarColorSaveState(0, 0, 0, 0),
+    worldLoc: { x: 0, y: 0, z: 0 },
+    radarLoc: { x: 0, y: 0 },
+    soundPlayed: false,
+    sourceEntityId: null,
+    sourceTeamName: null,
+  };
 }
 
 export class GameLogicSubsystem implements Subsystem {
@@ -8971,6 +9071,248 @@ export class GameLogicSubsystem implements Subsystem {
     });
   }
 
+  private getSourceRadarPriorityRank(priority: RadarPriorityType): number {
+    switch (priority) {
+      case 'NOT_ON_RADAR':
+        return 1;
+      case 'STRUCTURE':
+        return 2;
+      case 'UNIT':
+        return 3;
+      case 'LOCAL_UNIT_ONLY':
+        return 4;
+      case 'INVALID':
+      default:
+        return 0;
+    }
+  }
+
+  private isSourceRadarPriorityVisible(priority: RadarPriorityType): boolean {
+    return priority !== 'INVALID' && priority !== 'NOT_ON_RADAR';
+  }
+
+  private normalizeSourcePackedColor(value: number): number {
+    const packedColor = Math.trunc(value) | 0;
+    if ((packedColor >>> 24) !== 0) {
+      return packedColor;
+    }
+    return packedColor | 0xff000000;
+  }
+
+  private resolveMapSidePlayerColor(side: string): number | null {
+    const sides = this.loadedMapData?.sidesList?.sides ?? [];
+    for (const mapSide of sides) {
+      const playerName = typeof mapSide.dict.playerName === 'string'
+        ? this.normalizeSide(mapSide.dict.playerName)
+        : null;
+      if (!playerName || playerName !== side) {
+        continue;
+      }
+      const playerColor = mapSide.dict.playerColor;
+      if (typeof playerColor === 'number' && Number.isFinite(playerColor)) {
+        return this.normalizeSourcePackedColor(playerColor);
+      }
+    }
+    return null;
+  }
+
+  private resolveSourceRadarIndicatorColor(entity: MapEntity): number {
+    if (entity.customIndicatorColor !== null) {
+      return this.normalizeSourcePackedColor(entity.customIndicatorColor);
+    }
+
+    const normalizedSide = this.normalizeSide(entity.side);
+    if (!normalizedSide) {
+      return 0xff000000 | 0;
+    }
+
+    return this.resolveMapSidePlayerColor(normalizedSide) ?? (0xff000000 | 0);
+  }
+
+  private isEntityLocallyControlledForSourceRadar(
+    entity: MapEntity,
+    localSide: string | null,
+  ): boolean {
+    if (localSide === null) {
+      return false;
+    }
+    return this.normalizeSide(entity.side) === localSide;
+  }
+
+  private worldPositionToSourceRadarCoord(worldX: number, worldZ: number): { x: number; y: number } {
+    const mapWidth = this.mapHeightmap?.worldWidth
+      ?? Math.max(0, ((this.loadedMapData?.heightmap.width ?? 1) - 1) * MAP_XY_FACTOR);
+    const mapDepth = this.mapHeightmap?.worldDepth
+      ?? Math.max(0, ((this.loadedMapData?.heightmap.height ?? 1) - 1) * MAP_XY_FACTOR);
+    const xSample = mapWidth / SOURCE_RADAR_CELL_WIDTH;
+    const ySample = mapDepth / SOURCE_RADAR_CELL_HEIGHT;
+    if (!(xSample > 0) || !(ySample > 0)) {
+      return { x: 0, y: 0 };
+    }
+
+    return {
+      x: Math.max(0, Math.min(SOURCE_RADAR_CELL_WIDTH - 1, Math.trunc(worldX / xSample))),
+      y: Math.max(0, Math.min(SOURCE_RADAR_CELL_HEIGHT - 1, Math.trunc(worldZ / ySample))),
+    };
+  }
+
+  private buildSourceRadarObjectLists():
+    Pick<StructuredGameLogicRadarSaveState, 'localObjectList' | 'objectList'> {
+    type PendingSourceRadarObjectEntry = GameLogicRadarObjectSaveState & {
+      priority: RadarPriorityType;
+    };
+
+    const insertObject = (
+      list: PendingSourceRadarObjectEntry[],
+      entry: PendingSourceRadarObjectEntry,
+    ): void => {
+      if (list.length === 0) {
+        list.push(entry);
+        return;
+      }
+
+      const newPriorityRank = this.getSourceRadarPriorityRank(entry.priority);
+      let previousPriorityRank = 0;
+      for (let index = 0; index < list.length; index += 1) {
+        const currentPriorityRank = this.getSourceRadarPriorityRank(list[index]!.priority);
+        if (
+          (index === 0 || previousPriorityRank < newPriorityRank)
+          && currentPriorityRank >= newPriorityRank
+        ) {
+          list.splice(index, 0, entry);
+          return;
+        }
+        if (index === list.length - 1) {
+          list.push(entry);
+          return;
+        }
+        previousPriorityRank = currentPriorityRank;
+      }
+    };
+
+    const localSide = this.resolveLocalPlayerSide();
+    const localEntries: PendingSourceRadarObjectEntry[] = [];
+    const otherEntries: PendingSourceRadarObjectEntry[] = [];
+    for (const entity of this.spawnedEntities.values()) {
+      const priority = entity.radarPriority;
+      if (!this.isSourceRadarPriorityVisible(priority)) {
+        continue;
+      }
+
+      const entry: PendingSourceRadarObjectEntry = {
+        objectId: entity.id,
+        color: this.resolveSourceRadarIndicatorColor(entity),
+        priority,
+      };
+      if (this.isEntityLocallyControlledForSourceRadar(entity, localSide)) {
+        insertObject(localEntries, entry);
+      } else {
+        insertObject(otherEntries, entry);
+      }
+    }
+
+    return {
+      localObjectList: localEntries.map(({ objectId, color }) => ({ objectId, color })),
+      objectList: otherEntries.map(({ objectId, color }) => ({ objectId, color })),
+    };
+  }
+
+  private resolveSourceRadarEventColors(eventType: number):
+    readonly [GameLogicRadarColorSaveState, GameLogicRadarColorSaveState] {
+    return SOURCE_RADAR_EVENT_COLOR_LOOKUP.get(Math.trunc(eventType))
+      ?? [SOURCE_RADAR_EVENT_DEFAULT_COLOR_1, SOURCE_RADAR_EVENT_DEFAULT_COLOR_2];
+  }
+
+  private createSourceRadarEventSaveState(
+    event: ScriptRadarEventState,
+  ): GameLogicRadarEventSaveState {
+    const [color1, color2] = this.resolveSourceRadarEventColors(event.eventType);
+    const createFrame = Math.trunc(event.frame) >>> 0;
+    const dieFrame = Math.trunc(event.expireFrame) >>> 0;
+    return {
+      type: Math.trunc(event.eventType),
+      active: dieFrame > (this.frameCounter >>> 0),
+      createFrame,
+      dieFrame,
+      fadeFrame: Math.max(0, dieFrame - SOURCE_RADAR_EVENT_FADE_FRAMES) >>> 0,
+      color1: cloneGameLogicRadarColorSaveState(color1),
+      color2: cloneGameLogicRadarColorSaveState(color2),
+      worldLoc: {
+        x: event.x,
+        y: event.z,
+        z: event.y,
+      },
+      radarLoc: this.worldPositionToSourceRadarCoord(event.x, event.z),
+      soundPlayed: false,
+      sourceEntityId: event.sourceEntityId,
+      sourceTeamName: event.sourceTeamName,
+    };
+  }
+
+  private findSourceRadarLastEventIndex(events: readonly GameLogicRadarEventSaveState[]): number {
+    if (!this.scriptLastRadarEventState) {
+      return -1;
+    }
+
+    const target = this.scriptLastRadarEventState;
+    for (let index = 0; index < events.length; index += 1) {
+      const event = events[index];
+      if (!event?.active) {
+        continue;
+      }
+      if (
+        event.type === Math.trunc(target.eventType)
+        && event.createFrame === (Math.trunc(target.frame) >>> 0)
+        && event.dieFrame === (Math.trunc(target.expireFrame) >>> 0)
+        && event.worldLoc.x === target.x
+        && event.worldLoc.y === target.z
+        && event.worldLoc.z === target.y
+        && event.sourceEntityId === target.sourceEntityId
+        && event.sourceTeamName === target.sourceTeamName
+      ) {
+        return index;
+      }
+    }
+
+    return -1;
+  }
+
+  private buildSourceRadarEventState():
+    Pick<StructuredGameLogicRadarSaveState, 'events' | 'nextFreeRadarEvent' | 'lastRadarEvent'> {
+    this.pruneExpiredScriptRadarEvents();
+
+    const events = Array.from(
+      { length: SOURCE_MAX_RADAR_EVENTS },
+      () => createEmptyGameLogicRadarEventSaveState(),
+    );
+
+    let writeIndex = 0;
+    for (const event of this.scriptRadarEvents) {
+      if (writeIndex >= SOURCE_MAX_RADAR_EVENTS) {
+        break;
+      }
+      events[writeIndex] = this.createSourceRadarEventSaveState(event);
+      writeIndex += 1;
+    }
+
+    let lastRadarEvent = this.findSourceRadarLastEventIndex(events);
+    if (lastRadarEvent < 0) {
+      for (let index = writeIndex - 1; index >= 0; index -= 1) {
+        const event = events[index];
+        if (event && event.active && event.type !== RADAR_EVENT_BEACON_PULSE) {
+          lastRadarEvent = index;
+          break;
+        }
+      }
+    }
+
+    return {
+      events,
+      nextFreeRadarEvent: writeIndex % SOURCE_MAX_RADAR_EVENTS,
+      lastRadarEvent,
+    };
+  }
+
   private captureSourceRuntimeStateByKeys(keys: readonly string[]): Record<string, unknown> {
     const state: Record<string, unknown> = {};
     for (const key of keys) {
@@ -9013,9 +9355,17 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   captureSourceRadarRuntimeSaveState(): GameLogicRadarSaveState {
+    const radarObjects = this.buildSourceRadarObjectLists();
+    const radarEvents = this.buildSourceRadarEventState();
     return {
       version: SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION,
-      state: this.captureSourceRuntimeStateByKeys(SOURCE_RADAR_RUNTIME_STATE_KEYS),
+      radarHidden: this.scriptRadarHidden,
+      radarForced: this.scriptRadarForced,
+      localObjectList: radarObjects.localObjectList,
+      objectList: radarObjects.objectList,
+      events: radarEvents.events,
+      nextFreeRadarEvent: radarEvents.nextFreeRadarEvent,
+      lastRadarEvent: radarEvents.lastRadarEvent,
     };
   }
 
@@ -9024,18 +9374,61 @@ export class GameLogicSubsystem implements Subsystem {
       throw new Error('Source radar save-state payload is malformed.');
     }
 
+    const rawVersion = (state as { version?: unknown }).version;
     const snapshot = state as GameLogicRadarSaveState;
-    if (snapshot.version !== SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION) {
-      throw new Error(`Unsupported source radar save-state version ${snapshot.version}.`);
+    if (snapshot.version === 1) {
+      if (!snapshot.state || typeof snapshot.state !== 'object' || Array.isArray(snapshot.state)) {
+        throw new Error('Source radar save-state content is malformed.');
+      }
+
+      this.restoreSourceRuntimeStateByKeys(
+        SOURCE_RADAR_RUNTIME_STATE_KEYS,
+        snapshot.state as Record<string, unknown>,
+      );
+      return;
     }
-    if (!snapshot.state || typeof snapshot.state !== 'object' || Array.isArray(snapshot.state)) {
-      throw new Error('Source radar save-state content is malformed.');
+    if (snapshot.version !== SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION) {
+      throw new Error(`Unsupported source radar save-state version ${String(rawVersion)}.`);
     }
 
-    this.restoreSourceRuntimeStateByKeys(
-      SOURCE_RADAR_RUNTIME_STATE_KEYS,
-      snapshot.state as Record<string, unknown>,
-    );
+    this.scriptRadarHidden = snapshot.radarHidden;
+    this.scriptRadarForced = snapshot.radarForced;
+    this.scriptRadarEvents.length = 0;
+
+    let resolvedLastRadarEventState: ScriptRadarEventState | null = null;
+    for (let index = 0; index < snapshot.events.length; index += 1) {
+      const event = snapshot.events[index];
+      if (!event?.active) {
+        continue;
+      }
+
+      const restoredEvent: ScriptRadarEventState = {
+        x: event.worldLoc.x,
+        y: event.worldLoc.z,
+        z: event.worldLoc.y,
+        eventType: Math.trunc(event.type),
+        frame: Math.trunc(event.createFrame) >>> 0,
+        expireFrame: Math.trunc(event.dieFrame) >>> 0,
+        sourceEntityId: event.sourceEntityId,
+        sourceTeamName: event.sourceTeamName,
+      };
+      this.scriptRadarEvents.push(restoredEvent);
+      if (index === snapshot.lastRadarEvent) {
+        resolvedLastRadarEventState = restoredEvent;
+      }
+    }
+
+    if (resolvedLastRadarEventState === null) {
+      for (let index = this.scriptRadarEvents.length - 1; index >= 0; index -= 1) {
+        const event = this.scriptRadarEvents[index];
+        if (event && event.eventType !== RADAR_EVENT_BEACON_PULSE) {
+          resolvedLastRadarEventState = { ...event };
+          break;
+        }
+      }
+    }
+
+    this.scriptLastRadarEventState = resolvedLastRadarEventState;
   }
 
   captureSourceInGameUiRuntimeSaveState(): GameLogicInGameUiSaveState {

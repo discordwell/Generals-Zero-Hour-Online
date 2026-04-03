@@ -7,6 +7,36 @@ import {
   SOURCE_GAME_MODE_SINGLE_PLAYER,
 } from './runtime-save-game.js';
 
+function createEmptyRadarEvent() {
+  return {
+    type: 0,
+    active: false,
+    createFrame: 0,
+    dieFrame: 0,
+    fadeFrame: 0,
+    color1: { red: 0, green: 0, blue: 0, alpha: 0 },
+    color2: { red: 0, green: 0, blue: 0, alpha: 0 },
+    worldLoc: { x: 0, y: 0, z: 0 },
+    radarLoc: { x: 0, y: 0 },
+    soundPlayed: false,
+    sourceEntityId: null,
+    sourceTeamName: null,
+  };
+}
+
+function createEmptyRadarState() {
+  return {
+    version: 2 as const,
+    radarHidden: false,
+    radarForced: false,
+    localObjectList: [],
+    objectList: [],
+    events: Array.from({ length: 64 }, () => createEmptyRadarEvent()),
+    nextFreeRadarEvent: 0,
+    lastRadarEvent: -1,
+  };
+}
+
 describe('runtime-save-game', () => {
   it('round-trips embedded map data and browser runtime payloads', () => {
     const mapData = {
@@ -43,14 +73,27 @@ describe('runtime-save-game', () => {
           },
         }),
         captureSourceRadarRuntimeSaveState: () => ({
-          version: 1,
-          state: {
-            scriptRadarHidden: true,
-            scriptRadarForced: false,
-            scriptRadarRefreshFrame: 33,
-            scriptRadarEvents: [{ eventType: 'UNIT_DISCOVERED', frame: 31 }],
-            scriptLastRadarEventState: new Map([['USA', 31]]),
-          },
+          ...createEmptyRadarState(),
+          radarHidden: true,
+          localObjectList: [{ objectId: 7, color: -16711936 }],
+          events: Array.from({ length: 64 }, (_, index) => index === 0
+            ? {
+                type: 4,
+                active: true,
+                createFrame: 31,
+                dieFrame: 151,
+                fadeFrame: 136,
+                color1: { red: 255, green: 255, blue: 0, alpha: 255 },
+                color2: { red: 255, green: 255, blue: 128, alpha: 255 },
+                worldLoc: { x: 18, y: 24, z: 0 },
+                radarLoc: { x: 9, y: 12 },
+                soundPlayed: false,
+                sourceEntityId: 7,
+                sourceTeamName: 'TEAMTHEPLAYER',
+              }
+            : createEmptyRadarEvent()),
+          nextFreeRadarEvent: 1,
+          lastRadarEvent: 0,
         }),
         captureSourceInGameUiRuntimeSaveState: () => ({
           version: 1,
@@ -134,8 +177,28 @@ describe('runtime-save-game', () => {
       },
     });
     expect(playerState?.state.playerSideByIndex).toEqual(new Map([[0, 'USA']]));
-    expect(radarState?.state.scriptRadarHidden).toBe(true);
-    expect(radarState?.state.scriptLastRadarEventState).toEqual(new Map([['USA', 31]]));
+    expect(radarState?.version).toBe(2);
+    if (!radarState || radarState.version !== 2) {
+      throw new Error('Expected structured radar payload');
+    }
+    expect(radarState.radarHidden).toBe(true);
+    expect(radarState.localObjectList).toEqual([{ objectId: 7, color: -16711936 }]);
+    expect(radarState.events[0]).toEqual({
+      type: 4,
+      active: true,
+      createFrame: 31,
+      dieFrame: 151,
+      fadeFrame: 136,
+      color1: { red: 255, green: 255, blue: 0, alpha: 255 },
+      color2: { red: 255, green: 255, blue: 128, alpha: 255 },
+      worldLoc: { x: 18, y: 24, z: 0 },
+      radarLoc: { x: 9, y: 12 },
+      soundPlayed: false,
+      sourceEntityId: 7,
+      sourceTeamName: 'TEAMTHEPLAYER',
+    });
+    expect(radarState.nextFreeRadarEvent).toBe(1);
+    expect(radarState.lastRadarEvent).toBe(0);
     expect(inGameUiState?.state.scriptNamedTimerDisplayEnabled).toBe(false);
     expect(inGameUiState?.state.scriptHiddenSpecialPowerDisplayEntityIds).toEqual(new Set([7]));
     expect(coreState?.spawnedEntities).toEqual([]);
@@ -168,7 +231,7 @@ describe('runtime-save-game', () => {
       cameraState: null,
       gameLogic: {
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
-        captureSourceRadarRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
           version: 1,
@@ -223,7 +286,7 @@ describe('runtime-save-game', () => {
       cameraState: null,
       gameLogic: {
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
-        captureSourceRadarRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
           version: 1,
@@ -293,7 +356,7 @@ describe('runtime-save-game', () => {
       cameraState: null,
       gameLogic: {
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
-        captureSourceRadarRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
           version: 1,

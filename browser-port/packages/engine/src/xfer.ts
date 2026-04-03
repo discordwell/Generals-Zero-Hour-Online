@@ -29,6 +29,18 @@ export interface Coord3D {
   z: number;
 }
 
+export interface ICoord2D {
+  x: number;
+  y: number;
+}
+
+export interface RGBAColorInt {
+  red: number;
+  green: number;
+  blue: number;
+  alpha: number;
+}
+
 export abstract class Xfer {
   protected mode: XferMode;
 
@@ -92,6 +104,24 @@ export abstract class Xfer {
     const y = this.xferReal(value.y);
     const z = this.xferReal(value.z);
     return { x, y, z };
+  }
+
+  xferICoord2D(value: ICoord2D): ICoord2D {
+    const x = this.xferInt(value.x);
+    const y = this.xferInt(value.y);
+    return { x, y };
+  }
+
+  xferColor(value: number): number {
+    return this.xferInt(value);
+  }
+
+  xferRGBAColorInt(value: RGBAColorInt): RGBAColorInt {
+    const red = this.xferUnsignedInt(value.red);
+    const green = this.xferUnsignedInt(value.green);
+    const blue = this.xferUnsignedInt(value.blue);
+    const alpha = this.xferUnsignedInt(value.alpha);
+    return { red, green, blue, alpha };
   }
 
   xferObjectID(value: number): number {

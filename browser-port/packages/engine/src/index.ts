@@ -10,7 +10,7 @@ export { SubsystemRegistry } from './subsystem.js';
 export type { Snapshot } from './snapshot.js';
 
 export { Xfer, XferMode, XferStatus } from './xfer.js';
-export type { Coord3D } from './xfer.js';
+export type { Coord3D, ICoord2D, RGBAColorInt } from './xfer.js';
 export { XferSave } from './xfer-save.js';
 export { XferLoad } from './xfer-load.js';
 export { XferCrc } from './xfer-crc.js';
