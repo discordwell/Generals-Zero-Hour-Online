@@ -2074,6 +2074,8 @@ interface SpecialPowerModuleProfile {
   pausedOnFrame: number;
   /** Source parity: SpecialPowerModule::m_pausedPercent. */
   pausedPercent: number;
+  /** Source parity bridge: SpyVisionUpdate::m_deactivateFrame while update modules are folded into the entity runtime. */
+  spyVisionDeactivateFrame: number;
   /**
    * Source parity: CashHackSpecialPowerModuleData::m_defaultAmountToSteal.
    * INI field: MoneyAmount. Default 0.
@@ -3710,6 +3712,10 @@ export interface MapEntity {
   // ── Source parity: FlammableUpdate — per-entity fire DoT state ──
   /** Flammability status: 'NORMAL' | 'AFLAME' | 'BURNED'. */
   flameStatus: 'NORMAL' | 'AFLAME' | 'BURNED';
+  /** Source parity: Object::m_disabledTillFrame[DISABLED_HACKED]. */
+  disabledHackedUntilFrame: number;
+  /** Source parity: Object::m_disabledTillFrame[DISABLED_EMP]. */
+  disabledEmpUntilFrame: number;
   /** Accumulated flame damage toward ignition threshold. */
   flameDamageAccumulated: number;
   /** Frame at which aflame state ends. */
@@ -7960,6 +7966,8 @@ const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
   'sideScoreScreenExcluded',
   'sideAttackedBy',
   'sideAttackedFrame',
+  'sideVisionSpiedBy',
+  'sideVisionSpiedMask',
   'sideBattlePlanBonuses',
   'sharedShortcutSpecialPowerReadyFrames',
   'scriptCurrentSupplyWarehouseBySide',
@@ -8143,10 +8151,16 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'visualEventBuffer',
   'evaEventBuffer',
   'pendingDyingRenderableStates',
+  'dyingEntityIds',
   'projectileKindOfCache',
   'isAttackMoveToMode',
   'previousAttackMoveToggleDown',
   'placementSummary',
+  'activeSpyVisions',
+  'spyVisionEntityStates',
+  'revealToAllVisionStates',
+  'disabledHackedStatusByEntityId',
+  'disabledEmpStatusByEntityId',
   'shortcutSpecialPowerSourceByName',
   'shortcutSpecialPowerNamesByEntityId',
   'pausedShortcutSpecialPowerByName',
@@ -8548,6 +8562,9 @@ export class GameLogicSubsystem implements Subsystem {
   /** Source parity: Player::m_attackedBy + m_attackedFrame. */
   private readonly sideAttackedBy = new Map<string, Set<string>>();
   private readonly sideAttackedFrame = new Map<string, number>();
+  /** Source parity: Player::m_visionSpiedBy / m_visionSpiedMask. */
+  private readonly sideVisionSpiedBy = new Map<string, number[]>();
+  private readonly sideVisionSpiedMask = new Map<string, number>();
   /** Source parity bridge: controlling-player attacked-by tracking for script player-name conditions. */
   private readonly controllingPlayerAttackedByPlayer = new Map<string, Set<string>>();
   private readonly controllingPlayerAttackedBySide = new Map<string, Set<string>>();
@@ -8763,8 +8780,6 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly hackInternetPendingCommandByEntityId = new Map<number, HackInternetPendingCommandState>();
   private readonly assaultTransportStateByEntityId = new Map<number, AssaultTransportState>();
   private readonly overchargeStateByEntityId = new Map<number, OverchargeRuntimeState>();
-  private readonly disabledHackedStatusByEntityId = new Map<number, number>();
-  private readonly disabledEmpStatusByEntityId = new Map<number, number>();
   /** Source parity: ThingTemplate::m_isBuildFacility derived set from production prerequisites. */
   private buildFacilityTemplateNamesCache: Set<string> | null = null;
   private buildFacilityTemplateNamesRegistry: IniDataRegistry | null = null;
@@ -8837,6 +8852,8 @@ export class GameLogicSubsystem implements Subsystem {
     spyingPlayerIndex: number;
     spyingSide: string;
     expiryFrame: number;
+    sourceEntityId?: number;
+    sourcePowerName?: string;
   }[] = [];
   /**
    * Per-entity spy vision looker states, keyed by `${entityId}:${spyingPlayerIndex}`.
@@ -9541,6 +9558,182 @@ export class GameLogicSubsystem implements Subsystem {
     };
   }
 
+  private getOrCreateSideVisionSpiedCounters(side: string): number[] {
+    let counters = this.sideVisionSpiedBy.get(side);
+    if (!counters) {
+      counters = [];
+      this.sideVisionSpiedBy.set(side, counters);
+    }
+    return counters;
+  }
+
+  private recomputeSideVisionSpiedMask(side: string): void {
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return;
+    }
+    const counters = this.sideVisionSpiedBy.get(normalizedSide);
+    if (!counters || counters.length === 0) {
+      this.sideVisionSpiedMask.delete(normalizedSide);
+      return;
+    }
+
+    let mask = 0;
+    for (let playerIndex = 0; playerIndex < counters.length; playerIndex += 1) {
+      if ((counters[playerIndex] ?? 0) > 0) {
+        mask |= (1 << playerIndex);
+      }
+    }
+
+    if (mask !== 0) {
+      this.sideVisionSpiedMask.set(normalizedSide, mask);
+      return;
+    }
+
+    this.sideVisionSpiedMask.delete(normalizedSide);
+  }
+
+  private setUnitsVisionSpiedForSide(setting: boolean, spiedSide: string, byWhom: number): void {
+    const normalizedSide = this.normalizeSide(spiedSide);
+    if (!normalizedSide || byWhom < 0) {
+      return;
+    }
+
+    const counters = this.getOrCreateSideVisionSpiedCounters(normalizedSide);
+    while (counters.length <= byWhom) {
+      counters.push(0);
+    }
+
+    const previousCount = counters[byWhom] ?? 0;
+    if (setting) {
+      counters[byWhom] = previousCount + 1;
+    } else {
+      if (previousCount <= 0) {
+        return;
+      }
+      counters[byWhom] = previousCount - 1;
+    }
+
+    this.recomputeSideVisionSpiedMask(normalizedSide);
+  }
+
+  private applyEnemyUnitsVisionSpiedSetting(
+    setting: boolean,
+    spyingSide: string,
+    spyingPlayerIndex: number,
+  ): void {
+    const normalizedSpyingSide = this.normalizeSide(spyingSide);
+    if (!normalizedSpyingSide || spyingPlayerIndex < 0) {
+      return;
+    }
+
+    const visitedSides = new Set<string>();
+    for (const [, candidateSide] of this.playerSideByIndex) {
+      const normalizedCandidateSide = this.normalizeSide(candidateSide);
+      if (!normalizedCandidateSide || visitedSides.has(normalizedCandidateSide)) {
+        continue;
+      }
+      visitedSides.add(normalizedCandidateSide);
+      if (this.getTeamRelationshipBySides(normalizedSpyingSide, normalizedCandidateSide) !== RELATIONSHIP_ENEMIES) {
+        continue;
+      }
+      this.setUnitsVisionSpiedForSide(setting, normalizedCandidateSide, spyingPlayerIndex);
+    }
+
+    for (const candidateSide of this.sidePlayerIndex.keys()) {
+      const normalizedCandidateSide = this.normalizeSide(candidateSide);
+      if (!normalizedCandidateSide || visitedSides.has(normalizedCandidateSide)) {
+        continue;
+      }
+      visitedSides.add(normalizedCandidateSide);
+      if (this.getTeamRelationshipBySides(normalizedSpyingSide, normalizedCandidateSide) !== RELATIONSHIP_ENEMIES) {
+        continue;
+      }
+      this.setUnitsVisionSpiedForSide(setting, normalizedCandidateSide, spyingPlayerIndex);
+    }
+
+    for (const candidateSide of this.sidePlayerTypes.keys()) {
+      const normalizedCandidateSide = this.normalizeSide(candidateSide);
+      if (!normalizedCandidateSide || visitedSides.has(normalizedCandidateSide)) {
+        continue;
+      }
+      visitedSides.add(normalizedCandidateSide);
+      if (this.getTeamRelationshipBySides(normalizedSpyingSide, normalizedCandidateSide) !== RELATIONSHIP_ENEMIES) {
+        continue;
+      }
+      this.setUnitsVisionSpiedForSide(setting, normalizedCandidateSide, spyingPlayerIndex);
+    }
+
+    for (const entity of this.spawnedEntities.values()) {
+      const normalizedCandidateSide = this.normalizeSide(entity.side);
+      if (!normalizedCandidateSide || visitedSides.has(normalizedCandidateSide)) {
+        continue;
+      }
+      visitedSides.add(normalizedCandidateSide);
+      if (this.getTeamRelationshipBySides(normalizedSpyingSide, normalizedCandidateSide) !== RELATIONSHIP_ENEMIES) {
+        continue;
+      }
+      this.setUnitsVisionSpiedForSide(setting, normalizedCandidateSide, spyingPlayerIndex);
+    }
+  }
+
+  private syncActiveSpyVisionRuntimeState(): void {
+    this.activeSpyVisions.length = 0;
+
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) {
+        continue;
+      }
+      const spyingSide = this.normalizeSide(entity.side);
+      if (!spyingSide) {
+        continue;
+      }
+      const spyingPlayerIndex = this.resolvePlayerIndexForSide(spyingSide);
+      if (spyingPlayerIndex < 0) {
+        continue;
+      }
+
+      for (const [powerName, module] of entity.specialPowerModules) {
+        if (resolveEffectCategoryImpl(module.moduleType) !== 'SPY_VISION') {
+          continue;
+        }
+        const expiryFrame = Math.max(0, Math.trunc(module.spyVisionDeactivateFrame));
+        if (expiryFrame <= this.frameCounter) {
+          continue;
+        }
+        this.activeSpyVisions.push({
+          spyingPlayerIndex,
+          spyingSide,
+          expiryFrame,
+          sourceEntityId: entity.id,
+          sourcePowerName: powerName,
+        });
+      }
+    }
+  }
+
+  private deactivateSourceBackedSpyVision(
+    source: MapEntity,
+    module: SpecialPowerModuleProfile,
+  ): boolean {
+    const expiryFrame = Math.max(0, Math.trunc(module.spyVisionDeactivateFrame));
+    if (expiryFrame <= 0) {
+      return false;
+    }
+
+    const spyingSide = this.normalizeSide(source.side);
+    if (spyingSide) {
+      const spyingPlayerIndex = this.resolvePlayerIndexForSide(spyingSide);
+      if (spyingPlayerIndex >= 0) {
+        this.applyEnemyUnitsVisionSpiedSetting(false, spyingSide, spyingPlayerIndex);
+      }
+    }
+
+    module.spyVisionDeactivateFrame = 0;
+    this.syncActiveSpyVisionRuntimeState();
+    return true;
+  }
+
   private restoreLegacyContainmentBrowserRuntimeState(key: string, value: unknown): boolean {
     if (key === 'tunnelTrackers') {
       if (this.tunnelTrackers.size !== 0 || !(value instanceof Map)) {
@@ -9736,6 +9929,90 @@ export class GameLogicSubsystem implements Subsystem {
       this.rebuildSpecialPowerRuntimeIndexes();
       return true;
     }
+    if (key === 'activeSpyVisions') {
+      if (!Array.isArray(value)) {
+        return false;
+      }
+      const shouldHydratePlayerState = this.sideVisionSpiedBy.size === 0;
+      this.activeSpyVisions.length = 0;
+      for (const entry of value) {
+        if (!entry || typeof entry !== 'object') {
+          continue;
+        }
+        const record = entry as {
+          spyingPlayerIndex?: unknown;
+          spyingSide?: unknown;
+          expiryFrame?: unknown;
+          sourceEntityId?: unknown;
+          sourcePowerName?: unknown;
+        };
+        if (!Number.isFinite(record.spyingPlayerIndex) || typeof record.spyingSide !== 'string') {
+          continue;
+        }
+        const normalizedSide = this.normalizeSide(record.spyingSide);
+        if (!normalizedSide) {
+          continue;
+        }
+        const spyingPlayerIndex = Math.max(0, Math.trunc(record.spyingPlayerIndex as number));
+        this.activeSpyVisions.push({
+          spyingPlayerIndex,
+          spyingSide: normalizedSide,
+          expiryFrame: Number.isFinite(record.expiryFrame)
+            ? Math.max(0, Math.trunc(record.expiryFrame as number))
+            : this.frameCounter,
+          sourceEntityId: Number.isFinite(record.sourceEntityId)
+            ? Math.trunc(record.sourceEntityId as number)
+            : undefined,
+          sourcePowerName: typeof record.sourcePowerName === 'string'
+            ? record.sourcePowerName
+            : undefined,
+        });
+        if (shouldHydratePlayerState) {
+          this.applyEnemyUnitsVisionSpiedSetting(true, normalizedSide, spyingPlayerIndex);
+        }
+      }
+      return true;
+    }
+    if (key === 'spyVisionEntityStates') {
+      return true;
+    }
+    if (key === 'revealToAllVisionStates' || key === 'dyingEntityIds') {
+      return true;
+    }
+    if (key === 'disabledHackedStatusByEntityId') {
+      if (!(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, disableUntilFrame] of value.entries()) {
+        if (typeof entityId !== 'number' || !Number.isFinite(disableUntilFrame)) {
+          continue;
+        }
+        const entity = this.spawnedEntities.get(entityId);
+        if (!entity || entity.destroyed) {
+          continue;
+        }
+        entity.objectStatusFlags.add('DISABLED_HACKED');
+        entity.disabledHackedUntilFrame = Math.max(0, Math.trunc(disableUntilFrame));
+      }
+      return true;
+    }
+    if (key === 'disabledEmpStatusByEntityId') {
+      if (!(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, disableUntilFrame] of value.entries()) {
+        if (typeof entityId !== 'number' || !Number.isFinite(disableUntilFrame)) {
+          continue;
+        }
+        const entity = this.spawnedEntities.get(entityId);
+        if (!entity || entity.destroyed) {
+          continue;
+        }
+        entity.objectStatusFlags.add('DISABLED_EMP');
+        entity.disabledEmpUntilFrame = Math.max(0, Math.trunc(disableUntilFrame));
+      }
+      return true;
+    }
     return false;
   }
 
@@ -9847,6 +10124,38 @@ export class GameLogicSubsystem implements Subsystem {
 
   finalizeSourceSpecialPowerRuntimeSaveState(): void {
     this.rebuildSpecialPowerRuntimeIndexes();
+  }
+
+  finalizeSourceSpyVisionRuntimeSaveState(): void {
+    for (const [side, counters] of this.sideVisionSpiedBy.entries()) {
+      const normalizedCounters = Array.isArray(counters)
+        ? counters.map((count) => (Number.isFinite(count) ? Math.max(0, Math.trunc(count)) : 0))
+        : [];
+      this.sideVisionSpiedBy.set(side, normalizedCounters);
+      this.recomputeSideVisionSpiedMask(side);
+    }
+
+    this.spyVisionEntityStates.clear();
+
+    let hasSourceBackedSpyVision = false;
+    for (const entity of this.spawnedEntities.values()) {
+      for (const [, module] of entity.specialPowerModules) {
+        if (resolveEffectCategoryImpl(module.moduleType) !== 'SPY_VISION') {
+          continue;
+        }
+        if (Math.max(0, Math.trunc(module.spyVisionDeactivateFrame)) > this.frameCounter) {
+          hasSourceBackedSpyVision = true;
+          break;
+        }
+      }
+      if (hasSourceBackedSpyVision) {
+        break;
+      }
+    }
+
+    if (hasSourceBackedSpyVision || this.activeSpyVisions.length === 0) {
+      this.syncActiveSpyVisionRuntimeState();
+    }
   }
 
   private synchronizeLocalPlayerScienceAvailability(): void {
@@ -19240,6 +19549,8 @@ export class GameLogicSubsystem implements Subsystem {
     this.localPlayerScienceAvailability.clear();
     this.sidePowerBonus.clear();
     this.sideRadarState.clear();
+    this.sideVisionSpiedBy.clear();
+    this.sideVisionSpiedMask.clear();
     this.temporaryVisionReveals.length = 0;
     this.activeSpyVisions.length = 0;
     this.spyVisionEntityStates.clear();
@@ -23035,7 +23346,7 @@ export class GameLogicSubsystem implements Subsystem {
       case 'SPY_VISION':
         // Source parity: SpyVisionUpdate::doActivationWork — globally spy on all enemy
         // units' vision ranges for the duration (no radius constraint).
-        this.activateGlobalSpyVision(source.side ?? '', module.spyVisionBaseDurationMs);
+        this.activateGlobalSpyVision(source, module, module.spyVisionBaseDurationMs);
         break;
       case 'CASH_BOUNTY': {
         // Source parity: CashBountyPower::onSpecialPowerCreation — sets the player's cash bounty
@@ -23163,7 +23474,7 @@ export class GameLogicSubsystem implements Subsystem {
       case 'SPY_VISION':
         // Source parity: SpyVisionUpdate::doActivationWork — globally spy on all enemy
         // units' vision ranges for the duration (no radius constraint).
-        this.activateGlobalSpyVision(sourceSide, module.spyVisionBaseDurationMs);
+        this.activateGlobalSpyVision(source, module, module.spyVisionBaseDurationMs);
         break;
       case 'AREA_HEAL':
         executeAreaHealImpl({
@@ -25301,17 +25612,19 @@ export class GameLogicSubsystem implements Subsystem {
    * Source parity: EMPUpdate — timed DISABLED_EMP status expiry.
    */
   private updateDisabledEmpStatuses(): void {
-    for (const [entityId, disableUntilFrame] of this.disabledEmpStatusByEntityId.entries()) {
-      const entity = this.spawnedEntities.get(entityId);
-      if (!entity || entity.destroyed) {
-        this.disabledEmpStatusByEntityId.delete(entityId);
+    for (const entity of this.spawnedEntities.values()) {
+      if (!entity.objectStatusFlags.has('DISABLED_EMP')) {
         continue;
       }
-      if (this.frameCounter < disableUntilFrame) {
+      if (entity.destroyed) {
+        entity.disabledEmpUntilFrame = 0;
+        continue;
+      }
+      if (this.frameCounter < entity.disabledEmpUntilFrame) {
         continue;
       }
       entity.objectStatusFlags.delete('DISABLED_EMP');
-      this.disabledEmpStatusByEntityId.delete(entityId);
+      entity.disabledEmpUntilFrame = 0;
 
       // Source parity: Object.cpp:2293-2303 — when a SPAWNS_ARE_THE_WEAPONS entity is
       // undisabled, propagate clearDisabled to all spawned slaves.
@@ -25320,7 +25633,7 @@ export class GameLogicSubsystem implements Subsystem {
           const slave = this.spawnedEntities.get(slaveId);
           if (slave && !slave.destroyed && slave.objectStatusFlags.has('DISABLED_EMP')) {
             slave.objectStatusFlags.delete('DISABLED_EMP');
-            this.disabledEmpStatusByEntityId.delete(slaveId);
+            slave.disabledEmpUntilFrame = 0;
           }
         }
       }
@@ -25335,9 +25648,8 @@ export class GameLogicSubsystem implements Subsystem {
     if (entity.destroyed) return;
     entity.objectStatusFlags.add('DISABLED_EMP');
     const resolvedDisableUntilFrame = this.frameCounter + durationFrames;
-    const previous = this.disabledEmpStatusByEntityId.get(entity.id) ?? 0;
-    if (resolvedDisableUntilFrame > previous) {
-      this.disabledEmpStatusByEntityId.set(entity.id, resolvedDisableUntilFrame);
+    if (resolvedDisableUntilFrame > entity.disabledEmpUntilFrame) {
+      entity.disabledEmpUntilFrame = resolvedDisableUntilFrame;
     }
 
     // Source parity: Object.cpp:3820-3826 — when a dozer becomes disabled, cancel its
@@ -34429,15 +34741,37 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
 
-    // Source parity: SpyVisionUpdate::doActivationWork — expire global spy visions
-    // and clean up per-entity spy vision lookers when they expire.
-    for (let i = this.activeSpyVisions.length - 1; i >= 0; i--) {
-      const sv = this.activeSpyVisions[i]!;
-      if (this.frameCounter >= sv.expiryFrame) {
-        // Remove all spy vision lookers contributed by this spy vision entry.
-        this.removeSpyVisionLookers(sv.spyingPlayerIndex);
-        this.activeSpyVisions.splice(i, 1);
+    let spyVisionChanged = false;
+    for (const entity of this.spawnedEntities.values()) {
+      for (const [, module] of entity.specialPowerModules) {
+        if (resolveEffectCategoryImpl(module.moduleType) !== 'SPY_VISION') {
+          continue;
+        }
+        if (module.spyVisionDeactivateFrame > 0 && this.frameCounter >= module.spyVisionDeactivateFrame) {
+          spyVisionChanged = this.deactivateSourceBackedSpyVision(entity, module) || spyVisionChanged;
+        }
       }
+    }
+
+    for (let i = this.activeSpyVisions.length - 1; i >= 0; i -= 1) {
+      const spyVision = this.activeSpyVisions[i]!;
+      if (spyVision.sourceEntityId !== undefined) {
+        continue;
+      }
+      if (this.frameCounter >= spyVision.expiryFrame) {
+        this.applyEnemyUnitsVisionSpiedSetting(
+          false,
+          spyVision.spyingSide,
+          spyVision.spyingPlayerIndex,
+        );
+        this.activeSpyVisions.splice(i, 1);
+        spyVisionChanged = true;
+      }
+    }
+
+    if (spyVisionChanged) {
+      this.syncActiveSpyVisionRuntimeState();
+      this.updateSpyVisionFog();
     }
   }
 
@@ -34450,8 +34784,12 @@ export class GameLogicSubsystem implements Subsystem {
    * enemy entity's fog-of-war vision contribution, so the spying player sees through
    * every enemy unit's eyes.
    */
-  private activateGlobalSpyVision(sourceSide: string, durationMs: number): void {
-    const spyingSide = this.normalizeSide(sourceSide);
+  private activateGlobalSpyVision(
+    source: MapEntity,
+    module: SpecialPowerModuleProfile,
+    durationMs: number,
+  ): void {
+    const spyingSide = this.normalizeSide(source.side);
     if (!spyingSide) return;
     const spyingPlayerIdx = this.resolvePlayerIndexForSide(spyingSide);
     if (spyingPlayerIdx < 0) return;
@@ -34460,56 +34798,47 @@ export class GameLogicSubsystem implements Subsystem {
     const durationFrames = durationMs > 0
       ? this.msToLogicFrames(durationMs)
       : DEFAULT_SPY_DURATION_FRAMES;
-
-    this.activeSpyVisions.push({
-      spyingPlayerIndex: spyingPlayerIdx,
-      spyingSide,
-      expiryFrame: this.frameCounter + durationFrames,
-    });
+    module.spyVisionDeactivateFrame = this.frameCounter + durationFrames;
+    this.applyEnemyUnitsVisionSpiedSetting(true, spyingSide, spyingPlayerIdx);
+    this.syncActiveSpyVisionRuntimeState();
   }
 
   /**
    * Update spy vision fog-of-war contributions.
-   * For each active spy vision, iterate all enemy entities and contribute their
-   * vision to the spying player's fog grid — just like C++ setUnitsVisionSpied.
+   * Mirrors Player::m_visionSpiedMask by letting spied players' units reveal for
+   * every player index currently present in the mask.
    */
   private updateSpyVisionFog(): void {
     const grid = this.fogOfWarGrid;
-    if (!grid || this.activeSpyVisions.length === 0) return;
+    if (!grid) return;
 
-    for (const sv of this.activeSpyVisions) {
-      for (const entity of this.spawnedEntities.values()) {
-        const entitySide = this.normalizeSide(entity.side);
-        // Determine if this entity is a valid spy target (alive enemy).
-        const isValidTarget = !entity.destroyed
-          && !!entitySide
-          && this.getTeamRelationshipBySides(sv.spyingSide, entitySide) === 0;
+    const activeKeys = new Set<string>();
 
-        const key = `${entity.id}:${sv.spyingPlayerIndex}`;
-        const existingState = this.spyVisionEntityStates.get(key);
+    for (const entity of this.spawnedEntities.values()) {
+      const entitySide = this.normalizeSide(entity.side);
+      if (!entitySide) {
+        continue;
+      }
 
-        if (!isValidTarget) {
-          // If entity was previously contributing spy vision, clean up.
-          if (existingState?.isLooking) {
-            updateEntityVisionImpl(grid, existingState, sv.spyingPlayerIndex, entity.x, entity.z, 0, false);
-            this.spyVisionEntityStates.delete(key);
-          }
+      const spyingMask = this.sideVisionSpiedMask.get(entitySide) ?? 0;
+      if (spyingMask === 0) {
+        continue;
+      }
+
+      const effectiveRange = entity.objectStatusFlags.has('UNDER_CONSTRUCTION')
+        ? this.resolveEntityBoundingCircleRadius2D(entity)
+        : entity.shroudClearingRange;
+      const shouldReveal = !entity.destroyed && effectiveRange > 0;
+
+      for (let spyingPlayerIndex = 0; spyingPlayerIndex < this.nextPlayerIndex; spyingPlayerIndex += 1) {
+        if ((spyingMask & (1 << spyingPlayerIndex)) === 0) {
           continue;
         }
 
-        const effectiveRange = entity.objectStatusFlags.has('UNDER_CONSTRUCTION')
-          ? this.resolveEntityBoundingCircleRadius2D(entity)
-          : entity.shroudClearingRange;
+        const key = `${entity.id}:${spyingPlayerIndex}`;
+        activeKeys.add(key);
 
-        if (effectiveRange <= 0) {
-          if (existingState?.isLooking) {
-            updateEntityVisionImpl(grid, existingState, sv.spyingPlayerIndex, entity.x, entity.z, 0, false);
-            this.spyVisionEntityStates.delete(key);
-          }
-          continue;
-        }
-
-        let visionState = existingState;
+        let visionState = this.spyVisionEntityStates.get(key);
         if (!visionState) {
           visionState = createEntityVisionStateImpl();
           this.spyVisionEntityStates.set(key, visionState);
@@ -34518,35 +34847,24 @@ export class GameLogicSubsystem implements Subsystem {
         updateEntityVisionImpl(
           grid,
           visionState,
-          sv.spyingPlayerIndex,
+          spyingPlayerIndex,
           entity.x,
           entity.z,
           effectiveRange,
-          true,
+          shouldReveal,
         );
       }
     }
-  }
 
-  /**
-   * Remove all spy vision lookers for a given spying player index.
-   * Called when a spy vision entry expires.
-   */
-  private removeSpyVisionLookers(spyingPlayerIndex: number): void {
-    const grid = this.fogOfWarGrid;
-    if (!grid) return;
-
-    const keysToRemove: string[] = [];
-    const suffix = `:${spyingPlayerIndex}`;
     for (const [key, visionState] of this.spyVisionEntityStates) {
-      if (key.endsWith(suffix)) {
-        if (visionState.isLooking) {
-          grid.removeLooker(spyingPlayerIndex, visionState.lastLookX, visionState.lastLookZ, visionState.lastLookRadius);
-        }
-        keysToRemove.push(key);
+      if (activeKeys.has(key)) {
+        continue;
       }
-    }
-    for (const key of keysToRemove) {
+      const keyParts = key.split(':');
+      const spyingPlayerIndex = Number(keyParts[keyParts.length - 1] ?? -1);
+      if (visionState.isLooking && Number.isFinite(spyingPlayerIndex)) {
+        grid.removeLooker(spyingPlayerIndex, visionState.lastLookX, visionState.lastLookZ, visionState.lastLookRadius);
+      }
       this.spyVisionEntityStates.delete(key);
     }
   }
@@ -36193,8 +36511,10 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     this.overchargeStateByEntityId.clear();
-    this.disabledHackedStatusByEntityId.clear();
-    this.disabledEmpStatusByEntityId.clear();
+    for (const entity of this.spawnedEntities.values()) {
+      entity.disabledHackedUntilFrame = 0;
+      entity.disabledEmpUntilFrame = 0;
+    }
     this.sellingEntities.clear();
     this.hackInternetStateByEntityId.clear();
     this.hackInternetPendingCommandByEntityId.clear();
@@ -36218,6 +36538,8 @@ export class GameLogicSubsystem implements Subsystem {
     this.railedTransportStateByEntityId.clear();
     this.railedTransportWaypointIndex = createRailedTransportWaypointIndexImpl(null);
     this.fogOfWarGrid = null;
+    this.sideVisionSpiedBy.clear();
+    this.sideVisionSpiedMask.clear();
     this.activeSpyVisions.length = 0;
     this.spyVisionEntityStates.clear();
     this.revealToAllVisionStates.clear();

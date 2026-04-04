@@ -10,6 +10,8 @@ describe('player save-state', () => {
       sideCredits: Map<string, number>;
       sideScienceAvailability: Map<string, Map<string, 'enabled' | 'disabled' | 'hidden'>>;
       sharedShortcutSpecialPowerReadyFrames: Map<string, number>;
+      sideVisionSpiedBy: Map<string, number[]>;
+      sideVisionSpiedMask: Map<string, number>;
       scriptCurrentSupplyWarehouseBySide: Map<string, number>;
       scriptSkirmishBaseDefenseStateBySide: Map<string, {
         curFrontBaseDefense: number;
@@ -40,6 +42,8 @@ describe('player save-state', () => {
       new Map([['SCIENCE_PARTICLE_UPLINK_CANNON', 'disabled']]),
     );
     privateLogic.sharedShortcutSpecialPowerReadyFrames.set('SPECIAL_PARTICLE_UPLINK_CANNON', 240);
+    privateLogic.sideVisionSpiedBy.set('china', [1]);
+    privateLogic.sideVisionSpiedMask.set('china', 1);
     privateLogic.scriptCurrentSupplyWarehouseBySide.set('america', 17);
     privateLogic.scriptSkirmishBaseDefenseStateBySide.set('china', {
       curFrontBaseDefense: 2,
@@ -70,6 +74,8 @@ describe('player save-state', () => {
     expect(playerState.state.sharedShortcutSpecialPowerReadyFrames).toEqual(
       new Map([['SPECIAL_PARTICLE_UPLINK_CANNON', 240]]),
     );
+    expect(playerState.state.sideVisionSpiedBy).toEqual(new Map([['china', [1]]]));
+    expect(playerState.state.sideVisionSpiedMask).toEqual(new Map([['china', 1]]));
     expect(playerState.state.scriptCurrentSupplyWarehouseBySide).toEqual(
       new Map([['america', 17]]),
     );
@@ -101,6 +107,8 @@ describe('player save-state', () => {
 
     expect(browserState).not.toHaveProperty('scriptCurrentSupplyWarehouseBySide');
     expect(browserState).not.toHaveProperty('sharedShortcutSpecialPowerReadyFrames');
+    expect(browserState).not.toHaveProperty('sideVisionSpiedBy');
+    expect(browserState).not.toHaveProperty('sideVisionSpiedMask');
     expect(browserState).not.toHaveProperty('scriptSidesUnitsShouldHunt');
     expect(browserState).not.toHaveProperty('scriptSkirmishBaseCenterAndRadiusBySide');
     expect(browserState).not.toHaveProperty('scriptSkirmishBaseDefenseStateBySide');
@@ -118,6 +126,8 @@ describe('player save-state', () => {
     expect(restoredPrivate.sharedShortcutSpecialPowerReadyFrames).toEqual(
       new Map([['SPECIAL_PARTICLE_UPLINK_CANNON', 240]]),
     );
+    expect(restoredPrivate.sideVisionSpiedBy).toEqual(new Map([['china', [1]]]));
+    expect(restoredPrivate.sideVisionSpiedMask).toEqual(new Map([['china', 1]]));
     expect(restoredPrivate.scriptCurrentSupplyWarehouseBySide).toEqual(new Map([['america', 17]]));
     expect(restoredPrivate.scriptSidesUnitsShouldHunt).toEqual(new Set(['america']));
     expect(restoredPrivate.scriptSkirmishBaseCenterAndRadiusBySide).toEqual(

@@ -519,6 +519,8 @@ export function createMapEntity(self: GL,
     poisonExpireFrame: 0,
     // Fire DoT state
     flameStatus: 'NORMAL' as const,
+    disabledHackedUntilFrame: 0,
+    disabledEmpUntilFrame: 0,
     flameDamageAccumulated: 0,
     flameEndFrame: 0,
     flameBurnedEndFrame: 0,
@@ -5430,6 +5432,7 @@ export function extractSpecialPowerModules(self: GL, objectDef: ObjectDef | unde
             pausedCount: 0,
             pausedOnFrame: 0,
             pausedPercent: 0,
+            spyVisionDeactivateFrame: 0,
             // Source parity: read module-specific INI parameters.
             cashHackMoneyAmount: readNumericField(block.fields, ['MoneyAmount']) ?? 0,
             cashBountyPercent: readNumericField(block.fields, ['Bounty']) ?? 0,

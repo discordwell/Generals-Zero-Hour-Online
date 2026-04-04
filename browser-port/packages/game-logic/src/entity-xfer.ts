@@ -16,7 +16,7 @@ import { XferMode } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 2;
+const ENTITY_XFER_VERSION = 3;
 
 /**
  * Serialize or deserialize a nullable string.
@@ -359,6 +359,13 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.executedUpgradeModules = xferStringSet(xfer, e.executedUpgradeModules as Set<string>);
   e.upgradeModules = xferJsonObject(xfer, e.upgradeModules as unknown[]);
   e.objectStatusFlags = xferStringSet(xfer, e.objectStatusFlags as Set<string>);
+  if (version >= 3) {
+    e.disabledHackedUntilFrame = xfer.xferUnsignedInt(e.disabledHackedUntilFrame as number);
+    e.disabledEmpUntilFrame = xfer.xferUnsignedInt(e.disabledEmpUntilFrame as number);
+  } else {
+    e.disabledHackedUntilFrame = 0;
+    e.disabledEmpUntilFrame = 0;
+  }
   e.modelConditionFlags = xferStringSet(xfer, e.modelConditionFlags as Set<string>);
   e.scriptFlashCount = xfer.xferInt(e.scriptFlashCount as number);
   e.scriptFlashColor = xfer.xferInt(e.scriptFlashColor as number);

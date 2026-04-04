@@ -803,8 +803,8 @@ export function silentDestroyEntity(self: GL, entityId: number): void {
   self.dockApproachStates.delete(entityId);
   self.disableOverchargeForEntity(entity);
   self.sellingEntities.delete(entityId);
-  self.disabledHackedStatusByEntityId.delete(entityId);
-  self.disabledEmpStatusByEntityId.delete(entityId);
+  entity.disabledHackedUntilFrame = 0;
+  entity.disabledEmpUntilFrame = 0;
   self.battlePlanParalyzedUntilFrame.delete(entityId);
 
   // Clean up pending actions referencing this entity.
@@ -1360,8 +1360,8 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   self.dockApproachStates.delete(entityId);
   self.disableOverchargeForEntity(entity);
   self.sellingEntities.delete(entityId);
-  self.disabledHackedStatusByEntityId.delete(entityId);
-  self.disabledEmpStatusByEntityId.delete(entityId);
+  entity.disabledHackedUntilFrame = 0;
+  entity.disabledEmpUntilFrame = 0;
   self.battlePlanParalyzedUntilFrame.delete(entityId);
   // Source parity: if a Strategy Center is destroyed while a battle plan is active,
   // remove its bonuses from all entities on the side.
@@ -1480,6 +1480,11 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   }
   cancelAndRefundAllProductionOnDeath(self, entity);
   self.removeAllSequentialScriptsForEntity(entityId);
+  for (const [, module] of entity.specialPowerModules) {
+    if (module.spyVisionDeactivateFrame > 0) {
+      self.deactivateSourceBackedSpyVision(entity, module);
+    }
+  }
   entity.animationState = 'DIE';
   // Source parity: upgrade modules clean up side state via removeEntityUpgrade/onDelete parity.
   entity.destroyed = true;

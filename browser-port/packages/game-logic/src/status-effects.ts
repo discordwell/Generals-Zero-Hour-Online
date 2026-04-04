@@ -133,9 +133,8 @@ export function setDisabledHackedStatusUntil(self: GL, entity: MapEntity, disabl
   }
   const resolvedDisableUntilFrame = Math.max(self.frameCounter + 1, Math.trunc(disableUntilFrame));
   entity.objectStatusFlags.add('DISABLED_HACKED');
-  const previousDisableUntil = self.disabledHackedStatusByEntityId.get(entity.id) ?? 0;
-  if (resolvedDisableUntilFrame > previousDisableUntil) {
-    self.disabledHackedStatusByEntityId.set(entity.id, resolvedDisableUntilFrame);
+  if (resolvedDisableUntilFrame > entity.disabledHackedUntilFrame) {
+    entity.disabledHackedUntilFrame = resolvedDisableUntilFrame;
   }
 
   // Source parity: Object.cpp:3820-3826 — when a dozer becomes disabled, cancel its
@@ -146,19 +145,19 @@ export function setDisabledHackedStatusUntil(self: GL, entity: MapEntity, disabl
 }
 
 export function updateDisabledHackedStatuses(self: GL): void {
-  for (const [entityId, disableUntilFrame] of self.disabledHackedStatusByEntityId.entries()) {
-    const entity = self.spawnedEntities.get(entityId);
-    if (!entity || entity.destroyed) {
-      self.disabledHackedStatusByEntityId.delete(entityId);
+  for (const entity of self.spawnedEntities.values()) {
+    if (!entity.objectStatusFlags.has('DISABLED_HACKED')) {
       continue;
     }
-
-    if (self.frameCounter < disableUntilFrame) {
+    if (entity.destroyed) {
+      entity.disabledHackedUntilFrame = 0;
       continue;
     }
-
+    if (self.frameCounter < entity.disabledHackedUntilFrame) {
+      continue;
+    }
     entity.objectStatusFlags.delete('DISABLED_HACKED');
-    self.disabledHackedStatusByEntityId.delete(entityId);
+    entity.disabledHackedUntilFrame = 0;
   }
 }
 
