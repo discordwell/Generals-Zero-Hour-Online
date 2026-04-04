@@ -16,7 +16,7 @@ import { XferMode } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 9;
+const ENTITY_XFER_VERSION = 10;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 
 /**
@@ -610,7 +610,17 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.commandButtonHuntNextScanFrame = xfer.xferInt(e.commandButtonHuntNextScanFrame as number);
   e.dozerAIProfile = xferNullableJsonObject(xfer, e.dozerAIProfile as object | null);
   e.dozerIdleTooLongTimestamp = xfer.xferInt(e.dozerIdleTooLongTimestamp as number);
+  if (version >= 10) {
+    e.dozerBuildTargetEntityId = xfer.xferObjectID(e.dozerBuildTargetEntityId as number);
+  } else {
+    e.dozerBuildTargetEntityId = 0;
+  }
   e.dozerBuildTaskOrderFrame = xfer.xferInt(e.dozerBuildTaskOrderFrame as number);
+  if (version >= 10) {
+    e.dozerRepairTargetEntityId = xfer.xferObjectID(e.dozerRepairTargetEntityId as number);
+  } else {
+    e.dozerRepairTargetEntityId = 0;
+  }
   e.dozerRepairTaskOrderFrame = xfer.xferInt(e.dozerRepairTaskOrderFrame as number);
   e.isSupplyCenter = xfer.xferBool(e.isSupplyCenter as boolean);
 

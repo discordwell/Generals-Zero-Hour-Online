@@ -193,7 +193,9 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     commandButtonHuntNextScanFrame: 0,
     dozerAIProfile: null,
     dozerIdleTooLongTimestamp: 0,
+    dozerBuildTargetEntityId: 0,
     dozerBuildTaskOrderFrame: 0,
+    dozerRepairTargetEntityId: 0,
     dozerRepairTaskOrderFrame: 0,
     isSupplyCenter: false,
 
@@ -860,6 +862,34 @@ describe('entity-xfer', () => {
       transitWaypointIds: [],
       transitWaypointIndex: 0,
     });
+  });
+
+  it('round-trips source-owned dozer task target object ids', () => {
+    const original = createTestEntity({
+      dozerBuildTargetEntityId: 11,
+      dozerBuildTaskOrderFrame: 120,
+      dozerRepairTargetEntityId: 12,
+      dozerRepairTaskOrderFrame: 150,
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity({
+      dozerBuildTargetEntityId: 0,
+      dozerRepairTargetEntityId: 0,
+    });
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.dozerBuildTargetEntityId).toBe(11);
+    expect(loaded.dozerBuildTaskOrderFrame).toBe(120);
+    expect(loaded.dozerRepairTargetEntityId).toBe(12);
+    expect(loaded.dozerRepairTaskOrderFrame).toBe(150);
   });
 
   it('CRC is deterministic for identical entities', () => {

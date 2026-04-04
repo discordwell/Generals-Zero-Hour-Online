@@ -860,7 +860,7 @@ export function silentDestroyEntity(self: GL, entityId: number): void {
   }
   for (const [dozerId, targetBuildingId] of self.pendingConstructionActions.entries()) {
     if (targetBuildingId === entityId) {
-      self.pendingConstructionActions.delete(dozerId);
+      self.setDozerTaskTarget(dozerId, 'BUILD', null);
     }
   }
 
@@ -1424,7 +1424,7 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   // Clear dozer construction tasks targeting this building.
   for (const [dozerId, targetBuildingId] of self.pendingConstructionActions.entries()) {
     if (targetBuildingId === entityId) {
-      self.pendingConstructionActions.delete(dozerId);
+      self.setDozerTaskTarget(dozerId, 'BUILD', null);
     }
   }
 

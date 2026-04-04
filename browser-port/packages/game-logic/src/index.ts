@@ -3574,8 +3574,12 @@ export interface MapEntity {
   powTruckAIProfile: POWTruckAIProfile | null;
   /** Source parity: DozerPrimaryIdleState::m_idleTooLongTimestamp. */
   dozerIdleTooLongTimestamp: number;
+  /** Source parity: DozerAIUpdate/WorkerAIUpdate::m_task[DOZER_TASK_BUILD].m_targetObjectID. */
+  dozerBuildTargetEntityId: number;
   /** Source parity: Dozer/Worker task ordering timestamp for build tasks. */
   dozerBuildTaskOrderFrame: number;
+  /** Source parity: DozerAIUpdate/WorkerAIUpdate::m_task[DOZER_TASK_REPAIR].m_targetObjectID. */
+  dozerRepairTargetEntityId: number;
   /** Source parity: Dozer/Worker task ordering timestamp for repair tasks. */
   dozerRepairTaskOrderFrame: number;
   /** Source parity: PrisonBehavior / PropagandaCenterBehavior module data. */
@@ -8204,6 +8208,8 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'overchargeStateByEntityId',
   'assaultTransportStateByEntityId',
   'railedTransportStateByEntityId',
+  'pendingRepairActions',
+  'pendingConstructionActions',
   'pendingChinookCommandByEntityId',
   'disabledHackedStatusByEntityId',
   'disabledEmpStatusByEntityId',
@@ -9976,6 +9982,30 @@ export class GameLogicSubsystem implements Subsystem {
       }
       return true;
     }
+    if (key === 'pendingConstructionActions') {
+      if (this.pendingConstructionActions.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, targetEntityId] of value.entries()) {
+        if (typeof entityId !== 'number' || typeof targetEntityId !== 'number') {
+          continue;
+        }
+        this.setDozerTaskTarget(entityId, 'BUILD', Math.trunc(targetEntityId));
+      }
+      return true;
+    }
+    if (key === 'pendingRepairActions') {
+      if (this.pendingRepairActions.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, targetEntityId] of value.entries()) {
+        if (typeof entityId !== 'number' || typeof targetEntityId !== 'number') {
+          continue;
+        }
+        this.setDozerTaskTarget(entityId, 'REPAIR', Math.trunc(targetEntityId));
+      }
+      return true;
+    }
     if (key === 'thingTemplateBuildableOverrides') {
       if (this.thingTemplateBuildableOverrides.size !== 0 || !(value instanceof Map)) {
         return false;
@@ -10931,6 +10961,8 @@ export class GameLogicSubsystem implements Subsystem {
     );
     this.assaultTransportStateByEntityId.clear();
     this.railedTransportStateByEntityId.clear();
+    this.pendingConstructionActions.clear();
+    this.pendingRepairActions.clear();
     for (const entity of this.spawnedEntities.values()) {
       if (entity.assaultTransportState) {
         this.assaultTransportStateByEntityId.set(entity.id, entity.assaultTransportState);
@@ -10939,6 +10971,7 @@ export class GameLogicSubsystem implements Subsystem {
         this.railedTransportStateByEntityId.set(entity.id, entity.railedTransportState);
       }
     }
+    this.rebuildDozerTaskIndexesFromEntities();
     this.caveTrackers.clear();
     for (const caveTracker of snapshot.caveTrackers ?? []) {
       if (!caveTracker || typeof caveTracker.caveIndex !== 'number') {
@@ -11109,6 +11142,57 @@ export class GameLogicSubsystem implements Subsystem {
     this.markScriptSelectionChanged();
     this.controlBarDirtyFrame = this.frameCounter;
     this.updateSelectionHighlight();
+  }
+
+  /* @internal */ setDozerTaskTarget(
+    entityId: number,
+    task: 'BUILD' | 'REPAIR',
+    targetEntityId: number | null,
+  ): void {
+    const normalizedTargetEntityId = targetEntityId !== null && Number.isFinite(targetEntityId) && targetEntityId > 0
+      ? Math.trunc(targetEntityId)
+      : 0;
+    const entity = this.spawnedEntities.get(entityId);
+    if (task === 'BUILD') {
+      if (entity) {
+        entity.dozerBuildTargetEntityId = normalizedTargetEntityId;
+      }
+      if (normalizedTargetEntityId > 0) {
+        this.pendingConstructionActions.set(entityId, normalizedTargetEntityId);
+      } else {
+        this.pendingConstructionActions.delete(entityId);
+      }
+      return;
+    }
+    if (entity) {
+      entity.dozerRepairTargetEntityId = normalizedTargetEntityId;
+    }
+    if (normalizedTargetEntityId > 0) {
+      this.pendingRepairActions.set(entityId, normalizedTargetEntityId);
+    } else {
+      this.pendingRepairActions.delete(entityId);
+    }
+  }
+
+  private rebuildDozerTaskIndexesFromEntities(): void {
+    this.pendingConstructionActions.clear();
+    this.pendingRepairActions.clear();
+    for (const entity of this.spawnedEntities.values()) {
+      const buildTargetEntityId = Number.isFinite(entity.dozerBuildTargetEntityId)
+        ? Math.max(0, Math.trunc(entity.dozerBuildTargetEntityId))
+        : 0;
+      const repairTargetEntityId = Number.isFinite(entity.dozerRepairTargetEntityId)
+        ? Math.max(0, Math.trunc(entity.dozerRepairTargetEntityId))
+        : 0;
+      entity.dozerBuildTargetEntityId = buildTargetEntityId;
+      entity.dozerRepairTargetEntityId = repairTargetEntityId;
+      if (buildTargetEntityId > 0) {
+        this.pendingConstructionActions.set(entity.id, buildTargetEntityId);
+      }
+      if (repairTargetEntityId > 0) {
+        this.pendingRepairActions.set(entity.id, repairTargetEntityId);
+      }
+    }
   }
 
   getObjectIdCounter(): number {
@@ -24266,7 +24350,7 @@ export class GameLogicSubsystem implements Subsystem {
       const building = this.spawnedEntities.get(buildingId);
       if (!dozer || !building || dozer.destroyed || building.destroyed
         || building.objectStatusFlags.has('SOLD')) {
-        this.pendingConstructionActions.delete(dozerId);
+        this.setDozerTaskTarget(dozerId, 'BUILD', null);
         if (building && !building.destroyed) {
           // Source parity: dozer dies → building stays partially built, builderId cleared.
           building.builderId = 0;
@@ -24281,14 +24365,14 @@ export class GameLogicSubsystem implements Subsystem {
 
       // Already complete (e.g. instant build).
       if (building.constructionPercent === CONSTRUCTION_COMPLETE) {
-        this.pendingConstructionActions.delete(dozerId);
+        this.setDozerTaskTarget(dozerId, 'BUILD', null);
         this.clearDozerTaskOrder(dozer, 'BUILD');
         continue;
       }
 
       // Source parity: builder exclusivity check — only the assigned builder may progress.
       if (building.builderId !== dozerId) {
-        this.pendingConstructionActions.delete(dozerId);
+        this.setDozerTaskTarget(dozerId, 'BUILD', null);
         this.clearDozerTaskOrder(dozer, 'BUILD');
         continue;
       }
@@ -24310,7 +24394,7 @@ export class GameLogicSubsystem implements Subsystem {
       if (totalFrames <= 0) {
         // Shouldn't happen — complete immediately.
         this.completeConstruction(building);
-        this.pendingConstructionActions.delete(dozerId);
+        this.setDozerTaskTarget(dozerId, 'BUILD', null);
         this.clearDozerTaskOrder(dozer, 'BUILD');
         continue;
       }
@@ -24325,7 +24409,7 @@ export class GameLogicSubsystem implements Subsystem {
       // Check for completion.
       if (building.constructionPercent >= 100.0) {
         this.completeConstruction(building);
-        this.pendingConstructionActions.delete(dozerId);
+        this.setDozerTaskTarget(dozerId, 'BUILD', null);
         this.clearDozerTaskOrder(dozer, 'BUILD');
       }
     }
@@ -27835,7 +27919,7 @@ export class GameLogicSubsystem implements Subsystem {
       created.objectStatusFlags.add('UNDER_CONSTRUCTION');
       // Note: UNDER_CONSTRUCTION side effects are checked directly via objectStatusFlags.
       // Register dozer construction task.
-      this.pendingConstructionActions.set(constructor.id, created.id);
+      this.setDozerTaskTarget(constructor.id, 'BUILD', created.id);
       constructor.dozerBuildTaskOrderFrame = this.frameCounter;
       // Move dozer to building site.
       this.issueMoveTo(constructor.id, created.x, created.z);
@@ -33191,7 +33275,7 @@ export class GameLogicSubsystem implements Subsystem {
     } else {
       // Resume existing construction with the new worker.
       reconstructing.builderId = worker.id;
-      this.pendingConstructionActions.set(worker.id, reconstructing.id);
+      this.setDozerTaskTarget(worker.id, 'BUILD', reconstructing.id);
       worker.dozerBuildTaskOrderFrame = this.frameCounter;
     }
 
@@ -37128,6 +37212,8 @@ export class GameLogicSubsystem implements Subsystem {
       entity.chinookPendingCommand = null;
       entity.assaultTransportState = null;
       entity.railedTransportState = null;
+      entity.dozerBuildTargetEntityId = 0;
+      entity.dozerRepairTargetEntityId = 0;
       entity.overchargeActive = false;
     }
     this.assaultTransportStateByEntityId.clear();

@@ -1022,7 +1022,7 @@ export function cancelEntityCommandPathActions(self: GL,
   self.pendingGarrisonActions.delete(entityId);
   self.pendingTransportActions.delete(entityId);
   if (cancelDozerTaskMode === 'all') {
-    self.pendingRepairActions.delete(entityId);
+    self.setDozerTaskTarget(entityId, 'REPAIR', null);
     const dozer = self.spawnedEntities.get(entityId);
     if (dozer) {
       dozer.dozerRepairTaskOrderFrame = 0;
@@ -1046,7 +1046,7 @@ export function cancelCurrentDozerTask(self: GL, dozerId: number): void {
   }
   const currentTask = getDozerCurrentTask(self, dozer);
   if (currentTask === 'REPAIR') {
-    self.pendingRepairActions.delete(dozerId);
+    self.setDozerTaskTarget(dozerId, 'REPAIR', null);
     clearDozerTaskOrder(self, dozer, 'REPAIR');
     return;
   }
@@ -1064,15 +1064,17 @@ export function cancelActiveSpecialAbility(self: GL, entityId: number): void {
 }
 
 export function cancelDozerConstructionTask(self: GL, dozerId: number): void {
-  const buildingId = self.pendingConstructionActions.get(dozerId);
+  const dozer = self.spawnedEntities.get(dozerId);
+  const buildingId = dozer?.dozerBuildTargetEntityId
+    ? dozer.dozerBuildTargetEntityId
+    : self.pendingConstructionActions.get(dozerId);
   if (buildingId !== undefined) {
-    self.pendingConstructionActions.delete(dozerId);
+    self.setDozerTaskTarget(dozerId, 'BUILD', null);
     const building = self.spawnedEntities.get(buildingId);
     if (building && !building.destroyed && building.builderId === dozerId) {
       building.builderId = 0;
     }
   }
-  const dozer = self.spawnedEntities.get(dozerId);
   if (dozer) {
     dozer.dozerBuildTaskOrderFrame = 0;
   }
@@ -1608,7 +1610,7 @@ export function handleConstructBuildingCommand(self: GL, command: ConstructBuild
   // Source parity: DozerAIUpdate/WorkerAIUpdate::newTask retasks dozer work items.
   // Construct task overrides any active repair task.
   if (self.pendingRepairActions.has(constructor.id)) {
-    self.pendingRepairActions.delete(constructor.id);
+    self.setDozerTaskTarget(constructor.id, 'REPAIR', null);
     clearDozerTaskOrder(self, constructor, 'REPAIR');
   }
   // Construct task replacement should release previous partial build ownership.
@@ -2550,7 +2552,7 @@ export function handleRepairBuildingCommand(self: GL, command: RepairBuildingCom
   if (canDozerResumeConstructionTarget(self, dozer, building, commandSource)) {
     // Source parity: new build task cancels active repair task.
     if (self.pendingRepairActions.has(dozer.id)) {
-      self.pendingRepairActions.delete(dozer.id);
+      self.setDozerTaskTarget(dozer.id, 'REPAIR', null);
       clearDozerTaskOrder(self, dozer, 'REPAIR');
     }
     // Source parity: dozer can own only one active build target at a time.
@@ -2560,7 +2562,7 @@ export function handleRepairBuildingCommand(self: GL, command: RepairBuildingCom
     }
     // Another dozer can resume. Claim it.
     building.builderId = dozer.id;
-    self.pendingConstructionActions.set(dozer.id, building.id);
+    self.setDozerTaskTarget(dozer.id, 'BUILD', building.id);
     dozer.dozerBuildTaskOrderFrame = self.frameCounter;
     self.issueMoveTo(dozer.id, building.x, building.z);
     return;
@@ -2578,7 +2580,7 @@ export function handleRepairBuildingCommand(self: GL, command: RepairBuildingCom
   if (distance > 20) {
     self.issueMoveTo(dozer.id, building.x, building.z);
   }
-  self.pendingRepairActions.set(dozer.id, building.id);
+  self.setDozerTaskTarget(dozer.id, 'REPAIR', building.id);
   dozer.dozerRepairTaskOrderFrame = self.frameCounter;
 }
 
@@ -2689,7 +2691,7 @@ export function updatePendingRepairActions(self: GL): void {
     const dozer = self.spawnedEntities.get(dozerId);
     const building = self.spawnedEntities.get(buildingId);
     if (!dozer || !building || dozer.destroyed || building.destroyed) {
-      self.pendingRepairActions.delete(dozerId);
+      self.setDozerTaskTarget(dozerId, 'REPAIR', null);
       clearDozerTaskOrder(self, dozer ?? null, 'REPAIR');
       continue;
     }
@@ -2701,7 +2703,7 @@ export function updatePendingRepairActions(self: GL): void {
     // Building fully repaired.
     if (building.health >= building.maxHealth) {
       self.onObjectRepaired(building.id);
-      self.pendingRepairActions.delete(dozerId);
+      self.setDozerTaskTarget(dozerId, 'REPAIR', null);
       clearDozerTaskOrder(self, dozer, 'REPAIR');
       continue;
     }
@@ -2729,7 +2731,7 @@ export function updatePendingRepairActions(self: GL): void {
     // Source parity: attemptHealingFromSoleBenefactor rejects competing dozers/workers.
     const healed = self.attemptHealingFromSoleBenefactor(building, healAmount, dozer.id, 2);
     if (!healed) {
-      self.pendingRepairActions.delete(dozerId);
+      self.setDozerTaskTarget(dozerId, 'REPAIR', null);
       clearDozerTaskOrder(self, dozer, 'REPAIR');
       continue;
     }
