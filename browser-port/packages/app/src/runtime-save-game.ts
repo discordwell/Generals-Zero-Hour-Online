@@ -27,6 +27,8 @@ import {
   type GameLogicRadarSaveState,
   type GameLogicScriptEngineSaveState,
   type GameLogicSellingEntitySaveState,
+  type GameLogicTerrainLogicSaveState,
+  type GameLogicTerrainWaterUpdateSaveState,
   type GameLogicSubsystem,
   type GameLogicTunnelTrackerSaveState,
   type LegacyGameLogicRadarSaveState,
@@ -36,6 +38,7 @@ import {
 import type { MapDataJSON } from '@generals/renderer';
 
 const SOURCE_CAMPAIGN_BLOCK = 'CHUNK_Campaign';
+const SOURCE_TERRAIN_LOGIC_BLOCK = 'CHUNK_TerrainLogic';
 const SOURCE_PLAYERS_BLOCK = 'CHUNK_Players';
 const SOURCE_RADAR_BLOCK = 'CHUNK_Radar';
 const SOURCE_SCRIPT_ENGINE_BLOCK = 'CHUNK_ScriptEngine';
@@ -48,6 +51,7 @@ const GAME_STATE_VERSION = 2;
 const CAMPAIGN_VERSION = 5;
 const GAME_STATE_MAP_VERSION = 2;
 const BROWSER_RUNTIME_STATE_VERSION = 1;
+const SOURCE_TERRAIN_LOGIC_SNAPSHOT_VERSION = 2;
 const SOURCE_PLAYER_SNAPSHOT_VERSION = 2;
 const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 5;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
@@ -138,6 +142,7 @@ export interface RuntimeSaveBootstrap {
   mapPath: string | null;
   cameraState: CameraState | null;
   tacticalViewState: RuntimeSaveTacticalViewState | null;
+  gameLogicTerrainLogicState: GameLogicTerrainLogicSaveState | null;
   gameLogicPlayersState: GameLogicPlayersSaveState | null;
   gameLogicRadarState: GameLogicRadarSaveState | null;
   gameLogicScriptEngineState: GameLogicScriptEngineSaveState | null;
@@ -526,6 +531,74 @@ class CampaignSnapshot implements Snapshot {
     if (version >= 5) {
       this.state.playerTemplateNum = xfer.xferInt(this.state.playerTemplateNum);
     }
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
+function createEmptyTerrainLogicSaveState(): GameLogicTerrainLogicSaveState {
+  return {
+    version: SOURCE_TERRAIN_LOGIC_SNAPSHOT_VERSION,
+    activeBoundary: 0,
+    waterUpdates: [],
+  };
+}
+
+function xferSourceTerrainWaterUpdate(
+  xfer: Xfer,
+  waterUpdate: GameLogicTerrainWaterUpdateSaveState,
+): GameLogicTerrainWaterUpdateSaveState {
+  return {
+    triggerId: xfer.xferInt(waterUpdate.triggerId),
+    changePerFrame: xfer.xferReal(waterUpdate.changePerFrame),
+    targetHeight: xfer.xferReal(waterUpdate.targetHeight),
+    damageAmount: xfer.xferReal(waterUpdate.damageAmount),
+    currentHeight: xfer.xferReal(waterUpdate.currentHeight),
+  };
+}
+
+class TerrainLogicSnapshot implements Snapshot {
+  payload: GameLogicTerrainLogicSaveState | null;
+
+  constructor(payload: GameLogicTerrainLogicSaveState | null = null) {
+    this.payload = payload;
+  }
+
+  crc(_xfer: Xfer): void {
+    // Terrain-logic snapshot is not part of source parity CRC yet.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(SOURCE_TERRAIN_LOGIC_SNAPSHOT_VERSION);
+    if (version !== SOURCE_TERRAIN_LOGIC_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported terrain-logic snapshot version ${version}`);
+    }
+
+    const payload = this.payload ?? createEmptyTerrainLogicSaveState();
+    payload.version = version;
+    payload.activeBoundary = xfer.xferInt(payload.activeBoundary);
+
+    const waterUpdateCount = xfer.xferInt(payload.waterUpdates.length);
+    const waterUpdates: GameLogicTerrainWaterUpdateSaveState[] = [];
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      for (let index = 0; index < waterUpdateCount; index += 1) {
+        waterUpdates.push(xferSourceTerrainWaterUpdate(xfer, {
+          triggerId: 0,
+          changePerFrame: 0,
+          targetHeight: 0,
+          damageAmount: 0,
+          currentHeight: 0,
+        }));
+      }
+    } else {
+      for (const waterUpdate of payload.waterUpdates) {
+        waterUpdates.push(xferSourceTerrainWaterUpdate(xfer, waterUpdate));
+      }
+    }
+    payload.waterUpdates = waterUpdates;
+    this.payload = payload;
   }
 
   loadPostProcess(): void {
@@ -1264,6 +1337,7 @@ export function buildRuntimeSaveFile(params: {
   gameLogic: Pick<
     GameLogicSubsystem,
     | 'captureBrowserRuntimeSaveState'
+    | 'captureSourceTerrainLogicRuntimeSaveState'
     | 'captureSourceRadarRuntimeSaveState'
     | 'captureSourceScriptEngineRuntimeSaveState'
     | 'captureSourceInGameUiRuntimeSaveState'
@@ -1291,6 +1365,7 @@ export function buildRuntimeSaveFile(params: {
   };
   const tacticalViewPayload = params.tacticalViewState
     ?? buildTacticalViewSaveState(params.cameraState);
+  const terrainLogicPayload = params.gameLogic.captureSourceTerrainLogicRuntimeSaveState();
   const radarPayload = params.gameLogic.captureSourceRadarRuntimeSaveState();
   const scriptEnginePayload = params.gameLogic.captureSourceScriptEngineRuntimeSaveState();
   const inGameUiPayload = params.gameLogic.captureSourceInGameUiRuntimeSaveState();
@@ -1326,6 +1401,7 @@ export function buildRuntimeSaveFile(params: {
   state.addSnapshotBlock('CHUNK_GameState', new MetadataSnapshot(metadataState));
   state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, new CampaignSnapshot(campaignState));
   state.addSnapshotBlock('CHUNK_GameStateMap', new MapSnapshot(mapState));
+  state.addSnapshotBlock(SOURCE_TERRAIN_LOGIC_BLOCK, new TerrainLogicSnapshot(terrainLogicPayload));
   state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, new PlayersSnapshot(playerPayload));
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new GameLogicSnapshot(gameLogicPayload));
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, new RadarSnapshot(radarPayload));
@@ -1362,6 +1438,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     isChallengeCampaign: false,
     playerTemplateNum: -1,
   });
+  const terrainLogicSnapshot = new TerrainLogicSnapshot();
   const playersSnapshot = new PlayersSnapshot();
   const gameLogicSnapshot = new GameLogicSnapshot();
   const radarSnapshot = new RadarSnapshot();
@@ -1371,6 +1448,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const runtimeSnapshot = new BrowserRuntimeSnapshot();
   const state = new GameState();
   state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, campaignSnapshot);
+  state.addSnapshotBlock(SOURCE_TERRAIN_LOGIC_BLOCK, terrainLogicSnapshot);
   state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, playersSnapshot);
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, gameLogicSnapshot);
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, radarSnapshot);
@@ -1423,6 +1501,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     mapPath: resolvedMapPath,
     cameraState: resolveRestoredCameraState(tacticalViewSnapshot.payload, browserCameraState),
     tacticalViewState: tacticalViewSnapshot.payload,
+    gameLogicTerrainLogicState: terrainLogicSnapshot?.payload ?? null,
     gameLogicPlayersState: playersSnapshot?.payload ?? null,
     gameLogicRadarState: radarSnapshot?.payload ?? null,
     gameLogicScriptEngineState: scriptEngineSnapshot?.payload ?? null,

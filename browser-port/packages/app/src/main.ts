@@ -1689,6 +1689,11 @@ async function startGame(
 
   const objectPlacement = gameLogic.loadMapObjects(mapData, iniDataRegistry, heightmap);
   if (runtimeSaveLoadContext) {
+    if (runtimeSaveLoadContext.runtimeSave.gameLogicTerrainLogicState) {
+      gameLogic.restoreSourceTerrainLogicRuntimeSaveState(
+        runtimeSaveLoadContext.runtimeSave.gameLogicTerrainLogicState,
+      );
+    }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicPlayersState) {
       gameLogic.restoreSourcePlayerRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicPlayersState,

@@ -7959,6 +7959,7 @@ export const SCRIPT_KIND_OF_ALLOW_SURRENDER_NAMES = new Set<string>([
 const BROWSER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION = 1;
+const SOURCE_TERRAIN_LOGIC_RUNTIME_SAVE_STATE_VERSION = 2;
 const SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION = 2;
 const SOURCE_SCRIPT_ENGINE_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_IN_GAME_UI_RUNTIME_SAVE_STATE_VERSION = 1;
@@ -8039,6 +8040,9 @@ const SOURCE_RADAR_RUNTIME_STATE_KEYS = [
   'scriptRadarEvents',
   'scriptLastRadarEventState',
 ] as const;
+const SOURCE_TERRAIN_LOGIC_RUNTIME_STATE_KEYS = [
+  'scriptActiveBoundaryIndex',
+] as const;
 const SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS = [
   'scriptAudioLengthMsByName',
   'scriptCompletedMusic',
@@ -8077,7 +8081,6 @@ const SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS = [
   'scriptDynamicLodEnabled',
   'scriptTimeFrozenByScript',
   'scriptWeatherVisible',
-  'scriptActiveBoundaryIndex',
   'scriptScreenShakeState',
   'scriptObjectsReceiveDifficultyBonus',
   'scriptDisabledAudioEventNames',
@@ -8181,6 +8184,7 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'runtimeAiConfig',
   'fogOfWarGrid',
   'waterPolygonData',
+  'dynamicWaterUpdates',
   'mapTriggerRegions',
   'railedTransportWaypointIndex',
   'missileAIProfileByProjectileTemplate',
@@ -8229,6 +8233,7 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'sideAttackedSupplySource',
   'sideSkirmishStartIndex',
   'skirmishStartIndexByPlayerToken',
+  ...SOURCE_TERRAIN_LOGIC_RUNTIME_STATE_KEYS,
   ...SOURCE_PLAYER_RUNTIME_STATE_KEYS,
   ...SOURCE_GAME_LOGIC_RUNTIME_STATE_KEYS,
   ...SOURCE_RADAR_RUNTIME_STATE_KEYS,
@@ -8336,6 +8341,20 @@ export interface GameLogicCoreSaveState {
   buildableOverrides?: GameLogicBuildableOverrideSaveState[];
   controlBarOverrides?: GameLogicControlBarOverrideSaveState[];
   bridgeSegments?: GameLogicBridgeSegmentSaveState[];
+}
+
+export interface GameLogicTerrainWaterUpdateSaveState {
+  triggerId: number;
+  changePerFrame: number;
+  targetHeight: number;
+  damageAmount: number;
+  currentHeight: number;
+}
+
+export interface GameLogicTerrainLogicSaveState {
+  version: number;
+  activeBoundary: number;
+  waterUpdates: GameLogicTerrainWaterUpdateSaveState[];
 }
 
 export interface LegacyGameLogicRadarSaveState {
@@ -9841,6 +9860,56 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   private restoreLegacyContainmentBrowserRuntimeState(key: string, value: unknown): boolean {
+    if (key === 'scriptActiveBoundaryIndex') {
+      if (this.scriptActiveBoundaryIndex !== null || !Number.isFinite(value)) {
+        return false;
+      }
+      this.scriptActiveBoundaryIndex = Math.max(0, Math.trunc(value as number));
+      return true;
+    }
+    if (key === 'dynamicWaterUpdates') {
+      if (this.dynamicWaterUpdates.length !== 0 || !Array.isArray(value)) {
+        return false;
+      }
+      for (const rawUpdate of value) {
+        if (!rawUpdate || typeof rawUpdate !== 'object') {
+          continue;
+        }
+        const record = rawUpdate as {
+          waterIndex?: unknown;
+          triggerId?: unknown;
+          changePerFrame?: unknown;
+          targetHeight?: unknown;
+          damageAmount?: unknown;
+          currentHeight?: unknown;
+        };
+        const resolvedWaterIndex = Number.isFinite(record.triggerId)
+          ? this.resolveWaterPolygonIndexByTriggerId(record.triggerId as number)
+          : (Number.isFinite(record.waterIndex) ? Math.trunc(record.waterIndex as number) : -1);
+        if (resolvedWaterIndex < 0 || resolvedWaterIndex >= this.waterPolygonData.length) {
+          continue;
+        }
+        const changePerFrame = Number(record.changePerFrame);
+        const targetHeight = Number(record.targetHeight);
+        const damageAmount = Number(record.damageAmount);
+        const currentHeight = Number(record.currentHeight);
+        if (!Number.isFinite(changePerFrame)
+          || !Number.isFinite(targetHeight)
+          || !Number.isFinite(damageAmount)
+          || !Number.isFinite(currentHeight)) {
+          continue;
+        }
+        this.dynamicWaterUpdates.push({
+          waterIndex: resolvedWaterIndex,
+          changePerFrame,
+          targetHeight,
+          damageAmount,
+          currentHeight,
+        });
+        this.applyWaterHeightChange(resolvedWaterIndex, currentHeight, 0, false);
+      }
+      return true;
+    }
     if (key === 'tunnelTrackers') {
       if (this.tunnelTrackers.size !== 0 || !(value instanceof Map)) {
         return false;
@@ -10694,6 +10763,79 @@ export class GameLogicSubsystem implements Subsystem {
       );
     }
     this.synchronizeLocalPlayerScienceAvailability();
+  }
+
+  captureSourceTerrainLogicRuntimeSaveState(): GameLogicTerrainLogicSaveState {
+    return {
+      version: SOURCE_TERRAIN_LOGIC_RUNTIME_SAVE_STATE_VERSION,
+      activeBoundary: Math.max(0, Math.trunc(this.scriptActiveBoundaryIndex ?? 0)),
+      waterUpdates: this.dynamicWaterUpdates.map((update) => {
+        const water = this.waterPolygonData[update.waterIndex];
+        if (!water) {
+          throw new Error(
+            `Cannot serialize terrain-logic water update for missing water polygon index ${update.waterIndex}.`,
+          );
+        }
+        return {
+          triggerId: water.id,
+          changePerFrame: update.changePerFrame,
+          targetHeight: update.targetHeight,
+          damageAmount: update.damageAmount,
+          currentHeight: update.currentHeight,
+        };
+      }),
+    };
+  }
+
+  restoreSourceTerrainLogicRuntimeSaveState(state: unknown): void {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      throw new Error('Source terrain-logic save-state payload is malformed.');
+    }
+
+    const snapshot = state as GameLogicTerrainLogicSaveState;
+    if (snapshot.version !== SOURCE_TERRAIN_LOGIC_RUNTIME_SAVE_STATE_VERSION) {
+      throw new Error(`Unsupported source terrain-logic save-state version ${snapshot.version}.`);
+    }
+    if (!Array.isArray(snapshot.waterUpdates)) {
+      throw new Error('Source terrain-logic water update payload is malformed.');
+    }
+
+    this.scriptActiveBoundaryIndex = Math.max(0, Math.trunc(snapshot.activeBoundary ?? 0));
+    this.dynamicWaterUpdates.length = 0;
+
+    for (const waterUpdate of snapshot.waterUpdates) {
+      if (!waterUpdate || typeof waterUpdate !== 'object') {
+        continue;
+      }
+      const triggerId = Number((waterUpdate as { triggerId?: unknown }).triggerId);
+      if (!Number.isFinite(triggerId)) {
+        continue;
+      }
+      const waterIndex = this.resolveWaterPolygonIndexByTriggerId(triggerId);
+      if (waterIndex < 0) {
+        throw new Error(
+          `Terrain-logic save-state references unknown water polygon trigger ID ${Math.trunc(triggerId)}.`,
+        );
+      }
+      const changePerFrame = Number((waterUpdate as { changePerFrame?: unknown }).changePerFrame);
+      const targetHeight = Number((waterUpdate as { targetHeight?: unknown }).targetHeight);
+      const damageAmount = Number((waterUpdate as { damageAmount?: unknown }).damageAmount);
+      const currentHeight = Number((waterUpdate as { currentHeight?: unknown }).currentHeight);
+      if (!Number.isFinite(changePerFrame)
+        || !Number.isFinite(targetHeight)
+        || !Number.isFinite(damageAmount)
+        || !Number.isFinite(currentHeight)) {
+        continue;
+      }
+      this.dynamicWaterUpdates.push({
+        waterIndex,
+        changePerFrame,
+        targetHeight,
+        damageAmount,
+        currentHeight,
+      });
+      this.applyWaterHeightChange(waterIndex, currentHeight, 0, false);
+    }
   }
 
   captureSourceRadarRuntimeSaveState(): GameLogicRadarSaveState {
@@ -29820,6 +29962,16 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     return indices;
+  }
+
+  private resolveWaterPolygonIndexByTriggerId(triggerId: number): number {
+    const normalizedTriggerId = Math.trunc(triggerId);
+    for (let index = 0; index < this.waterPolygonData.length; index += 1) {
+      if (this.waterPolygonData[index]?.id === normalizedTriggerId) {
+        return index;
+      }
+    }
+    return -1;
   }
 
   private applyWaterHeightChange(

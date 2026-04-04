@@ -65,6 +65,17 @@ describe('runtime-save-game', () => {
         pitch: 1,
       },
       gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 3,
+          waterUpdates: [{
+            triggerId: 9,
+            changePerFrame: 0.5,
+            targetHeight: 10,
+            damageAmount: 25,
+            currentHeight: 4,
+          }],
+        }),
         captureSourcePlayerRuntimeSaveState: () => ({
           version: 1,
           state: {
@@ -192,6 +203,7 @@ describe('runtime-save-game', () => {
       'CHUNK_GameState',
       'CHUNK_Campaign',
       'CHUNK_GameStateMap',
+      'CHUNK_TerrainLogic',
       'CHUNK_Players',
       'CHUNK_GameLogic',
       'CHUNK_Radar',
@@ -206,6 +218,7 @@ describe('runtime-save-game', () => {
     const radarState = parsed.gameLogicRadarState;
     const scriptEngineState = parsed.gameLogicScriptEngineState;
     const inGameUiState = parsed.gameLogicInGameUiState;
+    const terrainLogicState = parsed.gameLogicTerrainLogicState;
     const coreState = parsed.gameLogicCoreState;
     const logicState = parsed.gameLogicState as {
       version: number;
@@ -230,6 +243,17 @@ describe('runtime-save-game', () => {
         y: 0,
         z: 24,
       },
+    });
+    expect(terrainLogicState).toEqual({
+      version: 2,
+      activeBoundary: 3,
+      waterUpdates: [{
+        triggerId: 9,
+        changePerFrame: 0.5,
+        targetHeight: 10,
+        damageAmount: 25,
+        currentHeight: 4,
+      }],
     });
     expect(playerState?.state.playerSideByIndex).toEqual(new Map([[0, 'USA']]));
     expect(playerState?.state.controllingPlayerScriptCredits).toEqual(new Map([['the_player', 900]]));
@@ -337,6 +361,11 @@ describe('runtime-save-game', () => {
       mapData,
       cameraState: null,
       gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -393,6 +422,11 @@ describe('runtime-save-game', () => {
       mapData,
       cameraState: null,
       gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -464,6 +498,11 @@ describe('runtime-save-game', () => {
       mapData,
       cameraState: null,
       gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
