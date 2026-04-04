@@ -1715,6 +1715,7 @@ async function startGame(
       );
     }
     gameLogic.restoreBrowserRuntimeSaveState(runtimeSaveLoadContext.runtimeSave.gameLogicState);
+    gameLogic.finalizeSourceSpecialPowerRuntimeSaveState();
     gameLogic.finalizeSourceContainmentRuntimeSaveState();
     gameLogic.finalizeSourceSupplyChainRuntimeSaveState();
   }

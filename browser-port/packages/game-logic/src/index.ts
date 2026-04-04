@@ -2066,6 +2066,14 @@ interface SpecialPowerModuleProfile {
   moduleType: string;
   updateModuleStartsAttack: boolean;
   startsPaused: boolean;
+  /** Source parity: SpecialPowerModule::m_availableOnFrame for non-shared powers. */
+  availableOnFrame: number;
+  /** Source parity: SpecialPowerModule::m_pausedCount. */
+  pausedCount: number;
+  /** Source parity: SpecialPowerModule::m_pausedOnFrame. */
+  pausedOnFrame: number;
+  /** Source parity: SpecialPowerModule::m_pausedPercent. */
+  pausedPercent: number;
   /**
    * Source parity: CashHackSpecialPowerModuleData::m_defaultAmountToSteal.
    * INI field: MoneyAmount. Default 0.
@@ -7953,6 +7961,7 @@ const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
   'sideAttackedBy',
   'sideAttackedFrame',
   'sideBattlePlanBonuses',
+  'sharedShortcutSpecialPowerReadyFrames',
   'scriptCurrentSupplyWarehouseBySide',
   'scriptSidesUnitsShouldHunt',
   'scriptSkirmishBaseCenterAndRadiusBySide',
@@ -8138,6 +8147,9 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'isAttackMoveToMode',
   'previousAttackMoveToggleDown',
   'placementSummary',
+  'shortcutSpecialPowerSourceByName',
+  'shortcutSpecialPowerNamesByEntityId',
+  'pausedShortcutSpecialPowerByName',
   'tunnelTrackers',
   'caveTrackers',
   'caveTrackerIndexByEntityId',
@@ -9652,6 +9664,78 @@ export class GameLogicSubsystem implements Subsystem {
       }
       return true;
     }
+    if (key === 'sharedShortcutSpecialPowerReadyFrames') {
+      if (this.sharedShortcutSpecialPowerReadyFrames.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      this.sharedShortcutSpecialPowerReadyFrames.clear();
+      for (const [powerName, readyFrame] of value.entries()) {
+        if (typeof powerName !== 'string' || !Number.isFinite(readyFrame)) {
+          continue;
+        }
+        this.sharedShortcutSpecialPowerReadyFrames.set(
+          powerName,
+          Math.max(0, Math.trunc(readyFrame)),
+        );
+      }
+      return true;
+    }
+    if (key === 'shortcutSpecialPowerSourceByName') {
+      if (!(value instanceof Map)) {
+        return false;
+      }
+      for (const [powerName, sources] of value.entries()) {
+        if (typeof powerName !== 'string' || !(sources instanceof Map)) {
+          continue;
+        }
+        for (const [entityId, readyFrame] of sources.entries()) {
+          if (typeof entityId !== 'number' || !Number.isFinite(readyFrame)) {
+            continue;
+          }
+          this.trackShortcutSpecialPowerSourceEntity(powerName, entityId, readyFrame);
+        }
+      }
+      return true;
+    }
+    if (key === 'pausedShortcutSpecialPowerByName') {
+      if (!(value instanceof Map)) {
+        return false;
+      }
+      for (const [powerName, sources] of value.entries()) {
+        if (typeof powerName !== 'string' || !(sources instanceof Map)) {
+          continue;
+        }
+        const normalizedPowerName = this.normalizeShortcutSpecialPowerName(powerName);
+        if (!normalizedPowerName) {
+          continue;
+        }
+        for (const [entityId, pauseState] of sources.entries()) {
+          if (typeof entityId !== 'number' || !pauseState || typeof pauseState !== 'object') {
+            continue;
+          }
+          const record = pauseState as {
+            pausedCount?: unknown;
+            pausedOnFrame?: unknown;
+            pausedPercent?: unknown;
+          };
+          const module = this.resolveSpecialPowerModuleRuntimeState(normalizedPowerName, entityId);
+          if (!module) {
+            continue;
+          }
+          module.pausedCount = Number.isFinite(record.pausedCount)
+            ? Math.max(0, Math.trunc(record.pausedCount as number))
+            : 0;
+          module.pausedOnFrame = Number.isFinite(record.pausedOnFrame)
+            ? Math.max(0, Math.trunc(record.pausedOnFrame as number))
+            : this.frameCounter;
+          module.pausedPercent = Number.isFinite(record.pausedPercent)
+            ? Math.max(0, Math.min(1, record.pausedPercent as number))
+            : module.pausedPercent;
+        }
+      }
+      this.rebuildSpecialPowerRuntimeIndexes();
+      return true;
+    }
     return false;
   }
 
@@ -9703,6 +9787,66 @@ export class GameLogicSubsystem implements Subsystem {
         this.dockApproachStates.delete(entityId);
       }
     }
+  }
+
+  private resolveSpecialPowerModuleRuntimeState(
+    normalizedSpecialPowerName: string,
+    sourceEntityId: number,
+  ): SpecialPowerModuleProfile | null {
+    const entity = this.spawnedEntities.get(sourceEntityId);
+    if (!entity || entity.destroyed) {
+      return null;
+    }
+    const modules = (entity as { specialPowerModules?: unknown }).specialPowerModules;
+    if (!(modules instanceof Map)) {
+      return null;
+    }
+    return (modules.get(normalizedSpecialPowerName) as SpecialPowerModuleProfile | undefined) ?? null;
+  }
+
+  private isSharedSyncedSpecialPower(normalizedSpecialPowerName: string): boolean {
+    const specialPowerDef = this.resolveSpecialPowerDefByName(normalizedSpecialPowerName);
+    return specialPowerDef
+      ? readBooleanField(specialPowerDef.fields, ['SharedSyncedTimer']) === true
+      : false;
+  }
+
+  private rebuildSpecialPowerRuntimeIndexes(): void {
+    this.shortcutSpecialPowerSourceByName.clear();
+    this.shortcutSpecialPowerNamesByEntityId.clear();
+    this.pausedShortcutSpecialPowerByName.clear();
+
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) {
+        continue;
+      }
+      for (const [powerName, module] of entity.specialPowerModules) {
+        const normalizedPowerName = this.normalizeShortcutSpecialPowerName(powerName);
+        if (!normalizedPowerName || this.isSharedSyncedSpecialPower(normalizedPowerName)) {
+          continue;
+        }
+        this.trackShortcutSpecialPowerSourceEntity(
+          normalizedPowerName,
+          entity.id,
+          module.availableOnFrame,
+        );
+        if (module.pausedCount > 0) {
+          let pausedBySource = this.pausedShortcutSpecialPowerByName.get(normalizedPowerName);
+          if (!pausedBySource) {
+            pausedBySource = new Map<number, ScriptSpecialPowerPauseState>();
+            this.pausedShortcutSpecialPowerByName.set(normalizedPowerName, pausedBySource);
+          }
+          pausedBySource.set(entity.id, {
+            pausedCount: module.pausedCount,
+            pausedOnFrame: module.pausedOnFrame,
+          });
+        }
+      }
+    }
+  }
+
+  finalizeSourceSpecialPowerRuntimeSaveState(): void {
+    this.rebuildSpecialPowerRuntimeIndexes();
   }
 
   private synchronizeLocalPlayerScienceAvailability(): void {
@@ -11214,6 +11358,13 @@ export class GameLogicSubsystem implements Subsystem {
     const normalizedReadyFrame = Number.isFinite(readyFrame)
       ? Math.max(0, Math.trunc(readyFrame))
       : SOURCE_DISABLED_SHORTCUT_SPECIAL_POWER_READY_FRAME;
+    const module = this.resolveSpecialPowerModuleRuntimeState(
+      normalizedSpecialPowerName,
+      normalizedSourceEntityId,
+    );
+    if (module) {
+      module.availableOnFrame = normalizedReadyFrame;
+    }
 
     let sourcesForPower = this.shortcutSpecialPowerSourceByName.get(normalizedSpecialPowerName);
     if (!sourcesForPower) {
@@ -13440,11 +13591,15 @@ export class GameLogicSubsystem implements Subsystem {
     if (specialPowerName && Number.isFinite(sourceEntityId)) {
       const normalizedName = this.normalizeShortcutSpecialPowerName(specialPowerName);
       if (normalizedName) {
+        const module = this.resolveSpecialPowerModuleRuntimeState(normalizedName, Math.trunc(sourceEntityId));
         const pausedBySource = this.pausedShortcutSpecialPowerByName.get(normalizedName);
         if (pausedBySource) {
           const pauseState = pausedBySource.get(sourceEntityId);
           if (pauseState && pauseState.pausedCount > 0) {
             pauseState.pausedOnFrame = this.frameCounter;
+            if (module) {
+              module.pausedOnFrame = this.frameCounter;
+            }
           }
         }
       }
@@ -21822,6 +21977,13 @@ export class GameLogicSubsystem implements Subsystem {
     normalizedSpecialPowerName: string,
     sourceEntityId: number,
   ): number {
+    const module = this.resolveSpecialPowerModuleRuntimeState(
+      normalizedSpecialPowerName,
+      sourceEntityId,
+    );
+    if (module && Number.isFinite(module.availableOnFrame)) {
+      return Math.max(0, Math.trunc(module.availableOnFrame));
+    }
     const sourcesForPower = this.shortcutSpecialPowerSourceByName.get(normalizedSpecialPowerName);
     if (!sourcesForPower) {
       return this.frameCounter;
@@ -21843,6 +22005,13 @@ export class GameLogicSubsystem implements Subsystem {
       return;
     }
     const normalizedSourceEntityId = Math.trunc(sourceEntityId);
+    const module = this.resolveSpecialPowerModuleRuntimeState(
+      normalizedSpecialPowerName,
+      normalizedSourceEntityId,
+    );
+    if (!module) {
+      return;
+    }
     let pausedBySource = this.pausedShortcutSpecialPowerByName.get(normalizedSpecialPowerName);
     if (!pausedBySource) {
       pausedBySource = new Map<number, ScriptSpecialPowerPauseState>();
@@ -21855,13 +22024,32 @@ export class GameLogicSubsystem implements Subsystem {
     };
     if (state.pausedCount <= 0) {
       state.pausedOnFrame = this.frameCounter;
+      const rawReadyFrame = this.resolveSpecialPowerReadyFrameForSourceEntityRaw(
+        normalizedSpecialPowerName,
+        normalizedSourceEntityId,
+      );
+      const specialPowerDef = this.resolveSpecialPowerDefByName(normalizedSpecialPowerName);
+      const reloadTime = specialPowerDef
+        ? this.msToLogicFrames(readNumericField(specialPowerDef.fields, ['ReloadTime']) ?? 0)
+        : 0;
+      if (rawReadyFrame <= this.frameCounter) {
+        module.pausedPercent = 1.0;
+      } else if (reloadTime <= 0) {
+        module.pausedPercent = 0.99999;
+      } else {
+        const percent = 1.0 - ((rawReadyFrame - this.frameCounter) / reloadTime);
+        module.pausedPercent = Math.max(0, Math.min(1.0, percent));
+      }
       state.pausedCount = 1;
+      module.pausedCount = 1;
+      module.pausedOnFrame = state.pausedOnFrame;
       pausedBySource.set(normalizedSourceEntityId, state);
       return;
     }
 
     if (stack) {
       state.pausedCount += 1;
+      module.pausedCount = state.pausedCount;
       pausedBySource.set(normalizedSourceEntityId, state);
     }
   }
@@ -21875,6 +22063,13 @@ export class GameLogicSubsystem implements Subsystem {
       return;
     }
     const normalizedSourceEntityId = Math.trunc(sourceEntityId);
+    const module = this.resolveSpecialPowerModuleRuntimeState(
+      normalizedSpecialPowerName,
+      normalizedSourceEntityId,
+    );
+    if (!module) {
+      return;
+    }
     const pausedBySource = this.pausedShortcutSpecialPowerByName.get(normalizedSpecialPowerName);
     if (!pausedBySource) {
       return;
@@ -21885,21 +22080,20 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     state.pausedCount -= 1;
+    module.pausedCount = Math.max(0, state.pausedCount);
     if (state.pausedCount > 0) {
       pausedBySource.set(normalizedSourceEntityId, state);
       return;
     }
 
     const pausedFrames = Math.max(0, this.frameCounter - state.pausedOnFrame);
-    const rawReadyFrame = this.resolveSpecialPowerReadyFrameForSourceEntityRaw(
+    module.availableOnFrame = Math.max(0, Math.trunc(module.availableOnFrame + pausedFrames));
+    module.pausedOnFrame = state.pausedOnFrame;
+    module.pausedPercent = 0;
+    this.trackShortcutSpecialPowerSourceEntity(
       normalizedSpecialPowerName,
       normalizedSourceEntityId,
-    );
-    this.setSpecialPowerReadyFrame(
-      normalizedSpecialPowerName,
-      normalizedSourceEntityId,
-      false,
-      rawReadyFrame + pausedFrames,
+      module.availableOnFrame,
     );
 
     pausedBySource.delete(normalizedSourceEntityId);
@@ -21912,19 +22106,30 @@ export class GameLogicSubsystem implements Subsystem {
     normalizedSpecialPowerName: string,
     sourceEntityId: number,
   ): number {
+    const module = this.resolveSpecialPowerModuleRuntimeState(
+      normalizedSpecialPowerName,
+      sourceEntityId,
+    );
     const readyFrame = this.resolveSpecialPowerReadyFrameForSourceEntityRaw(
       normalizedSpecialPowerName,
       sourceEntityId,
     );
-    const pausedBySource = this.pausedShortcutSpecialPowerByName.get(normalizedSpecialPowerName);
-    if (!pausedBySource) {
+    if (!module || !Number.isFinite(module.pausedCount) || module.pausedCount <= 0) {
+      const pausedBySource = this.pausedShortcutSpecialPowerByName.get(normalizedSpecialPowerName);
+      if (!pausedBySource) {
+        return readyFrame;
+      }
+      const pauseState = pausedBySource.get(sourceEntityId);
+      if (!pauseState || pauseState.pausedCount <= 0) {
+        return readyFrame;
+      }
+      const pausedFrames = Math.max(0, this.frameCounter - pauseState.pausedOnFrame);
+      return readyFrame + pausedFrames;
+    }
+    if (!Number.isFinite(module.pausedOnFrame)) {
       return readyFrame;
     }
-    const pauseState = pausedBySource.get(sourceEntityId);
-    if (!pauseState || pauseState.pausedCount <= 0) {
-      return readyFrame;
-    }
-    const pausedFrames = Math.max(0, this.frameCounter - pauseState.pausedOnFrame);
+    const pausedFrames = Math.max(0, this.frameCounter - module.pausedOnFrame);
     return readyFrame + pausedFrames;
   }
 
@@ -21944,12 +22149,16 @@ export class GameLogicSubsystem implements Subsystem {
       return 0;
     }
 
-    // Check if the power is paused.
+    const module = this.resolveSpecialPowerModuleRuntimeState(normalizedName, sourceEntityId);
+    if (module && Number.isFinite(module.pausedCount) && module.pausedCount > 0) {
+      const percent = Number.isFinite(module.pausedPercent) ? module.pausedPercent : 0.99999;
+      return percent >= 1.0 ? 0.99999 : Math.max(0, Math.min(1.0, percent));
+    }
+
     const pausedBySource = this.pausedShortcutSpecialPowerByName.get(normalizedName);
     if (pausedBySource) {
       const pauseState = pausedBySource.get(sourceEntityId);
       if (pauseState && pauseState.pausedCount > 0) {
-        // Compute what percent ready the power would be without pausing.
         const rawReadyFrame = this.resolveSpecialPowerReadyFrameForSourceEntityRaw(
           normalizedName,
           sourceEntityId,
@@ -21959,16 +22168,11 @@ export class GameLogicSubsystem implements Subsystem {
           ? this.msToLogicFrames(readNumericField(specialPowerDef.fields, ['ReloadTime']) ?? 0)
           : 0;
         if (reloadTime <= 0) {
-          // Source parity: if no reload time, return 0.99999 while paused.
           return 0.99999;
         }
         const percent = 1.0 - ((rawReadyFrame - pauseState.pausedOnFrame) / reloadTime);
         const clampedPercent = Math.max(0, Math.min(1.0, percent));
-        // Source parity (ZH): if pausedPercent == 1.0 and we're paused, clamp to 0.99999.
-        if (clampedPercent >= 1.0) {
-          return 0.99999;
-        }
-        return clampedPercent;
+        return clampedPercent >= 1.0 ? 0.99999 : clampedPercent;
       }
     }
 

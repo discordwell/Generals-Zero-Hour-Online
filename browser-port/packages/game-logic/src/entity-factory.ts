@@ -5426,6 +5426,10 @@ export function extractSpecialPowerModules(self: GL, objectDef: ObjectDef | unde
             moduleType,
             updateModuleStartsAttack: readBooleanField(block.fields, ['UpdateModuleStartsAttack']) === true,
             startsPaused: readBooleanField(block.fields, ['StartsPaused']) === true,
+            availableOnFrame: 0,
+            pausedCount: 0,
+            pausedOnFrame: 0,
+            pausedPercent: 0,
             // Source parity: read module-specific INI parameters.
             cashHackMoneyAmount: readNumericField(block.fields, ['MoneyAmount']) ?? 0,
             cashBountyPercent: readNumericField(block.fields, ['Bounty']) ?? 0,
