@@ -56,7 +56,6 @@ describe('overcharge disabled-state guard on capture', () => {
     // Access internal state to inspect overcharge handling.
     const logic = agent.gameLogic as unknown as {
       spawnedEntities: Map<number, any>;
-      overchargeStateByEntityId: Map<number, any>;
       transferOverchargeBetweenSides(entity: any, oldSide: string, newSide: string): void;
       getSidePowerState(side: string): { powerBonus: number };
     };
@@ -68,11 +67,11 @@ describe('overcharge disabled-state guard on capture', () => {
     entity.energyUpgradeBonus = 50;
 
     // Simulate active overcharge state on this entity.
-    logic.overchargeStateByEntityId.set(entity.id, {
-      overchargeActive: true,
+    entity.overchargeBehaviorProfile = {
       healthPercentToDrainPerSecond: 0,
       notAllowedWhenHealthBelowPercent: 0,
-    });
+    };
+    entity.overchargeActive = true;
 
     // Disable the entity (EMP disabled).
     entity.objectStatusFlags.add('DISABLED_EMP');
@@ -109,7 +108,6 @@ describe('overcharge disabled-state guard on capture', () => {
 
     const logic = agent.gameLogic as unknown as {
       spawnedEntities: Map<number, any>;
-      overchargeStateByEntityId: Map<number, any>;
       transferOverchargeBetweenSides(entity: any, oldSide: string, newSide: string): void;
     };
 
@@ -118,11 +116,11 @@ describe('overcharge disabled-state guard on capture', () => {
 
     entity.energyUpgradeBonus = 50;
 
-    logic.overchargeStateByEntityId.set(entity.id, {
-      overchargeActive: true,
+    entity.overchargeBehaviorProfile = {
       healthPercentToDrainPerSecond: 0,
       notAllowedWhenHealthBelowPercent: 0,
-    });
+    };
+    entity.overchargeActive = true;
 
     // Entity is NOT disabled — transfer should proceed normally.
     expect(entity.objectStatusFlags.has('DISABLED_EMP')).toBe(false);

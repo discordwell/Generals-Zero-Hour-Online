@@ -255,21 +255,23 @@ export function updateAssaultTransports(self: GL): void {
 
 
 export function updateOvercharge(self: GL): void {
-    for (const [entityId, overchargeState] of self.overchargeStateByEntityId.entries()) {
-      const entity = self.spawnedEntities.get(entityId);
-      if (!entity || entity.destroyed) {
-        self.overchargeStateByEntityId.delete(entityId);
+    for (const entity of self.spawnedEntities.values()) {
+      if (entity.destroyed) {
+        entity.overchargeActive = false;
         continue;
       }
+      if (!entity.overchargeActive || !entity.overchargeBehaviorProfile) {
+        continue;
+      }
+      const overchargeState = entity.overchargeBehaviorProfile;
 
       const damageAmount = (entity.maxHealth * overchargeState.healthPercentToDrainPerSecond) / LOGIC_FRAME_RATE;
       if (damageAmount > 0 && entity.canTakeDamage && entity.health > 0) {
         self.applyWeaponDamageAmount(entity.id, entity, damageAmount, 'PENALTY');
       }
 
-      const refreshed = self.spawnedEntities.get(entityId);
+      const refreshed = self.spawnedEntities.get(entity.id);
       if (!refreshed || refreshed.destroyed) {
-        self.overchargeStateByEntityId.delete(entityId);
         continue;
       }
 
@@ -2418,7 +2420,7 @@ export function paralyzeBattlePlanTroops(self: GL, source: MapEntity, profile: B
       // Source parity: paralyzeTroop uses a time-limited disable.
       // We reuse DISABLED_SUBDUED which blocks movement and actions.
       entity.objectStatusFlags.add('DISABLED_SUBDUED');
-      self.battlePlanParalyzedUntilFrame.set(entity.id, self.frameCounter + profile.battlePlanParalyzeFrames);
+      entity.disabledParalyzedUntilFrame = self.frameCounter + profile.battlePlanParalyzeFrames;
     }
 }
 
@@ -2427,12 +2429,15 @@ export function paralyzeBattlePlanTroops(self: GL, source: MapEntity, profile: B
    * Clear battle plan paralysis when duration expires.
    */
 export function updateBattlePlanParalysis(self: GL): void {
-    for (const [entityId, untilFrame] of self.battlePlanParalyzedUntilFrame.entries()) {
-      if (self.frameCounter < untilFrame) continue;
-      const entity = self.spawnedEntities.get(entityId);
-      if (entity && !entity.destroyed) {
-        entity.objectStatusFlags.delete('DISABLED_SUBDUED');
+    for (const entity of self.spawnedEntities.values()) {
+      if (entity.destroyed) {
+        entity.disabledParalyzedUntilFrame = 0;
+        continue;
       }
-      self.battlePlanParalyzedUntilFrame.delete(entityId);
+      if (entity.disabledParalyzedUntilFrame <= 0 || self.frameCounter < entity.disabledParalyzedUntilFrame) {
+        continue;
+      }
+      entity.objectStatusFlags.delete('DISABLED_SUBDUED');
+      entity.disabledParalyzedUntilFrame = 0;
     }
 }

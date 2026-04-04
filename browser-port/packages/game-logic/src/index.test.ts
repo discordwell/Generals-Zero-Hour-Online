@@ -12442,9 +12442,11 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     );
 
     const priv = logic as unknown as {
-      spawnedEntities: Map<number, { transportContainerId: number | null }>;
+      spawnedEntities: Map<number, {
+        transportContainerId: number | null;
+        chinookPendingCommand: unknown;
+      }>;
       pendingCombatDropActions: Map<number, unknown>;
-      pendingChinookCommandByEntityId: Map<number, unknown>;
     };
 
     logic.submitCommand({ type: 'enterTransport', entityId: 2, targetTransportId: 1 });
@@ -12474,13 +12476,13 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     // Issue a moveTo while the combat drop is active — should be deferred.
     logic.submitCommand({ type: 'moveTo', entityId: 1, targetX: 30, targetZ: 8 });
     logic.update(1 / 30);
-    expect(priv.pendingChinookCommandByEntityId.has(1)).toBe(true);
+    expect(priv.spawnedEntities.get(1)?.chinookPendingCommand).toBeTruthy();
 
     // Run enough frames for the combat drop to finish and the deferred command to replay.
     for (let frame = 0; frame < 150; frame += 1) {
       logic.update(1 / 30);
     }
-    expect(priv.pendingChinookCommandByEntityId.has(1)).toBe(false);
+    expect(priv.spawnedEntities.get(1)?.chinookPendingCommand ?? null).toBeNull();
     const movedState = logic.getEntityState(1);
     expect(movedState?.x ?? 0).toBeGreaterThan(startX + 3);
   });

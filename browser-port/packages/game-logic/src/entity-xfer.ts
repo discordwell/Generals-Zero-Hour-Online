@@ -16,7 +16,7 @@ import { XferMode } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 4;
+const ENTITY_XFER_VERSION = 7;
 
 /**
  * Serialize or deserialize a nullable string.
@@ -366,6 +366,11 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     e.disabledHackedUntilFrame = 0;
     e.disabledEmpUntilFrame = 0;
   }
+  if (version >= 6) {
+    e.disabledParalyzedUntilFrame = xfer.xferUnsignedInt(e.disabledParalyzedUntilFrame as number);
+  } else {
+    e.disabledParalyzedUntilFrame = 0;
+  }
   if (version >= 4) {
     e.hackInternetRuntimeState = xferNullableJsonObject(
       xfer,
@@ -423,6 +428,11 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.chinookFlightStatus = xferNullableString(xfer, e.chinookFlightStatus as string | null);
   e.chinookFlightStatusEnteredFrame = xfer.xferInt(e.chinookFlightStatusEnteredFrame as number);
   e.chinookHealingAirfieldId = xfer.xferInt(e.chinookHealingAirfieldId as number);
+  if (version >= 7) {
+    e.chinookPendingCommand = xferNullableJsonObject(xfer, e.chinookPendingCommand as object | null);
+  } else {
+    e.chinookPendingCommand = null;
+  }
   e.repairDockProfile = xferNullableJsonObject(xfer, e.repairDockProfile as object | null);
   e.commandButtonHuntProfile = xferNullableJsonObject(xfer, e.commandButtonHuntProfile as object | null);
   e.commandButtonHuntMode = xfer.xferAsciiString(e.commandButtonHuntMode as string);
@@ -816,6 +826,13 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.assaultTransportProfile = xferNullableJsonObject(xfer, e.assaultTransportProfile as object | null);
 
   // ── Power Plant ──
+  if (version >= 5) {
+    e.overchargeBehaviorProfile = xferNullableJsonObject(xfer, e.overchargeBehaviorProfile as object | null);
+    e.overchargeActive = xfer.xferBool(e.overchargeActive as boolean);
+  } else {
+    e.overchargeBehaviorProfile = null;
+    e.overchargeActive = false;
+  }
   e.powerPlantUpdateProfile = xferNullableJsonObject(xfer, e.powerPlantUpdateProfile as object | null);
   e.powerPlantUpdateState = xferNullableJsonObject(xfer, e.powerPlantUpdateState as object | null);
 

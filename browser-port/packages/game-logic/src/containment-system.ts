@@ -276,7 +276,7 @@ export function handleExitContainerCommand(self: GL, entityId: number): void {
   }
 
   if (container.chinookAIProfile && container.chinookFlightStatus !== 'LANDED') {
-    self.pendingChinookCommandByEntityId.set(container.id, { type: 'exitContainer', entityId });
+    container.chinookPendingCommand = { type: 'exitContainer', entityId };
     self.setChinookFlightStatus(container, 'LANDING');
     return;
   }
@@ -373,7 +373,7 @@ export function handleEvacuateCommand(self: GL, entityId: number): void {
   }
 
   if (container.chinookAIProfile && container.chinookFlightStatus !== 'LANDED') {
-    self.pendingChinookCommandByEntityId.set(container.id, { type: 'evacuate', entityId });
+    container.chinookPendingCommand = { type: 'evacuate', entityId };
     self.setChinookFlightStatus(container, 'LANDING');
     return;
   }

@@ -547,13 +547,13 @@ export function deferCommandWhileChinookBusy(self: GL, command: GameLogicCommand
   self.setChinookAirfieldForHealing(entity, 0);
 
   if (self.pendingCombatDropActions.has(entity.id)) {
-    self.pendingChinookCommandByEntityId.set(entity.id, command);
+    entity.chinookPendingCommand = command;
     return true;
   }
 
   const status = entity.chinookFlightStatus ?? 'FLYING';
   if (status === 'TAKING_OFF' || status === 'LANDING' || status === 'DOING_COMBAT_DROP') {
-    self.pendingChinookCommandByEntityId.set(entity.id, command);
+    entity.chinookPendingCommand = command;
     return true;
   }
 
@@ -565,7 +565,7 @@ export function deferCommandWhileChinookBusy(self: GL, command: GameLogicCommand
 
   if (command.type === 'exitContainer' || command.type === 'evacuate') {
     if (status !== 'LANDED') {
-      self.pendingChinookCommandByEntityId.set(entity.id, command);
+      entity.chinookPendingCommand = command;
       self.setChinookFlightStatus(entity, 'LANDING');
       return true;
     }
@@ -573,7 +573,7 @@ export function deferCommandWhileChinookBusy(self: GL, command: GameLogicCommand
   }
 
   if (isChinookTakeoffCommandType(self, command.type) && status !== 'FLYING') {
-    self.pendingChinookCommandByEntityId.set(entity.id, command);
+    entity.chinookPendingCommand = command;
     self.setChinookFlightStatus(entity, 'TAKING_OFF');
     return true;
   }
@@ -1155,7 +1155,7 @@ export function handleToggleOverchargeCommand(self: GL, command: ToggleOvercharg
     return;
   }
 
-  if (self.overchargeStateByEntityId.has(entity.id)) {
+  if (entity.overchargeActive) {
     self.disableOverchargeForEntity(entity);
     return;
   }

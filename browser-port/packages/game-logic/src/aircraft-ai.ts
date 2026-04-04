@@ -464,15 +464,20 @@ export function countActiveChinookRappellers(self: GL, sourceEntityId: number): 
 }
 
 export function clearPendingChinookCommands(self: GL, entityId: number): void {
-  self.pendingChinookCommandByEntityId.delete(entityId);
+  const entity = self.spawnedEntities.get(entityId);
+  if (!entity || !entity.chinookAIProfile) {
+    return;
+  }
+  entity.chinookPendingCommand = null;
 }
 
 export function flushPendingChinookCommand(self: GL, entityId: number): void {
-  const command = self.pendingChinookCommandByEntityId.get(entityId);
-  if (!command) {
+  const entity = self.spawnedEntities.get(entityId);
+  if (!entity || !entity.chinookAIProfile || !entity.chinookPendingCommand) {
     return;
   }
-  self.pendingChinookCommandByEntityId.delete(entityId);
+  const command = entity.chinookPendingCommand;
+  entity.chinookPendingCommand = null;
   self.submitCommand(command);
 }
 
@@ -1181,7 +1186,7 @@ export function updateChinookAI(self: GL): void {
       } else if (
         status === 'LANDED'
         && !waitingToEnterOrExit
-        && !self.pendingChinookCommandByEntityId.has(entity.id)
+        && !entity.chinookPendingCommand
         && entity.health >= entity.maxHealth
       ) {
         setParkingPlaceHealee(self, airfield, entity, false);
@@ -1202,7 +1207,7 @@ export function updateChinookAI(self: GL): void {
     if (
       !waitingToEnterOrExit
       && status === 'LANDED'
-      && !self.pendingChinookCommandByEntityId.has(entity.id)
+      && !entity.chinookPendingCommand
       && entity.chinookHealingAirfieldId === 0
     ) {
       setChinookFlightStatus(self, entity, 'TAKING_OFF');

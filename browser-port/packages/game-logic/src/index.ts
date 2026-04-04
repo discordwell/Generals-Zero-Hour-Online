@@ -3126,9 +3126,6 @@ interface OverchargeBehaviorProfile {
   notAllowedWhenHealthBelowPercent: number;
 }
 
-interface OverchargeRuntimeState extends OverchargeBehaviorProfile {
-}
-
 interface SabotageBuildingProfile {
   moduleType: string;
   disableHackedDurationFrames: number;
@@ -3554,6 +3551,8 @@ export interface MapEntity {
   chinookFlightStatusEnteredFrame: number;
   /** Source parity: ChinookAIUpdate::m_airfieldForHealing. */
   chinookHealingAirfieldId: number;
+  /** Source parity: ChinookAIUpdate::m_pendingCommand. */
+  chinookPendingCommand: GameLogicCommand | null;
   repairDockProfile: RepairDockProfile | null;
   commandButtonHuntProfile: CommandButtonHuntProfile | null;
   commandButtonHuntMode: CommandButtonHuntMode;
@@ -3716,6 +3715,8 @@ export interface MapEntity {
   disabledHackedUntilFrame: number;
   /** Source parity: Object::m_disabledTillFrame[DISABLED_EMP]. */
   disabledEmpUntilFrame: number;
+  /** Source parity: BattlePlanUpdate sets a time-limited paralysis disable on the object. */
+  disabledParalyzedUntilFrame: number;
   /** Source parity bridge: HackInternetAIUpdate runtime loop state now owned by the entity. */
   hackInternetRuntimeState: HackInternetRuntimeState | null;
   /** Source parity: HackInternetAIUpdate::m_pendingCommand and execute gate. */
@@ -4198,6 +4199,8 @@ export interface MapEntity {
   assaultTransportProfile: AssaultTransportProfile | null;
 
   // ── Source parity: PowerPlantUpdate — rod extension animation state machine ──
+  overchargeBehaviorProfile: OverchargeBehaviorProfile | null;
+  overchargeActive: boolean;
   powerPlantUpdateProfile: PowerPlantUpdateProfile | null;
   powerPlantUpdateState: PowerPlantUpdateState | null;
 
@@ -8163,8 +8166,11 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'activeSpyVisions',
   'spyVisionEntityStates',
   'revealToAllVisionStates',
+  'battlePlanParalyzedUntilFrame',
   'hackInternetStateByEntityId',
   'hackInternetPendingCommandByEntityId',
+  'overchargeStateByEntityId',
+  'pendingChinookCommandByEntityId',
   'disabledHackedStatusByEntityId',
   'disabledEmpStatusByEntityId',
   'shortcutSpecialPowerSourceByName',
@@ -8589,7 +8595,6 @@ export class GameLogicSubsystem implements Subsystem {
   /** Source parity: AISkirmishPlayer::m_baseCenter/m_baseRadius cached per side. */
   private readonly scriptSkirmishBaseCenterAndRadiusBySide = new Map<string, ScriptBaseCenterAndRadius>();
   private readonly sideBattlePlanBonuses = new Map<string, SideBattlePlanBonuses>();
-  private readonly battlePlanParalyzedUntilFrame = new Map<number, number>();
   private readonly playerSideByIndex = new Map<number, string>();
   private readonly localPlayerScienceAvailability = new Map<string, LocalScienceAvailability>();
   private readonly shortcutSpecialPowerSourceByName = new Map<string, Map<number, number>>();
@@ -8783,7 +8788,6 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ readonly dyingEntityIds = new Set<number>();
   private readonly sellingEntities = new Map<number, SellingEntityState>();
   private readonly assaultTransportStateByEntityId = new Map<number, AssaultTransportState>();
-  private readonly overchargeStateByEntityId = new Map<number, OverchargeRuntimeState>();
   /** Source parity: ThingTemplate::m_isBuildFacility derived set from production prerequisites. */
   private buildFacilityTemplateNamesCache: Set<string> | null = null;
   private buildFacilityTemplateNamesRegistry: IniDataRegistry | null = null;
@@ -8803,8 +8807,6 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly pendingCombatDropActions = new Map<number, PendingCombatDropActionState>();
   /** Source parity: ChinookCombatDropState — rappellers actively descending. */
   private readonly pendingChinookRappels = new Map<number, PendingChinookRappelState>();
-  /** Source parity: ChinookAIUpdate::m_pendingCommand while in takeoff/landing/rappel states. */
-  private readonly pendingChinookCommandByEntityId = new Map<number, GameLogicCommand>();
   /** Source parity: BuildAssistant repair — dozer ID → target building ID. */
   private readonly pendingRepairActions = new Map<number, number>();
   /** Source parity: AIPlayer::repairStructure queue keyed by controlling side. */
@@ -9983,6 +9985,23 @@ export class GameLogicSubsystem implements Subsystem {
     if (key === 'revealToAllVisionStates' || key === 'dyingEntityIds') {
       return true;
     }
+    if (key === 'battlePlanParalyzedUntilFrame') {
+      if (!(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, untilFrame] of value.entries()) {
+        if (typeof entityId !== 'number' || !Number.isFinite(untilFrame)) {
+          continue;
+        }
+        const entity = this.spawnedEntities.get(entityId);
+        if (!entity || entity.destroyed) {
+          continue;
+        }
+        entity.objectStatusFlags.add('DISABLED_SUBDUED');
+        entity.disabledParalyzedUntilFrame = Math.max(0, Math.trunc(untilFrame));
+      }
+      return true;
+    }
     if (key === 'disabledHackedStatusByEntityId') {
       if (!(value instanceof Map)) {
         return false;
@@ -10049,6 +10068,47 @@ export class GameLogicSubsystem implements Subsystem {
             ? Math.max(0, Math.trunc(pending.executeFrame ?? 0))
             : this.frameCounter,
         };
+      }
+      return true;
+    }
+    if (key === 'overchargeStateByEntityId') {
+      if (!(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, rawState] of value.entries()) {
+        if (typeof entityId !== 'number' || !rawState || typeof rawState !== 'object') {
+          continue;
+        }
+        const entity = this.spawnedEntities.get(entityId);
+        if (!entity || entity.destroyed) {
+          continue;
+        }
+        const state = rawState as Partial<OverchargeBehaviorProfile>;
+        entity.overchargeBehaviorProfile = {
+          healthPercentToDrainPerSecond: Number.isFinite(state.healthPercentToDrainPerSecond)
+            ? Math.max(0, state.healthPercentToDrainPerSecond ?? 0)
+            : 0,
+          notAllowedWhenHealthBelowPercent: Number.isFinite(state.notAllowedWhenHealthBelowPercent)
+            ? clamp(state.notAllowedWhenHealthBelowPercent ?? 0, 0, 1)
+            : 0,
+        };
+        entity.overchargeActive = true;
+      }
+      return true;
+    }
+    if (key === 'pendingChinookCommandByEntityId') {
+      if (!(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, command] of value.entries()) {
+        if (typeof entityId !== 'number' || !command || typeof command !== 'object') {
+          continue;
+        }
+        const entity = this.spawnedEntities.get(entityId);
+        if (!entity || entity.destroyed || !entity.chinookAIProfile) {
+          continue;
+        }
+        entity.chinookPendingCommand = command as GameLogicCommand;
       }
       return true;
     }
@@ -19585,7 +19645,6 @@ export class GameLogicSubsystem implements Subsystem {
     this.sideScoreScreenExcluded.clear();
     this.scriptObjectsReceiveDifficultyBonus = true;
     this.sideBattlePlanBonuses.clear();
-    this.battlePlanParalyzedUntilFrame.clear();
     this.sideUpgradesInProduction.clear();
     this.sideCompletedUpgrades.clear();
     this.sideKindOfProductionCostModifiers.clear();
@@ -21073,7 +21132,7 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   private transferOverchargeBetweenSides(entity: MapEntity, oldSide: string, newSide: string): void {
-    if (!this.overchargeStateByEntityId.has(entity.id)) {
+    if (!entity.overchargeActive) {
       return;
     }
 
@@ -21245,22 +21304,23 @@ export class GameLogicSubsystem implements Subsystem {
       return;
     }
 
-    if (this.overchargeStateByEntityId.has(entity.id)) {
+    if (entity.overchargeActive) {
       return;
     }
 
     const sideState = this.getSidePowerStateMap(normalizedSide);
     applyPowerPlantUpgradeToSideImpl(sideState, entity.energyUpgradeBonus);
-    this.overchargeStateByEntityId.set(entity.id, {
+    entity.overchargeBehaviorProfile = {
       healthPercentToDrainPerSecond: Math.max(0, profile.healthPercentToDrainPerSecond),
       notAllowedWhenHealthBelowPercent: clamp(profile.notAllowedWhenHealthBelowPercent, 0, 1),
-    });
+    };
+    entity.overchargeActive = true;
     // Source parity: OverchargeBehavior.cpp line 218-223 — extendRods(TRUE) on overcharge enable.
     this.extendPowerPlantRods(entity, true);
   }
 
   private disableOverchargeForEntity(entity: MapEntity): void {
-    if (!this.overchargeStateByEntityId.has(entity.id)) {
+    if (!entity.overchargeActive) {
       return;
     }
 
@@ -21272,7 +21332,7 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
 
-    this.overchargeStateByEntityId.delete(entity.id);
+    entity.overchargeActive = false;
     // Source parity: OverchargeBehavior.cpp line 189-194 — extendRods(FALSE) on overcharge disable.
     this.extendPowerPlantRods(entity, false);
   }
@@ -36560,25 +36620,25 @@ export class GameLogicSubsystem implements Subsystem {
     this.visualEventBuffer.length = 0;
     this.nextProjectileVisualId = 1;
     this.runtimeAiConfig = { ...DEFAULT_RUNTIME_AI_CONFIG };
-    for (const [entityId] of this.overchargeStateByEntityId) {
-      const entity = this.spawnedEntities.get(entityId);
-      if (entity && !entity.destroyed) {
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.overchargeActive && !entity.destroyed) {
         this.disableOverchargeForEntity(entity);
       }
     }
-    this.overchargeStateByEntityId.clear();
     for (const entity of this.spawnedEntities.values()) {
       entity.disabledHackedUntilFrame = 0;
       entity.disabledEmpUntilFrame = 0;
+      entity.disabledParalyzedUntilFrame = 0;
       entity.hackInternetRuntimeState = null;
       entity.hackInternetPendingCommand = null;
+      entity.chinookPendingCommand = null;
+      entity.overchargeActive = false;
     }
     this.sellingEntities.clear();
     this.pendingEnterObjectActions.clear();
     this.pendingRepairDockActions.clear();
     this.pendingCombatDropActions.clear();
     this.pendingChinookRappels.clear();
-    this.pendingChinookCommandByEntityId.clear();
     this.pendingGarrisonActions.clear();
     this.pendingTransportActions.clear();
     this.pendingTunnelActions.clear();

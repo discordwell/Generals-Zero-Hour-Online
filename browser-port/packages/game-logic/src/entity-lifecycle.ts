@@ -805,9 +805,9 @@ export function silentDestroyEntity(self: GL, entityId: number): void {
   self.sellingEntities.delete(entityId);
   entity.disabledHackedUntilFrame = 0;
   entity.disabledEmpUntilFrame = 0;
+  entity.disabledParalyzedUntilFrame = 0;
   entity.hackInternetRuntimeState = null;
   entity.hackInternetPendingCommand = null;
-  self.battlePlanParalyzedUntilFrame.delete(entityId);
 
   // Clean up pending actions referencing this entity.
   for (const [sourceId, pendingAction] of self.pendingEnterObjectActions.entries()) {
@@ -1364,9 +1364,9 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   self.sellingEntities.delete(entityId);
   entity.disabledHackedUntilFrame = 0;
   entity.disabledEmpUntilFrame = 0;
+  entity.disabledParalyzedUntilFrame = 0;
   entity.hackInternetRuntimeState = null;
   entity.hackInternetPendingCommand = null;
-  self.battlePlanParalyzedUntilFrame.delete(entityId);
   // Source parity: if a Strategy Center is destroyed while a battle plan is active,
   // remove its bonuses from all entities on the side.
   if (entity.battlePlanState?.activePlan !== 'NONE' && entity.battlePlanState?.transitionStatus === 'ACTIVE') {
@@ -2091,7 +2091,7 @@ export function finalizeDestroyedEntities(self: GL): void {
       self.setChinookAirfieldForHealing(entity, 0);
     }
     self.clearParkingPlaceHealee(entity);
-    self.pendingChinookCommandByEntityId.delete(entityId);
+    entity.chinookPendingCommand = null;
     self.pendingCombatDropActions.delete(entityId);
     self.abortPendingChinookRappels(entityId);
     self.removeEntityFromWorld(entityId);
