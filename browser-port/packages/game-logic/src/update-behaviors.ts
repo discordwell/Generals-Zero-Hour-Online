@@ -83,19 +83,26 @@ export function updatePendingHackInternetCommands(self: GL): void {
 
 
 export function getOrCreateAssaultTransportState(self: GL, entityId: number): AssaultTransportState {
-    let state = self.assaultTransportStateByEntityId.get(entityId);
+    const transport = self.spawnedEntities.get(entityId);
+    let state = transport?.assaultTransportState ?? self.assaultTransportStateByEntityId.get(entityId);
     if (!state) {
       state = {
         members: [],
         designatedTargetId: null,
         attackMoveGoalX: 0,
+        attackMoveGoalY: transport?.y ?? 0,
         attackMoveGoalZ: 0,
+        assaultState: 0,
+        framesRemaining: 0,
         isAttackMove: false,
         isAttackObject: false,
         newOccupantsAreNewMembers: false,
       };
-      self.assaultTransportStateByEntityId.set(entityId, state);
     }
+    if (transport) {
+      transport.assaultTransportState = state;
+    }
+    self.assaultTransportStateByEntityId.set(entityId, state);
     return state;
 }
 
@@ -110,11 +117,15 @@ export function updateAssaultTransports(self: GL): void {
       if (!transport || transport.destroyed) {
         // Source parity: giveFinalOrders() — transfer commands to troops when transport dies.
         self.giveAssaultTransportFinalOrders(state);
+        if (transport) {
+          transport.assaultTransportState = null;
+        }
         self.assaultTransportStateByEntityId.delete(transportId);
         continue;
       }
       const profile = transport.assaultTransportProfile;
       if (!profile) {
+        transport.assaultTransportState = null;
         self.assaultTransportStateByEntityId.delete(transportId);
         continue;
       }

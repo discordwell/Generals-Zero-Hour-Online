@@ -569,6 +569,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
 
     // Assault Transport
     assaultTransportProfile: null,
+    assaultTransportState: null,
 
     // Power Plant
     powerPlantUpdateProfile: null,
@@ -772,6 +773,53 @@ describe('entity-xfer', () => {
     expect(sets).toBeInstanceOf(Map);
     expect(sets.size).toBe(2);
     expect(sets.get('DEFAULT')).toEqual({ speed: 30 });
+  });
+
+  it('round-trips source-owned assault transport state and drops TS-only helper flags', () => {
+    const original = createTestEntity({
+      assaultTransportState: {
+        members: [
+          { entityId: 4, isHealing: true, isNew: true },
+          { entityId: 5, isHealing: false, isNew: false },
+        ],
+        designatedTargetId: 9,
+        attackMoveGoalX: 120,
+        attackMoveGoalY: 7.5,
+        attackMoveGoalZ: 144,
+        assaultState: 3,
+        framesRemaining: 45,
+        isAttackMove: true,
+        isAttackObject: false,
+        newOccupantsAreNewMembers: true,
+      },
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity({ assaultTransportState: null });
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.assaultTransportState).toEqual({
+      members: [
+        { entityId: 4, isHealing: true, isNew: false },
+        { entityId: 5, isHealing: false, isNew: false },
+      ],
+      designatedTargetId: 9,
+      attackMoveGoalX: 120,
+      attackMoveGoalY: 7.5,
+      attackMoveGoalZ: 144,
+      assaultState: 3,
+      framesRemaining: 45,
+      isAttackMove: true,
+      isAttackObject: false,
+      newOccupantsAreNewMembers: false,
+    });
   });
 
   it('CRC is deterministic for identical entities', () => {

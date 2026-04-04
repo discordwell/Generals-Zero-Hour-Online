@@ -16,7 +16,7 @@ import { XferMode } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 7;
+const ENTITY_XFER_VERSION = 8;
 
 /**
  * Serialize or deserialize a nullable string.
@@ -103,6 +103,96 @@ function xferNullableVectorXZ(
     return { x, z };
   }
   return null;
+}
+
+function xferAssaultTransportState(xfer: Xfer, value: unknown): unknown {
+  const hasValue = xfer.xferBool(value !== null && value !== undefined);
+  if (!hasValue) {
+    return null;
+  }
+
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const memberCount = xfer.xferInt(0);
+    const members: Array<{ entityId: number; isHealing: boolean; isNew: boolean }> = [];
+    for (let i = 0; i < memberCount; i += 1) {
+      members.push({
+        entityId: xfer.xferObjectID(0),
+        isHealing: xfer.xferBool(false),
+        // Source parity: AssaultTransportAIUpdate::xfer does not persist m_newMember[].
+        isNew: false,
+      });
+    }
+    const attackMoveGoal = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const designatedTargetId = xfer.xferObjectID(0);
+    const assaultState = xfer.xferInt(0);
+    const framesRemaining = xfer.xferUnsignedInt(0);
+    const isAttackMove = xfer.xferBool(false);
+    const isAttackObject = xfer.xferBool(false);
+    return {
+      members,
+      designatedTargetId: designatedTargetId === 0 ? null : designatedTargetId,
+      attackMoveGoalX: attackMoveGoal.x,
+      attackMoveGoalY: attackMoveGoal.y,
+      attackMoveGoalZ: attackMoveGoal.z,
+      assaultState,
+      framesRemaining,
+      isAttackMove,
+      isAttackObject,
+      // Source parity: reset to default after load; helper flag is TS-only.
+      newOccupantsAreNewMembers: false,
+    };
+  }
+
+  const state = (value && typeof value === 'object') ? value as Record<string, unknown> : {};
+  const members = Array.isArray(state.members)
+    ? state.members.flatMap((member) => {
+        if (!member || typeof member !== 'object') {
+          return [];
+        }
+        const record = member as Record<string, unknown>;
+        if (!Number.isFinite(record.entityId)) {
+          return [];
+        }
+        return [{
+          entityId: Math.max(1, Math.trunc(record.entityId as number)),
+          isHealing: Boolean(record.isHealing),
+          isNew: Boolean(record.isNew),
+        }];
+      })
+    : [];
+  const normalizedState = {
+    members,
+    designatedTargetId: Number.isFinite(state.designatedTargetId)
+      ? Math.max(1, Math.trunc(state.designatedTargetId as number))
+      : null,
+    attackMoveGoalX: Number.isFinite(state.attackMoveGoalX) ? state.attackMoveGoalX as number : 0,
+    attackMoveGoalY: Number.isFinite(state.attackMoveGoalY) ? state.attackMoveGoalY as number : 0,
+    attackMoveGoalZ: Number.isFinite(state.attackMoveGoalZ) ? state.attackMoveGoalZ as number : 0,
+    assaultState: Number.isFinite(state.assaultState) ? Math.trunc(state.assaultState as number) : 0,
+    framesRemaining: Number.isFinite(state.framesRemaining)
+      ? Math.max(0, Math.trunc(state.framesRemaining as number))
+      : 0,
+    isAttackMove: Boolean(state.isAttackMove),
+    isAttackObject: Boolean(state.isAttackObject),
+    newOccupantsAreNewMembers: Boolean(state.newOccupantsAreNewMembers),
+  };
+
+  xfer.xferInt(normalizedState.members.length);
+  for (const member of normalizedState.members) {
+    xfer.xferObjectID(member.entityId);
+    xfer.xferBool(member.isHealing);
+  }
+  xfer.xferCoord3D({
+    x: normalizedState.attackMoveGoalX,
+    y: normalizedState.attackMoveGoalY,
+    z: normalizedState.attackMoveGoalZ,
+  });
+  xfer.xferObjectID(normalizedState.designatedTargetId ?? 0);
+  xfer.xferInt(normalizedState.assaultState);
+  xfer.xferUnsignedInt(normalizedState.framesRemaining);
+  xfer.xferBool(normalizedState.isAttackMove);
+  xfer.xferBool(normalizedState.isAttackObject);
+  return normalizedState;
 }
 
 /**
@@ -824,6 +914,11 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
 
   // ── Assault Transport ──
   e.assaultTransportProfile = xferNullableJsonObject(xfer, e.assaultTransportProfile as object | null);
+  if (version >= 8) {
+    e.assaultTransportState = xferAssaultTransportState(xfer, e.assaultTransportState);
+  } else {
+    e.assaultTransportState = null;
+  }
 
   // ── Power Plant ──
   if (version >= 5) {

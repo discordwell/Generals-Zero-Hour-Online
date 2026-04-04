@@ -3101,9 +3101,15 @@ interface AssaultTransportState {
   members: AssaultTransportMember[];
   designatedTargetId: number | null;
   attackMoveGoalX: number;
+  attackMoveGoalY: number;
   attackMoveGoalZ: number;
+  /** Source parity: AssaultTransportAIUpdate::m_state. */
+  assaultState: number;
+  /** Source parity: AssaultTransportAIUpdate::m_framesRemaining. */
+  framesRemaining: number;
   isAttackMove: boolean;
   isAttackObject: boolean;
+  /** TS helper only: source xfer does not persist this flag. */
   newOccupantsAreNewMembers: boolean;
 }
 
@@ -4197,6 +4203,8 @@ export interface MapEntity {
   // ── Source parity: AssaultTransportAIUpdate — auto-deploy/recall passengers ──
   /** AssaultTransport profile (null = not an assault transport). */
   assaultTransportProfile: AssaultTransportProfile | null;
+  /** Source parity: AssaultTransportAIUpdate runtime state owned by the transport object. */
+  assaultTransportState: AssaultTransportState | null;
 
   // ── Source parity: PowerPlantUpdate — rod extension animation state machine ──
   overchargeBehaviorProfile: OverchargeBehaviorProfile | null;
@@ -8170,6 +8178,7 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'hackInternetStateByEntityId',
   'hackInternetPendingCommandByEntityId',
   'overchargeStateByEntityId',
+  'assaultTransportStateByEntityId',
   'pendingChinookCommandByEntityId',
   'disabledHackedStatusByEntityId',
   'disabledEmpStatusByEntityId',
@@ -10096,6 +10105,64 @@ export class GameLogicSubsystem implements Subsystem {
       }
       return true;
     }
+    if (key === 'assaultTransportStateByEntityId') {
+      if (!(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, rawState] of value.entries()) {
+        if (typeof entityId !== 'number' || !rawState || typeof rawState !== 'object') {
+          continue;
+        }
+        const entity = this.spawnedEntities.get(entityId);
+        if (!entity || entity.destroyed || !entity.assaultTransportProfile) {
+          continue;
+        }
+        const record = rawState as Partial<AssaultTransportState>;
+        const members = Array.isArray(record.members)
+          ? record.members.flatMap((member) => {
+              if (!member || typeof member !== 'object') {
+                return [];
+              }
+              const memberRecord = member as Partial<AssaultTransportMember>;
+              if (!Number.isFinite(memberRecord.entityId)) {
+                return [];
+              }
+              return [{
+                entityId: Math.max(1, Math.trunc(memberRecord.entityId ?? 0)),
+                isHealing: Boolean(memberRecord.isHealing),
+                isNew: Boolean(memberRecord.isNew),
+              }];
+            })
+          : [];
+        const state: AssaultTransportState = {
+          members,
+          designatedTargetId: Number.isFinite(record.designatedTargetId)
+            ? Math.max(1, Math.trunc(record.designatedTargetId ?? 0))
+            : null,
+          attackMoveGoalX: Number.isFinite(record.attackMoveGoalX)
+            ? record.attackMoveGoalX ?? 0
+            : 0,
+          attackMoveGoalY: Number.isFinite(record.attackMoveGoalY)
+            ? record.attackMoveGoalY ?? 0
+            : 0,
+          attackMoveGoalZ: Number.isFinite(record.attackMoveGoalZ)
+            ? record.attackMoveGoalZ ?? 0
+            : 0,
+          assaultState: Number.isFinite(record.assaultState)
+            ? Math.max(0, Math.trunc(record.assaultState ?? 0))
+            : 0,
+          framesRemaining: Number.isFinite(record.framesRemaining)
+            ? Math.max(0, Math.trunc(record.framesRemaining ?? 0))
+            : 0,
+          isAttackMove: Boolean(record.isAttackMove),
+          isAttackObject: Boolean(record.isAttackObject),
+          newOccupantsAreNewMembers: Boolean(record.newOccupantsAreNewMembers),
+        };
+        entity.assaultTransportState = state;
+        this.assaultTransportStateByEntityId.set(entityId, state);
+      }
+      return true;
+    }
     if (key === 'pendingChinookCommandByEntityId') {
       if (!(value instanceof Map)) {
         return false;
@@ -10538,6 +10605,12 @@ export class GameLogicSubsystem implements Subsystem {
     (this as unknown as Record<string, unknown>).spawnedEntities = new Map(
       snapshot.spawnedEntities.map((entity) => [entity.id, entity]),
     );
+    this.assaultTransportStateByEntityId.clear();
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.assaultTransportState) {
+        this.assaultTransportStateByEntityId.set(entity.id, entity.assaultTransportState);
+      }
+    }
     this.caveTrackers.clear();
     for (const caveTracker of snapshot.caveTrackers ?? []) {
       if (!caveTracker || typeof caveTracker.caveIndex !== 'number') {
@@ -25663,6 +25736,11 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity: reset() then set attack flags.
     state.members = [];
     state.designatedTargetId = targetEntityId;
+    state.attackMoveGoalX = 0;
+    state.attackMoveGoalY = 0;
+    state.attackMoveGoalZ = 0;
+    state.assaultState = 0;
+    state.framesRemaining = 0;
     state.isAttackObject = true;
     state.isAttackMove = false;
     state.newOccupantsAreNewMembers = false;
@@ -25673,14 +25751,18 @@ export class GameLogicSubsystem implements Subsystem {
     state.members = [];
     state.designatedTargetId = null;
     state.attackMoveGoalX = targetX;
+    state.attackMoveGoalY = this.resolveGroundHeight(targetX, targetZ);
     state.attackMoveGoalZ = targetZ;
+    state.assaultState = 0;
+    state.framesRemaining = 0;
     state.isAttackMove = true;
     state.isAttackObject = false;
     state.newOccupantsAreNewMembers = false;
   }
 
   /* @internal */ resetAssaultTransportState(entityId: number): void {
-    const state = this.assaultTransportStateByEntityId.get(entityId);
+    const entity = this.spawnedEntities.get(entityId);
+    const state = entity?.assaultTransportState ?? this.assaultTransportStateByEntityId.get(entityId);
     if (!state) return;
     // Source parity: retrieveMembers() — order all outside members back in.
     for (const member of state.members) {
@@ -25697,6 +25779,9 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     this.assaultTransportStateByEntityId.delete(entityId);
+    if (entity) {
+      entity.assaultTransportState = null;
+    }
   }
 
   /**
@@ -36632,8 +36717,10 @@ export class GameLogicSubsystem implements Subsystem {
       entity.hackInternetRuntimeState = null;
       entity.hackInternetPendingCommand = null;
       entity.chinookPendingCommand = null;
+      entity.assaultTransportState = null;
       entity.overchargeActive = false;
     }
+    this.assaultTransportStateByEntityId.clear();
     this.sellingEntities.clear();
     this.pendingEnterObjectActions.clear();
     this.pendingRepairDockActions.clear();

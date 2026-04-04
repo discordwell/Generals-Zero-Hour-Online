@@ -832,6 +832,7 @@ export function createMapEntity(self: GL,
     } : null,
     // AssaultTransport
     assaultTransportProfile: extractAssaultTransportProfile(self, objectDef),
+    assaultTransportState: null,
     // PowerPlantUpdate
     overchargeBehaviorProfile: self.extractOverchargeBehaviorProfile(objectDef),
     overchargeActive: false,
