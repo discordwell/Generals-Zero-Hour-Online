@@ -16,6 +16,7 @@ import {
   type GameDifficulty,
   type GameLogicCaveTrackerSaveState,
   type GameLogicBuildableOverrideSaveState,
+  type GameLogicBridgeSegmentSaveState,
   type GameLogicControlBarOverrideSaveState,
   type GameLogicCoreSaveState,
   type GameLogicInGameUiSaveState,
@@ -48,7 +49,7 @@ const CAMPAIGN_VERSION = 5;
 const GAME_STATE_MAP_VERSION = 2;
 const BROWSER_RUNTIME_STATE_VERSION = 1;
 const SOURCE_PLAYER_SNAPSHOT_VERSION = 2;
-const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 4;
+const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 5;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
 const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
 const SOURCE_RADAR_EVENT_COUNT = 64;
@@ -739,6 +740,68 @@ function xferSourceControlBarOverrides(
   return overrides;
 }
 
+function xferSourceBridgeSegments(
+  xfer: Xfer,
+  segments: GameLogicBridgeSegmentSaveState[],
+): GameLogicBridgeSegmentSaveState[] {
+  const count = xfer.xferUnsignedInt(segments.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: GameLogicBridgeSegmentSaveState[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const segmentId = xfer.xferInt(0);
+      const passable = xfer.xferBool(false);
+      const cellIndices = xfer.xferIntList([]);
+      const transitionIndices = xfer.xferIntList([]);
+      const hasControlEntities = xfer.xferBool(false);
+      const controlEntityIds = hasControlEntities ? xfer.xferObjectIDList([]) : undefined;
+      const hasWorldEndpoints = xfer.xferBool(false);
+      loaded.push({
+        segmentId,
+        passable,
+        cellIndices,
+        transitionIndices,
+        controlEntityIds,
+        startWorldX: hasWorldEndpoints ? xfer.xferReal(0) : undefined,
+        startWorldZ: hasWorldEndpoints ? xfer.xferReal(0) : undefined,
+        endWorldX: hasWorldEndpoints ? xfer.xferReal(0) : undefined,
+        endWorldZ: hasWorldEndpoints ? xfer.xferReal(0) : undefined,
+        startSurfaceY: hasWorldEndpoints ? xfer.xferReal(0) : undefined,
+        endSurfaceY: hasWorldEndpoints ? xfer.xferReal(0) : undefined,
+      });
+    }
+    return loaded;
+  }
+
+  for (const segment of segments) {
+    xfer.xferInt(segment.segmentId);
+    xfer.xferBool(segment.passable);
+    xfer.xferIntList(segment.cellIndices);
+    xfer.xferIntList(segment.transitionIndices);
+    const controlEntityIds = segment.controlEntityIds ?? [];
+    xfer.xferBool(controlEntityIds.length > 0);
+    if (controlEntityIds.length > 0) {
+      xfer.xferObjectIDList(controlEntityIds);
+    }
+    const hasWorldEndpoints =
+      Number.isFinite(segment.startWorldX)
+      && Number.isFinite(segment.startWorldZ)
+      && Number.isFinite(segment.endWorldX)
+      && Number.isFinite(segment.endWorldZ)
+      && Number.isFinite(segment.startSurfaceY)
+      && Number.isFinite(segment.endSurfaceY);
+    xfer.xferBool(hasWorldEndpoints);
+    if (hasWorldEndpoints) {
+      xfer.xferReal(segment.startWorldX ?? 0);
+      xfer.xferReal(segment.startWorldZ ?? 0);
+      xfer.xferReal(segment.endWorldX ?? 0);
+      xfer.xferReal(segment.endWorldZ ?? 0);
+      xfer.xferReal(segment.startSurfaceY ?? 0);
+      xfer.xferReal(segment.endSurfaceY ?? 0);
+    }
+  }
+  return segments;
+}
+
 class PlayersSnapshot implements Snapshot {
   payload: GameLogicPlayersSaveState | null;
 
@@ -1064,7 +1127,7 @@ class GameLogicSnapshot implements Snapshot {
 
   xfer(xfer: Xfer): void {
     const version = xfer.xferVersion(SOURCE_GAME_LOGIC_SNAPSHOT_VERSION);
-    if (version !== 1 && version !== 2 && version !== 3 && version !== SOURCE_GAME_LOGIC_SNAPSHOT_VERSION) {
+    if (version !== 1 && version !== 2 && version !== 3 && version !== 4 && version !== SOURCE_GAME_LOGIC_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported game-logic snapshot version ${version}`);
     }
 
@@ -1084,6 +1147,7 @@ class GameLogicSnapshot implements Snapshot {
       const sellingEntities = version >= 3 ? xferSourceSellingEntities(xfer, []) : [];
       const buildableOverrides = version >= 3 ? xferSourceBuildableOverrides(xfer, []) : [];
       const controlBarOverrides = version >= 4 ? xferSourceControlBarOverrides(xfer, []) : [];
+      const bridgeSegments = version >= 5 ? xferSourceBridgeSegments(xfer, []) : [];
 
       this.payload = {
         version: 1,
@@ -1108,6 +1172,7 @@ class GameLogicSnapshot implements Snapshot {
         sellingEntities,
         buildableOverrides,
         controlBarOverrides,
+        bridgeSegments,
       };
       return;
     }
@@ -1133,6 +1198,9 @@ class GameLogicSnapshot implements Snapshot {
     }
     if (version >= 4) {
       xferSourceControlBarOverrides(xfer, this.payload.controlBarOverrides ?? []);
+    }
+    if (version >= 5) {
+      xferSourceBridgeSegments(xfer, this.payload.bridgeSegments ?? []);
     }
     xfer.xferObjectID(this.payload.nextId);
     xfer.xferUnsignedInt(this.payload.nextProjectileVisualId);

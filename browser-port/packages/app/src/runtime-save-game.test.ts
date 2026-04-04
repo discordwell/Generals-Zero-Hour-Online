@@ -70,6 +70,9 @@ describe('runtime-save-game', () => {
           state: {
             playerSideByIndex: new Map([[0, 'USA']]),
             sideCredits: new Map([['USA', 1337]]),
+            controllingPlayerScriptCredits: new Map([['the_player', 900]]),
+            controllingPlayerScriptSciences: new Map([['the_player', new Set(['SCIENCE_ANTHRAX_BOMB'])]]),
+            sideMissionAttempts: new Map([['USA', 2]]),
           },
           tunnelTrackers: [{
             side: 'america',
@@ -157,6 +160,19 @@ describe('runtime-save-game', () => {
             slot: 1,
             commandButtonName: 'COMMAND_AMERICA_BARRACKS',
           }],
+          bridgeSegments: [{
+            segmentId: 4,
+            passable: true,
+            cellIndices: [10, 11],
+            transitionIndices: [22],
+            controlEntityIds: [101, 102],
+            startWorldX: 1,
+            startWorldZ: 2,
+            endWorldX: 3,
+            endWorldZ: 4,
+            startSurfaceY: 5,
+            endSurfaceY: 6,
+          }],
         }),
         captureBrowserRuntimeSaveState: () => ({
           version: 1,
@@ -216,6 +232,11 @@ describe('runtime-save-game', () => {
       },
     });
     expect(playerState?.state.playerSideByIndex).toEqual(new Map([[0, 'USA']]));
+    expect(playerState?.state.controllingPlayerScriptCredits).toEqual(new Map([['the_player', 900]]));
+    expect(playerState?.state.controllingPlayerScriptSciences).toEqual(
+      new Map([['the_player', new Set(['SCIENCE_ANTHRAX_BOMB'])]]),
+    );
+    expect(playerState?.state.sideMissionAttempts).toEqual(new Map([['USA', 2]]));
     expect(playerState?.tunnelTrackers).toEqual([{
       side: 'america',
       tracker: {
@@ -270,6 +291,19 @@ describe('runtime-save-game', () => {
       commandSetName: 'AMERICABARRACKSCOMMANDSET',
       slot: 1,
       commandButtonName: 'COMMAND_AMERICA_BARRACKS',
+    }]);
+    expect(coreState?.bridgeSegments).toEqual([{
+      segmentId: 4,
+      passable: true,
+      cellIndices: [10, 11],
+      transitionIndices: [22],
+      controlEntityIds: [101, 102],
+      startWorldX: 1,
+      startWorldZ: 2,
+      endWorldX: 3,
+      endWorldZ: 4,
+      startSurfaceY: 5,
+      endSurfaceY: 6,
     }]);
     expect(coreState?.sellingEntities).toEqual([{ entityId: 7, sellFrame: 11 }]);
     expect(coreState?.buildableOverrides).toEqual([{

@@ -26,16 +26,25 @@ describe('bridge runtime index save-state', () => {
     privateLogic.bridgeSegmentByControlEntity.set(101, 4);
     privateLogic.bridgeSegmentIdsByCell.set(10, [4]);
 
+    const coreState = logic.captureSourceGameLogicRuntimeSaveState();
     const browserState = logic.captureBrowserRuntimeSaveState();
+    expect(browserState).not.toHaveProperty('bridgeSegments');
     expect(browserState).not.toHaveProperty('bridgeSegmentByControlEntity');
     expect(browserState).not.toHaveProperty('bridgeSegmentIdsByCell');
     expect(browserState).not.toHaveProperty('bridgeDamageStatesChangedFrame');
     expect(browserState).not.toHaveProperty('bridgeDamageStateByControlEntity');
 
     const restored = new GameLogicSubsystem(new THREE.Scene());
+    restored.restoreSourceGameLogicRuntimeSaveState(coreState);
     restored.restoreBrowserRuntimeSaveState(browserState);
 
     const restoredPrivate = restored as unknown as typeof privateLogic;
+    expect(restoredPrivate.bridgeSegments.get(4)).toEqual({
+      passable: true,
+      cellIndices: [10, 11],
+      transitionIndices: [22],
+      controlEntityIds: [101, 102],
+    });
     expect(restoredPrivate.bridgeSegmentByControlEntity).toEqual(
       new Map([[101, 4], [102, 4]]),
     );

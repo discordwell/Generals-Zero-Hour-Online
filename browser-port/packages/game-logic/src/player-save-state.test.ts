@@ -12,6 +12,16 @@ describe('player save-state', () => {
       sharedShortcutSpecialPowerReadyFrames: Map<string, number>;
       sideVisionSpiedBy: Map<string, number[]>;
       sideVisionSpiedMask: Map<string, number>;
+      controllingPlayerScriptSciences: Map<string, Set<string>>;
+      controllingPlayerScriptAcquiredSciences: Map<string, Set<string>>;
+      controllingPlayerScriptSciencePurchasePoints: Map<string, number>;
+      controllingPlayerScriptCredits: Map<string, number>;
+      sideMissionAttempts: Map<string, number>;
+      controllingPlayerMissionAttempts: Map<string, number>;
+      controllingPlayerAttackedByPlayer: Map<string, Set<string>>;
+      controllingPlayerAttackedBySide: Map<string, Set<string>>;
+      sideDestroyedBuildingsByAttacker: Map<string, Map<string, number>>;
+      controllingPlayerDestroyedBuildingsByAttacker: Map<string, Map<string, number>>;
       scriptCurrentSupplyWarehouseBySide: Map<string, number>;
       scriptSkirmishBaseDefenseStateBySide: Map<string, {
         curFrontBaseDefense: number;
@@ -44,6 +54,25 @@ describe('player save-state', () => {
     privateLogic.sharedShortcutSpecialPowerReadyFrames.set('SPECIAL_PARTICLE_UPLINK_CANNON', 240);
     privateLogic.sideVisionSpiedBy.set('china', [1]);
     privateLogic.sideVisionSpiedMask.set('china', 1);
+    privateLogic.controllingPlayerScriptSciences.set(
+      'the_player',
+      new Set(['SCIENCE_PARTICLE_UPLINK_CANNON']),
+    );
+    privateLogic.controllingPlayerScriptAcquiredSciences.set(
+      'the_player',
+      new Set(['SCIENCE_PARTICLE_UPLINK_CANNON']),
+    );
+    privateLogic.controllingPlayerScriptSciencePurchasePoints.set('the_player', 3);
+    privateLogic.controllingPlayerScriptCredits.set('the_player', 1750);
+    privateLogic.sideMissionAttempts.set('america', 2);
+    privateLogic.controllingPlayerMissionAttempts.set('the_player', 1);
+    privateLogic.controllingPlayerAttackedByPlayer.set('the_player', new Set(['china_player']));
+    privateLogic.controllingPlayerAttackedBySide.set('the_player', new Set(['china']));
+    privateLogic.sideDestroyedBuildingsByAttacker.set('america', new Map([['china', 4]]));
+    privateLogic.controllingPlayerDestroyedBuildingsByAttacker.set(
+      'the_player',
+      new Map([['china_player', 2]]),
+    );
     privateLogic.scriptCurrentSupplyWarehouseBySide.set('america', 17);
     privateLogic.scriptSkirmishBaseDefenseStateBySide.set('china', {
       curFrontBaseDefense: 2,
@@ -76,6 +105,32 @@ describe('player save-state', () => {
     );
     expect(playerState.state.sideVisionSpiedBy).toEqual(new Map([['china', [1]]]));
     expect(playerState.state.sideVisionSpiedMask).toEqual(new Map([['china', 1]]));
+    expect(playerState.state.controllingPlayerScriptSciences).toEqual(
+      new Map([['the_player', new Set(['SCIENCE_PARTICLE_UPLINK_CANNON'])]]),
+    );
+    expect(playerState.state.controllingPlayerScriptAcquiredSciences).toEqual(
+      new Map([['the_player', new Set(['SCIENCE_PARTICLE_UPLINK_CANNON'])]]),
+    );
+    expect(playerState.state.controllingPlayerScriptSciencePurchasePoints).toEqual(
+      new Map([['the_player', 3]]),
+    );
+    expect(playerState.state.controllingPlayerScriptCredits).toEqual(
+      new Map([['the_player', 1750]]),
+    );
+    expect(playerState.state.sideMissionAttempts).toEqual(new Map([['america', 2]]));
+    expect(playerState.state.controllingPlayerMissionAttempts).toEqual(new Map([['the_player', 1]]));
+    expect(playerState.state.controllingPlayerAttackedByPlayer).toEqual(
+      new Map([['the_player', new Set(['china_player'])]]),
+    );
+    expect(playerState.state.controllingPlayerAttackedBySide).toEqual(
+      new Map([['the_player', new Set(['china'])]]),
+    );
+    expect(playerState.state.sideDestroyedBuildingsByAttacker).toEqual(
+      new Map([['america', new Map([['china', 4]])]]),
+    );
+    expect(playerState.state.controllingPlayerDestroyedBuildingsByAttacker).toEqual(
+      new Map([['the_player', new Map([['china_player', 2]])]]),
+    );
     expect(playerState.state.scriptCurrentSupplyWarehouseBySide).toEqual(
       new Map([['america', 17]]),
     );
@@ -109,6 +164,16 @@ describe('player save-state', () => {
     expect(browserState).not.toHaveProperty('sharedShortcutSpecialPowerReadyFrames');
     expect(browserState).not.toHaveProperty('sideVisionSpiedBy');
     expect(browserState).not.toHaveProperty('sideVisionSpiedMask');
+    expect(browserState).not.toHaveProperty('controllingPlayerScriptSciences');
+    expect(browserState).not.toHaveProperty('controllingPlayerScriptAcquiredSciences');
+    expect(browserState).not.toHaveProperty('controllingPlayerScriptSciencePurchasePoints');
+    expect(browserState).not.toHaveProperty('controllingPlayerScriptCredits');
+    expect(browserState).not.toHaveProperty('sideMissionAttempts');
+    expect(browserState).not.toHaveProperty('controllingPlayerMissionAttempts');
+    expect(browserState).not.toHaveProperty('controllingPlayerAttackedByPlayer');
+    expect(browserState).not.toHaveProperty('controllingPlayerAttackedBySide');
+    expect(browserState).not.toHaveProperty('sideDestroyedBuildingsByAttacker');
+    expect(browserState).not.toHaveProperty('controllingPlayerDestroyedBuildingsByAttacker');
     expect(browserState).not.toHaveProperty('scriptSidesUnitsShouldHunt');
     expect(browserState).not.toHaveProperty('scriptSkirmishBaseCenterAndRadiusBySide');
     expect(browserState).not.toHaveProperty('scriptSkirmishBaseDefenseStateBySide');
@@ -128,6 +193,34 @@ describe('player save-state', () => {
     );
     expect(restoredPrivate.sideVisionSpiedBy).toEqual(new Map([['china', [1]]]));
     expect(restoredPrivate.sideVisionSpiedMask).toEqual(new Map([['china', 1]]));
+    expect(restoredPrivate.controllingPlayerScriptSciences).toEqual(
+      new Map([['the_player', new Set(['SCIENCE_PARTICLE_UPLINK_CANNON'])]]),
+    );
+    expect(restoredPrivate.controllingPlayerScriptAcquiredSciences).toEqual(
+      new Map([['the_player', new Set(['SCIENCE_PARTICLE_UPLINK_CANNON'])]]),
+    );
+    expect(restoredPrivate.controllingPlayerScriptSciencePurchasePoints).toEqual(
+      new Map([['the_player', 3]]),
+    );
+    expect(restoredPrivate.controllingPlayerScriptCredits).toEqual(
+      new Map([['the_player', 1750]]),
+    );
+    expect(restoredPrivate.sideMissionAttempts).toEqual(new Map([['america', 2]]));
+    expect(restoredPrivate.controllingPlayerMissionAttempts).toEqual(
+      new Map([['the_player', 1]]),
+    );
+    expect(restoredPrivate.controllingPlayerAttackedByPlayer).toEqual(
+      new Map([['the_player', new Set(['china_player'])]]),
+    );
+    expect(restoredPrivate.controllingPlayerAttackedBySide).toEqual(
+      new Map([['the_player', new Set(['china'])]]),
+    );
+    expect(restoredPrivate.sideDestroyedBuildingsByAttacker).toEqual(
+      new Map([['america', new Map([['china', 4]])]]),
+    );
+    expect(restoredPrivate.controllingPlayerDestroyedBuildingsByAttacker).toEqual(
+      new Map([['the_player', new Map([['china_player', 2]])]]),
+    );
     expect(restoredPrivate.scriptCurrentSupplyWarehouseBySide).toEqual(new Map([['america', 17]]));
     expect(restoredPrivate.scriptSidesUnitsShouldHunt).toEqual(new Set(['america']));
     expect(restoredPrivate.scriptSkirmishBaseCenterAndRadiusBySide).toEqual(

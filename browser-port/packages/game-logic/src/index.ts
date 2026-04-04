@@ -7983,6 +7983,16 @@ const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
   'sideRadarState',
   'sideRankState',
   'sideScoreState',
+  'controllingPlayerScriptSciences',
+  'controllingPlayerScriptAcquiredSciences',
+  'controllingPlayerScriptSciencePurchasePoints',
+  'controllingPlayerScriptCredits',
+  'sideMissionAttempts',
+  'controllingPlayerMissionAttempts',
+  'controllingPlayerAttackedByPlayer',
+  'controllingPlayerAttackedBySide',
+  'sideDestroyedBuildingsByAttacker',
+  'controllingPlayerDestroyedBuildingsByAttacker',
   'sideAcademyStats',
   'sideScoreScreenExcluded',
   'sideAttackedBy',
@@ -8177,6 +8187,7 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'isAttackMoveToMode',
   'previousAttackMoveToggleDown',
   'placementSummary',
+  'bridgeSegments',
   'bridgeSegmentByControlEntity',
   'bridgeSegmentIdsByCell',
   'bridgeDamageStatesChangedFrame',
@@ -8276,6 +8287,20 @@ export interface GameLogicControlBarOverrideSaveState {
   commandButtonName: string | null;
 }
 
+export interface GameLogicBridgeSegmentSaveState {
+  segmentId: number;
+  passable: boolean;
+  cellIndices: number[];
+  transitionIndices: number[];
+  controlEntityIds?: number[];
+  startWorldX?: number;
+  startWorldZ?: number;
+  endWorldX?: number;
+  endWorldZ?: number;
+  startSurfaceY?: number;
+  endSurfaceY?: number;
+}
+
 export interface GameLogicCoreSaveState {
   version: number;
   nextId: number;
@@ -8302,6 +8327,7 @@ export interface GameLogicCoreSaveState {
   sellingEntities?: GameLogicSellingEntitySaveState[];
   buildableOverrides?: GameLogicBuildableOverrideSaveState[];
   controlBarOverrides?: GameLogicControlBarOverrideSaveState[];
+  bridgeSegments?: GameLogicBridgeSegmentSaveState[];
 }
 
 export interface LegacyGameLogicRadarSaveState {
@@ -10008,6 +10034,37 @@ export class GameLogicSubsystem implements Subsystem {
       }
       return true;
     }
+    if (key === 'bridgeSegments') {
+      if (this.bridgeSegments.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      this.bridgeSegments.clear();
+      for (const [segmentId, rawSegment] of value.entries()) {
+        if (typeof segmentId !== 'number' || !rawSegment || typeof rawSegment !== 'object') {
+          continue;
+        }
+        const segment = rawSegment as Partial<BridgeSegmentState>;
+        this.bridgeSegments.set(Math.trunc(segmentId), {
+          passable: Boolean(segment.passable),
+          cellIndices: Array.isArray(segment.cellIndices)
+            ? segment.cellIndices.filter((cellIndex): cellIndex is number => Number.isFinite(cellIndex)).map((cellIndex) => Math.trunc(cellIndex))
+            : [],
+          transitionIndices: Array.isArray(segment.transitionIndices)
+            ? segment.transitionIndices.filter((transitionIndex): transitionIndex is number => Number.isFinite(transitionIndex)).map((transitionIndex) => Math.trunc(transitionIndex))
+            : [],
+          controlEntityIds: Array.isArray(segment.controlEntityIds)
+            ? segment.controlEntityIds.filter((entityId): entityId is number => Number.isFinite(entityId)).map((entityId) => Math.trunc(entityId))
+            : undefined,
+          startWorldX: Number.isFinite(segment.startWorldX) ? segment.startWorldX : undefined,
+          startWorldZ: Number.isFinite(segment.startWorldZ) ? segment.startWorldZ : undefined,
+          endWorldX: Number.isFinite(segment.endWorldX) ? segment.endWorldX : undefined,
+          endWorldZ: Number.isFinite(segment.endWorldZ) ? segment.endWorldZ : undefined,
+          startSurfaceY: Number.isFinite(segment.startSurfaceY) ? segment.startSurfaceY : undefined,
+          endSurfaceY: Number.isFinite(segment.endSurfaceY) ? segment.endSurfaceY : undefined,
+        });
+      }
+      return true;
+    }
     if (key === 'bridgeSegmentByControlEntity') {
       if (this.bridgeSegmentByControlEntity.size !== 0 || !(value instanceof Map)) {
         return false;
@@ -10820,6 +10877,21 @@ export class GameLogicSubsystem implements Subsystem {
           }
           return left.slot - right.slot;
         }),
+      bridgeSegments: Array.from(this.bridgeSegments.entries())
+        .map(([segmentId, segment]) => ({
+          segmentId,
+          passable: segment.passable,
+          cellIndices: [...segment.cellIndices],
+          transitionIndices: [...segment.transitionIndices],
+          controlEntityIds: segment.controlEntityIds ? [...segment.controlEntityIds] : undefined,
+          startWorldX: segment.startWorldX,
+          startWorldZ: segment.startWorldZ,
+          endWorldX: segment.endWorldX,
+          endWorldZ: segment.endWorldZ,
+          startSurfaceY: segment.startSurfaceY,
+          endSurfaceY: segment.endSurfaceY,
+        }))
+        .sort((left, right) => left.segmentId - right.segmentId),
     };
   }
 
@@ -10949,6 +11021,30 @@ export class GameLogicSubsystem implements Subsystem {
         ? (override.commandButtonName.trim().toUpperCase() || null)
         : null;
       slotOverrides.set(normalizedSlot, commandButtonName);
+    }
+    this.bridgeSegments.clear();
+    for (const segment of snapshot.bridgeSegments ?? []) {
+      if (!segment || typeof segment.segmentId !== 'number') {
+        continue;
+      }
+      this.bridgeSegments.set(Math.trunc(segment.segmentId), {
+        passable: Boolean(segment.passable),
+        cellIndices: Array.isArray(segment.cellIndices)
+          ? segment.cellIndices.filter((cellIndex): cellIndex is number => Number.isFinite(cellIndex)).map((cellIndex) => Math.trunc(cellIndex))
+          : [],
+        transitionIndices: Array.isArray(segment.transitionIndices)
+          ? segment.transitionIndices.filter((transitionIndex): transitionIndex is number => Number.isFinite(transitionIndex)).map((transitionIndex) => Math.trunc(transitionIndex))
+          : [],
+        controlEntityIds: Array.isArray(segment.controlEntityIds)
+          ? segment.controlEntityIds.filter((entityId): entityId is number => Number.isFinite(entityId)).map((entityId) => Math.trunc(entityId))
+          : undefined,
+        startWorldX: Number.isFinite(segment.startWorldX) ? segment.startWorldX : undefined,
+        startWorldZ: Number.isFinite(segment.startWorldZ) ? segment.startWorldZ : undefined,
+        endWorldX: Number.isFinite(segment.endWorldX) ? segment.endWorldX : undefined,
+        endWorldZ: Number.isFinite(segment.endWorldZ) ? segment.endWorldZ : undefined,
+        startSurfaceY: Number.isFinite(segment.startSurfaceY) ? segment.startSurfaceY : undefined,
+        endSurfaceY: Number.isFinite(segment.endSurfaceY) ? segment.endSurfaceY : undefined,
+      });
     }
   }
 
