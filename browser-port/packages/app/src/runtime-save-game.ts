@@ -15,6 +15,7 @@ import {
   xferMapEntity,
   type GameDifficulty,
   type GameLogicCaveTrackerSaveState,
+  type GameLogicBuildableOverrideSaveState,
   type GameLogicCoreSaveState,
   type GameLogicInGameUiSaveState,
   type GameLogicPlayerTunnelTrackerSaveState,
@@ -23,6 +24,7 @@ import {
   type GameLogicPlayersSaveState,
   type GameLogicRadarSaveState,
   type GameLogicScriptEngineSaveState,
+  type GameLogicSellingEntitySaveState,
   type GameLogicSubsystem,
   type GameLogicTunnelTrackerSaveState,
   type LegacyGameLogicRadarSaveState,
@@ -45,7 +47,7 @@ const CAMPAIGN_VERSION = 5;
 const GAME_STATE_MAP_VERSION = 2;
 const BROWSER_RUNTIME_STATE_VERSION = 1;
 const SOURCE_PLAYER_SNAPSHOT_VERSION = 2;
-const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 2;
+const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 3;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
 const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
 const SOURCE_RADAR_EVENT_COUNT = 64;
@@ -629,6 +631,85 @@ function xferSourceCaveTrackers(
   return trackers;
 }
 
+function encodeBuildableStatus(buildableStatus: string): number {
+  switch (buildableStatus) {
+    case 'IGNORE_PREREQUISITES':
+      return 1;
+    case 'NO':
+      return 2;
+    case 'ONLY_BY_AI':
+      return 3;
+    default:
+      return 0;
+  }
+}
+
+function decodeBuildableStatus(rawValue: number): GameLogicBuildableOverrideSaveState['buildableStatus'] {
+  switch (rawValue) {
+    case 1:
+      return 'IGNORE_PREREQUISITES';
+    case 2:
+      return 'NO';
+    case 3:
+      return 'ONLY_BY_AI';
+    default:
+      return 'YES';
+  }
+}
+
+function xferSourceSellingEntities(
+  xfer: Xfer,
+  entries: GameLogicSellingEntitySaveState[],
+): GameLogicSellingEntitySaveState[] {
+  const count = xfer.xferInt(entries.length);
+  if (count < 0) {
+    throw new Error(`Selling entity count ${count} is invalid.`);
+  }
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: GameLogicSellingEntitySaveState[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push({
+        entityId: xfer.xferObjectID(0),
+        sellFrame: xfer.xferUnsignedInt(0),
+      });
+    }
+    return loaded;
+  }
+
+  for (const entry of entries) {
+    xfer.xferObjectID(entry.entityId);
+    xfer.xferUnsignedInt(entry.sellFrame);
+  }
+  return entries;
+}
+
+function xferSourceBuildableOverrides(
+  xfer: Xfer,
+  overrides: GameLogicBuildableOverrideSaveState[],
+): GameLogicBuildableOverrideSaveState[] {
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: GameLogicBuildableOverrideSaveState[] = [];
+    for (;;) {
+      const templateName = xfer.xferAsciiString('');
+      if (templateName.length === 0) {
+        break;
+      }
+      loaded.push({
+        templateName,
+        buildableStatus: decodeBuildableStatus(xfer.xferUnsignedByte(0)),
+      });
+    }
+    return loaded;
+  }
+
+  for (const override of overrides) {
+    xfer.xferAsciiString(override.templateName);
+    xfer.xferUnsignedByte(encodeBuildableStatus(override.buildableStatus));
+  }
+  xfer.xferAsciiString('');
+  return overrides;
+}
+
 class PlayersSnapshot implements Snapshot {
   payload: GameLogicPlayersSaveState | null;
 
@@ -954,7 +1035,7 @@ class GameLogicSnapshot implements Snapshot {
 
   xfer(xfer: Xfer): void {
     const version = xfer.xferVersion(SOURCE_GAME_LOGIC_SNAPSHOT_VERSION);
-    if (version !== 1 && version !== SOURCE_GAME_LOGIC_SNAPSHOT_VERSION) {
+    if (version !== 1 && version !== 2 && version !== SOURCE_GAME_LOGIC_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported game-logic snapshot version ${version}`);
     }
 
@@ -971,6 +1052,8 @@ class GameLogicSnapshot implements Snapshot {
         spawnedEntities.push(entity as unknown as MapEntity);
       }
       const caveTrackers = version >= 2 ? xferSourceCaveTrackers(xfer, []) : [];
+      const sellingEntities = version >= 3 ? xferSourceSellingEntities(xfer, []) : [];
+      const buildableOverrides = version >= 3 ? xferSourceBuildableOverrides(xfer, []) : [];
 
       this.payload = {
         version: 1,
@@ -992,6 +1075,8 @@ class GameLogicSnapshot implements Snapshot {
         scriptScoringEnabled: xfer.xferBool(true),
         spawnedEntities,
         caveTrackers,
+        sellingEntities,
+        buildableOverrides,
       };
       return;
     }
@@ -1010,6 +1095,10 @@ class GameLogicSnapshot implements Snapshot {
     }
     if (version >= 2) {
       xferSourceCaveTrackers(xfer, this.payload.caveTrackers ?? []);
+    }
+    if (version >= 3) {
+      xferSourceSellingEntities(xfer, this.payload.sellingEntities ?? []);
+      xferSourceBuildableOverrides(xfer, this.payload.buildableOverrides ?? []);
     }
     xfer.xferObjectID(this.payload.nextId);
     xfer.xferUnsignedInt(this.payload.nextProjectileVisualId);

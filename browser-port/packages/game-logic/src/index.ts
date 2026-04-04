@@ -8171,6 +8171,10 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'isAttackMoveToMode',
   'previousAttackMoveToggleDown',
   'placementSummary',
+  'bridgeDamageStatesChangedFrame',
+  'bridgeDamageStateByControlEntity',
+  'thingTemplateBuildableOverrides',
+  'sellingEntities',
   'activeSpyVisions',
   'spyVisionEntityStates',
   'revealToAllVisionStates',
@@ -8246,6 +8250,16 @@ export interface GameLogicDockApproachSaveState {
   state: DockApproachState;
 }
 
+export interface GameLogicSellingEntitySaveState {
+  entityId: number;
+  sellFrame: number;
+}
+
+export interface GameLogicBuildableOverrideSaveState {
+  templateName: string;
+  buildableStatus: BuildableStatus;
+}
+
 export interface GameLogicCoreSaveState {
   version: number;
   nextId: number;
@@ -8269,6 +8283,8 @@ export interface GameLogicCoreSaveState {
   supplyWarehouseStates?: GameLogicSupplyWarehouseSaveState[];
   supplyTruckStates?: GameLogicSupplyTruckSaveState[];
   dockApproachStates?: GameLogicDockApproachSaveState[];
+  sellingEntities?: GameLogicSellingEntitySaveState[];
+  buildableOverrides?: GameLogicBuildableOverrideSaveState[];
 }
 
 export interface LegacyGameLogicRadarSaveState {
@@ -9872,6 +9888,50 @@ export class GameLogicSubsystem implements Subsystem {
       }
       return true;
     }
+    if (key === 'sellingEntities') {
+      if (this.sellingEntities.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      this.sellingEntities.clear();
+      for (const [entityId, state] of value.entries()) {
+        if (typeof entityId !== 'number' || !state || typeof state !== 'object') {
+          continue;
+        }
+        const record = state as Partial<SellingEntityState>;
+        this.sellingEntities.set(entityId, {
+          sellFrame: Number.isFinite(record.sellFrame)
+            ? Math.max(0, Math.trunc(record.sellFrame ?? 0))
+            : this.frameCounter,
+          constructionPercent: Number.isFinite(record.constructionPercent)
+            ? record.constructionPercent ?? 99.9
+            : 99.9,
+        });
+      }
+      return true;
+    }
+    if (key === 'thingTemplateBuildableOverrides') {
+      if (this.thingTemplateBuildableOverrides.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      this.thingTemplateBuildableOverrides.clear();
+      for (const [templateName, buildableStatus] of value.entries()) {
+        if (typeof templateName !== 'string' || typeof buildableStatus !== 'string') {
+          continue;
+        }
+        const normalizedTemplateName = normalizeMapTemplateName(templateName);
+        if (!normalizedTemplateName) {
+          continue;
+        }
+        if (buildableStatus !== 'YES'
+          && buildableStatus !== 'IGNORE_PREREQUISITES'
+          && buildableStatus !== 'NO'
+          && buildableStatus !== 'ONLY_BY_AI') {
+          continue;
+        }
+        this.thingTemplateBuildableOverrides.set(normalizedTemplateName, buildableStatus);
+      }
+      return true;
+    }
     if (key === 'sharedShortcutSpecialPowerReadyFrames') {
       if (this.sharedShortcutSpecialPowerReadyFrames.size !== 0 || !(value instanceof Map)) {
         return false;
@@ -10528,6 +10588,19 @@ export class GameLogicSubsystem implements Subsystem {
     );
   }
 
+  private buildSellingEntitySaveState(sellFrame: number): SellingEntityState {
+    let constructionPercent = 99.9;
+    const elapsedFrames = this.frameCounter - sellFrame;
+    if (elapsedFrames >= SOURCE_FRAMES_TO_ALLOW_SCAFFOLD) {
+      const sellingFrames = elapsedFrames - SOURCE_FRAMES_TO_ALLOW_SCAFFOLD + 1;
+      constructionPercent -= sellingFrames * (100.0 / SOURCE_TOTAL_FRAMES_TO_SELL_OBJECT);
+    }
+    return {
+      sellFrame,
+      constructionPercent,
+    };
+  }
+
   captureSourceGameLogicRuntimeSaveState(): GameLogicCoreSaveState {
     return {
       version: SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION,
@@ -10568,6 +10641,18 @@ export class GameLogicSubsystem implements Subsystem {
           state: { ...state },
         }),
       ),
+      sellingEntities: Array.from(this.sellingEntities.entries())
+        .map(([entityId, state]) => ({
+          entityId,
+          sellFrame: state.sellFrame,
+        }))
+        .sort((left, right) => left.entityId - right.entityId),
+      buildableOverrides: Array.from(this.thingTemplateBuildableOverrides.entries())
+        .map(([templateName, buildableStatus]) => ({
+          templateName,
+          buildableStatus,
+        }))
+        .sort((left, right) => left.templateName.localeCompare(right.templateName)),
     };
   }
 
@@ -10642,6 +10727,37 @@ export class GameLogicSubsystem implements Subsystem {
         continue;
       }
       this.dockApproachStates.set(dockState.entityId, { ...dockState.state });
+    }
+    this.sellingEntities.clear();
+    for (const sellingState of snapshot.sellingEntities ?? []) {
+      if (!sellingState || typeof sellingState.entityId !== 'number' || !Number.isFinite(sellingState.sellFrame)) {
+        continue;
+      }
+      const entity = this.spawnedEntities.get(sellingState.entityId);
+      if (!entity || entity.destroyed) {
+        continue;
+      }
+      this.sellingEntities.set(
+        sellingState.entityId,
+        this.buildSellingEntitySaveState(Math.max(0, Math.trunc(sellingState.sellFrame))),
+      );
+    }
+    this.thingTemplateBuildableOverrides.clear();
+    for (const override of snapshot.buildableOverrides ?? []) {
+      if (!override || typeof override.templateName !== 'string' || typeof override.buildableStatus !== 'string') {
+        continue;
+      }
+      const normalizedTemplateName = normalizeMapTemplateName(override.templateName);
+      if (!normalizedTemplateName) {
+        continue;
+      }
+      if (override.buildableStatus !== 'YES'
+        && override.buildableStatus !== 'IGNORE_PREREQUISITES'
+        && override.buildableStatus !== 'NO'
+        && override.buildableStatus !== 'ONLY_BY_AI') {
+        continue;
+      }
+      this.thingTemplateBuildableOverrides.set(normalizedTemplateName, override.buildableStatus);
     }
   }
 

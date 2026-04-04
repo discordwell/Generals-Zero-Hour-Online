@@ -147,6 +147,11 @@ describe('runtime-save-game', () => {
               tunnelCount: 1,
             },
           }],
+          sellingEntities: [{ entityId: 7, sellFrame: 11 }],
+          buildableOverrides: [{
+            templateName: 'AmericaBarracks',
+            buildableStatus: 'NO',
+          }],
         }),
         captureBrowserRuntimeSaveState: () => ({
           version: 1,
@@ -255,6 +260,11 @@ describe('runtime-save-game', () => {
         passengerIds: [92, 93],
         tunnelCount: 1,
       },
+    }]);
+    expect(coreState?.sellingEntities).toEqual([{ entityId: 7, sellFrame: 11 }]);
+    expect(coreState?.buildableOverrides).toEqual([{
+      templateName: 'AmericaBarracks',
+      buildableStatus: 'NO',
     }]);
     expect(logicState.version).toBe(1);
     expect(logicState.spawnedEntities.get(7)?.templateName).toBe('RuntimeTank');
