@@ -3562,6 +3562,10 @@ export interface MapEntity {
   chinookHealingAirfieldId: number;
   /** Source parity: ChinookAIUpdate::m_pendingCommand. */
   chinookPendingCommand: GameLogicCommand | null;
+  /** Source parity: ChinookCombatDropState runtime owned by the Chinook AI update. */
+  chinookCombatDropState: PendingCombatDropActionState | null;
+  /** Source parity: active rappeller runtime owned by the passenger AI/state machine. */
+  chinookRappelState: PendingChinookRappelState | null;
   repairDockProfile: RepairDockProfile | null;
   commandButtonHuntProfile: CommandButtonHuntProfile | null;
   commandButtonHuntMode: CommandButtonHuntMode;
@@ -8216,6 +8220,8 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'railedTransportStateByEntityId',
   'pendingRepairActions',
   'pendingConstructionActions',
+  'pendingCombatDropActions',
+  'pendingChinookRappels',
   'pendingChinookCommandByEntityId',
   'disabledHackedStatusByEntityId',
   'disabledEmpStatusByEntityId',
@@ -10549,6 +10555,62 @@ export class GameLogicSubsystem implements Subsystem {
       }
       return true;
     }
+    if (key === 'pendingCombatDropActions') {
+      if (!(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, pending] of value.entries()) {
+        if (typeof entityId !== 'number' || !pending || typeof pending !== 'object') {
+          continue;
+        }
+        const entity = this.spawnedEntities.get(entityId);
+        if (!entity || entity.destroyed || !entity.chinookAIProfile) {
+          continue;
+        }
+        const record = pending as Partial<PendingCombatDropActionState>;
+        if (!Number.isFinite(record.targetX)
+          || !Number.isFinite(record.targetZ)
+          || !Number.isFinite(record.nextDropFrame)) {
+          continue;
+        }
+        this.setChinookCombatDropState(entityId, {
+          targetObjectId: Number.isFinite(record.targetObjectId) ? Math.trunc(record.targetObjectId ?? 0) : null,
+          targetX: record.targetX as number,
+          targetZ: record.targetZ as number,
+          nextDropFrame: Math.max(0, Math.trunc(record.nextDropFrame as number)),
+        });
+      }
+      return true;
+    }
+    if (key === 'pendingChinookRappels') {
+      if (!(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, pending] of value.entries()) {
+        if (typeof entityId !== 'number' || !pending || typeof pending !== 'object') {
+          continue;
+        }
+        const entity = this.spawnedEntities.get(entityId);
+        if (!entity || entity.destroyed) {
+          continue;
+        }
+        const record = pending as Partial<PendingChinookRappelState>;
+        if (!Number.isFinite(record.sourceEntityId)
+          || !Number.isFinite(record.targetX)
+          || !Number.isFinite(record.targetZ)
+          || !Number.isFinite(record.descentSpeedPerFrame)) {
+          continue;
+        }
+        this.setChinookRappelState(entityId, {
+          sourceEntityId: Math.max(0, Math.trunc(record.sourceEntityId as number)),
+          targetObjectId: Number.isFinite(record.targetObjectId) ? Math.trunc(record.targetObjectId ?? 0) : null,
+          targetX: record.targetX as number,
+          targetZ: record.targetZ as number,
+          descentSpeedPerFrame: Math.max(0, record.descentSpeedPerFrame as number),
+        });
+      }
+      return true;
+    }
     if (key === 'disabledEmpStatusByEntityId') {
       if (!(value instanceof Map)) {
         return false;
@@ -11105,6 +11167,8 @@ export class GameLogicSubsystem implements Subsystem {
     );
     this.assaultTransportStateByEntityId.clear();
     this.railedTransportStateByEntityId.clear();
+    this.pendingCombatDropActions.clear();
+    this.pendingChinookRappels.clear();
     this.pendingConstructionActions.clear();
     this.pendingRepairActions.clear();
     for (const entity of this.spawnedEntities.values()) {
@@ -11116,6 +11180,7 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     this.rebuildDozerTaskIndexesFromEntities();
+    this.rebuildChinookCombatDropIndexesFromEntities();
     this.caveTrackers.clear();
     for (const caveTracker of snapshot.caveTrackers ?? []) {
       if (!caveTracker || typeof caveTracker.caveIndex !== 'number') {
@@ -11318,6 +11383,57 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  /* @internal */ setChinookCombatDropState(
+    entityId: number,
+    state: PendingCombatDropActionState | null,
+  ): void {
+    const entity = this.spawnedEntities.get(entityId);
+    const normalizedState = state === null
+      ? null
+      : {
+          targetObjectId: Number.isFinite(state.targetObjectId)
+            ? Math.trunc(state.targetObjectId ?? 0)
+            : null,
+          targetX: state.targetX,
+          targetZ: state.targetZ,
+          nextDropFrame: Math.max(0, Math.trunc(state.nextDropFrame)),
+        };
+    if (entity) {
+      entity.chinookCombatDropState = normalizedState;
+    }
+    if (normalizedState) {
+      this.pendingCombatDropActions.set(entityId, normalizedState);
+    } else {
+      this.pendingCombatDropActions.delete(entityId);
+    }
+  }
+
+  /* @internal */ setChinookRappelState(
+    entityId: number,
+    state: PendingChinookRappelState | null,
+  ): void {
+    const entity = this.spawnedEntities.get(entityId);
+    const normalizedState = state === null
+      ? null
+      : {
+          sourceEntityId: Math.max(0, Math.trunc(state.sourceEntityId)),
+          targetObjectId: Number.isFinite(state.targetObjectId)
+            ? Math.trunc(state.targetObjectId ?? 0)
+            : null,
+          targetX: state.targetX,
+          targetZ: state.targetZ,
+          descentSpeedPerFrame: Math.max(0, state.descentSpeedPerFrame),
+        };
+    if (entity) {
+      entity.chinookRappelState = normalizedState;
+    }
+    if (normalizedState) {
+      this.pendingChinookRappels.set(entityId, normalizedState);
+    } else {
+      this.pendingChinookRappels.delete(entityId);
+    }
+  }
+
   private rebuildDozerTaskIndexesFromEntities(): void {
     this.pendingConstructionActions.clear();
     this.pendingRepairActions.clear();
@@ -11335,6 +11451,19 @@ export class GameLogicSubsystem implements Subsystem {
       }
       if (repairTargetEntityId > 0) {
         this.pendingRepairActions.set(entity.id, repairTargetEntityId);
+      }
+    }
+  }
+
+  private rebuildChinookCombatDropIndexesFromEntities(): void {
+    this.pendingCombatDropActions.clear();
+    this.pendingChinookRappels.clear();
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.chinookCombatDropState) {
+        this.pendingCombatDropActions.set(entity.id, entity.chinookCombatDropState);
+      }
+      if (entity.chinookRappelState) {
+        this.pendingChinookRappels.set(entity.id, entity.chinookRappelState);
       }
     }
   }
@@ -37364,6 +37493,8 @@ export class GameLogicSubsystem implements Subsystem {
       entity.hackInternetRuntimeState = null;
       entity.hackInternetPendingCommand = null;
       entity.chinookPendingCommand = null;
+      entity.chinookCombatDropState = null;
+      entity.chinookRappelState = null;
       entity.assaultTransportState = null;
       entity.railedTransportState = null;
       entity.dozerBuildTargetEntityId = 0;

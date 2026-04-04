@@ -839,7 +839,7 @@ export function silentDestroyEntity(self: GL, entityId: number): void {
   for (const [sourceId, pendingAction] of self.pendingCombatDropActions.entries()) {
     if (sourceId === entityId) {
       self.clearChinookCombatDropIgnoredObstacle(sourceId);
-      self.pendingCombatDropActions.delete(sourceId);
+      self.setChinookCombatDropState(sourceId, null);
       self.abortPendingChinookRappels(sourceId);
       self.clearPendingChinookCommands(sourceId);
       continue;
@@ -851,7 +851,7 @@ export function silentDestroyEntity(self: GL, entityId: number): void {
   }
   for (const [passengerId, pendingRappel] of self.pendingChinookRappels.entries()) {
     if (passengerId === entityId || pendingRappel.sourceEntityId === entityId) {
-      self.pendingChinookRappels.delete(passengerId);
+      self.setChinookRappelState(passengerId, null);
       continue;
     }
     if (pendingRappel.targetObjectId === entityId) {
@@ -1402,7 +1402,7 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   for (const [sourceId, pendingAction] of self.pendingCombatDropActions.entries()) {
     if (sourceId === entityId) {
       self.clearChinookCombatDropIgnoredObstacle(sourceId);
-      self.pendingCombatDropActions.delete(sourceId);
+      self.setChinookCombatDropState(sourceId, null);
       self.abortPendingChinookRappels(sourceId);
       self.clearPendingChinookCommands(sourceId);
       continue;
@@ -1414,7 +1414,7 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   }
   for (const [passengerId, pendingRappel] of self.pendingChinookRappels.entries()) {
     if (passengerId === entityId || pendingRappel.sourceEntityId === entityId) {
-      self.pendingChinookRappels.delete(passengerId);
+      self.setChinookRappelState(passengerId, null);
       continue;
     }
     if (pendingRappel.targetObjectId === entityId) {
@@ -2094,7 +2094,7 @@ export function finalizeDestroyedEntities(self: GL): void {
     }
     self.clearParkingPlaceHealee(entity);
     entity.chinookPendingCommand = null;
-    self.pendingCombatDropActions.delete(entityId);
+    self.setChinookCombatDropState(entityId, null);
     self.abortPendingChinookRappels(entityId);
     self.removeEntityFromWorld(entityId);
     self.removeEntityFromSelection(entityId);

@@ -186,6 +186,9 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     chinookFlightStatus: null,
     chinookFlightStatusEnteredFrame: 0,
     chinookHealingAirfieldId: 0,
+    chinookPendingCommand: null,
+    chinookCombatDropState: null,
+    chinookRappelState: null,
     repairDockProfile: null,
     commandButtonHuntProfile: null,
     commandButtonHuntMode: 'NONE',
@@ -890,6 +893,49 @@ describe('entity-xfer', () => {
     expect(loaded.dozerBuildTaskOrderFrame).toBe(120);
     expect(loaded.dozerRepairTargetEntityId).toBe(12);
     expect(loaded.dozerRepairTaskOrderFrame).toBe(150);
+  });
+
+  it('round-trips Chinook combat-drop and rappel runtime state', () => {
+    const original = createTestEntity({
+      chinookCombatDropState: {
+        targetObjectId: 44,
+        targetX: 320,
+        targetZ: 512,
+        nextDropFrame: 180,
+      },
+      chinookRappelState: {
+        sourceEntityId: 1,
+        targetObjectId: 44,
+        targetX: 320,
+        targetZ: 512,
+        descentSpeedPerFrame: 0.75,
+      },
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity();
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.chinookCombatDropState).toEqual({
+      targetObjectId: 44,
+      targetX: 320,
+      targetZ: 512,
+      nextDropFrame: 180,
+    });
+    expect(loaded.chinookRappelState).toEqual({
+      sourceEntityId: 1,
+      targetObjectId: 44,
+      targetX: 320,
+      targetZ: 512,
+      descentSpeedPerFrame: 0.75,
+    });
   });
 
   it('CRC is deterministic for identical entities', () => {

@@ -1254,7 +1254,7 @@ export function evacuateOneContainedRappeller(self: GL,
 
     if (isChinookCombatDrop && container.chinookAIProfile) {
       passenger.objectStatusFlags.add('DISABLED_HELD');
-      self.pendingChinookRappels.set(passenger.id, {
+      self.setChinookRappelState(passenger.id, {
         sourceEntityId: container.id,
         targetObjectId,
         targetX,

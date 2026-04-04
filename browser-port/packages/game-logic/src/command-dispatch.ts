@@ -1015,7 +1015,7 @@ export function cancelEntityCommandPathActions(self: GL,
   self.cancelRailedTransportTransit(entityId);
   self.pendingEnterObjectActions.delete(entityId);
   self.pendingRepairDockActions.delete(entityId);
-  self.pendingCombatDropActions.delete(entityId);
+  self.setChinookCombatDropState(entityId, null);
   self.scriptAttackAreaStateByEntityId.delete(entityId);
   self.scriptHuntStateByEntityId.delete(entityId);
   self.clearChinookCombatDropIgnoredObstacle(entityId);
@@ -1233,7 +1233,7 @@ export function handleCombatDropCommand(self: GL, command: CombatDropCommand): v
   // While in MOVE_TO_COMBAT_DROP/DO_COMBAT_DROP, pathing must not avoid the goal building.
   self.syncChinookCombatDropIgnoredObstacle(source, targetObjectId);
   self.issueMoveTo(source.id, targetX, targetZ);
-  self.pendingCombatDropActions.set(source.id, {
+  self.setChinookCombatDropState(source.id, {
     targetObjectId,
     targetX,
     targetZ,

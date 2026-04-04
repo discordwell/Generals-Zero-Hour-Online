@@ -493,7 +493,7 @@ export function abortPendingChinookRappels(self: GL, sourceEntityId: number): vo
       self.cancelEntityCommandPathActions(passenger.id);
       self.clearAttackTarget(passenger.id);
     }
-    self.pendingChinookRappels.delete(passengerId);
+    self.setChinookRappelState(passengerId, null);
   }
 }
 
@@ -518,7 +518,7 @@ export function updatePendingChinookRappels(self: GL): void {
   for (const [passengerId, pending] of self.pendingChinookRappels.entries()) {
     const passenger = self.spawnedEntities.get(passengerId);
     if (!passenger || passenger.destroyed) {
-      self.pendingChinookRappels.delete(passengerId);
+      self.setChinookRappelState(passengerId, null);
       continue;
     }
 
@@ -527,7 +527,7 @@ export function updatePendingChinookRappels(self: GL): void {
       passenger.objectStatusFlags.delete('DISABLED_HELD');
       self.cancelEntityCommandPathActions(passenger.id);
       self.clearAttackTarget(passenger.id);
-      self.pendingChinookRappels.delete(passengerId);
+      self.setChinookRappelState(passengerId, null);
       continue;
     }
 
@@ -539,7 +539,7 @@ export function updatePendingChinookRappels(self: GL): void {
 
     passenger.y = groundY;
     passenger.objectStatusFlags.delete('DISABLED_HELD');
-    self.pendingChinookRappels.delete(passengerId);
+    self.setChinookRappelState(passengerId, null);
     self.issueDroppedPassengerCommand(passenger, pending.targetX, pending.targetZ, pending.targetObjectId);
   }
 }
@@ -551,7 +551,7 @@ export function updatePendingCombatDropActions(self: GL): void {
       clearChinookCombatDropIgnoredObstacle(self, sourceId);
       abortPendingChinookRappels(self, sourceId);
       clearPendingChinookCommands(self, sourceId);
-      self.pendingCombatDropActions.delete(sourceId);
+      self.setChinookCombatDropState(sourceId, null);
       continue;
     }
 
@@ -603,7 +603,7 @@ export function updatePendingCombatDropActions(self: GL): void {
       if (!hasContainedRappellers && !hasActiveRappellers) {
         source.objectStatusFlags.delete('DISABLED_HELD');
         clearChinookCombatDropIgnoredObstacle(self, sourceId);
-        self.pendingCombatDropActions.delete(sourceId);
+        self.setChinookCombatDropState(sourceId, null);
         setChinookFlightStatus(self, source, 'FLYING');
         flushPendingChinookCommand(self, source.id);
         continue;
@@ -618,7 +618,7 @@ export function updatePendingCombatDropActions(self: GL): void {
     // Non-Chinook combat-drop carriers: immediate evac at destination.
     self.evacuateContainedEntities(source, pending.targetX, pending.targetZ, pending.targetObjectId);
     clearChinookCombatDropIgnoredObstacle(self, sourceId);
-    self.pendingCombatDropActions.delete(sourceId);
+    self.setChinookCombatDropState(sourceId, null);
   }
 }
 
