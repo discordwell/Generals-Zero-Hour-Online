@@ -1874,6 +1874,8 @@ interface BridgeSegmentState {
   passable: boolean;
   cellIndices: number[];
   transitionIndices: number[];
+  /** Source parity helper: control objects mapped to this segment's endpoints. */
+  controlEntityIds?: number[];
   /** Source parity bridge: bridge endpoint world-space X (original map X). */
   startWorldX?: number;
   /** Source parity bridge: bridge endpoint world-space Z (original map Y -> sim Z). */
@@ -8171,6 +8173,8 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'isAttackMoveToMode',
   'previousAttackMoveToggleDown',
   'placementSummary',
+  'bridgeSegmentByControlEntity',
+  'bridgeSegmentIdsByCell',
   'bridgeDamageStatesChangedFrame',
   'bridgeDamageStateByControlEntity',
   'thingTemplateBuildableOverrides',
@@ -9574,6 +9578,30 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private rebuildBridgeRuntimeIndexesFromSegments(): void {
+    this.bridgeSegmentByControlEntity.clear();
+    this.bridgeSegmentIdsByCell.clear();
+    for (const [segmentId, segment] of this.bridgeSegments.entries()) {
+      for (const controlEntityId of segment.controlEntityIds ?? []) {
+        if (typeof controlEntityId !== 'number') {
+          continue;
+        }
+        this.bridgeSegmentByControlEntity.set(controlEntityId, segmentId);
+      }
+      for (const cellIndex of segment.cellIndices) {
+        if (typeof cellIndex !== 'number') {
+          continue;
+        }
+        const segmentIdsAtCell = this.bridgeSegmentIdsByCell.get(cellIndex);
+        if (segmentIdsAtCell) {
+          segmentIdsAtCell.push(segmentId);
+          continue;
+        }
+        this.bridgeSegmentIdsByCell.set(cellIndex, [segmentId]);
+      }
+    }
+  }
+
   private captureTunnelTrackerSaveState(tracker: TunnelTrackerState): GameLogicTunnelTrackerSaveState {
     return {
       tunnelIds: [...tracker.tunnelIds],
@@ -9929,6 +9957,35 @@ export class GameLogicSubsystem implements Subsystem {
           continue;
         }
         this.thingTemplateBuildableOverrides.set(normalizedTemplateName, buildableStatus);
+      }
+      return true;
+    }
+    if (key === 'bridgeSegmentByControlEntity') {
+      if (this.bridgeSegmentByControlEntity.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      this.bridgeSegmentByControlEntity.clear();
+      for (const [entityId, segmentId] of value.entries()) {
+        if (typeof entityId !== 'number' || typeof segmentId !== 'number') {
+          continue;
+        }
+        this.bridgeSegmentByControlEntity.set(entityId, segmentId);
+      }
+      return true;
+    }
+    if (key === 'bridgeSegmentIdsByCell') {
+      if (this.bridgeSegmentIdsByCell.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      this.bridgeSegmentIdsByCell.clear();
+      for (const [cellIndex, segmentIds] of value.entries()) {
+        if (typeof cellIndex !== 'number' || !Array.isArray(segmentIds)) {
+          continue;
+        }
+        this.bridgeSegmentIdsByCell.set(
+          cellIndex,
+          segmentIds.filter((segmentId): segmentId is number => typeof segmentId === 'number'),
+        );
       }
       return true;
     }
@@ -10801,6 +10858,12 @@ export class GameLogicSubsystem implements Subsystem {
       (this as unknown as Record<string, unknown>)[key] = value;
     }
 
+    if (this.bridgeSegments.size > 0
+      && this.bridgeSegmentByControlEntity.size === 0
+      && this.bridgeSegmentIdsByCell.size === 0) {
+      this.rebuildBridgeRuntimeIndexesFromSegments();
+    }
+    this.resetBridgeDamageStateChanges();
     this.gameRandom.setSeed(Number(snapshot.gameRandomSeed ?? 1));
 
     const maxEntityId = Array.from(this.spawnedEntities.keys()).reduce(
