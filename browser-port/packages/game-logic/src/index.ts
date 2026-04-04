@@ -7953,6 +7953,10 @@ const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
   'sideAttackedBy',
   'sideAttackedFrame',
   'sideBattlePlanBonuses',
+  'scriptCurrentSupplyWarehouseBySide',
+  'scriptSidesUnitsShouldHunt',
+  'scriptSkirmishBaseCenterAndRadiusBySide',
+  'scriptSkirmishBaseDefenseStateBySide',
   'playerSideByIndex',
   'sidePlayerIndex',
   'nextPlayerIndex',
@@ -8073,7 +8077,6 @@ const SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS = [
   'scriptConditionEntityId',
   'scriptConditionTeamNameUpper',
   'scriptCurrentPlayerSide',
-  'scriptCurrentSupplyWarehouseBySide',
   'scriptEvaEnabled',
   'scriptExistedEntityIds',
   'scriptHuntStateByEntityId',
@@ -8083,9 +8086,6 @@ const SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS = [
   'scriptPendingWaypointPathByEntityId',
   'scriptRadarRefreshFrame',
   'scriptSideRepairQueue',
-  'scriptSidesUnitsShouldHunt',
-  'scriptSkirmishBaseCenterAndRadiusBySide',
-  'scriptSkirmishBaseDefenseStateBySide',
   'scriptTeamCreatedAutoClearFrameByName',
   'scriptTeamCreatedReadyFrameByName',
   'scriptTransportStatusByEntityId',
@@ -8125,19 +8125,42 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'supplementalMapObjectDefs',
   'buildFacilityTemplateNamesCache',
   'buildFacilityTemplateNamesRegistry',
+  'runtimeAiConfig',
   'fogOfWarGrid',
   'waterPolygonData',
   'mapTriggerRegions',
   'railedTransportWaypointIndex',
+  'missileAIProfileByProjectileTemplate',
+  'visualEventBuffer',
+  'evaEventBuffer',
+  'pendingDyingRenderableStates',
+  'projectileKindOfCache',
+  'isAttackMoveToMode',
+  'previousAttackMoveToggleDown',
+  'placementSummary',
   'tunnelTrackers',
   'caveTrackers',
   'caveTrackerIndexByEntityId',
+  'supplyWarehouseStates',
+  'supplyTruckStates',
+  'dockApproachStates',
+  'localPlayerScienceAvailability',
+  'sideSupplySourceAttackCheckFrame',
+  'sideAttackedSupplySource',
+  'sideSkirmishStartIndex',
+  'skirmishStartIndexByPlayerToken',
   ...SOURCE_PLAYER_RUNTIME_STATE_KEYS,
   ...SOURCE_GAME_LOGIC_RUNTIME_STATE_KEYS,
   ...SOURCE_RADAR_RUNTIME_STATE_KEYS,
   ...SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS,
   ...SOURCE_IN_GAME_UI_RUNTIME_STATE_KEYS,
 ]);
+const LEGACY_PLAYER_RUNTIME_STATE_KEYS_IN_SCRIPT_CHUNK = [
+  'scriptCurrentSupplyWarehouseBySide',
+  'scriptSidesUnitsShouldHunt',
+  'scriptSkirmishBaseCenterAndRadiusBySide',
+  'scriptSkirmishBaseDefenseStateBySide',
+] as const;
 
 export interface GameLogicPlayersSaveState {
   version: number;
@@ -8161,6 +8184,21 @@ export interface GameLogicCaveTrackerSaveState {
   tracker: GameLogicTunnelTrackerSaveState;
 }
 
+export interface GameLogicSupplyWarehouseSaveState {
+  entityId: number;
+  state: SupplyWarehouseState;
+}
+
+export interface GameLogicSupplyTruckSaveState {
+  entityId: number;
+  state: SupplyTruckState;
+}
+
+export interface GameLogicDockApproachSaveState {
+  entityId: number;
+  state: DockApproachState;
+}
+
 export interface GameLogicCoreSaveState {
   version: number;
   nextId: number;
@@ -8181,6 +8219,9 @@ export interface GameLogicCoreSaveState {
   scriptScoringEnabled?: boolean;
   spawnedEntities: MapEntity[];
   caveTrackers?: GameLogicCaveTrackerSaveState[];
+  supplyWarehouseStates?: GameLogicSupplyWarehouseSaveState[];
+  supplyTruckStates?: GameLogicSupplyTruckSaveState[];
+  dockApproachStates?: GameLogicDockApproachSaveState[];
 }
 
 export interface LegacyGameLogicRadarSaveState {
@@ -9542,6 +9583,75 @@ export class GameLogicSubsystem implements Subsystem {
       }
       return true;
     }
+    if (key === 'supplyWarehouseStates') {
+      if (this.supplyWarehouseStates.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      this.supplyWarehouseStates.clear();
+      for (const [entityId, state] of value.entries()) {
+        if (typeof entityId !== 'number' || !state || typeof state !== 'object') {
+          continue;
+        }
+        const record = state as { currentBoxes?: unknown };
+        this.supplyWarehouseStates.set(entityId, {
+          currentBoxes: Number.isFinite(record.currentBoxes)
+            ? Math.trunc(record.currentBoxes as number)
+            : 0,
+        });
+      }
+      return true;
+    }
+    if (key === 'supplyTruckStates') {
+      if (this.supplyTruckStates.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      this.supplyTruckStates.clear();
+      for (const [entityId, state] of value.entries()) {
+        if (typeof entityId !== 'number' || !state || typeof state !== 'object') {
+          continue;
+        }
+        const record = state as Record<string, unknown>;
+        this.supplyTruckStates.set(entityId, {
+          aiState: Number.isFinite(record.aiState)
+            ? Math.trunc(record.aiState as number) as SupplyTruckAIState
+            : SupplyTruckAIState.IDLE,
+          currentBoxes: Number.isFinite(record.currentBoxes) ? Math.trunc(record.currentBoxes as number) : 0,
+          targetWarehouseId: Number.isFinite(record.targetWarehouseId)
+            ? Math.trunc(record.targetWarehouseId as number)
+            : null,
+          targetDepotId: Number.isFinite(record.targetDepotId)
+            ? Math.trunc(record.targetDepotId as number)
+            : null,
+          actionDelayFinishFrame: Number.isFinite(record.actionDelayFinishFrame)
+            ? Math.trunc(record.actionDelayFinishFrame as number)
+            : 0,
+          preferredDockId: Number.isFinite(record.preferredDockId)
+            ? Math.trunc(record.preferredDockId as number)
+            : null,
+          forceBusy: Boolean(record.forceBusy),
+        });
+      }
+      return true;
+    }
+    if (key === 'dockApproachStates') {
+      if (this.dockApproachStates.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      this.dockApproachStates.clear();
+      for (const [entityId, state] of value.entries()) {
+        if (typeof entityId !== 'number' || !state || typeof state !== 'object') {
+          continue;
+        }
+        const record = state as { currentDockerCount?: unknown; maxDockers?: unknown };
+        this.dockApproachStates.set(entityId, {
+          currentDockerCount: Number.isFinite(record.currentDockerCount)
+            ? Math.trunc(record.currentDockerCount as number)
+            : 0,
+          maxDockers: Number.isFinite(record.maxDockers) ? Math.trunc(record.maxDockers as number) : 0,
+        });
+      }
+      return true;
+    }
     return false;
   }
 
@@ -9571,6 +9681,42 @@ export class GameLogicSubsystem implements Subsystem {
         }
         this.caveTrackerIndexByEntityId.set(tunnelId, caveIndex);
       }
+    }
+  }
+
+  finalizeSourceSupplyChainRuntimeSaveState(): void {
+    for (const entityId of [...this.supplyWarehouseStates.keys()]) {
+      const entity = this.spawnedEntities.get(entityId);
+      if (!entity?.supplyWarehouseProfile || entity.destroyed) {
+        this.supplyWarehouseStates.delete(entityId);
+      }
+    }
+    for (const entityId of [...this.supplyTruckStates.keys()]) {
+      const entity = this.spawnedEntities.get(entityId);
+      if (!entity?.supplyTruckProfile || entity.destroyed) {
+        this.supplyTruckStates.delete(entityId);
+      }
+    }
+    for (const entityId of [...this.dockApproachStates.keys()]) {
+      const entity = this.spawnedEntities.get(entityId);
+      if ((!entity?.supplyWarehouseProfile && !entity?.isSupplyCenter) || entity.destroyed) {
+        this.dockApproachStates.delete(entityId);
+      }
+    }
+  }
+
+  private synchronizeLocalPlayerScienceAvailability(): void {
+    this.localPlayerScienceAvailability.clear();
+    const localSide = this.resolveLocalPlayerSide();
+    if (!localSide) {
+      return;
+    }
+    const sideAvailability = this.sideScienceAvailability.get(localSide);
+    if (!sideAvailability) {
+      return;
+    }
+    for (const [scienceName, availability] of sideAvailability.entries()) {
+      this.localPlayerScienceAvailability.set(scienceName, availability);
     }
   }
 
@@ -9610,6 +9756,7 @@ export class GameLogicSubsystem implements Subsystem {
         this.restoreTunnelTrackerSaveState(tunnelTracker.tracker),
       );
     }
+    this.synchronizeLocalPlayerScienceAvailability();
   }
 
   captureSourceRadarRuntimeSaveState(): GameLogicRadarSaveState {
@@ -9713,6 +9860,10 @@ export class GameLogicSubsystem implements Subsystem {
       SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS,
       snapshot.state as Record<string, unknown>,
     );
+    this.restoreSourceRuntimeStateByKeys(
+      LEGACY_PLAYER_RUNTIME_STATE_KEYS_IN_SCRIPT_CHUNK,
+      snapshot.state as Record<string, unknown>,
+    );
   }
 
   captureSourceInGameUiRuntimeSaveState(): GameLogicInGameUiSaveState {
@@ -9765,6 +9916,22 @@ export class GameLogicSubsystem implements Subsystem {
         caveIndex,
         tracker: this.captureTunnelTrackerSaveState(tracker),
       })),
+      supplyWarehouseStates: Array.from(this.supplyWarehouseStates.entries()).map(
+        ([entityId, state]) => ({
+          entityId,
+          state: { ...state },
+        }),
+      ),
+      supplyTruckStates: Array.from(this.supplyTruckStates.entries()).map(([entityId, state]) => ({
+        entityId,
+        state: { ...state },
+      })),
+      dockApproachStates: Array.from(this.dockApproachStates.entries()).map(
+        ([entityId, state]) => ({
+          entityId,
+          state: { ...state },
+        }),
+      ),
     };
   }
 
@@ -9813,6 +9980,27 @@ export class GameLogicSubsystem implements Subsystem {
       );
     }
     this.caveTrackerIndexByEntityId.clear();
+    this.supplyWarehouseStates.clear();
+    for (const warehouseState of snapshot.supplyWarehouseStates ?? []) {
+      if (!warehouseState || typeof warehouseState.entityId !== 'number' || !warehouseState.state) {
+        continue;
+      }
+      this.supplyWarehouseStates.set(warehouseState.entityId, { ...warehouseState.state });
+    }
+    this.supplyTruckStates.clear();
+    for (const truckState of snapshot.supplyTruckStates ?? []) {
+      if (!truckState || typeof truckState.entityId !== 'number' || !truckState.state) {
+        continue;
+      }
+      this.supplyTruckStates.set(truckState.entityId, { ...truckState.state });
+    }
+    this.dockApproachStates.clear();
+    for (const dockState of snapshot.dockApproachStates ?? []) {
+      if (!dockState || typeof dockState.entityId !== 'number' || !dockState.state) {
+        continue;
+      }
+      this.dockApproachStates.set(dockState.entityId, { ...dockState.state });
+    }
   }
 
   captureBrowserRuntimeSaveState(): Record<string, unknown> {
@@ -10383,9 +10571,15 @@ export class GameLogicSubsystem implements Subsystem {
     const normalizedSide = this.normalizeSide(side ?? '');
     if (!normalizedSide) {
       this.playerSideByIndex.delete(normalizedPlayerIndex);
+      if (normalizedPlayerIndex === this.localPlayerIndex) {
+        this.synchronizeLocalPlayerScienceAvailability();
+      }
       return;
     }
     this.playerSideByIndex.set(normalizedPlayerIndex, normalizedSide);
+    if (normalizedPlayerIndex === this.localPlayerIndex) {
+      this.synchronizeLocalPlayerScienceAvailability();
+    }
   }
 
   getPlayerSide(playerIndex: number): string | null {

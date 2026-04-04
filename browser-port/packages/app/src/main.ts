@@ -1716,6 +1716,7 @@ async function startGame(
     }
     gameLogic.restoreBrowserRuntimeSaveState(runtimeSaveLoadContext.runtimeSave.gameLogicState);
     gameLogic.finalizeSourceContainmentRuntimeSaveState();
+    gameLogic.finalizeSourceSupplyChainRuntimeSaveState();
   }
   if (objectPlacement.unresolvedObjects > 0) {
     console.warn(
