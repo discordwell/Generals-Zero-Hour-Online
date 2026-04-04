@@ -39,10 +39,14 @@ type GL = any;
 
 
 export function updateHackInternet(self: GL): void {
-    for (const [entityId, hackState] of self.hackInternetStateByEntityId.entries()) {
-      const entity = self.spawnedEntities.get(entityId);
-      if (!entity || entity.destroyed) {
-        self.hackInternetStateByEntityId.delete(entityId);
+    for (const entity of self.spawnedEntities.values()) {
+      if (entity.destroyed) {
+        entity.hackInternetRuntimeState = null;
+        entity.hackInternetPendingCommand = null;
+        continue;
+      }
+      const hackState = entity.hackInternetRuntimeState;
+      if (!hackState) {
         continue;
       }
 
@@ -58,10 +62,13 @@ export function updateHackInternet(self: GL): void {
 
 
 export function updatePendingHackInternetCommands(self: GL): void {
-    for (const [entityId, pending] of self.hackInternetPendingCommandByEntityId.entries()) {
-      const entity = self.spawnedEntities.get(entityId);
-      if (!entity || entity.destroyed) {
-        self.hackInternetPendingCommandByEntityId.delete(entityId);
+    for (const entity of self.spawnedEntities.values()) {
+      if (entity.destroyed) {
+        entity.hackInternetPendingCommand = null;
+        continue;
+      }
+      const pending = entity.hackInternetPendingCommand;
+      if (!pending) {
         continue;
       }
 
@@ -69,7 +76,7 @@ export function updatePendingHackInternetCommands(self: GL): void {
         continue;
       }
 
-      self.hackInternetPendingCommandByEntityId.delete(entityId);
+      entity.hackInternetPendingCommand = null;
       self.applyCommand(pending.command);
     }
 }

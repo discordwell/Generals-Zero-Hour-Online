@@ -3716,6 +3716,10 @@ export interface MapEntity {
   disabledHackedUntilFrame: number;
   /** Source parity: Object::m_disabledTillFrame[DISABLED_EMP]. */
   disabledEmpUntilFrame: number;
+  /** Source parity bridge: HackInternetAIUpdate runtime loop state now owned by the entity. */
+  hackInternetRuntimeState: HackInternetRuntimeState | null;
+  /** Source parity: HackInternetAIUpdate::m_pendingCommand and execute gate. */
+  hackInternetPendingCommand: HackInternetPendingCommandState | null;
   /** Accumulated flame damage toward ignition threshold. */
   flameDamageAccumulated: number;
   /** Frame at which aflame state ends. */
@@ -8159,6 +8163,8 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'activeSpyVisions',
   'spyVisionEntityStates',
   'revealToAllVisionStates',
+  'hackInternetStateByEntityId',
+  'hackInternetPendingCommandByEntityId',
   'disabledHackedStatusByEntityId',
   'disabledEmpStatusByEntityId',
   'shortcutSpecialPowerSourceByName',
@@ -8776,8 +8782,6 @@ export class GameLogicSubsystem implements Subsystem {
   /** Source parity: Object::m_hasDiedAlready — prevents re-entrant death pipeline. */
   /* @internal */ readonly dyingEntityIds = new Set<number>();
   private readonly sellingEntities = new Map<number, SellingEntityState>();
-  private readonly hackInternetStateByEntityId = new Map<number, HackInternetRuntimeState>();
-  private readonly hackInternetPendingCommandByEntityId = new Map<number, HackInternetPendingCommandState>();
   private readonly assaultTransportStateByEntityId = new Map<number, AssaultTransportState>();
   private readonly overchargeStateByEntityId = new Map<number, OverchargeRuntimeState>();
   /** Source parity: ThingTemplate::m_isBuildFacility derived set from production prerequisites. */
@@ -9993,6 +9997,58 @@ export class GameLogicSubsystem implements Subsystem {
         }
         entity.objectStatusFlags.add('DISABLED_HACKED');
         entity.disabledHackedUntilFrame = Math.max(0, Math.trunc(disableUntilFrame));
+      }
+      return true;
+    }
+    if (key === 'hackInternetStateByEntityId') {
+      if (!(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, rawState] of value.entries()) {
+        if (typeof entityId !== 'number' || !rawState || typeof rawState !== 'object') {
+          continue;
+        }
+        const entity = this.spawnedEntities.get(entityId);
+        if (!entity || entity.destroyed) {
+          continue;
+        }
+        const state = rawState as Partial<HackInternetRuntimeState>;
+        entity.hackInternetRuntimeState = {
+          cashUpdateDelayFrames: Number.isFinite(state.cashUpdateDelayFrames)
+            ? Math.max(0, Math.trunc(state.cashUpdateDelayFrames ?? 0))
+            : 0,
+          cashAmountPerCycle: Number.isFinite(state.cashAmountPerCycle)
+            ? Math.max(0, Math.trunc(state.cashAmountPerCycle ?? 0))
+            : 0,
+          nextCashFrame: Number.isFinite(state.nextCashFrame)
+            ? Math.max(0, Math.trunc(state.nextCashFrame ?? 0))
+            : this.frameCounter,
+        };
+      }
+      return true;
+    }
+    if (key === 'hackInternetPendingCommandByEntityId') {
+      if (!(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, rawPending] of value.entries()) {
+        if (typeof entityId !== 'number' || !rawPending || typeof rawPending !== 'object') {
+          continue;
+        }
+        const entity = this.spawnedEntities.get(entityId);
+        if (!entity || entity.destroyed) {
+          continue;
+        }
+        const pending = rawPending as Partial<HackInternetPendingCommandState>;
+        if (!pending.command || typeof pending.command !== 'object') {
+          continue;
+        }
+        entity.hackInternetPendingCommand = {
+          command: pending.command as GameLogicCommand,
+          executeFrame: Number.isFinite(pending.executeFrame)
+            ? Math.max(0, Math.trunc(pending.executeFrame ?? 0))
+            : this.frameCounter,
+        };
       }
       return true;
     }
@@ -36514,10 +36570,10 @@ export class GameLogicSubsystem implements Subsystem {
     for (const entity of this.spawnedEntities.values()) {
       entity.disabledHackedUntilFrame = 0;
       entity.disabledEmpUntilFrame = 0;
+      entity.hackInternetRuntimeState = null;
+      entity.hackInternetPendingCommand = null;
     }
     this.sellingEntities.clear();
-    this.hackInternetStateByEntityId.clear();
-    this.hackInternetPendingCommandByEntityId.clear();
     this.pendingEnterObjectActions.clear();
     this.pendingRepairDockActions.clear();
     this.pendingCombatDropActions.clear();

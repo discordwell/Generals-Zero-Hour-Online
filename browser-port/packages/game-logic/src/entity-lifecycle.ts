@@ -805,6 +805,8 @@ export function silentDestroyEntity(self: GL, entityId: number): void {
   self.sellingEntities.delete(entityId);
   entity.disabledHackedUntilFrame = 0;
   entity.disabledEmpUntilFrame = 0;
+  entity.hackInternetRuntimeState = null;
+  entity.hackInternetPendingCommand = null;
   self.battlePlanParalyzedUntilFrame.delete(entityId);
 
   // Clean up pending actions referencing this entity.
@@ -1362,6 +1364,8 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   self.sellingEntities.delete(entityId);
   entity.disabledHackedUntilFrame = 0;
   entity.disabledEmpUntilFrame = 0;
+  entity.hackInternetRuntimeState = null;
+  entity.hackInternetPendingCommand = null;
   self.battlePlanParalyzedUntilFrame.delete(entityId);
   // Source parity: if a Strategy Center is destroyed while a battle plan is active,
   // remove its bonuses from all entities on the side.

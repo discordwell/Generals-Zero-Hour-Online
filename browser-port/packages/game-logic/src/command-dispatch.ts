@@ -497,7 +497,7 @@ export function deferCommandWhileHackInternetPacking(self: GL, command: GameLogi
     return false;
   }
 
-  const pendingState = self.hackInternetPendingCommandByEntityId.get(entity.id);
+  const pendingState = entity.hackInternetPendingCommand;
   if (pendingState) {
     pendingState.command = command;
     return true;
@@ -507,7 +507,7 @@ export function deferCommandWhileHackInternetPacking(self: GL, command: GameLogi
     return false;
   }
 
-  if (!self.hackInternetStateByEntityId.has(entity.id)) {
+  if (!entity.hackInternetRuntimeState) {
     return false;
   }
 
@@ -517,7 +517,7 @@ export function deferCommandWhileHackInternetPacking(self: GL, command: GameLogi
     return false;
   }
 
-  self.hackInternetStateByEntityId.delete(entity.id);
+  entity.hackInternetRuntimeState = null;
   const packDelayFrames = resolveHackInternetPackTimeFrames(self, entity, profile);
   if (packDelayFrames <= 0) {
     return false;
@@ -525,10 +525,10 @@ export function deferCommandWhileHackInternetPacking(self: GL, command: GameLogi
 
   self.stopEntity(entity.id);
   self.clearAttackTarget(entity.id);
-  self.hackInternetPendingCommandByEntityId.set(entity.id, {
+  entity.hackInternetPendingCommand = {
     command,
     executeFrame: self.frameCounter + packDelayFrames,
-  });
+  };
   return true;
 }
 
@@ -1006,10 +1006,13 @@ export function cancelEntityCommandPathActions(self: GL,
   entityId: number,
   cancelDozerTaskMode: 'all' | 'current' | 'none' = 'all',
 ): void {
+  const entity = self.spawnedEntities.get(entityId);
+  if (entity) {
+    entity.hackInternetRuntimeState = null;
+    entity.hackInternetPendingCommand = null;
+  }
   self.cancelScriptWaypointPathCompletionTracking(entityId);
   self.cancelRailedTransportTransit(entityId);
-  self.hackInternetStateByEntityId.delete(entityId);
-  self.hackInternetPendingCommandByEntityId.delete(entityId);
   self.pendingEnterObjectActions.delete(entityId);
   self.pendingRepairDockActions.delete(entityId);
   self.pendingCombatDropActions.delete(entityId);
@@ -1118,11 +1121,12 @@ export function handleHackInternetCommand(self: GL, command: HackInternetCommand
     ? profile.regularCashAmount
     : SOURCE_HACK_FALLBACK_CASH_AMOUNT;
   const initialDelayFrames = Math.max(1, profile.unpackTimeFrames + cashUpdateDelayFrames);
-  self.hackInternetStateByEntityId.set(entity.id, {
+  entity.hackInternetPendingCommand = null;
+  entity.hackInternetRuntimeState = {
     cashUpdateDelayFrames,
     cashAmountPerCycle,
     nextCashFrame: self.frameCounter + initialDelayFrames,
-  });
+  };
 }
 
 export function resolveHackInternetPackTimeFrames(self: GL, entity: MapEntity, profile: HackInternetProfile): number {
