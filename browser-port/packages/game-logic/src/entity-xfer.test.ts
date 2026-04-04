@@ -570,6 +570,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     // Assault Transport
     assaultTransportProfile: null,
     assaultTransportState: null,
+    railedTransportState: null,
 
     // Power Plant
     powerPlantUpdateProfile: null,
@@ -819,6 +820,45 @@ describe('entity-xfer', () => {
       isAttackMove: true,
       isAttackObject: false,
       newOccupantsAreNewMembers: false,
+    });
+  });
+
+  it('round-trips source-owned railed transport state and drops TS-only transit helpers', () => {
+    const original = createTestEntity({
+      railedTransportState: {
+        inTransit: true,
+        waypointDataLoaded: true,
+        paths: [
+          { startWaypointID: 10, endWaypointID: 20 },
+          { startWaypointID: 30, endWaypointID: 40 },
+        ],
+        currentPath: 1,
+        transitWaypointIds: [10, 15, 20],
+        transitWaypointIndex: 2,
+      },
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity({ railedTransportState: null });
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.railedTransportState).toEqual({
+      inTransit: true,
+      waypointDataLoaded: true,
+      paths: [
+        { startWaypointID: 10, endWaypointID: 20 },
+        { startWaypointID: 30, endWaypointID: 40 },
+      ],
+      currentPath: 1,
+      transitWaypointIds: [],
+      transitWaypointIndex: 0,
     });
   });
 

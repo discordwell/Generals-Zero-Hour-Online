@@ -16,7 +16,8 @@ import { XferMode } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 8;
+const ENTITY_XFER_VERSION = 9;
+const MAX_RAILED_TRANSPORT_PATHS = 32;
 
 /**
  * Serialize or deserialize a nullable string.
@@ -192,6 +193,85 @@ function xferAssaultTransportState(xfer: Xfer, value: unknown): unknown {
   xfer.xferUnsignedInt(normalizedState.framesRemaining);
   xfer.xferBool(normalizedState.isAttackMove);
   xfer.xferBool(normalizedState.isAttackObject);
+  return normalizedState;
+}
+
+function xferRailedTransportState(xfer: Xfer, value: unknown): unknown {
+  const hasValue = xfer.xferBool(value !== null && value !== undefined);
+  if (!hasValue) {
+    return null;
+  }
+
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const inTransit = xfer.xferBool(false);
+    const pathCount = xfer.xferInt(0);
+    if (pathCount > MAX_RAILED_TRANSPORT_PATHS) {
+      throw new Error(
+        `RailedTransportAIUpdate path count ${pathCount} exceeds limit ${MAX_RAILED_TRANSPORT_PATHS}.`,
+      );
+    }
+    const paths: Array<{ startWaypointID: number; endWaypointID: number }> = [];
+    for (let i = 0; i < pathCount; i += 1) {
+      paths.push({
+        startWaypointID: xfer.xferUnsignedInt(0),
+        endWaypointID: xfer.xferUnsignedInt(0),
+      });
+    }
+    const currentPath = xfer.xferInt(-1);
+    const waypointDataLoaded = xfer.xferBool(false);
+    return {
+      inTransit,
+      waypointDataLoaded,
+      paths,
+      currentPath,
+      // Source parity: these are TS-only helpers, not part of RailedTransportAIUpdate::xfer.
+      transitWaypointIds: [],
+      transitWaypointIndex: 0,
+    };
+  }
+
+  const state = (value && typeof value === 'object') ? value as Record<string, unknown> : {};
+  const paths = Array.isArray(state.paths)
+    ? state.paths.flatMap((path) => {
+        if (!path || typeof path !== 'object') {
+          return [];
+        }
+        const record = path as Record<string, unknown>;
+        if (!Number.isFinite(record.startWaypointID) || !Number.isFinite(record.endWaypointID)) {
+          return [];
+        }
+        return [{
+          startWaypointID: Math.max(0, Math.trunc(record.startWaypointID as number)),
+          endWaypointID: Math.max(0, Math.trunc(record.endWaypointID as number)),
+        }];
+      })
+    : [];
+  if (paths.length > MAX_RAILED_TRANSPORT_PATHS) {
+    throw new Error(
+      `RailedTransportAIUpdate path count ${paths.length} exceeds limit ${MAX_RAILED_TRANSPORT_PATHS}.`,
+    );
+  }
+  const normalizedState = {
+    inTransit: Boolean(state.inTransit),
+    waypointDataLoaded: Boolean(state.waypointDataLoaded),
+    paths,
+    currentPath: Number.isFinite(state.currentPath) ? Math.trunc(state.currentPath as number) : -1,
+    transitWaypointIds: Array.isArray(state.transitWaypointIds)
+      ? state.transitWaypointIds.flatMap((id) => Number.isFinite(id) ? [Math.trunc(id as number)] : [])
+      : [],
+    transitWaypointIndex: Number.isFinite(state.transitWaypointIndex)
+      ? Math.max(0, Math.trunc(state.transitWaypointIndex as number))
+      : 0,
+  };
+
+  xfer.xferBool(normalizedState.inTransit);
+  xfer.xferInt(normalizedState.paths.length);
+  for (const path of normalizedState.paths) {
+    xfer.xferUnsignedInt(path.startWaypointID);
+    xfer.xferUnsignedInt(path.endWaypointID);
+  }
+  xfer.xferInt(normalizedState.currentPath);
+  xfer.xferBool(normalizedState.waypointDataLoaded);
   return normalizedState;
 }
 
@@ -918,6 +998,11 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     e.assaultTransportState = xferAssaultTransportState(xfer, e.assaultTransportState);
   } else {
     e.assaultTransportState = null;
+  }
+  if (version >= 9) {
+    e.railedTransportState = xferRailedTransportState(xfer, e.railedTransportState);
+  } else {
+    e.railedTransportState = null;
   }
 
   // ── Power Plant ──

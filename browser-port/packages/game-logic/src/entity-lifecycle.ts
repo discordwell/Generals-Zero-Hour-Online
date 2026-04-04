@@ -798,6 +798,7 @@ export function silentDestroyEntity(self: GL, entityId: number): void {
   self.unregisterEntityEnergy(entity);
   self.cancelEntityCommandPathActions(entityId);
   self.railedTransportStateByEntityId.delete(entityId);
+  entity.railedTransportState = null;
   self.supplyWarehouseStates.delete(entityId);
   self.supplyTruckStates.delete(entityId);
   self.dockApproachStates.delete(entityId);
@@ -1357,6 +1358,7 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
 
   self.cancelEntityCommandPathActions(entityId);
   self.railedTransportStateByEntityId.delete(entityId);
+  entity.railedTransportState = null;
   self.supplyWarehouseStates.delete(entityId);
   self.supplyTruckStates.delete(entityId);
   self.dockApproachStates.delete(entityId);

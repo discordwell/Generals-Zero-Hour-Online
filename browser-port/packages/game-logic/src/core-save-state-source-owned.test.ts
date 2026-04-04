@@ -35,16 +35,22 @@ describe('source-owned game-logic core save-state', () => {
       frameCounter: number;
       sellingEntities: Map<number, { sellFrame: number; constructionPercent: number }>;
       thingTemplateBuildableOverrides: Map<string, string>;
+      commandSetButtonSlotOverrides: Map<string, Map<number, string | null>>;
     };
     privateLogic.frameCounter = 20;
     privateLogic.sellingEntities.set(1, { sellFrame: 20, constructionPercent: 99.9 });
     privateLogic.thingTemplateBuildableOverrides.set('AMERICABARRACKS', 'NO');
+    privateLogic.commandSetButtonSlotOverrides.set(
+      'AMERICABARRACKSCOMMANDSET',
+      new Map([[1, 'COMMAND_AMERICA_BARRACKS']],),
+    );
 
     const coreState = logic.captureSourceGameLogicRuntimeSaveState();
     const browserState = logic.captureBrowserRuntimeSaveState();
 
     expect(browserState).not.toHaveProperty('sellingEntities');
     expect(browserState).not.toHaveProperty('thingTemplateBuildableOverrides');
+    expect(browserState).not.toHaveProperty('commandSetButtonSlotOverrides');
     expect(browserState).not.toHaveProperty('bridgeDamageStatesChangedFrame');
     expect(browserState).not.toHaveProperty('bridgeDamageStateByControlEntity');
 
@@ -56,6 +62,9 @@ describe('source-owned game-logic core save-state', () => {
     const restoredPrivate = restored as unknown as typeof privateLogic;
     expect(restoredPrivate.thingTemplateBuildableOverrides).toEqual(
       new Map([['AMERICABARRACKS', 'NO']]),
+    );
+    expect(restoredPrivate.commandSetButtonSlotOverrides).toEqual(
+      new Map([['AMERICABARRACKSCOMMANDSET', new Map([[1, 'COMMAND_AMERICA_BARRACKS']])]]),
     );
     expect(restoredPrivate.sellingEntities.get(1)).toEqual({
       sellFrame: 20,
@@ -79,6 +88,9 @@ describe('source-owned game-logic core save-state', () => {
         constructionPercent: 88.5,
       }]]),
       thingTemplateBuildableOverrides: new Map([['AmericaBarracks', 'ONLY_BY_AI']]),
+      commandSetButtonSlotOverrides: new Map([
+        ['AmericaBarracksCommandSet', new Map([[1, 'Command_America_Barracks'], [2, null]])],
+      ]),
       bridgeDamageStatesChangedFrame: 77,
       bridgeDamageStateByControlEntity: new Map([[1, false]]),
     });
@@ -86,6 +98,7 @@ describe('source-owned game-logic core save-state', () => {
     const privateLogic = logic as unknown as {
       sellingEntities: Map<number, { sellFrame: number; constructionPercent: number }>;
       thingTemplateBuildableOverrides: Map<string, string>;
+      commandSetButtonSlotOverrides: Map<string, Map<number, string | null>>;
     };
 
     expect(privateLogic.sellingEntities.get(1)).toEqual({
@@ -94,6 +107,9 @@ describe('source-owned game-logic core save-state', () => {
     });
     expect(privateLogic.thingTemplateBuildableOverrides).toEqual(
       new Map([['AMERICABARRACKS', 'ONLY_BY_AI']]),
+    );
+    expect(privateLogic.commandSetButtonSlotOverrides).toEqual(
+      new Map([['AMERICABARRACKSCOMMANDSET', new Map([[1, 'COMMAND_AMERICA_BARRACKS'], [2, null]])]]),
     );
   });
 });

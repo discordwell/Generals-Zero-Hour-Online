@@ -180,7 +180,8 @@ export function isCaptureBlockedByGarrisonOccupants(self: GL, target: MapEntity)
 }
 
 export function cancelRailedTransportTransit(self: GL, entityId: number): void {
-  const state = self.railedTransportStateByEntityId.get(entityId);
+  const entity = self.spawnedEntities.get(entityId);
+  const state = entity?.railedTransportState ?? self.railedTransportStateByEntityId.get(entityId);
   if (!state) {
     return;
   }
@@ -190,11 +191,15 @@ export function cancelRailedTransportTransit(self: GL, entityId: number): void {
 }
 
 export function resolveRailedTransportRuntimeState(self: GL, entityId: number): RailedTransportRuntimeState {
-  let state = self.railedTransportStateByEntityId.get(entityId);
+  const entity = self.spawnedEntities.get(entityId);
+  let state = entity?.railedTransportState ?? self.railedTransportStateByEntityId.get(entityId);
   if (!state) {
     state = createRailedTransportRuntimeStateImpl();
-    self.railedTransportStateByEntityId.set(entityId, state);
+    if (entity) {
+      entity.railedTransportState = state;
+    }
   }
+  self.railedTransportStateByEntityId.set(entityId, state);
   return state;
 }
 

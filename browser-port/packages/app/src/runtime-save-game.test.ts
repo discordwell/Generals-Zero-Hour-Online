@@ -152,6 +152,11 @@ describe('runtime-save-game', () => {
             templateName: 'AmericaBarracks',
             buildableStatus: 'NO',
           }],
+          controlBarOverrides: [{
+            commandSetName: 'AMERICABARRACKSCOMMANDSET',
+            slot: 1,
+            commandButtonName: 'COMMAND_AMERICA_BARRACKS',
+          }],
         }),
         captureBrowserRuntimeSaveState: () => ({
           version: 1,
@@ -260,6 +265,11 @@ describe('runtime-save-game', () => {
         passengerIds: [92, 93],
         tunnelCount: 1,
       },
+    }]);
+    expect(coreState?.controlBarOverrides).toEqual([{
+      commandSetName: 'AMERICABARRACKSCOMMANDSET',
+      slot: 1,
+      commandButtonName: 'COMMAND_AMERICA_BARRACKS',
     }]);
     expect(coreState?.sellingEntities).toEqual([{ entityId: 7, sellFrame: 11 }]);
     expect(coreState?.buildableOverrides).toEqual([{

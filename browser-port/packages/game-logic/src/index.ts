@@ -77,6 +77,7 @@ import {
 } from './render-profile-helpers.js';
 import type { ModelConditionInfo, TransitionInfo } from './render-profile-helpers.js';
 import {
+  INVALID_RAILED_TRANSPORT_PATH,
   createRailedTransportWaypointIndex as createRailedTransportWaypointIndexImpl,
   extractRailedTransportProfile as extractRailedTransportProfileImpl,
   type RailedTransportRuntimeState,
@@ -4207,6 +4208,9 @@ export interface MapEntity {
   assaultTransportProfile: AssaultTransportProfile | null;
   /** Source parity: AssaultTransportAIUpdate runtime state owned by the transport object. */
   assaultTransportState: AssaultTransportState | null;
+  /** Source parity: RailedTransportAIUpdate runtime state owned by the transport object.
+   *  transitWaypointIds/transitWaypointIndex remain TS-only helpers and are rebuilt lazily after load. */
+  railedTransportState: RailedTransportRuntimeState | null;
 
   // ── Source parity: PowerPlantUpdate — rod extension animation state machine ──
   overchargeBehaviorProfile: OverchargeBehaviorProfile | null;
@@ -8179,6 +8183,7 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'bridgeDamageStateByControlEntity',
   'thingTemplateBuildableOverrides',
   'sellingEntities',
+  'commandSetButtonSlotOverrides',
   'activeSpyVisions',
   'spyVisionEntityStates',
   'revealToAllVisionStates',
@@ -8187,6 +8192,7 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'hackInternetPendingCommandByEntityId',
   'overchargeStateByEntityId',
   'assaultTransportStateByEntityId',
+  'railedTransportStateByEntityId',
   'pendingChinookCommandByEntityId',
   'disabledHackedStatusByEntityId',
   'disabledEmpStatusByEntityId',
@@ -8264,6 +8270,12 @@ export interface GameLogicBuildableOverrideSaveState {
   buildableStatus: BuildableStatus;
 }
 
+export interface GameLogicControlBarOverrideSaveState {
+  commandSetName: string;
+  slot: number;
+  commandButtonName: string | null;
+}
+
 export interface GameLogicCoreSaveState {
   version: number;
   nextId: number;
@@ -8289,6 +8301,7 @@ export interface GameLogicCoreSaveState {
   dockApproachStates?: GameLogicDockApproachSaveState[];
   sellingEntities?: GameLogicSellingEntitySaveState[];
   buildableOverrides?: GameLogicBuildableOverrideSaveState[];
+  controlBarOverrides?: GameLogicControlBarOverrideSaveState[];
 }
 
 export interface LegacyGameLogicRadarSaveState {
@@ -9960,6 +9973,41 @@ export class GameLogicSubsystem implements Subsystem {
       }
       return true;
     }
+    if (key === 'commandSetButtonSlotOverrides') {
+      if (this.commandSetButtonSlotOverrides.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      this.commandSetButtonSlotOverrides.clear();
+      for (const [commandSetName, rawSlotOverrides] of value.entries()) {
+        if (typeof commandSetName !== 'string' || !(rawSlotOverrides instanceof Map)) {
+          continue;
+        }
+        const normalizedCommandSetName = commandSetName.trim().toUpperCase();
+        if (!normalizedCommandSetName) {
+          continue;
+        }
+        const slotOverrides = new Map<number, string | null>();
+        for (const [slot, commandButtonName] of rawSlotOverrides.entries()) {
+          if (typeof slot !== 'number' || !Number.isFinite(slot)) {
+            continue;
+          }
+          const normalizedSlot = Math.trunc(slot);
+          if (normalizedSlot < 1 || normalizedSlot > 18) {
+            continue;
+          }
+          slotOverrides.set(
+            normalizedSlot,
+            typeof commandButtonName === 'string'
+              ? (commandButtonName.trim().toUpperCase() || null)
+              : null,
+          );
+        }
+        if (slotOverrides.size > 0) {
+          this.commandSetButtonSlotOverrides.set(normalizedCommandSetName, slotOverrides);
+        }
+      }
+      return true;
+    }
     if (key === 'bridgeSegmentByControlEntity') {
       if (this.bridgeSegmentByControlEntity.size !== 0 || !(value instanceof Map)) {
         return false;
@@ -10277,6 +10325,53 @@ export class GameLogicSubsystem implements Subsystem {
         };
         entity.assaultTransportState = state;
         this.assaultTransportStateByEntityId.set(entityId, state);
+      }
+      return true;
+    }
+    if (key === 'railedTransportStateByEntityId') {
+      if (!(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, rawState] of value.entries()) {
+        if (typeof entityId !== 'number' || !rawState || typeof rawState !== 'object') {
+          continue;
+        }
+        const entity = this.spawnedEntities.get(entityId);
+        if (!entity || entity.destroyed) {
+          continue;
+        }
+        const objectDef = this.resolveObjectDefByTemplateName(entity.templateName);
+        if (this.extractRailedTransportProfile(objectDef ?? undefined) === null) {
+          continue;
+        }
+        const record = rawState as Partial<RailedTransportRuntimeState>;
+        const paths = Array.isArray(record.paths)
+          ? record.paths.flatMap((path) => {
+              if (!path || typeof path !== 'object') {
+                return [];
+              }
+              const pathRecord = path as Partial<{ startWaypointID: number; endWaypointID: number }>;
+              if (!Number.isFinite(pathRecord.startWaypointID) || !Number.isFinite(pathRecord.endWaypointID)) {
+                return [];
+              }
+              return [{
+                startWaypointID: Math.max(0, Math.trunc(pathRecord.startWaypointID ?? 0)),
+                endWaypointID: Math.max(0, Math.trunc(pathRecord.endWaypointID ?? 0)),
+              }];
+            })
+          : [];
+        const state: RailedTransportRuntimeState = {
+          inTransit: Boolean(record.inTransit),
+          waypointDataLoaded: Boolean(record.waypointDataLoaded),
+          paths,
+          currentPath: Number.isFinite(record.currentPath)
+            ? Math.trunc(record.currentPath ?? INVALID_RAILED_TRANSPORT_PATH)
+            : INVALID_RAILED_TRANSPORT_PATH,
+          transitWaypointIds: [],
+          transitWaypointIndex: 0,
+        };
+        entity.railedTransportState = state;
+        this.railedTransportStateByEntityId.set(entityId, state);
       }
       return true;
     }
@@ -10710,6 +10805,21 @@ export class GameLogicSubsystem implements Subsystem {
           buildableStatus,
         }))
         .sort((left, right) => left.templateName.localeCompare(right.templateName)),
+      controlBarOverrides: Array.from(this.commandSetButtonSlotOverrides.entries())
+        .flatMap(([commandSetName, slotOverrides]) => Array.from(slotOverrides.entries()).map(
+          ([slot, commandButtonName]) => ({
+            commandSetName,
+            slot,
+            commandButtonName,
+          }),
+        ))
+        .sort((left, right) => {
+          const commandSetCompare = left.commandSetName.localeCompare(right.commandSetName);
+          if (commandSetCompare !== 0) {
+            return commandSetCompare;
+          }
+          return left.slot - right.slot;
+        }),
     };
   }
 
@@ -10748,9 +10858,13 @@ export class GameLogicSubsystem implements Subsystem {
       snapshot.spawnedEntities.map((entity) => [entity.id, entity]),
     );
     this.assaultTransportStateByEntityId.clear();
+    this.railedTransportStateByEntityId.clear();
     for (const entity of this.spawnedEntities.values()) {
       if (entity.assaultTransportState) {
         this.assaultTransportStateByEntityId.set(entity.id, entity.assaultTransportState);
+      }
+      if (entity.railedTransportState) {
+        this.railedTransportStateByEntityId.set(entity.id, entity.railedTransportState);
       }
     }
     this.caveTrackers.clear();
@@ -10815,6 +10929,26 @@ export class GameLogicSubsystem implements Subsystem {
         continue;
       }
       this.thingTemplateBuildableOverrides.set(normalizedTemplateName, override.buildableStatus);
+    }
+    this.commandSetButtonSlotOverrides.clear();
+    for (const override of snapshot.controlBarOverrides ?? []) {
+      if (!override || typeof override.commandSetName !== 'string' || !Number.isFinite(override.slot)) {
+        continue;
+      }
+      const normalizedCommandSetName = override.commandSetName.trim().toUpperCase();
+      const normalizedSlot = Math.trunc(override.slot);
+      if (!normalizedCommandSetName || normalizedSlot < 1 || normalizedSlot > 18) {
+        continue;
+      }
+      let slotOverrides = this.commandSetButtonSlotOverrides.get(normalizedCommandSetName);
+      if (!slotOverrides) {
+        slotOverrides = new Map<number, string | null>();
+        this.commandSetButtonSlotOverrides.set(normalizedCommandSetName, slotOverrides);
+      }
+      const commandButtonName = typeof override.commandButtonName === 'string'
+        ? (override.commandButtonName.trim().toUpperCase() || null)
+        : null;
+      slotOverrides.set(normalizedSlot, commandButtonName);
     }
   }
 
@@ -36897,6 +37031,7 @@ export class GameLogicSubsystem implements Subsystem {
       entity.hackInternetPendingCommand = null;
       entity.chinookPendingCommand = null;
       entity.assaultTransportState = null;
+      entity.railedTransportState = null;
       entity.overchargeActive = false;
     }
     this.assaultTransportStateByEntityId.clear();

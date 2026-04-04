@@ -16,6 +16,7 @@ import {
   type GameDifficulty,
   type GameLogicCaveTrackerSaveState,
   type GameLogicBuildableOverrideSaveState,
+  type GameLogicControlBarOverrideSaveState,
   type GameLogicCoreSaveState,
   type GameLogicInGameUiSaveState,
   type GameLogicPlayerTunnelTrackerSaveState,
@@ -47,7 +48,7 @@ const CAMPAIGN_VERSION = 5;
 const GAME_STATE_MAP_VERSION = 2;
 const BROWSER_RUNTIME_STATE_VERSION = 1;
 const SOURCE_PLAYER_SNAPSHOT_VERSION = 2;
-const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 3;
+const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 4;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
 const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
 const SOURCE_RADAR_EVENT_COUNT = 64;
@@ -710,6 +711,34 @@ function xferSourceBuildableOverrides(
   return overrides;
 }
 
+function xferSourceControlBarOverrides(
+  xfer: Xfer,
+  overrides: GameLogicControlBarOverrideSaveState[],
+): GameLogicControlBarOverrideSaveState[] {
+  const count = xfer.xferInt(overrides.length);
+  if (count < 0) {
+    throw new Error(`Control-bar override count ${count} is invalid.`);
+  }
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: GameLogicControlBarOverrideSaveState[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push({
+        commandSetName: xfer.xferAsciiString(''),
+        slot: xfer.xferUnsignedByte(0),
+        commandButtonName: xferNullableAsciiString(xfer, null),
+      });
+    }
+    return loaded;
+  }
+
+  for (const override of overrides) {
+    xfer.xferAsciiString(override.commandSetName);
+    xfer.xferUnsignedByte(override.slot);
+    xferNullableAsciiString(xfer, override.commandButtonName);
+  }
+  return overrides;
+}
+
 class PlayersSnapshot implements Snapshot {
   payload: GameLogicPlayersSaveState | null;
 
@@ -1035,7 +1064,7 @@ class GameLogicSnapshot implements Snapshot {
 
   xfer(xfer: Xfer): void {
     const version = xfer.xferVersion(SOURCE_GAME_LOGIC_SNAPSHOT_VERSION);
-    if (version !== 1 && version !== 2 && version !== SOURCE_GAME_LOGIC_SNAPSHOT_VERSION) {
+    if (version !== 1 && version !== 2 && version !== 3 && version !== SOURCE_GAME_LOGIC_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported game-logic snapshot version ${version}`);
     }
 
@@ -1054,6 +1083,7 @@ class GameLogicSnapshot implements Snapshot {
       const caveTrackers = version >= 2 ? xferSourceCaveTrackers(xfer, []) : [];
       const sellingEntities = version >= 3 ? xferSourceSellingEntities(xfer, []) : [];
       const buildableOverrides = version >= 3 ? xferSourceBuildableOverrides(xfer, []) : [];
+      const controlBarOverrides = version >= 4 ? xferSourceControlBarOverrides(xfer, []) : [];
 
       this.payload = {
         version: 1,
@@ -1077,6 +1107,7 @@ class GameLogicSnapshot implements Snapshot {
         caveTrackers,
         sellingEntities,
         buildableOverrides,
+        controlBarOverrides,
       };
       return;
     }
@@ -1099,6 +1130,9 @@ class GameLogicSnapshot implements Snapshot {
     if (version >= 3) {
       xferSourceSellingEntities(xfer, this.payload.sellingEntities ?? []);
       xferSourceBuildableOverrides(xfer, this.payload.buildableOverrides ?? []);
+    }
+    if (version >= 4) {
+      xferSourceControlBarOverrides(xfer, this.payload.controlBarOverrides ?? []);
     }
     xfer.xferObjectID(this.payload.nextId);
     xfer.xferUnsignedInt(this.payload.nextProjectileVisualId);
