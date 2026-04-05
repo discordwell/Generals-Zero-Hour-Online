@@ -8073,13 +8073,7 @@ const SOURCE_RADAR_RUNTIME_STATE_KEYS = [
 const SOURCE_TERRAIN_LOGIC_RUNTIME_STATE_KEYS = [
   'scriptActiveBoundaryIndex',
 ] as const;
-const SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS = [
-  'scriptAudioLengthMsByName',
-  'scriptCompletedMusic',
-  'scriptTeamsByName',
-  'scriptTeamInstanceNamesByPrototypeName',
-  'pendingScriptReinforcementTransportArrivalByEntityId',
-  'scriptSequentialScripts',
+const SOURCE_SIDES_LIST_RUNTIME_STATE_KEYS = [
   'mapScriptLists',
   'mapScriptsByNameUpper',
   'mapScriptGroupsByNameUpper',
@@ -8089,6 +8083,14 @@ const SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS = [
   'mapScriptDifficultyByIndex',
   'mapScriptDifficultyByPlayerToken',
   'scriptAiBuildListEntriesBySide',
+] as const;
+const SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS = [
+  'scriptAudioLengthMsByName',
+  'scriptCompletedMusic',
+  'scriptTeamsByName',
+  'scriptTeamInstanceNamesByPrototypeName',
+  'pendingScriptReinforcementTransportArrivalByEntityId',
+  'scriptSequentialScripts',
   'scriptCountersByName',
   'scriptFlagsByName',
   'scriptCompletedVideos',
@@ -8278,6 +8280,7 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   ...SOURCE_PLAYER_RUNTIME_STATE_KEYS,
   ...SOURCE_GAME_LOGIC_RUNTIME_STATE_KEYS,
   ...SOURCE_RADAR_RUNTIME_STATE_KEYS,
+  ...SOURCE_SIDES_LIST_RUNTIME_STATE_KEYS,
   ...SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS,
   ...SOURCE_IN_GAME_UI_RUNTIME_STATE_KEYS,
 ]);
@@ -8292,6 +8295,11 @@ export interface GameLogicPlayersSaveState {
   version: number;
   state: Record<string, unknown>;
   tunnelTrackers?: GameLogicPlayerTunnelTrackerSaveState[];
+}
+
+export interface GameLogicSidesListSaveState {
+  version: number;
+  state: Record<string, unknown>;
 }
 
 export interface GameLogicTunnelTrackerSaveState {
@@ -11192,6 +11200,32 @@ export class GameLogicSubsystem implements Subsystem {
       );
     }
     this.synchronizeLocalPlayerScienceAvailability();
+  }
+
+  captureSourceSidesListRuntimeSaveState(): GameLogicSidesListSaveState {
+    return {
+      version: 1,
+      state: this.captureSourceRuntimeStateByKeys(SOURCE_SIDES_LIST_RUNTIME_STATE_KEYS),
+    };
+  }
+
+  restoreSourceSidesListRuntimeSaveState(state: unknown): void {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      throw new Error('Source sides-list save-state payload is malformed.');
+    }
+
+    const snapshot = state as GameLogicSidesListSaveState;
+    if (snapshot.version !== 1) {
+      throw new Error(`Unsupported source sides-list save-state version ${snapshot.version}.`);
+    }
+    if (!snapshot.state || typeof snapshot.state !== 'object' || Array.isArray(snapshot.state)) {
+      throw new Error('Source sides-list save-state content is malformed.');
+    }
+
+    this.restoreSourceRuntimeStateByKeys(
+      SOURCE_SIDES_LIST_RUNTIME_STATE_KEYS,
+      snapshot.state as Record<string, unknown>,
+    );
   }
 
   captureSourceTerrainLogicRuntimeSaveState(): GameLogicTerrainLogicSaveState {

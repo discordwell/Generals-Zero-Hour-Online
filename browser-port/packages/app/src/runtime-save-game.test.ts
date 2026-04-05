@@ -152,6 +152,65 @@ describe('runtime-save-game', () => {
           nextFreeRadarEvent: 1,
           lastRadarEvent: 0,
         }),
+        captureSourceSidesListRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            scriptPlayerSideByName: new Map([['THE_PLAYER', 'america']]),
+            scriptDefaultTeamNameBySide: new Map([['america', 'TEAMTHEPLAYER']]),
+            mapScriptSideByIndex: ['america'],
+            mapScriptDifficultyByIndex: [1],
+            mapScriptDifficultyByPlayerToken: new Map([['THE_PLAYER', 1]]),
+            scriptAiBuildListEntriesBySide: new Map([['america', [{
+              buildingName: 'AmericaBarracks',
+              templateName: 'AmericaBarracks',
+              x: 12,
+              z: 18,
+              rebuilds: 0,
+              angle: 0,
+              initiallyBuilt: true,
+              automaticallyBuild: true,
+              priorityBuild: false,
+            }]]]),
+            mapScriptLists: [{
+              scripts: [{
+                name: 'IntroScript',
+                nameUpper: 'INTROSCRIPT',
+                active: true,
+                oneShot: false,
+                easy: true,
+                normal: true,
+                hard: true,
+                subroutine: false,
+                delayEvaluationSeconds: 0,
+                frameToEvaluateAt: 0,
+                conditionTeamNameUpper: null,
+                sourceSideIndex: 0,
+                conditions: [],
+                actions: [],
+                falseActions: [],
+              }],
+              groups: [],
+            }],
+            mapScriptsByNameUpper: new Map([['INTROSCRIPT', {
+              name: 'IntroScript',
+              nameUpper: 'INTROSCRIPT',
+              active: true,
+              oneShot: false,
+              easy: true,
+              normal: true,
+              hard: true,
+              subroutine: false,
+              delayEvaluationSeconds: 0,
+              frameToEvaluateAt: 0,
+              conditionTeamNameUpper: null,
+              sourceSideIndex: 0,
+              conditions: [],
+              actions: [],
+              falseActions: [],
+            }]]),
+            mapScriptGroupsByNameUpper: new Map(),
+          },
+        }),
         captureSourceScriptEngineRuntimeSaveState: () => ({
           version: 1,
           state: {
@@ -276,6 +335,7 @@ describe('runtime-save-game', () => {
       'CHUNK_GameLogic',
       'CHUNK_Radar',
       'CHUNK_ScriptEngine',
+      'CHUNK_SidesList',
       'CHUNK_TacticalView',
       'CHUNK_InGameUI',
       'CHUNK_TS_RuntimeState',
@@ -284,6 +344,7 @@ describe('runtime-save-game', () => {
     const parsed = parseRuntimeSaveFile(saveFile.data);
     const playerState = parsed.gameLogicPlayersState;
     const radarState = parsed.gameLogicRadarState;
+    const sidesListState = parsed.gameLogicSidesListState;
     const scriptEngineState = parsed.gameLogicScriptEngineState;
     const inGameUiState = parsed.gameLogicInGameUiState;
     const terrainLogicState = parsed.gameLogicTerrainLogicState;
@@ -359,6 +420,40 @@ describe('runtime-save-game', () => {
     });
     expect(radarState.nextFreeRadarEvent).toBe(1);
     expect(radarState.lastRadarEvent).toBe(0);
+    expect(sidesListState?.state.scriptPlayerSideByName).toEqual(new Map([['THE_PLAYER', 'america']]));
+    expect(sidesListState?.state.scriptDefaultTeamNameBySide).toEqual(new Map([['america', 'TEAMTHEPLAYER']]));
+    expect(sidesListState?.state.mapScriptSideByIndex).toEqual(['america']);
+    expect(sidesListState?.state.mapScriptDifficultyByIndex).toEqual([1]);
+    expect(sidesListState?.state.mapScriptDifficultyByPlayerToken).toEqual(new Map([['THE_PLAYER', 1]]));
+    expect(sidesListState?.state.scriptAiBuildListEntriesBySide).toEqual(new Map([['america', [{
+      buildingName: 'AmericaBarracks',
+      templateName: 'AmericaBarracks',
+      x: 12,
+      z: 18,
+      rebuilds: 0,
+      angle: 0,
+      initiallyBuilt: true,
+      automaticallyBuild: true,
+      priorityBuild: false,
+    }]]]));
+    expect(sidesListState?.state.mapScriptLists).toHaveLength(1);
+    expect(sidesListState?.state.mapScriptsByNameUpper).toEqual(new Map([['INTROSCRIPT', {
+      name: 'IntroScript',
+      nameUpper: 'INTROSCRIPT',
+      active: true,
+      oneShot: false,
+      easy: true,
+      normal: true,
+      hard: true,
+      subroutine: false,
+      delayEvaluationSeconds: 0,
+      frameToEvaluateAt: 0,
+      conditionTeamNameUpper: null,
+      sourceSideIndex: 0,
+      conditions: [],
+      actions: [],
+      falseActions: [],
+    }]]));
     expect(scriptEngineState?.state.scriptCountersByName).toEqual(
       new Map([['missiontimer', { value: 90, isCountdownTimer: true }]]),
     );
@@ -475,6 +570,7 @@ describe('runtime-save-game', () => {
         }),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
+        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
@@ -551,6 +647,7 @@ describe('runtime-save-game', () => {
         }),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
+        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
@@ -612,6 +709,7 @@ describe('runtime-save-game', () => {
         }),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
+        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
@@ -688,6 +786,7 @@ describe('runtime-save-game', () => {
         }),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
+        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({

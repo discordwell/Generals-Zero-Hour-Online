@@ -1704,6 +1704,11 @@ async function startGame(
         runtimeSaveLoadContext.runtimeSave.gameLogicRadarState,
       );
     }
+    if (runtimeSaveLoadContext.runtimeSave.gameLogicSidesListState) {
+      gameLogic.restoreSourceSidesListRuntimeSaveState(
+        runtimeSaveLoadContext.runtimeSave.gameLogicSidesListState,
+      );
+    }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicInGameUiState) {
       gameLogic.restoreSourceInGameUiRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicInGameUiState,
