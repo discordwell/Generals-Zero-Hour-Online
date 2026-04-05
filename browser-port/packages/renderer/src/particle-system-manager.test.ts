@@ -116,6 +116,48 @@ describe('ParticleSystemManager', () => {
     expect(manager.getTotalParticleCount()).toBe(0);
   });
 
+  it('captures and restores live particle systems', () => {
+    const id = manager.createSystem('SmokePuff', new THREE.Vector3(5, 2, 7))!;
+    manager.update(1 / 30);
+    manager.update(1 / 30);
+
+    const saved = manager.captureSaveState();
+    const dataBefore = manager._getSystemParticleData(id);
+    expect(dataBefore).not.toBeNull();
+
+    const restoredScene = new THREE.Scene();
+    const restoredManager = new ParticleSystemManager(restoredScene);
+    restoredManager.loadFromRegistry(createRegistryWithTemplate());
+    restoredManager.init();
+    restoredManager.restoreSaveState(saved);
+
+    expect(restoredManager.getActiveSystemCount()).toBe(1);
+    expect(restoredManager.getTotalParticleCount()).toBe(manager.getTotalParticleCount());
+
+    const restoredData = restoredManager._getSystemParticleData(id);
+    expect(restoredData?.count).toBe(dataBefore?.count);
+    expect(Array.from(restoredData?.data.slice(0, restoredData.count * PARTICLE_STRIDE) ?? []))
+      .toEqual(Array.from(dataBefore?.data.slice(0, dataBefore.count * PARTICLE_STRIDE) ?? []));
+
+    const restoredInfo = restoredManager._getSystemInfo(id);
+    expect(restoredInfo?.mesh).not.toBeNull();
+    expect(restoredInfo?.alive).toBe(true);
+  });
+
+  it('restores saved templates that were not preloaded in the registry', () => {
+    const id = manager.createSystem('SmokePuff', new THREE.Vector3(0, 0, 0))!;
+    manager.update(1 / 30);
+    const saved = manager.captureSaveState();
+
+    const restoredManager = new ParticleSystemManager(new THREE.Scene());
+    restoredManager.init();
+    restoredManager.restoreSaveState(saved);
+
+    expect(restoredManager.getTemplate('SmokePuff')).toBeDefined();
+    expect(restoredManager.getActiveSystemCount()).toBe(1);
+    expect(restoredManager._getSystemParticleData(id)?.count).toBeGreaterThan(0);
+  });
+
   it('creates instanced mesh in scene', () => {
     manager.createSystem('SmokePuff', new THREE.Vector3(5, 0, 5));
     manager.update(1 / 30);

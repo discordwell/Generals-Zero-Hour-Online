@@ -32,6 +32,10 @@ export type {
 export { parseFXListTemplate } from './fx-list-template.js';
 export type { FXListTemplate, FXNugget } from './fx-list-template.js';
 export { ParticleSystemManager } from './particle-system-manager.js';
+export type {
+  ParticleSystemManagerSaveState,
+  ParticleSystemInstanceSaveState,
+} from './particle-system-manager.js';
 export { FXListManager } from './fx-list-manager.js';
 export type { FXEventCallbacks } from './fx-list-manager.js';
 export {

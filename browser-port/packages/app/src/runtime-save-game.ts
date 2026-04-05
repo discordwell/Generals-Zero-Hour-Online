@@ -39,7 +39,14 @@ import {
   type MapEntity,
   type StructuredGameLogicRadarSaveState,
 } from '@generals/game-logic';
-import type { MapDataJSON } from '@generals/renderer';
+import type {
+  MapDataJSON,
+  ParticleSystemManagerSaveState,
+} from '@generals/renderer';
+import {
+  SourceParticleSystemSnapshot,
+  parseSourceParticleSystemChunk,
+} from './runtime-particle-system-save.js';
 
 const SOURCE_CAMPAIGN_BLOCK = 'CHUNK_Campaign';
 const SOURCE_TERRAIN_LOGIC_BLOCK = 'CHUNK_TerrainLogic';
@@ -93,8 +100,6 @@ const SOURCE_PLAYER_SNAPSHOT_VERSION = 2;
 const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 7;
 const SOURCE_GAME_CLIENT_SNAPSHOT_VERSION = 3;
 const SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION = 1;
-const SOURCE_PARTICLE_SYSTEM_SNAPSHOT_VERSION = 1;
-const SOURCE_PARTICLE_SYSTEM_ID_BYTE_LENGTH = 4;
 const SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION = 1;
 const SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION = 1;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
@@ -197,6 +202,7 @@ export interface RuntimeSaveBootstrap {
   cameraState: CameraState | null;
   tacticalViewState: RuntimeSaveTacticalViewState | null;
   gameClientState: RuntimeSaveGameClientState | null;
+  particleSystemState: ParticleSystemManagerSaveState | null;
   gameLogicTerrainLogicState: GameLogicTerrainLogicSaveState | null;
   gameLogicTeamFactoryState: GameLogicTeamFactorySaveState | null;
   gameLogicPlayersState: GameLogicPlayersSaveState | null;
@@ -1847,7 +1853,7 @@ class GameClientSnapshot implements Snapshot {
 
 class ParticleSystemSnapshot implements Snapshot {
   constructor(
-    private readonly uniqueSystemIdBytes = new Uint8Array(SOURCE_PARTICLE_SYSTEM_ID_BYTE_LENGTH),
+    private readonly state: ParticleSystemManagerSaveState | null = null,
   ) {}
 
   crc(_xfer: Xfer): void {
@@ -1855,13 +1861,13 @@ class ParticleSystemSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
-    const version = xfer.xferVersion(SOURCE_PARTICLE_SYSTEM_SNAPSHOT_VERSION);
-    if (version !== SOURCE_PARTICLE_SYSTEM_SNAPSHOT_VERSION) {
-      throw new Error(`Unsupported particle-system snapshot version ${version}`);
-    }
-
-    xfer.xferUser(this.uniqueSystemIdBytes);
-    xfer.xferUnsignedInt(0);
+    new SourceParticleSystemSnapshot(
+      this.state ?? {
+        version: 1,
+        nextId: 1,
+        systems: [],
+      },
+    ).xfer(xfer);
   }
 
   loadPostProcess(): void {
@@ -1914,6 +1920,7 @@ export function buildRuntimeSaveFile(params: {
   tacticalViewState?: RuntimeSaveTacticalViewState | null;
   gameClientBriefingLines?: readonly string[];
   gameClientState?: RuntimeSaveGameClientState | null;
+  particleSystemState?: ParticleSystemManagerSaveState | null;
   gameLogic: Pick<
     GameLogicSubsystem,
     | 'captureBrowserRuntimeSaveState'
@@ -2037,7 +2044,12 @@ export function buildRuntimeSaveFile(params: {
   }
   state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, new InGameUiSnapshot(inGameUiPayload));
   state.addSnapshotBlock(SOURCE_PARTITION_BLOCK, new PartitionSnapshot(partitionPayload));
-  if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_PARTICLE_SYSTEM_BLOCK)) {
+  if (params.particleSystemState) {
+    state.addSnapshotBlock(
+      SOURCE_PARTICLE_SYSTEM_BLOCK,
+      new ParticleSystemSnapshot(params.particleSystemState),
+    );
+  } else if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_PARTICLE_SYSTEM_BLOCK)) {
     state.addSnapshotBlock(SOURCE_PARTICLE_SYSTEM_BLOCK, new ParticleSystemSnapshot());
   }
   if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_TERRAIN_VISUAL_BLOCK)) {
@@ -2052,6 +2064,12 @@ export function buildRuntimeSaveFile(params: {
       continue;
     }
     if (normalizedName === BROWSER_RUNTIME_STATE_BLOCK.toLowerCase()) {
+      continue;
+    }
+    if (
+      normalizedName === SOURCE_PARTICLE_SYSTEM_BLOCK.toLowerCase()
+      && params.particleSystemState
+    ) {
       continue;
     }
     if (KNOWN_RUNTIME_SAVE_BLOCKS.has(normalizedName)) {
@@ -2139,9 +2157,13 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
       typeof payload?.mapPath === 'string' && payload.mapPath.length > 0
         ? payload.mapPath
         : null
-    )
+      )
   );
   const mapData = tryDecodeJsonBytes<MapDataJSON>(mapInfo.embeddedMapData);
+  const particleSystemChunk = extractSaveChunkData(data, SOURCE_PARTICLE_SYSTEM_BLOCK);
+  const particleSystemState = particleSystemChunk
+    ? parseSourceParticleSystemChunk(particleSystemChunk)
+    : null;
   const campaign = campaignSnapshot.state.currentCampaign.length > 0
     ? {
         campaignName: campaignSnapshot.state.currentCampaign,
@@ -2161,6 +2183,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     cameraState: resolveRestoredCameraState(tacticalViewSnapshot.payload, browserCameraState),
     tacticalViewState: tacticalViewSnapshot.payload,
     gameClientState: parseGameClientState(data),
+    particleSystemState,
     gameLogicTerrainLogicState: terrainLogicSnapshot?.payload ?? null,
     gameLogicTeamFactoryState: teamFactorySnapshot?.payload ?? null,
     gameLogicPlayersState: playersSnapshot?.payload ?? null,

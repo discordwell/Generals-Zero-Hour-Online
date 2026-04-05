@@ -3307,6 +3307,9 @@ async function startGame(
   const particleSystemManager = new ParticleSystemManager(scene, gameLODManager);
   particleSystemManager.loadFromRegistry(iniDataRegistry);
   particleSystemManager.init();
+  if (runtimeSaveLoadContext?.runtimeSave.particleSystemState) {
+    particleSystemManager.restoreSaveState(runtimeSaveLoadContext.runtimeSave.particleSystemState);
+  }
   const decalManager = new DecalManager(scene, 256, 128);
   decalManager.init();
   addPreplacedMapScorchMarks(mapData, heightmap, decalManager);
@@ -5182,6 +5185,7 @@ async function startGame(
         },
       },
       gameClientState: runtimeSaveLoadContext?.runtimeSave.gameClientState ?? null,
+      particleSystemState: particleSystemManager.captureSaveState(),
       gameLogic,
       embeddedMapBytes,
       sourceGameMode: skirmishSettings ? SOURCE_GAME_MODE_SKIRMISH : SOURCE_GAME_MODE_SINGLE_PLAYER,
@@ -5322,6 +5326,16 @@ async function startGame(
     saveGame: (slotId: string, description: string) => saveCurrentGame(slotId, description),
     loadGameFromSlot: (slotId: string) => loadSavedGameSlot(slotId),
     listSaves: () => ctx.saveStorage.listSaves(),
+    debugSpawnParticleSystem: (templateName: string, position: { x: number; y: number; z: number }) =>
+      particleSystemManager.createSystem(
+        templateName,
+        new THREE.Vector3(position.x, position.y, position.z),
+      ),
+    getParticleSystemDebugState: () => ({
+      activeSystemCount: particleSystemManager.getActiveSystemCount(),
+      totalParticleCount: particleSystemManager.getTotalParticleCount(),
+      saveState: particleSystemManager.captureSaveState(),
+    }),
   };
 
   // Hide loading screen

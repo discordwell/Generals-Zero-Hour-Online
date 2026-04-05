@@ -90,6 +90,7 @@ interface ParticleSystemInstance {
   instanceAlpha: THREE.InstancedBufferAttribute | null;
   // Slave/Attached systems (Fix #1)
   slaveSystemId?: number;
+  masterSystemId?: number;
   attachedParticleSystems?: Map<number, number>;
   // Wind motion state (Fix #2)
   // Source parity: ParticleSys.cpp:2205-2289
@@ -100,6 +101,33 @@ interface ParticleSystemInstance {
   windPingPongTargetAngle: number;
   // STREAK previous positions (Fix #3)
   prevPositions?: Float32Array;
+}
+
+export interface ParticleSystemInstanceSaveState {
+  id: number;
+  template: ParticleSystemTemplate;
+  position: { x: number; y: number; z: number };
+  orientation: { x: number; y: number; z: number; w: number };
+  particleCount: number;
+  particles: number[];
+  burstTimer: number;
+  systemAge: number;
+  initialDelayRemaining: number;
+  alive: boolean;
+  windAngle: number;
+  windAngleChange: number;
+  windMotionMovingToEnd: boolean;
+  windPingPongTargetAngle: number;
+  slaveSystemId: number | null;
+  masterSystemId: number | null;
+  attachedParticleSystems: Array<[number, number]>;
+  prevPositions: number[] | null;
+}
+
+export interface ParticleSystemManagerSaveState {
+  version: 1;
+  nextId: number;
+  systems: ParticleSystemInstanceSaveState[];
 }
 
 // ---------------------------------------------------------------------------
@@ -328,6 +356,10 @@ export class ParticleSystemManager implements Subsystem {
       const slaveId = this.createSystem(template.slaveSystemName, slavePos, orientation);
       if (slaveId !== null) {
         system.slaveSystemId = slaveId;
+        const slaveSystem = this.systems.get(slaveId);
+        if (slaveSystem) {
+          slaveSystem.masterSystemId = id;
+        }
       }
     }
 
@@ -370,6 +402,7 @@ export class ParticleSystemManager implements Subsystem {
   /** @internal — exposes system instance details for testing */
   _getSystemInfo(id: number): {
     slaveSystemId?: number;
+    masterSystemId?: number;
     attachedParticleSystems?: Map<number, number>;
     windAngle: number;
     windAngleChange: number;
@@ -382,6 +415,7 @@ export class ParticleSystemManager implements Subsystem {
     if (!system) return null;
     return {
       slaveSystemId: system.slaveSystemId,
+      masterSystemId: system.masterSystemId,
       attachedParticleSystems: system.attachedParticleSystems,
       windAngle: system.windAngle,
       windAngleChange: system.windAngleChange,
@@ -390,6 +424,124 @@ export class ParticleSystemManager implements Subsystem {
       alive: system.alive,
       prevPositions: system.prevPositions,
     };
+  }
+
+  captureSaveState(): ParticleSystemManagerSaveState {
+    return {
+      version: 1,
+      nextId: this.nextId,
+      systems: Array.from(this.systems.values())
+        .sort((left, right) => left.id - right.id)
+        .map((system) => ({
+          id: system.id,
+          template: structuredClone(system.template),
+          position: {
+            x: system.position.x,
+            y: system.position.y,
+            z: system.position.z,
+          },
+          orientation: {
+            x: system.orientation.x,
+            y: system.orientation.y,
+            z: system.orientation.z,
+            w: system.orientation.w,
+          },
+          particleCount: system.particleCount,
+          particles: Array.from(
+            system.particles.slice(0, system.particleCount * PARTICLE_STRIDE),
+          ),
+          burstTimer: system.burstTimer,
+          systemAge: system.systemAge,
+          initialDelayRemaining: system.initialDelayRemaining,
+          alive: system.alive,
+          windAngle: system.windAngle,
+          windAngleChange: system.windAngleChange,
+          windMotionMovingToEnd: system.windMotionMovingToEnd,
+          windPingPongTargetAngle: system.windPingPongTargetAngle,
+          slaveSystemId: system.slaveSystemId ?? null,
+          masterSystemId: system.masterSystemId ?? null,
+          attachedParticleSystems: system.attachedParticleSystems
+            ? Array.from(system.attachedParticleSystems.entries())
+            : [],
+          prevPositions: system.prevPositions
+            ? Array.from(system.prevPositions.slice(0, system.particleCount * 3))
+            : null,
+        })),
+    };
+  }
+
+  restoreSaveState(state: ParticleSystemManagerSaveState): void {
+    if (state.version !== 1) {
+      throw new Error(`Unsupported particle-system save-state version ${state.version}`);
+    }
+
+    this.reset();
+
+    let totalParticleCount = 0;
+    let maxSystemId = 0;
+    for (const savedSystem of state.systems) {
+      const templateName = savedSystem.template.name;
+      if (!this.templates.has(templateName)) {
+        this.templates.set(templateName, structuredClone(savedSystem.template));
+      }
+      const template = this.templates.get(templateName);
+      if (!template) {
+        throw new Error(`Unable to restore particle system "${templateName}" from save state.`);
+      }
+
+      const particleCapacity = Math.max(DEFAULT_MAX_PARTICLES_PER_SYSTEM, savedSystem.particleCount);
+      const system: ParticleSystemInstance = {
+        id: savedSystem.id,
+        template,
+        position: new THREE.Vector3(
+          savedSystem.position.x,
+          savedSystem.position.y,
+          savedSystem.position.z,
+        ),
+        orientation: new THREE.Quaternion(
+          savedSystem.orientation.x,
+          savedSystem.orientation.y,
+          savedSystem.orientation.z,
+          savedSystem.orientation.w,
+        ),
+        particles: new Float32Array(particleCapacity * PARTICLE_STRIDE),
+        particleCount: savedSystem.particleCount,
+        maxParticles: particleCapacity,
+        burstTimer: savedSystem.burstTimer,
+        systemAge: savedSystem.systemAge,
+        initialDelayRemaining: savedSystem.initialDelayRemaining,
+        alive: savedSystem.alive,
+        mesh: null,
+        instanceMatrix: null,
+        instanceColor: null,
+        instanceAlpha: null,
+        slaveSystemId: savedSystem.slaveSystemId ?? undefined,
+        masterSystemId: savedSystem.masterSystemId ?? undefined,
+        attachedParticleSystems: savedSystem.attachedParticleSystems.length > 0
+          ? new Map(savedSystem.attachedParticleSystems)
+          : undefined,
+        windAngle: savedSystem.windAngle,
+        windAngleChange: savedSystem.windAngleChange,
+        windMotionMovingToEnd: savedSystem.windMotionMovingToEnd,
+        windPingPongTargetAngle: savedSystem.windPingPongTargetAngle,
+        prevPositions: savedSystem.prevPositions
+          ? new Float32Array(Math.max(savedSystem.particleCount * 3, savedSystem.prevPositions.length))
+          : undefined,
+      };
+      system.particles.set(savedSystem.particles);
+      if (system.prevPositions && savedSystem.prevPositions) {
+        system.prevPositions.set(savedSystem.prevPositions);
+      }
+      this.systems.set(system.id, system);
+      totalParticleCount += system.particleCount;
+      if (system.id > maxSystemId) {
+        maxSystemId = system.id;
+      }
+      this.syncInstancedMesh(system);
+    }
+
+    this.totalParticleCount = totalParticleCount;
+    this.nextId = Math.max(state.nextId, maxSystemId + 1);
   }
 
   // -------------------------------------------------------------------------

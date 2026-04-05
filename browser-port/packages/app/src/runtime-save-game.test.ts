@@ -1114,4 +1114,177 @@ describe('runtime-save-game', () => {
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_TerrainVisual')).toEqual(terrainVisualBytes);
     expect(readGameClientChunk(rebuilt.data)?.briefingLines).toEqual(['MISSION_GAMMA']);
   });
+
+  it('round-trips live particle-system save state through CHUNK_ParticleSystem', () => {
+    const mapData = {
+      heightmap: {
+        width: 2,
+        height: 2,
+        borderSize: 0,
+        data: 'AAAAAA==',
+      },
+      objects: [],
+      triggers: [],
+      waypoints: { nodes: [], links: [] },
+      textureClasses: [],
+      blendTileCount: 0,
+    };
+
+    const particleSystemState = {
+      version: 1 as const,
+      nextId: 4,
+      systems: [{
+        id: 3,
+        template: {
+          name: 'SmokePuff',
+          priority: 'WEAPON_EXPLOSION' as const,
+          isOneShot: true,
+          shader: 'ALPHA' as const,
+          type: 'PARTICLE' as const,
+          particleName: 'EXSmokNew1.tga',
+          angleZ: { min: 0, max: 0.2 },
+          angularRateZ: { min: 0, max: 0.05 },
+          angularDamping: { min: 1, max: 1 },
+          velocityDamping: { min: 0.98, max: 0.98 },
+          gravity: 0.01,
+          lifetime: { min: 30, max: 30 },
+          systemLifetime: 60,
+          size: { min: 1, max: 1.5 },
+          startSizeRate: { min: 0, max: 0 },
+          sizeRate: { min: 0.01, max: 0.01 },
+          sizeRateDamping: { min: 1, max: 1 },
+          alphaKeyframes: [
+            { alphaMin: 0, alphaMax: 0, frame: 0 },
+            { alphaMin: 1, alphaMax: 1, frame: 15 },
+            { alphaMin: 0, alphaMax: 0, frame: 30 },
+          ],
+          colorKeyframes: [
+            { r: 255, g: 255, b: 255, frame: 0 },
+          ],
+          colorScale: { min: 1, max: 1 },
+          burstDelay: { min: 1, max: 1 },
+          burstCount: { min: 1, max: 1 },
+          initialDelay: { min: 0, max: 0 },
+          driftVelocity: { x: 0, y: 0.01, z: 0 },
+          velocityType: 'SPHERICAL' as const,
+          velOrtho: {
+            x: { min: 0, max: 0 },
+            y: { min: 0, max: 0 },
+            z: { min: 0, max: 0 },
+          },
+          velOutward: { min: 0, max: 0 },
+          velOutwardOther: { min: 0, max: 0 },
+          velSpherical: { min: 0.5, max: 0.5 },
+          velHemispherical: { min: 0, max: 0 },
+          velCylindrical: {
+            radial: { min: 0, max: 0 },
+            normal: { min: 0, max: 0 },
+          },
+          volumeType: 'POINT' as const,
+          volLineStart: { x: 0, y: 0, z: 0 },
+          volLineEnd: { x: 0, y: 0, z: 0 },
+          volBoxHalfSize: { x: 0, y: 0, z: 0 },
+          volSphereRadius: 0,
+          volCylinderRadius: 0,
+          volCylinderLength: 0,
+          isHollow: false,
+          isGroundAligned: false,
+          isEmitAboveGroundOnly: false,
+          isParticleUpTowardsEmitter: false,
+          windMotion: 'Unused' as const,
+          windAngleChangeMin: 0.15,
+          windAngleChangeMax: 0.45,
+          windPingPongStartAngleMin: 0,
+          windPingPongStartAngleMax: Math.PI / 4,
+          windPingPongEndAngleMin: 5.5,
+          windPingPongEndAngleMax: Math.PI * 2,
+        },
+        position: { x: 12, y: 3, z: 18 },
+        orientation: { x: 0, y: 0, z: 0, w: 1 },
+        particleCount: 1,
+        particles: [
+          12, 3, 18,
+          0.2, 0.1, -0.05,
+          0.75,
+          1, 1, 1,
+          1.4,
+          8,
+          30,
+          0.1,
+          0.02,
+          0.01,
+          1,
+          0.98,
+          1,
+          0.5,
+        ],
+        burstTimer: 1,
+        systemAge: 9,
+        initialDelayRemaining: 0,
+        alive: true,
+        windAngle: 0,
+        windAngleChange: 0.15,
+        windMotionMovingToEnd: true,
+        windPingPongTargetAngle: Math.PI * 2,
+        slaveSystemId: null,
+        masterSystemId: null,
+        attachedParticleSystems: [],
+        prevPositions: [11.8, 2.9, 18.1],
+      }],
+    };
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Particle Runtime Save',
+      mapPath: 'assets/maps/ScenarioSkirmish.json',
+      mapData,
+      cameraState: {
+        targetX: 12,
+        targetZ: 18,
+        angle: 0,
+        zoom: 120,
+        pitch: 1,
+      },
+      particleSystemState,
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({ version: 2, activeBoundary: 0, waterUpdates: [] }),
+        captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
+        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 1,
+          nextId: 10,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: -1,
+          controlBarDirtyFrame: -1,
+          frameCounter: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1, spawnedEntities: [] }),
+        getObjectIdCounter: () => 10,
+      },
+    });
+
+    const parsed = parseRuntimeSaveFile(saveFile.data);
+    expect(parsed.particleSystemState).not.toBeNull();
+    expect(parsed.particleSystemState?.nextId).toBe(4);
+    expect(parsed.particleSystemState?.systems).toHaveLength(1);
+    expect(parsed.particleSystemState?.systems[0]?.template.name).toBe('SmokePuff');
+    expect(parsed.particleSystemState?.systems[0]?.particleCount).toBe(1);
+    expect(parsed.particleSystemState?.systems[0]?.particles.slice(0, 3)).toEqual([12, 3, 18]);
+    expect(parsed.particleSystemState?.systems[0]?.prevPositions?.[0]).toBeCloseTo(11.8, 5);
+    expect(parsed.particleSystemState?.systems[0]?.prevPositions?.[1]).toBeCloseTo(2.9, 5);
+    expect(parsed.particleSystemState?.systems[0]?.prevPositions?.[2]).toBeCloseTo(18.1, 5);
+  });
 });
