@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SOURCE_SAVE_FILE_EOF, XferLoad, XferSave, listSaveGameChunks } from '@generals/engine';
+import { listSaveGameChunks } from '@generals/engine';
 
 import {
   buildRuntimeSaveFile,
@@ -45,41 +45,6 @@ function createEmptyPartitionState() {
     cells: [],
     pendingUndoShroudReveals: [],
   };
-}
-
-function insertSaveChunk(data: ArrayBuffer, blockName: string, blockData: Uint8Array): ArrayBuffer {
-  const xferLoad = new XferLoad(data);
-  const xferSave = new XferSave();
-  xferLoad.open('insert-save-chunk');
-  xferSave.open('insert-save-chunk');
-
-  try {
-    while (true) {
-      const token = xferLoad.xferAsciiString('');
-      if (token.toLowerCase() === SOURCE_SAVE_FILE_EOF.toLowerCase()) {
-        xferSave.xferAsciiString(blockName);
-        xferSave.beginBlock();
-        xferSave.xferUser(blockData);
-        xferSave.endBlock();
-        xferSave.xferAsciiString(SOURCE_SAVE_FILE_EOF);
-        break;
-      }
-
-      const blockSize = xferLoad.beginBlock();
-      const blockBytes = xferLoad.xferUser(new Uint8Array(blockSize));
-      xferLoad.endBlock();
-
-      xferSave.xferAsciiString(token);
-      xferSave.beginBlock();
-      xferSave.xferUser(blockBytes);
-      xferSave.endBlock();
-    }
-
-    return xferSave.getBuffer();
-  } finally {
-    xferLoad.close();
-    xferSave.close();
-  }
 }
 
 function readSaveChunkData(data: ArrayBuffer, blockName: string): Uint8Array | null {
@@ -407,8 +372,12 @@ describe('runtime-save-game', () => {
       'CHUNK_ScriptEngine',
       'CHUNK_SidesList',
       'CHUNK_TacticalView',
+      'CHUNK_GameClient',
       'CHUNK_InGameUI',
       'CHUNK_Partition',
+      'CHUNK_ParticleSystem',
+      'CHUNK_TerrainVisual',
+      'CHUNK_GhostObject',
       'CHUNK_TS_RuntimeState',
     ]);
 
@@ -717,9 +686,25 @@ describe('runtime-save-game', () => {
       },
     });
 
-    expect(listSaveGameChunks(saveFile.data).map((chunk) => chunk.blockName)).not.toContain(
-      'CHUNK_TS_RuntimeState',
-    );
+    expect(listSaveGameChunks(saveFile.data).map((chunk) => chunk.blockName)).toEqual([
+      'CHUNK_GameState',
+      'CHUNK_Campaign',
+      'CHUNK_GameStateMap',
+      'CHUNK_TerrainLogic',
+      'CHUNK_TeamFactory',
+      'CHUNK_Players',
+      'CHUNK_GameLogic',
+      'CHUNK_Radar',
+      'CHUNK_ScriptEngine',
+      'CHUNK_SidesList',
+      'CHUNK_TacticalView',
+      'CHUNK_GameClient',
+      'CHUNK_InGameUI',
+      'CHUNK_Partition',
+      'CHUNK_ParticleSystem',
+      'CHUNK_TerrainVisual',
+      'CHUNK_GhostObject',
+    ]);
 
     const parsed = parseRuntimeSaveFile(saveFile.data);
 
@@ -967,6 +952,10 @@ describe('runtime-save-game', () => {
       mapPath: 'maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json',
       mapData,
       cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_TerrainVisual',
+        blockData: new Uint8Array([0x01, 0x02, 0x03, 0x04]).buffer,
+      }],
       gameLogic: {
         captureSourceTerrainLogicRuntimeSaveState: () => ({
           version: 2,
@@ -1002,13 +991,18 @@ describe('runtime-save-game', () => {
       },
     });
     const terrainVisualBytes = new Uint8Array([0x01, 0x02, 0x03, 0x04]);
-    const injected = insertSaveChunk(saveFile.data, 'CHUNK_TerrainVisual', terrainVisualBytes);
 
-    const parsed = parseRuntimeSaveFile(injected);
+    const parsed = parseRuntimeSaveFile(saveFile.data);
 
-    expect(parsed.passthroughBlocks).toHaveLength(1);
-    expect(parsed.passthroughBlocks[0]?.blockName).toBe('CHUNK_TerrainVisual');
-    expect(new Uint8Array(parsed.passthroughBlocks[0]!.blockData)).toEqual(terrainVisualBytes);
+    expect(parsed.passthroughBlocks.map((block) => block.blockName).sort()).toEqual([
+      'CHUNK_GameClient',
+      'CHUNK_GhostObject',
+      'CHUNK_ParticleSystem',
+      'CHUNK_TerrainVisual',
+    ].sort());
+    const terrainVisualBlock = parsed.passthroughBlocks.find((block) => block.blockName === 'CHUNK_TerrainVisual');
+    expect(terrainVisualBlock).toBeDefined();
+    expect(new Uint8Array(terrainVisualBlock!.blockData)).toEqual(terrainVisualBytes);
 
     const rebuilt = buildRuntimeSaveFile({
       description: parsed.metadata.description,

@@ -49,15 +49,19 @@ const SOURCE_RADAR_BLOCK = 'CHUNK_Radar';
 const SOURCE_SCRIPT_ENGINE_BLOCK = 'CHUNK_ScriptEngine';
 const SOURCE_SIDES_LIST_BLOCK = 'CHUNK_SidesList';
 const SOURCE_TACTICAL_VIEW_BLOCK = 'CHUNK_TacticalView';
+const SOURCE_GAME_CLIENT_BLOCK = 'CHUNK_GameClient';
 const SOURCE_IN_GAME_UI_BLOCK = 'CHUNK_InGameUI';
 const SOURCE_GAME_LOGIC_BLOCK = 'CHUNK_GameLogic';
+const SOURCE_PARTICLE_SYSTEM_BLOCK = 'CHUNK_ParticleSystem';
+const SOURCE_TERRAIN_VISUAL_BLOCK = 'CHUNK_TerrainVisual';
+const SOURCE_GHOST_OBJECT_BLOCK = 'CHUNK_GhostObject';
 export const BROWSER_RUNTIME_STATE_BLOCK = 'CHUNK_TS_RuntimeState';
 const PASSTHROUGH_BLOCK_ORDER = [
-  'CHUNK_GameClient',
+  SOURCE_GAME_CLIENT_BLOCK,
   SOURCE_IN_GAME_UI_BLOCK,
-  'CHUNK_ParticleSystem',
-  'CHUNK_TerrainVisual',
-  'CHUNK_GhostObject',
+  SOURCE_PARTICLE_SYSTEM_BLOCK,
+  SOURCE_TERRAIN_VISUAL_BLOCK,
+  SOURCE_GHOST_OBJECT_BLOCK,
 ] as const;
 const KNOWN_RUNTIME_SAVE_BLOCKS = new Set<string>([
   'CHUNK_GameState',
@@ -86,6 +90,12 @@ const SOURCE_PARTITION_CELL_SNAPSHOT_VERSION = 1;
 const SOURCE_PARTITION_PLAYER_COUNT = 8;
 const SOURCE_PLAYER_SNAPSHOT_VERSION = 2;
 const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 7;
+const SOURCE_GAME_CLIENT_SNAPSHOT_VERSION = 3;
+const SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION = 1;
+const SOURCE_PARTICLE_SYSTEM_SNAPSHOT_VERSION = 1;
+const SOURCE_PARTICLE_SYSTEM_ID_BYTE_LENGTH = 4;
+const SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION = 1;
+const SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION = 1;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
 const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
 const SOURCE_RADAR_EVENT_COUNT = 64;
@@ -338,6 +348,14 @@ function shouldWriteBrowserRuntimeStateBlock(gameLogicState: unknown): boolean {
     return true;
   }
   return Object.keys(gameLogicState).some((key) => key !== 'version');
+}
+
+function hasPassthroughBlock(
+  passthroughBlocks: readonly RuntimeSavePassthroughBlock[],
+  blockName: string,
+): boolean {
+  const normalizedBlockName = blockName.toLowerCase();
+  return passthroughBlocks.some((block) => block.blockName.toLowerCase() === normalizedBlockName);
 }
 
 function buildTacticalViewSaveState(
@@ -1692,6 +1710,109 @@ class RawPassthroughSnapshot implements Snapshot {
   }
 }
 
+class GameClientSnapshot implements Snapshot {
+  constructor(
+    private readonly frame: number,
+    private readonly briefingLines: readonly string[] = [],
+  ) {}
+
+  crc(_xfer: Xfer): void {
+    // Source game-client snapshot is currently save-only in the TS runtime.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(SOURCE_GAME_CLIENT_SNAPSHOT_VERSION);
+    if (version !== SOURCE_GAME_CLIENT_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported game-client snapshot version ${version}`);
+    }
+
+    xfer.xferUnsignedInt(this.frame);
+
+    const tocVersion = xfer.xferVersion(SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION);
+    if (tocVersion !== SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported game-client TOC snapshot version ${tocVersion}`);
+    }
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedShort(0);
+
+    const briefingCount = xfer.xferInt(this.briefingLines.length);
+    if (xfer.getMode() !== XferMode.XFER_SAVE) {
+      for (let index = 0; index < briefingCount; index += 1) {
+        xfer.xferAsciiString('');
+      }
+      return;
+    }
+    for (const briefingLine of this.briefingLines) {
+      xfer.xferAsciiString(briefingLine);
+    }
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
+class ParticleSystemSnapshot implements Snapshot {
+  constructor(
+    private readonly uniqueSystemIdBytes = new Uint8Array(SOURCE_PARTICLE_SYSTEM_ID_BYTE_LENGTH),
+  ) {}
+
+  crc(_xfer: Xfer): void {
+    // Source particle-system snapshot is currently save-only in the TS runtime.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(SOURCE_PARTICLE_SYSTEM_SNAPSHOT_VERSION);
+    if (version !== SOURCE_PARTICLE_SYSTEM_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported particle-system snapshot version ${version}`);
+    }
+
+    xfer.xferUser(this.uniqueSystemIdBytes);
+    xfer.xferUnsignedInt(0);
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
+class TerrainVisualSnapshot implements Snapshot {
+  crc(_xfer: Xfer): void {
+    // Source terrain-visual snapshot is currently save-only in the TS runtime.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION);
+    if (version !== SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported terrain-visual snapshot version ${version}`);
+    }
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
+class GhostObjectSnapshot implements Snapshot {
+  constructor(private readonly localPlayerIndex: number) {}
+
+  crc(_xfer: Xfer): void {
+    // Source ghost-object snapshot is currently save-only in the TS runtime.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION);
+    if (version !== SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported ghost-object snapshot version ${version}`);
+    }
+    xfer.xferInt(this.localPlayerIndex);
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
 export function buildRuntimeSaveFile(params: {
   description: string;
   mapPath: string | null;
@@ -1742,6 +1863,11 @@ export function buildRuntimeSaveFile(params: {
   const inGameUiPayload = params.gameLogic.captureSourceInGameUiRuntimeSaveState();
   const playerPayload = params.gameLogic.captureSourcePlayerRuntimeSaveState();
   const gameLogicPayload = params.gameLogic.captureSourceGameLogicRuntimeSaveState();
+  const orderedPassthroughBlocks = orderPassthroughBlocks(params.passthroughBlocks);
+  const localPlayerIndex = Number(
+    (playerPayload?.state as Record<string, unknown> | undefined)?.localPlayerIndex ?? 0,
+  );
+  const resolvedLocalPlayerIndex = Number.isFinite(localPlayerIndex) ? Math.trunc(localPlayerIndex) : 0;
 
   const metadataState = createMetadataState(params.description, params.mapPath);
   const campaignState: RuntimeSaveCampaignState = {
@@ -1780,7 +1906,7 @@ export function buildRuntimeSaveFile(params: {
   state.addSnapshotBlock(SOURCE_SCRIPT_ENGINE_BLOCK, new ScriptEngineSnapshot(scriptEnginePayload));
   state.addSnapshotBlock(SOURCE_SIDES_LIST_BLOCK, new SidesListSnapshot(sidesListPayload));
   state.addSnapshotBlock(SOURCE_TACTICAL_VIEW_BLOCK, new TacticalViewSnapshot(tacticalViewPayload));
-  for (const passthroughBlock of orderPassthroughBlocks(params.passthroughBlocks)) {
+  for (const passthroughBlock of orderedPassthroughBlocks) {
     if (passthroughBlock.blockName.toLowerCase() === SOURCE_IN_GAME_UI_BLOCK.toLowerCase()) {
       continue;
     }
@@ -1790,16 +1916,31 @@ export function buildRuntimeSaveFile(params: {
     if (KNOWN_RUNTIME_SAVE_BLOCKS.has(passthroughBlock.blockName.toLowerCase())) {
       continue;
     }
-    if (passthroughBlock.blockName.toLowerCase() === 'chunk_gameclient') {
+    if (passthroughBlock.blockName.toLowerCase() === SOURCE_GAME_CLIENT_BLOCK.toLowerCase()) {
       state.addSnapshotBlock(
         passthroughBlock.blockName,
         new RawPassthroughSnapshot(passthroughBlock.blockData),
       );
     }
   }
+  if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GAME_CLIENT_BLOCK)) {
+    state.addSnapshotBlock(
+      SOURCE_GAME_CLIENT_BLOCK,
+      new GameClientSnapshot(gameLogicPayload.frameCounter),
+    );
+  }
   state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, new InGameUiSnapshot(inGameUiPayload));
   state.addSnapshotBlock(SOURCE_PARTITION_BLOCK, new PartitionSnapshot(partitionPayload));
-  for (const passthroughBlock of orderPassthroughBlocks(params.passthroughBlocks)) {
+  if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_PARTICLE_SYSTEM_BLOCK)) {
+    state.addSnapshotBlock(SOURCE_PARTICLE_SYSTEM_BLOCK, new ParticleSystemSnapshot());
+  }
+  if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_TERRAIN_VISUAL_BLOCK)) {
+    state.addSnapshotBlock(SOURCE_TERRAIN_VISUAL_BLOCK, new TerrainVisualSnapshot());
+  }
+  if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GHOST_OBJECT_BLOCK)) {
+    state.addSnapshotBlock(SOURCE_GHOST_OBJECT_BLOCK, new GhostObjectSnapshot(resolvedLocalPlayerIndex));
+  }
+  for (const passthroughBlock of orderedPassthroughBlocks) {
     const normalizedName = passthroughBlock.blockName.toLowerCase();
     if (normalizedName === SOURCE_IN_GAME_UI_BLOCK.toLowerCase()) {
       continue;
@@ -1810,7 +1951,7 @@ export function buildRuntimeSaveFile(params: {
     if (KNOWN_RUNTIME_SAVE_BLOCKS.has(normalizedName)) {
       continue;
     }
-    if (normalizedName !== 'chunk_gameclient') {
+    if (normalizedName !== SOURCE_GAME_CLIENT_BLOCK.toLowerCase()) {
       state.addSnapshotBlock(
         passthroughBlock.blockName,
         new RawPassthroughSnapshot(passthroughBlock.blockData),
