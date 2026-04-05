@@ -7990,6 +7990,7 @@ const SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_TERRAIN_LOGIC_RUNTIME_SAVE_STATE_VERSION = 2;
 const SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION = 2;
+const SOURCE_TEAM_FACTORY_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_SCRIPT_ENGINE_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_IN_GAME_UI_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
@@ -8084,11 +8085,13 @@ const SOURCE_SIDES_LIST_RUNTIME_STATE_KEYS = [
   'mapScriptDifficultyByPlayerToken',
   'scriptAiBuildListEntriesBySide',
 ] as const;
+const SOURCE_TEAM_FACTORY_RUNTIME_STATE_KEYS = [
+  'scriptTeamsByName',
+  'scriptTeamInstanceNamesByPrototypeName',
+] as const;
 const SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS = [
   'scriptAudioLengthMsByName',
   'scriptCompletedMusic',
-  'scriptTeamsByName',
-  'scriptTeamInstanceNamesByPrototypeName',
   'pendingScriptReinforcementTransportArrivalByEntityId',
   'scriptSequentialScripts',
   'scriptCountersByName',
@@ -8281,6 +8284,7 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   ...SOURCE_GAME_LOGIC_RUNTIME_STATE_KEYS,
   ...SOURCE_RADAR_RUNTIME_STATE_KEYS,
   ...SOURCE_SIDES_LIST_RUNTIME_STATE_KEYS,
+  ...SOURCE_TEAM_FACTORY_RUNTIME_STATE_KEYS,
   ...SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS,
   ...SOURCE_IN_GAME_UI_RUNTIME_STATE_KEYS,
 ]);
@@ -8298,6 +8302,11 @@ export interface GameLogicPlayersSaveState {
 }
 
 export interface GameLogicSidesListSaveState {
+  version: number;
+  state: Record<string, unknown>;
+}
+
+export interface GameLogicTeamFactorySaveState {
   version: number;
   state: Record<string, unknown>;
 }
@@ -11224,6 +11233,32 @@ export class GameLogicSubsystem implements Subsystem {
 
     this.restoreSourceRuntimeStateByKeys(
       SOURCE_SIDES_LIST_RUNTIME_STATE_KEYS,
+      snapshot.state as Record<string, unknown>,
+    );
+  }
+
+  captureSourceTeamFactoryRuntimeSaveState(): GameLogicTeamFactorySaveState {
+    return {
+      version: SOURCE_TEAM_FACTORY_RUNTIME_SAVE_STATE_VERSION,
+      state: this.captureSourceRuntimeStateByKeys(SOURCE_TEAM_FACTORY_RUNTIME_STATE_KEYS),
+    };
+  }
+
+  restoreSourceTeamFactoryRuntimeSaveState(state: unknown): void {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      throw new Error('Source team-factory save-state payload is malformed.');
+    }
+
+    const snapshot = state as GameLogicTeamFactorySaveState;
+    if (snapshot.version !== SOURCE_TEAM_FACTORY_RUNTIME_SAVE_STATE_VERSION) {
+      throw new Error(`Unsupported source team-factory save-state version ${snapshot.version}.`);
+    }
+    if (!snapshot.state || typeof snapshot.state !== 'object' || Array.isArray(snapshot.state)) {
+      throw new Error('Source team-factory save-state content is malformed.');
+    }
+
+    this.restoreSourceRuntimeStateByKeys(
+      SOURCE_TEAM_FACTORY_RUNTIME_STATE_KEYS,
       snapshot.state as Record<string, unknown>,
     );
   }

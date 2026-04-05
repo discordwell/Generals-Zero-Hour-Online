@@ -211,6 +211,35 @@ describe('runtime-save-game', () => {
             mapScriptGroupsByNameUpper: new Map(),
           },
         }),
+        captureSourceTeamFactoryRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            scriptTeamsByName: new Map([['TEAMTHEPLAYER', {
+              nameUpper: 'TEAMTHEPLAYER',
+              prototypeNameUpper: 'TEAMTHEPLAYER',
+              memberEntityIds: new Set([7]),
+              created: true,
+              stateName: 'ATTACKING',
+              attackPrioritySetName: 'ANTIVEHICLESET',
+              recruitableOverride: null,
+              isAIRecruitable: true,
+              homeWaypointName: 'HOME',
+              controllingSide: 'america',
+              controllingPlayerToken: 'the_player',
+              isSingleton: true,
+              maxInstances: 1,
+              productionPriority: 3,
+              productionPrioritySuccessIncrease: 0,
+              productionPriorityFailureDecrease: 0,
+              reinforcementUnitEntries: [],
+              reinforcementTransportTemplateName: '',
+              reinforcementStartWaypointName: '',
+              reinforcementTeamStartsFull: false,
+              reinforcementTransportsExit: false,
+            }]]),
+            scriptTeamInstanceNamesByPrototypeName: new Map([['TEAMTHEPLAYER', ['TEAMTHEPLAYER']]]),
+          },
+        }),
         captureSourceScriptEngineRuntimeSaveState: () => ({
           version: 1,
           state: {
@@ -331,6 +360,7 @@ describe('runtime-save-game', () => {
       'CHUNK_Campaign',
       'CHUNK_GameStateMap',
       'CHUNK_TerrainLogic',
+      'CHUNK_TeamFactory',
       'CHUNK_Players',
       'CHUNK_GameLogic',
       'CHUNK_Radar',
@@ -345,6 +375,7 @@ describe('runtime-save-game', () => {
     const playerState = parsed.gameLogicPlayersState;
     const radarState = parsed.gameLogicRadarState;
     const sidesListState = parsed.gameLogicSidesListState;
+    const teamFactoryState = parsed.gameLogicTeamFactoryState;
     const scriptEngineState = parsed.gameLogicScriptEngineState;
     const inGameUiState = parsed.gameLogicInGameUiState;
     const terrainLogicState = parsed.gameLogicTerrainLogicState;
@@ -454,6 +485,32 @@ describe('runtime-save-game', () => {
       actions: [],
       falseActions: [],
     }]]));
+    expect(teamFactoryState?.state.scriptTeamsByName).toEqual(new Map([['TEAMTHEPLAYER', {
+      nameUpper: 'TEAMTHEPLAYER',
+      prototypeNameUpper: 'TEAMTHEPLAYER',
+      memberEntityIds: new Set([7]),
+      created: true,
+      stateName: 'ATTACKING',
+      attackPrioritySetName: 'ANTIVEHICLESET',
+      recruitableOverride: null,
+      isAIRecruitable: true,
+      homeWaypointName: 'HOME',
+      controllingSide: 'america',
+      controllingPlayerToken: 'the_player',
+      isSingleton: true,
+      maxInstances: 1,
+      productionPriority: 3,
+      productionPrioritySuccessIncrease: 0,
+      productionPriorityFailureDecrease: 0,
+      reinforcementUnitEntries: [],
+      reinforcementTransportTemplateName: '',
+      reinforcementStartWaypointName: '',
+      reinforcementTeamStartsFull: false,
+      reinforcementTransportsExit: false,
+    }]]));
+    expect(teamFactoryState?.state.scriptTeamInstanceNamesByPrototypeName).toEqual(
+      new Map([['TEAMTHEPLAYER', ['TEAMTHEPLAYER']]]),
+    );
     expect(scriptEngineState?.state.scriptCountersByName).toEqual(
       new Map([['missiontimer', { value: 90, isCountdownTimer: true }]]),
     );
@@ -571,6 +628,7 @@ describe('runtime-save-game', () => {
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
@@ -648,6 +706,7 @@ describe('runtime-save-game', () => {
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
@@ -710,6 +769,7 @@ describe('runtime-save-game', () => {
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
@@ -787,6 +847,7 @@ describe('runtime-save-game', () => {
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({

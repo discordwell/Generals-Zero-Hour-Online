@@ -27,6 +27,7 @@ import {
   type GameLogicScriptEngineSaveState,
   type GameLogicSellingEntitySaveState,
   type GameLogicSidesListSaveState,
+  type GameLogicTeamFactorySaveState,
   type GameLogicTerrainLogicSaveState,
   type GameLogicTerrainWaterUpdateSaveState,
   type GameLogicSubsystem,
@@ -39,6 +40,7 @@ import type { MapDataJSON } from '@generals/renderer';
 
 const SOURCE_CAMPAIGN_BLOCK = 'CHUNK_Campaign';
 const SOURCE_TERRAIN_LOGIC_BLOCK = 'CHUNK_TerrainLogic';
+const SOURCE_TEAM_FACTORY_BLOCK = 'CHUNK_TeamFactory';
 const SOURCE_PLAYERS_BLOCK = 'CHUNK_Players';
 const SOURCE_RADAR_BLOCK = 'CHUNK_Radar';
 const SOURCE_SCRIPT_ENGINE_BLOCK = 'CHUNK_ScriptEngine';
@@ -144,6 +146,7 @@ export interface RuntimeSaveBootstrap {
   cameraState: CameraState | null;
   tacticalViewState: RuntimeSaveTacticalViewState | null;
   gameLogicTerrainLogicState: GameLogicTerrainLogicSaveState | null;
+  gameLogicTeamFactoryState: GameLogicTeamFactorySaveState | null;
   gameLogicPlayersState: GameLogicPlayersSaveState | null;
   gameLogicRadarState: GameLogicRadarSaveState | null;
   gameLogicSidesListState: GameLogicSidesListSaveState | null;
@@ -1179,6 +1182,38 @@ class SidesListSnapshot implements Snapshot {
   }
 }
 
+class TeamFactorySnapshot implements Snapshot {
+  payload: GameLogicTeamFactorySaveState | null;
+
+  constructor(payload: GameLogicTeamFactorySaveState | null = null) {
+    this.payload = payload;
+  }
+
+  crc(_xfer: Xfer): void {
+    // Team-factory snapshot is not part of source parity CRC yet.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error(`Unsupported team-factory snapshot version ${version}`);
+    }
+
+    const serialized = xfer.xferLongString(
+      this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
+    );
+    if (serialized.length === 0) {
+      this.payload = null;
+      return;
+    }
+    this.payload = JSON.parse(serialized, runtimeJsonReviver) as GameLogicTeamFactorySaveState;
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
 class TacticalViewSnapshot implements Snapshot {
   payload: RuntimeSaveTacticalViewState | null;
 
@@ -1428,6 +1463,7 @@ export function buildRuntimeSaveFile(params: {
     | 'captureSourceTerrainLogicRuntimeSaveState'
     | 'captureSourceRadarRuntimeSaveState'
     | 'captureSourceSidesListRuntimeSaveState'
+    | 'captureSourceTeamFactoryRuntimeSaveState'
     | 'captureSourceScriptEngineRuntimeSaveState'
     | 'captureSourceInGameUiRuntimeSaveState'
     | 'captureSourcePlayerRuntimeSaveState'
@@ -1456,6 +1492,7 @@ export function buildRuntimeSaveFile(params: {
   const terrainLogicPayload = params.gameLogic.captureSourceTerrainLogicRuntimeSaveState();
   const radarPayload = params.gameLogic.captureSourceRadarRuntimeSaveState();
   const sidesListPayload = params.gameLogic.captureSourceSidesListRuntimeSaveState();
+  const teamFactoryPayload = params.gameLogic.captureSourceTeamFactoryRuntimeSaveState();
   const scriptEnginePayload = params.gameLogic.captureSourceScriptEngineRuntimeSaveState();
   const inGameUiPayload = params.gameLogic.captureSourceInGameUiRuntimeSaveState();
   const playerPayload = params.gameLogic.captureSourcePlayerRuntimeSaveState();
@@ -1491,6 +1528,7 @@ export function buildRuntimeSaveFile(params: {
   state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, new CampaignSnapshot(campaignState));
   state.addSnapshotBlock('CHUNK_GameStateMap', new MapSnapshot(mapState));
   state.addSnapshotBlock(SOURCE_TERRAIN_LOGIC_BLOCK, new TerrainLogicSnapshot(terrainLogicPayload));
+  state.addSnapshotBlock(SOURCE_TEAM_FACTORY_BLOCK, new TeamFactorySnapshot(teamFactoryPayload));
   state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, new PlayersSnapshot(playerPayload));
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new GameLogicSnapshot(gameLogicPayload));
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, new RadarSnapshot(radarPayload));
@@ -1525,6 +1563,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     playerTemplateNum: -1,
   });
   const terrainLogicSnapshot = new TerrainLogicSnapshot();
+  const teamFactorySnapshot = new TeamFactorySnapshot();
   const playersSnapshot = new PlayersSnapshot();
   const gameLogicSnapshot = new GameLogicSnapshot();
   const radarSnapshot = new RadarSnapshot();
@@ -1536,6 +1575,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const state = new GameState();
   state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, campaignSnapshot);
   state.addSnapshotBlock(SOURCE_TERRAIN_LOGIC_BLOCK, terrainLogicSnapshot);
+  state.addSnapshotBlock(SOURCE_TEAM_FACTORY_BLOCK, teamFactorySnapshot);
   state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, playersSnapshot);
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, gameLogicSnapshot);
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, radarSnapshot);
@@ -1589,6 +1629,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     cameraState: resolveRestoredCameraState(tacticalViewSnapshot.payload, browserCameraState),
     tacticalViewState: tacticalViewSnapshot.payload,
     gameLogicTerrainLogicState: terrainLogicSnapshot?.payload ?? null,
+    gameLogicTeamFactoryState: teamFactorySnapshot?.payload ?? null,
     gameLogicPlayersState: playersSnapshot?.payload ?? null,
     gameLogicRadarState: radarSnapshot?.payload ?? null,
     gameLogicSidesListState: sidesListSnapshot?.payload ?? null,

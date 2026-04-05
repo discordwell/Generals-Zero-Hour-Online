@@ -33,29 +33,6 @@ describe('script-engine save-state', () => {
       scriptActiveByName: Map<string, boolean>;
       scriptSubroutineCalls: string[];
       scriptCameraMovementFinished: boolean;
-      scriptTeamsByName: Map<string, {
-        nameUpper: string;
-        prototypeNameUpper: string;
-        memberEntityIds: Set<number>;
-        created: boolean;
-        stateName: string;
-        attackPrioritySetName: string;
-        recruitableOverride: boolean | null;
-        isAIRecruitable: boolean;
-        homeWaypointName: string;
-        controllingSide: string | null;
-        controllingPlayerToken: string | null;
-        isSingleton: boolean;
-        maxInstances: number;
-        productionPriority: number;
-        productionPrioritySuccessIncrease: number;
-        productionPriorityFailureDecrease: number;
-        reinforcementUnitEntries: unknown[];
-        reinforcementTransportTemplateName: string;
-        reinforcementStartWaypointName: string;
-        reinforcementTeamStartsFull: boolean;
-        reinforcementTransportsExit: boolean;
-      }>;
       sideScriptAcquiredSciences: Map<string, Set<string>>;
       scriptTimeFrozenByScript: boolean;
       scriptWeatherVisible: boolean;
@@ -122,29 +99,6 @@ describe('script-engine save-state', () => {
     privateLogic.scriptActiveByName.set('INTROSCRIPT', false);
     privateLogic.scriptSubroutineCalls.push('CHECK_OBJECTIVES');
     privateLogic.scriptCameraMovementFinished = false;
-    privateLogic.scriptTeamsByName.set('TEAMTHEPLAYER', {
-      nameUpper: 'TEAMTHEPLAYER',
-      prototypeNameUpper: 'TEAMTHEPLAYER',
-      memberEntityIds: new Set([7]),
-      created: true,
-      stateName: 'ATTACKING',
-      attackPrioritySetName: 'ANTIVEHICLESET',
-      recruitableOverride: null,
-      isAIRecruitable: true,
-      homeWaypointName: 'HOME',
-      controllingSide: 'america',
-      controllingPlayerToken: 'the_player',
-      isSingleton: true,
-      maxInstances: 1,
-      productionPriority: 3,
-      productionPrioritySuccessIncrease: 0,
-      productionPriorityFailureDecrease: 0,
-      reinforcementUnitEntries: [],
-      reinforcementTransportTemplateName: '',
-      reinforcementStartWaypointName: '',
-      reinforcementTeamStartsFull: false,
-      reinforcementTransportsExit: false,
-    });
     privateLogic.sideScriptAcquiredSciences.set('america', new Set(['SCIENCE_PARTICLE_UPLINK_CANNON']));
     privateLogic.scriptTimeFrozenByScript = true;
     privateLogic.scriptWeatherVisible = false;
@@ -213,7 +167,6 @@ describe('script-engine save-state', () => {
     expect(restoredPrivate.scriptActiveByName).toEqual(new Map([['INTROSCRIPT', false]]));
     expect(restoredPrivate.scriptSubroutineCalls).toEqual(['CHECK_OBJECTIVES']);
     expect(restoredPrivate.scriptCameraMovementFinished).toBe(false);
-    expect(restoredPrivate.scriptTeamsByName).toEqual(privateLogic.scriptTeamsByName);
     expect(restoredPrivate.sideScriptAcquiredSciences).toEqual(
       new Map([['america', new Set(['SCIENCE_PARTICLE_UPLINK_CANNON'])]]),
     );

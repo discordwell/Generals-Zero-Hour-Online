@@ -1694,6 +1694,11 @@ async function startGame(
         runtimeSaveLoadContext.runtimeSave.gameLogicTerrainLogicState,
       );
     }
+    if (runtimeSaveLoadContext.runtimeSave.gameLogicTeamFactoryState) {
+      gameLogic.restoreSourceTeamFactoryRuntimeSaveState(
+        runtimeSaveLoadContext.runtimeSave.gameLogicTeamFactoryState,
+      );
+    }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicPlayersState) {
       gameLogic.restoreSourcePlayerRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicPlayersState,
