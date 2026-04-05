@@ -81,6 +81,12 @@ function readGameClientChunk(data: ArrayBuffer): {
       xferLoad.xferUnsignedShort(0);
     }
     const drawableCount = xferLoad.xferUnsignedShort(0);
+    for (let index = 0; index < drawableCount; index += 1) {
+      xferLoad.xferUnsignedShort(0);
+      const blockSize = xferLoad.beginBlock();
+      xferLoad.skip(blockSize);
+      xferLoad.endBlock();
+    }
     const briefingCount = xferLoad.xferInt(0);
     const briefingLines: string[] = [];
     for (let index = 0; index < briefingCount; index += 1) {
@@ -447,6 +453,11 @@ describe('runtime-save-game', () => {
       tocVersion: 1,
       tocCount: 0,
       drawableCount: 0,
+      briefingLines: ['MISSION_BRIEFING_ALPHA', 'MISSION_BRIEFING_BETA'],
+    });
+    expect(parsed.gameClientState).toEqual({
+      version: 3,
+      prefixBytes: expect.any(ArrayBuffer),
       briefingLines: ['MISSION_BRIEFING_ALPHA', 'MISSION_BRIEFING_BETA'],
     });
     expect(parsed.mapPath).toBe('assets/maps/ScenarioSkirmish.json');
@@ -1046,8 +1057,8 @@ describe('runtime-save-game', () => {
 
     const parsed = parseRuntimeSaveFile(saveFile.data);
 
+    expect(parsed.gameClientState?.briefingLines).toEqual([]);
     expect(parsed.passthroughBlocks.map((block) => block.blockName).sort()).toEqual([
-      'CHUNK_GameClient',
       'CHUNK_GhostObject',
       'CHUNK_ParticleSystem',
       'CHUNK_TerrainVisual',
@@ -1062,6 +1073,8 @@ describe('runtime-save-game', () => {
       mapData: parsed.mapData ?? mapData,
       cameraState: parsed.cameraState,
       tacticalViewState: parsed.tacticalViewState,
+      gameClientBriefingLines: ['MISSION_GAMMA'],
+      gameClientState: parsed.gameClientState,
       passthroughBlocks: parsed.passthroughBlocks,
       gameLogic: {
         captureSourceTerrainLogicRuntimeSaveState: () => parsed.gameLogicTerrainLogicState ?? {
@@ -1099,5 +1112,6 @@ describe('runtime-save-game', () => {
     });
 
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_TerrainVisual')).toEqual(terrainVisualBytes);
+    expect(readGameClientChunk(rebuilt.data)?.briefingLines).toEqual(['MISSION_GAMMA']);
   });
 });

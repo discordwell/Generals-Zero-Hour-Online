@@ -2,6 +2,7 @@ import {
   GameState,
   SaveCode,
   SaveFileType,
+  XferLoad,
   XferMode,
   listSaveGameChunks,
   parseSaveGameInfo,
@@ -178,6 +179,12 @@ export interface RuntimeSaveCampaignBootstrap {
   playerTemplateNum: number;
 }
 
+export interface RuntimeSaveGameClientState {
+  version: number;
+  prefixBytes: ArrayBuffer;
+  briefingLines: string[];
+}
+
 export interface RuntimeSavePassthroughBlock {
   blockName: string;
   blockData: ArrayBuffer;
@@ -189,6 +196,7 @@ export interface RuntimeSaveBootstrap {
   mapPath: string | null;
   cameraState: CameraState | null;
   tacticalViewState: RuntimeSaveTacticalViewState | null;
+  gameClientState: RuntimeSaveGameClientState | null;
   gameLogicTerrainLogicState: GameLogicTerrainLogicSaveState | null;
   gameLogicTeamFactoryState: GameLogicTeamFactorySaveState | null;
   gameLogicPlayersState: GameLogicPlayersSaveState | null;
@@ -305,6 +313,16 @@ function extractPassthroughBlocks(data: ArrayBuffer): RuntimeSavePassthroughBloc
     }));
 }
 
+function extractSaveChunkData(data: ArrayBuffer, blockName: string): Uint8Array | null {
+  const chunk = listSaveGameChunks(data).find(
+    (candidate) => candidate.blockName.toLowerCase() === blockName.toLowerCase(),
+  );
+  if (!chunk) {
+    return null;
+  }
+  return new Uint8Array(data, chunk.blockDataOffset, chunk.blockSize).slice();
+}
+
 function orderPassthroughBlocks(
   passthroughBlocks: readonly RuntimeSavePassthroughBlock[] | undefined,
 ): RuntimeSavePassthroughBlock[] {
@@ -356,6 +374,68 @@ function hasPassthroughBlock(
 ): boolean {
   const normalizedBlockName = blockName.toLowerCase();
   return passthroughBlocks.some((block) => block.blockName.toLowerCase() === normalizedBlockName);
+}
+
+function mergeBriefingLines(
+  existingLines: readonly string[],
+  newLines: readonly string[],
+): string[] {
+  const merged: string[] = [];
+  for (const line of [...existingLines, ...newLines]) {
+    if (!line || merged.includes(line)) {
+      continue;
+    }
+    merged.push(line);
+  }
+  return merged;
+}
+
+function parseGameClientState(data: ArrayBuffer): RuntimeSaveGameClientState | null {
+  const chunkData = extractSaveChunkData(data, SOURCE_GAME_CLIENT_BLOCK);
+  if (!chunkData) {
+    return null;
+  }
+
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(chunkData));
+  xferLoad.open('parse-game-client-state');
+  try {
+    const version = xferLoad.xferVersion(SOURCE_GAME_CLIENT_SNAPSHOT_VERSION);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferVersion(SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION);
+    const tocCount = xferLoad.xferUnsignedInt(0);
+    for (let index = 0; index < tocCount; index += 1) {
+      xferLoad.xferAsciiString('');
+      xferLoad.xferUnsignedShort(0);
+    }
+
+    const drawableCount = xferLoad.xferUnsignedShort(0);
+    for (let index = 0; index < drawableCount; index += 1) {
+      xferLoad.xferUnsignedShort(0);
+      const blockSize = xferLoad.beginBlock();
+      xferLoad.skip(blockSize);
+      xferLoad.endBlock();
+    }
+
+    const prefixBytes = copyBytesToArrayBuffer(chunkData.slice(0, xferLoad.getOffset()));
+    const briefingLines: string[] = [];
+    if (version >= 2) {
+      const briefingCount = xferLoad.xferInt(0);
+      if (briefingCount < 0) {
+        throw new Error(`Game-client briefing count ${briefingCount} is invalid.`);
+      }
+      for (let index = 0; index < briefingCount; index += 1) {
+        briefingLines.push(xferLoad.xferAsciiString(''));
+      }
+    }
+
+    return {
+      version,
+      prefixBytes,
+      briefingLines,
+    };
+  } finally {
+    xferLoad.close();
+  }
 }
 
 function buildTacticalViewSaveState(
@@ -1714,6 +1794,8 @@ class GameClientSnapshot implements Snapshot {
   constructor(
     private readonly frame: number,
     private readonly briefingLines: readonly string[] = [],
+    private readonly rawPrefixBytes: Uint8Array | null = null,
+    private readonly version = SOURCE_GAME_CLIENT_SNAPSHOT_VERSION,
   ) {}
 
   crc(_xfer: Xfer): void {
@@ -1721,6 +1803,17 @@ class GameClientSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
+    if (this.rawPrefixBytes !== null) {
+      xfer.xferUser(this.rawPrefixBytes);
+      if (this.version >= 2) {
+        xfer.xferInt(this.briefingLines.length);
+        for (const briefingLine of this.briefingLines) {
+          xfer.xferAsciiString(briefingLine);
+        }
+      }
+      return;
+    }
+
     const version = xfer.xferVersion(SOURCE_GAME_CLIENT_SNAPSHOT_VERSION);
     if (version !== SOURCE_GAME_CLIENT_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported game-client snapshot version ${version}`);
@@ -1820,6 +1913,7 @@ export function buildRuntimeSaveFile(params: {
   cameraState: CameraState | null;
   tacticalViewState?: RuntimeSaveTacticalViewState | null;
   gameClientBriefingLines?: readonly string[];
+  gameClientState?: RuntimeSaveGameClientState | null;
   gameLogic: Pick<
     GameLogicSubsystem,
     | 'captureBrowserRuntimeSaveState'
@@ -1865,6 +1959,10 @@ export function buildRuntimeSaveFile(params: {
   const playerPayload = params.gameLogic.captureSourcePlayerRuntimeSaveState();
   const gameLogicPayload = params.gameLogic.captureSourceGameLogicRuntimeSaveState();
   const orderedPassthroughBlocks = orderPassthroughBlocks(params.passthroughBlocks);
+  const mergedGameClientBriefingLines = mergeBriefingLines(
+    params.gameClientState?.briefingLines ?? [],
+    params.gameClientBriefingLines ?? [],
+  );
   const localPlayerIndex = Number(
     (playerPayload?.state as Record<string, unknown> | undefined)?.localPlayerIndex ?? 0,
   );
@@ -1927,7 +2025,14 @@ export function buildRuntimeSaveFile(params: {
   if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GAME_CLIENT_BLOCK)) {
     state.addSnapshotBlock(
       SOURCE_GAME_CLIENT_BLOCK,
-      new GameClientSnapshot(gameLogicPayload.frameCounter, params.gameClientBriefingLines ?? []),
+      new GameClientSnapshot(
+        gameLogicPayload.frameCounter,
+        mergedGameClientBriefingLines,
+        params.gameClientState?.prefixBytes
+          ? new Uint8Array(params.gameClientState.prefixBytes)
+          : null,
+        params.gameClientState?.version ?? SOURCE_GAME_CLIENT_SNAPSHOT_VERSION,
+      ),
     );
   }
   state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, new InGameUiSnapshot(inGameUiPayload));
@@ -2055,6 +2160,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     mapPath: resolvedMapPath,
     cameraState: resolveRestoredCameraState(tacticalViewSnapshot.payload, browserCameraState),
     tacticalViewState: tacticalViewSnapshot.payload,
+    gameClientState: parseGameClientState(data),
     gameLogicTerrainLogicState: terrainLogicSnapshot?.payload ?? null,
     gameLogicTeamFactoryState: teamFactorySnapshot?.payload ?? null,
     gameLogicPlayersState: playersSnapshot?.payload ?? null,
@@ -2066,6 +2172,8 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     gameLogicCoreState: gameLogicSnapshot?.payload ?? null,
     gameLogicState: payload?.gameLogicState ?? null,
     campaign,
-    passthroughBlocks: extractPassthroughBlocks(data),
+    passthroughBlocks: extractPassthroughBlocks(data).filter(
+      (block) => block.blockName.toLowerCase() !== SOURCE_GAME_CLIENT_BLOCK.toLowerCase(),
+    ),
   };
 }

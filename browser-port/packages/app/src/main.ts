@@ -5181,6 +5181,7 @@ async function startGame(
           z: currentCameraState.targetZ,
         },
       },
+      gameClientState: runtimeSaveLoadContext?.runtimeSave.gameClientState ?? null,
       gameLogic,
       embeddedMapBytes,
       sourceGameMode: skirmishSettings ? SOURCE_GAME_MODE_SKIRMISH : SOURCE_GAME_MODE_SINGLE_PLAYER,
