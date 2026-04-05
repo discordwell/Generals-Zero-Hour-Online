@@ -37,6 +37,16 @@ function createEmptyRadarState() {
   };
 }
 
+function createEmptyPartitionState() {
+  return {
+    version: 2 as const,
+    cellSize: 10,
+    totalCellCount: 0,
+    cells: [],
+    pendingUndoShroudReveals: [],
+  };
+}
+
 function stripSaveChunk(data: ArrayBuffer, blockName: string): ArrayBuffer {
   const xferLoad = new XferLoad(data);
   const xferSave = new XferSave();
@@ -155,6 +165,26 @@ describe('runtime-save-game', () => {
             damageAmount: 25,
             currentHeight: 4,
           }],
+        }),
+        captureSourcePartitionRuntimeSaveState: () => ({
+          version: 2,
+          cellSize: 10,
+          totalCellCount: 2,
+          cells: [
+            {
+              shroudLevels: Array.from({ length: 8 }, (_, index) => ({
+                currentShroud: index === 0 ? 0 : 1,
+                activeShroudLevel: 0,
+              })),
+            },
+            {
+              shroudLevels: Array.from({ length: 8 }, (_, index) => ({
+                currentShroud: index === 0 ? -1 : 1,
+                activeShroudLevel: index === 1 ? 1 : 0,
+              })),
+            },
+          ],
+          pendingUndoShroudReveals: [],
         }),
         captureSourcePlayerRuntimeSaveState: () => ({
           version: 1,
@@ -413,11 +443,13 @@ describe('runtime-save-game', () => {
       'CHUNK_SidesList',
       'CHUNK_TacticalView',
       'CHUNK_InGameUI',
+      'CHUNK_Partition',
       'CHUNK_TS_RuntimeState',
     ]);
 
     const parsed = parseRuntimeSaveFile(saveFile.data);
     const playerState = parsed.gameLogicPlayersState;
+    const partitionState = parsed.gameLogicPartitionState;
     const radarState = parsed.gameLogicRadarState;
     const sidesListState = parsed.gameLogicSidesListState;
     const teamFactoryState = parsed.gameLogicTeamFactoryState;
@@ -459,6 +491,26 @@ describe('runtime-save-game', () => {
         damageAmount: 25,
         currentHeight: 4,
       }],
+    });
+    expect(partitionState).toEqual({
+      version: 2,
+      cellSize: 10,
+      totalCellCount: 2,
+      cells: [
+        {
+          shroudLevels: Array.from({ length: 8 }, (_, index) => ({
+            currentShroud: index === 0 ? 0 : 1,
+            activeShroudLevel: 0,
+          })),
+        },
+        {
+          shroudLevels: Array.from({ length: 8 }, (_, index) => ({
+            currentShroud: index === 0 ? -1 : 1,
+            activeShroudLevel: index === 1 ? 1 : 0,
+          })),
+        },
+      ],
+      pendingUndoShroudReveals: [],
     });
     expect(playerState?.state.playerSideByIndex).toEqual(new Map([[0, 'USA']]));
     expect(playerState?.state.controllingPlayerScriptCredits).toEqual(new Map([['the_player', 900]]));
@@ -670,6 +722,7 @@ describe('runtime-save-game', () => {
           activeBoundary: 0,
           waterUpdates: [],
         }),
+        captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -748,6 +801,7 @@ describe('runtime-save-game', () => {
           activeBoundary: 0,
           waterUpdates: [],
         }),
+        captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -811,6 +865,7 @@ describe('runtime-save-game', () => {
           activeBoundary: 0,
           waterUpdates: [],
         }),
+        captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -889,6 +944,7 @@ describe('runtime-save-game', () => {
           activeBoundary: 0,
           waterUpdates: [],
         }),
+        captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -953,6 +1009,7 @@ describe('runtime-save-game', () => {
           activeBoundary: 0,
           waterUpdates: [],
         }),
+        captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
         captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -1002,6 +1059,7 @@ describe('runtime-save-game', () => {
           activeBoundary: 0,
           waterUpdates: [],
         },
+        captureSourcePartitionRuntimeSaveState: () => parsed.gameLogicPartitionState ?? createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => parsed.gameLogicPlayersState ?? { version: 1, state: {} },
         captureSourceRadarRuntimeSaveState: () => parsed.gameLogicRadarState ?? createEmptyRadarState(),
         captureSourceSidesListRuntimeSaveState: () => parsed.gameLogicSidesListState ?? { version: 1, state: {} },

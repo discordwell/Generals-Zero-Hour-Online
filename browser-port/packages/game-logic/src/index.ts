@@ -7989,6 +7989,7 @@ const BROWSER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_TERRAIN_LOGIC_RUNTIME_SAVE_STATE_VERSION = 2;
+const SOURCE_PARTITION_RUNTIME_SAVE_STATE_VERSION = 2;
 const SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION = 2;
 const SOURCE_TEAM_FACTORY_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_SCRIPT_ENGINE_RUNTIME_SAVE_STATE_VERSION = 1;
@@ -8486,6 +8487,34 @@ export interface GameLogicTerrainLogicSaveState {
   version: number;
   activeBoundary: number;
   waterUpdates: GameLogicTerrainWaterUpdateSaveState[];
+}
+
+export interface GameLogicPartitionCellShroudSaveState {
+  currentShroud: number;
+  activeShroudLevel: number;
+}
+
+export interface GameLogicPartitionCellSaveState {
+  shroudLevels: GameLogicPartitionCellShroudSaveState[];
+}
+
+export interface GameLogicPartitionUndoShroudRevealSaveState {
+  where: {
+    x: number;
+    y: number;
+    z: number;
+  };
+  howFar: number;
+  forWhom: number;
+  data: number;
+}
+
+export interface GameLogicPartitionSaveState {
+  version: number;
+  cellSize: number;
+  totalCellCount: number;
+  cells: GameLogicPartitionCellSaveState[];
+  pendingUndoShroudReveals: GameLogicPartitionUndoShroudRevealSaveState[];
 }
 
 export interface LegacyGameLogicRadarSaveState {
@@ -11334,6 +11363,76 @@ export class GameLogicSubsystem implements Subsystem {
       });
       this.applyWaterHeightChange(waterIndex, currentHeight, 0, false);
     }
+  }
+
+  captureSourcePartitionRuntimeSaveState(): GameLogicPartitionSaveState {
+    const grid = this.fogOfWarGrid;
+    if (!grid) {
+      return {
+        version: SOURCE_PARTITION_RUNTIME_SAVE_STATE_VERSION,
+        cellSize: this.config.partitionCellSize,
+        totalCellCount: 0,
+        cells: [],
+        pendingUndoShroudReveals: [],
+      };
+    }
+
+    return {
+      version: SOURCE_PARTITION_RUNTIME_SAVE_STATE_VERSION,
+      cellSize: grid.cellSize,
+      totalCellCount: grid.getTotalCellCount(),
+      cells: grid.capturePartitionCellShroudLevels().map((cell) => ({
+        shroudLevels: cell.map((level) => ({
+          currentShroud: level.currentShroud,
+          activeShroudLevel: level.activeShroudLevel,
+        })),
+      })),
+      pendingUndoShroudReveals: [],
+    };
+  }
+
+  restoreSourcePartitionRuntimeSaveState(state: unknown): void {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      throw new Error('Source partition save-state payload is malformed.');
+    }
+
+    const snapshot = state as GameLogicPartitionSaveState;
+    if (snapshot.version !== SOURCE_PARTITION_RUNTIME_SAVE_STATE_VERSION) {
+      throw new Error(`Unsupported source partition save-state version ${snapshot.version}.`);
+    }
+
+    const grid = this.fogOfWarGrid;
+    if (!grid) {
+      if ((snapshot.totalCellCount ?? 0) !== 0) {
+        throw new Error('Source partition save-state needs a fog-of-war grid to restore cell state.');
+      }
+      return;
+    }
+
+    const savedCellSize = Number(snapshot.cellSize);
+    const savedTotalCellCount = Math.trunc(Number(snapshot.totalCellCount));
+    if (!Number.isFinite(savedCellSize) || savedCellSize !== grid.cellSize) {
+      throw new Error(
+        `Source partition save-state cell size mismatch: expected ${grid.cellSize}, got ${savedCellSize}.`,
+      );
+    }
+    if (savedTotalCellCount !== grid.getTotalCellCount()) {
+      throw new Error(
+        `Source partition save-state cell count mismatch: expected ${grid.getTotalCellCount()}, got ${savedTotalCellCount}.`,
+      );
+    }
+    if (!Array.isArray(snapshot.cells) || snapshot.cells.length !== savedTotalCellCount) {
+      throw new Error('Source partition save-state cells are malformed.');
+    }
+
+    grid.restorePartitionCellShroudLevels(snapshot.cells.map((cell) => ({
+      shroudLevels: Array.isArray(cell?.shroudLevels)
+        ? cell.shroudLevels.map((level) => ({
+            currentShroud: Math.trunc(Number(level?.currentShroud ?? 1)),
+            activeShroudLevel: Math.max(0, Math.trunc(Number(level?.activeShroudLevel ?? 0))),
+          }))
+        : [],
+    })).map((cell) => cell.shroudLevels));
   }
 
   captureSourceRadarRuntimeSaveState(): GameLogicRadarSaveState {

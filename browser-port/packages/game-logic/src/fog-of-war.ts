@@ -25,6 +25,11 @@ export const OBJECTSHROUD_SHROUDED = 2;
 // ──── Maximum supported players ────────────────────────────────────────────
 export const MAX_FOW_PLAYERS = 8;
 
+export interface PartitionCellShroudLevelSnapshot {
+  currentShroud: number;
+  activeShroudLevel: number;
+}
+
 // ──── Fog of War grid ──────────────────────────────────────────────────────
 export class FogOfWarGrid {
   readonly cellsWide: number;
@@ -33,6 +38,8 @@ export class FogOfWarGrid {
 
   /** Per-player looker count per cell. lookerCounts[player][cellIndex] */
   private readonly lookerCounts: Int16Array[];
+  /** Per-player active shroud count per cell. */
+  private readonly activeShroudCounts: Int16Array[];
   /** Per-player "ever seen" flag per cell. */
   private readonly everSeen: Uint8Array[];
 
@@ -43,9 +50,11 @@ export class FogOfWarGrid {
 
     const totalCells = this.cellsWide * this.cellsDeep;
     this.lookerCounts = [];
+    this.activeShroudCounts = [];
     this.everSeen = [];
     for (let p = 0; p < MAX_FOW_PLAYERS; p++) {
       this.lookerCounts.push(new Int16Array(totalCells));
+      this.activeShroudCounts.push(new Int16Array(totalCells));
       this.everSeen.push(new Uint8Array(totalCells));
     }
   }
@@ -107,7 +116,15 @@ export class FogOfWarGrid {
     if (!seen) {
       return;
     }
-    seen.fill(1);
+    const lookers = this.lookerCounts[playerIndex];
+    if (!lookers) {
+      return;
+    }
+    for (let idx = 0; idx < seen.length; idx += 1) {
+      if ((lookers[idx] ?? 0) <= 0) {
+        seen[idx] = 1;
+      }
+    }
   }
 
   /**
@@ -119,15 +136,20 @@ export class FogOfWarGrid {
       return;
     }
     const seen = this.everSeen[playerIndex];
-    if (!seen) {
+    const lookers = this.lookerCounts[playerIndex];
+    if (!seen || !lookers) {
       return;
     }
-    seen.fill(0);
+    for (let idx = 0; idx < seen.length; idx += 1) {
+      if ((lookers[idx] ?? 0) <= 0) {
+        seen[idx] = 0;
+      }
+    }
   }
 
   /**
-   * Source parity: PartitionManager::doShroudCover + undoShroudCover.
-   * Applies a local shroud "dollop" by clearing explored state in a circle.
+   * Source parity: PartitionManager::doShroudCover.
+   * Applies an active shrouder in a circle without erasing explored history.
    */
   shroudAt(playerIndex: number, worldX: number, worldZ: number, radius: number): void {
     if (playerIndex < 0 || playerIndex >= MAX_FOW_PLAYERS || radius <= 0) {
@@ -136,8 +158,8 @@ export class FogOfWarGrid {
 
     const [cx, cz] = this.worldToCell(worldX, worldZ);
     const cellRadius = Math.ceil(radius / this.cellSize);
-    const seen = this.everSeen[playerIndex];
-    if (!seen) {
+    const activeShrouders = this.activeShroudCounts[playerIndex];
+    if (!activeShrouders) {
       return;
     }
     const radiusSq = cellRadius * cellRadius;
@@ -154,7 +176,38 @@ export class FogOfWarGrid {
         }
         if (dx * dx + dz * dz <= radiusSq) {
           const idx = this.cellIndex(gx, gz);
-          seen[idx] = 0;
+          activeShrouders[idx] = (activeShrouders[idx] ?? 0) + 1;
+        }
+      }
+    }
+  }
+
+  removeShrouder(playerIndex: number, worldX: number, worldZ: number, radius: number): void {
+    if (playerIndex < 0 || playerIndex >= MAX_FOW_PLAYERS || radius <= 0) {
+      return;
+    }
+
+    const [cx, cz] = this.worldToCell(worldX, worldZ);
+    const cellRadius = Math.ceil(radius / this.cellSize);
+    const activeShrouders = this.activeShroudCounts[playerIndex];
+    if (!activeShrouders) {
+      return;
+    }
+    const radiusSq = cellRadius * cellRadius;
+
+    for (let dz = -cellRadius; dz <= cellRadius; dz++) {
+      const gz = cz + dz;
+      if (gz < 0 || gz >= this.cellsDeep) {
+        continue;
+      }
+      for (let dx = -cellRadius; dx <= cellRadius; dx++) {
+        const gx = cx + dx;
+        if (gx < 0 || gx >= this.cellsWide) {
+          continue;
+        }
+        if (dx * dx + dz * dz <= radiusSq) {
+          const idx = this.cellIndex(gx, gz);
+          activeShrouders[idx] = Math.max(0, (activeShrouders[idx] ?? 0) - 1);
         }
       }
     }
@@ -247,10 +300,73 @@ export class FogOfWarGrid {
     if ((this.lookerCounts[playerIndex]?.[idx] ?? 0) > 0) {
       return CELL_CLEAR;
     }
+    if ((this.activeShroudCounts[playerIndex]?.[idx] ?? 0) > 0) {
+      return CELL_SHROUDED;
+    }
     if (this.everSeen[playerIndex]?.[idx]) {
       return CELL_FOGGED;
     }
     return CELL_SHROUDED;
+  }
+
+  getTotalCellCount(): number {
+    return this.cellsWide * this.cellsDeep;
+  }
+
+  capturePartitionCellShroudLevels(): PartitionCellShroudLevelSnapshot[][] {
+    const totalCells = this.getTotalCellCount();
+    const cells: PartitionCellShroudLevelSnapshot[][] = [];
+    for (let cellIndex = 0; cellIndex < totalCells; cellIndex += 1) {
+      const cell: PartitionCellShroudLevelSnapshot[] = [];
+      for (let playerIndex = 0; playerIndex < MAX_FOW_PLAYERS; playerIndex += 1) {
+        const lookers = this.lookerCounts[playerIndex]?.[cellIndex] ?? 0;
+        const activeShroudLevel = this.activeShroudCounts[playerIndex]?.[cellIndex] ?? 0;
+        const seen = this.everSeen[playerIndex]?.[cellIndex] ?? 0;
+        let currentShroud = 1;
+        if (lookers > 0) {
+          currentShroud = -lookers;
+        } else if (activeShroudLevel <= 0 && seen > 0) {
+          currentShroud = 0;
+        }
+        cell.push({
+          currentShroud,
+          activeShroudLevel,
+        });
+      }
+      cells.push(cell);
+    }
+    return cells;
+  }
+
+  restorePartitionCellShroudLevels(
+    cells: readonly (readonly PartitionCellShroudLevelSnapshot[])[],
+  ): void {
+    this.reset();
+    const totalCells = this.getTotalCellCount();
+    for (let cellIndex = 0; cellIndex < totalCells; cellIndex += 1) {
+      const savedCell = cells[cellIndex];
+      if (!savedCell) {
+        continue;
+      }
+      for (let playerIndex = 0; playerIndex < MAX_FOW_PLAYERS; playerIndex += 1) {
+        const savedLevel = savedCell[playerIndex];
+        if (!savedLevel) {
+          continue;
+        }
+        const currentShroud = Math.trunc(savedLevel.currentShroud);
+        const activeShroudLevel = Math.max(0, Math.trunc(savedLevel.activeShroudLevel));
+        if (currentShroud < 0) {
+          this.lookerCounts[playerIndex]![cellIndex] = Math.min(-currentShroud, 0x7fff);
+          this.everSeen[playerIndex]![cellIndex] = 1;
+        } else {
+          this.lookerCounts[playerIndex]![cellIndex] = 0;
+          if (currentShroud === 0) {
+            this.everSeen[playerIndex]![cellIndex] = 1;
+          }
+        }
+        this.activeShroudCounts[playerIndex]![cellIndex] = Math.min(activeShroudLevel, 0x7fff);
+      }
+    }
   }
 
   /**
@@ -280,6 +396,7 @@ export class FogOfWarGrid {
   reset(): void {
     for (let p = 0; p < MAX_FOW_PLAYERS; p++) {
       this.lookerCounts[p]!.fill(0);
+      this.activeShroudCounts[p]!.fill(0);
       this.everSeen[p]!.fill(0);
     }
   }

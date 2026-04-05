@@ -24,6 +24,7 @@ import {
   type GameLogicRadarEventSaveState,
   type GameLogicRadarObjectSaveState,
   type GameLogicPlayersSaveState,
+  type GameLogicPartitionSaveState,
   type GameLogicRadarSaveState,
   type GameLogicScriptEngineSaveState,
   type GameLogicSellingEntitySaveState,
@@ -43,6 +44,7 @@ const SOURCE_CAMPAIGN_BLOCK = 'CHUNK_Campaign';
 const SOURCE_TERRAIN_LOGIC_BLOCK = 'CHUNK_TerrainLogic';
 const SOURCE_TEAM_FACTORY_BLOCK = 'CHUNK_TeamFactory';
 const SOURCE_PLAYERS_BLOCK = 'CHUNK_Players';
+const SOURCE_PARTITION_BLOCK = 'CHUNK_Partition';
 const SOURCE_RADAR_BLOCK = 'CHUNK_Radar';
 const SOURCE_SCRIPT_ENGINE_BLOCK = 'CHUNK_ScriptEngine';
 const SOURCE_SIDES_LIST_BLOCK = 'CHUNK_SidesList';
@@ -53,7 +55,6 @@ export const BROWSER_RUNTIME_STATE_BLOCK = 'CHUNK_TS_RuntimeState';
 const PASSTHROUGH_BLOCK_ORDER = [
   'CHUNK_GameClient',
   SOURCE_IN_GAME_UI_BLOCK,
-  'CHUNK_Partition',
   'CHUNK_ParticleSystem',
   'CHUNK_TerrainVisual',
   'CHUNK_GhostObject',
@@ -71,6 +72,7 @@ const KNOWN_RUNTIME_SAVE_BLOCKS = new Set<string>([
   SOURCE_SIDES_LIST_BLOCK,
   SOURCE_TACTICAL_VIEW_BLOCK,
   SOURCE_IN_GAME_UI_BLOCK,
+  SOURCE_PARTITION_BLOCK,
   BROWSER_RUNTIME_STATE_BLOCK,
 ].map((name) => name.toLowerCase()));
 
@@ -79,6 +81,9 @@ const CAMPAIGN_VERSION = 5;
 const GAME_STATE_MAP_VERSION = 2;
 const BROWSER_RUNTIME_STATE_VERSION = 1;
 const SOURCE_TERRAIN_LOGIC_SNAPSHOT_VERSION = 2;
+const SOURCE_PARTITION_SNAPSHOT_VERSION = 2;
+const SOURCE_PARTITION_CELL_SNAPSHOT_VERSION = 1;
+const SOURCE_PARTITION_PLAYER_COUNT = 8;
 const SOURCE_PLAYER_SNAPSHOT_VERSION = 2;
 const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 7;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
@@ -177,6 +182,7 @@ export interface RuntimeSaveBootstrap {
   gameLogicTerrainLogicState: GameLogicTerrainLogicSaveState | null;
   gameLogicTeamFactoryState: GameLogicTeamFactorySaveState | null;
   gameLogicPlayersState: GameLogicPlayersSaveState | null;
+  gameLogicPartitionState: GameLogicPartitionSaveState | null;
   gameLogicRadarState: GameLogicRadarSaveState | null;
   gameLogicSidesListState: GameLogicSidesListSaveState | null;
   gameLogicScriptEngineState: GameLogicScriptEngineSaveState | null;
@@ -670,6 +676,137 @@ class TerrainLogicSnapshot implements Snapshot {
       }
     }
     payload.waterUpdates = waterUpdates;
+    this.payload = payload;
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
+function createEmptyPartitionSaveState(): GameLogicPartitionSaveState {
+  return {
+    version: SOURCE_PARTITION_SNAPSHOT_VERSION,
+    cellSize: 0,
+    totalCellCount: 0,
+    cells: [],
+    pendingUndoShroudReveals: [],
+  };
+}
+
+function xferSourcePartitionShroudLevel(
+  xfer: Xfer,
+  level: { currentShroud: number; activeShroudLevel: number },
+): { currentShroud: number; activeShroudLevel: number } {
+  return {
+    currentShroud: xfer.xferShort(level.currentShroud),
+    activeShroudLevel: xfer.xferShort(level.activeShroudLevel),
+  };
+}
+
+function xferSourcePartitionUndoReveal(
+  xfer: Xfer,
+  reveal: {
+    where: { x: number; y: number; z: number };
+    howFar: number;
+    forWhom: number;
+    data: number;
+  },
+): {
+  where: { x: number; y: number; z: number };
+  howFar: number;
+  forWhom: number;
+  data: number;
+} {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported partition undo-reveal snapshot version ${version}`);
+  }
+  return {
+    where: xfer.xferCoord3D(reveal.where),
+    howFar: xfer.xferReal(reveal.howFar),
+    forWhom: xfer.xferUnsignedShort(reveal.forWhom),
+    data: xfer.xferUnsignedInt(reveal.data),
+  };
+}
+
+class PartitionSnapshot implements Snapshot {
+  payload: GameLogicPartitionSaveState | null;
+
+  constructor(payload: GameLogicPartitionSaveState | null = null) {
+    this.payload = payload;
+  }
+
+  crc(_xfer: Xfer): void {
+    // Partition snapshot is not part of source parity CRC yet.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(SOURCE_PARTITION_SNAPSHOT_VERSION);
+    if (version !== SOURCE_PARTITION_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported partition snapshot version ${version}`);
+    }
+
+    const payload = this.payload ?? createEmptyPartitionSaveState();
+    payload.version = version;
+    payload.cellSize = xfer.xferReal(payload.cellSize);
+    payload.totalCellCount = xfer.xferInt(payload.totalCellCount);
+    if (payload.totalCellCount < 0) {
+      throw new Error(`Partition snapshot cell count ${payload.totalCellCount} is invalid.`);
+    }
+
+    const cells: GameLogicPartitionSaveState['cells'] = [];
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      for (let cellIndex = 0; cellIndex < payload.totalCellCount; cellIndex += 1) {
+        const cellVersion = xfer.xferVersion(SOURCE_PARTITION_CELL_SNAPSHOT_VERSION);
+        if (cellVersion !== SOURCE_PARTITION_CELL_SNAPSHOT_VERSION) {
+          throw new Error(`Unsupported partition cell snapshot version ${cellVersion}`);
+        }
+        const shroudLevels = [];
+        for (let playerIndex = 0; playerIndex < SOURCE_PARTITION_PLAYER_COUNT; playerIndex += 1) {
+          shroudLevels.push(
+            xferSourcePartitionShroudLevel(xfer, { currentShroud: 1, activeShroudLevel: 0 }),
+          );
+        }
+        cells.push({ shroudLevels });
+      }
+    } else {
+      for (const cell of payload.cells) {
+        const shroudLevels = cell?.shroudLevels ?? [];
+        xfer.xferVersion(SOURCE_PARTITION_CELL_SNAPSHOT_VERSION);
+        for (let playerIndex = 0; playerIndex < SOURCE_PARTITION_PLAYER_COUNT; playerIndex += 1) {
+          xferSourcePartitionShroudLevel(
+            xfer,
+            shroudLevels[playerIndex] ?? { currentShroud: 1, activeShroudLevel: 0 },
+          );
+        }
+        cells.push({
+          shroudLevels: shroudLevels.map((level) => ({ ...level })),
+        });
+      }
+    }
+    payload.cells = cells;
+
+    const queueSize = xfer.xferInt(payload.pendingUndoShroudReveals.length);
+    if (queueSize < 0) {
+      throw new Error(`Partition snapshot undo-reveal queue size ${queueSize} is invalid.`);
+    }
+    const pendingUndoShroudReveals: GameLogicPartitionSaveState['pendingUndoShroudReveals'] = [];
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      for (let index = 0; index < queueSize; index += 1) {
+        pendingUndoShroudReveals.push(xferSourcePartitionUndoReveal(xfer, {
+          where: { x: 0, y: 0, z: 0 },
+          howFar: 0,
+          forWhom: 0,
+          data: 0,
+        }));
+      }
+    } else {
+      for (const reveal of payload.pendingUndoShroudReveals) {
+        pendingUndoShroudReveals.push(xferSourcePartitionUndoReveal(xfer, reveal));
+      }
+    }
+    payload.pendingUndoShroudReveals = pendingUndoShroudReveals;
     this.payload = payload;
   }
 
@@ -1551,6 +1688,7 @@ export function buildRuntimeSaveFile(params: {
     GameLogicSubsystem,
     | 'captureBrowserRuntimeSaveState'
     | 'captureSourceTerrainLogicRuntimeSaveState'
+    | 'captureSourcePartitionRuntimeSaveState'
     | 'captureSourceRadarRuntimeSaveState'
     | 'captureSourceSidesListRuntimeSaveState'
     | 'captureSourceTeamFactoryRuntimeSaveState'
@@ -1581,6 +1719,7 @@ export function buildRuntimeSaveFile(params: {
   const tacticalViewPayload = params.tacticalViewState
     ?? buildTacticalViewSaveState(params.cameraState);
   const terrainLogicPayload = params.gameLogic.captureSourceTerrainLogicRuntimeSaveState();
+  const partitionPayload = params.gameLogic.captureSourcePartitionRuntimeSaveState();
   const radarPayload = params.gameLogic.captureSourceRadarRuntimeSaveState();
   const sidesListPayload = params.gameLogic.captureSourceSidesListRuntimeSaveState();
   const teamFactoryPayload = params.gameLogic.captureSourceTeamFactoryRuntimeSaveState();
@@ -1644,6 +1783,7 @@ export function buildRuntimeSaveFile(params: {
     }
   }
   state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, new InGameUiSnapshot(inGameUiPayload));
+  state.addSnapshotBlock(SOURCE_PARTITION_BLOCK, new PartitionSnapshot(partitionPayload));
   for (const passthroughBlock of orderPassthroughBlocks(params.passthroughBlocks)) {
     const normalizedName = passthroughBlock.blockName.toLowerCase();
     if (normalizedName === SOURCE_IN_GAME_UI_BLOCK.toLowerCase()) {
@@ -1691,6 +1831,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const terrainLogicSnapshot = new TerrainLogicSnapshot();
   const teamFactorySnapshot = new TeamFactorySnapshot();
   const playersSnapshot = new PlayersSnapshot();
+  const partitionSnapshot = new PartitionSnapshot();
   const gameLogicSnapshot = new GameLogicSnapshot();
   const radarSnapshot = new RadarSnapshot();
   const sidesListSnapshot = new SidesListSnapshot();
@@ -1703,6 +1844,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   state.addSnapshotBlock(SOURCE_TERRAIN_LOGIC_BLOCK, terrainLogicSnapshot);
   state.addSnapshotBlock(SOURCE_TEAM_FACTORY_BLOCK, teamFactorySnapshot);
   state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, playersSnapshot);
+  state.addSnapshotBlock(SOURCE_PARTITION_BLOCK, partitionSnapshot);
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, gameLogicSnapshot);
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, radarSnapshot);
   state.addSnapshotBlock(SOURCE_SCRIPT_ENGINE_BLOCK, scriptEngineSnapshot);
@@ -1757,6 +1899,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     gameLogicTerrainLogicState: terrainLogicSnapshot?.payload ?? null,
     gameLogicTeamFactoryState: teamFactorySnapshot?.payload ?? null,
     gameLogicPlayersState: playersSnapshot?.payload ?? null,
+    gameLogicPartitionState: partitionSnapshot?.payload ?? null,
     gameLogicRadarState: radarSnapshot?.payload ?? null,
     gameLogicSidesListState: sidesListSnapshot?.payload ?? null,
     gameLogicScriptEngineState: scriptEngineSnapshot?.payload ?? null,

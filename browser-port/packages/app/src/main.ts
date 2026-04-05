@@ -1704,6 +1704,11 @@ async function startGame(
         runtimeSaveLoadContext.runtimeSave.gameLogicPlayersState,
       );
     }
+    if (runtimeSaveLoadContext.runtimeSave.gameLogicPartitionState) {
+      gameLogic.restoreSourcePartitionRuntimeSaveState(
+        runtimeSaveLoadContext.runtimeSave.gameLogicPartitionState,
+      );
+    }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicRadarState) {
       gameLogic.restoreSourceRadarRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicRadarState,
