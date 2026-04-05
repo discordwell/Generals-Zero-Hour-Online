@@ -200,6 +200,7 @@ export interface RuntimeSaveGameClientState {
   version: number;
   prefixBytes: ArrayBuffer;
   briefingLines: string[];
+  drawables: readonly RuntimeSaveRawGameClientDrawableState[];
 }
 
 interface RuntimeSaveDrawableSnapshotState {
@@ -218,6 +219,22 @@ interface RuntimeSaveDrawableSnapshotState {
   readonly hiddenByStealth: boolean;
   readonly shroudStatusObjectId: number;
 }
+
+interface RuntimeSaveRawGameClientDrawableState {
+  readonly templateName: string;
+  readonly objectId: number;
+  readonly blockData: ArrayBuffer;
+}
+
+type RuntimeSaveGameClientDrawableEntry =
+  | {
+      readonly kind: 'generated';
+      readonly state: RuntimeSaveDrawableSnapshotState;
+    }
+  | {
+      readonly kind: 'raw';
+      readonly state: RuntimeSaveRawGameClientDrawableState;
+    };
 
 export interface RuntimeSavePassthroughBlock {
   blockName: string;
@@ -522,6 +539,51 @@ function buildSourceGameClientDrawableStates(
   return result;
 }
 
+function buildGameClientDrawableEntries(
+  savedGameClientState: RuntimeSaveGameClientState | null | undefined,
+  generatedDrawables: readonly RuntimeSaveDrawableSnapshotState[],
+): RuntimeSaveGameClientDrawableEntry[] {
+  const rawDrawables = savedGameClientState?.drawables ?? [];
+  if (rawDrawables.length === 0) {
+    return generatedDrawables.map((state) => ({ kind: 'generated', state }));
+  }
+  if (generatedDrawables.length === 0) {
+    return rawDrawables.map((state) => ({ kind: 'raw', state }));
+  }
+
+  const remainingGeneratedByObjectId = new Map<number, RuntimeSaveDrawableSnapshotState>();
+  const remainingGeneratedWithoutObject: RuntimeSaveDrawableSnapshotState[] = [];
+  for (const drawable of generatedDrawables) {
+    if (drawable.objectId !== 0 && !remainingGeneratedByObjectId.has(drawable.objectId)) {
+      remainingGeneratedByObjectId.set(drawable.objectId, drawable);
+      continue;
+    }
+    remainingGeneratedWithoutObject.push(drawable);
+  }
+
+  const mergedEntries: RuntimeSaveGameClientDrawableEntry[] = [];
+  for (const drawable of rawDrawables) {
+    if (drawable.objectId !== 0) {
+      const regenerated = remainingGeneratedByObjectId.get(drawable.objectId);
+      if (regenerated) {
+        mergedEntries.push({ kind: 'generated', state: regenerated });
+        remainingGeneratedByObjectId.delete(drawable.objectId);
+        continue;
+      }
+    }
+    mergedEntries.push({ kind: 'raw', state: drawable });
+  }
+
+  const remainingGenerated = [
+    ...remainingGeneratedByObjectId.values(),
+    ...remainingGeneratedWithoutObject,
+  ].sort((left, right) => left.drawableId - right.drawableId);
+  for (const drawable of remainingGenerated) {
+    mergedEntries.push({ kind: 'generated', state: drawable });
+  }
+  return mergedEntries;
+}
+
 class DrawableSnapshot implements Snapshot {
   private readonly identityMatrixBytes = buildIdentityMatrix3DBytes();
 
@@ -594,18 +656,33 @@ function parseGameClientState(data: ArrayBuffer): RuntimeSaveGameClientState | n
     const version = xferLoad.xferVersion(SOURCE_GAME_CLIENT_SNAPSHOT_VERSION);
     xferLoad.xferUnsignedInt(0);
     xferLoad.xferVersion(SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION);
+    const tocEntriesById = new Map<number, string>();
     const tocCount = xferLoad.xferUnsignedInt(0);
     for (let index = 0; index < tocCount; index += 1) {
-      xferLoad.xferAsciiString('');
-      xferLoad.xferUnsignedShort(0);
+      const templateName = xferLoad.xferAsciiString('');
+      const tocId = xferLoad.xferUnsignedShort(0);
+      tocEntriesById.set(tocId, templateName);
     }
 
+    const drawables: RuntimeSaveRawGameClientDrawableState[] = [];
     const drawableCount = xferLoad.xferUnsignedShort(0);
     for (let index = 0; index < drawableCount; index += 1) {
-      xferLoad.xferUnsignedShort(0);
+      const tocId = xferLoad.xferUnsignedShort(0);
+      const templateName = tocEntriesById.get(tocId);
+      if (!templateName) {
+        throw new Error(`Game-client drawable references unknown TOC id ${tocId}.`);
+      }
       const blockSize = xferLoad.beginBlock();
-      xferLoad.skip(blockSize);
+      const blockStart = xferLoad.getOffset();
+      const objectId = xferLoad.xferObjectID(0);
+      const bytesConsumed = xferLoad.getOffset() - blockStart;
+      xferLoad.skip(blockSize - bytesConsumed);
       xferLoad.endBlock();
+      drawables.push({
+        templateName,
+        objectId,
+        blockData: copyBytesToArrayBuffer(chunkData.slice(blockStart, blockStart + blockSize)),
+      });
     }
 
     const prefixBytes = copyBytesToArrayBuffer(chunkData.slice(0, xferLoad.getOffset()));
@@ -624,6 +701,7 @@ function parseGameClientState(data: ArrayBuffer): RuntimeSaveGameClientState | n
       version,
       prefixBytes,
       briefingLines,
+      drawables,
     };
   } finally {
     xferLoad.close();
@@ -2006,7 +2084,7 @@ class GameClientSnapshot implements Snapshot {
   constructor(
     private readonly frame: number,
     private readonly briefingLines: readonly string[] = [],
-    private readonly drawables: readonly RuntimeSaveDrawableSnapshotState[] = [],
+    private readonly drawables: readonly RuntimeSaveGameClientDrawableEntry[] = [],
     private readonly rawPrefixBytes: Uint8Array | null = null,
     private readonly version = SOURCE_GAME_CLIENT_SNAPSHOT_VERSION,
   ) {}
@@ -2016,7 +2094,7 @@ class GameClientSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
-    if (this.rawPrefixBytes !== null) {
+    if (this.rawPrefixBytes !== null && this.drawables.length === 0) {
       xfer.xferUser(this.rawPrefixBytes);
       if (this.version >= 2) {
         xfer.xferInt(this.briefingLines.length);
@@ -2040,8 +2118,11 @@ class GameClientSnapshot implements Snapshot {
     }
     const tocEntries = new Map<string, number>();
     for (const drawable of this.drawables) {
-      if (!tocEntries.has(drawable.templateName)) {
-        tocEntries.set(drawable.templateName, tocEntries.size + 1);
+      const templateName = drawable.kind === 'generated'
+        ? drawable.state.templateName
+        : drawable.state.templateName;
+      if (!tocEntries.has(templateName)) {
+        tocEntries.set(templateName, tocEntries.size + 1);
       }
     }
     xfer.xferUnsignedInt(tocEntries.size);
@@ -2052,14 +2133,21 @@ class GameClientSnapshot implements Snapshot {
 
     xfer.xferUnsignedShort(this.drawables.length);
     for (const drawable of this.drawables) {
-      const tocId = tocEntries.get(drawable.templateName);
+      const templateName = drawable.kind === 'generated'
+        ? drawable.state.templateName
+        : drawable.state.templateName;
+      const tocId = tocEntries.get(templateName);
       if (!tocId) {
-        throw new Error(`Missing game-client TOC entry for drawable template "${drawable.templateName}".`);
+        throw new Error(`Missing game-client TOC entry for drawable template "${templateName}".`);
       }
       xfer.xferUnsignedShort(tocId);
       xfer.beginBlock();
-      xfer.xferObjectID(drawable.objectId);
-      xfer.xferSnapshot(new DrawableSnapshot(drawable));
+      if (drawable.kind === 'generated') {
+        xfer.xferObjectID(drawable.state.objectId);
+        xfer.xferSnapshot(new DrawableSnapshot(drawable.state));
+      } else {
+        xfer.xferUser(new Uint8Array(drawable.state.blockData));
+      }
       xfer.endBlock();
     }
 
@@ -2226,6 +2314,10 @@ export function buildRuntimeSaveFile(params: {
     gameLogicPayload,
     params.gameClientLiveEntityIds,
   );
+  const gameClientDrawableEntries = buildGameClientDrawableEntries(
+    params.gameClientState,
+    gameClientDrawableStates,
+  );
   const terrainVisualHeightmapBytes = decodeTerrainVisualHeightmapBytes(params.mapData);
   const orderedPassthroughBlocks = orderPassthroughBlocks(params.passthroughBlocks);
   const mergedGameClientBriefingLines = mergeBriefingLines(
@@ -2302,8 +2394,8 @@ export function buildRuntimeSaveFile(params: {
       new GameClientSnapshot(
         gameLogicPayload.frameCounter,
         mergedGameClientBriefingLines,
-        gameClientDrawableStates,
-        params.gameClientState?.prefixBytes
+        gameClientDrawableEntries,
+        gameClientDrawableEntries.length === 0 && params.gameClientState?.prefixBytes
           ? new Uint8Array(params.gameClientState.prefixBytes)
           : null,
         params.gameClientState?.version ?? SOURCE_GAME_CLIENT_SNAPSHOT_VERSION,

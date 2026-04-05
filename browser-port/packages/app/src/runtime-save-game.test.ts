@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { XferLoad, listSaveGameChunks } from '@generals/engine';
+import { XferLoad, XferSave, listSaveGameChunks } from '@generals/engine';
 
 import {
   buildRuntimeSaveFile,
@@ -143,6 +143,20 @@ function readSaveChunkData(data: ArrayBuffer, blockName: string): Uint8Array | n
     return null;
   }
   return new Uint8Array(data, chunk.blockDataOffset, chunk.blockSize).slice();
+}
+
+function createRawGameClientDrawableBlockData(objectId: number, drawableId: number): ArrayBuffer {
+  const xferSave = new XferSave();
+  xferSave.open('create-raw-game-client-drawable-block-data');
+  try {
+    xferSave.xferObjectID(objectId);
+    xferSave.xferVersion(5);
+    xferSave.xferUnsignedInt(drawableId);
+    xferSave.xferUser(new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd]));
+    return xferSave.getBuffer();
+  } finally {
+    xferSave.close();
+  }
 }
 
 function readGameClientChunk(data: ArrayBuffer): {
@@ -643,6 +657,7 @@ describe('runtime-save-game', () => {
       version: 3,
       prefixBytes: expect.any(ArrayBuffer),
       briefingLines: ['MISSION_BRIEFING_ALPHA', 'MISSION_BRIEFING_BETA'],
+      drawables: [],
     });
     expect(terrainVisualChunk).toEqual({
       version: 2,
@@ -1020,6 +1035,199 @@ describe('runtime-save-game', () => {
       drawableObjectIds: [7],
       drawableIds: [7],
       briefingLines: [],
+    });
+  });
+
+  it('replaces parsed attached-object GameClient drawables while preserving unattached raw drawables', () => {
+    const mapData = {
+      heightmap: {
+        width: 2,
+        height: 2,
+        borderSize: 0,
+        data: 'AAAAAA==',
+      },
+      objects: [],
+      triggers: [],
+      waypoints: { nodes: [], links: [] },
+      textureClasses: [],
+      blendTileCount: 0,
+    };
+
+    const incomingSave = buildRuntimeSaveFile({
+      description: 'Parsed GameClient Drawable Save',
+      mapPath: 'assets/maps/TestMap.json',
+      mapData,
+      cameraState: null,
+      gameClientState: {
+        version: 3,
+        prefixBytes: new ArrayBuffer(0),
+        briefingLines: ['MISSION_ALPHA'],
+        drawables: [
+          {
+            templateName: 'LegacyAttachedTank',
+            objectId: 7,
+            blockData: createRawGameClientDrawableBlockData(7, 700),
+          },
+          {
+            templateName: 'LegacyScorchMark',
+            objectId: 0,
+            blockData: createRawGameClientDrawableBlockData(0, 900),
+          },
+        ],
+      },
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: { localPlayerIndex: 0 },
+        }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 7,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 10,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const parsed = parseRuntimeSaveFile(incomingSave.data);
+    expect(parsed.gameClientState?.drawables).toEqual([
+      expect.objectContaining({
+        templateName: 'LegacyAttachedTank',
+        objectId: 7,
+        blockData: expect.any(ArrayBuffer),
+      }),
+      expect.objectContaining({
+        templateName: 'LegacyScorchMark',
+        objectId: 0,
+        blockData: expect.any(ArrayBuffer),
+      }),
+    ]);
+
+    const rebuilt = buildRuntimeSaveFile({
+      description: parsed.metadata.description,
+      mapPath: parsed.mapPath,
+      mapData: parsed.mapData ?? mapData,
+      cameraState: parsed.cameraState,
+      tacticalViewState: parsed.tacticalViewState,
+      gameClientState: parsed.gameClientState,
+      gameClientLiveEntityIds: [7],
+      renderableEntityStates: [
+        {
+          id: 7,
+          templateName: 'AmericaTankCrusader',
+          resolved: true,
+          renderAssetCandidates: ['AmericaTankCrusader'],
+          renderAssetPath: 'AmericaTankCrusader.glb',
+          renderAssetResolved: true,
+          category: 'vehicle',
+          x: 10,
+          y: 0,
+          z: 20,
+          rotationY: 0,
+          animationState: 'MOVE',
+          health: 100,
+          maxHealth: 100,
+          isSelected: false,
+          veterancyLevel: 0,
+          isStealthed: false,
+          isDetected: false,
+          stealthFriendlyOpacity: 1,
+          disguiseTemplateName: null,
+          shroudStatus: 'CLEAR',
+          constructionPercent: -1,
+          capturePercent: -1,
+          toppleAngle: 0,
+          toppleDirX: 0,
+          toppleDirZ: 0,
+          turretAngles: [],
+          modelConditionFlags: ['MOVING'],
+          shadowType: 'SHADOW_VOLUME',
+        },
+      ],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => parsed.gameLogicTerrainLogicState ?? {
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        },
+        captureSourcePartitionRuntimeSaveState: () => parsed.gameLogicPartitionState ?? createEmptyPartitionState(),
+        captureSourcePlayerRuntimeSaveState: () => parsed.gameLogicPlayersState ?? {
+          version: 1,
+          state: { localPlayerIndex: 0 },
+        },
+        captureSourceRadarRuntimeSaveState: () => parsed.gameLogicRadarState ?? createEmptyRadarState(),
+        captureSourceSidesListRuntimeSaveState: () => parsed.gameLogicSidesListState ?? { version: 1, state: {} },
+        captureSourceTeamFactoryRuntimeSaveState: () => (
+          parsed.gameLogicTeamFactoryState
+          ?? (
+            parsed.sourceTeamFactoryChunkData
+              ? applySourceTeamFactoryChunkToState(
+                  parsed.sourceTeamFactoryChunkData,
+                  createEmptyTeamFactoryState(),
+                  parsed.gameLogicPlayersState,
+                  parsed.gameLogicSidesListState,
+                )
+              : createEmptyTeamFactoryState()
+          )
+        ),
+        captureSourceScriptEngineRuntimeSaveState: () => parsed.gameLogicScriptEngineState ?? { version: 1, state: {} },
+        captureSourceInGameUiRuntimeSaveState: () => parsed.gameLogicInGameUiState ?? { version: 1, state: {} },
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 7,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 20,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [],
+        }),
+        captureBrowserRuntimeSaveState: () => parsed.gameLogicState ?? { version: 1 },
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    expect(readGameClientChunk(rebuilt.data)).toEqual({
+      version: 3,
+      frame: 20,
+      tocVersion: 1,
+      tocCount: 2,
+      tocEntries: ['AmericaTankCrusader', 'LegacyScorchMark'],
+      drawableCount: 2,
+      drawableObjectIds: [7, 0],
+      drawableIds: [7, 900],
+      briefingLines: ['MISSION_ALPHA'],
     });
   });
 
