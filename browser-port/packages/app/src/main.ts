@@ -5198,6 +5198,7 @@ async function startGame(
           z: currentCameraState.targetZ,
         },
       },
+      renderableEntityStates: gameLogic.getRenderableEntityStates(),
       gameClientState: runtimeSaveLoadContext?.runtimeSave.gameClientState ?? null,
       particleSystemState: particleSystemManager.captureSaveState(),
       gameLogic,

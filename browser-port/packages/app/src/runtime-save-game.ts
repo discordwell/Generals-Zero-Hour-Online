@@ -12,6 +12,7 @@ import {
   type Xfer,
 } from '@generals/engine';
 import type { CameraState } from '@generals/input';
+import { base64ToUint8Array } from '@generals/terrain';
 import {
   xferMapEntity,
   type GameDifficulty,
@@ -37,6 +38,7 @@ import {
   type GameLogicTunnelTrackerSaveState,
   type LegacyGameLogicRadarSaveState,
   type MapEntity,
+  type RenderableEntityState as GameLogicRenderableEntityState,
   type StructuredGameLogicRadarSaveState,
 } from '@generals/game-logic';
 import type {
@@ -103,8 +105,10 @@ const SOURCE_PLAYER_SNAPSHOT_VERSION = 2;
 const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 7;
 const SOURCE_GAME_CLIENT_SNAPSHOT_VERSION = 3;
 const SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION = 1;
-const SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION = 1;
+const SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION = 2;
+const SOURCE_TERRAIN_VISUAL_BASE_SNAPSHOT_VERSION = 1;
 const SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION = 1;
+const SOURCE_GHOST_OBJECT_BASE_SNAPSHOT_VERSION = 1;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
 const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
 const SOURCE_RADAR_EVENT_COUNT = 64;
@@ -114,6 +118,11 @@ export const SOURCE_GAME_MODE_SKIRMISH = 2;
 const SOURCE_DIFFICULTY_EASY = 0;
 const SOURCE_DIFFICULTY_NORMAL = 1;
 const SOURCE_DIFFICULTY_HARD = 2;
+const DRAWABLE_STATUS_SHADOWS = 0x00000002;
+const NUM_DRAWABLE_MODULE_TYPES = 2;
+const TERRAIN_DECAL_NONE = 0;
+const FADING_NONE = 0;
+const STEALTHLOOK_NONE = 0;
 
 interface RuntimeSaveMetadataState {
   saveFileType: SaveFileType;
@@ -191,6 +200,23 @@ export interface RuntimeSaveGameClientState {
   version: number;
   prefixBytes: ArrayBuffer;
   briefingLines: string[];
+}
+
+interface RuntimeSaveDrawableSnapshotState {
+  readonly drawableId: number;
+  readonly objectId: number;
+  readonly templateName: string;
+  readonly modelConditionFlags: readonly string[];
+  readonly statusBits: number;
+  readonly explicitOpacity: number;
+  readonly stealthOpacity: number;
+  readonly effectiveStealthOpacity: number;
+  readonly ambientSoundEnabled: boolean;
+  readonly flashCount: number;
+  readonly flashColor: number;
+  readonly hidden: boolean;
+  readonly hiddenByStealth: boolean;
+  readonly shroudStatusObjectId: number;
 }
 
 export interface RuntimeSavePassthroughBlock {
@@ -398,6 +424,162 @@ function mergeBriefingLines(
     merged.push(line);
   }
   return merged;
+}
+
+function decodeTerrainVisualHeightmapBytes(mapData: MapDataJSON): Uint8Array {
+  const rawBytes = base64ToUint8Array(mapData.heightmap.data);
+  const expectedLength = mapData.heightmap.width * mapData.heightmap.height;
+  if (rawBytes.length !== expectedLength) {
+    throw new Error(
+      `TerrainVisual heightmap data length mismatch: expected ${expectedLength}, got ${rawBytes.length}`,
+    );
+  }
+  return rawBytes;
+}
+
+function buildIdentityMatrix3DBytes(): Uint8Array {
+  const values = new Float32Array([
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+  ]);
+  return new Uint8Array(values.buffer.slice(0));
+}
+
+function xferModelConditionFlags(xfer: Xfer, flags: readonly string[]): void {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported ModelConditionFlags snapshot version ${version}`);
+  }
+  const normalizedFlags = [...new Set(flags.filter((flag) => flag.length > 0))].sort();
+  const count = xfer.xferInt(normalizedFlags.length);
+  if (xfer.getMode() !== XferMode.XFER_SAVE) {
+    throw new Error('ModelConditionFlags xfer is save-only in the TS runtime.');
+  }
+  if (count !== normalizedFlags.length) {
+    throw new Error(`ModelConditionFlags count mismatch: expected ${normalizedFlags.length}, got ${count}`);
+  }
+  for (const flag of normalizedFlags) {
+    xfer.xferAsciiString(flag);
+  }
+}
+
+function shouldEnableDrawableShadows(state: GameLogicRenderableEntityState): boolean {
+  const shadowType = state.shadowType?.trim().toUpperCase() ?? '';
+  return shadowType.length > 0 && shadowType !== 'NONE' && shadowType !== 'SHADOW_NONE';
+}
+
+function clampOpacity(value: number | undefined, fallback: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  const numericValue = value ?? fallback;
+  return Math.min(1, Math.max(0, numericValue));
+}
+
+function buildSourceGameClientDrawableStates(
+  renderableEntityStates: readonly GameLogicRenderableEntityState[] | null | undefined,
+  gameLogicState: GameLogicCoreSaveState,
+  liveEntityIdsOverride?: readonly number[] | null,
+): RuntimeSaveDrawableSnapshotState[] {
+  if (!renderableEntityStates || renderableEntityStates.length === 0) {
+    return [];
+  }
+
+  const liveIds = new Set<number>(
+    liveEntityIdsOverride
+      ?? gameLogicState.spawnedEntities.map((entity) => entity.id),
+  );
+  const result: RuntimeSaveDrawableSnapshotState[] = [];
+  for (const state of renderableEntityStates) {
+    if (!liveIds.has(state.id)) {
+      continue;
+    }
+    const visualTemplateName = state.disguiseTemplateName ?? state.templateName;
+    if (!visualTemplateName) {
+      continue;
+    }
+
+    result.push({
+      drawableId: state.id,
+      objectId: state.id,
+      templateName: visualTemplateName,
+      modelConditionFlags: state.modelConditionFlags ?? [],
+      statusBits: shouldEnableDrawableShadows(state) ? DRAWABLE_STATUS_SHADOWS : 0,
+      explicitOpacity: clampOpacity(state.tunnelTransitionOpacity, 1),
+      stealthOpacity: clampOpacity(state.stealthFriendlyOpacity, 1),
+      effectiveStealthOpacity: clampOpacity(state.tunnelTransitionOpacity, 1),
+      ambientSoundEnabled: state.scriptAmbientSoundEnabled ?? true,
+      flashCount: Math.max(0, Math.trunc(state.scriptFlashCount ?? 0)),
+      flashColor: (state.scriptFlashColor ?? 0) & 0xffffff,
+      hidden: state.shroudStatus === 'SHROUDED',
+      hiddenByStealth: false,
+      shroudStatusObjectId: state.id,
+    });
+  }
+
+  result.sort((left, right) => left.drawableId - right.drawableId);
+  return result;
+}
+
+class DrawableSnapshot implements Snapshot {
+  private readonly identityMatrixBytes = buildIdentityMatrix3DBytes();
+
+  constructor(private readonly state: RuntimeSaveDrawableSnapshotState) {}
+
+  crc(_xfer: Xfer): void {
+    // Source drawable snapshot is currently save-only in the TS runtime.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(5);
+    if (version !== 5) {
+      throw new Error(`Unsupported drawable snapshot version ${version}`);
+    }
+
+    xfer.xferUnsignedInt(this.state.drawableId);
+    xferModelConditionFlags(xfer, this.state.modelConditionFlags);
+    xfer.xferUser(this.identityMatrixBytes);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferInt(TERRAIN_DECAL_NONE);
+    xfer.xferReal(this.state.explicitOpacity);
+    xfer.xferReal(this.state.stealthOpacity);
+    xfer.xferReal(this.state.effectiveStealthOpacity);
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xfer.xferObjectID(this.state.objectId);
+    xfer.xferUnsignedInt(this.state.statusBits);
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    xfer.xferInt(FADING_NONE);
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    xfer.xferBool(false);
+    xfer.xferVersion(1);
+    xfer.xferUnsignedShort(NUM_DRAWABLE_MODULE_TYPES);
+    for (let index = 0; index < NUM_DRAWABLE_MODULE_TYPES; index += 1) {
+      xfer.xferUnsignedShort(0);
+    }
+    xfer.xferInt(STEALTHLOOK_NONE);
+    xfer.xferInt(this.state.flashCount);
+    xfer.xferColor(this.state.flashColor);
+    xfer.xferBool(this.state.hidden);
+    xfer.xferBool(this.state.hiddenByStealth);
+    xfer.xferReal(0);
+    xfer.xferBool(true);
+    xfer.xferUser(this.identityMatrixBytes);
+    xfer.xferReal(1);
+    xfer.xferObjectID(this.state.shroudStatusObjectId);
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedByte(0);
+    xfer.xferBool(this.state.ambientSoundEnabled);
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
 }
 
 function parseGameClientState(data: ArrayBuffer): RuntimeSaveGameClientState | null {
@@ -1824,6 +2006,7 @@ class GameClientSnapshot implements Snapshot {
   constructor(
     private readonly frame: number,
     private readonly briefingLines: readonly string[] = [],
+    private readonly drawables: readonly RuntimeSaveDrawableSnapshotState[] = [],
     private readonly rawPrefixBytes: Uint8Array | null = null,
     private readonly version = SOURCE_GAME_CLIENT_SNAPSHOT_VERSION,
   ) {}
@@ -1855,8 +2038,30 @@ class GameClientSnapshot implements Snapshot {
     if (tocVersion !== SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported game-client TOC snapshot version ${tocVersion}`);
     }
-    xfer.xferUnsignedInt(0);
-    xfer.xferUnsignedShort(0);
+    const tocEntries = new Map<string, number>();
+    for (const drawable of this.drawables) {
+      if (!tocEntries.has(drawable.templateName)) {
+        tocEntries.set(drawable.templateName, tocEntries.size + 1);
+      }
+    }
+    xfer.xferUnsignedInt(tocEntries.size);
+    for (const [templateName, tocId] of tocEntries.entries()) {
+      xfer.xferAsciiString(templateName);
+      xfer.xferUnsignedShort(tocId);
+    }
+
+    xfer.xferUnsignedShort(this.drawables.length);
+    for (const drawable of this.drawables) {
+      const tocId = tocEntries.get(drawable.templateName);
+      if (!tocId) {
+        throw new Error(`Missing game-client TOC entry for drawable template "${drawable.templateName}".`);
+      }
+      xfer.xferUnsignedShort(tocId);
+      xfer.beginBlock();
+      xfer.xferObjectID(drawable.objectId);
+      xfer.xferSnapshot(new DrawableSnapshot(drawable));
+      xfer.endBlock();
+    }
 
     const briefingCount = xfer.xferInt(this.briefingLines.length);
     if (xfer.getMode() !== XferMode.XFER_SAVE) {
@@ -1900,6 +2105,8 @@ class ParticleSystemSnapshot implements Snapshot {
 }
 
 class TerrainVisualSnapshot implements Snapshot {
+  constructor(private readonly heightmapBytes: Uint8Array) {}
+
   crc(_xfer: Xfer): void {
     // Source terrain-visual snapshot is currently save-only in the TS runtime.
   }
@@ -1909,6 +2116,24 @@ class TerrainVisualSnapshot implements Snapshot {
     if (version !== SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported terrain-visual snapshot version ${version}`);
     }
+    const baseVersion = xfer.xferVersion(SOURCE_TERRAIN_VISUAL_BASE_SNAPSHOT_VERSION);
+    if (baseVersion !== SOURCE_TERRAIN_VISUAL_BASE_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported base terrain-visual snapshot version ${baseVersion}`);
+    }
+    const waterGridEnabled = xfer.xferBool(false);
+    if (waterGridEnabled) {
+      throw new Error('TerrainVisual water-grid save snapshots are not wired in the TS runtime yet.');
+    }
+    const byteCount = xfer.xferInt(this.heightmapBytes.length);
+    if (xfer.getMode() !== XferMode.XFER_SAVE) {
+      throw new Error('TerrainVisualSnapshot is save-only in the TS runtime.');
+    }
+    if (byteCount !== this.heightmapBytes.length) {
+      throw new Error(
+        `TerrainVisual heightmap byte-count mismatch: expected ${this.heightmapBytes.length}, got ${byteCount}`,
+      );
+    }
+    xfer.xferUser(this.heightmapBytes);
   }
 
   loadPostProcess(): void {
@@ -1928,7 +2153,12 @@ class GhostObjectSnapshot implements Snapshot {
     if (version !== SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported ghost-object snapshot version ${version}`);
     }
+    const baseVersion = xfer.xferVersion(SOURCE_GHOST_OBJECT_BASE_SNAPSHOT_VERSION);
+    if (baseVersion !== SOURCE_GHOST_OBJECT_BASE_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported base ghost-object snapshot version ${baseVersion}`);
+    }
     xfer.xferInt(this.localPlayerIndex);
+    xfer.xferUnsignedShort(0);
   }
 
   loadPostProcess(): void {
@@ -1944,6 +2174,8 @@ export function buildRuntimeSaveFile(params: {
   tacticalViewState?: RuntimeSaveTacticalViewState | null;
   gameClientBriefingLines?: readonly string[];
   gameClientState?: RuntimeSaveGameClientState | null;
+  renderableEntityStates?: readonly GameLogicRenderableEntityState[] | null;
+  gameClientLiveEntityIds?: readonly number[] | null;
   particleSystemState?: ParticleSystemManagerSaveState | null;
   gameLogic: Pick<
     GameLogicSubsystem,
@@ -1989,6 +2221,12 @@ export function buildRuntimeSaveFile(params: {
   const inGameUiPayload = params.gameLogic.captureSourceInGameUiRuntimeSaveState();
   const playerPayload = params.gameLogic.captureSourcePlayerRuntimeSaveState();
   const gameLogicPayload = params.gameLogic.captureSourceGameLogicRuntimeSaveState();
+  const gameClientDrawableStates = buildSourceGameClientDrawableStates(
+    params.renderableEntityStates,
+    gameLogicPayload,
+    params.gameClientLiveEntityIds,
+  );
+  const terrainVisualHeightmapBytes = decodeTerrainVisualHeightmapBytes(params.mapData);
   const orderedPassthroughBlocks = orderPassthroughBlocks(params.passthroughBlocks);
   const mergedGameClientBriefingLines = mergeBriefingLines(
     params.gameClientState?.briefingLines ?? [],
@@ -2064,6 +2302,7 @@ export function buildRuntimeSaveFile(params: {
       new GameClientSnapshot(
         gameLogicPayload.frameCounter,
         mergedGameClientBriefingLines,
+        gameClientDrawableStates,
         params.gameClientState?.prefixBytes
           ? new Uint8Array(params.gameClientState.prefixBytes)
           : null,
@@ -2082,7 +2321,10 @@ export function buildRuntimeSaveFile(params: {
     state.addSnapshotBlock(SOURCE_PARTICLE_SYSTEM_BLOCK, new ParticleSystemSnapshot());
   }
   if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_TERRAIN_VISUAL_BLOCK)) {
-    state.addSnapshotBlock(SOURCE_TERRAIN_VISUAL_BLOCK, new TerrainVisualSnapshot());
+    state.addSnapshotBlock(
+      SOURCE_TERRAIN_VISUAL_BLOCK,
+      new TerrainVisualSnapshot(terrainVisualHeightmapBytes),
+    );
   }
   if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GHOST_OBJECT_BLOCK)) {
     state.addSnapshotBlock(SOURCE_GHOST_OBJECT_BLOCK, new GhostObjectSnapshot(resolvedLocalPlayerIndex));

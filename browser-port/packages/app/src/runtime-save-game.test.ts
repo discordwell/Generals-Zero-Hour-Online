@@ -150,7 +150,10 @@ function readGameClientChunk(data: ArrayBuffer): {
   frame: number;
   tocVersion: number;
   tocCount: number;
+  tocEntries: string[];
   drawableCount: number;
+  drawableObjectIds: number[];
+  drawableIds: number[];
   briefingLines: string[];
 } | null {
   const chunkData = readSaveChunkData(data, 'CHUNK_GameClient');
@@ -164,15 +167,23 @@ function readGameClientChunk(data: ArrayBuffer): {
     const frame = xferLoad.xferUnsignedInt(0);
     const tocVersion = xferLoad.xferVersion(1);
     const tocCount = xferLoad.xferUnsignedInt(0);
+    const tocEntries: string[] = [];
     for (let index = 0; index < tocCount; index += 1) {
-      xferLoad.xferAsciiString('');
+      tocEntries.push(xferLoad.xferAsciiString(''));
       xferLoad.xferUnsignedShort(0);
     }
     const drawableCount = xferLoad.xferUnsignedShort(0);
+    const drawableObjectIds: number[] = [];
+    const drawableIds: number[] = [];
     for (let index = 0; index < drawableCount; index += 1) {
       xferLoad.xferUnsignedShort(0);
       const blockSize = xferLoad.beginBlock();
-      xferLoad.skip(blockSize);
+      const blockStart = xferLoad.getOffset();
+      drawableObjectIds.push(xferLoad.xferObjectID(0));
+      xferLoad.xferVersion(5);
+      drawableIds.push(xferLoad.xferUnsignedInt(0));
+      const bytesConsumed = xferLoad.getOffset() - blockStart;
+      xferLoad.skip(blockSize - bytesConsumed);
       xferLoad.endBlock();
     }
     const briefingCount = xferLoad.xferInt(0);
@@ -185,8 +196,69 @@ function readGameClientChunk(data: ArrayBuffer): {
       frame,
       tocVersion,
       tocCount,
+      tocEntries,
       drawableCount,
+      drawableObjectIds,
+      drawableIds,
       briefingLines,
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function readTerrainVisualChunk(data: ArrayBuffer): {
+  version: number;
+  baseVersion: number;
+  waterGridEnabled: boolean;
+  heightmapBytes: Uint8Array;
+} | null {
+  const chunkData = readSaveChunkData(data, 'CHUNK_TerrainVisual');
+  if (!chunkData) {
+    return null;
+  }
+  const xferLoad = new XferLoad(chunkData.buffer);
+  xferLoad.open('read-terrain-visual-chunk');
+  try {
+    const version = xferLoad.xferVersion(2);
+    const baseVersion = xferLoad.xferVersion(1);
+    const waterGridEnabled = xferLoad.xferBool(false);
+    const byteCount = xferLoad.xferInt(0);
+    const heightmapBytes = chunkData.slice(xferLoad.getOffset(), xferLoad.getOffset() + byteCount);
+    xferLoad.skip(byteCount);
+    return {
+      version,
+      baseVersion,
+      waterGridEnabled,
+      heightmapBytes,
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function readGhostObjectChunk(data: ArrayBuffer): {
+  version: number;
+  baseVersion: number;
+  localPlayerIndex: number;
+  count: number;
+} | null {
+  const chunkData = readSaveChunkData(data, 'CHUNK_GhostObject');
+  if (!chunkData) {
+    return null;
+  }
+  const xferLoad = new XferLoad(chunkData.buffer);
+  xferLoad.open('read-ghost-object-chunk');
+  try {
+    const version = xferLoad.xferVersion(1);
+    const baseVersion = xferLoad.xferVersion(1);
+    const localPlayerIndex = xferLoad.xferInt(0);
+    const count = xferLoad.xferUnsignedShort(0);
+    return {
+      version,
+      baseVersion,
+      localPlayerIndex,
+      count,
     };
   } finally {
     xferLoad.close();
@@ -552,6 +624,8 @@ describe('runtime-save-game', () => {
       spawnedEntities: Map<number, { id: number; templateName: string; kindOf: Set<string> }>;
     };
     const gameClientChunk = readGameClientChunk(saveFile.data);
+    const terrainVisualChunk = readTerrainVisualChunk(saveFile.data);
+    const ghostObjectChunk = readGhostObjectChunk(saveFile.data);
 
     expect(parsed.metadata.description).toBe('Runtime Save Smoke Test');
     expect(gameClientChunk).toEqual({
@@ -559,13 +633,28 @@ describe('runtime-save-game', () => {
       frame: 21,
       tocVersion: 1,
       tocCount: 0,
+      tocEntries: [],
       drawableCount: 0,
+      drawableObjectIds: [],
+      drawableIds: [],
       briefingLines: ['MISSION_BRIEFING_ALPHA', 'MISSION_BRIEFING_BETA'],
     });
     expect(parsed.gameClientState).toEqual({
       version: 3,
       prefixBytes: expect.any(ArrayBuffer),
       briefingLines: ['MISSION_BRIEFING_ALPHA', 'MISSION_BRIEFING_BETA'],
+    });
+    expect(terrainVisualChunk).toEqual({
+      version: 2,
+      baseVersion: 1,
+      waterGridEnabled: false,
+      heightmapBytes: new Uint8Array(16),
+    });
+    expect(ghostObjectChunk).toEqual({
+      version: 1,
+      baseVersion: 1,
+      localPlayerIndex: 0,
+      count: 0,
     });
     expect(parsed.mapPath).toBe('assets/maps/ScenarioSkirmish.json');
     expect(parsed.mapData).toEqual(mapData);
@@ -796,6 +885,142 @@ describe('runtime-save-game', () => {
     expect(logicState.spawnedEntities.get(7)?.templateName).toBe('RuntimeTank');
     expect(logicState.spawnedEntities.get(7)?.kindOf.has('VEHICLE')).toBe(true);
     expect(parsed.campaign).toBeNull();
+  });
+
+  it('writes live attached-object drawables into fresh CHUNK_GameClient saves', () => {
+    const mapData = {
+      heightmap: {
+        width: 2,
+        height: 2,
+        borderSize: 0,
+        data: 'AAAAAA==',
+      },
+      objects: [],
+      triggers: [],
+      waypoints: { nodes: [], links: [] },
+      textureClasses: [],
+      blendTileCount: 0,
+    };
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'GameClient Drawable Save',
+      mapPath: 'assets/maps/TestMap.json',
+      mapData,
+      cameraState: null,
+      gameClientLiveEntityIds: [7],
+      renderableEntityStates: [
+        {
+          id: 7,
+          templateName: 'AmericaTankCrusader',
+          resolved: true,
+          renderAssetCandidates: ['AmericaTankCrusader'],
+          renderAssetPath: 'AmericaTankCrusader.glb',
+          renderAssetResolved: true,
+          category: 'vehicle',
+          x: 10,
+          y: 0,
+          z: 20,
+          rotationY: 0,
+          animationState: 'MOVE',
+          health: 100,
+          maxHealth: 100,
+          isSelected: false,
+          veterancyLevel: 0,
+          isStealthed: false,
+          isDetected: false,
+          stealthFriendlyOpacity: 1,
+          disguiseTemplateName: null,
+          shroudStatus: 'CLEAR',
+          constructionPercent: -1,
+          capturePercent: -1,
+          toppleAngle: 0,
+          toppleDirX: 0,
+          toppleDirZ: 0,
+          turretAngles: [],
+          modelConditionFlags: ['MOVING', 'WEAPONSET_VETERAN'],
+          scriptFlashCount: 2,
+          scriptFlashColor: 0x123456,
+          shadowType: 'SHADOW_VOLUME',
+        },
+        {
+          id: 99,
+          templateName: 'PendingDeathVisualOnly',
+          resolved: true,
+          renderAssetCandidates: ['PendingDeathVisualOnly'],
+          renderAssetPath: 'PendingDeathVisualOnly.glb',
+          renderAssetResolved: true,
+          category: 'ground',
+          x: 0,
+          y: 0,
+          z: 0,
+          rotationY: 0,
+          animationState: 'DIE',
+          health: 0,
+          maxHealth: 100,
+          isSelected: false,
+          veterancyLevel: 0,
+          isStealthed: false,
+          isDetected: false,
+          stealthFriendlyOpacity: 1,
+          disguiseTemplateName: null,
+          shroudStatus: 'CLEAR',
+          constructionPercent: -1,
+          capturePercent: -1,
+          toppleAngle: 0,
+          toppleDirX: 0,
+          toppleDirZ: 0,
+          turretAngles: [],
+        },
+      ],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: { localPlayerIndex: 0 },
+        }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 7,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    expect(readGameClientChunk(saveFile.data)).toEqual({
+      version: 3,
+      frame: 42,
+      tocVersion: 1,
+      tocCount: 1,
+      tocEntries: ['AmericaTankCrusader'],
+      drawableCount: 1,
+      drawableObjectIds: [7],
+      drawableIds: [7],
+      briefingLines: [],
+    });
   });
 
   it('omits CHUNK_TS_RuntimeState when the browser runtime payload is empty', () => {
