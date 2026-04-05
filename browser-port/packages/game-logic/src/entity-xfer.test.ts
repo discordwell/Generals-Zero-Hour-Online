@@ -187,6 +187,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     chinookFlightStatusEnteredFrame: 0,
     chinookHealingAirfieldId: 0,
     chinookPendingCommand: null,
+    pendingEnterState: null,
     chinookCombatDropState: null,
     chinookRappelState: null,
     repairDockProfile: null,
@@ -893,6 +894,33 @@ describe('entity-xfer', () => {
     expect(loaded.dozerBuildTaskOrderFrame).toBe(120);
     expect(loaded.dozerRepairTargetEntityId).toBe(12);
     expect(loaded.dozerRepairTaskOrderFrame).toBe(150);
+  });
+
+  it('round-trips source-owned pending enter state', () => {
+    const original = createTestEntity({
+      pendingEnterState: {
+        targetObjectId: 33,
+        action: 'enterTransport',
+        commandSource: 'AI',
+      },
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity();
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.pendingEnterState).toEqual({
+      targetObjectId: 33,
+      action: 'enterTransport',
+      commandSource: 'AI',
+    });
   });
 
   it('round-trips Chinook combat-drop and rappel runtime state', () => {

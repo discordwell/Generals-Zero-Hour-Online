@@ -3154,6 +3154,18 @@ interface PendingEnterObjectActionState {
   commandSource: 'PLAYER' | 'AI' | 'SCRIPT';
 }
 
+type EntityPendingEnterAction =
+  | EnterObjectCommand['action']
+  | 'garrisonBuilding'
+  | 'enterTransport'
+  | 'enterTunnel';
+
+interface EntityPendingEnterState {
+  targetObjectId: number;
+  action: EntityPendingEnterAction;
+  commandSource: 'PLAYER' | 'AI' | 'SCRIPT';
+}
+
 interface PendingRepairDockActionState {
   dockObjectId: number;
   /** Source parity: ActionManager::canGetRepairedAt command source for shroud legality. */
@@ -3562,6 +3574,8 @@ export interface MapEntity {
   chinookHealingAirfieldId: number;
   /** Source parity: ChinookAIUpdate::m_pendingCommand. */
   chinookPendingCommand: GameLogicCommand | null;
+  /** Source parity: AIEnterState::m_entryToClear / enter target owned by the unit AI state. */
+  pendingEnterState: EntityPendingEnterState | null;
   /** Source parity: ChinookCombatDropState runtime owned by the Chinook AI update. */
   chinookCombatDropState: PendingCombatDropActionState | null;
   /** Source parity: active rappeller runtime owned by the passenger AI/state machine. */
@@ -8218,6 +8232,10 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'overchargeStateByEntityId',
   'assaultTransportStateByEntityId',
   'railedTransportStateByEntityId',
+  'pendingEnterObjectActions',
+  'pendingGarrisonActions',
+  'pendingTransportActions',
+  'pendingTunnelActions',
   'pendingRepairActions',
   'pendingConstructionActions',
   'pendingCombatDropActions',
@@ -10071,6 +10089,76 @@ export class GameLogicSubsystem implements Subsystem {
       }
       return true;
     }
+    if (key === 'pendingEnterObjectActions') {
+      if (this.pendingEnterObjectActions.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, pendingAction] of value.entries()) {
+        if (typeof entityId !== 'number' || !pendingAction || typeof pendingAction !== 'object') {
+          continue;
+        }
+        const record = pendingAction as Partial<PendingEnterObjectActionState>;
+        if (typeof record.action !== 'string'
+          || !Number.isFinite(record.targetObjectId)
+          || (record.commandSource !== 'PLAYER' && record.commandSource !== 'AI' && record.commandSource !== 'SCRIPT')) {
+          continue;
+        }
+        this.setEntityPendingEnterState(entityId, {
+          targetObjectId: Math.trunc(record.targetObjectId as number),
+          action: record.action as EnterObjectCommand['action'],
+          commandSource: record.commandSource,
+        });
+      }
+      return true;
+    }
+    if (key === 'pendingGarrisonActions') {
+      if (this.pendingGarrisonActions.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, targetObjectId] of value.entries()) {
+        if (typeof entityId !== 'number' || typeof targetObjectId !== 'number') {
+          continue;
+        }
+        this.setEntityPendingEnterState(entityId, {
+          targetObjectId: Math.trunc(targetObjectId),
+          action: 'garrisonBuilding',
+          commandSource: 'SCRIPT',
+        });
+      }
+      return true;
+    }
+    if (key === 'pendingTransportActions') {
+      if (this.pendingTransportActions.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, targetObjectId] of value.entries()) {
+        if (typeof entityId !== 'number' || typeof targetObjectId !== 'number') {
+          continue;
+        }
+        this.setEntityPendingEnterState(entityId, {
+          targetObjectId: Math.trunc(targetObjectId),
+          action: 'enterTransport',
+          commandSource: 'PLAYER',
+        });
+      }
+      return true;
+    }
+    if (key === 'pendingTunnelActions') {
+      if (this.pendingTunnelActions.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, targetObjectId] of value.entries()) {
+        if (typeof entityId !== 'number' || typeof targetObjectId !== 'number') {
+          continue;
+        }
+        this.setEntityPendingEnterState(entityId, {
+          targetObjectId: Math.trunc(targetObjectId),
+          action: 'enterTunnel',
+          commandSource: 'PLAYER',
+        });
+      }
+      return true;
+    }
     if (key === 'pendingRepairActions') {
       if (this.pendingRepairActions.size !== 0 || !(value instanceof Map)) {
         return false;
@@ -11171,6 +11259,10 @@ export class GameLogicSubsystem implements Subsystem {
     this.pendingChinookRappels.clear();
     this.pendingConstructionActions.clear();
     this.pendingRepairActions.clear();
+    this.pendingEnterObjectActions.clear();
+    this.pendingGarrisonActions.clear();
+    this.pendingTransportActions.clear();
+    this.pendingTunnelActions.clear();
     for (const entity of this.spawnedEntities.values()) {
       if (entity.assaultTransportState) {
         this.assaultTransportStateByEntityId.set(entity.id, entity.assaultTransportState);
@@ -11181,6 +11273,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
     this.rebuildDozerTaskIndexesFromEntities();
     this.rebuildChinookCombatDropIndexesFromEntities();
+    this.rebuildPendingEnterIndexesFromEntities();
     this.caveTrackers.clear();
     for (const caveTracker of snapshot.caveTrackers ?? []) {
       if (!caveTracker || typeof caveTracker.caveIndex !== 'number') {
@@ -11383,6 +11476,52 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  /* @internal */ setEntityPendingEnterState(
+    entityId: number,
+    state: EntityPendingEnterState | null,
+  ): void {
+    const entity = this.spawnedEntities.get(entityId);
+    const normalizedState = state === null
+      ? null
+      : {
+          targetObjectId: Math.max(1, Math.trunc(state.targetObjectId)),
+          action: state.action,
+          commandSource: state.commandSource,
+        };
+
+    if (entity) {
+      entity.pendingEnterState = normalizedState;
+    }
+
+    this.pendingEnterObjectActions.delete(entityId);
+    this.pendingGarrisonActions.delete(entityId);
+    this.pendingTransportActions.delete(entityId);
+    this.pendingTunnelActions.delete(entityId);
+
+    if (!normalizedState) {
+      return;
+    }
+
+    if (normalizedState.action === 'garrisonBuilding') {
+      this.pendingGarrisonActions.set(entityId, normalizedState.targetObjectId);
+      return;
+    }
+    if (normalizedState.action === 'enterTransport') {
+      this.pendingTransportActions.set(entityId, normalizedState.targetObjectId);
+      return;
+    }
+    if (normalizedState.action === 'enterTunnel') {
+      this.pendingTunnelActions.set(entityId, normalizedState.targetObjectId);
+      return;
+    }
+
+    this.pendingEnterObjectActions.set(entityId, {
+      targetObjectId: normalizedState.targetObjectId,
+      action: normalizedState.action,
+      commandSource: normalizedState.commandSource,
+    });
+  }
+
   /* @internal */ setChinookCombatDropState(
     entityId: number,
     state: PendingCombatDropActionState | null,
@@ -11464,6 +11603,18 @@ export class GameLogicSubsystem implements Subsystem {
       }
       if (entity.chinookRappelState) {
         this.pendingChinookRappels.set(entity.id, entity.chinookRappelState);
+      }
+    }
+  }
+
+  private rebuildPendingEnterIndexesFromEntities(): void {
+    this.pendingEnterObjectActions.clear();
+    this.pendingGarrisonActions.clear();
+    this.pendingTransportActions.clear();
+    this.pendingTunnelActions.clear();
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.pendingEnterState) {
+        this.setEntityPendingEnterState(entity.id, entity.pendingEnterState);
       }
     }
   }
@@ -25212,7 +25363,7 @@ export class GameLogicSubsystem implements Subsystem {
       const source = this.spawnedEntities.get(sourceId);
       const target = this.spawnedEntities.get(pending.targetObjectId);
       if (!source || !target || source.destroyed || target.destroyed) {
-        this.pendingEnterObjectActions.delete(sourceId);
+        this.setEntityPendingEnterState(sourceId, null);
         continue;
       }
 
@@ -25226,7 +25377,7 @@ export class GameLogicSubsystem implements Subsystem {
       }
 
       this.resolvePendingEnterObjectAction(source, target, pending.action, pending.commandSource);
-      this.pendingEnterObjectActions.delete(sourceId);
+      this.setEntityPendingEnterState(sourceId, null);
     }
   }
 
@@ -27327,15 +27478,15 @@ export class GameLogicSubsystem implements Subsystem {
       const passenger = this.spawnedEntities.get(passengerId);
       const tunnel = this.spawnedEntities.get(tunnelId);
       if (!passenger || !tunnel || passenger.destroyed || tunnel.destroyed) {
-        this.pendingTunnelActions.delete(passengerId);
+        this.setEntityPendingEnterState(passengerId, null);
         continue;
       }
       if (!this.canSourceAttemptContainerEnter(passenger) || !this.canTargetAcceptContainerEnter(tunnel)) {
-        this.pendingTunnelActions.delete(passengerId);
+        this.setEntityPendingEnterState(passengerId, null);
         continue;
       }
       if (this.isEntityContained(passenger)) {
-        this.pendingTunnelActions.delete(passengerId);
+        this.setEntityPendingEnterState(passengerId, null);
         continue;
       }
 
@@ -27346,7 +27497,7 @@ export class GameLogicSubsystem implements Subsystem {
       // Check capacity again.
       const tracker = this.resolveTunnelTrackerForContainer(tunnel);
       if (!tracker || tracker.passengerIds.size >= this.config.maxTunnelCapacity) {
-        this.pendingTunnelActions.delete(passengerId);
+        this.setEntityPendingEnterState(passengerId, null);
         continue;
       }
 
@@ -37493,6 +37644,7 @@ export class GameLogicSubsystem implements Subsystem {
       entity.hackInternetRuntimeState = null;
       entity.hackInternetPendingCommand = null;
       entity.chinookPendingCommand = null;
+      entity.pendingEnterState = null;
       entity.chinookCombatDropState = null;
       entity.chinookRappelState = null;
       entity.assaultTransportState = null;

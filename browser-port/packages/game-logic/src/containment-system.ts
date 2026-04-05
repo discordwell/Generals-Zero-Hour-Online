@@ -624,7 +624,7 @@ export function enterGarrisonBuilding(self: GL, source: MapEntity, building: Map
   source.objectStatusFlags.add('UNSELECTABLE');
   source.objectStatusFlags.add('DISABLED_HELD');
   self.removeEntityFromSelection(source.id);
-  self.pendingGarrisonActions.delete(source.id);
+  self.setEntityPendingEnterState(source.id, null);
 }
 
 export function enterTransport(self: GL, passenger: MapEntity, transport: MapEntity): void {
@@ -653,7 +653,7 @@ export function enterTransport(self: GL, passenger: MapEntity, transport: MapEnt
     passenger.objectStatusFlags.add('MASKED');
   }
   self.removeEntityFromSelection(passenger.id);
-  self.pendingTransportActions.delete(passenger.id);
+  self.setEntityPendingEnterState(passenger.id, null);
 }
 
 export function isEnclosingContainer(self: GL, container: MapEntity): boolean {
@@ -894,7 +894,7 @@ export function enterTunnel(self: GL, passenger: MapEntity, tunnel: MapEntity): 
 
   tracker.passengerIds.add(passenger.id);
   self.removeEntityFromSelection(passenger.id);
-  self.pendingTunnelActions.delete(passenger.id);
+  self.setEntityPendingEnterState(passenger.id, null);
 }
 
 export function exitTunnel(self: GL, passenger: MapEntity, exitTunnel: MapEntity): void {

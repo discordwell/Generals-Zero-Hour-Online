@@ -811,29 +811,14 @@ export function silentDestroyEntity(self: GL, entityId: number): void {
   entity.hackInternetPendingCommand = null;
 
   // Clean up pending actions referencing this entity.
-  for (const [sourceId, pendingAction] of self.pendingEnterObjectActions.entries()) {
-    if (pendingAction.targetObjectId === entityId) {
-      self.pendingEnterObjectActions.delete(sourceId);
+  for (const [sourceId, source] of self.spawnedEntities.entries()) {
+    if (source.pendingEnterState?.targetObjectId === entityId) {
+      self.setEntityPendingEnterState(sourceId, null);
     }
   }
   for (const [dockerId, pendingAction] of self.pendingRepairDockActions.entries()) {
     if (pendingAction.dockObjectId === entityId || dockerId === entityId) {
       self.pendingRepairDockActions.delete(dockerId);
-    }
-  }
-  for (const [sourceId, targetBuildingId] of self.pendingGarrisonActions.entries()) {
-    if (targetBuildingId === entityId) {
-      self.pendingGarrisonActions.delete(sourceId);
-    }
-  }
-  for (const [sourceId, targetTransportId] of self.pendingTransportActions.entries()) {
-    if (targetTransportId === entityId) {
-      self.pendingTransportActions.delete(sourceId);
-    }
-  }
-  for (const [sourceId, targetTunnelId] of self.pendingTunnelActions.entries()) {
-    if (targetTunnelId === entityId) {
-      self.pendingTunnelActions.delete(sourceId);
     }
   }
   for (const [sourceId, pendingAction] of self.pendingCombatDropActions.entries()) {
@@ -1374,29 +1359,14 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   if (entity.battlePlanState?.activePlan !== 'NONE' && entity.battlePlanState?.transitionStatus === 'ACTIVE') {
     self.applyBattlePlanBonuses(entity, entity.battlePlanState.activePlan, false);
   }
-  for (const [sourceId, pendingAction] of self.pendingEnterObjectActions.entries()) {
-    if (pendingAction.targetObjectId === entityId) {
-      self.pendingEnterObjectActions.delete(sourceId);
+  for (const [sourceId, source] of self.spawnedEntities.entries()) {
+    if (source.pendingEnterState?.targetObjectId === entityId) {
+      self.setEntityPendingEnterState(sourceId, null);
     }
   }
   for (const [dockerId, pendingAction] of self.pendingRepairDockActions.entries()) {
     if (pendingAction.dockObjectId === entityId || dockerId === entityId) {
       self.pendingRepairDockActions.delete(dockerId);
-    }
-  }
-  for (const [sourceId, targetBuildingId] of self.pendingGarrisonActions.entries()) {
-    if (targetBuildingId === entityId) {
-      self.pendingGarrisonActions.delete(sourceId);
-    }
-  }
-  for (const [sourceId, targetTransportId] of self.pendingTransportActions.entries()) {
-    if (targetTransportId === entityId) {
-      self.pendingTransportActions.delete(sourceId);
-    }
-  }
-  for (const [sourceId, targetTunnelId] of self.pendingTunnelActions.entries()) {
-    if (targetTunnelId === entityId) {
-      self.pendingTunnelActions.delete(sourceId);
     }
   }
   for (const [sourceId, pendingAction] of self.pendingCombatDropActions.entries()) {

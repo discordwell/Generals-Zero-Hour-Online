@@ -1013,14 +1013,12 @@ export function cancelEntityCommandPathActions(self: GL,
   }
   self.cancelScriptWaypointPathCompletionTracking(entityId);
   self.cancelRailedTransportTransit(entityId);
-  self.pendingEnterObjectActions.delete(entityId);
+  self.setEntityPendingEnterState(entityId, null);
   self.pendingRepairDockActions.delete(entityId);
   self.setChinookCombatDropState(entityId, null);
   self.scriptAttackAreaStateByEntityId.delete(entityId);
   self.scriptHuntStateByEntityId.delete(entityId);
   self.clearChinookCombatDropIgnoredObstacle(entityId);
-  self.pendingGarrisonActions.delete(entityId);
-  self.pendingTransportActions.delete(entityId);
   if (cancelDozerTaskMode === 'all') {
     self.setDozerTaskTarget(entityId, 'REPAIR', null);
     const dozer = self.spawnedEntities.get(entityId);
@@ -1469,7 +1467,7 @@ export function handleEnterObjectCommand(self: GL, command: EnterObjectCommand):
   cancelEntityCommandPathActions(self, source.id);
   self.clearAttackTarget(source.id);
   self.issueMoveTo(source.id, target.x, target.z);
-  self.pendingEnterObjectActions.set(source.id, {
+  self.setEntityPendingEnterState(source.id, {
     targetObjectId: target.id,
     action: command.action,
     commandSource,
@@ -2321,7 +2319,11 @@ export function handleGarrisonBuildingCommand(self: GL, command: GarrisonBuildin
   if (distance > interactionDistance) {
     self.issueMoveTo(infantry.id, building.x, building.z);
     // Re-issue garrison when close enough via pending action.
-    self.pendingGarrisonActions.set(infantry.id, building.id);
+    self.setEntityPendingEnterState(infantry.id, {
+      targetObjectId: building.id,
+      action: 'garrisonBuilding',
+      commandSource: 'SCRIPT',
+    });
     return;
   }
 
@@ -2333,11 +2335,11 @@ export function updatePendingGarrisonActions(self: GL): void {
     const infantry = self.spawnedEntities.get(infantryId);
     const building = self.spawnedEntities.get(buildingId);
     if (!infantry || !building || infantry.destroyed || building.destroyed) {
-      self.pendingGarrisonActions.delete(infantryId);
+      self.setEntityPendingEnterState(infantryId, null);
       continue;
     }
     if (!self.canExecuteGarrisonBuildingEnterAction(infantry, building, 'SCRIPT')) {
-      self.pendingGarrisonActions.delete(infantryId);
+      self.setEntityPendingEnterState(infantryId, null);
       continue;
     }
 
@@ -2386,7 +2388,11 @@ export function handleEnterTransportCommand(self: GL, command: EnterTransportCom
     const distance = Math.hypot(transport.x - passenger.x, transport.z - passenger.z);
     if (distance > interactionDistance) {
       self.issueMoveTo(passenger.id, transport.x, transport.z);
-      self.pendingTunnelActions.set(passenger.id, transport.id);
+      self.setEntityPendingEnterState(passenger.id, {
+        targetObjectId: transport.id,
+        action: 'enterTunnel',
+        commandSource,
+      });
       return;
     }
     self.enterTunnel(passenger, transport);
@@ -2430,13 +2436,21 @@ export function handleEnterTransportCommand(self: GL, command: EnterTransportCom
     if (distance > interactionDistance) {
       self.issueMoveTo(passenger.id, transport.x, transport.z);
     }
-    self.pendingTransportActions.set(passenger.id, transport.id);
+    self.setEntityPendingEnterState(passenger.id, {
+      targetObjectId: transport.id,
+      action: 'enterTransport',
+      commandSource,
+    });
     self.setChinookFlightStatus(transport, 'LANDING');
     return;
   }
   if (distance > interactionDistance) {
     self.issueMoveTo(passenger.id, transport.x, transport.z);
-    self.pendingTransportActions.set(passenger.id, transport.id);
+    self.setEntityPendingEnterState(passenger.id, {
+      targetObjectId: transport.id,
+      action: 'enterTransport',
+      commandSource,
+    });
     return;
   }
 
@@ -2448,23 +2462,23 @@ export function updatePendingTransportActions(self: GL): void {
     const passenger = self.spawnedEntities.get(passengerId);
     const transport = self.spawnedEntities.get(transportId);
     if (!passenger || !transport || passenger.destroyed || transport.destroyed) {
-      self.pendingTransportActions.delete(passengerId);
+      self.setEntityPendingEnterState(passengerId, null);
       continue;
     }
     if (passenger.id === transport.id) {
-      self.pendingTransportActions.delete(passengerId);
+      self.setEntityPendingEnterState(passengerId, null);
       continue;
     }
     if (isEntityEffectivelyDeadForEnter(self, passenger) || isEntityEffectivelyDeadForEnter(self, transport)) {
-      self.pendingTransportActions.delete(passengerId);
+      self.setEntityPendingEnterState(passengerId, null);
       continue;
     }
     if (!self.canSourceAttemptContainerEnter(passenger) || !self.canTargetAcceptContainerEnter(transport)) {
-      self.pendingTransportActions.delete(passengerId);
+      self.setEntityPendingEnterState(passengerId, null);
       continue;
     }
     if (self.blocksNonOwnerContainerEnter(passenger, transport)) {
-      self.pendingTransportActions.delete(passengerId);
+      self.setEntityPendingEnterState(passengerId, null);
       continue;
     }
     const ignoreCapacityCheck = self.shouldIgnoreCapacityForNonOwnerContainerEnter(passenger, transport);
@@ -2475,7 +2489,7 @@ export function updatePendingTransportActions(self: GL): void {
     }
 
     if (self.isEntityContained(passenger)) {
-      self.pendingTransportActions.delete(passengerId);
+      self.setEntityPendingEnterState(passengerId, null);
       continue;
     }
 
@@ -2486,7 +2500,7 @@ export function updatePendingTransportActions(self: GL): void {
     // Close enough — check capacity again and enter.
     const containProfile = transport.containProfile;
     if (!containProfile) {
-      self.pendingTransportActions.delete(passengerId);
+      self.setEntityPendingEnterState(passengerId, null);
       continue;
     }
 
@@ -2497,15 +2511,15 @@ export function updatePendingTransportActions(self: GL): void {
     ) {
       const validationPassenger = self.resolveScriptTransportValidationEntity(passenger);
       if (self.normalizeSide(validationPassenger.side) !== self.normalizeSide(transport.side)) {
-        self.pendingTransportActions.delete(passengerId);
+        self.setEntityPendingEnterState(passengerId, null);
         continue;
       }
       if (!self.isScriptContainRelationshipAllowed(transport, validationPassenger)) {
-        self.pendingTransportActions.delete(passengerId);
+        self.setEntityPendingEnterState(passengerId, null);
         continue;
       }
       if (!self.isScriptContainKindAllowed(transport, validationPassenger)) {
-        self.pendingTransportActions.delete(passengerId);
+        self.setEntityPendingEnterState(passengerId, null);
         continue;
       }
     } else if (
@@ -2513,22 +2527,22 @@ export function updatePendingTransportActions(self: GL): void {
       && containProfile.moduleType !== 'HEAL'
       && containProfile.moduleType !== 'INTERNET_HACK'
     ) {
-      self.pendingTransportActions.delete(passengerId);
+      self.setEntityPendingEnterState(passengerId, null);
       continue;
     } else if (!self.isScriptContainRelationshipAllowed(transport, passenger)) {
-      self.pendingTransportActions.delete(passengerId);
+      self.setEntityPendingEnterState(passengerId, null);
       continue;
     } else if (!self.isScriptContainKindAllowed(transport, passenger)) {
-      self.pendingTransportActions.delete(passengerId);
+      self.setEntityPendingEnterState(passengerId, null);
       continue;
     }
 
     if (!ignoreCapacityCheck && !self.canScriptContainerFitEntity(transport, passenger)) {
-      self.pendingTransportActions.delete(passengerId);
+      self.setEntityPendingEnterState(passengerId, null);
       continue;
     }
     if (containProfile.moduleType === 'HEAL' && passenger.health >= passenger.maxHealth) {
-      self.pendingTransportActions.delete(passengerId);
+      self.setEntityPendingEnterState(passengerId, null);
       continue;
     }
 

@@ -893,7 +893,7 @@ export function updateGuardIdle(self: GL, entity: MapEntity, anchor: { x: number
         entity.guardChaseExpireFrame = self.frameCounter + self.getGuardChaseUnitFrames();
         self.clearAttackTarget(entity.id);
         self.issueMoveTo(entity.id, target.x, target.z);
-        self.pendingEnterObjectActions.set(entity.id, {
+        self.setEntityPendingEnterState(entity.id, {
           targetObjectId: target.id,
           action,
           commandSource: 'AI',
@@ -1058,7 +1058,7 @@ export function updateGuardReturning(self: GL, entity: MapEntity, anchor: { x: n
         entity.guardChaseExpireFrame = self.frameCounter + self.getGuardChaseUnitFrames();
         self.clearAttackTarget(entity.id);
         self.issueMoveTo(entity.id, target.x, target.z);
-        self.pendingEnterObjectActions.set(entity.id, {
+        self.setEntityPendingEnterState(entity.id, {
           targetObjectId: target.id,
           action,
           commandSource: 'AI',
