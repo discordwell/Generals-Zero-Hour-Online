@@ -3,6 +3,7 @@ import {
   SaveCode,
   SaveFileType,
   XferMode,
+  listSaveGameChunks,
   parseSaveGameInfo,
   parseSaveGameMapInfo,
   type ParsedSaveGameInfo,
@@ -49,6 +50,29 @@ const SOURCE_TACTICAL_VIEW_BLOCK = 'CHUNK_TacticalView';
 const SOURCE_IN_GAME_UI_BLOCK = 'CHUNK_InGameUI';
 const SOURCE_GAME_LOGIC_BLOCK = 'CHUNK_GameLogic';
 export const BROWSER_RUNTIME_STATE_BLOCK = 'CHUNK_TS_RuntimeState';
+const PASSTHROUGH_BLOCK_ORDER = [
+  'CHUNK_GameClient',
+  SOURCE_IN_GAME_UI_BLOCK,
+  'CHUNK_Partition',
+  'CHUNK_ParticleSystem',
+  'CHUNK_TerrainVisual',
+  'CHUNK_GhostObject',
+] as const;
+const KNOWN_RUNTIME_SAVE_BLOCKS = new Set<string>([
+  'CHUNK_GameState',
+  SOURCE_CAMPAIGN_BLOCK,
+  'CHUNK_GameStateMap',
+  SOURCE_TERRAIN_LOGIC_BLOCK,
+  SOURCE_TEAM_FACTORY_BLOCK,
+  SOURCE_PLAYERS_BLOCK,
+  SOURCE_GAME_LOGIC_BLOCK,
+  SOURCE_RADAR_BLOCK,
+  SOURCE_SCRIPT_ENGINE_BLOCK,
+  SOURCE_SIDES_LIST_BLOCK,
+  SOURCE_TACTICAL_VIEW_BLOCK,
+  SOURCE_IN_GAME_UI_BLOCK,
+  BROWSER_RUNTIME_STATE_BLOCK,
+].map((name) => name.toLowerCase()));
 
 const GAME_STATE_VERSION = 2;
 const CAMPAIGN_VERSION = 5;
@@ -139,6 +163,11 @@ export interface RuntimeSaveCampaignBootstrap {
   playerTemplateNum: number;
 }
 
+export interface RuntimeSavePassthroughBlock {
+  blockName: string;
+  blockData: ArrayBuffer;
+}
+
 export interface RuntimeSaveBootstrap {
   metadata: ParsedSaveGameInfo;
   mapData: MapDataJSON | null;
@@ -155,6 +184,7 @@ export interface RuntimeSaveBootstrap {
   gameLogicCoreState: GameLogicCoreSaveState | null;
   gameLogicState: unknown | null;
   campaign: RuntimeSaveCampaignBootstrap | null;
+  passthroughBlocks: RuntimeSavePassthroughBlock[];
 }
 
 function getLeafName(path: string | null): string {
@@ -239,6 +269,43 @@ function decodeSourceDifficulty(rawDifficulty: number): GameDifficulty {
     default:
       throw new Error(`Unsupported campaign difficulty value ${rawDifficulty}`);
   }
+}
+
+function copyBytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
+function extractPassthroughBlocks(data: ArrayBuffer): RuntimeSavePassthroughBlock[] {
+  const source = new Uint8Array(data);
+  return listSaveGameChunks(data)
+    .filter((chunk) => !KNOWN_RUNTIME_SAVE_BLOCKS.has(chunk.blockName.toLowerCase()))
+    .map((chunk) => ({
+      blockName: chunk.blockName,
+      blockData: copyBytesToArrayBuffer(
+        source.slice(chunk.blockDataOffset, chunk.blockDataOffset + chunk.blockSize),
+      ),
+    }));
+}
+
+function orderPassthroughBlocks(
+  passthroughBlocks: readonly RuntimeSavePassthroughBlock[] | undefined,
+): RuntimeSavePassthroughBlock[] {
+  const blocks = (passthroughBlocks ?? []).map((block, index) => ({ block, index }));
+  const orderedNames = new Map<string, number>(
+    PASSTHROUGH_BLOCK_ORDER.map((name, index) => [name.toLowerCase(), index]),
+  );
+  return blocks
+    .sort((left, right) => {
+      const leftOrder = orderedNames.get(left.block.blockName.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+      const rightOrder = orderedNames.get(right.block.blockName.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+      if (leftOrder !== rightOrder) {
+        return leftOrder - rightOrder;
+      }
+      return left.index - right.index;
+    })
+    .map(({ block }) => block);
 }
 
 function buildBrowserRuntimeCameraSaveState(
@@ -1451,6 +1518,29 @@ class BrowserRuntimeSnapshot implements Snapshot {
   }
 }
 
+class RawPassthroughSnapshot implements Snapshot {
+  private readonly bytes: Uint8Array;
+
+  constructor(data: ArrayBuffer | Uint8Array) {
+    this.bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  }
+
+  crc(_xfer: Xfer): void {
+    // Passthrough chunks are preserved verbatim and are not part of TS-side CRC.
+  }
+
+  xfer(xfer: Xfer): void {
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      throw new Error('Raw passthrough snapshots are save-only.');
+    }
+    xfer.xferUser(this.bytes);
+  }
+
+  loadPostProcess(): void {
+    // No post-process work for passthrough chunks.
+  }
+}
+
 export function buildRuntimeSaveFile(params: {
   description: string;
   mapPath: string | null;
@@ -1473,6 +1563,7 @@ export function buildRuntimeSaveFile(params: {
   embeddedMapBytes?: Uint8Array | null;
   sourceGameMode?: number;
   campaign?: RuntimeSaveCampaignBootstrap | null;
+  passthroughBlocks?: readonly RuntimeSavePassthroughBlock[];
 }): {
   data: ArrayBuffer;
   metadata: {
@@ -1535,7 +1626,42 @@ export function buildRuntimeSaveFile(params: {
   state.addSnapshotBlock(SOURCE_SCRIPT_ENGINE_BLOCK, new ScriptEngineSnapshot(scriptEnginePayload));
   state.addSnapshotBlock(SOURCE_SIDES_LIST_BLOCK, new SidesListSnapshot(sidesListPayload));
   state.addSnapshotBlock(SOURCE_TACTICAL_VIEW_BLOCK, new TacticalViewSnapshot(tacticalViewPayload));
+  for (const passthroughBlock of orderPassthroughBlocks(params.passthroughBlocks)) {
+    if (passthroughBlock.blockName.toLowerCase() === SOURCE_IN_GAME_UI_BLOCK.toLowerCase()) {
+      continue;
+    }
+    if (passthroughBlock.blockName.toLowerCase() === BROWSER_RUNTIME_STATE_BLOCK.toLowerCase()) {
+      continue;
+    }
+    if (KNOWN_RUNTIME_SAVE_BLOCKS.has(passthroughBlock.blockName.toLowerCase())) {
+      continue;
+    }
+    if (passthroughBlock.blockName.toLowerCase() === 'chunk_gameclient') {
+      state.addSnapshotBlock(
+        passthroughBlock.blockName,
+        new RawPassthroughSnapshot(passthroughBlock.blockData),
+      );
+    }
+  }
   state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, new InGameUiSnapshot(inGameUiPayload));
+  for (const passthroughBlock of orderPassthroughBlocks(params.passthroughBlocks)) {
+    const normalizedName = passthroughBlock.blockName.toLowerCase();
+    if (normalizedName === SOURCE_IN_GAME_UI_BLOCK.toLowerCase()) {
+      continue;
+    }
+    if (normalizedName === BROWSER_RUNTIME_STATE_BLOCK.toLowerCase()) {
+      continue;
+    }
+    if (KNOWN_RUNTIME_SAVE_BLOCKS.has(normalizedName)) {
+      continue;
+    }
+    if (normalizedName !== 'chunk_gameclient') {
+      state.addSnapshotBlock(
+        passthroughBlock.blockName,
+        new RawPassthroughSnapshot(passthroughBlock.blockData),
+      );
+    }
+  }
   state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, new BrowserRuntimeSnapshot(runtimePayload));
   const saveResult = state.saveGame(params.description);
 
@@ -1638,5 +1764,6 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     gameLogicCoreState: gameLogicSnapshot?.payload ?? null,
     gameLogicState: payload?.gameLogicState ?? null,
     campaign,
+    passthroughBlocks: extractPassthroughBlocks(data),
   };
 }

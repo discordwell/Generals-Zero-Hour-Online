@@ -13,7 +13,7 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: 'npx vite build packages/app && npx serve packages/app/dist -l 42173',
+    command: 'npx vite build && npx serve dist -l 42173',
     port: 42173,
     reuseExistingServer: true,
     timeout: 60_000,

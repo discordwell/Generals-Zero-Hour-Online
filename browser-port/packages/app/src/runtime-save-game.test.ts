@@ -72,6 +72,51 @@ function stripSaveChunk(data: ArrayBuffer, blockName: string): ArrayBuffer {
   }
 }
 
+function insertSaveChunk(data: ArrayBuffer, blockName: string, blockData: Uint8Array): ArrayBuffer {
+  const xferLoad = new XferLoad(data);
+  const xferSave = new XferSave();
+  xferLoad.open('insert-save-chunk');
+  xferSave.open('insert-save-chunk');
+
+  try {
+    while (true) {
+      const token = xferLoad.xferAsciiString('');
+      if (token.toLowerCase() === SOURCE_SAVE_FILE_EOF.toLowerCase()) {
+        xferSave.xferAsciiString(blockName);
+        xferSave.beginBlock();
+        xferSave.xferUser(blockData);
+        xferSave.endBlock();
+        xferSave.xferAsciiString(SOURCE_SAVE_FILE_EOF);
+        break;
+      }
+
+      const blockSize = xferLoad.beginBlock();
+      const blockBytes = xferLoad.xferUser(new Uint8Array(blockSize));
+      xferLoad.endBlock();
+
+      xferSave.xferAsciiString(token);
+      xferSave.beginBlock();
+      xferSave.xferUser(blockBytes);
+      xferSave.endBlock();
+    }
+
+    return xferSave.getBuffer();
+  } finally {
+    xferLoad.close();
+    xferSave.close();
+  }
+}
+
+function readSaveChunkData(data: ArrayBuffer, blockName: string): Uint8Array | null {
+  const chunk = listSaveGameChunks(data).find(
+    (candidate) => candidate.blockName.toLowerCase() === blockName.toLowerCase(),
+  );
+  if (!chunk) {
+    return null;
+  }
+  return new Uint8Array(data, chunk.blockDataOffset, chunk.blockSize).slice();
+}
+
 describe('runtime-save-game', () => {
   it('round-trips embedded map data and browser runtime payloads', () => {
     const mapData = {
@@ -880,5 +925,111 @@ describe('runtime-save-game', () => {
         playerTemplateNum: 3,
       },
     })).toThrow(/Challenge campaign save-state interoperability is not wired yet/);
+  });
+
+  it('preserves raw unimplemented source chunks when rebuilding a loaded save', () => {
+    const mapData = {
+      heightmap: {
+        width: 2,
+        height: 2,
+        borderSize: 0,
+        data: 'AAAAAA==',
+      },
+      objects: [],
+      triggers: [],
+      waypoints: { nodes: [], links: [] },
+      textureClasses: [],
+      blendTileCount: 0,
+    };
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Passthrough Save',
+      mapPath: 'maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json',
+      mapData,
+      cameraState: null,
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
+        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 1,
+          nextId: 10,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: -1,
+          frameCounter: 0,
+          controlBarDirtyFrame: -1,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1, spawnedEntities: [] }),
+        getObjectIdCounter: () => 10,
+      },
+    });
+    const terrainVisualBytes = new Uint8Array([0x01, 0x02, 0x03, 0x04]);
+    const injected = insertSaveChunk(saveFile.data, 'CHUNK_TerrainVisual', terrainVisualBytes);
+
+    const parsed = parseRuntimeSaveFile(injected);
+
+    expect(parsed.passthroughBlocks).toHaveLength(1);
+    expect(parsed.passthroughBlocks[0]?.blockName).toBe('CHUNK_TerrainVisual');
+    expect(new Uint8Array(parsed.passthroughBlocks[0]!.blockData)).toEqual(terrainVisualBytes);
+
+    const rebuilt = buildRuntimeSaveFile({
+      description: parsed.metadata.description,
+      mapPath: parsed.mapPath,
+      mapData: parsed.mapData ?? mapData,
+      cameraState: parsed.cameraState,
+      tacticalViewState: parsed.tacticalViewState,
+      passthroughBlocks: parsed.passthroughBlocks,
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => parsed.gameLogicTerrainLogicState ?? {
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        },
+        captureSourcePlayerRuntimeSaveState: () => parsed.gameLogicPlayersState ?? { version: 1, state: {} },
+        captureSourceRadarRuntimeSaveState: () => parsed.gameLogicRadarState ?? createEmptyRadarState(),
+        captureSourceSidesListRuntimeSaveState: () => parsed.gameLogicSidesListState ?? { version: 1, state: {} },
+        captureSourceTeamFactoryRuntimeSaveState: () => parsed.gameLogicTeamFactoryState ?? { version: 1, state: {} },
+        captureSourceScriptEngineRuntimeSaveState: () => parsed.gameLogicScriptEngineState ?? { version: 1, state: {} },
+        captureSourceInGameUiRuntimeSaveState: () => parsed.gameLogicInGameUiState ?? { version: 1, state: {} },
+        captureSourceGameLogicRuntimeSaveState: () => parsed.gameLogicCoreState ?? {
+          version: 1,
+          nextId: 10,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: -1,
+          frameCounter: 0,
+          controlBarDirtyFrame: -1,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [],
+        },
+        captureBrowserRuntimeSaveState: () => parsed.gameLogicState ?? { version: 1, spawnedEntities: [] },
+        getObjectIdCounter: () => parsed.gameLogicCoreState?.nextId ?? 10,
+      },
+    });
+
+    expect(readSaveChunkData(rebuilt.data, 'CHUNK_TerrainVisual')).toEqual(terrainVisualBytes);
   });
 });
