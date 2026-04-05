@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listSaveGameChunks } from '@generals/engine';
+import { XferLoad, listSaveGameChunks } from '@generals/engine';
 
 import {
   buildRuntimeSaveFile,
@@ -57,6 +57,48 @@ function readSaveChunkData(data: ArrayBuffer, blockName: string): Uint8Array | n
   return new Uint8Array(data, chunk.blockDataOffset, chunk.blockSize).slice();
 }
 
+function readGameClientChunk(data: ArrayBuffer): {
+  version: number;
+  frame: number;
+  tocVersion: number;
+  tocCount: number;
+  drawableCount: number;
+  briefingLines: string[];
+} | null {
+  const chunkData = readSaveChunkData(data, 'CHUNK_GameClient');
+  if (!chunkData) {
+    return null;
+  }
+  const xferLoad = new XferLoad(chunkData.buffer);
+  xferLoad.open('read-game-client-chunk');
+  try {
+    const version = xferLoad.xferVersion(3);
+    const frame = xferLoad.xferUnsignedInt(0);
+    const tocVersion = xferLoad.xferVersion(1);
+    const tocCount = xferLoad.xferUnsignedInt(0);
+    for (let index = 0; index < tocCount; index += 1) {
+      xferLoad.xferAsciiString('');
+      xferLoad.xferUnsignedShort(0);
+    }
+    const drawableCount = xferLoad.xferUnsignedShort(0);
+    const briefingCount = xferLoad.xferInt(0);
+    const briefingLines: string[] = [];
+    for (let index = 0; index < briefingCount; index += 1) {
+      briefingLines.push(xferLoad.xferAsciiString(''));
+    }
+    return {
+      version,
+      frame,
+      tocVersion,
+      tocCount,
+      drawableCount,
+      briefingLines,
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
 describe('runtime-save-game', () => {
   it('round-trips embedded map data and browser runtime payloads', () => {
     const mapData = {
@@ -77,6 +119,7 @@ describe('runtime-save-game', () => {
       description: 'Runtime Save Smoke Test',
       mapPath: 'assets/maps/ScenarioSkirmish.json',
       mapData,
+      gameClientBriefingLines: ['MISSION_BRIEFING_ALPHA', 'MISSION_BRIEFING_BETA'],
       cameraState: {
         targetX: 18,
         targetZ: 24,
@@ -395,8 +438,17 @@ describe('runtime-save-game', () => {
       version: number;
       spawnedEntities: Map<number, { id: number; templateName: string; kindOf: Set<string> }>;
     };
+    const gameClientChunk = readGameClientChunk(saveFile.data);
 
     expect(parsed.metadata.description).toBe('Runtime Save Smoke Test');
+    expect(gameClientChunk).toEqual({
+      version: 3,
+      frame: 21,
+      tocVersion: 1,
+      tocCount: 0,
+      drawableCount: 0,
+      briefingLines: ['MISSION_BRIEFING_ALPHA', 'MISSION_BRIEFING_BETA'],
+    });
     expect(parsed.mapPath).toBe('assets/maps/ScenarioSkirmish.json');
     expect(parsed.mapData).toEqual(mapData);
     expect(parsed.cameraState).toEqual({

@@ -38,6 +38,7 @@ export interface ScriptMessageRuntimeLogger {
 
 export interface ScriptMessageRuntimeBridge {
   syncAfterSimulationStep(): void;
+  getBriefingHistory(): readonly string[];
 }
 
 export interface CreateScriptMessageRuntimeBridgeOptions {
@@ -66,6 +67,14 @@ export function createScriptMessageRuntimeBridge(
     setSimulationPaused,
     logger = console,
   } = options;
+  const briefingHistory: string[] = [];
+
+  const noteBriefingEntry = (entry: string): void => {
+    if (!entry || briefingHistory.includes(entry)) {
+      return;
+    }
+    briefingHistory.push(entry);
+  };
 
   const processScriptDebugMessages = (): void => {
     const requests = gameLogic.drainScriptDebugMessageRequests();
@@ -91,6 +100,7 @@ export function createScriptMessageRuntimeBridge(
       logger.debug(
         `[ScriptPopup frame=${request.frame} x=${request.x} y=${request.y} width=${request.width}] ${request.message}`,
       );
+      noteBriefingEntry(request.message);
       uiRuntime.showMessage(request.message);
       if (request.pause) {
         setSimulationPaused(true);
@@ -102,6 +112,7 @@ export function createScriptMessageRuntimeBridge(
     const messages = gameLogic.drainScriptDisplayMessages();
     for (const message of messages) {
       if (message.messageType === 'MILITARY_CAPTION') {
+        noteBriefingEntry(message.text);
         uiRuntime.showMessage(message.text, toMessageDurationMs(message.duration));
       } else {
         uiRuntime.showMessage(message.text);
@@ -114,6 +125,9 @@ export function createScriptMessageRuntimeBridge(
       processScriptDebugMessages();
       processScriptPopupMessages();
       processScriptDisplayMessages();
+    },
+    getBriefingHistory(): readonly string[] {
+      return briefingHistory.slice();
     },
   };
 }

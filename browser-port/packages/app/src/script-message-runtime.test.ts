@@ -118,6 +118,7 @@ describe('script message runtime bridge', () => {
       '[ScriptDebugCrashBox frame=11] Debug message',
     ]);
     expect(pauseCalls).toEqual([true, true, true]);
+    expect(bridge.getBriefingHistory()).toEqual(['Popup message']);
   });
 
   it('maps display message durations for military captions', () => {
@@ -158,6 +159,10 @@ describe('script message runtime bridge', () => {
       { message: 'Military subtitle', durationMs: 3000 },
       { message: 'Default duration subtitle', durationMs: 4000 },
     ]);
+    expect(bridge.getBriefingHistory()).toEqual([
+      'Military subtitle',
+      'Default duration subtitle',
+    ]);
   });
 
   it('pauses simulation on debug crash-box requests even without explicit pause flag', () => {
@@ -188,6 +193,46 @@ describe('script message runtime bridge', () => {
     ]);
     expect(uiRuntime.shownMessages).toEqual([
       { message: 'Crash-box debug', durationMs: undefined },
+    ]);
+    expect(bridge.getBriefingHistory()).toEqual([]);
+  });
+
+  it('dedupes retained briefing history across popup and military caption updates', () => {
+    const gameLogic = new RecordingGameLogic();
+    const uiRuntime = new RecordingUiRuntime();
+
+    const bridge = createScriptMessageRuntimeBridge({
+      gameLogic,
+      uiRuntime,
+      setSimulationPaused: () => {},
+    });
+
+    gameLogic.state.popupRequests.push({
+      message: 'MISSION_POPUP_ALPHA',
+      x: 5,
+      y: 10,
+      width: 40,
+      pause: false,
+      frame: 1,
+    });
+    gameLogic.state.displayMessages.push({
+      messageType: 'MILITARY_CAPTION',
+      text: 'MISSION_POPUP_ALPHA',
+      duration: 2,
+      frame: 1,
+    });
+    gameLogic.state.displayMessages.push({
+      messageType: 'MILITARY_CAPTION',
+      text: 'MISSION_CAPTION_BETA',
+      duration: 2,
+      frame: 1,
+    });
+
+    bridge.syncAfterSimulationStep();
+
+    expect(bridge.getBriefingHistory()).toEqual([
+      'MISSION_POPUP_ALPHA',
+      'MISSION_CAPTION_BETA',
     ]);
   });
 });

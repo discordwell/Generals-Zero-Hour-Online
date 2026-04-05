@@ -1819,6 +1819,7 @@ export function buildRuntimeSaveFile(params: {
   mapData: MapDataJSON;
   cameraState: CameraState | null;
   tacticalViewState?: RuntimeSaveTacticalViewState | null;
+  gameClientBriefingLines?: readonly string[];
   gameLogic: Pick<
     GameLogicSubsystem,
     | 'captureBrowserRuntimeSaveState'
@@ -1926,7 +1927,7 @@ export function buildRuntimeSaveFile(params: {
   if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GAME_CLIENT_BLOCK)) {
     state.addSnapshotBlock(
       SOURCE_GAME_CLIENT_BLOCK,
-      new GameClientSnapshot(gameLogicPayload.frameCounter),
+      new GameClientSnapshot(gameLogicPayload.frameCounter, params.gameClientBriefingLines ?? []),
     );
   }
   state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, new InGameUiSnapshot(inGameUiPayload));

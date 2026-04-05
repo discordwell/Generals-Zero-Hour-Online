@@ -5184,6 +5184,7 @@ async function startGame(
       gameLogic,
       embeddedMapBytes,
       sourceGameMode: skirmishSettings ? SOURCE_GAME_MODE_SKIRMISH : SOURCE_GAME_MODE_SINGLE_PLAYER,
+      gameClientBriefingLines: scriptMessageRuntimeBridge.getBriefingHistory(),
       passthroughBlocks: runtimeSaveLoadContext?.runtimeSave.passthroughBlocks ?? [],
       campaign: activeCampaign && activeMission
         ? {
