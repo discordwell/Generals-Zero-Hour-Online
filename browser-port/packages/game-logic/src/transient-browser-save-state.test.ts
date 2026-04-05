@@ -9,6 +9,7 @@ describe('transient browser save-state', () => {
     const privateLogic = logic as unknown as {
       commandQueue: Array<{ type: string; entityId: number; x: number; z: number }>;
       evaCooldowns: Map<string, number>;
+      submitCommand?: unknown;
     };
 
     privateLogic.commandQueue.push({ type: 'moveTo', entityId: 1, x: 10, z: 20 });
@@ -18,6 +19,7 @@ describe('transient browser save-state', () => {
     expect(browserState).not.toHaveProperty('commandQueue');
     expect(browserState).not.toHaveProperty('evaCooldowns');
     expect(browserState).not.toHaveProperty('gameRandomSeed');
+    expect(browserState).not.toHaveProperty('submitCommand');
 
     const restored = new GameLogicSubsystem(new THREE.Scene());
     restored.restoreBrowserRuntimeSaveState(browserState);

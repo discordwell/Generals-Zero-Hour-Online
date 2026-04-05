@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const TEST_MAP_URL = '/?map=assets/maps/ScenarioSkirmish.json';
 
-test('retail-style save without CHUNK_TS_RuntimeState still restores a live scripted unit', async ({ page }) => {
+test('default TS save omits CHUNK_TS_RuntimeState and still restores a live scripted unit', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (err) => errors.push(err.message));
 
@@ -46,18 +46,9 @@ test('retail-style save without CHUNK_TS_RuntimeState still restores a live scri
 
     await hook.saveGame(slotId, 'E2E Retail-Style Save');
 
-    const encodeAsciiString = (value: string): Uint8Array => {
-      const bytes = new Uint8Array(1 + value.length);
-      bytes[0] = value.length & 0xff;
-      for (let index = 0; index < value.length; index += 1) {
-        bytes[index + 1] = value.charCodeAt(index) & 0xff;
-      }
-      return bytes;
-    };
-
-    const stripSaveChunk = (data: ArrayBuffer, blockName: string): ArrayBuffer => {
+    const listChunkNames = (data: ArrayBuffer): string[] => {
       const source = new Uint8Array(data);
-      const chunks: Uint8Array[] = [];
+      const chunks: string[] = [];
       let offset = 0;
 
       while (offset < source.byteLength) {
@@ -68,34 +59,15 @@ test('retail-style save without CHUNK_TS_RuntimeState still restores a live scri
         const token = String.fromCharCode(...tokenBytes);
 
         if (token.toLowerCase() === 'sg_eof') {
-          chunks.push(encodeAsciiString('SG_EOF'));
           break;
         }
 
         const blockSize = new DataView(source.buffer, source.byteOffset + offset, 4).getInt32(0, true);
         offset += 4;
-        const blockBytes = source.slice(offset, offset + blockSize);
+        chunks.push(token);
         offset += blockSize;
-
-        if (token.toLowerCase() === blockName.toLowerCase()) {
-          continue;
-        }
-
-        chunks.push(encodeAsciiString(token));
-        const blockSizeBytes = new Uint8Array(4);
-        new DataView(blockSizeBytes.buffer).setInt32(0, blockBytes.byteLength, true);
-        chunks.push(blockSizeBytes);
-        chunks.push(blockBytes);
       }
-
-      const totalLength = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
-      const stripped = new Uint8Array(totalLength);
-      let writeOffset = 0;
-      for (const chunk of chunks) {
-        stripped.set(chunk, writeOffset);
-        writeOffset += chunk.byteLength;
-      }
-      return stripped.buffer;
+      return chunks;
     };
 
     const openDatabase = async (): Promise<IDBDatabase> => new Promise((resolve, reject) => {
@@ -124,17 +96,7 @@ test('retail-style save without CHUNK_TS_RuntimeState still restores a live scri
       return { supported: false as const };
     }
 
-    const strippedData = stripSaveChunk(existing.data, 'CHUNK_TS_RuntimeState');
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(['save-files', 'save-metadata'], 'readwrite');
-      tx.objectStore('save-files').put(strippedData, slotId);
-      tx.objectStore('save-metadata').put({
-        ...existing.metadata,
-        sizeBytes: strippedData.byteLength,
-      }, slotId);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    const chunkNames = listChunkNames(existing.data);
     db.close();
 
     hook.executeScriptAction({
@@ -148,12 +110,12 @@ test('retail-style save without CHUNK_TS_RuntimeState still restores a live scri
       savedHealth,
       savedX,
       savedZ,
-      strippedByteLength: strippedData.byteLength,
+      chunkNames,
     };
   }, 'e2e-retail-style-save');
 
   test.skip(!setup.supported, 'Failed to create and rewrite the retail-style save fixture.');
-  expect(setup.strippedByteLength).toBeGreaterThan(0);
+  expect(setup.chunkNames).not.toContain('CHUNK_TS_RuntimeState');
 
   await page.waitForFunction((entityId) => {
     const hook = (window as Record<string, any>)['__GENERALS_E2E__'];

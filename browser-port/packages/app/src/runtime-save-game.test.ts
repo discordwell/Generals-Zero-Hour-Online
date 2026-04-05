@@ -47,41 +47,6 @@ function createEmptyPartitionState() {
   };
 }
 
-function stripSaveChunk(data: ArrayBuffer, blockName: string): ArrayBuffer {
-  const xferLoad = new XferLoad(data);
-  const xferSave = new XferSave();
-  xferLoad.open('strip-save-chunk');
-  xferSave.open('strip-save-chunk');
-
-  try {
-    while (true) {
-      const token = xferLoad.xferAsciiString('');
-      if (token.toLowerCase() === SOURCE_SAVE_FILE_EOF.toLowerCase()) {
-        xferSave.xferAsciiString(SOURCE_SAVE_FILE_EOF);
-        break;
-      }
-
-      const blockSize = xferLoad.beginBlock();
-      const blockBytes = xferLoad.xferUser(new Uint8Array(blockSize));
-      xferLoad.endBlock();
-
-      if (token.toLowerCase() === blockName.toLowerCase()) {
-        continue;
-      }
-
-      xferSave.xferAsciiString(token);
-      xferSave.beginBlock();
-      xferSave.xferUser(blockBytes);
-      xferSave.endBlock();
-    }
-
-    return xferSave.getBuffer();
-  } finally {
-    xferLoad.close();
-    xferSave.close();
-  }
-}
-
 function insertSaveChunk(data: ArrayBuffer, blockName: string, blockData: Uint8Array): ArrayBuffer {
   const xferLoad = new XferLoad(data);
   const xferSave = new XferSave();
@@ -690,7 +655,7 @@ describe('runtime-save-game', () => {
     expect(parsed.campaign).toBeNull();
   });
 
-  it('parses saves without CHUNK_TS_RuntimeState using source chunks only', () => {
+  it('omits CHUNK_TS_RuntimeState when the browser runtime payload is empty', () => {
     const mapData = {
       heightmap: {
         width: 2,
@@ -747,17 +712,16 @@ describe('runtime-save-game', () => {
           scriptEndGameTimerActive: false,
           spawnedEntities: [],
         }),
-        captureBrowserRuntimeSaveState: () => ({ version: 1, transient: true }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
         getObjectIdCounter: () => 10,
       },
     });
-    const retailLikeSave = stripSaveChunk(saveFile.data, 'CHUNK_TS_RuntimeState');
 
-    expect(listSaveGameChunks(retailLikeSave).map((chunk) => chunk.blockName)).not.toContain(
+    expect(listSaveGameChunks(saveFile.data).map((chunk) => chunk.blockName)).not.toContain(
       'CHUNK_TS_RuntimeState',
     );
 
-    const parsed = parseRuntimeSaveFile(retailLikeSave);
+    const parsed = parseRuntimeSaveFile(saveFile.data);
 
     expect(parsed.mapPath).toBe('maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json');
     expect(parsed.mapData).toEqual(mapData);

@@ -8201,6 +8201,7 @@ const SOURCE_IN_GAME_UI_RUNTIME_STATE_KEYS = [
 const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'name',
   'config',
+  'submitCommand',
   'raycaster',
   'groundPlane',
   'gameRandom',

@@ -326,6 +326,20 @@ function buildBrowserRuntimeCameraSaveState(
   };
 }
 
+function shouldWriteBrowserRuntimeStateBlock(gameLogicState: unknown): boolean {
+  if (gameLogicState === null || gameLogicState === undefined) {
+    return false;
+  }
+  if (Array.isArray(gameLogicState) || typeof gameLogicState !== 'object') {
+    return true;
+  }
+  const prototype = Object.getPrototypeOf(gameLogicState);
+  if (prototype !== Object.prototype && prototype !== null) {
+    return true;
+  }
+  return Object.keys(gameLogicState).some((key) => key !== 'version');
+}
+
 function buildTacticalViewSaveState(
   cameraState: CameraState | null,
   targetY = 0,
@@ -1711,10 +1725,11 @@ export function buildRuntimeSaveFile(params: {
     sizeBytes: number;
   };
 } {
+  const browserGameLogicState = params.gameLogic.captureBrowserRuntimeSaveState();
   const runtimePayload: BrowserRuntimeSavePayload = {
     version: BROWSER_RUNTIME_STATE_VERSION,
     cameraState: buildBrowserRuntimeCameraSaveState(params.cameraState),
-    gameLogicState: params.gameLogic.captureBrowserRuntimeSaveState(),
+    gameLogicState: browserGameLogicState,
   };
   const tacticalViewPayload = params.tacticalViewState
     ?? buildTacticalViewSaveState(params.cameraState);
@@ -1802,7 +1817,9 @@ export function buildRuntimeSaveFile(params: {
       );
     }
   }
-  state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, new BrowserRuntimeSnapshot(runtimePayload));
+  if (shouldWriteBrowserRuntimeStateBlock(browserGameLogicState)) {
+    state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, new BrowserRuntimeSnapshot(runtimePayload));
+  }
   const saveResult = state.saveGame(params.description);
 
   return {
