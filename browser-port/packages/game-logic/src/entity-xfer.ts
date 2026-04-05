@@ -16,7 +16,7 @@ import { XferMode } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 12;
+const ENTITY_XFER_VERSION = 13;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 
 /**
@@ -620,6 +620,15 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   } else {
     e.chinookCombatDropState = null;
     e.chinookRappelState = null;
+  }
+  if (version >= 13) {
+    e.repairDockState = xferNullableJsonObject(xfer, e.repairDockState as object | null);
+    e.repairDockLastRepairEntityId = xfer.xferObjectID(e.repairDockLastRepairEntityId as number);
+    e.repairDockHealthToAddPerFrame = xfer.xferReal(e.repairDockHealthToAddPerFrame as number);
+  } else {
+    e.repairDockState = null;
+    e.repairDockLastRepairEntityId = 0;
+    e.repairDockHealthToAddPerFrame = 0;
   }
   e.repairDockProfile = xferNullableJsonObject(xfer, e.repairDockProfile as object | null);
   e.commandButtonHuntProfile = xferNullableJsonObject(xfer, e.commandButtonHuntProfile as object | null);

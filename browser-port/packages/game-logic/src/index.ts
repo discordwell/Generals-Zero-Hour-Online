@@ -3180,6 +3180,11 @@ interface PendingRepairDockActionState {
   healthToAddPerFrame: number;
 }
 
+interface EntityRepairDockState {
+  dockObjectId: number;
+  commandSource: 'PLAYER' | 'AI' | 'SCRIPT';
+}
+
 interface PendingCombatDropActionState {
   targetObjectId: number | null;
   targetX: number;
@@ -3580,6 +3585,12 @@ export interface MapEntity {
   chinookCombatDropState: PendingCombatDropActionState | null;
   /** Source parity: active rappeller runtime owned by the passenger AI/state machine. */
   chinookRappelState: PendingChinookRappelState | null;
+  /** Source parity bridge: docker-owned target dock intent before/while RepairDockUpdate runs. */
+  repairDockState: EntityRepairDockState | null;
+  /** Source parity: RepairDockUpdate::m_lastRepair. Owned by the repair dock object. */
+  repairDockLastRepairEntityId: number;
+  /** Source parity: RepairDockUpdate::m_healthToAddPerFrame. Owned by the repair dock object. */
+  repairDockHealthToAddPerFrame: number;
   repairDockProfile: RepairDockProfile | null;
   commandButtonHuntProfile: CommandButtonHuntProfile | null;
   commandButtonHuntMode: CommandButtonHuntMode;
@@ -8236,6 +8247,7 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'pendingGarrisonActions',
   'pendingTransportActions',
   'pendingTunnelActions',
+  'pendingRepairDockActions',
   'pendingRepairActions',
   'pendingConstructionActions',
   'pendingCombatDropActions',
@@ -10159,6 +10171,33 @@ export class GameLogicSubsystem implements Subsystem {
       }
       return true;
     }
+    if (key === 'pendingRepairDockActions') {
+      if (this.pendingRepairDockActions.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, pendingAction] of value.entries()) {
+        if (typeof entityId !== 'number' || !pendingAction || typeof pendingAction !== 'object') {
+          continue;
+        }
+        const record = pendingAction as Partial<PendingRepairDockActionState>;
+        if (!Number.isFinite(record.dockObjectId)
+          || (record.commandSource !== 'PLAYER' && record.commandSource !== 'AI' && record.commandSource !== 'SCRIPT')) {
+          continue;
+        }
+        const dockObjectId = Math.trunc(record.dockObjectId as number);
+        this.setEntityRepairDockState(entityId, {
+          dockObjectId,
+          commandSource: record.commandSource,
+        });
+        if (Number.isFinite(record.lastRepairDockObjectId)
+          && Math.trunc(record.lastRepairDockObjectId as number) === dockObjectId
+          && Number.isFinite(record.healthToAddPerFrame)
+          && (record.healthToAddPerFrame as number) > 0) {
+          this.setDockRepairRuntimeState(dockObjectId, entityId, record.healthToAddPerFrame as number);
+        }
+      }
+      return true;
+    }
     if (key === 'pendingRepairActions') {
       if (this.pendingRepairActions.size !== 0 || !(value instanceof Map)) {
         return false;
@@ -11260,6 +11299,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.pendingConstructionActions.clear();
     this.pendingRepairActions.clear();
     this.pendingEnterObjectActions.clear();
+    this.pendingRepairDockActions.clear();
     this.pendingGarrisonActions.clear();
     this.pendingTransportActions.clear();
     this.pendingTunnelActions.clear();
@@ -11274,6 +11314,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.rebuildDozerTaskIndexesFromEntities();
     this.rebuildChinookCombatDropIndexesFromEntities();
     this.rebuildPendingEnterIndexesFromEntities();
+    this.rebuildRepairDockIndexesFromEntities();
     this.caveTrackers.clear();
     for (const caveTracker of snapshot.caveTrackers ?? []) {
       if (!caveTracker || typeof caveTracker.caveIndex !== 'number') {
@@ -11522,6 +11563,77 @@ export class GameLogicSubsystem implements Subsystem {
     });
   }
 
+  private syncRepairDockPendingAction(entityId: number): void {
+    this.pendingRepairDockActions.delete(entityId);
+    const docker = this.spawnedEntities.get(entityId);
+    const repairDockState = docker?.repairDockState;
+    if (!docker || !repairDockState) {
+      return;
+    }
+    const dock = this.spawnedEntities.get(repairDockState.dockObjectId);
+    const activeOnDock = dock?.repairDockLastRepairEntityId === entityId;
+    this.pendingRepairDockActions.set(entityId, {
+      dockObjectId: repairDockState.dockObjectId,
+      commandSource: repairDockState.commandSource,
+      lastRepairDockObjectId: activeOnDock ? repairDockState.dockObjectId : 0,
+      healthToAddPerFrame: activeOnDock ? dock.repairDockHealthToAddPerFrame : 0,
+    });
+  }
+
+  /* @internal */ setEntityRepairDockState(
+    entityId: number,
+    state: EntityRepairDockState | null,
+  ): void {
+    const entity = this.spawnedEntities.get(entityId);
+    const previousDockId = entity?.repairDockState?.dockObjectId ?? 0;
+    const normalizedState = state === null
+      ? null
+      : {
+          dockObjectId: Math.max(1, Math.trunc(state.dockObjectId)),
+          commandSource: state.commandSource,
+        };
+
+    if (previousDockId > 0 && previousDockId !== (normalizedState?.dockObjectId ?? 0)) {
+      const previousDock = this.spawnedEntities.get(previousDockId);
+      if (previousDock?.repairDockLastRepairEntityId === entityId) {
+        this.setDockRepairRuntimeState(previousDockId, 0, 0);
+      }
+    }
+
+    if (entity) {
+      entity.repairDockState = normalizedState;
+    }
+    this.syncRepairDockPendingAction(entityId);
+  }
+
+  /* @internal */ setDockRepairRuntimeState(
+    dockId: number,
+    repairEntityId: number,
+    healthToAddPerFrame: number,
+  ): void {
+    const dock = this.spawnedEntities.get(dockId);
+    if (!dock) {
+      return;
+    }
+    const normalizedRepairEntityId = Number.isFinite(repairEntityId) && repairEntityId > 0
+      ? Math.trunc(repairEntityId)
+      : 0;
+    const normalizedHealthToAddPerFrame = normalizedRepairEntityId > 0 && Number.isFinite(healthToAddPerFrame)
+      ? Math.max(0, healthToAddPerFrame)
+      : 0;
+    const previousRepairEntityId = dock.repairDockLastRepairEntityId;
+
+    dock.repairDockLastRepairEntityId = normalizedRepairEntityId;
+    dock.repairDockHealthToAddPerFrame = normalizedHealthToAddPerFrame;
+
+    if (previousRepairEntityId > 0 && previousRepairEntityId !== normalizedRepairEntityId) {
+      this.syncRepairDockPendingAction(previousRepairEntityId);
+    }
+    if (normalizedRepairEntityId > 0) {
+      this.syncRepairDockPendingAction(normalizedRepairEntityId);
+    }
+  }
+
   /* @internal */ setChinookCombatDropState(
     entityId: number,
     state: PendingCombatDropActionState | null,
@@ -11616,6 +11728,34 @@ export class GameLogicSubsystem implements Subsystem {
       if (entity.pendingEnterState) {
         this.setEntityPendingEnterState(entity.id, entity.pendingEnterState);
       }
+    }
+  }
+
+  private rebuildRepairDockIndexesFromEntities(): void {
+    this.pendingRepairDockActions.clear();
+    for (const entity of this.spawnedEntities.values()) {
+      entity.repairDockLastRepairEntityId = Number.isFinite(entity.repairDockLastRepairEntityId)
+        ? Math.max(0, Math.trunc(entity.repairDockLastRepairEntityId))
+        : 0;
+      entity.repairDockHealthToAddPerFrame = entity.repairDockLastRepairEntityId > 0
+        && Number.isFinite(entity.repairDockHealthToAddPerFrame)
+        ? Math.max(0, entity.repairDockHealthToAddPerFrame)
+        : 0;
+      if (!entity.repairDockState) {
+        continue;
+      }
+      const { dockObjectId, commandSource } = entity.repairDockState;
+      if (!Number.isFinite(dockObjectId)
+        || dockObjectId <= 0
+        || (commandSource !== 'PLAYER' && commandSource !== 'AI' && commandSource !== 'SCRIPT')) {
+        entity.repairDockState = null;
+        continue;
+      }
+      entity.repairDockState = {
+        dockObjectId: Math.trunc(dockObjectId),
+        commandSource,
+      };
+      this.syncRepairDockPendingAction(entity.id);
     }
   }
 
@@ -25390,12 +25530,12 @@ export class GameLogicSubsystem implements Subsystem {
       const docker = this.spawnedEntities.get(dockerId);
       const dock = this.spawnedEntities.get(pending.dockObjectId);
       if (!docker || !dock || docker.destroyed || dock.destroyed) {
-        this.pendingRepairDockActions.delete(dockerId);
+        this.setEntityRepairDockState(dockerId, null);
         continue;
       }
 
       if (!this.canExecuteRepairVehicleEnterAction(docker, dock, pending.commandSource)) {
-        this.pendingRepairDockActions.delete(dockerId);
+        this.setEntityRepairDockState(dockerId, null);
         continue;
       }
 
@@ -25414,23 +25554,26 @@ export class GameLogicSubsystem implements Subsystem {
 
       const hasDamagedDrone = this.hasDamagedProducedDroneForDocker(docker.id);
       if (docker.health >= docker.maxHealth && !hasDamagedDrone) {
-        this.pendingRepairDockActions.delete(dockerId);
+        this.setEntityRepairDockState(dockerId, null);
         continue;
       }
 
       const profile = dock.repairDockProfile;
       if (!profile) {
-        this.pendingRepairDockActions.delete(dockerId);
+        this.setEntityRepairDockState(dockerId, null);
         continue;
       }
 
-      if (pending.lastRepairDockObjectId !== dock.id) {
-        pending.lastRepairDockObjectId = dock.id;
-        pending.healthToAddPerFrame = (docker.maxHealth - docker.health) / profile.timeForFullHealFrames;
+      if (dock.repairDockLastRepairEntityId !== docker.id) {
+        this.setDockRepairRuntimeState(
+          dock.id,
+          docker.id,
+          (docker.maxHealth - docker.health) / profile.timeForFullHealFrames,
+        );
       }
 
-      if (pending.healthToAddPerFrame > 0) {
-        docker.health = Math.min(docker.maxHealth, docker.health + pending.healthToAddPerFrame);
+      if (dock.repairDockHealthToAddPerFrame > 0) {
+        docker.health = Math.min(docker.maxHealth, docker.health + dock.repairDockHealthToAddPerFrame);
         this.clearPoisonFromEntity(docker);
       }
 
@@ -25443,7 +25586,7 @@ export class GameLogicSubsystem implements Subsystem {
       }
 
       if (docker.health >= docker.maxHealth && !this.hasDamagedProducedDroneForDocker(docker.id)) {
-        this.pendingRepairDockActions.delete(dockerId);
+        this.setEntityRepairDockState(dockerId, null);
       }
     }
   }
@@ -25649,12 +25792,9 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity: entering process-dock state halts movement while action runs.
     this.stopEntity(source.id);
     this.clearAttackTarget(source.id);
-
-    this.pendingRepairDockActions.set(source.id, {
+    this.setEntityRepairDockState(source.id, {
       dockObjectId: target.id,
       commandSource,
-      lastRepairDockObjectId: 0,
-      healthToAddPerFrame: 0,
     });
   }
 
@@ -37647,6 +37787,9 @@ export class GameLogicSubsystem implements Subsystem {
       entity.pendingEnterState = null;
       entity.chinookCombatDropState = null;
       entity.chinookRappelState = null;
+      entity.repairDockState = null;
+      entity.repairDockLastRepairEntityId = 0;
+      entity.repairDockHealthToAddPerFrame = 0;
       entity.assaultTransportState = null;
       entity.railedTransportState = null;
       entity.dozerBuildTargetEntityId = 0;

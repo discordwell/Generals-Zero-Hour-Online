@@ -190,6 +190,9 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     pendingEnterState: null,
     chinookCombatDropState: null,
     chinookRappelState: null,
+    repairDockState: null,
+    repairDockLastRepairEntityId: 0,
+    repairDockHealthToAddPerFrame: 0,
     repairDockProfile: null,
     commandButtonHuntProfile: null,
     commandButtonHuntMode: 'NONE',
@@ -964,6 +967,35 @@ describe('entity-xfer', () => {
       targetZ: 512,
       descentSpeedPerFrame: 0.75,
     });
+  });
+
+  it('round-trips repair-dock runtime state', () => {
+    const original = createTestEntity({
+      repairDockState: {
+        dockObjectId: 4,
+        commandSource: 'SCRIPT',
+      },
+      repairDockLastRepairEntityId: 11,
+      repairDockHealthToAddPerFrame: 2.5,
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity();
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.repairDockState).toEqual({
+      dockObjectId: 4,
+      commandSource: 'SCRIPT',
+    });
+    expect(loaded.repairDockLastRepairEntityId).toBe(11);
+    expect(loaded.repairDockHealthToAddPerFrame).toBeCloseTo(2.5, 6);
   });
 
   it('CRC is deterministic for identical entities', () => {

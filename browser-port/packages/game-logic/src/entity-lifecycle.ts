@@ -818,7 +818,7 @@ export function silentDestroyEntity(self: GL, entityId: number): void {
   }
   for (const [dockerId, pendingAction] of self.pendingRepairDockActions.entries()) {
     if (pendingAction.dockObjectId === entityId || dockerId === entityId) {
-      self.pendingRepairDockActions.delete(dockerId);
+      self.setEntityRepairDockState(dockerId, null);
     }
   }
   for (const [sourceId, pendingAction] of self.pendingCombatDropActions.entries()) {
@@ -1366,7 +1366,7 @@ export function markEntityDestroyed(self: GL, entityId: number, attackerId: numb
   }
   for (const [dockerId, pendingAction] of self.pendingRepairDockActions.entries()) {
     if (pendingAction.dockObjectId === entityId || dockerId === entityId) {
-      self.pendingRepairDockActions.delete(dockerId);
+      self.setEntityRepairDockState(dockerId, null);
     }
   }
   for (const [sourceId, pendingAction] of self.pendingCombatDropActions.entries()) {
