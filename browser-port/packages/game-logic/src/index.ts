@@ -8039,6 +8039,7 @@ const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
   'scriptSidesUnitsShouldHunt',
   'scriptSkirmishBaseCenterAndRadiusBySide',
   'scriptSkirmishBaseDefenseStateBySide',
+  'skirmishAIStates',
   'playerSideByIndex',
   'sidePlayerIndex',
   'nextPlayerIndex',
@@ -8151,6 +8152,7 @@ const SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS = [
   'scriptCameraShakerRequests',
   'scriptObjectTypeListsByName',
   'scriptNamedMapRevealByName',
+  'temporaryVisionReveals',
   'scriptNamedEntitiesByName',
   'scriptAttackPrioritySetsByName',
   'scriptMusicTrackState',
@@ -8253,6 +8255,9 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'pendingCombatDropActions',
   'pendingChinookRappels',
   'pendingChinookCommandByEntityId',
+  'pendingWeaponDamageEvents',
+  'historicDamageLog',
+  'activeWeaponProjectileStateByVisualId',
   'disabledHackedStatusByEntityId',
   'disabledEmpStatusByEntityId',
   'shortcutSpecialPowerSourceByName',
@@ -8377,6 +8382,78 @@ export interface GameLogicCoreSaveState {
   buildableOverrides?: GameLogicBuildableOverrideSaveState[];
   controlBarOverrides?: GameLogicControlBarOverrideSaveState[];
   bridgeSegments?: GameLogicBridgeSegmentSaveState[];
+  pendingWeaponDamageEvents?: GameLogicPendingWeaponDamageEventSaveState[];
+  historicDamageLog?: GameLogicHistoricDamageWeaponSaveState[];
+}
+
+export interface GameLogicHistoricDamageEntrySaveState {
+  frame: number;
+  x: number;
+  z: number;
+}
+
+export interface GameLogicHistoricDamageWeaponSaveState {
+  weaponName: string;
+  hits: GameLogicHistoricDamageEntrySaveState[];
+}
+
+export interface GameLogicMissileAIRuntimeSaveState {
+  state: MissileAIState;
+  stateEnteredFrame: number;
+  currentX: number;
+  currentY: number;
+  currentZ: number;
+  prevX: number;
+  prevY: number;
+  prevZ: number;
+  velocityX: number;
+  velocityY: number;
+  velocityZ: number;
+  speed: number;
+  armed: boolean;
+  fuelExpirationFrame: number;
+  noTurnDistanceLeft: number;
+  trackingTarget: boolean;
+  targetEntityId: number | null;
+  targetX: number;
+  targetY: number;
+  targetZ: number;
+  originalTargetX: number;
+  originalTargetY: number;
+  originalTargetZ: number;
+  usePreciseTargetY: boolean;
+  travelDistance: number;
+  totalDistanceEstimate: number;
+  isJammed: boolean;
+}
+
+export interface GameLogicPendingWeaponDamageEventSaveState {
+  sourceEntityId: number;
+  primaryVictimEntityId: number | null;
+  impactX: number;
+  impactY: number;
+  impactZ: number;
+  executeFrame: number;
+  projectilePlannedImpactFrame: number | null;
+  delivery: 'DIRECT' | 'PROJECTILE' | 'LASER';
+  weaponName: string;
+  launchFrame: number;
+  sourceX: number;
+  sourceY: number;
+  sourceZ: number;
+  projectileVisualId: number;
+  bezierP1Y: number;
+  bezierP2Y: number;
+  bezierFirstPercentIndent: number;
+  bezierSecondPercentIndent: number;
+  hasBezierArc: boolean;
+  countermeasureDivertFrame: number;
+  countermeasureNoDamage: boolean;
+  suppressImpactVisual: boolean;
+  missileAIState: GameLogicMissileAIRuntimeSaveState | null;
+  scriptWaypointPath?: readonly VectorXZ[] | null;
+  damageFXOverride: string;
+  sourceTemplateName: string | null;
 }
 
 export interface GameLogicTerrainWaterUpdateSaveState {
@@ -9946,6 +10023,168 @@ export class GameLogicSubsystem implements Subsystem {
       }
       return true;
     }
+    if (key === 'pendingWeaponDamageEvents') {
+      if (!Array.isArray(value) || this.pendingWeaponDamageEvents.length !== 0) {
+        return false;
+      }
+      if (value.some((entry) => entry && typeof entry === 'object' && typeof (entry as { weaponName?: unknown }).weaponName === 'string')) {
+        this.restorePendingWeaponDamageEventSaveState(value as GameLogicPendingWeaponDamageEventSaveState[]);
+        return true;
+      }
+      for (const rawEvent of value) {
+        if (!rawEvent || typeof rawEvent !== 'object') {
+          continue;
+        }
+        const record = rawEvent as Partial<PendingWeaponDamageEvent> & Partial<GameLogicPendingWeaponDamageEventSaveState>;
+        if (!record.weapon || typeof record.weapon !== 'object' || typeof record.weapon.name !== 'string') {
+          continue;
+        }
+        const weapon = this.resolveSavedWeaponProfile(record.weapon.name);
+        const delivery = record.delivery === 'LASER' || record.delivery === 'PROJECTILE'
+          ? record.delivery
+          : 'DIRECT';
+        const scriptWaypointPath = Array.isArray(record.scriptWaypointPath)
+          ? record.scriptWaypointPath.flatMap((point) => {
+              if (!point || typeof point !== 'object') {
+                return [];
+              }
+              const x = Number((point as { x?: unknown }).x);
+              const z = Number((point as { z?: unknown }).z);
+              if (!Number.isFinite(x) || !Number.isFinite(z)) {
+                return [];
+              }
+              return [{ x, z }];
+            })
+          : null;
+        const missileAIState = record.missileAIState && typeof record.missileAIState === 'object'
+          ? {
+              ...(record.missileAIState as MissileAIRuntimeState),
+              stateEnteredFrame: Math.max(0, Math.trunc(record.missileAIState.stateEnteredFrame ?? 0)),
+              fuelExpirationFrame: Math.max(0, Math.trunc(record.missileAIState.fuelExpirationFrame ?? 0)),
+              targetEntityId: Number.isFinite(record.missileAIState.targetEntityId)
+                ? Math.trunc(record.missileAIState.targetEntityId ?? 0)
+                : null,
+            } satisfies MissileAIRuntimeState
+          : null;
+        const missileAIProfile = missileAIState !== null && weapon.projectileObjectName
+          ? this.extractMissileAIProfile(weapon.projectileObjectName)
+          : null;
+
+        this.pendingWeaponDamageEvents.push({
+          sourceEntityId: Number.isFinite(record.sourceEntityId) ? Math.max(0, Math.trunc(record.sourceEntityId ?? 0)) : 0,
+          primaryVictimEntityId: Number.isFinite(record.primaryVictimEntityId)
+            ? Math.trunc(record.primaryVictimEntityId ?? 0)
+            : null,
+          impactX: Number(record.impactX ?? 0),
+          impactY: Number(record.impactY ?? 0),
+          impactZ: Number(record.impactZ ?? 0),
+          executeFrame: Number.isFinite(record.executeFrame) ? Math.max(0, Math.trunc(record.executeFrame ?? 0)) : 0,
+          projectilePlannedImpactFrame: Number.isFinite(record.projectilePlannedImpactFrame)
+            ? Math.max(0, Math.trunc(record.projectilePlannedImpactFrame ?? 0))
+            : null,
+          delivery,
+          weapon,
+          launchFrame: Number.isFinite(record.launchFrame) ? Math.max(0, Math.trunc(record.launchFrame ?? 0)) : 0,
+          sourceX: Number(record.sourceX ?? 0),
+          sourceY: Number(record.sourceY ?? 0),
+          sourceZ: Number(record.sourceZ ?? 0),
+          projectileVisualId: Number.isFinite(record.projectileVisualId)
+            ? Math.max(1, Math.trunc(record.projectileVisualId ?? 0))
+            : Math.max(1, this.nextProjectileVisualId),
+          cachedVisualType: this.classifyWeaponVisualType(weapon),
+          bezierP1Y: Number(record.bezierP1Y ?? 0),
+          bezierP2Y: Number(record.bezierP2Y ?? 0),
+          bezierFirstPercentIndent: Number(record.bezierFirstPercentIndent ?? 0),
+          bezierSecondPercentIndent: Number(record.bezierSecondPercentIndent ?? 0),
+          hasBezierArc: Boolean(record.hasBezierArc),
+          countermeasureDivertFrame: Number.isFinite(record.countermeasureDivertFrame)
+            ? Math.max(0, Math.trunc(record.countermeasureDivertFrame ?? 0))
+            : 0,
+          countermeasureNoDamage: Boolean(record.countermeasureNoDamage),
+          suppressImpactVisual: Boolean(record.suppressImpactVisual),
+          missileAIProfile,
+          missileAIState,
+          scriptWaypointPath,
+          damageFXOverride: typeof record.damageFXOverride === 'string' ? record.damageFXOverride : 'UNRESISTABLE',
+          sourceTemplateName: typeof record.sourceTemplateName === 'string' ? record.sourceTemplateName : null,
+        });
+      }
+      this.updateActiveWeaponProjectileInstances();
+      return true;
+    }
+    if (key === 'historicDamageLog') {
+      if (this.historicDamageLog.size !== 0) {
+        return false;
+      }
+      if (value instanceof Map) {
+        for (const [weaponName, hits] of value.entries()) {
+          if (typeof weaponName !== 'string' || !Array.isArray(hits)) {
+            continue;
+          }
+          this.historicDamageLog.set(weaponName, hits.flatMap((hit) => {
+            if (!hit || typeof hit !== 'object') {
+              return [];
+            }
+            const frame = Number((hit as { frame?: unknown }).frame);
+            const x = Number((hit as { x?: unknown }).x);
+            const z = Number((hit as { z?: unknown }).z);
+            if (!Number.isFinite(frame) || !Number.isFinite(x) || !Number.isFinite(z)) {
+              return [];
+            }
+            return [{ frame: Math.max(0, Math.trunc(frame)), x, z }];
+          }));
+        }
+        return true;
+      }
+      if (Array.isArray(value)) {
+        this.restoreHistoricDamageLogSaveState(value as GameLogicHistoricDamageWeaponSaveState[]);
+        return true;
+      }
+      return false;
+    }
+    if (key === 'skirmishAIStates') {
+      if (this.skirmishAIStates.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      this.skirmishAIStates.clear();
+      for (const [side, aiState] of value.entries()) {
+        if (typeof side !== 'string' || !aiState || typeof aiState !== 'object') {
+          continue;
+        }
+        this.skirmishAIStates.set(side, aiState as SkirmishAIState);
+      }
+      return true;
+    }
+    if (key === 'temporaryVisionReveals') {
+      if (this.temporaryVisionReveals.length !== 0 || !Array.isArray(value)) {
+        return false;
+      }
+      for (const reveal of value) {
+        if (!reveal || typeof reveal !== 'object') {
+          continue;
+        }
+        const playerIndex = Number((reveal as { playerIndex?: unknown }).playerIndex);
+        const worldX = Number((reveal as { worldX?: unknown }).worldX);
+        const worldZ = Number((reveal as { worldZ?: unknown }).worldZ);
+        const radius = Number((reveal as { radius?: unknown }).radius);
+        const expiryFrame = Number((reveal as { expiryFrame?: unknown }).expiryFrame);
+        if (!Number.isFinite(playerIndex)
+          || !Number.isFinite(worldX)
+          || !Number.isFinite(worldZ)
+          || !Number.isFinite(radius)
+          || !Number.isFinite(expiryFrame)) {
+          continue;
+        }
+        this.temporaryVisionReveals.push({
+          playerIndex: Math.max(0, Math.trunc(playerIndex)),
+          worldX,
+          worldZ,
+          radius,
+          expiryFrame: Math.max(0, Math.trunc(expiryFrame)),
+        });
+      }
+      return true;
+    }
     if (key === 'tunnelTrackers') {
       if (this.tunnelTrackers.size !== 0 || !(value instanceof Map)) {
         return false;
@@ -11160,6 +11399,244 @@ export class GameLogicSubsystem implements Subsystem {
     );
   }
 
+  private captureHistoricDamageLogSaveState(): GameLogicHistoricDamageWeaponSaveState[] {
+    return Array.from(this.historicDamageLog.entries())
+      .map(([weaponName, hits]) => ({
+        weaponName,
+        hits: hits.map((hit) => ({
+          frame: Math.max(0, Math.trunc(hit.frame)),
+          x: hit.x,
+          z: hit.z,
+        })),
+      }))
+      .sort((left, right) => left.weaponName.localeCompare(right.weaponName));
+  }
+
+  private restoreHistoricDamageLogSaveState(
+    saveStates: readonly GameLogicHistoricDamageWeaponSaveState[] | undefined,
+  ): void {
+    this.historicDamageLog.clear();
+    for (const saveState of saveStates ?? []) {
+      if (!saveState || typeof saveState.weaponName !== 'string' || !Array.isArray(saveState.hits)) {
+        continue;
+      }
+      const weaponName = saveState.weaponName.trim();
+      if (!weaponName) {
+        continue;
+      }
+      this.historicDamageLog.set(weaponName, saveState.hits.flatMap((hit) => {
+        if (!hit) {
+          return [];
+        }
+        const frame = Number(hit.frame);
+        const x = Number(hit.x);
+        const z = Number(hit.z);
+        if (!Number.isFinite(frame) || !Number.isFinite(x) || !Number.isFinite(z)) {
+          return [];
+        }
+        return [{
+          frame: Math.max(0, Math.trunc(frame)),
+          x,
+          z,
+        }];
+      }));
+    }
+  }
+
+  private capturePendingWeaponDamageEventSaveState(): GameLogicPendingWeaponDamageEventSaveState[] {
+    return this.pendingWeaponDamageEvents.map((event) => ({
+      sourceEntityId: event.sourceEntityId,
+      primaryVictimEntityId: event.primaryVictimEntityId,
+      impactX: event.impactX,
+      impactY: event.impactY,
+      impactZ: event.impactZ,
+      executeFrame: event.executeFrame,
+      projectilePlannedImpactFrame: event.projectilePlannedImpactFrame,
+      delivery: event.delivery,
+      weaponName: event.weapon.name,
+      launchFrame: event.launchFrame,
+      sourceX: event.sourceX,
+      sourceY: event.sourceY,
+      sourceZ: event.sourceZ,
+      projectileVisualId: event.projectileVisualId,
+      bezierP1Y: event.bezierP1Y,
+      bezierP2Y: event.bezierP2Y,
+      bezierFirstPercentIndent: event.bezierFirstPercentIndent,
+      bezierSecondPercentIndent: event.bezierSecondPercentIndent,
+      hasBezierArc: event.hasBezierArc,
+      countermeasureDivertFrame: event.countermeasureDivertFrame,
+      countermeasureNoDamage: event.countermeasureNoDamage,
+      suppressImpactVisual: event.suppressImpactVisual,
+      missileAIState: event.missileAIState === null
+        ? null
+        : {
+            state: event.missileAIState.state,
+            stateEnteredFrame: event.missileAIState.stateEnteredFrame,
+            currentX: event.missileAIState.currentX,
+            currentY: event.missileAIState.currentY,
+            currentZ: event.missileAIState.currentZ,
+            prevX: event.missileAIState.prevX,
+            prevY: event.missileAIState.prevY,
+            prevZ: event.missileAIState.prevZ,
+            velocityX: event.missileAIState.velocityX,
+            velocityY: event.missileAIState.velocityY,
+            velocityZ: event.missileAIState.velocityZ,
+            speed: event.missileAIState.speed,
+            armed: event.missileAIState.armed,
+            fuelExpirationFrame: event.missileAIState.fuelExpirationFrame,
+            noTurnDistanceLeft: event.missileAIState.noTurnDistanceLeft,
+            trackingTarget: event.missileAIState.trackingTarget,
+            targetEntityId: event.missileAIState.targetEntityId,
+            targetX: event.missileAIState.targetX,
+            targetY: event.missileAIState.targetY,
+            targetZ: event.missileAIState.targetZ,
+            originalTargetX: event.missileAIState.originalTargetX,
+            originalTargetY: event.missileAIState.originalTargetY,
+            originalTargetZ: event.missileAIState.originalTargetZ,
+            usePreciseTargetY: event.missileAIState.usePreciseTargetY,
+            travelDistance: event.missileAIState.travelDistance,
+            totalDistanceEstimate: event.missileAIState.totalDistanceEstimate,
+            isJammed: event.missileAIState.isJammed,
+          },
+      scriptWaypointPath: event.scriptWaypointPath?.map((point) => ({ x: point.x, z: point.z })) ?? null,
+      damageFXOverride: event.damageFXOverride,
+      sourceTemplateName: event.sourceTemplateName,
+    }));
+  }
+
+  private resolveSavedWeaponProfile(weaponName: string): AttackWeaponProfile {
+    const normalizedWeaponName = weaponName.trim();
+    if (!normalizedWeaponName) {
+      throw new Error('Game-logic save-state references an empty weapon name.');
+    }
+    const registry = this.iniDataRegistry;
+    if (!registry) {
+      throw new Error(
+        `Game-logic save-state needs INI data to restore weapon runtime for "${normalizedWeaponName}".`,
+      );
+    }
+    const weaponDef = findWeaponDefByName(registry, normalizedWeaponName);
+    if (!weaponDef) {
+      throw new Error(`Game-logic save-state references unknown weapon "${normalizedWeaponName}".`);
+    }
+    const profile = this.resolveWeaponProfileFromDef(weaponDef);
+    if (!profile) {
+      throw new Error(`Game-logic save-state could not resolve weapon profile "${normalizedWeaponName}".`);
+    }
+    return profile;
+  }
+
+  private restorePendingWeaponDamageEventSaveState(
+    saveStates: readonly GameLogicPendingWeaponDamageEventSaveState[] | undefined,
+  ): void {
+    this.pendingWeaponDamageEvents.length = 0;
+    this.activeWeaponProjectileStateByVisualId.clear();
+
+    for (const saveState of saveStates ?? []) {
+      if (!saveState || typeof saveState.weaponName !== 'string') {
+        continue;
+      }
+      const weapon = this.resolveSavedWeaponProfile(saveState.weaponName);
+      const delivery = saveState.delivery === 'LASER' || saveState.delivery === 'PROJECTILE'
+        ? saveState.delivery
+        : 'DIRECT';
+      const missileAIState = saveState.missileAIState === null || saveState.missileAIState === undefined
+        ? null
+        : {
+            state: saveState.missileAIState.state,
+            stateEnteredFrame: Math.max(0, Math.trunc(saveState.missileAIState.stateEnteredFrame)),
+            currentX: saveState.missileAIState.currentX,
+            currentY: saveState.missileAIState.currentY,
+            currentZ: saveState.missileAIState.currentZ,
+            prevX: saveState.missileAIState.prevX,
+            prevY: saveState.missileAIState.prevY,
+            prevZ: saveState.missileAIState.prevZ,
+            velocityX: saveState.missileAIState.velocityX,
+            velocityY: saveState.missileAIState.velocityY,
+            velocityZ: saveState.missileAIState.velocityZ,
+            speed: saveState.missileAIState.speed,
+            armed: Boolean(saveState.missileAIState.armed),
+            fuelExpirationFrame: Math.max(0, Math.trunc(saveState.missileAIState.fuelExpirationFrame)),
+            noTurnDistanceLeft: saveState.missileAIState.noTurnDistanceLeft,
+            trackingTarget: Boolean(saveState.missileAIState.trackingTarget),
+            targetEntityId: Number.isFinite(saveState.missileAIState.targetEntityId)
+              ? Math.trunc(saveState.missileAIState.targetEntityId ?? 0)
+              : null,
+            targetX: saveState.missileAIState.targetX,
+            targetY: saveState.missileAIState.targetY,
+            targetZ: saveState.missileAIState.targetZ,
+            originalTargetX: saveState.missileAIState.originalTargetX,
+            originalTargetY: saveState.missileAIState.originalTargetY,
+            originalTargetZ: saveState.missileAIState.originalTargetZ,
+            usePreciseTargetY: Boolean(saveState.missileAIState.usePreciseTargetY),
+            travelDistance: saveState.missileAIState.travelDistance,
+            totalDistanceEstimate: saveState.missileAIState.totalDistanceEstimate,
+            isJammed: Boolean(saveState.missileAIState.isJammed),
+          } satisfies MissileAIRuntimeState;
+      const missileAIProfile = missileAIState !== null && weapon.projectileObjectName
+        ? this.extractMissileAIProfile(weapon.projectileObjectName)
+        : null;
+      if (missileAIState !== null && missileAIProfile === null) {
+        throw new Error(
+          `Game-logic save-state could not restore missile runtime for weapon "${weapon.name}".`,
+        );
+      }
+
+      this.pendingWeaponDamageEvents.push({
+        sourceEntityId: Math.max(0, Math.trunc(saveState.sourceEntityId)),
+        primaryVictimEntityId: Number.isFinite(saveState.primaryVictimEntityId)
+          ? Math.trunc(saveState.primaryVictimEntityId ?? 0)
+          : null,
+        impactX: saveState.impactX,
+        impactY: saveState.impactY,
+        impactZ: saveState.impactZ,
+        executeFrame: Math.max(0, Math.trunc(saveState.executeFrame)),
+        projectilePlannedImpactFrame: Number.isFinite(saveState.projectilePlannedImpactFrame)
+          ? Math.max(0, Math.trunc(saveState.projectilePlannedImpactFrame ?? 0))
+          : null,
+        delivery,
+        weapon,
+        launchFrame: Math.max(0, Math.trunc(saveState.launchFrame)),
+        sourceX: saveState.sourceX,
+        sourceY: saveState.sourceY,
+        sourceZ: saveState.sourceZ,
+        projectileVisualId: Math.max(1, Math.trunc(saveState.projectileVisualId)),
+        cachedVisualType: this.classifyWeaponVisualType(weapon),
+        bezierP1Y: saveState.bezierP1Y,
+        bezierP2Y: saveState.bezierP2Y,
+        bezierFirstPercentIndent: saveState.bezierFirstPercentIndent,
+        bezierSecondPercentIndent: saveState.bezierSecondPercentIndent,
+        hasBezierArc: Boolean(saveState.hasBezierArc),
+        countermeasureDivertFrame: Math.max(0, Math.trunc(saveState.countermeasureDivertFrame)),
+        countermeasureNoDamage: Boolean(saveState.countermeasureNoDamage),
+        suppressImpactVisual: Boolean(saveState.suppressImpactVisual),
+        missileAIProfile,
+        missileAIState,
+        scriptWaypointPath: Array.isArray(saveState.scriptWaypointPath)
+          ? saveState.scriptWaypointPath.flatMap((point) => {
+              if (!point) {
+                return [];
+              }
+              const x = Number(point.x);
+              const z = Number(point.z);
+              if (!Number.isFinite(x) || !Number.isFinite(z)) {
+                return [];
+              }
+              return [{ x, z }];
+            })
+          : null,
+        damageFXOverride: typeof saveState.damageFXOverride === 'string'
+          ? saveState.damageFXOverride
+          : 'UNRESISTABLE',
+        sourceTemplateName: typeof saveState.sourceTemplateName === 'string'
+          ? saveState.sourceTemplateName
+          : null,
+      });
+    }
+
+    this.updateActiveWeaponProjectileInstances();
+  }
+
   private buildSellingEntitySaveState(sellFrame: number): SellingEntityState {
     let constructionPercent = 99.9;
     const elapsedFrames = this.frameCounter - sellFrame;
@@ -11255,6 +11732,8 @@ export class GameLogicSubsystem implements Subsystem {
           endSurfaceY: segment.endSurfaceY,
         }))
         .sort((left, right) => left.segmentId - right.segmentId),
+      pendingWeaponDamageEvents: this.capturePendingWeaponDamageEventSaveState(),
+      historicDamageLog: this.captureHistoricDamageLogSaveState(),
     };
   }
 
@@ -11422,6 +11901,8 @@ export class GameLogicSubsystem implements Subsystem {
         endSurfaceY: Number.isFinite(segment.endSurfaceY) ? segment.endSurfaceY : undefined,
       });
     }
+    this.restorePendingWeaponDamageEventSaveState(snapshot.pendingWeaponDamageEvents);
+    this.restoreHistoricDamageLogSaveState(snapshot.historicDamageLog);
   }
 
   captureBrowserRuntimeSaveState(): Record<string, unknown> {
@@ -11468,6 +11949,9 @@ export class GameLogicSubsystem implements Subsystem {
       && this.bridgeSegmentByControlEntity.size === 0
       && this.bridgeSegmentIdsByCell.size === 0) {
       this.rebuildBridgeRuntimeIndexesFromSegments();
+    }
+    if (this.pendingWeaponDamageEvents.length > 0 && this.activeWeaponProjectileStateByVisualId.size === 0) {
+      this.updateActiveWeaponProjectileInstances();
     }
     this.resetBridgeDamageStateChanges();
     this.gameRandom.setSeed(Number(snapshot.gameRandomSeed ?? 1));

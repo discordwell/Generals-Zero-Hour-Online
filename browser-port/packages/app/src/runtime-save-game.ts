@@ -53,7 +53,7 @@ const GAME_STATE_MAP_VERSION = 2;
 const BROWSER_RUNTIME_STATE_VERSION = 1;
 const SOURCE_TERRAIN_LOGIC_SNAPSHOT_VERSION = 2;
 const SOURCE_PLAYER_SNAPSHOT_VERSION = 2;
-const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 5;
+const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 6;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
 const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
 const SOURCE_RADAR_EVENT_COUNT = 64;
@@ -875,6 +875,31 @@ function xferSourceBridgeSegments(
   return segments;
 }
 
+function xferSourceGameLogicCombatBridgeState(
+  xfer: Xfer,
+  payload: Pick<GameLogicCoreSaveState, 'pendingWeaponDamageEvents' | 'historicDamageLog'>,
+): Pick<GameLogicCoreSaveState, 'pendingWeaponDamageEvents' | 'historicDamageLog'> {
+  const serialized = xfer.xferLongString(JSON.stringify({
+    pendingWeaponDamageEvents: payload.pendingWeaponDamageEvents ?? [],
+    historicDamageLog: payload.historicDamageLog ?? [],
+  }, runtimeJsonReplacer));
+  if (serialized.length === 0) {
+    return {
+      pendingWeaponDamageEvents: [],
+      historicDamageLog: [],
+    };
+  }
+  const restored = JSON.parse(serialized, runtimeJsonReviver) as Partial<GameLogicCoreSaveState>;
+  return {
+    pendingWeaponDamageEvents: Array.isArray(restored.pendingWeaponDamageEvents)
+      ? restored.pendingWeaponDamageEvents
+      : [],
+    historicDamageLog: Array.isArray(restored.historicDamageLog)
+      ? restored.historicDamageLog
+      : [],
+  };
+}
+
 class PlayersSnapshot implements Snapshot {
   payload: GameLogicPlayersSaveState | null;
 
@@ -1200,7 +1225,14 @@ class GameLogicSnapshot implements Snapshot {
 
   xfer(xfer: Xfer): void {
     const version = xfer.xferVersion(SOURCE_GAME_LOGIC_SNAPSHOT_VERSION);
-    if (version !== 1 && version !== 2 && version !== 3 && version !== 4 && version !== SOURCE_GAME_LOGIC_SNAPSHOT_VERSION) {
+    if (
+      version !== 1
+      && version !== 2
+      && version !== 3
+      && version !== 4
+      && version !== 5
+      && version !== SOURCE_GAME_LOGIC_SNAPSHOT_VERSION
+    ) {
       throw new Error(`Unsupported game-logic snapshot version ${version}`);
     }
 
@@ -1221,6 +1253,15 @@ class GameLogicSnapshot implements Snapshot {
       const buildableOverrides = version >= 3 ? xferSourceBuildableOverrides(xfer, []) : [];
       const controlBarOverrides = version >= 4 ? xferSourceControlBarOverrides(xfer, []) : [];
       const bridgeSegments = version >= 5 ? xferSourceBridgeSegments(xfer, []) : [];
+      const combatBridgeState = version >= 6
+        ? xferSourceGameLogicCombatBridgeState(xfer, {
+            pendingWeaponDamageEvents: [],
+            historicDamageLog: [],
+          })
+        : {
+            pendingWeaponDamageEvents: [],
+            historicDamageLog: [],
+          };
 
       this.payload = {
         version: 1,
@@ -1246,6 +1287,8 @@ class GameLogicSnapshot implements Snapshot {
         buildableOverrides,
         controlBarOverrides,
         bridgeSegments,
+        pendingWeaponDamageEvents: combatBridgeState.pendingWeaponDamageEvents,
+        historicDamageLog: combatBridgeState.historicDamageLog,
       };
       return;
     }
@@ -1274,6 +1317,12 @@ class GameLogicSnapshot implements Snapshot {
     }
     if (version >= 5) {
       xferSourceBridgeSegments(xfer, this.payload.bridgeSegments ?? []);
+    }
+    if (version >= 6) {
+      xferSourceGameLogicCombatBridgeState(xfer, {
+        pendingWeaponDamageEvents: this.payload.pendingWeaponDamageEvents ?? [],
+        historicDamageLog: this.payload.historicDamageLog ?? [],
+      });
     }
     xfer.xferObjectID(this.payload.nextId);
     xfer.xferUnsignedInt(this.payload.nextProjectileVisualId);
