@@ -10139,6 +10139,8 @@ export function createScriptTeamInstanceFromPrototype(self: GL, prototype: Scrip
   const instance: ScriptTeamRecord = {
     nameUpper: instanceNameUpper,
     prototypeNameUpper: prototype.nameUpper,
+    sourcePrototypeId: prototype.sourcePrototypeId,
+    sourceTeamId: null,
     memberEntityIds: new Set<number>(),
     created: false,
     stateName: '',

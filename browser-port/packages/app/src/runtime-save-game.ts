@@ -47,6 +47,9 @@ import {
   SourceParticleSystemSnapshot,
   parseSourceParticleSystemChunk,
 } from './runtime-particle-system-save.js';
+import {
+  buildSourceTeamFactoryChunk,
+} from './runtime-team-factory-save.js';
 
 const SOURCE_CAMPAIGN_BLOCK = 'CHUNK_Campaign';
 const SOURCE_TERRAIN_LOGIC_BLOCK = 'CHUNK_TerrainLogic';
@@ -203,6 +206,7 @@ export interface RuntimeSaveBootstrap {
   tacticalViewState: RuntimeSaveTacticalViewState | null;
   gameClientState: RuntimeSaveGameClientState | null;
   particleSystemState: ParticleSystemManagerSaveState | null;
+  sourceTeamFactoryChunkData: Uint8Array | null;
   gameLogicTerrainLogicState: GameLogicTerrainLogicSaveState | null;
   gameLogicTeamFactoryState: GameLogicTeamFactorySaveState | null;
   gameLogicPlayersState: GameLogicPlayersSaveState | null;
@@ -1536,6 +1540,26 @@ class TeamFactorySnapshot implements Snapshot {
   }
 }
 
+function tryParseLegacyTeamFactoryChunk(data: ArrayBuffer | Uint8Array): GameLogicTeamFactorySaveState | null {
+  try {
+    const snapshot = new TeamFactorySnapshot();
+    const chunkData = data instanceof Uint8Array
+      ? (() => {
+          const copy = new Uint8Array(data.byteLength);
+          copy.set(data);
+          return copy.buffer;
+        })()
+      : data;
+    const xferLoad = new XferLoad(chunkData);
+    xferLoad.open('legacy-team-factory');
+    xferLoad.xferSnapshot(snapshot);
+    xferLoad.close();
+    return snapshot.payload ?? null;
+  } catch {
+    return null;
+  }
+}
+
 class TacticalViewSnapshot implements Snapshot {
   payload: RuntimeSaveTacticalViewState | null;
 
@@ -2001,11 +2025,16 @@ export function buildRuntimeSaveFile(params: {
   };
 
   const state = new GameState();
+  const teamFactoryChunk = buildSourceTeamFactoryChunk(
+    teamFactoryPayload,
+    playerPayload,
+    sidesListPayload,
+  );
   state.addSnapshotBlock('CHUNK_GameState', new MetadataSnapshot(metadataState));
   state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, new CampaignSnapshot(campaignState));
   state.addSnapshotBlock('CHUNK_GameStateMap', new MapSnapshot(mapState));
   state.addSnapshotBlock(SOURCE_TERRAIN_LOGIC_BLOCK, new TerrainLogicSnapshot(terrainLogicPayload));
-  state.addSnapshotBlock(SOURCE_TEAM_FACTORY_BLOCK, new TeamFactorySnapshot(teamFactoryPayload));
+  state.addSnapshotBlock(SOURCE_TEAM_FACTORY_BLOCK, new RawPassthroughSnapshot(teamFactoryChunk));
   state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, new PlayersSnapshot(playerPayload));
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new GameLogicSnapshot(gameLogicPayload));
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, new RadarSnapshot(radarPayload));
@@ -2111,7 +2140,6 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     playerTemplateNum: -1,
   });
   const terrainLogicSnapshot = new TerrainLogicSnapshot();
-  const teamFactorySnapshot = new TeamFactorySnapshot();
   const playersSnapshot = new PlayersSnapshot();
   const partitionSnapshot = new PartitionSnapshot();
   const gameLogicSnapshot = new GameLogicSnapshot();
@@ -2124,7 +2152,6 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const state = new GameState();
   state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, campaignSnapshot);
   state.addSnapshotBlock(SOURCE_TERRAIN_LOGIC_BLOCK, terrainLogicSnapshot);
-  state.addSnapshotBlock(SOURCE_TEAM_FACTORY_BLOCK, teamFactorySnapshot);
   state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, playersSnapshot);
   state.addSnapshotBlock(SOURCE_PARTITION_BLOCK, partitionSnapshot);
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, gameLogicSnapshot);
@@ -2160,6 +2187,10 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
       )
   );
   const mapData = tryDecodeJsonBytes<MapDataJSON>(mapInfo.embeddedMapData);
+  const teamFactoryChunk = extractSaveChunkData(data, SOURCE_TEAM_FACTORY_BLOCK);
+  const legacyTeamFactoryState = teamFactoryChunk
+    ? tryParseLegacyTeamFactoryChunk(teamFactoryChunk)
+    : null;
   const particleSystemChunk = extractSaveChunkData(data, SOURCE_PARTICLE_SYSTEM_BLOCK);
   const particleSystemState = particleSystemChunk
     ? parseSourceParticleSystemChunk(particleSystemChunk)
@@ -2184,8 +2215,9 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     tacticalViewState: tacticalViewSnapshot.payload,
     gameClientState: parseGameClientState(data),
     particleSystemState,
+    sourceTeamFactoryChunkData: teamFactoryChunk ?? null,
     gameLogicTerrainLogicState: terrainLogicSnapshot?.payload ?? null,
-    gameLogicTeamFactoryState: teamFactorySnapshot?.payload ?? null,
+    gameLogicTeamFactoryState: legacyTeamFactoryState,
     gameLogicPlayersState: playersSnapshot?.payload ?? null,
     gameLogicPartitionState: partitionSnapshot?.payload ?? null,
     gameLogicRadarState: radarSnapshot?.payload ?? null,

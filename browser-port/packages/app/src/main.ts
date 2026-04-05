@@ -147,6 +147,7 @@ import {
   SOURCE_GAME_MODE_SKIRMISH,
   type RuntimeSaveBootstrap,
 } from './runtime-save-game.js';
+import { applySourceTeamFactoryChunkToState } from './runtime-team-factory-save.js';
 
 // ============================================================================
 // Loading screen
@@ -1694,11 +1695,6 @@ async function startGame(
         runtimeSaveLoadContext.runtimeSave.gameLogicTerrainLogicState,
       );
     }
-    if (runtimeSaveLoadContext.runtimeSave.gameLogicTeamFactoryState) {
-      gameLogic.restoreSourceTeamFactoryRuntimeSaveState(
-        runtimeSaveLoadContext.runtimeSave.gameLogicTeamFactoryState,
-      );
-    }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicPlayersState) {
       gameLogic.restoreSourcePlayerRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicPlayersState,
@@ -1717,6 +1713,24 @@ async function startGame(
     if (runtimeSaveLoadContext.runtimeSave.gameLogicSidesListState) {
       gameLogic.restoreSourceSidesListRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicSidesListState,
+      );
+    }
+    if (runtimeSaveLoadContext.runtimeSave.gameLogicTeamFactoryState) {
+      gameLogic.restoreSourceTeamFactoryRuntimeSaveState(
+        runtimeSaveLoadContext.runtimeSave.gameLogicTeamFactoryState,
+      );
+    } else if (runtimeSaveLoadContext.runtimeSave.sourceTeamFactoryChunkData) {
+      const currentTeamFactoryState = gameLogic.captureSourceTeamFactoryRuntimeSaveState();
+      const currentPlayerState = gameLogic.captureSourcePlayerRuntimeSaveState();
+      const currentSidesListState = gameLogic.captureSourceSidesListRuntimeSaveState();
+      gameLogic.restoreSourceTeamFactoryRuntimeSaveState(
+        applySourceTeamFactoryChunkToState(
+          runtimeSaveLoadContext.runtimeSave.sourceTeamFactoryChunkData,
+          currentTeamFactoryState,
+          currentPlayerState,
+          currentSidesListState,
+          runtimeSaveLoadContext.runtimeSave.gameLogicCoreState,
+        ),
       );
     }
     if (runtimeSaveLoadContext.runtimeSave.gameLogicInGameUiState) {

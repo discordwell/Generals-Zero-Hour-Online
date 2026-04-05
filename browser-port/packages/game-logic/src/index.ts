@@ -6862,6 +6862,10 @@ export interface ScriptTeamRecord {
   nameUpper: string;
   /** Source parity: Team::getName() / TeamPrototype name binding for instance resolution. */
   prototypeNameUpper: string;
+  /** Source parity: TeamFactory::m_uniqueTeamPrototypeID-assigned identity. */
+  sourcePrototypeId?: number;
+  /** Source parity: TeamFactory::m_uniqueTeamID-assigned identity for materialized Team instances. */
+  sourceTeamId?: number | null;
   memberEntityIds: Set<number>;
   created: boolean;
   stateName: string;
@@ -8089,6 +8093,8 @@ const SOURCE_SIDES_LIST_RUNTIME_STATE_KEYS = [
 const SOURCE_TEAM_FACTORY_RUNTIME_STATE_KEYS = [
   'scriptTeamsByName',
   'scriptTeamInstanceNamesByPrototypeName',
+  'scriptNextSourceTeamId',
+  'scriptNextSourceTeamPrototypeId',
 ] as const;
 const SOURCE_SCRIPT_ENGINE_RUNTIME_STATE_KEYS = [
   'scriptAudioLengthMsByName',
@@ -8775,6 +8781,10 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly scriptTeamsByName = new Map<string, ScriptTeamRecord>();
   /** Source parity: TeamPrototype -> Team instance list ordering for getTeamNamed/executeScript semantics. */
   private readonly scriptTeamInstanceNamesByPrototypeName = new Map<string, string[]>();
+  /** Source parity: TeamFactory::m_uniqueTeamID. */
+  private scriptNextSourceTeamId = 1;
+  /** Source parity: TeamFactory::m_uniqueTeamPrototypeID. */
+  private scriptNextSourceTeamPrototypeId = 1;
   /** Source parity: AIAttackAreaState runtime keyed by attacker entity id. */
   private readonly scriptAttackAreaStateByEntityId = new Map<number, ScriptAttackAreaState>();
   /** Source parity: AIHuntState runtime keyed by hunting entity id. */
@@ -11268,6 +11278,7 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   captureSourceTeamFactoryRuntimeSaveState(): GameLogicTeamFactorySaveState {
+    this.normalizeSourceTeamFactoryIdentityState();
     return {
       version: SOURCE_TEAM_FACTORY_RUNTIME_SAVE_STATE_VERSION,
       state: this.captureSourceRuntimeStateByKeys(SOURCE_TEAM_FACTORY_RUNTIME_STATE_KEYS),
@@ -11291,6 +11302,7 @@ export class GameLogicSubsystem implements Subsystem {
       SOURCE_TEAM_FACTORY_RUNTIME_STATE_KEYS,
       snapshot.state as Record<string, unknown>,
     );
+    this.normalizeSourceTeamFactoryIdentityState();
   }
 
   captureSourceTerrainLogicRuntimeSaveState(): GameLogicTerrainLogicSaveState {
@@ -16281,6 +16293,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
     team.memberEntityIds = nextMembers;
     team.created = true;
+    this.ensureSourceTeamId(team);
     this.scriptTeamCreatedAutoClearFrameByName.delete(team.nameUpper);
     return true;
   }
@@ -16296,11 +16309,13 @@ export class GameLogicSubsystem implements Subsystem {
     }
     const prototypeNameUpper = prototypeRecord.nameUpper;
     if (team.prototypeNameUpper === prototypeNameUpper) {
+      team.sourcePrototypeId = this.getOrCreateSourcePrototypeId(prototypeRecord);
       return true;
     }
 
     this.unregisterScriptTeamPrototypeInstance(team);
     team.prototypeNameUpper = prototypeNameUpper;
+    team.sourcePrototypeId = this.getOrCreateSourcePrototypeId(prototypeRecord);
     this.registerScriptTeamPrototypeInstance(team);
     return true;
   }
@@ -16329,6 +16344,9 @@ export class GameLogicSubsystem implements Subsystem {
       return false;
     }
     team.created = created;
+    if (created) {
+      this.ensureSourceTeamId(team);
+    }
     this.scriptTeamCreatedReadyFrameByName.delete(team.nameUpper);
     this.scriptTeamCreatedAutoClearFrameByName.delete(team.nameUpper);
     return true;
@@ -23989,6 +24007,93 @@ export class GameLogicSubsystem implements Subsystem {
     return [cellX, cellZ];
   }
 
+  private allocateSourceTeamPrototypeId(): number {
+    const nextId = Math.max(1, Math.trunc(this.scriptNextSourceTeamPrototypeId) || 1);
+    this.scriptNextSourceTeamPrototypeId = nextId + 1;
+    return nextId;
+  }
+
+  private allocateSourceTeamId(): number {
+    const nextId = Math.max(1, Math.trunc(this.scriptNextSourceTeamId) || 1);
+    this.scriptNextSourceTeamId = nextId + 1;
+    return nextId;
+  }
+
+  private isPrototypePlaceholderTeamRecord(team: ScriptTeamRecord): boolean {
+    return team.nameUpper === team.prototypeNameUpper
+      && !team.created
+      && team.memberEntityIds.size === 0;
+  }
+
+  private getOrCreateSourcePrototypeId(team: ScriptTeamRecord): number {
+    const currentId = team.sourcePrototypeId;
+    if (Number.isFinite(currentId) && Math.trunc(currentId!) > 0) {
+      return Math.trunc(currentId!);
+    }
+    const allocated = this.allocateSourceTeamPrototypeId();
+    team.sourcePrototypeId = allocated;
+    return allocated;
+  }
+
+  private ensureSourceTeamId(team: ScriptTeamRecord): number {
+    const currentId = team.sourceTeamId;
+    if (Number.isFinite(currentId) && Math.trunc(currentId!) > 0) {
+      return Math.trunc(currentId!);
+    }
+    const allocated = this.allocateSourceTeamId();
+    team.sourceTeamId = allocated;
+    return allocated;
+  }
+
+  private normalizeSourceTeamFactoryIdentityState(): void {
+    let maxTeamId = 0;
+    let maxPrototypeId = 0;
+    const prototypeNames = new Set<string>();
+
+    for (const prototypeNameUpper of this.scriptTeamInstanceNamesByPrototypeName.keys()) {
+      prototypeNames.add(prototypeNameUpper);
+    }
+    for (const team of this.scriptTeamsByName.values()) {
+      prototypeNames.add(team.prototypeNameUpper);
+    }
+
+    for (const prototypeNameUpper of prototypeNames) {
+      const prototypeRecord = this.scriptTeamsByName.get(prototypeNameUpper)
+        ?? this.getOrCreateLiteralScriptTeamRecord(prototypeNameUpper);
+      if (!prototypeRecord) {
+        continue;
+      }
+
+      const prototypeId = this.getOrCreateSourcePrototypeId(prototypeRecord);
+      maxPrototypeId = Math.max(maxPrototypeId, prototypeId);
+
+      const instanceNames = this.scriptTeamInstanceNamesByPrototypeName.get(prototypeNameUpper) ?? [];
+      for (const instanceName of instanceNames) {
+        const team = this.scriptTeamsByName.get(instanceName);
+        if (!team) {
+          continue;
+        }
+        team.sourcePrototypeId = prototypeId;
+        if (this.isPrototypePlaceholderTeamRecord(team)) {
+          team.sourceTeamId = null;
+          continue;
+        }
+        maxTeamId = Math.max(maxTeamId, this.ensureSourceTeamId(team));
+      }
+    }
+
+    this.scriptNextSourceTeamId = Math.max(
+      Math.trunc(this.scriptNextSourceTeamId) || 1,
+      maxTeamId + 1,
+      1,
+    );
+    this.scriptNextSourceTeamPrototypeId = Math.max(
+      Math.trunc(this.scriptNextSourceTeamPrototypeId) || 1,
+      maxPrototypeId + 1,
+      1,
+    );
+  }
+
   private getOrCreateLiteralScriptTeamRecord(teamName: string): ScriptTeamRecord | null {
     const teamNameUpper = teamName.trim().toUpperCase();
     if (!teamNameUpper) {
@@ -24001,6 +24106,8 @@ export class GameLogicSubsystem implements Subsystem {
     const created: ScriptTeamRecord = {
       nameUpper: teamNameUpper,
       prototypeNameUpper: teamNameUpper,
+      sourcePrototypeId: this.allocateSourceTeamPrototypeId(),
+      sourceTeamId: null,
       memberEntityIds: new Set<number>(),
       created: false,
       stateName: '',
@@ -24040,6 +24147,7 @@ export class GameLogicSubsystem implements Subsystem {
       const sourceTeam = this.scriptTeamsByName.get(sourceTeamNameUpper);
       if (sourceTeam) {
         sourceTeam.memberEntityIds.add(entity.id);
+        this.ensureSourceTeamId(sourceTeam);
         return;
       }
     }
@@ -24053,6 +24161,7 @@ export class GameLogicSubsystem implements Subsystem {
       return;
     }
     team.memberEntityIds.add(entity.id);
+    this.ensureSourceTeamId(team);
   }
 
   private doesScriptTeamHaveAnyUnits(team: ScriptTeamRecord): boolean {

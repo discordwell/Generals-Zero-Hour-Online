@@ -6,6 +6,7 @@ import {
   parseRuntimeSaveFile,
   SOURCE_GAME_MODE_SINGLE_PLAYER,
 } from './runtime-save-game.js';
+import { applySourceTeamFactoryChunkToState } from './runtime-team-factory-save.js';
 
 function createEmptyRadarEvent() {
   return {
@@ -44,6 +45,93 @@ function createEmptyPartitionState() {
     totalCellCount: 0,
     cells: [],
     pendingUndoShroudReveals: [],
+  };
+}
+
+type TeamFactoryPrototypeSkeleton = {
+  nameUpper: string;
+  prototypeNameUpper: string;
+  sourcePrototypeId: number | undefined;
+  sourceTeamId: number | null;
+  memberEntityIds: Set<number>;
+  created: boolean;
+  stateName: string;
+  attackPrioritySetName: string;
+  recruitableOverride: boolean | null;
+  isAIRecruitable: boolean;
+  homeWaypointName: string;
+  controllingSide: string | null;
+  controllingPlayerToken: string | null;
+  isSingleton: boolean;
+  maxInstances: number;
+  productionPriority: number;
+  productionPrioritySuccessIncrease: number;
+  productionPriorityFailureDecrease: number;
+  reinforcementUnitEntries: Array<{ templateName: string; minUnits: number; maxUnits: number }>;
+  reinforcementTransportTemplateName: string;
+  reinforcementStartWaypointName: string;
+  reinforcementTeamStartsFull: boolean;
+  reinforcementTransportsExit: boolean;
+};
+
+function createTeamFactoryPrototypeSkeleton(
+  prototypeNameUpper: string,
+  overrides: Partial<TeamFactoryPrototypeSkeleton> = {},
+) {
+  return {
+    nameUpper: prototypeNameUpper,
+    prototypeNameUpper,
+    sourcePrototypeId: undefined,
+    sourceTeamId: null,
+    memberEntityIds: new Set<number>(),
+    created: false,
+    stateName: '',
+    attackPrioritySetName: '',
+    recruitableOverride: null,
+    isAIRecruitable: false,
+    homeWaypointName: '',
+    controllingSide: null,
+    controllingPlayerToken: null,
+    isSingleton: true,
+    maxInstances: 0,
+    productionPriority: 0,
+    productionPrioritySuccessIncrease: 0,
+    productionPriorityFailureDecrease: 0,
+    reinforcementUnitEntries: [],
+    reinforcementTransportTemplateName: '',
+    reinforcementStartWaypointName: '',
+    reinforcementTeamStartsFull: false,
+    reinforcementTransportsExit: false,
+    ...overrides,
+  };
+}
+
+function createEmptyTeamFactoryState(
+  prototypeNameUpper: string | null = null,
+  prototypeOverrides: Partial<ReturnType<typeof createTeamFactoryPrototypeSkeleton>> = {},
+) {
+  if (prototypeNameUpper === null) {
+    return {
+      version: 1 as const,
+      state: {
+        scriptTeamsByName: new Map(),
+        scriptTeamInstanceNamesByPrototypeName: new Map(),
+        scriptNextSourceTeamId: 1,
+        scriptNextSourceTeamPrototypeId: 1,
+      },
+    };
+  }
+
+  return {
+    version: 1 as const,
+    state: {
+      scriptTeamsByName: new Map([
+        [prototypeNameUpper, createTeamFactoryPrototypeSkeleton(prototypeNameUpper, prototypeOverrides)],
+      ]),
+      scriptTeamInstanceNamesByPrototypeName: new Map([[prototypeNameUpper, [prototypeNameUpper]]]),
+      scriptNextSourceTeamId: 1,
+      scriptNextSourceTeamPrototypeId: 1,
+    },
   };
 }
 
@@ -435,7 +523,26 @@ describe('runtime-save-game', () => {
     const partitionState = parsed.gameLogicPartitionState;
     const radarState = parsed.gameLogicRadarState;
     const sidesListState = parsed.gameLogicSidesListState;
-    const teamFactoryState = parsed.gameLogicTeamFactoryState;
+    const teamFactoryState = parsed.gameLogicTeamFactoryState
+      ?? (
+        parsed.sourceTeamFactoryChunkData
+          ? applySourceTeamFactoryChunkToState(
+              parsed.sourceTeamFactoryChunkData,
+              createEmptyTeamFactoryState('TEAMTHEPLAYER', {
+                attackPrioritySetName: 'ANTIVEHICLESET',
+                isAIRecruitable: true,
+                homeWaypointName: 'HOME',
+                controllingSide: 'america',
+                controllingPlayerToken: 'the_player',
+                isSingleton: true,
+                maxInstances: 1,
+                productionPriority: 3,
+              }),
+              parsed.gameLogicPlayersState,
+              parsed.gameLogicSidesListState,
+            )
+          : null
+      );
     const scriptEngineState = parsed.gameLogicScriptEngineState;
     const inGameUiState = parsed.gameLogicInGameUiState;
     const terrainLogicState = parsed.gameLogicTerrainLogicState;
@@ -582,6 +689,8 @@ describe('runtime-save-game', () => {
     expect(teamFactoryState?.state.scriptTeamsByName).toEqual(new Map([['TEAMTHEPLAYER', {
       nameUpper: 'TEAMTHEPLAYER',
       prototypeNameUpper: 'TEAMTHEPLAYER',
+      sourcePrototypeId: 1,
+      sourceTeamId: 1,
       memberEntityIds: new Set([7]),
       created: true,
       stateName: 'ATTACKING',
@@ -589,7 +698,7 @@ describe('runtime-save-game', () => {
       recruitableOverride: null,
       isAIRecruitable: true,
       homeWaypointName: 'HOME',
-      controllingSide: 'america',
+      controllingSide: 'USA',
       controllingPlayerToken: 'the_player',
       isSingleton: true,
       maxInstances: 1,
@@ -605,6 +714,8 @@ describe('runtime-save-game', () => {
     expect(teamFactoryState?.state.scriptTeamInstanceNamesByPrototypeName).toEqual(
       new Map([['TEAMTHEPLAYER', ['TEAMTHEPLAYER']]]),
     );
+    expect(teamFactoryState?.state.scriptNextSourceTeamId).toBe(2);
+    expect(teamFactoryState?.state.scriptNextSourceTeamPrototypeId).toBe(2);
     expect(scriptEngineState?.state.scriptCountersByName).toEqual(
       new Map([['missiontimer', { value: 90, isCountdownTimer: true }]]),
     );
@@ -1086,7 +1197,19 @@ describe('runtime-save-game', () => {
         captureSourcePlayerRuntimeSaveState: () => parsed.gameLogicPlayersState ?? { version: 1, state: {} },
         captureSourceRadarRuntimeSaveState: () => parsed.gameLogicRadarState ?? createEmptyRadarState(),
         captureSourceSidesListRuntimeSaveState: () => parsed.gameLogicSidesListState ?? { version: 1, state: {} },
-        captureSourceTeamFactoryRuntimeSaveState: () => parsed.gameLogicTeamFactoryState ?? { version: 1, state: {} },
+        captureSourceTeamFactoryRuntimeSaveState: () => (
+          parsed.gameLogicTeamFactoryState
+          ?? (
+            parsed.sourceTeamFactoryChunkData
+              ? applySourceTeamFactoryChunkToState(
+                  parsed.sourceTeamFactoryChunkData,
+                  createEmptyTeamFactoryState(),
+                  parsed.gameLogicPlayersState,
+                  parsed.gameLogicSidesListState,
+                )
+              : createEmptyTeamFactoryState()
+          )
+        ),
         captureSourceScriptEngineRuntimeSaveState: () => parsed.gameLogicScriptEngineState ?? { version: 1, state: {} },
         captureSourceInGameUiRuntimeSaveState: () => parsed.gameLogicInGameUiState ?? { version: 1, state: {} },
         captureSourceGameLogicRuntimeSaveState: () => parsed.gameLogicCoreState ?? {

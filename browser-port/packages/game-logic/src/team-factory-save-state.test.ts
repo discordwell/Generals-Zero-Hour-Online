@@ -36,6 +36,8 @@ describe('team-factory save-state', () => {
     const teamRecord = {
       nameUpper: 'TEAMTHEPLAYER',
       prototypeNameUpper: 'TEAMTHEPLAYER',
+      sourcePrototypeId: undefined,
+      sourceTeamId: undefined,
       memberEntityIds: new Set([7]),
       created: true,
       stateName: 'ATTACKING',
@@ -64,9 +66,22 @@ describe('team-factory save-state', () => {
     const scriptEngineState = logic.captureSourceScriptEngineRuntimeSaveState();
     const browserState = logic.captureBrowserRuntimeSaveState();
 
-    expect(teamFactoryState.state.scriptTeamsByName).toEqual(new Map([['TEAMTHEPLAYER', teamRecord]]));
+    const savedTeams = teamFactoryState.state.scriptTeamsByName as Map<string, typeof teamRecord>;
+    const savedTeam = savedTeams.get('TEAMTHEPLAYER');
+    expect(savedTeam).toBeDefined();
+    expect(savedTeam).toMatchObject({
+      ...teamRecord,
+      sourcePrototypeId: expect.any(Number),
+      sourceTeamId: expect.any(Number),
+    });
     expect(teamFactoryState.state.scriptTeamInstanceNamesByPrototypeName).toEqual(
       new Map([['TEAMTHEPLAYER', ['TEAMTHEPLAYER']]]),
+    );
+    expect(teamFactoryState.state.scriptNextSourceTeamId).toBe(
+      ((savedTeam?.sourceTeamId as number) ?? 0) + 1,
+    );
+    expect(teamFactoryState.state.scriptNextSourceTeamPrototypeId).toBe(
+      ((savedTeam?.sourcePrototypeId as number) ?? 0) + 1,
     );
     expect(scriptEngineState.state).not.toHaveProperty('scriptTeamsByName');
     expect(scriptEngineState.state).not.toHaveProperty('scriptTeamInstanceNamesByPrototypeName');
@@ -77,7 +92,7 @@ describe('team-factory save-state', () => {
     restored.restoreSourceTeamFactoryRuntimeSaveState(teamFactoryState);
 
     const restoredPrivate = restored as unknown as typeof privateLogic;
-    expect(restoredPrivate.scriptTeamsByName).toEqual(new Map([['TEAMTHEPLAYER', teamRecord]]));
+    expect(restoredPrivate.scriptTeamsByName).toEqual(new Map([['TEAMTHEPLAYER', savedTeam!]]));
     expect(restoredPrivate.scriptTeamInstanceNamesByPrototypeName).toEqual(
       new Map([['TEAMTHEPLAYER', ['TEAMTHEPLAYER']]]),
     );
