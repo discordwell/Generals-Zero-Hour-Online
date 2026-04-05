@@ -12,7 +12,6 @@ import {
   type Xfer,
 } from '@generals/engine';
 import type { CameraState } from '@generals/input';
-import { base64ToUint8Array } from '@generals/terrain';
 import {
   xferMapEntity,
   type GameDifficulty,
@@ -94,7 +93,7 @@ const KNOWN_RUNTIME_SAVE_BLOCKS = new Set<string>([
 ].map((name) => name.toLowerCase()));
 
 const GAME_STATE_VERSION = 2;
-const CAMPAIGN_VERSION = 5;
+const CAMPAIGN_VERSION = 3;
 const GAME_STATE_MAP_VERSION = 2;
 const BROWSER_RUNTIME_STATE_VERSION = 1;
 const SOURCE_TERRAIN_LOGIC_SNAPSHOT_VERSION = 2;
@@ -105,10 +104,8 @@ const SOURCE_PLAYER_SNAPSHOT_VERSION = 2;
 const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 7;
 const SOURCE_GAME_CLIENT_SNAPSHOT_VERSION = 3;
 const SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION = 1;
-const SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION = 2;
-const SOURCE_TERRAIN_VISUAL_BASE_SNAPSHOT_VERSION = 1;
+const SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION = 1;
 const SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION = 1;
-const SOURCE_GHOST_OBJECT_BASE_SNAPSHOT_VERSION = 1;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
 const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
 const SOURCE_RADAR_EVENT_COUNT = 64;
@@ -354,6 +351,10 @@ function copyBytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return copy.buffer;
 }
 
+function isChallengeCampaignName(name: string | null | undefined): boolean {
+  return /^challenge_\d+$/i.test(name?.trim() ?? '');
+}
+
 function extractPassthroughBlocks(data: ArrayBuffer): RuntimeSavePassthroughBlock[] {
   const source = new Uint8Array(data);
   return listSaveGameChunks(data)
@@ -441,17 +442,6 @@ function mergeBriefingLines(
     merged.push(line);
   }
   return merged;
-}
-
-function decodeTerrainVisualHeightmapBytes(mapData: MapDataJSON): Uint8Array {
-  const rawBytes = base64ToUint8Array(mapData.heightmap.data);
-  const expectedLength = mapData.heightmap.width * mapData.heightmap.height;
-  if (rawBytes.length !== expectedLength) {
-    throw new Error(
-      `TerrainVisual heightmap data length mismatch: expected ${expectedLength}, got ${rawBytes.length}`,
-    );
-  }
-  return rawBytes;
 }
 
 function buildIdentityMatrix3DBytes(): Uint8Array {
@@ -976,20 +966,6 @@ class CampaignSnapshot implements Snapshot {
       this.state.difficulty = decodeSourceDifficulty(
         xfer.xferInt(encodeSourceDifficulty(this.state.difficulty)),
       );
-    }
-
-    if (version >= 4) {
-      this.state.isChallengeCampaign = xfer.xferBool(this.state.isChallengeCampaign);
-      if (this.state.isChallengeCampaign) {
-        throw new Error(
-          'Challenge campaign save-state interoperability is not wired yet. ' +
-          'The CHUNK_Campaign challenge payload cannot be restored accurately.',
-        );
-      }
-    }
-
-    if (version >= 5) {
-      this.state.playerTemplateNum = xfer.xferInt(this.state.playerTemplateNum);
     }
   }
 
@@ -2193,8 +2169,6 @@ class ParticleSystemSnapshot implements Snapshot {
 }
 
 class TerrainVisualSnapshot implements Snapshot {
-  constructor(private readonly heightmapBytes: Uint8Array) {}
-
   crc(_xfer: Xfer): void {
     // Source terrain-visual snapshot is currently save-only in the TS runtime.
   }
@@ -2204,24 +2178,6 @@ class TerrainVisualSnapshot implements Snapshot {
     if (version !== SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported terrain-visual snapshot version ${version}`);
     }
-    const baseVersion = xfer.xferVersion(SOURCE_TERRAIN_VISUAL_BASE_SNAPSHOT_VERSION);
-    if (baseVersion !== SOURCE_TERRAIN_VISUAL_BASE_SNAPSHOT_VERSION) {
-      throw new Error(`Unsupported base terrain-visual snapshot version ${baseVersion}`);
-    }
-    const waterGridEnabled = xfer.xferBool(false);
-    if (waterGridEnabled) {
-      throw new Error('TerrainVisual water-grid save snapshots are not wired in the TS runtime yet.');
-    }
-    const byteCount = xfer.xferInt(this.heightmapBytes.length);
-    if (xfer.getMode() !== XferMode.XFER_SAVE) {
-      throw new Error('TerrainVisualSnapshot is save-only in the TS runtime.');
-    }
-    if (byteCount !== this.heightmapBytes.length) {
-      throw new Error(
-        `TerrainVisual heightmap byte-count mismatch: expected ${this.heightmapBytes.length}, got ${byteCount}`,
-      );
-    }
-    xfer.xferUser(this.heightmapBytes);
   }
 
   loadPostProcess(): void {
@@ -2241,12 +2197,7 @@ class GhostObjectSnapshot implements Snapshot {
     if (version !== SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported ghost-object snapshot version ${version}`);
     }
-    const baseVersion = xfer.xferVersion(SOURCE_GHOST_OBJECT_BASE_SNAPSHOT_VERSION);
-    if (baseVersion !== SOURCE_GHOST_OBJECT_BASE_SNAPSHOT_VERSION) {
-      throw new Error(`Unsupported base ghost-object snapshot version ${baseVersion}`);
-    }
     xfer.xferInt(this.localPlayerIndex);
-    xfer.xferUnsignedShort(0);
   }
 
   loadPostProcess(): void {
@@ -2318,7 +2269,6 @@ export function buildRuntimeSaveFile(params: {
     params.gameClientState,
     gameClientDrawableStates,
   );
-  const terrainVisualHeightmapBytes = decodeTerrainVisualHeightmapBytes(params.mapData);
   const orderedPassthroughBlocks = orderPassthroughBlocks(params.passthroughBlocks);
   const mergedGameClientBriefingLines = mergeBriefingLines(
     params.gameClientState?.briefingLines ?? [],
@@ -2413,10 +2363,7 @@ export function buildRuntimeSaveFile(params: {
     state.addSnapshotBlock(SOURCE_PARTICLE_SYSTEM_BLOCK, new ParticleSystemSnapshot());
   }
   if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_TERRAIN_VISUAL_BLOCK)) {
-    state.addSnapshotBlock(
-      SOURCE_TERRAIN_VISUAL_BLOCK,
-      new TerrainVisualSnapshot(terrainVisualHeightmapBytes),
-    );
+    state.addSnapshotBlock(SOURCE_TERRAIN_VISUAL_BLOCK, new TerrainVisualSnapshot());
   }
   if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GHOST_OBJECT_BLOCK)) {
     state.addSnapshotBlock(SOURCE_GHOST_OBJECT_BLOCK, new GhostObjectSnapshot(resolvedLocalPlayerIndex));
@@ -2536,8 +2483,8 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
         missionNumber: metadata.missionNumber,
         difficulty: campaignSnapshot.state.difficulty,
         rankPoints: campaignSnapshot.state.currentRankPoints,
-        isChallengeCampaign: campaignSnapshot.state.isChallengeCampaign,
-        playerTemplateNum: campaignSnapshot.state.playerTemplateNum,
+        isChallengeCampaign: isChallengeCampaignName(campaignSnapshot.state.currentCampaign),
+        playerTemplateNum: -1,
       }
     : null;
 

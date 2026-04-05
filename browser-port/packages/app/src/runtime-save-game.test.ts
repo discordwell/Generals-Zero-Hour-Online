@@ -159,6 +159,39 @@ function createRawGameClientDrawableBlockData(objectId: number, drawableId: numb
   }
 }
 
+function readCampaignChunk(data: ArrayBuffer): {
+  version: number;
+  campaignName: string;
+  missionName: string;
+  rankPoints: number;
+  difficulty: number;
+  trailingBytes: number;
+} | null {
+  const chunkData = readSaveChunkData(data, 'CHUNK_Campaign');
+  if (!chunkData) {
+    return null;
+  }
+  const xferLoad = new XferLoad(chunkData.buffer);
+  xferLoad.open('read-campaign-chunk');
+  try {
+    const version = xferLoad.xferVersion(3);
+    const campaignName = xferLoad.xferAsciiString('');
+    const missionName = xferLoad.xferAsciiString('');
+    const rankPoints = xferLoad.xferInt(0);
+    const difficulty = xferLoad.xferInt(0);
+    return {
+      version,
+      campaignName,
+      missionName,
+      rankPoints,
+      difficulty,
+      trailingBytes: chunkData.byteLength - xferLoad.getOffset(),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function readGameClientChunk(data: ArrayBuffer): {
   version: number;
   frame: number;
@@ -223,9 +256,7 @@ function readGameClientChunk(data: ArrayBuffer): {
 
 function readTerrainVisualChunk(data: ArrayBuffer): {
   version: number;
-  baseVersion: number;
-  waterGridEnabled: boolean;
-  heightmapBytes: Uint8Array;
+  trailingBytes: number;
 } | null {
   const chunkData = readSaveChunkData(data, 'CHUNK_TerrainVisual');
   if (!chunkData) {
@@ -234,17 +265,10 @@ function readTerrainVisualChunk(data: ArrayBuffer): {
   const xferLoad = new XferLoad(chunkData.buffer);
   xferLoad.open('read-terrain-visual-chunk');
   try {
-    const version = xferLoad.xferVersion(2);
-    const baseVersion = xferLoad.xferVersion(1);
-    const waterGridEnabled = xferLoad.xferBool(false);
-    const byteCount = xferLoad.xferInt(0);
-    const heightmapBytes = chunkData.slice(xferLoad.getOffset(), xferLoad.getOffset() + byteCount);
-    xferLoad.skip(byteCount);
+    const version = xferLoad.xferVersion(1);
     return {
       version,
-      baseVersion,
-      waterGridEnabled,
-      heightmapBytes,
+      trailingBytes: chunkData.byteLength - xferLoad.getOffset(),
     };
   } finally {
     xferLoad.close();
@@ -253,9 +277,8 @@ function readTerrainVisualChunk(data: ArrayBuffer): {
 
 function readGhostObjectChunk(data: ArrayBuffer): {
   version: number;
-  baseVersion: number;
   localPlayerIndex: number;
-  count: number;
+  trailingBytes: number;
 } | null {
   const chunkData = readSaveChunkData(data, 'CHUNK_GhostObject');
   if (!chunkData) {
@@ -265,14 +288,11 @@ function readGhostObjectChunk(data: ArrayBuffer): {
   xferLoad.open('read-ghost-object-chunk');
   try {
     const version = xferLoad.xferVersion(1);
-    const baseVersion = xferLoad.xferVersion(1);
     const localPlayerIndex = xferLoad.xferInt(0);
-    const count = xferLoad.xferUnsignedShort(0);
     return {
       version,
-      baseVersion,
       localPlayerIndex,
-      count,
+      trailingBytes: chunkData.byteLength - xferLoad.getOffset(),
     };
   } finally {
     xferLoad.close();
@@ -660,16 +680,13 @@ describe('runtime-save-game', () => {
       drawables: [],
     });
     expect(terrainVisualChunk).toEqual({
-      version: 2,
-      baseVersion: 1,
-      waterGridEnabled: false,
-      heightmapBytes: new Uint8Array(16),
+      version: 1,
+      trailingBytes: 0,
     });
     expect(ghostObjectChunk).toEqual({
       version: 1,
-      baseVersion: 1,
       localPlayerIndex: 0,
-      count: 0,
+      trailingBytes: 0,
     });
     expect(parsed.mapPath).toBe('assets/maps/ScenarioSkirmish.json');
     expect(parsed.mapData).toEqual(mapData);
@@ -1457,6 +1474,15 @@ describe('runtime-save-game', () => {
         isChallengeCampaign: false,
         playerTemplateNum: -1,
       },
+    });
+
+    expect(readCampaignChunk(saveFile.data)).toEqual({
+      version: 3,
+      campaignName: 'usa',
+      missionName: 'mission02',
+      rankPoints: 0,
+      difficulty: 2,
+      trailingBytes: 0,
     });
 
     const parsed = parseRuntimeSaveFile(saveFile.data);
