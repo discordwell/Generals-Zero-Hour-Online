@@ -1719,7 +1719,9 @@ async function startGame(
         runtimeSaveLoadContext.runtimeSave.gameLogicScriptEngineState,
       );
     }
-    gameLogic.restoreBrowserRuntimeSaveState(runtimeSaveLoadContext.runtimeSave.gameLogicState);
+    if (runtimeSaveLoadContext.runtimeSave.gameLogicState !== null) {
+      gameLogic.restoreBrowserRuntimeSaveState(runtimeSaveLoadContext.runtimeSave.gameLogicState);
+    }
     gameLogic.finalizeSourceSpyVisionRuntimeSaveState();
     gameLogic.finalizeSourceSpecialPowerRuntimeSaveState();
     gameLogic.finalizeSourceContainmentRuntimeSaveState();
@@ -1857,6 +1859,21 @@ async function startGame(
   }
   if (runtimeSaveLoadContext?.runtimeSave.cameraState) {
     rtsCamera.setState(runtimeSaveLoadContext.runtimeSave.cameraState);
+  } else if (runtimeSaveLoadContext?.runtimeSave.tacticalViewState) {
+    const tacticalViewState = runtimeSaveLoadContext.runtimeSave.tacticalViewState;
+    const currentCameraState = rtsCamera.getState();
+    if (
+      Number.isFinite(tacticalViewState.angle)
+      && Number.isFinite(tacticalViewState.position.x)
+      && Number.isFinite(tacticalViewState.position.z)
+    ) {
+      rtsCamera.setState({
+        ...currentCameraState,
+        angle: tacticalViewState.angle,
+        targetX: tacticalViewState.position.x,
+        targetZ: tacticalViewState.position.z,
+      });
+    }
   }
   syncScriptViewRuntimeBridge(gameLogic, objectVisualManager, terrainVisual, scriptSkyboxController);
   scriptSkyboxController.update(camera);

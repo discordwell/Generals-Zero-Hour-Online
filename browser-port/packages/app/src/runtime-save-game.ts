@@ -3,7 +3,6 @@ import {
   SaveCode,
   SaveFileType,
   XferMode,
-  listSaveGameChunks,
   parseSaveGameInfo,
   parseSaveGameMapInfo,
   type ParsedSaveGameInfo,
@@ -53,7 +52,7 @@ const GAME_STATE_MAP_VERSION = 2;
 const BROWSER_RUNTIME_STATE_VERSION = 1;
 const SOURCE_TERRAIN_LOGIC_SNAPSHOT_VERSION = 2;
 const SOURCE_PLAYER_SNAPSHOT_VERSION = 2;
-const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 6;
+const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 7;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
 const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
 const SOURCE_RADAR_EVENT_COUNT = 64;
@@ -121,7 +120,7 @@ export interface RuntimeSaveTacticalViewState {
 
 export interface BrowserRuntimeSavePayload {
   version: number;
-  mapPath: string | null;
+  mapPath?: string | null;
   cameraState: BrowserRuntimeCameraSaveState | null;
   gameLogicState: unknown;
 }
@@ -148,7 +147,7 @@ export interface RuntimeSaveBootstrap {
   gameLogicScriptEngineState: GameLogicScriptEngineSaveState | null;
   gameLogicInGameUiState: GameLogicInGameUiSaveState | null;
   gameLogicCoreState: GameLogicCoreSaveState | null;
-  gameLogicState: unknown;
+  gameLogicState: unknown | null;
   campaign: RuntimeSaveCampaignBootstrap | null;
 }
 
@@ -1231,6 +1230,7 @@ class GameLogicSnapshot implements Snapshot {
       && version !== 3
       && version !== 4
       && version !== 5
+      && version !== 6
       && version !== SOURCE_GAME_LOGIC_SNAPSHOT_VERSION
     ) {
       throw new Error(`Unsupported game-logic snapshot version ${version}`);
@@ -1281,6 +1281,7 @@ class GameLogicSnapshot implements Snapshot {
         rankLevelLimit: xfer.xferInt(0),
         difficultyBonusesInitialized: xfer.xferBool(false),
         scriptScoringEnabled: xfer.xferBool(true),
+        gameRandomSeed: version >= 7 ? xfer.xferUnsignedInt(1) : undefined,
         spawnedEntities,
         caveTrackers,
         sellingEntities,
@@ -1338,6 +1339,9 @@ class GameLogicSnapshot implements Snapshot {
     xfer.xferInt(this.payload.rankLevelLimit ?? 0);
     xfer.xferBool(this.payload.difficultyBonusesInitialized ?? false);
     xfer.xferBool(this.payload.scriptScoringEnabled ?? true);
+    if (version >= 7) {
+      xfer.xferUnsignedInt(this.payload.gameRandomSeed ?? 1);
+    }
   }
 
   loadPostProcess(): void {
@@ -1408,7 +1412,6 @@ export function buildRuntimeSaveFile(params: {
 } {
   const runtimePayload: BrowserRuntimeSavePayload = {
     version: BROWSER_RUNTIME_STATE_VERSION,
-    mapPath: params.mapPath,
     cameraState: buildBrowserRuntimeCameraSaveState(params.cameraState),
     gameLogicState: params.gameLogic.captureBrowserRuntimeSaveState(),
   };
@@ -1474,10 +1477,6 @@ export function buildRuntimeSaveFile(params: {
 export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const metadata = parseSaveGameInfo(data);
   const mapInfo = parseSaveGameMapInfo(data);
-  const chunkNames = new Set(
-    listSaveGameChunks(data).map((chunk) => chunk.blockName.toLowerCase()),
-  );
-  const hasBrowserRuntimeBlock = chunkNames.has(BROWSER_RUNTIME_STATE_BLOCK.toLowerCase());
 
   const campaignSnapshot = new CampaignSnapshot({
     currentCampaign: '',
@@ -1513,23 +1512,22 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     }
     throw new Error('Runtime save load failed before the browser snapshot payload could be restored.');
   }
-  if (!hasBrowserRuntimeBlock || runtimeSnapshot.payload === null) {
-    throw new Error(
-      'This save file contains retail metadata, but no browser runtime snapshot block. ' +
-      'Retail C++ save-state chunk restore is not wired yet.',
-    );
-  }
-
   const payload = runtimeSnapshot.payload;
-  if (payload.version !== BROWSER_RUNTIME_STATE_VERSION) {
+  if (payload !== null && payload.version !== BROWSER_RUNTIME_STATE_VERSION) {
     throw new Error(`Unsupported browser runtime save payload version ${payload.version}`);
   }
-  const browserCameraState = coerceBrowserRuntimeCameraSaveState(payload.cameraState);
+  const browserCameraState = payload === null
+    ? null
+    : coerceBrowserRuntimeCameraSaveState(payload.cameraState);
 
   const resolvedMapPath = (
-    typeof payload.mapPath === 'string' && payload.mapPath.length > 0
-      ? payload.mapPath
-      : (mapInfo.pristineMapPath || mapInfo.saveGameMapPath || null)
+    mapInfo.pristineMapPath
+    || mapInfo.saveGameMapPath
+    || (
+      typeof payload?.mapPath === 'string' && payload.mapPath.length > 0
+        ? payload.mapPath
+        : null
+    )
   );
   const mapData = tryDecodeJsonBytes<MapDataJSON>(mapInfo.embeddedMapData);
   const campaign = campaignSnapshot.state.currentCampaign.length > 0
@@ -1556,7 +1554,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     gameLogicScriptEngineState: scriptEngineSnapshot?.payload ?? null,
     gameLogicInGameUiState: inGameUiSnapshot?.payload ?? null,
     gameLogicCoreState: gameLogicSnapshot?.payload ?? null,
-    gameLogicState: payload.gameLogicState,
+    gameLogicState: payload?.gameLogicState ?? null,
     campaign,
   };
 }

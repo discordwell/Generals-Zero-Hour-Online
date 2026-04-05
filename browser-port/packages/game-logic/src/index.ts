@@ -8357,6 +8357,7 @@ export interface GameLogicBridgeSegmentSaveState {
 
 export interface GameLogicCoreSaveState {
   version: number;
+  gameRandomSeed?: number;
   nextId: number;
   nextProjectileVisualId: number;
   animationTime: number;
@@ -11653,6 +11654,7 @@ export class GameLogicSubsystem implements Subsystem {
   captureSourceGameLogicRuntimeSaveState(): GameLogicCoreSaveState {
     return {
       version: SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION,
+      gameRandomSeed: this.gameRandom.getSeed(),
       nextId: this.nextId,
       nextProjectileVisualId: this.nextProjectileVisualId,
       animationTime: this.animationTime,
@@ -11768,6 +11770,9 @@ export class GameLogicSubsystem implements Subsystem {
       : RANK_TABLE.length;
     this.difficultyBonusesInitialized = snapshot.difficultyBonusesInitialized ?? false;
     this.scriptScoringEnabled = snapshot.scriptScoringEnabled ?? true;
+    if (Number.isFinite(snapshot.gameRandomSeed)) {
+      this.gameRandom.setSeed(Number(snapshot.gameRandomSeed));
+    }
     (this as unknown as Record<string, unknown>).spawnedEntities = new Map(
       snapshot.spawnedEntities.map((entity) => [entity.id, entity]),
     );
@@ -11908,7 +11913,6 @@ export class GameLogicSubsystem implements Subsystem {
   captureBrowserRuntimeSaveState(): Record<string, unknown> {
     const snapshot: Record<string, unknown> = {
       version: BROWSER_RUNTIME_SAVE_STATE_VERSION,
-      gameRandomSeed: this.gameRandom.getSeed(),
     };
 
     for (const key of Object.keys(this)) {
@@ -11954,7 +11958,10 @@ export class GameLogicSubsystem implements Subsystem {
       this.updateActiveWeaponProjectileInstances();
     }
     this.resetBridgeDamageStateChanges();
-    this.gameRandom.setSeed(Number(snapshot.gameRandomSeed ?? 1));
+    const restoredRandomSeed = Number(snapshot.gameRandomSeed);
+    if (Number.isFinite(restoredRandomSeed)) {
+      this.gameRandom.setSeed(restoredRandomSeed);
+    }
 
     const maxEntityId = Array.from(this.spawnedEntities.keys()).reduce(
       (currentMax, entityId) => Math.max(currentMax, entityId),

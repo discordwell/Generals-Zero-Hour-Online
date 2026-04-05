@@ -17,6 +17,7 @@ describe('transient browser save-state', () => {
     const browserState = logic.captureBrowserRuntimeSaveState();
     expect(browserState).not.toHaveProperty('commandQueue');
     expect(browserState).not.toHaveProperty('evaCooldowns');
+    expect(browserState).not.toHaveProperty('gameRandomSeed');
 
     const restored = new GameLogicSubsystem(new THREE.Scene());
     restored.restoreBrowserRuntimeSaveState(browserState);

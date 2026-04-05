@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listSaveGameChunks } from '@generals/engine';
+import { SOURCE_SAVE_FILE_EOF, XferLoad, XferSave, listSaveGameChunks } from '@generals/engine';
 
 import {
   buildRuntimeSaveFile,
@@ -35,6 +35,41 @@ function createEmptyRadarState() {
     nextFreeRadarEvent: 0,
     lastRadarEvent: -1,
   };
+}
+
+function stripSaveChunk(data: ArrayBuffer, blockName: string): ArrayBuffer {
+  const xferLoad = new XferLoad(data);
+  const xferSave = new XferSave();
+  xferLoad.open('strip-save-chunk');
+  xferSave.open('strip-save-chunk');
+
+  try {
+    while (true) {
+      const token = xferLoad.xferAsciiString('');
+      if (token.toLowerCase() === SOURCE_SAVE_FILE_EOF.toLowerCase()) {
+        xferSave.xferAsciiString(SOURCE_SAVE_FILE_EOF);
+        break;
+      }
+
+      const blockSize = xferLoad.beginBlock();
+      const blockBytes = xferLoad.xferUser(new Uint8Array(blockSize));
+      xferLoad.endBlock();
+
+      if (token.toLowerCase() === blockName.toLowerCase()) {
+        continue;
+      }
+
+      xferSave.xferAsciiString(token);
+      xferSave.beginBlock();
+      xferSave.xferUser(blockBytes);
+      xferSave.endBlock();
+    }
+
+    return xferSave.getBuffer();
+  } finally {
+    xferLoad.close();
+    xferSave.close();
+  }
 }
 
 describe('runtime-save-game', () => {
@@ -136,6 +171,7 @@ describe('runtime-save-game', () => {
         }),
         captureSourceGameLogicRuntimeSaveState: () => ({
           version: 1,
+          gameRandomSeed: 123456789,
           nextId: 41,
           nextProjectileVisualId: 3,
           animationTime: 12.5,
@@ -332,6 +368,7 @@ describe('runtime-save-game', () => {
     expect(inGameUiState?.state.scriptHiddenSpecialPowerDisplayEntityIds).toEqual(new Set([7]));
     expect(coreState?.spawnedEntities).toEqual([]);
     expect(coreState?.selectedEntityId).toBeNull();
+    expect(coreState?.gameRandomSeed).toBe(123456789);
     expect(coreState?.rankLevelLimit).toBe(7);
     expect(coreState?.difficultyBonusesInitialized).toBe(true);
     expect(coreState?.scriptScoringEnabled).toBe(false);
@@ -402,6 +439,88 @@ describe('runtime-save-game', () => {
     expect(logicState.spawnedEntities.get(7)?.templateName).toBe('RuntimeTank');
     expect(logicState.spawnedEntities.get(7)?.kindOf.has('VEHICLE')).toBe(true);
     expect(parsed.campaign).toBeNull();
+  });
+
+  it('parses saves without CHUNK_TS_RuntimeState using source chunks only', () => {
+    const mapData = {
+      heightmap: {
+        width: 2,
+        height: 2,
+        borderSize: 0,
+        data: 'AAAAAA==',
+      },
+      objects: [],
+      triggers: [],
+      waypoints: { nodes: [], links: [] },
+      textureClasses: [],
+      blendTileCount: 0,
+    };
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Retail-Like Save',
+      mapPath: 'maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json',
+      mapData,
+      cameraState: {
+        targetX: 64,
+        targetZ: 96,
+        angle: 0.5,
+        zoom: 180,
+        pitch: 1,
+      },
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 1,
+          gameRandomSeed: 99,
+          nextId: 10,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: -1,
+          frameCounter: 0,
+          controlBarDirtyFrame: -1,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1, transient: true }),
+        getObjectIdCounter: () => 10,
+      },
+    });
+    const retailLikeSave = stripSaveChunk(saveFile.data, 'CHUNK_TS_RuntimeState');
+
+    expect(listSaveGameChunks(retailLikeSave).map((chunk) => chunk.blockName)).not.toContain(
+      'CHUNK_TS_RuntimeState',
+    );
+
+    const parsed = parseRuntimeSaveFile(retailLikeSave);
+
+    expect(parsed.mapPath).toBe('maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json');
+    expect(parsed.mapData).toEqual(mapData);
+    expect(parsed.cameraState).toBeNull();
+    expect(parsed.tacticalViewState).toEqual({
+      version: 1,
+      angle: 0.5,
+      position: {
+        x: 64,
+        y: 0,
+        z: 96,
+      },
+    });
+    expect(parsed.gameLogicState).toBeNull();
+    expect(parsed.gameLogicCoreState?.gameRandomSeed).toBe(99);
   });
 
   it('treats embedded retail map bytes as non-JSON payloads and falls back to map path reload', () => {
