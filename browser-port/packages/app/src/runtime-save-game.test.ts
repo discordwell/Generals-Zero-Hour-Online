@@ -2037,15 +2037,27 @@ describe('runtime-save-game', () => {
       blendTileCount: 0,
     };
 
+    const rawScriptEngineBytes = new Uint8Array([0x05, 0x34, 0x12, 0x78]);
+    const rawInGameUiBytes = new Uint8Array([0x03, 0xaa, 0xbb, 0xcc]);
     const saveFile = buildRuntimeSaveFile({
       description: 'Passthrough Save',
       mapPath: 'maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json',
       mapData,
       cameraState: null,
-      passthroughBlocks: [{
-        blockName: 'CHUNK_TerrainVisual',
-        blockData: new Uint8Array([0x01, 0x02, 0x03, 0x04]).buffer,
-      }],
+      passthroughBlocks: [
+        {
+          blockName: 'CHUNK_ScriptEngine',
+          blockData: rawScriptEngineBytes.buffer,
+        },
+        {
+          blockName: 'CHUNK_InGameUI',
+          blockData: rawInGameUiBytes.buffer,
+        },
+        {
+          blockName: 'CHUNK_TerrainVisual',
+          blockData: new Uint8Array([0x01, 0x02, 0x03, 0x04]).buffer,
+        },
+      ],
       gameLogic: {
         captureSourceTerrainLogicRuntimeSaveState: () => ({
           version: 2,
@@ -2088,11 +2100,19 @@ describe('runtime-save-game', () => {
     expect(parsed.passthroughBlocks.map((block) => block.blockName).sort()).toEqual([
       'CHUNK_GhostObject',
       'CHUNK_ParticleSystem',
+      'CHUNK_ScriptEngine',
       'CHUNK_TerrainVisual',
+      'CHUNK_InGameUI',
     ].sort());
     const terrainVisualBlock = parsed.passthroughBlocks.find((block) => block.blockName === 'CHUNK_TerrainVisual');
+    const scriptEngineBlock = parsed.passthroughBlocks.find((block) => block.blockName === 'CHUNK_ScriptEngine');
+    const inGameUiBlock = parsed.passthroughBlocks.find((block) => block.blockName === 'CHUNK_InGameUI');
     expect(terrainVisualBlock).toBeDefined();
+    expect(scriptEngineBlock).toBeDefined();
+    expect(inGameUiBlock).toBeDefined();
     expect(new Uint8Array(terrainVisualBlock!.blockData)).toEqual(terrainVisualBytes);
+    expect(new Uint8Array(scriptEngineBlock!.blockData)).toEqual(rawScriptEngineBytes);
+    expect(new Uint8Array(inGameUiBlock!.blockData)).toEqual(rawInGameUiBytes);
 
     const rebuilt = buildRuntimeSaveFile({
       description: parsed.metadata.description,
@@ -2151,6 +2171,8 @@ describe('runtime-save-game', () => {
     });
 
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_TerrainVisual')).toEqual(terrainVisualBytes);
+    expect(readSaveChunkData(rebuilt.data, 'CHUNK_ScriptEngine')).toEqual(rawScriptEngineBytes);
+    expect(readSaveChunkData(rebuilt.data, 'CHUNK_InGameUI')).toEqual(rawInGameUiBytes);
     expect(readGameClientChunk(rebuilt.data)?.briefingLines).toEqual(['MISSION_GAMMA']);
   });
 

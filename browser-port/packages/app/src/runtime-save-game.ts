@@ -2214,10 +2214,14 @@ function tryParseSourceSidesListChunk(data: ArrayBuffer | Uint8Array): GameLogic
 }
 
 function tryParseLegacySidesListChunk(data: ArrayBuffer | Uint8Array): GameLogicSidesListSaveState | null {
+  return tryParseLegacyLongStringChunk<GameLogicSidesListSaveState>(data, 'legacy-sides-list');
+}
+
+function tryParseLegacyLongStringChunk<T>(data: ArrayBuffer | Uint8Array, label: string): T | null {
   const xferLoad = new XferLoad(
     data instanceof Uint8Array ? copyBytesToArrayBuffer(data) : data.slice(0),
   );
-  xferLoad.open('legacy-sides-list');
+  xferLoad.open(label);
   try {
     const version = xferLoad.xferVersion(1);
     if (version !== 1) {
@@ -2230,7 +2234,7 @@ function tryParseLegacySidesListChunk(data: ArrayBuffer | Uint8Array): GameLogic
     if (xferLoad.getRemaining() !== 0) {
       return null;
     }
-    return JSON.parse(serialized, runtimeJsonReviver) as GameLogicSidesListSaveState;
+    return JSON.parse(serialized, runtimeJsonReviver) as T;
   } catch {
     return null;
   } finally {
@@ -2240,6 +2244,14 @@ function tryParseLegacySidesListChunk(data: ArrayBuffer | Uint8Array): GameLogic
 
 export function parseSourceSidesListChunk(data: ArrayBuffer | Uint8Array): GameLogicSidesListSaveState | null {
   return tryParseSourceSidesListChunk(data) ?? tryParseLegacySidesListChunk(data);
+}
+
+function tryParseLegacyScriptEngineChunk(data: ArrayBuffer | Uint8Array): GameLogicScriptEngineSaveState | null {
+  return tryParseLegacyLongStringChunk<GameLogicScriptEngineSaveState>(data, 'legacy-script-engine');
+}
+
+function tryParseLegacyInGameUiChunk(data: ArrayBuffer | Uint8Array): GameLogicInGameUiSaveState | null {
+  return tryParseLegacyLongStringChunk<GameLogicInGameUiSaveState>(data, 'legacy-in-game-ui');
 }
 
 class TeamFactorySnapshot implements Snapshot {
@@ -2816,17 +2828,33 @@ export function buildRuntimeSaveFile(params: {
   state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, new PlayersSnapshot(playerPayload));
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new GameLogicSnapshot(gameLogicPayload));
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, new RadarSnapshot(radarPayload));
-  state.addSnapshotBlock(SOURCE_SCRIPT_ENGINE_BLOCK, new ScriptEngineSnapshot(scriptEnginePayload));
+  if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_SCRIPT_ENGINE_BLOCK)) {
+    const passthroughBlock = orderedPassthroughBlocks.find(
+      (block) => block.blockName.toLowerCase() === SOURCE_SCRIPT_ENGINE_BLOCK.toLowerCase(),
+    );
+    if (!passthroughBlock) {
+      throw new Error('Missing script-engine passthrough block after presence check.');
+    }
+    state.addSnapshotBlock(
+      SOURCE_SCRIPT_ENGINE_BLOCK,
+      new RawPassthroughSnapshot(passthroughBlock.blockData),
+    );
+  } else {
+    state.addSnapshotBlock(SOURCE_SCRIPT_ENGINE_BLOCK, new ScriptEngineSnapshot(scriptEnginePayload));
+  }
   state.addSnapshotBlock(SOURCE_SIDES_LIST_BLOCK, new SidesListSnapshot(sidesListPayload));
   state.addSnapshotBlock(SOURCE_TACTICAL_VIEW_BLOCK, new TacticalViewSnapshot(tacticalViewPayload));
   for (const passthroughBlock of orderedPassthroughBlocks) {
-    if (passthroughBlock.blockName.toLowerCase() === SOURCE_IN_GAME_UI_BLOCK.toLowerCase()) {
-      continue;
-    }
     if (passthroughBlock.blockName.toLowerCase() === BROWSER_RUNTIME_STATE_BLOCK.toLowerCase()) {
       continue;
     }
     if (KNOWN_RUNTIME_SAVE_BLOCKS.has(passthroughBlock.blockName.toLowerCase())) {
+      if (passthroughBlock.blockName.toLowerCase() === SOURCE_IN_GAME_UI_BLOCK.toLowerCase()) {
+        state.addSnapshotBlock(
+          passthroughBlock.blockName,
+          new RawPassthroughSnapshot(passthroughBlock.blockData),
+        );
+      }
       continue;
     }
     if (passthroughBlock.blockName.toLowerCase() === SOURCE_GAME_CLIENT_BLOCK.toLowerCase()) {
@@ -2850,7 +2878,9 @@ export function buildRuntimeSaveFile(params: {
       ),
     );
   }
-  state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, new InGameUiSnapshot(inGameUiPayload));
+  if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_IN_GAME_UI_BLOCK)) {
+    state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, new InGameUiSnapshot(inGameUiPayload));
+  }
   state.addSnapshotBlock(SOURCE_PARTITION_BLOCK, new PartitionSnapshot(partitionPayload));
   if (params.particleSystemState) {
     state.addSnapshotBlock(
@@ -2868,9 +2898,6 @@ export function buildRuntimeSaveFile(params: {
   }
   for (const passthroughBlock of orderedPassthroughBlocks) {
     const normalizedName = passthroughBlock.blockName.toLowerCase();
-    if (normalizedName === SOURCE_IN_GAME_UI_BLOCK.toLowerCase()) {
-      continue;
-    }
     if (normalizedName === BROWSER_RUNTIME_STATE_BLOCK.toLowerCase()) {
       continue;
     }
@@ -2925,9 +2952,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const partitionSnapshot = new PartitionSnapshot();
   const gameLogicSnapshot = new GameLogicSnapshot();
   const radarSnapshot = new RadarSnapshot();
-  const scriptEngineSnapshot = new ScriptEngineSnapshot();
   const tacticalViewSnapshot = new TacticalViewSnapshot();
-  const inGameUiSnapshot = new InGameUiSnapshot();
   const runtimeSnapshot = new BrowserRuntimeSnapshot();
   const state = new GameState();
   state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, campaignSnapshot);
@@ -2936,9 +2961,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   state.addSnapshotBlock(SOURCE_PARTITION_BLOCK, partitionSnapshot);
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, gameLogicSnapshot);
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, radarSnapshot);
-  state.addSnapshotBlock(SOURCE_SCRIPT_ENGINE_BLOCK, scriptEngineSnapshot);
   state.addSnapshotBlock(SOURCE_TACTICAL_VIEW_BLOCK, tacticalViewSnapshot);
-  state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, inGameUiSnapshot);
   state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, runtimeSnapshot);
   const loadCode = state.loadGame(data);
   if (loadCode !== SaveCode.SC_OK) {
@@ -2974,6 +2997,14 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const sidesListState = sidesListChunk
     ? parseSourceSidesListChunk(sidesListChunk)
     : null;
+  const scriptEngineChunk = extractSaveChunkData(data, SOURCE_SCRIPT_ENGINE_BLOCK);
+  const scriptEngineState = scriptEngineChunk
+    ? tryParseLegacyScriptEngineChunk(scriptEngineChunk)
+    : null;
+  const inGameUiChunk = extractSaveChunkData(data, SOURCE_IN_GAME_UI_BLOCK);
+  const inGameUiState = inGameUiChunk
+    ? tryParseLegacyInGameUiChunk(inGameUiChunk)
+    : null;
   const particleSystemChunk = extractSaveChunkData(data, SOURCE_PARTICLE_SYSTEM_BLOCK);
   const particleSystemState = particleSystemChunk
     ? parseSourceParticleSystemChunk(particleSystemChunk)
@@ -3007,13 +3038,21 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     gameLogicPartitionState: partitionSnapshot?.payload ?? null,
     gameLogicRadarState: radarSnapshot?.payload ?? null,
     gameLogicSidesListState: sidesListState,
-    gameLogicScriptEngineState: scriptEngineSnapshot?.payload ?? null,
-    gameLogicInGameUiState: inGameUiSnapshot?.payload ?? null,
+    gameLogicScriptEngineState: scriptEngineState,
+    gameLogicInGameUiState: inGameUiState,
     gameLogicCoreState: gameLogicSnapshot?.payload ?? null,
     gameLogicState: payload?.gameLogicState ?? null,
     campaign,
-    passthroughBlocks: extractPassthroughBlocks(data).filter(
-      (block) => block.blockName.toLowerCase() !== SOURCE_GAME_CLIENT_BLOCK.toLowerCase(),
-    ),
+    passthroughBlocks: [
+      ...extractPassthroughBlocks(data).filter(
+        (block) => block.blockName.toLowerCase() !== SOURCE_GAME_CLIENT_BLOCK.toLowerCase(),
+      ),
+      ...(scriptEngineChunk && scriptEngineState === null
+        ? [{ blockName: SOURCE_SCRIPT_ENGINE_BLOCK, blockData: copyBytesToArrayBuffer(scriptEngineChunk) }]
+        : []),
+      ...(inGameUiChunk && inGameUiState === null
+        ? [{ blockName: SOURCE_IN_GAME_UI_BLOCK, blockData: copyBytesToArrayBuffer(inGameUiChunk) }]
+        : []),
+    ],
   };
 }
