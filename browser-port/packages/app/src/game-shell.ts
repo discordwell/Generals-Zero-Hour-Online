@@ -107,6 +107,8 @@ export interface CampaignStartSettings {
   gameMode: GameMode;
   campaignName: string;
   difficulty: GameDifficulty;
+  /** Source parity: ChallengeGenerals/CampaignManager save the selected player template index. */
+  playerTemplateNum?: number;
   /** Resolved map asset path for the first mission. */
   mapPath: string;
   /** The mission object (for briefing info). */

@@ -5,6 +5,7 @@ import {
   buildRuntimeSaveFile,
   parseRuntimeSaveFile,
   SOURCE_GAME_MODE_SINGLE_PLAYER,
+  type RuntimeSaveChallengeGameInfoState,
 } from './runtime-save-game.js';
 import { applySourceTeamFactoryChunkToState } from './runtime-team-factory-save.js';
 
@@ -165,6 +166,9 @@ function readCampaignChunk(data: ArrayBuffer): {
   missionName: string;
   rankPoints: number;
   difficulty: number;
+  isChallengeCampaign: boolean;
+  playerTemplateNum: number | null;
+  challengeGameInfoVersion: number | null;
   trailingBytes: number;
 } | null {
   const chunkData = readSaveChunkData(data, 'CHUNK_Campaign');
@@ -174,22 +178,109 @@ function readCampaignChunk(data: ArrayBuffer): {
   const xferLoad = new XferLoad(chunkData.buffer);
   xferLoad.open('read-campaign-chunk');
   try {
-    const version = xferLoad.xferVersion(3);
+    const version = xferLoad.xferVersion(5);
     const campaignName = xferLoad.xferAsciiString('');
     const missionName = xferLoad.xferAsciiString('');
     const rankPoints = xferLoad.xferInt(0);
     const difficulty = xferLoad.xferInt(0);
+    let isChallengeCampaign = false;
+    let challengeGameInfoVersion: number | null = null;
+    let playerTemplateNum: number | null = null;
+    if (version >= 4) {
+      isChallengeCampaign = xferLoad.xferBool(false);
+      if (isChallengeCampaign) {
+        challengeGameInfoVersion = xferLoad.xferVersion(4);
+        xferLoad.xferInt(0);
+        xferLoad.xferInt(0);
+        xferLoad.xferBool(false);
+        xferLoad.xferBool(false);
+        xferLoad.xferBool(false);
+        xferLoad.xferInt(0);
+        const slotCount = xferLoad.xferInt(0);
+        for (let index = 0; index < slotCount; index += 1) {
+          xferLoad.xferInt(0);
+          if (challengeGameInfoVersion >= 2) {
+            xferLoad.xferUnicodeString('');
+          }
+          xferLoad.xferBool(false);
+          xferLoad.xferBool(false);
+          xferLoad.xferInt(0);
+          xferLoad.xferInt(0);
+          xferLoad.xferInt(0);
+          xferLoad.xferInt(0);
+          xferLoad.xferInt(0);
+          xferLoad.xferInt(0);
+          xferLoad.xferInt(0);
+        }
+        xferLoad.xferUnsignedInt(0);
+        xferLoad.xferAsciiString('');
+        xferLoad.xferUnsignedInt(0);
+        xferLoad.xferUnsignedInt(0);
+        xferLoad.xferInt(0);
+        xferLoad.xferInt(0);
+        if (challengeGameInfoVersion >= 3) {
+          xferLoad.xferUnsignedShort(0);
+          if (challengeGameInfoVersion === 3) {
+            xferLoad.xferBool(false);
+          }
+          xferLoad.xferVersion(1);
+          xferLoad.xferUnsignedInt(0);
+        }
+      }
+    }
+    if (version >= 5) {
+      playerTemplateNum = xferLoad.xferInt(0);
+    }
     return {
       version,
       campaignName,
       missionName,
       rankPoints,
       difficulty,
+      isChallengeCampaign,
+      playerTemplateNum,
+      challengeGameInfoVersion,
       trailingBytes: chunkData.byteLength - xferLoad.getOffset(),
     };
   } finally {
     xferLoad.close();
   }
+}
+
+function createChallengeGameInfoState(
+  overrides: Partial<RuntimeSaveChallengeGameInfoState> = {},
+): RuntimeSaveChallengeGameInfoState {
+  return {
+    version: 4,
+    preorderMask: 0,
+    crcInterval: 100,
+    inGame: true,
+    inProgress: true,
+    surrendered: false,
+    gameId: 0,
+    slots: Array.from({ length: 8 }, (_, index) => ({
+      state: index === 0 ? 5 : 1,
+      name: index === 0 ? 'General Granger' : 'Closed',
+      isAccepted: index !== 0,
+      isMuted: false,
+      color: -1,
+      startPos: -1,
+      playerTemplate: index === 0 ? 5 : -1,
+      teamNumber: -1,
+      origColor: -1,
+      origStartPos: -1,
+      origPlayerTemplate: index === 0 ? 5 : -1,
+    })),
+    localIp: 0,
+    mapName: 'MapsZH/Maps/GC_Challenge/GC_Challenge.map',
+    mapCrc: 0,
+    mapSize: 0,
+    mapMask: 0,
+    seed: 12345,
+    superweaponRestriction: 0,
+    startingCash: 10000,
+    ...overrides,
+  };
 }
 
 function readGameClientChunk(data: ArrayBuffer): {
@@ -227,7 +318,7 @@ function readGameClientChunk(data: ArrayBuffer): {
       const blockSize = xferLoad.beginBlock();
       const blockStart = xferLoad.getOffset();
       drawableObjectIds.push(xferLoad.xferObjectID(0));
-      xferLoad.xferVersion(5);
+      xferLoad.xferVersion(7);
       drawableIds.push(xferLoad.xferUnsignedInt(0));
       const bytesConsumed = xferLoad.getOffset() - blockStart;
       xferLoad.skip(blockSize - bytesConsumed);
@@ -1482,6 +1573,9 @@ describe('runtime-save-game', () => {
       missionName: 'mission02',
       rankPoints: 0,
       difficulty: 2,
+      isChallengeCampaign: false,
+      playerTemplateNum: null,
+      challengeGameInfoVersion: null,
       trailingBytes: 0,
     });
 
@@ -1490,6 +1584,7 @@ describe('runtime-save-game', () => {
     expect(parsed.metadata.campaignSide).toBe('usa');
     expect(parsed.metadata.missionNumber).toBe(1);
     expect(parsed.campaign).toEqual({
+      version: 3,
       campaignName: 'usa',
       missionName: 'mission02',
       missionNumber: 1,
@@ -1497,6 +1592,7 @@ describe('runtime-save-game', () => {
       rankPoints: 0,
       isChallengeCampaign: false,
       playerTemplateNum: -1,
+      challengeGameInfoState: null,
     });
   });
 
@@ -1570,11 +1666,15 @@ describe('runtime-save-game', () => {
       missionName: 'mission01',
       rankPoints: 0,
       difficulty: 1,
+      isChallengeCampaign: false,
+      playerTemplateNum: null,
+      challengeGameInfoVersion: null,
       trailingBytes: 0,
     });
 
     const parsed = parseRuntimeSaveFile(saveFile.data);
     expect(parsed.campaign).toEqual({
+      version: 3,
       campaignName: 'challenge_0',
       missionName: 'mission01',
       missionNumber: 0,
@@ -1582,6 +1682,153 @@ describe('runtime-save-game', () => {
       rankPoints: 0,
       isChallengeCampaign: true,
       playerTemplateNum: -1,
+      challengeGameInfoState: null,
+    });
+  });
+
+  it('round-trips source version 5 challenge campaign chunks with challenge game info', () => {
+    const mapData = {
+      heightmap: {
+        width: 2,
+        height: 2,
+        borderSize: 0,
+        data: 'AAAAAA==',
+      },
+      objects: [],
+      triggers: [],
+      waypoints: { nodes: [], links: [] },
+      textureClasses: [],
+      blendTileCount: 0,
+    };
+
+    const challengeGameInfoState = createChallengeGameInfoState();
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Challenge Save v5',
+      mapPath: 'maps/_extracted/MapsZH/Maps/MD_CHALLENGE/MD_CHALLENGE.json',
+      mapData,
+      cameraState: null,
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
+        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 1,
+          nextId: 5,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: -1,
+          frameCounter: 0,
+          controlBarDirtyFrame: -1,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 5,
+      },
+      campaign: {
+        version: 5,
+        campaignName: 'challenge_0',
+        missionName: 'mission01',
+        missionNumber: 0,
+        difficulty: 'NORMAL',
+        rankPoints: 0,
+        isChallengeCampaign: true,
+        playerTemplateNum: 5,
+        challengeGameInfoState,
+      },
+    });
+
+    expect(readCampaignChunk(saveFile.data)).toEqual({
+      version: 5,
+      campaignName: 'challenge_0',
+      missionName: 'mission01',
+      rankPoints: 0,
+      difficulty: 1,
+      isChallengeCampaign: true,
+      playerTemplateNum: 5,
+      challengeGameInfoVersion: 4,
+      trailingBytes: 0,
+    });
+
+    const parsed = parseRuntimeSaveFile(saveFile.data);
+    expect(parsed.campaign).toEqual({
+      version: 5,
+      campaignName: 'challenge_0',
+      missionName: 'mission01',
+      missionNumber: 0,
+      difficulty: 'NORMAL',
+      rankPoints: 0,
+      isChallengeCampaign: true,
+      playerTemplateNum: 5,
+      challengeGameInfoState,
+    });
+
+    const rebuilt = buildRuntimeSaveFile({
+      description: 'Challenge Save v5 Rebuilt',
+      mapPath: 'maps/_extracted/MapsZH/Maps/MD_CHALLENGE/MD_CHALLENGE.json',
+      mapData,
+      cameraState: null,
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
+        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 1,
+          nextId: 5,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: -1,
+          frameCounter: 0,
+          controlBarDirtyFrame: -1,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 5,
+      },
+      campaign: parsed.campaign,
+    });
+
+    expect(readCampaignChunk(rebuilt.data)).toEqual({
+      version: 5,
+      campaignName: 'challenge_0',
+      missionName: 'mission01',
+      rankPoints: 0,
+      difficulty: 1,
+      isChallengeCampaign: true,
+      playerTemplateNum: 5,
+      challengeGameInfoVersion: 4,
+      trailingBytes: 0,
     });
   });
 

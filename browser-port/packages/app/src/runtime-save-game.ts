@@ -93,9 +93,14 @@ const KNOWN_RUNTIME_SAVE_BLOCKS = new Set<string>([
 ].map((name) => name.toLowerCase()));
 
 const GAME_STATE_VERSION = 2;
-const CAMPAIGN_VERSION = 3;
+const SOURCE_CAMPAIGN_SNAPSHOT_FRESH_VERSION = 3;
+const SOURCE_CAMPAIGN_SNAPSHOT_MAX_VERSION = 5;
 const GAME_STATE_MAP_VERSION = 2;
 const BROWSER_RUNTIME_STATE_VERSION = 1;
+const SOURCE_SKIRMISH_GAME_INFO_SNAPSHOT_VERSION = 4;
+const SOURCE_SKIRMISH_GAME_SLOT_COUNT = 8;
+const SOURCE_SKIRMISH_GAME_INFO_RELEASE_CRC_INTERVAL = 100;
+const SOURCE_MONEY_SNAPSHOT_VERSION = 1;
 const SOURCE_TERRAIN_LOGIC_SNAPSHOT_VERSION = 2;
 const SOURCE_PARTITION_SNAPSHOT_VERSION = 2;
 const SOURCE_PARTITION_CELL_SNAPSHOT_VERSION = 1;
@@ -150,12 +155,14 @@ interface RuntimeSaveMapState {
 }
 
 interface RuntimeSaveCampaignState {
+  version: number;
   currentCampaign: string;
   currentMission: string;
   currentRankPoints: number;
   difficulty: GameDifficulty;
   isChallengeCampaign: boolean;
   playerTemplateNum: number;
+  challengeGameInfoState: RuntimeSaveChallengeGameInfoState | null;
 }
 
 export interface BrowserRuntimeCameraSaveState {
@@ -184,6 +191,7 @@ export interface BrowserRuntimeSavePayload {
 }
 
 export interface RuntimeSaveCampaignBootstrap {
+  version?: number;
   campaignName: string;
   missionName: string;
   missionNumber: number;
@@ -191,6 +199,40 @@ export interface RuntimeSaveCampaignBootstrap {
   rankPoints: number;
   isChallengeCampaign: boolean;
   playerTemplateNum: number;
+  challengeGameInfoState?: RuntimeSaveChallengeGameInfoState | null;
+}
+
+export interface RuntimeSaveChallengeGameSlotState {
+  state: number;
+  name: string;
+  isAccepted: boolean;
+  isMuted: boolean;
+  color: number;
+  startPos: number;
+  playerTemplate: number;
+  teamNumber: number;
+  origColor: number;
+  origStartPos: number;
+  origPlayerTemplate: number;
+}
+
+export interface RuntimeSaveChallengeGameInfoState {
+  version: number;
+  preorderMask: number;
+  crcInterval: number;
+  inGame: boolean;
+  inProgress: boolean;
+  surrendered: boolean;
+  gameId: number;
+  slots: RuntimeSaveChallengeGameSlotState[];
+  localIp: number;
+  mapName: string;
+  mapCrc: number;
+  mapSize: number;
+  mapMask: number;
+  seed: number;
+  superweaponRestriction: number;
+  startingCash: number;
 }
 
 export interface RuntimeSaveGameClientState {
@@ -210,6 +252,7 @@ interface RuntimeSaveDrawableSnapshotState {
   readonly stealthOpacity: number;
   readonly effectiveStealthOpacity: number;
   readonly ambientSoundEnabled: boolean;
+  readonly ambientSoundEnabledFromScript: boolean;
   readonly flashCount: number;
   readonly flashColor: number;
   readonly hidden: boolean;
@@ -353,6 +396,162 @@ function copyBytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 
 function isChallengeCampaignName(name: string | null | undefined): boolean {
   return /^challenge_\d+$/i.test(name?.trim() ?? '');
+}
+
+function createEmptyChallengeGameSlotState(): RuntimeSaveChallengeGameSlotState {
+  return {
+    state: 1,
+    name: '',
+    isAccepted: true,
+    isMuted: false,
+    color: -1,
+    startPos: -1,
+    playerTemplate: -1,
+    teamNumber: -1,
+    origColor: -1,
+    origStartPos: -1,
+    origPlayerTemplate: -1,
+  };
+}
+
+function createEmptyChallengeGameInfoState(): RuntimeSaveChallengeGameInfoState {
+  return {
+    version: SOURCE_SKIRMISH_GAME_INFO_SNAPSHOT_VERSION,
+    preorderMask: 0,
+    crcInterval: SOURCE_SKIRMISH_GAME_INFO_RELEASE_CRC_INTERVAL,
+    inGame: false,
+    inProgress: false,
+    surrendered: false,
+    gameId: 0,
+    slots: Array.from({ length: SOURCE_SKIRMISH_GAME_SLOT_COUNT }, () => createEmptyChallengeGameSlotState()),
+    localIp: 0,
+    mapName: 'NOMAP',
+    mapCrc: 0,
+    mapSize: 0,
+    mapMask: 0,
+    seed: 0,
+    superweaponRestriction: 0,
+    startingCash: 10000,
+  };
+}
+
+function xferMoneyAmount(xfer: Xfer, value: number): number {
+  const version = xfer.xferVersion(SOURCE_MONEY_SNAPSHOT_VERSION);
+  if (version !== SOURCE_MONEY_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported money snapshot version ${version}`);
+  }
+  return xfer.xferUnsignedInt(value);
+}
+
+function xferChallengeGameSlotState(
+  xfer: Xfer,
+  slotState: RuntimeSaveChallengeGameSlotState,
+  version: number,
+): RuntimeSaveChallengeGameSlotState {
+  const state = xfer.xferInt(slotState.state);
+  const name = version >= 2 ? xfer.xferUnicodeString(slotState.name) : slotState.name;
+  const isAccepted = xfer.xferBool(slotState.isAccepted);
+  const isMuted = xfer.xferBool(slotState.isMuted);
+  const color = xfer.xferInt(slotState.color);
+  const startPos = xfer.xferInt(slotState.startPos);
+  const playerTemplate = xfer.xferInt(slotState.playerTemplate);
+  const teamNumber = xfer.xferInt(slotState.teamNumber);
+  const origColor = xfer.xferInt(slotState.origColor);
+  const origStartPos = xfer.xferInt(slotState.origStartPos);
+  const origPlayerTemplate = xfer.xferInt(slotState.origPlayerTemplate);
+  return {
+    state,
+    name,
+    isAccepted,
+    isMuted,
+    color,
+    startPos,
+    playerTemplate,
+    teamNumber,
+    origColor,
+    origStartPos,
+    origPlayerTemplate,
+  };
+}
+
+function xferChallengeGameInfoState(
+  xfer: Xfer,
+  state: RuntimeSaveChallengeGameInfoState,
+): RuntimeSaveChallengeGameInfoState {
+  const version = xfer.xferVersion(
+    xfer.getMode() === XferMode.XFER_LOAD
+      ? SOURCE_SKIRMISH_GAME_INFO_SNAPSHOT_VERSION
+      : state.version,
+  );
+  if (version < 2 || version > SOURCE_SKIRMISH_GAME_INFO_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported skirmish game info snapshot version ${version}`);
+  }
+
+  const preorderMask = xfer.xferInt(state.preorderMask);
+  const crcInterval = xfer.xferInt(state.crcInterval);
+  const inGame = xfer.xferBool(state.inGame);
+  const inProgress = xfer.xferBool(state.inProgress);
+  const surrendered = xfer.xferBool(state.surrendered);
+  const gameId = xfer.xferInt(state.gameId);
+
+  const slotCount = xfer.xferInt(
+    state.slots.length > 0 ? state.slots.length : SOURCE_SKIRMISH_GAME_SLOT_COUNT,
+  );
+  if (slotCount !== SOURCE_SKIRMISH_GAME_SLOT_COUNT) {
+    throw new Error(
+      `Skirmish game info slot count mismatch: expected ${SOURCE_SKIRMISH_GAME_SLOT_COUNT}, got ${slotCount}`,
+    );
+  }
+
+  const slots: RuntimeSaveChallengeGameSlotState[] = [];
+  for (let index = 0; index < slotCount; index += 1) {
+    slots.push(
+      xferChallengeGameSlotState(
+        xfer,
+        state.slots[index] ?? createEmptyChallengeGameSlotState(),
+        version,
+      ),
+    );
+  }
+
+  const localIp = xfer.xferUnsignedInt(state.localIp);
+  const mapName = xfer.xferAsciiString(state.mapName);
+  const mapCrc = xfer.xferUnsignedInt(state.mapCrc);
+  const mapSize = xfer.xferUnsignedInt(state.mapSize);
+  const mapMask = xfer.xferInt(state.mapMask);
+  const seed = xfer.xferInt(state.seed);
+
+  let superweaponRestriction = state.superweaponRestriction;
+  let startingCash = state.startingCash;
+  if (version >= 3) {
+    superweaponRestriction = xfer.xferUnsignedShort(superweaponRestriction);
+    if (version === 3) {
+      xfer.xferBool(false);
+    }
+    startingCash = xferMoneyAmount(xfer, startingCash);
+  } else if (xfer.getMode() === XferMode.XFER_LOAD) {
+    superweaponRestriction = 0;
+    startingCash = 10000;
+  }
+
+  return {
+    version,
+    preorderMask,
+    crcInterval,
+    inGame,
+    inProgress,
+    surrendered,
+    gameId,
+    slots,
+    localIp,
+    mapName,
+    mapCrc,
+    mapSize,
+    mapMask,
+    seed,
+    superweaponRestriction,
+    startingCash,
+  };
 }
 
 function extractPassthroughBlocks(data: ArrayBuffer): RuntimeSavePassthroughBlock[] {
@@ -517,6 +716,7 @@ function buildSourceGameClientDrawableStates(
       stealthOpacity: clampOpacity(state.stealthFriendlyOpacity, 1),
       effectiveStealthOpacity: clampOpacity(state.tunnelTransitionOpacity, 1),
       ambientSoundEnabled: state.scriptAmbientSoundEnabled ?? true,
+      ambientSoundEnabledFromScript: state.scriptAmbientSoundEnabled ?? true,
       flashCount: Math.max(0, Math.trunc(state.scriptFlashCount ?? 0)),
       flashColor: (state.scriptFlashColor ?? 0) & 0xffffff,
       hidden: state.shroudStatus === 'SHROUDED',
@@ -584,8 +784,8 @@ class DrawableSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
-    const version = xfer.xferVersion(5);
-    if (version !== 5) {
+    const version = xfer.xferVersion(7);
+    if (version !== 7) {
       throw new Error(`Unsupported drawable snapshot version ${version}`);
     }
 
@@ -627,6 +827,8 @@ class DrawableSnapshot implements Snapshot {
     xfer.xferUnsignedInt(0);
     xfer.xferUnsignedByte(0);
     xfer.xferBool(this.state.ambientSoundEnabled);
+    xfer.xferBool(this.state.ambientSoundEnabledFromScript);
+    xfer.xferBool(false);
   }
 
   loadPostProcess(): void {
@@ -954,7 +1156,12 @@ class CampaignSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
-    const version = xfer.xferVersion(CAMPAIGN_VERSION);
+    const version = xfer.xferVersion(
+      xfer.getMode() === XferMode.XFER_LOAD
+        ? SOURCE_CAMPAIGN_SNAPSHOT_MAX_VERSION
+        : this.state.version,
+    );
+    this.state.version = version;
     this.state.currentCampaign = xfer.xferAsciiString(this.state.currentCampaign);
     this.state.currentMission = xfer.xferAsciiString(this.state.currentMission);
 
@@ -966,6 +1173,28 @@ class CampaignSnapshot implements Snapshot {
       this.state.difficulty = decodeSourceDifficulty(
         xfer.xferInt(encodeSourceDifficulty(this.state.difficulty)),
       );
+    }
+
+    if (version >= 4) {
+      this.state.isChallengeCampaign = xfer.xferBool(this.state.isChallengeCampaign);
+      if (this.state.isChallengeCampaign) {
+        this.state.challengeGameInfoState = xferChallengeGameInfoState(
+          xfer,
+          this.state.challengeGameInfoState ?? createEmptyChallengeGameInfoState(),
+        );
+        if (version < 5 && this.state.playerTemplateNum < 0) {
+          this.state.playerTemplateNum = this.state.challengeGameInfoState.slots[0]?.playerTemplate ?? -1;
+        }
+      } else if (xfer.getMode() === XferMode.XFER_LOAD) {
+        this.state.challengeGameInfoState = null;
+      }
+    } else if (xfer.getMode() === XferMode.XFER_LOAD) {
+      this.state.isChallengeCampaign = isChallengeCampaignName(this.state.currentCampaign);
+      this.state.challengeGameInfoState = null;
+    }
+
+    if (version >= 5) {
+      this.state.playerTemplateNum = xfer.xferInt(this.state.playerTemplateNum);
     }
   }
 
@@ -2281,12 +2510,14 @@ export function buildRuntimeSaveFile(params: {
 
   const metadataState = createMetadataState(params.description, params.mapPath);
   const campaignState: RuntimeSaveCampaignState = {
+    version: params.campaign?.version ?? SOURCE_CAMPAIGN_SNAPSHOT_FRESH_VERSION,
     currentCampaign: params.campaign?.campaignName ?? '',
     currentMission: params.campaign?.missionName ?? '',
     currentRankPoints: params.campaign?.rankPoints ?? 0,
     difficulty: params.campaign?.difficulty ?? 'NORMAL',
     isChallengeCampaign: params.campaign?.isChallengeCampaign ?? false,
     playerTemplateNum: params.campaign?.playerTemplateNum ?? -1,
+    challengeGameInfoState: params.campaign?.challengeGameInfoState ?? null,
   };
   applyCampaignMetadata(metadataState, params.campaign ?? null);
   const mapState: RuntimeSaveMapState = {
@@ -2407,12 +2638,14 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const mapInfo = parseSaveGameMapInfo(data);
 
   const campaignSnapshot = new CampaignSnapshot({
+    version: SOURCE_CAMPAIGN_SNAPSHOT_FRESH_VERSION,
     currentCampaign: '',
     currentMission: '',
     currentRankPoints: 0,
     difficulty: 'NORMAL',
     isChallengeCampaign: false,
     playerTemplateNum: -1,
+    challengeGameInfoState: null,
   });
   const terrainLogicSnapshot = new TerrainLogicSnapshot();
   const playersSnapshot = new PlayersSnapshot();
@@ -2471,14 +2704,16 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     ? parseSourceParticleSystemChunk(particleSystemChunk)
     : null;
   const campaign = campaignSnapshot.state.currentCampaign.length > 0
-    ? {
+      ? {
+        version: campaignSnapshot.state.version,
         campaignName: campaignSnapshot.state.currentCampaign,
         missionName: campaignSnapshot.state.currentMission,
         missionNumber: metadata.missionNumber,
         difficulty: campaignSnapshot.state.difficulty,
         rankPoints: campaignSnapshot.state.currentRankPoints,
-        isChallengeCampaign: isChallengeCampaignName(campaignSnapshot.state.currentCampaign),
-        playerTemplateNum: -1,
+        isChallengeCampaign: campaignSnapshot.state.isChallengeCampaign,
+        playerTemplateNum: campaignSnapshot.state.playerTemplateNum,
+        challengeGameInfoState: campaignSnapshot.state.challengeGameInfoState,
       }
     : null;
 

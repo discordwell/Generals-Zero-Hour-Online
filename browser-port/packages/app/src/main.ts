@@ -176,6 +176,24 @@ interface RoadIniEntry {
 
 const ROADS_INI_JSON_PATH = 'data/_extracted/INIZH/Data/INI/Roads.json';
 
+function resolvePlayerTemplateNum(
+  iniDataRegistry: IniDataRegistry,
+  playerTemplateName: string | null | undefined,
+): number {
+  const normalized = playerTemplateName?.trim();
+  if (!normalized) {
+    return -1;
+  }
+  let index = 0;
+  for (const factionName of iniDataRegistry.factions.keys()) {
+    if (factionName === normalized) {
+      return index;
+    }
+    index += 1;
+  }
+  return -1;
+}
+
 async function loadTerrainRoadEntries(assets: AssetManager): Promise<RoadIniEntry[]> {
   try {
     const handle = await assets.loadJSON<RoadIniEntry[]>(ROADS_INI_JSON_PATH);
@@ -5208,13 +5226,20 @@ async function startGame(
       passthroughBlocks: runtimeSaveLoadContext?.runtimeSave.passthroughBlocks ?? [],
       campaign: activeCampaign && activeMission
         ? {
+            version: runtimeSaveLoadContext?.runtimeSave.campaign?.version,
             campaignName: activeCampaign.name,
             missionName: activeMission.name,
             missionNumber: campaignContext?.campaignManager.getCurrentMissionNumber() ?? -1,
             difficulty: campaignContext?.campaignManager.difficulty ?? campaignContext!.settings.difficulty,
             rankPoints: 0,
             isChallengeCampaign: activeCampaign.isChallengeCampaign,
-            playerTemplateNum: -1,
+            playerTemplateNum:
+              runtimeSaveLoadContext?.runtimeSave.campaign?.playerTemplateNum
+              ?? campaignContext?.settings.playerTemplateNum
+              ?? -1,
+            challengeGameInfoState:
+              runtimeSaveLoadContext?.runtimeSave.campaign?.challengeGameInfoState
+              ?? null,
           }
         : null,
     });
@@ -5413,6 +5438,7 @@ async function startGameFromRuntimeSave(
         gameMode: runtimeSave.campaign.isChallengeCampaign ? 'CHALLENGE' : 'CAMPAIGN',
         campaignName: currentCampaign.name,
         difficulty: runtimeSave.campaign.difficulty,
+        playerTemplateNum: runtimeSave.campaign.playerTemplateNum,
         mapPath: resolvedMapPath,
         mission: currentMission,
         campaign: currentCampaign,
@@ -5573,6 +5599,9 @@ async function init(): Promise<void> {
       await startGame(ctx, settings.mapPath, settings);
     },
     onStartCampaign: async (settings: CampaignStartSettings) => {
+      const resolvedPlayerTemplateNum = settings.gameMode === 'CHALLENGE'
+        ? resolvePlayerTemplateNum(ctx.iniDataRegistry, settings.campaign.playerFactionName)
+        : -1;
       if (settings.gameMode !== 'CAMPAIGN') {
         shell.hide();
       }
@@ -5581,7 +5610,10 @@ async function init(): Promise<void> {
       await startGame(ctx, settings.mapPath, null, {
         campaignManager,
         videoPlayer,
-        settings,
+        settings: {
+          ...settings,
+          playerTemplateNum: resolvedPlayerTemplateNum,
+        },
         onReturnToShell: () => {
           window.location.reload();
         },
