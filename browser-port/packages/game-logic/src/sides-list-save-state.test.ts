@@ -81,8 +81,10 @@ describe('sides-list save-state', () => {
     const scriptEngineState = logic.captureSourceScriptEngineRuntimeSaveState();
     const browserState = logic.captureBrowserRuntimeSaveState();
 
-    expect(sidesListState.state.mapScriptLists).toEqual([{
-      scripts: [introScript],
+    expect(sidesListState.version).toBe(2);
+    expect(sidesListState.scriptLists).toEqual([{
+      present: true,
+      scripts: [{ active: true }],
       groups: [],
     }]);
     expect(sidesListState.state.scriptPlayerSideByName).toEqual(new Map([['THE_PLAYER', 'america']]));
@@ -96,9 +98,17 @@ describe('sides-list save-state', () => {
     expect(browserState).not.toHaveProperty('scriptPlayerSideByName');
 
     const restored = new GameLogicSubsystem(new THREE.Scene());
+    const restoredPrivate = restored as unknown as typeof privateLogic;
+    restoredPrivate.mapScriptLists.push({
+      scripts: [{
+        ...introScript,
+        active: false,
+      }],
+      groups: [],
+    });
+    restoredPrivate.mapScriptsByNameUpper.set('INTROSCRIPT', restoredPrivate.mapScriptLists[0]!.scripts[0]!);
     restored.restoreSourceSidesListRuntimeSaveState(sidesListState);
 
-    const restoredPrivate = restored as unknown as typeof privateLogic;
     expect(restoredPrivate.mapScriptLists).toEqual([{
       scripts: [introScript],
       groups: [],

@@ -7995,6 +7995,7 @@ const SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_TERRAIN_LOGIC_RUNTIME_SAVE_STATE_VERSION = 2;
 const SOURCE_PARTITION_RUNTIME_SAVE_STATE_VERSION = 2;
 const SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION = 2;
+const SOURCE_SIDES_LIST_RUNTIME_SAVE_STATE_VERSION = 2;
 const SOURCE_TEAM_FACTORY_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_SCRIPT_ENGINE_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_IN_GAME_UI_RUNTIME_SAVE_STATE_VERSION = 1;
@@ -8083,6 +8084,14 @@ const SOURCE_SIDES_LIST_RUNTIME_STATE_KEYS = [
   'mapScriptLists',
   'mapScriptsByNameUpper',
   'mapScriptGroupsByNameUpper',
+  'scriptPlayerSideByName',
+  'scriptDefaultTeamNameBySide',
+  'mapScriptSideByIndex',
+  'mapScriptDifficultyByIndex',
+  'mapScriptDifficultyByPlayerToken',
+  'scriptAiBuildListEntriesBySide',
+] as const;
+const SOURCE_SIDES_LIST_METADATA_RUNTIME_STATE_KEYS = [
   'scriptPlayerSideByName',
   'scriptDefaultTeamNameBySide',
   'mapScriptSideByIndex',
@@ -8312,11 +8321,27 @@ export interface GameLogicPlayersSaveState {
 export interface GameLogicSidesListSaveState {
   version: number;
   state: Record<string, unknown>;
+  scriptLists?: GameLogicSourceScriptListSaveState[];
 }
 
 export interface GameLogicTeamFactorySaveState {
   version: number;
   state: Record<string, unknown>;
+}
+
+export interface GameLogicSourceScriptSaveState {
+  active: boolean;
+}
+
+export interface GameLogicSourceScriptGroupSaveState {
+  active: boolean;
+  scripts: GameLogicSourceScriptSaveState[];
+}
+
+export interface GameLogicSourceScriptListSaveState {
+  present: boolean;
+  scripts: GameLogicSourceScriptSaveState[];
+  groups: GameLogicSourceScriptGroupSaveState[];
 }
 
 export interface GameLogicTunnelTrackerSaveState {
@@ -11253,8 +11278,20 @@ export class GameLogicSubsystem implements Subsystem {
 
   captureSourceSidesListRuntimeSaveState(): GameLogicSidesListSaveState {
     return {
-      version: 1,
-      state: this.captureSourceRuntimeStateByKeys(SOURCE_SIDES_LIST_RUNTIME_STATE_KEYS),
+      version: SOURCE_SIDES_LIST_RUNTIME_SAVE_STATE_VERSION,
+      state: this.captureSourceRuntimeStateByKeys(SOURCE_SIDES_LIST_METADATA_RUNTIME_STATE_KEYS),
+      scriptLists: this.mapScriptLists.map((scriptList) => ({
+        present: true,
+        scripts: (scriptList?.scripts ?? []).map((script) => ({
+          active: script.active,
+        })),
+        groups: (scriptList?.groups ?? []).map((group) => ({
+          active: group.active,
+          scripts: group.scripts.map((script) => ({
+            active: script.active,
+          })),
+        })),
+      })),
     };
   }
 
@@ -11264,17 +11301,83 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     const snapshot = state as GameLogicSidesListSaveState;
-    if (snapshot.version !== 1) {
+    if (snapshot.version === 1) {
+      if (!snapshot.state || typeof snapshot.state !== 'object' || Array.isArray(snapshot.state)) {
+        throw new Error('Source sides-list save-state content is malformed.');
+      }
+      this.restoreSourceRuntimeStateByKeys(
+        SOURCE_SIDES_LIST_RUNTIME_STATE_KEYS,
+        snapshot.state as Record<string, unknown>,
+      );
+      return;
+    }
+    if (snapshot.version !== SOURCE_SIDES_LIST_RUNTIME_SAVE_STATE_VERSION) {
       throw new Error(`Unsupported source sides-list save-state version ${snapshot.version}.`);
     }
     if (!snapshot.state || typeof snapshot.state !== 'object' || Array.isArray(snapshot.state)) {
       throw new Error('Source sides-list save-state content is malformed.');
     }
+    if (!Array.isArray(snapshot.scriptLists)) {
+      throw new Error('Source sides-list script-list payload is malformed.');
+    }
 
     this.restoreSourceRuntimeStateByKeys(
-      SOURCE_SIDES_LIST_RUNTIME_STATE_KEYS,
+      SOURCE_SIDES_LIST_METADATA_RUNTIME_STATE_KEYS,
       snapshot.state as Record<string, unknown>,
     );
+
+    if (this.mapScriptLists.length === 0 && snapshot.scriptLists.length > 0) {
+      throw new Error('Source sides-list save-state requires loaded map scripts before restore.');
+    }
+    if (snapshot.scriptLists.length !== this.mapScriptLists.length) {
+      throw new Error(
+        `Source sides-list save-state count mismatch: expected ${this.mapScriptLists.length}, got ${snapshot.scriptLists.length}.`,
+      );
+    }
+
+    for (let sideIndex = 0; sideIndex < snapshot.scriptLists.length; sideIndex += 1) {
+      const savedScriptList = snapshot.scriptLists[sideIndex];
+      const currentScriptList = this.mapScriptLists[sideIndex];
+      if (!savedScriptList) {
+        continue;
+      }
+      if (!savedScriptList.present) {
+        if ((currentScriptList?.scripts.length ?? 0) !== 0 || (currentScriptList?.groups.length ?? 0) !== 0) {
+          throw new Error(`Source sides-list save-state side ${sideIndex} is missing a script list.`);
+        }
+        continue;
+      }
+      if (!currentScriptList) {
+        throw new Error(`Source sides-list save-state references missing side script list ${sideIndex}.`);
+      }
+      if (savedScriptList.scripts.length !== currentScriptList.scripts.length) {
+        throw new Error(
+          `Source sides-list script count mismatch for side ${sideIndex}: expected ${currentScriptList.scripts.length}, got ${savedScriptList.scripts.length}.`,
+        );
+      }
+      if (savedScriptList.groups.length !== currentScriptList.groups.length) {
+        throw new Error(
+          `Source sides-list group count mismatch for side ${sideIndex}: expected ${currentScriptList.groups.length}, got ${savedScriptList.groups.length}.`,
+        );
+      }
+
+      for (let scriptIndex = 0; scriptIndex < savedScriptList.scripts.length; scriptIndex += 1) {
+        currentScriptList.scripts[scriptIndex]!.active = !!savedScriptList.scripts[scriptIndex]?.active;
+      }
+      for (let groupIndex = 0; groupIndex < savedScriptList.groups.length; groupIndex += 1) {
+        const savedGroup = savedScriptList.groups[groupIndex]!;
+        const currentGroup = currentScriptList.groups[groupIndex]!;
+        currentGroup.active = !!savedGroup.active;
+        if (savedGroup.scripts.length !== currentGroup.scripts.length) {
+          throw new Error(
+            `Source sides-list group script count mismatch for side ${sideIndex} group ${groupIndex}: expected ${currentGroup.scripts.length}, got ${savedGroup.scripts.length}.`,
+          );
+        }
+        for (let scriptIndex = 0; scriptIndex < savedGroup.scripts.length; scriptIndex += 1) {
+          currentGroup.scripts[scriptIndex]!.active = !!savedGroup.scripts[scriptIndex]?.active;
+        }
+      }
+    }
   }
 
   captureSourceTeamFactoryRuntimeSaveState(): GameLogicTeamFactorySaveState {

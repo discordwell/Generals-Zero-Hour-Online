@@ -4,6 +4,7 @@ import * as THREE from 'three';
 
 import {
   buildRuntimeSaveFile,
+  parseSourceSidesListChunk,
   parseRuntimeSaveFile,
   SOURCE_GAME_MODE_SINGLE_PLAYER,
   type RuntimeSaveChallengeGameInfoState,
@@ -47,6 +48,43 @@ function createEmptyPartitionState() {
     totalCellCount: 0,
     cells: [],
     pendingUndoShroudReveals: [],
+  };
+}
+
+function createEmptySidesListState() {
+  return {
+    version: 2 as const,
+    state: {},
+    scriptLists: [],
+  };
+}
+
+function createSourceSidesListState() {
+  return {
+    version: 2 as const,
+    state: {
+      scriptPlayerSideByName: new Map([['THE_PLAYER', 'america']]),
+      scriptDefaultTeamNameBySide: new Map([['america', 'TEAMTHEPLAYER']]),
+      mapScriptSideByIndex: ['america'],
+      mapScriptDifficultyByIndex: [1],
+      mapScriptDifficultyByPlayerToken: new Map([['THE_PLAYER', 1]]),
+      scriptAiBuildListEntriesBySide: new Map([['america', [{
+        buildingName: 'AmericaBarracks',
+        templateName: 'AmericaBarracks',
+        x: 12,
+        z: 18,
+        rebuilds: 0,
+        angle: 0,
+        initiallyBuilt: true,
+        automaticallyBuild: true,
+        priorityBuild: false,
+      }]]]),
+    },
+    scriptLists: [{
+      present: true,
+      scripts: [{ active: true }],
+      groups: [],
+    }],
   };
 }
 
@@ -241,6 +279,74 @@ function readCampaignChunk(data: ArrayBuffer): {
       isChallengeCampaign,
       playerTemplateNum,
       challengeGameInfoVersion,
+      trailingBytes: chunkData.byteLength - xferLoad.getOffset(),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function readSidesListChunk(data: ArrayBuffer): {
+  version: number;
+  sideCount: number;
+  scriptLists: Array<{
+    present: boolean;
+    scripts: Array<{ active: boolean }>;
+    groups: Array<{
+      version: number;
+      active: boolean;
+      scripts: Array<{ active: boolean }>;
+    }>;
+  }>;
+  trailingBytes: number;
+} | null {
+  const chunkData = readSaveChunkData(data, 'CHUNK_SidesList');
+  if (!chunkData) {
+    return null;
+  }
+  const xferLoad = new XferLoad(chunkData.buffer);
+  xferLoad.open('read-sides-list-chunk');
+  try {
+    const version = xferLoad.xferVersion(1);
+    const sideCount = xferLoad.xferInt(0);
+    const scriptLists = [];
+    for (let sideIndex = 0; sideIndex < sideCount; sideIndex += 1) {
+      const present = xferLoad.xferBool(false);
+      const scripts: Array<{ active: boolean }> = [];
+      const groups: Array<{
+        version: number;
+        active: boolean;
+        scripts: Array<{ active: boolean }>;
+      }> = [];
+      if (present) {
+        const listVersion = xferLoad.xferVersion(1);
+        expect(listVersion).toBe(1);
+        const scriptCount = xferLoad.xferUnsignedShort(0);
+        for (let scriptIndex = 0; scriptIndex < scriptCount; scriptIndex += 1) {
+          const scriptVersion = xferLoad.xferVersion(1);
+          expect(scriptVersion).toBe(1);
+          scripts.push({ active: xferLoad.xferBool(false) });
+        }
+        const groupCount = xferLoad.xferUnsignedShort(0);
+        for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
+          const groupVersion = xferLoad.xferVersion(2);
+          const active = groupVersion >= 2 ? xferLoad.xferBool(false) : true;
+          const groupScriptCount = xferLoad.xferUnsignedShort(0);
+          const groupScripts: Array<{ active: boolean }> = [];
+          for (let scriptIndex = 0; scriptIndex < groupScriptCount; scriptIndex += 1) {
+            const scriptVersion = xferLoad.xferVersion(1);
+            expect(scriptVersion).toBe(1);
+            groupScripts.push({ active: xferLoad.xferBool(false) });
+          }
+          groups.push({ version: groupVersion, active, scripts: groupScripts });
+        }
+      }
+      scriptLists.push({ present, scripts, groups });
+    }
+    return {
+      version,
+      sideCount,
+      scriptLists,
       trailingBytes: chunkData.byteLength - xferLoad.getOffset(),
     };
   } finally {
@@ -459,6 +565,49 @@ function readGhostObjectChunk(data: ArrayBuffer): {
 }
 
 describe('runtime-save-game', () => {
+  it('parses legacy JSON-backed CHUNK_SidesList payloads for backwards compatibility', () => {
+    const legacyState = {
+      version: 1,
+      state: {
+        scriptPlayerSideByName: new Map([['THE_PLAYER', 'america']]),
+        mapScriptLists: [{
+          scripts: [{
+            name: 'IntroScript',
+            active: true,
+          }],
+          groups: [],
+        }],
+      },
+    };
+    const legacySerialized = JSON.stringify({
+      version: 1,
+      state: {
+        scriptPlayerSideByName: {
+          __runtimeType: 'Map',
+          entries: [['THE_PLAYER', 'america']],
+        },
+        mapScriptLists: [{
+          scripts: [{
+            name: 'IntroScript',
+            active: true,
+          }],
+          groups: [],
+        }],
+      },
+    });
+
+    const xferSave = new XferSave();
+    xferSave.open('legacy-sides-list');
+    try {
+      xferSave.xferVersion(1);
+      xferSave.xferLongString(legacySerialized);
+      const parsed = parseSourceSidesListChunk(xferSave.getBuffer());
+      expect(parsed).toEqual(legacyState);
+    } finally {
+      xferSave.close();
+    }
+  });
+
   it('round-trips embedded map data and browser runtime payloads', () => {
     const mapData = {
       heightmap: {
@@ -559,65 +708,7 @@ describe('runtime-save-game', () => {
           nextFreeRadarEvent: 1,
           lastRadarEvent: 0,
         }),
-        captureSourceSidesListRuntimeSaveState: () => ({
-          version: 1,
-          state: {
-            scriptPlayerSideByName: new Map([['THE_PLAYER', 'america']]),
-            scriptDefaultTeamNameBySide: new Map([['america', 'TEAMTHEPLAYER']]),
-            mapScriptSideByIndex: ['america'],
-            mapScriptDifficultyByIndex: [1],
-            mapScriptDifficultyByPlayerToken: new Map([['THE_PLAYER', 1]]),
-            scriptAiBuildListEntriesBySide: new Map([['america', [{
-              buildingName: 'AmericaBarracks',
-              templateName: 'AmericaBarracks',
-              x: 12,
-              z: 18,
-              rebuilds: 0,
-              angle: 0,
-              initiallyBuilt: true,
-              automaticallyBuild: true,
-              priorityBuild: false,
-            }]]]),
-            mapScriptLists: [{
-              scripts: [{
-                name: 'IntroScript',
-                nameUpper: 'INTROSCRIPT',
-                active: true,
-                oneShot: false,
-                easy: true,
-                normal: true,
-                hard: true,
-                subroutine: false,
-                delayEvaluationSeconds: 0,
-                frameToEvaluateAt: 0,
-                conditionTeamNameUpper: null,
-                sourceSideIndex: 0,
-                conditions: [],
-                actions: [],
-                falseActions: [],
-              }],
-              groups: [],
-            }],
-            mapScriptsByNameUpper: new Map([['INTROSCRIPT', {
-              name: 'IntroScript',
-              nameUpper: 'INTROSCRIPT',
-              active: true,
-              oneShot: false,
-              easy: true,
-              normal: true,
-              hard: true,
-              subroutine: false,
-              delayEvaluationSeconds: 0,
-              frameToEvaluateAt: 0,
-              conditionTeamNameUpper: null,
-              sourceSideIndex: 0,
-              conditions: [],
-              actions: [],
-              falseActions: [],
-            }]]),
-            mapScriptGroupsByNameUpper: new Map(),
-          },
-        }),
+        captureSourceSidesListRuntimeSaveState: () => createSourceSidesListState(),
         captureSourceTeamFactoryRuntimeSaveState: () => ({
           version: 1,
           state: {
@@ -816,6 +907,7 @@ describe('runtime-save-game', () => {
       version: number;
       spawnedEntities: Map<number, { id: number; templateName: string; kindOf: Set<string> }>;
     };
+    const sidesListChunk = readSidesListChunk(saveFile.data);
     const gameClientChunk = readGameClientChunk(saveFile.data);
     const terrainVisualChunk = readTerrainVisualChunk(saveFile.data);
     const ghostObjectChunk = readGhostObjectChunk(saveFile.data);
@@ -837,6 +929,16 @@ describe('runtime-save-game', () => {
       prefixBytes: expect.any(ArrayBuffer),
       briefingLines: ['MISSION_BRIEFING_ALPHA', 'MISSION_BRIEFING_BETA'],
       drawables: [],
+    });
+    expect(sidesListChunk).toEqual({
+      version: 1,
+      sideCount: 1,
+      scriptLists: [{
+        present: true,
+        scripts: [{ active: true }],
+        groups: [],
+      }],
+      trailingBytes: 0,
     });
     expect(terrainVisualChunk).toEqual({
       version: 1,
@@ -932,40 +1034,15 @@ describe('runtime-save-game', () => {
     });
     expect(radarState.nextFreeRadarEvent).toBe(1);
     expect(radarState.lastRadarEvent).toBe(0);
-    expect(sidesListState?.state.scriptPlayerSideByName).toEqual(new Map([['THE_PLAYER', 'america']]));
-    expect(sidesListState?.state.scriptDefaultTeamNameBySide).toEqual(new Map([['america', 'TEAMTHEPLAYER']]));
-    expect(sidesListState?.state.mapScriptSideByIndex).toEqual(['america']);
-    expect(sidesListState?.state.mapScriptDifficultyByIndex).toEqual([1]);
-    expect(sidesListState?.state.mapScriptDifficultyByPlayerToken).toEqual(new Map([['THE_PLAYER', 1]]));
-    expect(sidesListState?.state.scriptAiBuildListEntriesBySide).toEqual(new Map([['america', [{
-      buildingName: 'AmericaBarracks',
-      templateName: 'AmericaBarracks',
-      x: 12,
-      z: 18,
-      rebuilds: 0,
-      angle: 0,
-      initiallyBuilt: true,
-      automaticallyBuild: true,
-      priorityBuild: false,
-    }]]]));
-    expect(sidesListState?.state.mapScriptLists).toHaveLength(1);
-    expect(sidesListState?.state.mapScriptsByNameUpper).toEqual(new Map([['INTROSCRIPT', {
-      name: 'IntroScript',
-      nameUpper: 'INTROSCRIPT',
-      active: true,
-      oneShot: false,
-      easy: true,
-      normal: true,
-      hard: true,
-      subroutine: false,
-      delayEvaluationSeconds: 0,
-      frameToEvaluateAt: 0,
-      conditionTeamNameUpper: null,
-      sourceSideIndex: 0,
-      conditions: [],
-      actions: [],
-      falseActions: [],
-    }]]));
+    expect(sidesListState).toEqual({
+      version: 2,
+      state: {},
+      scriptLists: [{
+        present: true,
+        scripts: [{ active: true }],
+        groups: [],
+      }],
+    });
     expect(teamFactoryState?.state.scriptTeamsByName).toEqual(new Map([['TEAMTHEPLAYER', {
       nameUpper: 'TEAMTHEPLAYER',
       prototypeNameUpper: 'TEAMTHEPLAYER',
@@ -1175,7 +1252,7 @@ describe('runtime-save-game', () => {
           state: { localPlayerIndex: 0 },
         }),
         captureSourceRadarRuntimeSaveState: createEmptyRadarState,
-        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
         captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -1269,7 +1346,7 @@ describe('runtime-save-game', () => {
           state: { localPlayerIndex: 0 },
         }),
         captureSourceRadarRuntimeSaveState: createEmptyRadarState,
-        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
         captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -1362,7 +1439,7 @@ describe('runtime-save-game', () => {
           state: { localPlayerIndex: 0 },
         },
         captureSourceRadarRuntimeSaveState: () => parsed.gameLogicRadarState ?? createEmptyRadarState(),
-        captureSourceSidesListRuntimeSaveState: () => parsed.gameLogicSidesListState ?? { version: 1, state: {} },
+        captureSourceSidesListRuntimeSaveState: () => parsed.gameLogicSidesListState ?? createEmptySidesListState(),
         captureSourceTeamFactoryRuntimeSaveState: () => (
           parsed.gameLogicTeamFactoryState
           ?? (
@@ -1448,7 +1525,7 @@ describe('runtime-save-game', () => {
         captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
-        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
         captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -1542,7 +1619,7 @@ describe('runtime-save-game', () => {
         captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
-        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
         captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -1606,7 +1683,7 @@ describe('runtime-save-game', () => {
         captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
-        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
         captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -1699,7 +1776,7 @@ describe('runtime-save-game', () => {
         captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
-        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
         captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -1829,7 +1906,7 @@ describe('runtime-save-game', () => {
         captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
-        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
         captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -1905,7 +1982,7 @@ describe('runtime-save-game', () => {
         captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
-        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
         captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -1978,7 +2055,7 @@ describe('runtime-save-game', () => {
         captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
-        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
         captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
@@ -2035,7 +2112,7 @@ describe('runtime-save-game', () => {
         captureSourcePartitionRuntimeSaveState: () => parsed.gameLogicPartitionState ?? createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => parsed.gameLogicPlayersState ?? { version: 1, state: {} },
         captureSourceRadarRuntimeSaveState: () => parsed.gameLogicRadarState ?? createEmptyRadarState(),
-        captureSourceSidesListRuntimeSaveState: () => parsed.gameLogicSidesListState ?? { version: 1, state: {} },
+        captureSourceSidesListRuntimeSaveState: () => parsed.gameLogicSidesListState ?? createEmptySidesListState(),
         captureSourceTeamFactoryRuntimeSaveState: () => (
           parsed.gameLogicTeamFactoryState
           ?? (
@@ -2212,7 +2289,7 @@ describe('runtime-save-game', () => {
         captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
         captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
-        captureSourceSidesListRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
         captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),

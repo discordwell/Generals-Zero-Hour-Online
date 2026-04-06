@@ -28,6 +28,9 @@ import {
   type GameLogicPlayersSaveState,
   type GameLogicPartitionSaveState,
   type GameLogicRadarSaveState,
+  type GameLogicSourceScriptGroupSaveState,
+  type GameLogicSourceScriptListSaveState,
+  type GameLogicSourceScriptSaveState,
   type GameLogicScriptEngineSaveState,
   type GameLogicSellingEntitySaveState,
   type GameLogicSidesListSaveState,
@@ -107,6 +110,7 @@ const SOURCE_PARTITION_SNAPSHOT_VERSION = 2;
 const SOURCE_PARTITION_CELL_SNAPSHOT_VERSION = 1;
 const SOURCE_PARTITION_PLAYER_COUNT = 8;
 const SOURCE_PLAYER_SNAPSHOT_VERSION = 2;
+const SOURCE_SIDES_LIST_SAVE_STATE_VERSION = 2;
 const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 7;
 const SOURCE_GAME_CLIENT_SNAPSHOT_VERSION = 3;
 const SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION = 1;
@@ -2040,6 +2044,89 @@ class ScriptEngineSnapshot implements Snapshot {
   }
 }
 
+function xferSourceScriptState(
+  xfer: Xfer,
+  scriptState: GameLogicSourceScriptSaveState,
+): GameLogicSourceScriptSaveState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported sides-list script snapshot version ${version}`);
+  }
+  return {
+    active: xfer.xferBool(scriptState.active),
+  };
+}
+
+function xferSourceScriptGroupState(
+  xfer: Xfer,
+  groupState: GameLogicSourceScriptGroupSaveState,
+): GameLogicSourceScriptGroupSaveState {
+  const version = xfer.xferVersion(2);
+  if (version !== 2 && version !== 1) {
+    throw new Error(`Unsupported sides-list script-group snapshot version ${version}`);
+  }
+
+  const active = version >= 2
+    ? xfer.xferBool(groupState.active)
+    : groupState.active;
+  const count = xfer.xferUnsignedShort(groupState.scripts.length);
+  const scripts: GameLogicSourceScriptSaveState[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < count; index += 1) {
+      scripts.push(xferSourceScriptState(xfer, { active: true }));
+    }
+  } else {
+    for (const scriptState of groupState.scripts) {
+      scripts.push(xferSourceScriptState(xfer, scriptState));
+    }
+  }
+
+  return {
+    active,
+    scripts,
+  };
+}
+
+function xferSourceScriptListState(
+  xfer: Xfer,
+  scriptListState: GameLogicSourceScriptListSaveState,
+): GameLogicSourceScriptListSaveState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported sides-list script-list snapshot version ${version}`);
+  }
+
+  const scriptCount = xfer.xferUnsignedShort(scriptListState.scripts.length);
+  const scripts: GameLogicSourceScriptSaveState[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < scriptCount; index += 1) {
+      scripts.push(xferSourceScriptState(xfer, { active: true }));
+    }
+  } else {
+    for (const scriptState of scriptListState.scripts) {
+      scripts.push(xferSourceScriptState(xfer, scriptState));
+    }
+  }
+
+  const groupCount = xfer.xferUnsignedShort(scriptListState.groups.length);
+  const groups: GameLogicSourceScriptGroupSaveState[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < groupCount; index += 1) {
+      groups.push(xferSourceScriptGroupState(xfer, { active: true, scripts: [] }));
+    }
+  } else {
+    for (const groupState of scriptListState.groups) {
+      groups.push(xferSourceScriptGroupState(xfer, groupState));
+    }
+  }
+
+  return {
+    present: true,
+    scripts,
+    groups,
+  };
+}
+
 class SidesListSnapshot implements Snapshot {
   payload: GameLogicSidesListSaveState | null;
 
@@ -2056,20 +2143,103 @@ class SidesListSnapshot implements Snapshot {
     if (version !== 1) {
       throw new Error(`Unsupported sides-list snapshot version ${version}`);
     }
-
-    const serialized = xfer.xferLongString(
-      this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
-    );
-    if (serialized.length === 0) {
-      this.payload = null;
-      return;
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      throw new Error('Sides-list snapshot load should use parseSourceSidesListChunk().');
     }
-    this.payload = JSON.parse(serialized, runtimeJsonReviver) as GameLogicSidesListSaveState;
+    if (this.payload === null) {
+      throw new Error('Sides-list snapshot payload is missing during save.');
+    }
+    if (this.payload.version !== SOURCE_SIDES_LIST_SAVE_STATE_VERSION) {
+      throw new Error(
+        `Unsupported source sides-list save-state version ${this.payload.version}.`,
+      );
+    }
+    const scriptLists = this.payload.scriptLists ?? [];
+    xfer.xferInt(scriptLists.length);
+    for (const scriptListState of scriptLists) {
+      const present = xfer.xferBool(scriptListState.present);
+      if (present) {
+        xferSourceScriptListState(xfer, scriptListState);
+      }
+    }
   }
 
   loadPostProcess(): void {
     // No cross-snapshot fixup required.
   }
+}
+
+function tryParseSourceSidesListChunk(data: ArrayBuffer | Uint8Array): GameLogicSidesListSaveState | null {
+  const xferLoad = new XferLoad(
+    data instanceof Uint8Array ? copyBytesToArrayBuffer(data) : data.slice(0),
+  );
+  xferLoad.open('source-sides-list');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const sideCount = xferLoad.xferInt(0);
+    if (sideCount < 0 || sideCount > 64) {
+      return null;
+    }
+
+    const scriptLists: GameLogicSourceScriptListSaveState[] = [];
+    for (let sideIndex = 0; sideIndex < sideCount; sideIndex += 1) {
+      const present = xferLoad.xferBool(false);
+      if (!present) {
+        scriptLists.push({ present: false, scripts: [], groups: [] });
+        continue;
+      }
+      const scriptList = xferSourceScriptListState(xferLoad, {
+        present: true,
+        scripts: [],
+        groups: [],
+      });
+      scriptLists.push(scriptList);
+    }
+    if (xferLoad.getRemaining() !== 0) {
+      return null;
+    }
+    return {
+      version: SOURCE_SIDES_LIST_SAVE_STATE_VERSION,
+      state: {},
+      scriptLists,
+    };
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function tryParseLegacySidesListChunk(data: ArrayBuffer | Uint8Array): GameLogicSidesListSaveState | null {
+  const xferLoad = new XferLoad(
+    data instanceof Uint8Array ? copyBytesToArrayBuffer(data) : data.slice(0),
+  );
+  xferLoad.open('legacy-sides-list');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const serialized = xferLoad.xferLongString('');
+    if (serialized.length === 0) {
+      return null;
+    }
+    if (xferLoad.getRemaining() !== 0) {
+      return null;
+    }
+    return JSON.parse(serialized, runtimeJsonReviver) as GameLogicSidesListSaveState;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+export function parseSourceSidesListChunk(data: ArrayBuffer | Uint8Array): GameLogicSidesListSaveState | null {
+  return tryParseSourceSidesListChunk(data) ?? tryParseLegacySidesListChunk(data);
 }
 
 class TeamFactorySnapshot implements Snapshot {
@@ -2755,7 +2925,6 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const partitionSnapshot = new PartitionSnapshot();
   const gameLogicSnapshot = new GameLogicSnapshot();
   const radarSnapshot = new RadarSnapshot();
-  const sidesListSnapshot = new SidesListSnapshot();
   const scriptEngineSnapshot = new ScriptEngineSnapshot();
   const tacticalViewSnapshot = new TacticalViewSnapshot();
   const inGameUiSnapshot = new InGameUiSnapshot();
@@ -2768,7 +2937,6 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, gameLogicSnapshot);
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, radarSnapshot);
   state.addSnapshotBlock(SOURCE_SCRIPT_ENGINE_BLOCK, scriptEngineSnapshot);
-  state.addSnapshotBlock(SOURCE_SIDES_LIST_BLOCK, sidesListSnapshot);
   state.addSnapshotBlock(SOURCE_TACTICAL_VIEW_BLOCK, tacticalViewSnapshot);
   state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, inGameUiSnapshot);
   state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, runtimeSnapshot);
@@ -2802,6 +2970,10 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const legacyTeamFactoryState = teamFactoryChunk
     ? tryParseLegacyTeamFactoryChunk(teamFactoryChunk)
     : null;
+  const sidesListChunk = extractSaveChunkData(data, SOURCE_SIDES_LIST_BLOCK);
+  const sidesListState = sidesListChunk
+    ? parseSourceSidesListChunk(sidesListChunk)
+    : null;
   const particleSystemChunk = extractSaveChunkData(data, SOURCE_PARTICLE_SYSTEM_BLOCK);
   const particleSystemState = particleSystemChunk
     ? parseSourceParticleSystemChunk(particleSystemChunk)
@@ -2834,7 +3006,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     gameLogicPlayersState: playersSnapshot?.payload ?? null,
     gameLogicPartitionState: partitionSnapshot?.payload ?? null,
     gameLogicRadarState: radarSnapshot?.payload ?? null,
-    gameLogicSidesListState: sidesListSnapshot?.payload ?? null,
+    gameLogicSidesListState: sidesListState,
     gameLogicScriptEngineState: scriptEngineSnapshot?.payload ?? null,
     gameLogicInGameUiState: inGameUiSnapshot?.payload ?? null,
     gameLogicCoreState: gameLogicSnapshot?.payload ?? null,
