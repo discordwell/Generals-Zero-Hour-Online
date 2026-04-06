@@ -12,6 +12,7 @@ import {
   type Xfer,
 } from '@generals/engine';
 import type { CameraState } from '@generals/input';
+import * as THREE from 'three';
 import {
   xferMapEntity,
   type GameDifficulty,
@@ -251,6 +252,7 @@ interface RuntimeSaveDrawableSnapshotState {
   readonly objectId: number;
   readonly templateName: string;
   readonly modelConditionFlags: readonly string[];
+  readonly transformMatrixBytes: Uint8Array;
   readonly statusBits: number;
   readonly explicitOpacity: number;
   readonly stealthOpacity: number;
@@ -708,10 +710,37 @@ function mergeBriefingLines(
 }
 
 function buildIdentityMatrix3DBytes(): Uint8Array {
+  return buildTransformMatrix3DBytes(0, 0, 0, 0);
+}
+
+function buildTransformMatrix3DBytes(
+  x: number,
+  y: number,
+  z: number,
+  rotationY: number,
+): Uint8Array {
+  const matrix = new THREE.Matrix4();
+  matrix.compose(
+    new THREE.Vector3(
+      Number.isFinite(x) ? x : 0,
+      Number.isFinite(y) ? y : 0,
+      Number.isFinite(z) ? z : 0,
+    ),
+    new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(
+        0,
+        Number.isFinite(rotationY) ? rotationY : 0,
+        0,
+        'XYZ',
+      ),
+    ),
+    new THREE.Vector3(1, 1, 1),
+  );
+  const e = matrix.elements;
   const values = new Float32Array([
-    1, 0, 0, 0,
-    0, 1, 0, 0,
-    0, 0, 1, 0,
+    e[0]!, e[4]!, e[8]!, e[12]!,
+    e[1]!, e[5]!, e[9]!, e[13]!,
+    e[2]!, e[6]!, e[10]!, e[14]!,
   ]);
   return new Uint8Array(values.buffer.slice(0));
 }
@@ -775,6 +804,12 @@ function buildSourceGameClientDrawableStates(
       objectId: state.id,
       templateName: visualTemplateName,
       modelConditionFlags: state.modelConditionFlags ?? [],
+      transformMatrixBytes: buildTransformMatrix3DBytes(
+        state.x,
+        state.y,
+        state.z,
+        state.rotationY,
+      ),
       statusBits: shouldEnableDrawableShadows(state) ? DRAWABLE_STATUS_SHADOWS : 0,
       explicitOpacity: clampOpacity(state.tunnelTransitionOpacity, 1),
       stealthOpacity: clampOpacity(state.stealthFriendlyOpacity, 1),
@@ -855,7 +890,7 @@ class DrawableSnapshot implements Snapshot {
 
     xfer.xferUnsignedInt(this.state.drawableId);
     xferModelConditionFlags(xfer, this.state.modelConditionFlags);
-    xfer.xferUser(this.identityMatrixBytes);
+    xfer.xferUser(this.state.transformMatrixBytes);
     xfer.xferBool(false);
     xfer.xferBool(false);
     xfer.xferInt(TERRAIN_DECAL_NONE);

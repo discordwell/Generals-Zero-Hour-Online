@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { XferLoad, XferSave, listSaveGameChunks } from '@generals/engine';
+import * as THREE from 'three';
 
 import {
   buildRuntimeSaveFile,
@@ -340,6 +341,73 @@ function readGameClientChunk(data: ArrayBuffer): {
       drawableIds,
       briefingLines,
     };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildExpectedTransformRows(
+  x: number,
+  y: number,
+  z: number,
+  rotationY: number,
+): number[] {
+  const matrix = new THREE.Matrix4();
+  matrix.compose(
+    new THREE.Vector3(x, y, z),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotationY, 0, 'XYZ')),
+    new THREE.Vector3(1, 1, 1),
+  );
+  const e = matrix.elements;
+  return [
+    e[0]!, e[4]!, e[8]!, e[12]!,
+    e[1]!, e[5]!, e[9]!, e[13]!,
+    e[2]!, e[6]!, e[10]!, e[14]!,
+  ];
+}
+
+function readFirstGeneratedDrawableTransform(data: ArrayBuffer): number[] | null {
+  const chunkData = readSaveChunkData(data, 'CHUNK_GameClient');
+  if (!chunkData) {
+    return null;
+  }
+  const xferLoad = new XferLoad(chunkData.buffer);
+  xferLoad.open('read-first-generated-drawable-transform');
+  try {
+    xferLoad.xferVersion(3);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferVersion(1);
+    const tocCount = xferLoad.xferUnsignedInt(0);
+    for (let index = 0; index < tocCount; index += 1) {
+      xferLoad.xferAsciiString('');
+      xferLoad.xferUnsignedShort(0);
+    }
+    const drawableCount = xferLoad.xferUnsignedShort(0);
+    if (drawableCount <= 0) {
+      return null;
+    }
+
+    xferLoad.xferUnsignedShort(0);
+    const blockSize = xferLoad.beginBlock();
+    const blockStart = xferLoad.getOffset();
+    xferLoad.xferObjectID(0);
+    xferLoad.xferVersion(7);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferVersion(1);
+    const conditionCount = xferLoad.xferInt(0);
+    for (let index = 0; index < conditionCount; index += 1) {
+      xferLoad.xferAsciiString('');
+    }
+    const matrixOffset = xferLoad.getOffset();
+    const matrixView = new DataView(chunkData.buffer, chunkData.byteOffset + matrixOffset, 12 * 4);
+    const rows: number[] = [];
+    for (let index = 0; index < 12; index += 1) {
+      rows.push(matrixView.getFloat32(index * 4, true));
+    }
+    const consumed = xferLoad.getOffset() - blockStart;
+    xferLoad.skip(blockSize - consumed);
+    xferLoad.endBlock();
+    return rows;
   } finally {
     xferLoad.close();
   }
@@ -1043,7 +1111,7 @@ describe('runtime-save-game', () => {
           x: 10,
           y: 0,
           z: 20,
-          rotationY: 0,
+          rotationY: 0.5,
           animationState: 'MOVE',
           health: 100,
           maxHealth: 100,
@@ -1144,6 +1212,12 @@ describe('runtime-save-game', () => {
       drawableIds: [7],
       briefingLines: [],
     });
+    const transformRows = readFirstGeneratedDrawableTransform(saveFile.data);
+    const expectedRows = buildExpectedTransformRows(10, 0, 20, 0.5);
+    expect(transformRows).not.toBeNull();
+    for (let index = 0; index < expectedRows.length; index += 1) {
+      expect(transformRows?.[index]).toBeCloseTo(expectedRows[index]!, 5);
+    }
   });
 
   it('replaces parsed attached-object GameClient drawables while preserving unattached raw drawables', () => {
