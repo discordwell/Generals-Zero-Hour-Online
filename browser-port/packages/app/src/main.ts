@@ -5383,13 +5383,6 @@ async function startGameFromRuntimeSave(
       );
     }
 
-    if (runtimeSave.campaign.isChallengeCampaign) {
-      throw new Error(
-        'Challenge campaign save restore is not wired yet. ' +
-        'The retail CHUNK_Campaign challenge payload still needs source-backed support.',
-      );
-    }
-
     const { campaignManager, videoPlayer, onReturnToShell } = campaignServices;
     const restored = campaignManager.setCampaignAndMission(
       runtimeSave.campaign.campaignName,
@@ -5417,7 +5410,7 @@ async function startGameFromRuntimeSave(
       campaignManager,
       videoPlayer,
       settings: {
-        gameMode: 'CAMPAIGN',
+        gameMode: runtimeSave.campaign.isChallengeCampaign ? 'CHALLENGE' : 'CAMPAIGN',
         campaignName: currentCampaign.name,
         difficulty: runtimeSave.campaign.difficulty,
         mapPath: resolvedMapPath,

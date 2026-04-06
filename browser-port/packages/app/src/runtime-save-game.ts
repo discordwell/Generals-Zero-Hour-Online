@@ -2288,12 +2288,6 @@ export function buildRuntimeSaveFile(params: {
     isChallengeCampaign: params.campaign?.isChallengeCampaign ?? false,
     playerTemplateNum: params.campaign?.playerTemplateNum ?? -1,
   };
-  if (campaignState.isChallengeCampaign) {
-    throw new Error(
-      'Challenge campaign save-state interoperability is not wired yet. ' +
-      'Saving challenge campaigns would produce an incomplete CHUNK_Campaign payload.',
-    );
-  }
   applyCampaignMetadata(metadataState, params.campaign ?? null);
   const mapState: RuntimeSaveMapState = {
     saveGameMapPath: params.mapPath ?? '',

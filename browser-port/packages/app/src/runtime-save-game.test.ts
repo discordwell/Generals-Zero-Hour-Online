@@ -1500,7 +1500,7 @@ describe('runtime-save-game', () => {
     });
   });
 
-  it('fails loudly when asked to save unsupported challenge campaign state', () => {
+  it('round-trips challenge campaign metadata through source CHUNK_Campaign fields', () => {
     const mapData = {
       heightmap: {
         width: 2,
@@ -1515,7 +1515,7 @@ describe('runtime-save-game', () => {
       blendTileCount: 0,
     };
 
-    expect(() => buildRuntimeSaveFile({
+    const saveFile = buildRuntimeSaveFile({
       description: 'Challenge Save',
       mapPath: 'maps/_extracted/MapsZH/Maps/MD_CHALLENGE/MD_CHALLENGE.json',
       mapData,
@@ -1562,7 +1562,27 @@ describe('runtime-save-game', () => {
         isChallengeCampaign: true,
         playerTemplateNum: 3,
       },
-    })).toThrow(/Challenge campaign save-state interoperability is not wired yet/);
+    });
+
+    expect(readCampaignChunk(saveFile.data)).toEqual({
+      version: 3,
+      campaignName: 'challenge_0',
+      missionName: 'mission01',
+      rankPoints: 0,
+      difficulty: 1,
+      trailingBytes: 0,
+    });
+
+    const parsed = parseRuntimeSaveFile(saveFile.data);
+    expect(parsed.campaign).toEqual({
+      campaignName: 'challenge_0',
+      missionName: 'mission01',
+      missionNumber: 0,
+      difficulty: 'NORMAL',
+      rankPoints: 0,
+      isChallengeCampaign: true,
+      playerTemplateNum: -1,
+    });
   });
 
   it('preserves raw unimplemented source chunks when rebuilding a loaded save', () => {
