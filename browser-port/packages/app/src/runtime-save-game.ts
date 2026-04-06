@@ -120,6 +120,8 @@ export const SOURCE_GAME_MODE_SKIRMISH = 2;
 const SOURCE_DIFFICULTY_EASY = 0;
 const SOURCE_DIFFICULTY_NORMAL = 1;
 const SOURCE_DIFFICULTY_HARD = 2;
+const SOURCE_SLOT_STATE_CLOSED = 1;
+const SOURCE_SLOT_STATE_PLAYER = 5;
 const DRAWABLE_STATUS_SHADOWS = 0x00000002;
 const NUM_DRAWABLE_MODULE_TYPES = 2;
 const TERRAIN_DECAL_NONE = 0;
@@ -199,6 +201,8 @@ export interface RuntimeSaveCampaignBootstrap {
   rankPoints: number;
   isChallengeCampaign: boolean;
   playerTemplateNum: number;
+  sourceMapName?: string | null;
+  playerDisplayName?: string | null;
   challengeGameInfoState?: RuntimeSaveChallengeGameInfoState | null;
 }
 
@@ -400,9 +404,9 @@ function isChallengeCampaignName(name: string | null | undefined): boolean {
 
 function createEmptyChallengeGameSlotState(): RuntimeSaveChallengeGameSlotState {
   return {
-    state: 1,
-    name: '',
-    isAccepted: true,
+    state: SOURCE_SLOT_STATE_CLOSED,
+    name: 'Closed',
+    isAccepted: false,
     isMuted: false,
     color: -1,
     startPos: -1,
@@ -433,6 +437,66 @@ function createEmptyChallengeGameInfoState(): RuntimeSaveChallengeGameInfoState 
     superweaponRestriction: 0,
     startingCash: 10000,
   };
+}
+
+function createChallengePlayerSlotState(
+  playerDisplayName: string,
+  playerTemplateNum: number,
+): RuntimeSaveChallengeGameSlotState {
+  return {
+    ...createEmptyChallengeGameSlotState(),
+    state: SOURCE_SLOT_STATE_PLAYER,
+    name: playerDisplayName,
+    isAccepted: true,
+    playerTemplate: playerTemplateNum,
+  };
+}
+
+function resolveFreshCampaignSnapshotVersion(
+  campaign: RuntimeSaveCampaignBootstrap | null | undefined,
+): number {
+  if (campaign?.version !== undefined) {
+    return campaign.version;
+  }
+  if (campaign?.isChallengeCampaign || campaign?.challengeGameInfoState) {
+    return SOURCE_CAMPAIGN_SNAPSHOT_MAX_VERSION;
+  }
+  return SOURCE_CAMPAIGN_SNAPSHOT_FRESH_VERSION;
+}
+
+function createFreshChallengeGameInfoState(
+  campaign: RuntimeSaveCampaignBootstrap,
+  gameRandomSeed: number | undefined,
+): RuntimeSaveChallengeGameInfoState {
+  const state = createEmptyChallengeGameInfoState();
+  state.inGame = true;
+  state.inProgress = false;
+  state.seed = typeof gameRandomSeed === 'number' && Number.isFinite(gameRandomSeed)
+    ? Math.trunc(gameRandomSeed)
+    : state.seed;
+  if (campaign.sourceMapName && campaign.sourceMapName.trim().length > 0) {
+    state.mapName = campaign.sourceMapName.trim();
+  }
+  if (campaign.playerTemplateNum >= 0) {
+    state.slots[0] = createChallengePlayerSlotState(
+      campaign.playerDisplayName?.trim() || '',
+      campaign.playerTemplateNum,
+    );
+  }
+  return state;
+}
+
+function resolveChallengeGameInfoState(
+  campaign: RuntimeSaveCampaignBootstrap | null | undefined,
+  gameRandomSeed: number | undefined,
+): RuntimeSaveChallengeGameInfoState | null {
+  if (!campaign?.isChallengeCampaign) {
+    return campaign?.challengeGameInfoState ?? null;
+  }
+  if (campaign.challengeGameInfoState) {
+    return campaign.challengeGameInfoState;
+  }
+  return createFreshChallengeGameInfoState(campaign, gameRandomSeed);
 }
 
 function xferMoneyAmount(xfer: Xfer, value: number): number {
@@ -2507,17 +2571,21 @@ export function buildRuntimeSaveFile(params: {
     (playerPayload?.state as Record<string, unknown> | undefined)?.localPlayerIndex ?? 0,
   );
   const resolvedLocalPlayerIndex = Number.isFinite(localPlayerIndex) ? Math.trunc(localPlayerIndex) : 0;
+  const resolvedChallengeGameInfoState = resolveChallengeGameInfoState(
+    params.campaign,
+    gameLogicPayload.gameRandomSeed,
+  );
 
   const metadataState = createMetadataState(params.description, params.mapPath);
   const campaignState: RuntimeSaveCampaignState = {
-    version: params.campaign?.version ?? SOURCE_CAMPAIGN_SNAPSHOT_FRESH_VERSION,
+    version: resolveFreshCampaignSnapshotVersion(params.campaign),
     currentCampaign: params.campaign?.campaignName ?? '',
     currentMission: params.campaign?.missionName ?? '',
     currentRankPoints: params.campaign?.rankPoints ?? 0,
     difficulty: params.campaign?.difficulty ?? 'NORMAL',
     isChallengeCampaign: params.campaign?.isChallengeCampaign ?? false,
     playerTemplateNum: params.campaign?.playerTemplateNum ?? -1,
-    challengeGameInfoState: params.campaign?.challengeGameInfoState ?? null,
+    challengeGameInfoState: resolvedChallengeGameInfoState,
   };
   applyCampaignMetadata(metadataState, params.campaign ?? null);
   const mapState: RuntimeSaveMapState = {

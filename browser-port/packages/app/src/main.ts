@@ -194,6 +194,20 @@ function resolvePlayerTemplateNum(
   return -1;
 }
 
+function resolveChallengePlayerDisplayName(
+  iniDataRegistry: IniDataRegistry,
+  campaignName: string | null | undefined,
+  playerTemplateName: string | null | undefined,
+): string {
+  const normalizedCampaignName = campaignName?.trim().toLowerCase() ?? '';
+  const normalizedPlayerTemplateName = playerTemplateName?.trim() ?? '';
+  const persona = buildChallengePersonasFromRegistry(iniDataRegistry).find((candidate) =>
+    candidate.campaignName === normalizedCampaignName
+      || candidate.playerTemplateName === normalizedPlayerTemplateName,
+  );
+  return persona?.name ?? normalizedPlayerTemplateName;
+}
+
 async function loadTerrainRoadEntries(assets: AssetManager): Promise<RoadIniEntry[]> {
   try {
     const handle = await assets.loadJSON<RoadIniEntry[]>(ROADS_INI_JSON_PATH);
@@ -5237,6 +5251,14 @@ async function startGame(
               runtimeSaveLoadContext?.runtimeSave.campaign?.playerTemplateNum
               ?? campaignContext?.settings.playerTemplateNum
               ?? -1,
+            sourceMapName: activeMission.mapName,
+            playerDisplayName: activeCampaign.isChallengeCampaign
+              ? resolveChallengePlayerDisplayName(
+                  ctx.iniDataRegistry,
+                  activeCampaign.name,
+                  activeCampaign.playerFactionName,
+                )
+              : undefined,
             challengeGameInfoState:
               runtimeSaveLoadContext?.runtimeSave.campaign?.challengeGameInfoState
               ?? null,

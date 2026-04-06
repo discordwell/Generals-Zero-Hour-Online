@@ -1596,7 +1596,7 @@ describe('runtime-save-game', () => {
     });
   });
 
-  it('round-trips challenge campaign metadata through source CHUNK_Campaign fields', () => {
+  it('emits source version 5 challenge campaign metadata for fresh TS saves', () => {
     const mapData = {
       heightmap: {
         width: 2,
@@ -1631,6 +1631,7 @@ describe('runtime-save-game', () => {
         captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
         captureSourceGameLogicRuntimeSaveState: () => ({
           version: 1,
+          gameRandomSeed: 77,
           nextId: 5,
           nextProjectileVisualId: 1,
           animationTime: 0,
@@ -1657,32 +1658,70 @@ describe('runtime-save-game', () => {
         rankPoints: 0,
         isChallengeCampaign: true,
         playerTemplateNum: 3,
+        sourceMapName: 'Maps/GC_Challenge/GC_Challenge.map',
+        playerDisplayName: 'General Granger',
       },
     });
 
     expect(readCampaignChunk(saveFile.data)).toEqual({
-      version: 3,
+      version: 5,
       campaignName: 'challenge_0',
       missionName: 'mission01',
       rankPoints: 0,
       difficulty: 1,
-      isChallengeCampaign: false,
-      playerTemplateNum: null,
-      challengeGameInfoVersion: null,
+      isChallengeCampaign: true,
+      playerTemplateNum: 3,
+      challengeGameInfoVersion: 4,
       trailingBytes: 0,
+    });
+
+    const expectedChallengeGameInfoState = createChallengeGameInfoState({
+      inGame: true,
+      inProgress: false,
+      seed: 77,
+      mapName: 'Maps/GC_Challenge/GC_Challenge.map',
+      slots: Array.from({ length: 8 }, (_, index) => (
+        index === 0
+          ? {
+              state: 5,
+              name: 'General Granger',
+              isAccepted: true,
+              isMuted: false,
+              color: -1,
+              startPos: -1,
+              playerTemplate: 3,
+              teamNumber: -1,
+              origColor: -1,
+              origStartPos: -1,
+              origPlayerTemplate: -1,
+            }
+          : {
+              state: 1,
+              name: 'Closed',
+              isAccepted: false,
+              isMuted: false,
+              color: -1,
+              startPos: -1,
+              playerTemplate: -1,
+              teamNumber: -1,
+              origColor: -1,
+              origStartPos: -1,
+              origPlayerTemplate: -1,
+            }
+      )),
     });
 
     const parsed = parseRuntimeSaveFile(saveFile.data);
     expect(parsed.campaign).toEqual({
-      version: 3,
+      version: 5,
       campaignName: 'challenge_0',
       missionName: 'mission01',
       missionNumber: 0,
       difficulty: 'NORMAL',
       rankPoints: 0,
       isChallengeCampaign: true,
-      playerTemplateNum: -1,
-      challengeGameInfoState: null,
+      playerTemplateNum: 3,
+      challengeGameInfoState: expectedChallengeGameInfoState,
     });
   });
 
