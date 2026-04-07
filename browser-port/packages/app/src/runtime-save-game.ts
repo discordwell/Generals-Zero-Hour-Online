@@ -392,6 +392,16 @@ export interface RuntimeSaveCoreChunkStatus {
   mode: RuntimeSaveCoreChunkMode;
 }
 
+export interface RuntimeSaveGameLogicChunkLayoutInspection {
+  layout: 'source_outer' | 'legacy' | 'unknown';
+  version: number | null;
+  frameCounter: number | null;
+  objectTocCount: number | null;
+  objectCount: number | null;
+  firstObjectVersion: number | null;
+  reason?: string;
+}
+
 function getLeafName(path: string | null): string {
   if (!path) {
     return 'Embedded Map';
@@ -2535,6 +2545,350 @@ function xferSourceGameLogicCombatBridgeState(
     historicDamageLog: Array.isArray(restored.historicDamageLog)
       ? restored.historicDamageLog
       : [],
+  };
+}
+
+function createEmptyCampaignSnapshotState(): RuntimeSaveCampaignState {
+  return {
+    version: SOURCE_CAMPAIGN_SNAPSHOT_FRESH_VERSION,
+    currentCampaign: '',
+    currentMission: '',
+    currentRankPoints: 0,
+    difficulty: 'NORMAL',
+    isChallengeCampaign: false,
+    playerTemplateNum: -1,
+    challengeGameInfoState: null,
+  };
+}
+
+function xferSourceCaveTrackerVector(
+  xfer: Xfer,
+  trackers: GameLogicCaveTrackerSaveState[],
+): GameLogicCaveTrackerSaveState[] {
+  const maxCaveIndex = trackers.reduce(
+    (currentMax, tracker) => Math.max(currentMax, Math.trunc(tracker.caveIndex)),
+    -1,
+  );
+  const vectorLength = xfer.xferUnsignedShort(maxCaveIndex >= 0 ? maxCaveIndex + 1 : 0);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: GameLogicCaveTrackerSaveState[] = [];
+    for (let caveIndex = 0; caveIndex < vectorLength; caveIndex += 1) {
+      loaded.push({
+        caveIndex,
+        tracker: xferSourceTunnelTrackerState(xfer, {
+          tunnelIds: [],
+          passengerIds: [],
+          tunnelCount: 0,
+        }),
+      });
+    }
+    return loaded;
+  }
+
+  const trackerByIndex = new Map<number, GameLogicCaveTrackerSaveState>();
+  for (const tracker of trackers) {
+    trackerByIndex.set(Math.max(0, Math.trunc(tracker.caveIndex)), tracker);
+  }
+  for (let caveIndex = 0; caveIndex < vectorLength; caveIndex += 1) {
+    xferSourceTunnelTrackerState(
+      xfer,
+      trackerByIndex.get(caveIndex)?.tracker ?? {
+        tunnelIds: [],
+        passengerIds: [],
+        tunnelCount: 0,
+      },
+    );
+  }
+  return trackers;
+}
+
+type SourcePolygonTriggerPoint = { x: number; y: number; z: number };
+
+interface SourcePolygonTriggerSnapshotState {
+  points: SourcePolygonTriggerPoint[];
+  bounds: {
+    lo: { x: number; y: number };
+    hi: { x: number; y: number };
+  };
+  radius: number;
+  boundsNeedsUpdate: boolean;
+}
+
+function buildSourcePolygonTriggerSnapshotState(
+  points: readonly SourcePolygonTriggerPoint[],
+): SourcePolygonTriggerSnapshotState {
+  const normalizedPoints = points.map((point) => ({
+    x: Math.trunc(point.x),
+    y: Math.trunc(point.y),
+    z: Math.trunc(point.z),
+  }));
+  const xs = normalizedPoints.map((point) => point.x);
+  const ys = normalizedPoints.map((point) => point.y);
+  const loX = xs.length > 0 ? Math.min(...xs) : 0;
+  const loY = ys.length > 0 ? Math.min(...ys) : 0;
+  const hiX = xs.length > 0 ? Math.max(...xs) : 0;
+  const hiY = ys.length > 0 ? Math.max(...ys) : 0;
+  const halfWidth = (hiX - loX) / 2.0;
+  const halfHeight = (hiY + loY) / 2.0;
+  return {
+    points: normalizedPoints,
+    bounds: {
+      lo: { x: loX, y: loY },
+      hi: { x: hiX, y: hiY },
+    },
+    radius: Math.sqrt((halfHeight * halfHeight) + (halfWidth * halfWidth)),
+    boundsNeedsUpdate: false,
+  };
+}
+
+function xferSourcePolygonTriggerSnapshot(
+  xfer: Xfer,
+  snapshot: SourcePolygonTriggerSnapshotState,
+): SourcePolygonTriggerSnapshotState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source polygon trigger snapshot version ${version}`);
+  }
+
+  const pointCount = xfer.xferInt(snapshot.points.length);
+  const points: SourcePolygonTriggerPoint[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < pointCount; index += 1) {
+      points.push({
+        x: xfer.xferInt(0),
+        y: xfer.xferInt(0),
+        z: xfer.xferInt(0),
+      });
+    }
+  } else {
+    for (const point of snapshot.points) {
+      xfer.xferInt(point.x);
+      xfer.xferInt(point.y);
+      xfer.xferInt(point.z);
+      points.push(point);
+    }
+  }
+
+  const bounds = {
+    lo: {
+      x: xfer.xferInt(snapshot.bounds.lo.x),
+      y: xfer.xferInt(snapshot.bounds.lo.y),
+    },
+    hi: {
+      x: xfer.xferInt(snapshot.bounds.hi.x),
+      y: xfer.xferInt(snapshot.bounds.hi.y),
+    },
+  };
+  const radius = xfer.xferReal(snapshot.radius);
+  const boundsNeedsUpdate = xfer.xferBool(snapshot.boundsNeedsUpdate);
+  return {
+    points,
+    bounds,
+    radius,
+    boundsNeedsUpdate,
+  };
+}
+
+function xferSourceBuildableOverrideMap(
+  xfer: Xfer,
+  overrides: GameLogicBuildableOverrideSaveState[],
+): GameLogicBuildableOverrideSaveState[] {
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: GameLogicBuildableOverrideSaveState[] = [];
+    for (;;) {
+      const templateName = xfer.xferAsciiString('');
+      if (templateName.length === 0) {
+        break;
+      }
+      loaded.push({
+        templateName,
+        buildableStatus: decodeBuildableStatus(xfer.xferInt(0)),
+      });
+    }
+    return loaded;
+  }
+
+  for (const override of overrides) {
+    xfer.xferAsciiString(override.templateName);
+    xfer.xferInt(encodeBuildableStatus(override.buildableStatus));
+  }
+  xfer.xferAsciiString('');
+  return overrides;
+}
+
+function inspectSourceGameLogicChunk(
+  data: ArrayBuffer | Uint8Array,
+): RuntimeSaveGameLogicChunkLayoutInspection | null {
+  const chunkData = data instanceof Uint8Array
+    ? (() => {
+        const copy = new Uint8Array(data.byteLength);
+        copy.set(data);
+        return copy.buffer;
+      })()
+    : data;
+  const xferLoad = new XferLoad(chunkData);
+  xferLoad.open('inspect-source-game-logic');
+  try {
+    const version = xferLoad.xferVersion(SOURCE_GAME_LOGIC_SNAPSHOT_VERSION);
+    const frameCounter = xferLoad.xferUnsignedInt(0);
+
+    const tocVersion = xferLoad.xferVersion(1);
+    if (tocVersion !== 1) {
+      return {
+        layout: 'unknown',
+        version,
+        frameCounter,
+        objectTocCount: null,
+        objectCount: null,
+        firstObjectVersion: null,
+        reason: `Unsupported object TOC version ${tocVersion}`,
+      };
+    }
+    const objectTocCount = xferLoad.xferUnsignedInt(0);
+    for (let index = 0; index < objectTocCount; index += 1) {
+      xferLoad.xferAsciiString('');
+      xferLoad.xferUnsignedShort(0);
+    }
+
+    const objectCount = xferLoad.xferUnsignedInt(0);
+    let firstObjectVersion: number | null = null;
+    for (let index = 0; index < objectCount; index += 1) {
+      xferLoad.xferUnsignedShort(0);
+      const objectDataSize = xferLoad.beginBlock();
+      if (objectDataSize < 1) {
+        return {
+          layout: 'unknown',
+          version,
+          frameCounter,
+          objectTocCount,
+          objectCount,
+          firstObjectVersion,
+          reason: `Object block ${index} is empty.`,
+        };
+      }
+      const objectVersion = xferLoad.xferByte(0);
+      if (firstObjectVersion === null) {
+        firstObjectVersion = objectVersion;
+      }
+      if (objectDataSize > 1) {
+        xferLoad.skip(objectDataSize - 1);
+      }
+      xferLoad.endBlock();
+    }
+    if (firstObjectVersion !== null && firstObjectVersion !== 9) {
+      return {
+        layout: 'unknown',
+        version,
+        frameCounter,
+        objectTocCount,
+        objectCount,
+        firstObjectVersion,
+        reason: `Unexpected source object snapshot version ${firstObjectVersion}`,
+      };
+    }
+
+    const campaignSnapshot = new CampaignSnapshot(createEmptyCampaignSnapshotState());
+    xferLoad.xferSnapshot(campaignSnapshot);
+    xferSourceCaveTrackerVector(xferLoad, []);
+    if (version >= 2) {
+      xferLoad.xferBool(false);
+    }
+    if (version >= 3) {
+      const polygonTriggerCount = xferLoad.xferUnsignedInt(0);
+      for (let index = 0; index < polygonTriggerCount; index += 1) {
+        xferLoad.xferInt(0);
+        xferSourcePolygonTriggerSnapshot(xferLoad, buildSourcePolygonTriggerSnapshotState([]));
+      }
+    }
+    if (version >= 5) {
+      xferLoad.xferInt(0);
+    }
+    if (version >= 6) {
+      xferSourceSellingEntities(xferLoad, []);
+    }
+    if (version >= 7) {
+      xferSourceBuildableOverrideMap(xferLoad, []);
+    }
+    if (version >= 8) {
+      xferLoad.xferBool(false);
+      xferLoad.xferBool(false);
+      xferLoad.xferBool(false);
+      xferLoad.xferInt(0);
+      for (;;) {
+        const name = xferLoad.xferAsciiString('');
+        if (name.length === 0) {
+          break;
+        }
+        xferLoad.xferAsciiString('');
+      }
+    }
+    if (version >= 9) {
+      xferLoad.xferInt(0);
+    }
+    if (version >= 10) {
+      xferLoad.xferUnsignedShort(0);
+    }
+    if (xferLoad.getRemaining() !== 0) {
+      return {
+        layout: 'unknown',
+        version,
+        frameCounter,
+        objectTocCount,
+        objectCount,
+        firstObjectVersion,
+        reason: `${xferLoad.getRemaining()} trailing bytes remain after source outer parse.`,
+      };
+    }
+
+    return {
+      layout: 'source_outer',
+      version,
+      frameCounter,
+      objectTocCount,
+      objectCount,
+      firstObjectVersion,
+    };
+  } catch (error) {
+    return {
+      layout: 'unknown',
+      version: null,
+      frameCounter: null,
+      objectTocCount: null,
+      objectCount: null,
+      firstObjectVersion: null,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+export function inspectGameLogicChunkLayout(
+  data: ArrayBuffer | Uint8Array,
+): RuntimeSaveGameLogicChunkLayoutInspection {
+  const sourceInspection = inspectSourceGameLogicChunk(data);
+  if (sourceInspection?.layout === 'source_outer') {
+    return sourceInspection;
+  }
+  if (tryParseLegacyGameLogicChunk(data) !== null) {
+    return {
+      layout: 'legacy',
+      version: null,
+      frameCounter: null,
+      objectTocCount: null,
+      objectCount: null,
+      firstObjectVersion: null,
+      reason: sourceInspection?.reason,
+    };
+  }
+  return sourceInspection ?? {
+    layout: 'unknown',
+    version: null,
+    frameCounter: null,
+    objectTocCount: null,
+    objectCount: null,
+    firstObjectVersion: null,
+    reason: 'Unable to classify game-logic chunk layout.',
   };
 }
 
@@ -5435,8 +5789,16 @@ function tryParseLegacyPlayersChunk(data: ArrayBuffer | Uint8Array): GameLogicPl
 }
 
 function tryParseSourceGameLogicChunk(data: ArrayBuffer | Uint8Array): GameLogicCoreSaveState | null {
+  const inspection = inspectSourceGameLogicChunk(data);
+  if (inspection?.layout !== 'source_outer') {
+    return null;
+  }
+  return null;
+}
+
+function tryParseLegacyGameLogicChunk(data: ArrayBuffer | Uint8Array): GameLogicCoreSaveState | null {
   try {
-    const snapshot = new GameLogicSnapshot();
+    const snapshot = new LegacyGameLogicSnapshot();
     const chunkData = data instanceof Uint8Array
       ? (() => {
           const copy = new Uint8Array(data.byteLength);
@@ -5445,7 +5807,7 @@ function tryParseSourceGameLogicChunk(data: ArrayBuffer | Uint8Array): GameLogic
         })()
       : data;
     const xferLoad = new XferLoad(chunkData);
-    xferLoad.open('source-game-logic');
+    xferLoad.open('legacy-game-logic');
     xferLoad.xferSnapshot(snapshot);
     xferLoad.close();
     return snapshot.payload ?? null;
@@ -5606,7 +5968,7 @@ class InGameUiSnapshot implements Snapshot {
   }
 }
 
-class GameLogicSnapshot implements Snapshot {
+class LegacyGameLogicSnapshot implements Snapshot {
   payload: GameLogicCoreSaveState | null;
 
   constructor(payload: GameLogicCoreSaveState | null = null) {
@@ -6125,7 +6487,7 @@ export function buildRuntimeSaveFile(params: {
       new RawPassthroughSnapshot(passthroughBlock.blockData),
     );
   } else {
-    state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new GameLogicSnapshot(gameLogicPayload));
+    state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new LegacyGameLogicSnapshot(gameLogicPayload));
   }
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, new RadarSnapshot(radarPayload));
   if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_SCRIPT_ENGINE_BLOCK)) {
@@ -6309,9 +6671,13 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     : null;
   const resolvedPlayersState = sourcePlayersState ?? legacyPlayersState;
   const gameLogicChunk = extractSaveChunkData(data, SOURCE_GAME_LOGIC_BLOCK);
-  const gameLogicCoreState = gameLogicChunk
+  const sourceGameLogicCoreState = gameLogicChunk
     ? tryParseSourceGameLogicChunk(gameLogicChunk)
     : null;
+  const legacyGameLogicCoreState = sourceGameLogicCoreState === null && gameLogicChunk
+    ? tryParseLegacyGameLogicChunk(gameLogicChunk)
+    : null;
+  const gameLogicCoreState = sourceGameLogicCoreState ?? legacyGameLogicCoreState;
   const sidesListChunk = extractSaveChunkData(data, SOURCE_SIDES_LIST_BLOCK);
   const sidesListState = sidesListChunk
     ? parseSourceSidesListChunk(sidesListChunk)
@@ -6431,6 +6797,10 @@ export function inspectRuntimeSaveCoreChunkStatus(
   const parsedSourcePlayersChunk = playersChunk
     ? tryParseSourcePlayersChunk(playersChunk, { mapData: parsed.mapData })
     : null;
+  const gameLogicChunk = extractSaveChunkData(data, SOURCE_GAME_LOGIC_BLOCK);
+  const parsedGameLogicChunkLayout = gameLogicChunk
+    ? inspectGameLogicChunkLayout(gameLogicChunk)
+    : null;
   const scriptEngineChunk = extractSaveChunkData(data, SOURCE_SCRIPT_ENGINE_BLOCK);
   const parsedScriptEngineChunk = scriptEngineChunk
     ? tryParseSourceScriptEngineChunk(scriptEngineChunk, {
@@ -6468,7 +6838,11 @@ export function inspectRuntimeSaveCoreChunkStatus(
       parsed.gameLogicPlayersState,
       parsedSourcePlayersChunk ? 'parsed' : 'legacy',
     ),
-    describeChunk(SOURCE_GAME_LOGIC_BLOCK, parsed.gameLogicCoreState, 'parsed'),
+    describeChunk(
+      SOURCE_GAME_LOGIC_BLOCK,
+      parsed.gameLogicCoreState,
+      parsedGameLogicChunkLayout?.layout === 'source_outer' ? 'parsed' : 'legacy',
+    ),
     describeChunk(
       SOURCE_SCRIPT_ENGINE_BLOCK,
       parsed.gameLogicScriptEngineState,

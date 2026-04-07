@@ -4,6 +4,7 @@ import * as THREE from 'three';
 
 import {
   buildRuntimeSaveFile,
+  inspectGameLogicChunkLayout,
   inspectRuntimeSaveCoreChunkStatus,
   parseSourceSidesListChunk,
   parseRuntimeSaveFile,
@@ -988,10 +989,19 @@ describe('runtime-save-game', () => {
     expect(parsed.metadata.description).toBe('Runtime Save Smoke Test');
     expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data)).toEqual([
       { blockName: 'CHUNK_Players', mode: 'parsed' },
-      { blockName: 'CHUNK_GameLogic', mode: 'parsed' },
+      { blockName: 'CHUNK_GameLogic', mode: 'legacy' },
       { blockName: 'CHUNK_ScriptEngine', mode: 'parsed' },
       { blockName: 'CHUNK_InGameUI', mode: 'parsed' },
     ]);
+    expect(inspectGameLogicChunkLayout(readSaveChunkData(saveFile.data, 'CHUNK_GameLogic')!)).toEqual({
+      layout: 'legacy',
+      version: null,
+      frameCounter: null,
+      objectTocCount: null,
+      objectCount: null,
+      firstObjectVersion: null,
+      reason: expect.any(String),
+    });
     expect(gameClientChunk).toEqual({
       version: 3,
       frame: 21,
