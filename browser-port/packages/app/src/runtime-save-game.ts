@@ -113,9 +113,24 @@ const SOURCE_TERRAIN_LOGIC_SNAPSHOT_VERSION = 2;
 const SOURCE_PARTITION_SNAPSHOT_VERSION = 2;
 const SOURCE_PARTITION_CELL_SNAPSHOT_VERSION = 1;
 const SOURCE_PARTITION_PLAYER_COUNT = 8;
-const SOURCE_PLAYER_SNAPSHOT_VERSION = 2;
+const LEGACY_PLAYER_SNAPSHOT_VERSION = 2;
+const SOURCE_PLAYERS_LIST_SNAPSHOT_VERSION = 1;
+const SOURCE_PLAYER_ENTRY_SNAPSHOT_VERSION = 8;
+const SOURCE_UPGRADE_SNAPSHOT_VERSION = 1;
+const SOURCE_PLAYER_RELATION_MAP_SNAPSHOT_VERSION = 1;
+const SOURCE_ENERGY_SNAPSHOT_VERSION = 3;
+const SOURCE_BUILD_LIST_INFO_SNAPSHOT_VERSION = 2;
+const SOURCE_AI_PLAYER_SNAPSHOT_VERSION = 1;
+const SOURCE_AI_SKIRMISH_PLAYER_SNAPSHOT_VERSION = 1;
+const SOURCE_TEAM_IN_QUEUE_SNAPSHOT_VERSION = 1;
+const SOURCE_WORK_ORDER_SNAPSHOT_VERSION = 1;
+const SOURCE_RESOURCE_GATHERING_MANAGER_SNAPSHOT_VERSION = 1;
+const SOURCE_TUNNEL_TRACKER_SNAPSHOT_VERSION = 1;
+const SOURCE_SCORE_KEEPER_SNAPSHOT_VERSION = 1;
+const SOURCE_SQUAD_SNAPSHOT_VERSION = 1;
+const SOURCE_PLAYER_HOTKEY_SQUAD_COUNT = 10;
 const SOURCE_SIDES_LIST_SAVE_STATE_VERSION = 2;
-const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 7;
+const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 10;
 const SOURCE_GAME_CLIENT_SNAPSHOT_VERSION = 3;
 const SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION = 1;
 const SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION = 1;
@@ -2523,7 +2538,1658 @@ function xferSourceGameLogicCombatBridgeState(
   };
 }
 
-class PlayersSnapshot implements Snapshot {
+interface SourcePlayerUpgradeState {
+  name: string;
+  status: number;
+}
+
+interface SourcePlayerBuildListInfoState {
+  buildingName: string;
+  templateName: string;
+  location: { x: number; y: number; z: number };
+  rallyPointOffset: { x: number; y: number };
+  angle: number;
+  isInitiallyBuilt: boolean;
+  numRebuilds: number;
+  script: string;
+  health: number;
+  whiner: boolean;
+  unsellable: boolean;
+  repairable: boolean;
+  automaticallyBuild: boolean;
+  objectId: number;
+  objectTimestamp: number;
+  underConstruction: boolean;
+  resourceGatherers: number[];
+  isSupplyBuilding: boolean;
+  desiredGatherers: number;
+  priorityBuild: boolean;
+  currentGatherers: number;
+}
+
+interface SourcePlayerWorkOrderState {
+  templateName: string;
+  factoryId: number;
+  numCompleted: number;
+  numRequired: number;
+  required: boolean;
+  isResourceGatherer: boolean;
+}
+
+interface SourcePlayerTeamInQueueState {
+  workOrders: SourcePlayerWorkOrderState[];
+  priorityBuild: boolean;
+  teamId: number;
+  frameStarted: number;
+  sentToStartLocation: boolean;
+  stopQueueing: boolean;
+  reinforcement: boolean;
+  reinforcementId: number;
+}
+
+interface SourcePlayerAiState {
+  isSkirmishAi: boolean;
+  teamBuildQueue: SourcePlayerTeamInQueueState[];
+  teamReadyQueue: SourcePlayerTeamInQueueState[];
+  readyToBuildTeam: boolean;
+  readyToBuildStructure: boolean;
+  teamTimer: number;
+  structureTimer: number;
+  buildDelay: number;
+  teamDelay: number;
+  teamSeconds: number;
+  currentWarehouseId: number;
+  frameLastBuildingBuilt: number;
+  difficulty: number;
+  skillsetSelector: number;
+  baseCenter: { x: number; y: number; z: number };
+  baseCenterSet: boolean;
+  baseRadius: number;
+  structuresToRepair: number[];
+  repairDozer: number;
+  structuresInQueue: number;
+  dozerQueuedForRepair: boolean;
+  dozerIsRepairing: boolean;
+  bridgeTimer: number;
+  curFrontBaseDefense: number;
+  curFlankBaseDefense: number;
+  curFrontLeftDefenseAngle: number;
+  curFrontRightDefenseAngle: number;
+  curLeftFlankLeftDefenseAngle: number;
+  curLeftFlankRightDefenseAngle: number;
+  curRightFlankLeftDefenseAngle: number;
+  curRightFlankRightDefenseAngle: number;
+}
+
+interface SourcePlayerResourceGatheringManagerState {
+  supplyWarehouses: number[];
+  supplyCenters: number[];
+}
+
+interface SourcePlayerRelationEntry {
+  id: number;
+  relationship: number;
+}
+
+interface SourcePlayerScoreKeeperState {
+  totalMoneyEarned: number;
+  totalMoneySpent: number;
+  totalUnitsDestroyed: number[];
+  totalUnitsBuilt: number;
+  totalUnitsLost: number;
+  totalBuildingsDestroyed: number[];
+  totalBuildingsBuilt: number;
+  totalBuildingsLost: number;
+  totalTechBuildingsCaptured: number;
+  totalFactionBuildingsCaptured: number;
+  currentScore: number;
+  playerIndex: number;
+}
+
+interface SourcePlayerBattlePlanBonusesState {
+  armorScalar: number;
+  sightRangeScalar: number;
+  bombardment: number;
+  holdTheLine: number;
+  searchAndDestroy: number;
+  validKindOf: string[];
+  invalidKindOf: string[];
+}
+
+interface SourcePlayerKindOfCostModifierState {
+  kindOfName: string;
+  percent: number;
+  refCount: number;
+}
+
+interface SourcePlayerEntryState {
+  playerIndex: number;
+  side: string;
+  money: number;
+  upgrades: SourcePlayerUpgradeState[];
+  isPreorder: boolean;
+  sciencesDisabled: string[];
+  sciencesHidden: string[];
+  radarCount: number;
+  isPlayerDead: boolean;
+  disableProofRadarCount: number;
+  radarDisabled: boolean;
+  upgradesInProgress: string[];
+  upgradesCompleted: string[];
+  powerSabotagedTillFrame: number;
+  teamPrototypeIds: number[];
+  buildListInfos: SourcePlayerBuildListInfoState[];
+  aiPlayer: SourcePlayerAiState | null;
+  resourceGatheringManager: SourcePlayerResourceGatheringManagerState | null;
+  tunnelTracker: GameLogicTunnelTrackerSaveState | null;
+  defaultTeamId: number;
+  sciences: string[];
+  rankLevel: number;
+  skillPoints: number;
+  sciencePurchasePoints: number;
+  levelUp: number;
+  levelDown: number;
+  generalName: string;
+  playerRelations: SourcePlayerRelationEntry[];
+  teamRelations: SourcePlayerRelationEntry[];
+  canBuildUnits: boolean;
+  canBuildBase: boolean;
+  observer: boolean;
+  skillPointsModifier: number;
+  listInScoreScreen: boolean;
+  attackedByPlayerIndices: number[];
+  cashBountyPercent: number;
+  scoreKeeper: SourcePlayerScoreKeeperState;
+  kindOfCostModifiers: SourcePlayerKindOfCostModifierState[];
+  specialPowerReadyTimers: Array<{ templateId: number; readyFrame: number }>;
+  squads: number[][];
+  currentSelection: number[];
+  battlePlanBonuses: SourcePlayerBattlePlanBonusesState | null;
+  bombardBattlePlans: number;
+  holdTheLineBattlePlans: number;
+  searchAndDestroyBattlePlans: number;
+  unitsShouldHunt: boolean;
+}
+
+function normalizeControllingPlayerTokenValue(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0
+    ? value.trim().toLowerCase()
+    : null;
+}
+
+function resolveSourcePlayersCount(
+  payload: GameLogicPlayersSaveState | null,
+  mapData: MapDataJSON | null | undefined,
+): number {
+  const mapCount = mapData?.sidesList?.sides.length ?? 0;
+  if (mapCount > 0) {
+    return mapCount;
+  }
+  const state = payload?.state && typeof payload.state === 'object' && !Array.isArray(payload.state)
+    ? payload.state
+    : {};
+  const indices = new Set<number>();
+  const playerSideByIndex = getPlayerSideByIndexMap(payload);
+  for (const playerIndex of playerSideByIndex.keys()) {
+    if (Number.isFinite(playerIndex)) {
+      indices.add(Math.max(0, Math.trunc(playerIndex)));
+    }
+  }
+  const sidePlayerIndex = getPlayerIndexBySideMap(payload);
+  for (const playerIndex of sidePlayerIndex.values()) {
+    if (Number.isFinite(playerIndex)) {
+      indices.add(Math.max(0, Math.trunc(playerIndex)));
+    }
+  }
+  const localPlayerIndex = Number((state as Record<string, unknown>).localPlayerIndex ?? 0);
+  if (Number.isFinite(localPlayerIndex)) {
+    indices.add(Math.max(0, Math.trunc(localPlayerIndex)));
+  }
+  if (indices.size === 0) {
+    return 0;
+  }
+  return Math.max(...indices) + 1;
+}
+
+function resolveSourcePlayerSide(
+  playerIndex: number,
+  payload: GameLogicPlayersSaveState | null,
+  mapData: MapDataJSON | null | undefined,
+): string {
+  const direct = getPlayerSideByIndexMap(payload).get(playerIndex);
+  if (direct && direct.trim().length > 0) {
+    return direct.trim();
+  }
+  const sideEntry = mapData?.sidesList?.sides[playerIndex];
+  const playerFaction = typeof sideEntry?.dict?.playerFaction === 'string'
+    ? sideEntry.dict.playerFaction.trim()
+    : '';
+  if (playerFaction.length > 0) {
+    return playerFaction;
+  }
+  const playerName = typeof sideEntry?.dict?.playerName === 'string'
+    ? sideEntry.dict.playerName.trim()
+    : '';
+  return playerName;
+}
+
+function xferSourceStringBitFlags(
+  xfer: Xfer,
+  values: string[],
+): string[] {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source bitflags snapshot version ${version}`);
+  }
+  const uniqueValues = [...new Set(values.filter((value) => value.trim().length > 0))];
+  const count = xfer.xferInt(uniqueValues.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push(xfer.xferAsciiString(''));
+    }
+    return loaded;
+  }
+  for (const value of uniqueValues) {
+    xfer.xferAsciiString(value);
+  }
+  return uniqueValues;
+}
+
+function xferSourceScienceNames(
+  xfer: Xfer,
+  values: string[],
+): string[] {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source science-vector version ${version}`);
+  }
+  const uniqueValues = [...new Set(values.filter((value) => value.trim().length > 0))];
+  const count = xfer.xferUnsignedShort(uniqueValues.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push(xfer.xferAsciiString(''));
+    }
+    return loaded;
+  }
+  for (const value of uniqueValues) {
+    xfer.xferAsciiString(value);
+  }
+  return uniqueValues;
+}
+
+function xferSourceObjectIdLinkedList(
+  xfer: Xfer,
+  objectIds: number[],
+): number[] {
+  const count = xfer.xferUnsignedShort(objectIds.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: number[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push(xfer.xferObjectID(0));
+    }
+    return loaded;
+  }
+  for (const objectId of objectIds) {
+    xfer.xferObjectID(Math.max(0, Math.trunc(objectId)));
+  }
+  return objectIds;
+}
+
+function xferSourceCoord2D(
+  xfer: Xfer,
+  coord: { x: number; y: number },
+): { x: number; y: number } {
+  return {
+    x: xfer.xferReal(coord.x),
+    y: xfer.xferReal(coord.y),
+  };
+}
+
+function xferSourceUpgradeState(
+  xfer: Xfer,
+  upgrade: SourcePlayerUpgradeState,
+): SourcePlayerUpgradeState {
+  const version = xfer.xferVersion(SOURCE_UPGRADE_SNAPSHOT_VERSION);
+  if (version !== SOURCE_UPGRADE_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported source upgrade snapshot version ${version}`);
+  }
+  return {
+    name: upgrade.name,
+    status: xfer.xferInt(upgrade.status),
+  };
+}
+
+function xferSourcePlayerRelationEntries(
+  xfer: Xfer,
+  entries: SourcePlayerRelationEntry[],
+): SourcePlayerRelationEntry[] {
+  const version = xfer.xferVersion(SOURCE_PLAYER_RELATION_MAP_SNAPSHOT_VERSION);
+  if (version !== SOURCE_PLAYER_RELATION_MAP_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported player relation map snapshot version ${version}`);
+  }
+  const count = xfer.xferUnsignedShort(entries.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: SourcePlayerRelationEntry[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push({
+        id: xfer.xferInt(0),
+        relationship: xfer.xferInt(0),
+      });
+    }
+    return loaded;
+  }
+  for (const entry of entries) {
+    xfer.xferInt(Math.trunc(entry.id));
+    xfer.xferInt(Math.trunc(entry.relationship));
+  }
+  return entries;
+}
+
+function xferSourceTeamRelationEntries(
+  xfer: Xfer,
+  entries: SourcePlayerRelationEntry[],
+): SourcePlayerRelationEntry[] {
+  const version = xfer.xferVersion(SOURCE_PLAYER_RELATION_MAP_SNAPSHOT_VERSION);
+  if (version !== SOURCE_PLAYER_RELATION_MAP_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported team relation map snapshot version ${version}`);
+  }
+  const count = xfer.xferUnsignedShort(entries.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: SourcePlayerRelationEntry[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push({
+        id: xfer.xferUnsignedInt(0),
+        relationship: xfer.xferInt(0),
+      });
+    }
+    return loaded;
+  }
+  for (const entry of entries) {
+    xfer.xferUnsignedInt(Math.max(0, Math.trunc(entry.id)));
+    xfer.xferInt(Math.trunc(entry.relationship));
+  }
+  return entries;
+}
+
+function xferSourceBuildListInfoState(
+  xfer: Xfer,
+  buildListInfo: SourcePlayerBuildListInfoState,
+): SourcePlayerBuildListInfoState {
+  const version = xfer.xferVersion(SOURCE_BUILD_LIST_INFO_SNAPSHOT_VERSION);
+  if (version !== 1 && version !== SOURCE_BUILD_LIST_INFO_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported build-list snapshot version ${version}`);
+  }
+  const nextState: SourcePlayerBuildListInfoState = {
+    ...buildListInfo,
+    buildingName: xfer.xferAsciiString(buildListInfo.buildingName),
+    templateName: xfer.xferAsciiString(buildListInfo.templateName),
+    location: xfer.xferCoord3D(buildListInfo.location),
+    rallyPointOffset: xferSourceCoord2D(xfer, buildListInfo.rallyPointOffset),
+    angle: xfer.xferReal(buildListInfo.angle),
+    isInitiallyBuilt: xfer.xferBool(buildListInfo.isInitiallyBuilt),
+    numRebuilds: xfer.xferUnsignedInt(buildListInfo.numRebuilds),
+    script: xfer.xferAsciiString(buildListInfo.script),
+    health: xfer.xferInt(buildListInfo.health),
+    whiner: xfer.xferBool(buildListInfo.whiner),
+    unsellable: xfer.xferBool(buildListInfo.unsellable),
+    repairable: xfer.xferBool(buildListInfo.repairable),
+    automaticallyBuild: xfer.xferBool(buildListInfo.automaticallyBuild),
+    objectId: xfer.xferObjectID(buildListInfo.objectId),
+    objectTimestamp: xfer.xferUnsignedInt(buildListInfo.objectTimestamp),
+    underConstruction: xfer.xferBool(buildListInfo.underConstruction),
+    resourceGatherers: xfer.xferObjectIDList(buildListInfo.resourceGatherers),
+    isSupplyBuilding: xfer.xferBool(buildListInfo.isSupplyBuilding),
+    desiredGatherers: xfer.xferInt(buildListInfo.desiredGatherers),
+    priorityBuild: xfer.xferBool(buildListInfo.priorityBuild),
+    currentGatherers: version >= 2
+      ? xfer.xferInt(buildListInfo.currentGatherers)
+      : buildListInfo.currentGatherers,
+  };
+  return nextState;
+}
+
+function xferSourceWorkOrderState(
+  xfer: Xfer,
+  workOrder: SourcePlayerWorkOrderState,
+): SourcePlayerWorkOrderState {
+  const version = xfer.xferVersion(SOURCE_WORK_ORDER_SNAPSHOT_VERSION);
+  if (version !== SOURCE_WORK_ORDER_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported work-order snapshot version ${version}`);
+  }
+  return {
+    templateName: xfer.xferAsciiString(workOrder.templateName),
+    factoryId: xfer.xferObjectID(workOrder.factoryId),
+    numCompleted: xfer.xferInt(workOrder.numCompleted),
+    numRequired: xfer.xferInt(workOrder.numRequired),
+    required: xfer.xferBool(workOrder.required),
+    isResourceGatherer: xfer.xferBool(workOrder.isResourceGatherer),
+  };
+}
+
+function xferSourceTeamInQueueState(
+  xfer: Xfer,
+  teamInQueue: SourcePlayerTeamInQueueState,
+): SourcePlayerTeamInQueueState {
+  const version = xfer.xferVersion(SOURCE_TEAM_IN_QUEUE_SNAPSHOT_VERSION);
+  if (version !== SOURCE_TEAM_IN_QUEUE_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported team-in-queue snapshot version ${version}`);
+  }
+  const workOrderCount = xfer.xferUnsignedShort(teamInQueue.workOrders.length);
+  const workOrders: SourcePlayerWorkOrderState[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < workOrderCount; index += 1) {
+      workOrders.push(xferSourceWorkOrderState(xfer, {
+        templateName: '',
+        factoryId: 0,
+        numCompleted: 0,
+        numRequired: 0,
+        required: false,
+        isResourceGatherer: false,
+      }));
+    }
+  } else {
+    for (const workOrder of teamInQueue.workOrders) {
+      workOrders.push(xferSourceWorkOrderState(xfer, workOrder));
+    }
+  }
+  return {
+    workOrders,
+    priorityBuild: xfer.xferBool(teamInQueue.priorityBuild),
+    teamId: xfer.xferUnsignedInt(teamInQueue.teamId),
+    frameStarted: xfer.xferInt(teamInQueue.frameStarted),
+    sentToStartLocation: xfer.xferBool(teamInQueue.sentToStartLocation),
+    stopQueueing: xfer.xferBool(teamInQueue.stopQueueing),
+    reinforcement: xfer.xferBool(teamInQueue.reinforcement),
+    reinforcementId: xfer.xferObjectID(teamInQueue.reinforcementId),
+  };
+}
+
+function xferSourceAiPlayerState(
+  xfer: Xfer,
+  aiPlayer: SourcePlayerAiState,
+  playerIndex: number,
+): SourcePlayerAiState {
+  const version = xfer.xferVersion(
+    aiPlayer.isSkirmishAi
+      ? SOURCE_AI_SKIRMISH_PLAYER_SNAPSHOT_VERSION
+      : SOURCE_AI_PLAYER_SNAPSHOT_VERSION,
+  );
+  if (version !== 1) {
+    throw new Error(`Unsupported AI player snapshot version ${version}`);
+  }
+  const teamBuildQueueCount = xfer.xferUnsignedShort(aiPlayer.teamBuildQueue.length);
+  const teamBuildQueue: SourcePlayerTeamInQueueState[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < teamBuildQueueCount; index += 1) {
+      teamBuildQueue.push(xferSourceTeamInQueueState(xfer, {
+        workOrders: [],
+        priorityBuild: false,
+        teamId: 0,
+        frameStarted: 0,
+        sentToStartLocation: false,
+        stopQueueing: false,
+        reinforcement: false,
+        reinforcementId: 0,
+      }));
+    }
+  } else {
+    for (const teamInQueue of aiPlayer.teamBuildQueue) {
+      teamBuildQueue.push(xferSourceTeamInQueueState(xfer, teamInQueue));
+    }
+  }
+  const teamReadyQueueCount = xfer.xferUnsignedShort(aiPlayer.teamReadyQueue.length);
+  const teamReadyQueue: SourcePlayerTeamInQueueState[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < teamReadyQueueCount; index += 1) {
+      teamReadyQueue.push(xferSourceTeamInQueueState(xfer, {
+        workOrders: [],
+        priorityBuild: false,
+        teamId: 0,
+        frameStarted: 0,
+        sentToStartLocation: false,
+        stopQueueing: false,
+        reinforcement: false,
+        reinforcementId: 0,
+      }));
+    }
+  } else {
+    for (const teamInQueue of aiPlayer.teamReadyQueue) {
+      teamReadyQueue.push(xferSourceTeamInQueueState(xfer, teamInQueue));
+    }
+  }
+  const savedPlayerIndex = xfer.xferInt(playerIndex);
+  if (savedPlayerIndex !== playerIndex) {
+    throw new Error(`AI player index mismatch: expected ${playerIndex}, got ${savedPlayerIndex}`);
+  }
+  const nextState: SourcePlayerAiState = {
+    ...aiPlayer,
+    teamBuildQueue,
+    teamReadyQueue,
+    readyToBuildTeam: xfer.xferBool(aiPlayer.readyToBuildTeam),
+    readyToBuildStructure: xfer.xferBool(aiPlayer.readyToBuildStructure),
+    teamTimer: xfer.xferInt(aiPlayer.teamTimer),
+    structureTimer: xfer.xferInt(aiPlayer.structureTimer),
+    buildDelay: xfer.xferInt(aiPlayer.buildDelay),
+    teamDelay: xfer.xferInt(aiPlayer.teamDelay),
+    teamSeconds: xfer.xferInt(aiPlayer.teamSeconds),
+    currentWarehouseId: xfer.xferObjectID(aiPlayer.currentWarehouseId),
+    frameLastBuildingBuilt: xfer.xferInt(aiPlayer.frameLastBuildingBuilt),
+    difficulty: xfer.xferInt(aiPlayer.difficulty),
+    skillsetSelector: xfer.xferInt(aiPlayer.skillsetSelector),
+    baseCenter: xfer.xferCoord3D(aiPlayer.baseCenter),
+    baseCenterSet: xfer.xferBool(aiPlayer.baseCenterSet),
+    baseRadius: xfer.xferReal(aiPlayer.baseRadius),
+    structuresToRepair: xfer.xferObjectIDList(aiPlayer.structuresToRepair),
+    repairDozer: xfer.xferObjectID(aiPlayer.repairDozer),
+    structuresInQueue: xfer.xferInt(aiPlayer.structuresInQueue),
+    dozerQueuedForRepair: xfer.xferBool(aiPlayer.dozerQueuedForRepair),
+    dozerIsRepairing: xfer.xferBool(aiPlayer.dozerIsRepairing),
+    bridgeTimer: xfer.xferInt(aiPlayer.bridgeTimer),
+    curFrontBaseDefense: aiPlayer.curFrontBaseDefense,
+    curFlankBaseDefense: aiPlayer.curFlankBaseDefense,
+    curFrontLeftDefenseAngle: aiPlayer.curFrontLeftDefenseAngle,
+    curFrontRightDefenseAngle: aiPlayer.curFrontRightDefenseAngle,
+    curLeftFlankLeftDefenseAngle: aiPlayer.curLeftFlankLeftDefenseAngle,
+    curLeftFlankRightDefenseAngle: aiPlayer.curLeftFlankRightDefenseAngle,
+    curRightFlankLeftDefenseAngle: aiPlayer.curRightFlankLeftDefenseAngle,
+    curRightFlankRightDefenseAngle: aiPlayer.curRightFlankRightDefenseAngle,
+  };
+  if (aiPlayer.isSkirmishAi) {
+    nextState.curFrontBaseDefense = xfer.xferInt(aiPlayer.curFrontBaseDefense);
+    nextState.curFlankBaseDefense = xfer.xferInt(aiPlayer.curFlankBaseDefense);
+    nextState.curFrontLeftDefenseAngle = xfer.xferReal(aiPlayer.curFrontLeftDefenseAngle);
+    nextState.curFrontRightDefenseAngle = xfer.xferReal(aiPlayer.curFrontRightDefenseAngle);
+    nextState.curLeftFlankLeftDefenseAngle = xfer.xferReal(aiPlayer.curLeftFlankLeftDefenseAngle);
+    nextState.curLeftFlankRightDefenseAngle = xfer.xferReal(aiPlayer.curLeftFlankRightDefenseAngle);
+    nextState.curRightFlankLeftDefenseAngle = xfer.xferReal(aiPlayer.curRightFlankLeftDefenseAngle);
+    nextState.curRightFlankRightDefenseAngle = xfer.xferReal(aiPlayer.curRightFlankRightDefenseAngle);
+  }
+  return nextState;
+}
+
+function xferSourceResourceGatheringManagerState(
+  xfer: Xfer,
+  resourceGatheringManager: SourcePlayerResourceGatheringManagerState,
+): SourcePlayerResourceGatheringManagerState {
+  const version = xfer.xferVersion(SOURCE_RESOURCE_GATHERING_MANAGER_SNAPSHOT_VERSION);
+  if (version !== SOURCE_RESOURCE_GATHERING_MANAGER_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported resource-gathering snapshot version ${version}`);
+  }
+  return {
+    supplyWarehouses: xferSourceObjectIdLinkedList(xfer, resourceGatheringManager.supplyWarehouses),
+    supplyCenters: xferSourceObjectIdLinkedList(xfer, resourceGatheringManager.supplyCenters),
+  };
+}
+
+function xferSourcePlayerTunnelTrackerSnapshot(
+  xfer: Xfer,
+  tunnelTracker: GameLogicTunnelTrackerSaveState,
+): GameLogicTunnelTrackerSaveState {
+  const version = xfer.xferVersion(SOURCE_TUNNEL_TRACKER_SNAPSHOT_VERSION);
+  if (version !== SOURCE_TUNNEL_TRACKER_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported tunnel-tracker snapshot version ${version}`);
+  }
+  const tunnelIds = xferSourceObjectIdLinkedList(xfer, tunnelTracker.tunnelIds);
+  const passengerCount = xfer.xferInt(tunnelTracker.passengerIds.length);
+  const passengerIds: number[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < passengerCount; index += 1) {
+      passengerIds.push(xfer.xferObjectID(0));
+    }
+  } else {
+    for (const passengerId of tunnelTracker.passengerIds) {
+      passengerIds.push(xfer.xferObjectID(passengerId));
+    }
+  }
+  return {
+    tunnelIds,
+    passengerIds,
+    tunnelCount: xfer.xferUnsignedInt(tunnelTracker.tunnelCount),
+  };
+}
+
+function xferSourceScoreObjectCountMap(
+  xfer: Xfer,
+  objectCounts: Array<{ templateName: string; count: number }>,
+): Array<{ templateName: string; count: number }> {
+  const count = xfer.xferUnsignedShort(objectCounts.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: Array<{ templateName: string; count: number }> = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push({
+        templateName: xfer.xferAsciiString(''),
+        count: xfer.xferInt(0),
+      });
+    }
+    return loaded;
+  }
+  for (const objectCount of objectCounts) {
+    xfer.xferAsciiString(objectCount.templateName);
+    xfer.xferInt(objectCount.count);
+  }
+  return objectCounts;
+}
+
+function xferSourceScoreKeeperState(
+  xfer: Xfer,
+  scoreKeeper: SourcePlayerScoreKeeperState,
+): SourcePlayerScoreKeeperState {
+  const version = xfer.xferVersion(SOURCE_SCORE_KEEPER_SNAPSHOT_VERSION);
+  if (version !== SOURCE_SCORE_KEEPER_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported score-keeper snapshot version ${version}`);
+  }
+  const totalUnitsDestroyed = [...scoreKeeper.totalUnitsDestroyed];
+  while (totalUnitsDestroyed.length < SOURCE_SCRIPT_ENGINE_PLAYER_COUNT) {
+    totalUnitsDestroyed.push(0);
+  }
+  const totalBuildingsDestroyed = [...scoreKeeper.totalBuildingsDestroyed];
+  while (totalBuildingsDestroyed.length < SOURCE_SCRIPT_ENGINE_PLAYER_COUNT) {
+    totalBuildingsDestroyed.push(0);
+  }
+  const nextState: SourcePlayerScoreKeeperState = {
+    ...scoreKeeper,
+    totalMoneyEarned: xfer.xferInt(scoreKeeper.totalMoneyEarned),
+    totalMoneySpent: xfer.xferInt(scoreKeeper.totalMoneySpent),
+    totalUnitsDestroyed: totalUnitsDestroyed.map((value) => xfer.xferInt(value)),
+    totalUnitsBuilt: xfer.xferInt(scoreKeeper.totalUnitsBuilt),
+    totalUnitsLost: xfer.xferInt(scoreKeeper.totalUnitsLost),
+    totalBuildingsDestroyed: totalBuildingsDestroyed.map((value) => xfer.xferInt(value)),
+    totalBuildingsBuilt: xfer.xferInt(scoreKeeper.totalBuildingsBuilt),
+    totalBuildingsLost: xfer.xferInt(scoreKeeper.totalBuildingsLost),
+    totalTechBuildingsCaptured: xfer.xferInt(scoreKeeper.totalTechBuildingsCaptured),
+    totalFactionBuildingsCaptured: xfer.xferInt(scoreKeeper.totalFactionBuildingsCaptured),
+    currentScore: xfer.xferInt(scoreKeeper.currentScore),
+    playerIndex: xfer.xferInt(scoreKeeper.playerIndex),
+  };
+  void xferSourceScoreObjectCountMap(xfer, []);
+  const destroyedArraySize = xfer.xferUnsignedShort(SOURCE_SCRIPT_ENGINE_PLAYER_COUNT);
+  if (destroyedArraySize !== SOURCE_SCRIPT_ENGINE_PLAYER_COUNT) {
+    throw new Error(`Unexpected score destroyed-array size ${destroyedArraySize}`);
+  }
+  for (let index = 0; index < destroyedArraySize; index += 1) {
+    void xferSourceScoreObjectCountMap(xfer, []);
+  }
+  void xferSourceScoreObjectCountMap(xfer, []);
+  void xferSourceScoreObjectCountMap(xfer, []);
+  return nextState;
+}
+
+function xferSourceKindOfNames(
+  xfer: Xfer,
+  kindOfNames: string[],
+): string[] {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported kindOf-name snapshot version ${version}`);
+  }
+  const uniqueNames = [...new Set(kindOfNames.filter((value) => value.trim().length > 0))];
+  const count = xfer.xferInt(uniqueNames.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push(xfer.xferAsciiString(''));
+    }
+    return loaded;
+  }
+  for (const kindOfName of uniqueNames) {
+    xfer.xferAsciiString(kindOfName);
+  }
+  return uniqueNames;
+}
+
+function xferSourceKindOfCostModifiers(
+  xfer: Xfer,
+  modifiers: SourcePlayerKindOfCostModifierState[],
+): SourcePlayerKindOfCostModifierState[] {
+  const count = xfer.xferUnsignedShort(modifiers.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: SourcePlayerKindOfCostModifierState[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push({
+        kindOfName: xferSourceKindOfNames(xfer, [])[0] ?? '',
+        percent: xfer.xferReal(0),
+        refCount: xfer.xferUnsignedInt(0),
+      });
+    }
+    return loaded;
+  }
+  for (const modifier of modifiers) {
+    xferSourceKindOfNames(xfer, [modifier.kindOfName]);
+    xfer.xferReal(modifier.percent);
+    xfer.xferUnsignedInt(modifier.refCount);
+  }
+  return modifiers;
+}
+
+function xferSourceSquadObjectIds(
+  xfer: Xfer,
+  objectIds: number[],
+): number[] {
+  const version = xfer.xferVersion(SOURCE_SQUAD_SNAPSHOT_VERSION);
+  if (version !== SOURCE_SQUAD_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported squad snapshot version ${version}`);
+  }
+  const count = xfer.xferUnsignedShort(objectIds.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: number[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push(xfer.xferObjectID(0));
+    }
+    return loaded;
+  }
+  for (const objectId of objectIds) {
+    xfer.xferObjectID(objectId);
+  }
+  return objectIds;
+}
+
+function xferSourceBattlePlanBonusesState(
+  xfer: Xfer,
+  bonuses: SourcePlayerBattlePlanBonusesState,
+): SourcePlayerBattlePlanBonusesState {
+  return {
+    armorScalar: xfer.xferReal(bonuses.armorScalar),
+    sightRangeScalar: xfer.xferReal(bonuses.sightRangeScalar),
+    bombardment: xfer.xferInt(bonuses.bombardment),
+    holdTheLine: xfer.xferInt(bonuses.holdTheLine),
+    searchAndDestroy: xfer.xferInt(bonuses.searchAndDestroy),
+    validKindOf: xferSourceKindOfNames(xfer, bonuses.validKindOf),
+    invalidKindOf: xferSourceKindOfNames(xfer, bonuses.invalidKindOf),
+  };
+}
+
+function buildDefaultSourceAiPlayerState(
+  side: string,
+  payload: GameLogicPlayersSaveState | null,
+): SourcePlayerAiState {
+  const state = payload?.state && typeof payload.state === 'object' && !Array.isArray(payload.state)
+    ? payload.state
+    : {};
+  const skillset = getRuntimeStateMap<number>(state, 'sideScriptSkillset').get(side) ?? 0;
+  const currentWarehouseId = getRuntimeStateMap<number>(state, 'scriptCurrentSupplyWarehouseBySide').get(side) ?? 0;
+  const skirmishCenterAndRadius = getRuntimeStateMap<{
+    centerX?: unknown;
+    centerZ?: unknown;
+    radius?: unknown;
+  }>(state, 'scriptSkirmishBaseCenterAndRadiusBySide').get(side);
+  const skirmishDefenseState = getRuntimeStateMap<Record<string, unknown>>(state, 'scriptSkirmishBaseDefenseStateBySide').get(side);
+  const isSkirmishAi = getRuntimeStateMap<unknown>(state, 'skirmishAIStates').has(side);
+  return {
+    isSkirmishAi,
+    teamBuildQueue: [],
+    teamReadyQueue: [],
+    readyToBuildTeam: false,
+    readyToBuildStructure: false,
+    teamTimer: 0,
+    structureTimer: 0,
+    buildDelay: 0,
+    teamDelay: 0,
+    teamSeconds: Math.max(0, Math.trunc(getRuntimeStateMap<number>(state, 'sideTeamBuildDelaySecondsByScript').get(side) ?? 0)),
+    currentWarehouseId: Math.max(0, Math.trunc(currentWarehouseId)),
+    frameLastBuildingBuilt: 0,
+    difficulty: SOURCE_DIFFICULTY_NORMAL,
+    skillsetSelector: Number.isFinite(skillset) ? Math.trunc(skillset) : 0,
+    baseCenter: {
+      x: Number(skirmishCenterAndRadius?.centerX ?? 0),
+      y: 0,
+      z: Number(skirmishCenterAndRadius?.centerZ ?? 0),
+    },
+    baseCenterSet: Number.isFinite(skirmishCenterAndRadius?.centerX) && Number.isFinite(skirmishCenterAndRadius?.centerZ),
+    baseRadius: Number(skirmishCenterAndRadius?.radius ?? 0),
+    structuresToRepair: [],
+    repairDozer: 0,
+    structuresInQueue: 0,
+    dozerQueuedForRepair: false,
+    dozerIsRepairing: false,
+    bridgeTimer: 0,
+    curFrontBaseDefense: Number(skirmishDefenseState?.curFrontBaseDefense ?? 0),
+    curFlankBaseDefense: Number(skirmishDefenseState?.curFlankBaseDefense ?? 0),
+    curFrontLeftDefenseAngle: Number(skirmishDefenseState?.curFrontLeftDefenseAngle ?? 0),
+    curFrontRightDefenseAngle: Number(skirmishDefenseState?.curFrontRightDefenseAngle ?? 0),
+    curLeftFlankLeftDefenseAngle: Number(skirmishDefenseState?.curLeftFlankLeftDefenseAngle ?? 0),
+    curLeftFlankRightDefenseAngle: Number(skirmishDefenseState?.curLeftFlankRightDefenseAngle ?? 0),
+    curRightFlankLeftDefenseAngle: Number(skirmishDefenseState?.curRightFlankLeftDefenseAngle ?? 0),
+    curRightFlankRightDefenseAngle: Number(skirmishDefenseState?.curRightFlankRightDefenseAngle ?? 0),
+  };
+}
+
+function buildSourcePlayerBuildListInfos(
+  playerIndex: number,
+  side: string,
+  payload: GameLogicPlayersSaveState | null,
+  mapData: MapDataJSON | null | undefined,
+): SourcePlayerBuildListInfoState[] {
+  const mapSide = mapData?.sidesList?.sides[playerIndex];
+  if (mapSide?.buildList && mapSide.buildList.length > 0) {
+    return mapSide.buildList.map((entry) => ({
+      buildingName: entry.buildingName ?? '',
+      templateName: entry.templateName ?? '',
+      location: {
+        x: entry.location.x,
+        y: entry.location.y,
+        z: entry.location.z,
+      },
+      rallyPointOffset: { x: 0, y: 0 },
+      angle: entry.angle ?? 0,
+      isInitiallyBuilt: entry.initiallyBuilt ?? false,
+      numRebuilds: entry.numRebuilds ?? 0,
+      script: entry.script ?? '',
+      health: entry.health ?? 100,
+      whiner: entry.whiner ?? false,
+      unsellable: entry.unsellable ?? false,
+      repairable: entry.repairable ?? true,
+      automaticallyBuild: true,
+      objectId: 0,
+      objectTimestamp: 0,
+      underConstruction: false,
+      resourceGatherers: [],
+      isSupplyBuilding: false,
+      desiredGatherers: 0,
+      priorityBuild: false,
+      currentGatherers: 0,
+    }));
+  }
+  const state = payload?.state && typeof payload.state === 'object' && !Array.isArray(payload.state)
+    ? payload.state
+    : {};
+  const runtimeEntries = getRuntimeStateMap<Array<{ templateNameUpper?: unknown; locationX?: unknown; locationZ?: unknown }>>(
+    state,
+    'scriptAiBuildListEntriesBySide',
+  ).get(side);
+  if (!Array.isArray(runtimeEntries)) {
+    return [];
+  }
+  return runtimeEntries.flatMap((entry, index) => {
+    const templateName = normalizeOptionalAsciiString(entry.templateNameUpper);
+    const locationX = Number(entry.locationX);
+    const locationZ = Number(entry.locationZ);
+    if (!templateName || !Number.isFinite(locationX) || !Number.isFinite(locationZ)) {
+      return [];
+    }
+    return [{
+      buildingName: `${side}_BUILD_${index}`,
+      templateName,
+      location: { x: locationX, y: 0, z: locationZ },
+      rallyPointOffset: { x: 0, y: 0 },
+      angle: 0,
+      isInitiallyBuilt: false,
+      numRebuilds: 0,
+      script: '',
+      health: 100,
+      whiner: false,
+      unsellable: false,
+      repairable: true,
+      automaticallyBuild: true,
+      objectId: 0,
+      objectTimestamp: 0,
+      underConstruction: false,
+      resourceGatherers: [],
+      isSupplyBuilding: false,
+      desiredGatherers: 0,
+      priorityBuild: false,
+      currentGatherers: 0,
+    }];
+  });
+}
+
+function buildSourcePlayerEntryState(
+  playerIndex: number,
+  payload: GameLogicPlayersSaveState | null,
+  options: {
+    mapData?: MapDataJSON | null;
+    teamFactoryState?: GameLogicTeamFactorySaveState | null;
+    sidesListState?: GameLogicSidesListSaveState | null;
+  } = {},
+): SourcePlayerEntryState {
+  const state = payload?.state && typeof payload.state === 'object' && !Array.isArray(payload.state)
+    ? payload.state
+    : {};
+  const side = resolveSourcePlayerSide(playerIndex, payload, options.mapData);
+  const sideCredits = getRuntimeStateMap<number>(state, 'sideCredits');
+  const sidePlayerTypes = getRuntimeStateMap<string>(state, 'sidePlayerTypes');
+  const sideRadarState = getRuntimeStateMap<Record<string, unknown>>(state, 'sideRadarState').get(side);
+  const sideRankState = getRuntimeStateMap<Record<string, unknown>>(state, 'sideRankState').get(side);
+  const sideScoreState = getRuntimeStateMap<Record<string, unknown>>(state, 'sideScoreState').get(side);
+  const sideScienceAvailability = getRuntimeStateMap<Map<string, string>>(state, 'sideScienceAvailability').get(side);
+  const sideSciencesBySide = getRuntimeStateMap<Set<string>>(state, 'sideSciences').get(side);
+  const sideCompletedUpgrades = getRuntimeStateMap<Set<string>>(state, 'sideCompletedUpgrades').get(side);
+  const sideUpgradesInProduction = getRuntimeStateMap<Set<string>>(state, 'sideUpgradesInProduction').get(side);
+  const sideCashBountyPercent = getRuntimeStateMap<number>(state, 'sideCashBountyPercent').get(side);
+  const sideSkillPointsModifier = getRuntimeStateMap<number>(state, 'sideSkillPointsModifier').get(side);
+  const sideBattlePlanBonuses = getRuntimeStateMap<Record<string, unknown>>(state, 'sideBattlePlanBonuses').get(side);
+  const sideScoreScreenExcluded = state.sideScoreScreenExcluded instanceof Set
+    ? state.sideScoreScreenExcluded as Set<string>
+    : new Set<string>();
+  const sideIsPreorder = getRuntimeStateMap<boolean>(state, 'sideIsPreorder').get(side);
+  const sideCanBuildBaseByScript = getRuntimeStateMap<boolean>(state, 'sideCanBuildBaseByScript').get(side);
+  const sideCanBuildUnitsByScript = getRuntimeStateMap<boolean>(state, 'sideCanBuildUnitsByScript').get(side);
+  const teamRelationshipOverrides = getRuntimeStateMap<number>(state, 'teamRelationshipOverrides');
+  const playerRelationshipOverrides = getRuntimeStateMap<number>(state, 'playerRelationshipOverrides');
+  const relationSeparator = '\u0000';
+  const defaultTeamNameBySide = getRuntimeStateMap<string>(state, 'scriptDefaultTeamNameBySide');
+  const teamsByName = options.teamFactoryState?.state.scriptTeamsByName instanceof Map
+    ? options.teamFactoryState.state.scriptTeamsByName as Map<string, Record<string, unknown>>
+    : new Map<string, Record<string, unknown>>();
+  const defaultTeamName = defaultTeamNameBySide.get(side)?.trim().toUpperCase() ?? '';
+  const defaultTeam = defaultTeamName ? teamsByName.get(defaultTeamName) : undefined;
+  const teamPrototypeIds = [...teamsByName.values()].flatMap((team) => {
+    const controllingSide = normalizeOptionalAsciiString(team.controllingSide);
+    const prototypeId = Number(team.sourcePrototypeId);
+    return controllingSide === side && Number.isFinite(prototypeId)
+      ? [Math.max(0, Math.trunc(prototypeId))]
+      : [];
+  });
+  const playerRelations: SourcePlayerRelationEntry[] = [];
+  const teamRelations: SourcePlayerRelationEntry[] = [];
+  for (const [key, relationship] of playerRelationshipOverrides) {
+    if (typeof key !== 'string' || !Number.isFinite(relationship)) {
+      continue;
+    }
+    const [sourceSide, targetSide] = key.split(relationSeparator);
+    if (sourceSide !== side || !targetSide) {
+      continue;
+    }
+    const targetPlayerIndex = getPlayerIndexBySideMap(payload).get(targetSide);
+    if (targetPlayerIndex === undefined || !Number.isFinite(targetPlayerIndex)) {
+      continue;
+    }
+    playerRelations.push({
+      id: Math.trunc(targetPlayerIndex),
+      relationship: Math.trunc(relationship),
+    });
+  }
+  for (const [key, relationship] of teamRelationshipOverrides) {
+    if (typeof key !== 'string' || !Number.isFinite(relationship)) {
+      continue;
+    }
+    const [sourceSide, targetSide] = key.split(relationSeparator);
+    if (sourceSide !== side || !targetSide) {
+      continue;
+    }
+    const targetDefaultTeamName = defaultTeamNameBySide.get(targetSide)?.trim().toUpperCase() ?? '';
+    const targetDefaultTeam = targetDefaultTeamName ? teamsByName.get(targetDefaultTeamName) : undefined;
+    const teamId = Number(targetDefaultTeam?.sourceTeamId);
+    if (!Number.isFinite(teamId)) {
+      continue;
+    }
+    teamRelations.push({
+      id: Math.max(0, Math.trunc(teamId)),
+      relationship: Math.trunc(relationship),
+    });
+  }
+  const sciencesDisabled: string[] = [];
+  const sciencesHidden: string[] = [];
+  if (sideScienceAvailability instanceof Map) {
+    for (const [scienceName, availability] of sideScienceAvailability.entries()) {
+      if (availability === 'disabled') {
+        sciencesDisabled.push(scienceName);
+      } else if (availability === 'hidden') {
+        sciencesHidden.push(scienceName);
+      }
+    }
+  }
+  const upgrades: SourcePlayerUpgradeState[] = [
+    ...[...(sideUpgradesInProduction ?? new Set<string>())].map((name) => ({ name, status: 1 })),
+    ...[...(sideCompletedUpgrades ?? new Set<string>())]
+      .filter((name) => !(sideUpgradesInProduction?.has(name) ?? false))
+      .map((name) => ({ name, status: 2 })),
+  ];
+  const kindOfCostModifiers = getRuntimeStateMap<Array<Record<string, unknown>>>(state, 'sideKindOfProductionCostModifiers').get(side);
+  const expandedKindOfCostModifiers: SourcePlayerKindOfCostModifierState[] = Array.isArray(kindOfCostModifiers)
+    ? kindOfCostModifiers.flatMap((modifier) => {
+      const kindOfSet = modifier.kindOf instanceof Set ? [...modifier.kindOf.values()] : [];
+      const percent = Number(modifier.multiplier);
+      const refCount = Number(modifier.refCount);
+      return kindOfSet.flatMap((kindOfName) =>
+        typeof kindOfName === 'string' && Number.isFinite(percent) && Number.isFinite(refCount)
+          ? [{
+            kindOfName,
+            percent,
+            refCount: Math.max(0, Math.trunc(refCount)),
+          }]
+          : []);
+    })
+    : [];
+  const tunnelTracker = (payload?.tunnelTrackers ?? []).find((tracker) => tracker.side === side)?.tracker ?? null;
+  const aiPlayer = sidePlayerTypes.get(side) === 'COMPUTER'
+    ? buildDefaultSourceAiPlayerState(side, payload)
+    : null;
+  return {
+    playerIndex,
+    side,
+    money: Math.max(0, Math.trunc(sideCredits.get(side) ?? 0)),
+    upgrades,
+    isPreorder: Boolean(sideIsPreorder),
+    sciencesDisabled,
+    sciencesHidden,
+    radarCount: Math.max(0, Math.trunc(Number(sideRadarState?.radarCount ?? 0))),
+    isPlayerDead: false,
+    disableProofRadarCount: Math.max(0, Math.trunc(Number(sideRadarState?.disableProofRadarCount ?? 0))),
+    radarDisabled: Boolean(sideRadarState?.radarDisabled),
+    upgradesInProgress: [...(sideUpgradesInProduction ?? new Set<string>())],
+    upgradesCompleted: [...(sideCompletedUpgrades ?? new Set<string>())],
+    powerSabotagedTillFrame: 0,
+    teamPrototypeIds: [...new Set(teamPrototypeIds)].sort((a, b) => a - b),
+    buildListInfos: buildSourcePlayerBuildListInfos(playerIndex, side, payload, options.mapData),
+    aiPlayer,
+    resourceGatheringManager: {
+      supplyWarehouses: aiPlayer?.currentWarehouseId ? [aiPlayer.currentWarehouseId] : [],
+      supplyCenters: [],
+    },
+    tunnelTracker,
+    defaultTeamId: Number.isFinite(defaultTeam?.sourceTeamId)
+      ? Math.max(0, Math.trunc(Number(defaultTeam?.sourceTeamId)))
+      : 0,
+    sciences: [...(sideSciencesBySide ?? new Set<string>())],
+    rankLevel: Math.max(0, Math.trunc(Number(sideRankState?.rankLevel ?? 0))),
+    skillPoints: Math.max(0, Math.trunc(Number(sideRankState?.skillPoints ?? 0))),
+    sciencePurchasePoints: Math.max(0, Math.trunc(Number(sideRankState?.sciencePurchasePoints ?? 0))),
+    levelUp: 0,
+    levelDown: 0,
+    generalName: '',
+    playerRelations,
+    teamRelations,
+    canBuildUnits: sideCanBuildUnitsByScript !== false,
+    canBuildBase: sideCanBuildBaseByScript !== false,
+    observer: false,
+    skillPointsModifier: Number.isFinite(sideSkillPointsModifier) ? Number(sideSkillPointsModifier) : 1,
+    listInScoreScreen: !sideScoreScreenExcluded.has(side),
+    attackedByPlayerIndices: [],
+    cashBountyPercent: Number.isFinite(sideCashBountyPercent) ? Number(sideCashBountyPercent) : 0,
+    scoreKeeper: {
+      totalMoneyEarned: Math.max(0, Math.trunc(Number(sideScoreState?.moneyEarned ?? 0))),
+      totalMoneySpent: Math.max(0, Math.trunc(Number(sideScoreState?.moneySpent ?? 0))),
+      totalUnitsDestroyed: Array.from({ length: SOURCE_SCRIPT_ENGINE_PLAYER_COUNT }, () => 0),
+      totalUnitsBuilt: Math.max(0, Math.trunc(Number(sideScoreState?.unitsBuilt ?? 0))),
+      totalUnitsLost: Math.max(0, Math.trunc(Number(sideScoreState?.unitsLost ?? 0))),
+      totalBuildingsDestroyed: Array.from({ length: SOURCE_SCRIPT_ENGINE_PLAYER_COUNT }, () => 0),
+      totalBuildingsBuilt: Math.max(0, Math.trunc(Number(sideScoreState?.structuresBuilt ?? 0))),
+      totalBuildingsLost: Math.max(0, Math.trunc(Number(sideScoreState?.structuresLost ?? 0))),
+      totalTechBuildingsCaptured: 0,
+      totalFactionBuildingsCaptured: 0,
+      currentScore: 0,
+      playerIndex,
+    },
+    kindOfCostModifiers: expandedKindOfCostModifiers,
+    specialPowerReadyTimers: [],
+    squads: Array.from({ length: SOURCE_PLAYER_HOTKEY_SQUAD_COUNT }, () => [] as number[]),
+    currentSelection: [],
+    battlePlanBonuses: sideBattlePlanBonuses
+      ? {
+        armorScalar: 1,
+        sightRangeScalar: 1,
+        bombardment: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses.bombardmentCount ?? 0))),
+        holdTheLine: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses.holdTheLineCount ?? 0))),
+        searchAndDestroy: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses.searchAndDestroyCount ?? 0))),
+        validKindOf: [],
+        invalidKindOf: [],
+      }
+      : null,
+    bombardBattlePlans: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses?.bombardmentCount ?? 0))),
+    holdTheLineBattlePlans: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses?.holdTheLineCount ?? 0))),
+    searchAndDestroyBattlePlans: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses?.searchAndDestroyCount ?? 0))),
+    unitsShouldHunt: false,
+  };
+}
+
+function buildGameLogicPlayersStateFromSourcePlayers(
+  players: SourcePlayerEntryState[],
+  mapData: MapDataJSON | null | undefined,
+): GameLogicPlayersSaveState {
+  const state: Record<string, unknown> = {};
+  const playerSideByIndex = new Map<number, string>();
+  const sidePlayerIndex = new Map<string, number>();
+  const sideCredits = new Map<string, number>();
+  const sidePlayerTypes = new Map<string, 'HUMAN' | 'COMPUTER'>();
+  const sideScienceAvailability = new Map<string, Map<string, 'enabled' | 'disabled' | 'hidden'>>();
+  const sideSciences = new Map<string, Set<string>>();
+  const sideRadarState = new Map<string, { radarCount: number; disableProofRadarCount: number; radarDisabled: boolean }>();
+  const sideRankState = new Map<string, { rankLevel: number; skillPoints: number; sciencePurchasePoints: number }>();
+  const sideScoreState = new Map<string, {
+    structuresBuilt: number;
+    structuresLost: number;
+    structuresDestroyed: number;
+    unitsBuilt: number;
+    unitsLost: number;
+    unitsDestroyed: number;
+    moneySpent: number;
+    moneyEarned: number;
+  }>();
+  const sideCompletedUpgrades = new Map<string, Set<string>>();
+  const sideUpgradesInProduction = new Map<string, Set<string>>();
+  const sideIsPreorder = new Map<string, boolean>();
+  const sideCanBuildBaseByScript = new Map<string, boolean>();
+  const sideCanBuildUnitsByScript = new Map<string, boolean>();
+  const sideSkillPointsModifier = new Map<string, number>();
+  const sideCashBountyPercent = new Map<string, number>();
+  const sideBattlePlanBonuses = new Map<string, {
+    bombardmentCount: number;
+    holdTheLineCount: number;
+    searchAndDestroyCount: number;
+  }>();
+  const playerRelationshipOverrides = new Map<string, number>();
+  const teamRelationshipOverrides = new Map<string, number>();
+  const scriptAiBuildListEntriesBySide = new Map<string, Array<{ templateNameUpper: string; locationX: number; locationZ: number }>>();
+  const sideScoreScreenExcluded = new Set<string>();
+  const sideScriptSkillset = new Map<string, number>();
+  const scriptCurrentSupplyWarehouseBySide = new Map<string, number>();
+  const scriptSkirmishBaseCenterAndRadiusBySide = new Map<string, { centerX: number; centerZ: number; radius: number }>();
+  const scriptSkirmishBaseDefenseStateBySide = new Map<string, Record<string, number>>();
+  const sideTeamBuildDelaySecondsByScript = new Map<string, number>();
+  const skirmishAIStates = new Map<string, Record<string, never>>();
+  const controllingPlayerScriptCredits = new Map<string, number>();
+  const controllingPlayerScriptSciences = new Map<string, Set<string>>();
+  const controllingPlayerScriptSciencePurchasePoints = new Map<string, number>();
+  const defaultTeamIdToSide = new Map<number, string>();
+
+  for (const player of players) {
+    if (!player.side) {
+      continue;
+    }
+    playerSideByIndex.set(player.playerIndex, player.side);
+    sidePlayerIndex.set(player.side, player.playerIndex);
+    defaultTeamIdToSide.set(player.defaultTeamId, player.side);
+  }
+
+  for (const player of players) {
+    if (!player.side) {
+      continue;
+    }
+    playerSideByIndex.set(player.playerIndex, player.side);
+    sidePlayerIndex.set(player.side, player.playerIndex);
+    sideCredits.set(player.side, player.money);
+    sidePlayerTypes.set(player.side, player.aiPlayer ? 'COMPUTER' : 'HUMAN');
+    sideIsPreorder.set(player.side, player.isPreorder);
+    sideCanBuildBaseByScript.set(player.side, player.canBuildBase);
+    sideCanBuildUnitsByScript.set(player.side, player.canBuildUnits);
+    sideSkillPointsModifier.set(player.side, player.skillPointsModifier);
+    sideCashBountyPercent.set(player.side, player.cashBountyPercent);
+    sideSciences.set(player.side, new Set(player.sciences));
+    sideScienceAvailability.set(player.side, new Map<string, 'enabled' | 'disabled' | 'hidden'>([
+      ...player.sciencesDisabled.map(
+        (scienceName): [string, 'disabled'] => [scienceName, 'disabled'],
+      ),
+      ...player.sciencesHidden.map(
+        (scienceName): [string, 'hidden'] => [scienceName, 'hidden'],
+      ),
+    ]));
+    sideCompletedUpgrades.set(
+      player.side,
+      new Set(player.upgrades.filter((upgrade) => upgrade.status === 2).map((upgrade) => upgrade.name)),
+    );
+    sideUpgradesInProduction.set(
+      player.side,
+      new Set(player.upgrades.filter((upgrade) => upgrade.status === 1).map((upgrade) => upgrade.name)),
+    );
+    sideRadarState.set(player.side, {
+      radarCount: player.radarCount,
+      disableProofRadarCount: player.disableProofRadarCount,
+      radarDisabled: player.radarDisabled,
+    });
+    sideRankState.set(player.side, {
+      rankLevel: player.rankLevel,
+      skillPoints: player.skillPoints,
+      sciencePurchasePoints: player.sciencePurchasePoints,
+    });
+    sideScoreState.set(player.side, {
+      structuresBuilt: player.scoreKeeper.totalBuildingsBuilt,
+      structuresLost: player.scoreKeeper.totalBuildingsLost,
+      structuresDestroyed: player.scoreKeeper.totalBuildingsDestroyed.reduce((sum, value) => sum + value, 0),
+      unitsBuilt: player.scoreKeeper.totalUnitsBuilt,
+      unitsLost: player.scoreKeeper.totalUnitsLost,
+      unitsDestroyed: player.scoreKeeper.totalUnitsDestroyed.reduce((sum, value) => sum + value, 0),
+      moneySpent: player.scoreKeeper.totalMoneySpent,
+      moneyEarned: player.scoreKeeper.totalMoneyEarned,
+    });
+    if (!player.listInScoreScreen) {
+      sideScoreScreenExcluded.add(player.side);
+    }
+    if (player.battlePlanBonuses) {
+      sideBattlePlanBonuses.set(player.side, {
+        bombardmentCount: player.bombardBattlePlans,
+        holdTheLineCount: player.holdTheLineBattlePlans,
+        searchAndDestroyCount: player.searchAndDestroyBattlePlans,
+      });
+    }
+    if (player.buildListInfos.length > 0) {
+      scriptAiBuildListEntriesBySide.set(player.side, player.buildListInfos.map((entry) => ({
+        templateNameUpper: entry.templateName.trim().toUpperCase(),
+        locationX: entry.location.x,
+        locationZ: entry.location.z,
+      })));
+    }
+    if (player.aiPlayer) {
+      sideScriptSkillset.set(player.side, player.aiPlayer.skillsetSelector);
+      if (player.aiPlayer.currentWarehouseId > 0) {
+        scriptCurrentSupplyWarehouseBySide.set(player.side, player.aiPlayer.currentWarehouseId);
+      }
+      if (player.aiPlayer.teamSeconds > 0) {
+        sideTeamBuildDelaySecondsByScript.set(player.side, player.aiPlayer.teamSeconds);
+      }
+      if (player.aiPlayer.baseCenterSet) {
+        scriptSkirmishBaseCenterAndRadiusBySide.set(player.side, {
+          centerX: player.aiPlayer.baseCenter.x,
+          centerZ: player.aiPlayer.baseCenter.z,
+          radius: player.aiPlayer.baseRadius,
+        });
+      }
+      if (player.aiPlayer.isSkirmishAi) {
+        skirmishAIStates.set(player.side, {});
+        scriptSkirmishBaseDefenseStateBySide.set(player.side, {
+          curFrontBaseDefense: player.aiPlayer.curFrontBaseDefense,
+          curFlankBaseDefense: player.aiPlayer.curFlankBaseDefense,
+          curFrontLeftDefenseAngle: player.aiPlayer.curFrontLeftDefenseAngle,
+          curFrontRightDefenseAngle: player.aiPlayer.curFrontRightDefenseAngle,
+          curLeftFlankLeftDefenseAngle: player.aiPlayer.curLeftFlankLeftDefenseAngle,
+          curLeftFlankRightDefenseAngle: player.aiPlayer.curLeftFlankRightDefenseAngle,
+          curRightFlankLeftDefenseAngle: player.aiPlayer.curRightFlankLeftDefenseAngle,
+          curRightFlankRightDefenseAngle: player.aiPlayer.curRightFlankRightDefenseAngle,
+        });
+      }
+    }
+    for (const relation of player.playerRelations) {
+      const targetSide = playerSideByIndex.get(relation.id);
+      if (!targetSide) {
+        continue;
+      }
+      playerRelationshipOverrides.set(`${player.side}\u0000${targetSide}`, relation.relationship);
+    }
+    for (const relation of player.teamRelations) {
+      const targetSide = defaultTeamIdToSide.get(relation.id);
+      if (!targetSide) {
+        continue;
+      }
+      teamRelationshipOverrides.set(`${player.side}\u0000${targetSide}`, relation.relationship);
+    }
+    const playerName = typeof mapData?.sidesList?.sides[player.playerIndex]?.dict?.playerName === 'string'
+      ? mapData.sidesList.sides[player.playerIndex]!.dict.playerName as string
+      : '';
+    const normalizedPlayerName = normalizeControllingPlayerTokenValue(playerName);
+    if (normalizedPlayerName) {
+      controllingPlayerScriptCredits.set(normalizedPlayerName, player.money);
+      controllingPlayerScriptSciences.set(normalizedPlayerName, new Set(player.sciences));
+      controllingPlayerScriptSciencePurchasePoints.set(normalizedPlayerName, player.sciencePurchasePoints);
+    }
+  }
+
+  state.playerSideByIndex = playerSideByIndex;
+  state.sidePlayerIndex = sidePlayerIndex;
+  state.nextPlayerIndex = players.length;
+  state.localPlayerIndex = 0;
+  state.sideCredits = sideCredits;
+  state.sidePlayerTypes = sidePlayerTypes;
+  state.sideIsPreorder = sideIsPreorder;
+  state.sideCanBuildBaseByScript = sideCanBuildBaseByScript;
+  state.sideCanBuildUnitsByScript = sideCanBuildUnitsByScript;
+  state.sideSkillPointsModifier = sideSkillPointsModifier;
+  state.sideCashBountyPercent = sideCashBountyPercent;
+  state.sideScienceAvailability = sideScienceAvailability;
+  state.sideSciences = sideSciences;
+  state.sideCompletedUpgrades = sideCompletedUpgrades;
+  state.sideUpgradesInProduction = sideUpgradesInProduction;
+  state.sideRadarState = sideRadarState;
+  state.sideRankState = sideRankState;
+  state.sideScoreState = sideScoreState;
+  state.sideScoreScreenExcluded = sideScoreScreenExcluded;
+  state.sideBattlePlanBonuses = sideBattlePlanBonuses;
+  state.playerRelationshipOverrides = playerRelationshipOverrides;
+  state.teamRelationshipOverrides = teamRelationshipOverrides;
+  state.scriptAiBuildListEntriesBySide = scriptAiBuildListEntriesBySide;
+  state.sideScriptSkillset = sideScriptSkillset;
+  state.scriptCurrentSupplyWarehouseBySide = scriptCurrentSupplyWarehouseBySide;
+  state.scriptSkirmishBaseCenterAndRadiusBySide = scriptSkirmishBaseCenterAndRadiusBySide;
+  state.scriptSkirmishBaseDefenseStateBySide = scriptSkirmishBaseDefenseStateBySide;
+  state.sideTeamBuildDelaySecondsByScript = sideTeamBuildDelaySecondsByScript;
+  state.skirmishAIStates = skirmishAIStates;
+  state.controllingPlayerScriptCredits = controllingPlayerScriptCredits;
+  state.controllingPlayerScriptSciences = controllingPlayerScriptSciences;
+  state.controllingPlayerScriptSciencePurchasePoints = controllingPlayerScriptSciencePurchasePoints;
+
+  return {
+    version: 1,
+    state,
+    tunnelTrackers: players.flatMap((player) =>
+      player.side && player.tunnelTracker
+        ? [{ side: player.side, tracker: player.tunnelTracker }]
+        : []),
+  };
+}
+
+class SourcePlayersSnapshot implements Snapshot {
+  payload: GameLogicPlayersSaveState | null;
+  private readonly mapData: MapDataJSON | null | undefined;
+  private readonly teamFactoryState: GameLogicTeamFactorySaveState | null | undefined;
+  private readonly sidesListState: GameLogicSidesListSaveState | null | undefined;
+
+  constructor(
+    payload: GameLogicPlayersSaveState | null = null,
+    options: {
+      mapData?: MapDataJSON | null;
+      teamFactoryState?: GameLogicTeamFactorySaveState | null;
+      sidesListState?: GameLogicSidesListSaveState | null;
+    } = {},
+  ) {
+    this.payload = payload;
+    this.mapData = options.mapData;
+    this.teamFactoryState = options.teamFactoryState;
+    this.sidesListState = options.sidesListState;
+  }
+
+  crc(_xfer: Xfer): void {
+    // Player-list snapshot is not part of source parity CRC yet.
+  }
+
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(SOURCE_PLAYERS_LIST_SNAPSHOT_VERSION);
+    if (version !== SOURCE_PLAYERS_LIST_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported players list snapshot version ${version}`);
+    }
+
+    const playerCount = xfer.xferInt(resolveSourcePlayersCount(this.payload, this.mapData));
+    if (playerCount < 0 || playerCount > SOURCE_SCRIPT_ENGINE_PLAYER_COUNT) {
+      throw new Error(`Player list count ${playerCount} is invalid.`);
+    }
+    const loadedPlayers: SourcePlayerEntryState[] = [];
+    for (let playerIndex = 0; playerIndex < playerCount; playerIndex += 1) {
+      const player = xfer.getMode() === XferMode.XFER_LOAD
+        ? ({
+          playerIndex,
+          side: resolveSourcePlayerSide(playerIndex, this.payload, this.mapData),
+          money: 0,
+          upgrades: [],
+          isPreorder: false,
+          sciencesDisabled: [],
+          sciencesHidden: [],
+          radarCount: 0,
+          isPlayerDead: false,
+          disableProofRadarCount: 0,
+          radarDisabled: false,
+          upgradesInProgress: [],
+          upgradesCompleted: [],
+          powerSabotagedTillFrame: 0,
+          teamPrototypeIds: [],
+          buildListInfos: [],
+          aiPlayer: null,
+          resourceGatheringManager: null,
+          tunnelTracker: null,
+          defaultTeamId: 0,
+          sciences: [],
+          rankLevel: 0,
+          skillPoints: 0,
+          sciencePurchasePoints: 0,
+          levelUp: 0,
+          levelDown: 0,
+          generalName: '',
+          playerRelations: [],
+          teamRelations: [],
+          canBuildUnits: true,
+          canBuildBase: true,
+          observer: false,
+          skillPointsModifier: 1,
+          listInScoreScreen: true,
+          attackedByPlayerIndices: [],
+          cashBountyPercent: 0,
+          scoreKeeper: {
+            totalMoneyEarned: 0,
+            totalMoneySpent: 0,
+            totalUnitsDestroyed: Array.from({ length: SOURCE_SCRIPT_ENGINE_PLAYER_COUNT }, () => 0),
+            totalUnitsBuilt: 0,
+            totalUnitsLost: 0,
+            totalBuildingsDestroyed: Array.from({ length: SOURCE_SCRIPT_ENGINE_PLAYER_COUNT }, () => 0),
+            totalBuildingsBuilt: 0,
+            totalBuildingsLost: 0,
+            totalTechBuildingsCaptured: 0,
+            totalFactionBuildingsCaptured: 0,
+            currentScore: 0,
+            playerIndex,
+          },
+          kindOfCostModifiers: [],
+          specialPowerReadyTimers: [],
+          squads: Array.from({ length: SOURCE_PLAYER_HOTKEY_SQUAD_COUNT }, () => [] as number[]),
+          currentSelection: [],
+          battlePlanBonuses: null,
+          bombardBattlePlans: 0,
+          holdTheLineBattlePlans: 0,
+          searchAndDestroyBattlePlans: 0,
+          unitsShouldHunt: false,
+        } satisfies SourcePlayerEntryState)
+        : buildSourcePlayerEntryState(playerIndex, this.payload, {
+          mapData: this.mapData,
+          teamFactoryState: this.teamFactoryState,
+          sidesListState: this.sidesListState,
+        });
+
+      const playerVersion = xfer.xferVersion(SOURCE_PLAYER_ENTRY_SNAPSHOT_VERSION);
+      if (playerVersion !== 1 && playerVersion !== 2 && playerVersion !== 3 && playerVersion !== 4 && playerVersion !== 5 && playerVersion !== 6 && playerVersion !== 7 && playerVersion !== SOURCE_PLAYER_ENTRY_SNAPSHOT_VERSION) {
+        throw new Error(`Unsupported player snapshot version ${playerVersion}`);
+      }
+      const moneyVersion = xfer.xferVersion(SOURCE_MONEY_SNAPSHOT_VERSION);
+      if (moneyVersion !== SOURCE_MONEY_SNAPSHOT_VERSION) {
+        throw new Error(`Unsupported money snapshot version ${moneyVersion}`);
+      }
+      player.money = xfer.xferUnsignedInt(player.money);
+      const upgradeCount = xfer.xferUnsignedShort(player.upgrades.length);
+      if (xfer.getMode() === XferMode.XFER_LOAD) {
+        player.upgrades = [];
+        for (let index = 0; index < upgradeCount; index += 1) {
+          const name = xfer.xferAsciiString('');
+          player.upgrades.push(xferSourceUpgradeState(xfer, { name, status: 0 }));
+        }
+      } else {
+        for (const upgrade of player.upgrades) {
+          xfer.xferAsciiString(upgrade.name);
+          xferSourceUpgradeState(xfer, upgrade);
+        }
+      }
+      if (playerVersion >= 7) {
+        player.isPreorder = xfer.xferBool(player.isPreorder);
+      }
+      if (playerVersion >= 8) {
+        player.sciencesDisabled = xferSourceScienceNames(xfer, player.sciencesDisabled);
+        player.sciencesHidden = xferSourceScienceNames(xfer, player.sciencesHidden);
+      }
+      player.radarCount = xfer.xferInt(player.radarCount);
+      player.isPlayerDead = xfer.xferBool(player.isPlayerDead);
+      player.disableProofRadarCount = xfer.xferInt(player.disableProofRadarCount);
+      player.radarDisabled = xfer.xferBool(player.radarDisabled);
+      player.upgradesInProgress = xferSourceStringBitFlags(xfer, player.upgradesInProgress);
+      player.upgradesCompleted = xferSourceStringBitFlags(xfer, player.upgradesCompleted);
+      const energyVersion = xfer.xferVersion(SOURCE_ENERGY_SNAPSHOT_VERSION);
+      if (energyVersion === 1) {
+        void xfer.xferInt(0);
+        void xfer.xferInt(0);
+      } else if (energyVersion !== 2 && energyVersion !== SOURCE_ENERGY_SNAPSHOT_VERSION) {
+        throw new Error(`Unsupported energy snapshot version ${energyVersion}`);
+      }
+      const energyPlayerIndex = xfer.xferInt(player.playerIndex);
+      if (energyPlayerIndex !== player.playerIndex) {
+        throw new Error(`Energy player index mismatch: expected ${player.playerIndex}, got ${energyPlayerIndex}`);
+      }
+      if (energyVersion >= 3) {
+        player.powerSabotagedTillFrame = xfer.xferUnsignedInt(player.powerSabotagedTillFrame);
+      }
+      const teamPrototypeCount = xfer.xferUnsignedShort(player.teamPrototypeIds.length);
+      if (xfer.getMode() === XferMode.XFER_LOAD) {
+        player.teamPrototypeIds = [];
+        for (let index = 0; index < teamPrototypeCount; index += 1) {
+          player.teamPrototypeIds.push(xfer.xferUnsignedInt(0));
+        }
+      } else {
+        for (const teamPrototypeId of player.teamPrototypeIds) {
+          xfer.xferUnsignedInt(teamPrototypeId);
+        }
+      }
+      const buildListInfoCount = xfer.xferUnsignedShort(player.buildListInfos.length);
+      if (xfer.getMode() === XferMode.XFER_LOAD) {
+        player.buildListInfos = [];
+        for (let index = 0; index < buildListInfoCount; index += 1) {
+          player.buildListInfos.push(xferSourceBuildListInfoState(xfer, {
+            buildingName: '',
+            templateName: '',
+            location: { x: 0, y: 0, z: 0 },
+            rallyPointOffset: { x: 0, y: 0 },
+            angle: 0,
+            isInitiallyBuilt: false,
+            numRebuilds: 0,
+            script: '',
+            health: 100,
+            whiner: false,
+            unsellable: false,
+            repairable: true,
+            automaticallyBuild: true,
+            objectId: 0,
+            objectTimestamp: 0,
+            underConstruction: false,
+            resourceGatherers: [],
+            isSupplyBuilding: false,
+            desiredGatherers: 0,
+            priorityBuild: false,
+            currentGatherers: 0,
+          }));
+        }
+      } else {
+        player.buildListInfos = player.buildListInfos.map((entry) => xferSourceBuildListInfoState(xfer, entry));
+      }
+      const aiPlayerPresent = xfer.xferBool(player.aiPlayer !== null);
+      if (xfer.getMode() === XferMode.XFER_LOAD) {
+        player.aiPlayer = aiPlayerPresent
+          ? xferSourceAiPlayerState(
+              xfer,
+              buildDefaultSourceAiPlayerState(player.side, this.payload),
+              player.playerIndex,
+            )
+          : null;
+      } else if (aiPlayerPresent && player.aiPlayer) {
+        player.aiPlayer = xferSourceAiPlayerState(xfer, player.aiPlayer, player.playerIndex);
+      }
+      const resourceGatheringManagerPresent = xfer.xferBool(player.resourceGatheringManager !== null);
+      if (xfer.getMode() === XferMode.XFER_LOAD) {
+        player.resourceGatheringManager = resourceGatheringManagerPresent
+          ? xferSourceResourceGatheringManagerState(xfer, { supplyWarehouses: [], supplyCenters: [] })
+          : null;
+      } else if (resourceGatheringManagerPresent && player.resourceGatheringManager) {
+        player.resourceGatheringManager = xferSourceResourceGatheringManagerState(xfer, player.resourceGatheringManager);
+      }
+      const tunnelTrackerPresent = xfer.xferBool(player.tunnelTracker !== null);
+      if (xfer.getMode() === XferMode.XFER_LOAD) {
+        player.tunnelTracker = tunnelTrackerPresent
+          ? xferSourcePlayerTunnelTrackerSnapshot(xfer, { tunnelIds: [], passengerIds: [], tunnelCount: 0 })
+          : null;
+      } else if (tunnelTrackerPresent && player.tunnelTracker) {
+        player.tunnelTracker = xferSourcePlayerTunnelTrackerSnapshot(xfer, player.tunnelTracker);
+      }
+      player.defaultTeamId = xfer.xferUnsignedInt(player.defaultTeamId);
+      if (playerVersion >= 5) {
+        player.sciences = xferSourceScienceNames(xfer, player.sciences);
+      }
+      player.rankLevel = xfer.xferInt(player.rankLevel);
+      player.skillPoints = xfer.xferInt(player.skillPoints);
+      player.sciencePurchasePoints = xfer.xferInt(player.sciencePurchasePoints);
+      player.levelUp = xfer.xferInt(player.levelUp);
+      player.levelDown = xfer.xferInt(player.levelDown);
+      player.generalName = xfer.xferUnicodeString(player.generalName);
+      player.playerRelations = xferSourcePlayerRelationEntries(xfer, player.playerRelations);
+      player.teamRelations = xferSourceTeamRelationEntries(xfer, player.teamRelations);
+      player.canBuildUnits = xfer.xferBool(player.canBuildUnits);
+      player.canBuildBase = xfer.xferBool(player.canBuildBase);
+      player.observer = xfer.xferBool(player.observer);
+      if (playerVersion >= 2) {
+        player.skillPointsModifier = xfer.xferReal(player.skillPointsModifier);
+      } else {
+        player.skillPointsModifier = 1;
+      }
+      if (playerVersion >= 3) {
+        player.listInScoreScreen = xfer.xferBool(player.listInScoreScreen);
+      } else {
+        player.listInScoreScreen = true;
+      }
+      const attackedBy: number[] = [];
+      for (let index = 0; index < SOURCE_SCRIPT_ENGINE_PLAYER_COUNT; index += 1) {
+        if (xfer.xferBool(player.attackedByPlayerIndices.includes(index))) {
+          attackedBy.push(index);
+        }
+      }
+      player.attackedByPlayerIndices = attackedBy;
+      player.cashBountyPercent = xfer.xferReal(player.cashBountyPercent);
+      player.scoreKeeper = xferSourceScoreKeeperState(xfer, player.scoreKeeper);
+      player.kindOfCostModifiers = xferSourceKindOfCostModifiers(xfer, player.kindOfCostModifiers);
+      if (playerVersion < 4) {
+        player.specialPowerReadyTimers = [];
+      } else {
+        const timerListSize = xfer.xferUnsignedShort(player.specialPowerReadyTimers.length);
+        if (xfer.getMode() === XferMode.XFER_LOAD) {
+          player.specialPowerReadyTimers = [];
+          for (let index = 0; index < timerListSize; index += 1) {
+            player.specialPowerReadyTimers.push({
+              templateId: xfer.xferUnsignedInt(0),
+              readyFrame: xfer.xferUnsignedInt(0),
+            });
+          }
+        } else {
+          for (const timer of player.specialPowerReadyTimers) {
+            xfer.xferUnsignedInt(timer.templateId);
+            xfer.xferUnsignedInt(timer.readyFrame);
+          }
+        }
+      }
+      const squadCount = xfer.xferUnsignedShort(player.squads.length);
+      if (xfer.getMode() === XferMode.XFER_LOAD) {
+        player.squads = [];
+        for (let index = 0; index < squadCount; index += 1) {
+          player.squads.push(xferSourceSquadObjectIds(xfer, []));
+        }
+      } else {
+        for (const squad of player.squads) {
+          xferSourceSquadObjectIds(xfer, squad);
+        }
+      }
+      const currentSelectionPresent = xfer.xferBool(player.currentSelection.length > 0);
+      if (xfer.getMode() === XferMode.XFER_LOAD) {
+        player.currentSelection = currentSelectionPresent ? xferSourceSquadObjectIds(xfer, []) : [];
+      } else if (currentSelectionPresent) {
+        player.currentSelection = xferSourceSquadObjectIds(xfer, player.currentSelection);
+      }
+      const battlePlanBonusPresent = xfer.xferBool(player.battlePlanBonuses !== null);
+      if (xfer.getMode() === XferMode.XFER_LOAD) {
+        player.battlePlanBonuses = battlePlanBonusPresent
+          ? xferSourceBattlePlanBonusesState(xfer, {
+            armorScalar: 1,
+            sightRangeScalar: 1,
+            bombardment: 0,
+            holdTheLine: 0,
+            searchAndDestroy: 0,
+            validKindOf: [],
+            invalidKindOf: [],
+          })
+          : null;
+      } else if (battlePlanBonusPresent && player.battlePlanBonuses) {
+        player.battlePlanBonuses = xferSourceBattlePlanBonusesState(xfer, player.battlePlanBonuses);
+      }
+      player.bombardBattlePlans = xfer.xferInt(player.bombardBattlePlans);
+      player.holdTheLineBattlePlans = xfer.xferInt(player.holdTheLineBattlePlans);
+      player.searchAndDestroyBattlePlans = xfer.xferInt(player.searchAndDestroyBattlePlans);
+      if (playerVersion >= 6) {
+        player.unitsShouldHunt = xfer.xferBool(player.unitsShouldHunt);
+      } else {
+        player.unitsShouldHunt = false;
+      }
+
+      loadedPlayers.push(player);
+    }
+
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      this.payload = buildGameLogicPlayersStateFromSourcePlayers(loadedPlayers, this.mapData);
+    }
+  }
+
+  loadPostProcess(): void {
+    // No cross-snapshot fixup required.
+  }
+}
+
+class LegacyPlayersSnapshot implements Snapshot {
   payload: GameLogicPlayersSaveState | null;
 
   constructor(payload: GameLogicPlayersSaveState | null = null) {
@@ -2535,7 +4201,7 @@ class PlayersSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
-    const version = xfer.xferVersion(SOURCE_PLAYER_SNAPSHOT_VERSION);
+    const version = xfer.xferVersion(LEGACY_PLAYER_SNAPSHOT_VERSION);
     if (version === 1) {
       const serialized = xfer.xferLongString(
         this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
@@ -2547,7 +4213,7 @@ class PlayersSnapshot implements Snapshot {
       this.payload = JSON.parse(serialized, runtimeJsonReviver) as GameLogicPlayersSaveState;
       return;
     }
-    if (version !== SOURCE_PLAYER_SNAPSHOT_VERSION) {
+    if (version !== LEGACY_PLAYER_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported player snapshot version ${version}`);
     }
 
@@ -3721,9 +5387,36 @@ function tryParseLegacyTeamFactoryChunk(data: ArrayBuffer | Uint8Array): GameLog
   }
 }
 
+function tryParseSourcePlayersChunk(
+  data: ArrayBuffer | Uint8Array,
+  options: {
+    mapData?: MapDataJSON | null;
+    teamFactoryState?: GameLogicTeamFactorySaveState | null;
+    sidesListState?: GameLogicSidesListSaveState | null;
+  } = {},
+): GameLogicPlayersSaveState | null {
+  try {
+    const snapshot = new SourcePlayersSnapshot(null, options);
+    const chunkData = data instanceof Uint8Array
+      ? (() => {
+          const copy = new Uint8Array(data.byteLength);
+          copy.set(data);
+          return copy.buffer;
+        })()
+      : data;
+    const xferLoad = new XferLoad(chunkData);
+    xferLoad.open('source-players');
+    xferLoad.xferSnapshot(snapshot);
+    xferLoad.close();
+    return snapshot.payload ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function tryParseLegacyPlayersChunk(data: ArrayBuffer | Uint8Array): GameLogicPlayersSaveState | null {
   try {
-    const snapshot = new PlayersSnapshot();
+    const snapshot = new LegacyPlayersSnapshot();
     const chunkData = data instanceof Uint8Array
       ? (() => {
           const copy = new Uint8Array(data.byteLength);
@@ -3933,6 +5626,9 @@ class GameLogicSnapshot implements Snapshot {
       && version !== 4
       && version !== 5
       && version !== 6
+      && version !== 7
+      && version !== 8
+      && version !== 9
       && version !== SOURCE_GAME_LOGIC_SNAPSHOT_VERSION
     ) {
       throw new Error(`Unsupported game-logic snapshot version ${version}`);
@@ -3984,6 +5680,12 @@ class GameLogicSnapshot implements Snapshot {
         difficultyBonusesInitialized: xfer.xferBool(false),
         scriptScoringEnabled: xfer.xferBool(true),
         gameRandomSeed: version >= 7 ? xfer.xferUnsignedInt(1) : undefined,
+        showBehindBuildingMarkers: version >= 8 ? xfer.xferBool(false) : undefined,
+        drawIconUI: version >= 8 ? xfer.xferBool(true) : undefined,
+        showDynamicLOD: version >= 8 ? xfer.xferBool(true) : undefined,
+        scriptHulkMaxLifetimeOverride: version >= 8 ? xfer.xferInt(-1) : undefined,
+        rankPointsToAddAtGameStart: version >= 9 ? xfer.xferInt(0) : undefined,
+        superweaponRestriction: version >= 10 ? xfer.xferUnsignedShort(0) : undefined,
         spawnedEntities,
         caveTrackers,
         sellingEntities,
@@ -4043,6 +5745,18 @@ class GameLogicSnapshot implements Snapshot {
     xfer.xferBool(this.payload.scriptScoringEnabled ?? true);
     if (version >= 7) {
       xfer.xferUnsignedInt(this.payload.gameRandomSeed ?? 1);
+    }
+    if (version >= 8) {
+      xfer.xferBool(this.payload.showBehindBuildingMarkers ?? false);
+      xfer.xferBool(this.payload.drawIconUI ?? true);
+      xfer.xferBool(this.payload.showDynamicLOD ?? true);
+      xfer.xferInt(this.payload.scriptHulkMaxLifetimeOverride ?? -1);
+    }
+    if (version >= 9) {
+      xfer.xferInt(this.payload.rankPointsToAddAtGameStart ?? 0);
+    }
+    if (version >= 10) {
+      xfer.xferUnsignedShort(this.payload.superweaponRestriction ?? 0);
     }
   }
 
@@ -4390,7 +6104,14 @@ export function buildRuntimeSaveFile(params: {
       new RawPassthroughSnapshot(passthroughBlock.blockData),
     );
   } else {
-    state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, new PlayersSnapshot(playerPayload));
+    state.addSnapshotBlock(
+      SOURCE_PLAYERS_BLOCK,
+      new SourcePlayersSnapshot(playerPayload, {
+        mapData: params.mapData,
+        teamFactoryState: teamFactoryPayload,
+        sidesListState: sidesListPayload,
+      }),
+    );
   }
   if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GAME_LOGIC_BLOCK)) {
     const passthroughBlock = orderedPassthroughBlocks.find(
@@ -4580,9 +6301,13 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     ? tryParseLegacyTeamFactoryChunk(teamFactoryChunk)
     : null;
   const playersChunk = extractSaveChunkData(data, SOURCE_PLAYERS_BLOCK);
-  const legacyPlayersState = playersChunk
+  const sourcePlayersState = playersChunk
+    ? tryParseSourcePlayersChunk(playersChunk, { mapData })
+    : null;
+  const legacyPlayersState = sourcePlayersState === null && playersChunk
     ? tryParseLegacyPlayersChunk(playersChunk)
     : null;
+  const resolvedPlayersState = sourcePlayersState ?? legacyPlayersState;
   const gameLogicChunk = extractSaveChunkData(data, SOURCE_GAME_LOGIC_BLOCK);
   const gameLogicCoreState = gameLogicChunk
     ? tryParseSourceGameLogicChunk(gameLogicChunk)
@@ -4599,7 +6324,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
               return applySourceTeamFactoryChunkToState(
                 teamFactoryChunk,
                 createEmptyRuntimeSaveTeamFactoryState(),
-                legacyPlayersState,
+                resolvedPlayersState,
                 sidesListState,
                 gameLogicCoreState,
               );
@@ -4614,7 +6339,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     ? (
       tryParseSourceScriptEngineChunk(scriptEngineChunk, {
         mapData,
-        playerState: legacyPlayersState,
+        playerState: resolvedPlayersState,
         teamFactoryState: resolvedTeamFactoryState,
         coreState: gameLogicCoreState,
       })
@@ -4665,7 +6390,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     sourceTeamFactoryChunkData: teamFactoryChunk ?? null,
     gameLogicTerrainLogicState: terrainLogicSnapshot?.payload ?? null,
     gameLogicTeamFactoryState: legacyTeamFactoryState,
-    gameLogicPlayersState: legacyPlayersState,
+    gameLogicPlayersState: resolvedPlayersState,
     gameLogicPartitionState: partitionSnapshot?.payload ?? null,
     gameLogicRadarState: radarSnapshot?.payload ?? null,
     gameLogicSidesListState: sidesListState,
@@ -4679,7 +6404,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
       ...extractPassthroughBlocks(data).filter(
         (block) => block.blockName.toLowerCase() !== SOURCE_GAME_CLIENT_BLOCK.toLowerCase(),
       ),
-      ...(playersChunk && legacyPlayersState === null
+      ...(playersChunk && resolvedPlayersState === null
         ? [{ blockName: SOURCE_PLAYERS_BLOCK, blockData: copyBytesToArrayBuffer(playersChunk) }]
         : []),
       ...(gameLogicChunk && gameLogicCoreState === null
@@ -4702,6 +6427,10 @@ export function inspectRuntimeSaveCoreChunkStatus(
   const chunkNames = new Set(
     listSaveGameChunks(data).map((chunk) => chunk.blockName.toLowerCase()),
   );
+  const playersChunk = extractSaveChunkData(data, SOURCE_PLAYERS_BLOCK);
+  const parsedSourcePlayersChunk = playersChunk
+    ? tryParseSourcePlayersChunk(playersChunk, { mapData: parsed.mapData })
+    : null;
   const scriptEngineChunk = extractSaveChunkData(data, SOURCE_SCRIPT_ENGINE_BLOCK);
   const parsedScriptEngineChunk = scriptEngineChunk
     ? tryParseSourceScriptEngineChunk(scriptEngineChunk, {
@@ -4734,7 +6463,11 @@ export function inspectRuntimeSaveCoreChunkStatus(
   };
 
   return [
-    describeChunk(SOURCE_PLAYERS_BLOCK, parsed.gameLogicPlayersState, 'legacy'),
+    describeChunk(
+      SOURCE_PLAYERS_BLOCK,
+      parsed.gameLogicPlayersState,
+      parsedSourcePlayersChunk ? 'parsed' : 'legacy',
+    ),
     describeChunk(SOURCE_GAME_LOGIC_BLOCK, parsed.gameLogicCoreState, 'parsed'),
     describeChunk(
       SOURCE_SCRIPT_ENGINE_BLOCK,

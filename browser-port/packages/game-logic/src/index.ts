@@ -8272,6 +8272,7 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'thingTemplateBuildableOverrides',
   'sellingEntities',
   'commandSetButtonSlotOverrides',
+  'rankPointsToAddAtGameStart',
   'activeSpyVisions',
   'spyVisionEntityStates',
   'revealToAllVisionStates',
@@ -8438,6 +8439,12 @@ export interface GameLogicCoreSaveState {
   rankLevelLimit?: number;
   difficultyBonusesInitialized?: boolean;
   scriptScoringEnabled?: boolean;
+  showBehindBuildingMarkers?: boolean;
+  drawIconUI?: boolean;
+  showDynamicLOD?: boolean;
+  scriptHulkMaxLifetimeOverride?: number;
+  rankPointsToAddAtGameStart?: number;
+  superweaponRestriction?: number;
   spawnedEntities: MapEntity[];
   caveTrackers?: GameLogicCaveTrackerSaveState[];
   supplyWarehouseStates?: GameLogicSupplyWarehouseSaveState[];
@@ -9233,6 +9240,8 @@ export class GameLogicSubsystem implements Subsystem {
   private gameEndFrame: number | null = null;
   /** Source parity: ScriptEngine::m_endGameTimer >= 0 blocks script updates after victory/defeat actions. */
   private scriptEndGameTimerActive = false;
+  /** Source parity: GameLogic::m_rankPointsToAddAtGameStart used by restart/new-game flows. */
+  private rankPointsToAddAtGameStart = 0;
 
   constructor(_scene: THREE.Scene, config?: Partial<GameLogicConfig>) {
     void _scene;
@@ -11972,6 +11981,12 @@ export class GameLogicSubsystem implements Subsystem {
       rankLevelLimit: this.rankLevelLimit,
       difficultyBonusesInitialized: this.difficultyBonusesInitialized,
       scriptScoringEnabled: this.scriptScoringEnabled,
+      showBehindBuildingMarkers: this.scriptOcclusionModeEnabled,
+      drawIconUI: this.scriptDrawIconUIEnabled,
+      showDynamicLOD: this.scriptDynamicLodEnabled,
+      scriptHulkMaxLifetimeOverride: this.scriptHulkLifetimeOverrideFrames,
+      rankPointsToAddAtGameStart: this.rankPointsToAddAtGameStart,
+      superweaponRestriction: this.config.superweaponRestriction,
       spawnedEntities: Array.from(this.spawnedEntities.values()),
       caveTrackers: Array.from(this.caveTrackers.entries()).map(([caveIndex, tracker]) => ({
         caveIndex,
@@ -12071,6 +12086,18 @@ export class GameLogicSubsystem implements Subsystem {
       : RANK_TABLE.length;
     this.difficultyBonusesInitialized = snapshot.difficultyBonusesInitialized ?? false;
     this.scriptScoringEnabled = snapshot.scriptScoringEnabled ?? true;
+    this.scriptOcclusionModeEnabled = snapshot.showBehindBuildingMarkers ?? false;
+    this.scriptDrawIconUIEnabled = snapshot.drawIconUI ?? true;
+    this.scriptDynamicLodEnabled = snapshot.showDynamicLOD ?? true;
+    this.scriptHulkLifetimeOverrideFrames = Number.isFinite(snapshot.scriptHulkMaxLifetimeOverride)
+      ? Math.trunc(snapshot.scriptHulkMaxLifetimeOverride ?? -1)
+      : -1;
+    this.rankPointsToAddAtGameStart = Number.isFinite(snapshot.rankPointsToAddAtGameStart)
+      ? Math.max(0, Math.trunc(snapshot.rankPointsToAddAtGameStart ?? 0))
+      : 0;
+    this.config.superweaponRestriction = Number.isFinite(snapshot.superweaponRestriction)
+      ? Math.max(0, Math.trunc(snapshot.superweaponRestriction ?? 0))
+      : 0;
     if (Number.isFinite(snapshot.gameRandomSeed)) {
       this.gameRandom.setSeed(Number(snapshot.gameRandomSeed));
     }
@@ -21599,6 +21626,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.spyVisionEntityStates.clear();
     this.sideRankState.clear();
     this.rankLevelLimit = RANK_TABLE.length;
+    this.rankPointsToAddAtGameStart = 0;
     this.frameCounter = 0;
     this.gameRandom.setSeed(1);
     this.isAttackMoveToMode = false;
@@ -38875,6 +38903,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.scriptMusicTrackState = null;
     this.scriptVisualSpeedMultiplier = 1;
     this.scriptHulkLifetimeOverrideFrames = -1;
+    this.rankPointsToAddAtGameStart = 0;
     this.scriptInfantryLightingOverride = -1;
     this.scriptBreezeState = {
       version: 0,

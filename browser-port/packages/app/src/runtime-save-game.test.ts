@@ -617,6 +617,16 @@ describe('runtime-save-game', () => {
         borderSize: 0,
         data: 'AAAAAAAAAAAAAAAAAAAAAA==',
       },
+      sidesList: {
+        sides: [{
+          dict: {
+            playerName: 'The_Player',
+            playerFaction: 'USA',
+          },
+          buildList: [],
+        }],
+        teams: [],
+      },
       objects: [],
       triggers: [],
       waypoints: {
@@ -713,12 +723,13 @@ describe('runtime-save-game', () => {
           state: {
             playerSideByIndex: new Map([[0, 'USA']]),
             sideCredits: new Map([['USA', 1337]]),
+            sideSciences: new Map([['USA', new Set(['SCIENCE_ANTHRAX_BOMB'])]]),
             controllingPlayerScriptCredits: new Map([['the_player', 900]]),
             controllingPlayerScriptSciences: new Map([['the_player', new Set(['SCIENCE_ANTHRAX_BOMB'])]]),
             sideMissionAttempts: new Map([['USA', 2]]),
           },
           tunnelTrackers: [{
-            side: 'america',
+            side: 'USA',
             tracker: {
               tunnelIds: [21, 22],
               passengerIds: [77],
@@ -830,6 +841,12 @@ describe('runtime-save-game', () => {
           rankLevelLimit: 7,
           difficultyBonusesInitialized: true,
           scriptScoringEnabled: false,
+          showBehindBuildingMarkers: true,
+          drawIconUI: false,
+          showDynamicLOD: false,
+          scriptHulkMaxLifetimeOverride: 180,
+          rankPointsToAddAtGameStart: 5,
+          superweaponRestriction: 1,
           spawnedEntities: [],
           caveTrackers: [{
             caveIndex: 4,
@@ -970,7 +987,7 @@ describe('runtime-save-game', () => {
 
     expect(parsed.metadata.description).toBe('Runtime Save Smoke Test');
     expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data)).toEqual([
-      { blockName: 'CHUNK_Players', mode: 'legacy' },
+      { blockName: 'CHUNK_Players', mode: 'parsed' },
       { blockName: 'CHUNK_GameLogic', mode: 'parsed' },
       { blockName: 'CHUNK_ScriptEngine', mode: 'parsed' },
       { blockName: 'CHUNK_InGameUI', mode: 'parsed' },
@@ -1061,13 +1078,13 @@ describe('runtime-save-game', () => {
       pendingUndoShroudReveals: [],
     });
     expect(playerState?.state.playerSideByIndex).toEqual(new Map([[0, 'USA']]));
-    expect(playerState?.state.controllingPlayerScriptCredits).toEqual(new Map([['the_player', 900]]));
+    expect(playerState?.state.controllingPlayerScriptCredits).toEqual(new Map([['the_player', 1337]]));
     expect(playerState?.state.controllingPlayerScriptSciences).toEqual(
       new Map([['the_player', new Set(['SCIENCE_ANTHRAX_BOMB'])]]),
     );
-    expect(playerState?.state.sideMissionAttempts).toEqual(new Map([['USA', 2]]));
+    expect(playerState?.state.sideMissionAttempts).toBeUndefined();
     expect(playerState?.tunnelTrackers).toEqual([{
-      side: 'america',
+      side: 'USA',
       tracker: {
         tunnelIds: [21, 22],
         passengerIds: [77],
@@ -1197,6 +1214,12 @@ describe('runtime-save-game', () => {
     expect(coreState?.rankLevelLimit).toBe(7);
     expect(coreState?.difficultyBonusesInitialized).toBe(true);
     expect(coreState?.scriptScoringEnabled).toBe(false);
+    expect(coreState?.showBehindBuildingMarkers).toBe(true);
+    expect(coreState?.drawIconUI).toBe(false);
+    expect(coreState?.showDynamicLOD).toBe(false);
+    expect(coreState?.scriptHulkMaxLifetimeOverride).toBe(180);
+    expect(coreState?.rankPointsToAddAtGameStart).toBe(5);
+    expect(coreState?.superweaponRestriction).toBe(1);
     expect(coreState?.caveTrackers).toEqual([{
       caveIndex: 4,
       tracker: {
