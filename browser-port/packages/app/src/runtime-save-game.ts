@@ -73,6 +73,7 @@ const SOURCE_TERRAIN_VISUAL_BLOCK = 'CHUNK_TerrainVisual';
 const SOURCE_GHOST_OBJECT_BLOCK = 'CHUNK_GhostObject';
 export const BROWSER_RUNTIME_STATE_BLOCK = 'CHUNK_TS_RuntimeState';
 const PASSTHROUGH_BLOCK_ORDER = [
+  SOURCE_GAME_LOGIC_BLOCK,
   SOURCE_GAME_CLIENT_BLOCK,
   SOURCE_IN_GAME_UI_BLOCK,
   SOURCE_PARTICLE_SYSTEM_BLOCK,
@@ -2326,6 +2327,26 @@ function tryParseLegacyPlayersChunk(data: ArrayBuffer | Uint8Array): GameLogicPl
   }
 }
 
+function tryParseSourceGameLogicChunk(data: ArrayBuffer | Uint8Array): GameLogicCoreSaveState | null {
+  try {
+    const snapshot = new GameLogicSnapshot();
+    const chunkData = data instanceof Uint8Array
+      ? (() => {
+          const copy = new Uint8Array(data.byteLength);
+          copy.set(data);
+          return copy.buffer;
+        })()
+      : data;
+    const xferLoad = new XferLoad(chunkData);
+    xferLoad.open('source-game-logic');
+    xferLoad.xferSnapshot(snapshot);
+    xferLoad.close();
+    return snapshot.payload ?? null;
+  } catch {
+    return null;
+  }
+}
+
 class TacticalViewSnapshot implements Snapshot {
   payload: RuntimeSaveTacticalViewState | null;
 
@@ -2859,7 +2880,20 @@ export function buildRuntimeSaveFile(params: {
   } else {
     state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, new PlayersSnapshot(playerPayload));
   }
-  state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new GameLogicSnapshot(gameLogicPayload));
+  if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GAME_LOGIC_BLOCK)) {
+    const passthroughBlock = orderedPassthroughBlocks.find(
+      (block) => block.blockName.toLowerCase() === SOURCE_GAME_LOGIC_BLOCK.toLowerCase(),
+    );
+    if (!passthroughBlock) {
+      throw new Error('Missing game-logic passthrough block after presence check.');
+    }
+    state.addSnapshotBlock(
+      SOURCE_GAME_LOGIC_BLOCK,
+      new RawPassthroughSnapshot(passthroughBlock.blockData),
+    );
+  } else {
+    state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new GameLogicSnapshot(gameLogicPayload));
+  }
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, new RadarSnapshot(radarPayload));
   if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_SCRIPT_ENGINE_BLOCK)) {
     const passthroughBlock = orderedPassthroughBlocks.find(
@@ -2982,7 +3016,6 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   });
   const terrainLogicSnapshot = new TerrainLogicSnapshot();
   const partitionSnapshot = new PartitionSnapshot();
-  const gameLogicSnapshot = new GameLogicSnapshot();
   const radarSnapshot = new RadarSnapshot();
   const tacticalViewSnapshot = new TacticalViewSnapshot();
   const runtimeSnapshot = new BrowserRuntimeSnapshot();
@@ -2990,7 +3023,6 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, campaignSnapshot);
   state.addSnapshotBlock(SOURCE_TERRAIN_LOGIC_BLOCK, terrainLogicSnapshot);
   state.addSnapshotBlock(SOURCE_PARTITION_BLOCK, partitionSnapshot);
-  state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, gameLogicSnapshot);
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, radarSnapshot);
   state.addSnapshotBlock(SOURCE_TACTICAL_VIEW_BLOCK, tacticalViewSnapshot);
   state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, runtimeSnapshot);
@@ -3027,6 +3059,10 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const playersChunk = extractSaveChunkData(data, SOURCE_PLAYERS_BLOCK);
   const legacyPlayersState = playersChunk
     ? tryParseLegacyPlayersChunk(playersChunk)
+    : null;
+  const gameLogicChunk = extractSaveChunkData(data, SOURCE_GAME_LOGIC_BLOCK);
+  const gameLogicCoreState = gameLogicChunk
+    ? tryParseSourceGameLogicChunk(gameLogicChunk)
     : null;
   const sidesListChunk = extractSaveChunkData(data, SOURCE_SIDES_LIST_BLOCK);
   const sidesListState = sidesListChunk
@@ -3075,7 +3111,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     gameLogicSidesListState: sidesListState,
     gameLogicScriptEngineState: scriptEngineState,
     gameLogicInGameUiState: inGameUiState,
-    gameLogicCoreState: gameLogicSnapshot?.payload ?? null,
+    gameLogicCoreState,
     gameLogicState: payload?.gameLogicState ?? null,
     campaign,
     passthroughBlocks: [
@@ -3084,6 +3120,9 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
       ),
       ...(playersChunk && legacyPlayersState === null
         ? [{ blockName: SOURCE_PLAYERS_BLOCK, blockData: copyBytesToArrayBuffer(playersChunk) }]
+        : []),
+      ...(gameLogicChunk && gameLogicCoreState === null
+        ? [{ blockName: SOURCE_GAME_LOGIC_BLOCK, blockData: copyBytesToArrayBuffer(gameLogicChunk) }]
         : []),
       ...(scriptEngineChunk && scriptEngineState === null
         ? [{ blockName: SOURCE_SCRIPT_ENGINE_BLOCK, blockData: copyBytesToArrayBuffer(scriptEngineChunk) }]
