@@ -6787,6 +6787,20 @@ interface ScriptDisplayedCounterState {
   frame: number;
 }
 
+export interface SourceInGameUiSuperweaponState {
+  playerIndex: number;
+  side: string;
+  objectId: number;
+  powerName: string;
+  templateName: string;
+  readyFrame: number;
+  currentFrame: number;
+  isReady: boolean;
+  hiddenByScience: boolean;
+  hiddenByScript: boolean;
+  underConstruction: boolean;
+}
+
 interface ScriptSpecialPowerPauseState {
   pausedCount: number;
   pausedOnFrame: number;
@@ -28692,6 +28706,59 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     return results;
+  }
+
+  getSourceInGameUiSuperweaponStates(): SourceInGameUiSuperweaponState[] {
+    const results: SourceInGameUiSuperweaponState[] = [];
+
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed || !entity.kindOf.has('FS_SUPERWEAPON')) {
+        continue;
+      }
+
+      const normalizedSide = this.normalizeSide(entity.side);
+      const playerIndex = normalizedSide
+        ? this.resolvePlayerIndexForSide(normalizedSide)
+        : 0;
+      const hiddenByScript = this.scriptHiddenSpecialPowerDisplayEntityIds.has(entity.id);
+      const underConstruction = entity.objectStatusFlags.has('UNDER_CONSTRUCTION');
+
+      for (const [, module] of entity.specialPowerModules) {
+        const powerName = module.specialPowerTemplateName;
+        const normalizedPower = powerName.toUpperCase().replace(/\s+/g, '');
+        const sharedFrame = this.sharedShortcutSpecialPowerReadyFrames.get(normalizedPower) ?? 0;
+        const readyFrame = sharedFrame > 0 ? sharedFrame : 0;
+        const specialPowerDef = this.resolveSpecialPowerDefByName(module.specialPowerTemplateName);
+        const requiredScience = specialPowerDef
+          ? (readStringField(specialPowerDef.fields, ['RequiredScience']) ?? '').trim()
+          : '';
+        const hiddenByScience = Boolean(
+          normalizedSide
+          && requiredScience
+          && requiredScience.toUpperCase() !== 'NONE'
+          && !this.hasSideScience(normalizedSide, requiredScience),
+        );
+
+        results.push({
+          playerIndex,
+          side: normalizedSide ?? '',
+          objectId: entity.id,
+          powerName,
+          templateName: powerName,
+          readyFrame,
+          currentFrame: this.frameCounter,
+          isReady: readyFrame > 0 && this.frameCounter >= readyFrame,
+          hiddenByScience,
+          hiddenByScript,
+          underConstruction,
+        });
+      }
+    }
+
+    return results.sort((left, right) =>
+      left.playerIndex - right.playerIndex
+      || left.powerName.localeCompare(right.powerName)
+      || left.objectId - right.objectId);
   }
 
   /**

@@ -636,6 +636,29 @@ describe('runtime-save-game', () => {
         zoom: 140,
         pitch: 1,
       },
+      inGameUiState: {
+        version: 3,
+        namedTimerLastFlashFrame: 17,
+        namedTimerUsedFlashColor: true,
+        showNamedTimers: false,
+        namedTimers: [{
+          timerName: 'SupplyDrop',
+          timerText: 'Supply Drop Ready',
+          isCountdown: false,
+        }],
+        superweaponHiddenByScript: false,
+        superweapons: [{
+          playerIndex: 0,
+          templateName: 'SUPERWEAPONSCUDSTORM',
+          powerName: 'SUPERWEAPONSCUDSTORM',
+          objectId: 7,
+          timestamp: 45,
+          hiddenByScript: true,
+          hiddenByScience: false,
+          ready: false,
+          evaReadyPlayed: false,
+        }],
+      },
       gameLogic: {
         captureSourceTerrainLogicRuntimeSaveState: () => ({
           version: 2,
@@ -750,7 +773,12 @@ describe('runtime-save-game', () => {
         captureSourceInGameUiRuntimeSaveState: () => ({
           version: 1,
           state: {
-            scriptDisplayedCounters: new Map([['SupplyDrop', { value: 3, visible: true }]]),
+            scriptDisplayedCounters: new Map([['SupplyDrop', {
+              counterName: 'SupplyDrop',
+              counterText: 'Supply Drop Ready',
+              isCountdown: false,
+              frame: 17,
+            }]]),
             scriptNamedTimerDisplayEnabled: false,
             scriptSpecialPowerDisplayEnabled: true,
             scriptHiddenSpecialPowerDisplayEntityIds: new Set<number>([7]),
@@ -918,7 +946,7 @@ describe('runtime-save-game', () => {
       { blockName: 'CHUNK_Players', mode: 'legacy' },
       { blockName: 'CHUNK_GameLogic', mode: 'parsed' },
       { blockName: 'CHUNK_ScriptEngine', mode: 'legacy' },
-      { blockName: 'CHUNK_InGameUI', mode: 'legacy' },
+      { blockName: 'CHUNK_InGameUI', mode: 'parsed' },
     ]);
     expect(gameClientChunk).toEqual({
       version: 3,
@@ -1085,6 +1113,29 @@ describe('runtime-save-game', () => {
     );
     expect(scriptEngineState?.state.scriptFlagsByName).toEqual(new Map([['intro_complete', true]]));
     expect(scriptEngineState?.state.scriptCompletedVideos).toEqual(['USA_BNN_INTRO']);
+    expect(parsed.inGameUiState).toEqual({
+      version: 3,
+      namedTimerLastFlashFrame: 17,
+      namedTimerUsedFlashColor: true,
+      showNamedTimers: false,
+      namedTimers: [{
+        timerName: 'SupplyDrop',
+        timerText: 'Supply Drop Ready',
+        isCountdown: false,
+      }],
+      superweaponHiddenByScript: false,
+      superweapons: [{
+        playerIndex: 0,
+        templateName: 'SUPERWEAPONSCUDSTORM',
+        powerName: 'SUPERWEAPONSCUDSTORM',
+        objectId: 7,
+        timestamp: 45,
+        hiddenByScript: true,
+        hiddenByScience: false,
+        ready: false,
+        evaReadyPlayed: false,
+      }],
+    });
     expect(inGameUiState?.state.scriptNamedTimerDisplayEnabled).toBe(false);
     expect(inGameUiState?.state.scriptHiddenSpecialPowerDisplayEntityIds).toEqual(new Set([7]));
     expect(coreState?.spawnedEntities).toEqual([]);

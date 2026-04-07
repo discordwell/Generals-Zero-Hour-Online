@@ -141,11 +141,14 @@ import {
   resolveSourceHeightScaledZoomWorldDistance,
 } from './source-camera.js';
 import {
+  buildRuntimeSaveInGameUiState,
   buildRuntimeSaveFile,
+  createRuntimeSaveInGameUiSuperweaponKey,
   parseRuntimeSaveFile,
   SOURCE_GAME_MODE_SINGLE_PLAYER,
   SOURCE_GAME_MODE_SKIRMISH,
   type RuntimeSaveBootstrap,
+  type RuntimeSaveTrackedInGameUiSuperweaponState,
 } from './runtime-save-game.js';
 import { applySourceTeamFactoryChunkToState } from './runtime-team-factory-save.js';
 
@@ -1379,6 +1382,7 @@ async function startGame(
   const gameSubsystems = new SubsystemRegistry();
   const replayManager = new ReplayManager();
   const activeMapPath = runtimeSaveLoadContext?.runtimeSave.mapPath ?? mapPath;
+  const restoredInGameUiState = runtimeSaveLoadContext?.runtimeSave.inGameUiState ?? null;
   let replayRecordFrame = 0;
   let replayRecordingPersisted = false;
   let replaySkirmishSettings = skirmishSettings;
@@ -2087,6 +2091,21 @@ async function startGame(
   }
   /** Track the frame at which each superweapon countdown started, keyed by `entityId:powerName`. */
   const superweaponStartFrames = new Map<string, number>();
+  const trackedInGameUiSuperweaponStateByKey = new Map<string, RuntimeSaveTrackedInGameUiSuperweaponState>(
+    (restoredInGameUiState?.superweapons ?? []).map((superweapon) => [
+      createRuntimeSaveInGameUiSuperweaponKey({
+        playerIndex: superweapon.playerIndex,
+        objectId: superweapon.objectId,
+        powerName: superweapon.powerName,
+      }),
+      {
+        timestamp: superweapon.timestamp,
+        evaReadyPlayed: superweapon.evaReadyPlayed,
+      },
+    ]),
+  );
+  let namedTimerLastFlashFrame = restoredInGameUiState?.namedTimerLastFlashFrame ?? 0;
+  let namedTimerUsedFlashColor = restoredInGameUiState?.namedTimerUsedFlashColor ?? false;
 
   // Entity info panel (bottom-center, shows selected unit details) — reuse on restart.
   let entityInfoPanel = document.getElementById('entity-info-panel') as HTMLDivElement | null;
@@ -4968,40 +4987,77 @@ async function startGame(
       clockHud.textContent = `${clockMin.toString().padStart(2, '0')}:${clockSec.toString().padStart(2, '0')}`;
 
       // Update superweapon countdown timers with progress bars.
-      const countdowns = gameLogic.getSuperweaponCountdowns();
-      if (countdowns.length > 0) {
+      const superweapons = gameLogic.getSourceInGameUiSuperweaponStates();
+      if (superweapons.length > 0) {
         const normalizedLocal = localPlayerSide?.toUpperCase() ?? '';
+        const superweaponDisplayEnabled = gameLogic.isScriptSpecialPowerDisplayEnabled();
         const activeKeys = new Set<string>();
         let childIdx = 0;
-        for (const cd of countdowns) {
-          const isPlayer = cd.side.toUpperCase() === normalizedLocal;
+        for (const superweapon of superweapons) {
+          const superweaponKey = createRuntimeSaveInGameUiSuperweaponKey({
+            playerIndex: superweapon.playerIndex,
+            objectId: superweapon.objectId,
+            powerName: superweapon.powerName,
+          });
+          activeKeys.add(superweaponKey);
+
+          const priorTrackedState = trackedInGameUiSuperweaponStateByKey.get(superweaponKey);
+          if (
+            !superweapon.underConstruction
+            && !superweapon.hiddenByScript
+            && !superweapon.hiddenByScience
+          ) {
+            let evaReadyPlayed = priorTrackedState?.evaReadyPlayed ?? false;
+            if (superweapon.isReady && !evaReadyPlayed) {
+              if (superweapon.currentFrame > 0) {
+                evaReadyPlayed = true;
+              }
+            } else if (!superweapon.isReady) {
+              evaReadyPlayed = false;
+            }
+            const timestamp = superweapon.readyFrame < superweapon.currentFrame
+              ? 0
+              : Math.max(0, Math.trunc((superweapon.readyFrame - superweapon.currentFrame) / 30));
+            trackedInGameUiSuperweaponStateByKey.set(superweaponKey, {
+              timestamp,
+              evaReadyPlayed,
+            });
+          }
+
+          if (
+            !superweaponDisplayEnabled
+            || superweapon.hiddenByScript
+            || superweapon.hiddenByScience
+            || superweapon.underConstruction
+          ) {
+            continue;
+          }
+
+          const isPlayer = superweapon.side.toUpperCase() === normalizedLocal;
           const prefix = isPlayer ? '\u2622' : '\u26A0'; // ☢ for player, ⚠ for enemy
           const color = isPlayer ? '#ff6644' : '#ffaa22';
           let label: string;
           let progressPct = 100;
 
-          const cdKey = `${cd.entityId}:${cd.powerName}`;
-          activeKeys.add(cdKey);
-
-          if (cd.isReady) {
-            label = `${prefix} ${cd.powerName}: READY`;
+          if (superweapon.isReady) {
+            label = `${prefix} ${superweapon.powerName}: READY`;
             progressPct = 100;
-            superweaponStartFrames.delete(cdKey);
-          } else if (cd.readyFrame > 0) {
+            superweaponStartFrames.delete(superweaponKey);
+          } else if (superweapon.readyFrame > 0) {
             // Track start frame for percentage calculation.
-            if (!superweaponStartFrames.has(cdKey)) {
-              superweaponStartFrames.set(cdKey, cd.currentFrame);
+            if (!superweaponStartFrames.has(superweaponKey)) {
+              superweaponStartFrames.set(superweaponKey, superweapon.currentFrame);
             }
-            const startFrame = superweaponStartFrames.get(cdKey)!;
-            const totalFrames = cd.readyFrame - startFrame;
-            const elapsed = cd.currentFrame - startFrame;
+            const startFrame = superweaponStartFrames.get(superweaponKey)!;
+            const totalFrames = superweapon.readyFrame - startFrame;
+            const elapsed = superweapon.currentFrame - startFrame;
             progressPct = totalFrames > 0 ? Math.min(100, (elapsed / totalFrames) * 100) : 0;
 
-            const remainingFrames = cd.readyFrame - cd.currentFrame;
+            const remainingFrames = superweapon.readyFrame - superweapon.currentFrame;
             const remainingSec = Math.max(0, Math.ceil(remainingFrames / 30));
             const min = Math.floor(remainingSec / 60);
             const sec = remainingSec % 60;
-            label = `${prefix} ${cd.powerName}: ${min}:${sec.toString().padStart(2, '0')}`;
+            label = `${prefix} ${superweapon.powerName}: ${min}:${sec.toString().padStart(2, '0')}`;
           } else {
             continue;
           }
@@ -5061,11 +5117,18 @@ async function startGame(
           superweaponHud.removeChild(superweaponHud.lastChild!);
         }
 
+        for (const key of trackedInGameUiSuperweaponStateByKey.keys()) {
+          if (!activeKeys.has(key)) {
+            trackedInGameUiSuperweaponStateByKey.delete(key);
+          }
+        }
+
         superweaponHud.style.display = childIdx > 0 ? 'flex' : 'none';
       } else {
         superweaponHud.style.display = 'none';
         superweaponHud.innerHTML = '';
         superweaponStartFrames.clear();
+        trackedInGameUiSuperweaponStateByKey.clear();
       }
 
       // Check for game end
@@ -5230,6 +5293,13 @@ async function startGame(
           z: currentCameraState.targetZ,
         },
       },
+      inGameUiState: buildRuntimeSaveInGameUiState({
+        gameLogicState: gameLogic.captureSourceInGameUiRuntimeSaveState(),
+        superweapons: gameLogic.getSourceInGameUiSuperweaponStates(),
+        trackedSuperweapons: trackedInGameUiSuperweaponStateByKey,
+        namedTimerLastFlashFrame,
+        namedTimerUsedFlashColor,
+      }),
       renderableEntityStates: gameLogic.getRenderableEntityStates(),
       gameClientState: runtimeSaveLoadContext?.runtimeSave.gameClientState ?? null,
       particleSystemState: particleSystemManager.captureSaveState(),

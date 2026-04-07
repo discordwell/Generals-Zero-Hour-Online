@@ -42,6 +42,7 @@ import {
   type LegacyGameLogicRadarSaveState,
   type MapEntity,
   type RenderableEntityState as GameLogicRenderableEntityState,
+  type SourceInGameUiSuperweaponState,
   type StructuredGameLogicRadarSaveState,
 } from '@generals/game-logic';
 import type {
@@ -119,6 +120,7 @@ const SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION = 1;
 const SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION = 1;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
 const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
+const SOURCE_IN_GAME_UI_SNAPSHOT_VERSION = 3;
 const SOURCE_RADAR_EVENT_COUNT = 64;
 const INVALID_MISSION_NUMBER = -1;
 export const SOURCE_GAME_MODE_SINGLE_PLAYER = 0;
@@ -128,6 +130,7 @@ const SOURCE_DIFFICULTY_NORMAL = 1;
 const SOURCE_DIFFICULTY_HARD = 2;
 const SOURCE_SLOT_STATE_CLOSED = 1;
 const SOURCE_SLOT_STATE_PLAYER = 5;
+const SOURCE_IN_GAME_UI_TIMESTAMP_UNINITIALIZED = 0xFFFFFFFF;
 const DRAWABLE_STATUS_SHADOWS = 0x00000002;
 const NUM_DRAWABLE_MODULE_TYPES = 2;
 const TERRAIN_DECAL_NONE = 0;
@@ -252,6 +255,39 @@ export interface RuntimeSaveGameClientState {
   drawables: readonly RuntimeSaveRawGameClientDrawableState[];
 }
 
+export interface RuntimeSaveInGameUiNamedTimerState {
+  timerName: string;
+  timerText: string;
+  isCountdown: boolean;
+}
+
+export interface RuntimeSaveInGameUiSuperweaponState {
+  playerIndex: number;
+  templateName: string;
+  powerName: string;
+  objectId: number;
+  timestamp: number;
+  hiddenByScript: boolean;
+  hiddenByScience: boolean;
+  ready: boolean;
+  evaReadyPlayed: boolean;
+}
+
+export interface RuntimeSaveTrackedInGameUiSuperweaponState {
+  timestamp: number;
+  evaReadyPlayed: boolean;
+}
+
+export interface RuntimeSaveInGameUiState {
+  version: number;
+  namedTimerLastFlashFrame: number;
+  namedTimerUsedFlashColor: boolean;
+  showNamedTimers: boolean;
+  namedTimers: RuntimeSaveInGameUiNamedTimerState[];
+  superweaponHiddenByScript: boolean;
+  superweapons: RuntimeSaveInGameUiSuperweaponState[];
+}
+
 interface RuntimeSaveDrawableSnapshotState {
   readonly drawableId: number;
   readonly objectId: number;
@@ -299,6 +335,7 @@ export interface RuntimeSaveBootstrap {
   cameraState: CameraState | null;
   tacticalViewState: RuntimeSaveTacticalViewState | null;
   gameClientState: RuntimeSaveGameClientState | null;
+  inGameUiState: RuntimeSaveInGameUiState | null;
   particleSystemState: ParticleSystemManagerSaveState | null;
   sourceTeamFactoryChunkData: Uint8Array | null;
   gameLogicTerrainLogicState: GameLogicTerrainLogicSaveState | null;
@@ -333,6 +370,194 @@ function getLeafName(path: string | null): string {
   const normalized = path.replace(/\\/g, '/');
   const leaf = normalized.split('/').pop() ?? normalized;
   return leaf.replace(/\.[^.]+$/, '') || leaf;
+}
+
+function createDefaultRuntimeSaveInGameUiState(): RuntimeSaveInGameUiState {
+  return {
+    version: SOURCE_IN_GAME_UI_SNAPSHOT_VERSION,
+    namedTimerLastFlashFrame: 0,
+    namedTimerUsedFlashColor: false,
+    showNamedTimers: true,
+    namedTimers: [],
+    superweaponHiddenByScript: false,
+    superweapons: [],
+  };
+}
+
+export function createRuntimeSaveInGameUiSuperweaponKey(params: {
+  playerIndex: number;
+  objectId: number;
+  powerName: string;
+}): string {
+  return `${Math.trunc(params.playerIndex)}:${Math.trunc(params.objectId)}:${params.powerName.trim().toUpperCase()}`;
+}
+
+function normalizeRuntimeSaveInGameUiNamedTimers(
+  timers: readonly RuntimeSaveInGameUiNamedTimerState[],
+): RuntimeSaveInGameUiNamedTimerState[] {
+  const byName = new Map<string, RuntimeSaveInGameUiNamedTimerState>();
+  for (const timer of timers) {
+    const timerName = timer.timerName.trim();
+    if (!timerName) {
+      continue;
+    }
+    byName.set(timerName, {
+      timerName,
+      timerText: timer.timerText,
+      isCountdown: Boolean(timer.isCountdown),
+    });
+  }
+  return [...byName.values()].sort((left, right) => left.timerName.localeCompare(right.timerName));
+}
+
+function normalizeRuntimeSaveInGameUiSuperweapons(
+  superweapons: readonly RuntimeSaveInGameUiSuperweaponState[],
+): RuntimeSaveInGameUiSuperweaponState[] {
+  return superweapons
+    .flatMap((superweapon) => {
+      const templateName = superweapon.templateName.trim();
+      const powerName = superweapon.powerName.trim();
+      if (!templateName || !powerName || !Number.isFinite(superweapon.objectId)) {
+        return [];
+      }
+      return [{
+        playerIndex: Number.isFinite(superweapon.playerIndex)
+          ? Math.max(0, Math.trunc(superweapon.playerIndex))
+          : 0,
+        templateName,
+        powerName,
+        objectId: Math.max(0, Math.trunc(superweapon.objectId)),
+        timestamp: Number.isFinite(superweapon.timestamp)
+          ? Math.trunc(superweapon.timestamp) >>> 0
+          : SOURCE_IN_GAME_UI_TIMESTAMP_UNINITIALIZED,
+        hiddenByScript: Boolean(superweapon.hiddenByScript),
+        hiddenByScience: Boolean(superweapon.hiddenByScience),
+        ready: Boolean(superweapon.ready),
+        evaReadyPlayed: Boolean(superweapon.evaReadyPlayed),
+      }];
+    })
+    .sort((left, right) =>
+      left.playerIndex - right.playerIndex
+      || left.powerName.localeCompare(right.powerName)
+      || left.objectId - right.objectId);
+}
+
+function readLegacyInGameUiStateBoolean(
+  state: Record<string, unknown> | null | undefined,
+  key: string,
+  fallback: boolean,
+): boolean {
+  const value = state?.[key];
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function deriveNamedTimersFromGameLogicInGameUiState(
+  gameLogicState: GameLogicInGameUiSaveState | null | undefined,
+): RuntimeSaveInGameUiNamedTimerState[] {
+  const counters = gameLogicState?.state?.scriptDisplayedCounters;
+  if (!(counters instanceof Map)) {
+    return [];
+  }
+
+  const timers: RuntimeSaveInGameUiNamedTimerState[] = [];
+  for (const [counterName, rawCounter] of counters.entries()) {
+    const normalizedCounterName = typeof counterName === 'string'
+      ? counterName.trim()
+      : '';
+    if (!normalizedCounterName || !rawCounter || typeof rawCounter !== 'object') {
+      continue;
+    }
+    const record = rawCounter as Partial<{
+      counterName: string;
+      counterText: string;
+      isCountdown: boolean;
+    }>;
+    timers.push({
+      timerName: record.counterName?.trim() || normalizedCounterName,
+      timerText: typeof record.counterText === 'string'
+        ? record.counterText
+        : normalizedCounterName,
+      isCountdown: Boolean(record.isCountdown),
+    });
+  }
+  return normalizeRuntimeSaveInGameUiNamedTimers(timers);
+}
+
+export function buildRuntimeSaveInGameUiState(params: {
+  gameLogicState: GameLogicInGameUiSaveState | null;
+  superweapons?: readonly SourceInGameUiSuperweaponState[];
+  trackedSuperweapons?: ReadonlyMap<string, RuntimeSaveTrackedInGameUiSuperweaponState>;
+  namedTimerLastFlashFrame?: number;
+  namedTimerUsedFlashColor?: boolean;
+}): RuntimeSaveInGameUiState {
+  const state = params.gameLogicState?.state as Record<string, unknown> | undefined;
+  const trackedSuperweapons = params.trackedSuperweapons;
+  const superweapons = normalizeRuntimeSaveInGameUiSuperweapons(
+    (params.superweapons ?? []).map((superweapon) => {
+      const trackedState = trackedSuperweapons?.get(
+        createRuntimeSaveInGameUiSuperweaponKey({
+          playerIndex: superweapon.playerIndex,
+          objectId: superweapon.objectId,
+          powerName: superweapon.powerName,
+        }),
+      );
+      return {
+        playerIndex: superweapon.playerIndex,
+        templateName: superweapon.templateName,
+        powerName: superweapon.powerName,
+        objectId: superweapon.objectId,
+        timestamp: trackedState?.timestamp ?? SOURCE_IN_GAME_UI_TIMESTAMP_UNINITIALIZED,
+        hiddenByScript: superweapon.hiddenByScript,
+        hiddenByScience: superweapon.hiddenByScience,
+        ready: superweapon.isReady,
+        evaReadyPlayed: trackedState?.evaReadyPlayed ?? superweapon.isReady,
+      };
+    }),
+  );
+
+  return {
+    version: SOURCE_IN_GAME_UI_SNAPSHOT_VERSION,
+    namedTimerLastFlashFrame: Number.isFinite(params.namedTimerLastFlashFrame)
+      ? Math.trunc(params.namedTimerLastFlashFrame ?? 0)
+      : 0,
+    namedTimerUsedFlashColor: Boolean(params.namedTimerUsedFlashColor),
+    showNamedTimers: readLegacyInGameUiStateBoolean(state, 'scriptNamedTimerDisplayEnabled', true),
+    namedTimers: deriveNamedTimersFromGameLogicInGameUiState(params.gameLogicState),
+    superweaponHiddenByScript: !readLegacyInGameUiStateBoolean(
+      state,
+      'scriptSpecialPowerDisplayEnabled',
+      true,
+    ),
+    superweapons,
+  };
+}
+
+function buildGameLogicInGameUiSaveStateFromRuntimeSaveState(
+  inGameUiState: RuntimeSaveInGameUiState,
+): GameLogicInGameUiSaveState {
+  return {
+    version: 1,
+    state: {
+      scriptDisplayedCounters: new Map(
+        normalizeRuntimeSaveInGameUiNamedTimers(inGameUiState.namedTimers).map((timer) => [
+          timer.timerName,
+          {
+            counterName: timer.timerName,
+            counterText: timer.timerText,
+            isCountdown: timer.isCountdown,
+            frame: 0,
+          },
+        ]),
+      ),
+      scriptNamedTimerDisplayEnabled: Boolean(inGameUiState.showNamedTimers),
+      scriptSpecialPowerDisplayEnabled: !inGameUiState.superweaponHiddenByScript,
+      scriptHiddenSpecialPowerDisplayEntityIds: new Set(
+        normalizeRuntimeSaveInGameUiSuperweapons(inGameUiState.superweapons)
+          .filter((superweapon) => superweapon.hiddenByScript)
+          .map((superweapon) => superweapon.objectId),
+      ),
+    },
+  };
 }
 
 function createMetadataState(description: string, mapPath: string | null): RuntimeSaveMetadataState {
@@ -2262,8 +2487,24 @@ function tryParseLegacyScriptEngineChunk(data: ArrayBuffer | Uint8Array): GameLo
   return tryParseLegacyLongStringChunk<GameLogicScriptEngineSaveState>(data, 'legacy-script-engine');
 }
 
-function tryParseLegacyInGameUiChunk(data: ArrayBuffer | Uint8Array): GameLogicInGameUiSaveState | null {
-  return tryParseLegacyLongStringChunk<GameLogicInGameUiSaveState>(data, 'legacy-in-game-ui');
+function tryParseInGameUiChunk(data: ArrayBuffer | Uint8Array): RuntimeSaveInGameUiState | null {
+  try {
+    const snapshot = new InGameUiSnapshot();
+    const chunkData = data instanceof Uint8Array
+      ? (() => {
+          const copy = new Uint8Array(data.byteLength);
+          copy.set(data);
+          return copy.buffer;
+        })()
+      : data;
+    const xferLoad = new XferLoad(chunkData);
+    xferLoad.open('source-in-game-ui');
+    xferLoad.xferSnapshot(snapshot);
+    xferLoad.close();
+    return snapshot.payload ?? null;
+  } catch {
+    return null;
+  }
 }
 
 class TeamFactorySnapshot implements Snapshot {
@@ -2394,9 +2635,9 @@ class TacticalViewSnapshot implements Snapshot {
 }
 
 class InGameUiSnapshot implements Snapshot {
-  payload: GameLogicInGameUiSaveState | null;
+  payload: RuntimeSaveInGameUiState | null;
 
-  constructor(payload: GameLogicInGameUiSaveState | null = null) {
+  constructor(payload: RuntimeSaveInGameUiState | null = null) {
     this.payload = payload;
   }
 
@@ -2405,19 +2646,104 @@ class InGameUiSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
-    const version = xfer.xferVersion(1);
-    if (version !== 1) {
+    const version = xfer.xferVersion(SOURCE_IN_GAME_UI_SNAPSHOT_VERSION);
+    if (version === 1) {
+      const serialized = xfer.xferLongString('');
+      if (serialized.length === 0) {
+        this.payload = null;
+        return;
+      }
+      const legacyState = JSON.parse(serialized, runtimeJsonReviver) as GameLogicInGameUiSaveState;
+      this.payload = {
+        ...buildRuntimeSaveInGameUiState({
+          gameLogicState: legacyState,
+        }),
+        version: legacyState.version,
+      };
+      return;
+    }
+    if (version !== 2 && version !== SOURCE_IN_GAME_UI_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported in-game UI snapshot version ${version}`);
     }
 
-    const serialized = xfer.xferLongString(
-      this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
-    );
-    if (serialized.length === 0) {
-      this.payload = null;
-      return;
+    const payload = this.payload ?? createDefaultRuntimeSaveInGameUiState();
+    payload.version = version;
+    payload.namedTimerLastFlashFrame = xfer.xferInt(payload.namedTimerLastFlashFrame);
+    payload.namedTimerUsedFlashColor = xfer.xferBool(payload.namedTimerUsedFlashColor);
+    payload.showNamedTimers = xfer.xferBool(payload.showNamedTimers);
+
+    if (xfer.getMode() === XferMode.XFER_SAVE) {
+      const namedTimers = normalizeRuntimeSaveInGameUiNamedTimers(payload.namedTimers);
+      let timerCount = namedTimers.length;
+      timerCount = xfer.xferInt(timerCount);
+      for (const timer of namedTimers) {
+        xfer.xferAsciiString(timer.timerName);
+        xfer.xferUnicodeString(timer.timerText);
+        xfer.xferBool(timer.isCountdown);
+      }
+    } else {
+      const timerCount = xfer.xferInt(0);
+      const namedTimers: RuntimeSaveInGameUiNamedTimerState[] = [];
+      for (let index = 0; index < timerCount; index += 1) {
+        namedTimers.push({
+          timerName: xfer.xferAsciiString(''),
+          timerText: xfer.xferUnicodeString(''),
+          isCountdown: xfer.xferBool(false),
+        });
+      }
+      payload.namedTimers = normalizeRuntimeSaveInGameUiNamedTimers(namedTimers);
     }
-    this.payload = JSON.parse(serialized, runtimeJsonReviver) as GameLogicInGameUiSaveState;
+
+    payload.superweaponHiddenByScript = xfer.xferBool(payload.superweaponHiddenByScript);
+    if (xfer.getMode() === XferMode.XFER_SAVE) {
+      const superweapons = normalizeRuntimeSaveInGameUiSuperweapons(payload.superweapons);
+      for (const superweapon of superweapons) {
+        xfer.xferInt(superweapon.playerIndex);
+        xfer.xferAsciiString(superweapon.templateName);
+        xfer.xferAsciiString(superweapon.powerName);
+        xfer.xferObjectID(superweapon.objectId);
+        xfer.xferUnsignedInt(Math.max(0, superweapon.timestamp >>> 0));
+        xfer.xferBool(superweapon.hiddenByScript);
+        xfer.xferBool(superweapon.hiddenByScience);
+        xfer.xferBool(superweapon.ready);
+        if (version >= 3) {
+          xfer.xferBool(superweapon.evaReadyPlayed);
+        }
+      }
+      xfer.xferInt(-1);
+    } else {
+      const superweapons: RuntimeSaveInGameUiSuperweaponState[] = [];
+      for (;;) {
+        const playerIndex = xfer.xferInt(0);
+        if (playerIndex === -1) {
+          break;
+        }
+        const templateName = xfer.xferAsciiString('');
+        const powerName = xfer.xferAsciiString('');
+        const objectId = xfer.xferObjectID(0);
+        const timestamp = xfer.xferUnsignedInt(0);
+        const hiddenByScript = xfer.xferBool(false);
+        const hiddenByScience = xfer.xferBool(false);
+        const ready = xfer.xferBool(false);
+        const evaReadyPlayed = version >= 3
+          ? xfer.xferBool(false)
+          : ready;
+        superweapons.push({
+          playerIndex,
+          templateName,
+          powerName,
+          objectId,
+          timestamp,
+          hiddenByScript,
+          hiddenByScience,
+          ready,
+          evaReadyPlayed,
+        });
+      }
+      payload.superweapons = normalizeRuntimeSaveInGameUiSuperweapons(superweapons);
+    }
+
+    this.payload = payload;
   }
 
   loadPostProcess(): void {
@@ -2775,6 +3101,7 @@ export function buildRuntimeSaveFile(params: {
   tacticalViewState?: RuntimeSaveTacticalViewState | null;
   gameClientBriefingLines?: readonly string[];
   gameClientState?: RuntimeSaveGameClientState | null;
+  inGameUiState?: RuntimeSaveInGameUiState | null;
   renderableEntityStates?: readonly GameLogicRenderableEntityState[] | null;
   gameClientLiveEntityIds?: readonly number[] | null;
   particleSystemState?: ParticleSystemManagerSaveState | null;
@@ -2819,7 +3146,16 @@ export function buildRuntimeSaveFile(params: {
   const sidesListPayload = params.gameLogic.captureSourceSidesListRuntimeSaveState();
   const teamFactoryPayload = params.gameLogic.captureSourceTeamFactoryRuntimeSaveState();
   const scriptEnginePayload = params.gameLogic.captureSourceScriptEngineRuntimeSaveState();
-  const inGameUiPayload = params.gameLogic.captureSourceInGameUiRuntimeSaveState();
+  const inGameUiLogicPayload = params.gameLogic.captureSourceInGameUiRuntimeSaveState();
+  const inGameUiPayload = params.inGameUiState
+    ? {
+        ...params.inGameUiState,
+        namedTimers: normalizeRuntimeSaveInGameUiNamedTimers(params.inGameUiState.namedTimers),
+        superweapons: normalizeRuntimeSaveInGameUiSuperweapons(params.inGameUiState.superweapons),
+      }
+    : buildRuntimeSaveInGameUiState({
+        gameLogicState: inGameUiLogicPayload,
+      });
   const playerPayload = params.gameLogic.captureSourcePlayerRuntimeSaveState();
   const gameLogicPayload = params.gameLogic.captureSourceGameLogicRuntimeSaveState();
   const gameClientDrawableStates = buildSourceGameClientDrawableStates(
@@ -3085,7 +3421,10 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     : null;
   const inGameUiChunk = extractSaveChunkData(data, SOURCE_IN_GAME_UI_BLOCK);
   const inGameUiState = inGameUiChunk
-    ? tryParseLegacyInGameUiChunk(inGameUiChunk)
+    ? tryParseInGameUiChunk(inGameUiChunk)
+    : null;
+  const gameLogicInGameUiState = inGameUiState
+    ? buildGameLogicInGameUiSaveStateFromRuntimeSaveState(inGameUiState)
     : null;
   const particleSystemChunk = extractSaveChunkData(data, SOURCE_PARTICLE_SYSTEM_BLOCK);
   const particleSystemState = particleSystemChunk
@@ -3112,6 +3451,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     cameraState: resolveRestoredCameraState(tacticalViewSnapshot.payload, browserCameraState),
     tacticalViewState: tacticalViewSnapshot.payload,
     gameClientState: parseGameClientState(data),
+    inGameUiState,
     particleSystemState,
     sourceTeamFactoryChunkData: teamFactoryChunk ?? null,
     gameLogicTerrainLogicState: terrainLogicSnapshot?.payload ?? null,
@@ -3121,7 +3461,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     gameLogicRadarState: radarSnapshot?.payload ?? null,
     gameLogicSidesListState: sidesListState,
     gameLogicScriptEngineState: scriptEngineState,
-    gameLogicInGameUiState: inGameUiState,
+    gameLogicInGameUiState,
     gameLogicCoreState,
     gameLogicState: payload?.gameLogicState ?? null,
     campaign,
@@ -3178,6 +3518,10 @@ export function inspectRuntimeSaveCoreChunkStatus(
     describeChunk(SOURCE_PLAYERS_BLOCK, parsed.gameLogicPlayersState, 'legacy'),
     describeChunk(SOURCE_GAME_LOGIC_BLOCK, parsed.gameLogicCoreState, 'parsed'),
     describeChunk(SOURCE_SCRIPT_ENGINE_BLOCK, parsed.gameLogicScriptEngineState, 'legacy'),
-    describeChunk(SOURCE_IN_GAME_UI_BLOCK, parsed.gameLogicInGameUiState, 'legacy'),
+    describeChunk(
+      SOURCE_IN_GAME_UI_BLOCK,
+      parsed.inGameUiState,
+      parsed.inGameUiState?.version === 1 ? 'legacy' : 'parsed',
+    ),
   ];
 }
