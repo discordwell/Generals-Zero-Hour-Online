@@ -4,6 +4,7 @@ import * as THREE from 'three';
 
 import {
   buildRuntimeSaveFile,
+  inspectRuntimeSaveCoreChunkStatus,
   parseSourceSidesListChunk,
   parseRuntimeSaveFile,
   SOURCE_GAME_MODE_SINGLE_PLAYER,
@@ -913,6 +914,12 @@ describe('runtime-save-game', () => {
     const ghostObjectChunk = readGhostObjectChunk(saveFile.data);
 
     expect(parsed.metadata.description).toBe('Runtime Save Smoke Test');
+    expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data)).toEqual([
+      { blockName: 'CHUNK_Players', mode: 'legacy' },
+      { blockName: 'CHUNK_GameLogic', mode: 'parsed' },
+      { blockName: 'CHUNK_ScriptEngine', mode: 'legacy' },
+      { blockName: 'CHUNK_InGameUI', mode: 'legacy' },
+    ]);
     expect(gameClientChunk).toEqual({
       version: 3,
       frame: 21,
@@ -2195,6 +2202,12 @@ describe('runtime-save-game', () => {
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_Players')).toEqual(rawPlayersBytes);
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_ScriptEngine')).toEqual(rawScriptEngineBytes);
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_InGameUI')).toEqual(rawInGameUiBytes);
+    expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data)).toEqual([
+      { blockName: 'CHUNK_Players', mode: 'raw_passthrough' },
+      { blockName: 'CHUNK_GameLogic', mode: 'raw_passthrough' },
+      { blockName: 'CHUNK_ScriptEngine', mode: 'raw_passthrough' },
+      { blockName: 'CHUNK_InGameUI', mode: 'raw_passthrough' },
+    ]);
     expect(readGameClientChunk(rebuilt.data)?.briefingLines).toEqual(['MISSION_GAMMA']);
   });
 

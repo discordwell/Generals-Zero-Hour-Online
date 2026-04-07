@@ -315,6 +315,17 @@ export interface RuntimeSaveBootstrap {
   passthroughBlocks: RuntimeSavePassthroughBlock[];
 }
 
+export type RuntimeSaveCoreChunkMode =
+  | 'parsed'
+  | 'legacy'
+  | 'raw_passthrough'
+  | 'missing';
+
+export interface RuntimeSaveCoreChunkStatus {
+  blockName: string;
+  mode: RuntimeSaveCoreChunkMode;
+}
+
 function getLeafName(path: string | null): string {
   if (!path) {
     return 'Embedded Map';
@@ -3132,4 +3143,41 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
         : []),
     ],
   };
+}
+
+export function inspectRuntimeSaveCoreChunkStatus(
+  data: ArrayBuffer,
+): RuntimeSaveCoreChunkStatus[] {
+  const parsed = parseRuntimeSaveFile(data);
+  const chunkNames = new Set(
+    listSaveGameChunks(data).map((chunk) => chunk.blockName.toLowerCase()),
+  );
+  const passthroughNames = new Set(
+    parsed.passthroughBlocks.map((block) => block.blockName.toLowerCase()),
+  );
+
+  const describeChunk = (
+    blockName: string,
+    parsedState: unknown,
+    modeWhenParsed: Exclude<RuntimeSaveCoreChunkMode, 'raw_passthrough' | 'missing'> = 'parsed',
+  ): RuntimeSaveCoreChunkStatus => {
+    const normalizedName = blockName.toLowerCase();
+    if (!chunkNames.has(normalizedName)) {
+      return { blockName, mode: 'missing' };
+    }
+    if (parsedState !== null && parsedState !== undefined) {
+      return { blockName, mode: modeWhenParsed };
+    }
+    if (passthroughNames.has(normalizedName)) {
+      return { blockName, mode: 'raw_passthrough' };
+    }
+    return { blockName, mode: 'missing' };
+  };
+
+  return [
+    describeChunk(SOURCE_PLAYERS_BLOCK, parsed.gameLogicPlayersState, 'legacy'),
+    describeChunk(SOURCE_GAME_LOGIC_BLOCK, parsed.gameLogicCoreState, 'parsed'),
+    describeChunk(SOURCE_SCRIPT_ENGINE_BLOCK, parsed.gameLogicScriptEngineState, 'legacy'),
+    describeChunk(SOURCE_IN_GAME_UI_BLOCK, parsed.gameLogicInGameUiState, 'legacy'),
+  ];
 }
