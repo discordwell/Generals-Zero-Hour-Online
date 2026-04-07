@@ -2306,6 +2306,26 @@ function tryParseLegacyTeamFactoryChunk(data: ArrayBuffer | Uint8Array): GameLog
   }
 }
 
+function tryParseLegacyPlayersChunk(data: ArrayBuffer | Uint8Array): GameLogicPlayersSaveState | null {
+  try {
+    const snapshot = new PlayersSnapshot();
+    const chunkData = data instanceof Uint8Array
+      ? (() => {
+          const copy = new Uint8Array(data.byteLength);
+          copy.set(data);
+          return copy.buffer;
+        })()
+      : data;
+    const xferLoad = new XferLoad(chunkData);
+    xferLoad.open('legacy-players');
+    xferLoad.xferSnapshot(snapshot);
+    xferLoad.close();
+    return snapshot.payload ?? null;
+  } catch {
+    return null;
+  }
+}
+
 class TacticalViewSnapshot implements Snapshot {
   payload: RuntimeSaveTacticalViewState | null;
 
@@ -2825,7 +2845,20 @@ export function buildRuntimeSaveFile(params: {
   state.addSnapshotBlock('CHUNK_GameStateMap', new MapSnapshot(mapState));
   state.addSnapshotBlock(SOURCE_TERRAIN_LOGIC_BLOCK, new TerrainLogicSnapshot(terrainLogicPayload));
   state.addSnapshotBlock(SOURCE_TEAM_FACTORY_BLOCK, new RawPassthroughSnapshot(teamFactoryChunk));
-  state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, new PlayersSnapshot(playerPayload));
+  if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_PLAYERS_BLOCK)) {
+    const passthroughBlock = orderedPassthroughBlocks.find(
+      (block) => block.blockName.toLowerCase() === SOURCE_PLAYERS_BLOCK.toLowerCase(),
+    );
+    if (!passthroughBlock) {
+      throw new Error('Missing players passthrough block after presence check.');
+    }
+    state.addSnapshotBlock(
+      SOURCE_PLAYERS_BLOCK,
+      new RawPassthroughSnapshot(passthroughBlock.blockData),
+    );
+  } else {
+    state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, new PlayersSnapshot(playerPayload));
+  }
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new GameLogicSnapshot(gameLogicPayload));
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, new RadarSnapshot(radarPayload));
   if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_SCRIPT_ENGINE_BLOCK)) {
@@ -2948,7 +2981,6 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     challengeGameInfoState: null,
   });
   const terrainLogicSnapshot = new TerrainLogicSnapshot();
-  const playersSnapshot = new PlayersSnapshot();
   const partitionSnapshot = new PartitionSnapshot();
   const gameLogicSnapshot = new GameLogicSnapshot();
   const radarSnapshot = new RadarSnapshot();
@@ -2957,7 +2989,6 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const state = new GameState();
   state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, campaignSnapshot);
   state.addSnapshotBlock(SOURCE_TERRAIN_LOGIC_BLOCK, terrainLogicSnapshot);
-  state.addSnapshotBlock(SOURCE_PLAYERS_BLOCK, playersSnapshot);
   state.addSnapshotBlock(SOURCE_PARTITION_BLOCK, partitionSnapshot);
   state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, gameLogicSnapshot);
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, radarSnapshot);
@@ -2992,6 +3023,10 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const teamFactoryChunk = extractSaveChunkData(data, SOURCE_TEAM_FACTORY_BLOCK);
   const legacyTeamFactoryState = teamFactoryChunk
     ? tryParseLegacyTeamFactoryChunk(teamFactoryChunk)
+    : null;
+  const playersChunk = extractSaveChunkData(data, SOURCE_PLAYERS_BLOCK);
+  const legacyPlayersState = playersChunk
+    ? tryParseLegacyPlayersChunk(playersChunk)
     : null;
   const sidesListChunk = extractSaveChunkData(data, SOURCE_SIDES_LIST_BLOCK);
   const sidesListState = sidesListChunk
@@ -3034,7 +3069,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     sourceTeamFactoryChunkData: teamFactoryChunk ?? null,
     gameLogicTerrainLogicState: terrainLogicSnapshot?.payload ?? null,
     gameLogicTeamFactoryState: legacyTeamFactoryState,
-    gameLogicPlayersState: playersSnapshot?.payload ?? null,
+    gameLogicPlayersState: legacyPlayersState,
     gameLogicPartitionState: partitionSnapshot?.payload ?? null,
     gameLogicRadarState: radarSnapshot?.payload ?? null,
     gameLogicSidesListState: sidesListState,
@@ -3047,6 +3082,9 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
       ...extractPassthroughBlocks(data).filter(
         (block) => block.blockName.toLowerCase() !== SOURCE_GAME_CLIENT_BLOCK.toLowerCase(),
       ),
+      ...(playersChunk && legacyPlayersState === null
+        ? [{ blockName: SOURCE_PLAYERS_BLOCK, blockData: copyBytesToArrayBuffer(playersChunk) }]
+        : []),
       ...(scriptEngineChunk && scriptEngineState === null
         ? [{ blockName: SOURCE_SCRIPT_ENGINE_BLOCK, blockData: copyBytesToArrayBuffer(scriptEngineChunk) }]
         : []),
