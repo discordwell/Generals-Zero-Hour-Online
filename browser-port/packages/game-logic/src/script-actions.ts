@@ -11954,6 +11954,9 @@ export function executeScriptRevealMapAtWaypointPermanently(self: GL,
   }
 
   self.scriptNamedMapRevealByName.set(normalizedLookName, {
+    revealName: normalizedLookName,
+    waypointName,
+    playerName: side,
     playerIndex,
     worldX: waypoint.x,
     worldZ: waypoint.z,

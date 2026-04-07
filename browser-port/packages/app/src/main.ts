@@ -4107,6 +4107,7 @@ async function startGame(
   });
   const scriptCameraEffectsRuntimeBridge = createScriptCameraEffectsRuntimeBridge({
     gameLogic,
+    initialFadeState: runtimeSaveLoadContext?.runtimeSave.scriptEngineFadeState ?? null,
     getCameraTargetPosition: () => {
       const state = rtsCamera.getState();
       return {
@@ -5300,9 +5301,11 @@ async function startGame(
         namedTimerLastFlashFrame,
         namedTimerUsedFlashColor,
       }),
+      scriptEngineFadeState: scriptCameraEffectsRuntimeBridge.captureActiveFadeSaveState(),
       renderableEntityStates: gameLogic.getRenderableEntityStates(),
       gameClientState: runtimeSaveLoadContext?.runtimeSave.gameClientState ?? null,
       particleSystemState: particleSystemManager.captureSaveState(),
+      currentMusicTrackName: musicManager.getCurrentTrackName(),
       gameLogic,
       embeddedMapBytes,
       sourceGameMode: skirmishSettings ? SOURCE_GAME_MODE_SKIRMISH : SOURCE_GAME_MODE_SINGLE_PLAYER,
@@ -5334,6 +5337,7 @@ async function startGame(
               ?? null,
           }
         : null,
+      sourceDifficulty: campaignContext?.settings.difficulty ?? null,
     });
     await ctx.saveStorage.saveToDB(slotId, saveFile.data, saveFile.metadata);
   };

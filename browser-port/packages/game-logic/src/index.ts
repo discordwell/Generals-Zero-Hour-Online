@@ -9065,6 +9065,9 @@ export class GameLogicSubsystem implements Subsystem {
   }>();
   /** Source parity: ScriptEngine named map reveals keyed by look-name token. */
   private readonly scriptNamedMapRevealByName = new Map<string, {
+    revealName: string;
+    waypointName: string;
+    playerName: string;
     playerIndex: number;
     worldX: number;
     worldZ: number;

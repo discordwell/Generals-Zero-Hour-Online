@@ -56,6 +56,9 @@ describe('script-engine save-state', () => {
       scriptExistedEntityIds: Set<number>;
       scriptInputDisabled: boolean;
       scriptNamedMapRevealByName: Map<string, {
+        revealName: string;
+        waypointName: string;
+        playerName: string;
         playerIndex: number;
         worldX: number;
         worldZ: number;
@@ -126,6 +129,9 @@ describe('script-engine save-state', () => {
     privateLogic.scriptChooseVictimAlwaysUsesNormal = true;
     privateLogic.scriptObjectTypeListsByName.set('RAIDTARGETS', ['SupplyCenter', 'Dozer']);
     privateLogic.scriptNamedMapRevealByName.set('FOCUS_AREA', {
+      revealName: 'FOCUS_AREA',
+      waypointName: 'FocusWaypoint',
+      playerName: 'America',
       playerIndex: 0,
       worldX: 120,
       worldZ: 240,
@@ -199,6 +205,9 @@ describe('script-engine save-state', () => {
     );
     expect(restoredPrivate.scriptNamedMapRevealByName).toEqual(
       new Map([['FOCUS_AREA', {
+        revealName: 'FOCUS_AREA',
+        waypointName: 'FocusWaypoint',
+        playerName: 'America',
         playerIndex: 0,
         worldX: 120,
         worldZ: 240,

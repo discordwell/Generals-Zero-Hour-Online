@@ -54,8 +54,10 @@ import {
   parseSourceParticleSystemChunk,
 } from './runtime-particle-system-save.js';
 import {
+  applySourceTeamFactoryChunkToState,
   buildSourceTeamFactoryChunk,
 } from './runtime-team-factory-save.js';
+import type { ScriptCameraEffectFadeSaveState } from './script-camera-effects-runtime.js';
 
 const SOURCE_CAMPAIGN_BLOCK = 'CHUNK_Campaign';
 const SOURCE_TERRAIN_LOGIC_BLOCK = 'CHUNK_TerrainLogic';
@@ -120,8 +122,14 @@ const SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION = 1;
 const SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION = 1;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
 const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
+const SOURCE_SCRIPT_ENGINE_SNAPSHOT_VERSION = 5;
 const SOURCE_IN_GAME_UI_SNAPSHOT_VERSION = 3;
 const SOURCE_RADAR_EVENT_COUNT = 64;
+const SOURCE_SCRIPT_ENGINE_MAX_COUNTERS = 256;
+const SOURCE_SCRIPT_ENGINE_MAX_FLAGS = 256;
+const SOURCE_SCRIPT_ENGINE_MAX_ATTACK_PRIORITIES = 256;
+const SOURCE_SCRIPT_ENGINE_PLAYER_COUNT = 16;
+const SOURCE_SCRIPT_ENGINE_FIRST_LOAD_FADE_DECREASE_FRAMES = 33;
 const INVALID_MISSION_NUMBER = -1;
 export const SOURCE_GAME_MODE_SINGLE_PLAYER = 0;
 export const SOURCE_GAME_MODE_SKIRMISH = 2;
@@ -136,6 +144,11 @@ const NUM_DRAWABLE_MODULE_TYPES = 2;
 const TERRAIN_DECAL_NONE = 0;
 const FADING_NONE = 0;
 const STEALTHLOOK_NONE = 0;
+const SOURCE_SCRIPT_ENGINE_FADE_NONE = 0;
+const SOURCE_SCRIPT_ENGINE_FADE_SUBTRACT = 1;
+const SOURCE_SCRIPT_ENGINE_FADE_ADD = 2;
+const SOURCE_SCRIPT_ENGINE_FADE_SATURATE = 3;
+const SOURCE_SCRIPT_ENGINE_FADE_MULTIPLY = 4;
 
 interface RuntimeSaveMetadataState {
   saveFileType: SaveFileType;
@@ -345,6 +358,7 @@ export interface RuntimeSaveBootstrap {
   gameLogicRadarState: GameLogicRadarSaveState | null;
   gameLogicSidesListState: GameLogicSidesListSaveState | null;
   gameLogicScriptEngineState: GameLogicScriptEngineSaveState | null;
+  scriptEngineFadeState: ScriptCameraEffectFadeSaveState | null;
   gameLogicInGameUiState: GameLogicInGameUiSaveState | null;
   gameLogicCoreState: GameLogicCoreSaveState | null;
   gameLogicState: unknown | null;
@@ -381,6 +395,479 @@ function createDefaultRuntimeSaveInGameUiState(): RuntimeSaveInGameUiState {
     namedTimers: [],
     superweaponHiddenByScript: false,
     superweapons: [],
+  };
+}
+
+function getScriptEngineStateRecord(
+  payload: GameLogicScriptEngineSaveState | null | undefined,
+): Record<string, unknown> {
+  return payload?.state && typeof payload.state === 'object' && !Array.isArray(payload.state)
+    ? payload.state
+    : {};
+}
+
+function getRuntimeStateMap<T = unknown>(
+  state: Record<string, unknown>,
+  key: string,
+): Map<string | number, T> {
+  const value = state[key];
+  return value instanceof Map ? value as Map<string | number, T> : new Map();
+}
+
+function getRuntimeStateArray<T = unknown>(
+  state: Record<string, unknown>,
+  key: string,
+): T[] {
+  const value = state[key];
+  return Array.isArray(value) ? value as T[] : [];
+}
+
+function getRuntimeStateBoolean(
+  state: Record<string, unknown>,
+  key: string,
+  fallback = false,
+): boolean {
+  const value = state[key];
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function getRuntimeStateNumber(
+  state: Record<string, unknown>,
+  key: string,
+  fallback = 0,
+): number {
+  const value = state[key];
+  return Number.isFinite(value) ? Number(value) : fallback;
+}
+
+function normalizeOptionalAsciiString(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function createEmptyScriptEngineFadeState(): ScriptCameraEffectFadeSaveState {
+  return {
+    fadeType: 'MULTIPLY',
+    minFade: 1,
+    maxFade: 0,
+    currentFadeValue: 0,
+    currentFadeFrame: 0,
+    increaseFrames: 0,
+    holdFrames: 0,
+    decreaseFrames: SOURCE_SCRIPT_ENGINE_FIRST_LOAD_FADE_DECREASE_FRAMES,
+  };
+}
+
+function normalizeScriptEngineFadeTypeToSourceValue(
+  fadeType: ScriptCameraEffectFadeSaveState['fadeType'] | null,
+): number {
+  switch (fadeType) {
+    case 'SUBTRACT':
+      return SOURCE_SCRIPT_ENGINE_FADE_SUBTRACT;
+    case 'ADD':
+      return SOURCE_SCRIPT_ENGINE_FADE_ADD;
+    case 'SATURATE':
+      return SOURCE_SCRIPT_ENGINE_FADE_SATURATE;
+    case 'MULTIPLY':
+      return SOURCE_SCRIPT_ENGINE_FADE_MULTIPLY;
+    default:
+      return SOURCE_SCRIPT_ENGINE_FADE_NONE;
+  }
+}
+
+function normalizeSourceFadeValueToScriptEngineFadeType(
+  fadeType: number,
+): ScriptCameraEffectFadeSaveState['fadeType'] | null {
+  switch (Math.trunc(fadeType)) {
+    case SOURCE_SCRIPT_ENGINE_FADE_SUBTRACT:
+      return 'SUBTRACT';
+    case SOURCE_SCRIPT_ENGINE_FADE_ADD:
+      return 'ADD';
+    case SOURCE_SCRIPT_ENGINE_FADE_SATURATE:
+      return 'SATURATE';
+    case SOURCE_SCRIPT_ENGINE_FADE_MULTIPLY:
+      return 'MULTIPLY';
+    default:
+      return null;
+  }
+}
+
+function resolveSourceDifficultyValue(difficulty: GameDifficulty | null | undefined): number {
+  switch (difficulty) {
+    case 'EASY':
+      return SOURCE_DIFFICULTY_EASY;
+    case 'HARD':
+      return SOURCE_DIFFICULTY_HARD;
+    case 'NORMAL':
+    default:
+      return SOURCE_DIFFICULTY_NORMAL;
+  }
+}
+
+function resolveDifficultyFromSourceValue(difficulty: number): GameDifficulty {
+  switch (Math.trunc(difficulty)) {
+    case SOURCE_DIFFICULTY_EASY:
+      return 'EASY';
+    case SOURCE_DIFFICULTY_HARD:
+      return 'HARD';
+    default:
+      return 'NORMAL';
+  }
+}
+
+function createEmptyRuntimeSaveTeamFactoryState(): GameLogicTeamFactorySaveState {
+  return {
+    version: 1,
+    state: {
+      scriptTeamsByName: new Map<string, unknown>(),
+      scriptTeamInstanceNamesByPrototypeName: new Map<string, string[]>(),
+      scriptNextSourceTeamId: 1,
+      scriptNextSourceTeamPrototypeId: 1,
+    },
+  };
+}
+
+function getPlayerSideByIndexMap(
+  playerState: GameLogicPlayersSaveState | null | undefined,
+): Map<number, string> {
+  const value = playerState?.state.playerSideByIndex;
+  return value instanceof Map ? value as Map<number, string> : new Map();
+}
+
+function getPlayerIndexBySideMap(
+  playerState: GameLogicPlayersSaveState | null | undefined,
+): Map<string, number> {
+  const value = playerState?.state.sidePlayerIndex;
+  return value instanceof Map ? value as Map<string, number> : new Map();
+}
+
+function resolvePlayerIndexForScriptSide(
+  side: string,
+  playerState: GameLogicPlayersSaveState | null | undefined,
+): number {
+  const normalizedSide = side.trim();
+  if (!normalizedSide) {
+    return -1;
+  }
+  const sidePlayerIndex = getPlayerIndexBySideMap(playerState);
+  const direct = sidePlayerIndex.get(normalizedSide);
+  if (typeof direct === 'number' && Number.isFinite(direct)) {
+    return Math.trunc(direct);
+  }
+  const normalizedUpper = normalizedSide.toUpperCase();
+  for (const [candidateSide, playerIndex] of sidePlayerIndex) {
+    if (candidateSide.trim().toUpperCase() === normalizedUpper) {
+      return Math.trunc(playerIndex);
+    }
+  }
+  for (const [playerIndex, candidateSide] of getPlayerSideByIndexMap(playerState)) {
+    if (candidateSide.trim().toUpperCase() === normalizedUpper) {
+      return Math.trunc(playerIndex);
+    }
+  }
+  return -1;
+}
+
+function resolveSideForPlayerIndex(
+  playerIndex: number,
+  playerState: GameLogicPlayersSaveState | null | undefined,
+): string {
+  return getPlayerSideByIndexMap(playerState).get(Math.trunc(playerIndex)) ?? '';
+}
+
+function resolveSourceTeamIdByName(
+  teamNameUpper: string | null,
+  teamFactoryState: GameLogicTeamFactorySaveState | null | undefined,
+): number {
+  if (!teamNameUpper) {
+    return 0;
+  }
+  const teamsByName = teamFactoryState?.state.scriptTeamsByName;
+  if (!(teamsByName instanceof Map)) {
+    return 0;
+  }
+  const team = teamsByName.get(teamNameUpper);
+  const sourceTeamId = team && typeof team === 'object'
+    ? Number((team as { sourceTeamId?: unknown }).sourceTeamId)
+    : NaN;
+  return Number.isFinite(sourceTeamId) ? Math.max(0, Math.trunc(sourceTeamId)) : 0;
+}
+
+function resolveTeamNameBySourceId(
+  sourceTeamId: number,
+  teamFactoryState: GameLogicTeamFactorySaveState | null | undefined,
+): string | null {
+  if (!Number.isFinite(sourceTeamId) || Math.trunc(sourceTeamId) === 0) {
+    return null;
+  }
+  const teamsByName = teamFactoryState?.state.scriptTeamsByName;
+  if (!(teamsByName instanceof Map)) {
+    return null;
+  }
+  const targetId = Math.trunc(sourceTeamId);
+  for (const [teamNameUpper, team] of teamsByName) {
+    if (!team || typeof team !== 'object') {
+      continue;
+    }
+    const candidateId = Number((team as { sourceTeamId?: unknown }).sourceTeamId);
+    if (Number.isFinite(candidateId) && Math.trunc(candidateId) === targetId) {
+      return typeof teamNameUpper === 'string' ? teamNameUpper : null;
+    }
+  }
+  return null;
+}
+
+function resolveScriptNameByEntityId(
+  entityId: number,
+  coreState: GameLogicCoreSaveState | null | undefined,
+): string {
+  if (!Number.isFinite(entityId) || Math.trunc(entityId) === 0) {
+    return '';
+  }
+  const targetId = Math.trunc(entityId);
+  const entity = coreState?.spawnedEntities.find((candidate) => candidate.id === targetId);
+  return entity?.scriptName?.trim() ?? '';
+}
+
+function resolveEntityIdByScriptName(
+  scriptName: string,
+  coreState: GameLogicCoreSaveState | null | undefined,
+  namedEntitiesByName: Map<string, number>,
+): number | null {
+  const normalized = scriptName.trim().toUpperCase();
+  if (!normalized) {
+    return null;
+  }
+  const existingId = namedEntitiesByName.get(normalized);
+  if (typeof existingId === 'number' && Number.isFinite(existingId) && Math.trunc(existingId) > 0) {
+    return Math.trunc(existingId);
+  }
+  const entity = coreState?.spawnedEntities.find((candidate) => candidate.scriptName?.trim().toUpperCase() === normalized);
+  return entity ? entity.id : null;
+}
+
+function resolveWaypointPositionByName(
+  mapData: MapDataJSON | null | undefined,
+  waypointName: string,
+): { x: number; z: number } | null {
+  const normalized = waypointName.trim().toUpperCase();
+  if (!normalized) {
+    return null;
+  }
+  const node = mapData?.waypoints?.nodes.find((candidate) => candidate.name.trim().toUpperCase() === normalized);
+  return node ? { x: node.position.x, z: node.position.z } : null;
+}
+
+function xferScriptEngineAsciiStringUIntEntries(
+  xfer: Xfer,
+  entries: Array<[string, number]>,
+): Array<[string, number]> {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported script-engine string/u32 list snapshot version ${version}`);
+  }
+  const count = xfer.xferUnsignedShort(entries.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: Array<[string, number]> = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push([
+        xfer.xferAsciiString(''),
+        xfer.xferUnsignedInt(0),
+      ]);
+    }
+    return loaded;
+  }
+  for (const [name, value] of entries) {
+    xfer.xferAsciiString(name);
+    xfer.xferUnsignedInt(Math.max(0, Math.trunc(value)) >>> 0);
+  }
+  return entries;
+}
+
+function xferScriptEngineAsciiStringEntries(
+  xfer: Xfer,
+  entries: string[],
+): string[] {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported script-engine string list snapshot version ${version}`);
+  }
+  const count = xfer.xferUnsignedShort(entries.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push(xfer.xferAsciiString(''));
+    }
+    return loaded;
+  }
+  for (const entry of entries) {
+    xfer.xferAsciiString(entry);
+  }
+  return entries;
+}
+
+function xferScriptEngineAsciiStringObjectIdEntries(
+  xfer: Xfer,
+  entries: Array<[string, number]>,
+): Array<[string, number]> {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported script-engine string/object-id list snapshot version ${version}`);
+  }
+  const count = xfer.xferUnsignedShort(entries.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: Array<[string, number]> = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push([
+        xfer.xferAsciiString(''),
+        xfer.xferObjectID(0),
+      ]);
+    }
+    return loaded;
+  }
+  for (const [name, objectId] of entries) {
+    xfer.xferAsciiString(name);
+    xfer.xferObjectID(Math.max(0, Math.trunc(objectId)));
+  }
+  return entries;
+}
+
+function xferScriptEngineAsciiStringCoord3DEntries(
+  xfer: Xfer,
+  entries: Array<[string, { x: number; y: number; z: number }]>,
+): Array<[string, { x: number; y: number; z: number }]> {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported script-engine string/coord list snapshot version ${version}`);
+  }
+  const count = xfer.xferUnsignedShort(entries.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: Array<[string, { x: number; y: number; z: number }]> = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push([
+        xfer.xferAsciiString(''),
+        xfer.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      ]);
+    }
+    return loaded;
+  }
+  for (const [name, coord] of entries) {
+    xfer.xferAsciiString(name);
+    xfer.xferCoord3D(coord);
+  }
+  return entries;
+}
+
+function xferScriptEngineScienceNames(
+  xfer: Xfer,
+  sciences: string[],
+): string[] {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported script-engine science list snapshot version ${version}`);
+  }
+  const count = xfer.xferUnsignedShort(sciences.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push(xfer.xferAsciiString(''));
+    }
+    return loaded;
+  }
+  for (const scienceName of sciences) {
+    xfer.xferAsciiString(scienceName);
+  }
+  return sciences;
+}
+
+function xferScriptEngineObjectTypeList(
+  xfer: Xfer,
+  listName: string,
+  objectTypes: string[],
+): { listName: string; objectTypes: string[] } {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported script-engine object-type snapshot version ${version}`);
+  }
+  const resolvedListName = xfer.xferAsciiString(listName);
+  const count = xfer.xferUnsignedShort(objectTypes.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loadedTypes: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loadedTypes.push(xfer.xferAsciiString(''));
+    }
+    return { listName: resolvedListName, objectTypes: loadedTypes };
+  }
+  for (const objectType of objectTypes) {
+    xfer.xferAsciiString(objectType);
+  }
+  return { listName: resolvedListName, objectTypes };
+}
+
+function xferScriptEngineAttackPrioritySet(
+  xfer: Xfer,
+  name: string,
+  defaultPriority: number,
+  entries: Array<[string, number]>,
+): {
+  name: string;
+  defaultPriority: number;
+  entries: Array<[string, number]>;
+} {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported script-engine attack-priority snapshot version ${version}`);
+  }
+  const resolvedName = xfer.xferAsciiString(name);
+  const resolvedDefaultPriority = xfer.xferInt(Math.trunc(defaultPriority));
+  const count = xfer.xferUnsignedShort(entries.length);
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: Array<[string, number]> = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push([
+        xfer.xferAsciiString(''),
+        xfer.xferInt(0),
+      ]);
+    }
+    return { name: resolvedName, defaultPriority: resolvedDefaultPriority, entries: loaded };
+  }
+  for (const [templateName, priority] of entries) {
+    xfer.xferAsciiString(templateName);
+    xfer.xferInt(Math.trunc(priority));
+  }
+  return { name: resolvedName, defaultPriority: resolvedDefaultPriority, entries };
+}
+
+function xferScriptEngineSequentialScript(
+  xfer: Xfer,
+  sequentialScript: {
+    teamId: number;
+    objectId: number;
+    scriptNameUpper: string;
+    currentInstruction: number;
+    timesToLoop: number;
+    framesToWait: number;
+    dontAdvanceInstruction: boolean;
+  },
+): typeof sequentialScript {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported sequential-script snapshot version ${version}`);
+  }
+  const teamId = xfer.xferInt(Math.max(0, Math.trunc(sequentialScript.teamId)));
+  const objectId = xfer.xferObjectID(Math.max(0, Math.trunc(sequentialScript.objectId)));
+  const scriptNameUpper = xfer.xferAsciiString(sequentialScript.scriptNameUpper);
+  const currentInstruction = xfer.xferInt(Math.trunc(sequentialScript.currentInstruction));
+  const timesToLoop = xfer.xferInt(Math.trunc(sequentialScript.timesToLoop));
+  const framesToWait = xfer.xferInt(Math.trunc(sequentialScript.framesToWait));
+  const dontAdvanceInstruction = xfer.xferBool(Boolean(sequentialScript.dontAdvanceInstruction));
+  return {
+    teamId,
+    objectId,
+    scriptNameUpper,
+    currentInstruction,
+    timesToLoop,
+    framesToWait,
+    dontAdvanceInstruction,
   };
 }
 
@@ -2249,11 +2736,217 @@ class RadarSnapshot implements Snapshot {
   }
 }
 
+function buildScriptEngineNamedEventSlots(
+  state: Record<string, unknown>,
+  key: string,
+  playerState: GameLogicPlayersSaveState | null | undefined,
+): Array<Array<[string, number]>> {
+  const slots = Array.from({ length: SOURCE_SCRIPT_ENGINE_PLAYER_COUNT }, () => [] as Array<[string, number]>);
+  const bySide = getRuntimeStateMap<unknown>(state, key);
+  for (const [side, rawEvents] of bySide) {
+    if (typeof side !== 'string' || !Array.isArray(rawEvents)) {
+      continue;
+    }
+    const playerIndex = resolvePlayerIndexForScriptSide(side, playerState);
+    if (playerIndex < 0 || playerIndex >= SOURCE_SCRIPT_ENGINE_PLAYER_COUNT) {
+      continue;
+    }
+    for (const rawEvent of rawEvents) {
+      if (!rawEvent || typeof rawEvent !== 'object') {
+        continue;
+      }
+      const name = normalizeOptionalAsciiString((rawEvent as { name?: unknown }).name);
+      const sourceEntityId = Number((rawEvent as { sourceEntityId?: unknown }).sourceEntityId);
+      if (!name) {
+        continue;
+      }
+      slots[playerIndex]!.push([
+        name,
+        Number.isFinite(sourceEntityId) ? Math.max(0, Math.trunc(sourceEntityId)) : 0,
+      ]);
+    }
+  }
+  return slots;
+}
+
+function buildScriptEngineScienceSlots(
+  state: Record<string, unknown>,
+  playerState: GameLogicPlayersSaveState | null | undefined,
+): string[][] {
+  const slots = Array.from({ length: SOURCE_SCRIPT_ENGINE_PLAYER_COUNT }, () => [] as string[]);
+  const bySide = getRuntimeStateMap<unknown>(state, 'sideScriptAcquiredSciences');
+  for (const [side, rawSciences] of bySide) {
+    if (typeof side !== 'string' || !(rawSciences instanceof Set)) {
+      continue;
+    }
+    const playerIndex = resolvePlayerIndexForScriptSide(side, playerState);
+    if (playerIndex < 0 || playerIndex >= SOURCE_SCRIPT_ENGINE_PLAYER_COUNT) {
+      continue;
+    }
+    slots[playerIndex] = [...rawSciences.values()].filter((scienceName): scienceName is string => typeof scienceName === 'string');
+  }
+  return slots;
+}
+
+function buildScriptEngineToppleEntries(
+  state: Record<string, unknown>,
+  coreState: GameLogicCoreSaveState | null | undefined,
+): Array<[string, { x: number; y: number; z: number }]> {
+  const entries: Array<[string, { x: number; y: number; z: number }]> = [];
+  const toppleDirections = getRuntimeStateMap<unknown>(state, 'scriptToppleDirectionByEntityId');
+  for (const [entityId, rawDirection] of toppleDirections) {
+    if (typeof entityId !== 'number' || !rawDirection || typeof rawDirection !== 'object') {
+      continue;
+    }
+    const name = resolveScriptNameByEntityId(entityId, coreState);
+    const x = Number((rawDirection as { x?: unknown }).x);
+    const z = Number((rawDirection as { z?: unknown }).z);
+    if (!name || !Number.isFinite(x) || !Number.isFinite(z)) {
+      continue;
+    }
+    entries.push([name, { x, y: 0, z }]);
+  }
+  return entries;
+}
+
+function buildScriptEngineRevealEntries(
+  state: Record<string, unknown>,
+): Array<{
+  revealName: string;
+  waypointName: string;
+  radius: number;
+  playerName: string;
+}> {
+  const entries: Array<{
+    revealName: string;
+    waypointName: string;
+    radius: number;
+    playerName: string;
+  }> = [];
+  const reveals = getRuntimeStateMap<unknown>(state, 'scriptNamedMapRevealByName');
+  for (const [key, rawReveal] of reveals) {
+    if (!rawReveal || typeof rawReveal !== 'object') {
+      continue;
+    }
+    const revealName = normalizeOptionalAsciiString((rawReveal as { revealName?: unknown }).revealName)
+      || (typeof key === 'string' ? key : '');
+    const waypointName = normalizeOptionalAsciiString((rawReveal as { waypointName?: unknown }).waypointName);
+    const playerName = normalizeOptionalAsciiString((rawReveal as { playerName?: unknown }).playerName);
+    const radius = Number((rawReveal as { radius?: unknown }).radius);
+    if (!revealName || !waypointName || !playerName || !Number.isFinite(radius)) {
+      continue;
+    }
+    entries.push({
+      revealName,
+      waypointName,
+      radius,
+      playerName,
+    });
+  }
+  return entries;
+}
+
+function buildScriptEngineObjectTypeEntries(
+  state: Record<string, unknown>,
+): Array<{ listName: string; objectTypes: string[] }> {
+  const entries: Array<{ listName: string; objectTypes: string[] }> = [];
+  const byName = getRuntimeStateMap<unknown>(state, 'scriptObjectTypeListsByName');
+  for (const [listName, rawObjectTypes] of byName) {
+    if (typeof listName !== 'string' || !Array.isArray(rawObjectTypes)) {
+      continue;
+    }
+    entries.push({
+      listName,
+      objectTypes: rawObjectTypes.filter((objectType): objectType is string => typeof objectType === 'string'),
+    });
+  }
+  return entries;
+}
+
+function buildScriptEngineFadeState(
+  payload: GameLogicScriptEngineSaveState | null | undefined,
+  explicitFadeState: ScriptCameraEffectFadeSaveState | null | undefined,
+): ScriptCameraEffectFadeSaveState | null {
+  if (explicitFadeState) {
+    return {
+      fadeType: explicitFadeState.fadeType,
+      minFade: explicitFadeState.minFade,
+      maxFade: explicitFadeState.maxFade,
+      currentFadeValue: explicitFadeState.currentFadeValue,
+      currentFadeFrame: Math.max(0, Math.trunc(explicitFadeState.currentFadeFrame)),
+      increaseFrames: Math.max(0, Math.trunc(explicitFadeState.increaseFrames)),
+      holdFrames: Math.max(0, Math.trunc(explicitFadeState.holdFrames)),
+      decreaseFrames: Math.max(0, Math.trunc(explicitFadeState.decreaseFrames)),
+    };
+  }
+  const state = getScriptEngineStateRecord(payload);
+  const fadeRequests = getRuntimeStateArray<Record<string, unknown>>(state, 'scriptCameraFadeRequests');
+  const request = fadeRequests.length > 0 ? fadeRequests[fadeRequests.length - 1]! : null;
+  if (!request || typeof request !== 'object') {
+    return null;
+  }
+  const fadeType = normalizeSourceFadeValueToScriptEngineFadeType(
+    normalizeScriptEngineFadeTypeToSourceValue(normalizeOptionalAsciiString(request.fadeType) as ScriptCameraEffectFadeSaveState['fadeType']),
+  );
+  if (!fadeType) {
+    return null;
+  }
+  const minFade = Number(request.minFade);
+  const maxFade = Number(request.maxFade);
+  const increaseFrames = Number(request.increaseFrames);
+  const holdFrames = Number(request.holdFrames);
+  const decreaseFrames = Number(request.decreaseFrames);
+  if (
+    !Number.isFinite(minFade)
+    || !Number.isFinite(maxFade)
+    || !Number.isFinite(increaseFrames)
+    || !Number.isFinite(holdFrames)
+    || !Number.isFinite(decreaseFrames)
+  ) {
+    return null;
+  }
+  return {
+    fadeType,
+    minFade,
+    maxFade,
+    currentFadeValue: minFade,
+    currentFadeFrame: 0,
+    increaseFrames: Math.max(0, Math.trunc(increaseFrames)),
+    holdFrames: Math.max(0, Math.trunc(holdFrames)),
+    decreaseFrames: Math.max(0, Math.trunc(decreaseFrames)),
+  };
+}
+
 class ScriptEngineSnapshot implements Snapshot {
   payload: GameLogicScriptEngineSaveState | null;
+  fadeState: ScriptCameraEffectFadeSaveState | null;
+  private readonly playerState: GameLogicPlayersSaveState | null | undefined;
+  private readonly teamFactoryState: GameLogicTeamFactorySaveState | null | undefined;
+  private readonly coreState: GameLogicCoreSaveState | null | undefined;
+  private readonly mapData: MapDataJSON | null | undefined;
+  private readonly difficulty: GameDifficulty;
+  private readonly currentMusicTrackName: string;
 
-  constructor(payload: GameLogicScriptEngineSaveState | null = null) {
+  constructor(
+    payload: GameLogicScriptEngineSaveState | null = null,
+    options: {
+      playerState?: GameLogicPlayersSaveState | null;
+      teamFactoryState?: GameLogicTeamFactorySaveState | null;
+      coreState?: GameLogicCoreSaveState | null;
+      mapData?: MapDataJSON | null;
+      difficulty?: GameDifficulty | null;
+      currentMusicTrackName?: string | null;
+      fadeState?: ScriptCameraEffectFadeSaveState | null;
+    } = {},
+  ) {
     this.payload = payload;
+    this.fadeState = options.fadeState ?? null;
+    this.playerState = options.playerState;
+    this.teamFactoryState = options.teamFactoryState;
+    this.coreState = options.coreState;
+    this.mapData = options.mapData;
+    this.difficulty = options.difficulty ?? 'NORMAL';
+    this.currentMusicTrackName = options.currentMusicTrackName?.trim() ?? '';
   }
 
   crc(_xfer: Xfer): void {
@@ -2261,19 +2954,452 @@ class ScriptEngineSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
-    const version = xfer.xferVersion(1);
-    if (version !== 1) {
+    const version = xfer.xferVersion(SOURCE_SCRIPT_ENGINE_SNAPSHOT_VERSION);
+    if (version < 1 || version > SOURCE_SCRIPT_ENGINE_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported script-engine snapshot version ${version}`);
     }
 
-    const serialized = xfer.xferLongString(
-      this.payload === null ? '' : JSON.stringify(this.payload, runtimeJsonReplacer),
+    const state = getScriptEngineStateRecord(this.payload);
+    const sequentialScripts = getRuntimeStateArray<Record<string, unknown>>(state, 'scriptSequentialScripts');
+    const sequentialScriptCount = xfer.xferUnsignedShort(sequentialScripts.length);
+    const loadedSequentialScripts: Array<Record<string, unknown>> = [];
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      for (let index = 0; index < sequentialScriptCount; index += 1) {
+        const loaded = xferScriptEngineSequentialScript(xfer, {
+          teamId: 0,
+          objectId: 0,
+          scriptNameUpper: '',
+          currentInstruction: -1,
+          timesToLoop: 0,
+          framesToWait: -1,
+          dontAdvanceInstruction: false,
+        });
+        loadedSequentialScripts.push({
+          scriptNameUpper: loaded.scriptNameUpper,
+          objectId: loaded.objectId > 0 ? loaded.objectId : null,
+          teamNameUpper: resolveTeamNameBySourceId(loaded.teamId, this.teamFactoryState),
+          currentInstruction: loaded.currentInstruction,
+          timesToLoop: loaded.timesToLoop,
+          framesToWait: loaded.framesToWait,
+          dontAdvanceInstruction: loaded.dontAdvanceInstruction,
+          nextScript: null,
+        });
+      }
+    } else {
+      for (const rawSequentialScript of sequentialScripts.slice(0, sequentialScriptCount)) {
+        const scriptNameUpper = normalizeOptionalAsciiString(rawSequentialScript.scriptNameUpper).trim().toUpperCase();
+        if (!scriptNameUpper) {
+          xferScriptEngineSequentialScript(xfer, {
+            teamId: 0,
+            objectId: 0,
+            scriptNameUpper: '',
+            currentInstruction: -1,
+            timesToLoop: 0,
+            framesToWait: -1,
+            dontAdvanceInstruction: false,
+          });
+          continue;
+        }
+        const objectId = Number(rawSequentialScript.objectId);
+        const teamNameUpper = normalizeOptionalAsciiString(rawSequentialScript.teamNameUpper).trim().toUpperCase();
+        const currentInstruction = Number(rawSequentialScript.currentInstruction);
+        const timesToLoop = Number(rawSequentialScript.timesToLoop);
+        const framesToWait = Number(rawSequentialScript.framesToWait);
+        xferScriptEngineSequentialScript(xfer, {
+          teamId: resolveSourceTeamIdByName(teamNameUpper || null, this.teamFactoryState),
+          objectId: Number.isFinite(objectId) && objectId > 0 ? Math.trunc(objectId) : 0,
+          scriptNameUpper,
+          currentInstruction: Number.isFinite(currentInstruction)
+            ? Math.trunc(currentInstruction)
+            : -1,
+          timesToLoop: Number.isFinite(timesToLoop)
+            ? Math.trunc(timesToLoop)
+            : 0,
+          framesToWait: Number.isFinite(framesToWait)
+            ? Math.trunc(framesToWait)
+            : -1,
+          dontAdvanceInstruction: Boolean(rawSequentialScript.dontAdvanceInstruction),
+        });
+      }
+    }
+
+    const countersByName = getRuntimeStateMap<{ value?: unknown; isCountdownTimer?: unknown }>(state, 'scriptCountersByName');
+    const counterEntries = [...countersByName.entries()].flatMap(([name, counterState]) =>
+      typeof name === 'string'
+        ? [{
+            name,
+            value: Number.isFinite(counterState?.value) ? Math.trunc(counterState.value as number) : 0,
+            isCountdownTimer: Boolean(counterState?.isCountdownTimer),
+          }]
+        : []);
+    const countersSize = xfer.xferUnsignedShort(counterEntries.length);
+    if (countersSize > SOURCE_SCRIPT_ENGINE_MAX_COUNTERS) {
+      throw new Error(`Script-engine counter count ${countersSize} exceeds source max ${SOURCE_SCRIPT_ENGINE_MAX_COUNTERS}.`);
+    }
+    const loadedCountersByName = new Map<string, { value: number; isCountdownTimer: boolean }>();
+    for (let index = 0; index < countersSize; index += 1) {
+      const entry = counterEntries[index] ?? { name: '', value: 0, isCountdownTimer: false };
+      const value = xfer.xferInt(entry.value);
+      const name = xfer.xferAsciiString(entry.name);
+      const isCountdownTimer = xfer.xferBool(entry.isCountdownTimer);
+      if (xfer.getMode() === XferMode.XFER_LOAD && name) {
+        loadedCountersByName.set(name, { value, isCountdownTimer });
+      }
+    }
+    xfer.xferInt(countersSize);
+
+    const flagsByName = getRuntimeStateMap<boolean>(state, 'scriptFlagsByName');
+    const flagEntries = [...flagsByName.entries()].flatMap(([name, value]) =>
+      typeof name === 'string' ? [{ name, value: Boolean(value) }] : []);
+    const flagsSize = xfer.xferUnsignedShort(flagEntries.length);
+    if (flagsSize > SOURCE_SCRIPT_ENGINE_MAX_FLAGS) {
+      throw new Error(`Script-engine flag count ${flagsSize} exceeds source max ${SOURCE_SCRIPT_ENGINE_MAX_FLAGS}.`);
+    }
+    const loadedFlagsByName = new Map<string, boolean>();
+    for (let index = 0; index < flagsSize; index += 1) {
+      const entry = flagEntries[index] ?? { name: '', value: false };
+      const value = xfer.xferBool(entry.value);
+      const name = xfer.xferAsciiString(entry.name);
+      if (xfer.getMode() === XferMode.XFER_LOAD && name) {
+        loadedFlagsByName.set(name, value);
+      }
+    }
+    xfer.xferInt(flagsSize);
+
+    const attackPrioritySets = getRuntimeStateMap<unknown>(state, 'scriptAttackPrioritySetsByName');
+    const attackPriorityEntries = [...attackPrioritySets.entries()].flatMap(([nameUpper, rawSet]) => {
+      if (typeof nameUpper !== 'string' || !rawSet || typeof rawSet !== 'object') {
+        return [];
+      }
+      const templatePriorityByName = (rawSet as { templatePriorityByName?: unknown }).templatePriorityByName;
+      return [{
+        nameUpper,
+        defaultPriority: Number.isFinite((rawSet as { defaultPriority?: unknown }).defaultPriority)
+          ? Math.trunc((rawSet as { defaultPriority?: unknown }).defaultPriority as number)
+          : 0,
+        templateEntries: templatePriorityByName instanceof Map
+          ? [...templatePriorityByName.entries()].flatMap(([templateName, priority]) =>
+            typeof templateName === 'string' && Number.isFinite(priority)
+              ? [[templateName, Math.trunc(priority as number)] as [string, number]]
+              : [])
+          : [],
+      }];
+    });
+    const attackPriorityInfoSize = xfer.xferUnsignedShort(attackPriorityEntries.length);
+    if (attackPriorityInfoSize > SOURCE_SCRIPT_ENGINE_MAX_ATTACK_PRIORITIES) {
+      throw new Error(`Script-engine attack-priority count ${attackPriorityInfoSize} exceeds source max ${SOURCE_SCRIPT_ENGINE_MAX_ATTACK_PRIORITIES}.`);
+    }
+    const loadedAttackPrioritySets = new Map<string, { nameUpper: string; defaultPriority: number; templatePriorityByName: Map<string, number> }>();
+    for (let index = 0; index < attackPriorityInfoSize; index += 1) {
+      const entry = attackPriorityEntries[index] ?? {
+        nameUpper: '',
+        defaultPriority: 0,
+        templateEntries: [],
+      };
+      const loaded = xferScriptEngineAttackPrioritySet(
+        xfer,
+        entry.nameUpper,
+        entry.defaultPriority,
+        entry.templateEntries,
+      );
+      if (xfer.getMode() === XferMode.XFER_LOAD && loaded.name) {
+        loadedAttackPrioritySets.set(loaded.name, {
+          nameUpper: loaded.name,
+          defaultPriority: loaded.defaultPriority,
+          templatePriorityByName: new Map(loaded.entries),
+        });
+      }
+    }
+    xfer.xferInt(attackPriorityInfoSize);
+
+    const endGameTimer = this.coreState && this.coreState.scriptEndGameTimerActive && this.coreState.gameEndFrame !== null
+      ? Math.max(0, Math.trunc(this.coreState.gameEndFrame - this.coreState.frameCounter))
+      : -1;
+    xfer.xferInt(endGameTimer);
+    xfer.xferInt(-1);
+
+    const namedEntitiesByName = getRuntimeStateMap<number>(state, 'scriptNamedEntitiesByName');
+    const namedObjectEntries = [...namedEntitiesByName.entries()].flatMap(([name, entityId]) =>
+      typeof name === 'string'
+        ? [[name, Number.isFinite(entityId) ? Math.max(0, Math.trunc(entityId)) : 0] as [string, number]]
+        : []);
+    const namedObjectsCount = xfer.xferUnsignedShort(namedObjectEntries.length);
+    const loadedNamedEntitiesByName = new Map<string, number>();
+    const namedEntitiesForLookup = new Map<string, number>();
+    const namedObjects = xferScriptEngineAsciiStringObjectIdEntries(
+      xfer,
+      namedObjectEntries.slice(0, namedObjectsCount),
     );
-    if (serialized.length === 0) {
-      this.payload = null;
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      for (const [name, objectId] of namedObjects) {
+        const normalizedName = name.trim().toUpperCase();
+        if (!normalizedName) {
+          continue;
+        }
+        loadedNamedEntitiesByName.set(normalizedName, objectId);
+        namedEntitiesForLookup.set(normalizedName, objectId);
+      }
+    } else {
+      for (const [name, objectId] of namedObjectEntries) {
+        namedEntitiesForLookup.set(name.trim().toUpperCase(), objectId);
+      }
+    }
+
+    xfer.xferBool(false);
+
+    const resolvedFadeState = buildScriptEngineFadeState(this.payload, this.fadeState);
+    const sourceFadeValue = normalizeScriptEngineFadeTypeToSourceValue(resolvedFadeState?.fadeType ?? null);
+    const loadedSourceFadeValue = xfer.xferInt(sourceFadeValue);
+    const loadedMinFade = xfer.xferReal(resolvedFadeState?.minFade ?? 1);
+    const loadedMaxFade = xfer.xferReal(resolvedFadeState?.maxFade ?? 0);
+    const loadedCurrentFadeValue = xfer.xferReal(resolvedFadeState?.currentFadeValue ?? 0);
+    const loadedCurrentFadeFrame = xfer.xferInt(resolvedFadeState?.currentFadeFrame ?? 0);
+    const loadedIncreaseFrames = xfer.xferInt(resolvedFadeState?.increaseFrames ?? 0);
+    const loadedHoldFrames = xfer.xferInt(resolvedFadeState?.holdFrames ?? 0);
+    const loadedDecreaseFrames = xfer.xferInt(resolvedFadeState?.decreaseFrames ?? 0);
+
+    const completedVideos = xferScriptEngineAsciiStringEntries(
+      xfer,
+      getRuntimeStateArray<string>(state, 'scriptCompletedVideos').filter((value): value is string => typeof value === 'string'),
+    );
+
+    const testingSpeechEntries = xferScriptEngineAsciiStringUIntEntries(
+      xfer,
+      [...getRuntimeStateMap<number>(state, 'scriptTestingSpeechCompletionFrameByName').entries()]
+        .flatMap(([name, frame]) =>
+          typeof name === 'string' && Number.isFinite(frame)
+            ? [[name, Math.max(0, Math.trunc(frame as number))] as [string, number]]
+            : []),
+    );
+    const testingAudioEntries = xferScriptEngineAsciiStringUIntEntries(
+      xfer,
+      [...getRuntimeStateMap<number>(state, 'scriptTestingAudioCompletionFrameByName').entries()]
+        .flatMap(([name, frame]) =>
+          typeof name === 'string' && Number.isFinite(frame)
+            ? [[name, Math.max(0, Math.trunc(frame as number))] as [string, number]]
+            : []),
+    );
+
+    const uiInteractions = xferScriptEngineAsciiStringEntries(
+      xfer,
+      [...(state.scriptUIInteractions instanceof Set ? state.scriptUIInteractions.values() : [])]
+        .filter((value): value is string => typeof value === 'string'),
+    );
+
+    const loadedTriggeredSpecialPowerEvents = new Map<string, Array<{ name: string; sourceEntityId: number }>>();
+    const loadedMidwaySpecialPowerEvents = new Map<string, Array<{ name: string; sourceEntityId: number }>>();
+    const loadedCompletedSpecialPowerEvents = new Map<string, Array<{ name: string; sourceEntityId: number }>>();
+    const loadedCompletedUpgradeEvents = new Map<string, Array<{ name: string; sourceEntityId: number }>>();
+    const namedEventStateByKey: Array<[string, Map<string, Array<{ name: string; sourceEntityId: number }>>]> = [
+      ['sideScriptTriggeredSpecialPowerEvents', loadedTriggeredSpecialPowerEvents],
+      ['sideScriptMidwaySpecialPowerEvents', loadedMidwaySpecialPowerEvents],
+      ['sideScriptCompletedSpecialPowerEvents', loadedCompletedSpecialPowerEvents],
+      ['sideScriptCompletedUpgradeEvents', loadedCompletedUpgradeEvents],
+    ];
+    for (const [stateKey, targetMap] of namedEventStateByKey) {
+      const playerCount = xfer.xferUnsignedShort(SOURCE_SCRIPT_ENGINE_PLAYER_COUNT);
+      if (playerCount !== SOURCE_SCRIPT_ENGINE_PLAYER_COUNT) {
+        throw new Error(`Script-engine named-event slot count mismatch for ${stateKey}: ${playerCount}`);
+      }
+      const slots = buildScriptEngineNamedEventSlots(state, stateKey, this.playerState);
+      for (let playerIndex = 0; playerIndex < playerCount; playerIndex += 1) {
+        const loadedEntries = xferScriptEngineAsciiStringObjectIdEntries(
+          xfer,
+          slots[playerIndex] ?? [],
+        );
+        if (xfer.getMode() === XferMode.XFER_LOAD) {
+          const side = resolveSideForPlayerIndex(playerIndex, this.playerState);
+          if (!side || loadedEntries.length === 0) {
+            continue;
+          }
+          targetMap.set(
+            side,
+            loadedEntries.map(([name, sourceEntityId]) => ({ name, sourceEntityId })),
+          );
+        }
+      }
+    }
+
+    const acquiredSciencesBySide = new Map<string, Set<string>>();
+    const acquiredSciencesCount = xfer.xferUnsignedShort(SOURCE_SCRIPT_ENGINE_PLAYER_COUNT);
+    if (acquiredSciencesCount !== SOURCE_SCRIPT_ENGINE_PLAYER_COUNT) {
+      throw new Error(`Script-engine acquired-science slot count mismatch: ${acquiredSciencesCount}`);
+    }
+    const acquiredScienceSlots = buildScriptEngineScienceSlots(state, this.playerState);
+    for (let playerIndex = 0; playerIndex < acquiredSciencesCount; playerIndex += 1) {
+      const sciences = xferScriptEngineScienceNames(xfer, acquiredScienceSlots[playerIndex] ?? []);
+      if (xfer.getMode() === XferMode.XFER_LOAD) {
+        const side = resolveSideForPlayerIndex(playerIndex, this.playerState);
+        if (!side || sciences.length === 0) {
+          continue;
+        }
+        acquiredSciencesBySide.set(side, new Set(sciences));
+      }
+    }
+
+    const toppleDirections = xferScriptEngineAsciiStringCoord3DEntries(
+      xfer,
+      buildScriptEngineToppleEntries(state, this.coreState),
+    );
+
+    const breezeState = state.scriptBreezeState && typeof state.scriptBreezeState === 'object'
+      ? state.scriptBreezeState as Record<string, unknown>
+      : {};
+    const loadedBreezeDirection = xfer.xferReal(getRuntimeStateNumber(breezeState, 'direction', 0));
+    const loadedBreezeDirectionX = xfer.xferReal(getRuntimeStateNumber(breezeState, 'directionX', 0));
+    const loadedBreezeDirectionY = xfer.xferReal(getRuntimeStateNumber(breezeState, 'directionY', 0));
+    const loadedBreezeIntensity = xfer.xferReal(getRuntimeStateNumber(breezeState, 'intensity', 0));
+    const loadedBreezeLean = xfer.xferReal(getRuntimeStateNumber(breezeState, 'lean', 0));
+    const loadedBreezeRandomness = xfer.xferReal(getRuntimeStateNumber(breezeState, 'randomness', 0));
+    const loadedBreezePeriodFrames = xfer.xferShort(getRuntimeStateNumber(breezeState, 'breezePeriodFrames', 0));
+    const loadedBreezeVersion = xfer.xferShort(getRuntimeStateNumber(breezeState, 'version', 1));
+
+    const loadedDifficulty = resolveDifficultyFromSourceValue(
+      xfer.xferInt(resolveSourceDifficultyValue(this.difficulty)),
+    );
+    const freezeByScript = xfer.xferBool(getRuntimeStateBoolean(state, 'scriptTimeFrozenByScript'));
+
+    const loadedNamedReveals = new Map<string, {
+      revealName: string;
+      waypointName: string;
+      playerName: string;
+      playerIndex: number;
+      worldX: number;
+      worldZ: number;
+      radius: number;
+      applied: boolean;
+    }>();
+    const loadedObjectTypeLists = new Map<string, string[]>();
+    if (version >= 2) {
+      const namedRevealEntries = buildScriptEngineRevealEntries(state);
+      const namedRevealCount = xfer.xferUnsignedShort(namedRevealEntries.length);
+      if (xfer.getMode() === XferMode.XFER_LOAD) {
+        for (let index = 0; index < namedRevealCount; index += 1) {
+          const revealName = xfer.xferAsciiString('');
+          const waypointName = xfer.xferAsciiString('');
+          const radius = xfer.xferReal(0);
+          const playerName = xfer.xferAsciiString('');
+          const waypointPosition = resolveWaypointPositionByName(this.mapData, waypointName);
+          const playerIndex = resolvePlayerIndexForScriptSide(playerName, this.playerState);
+          loadedNamedReveals.set(revealName, {
+            revealName,
+            waypointName,
+            playerName,
+            playerIndex,
+            worldX: waypointPosition?.x ?? 0,
+            worldZ: waypointPosition?.z ?? 0,
+            radius,
+            applied: false,
+          });
+        }
+      } else {
+        for (const entry of namedRevealEntries.slice(0, namedRevealCount)) {
+          xfer.xferAsciiString(entry.revealName);
+          xfer.xferAsciiString(entry.waypointName);
+          xfer.xferReal(entry.radius);
+          xfer.xferAsciiString(entry.playerName);
+        }
+      }
+
+      const objectTypeEntries = buildScriptEngineObjectTypeEntries(state);
+      const objectTypeCount = xfer.xferUnsignedShort(objectTypeEntries.length);
+      for (let index = 0; index < objectTypeCount; index += 1) {
+        const entry = objectTypeEntries[index] ?? { listName: '', objectTypes: [] };
+        const loaded = xferScriptEngineObjectTypeList(xfer, entry.listName, entry.objectTypes);
+        if (xfer.getMode() === XferMode.XFER_LOAD && loaded.listName) {
+          loadedObjectTypeLists.set(loaded.listName, loaded.objectTypes);
+        }
+      }
+    }
+
+    const objectsShouldReceiveDifficultyBonus = version >= 3
+      ? xfer.xferBool(getRuntimeStateBoolean(state, 'scriptObjectsReceiveDifficultyBonus', true))
+      : true;
+    const currentTrackName = version >= 4
+      ? xfer.xferAsciiString(
+          this.currentMusicTrackName
+          || normalizeOptionalAsciiString(
+            (state.scriptMusicTrackState && typeof state.scriptMusicTrackState === 'object')
+              ? (state.scriptMusicTrackState as { trackName?: unknown }).trackName
+              : '',
+          ),
+        )
+      : '';
+    const chooseVictimAlwaysUsesNormal = version >= 5
+      ? xfer.xferBool(getRuntimeStateBoolean(state, 'scriptChooseVictimAlwaysUsesNormal'))
+      : false;
+
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      const resolvedFadeType = normalizeSourceFadeValueToScriptEngineFadeType(loadedSourceFadeValue);
+      this.fadeState = resolvedFadeType
+        ? {
+            fadeType: resolvedFadeType,
+            minFade: loadedMinFade,
+            maxFade: loadedMaxFade,
+            currentFadeValue: loadedCurrentFadeValue,
+            currentFadeFrame: Math.max(0, Math.trunc(loadedCurrentFadeFrame)),
+            increaseFrames: Math.max(0, Math.trunc(loadedIncreaseFrames)),
+            holdFrames: Math.max(0, Math.trunc(loadedHoldFrames)),
+            decreaseFrames: Math.max(0, Math.trunc(loadedDecreaseFrames)),
+          }
+        : createEmptyScriptEngineFadeState();
+
+      const restoredState: Record<string, unknown> = {
+        scriptSequentialScripts: loadedSequentialScripts,
+        scriptCountersByName: loadedCountersByName,
+        scriptFlagsByName: loadedFlagsByName,
+        scriptCompletedVideos: completedVideos,
+        scriptTestingSpeechCompletionFrameByName: new Map(testingSpeechEntries),
+        scriptTestingAudioCompletionFrameByName: new Map(testingAudioEntries),
+        scriptUIInteractions: new Set(uiInteractions),
+        sideScriptTriggeredSpecialPowerEvents: loadedTriggeredSpecialPowerEvents,
+        sideScriptMidwaySpecialPowerEvents: loadedMidwaySpecialPowerEvents,
+        sideScriptCompletedSpecialPowerEvents: loadedCompletedSpecialPowerEvents,
+        sideScriptCompletedUpgradeEvents: loadedCompletedUpgradeEvents,
+        sideScriptAcquiredSciences: acquiredSciencesBySide,
+        scriptToppleDirectionByEntityId: new Map(
+          toppleDirections.flatMap(([name, coord]) => {
+            const entityId = resolveEntityIdByScriptName(name, this.coreState, namedEntitiesForLookup);
+            return entityId === null ? [] : [[entityId, { x: coord.x, z: coord.z }] as const];
+          }),
+        ),
+        scriptNamedEntitiesByName: loadedNamedEntitiesByName,
+        scriptBreezeState: {
+          version: loadedBreezeVersion,
+          direction: loadedBreezeDirection,
+          directionX: loadedBreezeDirectionX,
+          directionY: loadedBreezeDirectionY,
+          intensity: loadedBreezeIntensity,
+          lean: loadedBreezeLean,
+          randomness: loadedBreezeRandomness,
+          breezePeriodFrames: loadedBreezePeriodFrames,
+        },
+        scriptTimeFrozenByScript: freezeByScript,
+        scriptNamedMapRevealByName: loadedNamedReveals,
+        scriptObjectTypeListsByName: loadedObjectTypeLists,
+        scriptObjectsReceiveDifficultyBonus: objectsShouldReceiveDifficultyBonus,
+        scriptChooseVictimAlwaysUsesNormal: chooseVictimAlwaysUsesNormal,
+      };
+      if (loadedAttackPrioritySets.size > 0) {
+        restoredState.scriptAttackPrioritySetsByName = loadedAttackPrioritySets;
+      }
+      if (currentTrackName) {
+        restoredState.scriptMusicTrackState = {
+          trackName: currentTrackName,
+          fadeOut: false,
+          fadeIn: false,
+          frame: 0,
+        };
+      }
+      void loadedDifficulty;
+      this.payload = {
+        version: 1,
+        state: restoredState,
+      };
       return;
     }
-    this.payload = JSON.parse(serialized, runtimeJsonReviver) as GameLogicScriptEngineSaveState;
+
+    this.fadeState = resolvedFadeState;
   }
 
   loadPostProcess(): void {
@@ -2485,6 +3611,42 @@ export function parseSourceSidesListChunk(data: ArrayBuffer | Uint8Array): GameL
 
 function tryParseLegacyScriptEngineChunk(data: ArrayBuffer | Uint8Array): GameLogicScriptEngineSaveState | null {
   return tryParseLegacyLongStringChunk<GameLogicScriptEngineSaveState>(data, 'legacy-script-engine');
+}
+
+function tryParseSourceScriptEngineChunk(
+  data: ArrayBuffer | Uint8Array,
+  options: {
+    mapData?: MapDataJSON | null;
+    playerState?: GameLogicPlayersSaveState | null;
+    teamFactoryState?: GameLogicTeamFactorySaveState | null;
+    coreState?: GameLogicCoreSaveState | null;
+  } = {},
+): { state: GameLogicScriptEngineSaveState | null; fadeState: ScriptCameraEffectFadeSaveState | null } | null {
+  try {
+    const snapshot = new ScriptEngineSnapshot(null, {
+      mapData: options.mapData ?? null,
+      playerState: options.playerState ?? null,
+      teamFactoryState: options.teamFactoryState ?? null,
+      coreState: options.coreState ?? null,
+    });
+    const chunkData = data instanceof Uint8Array
+      ? (() => {
+          const copy = new Uint8Array(data.byteLength);
+          copy.set(data);
+          return copy.buffer;
+        })()
+      : data;
+    const xferLoad = new XferLoad(chunkData);
+    xferLoad.open('source-script-engine');
+    xferLoad.xferSnapshot(snapshot);
+    xferLoad.close();
+    return {
+      state: snapshot.payload ?? null,
+      fadeState: snapshot.fadeState ?? null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function tryParseInGameUiChunk(data: ArrayBuffer | Uint8Array): RuntimeSaveInGameUiState | null {
@@ -3102,9 +4264,12 @@ export function buildRuntimeSaveFile(params: {
   gameClientBriefingLines?: readonly string[];
   gameClientState?: RuntimeSaveGameClientState | null;
   inGameUiState?: RuntimeSaveInGameUiState | null;
+  scriptEngineFadeState?: ScriptCameraEffectFadeSaveState | null;
   renderableEntityStates?: readonly GameLogicRenderableEntityState[] | null;
   gameClientLiveEntityIds?: readonly number[] | null;
   particleSystemState?: ParticleSystemManagerSaveState | null;
+  currentMusicTrackName?: string | null;
+  sourceDifficulty?: GameDifficulty | null;
   gameLogic: Pick<
     GameLogicSubsystem,
     | 'captureBrowserRuntimeSaveState'
@@ -3254,7 +4419,18 @@ export function buildRuntimeSaveFile(params: {
       new RawPassthroughSnapshot(passthroughBlock.blockData),
     );
   } else {
-    state.addSnapshotBlock(SOURCE_SCRIPT_ENGINE_BLOCK, new ScriptEngineSnapshot(scriptEnginePayload));
+    state.addSnapshotBlock(
+      SOURCE_SCRIPT_ENGINE_BLOCK,
+      new ScriptEngineSnapshot(scriptEnginePayload, {
+        mapData: params.mapData,
+        playerState: playerPayload,
+        teamFactoryState: teamFactoryPayload,
+        coreState: gameLogicPayload,
+        difficulty: params.sourceDifficulty ?? params.campaign?.difficulty ?? 'NORMAL',
+        currentMusicTrackName: params.currentMusicTrackName ?? null,
+        fadeState: params.scriptEngineFadeState ?? null,
+      }),
+    );
   }
   state.addSnapshotBlock(SOURCE_SIDES_LIST_BLOCK, new SidesListSnapshot(sidesListPayload));
   state.addSnapshotBlock(SOURCE_TACTICAL_VIEW_BLOCK, new TacticalViewSnapshot(tacticalViewPayload));
@@ -3415,10 +4591,43 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const sidesListState = sidesListChunk
     ? parseSourceSidesListChunk(sidesListChunk)
     : null;
+  const resolvedTeamFactoryState = legacyTeamFactoryState
+    ?? (
+      teamFactoryChunk
+        ? (() => {
+            try {
+              return applySourceTeamFactoryChunkToState(
+                teamFactoryChunk,
+                createEmptyRuntimeSaveTeamFactoryState(),
+                legacyPlayersState,
+                sidesListState,
+                gameLogicCoreState,
+              );
+            } catch {
+              return null;
+            }
+          })()
+        : null
+    );
   const scriptEngineChunk = extractSaveChunkData(data, SOURCE_SCRIPT_ENGINE_BLOCK);
-  const scriptEngineState = scriptEngineChunk
-    ? tryParseLegacyScriptEngineChunk(scriptEngineChunk)
+  const parsedScriptEngineChunk = scriptEngineChunk
+    ? (
+      tryParseSourceScriptEngineChunk(scriptEngineChunk, {
+        mapData,
+        playerState: legacyPlayersState,
+        teamFactoryState: resolvedTeamFactoryState,
+        coreState: gameLogicCoreState,
+      })
+      ?? (() => {
+        const legacyState = tryParseLegacyScriptEngineChunk(scriptEngineChunk);
+        return legacyState
+          ? { state: legacyState, fadeState: null }
+          : null;
+      })()
+    )
     : null;
+  const scriptEngineState = parsedScriptEngineChunk?.state ?? null;
+  const scriptEngineFadeState = parsedScriptEngineChunk?.fadeState ?? null;
   const inGameUiChunk = extractSaveChunkData(data, SOURCE_IN_GAME_UI_BLOCK);
   const inGameUiState = inGameUiChunk
     ? tryParseInGameUiChunk(inGameUiChunk)
@@ -3461,6 +4670,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     gameLogicRadarState: radarSnapshot?.payload ?? null,
     gameLogicSidesListState: sidesListState,
     gameLogicScriptEngineState: scriptEngineState,
+    scriptEngineFadeState,
     gameLogicInGameUiState,
     gameLogicCoreState,
     gameLogicState: payload?.gameLogicState ?? null,
@@ -3492,6 +4702,15 @@ export function inspectRuntimeSaveCoreChunkStatus(
   const chunkNames = new Set(
     listSaveGameChunks(data).map((chunk) => chunk.blockName.toLowerCase()),
   );
+  const scriptEngineChunk = extractSaveChunkData(data, SOURCE_SCRIPT_ENGINE_BLOCK);
+  const parsedScriptEngineChunk = scriptEngineChunk
+    ? tryParseSourceScriptEngineChunk(scriptEngineChunk, {
+      mapData: parsed.mapData,
+      playerState: parsed.gameLogicPlayersState,
+      teamFactoryState: parsed.gameLogicTeamFactoryState,
+      coreState: parsed.gameLogicCoreState,
+    })
+    : null;
   const passthroughNames = new Set(
     parsed.passthroughBlocks.map((block) => block.blockName.toLowerCase()),
   );
@@ -3517,7 +4736,11 @@ export function inspectRuntimeSaveCoreChunkStatus(
   return [
     describeChunk(SOURCE_PLAYERS_BLOCK, parsed.gameLogicPlayersState, 'legacy'),
     describeChunk(SOURCE_GAME_LOGIC_BLOCK, parsed.gameLogicCoreState, 'parsed'),
-    describeChunk(SOURCE_SCRIPT_ENGINE_BLOCK, parsed.gameLogicScriptEngineState, 'legacy'),
+    describeChunk(
+      SOURCE_SCRIPT_ENGINE_BLOCK,
+      parsed.gameLogicScriptEngineState,
+      parsedScriptEngineChunk ? 'parsed' : 'legacy',
+    ),
     describeChunk(
       SOURCE_IN_GAME_UI_BLOCK,
       parsed.inGameUiState,

@@ -158,6 +158,37 @@ describe('script camera effects runtime bridge', () => {
     expect(expired.fadeAmount).toBe(0);
   });
 
+  it('captures and restores in-progress fade state at the saved phase', () => {
+    const gameLogic = new RecordingGameLogic();
+    const bridge = createScriptCameraEffectsRuntimeBridge({ gameLogic });
+
+    gameLogic.state.fadeRequests.push({
+      fadeType: 'SUBTRACT',
+      minFade: 0.2,
+      maxFade: 0.8,
+      increaseFrames: 12,
+      holdFrames: 4,
+      decreaseFrames: 6,
+      frame: 5,
+    });
+
+    const original = bridge.syncAfterSimulationStep(16);
+    expect(original.fadeType).toBe('SUBTRACT');
+
+    const saved = bridge.captureActiveFadeSaveState();
+    expect(saved).not.toBeNull();
+    expect(saved?.currentFadeFrame).toBe(11);
+    expect(saved?.currentFadeValue).toBeCloseTo(original.fadeAmount, 6);
+
+    const restoredBridge = createScriptCameraEffectsRuntimeBridge({
+      gameLogic: new RecordingGameLogic(),
+      initialFadeState: saved,
+    });
+    const restored = restoredBridge.syncAfterSimulationStep(0);
+    expect(restored.fadeType).toBe(original.fadeType);
+    expect(restored.fadeAmount).toBeCloseTo(original.fadeAmount, 6);
+  });
+
   it('enables and clears motion blur filter states from camera filter requests', () => {
     const gameLogic = new RecordingGameLogic();
     const bridge = createScriptCameraEffectsRuntimeBridge({ gameLogic });

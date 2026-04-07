@@ -619,7 +619,13 @@ describe('runtime-save-game', () => {
       },
       objects: [],
       triggers: [],
-      waypoints: { nodes: [], links: [] },
+      waypoints: {
+        nodes: [{
+          name: 'INTRO_FOCUS',
+          position: { x: 64, z: 72 },
+        }],
+        links: [],
+      },
       textureClasses: [],
       blendTileCount: 0,
     };
@@ -658,6 +664,17 @@ describe('runtime-save-game', () => {
           ready: false,
           evaReadyPlayed: false,
         }],
+      },
+      currentMusicTrackName: 'SkirmishAmbient',
+      scriptEngineFadeState: {
+        fadeType: 'SUBTRACT',
+        minFade: 0.2,
+        maxFade: 0.8,
+        currentFadeValue: 0.65,
+        currentFadeFrame: 11,
+        increaseFrames: 12,
+        holdFrames: 4,
+        decreaseFrames: 6,
       },
       gameLogic: {
         captureSourceTerrainLogicRuntimeSaveState: () => ({
@@ -768,6 +785,16 @@ describe('runtime-save-game', () => {
             scriptCountersByName: new Map([['missiontimer', { value: 90, isCountdownTimer: true }]]),
             scriptFlagsByName: new Map([['intro_complete', true]]),
             scriptCompletedVideos: ['USA_BNN_INTRO'],
+            scriptNamedMapRevealByName: new Map([['INTRO_FOCUS', {
+              revealName: 'INTRO_FOCUS',
+              waypointName: 'INTRO_FOCUS',
+              playerName: 'USA',
+              playerIndex: 0,
+              worldX: 64,
+              worldZ: 72,
+              radius: 18,
+              applied: true,
+            }]]),
           },
         }),
         captureSourceInGameUiRuntimeSaveState: () => ({
@@ -945,7 +972,7 @@ describe('runtime-save-game', () => {
     expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data)).toEqual([
       { blockName: 'CHUNK_Players', mode: 'legacy' },
       { blockName: 'CHUNK_GameLogic', mode: 'parsed' },
-      { blockName: 'CHUNK_ScriptEngine', mode: 'legacy' },
+      { blockName: 'CHUNK_ScriptEngine', mode: 'parsed' },
       { blockName: 'CHUNK_InGameUI', mode: 'parsed' },
     ]);
     expect(gameClientChunk).toEqual({
@@ -1113,6 +1140,32 @@ describe('runtime-save-game', () => {
     );
     expect(scriptEngineState?.state.scriptFlagsByName).toEqual(new Map([['intro_complete', true]]));
     expect(scriptEngineState?.state.scriptCompletedVideos).toEqual(['USA_BNN_INTRO']);
+    expect(scriptEngineState?.state.scriptNamedMapRevealByName).toEqual(new Map([['INTRO_FOCUS', {
+      revealName: 'INTRO_FOCUS',
+      waypointName: 'INTRO_FOCUS',
+      playerName: 'USA',
+      playerIndex: 0,
+      worldX: 64,
+      worldZ: 72,
+      radius: 18,
+      applied: false,
+    }]]));
+    expect(scriptEngineState?.state.scriptMusicTrackState).toEqual({
+      trackName: 'SkirmishAmbient',
+      fadeOut: false,
+      fadeIn: false,
+      frame: 0,
+    });
+    expect(parsed.scriptEngineFadeState).toEqual(expect.objectContaining({
+      fadeType: 'SUBTRACT',
+      currentFadeFrame: 11,
+      increaseFrames: 12,
+      holdFrames: 4,
+      decreaseFrames: 6,
+    }));
+    expect(parsed.scriptEngineFadeState?.minFade).toBeCloseTo(0.2, 6);
+    expect(parsed.scriptEngineFadeState?.maxFade).toBeCloseTo(0.8, 6);
+    expect(parsed.scriptEngineFadeState?.currentFadeValue).toBeCloseTo(0.65, 6);
     expect(parsed.inGameUiState).toEqual({
       version: 3,
       namedTimerLastFlashFrame: 17,

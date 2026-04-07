@@ -60,12 +60,14 @@ export interface ScriptCameraEffectsRuntimeGameLogic {
 
 export interface ScriptCameraEffectsRuntimeBridge {
   syncAfterSimulationStep(currentLogicFrame: number): ScriptCameraEffectsState;
+  captureActiveFadeSaveState(): ScriptCameraEffectFadeSaveState | null;
 }
 
 export interface CreateScriptCameraEffectsRuntimeBridgeOptions {
   gameLogic: ScriptCameraEffectsRuntimeGameLogic;
   getCameraTargetPosition?: () => { x: number; z: number } | null;
   onMotionBlurJumpToPosition?: (x: number, z: number) => void;
+  initialFadeState?: ScriptCameraEffectFadeSaveState | null;
 }
 
 interface ScalarTransition {
@@ -107,6 +109,17 @@ interface ActiveOneShotMotionBlurState {
   saturationBoost: number;
   doZoomTo: boolean;
   jumpTarget: { x: number; z: number } | null;
+}
+
+export interface ScriptCameraEffectFadeSaveState {
+  fadeType: ScriptCameraFadeRequestState['fadeType'];
+  minFade: number;
+  maxFade: number;
+  currentFadeValue: number;
+  currentFadeFrame: number;
+  increaseFrames: number;
+  holdFrames: number;
+  decreaseFrames: number;
 }
 
 const LOGIC_FRAME_RATE = 30;
@@ -198,29 +211,49 @@ function hasFadeExpired(
 export function createScriptCameraEffectsRuntimeBridge(
   options: CreateScriptCameraEffectsRuntimeBridgeOptions,
 ): ScriptCameraEffectsRuntimeBridge {
-  const { gameLogic, getCameraTargetPosition, onMotionBlurJumpToPosition } = options;
+  const {
+    gameLogic,
+    getCameraTargetPosition,
+    onMotionBlurJumpToPosition,
+    initialFadeState = null,
+  } = options;
 
   let grayscale = 0;
   let grayscaleTransition: ScalarTransition | null = null;
-  let activeFade: ActiveFadeState | null = null;
+  let activeFade: ActiveFadeState | null = initialFadeState
+    ? {
+        fadeType: initialFadeState.fadeType,
+        minFade: initialFadeState.minFade,
+        maxFade: initialFadeState.maxFade,
+        increaseFrames: initialFadeState.increaseFrames,
+        holdFrames: initialFadeState.holdFrames,
+        decreaseFrames: initialFadeState.decreaseFrames,
+        startFrame: -Math.max(0, Math.trunc(initialFadeState.currentFadeFrame)),
+      }
+    : null;
   let activeOneShotMotionBlur: ActiveOneShotMotionBlurState | null = null;
   let activeMotionBlurFollow: ActiveMotionBlurFollowState | null = null;
   let previousCameraTarget: { x: number; z: number } | null = null;
+  let lastLogicFrame = 0;
   let lastScreenShakeFrame = -1;
   const activeShakes: ActiveShakeState[] = [];
 
   return {
     syncAfterSimulationStep(currentLogicFrame: number): ScriptCameraEffectsState {
+      lastLogicFrame = currentLogicFrame;
       const blackWhiteRequests = gameLogic.drainScriptCameraBlackWhiteRequests();
       for (const request of blackWhiteRequests) {
         const targetGrayscale = request.enabled ? 1 : 0;
         const durationFrames = Math.max(0, Math.trunc(request.fadeFrames));
+        const requestFrame = Number.isFinite(request.frame)
+          ? Math.trunc(request.frame)
+          : currentLogicFrame;
         if (durationFrames <= 0) {
           grayscale = targetGrayscale;
           grayscaleTransition = null;
         } else {
           grayscaleTransition = {
-            startFrame: currentLogicFrame,
+            startFrame: requestFrame,
             durationFrames,
             from: grayscale,
             to: targetGrayscale,
@@ -238,6 +271,9 @@ export function createScriptCameraEffectsRuntimeBridge(
 
       const fadeRequests = gameLogic.drainScriptCameraFadeRequests();
       for (const request of fadeRequests) {
+        const requestFrame = Number.isFinite(request.frame)
+          ? Math.trunc(request.frame)
+          : currentLogicFrame;
         activeFade = {
           fadeType: request.fadeType,
           minFade: request.minFade,
@@ -245,7 +281,7 @@ export function createScriptCameraEffectsRuntimeBridge(
           increaseFrames: request.increaseFrames,
           holdFrames: request.holdFrames,
           decreaseFrames: request.decreaseFrames,
-          startFrame: currentLogicFrame,
+          startFrame: requestFrame,
         };
       }
 
@@ -300,11 +336,14 @@ export function createScriptCameraEffectsRuntimeBridge(
       const shakerRequests = gameLogic.drainScriptCameraShakerRequests();
       for (const request of shakerRequests) {
         const durationFrames = Math.max(1, Math.trunc(request.durationSeconds * LOGIC_FRAME_RATE));
+        const requestFrame = Number.isFinite(request.frame)
+          ? Math.trunc(request.frame)
+          : currentLogicFrame;
         if (!Number.isFinite(request.amplitude) || request.amplitude <= 0) {
           continue;
         }
         activeShakes.push({
-          startFrame: currentLogicFrame,
+          startFrame: requestFrame,
           durationFrames,
           amplitude: request.amplitude,
           seed: request.frame + request.x * 0.17 + request.z * 0.29,
@@ -453,6 +492,22 @@ export function createScriptCameraEffectsRuntimeBridge(
         fadeAmount,
         shakeOffsetX,
         shakeOffsetY,
+      };
+    },
+    captureActiveFadeSaveState(): ScriptCameraEffectFadeSaveState | null {
+      if (!activeFade) {
+        return null;
+      }
+      const currentFadeFrame = Math.max(0, Math.trunc(lastLogicFrame - activeFade.startFrame));
+      return {
+        fadeType: activeFade.fadeType,
+        minFade: activeFade.minFade,
+        maxFade: activeFade.maxFade,
+        currentFadeValue: clamp01(evaluateFadeAmount(activeFade, lastLogicFrame)),
+        currentFadeFrame,
+        increaseFrames: activeFade.increaseFrames,
+        holdFrames: activeFade.holdFrames,
+        decreaseFrames: activeFade.decreaseFrames,
       };
     },
   };
