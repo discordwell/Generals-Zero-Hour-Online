@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { XferLoad, XferSave, listSaveGameChunks } from '@generals/engine';
+import {
+  buildSourceMapEntityChunk,
+  createEmptySourceMapEntitySaveState,
+} from '@generals/game-logic';
 import * as THREE from 'three';
 
 import {
@@ -187,137 +191,35 @@ function readSaveChunkData(data: ArrayBuffer, blockName: string): Uint8Array | n
   return new Uint8Array(data, chunk.blockDataOffset, chunk.blockSize).slice();
 }
 
-function writeSourceBitFlags(xfer: XferSave, names: string[] = []): void {
-  xfer.xferVersion(1);
-  xfer.xferInt(names.length);
-  for (const name of names) {
-    xfer.xferAsciiString(name);
-  }
-}
-
-function writeSourceUpgradeMask(xfer: XferSave, names: string[] = []): void {
-  xfer.xferVersion(1);
-  xfer.xferUnsignedShort(names.length);
-  for (const name of names) {
-    xfer.xferAsciiString(name);
-  }
-}
-
-function writeSourceMatrix3D(xfer: XferSave): void {
-  xfer.xferVersion(1);
-  for (let index = 0; index < 12; index += 1) {
-    xfer.xferReal(index === 0 || index === 5 || index === 10 ? 1 : 0);
-  }
-}
-
-function writeSourceGeometryInfo(xfer: XferSave): void {
-  xfer.xferVersion(1);
-  xfer.xferInt(0);
-  xfer.xferBool(false);
-  xfer.xferReal(0);
-  xfer.xferReal(8);
-  xfer.xferReal(8);
-  xfer.xferReal(8);
-  xfer.xferReal(8);
-}
-
-function writeSourceSightingInfo(xfer: XferSave): void {
-  xfer.xferVersion(1);
-  xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
-  xfer.xferReal(0);
-  xfer.xferUnsignedShort(0);
-  xfer.xferUnsignedInt(0);
-}
-
-function writeSourceExperienceTracker(xfer: XferSave): void {
-  xfer.xferVersion(1);
-  xfer.xferInt(1);
-  xfer.xferInt(150);
-  xfer.xferObjectID(0);
-  xfer.xferReal(1);
-}
-
-function writeSourceWeaponSet(xfer: XferSave): void {
-  xfer.xferVersion(1);
-  xfer.xferAsciiString('');
-  writeSourceBitFlags(xfer);
-  for (let index = 0; index < 3; index += 1) {
-    xfer.xferBool(false);
-  }
-  xfer.xferInt(0);
-  xfer.xferInt(0);
-  xfer.xferUnsignedInt(0);
-  xfer.xferInt(0);
-  xfer.xferBool(false);
-  xfer.xferBool(false);
-  writeSourceBitFlags(xfer);
-}
-
 function createSourceObjectBlockData(): Uint8Array {
-  const xferSave = new XferSave();
-  xferSave.open('create-source-object-block');
-  try {
-    xferSave.xferVersion(9);
-    xferSave.xferObjectID(7);
-    writeSourceMatrix3D(xferSave);
-    xferSave.xferUnsignedInt(3);
-    xferSave.xferObjectID(0);
-    xferSave.xferObjectID(0);
-    xferSave.xferObjectID(9);
-    xferSave.xferAsciiString('UNIT_007');
-    writeSourceBitFlags(xferSave, ['SELECTABLE']);
-    xferSave.xferUnsignedByte(0);
-    xferSave.xferUnsignedByte(0);
-    writeSourceGeometryInfo(xferSave);
-    writeSourceSightingInfo(xferSave);
-    writeSourceSightingInfo(xferSave);
-    writeSourceSightingInfo(xferSave);
-    for (let index = 0; index < 16; index += 1) {
-      xferSave.xferInt(0);
-    }
-    xferSave.xferUnsignedShort(0);
-    xferSave.xferReal(150);
-    xferSave.xferReal(150);
-    xferSave.xferReal(150);
-    writeSourceBitFlags(xferSave);
-    xferSave.xferBool(false);
-    for (let index = 0; index < 13; index += 1) {
-      xferSave.xferUnsignedInt(0);
-    }
-    xferSave.xferUnsignedInt(0);
-    writeSourceExperienceTracker(xferSave);
-    xferSave.xferObjectID(0);
-    xferSave.xferUnsignedInt(0);
-    xferSave.xferReal(100);
-    writeSourceUpgradeMask(xferSave);
-    xferSave.xferAsciiString('');
-    xferSave.xferColor(0);
-    xferSave.xferCoord3D({ x: 0, y: 0, z: 0 });
-    xferSave.xferByte(0);
-    xferSave.xferUnsignedInt(0);
-    xferSave.xferInt(0);
-    xferSave.xferInt(0);
-    xferSave.xferInt(0);
-    xferSave.xferInt(1);
-    xferSave.xferInt(1);
-    xferSave.xferBool(true);
-    xferSave.xferUnsignedInt(0);
-    xferSave.xferInt(0);
-    xferSave.xferUnsignedShort(0);
-    xferSave.xferObjectID(0);
-    xferSave.xferUnsignedInt(0);
-    writeSourceBitFlags(xferSave);
-    xferSave.xferUnsignedInt(0);
-    xferSave.xferUser(new Uint8Array(3));
-    writeSourceWeaponSet(xferSave);
-    writeSourceBitFlags(xferSave);
-    xferSave.xferAsciiString('');
-    xferSave.xferBool(true);
-    xferSave.xferBool(false);
-    return new Uint8Array(xferSave.getBuffer());
-  } finally {
-    xferSave.close();
-  }
+  const state = createEmptySourceMapEntitySaveState();
+  state.objectId = 7;
+  state.teamId = 3;
+  state.drawableId = 9;
+  state.internalName = 'UNIT_007';
+  state.statusBits = ['SELECTABLE'];
+  state.geometryInfo = {
+    ...state.geometryInfo,
+    majorRadius: 8,
+    minorRadius: 8,
+    boundingCircleRadius: 8,
+    boundingSphereRadius: 8,
+  };
+  state.visionRange = 150;
+  state.shroudClearingRange = 150;
+  state.shroudRange = 150;
+  state.experienceTracker = {
+    ...state.experienceTracker,
+    currentLevel: 1,
+    currentExperience: 150,
+    experienceScalar: 1,
+  };
+  state.constructionPercent = 100;
+  state.layer = 1;
+  state.destinationLayer = 1;
+  state.isSelectable = true;
+  state.modulesReady = true;
+  return new Uint8Array(buildSourceMapEntityChunk(state));
 }
 
 function createSourceGameLogicChunkData(): Uint8Array {

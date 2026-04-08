@@ -11,7 +11,7 @@
  */
 
 import type { Xfer } from '@generals/engine';
-import { XferLoad, XferMode } from '@generals/engine';
+import { XferLoad, XferMode, XferSave } from '@generals/engine';
 
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
@@ -46,6 +46,267 @@ export interface MapEntityChunkLayoutInspection {
   reason?: string;
 }
 
+export interface SourceGeometryInfoSaveState {
+  version: number;
+  type: number;
+  isSmall: boolean;
+  height: number;
+  majorRadius: number;
+  minorRadius: number;
+  boundingCircleRadius: number;
+  boundingSphereRadius: number;
+}
+
+export interface SourceSightingInfoSaveState {
+  version: number;
+  where: { x: number; y: number; z: number };
+  howFar: number;
+  forWhomMask: number;
+  data: number;
+}
+
+export interface SourceExperienceTrackerSaveState {
+  version: number;
+  currentLevel: number;
+  currentExperience: number;
+  experienceSinkObjectId: number;
+  experienceScalar: number;
+}
+
+export interface SourceWeaponSaveState {
+  version: number;
+  templateName: string;
+  slot: number;
+  status: number;
+  ammoInClip: number;
+  whenWeCanFireAgain: number;
+  whenPreAttackFinished: number;
+  whenLastReloadStarted: number;
+  lastFireFrame: number;
+  suspendFXFrame: number;
+  projectileStreamObjectId: number;
+  maxShotCount: number;
+  currentBarrel: number;
+  numShotsForCurrentBarrel: number;
+  scatterTargetsUnused: number[];
+  pitchLimited: boolean;
+  leechWeaponRangeActive: boolean;
+}
+
+export interface SourceWeaponSetSaveState {
+  version: number;
+  templateName: string;
+  templateSetFlags: string[];
+  weapons: Array<SourceWeaponSaveState | null>;
+  currentWeapon: number;
+  currentWeaponLockedStatus: number;
+  filledWeaponSlotMask: number;
+  totalAntiMask: number;
+  hasDamageWeapon: boolean;
+  totalDamageTypeMask: string[];
+}
+
+export interface SourceObjectTriggerAreaSaveState {
+  triggerName: string;
+  entered: number;
+  exited: number;
+  isInside: number;
+}
+
+export interface SourceObjectModuleSaveState {
+  identifier: string;
+  blockData: Uint8Array;
+}
+
+export interface SourceMapEntitySaveState {
+  version: number;
+  objectId: number;
+  transformMatrix: number[] | null;
+  position: { x: number; y: number; z: number } | null;
+  orientation: number | null;
+  teamId: number;
+  producerId: number;
+  builderId: number;
+  drawableId: number;
+  internalName: string;
+  statusBits: string[];
+  legacyStatusMaskValue: number | null;
+  scriptStatus: number;
+  privateStatus: number;
+  geometryInfo: SourceGeometryInfoSaveState;
+  partitionLastLook: SourceSightingInfoSaveState;
+  partitionRevealAllLastLook: SourceSightingInfoSaveState | null;
+  partitionLastShroud: SourceSightingInfoSaveState;
+  visionSpiedBy: number[];
+  visionSpiedMask: number;
+  visionRange: number;
+  shroudClearingRange: number;
+  shroudRange: number;
+  disabledMask: string[];
+  singleUseCommandUsed: boolean;
+  disabledTillFrame: number[];
+  specialModelConditionUntil: number;
+  experienceTracker: SourceExperienceTrackerSaveState;
+  containedById: number | null;
+  containedByFrame: number;
+  constructionPercent: number;
+  completedUpgradeNames: string[];
+  originalTeamName: string;
+  indicatorColor: number;
+  healthBoxOffset: { x: number; y: number; z: number };
+  enteredOrExitedFrame: number;
+  ipos: { x: number; y: number; z: number };
+  triggerAreas: SourceObjectTriggerAreaSaveState[];
+  layer: number;
+  destinationLayer: number;
+  isSelectable: boolean;
+  safeOcclusionFrame: number;
+  formationId: number;
+  formationOffset: { x: number; y: number } | null;
+  modules: SourceObjectModuleSaveState[];
+  soleHealingBenefactorId: number | null;
+  soleHealingBenefactorExpirationFrame: number;
+  weaponSetFlags: string[];
+  weaponBonusCondition: number;
+  lastWeaponCondition: number[];
+  weaponSet: SourceWeaponSetSaveState | null;
+  specialPowerBits: string[];
+  commandSetStringOverride: string;
+  modulesReady: boolean;
+  isReceivingDifficultyBonus: boolean;
+}
+
+function createEmptySourceGeometryInfoSaveState(): SourceGeometryInfoSaveState {
+  return {
+    version: SOURCE_GEOMETRY_INFO_XFER_VERSION,
+    type: 0,
+    isSmall: false,
+    height: 0,
+    majorRadius: 0,
+    minorRadius: 0,
+    boundingCircleRadius: 0,
+    boundingSphereRadius: 0,
+  };
+}
+
+function createEmptySourceSightingInfoSaveState(): SourceSightingInfoSaveState {
+  return {
+    version: SOURCE_SIGHTING_INFO_XFER_VERSION,
+    where: { x: 0, y: 0, z: 0 },
+    howFar: 0,
+    forWhomMask: 0,
+    data: 0,
+  };
+}
+
+function createEmptySourceExperienceTrackerSaveState(): SourceExperienceTrackerSaveState {
+  return {
+    version: SOURCE_EXPERIENCE_TRACKER_XFER_VERSION,
+    currentLevel: 0,
+    currentExperience: 0,
+    experienceSinkObjectId: 0,
+    experienceScalar: 1,
+  };
+}
+
+function createEmptySourceWeaponSaveState(): SourceWeaponSaveState {
+  return {
+    version: SOURCE_WEAPON_XFER_VERSION,
+    templateName: '',
+    slot: 0,
+    status: 0,
+    ammoInClip: 0,
+    whenWeCanFireAgain: 0,
+    whenPreAttackFinished: 0,
+    whenLastReloadStarted: 0,
+    lastFireFrame: 0,
+    suspendFXFrame: 0,
+    projectileStreamObjectId: 0,
+    maxShotCount: 0,
+    currentBarrel: 0,
+    numShotsForCurrentBarrel: 0,
+    scatterTargetsUnused: [],
+    pitchLimited: false,
+    leechWeaponRangeActive: false,
+  };
+}
+
+function createEmptySourceWeaponSetSaveState(): SourceWeaponSetSaveState {
+  return {
+    version: SOURCE_WEAPON_SET_XFER_VERSION,
+    templateName: '',
+    templateSetFlags: [],
+    weapons: Array.from({ length: SOURCE_WEAPON_SLOT_COUNT }, () => null),
+    currentWeapon: 0,
+    currentWeaponLockedStatus: 0,
+    filledWeaponSlotMask: 0,
+    totalAntiMask: 0,
+    hasDamageWeapon: false,
+    totalDamageTypeMask: [],
+  };
+}
+
+export function createEmptySourceMapEntitySaveState(): SourceMapEntitySaveState {
+  return {
+    version: SOURCE_OBJECT_XFER_VERSION,
+    objectId: 0,
+    transformMatrix: Array.from({ length: 12 }, (_, index) =>
+      index === 0 || index === 5 || index === 10 ? 1 : 0),
+    position: null,
+    orientation: null,
+    teamId: 0,
+    producerId: 0,
+    builderId: 0,
+    drawableId: 0,
+    internalName: '',
+    statusBits: [],
+    legacyStatusMaskValue: null,
+    scriptStatus: 0,
+    privateStatus: 0,
+    geometryInfo: createEmptySourceGeometryInfoSaveState(),
+    partitionLastLook: createEmptySourceSightingInfoSaveState(),
+    partitionRevealAllLastLook: createEmptySourceSightingInfoSaveState(),
+    partitionLastShroud: createEmptySourceSightingInfoSaveState(),
+    visionSpiedBy: Array.from({ length: SOURCE_MAX_PLAYER_COUNT }, () => 0),
+    visionSpiedMask: 0,
+    visionRange: 0,
+    shroudClearingRange: 0,
+    shroudRange: 0,
+    disabledMask: [],
+    singleUseCommandUsed: false,
+    disabledTillFrame: Array.from({ length: SOURCE_DISABLED_COUNT }, () => 0),
+    specialModelConditionUntil: 0,
+    experienceTracker: createEmptySourceExperienceTrackerSaveState(),
+    containedById: null,
+    containedByFrame: 0,
+    constructionPercent: 0,
+    completedUpgradeNames: [],
+    originalTeamName: '',
+    indicatorColor: 0,
+    healthBoxOffset: { x: 0, y: 0, z: 0 },
+    enteredOrExitedFrame: 0,
+    ipos: { x: 0, y: 0, z: 0 },
+    triggerAreas: [],
+    layer: 0,
+    destinationLayer: 0,
+    isSelectable: true,
+    safeOcclusionFrame: 0,
+    formationId: 0,
+    formationOffset: null,
+    modules: [],
+    soleHealingBenefactorId: null,
+    soleHealingBenefactorExpirationFrame: 0,
+    weaponSetFlags: [],
+    weaponBonusCondition: 0,
+    lastWeaponCondition: Array.from({ length: SOURCE_WEAPON_SLOT_COUNT }, () => 0),
+    weaponSet: createEmptySourceWeaponSetSaveState(),
+    specialPowerBits: [],
+    commandSetStringOverride: '',
+    modulesReady: false,
+    isReceivingDifficultyBonus: false,
+  };
+}
+
 function toStandaloneArrayBuffer(data: ArrayBuffer | Uint8Array): ArrayBuffer {
   if (data instanceof Uint8Array) {
     const copy = new Uint8Array(data.byteLength);
@@ -55,160 +316,592 @@ function toStandaloneArrayBuffer(data: ArrayBuffer | Uint8Array): ArrayBuffer {
   return data;
 }
 
-function xferSourceRawBytes(xfer: XferLoad, byteLength: number): Uint8Array {
+function resolveSourceVersion(
+  requestedVersion: number | null | undefined,
+  maxVersion: number,
+  label: string,
+): number {
+  const resolved = requestedVersion ?? maxVersion;
+  if (!Number.isInteger(resolved) || resolved < 1 || resolved > maxVersion) {
+    throw new Error(`Unsupported ${label} version ${resolved}.`);
+  }
+  return resolved;
+}
+
+function xferSourceFixedBytes(
+  xfer: Xfer,
+  value: number[] | Uint8Array | null | undefined,
+  byteLength: number,
+): number[] {
   if (byteLength < 0) {
     throw new Error(`Negative raw-byte length ${byteLength}.`);
   }
-  return xfer.xferUser(new Uint8Array(byteLength));
+  const buffer = new Uint8Array(byteLength);
+  if (xfer.getMode() !== XferMode.XFER_LOAD && value !== null && value !== undefined) {
+    const source = value instanceof Uint8Array
+      ? value
+      : Uint8Array.from(value.map((entry) => entry & 0xff));
+    buffer.set(source.subarray(0, byteLength));
+  }
+  return Array.from(xfer.xferUser(buffer) as Uint8Array);
 }
 
-function xferSourceCoord2D(xfer: XferLoad): { x: number; y: number } {
+function xferSourceCoord2DState(
+  xfer: Xfer,
+  value: { x: number; y: number } | null | undefined,
+): { x: number; y: number } {
+  const current = value ?? { x: 0, y: 0 };
   return {
-    x: xfer.xferReal(0),
-    y: xfer.xferReal(0),
+    x: xfer.xferReal(current.x),
+    y: xfer.xferReal(current.y),
   };
 }
 
-function xferSourceICoord3D(xfer: XferLoad): { x: number; y: number; z: number } {
+function xferSourceICoord3DState(
+  xfer: Xfer,
+  value: { x: number; y: number; z: number } | null | undefined,
+): { x: number; y: number; z: number } {
+  const current = value ?? { x: 0, y: 0, z: 0 };
   return {
-    x: xfer.xferInt(0),
-    y: xfer.xferInt(0),
-    z: xfer.xferInt(0),
+    x: xfer.xferInt(current.x),
+    y: xfer.xferInt(current.y),
+    z: xfer.xferInt(current.z),
   };
 }
 
-function xferSourceStringBitFlags(xfer: XferLoad, label: string): string[] {
-  const version = xfer.xferVersion(SOURCE_BIT_FLAGS_XFER_VERSION);
+function xferSourceStringBitFlagsState(
+  xfer: Xfer,
+  value: string[] | null | undefined,
+  label: string,
+): string[] {
+  const version = xfer.xferVersion(resolveSourceVersion(
+    SOURCE_BIT_FLAGS_XFER_VERSION,
+    SOURCE_BIT_FLAGS_XFER_VERSION,
+    `${label} bitflag`,
+  ));
   if (version !== SOURCE_BIT_FLAGS_XFER_VERSION) {
     throw new Error(`Unsupported ${label} bitflag version ${version}.`);
   }
-  const count = xfer.xferInt(0);
+  const current = Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+  const count = xfer.xferInt(xfer.getMode() === XferMode.XFER_LOAD ? 0 : current.length);
   if (count < 0 || count > SOURCE_MAX_BIT_FLAG_NAMES) {
     throw new Error(`Invalid ${label} bitflag count ${count}.`);
   }
   const names: string[] = [];
   for (let index = 0; index < count; index += 1) {
-    names.push(xfer.xferAsciiString(''));
+    names.push(xfer.xferAsciiString(
+      xfer.getMode() === XferMode.XFER_LOAD ? '' : current[index]!,
+    ));
   }
   return names;
 }
 
-function xferSourceUpgradeMask(xfer: XferLoad): string[] {
-  const version = xfer.xferVersion(SOURCE_UPGRADE_MASK_XFER_VERSION);
+function xferSourceUpgradeMaskState(
+  xfer: Xfer,
+  value: string[] | null | undefined,
+): string[] {
+  const version = xfer.xferVersion(resolveSourceVersion(
+    SOURCE_UPGRADE_MASK_XFER_VERSION,
+    SOURCE_UPGRADE_MASK_XFER_VERSION,
+    'source upgrade-mask',
+  ));
   if (version !== SOURCE_UPGRADE_MASK_XFER_VERSION) {
     throw new Error(`Unsupported source upgrade-mask version ${version}.`);
   }
-  const count = xfer.xferUnsignedShort(0);
+  const current = Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+  const count = xfer.xferUnsignedShort(
+    xfer.getMode() === XferMode.XFER_LOAD ? 0 : current.length,
+  );
   const names: string[] = [];
   for (let index = 0; index < count; index += 1) {
-    names.push(xfer.xferAsciiString(''));
+    names.push(xfer.xferAsciiString(
+      xfer.getMode() === XferMode.XFER_LOAD ? '' : current[index]!,
+    ));
   }
   return names;
 }
 
-function xferSourceMatrix3D(xfer: XferLoad): number[] {
-  const version = xfer.xferVersion(SOURCE_MATRIX3D_XFER_VERSION);
+function xferSourceMatrix3DState(
+  xfer: Xfer,
+  value: number[] | null | undefined,
+  requestedVersion?: number,
+): number[] {
+  const version = xfer.xferVersion(resolveSourceVersion(
+    requestedVersion ?? SOURCE_MATRIX3D_XFER_VERSION,
+    SOURCE_MATRIX3D_XFER_VERSION,
+    'source Matrix3D',
+  ));
   if (version !== SOURCE_MATRIX3D_XFER_VERSION) {
     throw new Error(`Unsupported source Matrix3D version ${version}.`);
   }
+  const current = Array.from({ length: 12 }, (_, index) => {
+    if (Array.isArray(value) && Number.isFinite(value[index])) {
+      return value[index]!;
+    }
+    return index === 0 || index === 5 || index === 10 ? 1 : 0;
+  });
   const values: number[] = [];
   for (let index = 0; index < 12; index += 1) {
-    values.push(xfer.xferReal(0));
+    values.push(xfer.xferReal(
+      xfer.getMode() === XferMode.XFER_LOAD ? 0 : current[index]!,
+    ));
   }
   return values;
 }
 
-function xferSourceGeometryInfo(xfer: XferLoad): void {
-  const version = xfer.xferVersion(SOURCE_GEOMETRY_INFO_XFER_VERSION);
+function xferSourceGeometryInfoState(
+  xfer: Xfer,
+  value: SourceGeometryInfoSaveState | null | undefined,
+): SourceGeometryInfoSaveState {
+  const version = xfer.xferVersion(resolveSourceVersion(
+    value?.version ?? SOURCE_GEOMETRY_INFO_XFER_VERSION,
+    SOURCE_GEOMETRY_INFO_XFER_VERSION,
+    'source GeometryInfo',
+  ));
   if (version !== SOURCE_GEOMETRY_INFO_XFER_VERSION) {
     throw new Error(`Unsupported source GeometryInfo version ${version}.`);
   }
-  xfer.xferInt(0);
-  xfer.xferBool(false);
-  xfer.xferReal(0);
-  xfer.xferReal(0);
-  xfer.xferReal(0);
-  xfer.xferReal(0);
-  xfer.xferReal(0);
+  const current = value ?? createEmptySourceGeometryInfoSaveState();
+  return {
+    version,
+    type: xfer.xferInt(current.type),
+    isSmall: xfer.xferBool(current.isSmall),
+    height: xfer.xferReal(current.height),
+    majorRadius: xfer.xferReal(current.majorRadius),
+    minorRadius: xfer.xferReal(current.minorRadius),
+    boundingCircleRadius: xfer.xferReal(current.boundingCircleRadius),
+    boundingSphereRadius: xfer.xferReal(current.boundingSphereRadius),
+  };
 }
 
-function xferSourceSightingInfo(xfer: XferLoad): void {
-  const version = xfer.xferVersion(SOURCE_SIGHTING_INFO_XFER_VERSION);
+function xferSourceSightingInfoState(
+  xfer: Xfer,
+  value: SourceSightingInfoSaveState | null | undefined,
+): SourceSightingInfoSaveState {
+  const version = xfer.xferVersion(resolveSourceVersion(
+    value?.version ?? SOURCE_SIGHTING_INFO_XFER_VERSION,
+    SOURCE_SIGHTING_INFO_XFER_VERSION,
+    'source SightingInfo',
+  ));
   if (version !== SOURCE_SIGHTING_INFO_XFER_VERSION) {
     throw new Error(`Unsupported source SightingInfo version ${version}.`);
   }
-  xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
-  xfer.xferReal(0);
-  xfer.xferUnsignedShort(0);
-  xfer.xferUnsignedInt(0);
+  const current = value ?? createEmptySourceSightingInfoSaveState();
+  return {
+    version,
+    where: xfer.xferCoord3D(current.where),
+    howFar: xfer.xferReal(current.howFar),
+    forWhomMask: xfer.xferUnsignedShort(current.forWhomMask),
+    data: xfer.xferUnsignedInt(current.data),
+  };
 }
 
-function xferSourceExperienceTracker(xfer: XferLoad): void {
-  const version = xfer.xferVersion(SOURCE_EXPERIENCE_TRACKER_XFER_VERSION);
+function xferSourceExperienceTrackerState(
+  xfer: Xfer,
+  value: SourceExperienceTrackerSaveState | null | undefined,
+): SourceExperienceTrackerSaveState {
+  const version = xfer.xferVersion(resolveSourceVersion(
+    value?.version ?? SOURCE_EXPERIENCE_TRACKER_XFER_VERSION,
+    SOURCE_EXPERIENCE_TRACKER_XFER_VERSION,
+    'source ExperienceTracker',
+  ));
   if (version !== SOURCE_EXPERIENCE_TRACKER_XFER_VERSION) {
     throw new Error(`Unsupported source ExperienceTracker version ${version}.`);
   }
-  xfer.xferInt(0);
-  xfer.xferInt(0);
-  xfer.xferObjectID(0);
-  xfer.xferReal(0);
+  const current = value ?? createEmptySourceExperienceTrackerSaveState();
+  return {
+    version,
+    currentLevel: xfer.xferInt(current.currentLevel),
+    currentExperience: xfer.xferInt(current.currentExperience),
+    experienceSinkObjectId: xfer.xferObjectID(current.experienceSinkObjectId),
+    experienceScalar: xfer.xferReal(current.experienceScalar),
+  };
 }
 
-function xferSourceWeapon(xfer: XferLoad): void {
-  const version = xfer.xferVersion(SOURCE_WEAPON_XFER_VERSION);
+function xferSourceWeaponState(
+  xfer: Xfer,
+  value: SourceWeaponSaveState | null | undefined,
+): SourceWeaponSaveState {
+  const version = xfer.xferVersion(resolveSourceVersion(
+    value?.version ?? SOURCE_WEAPON_XFER_VERSION,
+    SOURCE_WEAPON_XFER_VERSION,
+    'source Weapon',
+  ));
   if (version < 1 || version > SOURCE_WEAPON_XFER_VERSION) {
     throw new Error(`Unsupported source Weapon version ${version}.`);
   }
-  if (version >= 2) {
-    xfer.xferAsciiString('');
-  }
-  xfer.xferInt(0);
-  xfer.xferInt(0);
-  xfer.xferUnsignedInt(0);
-  xfer.xferUnsignedInt(0);
-  xfer.xferUnsignedInt(0);
-  xfer.xferUnsignedInt(0);
-  xfer.xferUnsignedInt(0);
-  if (version >= 3) {
-    xfer.xferUnsignedInt(0);
-  }
+  const current = value ?? createEmptySourceWeaponSaveState();
+  const templateName = version >= 2 ? xfer.xferAsciiString(current.templateName) : '';
+  const slot = xfer.xferInt(current.slot);
+  const status = xfer.xferInt(current.status);
+  const ammoInClip = xfer.xferUnsignedInt(current.ammoInClip);
+  const whenWeCanFireAgain = xfer.xferUnsignedInt(current.whenWeCanFireAgain);
+  const whenPreAttackFinished = xfer.xferUnsignedInt(current.whenPreAttackFinished);
+  const whenLastReloadStarted = xfer.xferUnsignedInt(current.whenLastReloadStarted);
+  const lastFireFrame = xfer.xferUnsignedInt(current.lastFireFrame);
+  const suspendFXFrame = version >= 3 ? xfer.xferUnsignedInt(current.suspendFXFrame) : 0;
+  const projectileStreamObjectId = xfer.xferObjectID(current.projectileStreamObjectId);
   xfer.xferObjectID(0);
-  xfer.xferObjectID(0);
-  xfer.xferInt(0);
-  xfer.xferInt(0);
-  xfer.xferInt(0);
-  const scatterCount = xfer.xferUnsignedShort(0);
+  const maxShotCount = xfer.xferInt(current.maxShotCount);
+  const currentBarrel = xfer.xferInt(current.currentBarrel);
+  const numShotsForCurrentBarrel = xfer.xferInt(current.numShotsForCurrentBarrel);
+  const scatterTargetsInput = Array.isArray(current.scatterTargetsUnused)
+    ? current.scatterTargetsUnused.map((entry) => Math.trunc(entry))
+    : [];
+  const scatterCount = xfer.xferUnsignedShort(
+    xfer.getMode() === XferMode.XFER_LOAD ? 0 : scatterTargetsInput.length,
+  );
   if (scatterCount > SOURCE_MAX_SCATTER_TARGETS) {
     throw new Error(`Weapon scatter target count ${scatterCount} exceeds limit ${SOURCE_MAX_SCATTER_TARGETS}.`);
   }
+  const scatterTargetsUnused: number[] = [];
   for (let index = 0; index < scatterCount; index += 1) {
-    xfer.xferInt(0);
+    scatterTargetsUnused.push(xfer.xferInt(
+      xfer.getMode() === XferMode.XFER_LOAD ? 0 : scatterTargetsInput[index]!,
+    ));
   }
-  xfer.xferBool(false);
-  xfer.xferBool(false);
+  const pitchLimited = xfer.xferBool(current.pitchLimited);
+  const leechWeaponRangeActive = xfer.xferBool(current.leechWeaponRangeActive);
+  return {
+    version,
+    templateName,
+    slot,
+    status,
+    ammoInClip,
+    whenWeCanFireAgain,
+    whenPreAttackFinished,
+    whenLastReloadStarted,
+    lastFireFrame,
+    suspendFXFrame,
+    projectileStreamObjectId,
+    maxShotCount,
+    currentBarrel,
+    numShotsForCurrentBarrel,
+    scatterTargetsUnused,
+    pitchLimited,
+    leechWeaponRangeActive,
+  };
 }
 
-function xferSourceWeaponSet(xfer: XferLoad): void {
-  const version = xfer.xferVersion(SOURCE_WEAPON_SET_XFER_VERSION);
+function xferSourceWeaponSetState(
+  xfer: Xfer,
+  value: SourceWeaponSetSaveState | null | undefined,
+): SourceWeaponSetSaveState {
+  const version = xfer.xferVersion(resolveSourceVersion(
+    value?.version ?? SOURCE_WEAPON_SET_XFER_VERSION,
+    SOURCE_WEAPON_SET_XFER_VERSION,
+    'source WeaponSet',
+  ));
   if (version !== SOURCE_WEAPON_SET_XFER_VERSION) {
     throw new Error(`Unsupported source WeaponSet version ${version}.`);
   }
-
-  xfer.xferAsciiString('');
-  xferSourceStringBitFlags(xfer, 'weapon-set');
+  const current = value ?? createEmptySourceWeaponSetSaveState();
+  const templateName = xfer.xferAsciiString(current.templateName);
+  const templateSetFlags = xferSourceStringBitFlagsState(xfer, current.templateSetFlags, 'weapon-set');
+  const weapons: Array<SourceWeaponSaveState | null> = [];
   for (let index = 0; index < SOURCE_WEAPON_SLOT_COUNT; index += 1) {
-    const hasWeapon = xfer.xferBool(false);
-    if (hasWeapon) {
-      xferSourceWeapon(xfer);
-    }
+    const sourceWeapon = current.weapons[index] ?? null;
+    const hasWeapon = xfer.xferBool(sourceWeapon !== null);
+    weapons.push(hasWeapon
+      ? xferSourceWeaponState(xfer, sourceWeapon ?? createEmptySourceWeaponSaveState())
+      : null);
   }
-  xfer.xferInt(0);
-  xfer.xferInt(0);
-  xfer.xferUnsignedInt(0);
-  xfer.xferInt(0);
-  xfer.xferBool(false);
-  xfer.xferBool(false);
-  xferSourceStringBitFlags(xfer, 'weapon-damage-type');
+  const currentWeapon = xfer.xferInt(current.currentWeapon);
+  const currentWeaponLockedStatus = xfer.xferInt(current.currentWeaponLockedStatus);
+  const filledWeaponSlotMask = xfer.xferUnsignedInt(current.filledWeaponSlotMask);
+  const totalAntiMask = xfer.xferInt(current.totalAntiMask);
+  const hasDamageWeapon = xfer.xferBool(current.hasDamageWeapon);
+  xfer.xferBool(current.hasDamageWeapon);
+  const totalDamageTypeMask = xferSourceStringBitFlagsState(
+    xfer,
+    current.totalDamageTypeMask,
+    'weapon-damage-type',
+  );
+  return {
+    version,
+    templateName,
+    templateSetFlags,
+    weapons,
+    currentWeapon,
+    currentWeaponLockedStatus,
+    filledWeaponSlotMask,
+    totalAntiMask,
+    hasDamageWeapon,
+    totalDamageTypeMask,
+  };
+}
+
+function xferSourceObjectModuleStates(
+  xfer: Xfer,
+  value: SourceObjectModuleSaveState[] | null | undefined,
+): SourceObjectModuleSaveState[] {
+  const current = Array.isArray(value) ? value : [];
+  const moduleCount = xfer.xferUnsignedShort(
+    xfer.getMode() === XferMode.XFER_LOAD ? 0 : current.length,
+  );
+  if (moduleCount > SOURCE_MAX_MODULE_COUNT) {
+    throw new Error(`Module count ${moduleCount} exceeds limit ${SOURCE_MAX_MODULE_COUNT}.`);
+  }
+  const modules: SourceObjectModuleSaveState[] = [];
+  for (let index = 0; index < moduleCount; index += 1) {
+    const sourceModule = current[index] ?? { identifier: '', blockData: new Uint8Array() };
+    const identifier = xfer.xferAsciiString(
+      xfer.getMode() === XferMode.XFER_LOAD ? '' : sourceModule.identifier,
+    );
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      const blockSize = xfer.beginBlock();
+      if (blockSize < 0) {
+        throw new Error(`Negative module block size ${blockSize} for '${identifier}'.`);
+      }
+      const blockData = xfer.xferUser(new Uint8Array(blockSize)) as Uint8Array;
+      xfer.endBlock();
+      modules.push({ identifier, blockData });
+      continue;
+    }
+    xfer.beginBlock();
+    xfer.xferUser(sourceModule.blockData);
+    xfer.endBlock();
+    modules.push({
+      identifier,
+      blockData: new Uint8Array(sourceModule.blockData),
+    });
+  }
+  return modules;
+}
+
+function xferSourceMapEntityChunkState(
+  xfer: Xfer,
+  value: SourceMapEntitySaveState | null | undefined,
+): SourceMapEntitySaveState {
+  const current = value ?? createEmptySourceMapEntitySaveState();
+  const version = xfer.xferVersion(resolveSourceVersion(
+    current.version,
+    SOURCE_OBJECT_XFER_VERSION,
+    'source Object',
+  ));
+  const objectId = xfer.xferObjectID(current.objectId);
+  const transformMatrix = version >= 7
+    ? xferSourceMatrix3DState(xfer, current.transformMatrix, SOURCE_MATRIX3D_XFER_VERSION)
+    : null;
+  const position = version >= 7
+    ? null
+    : xfer.xferCoord3D(current.position ?? { x: 0, y: 0, z: 0 });
+  const orientation = version >= 7 ? null : xfer.xferReal(current.orientation ?? 0);
+  const teamId = xfer.xferUnsignedInt(current.teamId);
+  const producerId = xfer.xferObjectID(current.producerId);
+  const builderId = xfer.xferObjectID(current.builderId);
+  const drawableId = xfer.xferObjectID(current.drawableId);
+  const internalName = xfer.xferAsciiString(current.internalName);
+  const statusBits = version >= 8
+    ? xferSourceStringBitFlagsState(xfer, current.statusBits, 'object-status')
+    : [];
+  const legacyStatusMaskValue = version >= 8
+    ? null
+    : xfer.xferUnsignedInt(current.legacyStatusMaskValue ?? 0);
+  const scriptStatus = xfer.xferUnsignedByte(current.scriptStatus);
+  const privateStatus = xfer.xferUnsignedByte(current.privateStatus);
+  const geometryInfo = xferSourceGeometryInfoState(xfer, current.geometryInfo);
+  const partitionLastLook = xferSourceSightingInfoState(xfer, current.partitionLastLook);
+  const partitionRevealAllLastLook = version >= 9
+    ? xferSourceSightingInfoState(xfer, current.partitionRevealAllLastLook)
+    : null;
+  const partitionLastShroud = xferSourceSightingInfoState(xfer, current.partitionLastShroud);
+  const visionSpiedByInput = Array.from({ length: SOURCE_MAX_PLAYER_COUNT }, (_, index) =>
+    Array.isArray(current.visionSpiedBy) && Number.isFinite(current.visionSpiedBy[index])
+      ? Math.trunc(current.visionSpiedBy[index]!)
+      : 0,
+  );
+  const visionSpiedBy: number[] = [];
+  for (let index = 0; index < SOURCE_MAX_PLAYER_COUNT; index += 1) {
+    visionSpiedBy.push(xfer.xferInt(
+      xfer.getMode() === XferMode.XFER_LOAD ? 0 : visionSpiedByInput[index]!,
+    ));
+  }
+  const visionSpiedMask = xfer.xferUnsignedShort(current.visionSpiedMask);
+  const visionRange = xfer.xferReal(current.visionRange);
+  const shroudClearingRange = xfer.xferReal(current.shroudClearingRange);
+  const shroudRange = xfer.xferReal(current.shroudRange);
+  const disabledMask = xferSourceStringBitFlagsState(xfer, current.disabledMask, 'disabled-mask');
+  const singleUseCommandUsed = version >= 2
+    ? xfer.xferBool(current.singleUseCommandUsed)
+    : false;
+  const disabledTillFrameInput = Array.from({ length: SOURCE_DISABLED_COUNT }, (_, index) =>
+    Array.isArray(current.disabledTillFrame) && Number.isFinite(current.disabledTillFrame[index])
+      ? Math.max(0, Math.trunc(current.disabledTillFrame[index]!))
+      : 0,
+  );
+  const disabledTillFrame: number[] = [];
+  for (let index = 0; index < SOURCE_DISABLED_COUNT; index += 1) {
+    disabledTillFrame.push(xfer.xferUnsignedInt(
+      xfer.getMode() === XferMode.XFER_LOAD ? 0 : disabledTillFrameInput[index]!,
+    ));
+  }
+  const specialModelConditionUntil = xfer.xferUnsignedInt(current.specialModelConditionUntil);
+  const experienceTracker = xferSourceExperienceTrackerState(xfer, current.experienceTracker);
+  const containedByIdRaw = version >= 6
+    ? xfer.xferObjectID(current.containedById ?? 0)
+    : 0;
+  const containedById = version >= 6 && containedByIdRaw !== 0 ? containedByIdRaw : null;
+  const containedByFrame = xfer.xferUnsignedInt(current.containedByFrame);
+  const constructionPercent = xfer.xferReal(current.constructionPercent);
+  const completedUpgradeNames = xferSourceUpgradeMaskState(xfer, current.completedUpgradeNames);
+  const originalTeamName = xfer.xferAsciiString(current.originalTeamName);
+  const indicatorColor = xfer.xferColor(current.indicatorColor);
+  const healthBoxOffset = xfer.xferCoord3D(current.healthBoxOffset);
+  const triggerAreasInput = Array.isArray(current.triggerAreas) ? current.triggerAreas : [];
+  const triggerAreaCount = xfer.xferByte(
+    xfer.getMode() === XferMode.XFER_LOAD ? 0 : triggerAreasInput.length,
+  );
+  if (triggerAreaCount > SOURCE_OBJECT_TRIGGER_INFO_LIMIT) {
+    throw new Error(`Trigger-area count ${triggerAreaCount} exceeds limit ${SOURCE_OBJECT_TRIGGER_INFO_LIMIT}.`);
+  }
+  const enteredOrExitedFrame = xfer.xferUnsignedInt(current.enteredOrExitedFrame);
+  const ipos = xferSourceICoord3DState(xfer, current.ipos);
+  const triggerAreas: SourceObjectTriggerAreaSaveState[] = [];
+  for (let index = 0; index < triggerAreaCount; index += 1) {
+    const triggerArea = triggerAreasInput[index] ?? {
+      triggerName: '',
+      entered: 0,
+      exited: 0,
+      isInside: 0,
+    };
+    triggerAreas.push({
+      triggerName: xfer.xferAsciiString(triggerArea.triggerName),
+      entered: xfer.xferByte(triggerArea.entered),
+      exited: xfer.xferByte(triggerArea.exited),
+      isInside: xfer.xferByte(triggerArea.isInside),
+    });
+  }
+  const layer = xfer.xferInt(current.layer);
+  const destinationLayer = xfer.xferInt(current.destinationLayer);
+  const isSelectable = xfer.xferBool(current.isSelectable);
+  const safeOcclusionFrame = xfer.xferUnsignedInt(current.safeOcclusionFrame);
+  const formationId = xfer.xferInt(current.formationId);
+  const formationOffset = formationId !== 0
+    ? xferSourceCoord2DState(xfer, current.formationOffset)
+    : null;
+  const modules = xferSourceObjectModuleStates(xfer, current.modules);
+  const soleHealingBenefactorIdRaw = version >= 3
+    ? xfer.xferObjectID(current.soleHealingBenefactorId ?? 0)
+    : 0;
+  const soleHealingBenefactorId = version >= 3 && soleHealingBenefactorIdRaw !== 0
+    ? soleHealingBenefactorIdRaw
+    : null;
+  const soleHealingBenefactorExpirationFrame = version >= 3
+    ? xfer.xferUnsignedInt(current.soleHealingBenefactorExpirationFrame)
+    : 0;
+  const weaponSetFlags = version >= 4
+    ? xferSourceStringBitFlagsState(xfer, current.weaponSetFlags, 'weapon-set-flags')
+    : [];
+  const weaponBonusCondition = version >= 4
+    ? xfer.xferUnsignedInt(current.weaponBonusCondition)
+    : 0;
+  const lastWeaponCondition = version >= 4
+    ? xferSourceFixedBytes(xfer, current.lastWeaponCondition, SOURCE_WEAPON_SLOT_COUNT)
+    : Array.from({ length: SOURCE_WEAPON_SLOT_COUNT }, () => 0);
+  const weaponSet = version >= 4
+    ? xferSourceWeaponSetState(xfer, current.weaponSet)
+    : null;
+  const specialPowerBits = version >= 4
+    ? xferSourceStringBitFlagsState(xfer, current.specialPowerBits, 'special-power-bits')
+    : [];
+  const commandSetStringOverride = version >= 4
+    ? xfer.xferAsciiString(current.commandSetStringOverride)
+    : '';
+  const modulesReady = version >= 4 ? xfer.xferBool(current.modulesReady) : false;
+  const isReceivingDifficultyBonus = version >= 5
+    ? xfer.xferBool(current.isReceivingDifficultyBonus)
+    : false;
+  return {
+    version,
+    objectId,
+    transformMatrix,
+    position,
+    orientation,
+    teamId,
+    producerId,
+    builderId,
+    drawableId,
+    internalName,
+    statusBits,
+    legacyStatusMaskValue,
+    scriptStatus,
+    privateStatus,
+    geometryInfo,
+    partitionLastLook,
+    partitionRevealAllLastLook,
+    partitionLastShroud,
+    visionSpiedBy,
+    visionSpiedMask,
+    visionRange,
+    shroudClearingRange,
+    shroudRange,
+    disabledMask,
+    singleUseCommandUsed,
+    disabledTillFrame,
+    specialModelConditionUntil,
+    experienceTracker,
+    containedById,
+    containedByFrame,
+    constructionPercent,
+    completedUpgradeNames,
+    originalTeamName,
+    indicatorColor,
+    healthBoxOffset,
+    enteredOrExitedFrame,
+    ipos,
+    triggerAreas,
+    layer,
+    destinationLayer,
+    isSelectable,
+    safeOcclusionFrame,
+    formationId,
+    formationOffset,
+    modules,
+    soleHealingBenefactorId,
+    soleHealingBenefactorExpirationFrame,
+    weaponSetFlags,
+    weaponBonusCondition,
+    lastWeaponCondition,
+    weaponSet,
+    specialPowerBits,
+    commandSetStringOverride,
+    modulesReady,
+    isReceivingDifficultyBonus,
+  };
+}
+
+export function parseSourceMapEntityChunk(
+  data: ArrayBuffer | Uint8Array,
+): SourceMapEntitySaveState | null {
+  const xfer = new XferLoad(toStandaloneArrayBuffer(data));
+  xfer.open('parse-source-map-entity');
+  try {
+    const parsed = xferSourceMapEntityChunkState(xfer, createEmptySourceMapEntitySaveState());
+    if (xfer.getRemaining() !== 0) {
+      throw new Error(`${xfer.getRemaining()} trailing bytes remain after source Object::xfer parse.`);
+    }
+    return parsed;
+  } catch {
+    return null;
+  } finally {
+    xfer.close();
+  }
+}
+
+export function buildSourceMapEntityChunk(state: SourceMapEntitySaveState): ArrayBuffer {
+  const xfer = new XferSave();
+  xfer.open('build-source-map-entity');
+  try {
+    xferSourceMapEntityChunkState(xfer, state);
+    return xfer.getBuffer();
+  } finally {
+    xfer.close();
+  }
 }
 
 function inspectSourceMapEntityChunk(
@@ -237,7 +930,7 @@ function inspectSourceMapEntityChunk(
 
     objectId = xfer.xferObjectID(0);
     if (version >= 7) {
-      xferSourceMatrix3D(xfer);
+      xferSourceMatrix3DState(xfer, null);
     } else {
       xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
       xfer.xferReal(0);
@@ -249,18 +942,18 @@ function inspectSourceMapEntityChunk(
     xfer.xferObjectID(0);
     xfer.xferAsciiString('');
     if (version >= 8) {
-      xferSourceStringBitFlags(xfer, 'object-status');
+      xferSourceStringBitFlagsState(xfer, null, 'object-status');
     } else {
       xfer.xferUnsignedInt(0);
     }
     xfer.xferUnsignedByte(0);
     xfer.xferUnsignedByte(0);
-    xferSourceGeometryInfo(xfer);
-    xferSourceSightingInfo(xfer);
+    xferSourceGeometryInfoState(xfer, null);
+    xferSourceSightingInfoState(xfer, null);
     if (version >= 9) {
-      xferSourceSightingInfo(xfer);
+      xferSourceSightingInfoState(xfer, null);
     }
-    xferSourceSightingInfo(xfer);
+    xferSourceSightingInfoState(xfer, null);
     for (let index = 0; index < SOURCE_MAX_PLAYER_COUNT; index += 1) {
       xfer.xferInt(0);
     }
@@ -268,7 +961,7 @@ function inspectSourceMapEntityChunk(
     xfer.xferReal(0);
     xfer.xferReal(0);
     xfer.xferReal(0);
-    xferSourceStringBitFlags(xfer, 'disabled-mask');
+    xferSourceStringBitFlagsState(xfer, null, 'disabled-mask');
     if (version >= 2) {
       xfer.xferBool(false);
     }
@@ -276,13 +969,13 @@ function inspectSourceMapEntityChunk(
       xfer.xferUnsignedInt(0);
     }
     xfer.xferUnsignedInt(0);
-    xferSourceExperienceTracker(xfer);
+    xferSourceExperienceTrackerState(xfer, null);
     if (version >= 6) {
       xfer.xferObjectID(0);
     }
     xfer.xferUnsignedInt(0);
     xfer.xferReal(0);
-    xferSourceUpgradeMask(xfer);
+    xferSourceUpgradeMaskState(xfer, null);
     xfer.xferAsciiString('');
     xfer.xferColor(0);
     xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
@@ -293,7 +986,7 @@ function inspectSourceMapEntityChunk(
       );
     }
     xfer.xferUnsignedInt(0);
-    xferSourceICoord3D(xfer);
+    xferSourceICoord3DState(xfer, null);
     for (let index = 0; index < triggerAreaCount; index += 1) {
       xfer.xferAsciiString('');
       xfer.xferByte(0);
@@ -306,7 +999,7 @@ function inspectSourceMapEntityChunk(
     xfer.xferUnsignedInt(0);
     const hasFormation = xfer.xferInt(0) !== 0;
     if (hasFormation) {
-      xferSourceCoord2D(xfer);
+      xferSourceCoord2DState(xfer, null);
     }
     parsedThrough = 'preamble';
 
@@ -333,11 +1026,11 @@ function inspectSourceMapEntityChunk(
       xfer.xferUnsignedInt(0);
     }
     if (version >= 4) {
-      xferSourceStringBitFlags(xfer, 'weapon-set-flags');
+      xferSourceStringBitFlagsState(xfer, null, 'weapon-set-flags');
       xfer.xferUnsignedInt(0);
-      xferSourceRawBytes(xfer, SOURCE_WEAPON_SLOT_COUNT);
-      xferSourceWeaponSet(xfer);
-      xferSourceStringBitFlags(xfer, 'special-power-bits');
+      xferSourceFixedBytes(xfer, null, SOURCE_WEAPON_SLOT_COUNT);
+      xferSourceWeaponSetState(xfer, null);
+      xferSourceStringBitFlagsState(xfer, null, 'special-power-bits');
       xfer.xferAsciiString('');
       xfer.xferBool(false);
     }
