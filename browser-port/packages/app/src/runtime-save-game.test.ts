@@ -187,6 +187,170 @@ function readSaveChunkData(data: ArrayBuffer, blockName: string): Uint8Array | n
   return new Uint8Array(data, chunk.blockDataOffset, chunk.blockSize).slice();
 }
 
+function writeSourceBitFlags(xfer: XferSave, names: string[] = []): void {
+  xfer.xferVersion(1);
+  xfer.xferInt(names.length);
+  for (const name of names) {
+    xfer.xferAsciiString(name);
+  }
+}
+
+function writeSourceUpgradeMask(xfer: XferSave, names: string[] = []): void {
+  xfer.xferVersion(1);
+  xfer.xferUnsignedShort(names.length);
+  for (const name of names) {
+    xfer.xferAsciiString(name);
+  }
+}
+
+function writeSourceMatrix3D(xfer: XferSave): void {
+  xfer.xferVersion(1);
+  for (let index = 0; index < 12; index += 1) {
+    xfer.xferReal(index === 0 || index === 5 || index === 10 ? 1 : 0);
+  }
+}
+
+function writeSourceGeometryInfo(xfer: XferSave): void {
+  xfer.xferVersion(1);
+  xfer.xferInt(0);
+  xfer.xferBool(false);
+  xfer.xferReal(0);
+  xfer.xferReal(8);
+  xfer.xferReal(8);
+  xfer.xferReal(8);
+  xfer.xferReal(8);
+}
+
+function writeSourceSightingInfo(xfer: XferSave): void {
+  xfer.xferVersion(1);
+  xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+  xfer.xferReal(0);
+  xfer.xferUnsignedShort(0);
+  xfer.xferUnsignedInt(0);
+}
+
+function writeSourceExperienceTracker(xfer: XferSave): void {
+  xfer.xferVersion(1);
+  xfer.xferInt(1);
+  xfer.xferInt(150);
+  xfer.xferObjectID(0);
+  xfer.xferReal(1);
+}
+
+function writeSourceWeaponSet(xfer: XferSave): void {
+  xfer.xferVersion(1);
+  xfer.xferAsciiString('');
+  writeSourceBitFlags(xfer);
+  for (let index = 0; index < 3; index += 1) {
+    xfer.xferBool(false);
+  }
+  xfer.xferInt(0);
+  xfer.xferInt(0);
+  xfer.xferUnsignedInt(0);
+  xfer.xferInt(0);
+  xfer.xferBool(false);
+  xfer.xferBool(false);
+  writeSourceBitFlags(xfer);
+}
+
+function createSourceObjectBlockData(): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-object-block');
+  try {
+    xferSave.xferVersion(9);
+    xferSave.xferObjectID(7);
+    writeSourceMatrix3D(xferSave);
+    xferSave.xferUnsignedInt(3);
+    xferSave.xferObjectID(0);
+    xferSave.xferObjectID(0);
+    xferSave.xferObjectID(9);
+    xferSave.xferAsciiString('UNIT_007');
+    writeSourceBitFlags(xferSave, ['SELECTABLE']);
+    xferSave.xferUnsignedByte(0);
+    xferSave.xferUnsignedByte(0);
+    writeSourceGeometryInfo(xferSave);
+    writeSourceSightingInfo(xferSave);
+    writeSourceSightingInfo(xferSave);
+    writeSourceSightingInfo(xferSave);
+    for (let index = 0; index < 16; index += 1) {
+      xferSave.xferInt(0);
+    }
+    xferSave.xferUnsignedShort(0);
+    xferSave.xferReal(150);
+    xferSave.xferReal(150);
+    xferSave.xferReal(150);
+    writeSourceBitFlags(xferSave);
+    xferSave.xferBool(false);
+    for (let index = 0; index < 13; index += 1) {
+      xferSave.xferUnsignedInt(0);
+    }
+    xferSave.xferUnsignedInt(0);
+    writeSourceExperienceTracker(xferSave);
+    xferSave.xferObjectID(0);
+    xferSave.xferUnsignedInt(0);
+    xferSave.xferReal(100);
+    writeSourceUpgradeMask(xferSave);
+    xferSave.xferAsciiString('');
+    xferSave.xferColor(0);
+    xferSave.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xferSave.xferByte(0);
+    xferSave.xferUnsignedInt(0);
+    xferSave.xferInt(0);
+    xferSave.xferInt(0);
+    xferSave.xferInt(0);
+    xferSave.xferInt(1);
+    xferSave.xferInt(1);
+    xferSave.xferBool(true);
+    xferSave.xferUnsignedInt(0);
+    xferSave.xferInt(0);
+    xferSave.xferUnsignedShort(0);
+    xferSave.xferObjectID(0);
+    xferSave.xferUnsignedInt(0);
+    writeSourceBitFlags(xferSave);
+    xferSave.xferUnsignedInt(0);
+    xferSave.xferUser(new Uint8Array(3));
+    writeSourceWeaponSet(xferSave);
+    writeSourceBitFlags(xferSave);
+    xferSave.xferAsciiString('');
+    xferSave.xferBool(true);
+    xferSave.xferBool(false);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceGameLogicChunkData(): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-game-logic-chunk');
+  try {
+    xferSave.xferVersion(3);
+    xferSave.xferUnsignedInt(42);
+    xferSave.xferVersion(1);
+    xferSave.xferUnsignedInt(1);
+    xferSave.xferAsciiString('RuntimeTank');
+    xferSave.xferUnsignedShort(1);
+    xferSave.xferUnsignedInt(1);
+    xferSave.xferUnsignedShort(1);
+    xferSave.beginBlock();
+    xferSave.xferUser(createSourceObjectBlockData());
+    xferSave.endBlock();
+
+    xferSave.xferVersion(3);
+    xferSave.xferAsciiString('america');
+    xferSave.xferAsciiString('mission01');
+    xferSave.xferInt(0);
+    xferSave.xferInt(1);
+
+    xferSave.xferUnsignedShort(0);
+    xferSave.xferBool(false);
+    xferSave.xferUnsignedInt(0);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createRawGameClientDrawableBlockData(objectId: number, drawableId: number): ArrayBuffer {
   const xferSave = new XferSave();
   xferSave.open('create-raw-game-client-drawable-block-data');
@@ -999,6 +1163,8 @@ describe('runtime-save-game', () => {
       frameCounter: null,
       objectTocCount: null,
       objectCount: null,
+      firstObjectTemplateName: null,
+      firstObjectTocId: null,
       firstObjectVersion: null,
       firstObjectLayout: null,
       reason: expect.any(String),
@@ -2347,6 +2513,28 @@ describe('runtime-save-game', () => {
       { blockName: 'CHUNK_InGameUI', mode: 'raw_passthrough' },
     ]);
     expect(readGameClientChunk(rebuilt.data)?.briefingLines).toEqual(['MISSION_GAMMA']);
+  });
+
+  it('inspects a source-shaped CHUNK_GameLogic shell and first object layout', () => {
+    expect(inspectGameLogicChunkLayout(createSourceGameLogicChunkData())).toEqual({
+      layout: 'source_outer',
+      version: 3,
+      frameCounter: 42,
+      objectTocCount: 1,
+      objectCount: 1,
+      firstObjectTemplateName: 'RuntimeTank',
+      firstObjectTocId: 1,
+      firstObjectVersion: 9,
+      firstObjectLayout: {
+        layout: 'source_partial',
+        version: 9,
+        objectId: 7,
+        parsedThrough: 'complete',
+        moduleCount: 0,
+        moduleIdentifiers: [],
+        remainingBytes: 0,
+      },
+    });
   });
 
   it('round-trips live particle-system save state through CHUNK_ParticleSystem', () => {

@@ -400,6 +400,8 @@ export interface RuntimeSaveGameLogicChunkLayoutInspection {
   frameCounter: number | null;
   objectTocCount: number | null;
   objectCount: number | null;
+  firstObjectTemplateName: string | null;
+  firstObjectTocId: number | null;
   firstObjectVersion: number | null;
   firstObjectLayout: MapEntityChunkLayoutInspection | null;
   reason?: string;
@@ -2743,22 +2745,33 @@ function inspectSourceGameLogicChunk(
         frameCounter,
         objectTocCount: null,
         objectCount: null,
+        firstObjectTemplateName: null,
+        firstObjectTocId: null,
         firstObjectVersion: null,
         firstObjectLayout: null,
         reason: `Unsupported object TOC version ${tocVersion}`,
       };
     }
     const objectTocCount = xferLoad.xferUnsignedInt(0);
+    const tocEntries: Array<{ templateName: string; tocId: number }> = [];
     for (let index = 0; index < objectTocCount; index += 1) {
-      xferLoad.xferAsciiString('');
-      xferLoad.xferUnsignedShort(0);
+      tocEntries.push({
+        templateName: xferLoad.xferAsciiString(''),
+        tocId: xferLoad.xferUnsignedShort(0),
+      });
     }
 
     const objectCount = xferLoad.xferUnsignedInt(0);
+    let firstObjectTemplateName: string | null = null;
+    let firstObjectTocId: number | null = null;
     let firstObjectVersion: number | null = null;
     let firstObjectLayout: MapEntityChunkLayoutInspection | null = null;
     for (let index = 0; index < objectCount; index += 1) {
-      xferLoad.xferUnsignedShort(0);
+      const tocId = xferLoad.xferUnsignedShort(0);
+      if (firstObjectTocId === null) {
+        firstObjectTocId = tocId;
+        firstObjectTemplateName = tocEntries.find((entry) => entry.tocId === tocId)?.templateName ?? null;
+      }
       const objectDataSize = xferLoad.beginBlock();
       if (objectDataSize < 1) {
         return {
@@ -2767,6 +2780,8 @@ function inspectSourceGameLogicChunk(
           frameCounter,
           objectTocCount,
           objectCount,
+          firstObjectTemplateName,
+          firstObjectTocId,
           firstObjectVersion,
           firstObjectLayout,
           reason: `Object block ${index} is empty.`,
@@ -2786,6 +2801,8 @@ function inspectSourceGameLogicChunk(
         frameCounter,
         objectTocCount,
         objectCount,
+        firstObjectTemplateName,
+        firstObjectTocId,
         firstObjectVersion,
         firstObjectLayout,
         reason: `First source object block did not match Object::xfer framing (${firstObjectLayout.layout}).`,
@@ -2798,6 +2815,8 @@ function inspectSourceGameLogicChunk(
         frameCounter,
         objectTocCount,
         objectCount,
+        firstObjectTemplateName,
+        firstObjectTocId,
         firstObjectVersion,
         firstObjectLayout,
         reason: `Unexpected source object snapshot version ${firstObjectVersion}`,
@@ -2852,6 +2871,8 @@ function inspectSourceGameLogicChunk(
         frameCounter,
         objectTocCount,
         objectCount,
+        firstObjectTemplateName,
+        firstObjectTocId,
         firstObjectVersion,
         firstObjectLayout,
         reason: `${xferLoad.getRemaining()} trailing bytes remain after source outer parse.`,
@@ -2864,6 +2885,8 @@ function inspectSourceGameLogicChunk(
       frameCounter,
       objectTocCount,
       objectCount,
+      firstObjectTemplateName,
+      firstObjectTocId,
       firstObjectVersion,
       firstObjectLayout,
     };
@@ -2874,6 +2897,8 @@ function inspectSourceGameLogicChunk(
       frameCounter: null,
       objectTocCount: null,
       objectCount: null,
+      firstObjectTemplateName: null,
+      firstObjectTocId: null,
       firstObjectVersion: null,
       firstObjectLayout: null,
       reason: error instanceof Error ? error.message : String(error),
@@ -2897,6 +2922,8 @@ export function inspectGameLogicChunkLayout(
       frameCounter: null,
       objectTocCount: null,
       objectCount: null,
+      firstObjectTemplateName: null,
+      firstObjectTocId: null,
       firstObjectVersion: null,
       firstObjectLayout: null,
       reason: sourceInspection?.reason,
@@ -2908,6 +2935,8 @@ export function inspectGameLogicChunkLayout(
     frameCounter: null,
     objectTocCount: null,
     objectCount: null,
+    firstObjectTemplateName: null,
+    firstObjectTocId: null,
     firstObjectVersion: null,
     firstObjectLayout: null,
     reason: 'Unable to classify game-logic chunk layout.',
