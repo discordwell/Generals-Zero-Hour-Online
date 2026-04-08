@@ -1000,6 +1000,7 @@ describe('runtime-save-game', () => {
       objectTocCount: null,
       objectCount: null,
       firstObjectVersion: null,
+      firstObjectLayout: null,
       reason: expect.any(String),
     });
     expect(gameClientChunk).toEqual({

@@ -14,6 +14,8 @@ import {
 import type { CameraState } from '@generals/input';
 import * as THREE from 'three';
 import {
+  inspectMapEntityChunkLayout,
+  type MapEntityChunkLayoutInspection,
   xferMapEntity,
   type GameDifficulty,
   type GameLogicCaveTrackerSaveState,
@@ -399,6 +401,7 @@ export interface RuntimeSaveGameLogicChunkLayoutInspection {
   objectTocCount: number | null;
   objectCount: number | null;
   firstObjectVersion: number | null;
+  firstObjectLayout: MapEntityChunkLayoutInspection | null;
   reason?: string;
 }
 
@@ -2741,6 +2744,7 @@ function inspectSourceGameLogicChunk(
         objectTocCount: null,
         objectCount: null,
         firstObjectVersion: null,
+        firstObjectLayout: null,
         reason: `Unsupported object TOC version ${tocVersion}`,
       };
     }
@@ -2752,6 +2756,7 @@ function inspectSourceGameLogicChunk(
 
     const objectCount = xferLoad.xferUnsignedInt(0);
     let firstObjectVersion: number | null = null;
+    let firstObjectLayout: MapEntityChunkLayoutInspection | null = null;
     for (let index = 0; index < objectCount; index += 1) {
       xferLoad.xferUnsignedShort(0);
       const objectDataSize = xferLoad.beginBlock();
@@ -2763,17 +2768,28 @@ function inspectSourceGameLogicChunk(
           objectTocCount,
           objectCount,
           firstObjectVersion,
+          firstObjectLayout,
           reason: `Object block ${index} is empty.`,
         };
       }
-      const objectVersion = xferLoad.xferByte(0);
-      if (firstObjectVersion === null) {
-        firstObjectVersion = objectVersion;
-      }
-      if (objectDataSize > 1) {
-        xferLoad.skip(objectDataSize - 1);
+      const objectData = xferLoad.xferUser(new Uint8Array(objectDataSize));
+      if (firstObjectLayout === null) {
+        firstObjectLayout = inspectMapEntityChunkLayout(objectData);
+        firstObjectVersion = firstObjectLayout.version;
       }
       xferLoad.endBlock();
+    }
+    if (firstObjectLayout !== null && firstObjectLayout.layout !== 'source_partial') {
+      return {
+        layout: 'unknown',
+        version,
+        frameCounter,
+        objectTocCount,
+        objectCount,
+        firstObjectVersion,
+        firstObjectLayout,
+        reason: `First source object block did not match Object::xfer framing (${firstObjectLayout.layout}).`,
+      };
     }
     if (firstObjectVersion !== null && firstObjectVersion !== 9) {
       return {
@@ -2783,6 +2799,7 @@ function inspectSourceGameLogicChunk(
         objectTocCount,
         objectCount,
         firstObjectVersion,
+        firstObjectLayout,
         reason: `Unexpected source object snapshot version ${firstObjectVersion}`,
       };
     }
@@ -2836,6 +2853,7 @@ function inspectSourceGameLogicChunk(
         objectTocCount,
         objectCount,
         firstObjectVersion,
+        firstObjectLayout,
         reason: `${xferLoad.getRemaining()} trailing bytes remain after source outer parse.`,
       };
     }
@@ -2847,6 +2865,7 @@ function inspectSourceGameLogicChunk(
       objectTocCount,
       objectCount,
       firstObjectVersion,
+      firstObjectLayout,
     };
   } catch (error) {
     return {
@@ -2856,6 +2875,7 @@ function inspectSourceGameLogicChunk(
       objectTocCount: null,
       objectCount: null,
       firstObjectVersion: null,
+      firstObjectLayout: null,
       reason: error instanceof Error ? error.message : String(error),
     };
   } finally {
@@ -2878,6 +2898,7 @@ export function inspectGameLogicChunkLayout(
       objectTocCount: null,
       objectCount: null,
       firstObjectVersion: null,
+      firstObjectLayout: null,
       reason: sourceInspection?.reason,
     };
   }
@@ -2888,6 +2909,7 @@ export function inspectGameLogicChunkLayout(
     objectTocCount: null,
     objectCount: null,
     firstObjectVersion: null,
+    firstObjectLayout: null,
     reason: 'Unable to classify game-logic chunk layout.',
   };
 }

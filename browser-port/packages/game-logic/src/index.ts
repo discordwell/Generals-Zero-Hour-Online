@@ -215,7 +215,8 @@ import {
   type ScriptObjectAmbientSoundState,
   type SelectedEntityInfo,
 } from './types.js';
-export { xferMapEntity } from './entity-xfer.js';
+export { inspectMapEntityChunkLayout, xferMapEntity } from './entity-xfer.js';
+export type { MapEntityChunkLayoutInspection } from './entity-xfer.js';
 import {
   appendScriptSequentialScript as appendScriptSequentialScriptImpl,
   applyScriptObjectPanelFlag as applyScriptObjectPanelFlagImpl,

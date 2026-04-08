@@ -11,13 +11,418 @@
  */
 
 import type { Xfer } from '@generals/engine';
-import { XferMode } from '@generals/engine';
+import { XferLoad, XferMode } from '@generals/engine';
 
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
 const ENTITY_XFER_VERSION = 13;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
+const SOURCE_OBJECT_XFER_VERSION = 9;
+const SOURCE_MATRIX3D_XFER_VERSION = 1;
+const SOURCE_GEOMETRY_INFO_XFER_VERSION = 1;
+const SOURCE_SIGHTING_INFO_XFER_VERSION = 1;
+const SOURCE_EXPERIENCE_TRACKER_XFER_VERSION = 1;
+const SOURCE_WEAPON_SET_XFER_VERSION = 1;
+const SOURCE_WEAPON_XFER_VERSION = 3;
+const SOURCE_BIT_FLAGS_XFER_VERSION = 1;
+const SOURCE_UPGRADE_MASK_XFER_VERSION = 1;
+const SOURCE_OBJECT_TRIGGER_INFO_LIMIT = 5;
+const SOURCE_MAX_PLAYER_COUNT = 16;
+const SOURCE_DISABLED_COUNT = 13;
+const SOURCE_WEAPON_SLOT_COUNT = 3;
+const SOURCE_MAX_BIT_FLAG_NAMES = 4096;
+const SOURCE_MAX_MODULE_COUNT = 512;
+const SOURCE_MAX_SCATTER_TARGETS = 4096;
+
+export interface MapEntityChunkLayoutInspection {
+  layout: 'source_partial' | 'legacy' | 'unknown';
+  version: number | null;
+  objectId: number | null;
+  parsedThrough: 'preamble' | 'module_headers' | 'tail' | 'complete' | null;
+  moduleCount: number | null;
+  moduleIdentifiers: string[] | null;
+  remainingBytes: number | null;
+  reason?: string;
+}
+
+function toStandaloneArrayBuffer(data: ArrayBuffer | Uint8Array): ArrayBuffer {
+  if (data instanceof Uint8Array) {
+    const copy = new Uint8Array(data.byteLength);
+    copy.set(data);
+    return copy.buffer;
+  }
+  return data;
+}
+
+function xferSourceRawBytes(xfer: XferLoad, byteLength: number): Uint8Array {
+  if (byteLength < 0) {
+    throw new Error(`Negative raw-byte length ${byteLength}.`);
+  }
+  return xfer.xferUser(new Uint8Array(byteLength));
+}
+
+function xferSourceCoord2D(xfer: XferLoad): { x: number; y: number } {
+  return {
+    x: xfer.xferReal(0),
+    y: xfer.xferReal(0),
+  };
+}
+
+function xferSourceICoord3D(xfer: XferLoad): { x: number; y: number; z: number } {
+  return {
+    x: xfer.xferInt(0),
+    y: xfer.xferInt(0),
+    z: xfer.xferInt(0),
+  };
+}
+
+function xferSourceStringBitFlags(xfer: XferLoad, label: string): string[] {
+  const version = xfer.xferVersion(SOURCE_BIT_FLAGS_XFER_VERSION);
+  if (version !== SOURCE_BIT_FLAGS_XFER_VERSION) {
+    throw new Error(`Unsupported ${label} bitflag version ${version}.`);
+  }
+  const count = xfer.xferInt(0);
+  if (count < 0 || count > SOURCE_MAX_BIT_FLAG_NAMES) {
+    throw new Error(`Invalid ${label} bitflag count ${count}.`);
+  }
+  const names: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    names.push(xfer.xferAsciiString(''));
+  }
+  return names;
+}
+
+function xferSourceUpgradeMask(xfer: XferLoad): string[] {
+  const version = xfer.xferVersion(SOURCE_UPGRADE_MASK_XFER_VERSION);
+  if (version !== SOURCE_UPGRADE_MASK_XFER_VERSION) {
+    throw new Error(`Unsupported source upgrade-mask version ${version}.`);
+  }
+  const count = xfer.xferUnsignedShort(0);
+  const names: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    names.push(xfer.xferAsciiString(''));
+  }
+  return names;
+}
+
+function xferSourceMatrix3D(xfer: XferLoad): number[] {
+  const version = xfer.xferVersion(SOURCE_MATRIX3D_XFER_VERSION);
+  if (version !== SOURCE_MATRIX3D_XFER_VERSION) {
+    throw new Error(`Unsupported source Matrix3D version ${version}.`);
+  }
+  const values: number[] = [];
+  for (let index = 0; index < 12; index += 1) {
+    values.push(xfer.xferReal(0));
+  }
+  return values;
+}
+
+function xferSourceGeometryInfo(xfer: XferLoad): void {
+  const version = xfer.xferVersion(SOURCE_GEOMETRY_INFO_XFER_VERSION);
+  if (version !== SOURCE_GEOMETRY_INFO_XFER_VERSION) {
+    throw new Error(`Unsupported source GeometryInfo version ${version}.`);
+  }
+  xfer.xferInt(0);
+  xfer.xferBool(false);
+  xfer.xferReal(0);
+  xfer.xferReal(0);
+  xfer.xferReal(0);
+  xfer.xferReal(0);
+  xfer.xferReal(0);
+}
+
+function xferSourceSightingInfo(xfer: XferLoad): void {
+  const version = xfer.xferVersion(SOURCE_SIGHTING_INFO_XFER_VERSION);
+  if (version !== SOURCE_SIGHTING_INFO_XFER_VERSION) {
+    throw new Error(`Unsupported source SightingInfo version ${version}.`);
+  }
+  xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+  xfer.xferReal(0);
+  xfer.xferUnsignedShort(0);
+  xfer.xferUnsignedInt(0);
+}
+
+function xferSourceExperienceTracker(xfer: XferLoad): void {
+  const version = xfer.xferVersion(SOURCE_EXPERIENCE_TRACKER_XFER_VERSION);
+  if (version !== SOURCE_EXPERIENCE_TRACKER_XFER_VERSION) {
+    throw new Error(`Unsupported source ExperienceTracker version ${version}.`);
+  }
+  xfer.xferInt(0);
+  xfer.xferInt(0);
+  xfer.xferObjectID(0);
+  xfer.xferReal(0);
+}
+
+function xferSourceWeapon(xfer: XferLoad): void {
+  const version = xfer.xferVersion(SOURCE_WEAPON_XFER_VERSION);
+  if (version < 1 || version > SOURCE_WEAPON_XFER_VERSION) {
+    throw new Error(`Unsupported source Weapon version ${version}.`);
+  }
+  if (version >= 2) {
+    xfer.xferAsciiString('');
+  }
+  xfer.xferInt(0);
+  xfer.xferInt(0);
+  xfer.xferUnsignedInt(0);
+  xfer.xferUnsignedInt(0);
+  xfer.xferUnsignedInt(0);
+  xfer.xferUnsignedInt(0);
+  xfer.xferUnsignedInt(0);
+  if (version >= 3) {
+    xfer.xferUnsignedInt(0);
+  }
+  xfer.xferObjectID(0);
+  xfer.xferObjectID(0);
+  xfer.xferInt(0);
+  xfer.xferInt(0);
+  xfer.xferInt(0);
+  const scatterCount = xfer.xferUnsignedShort(0);
+  if (scatterCount > SOURCE_MAX_SCATTER_TARGETS) {
+    throw new Error(`Weapon scatter target count ${scatterCount} exceeds limit ${SOURCE_MAX_SCATTER_TARGETS}.`);
+  }
+  for (let index = 0; index < scatterCount; index += 1) {
+    xfer.xferInt(0);
+  }
+  xfer.xferBool(false);
+  xfer.xferBool(false);
+}
+
+function xferSourceWeaponSet(xfer: XferLoad): void {
+  const version = xfer.xferVersion(SOURCE_WEAPON_SET_XFER_VERSION);
+  if (version !== SOURCE_WEAPON_SET_XFER_VERSION) {
+    throw new Error(`Unsupported source WeaponSet version ${version}.`);
+  }
+
+  xfer.xferAsciiString('');
+  xferSourceStringBitFlags(xfer, 'weapon-set');
+  for (let index = 0; index < SOURCE_WEAPON_SLOT_COUNT; index += 1) {
+    const hasWeapon = xfer.xferBool(false);
+    if (hasWeapon) {
+      xferSourceWeapon(xfer);
+    }
+  }
+  xfer.xferInt(0);
+  xfer.xferInt(0);
+  xfer.xferUnsignedInt(0);
+  xfer.xferInt(0);
+  xfer.xferBool(false);
+  xfer.xferBool(false);
+  xferSourceStringBitFlags(xfer, 'weapon-damage-type');
+}
+
+function inspectSourceMapEntityChunk(
+  data: ArrayBuffer | Uint8Array,
+): MapEntityChunkLayoutInspection | null {
+  const xfer = new XferLoad(toStandaloneArrayBuffer(data));
+  xfer.open('inspect-source-map-entity');
+  let objectId: number | null = null;
+  let moduleCount: number | null = null;
+  let parsedThrough: MapEntityChunkLayoutInspection['parsedThrough'] = null;
+  const moduleIdentifiers: string[] = [];
+  try {
+    const version = xfer.xferVersion(SOURCE_OBJECT_XFER_VERSION);
+    if (version < 1 || version > SOURCE_OBJECT_XFER_VERSION) {
+      return {
+        layout: 'unknown',
+        version,
+        objectId: null,
+        parsedThrough,
+        moduleCount,
+        moduleIdentifiers: null,
+        remainingBytes: xfer.getRemaining(),
+        reason: `Unsupported source Object version ${version}.`,
+      };
+    }
+
+    objectId = xfer.xferObjectID(0);
+    if (version >= 7) {
+      xferSourceMatrix3D(xfer);
+    } else {
+      xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      xfer.xferReal(0);
+    }
+
+    xfer.xferUnsignedInt(0);
+    xfer.xferObjectID(0);
+    xfer.xferObjectID(0);
+    xfer.xferObjectID(0);
+    xfer.xferAsciiString('');
+    if (version >= 8) {
+      xferSourceStringBitFlags(xfer, 'object-status');
+    } else {
+      xfer.xferUnsignedInt(0);
+    }
+    xfer.xferUnsignedByte(0);
+    xfer.xferUnsignedByte(0);
+    xferSourceGeometryInfo(xfer);
+    xferSourceSightingInfo(xfer);
+    if (version >= 9) {
+      xferSourceSightingInfo(xfer);
+    }
+    xferSourceSightingInfo(xfer);
+    for (let index = 0; index < SOURCE_MAX_PLAYER_COUNT; index += 1) {
+      xfer.xferInt(0);
+    }
+    xfer.xferUnsignedShort(0);
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xferSourceStringBitFlags(xfer, 'disabled-mask');
+    if (version >= 2) {
+      xfer.xferBool(false);
+    }
+    for (let index = 0; index < SOURCE_DISABLED_COUNT; index += 1) {
+      xfer.xferUnsignedInt(0);
+    }
+    xfer.xferUnsignedInt(0);
+    xferSourceExperienceTracker(xfer);
+    if (version >= 6) {
+      xfer.xferObjectID(0);
+    }
+    xfer.xferUnsignedInt(0);
+    xfer.xferReal(0);
+    xferSourceUpgradeMask(xfer);
+    xfer.xferAsciiString('');
+    xfer.xferColor(0);
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const triggerAreaCount = xfer.xferByte(0);
+    if (triggerAreaCount > SOURCE_OBJECT_TRIGGER_INFO_LIMIT) {
+      throw new Error(
+        `Trigger-area count ${triggerAreaCount} exceeds limit ${SOURCE_OBJECT_TRIGGER_INFO_LIMIT}.`,
+      );
+    }
+    xfer.xferUnsignedInt(0);
+    xferSourceICoord3D(xfer);
+    for (let index = 0; index < triggerAreaCount; index += 1) {
+      xfer.xferAsciiString('');
+      xfer.xferByte(0);
+      xfer.xferByte(0);
+      xfer.xferByte(0);
+    }
+    xfer.xferInt(0);
+    xfer.xferInt(0);
+    xfer.xferBool(false);
+    xfer.xferUnsignedInt(0);
+    const hasFormation = xfer.xferInt(0) !== 0;
+    if (hasFormation) {
+      xferSourceCoord2D(xfer);
+    }
+    parsedThrough = 'preamble';
+
+    moduleCount = xfer.xferUnsignedShort(0);
+    if (moduleCount > SOURCE_MAX_MODULE_COUNT) {
+      throw new Error(`Module count ${moduleCount} exceeds limit ${SOURCE_MAX_MODULE_COUNT}.`);
+    }
+    for (let index = 0; index < moduleCount; index += 1) {
+      const moduleIdentifier = xfer.xferAsciiString('');
+      moduleIdentifiers.push(moduleIdentifier);
+      const moduleDataSize = xfer.beginBlock();
+      if (moduleDataSize < 0) {
+        throw new Error(`Negative module block size ${moduleDataSize} for '${moduleIdentifier}'.`);
+      }
+      if (moduleDataSize > 0) {
+        xfer.skip(moduleDataSize);
+      }
+      xfer.endBlock();
+    }
+    parsedThrough = 'module_headers';
+
+    if (version >= 3) {
+      xfer.xferObjectID(0);
+      xfer.xferUnsignedInt(0);
+    }
+    if (version >= 4) {
+      xferSourceStringBitFlags(xfer, 'weapon-set-flags');
+      xfer.xferUnsignedInt(0);
+      xferSourceRawBytes(xfer, SOURCE_WEAPON_SLOT_COUNT);
+      xferSourceWeaponSet(xfer);
+      xferSourceStringBitFlags(xfer, 'special-power-bits');
+      xfer.xferAsciiString('');
+      xfer.xferBool(false);
+    }
+    if (version >= 5) {
+      xfer.xferBool(false);
+    }
+    parsedThrough = 'tail';
+
+    const remainingBytes = xfer.getRemaining();
+    if (remainingBytes !== 0) {
+      return {
+        layout: 'unknown',
+        version,
+        objectId,
+        parsedThrough,
+        moduleCount,
+        moduleIdentifiers,
+        remainingBytes,
+        reason: `${remainingBytes} trailing bytes remain after source Object::xfer parse.`,
+      };
+    }
+
+    return {
+      layout: 'source_partial',
+      version,
+      objectId,
+      parsedThrough: 'complete',
+      moduleCount,
+      moduleIdentifiers,
+      remainingBytes: 0,
+    };
+  } catch (error) {
+    return {
+      layout: 'unknown',
+      version: null,
+      objectId,
+      parsedThrough,
+      moduleCount,
+      moduleIdentifiers: moduleIdentifiers.length > 0 ? moduleIdentifiers : null,
+      remainingBytes: xfer.getRemaining(),
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    xfer.close();
+  }
+}
+
+export function inspectMapEntityChunkLayout(
+  data: ArrayBuffer | Uint8Array,
+): MapEntityChunkLayoutInspection {
+  const sourceInspection = inspectSourceMapEntityChunk(data);
+  if (sourceInspection?.layout === 'source_partial') {
+    return sourceInspection;
+  }
+
+  const xfer = new XferLoad(toStandaloneArrayBuffer(data));
+  xfer.open('inspect-legacy-map-entity');
+  try {
+    xferMapEntity(xfer, {});
+    const remainingBytes = xfer.getRemaining();
+    return {
+      layout: 'legacy',
+      version: null,
+      objectId: null,
+      parsedThrough: null,
+      moduleCount: null,
+      moduleIdentifiers: null,
+      remainingBytes,
+      reason: sourceInspection?.reason,
+    };
+  } catch (error) {
+    return sourceInspection ?? {
+      layout: 'unknown',
+      version: null,
+      objectId: null,
+      parsedThrough: null,
+      moduleCount: null,
+      moduleIdentifiers: null,
+      remainingBytes: xfer.getRemaining(),
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    xfer.close();
+  }
+}
 
 /**
  * Serialize or deserialize a nullable string.

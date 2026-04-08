@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { XferSave, XferLoad, XferCrc } from '@generals/engine';
-import { xferMapEntity } from './entity-xfer.js';
+import { inspectMapEntityChunkLayout, xferMapEntity } from './entity-xfer.js';
 
 /**
  * Create a minimal MapEntity-like object with all required properties set to defaults.
@@ -600,6 +600,138 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
   };
 }
 
+function writeSourceBitFlags(xfer: XferSave, names: string[] = []): void {
+  xfer.xferVersion(1);
+  xfer.xferInt(names.length);
+  for (const name of names) {
+    xfer.xferAsciiString(name);
+  }
+}
+
+function writeSourceUpgradeMask(xfer: XferSave, names: string[] = []): void {
+  xfer.xferVersion(1);
+  xfer.xferUnsignedShort(names.length);
+  for (const name of names) {
+    xfer.xferAsciiString(name);
+  }
+}
+
+function writeSourceMatrix3D(xfer: XferSave): void {
+  xfer.xferVersion(1);
+  for (let index = 0; index < 12; index += 1) {
+    xfer.xferReal(index === 0 || index === 5 || index === 10 ? 1 : 0);
+  }
+}
+
+function writeSourceGeometryInfo(xfer: XferSave): void {
+  xfer.xferVersion(1);
+  xfer.xferInt(0);
+  xfer.xferBool(false);
+  xfer.xferReal(0);
+  xfer.xferReal(8);
+  xfer.xferReal(8);
+  xfer.xferReal(8);
+  xfer.xferReal(8);
+}
+
+function writeSourceSightingInfo(xfer: XferSave): void {
+  xfer.xferVersion(1);
+  xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+  xfer.xferReal(0);
+  xfer.xferUnsignedShort(0);
+  xfer.xferUnsignedInt(0);
+}
+
+function writeSourceExperienceTracker(xfer: XferSave): void {
+  xfer.xferVersion(1);
+  xfer.xferInt(1);
+  xfer.xferInt(150);
+  xfer.xferObjectID(0);
+  xfer.xferReal(1);
+}
+
+function writeSourceWeaponSet(xfer: XferSave): void {
+  xfer.xferVersion(1);
+  xfer.xferAsciiString('');
+  writeSourceBitFlags(xfer);
+  for (let index = 0; index < 3; index += 1) {
+    xfer.xferBool(false);
+  }
+  xfer.xferInt(0);
+  xfer.xferInt(0);
+  xfer.xferUnsignedInt(0);
+  xfer.xferInt(0);
+  xfer.xferBool(false);
+  xfer.xferBool(false);
+  writeSourceBitFlags(xfer);
+}
+
+function createSourceObjectChunk(): ArrayBuffer {
+  const saver = new XferSave();
+  saver.open('source-object');
+
+  saver.xferVersion(9);
+  saver.xferObjectID(7);
+  writeSourceMatrix3D(saver);
+  saver.xferUnsignedInt(3);
+  saver.xferObjectID(0);
+  saver.xferObjectID(0);
+  saver.xferObjectID(9);
+  saver.xferAsciiString('UNIT_007');
+  writeSourceBitFlags(saver, ['SELECTABLE']);
+  saver.xferUnsignedByte(0);
+  saver.xferUnsignedByte(0);
+  writeSourceGeometryInfo(saver);
+  writeSourceSightingInfo(saver);
+  writeSourceSightingInfo(saver);
+  writeSourceSightingInfo(saver);
+  for (let index = 0; index < 16; index += 1) {
+    saver.xferInt(0);
+  }
+  saver.xferUnsignedShort(0);
+  saver.xferReal(150);
+  saver.xferReal(150);
+  saver.xferReal(150);
+  writeSourceBitFlags(saver);
+  saver.xferBool(false);
+  for (let index = 0; index < 13; index += 1) {
+    saver.xferUnsignedInt(0);
+  }
+  saver.xferUnsignedInt(0);
+  writeSourceExperienceTracker(saver);
+  saver.xferObjectID(0);
+  saver.xferUnsignedInt(0);
+  saver.xferReal(100);
+  writeSourceUpgradeMask(saver);
+  saver.xferAsciiString('');
+  saver.xferColor(0);
+  saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+  saver.xferByte(0);
+  saver.xferUnsignedInt(0);
+  saver.xferInt(0);
+  saver.xferInt(0);
+  saver.xferInt(0);
+  saver.xferInt(1);
+  saver.xferInt(1);
+  saver.xferBool(true);
+  saver.xferUnsignedInt(0);
+  saver.xferInt(0);
+  saver.xferUnsignedShort(0);
+  saver.xferObjectID(0);
+  saver.xferUnsignedInt(0);
+  writeSourceBitFlags(saver);
+  saver.xferUnsignedInt(0);
+  saver.xferUser(new Uint8Array(3));
+  writeSourceWeaponSet(saver);
+  writeSourceBitFlags(saver);
+  saver.xferAsciiString('');
+  saver.xferBool(true);
+  saver.xferBool(false);
+
+  saver.close();
+  return saver.getBuffer();
+}
+
 describe('entity-xfer', () => {
   it('round-trips an entity through save/load', () => {
     const original = createTestEntity();
@@ -1031,5 +1163,35 @@ describe('entity-xfer', () => {
     crc2.close();
 
     expect(crc1.getCrc()).not.toBe(crc2.getCrc());
+  });
+
+  it('classifies browser-port entity chunks as legacy', () => {
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, createTestEntity());
+    saver.close();
+
+    expect(inspectMapEntityChunkLayout(saver.getBuffer())).toEqual({
+      layout: 'legacy',
+      version: null,
+      objectId: null,
+      parsedThrough: null,
+      moduleCount: null,
+      moduleIdentifiers: null,
+      remainingBytes: 0,
+      reason: expect.any(String),
+    });
+  });
+
+  it('inspects source object chunk framing through the tail fields', () => {
+    expect(inspectMapEntityChunkLayout(createSourceObjectChunk())).toEqual({
+      layout: 'source_partial',
+      version: 9,
+      objectId: 7,
+      parsedThrough: 'complete',
+      moduleCount: 0,
+      moduleIdentifiers: [],
+      remainingBytes: 0,
+    });
   });
 });
