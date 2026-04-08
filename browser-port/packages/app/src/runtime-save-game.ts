@@ -15,6 +15,7 @@ import type { CameraState } from '@generals/input';
 import * as THREE from 'three';
 import {
   inspectMapEntityChunkLayout,
+  parseSourceMapEntityChunk,
   type MapEntityChunkLayoutInspection,
   xferMapEntity,
   type GameDifficulty,
@@ -403,6 +404,8 @@ export interface RuntimeSaveGameLogicChunkLayoutInspection {
   firstObjectTemplateName: string | null;
   firstObjectTocId: number | null;
   firstObjectVersion: number | null;
+  firstObjectInternalName: string | null;
+  firstObjectTeamId: number | null;
   firstObjectLayout: MapEntityChunkLayoutInspection | null;
   reason?: string;
 }
@@ -2748,6 +2751,8 @@ function inspectSourceGameLogicChunk(
         firstObjectTemplateName: null,
         firstObjectTocId: null,
         firstObjectVersion: null,
+        firstObjectInternalName: null,
+        firstObjectTeamId: null,
         firstObjectLayout: null,
         reason: `Unsupported object TOC version ${tocVersion}`,
       };
@@ -2765,6 +2770,8 @@ function inspectSourceGameLogicChunk(
     let firstObjectTemplateName: string | null = null;
     let firstObjectTocId: number | null = null;
     let firstObjectVersion: number | null = null;
+    let firstObjectInternalName: string | null = null;
+    let firstObjectTeamId: number | null = null;
     let firstObjectLayout: MapEntityChunkLayoutInspection | null = null;
     for (let index = 0; index < objectCount; index += 1) {
       const tocId = xferLoad.xferUnsignedShort(0);
@@ -2783,6 +2790,8 @@ function inspectSourceGameLogicChunk(
           firstObjectTemplateName,
           firstObjectTocId,
           firstObjectVersion,
+          firstObjectInternalName,
+          firstObjectTeamId,
           firstObjectLayout,
           reason: `Object block ${index} is empty.`,
         };
@@ -2791,6 +2800,11 @@ function inspectSourceGameLogicChunk(
       if (firstObjectLayout === null) {
         firstObjectLayout = inspectMapEntityChunkLayout(objectData);
         firstObjectVersion = firstObjectLayout.version;
+        const firstObjectState = parseSourceMapEntityChunk(objectData);
+        if (firstObjectState !== null) {
+          firstObjectInternalName = firstObjectState.internalName;
+          firstObjectTeamId = firstObjectState.teamId;
+        }
       }
       xferLoad.endBlock();
     }
@@ -2804,8 +2818,26 @@ function inspectSourceGameLogicChunk(
         firstObjectTemplateName,
         firstObjectTocId,
         firstObjectVersion,
+        firstObjectInternalName,
+        firstObjectTeamId,
         firstObjectLayout,
         reason: `First source object block did not match Object::xfer framing (${firstObjectLayout.layout}).`,
+      };
+    }
+    if (firstObjectLayout !== null && firstObjectInternalName === null) {
+      return {
+        layout: 'unknown',
+        version,
+        frameCounter,
+        objectTocCount,
+        objectCount,
+        firstObjectTemplateName,
+        firstObjectTocId,
+        firstObjectVersion,
+        firstObjectInternalName,
+        firstObjectTeamId,
+        firstObjectLayout,
+        reason: 'First source object block failed structured Object::xfer parsing.',
       };
     }
     if (firstObjectVersion !== null && firstObjectVersion !== 9) {
@@ -2818,6 +2850,8 @@ function inspectSourceGameLogicChunk(
         firstObjectTemplateName,
         firstObjectTocId,
         firstObjectVersion,
+        firstObjectInternalName,
+        firstObjectTeamId,
         firstObjectLayout,
         reason: `Unexpected source object snapshot version ${firstObjectVersion}`,
       };
@@ -2874,6 +2908,8 @@ function inspectSourceGameLogicChunk(
         firstObjectTemplateName,
         firstObjectTocId,
         firstObjectVersion,
+        firstObjectInternalName,
+        firstObjectTeamId,
         firstObjectLayout,
         reason: `${xferLoad.getRemaining()} trailing bytes remain after source outer parse.`,
       };
@@ -2888,6 +2924,8 @@ function inspectSourceGameLogicChunk(
       firstObjectTemplateName,
       firstObjectTocId,
       firstObjectVersion,
+      firstObjectInternalName,
+      firstObjectTeamId,
       firstObjectLayout,
     };
   } catch (error) {
@@ -2900,6 +2938,8 @@ function inspectSourceGameLogicChunk(
       firstObjectTemplateName: null,
       firstObjectTocId: null,
       firstObjectVersion: null,
+      firstObjectInternalName: null,
+      firstObjectTeamId: null,
       firstObjectLayout: null,
       reason: error instanceof Error ? error.message : String(error),
     };
@@ -2925,6 +2965,8 @@ export function inspectGameLogicChunkLayout(
       firstObjectTemplateName: null,
       firstObjectTocId: null,
       firstObjectVersion: null,
+      firstObjectInternalName: null,
+      firstObjectTeamId: null,
       firstObjectLayout: null,
       reason: sourceInspection?.reason,
     };
@@ -2938,6 +2980,8 @@ export function inspectGameLogicChunkLayout(
     firstObjectTemplateName: null,
     firstObjectTocId: null,
     firstObjectVersion: null,
+    firstObjectInternalName: null,
+    firstObjectTeamId: null,
     firstObjectLayout: null,
     reason: 'Unable to classify game-logic chunk layout.',
   };

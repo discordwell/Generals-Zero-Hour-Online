@@ -1068,6 +1068,8 @@ describe('runtime-save-game', () => {
       firstObjectTemplateName: null,
       firstObjectTocId: null,
       firstObjectVersion: null,
+      firstObjectInternalName: null,
+      firstObjectTeamId: null,
       firstObjectLayout: null,
       reason: expect.any(String),
     });
@@ -2427,6 +2429,8 @@ describe('runtime-save-game', () => {
       firstObjectTemplateName: 'RuntimeTank',
       firstObjectTocId: 1,
       firstObjectVersion: 9,
+      firstObjectInternalName: 'UNIT_007',
+      firstObjectTeamId: 3,
       firstObjectLayout: {
         layout: 'source_partial',
         version: 9,
