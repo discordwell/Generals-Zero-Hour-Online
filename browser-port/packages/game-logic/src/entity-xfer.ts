@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 16;
+const ENTITY_XFER_VERSION = 17;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1504,6 +1504,11 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     e.defectorHelperDetectionEndFrame = 0;
     e.defectorHelperFlashPhase = 0;
     e.defectorHelperDoFx = false;
+  }
+  if (version >= 17) {
+    e.repulsorHelperUntilFrame = xfer.xferInt((e.repulsorHelperUntilFrame as number | undefined) ?? 0);
+  } else {
+    e.repulsorHelperUntilFrame = 0;
   }
   e.controllingPlayerToken = xferNullableString(xfer, e.controllingPlayerToken as string | null);
   e.resolved = xfer.xferBool(e.resolved as boolean);

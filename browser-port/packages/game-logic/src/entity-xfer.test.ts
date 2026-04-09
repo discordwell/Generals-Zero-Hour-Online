@@ -29,6 +29,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     defectorHelperDetectionEndFrame: 0,
     defectorHelperFlashPhase: 0,
     defectorHelperDoFx: false,
+    repulsorHelperUntilFrame: 0,
     controllingPlayerToken: 'player1',
     resolved: true,
     bridgeFlags: 0,
@@ -818,6 +819,23 @@ describe('entity-xfer', () => {
     expect(loaded.defectorHelperDetectionEndFrame).toBe(180);
     expect(loaded.defectorHelperFlashPhase).toBeCloseTo(2.5);
     expect(loaded.defectorHelperDoFx).toBe(true);
+  });
+
+  it('preserves repulsor helper wake frames', () => {
+    const original = createTestEntity({ repulsorHelperUntilFrame: 240 });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity({ repulsorHelperUntilFrame: 0 });
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.repulsorHelperUntilFrame).toBe(240);
   });
 
   it('preserves movement path (VectorXZ array)', () => {

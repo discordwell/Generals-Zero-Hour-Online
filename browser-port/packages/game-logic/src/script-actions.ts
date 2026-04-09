@@ -8205,8 +8205,10 @@ export function executeScriptNamedSetRepulsor(self: GL, entityId: number, repuls
 
   if (repulsor) {
     entity.objectStatusFlags.add('REPULSOR');
+    entity.repulsorHelperUntilFrame = self.frameCounter + (2 * LOGIC_FRAME_RATE);
   } else {
     entity.objectStatusFlags.delete('REPULSOR');
+    entity.repulsorHelperUntilFrame = 0;
   }
   return true;
 }
@@ -8223,8 +8225,10 @@ export function executeScriptTeamSetRepulsor(self: GL, teamName: string, repulso
     }
     if (repulsor) {
       entity.objectStatusFlags.add('REPULSOR');
+      entity.repulsorHelperUntilFrame = self.frameCounter + (2 * LOGIC_FRAME_RATE);
     } else {
       entity.objectStatusFlags.delete('REPULSOR');
+      entity.repulsorHelperUntilFrame = 0;
     }
   }
   return true;

@@ -23785,12 +23785,15 @@ describe('Script condition groundwork', () => {
       params: [1, 1],
     })).toBe(true);
     expect(logic.getEntityState(1)?.statusFlags).toContain('REPULSOR');
+    const privateLogic = logic as unknown as { frameCounter: number; spawnedEntities: Map<number, { repulsorHelperUntilFrame: number }> };
+    expect(privateLogic.spawnedEntities.get(1)?.repulsorHelperUntilFrame).toBe(privateLogic.frameCounter + (2 * 30));
 
     expect(logic.executeScriptAction({
       actionType: 436,
       params: [1, 0],
     })).toBe(true);
     expect(logic.getEntityState(1)?.statusFlags).not.toContain('REPULSOR');
+    expect(privateLogic.spawnedEntities.get(1)?.repulsorHelperUntilFrame).toBe(0);
 
     expect(logic.executeScriptAction({
       actionType: 437, // TEAM_SET_REPULSOR

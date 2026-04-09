@@ -86,7 +86,11 @@ const SOURCE_GHOST_OBJECT_BLOCK = 'CHUNK_GhostObject';
 export const BROWSER_RUNTIME_STATE_BLOCK = 'CHUNK_TS_RuntimeState';
 const SOURCE_FRAME_FOREVER = 0x3fffffff;
 const SOURCE_UPDATE_PHASE_NORMAL = 2;
+const SOURCE_UPDATE_PHASE_FINAL = 3;
 const SOURCE_HELPER_MODULE_TAG_DEFECTION = 'ModuleTag_DefectionHelper';
+const SOURCE_HELPER_MODULE_TAG_SMC = 'ModuleTag_SMCHelper';
+const SOURCE_HELPER_MODULE_TAG_REPULSOR = 'ModuleTag_RepulsorHelper';
+const SOURCE_HELPER_MODULE_TAG_WEAPON_STATUS = 'ModuleTag_WeaponStatusHelper';
 const SOURCE_HELPER_MODULE_TAG_TEMP_WEAPON_BONUS = 'ModuleTag_TempWeaponBonusHelper';
 const SOURCE_HELPER_MODULE_TAG_SUBDUAL_DAMAGE = 'ModuleTag_SubdualDamageHelper';
 const SOURCE_SCRIPT_STATUS_DISABLED = 0x01;
@@ -3368,6 +3372,20 @@ function buildSourceObjectHelperBaseBlockData(nextCallFrameAndPhase: number): Ui
   }
 }
 
+function buildSourceBaseOnlyObjectHelperBlockData(
+  nextCallFrameAndPhase: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-base-only-object-helper');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceObjectHelperBaseBlockData(nextCallFrameAndPhase));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceObjectDefectionHelperBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-object-defection-helper');
@@ -3435,6 +3453,32 @@ function buildSourceSubdualDamageHelperBlockData(entity: MapEntity, currentFrame
   }
 }
 
+function buildSourceObjectSmcHelperBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const specialModelConditionUntil = Math.max(
+    entity.cheerTimerFrames > 0 ? currentFrame + Math.max(1, Math.trunc(entity.cheerTimerFrames)) : 0,
+    entity.raisingFlagTimerFrames > 0 ? currentFrame + Math.max(1, Math.trunc(entity.raisingFlagTimerFrames)) : 0,
+  );
+  return buildSourceBaseOnlyObjectHelperBlockData(
+    specialModelConditionUntil > currentFrame
+      ? buildSourceUpdateModuleWakeFrame(specialModelConditionUntil)
+      : buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+  );
+}
+
+function buildSourceObjectRepulsorHelperBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  return buildSourceBaseOnlyObjectHelperBlockData(
+    entity.repulsorHelperUntilFrame > currentFrame
+      ? buildSourceUpdateModuleWakeFrame(entity.repulsorHelperUntilFrame)
+      : buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+  );
+}
+
+function buildSourceObjectWeaponStatusHelperBlockData(currentFrame: number): Uint8Array {
+  return buildSourceBaseOnlyObjectHelperBlockData(
+    buildSourceUpdateModuleWakeFrame(currentFrame + 1, SOURCE_UPDATE_PHASE_FINAL),
+  );
+}
+
 function overlaySourceObjectModulesFromLiveEntity(
   sourceModules: readonly SourceObjectModuleSaveState[],
   entity: MapEntity,
@@ -3442,6 +3486,21 @@ function overlaySourceObjectModulesFromLiveEntity(
 ): SourceObjectModuleSaveState[] {
   return sourceModules.map((module) => {
     switch (module.identifier) {
+      case SOURCE_HELPER_MODULE_TAG_SMC:
+        return {
+          identifier: module.identifier,
+          blockData: buildSourceObjectSmcHelperBlockData(entity, currentFrame),
+        };
+      case SOURCE_HELPER_MODULE_TAG_REPULSOR:
+        return {
+          identifier: module.identifier,
+          blockData: buildSourceObjectRepulsorHelperBlockData(entity, currentFrame),
+        };
+      case SOURCE_HELPER_MODULE_TAG_WEAPON_STATUS:
+        return {
+          identifier: module.identifier,
+          blockData: buildSourceObjectWeaponStatusHelperBlockData(currentFrame),
+        };
       case SOURCE_HELPER_MODULE_TAG_DEFECTION:
         return {
           identifier: module.identifier,

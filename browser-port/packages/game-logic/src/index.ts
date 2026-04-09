@@ -3353,6 +3353,8 @@ export interface MapEntity {
   defectorHelperFlashPhase: number;
   /** Source parity: ObjectDefectionHelper::m_doDefectorFX. */
   defectorHelperDoFx: boolean;
+  /** Source parity: ObjectRepulsorHelper wake deadline. */
+  repulsorHelperUntilFrame: number;
   controllingPlayerToken: string | null;
   /** Source parity: MapObject originalOwner team token used for script-team membership on map load. */
   sourceTeamNameUpper?: string | null;

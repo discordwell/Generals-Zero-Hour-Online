@@ -267,6 +267,18 @@ function createSourceSubdualDamageHelperBlockData(
   }
 }
 
+function createSourceBaseOnlyObjectHelperBlockData(nextCallFrameAndPhase: number): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-base-only-object-helper');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceObjectHelperBaseBlockData(nextCallFrameAndPhase));
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceObjectBlockData(includeHelperModules = false): Uint8Array {
   const state = createEmptySourceMapEntitySaveState();
   state.objectId = 7;
@@ -383,6 +395,18 @@ function createSourceObjectBlockData(includeHelperModules = false): Uint8Array {
       {
         identifier: 'ModuleTag_SubdualDamageHelper',
         blockData: createSourceSubdualDamageHelperBlockData((77 << 2) | 2, 5),
+      },
+      {
+        identifier: 'ModuleTag_SMCHelper',
+        blockData: createSourceBaseOnlyObjectHelperBlockData((64 << 2) | 2),
+      },
+      {
+        identifier: 'ModuleTag_RepulsorHelper',
+        blockData: createSourceBaseOnlyObjectHelperBlockData((80 << 2) | 2),
+      },
+      {
+        identifier: 'ModuleTag_WeaponStatusHelper',
+        blockData: createSourceBaseOnlyObjectHelperBlockData((55 << 2) | 3),
       },
     ];
   }
@@ -509,6 +533,24 @@ function parseSourceSubdualDamageHelperBlockData(data: Uint8Array) {
     return {
       nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
       healingStepCountdown: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceBaseOnlyObjectHelperBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-base-only-object-helper');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
     };
   } finally {
     xferLoad.close();
@@ -3094,6 +3136,7 @@ describe('runtime-save-game', () => {
             defectorHelperDetectionEndFrame: 140,
             defectorHelperFlashPhase: 1.75,
             defectorHelperDoFx: true,
+            repulsorHelperUntilFrame: 102,
             objectStatusFlags: new Set([
               'IS_USING_ABILITY',
               'CARBOMB',
@@ -3103,6 +3146,7 @@ describe('runtime-save-game', () => {
               'DISABLED_HACKED',
               'DISABLED_UNDERPOWERED',
             ]),
+            cheerTimerFrames: 35,
             disabledHackedUntilFrame: 333,
             disabledEmpUntilFrame: 0,
             disabledParalyzedUntilFrame: 0,
@@ -3204,17 +3248,29 @@ describe('runtime-save-game', () => {
       leechWeaponRangeActive: true,
     });
     const defectionHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_DefectionHelper');
+    const smcHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_SMCHelper');
+    const repulsorHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_RepulsorHelper');
     const tempWeaponBonusHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_TempWeaponBonusHelper');
     const subdualDamageHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_SubdualDamageHelper');
+    const weaponStatusHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_WeaponStatusHelper');
     expect(defectionHelper).toBeDefined();
+    expect(smcHelper).toBeDefined();
+    expect(repulsorHelper).toBeDefined();
     expect(tempWeaponBonusHelper).toBeDefined();
     expect(subdualDamageHelper).toBeDefined();
+    expect(weaponStatusHelper).toBeDefined();
     expect(parseSourceDefectionHelperBlockData(defectionHelper!.blockData)).toEqual({
       nextCallFrameAndPhase: (43 << 2) | 2,
       detectionStart: 42,
       detectionEnd: 140,
       flashPhase: 1.75,
       doFx: true,
+    });
+    expect(parseSourceBaseOnlyObjectHelperBlockData(smcHelper!.blockData)).toEqual({
+      nextCallFrameAndPhase: (77 << 2) | 2,
+    });
+    expect(parseSourceBaseOnlyObjectHelperBlockData(repulsorHelper!.blockData)).toEqual({
+      nextCallFrameAndPhase: (102 << 2) | 2,
     });
     expect(parseSourceTempWeaponBonusHelperBlockData(tempWeaponBonusHelper!.blockData)).toEqual({
       nextCallFrameAndPhase: (120 << 2) | 2,
@@ -3224,6 +3280,9 @@ describe('runtime-save-game', () => {
     expect(parseSourceSubdualDamageHelperBlockData(subdualDamageHelper!.blockData)).toEqual({
       nextCallFrameAndPhase: (43 << 2) | 2,
       healingStepCountdown: 3,
+    });
+    expect(parseSourceBaseOnlyObjectHelperBlockData(weaponStatusHelper!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 3,
     });
   });
 
