@@ -8488,6 +8488,7 @@ export interface GameLogicObjectTriggerAreaSaveState {
 export interface GameLogicObjectXferOverlayState {
   entityId: number;
   privateStatus: number;
+  specialModelConditionUntil: number;
   modulesReady: boolean;
 }
 
@@ -12166,6 +12167,9 @@ export class GameLogicSubsystem implements Subsystem {
           (entity.destroyed ? 0x01 : 0)
           | (entity.capturedFromOriginalOwner ? 0x04 : 0)
           | (this.isEntityOffMap(entity) ? 0x08 : 0),
+        specialModelConditionUntil: entity.cheerTimerFrames > 0
+          ? this.frameCounter + Math.max(1, Math.trunc(entity.cheerTimerFrames))
+          : 0,
         modulesReady: true,
       }))
       .sort((left, right) => left.entityId - right.entityId);

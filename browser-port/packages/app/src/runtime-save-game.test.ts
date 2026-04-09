@@ -2979,6 +2979,7 @@ describe('runtime-save-game', () => {
         captureSourceObjectXferOverlayState: () => [{
           entityId: 7,
           privateStatus: 0x0c,
+          specialModelConditionUntil: 77,
           modulesReady: true,
         }],
         captureBrowserRuntimeSaveState: () => ({ version: 1 }),
@@ -3004,6 +3005,7 @@ describe('runtime-save-game', () => {
     expect(firstObject?.shroudClearingRange).toBe(225);
     expect(firstObject?.indicatorColor).toBe(0xff12ab34 | 0);
     expect(firstObject?.privateStatus).toBe(0x0c);
+    expect(firstObject?.specialModelConditionUntil).toBe(77);
     expect(firstObject?.experienceTracker).toMatchObject({
       currentLevel: 2,
       currentExperience: 500,

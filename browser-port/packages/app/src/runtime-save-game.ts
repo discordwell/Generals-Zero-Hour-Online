@@ -3374,6 +3374,8 @@ function overlaySourceObjectStateFromLiveEntity(
     builderId: Number.isFinite(entity.builderId) ? Math.trunc(entity.builderId) : sourceState.builderId,
     disabledMask: disabledState.disabledMask,
     disabledTillFrame: disabledState.disabledTillFrame,
+    specialModelConditionUntil:
+      objectXferOverlayState?.specialModelConditionUntil ?? sourceState.specialModelConditionUntil,
     experienceTracker: {
       ...sourceState.experienceTracker,
       currentLevel: Number.isFinite(entity.experienceState?.currentLevel)
