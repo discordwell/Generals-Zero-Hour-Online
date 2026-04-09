@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 20;
+const ENTITY_XFER_VERSION = 21;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1950,8 +1950,22 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     (e.oclUpdateNextCreationFrames as number[] | undefined) ?? [],
   );
   e.oclUpdateTimerStarted = xferJsonObject(xfer, e.oclUpdateTimerStarted as boolean[]);
+  if (version >= 21) {
+    e.oclUpdateTimerStartedFrames = xfer.xferIntList(
+      (e.oclUpdateTimerStartedFrames as number[] | undefined) ?? [],
+    );
+  } else {
+    e.oclUpdateTimerStartedFrames = [];
+  }
   e.oclUpdateFactionNeutral = xferJsonObject(xfer, e.oclUpdateFactionNeutral as boolean[]);
   e.oclUpdateFactionOwnerSide = xferJsonObject(xfer, e.oclUpdateFactionOwnerSide as string[]);
+  if (version >= 21) {
+    e.oclUpdateCurrentPlayerColors = xfer.xferIntList(
+      (e.oclUpdateCurrentPlayerColors as number[] | undefined) ?? [],
+    );
+  } else {
+    e.oclUpdateCurrentPlayerColors = [];
+  }
 
   // ── Weapon Bonus Update ──
   e.weaponBonusUpdateProfiles = xferJsonObject(xfer, e.weaponBonusUpdateProfiles as unknown[]);

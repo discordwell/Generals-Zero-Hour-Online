@@ -6380,10 +6380,11 @@ describe('OCLUpdate', () => {
   it('extracts OCLUpdateProfile from INI', () => {
     const { logic } = makeOCLUpdateSetup();
     const priv = logic as unknown as {
-      spawnedEntities: Map<number, { oclUpdateProfiles: { oclName: string; minDelayFrames: number; maxDelayFrames: number }[] }>;
+      spawnedEntities: Map<number, { oclUpdateProfiles: { moduleTag: string | null; oclName: string; minDelayFrames: number; maxDelayFrames: number }[] }>;
     };
     const entity = priv.spawnedEntities.get(1)!;
     expect(entity.oclUpdateProfiles.length).toBe(1);
+    expect(entity.oclUpdateProfiles[0]!.moduleTag).toBe('MODULETAG_OCLSPAWN');
     expect(entity.oclUpdateProfiles[0]!.oclName).toBe('OCLSpawnUnit');
     // 1000ms at 30fps = 30 frames
     expect(entity.oclUpdateProfiles[0]!.minDelayFrames).toBe(30);

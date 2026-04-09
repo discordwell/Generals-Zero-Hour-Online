@@ -381,8 +381,10 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     oclUpdateProfiles: [],
     oclUpdateNextCreationFrames: [],
     oclUpdateTimerStarted: [],
+    oclUpdateTimerStartedFrames: [],
     oclUpdateFactionNeutral: [],
     oclUpdateFactionOwnerSide: [],
+    oclUpdateCurrentPlayerColors: [],
 
     // Weapon Bonus Update
     weaponBonusUpdateProfiles: [],

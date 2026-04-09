@@ -632,8 +632,10 @@ export function createMapEntity(self: GL,
     oclUpdateProfiles: extractOCLUpdateProfiles(self, objectDef),
     oclUpdateNextCreationFrames: [],
     oclUpdateTimerStarted: [],
+    oclUpdateTimerStartedFrames: [],
     oclUpdateFactionNeutral: [],
     oclUpdateFactionOwnerSide: [],
+    oclUpdateCurrentPlayerColors: [],
     // Weapon bonus update (aura-based weapon bonus)
     weaponBonusUpdateProfiles: extractWeaponBonusUpdateProfiles(self, objectDef),
     weaponBonusUpdateNextPulseFrames: [],
@@ -1113,6 +1115,10 @@ export function createMapEntity(self: GL,
   if (entity.oclUpdateProfiles.length > 0) {
     entity.oclUpdateNextCreationFrames = entity.oclUpdateProfiles.map(() => 0);
     entity.oclUpdateTimerStarted = entity.oclUpdateProfiles.map(() => false);
+    entity.oclUpdateTimerStartedFrames = entity.oclUpdateProfiles.map(() => 0);
+    entity.oclUpdateFactionNeutral = entity.oclUpdateProfiles.map(() => true);
+    entity.oclUpdateFactionOwnerSide = entity.oclUpdateProfiles.map(() => '');
+    entity.oclUpdateCurrentPlayerColors = entity.oclUpdateProfiles.map(() => 0);
   }
 
   // Source parity: WeaponBonusUpdate — initialize per-module pulse timers.
@@ -2911,6 +2917,7 @@ export function extractOCLUpdateProfiles(self: GL, objectDef: ObjectDef | undefi
     if (blockType === 'BEHAVIOR') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType === 'OCLUPDATE') {
+        const moduleTag = block.name.split(/\s+/)[1]?.toUpperCase() ?? null;
         const oclName = readStringField(block.fields, ['OCL']) ?? '';
         const factionTriggered = readBooleanField(block.fields, ['FactionTriggered']) === true;
         // Source parity: ZH-only FactionOCL — parse "Faction:<name> OCL:<ocl_name>" entries.
@@ -2932,6 +2939,7 @@ export function extractOCLUpdateProfiles(self: GL, objectDef: ObjectDef | undefi
         const minDelayMs = readNumericField(block.fields, ['MinDelay']) ?? 0;
         const maxDelayMs = readNumericField(block.fields, ['MaxDelay']) ?? minDelayMs;
         profiles.push({
+          moduleTag,
           oclName,
           minDelayFrames: self.msToLogicFrames(minDelayMs),
           maxDelayFrames: self.msToLogicFrames(maxDelayMs),

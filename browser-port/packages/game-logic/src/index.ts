@@ -3981,10 +3981,14 @@ export interface MapEntity {
   oclUpdateNextCreationFrames: number[];
   /** Per-profile flag: true once the initial timer has been set (first shouldCreate skips). */
   oclUpdateTimerStarted: boolean[];
+  /** Source parity: OCLUpdate::m_timerStartedFrame per module. */
+  oclUpdateTimerStartedFrames: number[];
   /** Source parity (ZH): Per-profile flag for faction-triggered OCL — true when the owning player is neutral/non-playable. */
   oclUpdateFactionNeutral: boolean[];
   /** Source parity (ZH): Per-profile tracking of the controlling player's faction (for capture detection). */
   oclUpdateFactionOwnerSide: string[];
+  /** Source parity (ZH): OCLUpdate::m_currentPlayerColor per module. */
+  oclUpdateCurrentPlayerColors: number[];
 
   // ── Source parity: WeaponBonusUpdate — aura-based weapon bonus application ──
   /** Parsed WeaponBonusUpdate modules from INI (aura source). */
@@ -4980,6 +4984,8 @@ interface FireWeaponUpdateProfile {
  * Used for supply drops, reinforcement spawns, beacon effects, etc.
  */
 interface OCLUpdateProfile {
+  /** Source module tag from the INI block name (e.g. ModuleTag_Supply). */
+  moduleTag: string | null;
   /** OCL name to execute (non-faction-triggered mode). */
   oclName: string;
   /** Minimum delay in logic frames between OCL spawns. */
@@ -27345,6 +27351,8 @@ export class GameLogicSubsystem implements Subsystem {
     for (let i = 0; i < entity.oclUpdateProfiles.length; i++) {
       const profile = entity.oclUpdateProfiles[i]!;
       const delay = this.gameRandom.nextRange(profile.minDelayFrames, profile.maxDelayFrames);
+      entity.oclUpdateTimerStarted[i] = true;
+      entity.oclUpdateTimerStartedFrames[i] = this.frameCounter;
       entity.oclUpdateNextCreationFrames[i] = this.frameCounter + delay;
     }
   }
@@ -34617,7 +34625,9 @@ export class GameLogicSubsystem implements Subsystem {
               // Player has captured the building — mark as non-neutral and reset timer.
               entity.oclUpdateFactionNeutral[i] = false;
               entity.oclUpdateFactionOwnerSide[i] = currentSide;
+              entity.oclUpdateCurrentPlayerColors[i] = this.resolveMapSidePlayerColor(this.normalizeSide(currentSide) ?? currentSide) ?? 0;
               const delay = this.gameRandom.nextRange(profile.minDelayFrames, profile.maxDelayFrames);
+              entity.oclUpdateTimerStartedFrames[i] = this.frameCounter;
               entity.oclUpdateNextCreationFrames[i] = this.frameCounter + delay;
               entity.oclUpdateTimerStarted[i] = true;
             }
@@ -34631,7 +34641,9 @@ export class GameLogicSubsystem implements Subsystem {
             } else if (currentSide !== previousSide) {
               // Faction changed (building captured by different player) — reset timer.
               entity.oclUpdateFactionOwnerSide[i] = currentSide;
+              entity.oclUpdateCurrentPlayerColors[i] = this.resolveMapSidePlayerColor(this.normalizeSide(currentSide) ?? currentSide) ?? 0;
               const delay = this.gameRandom.nextRange(profile.minDelayFrames, profile.maxDelayFrames);
+              entity.oclUpdateTimerStartedFrames[i] = this.frameCounter;
               entity.oclUpdateNextCreationFrames[i] = this.frameCounter + delay;
               entity.oclUpdateTimerStarted[i] = true;
             }
@@ -34647,12 +34659,14 @@ export class GameLogicSubsystem implements Subsystem {
         if (!entity.oclUpdateTimerStarted[i]) {
           entity.oclUpdateTimerStarted[i] = true;
           const delay = this.gameRandom.nextRange(profile.minDelayFrames, profile.maxDelayFrames);
+          entity.oclUpdateTimerStartedFrames[i] = this.frameCounter;
           entity.oclUpdateNextCreationFrames[i] = this.frameCounter + delay;
           continue;
         }
 
         // Timer has elapsed — set next creation frame and execute OCL.
         const delay = this.gameRandom.nextRange(profile.minDelayFrames, profile.maxDelayFrames);
+        entity.oclUpdateTimerStartedFrames[i] = this.frameCounter;
         entity.oclUpdateNextCreationFrames[i] = this.frameCounter + delay;
 
         // Source parity (ZH): faction-triggered mode — look up the faction-specific OCL.

@@ -3720,6 +3720,28 @@ function buildSourcePowerPlantUpdateBlockData(entity: MapEntity, currentFrame: n
   }
 }
 
+function buildSourceOclUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  moduleIndex: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-ocl-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.oclUpdateNextCreationFrames[moduleIndex] ?? 0)));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.oclUpdateTimerStartedFrames[moduleIndex] ?? 0)));
+    saver.xferBool(entity.oclUpdateFactionNeutral[moduleIndex] === true);
+    saver.xferInt(Math.trunc(entity.oclUpdateCurrentPlayerColors[moduleIndex] ?? 0));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function sourceWeaponBonusFlagToCondition(flag: number): number {
   if (!Number.isInteger(flag) || flag <= 0 || (flag & (flag - 1)) !== 0) {
     return -1;
@@ -3923,6 +3945,18 @@ function overlaySourceObjectModulesFromLiveEntity(
                 blockData: buildSourceWeaponBonusUpdateBlockData(
                   nextPulseFrame > currentFrame ? nextPulseFrame : currentFrame + 1,
                 ),
+              };
+            }
+          }
+          if (moduleType === 'OCLUPDATE' && entity.oclUpdateProfiles.length > 0) {
+            const moduleTag = module.identifier.trim().toUpperCase();
+            const moduleIndex = entity.oclUpdateProfiles.findIndex(
+              (profile) => profile.moduleTag === moduleTag,
+            );
+            if (moduleIndex >= 0) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceOclUpdateBlockData(entity, currentFrame, moduleIndex),
               };
             }
           }
