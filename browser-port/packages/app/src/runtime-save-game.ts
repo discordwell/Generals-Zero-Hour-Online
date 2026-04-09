@@ -3977,6 +3977,34 @@ function buildSourceLeafletDropBehaviorBlockData(entity: MapEntity): Uint8Array 
   }
 }
 
+function buildSourceEmpUpdateBlockData(): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-emp-update');
+  try {
+    saver.xferVersion(1);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceRadarUpdateBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-radar-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.radarExtendDoneFrame)));
+    saver.xferBool(entity.radarExtendComplete === true);
+    saver.xferBool(entity.radarActive === true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceHijackerUpdateBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-hijacker-update');
@@ -4298,6 +4326,18 @@ function overlaySourceObjectModulesFromLiveEntity(
             return {
               identifier: module.identifier,
               blockData: buildSourceLeafletDropBehaviorBlockData(entity),
+            };
+          }
+          if (moduleType === 'EMPUPDATE' && entity.empUpdateProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceEmpUpdateBlockData(),
+            };
+          }
+          if (moduleType === 'RADARUPDATE' && entity.radarUpdateProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceRadarUpdateBlockData(entity, currentFrame),
             };
           }
           if (moduleType === 'HIJACKERUPDATE' && entity.hijackerState) {

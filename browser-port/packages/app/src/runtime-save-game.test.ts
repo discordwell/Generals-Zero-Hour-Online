@@ -595,6 +595,37 @@ function createSourceLeafletDropBehaviorBlockData(
   }
 }
 
+function createSourceEmpUpdateBlockData(): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-emp-update');
+  try {
+    xferSave.xferVersion(1);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceRadarUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  extendDoneFrame: number,
+  extendComplete: boolean,
+  radarActive: boolean,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-radar-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferUnsignedInt(extendDoneFrame);
+    xferSave.xferBool(extendComplete);
+    xferSave.xferBool(radarActive);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceHijackerUpdateBlockData(
   nextCallFrameAndPhase: number,
   targetId: number,
@@ -1176,6 +1207,38 @@ function parseSourceLeafletDropBehaviorBlockData(data: Uint8Array) {
     xferLoad.xferVersion(1);
     return {
       startFrame: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceEmpUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-emp-update');
+  try {
+    return {
+      version: xferLoad.xferVersion(1),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceRadarUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-radar-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      extendDoneFrame: xferLoad.xferUnsignedInt(0),
+      extendComplete: xferLoad.xferBool(false),
+      radarActive: xferLoad.xferBool(false),
     };
   } finally {
     xferLoad.close();
@@ -5520,6 +5583,207 @@ describe('runtime-save-game', () => {
       update: true,
       isInVehicle: true,
       wasTargetAirborne: true,
+    });
+  });
+
+  it('rewrites source EMPUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_EMP',
+      blockData: createSourceEmpUpdateBlockData(),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source emp rewrite',
+      mapPath: 'Maps/RuntimeEMP/RuntimeEMP.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeEMP',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeEMPField',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            empUpdateProfile: {
+              lifetimeFrames: 120,
+              startFadeFrame: 30,
+              disabledDurationFrames: 90,
+              effectRadius: 80,
+              doesNotAffectMyOwnBuildings: false,
+              victimRequiredKindOf: new Set<string>(),
+              victimForbiddenKindOf: new Set<string>(),
+            },
+            empUpdateState: {
+              dieFrame: 180,
+              fadeFrame: 72,
+              disableAttackFired: true,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeEMPField' && moduleTag === 'ModuleTag_EMP'
+            ? 'EMPUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const empModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_EMP');
+
+    expect(empModule).toBeDefined();
+    expect(parseSourceEmpUpdateBlockData(empModule!.blockData)).toEqual({
+      version: 1,
+    });
+  });
+
+  it('rewrites source RadarUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Radar',
+      blockData: createSourceRadarUpdateBlockData((70 << 2) | 2, 60, false, false),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source radar rewrite',
+      mapPath: 'Maps/RuntimeRadar/RuntimeRadar.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeRadar',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            radarUpdateProfile: {
+              radarExtendTimeFrames: 120,
+            },
+            radarExtendDoneFrame: 96,
+            radarExtendComplete: true,
+            radarActive: true,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Radar'
+            ? 'RADARUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const radarModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Radar');
+
+    expect(radarModule).toBeDefined();
+    expect(parseSourceRadarUpdateBlockData(radarModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      extendDoneFrame: 96,
+      extendComplete: true,
+      radarActive: true,
     });
   });
 
