@@ -122,6 +122,7 @@ export function createMapEntity(self: GL,
   const attackWeapon = self.resolveAttackWeaponProfile(objectDef, iniDataRegistry);
   const attackWeaponSlotIndex = self.resolveAttackWeaponSlotIndex(weaponTemplateSets, 0, iniDataRegistry);
   const specialPowerModules = extractSpecialPowerModules(self, objectDef);
+  const sourceSpecialPowerBitNames = extractSourceSpecialPowerBitNames(self, specialPowerModules);
   const bodyStats = self.resolveBodyStats(objectDef);
   // Source parity: ThingTemplate has two separate energy fields.
   // EnergyProduction — base power production/consumption (positive = produces, negative = consumes).
@@ -327,6 +328,7 @@ export function createMapEntity(self: GL,
     commandSetStringOverride: null,
     locomotorUpgradeEnabled: false,
     specialPowerModules,
+    sourceSpecialPowerBitNames,
     lastSpecialPowerDispatch: null,
     activeLocomotorSet: LOCOMOTORSET_NORMAL,
     locomotorSurfaceMask: locomotorProfile.surfaceMask,
@@ -5487,6 +5489,26 @@ export function extractSpecialPowerModules(self: GL, objectDef: ObjectDef | unde
   }
 
   return specialPowerModules;
+}
+
+function extractSourceSpecialPowerBitNames(
+  self: GL,
+  specialPowerModules: Map<string, SpecialPowerModuleProfile>,
+): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const powerName of specialPowerModules.keys()) {
+    const specialPowerDef = typeof self.resolveSpecialPowerDefByName === 'function'
+      ? self.resolveSpecialPowerDefByName(powerName)
+      : self.iniDataRegistry?.getSpecialPower?.(powerName);
+    const enumName = readStringField(specialPowerDef?.fields ?? {}, ['Enum'])?.trim().toUpperCase() ?? '';
+    if (!enumName || enumName === 'NONE' || seen.has(enumName)) {
+      continue;
+    }
+    seen.add(enumName);
+    names.push(enumName);
+  }
+  return names;
 }
 
 export function extractUpgradeModulesFromBlocks(self: GL, 

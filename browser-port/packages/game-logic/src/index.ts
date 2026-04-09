@@ -3521,6 +3521,8 @@ export interface MapEntity {
   locomotorSurfaceMask: number;
   locomotorDownhillOnly: boolean;
   specialPowerModules: Map<string, SpecialPowerModuleProfile>;
+  /** Source parity: Object::m_specialPowerBits names derived from SpecialPowerTemplate::m_type. */
+  sourceSpecialPowerBitNames?: readonly string[];
   lastSpecialPowerDispatch: SpecialPowerDispatchProfile | null;
   pathDiameter: number;
   pathfindCenterInCell: boolean;
@@ -8016,6 +8018,7 @@ export const SCRIPT_KIND_OF_ALLOW_SURRENDER_NAMES = new Set<string>([
 const BROWSER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION = 1;
+const SOURCE_OBJECT_TRIGGER_INFO_LIMIT = 5;
 const SOURCE_TERRAIN_LOGIC_RUNTIME_SAVE_STATE_VERSION = 2;
 const SOURCE_PARTITION_RUNTIME_SAVE_STATE_VERSION = 2;
 const SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION = 2;
@@ -8464,8 +8467,22 @@ export interface GameLogicCoreSaveState {
   buildableOverrides?: GameLogicBuildableOverrideSaveState[];
   controlBarOverrides?: GameLogicControlBarOverrideSaveState[];
   bridgeSegments?: GameLogicBridgeSegmentSaveState[];
+  objectTriggerAreaStates?: GameLogicObjectTriggerAreaSaveState[];
   pendingWeaponDamageEvents?: GameLogicPendingWeaponDamageEventSaveState[];
   historicDamageLog?: GameLogicHistoricDamageWeaponSaveState[];
+}
+
+export interface GameLogicObjectTriggerAreaEntrySaveState {
+  triggerName: string;
+  entered: number;
+  exited: number;
+  isInside: number;
+}
+
+export interface GameLogicObjectTriggerAreaSaveState {
+  entityId: number;
+  enteredOrExitedFrame: number;
+  triggerAreas: GameLogicObjectTriggerAreaEntrySaveState[];
 }
 
 export interface GameLogicHistoricDamageEntrySaveState {
@@ -10139,6 +10156,75 @@ export class GameLogicSubsystem implements Subsystem {
           currentHeight,
         });
         this.applyWaterHeightChange(resolvedWaterIndex, currentHeight, 0, false);
+      }
+      return true;
+    }
+    if (key === 'scriptTriggerMembershipByEntityId') {
+      if (!(value instanceof Map) || this.scriptTriggerMembershipByEntityId.size !== 0) {
+        return false;
+      }
+      for (const [entityId, triggerIndexes] of value.entries()) {
+        if (!Number.isFinite(entityId) || !(triggerIndexes instanceof Set)) {
+          continue;
+        }
+        this.scriptTriggerMembershipByEntityId.set(
+          Math.trunc(entityId),
+          new Set(
+            [...triggerIndexes].filter((triggerIndex): triggerIndex is number =>
+              Number.isFinite(triggerIndex)).map((triggerIndex) => Math.trunc(triggerIndex)),
+          ),
+        );
+      }
+      return true;
+    }
+    if (key === 'scriptTriggerEnteredByEntityId') {
+      if (!(value instanceof Map) || this.scriptTriggerEnteredByEntityId.size !== 0) {
+        return false;
+      }
+      for (const [entityId, triggerIndexes] of value.entries()) {
+        if (!Number.isFinite(entityId) || !(triggerIndexes instanceof Set)) {
+          continue;
+        }
+        this.scriptTriggerEnteredByEntityId.set(
+          Math.trunc(entityId),
+          new Set(
+            [...triggerIndexes].filter((triggerIndex): triggerIndex is number =>
+              Number.isFinite(triggerIndex)).map((triggerIndex) => Math.trunc(triggerIndex)),
+          ),
+        );
+      }
+      return true;
+    }
+    if (key === 'scriptTriggerExitedByEntityId') {
+      if (!(value instanceof Map) || this.scriptTriggerExitedByEntityId.size !== 0) {
+        return false;
+      }
+      for (const [entityId, triggerIndexes] of value.entries()) {
+        if (!Number.isFinite(entityId) || !(triggerIndexes instanceof Set)) {
+          continue;
+        }
+        this.scriptTriggerExitedByEntityId.set(
+          Math.trunc(entityId),
+          new Set(
+            [...triggerIndexes].filter((triggerIndex): triggerIndex is number =>
+              Number.isFinite(triggerIndex)).map((triggerIndex) => Math.trunc(triggerIndex)),
+          ),
+        );
+      }
+      return true;
+    }
+    if (key === 'scriptTriggerEnterExitFrameByEntityId') {
+      if (!(value instanceof Map) || this.scriptTriggerEnterExitFrameByEntityId.size !== 0) {
+        return false;
+      }
+      for (const [entityId, frame] of value.entries()) {
+        if (!Number.isFinite(entityId) || !Number.isFinite(frame)) {
+          continue;
+        }
+        this.scriptTriggerEnterExitFrameByEntityId.set(
+          Math.trunc(entityId),
+          Math.max(0, Math.trunc(frame)),
+        );
       }
       return true;
     }
@@ -12060,6 +12146,7 @@ export class GameLogicSubsystem implements Subsystem {
           endSurfaceY: segment.endSurfaceY,
         }))
         .sort((left, right) => left.segmentId - right.segmentId),
+      objectTriggerAreaStates: this.captureSourceObjectTriggerAreaSaveState(),
       pendingWeaponDamageEvents: this.capturePendingWeaponDamageEventSaveState(),
       historicDamageLog: this.captureHistoricDamageLogSaveState(),
     };
@@ -12244,6 +12331,7 @@ export class GameLogicSubsystem implements Subsystem {
         endSurfaceY: Number.isFinite(segment.endSurfaceY) ? segment.endSurfaceY : undefined,
       });
     }
+    this.restoreSourceObjectTriggerAreaSaveState(snapshot.objectTriggerAreaStates);
     this.restorePendingWeaponDamageEventSaveState(snapshot.pendingWeaponDamageEvents);
     this.restoreHistoricDamageLogSaveState(snapshot.historicDamageLog);
   }
@@ -27307,6 +27395,122 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     return membership;
+  }
+
+  private captureSourceObjectTriggerAreaSaveState(): GameLogicObjectTriggerAreaSaveState[] {
+    const states: GameLogicObjectTriggerAreaSaveState[] = [];
+    for (const entity of this.spawnedEntities.values()) {
+      const membership = this.scriptTriggerMembershipByEntityId.get(entity.id) ?? null;
+      const entered = this.scriptTriggerEnteredByEntityId.get(entity.id) ?? null;
+      const exited = this.scriptTriggerExitedByEntityId.get(entity.id) ?? null;
+      const enteredOrExitedFrame = this.scriptTriggerEnterExitFrameByEntityId.get(entity.id) ?? 0;
+      const triggerIndexes = new Set<number>();
+      for (const triggerIndex of membership ?? []) {
+        triggerIndexes.add(triggerIndex);
+      }
+      for (const triggerIndex of entered ?? []) {
+        triggerIndexes.add(triggerIndex);
+      }
+      for (const triggerIndex of exited ?? []) {
+        triggerIndexes.add(triggerIndex);
+      }
+
+      const triggerAreas = [...triggerIndexes]
+        .filter((triggerIndex) =>
+          Number.isFinite(triggerIndex)
+          && triggerIndex >= 0
+          && triggerIndex < this.mapTriggerRegions.length)
+        .sort((left, right) => left - right)
+        .slice(0, SOURCE_OBJECT_TRIGGER_INFO_LIMIT)
+        .map((triggerIndex) => ({
+          triggerName: this.mapTriggerRegions[triggerIndex]!.name,
+          entered: entered?.has(triggerIndex) ? 1 : 0,
+          exited: exited?.has(triggerIndex) ? 1 : 0,
+          isInside: membership?.has(triggerIndex) ? 1 : 0,
+        }));
+      if (triggerAreas.length === 0 && enteredOrExitedFrame <= 0) {
+        continue;
+      }
+      states.push({
+        entityId: entity.id,
+        enteredOrExitedFrame: Math.max(0, Math.trunc(enteredOrExitedFrame)),
+        triggerAreas,
+      });
+    }
+    states.sort((left, right) => left.entityId - right.entityId);
+    return states;
+  }
+
+  private restoreSourceObjectTriggerAreaSaveState(
+    saveStates: readonly GameLogicObjectTriggerAreaSaveState[] | undefined,
+  ): void {
+    this.scriptTriggerMembershipByEntityId.clear();
+    this.scriptTriggerEnteredByEntityId.clear();
+    this.scriptTriggerExitedByEntityId.clear();
+    this.scriptTriggerEnterExitFrameByEntityId.clear();
+
+    const triggerIndexByNameUpper = new Map<string, number>();
+    for (let index = 0; index < this.mapTriggerRegions.length; index += 1) {
+      const region = this.mapTriggerRegions[index]!;
+      const normalizedName = region.nameUpper;
+      if (!normalizedName || triggerIndexByNameUpper.has(normalizedName)) {
+        continue;
+      }
+      triggerIndexByNameUpper.set(normalizedName, index);
+    }
+
+    for (const saveState of saveStates ?? []) {
+      if (!saveState || typeof saveState.entityId !== 'number') {
+        continue;
+      }
+      const entityId = Math.trunc(saveState.entityId);
+      const entity = this.spawnedEntities.get(entityId);
+      if (!entity || entity.destroyed) {
+        continue;
+      }
+
+      const membership = new Set<number>();
+      const entered = new Set<number>();
+      const exited = new Set<number>();
+      for (const triggerArea of saveState.triggerAreas ?? []) {
+        if (!triggerArea || typeof triggerArea.triggerName !== 'string') {
+          continue;
+        }
+        const normalizedName = triggerArea.triggerName.trim().toUpperCase();
+        if (!normalizedName) {
+          continue;
+        }
+        const triggerIndex = triggerIndexByNameUpper.get(normalizedName);
+        if (triggerIndex === undefined) {
+          continue;
+        }
+        if (triggerArea.isInside) {
+          membership.add(triggerIndex);
+        }
+        if (triggerArea.entered) {
+          entered.add(triggerIndex);
+        }
+        if (triggerArea.exited) {
+          exited.add(triggerIndex);
+        }
+      }
+      if (membership.size > 0) {
+        this.scriptTriggerMembershipByEntityId.set(entityId, membership);
+      }
+      if (entered.size > 0) {
+        this.scriptTriggerEnteredByEntityId.set(entityId, entered);
+      }
+      if (exited.size > 0) {
+        this.scriptTriggerExitedByEntityId.set(entityId, exited);
+      }
+      const enteredOrExitedFrame = Number(saveState.enteredOrExitedFrame);
+      if (Number.isFinite(enteredOrExitedFrame) && enteredOrExitedFrame > 0) {
+        this.scriptTriggerEnterExitFrameByEntityId.set(
+          entityId,
+          Math.max(0, Math.trunc(enteredOrExitedFrame)),
+        );
+      }
+    }
   }
 
   /* @internal */ executeMapScriptList(scriptList: MapScriptListRuntime): void {

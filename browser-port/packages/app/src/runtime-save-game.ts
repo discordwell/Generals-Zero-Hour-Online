@@ -29,6 +29,7 @@ import {
   type GameLogicControlBarOverrideSaveState,
   type GameLogicCoreSaveState,
   type GameLogicInGameUiSaveState,
+  type GameLogicObjectTriggerAreaSaveState,
   type GameLogicPlayerTunnelTrackerSaveState,
   type GameLogicRadarEventSaveState,
   type GameLogicRadarObjectSaveState,
@@ -3270,9 +3271,75 @@ function resolveSourceContainedByState(
   };
 }
 
+function resolveSourceTriggerAreaState(
+  sourceState: SourceMapEntitySaveState,
+  triggerAreaState: GameLogicObjectTriggerAreaSaveState | null | undefined,
+): Pick<SourceMapEntitySaveState, 'enteredOrExitedFrame' | 'triggerAreas'> {
+  if (!triggerAreaState) {
+    return {
+      enteredOrExitedFrame: sourceState.enteredOrExitedFrame,
+      triggerAreas: sourceState.triggerAreas,
+    };
+  }
+  return {
+    enteredOrExitedFrame: Math.max(0, Math.trunc(triggerAreaState.enteredOrExitedFrame)),
+    triggerAreas: (triggerAreaState.triggerAreas ?? []).flatMap((triggerArea) => {
+      if (!triggerArea || typeof triggerArea.triggerName !== 'string') {
+        return [];
+      }
+      return [{
+        triggerName: triggerArea.triggerName,
+        entered: triggerArea.entered ? 1 : 0,
+        exited: triggerArea.exited ? 1 : 0,
+        isInside: triggerArea.isInside ? 1 : 0,
+      }];
+    }),
+  };
+}
+
+function overlaySourceSpecialPowerBitsFromLiveEntity(
+  sourceState: SourceMapEntitySaveState,
+  entity: MapEntity,
+): string[] {
+  if (!Array.isArray(entity.sourceSpecialPowerBitNames)) {
+    return sourceState.specialPowerBits;
+  }
+
+  const liveNames: string[] = [];
+  const liveNameSet = new Set<string>();
+  for (const rawName of entity.sourceSpecialPowerBitNames) {
+    const normalizedName = typeof rawName === 'string' ? rawName.trim().toUpperCase() : '';
+    if (!normalizedName || normalizedName === 'NONE' || liveNameSet.has(normalizedName)) {
+      continue;
+    }
+    liveNameSet.add(normalizedName);
+    liveNames.push(normalizedName);
+  }
+
+  const orderedNames: string[] = [];
+  const emittedNames = new Set<string>();
+  for (const rawName of sourceState.specialPowerBits) {
+    const normalizedName = typeof rawName === 'string' ? rawName.trim().toUpperCase() : '';
+    if (!normalizedName || !liveNameSet.has(normalizedName) || emittedNames.has(normalizedName)) {
+      continue;
+    }
+    emittedNames.add(normalizedName);
+    orderedNames.push(normalizedName);
+  }
+  for (const liveName of liveNames) {
+    if (emittedNames.has(liveName)) {
+      continue;
+    }
+    emittedNames.add(liveName);
+    orderedNames.push(liveName);
+  }
+  return orderedNames;
+}
+
 function overlaySourceObjectStateFromLiveEntity(
   sourceState: SourceMapEntitySaveState,
   entity: MapEntity,
+  triggerAreaState?: GameLogicObjectTriggerAreaSaveState | null,
 ): SourceMapEntitySaveState {
   const hasTransform = Number.isFinite(entity.x)
     && Number.isFinite(entity.y)
@@ -3328,6 +3395,7 @@ function overlaySourceObjectStateFromLiveEntity(
       ? [...entity.completedUpgrades].sort()
       : sourceState.completedUpgradeNames,
     originalTeamName: entity.sourceTeamNameUpper?.trim().toUpperCase() || sourceState.originalTeamName,
+    ...resolveSourceTriggerAreaState(sourceState, triggerAreaState),
     indicatorColor: customIndicatorColor !== null
       ? normalizeSourcePackedColor(customIndicatorColor)
       : sourceState.indicatorColor,
@@ -3344,6 +3412,7 @@ function overlaySourceObjectStateFromLiveEntity(
       ? entity.weaponBonusConditionFlags
       : sourceState.weaponBonusCondition,
     weaponSet: overlaySourceWeaponSetFromLiveEntity(sourceState, entity),
+    specialPowerBits: overlaySourceSpecialPowerBitsFromLiveEntity(sourceState, entity),
     commandSetStringOverride: typeof entity.commandSetStringOverride === 'string'
       ? entity.commandSetStringOverride
       : sourceState.commandSetStringOverride,
@@ -3368,6 +3437,9 @@ function buildSourceGameLogicChunk(
     const liveEntityById = new Map(
       (coreState?.spawnedEntities ?? []).map((entity) => [entity.id, entity]),
     );
+    const liveTriggerAreaStateByEntityId = new Map(
+      (coreState?.objectTriggerAreaStates ?? []).map((state) => [state.entityId, state]),
+    );
     saver.xferVersion(sourceState.version);
     saver.xferUnsignedInt(coreState?.frameCounter ?? sourceState.frameCounter);
     saver.xferVersion(1);
@@ -3385,7 +3457,11 @@ function buildSourceGameLogicChunk(
       saver.xferUser(
         liveEntity
           ? new Uint8Array(buildSourceMapEntityChunk(
-              overlaySourceObjectStateFromLiveEntity(object.state, liveEntity),
+              overlaySourceObjectStateFromLiveEntity(
+                object.state,
+                liveEntity,
+                liveTriggerAreaStateByEntityId.get(liveEntity.id),
+              ),
             ))
           : new Uint8Array(object.blockData),
       );

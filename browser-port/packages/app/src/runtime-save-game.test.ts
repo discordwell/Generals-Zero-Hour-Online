@@ -293,6 +293,11 @@ function createSourceObjectBlockData(): Uint8Array {
   state.layer = 1;
   state.destinationLayer = 1;
   state.isSelectable = true;
+  state.specialPowerBits = [
+    'SPECIAL_CASH_HACK',
+    'SPECIAL_PARTICLE_UPLINK_CANNON',
+    'SPECIAL_STALE_POWER',
+  ];
   state.modulesReady = true;
   return new Uint8Array(buildSourceMapEntityChunk(state));
 }
@@ -2905,6 +2910,14 @@ describe('runtime-save-game', () => {
           defeatedSides: new Set<string>(),
           gameEndFrame: null,
           scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [{
+            entityId: 7,
+            enteredOrExitedFrame: 42,
+            triggerAreas: [
+              { triggerName: 'Trigger_A', entered: 1, exited: 0, isInside: 1 },
+              { triggerName: 'Trigger_B', entered: 0, exited: 1, isInside: 0 },
+            ],
+          }],
           spawnedEntities: [{
             id: 7,
             templateName: 'RuntimeTank',
@@ -2922,6 +2935,10 @@ describe('runtime-save-game', () => {
             completedUpgrades: new Set(['Upgrade_A']),
             receivingDifficultyBonus: true,
             commandSetStringOverride: 'CommandSet_New',
+            sourceSpecialPowerBitNames: [
+              'SPECIAL_PARTICLE_UPLINK_CANNON',
+              'SPECIAL_CASH_HACK',
+            ],
             objectStatusFlags: new Set([
               'IS_USING_ABILITY',
               'CARBOMB',
@@ -2989,6 +3006,11 @@ describe('runtime-save-game', () => {
     });
     expect(firstObject?.containedById).toBe(21);
     expect(firstObject?.containedByFrame).toBe(77);
+    expect(firstObject?.enteredOrExitedFrame).toBe(42);
+    expect(firstObject?.triggerAreas).toEqual([
+      { triggerName: 'Trigger_A', entered: 1, exited: 0, isInside: 1 },
+      { triggerName: 'Trigger_B', entered: 0, exited: 1, isInside: 0 },
+    ]);
     expect(firstObject?.soleHealingBenefactorId).toBe(44);
     expect(firstObject?.soleHealingBenefactorExpirationFrame).toBe(555);
     expect(firstObject?.weaponSetFlags).toEqual(['PLAYER_UPGRADE']);
@@ -2996,6 +3018,10 @@ describe('runtime-save-game', () => {
     expect(firstObject?.weaponSet?.currentWeapon).toBe(2);
     expect(firstObject?.weaponSet?.currentWeaponLockedStatus).toBe(1);
     expect(firstObject?.weaponSet?.totalAntiMask).toBe(12);
+    expect(firstObject?.specialPowerBits).toEqual([
+      'SPECIAL_CASH_HACK',
+      'SPECIAL_PARTICLE_UPLINK_CANNON',
+    ]);
     expect(firstObject?.weaponSet?.weapons[2]).toMatchObject({
       templateName: 'LaserWeapon',
       slot: 2,

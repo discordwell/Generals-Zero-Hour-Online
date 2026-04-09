@@ -40,6 +40,46 @@ function makeSpecialPowerSaveBundle() {
 }
 
 describe('special-power save-state', () => {
+  it('tracks source special-power bit names on entities for Object::xfer rewrites', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('PowerStructure', 'America', ['STRUCTURE', 'COMMANDCENTER'], [
+          makeBlock('Behavior', 'OCLSpecialPower ModuleTag_NonShared', {
+            SpecialPowerTemplate: 'SPECIAL_CARGO_DROP',
+          }),
+          makeBlock('Behavior', 'OCLSpecialPower ModuleTag_Shared', {
+            SpecialPowerTemplate: 'SPECIAL_PARTICLE_UPLINK_CANNON',
+          }),
+        ]),
+      ],
+      specialPowers: [
+        makeSpecialPowerDef('SPECIAL_CARGO_DROP', {
+          Enum: 'SPECIAL_CASH_HACK',
+          ReloadTime: 6000,
+        }),
+        makeSpecialPowerDef('SPECIAL_PARTICLE_UPLINK_CANNON', {
+          Enum: 'SPECIAL_PARTICLE_UPLINK_CANNON',
+          ReloadTime: 6000,
+        }),
+      ],
+    });
+    const registry = makeRegistry(bundle);
+    const map = makeMap([
+      makeMapObject('PowerStructure', 10, 10),
+    ], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, { sourceSpecialPowerBitNames?: readonly string[] }>;
+    };
+    expect(privateLogic.spawnedEntities.get(1)?.sourceSpecialPowerBitNames).toEqual([
+      'SPECIAL_CASH_HACK',
+      'SPECIAL_PARTICLE_UPLINK_CANNON',
+    ]);
+  });
+
   it('stores source-owned special-power state outside the browser runtime blob', () => {
     const bundle = makeSpecialPowerSaveBundle();
     const registry = makeRegistry(bundle);
