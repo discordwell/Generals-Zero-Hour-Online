@@ -298,7 +298,7 @@ function createSourceObjectBlockData(): Uint8Array {
     'SPECIAL_PARTICLE_UPLINK_CANNON',
     'SPECIAL_STALE_POWER',
   ];
-  state.modulesReady = true;
+  state.modulesReady = false;
   return new Uint8Array(buildSourceMapEntityChunk(state));
 }
 
@@ -2976,6 +2976,11 @@ describe('runtime-save-game', () => {
             soleHealingBenefactorExpirationFrame: 555,
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
+        captureSourceObjectXferOverlayState: () => [{
+          entityId: 7,
+          privateStatus: 0x0c,
+          modulesReady: true,
+        }],
         captureBrowserRuntimeSaveState: () => ({ version: 1 }),
         getObjectIdCounter: () => 8,
       },
@@ -2998,6 +3003,7 @@ describe('runtime-save-game', () => {
     expect(firstObject?.builderId).toBe(17);
     expect(firstObject?.shroudClearingRange).toBe(225);
     expect(firstObject?.indicatorColor).toBe(0xff12ab34 | 0);
+    expect(firstObject?.privateStatus).toBe(0x0c);
     expect(firstObject?.experienceTracker).toMatchObject({
       currentLevel: 2,
       currentExperience: 500,
@@ -3022,6 +3028,7 @@ describe('runtime-save-game', () => {
       'SPECIAL_CASH_HACK',
       'SPECIAL_PARTICLE_UPLINK_CANNON',
     ]);
+    expect(firstObject?.modulesReady).toBe(true);
     expect(firstObject?.weaponSet?.weapons[2]).toMatchObject({
       templateName: 'LaserWeapon',
       slot: 2,

@@ -8485,6 +8485,12 @@ export interface GameLogicObjectTriggerAreaSaveState {
   triggerAreas: GameLogicObjectTriggerAreaEntrySaveState[];
 }
 
+export interface GameLogicObjectXferOverlayState {
+  entityId: number;
+  privateStatus: number;
+  modulesReady: boolean;
+}
+
 export interface GameLogicHistoricDamageEntrySaveState {
   frame: number;
   x: number;
@@ -12150,6 +12156,19 @@ export class GameLogicSubsystem implements Subsystem {
       pendingWeaponDamageEvents: this.capturePendingWeaponDamageEventSaveState(),
       historicDamageLog: this.captureHistoricDamageLogSaveState(),
     };
+  }
+
+  captureSourceObjectXferOverlayState(): GameLogicObjectXferOverlayState[] {
+    return Array.from(this.spawnedEntities.values())
+      .map((entity) => ({
+        entityId: entity.id,
+        privateStatus:
+          (entity.destroyed ? 0x01 : 0)
+          | (entity.capturedFromOriginalOwner ? 0x04 : 0)
+          | (this.isEntityOffMap(entity) ? 0x08 : 0),
+        modulesReady: true,
+      }))
+      .sort((left, right) => left.entityId - right.entityId);
   }
 
   restoreSourceGameLogicRuntimeSaveState(state: unknown): void {

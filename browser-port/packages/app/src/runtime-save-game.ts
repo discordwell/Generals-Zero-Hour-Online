@@ -29,6 +29,7 @@ import {
   type GameLogicControlBarOverrideSaveState,
   type GameLogicCoreSaveState,
   type GameLogicInGameUiSaveState,
+  type GameLogicObjectXferOverlayState,
   type GameLogicObjectTriggerAreaSaveState,
   type GameLogicPlayerTunnelTrackerSaveState,
   type GameLogicRadarEventSaveState,
@@ -3340,6 +3341,7 @@ function overlaySourceObjectStateFromLiveEntity(
   sourceState: SourceMapEntitySaveState,
   entity: MapEntity,
   triggerAreaState?: GameLogicObjectTriggerAreaSaveState | null,
+  objectXferOverlayState?: GameLogicObjectXferOverlayState | null,
 ): SourceMapEntitySaveState {
   const hasTransform = Number.isFinite(entity.x)
     && Number.isFinite(entity.y)
@@ -3364,6 +3366,7 @@ function overlaySourceObjectStateFromLiveEntity(
     internalName: entity.scriptName?.trim() || sourceState.internalName,
     statusBits: collectSourceObjectStatusBits(entity),
     scriptStatus,
+    privateStatus: objectXferOverlayState?.privateStatus ?? sourceState.privateStatus,
     visionRange: Number.isFinite(entity.visionRange) ? entity.visionRange : sourceState.visionRange,
     shroudClearingRange: Number.isFinite(entity.shroudClearingRange)
       ? entity.shroudClearingRange
@@ -3416,6 +3419,7 @@ function overlaySourceObjectStateFromLiveEntity(
     commandSetStringOverride: typeof entity.commandSetStringOverride === 'string'
       ? entity.commandSetStringOverride
       : sourceState.commandSetStringOverride,
+    modulesReady: objectXferOverlayState?.modulesReady ?? sourceState.modulesReady,
     isReceivingDifficultyBonus: typeof entity.receivingDifficultyBonus === 'boolean'
       ? entity.receivingDifficultyBonus
       : sourceState.isReceivingDifficultyBonus,
@@ -3427,6 +3431,7 @@ function buildSourceGameLogicChunk(
   options: {
     campaignState?: RuntimeSaveCampaignState | null;
     coreState?: GameLogicCoreSaveState | null;
+    objectXferOverlayStates?: readonly GameLogicObjectXferOverlayState[] | null;
   } = {},
 ): Uint8Array {
   const saver = new XferSave();
@@ -3439,6 +3444,9 @@ function buildSourceGameLogicChunk(
     );
     const liveTriggerAreaStateByEntityId = new Map(
       (coreState?.objectTriggerAreaStates ?? []).map((state) => [state.entityId, state]),
+    );
+    const objectXferOverlayStateByEntityId = new Map(
+      (options.objectXferOverlayStates ?? []).map((state) => [state.entityId, state]),
     );
     saver.xferVersion(sourceState.version);
     saver.xferUnsignedInt(coreState?.frameCounter ?? sourceState.frameCounter);
@@ -3461,6 +3469,7 @@ function buildSourceGameLogicChunk(
                 object.state,
                 liveEntity,
                 liveTriggerAreaStateByEntityId.get(liveEntity.id),
+                objectXferOverlayStateByEntityId.get(liveEntity.id),
               ),
             ))
           : new Uint8Array(object.blockData),
@@ -7026,7 +7035,7 @@ export function buildRuntimeSaveFile(params: {
   particleSystemState?: ParticleSystemManagerSaveState | null;
   currentMusicTrackName?: string | null;
   sourceDifficulty?: GameDifficulty | null;
-  gameLogic: Pick<
+  gameLogic: (Pick<
     GameLogicSubsystem,
     | 'captureBrowserRuntimeSaveState'
     | 'captureSourceTerrainLogicRuntimeSaveState'
@@ -7039,7 +7048,7 @@ export function buildRuntimeSaveFile(params: {
     | 'captureSourcePlayerRuntimeSaveState'
     | 'captureSourceGameLogicRuntimeSaveState'
     | 'getObjectIdCounter'
-  >;
+  > & Partial<Pick<GameLogicSubsystem, 'captureSourceObjectXferOverlayState'>>);
   embeddedMapBytes?: Uint8Array | null;
   sourceGameMode?: number;
   campaign?: RuntimeSaveCampaignBootstrap | null;
@@ -7079,6 +7088,9 @@ export function buildRuntimeSaveFile(params: {
       });
   const playerPayload = params.gameLogic.captureSourcePlayerRuntimeSaveState();
   const gameLogicPayload = params.gameLogic.captureSourceGameLogicRuntimeSaveState();
+  const objectXferOverlayPayload = typeof params.gameLogic.captureSourceObjectXferOverlayState === 'function'
+    ? params.gameLogic.captureSourceObjectXferOverlayState()
+    : [];
   const gameClientDrawableStates = buildSourceGameClientDrawableStates(
     params.renderableEntityStates,
     gameLogicPayload,
@@ -7170,6 +7182,7 @@ export function buildRuntimeSaveFile(params: {
           ? buildSourceGameLogicChunk(parsedSourceGameLogicState, {
               campaignState,
               coreState: gameLogicPayload,
+              objectXferOverlayStates: objectXferOverlayPayload,
             })
           : passthroughBlock.blockData,
       ),
