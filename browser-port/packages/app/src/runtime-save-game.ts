@@ -3965,6 +3965,18 @@ function buildSourceBaseRegenerateUpdateBlockData(entity: MapEntity, currentFram
   }
 }
 
+function buildSourceLeafletDropBehaviorBlockData(entity: MapEntity): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-leaflet-drop-behavior');
+  try {
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.leafletDropState?.startFrame ?? 0)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function sourceWeaponBonusFlagToCondition(flag: number): number {
   if (!Number.isInteger(flag) || flag <= 0 || (flag & (flag - 1)) !== 0) {
     return -1;
@@ -4256,6 +4268,12 @@ function overlaySourceObjectModulesFromLiveEntity(
             return {
               identifier: module.identifier,
               blockData: buildSourceBaseRegenerateUpdateBlockData(entity, currentFrame),
+            };
+          }
+          if (moduleType === 'LEAFLETDROPBEHAVIOR' && entity.leafletDropState) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceLeafletDropBehaviorBlockData(entity),
             };
           }
         }

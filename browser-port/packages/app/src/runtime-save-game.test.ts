@@ -581,6 +581,20 @@ function createSourceBaseRegenerateUpdateBlockData(
   }
 }
 
+function createSourceLeafletDropBehaviorBlockData(
+  startFrame: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-leaflet-drop-behavior');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUnsignedInt(startFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceBaseOnlyObjectHelperBlockData(nextCallFrameAndPhase: number): Uint8Array {
   const xferSave = new XferSave();
   xferSave.open('create-source-base-only-object-helper');
@@ -1123,6 +1137,19 @@ function parseSourceBaseRegenerateUpdateBlockData(data: Uint8Array) {
     xferLoad.xferVersion(1);
     return {
       nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceLeafletDropBehaviorBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-leaflet-drop-behavior');
+  try {
+    xferLoad.xferVersion(1);
+    return {
+      startFrame: xferLoad.xferUnsignedInt(0),
     };
   } finally {
     xferLoad.close();
@@ -5242,6 +5269,104 @@ describe('runtime-save-game', () => {
     expect(baseRegenModule).toBeDefined();
     expect(parseSourceBaseRegenerateUpdateBlockData(baseRegenModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (75 << 2) | 2,
+    });
+  });
+
+  it('rewrites source LeafletDropBehavior modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Leaflet',
+      blockData: createSourceLeafletDropBehaviorBlockData(77),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source leaflet drop rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            leafletDropProfile: {
+              delayFrames: 30,
+              disabledDurationFrames: 150,
+              affectRadius: 40,
+            },
+            leafletDropState: {
+              startFrame: 96,
+              fired: false,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Leaflet'
+            ? 'LEAFLETDROPBEHAVIOR'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const leafletModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Leaflet');
+
+    expect(leafletModule).toBeDefined();
+    expect(parseSourceLeafletDropBehaviorBlockData(leafletModule!.blockData)).toEqual({
+      startFrame: 96,
     });
   });
 
