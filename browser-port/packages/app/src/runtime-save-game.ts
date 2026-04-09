@@ -4005,6 +4005,140 @@ function buildSourceRadarUpdateBlockData(entity: MapEntity, currentFrame: number
   }
 }
 
+function sourceSpecialAbilityPackingStateToInt(
+  state: 'NONE' | 'PACKING' | 'UNPACKING' | 'PACKED' | 'UNPACKED',
+): number {
+  switch (state) {
+    case 'NONE': return 0;
+    case 'PACKING': return 1;
+    case 'UNPACKING': return 2;
+    case 'PACKED': return 3;
+    case 'UNPACKED': return 4;
+  }
+}
+
+function tryParseSourceSpecialAbilityUpdateBlockData(
+  data: Uint8Array,
+): {
+  targetPos: { x: number; y: number; z: number };
+  locationCount: number;
+  specialObjectIdList: number[];
+  specialObjectEntries: number;
+  facingInitiated: boolean;
+  facingComplete: boolean;
+  doDisableFxParticles: boolean;
+  captureFlashPhase: number;
+} | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-special-ability-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferBool(false);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferObjectID(0);
+    const targetPos = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const locationCount = xferLoad.xferInt(0);
+    const specialObjectIdList = xferLoad.xferObjectIDList([]);
+    const specialObjectEntries = xferLoad.xferUnsignedInt(0);
+    xferLoad.xferBool(false);
+    xferLoad.xferInt(0);
+    const facingInitiated = xferLoad.xferBool(false);
+    const facingComplete = xferLoad.xferBool(false);
+    xferLoad.xferBool(false);
+    const doDisableFxParticles = xferLoad.xferBool(true);
+    const captureFlashPhase = xferLoad.xferReal(0);
+    return xferLoad.getRemaining() === 0
+      ? {
+        targetPos,
+        locationCount,
+        specialObjectIdList,
+        specialObjectEntries,
+        facingInitiated,
+        facingComplete,
+        doDisableFxParticles,
+        captureFlashPhase,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceSpecialAbilityUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState?: {
+    targetPos: { x: number; y: number; z: number };
+    locationCount: number;
+    specialObjectIdList: number[];
+    specialObjectEntries: number;
+    facingInitiated: boolean;
+    facingComplete: boolean;
+    doDisableFxParticles: boolean;
+    captureFlashPhase: number;
+  } | null,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-special-ability-update');
+  try {
+    const profile = entity.specialAbilityProfile;
+    const state = entity.specialAbilityState;
+    const nextCallFrame = state?.active === true || profile?.alwaysValidateSpecialObjects === true
+      ? currentFrame + 1
+      : SOURCE_FRAME_FOREVER;
+    const targetEntityId = state?.targetEntityId ?? null;
+    let targetPos = preservedState?.targetPos ?? { x: 0, y: 0, z: 0 };
+    if (targetEntityId !== null) {
+      targetPos = { x: 0, y: 0, z: 0 };
+    } else if (Number.isFinite(state?.targetX) || Number.isFinite(state?.targetZ)) {
+      targetPos = {
+        x: Number.isFinite(state?.targetX) ? state!.targetX! : 0,
+        y: preservedState?.targetPos.y ?? 0,
+        z: Number.isFinite(state?.targetZ) ? state!.targetZ! : 0,
+      };
+    } else if (state?.noTargetCommand === true) {
+      targetPos = { x: 0, y: 0, z: 0 };
+    }
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
+    ));
+    saver.xferBool(state?.active === true);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.prepFrames ?? 0)));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.animFrames ?? 0)));
+    saver.xferObjectID(Math.max(0, Math.trunc(targetEntityId ?? 0)));
+    saver.xferCoord3D(targetPos);
+    saver.xferInt(Math.trunc(preservedState?.locationCount ?? 0));
+    saver.xferObjectIDList(preservedState?.specialObjectIdList ?? []);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(preservedState?.specialObjectEntries ?? 0)));
+    saver.xferBool(state?.noTargetCommand === true);
+    saver.xferUser(
+      sourceSpecialAbilityPackingStateToInt(state?.packingState ?? 'NONE'),
+      (xfer, value) => { xfer.xferInt(value); },
+      (xfer) => xfer.xferInt(0),
+    );
+    saver.xferBool(preservedState?.facingInitiated ?? false);
+    saver.xferBool(preservedState?.facingComplete ?? false);
+    saver.xferBool(state?.withinStartAbilityRange === true);
+    saver.xferBool(preservedState?.doDisableFxParticles ?? true);
+    saver.xferReal(preservedState?.captureFlashPhase ?? 0);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function sourceMissileDoorStateToInt(
   state: 'CLOSED' | 'OPENING' | 'OPEN' | 'WAITING_TO_CLOSE' | 'CLOSING',
 ): number {
@@ -4633,6 +4767,16 @@ function overlaySourceObjectModulesFromLiveEntity(
             return {
               identifier: module.identifier,
               blockData: buildSourceRadarUpdateBlockData(entity, currentFrame),
+            };
+          }
+          if (moduleType === 'SPECIALABILITYUPDATE' && entity.specialAbilityProfile && entity.specialAbilityState) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceSpecialAbilityUpdateBlockData(
+                entity,
+                currentFrame,
+                tryParseSourceSpecialAbilityUpdateBlockData(module.blockData),
+              ),
             };
           }
           if (moduleType === 'TOPPLEUPDATE' && entity.toppleProfile) {
