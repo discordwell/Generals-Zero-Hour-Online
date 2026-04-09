@@ -19,6 +19,8 @@ import {
   parseSourceMapEntityChunk,
   type MapEntityChunkLayoutInspection,
   type SourceMapEntitySaveState,
+  SCRIPT_OBJECT_STATUS_BIT_INDEX_BY_NAME,
+  WEAPON_SET_FLAG_MASK_BY_NAME,
   xferMapEntity,
   type GameDifficulty,
   type GameLogicCaveTrackerSaveState,
@@ -80,6 +82,56 @@ const SOURCE_PARTICLE_SYSTEM_BLOCK = 'CHUNK_ParticleSystem';
 const SOURCE_TERRAIN_VISUAL_BLOCK = 'CHUNK_TerrainVisual';
 const SOURCE_GHOST_OBJECT_BLOCK = 'CHUNK_GhostObject';
 export const BROWSER_RUNTIME_STATE_BLOCK = 'CHUNK_TS_RuntimeState';
+const SOURCE_FRAME_FOREVER = 0x3fffffff;
+const SOURCE_SCRIPT_STATUS_DISABLED = 0x01;
+const SOURCE_SCRIPT_STATUS_UNPOWERED = 0x02;
+const SOURCE_SCRIPT_STATUS_UNSELLABLE = 0x04;
+const SOURCE_SCRIPT_STATUS_UNSTEALTHED = 0x08;
+const SOURCE_SCRIPT_STATUS_TARGETABLE = 0x10;
+const SOURCE_DISABLED_NAMES_IN_ORDER = [
+  'DEFAULT',
+  'DISABLED_HACKED',
+  'DISABLED_EMP',
+  'DISABLED_HELD',
+  'DISABLED_PARALYZED',
+  'DISABLED_UNMANNED',
+  'DISABLED_UNDERPOWERED',
+  'DISABLED_FREEFALL',
+  'DISABLED_AWESTRUCK',
+  'DISABLED_BRAINWASHED',
+  'DISABLED_SUBDUED',
+  'DISABLED_SCRIPT_DISABLED',
+  'DISABLED_SCRIPT_UNDERPOWERED',
+] as const;
+const SOURCE_DISABLED_NAME_SET = new Set<string>(SOURCE_DISABLED_NAMES_IN_ORDER);
+const SOURCE_OBJECT_STATUS_NAME_SET = new Set<string>(SCRIPT_OBJECT_STATUS_BIT_INDEX_BY_NAME.keys());
+const SOURCE_OBJECT_STATUS_ALIASES = new Map<string, string>([
+  ['BRAKING', 'IS_BRAKING'],
+  ['IS_USING_ABILITY', 'USING_ABILITY'],
+  ['CARBOMB', 'IS_CARBOMB'],
+  ['RIDER1', 'STATUS_RIDER1'],
+  ['RIDER2', 'STATUS_RIDER2'],
+  ['RIDER3', 'STATUS_RIDER3'],
+  ['RIDER4', 'STATUS_RIDER4'],
+  ['RIDER5', 'STATUS_RIDER5'],
+  ['RIDER6', 'STATUS_RIDER6'],
+  ['RIDER7', 'STATUS_RIDER7'],
+  ['RIDER8', 'STATUS_RIDER8'],
+  ['MISSILE_KILLING_SELF', 'KILLING_SELF'],
+]);
+const SOURCE_SCRIPT_STATUS_BITS_BY_NAME = new Map<string, number>([
+  ['SCRIPT_DISABLED', SOURCE_SCRIPT_STATUS_DISABLED],
+  ['SCRIPT_UNPOWERED', SOURCE_SCRIPT_STATUS_UNPOWERED],
+  ['SCRIPT_UNSELLABLE', SOURCE_SCRIPT_STATUS_UNSELLABLE],
+  ['SCRIPT_UNSTEALTHED', SOURCE_SCRIPT_STATUS_UNSTEALTHED],
+  ['SCRIPT_TARGETABLE', SOURCE_SCRIPT_STATUS_TARGETABLE],
+]);
+const SOURCE_WEAPON_LOCK_STATUS_BY_NAME = new Map<MapEntity['weaponLockStatus'], number>([
+  ['NOT_LOCKED', 0],
+  ['LOCKED_TEMPORARILY', 1],
+  ['LOCKED_PERMANENTLY', 2],
+]);
+const EMPTY_STATUS_FLAG_SET = new Set<string>();
 const PASSTHROUGH_BLOCK_ORDER = [
   SOURCE_GAME_LOGIC_BLOCK,
   SOURCE_GAME_CLIENT_BLOCK,
@@ -3010,6 +3062,168 @@ function buildSourceTransformMatrixValues(
   ];
 }
 
+function normalizeSourceObjectStatusName(statusName: string): string | null {
+  const normalized = statusName.trim().toUpperCase();
+  if (!normalized || normalized === 'NONE') {
+    return null;
+  }
+  const withoutPrefix = normalized.startsWith('OBJECT_STATUS_')
+    ? normalized.slice('OBJECT_STATUS_'.length)
+    : normalized;
+  const aliased = SOURCE_OBJECT_STATUS_ALIASES.get(withoutPrefix) ?? withoutPrefix;
+  return SOURCE_OBJECT_STATUS_NAME_SET.has(aliased) ? aliased : null;
+}
+
+function collectSourceObjectStatusBits(entity: MapEntity): string[] {
+  const names = new Set<string>();
+  const objectStatusFlags = entity.objectStatusFlags instanceof Set
+    ? entity.objectStatusFlags
+    : EMPTY_STATUS_FLAG_SET;
+  for (const rawStatusName of objectStatusFlags) {
+    const normalized = normalizeSourceObjectStatusName(rawStatusName);
+    if (!normalized) {
+      continue;
+    }
+    names.add(normalized);
+  }
+  return [...names].sort((left, right) =>
+    (SCRIPT_OBJECT_STATUS_BIT_INDEX_BY_NAME.get(left) ?? Number.MAX_SAFE_INTEGER)
+    - (SCRIPT_OBJECT_STATUS_BIT_INDEX_BY_NAME.get(right) ?? Number.MAX_SAFE_INTEGER));
+}
+
+function collectSourceScriptStatus(entity: MapEntity): number {
+  let scriptStatus = 0;
+  const objectStatusFlags = entity.objectStatusFlags instanceof Set
+    ? entity.objectStatusFlags
+    : EMPTY_STATUS_FLAG_SET;
+  for (const rawStatusName of objectStatusFlags) {
+    const normalized = rawStatusName.trim().toUpperCase();
+    const bit = SOURCE_SCRIPT_STATUS_BITS_BY_NAME.get(normalized);
+    if (bit !== undefined) {
+      scriptStatus |= bit;
+    }
+  }
+  return scriptStatus;
+}
+
+function resolveSourceDisabledState(
+  sourceState: SourceMapEntitySaveState,
+  entity: MapEntity,
+  scriptStatus: number,
+): Pick<SourceMapEntitySaveState, 'disabledMask' | 'disabledTillFrame'> {
+  const activeDisabledNames = new Set<string>();
+  const objectStatusFlags = entity.objectStatusFlags instanceof Set
+    ? entity.objectStatusFlags
+    : EMPTY_STATUS_FLAG_SET;
+  for (const rawStatusName of objectStatusFlags) {
+    const normalized = rawStatusName.trim().toUpperCase();
+    if (normalized === 'DISABLED' || normalized === 'DISABLED_DEFAULT') {
+      activeDisabledNames.add('DEFAULT');
+      continue;
+    }
+    if (SOURCE_DISABLED_NAME_SET.has(normalized)) {
+      activeDisabledNames.add(normalized);
+    }
+  }
+  if ((scriptStatus & SOURCE_SCRIPT_STATUS_DISABLED) !== 0) {
+    activeDisabledNames.add('DISABLED_SCRIPT_DISABLED');
+  }
+  if ((scriptStatus & SOURCE_SCRIPT_STATUS_UNPOWERED) !== 0) {
+    activeDisabledNames.add('DISABLED_SCRIPT_UNDERPOWERED');
+  }
+
+  const disabledTillFrame = SOURCE_DISABLED_NAMES_IN_ORDER.map((name, index) => {
+    if (!activeDisabledNames.has(name)) {
+      return 0;
+    }
+    const preservedValue = Number.isFinite(sourceState.disabledTillFrame[index])
+      ? Math.max(0, Math.trunc(sourceState.disabledTillFrame[index]!))
+      : 0;
+    switch (name) {
+      case 'DISABLED_HACKED':
+        return Math.max(preservedValue, Math.max(0, Math.trunc(entity.disabledHackedUntilFrame)));
+      case 'DISABLED_EMP':
+        return Math.max(preservedValue, Math.max(0, Math.trunc(entity.disabledEmpUntilFrame)));
+      case 'DISABLED_PARALYZED':
+      case 'DISABLED_SUBDUED':
+        return Math.max(preservedValue, Math.max(0, Math.trunc(entity.disabledParalyzedUntilFrame)));
+      default:
+        return preservedValue > 0 ? preservedValue : SOURCE_FRAME_FOREVER;
+    }
+  });
+
+  return {
+    disabledMask: SOURCE_DISABLED_NAMES_IN_ORDER.filter((name) => activeDisabledNames.has(name)),
+    disabledTillFrame,
+  };
+}
+
+function overlaySourceWeaponSetFromLiveEntity(
+  sourceState: SourceMapEntitySaveState,
+  entity: MapEntity,
+): SourceMapEntitySaveState['weaponSet'] {
+  if (sourceState.weaponSet === null) {
+    return null;
+  }
+  const weaponSetFlagsMask = Number.isFinite(entity.weaponSetFlagsMask)
+    ? Math.trunc(entity.weaponSetFlagsMask)
+    : null;
+  const currentWeapon = Number.isInteger(entity.attackWeaponSlotIndex)
+    && entity.attackWeaponSlotIndex >= 0
+    && entity.attackWeaponSlotIndex < sourceState.weaponSet.weapons.length
+      ? entity.attackWeaponSlotIndex
+      : sourceState.weaponSet.currentWeapon;
+  const weaponSetFlags = weaponSetFlagsMask === null
+    ? sourceState.weaponSet.templateSetFlags
+    : Array.from(WEAPON_SET_FLAG_MASK_BY_NAME.entries())
+      .filter(([, bit]) => (weaponSetFlagsMask & bit) !== 0)
+      .map(([name]) => name);
+  const weapons = sourceState.weaponSet.weapons.map((weapon, slotIndex) => {
+    if (weapon === null || slotIndex !== currentWeapon) {
+      return weapon;
+    }
+    const lastFireFrame = Array.isArray(entity.lastShotFrameBySlot)
+      && Number.isFinite(entity.lastShotFrameBySlot[slotIndex])
+        ? entity.lastShotFrameBySlot[slotIndex]!
+        : (Number.isFinite(entity.lastShotFrame) ? entity.lastShotFrame : weapon.lastFireFrame);
+    return {
+      ...weapon,
+      templateName: entity.attackWeapon?.name ?? weapon.templateName,
+      slot: slotIndex,
+      ammoInClip: Number.isFinite(entity.attackAmmoInClip)
+        ? Math.max(0, Math.trunc(entity.attackAmmoInClip))
+        : weapon.ammoInClip,
+      whenWeCanFireAgain: Number.isFinite(entity.nextAttackFrame)
+        ? Math.max(0, Math.trunc(entity.nextAttackFrame))
+        : weapon.whenWeCanFireAgain,
+      whenPreAttackFinished: Number.isFinite(entity.preAttackFinishFrame)
+        ? Math.max(0, Math.trunc(entity.preAttackFinishFrame))
+        : weapon.whenPreAttackFinished,
+      lastFireFrame: Math.max(0, Math.trunc(lastFireFrame)),
+      maxShotCount: Number.isFinite(entity.maxShotsRemaining)
+        ? Math.max(0, Math.trunc(entity.maxShotsRemaining))
+        : weapon.maxShotCount,
+      leechWeaponRangeActive: typeof entity.leechRangeActive === 'boolean'
+        ? entity.leechRangeActive
+        : weapon.leechWeaponRangeActive,
+    };
+  });
+  return {
+    ...sourceState.weaponSet,
+    templateName: typeof entity.templateName === 'string' && entity.templateName
+      ? entity.templateName
+      : sourceState.weaponSet.templateName,
+    templateSetFlags: weaponSetFlags,
+    weapons,
+    currentWeapon,
+    currentWeaponLockedStatus: SOURCE_WEAPON_LOCK_STATUS_BY_NAME.get(entity.weaponLockStatus)
+      ?? sourceState.weaponSet.currentWeaponLockedStatus,
+    totalAntiMask: Number.isFinite(entity.totalWeaponAntiMask)
+      ? Math.trunc(entity.totalWeaponAntiMask)
+      : sourceState.weaponSet.totalAntiMask,
+  };
+}
+
 function overlaySourceObjectStateFromLiveEntity(
   sourceState: SourceMapEntitySaveState,
   entity: MapEntity,
@@ -3018,6 +3232,8 @@ function overlaySourceObjectStateFromLiveEntity(
     && Number.isFinite(entity.y)
     && Number.isFinite(entity.z)
     && Number.isFinite(entity.rotationY);
+  const scriptStatus = collectSourceScriptStatus(entity);
+  const disabledState = resolveSourceDisabledState(sourceState, entity, scriptStatus);
   return {
     ...sourceState,
     objectId: entity.id,
@@ -3029,7 +3245,31 @@ function overlaySourceObjectStateFromLiveEntity(
       : sourceState.position,
     orientation: hasTransform ? entity.rotationY : sourceState.orientation,
     internalName: entity.scriptName?.trim() || sourceState.internalName,
+    statusBits: collectSourceObjectStatusBits(entity),
+    scriptStatus,
     visionRange: Number.isFinite(entity.visionRange) ? entity.visionRange : sourceState.visionRange,
+    shroudClearingRange: Number.isFinite(entity.shroudClearingRange)
+      ? entity.shroudClearingRange
+      : sourceState.shroudClearingRange,
+    builderId: Number.isFinite(entity.builderId) ? Math.trunc(entity.builderId) : sourceState.builderId,
+    disabledMask: disabledState.disabledMask,
+    disabledTillFrame: disabledState.disabledTillFrame,
+    experienceTracker: {
+      ...sourceState.experienceTracker,
+      currentLevel: Number.isFinite(entity.experienceState?.currentLevel)
+        ? entity.experienceState.currentLevel
+        : sourceState.experienceTracker.currentLevel,
+      currentExperience: Number.isFinite(entity.experienceState?.currentExperience)
+        ? entity.experienceState.currentExperience
+        : sourceState.experienceTracker.currentExperience,
+      experienceSinkObjectId: Number.isFinite(entity.experienceState?.experienceSinkEntityId)
+        && entity.experienceState.experienceSinkEntityId > 0
+        ? entity.experienceState.experienceSinkEntityId
+        : 0,
+      experienceScalar: Number.isFinite(entity.experienceState?.experienceScalar)
+        ? entity.experienceState.experienceScalar
+        : sourceState.experienceTracker.experienceScalar,
+    },
     constructionPercent: Number.isFinite(entity.constructionPercent)
       ? entity.constructionPercent
       : sourceState.constructionPercent,
@@ -3037,9 +3277,19 @@ function overlaySourceObjectStateFromLiveEntity(
       ? [...entity.completedUpgrades].sort()
       : sourceState.completedUpgradeNames,
     originalTeamName: entity.sourceTeamNameUpper?.trim().toUpperCase() || sourceState.originalTeamName,
+    soleHealingBenefactorId: entity.soleHealingBenefactorId ?? sourceState.soleHealingBenefactorId,
+    soleHealingBenefactorExpirationFrame: Number.isFinite(entity.soleHealingBenefactorExpirationFrame)
+      ? Math.max(0, Math.trunc(entity.soleHealingBenefactorExpirationFrame))
+      : sourceState.soleHealingBenefactorExpirationFrame,
+    weaponSetFlags: Number.isFinite(entity.weaponSetFlagsMask)
+      ? Array.from(WEAPON_SET_FLAG_MASK_BY_NAME.entries())
+        .filter(([, bit]) => (entity.weaponSetFlagsMask & bit) !== 0)
+        .map(([name]) => name)
+      : sourceState.weaponSetFlags,
     weaponBonusCondition: Number.isFinite(entity.weaponBonusConditionFlags)
       ? entity.weaponBonusConditionFlags
       : sourceState.weaponBonusCondition,
+    weaponSet: overlaySourceWeaponSetFromLiveEntity(sourceState, entity),
     commandSetStringOverride: typeof entity.commandSetStringOverride === 'string'
       ? entity.commandSetStringOverride
       : sourceState.commandSetStringOverride,
@@ -6093,6 +6343,10 @@ function tryParseSourceGameLogicChunk(data: ArrayBuffer | Uint8Array): GameLogic
 }
 
 function tryParseLegacyGameLogicChunk(data: ArrayBuffer | Uint8Array): GameLogicCoreSaveState | null {
+  const inspection = inspectSourceGameLogicChunk(data);
+  if (inspection?.layout === 'source_outer') {
+    return null;
+  }
   try {
     const snapshot = new LegacyGameLogicSnapshot();
     const chunkData = data instanceof Uint8Array

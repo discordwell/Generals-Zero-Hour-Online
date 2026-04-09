@@ -3,6 +3,7 @@ import { XferLoad, XferSave, listSaveGameChunks } from '@generals/engine';
 import {
   buildSourceMapEntityChunk,
   createEmptySourceMapEntitySaveState,
+  parseSourceMapEntityChunk,
 } from '@generals/game-logic';
 import * as THREE from 'three';
 
@@ -218,6 +219,76 @@ function createSourceObjectBlockData(): Uint8Array {
     currentExperience: 150,
     experienceScalar: 1,
   };
+  state.weaponSet = {
+    version: 1,
+    templateName: 'RuntimeTank',
+    templateSetFlags: [],
+    weapons: [
+      {
+        version: 3,
+        templateName: 'TankGunPrimary',
+        slot: 0,
+        status: 0,
+        ammoInClip: 1,
+        whenWeCanFireAgain: 0,
+        whenPreAttackFinished: 0,
+        whenLastReloadStarted: 0,
+        lastFireFrame: 0,
+        suspendFXFrame: 0,
+        projectileStreamObjectId: 0,
+        maxShotCount: 0,
+        currentBarrel: 0,
+        numShotsForCurrentBarrel: 0,
+        scatterTargetsUnused: [],
+        pitchLimited: false,
+        leechWeaponRangeActive: false,
+      },
+      {
+        version: 3,
+        templateName: 'TankGunSecondary',
+        slot: 1,
+        status: 0,
+        ammoInClip: 1,
+        whenWeCanFireAgain: 0,
+        whenPreAttackFinished: 0,
+        whenLastReloadStarted: 0,
+        lastFireFrame: 0,
+        suspendFXFrame: 0,
+        projectileStreamObjectId: 0,
+        maxShotCount: 0,
+        currentBarrel: 0,
+        numShotsForCurrentBarrel: 0,
+        scatterTargetsUnused: [],
+        pitchLimited: false,
+        leechWeaponRangeActive: false,
+      },
+      {
+        version: 3,
+        templateName: 'TankGunTertiary',
+        slot: 2,
+        status: 0,
+        ammoInClip: 1,
+        whenWeCanFireAgain: 0,
+        whenPreAttackFinished: 0,
+        whenLastReloadStarted: 0,
+        lastFireFrame: 0,
+        suspendFXFrame: 0,
+        projectileStreamObjectId: 0,
+        maxShotCount: 0,
+        currentBarrel: 0,
+        numShotsForCurrentBarrel: 0,
+        scatterTargetsUnused: [],
+        pitchLimited: false,
+        leechWeaponRangeActive: false,
+      },
+    ],
+    currentWeapon: 0,
+    currentWeaponLockedStatus: 0,
+    filledWeaponSlotMask: 0b111,
+    totalAntiMask: 0,
+    hasDamageWeapon: true,
+    totalDamageTypeMask: [],
+  };
   state.constructionPercent = 100;
   state.layer = 1;
   state.destinationLayer = 1;
@@ -254,6 +325,39 @@ function createSourceGameLogicChunkData(): Uint8Array {
     return new Uint8Array(xferSave.getBuffer());
   } finally {
     xferSave.close();
+  }
+}
+
+function readFirstSourceGameLogicObjectState(data: ArrayBuffer) {
+  const chunkData = readSaveChunkData(data, 'CHUNK_GameLogic');
+  if (!chunkData) {
+    return null;
+  }
+  const xferLoad = new XferLoad(chunkData.slice().buffer);
+  xferLoad.open('read-first-source-game-logic-object-state');
+  try {
+    xferLoad.xferVersion(3);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferVersion(1);
+    const tocCount = xferLoad.xferUnsignedInt(0);
+    for (let index = 0; index < tocCount; index += 1) {
+      xferLoad.xferAsciiString('');
+      xferLoad.xferUnsignedShort(0);
+    }
+    const objectCount = xferLoad.xferUnsignedInt(0);
+    if (objectCount <= 0) {
+      return null;
+    }
+    xferLoad.xferUnsignedShort(0);
+    const blockSize = xferLoad.beginBlock();
+    const blockStart = xferLoad.getOffset();
+    const objectData = chunkData.subarray(blockStart, blockStart + blockSize);
+    const parsed = parseSourceMapEntityChunk(objectData);
+    xferLoad.skip(blockSize);
+    xferLoad.endBlock();
+    return parsed;
+  } finally {
+    xferLoad.close();
   }
 }
 
@@ -2746,6 +2850,155 @@ describe('runtime-save-game', () => {
         moduleIdentifiers: [],
         remainingBytes: 0,
       },
+    });
+  });
+
+  it('overlays live source Object::xfer status, disable, experience, and weapon fields on resave', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData();
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source GameLogic Object Runtime Overlay',
+      mapPath: 'assets/maps/SourceObjectRuntimeOverlay.json',
+      mapData: {
+        heightmap: {
+          width: 1,
+          height: 1,
+          borderSize: 0,
+          data: 'AAAAAA==',
+        },
+        sidesList: { sides: [], teams: [] },
+        objects: [],
+        triggers: [],
+        waypoints: { nodes: [], links: [] },
+        textureClasses: [],
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            builderId: 17,
+            scriptName: 'UNIT_STATUS_REWRITE',
+            sourceTeamNameUpper: 'TEAMSTATUS',
+            visionRange: 250,
+            shroudClearingRange: 225,
+            constructionPercent: 50,
+            completedUpgrades: new Set(['Upgrade_A']),
+            receivingDifficultyBonus: true,
+            commandSetStringOverride: 'CommandSet_New',
+            objectStatusFlags: new Set([
+              'IS_USING_ABILITY',
+              'CARBOMB',
+              'RIDER1',
+              'SCRIPT_DISABLED',
+              'SCRIPT_TARGETABLE',
+              'DISABLED_HACKED',
+              'DISABLED_UNDERPOWERED',
+            ]),
+            disabledHackedUntilFrame: 333,
+            disabledEmpUntilFrame: 0,
+            disabledParalyzedUntilFrame: 0,
+            experienceState: {
+              currentLevel: 2,
+              currentExperience: 500,
+              experienceScalar: 1.5,
+              experienceSinkEntityId: 99,
+            },
+            attackWeaponSlotIndex: 2,
+            attackWeapon: { name: 'LaserWeapon' },
+            attackAmmoInClip: 4,
+            nextAttackFrame: 88,
+            preAttackFinishFrame: 66,
+            lastShotFrame: 12,
+            lastShotFrameBySlot: [10, 11, 12],
+            weaponLockStatus: 'LOCKED_TEMPORARILY',
+            maxShotsRemaining: 3,
+            leechRangeActive: true,
+            totalWeaponAntiMask: 12,
+            weaponSetFlagsMask: 8,
+            weaponBonusConditionFlags: 16,
+            soleHealingBenefactorId: 44,
+            soleHealingBenefactorExpirationFrame: 555,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+
+    expect(firstObject).not.toBeNull();
+    expect(firstObject?.internalName).toBe('UNIT_STATUS_REWRITE');
+    expect(firstObject?.statusBits).toEqual(['USING_ABILITY', 'IS_CARBOMB', 'STATUS_RIDER1']);
+    expect(firstObject?.scriptStatus).toBe(0x11);
+    expect(firstObject?.disabledMask).toEqual([
+      'DISABLED_HACKED',
+      'DISABLED_UNDERPOWERED',
+      'DISABLED_SCRIPT_DISABLED',
+    ]);
+    expect(firstObject?.disabledTillFrame[1]).toBe(333);
+    expect(firstObject?.disabledTillFrame[6]).toBe(0x3fffffff);
+    expect(firstObject?.disabledTillFrame[11]).toBe(0x3fffffff);
+    expect(firstObject?.builderId).toBe(17);
+    expect(firstObject?.shroudClearingRange).toBe(225);
+    expect(firstObject?.experienceTracker).toMatchObject({
+      currentLevel: 2,
+      currentExperience: 500,
+      experienceSinkObjectId: 99,
+      experienceScalar: 1.5,
+    });
+    expect(firstObject?.soleHealingBenefactorId).toBe(44);
+    expect(firstObject?.soleHealingBenefactorExpirationFrame).toBe(555);
+    expect(firstObject?.weaponSetFlags).toEqual(['PLAYER_UPGRADE']);
+    expect(firstObject?.weaponSet?.templateSetFlags).toEqual(['PLAYER_UPGRADE']);
+    expect(firstObject?.weaponSet?.currentWeapon).toBe(2);
+    expect(firstObject?.weaponSet?.currentWeaponLockedStatus).toBe(1);
+    expect(firstObject?.weaponSet?.totalAntiMask).toBe(12);
+    expect(firstObject?.weaponSet?.weapons[2]).toMatchObject({
+      templateName: 'LaserWeapon',
+      slot: 2,
+      ammoInClip: 4,
+      whenWeCanFireAgain: 88,
+      whenPreAttackFinished: 66,
+      lastFireFrame: 12,
+      maxShotCount: 3,
+      leechWeaponRangeActive: true,
     });
   });
 
