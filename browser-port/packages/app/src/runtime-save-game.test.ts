@@ -626,6 +626,52 @@ function createSourceRadarUpdateBlockData(
   }
 }
 
+function sourceMissileDoorStateToInt(
+  state: 'CLOSED' | 'OPENING' | 'OPEN' | 'WAITING_TO_CLOSE' | 'CLOSING',
+): number {
+  switch (state) {
+    case 'CLOSED': return 0;
+    case 'OPENING': return 1;
+    case 'OPEN': return 2;
+    case 'WAITING_TO_CLOSE': return 3;
+    case 'CLOSING': return 4;
+  }
+}
+
+function sourceMissileDoorStateFromInt(
+  value: number,
+): 'CLOSED' | 'OPENING' | 'OPEN' | 'WAITING_TO_CLOSE' | 'CLOSING' {
+  switch (value) {
+    case 0: return 'CLOSED';
+    case 1: return 'OPENING';
+    case 2: return 'OPEN';
+    case 3: return 'WAITING_TO_CLOSE';
+    case 4: return 'CLOSING';
+    default:
+      throw new Error(`Unexpected MissileLauncher door state ${value}`);
+  }
+}
+
+function createSourceMissileLauncherBuildingUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  doorState: 'CLOSED' | 'OPENING' | 'OPEN' | 'WAITING_TO_CLOSE' | 'CLOSING',
+  timeoutState: 'CLOSED' | 'OPENING' | 'OPEN' | 'WAITING_TO_CLOSE' | 'CLOSING',
+  timeoutFrame: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-missile-launcher-building-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferInt(sourceMissileDoorStateToInt(doorState));
+    xferSave.xferInt(sourceMissileDoorStateToInt(timeoutState));
+    xferSave.xferUnsignedInt(timeoutFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceHijackerUpdateBlockData(
   nextCallFrameAndPhase: number,
   targetId: number,
@@ -1239,6 +1285,26 @@ function parseSourceRadarUpdateBlockData(data: Uint8Array) {
       extendDoneFrame: xferLoad.xferUnsignedInt(0),
       extendComplete: xferLoad.xferBool(false),
       radarActive: xferLoad.xferBool(false),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceMissileLauncherBuildingUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-missile-launcher-building-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      doorState: sourceMissileDoorStateFromInt(xferLoad.xferInt(0)),
+      timeoutState: sourceMissileDoorStateFromInt(xferLoad.xferInt(0)),
+      timeoutFrame: xferLoad.xferUnsignedInt(0),
     };
   } finally {
     xferLoad.close();
@@ -5784,6 +5850,116 @@ describe('runtime-save-game', () => {
       extendDoneFrame: 96,
       extendComplete: true,
       radarActive: true,
+    });
+  });
+
+  it('rewrites source MissileLauncherBuildingUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_MissileLauncher',
+      blockData: createSourceMissileLauncherBuildingUpdateBlockData(
+        (70 << 2) | 2,
+        'CLOSED',
+        'CLOSED',
+        60,
+      ),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source missile launcher rewrite',
+      mapPath: 'Maps/RuntimeMissile/RuntimeMissile.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeMissile',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            missileLauncherBuildingProfile: {
+              specialPowerTemplateName: 'SuperWeaponScudStorm',
+              doorOpenTimeFrames: 45,
+              doorWaitOpenTimeFrames: 60,
+              doorClosingTimeFrames: 30,
+            },
+            missileLauncherBuildingState: {
+              doorState: 'WAITING_TO_CLOSE',
+              timeoutState: 'CLOSING',
+              timeoutFrame: 123,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_MissileLauncher'
+            ? 'MISSILELAUNCHERBUILDINGUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const missileModule = firstObject?.modules.find(
+      (module) => module.identifier === 'ModuleTag_MissileLauncher',
+    );
+
+    expect(missileModule).toBeDefined();
+    expect(parseSourceMissileLauncherBuildingUpdateBlockData(missileModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      doorState: 'WAITING_TO_CLOSE',
+      timeoutState: 'CLOSING',
+      timeoutFrame: 123,
     });
   });
 

@@ -4005,6 +4005,47 @@ function buildSourceRadarUpdateBlockData(entity: MapEntity, currentFrame: number
   }
 }
 
+function sourceMissileDoorStateToInt(
+  state: 'CLOSED' | 'OPENING' | 'OPEN' | 'WAITING_TO_CLOSE' | 'CLOSING',
+): number {
+  switch (state) {
+    case 'CLOSED': return 0;
+    case 'OPENING': return 1;
+    case 'OPEN': return 2;
+    case 'WAITING_TO_CLOSE': return 3;
+    case 'CLOSING': return 4;
+  }
+}
+
+function buildSourceMissileLauncherBuildingUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-missile-launcher-building-update');
+  try {
+    const state = entity.missileLauncherBuildingState;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferUser(
+      sourceMissileDoorStateToInt(state?.doorState ?? 'CLOSED'),
+      (xfer, value) => { xfer.xferInt(value); },
+      (xfer) => xfer.xferInt(0),
+    );
+    saver.xferUser(
+      sourceMissileDoorStateToInt(state?.timeoutState ?? 'CLOSED'),
+      (xfer, value) => { xfer.xferInt(value); },
+      (xfer) => xfer.xferInt(0),
+    );
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.timeoutFrame ?? 0)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceHijackerUpdateBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-hijacker-update');
@@ -4338,6 +4379,12 @@ function overlaySourceObjectModulesFromLiveEntity(
             return {
               identifier: module.identifier,
               blockData: buildSourceRadarUpdateBlockData(entity, currentFrame),
+            };
+          }
+          if (moduleType === 'MISSILELAUNCHERBUILDINGUPDATE' && entity.missileLauncherBuildingProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceMissileLauncherBuildingUpdateBlockData(entity, currentFrame),
             };
           }
           if (moduleType === 'HIJACKERUPDATE' && entity.hijackerState) {
