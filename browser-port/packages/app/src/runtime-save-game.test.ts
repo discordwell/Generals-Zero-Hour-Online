@@ -354,6 +354,37 @@ function createSourceGrantStealthBehaviorBlockData(
   }
 }
 
+function createSourceCountermeasuresBehaviorBlockData(
+  nextCallFrameAndPhase: number,
+  upgradeExecuted: boolean,
+  flareIds: number[],
+  availableCountermeasures: number,
+  activeCountermeasures: number,
+  divertedMissiles: number,
+  incomingMissiles: number,
+  reactionFrame: number,
+  nextVolleyFrame: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-countermeasures-behavior');
+  try {
+    xferSave.xferVersion(2);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferVersion(1);
+    xferSave.xferBool(upgradeExecuted);
+    xferSave.xferObjectIDList(flareIds);
+    xferSave.xferUnsignedInt(availableCountermeasures);
+    xferSave.xferUnsignedInt(activeCountermeasures);
+    xferSave.xferUnsignedInt(divertedMissiles);
+    xferSave.xferUnsignedInt(incomingMissiles);
+    xferSave.xferUnsignedInt(reactionFrame);
+    xferSave.xferUnsignedInt(nextVolleyFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceBaseOnlyObjectHelperBlockData(nextCallFrameAndPhase: number): Uint8Array {
   const xferSave = new XferSave();
   xferSave.open('create-source-base-only-object-helper');
@@ -655,6 +686,34 @@ function parseSourceGrantStealthBehaviorBlockData(data: Uint8Array) {
       nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
       radiusParticleSystemId: xferLoad.xferUnsignedInt(0),
       currentScanRadius: xferLoad.xferReal(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceCountermeasuresBehaviorBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-countermeasures-behavior');
+  try {
+    xferLoad.xferVersion(2);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      upgradeExecuted: (() => {
+        xferLoad.xferVersion(1);
+        return xferLoad.xferBool(false);
+      })(),
+      flareIds: xferLoad.xferObjectIDList([]),
+      availableCountermeasures: xferLoad.xferUnsignedInt(0),
+      activeCountermeasures: xferLoad.xferUnsignedInt(0),
+      divertedMissiles: xferLoad.xferUnsignedInt(0),
+      incomingMissiles: xferLoad.xferUnsignedInt(0),
+      reactionFrame: xferLoad.xferUnsignedInt(0),
+      nextVolleyFrame: xferLoad.xferUnsignedInt(0),
     };
   } finally {
     xferLoad.close();
@@ -3673,6 +3732,113 @@ describe('runtime-save-game', () => {
       nextCallFrameAndPhase: (43 << 2) | 2,
       radiusParticleSystemId: 77,
       currentScanRadius: 35,
+    });
+  });
+
+  it('rewrites source CountermeasuresBehavior modules via resolved module tags', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Countermeasures',
+      blockData: createSourceCountermeasuresBehaviorBlockData((103 << 2) | 2, true, [91], 1, 1, 2, 3, 90, 120),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source countermeasures rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            countermeasuresState: {
+              availableCountermeasures: 4,
+              activeCountermeasures: 2,
+              flareIds: [1001, 1002],
+              reactionFrame: 88,
+              nextVolleyFrame: 116,
+              reloadFrame: 0,
+              incomingMissiles: 7,
+              divertedMissiles: 5,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Countermeasures'
+            ? 'COUNTERMEASURESBEHAVIOR'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const countermeasuresModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Countermeasures');
+
+    expect(countermeasuresModule).toBeDefined();
+    expect(parseSourceCountermeasuresBehaviorBlockData(countermeasuresModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      upgradeExecuted: true,
+      flareIds: [1001, 1002],
+      availableCountermeasures: 4,
+      activeCountermeasures: 2,
+      divertedMissiles: 5,
+      incomingMissiles: 7,
+      reactionFrame: 88,
+      nextVolleyFrame: 116,
     });
   });
 

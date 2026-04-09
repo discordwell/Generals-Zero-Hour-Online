@@ -3534,6 +3534,70 @@ function buildSourceGrantStealthBehaviorBlockData(
   }
 }
 
+function tryParseSourceCountermeasuresBehaviorBlockData(
+  data: Uint8Array,
+): { upgradeExecuted: boolean } | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-countermeasures-behavior');
+  try {
+    const version = xferLoad.xferVersion(2);
+    if (version < 1 || version > 2) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferVersion(1);
+    const upgradeExecuted = xferLoad.xferBool(false);
+    xferLoad.xferObjectIDList([]);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    return xferLoad.getRemaining() === 0
+      ? { upgradeExecuted }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceCountermeasuresBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  upgradeExecuted: boolean,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-countermeasures-behavior');
+  try {
+    const state = entity.countermeasuresState;
+    saver.xferVersion(2);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      upgradeExecuted && !entity.destroyed
+        ? buildSourceUpdateModuleWakeFrame(currentFrame + 1)
+        : buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    ));
+    saver.xferVersion(1);
+    saver.xferBool(upgradeExecuted);
+    saver.xferObjectIDList(state?.flareIds ?? []);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.availableCountermeasures ?? 0)));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.activeCountermeasures ?? 0)));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.divertedMissiles ?? 0)));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.incomingMissiles ?? 0)));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.reactionFrame ?? 0)));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.nextVolleyFrame ?? 0)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function sourceWeaponBonusFlagToCondition(flag: number): number {
   if (!Number.isInteger(flag) || flag <= 0 || (flag & (flag - 1)) !== 0) {
     return -1;
@@ -3694,6 +3758,19 @@ function overlaySourceObjectModulesFromLiveEntity(
                   entity,
                   currentFrame,
                   parsedSourceState.radiusParticleSystemId,
+                ),
+              };
+            }
+          }
+          if (moduleType === 'COUNTERMEASURESBEHAVIOR' && entity.countermeasuresState) {
+            const parsedSourceState = tryParseSourceCountermeasuresBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceCountermeasuresBehaviorBlockData(
+                  entity,
+                  currentFrame,
+                  parsedSourceState.upgradeExecuted,
                 ),
               };
             }
