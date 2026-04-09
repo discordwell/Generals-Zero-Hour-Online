@@ -25,6 +25,84 @@ import {
   makeInputState,
 } from './test-helpers.js';
 
+describe('checkpoint update', () => {
+  it('tracks source checkpoint scan state and door model conditions', () => {
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+
+    const checkpointDef = makeObjectDef('CheckpointGate', 'America', ['STRUCTURE', 'IMMOBILE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 1000,
+        InitialHealth: 1000,
+      }),
+      makeBlock('Behavior', 'CheckpointUpdate ModuleTag_Checkpoint', {
+        ScanRate: 1000,
+      }),
+    ], {
+      VisionRange: 60,
+      Geometry: 'CYLINDER',
+      GeometryMajorRadius: 10,
+      GeometryMinorRadius: 10,
+    });
+
+    const allyDef = makeObjectDef('CheckpointAlly', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 200,
+        InitialHealth: 200,
+      }),
+    ], {
+      Geometry: 'CYLINDER',
+      GeometryMajorRadius: 3,
+      GeometryMinorRadius: 3,
+    });
+
+    const enemyDef = makeObjectDef('CheckpointEnemy', 'China', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 200,
+        InitialHealth: 200,
+      }),
+    ], {
+      Geometry: 'CYLINDER',
+      GeometryMajorRadius: 3,
+      GeometryMinorRadius: 3,
+    });
+
+    const registry = makeRegistry(makeBundle({
+      objects: [checkpointDef, allyDef, enemyDef],
+    }));
+
+    const map = makeMap([
+      makeMapObject('CheckpointGate', 10, 10),
+      makeMapObject('CheckpointAlly', 20, 10),
+      makeMapObject('CheckpointEnemy', 200, 200),
+    ]);
+
+    logic.loadMapObjects(map, registry, makeHeightmap());
+    logic.setTeamRelationship('America', 'China', 0);
+
+    logic.update(1 / 30);
+
+    const checkpoint = (logic as any).spawnedEntities.get(1);
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint.checkpointAllyNear).toBe(true);
+    expect(checkpoint.checkpointEnemyNear).toBe(false);
+    expect(checkpoint.checkpointScanCountdown).toBeGreaterThan(0);
+    expect(checkpoint.modelConditionFlags.has('DOOR_1_OPENING')).toBe(true);
+    expect(checkpoint.modelConditionFlags.has('DOOR_1_CLOSING')).toBe(false);
+    expect(checkpoint.obstacleGeometry.minorRadius).toBeLessThan(checkpoint.checkpointMaxMinorRadius);
+
+    const enemy = (logic as any).spawnedEntities.get(3);
+    enemy.x = 18;
+    enemy.z = 10;
+
+    logic.update(1 / 30);
+
+    expect(checkpoint.checkpointEnemyNear).toBe(true);
+    expect(checkpoint.modelConditionFlags.has('DOOR_1_OPENING')).toBe(false);
+    expect(checkpoint.modelConditionFlags.has('DOOR_1_CLOSING')).toBe(true);
+  });
+});
+
 describe('mine detonation', () => {
   function makeMineSetup(opts: {
     detonatedBy?: string;

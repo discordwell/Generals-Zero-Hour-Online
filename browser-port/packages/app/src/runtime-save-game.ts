@@ -4046,6 +4046,24 @@ function buildSourceMissileLauncherBuildingUpdateBlockData(
   }
 }
 
+function buildSourceCheckpointUpdateBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-checkpoint-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferBool(entity.checkpointEnemyNear === true);
+    saver.xferBool(entity.checkpointAllyNear === true);
+    saver.xferReal(entity.checkpointMaxMinorRadius);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.checkpointScanCountdown)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceHijackerUpdateBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-hijacker-update');
@@ -4385,6 +4403,12 @@ function overlaySourceObjectModulesFromLiveEntity(
             return {
               identifier: module.identifier,
               blockData: buildSourceMissileLauncherBuildingUpdateBlockData(entity, currentFrame),
+            };
+          }
+          if (moduleType === 'CHECKPOINTUPDATE' && entity.checkpointProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceCheckpointUpdateBlockData(entity, currentFrame),
             };
           }
           if (moduleType === 'HIJACKERUPDATE' && entity.hijackerState) {

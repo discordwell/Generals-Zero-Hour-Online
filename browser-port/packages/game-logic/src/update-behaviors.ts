@@ -1150,7 +1150,9 @@ export function updateCheckpoints(self: GL): void {
       const prof = entity.checkpointProfile;
       if (!prof) continue;
 
-      // Save previous state for change detection.
+      const wasAllyNear = entity.checkpointAllyNear;
+      const wasEnemyNear = entity.checkpointEnemyNear;
+
       // Source parity: C++ lines 78-95 — temporarily restore full minor radius during scan
       // to prevent oscillation when the gate is partially open and units are at the boundary.
       const geom = entity.obstacleGeometry;
@@ -1160,6 +1162,7 @@ export function updateCheckpoints(self: GL): void {
       }
 
       // Source parity: C++ line 71 — always scan (delay code effectively disabled with `|| TRUE`).
+      entity.checkpointScanCountdown = prof.scanDelayFrames;
       const visionRange = entity.visionRange;
       if (visionRange > 0) {
         const rangeSqr = visionRange * visionRange;
@@ -1188,7 +1191,18 @@ export function updateCheckpoints(self: GL): void {
         geom.minorRadius = savedMinorRadius;
       }
 
+      const changed = wasAllyNear !== entity.checkpointAllyNear || wasEnemyNear !== entity.checkpointEnemyNear;
       const open = !entity.checkpointEnemyNear && entity.checkpointAllyNear;
+
+      if (changed) {
+        if (open) {
+          entity.modelConditionFlags.delete('DOOR_1_CLOSING');
+          entity.modelConditionFlags.add('DOOR_1_OPENING');
+        } else {
+          entity.modelConditionFlags.delete('DOOR_1_OPENING');
+          entity.modelConditionFlags.add('DOOR_1_CLOSING');
+        }
+      }
 
       // Source parity: C++ lines 153-161 — gradually shrink/expand minor radius.
       // When open: shrink to 0 (units can pass through). When closed: expand to max.
