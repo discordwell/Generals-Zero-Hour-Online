@@ -2443,6 +2443,98 @@ describe('runtime-save-game', () => {
     });
   });
 
+  it('resolves source GameLogic object names for source ScriptEngine loads while preserving raw GameLogic bytes', () => {
+    const mapData = {
+      heightmap: {
+        width: 2,
+        height: 2,
+        borderSize: 0,
+        data: 'AAAAAA==',
+      },
+      objects: [],
+      triggers: [],
+      waypoints: { nodes: [], links: [] },
+      textureClasses: [],
+      blendTileCount: 0,
+    };
+
+    const sourceGameLogicBytes = createSourceGameLogicChunkData();
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source GameLogic Script Lookup',
+      mapPath: 'assets/maps/SourceLookup.json',
+      mapData,
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            localPlayerIndex: 0,
+            playerSideByIndex: new Map([[0, 'USA']]),
+          },
+        }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            scriptToppleDirectionByEntityId: new Map([[7, { x: 12, z: 34 }]]),
+          },
+        }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [{
+            id: 7,
+            scriptName: 'UNIT_007',
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const parsed = parseRuntimeSaveFile(saveFile.data);
+    const scriptEngineState = parsed.gameLogicScriptEngineState?.state as {
+      scriptToppleDirectionByEntityId?: Map<number, { x: number; z: number }>;
+    } | undefined;
+
+    expect(parsed.gameLogicCoreState).toBeNull();
+    expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data)).toEqual([
+      { blockName: 'CHUNK_Players', mode: 'parsed' },
+      { blockName: 'CHUNK_GameLogic', mode: 'raw_passthrough' },
+      { blockName: 'CHUNK_ScriptEngine', mode: 'parsed' },
+      { blockName: 'CHUNK_InGameUI', mode: 'parsed' },
+    ]);
+    expect(scriptEngineState?.scriptToppleDirectionByEntityId).toEqual(
+      new Map([[7, { x: 12, z: 34 }]]),
+    );
+    expect(readSaveChunkData(saveFile.data, 'CHUNK_GameLogic')).toEqual(sourceGameLogicBytes);
+  });
+
   it('round-trips live particle-system save state through CHUNK_ParticleSystem', () => {
     const mapData = {
       heightmap: {

@@ -14,9 +14,9 @@ import {
 import type { CameraState } from '@generals/input';
 import * as THREE from 'three';
 import {
-  inspectMapEntityChunkLayout,
   parseSourceMapEntityChunk,
   type MapEntityChunkLayoutInspection,
+  type SourceMapEntitySaveState,
   xferMapEntity,
   type GameDifficulty,
   type GameLogicCaveTrackerSaveState,
@@ -410,6 +410,43 @@ export interface RuntimeSaveGameLogicChunkLayoutInspection {
   reason?: string;
 }
 
+interface ParsedSourceGameLogicObjectState {
+  tocId: number;
+  templateName: string | null;
+  state: SourceMapEntitySaveState;
+}
+
+interface ParsedSourceGameLogicControlBarOverrideState {
+  name: string;
+  commandButtonName: string | null;
+}
+
+interface ParsedSourceGameLogicPolygonTriggerState {
+  triggerId: number;
+  snapshot: SourcePolygonTriggerSnapshotState;
+}
+
+interface ParsedSourceGameLogicChunkState {
+  version: number;
+  frameCounter: number;
+  objectTocEntries: Array<{ templateName: string; tocId: number }>;
+  objects: ParsedSourceGameLogicObjectState[];
+  campaignState: RuntimeSaveCampaignState;
+  caveTrackers: GameLogicCaveTrackerSaveState[];
+  scriptScoringEnabled: boolean;
+  polygonTriggers: ParsedSourceGameLogicPolygonTriggerState[];
+  rankLevelLimit: number | null;
+  sellingEntities: GameLogicSellingEntitySaveState[];
+  buildableOverrides: GameLogicBuildableOverrideSaveState[];
+  showBehindBuildingMarkers: boolean | null;
+  drawIconUI: boolean | null;
+  showDynamicLOD: boolean | null;
+  scriptHulkMaxLifetimeOverride: number | null;
+  controlBarOverrideEntries: ParsedSourceGameLogicControlBarOverrideState[];
+  rankPointsToAddAtGameStart: number | null;
+  superweaponRestriction: number | null;
+}
+
 function getLeafName(path: string | null): string {
   if (!path) {
     return 'Embedded Map';
@@ -652,19 +689,25 @@ function resolveTeamNameBySourceId(
 function resolveScriptNameByEntityId(
   entityId: number,
   coreState: GameLogicCoreSaveState | null | undefined,
+  sourceGameLogicState?: ParsedSourceGameLogicChunkState | null,
 ): string {
   if (!Number.isFinite(entityId) || Math.trunc(entityId) === 0) {
     return '';
   }
   const targetId = Math.trunc(entityId);
   const entity = coreState?.spawnedEntities.find((candidate) => candidate.id === targetId);
-  return entity?.scriptName?.trim() ?? '';
+  if (entity?.scriptName?.trim()) {
+    return entity.scriptName.trim();
+  }
+  const sourceEntity = sourceGameLogicState?.objects.find((candidate) => candidate.state.objectId === targetId);
+  return sourceEntity?.state.internalName.trim() ?? '';
 }
 
 function resolveEntityIdByScriptName(
   scriptName: string,
   coreState: GameLogicCoreSaveState | null | undefined,
   namedEntitiesByName: Map<string, number>,
+  sourceGameLogicState?: ParsedSourceGameLogicChunkState | null,
 ): number | null {
   const normalized = scriptName.trim().toUpperCase();
   if (!normalized) {
@@ -675,7 +718,13 @@ function resolveEntityIdByScriptName(
     return Math.trunc(existingId);
   }
   const entity = coreState?.spawnedEntities.find((candidate) => candidate.scriptName?.trim().toUpperCase() === normalized);
-  return entity ? entity.id : null;
+  if (entity) {
+    return entity.id;
+  }
+  const sourceEntity = sourceGameLogicState?.objects.find(
+    (candidate) => candidate.state.internalName.trim().toUpperCase() === normalized,
+  );
+  return sourceEntity ? sourceEntity.state.objectId : null;
 }
 
 function resolveWaypointPositionByName(
@@ -2697,6 +2746,124 @@ function xferSourcePolygonTriggerSnapshot(
   };
 }
 
+function parseSourceGameLogicChunkState(
+  data: ArrayBuffer | Uint8Array,
+): ParsedSourceGameLogicChunkState | null {
+  try {
+    const chunkData = data instanceof Uint8Array
+      ? copyBytesToArrayBuffer(data)
+      : data;
+    const xferLoad = new XferLoad(chunkData);
+    xferLoad.open('parse-source-game-logic');
+    try {
+      const version = xferLoad.xferVersion(SOURCE_GAME_LOGIC_SNAPSHOT_VERSION);
+      if (version < 1 || version > SOURCE_GAME_LOGIC_SNAPSHOT_VERSION) {
+        throw new Error(`Unsupported source game-logic snapshot version ${version}`);
+      }
+
+      const frameCounter = xferLoad.xferUnsignedInt(0);
+      const tocVersion = xferLoad.xferVersion(1);
+      if (tocVersion !== 1) {
+        throw new Error(`Unsupported object TOC version ${tocVersion}`);
+      }
+
+      const objectTocCount = xferLoad.xferUnsignedInt(0);
+      const objectTocEntries: Array<{ templateName: string; tocId: number }> = [];
+      for (let index = 0; index < objectTocCount; index += 1) {
+        objectTocEntries.push({
+          templateName: xferLoad.xferAsciiString(''),
+          tocId: xferLoad.xferUnsignedShort(0),
+        });
+      }
+
+      const objectCount = xferLoad.xferUnsignedInt(0);
+      const objects: ParsedSourceGameLogicObjectState[] = [];
+      for (let index = 0; index < objectCount; index += 1) {
+        const tocId = xferLoad.xferUnsignedShort(0);
+        const objectDataSize = xferLoad.beginBlock();
+        if (objectDataSize < 1) {
+          throw new Error(`Object block ${index} is empty.`);
+        }
+        const objectData = xferLoad.xferUser(new Uint8Array(objectDataSize));
+        xferLoad.endBlock();
+        const state = parseSourceMapEntityChunk(objectData);
+        if (state === null) {
+          throw new Error(`Object block ${index} failed structured Object::xfer parsing.`);
+        }
+        objects.push({
+          tocId,
+          templateName: objectTocEntries.find((entry) => entry.tocId === tocId)?.templateName ?? null,
+          state,
+        });
+      }
+
+      const campaignState = createEmptyCampaignSnapshotState();
+      xferLoad.xferSnapshot(new CampaignSnapshot(campaignState));
+      const caveTrackers = xferSourceCaveTrackerVector(xferLoad, []);
+      const scriptScoringEnabled = version >= 2
+        ? xferLoad.xferBool(false)
+        : true;
+
+      const polygonTriggers: ParsedSourceGameLogicPolygonTriggerState[] = [];
+      if (version >= 3) {
+        const polygonTriggerCount = xferLoad.xferUnsignedInt(0);
+        for (let index = 0; index < polygonTriggerCount; index += 1) {
+          const triggerId = xferLoad.xferInt(0);
+          polygonTriggers.push({
+            triggerId,
+            snapshot: xferSourcePolygonTriggerSnapshot(
+              xferLoad,
+              buildSourcePolygonTriggerSnapshotState([]),
+            ),
+          });
+        }
+      }
+
+      const rankLevelLimit = version >= 5 ? xferLoad.xferInt(0) : null;
+      const sellingEntities = version >= 6 ? xferSourceSellingEntities(xferLoad, []) : [];
+      const buildableOverrides = version >= 7 ? xferSourceBuildableOverrideMap(xferLoad, []) : [];
+      const showBehindBuildingMarkers = version >= 8 ? xferLoad.xferBool(false) : null;
+      const drawIconUI = version >= 8 ? xferLoad.xferBool(false) : null;
+      const showDynamicLOD = version >= 8 ? xferLoad.xferBool(false) : null;
+      const scriptHulkMaxLifetimeOverride = version >= 8 ? xferLoad.xferInt(0) : null;
+      const controlBarOverrideEntries = version >= 8
+        ? xferSourceControlBarOverrideMapEntries(xferLoad, [])
+        : [];
+      const rankPointsToAddAtGameStart = version >= 9 ? xferLoad.xferInt(0) : null;
+      const superweaponRestriction = version >= 10 ? xferLoad.xferUnsignedShort(0) : null;
+
+      if (xferLoad.getRemaining() !== 0) {
+        throw new Error(`${xferLoad.getRemaining()} trailing bytes remain after source GameLogic parse.`);
+      }
+
+      return {
+        version,
+        frameCounter,
+        objectTocEntries,
+        objects,
+        campaignState,
+        caveTrackers,
+        scriptScoringEnabled,
+        polygonTriggers,
+        rankLevelLimit,
+        sellingEntities,
+        buildableOverrides,
+        showBehindBuildingMarkers,
+        drawIconUI,
+        showDynamicLOD,
+        scriptHulkMaxLifetimeOverride,
+        controlBarOverrideEntries,
+        rankPointsToAddAtGameStart,
+        superweaponRestriction,
+      };
+    } finally {
+      xferLoad.close();
+    }
+  } catch {
+    return null;
+  }
+}
+
 function xferSourceBuildableOverrideMap(
   xfer: Xfer,
   overrides: GameLogicBuildableOverrideSaveState[],
@@ -2724,228 +2891,66 @@ function xferSourceBuildableOverrideMap(
   return overrides;
 }
 
+function xferSourceControlBarOverrideMapEntries(
+  xfer: Xfer,
+  entries: ParsedSourceGameLogicControlBarOverrideState[],
+): ParsedSourceGameLogicControlBarOverrideState[] {
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: ParsedSourceGameLogicControlBarOverrideState[] = [];
+    for (;;) {
+      const name = xfer.xferAsciiString('');
+      if (name.length === 0) {
+        break;
+      }
+      const commandButtonName = xfer.xferAsciiString('');
+      loaded.push({
+        name,
+        commandButtonName: commandButtonName.length > 0 ? commandButtonName : null,
+      });
+    }
+    return loaded;
+  }
+
+  for (const entry of entries) {
+    xfer.xferAsciiString(entry.name);
+    xfer.xferAsciiString(entry.commandButtonName ?? '');
+  }
+  xfer.xferAsciiString('');
+  return entries;
+}
+
 function inspectSourceGameLogicChunk(
   data: ArrayBuffer | Uint8Array,
 ): RuntimeSaveGameLogicChunkLayoutInspection | null {
-  const chunkData = data instanceof Uint8Array
-    ? (() => {
-        const copy = new Uint8Array(data.byteLength);
-        copy.set(data);
-        return copy.buffer;
-      })()
-    : data;
-  const xferLoad = new XferLoad(chunkData);
-  xferLoad.open('inspect-source-game-logic');
-  try {
-    const version = xferLoad.xferVersion(SOURCE_GAME_LOGIC_SNAPSHOT_VERSION);
-    const frameCounter = xferLoad.xferUnsignedInt(0);
-
-    const tocVersion = xferLoad.xferVersion(1);
-    if (tocVersion !== 1) {
-      return {
-        layout: 'unknown',
-        version,
-        frameCounter,
-        objectTocCount: null,
-        objectCount: null,
-        firstObjectTemplateName: null,
-        firstObjectTocId: null,
-        firstObjectVersion: null,
-        firstObjectInternalName: null,
-        firstObjectTeamId: null,
-        firstObjectLayout: null,
-        reason: `Unsupported object TOC version ${tocVersion}`,
-      };
-    }
-    const objectTocCount = xferLoad.xferUnsignedInt(0);
-    const tocEntries: Array<{ templateName: string; tocId: number }> = [];
-    for (let index = 0; index < objectTocCount; index += 1) {
-      tocEntries.push({
-        templateName: xferLoad.xferAsciiString(''),
-        tocId: xferLoad.xferUnsignedShort(0),
-      });
-    }
-
-    const objectCount = xferLoad.xferUnsignedInt(0);
-    let firstObjectTemplateName: string | null = null;
-    let firstObjectTocId: number | null = null;
-    let firstObjectVersion: number | null = null;
-    let firstObjectInternalName: string | null = null;
-    let firstObjectTeamId: number | null = null;
-    let firstObjectLayout: MapEntityChunkLayoutInspection | null = null;
-    for (let index = 0; index < objectCount; index += 1) {
-      const tocId = xferLoad.xferUnsignedShort(0);
-      if (firstObjectTocId === null) {
-        firstObjectTocId = tocId;
-        firstObjectTemplateName = tocEntries.find((entry) => entry.tocId === tocId)?.templateName ?? null;
-      }
-      const objectDataSize = xferLoad.beginBlock();
-      if (objectDataSize < 1) {
-        return {
-          layout: 'unknown',
-          version,
-          frameCounter,
-          objectTocCount,
-          objectCount,
-          firstObjectTemplateName,
-          firstObjectTocId,
-          firstObjectVersion,
-          firstObjectInternalName,
-          firstObjectTeamId,
-          firstObjectLayout,
-          reason: `Object block ${index} is empty.`,
-        };
-      }
-      const objectData = xferLoad.xferUser(new Uint8Array(objectDataSize));
-      if (firstObjectLayout === null) {
-        firstObjectLayout = inspectMapEntityChunkLayout(objectData);
-        firstObjectVersion = firstObjectLayout.version;
-        const firstObjectState = parseSourceMapEntityChunk(objectData);
-        if (firstObjectState !== null) {
-          firstObjectInternalName = firstObjectState.internalName;
-          firstObjectTeamId = firstObjectState.teamId;
-        }
-      }
-      xferLoad.endBlock();
-    }
-    if (firstObjectLayout !== null && firstObjectLayout.layout !== 'source_partial') {
-      return {
-        layout: 'unknown',
-        version,
-        frameCounter,
-        objectTocCount,
-        objectCount,
-        firstObjectTemplateName,
-        firstObjectTocId,
-        firstObjectVersion,
-        firstObjectInternalName,
-        firstObjectTeamId,
-        firstObjectLayout,
-        reason: `First source object block did not match Object::xfer framing (${firstObjectLayout.layout}).`,
-      };
-    }
-    if (firstObjectLayout !== null && firstObjectInternalName === null) {
-      return {
-        layout: 'unknown',
-        version,
-        frameCounter,
-        objectTocCount,
-        objectCount,
-        firstObjectTemplateName,
-        firstObjectTocId,
-        firstObjectVersion,
-        firstObjectInternalName,
-        firstObjectTeamId,
-        firstObjectLayout,
-        reason: 'First source object block failed structured Object::xfer parsing.',
-      };
-    }
-    if (firstObjectVersion !== null && firstObjectVersion !== 9) {
-      return {
-        layout: 'unknown',
-        version,
-        frameCounter,
-        objectTocCount,
-        objectCount,
-        firstObjectTemplateName,
-        firstObjectTocId,
-        firstObjectVersion,
-        firstObjectInternalName,
-        firstObjectTeamId,
-        firstObjectLayout,
-        reason: `Unexpected source object snapshot version ${firstObjectVersion}`,
-      };
-    }
-
-    const campaignSnapshot = new CampaignSnapshot(createEmptyCampaignSnapshotState());
-    xferLoad.xferSnapshot(campaignSnapshot);
-    xferSourceCaveTrackerVector(xferLoad, []);
-    if (version >= 2) {
-      xferLoad.xferBool(false);
-    }
-    if (version >= 3) {
-      const polygonTriggerCount = xferLoad.xferUnsignedInt(0);
-      for (let index = 0; index < polygonTriggerCount; index += 1) {
-        xferLoad.xferInt(0);
-        xferSourcePolygonTriggerSnapshot(xferLoad, buildSourcePolygonTriggerSnapshotState([]));
-      }
-    }
-    if (version >= 5) {
-      xferLoad.xferInt(0);
-    }
-    if (version >= 6) {
-      xferSourceSellingEntities(xferLoad, []);
-    }
-    if (version >= 7) {
-      xferSourceBuildableOverrideMap(xferLoad, []);
-    }
-    if (version >= 8) {
-      xferLoad.xferBool(false);
-      xferLoad.xferBool(false);
-      xferLoad.xferBool(false);
-      xferLoad.xferInt(0);
-      for (;;) {
-        const name = xferLoad.xferAsciiString('');
-        if (name.length === 0) {
-          break;
-        }
-        xferLoad.xferAsciiString('');
-      }
-    }
-    if (version >= 9) {
-      xferLoad.xferInt(0);
-    }
-    if (version >= 10) {
-      xferLoad.xferUnsignedShort(0);
-    }
-    if (xferLoad.getRemaining() !== 0) {
-      return {
-        layout: 'unknown',
-        version,
-        frameCounter,
-        objectTocCount,
-        objectCount,
-        firstObjectTemplateName,
-        firstObjectTocId,
-        firstObjectVersion,
-        firstObjectInternalName,
-        firstObjectTeamId,
-        firstObjectLayout,
-        reason: `${xferLoad.getRemaining()} trailing bytes remain after source outer parse.`,
-      };
-    }
-
-    return {
-      layout: 'source_outer',
-      version,
-      frameCounter,
-      objectTocCount,
-      objectCount,
-      firstObjectTemplateName,
-      firstObjectTocId,
-      firstObjectVersion,
-      firstObjectInternalName,
-      firstObjectTeamId,
-      firstObjectLayout,
-    };
-  } catch (error) {
-    return {
-      layout: 'unknown',
-      version: null,
-      frameCounter: null,
-      objectTocCount: null,
-      objectCount: null,
-      firstObjectTemplateName: null,
-      firstObjectTocId: null,
-      firstObjectVersion: null,
-      firstObjectInternalName: null,
-      firstObjectTeamId: null,
-      firstObjectLayout: null,
-      reason: error instanceof Error ? error.message : String(error),
-    };
-  } finally {
-    xferLoad.close();
+  const parsed = parseSourceGameLogicChunkState(data);
+  if (parsed === null) {
+    return null;
   }
+  const firstObject = parsed.objects[0] ?? null;
+  const firstObjectLayout = firstObject
+    ? {
+        layout: 'source_partial' as const,
+        version: firstObject.state.version,
+        objectId: firstObject.state.objectId,
+        parsedThrough: 'complete' as const,
+        moduleCount: firstObject.state.modules.length,
+        moduleIdentifiers: firstObject.state.modules.map((module) => module.identifier),
+        remainingBytes: 0,
+      }
+    : null;
+  return {
+    layout: 'source_outer',
+    version: parsed.version,
+    frameCounter: parsed.frameCounter,
+    objectTocCount: parsed.objectTocEntries.length,
+    objectCount: parsed.objects.length,
+    firstObjectTemplateName: firstObject?.templateName ?? null,
+    firstObjectTocId: firstObject?.tocId ?? null,
+    firstObjectVersion: firstObject?.state.version ?? null,
+    firstObjectInternalName: firstObject?.state.internalName ?? null,
+    firstObjectTeamId: firstObject?.state.teamId ?? null,
+    firstObjectLayout,
+  };
 }
 
 export function inspectGameLogicChunkLayout(
@@ -2968,7 +2973,7 @@ export function inspectGameLogicChunkLayout(
       firstObjectInternalName: null,
       firstObjectTeamId: null,
       firstObjectLayout: null,
-      reason: sourceInspection?.reason,
+      reason: sourceInspection?.reason ?? 'Source GameLogic parse failed.',
     };
   }
   return sourceInspection ?? {
@@ -4906,6 +4911,7 @@ function buildScriptEngineScienceSlots(
 function buildScriptEngineToppleEntries(
   state: Record<string, unknown>,
   coreState: GameLogicCoreSaveState | null | undefined,
+  sourceGameLogicState?: ParsedSourceGameLogicChunkState | null,
 ): Array<[string, { x: number; y: number; z: number }]> {
   const entries: Array<[string, { x: number; y: number; z: number }]> = [];
   const toppleDirections = getRuntimeStateMap<unknown>(state, 'scriptToppleDirectionByEntityId');
@@ -4913,7 +4919,7 @@ function buildScriptEngineToppleEntries(
     if (typeof entityId !== 'number' || !rawDirection || typeof rawDirection !== 'object') {
       continue;
     }
-    const name = resolveScriptNameByEntityId(entityId, coreState);
+    const name = resolveScriptNameByEntityId(entityId, coreState, sourceGameLogicState);
     const x = Number((rawDirection as { x?: unknown }).x);
     const z = Number((rawDirection as { z?: unknown }).z);
     if (!name || !Number.isFinite(x) || !Number.isFinite(z)) {
@@ -5038,6 +5044,7 @@ class ScriptEngineSnapshot implements Snapshot {
   private readonly playerState: GameLogicPlayersSaveState | null | undefined;
   private readonly teamFactoryState: GameLogicTeamFactorySaveState | null | undefined;
   private readonly coreState: GameLogicCoreSaveState | null | undefined;
+  private readonly sourceGameLogicState: ParsedSourceGameLogicChunkState | null | undefined;
   private readonly mapData: MapDataJSON | null | undefined;
   private readonly difficulty: GameDifficulty;
   private readonly currentMusicTrackName: string;
@@ -5048,6 +5055,7 @@ class ScriptEngineSnapshot implements Snapshot {
       playerState?: GameLogicPlayersSaveState | null;
       teamFactoryState?: GameLogicTeamFactorySaveState | null;
       coreState?: GameLogicCoreSaveState | null;
+      sourceGameLogicState?: ParsedSourceGameLogicChunkState | null;
       mapData?: MapDataJSON | null;
       difficulty?: GameDifficulty | null;
       currentMusicTrackName?: string | null;
@@ -5059,6 +5067,7 @@ class ScriptEngineSnapshot implements Snapshot {
     this.playerState = options.playerState;
     this.teamFactoryState = options.teamFactoryState;
     this.coreState = options.coreState;
+    this.sourceGameLogicState = options.sourceGameLogicState;
     this.mapData = options.mapData;
     this.difficulty = options.difficulty ?? 'NORMAL';
     this.currentMusicTrackName = options.currentMusicTrackName?.trim() ?? '';
@@ -5354,7 +5363,7 @@ class ScriptEngineSnapshot implements Snapshot {
 
     const toppleDirections = xferScriptEngineAsciiStringCoord3DEntries(
       xfer,
-      buildScriptEngineToppleEntries(state, this.coreState),
+      buildScriptEngineToppleEntries(state, this.coreState, this.sourceGameLogicState),
     );
 
     const breezeState = state.scriptBreezeState && typeof state.scriptBreezeState === 'object'
@@ -5474,7 +5483,12 @@ class ScriptEngineSnapshot implements Snapshot {
         sideScriptAcquiredSciences: acquiredSciencesBySide,
         scriptToppleDirectionByEntityId: new Map(
           toppleDirections.flatMap(([name, coord]) => {
-            const entityId = resolveEntityIdByScriptName(name, this.coreState, namedEntitiesForLookup);
+            const entityId = resolveEntityIdByScriptName(
+              name,
+              this.coreState,
+              namedEntitiesForLookup,
+              this.sourceGameLogicState,
+            );
             return entityId === null ? [] : [[entityId, { x: coord.x, z: coord.z }] as const];
           }),
         ),
@@ -5735,6 +5749,7 @@ function tryParseSourceScriptEngineChunk(
     playerState?: GameLogicPlayersSaveState | null;
     teamFactoryState?: GameLogicTeamFactorySaveState | null;
     coreState?: GameLogicCoreSaveState | null;
+    sourceGameLogicState?: ParsedSourceGameLogicChunkState | null;
   } = {},
 ): { state: GameLogicScriptEngineSaveState | null; fadeState: ScriptCameraEffectFadeSaveState | null } | null {
   try {
@@ -5743,6 +5758,7 @@ function tryParseSourceScriptEngineChunk(
       playerState: options.playerState ?? null,
       teamFactoryState: options.teamFactoryState ?? null,
       coreState: options.coreState ?? null,
+      sourceGameLogicState: options.sourceGameLogicState ?? null,
     });
     const chunkData = data instanceof Uint8Array
       ? (() => {
@@ -6766,6 +6782,9 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     : null;
   const resolvedPlayersState = sourcePlayersState ?? legacyPlayersState;
   const gameLogicChunk = extractSaveChunkData(data, SOURCE_GAME_LOGIC_BLOCK);
+  const sourceGameLogicState = gameLogicChunk
+    ? parseSourceGameLogicChunkState(gameLogicChunk)
+    : null;
   const sourceGameLogicCoreState = gameLogicChunk
     ? tryParseSourceGameLogicChunk(gameLogicChunk)
     : null;
@@ -6803,6 +6822,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
         playerState: resolvedPlayersState,
         teamFactoryState: resolvedTeamFactoryState,
         coreState: gameLogicCoreState,
+        sourceGameLogicState,
       })
       ?? (() => {
         const legacyState = tryParseLegacyScriptEngineChunk(scriptEngineChunk);
