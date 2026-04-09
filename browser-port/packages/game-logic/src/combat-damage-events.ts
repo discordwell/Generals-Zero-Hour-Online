@@ -28,6 +28,7 @@ interface CombatDamageWeaponLike {
   primaryDamage: number;
   secondaryDamage: number;
   damageType: string;
+  damageStatusType?: string;
   deathType: string;
   continueAttackRange: number;
   /** Source parity: WeaponTemplate::m_shockWaveAmount — shockwave impulse magnitude. */
@@ -89,6 +90,7 @@ export interface CombatDamageEventContext<
     amount: number,
     damageType: string,
     weaponDeathType?: string,
+    damageStatusType?: string,
   ): void;
   canEntityAttackFromStatus(entity: TEntity): boolean;
   canAttackerTargetEntity(attacker: TEntity, target: TEntity, commandSource: string): boolean;
@@ -294,7 +296,7 @@ export function applyWeaponDamageEvent<
     && (weapon.radiusDamageAffectsMask & context.masks.killsSelf) !== 0
     && effectRadius <= 0
   ) {
-    context.applyWeaponDamageAmount(source.id, source, context.hugeDamageAmount, weapon.damageType, weapon.deathType);
+    context.applyWeaponDamageAmount(source.id, source, context.hugeDamageAmount, weapon.damageType, weapon.deathType, weapon.damageStatusType);
     return;
   }
 
@@ -362,7 +364,7 @@ export function applyWeaponDamageEvent<
     const rawAmount = killSelf
       ? context.hugeDamageAmount
       : (victim.distanceSqr <= primaryRadiusSqr ? weapon.primaryDamage : weapon.secondaryDamage);
-    context.applyWeaponDamageAmount(source?.id ?? null, candidate, rawAmount, weapon.damageType, weapon.deathType);
+    context.applyWeaponDamageAmount(source?.id ?? null, candidate, rawAmount, weapon.damageType, weapon.deathType, weapon.damageStatusType);
     damagedEntities.push(candidate);
   }
 

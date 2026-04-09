@@ -3355,6 +3355,10 @@ export interface MapEntity {
   defectorHelperDoFx: boolean;
   /** Source parity: ObjectRepulsorHelper wake deadline. */
   repulsorHelperUntilFrame: number;
+  /** Source parity: StatusDamageHelper::m_statusToHeal. */
+  statusDamageStatusName: string | null;
+  /** Source parity: StatusDamageHelper::m_frameToHeal. */
+  statusDamageClearFrame: number;
   controllingPlayerToken: string | null;
   /** Source parity: MapObject originalOwner team token used for script-team membership on map load. */
   sourceTeamNameUpper?: string | null;
@@ -13075,6 +13079,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.updateBattlePlanParalysis();
     this.updateSpecialAbility();
     this.updatePoisonedEntities();
+    this.updateStatusDamageHelpers();
     this.updateSubdualDamageHelpers();
     this.updateFlammableEntities();
     this.updateFireSpread();
@@ -28212,6 +28217,47 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   /**
+   * Source parity: StatusDamageHelper::update() / clearStatusCondition().
+   * Clears the timed object-status bit once the helper timer elapses.
+   */
+  private updateStatusDamageHelpers(): void {
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.destroyed) continue;
+      if (!entity.statusDamageStatusName || entity.statusDamageClearFrame <= 0) continue;
+      if (entity.statusDamageClearFrame > this.frameCounter) continue;
+      this.clearStatusDamageCondition(entity);
+    }
+  }
+
+  /**
+   * Source parity: StatusDamageHelper::clearStatusCondition().
+   */
+  private clearStatusDamageCondition(entity: MapEntity): void {
+    if (entity.statusDamageStatusName) {
+      entity.objectStatusFlags.delete(entity.statusDamageStatusName);
+    }
+    entity.statusDamageStatusName = null;
+    entity.statusDamageClearFrame = 0;
+  }
+
+  /**
+   * Source parity: Object::doStatusDamage() -> StatusDamageHelper::doStatusDamage().
+   * Reapplying the same status refreshes the timer; changing status clears the old bit first.
+   */
+  private applyStatusDamage(entity: MapEntity, statusName: string, durationFrames: number): void {
+    const boundedDuration = Math.max(0, Math.trunc(durationFrames));
+    if (boundedDuration <= 0) {
+      return;
+    }
+    if (entity.statusDamageStatusName !== null && entity.statusDamageStatusName !== statusName) {
+      this.clearStatusDamageCondition(entity);
+    }
+    entity.objectStatusFlags.add(statusName);
+    entity.statusDamageStatusName = statusName;
+    entity.statusDamageClearFrame = this.frameCounter + boundedDuration;
+  }
+
+  /**
    * Source parity: FlammableUpdate::tryToIgnite — force-ignite a flammable entity.
    * Sets entity aflame immediately (bypasses damage accumulation threshold).
    */
@@ -28540,6 +28586,7 @@ export class GameLogicSubsystem implements Subsystem {
     const secondaryDamage = readNumericField(weaponDef.fields, ['SecondaryDamage']) ?? 0;
     const secondaryDamageRadius = readNumericField(weaponDef.fields, ['SecondaryDamageRadius']) ?? 0;
     const damageType = readStringField(weaponDef.fields, ['DamageType'])?.toUpperCase() ?? 'EXPLOSION';
+    const damageStatusType = readStringField(weaponDef.fields, ['DamageStatusType'])?.toUpperCase() ?? 'NONE';
     const deathType = readStringField(weaponDef.fields, ['DeathType'])?.toUpperCase() || undefined;
     const affectsMask = this.resolveWeaponRadiusAffectsMask(weaponDef);
 
@@ -28556,7 +28603,7 @@ export class GameLogicSubsystem implements Subsystem {
         // Source parity: RadiusDamageAffects mask filtering.
         if (target.id === source.id) {
           if ((affectsMask & WEAPON_KILLS_SELF) !== 0) {
-            this.applyWeaponDamageAmount(source.id, target, HUGE_DAMAGE_AMOUNT, damageType, deathType);
+            this.applyWeaponDamageAmount(source.id, target, HUGE_DAMAGE_AMOUNT, damageType, deathType, undefined, damageStatusType);
             continue;
           }
           if ((affectsMask & WEAPON_AFFECTS_SELF) === 0) continue;
@@ -28595,9 +28642,9 @@ export class GameLogicSubsystem implements Subsystem {
         // Source parity: primary damage within PrimaryDamageRadius,
         // secondary damage within SecondaryDamageRadius (but outside primary).
         if (distSq <= primaryRadiusSq && primaryDamage > 0) {
-          this.applyWeaponDamageAmount(source.id, target, primaryDamage, damageType, deathType);
+          this.applyWeaponDamageAmount(source.id, target, primaryDamage, damageType, deathType, undefined, damageStatusType);
         } else if (secondaryDamage > 0) {
-          this.applyWeaponDamageAmount(source.id, target, secondaryDamage, damageType, deathType);
+          this.applyWeaponDamageAmount(source.id, target, secondaryDamage, damageType, deathType, undefined, damageStatusType);
         }
       }
     }
@@ -32780,8 +32827,8 @@ export class GameLogicSubsystem implements Subsystem {
         ),
       ),
       getTeamRelationship: (attacker, target) => this.getTeamRelationship(attacker, target),
-      applyWeaponDamageAmount: (sourceEntityId, target, amount, damageType, weaponDeathType) =>
-        this.applyWeaponDamageAmount(sourceEntityId, target, amount, damageType, weaponDeathType),
+      applyWeaponDamageAmount: (sourceEntityId, target, amount, damageType, weaponDeathType, damageStatusType) =>
+        this.applyWeaponDamageAmount(sourceEntityId, target, amount, damageType, weaponDeathType, undefined, damageStatusType),
       canEntityAttackFromStatus: (entity) => this.canEntityAttackFromStatus(entity),
       canAttackerTargetEntity: (attacker, target, commandSource) =>
         this.canAttackerTargetEntity(attacker, target, commandSource as AttackCommandSource),
@@ -33772,6 +33819,7 @@ export class GameLogicSubsystem implements Subsystem {
     damageType: string,
     weaponDeathType?: string,
     forceKill?: boolean,
+    damageStatusType?: string,
   ): void {
     // Source parity: InactiveBody::attemptDamage — only UNRESISTABLE triggers death.
     // Must check before canTakeDamage guard since InactiveBody has canTakeDamage=false.
@@ -33838,10 +33886,12 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity (ZH): ActiveBody.cpp:444-451 — DAMAGE_STATUS.
     // Applies a timed status effect to the target. Amount is duration in msec.
     // The status type is carried in damageStatusType (DamageInfo::m_damageStatusType).
-    // Currently the browser port does not model per-frame object status timers,
-    // so this is a recognized no-op that prevents STATUS damage from reducing health.
     if (damageType.toUpperCase() === 'STATUS') {
-      // STATUS damage never reduces health — handled via status timers (future implementation).
+      const normalizedDamageStatus = this.normalizeObjectStatusName(damageStatusType ?? '');
+      if (!normalizedDamageStatus) {
+        return;
+      }
+      this.applyStatusDamage(target, normalizedDamageStatus, this.msToLogicFrames(amount));
       return;
     }
 
@@ -37531,6 +37581,7 @@ export class GameLogicSubsystem implements Subsystem {
         const primaryDamage = readNumericField(weaponDef.fields, ['PrimaryDamage']) ?? 0;
         const primaryDamageRadius = readNumericField(weaponDef.fields, ['PrimaryDamageRadius']) ?? 0;
         const damageType = readStringField(weaponDef.fields, ['DamageType'])?.toUpperCase() ?? 'EXPLOSION';
+        const damageStatusType = readStringField(weaponDef.fields, ['DamageStatusType'])?.toUpperCase() ?? 'NONE';
         const targetRadius = target.obstacleGeometry?.majorRadius ?? 0;
         const baseRadius = primaryDamageRadius + targetRadius;
         const radiusSq = baseRadius * baseRadius;
@@ -37540,7 +37591,7 @@ export class GameLogicSubsystem implements Subsystem {
           const dx = victim.x - target.x;
           const dz = victim.z - target.z;
           if (dx * dx + dz * dz <= radiusSq) {
-            this.applyWeaponDamageAmount(bomb.id, victim, primaryDamage, damageType);
+            this.applyWeaponDamageAmount(bomb.id, victim, primaryDamage, damageType, undefined, undefined, damageStatusType);
           }
         }
       }
@@ -37859,7 +37910,7 @@ export class GameLogicSubsystem implements Subsystem {
       // Directly apply weapon damage to the CLEANUP_HAZARD entity.
       const weapon = entity.attackWeapon;
       if (weapon && weapon.primaryDamage > 0) {
-        this.applyWeaponDamageAmount(entity.id, target, weapon.primaryDamage, weapon.damageType);
+        this.applyWeaponDamageAmount(entity.id, target, weapon.primaryDamage, weapon.damageType, undefined, undefined, weapon.damageStatusType);
         // C++ parity: apply weapon's DelayBetweenShots as per-shot cooldown.
         state.nextShotAvailableFrame = this.frameCounter + Math.max(1, weapon.minDelayFrames);
       }
@@ -38632,6 +38683,9 @@ export class GameLogicSubsystem implements Subsystem {
           const damageType = weaponDef
             ? (readStringField(weaponDef.fields, ['DamageType'])?.toUpperCase() ?? 'EXPLOSION')
             : 'EXPLOSION';
+          const damageStatusType = weaponDef
+            ? (readStringField(weaponDef.fields, ['DamageStatusType'])?.toUpperCase() ?? 'NONE')
+            : 'NONE';
           const deathType = weaponDef
             ? (readStringField(weaponDef.fields, ['DeathType'])?.toUpperCase() || undefined)
             : undefined;
@@ -38641,7 +38695,7 @@ export class GameLogicSubsystem implements Subsystem {
             // Source parity: removeFromContain(rider, true) — force exit.
             this.releaseEntityFromContainer(passenger);
             // Source parity: rider->attemptDamage(&damageInfo) with m_amount=100 (C++ line 217).
-            this.applyWeaponDamageAmount(entity.id, passenger, 100, damageType, deathType);
+            this.applyWeaponDamageAmount(entity.id, passenger, 100, damageType, deathType, undefined, damageStatusType);
           }
         } else {
           // Source parity: killAllContained() — release then kill outright (C++ line 221).

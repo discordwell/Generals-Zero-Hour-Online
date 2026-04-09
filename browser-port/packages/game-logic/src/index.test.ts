@@ -40064,6 +40064,62 @@ describe('Script condition groundwork', () => {
     })).toBe(false);
   });
 
+  it('applies DAMAGE_STATUS via StatusDamageHelper timers without reducing health', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Target', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+            MaxHealth: 100,
+            InitialHealth: 100,
+          }),
+        ]),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Target', 10, 10)], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const privateApi = logic as unknown as {
+      applyWeaponDamageAmount: (
+        sourceEntityId: number | null,
+        target: unknown,
+        amount: number,
+        damageType: string,
+        weaponDeathType?: string,
+        forceKill?: boolean,
+        damageStatusType?: string,
+      ) => void;
+      spawnedEntities: Map<number, {
+        health: number;
+        objectStatusFlags: Set<string>;
+        statusDamageStatusName: string | null;
+        statusDamageClearFrame: number;
+      }>;
+    };
+
+    const target = privateApi.spawnedEntities.get(1)!;
+    privateApi.applyWeaponDamageAmount(null, target, 1000, 'STATUS', undefined, undefined, 'FAERIE_FIRE');
+
+    expect(target.health).toBe(100);
+    expect(target.objectStatusFlags.has('FAERIE_FIRE')).toBe(true);
+    expect(target.statusDamageStatusName).toBe('FAERIE_FIRE');
+    expect(target.statusDamageClearFrame).toBe(30);
+
+    for (let frame = 0; frame < 29; frame += 1) {
+      logic.update(1 / 30);
+    }
+    expect(target.objectStatusFlags.has('FAERIE_FIRE')).toBe(true);
+
+    logic.update(1 / 30);
+    expect(target.objectStatusFlags.has('FAERIE_FIRE')).toBe(false);
+    expect(target.statusDamageStatusName).toBeNull();
+    expect(target.statusDamageClearFrame).toBe(0);
+  });
+
   it('evaluates named-attacked-by-type from persistent last-damage source template', () => {
     const bundle = makeBundle({
       objects: [

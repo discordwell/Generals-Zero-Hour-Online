@@ -88,8 +88,10 @@ const SOURCE_FRAME_FOREVER = 0x3fffffff;
 const SOURCE_UPDATE_PHASE_NORMAL = 2;
 const SOURCE_UPDATE_PHASE_FINAL = 3;
 const SOURCE_HELPER_MODULE_TAG_DEFECTION = 'ModuleTag_DefectionHelper';
+const SOURCE_HELPER_MODULE_TAG_FIRING_TRACKER = 'ModuleTag_FiringTrackerHelper';
 const SOURCE_HELPER_MODULE_TAG_SMC = 'ModuleTag_SMCHelper';
 const SOURCE_HELPER_MODULE_TAG_REPULSOR = 'ModuleTag_RepulsorHelper';
+const SOURCE_HELPER_MODULE_TAG_STATUS_DAMAGE = 'ModuleTag_StatusDamageHelper';
 const SOURCE_HELPER_MODULE_TAG_WEAPON_STATUS = 'ModuleTag_WeaponStatusHelper';
 const SOURCE_HELPER_MODULE_TAG_TEMP_WEAPON_BONUS = 'ModuleTag_TempWeaponBonusHelper';
 const SOURCE_HELPER_MODULE_TAG_SUBDUAL_DAMAGE = 'ModuleTag_SubdualDamageHelper';
@@ -3115,6 +3117,18 @@ function collectSourceObjectStatusBits(entity: MapEntity): string[] {
     - (SCRIPT_OBJECT_STATUS_BIT_INDEX_BY_NAME.get(right) ?? Number.MAX_SAFE_INTEGER));
 }
 
+function sourceObjectStatusNameToType(statusName: string | null | undefined): number {
+  if (typeof statusName !== 'string') {
+    return 0;
+  }
+  const normalized = normalizeSourceObjectStatusName(statusName);
+  if (!normalized) {
+    return 0;
+  }
+  const bitIndex = SCRIPT_OBJECT_STATUS_BIT_INDEX_BY_NAME.get(normalized);
+  return bitIndex === undefined ? 0 : bitIndex + 1;
+}
+
 function collectSourceScriptStatus(entity: MapEntity): number {
   let scriptStatus = 0;
   const objectStatusFlags = entity.objectStatusFlags instanceof Set
@@ -3356,6 +3370,21 @@ function buildSourceUpdateModuleWakeFrame(frame: number, phase = SOURCE_UPDATE_P
   return (normalizedFrame << 2) | (phase & 0x03);
 }
 
+function buildSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-update-module-block');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(nextCallFrameAndPhase);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceObjectHelperBaseBlockData(nextCallFrameAndPhase: number): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-object-helper-block');
@@ -3401,6 +3430,30 @@ function buildSourceObjectDefectionHelperBlockData(entity: MapEntity, currentFra
     saver.xferUnsignedInt(entity.defectorHelperDetectionEndFrame);
     saver.xferReal(entity.defectorHelperFlashPhase);
     saver.xferBool(entity.defectorHelperDoFx);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceFiringTrackerBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-firing-tracker');
+  try {
+    const nextCallFrame = entity.continuousFireCooldownFrame > currentFrame
+      ? entity.continuousFireCooldownFrame
+      : SOURCE_FRAME_FOREVER;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
+    ));
+    saver.xferInt(Math.max(0, Math.trunc(entity.consecutiveShotsAtTarget)));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.consecutiveShotsTargetEntityId ?? 0)));
+    saver.xferUnsignedInt(
+      entity.continuousFireCooldownFrame > 0
+        ? Math.max(0, Math.trunc(entity.continuousFireCooldownFrame))
+        : 0,
+    );
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -3473,6 +3526,27 @@ function buildSourceObjectRepulsorHelperBlockData(entity: MapEntity, currentFram
   );
 }
 
+function buildSourceStatusDamageHelperBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-status-damage-helper');
+  try {
+    const active = entity.statusDamageStatusName !== null
+      && entity.statusDamageClearFrame > currentFrame
+      && !entity.destroyed;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceObjectHelperBaseBlockData(
+      active
+        ? buildSourceUpdateModuleWakeFrame(entity.statusDamageClearFrame)
+        : buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    ));
+    saver.xferInt(active ? sourceObjectStatusNameToType(entity.statusDamageStatusName) : 0);
+    saver.xferUnsignedInt(active ? Math.max(0, Math.trunc(entity.statusDamageClearFrame)) : 0);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceObjectWeaponStatusHelperBlockData(currentFrame: number): Uint8Array {
   return buildSourceBaseOnlyObjectHelperBlockData(
     buildSourceUpdateModuleWakeFrame(currentFrame + 1, SOURCE_UPDATE_PHASE_FINAL),
@@ -3486,6 +3560,11 @@ function overlaySourceObjectModulesFromLiveEntity(
 ): SourceObjectModuleSaveState[] {
   return sourceModules.map((module) => {
     switch (module.identifier) {
+      case SOURCE_HELPER_MODULE_TAG_FIRING_TRACKER:
+        return {
+          identifier: module.identifier,
+          blockData: buildSourceFiringTrackerBlockData(entity, currentFrame),
+        };
       case SOURCE_HELPER_MODULE_TAG_SMC:
         return {
           identifier: module.identifier,
@@ -3495,6 +3574,11 @@ function overlaySourceObjectModulesFromLiveEntity(
         return {
           identifier: module.identifier,
           blockData: buildSourceObjectRepulsorHelperBlockData(entity, currentFrame),
+        };
+      case SOURCE_HELPER_MODULE_TAG_STATUS_DAMAGE:
+        return {
+          identifier: module.identifier,
+          blockData: buildSourceStatusDamageHelperBlockData(entity, currentFrame),
         };
       case SOURCE_HELPER_MODULE_TAG_WEAPON_STATUS:
         return {

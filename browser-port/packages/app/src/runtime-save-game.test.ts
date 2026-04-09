@@ -211,6 +211,21 @@ function createSourceObjectHelperBaseBlockData(nextCallFrameAndPhase: number): U
   }
 }
 
+function createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase: number): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-update-module-base');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferUnsignedInt(nextCallFrameAndPhase);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceDefectionHelperBlockData(
   nextCallFrameAndPhase: number,
   detectionStart: number,
@@ -261,6 +276,44 @@ function createSourceSubdualDamageHelperBlockData(
     xferSave.xferVersion(1);
     xferSave.xferUser(createSourceObjectHelperBaseBlockData(nextCallFrameAndPhase));
     xferSave.xferUnsignedInt(healingStepCountdown);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceStatusDamageHelperBlockData(
+  nextCallFrameAndPhase: number,
+  currentStatus: number,
+  frameToHeal: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-status-damage-helper');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceObjectHelperBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferInt(currentStatus);
+    xferSave.xferUnsignedInt(frameToHeal);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceFiringTrackerBlockData(
+  nextCallFrameAndPhase: number,
+  consecutiveShots: number,
+  victimId: number,
+  frameToStartCooldown: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-firing-tracker');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferInt(consecutiveShots);
+    xferSave.xferUnsignedInt(victimId);
+    xferSave.xferUnsignedInt(frameToStartCooldown);
     return new Uint8Array(xferSave.getBuffer());
   } finally {
     xferSave.close();
@@ -389,6 +442,10 @@ function createSourceObjectBlockData(includeHelperModules = false): Uint8Array {
         blockData: createSourceDefectionHelperBlockData((99 << 2) | 2, 12, 88, 0.5, false),
       },
       {
+        identifier: 'ModuleTag_FiringTrackerHelper',
+        blockData: createSourceFiringTrackerBlockData((96 << 2) | 2, 2, 44, 96),
+      },
+      {
         identifier: 'ModuleTag_TempWeaponBonusHelper',
         blockData: createSourceTempWeaponBonusHelperBlockData((120 << 2) | 2, 4, 120),
       },
@@ -403,6 +460,10 @@ function createSourceObjectBlockData(includeHelperModules = false): Uint8Array {
       {
         identifier: 'ModuleTag_RepulsorHelper',
         blockData: createSourceBaseOnlyObjectHelperBlockData((80 << 2) | 2),
+      },
+      {
+        identifier: 'ModuleTag_StatusDamageHelper',
+        blockData: createSourceStatusDamageHelperBlockData((90 << 2) | 2, 38, 90),
       },
       {
         identifier: 'ModuleTag_WeaponStatusHelper',
@@ -500,6 +561,26 @@ function parseSourceDefectionHelperBlockData(data: Uint8Array) {
   }
 }
 
+function parseSourceFiringTrackerBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-firing-tracker');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      consecutiveShots: xferLoad.xferInt(0),
+      victimId: xferLoad.xferUnsignedInt(0),
+      frameToStartCooldown: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function parseSourceTempWeaponBonusHelperBlockData(data: Uint8Array) {
   const xferLoad = new XferLoad(data.slice().buffer);
   xferLoad.open('parse-source-temp-weapon-bonus-helper');
@@ -533,6 +614,26 @@ function parseSourceSubdualDamageHelperBlockData(data: Uint8Array) {
     return {
       nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
       healingStepCountdown: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceStatusDamageHelperBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-status-damage-helper');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      currentStatus: xferLoad.xferInt(0),
+      frameToHeal: xferLoad.xferUnsignedInt(0),
     };
   } finally {
     xferLoad.close();
@@ -3137,6 +3238,8 @@ describe('runtime-save-game', () => {
             defectorHelperFlashPhase: 1.75,
             defectorHelperDoFx: true,
             repulsorHelperUntilFrame: 102,
+            statusDamageStatusName: 'FAERIE_FIRE',
+            statusDamageClearFrame: 132,
             objectStatusFlags: new Set([
               'IS_USING_ABILITY',
               'CARBOMB',
@@ -3160,6 +3263,9 @@ describe('runtime-save-game', () => {
             },
             attackWeaponSlotIndex: 2,
             attackWeapon: { name: 'LaserWeapon' },
+            consecutiveShotsAtTarget: 4,
+            consecutiveShotsTargetEntityId: 91,
+            continuousFireCooldownFrame: 96,
             attackAmmoInClip: 4,
             nextAttackFrame: 88,
             preAttackFinishFrame: 66,
@@ -3248,14 +3354,18 @@ describe('runtime-save-game', () => {
       leechWeaponRangeActive: true,
     });
     const defectionHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_DefectionHelper');
+    const firingTrackerHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_FiringTrackerHelper');
     const smcHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_SMCHelper');
     const repulsorHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_RepulsorHelper');
+    const statusDamageHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_StatusDamageHelper');
     const tempWeaponBonusHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_TempWeaponBonusHelper');
     const subdualDamageHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_SubdualDamageHelper');
     const weaponStatusHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_WeaponStatusHelper');
     expect(defectionHelper).toBeDefined();
+    expect(firingTrackerHelper).toBeDefined();
     expect(smcHelper).toBeDefined();
     expect(repulsorHelper).toBeDefined();
+    expect(statusDamageHelper).toBeDefined();
     expect(tempWeaponBonusHelper).toBeDefined();
     expect(subdualDamageHelper).toBeDefined();
     expect(weaponStatusHelper).toBeDefined();
@@ -3266,11 +3376,22 @@ describe('runtime-save-game', () => {
       flashPhase: 1.75,
       doFx: true,
     });
+    expect(parseSourceFiringTrackerBlockData(firingTrackerHelper!.blockData)).toEqual({
+      nextCallFrameAndPhase: (96 << 2) | 2,
+      consecutiveShots: 4,
+      victimId: 91,
+      frameToStartCooldown: 96,
+    });
     expect(parseSourceBaseOnlyObjectHelperBlockData(smcHelper!.blockData)).toEqual({
       nextCallFrameAndPhase: (77 << 2) | 2,
     });
     expect(parseSourceBaseOnlyObjectHelperBlockData(repulsorHelper!.blockData)).toEqual({
       nextCallFrameAndPhase: (102 << 2) | 2,
+    });
+    expect(parseSourceStatusDamageHelperBlockData(statusDamageHelper!.blockData)).toEqual({
+      nextCallFrameAndPhase: (132 << 2) | 2,
+      currentStatus: 38,
+      frameToHeal: 132,
     });
     expect(parseSourceTempWeaponBonusHelperBlockData(tempWeaponBonusHelper!.blockData)).toEqual({
       nextCallFrameAndPhase: (120 << 2) | 2,

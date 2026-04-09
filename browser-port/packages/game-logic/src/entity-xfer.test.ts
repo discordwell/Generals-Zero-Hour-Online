@@ -30,6 +30,8 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     defectorHelperFlashPhase: 0,
     defectorHelperDoFx: false,
     repulsorHelperUntilFrame: 0,
+    statusDamageStatusName: null,
+    statusDamageClearFrame: 0,
     controllingPlayerToken: 'player1',
     resolved: true,
     bridgeFlags: 0,
@@ -836,6 +838,30 @@ describe('entity-xfer', () => {
     loader.close();
 
     expect(loaded.repulsorHelperUntilFrame).toBe(240);
+  });
+
+  it('preserves status damage helper runtime state', () => {
+    const original = createTestEntity({
+      statusDamageStatusName: 'FAERIE_FIRE',
+      statusDamageClearFrame: 135,
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity({
+      statusDamageStatusName: null,
+      statusDamageClearFrame: 0,
+    });
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.statusDamageStatusName).toBe('FAERIE_FIRE');
+    expect(loaded.statusDamageClearFrame).toBe(135);
   });
 
   it('preserves movement path (VectorXZ array)', () => {
