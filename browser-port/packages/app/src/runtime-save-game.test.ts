@@ -2933,6 +2933,8 @@ describe('runtime-save-game', () => {
             disabledHackedUntilFrame: 333,
             disabledEmpUntilFrame: 0,
             disabledParalyzedUntilFrame: 0,
+            transportContainerId: 21,
+            healContainEnteredFrame: 77,
             experienceState: {
               currentLevel: 2,
               currentExperience: 500,
@@ -2983,6 +2985,8 @@ describe('runtime-save-game', () => {
       experienceSinkObjectId: 99,
       experienceScalar: 1.5,
     });
+    expect(firstObject?.containedById).toBe(21);
+    expect(firstObject?.containedByFrame).toBe(77);
     expect(firstObject?.soleHealingBenefactorId).toBe(44);
     expect(firstObject?.soleHealingBenefactorExpirationFrame).toBe(555);
     expect(firstObject?.weaponSetFlags).toEqual(['PLAYER_UPGRADE']);

@@ -3224,6 +3224,44 @@ function overlaySourceWeaponSetFromLiveEntity(
   };
 }
 
+function resolveSourceContainedByState(
+  sourceState: SourceMapEntitySaveState,
+  entity: MapEntity,
+): Pick<SourceMapEntitySaveState, 'containedById' | 'containedByFrame'> {
+  const containedById = entity.parkingSpaceProducerId
+    ?? entity.helixCarrierId
+    ?? entity.garrisonContainerId
+    ?? entity.transportContainerId
+    ?? entity.tunnelContainerId
+    ?? null;
+  if (containedById === null) {
+    return {
+      containedById: null,
+      containedByFrame: 0,
+    };
+  }
+  if (entity.tunnelContainerId !== null && Number.isFinite(entity.tunnelEnteredFrame)) {
+    return {
+      containedById,
+      containedByFrame: Math.max(0, Math.trunc(entity.tunnelEnteredFrame)),
+    };
+  }
+  if (entity.transportContainerId !== null
+    && Number.isFinite(entity.healContainEnteredFrame)
+    && entity.healContainEnteredFrame > 0) {
+    return {
+      containedById,
+      containedByFrame: Math.max(0, Math.trunc(entity.healContainEnteredFrame)),
+    };
+  }
+  return {
+    containedById,
+    containedByFrame: sourceState.containedById === containedById
+      ? sourceState.containedByFrame
+      : 0,
+  };
+}
+
 function overlaySourceObjectStateFromLiveEntity(
   sourceState: SourceMapEntitySaveState,
   entity: MapEntity,
@@ -3270,6 +3308,7 @@ function overlaySourceObjectStateFromLiveEntity(
         ? entity.experienceState.experienceScalar
         : sourceState.experienceTracker.experienceScalar,
     },
+    ...resolveSourceContainedByState(sourceState, entity),
     constructionPercent: Number.isFinite(entity.constructionPercent)
       ? entity.constructionPercent
       : sourceState.constructionPercent,
