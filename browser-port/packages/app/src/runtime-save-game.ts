@@ -3701,6 +3701,25 @@ function buildSourceWeaponBonusUpdateBlockData(nextCallFrame: number): Uint8Arra
   }
 }
 
+function buildSourcePowerPlantUpdateBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-power-plant-update');
+  try {
+    const state = entity.powerPlantUpdateState;
+    const nextCallFrame = state && state.upgradeFinishFrame > currentFrame
+      ? state.upgradeFinishFrame
+      : SOURCE_FRAME_FOREVER;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
+    ));
+    saver.xferBool(state?.extended === true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function sourceWeaponBonusFlagToCondition(flag: number): number {
   if (!Number.isInteger(flag) || flag <= 0 || (flag & (flag - 1)) !== 0) {
     return -1;
@@ -3906,6 +3925,12 @@ function overlaySourceObjectModulesFromLiveEntity(
                 ),
               };
             }
+          }
+          if (moduleType === 'POWERPLANTUPDATE' && entity.powerPlantUpdateState) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourcePowerPlantUpdateBlockData(entity, currentFrame),
+            };
           }
         }
         return {
