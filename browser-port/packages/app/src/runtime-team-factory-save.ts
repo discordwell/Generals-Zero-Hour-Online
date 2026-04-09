@@ -421,6 +421,7 @@ class SourceTeamFactorySnapshot implements Snapshot {
     private readonly playerState: GameLogicPlayersSaveState | null | undefined,
     private readonly sidesListState: GameLogicSidesListSaveState | null | undefined,
     private readonly coreState: GameLogicCoreSaveState | null | undefined,
+    private readonly sourcePrototypeNames: readonly string[] | null | undefined,
   ) {}
 
   crc(_xfer: Xfer): void {}
@@ -466,6 +467,21 @@ class SourceTeamFactorySnapshot implements Snapshot {
         }
         if (!instanceMap.has(sourceTeamNameUpper)) {
           instanceMap.set(sourceTeamNameUpper, [sourceTeamNameUpper]);
+        }
+      }
+    }
+    if (prototypeOrder.length === 0 && Array.isArray(this.sourcePrototypeNames)) {
+      for (const sourcePrototypeName of this.sourcePrototypeNames) {
+        const prototypeNameUpper = sourcePrototypeName.trim().toUpperCase();
+        if (!prototypeNameUpper || prototypeOrder.includes(prototypeNameUpper)) {
+          continue;
+        }
+        prototypeOrder.push(prototypeNameUpper);
+        if (!teamMap.has(prototypeNameUpper)) {
+          teamMap.set(prototypeNameUpper, createPrototypePlaceholder(prototypeNameUpper));
+        }
+        if (!instanceMap.has(prototypeNameUpper)) {
+          instanceMap.set(prototypeNameUpper, [prototypeNameUpper]);
         }
       }
     }
@@ -528,7 +544,7 @@ export function buildSourceTeamFactoryChunk(
 ): Uint8Array {
   const saver = new XferSave();
   saver.open('source-team-factory');
-  saver.xferSnapshot(new SourceTeamFactorySnapshot(teamFactoryState, playerState, sidesListState, null));
+  saver.xferSnapshot(new SourceTeamFactorySnapshot(teamFactoryState, playerState, sidesListState, null, null));
   saver.close();
   return new Uint8Array(saver.getBuffer());
 }
@@ -539,10 +555,17 @@ export function applySourceTeamFactoryChunkToState(
   playerState: GameLogicPlayersSaveState | null | undefined,
   sidesListState: GameLogicSidesListSaveState | null | undefined,
   coreState: GameLogicCoreSaveState | null | undefined = null,
+  sourcePrototypeNames: readonly string[] | null | undefined = null,
 ): GameLogicTeamFactorySaveState {
   const loader = new XferLoad(toArrayBuffer(chunkData));
   loader.open('source-team-factory');
-  loader.xferSnapshot(new SourceTeamFactorySnapshot(currentState, playerState, sidesListState, coreState));
+  loader.xferSnapshot(new SourceTeamFactorySnapshot(
+    currentState,
+    playerState,
+    sidesListState,
+    coreState,
+    sourcePrototypeNames,
+  ));
   loader.close();
   return currentState;
 }

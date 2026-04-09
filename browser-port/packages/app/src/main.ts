@@ -1766,6 +1766,7 @@ async function startGame(
           currentPlayerState,
           currentSidesListState,
           runtimeSaveLoadContext.runtimeSave.gameLogicCoreState,
+          runtimeSaveLoadContext.runtimeSave.sourceGameLogicPrototypeNames,
         ),
       );
     }

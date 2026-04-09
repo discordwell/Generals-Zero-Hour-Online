@@ -15,7 +15,10 @@ import {
   SOURCE_GAME_MODE_SINGLE_PLAYER,
   type RuntimeSaveChallengeGameInfoState,
 } from './runtime-save-game.js';
-import { applySourceTeamFactoryChunkToState } from './runtime-team-factory-save.js';
+import {
+  applySourceTeamFactoryChunkToState,
+  buildSourceTeamFactoryChunk,
+} from './runtime-team-factory-save.js';
 
 function createEmptyRadarEvent() {
   return {
@@ -197,6 +200,7 @@ function createSourceObjectBlockData(): Uint8Array {
   state.teamId = 3;
   state.drawableId = 9;
   state.internalName = 'UNIT_007';
+  state.originalTeamName = 'TEAMUNIT';
   state.statusBits = ['SELECTABLE'];
   state.geometryInfo = {
     ...state.geometryInfo,
@@ -1053,6 +1057,8 @@ describe('runtime-save-game', () => {
     const ghostObjectChunk = readGhostObjectChunk(saveFile.data);
 
     expect(parsed.metadata.description).toBe('Runtime Save Smoke Test');
+    expect(parsed.mapObjectIdCounter).toBe(41);
+    expect(parsed.mapDrawableIdCounter).toBe(41);
     expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data)).toEqual([
       { blockName: 'CHUNK_Players', mode: 'parsed' },
       { blockName: 'CHUNK_GameLogic', mode: 'legacy' },
@@ -2443,7 +2449,7 @@ describe('runtime-save-game', () => {
     });
   });
 
-  it('resolves source GameLogic object names for source ScriptEngine loads while preserving raw GameLogic bytes', () => {
+  it('resolves source GameLogic object names for source ScriptEngine loads through source GameLogic rewrites', () => {
     const mapData = {
       heightmap: {
         width: 2,
@@ -2523,16 +2529,171 @@ describe('runtime-save-game', () => {
     } | undefined;
 
     expect(parsed.gameLogicCoreState).toBeNull();
+    expect(parsed.sourceGameLogicPrototypeNames).toEqual(['TEAMUNIT']);
     expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data)).toEqual([
       { blockName: 'CHUNK_Players', mode: 'parsed' },
-      { blockName: 'CHUNK_GameLogic', mode: 'raw_passthrough' },
+      { blockName: 'CHUNK_GameLogic', mode: 'parsed' },
       { blockName: 'CHUNK_ScriptEngine', mode: 'parsed' },
       { blockName: 'CHUNK_InGameUI', mode: 'parsed' },
     ]);
     expect(scriptEngineState?.scriptToppleDirectionByEntityId).toEqual(
       new Map([[7, { x: 12, z: 34 }]]),
     );
-    expect(readSaveChunkData(saveFile.data, 'CHUNK_GameLogic')).toEqual(sourceGameLogicBytes);
+    expect(inspectGameLogicChunkLayout(readSaveChunkData(saveFile.data, 'CHUNK_GameLogic')!)).toEqual({
+      layout: 'source_outer',
+      version: 3,
+      frameCounter: 42,
+      objectTocCount: 1,
+      objectCount: 1,
+      firstObjectTemplateName: 'RuntimeTank',
+      firstObjectTocId: 1,
+      firstObjectVersion: 9,
+      firstObjectInternalName: 'UNIT_007',
+      firstObjectTeamId: 3,
+      firstObjectLayout: {
+        layout: 'source_partial',
+        version: 9,
+        objectId: 7,
+        parsedThrough: 'complete',
+        moduleCount: 0,
+        moduleIdentifiers: [],
+        remainingBytes: 0,
+      },
+    });
+  });
+
+  it('rewrites source CHUNK_GameLogic outer state on resave while preserving object-table parsing', () => {
+    const mapData = {
+      heightmap: {
+        width: 2,
+        height: 2,
+        borderSize: 0,
+        data: 'AAAAAA==',
+      },
+      objects: [],
+      triggers: [],
+      waypoints: { nodes: [], links: [] },
+      textureClasses: [],
+      blendTileCount: 0,
+    };
+
+    const sourceGameLogicBytes = createSourceGameLogicChunkData();
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source GameLogic Resave Rewrite',
+      mapPath: 'assets/maps/SourceRewrite.json',
+      mapData,
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 99,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          scriptScoringEnabled: true,
+          spawnedEntities: [],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const gameLogicChunk = readSaveChunkData(saveFile.data, 'CHUNK_GameLogic');
+
+    expect(gameLogicChunk).not.toEqual(sourceGameLogicBytes);
+    expect(inspectGameLogicChunkLayout(gameLogicChunk!)).toEqual({
+      layout: 'source_outer',
+      version: 3,
+      frameCounter: 99,
+      objectTocCount: 1,
+      objectCount: 1,
+      firstObjectTemplateName: 'RuntimeTank',
+      firstObjectTocId: 1,
+      firstObjectVersion: 9,
+      firstObjectInternalName: 'UNIT_007',
+      firstObjectTeamId: 3,
+      firstObjectLayout: {
+        layout: 'source_partial',
+        version: 9,
+        objectId: 7,
+        parsedThrough: 'complete',
+        moduleCount: 0,
+        moduleIdentifiers: [],
+        remainingBytes: 0,
+      },
+    });
+  });
+
+  it('hydrates team-factory prototypes from source GameLogic team names when legacy core state is absent', () => {
+    const sourceTeamFactoryChunk = buildSourceTeamFactoryChunk(
+      createEmptyTeamFactoryState('TEAMUNIT'),
+      null,
+      null,
+    );
+
+    const restored = applySourceTeamFactoryChunkToState(
+      sourceTeamFactoryChunk,
+      createEmptyTeamFactoryState(),
+      null,
+      null,
+      null,
+      ['TEAMUNIT'],
+    );
+
+    expect(restored.state.scriptNextSourceTeamId).toBe(1);
+    expect(restored.state.scriptTeamInstanceNamesByPrototypeName).toEqual(
+      new Map([['TEAMUNIT', ['TEAMUNIT']]]),
+    );
+    expect(restored.state.scriptTeamsByName).toEqual(new Map([['TEAMUNIT', {
+      nameUpper: 'TEAMUNIT',
+      prototypeNameUpper: 'TEAMUNIT',
+      sourcePrototypeId: 1,
+      sourceTeamId: null,
+      memberEntityIds: new Set<number>(),
+      created: false,
+      stateName: '',
+      attackPrioritySetName: '',
+      recruitableOverride: null,
+      isAIRecruitable: false,
+      homeWaypointName: '',
+      controllingSide: null,
+      controllingPlayerToken: null,
+      isSingleton: true,
+      maxInstances: 0,
+      productionPriority: 0,
+      productionPrioritySuccessIncrease: 0,
+      productionPriorityFailureDecrease: 0,
+      reinforcementUnitEntries: [],
+      reinforcementTransportTemplateName: '',
+      reinforcementStartWaypointName: '',
+      reinforcementTeamStartsFull: false,
+      reinforcementTransportsExit: false,
+    }]]));
   });
 
   it('round-trips live particle-system save state through CHUNK_ParticleSystem', () => {

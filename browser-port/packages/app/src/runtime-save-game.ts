@@ -4,6 +4,7 @@ import {
   SaveFileType,
   XferLoad,
   XferMode,
+  XferSave,
   listSaveGameChunks,
   parseSaveGameInfo,
   parseSaveGameMapInfo,
@@ -363,6 +364,8 @@ export interface RuntimeSaveBootstrap {
   metadata: ParsedSaveGameInfo;
   mapData: MapDataJSON | null;
   mapPath: string | null;
+  mapObjectIdCounter: number;
+  mapDrawableIdCounter: number;
   cameraState: CameraState | null;
   tacticalViewState: RuntimeSaveTacticalViewState | null;
   gameClientState: RuntimeSaveGameClientState | null;
@@ -380,6 +383,7 @@ export interface RuntimeSaveBootstrap {
   gameLogicInGameUiState: GameLogicInGameUiSaveState | null;
   gameLogicCoreState: GameLogicCoreSaveState | null;
   gameLogicState: unknown | null;
+  sourceGameLogicPrototypeNames: readonly string[] | null;
   campaign: RuntimeSaveCampaignBootstrap | null;
   passthroughBlocks: RuntimeSavePassthroughBlock[];
 }
@@ -413,6 +417,7 @@ export interface RuntimeSaveGameLogicChunkLayoutInspection {
 interface ParsedSourceGameLogicObjectState {
   tocId: number;
   templateName: string | null;
+  blockData: ArrayBuffer;
   state: SourceMapEntitySaveState;
 }
 
@@ -2793,6 +2798,7 @@ function parseSourceGameLogicChunkState(
         objects.push({
           tocId,
           templateName: objectTocEntries.find((entry) => entry.tocId === tocId)?.templateName ?? null,
+          blockData: copyBytesToArrayBuffer(objectData),
           state,
         });
       }
@@ -2951,6 +2957,104 @@ function inspectSourceGameLogicChunk(
     firstObjectTeamId: firstObject?.state.teamId ?? null,
     firstObjectLayout,
   };
+}
+
+function collectSourceGameLogicPrototypeNames(
+  state: ParsedSourceGameLogicChunkState | null | undefined,
+): string[] {
+  if (state === null || state === undefined) {
+    return [];
+  }
+  const prototypeNames: string[] = [];
+  const seen = new Set<string>();
+  for (const object of state.objects) {
+    const prototypeNameUpper = object.state.originalTeamName.trim().toUpperCase();
+    if (!prototypeNameUpper || seen.has(prototypeNameUpper)) {
+      continue;
+    }
+    seen.add(prototypeNameUpper);
+    prototypeNames.push(prototypeNameUpper);
+  }
+  return prototypeNames;
+}
+
+function buildSourceGameLogicChunk(
+  sourceState: ParsedSourceGameLogicChunkState,
+  options: {
+    campaignState?: RuntimeSaveCampaignState | null;
+    coreState?: GameLogicCoreSaveState | null;
+  } = {},
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-game-logic');
+  try {
+    const coreState = options.coreState ?? null;
+    const campaignState = options.campaignState ?? sourceState.campaignState;
+    saver.xferVersion(sourceState.version);
+    saver.xferUnsignedInt(coreState?.frameCounter ?? sourceState.frameCounter);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceState.objectTocEntries.length);
+    for (const tocEntry of sourceState.objectTocEntries) {
+      saver.xferAsciiString(tocEntry.templateName);
+      saver.xferUnsignedShort(tocEntry.tocId);
+    }
+
+    saver.xferUnsignedInt(sourceState.objects.length);
+    for (const object of sourceState.objects) {
+      saver.xferUnsignedShort(object.tocId);
+      saver.beginBlock();
+      saver.xferUser(new Uint8Array(object.blockData));
+      saver.endBlock();
+    }
+
+    saver.xferSnapshot(new CampaignSnapshot({
+      version: campaignState.version,
+      currentCampaign: campaignState.currentCampaign,
+      currentMission: campaignState.currentMission,
+      currentRankPoints: campaignState.currentRankPoints,
+      difficulty: campaignState.difficulty,
+      isChallengeCampaign: campaignState.isChallengeCampaign,
+      playerTemplateNum: campaignState.playerTemplateNum,
+      challengeGameInfoState: campaignState.challengeGameInfoState,
+    }));
+    xferSourceCaveTrackerVector(saver, coreState?.caveTrackers ?? sourceState.caveTrackers);
+    if (sourceState.version >= 2) {
+      saver.xferBool(coreState?.scriptScoringEnabled ?? sourceState.scriptScoringEnabled);
+    }
+    if (sourceState.version >= 3) {
+      saver.xferUnsignedInt(sourceState.polygonTriggers.length);
+      for (const polygonTrigger of sourceState.polygonTriggers) {
+        saver.xferInt(polygonTrigger.triggerId);
+        xferSourcePolygonTriggerSnapshot(saver, polygonTrigger.snapshot);
+      }
+    }
+    if (sourceState.version >= 5) {
+      saver.xferInt(coreState?.rankLevelLimit ?? sourceState.rankLevelLimit ?? 0);
+    }
+    if (sourceState.version >= 6) {
+      xferSourceSellingEntities(saver, coreState?.sellingEntities ?? sourceState.sellingEntities);
+      xferSourceBuildableOverrideMap(
+        saver,
+        coreState?.buildableOverrides ?? sourceState.buildableOverrides,
+      );
+    }
+    if (sourceState.version >= 8) {
+      saver.xferBool(coreState?.showBehindBuildingMarkers ?? sourceState.showBehindBuildingMarkers ?? false);
+      saver.xferBool(coreState?.drawIconUI ?? sourceState.drawIconUI ?? false);
+      saver.xferBool(coreState?.showDynamicLOD ?? sourceState.showDynamicLOD ?? false);
+      saver.xferInt(coreState?.scriptHulkMaxLifetimeOverride ?? sourceState.scriptHulkMaxLifetimeOverride ?? 0);
+      xferSourceControlBarOverrideMapEntries(saver, sourceState.controlBarOverrideEntries);
+    }
+    if (sourceState.version >= 9) {
+      saver.xferInt(coreState?.rankPointsToAddAtGameStart ?? sourceState.rankPointsToAddAtGameStart ?? 0);
+    }
+    if (sourceState.version >= 10) {
+      saver.xferUnsignedShort(coreState?.superweaponRestriction ?? sourceState.superweaponRestriction ?? 0);
+    }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
 }
 
 export function inspectGameLogicChunkLayout(
@@ -6593,9 +6697,17 @@ export function buildRuntimeSaveFile(params: {
     if (!passthroughBlock) {
       throw new Error('Missing game-logic passthrough block after presence check.');
     }
+    const parsedSourceGameLogicState = parseSourceGameLogicChunkState(passthroughBlock.blockData);
     state.addSnapshotBlock(
       SOURCE_GAME_LOGIC_BLOCK,
-      new RawPassthroughSnapshot(passthroughBlock.blockData),
+      new RawPassthroughSnapshot(
+        parsedSourceGameLogicState
+          ? buildSourceGameLogicChunk(parsedSourceGameLogicState, {
+              campaignState,
+              coreState: gameLogicPayload,
+            })
+          : passthroughBlock.blockData,
+      ),
     );
   } else {
     state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new LegacyGameLogicSnapshot(gameLogicPayload));
@@ -6785,6 +6897,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const sourceGameLogicState = gameLogicChunk
     ? parseSourceGameLogicChunkState(gameLogicChunk)
     : null;
+  const sourceGameLogicPrototypeNames = collectSourceGameLogicPrototypeNames(sourceGameLogicState);
   const sourceGameLogicCoreState = gameLogicChunk
     ? tryParseSourceGameLogicChunk(gameLogicChunk)
     : null;
@@ -6807,6 +6920,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
                 resolvedPlayersState,
                 sidesListState,
                 gameLogicCoreState,
+                sourceGameLogicPrototypeNames,
               );
             } catch {
               return null;
@@ -6863,6 +6977,8 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     metadata,
     mapData,
     mapPath: resolvedMapPath,
+    mapObjectIdCounter: mapInfo.objectIdCounter,
+    mapDrawableIdCounter: mapInfo.drawableIdCounter,
     cameraState: resolveRestoredCameraState(tacticalViewSnapshot.payload, browserCameraState),
     tacticalViewState: tacticalViewSnapshot.payload,
     gameClientState: parseGameClientState(data),
@@ -6880,6 +6996,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     gameLogicInGameUiState,
     gameLogicCoreState,
     gameLogicState: payload?.gameLogicState ?? null,
+    sourceGameLogicPrototypeNames,
     campaign,
     passthroughBlocks: [
       ...extractPassthroughBlocks(data).filter(
@@ -6955,7 +7072,9 @@ export function inspectRuntimeSaveCoreChunkStatus(
     ),
     describeChunk(
       SOURCE_GAME_LOGIC_BLOCK,
-      parsed.gameLogicCoreState,
+      parsedGameLogicChunkLayout?.layout === 'source_outer'
+        ? parsedGameLogicChunkLayout
+        : parsed.gameLogicCoreState,
       parsedGameLogicChunkLayout?.layout === 'source_outer' ? 'parsed' : 'legacy',
     ),
     describeChunk(
