@@ -4005,6 +4005,126 @@ function buildSourceRadarUpdateBlockData(entity: MapEntity, currentFrame: number
   }
 }
 
+function sourceNeutronMissileStateToInt(
+  state: 'PRELAUNCH' | 'LAUNCH' | 'ATTACK' | 'DEAD',
+): number {
+  switch (state) {
+    case 'PRELAUNCH': return 0;
+    case 'LAUNCH': return 1;
+    case 'ATTACK': return 2;
+    case 'DEAD': return 3;
+  }
+}
+
+function buildDefaultSourceNeutronMissileRawLaunchParamsBytes(currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-default-source-neutron-missile-raw-launch-params');
+  try {
+    saver.xferInt(0);
+    saver.xferInt(0);
+    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(currentFrame)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceNeutronMissileUpdateBlockData(
+  data: Uint8Array,
+): {
+  rawLaunchParamsBytes: Uint8Array;
+  rawTailBytes: Uint8Array;
+} | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-neutron-missile-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferInt(0);
+    xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xferLoad.xferObjectID(0);
+    const rawLaunchParamsBytes = xferLoad.xferUser(new Uint8Array(24));
+    xferLoad.xferBool(false);
+    xferLoad.xferBool(false);
+    xferLoad.xferReal(0);
+    xferLoad.xferBool(false);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferReal(0);
+    const remaining = xferLoad.getRemaining();
+    const rawTailBytes = remaining > 0
+      ? xferLoad.xferUser(new Uint8Array(remaining))
+      : new Uint8Array();
+    return {
+      rawLaunchParamsBytes,
+      rawTailBytes,
+    };
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceNeutronMissileUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState?: {
+    rawLaunchParamsBytes: Uint8Array;
+    rawTailBytes: Uint8Array;
+  } | null,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-neutron-missile-update');
+  try {
+    const state = entity.neutronMissileUpdateState;
+    const rawLaunchParamsBytes = preservedState?.rawLaunchParamsBytes?.byteLength === 24
+      ? preservedState.rawLaunchParamsBytes
+      : buildDefaultSourceNeutronMissileRawLaunchParamsBytes(currentFrame);
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferUser(
+      sourceNeutronMissileStateToInt(state?.state ?? 'PRELAUNCH'),
+      (xfer, value) => { xfer.xferInt(value); },
+      (xfer) => xfer.xferInt(0),
+    );
+    saver.xferCoord3D({
+      x: state?.targetX ?? 0,
+      y: state?.targetY ?? 0,
+      z: state?.targetZ ?? 0,
+    });
+    saver.xferCoord3D({
+      x: state?.intermedX ?? 0,
+      y: state?.intermedY ?? 0,
+      z: state?.intermedZ ?? 0,
+    });
+    saver.xferObjectID(Math.max(0, Math.trunc(state?.launcherId ?? 0)));
+    saver.xferUser(rawLaunchParamsBytes);
+    saver.xferBool(state?.isLaunched === true);
+    saver.xferBool(state?.isArmed === true);
+    saver.xferReal(state?.noTurnDistLeft ?? 0);
+    saver.xferBool(state?.reachedIntermediatePos === true);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.frameAtLaunch ?? 0)));
+    saver.xferReal(state?.heightAtLaunch ?? 0);
+    if (preservedState?.rawTailBytes && preservedState.rawTailBytes.byteLength > 0) {
+      saver.xferUser(preservedState.rawTailBytes);
+    }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function sourceSpecialAbilityPackingStateToInt(
   state: 'NONE' | 'PACKING' | 'UNPACKING' | 'PACKED' | 'UNPACKED',
 ): number {
@@ -4768,6 +4888,19 @@ function overlaySourceObjectModulesFromLiveEntity(
               identifier: module.identifier,
               blockData: buildSourceRadarUpdateBlockData(entity, currentFrame),
             };
+          }
+          if (moduleType === 'NEUTRONMISSILEUPDATE' && entity.neutronMissileUpdateProfile && entity.neutronMissileUpdateState) {
+            const parsedSourceState = tryParseSourceNeutronMissileUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceNeutronMissileUpdateBlockData(
+                  entity,
+                  currentFrame,
+                  parsedSourceState,
+                ),
+              };
+            }
           }
           if (moduleType === 'SPECIALABILITYUPDATE' && entity.specialAbilityProfile && entity.specialAbilityState) {
             return {

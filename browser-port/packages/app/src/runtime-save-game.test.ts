@@ -626,6 +626,87 @@ function createSourceRadarUpdateBlockData(
   }
 }
 
+function sourceNeutronMissileStateToInt(
+  state: 'PRELAUNCH' | 'LAUNCH' | 'ATTACK' | 'DEAD',
+): number {
+  switch (state) {
+    case 'PRELAUNCH': return 0;
+    case 'LAUNCH': return 1;
+    case 'ATTACK': return 2;
+    case 'DEAD': return 3;
+  }
+}
+
+function sourceNeutronMissileStateFromInt(
+  value: number,
+): 'PRELAUNCH' | 'LAUNCH' | 'ATTACK' | 'DEAD' {
+  switch (value) {
+    case 0: return 'PRELAUNCH';
+    case 1: return 'LAUNCH';
+    case 2: return 'ATTACK';
+    case 3: return 'DEAD';
+    default:
+      throw new Error(`Unexpected NeutronMissileUpdate state ${value}`);
+  }
+}
+
+function createRawNeutronMissileLaunchParamsBytes(
+  attachWeaponSlot: number,
+  attachSpecificBarrelToUse: number,
+  accel: { x: number; y: number; z: number },
+  stateTimestamp: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-raw-neutron-missile-launch-params');
+  try {
+    xferSave.xferInt(attachWeaponSlot);
+    xferSave.xferInt(attachSpecificBarrelToUse);
+    xferSave.xferCoord3D(accel);
+    xferSave.xferUnsignedInt(stateTimestamp);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceNeutronMissileUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  state: 'PRELAUNCH' | 'LAUNCH' | 'ATTACK' | 'DEAD',
+  targetPos: { x: number; y: number; z: number },
+  intermedPos: { x: number; y: number; z: number },
+  launcherId: number,
+  rawLaunchParamsBytes: Uint8Array,
+  isLaunched: boolean,
+  isArmed: boolean,
+  noTurnDistLeft: number,
+  reachedIntermediatePos: boolean,
+  frameAtLaunch: number,
+  heightAtLaunch: number,
+  rawTailBytes: Uint8Array,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-neutron-missile-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferInt(sourceNeutronMissileStateToInt(state));
+    xferSave.xferCoord3D(targetPos);
+    xferSave.xferCoord3D(intermedPos);
+    xferSave.xferObjectID(launcherId);
+    xferSave.xferUser(rawLaunchParamsBytes);
+    xferSave.xferBool(isLaunched);
+    xferSave.xferBool(isArmed);
+    xferSave.xferReal(noTurnDistLeft);
+    xferSave.xferBool(reachedIntermediatePos);
+    xferSave.xferUnsignedInt(frameAtLaunch);
+    xferSave.xferReal(heightAtLaunch);
+    xferSave.xferUser(rawTailBytes);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function sourceSpecialAbilityPackingStateToInt(
   state: 'NONE' | 'PACKING' | 'UNPACKING' | 'PACKED' | 'UNPACKED',
 ): number {
@@ -1544,6 +1625,50 @@ function parseSourceRadarUpdateBlockData(data: Uint8Array) {
       extendDoneFrame: xferLoad.xferUnsignedInt(0),
       extendComplete: xferLoad.xferBool(false),
       radarActive: xferLoad.xferBool(false),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceNeutronMissileUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-neutron-missile-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const state = sourceNeutronMissileStateFromInt(xferLoad.xferInt(0));
+    const targetPos = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const intermedPos = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const launcherId = xferLoad.xferObjectID(0);
+    const rawLaunchParamsBytes = xferLoad.xferUser(new Uint8Array(24));
+    const isLaunched = xferLoad.xferBool(false);
+    const isArmed = xferLoad.xferBool(false);
+    const noTurnDistLeft = xferLoad.xferReal(0);
+    const reachedIntermediatePos = xferLoad.xferBool(false);
+    const frameAtLaunch = xferLoad.xferUnsignedInt(0);
+    const heightAtLaunch = xferLoad.xferReal(0);
+    const rawTailBytes = xferLoad.getRemaining() > 0
+      ? xferLoad.xferUser(new Uint8Array(xferLoad.getRemaining()))
+      : new Uint8Array();
+    return {
+      nextCallFrameAndPhase,
+      state,
+      targetPos,
+      intermedPos,
+      launcherId,
+      rawLaunchParamsBytes,
+      isLaunched,
+      isArmed,
+      noTurnDistLeft,
+      reachedIntermediatePos,
+      frameAtLaunch,
+      heightAtLaunch,
+      rawTailBytes,
     };
   } finally {
     xferLoad.close();
@@ -6244,6 +6369,159 @@ describe('runtime-save-game', () => {
       extendDoneFrame: 96,
       extendComplete: true,
       radarActive: true,
+    });
+  });
+
+  it('rewrites source NeutronMissileUpdate modules from live runtime state', () => {
+    const rawLaunchParamsBytes = createRawNeutronMissileLaunchParamsBytes(
+      7,
+      3,
+      { x: 1.5, y: 2.5, z: 3.5 },
+      99,
+    );
+    const rawTailBytes = new Uint8Array([0xde, 0xad, 0xbe, 0xef, 0x03, 0x4f, 0x4b, 0x21]);
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_NeutronMissile',
+      blockData: createSourceNeutronMissileUpdateBlockData(
+        (70 << 2) | 2,
+        'LAUNCH',
+        { x: 11, y: 12, z: 13 },
+        { x: 21, y: 22, z: 23 },
+        44,
+        rawLaunchParamsBytes,
+        false,
+        false,
+        88.5,
+        false,
+        77,
+        12.25,
+        rawTailBytes,
+      ),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source neutron missile rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 20,
+            z: 30,
+            rotationY: 0,
+            neutronMissileUpdateProfile: {
+              initialDist: 150,
+              maxTurnRate: 1,
+              forwardDamping: 0.2,
+              relativeSpeed: 3,
+              targetFromDirectlyAbove: 120,
+              specialAccelFactor: 1.25,
+              specialSpeedTimeFrames: 30,
+              specialSpeedHeight: 200,
+              deliveryDecalRadius: 150,
+              specialJitterDistance: 12,
+            },
+            neutronMissileUpdateState: {
+              state: 'ATTACK',
+              targetX: 101,
+              targetY: 202,
+              targetZ: 303,
+              intermedX: 111,
+              intermedY: 222,
+              intermedZ: 333,
+              velX: 4.5,
+              velY: 5.5,
+              velZ: 6.5,
+              launcherId: 55,
+              isArmed: true,
+              isLaunched: true,
+              noTurnDistLeft: 44.25,
+              reachedIntermediatePos: true,
+              frameAtLaunch: 66,
+              heightAtLaunch: 77.75,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_NeutronMissile'
+            ? 'NEUTRONMISSILEUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const missileModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_NeutronMissile');
+
+    expect(missileModule).toBeDefined();
+    expect(parseSourceNeutronMissileUpdateBlockData(missileModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      state: 'ATTACK',
+      targetPos: { x: 101, y: 202, z: 303 },
+      intermedPos: { x: 111, y: 222, z: 333 },
+      launcherId: 55,
+      rawLaunchParamsBytes,
+      isLaunched: true,
+      isArmed: true,
+      noTurnDistLeft: 44.25,
+      reachedIntermediatePos: true,
+      frameAtLaunch: 66,
+      heightAtLaunch: 77.75,
+      rawTailBytes,
     });
   });
 
