@@ -3943,6 +3943,28 @@ function buildSourceRadiusDecalUpdateBlockData(
   }
 }
 
+function buildSourceBaseRegenerateUpdateBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-base-regenerate-update');
+  try {
+    let nextCallFrame = SOURCE_FRAME_FOREVER;
+    if (entity.objectStatusFlags.has('UNDER_CONSTRUCTION')) {
+      nextCallFrame = currentFrame + 1;
+    } else if (!entity.objectStatusFlags.has('SOLD') && entity.health < entity.maxHealth) {
+      nextCallFrame = entity.baseRegenDelayUntilFrame > currentFrame
+        ? entity.baseRegenDelayUntilFrame
+        : currentFrame + 3;
+    }
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
+    ));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function sourceWeaponBonusFlagToCondition(flag: number): number {
   if (!Number.isInteger(flag) || flag <= 0 || (flag & (flag - 1)) !== 0) {
     return -1;
@@ -4228,6 +4250,12 @@ function overlaySourceObjectModulesFromLiveEntity(
                 currentFrame,
                 liveKillWhenNoLongerAttacking || (parsedSourceState?.killWhenNoLongerAttacking ?? false),
               ),
+            };
+          }
+          if (moduleType === 'BASEREGENERATEUPDATE') {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceBaseRegenerateUpdateBlockData(entity, currentFrame),
             };
           }
         }
