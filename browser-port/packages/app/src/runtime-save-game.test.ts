@@ -694,6 +694,125 @@ function createSourceCheckpointUpdateBlockData(
   }
 }
 
+function sourceStructureToppleStateToInt(
+  value: 'STANDING' | 'WAITING' | 'TOPPLING' | 'WAITING_DONE' | 'DONE',
+): number {
+  switch (value) {
+    case 'STANDING': return 0;
+    case 'WAITING': return 1;
+    case 'TOPPLING': return 2;
+    case 'WAITING_DONE': return 3;
+    case 'DONE': return 4;
+  }
+}
+
+function sourceStructureToppleStateFromInt(
+  value: number,
+): 'STANDING' | 'WAITING' | 'TOPPLING' | 'WAITING_DONE' | 'DONE' {
+  switch (value) {
+    case 0: return 'STANDING';
+    case 1: return 'WAITING';
+    case 2: return 'TOPPLING';
+    case 3: return 'WAITING_DONE';
+    case 4: return 'DONE';
+    default:
+      throw new Error(`Unexpected StructureTopple state ${value}`);
+  }
+}
+
+function sourceToppleStateToInt(
+  value: 'NONE' | 'TOPPLING' | 'BOUNCING' | 'DONE',
+): number {
+  switch (value) {
+    case 'NONE': return 0;
+    case 'TOPPLING':
+    case 'BOUNCING':
+      return 1;
+    case 'DONE': return 2;
+  }
+}
+
+function sourceToppleStateFromInt(
+  value: number,
+): 'NONE' | 'TOPPLING' | 'DONE' {
+  switch (value) {
+    case 0: return 'NONE';
+    case 1: return 'TOPPLING';
+    case 2: return 'DONE';
+    default:
+      throw new Error(`Unexpected ToppleUpdate state ${value}`);
+  }
+}
+
+function createSourceToppleUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  angularVelocity: number,
+  angularAcceleration: number,
+  toppleDirX: number,
+  toppleDirZ: number,
+  toppleState: 'NONE' | 'TOPPLING' | 'BOUNCING' | 'DONE',
+  angularAccumulation: number,
+  angleDeltaX: number,
+  numAngleDeltaX: number,
+  doBounceFx: boolean,
+  options: number,
+  stumpId: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-topple-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferReal(angularVelocity);
+    xferSave.xferReal(angularAcceleration);
+    xferSave.xferCoord3D({ x: toppleDirX, y: toppleDirZ, z: 0 });
+    xferSave.xferInt(sourceToppleStateToInt(toppleState));
+    xferSave.xferReal(angularAccumulation);
+    xferSave.xferReal(angleDeltaX);
+    xferSave.xferInt(numAngleDeltaX);
+    xferSave.xferBool(doBounceFx);
+    xferSave.xferUnsignedInt(options);
+    xferSave.xferObjectID(stumpId);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceStructureToppleUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  toppleFrame: number,
+  toppleDirX: number,
+  toppleDirZ: number,
+  toppleState: 'STANDING' | 'WAITING' | 'TOPPLING' | 'WAITING_DONE' | 'DONE',
+  toppleVelocity: number,
+  accumulatedAngle: number,
+  structuralIntegrity: number,
+  lastCrushedLocation: number,
+  nextBurstFrame: number,
+  delayBurstLocation: { x: number; y: number; z: number },
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-structure-topple-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferUnsignedInt(toppleFrame);
+    xferSave.xferReal(toppleDirX);
+    xferSave.xferReal(toppleDirZ);
+    xferSave.xferInt(sourceStructureToppleStateToInt(toppleState));
+    xferSave.xferReal(toppleVelocity);
+    xferSave.xferReal(accumulatedAngle);
+    xferSave.xferReal(structuralIntegrity);
+    xferSave.xferReal(lastCrushedLocation);
+    xferSave.xferInt(nextBurstFrame);
+    xferSave.xferCoord3D(delayBurstLocation);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceHijackerUpdateBlockData(
   nextCallFrameAndPhase: number,
   targetId: number,
@@ -1348,6 +1467,66 @@ function parseSourceCheckpointUpdateBlockData(data: Uint8Array) {
       allyNear: xferLoad.xferBool(false),
       maxMinorRadius: xferLoad.xferReal(0),
       enemyScanDelay: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceStructureToppleUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-structure-topple-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      toppleFrame: xferLoad.xferUnsignedInt(0),
+      toppleDirX: xferLoad.xferReal(0),
+      toppleDirZ: xferLoad.xferReal(0),
+      toppleState: sourceStructureToppleStateFromInt(xferLoad.xferInt(0)),
+      toppleVelocity: xferLoad.xferReal(0),
+      accumulatedAngle: xferLoad.xferReal(0),
+      structuralIntegrity: xferLoad.xferReal(0),
+      lastCrushedLocation: xferLoad.xferReal(0),
+      nextBurstFrame: xferLoad.xferInt(0),
+      delayBurstLocation: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceToppleUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-topple-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      angularVelocity: xferLoad.xferReal(0),
+      angularAcceleration: xferLoad.xferReal(0),
+      ...(() => {
+        const direction = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+        return {
+          toppleDirX: direction.x,
+          toppleDirZ: direction.y,
+        };
+      })(),
+      toppleState: sourceToppleStateFromInt(xferLoad.xferInt(0)),
+      angularAccumulation: xferLoad.xferReal(0),
+      angleDeltaX: xferLoad.xferReal(0),
+      numAngleDeltaX: xferLoad.xferInt(0),
+      doBounceFx: xferLoad.xferBool(false),
+      options: xferLoad.xferUnsignedInt(0),
+      stumpId: xferLoad.xferObjectID(0),
     };
   } finally {
     xferLoad.close();
@@ -6106,6 +6285,269 @@ describe('runtime-save-game', () => {
       maxMinorRadius: 11.5,
       enemyScanDelay: 30,
     });
+  });
+
+  it('rewrites source StructureToppleUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Topple',
+      blockData: createSourceStructureToppleUpdateBlockData(
+        (70 << 2) | 2,
+        90,
+        0.25,
+        -0.75,
+        'WAITING',
+        0.1,
+        0.2,
+        0.8,
+        12,
+        95,
+        { x: 1, y: 2, z: 3 },
+      ),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source structure topple rewrite',
+      mapPath: 'Maps/RuntimeTopple/RuntimeTopple.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTopple',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            structureToppleProfile: {
+              minToppleDelayFrames: 15,
+              maxToppleDelayFrames: 30,
+              minToppleBurstDelayFrames: 6,
+              maxToppleBurstDelayFrames: 12,
+              structuralIntegrity: 0.5,
+              structuralDecay: 0.9,
+              crushingWeaponName: 'StructureCrush',
+            },
+            structureToppleState: {
+              state: 'TOPPLING',
+              toppleFrame: 64,
+              toppleVelocity: 0.45,
+              accumulatedAngle: 0.9,
+              structuralIntegrity: 0.35,
+              toppleDirX: -0.6,
+              toppleDirZ: 0.8,
+              buildingHeight: 22,
+              lastCrushedLocation: 19.5,
+              nextBurstFrame: -1,
+              delayBurstLocation: { x: 14, y: 3, z: 28 },
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Topple'
+            ? 'STRUCTURETOPPLEUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const toppleModule = firstObject?.modules.find(
+      (module) => module.identifier === 'ModuleTag_Topple',
+    );
+
+    expect(toppleModule).toBeDefined();
+    const parsedToppleModule = parseSourceStructureToppleUpdateBlockData(toppleModule!.blockData);
+    expect(parsedToppleModule.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsedToppleModule.toppleFrame).toBe(64);
+    expect(parsedToppleModule.toppleDirX).toBeCloseTo(-0.6, 5);
+    expect(parsedToppleModule.toppleDirZ).toBeCloseTo(0.8, 5);
+    expect(parsedToppleModule.toppleState).toBe('TOPPLING');
+    expect(parsedToppleModule.toppleVelocity).toBeCloseTo(0.45, 5);
+    expect(parsedToppleModule.accumulatedAngle).toBeCloseTo(0.9, 5);
+    expect(parsedToppleModule.structuralIntegrity).toBeCloseTo(0.35, 5);
+    expect(parsedToppleModule.lastCrushedLocation).toBeCloseTo(19.5, 5);
+    expect(parsedToppleModule.nextBurstFrame).toBe(95);
+    expect(parsedToppleModule.delayBurstLocation).toEqual({ x: 14, y: 3, z: 28 });
+  });
+
+  it('rewrites source ToppleUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_ToppleTree',
+      blockData: createSourceToppleUpdateBlockData(
+        (80 << 2) | 2,
+        0.9,
+        0.2,
+        0.25,
+        -0.5,
+        'TOPPLING',
+        0.4,
+        0.15,
+        3,
+        true,
+        2,
+        99,
+      ),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source topple rewrite',
+      mapPath: 'Maps/RuntimeToppleTree/RuntimeToppleTree.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeToppleTree',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            toppleProfile: {
+              initialVelocityPercent: 0.75,
+              initialAccelPercent: 0.2,
+              bounceVelocityPercent: 0.5,
+              killWhenFinishedToppling: false,
+              killWhenStartToppling: false,
+              toppleLeftOrRightOnly: false,
+              reorientToppledRubble: false,
+            },
+            toppleState: 'BOUNCING',
+            toppleDirX: -0.8,
+            toppleDirZ: 0.6,
+            toppleAngularVelocity: -0.35,
+            toppleAngularAccumulation: 1.1,
+            toppleSpeed: 5,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_ToppleTree'
+            ? 'TOPPLEUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const toppleModule = firstObject?.modules.find(
+      (module) => module.identifier === 'ModuleTag_ToppleTree',
+    );
+
+    expect(toppleModule).toBeDefined();
+    const parsedToppleModule = parseSourceToppleUpdateBlockData(toppleModule!.blockData);
+    expect(parsedToppleModule.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsedToppleModule.angularVelocity).toBeCloseTo(-0.35, 5);
+    expect(parsedToppleModule.angularAcceleration).toBeCloseTo(1.0, 5);
+    expect(parsedToppleModule.toppleDirX).toBeCloseTo(-0.8, 5);
+    expect(parsedToppleModule.toppleDirZ).toBeCloseTo(0.6, 5);
+    expect(parsedToppleModule.toppleState).toBe('TOPPLING');
+    expect(parsedToppleModule.angularAccumulation).toBeCloseTo(1.1, 5);
+    expect(parsedToppleModule.angleDeltaX).toBeCloseTo(0.15, 5);
+    expect(parsedToppleModule.numAngleDeltaX).toBe(3);
+    expect(parsedToppleModule.doBounceFx).toBe(true);
+    expect(parsedToppleModule.options).toBe(2);
+    expect(parsedToppleModule.stumpId).toBe(99);
   });
 
   it('rewrites source OCLUpdate modules via resolved module tags', () => {

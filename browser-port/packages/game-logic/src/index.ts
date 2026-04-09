@@ -6341,6 +6341,7 @@ interface StructureToppleRuntimeState {
   buildingHeight: number;
   lastCrushedLocation: number;
   nextBurstFrame: number;
+  delayBurstLocation: { x: number; y: number; z: number };
 }
 
 /**
@@ -36191,7 +36192,14 @@ export class GameLogicSubsystem implements Subsystem {
       toppleAngle = this.gameRandom.nextFloat() * 2 * Math.PI;
     }
 
-    const geometryHeight = entity.geometryMajorRadius ?? 20;
+    const geometryInfo = entity.geometryInfo ?? entity.obstacleGeometry;
+    const geometryHeight = geometryInfo?.height ?? entity.geometryMajorRadius ?? 20;
+    const majorRadius = geometryInfo?.majorRadius ?? entity.geometryMajorRadius ?? 0;
+    const minorRadius = geometryInfo?.minorRadius ?? entity.geometryMajorRadius ?? majorRadius;
+    const explosionRadius = ((majorRadius + minorRadius) / 2) * 0.9;
+    const delayBurstX = entity.x + explosionRadius * Math.cos(toppleAngle);
+    const delayBurstZ = entity.z + explosionRadius * Math.sin(toppleAngle);
+    const delayBurstY = this.mapHeightmap?.getInterpolatedHeight(delayBurstX, delayBurstZ) ?? entity.y;
 
     entity.structureToppleState = {
       state: 'WAITING',
@@ -36203,7 +36211,13 @@ export class GameLogicSubsystem implements Subsystem {
       toppleDirZ: Math.sin(toppleAngle),
       buildingHeight: geometryHeight,
       lastCrushedLocation: 0,
+      // TODO(source-parity): schedule with GameClientRandomValue once the client RNG stream is ported.
       nextBurstFrame: -1,
+      delayBurstLocation: {
+        x: delayBurstX,
+        y: delayBurstY,
+        z: delayBurstZ,
+      },
     };
   }
 

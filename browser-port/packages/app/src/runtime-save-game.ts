@@ -4017,6 +4017,201 @@ function sourceMissileDoorStateToInt(
   }
 }
 
+function sourceStructureToppleStateToInt(
+  state: 'STANDING' | 'WAITING' | 'TOPPLING' | 'WAITING_DONE' | 'DONE',
+): number {
+  switch (state) {
+    case 'STANDING': return 0;
+    case 'WAITING': return 1;
+    case 'TOPPLING': return 2;
+    case 'WAITING_DONE': return 3;
+    case 'DONE': return 4;
+  }
+}
+
+function sourceToppleStateToInt(
+  state: 'NONE' | 'TOPPLING' | 'BOUNCING' | 'DONE',
+): number {
+  switch (state) {
+    case 'NONE': return 0;
+    case 'TOPPLING':
+    case 'BOUNCING':
+      return 1;
+    case 'DONE':
+      return 2;
+  }
+}
+
+function tryParseSourceToppleUpdateBlockData(
+  data: Uint8Array,
+): {
+  angleDeltaX: number;
+  numAngleDeltaX: number;
+  doBounceFx: boolean;
+  options: number;
+  stumpId: number;
+} | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-topple-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferReal(0);
+    xferLoad.xferReal(0);
+    xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xferLoad.xferInt(0);
+    xferLoad.xferReal(0);
+    const angleDeltaX = xferLoad.xferReal(0);
+    const numAngleDeltaX = xferLoad.xferInt(0);
+    const doBounceFx = xferLoad.xferBool(false);
+    const options = xferLoad.xferUnsignedInt(0);
+    const stumpId = xferLoad.xferObjectID(0);
+    return xferLoad.getRemaining() === 0
+      ? { angleDeltaX, numAngleDeltaX, doBounceFx, options, stumpId }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceToppleUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState?: {
+    angleDeltaX: number;
+    numAngleDeltaX: number;
+    doBounceFx: boolean;
+    options: number;
+    stumpId: number;
+  } | null,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-topple-update');
+  try {
+    const profile = entity.toppleProfile;
+    const nextCallFrame = entity.toppleState !== 'NONE' && entity.toppleState !== 'DONE'
+      ? currentFrame + 1
+      : SOURCE_FRAME_FOREVER;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
+    ));
+    saver.xferReal(entity.toppleAngularVelocity);
+    saver.xferReal((profile?.initialAccelPercent ?? 0) * entity.toppleSpeed);
+    saver.xferCoord3D({ x: entity.toppleDirX, y: entity.toppleDirZ, z: 0 });
+    saver.xferUser(
+      sourceToppleStateToInt(entity.toppleState),
+      (xfer, value) => { xfer.xferInt(value); },
+      (xfer) => xfer.xferInt(0),
+    );
+    saver.xferReal(entity.toppleAngularAccumulation);
+    saver.xferReal(preservedState?.angleDeltaX ?? 0);
+    saver.xferInt(Math.trunc(preservedState?.numAngleDeltaX ?? 0));
+    saver.xferBool(preservedState?.doBounceFx ?? false);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(preservedState?.options ?? 0)));
+    saver.xferObjectID(Math.max(0, Math.trunc(preservedState?.stumpId ?? 0)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceStructureToppleUpdateBlockData(
+  data: Uint8Array,
+): {
+  nextBurstFrame: number;
+  delayBurstLocation: { x: number; y: number; z: number };
+} | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-structure-topple-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferReal(0);
+    xferLoad.xferReal(0);
+    xferLoad.xferInt(0);
+    xferLoad.xferReal(0);
+    xferLoad.xferReal(0);
+    xferLoad.xferReal(0);
+    xferLoad.xferReal(0);
+    const nextBurstFrame = xferLoad.xferInt(0);
+    const delayBurstLocation = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    return xferLoad.getRemaining() === 0
+      ? { nextBurstFrame, delayBurstLocation }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceStructureToppleUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState?: {
+    nextBurstFrame: number;
+    delayBurstLocation: { x: number; y: number; z: number };
+  } | null,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-structure-topple-update');
+  try {
+    const state = entity.structureToppleState;
+    const nextCallFrame = state && state.state !== 'STANDING' && state.state !== 'DONE'
+      ? currentFrame + 1
+      : SOURCE_FRAME_FOREVER;
+    const delayBurstLocation = state?.delayBurstLocation
+      && Number.isFinite(state.delayBurstLocation.x)
+      && Number.isFinite(state.delayBurstLocation.y)
+      && Number.isFinite(state.delayBurstLocation.z)
+        ? state.delayBurstLocation
+        : (preservedState?.delayBurstLocation ?? { x: 0, y: 0, z: 0 });
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
+    ));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.toppleFrame ?? 0)));
+    saver.xferReal(state?.toppleDirX ?? 0);
+    saver.xferReal(state?.toppleDirZ ?? 0);
+    saver.xferUser(
+      sourceStructureToppleStateToInt(state?.state ?? 'STANDING'),
+      (xfer, value) => { xfer.xferInt(value); },
+      (xfer) => xfer.xferInt(0),
+    );
+    saver.xferReal(state?.toppleVelocity ?? 0);
+    saver.xferReal(state?.accumulatedAngle ?? 0.001);
+    saver.xferReal(state?.structuralIntegrity ?? 0);
+    saver.xferReal(state?.lastCrushedLocation ?? 0);
+    saver.xferInt(
+      Number.isFinite(state?.nextBurstFrame) && (state?.nextBurstFrame ?? -1) >= 0
+        ? Math.trunc(state!.nextBurstFrame)
+        : Math.trunc(preservedState?.nextBurstFrame ?? -1),
+    );
+    saver.xferCoord3D(delayBurstLocation);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceMissileLauncherBuildingUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -4399,6 +4594,16 @@ function overlaySourceObjectModulesFromLiveEntity(
               blockData: buildSourceRadarUpdateBlockData(entity, currentFrame),
             };
           }
+          if (moduleType === 'TOPPLEUPDATE' && entity.toppleProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceToppleUpdateBlockData(
+                entity,
+                currentFrame,
+                tryParseSourceToppleUpdateBlockData(module.blockData),
+              ),
+            };
+          }
           if (moduleType === 'MISSILELAUNCHERBUILDINGUPDATE' && entity.missileLauncherBuildingProfile) {
             return {
               identifier: module.identifier,
@@ -4409,6 +4614,16 @@ function overlaySourceObjectModulesFromLiveEntity(
             return {
               identifier: module.identifier,
               blockData: buildSourceCheckpointUpdateBlockData(entity, currentFrame),
+            };
+          }
+          if (moduleType === 'STRUCTURETOPPLEUPDATE' && entity.structureToppleProfile && entity.structureToppleState) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceStructureToppleUpdateBlockData(
+                entity,
+                currentFrame,
+                tryParseSourceStructureToppleUpdateBlockData(module.blockData),
+              ),
             };
           }
           if (moduleType === 'HIJACKERUPDATE' && entity.hijackerState) {

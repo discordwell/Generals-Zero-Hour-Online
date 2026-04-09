@@ -618,6 +618,7 @@ describe('Parity: topple direction from attacker position', () => {
           toppleVelocity: number;
           accumulatedAngle: number;
           structuralIntegrity: number;
+          delayBurstLocation: { x: number; y: number; z: number };
         } | null;
       }>;
     };
@@ -635,6 +636,7 @@ describe('Parity: topple direction from attacker position', () => {
     expect(st).toHaveProperty('toppleVelocity');
     expect(st).toHaveProperty('accumulatedAngle');
     expect(st).toHaveProperty('structuralIntegrity');
+    expect(st).toHaveProperty('delayBurstLocation');
 
     // State starts as WAITING.
     expect(st.state).toBe('WAITING');
@@ -644,5 +646,7 @@ describe('Parity: topple direction from attacker position', () => {
     expect(st.accumulatedAngle).toBeCloseTo(0.001, 5);
     // Structural integrity matches profile.
     expect(st.structuralIntegrity).toBe(0.5);
+    expect(st.delayBurstLocation.y).toBe(0);
+    expect(Math.hypot(st.delayBurstLocation.x - 60, st.delayBurstLocation.z - 60)).toBeGreaterThan(0);
   });
 });
