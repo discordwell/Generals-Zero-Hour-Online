@@ -6173,6 +6173,7 @@ interface FirestormDamageProfile {
  * stops shooting after enough consecutive shots. C++ file: FireOCLAfterWeaponCooldownUpdate.cpp.
  */
 interface FireOCLAfterWeaponCooldownProfile {
+  moduleTag?: string | null;
   /** Which weapon slot to track (0 = PRIMARY, 1 = SECONDARY, 2 = TERTIARY). */
   weaponSlot: number;
   /** OCL template name to create. */

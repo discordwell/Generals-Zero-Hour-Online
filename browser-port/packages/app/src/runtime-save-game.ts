@@ -3742,6 +3742,140 @@ function buildSourceOclUpdateBlockData(
   }
 }
 
+function tryParseSourceHordeUpdateBlockData(
+  data: Uint8Array,
+): { hasFlag: boolean } | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-horde-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferBool(false);
+    const hasFlag = xferLoad.xferBool(false);
+    return xferLoad.getRemaining() === 0
+      ? { hasFlag }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceEnemyNearUpdateBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-enemy-near-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.enemyNearNextScanCountdown)));
+    saver.xferBool(entity.enemyNearDetected === true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceHordeUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  hasFlag: boolean,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-horde-update');
+  try {
+    const nextCallFrame = entity.kindOf.has('INFANTRY')
+      ? (entity.hordeNextCheckFrame > currentFrame ? entity.hordeNextCheckFrame : currentFrame + 1)
+      : currentFrame + 1;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
+    ));
+    saver.xferBool(entity.isInHorde === true);
+    saver.xferBool(hasFlag);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceProneUpdateBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-prone-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferInt(Math.trunc(entity.proneFramesRemaining));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceFireOclAfterCooldownUpdateBlockData(
+  data: Uint8Array,
+): { upgradeExecuted: boolean } | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-fire-ocl-after-cooldown-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferVersion(1);
+    const upgradeExecuted = xferLoad.xferBool(false);
+    xferLoad.xferBool(false);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    return xferLoad.getRemaining() === 0
+      ? { upgradeExecuted }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceFireOclAfterCooldownUpdateBlockData(
+  currentFrame: number,
+  upgradeExecuted: boolean,
+  state: { valid: boolean; consecutiveShots: number; startFrame: number },
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-fire-ocl-after-cooldown-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferVersion(1);
+    saver.xferBool(upgradeExecuted);
+    saver.xferBool(state.valid === true);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state.consecutiveShots)));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state.startFrame)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function sourceWeaponBonusFlagToCondition(flag: number): number {
   if (!Number.isInteger(flag) || flag <= 0 || (flag & (flag - 1)) !== 0) {
     return -1;
@@ -3965,6 +4099,49 @@ function overlaySourceObjectModulesFromLiveEntity(
               identifier: module.identifier,
               blockData: buildSourcePowerPlantUpdateBlockData(entity, currentFrame),
             };
+          }
+          if (moduleType === 'ENEMYNEARUPDATE' && entity.enemyNearScanDelayFrames > 0) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceEnemyNearUpdateBlockData(entity, currentFrame),
+            };
+          }
+          if (moduleType === 'HORDEUPDATE' && entity.hordeProfile) {
+            const parsedSourceState = tryParseSourceHordeUpdateBlockData(module.blockData);
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceHordeUpdateBlockData(
+                entity,
+                currentFrame,
+                parsedSourceState?.hasFlag ?? false,
+              ),
+            };
+          }
+          if (moduleType === 'PRONEUPDATE' && entity.proneDamageToFramesRatio !== null) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceProneUpdateBlockData(entity, currentFrame),
+            };
+          }
+          if (moduleType === 'FIREOCLAFTERWEAPONCOOLDOWNUPDATE' && entity.fireOCLAfterCooldownProfiles.length > 0) {
+            const moduleTag = module.identifier.trim().toUpperCase();
+            const moduleIndex = entity.fireOCLAfterCooldownProfiles.findIndex(
+              (profile) => (profile.moduleTag ?? null) === moduleTag,
+            );
+            if (moduleIndex >= 0) {
+              const parsedSourceState = tryParseSourceFireOclAfterCooldownUpdateBlockData(module.blockData);
+              const state = entity.fireOCLAfterCooldownStates[moduleIndex];
+              if (parsedSourceState && state) {
+                return {
+                  identifier: module.identifier,
+                  blockData: buildSourceFireOclAfterCooldownUpdateBlockData(
+                    currentFrame,
+                    parsedSourceState.upgradeExecuted,
+                    state,
+                  ),
+                };
+              }
+            }
           }
         }
         return {

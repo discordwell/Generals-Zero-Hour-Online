@@ -5003,9 +5003,11 @@ export function extractFireOCLAfterCooldownProfiles(self: GL, objectDef: ObjectD
     if (blockType !== 'BEHAVIOR' && blockType !== 'UPDATE') return;
     const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
     if (moduleType !== 'FIREOCLAFTERWEAPONCOOLDOWNUPDATE') return;
+    const moduleTag = block.name.split(/\s+/)[1]?.toUpperCase() ?? null;
     const slotStr = (readStringField(block.fields, ['WeaponSlot']) ?? 'PRIMARY').toUpperCase();
     const slot = slotStr === 'SECONDARY' ? 1 : slotStr === 'TERTIARY' ? 2 : 0;
     profiles.push({
+      moduleTag,
       weaponSlot: slot,
       oclName: readStringField(block.fields, ['OCL']) ?? '',
       minShotsRequired: readNumericField(block.fields, ['MinShotsToCreateOCL']) ?? 1,
