@@ -3876,6 +3876,25 @@ function buildSourceFireOclAfterCooldownUpdateBlockData(
   }
 }
 
+function buildSourceAutoFindHealingUpdateBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-auto-find-healing-update');
+  try {
+    const nextScanFrames = Math.max(
+      0,
+      Math.trunc(entity.autoFindHealingNextScanFrame) - currentFrame - 1,
+    );
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferInt(nextScanFrames);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function sourceWeaponBonusFlagToCondition(flag: number): number {
   if (!Number.isInteger(flag) || flag <= 0 || (flag & (flag - 1)) !== 0) {
     return -1;
@@ -4142,6 +4161,12 @@ function overlaySourceObjectModulesFromLiveEntity(
                 };
               }
             }
+          }
+          if (moduleType === 'AUTOFINDHEALINGUPDATE' && entity.autoFindHealingProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceAutoFindHealingUpdateBlockData(entity, currentFrame),
+            };
           }
         }
         return {

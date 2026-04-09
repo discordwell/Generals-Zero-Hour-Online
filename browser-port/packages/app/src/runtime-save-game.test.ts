@@ -535,6 +535,22 @@ function createSourceFireOclAfterCooldownUpdateBlockData(
   }
 }
 
+function createSourceAutoFindHealingUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  nextScanFrames: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-auto-find-healing-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferInt(nextScanFrames);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceBaseOnlyObjectHelperBlockData(nextCallFrameAndPhase: number): Uint8Array {
   const xferSave = new XferSave();
   xferSave.open('create-source-base-only-object-helper');
@@ -1024,6 +1040,24 @@ function parseSourceFireOclAfterCooldownUpdateBlockData(data: Uint8Array) {
       valid: xferLoad.xferBool(false),
       consecutiveShots: xferLoad.xferUnsignedInt(0),
       startFrame: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceAutoFindHealingUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-auto-find-healing-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      nextScanFrames: xferLoad.xferInt(0),
     };
   } finally {
     xferLoad.close();
@@ -4855,6 +4889,103 @@ describe('runtime-save-game', () => {
       valid: true,
       consecutiveShots: 4,
       startFrame: 31,
+    });
+  });
+
+  it('rewrites source AutoFindHealingUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_AutoHealScan',
+      blockData: createSourceAutoFindHealingUpdateBlockData((72 << 2) | 2, 0),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source auto find healing rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            autoFindHealingProfile: {
+              scanRateFrames: 12,
+              scanRange: 150,
+              neverHeal: 0.95,
+              alwaysHeal: 0.25,
+            },
+            autoFindHealingNextScanFrame: 58,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_AutoHealScan'
+            ? 'AUTOFINDHEALINGUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const autoFindHealingModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_AutoHealScan');
+
+    expect(autoFindHealingModule).toBeDefined();
+    expect(parseSourceAutoFindHealingUpdateBlockData(autoFindHealingModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      nextScanFrames: 15,
     });
   });
 
