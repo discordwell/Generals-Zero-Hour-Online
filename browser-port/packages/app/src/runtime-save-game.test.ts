@@ -744,6 +744,54 @@ function sourceToppleStateFromInt(
   }
 }
 
+function sourceStructureCollapseStateToInt(
+  value: 'STANDING' | 'WAITING' | 'COLLAPSING' | 'DONE',
+): number {
+  switch (value) {
+    case 'STANDING': return 0;
+    case 'WAITING': return 1;
+    case 'COLLAPSING': return 2;
+    case 'DONE': return 3;
+  }
+}
+
+function sourceStructureCollapseStateFromInt(
+  value: number,
+): 'STANDING' | 'WAITING' | 'COLLAPSING' | 'DONE' {
+  switch (value) {
+    case 0: return 'STANDING';
+    case 1: return 'WAITING';
+    case 2: return 'COLLAPSING';
+    case 3: return 'DONE';
+    default:
+      throw new Error(`Unexpected StructureCollapse state ${value}`);
+  }
+}
+
+function createSourceStructureCollapseUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  collapseFrame: number,
+  burstFrame: number,
+  collapseState: 'STANDING' | 'WAITING' | 'COLLAPSING' | 'DONE',
+  collapseVelocity: number,
+  currentHeight: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-structure-collapse-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferUnsignedInt(collapseFrame);
+    xferSave.xferUnsignedInt(burstFrame);
+    xferSave.xferInt(sourceStructureCollapseStateToInt(collapseState));
+    xferSave.xferReal(collapseVelocity);
+    xferSave.xferReal(currentHeight);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceToppleUpdateBlockData(
   nextCallFrameAndPhase: number,
   angularVelocity: number,
@@ -1527,6 +1575,28 @@ function parseSourceToppleUpdateBlockData(data: Uint8Array) {
       doBounceFx: xferLoad.xferBool(false),
       options: xferLoad.xferUnsignedInt(0),
       stumpId: xferLoad.xferObjectID(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceStructureCollapseUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-structure-collapse-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      collapseFrame: xferLoad.xferUnsignedInt(0),
+      burstFrame: xferLoad.xferUnsignedInt(0),
+      collapseState: sourceStructureCollapseStateFromInt(xferLoad.xferInt(0)),
+      collapseVelocity: xferLoad.xferReal(0),
+      currentHeight: xferLoad.xferReal(0),
     };
   } finally {
     xferLoad.close();
@@ -6548,6 +6618,129 @@ describe('runtime-save-game', () => {
     expect(parsedToppleModule.doBounceFx).toBe(true);
     expect(parsedToppleModule.options).toBe(2);
     expect(parsedToppleModule.stumpId).toBe(99);
+  });
+
+  it('rewrites source StructureCollapseUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Collapse',
+      blockData: createSourceStructureCollapseUpdateBlockData(
+        (90 << 2) | 2,
+        120,
+        130,
+        'WAITING',
+        0.2,
+        -1.5,
+      ),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source structure collapse rewrite',
+      mapPath: 'Maps/RuntimeCollapse/RuntimeCollapse.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeCollapse',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            structureCollapseProfile: {
+              deathTypes: new Set<string>(),
+              veterancyLevels: new Set<string>(),
+              exemptStatus: new Set<string>(),
+              requiredStatus: new Set<string>(),
+              minCollapseDelay: 10,
+              maxCollapseDelay: 20,
+              minBurstDelay: 5,
+              maxBurstDelay: 8,
+              collapseDamping: 0.25,
+              bigBurstFrequency: 4,
+              maxShudder: 3,
+              phaseOCLs: [[], [], [], []],
+            },
+            structureCollapseState: {
+              state: 'COLLAPSING',
+              collapseFrame: 71,
+              burstFrame: 77,
+              currentHeight: -6.5,
+              collapseVelocity: 1.75,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Collapse'
+            ? 'STRUCTURECOLLAPSEUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const collapseModule = firstObject?.modules.find(
+      (module) => module.identifier === 'ModuleTag_Collapse',
+    );
+
+    expect(collapseModule).toBeDefined();
+    const parsedCollapseModule = parseSourceStructureCollapseUpdateBlockData(collapseModule!.blockData);
+    expect(parsedCollapseModule.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsedCollapseModule.collapseFrame).toBe(71);
+    expect(parsedCollapseModule.burstFrame).toBe(77);
+    expect(parsedCollapseModule.collapseState).toBe('COLLAPSING');
+    expect(parsedCollapseModule.collapseVelocity).toBeCloseTo(1.75, 5);
+    expect(parsedCollapseModule.currentHeight).toBeCloseTo(-6.5, 5);
   });
 
   it('rewrites source OCLUpdate modules via resolved module tags', () => {

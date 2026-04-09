@@ -4042,6 +4042,17 @@ function sourceToppleStateToInt(
   }
 }
 
+function sourceStructureCollapseStateToInt(
+  state: 'WAITING' | 'COLLAPSING' | 'DONE' | null | undefined,
+): number {
+  switch (state) {
+    case 'WAITING': return 1;
+    case 'COLLAPSING': return 2;
+    case 'DONE': return 3;
+    default: return 0;
+  }
+}
+
 function tryParseSourceToppleUpdateBlockData(
   data: Uint8Array,
 ): {
@@ -4119,6 +4130,36 @@ function buildSourceToppleUpdateBlockData(
     saver.xferBool(preservedState?.doBounceFx ?? false);
     saver.xferUnsignedInt(Math.max(0, Math.trunc(preservedState?.options ?? 0)));
     saver.xferObjectID(Math.max(0, Math.trunc(preservedState?.stumpId ?? 0)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceStructureCollapseUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-structure-collapse-update');
+  try {
+    const state = entity.structureCollapseState;
+    const nextCallFrame = state && state.state !== 'DONE'
+      ? currentFrame + 1
+      : SOURCE_FRAME_FOREVER;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
+    ));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.collapseFrame ?? 0)));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.burstFrame ?? 0)));
+    saver.xferUser(
+      sourceStructureCollapseStateToInt(state?.state),
+      (xfer, value) => { xfer.xferInt(value); },
+      (xfer) => xfer.xferInt(0),
+    );
+    saver.xferReal(state?.collapseVelocity ?? 0);
+    saver.xferReal(state?.currentHeight ?? 0);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -4602,6 +4643,12 @@ function overlaySourceObjectModulesFromLiveEntity(
                 currentFrame,
                 tryParseSourceToppleUpdateBlockData(module.blockData),
               ),
+            };
+          }
+          if (moduleType === 'STRUCTURECOLLAPSEUPDATE' && entity.structureCollapseProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceStructureCollapseUpdateBlockData(entity, currentFrame),
             };
           }
           if (moduleType === 'MISSILELAUNCHERBUILDINGUPDATE' && entity.missileLauncherBuildingProfile) {
