@@ -91,6 +91,10 @@ describe('defector undetected runtime', () => {
     expect(converted.side).toBe('america');
     expect(converted.capturedFromOriginalOwner).toBe(true);
     expect(converted.undetectedDefectorUntilFrame).toBeGreaterThan(privateLogic.frameCounter);
+    expect(converted.defectorHelperDetectionStartFrame).toBe(privateLogic.frameCounter);
+    expect(converted.defectorHelperDetectionEndFrame).toBe(converted.undetectedDefectorUntilFrame);
+    expect(converted.defectorHelperFlashPhase).toBe(0);
+    expect(converted.defectorHelperDoFx).toBe(true);
 
     const overlay = privateLogic.captureSourceObjectXferOverlayState().find((entry) => entry.entityId === 2);
     expect(overlay?.privateStatus & 0x02).toBe(0x02);
@@ -142,5 +146,46 @@ describe('defector undetected runtime', () => {
     expect(converted.undetectedDefectorUntilFrame).toBe(0);
     const overlay = privateLogic.captureSourceObjectXferOverlayState().find((entry) => entry.entityId === 2);
     expect(overlay?.privateStatus & 0x02).toBe(0);
+  });
+
+  it('advances defector helper flash phase while the unit remains hidden', () => {
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Defector', 10, 10),
+        makeMapObject('EnemyConvert', 20, 10),
+      ], 64, 64),
+      makeRegistry(makeDefectorRuntimeBundle(5000)),
+      makeHeightmap(64, 64),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+    logic.submitCommand({ type: 'setSidePlayerType', side: 'America', playerType: 'COMPUTER' });
+    logic.update(0);
+
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_DEFECT',
+      specialPowerName: 'SpecialPowerDefector',
+      commandOption: 0x01,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: 2,
+      targetX: null,
+      targetZ: null,
+    });
+    logic.update(0);
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, any>;
+    };
+    const converted = privateLogic.spawnedEntities.get(2);
+    if (!converted) {
+      throw new Error('Expected converted defector target');
+    }
+
+    const initialFlashPhase = converted.defectorHelperFlashPhase;
+    logic.update(1 / 30);
+    expect(converted.defectorHelperFlashPhase).toBeGreaterThan(initialFlashPhase);
   });
 });

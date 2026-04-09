@@ -195,7 +195,79 @@ function readSaveChunkData(data: ArrayBuffer, blockName: string): Uint8Array | n
   return new Uint8Array(data, chunk.blockDataOffset, chunk.blockSize).slice();
 }
 
-function createSourceObjectBlockData(): Uint8Array {
+function createSourceObjectHelperBaseBlockData(nextCallFrameAndPhase: number): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-object-helper-base');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferUnsignedInt(nextCallFrameAndPhase);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceDefectionHelperBlockData(
+  nextCallFrameAndPhase: number,
+  detectionStart: number,
+  detectionEnd: number,
+  flashPhase: number,
+  doFx: boolean,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-defection-helper');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceObjectHelperBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferUnsignedInt(detectionStart);
+    xferSave.xferUnsignedInt(detectionEnd);
+    xferSave.xferReal(flashPhase);
+    xferSave.xferBool(doFx);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceTempWeaponBonusHelperBlockData(
+  nextCallFrameAndPhase: number,
+  currentBonus: number,
+  frameToRemove: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-temp-weapon-bonus-helper');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceObjectHelperBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferInt(currentBonus);
+    xferSave.xferUnsignedInt(frameToRemove);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceSubdualDamageHelperBlockData(
+  nextCallFrameAndPhase: number,
+  healingStepCountdown: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-subdual-damage-helper');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceObjectHelperBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferUnsignedInt(healingStepCountdown);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceObjectBlockData(includeHelperModules = false): Uint8Array {
   const state = createEmptySourceMapEntitySaveState();
   state.objectId = 7;
   state.teamId = 3;
@@ -298,11 +370,27 @@ function createSourceObjectBlockData(): Uint8Array {
     'SPECIAL_PARTICLE_UPLINK_CANNON',
     'SPECIAL_STALE_POWER',
   ];
+  if (includeHelperModules) {
+    state.modules = [
+      {
+        identifier: 'ModuleTag_DefectionHelper',
+        blockData: createSourceDefectionHelperBlockData((99 << 2) | 2, 12, 88, 0.5, false),
+      },
+      {
+        identifier: 'ModuleTag_TempWeaponBonusHelper',
+        blockData: createSourceTempWeaponBonusHelperBlockData((120 << 2) | 2, 4, 120),
+      },
+      {
+        identifier: 'ModuleTag_SubdualDamageHelper',
+        blockData: createSourceSubdualDamageHelperBlockData((77 << 2) | 2, 5),
+      },
+    ];
+  }
   state.modulesReady = false;
   return new Uint8Array(buildSourceMapEntityChunk(state));
 }
 
-function createSourceGameLogicChunkData(): Uint8Array {
+function createSourceGameLogicChunkData(includeHelperModules = false): Uint8Array {
   const xferSave = new XferSave();
   xferSave.open('create-source-game-logic-chunk');
   try {
@@ -315,7 +403,7 @@ function createSourceGameLogicChunkData(): Uint8Array {
     xferSave.xferUnsignedInt(1);
     xferSave.xferUnsignedShort(1);
     xferSave.beginBlock();
-    xferSave.xferUser(createSourceObjectBlockData());
+    xferSave.xferUser(createSourceObjectBlockData(includeHelperModules));
     xferSave.endBlock();
 
     xferSave.xferVersion(3);
@@ -361,6 +449,67 @@ function readFirstSourceGameLogicObjectState(data: ArrayBuffer) {
     xferLoad.skip(blockSize);
     xferLoad.endBlock();
     return parsed;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceDefectionHelperBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-defection-helper');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      detectionStart: xferLoad.xferUnsignedInt(0),
+      detectionEnd: xferLoad.xferUnsignedInt(0),
+      flashPhase: xferLoad.xferReal(0),
+      doFx: xferLoad.xferBool(false),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceTempWeaponBonusHelperBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-temp-weapon-bonus-helper');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      currentBonus: xferLoad.xferInt(0),
+      frameToRemove: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceSubdualDamageHelperBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-subdual-damage-helper');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      healingStepCountdown: xferLoad.xferUnsignedInt(0),
+    };
   } finally {
     xferLoad.close();
   }
@@ -2859,7 +3008,7 @@ describe('runtime-save-game', () => {
   });
 
   it('overlays live source Object::xfer status, disable, experience, and weapon fields on resave', () => {
-    const sourceGameLogicBytes = createSourceGameLogicChunkData();
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(true);
     const saveFile = buildRuntimeSaveFile({
       description: 'Source GameLogic Object Runtime Overlay',
       mapPath: 'assets/maps/SourceObjectRuntimeOverlay.json',
@@ -2940,6 +3089,11 @@ describe('runtime-save-game', () => {
               'SPECIAL_PARTICLE_UPLINK_CANNON',
               'SPECIAL_CASH_HACK',
             ],
+            undetectedDefectorUntilFrame: 140,
+            defectorHelperDetectionStartFrame: 42,
+            defectorHelperDetectionEndFrame: 140,
+            defectorHelperFlashPhase: 1.75,
+            defectorHelperDoFx: true,
             objectStatusFlags: new Set([
               'IS_USING_ABILITY',
               'CARBOMB',
@@ -2972,7 +3126,11 @@ describe('runtime-save-game', () => {
             leechRangeActive: true,
             totalWeaponAntiMask: 12,
             weaponSetFlagsMask: 8,
-            weaponBonusConditionFlags: 16,
+            weaponBonusConditionFlags: 0x00800010,
+            tempWeaponBonusFlag: 0x00800000,
+            tempWeaponBonusExpiryFrame: 120,
+            currentSubdualDamage: 25,
+            subdualHealingCountdown: 3,
             soleHealingBenefactorId: 44,
             soleHealingBenefactorExpirationFrame: 555,
           } as unknown as import('@generals/game-logic').MapEntity],
@@ -3044,6 +3202,28 @@ describe('runtime-save-game', () => {
       lastFireFrame: 12,
       maxShotCount: 3,
       leechWeaponRangeActive: true,
+    });
+    const defectionHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_DefectionHelper');
+    const tempWeaponBonusHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_TempWeaponBonusHelper');
+    const subdualDamageHelper = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_SubdualDamageHelper');
+    expect(defectionHelper).toBeDefined();
+    expect(tempWeaponBonusHelper).toBeDefined();
+    expect(subdualDamageHelper).toBeDefined();
+    expect(parseSourceDefectionHelperBlockData(defectionHelper!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      detectionStart: 42,
+      detectionEnd: 140,
+      flashPhase: 1.75,
+      doFx: true,
+    });
+    expect(parseSourceTempWeaponBonusHelperBlockData(tempWeaponBonusHelper!.blockData)).toEqual({
+      nextCallFrameAndPhase: (120 << 2) | 2,
+      currentBonus: 23,
+      frameToRemove: 120,
+    });
+    expect(parseSourceSubdualDamageHelperBlockData(subdualDamageHelper!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      healingStepCountdown: 3,
     });
   });
 

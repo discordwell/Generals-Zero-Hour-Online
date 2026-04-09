@@ -85,6 +85,10 @@ const SOURCE_TERRAIN_VISUAL_BLOCK = 'CHUNK_TerrainVisual';
 const SOURCE_GHOST_OBJECT_BLOCK = 'CHUNK_GhostObject';
 export const BROWSER_RUNTIME_STATE_BLOCK = 'CHUNK_TS_RuntimeState';
 const SOURCE_FRAME_FOREVER = 0x3fffffff;
+const SOURCE_UPDATE_PHASE_NORMAL = 2;
+const SOURCE_HELPER_MODULE_TAG_DEFECTION = 'ModuleTag_DefectionHelper';
+const SOURCE_HELPER_MODULE_TAG_TEMP_WEAPON_BONUS = 'ModuleTag_TempWeaponBonusHelper';
+const SOURCE_HELPER_MODULE_TAG_SUBDUAL_DAMAGE = 'ModuleTag_SubdualDamageHelper';
 const SOURCE_SCRIPT_STATUS_DISABLED = 0x01;
 const SOURCE_SCRIPT_STATUS_UNPOWERED = 0x02;
 const SOURCE_SCRIPT_STATUS_UNSELLABLE = 0x04;
@@ -121,6 +125,12 @@ const SOURCE_OBJECT_STATUS_ALIASES = new Map<string, string>([
   ['RIDER8', 'STATUS_RIDER8'],
   ['MISSILE_KILLING_SELF', 'KILLING_SELF'],
 ]);
+
+interface SourceObjectModuleSaveState {
+  identifier: string;
+  blockData: Uint8Array;
+}
+
 const SOURCE_SCRIPT_STATUS_BITS_BY_NAME = new Map<string, number>([
   ['SCRIPT_DISABLED', SOURCE_SCRIPT_STATUS_DISABLED],
   ['SCRIPT_UNPOWERED', SOURCE_SCRIPT_STATUS_UNPOWERED],
@@ -3337,9 +3347,129 @@ function overlaySourceSpecialPowerBitsFromLiveEntity(
   return orderedNames;
 }
 
+function buildSourceUpdateModuleWakeFrame(frame: number, phase = SOURCE_UPDATE_PHASE_NORMAL): number {
+  const normalizedFrame = Math.max(0, Math.min(SOURCE_FRAME_FOREVER, Math.trunc(frame)));
+  return (normalizedFrame << 2) | (phase & 0x03);
+}
+
+function buildSourceObjectHelperBaseBlockData(nextCallFrameAndPhase: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-object-helper-block');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(nextCallFrameAndPhase);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceObjectDefectionHelperBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-object-defection-helper');
+  try {
+    const active = entity.undetectedDefectorUntilFrame > currentFrame && !entity.destroyed;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceObjectHelperBaseBlockData(
+      active
+        ? buildSourceUpdateModuleWakeFrame(currentFrame + 1)
+        : buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    ));
+    saver.xferUnsignedInt(entity.defectorHelperDetectionStartFrame);
+    saver.xferUnsignedInt(entity.defectorHelperDetectionEndFrame);
+    saver.xferReal(entity.defectorHelperFlashPhase);
+    saver.xferBool(entity.defectorHelperDoFx);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function sourceWeaponBonusFlagToCondition(flag: number): number {
+  if (!Number.isInteger(flag) || flag <= 0 || (flag & (flag - 1)) !== 0) {
+    return -1;
+  }
+  return Math.trunc(Math.log2(flag));
+}
+
+function buildSourceTempWeaponBonusHelperBlockData(entity: MapEntity): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-temp-weapon-bonus-helper');
+  try {
+    const expiryFrame = entity.tempWeaponBonusFlag !== 0
+      ? Math.max(0, Math.trunc(entity.tempWeaponBonusExpiryFrame))
+      : 0;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceObjectHelperBaseBlockData(
+      expiryFrame > 0
+        ? buildSourceUpdateModuleWakeFrame(expiryFrame)
+        : buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    ));
+    saver.xferInt(sourceWeaponBonusFlagToCondition(entity.tempWeaponBonusFlag));
+    saver.xferUnsignedInt(expiryFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSubdualDamageHelperBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-subdual-damage-helper');
+  try {
+    const active = entity.currentSubdualDamage > 0 && !entity.destroyed;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceObjectHelperBaseBlockData(
+      active
+        ? buildSourceUpdateModuleWakeFrame(currentFrame + 1)
+        : buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    ));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.subdualHealingCountdown)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function overlaySourceObjectModulesFromLiveEntity(
+  sourceModules: readonly SourceObjectModuleSaveState[],
+  entity: MapEntity,
+  currentFrame: number,
+): SourceObjectModuleSaveState[] {
+  return sourceModules.map((module) => {
+    switch (module.identifier) {
+      case SOURCE_HELPER_MODULE_TAG_DEFECTION:
+        return {
+          identifier: module.identifier,
+          blockData: buildSourceObjectDefectionHelperBlockData(entity, currentFrame),
+        };
+      case SOURCE_HELPER_MODULE_TAG_TEMP_WEAPON_BONUS:
+        return {
+          identifier: module.identifier,
+          blockData: buildSourceTempWeaponBonusHelperBlockData(entity),
+        };
+      case SOURCE_HELPER_MODULE_TAG_SUBDUAL_DAMAGE:
+        return {
+          identifier: module.identifier,
+          blockData: buildSourceSubdualDamageHelperBlockData(entity, currentFrame),
+        };
+      default:
+        return {
+          identifier: module.identifier,
+          blockData: new Uint8Array(module.blockData),
+        };
+    }
+  });
+}
+
 function overlaySourceObjectStateFromLiveEntity(
   sourceState: SourceMapEntitySaveState,
   entity: MapEntity,
+  currentFrame: number,
   triggerAreaState?: GameLogicObjectTriggerAreaSaveState | null,
   objectXferOverlayState?: GameLogicObjectXferOverlayState | null,
 ): SourceMapEntitySaveState {
@@ -3432,6 +3562,7 @@ function overlaySourceObjectStateFromLiveEntity(
       : sourceState.lastWeaponCondition,
     weaponSet: overlaySourceWeaponSetFromLiveEntity(sourceState, entity),
     specialPowerBits: overlaySourceSpecialPowerBitsFromLiveEntity(sourceState, entity),
+    modules: overlaySourceObjectModulesFromLiveEntity(sourceState.modules, entity, currentFrame),
     commandSetStringOverride: typeof entity.commandSetStringOverride === 'string'
       ? entity.commandSetStringOverride
       : sourceState.commandSetStringOverride,
@@ -3484,6 +3615,7 @@ function buildSourceGameLogicChunk(
               overlaySourceObjectStateFromLiveEntity(
                 object.state,
                 liveEntity,
+                coreState?.frameCounter ?? sourceState.frameCounter,
                 liveTriggerAreaStateByEntityId.get(liveEntity.id),
                 objectXferOverlayStateByEntityId.get(liveEntity.id),
               ),

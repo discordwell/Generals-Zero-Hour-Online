@@ -3345,6 +3345,14 @@ export interface MapEntity {
   capturedFromOriginalOwner: boolean;
   /** Source parity: ObjectDefectionHelper detection expiry for UNDETECTED_DEFECTOR. */
   undetectedDefectorUntilFrame: number;
+  /** Source parity: ObjectDefectionHelper::m_defectionDetectionStart. */
+  defectorHelperDetectionStartFrame: number;
+  /** Source parity: ObjectDefectionHelper::m_defectionDetectionEnd. */
+  defectorHelperDetectionEndFrame: number;
+  /** Source parity: ObjectDefectionHelper::m_defectionDetectionFlashPhase. */
+  defectorHelperFlashPhase: number;
+  /** Source parity: ObjectDefectionHelper::m_doDefectorFX. */
+  defectorHelperDoFx: boolean;
   controllingPlayerToken: string | null;
   /** Source parity: MapObject originalOwner team token used for script-team membership on map load. */
   sourceTeamNameUpper?: string | null;
@@ -21640,9 +21648,16 @@ export class GameLogicSubsystem implements Subsystem {
     // Transfer base energy between sides on capture.
     this.unregisterEntityEnergy(entity);
     entity.side = normalizedNewSide;
-    entity.undetectedDefectorUntilFrame = undetectedDefectorFrames > 0
-      ? this.frameCounter + Math.max(0, Math.trunc(undetectedDefectorFrames))
-      : 0;
+    if (undetectedDefectorFrames > 0) {
+      const detectionEndFrame = this.frameCounter + Math.max(0, Math.trunc(undetectedDefectorFrames));
+      entity.undetectedDefectorUntilFrame = detectionEndFrame;
+      entity.defectorHelperDetectionStartFrame = this.frameCounter;
+      entity.defectorHelperDetectionEndFrame = detectionEndFrame;
+      entity.defectorHelperFlashPhase = 0;
+      entity.defectorHelperDoFx = true;
+    } else {
+      entity.undetectedDefectorUntilFrame = 0;
+    }
     entity.capturedFromOriginalOwner =
       entity.originalOwningSide.length > 0 && normalizedNewSide !== entity.originalOwningSide;
     entity.controllingPlayerToken = (
@@ -32664,6 +32679,10 @@ export class GameLogicSubsystem implements Subsystem {
     for (const entity of this.spawnedEntities.values()) {
       if (entity.undetectedDefectorUntilFrame <= 0) {
         continue;
+      }
+      if (entity.defectorHelperDoFx) {
+        const timeLeft = entity.undetectedDefectorUntilFrame - this.frameCounter;
+        entity.defectorHelperFlashPhase += 0.5 * (1 - (timeLeft / (LOGIC_FRAME_RATE * 10)));
       }
       if (
         entity.destroyed

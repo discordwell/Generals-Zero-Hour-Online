@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 15;
+const ENTITY_XFER_VERSION = 16;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1493,6 +1493,17 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     e.undetectedDefectorUntilFrame = xfer.xferInt((e.undetectedDefectorUntilFrame as number | undefined) ?? 0);
   } else {
     e.undetectedDefectorUntilFrame = 0;
+  }
+  if (version >= 16) {
+    e.defectorHelperDetectionStartFrame = xfer.xferInt((e.defectorHelperDetectionStartFrame as number | undefined) ?? 0);
+    e.defectorHelperDetectionEndFrame = xfer.xferInt((e.defectorHelperDetectionEndFrame as number | undefined) ?? 0);
+    e.defectorHelperFlashPhase = xfer.xferReal((e.defectorHelperFlashPhase as number | undefined) ?? 0);
+    e.defectorHelperDoFx = xfer.xferBool((e.defectorHelperDoFx as boolean | undefined) ?? false);
+  } else {
+    e.defectorHelperDetectionStartFrame = 0;
+    e.defectorHelperDetectionEndFrame = 0;
+    e.defectorHelperFlashPhase = 0;
+    e.defectorHelperDoFx = false;
   }
   e.controllingPlayerToken = xferNullableString(xfer, e.controllingPlayerToken as string | null);
   e.resolved = xfer.xferBool(e.resolved as boolean);

@@ -25,6 +25,10 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     originalOwningSide: 'USA',
     capturedFromOriginalOwner: false,
     undetectedDefectorUntilFrame: 0,
+    defectorHelperDetectionStartFrame: 0,
+    defectorHelperDetectionEndFrame: 0,
+    defectorHelperFlashPhase: 0,
+    defectorHelperDoFx: false,
     controllingPlayerToken: 'player1',
     resolved: true,
     bridgeFlags: 0,
@@ -784,20 +788,36 @@ describe('entity-xfer', () => {
   });
 
   it('preserves undetected defector timers', () => {
-    const original = createTestEntity({ undetectedDefectorUntilFrame: 180 });
+    const original = createTestEntity({
+      undetectedDefectorUntilFrame: 180,
+      defectorHelperDetectionStartFrame: 120,
+      defectorHelperDetectionEndFrame: 180,
+      defectorHelperFlashPhase: 2.5,
+      defectorHelperDoFx: true,
+    });
 
     const saver = new XferSave();
     saver.open('entity');
     xferMapEntity(saver, original);
     saver.close();
 
-    const loaded = createTestEntity({ undetectedDefectorUntilFrame: 0 });
+    const loaded = createTestEntity({
+      undetectedDefectorUntilFrame: 0,
+      defectorHelperDetectionStartFrame: 0,
+      defectorHelperDetectionEndFrame: 0,
+      defectorHelperFlashPhase: 0,
+      defectorHelperDoFx: false,
+    });
     const loader = new XferLoad(saver.getBuffer());
     loader.open('entity');
     xferMapEntity(loader, loaded);
     loader.close();
 
     expect(loaded.undetectedDefectorUntilFrame).toBe(180);
+    expect(loaded.defectorHelperDetectionStartFrame).toBe(120);
+    expect(loaded.defectorHelperDetectionEndFrame).toBe(180);
+    expect(loaded.defectorHelperFlashPhase).toBeCloseTo(2.5);
+    expect(loaded.defectorHelperDoFx).toBe(true);
   });
 
   it('preserves movement path (VectorXZ array)', () => {
