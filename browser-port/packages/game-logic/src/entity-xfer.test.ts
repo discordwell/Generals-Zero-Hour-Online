@@ -245,8 +245,10 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
 
     // Healing
     autoHealProfile: null,
-    autoHealNextFrame: 0,
-    autoHealDamageDelayUntilFrame: 0,
+    autoHealNextFrame: 88,
+    autoHealSoonestHealFrame: 77,
+    autoHealStopped: true,
+    autoHealDamageDelayUntilFrame: 99,
     baseRegenDelayUntilFrame: 0,
     propagandaTowerProfile: null,
     propagandaTowerNextScanFrame: 0,

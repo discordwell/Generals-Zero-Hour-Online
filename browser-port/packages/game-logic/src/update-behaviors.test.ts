@@ -1128,6 +1128,88 @@ describe('mine regeneration', () => {
     // The mine should be alive (not destroyed).
     expect(mineAfterHeal!.health).toBeGreaterThan(0);
   });
+
+  it('stops auto-heal when the mine creator dies', () => {
+    const mineDef = makeObjectDef('RegenMine', 'America', ['MINE', 'IMMOBILE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', {
+        MaxHealth: 100,
+        InitialHealth: 100,
+      }),
+      makeBlock('Behavior', 'MinefieldBehavior ModuleTag_Minefield', {
+        DetonationWeapon: 'MineDetonationWeapon',
+        NumVirtualMines: 2,
+        Regenerates: true,
+        StopsRegenAfterCreatorDies: true,
+      }),
+      makeBlock('Behavior', 'AutoHealBehavior ModuleTag_AutoHeal', {
+        HealingAmount: 10,
+        HealingDelay: 30,
+        StartHealingDelay: 0,
+        StartsActive: true,
+      }),
+    ], {
+      Geometry: 'CYLINDER',
+      GeometryMajorRadius: 5,
+      GeometryMinorRadius: 5,
+    });
+
+    const creatorDef = makeObjectDef('MineCreator', 'America', ['VEHICLE'], [
+      makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100, InitialHealth: 100 }),
+    ]);
+
+    const bundle = makeBundle({
+      objects: [mineDef, creatorDef],
+      weapons: [
+        makeWeaponDef('MineDetonationWeapon', {
+          PrimaryDamage: 30,
+          PrimaryDamageRadius: 10,
+          DamageType: 'EXPLOSION',
+        }),
+      ],
+    });
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('RegenMine', 50, 50),
+        makeMapObject('MineCreator', 55, 50),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const priv = logic as unknown as {
+      frameCounter: number;
+      spawnedEntities: Map<number, {
+        health: number;
+        destroyed: boolean;
+        autoHealStopped: boolean;
+        autoHealNextFrame: number;
+        autoHealSoonestHealFrame: number;
+        mineCreatorId: number;
+        mineNextDeathCheckFrame: number;
+      }>;
+    };
+
+    const mine = priv.spawnedEntities.get(1)!;
+    const creator = priv.spawnedEntities.get(2)!;
+    mine.health = 40;
+    mine.mineCreatorId = 2;
+    mine.mineNextDeathCheckFrame = 0;
+    creator.destroyed = true;
+
+    logic.update(1 / 30);
+
+    expect(mine.autoHealStopped).toBe(true);
+    expect(mine.autoHealNextFrame).toBe(Number.MAX_SAFE_INTEGER);
+    expect(mine.autoHealSoonestHealFrame).toBe(Number.MAX_SAFE_INTEGER);
+
+    const healthAfterStop = mine.health;
+    for (let i = 0; i < 90; i += 1) {
+      logic.update(1 / 30);
+    }
+    expect(logic.getEntityState(1)!.health).toBeLessThanOrEqual(healthAfterStop);
+  });
 });
 
 describe('WEAPON_DOESNT_AFFECT_AIRBORNE', () => {
@@ -6435,10 +6517,11 @@ describe('WeaponBonusUpdate', () => {
   it('extracts WeaponBonusUpdateProfile from INI', () => {
     const { logic } = makeWeaponBonusSetup();
     const priv = logic as unknown as {
-      spawnedEntities: Map<number, { weaponBonusUpdateProfiles: { bonusConditionFlag: number; bonusRange: number }[] }>;
+      spawnedEntities: Map<number, { weaponBonusUpdateProfiles: { moduleTag: string | null; bonusConditionFlag: number; bonusRange: number }[] }>;
     };
     const tower = priv.spawnedEntities.get(1)!;
     expect(tower.weaponBonusUpdateProfiles.length).toBe(1);
+    expect(tower.weaponBonusUpdateProfiles[0]!.moduleTag).toBe('MODULETAG_PROPAGANDA');
     expect(tower.weaponBonusUpdateProfiles[0]!.bonusRange).toBe(200);
   });
 

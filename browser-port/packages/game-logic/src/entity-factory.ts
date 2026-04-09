@@ -500,6 +500,8 @@ export function createMapEntity(self: GL,
     detectorNextScanFrame: 0,
     autoHealProfile: extractAutoHealProfile(self, objectDef),
     autoHealNextFrame: 0,
+    autoHealSoonestHealFrame: 0,
+    autoHealStopped: false,
     autoHealDamageDelayUntilFrame: 0,
     autoHealSingleBurstDone: false,
     baseRegenDelayUntilFrame: 0,
@@ -2957,6 +2959,7 @@ export function extractWeaponBonusUpdateProfiles(self: GL, objectDef: ObjectDef 
     if (blockType === 'BEHAVIOR') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType === 'WEAPONBONUSUPDATE') {
+        const moduleTag = block.name.split(/\s+/)[1]?.toUpperCase() ?? null;
         const conditionName = readStringField(block.fields, ['BonusConditionType'])?.toUpperCase();
         if (!conditionName) return;
         const bonusFlag = WEAPON_BONUS_CONDITION_BY_NAME.get(conditionName);
@@ -2972,6 +2975,7 @@ export function extractWeaponBonusUpdateProfiles(self: GL, objectDef: ObjectDef 
         }
 
         profiles.push({
+          moduleTag,
           requiredKindOf,
           forbiddenKindOf,
           bonusDurationFrames: self.msToLogicFrames(readNumericField(block.fields, ['BonusDuration']) ?? 0),

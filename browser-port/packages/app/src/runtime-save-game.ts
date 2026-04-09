@@ -3478,6 +3478,95 @@ function buildSourceOverchargeBehaviorBlockData(entity: MapEntity, currentFrame:
   }
 }
 
+function tryParseSourceAutoHealBehaviorBlockData(
+  data: Uint8Array,
+): { upgradeExecuted: boolean; radiusParticleSystemId: number; soonestHealFrame: number; stopped: boolean } | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-auto-heal-behavior');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferVersion(1);
+    const upgradeExecuted = xferLoad.xferBool(false);
+    const radiusParticleSystemId = xferLoad.xferUnsignedInt(0);
+    const soonestHealFrame = xferLoad.xferUnsignedInt(0);
+    const stopped = xferLoad.xferBool(false);
+    return xferLoad.getRemaining() === 0
+      ? { upgradeExecuted, radiusParticleSystemId, soonestHealFrame, stopped }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function resolveSourceAutoHealBehaviorNextCallFrame(
+  entity: MapEntity,
+  currentFrame: number,
+  upgradeExecuted: boolean,
+): number {
+  const profile = entity.autoHealProfile;
+  if (!profile || entity.destroyed || entity.autoHealStopped) {
+    return SOURCE_FRAME_FOREVER;
+  }
+  if (!profile.initiallyActive && !upgradeExecuted) {
+    return SOURCE_FRAME_FOREVER;
+  }
+  if (profile.singleBurst && entity.autoHealSingleBurstDone) {
+    return SOURCE_FRAME_FOREVER;
+  }
+  if (profile.affectsWholePlayer || profile.radius > 0) {
+    return entity.autoHealNextFrame > currentFrame
+      ? entity.autoHealNextFrame
+      : currentFrame + 1;
+  }
+  if (entity.health >= entity.maxHealth) {
+    return SOURCE_FRAME_FOREVER;
+  }
+  const nextHealFrame = Math.max(
+    Math.max(0, Math.trunc(entity.autoHealNextFrame)),
+    Math.max(0, Math.trunc(entity.autoHealDamageDelayUntilFrame)),
+  );
+  return nextHealFrame > currentFrame ? nextHealFrame : currentFrame + 1;
+}
+
+function buildSourceAutoHealBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  upgradeExecuted: boolean,
+  radiusParticleSystemId: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-auto-heal-behavior');
+  try {
+    const nextCallFrame = resolveSourceAutoHealBehaviorNextCallFrame(entity, currentFrame, upgradeExecuted);
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
+    ));
+    saver.xferVersion(1);
+    saver.xferBool(upgradeExecuted);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(radiusParticleSystemId)));
+    saver.xferUnsignedInt(
+      entity.autoHealStopped
+        ? SOURCE_FRAME_FOREVER
+        : Math.max(0, Math.min(SOURCE_FRAME_FOREVER, Math.trunc(entity.autoHealSoonestHealFrame))),
+    );
+    saver.xferBool(entity.autoHealStopped);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function tryParseSourceGrantStealthBehaviorBlockData(
   data: Uint8Array,
 ): { radiusParticleSystemId: number; currentScanRadius: number } | null {
@@ -3592,6 +3681,20 @@ function buildSourceCountermeasuresBehaviorBlockData(
     saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.incomingMissiles ?? 0)));
     saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.reactionFrame ?? 0)));
     saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.nextVolleyFrame ?? 0)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceWeaponBonusUpdateBlockData(nextCallFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-weapon-bonus-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
+    ));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -3743,6 +3846,20 @@ function overlaySourceObjectModulesFromLiveEntity(
       default:
         if (templateName && typeof resolveSourceObjectModuleTypeByTag === 'function') {
           const moduleType = resolveSourceObjectModuleTypeByTag(templateName, module.identifier)?.trim().toUpperCase() ?? '';
+          if (moduleType === 'AUTOHEALBEHAVIOR' && entity.autoHealProfile) {
+            const parsedSourceState = tryParseSourceAutoHealBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceAutoHealBehaviorBlockData(
+                  entity,
+                  currentFrame,
+                  parsedSourceState.upgradeExecuted,
+                  parsedSourceState.radiusParticleSystemId,
+                ),
+              };
+            }
+          }
           if (moduleType === 'OVERCHARGEBEHAVIOR') {
             return {
               identifier: module.identifier,
@@ -3771,6 +3888,21 @@ function overlaySourceObjectModulesFromLiveEntity(
                   entity,
                   currentFrame,
                   parsedSourceState.upgradeExecuted,
+                ),
+              };
+            }
+          }
+          if (moduleType === 'WEAPONBONUSUPDATE' && entity.weaponBonusUpdateProfiles.length > 0) {
+            const moduleTag = module.identifier.trim().toUpperCase();
+            const moduleIndex = entity.weaponBonusUpdateProfiles.findIndex(
+              (profile) => profile.moduleTag === moduleTag,
+            );
+            if (moduleIndex >= 0) {
+              const nextPulseFrame = entity.weaponBonusUpdateNextPulseFrames[moduleIndex] ?? 0;
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceWeaponBonusUpdateBlockData(
+                  nextPulseFrame > currentFrame ? nextPulseFrame : currentFrame + 1,
                 ),
               };
             }

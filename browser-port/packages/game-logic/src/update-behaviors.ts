@@ -399,7 +399,9 @@ export function updateMineBehavior(self: GL): void {
             mine.mineDraining = true;
             // Source parity: stopHealing() on AutoHealBehavior when creator dies.
             if (mine.autoHealProfile) {
-              mine.autoHealDamageDelayUntilFrame = Number.MAX_SAFE_INTEGER;
+              mine.autoHealStopped = true;
+              mine.autoHealNextFrame = Number.MAX_SAFE_INTEGER;
+              mine.autoHealSoonestHealFrame = Number.MAX_SAFE_INTEGER;
             }
           }
         }

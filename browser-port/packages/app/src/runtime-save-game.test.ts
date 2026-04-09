@@ -336,6 +336,29 @@ function createSourceOverchargeBehaviorBlockData(
   }
 }
 
+function createSourceAutoHealBehaviorBlockData(
+  nextCallFrameAndPhase: number,
+  upgradeExecuted: boolean,
+  radiusParticleSystemId: number,
+  soonestHealFrame: number,
+  stopped: boolean,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-auto-heal-behavior');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferVersion(1);
+    xferSave.xferBool(upgradeExecuted);
+    xferSave.xferUnsignedInt(radiusParticleSystemId);
+    xferSave.xferUnsignedInt(soonestHealFrame);
+    xferSave.xferBool(stopped);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceGrantStealthBehaviorBlockData(
   nextCallFrameAndPhase: number,
   radiusParticleSystemId: number,
@@ -379,6 +402,20 @@ function createSourceCountermeasuresBehaviorBlockData(
     xferSave.xferUnsignedInt(incomingMissiles);
     xferSave.xferUnsignedInt(reactionFrame);
     xferSave.xferUnsignedInt(nextVolleyFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceWeaponBonusUpdateBlockData(
+  nextCallFrameAndPhase: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-weapon-bonus-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
     return new Uint8Array(xferSave.getBuffer());
   } finally {
     xferSave.close();
@@ -673,6 +710,30 @@ function parseSourceOverchargeBehaviorBlockData(data: Uint8Array) {
   }
 }
 
+function parseSourceAutoHealBehaviorBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-auto-heal-behavior');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      upgradeExecuted: (() => {
+        xferLoad.xferVersion(1);
+        return xferLoad.xferBool(false);
+      })(),
+      radiusParticleSystemId: xferLoad.xferUnsignedInt(0),
+      soonestHealFrame: xferLoad.xferUnsignedInt(0),
+      stopped: xferLoad.xferBool(false),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function parseSourceGrantStealthBehaviorBlockData(data: Uint8Array) {
   const xferLoad = new XferLoad(data.slice().buffer);
   xferLoad.open('parse-source-grant-stealth-behavior');
@@ -714,6 +775,23 @@ function parseSourceCountermeasuresBehaviorBlockData(data: Uint8Array) {
       incomingMissiles: xferLoad.xferUnsignedInt(0),
       reactionFrame: xferLoad.xferUnsignedInt(0),
       nextVolleyFrame: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceWeaponBonusUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-weapon-bonus-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
     };
   } finally {
     xferLoad.close();
@@ -3637,6 +3715,120 @@ describe('runtime-save-game', () => {
     });
   });
 
+  it('rewrites source AutoHealBehavior modules via resolved module tags', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_AutoHeal',
+      blockData: createSourceAutoHealBehaviorBlockData((104 << 2) | 2, false, 55, 18, false),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source auto-heal rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            health: 150,
+            maxHealth: 200,
+            autoHealProfile: {
+              healingAmount: 10,
+              healingDelayFrames: 30,
+              startHealingDelayFrames: 48,
+              radius: 0,
+              affectsWholePlayer: false,
+              initiallyActive: true,
+              singleBurst: false,
+              kindOf: null,
+              forbiddenKindOf: null,
+              radiusParticleSystemName: '',
+              unitHealPulseParticleSystemName: '',
+              skipSelfForHealing: false,
+            },
+            autoHealNextFrame: 88,
+            autoHealSoonestHealFrame: 77,
+            autoHealStopped: false,
+            autoHealDamageDelayUntilFrame: 90,
+            autoHealSingleBurstDone: false,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_AutoHeal'
+            ? 'AUTOHEALBEHAVIOR'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const autoHealModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_AutoHeal');
+
+    expect(autoHealModule).toBeDefined();
+    expect(parseSourceAutoHealBehaviorBlockData(autoHealModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (90 << 2) | 2,
+      upgradeExecuted: false,
+      radiusParticleSystemId: 55,
+      soonestHealFrame: 77,
+      stopped: false,
+    });
+  });
+
   it('rewrites source GrantStealthBehavior modules via resolved module tags', () => {
     const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
       identifier: 'ModuleTag_GrantStealth',
@@ -3839,6 +4031,105 @@ describe('runtime-save-game', () => {
       incomingMissiles: 7,
       reactionFrame: 88,
       nextVolleyFrame: 116,
+    });
+  });
+
+  it('rewrites source WeaponBonusUpdate modules via resolved module tags', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Propaganda',
+      blockData: createSourceWeaponBonusUpdateBlockData((111 << 2) | 2),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source weapon bonus rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            weaponBonusUpdateProfiles: [{
+              moduleTag: 'MODULETAG_PROPAGANDA',
+              requiredKindOf: new Set<string>(),
+              forbiddenKindOf: new Set<string>(),
+              bonusDurationFrames: 90,
+              bonusDelayFrames: 30,
+              bonusRange: 200,
+              bonusConditionFlag: 1 << 4,
+            }],
+            weaponBonusUpdateNextPulseFrames: [97],
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Propaganda'
+            ? 'WEAPONBONUSUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const weaponBonusModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Propaganda');
+
+    expect(weaponBonusModule).toBeDefined();
+    expect(parseSourceWeaponBonusUpdateBlockData(weaponBonusModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (97 << 2) | 2,
     });
   });
 

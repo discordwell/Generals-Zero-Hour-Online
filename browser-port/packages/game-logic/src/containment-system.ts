@@ -687,7 +687,7 @@ export function updateHealing(self: GL): void {
       || entity.objectStatusFlags.has('DISABLED_SUBDUED');
 
     // ── AutoHealBehavior ──
-    if (entity.autoHealProfile && !isDisabled && !entity.autoHealSingleBurstDone) {
+    if (entity.autoHealProfile && !entity.autoHealStopped && !isDisabled && !entity.autoHealSingleBurstDone) {
       const prof = entity.autoHealProfile;
       // Source parity: SingleBurst mode heals once then sleeps forever.
       if (prof.singleBurst && entity.autoHealSingleBurstDone) continue;
@@ -695,6 +695,7 @@ export function updateHealing(self: GL): void {
         // Check damage delay.
         if (self.frameCounter >= entity.autoHealDamageDelayUntilFrame) {
           if (self.frameCounter >= entity.autoHealNextFrame) {
+            let pulsedHeal = false;
             if (prof.radius > 0) {
               // Radius heal mode — heal nearby allies.
               const radiusSq = prof.radius * prof.radius;
@@ -724,10 +725,11 @@ export function updateHealing(self: GL): void {
                 const dz = target.z - entity.z;
                 if (dx * dx + dz * dz <= radiusSq) {
                   self.attemptHealingFromSoleBenefactor(target, prof.healingAmount, entity.id, prof.healingDelayFrames);
+                  pulsedHeal = true;
                 }
               }
               // Source parity: SingleBurst — mark done after one radius heal pass.
-              if (prof.singleBurst) {
+              if (prof.singleBurst && pulsedHeal) {
                 entity.autoHealSingleBurstDone = true;
               }
             } else if (prof.affectsWholePlayer) {
@@ -739,6 +741,7 @@ export function updateHealing(self: GL): void {
                 const prevHealth = target.health;
                 target.health = Math.min(target.maxHealth, target.health + prof.healingAmount);
                 if (target.health > prevHealth) {
+                  pulsedHeal = true;
                   self.clearPoisonFromEntity(target);
                   if (target.minefieldProfile) {
                     self.mineOnDamage(target, entity.id, 'HEALING');
@@ -750,6 +753,7 @@ export function updateHealing(self: GL): void {
               const prevHealth = entity.health;
               entity.health = Math.min(entity.maxHealth, entity.health + prof.healingAmount);
               if (entity.health > prevHealth) {
+                pulsedHeal = true;
                 self.clearPoisonFromEntity(entity);
                 if (entity.minefieldProfile) {
                   self.mineOnDamage(entity, entity.id, 'HEALING');
@@ -757,6 +761,9 @@ export function updateHealing(self: GL): void {
               }
             }
             entity.autoHealNextFrame = self.frameCounter + prof.healingDelayFrames;
+            if (pulsedHeal) {
+              entity.autoHealSoonestHealFrame = self.frameCounter + prof.healingDelayFrames;
+            }
           }
         }
       }

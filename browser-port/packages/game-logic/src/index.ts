@@ -3696,6 +3696,10 @@ export interface MapEntity {
   /** Source parity: AutoHealBehavior — self-heal state. */
   autoHealProfile: AutoHealProfile | null;
   autoHealNextFrame: number;
+  /** Source parity: AutoHealBehavior::m_soonestHealFrame. */
+  autoHealSoonestHealFrame: number;
+  /** Source parity: AutoHealBehavior::m_stopped. */
+  autoHealStopped: boolean;
   autoHealDamageDelayUntilFrame: number;
   /** Source parity: AutoHealBehavior SingleBurst — true after first pulse (UPDATE_SLEEP_FOREVER). */
   autoHealSingleBurstDone: boolean;
@@ -4996,6 +5000,8 @@ interface OCLUpdateProfile {
  * Used by Propaganda Towers, Frenzy generals ability, etc.
  */
 interface WeaponBonusUpdateProfile {
+  /** Source module tag from the INI block name (e.g. ModuleTag_Propaganda). */
+  moduleTag: string | null;
   /** KindOf flags that must be present on target. Empty = match all. */
   requiredKindOf: Set<string>;
   /** KindOf flags that must NOT be present on target. Empty = no exclusion. */

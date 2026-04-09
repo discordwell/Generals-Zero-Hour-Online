@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 18;
+const ENTITY_XFER_VERSION = 20;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1803,6 +1803,16 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   // ── Healing ──
   e.autoHealProfile = xferNullableJsonObject(xfer, e.autoHealProfile as object | null);
   e.autoHealNextFrame = xfer.xferInt(e.autoHealNextFrame as number);
+  if (version >= 20) {
+    e.autoHealSoonestHealFrame = xfer.xferInt(e.autoHealSoonestHealFrame as number);
+  } else {
+    e.autoHealSoonestHealFrame = 0;
+  }
+  if (version >= 20) {
+    e.autoHealStopped = xfer.xferBool(e.autoHealStopped as boolean);
+  } else {
+    e.autoHealStopped = false;
+  }
   e.autoHealDamageDelayUntilFrame = xfer.xferInt(e.autoHealDamageDelayUntilFrame as number);
   e.baseRegenDelayUntilFrame = xfer.xferInt(e.baseRegenDelayUntilFrame as number);
   e.propagandaTowerProfile = xferNullableJsonObject(xfer, e.propagandaTowerProfile as object | null);
