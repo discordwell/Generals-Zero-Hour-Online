@@ -2649,6 +2649,106 @@ describe('runtime-save-game', () => {
     });
   });
 
+  it('overlays live entity identity fields onto rewritten source GameLogic object blocks', () => {
+    const mapData = {
+      heightmap: {
+        width: 2,
+        height: 2,
+        borderSize: 0,
+        data: 'AAAAAA==',
+      },
+      objects: [],
+      triggers: [],
+      waypoints: { nodes: [], links: [] },
+      textureClasses: [],
+      blendTileCount: 0,
+    };
+
+    const sourceGameLogicBytes = createSourceGameLogicChunkData();
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source GameLogic Object Rewrite',
+      mapPath: 'assets/maps/SourceObjectRewrite.json',
+      mapData,
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [{
+            id: 7,
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            scriptName: 'UNIT_RENAMED',
+            sourceTeamNameUpper: 'TEAMRENAMED',
+            visionRange: 250,
+            constructionPercent: 50,
+            completedUpgrades: new Set(['Upgrade_A']),
+            weaponBonusConditionFlags: 16,
+            commandSetStringOverride: 'CommandSet_New',
+            receivingDifficultyBonus: true,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const parsed = parseRuntimeSaveFile(saveFile.data);
+
+    expect(parsed.sourceGameLogicPrototypeNames).toEqual(['TEAMRENAMED']);
+    expect(inspectGameLogicChunkLayout(readSaveChunkData(saveFile.data, 'CHUNK_GameLogic')!)).toEqual({
+      layout: 'source_outer',
+      version: 3,
+      frameCounter: 42,
+      objectTocCount: 1,
+      objectCount: 1,
+      firstObjectTemplateName: 'RuntimeTank',
+      firstObjectTocId: 1,
+      firstObjectVersion: 9,
+      firstObjectInternalName: 'UNIT_RENAMED',
+      firstObjectTeamId: 3,
+      firstObjectLayout: {
+        layout: 'source_partial',
+        version: 9,
+        objectId: 7,
+        parsedThrough: 'complete',
+        moduleCount: 0,
+        moduleIdentifiers: [],
+        remainingBytes: 0,
+      },
+    });
+  });
+
   it('hydrates team-factory prototypes from source GameLogic team names when legacy core state is absent', () => {
     const sourceTeamFactoryChunk = buildSourceTeamFactoryChunk(
       createEmptyTeamFactoryState('TEAMUNIT'),

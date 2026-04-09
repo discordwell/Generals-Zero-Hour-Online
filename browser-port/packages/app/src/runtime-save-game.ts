@@ -15,6 +15,7 @@ import {
 import type { CameraState } from '@generals/input';
 import * as THREE from 'three';
 import {
+  buildSourceMapEntityChunk,
   parseSourceMapEntityChunk,
   type MapEntityChunkLayoutInspection,
   type SourceMapEntitySaveState,
@@ -2978,6 +2979,76 @@ function collectSourceGameLogicPrototypeNames(
   return prototypeNames;
 }
 
+function buildSourceTransformMatrixValues(
+  x: number,
+  y: number,
+  z: number,
+  rotationY: number,
+): number[] {
+  const matrix = new THREE.Matrix4();
+  matrix.compose(
+    new THREE.Vector3(
+      Number.isFinite(x) ? x : 0,
+      Number.isFinite(y) ? y : 0,
+      Number.isFinite(z) ? z : 0,
+    ),
+    new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(
+        0,
+        Number.isFinite(rotationY) ? rotationY : 0,
+        0,
+        'XYZ',
+      ),
+    ),
+    new THREE.Vector3(1, 1, 1),
+  );
+  const e = matrix.elements;
+  return [
+    e[0]!, e[4]!, e[8]!, e[12]!,
+    e[1]!, e[5]!, e[9]!, e[13]!,
+    e[2]!, e[6]!, e[10]!, e[14]!,
+  ];
+}
+
+function overlaySourceObjectStateFromLiveEntity(
+  sourceState: SourceMapEntitySaveState,
+  entity: MapEntity,
+): SourceMapEntitySaveState {
+  const hasTransform = Number.isFinite(entity.x)
+    && Number.isFinite(entity.y)
+    && Number.isFinite(entity.z)
+    && Number.isFinite(entity.rotationY);
+  return {
+    ...sourceState,
+    objectId: entity.id,
+    transformMatrix: hasTransform
+      ? buildSourceTransformMatrixValues(entity.x, entity.y, entity.z, entity.rotationY)
+      : sourceState.transformMatrix,
+    position: hasTransform
+      ? { x: entity.x, y: entity.y, z: entity.z }
+      : sourceState.position,
+    orientation: hasTransform ? entity.rotationY : sourceState.orientation,
+    internalName: entity.scriptName?.trim() || sourceState.internalName,
+    visionRange: Number.isFinite(entity.visionRange) ? entity.visionRange : sourceState.visionRange,
+    constructionPercent: Number.isFinite(entity.constructionPercent)
+      ? entity.constructionPercent
+      : sourceState.constructionPercent,
+    completedUpgradeNames: entity.completedUpgrades instanceof Set
+      ? [...entity.completedUpgrades].sort()
+      : sourceState.completedUpgradeNames,
+    originalTeamName: entity.sourceTeamNameUpper?.trim().toUpperCase() || sourceState.originalTeamName,
+    weaponBonusCondition: Number.isFinite(entity.weaponBonusConditionFlags)
+      ? entity.weaponBonusConditionFlags
+      : sourceState.weaponBonusCondition,
+    commandSetStringOverride: typeof entity.commandSetStringOverride === 'string'
+      ? entity.commandSetStringOverride
+      : sourceState.commandSetStringOverride,
+    isReceivingDifficultyBonus: typeof entity.receivingDifficultyBonus === 'boolean'
+      ? entity.receivingDifficultyBonus
+      : sourceState.isReceivingDifficultyBonus,
+  };
+}
+
 function buildSourceGameLogicChunk(
   sourceState: ParsedSourceGameLogicChunkState,
   options: {
@@ -2990,6 +3061,9 @@ function buildSourceGameLogicChunk(
   try {
     const coreState = options.coreState ?? null;
     const campaignState = options.campaignState ?? sourceState.campaignState;
+    const liveEntityById = new Map(
+      (coreState?.spawnedEntities ?? []).map((entity) => [entity.id, entity]),
+    );
     saver.xferVersion(sourceState.version);
     saver.xferUnsignedInt(coreState?.frameCounter ?? sourceState.frameCounter);
     saver.xferVersion(1);
@@ -3003,7 +3077,14 @@ function buildSourceGameLogicChunk(
     for (const object of sourceState.objects) {
       saver.xferUnsignedShort(object.tocId);
       saver.beginBlock();
-      saver.xferUser(new Uint8Array(object.blockData));
+      const liveEntity = liveEntityById.get(object.state.objectId);
+      saver.xferUser(
+        liveEntity
+          ? new Uint8Array(buildSourceMapEntityChunk(
+              overlaySourceObjectStateFromLiveEntity(object.state, liveEntity),
+            ))
+          : new Uint8Array(object.blockData),
+      );
       saver.endBlock();
     }
 
