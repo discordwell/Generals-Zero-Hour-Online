@@ -20,7 +20,7 @@ import {
   DEFAULT_EMP_RADIUS,
   DEFAULT_EMP_DAMAGE,
 } from './special-power-effects.js';
-import { readStringField } from './ini-readers.js';
+import { readNumericField, readStringField } from './ini-readers.js';
 import {
   LOGIC_FRAME_RATE,
   PATHFIND_CELL_SIZE,
@@ -1801,11 +1801,18 @@ export function triggerSpecialAbilityEffect(self: GL,
           }, effectContext);
           break;
         case 'DEFECTOR':
+          {
+            const specialPowerDef = self.resolveSpecialPowerDefByName(profile.specialPowerTemplateName);
+            const detectionFrames = specialPowerDef
+              ? self.msToLogicFrames(readNumericField(specialPowerDef.fields, ['DetectionTime']) ?? 0)
+              : 0;
           executeDefectorImpl({
             sourceEntityId: entity.id,
             sourceSide,
             targetEntityId: state.targetEntityId,
+            detectionFrames,
           }, effectContext);
+          }
           break;
         default: {
           // Source parity: SpecialAbilityUpdate::triggerAbilityEffect —

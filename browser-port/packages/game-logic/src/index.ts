@@ -3343,6 +3343,8 @@ export interface MapEntity {
   originalOwningSide: string;
   /** Source parity: Object::isCaptured() runtime state. */
   capturedFromOriginalOwner: boolean;
+  /** Source parity: ObjectDefectionHelper detection expiry for UNDETECTED_DEFECTOR. */
+  undetectedDefectorUntilFrame: number;
   controllingPlayerToken: string | null;
   /** Source parity: MapObject originalOwner team token used for script-team membership on map load. */
   sourceTeamNameUpper?: string | null;
@@ -12175,6 +12177,7 @@ export class GameLogicSubsystem implements Subsystem {
         entityId: entity.id,
         privateStatus:
           (entity.destroyed ? 0x01 : 0)
+          | (entity.undetectedDefectorUntilFrame > this.frameCounter ? 0x02 : 0)
           | (entity.capturedFromOriginalOwner ? 0x04 : 0)
           | (this.isEntityOffMap(entity) ? 0x08 : 0),
         specialModelConditionUntil: entity.cheerTimerFrames > 0
@@ -12994,6 +12997,7 @@ export class GameLogicSubsystem implements Subsystem {
     const effectiveDt = this.resolveEffectiveSimulationDeltaTime(dt);
     this.animationTime += effectiveDt;
     this.frameCounter++;
+    this.updateUndetectedDefectorState();
     this.resetScriptWaypointPathCompletions();
     if (!this.scriptEndGameTimerActive) {
       this.updateScriptCountdownTimers();
@@ -17830,6 +17834,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
     entity.side = normalizedTargetSide;
     entity.controllingPlayerToken = normalizedTargetToken;
+    entity.undetectedDefectorUntilFrame = 0;
     entity.capturedFromOriginalOwner =
       entity.originalOwningSide.length > 0 && normalizedTargetSide !== entity.originalOwningSide;
     if (sideChanged) {
@@ -21615,7 +21620,12 @@ export class GameLogicSubsystem implements Subsystem {
     return this.executePendingUpgradeModules(entityId, entity);
   }
 
-  private captureEntity(entityId: number, newSide: string, newControllingPlayerToken: string | null = null): void {
+  private captureEntity(
+    entityId: number,
+    newSide: string,
+    newControllingPlayerToken: string | null = null,
+    undetectedDefectorFrames = 0,
+  ): void {
     const entity = this.spawnedEntities.get(entityId);
     if (!entity || entity.destroyed) {
       return;
@@ -21630,6 +21640,9 @@ export class GameLogicSubsystem implements Subsystem {
     // Transfer base energy between sides on capture.
     this.unregisterEntityEnergy(entity);
     entity.side = normalizedNewSide;
+    entity.undetectedDefectorUntilFrame = undetectedDefectorFrames > 0
+      ? this.frameCounter + Math.max(0, Math.trunc(undetectedDefectorFrames))
+      : 0;
     entity.capturedFromOriginalOwner =
       entity.originalOwningSide.length > 0 && normalizedNewSide !== entity.originalOwningSide;
     entity.controllingPlayerToken = (
@@ -25894,11 +25907,18 @@ export class GameLogicSubsystem implements Subsystem {
         }, effectContext);
         break;
       case 'DEFECTOR':
+        {
+          const specialPowerDef = this.resolveSpecialPowerDefByName(module.specialPowerTemplateName);
+          const detectionFrames = specialPowerDef
+            ? this.msToLogicFrames(readNumericField(specialPowerDef.fields, ['DetectionTime']) ?? 0)
+            : 0;
         executeDefectorImpl({
           sourceEntityId,
           sourceSide,
           targetEntityId,
+          detectionFrames,
         }, effectContext);
+        }
         break;
     }
 
@@ -29139,8 +29159,8 @@ export class GameLogicSubsystem implements Subsystem {
       withdrawCredits: (side, amount) => {
         return withdrawSideCreditsImpl(this.sideCredits, this.normalizeSide(side), amount);
       },
-      changeEntitySide: (entityId, newSide) => {
-        this.captureEntity(entityId, newSide);
+      changeEntitySide: (entityId, newSide, undetectedDefectorFrames) => {
+        this.captureEntity(entityId, newSide, null, undetectedDefectorFrames ?? 0);
       },
       destroyEntity: (entityId, attackerId) => {
         this.markEntityDestroyed(entityId, attackerId);
@@ -32593,6 +32613,7 @@ export class GameLogicSubsystem implements Subsystem {
     // onExit() clears it.
     if (isAiming) {
       if (entity.attackSubState !== 'IDLE') {
+        this.clearUndetectedDefectorStateForEntity(entity);
         entity.attackSubState = 'AIMING';
         entity.objectStatusFlags.add('IS_AIMING_WEAPON');
       }
@@ -32609,6 +32630,7 @@ export class GameLogicSubsystem implements Subsystem {
     // onExit() clears IS_FIRING_WEAPON and IGNORING_STEALTH.
     if (isFiring) {
       if (entity.attackSubState !== 'IDLE') {
+        this.clearUndetectedDefectorStateForEntity(entity);
         entity.attackSubState = 'FIRING';
         entity.objectStatusFlags.add('IS_FIRING_WEAPON');
       }
@@ -32631,6 +32653,25 @@ export class GameLogicSubsystem implements Subsystem {
       entity.objectStatusFlags.add('IGNORING_STEALTH');
     } else {
       entity.objectStatusFlags.delete('IGNORING_STEALTH');
+    }
+  }
+
+  private clearUndetectedDefectorStateForEntity(entity: MapEntity): void {
+    entity.undetectedDefectorUntilFrame = 0;
+  }
+
+  private updateUndetectedDefectorState(): void {
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.undetectedDefectorUntilFrame <= 0) {
+        continue;
+      }
+      if (
+        entity.destroyed
+        || entity.undetectedDefectorUntilFrame <= this.frameCounter
+        || entity.objectStatusFlags.has('IS_FIRING_WEAPON')
+      ) {
+        this.clearUndetectedDefectorStateForEntity(entity);
+      }
     }
   }
 

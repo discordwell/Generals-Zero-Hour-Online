@@ -46,7 +46,7 @@ export interface SpecialPowerEffectContext<TEntity extends SpecialPowerEntity> {
   withdrawCredits(side: string, amount: number): number;
 
   /** Change an entity's side (defect). */
-  changeEntitySide(entityId: number, newSide: string): void;
+  changeEntitySide(entityId: number, newSide: string, undetectedDefectorFrames?: number): void;
 
   /** Destroy an entity. */
   destroyEntity(entityId: number, attackerId: number): void;
@@ -155,6 +155,7 @@ export interface DefectorParams {
   sourceEntityId: number;
   sourceSide: string;
   targetEntityId: number;
+  detectionFrames: number;
 }
 
 /**
@@ -178,7 +179,7 @@ export function executeDefector<TEntity extends SpecialPowerEntity>(
     return false;
   }
 
-  context.changeEntitySide(params.targetEntityId, sourceSide);
+  context.changeEntitySide(params.targetEntityId, sourceSide, params.detectionFrames);
   return true;
 }
 

@@ -24,6 +24,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     side: 'USA',
     originalOwningSide: 'USA',
     capturedFromOriginalOwner: false,
+    undetectedDefectorUntilFrame: 0,
     controllingPlayerToken: 'player1',
     resolved: true,
     bridgeFlags: 0,
@@ -780,6 +781,23 @@ describe('entity-xfer', () => {
     loader.close();
 
     expect(loaded.attackTargetEntityId).toBe(42);
+  });
+
+  it('preserves undetected defector timers', () => {
+    const original = createTestEntity({ undetectedDefectorUntilFrame: 180 });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity({ undetectedDefectorUntilFrame: 0 });
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.undetectedDefectorUntilFrame).toBe(180);
   });
 
   it('preserves movement path (VectorXZ array)', () => {

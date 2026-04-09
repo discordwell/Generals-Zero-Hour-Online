@@ -54,6 +54,7 @@ describe('object xfer overlay state', () => {
     entity.cheerTimerFrames = 3;
     entity.destroyed = true;
     entity.capturedFromOriginalOwner = true;
+    entity.undetectedDefectorUntilFrame = 140;
     entity.objectStatusFlags.add('IS_ATTACKING');
     entity.attackWeapon = { name: 'OverlayCannon', clipSize: 1 };
     entity.attackWeaponSlotIndex = 0;
@@ -61,7 +62,7 @@ describe('object xfer overlay state', () => {
 
     expect(privateLogic.captureSourceObjectXferOverlayState()).toEqual([{
       entityId: 1,
-      privateStatus: 0x0d,
+      privateStatus: 0x0f,
       specialModelConditionUntil: 123,
       lastWeaponCondition: [1, 0, 0],
       modulesReady: true,
