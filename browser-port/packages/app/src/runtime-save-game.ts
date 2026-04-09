@@ -3895,6 +3895,54 @@ function buildSourceAutoFindHealingUpdateBlockData(entity: MapEntity, currentFra
   }
 }
 
+function tryParseSourceRadiusDecalUpdateBlockData(
+  data: Uint8Array,
+): { killWhenNoLongerAttacking: boolean } | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-radius-decal-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    const killWhenNoLongerAttacking = xferLoad.xferBool(false);
+    return xferLoad.getRemaining() === 0
+      ? { killWhenNoLongerAttacking }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceRadiusDecalUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  killWhenNoLongerAttacking: boolean,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-radius-decal-update');
+  try {
+    const hasActiveDecal = entity.radiusDecalStates.some((state) => state.visible);
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(
+        hasActiveDecal ? currentFrame + 1 : SOURCE_FRAME_FOREVER,
+      ),
+    ));
+    saver.xferBool(killWhenNoLongerAttacking);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function sourceWeaponBonusFlagToCondition(flag: number): number {
   if (!Number.isInteger(flag) || flag <= 0 || (flag & (flag - 1)) !== 0) {
     return -1;
@@ -4166,6 +4214,20 @@ function overlaySourceObjectModulesFromLiveEntity(
             return {
               identifier: module.identifier,
               blockData: buildSourceAutoFindHealingUpdateBlockData(entity, currentFrame),
+            };
+          }
+          if (moduleType === 'RADIUSDECALUPDATE') {
+            const parsedSourceState = tryParseSourceRadiusDecalUpdateBlockData(module.blockData);
+            const liveKillWhenNoLongerAttacking = entity.radiusDecalStates.some(
+              (state) => state.killWhenNoLongerAttacking,
+            );
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceRadiusDecalUpdateBlockData(
+                entity,
+                currentFrame,
+                liveKillWhenNoLongerAttacking || (parsedSourceState?.killWhenNoLongerAttacking ?? false),
+              ),
             };
           }
         }
