@@ -3515,6 +3515,8 @@ export interface MapEntity {
   ambientSoundCustomState: AmbientSoundCustomState | null;
   /** Source parity: Object::m_customIndicatorColor override set by script action. */
   customIndicatorColor: number | null;
+  /** Source parity: Object::m_healthBoxOffset, used by SpawnBehavior aggregate units like angry mob. */
+  healthBoxOffset: { x: number; y: number; z: number };
   commandSetStringOverride: string | null;
   locomotorUpgradeEnabled: boolean;
   activeLocomotorSet: string;
@@ -8485,10 +8487,18 @@ export interface GameLogicObjectTriggerAreaSaveState {
   triggerAreas: GameLogicObjectTriggerAreaEntrySaveState[];
 }
 
+const SOURCE_OBJECT_WEAPON_SET_CONDITION_NONE = 0;
+const SOURCE_OBJECT_WEAPON_SET_CONDITION_FIRING = 1;
+const SOURCE_OBJECT_WEAPON_SET_CONDITION_BETWEEN = 2;
+const SOURCE_OBJECT_WEAPON_SET_CONDITION_RELOADING = 3;
+const SOURCE_OBJECT_WEAPON_SET_CONDITION_PREATTACK = 4;
+const SOURCE_OBJECT_WEAPON_SLOT_COUNT = 3;
+
 export interface GameLogicObjectXferOverlayState {
   entityId: number;
   privateStatus: number;
   specialModelConditionUntil: number;
+  lastWeaponCondition: number[];
   modulesReady: boolean;
 }
 
@@ -12170,9 +12180,50 @@ export class GameLogicSubsystem implements Subsystem {
         specialModelConditionUntil: entity.cheerTimerFrames > 0
           ? this.frameCounter + Math.max(1, Math.trunc(entity.cheerTimerFrames))
           : 0,
+        lastWeaponCondition: this.captureSourceObjectLastWeaponCondition(entity),
         modulesReady: true,
       }))
       .sort((left, right) => left.entityId - right.entityId);
+  }
+
+  private captureSourceObjectLastWeaponCondition(entity: MapEntity): number[] {
+    const conditions = Array.from(
+      { length: SOURCE_OBJECT_WEAPON_SLOT_COUNT },
+      () => SOURCE_OBJECT_WEAPON_SET_CONDITION_NONE,
+    );
+    const activeSlot = entity.attackWeaponSlotIndex;
+    if (activeSlot < 0 || activeSlot >= SOURCE_OBJECT_WEAPON_SLOT_COUNT || !entity.attackWeapon) {
+      return conditions;
+    }
+    if (entity.lastShotFrameBySlot[activeSlot] === this.frameCounter) {
+      conditions[activeSlot] = SOURCE_OBJECT_WEAPON_SET_CONDITION_FIRING;
+      return conditions;
+    }
+    if (!entity.objectStatusFlags.has('IS_ATTACKING')) {
+      return conditions;
+    }
+    if (entity.preAttackFinishFrame > this.frameCounter) {
+      conditions[activeSlot] = SOURCE_OBJECT_WEAPON_SET_CONDITION_PREATTACK;
+      return conditions;
+    }
+
+    if (entity.attackWeapon.clipSize > 0 && entity.attackAmmoInClip <= 0) {
+      if (entity.attackReloadFinishFrame > this.frameCounter) {
+        conditions[activeSlot] = SOURCE_OBJECT_WEAPON_SET_CONDITION_RELOADING;
+      }
+      return conditions;
+    }
+    if (entity.nextAttackFrame > this.frameCounter) {
+      conditions[activeSlot] = SOURCE_OBJECT_WEAPON_SET_CONDITION_BETWEEN;
+      return conditions;
+    }
+    if (
+      entity.objectStatusFlags.has('IS_AIMING_WEAPON')
+      || entity.objectStatusFlags.has('IS_FIRING_WEAPON')
+    ) {
+      conditions[activeSlot] = SOURCE_OBJECT_WEAPON_SET_CONDITION_BETWEEN;
+    }
+    return conditions;
   }
 
   restoreSourceGameLogicRuntimeSaveState(state: unknown): void {

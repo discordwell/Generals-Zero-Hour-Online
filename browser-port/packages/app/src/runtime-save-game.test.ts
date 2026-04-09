@@ -2931,6 +2931,7 @@ describe('runtime-save-game', () => {
             visionRange: 250,
             shroudClearingRange: 225,
             customIndicatorColor: 0x12ab34,
+            healthBoxOffset: { x: 6, y: 4, z: -2 },
             constructionPercent: 50,
             completedUpgrades: new Set(['Upgrade_A']),
             receivingDifficultyBonus: true,
@@ -2980,6 +2981,7 @@ describe('runtime-save-game', () => {
           entityId: 7,
           privateStatus: 0x0c,
           specialModelConditionUntil: 77,
+          lastWeaponCondition: [0, 0, 4],
           modulesReady: true,
         }],
         captureBrowserRuntimeSaveState: () => ({ version: 1 }),
@@ -3004,8 +3006,10 @@ describe('runtime-save-game', () => {
     expect(firstObject?.builderId).toBe(17);
     expect(firstObject?.shroudClearingRange).toBe(225);
     expect(firstObject?.indicatorColor).toBe(0xff12ab34 | 0);
+    expect(firstObject?.healthBoxOffset).toEqual({ x: 6, y: 4, z: -2 });
     expect(firstObject?.privateStatus).toBe(0x0c);
     expect(firstObject?.specialModelConditionUntil).toBe(77);
+    expect(firstObject?.lastWeaponCondition).toEqual([0, 0, 4]);
     expect(firstObject?.experienceTracker).toMatchObject({
       currentLevel: 2,
       currentExperience: 500,

@@ -158,6 +158,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     ambientSoundForcedOffExceptRubble: false,
     ambientSoundCustomState: null,
     customIndicatorColor: null,
+    healthBoxOffset: { x: 1, y: 2, z: 3 },
     commandSetStringOverride: null,
     locomotorUpgradeEnabled: false,
     activeLocomotorSet: 'DEFAULT',
@@ -704,6 +705,23 @@ describe('entity-xfer', () => {
 
     expect(loaded.health).toBeCloseTo(275.5);
     expect(loaded.maxHealth).toBeCloseTo(500);
+  });
+
+  it('preserves health-box offsets', () => {
+    const original = createTestEntity({ healthBoxOffset: { x: 6, y: 4, z: -2 } });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity({ healthBoxOffset: { x: 0, y: 0, z: 0 } });
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.healthBoxOffset).toEqual({ x: 6, y: 4, z: -2 });
   });
 
   it('preserves Set<string> (kindOf, completedUpgrades)', () => {

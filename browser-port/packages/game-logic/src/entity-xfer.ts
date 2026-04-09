@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 13;
+const ENTITY_XFER_VERSION = 14;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -2192,6 +2192,13 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     );
     e.waveGuideProfile = xferNullableJsonObject(xfer, e.waveGuideProfile as object | null);
     e.dumbProjectileProfile = xferNullableJsonObject(xfer, e.dumbProjectileProfile as object | null);
+    if (version >= 14) {
+      e.healthBoxOffset = xfer.xferCoord3D(
+        (e.healthBoxOffset as { x: number; y: number; z: number } | undefined) ?? { x: 0, y: 0, z: 0 },
+      );
+    } else {
+      e.healthBoxOffset = { x: 0, y: 0, z: 0 };
+    }
     return;
   }
 
@@ -2218,4 +2225,5 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.spectreGunshipDeploymentProfile = null;
   e.waveGuideProfile = null;
   e.dumbProjectileProfile = null;
+  e.healthBoxOffset = { x: 0, y: 0, z: 0 };
 }

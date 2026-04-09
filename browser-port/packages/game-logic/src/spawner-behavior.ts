@@ -257,6 +257,30 @@ export function updateSpawnBehaviors(self: GL): void {
         }
       }
     }
+
+    let liveSlaveCount = 0;
+    let totalSlaveX = 0;
+    let totalSlaveY = 0;
+    let totalSlaveZ = 0;
+    for (const slaveId of state.slaveIds) {
+      const slave = self.spawnedEntities.get(slaveId);
+      if (!slave || slave.destroyed) {
+        continue;
+      }
+      liveSlaveCount += 1;
+      totalSlaveX += slave.x;
+      totalSlaveY += slave.y;
+      totalSlaveZ += slave.z;
+    }
+    if (liveSlaveCount > 0) {
+      entity.healthBoxOffset = {
+        x: totalSlaveX / liveSlaveCount - entity.x,
+        y: totalSlaveY / liveSlaveCount - entity.y,
+        z: totalSlaveZ / liveSlaveCount - entity.z,
+      };
+    } else {
+      entity.healthBoxOffset = { x: 0, y: 0, z: 0 };
+    }
   }
 }
 

@@ -3404,6 +3404,17 @@ function overlaySourceObjectStateFromLiveEntity(
     indicatorColor: customIndicatorColor !== null
       ? normalizeSourcePackedColor(customIndicatorColor)
       : sourceState.indicatorColor,
+    healthBoxOffset:
+      entity.healthBoxOffset
+      && Number.isFinite(entity.healthBoxOffset.x)
+      && Number.isFinite(entity.healthBoxOffset.y)
+      && Number.isFinite(entity.healthBoxOffset.z)
+        ? {
+            x: entity.healthBoxOffset.x,
+            y: entity.healthBoxOffset.y,
+            z: entity.healthBoxOffset.z,
+          }
+        : sourceState.healthBoxOffset,
     soleHealingBenefactorId: entity.soleHealingBenefactorId ?? sourceState.soleHealingBenefactorId,
     soleHealingBenefactorExpirationFrame: Number.isFinite(entity.soleHealingBenefactorExpirationFrame)
       ? Math.max(0, Math.trunc(entity.soleHealingBenefactorExpirationFrame))
@@ -3416,6 +3427,9 @@ function overlaySourceObjectStateFromLiveEntity(
     weaponBonusCondition: Number.isFinite(entity.weaponBonusConditionFlags)
       ? entity.weaponBonusConditionFlags
       : sourceState.weaponBonusCondition,
+    lastWeaponCondition: Array.isArray(objectXferOverlayState?.lastWeaponCondition)
+      ? [...objectXferOverlayState.lastWeaponCondition]
+      : sourceState.lastWeaponCondition,
     weaponSet: overlaySourceWeaponSetFromLiveEntity(sourceState, entity),
     specialPowerBits: overlaySourceSpecialPowerBitsFromLiveEntity(sourceState, entity),
     commandSetStringOverride: typeof entity.commandSetStringOverride === 'string'
