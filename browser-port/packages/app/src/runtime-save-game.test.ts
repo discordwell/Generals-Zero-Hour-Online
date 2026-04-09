@@ -595,6 +595,32 @@ function createSourceLeafletDropBehaviorBlockData(
   }
 }
 
+function createSourceHijackerUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  targetId: number,
+  ejectX: number,
+  ejectY: number,
+  ejectZ: number,
+  update: boolean,
+  isInVehicle: boolean,
+  wasTargetAirborne: boolean,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-hijacker-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferObjectID(targetId);
+    xferSave.xferCoord3D({ x: ejectX, y: ejectY, z: ejectZ });
+    xferSave.xferBool(update);
+    xferSave.xferBool(isInVehicle);
+    xferSave.xferBool(wasTargetAirborne);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceBaseOnlyObjectHelperBlockData(nextCallFrameAndPhase: number): Uint8Array {
   const xferSave = new XferSave();
   xferSave.open('create-source-base-only-object-helper');
@@ -1150,6 +1176,28 @@ function parseSourceLeafletDropBehaviorBlockData(data: Uint8Array) {
     xferLoad.xferVersion(1);
     return {
       startFrame: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceHijackerUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-hijacker-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      targetId: xferLoad.xferObjectID(0),
+      eject: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      update: xferLoad.xferBool(false),
+      isInVehicle: xferLoad.xferBool(false),
+      wasTargetAirborne: xferLoad.xferBool(false),
     };
   } finally {
     xferLoad.close();
@@ -5367,6 +5415,111 @@ describe('runtime-save-game', () => {
     expect(leafletModule).toBeDefined();
     expect(parseSourceLeafletDropBehaviorBlockData(leafletModule!.blockData)).toEqual({
       startFrame: 96,
+    });
+  });
+
+  it('rewrites source HijackerUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Hijacker',
+      blockData: createSourceHijackerUpdateBlockData((83 << 2) | 2, 21, 1, 2, 3, false, false, false),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source hijacker rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            hijackerUpdateProfile: {
+              parachuteName: 'ParachuteContainer',
+            },
+            hijackerState: {
+              targetId: 44,
+              isInVehicle: true,
+              wasTargetAirborne: true,
+              ejectX: 12,
+              ejectY: 9,
+              ejectZ: 34,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Hijacker'
+            ? 'HIJACKERUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const hijackerModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Hijacker');
+
+    expect(hijackerModule).toBeDefined();
+    expect(parseSourceHijackerUpdateBlockData(hijackerModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      targetId: 44,
+      eject: { x: 12, y: 9, z: 34 },
+      update: true,
+      isInVehicle: true,
+      wasTargetAirborne: true,
     });
   });
 

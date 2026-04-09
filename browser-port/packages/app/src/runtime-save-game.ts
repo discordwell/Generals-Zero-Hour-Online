@@ -3977,6 +3977,30 @@ function buildSourceLeafletDropBehaviorBlockData(entity: MapEntity): Uint8Array 
   }
 }
 
+function buildSourceHijackerUpdateBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-hijacker-update');
+  try {
+    const state = entity.hijackerState;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferObjectID(state?.targetId ?? 0);
+    saver.xferCoord3D({
+      x: state?.ejectX ?? 0,
+      y: state?.ejectY ?? 0,
+      z: state?.ejectZ ?? 0,
+    });
+    saver.xferBool(state !== null);
+    saver.xferBool(state?.isInVehicle === true);
+    saver.xferBool(state?.wasTargetAirborne === true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function sourceWeaponBonusFlagToCondition(flag: number): number {
   if (!Number.isInteger(flag) || flag <= 0 || (flag & (flag - 1)) !== 0) {
     return -1;
@@ -4274,6 +4298,12 @@ function overlaySourceObjectModulesFromLiveEntity(
             return {
               identifier: module.identifier,
               blockData: buildSourceLeafletDropBehaviorBlockData(entity),
+            };
+          }
+          if (moduleType === 'HIJACKERUPDATE' && entity.hijackerState) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceHijackerUpdateBlockData(entity, currentFrame),
             };
           }
         }
