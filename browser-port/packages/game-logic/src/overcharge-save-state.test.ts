@@ -29,6 +29,41 @@ function makeOverchargeBundle() {
 }
 
 describe('overcharge save-state', () => {
+  it('resolves source object module tags through child overrides and parent fallback', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('OverchargeParent', 'China', ['STRUCTURE'], [
+          makeBlock('Behavior', 'HackInternetAIUpdate ModuleTag_Action', {
+            UnpackTime: 1000,
+            PackTime: 1500,
+            CashUpdateDelay: 2000,
+            CashUpdateDelayFast: 1000,
+            RegularCashAmount: 5,
+          }),
+          makeBlock('Behavior', 'OverchargeBehavior ModuleTag_Overcharge', {
+            HealthPercentToDrainPerSecond: '5%',
+            NotAllowedWhenHealthBelowPercent: '20%',
+          }),
+        ]),
+        makeObjectDef('OverchargeChild', 'China', ['STRUCTURE'], [
+          makeBlock('Behavior', 'OverchargeBehavior ModuleTag_Action', {
+            HealthPercentToDrainPerSecond: '8%',
+            NotAllowedWhenHealthBelowPercent: '25%',
+          }),
+        ], {}, 'OverchargeParent'),
+      ],
+    });
+    const registry = makeRegistry(bundle);
+    const map = makeMap([makeMapObject('OverchargeChild', 20, 20)], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    expect(logic.resolveSourceObjectModuleTypeByTag('OverchargeChild', 'ModuleTag_Action')).toBe('OVERCHARGEBEHAVIOR');
+    expect(logic.resolveSourceObjectModuleTypeByTag('OverchargeChild', 'moduletag_overcharge')).toBe('OVERCHARGEBEHAVIOR');
+    expect(logic.resolveSourceObjectModuleTypeByTag('OverchargeChild', 'ModuleTag_Missing')).toBeNull();
+  });
+
   it('stores OverchargeBehavior runtime on entities instead of the browser runtime blob', () => {
     const bundle = makeOverchargeBundle();
     const registry = makeRegistry(bundle);

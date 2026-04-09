@@ -22930,6 +22930,72 @@ export class GameLogicSubsystem implements Subsystem {
     return findObjectDefByName(registry, parentName) ?? undefined;
   }
 
+  private resolveSourceObjectModuleTypeByTagInBlock(
+    block: IniBlock,
+    normalizedModuleTag: string,
+  ): string | null {
+    for (let childIndex = block.blocks.length - 1; childIndex >= 0; childIndex -= 1) {
+      const resolvedFromChild = this.resolveSourceObjectModuleTypeByTagInBlock(
+        block.blocks[childIndex]!,
+        normalizedModuleTag,
+      );
+      if (resolvedFromChild) {
+        return resolvedFromChild;
+      }
+    }
+
+    const tokens = block.name
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0);
+    const moduleType = tokens[0]?.toUpperCase() ?? '';
+    if (!moduleType) {
+      return null;
+    }
+    for (let tokenIndex = tokens.length - 1; tokenIndex >= 1; tokenIndex -= 1) {
+      if ((tokens[tokenIndex] ?? '').toUpperCase() === normalizedModuleTag) {
+        return moduleType;
+      }
+    }
+    return null;
+  }
+
+  private resolveSourceObjectModuleTypeByTagInObjectDef(
+    objectDef: ObjectDef | null | undefined,
+    normalizedModuleTag: string,
+  ): string | null {
+    if (!objectDef) {
+      return null;
+    }
+
+    for (let blockIndex = objectDef.blocks.length - 1; blockIndex >= 0; blockIndex -= 1) {
+      const resolvedFromBlock = this.resolveSourceObjectModuleTypeByTagInBlock(
+        objectDef.blocks[blockIndex]!,
+        normalizedModuleTag,
+      );
+      if (resolvedFromBlock) {
+        return resolvedFromBlock;
+      }
+    }
+
+    return this.resolveSourceObjectModuleTypeByTagInObjectDef(
+      this.resolveObjectDefParent(objectDef),
+      normalizedModuleTag,
+    );
+  }
+
+  /* @internal */ resolveSourceObjectModuleTypeByTag(templateName: string, moduleTag: string): string | null {
+    const normalizedTemplateName = templateName.trim();
+    const normalizedModuleTag = moduleTag.trim().toUpperCase();
+    if (!normalizedTemplateName || !normalizedModuleTag) {
+      return null;
+    }
+    return this.resolveSourceObjectModuleTypeByTagInObjectDef(
+      this.resolveObjectDefByTemplateName(normalizedTemplateName),
+      normalizedModuleTag,
+    );
+  }
+
   /* @internal */ extractHackInternetProfile(objectDef: ObjectDef | undefined): HackInternetProfile | null {
     if (!objectDef) {
       return null;

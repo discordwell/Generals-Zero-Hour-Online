@@ -3460,6 +3460,80 @@ function buildSourceFiringTrackerBlockData(entity: MapEntity, currentFrame: numb
   }
 }
 
+function buildSourceOverchargeBehaviorBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-overcharge-behavior');
+  try {
+    const active = entity.overchargeActive && !entity.destroyed;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      active
+        ? buildSourceUpdateModuleWakeFrame(currentFrame + 1)
+        : buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    ));
+    saver.xferBool(active);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceGrantStealthBehaviorBlockData(
+  data: Uint8Array,
+): { radiusParticleSystemId: number; currentScanRadius: number } | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-grant-stealth-behavior');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    const radiusParticleSystemId = xferLoad.xferUnsignedInt(0);
+    const currentScanRadius = xferLoad.xferReal(0);
+    return xferLoad.getRemaining() === 0
+      ? { radiusParticleSystemId, currentScanRadius }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceGrantStealthBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  radiusParticleSystemId: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-grant-stealth-behavior');
+  try {
+    const profile = entity.grantStealthProfile;
+    const currentScanRadius = Number.isFinite(entity.grantStealthCurrentRadius)
+      ? entity.grantStealthCurrentRadius
+      : (profile?.startRadius ?? 0);
+    const stillExpanding = !entity.destroyed
+      && profile !== null
+      && currentScanRadius < profile.finalRadius;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      stillExpanding
+        ? buildSourceUpdateModuleWakeFrame(currentFrame + 1)
+        : buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    ));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(radiusParticleSystemId)));
+    saver.xferReal(currentScanRadius);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function sourceWeaponBonusFlagToCondition(flag: number): number {
   if (!Number.isInteger(flag) || flag <= 0 || (flag & (flag - 1)) !== 0) {
     return -1;
@@ -3557,6 +3631,8 @@ function overlaySourceObjectModulesFromLiveEntity(
   sourceModules: readonly SourceObjectModuleSaveState[],
   entity: MapEntity,
   currentFrame: number,
+  templateName?: string | null,
+  resolveSourceObjectModuleTypeByTag?: ((templateName: string, moduleTag: string) => string | null) | null,
 ): SourceObjectModuleSaveState[] {
   return sourceModules.map((module) => {
     switch (module.identifier) {
@@ -3601,6 +3677,28 @@ function overlaySourceObjectModulesFromLiveEntity(
           blockData: buildSourceSubdualDamageHelperBlockData(entity, currentFrame),
         };
       default:
+        if (templateName && typeof resolveSourceObjectModuleTypeByTag === 'function') {
+          const moduleType = resolveSourceObjectModuleTypeByTag(templateName, module.identifier)?.trim().toUpperCase() ?? '';
+          if (moduleType === 'OVERCHARGEBEHAVIOR') {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceOverchargeBehaviorBlockData(entity, currentFrame),
+            };
+          }
+          if (moduleType === 'GRANTSTEALTHBEHAVIOR' && entity.grantStealthProfile) {
+            const parsedSourceState = tryParseSourceGrantStealthBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceGrantStealthBehaviorBlockData(
+                  entity,
+                  currentFrame,
+                  parsedSourceState.radiusParticleSystemId,
+                ),
+              };
+            }
+          }
+        }
         return {
           identifier: module.identifier,
           blockData: new Uint8Array(module.blockData),
@@ -3615,6 +3713,8 @@ function overlaySourceObjectStateFromLiveEntity(
   currentFrame: number,
   triggerAreaState?: GameLogicObjectTriggerAreaSaveState | null,
   objectXferOverlayState?: GameLogicObjectXferOverlayState | null,
+  templateName?: string | null,
+  resolveSourceObjectModuleTypeByTag?: ((templateName: string, moduleTag: string) => string | null) | null,
 ): SourceMapEntitySaveState {
   const hasTransform = Number.isFinite(entity.x)
     && Number.isFinite(entity.y)
@@ -3705,7 +3805,13 @@ function overlaySourceObjectStateFromLiveEntity(
       : sourceState.lastWeaponCondition,
     weaponSet: overlaySourceWeaponSetFromLiveEntity(sourceState, entity),
     specialPowerBits: overlaySourceSpecialPowerBitsFromLiveEntity(sourceState, entity),
-    modules: overlaySourceObjectModulesFromLiveEntity(sourceState.modules, entity, currentFrame),
+    modules: overlaySourceObjectModulesFromLiveEntity(
+      sourceState.modules,
+      entity,
+      currentFrame,
+      templateName,
+      resolveSourceObjectModuleTypeByTag,
+    ),
     commandSetStringOverride: typeof entity.commandSetStringOverride === 'string'
       ? entity.commandSetStringOverride
       : sourceState.commandSetStringOverride,
@@ -3722,6 +3828,7 @@ function buildSourceGameLogicChunk(
     campaignState?: RuntimeSaveCampaignState | null;
     coreState?: GameLogicCoreSaveState | null;
     objectXferOverlayStates?: readonly GameLogicObjectXferOverlayState[] | null;
+    resolveSourceObjectModuleTypeByTag?: ((templateName: string, moduleTag: string) => string | null) | null;
   } = {},
 ): Uint8Array {
   const saver = new XferSave();
@@ -3761,6 +3868,8 @@ function buildSourceGameLogicChunk(
                 coreState?.frameCounter ?? sourceState.frameCounter,
                 liveTriggerAreaStateByEntityId.get(liveEntity.id),
                 objectXferOverlayStateByEntityId.get(liveEntity.id),
+                object.templateName ?? liveEntity.templateName,
+                options.resolveSourceObjectModuleTypeByTag,
               ),
             ))
           : new Uint8Array(object.blockData),
@@ -7339,7 +7448,7 @@ export function buildRuntimeSaveFile(params: {
     | 'captureSourcePlayerRuntimeSaveState'
     | 'captureSourceGameLogicRuntimeSaveState'
     | 'getObjectIdCounter'
-  > & Partial<Pick<GameLogicSubsystem, 'captureSourceObjectXferOverlayState'>>);
+  > & Partial<Pick<GameLogicSubsystem, 'captureSourceObjectXferOverlayState' | 'resolveSourceObjectModuleTypeByTag'>>);
   embeddedMapBytes?: Uint8Array | null;
   sourceGameMode?: number;
   campaign?: RuntimeSaveCampaignBootstrap | null;
@@ -7474,6 +7583,10 @@ export function buildRuntimeSaveFile(params: {
               campaignState,
               coreState: gameLogicPayload,
               objectXferOverlayStates: objectXferOverlayPayload,
+              resolveSourceObjectModuleTypeByTag:
+                typeof params.gameLogic.resolveSourceObjectModuleTypeByTag === 'function'
+                  ? params.gameLogic.resolveSourceObjectModuleTypeByTag.bind(params.gameLogic)
+                  : null,
             })
           : passthroughBlock.blockData,
       ),
