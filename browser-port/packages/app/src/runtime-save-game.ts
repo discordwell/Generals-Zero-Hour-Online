@@ -3062,6 +3062,14 @@ function buildSourceTransformMatrixValues(
   ];
 }
 
+function normalizeSourcePackedColor(value: number): number {
+  const packedColor = Math.trunc(value) | 0;
+  if ((packedColor >>> 24) !== 0) {
+    return packedColor;
+  }
+  return packedColor | 0xff000000;
+}
+
 function normalizeSourceObjectStatusName(statusName: string): string | null {
   const normalized = statusName.trim().toUpperCase();
   if (!normalized || normalized === 'NONE') {
@@ -3272,6 +3280,10 @@ function overlaySourceObjectStateFromLiveEntity(
     && Number.isFinite(entity.rotationY);
   const scriptStatus = collectSourceScriptStatus(entity);
   const disabledState = resolveSourceDisabledState(sourceState, entity, scriptStatus);
+  const customIndicatorColor = typeof entity.customIndicatorColor === 'number'
+    && Number.isFinite(entity.customIndicatorColor)
+      ? entity.customIndicatorColor
+      : null;
   return {
     ...sourceState,
     objectId: entity.id,
@@ -3316,6 +3328,9 @@ function overlaySourceObjectStateFromLiveEntity(
       ? [...entity.completedUpgrades].sort()
       : sourceState.completedUpgradeNames,
     originalTeamName: entity.sourceTeamNameUpper?.trim().toUpperCase() || sourceState.originalTeamName,
+    indicatorColor: customIndicatorColor !== null
+      ? normalizeSourcePackedColor(customIndicatorColor)
+      : sourceState.indicatorColor,
     soleHealingBenefactorId: entity.soleHealingBenefactorId ?? sourceState.soleHealingBenefactorId,
     soleHealingBenefactorExpirationFrame: Number.isFinite(entity.soleHealingBenefactorExpirationFrame)
       ? Math.max(0, Math.trunc(entity.soleHealingBenefactorExpirationFrame))

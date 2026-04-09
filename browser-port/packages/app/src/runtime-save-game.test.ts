@@ -2917,6 +2917,7 @@ describe('runtime-save-game', () => {
             sourceTeamNameUpper: 'TEAMSTATUS',
             visionRange: 250,
             shroudClearingRange: 225,
+            customIndicatorColor: 0x12ab34,
             constructionPercent: 50,
             completedUpgrades: new Set(['Upgrade_A']),
             receivingDifficultyBonus: true,
@@ -2979,6 +2980,7 @@ describe('runtime-save-game', () => {
     expect(firstObject?.disabledTillFrame[11]).toBe(0x3fffffff);
     expect(firstObject?.builderId).toBe(17);
     expect(firstObject?.shroudClearingRange).toBe(225);
+    expect(firstObject?.indicatorColor).toBe(0xff12ab34 | 0);
     expect(firstObject?.experienceTracker).toMatchObject({
       currentLevel: 2,
       currentExperience: 500,
