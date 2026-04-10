@@ -34,6 +34,7 @@ describe('INI-driven stealth and detection', () => {
     moveThresholdSpeed?: number;
     detectionRange?: number;
     detectionRate?: number;
+    detectorInitiallyDisabled?: boolean;
     extraRequiredKindOf?: string;
     extraForbiddenKindOf?: string;
     detectorSide?: string;
@@ -44,6 +45,7 @@ describe('INI-driven stealth and detection', () => {
     const moveThresholdSpeed = options.moveThresholdSpeed ?? 0;
     const detectionRange = options.detectionRange ?? 0;
     const detectionRate = options.detectionRate ?? 33;
+    const detectorInitiallyDisabled = options.detectorInitiallyDisabled ?? false;
     const detectorSide = options.detectorSide ?? 'China';
     const extraRequiredKindOf = options.extraRequiredKindOf ?? '';
     const extraForbiddenKindOf = options.extraForbiddenKindOf ?? '';
@@ -64,6 +66,7 @@ describe('INI-driven stealth and detection', () => {
           makeBlock('Behavior', 'StealthDetectorUpdate ModuleTag_Detector', {
             DetectionRange: detectionRange,
             DetectionRate: detectionRate,
+            InitiallyDisabled: detectorInitiallyDisabled ? 'Yes' : 'No',
             ExtraRequiredKindOf: extraRequiredKindOf,
             ExtraForbiddenKindOf: extraForbiddenKindOf,
           }),
@@ -100,6 +103,36 @@ describe('INI-driven stealth and detection', () => {
 
     const afterFlags = logic.getEntityState(1)?.statusFlags ?? [];
     expect(afterFlags).toContain('STEALTHED');
+  });
+
+  it('initially disabled detector does not reveal stealthed enemies', () => {
+    const bundle = makeStealthBundle({
+      stealthDelay: 100,
+      detectionRange: 200,
+      detectionRate: 33,
+      detectorInitiallyDisabled: true,
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('StealthUnit', 105, 105),
+        makeMapObject('DetectorUnit', 115, 105),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+    setupRelationships(logic);
+
+    expect(logic.getEntityState(2)?.detectorEnabled).toBe(false);
+
+    for (let i = 0; i < 20; i++) {
+      logic.update(1 / 30);
+    }
+
+    const stealthFlags = logic.getEntityState(1)?.statusFlags ?? [];
+    expect(stealthFlags).toContain('STEALTHED');
+    expect(stealthFlags).not.toContain('DETECTED');
   });
 
   it('stealth breaks on damage when TAKING_DAMAGE forbidden condition is set', () => {

@@ -497,6 +497,7 @@ export function createMapEntity(self: GL,
     scriptLastDamageSourceSide: null,
     lastDamageInfoFrame: 0,
     detectorProfile: self.extractDetectorProfile(objectDef),
+    detectorEnabled: false,
     detectorNextScanFrame: 0,
     autoHealProfile: extractAutoHealProfile(self, objectDef),
     autoHealNextFrame: 0,
@@ -932,8 +933,11 @@ export function createMapEntity(self: GL,
 
   // Source parity: StealthDetectorUpdate init — stagger initial scan with random offset.
   if (entity.detectorProfile) {
-    entity.detectorNextScanFrame = self.frameCounter
-      + self.gameRandom.nextRange(1, entity.detectorProfile.detectionRate);
+    entity.detectorEnabled = !entity.detectorProfile.initiallyDisabled;
+    if (entity.detectorEnabled) {
+      entity.detectorNextScanFrame = self.frameCounter
+        + self.gameRandom.nextRange(1, entity.detectorProfile.detectionRate);
+    }
   }
 
   // Source parity: BattlePlanUpdate init — initialize state machine.

@@ -241,6 +241,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     scriptLastDamageSourceSide: null,
     lastDamageInfoFrame: 0,
     detectorProfile: null,
+    detectorEnabled: false,
     detectorNextScanFrame: 0,
 
     // Healing

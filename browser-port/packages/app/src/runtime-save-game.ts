@@ -4268,6 +4268,69 @@ function buildSourceDynamicShroudClearingRangeUpdateBlockData(
   }
 }
 
+function tryParseSourceStealthDetectorUpdateBlockData(
+  data: Uint8Array,
+): { enabled: boolean } | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-stealth-detector-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    const enabled = xferLoad.xferBool(false);
+    return xferLoad.getRemaining() === 0 ? { enabled } : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceStealthDetectorUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-stealth-detector-update');
+  try {
+    const nextCallFrame = entity.detectorEnabled
+      ? Math.max(currentFrame + 1, Math.trunc(entity.detectorNextScanFrame))
+      : SOURCE_FRAME_FOREVER;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
+    ));
+    saver.xferBool(entity.detectorEnabled === true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceFloatUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-float-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferBool(entity.floatUpdateProfile?.enabled === true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourcePilotFindVehicleUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -5602,6 +5665,21 @@ function overlaySourceObjectModulesFromLiveEntity(
                 ),
               };
             }
+          }
+          if (moduleType === 'STEALTHDETECTORUPDATE' && entity.detectorProfile) {
+            const parsedSourceState = tryParseSourceStealthDetectorUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceStealthDetectorUpdateBlockData(entity, currentFrame),
+              };
+            }
+          }
+          if (moduleType === 'FLOATUPDATE' && entity.floatUpdateProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceFloatUpdateBlockData(entity, currentFrame),
+            };
           }
           if (moduleType === 'PILOTFINDVEHICLEUPDATE' && entity.pilotFindVehicleProfile) {
             return {

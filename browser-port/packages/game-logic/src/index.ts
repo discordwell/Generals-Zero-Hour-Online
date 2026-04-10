@@ -3691,6 +3691,8 @@ export interface MapEntity {
   lastDamageInfoFrame: number;
   /** Source parity: StealthDetectorUpdate — parsed detector module profile. */
   detectorProfile: DetectorProfile | null;
+  /** Source parity: StealthDetectorUpdate::m_enabled. */
+  detectorEnabled: boolean;
   /** Frame at which next detection scan is allowed (rate throttle). */
   detectorNextScanFrame: number;
   /** Source parity: AutoHealBehavior — self-heal state. */
@@ -4737,6 +4739,8 @@ interface DetectorProfile {
   detectionRange: number;
   /** Frames between detection scans (throttle). */
   detectionRate: number;
+  /** Source parity: StealthDetectorUpdateModuleData::m_initiallyDisabled. */
+  initiallyDisabled: boolean;
   /** Can detect while garrisoned inside a building. */
   canDetectWhileGarrisoned: boolean;
   /** Can detect while contained in a transport. */
@@ -14349,6 +14353,8 @@ export class GameLogicSubsystem implements Subsystem {
     visionRange: number;
     shroudClearingRange: number;
     shroudRange: number;
+    detectorEnabled?: boolean;
+    detectorNextScanFrame?: number;
     modelConditionFlags: string[];
     battlePlanDamageScalar: number;
     moving: boolean;
@@ -14412,6 +14418,8 @@ export class GameLogicSubsystem implements Subsystem {
       shroudClearingRange: entity.shroudClearingRange,
       modelConditionFlags: Array.from(entity.modelConditionFlags),
       shroudRange: entity.shroudRange,
+      detectorEnabled: entity.detectorProfile ? entity.detectorEnabled : undefined,
+      detectorNextScanFrame: entity.detectorProfile ? entity.detectorNextScanFrame : undefined,
       battlePlanDamageScalar: entity.battlePlanDamageScalar,
       moving: entity.moving,
       movePath: entity.movePath,

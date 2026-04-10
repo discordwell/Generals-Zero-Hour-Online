@@ -220,6 +220,7 @@ export function extractDetectorProfile(self: GL, objectDef: ObjectDef | undefine
         const detectionRange = readNumericField(block.fields, ['DetectionRange']) ?? 0;
         const detectionRateMs = readNumericField(block.fields, ['DetectionRate']) ?? 33;
         const detectionRate = Math.max(1, self.msToLogicFrames(detectionRateMs));
+        const initiallyDisabled = readBooleanField(block.fields, ['InitiallyDisabled']) ?? false;
         const canDetectWhileGarrisoned = readBooleanField(block.fields, ['CanDetectWhileGarrisoned']) ?? false;
         const canDetectWhileContained = readBooleanField(block.fields, ['CanDetectWhileContained']) ?? false;
 
@@ -238,6 +239,7 @@ export function extractDetectorProfile(self: GL, objectDef: ObjectDef | undefine
         profile = {
           detectionRange,
           detectionRate,
+          initiallyDisabled,
           canDetectWhileGarrisoned,
           canDetectWhileContained,
           extraRequiredKindOf,
@@ -644,6 +646,7 @@ export function updateDetection(self: GL): void {
     // Source parity: detector needs either KINDOF_DETECTOR or a StealthDetectorUpdate module.
     const profile = detector.detectorProfile;
     if (!detector.kindOf.has('DETECTOR') && !profile) continue;
+    if (profile && !detector.detectorEnabled) continue;
 
     // Source parity: detector must be fully constructed and not sold.
     if (detector.constructionPercent !== CONSTRUCTION_COMPLETE) continue;

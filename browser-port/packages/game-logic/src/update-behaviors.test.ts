@@ -2948,6 +2948,13 @@ describe('BattlePlanUpdate', () => {
         ValidMemberKindOf: opts?.validMemberKindOf ?? '',
         InvalidMemberKindOf: opts?.invalidMemberKindOf ?? '',
       }),
+      ...(opts?.strategyCenterDetectsStealth
+        ? [makeBlock('Behavior', 'StealthDetectorUpdate ModuleTag_Detector', {
+          DetectionRange: 0,
+          DetectionRate: 330,
+          InitiallyDisabled: 'Yes',
+        })]
+        : []),
       makeBlock('Behavior', 'SpecialPowerModule BattlePlanBombardment', {
         SpecialPowerTemplate: PLAN_POWERS.BOMBARDMENT,
       }),
@@ -3069,6 +3076,27 @@ describe('BattlePlanUpdate', () => {
     const rangerState = logic.getEntityState(2)!;
     expect(rangerState.weaponBonusConditionFlags & (1 << 14)).toBe(1 << 14);
     expect(rangerState.visionRange).toBeCloseTo(225, 0); // 150 * 1.5
+  });
+
+  it('toggles Strategy Center detector state instead of destroying the detector module', () => {
+    const { logic } = makeBattlePlanSetup({ strategyCenterDetectsStealth: true });
+
+    expect(logic.getEntityState(1)!.detectorProfile).not.toBeNull();
+    expect(logic.getEntityState(1)!.detectorEnabled).toBe(false);
+
+    issueBattlePlan(logic, 1, 'SEARCHANDDESTROY');
+    logic.update(0);
+    for (let i = 0; i < ANIM_FRAMES; i++) logic.update(1 / 30);
+
+    expect(logic.getEntityState(1)!.detectorProfile).not.toBeNull();
+    expect(logic.getEntityState(1)!.detectorEnabled).toBe(true);
+    expect(logic.getEntityState(1)!.detectorNextScanFrame).toBeGreaterThan(0);
+
+    issueBattlePlan(logic, 1, 'HOLDTHELINE');
+    logic.update(0);
+
+    expect(logic.getEntityState(1)!.detectorProfile).not.toBeNull();
+    expect(logic.getEntityState(1)!.detectorEnabled).toBe(false);
   });
 
   it('paralyzes troops when switching between active plans', () => {
@@ -6505,7 +6533,8 @@ describe('OCLUpdate', () => {
     const { logic } = makeOCLUpdateSetup({ minDelayMs: 500, maxDelayMs: 500 });
 
     const priv = logic as unknown as {
-      spawnedEntities: Map<number, { objectStatusFlags: Set<string> }>;
+      frameCounter: number;
+      spawnedEntities: Map<number, { objectStatusFlags: Set<string>; disabledEmpUntilFrame: number }>;
     };
     const spawner = priv.spawnedEntities.get(1)!;
 
@@ -6514,6 +6543,7 @@ describe('OCLUpdate', () => {
 
     // Disable with EMP.
     spawner.objectStatusFlags.add('DISABLED_EMP');
+    spawner.disabledEmpUntilFrame = priv.frameCounter + 30;
 
     // Run 30 frames while disabled — timer should be paused.
     for (let i = 0; i < 30; i++) logic.update(1 / 30);

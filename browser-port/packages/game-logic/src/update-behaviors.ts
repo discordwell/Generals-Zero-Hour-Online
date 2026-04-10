@@ -2400,19 +2400,10 @@ export function applyBattlePlanBonuses(self: GL, source: MapEntity, plan: Battle
         source.shroudClearingRange = source.baseShroudClearingRange;
       }
       // Stealth detection toggling on the building.
-      if (profile.strategyCenterSearchAndDestroyDetectsStealth) {
-        if (apply && !source.detectorProfile) {
-          // Enable stealth detection on the building.
-          source.detectorProfile = {
-            detectionRange: source.visionRange,
-            detectionRate: 10,
-            canDetectWhileGarrisoned: true,
-            canDetectWhileContained: false,
-            extraRequiredKindOf: new Set(),
-            extraForbiddenKindOf: new Set(),
-          };
-        } else if (!apply) {
-          source.detectorProfile = null;
+      if (profile.strategyCenterSearchAndDestroyDetectsStealth && source.detectorProfile) {
+        source.detectorEnabled = apply;
+        if (apply) {
+          source.detectorNextScanFrame = self.frameCounter;
         }
       }
     }
