@@ -6482,10 +6482,16 @@ interface NeutronMissileRuntimeState {
   intermedX: number;
   intermedY: number;
   intermedZ: number;
+  accelX: number;
+  accelY: number;
+  accelZ: number;
   velX: number;
   velY: number;
   velZ: number;
   launcherId: number;
+  attachWeaponSlot: number;
+  attachSpecificBarrelToUse: number;
+  stateTimestamp: number;
   isArmed: boolean;
   isLaunched: boolean;
   noTurnDistLeft: number;
@@ -36625,6 +36631,7 @@ export class GameLogicSubsystem implements Subsystem {
         entity.y += st.velY;
         entity.z += st.velZ;
         st.state = 'ATTACK';
+        st.stateTimestamp = this.frameCounter;
         st.isArmed = true;
         st.isLaunched = true;
         st.frameAtLaunch = this.frameCounter;
@@ -36659,6 +36666,9 @@ export class GameLogicSubsystem implements Subsystem {
           const accelY = speed * dirY - damping * st.velY;
           const accelZ = speed * dirZ - damping * st.velZ;
 
+          st.accelX = accelX;
+          st.accelY = accelY;
+          st.accelZ = accelZ;
           st.velX += accelX;
           st.velY += accelY;
           st.velZ += accelZ;
@@ -36715,8 +36725,12 @@ export class GameLogicSubsystem implements Subsystem {
       intermedX: targetX,
       intermedY: _targetY + prof.targetFromDirectlyAbove,
       intermedZ: targetZ,
+      accelX: 0, accelY: 0, accelZ: 0,
       velX: 0, velY: 0, velZ: 0,
       launcherId,
+      attachWeaponSlot: 0,
+      attachSpecificBarrelToUse: 0,
+      stateTimestamp: this.frameCounter,
       isArmed: false,
       isLaunched: false,
       noTurnDistLeft: prof.initialDist,

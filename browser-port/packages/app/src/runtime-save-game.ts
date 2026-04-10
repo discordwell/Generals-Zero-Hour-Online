@@ -4791,24 +4791,19 @@ function sourceNeutronMissileStateToInt(
   }
 }
 
-function buildDefaultSourceNeutronMissileRawLaunchParamsBytes(currentFrame: number): Uint8Array {
-  const saver = new XferSave();
-  saver.open('build-default-source-neutron-missile-raw-launch-params');
-  try {
-    saver.xferInt(0);
-    saver.xferInt(0);
-    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
-    saver.xferUnsignedInt(Math.max(0, Math.trunc(currentFrame)));
-    return new Uint8Array(saver.getBuffer());
-  } finally {
-    saver.close();
-  }
+function parseSourceRawInt32Bytes(bytes: Uint8Array): number {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return view.getInt32(0, true);
 }
 
 function tryParseSourceNeutronMissileUpdateBlockData(
   data: Uint8Array,
 ): {
-  rawLaunchParamsBytes: Uint8Array;
+  attachWeaponSlot: number;
+  attachSpecificBarrelToUse: number;
+  accel: { x: number; y: number; z: number };
+  vel: { x: number; y: number; z: number };
+  stateTimestamp: number;
   rawTailBytes: Uint8Array;
 } | null {
   const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
@@ -4827,7 +4822,11 @@ function tryParseSourceNeutronMissileUpdateBlockData(
     xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
     xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
     xferLoad.xferObjectID(0);
-    const rawLaunchParamsBytes = xferLoad.xferUser(new Uint8Array(24));
+    const attachWeaponSlot = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const attachSpecificBarrelToUse = xferLoad.xferInt(0);
+    const accel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const vel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const stateTimestamp = xferLoad.xferUnsignedInt(0);
     xferLoad.xferBool(false);
     xferLoad.xferBool(false);
     xferLoad.xferReal(0);
@@ -4839,7 +4838,11 @@ function tryParseSourceNeutronMissileUpdateBlockData(
       ? xferLoad.xferUser(new Uint8Array(remaining))
       : new Uint8Array();
     return {
-      rawLaunchParamsBytes,
+      attachWeaponSlot,
+      attachSpecificBarrelToUse,
+      accel,
+      vel,
+      stateTimestamp,
       rawTailBytes,
     };
   } catch {
@@ -4853,7 +4856,11 @@ function buildSourceNeutronMissileUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
   preservedState?: {
-    rawLaunchParamsBytes: Uint8Array;
+    attachWeaponSlot: number;
+    attachSpecificBarrelToUse: number;
+    accel: { x: number; y: number; z: number };
+    vel: { x: number; y: number; z: number };
+    stateTimestamp: number;
     rawTailBytes: Uint8Array;
   } | null,
 ): Uint8Array {
@@ -4861,12 +4868,9 @@ function buildSourceNeutronMissileUpdateBlockData(
   saver.open('build-source-neutron-missile-update');
   try {
     const state = entity.neutronMissileUpdateState;
-    const rawLaunchParamsBytes = preservedState?.rawLaunchParamsBytes?.byteLength === 24
-      ? preservedState.rawLaunchParamsBytes
-      : buildDefaultSourceNeutronMissileRawLaunchParamsBytes(currentFrame);
     saver.xferVersion(1);
     saver.xferUser(buildSourceUpdateModuleBaseBlockData(
-      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+      buildSourceUpdateModuleWakeFrame((state?.state ?? 'PRELAUNCH') !== 'DEAD' ? currentFrame + 1 : SOURCE_FRAME_FOREVER),
     ));
     saver.xferUser(
       sourceNeutronMissileStateToInt(state?.state ?? 'PRELAUNCH'),
@@ -4884,7 +4888,21 @@ function buildSourceNeutronMissileUpdateBlockData(
       z: state?.intermedZ ?? 0,
     });
     saver.xferObjectID(Math.max(0, Math.trunc(state?.launcherId ?? 0)));
-    saver.xferUser(rawLaunchParamsBytes);
+    saver.xferUser(buildSourceRawInt32Bytes(
+      Math.trunc(state?.attachWeaponSlot ?? preservedState?.attachWeaponSlot ?? 0),
+    ));
+    saver.xferInt(Math.trunc(state?.attachSpecificBarrelToUse ?? preservedState?.attachSpecificBarrelToUse ?? 0));
+    saver.xferCoord3D({
+      x: state?.accelX ?? preservedState?.accel.x ?? 0,
+      y: state?.accelY ?? preservedState?.accel.y ?? 0,
+      z: state?.accelZ ?? preservedState?.accel.z ?? 0,
+    });
+    saver.xferCoord3D({
+      x: state?.velX ?? preservedState?.vel.x ?? 0,
+      y: state?.velY ?? preservedState?.vel.y ?? 0,
+      z: state?.velZ ?? preservedState?.vel.z ?? 0,
+    });
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.stateTimestamp ?? preservedState?.stateTimestamp ?? 0)));
     saver.xferBool(state?.isLaunched === true);
     saver.xferBool(state?.isArmed === true);
     saver.xferReal(state?.noTurnDistLeft ?? 0);
@@ -5062,6 +5080,8 @@ function buildSourceSpecialAbilityUpdateBlockData(
   try {
     const profile = entity.specialAbilityProfile;
     const state = entity.specialAbilityState;
+    const ownsSpecialObjects = typeof profile?.specialObject === 'string'
+      && profile.specialObject.trim().length > 0;
     const nextCallFrame = state?.active === true || profile?.alwaysValidateSpecialObjects === true
       ? currentFrame + 1
       : SOURCE_FRAME_FOREVER;
@@ -5087,9 +5107,9 @@ function buildSourceSpecialAbilityUpdateBlockData(
     saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.animFrames ?? 0)));
     saver.xferObjectID(Math.max(0, Math.trunc(targetEntityId ?? 0)));
     saver.xferCoord3D(targetPos);
-    saver.xferInt(Math.trunc(preservedState?.locationCount ?? 0));
-    saver.xferObjectIDList(preservedState?.specialObjectIdList ?? []);
-    saver.xferUnsignedInt(Math.max(0, Math.trunc(preservedState?.specialObjectEntries ?? 0)));
+    saver.xferInt(Math.trunc(ownsSpecialObjects ? (preservedState?.locationCount ?? 0) : 0));
+    saver.xferObjectIDList(ownsSpecialObjects ? (preservedState?.specialObjectIdList ?? []) : []);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(ownsSpecialObjects ? (preservedState?.specialObjectEntries ?? 0) : 0)));
     saver.xferBool(state?.noTargetCommand === true);
     saver.xferUser(
       sourceSpecialAbilityPackingStateToInt(state?.packingState ?? 'NONE'),

@@ -1002,6 +1002,7 @@ function createRawNeutronMissileLaunchParamsBytes(
   attachWeaponSlot: number,
   attachSpecificBarrelToUse: number,
   accel: { x: number; y: number; z: number },
+  vel: { x: number; y: number; z: number },
   stateTimestamp: number,
 ): Uint8Array {
   const xferSave = new XferSave();
@@ -1010,6 +1011,7 @@ function createRawNeutronMissileLaunchParamsBytes(
     xferSave.xferInt(attachWeaponSlot);
     xferSave.xferInt(attachSpecificBarrelToUse);
     xferSave.xferCoord3D(accel);
+    xferSave.xferCoord3D(vel);
     xferSave.xferUnsignedInt(stateTimestamp);
     return new Uint8Array(xferSave.getBuffer());
   } finally {
@@ -2456,7 +2458,11 @@ function parseSourceNeutronMissileUpdateBlockData(data: Uint8Array) {
     const targetPos = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
     const intermedPos = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
     const launcherId = xferLoad.xferObjectID(0);
-    const rawLaunchParamsBytes = xferLoad.xferUser(new Uint8Array(24));
+    const attachWeaponSlot = xferLoad.xferInt(0);
+    const attachSpecificBarrelToUse = xferLoad.xferInt(0);
+    const accel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const vel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const stateTimestamp = xferLoad.xferUnsignedInt(0);
     const isLaunched = xferLoad.xferBool(false);
     const isArmed = xferLoad.xferBool(false);
     const noTurnDistLeft = xferLoad.xferReal(0);
@@ -2472,7 +2478,11 @@ function parseSourceNeutronMissileUpdateBlockData(data: Uint8Array) {
       targetPos,
       intermedPos,
       launcherId,
-      rawLaunchParamsBytes,
+      attachWeaponSlot,
+      attachSpecificBarrelToUse,
+      accel,
+      vel,
+      stateTimestamp,
       isLaunched,
       isArmed,
       noTurnDistLeft,
@@ -8969,6 +8979,7 @@ describe('runtime-save-game', () => {
       7,
       3,
       { x: 1.5, y: 2.5, z: 3.5 },
+      { x: 4.5, y: 5.5, z: 6.5 },
       99,
     );
     const rawTailBytes = new Uint8Array([0xde, 0xad, 0xbe, 0xef, 0x03, 0x4f, 0x4b, 0x21]);
@@ -9074,10 +9085,16 @@ describe('runtime-save-game', () => {
               intermedX: 111,
               intermedY: 222,
               intermedZ: 333,
+              accelX: 1.5,
+              accelY: 2.5,
+              accelZ: 3.5,
               velX: 4.5,
               velY: 5.5,
               velZ: 6.5,
               launcherId: 55,
+              attachWeaponSlot: 7,
+              attachSpecificBarrelToUse: 3,
+              stateTimestamp: 99,
               isArmed: true,
               isLaunched: true,
               noTurnDistLeft: 44.25,
@@ -9106,7 +9123,11 @@ describe('runtime-save-game', () => {
       targetPos: { x: 101, y: 202, z: 303 },
       intermedPos: { x: 111, y: 222, z: 333 },
       launcherId: 55,
-      rawLaunchParamsBytes,
+      attachWeaponSlot: 7,
+      attachSpecificBarrelToUse: 3,
+      accel: { x: 1.5, y: 2.5, z: 3.5 },
+      vel: { x: 4.5, y: 5.5, z: 6.5 },
+      stateTimestamp: 99,
       isLaunched: true,
       isArmed: true,
       noTurnDistLeft: 44.25,
@@ -9395,9 +9416,9 @@ describe('runtime-save-game', () => {
       animFrames: 7,
       targetId: 0,
       targetPos: { x: 44, y: 7, z: 66 },
-      locationCount: 4,
-      specialObjectIdList: [91, 92],
-      specialObjectEntries: 2,
+      locationCount: 0,
+      specialObjectIdList: [],
+      specialObjectEntries: 0,
       noTargetCommand: false,
       packingState: 'UNPACKING',
       facingInitiated: false,
