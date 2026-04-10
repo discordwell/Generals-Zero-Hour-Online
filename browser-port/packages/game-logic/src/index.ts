@@ -2222,6 +2222,10 @@ interface SpecialAbilityProfile {
   uniqueSpecialObjectTargets: boolean;
   specialObjectsPersistWhenOwnerDies: boolean;
   alwaysValidateSpecialObjects: boolean;
+  doCaptureFX: boolean;
+  needToFaceTarget: boolean;
+  approachRequiresLOS: boolean;
+  persistenceRequiresRecharge: boolean;
 }
 
 interface SpecialAbilityRuntimeState {
@@ -2236,6 +2240,9 @@ interface SpecialAbilityRuntimeState {
   noTargetCommand: boolean;
   /** Track persistent trigger count for repeating abilities. */
   persistentTriggerCount: number;
+  facingInitiated: boolean;
+  facingComplete: boolean;
+  captureFlashPhase: number;
 }
 
 interface UpgradeModuleProfile {

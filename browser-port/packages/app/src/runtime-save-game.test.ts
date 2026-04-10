@@ -9352,6 +9352,10 @@ describe('runtime-save-game', () => {
               uniqueSpecialObjectTargets: false,
               specialObjectsPersistWhenOwnerDies: false,
               alwaysValidateSpecialObjects: false,
+              doCaptureFX: false,
+              needToFaceTarget: true,
+              approachRequiresLOS: true,
+              persistenceRequiresRecharge: false,
             },
             specialAbilityState: {
               active: true,
@@ -9364,6 +9368,9 @@ describe('runtime-save-game', () => {
               withinStartAbilityRange: true,
               noTargetCommand: false,
               persistentTriggerCount: 0,
+              facingInitiated: false,
+              facingComplete: true,
+              captureFlashPhase: 2.75,
             },
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
@@ -9392,11 +9399,11 @@ describe('runtime-save-game', () => {
       specialObjectEntries: 2,
       noTargetCommand: false,
       packingState: 'UNPACKING',
-      facingInitiated: true,
+      facingInitiated: false,
       facingComplete: true,
       withinStartAbilityRange: true,
       doDisableFxParticles: false,
-      captureFlashPhase: 1.5,
+      captureFlashPhase: 2.75,
     });
   });
 

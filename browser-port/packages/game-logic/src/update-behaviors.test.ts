@@ -5961,6 +5961,10 @@ describe('SpecialAbilityUpdate', () => {
       SkipPackingWithNoTarget: true,
       FleeRangeAfterCompletion: 40,
       FlipOwnerAfterUnpacking: true,
+      NeedToFaceTarget: false,
+      DoCaptureFX: true,
+      ApproachRequiresLOS: false,
+      PersistenceRequiresRecharge: true,
     });
 
     const entity = logic.getEntityState(1);
@@ -5968,11 +5972,16 @@ describe('SpecialAbilityUpdate', () => {
     // Entity should have been created successfully with a special ability profile.
     // Verify via the specialAbilityState being initialized.
     expect(entity!.statusFlags).toBeDefined();
+    const internal = (logic as any).spawnedEntities.get(1);
+    expect(internal.specialAbilityProfile.needToFaceTarget).toBe(false);
+    expect(internal.specialAbilityProfile.doCaptureFX).toBe(true);
+    expect(internal.specialAbilityProfile.approachRequiresLOS).toBe(false);
+    expect(internal.specialAbilityProfile.persistenceRequiresRecharge).toBe(true);
   });
 
   it('initiates ability and sets IS_USING_ABILITY status flag', () => {
     const { logic } = makeSpecialAbilitySetup(
-      { UnpackTime: 0, PreparationTime: 500, SkipPackingWithNoTarget: true },
+      { UnpackTime: 0, PreparationTime: 500, SkipPackingWithNoTarget: true, NeedToFaceTarget: false },
     );
 
     // Issue special ability command (no target).
@@ -6103,6 +6112,140 @@ describe('SpecialAbilityUpdate', () => {
     expect(entity.specialAbilityState.targetZ).toBe(50);
     // Verify entity is not yet within range.
     expect(entity.specialAbilityState.withinStartAbilityRange).toBe(false);
+  });
+
+  it('requires LOS before treating an object-target special ability as in range', () => {
+    const bundle = makeSpecialAbilityBundle({
+      abilityFields: {
+        StartAbilityRange: 10000,
+        UnpackTime: 0,
+        PreparationTime: 500,
+        PackTime: 0,
+        NeedToFaceTarget: false,
+        ApproachRequiresLOS: true,
+      },
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('AbilityUser', 10, 10),
+        makeMapObject('AbilityTarget', 11, 10),
+      ]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+
+    (logic as any).isTerrainLineOfSightBlocked = () => true;
+
+    const entity = (logic as any).spawnedEntities.get(1);
+    entity.specialAbilityState.active = true;
+    entity.specialAbilityState.targetEntityId = 2;
+    entity.specialAbilityState.withinStartAbilityRange = false;
+    entity.specialAbilityState.packingState = 'PACKED';
+
+    logic.update(1 / 30);
+
+    expect(entity.specialAbilityState.withinStartAbilityRange).toBe(false);
+    expect(entity.objectStatusFlags.has('IS_USING_ABILITY')).toBe(false);
+
+    (logic as any).isTerrainLineOfSightBlocked = () => false;
+    logic.update(1 / 30);
+
+    expect(entity.specialAbilityState.withinStartAbilityRange).toBe(true);
+  });
+
+  it('waits one tick for NeedToFaceTarget before starting preparation', () => {
+    const { logic } = makeSpecialAbilitySetup({
+      StartAbilityRange: 10000,
+      UnpackTime: 0,
+      PreparationTime: 500,
+      PackTime: 0,
+      NeedToFaceTarget: true,
+    });
+
+    logic.submitCommand({
+      type: 'issueSpecialPower',
+      commandButtonId: 'CMD_ABILITY',
+      specialPowerName: 'TestAbilityPower',
+      commandOption: 0x20,
+      issuingEntityIds: [1],
+      sourceEntityId: 1,
+      targetEntityId: null,
+      targetX: 30,
+      targetZ: 10,
+    });
+
+    logic.update(1 / 30);
+
+    const entity = (logic as any).spawnedEntities.get(1);
+    expect(entity.specialAbilityState.facingInitiated).toBe(true);
+    expect(entity.specialAbilityState.facingComplete).toBe(false);
+    expect(entity.specialAbilityState.prepFrames).toBe(0);
+    expect(entity.objectStatusFlags.has('IS_USING_ABILITY')).toBe(false);
+    expect(entity.rotationY).toBeCloseTo(Math.PI / 2, 6);
+
+    logic.update(1 / 30);
+
+    expect(entity.specialAbilityState.facingComplete).toBe(true);
+    expect(entity.specialAbilityState.prepFrames).toBeGreaterThan(0);
+    expect(entity.objectStatusFlags.has('IS_USING_ABILITY')).toBe(true);
+  });
+
+  it('advances capture flash phase during capture preparation when DoCaptureFX is enabled', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('AbilityUser', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Behavior', 'SpecialAbilityUpdate AbilityModule', {
+            SpecialPowerTemplate: 'CapturePower',
+            StartAbilityRange: 10000,
+            PreparationTime: 600,
+            PackTime: 0,
+            UnpackTime: 0,
+            NeedToFaceTarget: false,
+            DoCaptureFX: true,
+          }),
+          makeBlock('LocomotorSet', 'LocomotorSet', { Locomotor: ['SET_NORMAL', 'TestLoco'] }),
+        ], { CommandSet: 'AbilityUserCS', BuildCost: 500 }),
+        makeObjectDef('AbilityTarget', 'China', ['STRUCTURE'], [
+          makeBlock('Body', 'ActiveBody Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ]),
+      ],
+      specialPowers: [
+        makeSpecialPowerDef('CapturePower', {
+          ReloadTime: 0,
+          Enum: 'SPECIAL_INFANTRY_CAPTURE_BUILDING',
+        }),
+      ],
+      locomotors: [
+        makeLocomotorDef('TestLoco', 30),
+      ],
+    });
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('AbilityUser', 10, 10),
+        makeMapObject('AbilityTarget', 11, 10),
+      ]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+
+    const entity = (logic as any).spawnedEntities.get(1);
+    const target = (logic as any).spawnedEntities.get(2);
+    entity.specialAbilityState.active = true;
+    entity.specialAbilityState.targetEntityId = 2;
+    entity.specialAbilityState.withinStartAbilityRange = true;
+    entity.specialAbilityState.packingState = 'UNPACKED';
+    entity.specialAbilityState.prepFrames = 5;
+    entity.objectStatusFlags.add('IS_USING_ABILITY');
+
+    logic.update(1 / 30);
+
+    expect(entity.specialAbilityState.captureFlashPhase).toBeGreaterThan(0);
+    expect(target.capturePercent).toBeGreaterThan(0);
   });
 
   it('aborts ability when target entity dies during preparation', () => {

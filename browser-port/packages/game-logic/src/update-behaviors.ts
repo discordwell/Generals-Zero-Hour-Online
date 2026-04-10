@@ -1482,6 +1482,49 @@ export function updateWanderAI(self: GL): void {
 }
 
 
+function resolveSpecialAbilityFacingHeading(entity: MapEntity, state: SpecialAbilityRuntimeState): number | null {
+    let targetX: number | null = null;
+    let targetZ: number | null = null;
+    if (Number.isFinite(state.targetX) || Number.isFinite(state.targetZ)) {
+      targetX = Number.isFinite(state.targetX) ? state.targetX : entity.x;
+      targetZ = Number.isFinite(state.targetZ) ? state.targetZ : entity.z;
+    }
+    if (targetX === null || targetZ === null) {
+      return null;
+    }
+    const dx = targetX - entity.x;
+    const dz = targetZ - entity.z;
+    if (Math.abs(dx) < 0.001 && Math.abs(dz) < 0.001) {
+      return null;
+    }
+    return Math.atan2(dz, dx) + (Math.PI / 2);
+}
+
+function startSpecialAbilityFacing(entity: MapEntity, state: SpecialAbilityRuntimeState): void {
+    entity.moving = false;
+    entity.movePath = [];
+    entity.moveTarget = null;
+    state.facingInitiated = true;
+    const heading = resolveSpecialAbilityFacingHeading(entity, state);
+    if (heading !== null) {
+      entity.rotationY = heading;
+    }
+}
+
+function updateSpecialAbilityCaptureFlash(self: GL, profile: SpecialAbilityProfile, state: SpecialAbilityRuntimeState): void {
+    if (!profile.doCaptureFX || state.targetEntityId === null) {
+      return;
+    }
+    const target = self.spawnedEntities.get(state.targetEntityId);
+    if (!target || target.destroyed) {
+      return;
+    }
+    const denominator = Math.max(1, profile.preparationFrames);
+    const increment = 1.0 - (Math.max(0, state.prepFrames) / denominator);
+    state.captureFlashPhase += increment / 3.0;
+}
+
+
   // ═══════════════════════════════════════════════════════════════════════
   // SpecialAbilityUpdate — unit special ability state machine
   // ═══════════════════════════════════════════════════════════════════════
@@ -1515,6 +1558,8 @@ export function initiateSpecialAbility(self: GL,
     state.prepFrames = 0;
     state.animFrames = 0;
     state.persistentTriggerCount = 0;
+    state.facingInitiated = false;
+    state.facingComplete = false;
     state.active = true;
 
     // Source parity: SpecialAbilityUpdate::initiateIntentToDoSpecialPower — always reset
@@ -1587,6 +1632,8 @@ export function updateSpecialAbility(self: GL): void {
           continue;
         }
 
+        updateSpecialAbilityCaptureFlash(self, profile, state);
+
         // Source parity: pre-trigger un-stealth.
         if (profile.loseStealthOnTrigger && profile.preTriggerUnstealthFrames > 0
           && state.prepFrames <= profile.preTriggerUnstealthFrames) {
@@ -1626,10 +1673,20 @@ export function updateSpecialAbility(self: GL): void {
 
       // ── Approach phase: move within StartAbilityRange ──
       if (!state.withinStartAbilityRange) {
-        if (self.isWithinSpecialAbilityRange(entity, state, profile.startAbilityRange)) {
+        if (self.isWithinSpecialAbilityRange(entity, state, profile.startAbilityRange, profile)) {
           state.withinStartAbilityRange = true;
         } else {
           self.approachSpecialAbilityTarget(entity, state);
+          continue;
+        }
+      }
+
+      if (profile.needToFaceTarget) {
+        if (state.facingInitiated && !state.facingComplete) {
+          state.facingComplete = true;
+        }
+        if (!state.facingComplete) {
+          startSpecialAbilityFacing(entity, state);
           continue;
         }
       }
@@ -1658,6 +1715,7 @@ export function isWithinSpecialAbilityRange(self: GL,
     entity: MapEntity,
     state: SpecialAbilityRuntimeState,
     range: number,
+    profile?: SpecialAbilityProfile | null,
   ): boolean {
     if (state.noTargetCommand) return true;
     let tx: number;
@@ -1675,7 +1733,18 @@ export function isWithinSpecialAbilityRange(self: GL,
     }
     const dx = entity.x - tx;
     const dz = entity.z - tz;
-    return dx * dx + dz * dz <= range * range;
+    if (dx * dx + dz * dz > range * range) {
+      return false;
+    }
+    if (
+      profile?.approachRequiresLOS
+      && state.targetEntityId !== null
+      && typeof self.isTerrainLineOfSightBlocked === 'function'
+      && self.isTerrainLineOfSightBlocked(entity.x, entity.z, tx, tz)
+    ) {
+      return false;
+    }
+    return true;
 }
 
 
@@ -1756,7 +1825,7 @@ export function continueSpecialAbilityPreparation(self: GL,
   ): boolean {
     const HUGE_DISTANCE = 10000000.0;
     if (profile.abilityAbortRange < HUGE_DISTANCE) {
-      if (!self.isWithinSpecialAbilityRange(entity, state, profile.abilityAbortRange)) {
+      if (!self.isWithinSpecialAbilityRange(entity, state, profile.abilityAbortRange, null)) {
         return false;
       }
     }

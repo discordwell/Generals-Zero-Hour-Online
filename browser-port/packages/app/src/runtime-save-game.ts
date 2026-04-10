@@ -5096,11 +5096,15 @@ function buildSourceSpecialAbilityUpdateBlockData(
       (xfer, value) => { xfer.xferInt(value); },
       (xfer) => xfer.xferInt(0),
     );
-    saver.xferBool(preservedState?.facingInitiated ?? false);
-    saver.xferBool(preservedState?.facingComplete ?? false);
+    saver.xferBool(state?.facingInitiated ?? preservedState?.facingInitiated ?? false);
+    saver.xferBool(state?.facingComplete ?? preservedState?.facingComplete ?? false);
     saver.xferBool(state?.withinStartAbilityRange === true);
     saver.xferBool(preservedState?.doDisableFxParticles ?? true);
-    saver.xferReal(preservedState?.captureFlashPhase ?? 0);
+    saver.xferReal(
+      Number.isFinite(state?.captureFlashPhase)
+        ? state!.captureFlashPhase
+        : (preservedState?.captureFlashPhase ?? 0),
+    );
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();

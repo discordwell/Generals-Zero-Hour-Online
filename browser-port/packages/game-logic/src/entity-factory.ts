@@ -1016,6 +1016,9 @@ export function createMapEntity(self: GL,
       withinStartAbilityRange: false,
       noTargetCommand: false,
       persistentTriggerCount: 0,
+      facingInitiated: false,
+      facingComplete: false,
+      captureFlashPhase: 0,
     };
   }
 
@@ -4084,6 +4087,10 @@ export function extractSpecialAbilityProfile(self: GL, objectDef: ObjectDef | un
           uniqueSpecialObjectTargets: readBooleanField(block.fields, ['UniqueSpecialObjectTargets']) === true,
           specialObjectsPersistWhenOwnerDies: readBooleanField(block.fields, ['SpecialObjectsPersistWhenOwnerDies']) === true,
           alwaysValidateSpecialObjects: readBooleanField(block.fields, ['AlwaysValidateSpecialObjects']) === true,
+          doCaptureFX: readBooleanField(block.fields, ['DoCaptureFX']) === true,
+          needToFaceTarget: readBooleanField(block.fields, ['NeedToFaceTarget']) !== false,
+          approachRequiresLOS: readBooleanField(block.fields, ['ApproachRequiresLOS']) !== false,
+          persistenceRequiresRecharge: readBooleanField(block.fields, ['PersistenceRequiresRecharge']) === true,
         };
       }
     }
