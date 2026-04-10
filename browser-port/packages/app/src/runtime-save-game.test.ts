@@ -707,6 +707,28 @@ function createSourceNeutronMissileUpdateBlockData(
   }
 }
 
+function createSourceSpyVisionUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  deactivateFrame: number,
+  currentlyActive: boolean,
+  resetTimersNextUpdate: boolean,
+  disabledUntilFrame: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-spy-vision-update');
+  try {
+    xferSave.xferVersion(2);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferUnsignedInt(deactivateFrame);
+    xferSave.xferBool(currentlyActive);
+    xferSave.xferBool(resetTimersNextUpdate);
+    xferSave.xferUnsignedInt(disabledUntilFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function sourceSpecialAbilityPackingStateToInt(
   state: 'NONE' | 'PACKING' | 'UNPACKING' | 'PACKED' | 'UNPACKED',
 ): number {
@@ -1669,6 +1691,28 @@ function parseSourceNeutronMissileUpdateBlockData(data: Uint8Array) {
       frameAtLaunch,
       heightAtLaunch,
       rawTailBytes,
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceSpyVisionUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-spy-vision-update');
+  try {
+    const version = xferLoad.xferVersion(2);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      version,
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      deactivateFrame: xferLoad.xferUnsignedInt(0),
+      currentlyActive: xferLoad.xferBool(false),
+      resetTimersNextUpdate: version >= 2 ? xferLoad.xferBool(false) : false,
+      disabledUntilFrame: version >= 2 ? xferLoad.xferUnsignedInt(0) : 0,
     };
   } finally {
     xferLoad.close();
@@ -6522,6 +6566,127 @@ describe('runtime-save-game', () => {
       frameAtLaunch: 66,
       heightAtLaunch: 77.75,
       rawTailBytes,
+    });
+  });
+
+  it('rewrites source SpyVisionUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_SpyVision',
+      blockData: createSourceSpyVisionUpdateBlockData((70 << 2) | 2, 99, true, true, 123),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source spy vision rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 0,
+            specialPowerModules: new Map([
+              ['SPECIAL_SPY_VISION', {
+                specialPowerTemplateName: 'SPECIAL_SPY_VISION',
+                moduleType: 'SPYVISIONSPECIALPOWER',
+                updateModuleStartsAttack: false,
+                startsPaused: false,
+                availableOnFrame: 0,
+                pausedCount: 0,
+                pausedOnFrame: 0,
+                pausedPercent: 0,
+                spyVisionDeactivateFrame: 456,
+                cashHackMoneyAmount: 0,
+                cashBountyPercent: 0,
+                spyVisionBaseDurationMs: 0,
+                fireWeaponMaxShots: 1,
+                cleanupMoveRange: 0,
+                oclName: '',
+                areaDamageRadius: 0,
+                areaDamageAmount: 0,
+                areaHealAmount: 0,
+                areaHealRadius: 0,
+                detonationObjectName: '',
+                scriptedSpecialPowerOnly: false,
+                oclAdjustPositionToPassable: false,
+                referenceObject: '',
+              }],
+            ]),
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_SpyVision'
+            ? 'SPYVISIONUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const spyVisionModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_SpyVision');
+
+    expect(spyVisionModule).toBeDefined();
+    expect(parseSourceSpyVisionUpdateBlockData(spyVisionModule!.blockData)).toEqual({
+      version: 2,
+      nextCallFrameAndPhase: 0xfffffffe,
+      deactivateFrame: 456,
+      currentlyActive: true,
+      resetTimersNextUpdate: true,
+      disabledUntilFrame: 123,
     });
   });
 

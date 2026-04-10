@@ -4125,6 +4125,64 @@ function buildSourceNeutronMissileUpdateBlockData(
   }
 }
 
+function tryParseSourceSpyVisionUpdateBlockData(
+  data: Uint8Array,
+): {
+  currentlyActive: boolean;
+  resetTimersNextUpdate: boolean;
+  disabledUntilFrame: number;
+} | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-spy-vision-update');
+  try {
+    const version = xferLoad.xferVersion(2);
+    if (version < 1 || version > 2) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    const currentlyActive = xferLoad.xferBool(false);
+    const resetTimersNextUpdate = version >= 2 ? xferLoad.xferBool(false) : false;
+    const disabledUntilFrame = version >= 2 ? xferLoad.xferUnsignedInt(0) : 0;
+    return xferLoad.getRemaining() === 0
+      ? { currentlyActive, resetTimersNextUpdate, disabledUntilFrame }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceSpyVisionUpdateBlockData(
+  deactivateFrame: number,
+  preservedState?: {
+    currentlyActive: boolean;
+    resetTimersNextUpdate: boolean;
+    disabledUntilFrame: number;
+  } | null,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-spy-vision-update');
+  try {
+    saver.xferVersion(2);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    ));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(deactivateFrame)));
+    saver.xferBool(preservedState?.currentlyActive ?? false);
+    saver.xferBool(preservedState?.resetTimersNextUpdate ?? false);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(preservedState?.disabledUntilFrame ?? 0)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function sourceSpecialAbilityPackingStateToInt(
   state: 'NONE' | 'PACKING' | 'UNPACKING' | 'PACKED' | 'UNPACKED',
 ): number {
@@ -4897,6 +4955,21 @@ function overlaySourceObjectModulesFromLiveEntity(
                 blockData: buildSourceNeutronMissileUpdateBlockData(
                   entity,
                   currentFrame,
+                  parsedSourceState,
+                ),
+              };
+            }
+          }
+          if (moduleType === 'SPYVISIONUPDATE') {
+            const parsedSourceState = tryParseSourceSpyVisionUpdateBlockData(module.blockData);
+            const liveSpyVisionModule = Array.from(entity.specialPowerModules.values()).find(
+              (specialPowerModule) => specialPowerModule.moduleType === 'SPYVISIONSPECIALPOWER',
+            );
+            if (parsedSourceState && liveSpyVisionModule) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceSpyVisionUpdateBlockData(
+                  liveSpyVisionModule.spyVisionDeactivateFrame,
                   parsedSourceState,
                 ),
               };
