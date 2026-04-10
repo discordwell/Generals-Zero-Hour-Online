@@ -4083,6 +4083,78 @@ function buildSourceStickyBombUpdateBlockData(entity: MapEntity, currentFrame: n
   }
 }
 
+function tryParseSourceCleanupHazardUpdateBlockData(
+  data: Uint8Array,
+): { position: { x: number; y: number; z: number }; moveRange: number } | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-cleanup-hazard-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferObjectID(0);
+    xferLoad.xferBool(false);
+    xferLoad.xferInt(0);
+    xferLoad.xferInt(0);
+    const position = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const moveRange = xferLoad.xferReal(0);
+    return xferLoad.getRemaining() === 0 ? { position, moveRange } : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceCleanupHazardUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: { position: { x: number; y: number; z: number }; moveRange: number },
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-cleanup-hazard-update');
+  try {
+    const state = entity.cleanupHazardState;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferObjectID(Math.max(0, Math.trunc(state?.bestTargetId ?? 0)) >>> 0);
+    saver.xferBool(state?.inRange === true);
+    saver.xferInt(Math.trunc(state?.nextScanFrame ?? 0));
+    saver.xferInt(Math.trunc(state?.nextShotAvailableFrame ?? 0));
+    saver.xferCoord3D(preservedState.position);
+    saver.xferReal(preservedState.moveRange);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourcePilotFindVehicleUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-pilot-find-vehicle-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferBool(entity.pilotFindVehicleDidMoveToBase === true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceLeafletDropBehaviorBlockData(entity: MapEntity): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-leaflet-drop-behavior');
@@ -5076,6 +5148,25 @@ function overlaySourceObjectModulesFromLiveEntity(
             return {
               identifier: module.identifier,
               blockData: buildSourceStickyBombUpdateBlockData(entity, currentFrame),
+            };
+          }
+          if (moduleType === 'CLEANUPHAZARDUPDATE' && entity.cleanupHazardProfile && entity.cleanupHazardState) {
+            const parsedSourceState = tryParseSourceCleanupHazardUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceCleanupHazardUpdateBlockData(
+                  entity,
+                  currentFrame,
+                  parsedSourceState,
+                ),
+              };
+            }
+          }
+          if (moduleType === 'PILOTFINDVEHICLEUPDATE' && entity.pilotFindVehicleProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourcePilotFindVehicleUpdateBlockData(entity, currentFrame),
             };
           }
           if (moduleType === 'LEAFLETDROPBEHAVIOR' && entity.leafletDropState) {

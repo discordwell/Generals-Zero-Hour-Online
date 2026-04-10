@@ -655,6 +655,48 @@ function createSourceStickyBombUpdateBlockData(
   }
 }
 
+function createSourceCleanupHazardUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  bestTargetId: number,
+  inRange: boolean,
+  nextScanFrames: number,
+  nextShotAvailableInFrames: number,
+  position: { x: number; y: number; z: number },
+  moveRange: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-cleanup-hazard-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferObjectID(bestTargetId);
+    xferSave.xferBool(inRange);
+    xferSave.xferInt(nextScanFrames);
+    xferSave.xferInt(nextShotAvailableInFrames);
+    xferSave.xferCoord3D(position);
+    xferSave.xferReal(moveRange);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourcePilotFindVehicleUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  didMoveToBase: boolean,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-pilot-find-vehicle-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferBool(didMoveToBase);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceLeafletDropBehaviorBlockData(
   startFrame: number,
 ): Uint8Array {
@@ -1754,6 +1796,47 @@ function parseSourceStickyBombUpdateBlockData(data: Uint8Array) {
       targetId: xferLoad.xferObjectID(0),
       dieFrame: xferLoad.xferUnsignedInt(0),
       nextPingFrame: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceCleanupHazardUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-cleanup-hazard-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      bestTargetId: xferLoad.xferObjectID(0),
+      inRange: xferLoad.xferBool(false),
+      nextScanFrames: xferLoad.xferInt(0),
+      nextShotAvailableInFrames: xferLoad.xferInt(0),
+      position: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      moveRange: xferLoad.xferReal(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourcePilotFindVehicleUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-pilot-find-vehicle-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      didMoveToBase: xferLoad.xferBool(false),
     };
   } finally {
     xferLoad.close();
@@ -6552,6 +6635,215 @@ describe('runtime-save-game', () => {
       targetId: 77,
       dieFrame: 90,
       nextPingFrame: 60,
+    });
+  });
+
+  it('rewrites source CleanupHazardUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Cleanup',
+      blockData: createSourceCleanupHazardUpdateBlockData(
+        (84 << 2) | 2,
+        11,
+        false,
+        5,
+        6,
+        { x: 1, y: 2, z: 3 },
+        250,
+      ),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source cleanup hazard rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            cleanupHazardProfile: {
+              weaponSlot: 'PRIMARY',
+              scanFrames: 20,
+              scanRange: 300,
+            },
+            cleanupHazardState: {
+              bestTargetId: 77,
+              nextScanFrame: 9,
+              inRange: true,
+              nextShotAvailableFrame: 123,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Cleanup'
+            ? 'CLEANUPHAZARDUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const cleanupModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Cleanup');
+
+    expect(cleanupModule).toBeDefined();
+    expect(parseSourceCleanupHazardUpdateBlockData(cleanupModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      bestTargetId: 77,
+      inRange: true,
+      nextScanFrames: 9,
+      nextShotAvailableInFrames: 123,
+      position: { x: 1, y: 2, z: 3 },
+      moveRange: 250,
+    });
+  });
+
+  it('rewrites source PilotFindVehicleUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Pilot',
+      blockData: createSourcePilotFindVehicleUpdateBlockData((84 << 2) | 2, false),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source pilot find vehicle rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            pilotFindVehicleProfile: {
+              scanFrames: 15,
+              scanRange: 300,
+            },
+            pilotFindVehicleDidMoveToBase: true,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Pilot'
+            ? 'PILOTFINDVEHICLEUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const pilotModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Pilot');
+
+    expect(pilotModule).toBeDefined();
+    expect(parseSourcePilotFindVehicleUpdateBlockData(pilotModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      didMoveToBase: true,
     });
   });
 
