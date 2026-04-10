@@ -4243,7 +4243,6 @@ function tryParseSourceDynamicShroudClearingRangeUpdateBlockData(
 function buildSourceDynamicShroudClearingRangeUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
-  preservedState: { decalsCreated: boolean; visionChangePerInterval: number },
 ): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-dynamic-shroud-clearing-range-update');
@@ -4259,8 +4258,8 @@ function buildSourceDynamicShroudClearingRangeUpdateBlockData(
     saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.dynamicShroudShrinkStartDeadline)));
     saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.dynamicShroudDoneForeverFrame)));
     saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.dynamicShroudChangeIntervalCountdown)));
-    saver.xferBool(preservedState.decalsCreated);
-    saver.xferReal(preservedState.visionChangePerInterval);
+    saver.xferBool(entity.dynamicShroudDecalsCreated === true);
+    saver.xferReal(entity.dynamicShroudVisionChangePerInterval);
     saver.xferReal(entity.dynamicShroudNativeClearingRange);
     saver.xferReal(entity.dynamicShroudCurrentClearingRange);
     return new Uint8Array(saver.getBuffer());
@@ -5988,11 +5987,7 @@ function overlaySourceObjectModulesFromLiveEntity(
             if (parsedSourceState) {
               return {
                 identifier: module.identifier,
-                blockData: buildSourceDynamicShroudClearingRangeUpdateBlockData(
-                  entity,
-                  currentFrame,
-                  parsedSourceState,
-                ),
+                blockData: buildSourceDynamicShroudClearingRangeUpdateBlockData(entity, currentFrame),
               };
             }
           }

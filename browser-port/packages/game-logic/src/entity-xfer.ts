@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 24;
+const ENTITY_XFER_VERSION = 25;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -2181,6 +2181,13 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.dynamicShroudGrowStartDeadline = xfer.xferInt(e.dynamicShroudGrowStartDeadline as number);
   e.dynamicShroudDoneForeverFrame = xfer.xferInt(e.dynamicShroudDoneForeverFrame as number);
   e.dynamicShroudChangeIntervalCountdown = xfer.xferInt(e.dynamicShroudChangeIntervalCountdown as number);
+  if (version >= 25) {
+    e.dynamicShroudDecalsCreated = xfer.xferBool(e.dynamicShroudDecalsCreated as boolean);
+    e.dynamicShroudVisionChangePerInterval = xfer.xferReal(e.dynamicShroudVisionChangePerInterval as number);
+  } else {
+    e.dynamicShroudDecalsCreated = false;
+    e.dynamicShroudVisionChangePerInterval = 0;
+  }
   e.dynamicShroudNativeClearingRange = xfer.xferReal(e.dynamicShroudNativeClearingRange as number);
   e.dynamicShroudCurrentClearingRange = xfer.xferReal(e.dynamicShroudCurrentClearingRange as number);
 

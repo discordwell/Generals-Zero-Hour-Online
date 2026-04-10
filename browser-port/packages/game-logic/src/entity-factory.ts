@@ -826,6 +826,8 @@ export function createMapEntity(self: GL,
     dynamicShroudGrowStartDeadline: 0,
     dynamicShroudDoneForeverFrame: 0,
     dynamicShroudChangeIntervalCountdown: 0,
+    dynamicShroudDecalsCreated: false,
+    dynamicShroudVisionChangePerInterval: 0,
     dynamicShroudNativeClearingRange: 0,
     dynamicShroudCurrentClearingRange: 0,
     // JetAI
@@ -1053,6 +1055,8 @@ export function createMapEntity(self: GL,
       console.warn(`DynamicShroudClearingRangeUpdate: growStartDeadline(${entity.dynamicShroudGrowStartDeadline}) < shrinkStartDeadline(${entity.dynamicShroudShrinkStartDeadline}) — invalid INI configuration`);
     }
     entity.dynamicShroudDoneForeverFrame = self.frameCounter + stateCountDown;
+    entity.dynamicShroudDecalsCreated = false;
+    entity.dynamicShroudVisionChangePerInterval = 0;
     entity.dynamicShroudNativeClearingRange = entity.shroudClearingRange;
     entity.dynamicShroudCurrentClearingRange = 0;
     entity.dynamicShroudState = 'NOT_STARTED';

@@ -585,6 +585,8 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     dynamicShroudGrowStartDeadline: 0,
     dynamicShroudDoneForeverFrame: 0,
     dynamicShroudChangeIntervalCountdown: 0,
+    dynamicShroudDecalsCreated: false,
+    dynamicShroudVisionChangePerInterval: 0,
     dynamicShroudNativeClearingRange: 0,
     dynamicShroudCurrentClearingRange: 0,
 

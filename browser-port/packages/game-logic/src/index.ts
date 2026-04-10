@@ -4261,6 +4261,8 @@ export interface MapEntity {
   dynamicShroudGrowStartDeadline: number;
   dynamicShroudDoneForeverFrame: number;
   dynamicShroudChangeIntervalCountdown: number;
+  dynamicShroudDecalsCreated: boolean;
+  dynamicShroudVisionChangePerInterval: number;
   dynamicShroudNativeClearingRange: number;
   dynamicShroudCurrentClearingRange: number;
 
@@ -35410,6 +35412,10 @@ export class GameLogicSubsystem implements Subsystem {
       const prof = entity.dynamicShroudProfile;
       if (!prof) continue;
       if (entity.dynamicShroudState === 'SLEEPING') continue;
+
+      if (!entity.dynamicShroudDecalsCreated) {
+        entity.dynamicShroudDecalsCreated = true;
+      }
 
       const countdown = entity.dynamicShroudStateCountdown;
 
