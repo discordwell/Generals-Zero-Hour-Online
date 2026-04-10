@@ -3965,6 +3965,124 @@ function buildSourceBaseRegenerateUpdateBlockData(entity: MapEntity, currentFram
   }
 }
 
+function buildSourceLifetimeUpdateBlockData(entity: MapEntity): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-lifetime-update');
+  try {
+    const dieFrame = Math.max(0, Math.trunc(entity.lifetimeDieFrame ?? 0)) >>> 0;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(dieFrame),
+    ));
+    saver.xferUnsignedInt(dieFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceDeletionUpdateBlockData(entity: MapEntity): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-deletion-update');
+  try {
+    const dieFrame = Math.max(0, Math.trunc(entity.deletionDieFrame ?? 0)) >>> 0;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(dieFrame),
+    ));
+    saver.xferUnsignedInt(dieFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceHeightDieUpdateBlockData(
+  data: Uint8Array,
+): { particlesDestroyed: boolean } | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-height-die-update');
+  try {
+    const version = xferLoad.xferVersion(2);
+    if (version < 1 || version > 2) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferBool(false);
+    const particlesDestroyed = xferLoad.xferBool(false);
+    xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    if (version >= 2) {
+      xferLoad.xferUnsignedInt(0);
+    }
+    return xferLoad.getRemaining() === 0
+      ? { particlesDestroyed }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceHeightDieUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  particlesDestroyed: boolean,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-height-die-update');
+  try {
+    const earliestDeathFrame = entity.heightDieActiveFrame > 0
+      ? (Math.max(0, Math.trunc(entity.heightDieActiveFrame)) >>> 0)
+      : 0xffffffff;
+    saver.xferVersion(2);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferBool(entity.destroyed === true);
+    saver.xferBool(particlesDestroyed);
+    saver.xferCoord3D({
+      x: entity.x,
+      y: entity.z,
+      z: Number.isFinite(entity.heightDieLastY) ? entity.heightDieLastY : entity.y,
+    });
+    saver.xferUnsignedInt(earliestDeathFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceStickyBombUpdateBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-sticky-bomb-update');
+  try {
+    const dieFrame = Math.max(0, Math.trunc(entity.stickyBombDieFrame)) >>> 0;
+    let nextPingFrame: number;
+    if (dieFrame > 0) {
+      const remainingFrames = Math.max(0, dieFrame - (currentFrame >>> 0));
+      const pings = Math.trunc(remainingFrames / 30);
+      nextPingFrame = (dieFrame - (pings * 30)) >>> 0;
+    } else {
+      nextPingFrame = ((currentFrame >>> 0) + 30) >>> 0;
+    }
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferObjectID(Math.max(0, Math.trunc(entity.stickyBombTargetId)) >>> 0);
+    saver.xferUnsignedInt(dieFrame);
+    saver.xferUnsignedInt(nextPingFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceLeafletDropBehaviorBlockData(entity: MapEntity): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-leaflet-drop-behavior');
@@ -4927,6 +5045,37 @@ function overlaySourceObjectModulesFromLiveEntity(
             return {
               identifier: module.identifier,
               blockData: buildSourceBaseRegenerateUpdateBlockData(entity, currentFrame),
+            };
+          }
+          if (moduleType === 'LIFETIMEUPDATE' && entity.lifetimeDieFrame !== null) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceLifetimeUpdateBlockData(entity),
+            };
+          }
+          if (moduleType === 'DELETIONUPDATE' && entity.deletionDieFrame !== null) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceDeletionUpdateBlockData(entity),
+            };
+          }
+          if (moduleType === 'HEIGHTDIEUPDATE' && entity.heightDieProfile) {
+            const parsedSourceState = tryParseSourceHeightDieUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceHeightDieUpdateBlockData(
+                  entity,
+                  currentFrame,
+                  parsedSourceState.particlesDestroyed,
+                ),
+              };
+            }
+          }
+          if (moduleType === 'STICKYBOMBUPDATE' && entity.stickyBombProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceStickyBombUpdateBlockData(entity, currentFrame),
             };
           }
           if (moduleType === 'LEAFLETDROPBEHAVIOR' && entity.leafletDropState) {
