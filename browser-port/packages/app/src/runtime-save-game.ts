@@ -5099,7 +5099,7 @@ function buildSourceSpecialAbilityUpdateBlockData(
     saver.xferBool(state?.facingInitiated ?? preservedState?.facingInitiated ?? false);
     saver.xferBool(state?.facingComplete ?? preservedState?.facingComplete ?? false);
     saver.xferBool(state?.withinStartAbilityRange === true);
-    saver.xferBool(preservedState?.doDisableFxParticles ?? true);
+    saver.xferBool(state?.doDisableFxParticles ?? preservedState?.doDisableFxParticles ?? true);
     saver.xferReal(
       Number.isFinite(state?.captureFlashPhase)
         ? state!.captureFlashPhase

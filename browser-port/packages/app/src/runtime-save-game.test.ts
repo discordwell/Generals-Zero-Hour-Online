@@ -9370,6 +9370,7 @@ describe('runtime-save-game', () => {
               persistentTriggerCount: 0,
               facingInitiated: false,
               facingComplete: true,
+              doDisableFxParticles: true,
               captureFlashPhase: 2.75,
             },
           } as unknown as import('@generals/game-logic').MapEntity],
@@ -9402,7 +9403,7 @@ describe('runtime-save-game', () => {
       facingInitiated: false,
       facingComplete: true,
       withinStartAbilityRange: true,
-      doDisableFxParticles: false,
+      doDisableFxParticles: true,
       captureFlashPhase: 2.75,
     });
   });

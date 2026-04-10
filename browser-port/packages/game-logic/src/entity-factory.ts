@@ -1019,6 +1019,7 @@ export function createMapEntity(self: GL,
       facingInitiated: false,
       facingComplete: false,
       captureFlashPhase: 0,
+      doDisableFxParticles: true,
     };
   }
 

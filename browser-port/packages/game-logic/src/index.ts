@@ -2243,6 +2243,7 @@ interface SpecialAbilityRuntimeState {
   facingInitiated: boolean;
   facingComplete: boolean;
   captureFlashPhase: number;
+  doDisableFxParticles: boolean;
 }
 
 interface UpgradeModuleProfile {

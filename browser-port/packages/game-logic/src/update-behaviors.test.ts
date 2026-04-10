@@ -6248,6 +6248,107 @@ describe('SpecialAbilityUpdate', () => {
     expect(target.capturePercent).toBeGreaterThan(0);
   });
 
+  it('disables hacked targets and toggles disable FX particles for small structures', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('AbilityUser', 'America', ['INFANTRY'], [
+          makeBlock('Body', 'ActiveBody Body', { MaxHealth: 100, InitialHealth: 100 }),
+          makeBlock('Behavior', 'SpecialAbilityUpdate AbilityModule', {
+            SpecialPowerTemplate: 'DisableBuildingPower',
+            StartAbilityRange: 10000,
+            PreparationTime: 0,
+            PackTime: 0,
+            UnpackTime: 0,
+            NeedToFaceTarget: false,
+            EffectDuration: 2000,
+          }),
+          makeBlock('LocomotorSet', 'LocomotorSet', { Locomotor: ['SET_NORMAL', 'TestLoco'] }),
+        ], { CommandSet: 'AbilityUserCS', BuildCost: 500 }),
+        makeObjectDef('SmallBuilding', 'China', ['STRUCTURE', 'CAPTURABLE'], [
+          makeBlock('Body', 'ActiveBody Body', { MaxHealth: 500, InitialHealth: 500 }),
+        ], {
+          Geometry: 'BOX',
+          GeometryMajorRadius: 4,
+          GeometryMinorRadius: 4,
+          GeometryHeight: 10,
+        }),
+      ],
+      specialPowers: [
+        makeSpecialPowerDef('DisableBuildingPower', {
+          ReloadTime: 0,
+          Enum: 'SPECIAL_HACKER_DISABLE_BUILDING',
+        }),
+      ],
+      locomotors: [
+        makeLocomotorDef('TestLoco', 30),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('AbilityUser', 10, 10),
+        makeMapObject('SmallBuilding', 11, 10),
+      ]),
+      makeRegistry(bundle),
+      makeHeightmap(),
+    );
+    logic.setTeamRelationship('America', 'China', 0);
+    logic.setTeamRelationship('China', 'America', 0);
+
+    const privateApi = logic as unknown as {
+      frameCounter: number;
+      spawnedEntities: Map<number, {
+        objectStatusFlags: Set<string>;
+        disabledHackedUntilFrame: number;
+        specialAbilityState: {
+          active: boolean;
+          packingState: 'PACKED' | 'UNPACKING' | 'UNPACKED' | 'PACKING';
+          prepFrames: number;
+          targetEntityId: number | null;
+          withinStartAbilityRange: boolean;
+          doDisableFxParticles: boolean;
+        } | null;
+        lastSpecialPowerDispatch: {
+          specialPowerTemplateName: string;
+          moduleType: string;
+          dispatchType: 'OBJECT' | 'POSITION' | 'NO_TARGET';
+          commandOption: number;
+          commandButtonId: string;
+          targetEntityId: number | null;
+          targetX: number | null;
+          targetZ: number | null;
+        } | null;
+      }>;
+    };
+    const source = privateApi.spawnedEntities.get(1);
+    const target = privateApi.spawnedEntities.get(2);
+
+    expect(source?.specialAbilityState).not.toBeNull();
+    source!.specialAbilityState!.active = true;
+    source!.specialAbilityState!.packingState = 'UNPACKED';
+    source!.specialAbilityState!.prepFrames = 1;
+    source!.specialAbilityState!.targetEntityId = 2;
+    source!.specialAbilityState!.withinStartAbilityRange = true;
+    source!.specialAbilityState!.doDisableFxParticles = true;
+    source!.objectStatusFlags.add('IS_USING_ABILITY');
+    source!.lastSpecialPowerDispatch = {
+      specialPowerTemplateName: 'DISABLEBUILDINGPOWER',
+      moduleType: 'SPECIALABILITYUPDATE',
+      dispatchType: 'OBJECT',
+      commandOption: 0x01,
+      commandButtonId: 'CMD_DISABLE_BUILDING',
+      targetEntityId: 2,
+      targetX: null,
+      targetZ: null,
+    };
+
+    logic.update(1 / 30);
+
+    expect(target?.objectStatusFlags.has('DISABLED_HACKED')).toBe(true);
+    expect(target?.disabledHackedUntilFrame ?? 0).toBeGreaterThan(privateApi.frameCounter);
+    expect(source?.specialAbilityState?.doDisableFxParticles).toBe(false);
+  });
+
   it('aborts ability when target entity dies during preparation', () => {
     const { logic } = makeSpecialAbilitySetup(
       {

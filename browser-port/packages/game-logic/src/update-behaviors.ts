@@ -1500,6 +1500,15 @@ function resolveSpecialAbilityFacingHeading(entity: MapEntity, state: SpecialAbi
     return Math.atan2(dz, dx) + (Math.PI / 2);
 }
 
+function resolveEntityFootprintArea(entity: MapEntity): number {
+    const majorRadius = Number.isFinite(entity.geometryInfo.majorRadius) ? entity.geometryInfo.majorRadius : 0;
+    const minorRadius = Number.isFinite(entity.geometryInfo.minorRadius) ? entity.geometryInfo.minorRadius : majorRadius;
+    if (entity.geometryInfo.shape === 'box') {
+      return 4 * majorRadius * minorRadius;
+    }
+    return Math.PI * majorRadius * majorRadius;
+}
+
 function startSpecialAbilityFacing(entity: MapEntity, state: SpecialAbilityRuntimeState): void {
     entity.moving = false;
     entity.movePath = [];
@@ -1875,6 +1884,10 @@ export function triggerSpecialAbilityEffect(self: GL,
       const module = entity.specialPowerModules.get(profile.specialPowerTemplateName);
       if (!module) return;
       const effectCategory = resolveEffectCategoryImpl(module.moduleType);
+      const specialPowerDef = self.resolveSpecialPowerDefByName(profile.specialPowerTemplateName);
+      const spEnum = specialPowerDef
+        ? (readStringField(specialPowerDef.fields, ['Enum'])?.trim().toUpperCase() ?? '')
+        : '';
       switch (effectCategory) {
         case 'CASH_HACK':
           executeCashHackImpl({
@@ -1900,27 +1913,37 @@ export function triggerSpecialAbilityEffect(self: GL,
           }
           break;
         default: {
+          const target = self.spawnedEntities.get(state.targetEntityId);
+          if (!target || target.destroyed) {
+            break;
+          }
+          if (
+            spEnum === 'SPECIAL_HACKER_DISABLE_BUILDING'
+            || spEnum === 'SPECIAL_BLACKLOTUS_DISABLE_VEHICLE_HACK'
+          ) {
+            if (self.getTeamRelationship(entity, target) === RELATIONSHIP_ALLIES) {
+              break;
+            }
+            self.setDisabledHackedStatusUntil(target, self.frameCounter + profile.effectDurationFrames);
+            if (target.kindOf.has('STRUCTURE') && resolveEntityFootprintArea(target) < 300) {
+              state.doDisableFxParticles = !(state.doDisableFxParticles ?? true);
+            }
+            break;
+          }
           // Source parity: SpecialAbilityUpdate::triggerAbilityEffect —
           // SPECIAL_INFANTRY_CAPTURE_BUILDING / SPECIAL_BLACKLOTUS_CAPTURE_BUILDING
           // transfer ownership of target building to source's side via Object::defect().
-          const specialPowerDef = self.resolveSpecialPowerDefByName(profile.specialPowerTemplateName);
-          const spEnum = specialPowerDef
-            ? (readStringField(specialPowerDef.fields, ['Enum'])?.trim().toUpperCase() ?? '')
-            : '';
           if (spEnum === 'SPECIAL_INFANTRY_CAPTURE_BUILDING'
               || spEnum === 'SPECIAL_BLACKLOTUS_CAPTURE_BUILDING') {
-            const target = self.spawnedEntities.get(state.targetEntityId);
-            if (target && !target.destroyed) {
-              // Source parity: if target building has garrison occupants, evacuate them first.
-              if (target.containProfile
-                  && target.containProfile.garrisonCapacity > 0) {
-                self.evacuateContainedEntities(target.id, true);
-              }
-              // Source parity: target->defect(object->getControllingPlayer()->getDefaultTeam())
-              effectContext.changeEntitySide(state.targetEntityId, sourceSide);
-              // Clear capture progress on the target.
-              target.capturePercent = -1;
+            // Source parity: if target building has garrison occupants, evacuate them first.
+            if (target.containProfile
+                && target.containProfile.garrisonCapacity > 0) {
+              self.evacuateContainedEntities(target.id, true);
             }
+            // Source parity: target->defect(object->getControllingPlayer()->getDefaultTeam())
+            effectContext.changeEntitySide(state.targetEntityId, sourceSide);
+            // Clear capture progress on the target.
+            target.capturePercent = -1;
           }
           break;
         }
