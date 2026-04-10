@@ -983,6 +983,107 @@ function createSourceMissileLauncherBuildingUpdateBlockData(
   }
 }
 
+const SOURCE_PARTICLE_UPLINK_RAW_VISUAL_PREFIX_BYTES =
+  (16 * 4)
+  + (16 * 4)
+  + 4
+  + 4
+  + 4
+  + 4
+  + (16 * 12)
+  + (16 * 48)
+  + 12
+  + 12
+  + 12
+  + 1
+  + 1
+  + 1;
+
+function createRawInt32Bytes(value: number): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-raw-int32-bytes');
+  try {
+    xferSave.xferInt(value);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function readRawInt32Bytes(data: Uint8Array): number {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('read-raw-int32-bytes');
+  try {
+    return xferLoad.xferInt(0);
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function sourceParticleUplinkStatusFromInt(
+  value: number,
+): 'IDLE' | 'CHARGING' | 'READY_TO_FIRE' | 'FIRING' | 'POSTFIRE' {
+  switch (value) {
+    case 0: return 'IDLE';
+    case 1: return 'CHARGING';
+    case 4: return 'READY_TO_FIRE';
+    case 6: return 'FIRING';
+    case 7: return 'POSTFIRE';
+    default:
+      throw new Error(`Unexpected ParticleUplink status ${value}`);
+  }
+}
+
+function createSourceParticleUplinkCannonUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  status: number,
+  laserStatus: number,
+  frames: number,
+  rawVisualPrefixBytes: Uint8Array,
+  initialTargetPosition: { x: number; y: number; z: number },
+  currentTargetPosition: { x: number; y: number; z: number },
+  scorchMarksMade: number,
+  nextScorchMarkFrame: number,
+  nextLaunchFXFrame: number,
+  damagePulsesMade: number,
+  nextDamagePulseFrame: number,
+  startAttackFrame: number,
+  startDecayFrame: number,
+  lastDrivingClickFrame: number,
+  secondLastDrivingClickFrame: number,
+  manualTargetMode: boolean,
+  scriptedWaypointMode: boolean,
+  nextDestWaypointID: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-particle-uplink-cannon-update');
+  try {
+    xferSave.xferVersion(3);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferUser(createRawInt32Bytes(status));
+    xferSave.xferUser(createRawInt32Bytes(laserStatus));
+    xferSave.xferUnsignedInt(frames);
+    xferSave.xferUser(rawVisualPrefixBytes);
+    xferSave.xferCoord3D(initialTargetPosition);
+    xferSave.xferCoord3D(currentTargetPosition);
+    xferSave.xferUnsignedInt(scorchMarksMade);
+    xferSave.xferUnsignedInt(nextScorchMarkFrame);
+    xferSave.xferUnsignedInt(nextLaunchFXFrame);
+    xferSave.xferUnsignedInt(damagePulsesMade);
+    xferSave.xferUnsignedInt(nextDamagePulseFrame);
+    xferSave.xferUnsignedInt(startAttackFrame);
+    xferSave.xferUnsignedInt(startDecayFrame);
+    xferSave.xferUnsignedInt(lastDrivingClickFrame);
+    xferSave.xferUnsignedInt(secondLastDrivingClickFrame);
+    xferSave.xferBool(manualTargetMode);
+    xferSave.xferBool(scriptedWaypointMode);
+    xferSave.xferUnsignedInt(nextDestWaypointID);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceCheckpointUpdateBlockData(
   nextCallFrameAndPhase: number,
   enemyNear: boolean,
@@ -2043,6 +2144,44 @@ function parseSourceMissileLauncherBuildingUpdateBlockData(data: Uint8Array) {
       doorState: sourceMissileDoorStateFromInt(xferLoad.xferInt(0)),
       timeoutState: sourceMissileDoorStateFromInt(xferLoad.xferInt(0)),
       timeoutFrame: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceParticleUplinkCannonUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-particle-uplink-cannon-update');
+  try {
+    const version = xferLoad.xferVersion(3);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      version,
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      status: sourceParticleUplinkStatusFromInt(readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)))),
+      laserStatus: readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+      frames: xferLoad.xferUnsignedInt(0),
+      rawVisualPrefixBytes: xferLoad.xferUser(
+        new Uint8Array(SOURCE_PARTICLE_UPLINK_RAW_VISUAL_PREFIX_BYTES),
+      ),
+      initialTargetPosition: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      currentTargetPosition: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      scorchMarksMade: xferLoad.xferUnsignedInt(0),
+      nextScorchMarkFrame: xferLoad.xferUnsignedInt(0),
+      nextLaunchFXFrame: xferLoad.xferUnsignedInt(0),
+      damagePulsesMade: xferLoad.xferUnsignedInt(0),
+      nextDamagePulseFrame: xferLoad.xferUnsignedInt(0),
+      startAttackFrame: xferLoad.xferUnsignedInt(0),
+      startDecayFrame: xferLoad.xferUnsignedInt(0),
+      lastDrivingClickFrame: xferLoad.xferUnsignedInt(0),
+      secondLastDrivingClickFrame: xferLoad.xferUnsignedInt(0),
+      manualTargetMode: xferLoad.xferBool(false),
+      scriptedWaypointMode: xferLoad.xferBool(false),
+      nextDestWaypointID: xferLoad.xferUnsignedInt(0),
     };
   } finally {
     xferLoad.close();
@@ -7937,6 +8076,168 @@ describe('runtime-save-game', () => {
       doorState: 'WAITING_TO_CLOSE',
       timeoutState: 'CLOSING',
       timeoutFrame: 123,
+    });
+  });
+
+  it('rewrites source ParticleUplinkCannonUpdate modules from live runtime state', () => {
+    const rawVisualPrefixBytes = Uint8Array.from(
+      { length: SOURCE_PARTICLE_UPLINK_RAW_VISUAL_PREFIX_BYTES },
+      (_, index) => (index * 17) & 0xff,
+    );
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_ParticleUplink',
+      blockData: createSourceParticleUplinkCannonUpdateBlockData(
+        (70 << 2) | 2,
+        1,
+        2,
+        15,
+        rawVisualPrefixBytes,
+        { x: 1, y: 2, z: 3 },
+        { x: 4, y: 5, z: 6 },
+        9,
+        111,
+        222,
+        1,
+        120,
+        80,
+        95,
+        77,
+        66,
+        true,
+        false,
+        321,
+      ),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source particle uplink rewrite',
+      mapPath: 'Maps/RuntimeParticle/RuntimeParticle.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeParticle',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            particleUplinkCannonProfile: {
+              specialPowerTemplateName: 'SuperWeaponParticleUplinkCannon',
+              beginChargeFrames: 30,
+              raiseAntennaFrames: 20,
+              readyDelayFrames: 10,
+              widthGrowFrames: 15,
+              beamTravelFrames: 12,
+              totalFiringFrames: 90,
+              totalDamagePulses: 6,
+              damagePerSecond: 100,
+              damageType: 'LASER',
+              damageRadiusScalar: 1,
+              revealRange: 75,
+              swathOfDeathDistance: 120,
+              swathOfDeathAmplitude: 20,
+              manualDrivingSpeed: 10,
+              manualFastDrivingSpeed: 20,
+            },
+            particleUplinkCannonState: {
+              status: 'FIRING',
+              framesInState: 7,
+              targetX: 44,
+              targetZ: 66,
+              currentTargetX: 55,
+              currentTargetZ: 77,
+              damagePulsesMade: 3,
+              nextDamagePulseFrame: 130,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_ParticleUplink'
+            ? 'PARTICLEUPLINKCANNONUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const particleModule = firstObject?.modules.find(
+      (module) => module.identifier === 'ModuleTag_ParticleUplink',
+    );
+
+    expect(particleModule).toBeDefined();
+    expect(parseSourceParticleUplinkCannonUpdateBlockData(particleModule!.blockData)).toEqual({
+      version: 3,
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      status: 'FIRING',
+      laserStatus: 2,
+      frames: 7,
+      rawVisualPrefixBytes,
+      initialTargetPosition: { x: 44, y: 2, z: 66 },
+      currentTargetPosition: { x: 55, y: 5, z: 77 },
+      scorchMarksMade: 9,
+      nextScorchMarkFrame: 111,
+      nextLaunchFXFrame: 222,
+      damagePulsesMade: 3,
+      nextDamagePulseFrame: 130,
+      startAttackFrame: 80,
+      startDecayFrame: 95,
+      lastDrivingClickFrame: 77,
+      secondLastDrivingClickFrame: 66,
+      manualTargetMode: true,
+      scriptedWaypointMode: false,
+      nextDestWaypointID: 321,
     });
   });
 

@@ -4839,6 +4839,226 @@ function buildSourceMissileLauncherBuildingUpdateBlockData(
   }
 }
 
+const SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES = 16;
+const SOURCE_PARTICLE_UPLINK_RAW_VISUAL_PREFIX_BYTES =
+  (SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES * 4)
+  + (SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES * 4)
+  + 4
+  + 4
+  + 4
+  + 4
+  + (SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES * 12)
+  + (SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES * 48)
+  + 12
+  + 12
+  + 12
+  + 1
+  + 1
+  + 1;
+
+function buildSourceRawInt32Bytes(value: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-raw-int32-bytes');
+  try {
+    saver.xferInt(Math.trunc(value));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function sourceParticleUplinkStatusToInt(
+  status: 'IDLE' | 'CHARGING' | 'READY' | 'FIRING' | 'POSTFIRE',
+): number {
+  switch (status) {
+    case 'IDLE': return 0;
+    case 'CHARGING': return 1;
+    case 'READY': return 4;
+    case 'FIRING': return 6;
+    case 'POSTFIRE': return 7;
+  }
+}
+
+function tryParseSourceParticleUplinkCannonUpdateBlockData(
+  data: Uint8Array,
+): {
+  version: number;
+  nextCallFrameAndPhase: number;
+  statusBytes: Uint8Array;
+  laserStatusBytes: Uint8Array;
+  frames: number;
+  rawVisualPrefixBytes: Uint8Array;
+  initialTargetPosition: { x: number; y: number; z: number };
+  currentTargetPosition: { x: number; y: number; z: number };
+  scorchMarksMade: number;
+  nextScorchMarkFrame: number;
+  nextLaunchFXFrame: number;
+  damagePulsesMade: number;
+  nextDamagePulseFrame: number;
+  startAttackFrame: number;
+  startDecayFrame: number;
+  lastDrivingClickFrame: number;
+  secondLastDrivingClickFrame: number;
+  manualTargetMode: boolean;
+  scriptedWaypointMode: boolean;
+  nextDestWaypointID: number;
+} | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-particle-uplink-cannon-update');
+  try {
+    const version = xferLoad.xferVersion(3);
+    if (version < 1 || version > 3) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const statusBytes = xferLoad.xferUser(new Uint8Array(4));
+    const laserStatusBytes = xferLoad.xferUser(new Uint8Array(4));
+    const frames = xferLoad.xferUnsignedInt(0);
+    const rawVisualPrefixBytes = xferLoad.xferUser(
+      new Uint8Array(SOURCE_PARTICLE_UPLINK_RAW_VISUAL_PREFIX_BYTES),
+    );
+    const initialTargetPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const currentTargetPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const scorchMarksMade = xferLoad.xferUnsignedInt(0);
+    const nextScorchMarkFrame = xferLoad.xferUnsignedInt(0);
+    const nextLaunchFXFrame = xferLoad.xferUnsignedInt(0);
+    const damagePulsesMade = xferLoad.xferUnsignedInt(0);
+    const nextDamagePulseFrame = xferLoad.xferUnsignedInt(0);
+    const startAttackFrame = xferLoad.xferUnsignedInt(0);
+    const startDecayFrame = version >= 2 ? xferLoad.xferUnsignedInt(0) : 0;
+    const lastDrivingClickFrame = xferLoad.xferUnsignedInt(0);
+    const secondLastDrivingClickFrame = xferLoad.xferUnsignedInt(0);
+    const manualTargetMode = version >= 3 ? xferLoad.xferBool(false) : false;
+    const scriptedWaypointMode = version >= 3 ? xferLoad.xferBool(false) : false;
+    const nextDestWaypointID = version >= 3 ? xferLoad.xferUnsignedInt(0) : 0;
+    return xferLoad.getRemaining() === 0
+      ? {
+        version,
+        nextCallFrameAndPhase,
+        statusBytes,
+        laserStatusBytes,
+        frames,
+        rawVisualPrefixBytes,
+        initialTargetPosition,
+        currentTargetPosition,
+        scorchMarksMade,
+        nextScorchMarkFrame,
+        nextLaunchFXFrame,
+        damagePulsesMade,
+        nextDamagePulseFrame,
+        startAttackFrame,
+        startDecayFrame,
+        lastDrivingClickFrame,
+        secondLastDrivingClickFrame,
+        manualTargetMode,
+        scriptedWaypointMode,
+        nextDestWaypointID,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceParticleUplinkCannonUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: {
+    version: number;
+    nextCallFrameAndPhase: number;
+    statusBytes: Uint8Array;
+    laserStatusBytes: Uint8Array;
+    frames: number;
+    rawVisualPrefixBytes: Uint8Array;
+    initialTargetPosition: { x: number; y: number; z: number };
+    currentTargetPosition: { x: number; y: number; z: number };
+    scorchMarksMade: number;
+    nextScorchMarkFrame: number;
+    nextLaunchFXFrame: number;
+    damagePulsesMade: number;
+    nextDamagePulseFrame: number;
+    startAttackFrame: number;
+    startDecayFrame: number;
+    lastDrivingClickFrame: number;
+    secondLastDrivingClickFrame: number;
+    manualTargetMode: boolean;
+    scriptedWaypointMode: boolean;
+    nextDestWaypointID: number;
+  },
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-particle-uplink-cannon-update');
+  try {
+    const state = entity.particleUplinkCannonState;
+    const isActivelyOwnedStatus = state
+      && (state.status === 'CHARGING' || state.status === 'READY' || state.status === 'FIRING' || state.status === 'POSTFIRE');
+    const version = Math.max(1, Math.min(3, Math.trunc(preservedState.version || 3)));
+    const nextCallFrameAndPhase = isActivelyOwnedStatus
+      ? buildSourceUpdateModuleWakeFrame(currentFrame + 1)
+      : preservedState.nextCallFrameAndPhase;
+    const statusBytes = isActivelyOwnedStatus
+      ? buildSourceRawInt32Bytes(sourceParticleUplinkStatusToInt(state!.status))
+      : preservedState.statusBytes;
+    const frames = isActivelyOwnedStatus
+      ? Math.max(0, Math.trunc(state?.framesInState ?? 0))
+      : preservedState.frames;
+    const initialTargetPosition = Number.isFinite(state?.targetX) || Number.isFinite(state?.targetZ)
+      ? {
+        x: Number.isFinite(state?.targetX) ? state!.targetX : preservedState.initialTargetPosition.x,
+        y: preservedState.initialTargetPosition.y,
+        z: Number.isFinite(state?.targetZ) ? state!.targetZ : preservedState.initialTargetPosition.z,
+      }
+      : preservedState.initialTargetPosition;
+    const currentTargetPosition = Number.isFinite(state?.currentTargetX) || Number.isFinite(state?.currentTargetZ)
+      ? {
+        x: Number.isFinite(state?.currentTargetX) ? state!.currentTargetX : preservedState.currentTargetPosition.x,
+        y: preservedState.currentTargetPosition.y,
+        z: Number.isFinite(state?.currentTargetZ) ? state!.currentTargetZ : preservedState.currentTargetPosition.z,
+      }
+      : preservedState.currentTargetPosition;
+    const damagePulsesMade = Number.isFinite(state?.damagePulsesMade)
+      ? Math.max(0, Math.trunc(state!.damagePulsesMade))
+      : preservedState.damagePulsesMade;
+    const nextDamagePulseFrame = Number.isFinite(state?.nextDamagePulseFrame)
+      ? Math.max(0, Math.trunc(state!.nextDamagePulseFrame))
+      : preservedState.nextDamagePulseFrame;
+
+    saver.xferVersion(version);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    saver.xferUser(statusBytes);
+    saver.xferUser(preservedState.laserStatusBytes);
+    saver.xferUnsignedInt(frames);
+    saver.xferUser(preservedState.rawVisualPrefixBytes);
+    saver.xferCoord3D(initialTargetPosition);
+    saver.xferCoord3D(currentTargetPosition);
+    saver.xferUnsignedInt(preservedState.scorchMarksMade);
+    saver.xferUnsignedInt(preservedState.nextScorchMarkFrame);
+    saver.xferUnsignedInt(preservedState.nextLaunchFXFrame);
+    saver.xferUnsignedInt(damagePulsesMade);
+    saver.xferUnsignedInt(nextDamagePulseFrame);
+    saver.xferUnsignedInt(preservedState.startAttackFrame);
+    if (version >= 2) {
+      saver.xferUnsignedInt(preservedState.startDecayFrame);
+    }
+    saver.xferUnsignedInt(preservedState.lastDrivingClickFrame);
+    saver.xferUnsignedInt(preservedState.secondLastDrivingClickFrame);
+    if (version >= 3) {
+      saver.xferBool(preservedState.manualTargetMode);
+      saver.xferBool(preservedState.scriptedWaypointMode);
+      saver.xferUnsignedInt(preservedState.nextDestWaypointID);
+    }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceCheckpointUpdateBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-checkpoint-update');
@@ -5314,6 +5534,23 @@ function overlaySourceObjectModulesFromLiveEntity(
               identifier: module.identifier,
               blockData: buildSourceMissileLauncherBuildingUpdateBlockData(entity, currentFrame),
             };
+          }
+          if (moduleType === 'PARTICLEUPLINKCANNONUPDATE'
+            && entity.particleUplinkCannonProfile
+            && entity.particleUplinkCannonState) {
+            const parsedSourceState = tryParseSourceParticleUplinkCannonUpdateBlockData(
+              module.blockData,
+            );
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceParticleUplinkCannonUpdateBlockData(
+                  entity,
+                  currentFrame,
+                  parsedSourceState,
+                ),
+              };
+            }
           }
           if (moduleType === 'CHECKPOINTUPDATE' && entity.checkpointProfile) {
             return {
