@@ -4155,6 +4155,61 @@ function buildSourcePilotFindVehicleUpdateBlockData(
   }
 }
 
+function tryParseSourcePointDefenseLaserUpdateBlockData(
+  data: Uint8Array,
+): { bestTargetId: number; inRange: boolean } | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-point-defense-laser-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    const bestTargetId = xferLoad.xferObjectID(0);
+    const inRange = xferLoad.xferBool(false);
+    xferLoad.xferInt(0);
+    xferLoad.xferInt(0);
+    return xferLoad.getRemaining() === 0 ? { bestTargetId, inRange } : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourcePointDefenseLaserUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: { bestTargetId: number; inRange: boolean },
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-point-defense-laser-update');
+  try {
+    const nextScanFrames = entity.pdlNextScanFrame > currentFrame
+      ? Math.trunc(entity.pdlNextScanFrame - currentFrame)
+      : 0;
+    const nextShotAvailableInFrames = entity.pdlNextShotFrame > currentFrame
+      ? Math.trunc(entity.pdlNextShotFrame - currentFrame)
+      : 0;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferObjectID(preservedState.bestTargetId >>> 0);
+    saver.xferBool(preservedState.inRange);
+    saver.xferInt(nextScanFrames);
+    saver.xferInt(nextShotAvailableInFrames);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceLeafletDropBehaviorBlockData(entity: MapEntity): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-leaflet-drop-behavior');
@@ -5168,6 +5223,19 @@ function overlaySourceObjectModulesFromLiveEntity(
               identifier: module.identifier,
               blockData: buildSourcePilotFindVehicleUpdateBlockData(entity, currentFrame),
             };
+          }
+          if (moduleType === 'POINTDEFENSELASERUPDATE' && entity.pointDefenseLaserProfile) {
+            const parsedSourceState = tryParseSourcePointDefenseLaserUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourcePointDefenseLaserUpdateBlockData(
+                  entity,
+                  currentFrame,
+                  parsedSourceState,
+                ),
+              };
+            }
           }
           if (moduleType === 'LEAFLETDROPBEHAVIOR' && entity.leafletDropState) {
             return {
