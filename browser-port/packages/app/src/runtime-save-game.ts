@@ -87,6 +87,7 @@ export const BROWSER_RUNTIME_STATE_BLOCK = 'CHUNK_TS_RuntimeState';
 const SOURCE_FRAME_FOREVER = 0x3fffffff;
 const SOURCE_UPDATE_PHASE_NORMAL = 2;
 const SOURCE_UPDATE_PHASE_FINAL = 3;
+const SOURCE_STEALTH_UPDATE_PULSE_PHASE_RATE = 0.2;
 const SOURCE_HELPER_MODULE_TAG_DEFECTION = 'ModuleTag_DefectionHelper';
 const SOURCE_HELPER_MODULE_TAG_FIRING_TRACKER = 'ModuleTag_FiringTrackerHelper';
 const SOURCE_HELPER_MODULE_TAG_SMC = 'ModuleTag_SMCHelper';
@@ -4268,6 +4269,141 @@ function buildSourceDynamicShroudClearingRangeUpdateBlockData(
   }
 }
 
+function tryParseSourceStealthUpdateBlockData(
+  data: Uint8Array,
+): {
+  stealthAllowedFrame: number;
+  detectionExpiresFrame: number;
+  enabled: boolean;
+  pulsePhaseRate: number;
+  pulsePhase: number;
+  disguiseAsPlayerIndex: number;
+  disguiseTemplateName: string;
+  disguiseTransitionFrames: number;
+  disguiseHalfpointReached: boolean;
+  transitioningToDisguise: boolean;
+  disguised: boolean;
+  framesGranted: number;
+} | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-stealth-update');
+  try {
+    const version = xferLoad.xferVersion(2);
+    if (version < 1 || version > 2) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    const stealthAllowedFrame = xferLoad.xferUnsignedInt(0);
+    const detectionExpiresFrame = xferLoad.xferUnsignedInt(0);
+    const enabled = xferLoad.xferBool(false);
+    const pulsePhaseRate = xferLoad.xferReal(0);
+    const pulsePhase = xferLoad.xferReal(0);
+    const disguiseAsPlayerIndex = xferLoad.xferInt(-1);
+    const disguiseTemplateName = xferLoad.xferAsciiString('');
+    const disguiseTransitionFrames = xferLoad.xferUnsignedInt(0);
+    const disguiseHalfpointReached = xferLoad.xferBool(false);
+    const transitioningToDisguise = xferLoad.xferBool(false);
+    const disguised = xferLoad.xferBool(false);
+    const framesGranted = version >= 2 ? xferLoad.xferUnsignedInt(0) : 0;
+    return xferLoad.getRemaining() === 0
+      ? {
+        stealthAllowedFrame,
+        detectionExpiresFrame,
+        enabled,
+        pulsePhaseRate,
+        pulsePhase,
+        disguiseAsPlayerIndex,
+        disguiseTemplateName,
+        disguiseTransitionFrames,
+        disguiseHalfpointReached,
+        transitioningToDisguise,
+        disguised,
+        framesGranted,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceStealthUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState?: {
+    stealthAllowedFrame: number;
+    detectionExpiresFrame: number;
+    enabled: boolean;
+    pulsePhaseRate: number;
+    pulsePhase: number;
+    disguiseAsPlayerIndex: number;
+    disguiseTemplateName: string;
+    disguiseTransitionFrames: number;
+    disguiseHalfpointReached: boolean;
+    transitioningToDisguise: boolean;
+    disguised: boolean;
+    framesGranted: number;
+  } | null,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-stealth-update');
+  try {
+    const canStealth = entity.objectStatusFlags.has('CAN_STEALTH');
+    const isStealthed = entity.objectStatusFlags.has('STEALTHED');
+    const isDisguised = entity.objectStatusFlags.has('DISGUISED')
+      && typeof entity.disguiseTemplateName === 'string'
+      && entity.disguiseTemplateName.length > 0;
+    const enabled = entity.stealthEnabled === true
+      || entity.temporaryStealthGrant === true
+      || isStealthed
+      || isDisguised
+      || (!entity.stealthProfile ? false : canStealth);
+    const stealthAllowedFrame = !enabled && !canStealth
+      ? Math.max(0, Math.trunc(preservedState?.stealthAllowedFrame ?? SOURCE_FRAME_FOREVER))
+      : Math.max(
+        0,
+        Math.trunc(
+          entity.stealthDelayRemaining > 0 && !isStealthed
+            ? currentFrame + entity.stealthDelayRemaining
+            : currentFrame,
+        ),
+      );
+    const disguiseAsPlayerIndex = isDisguised
+      ? Math.trunc(entity.stealthDisguisePlayerIndex ?? preservedState?.disguiseAsPlayerIndex ?? -1)
+      : -1;
+    const disguiseTemplateName = isDisguised
+      ? (entity.disguiseTemplateName ?? preservedState?.disguiseTemplateName ?? '')
+      : '';
+    const framesGranted = entity.temporaryStealthGrant && entity.temporaryStealthExpireFrame > currentFrame
+      ? entity.temporaryStealthExpireFrame - currentFrame
+      : 0;
+    saver.xferVersion(2);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(enabled ? currentFrame + 1 : SOURCE_FRAME_FOREVER),
+    ));
+    saver.xferUnsignedInt(stealthAllowedFrame);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.detectedUntilFrame)));
+    saver.xferBool(enabled);
+    saver.xferReal(preservedState?.pulsePhaseRate ?? SOURCE_STEALTH_UPDATE_PULSE_PHASE_RATE);
+    saver.xferReal(preservedState?.pulsePhase ?? 0);
+    saver.xferInt(disguiseAsPlayerIndex);
+    saver.xferAsciiString(disguiseTemplateName);
+    saver.xferUnsignedInt(isDisguised ? Math.max(0, Math.trunc(preservedState?.disguiseTransitionFrames ?? 0)) : 0);
+    saver.xferBool(isDisguised ? (preservedState?.disguiseHalfpointReached ?? false) : false);
+    saver.xferBool(isDisguised ? (preservedState?.transitioningToDisguise ?? false) : false);
+    saver.xferBool(isDisguised);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(framesGranted)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function tryParseSourceStealthDetectorUpdateBlockData(
   data: Uint8Array,
 ): { enabled: boolean } | null {
@@ -4343,6 +4479,200 @@ function buildSourcePilotFindVehicleUpdateBlockData(
       buildSourceUpdateModuleWakeFrame(currentFrame + 1),
     ));
     saver.xferBool(entity.pilotFindVehicleDidMoveToBase === true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function sourceSpectreGunshipStatusToInt(
+  status: 'INSERTING' | 'ORBITING' | 'DEPARTING' | 'IDLE',
+): number {
+  switch (status) {
+    case 'INSERTING': return 0;
+    case 'ORBITING': return 1;
+    case 'DEPARTING': return 2;
+    case 'IDLE': return 3;
+  }
+}
+
+function sourceSpectreGunshipIntToStatus(value: number): 'INSERTING' | 'ORBITING' | 'DEPARTING' | 'IDLE' {
+  switch (value) {
+    case 0: return 'INSERTING';
+    case 1: return 'ORBITING';
+    case 2: return 'DEPARTING';
+    case 3: return 'IDLE';
+    default: return 'IDLE';
+  }
+}
+
+function buildSourceSpectreGunshipStatusBytes(
+  status: 'INSERTING' | 'ORBITING' | 'DEPARTING' | 'IDLE',
+): Uint8Array {
+  const buffer = new ArrayBuffer(4);
+  new DataView(buffer).setInt32(0, sourceSpectreGunshipStatusToInt(status), true);
+  return new Uint8Array(buffer);
+}
+
+function parseSourceSpectreGunshipStatusBytes(bytes: Uint8Array): 'INSERTING' | 'ORBITING' | 'DEPARTING' | 'IDLE' {
+  if (bytes.byteLength < 4) {
+    return 'IDLE';
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return sourceSpectreGunshipIntToStatus(view.getInt32(0, true));
+}
+
+function tryParseSourceSpectreGunshipDeploymentUpdateBlockData(
+  data: Uint8Array,
+): { gunshipId: number } | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-spectre-gunship-deployment-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    const gunshipId = xferLoad.xferObjectID(0);
+    return xferLoad.getRemaining() === 0 ? { gunshipId } : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceSpectreGunshipDeploymentUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-spectre-gunship-deployment-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferObjectID(Math.max(0, Math.trunc(entity.spectreGunshipDeploymentGunshipId ?? 0)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceSpectreGunshipUpdateBlockData(
+  data: Uint8Array,
+): {
+  initialTargetPosition: { x: number; y: number; z: number };
+  overrideTargetDestination: { x: number; y: number; z: number };
+  satellitePosition: { x: number; y: number; z: number };
+  status: 'INSERTING' | 'ORBITING' | 'DEPARTING' | 'IDLE';
+  orbitEscapeFrame: number;
+  gattlingTargetPosition: { x: number; y: number; z: number };
+  positionToShootAt: { x: number; y: number; z: number };
+  okToFireHowitzerCounter: number;
+  gattlingId: number;
+} | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-spectre-gunship-update');
+  try {
+    const version = xferLoad.xferVersion(2);
+    if (version < 1 || version > 2) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    const initialTargetPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const overrideTargetDestination = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const satellitePosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const status = parseSourceSpectreGunshipStatusBytes(xferLoad.xferUser(new Uint8Array(4)));
+    const orbitEscapeFrame = xferLoad.xferUnsignedInt(0);
+    if (version < 2) {
+      return null;
+    }
+    const gattlingTargetPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const positionToShootAt = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const okToFireHowitzerCounter = xferLoad.xferUnsignedInt(0);
+    const gattlingId = xferLoad.xferObjectID(0);
+    return xferLoad.getRemaining() === 0
+      ? {
+        initialTargetPosition,
+        overrideTargetDestination,
+        satellitePosition,
+        status,
+        orbitEscapeFrame,
+        gattlingTargetPosition,
+        positionToShootAt,
+        okToFireHowitzerCounter,
+        gattlingId,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceSpectreGunshipUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState?: {
+    initialTargetPosition: { x: number; y: number; z: number };
+    overrideTargetDestination: { x: number; y: number; z: number };
+    satellitePosition: { x: number; y: number; z: number };
+    status: 'INSERTING' | 'ORBITING' | 'DEPARTING' | 'IDLE';
+    orbitEscapeFrame: number;
+    gattlingTargetPosition: { x: number; y: number; z: number };
+    positionToShootAt: { x: number; y: number; z: number };
+    okToFireHowitzerCounter: number;
+    gattlingId: number;
+  } | null,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-spectre-gunship-update');
+  try {
+    const state = entity.spectreGunshipState;
+    saver.xferVersion(2);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferCoord3D({
+      x: state?.initialTargetX ?? preservedState?.initialTargetPosition.x ?? 0,
+      y: preservedState?.initialTargetPosition.y ?? 0,
+      z: state?.initialTargetZ ?? preservedState?.initialTargetPosition.z ?? 0,
+    });
+    saver.xferCoord3D({
+      x: state?.overrideTargetX ?? preservedState?.overrideTargetDestination.x ?? 0,
+      y: preservedState?.overrideTargetDestination.y ?? 0,
+      z: state?.overrideTargetZ ?? preservedState?.overrideTargetDestination.z ?? 0,
+    });
+    saver.xferCoord3D({
+      x: state?.satelliteX ?? preservedState?.satellitePosition.x ?? 0,
+      y: preservedState?.satellitePosition.y ?? entity.y ?? 0,
+      z: state?.satelliteZ ?? preservedState?.satellitePosition.z ?? 0,
+    });
+    saver.xferUser(buildSourceSpectreGunshipStatusBytes(state?.status ?? preservedState?.status ?? 'IDLE'));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.orbitEscapeFrame ?? preservedState?.orbitEscapeFrame ?? 0)));
+    saver.xferCoord3D({
+      x: state?.gattlingTargetX ?? preservedState?.gattlingTargetPosition.x ?? 0,
+      y: preservedState?.gattlingTargetPosition.y ?? 0,
+      z: state?.gattlingTargetZ ?? preservedState?.gattlingTargetPosition.z ?? 0,
+    });
+    saver.xferCoord3D({
+      x: state?.positionToShootAtX ?? preservedState?.positionToShootAt.x ?? 0,
+      y: preservedState?.positionToShootAt.y ?? 0,
+      z: state?.positionToShootAtZ ?? preservedState?.positionToShootAt.z ?? 0,
+    });
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.okToFireHowitzerCounter ?? preservedState?.okToFireHowitzerCounter ?? 0)));
+    saver.xferObjectID(Math.max(0, Math.trunc(state?.gattlingEntityId ?? preservedState?.gattlingId ?? 0)));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -5666,6 +5996,19 @@ function overlaySourceObjectModulesFromLiveEntity(
               };
             }
           }
+          if (moduleType === 'STEALTHUPDATE' && entity.stealthProfile) {
+            const parsedSourceState = tryParseSourceStealthUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceStealthUpdateBlockData(
+                  entity,
+                  currentFrame,
+                  parsedSourceState,
+                ),
+              };
+            }
+          }
           if (moduleType === 'STEALTHDETECTORUPDATE' && entity.detectorProfile) {
             const parsedSourceState = tryParseSourceStealthDetectorUpdateBlockData(module.blockData);
             if (parsedSourceState) {
@@ -5680,6 +6023,28 @@ function overlaySourceObjectModulesFromLiveEntity(
               identifier: module.identifier,
               blockData: buildSourceFloatUpdateBlockData(entity, currentFrame),
             };
+          }
+          if (moduleType === 'SPECTREGUNSHIPDEPLOYMENTUPDATE' && entity.spectreGunshipDeploymentProfile) {
+            const parsedSourceState = tryParseSourceSpectreGunshipDeploymentUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceSpectreGunshipDeploymentUpdateBlockData(entity, currentFrame),
+              };
+            }
+          }
+          if (moduleType === 'SPECTREGUNSHIPUPDATE' && entity.spectreGunshipProfile && entity.spectreGunshipState) {
+            const parsedSourceState = tryParseSourceSpectreGunshipUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceSpectreGunshipUpdateBlockData(
+                  entity,
+                  currentFrame,
+                  parsedSourceState,
+                ),
+              };
+            }
           }
           if (moduleType === 'PILOTFINDVEHICLEUPDATE' && entity.pilotFindVehicleProfile) {
             return {

@@ -3657,12 +3657,16 @@ export interface MapEntity {
   visionState: EntityVisionState;
   /** Source parity: StealthUpdate — parsed stealth module profile. */
   stealthProfile: StealthProfile | null;
+  /** Source parity: StealthUpdate::m_enabled. */
+  stealthEnabled: boolean;
   /** Frames remaining before CAN_STEALTH entity re-enters stealth. 0 = ready to stealth. */
   stealthDelayRemaining: number;
   /** Source parity: SupplyCenterDockUpdate — whether this entity's current stealth is a temporary grant. */
   temporaryStealthGrant: boolean;
   /** Frame at which a temporary stealth grant expires. 0 = no pending expiry. */
   temporaryStealthExpireFrame: number;
+  /** Source parity: StealthUpdate::m_disguiseAsPlayerIndex. */
+  stealthDisguisePlayerIndex: number;
   /** Source parity: StealthUpdate disguise — template name of the object this entity is disguised as.
    *  null when not disguised. Set when DISGUISED status is active. */
   disguiseTemplateName: string | null;
@@ -4351,6 +4355,7 @@ export interface MapEntity {
   spectreGunshipState: SpectreGunshipState | null;
   // ── Source parity: SpectreGunshipDeploymentUpdate — command center deployment ──
   spectreGunshipDeploymentProfile: SpectreGunshipDeploymentProfile | null;
+  spectreGunshipDeploymentGunshipId: number;
   // ── Source parity: WaveGuideUpdate — flood wave mechanics (dam break / GLA Sneak Attack) ──
   waveGuideProfile: WaveGuideProfile | null;
 
@@ -13315,6 +13320,14 @@ export class GameLogicSubsystem implements Subsystem {
       return null;
     }
     return this.playerSideByIndex.get(normalizedPlayerIndex) ?? null;
+  }
+
+  getPlayerIndexForSide(side: string): number | null {
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return null;
+    }
+    return this.sidePlayerIndex.get(normalizedSide) ?? null;
   }
 
   getResolvedFactionSide(side: string): string | null {

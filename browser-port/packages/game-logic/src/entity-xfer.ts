@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 22;
+const ENTITY_XFER_VERSION = 24;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1786,9 +1786,23 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.shroudClearingRange = xfer.xferReal(e.shroudClearingRange as number);
   e.visionState = xferJsonObject(xfer, e.visionState as object);
   e.stealthProfile = xferNullableJsonObject(xfer, e.stealthProfile as object | null);
+  if (version >= 23) {
+    e.stealthEnabled = xfer.xferBool((e.stealthEnabled as boolean | undefined) ?? false);
+  } else {
+    const objectStatusFlags = e.objectStatusFlags as Set<string>;
+    e.stealthEnabled = !!e.stealthProfile
+      && (objectStatusFlags.has('CAN_STEALTH')
+        || objectStatusFlags.has('STEALTHED')
+        || objectStatusFlags.has('DISGUISED'));
+  }
   e.stealthDelayRemaining = xfer.xferInt(e.stealthDelayRemaining as number);
   e.temporaryStealthGrant = xfer.xferBool(e.temporaryStealthGrant as boolean);
   e.temporaryStealthExpireFrame = xfer.xferInt(e.temporaryStealthExpireFrame as number);
+  if (version >= 23) {
+    e.stealthDisguisePlayerIndex = xfer.xferInt((e.stealthDisguisePlayerIndex as number | undefined) ?? -1);
+  } else {
+    e.stealthDisguisePlayerIndex = -1;
+  }
   e.detectedUntilFrame = xfer.xferInt(e.detectedUntilFrame as number);
   e.lastDamageFrame = xfer.xferInt(e.lastDamageFrame as number);
   e.lastDamageNoEffect = xfer.xferBool(e.lastDamageNoEffect as boolean);
@@ -2247,6 +2261,13 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
       xfer,
       e.spectreGunshipDeploymentProfile as object | null,
     );
+    if (version >= 24) {
+      e.spectreGunshipDeploymentGunshipId = xfer.xferObjectID(
+        (e.spectreGunshipDeploymentGunshipId as number | undefined) ?? 0,
+      );
+    } else {
+      e.spectreGunshipDeploymentGunshipId = 0;
+    }
     e.waveGuideProfile = xferNullableJsonObject(xfer, e.waveGuideProfile as object | null);
     e.dumbProjectileProfile = xferNullableJsonObject(xfer, e.dumbProjectileProfile as object | null);
     if (version >= 14) {
@@ -2280,6 +2301,7 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.spectreGunshipProfile = null;
   e.spectreGunshipState = null;
   e.spectreGunshipDeploymentProfile = null;
+  e.spectreGunshipDeploymentGunshipId = 0;
   e.waveGuideProfile = null;
   e.dumbProjectileProfile = null;
   e.healthBoxOffset = { x: 0, y: 0, z: 0 };

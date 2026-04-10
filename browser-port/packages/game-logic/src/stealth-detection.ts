@@ -342,12 +342,14 @@ export function updateStealth(self: GL): void {
         entity.objectStatusFlags.delete('CAN_STEALTH');
         entity.temporaryStealthGrant = false;
         entity.temporaryStealthExpireFrame = 0;
+        entity.stealthEnabled = entity.stealthProfile ? !entity.stealthProfile.disguisesAsTeam : false;
       } else if (self.frameCounter >= entity.temporaryStealthExpireFrame) {
         // Timer expired normally.
         entity.objectStatusFlags.delete('STEALTHED');
         entity.objectStatusFlags.delete('CAN_STEALTH');
         entity.temporaryStealthGrant = false;
         entity.temporaryStealthExpireFrame = 0;
+        entity.stealthEnabled = entity.stealthProfile ? !entity.stealthProfile.disguisesAsTeam : false;
       }
     }
 
@@ -540,6 +542,7 @@ export function updateStealth(self: GL): void {
       // Source parity: StealthUpdate.cpp:901 — remove disguise on stealth break.
       if (entity.objectStatusFlags.has('DISGUISED')) {
         entity.objectStatusFlags.delete('DISGUISED');
+        entity.stealthDisguisePlayerIndex = -1;
         entity.disguiseTemplateName = null;
       }
       entity.stealthDelayRemaining = delayFrames;
@@ -555,6 +558,7 @@ export function updateStealth(self: GL): void {
     // Enter stealth.
     if (!entity.objectStatusFlags.has('STEALTHED')) {
       entity.objectStatusFlags.add('STEALTHED');
+      entity.stealthEnabled = true;
 
       // Source parity: StealthUpdate.cpp:939-1042 — when a DisguisesAsTeam unit enters
       // stealth, pick a nearby enemy unit as the disguise target. The unit appears as the
@@ -563,6 +567,7 @@ export function updateStealth(self: GL): void {
       if (profile && profile.disguisesAsTeam && !entity.objectStatusFlags.has('DISGUISED')) {
         const disguiseTarget = findDisguiseTarget(self, entity);
         if (disguiseTarget) {
+          entity.stealthDisguisePlayerIndex = self.getPlayerIndexForSide(disguiseTarget.side) ?? -1;
           entity.disguiseTemplateName = disguiseTarget.templateName;
           entity.objectStatusFlags.add('DISGUISED');
         }
@@ -634,6 +639,7 @@ export function grantStealthToEntity(self: GL, target: MapEntity, profile: Grant
   // Sets CAN_STEALTH + STEALTHED flags, clears stealth delay.
   target.objectStatusFlags.add('CAN_STEALTH');
   target.objectStatusFlags.add('STEALTHED');
+  target.stealthEnabled = true;
   target.stealthDelayRemaining = 0;
 }
 

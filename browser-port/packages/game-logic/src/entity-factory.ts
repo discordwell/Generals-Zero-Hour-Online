@@ -484,9 +484,11 @@ export function createMapEntity(self: GL,
     shroudRevealToAllRange,
     visionState: createEntityVisionStateImpl(),
     stealthProfile: self.extractStealthProfile(objectDef),
+    stealthEnabled: false,
     stealthDelayRemaining: 0,
     temporaryStealthGrant: false,
     temporaryStealthExpireFrame: 0,
+    stealthDisguisePlayerIndex: -1,
     disguiseTemplateName: null,
     detectedUntilFrame: 0,
     lastDamageFrame: 0,
@@ -904,6 +906,7 @@ export function createMapEntity(self: GL,
     spectreGunshipState: null,
     // SpectreGunshipDeployment (command center deployment)
     spectreGunshipDeploymentProfile: self.extractSpectreGunshipDeploymentProfile(objectDef),
+    spectreGunshipDeploymentGunshipId: 0,
     // WaveGuideUpdate (flood wave mechanics — dam break / GLA Sneak Attack)
     waveGuideProfile: extractWaveGuideProfile(self, objectDef),
     // DumbProjectileBehavior (projectile flight path and detonation)
@@ -927,6 +930,9 @@ export function createMapEntity(self: GL,
   }));
 
   // Source parity: StealthUpdate::init — InnateStealth sets CAN_STEALTH on creation.
+  if (entity.stealthProfile) {
+    entity.stealthEnabled = !entity.stealthProfile.disguisesAsTeam;
+  }
   if (entity.stealthProfile?.innateStealth) {
     entity.objectStatusFlags.add('CAN_STEALTH');
   }

@@ -146,6 +146,7 @@ export function initiateSpectreGunshipDeployment(self: GL,
     source.side ?? '',
   );
   if (!gunshipEntity) return false;
+  source.spectreGunshipDeploymentGunshipId = gunshipEntity.id;
 
   // Source parity: fire the gunship's own special power at the target location
   const gunshipProfile = gunshipEntity.spectreGunshipProfile;
