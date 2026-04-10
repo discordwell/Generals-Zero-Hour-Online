@@ -681,6 +681,96 @@ function createSourceCleanupHazardUpdateBlockData(
   }
 }
 
+function createSourceDemoTrapUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  nextScanFrames: number,
+  detonated: boolean,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-demo-trap-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferInt(nextScanFrames);
+    xferSave.xferBool(detonated);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceCommandButtonHuntUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  commandButtonName: string,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-command-button-hunt-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferAsciiString(commandButtonName);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceAutoDepositUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  depositOnFrame: number,
+  awardInitialCaptureBonus: boolean,
+  initialized: boolean,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-auto-deposit-update');
+  try {
+    xferSave.xferVersion(2);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferUnsignedInt(depositOnFrame);
+    xferSave.xferBool(awardInitialCaptureBonus);
+    xferSave.xferBool(initialized);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceDynamicShroudClearingRangeUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  stateCountDown: number,
+  totalFrames: number,
+  growStartDeadline: number,
+  sustainDeadline: number,
+  shrinkStartDeadline: number,
+  doneForeverFrame: number,
+  changeIntervalCountdown: number,
+  decalsCreated: boolean,
+  visionChangePerInterval: number,
+  nativeClearingRange: number,
+  currentClearingRange: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-dynamic-shroud-clearing-range-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferInt(stateCountDown);
+    xferSave.xferInt(totalFrames);
+    xferSave.xferUnsignedInt(growStartDeadline);
+    xferSave.xferUnsignedInt(sustainDeadline);
+    xferSave.xferUnsignedInt(shrinkStartDeadline);
+    xferSave.xferUnsignedInt(doneForeverFrame);
+    xferSave.xferUnsignedInt(changeIntervalCountdown);
+    xferSave.xferBool(decalsCreated);
+    xferSave.xferReal(visionChangePerInterval);
+    xferSave.xferReal(nativeClearingRange);
+    xferSave.xferReal(currentClearingRange);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourcePilotFindVehicleUpdateBlockData(
   nextCallFrameAndPhase: number,
   didMoveToBase: boolean,
@@ -1942,6 +2032,92 @@ function parseSourceCleanupHazardUpdateBlockData(data: Uint8Array) {
       nextShotAvailableInFrames: xferLoad.xferInt(0),
       position: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
       moveRange: xferLoad.xferReal(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceDemoTrapUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-demo-trap-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      nextScanFrames: xferLoad.xferInt(0),
+      detonated: xferLoad.xferBool(false),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceCommandButtonHuntUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-command-button-hunt-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      commandButtonName: xferLoad.xferAsciiString(''),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceAutoDepositUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-auto-deposit-update');
+  try {
+    const version = xferLoad.xferVersion(2);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      version,
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      depositOnFrame: xferLoad.xferUnsignedInt(0),
+      awardInitialCaptureBonus: xferLoad.xferBool(false),
+      initialized: version > 1 ? xferLoad.xferBool(false) : false,
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceDynamicShroudClearingRangeUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-dynamic-shroud-clearing-range-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      stateCountDown: xferLoad.xferInt(0),
+      totalFrames: xferLoad.xferInt(0),
+      growStartDeadline: xferLoad.xferUnsignedInt(0),
+      sustainDeadline: xferLoad.xferUnsignedInt(0),
+      shrinkStartDeadline: xferLoad.xferUnsignedInt(0),
+      doneForeverFrame: xferLoad.xferUnsignedInt(0),
+      changeIntervalCountdown: xferLoad.xferUnsignedInt(0),
+      decalsCreated: xferLoad.xferBool(false),
+      visionChangePerInterval: xferLoad.xferReal(0),
+      nativeClearingRange: xferLoad.xferReal(0),
+      currentClearingRange: xferLoad.xferReal(0),
     };
   } finally {
     xferLoad.close();
@@ -6931,6 +7107,434 @@ describe('runtime-save-game', () => {
       nextShotAvailableInFrames: 123,
       position: { x: 1, y: 2, z: 3 },
       moveRange: 250,
+    });
+  });
+
+  it('rewrites source DemoTrapUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_DemoTrap',
+      blockData: createSourceDemoTrapUpdateBlockData((84 << 2) | 2, 5, false),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source demo trap rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            demoTrapProfile: {
+              scanFrames: 20,
+            },
+            demoTrapNextScanFrame: 91,
+            demoTrapDetonated: true,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_DemoTrap'
+            ? 'DEMOTRAPUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const demoTrapModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_DemoTrap');
+
+    expect(demoTrapModule).toBeDefined();
+    expect(parseSourceDemoTrapUpdateBlockData(demoTrapModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      nextScanFrames: 49,
+      detonated: true,
+    });
+  });
+
+  it('rewrites source CommandButtonHuntUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Hunt',
+      blockData: createSourceCommandButtonHuntUpdateBlockData((84 << 2) | 2, 'OLD_BUTTON'),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source command button hunt rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            commandButtonHuntProfile: {
+              scanFrames: 20,
+              scanRange: 300,
+            },
+            commandButtonHuntMode: 'SPECIAL_POWER',
+            commandButtonHuntButtonName: 'SPECIALABILITY_PARTICLE_CANNON',
+            commandButtonHuntNextScanFrame: 91,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Hunt'
+            ? 'COMMANDBUTTONHUNTUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const huntModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Hunt');
+
+    expect(huntModule).toBeDefined();
+    expect(parseSourceCommandButtonHuntUpdateBlockData(huntModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (91 << 2) | 2,
+      commandButtonName: 'SPECIALABILITY_PARTICLE_CANNON',
+    });
+  });
+
+  it('rewrites source AutoDepositUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_AutoDeposit',
+      blockData: createSourceAutoDepositUpdateBlockData((84 << 2) | 2, 75, false, false),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source auto deposit rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            autoDepositProfile: {
+              depositFrames: 30,
+              depositAmount: 20,
+              initialCaptureBonus: 100,
+            },
+            autoDepositNextFrame: 123,
+            autoDepositCaptureBonusPending: true,
+            autoDepositInitialized: true,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_AutoDeposit'
+            ? 'AUTODEPOSITUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const autoDepositModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_AutoDeposit');
+
+    expect(autoDepositModule).toBeDefined();
+    expect(parseSourceAutoDepositUpdateBlockData(autoDepositModule!.blockData)).toEqual({
+      version: 2,
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      depositOnFrame: 123,
+      awardInitialCaptureBonus: true,
+      initialized: true,
+    });
+  });
+
+  it('rewrites source DynamicShroudClearingRangeUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_DynamicShroud',
+      blockData: createSourceDynamicShroudClearingRangeUpdateBlockData(
+        (84 << 2) | 2,
+        10,
+        20,
+        15,
+        12,
+        9,
+        200,
+        4,
+        true,
+        1.25,
+        300,
+        25,
+      ),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source dynamic shroud rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            dynamicShroudProfile: {
+              changeInterval: 2,
+              growInterval: 1,
+              shrinkDelay: 30,
+              shrinkTime: 40,
+              growDelay: 50,
+              growTime: 60,
+              finalVision: 20,
+            },
+            dynamicShroudState: 'GROWING',
+            dynamicShroudStateCountdown: 77,
+            dynamicShroudTotalFrames: 88,
+            dynamicShroudGrowStartDeadline: 70,
+            dynamicShroudSustainDeadline: 55,
+            dynamicShroudShrinkStartDeadline: 33,
+            dynamicShroudDoneForeverFrame: 456,
+            dynamicShroudChangeIntervalCountdown: 6,
+            dynamicShroudNativeClearingRange: 400,
+            dynamicShroudCurrentClearingRange: 125,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_DynamicShroud'
+            ? 'DYNAMICSHROUDCLEARINGRANGEUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const dynamicShroudModule = firstObject?.modules.find(
+      (module) => module.identifier === 'ModuleTag_DynamicShroud',
+    );
+
+    expect(dynamicShroudModule).toBeDefined();
+    expect(parseSourceDynamicShroudClearingRangeUpdateBlockData(dynamicShroudModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      stateCountDown: 77,
+      totalFrames: 88,
+      growStartDeadline: 70,
+      sustainDeadline: 55,
+      shrinkStartDeadline: 33,
+      doneForeverFrame: 456,
+      changeIntervalCountdown: 6,
+      decalsCreated: true,
+      visionChangePerInterval: 1.25,
+      nativeClearingRange: 400,
+      currentClearingRange: 125,
     });
   });
 

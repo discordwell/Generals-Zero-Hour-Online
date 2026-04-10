@@ -4137,6 +4137,137 @@ function buildSourceCleanupHazardUpdateBlockData(
   }
 }
 
+function buildSourceDemoTrapUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-demo-trap-update');
+  try {
+    const nextScanFrames = entity.demoTrapNextScanFrame > currentFrame
+      ? Math.trunc(entity.demoTrapNextScanFrame - currentFrame)
+      : 0;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferInt(nextScanFrames);
+    saver.xferBool(entity.demoTrapDetonated === true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceCommandButtonHuntUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-command-button-hunt-update');
+  try {
+    const buttonName = entity.commandButtonHuntMode !== 'NONE'
+      ? entity.commandButtonHuntButtonName.trim()
+      : '';
+    const nextCallFrame = buttonName.length > 0
+      ? Math.max(currentFrame + 1, Math.trunc(entity.commandButtonHuntNextScanFrame))
+      : SOURCE_FRAME_FOREVER;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
+    ));
+    saver.xferAsciiString(buttonName);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceAutoDepositUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-auto-deposit-update');
+  try {
+    saver.xferVersion(2);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.autoDepositNextFrame)));
+    saver.xferBool(entity.autoDepositCaptureBonusPending === true);
+    saver.xferBool(entity.autoDepositInitialized === true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceDynamicShroudClearingRangeUpdateBlockData(
+  data: Uint8Array,
+): { decalsCreated: boolean; visionChangePerInterval: number } | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-dynamic-shroud-clearing-range-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferInt(0);
+    xferLoad.xferInt(0);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    const decalsCreated = xferLoad.xferBool(false);
+    const visionChangePerInterval = xferLoad.xferReal(0);
+    xferLoad.xferReal(0);
+    xferLoad.xferReal(0);
+    return xferLoad.getRemaining() === 0
+      ? { decalsCreated, visionChangePerInterval }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceDynamicShroudClearingRangeUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: { decalsCreated: boolean; visionChangePerInterval: number },
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-dynamic-shroud-clearing-range-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferInt(Math.trunc(entity.dynamicShroudStateCountdown));
+    saver.xferInt(Math.trunc(entity.dynamicShroudTotalFrames));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.dynamicShroudGrowStartDeadline)));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.dynamicShroudSustainDeadline)));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.dynamicShroudShrinkStartDeadline)));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.dynamicShroudDoneForeverFrame)));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.dynamicShroudChangeIntervalCountdown)));
+    saver.xferBool(preservedState.decalsCreated);
+    saver.xferReal(preservedState.visionChangePerInterval);
+    saver.xferReal(entity.dynamicShroudNativeClearingRange);
+    saver.xferReal(entity.dynamicShroudCurrentClearingRange);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourcePilotFindVehicleUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -5431,6 +5562,40 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceCleanupHazardUpdateBlockData(
+                  entity,
+                  currentFrame,
+                  parsedSourceState,
+                ),
+              };
+            }
+          }
+          if (moduleType === 'DEMOTRAPUPDATE' && entity.demoTrapProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceDemoTrapUpdateBlockData(entity, currentFrame),
+            };
+          }
+          if (moduleType === 'COMMANDBUTTONHUNTUPDATE' && entity.commandButtonHuntProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceCommandButtonHuntUpdateBlockData(entity, currentFrame),
+            };
+          }
+          if (moduleType === 'AUTODEPOSITUPDATE' && entity.autoDepositProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceAutoDepositUpdateBlockData(entity, currentFrame),
+            };
+          }
+          if ((moduleType === 'DYNAMICSHROUDCLEARINGRANGEUPDATE' || moduleType === 'DYNAMICSHROUDCLEARINGRANGE')
+            && entity.dynamicShroudProfile) {
+            const parsedSourceState = tryParseSourceDynamicShroudClearingRangeUpdateBlockData(
+              module.blockData,
+            );
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceDynamicShroudClearingRangeUpdateBlockData(
                   entity,
                   currentFrame,
                   parsedSourceState,
