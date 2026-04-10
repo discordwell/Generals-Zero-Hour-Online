@@ -7106,6 +7106,7 @@ describe('runtime-save-game', () => {
             },
             heightDieActiveFrame: 200,
             heightDieLastY: 26,
+            heightDieParticlesDestroyed: false,
             destroyed: false,
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
@@ -7126,7 +7127,7 @@ describe('runtime-save-game', () => {
       version: 2,
       nextCallFrameAndPhase: (43 << 2) | 2,
       hasDied: false,
-      particlesDestroyed: true,
+      particlesDestroyed: false,
       lastPosition: { x: 10, y: 20, z: 26 },
       earliestDeathFrame: 200,
     });
@@ -9189,6 +9190,9 @@ describe('runtime-save-game', () => {
                 pausedOnFrame: 0,
                 pausedPercent: 0,
                 spyVisionDeactivateFrame: 456,
+                spyVisionCurrentlyActive: false,
+                spyVisionResetTimersNextUpdate: true,
+                spyVisionDisabledUntilFrame: 789,
                 cashHackMoneyAmount: 0,
                 cashBountyPercent: 0,
                 spyVisionBaseDurationMs: 0,
@@ -9222,11 +9226,11 @@ describe('runtime-save-game', () => {
     expect(spyVisionModule).toBeDefined();
     expect(parseSourceSpyVisionUpdateBlockData(spyVisionModule!.blockData)).toEqual({
       version: 2,
-      nextCallFrameAndPhase: 0xfffffffe,
+      nextCallFrameAndPhase: (789 << 2) | 2,
       deactivateFrame: 456,
-      currentlyActive: true,
+      currentlyActive: false,
       resetTimersNextUpdate: true,
-      disabledUntilFrame: 123,
+      disabledUntilFrame: 789,
     });
   });
 

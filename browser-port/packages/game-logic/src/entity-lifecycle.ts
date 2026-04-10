@@ -760,6 +760,14 @@ export function updateHeightDieEntities(self: GL): void {
       }
     }
 
+    if (
+      !entity.heightDieParticlesDestroyed
+      && entity.y < prof.destroyAttachedParticlesAtHeight
+      && (entity.destroyed || directionOK)
+    ) {
+      entity.heightDieParticlesDestroyed = true;
+    }
+
     // Source parity: C++ line 266 — always update lastPosition at end of update.
     entity.heightDieLastY = currentY;
   }

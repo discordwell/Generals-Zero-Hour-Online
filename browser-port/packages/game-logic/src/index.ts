@@ -2089,6 +2089,12 @@ interface SpecialPowerModuleProfile {
   pausedPercent: number;
   /** Source parity bridge: SpyVisionUpdate::m_deactivateFrame while update modules are folded into the entity runtime. */
   spyVisionDeactivateFrame: number;
+  /** Source parity: SpyVisionUpdate::m_currentlyActive. */
+  spyVisionCurrentlyActive?: boolean;
+  /** Source parity: SpyVisionUpdate::m_resetTimersNextUpdate. */
+  spyVisionResetTimersNextUpdate?: boolean;
+  /** Source parity: SpyVisionUpdate::m_disabledUntilFrame. */
+  spyVisionDisabledUntilFrame?: number;
   /**
    * Source parity: CashHackSpecialPowerModuleData::m_defaultAmountToSteal.
    * INI field: MoneyAmount. Default 0.
@@ -3955,6 +3961,8 @@ export interface MapEntity {
   heightDieActiveFrame: number;
   /** Source parity: HeightDieUpdate — last-frame Y position for OnlyWhenMovingDown check. */
   heightDieLastY: number;
+  /** Source parity: HeightDieUpdate::m_particlesDestroyed. */
+  heightDieParticlesDestroyed: boolean;
 
   // ── Source parity: DeletionUpdate — timed silent removal (no death pipeline) ──
   /** Frame at which this entity should be silently destroyed (null = no deletion timer). */
@@ -10126,12 +10134,15 @@ export class GameLogicSubsystem implements Subsystem {
       }
 
       for (const [powerName, module] of entity.specialPowerModules) {
-        if (resolveEffectCategoryImpl(module.moduleType) !== 'SPY_VISION') {
-          continue;
-        }
-        const expiryFrame = Math.max(0, Math.trunc(module.spyVisionDeactivateFrame));
-        if (expiryFrame <= this.frameCounter) {
-          continue;
+          if (resolveEffectCategoryImpl(module.moduleType) !== 'SPY_VISION') {
+            continue;
+          }
+          if (module.spyVisionCurrentlyActive === false) {
+            continue;
+          }
+          const expiryFrame = Math.max(0, Math.trunc(module.spyVisionDeactivateFrame));
+          if (expiryFrame <= this.frameCounter) {
+            continue;
         }
         this.activeSpyVisions.push({
           spyingPlayerIndex,
@@ -10162,6 +10173,8 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     module.spyVisionDeactivateFrame = 0;
+    module.spyVisionCurrentlyActive = false;
+    module.spyVisionResetTimersNextUpdate = false;
     this.syncActiveSpyVisionRuntimeState();
     return true;
   }
@@ -11342,6 +11355,17 @@ export class GameLogicSubsystem implements Subsystem {
         continue;
       }
       for (const [powerName, module] of entity.specialPowerModules) {
+        if (resolveEffectCategoryImpl(module.moduleType) === 'SPY_VISION') {
+          module.spyVisionCurrentlyActive = module.spyVisionCurrentlyActive === true
+            || (
+              module.spyVisionCurrentlyActive === undefined
+              && Math.max(0, Math.trunc(module.spyVisionDeactivateFrame)) > this.frameCounter
+            );
+          module.spyVisionResetTimersNextUpdate = module.spyVisionResetTimersNextUpdate === true;
+          module.spyVisionDisabledUntilFrame = Number.isFinite(module.spyVisionDisabledUntilFrame)
+            ? Math.max(0, Math.trunc(module.spyVisionDisabledUntilFrame ?? 0))
+            : 0;
+        }
         const normalizedPowerName = this.normalizeShortcutSpecialPowerName(powerName);
         if (!normalizedPowerName || this.isSharedSyncedSpecialPower(normalizedPowerName)) {
           continue;
@@ -37565,6 +37589,9 @@ export class GameLogicSubsystem implements Subsystem {
       ? this.msToLogicFrames(durationMs)
       : DEFAULT_SPY_DURATION_FRAMES;
     module.spyVisionDeactivateFrame = this.frameCounter + durationFrames;
+    module.spyVisionCurrentlyActive = true;
+    module.spyVisionResetTimersNextUpdate = false;
+    module.spyVisionDisabledUntilFrame = 0;
     this.applyEnemyUnitsVisionSpiedSetting(true, spyingSide, spyingPlayerIdx);
     this.syncActiveSpyVisionRuntimeState();
   }

@@ -368,6 +368,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     heightDieProfile: null,
     heightDieActiveFrame: 0,
     heightDieLastY: 0,
+    heightDieParticlesDestroyed: false,
     deletionDieFrame: null,
 
     // Sticky Bomb

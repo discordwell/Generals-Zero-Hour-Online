@@ -619,6 +619,7 @@ export function createMapEntity(self: GL,
     heightDieProfile: extractHeightDieProfile(self, objectDef),
     heightDieActiveFrame: 0, // Set after first update.
     heightDieLastY: 0,
+    heightDieParticlesDestroyed: false,
     // Deletion
     deletionDieFrame: self.resolveDeletionDieFrame(objectDef),
     // Sticky bomb
@@ -5488,6 +5489,9 @@ export function extractSpecialPowerModules(self: GL, objectDef: ObjectDef | unde
             pausedOnFrame: 0,
             pausedPercent: 0,
             spyVisionDeactivateFrame: 0,
+            spyVisionCurrentlyActive: false,
+            spyVisionResetTimersNextUpdate: false,
+            spyVisionDisabledUntilFrame: 0,
             // Source parity: read module-specific INI parameters.
             cashHackMoneyAmount: readNumericField(block.fields, ['MoneyAmount']) ?? 0,
             cashBountyPercent: readNumericField(block.fields, ['Bounty']) ?? 0,

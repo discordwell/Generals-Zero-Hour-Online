@@ -4032,7 +4032,6 @@ function tryParseSourceHeightDieUpdateBlockData(
 function buildSourceHeightDieUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
-  particlesDestroyed: boolean,
 ): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-height-die-update');
@@ -4045,7 +4044,7 @@ function buildSourceHeightDieUpdateBlockData(
       buildSourceUpdateModuleWakeFrame(currentFrame + 1),
     ));
     saver.xferBool(entity.destroyed === true);
-    saver.xferBool(particlesDestroyed);
+    saver.xferBool(entity.heightDieParticlesDestroyed === true);
     saver.xferCoord3D({
       x: entity.x,
       y: entity.z,
@@ -4927,7 +4926,13 @@ function tryParseSourceSpyVisionUpdateBlockData(
 }
 
 function buildSourceSpyVisionUpdateBlockData(
+  currentFrame: number,
   deactivateFrame: number,
+  liveState?: {
+    currentlyActive?: boolean;
+    resetTimersNextUpdate?: boolean;
+    disabledUntilFrame?: number;
+  } | null,
   preservedState?: {
     currentlyActive: boolean;
     resetTimersNextUpdate: boolean;
@@ -4937,14 +4942,23 @@ function buildSourceSpyVisionUpdateBlockData(
   const saver = new XferSave();
   saver.open('build-source-spy-vision-update');
   try {
+    const currentlyActive = liveState?.currentlyActive ?? preservedState?.currentlyActive ?? false;
+    const resetTimersNextUpdate = liveState?.resetTimersNextUpdate ?? preservedState?.resetTimersNextUpdate ?? false;
+    const disabledUntilFrame = Math.max(
+      0,
+      Math.trunc(liveState?.disabledUntilFrame ?? preservedState?.disabledUntilFrame ?? 0),
+    );
+    const nextCallFrame = resetTimersNextUpdate
+      ? (disabledUntilFrame > currentFrame ? disabledUntilFrame : currentFrame + 1)
+      : (currentlyActive && deactivateFrame > currentFrame ? deactivateFrame : SOURCE_FRAME_FOREVER);
     saver.xferVersion(2);
     saver.xferUser(buildSourceUpdateModuleBaseBlockData(
-      buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
     ));
     saver.xferUnsignedInt(Math.max(0, Math.trunc(deactivateFrame)));
-    saver.xferBool(preservedState?.currentlyActive ?? false);
-    saver.xferBool(preservedState?.resetTimersNextUpdate ?? false);
-    saver.xferUnsignedInt(Math.max(0, Math.trunc(preservedState?.disabledUntilFrame ?? 0)));
+    saver.xferBool(currentlyActive);
+    saver.xferBool(resetTimersNextUpdate);
+    saver.xferUnsignedInt(disabledUntilFrame);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -5934,11 +5948,7 @@ function overlaySourceObjectModulesFromLiveEntity(
             if (parsedSourceState) {
               return {
                 identifier: module.identifier,
-                blockData: buildSourceHeightDieUpdateBlockData(
-                  entity,
-                  currentFrame,
-                  parsedSourceState.particlesDestroyed,
-                ),
+                blockData: buildSourceHeightDieUpdateBlockData(entity, currentFrame),
               };
             }
           }
@@ -6100,7 +6110,13 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceSpyVisionUpdateBlockData(
+                  currentFrame,
                   liveSpyVisionModule.spyVisionDeactivateFrame,
+                  {
+                    currentlyActive: liveSpyVisionModule.spyVisionCurrentlyActive,
+                    resetTimersNextUpdate: liveSpyVisionModule.spyVisionResetTimersNextUpdate,
+                    disabledUntilFrame: liveSpyVisionModule.spyVisionDisabledUntilFrame,
+                  },
                   parsedSourceState,
                 ),
               };
