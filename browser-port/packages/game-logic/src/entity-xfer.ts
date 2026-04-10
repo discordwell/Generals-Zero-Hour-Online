@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 26;
+const ENTITY_XFER_VERSION = 27;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1796,12 +1796,28 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
         || objectStatusFlags.has('DISGUISED'));
   }
   e.stealthDelayRemaining = xfer.xferInt(e.stealthDelayRemaining as number);
+  if (version >= 27) {
+    e.stealthPulsePhaseRate = xfer.xferReal((e.stealthPulsePhaseRate as number | undefined) ?? 0.2);
+    e.stealthPulsePhase = xfer.xferReal((e.stealthPulsePhase as number | undefined) ?? 0);
+  } else {
+    e.stealthPulsePhaseRate = (e.stealthPulsePhaseRate as number | undefined) ?? 0.2;
+    e.stealthPulsePhase = (e.stealthPulsePhase as number | undefined) ?? 0;
+  }
   e.temporaryStealthGrant = xfer.xferBool(e.temporaryStealthGrant as boolean);
   e.temporaryStealthExpireFrame = xfer.xferInt(e.temporaryStealthExpireFrame as number);
   if (version >= 23) {
     e.stealthDisguisePlayerIndex = xfer.xferInt((e.stealthDisguisePlayerIndex as number | undefined) ?? -1);
   } else {
     e.stealthDisguisePlayerIndex = -1;
+  }
+  if (version >= 27) {
+    e.stealthDisguiseTransitionFrames = xfer.xferInt((e.stealthDisguiseTransitionFrames as number | undefined) ?? 0);
+    e.stealthDisguiseHalfpointReached = xfer.xferBool((e.stealthDisguiseHalfpointReached as boolean | undefined) ?? false);
+    e.stealthTransitioningToDisguise = xfer.xferBool((e.stealthTransitioningToDisguise as boolean | undefined) ?? false);
+  } else {
+    e.stealthDisguiseTransitionFrames = (e.stealthDisguiseTransitionFrames as number | undefined) ?? 0;
+    e.stealthDisguiseHalfpointReached = (e.stealthDisguiseHalfpointReached as boolean | undefined) ?? false;
+    e.stealthTransitioningToDisguise = (e.stealthTransitioningToDisguise as boolean | undefined) ?? false;
   }
   e.detectedUntilFrame = xfer.xferInt(e.detectedUntilFrame as number);
   e.lastDamageFrame = xfer.xferInt(e.lastDamageFrame as number);

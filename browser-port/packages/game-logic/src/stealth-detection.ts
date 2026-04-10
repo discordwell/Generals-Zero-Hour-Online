@@ -24,6 +24,8 @@ import {
 } from './index.js';
 type GL = any;
 
+const SOURCE_STEALTH_UPDATE_PULSE_PHASE_RATE = 0.2;
+
 // ---- Stealth and detection implementations ----
 
 export function extractStealthProfile(self: GL, objectDef: ObjectDef | undefined): StealthProfile | null {
@@ -359,6 +361,21 @@ export function updateStealth(self: GL): void {
     const delayFrames = profile ? profile.stealthDelayFrames : DEFAULT_STEALTH_DELAY_FRAMES;
     const forbidden = profile ? profile.forbiddenConditions : STEALTH_FORBIDDEN_DEFAULT;
 
+    if (!Number.isFinite(entity.stealthPulsePhaseRate)) {
+      entity.stealthPulsePhaseRate = SOURCE_STEALTH_UPDATE_PULSE_PHASE_RATE;
+    }
+    if (!Number.isFinite(entity.stealthPulsePhase)) {
+      entity.stealthPulsePhase = 0;
+    }
+    if (entity.stealthDisguiseTransitionFrames > 0) {
+      advanceDisguiseTransition(entity);
+    } else if (entity.stealthEnabled
+        || entity.temporaryStealthGrant
+        || entity.objectStatusFlags.has('STEALTHED')
+        || entity.objectStatusFlags.has('DISGUISED')) {
+      entity.stealthPulsePhase += entity.stealthPulsePhaseRate;
+    }
+
     // Source parity: StealthUpdate::allowedToStealth — contained in non-garrisonable = no stealth.
     const stealthContainer = self.resolveEntityContainingObject(entity);
     if (stealthContainer) {
@@ -386,6 +403,7 @@ export function updateStealth(self: GL): void {
         const distSq = rdx * rdx + rdz * rdz;
         const revealDistSq = profile.revealDistanceFromTarget * profile.revealDistanceFromTarget;
         if (distSq <= revealDistSq) {
+          beginDisguiseReveal(entity, profile);
           entity.objectStatusFlags.add('DETECTED');
           entity.detectedUntilFrame = self.frameCounter + delayFrames;
           continue; // C++ returns early — skip allowedToStealth check.
@@ -541,9 +559,7 @@ export function updateStealth(self: GL): void {
       }
       // Source parity: StealthUpdate.cpp:901 — remove disguise on stealth break.
       if (entity.objectStatusFlags.has('DISGUISED')) {
-        entity.objectStatusFlags.delete('DISGUISED');
-        entity.stealthDisguisePlayerIndex = -1;
-        entity.disguiseTemplateName = null;
+        beginDisguiseReveal(entity, profile);
       }
       entity.stealthDelayRemaining = delayFrames;
       continue;
@@ -564,16 +580,82 @@ export function updateStealth(self: GL): void {
       // stealth, pick a nearby enemy unit as the disguise target. The unit appears as the
       // target's template to opponents. In C++ this is triggered by SpecialAbilityUpdate
       // calling disguiseAsObject(target); here we auto-pick the nearest enemy.
-      if (profile && profile.disguisesAsTeam && !entity.objectStatusFlags.has('DISGUISED')) {
+      if (profile
+          && profile.disguisesAsTeam
+          && !entity.objectStatusFlags.has('DISGUISED')
+          && entity.stealthDisguiseTransitionFrames <= 0
+          && entity.disguiseTemplateName === null) {
         const disguiseTarget = findDisguiseTarget(self, entity);
         if (disguiseTarget) {
-          entity.stealthDisguisePlayerIndex = self.getPlayerIndexForSide(disguiseTarget.side) ?? -1;
-          entity.disguiseTemplateName = disguiseTarget.templateName;
-          entity.objectStatusFlags.add('DISGUISED');
+          beginDisguiseGain(self, entity, disguiseTarget, profile);
         }
       }
     }
 
+  }
+}
+
+function beginDisguiseGain(
+  self: GL,
+  entity: MapEntity,
+  target: MapEntity,
+  profile: StealthProfile,
+): void {
+  entity.stealthDisguisePlayerIndex = self.getPlayerIndexForSide(target.side) ?? -1;
+  entity.disguiseTemplateName = target.templateName;
+  entity.stealthTransitioningToDisguise = true;
+  entity.stealthDisguiseHalfpointReached = false;
+  entity.stealthDisguiseTransitionFrames = Math.max(0, profile.disguiseTransitionFrames);
+  if (entity.stealthDisguiseTransitionFrames > 0) {
+    entity.objectStatusFlags.delete('DISGUISED');
+  } else {
+    entity.objectStatusFlags.add('DISGUISED');
+  }
+}
+
+function beginDisguiseReveal(entity: MapEntity, profile: StealthProfile | null): void {
+  if (!entity.objectStatusFlags.has('DISGUISED')) return;
+  const revealFrames = Math.max(0, profile?.disguiseRevealTransitionFrames ?? 0);
+  if (revealFrames > 0) {
+    entity.disguiseTemplateName = null;
+    entity.stealthDisguisePlayerIndex = 0;
+    entity.stealthDisguiseTransitionFrames = revealFrames;
+    entity.stealthDisguiseHalfpointReached = false;
+    entity.stealthTransitioningToDisguise = false;
+    return;
+  }
+  entity.objectStatusFlags.delete('DISGUISED');
+  entity.disguiseTemplateName = null;
+  entity.stealthDisguisePlayerIndex = -1;
+  entity.stealthDisguiseTransitionFrames = 0;
+  entity.stealthDisguiseHalfpointReached = false;
+  entity.stealthTransitioningToDisguise = false;
+}
+
+function advanceDisguiseTransition(entity: MapEntity): void {
+  const profile = entity.stealthProfile;
+  if (!profile || entity.stealthDisguiseTransitionFrames <= 0) return;
+  entity.stealthDisguiseTransitionFrames--;
+  const totalFrames = Math.max(
+    1,
+    entity.stealthTransitioningToDisguise
+      ? profile.disguiseTransitionFrames
+      : profile.disguiseRevealTransitionFrames,
+  );
+  const factor = 1 - (entity.stealthDisguiseTransitionFrames / totalFrames);
+  if (factor >= 0.5 && !entity.stealthDisguiseHalfpointReached) {
+    entity.stealthDisguiseHalfpointReached = true;
+    if (entity.stealthTransitioningToDisguise) {
+      entity.objectStatusFlags.add('DISGUISED');
+    } else {
+      entity.objectStatusFlags.delete('DISGUISED');
+      entity.stealthDisguisePlayerIndex = -1;
+      entity.disguiseTemplateName = null;
+    }
+  }
+  if (entity.stealthDisguiseTransitionFrames === 0 && !entity.stealthTransitioningToDisguise) {
+    entity.stealthEnabled = false;
+    entity.objectStatusFlags.delete('DETECTED');
   }
 }
 
@@ -719,6 +801,7 @@ export function updateDetection(self: GL): void {
         // players and calls setWakeupIfInRange on their idle units within
         // vision range, causing them to auto-attack the revealed unit.
         const wasAlreadyDetected = target.objectStatusFlags.has('DETECTED');
+        beginDisguiseReveal(target, target.stealthProfile);
         target.objectStatusFlags.add('DETECTED');
         target.detectedUntilFrame = self.frameCounter + detectionDuration;
 

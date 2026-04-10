@@ -3667,12 +3667,22 @@ export interface MapEntity {
   stealthEnabled: boolean;
   /** Frames remaining before CAN_STEALTH entity re-enters stealth. 0 = ready to stealth. */
   stealthDelayRemaining: number;
+  /** Source parity: StealthUpdate::m_pulsePhaseRate. */
+  stealthPulsePhaseRate: number;
+  /** Source parity: StealthUpdate::m_pulsePhase. */
+  stealthPulsePhase: number;
   /** Source parity: SupplyCenterDockUpdate — whether this entity's current stealth is a temporary grant. */
   temporaryStealthGrant: boolean;
   /** Frame at which a temporary stealth grant expires. 0 = no pending expiry. */
   temporaryStealthExpireFrame: number;
   /** Source parity: StealthUpdate::m_disguiseAsPlayerIndex. */
   stealthDisguisePlayerIndex: number;
+  /** Source parity: StealthUpdate::m_disguiseTransitionFrames (current countdown). */
+  stealthDisguiseTransitionFrames: number;
+  /** Source parity: StealthUpdate::m_disguiseHalfpointReached. */
+  stealthDisguiseHalfpointReached: boolean;
+  /** Source parity: StealthUpdate::m_transitioningToDisguise. */
+  stealthTransitioningToDisguise: boolean;
   /** Source parity: StealthUpdate disguise — template name of the object this entity is disguised as.
    *  null when not disguised. Set when DISGUISED status is active. */
   disguiseTemplateName: string | null;
@@ -6394,6 +6404,7 @@ interface ParticleUplinkCannonProfile {
   widthGrowFrames: number;
   beamTravelFrames: number;
   totalFiringFrames: number;
+  totalScorchMarks: number;
   totalDamagePulses: number;
   damagePerSecond: number;
   damageType: string;
@@ -6401,23 +6412,37 @@ interface ParticleUplinkCannonProfile {
   revealRange: number;
   swathOfDeathDistance: number;
   swathOfDeathAmplitude: number;
+  framesBetweenLaunchFXRefresh: number;
   /** Manual driving speed in units/frame (INI value in units/sec, divided by 30). */
   manualDrivingSpeed: number;
   /** Fast manual driving speed in units/frame (INI value in units/sec, divided by 30). */
   manualFastDrivingSpeed: number;
+  /** Source parity: DoubleClickToFastDriveDelay. */
+  doubleClickToFastDriveDelayFrames: number;
 }
 
 type PUCStatus = 'IDLE' | 'CHARGING' | 'READY' | 'FIRING' | 'POSTFIRE';
 
 interface ParticleUplinkCannonState {
   status: PUCStatus;
+  laserStatus: 'NONE' | 'BORN' | 'DECAYING' | 'DEAD';
   framesInState: number;
   targetX: number;
   targetZ: number;
   currentTargetX: number;
   currentTargetZ: number;
+  scorchMarksMade: number;
+  nextScorchMarkFrame: number;
+  nextLaunchFXFrame: number;
   damagePulsesMade: number;
   nextDamagePulseFrame: number;
+  startAttackFrame: number;
+  startDecayFrame: number;
+  lastDrivingClickFrame: number;
+  secondLastDrivingClickFrame: number;
+  manualTargetMode: boolean;
+  scriptedWaypointMode: boolean;
+  nextDestWaypointID: number;
 }
 
 /**
@@ -36400,15 +36425,74 @@ export class GameLogicSubsystem implements Subsystem {
       if (!entity.particleUplinkCannonState) {
         entity.particleUplinkCannonState = {
           status: 'IDLE',
+          laserStatus: 'NONE',
           framesInState: 0,
           targetX: 0, targetZ: 0,
           currentTargetX: 0, currentTargetZ: 0,
+          scorchMarksMade: 0,
+          nextScorchMarkFrame: 0,
+          nextLaunchFXFrame: 0,
           damagePulsesMade: 0,
           nextDamagePulseFrame: 0,
+          startAttackFrame: 0,
+          startDecayFrame: 0,
+          lastDrivingClickFrame: 0,
+          secondLastDrivingClickFrame: 0,
+          manualTargetMode: false,
+          scriptedWaypointMode: false,
+          nextDestWaypointID: 0,
         };
       }
       const st = entity.particleUplinkCannonState;
       st.framesInState++;
+
+      if (st.startAttackFrame > 0 && st.startAttackFrame <= this.frameCounter) {
+        const orbitalBirthFrame = st.startAttackFrame + prof.beamTravelFrames;
+        const orbitalDecayStart = st.startDecayFrame + prof.beamTravelFrames;
+        const orbitalDeathFrame = orbitalDecayStart + prof.widthGrowFrames;
+
+        switch (st.laserStatus) {
+          case 'NONE':
+            if (orbitalBirthFrame <= this.frameCounter) {
+              st.laserStatus = 'BORN';
+              st.scorchMarksMade = 0;
+              st.nextScorchMarkFrame = this.frameCounter;
+              st.damagePulsesMade = 0;
+              st.nextDamagePulseFrame = this.frameCounter;
+            }
+            break;
+          case 'BORN':
+            if (orbitalDecayStart <= this.frameCounter) {
+              st.laserStatus = 'DECAYING';
+            }
+            break;
+          case 'DECAYING':
+            if (orbitalDeathFrame <= this.frameCounter) {
+              st.laserStatus = 'DEAD';
+              st.startAttackFrame = 0;
+              st.status = 'IDLE';
+              st.framesInState = 0;
+            }
+            break;
+          case 'DEAD':
+            break;
+        }
+
+        if (st.laserStatus !== 'NONE'
+            && orbitalBirthFrame <= this.frameCounter
+            && this.frameCounter <= orbitalDeathFrame) {
+          if (prof.totalScorchMarks > 0 && st.nextScorchMarkFrame <= this.frameCounter) {
+            st.scorchMarksMade++;
+            const nextFactor = st.scorchMarksMade / prof.totalScorchMarks;
+            st.nextScorchMarkFrame = Math.trunc(
+              orbitalBirthFrame + nextFactor * (orbitalDeathFrame - orbitalBirthFrame),
+            );
+          }
+          if (prof.framesBetweenLaunchFXRefresh > 0 && st.nextLaunchFXFrame <= this.frameCounter) {
+            st.nextLaunchFXFrame = this.frameCounter + prof.framesBetweenLaunchFXRefresh;
+          }
+        }
+      }
 
       if (st.status === 'FIRING') {
         // Damage pulse system.
@@ -36459,22 +36543,37 @@ export class GameLogicSubsystem implements Subsystem {
     const prof = entity.particleUplinkCannonProfile;
     if (!prof) return;
 
-    if (!entity.particleUplinkCannonState) {
-      entity.particleUplinkCannonState = {
-        status: 'IDLE', framesInState: 0,
+      if (!entity.particleUplinkCannonState) {
+        entity.particleUplinkCannonState = {
+        status: 'IDLE', laserStatus: 'NONE', framesInState: 0,
         targetX: 0, targetZ: 0, currentTargetX: 0, currentTargetZ: 0,
+        scorchMarksMade: 0, nextScorchMarkFrame: 0, nextLaunchFXFrame: 0,
         damagePulsesMade: 0, nextDamagePulseFrame: 0,
+        startAttackFrame: 0, startDecayFrame: 0,
+        lastDrivingClickFrame: 0, secondLastDrivingClickFrame: 0,
+        manualTargetMode: false, scriptedWaypointMode: false, nextDestWaypointID: 0,
       };
     }
     const st = entity.particleUplinkCannonState;
     st.status = 'FIRING';
+    st.laserStatus = 'NONE';
     st.framesInState = 0;
     st.targetX = targetX;
     st.targetZ = targetZ;
     st.currentTargetX = targetX;
     st.currentTargetZ = targetZ;
+    st.scorchMarksMade = 0;
+    st.nextScorchMarkFrame = 0;
+    st.nextLaunchFXFrame = 0;
     st.damagePulsesMade = 0;
     st.nextDamagePulseFrame = this.frameCounter;
+    st.startAttackFrame = Math.max(this.frameCounter, 1);
+    st.startDecayFrame = st.startAttackFrame + prof.totalFiringFrames;
+    st.secondLastDrivingClickFrame = st.lastDrivingClickFrame;
+    st.lastDrivingClickFrame = this.frameCounter;
+    st.manualTargetMode = true;
+    st.scriptedWaypointMode = false;
+    st.nextDestWaypointID = 0;
   }
 
   /**

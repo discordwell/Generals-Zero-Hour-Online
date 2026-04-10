@@ -4353,9 +4353,7 @@ function buildSourceStealthUpdateBlockData(
   try {
     const canStealth = entity.objectStatusFlags.has('CAN_STEALTH');
     const isStealthed = entity.objectStatusFlags.has('STEALTHED');
-    const isDisguised = entity.objectStatusFlags.has('DISGUISED')
-      && typeof entity.disguiseTemplateName === 'string'
-      && entity.disguiseTemplateName.length > 0;
+    const isDisguised = entity.objectStatusFlags.has('DISGUISED');
     const enabled = entity.stealthEnabled === true
       || entity.temporaryStealthGrant === true
       || isStealthed
@@ -4375,8 +4373,18 @@ function buildSourceStealthUpdateBlockData(
       ? Math.trunc(entity.stealthDisguisePlayerIndex ?? preservedState?.disguiseAsPlayerIndex ?? -1)
       : -1;
     const disguiseTemplateName = isDisguised
-      ? (entity.disguiseTemplateName ?? preservedState?.disguiseTemplateName ?? '')
+      ? (entity.disguiseTemplateName ?? '')
       : '';
+    const disguiseTransitionFrames = Math.max(
+      0,
+      Math.trunc(entity.stealthDisguiseTransitionFrames ?? preservedState?.disguiseTransitionFrames ?? 0),
+    );
+    const disguiseHalfpointReached = entity.stealthDisguiseHalfpointReached
+      ?? preservedState?.disguiseHalfpointReached
+      ?? false;
+    const transitioningToDisguise = entity.stealthTransitioningToDisguise
+      ?? preservedState?.transitioningToDisguise
+      ?? false;
     const framesGranted = entity.temporaryStealthGrant && entity.temporaryStealthExpireFrame > currentFrame
       ? entity.temporaryStealthExpireFrame - currentFrame
       : 0;
@@ -4387,13 +4395,13 @@ function buildSourceStealthUpdateBlockData(
     saver.xferUnsignedInt(stealthAllowedFrame);
     saver.xferUnsignedInt(Math.max(0, Math.trunc(entity.detectedUntilFrame)));
     saver.xferBool(enabled);
-    saver.xferReal(preservedState?.pulsePhaseRate ?? SOURCE_STEALTH_UPDATE_PULSE_PHASE_RATE);
-    saver.xferReal(preservedState?.pulsePhase ?? 0);
+    saver.xferReal(entity.stealthPulsePhaseRate ?? preservedState?.pulsePhaseRate ?? SOURCE_STEALTH_UPDATE_PULSE_PHASE_RATE);
+    saver.xferReal(entity.stealthPulsePhase ?? preservedState?.pulsePhase ?? 0);
     saver.xferInt(disguiseAsPlayerIndex);
     saver.xferAsciiString(disguiseTemplateName);
-    saver.xferUnsignedInt(isDisguised ? Math.max(0, Math.trunc(preservedState?.disguiseTransitionFrames ?? 0)) : 0);
-    saver.xferBool(isDisguised ? (preservedState?.disguiseHalfpointReached ?? false) : false);
-    saver.xferBool(isDisguised ? (preservedState?.transitioningToDisguise ?? false) : false);
+    saver.xferUnsignedInt(disguiseTransitionFrames);
+    saver.xferBool(disguiseHalfpointReached);
+    saver.xferBool(transitioningToDisguise);
     saver.xferBool(isDisguised);
     saver.xferUnsignedInt(Math.max(0, Math.trunc(framesGranted)));
     return new Uint8Array(saver.getBuffer());
@@ -5416,6 +5424,17 @@ function sourceParticleUplinkStatusToInt(
   }
 }
 
+function sourceParticleUplinkLaserStatusToInt(
+  status: 'NONE' | 'BORN' | 'DECAYING' | 'DEAD',
+): number {
+  switch (status) {
+    case 'NONE': return 0;
+    case 'BORN': return 1;
+    case 'DECAYING': return 2;
+    case 'DEAD': return 3;
+  }
+}
+
 function tryParseSourceParticleUplinkCannonUpdateBlockData(
   data: Uint8Array,
 ): {
@@ -5542,6 +5561,9 @@ function buildSourceParticleUplinkCannonUpdateBlockData(
     const statusBytes = isActivelyOwnedStatus
       ? buildSourceRawInt32Bytes(sourceParticleUplinkStatusToInt(state!.status))
       : preservedState.statusBytes;
+    const laserStatusBytes = isActivelyOwnedStatus
+      ? buildSourceRawInt32Bytes(sourceParticleUplinkLaserStatusToInt(state?.laserStatus ?? 'NONE'))
+      : preservedState.laserStatusBytes;
     const frames = isActivelyOwnedStatus
       ? Math.max(0, Math.trunc(state?.framesInState ?? 0))
       : preservedState.frames;
@@ -5565,30 +5587,60 @@ function buildSourceParticleUplinkCannonUpdateBlockData(
     const nextDamagePulseFrame = Number.isFinite(state?.nextDamagePulseFrame)
       ? Math.max(0, Math.trunc(state!.nextDamagePulseFrame))
       : preservedState.nextDamagePulseFrame;
+    const scorchMarksMade = Number.isFinite(state?.scorchMarksMade)
+      ? Math.max(0, Math.trunc(state!.scorchMarksMade))
+      : preservedState.scorchMarksMade;
+    const nextScorchMarkFrame = Number.isFinite(state?.nextScorchMarkFrame)
+      ? Math.max(0, Math.trunc(state!.nextScorchMarkFrame))
+      : preservedState.nextScorchMarkFrame;
+    const nextLaunchFXFrame = Number.isFinite(state?.nextLaunchFXFrame)
+      ? Math.max(0, Math.trunc(state!.nextLaunchFXFrame))
+      : preservedState.nextLaunchFXFrame;
+    const startAttackFrame = Number.isFinite(state?.startAttackFrame)
+      ? Math.max(0, Math.trunc(state!.startAttackFrame))
+      : preservedState.startAttackFrame;
+    const startDecayFrame = Number.isFinite(state?.startDecayFrame)
+      ? Math.max(0, Math.trunc(state!.startDecayFrame))
+      : preservedState.startDecayFrame;
+    const lastDrivingClickFrame = Number.isFinite(state?.lastDrivingClickFrame)
+      ? Math.max(0, Math.trunc(state!.lastDrivingClickFrame))
+      : preservedState.lastDrivingClickFrame;
+    const secondLastDrivingClickFrame = Number.isFinite(state?.secondLastDrivingClickFrame)
+      ? Math.max(0, Math.trunc(state!.secondLastDrivingClickFrame))
+      : preservedState.secondLastDrivingClickFrame;
+    const manualTargetMode = typeof state?.manualTargetMode === 'boolean'
+      ? state.manualTargetMode
+      : preservedState.manualTargetMode;
+    const scriptedWaypointMode = typeof state?.scriptedWaypointMode === 'boolean'
+      ? state.scriptedWaypointMode
+      : preservedState.scriptedWaypointMode;
+    const nextDestWaypointID = Number.isFinite(state?.nextDestWaypointID)
+      ? Math.max(0, Math.trunc(state!.nextDestWaypointID))
+      : preservedState.nextDestWaypointID;
 
     saver.xferVersion(version);
     saver.xferUser(buildSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
     saver.xferUser(statusBytes);
-    saver.xferUser(preservedState.laserStatusBytes);
+    saver.xferUser(laserStatusBytes);
     saver.xferUnsignedInt(frames);
     saver.xferUser(preservedState.rawVisualPrefixBytes);
     saver.xferCoord3D(initialTargetPosition);
     saver.xferCoord3D(currentTargetPosition);
-    saver.xferUnsignedInt(preservedState.scorchMarksMade);
-    saver.xferUnsignedInt(preservedState.nextScorchMarkFrame);
-    saver.xferUnsignedInt(preservedState.nextLaunchFXFrame);
+    saver.xferUnsignedInt(scorchMarksMade);
+    saver.xferUnsignedInt(nextScorchMarkFrame);
+    saver.xferUnsignedInt(nextLaunchFXFrame);
     saver.xferUnsignedInt(damagePulsesMade);
     saver.xferUnsignedInt(nextDamagePulseFrame);
-    saver.xferUnsignedInt(preservedState.startAttackFrame);
+    saver.xferUnsignedInt(startAttackFrame);
     if (version >= 2) {
-      saver.xferUnsignedInt(preservedState.startDecayFrame);
+      saver.xferUnsignedInt(startDecayFrame);
     }
-    saver.xferUnsignedInt(preservedState.lastDrivingClickFrame);
-    saver.xferUnsignedInt(preservedState.secondLastDrivingClickFrame);
+    saver.xferUnsignedInt(lastDrivingClickFrame);
+    saver.xferUnsignedInt(secondLastDrivingClickFrame);
     if (version >= 3) {
-      saver.xferBool(preservedState.manualTargetMode);
-      saver.xferBool(preservedState.scriptedWaypointMode);
-      saver.xferUnsignedInt(preservedState.nextDestWaypointID);
+      saver.xferBool(manualTargetMode);
+      saver.xferBool(scriptedWaypointMode);
+      saver.xferUnsignedInt(nextDestWaypointID);
     }
     return new Uint8Array(saver.getBuffer());
   } finally {

@@ -283,10 +283,10 @@ describe('Parity: stealth disguise state machine (StealthUpdate.cpp:97-150)', ()
     expect(postDetectFlags).toContain('DETECTED');
   });
 
-  it('DISGUISED is cleared when stealth breaks due to forbidden conditions', () => {
-    // Source parity: StealthUpdate.cpp:901 — when stealth breaks (e.g., due to
-    // attacking), the disguise is also removed. Both DISGUISED flag and
-    // disguiseTemplateName are cleared.
+  it('DISGUISED is cleared immediately when stealth breaks without reveal transition time', () => {
+    // Source parity: StealthUpdate.cpp:939-972 — disguise removal only animates
+    // when DisguiseRevealTransitionTime is non-zero. This fixture does not set it,
+    // so breaking stealth clears DISGUISED immediately.
     const bundle = makeBundle({
       objects: [
         makeObjectDef('BombTruck', 'GLA', ['VEHICLE'], [
@@ -333,16 +333,14 @@ describe('Parity: stealth disguise state machine (StealthUpdate.cpp:97-150)', ()
     logic.submitCommand({ type: 'attackEntity', entityId: 1, targetEntityId: 2 });
     for (let i = 0; i < 5; i++) logic.update(1 / 30);
 
-    const postAttackFlags = logic.getEntityState(1)?.statusFlags ?? [];
-    // Attacking breaks stealth, which clears DISGUISED.
-    expect(postAttackFlags).not.toContain('STEALTHED');
-    expect(postAttackFlags).not.toContain('DISGUISED');
-
-    // Verify disguiseTemplateName is also cleared.
     const privateApi = logic as unknown as {
       spawnedEntities: Map<number, { disguiseTemplateName: string | null }>;
     };
     const truck = privateApi.spawnedEntities.get(1);
+
+    const postAttackFlags = logic.getEntityState(1)?.statusFlags ?? [];
+    expect(postAttackFlags).not.toContain('STEALTHED');
+    expect(postAttackFlags).not.toContain('DISGUISED');
     expect(truck!.disguiseTemplateName).toBeNull();
   });
 });

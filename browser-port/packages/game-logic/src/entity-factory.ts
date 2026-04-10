@@ -486,9 +486,17 @@ export function createMapEntity(self: GL,
     stealthProfile: self.extractStealthProfile(objectDef),
     stealthEnabled: false,
     stealthDelayRemaining: 0,
+    // Source parity: StealthUpdate ctor seeds pulse state from client random.
+    // We use deterministic game logic random here so save/load and tests stay stable
+    // until the client-side stealth visual update loop is ported separately.
+    stealthPulsePhaseRate: 0.2,
+    stealthPulsePhase: self.gameRandom.nextFloat() * Math.PI,
     temporaryStealthGrant: false,
     temporaryStealthExpireFrame: 0,
     stealthDisguisePlayerIndex: -1,
+    stealthDisguiseTransitionFrames: 0,
+    stealthDisguiseHalfpointReached: false,
+    stealthTransitioningToDisguise: false,
     disguiseTemplateName: null,
     detectedUntilFrame: 0,
     lastDamageFrame: 0,
@@ -3982,6 +3990,7 @@ export function extractParticleUplinkCannonProfile(self: GL, objectDef: ObjectDe
           widthGrowFrames: self.msToLogicFrames(readNumericField(block.fields, ['WidthGrowTime']) ?? 0),
           beamTravelFrames: self.msToLogicFrames(readNumericField(block.fields, ['BeamTravelTime']) ?? 0),
           totalFiringFrames: self.msToLogicFrames(readNumericField(block.fields, ['TotalFiringTime']) ?? 0),
+          totalScorchMarks: readNumericField(block.fields, ['TotalScorchMarks']) ?? 0,
           totalDamagePulses: readNumericField(block.fields, ['TotalDamagePulses']) ?? 0,
           damagePerSecond: readNumericField(block.fields, ['DamagePerSecond']) ?? 0,
           damageType: (readStringField(block.fields, ['DamageType']) ?? 'LASER').toUpperCase(),
@@ -3989,8 +3998,10 @@ export function extractParticleUplinkCannonProfile(self: GL, objectDef: ObjectDe
           revealRange: (readNumericField(block.fields, ['RevealRange']) ?? 0) * MAP_XY_FACTOR,
           swathOfDeathDistance: (readNumericField(block.fields, ['SwathOfDeathDistance']) ?? 0) * MAP_XY_FACTOR,
           swathOfDeathAmplitude: (readNumericField(block.fields, ['SwathOfDeathAmplitude']) ?? 0) * MAP_XY_FACTOR,
+          framesBetweenLaunchFXRefresh: self.msToLogicFrames(readNumericField(block.fields, ['DelayBetweenLaunchFX']) ?? 0),
           manualDrivingSpeed: (readNumericField(block.fields, ['ManualDrivingSpeed']) ?? 0) / LOGICFRAMES_PER_SECOND,
           manualFastDrivingSpeed: (readNumericField(block.fields, ['ManualFastDrivingSpeed']) ?? 0) / LOGICFRAMES_PER_SECOND,
+          doubleClickToFastDriveDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['DoubleClickToFastDriveDelay']) ?? 0),
         };
       }
     }
