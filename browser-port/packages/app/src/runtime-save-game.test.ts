@@ -9114,6 +9114,26 @@ describe('runtime-save-game', () => {
       snapshotCounts: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       shroudednessCount: 1,
     });
+
+    const parsed = parseRuntimeSaveFile(saveFile.data);
+    expect(parsed.ghostObjectState?.ghostObjects).toHaveLength(1);
+    expect(parsed.passthroughBlocks.some((block) => block.blockName === 'CHUNK_GhostObject')).toBe(false);
+
+    const resaved = buildRuntimeSaveFile({
+      description: parsed.metadata.description,
+      mapPath: parsed.mapPath,
+      mapData: parsed.mapData ?? createTinyRuntimeMapData(),
+      cameraState: parsed.cameraState,
+      tacticalViewState: parsed.tacticalViewState,
+      gameClientState: parsed.gameClientState,
+      inGameUiState: parsed.inGameUiState,
+      particleSystemState: parsed.particleSystemState,
+      ghostObjectState: parsed.ghostObjectState,
+      passthroughBlocks: parsed.passthroughBlocks,
+      gameLogic: createMinimalRuntimeGameLogic(),
+    });
+
+    expect(readSaveChunkData(resaved.data, 'CHUNK_GhostObject')).toEqual(ghostObjectBytes);
   });
 
   it('emits source-shaped zero-snapshot ghost objects for immobile non-default-draw entities', () => {
@@ -9742,7 +9762,11 @@ describe('runtime-save-game', () => {
     } finally {
       ghostObjectXfer.close();
     }
-    expect(loadedGhostObjectSnapshot.payload).toEqual({ mode: 'parsed' });
+    expect(loadedGhostObjectSnapshot.payload).toEqual({
+      mode: 'parsed',
+      localPlayerIndex: 0,
+      ghostObjects: [],
+    });
     expect(parsed.mapPath).toBe('assets/maps/ScenarioSkirmish.json');
     expect(parsed.mapData).toEqual(mapData);
     expect(parsed.cameraState).toEqual({
@@ -11715,8 +11739,8 @@ describe('runtime-save-game', () => {
     expect(parsed.gameClientState?.briefingLines).toEqual([]);
     expect(parsed.gameLogicCoreState).toBeNull();
     expect(parsed.gameLogicPlayersState).toBeNull();
+    expect(parsed.ghostObjectState).not.toBeNull();
     expect(parsed.passthroughBlocks.map((block) => block.blockName).sort()).toEqual([
-      'CHUNK_GhostObject',
       'CHUNK_GameLogic',
       'CHUNK_ParticleSystem',
       'CHUNK_Players',
@@ -11752,6 +11776,7 @@ describe('runtime-save-game', () => {
       tacticalViewState: parsed.tacticalViewState,
       gameClientBriefingLines: ['MISSION_GAMMA'],
       gameClientState: parsed.gameClientState,
+      ghostObjectState: parsed.ghostObjectState,
       passthroughBlocks: parsed.passthroughBlocks,
       gameLogic: {
         captureSourceTerrainLogicRuntimeSaveState: () => parsed.gameLogicTerrainLogicState ?? {

@@ -918,6 +918,7 @@ export interface RuntimeSaveBootstrap {
   gameClientState: RuntimeSaveGameClientState | null;
   inGameUiState: RuntimeSaveInGameUiState | null;
   particleSystemState: ParticleSystemManagerSaveState | null;
+  ghostObjectState: RuntimeSaveGhostObjectState | null;
   sourceTeamFactoryChunkData: Uint8Array | null;
   gameLogicTerrainLogicState: GameLogicTerrainLogicSaveState | null;
   gameLogicTeamFactoryState: GameLogicTeamFactorySaveState | null;
@@ -25547,7 +25548,8 @@ interface SourceWaterGridSnapshot {
   meshData?: readonly SourceWaterMeshEntry[];
 }
 
-interface SourceGhostObjectEntry {
+export interface RuntimeSaveGhostObjectEntryState {
+  managerParentObjectId: number;
   parentObjectId: number;
   parentGeometryType: number;
   parentGeometryIsSmall: boolean;
@@ -25555,6 +25557,31 @@ interface SourceGhostObjectEntry {
   parentGeometryMinorRadius: number;
   parentAngle: number;
   parentPosition: Coord3D;
+  drawableInfoShroudStatusObjectId: number;
+  drawableInfoFlags: number;
+  drawableId: number;
+  snapshotsByPlayerIndex: readonly RuntimeSaveGhostRenderObjectSnapshotState[][];
+  previousShroudednessByPlayerIndex: readonly (number | null)[];
+}
+
+export interface RuntimeSaveGhostRenderSubObjectSnapshotState {
+  readonly name: string;
+  readonly visible: boolean;
+  readonly transformMatrixBytes: ArrayBuffer;
+}
+
+export interface RuntimeSaveGhostRenderObjectSnapshotState {
+  readonly name: string;
+  readonly scale: number;
+  readonly color: number;
+  readonly transformMatrixBytes: ArrayBuffer;
+  readonly subObjects: readonly RuntimeSaveGhostRenderSubObjectSnapshotState[];
+}
+
+export interface RuntimeSaveGhostObjectState {
+  readonly mode: 'parsed';
+  readonly localPlayerIndex: number;
+  readonly ghostObjects: readonly RuntimeSaveGhostObjectEntryState[];
 }
 
 function readSourceDescriptorStringField(
@@ -25758,16 +25785,30 @@ function hasSourceW3DDefaultDrawDescriptor(
   );
 }
 
+function createEmptySourceGhostSnapshotsByPlayerIndex(): RuntimeSaveGhostRenderObjectSnapshotState[][] {
+  return Array.from(
+    { length: SOURCE_GHOST_OBJECT_PLAYER_COUNT },
+    () => [],
+  );
+}
+
+function createEmptySourceGhostPreviousShroudednessByPlayerIndex(): Array<number | null> {
+  return Array.from(
+    { length: SOURCE_GHOST_OBJECT_PLAYER_COUNT },
+    () => null,
+  );
+}
+
 function buildSourceGhostObjectEntries(
   gameLogicState: GameLogicCoreSaveState,
   listSourceDrawableModuleDescriptors: ((templateName: string) =>
     readonly GameLogicSourceDrawableModuleDescriptor[] | null) | null,
-): SourceGhostObjectEntry[] {
+): RuntimeSaveGhostObjectEntryState[] {
   if (!listSourceDrawableModuleDescriptors) {
     return [];
   }
 
-  const entries: SourceGhostObjectEntry[] = [];
+  const entries: RuntimeSaveGhostObjectEntryState[] = [];
   for (const entity of gameLogicState.spawnedEntities) {
     if (!entity.isImmobile && !entity.kindOf?.has('IMMOBILE')) {
       continue;
@@ -25788,6 +25829,7 @@ function buildSourceGhostObjectEntries(
       continue;
     }
     entries.push({
+      managerParentObjectId: Math.max(0, Math.trunc(sourcePhysicsFinite(entity.id, 0))),
       parentObjectId: Math.max(0, Math.trunc(sourcePhysicsFinite(entity.id, 0))),
       parentGeometryType: geometryType,
       parentGeometryIsSmall: entity.sourceGeometryIsSmall === true,
@@ -25795,13 +25837,62 @@ function buildSourceGhostObjectEntries(
       parentGeometryMinorRadius: sourcePhysicsFinite(geometry.minorRadius, geometry.majorRadius),
       parentAngle: sourcePhysicsFinite(entity.rotationY, 0),
       parentPosition: sourceCoord3DFromRuntimeXYZ(entity.x, entity.y, entity.z),
+      drawableInfoShroudStatusObjectId: 0,
+      drawableInfoFlags: 0,
+      drawableId: SOURCE_INVALID_DRAWABLE_ID,
+      snapshotsByPlayerIndex: createEmptySourceGhostSnapshotsByPlayerIndex(),
+      previousShroudednessByPlayerIndex: createEmptySourceGhostPreviousShroudednessByPlayerIndex(),
     });
   }
 
   // Source W3DGhostObjectManager pushes newly attached modules onto the used-list head.
   // Object ids are monotonic creation ids, so descending id reproduces that save order.
-  entries.sort((left, right) => right.parentObjectId - left.parentObjectId);
+  entries.sort((left, right) => right.managerParentObjectId - left.managerParentObjectId);
   return entries;
+}
+
+function mergeSourceGhostObjectEntries(
+  parsedEntries: readonly RuntimeSaveGhostObjectEntryState[] | null | undefined,
+  generatedEntries: readonly RuntimeSaveGhostObjectEntryState[],
+): RuntimeSaveGhostObjectEntryState[] {
+  if ((parsedEntries?.length ?? 0) === 0) {
+    return generatedEntries.slice();
+  }
+  if (generatedEntries.length === 0) {
+    return parsedEntries!.slice();
+  }
+
+  const generatedByParentId = new Map<number, RuntimeSaveGhostObjectEntryState>(
+    generatedEntries.map((entry) => [entry.managerParentObjectId, entry]),
+  );
+  const usedGeneratedParentIds = new Set<number>();
+  const merged: RuntimeSaveGhostObjectEntryState[] = [];
+  for (const parsedEntry of parsedEntries ?? []) {
+    const generatedEntry = parsedEntry.managerParentObjectId > 0
+      ? generatedByParentId.get(parsedEntry.managerParentObjectId)
+      : undefined;
+    if (generatedEntry) {
+      usedGeneratedParentIds.add(generatedEntry.managerParentObjectId);
+      merged.push({
+        ...generatedEntry,
+        drawableInfoShroudStatusObjectId: parsedEntry.drawableInfoShroudStatusObjectId,
+        drawableInfoFlags: parsedEntry.drawableInfoFlags,
+        drawableId: parsedEntry.drawableId,
+        snapshotsByPlayerIndex: parsedEntry.snapshotsByPlayerIndex,
+        previousShroudednessByPlayerIndex: parsedEntry.previousShroudednessByPlayerIndex,
+      });
+      continue;
+    }
+    merged.push(parsedEntry);
+  }
+  for (const generatedEntry of generatedEntries) {
+    if (usedGeneratedParentIds.has(generatedEntry.managerParentObjectId)) {
+      continue;
+    }
+    merged.push(generatedEntry);
+  }
+  return merged
+    .sort((left, right) => right.managerParentObjectId - left.managerParentObjectId);
 }
 
 function xferSourceMatrix3DBytes(xfer: Xfer, values: readonly number[]): number[] {
@@ -25951,11 +26042,11 @@ export class TerrainVisualSnapshot implements Snapshot {
 }
 
 export class GhostObjectSnapshot implements Snapshot {
-  payload: { mode: 'parsed' } | null = null;
+  payload: RuntimeSaveGhostObjectState | null = null;
 
   constructor(
     private readonly localPlayerIndex = 0,
-    private readonly ghostEntries: readonly SourceGhostObjectEntry[] = [],
+    private readonly ghostEntries: readonly RuntimeSaveGhostObjectEntryState[] = [],
   ) {}
 
   crc(_xfer: Xfer): void {
@@ -25964,11 +26055,11 @@ export class GhostObjectSnapshot implements Snapshot {
 
   xfer(xfer: Xfer): void {
     if (xfer.getMode() === XferMode.XFER_LOAD) {
-      const mode = inspectRuntimeGhostObjectChunkMode(xfer.xferUser(new Uint8Array(0)));
-      if (mode !== 'parsed') {
+      const parsed = parseSourceGhostObjectChunk(xfer.xferUser(new Uint8Array(0)));
+      if (parsed === null) {
         throw new Error('Unsupported source ghost-object snapshot payload.');
       }
-      this.payload = { mode };
+      this.payload = parsed;
       return;
     }
 
@@ -25990,7 +26081,7 @@ export class GhostObjectSnapshot implements Snapshot {
       throw new Error('Ghost-object count mismatch in non-save xfer.');
     }
     for (const entry of this.ghostEntries) {
-      xfer.xferObjectID(entry.parentObjectId);
+      xfer.xferObjectID(entry.managerParentObjectId);
 
       const objectVersion = xfer.xferVersion(SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION);
       if (objectVersion !== SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION) {
@@ -26008,13 +26099,57 @@ export class GhostObjectSnapshot implements Snapshot {
       xfer.xferReal(entry.parentAngle);
       xfer.xferCoord3D(entry.parentPosition);
 
-      xfer.xferObjectID(0);
-      xfer.xferInt(0);
-      xfer.xferUnsignedInt(SOURCE_INVALID_DRAWABLE_ID);
+      xfer.xferObjectID(entry.drawableInfoShroudStatusObjectId);
+      xfer.xferInt(entry.drawableInfoFlags);
+      xfer.xferUnsignedInt(entry.drawableId);
       for (let playerIndex = 0; playerIndex < SOURCE_GHOST_OBJECT_PLAYER_COUNT; playerIndex += 1) {
-        xfer.xferUnsignedByte(0);
+        const snapshots = entry.snapshotsByPlayerIndex[playerIndex] ?? [];
+        xfer.xferUnsignedByte(snapshots.length);
+        for (const snapshot of snapshots) {
+          xfer.xferAsciiString(snapshot.name);
+          xfer.xferReal(snapshot.scale);
+          xfer.xferUnsignedInt(snapshot.color);
+          const snapshotVersion = xfer.xferVersion(1);
+          if (snapshotVersion !== 1) {
+            throw new Error(`Unsupported W3D ghost render-object snapshot version ${snapshotVersion}`);
+          }
+          const transformMatrixBytes = new Uint8Array(snapshot.transformMatrixBytes);
+          if (transformMatrixBytes.byteLength !== SOURCE_MATRIX3D_BYTE_LENGTH) {
+            throw new Error(`Ghost render-object matrix length ${transformMatrixBytes.byteLength} is invalid.`);
+          }
+          xfer.xferUser(transformMatrixBytes);
+          xfer.xferInt(snapshot.subObjects.length);
+          for (const subObject of snapshot.subObjects) {
+            xfer.xferAsciiString(subObject.name);
+            xfer.xferBool(subObject.visible);
+            const subObjectMatrixBytes = new Uint8Array(subObject.transformMatrixBytes);
+            if (subObjectMatrixBytes.byteLength !== SOURCE_MATRIX3D_BYTE_LENGTH) {
+              throw new Error(`Ghost render sub-object matrix length ${subObjectMatrixBytes.byteLength} is invalid.`);
+            }
+            xfer.xferUser(subObjectMatrixBytes);
+          }
+        }
       }
-      xfer.xferUnsignedByte(0);
+      const shroudednessEntries: Array<{ playerIndex: number; previousShroudedness: number }> = [];
+      for (let playerIndex = 0; playerIndex < SOURCE_GHOST_OBJECT_PLAYER_COUNT; playerIndex += 1) {
+        const snapshots = entry.snapshotsByPlayerIndex[playerIndex] ?? [];
+        if (snapshots.length === 0) {
+          continue;
+        }
+        const previousShroudedness = entry.previousShroudednessByPlayerIndex[playerIndex];
+        if (!Number.isFinite(previousShroudedness)) {
+          throw new Error(`Ghost-object shroudedness is missing for player ${playerIndex}.`);
+        }
+        shroudednessEntries.push({
+          playerIndex,
+          previousShroudedness: Math.trunc(previousShroudedness!),
+        });
+      }
+      xfer.xferUnsignedByte(shroudednessEntries.length);
+      for (const shroudednessEntry of shroudednessEntries) {
+        xfer.xferUnsignedByte(shroudednessEntry.playerIndex);
+        xfer.xferUser(buildSourceRawInt32Bytes(shroudednessEntry.previousShroudedness));
+      }
     }
   }
 
@@ -26036,6 +26171,7 @@ export function buildRuntimeSaveFile(params: {
   renderableEntityStates?: readonly GameLogicRenderableEntityState[] | null;
   gameClientLiveEntityIds?: readonly number[] | null;
   particleSystemState?: ParticleSystemManagerSaveState | null;
+  ghostObjectState?: RuntimeSaveGhostObjectState | null;
   sourceGameData?: GameDataConfig | null;
   currentMusicTrackName?: string | null;
   sourceDifficulty?: GameDifficulty | null;
@@ -26137,9 +26273,14 @@ export function buildRuntimeSaveFile(params: {
     params.sourceGameData ?? null,
     [params.mapPath, params.campaign?.sourceMapName],
   );
-  const ghostObjectEntries = buildSourceGhostObjectEntries(
+  const generatedGhostObjectEntries = buildSourceGhostObjectEntries(
     gameLogicPayload,
     listSourceDrawableModuleDescriptors,
+  );
+  const ghostObjectState = params.ghostObjectState ?? null;
+  const ghostObjectEntries = mergeSourceGhostObjectEntries(
+    ghostObjectState?.ghostObjects ?? null,
+    generatedGhostObjectEntries,
   );
   const orderedPassthroughBlocks = orderPassthroughBlocks(params.passthroughBlocks);
   const hasSourceGameLogicPassthrough = hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GAME_LOGIC_BLOCK);
@@ -26365,10 +26506,13 @@ export function buildRuntimeSaveFile(params: {
       ),
     );
   }
-  if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GHOST_OBJECT_BLOCK)) {
+  if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GHOST_OBJECT_BLOCK) || ghostObjectState !== null) {
     state.addSnapshotBlock(
       SOURCE_GHOST_OBJECT_BLOCK,
-      new GhostObjectSnapshot(resolvedLocalPlayerIndex, ghostObjectEntries),
+      new GhostObjectSnapshot(
+        ghostObjectState?.localPlayerIndex ?? resolvedLocalPlayerIndex,
+        ghostObjectEntries,
+      ),
     );
   }
   for (const passthroughBlock of orderedPassthroughBlocks) {
@@ -26383,6 +26527,12 @@ export function buildRuntimeSaveFile(params: {
       continue;
     }
     if (KNOWN_RUNTIME_SAVE_BLOCKS.has(normalizedName)) {
+      continue;
+    }
+    if (
+      normalizedName === SOURCE_GHOST_OBJECT_BLOCK.toLowerCase()
+      && ghostObjectState !== null
+    ) {
       continue;
     }
     if (normalizedName !== SOURCE_GAME_CLIENT_BLOCK.toLowerCase()) {
@@ -26555,6 +26705,8 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const particleSystemState = particleSystemChunk
     ? parseSourceParticleSystemChunk(particleSystemChunk)
     : null;
+  const ghostObjectChunk = extractSaveChunkData(data, SOURCE_GHOST_OBJECT_BLOCK);
+  const ghostObjectState = parseSourceGhostObjectChunk(ghostObjectChunk);
   const campaign = campaignSnapshot.state.currentCampaign.length > 0
       ? {
         version: campaignSnapshot.state.version,
@@ -26580,6 +26732,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     gameClientState: parseGameClientState(data),
     inGameUiState,
     particleSystemState,
+    ghostObjectState,
     sourceTeamFactoryChunkData: teamFactoryChunk ?? null,
     gameLogicTerrainLogicState: terrainLogicSnapshot?.payload ?? null,
     gameLogicTeamFactoryState: resolvedTeamFactoryState,
@@ -26607,6 +26760,12 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
           if (
             normalizedName === SOURCE_TERRAIN_VISUAL_BLOCK.toLowerCase()
             && sourceTerrainVisualState !== null
+          ) {
+            return false;
+          }
+          if (
+            normalizedName === SOURCE_GHOST_OBJECT_BLOCK.toLowerCase()
+            && ghostObjectState !== null
           ) {
             return false;
           }
@@ -26704,40 +26863,57 @@ function inspectRuntimeTerrainVisualChunkMode(
   return parseSourceTerrainVisualChunk(data)?.mode ?? null;
 }
 
-function readSourceGhostObjectMatrix3DBytes(xferLoad: XferLoad): void {
-  xferLoad.xferUser(new Uint8Array(SOURCE_MATRIX3D_BYTE_LENGTH));
+function readSourceGhostObjectMatrix3DBytes(xferLoad: XferLoad): ArrayBuffer {
+  return copyBytesToArrayBuffer(xferLoad.xferUser(new Uint8Array(SOURCE_MATRIX3D_BYTE_LENGTH)));
 }
 
-function inspectSourceW3DRenderObjectSnapshot(xferLoad: XferLoad): boolean {
+function parseSourceW3DRenderObjectSnapshot(
+  xferLoad: XferLoad,
+  name: string,
+  scale: number,
+  color: number,
+): RuntimeSaveGhostRenderObjectSnapshotState | null {
   const snapshotVersion = xferLoad.xferVersion(1);
   if (snapshotVersion !== 1) {
-    return false;
+    return null;
   }
-  readSourceGhostObjectMatrix3DBytes(xferLoad);
+  const transformMatrixBytes = readSourceGhostObjectMatrix3DBytes(xferLoad);
   const subObjectCount = xferLoad.xferInt(0);
   if (subObjectCount < 0 || subObjectCount > 4096) {
-    return false;
+    return null;
   }
+  const subObjects: RuntimeSaveGhostRenderSubObjectSnapshotState[] = [];
   for (let subObjectIndex = 0; subObjectIndex < subObjectCount; subObjectIndex += 1) {
-    xferLoad.xferAsciiString('');
-    xferLoad.xferBool(false);
-    readSourceGhostObjectMatrix3DBytes(xferLoad);
+    subObjects.push({
+      name: xferLoad.xferAsciiString(''),
+      visible: xferLoad.xferBool(false),
+      transformMatrixBytes: readSourceGhostObjectMatrix3DBytes(xferLoad),
+    });
   }
-  return true;
+  return {
+    name,
+    scale,
+    color,
+    transformMatrixBytes,
+    subObjects,
+  };
 }
 
-function inspectSourceW3DGhostObjectSnapshot(xferLoad: XferLoad, managerParentObjectId: number): boolean {
+function parseSourceW3DGhostObjectSnapshot(
+  xferLoad: XferLoad,
+  managerParentObjectId: number,
+): RuntimeSaveGhostObjectEntryState | null {
   const objectVersion = xferLoad.xferVersion(SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION);
   if (objectVersion !== SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION) {
-    return false;
+    return null;
   }
   const baseObjectVersion = xferLoad.xferVersion(SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION);
   if (baseObjectVersion !== SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION) {
-    return false;
+    return null;
   }
   const baseParentObjectId = xferLoad.xferObjectID(0);
   if (baseParentObjectId !== managerParentObjectId) {
-    return false;
+    return null;
   }
   const parentGeometryType = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
   if (
@@ -26745,18 +26921,19 @@ function inspectSourceW3DGhostObjectSnapshot(xferLoad: XferLoad, managerParentOb
     && parentGeometryType !== SOURCE_GEOMETRY_CYLINDER
     && parentGeometryType !== SOURCE_GEOMETRY_BOX
   ) {
-    return false;
+    return null;
   }
-  xferLoad.xferBool(false);
-  xferLoad.xferReal(0);
-  xferLoad.xferReal(0);
-  xferLoad.xferReal(0);
-  xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
-  xferLoad.xferObjectID(0);
-  xferLoad.xferInt(0);
-  xferLoad.xferUnsignedInt(SOURCE_INVALID_DRAWABLE_ID);
+  const parentGeometryIsSmall = xferLoad.xferBool(false);
+  const parentGeometryMajorRadius = xferLoad.xferReal(0);
+  const parentGeometryMinorRadius = xferLoad.xferReal(0);
+  const parentAngle = xferLoad.xferReal(0);
+  const parentPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+  const drawableInfoShroudStatusObjectId = xferLoad.xferObjectID(0);
+  const drawableInfoFlags = xferLoad.xferInt(0);
+  const drawableId = xferLoad.xferUnsignedInt(SOURCE_INVALID_DRAWABLE_ID);
 
   const snapshotCounts: number[] = [];
+  const snapshotsByPlayerIndex = createEmptySourceGhostSnapshotsByPlayerIndex();
   let playersWithSnapshots = 0;
   for (let playerIndex = 0; playerIndex < SOURCE_GHOST_OBJECT_PLAYER_COUNT; playerIndex += 1) {
     const snapshotCount = xferLoad.xferUnsignedByte(0);
@@ -26765,20 +26942,25 @@ function inspectSourceW3DGhostObjectSnapshot(xferLoad: XferLoad, managerParentOb
       playersWithSnapshots += 1;
     }
     for (let snapshotIndex = 0; snapshotIndex < snapshotCount; snapshotIndex += 1) {
-      xferLoad.xferAsciiString('');
-      xferLoad.xferReal(0);
-      xferLoad.xferUnsignedInt(0);
-      if (!inspectSourceW3DRenderObjectSnapshot(xferLoad)) {
-        return false;
+      const renderSnapshot = parseSourceW3DRenderObjectSnapshot(
+        xferLoad,
+        xferLoad.xferAsciiString(''),
+        xferLoad.xferReal(0),
+        xferLoad.xferUnsignedInt(0),
+      );
+      if (renderSnapshot === null) {
+        return null;
       }
+      snapshotsByPlayerIndex[playerIndex]!.push(renderSnapshot);
     }
   }
 
   const shroudednessCount = xferLoad.xferUnsignedByte(0);
   if (shroudednessCount !== playersWithSnapshots) {
-    return false;
+    return null;
   }
   const seenShroudednessPlayers = new Set<number>();
+  const previousShroudednessByPlayerIndex = createEmptySourceGhostPreviousShroudednessByPlayerIndex();
   for (let index = 0; index < shroudednessCount; index += 1) {
     const playerIndex = xferLoad.xferUnsignedByte(0);
     if (
@@ -26786,25 +26968,40 @@ function inspectSourceW3DGhostObjectSnapshot(xferLoad: XferLoad, managerParentOb
       || snapshotCounts[playerIndex] === 0
       || seenShroudednessPlayers.has(playerIndex)
     ) {
-      return false;
+      return null;
     }
     seenShroudednessPlayers.add(playerIndex);
     const previousShroudedness = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
     if (previousShroudedness < 0 || previousShroudedness > 5) {
-      return false;
+      return null;
     }
+    previousShroudednessByPlayerIndex[playerIndex] = previousShroudedness;
   }
-  return true;
+  return {
+    managerParentObjectId,
+    parentObjectId: baseParentObjectId,
+    parentGeometryType,
+    parentGeometryIsSmall,
+    parentGeometryMajorRadius,
+    parentGeometryMinorRadius,
+    parentAngle,
+    parentPosition,
+    drawableInfoShroudStatusObjectId,
+    drawableInfoFlags,
+    drawableId,
+    snapshotsByPlayerIndex,
+    previousShroudednessByPlayerIndex,
+  };
 }
 
-function inspectRuntimeGhostObjectChunkMode(
+function parseSourceGhostObjectChunk(
   data: Uint8Array | null,
-): Exclude<RuntimeSaveCoreChunkMode, 'raw_passthrough' | 'missing'> | null {
+): RuntimeSaveGhostObjectState | null {
   if (!data) {
     return null;
   }
   const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
-  xferLoad.open('inspect-ghost-object-chunk');
+  xferLoad.open('parse-ghost-object-chunk');
   try {
     const w3dVersion = xferLoad.xferVersion(SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION);
     if (w3dVersion !== SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION) {
@@ -26814,23 +27011,36 @@ function inspectRuntimeGhostObjectChunkMode(
     if (baseVersion !== SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION) {
       return null;
     }
-    xferLoad.xferInt(0);
+    const localPlayerIndex = xferLoad.xferInt(0);
     const ghostObjectCount = xferLoad.xferUnsignedShort(0);
+    const ghostObjects: RuntimeSaveGhostObjectEntryState[] = [];
     for (let index = 0; index < ghostObjectCount; index += 1) {
       const managerParentObjectId = xferLoad.xferObjectID(0);
-      if (!inspectSourceW3DGhostObjectSnapshot(xferLoad, managerParentObjectId)) {
+      const ghostObject = parseSourceW3DGhostObjectSnapshot(xferLoad, managerParentObjectId);
+      if (ghostObject === null) {
         return null;
       }
+      ghostObjects.push(ghostObject);
     }
     if (xferLoad.getRemaining() !== 0) {
       return null;
     }
-    return 'parsed';
+    return {
+      mode: 'parsed',
+      localPlayerIndex,
+      ghostObjects,
+    };
   } catch {
     return null;
   } finally {
     xferLoad.close();
   }
+}
+
+function inspectRuntimeGhostObjectChunkMode(
+  data: Uint8Array | null,
+): Exclude<RuntimeSaveCoreChunkMode, 'raw_passthrough' | 'missing'> | null {
+  return parseSourceGhostObjectChunk(data)?.mode ?? null;
 }
 
 export function inspectRuntimeSaveCoreChunkStatus(
