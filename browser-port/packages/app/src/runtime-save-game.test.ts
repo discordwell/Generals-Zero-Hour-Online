@@ -1071,7 +1071,9 @@ const SOURCE_DEATH_TYPE_POISONED = 5;
 const SOURCE_DEATH_TYPE_LASERED = 9;
 const SOURCE_MINEFIELD_MAX_IMMUNITY = 3;
 const SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH = 16 * 4;
+const SOURCE_WEAPON_STATUS_OUT_OF_AMMO = 1;
 const SOURCE_WEAPON_STATUS_BETWEEN_FIRING_SHOTS = 2;
+const SOURCE_WEAPON_NO_MAX_SHOTS_LIMIT = 0x7fffffff;
 const SOURCE_PRODUCTION_UNIT = 1;
 const SOURCE_PRODUCTION_UPGRADE = 2;
 const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
@@ -10380,6 +10382,76 @@ describe('runtime-save-game', () => {
                 consecutiveShots: 4,
                 startFrame: 31,
               }],
+              fireWeaponUpdateProfiles: [{
+                moduleTag: 'MODULETAG_AUTOFIRE',
+                weaponName: 'RuntimeAutoWeapon',
+                sourceWeaponProfile: {
+                  name: 'RuntimeAutoWeapon',
+                  clipSize: 8,
+                  clipReloadFrames: 30,
+                  shotsPerBarrel: 2,
+                  minTargetPitch: -Math.PI / 4,
+                  maxTargetPitch: Math.PI / 2,
+                  suspendFXDelayFrames: 7,
+                  scatterTargetCount: 2,
+                },
+                initialDelayFrames: 4,
+                exclusiveWeaponDelayFrames: 0,
+              }],
+              fireWeaponUpdateNextFireFrames: [75],
+              fireWeaponCollideProfiles: [{
+                moduleTag: 'MODULETAG_COLLIDEFIRE',
+                collideWeapon: 'RuntimeCollideWeapon',
+                sourceWeaponProfile: {
+                  name: 'RuntimeCollideWeapon',
+                  clipSize: 3,
+                  clipReloadFrames: 15,
+                  shotsPerBarrel: 3,
+                  minTargetPitch: -Math.PI,
+                  maxTargetPitch: Math.PI,
+                  suspendFXDelayFrames: 5,
+                  scatterTargetCount: 1,
+                },
+                fireOnce: true,
+                requiredStatus: new Set<string>(),
+                forbiddenStatus: new Set<string>(),
+              }],
+              fireWeaponCollideEverFired: [false],
+              fireWhenDamagedProfiles: [{
+                moduleTag: 'MODULETAG_DAMAGEDFIRE',
+                reactionWeapons: ['RuntimeReactionWeapon', null, null, null],
+                continuousWeapons: [null, 'RuntimeContinuousWeapon', null, null],
+                reactionWeaponProfiles: [{
+                  name: 'RuntimeReactionWeapon',
+                  clipSize: 4,
+                  clipReloadFrames: 18,
+                  shotsPerBarrel: 1,
+                  minTargetPitch: -Math.PI,
+                  maxTargetPitch: Math.PI,
+                  suspendFXDelayFrames: 6,
+                  scatterTargetCount: 0,
+                }, null, null, null],
+                continuousWeaponProfiles: [null, {
+                  name: 'RuntimeContinuousWeapon',
+                  clipSize: 0,
+                  clipReloadFrames: 24,
+                  shotsPerBarrel: 4,
+                  minTargetPitch: -Math.PI / 3,
+                  maxTargetPitch: Math.PI,
+                  suspendFXDelayFrames: 8,
+                  scatterTargetCount: 3,
+                }, null, null],
+                startsActive: true,
+                upgradeExecuted: true,
+                triggeredBy: [],
+                conflictsWith: [],
+                requiresAllTriggers: false,
+                removesUpgrades: [],
+                damageTypes: new Set<string>(),
+                damageAmount: 0,
+                reactionNextFireFrame: [70, 0, 0, 0],
+                continuousNextFireFrame: [0, 90, 0, 0],
+              }],
               fireWeaponWhenDeadProfiles: [{
                 moduleTag: 'MODULETAG_FWWD',
                 deathWeaponName: 'DeathBlast',
@@ -11183,6 +11255,9 @@ describe('runtime-save-game', () => {
               { moduleType: 'HordeUpdate', moduleTag: 'ModuleTag_Horde' },
               { moduleType: 'ProneUpdate', moduleTag: 'ModuleTag_Prone' },
               { moduleType: 'FireOCLAfterWeaponCooldownUpdate', moduleTag: 'ModuleTag_FireOCL' },
+              { moduleType: 'FireWeaponUpdate', moduleTag: 'ModuleTag_AutoFire' },
+              { moduleType: 'FireWeaponCollide', moduleTag: 'ModuleTag_CollideFire' },
+              { moduleType: 'FireWeaponWhenDamagedBehavior', moduleTag: 'ModuleTag_DamagedFire' },
               { moduleType: 'FireWeaponWhenDeadBehavior', moduleTag: 'ModuleTag_FWWD' },
               { moduleType: 'AutoFindHealingUpdate', moduleTag: 'ModuleTag_AutoHealScan' },
               { moduleType: 'RadiusDecalUpdate', moduleTag: 'ModuleTag_RadiusDecal' },
@@ -11307,6 +11382,9 @@ describe('runtime-save-game', () => {
       'ModuleTag_Horde',
       'ModuleTag_Prone',
       'ModuleTag_FireOCL',
+      'ModuleTag_AutoFire',
+      'ModuleTag_CollideFire',
+      'ModuleTag_DamagedFire',
       'ModuleTag_FWWD',
       'ModuleTag_AutoHealScan',
       'ModuleTag_RadiusDecal',
@@ -11547,6 +11625,51 @@ describe('runtime-save-game', () => {
       consecutiveShots: 4,
       startFrame: 31,
     });
+    const autoFireModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_AutoFire');
+    const autoFire = parseSourceFireWeaponUpdateBlockData(autoFireModule!.blockData);
+    expect(autoFire.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(autoFire.initialDelayFrame).toBe(75);
+    expect(autoFire.weapon.templateName).toBe('RuntimeAutoWeapon');
+    expect(autoFire.weapon.status).toBe(SOURCE_WEAPON_STATUS_BETWEEN_FIRING_SHOTS);
+    expect(autoFire.weapon.ammoInClip).toBe(8);
+    expect(autoFire.weapon.whenWeCanFireAgain).toBe(75);
+    expect(autoFire.weapon.whenLastReloadStarted).toBe(42);
+    expect(autoFire.weapon.suspendFxFrame).toBe(49);
+    expect(autoFire.weapon.maxShotCount).toBe(SOURCE_WEAPON_NO_MAX_SHOTS_LIMIT);
+    expect(autoFire.weapon.numShotsForCurrentBarrel).toBe(2);
+    expect(autoFire.weapon.scatterTargetsUnused).toEqual([0, 1]);
+    expect(autoFire.weapon.pitchLimited).toBe(true);
+
+    const collideFireModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_CollideFire');
+    const collideFire = parseSourceFireWeaponCollideBlockData(collideFireModule!.blockData);
+    expect(collideFire.weaponPresent).toBe(true);
+    expect(collideFire.weapon.templateName).toBe('RuntimeCollideWeapon');
+    expect(collideFire.weapon.status).toBe(SOURCE_WEAPON_STATUS_OUT_OF_AMMO);
+    expect(collideFire.weapon.ammoInClip).toBe(0);
+    expect(collideFire.weapon.suspendFxFrame).toBe(47);
+    expect(collideFire.weapon.maxShotCount).toBe(SOURCE_WEAPON_NO_MAX_SHOTS_LIMIT);
+    expect(collideFire.weapon.numShotsForCurrentBarrel).toBe(3);
+    expect(collideFire.weapon.scatterTargetsUnused).toEqual([]);
+    expect(collideFire.weapon.pitchLimited).toBe(false);
+    expect(collideFire.everFired).toBe(false);
+
+    const damagedFireModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_DamagedFire');
+    const damagedFire = parseSourceFireWhenDamagedBlockData(damagedFireModule!.blockData);
+    expect(damagedFire.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(damagedFire.upgradeExecuted).toBe(true);
+    expect(damagedFire.reactionWeapons[0].weaponPresent).toBe(true);
+    expect(damagedFire.reactionWeapons[0].weapon.templateName).toBe('RuntimeReactionWeapon');
+    expect(damagedFire.reactionWeapons[0].weapon.ammoInClip).toBe(4);
+    expect(damagedFire.reactionWeapons[0].weapon.whenWeCanFireAgain).toBe(70);
+    expect(damagedFire.reactionWeapons[0].weapon.suspendFxFrame).toBe(48);
+    expect(damagedFire.continuousWeapons[1].weaponPresent).toBe(true);
+    expect(damagedFire.continuousWeapons[1].weapon.templateName).toBe('RuntimeContinuousWeapon');
+    expect(damagedFire.continuousWeapons[1].weapon.ammoInClip).toBe(0x7fffffff);
+    expect(damagedFire.continuousWeapons[1].weapon.whenWeCanFireAgain).toBe(90);
+    expect(damagedFire.continuousWeapons[1].weapon.numShotsForCurrentBarrel).toBe(4);
+    expect(damagedFire.continuousWeapons[1].weapon.scatterTargetsUnused).toEqual([0, 1, 2]);
+    expect(damagedFire.continuousWeapons[1].weapon.pitchLimited).toBe(true);
+
     const fireWhenDeadModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_FWWD');
     expect(parseSourceFireWeaponWhenDeadBehaviorBlockData(fireWhenDeadModule!.blockData)).toEqual({
       upgradeExecuted: true,

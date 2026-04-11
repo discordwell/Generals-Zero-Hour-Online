@@ -21,6 +21,7 @@ import { findObjectDefByName } from './registry-lookups.js';
 import { extractUpgradeModulesFromBlocks as extractUpgradeModulesFromBlocksImpl } from './upgrade-modules.js';
 import { createExperienceState as createExperienceStateImpl, LEVEL_REGULAR, LEVEL_VETERAN, LEVEL_ELITE, LEVEL_HEROIC } from './experience.js';
 import { createEntityVisionState as createEntityVisionStateImpl } from './fog-of-war.js';
+import { resolveSourceWeaponSaveProfile } from './source-weapon-save-profile.js';
 import {
   ARMOR_SET_FLAG_MASK_BY_NAME,
   AUTO_TARGET_SCAN_RATE_FRAMES,
@@ -1189,6 +1190,29 @@ export function createMapEntity(self: GL,
     entity.fireWeaponUpdateNextFireFrames = entity.fireWeaponUpdateProfiles.map(
       p => self.frameCounter + p.initialDelayFrames,
     );
+  }
+  if (entity.fireWhenDamagedProfiles.length > 0) {
+    const rofBonus = typeof self.resolveWeaponRateOfFireBonusMultiplier === 'function'
+      ? self.resolveWeaponRateOfFireBonusMultiplier(entity)
+      : 1;
+    const resolveReloadFrame = (sourceWeaponProfile: unknown): number => {
+      if (!sourceWeaponProfile || typeof sourceWeaponProfile !== 'object') {
+        return 0;
+      }
+      const clipReloadFrames = Math.max(0, Math.trunc(sourceWeaponProfile.clipReloadFrames ?? 0));
+      const resolvedReloadFrames = rofBonus > 0 && rofBonus !== 1
+        ? Math.max(0, Math.floor(clipReloadFrames / rofBonus))
+        : clipReloadFrames;
+      return self.frameCounter + resolvedReloadFrames;
+    };
+    for (const profile of entity.fireWhenDamagedProfiles) {
+      if (profile.reactionWeaponProfiles) {
+        profile.reactionNextFireFrame = profile.reactionWeaponProfiles.map(resolveReloadFrame);
+      }
+      if (profile.continuousWeaponProfiles) {
+        profile.continuousNextFireFrame = profile.continuousWeaponProfiles.map(resolveReloadFrame);
+      }
+    }
   }
   if (entity.fireWeaponCollideProfiles.length > 0) {
     entity.fireWeaponCollideEverFired = entity.fireWeaponCollideProfiles.map(() => false);
@@ -2594,6 +2618,7 @@ export function extractFireWeaponCollideProfiles(self: GL, objectDef: ObjectDef 
         profiles.push({
           moduleTag,
           collideWeapon,
+          sourceWeaponProfile: resolveSourceWeaponSaveProfile(self, collideWeapon),
           fireOnce,
           requiredStatus,
           forbiddenStatus,

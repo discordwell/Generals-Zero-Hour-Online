@@ -684,6 +684,7 @@ import {
   resolveClipReloadFramesWithBonus as resolveClipReloadFramesWithBonusImpl,
   resolveProjectileTemplateKindOf as resolveProjectileTemplateKindOfImpl,
 } from './weapon-profiles.js';
+import type { SourceWeaponSaveProfile } from './source-weapon-save-profile.js';
 import {
   extractParkingPlaceProfile as extractParkingPlaceProfileImpl,
   extractJetAIProfile as extractJetAIProfileImpl,
@@ -5183,6 +5184,8 @@ interface FireWeaponCollideProfile {
   moduleTag: string | null;
   /** Weapon template name to fire on collision. */
   collideWeapon: string;
+  /** Source Weapon::xfer constructor fields resolved from the weapon template. */
+  sourceWeaponProfile?: SourceWeaponSaveProfile | null;
   /** Only fire weapon once, then stop. C++ default: FALSE. */
   fireOnce: boolean;
   /** Required object status bits (all must be set). C++ default: 0 (none). */
@@ -5283,6 +5286,18 @@ interface FireWhenDamagedProfile {
   moduleTag: string | null;
   reactionWeapons: [string | null, string | null, string | null, string | null];
   continuousWeapons: [string | null, string | null, string | null, string | null];
+  reactionWeaponProfiles?: [
+    SourceWeaponSaveProfile | null,
+    SourceWeaponSaveProfile | null,
+    SourceWeaponSaveProfile | null,
+    SourceWeaponSaveProfile | null,
+  ];
+  continuousWeaponProfiles?: [
+    SourceWeaponSaveProfile | null,
+    SourceWeaponSaveProfile | null,
+    SourceWeaponSaveProfile | null,
+    SourceWeaponSaveProfile | null,
+  ];
   startsActive: boolean;
   upgradeExecuted: boolean;
   triggeredBy: string[];
@@ -5305,6 +5320,8 @@ interface FireWeaponUpdateProfile {
   moduleTag: string | null;
   /** Weapon template name to fire. */
   weaponName: string;
+  /** Source Weapon::xfer constructor fields resolved from the weapon template. */
+  sourceWeaponProfile?: SourceWeaponSaveProfile | null;
   /** Delay in logic frames before first fire after entity creation. */
   initialDelayFrames: number;
   /** If > 0, suppress this module for this many frames after entity fires a normal weapon. */

@@ -9,6 +9,7 @@
 import { MAP_XY_FACTOR } from '@generals/terrain';
 import { readBooleanField, readNumericField, readStringField } from './ini-readers.js';
 import { DEFAULT_POISON_DAMAGE_INTERVAL_FRAMES } from './index.js';
+import { resolveSourceWeaponSaveProfile } from './source-weapon-save-profile.js';
 type GL = any;
 
 // ---- Status effects implementations ----
@@ -93,6 +94,18 @@ export function extractFireWhenDamagedProfiles(self: GL, objectDef: ObjectDef | 
             readStringField(block.fields, ['ContinuousWeaponReallyDamaged']),
             readStringField(block.fields, ['ContinuousWeaponRubble']),
           ],
+          reactionWeaponProfiles: [
+            resolveSourceWeaponSaveProfile(self, readStringField(block.fields, ['ReactionWeaponPristine'])),
+            resolveSourceWeaponSaveProfile(self, readStringField(block.fields, ['ReactionWeaponDamaged'])),
+            resolveSourceWeaponSaveProfile(self, readStringField(block.fields, ['ReactionWeaponReallyDamaged'])),
+            resolveSourceWeaponSaveProfile(self, readStringField(block.fields, ['ReactionWeaponRubble'])),
+          ],
+          continuousWeaponProfiles: [
+            resolveSourceWeaponSaveProfile(self, readStringField(block.fields, ['ContinuousWeaponPristine'])),
+            resolveSourceWeaponSaveProfile(self, readStringField(block.fields, ['ContinuousWeaponDamaged'])),
+            resolveSourceWeaponSaveProfile(self, readStringField(block.fields, ['ContinuousWeaponReallyDamaged'])),
+            resolveSourceWeaponSaveProfile(self, readStringField(block.fields, ['ContinuousWeaponRubble'])),
+          ],
           startsActive,
           upgradeExecuted: startsActive,
           triggeredBy: self.parseUpgradeNames(block.fields['TriggeredBy']),
@@ -131,6 +144,7 @@ export function extractFireWeaponUpdateProfiles(self: GL, objectDef: ObjectDef |
         profiles.push({
           moduleTag,
           weaponName,
+          sourceWeaponProfile: resolveSourceWeaponSaveProfile(self, weaponName),
           initialDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['InitialDelay']) ?? 0),
           exclusiveWeaponDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['ExclusiveWeaponDelay']) ?? 0),
         });

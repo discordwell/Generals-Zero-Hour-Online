@@ -177,7 +177,11 @@ const SOURCE_MINEFIELD_MAX_IMMUNITY = 3;
 const SOURCE_FIRESTORM_MAX_SYSTEMS = 16;
 const SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH = SOURCE_FIRESTORM_MAX_SYSTEMS * 4;
 const SOURCE_WEAPON_STATUS_READY_TO_FIRE = 0;
+const SOURCE_WEAPON_STATUS_OUT_OF_AMMO = 1;
 const SOURCE_WEAPON_STATUS_BETWEEN_FIRING_SHOTS = 2;
+const SOURCE_WEAPON_STATUS_RELOADING_CLIP = 3;
+const SOURCE_WEAPON_NO_MAX_SHOTS_LIMIT = 0x7fffffff;
+const SOURCE_WEAPON_UNLIMITED_CLIP_AMMO = 0x7fffffff;
 const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
 const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
 const SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE = 0x0004;
@@ -6910,6 +6914,17 @@ interface SourceWeaponSnapshotBlockState {
   leechWeaponRangeActive: boolean;
 }
 
+interface SourceWeaponSaveProfileSnapshot {
+  name: string;
+  clipSize: number;
+  clipReloadFrames: number;
+  shotsPerBarrel: number;
+  minTargetPitch: number;
+  maxTargetPitch: number;
+  suspendFXDelayFrames: number;
+  scatterTargetCount: number;
+}
+
 interface SourceFireWeaponUpdateBlockState {
   nextCallFrameAndPhase: number;
   weapon: SourceWeaponSnapshotBlockState;
@@ -7514,6 +7529,123 @@ function createDefaultSourceWeaponSnapshotState(): SourceWeaponSnapshotBlockStat
     pitchLimited: false,
     leechWeaponRangeActive: false,
   };
+}
+
+function sourceWeaponProfileNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function sourceWeaponProfileInt(value: unknown, fallback: number): number {
+  return Math.trunc(sourceWeaponProfileNumber(value, fallback));
+}
+
+function sourceWeaponSaveProfileFromUnknown(value: unknown): SourceWeaponSaveProfileSnapshot | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const profile = value as Record<string, unknown>;
+  const name = typeof profile.name === 'string' && profile.name.trim()
+    ? profile.name.trim()
+    : '';
+  if (!name) {
+    return null;
+  }
+  return {
+    name,
+    clipSize: Math.max(0, sourceWeaponProfileInt(profile.clipSize, 0)),
+    clipReloadFrames: Math.max(0, sourceWeaponProfileInt(profile.clipReloadFrames, 0)),
+    shotsPerBarrel: Math.max(1, sourceWeaponProfileInt(profile.shotsPerBarrel, 1)),
+    minTargetPitch: sourceWeaponProfileNumber(profile.minTargetPitch, -Math.PI),
+    maxTargetPitch: sourceWeaponProfileNumber(profile.maxTargetPitch, Math.PI),
+    suspendFXDelayFrames: Math.max(0, sourceWeaponProfileInt(profile.suspendFXDelayFrames, 0)),
+    scatterTargetCount: Math.max(0, sourceWeaponProfileInt(profile.scatterTargetCount, 0)),
+  };
+}
+
+function requireSourceWeaponSaveProfile(
+  sourceProfile: unknown,
+  moduleType: string,
+  moduleTag: string,
+  weaponName: string | null | undefined,
+): SourceWeaponSaveProfileSnapshot {
+  const profile = sourceWeaponSaveProfileFromUnknown(sourceProfile);
+  if (profile) {
+    return profile;
+  }
+  const resolvedWeaponName = weaponName?.trim() || '<missing weapon>';
+  throw new Error(
+    `Cannot synthesize source ${moduleType} "${moduleTag}" without Weapon::xfer template fields for ${resolvedWeaponName}.`,
+  );
+}
+
+function sourceWeaponScatterTargetIndices(profile: SourceWeaponSaveProfileSnapshot): number[] {
+  return Array.from(
+    { length: Math.min(0xffff, profile.scatterTargetCount) },
+    (_unused, index) => index,
+  );
+}
+
+function buildSourceWeaponSnapshotFromProfile(
+  profile: SourceWeaponSaveProfileSnapshot,
+  currentFrame: number,
+  options: {
+    status: number;
+    ammoInClip: number;
+    whenWeCanFireAgain: number;
+    whenLastReloadStarted: number;
+    scatterTargetsUnused: number[];
+  },
+): SourceWeaponSnapshotBlockState {
+  return {
+    version: 3,
+    templateName: profile.name,
+    slot: 0,
+    status: options.status,
+    ammoInClip: options.ammoInClip,
+    whenWeCanFireAgain: options.whenWeCanFireAgain,
+    whenPreAttackFinished: 0,
+    whenLastReloadStarted: options.whenLastReloadStarted,
+    lastFireFrame: 0,
+    suspendFxFrame: sourceFlammableUnsignedFrame(currentFrame + profile.suspendFXDelayFrames),
+    projectileStreamObjectId: 0,
+    laserObjectIdUnused: 0,
+    maxShotCount: SOURCE_WEAPON_NO_MAX_SHOTS_LIMIT,
+    currentBarrel: 0,
+    numShotsForCurrentBarrel: profile.shotsPerBarrel,
+    scatterTargetsUnused: options.scatterTargetsUnused,
+    pitchLimited: profile.minTargetPitch > -Math.PI || profile.maxTargetPitch < Math.PI,
+    leechWeaponRangeActive: false,
+  };
+}
+
+function buildSourceWeaponConstructorSnapshot(
+  profile: SourceWeaponSaveProfileSnapshot,
+  currentFrame: number,
+): SourceWeaponSnapshotBlockState {
+  return buildSourceWeaponSnapshotFromProfile(profile, currentFrame, {
+    status: SOURCE_WEAPON_STATUS_OUT_OF_AMMO,
+    ammoInClip: 0,
+    whenWeCanFireAgain: 0,
+    whenLastReloadStarted: 0,
+    scatterTargetsUnused: [],
+  });
+}
+
+function buildSourceWeaponLoadedSnapshot(
+  profile: SourceWeaponSaveProfileSnapshot,
+  currentFrame: number,
+  whenWeCanFireAgain: number,
+): SourceWeaponSnapshotBlockState {
+  const ammoInClip = profile.clipSize > 0 ? profile.clipSize : SOURCE_WEAPON_UNLIMITED_CLIP_AMMO;
+  return buildSourceWeaponSnapshotFromProfile(profile, currentFrame, {
+    status: whenWeCanFireAgain > currentFrame
+      ? SOURCE_WEAPON_STATUS_BETWEEN_FIRING_SHOTS
+      : SOURCE_WEAPON_STATUS_RELOADING_CLIP,
+    ammoInClip,
+    whenWeCanFireAgain,
+    whenLastReloadStarted: currentFrame,
+    scatterTargetsUnused: sourceWeaponScatterTargetIndices(profile),
+  });
 }
 
 function xferSourceCollideModuleBase(xfer: Xfer): void {
@@ -11899,6 +12031,105 @@ function buildSourceFireWeaponUpdateBlockData(
   }
 }
 
+function findGeneratedSourceFireWeaponUpdateProfileIndex(entity: MapEntity, moduleTag: string): number {
+  const profiles = entity.fireWeaponUpdateProfiles ?? [];
+  const normalizedModuleTag = normalizeSourceObjectModuleTag(moduleTag);
+  const tagMatch = profiles.findIndex(
+    (profile) => normalizeSourceObjectModuleTag(profile.moduleTag) === normalizedModuleTag,
+  );
+  if (tagMatch >= 0) {
+    return tagMatch;
+  }
+  return profiles.length === 1 ? 0 : -1;
+}
+
+function buildGeneratedSourceFireWeaponUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  moduleTag: string,
+): Uint8Array | null {
+  const profileIndex = findGeneratedSourceFireWeaponUpdateProfileIndex(entity, moduleTag);
+  if (profileIndex < 0) {
+    return null;
+  }
+  const profile = entity.fireWeaponUpdateProfiles[profileIndex]!;
+  const sourceWeaponProfile = requireSourceWeaponSaveProfile(
+    profile.sourceWeaponProfile,
+    'FireWeaponUpdate',
+    moduleTag,
+    profile.weaponName,
+  );
+  const initialDelayFrame = sourceFlammableUnsignedFrame(
+    entity.fireWeaponUpdateNextFireFrames?.[profileIndex],
+    currentFrame + sourceNonNegativeInt(profile.initialDelayFrames, 0),
+  );
+  const weapon = buildSourceWeaponLoadedSnapshot(
+    sourceWeaponProfile,
+    currentFrame,
+    initialDelayFrame > currentFrame ? initialDelayFrame : currentFrame,
+  );
+
+  const saver = new XferSave();
+  saver.open('build-generated-source-fire-weapon-update');
+  try {
+    saver.xferVersion(2);
+    xferSourceUpdateModuleBase(saver, buildSourceUpdateModuleWakeFrame(currentFrame + 1));
+    xferSourceWeaponSnapshot(saver, weapon);
+    saver.xferUnsignedInt(initialDelayFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function findGeneratedSourceFireWeaponCollideProfileIndex(entity: MapEntity, moduleTag: string): number {
+  const profiles = entity.fireWeaponCollideProfiles ?? [];
+  const normalizedModuleTag = normalizeSourceObjectModuleTag(moduleTag);
+  const tagMatch = profiles.findIndex(
+    (profile) => normalizeSourceObjectModuleTag(profile.moduleTag) === normalizedModuleTag,
+  );
+  if (tagMatch >= 0) {
+    return tagMatch;
+  }
+  return profiles.length === 1 ? 0 : -1;
+}
+
+function buildGeneratedSourceFireWeaponCollideBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  moduleTag: string,
+): Uint8Array | null {
+  const profileIndex = findGeneratedSourceFireWeaponCollideProfileIndex(entity, moduleTag);
+  if (profileIndex < 0) {
+    return null;
+  }
+  if (entity.fireWeaponCollideEverFired?.[profileIndex] === true) {
+    throw new Error(
+      `Cannot synthesize source FireWeaponCollide "${moduleTag}" after it fired without preserved Weapon::xfer state.`,
+    );
+  }
+  const profile = entity.fireWeaponCollideProfiles[profileIndex]!;
+  const sourceWeaponProfile = requireSourceWeaponSaveProfile(
+    profile.sourceWeaponProfile,
+    'FireWeaponCollide',
+    moduleTag,
+    profile.collideWeapon,
+  );
+
+  const saver = new XferSave();
+  saver.open('build-generated-source-fire-weapon-collide');
+  try {
+    saver.xferVersion(1);
+    xferSourceCollideModuleBase(saver);
+    saver.xferBool(true);
+    xferSourceWeaponSnapshot(saver, buildSourceWeaponConstructorSnapshot(sourceWeaponProfile, currentFrame));
+    saver.xferBool(false);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function findLiveSourceFireWhenDamagedProfileIndex(
   entity: MapEntity,
   moduleTag: string,
@@ -11939,6 +12170,83 @@ function buildSourceFireWhenDamagedWeaponState(
       whenWeCanFireAgain: liveNextFireFrame,
     },
   };
+}
+
+function buildGeneratedSourceFireWhenDamagedWeaponState(
+  sourceWeaponProfile: unknown,
+  moduleTag: string,
+  weaponName: string | null | undefined,
+  nextFireFrame: number | undefined,
+  currentFrame: number,
+): SourceFireWhenDamagedWeaponBlockState {
+  if (!weaponName) {
+    return createSourceFireWhenDamagedWeaponState(false);
+  }
+  const profile = requireSourceWeaponSaveProfile(
+    sourceWeaponProfile,
+    'FireWeaponWhenDamagedBehavior',
+    moduleTag,
+    weaponName,
+  );
+  const resolvedNextFireFrame = sourceFlammableUnsignedFrame(
+    nextFireFrame && nextFireFrame > 0 ? nextFireFrame : undefined,
+    currentFrame + profile.clipReloadFrames,
+  );
+  return createSourceFireWhenDamagedWeaponState(
+    true,
+    buildSourceWeaponLoadedSnapshot(profile, currentFrame, resolvedNextFireFrame),
+  );
+}
+
+function buildGeneratedSourceFireWhenDamagedBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  moduleTag: string,
+): Uint8Array | null {
+  const profileIndex = findLiveSourceFireWhenDamagedProfileIndex(entity, moduleTag);
+  if (profileIndex < 0) {
+    return null;
+  }
+  const profile = entity.fireWhenDamagedProfiles[profileIndex]!;
+  const reactionWeaponProfiles = profile.reactionWeaponProfiles ?? [null, null, null, null];
+  const continuousWeaponProfiles = profile.continuousWeaponProfiles ?? [null, null, null, null];
+  const reactionWeapons = profile.reactionWeapons.map((weaponName, index) => buildGeneratedSourceFireWhenDamagedWeaponState(
+    reactionWeaponProfiles[index],
+    moduleTag,
+    weaponName,
+    profile.reactionNextFireFrame[index],
+    currentFrame,
+  )) as SourceFireWhenDamagedBlockState['reactionWeapons'];
+  const continuousWeapons = profile.continuousWeapons.map((weaponName, index) => buildGeneratedSourceFireWhenDamagedWeaponState(
+    continuousWeaponProfiles[index],
+    moduleTag,
+    weaponName,
+    profile.continuousNextFireFrame[index],
+    currentFrame,
+  )) as SourceFireWhenDamagedBlockState['continuousWeapons'];
+  const upgradeExecuted = profile.upgradeExecuted === true;
+  const hasContinuousWeapon = continuousWeapons.some((weaponState) => weaponState.weaponPresent);
+  const nextCallFrameAndPhase = upgradeExecuted && hasContinuousWeapon
+    ? buildSourceUpdateModuleWakeFrame(currentFrame + 1)
+    : buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER);
+
+  const saver = new XferSave();
+  saver.open('build-generated-source-fire-weapon-when-damaged');
+  try {
+    saver.xferVersion(1);
+    xferSourceUpdateModuleBase(saver, nextCallFrameAndPhase);
+    saver.xferVersion(1);
+    saver.xferBool(upgradeExecuted);
+    for (const weaponState of reactionWeapons) {
+      xferSourceFireWhenDamagedWeapon(saver, weaponState);
+    }
+    for (const weaponState of continuousWeapons) {
+      xferSourceFireWhenDamagedWeapon(saver, weaponState);
+    }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
 }
 
 function buildSourceFireWhenDamagedBlockData(
@@ -17555,6 +17863,19 @@ function buildGeneratedSourceObjectModuleBlockData(
         state,
       );
     }
+  }
+
+  if (normalizedModuleType === 'FIREWEAPONUPDATE' && (entity.fireWeaponUpdateProfiles?.length ?? 0) > 0) {
+    return buildGeneratedSourceFireWeaponUpdateBlockData(entity, currentFrame, moduleTag);
+  }
+
+  if (normalizedModuleType === 'FIREWEAPONCOLLIDE' && (entity.fireWeaponCollideProfiles?.length ?? 0) > 0) {
+    return buildGeneratedSourceFireWeaponCollideBlockData(entity, currentFrame, moduleTag);
+  }
+
+  if (normalizedModuleType === 'FIREWEAPONWHENDAMAGEDBEHAVIOR'
+    && (entity.fireWhenDamagedProfiles?.length ?? 0) > 0) {
+    return buildGeneratedSourceFireWhenDamagedBlockData(entity, currentFrame, moduleTag);
   }
 
   if (normalizedModuleType === 'FIREWEAPONWHENDEADBEHAVIOR'
