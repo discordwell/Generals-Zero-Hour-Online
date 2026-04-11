@@ -3963,7 +3963,7 @@ function tryParseSourceFireOclAfterCooldownUpdateBlockData(
 function buildSourceFireOclAfterCooldownUpdateBlockData(
   currentFrame: number,
   upgradeExecuted: boolean,
-  state: { valid: boolean; consecutiveShots: number; startFrame: number },
+  state: { valid: boolean; consecutiveShots: number; startFrame: number; upgradeExecuted?: boolean },
 ): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-fire-ocl-after-cooldown-update');
@@ -3973,7 +3973,7 @@ function buildSourceFireOclAfterCooldownUpdateBlockData(
       buildSourceUpdateModuleWakeFrame(currentFrame + 1),
     ));
     saver.xferVersion(1);
-    saver.xferBool(upgradeExecuted);
+    saver.xferBool(state.upgradeExecuted ?? upgradeExecuted);
     saver.xferBool(state.valid === true);
     saver.xferUnsignedInt(Math.max(0, Math.trunc(state.consecutiveShots)));
     saver.xferUnsignedInt(Math.max(0, Math.trunc(state.startFrame)));
@@ -10319,11 +10319,14 @@ function overlaySourceObjectModulesFromLiveEntity(
               const parsedSourceState = tryParseSourceFireOclAfterCooldownUpdateBlockData(module.blockData);
               const state = entity.fireOCLAfterCooldownStates[moduleIndex];
               if (parsedSourceState && state) {
+                const upgradeExecuted = typeof state.upgradeExecuted === 'boolean'
+                  ? state.upgradeExecuted
+                  : parsedSourceState.upgradeExecuted;
                 return {
                   identifier: module.identifier,
                   blockData: buildSourceFireOclAfterCooldownUpdateBlockData(
                     currentFrame,
-                    parsedSourceState.upgradeExecuted,
+                    upgradeExecuted,
                     state,
                   ),
                 };

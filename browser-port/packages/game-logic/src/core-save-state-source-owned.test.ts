@@ -161,6 +161,15 @@ function makeSourceOwnedCoreBundle() {
           RubOffRadius: 20,
         }),
       ]),
+      makeObjectDef('FireOclTank', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'FireOCLAfterWeaponCooldownUpdate ModuleTag_FireOCL', {
+          WeaponSlot: 'PRIMARY',
+          OCL: 'OCL_Test',
+          MinShotsToCreateOCL: 2,
+          OCLLifetimePerSecond: 1000,
+          OCLLifetimeMaxCap: 3000,
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -868,6 +877,33 @@ function buildSourceHordeUpdateModuleData(options: {
     saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
     saver.xferBool(options.inHorde);
     saver.xferBool(options.hasFlag);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceFireOclAfterCooldownUpdateModuleData(options: {
+  nextCallFrame: number;
+  upgradeExecuted: boolean;
+  valid: boolean;
+  consecutiveShots: number;
+  startFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-fire-ocl-after-cooldown-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferVersion(1);
+    saver.xferBool(options.upgradeExecuted);
+    saver.xferBool(options.valid);
+    saver.xferUnsignedInt(options.consecutiveShots);
+    saver.xferUnsignedInt(options.startFrame);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -1899,6 +1935,57 @@ describe('source-owned game-logic core save-state', () => {
     expect(entity.isInHorde).toBe(true);
     expect(entity.isTrueHordeMember).toBe(false);
     expect(entity.hordeHasFlag).toBe(true);
+  });
+
+  it('imports source FireOCLAfterWeaponCooldownUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 96;
+    sourceState.position = { x: 144, y: 0, z: 64 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_FireOCL',
+      blockData: buildSourceFireOclAfterCooldownUpdateModuleData({
+        nextCallFrame: 201,
+        upgradeExecuted: true,
+        valid: true,
+        consecutiveShots: 4,
+        startFrame: 175,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 160,
+      objects: [
+        { templateName: 'FireOclTank', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        fireOCLAfterCooldownStates: Array<{
+          upgradeExecuted: boolean;
+          valid: boolean;
+          consecutiveShots: number;
+          startFrame: number;
+        }>;
+      }>;
+    };
+
+    expect(privateLogic.spawnedEntities.get(96)!.fireOCLAfterCooldownStates).toEqual([{
+      upgradeExecuted: true,
+      valid: true,
+      consecutiveShots: 4,
+      startFrame: 175,
+    }]);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {

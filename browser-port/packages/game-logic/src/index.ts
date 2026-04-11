@@ -6237,6 +6237,7 @@ interface FireOCLAfterWeaponCooldownProfile {
 }
 
 interface FireOCLAfterWeaponCooldownState {
+  upgradeExecuted: boolean;
   valid: boolean;
   consecutiveShots: number;
   startFrame: number;
@@ -8701,6 +8702,13 @@ interface SourceHordeUpdateImportState {
   nextCallFrame: number;
   inHorde: boolean;
   hasFlag: boolean;
+}
+
+interface SourceFireOclAfterCooldownUpdateImportState {
+  upgradeExecuted: boolean;
+  valid: boolean;
+  consecutiveShots: number;
+  startFrame: number;
 }
 
 interface SourceSpecialPowerModuleImportState {
@@ -13791,6 +13799,89 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceFireOclAfterCooldownUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceFireOclAfterCooldownUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'FIREOCLAFTERWEAPONCOOLDOWNUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-fire-ocl-after-cooldown-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      this.skipSourceImportUpdateModuleBase(xfer);
+      const upgradeMuxVersion = xfer.xferVersion(1);
+      if (upgradeMuxVersion !== 1) {
+        return null;
+      }
+      const upgradeExecuted = xfer.xferBool(false);
+      const valid = xfer.xferBool(false);
+      const consecutiveShots = xfer.xferUnsignedInt(0);
+      const startFrame = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? {
+          upgradeExecuted,
+          valid,
+          consecutiveShots,
+          startFrame,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceFireOclAfterCooldownUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (entity.fireOCLAfterCooldownProfiles.length === 0) {
+      return;
+    }
+    if (entity.fireOCLAfterCooldownStates.length !== entity.fireOCLAfterCooldownProfiles.length) {
+      entity.fireOCLAfterCooldownStates = entity.fireOCLAfterCooldownProfiles.map(() => ({
+        upgradeExecuted: false,
+        valid: false,
+        consecutiveShots: 0,
+        startFrame: 0,
+      }));
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const fireOclState = this.tryParseSourceFireOclAfterCooldownUpdateImportState(module.blockData, moduleType);
+      if (!fireOclState) {
+        continue;
+      }
+      const moduleTag = module.identifier.trim().toUpperCase();
+      const moduleIndex = entity.fireOCLAfterCooldownProfiles.findIndex(
+        (profile) => (profile.moduleTag ?? '') === moduleTag,
+      );
+      if (moduleIndex < 0) {
+        continue;
+      }
+      entity.fireOCLAfterCooldownStates[moduleIndex] = {
+        upgradeExecuted: fireOclState.upgradeExecuted,
+        valid: fireOclState.valid,
+        consecutiveShots: Math.max(0, Math.trunc(fireOclState.consecutiveShots)),
+        startFrame: Math.max(0, Math.trunc(fireOclState.startFrame)),
+      };
+    }
+  }
+
   private normalizeSourceObjectModuleType(moduleType: string): string {
     return moduleType.trim().toUpperCase();
   }
@@ -14702,6 +14793,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceSlavedUpdateModulesToEntity(entity, sourceState);
     this.applySourceSupportBehaviorModulesToEntity(entity, sourceState);
     this.applySourceHordeUpdateModulesToEntity(entity, sourceState);
+    this.applySourceFireOclAfterCooldownUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
     this.applySourceBattlePlanUpdateModulesToEntity(entity, sourceState);
     this.applySourceStealthModulesToEntity(entity, sourceState);
@@ -40005,6 +40097,7 @@ export class GameLogicSubsystem implements Subsystem {
       // Lazy-init states to match profiles.
       if (entity.fireOCLAfterCooldownStates.length !== entity.fireOCLAfterCooldownProfiles.length) {
         entity.fireOCLAfterCooldownStates = entity.fireOCLAfterCooldownProfiles.map(() => ({
+          upgradeExecuted: false,
           valid: false,
           consecutiveShots: 0,
           startFrame: 0,
