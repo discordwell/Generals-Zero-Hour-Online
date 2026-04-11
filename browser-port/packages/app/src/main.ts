@@ -1792,6 +1792,7 @@ async function startGame(
     if (runtimeSaveLoadContext.runtimeSave.gameLogicState !== null) {
       gameLogic.restoreBrowserRuntimeSaveState(runtimeSaveLoadContext.runtimeSave.gameLogicState);
     }
+    gameLogic.finalizeSourcePlayerRuntimeSaveState();
     gameLogic.finalizeSourceSpyVisionRuntimeSaveState();
     gameLogic.finalizeSourceSpecialPowerRuntimeSaveState();
     gameLogic.finalizeSourceContainmentRuntimeSaveState();

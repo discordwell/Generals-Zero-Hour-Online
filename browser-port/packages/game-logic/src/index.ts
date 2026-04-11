@@ -13354,6 +13354,64 @@ export class GameLogicSubsystem implements Subsystem {
     return selectionPresentBySide;
   }
 
+  private getSourcePlayerCurrentSelectionForSide(side: string): number[] | null {
+    const directSelection = this.sideSourcePlayerCurrentSelection.get(side);
+    if (directSelection) {
+      return directSelection;
+    }
+
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return null;
+    }
+    for (const [candidateSide, selection] of this.sideSourcePlayerCurrentSelection.entries()) {
+      if (this.normalizeSide(candidateSide) === normalizedSide) {
+        return selection;
+      }
+    }
+    return null;
+  }
+
+  private getSourcePlayerCurrentSelectionPresentForSide(side: string): boolean | null {
+    if (this.sideSourcePlayerCurrentSelectionPresent.has(side)) {
+      return this.sideSourcePlayerCurrentSelectionPresent.get(side) === true;
+    }
+
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return null;
+    }
+    for (const [candidateSide, present] of this.sideSourcePlayerCurrentSelectionPresent.entries()) {
+      if (this.normalizeSide(candidateSide) === normalizedSide) {
+        return present === true;
+      }
+    }
+    return null;
+  }
+
+  finalizeSourcePlayerRuntimeSaveState(): void {
+    const localSide = this.resolveLocalPlayerSide();
+    if (!localSide) {
+      return;
+    }
+    const currentSelectionPresent = this.getSourcePlayerCurrentSelectionPresentForSide(localSide);
+    const currentSelection = this.getSourcePlayerCurrentSelectionForSide(localSide);
+    if (currentSelectionPresent === null && currentSelection === null) {
+      return;
+    }
+
+    const nextSelectionIds = currentSelectionPresent === false
+      ? []
+      : this.filterValidSelectionIds(currentSelection ?? []);
+    if (this.selectionIdsEqual(this.selectedEntityIds, nextSelectionIds)) {
+      return;
+    }
+    this.selectedEntityIds = nextSelectionIds;
+    this.selectedEntityId = nextSelectionIds[0] ?? null;
+    this.markScriptSelectionChanged();
+    this.updateSelectionHighlight();
+  }
+
   private rebuildSpecialPowerRuntimeIndexes(): void {
     this.shortcutSpecialPowerSourceByName.clear();
     this.shortcutSpecialPowerNamesByEntityId.clear();

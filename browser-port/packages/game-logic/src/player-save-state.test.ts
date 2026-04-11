@@ -354,4 +354,32 @@ describe('player save-state', () => {
       new Map([['america', true]]),
     );
   });
+
+  it('restores source Player::m_currentSelection into live local selection', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Ranger', 'America', ['INFANTRY', 'SELECTABLE'], []),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Ranger', 10, 10)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+    logic.restoreSourcePlayerRuntimeSaveState({
+      version: 1,
+      state: {
+        playerSideByIndex: new Map([[0, 'america']]),
+        sidePlayerIndex: new Map([['america', 0]]),
+        localPlayerIndex: 0,
+        sideSourcePlayerCurrentSelection: new Map([['america', [1, 999, 1]]]),
+        sideSourcePlayerCurrentSelectionPresent: new Map([['america', true]]),
+      },
+    });
+
+    logic.finalizeSourcePlayerRuntimeSaveState();
+
+    expect(logic.getLocalPlayerSelectionIds()).toEqual([1]);
+  });
 });
