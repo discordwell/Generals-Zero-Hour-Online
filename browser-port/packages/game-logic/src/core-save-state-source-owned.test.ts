@@ -135,6 +135,12 @@ function makeSourceOwnedCoreBundle() {
           StartHealingDelay: 500,
         }),
       ]),
+      makeObjectDef('PoisonableUnit', 'GLA', ['INFANTRY'], [
+        makeBlock('Behavior', 'PoisonedBehavior ModuleTag_Poisoned', {
+          PoisonDamageInterval: 1000,
+          PoisonDuration: 3000,
+        }),
+      ]),
       makeObjectDef('HealingSeeker', 'America', ['INFANTRY'], [
         makeBlock('Behavior', 'AutoFindHealingUpdate ModuleTag_AutoFindHealing', {
           ScanRate: 500,
@@ -927,6 +933,32 @@ function buildSourceAutoHealBehaviorModuleData(options: {
     saver.xferUnsignedInt(options.radiusParticleSystemId);
     saver.xferUnsignedInt(options.soonestHealFrame);
     saver.xferBool(options.stopped);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourcePoisonedBehaviorModuleData(options: {
+  nextCallFrame: number;
+  poisonDamageFrame: number;
+  poisonOverallStopFrame: number;
+  poisonDamageAmount: number;
+  deathType: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-poisoned-behavior');
+  try {
+    saver.xferVersion(2);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUnsignedInt(options.poisonDamageFrame);
+    saver.xferUnsignedInt(options.poisonOverallStopFrame);
+    saver.xferReal(options.poisonDamageAmount);
+    saver.xferUser(sourceRawInt32(options.deathType));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2402,6 +2434,56 @@ describe('source-owned game-logic core save-state', () => {
       incomingMissiles: 5,
       divertedMissiles: 4,
     });
+  });
+
+  it('imports source PoisonedBehavior runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 112;
+    sourceState.position = { x: 136, y: 0, z: 60 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_Poisoned',
+      blockData: buildSourcePoisonedBehaviorModuleData({
+        nextCallFrame: 270,
+        poisonDamageFrame: 270,
+        poisonOverallStopFrame: 330,
+        poisonDamageAmount: 7.5,
+        deathType: 9,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 140,
+      objects: [
+        { templateName: 'PoisonableUnit', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        poisonDamageAmount: number;
+        poisonNextDamageFrame: number;
+        poisonExpireFrame: number;
+        poisonDeathType: string;
+        objectStatusFlags: Set<string>;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(112)!;
+    expect(entity.poisonDamageAmount).toBeCloseTo(7.5, 6);
+    expect(entity.poisonNextDamageFrame).toBe(270);
+    expect(entity.poisonExpireFrame).toBe(330);
+    expect(entity.poisonDeathType).toBe('LASERED');
+    expect(entity.objectStatusFlags.has('POISONED')).toBe(true);
   });
 
   it('imports source HordeUpdate runtime state', () => {

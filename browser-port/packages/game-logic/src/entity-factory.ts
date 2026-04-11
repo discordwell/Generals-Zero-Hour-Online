@@ -548,6 +548,7 @@ export function createMapEntity(self: GL,
     poisonDamageAmount: 0,
     poisonNextDamageFrame: 0,
     poisonExpireFrame: 0,
+    poisonDeathType: 'POISONED',
     // Fire DoT state
     flameStatus: 'NORMAL' as const,
     disabledHackedUntilFrame: 0,

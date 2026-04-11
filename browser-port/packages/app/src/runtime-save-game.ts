@@ -119,6 +119,28 @@ const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH =
   SOURCE_OPEN_CONTAIN_MAX_FIRE_POINTS * SOURCE_MATRIX3D_BYTE_LENGTH;
 const SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH = 4;
 const SOURCE_DEATH_TYPE_POISONED = 5;
+const SOURCE_DEATH_TYPE_BY_NAME = new Map<string, number>([
+  ['NORMAL', 0],
+  ['NONE', 1],
+  ['CRUSHED', 2],
+  ['BURNED', 3],
+  ['EXPLODED', 4],
+  ['POISONED', 5],
+  ['TOPPLED', 6],
+  ['FLOODED', 7],
+  ['SUICIDED', 8],
+  ['LASERED', 9],
+  ['DETONATED', 10],
+  ['SPLATTED', 11],
+  ['POISONED_BETA', 12],
+  ['EXTRA_2', 13],
+  ['EXTRA_3', 14],
+  ['EXTRA_4', 15],
+  ['EXTRA_5', 16],
+  ['EXTRA_6', 17],
+  ['EXTRA_7', 18],
+  ['EXTRA_8', 19],
+]);
 const SOURCE_MINEFIELD_MAX_IMMUNITY = 3;
 const SOURCE_FIRESTORM_MAX_SYSTEMS = 16;
 const SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH = SOURCE_FIRESTORM_MAX_SYSTEMS * 4;
@@ -5348,6 +5370,13 @@ function sourcePoisonedWakeFrame(
   return nextWakeFrame > currentFrame ? nextWakeFrame : currentFrame + 1;
 }
 
+function sourceDeathTypeFromRuntimeName(value: unknown, fallback: number): number {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  return SOURCE_DEATH_TYPE_BY_NAME.get(value.trim().toUpperCase()) ?? fallback;
+}
+
 function buildSourcePoisonedBehaviorBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -5370,7 +5399,7 @@ function buildSourcePoisonedBehaviorBlockData(
       ? sourceFlammableUnsignedFrame(entity.poisonExpireFrame, preservedState.poisonOverallStopFrame)
       : 0);
     saver.xferReal(isPoisoned ? poisonDamageAmount : 0);
-    saver.xferUser(buildSourceRawInt32Bytes(preservedState.deathType));
+    saver.xferUser(buildSourceRawInt32Bytes(sourceDeathTypeFromRuntimeName(entity.poisonDeathType, preservedState.deathType)));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();

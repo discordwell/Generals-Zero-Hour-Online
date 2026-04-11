@@ -3818,6 +3818,8 @@ export interface MapEntity {
   poisonNextDamageFrame: number;
   /** Frame at which poison effect expires. */
   poisonExpireFrame: number;
+  /** Source parity: PoisonedBehavior::m_deathType used if poison damage kills the object. */
+  poisonDeathType: string;
 
   // ── Source parity: FlammableUpdate — per-entity fire DoT state ──
   /** Flammability status: 'NORMAL' | 'AFLAME' | 'BURNED'. */
@@ -8866,6 +8868,14 @@ interface SourceFireSpreadUpdateImportState {
   nextCallFrame: number;
 }
 
+interface SourcePoisonedBehaviorImportState {
+  nextCallFrame: number;
+  poisonDamageFrame: number;
+  poisonOverallStopFrame: number;
+  poisonDamageAmount: number;
+  deathType: number;
+}
+
 interface SourceFlammableUpdateImportState {
   nextCallFrame: number;
   status: number;
@@ -9000,6 +9010,28 @@ const SOURCE_PLAYER_MASK_BYTE_LENGTH = 2;
 const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH = 32 * 48;
 const SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH = 4;
 const SOURCE_CONTAIN_VECTOR_LIMIT = 0xffff;
+const SOURCE_DEATH_TYPE_NAMES = [
+  'NORMAL',
+  'NONE',
+  'CRUSHED',
+  'BURNED',
+  'EXPLODED',
+  'POISONED',
+  'TOPPLED',
+  'FLOODED',
+  'SUICIDED',
+  'LASERED',
+  'DETONATED',
+  'SPLATTED',
+  'POISONED_BETA',
+  'EXTRA_2',
+  'EXTRA_3',
+  'EXTRA_4',
+  'EXTRA_5',
+  'EXTRA_6',
+  'EXTRA_7',
+  'EXTRA_8',
+] as const;
 const SOURCE_DERIVED_SPECIAL_POWER_MODULE_TYPES = new Set<string>([
   'BAIKONURLAUNCHPOWER',
   'CASHBOUNTYPOWER',
@@ -14844,6 +14876,91 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private sourceDeathTypeToRuntime(deathType: number): string | null {
+    const index = Math.trunc(deathType);
+    return SOURCE_DEATH_TYPE_NAMES[index] ?? null;
+  }
+
+  private tryParseSourcePoisonedBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourcePoisonedBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'POISONEDBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-poisoned-behavior-import');
+    try {
+      const version = xfer.xferVersion(2);
+      if (version < 1 || version > 2) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const poisonDamageFrame = xfer.xferUnsignedInt(0);
+      const poisonOverallStopFrame = xfer.xferUnsignedInt(0);
+      const poisonDamageAmount = xfer.xferReal(0);
+      const deathType = version >= 2
+        ? this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)))
+        : 5;
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            poisonDamageFrame,
+            poisonOverallStopFrame,
+            poisonDamageAmount,
+            deathType,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourcePoisonedBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.poisonedBehaviorProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const poisonState = this.tryParseSourcePoisonedBehaviorImportState(module.blockData, moduleType);
+      if (!poisonState) {
+        continue;
+      }
+      const deathType = this.sourceDeathTypeToRuntime(poisonState.deathType);
+      if (!deathType) {
+        throw new Error(`Unsupported source PoisonedBehavior death type ${poisonState.deathType}.`);
+      }
+
+      entity.poisonNextDamageFrame = Math.max(0, Math.trunc(poisonState.poisonDamageFrame));
+      entity.poisonExpireFrame = Math.max(0, Math.trunc(poisonState.poisonOverallStopFrame));
+      entity.poisonDamageAmount = Number.isFinite(poisonState.poisonDamageAmount)
+        ? poisonState.poisonDamageAmount
+        : 0;
+      entity.poisonDeathType = deathType;
+      if (entity.poisonDamageAmount > 0 && entity.poisonExpireFrame > 0) {
+        entity.objectStatusFlags.add('POISONED');
+      } else {
+        entity.objectStatusFlags.delete('POISONED');
+      }
+      return;
+    }
+  }
+
   private tryParseSourceFlammableUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -16046,6 +16163,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceBaseRegenerateUpdateModulesToEntity(entity, sourceState);
     this.applySourceCommandButtonHuntUpdateModulesToEntity(entity, sourceState);
     this.applySourceFireSpreadUpdateModulesToEntity(entity, sourceState);
+    this.applySourcePoisonedBehaviorModulesToEntity(entity, sourceState);
     this.applySourceFlammableUpdateModulesToEntity(entity, sourceState);
     this.applySourceHeightDieUpdateModulesToEntity(entity, sourceState);
     this.applySourceStickyBombUpdateModulesToEntity(entity, sourceState);
@@ -38312,7 +38430,7 @@ export class GameLogicSubsystem implements Subsystem {
 
     // Source parity: PoisonedBehavior.onDamage — POISON damage starts/refreshes poison DoT.
     if (normalizedDamageType === 'POISON') {
-      this.applyPoisonToEntity(target, adjustedDamage);
+      this.applyPoisonToEntity(target, adjustedDamage, weaponDeathType || damageTypeToDeathType(damageType));
     }
 
     // Source parity: FlammableUpdate.onDamage — FLAME/PARTICLE_BEAM accumulates toward ignition.

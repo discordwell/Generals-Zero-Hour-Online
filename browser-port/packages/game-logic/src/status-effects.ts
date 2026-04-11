@@ -205,7 +205,7 @@ export function updatePoisonedEntities(self: GL): void {
     // "Not poison, as that will infect us again". This bypasses armor but prevents the
     // re-infection loop that would occur if the damage type were POISON.
     if (self.frameCounter >= entity.poisonNextDamageFrame) {
-      self.applyWeaponDamageAmount(null, entity, entity.poisonDamageAmount, 'UNRESISTABLE');
+      self.applyWeaponDamageAmount(null, entity, entity.poisonDamageAmount, 'UNRESISTABLE', entity.poisonDeathType);
       const interval = entity.poisonedBehaviorProfile?.poisonDamageIntervalFrames ?? DEFAULT_POISON_DAMAGE_INTERVAL_FRAMES;
       entity.poisonNextDamageFrame = self.frameCounter + interval;
     }
@@ -295,13 +295,14 @@ export function applyFireDamageToEntity(self: GL, entity: MapEntity, actualDamag
   }
 }
 
-export function applyPoisonToEntity(self: GL, entity: MapEntity, actualDamage: number): void {
+export function applyPoisonToEntity(self: GL, entity: MapEntity, actualDamage: number, deathType = 'POISONED'): void {
   if (actualDamage <= 0) return;
   // C++ parity: only entities with the PoisonedBehavior module react to poison.
   if (!entity.poisonedBehaviorProfile) return;
   const prof = entity.poisonedBehaviorProfile;
   entity.poisonDamageAmount = actualDamage;
   entity.poisonExpireFrame = self.frameCounter + prof.poisonDurationFrames;
+  entity.poisonDeathType = deathType;
   // C++ parity: re-poisoning uses min() of existing timer and new interval
   // to prevent "early" damage ticks. (PoisonedBehavior.cpp line 169-173)
   const newDamageFrame = self.frameCounter + prof.poisonDamageIntervalFrames;

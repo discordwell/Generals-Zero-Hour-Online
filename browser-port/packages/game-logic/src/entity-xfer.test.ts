@@ -288,6 +288,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     poisonDamageAmount: 0,
     poisonNextDamageFrame: 0,
     poisonExpireFrame: 0,
+    poisonDeathType: 'POISONED',
 
     // Fire
     flameStatus: 'NORMAL',

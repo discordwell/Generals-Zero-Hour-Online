@@ -992,6 +992,7 @@ const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
 const SOURCE_FLAMMABLE_STATUS_AFLAME = 1;
 const SOURCE_DEATH_TYPE_POISONED = 5;
+const SOURCE_DEATH_TYPE_LASERED = 9;
 const SOURCE_MINEFIELD_MAX_IMMUNITY = 3;
 const SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH = 16 * 4;
 const SOURCE_WEAPON_STATUS_BETWEEN_FIRING_SHOTS = 2;
@@ -11867,6 +11868,7 @@ describe('runtime-save-game', () => {
             poisonDamageAmount: 6.5,
             poisonNextDamageFrame: 70,
             poisonExpireFrame: 90,
+            poisonDeathType: 'LASERED',
             poisonedBehaviorProfile: {
               poisonDamageIntervalFrames: 10,
               poisonDurationFrames: 120,
@@ -11915,7 +11917,7 @@ describe('runtime-save-game', () => {
     expect(poisoned.poisonDamageFrame).toBe(70);
     expect(poisoned.poisonOverallStopFrame).toBe(90);
     expect(poisoned.poisonDamageAmount).toBeCloseTo(6.5, 6);
-    expect(poisoned.deathType).toBe(SOURCE_DEATH_TYPE_POISONED);
+    expect(poisoned.deathType).toBe(SOURCE_DEATH_TYPE_LASERED);
 
     const minefield = parseSourceMinefieldBehaviorBlockData(minefieldModule!.blockData);
     expect(minefield.nextCallFrameAndPhase).toBe((43 << 2) | 2);

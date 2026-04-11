@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 31;
+const ENTITY_XFER_VERSION = 32;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1879,6 +1879,11 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.poisonDamageAmount = xfer.xferReal(e.poisonDamageAmount as number);
   e.poisonNextDamageFrame = xfer.xferInt(e.poisonNextDamageFrame as number);
   e.poisonExpireFrame = xfer.xferInt(e.poisonExpireFrame as number);
+  if (version >= 32) {
+    e.poisonDeathType = xfer.xferAsciiString((e.poisonDeathType as string | undefined) ?? 'POISONED');
+  } else {
+    e.poisonDeathType = 'POISONED';
+  }
 
   // ── Fire ──
   e.flameStatus = xfer.xferAsciiString(e.flameStatus as string);
