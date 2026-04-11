@@ -8299,6 +8299,91 @@ function readFirstGeneratedDrawableTransform(data: ArrayBuffer): number[] | null
   }
 }
 
+function readFirstGeneratedDrawableModuleBlocks(data: ArrayBuffer): Array<{
+  moduleTypeIndex: number;
+  identifier: string;
+  blockData: Uint8Array;
+}> {
+  const chunkData = readSaveChunkData(data, 'CHUNK_GameClient');
+  if (!chunkData) {
+    return [];
+  }
+  const xferLoad = new XferLoad(chunkData.buffer);
+  xferLoad.open('read-first-generated-drawable-modules');
+  try {
+    xferLoad.xferVersion(3);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferVersion(1);
+    const tocCount = xferLoad.xferUnsignedInt(0);
+    for (let index = 0; index < tocCount; index += 1) {
+      xferLoad.xferAsciiString('');
+      xferLoad.xferUnsignedShort(0);
+    }
+    const drawableCount = xferLoad.xferUnsignedShort(0);
+    if (drawableCount <= 0) {
+      return [];
+    }
+
+    xferLoad.xferUnsignedShort(0);
+    const blockSize = xferLoad.beginBlock();
+    const blockStart = xferLoad.getOffset();
+    xferLoad.xferObjectID(0);
+    xferLoad.xferVersion(7);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferVersion(1);
+    const conditionCount = xferLoad.xferInt(0);
+    for (let index = 0; index < conditionCount; index += 1) {
+      xferLoad.xferAsciiString('');
+    }
+    xferLoad.skip(12 * 4);
+    xferLoad.xferBool(false);
+    xferLoad.xferBool(false);
+    xferLoad.xferInt(0);
+    for (let index = 0; index < 6; index += 1) {
+      xferLoad.xferReal(0);
+    }
+    xferLoad.xferObjectID(0);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferInt(0);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferUnsignedInt(0);
+    const hasLocoInfo = xferLoad.xferBool(false);
+    expect(hasLocoInfo).toBe(false);
+
+    const drawableModuleVersion = xferLoad.xferVersion(1);
+    expect(drawableModuleVersion).toBe(1);
+    const moduleTypeCount = xferLoad.xferUnsignedShort(0);
+    const modules: Array<{
+      moduleTypeIndex: number;
+      identifier: string;
+      blockData: Uint8Array;
+    }> = [];
+    for (let moduleTypeIndex = 0; moduleTypeIndex < moduleTypeCount; moduleTypeIndex += 1) {
+      const moduleCount = xferLoad.xferUnsignedShort(0);
+      for (let moduleIndex = 0; moduleIndex < moduleCount; moduleIndex += 1) {
+        const identifier = xferLoad.xferAsciiString('');
+        const moduleBlockSize = xferLoad.beginBlock();
+        const moduleBlockStart = xferLoad.getOffset();
+        xferLoad.skip(moduleBlockSize);
+        xferLoad.endBlock();
+        modules.push({
+          moduleTypeIndex,
+          identifier,
+          blockData: chunkData.slice(moduleBlockStart, moduleBlockStart + moduleBlockSize),
+        });
+      }
+    }
+    const consumed = xferLoad.getOffset() - blockStart;
+    xferLoad.skip(blockSize - consumed);
+    xferLoad.endBlock();
+    return modules;
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function readTerrainVisualChunk(data: ArrayBuffer): {
   version: number;
   trailingBytes: number;
@@ -9232,6 +9317,13 @@ describe('runtime-save-game', () => {
         }),
         captureBrowserRuntimeSaveState: () => ({ version: 1 }),
         getObjectIdCounter: () => 8,
+        listSourceDrawableModuleDescriptors: (templateName: string) =>
+          templateName === 'AmericaTankCrusader'
+            ? [
+                { moduleType: 'W3DTankDraw', moduleTag: 'ModuleTag_Draw', moduleKind: 'draw' as const },
+                { moduleType: 'SwayClientUpdate', moduleTag: 'ModuleTag_Sway', moduleKind: 'client-update' as const },
+              ]
+            : [],
       },
     });
 
@@ -9252,6 +9344,32 @@ describe('runtime-save-game', () => {
     for (let index = 0; index < expectedRows.length; index += 1) {
       expect(transformRows?.[index]).toBeCloseTo(expectedRows[index]!, 5);
     }
+    const drawableModules = readFirstGeneratedDrawableModuleBlocks(saveFile.data);
+    expect(drawableModules.map((module) => ({
+      moduleTypeIndex: module.moduleTypeIndex,
+      identifier: module.identifier,
+      bytes: [...module.blockData],
+    }))).toEqual([
+      {
+        moduleTypeIndex: 0,
+        identifier: 'ModuleTag_Draw',
+        bytes: [1, 2, 1, 1, 1, 0, 0, 0, 0, 0],
+      },
+      {
+        moduleTypeIndex: 1,
+        identifier: 'ModuleTag_Sway',
+        bytes: [
+          1, 1, 1,
+          0, 0, 0, 0,
+          0, 0, 0, 0,
+          0, 0, 0, 0,
+          0, 0, 0, 0,
+          0, 0, 0, 0,
+          255, 255,
+          1,
+        ],
+      },
+    ]);
   });
 
   it('replaces parsed attached-object GameClient drawables while preserving unattached raw drawables', () => {

@@ -42,6 +42,7 @@ import {
   type GameLogicPlayersSaveState,
   type GameLogicPartitionSaveState,
   type GameLogicRadarSaveState,
+  type GameLogicSourceDrawableModuleDescriptor,
   type GameLogicSourceObjectModuleDescriptor,
   type GameLogicSourceScriptGroupSaveState,
   type GameLogicSourceScriptListSaveState,
@@ -179,6 +180,27 @@ const SOURCE_AIUPDATE_INTERFACE_DERIVED_MODULE_TYPES = new Set([
 ]);
 const SOURCE_STATELESS_UPDATE_MODULE_TYPES = new Set([
   'ASSISTEDTARGETINGUPDATE',
+]);
+const SOURCE_W3D_DRAW_BASE_ONLY_MODULE_TYPES = new Set([
+  'W3DDEFAULTDRAW',
+  'W3DLASERDRAW',
+  'W3DPROJECTILESTREAMDRAW',
+  'W3DPROPDRAW',
+  'W3DTRACERDRAW',
+  'W3DTREEDRAW',
+]);
+const SOURCE_W3D_MODEL_DRAW_DERIVED_MODULE_TYPES = new Set([
+  'W3DDEPENDENCYMODELDRAW',
+  'W3DMODELDRAW',
+  'W3DOVERLORDAIRCRAFTDRAW',
+  'W3DOVERLORDTANKDRAW',
+  'W3DOVERLORDTRUCKDRAW',
+  'W3DPOLICECARDRAW',
+  'W3DSCIENCEMODELDRAW',
+  'W3DSUPPLYDRAW',
+  'W3DTANKDRAW',
+  'W3DTANKTRUCKDRAW',
+  'W3DTRUCKDRAW',
 ]);
 const SOURCE_OPEN_CONTAIN_MAX_FIRE_POINTS = 32;
 const SOURCE_MATRIX3D_BYTE_LENGTH = 48;
@@ -430,6 +452,9 @@ const SOURCE_SLOT_STATE_PLAYER = 5;
 const SOURCE_IN_GAME_UI_TIMESTAMP_UNINITIALIZED = 0xFFFFFFFF;
 const DRAWABLE_STATUS_SHADOWS = 0x00000002;
 const NUM_DRAWABLE_MODULE_TYPES = 2;
+const SOURCE_WEAPON_SLOT_COUNT = 3;
+const SOURCE_INVALID_DRAWABLE_ID = 0;
+const SOURCE_INVALID_PARTICLE_SYSTEM_ID = 0;
 const TERRAIN_DECAL_NONE = 0;
 const FADING_NONE = 0;
 const STEALTHLOOK_NONE = 0;
@@ -595,6 +620,7 @@ interface RuntimeSaveDrawableSnapshotState {
   readonly drawableId: number;
   readonly objectId: number;
   readonly templateName: string;
+  readonly sourceDrawableModuleDescriptors: readonly GameLogicSourceDrawableModuleDescriptor[];
   readonly modelConditionFlags: readonly string[];
   readonly transformMatrixBytes: Uint8Array;
   readonly statusBits: number;
@@ -1889,10 +1915,179 @@ function clampOpacity(value: number | undefined, fallback: number): number {
   return Math.min(1, Math.max(0, numericValue));
 }
 
+function xferSourceModuleBase(xfer: Xfer): void {
+  xfer.xferVersion(1);
+}
+
+function xferSourceDrawableModuleBase(xfer: Xfer): void {
+  xfer.xferVersion(1);
+  xferSourceModuleBase(xfer);
+}
+
+function xferSourceDrawModuleBase(xfer: Xfer): void {
+  xfer.xferVersion(1);
+  xferSourceDrawableModuleBase(xfer);
+}
+
+function xferSourceW3DModelDrawBase(xfer: Xfer): void {
+  xfer.xferVersion(2);
+  xferSourceDrawModuleBase(xfer);
+  for (let index = 0; index < SOURCE_WEAPON_SLOT_COUNT; index += 1) {
+    xfer.xferUnsignedByte(0);
+  }
+  xfer.xferUnsignedByte(0);
+  xfer.xferBool(false);
+}
+
+function xferSourceW3DTankDraw(xfer: Xfer): void {
+  xfer.xferVersion(1);
+  xferSourceW3DModelDrawBase(xfer);
+}
+
+function xferSourceW3DTruckDraw(xfer: Xfer): void {
+  xfer.xferVersion(1);
+  xferSourceW3DModelDrawBase(xfer);
+}
+
+function xferSourceW3DDrawableModulePayload(
+  xfer: Xfer,
+  descriptor: GameLogicSourceDrawableModuleDescriptor,
+): boolean {
+  const normalizedModuleType = descriptor.moduleType.trim().toUpperCase();
+  if (descriptor.moduleKind === 'draw') {
+    if (SOURCE_W3D_DRAW_BASE_ONLY_MODULE_TYPES.has(normalizedModuleType)) {
+      xfer.xferVersion(1);
+      xferSourceDrawModuleBase(xfer);
+      return true;
+    }
+    if (SOURCE_W3D_MODEL_DRAW_DERIVED_MODULE_TYPES.has(normalizedModuleType)) {
+      switch (normalizedModuleType) {
+        case 'W3DMODELDRAW':
+          xferSourceW3DModelDrawBase(xfer);
+          return true;
+        case 'W3DTANKDRAW':
+        case 'W3DTANKTRUCKDRAW':
+        case 'W3DOVERLORDAIRCRAFTDRAW':
+        case 'W3DSCIENCEMODELDRAW':
+        case 'W3DSUPPLYDRAW':
+          xfer.xferVersion(1);
+          xferSourceW3DModelDrawBase(xfer);
+          return true;
+        case 'W3DTRUCKDRAW':
+          xferSourceW3DTruckDraw(xfer);
+          return true;
+        case 'W3DOVERLORDTANKDRAW':
+          xfer.xferVersion(1);
+          xferSourceW3DTankDraw(xfer);
+          return true;
+        case 'W3DOVERLORDTRUCKDRAW':
+        case 'W3DPOLICECARDRAW':
+          xfer.xferVersion(1);
+          xferSourceW3DTruckDraw(xfer);
+          return true;
+        case 'W3DDEPENDENCYMODELDRAW':
+          xfer.xferVersion(1);
+          xferSourceW3DModelDrawBase(xfer);
+          xfer.xferBool(false);
+          return true;
+      }
+    }
+    if (normalizedModuleType === 'W3DDEBRISDRAW') {
+      xfer.xferVersion(1);
+      xferSourceDrawModuleBase(xfer);
+      xfer.xferAsciiString('');
+      xfer.xferColor(0);
+      xfer.xferAsciiString('');
+      xfer.xferAsciiString('');
+      xfer.xferAsciiString('');
+      xfer.xferInt(0);
+      xfer.xferInt(0);
+      xfer.xferBool(false);
+      return true;
+    }
+    if (normalizedModuleType === 'W3DROPEDRAW') {
+      xfer.xferVersion(1);
+      xferSourceDrawModuleBase(xfer);
+      xfer.xferReal(0);
+      xfer.xferReal(1);
+      xfer.xferReal(0.5);
+      xfer.xferReal(0);
+      xfer.xferReal(0);
+      xfer.xferReal(0);
+      xfer.xferReal(0);
+      xfer.xferReal(0);
+      xfer.xferReal(0);
+      xfer.xferReal(1);
+      xfer.xferReal(0);
+      xfer.xferReal(0);
+      return true;
+    }
+  }
+
+  if (descriptor.moduleKind === 'client-update') {
+    if (normalizedModuleType === 'ANIMATEDPARTICLESYSBONECLIENTUPDATE') {
+      xfer.xferVersion(1);
+      xferSourceDrawableModuleBase(xfer);
+      return true;
+    }
+    if (normalizedModuleType === 'SWAYCLIENTUPDATE') {
+      xfer.xferVersion(1);
+      xferSourceDrawableModuleBase(xfer);
+      xfer.xferReal(0);
+      xfer.xferReal(0);
+      xfer.xferReal(0);
+      xfer.xferReal(0);
+      xfer.xferReal(0);
+      xfer.xferShort(-1);
+      xfer.xferBool(true);
+      return true;
+    }
+    if (normalizedModuleType === 'LASERUPDATE') {
+      xfer.xferVersion(1);
+      xferSourceDrawableModuleBase(xfer);
+      xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      xfer.xferBool(false);
+      xfer.xferUnsignedInt(SOURCE_INVALID_PARTICLE_SYSTEM_ID);
+      xfer.xferUnsignedInt(SOURCE_INVALID_PARTICLE_SYSTEM_ID);
+      xfer.xferBool(false);
+      xfer.xferBool(false);
+      xfer.xferUnsignedInt(0);
+      xfer.xferUnsignedInt(0);
+      xfer.xferReal(1);
+      xfer.xferUnsignedInt(0);
+      xfer.xferUnsignedInt(0);
+      xfer.xferUnsignedInt(SOURCE_INVALID_DRAWABLE_ID);
+      xfer.xferUnsignedInt(SOURCE_INVALID_DRAWABLE_ID);
+      xfer.xferAsciiString('');
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function buildSourceDrawableModuleBlockData(
+  descriptor: GameLogicSourceDrawableModuleDescriptor,
+): Uint8Array | null {
+  const xferSave = new XferSave();
+  xferSave.open('build-source-drawable-module');
+  try {
+    if (!xferSourceW3DDrawableModulePayload(xferSave, descriptor)) {
+      return null;
+    }
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function buildSourceGameClientDrawableStates(
   renderableEntityStates: readonly GameLogicRenderableEntityState[] | null | undefined,
   gameLogicState: GameLogicCoreSaveState,
   liveEntityIdsOverride?: readonly number[] | null,
+  listSourceDrawableModuleDescriptors?: ((templateName: string) =>
+    readonly GameLogicSourceDrawableModuleDescriptor[] | null) | null,
 ): RuntimeSaveDrawableSnapshotState[] {
   if (!renderableEntityStates || renderableEntityStates.length === 0) {
     return [];
@@ -1916,6 +2111,9 @@ function buildSourceGameClientDrawableStates(
       drawableId: state.id,
       objectId: state.id,
       templateName: visualTemplateName,
+      sourceDrawableModuleDescriptors: typeof listSourceDrawableModuleDescriptors === 'function'
+        ? listSourceDrawableModuleDescriptors(visualTemplateName) ?? []
+        : [],
       modelConditionFlags: state.modelConditionFlags ?? [],
       transformMatrixBytes: buildTransformMatrix3DBytes(
         state.x,
@@ -2023,8 +2221,24 @@ class DrawableSnapshot implements Snapshot {
     xfer.xferBool(false);
     xfer.xferVersion(1);
     xfer.xferUnsignedShort(NUM_DRAWABLE_MODULE_TYPES);
-    for (let index = 0; index < NUM_DRAWABLE_MODULE_TYPES; index += 1) {
-      xfer.xferUnsignedShort(0);
+    for (const moduleKind of ['draw', 'client-update'] as const) {
+      const moduleBlocks = this.state.sourceDrawableModuleDescriptors
+        .filter((descriptor) => descriptor.moduleKind === moduleKind)
+        .map((descriptor) => ({
+          descriptor,
+          blockData: buildSourceDrawableModuleBlockData(descriptor),
+        }))
+        .filter((entry): entry is {
+          descriptor: GameLogicSourceDrawableModuleDescriptor;
+          blockData: Uint8Array;
+        } => entry.blockData !== null);
+      xfer.xferUnsignedShort(moduleBlocks.length);
+      for (const { descriptor, blockData } of moduleBlocks) {
+        xfer.xferAsciiString(descriptor.moduleTag);
+        xfer.beginBlock();
+        xfer.xferUser(blockData);
+        xfer.endBlock();
+      }
     }
     xfer.xferInt(STEALTHLOOK_NONE);
     xfer.xferInt(this.state.flashCount);
@@ -23432,6 +23646,7 @@ export function buildRuntimeSaveFile(params: {
     'captureSourceObjectXferOverlayState'
     | 'resolveSourceObjectModuleTypeByTag'
     | 'listSourceObjectModuleDescriptors'
+    | 'listSourceDrawableModuleDescriptors'
   >>);
   embeddedMapBytes?: Uint8Array | null;
   sourceGameMode?: number;
@@ -23478,10 +23693,15 @@ export function buildRuntimeSaveFile(params: {
     typeof params.gameLogic.listSourceObjectModuleDescriptors === 'function'
       ? params.gameLogic.listSourceObjectModuleDescriptors.bind(params.gameLogic)
       : null;
+  const listSourceDrawableModuleDescriptors =
+    typeof params.gameLogic.listSourceDrawableModuleDescriptors === 'function'
+      ? params.gameLogic.listSourceDrawableModuleDescriptors.bind(params.gameLogic)
+      : null;
   const gameClientDrawableStates = buildSourceGameClientDrawableStates(
     params.renderableEntityStates,
     gameLogicPayload,
     params.gameClientLiveEntityIds,
+    listSourceDrawableModuleDescriptors,
   );
   const gameClientDrawableEntries = buildGameClientDrawableEntries(
     params.gameClientState,

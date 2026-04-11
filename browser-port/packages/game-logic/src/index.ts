@@ -10243,6 +10243,12 @@ export interface GameLogicSourceObjectModuleDescriptor {
   moduleTag: string;
 }
 
+export interface GameLogicSourceDrawableModuleDescriptor {
+  moduleType: string;
+  moduleTag: string;
+  moduleKind: 'draw' | 'client-update';
+}
+
 export interface GameLogicHistoricDamageEntrySaveState {
   frame: number;
   x: number;
@@ -34719,6 +34725,40 @@ export class GameLogicSubsystem implements Subsystem {
     });
   }
 
+  private collectSourceDrawableModuleDescriptorsFromBlock(
+    block: IniBlock,
+    descriptorsByTag: Map<string, GameLogicSourceDrawableModuleDescriptor>,
+  ): void {
+    for (const child of block.blocks) {
+      this.collectSourceDrawableModuleDescriptorsFromBlock(child, descriptorsByTag);
+    }
+
+    const blockType = block.type.trim().toUpperCase();
+    const moduleKind = blockType === 'DRAW'
+      ? 'draw'
+      : blockType === 'CLIENTUPDATE'
+        ? 'client-update'
+        : null;
+    if (moduleKind === null) {
+      return;
+    }
+    const tokens = block.name
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0);
+    const moduleType = tokens[0]?.toUpperCase() ?? '';
+    const moduleTag = tokens.find((token) => token.toUpperCase().startsWith('MODULETAG_')) ?? '';
+    if (!moduleType || !moduleTag) {
+      return;
+    }
+    const normalizedModuleTag = moduleTag.toUpperCase();
+    descriptorsByTag.set(`${moduleKind}:${normalizedModuleTag}`, {
+      moduleType,
+      moduleTag,
+      moduleKind,
+    });
+  }
+
   private collectSourceObjectModuleDescriptorsFromObjectDef(
     objectDef: ObjectDef | null | undefined,
     descriptorsByTag: Map<string, GameLogicSourceObjectModuleDescriptor>,
@@ -34735,6 +34775,22 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private collectSourceDrawableModuleDescriptorsFromObjectDef(
+    objectDef: ObjectDef | null | undefined,
+    descriptorsByTag: Map<string, GameLogicSourceDrawableModuleDescriptor>,
+  ): void {
+    if (!objectDef) {
+      return;
+    }
+    this.collectSourceDrawableModuleDescriptorsFromObjectDef(
+      this.resolveObjectDefParent(objectDef),
+      descriptorsByTag,
+    );
+    for (const block of objectDef.blocks) {
+      this.collectSourceDrawableModuleDescriptorsFromBlock(block, descriptorsByTag);
+    }
+  }
+
   /* @internal */ listSourceObjectModuleDescriptors(templateName: string): GameLogicSourceObjectModuleDescriptor[] {
     const normalizedTemplateName = templateName.trim();
     if (!normalizedTemplateName) {
@@ -34742,6 +34798,19 @@ export class GameLogicSubsystem implements Subsystem {
     }
     const descriptorsByTag = new Map<string, GameLogicSourceObjectModuleDescriptor>();
     this.collectSourceObjectModuleDescriptorsFromObjectDef(
+      this.resolveObjectDefByTemplateName(normalizedTemplateName),
+      descriptorsByTag,
+    );
+    return [...descriptorsByTag.values()];
+  }
+
+  /* @internal */ listSourceDrawableModuleDescriptors(templateName: string): GameLogicSourceDrawableModuleDescriptor[] {
+    const normalizedTemplateName = templateName.trim();
+    if (!normalizedTemplateName) {
+      return [];
+    }
+    const descriptorsByTag = new Map<string, GameLogicSourceDrawableModuleDescriptor>();
+    this.collectSourceDrawableModuleDescriptorsFromObjectDef(
       this.resolveObjectDefByTemplateName(normalizedTemplateName),
       descriptorsByTag,
     );

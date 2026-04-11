@@ -4480,6 +4480,31 @@ describe('source-owned game-logic core save-state', () => {
     ]);
   });
 
+  it('lists source drawable module descriptors from inherited Draw and ClientUpdate blocks', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('DrawableDescriptorParent', 'America', ['VEHICLE'], [
+          makeBlock('Draw', 'W3DModelDraw ModuleTag_Draw', {}),
+          makeBlock('ClientUpdate', 'SwayClientUpdate ModuleTag_Sway', {}),
+        ]),
+        makeObjectDef('DrawableDescriptorChild', 'America', ['VEHICLE'], [
+          makeBlock('Draw', 'W3DTankDraw ModuleTag_Draw', {}),
+          makeBlock('ClientUpdate', 'LaserUpdate ModuleTag_Laser', {}),
+          makeBlock('Behavior', 'TransportContain ModuleTag_Contain', {}),
+        ], {}, 'DrawableDescriptorParent'),
+      ],
+    });
+    const registry = makeRegistry(bundle);
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(makeMap([], 32, 32), registry, makeHeightmap(32, 32));
+
+    expect(logic.listSourceDrawableModuleDescriptors('DrawableDescriptorChild')).toEqual([
+      { moduleType: 'W3DTANKDRAW', moduleTag: 'ModuleTag_Draw', moduleKind: 'draw' },
+      { moduleType: 'SWAYCLIENTUPDATE', moduleTag: 'ModuleTag_Sway', moduleKind: 'client-update' },
+      { moduleType: 'LASERUPDATE', moduleTag: 'ModuleTag_Laser', moduleKind: 'client-update' },
+    ]);
+  });
+
   it('rebuilds live entities from source GameLogic Object::xfer import state', () => {
     const bundle = makeSourceOwnedCoreBundle();
     const registry = makeRegistry(bundle);
