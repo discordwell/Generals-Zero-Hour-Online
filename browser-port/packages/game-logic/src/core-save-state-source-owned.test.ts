@@ -150,6 +150,15 @@ function makeSourceOwnedCoreBundle() {
           DegenPercentPerSecondAfterCreatorDies: 10,
         }),
       ]),
+      makeObjectDef('MineGeneratorObject', 'GLA', ['STRUCTURE'], [
+        makeBlock('Behavior', 'GenerateMinefieldBehavior ModuleTag_GenerateMines', {
+          MineName: 'TestMine',
+          UpgradedMineName: 'UpgradedMine',
+          UpgradedTriggeredBy: 'Upgrade_ChinaEMPMines',
+          Upgradable: true,
+          GenerateOnlyOnDeath: true,
+        }),
+      ]),
       makeObjectDef('AutoFireObject', 'GLA', ['STRUCTURE'], [
         makeBlock('Behavior', 'FireWeaponUpdate ModuleTag_AutoFire', {
           Weapon: 'AutoFireWeapon',
@@ -1510,6 +1519,37 @@ function buildSourceMinefieldBehaviorModuleData(options: {
       const immune = options.immunes[index] ?? { objectId: 0, collideFrame: 0 };
       saver.xferObjectID(immune.objectId);
       saver.xferUnsignedInt(immune.collideFrame);
+    }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceGenerateMinefieldBehaviorModuleData(options: {
+  upgradeExecuted: boolean;
+  generated: boolean;
+  hasTarget: boolean;
+  upgraded: boolean;
+  target: { x: number; y: number; z: number };
+  mineIds: number[];
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-generate-minefield-behavior');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferBool(options.upgradeExecuted);
+    saver.xferBool(options.generated);
+    saver.xferBool(options.hasTarget);
+    saver.xferBool(options.upgraded);
+    saver.xferCoord3D(options.target);
+    saver.xferUnsignedByte(options.mineIds.length);
+    for (const objectId of options.mineIds) {
+      saver.xferObjectID(objectId);
     }
     return new Uint8Array(saver.getBuffer());
   } finally {
@@ -4701,6 +4741,63 @@ describe('source-owned game-logic core save-state', () => {
       { entityId: 61, collideFrame: 276 },
     ]);
     expect(entity.mineDetonators).toEqual([]);
+  });
+
+  it('imports source GenerateMinefieldBehavior runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 114;
+    sourceState.position = { x: 140, y: 0, z: 60 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_GenerateMines',
+      blockData: buildSourceGenerateMinefieldBehaviorModuleData({
+        upgradeExecuted: true,
+        generated: true,
+        hasTarget: true,
+        upgraded: true,
+        target: { x: 11, y: 22, z: 3 },
+        mineIds: [201, 202],
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 140,
+      objects: [
+        { templateName: 'MineGeneratorObject', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        generateMinefieldUpgradeExecuted: boolean;
+        generateMinefieldDone: boolean;
+        generateMinefieldHasTarget: boolean;
+        generateMinefieldUpgraded: boolean;
+        generateMinefieldTargetX: number;
+        generateMinefieldTargetY: number;
+        generateMinefieldTargetZ: number;
+        generateMinefieldMineIds: number[];
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(114)!;
+    expect(entity.generateMinefieldUpgradeExecuted).toBe(true);
+    expect(entity.generateMinefieldDone).toBe(true);
+    expect(entity.generateMinefieldHasTarget).toBe(true);
+    expect(entity.generateMinefieldUpgraded).toBe(true);
+    expect(entity.generateMinefieldTargetX).toBe(11);
+    expect(entity.generateMinefieldTargetY).toBe(3);
+    expect(entity.generateMinefieldTargetZ).toBe(22);
+    expect(entity.generateMinefieldMineIds).toEqual([201, 202]);
   });
 
   it('imports source FireWeaponUpdate and FireWeaponCollide runtime state', () => {

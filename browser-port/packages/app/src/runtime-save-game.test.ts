@@ -226,6 +226,19 @@ function createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase: number): U
   }
 }
 
+function createSourceBehaviorModuleBaseBlockData(): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-behavior-module-base');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceDefectionHelperBlockData(
   nextCallFrameAndPhase: number,
   detectionStart: number,
@@ -1378,6 +1391,68 @@ function parseSourceMinefieldBehaviorBlockData(data: Uint8Array): SourceMinefiel
         objectId: xferLoad.xferObjectID(0),
         collideTime: xferLoad.xferUnsignedInt(0),
       });
+    }
+    return state;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+interface SourceGenerateMinefieldBehaviorTestState {
+  upgradeExecuted: boolean;
+  generated: boolean;
+  hasTarget: boolean;
+  upgraded: boolean;
+  target: Coord3D;
+  mineIds: number[];
+}
+
+function createSourceGenerateMinefieldBehaviorBlockData(
+  state: SourceGenerateMinefieldBehaviorTestState,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-generate-minefield-behavior');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceBehaviorModuleBaseBlockData());
+    xferSave.xferVersion(1);
+    xferSave.xferBool(state.upgradeExecuted);
+    xferSave.xferBool(state.generated);
+    xferSave.xferBool(state.hasTarget);
+    xferSave.xferBool(state.upgraded);
+    xferSave.xferCoord3D(state.target);
+    xferSave.xferUnsignedByte(state.mineIds.length);
+    for (const objectId of state.mineIds) {
+      xferSave.xferObjectID(objectId);
+    }
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceGenerateMinefieldBehaviorBlockData(
+  data: Uint8Array,
+): SourceGenerateMinefieldBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-generate-minefield-behavior');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const state: SourceGenerateMinefieldBehaviorTestState = {
+      upgradeExecuted: xferLoad.xferBool(false),
+      generated: xferLoad.xferBool(false),
+      hasTarget: xferLoad.xferBool(false),
+      upgraded: xferLoad.xferBool(false),
+      target: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      mineIds: [],
+    };
+    const mineCount = xferLoad.xferUnsignedByte(0);
+    for (let index = 0; index < mineCount; index += 1) {
+      state.mineIds.push(xferLoad.xferObjectID(0));
     }
     return state;
   } finally {
@@ -14441,6 +14516,122 @@ describe('runtime-save-game', () => {
       { objectId: 12, collideTime: 42 },
       { objectId: 0, collideTime: 0 },
     ]);
+  });
+
+  it('rewrites source GenerateMinefieldBehavior modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_GenerateMines',
+      blockData: createSourceGenerateMinefieldBehaviorBlockData({
+        upgradeExecuted: false,
+        generated: false,
+        hasTarget: false,
+        upgraded: false,
+        target: { x: 1, y: 2, z: 3 },
+        mineIds: [40],
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source generate minefield rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            generateMinefieldProfile: {
+              mineName: 'TestMine',
+              upgradedMineName: 'UpgradedMine',
+            },
+            generateMinefieldUpgradeExecuted: true,
+            generateMinefieldDone: true,
+            generateMinefieldHasTarget: true,
+            generateMinefieldUpgraded: true,
+            generateMinefieldTargetX: 11,
+            generateMinefieldTargetY: 3,
+            generateMinefieldTargetZ: 22,
+            generateMinefieldMineIds: [201, 202],
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName !== 'RuntimeTank') {
+            return null;
+          }
+          return moduleTag === 'ModuleTag_GenerateMines' ? 'GENERATEMINEFIELDBEHAVIOR' : null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const generateMinefieldModule = firstObject?.modules.find(
+      (module) => module.identifier === 'ModuleTag_GenerateMines',
+    );
+
+    expect(generateMinefieldModule).toBeDefined();
+    const parsed = parseSourceGenerateMinefieldBehaviorBlockData(generateMinefieldModule!.blockData);
+    expect(parsed.upgradeExecuted).toBe(true);
+    expect(parsed.generated).toBe(true);
+    expect(parsed.hasTarget).toBe(true);
+    expect(parsed.upgraded).toBe(true);
+    expect(parsed.target).toEqual({ x: 11, y: 22, z: 3 });
+    expect(parsed.mineIds).toEqual([201, 202]);
   });
 
   it('rewrites source dynamic-geometry and smart-bomb update modules from live runtime state', () => {

@@ -727,6 +727,13 @@ export function createMapEntity(self: GL,
     // Generate minefield
     generateMinefieldProfile: extractGenerateMinefieldProfile(self, objectDef),
     generateMinefieldDone: false,
+    generateMinefieldUpgradeExecuted: false,
+    generateMinefieldHasTarget: false,
+    generateMinefieldUpgraded: false,
+    generateMinefieldTargetX: 0,
+    generateMinefieldTargetY: 0,
+    generateMinefieldTargetZ: 0,
+    generateMinefieldMineIds: [],
     // Crate spawning on death
     createCrateDieProfile: extractCreateCrateDieProfile(self, objectDef),
     // Salvage crate collection

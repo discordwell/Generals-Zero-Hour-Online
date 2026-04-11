@@ -277,7 +277,10 @@ export function tryGenerateMinefieldOnDeath(self: GL, entity: MapEntity): void {
 
   const registry = self.iniDataRegistry;
   if (!registry) return;
-  const mineObjDef = findObjectDefByName(registry, profile.mineName);
+  const mineTemplateName = entity.generateMinefieldUpgraded && profile.upgradedMineName
+    ? profile.upgradedMineName
+    : profile.mineName;
+  const mineObjDef = findObjectDefByName(registry, mineTemplateName);
   if (!mineObjDef) return;
 
   // Source parity: get mine radius from geometry for spacing.
@@ -289,18 +292,24 @@ export function tryGenerateMinefieldOnDeath(self: GL, entity: MapEntity): void {
 
   const radius = profile.distanceAroundObject;
   if (radius <= 0) return;
+  const centerX = entity.generateMinefieldHasTarget ? entity.generateMinefieldTargetX : entity.x;
+  const centerZ = entity.generateMinefieldHasTarget ? entity.generateMinefieldTargetZ : entity.z;
 
   // Source parity: circular border placement.
   const circumference = 2 * Math.PI * radius;
   const numMines = Math.max(1, Math.ceil(circumference / mineDiameter));
   const angleInc = (2 * Math.PI) / numMines;
+  entity.generateMinefieldMineIds = [];
 
   for (let i = 0; i < numMines; i++) {
     const angle = i * angleInc;
-    const mineX = entity.x + radius * Math.cos(angle);
-    const mineZ = entity.z + radius * Math.sin(angle);
+    const mineX = centerX + radius * Math.cos(angle);
+    const mineZ = centerZ + radius * Math.sin(angle);
     const rotation = self.gameRandom.nextFloat() * Math.PI * 2 - Math.PI;
-    self.spawnEntityFromTemplate(profile.mineName, mineX, mineZ, rotation, entity.side);
+    const mine = self.spawnEntityFromTemplate(mineTemplateName, mineX, mineZ, rotation, entity.side);
+    if (mine) {
+      entity.generateMinefieldMineIds.push(mine.id);
+    }
   }
 }
 

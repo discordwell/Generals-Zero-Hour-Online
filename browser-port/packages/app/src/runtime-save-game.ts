@@ -5447,6 +5447,15 @@ interface SourceMinefieldBehaviorBlockState {
   immunes: SourceMinefieldImmuneBlockState[];
 }
 
+interface SourceGenerateMinefieldBehaviorBlockState {
+  upgradeExecuted: boolean;
+  generated: boolean;
+  hasTarget: boolean;
+  upgraded: boolean;
+  target: Coord3D;
+  mineIds: number[];
+}
+
 function tryParseSourcePoisonedBehaviorBlockData(
   data: Uint8Array,
 ): SourcePoisonedBehaviorBlockState | null {
@@ -5656,6 +5665,110 @@ function buildSourceMinefieldBehaviorBlockData(
     for (const entry of immunes) {
       saver.xferObjectID(entry.objectId);
       saver.xferUnsignedInt(entry.collideTime);
+    }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceGenerateMinefieldBehaviorBlockData(
+  data: Uint8Array,
+): SourceGenerateMinefieldBehaviorBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-generate-minefield-behavior');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferSourceBehaviorModuleBase(xferLoad);
+    const upgradeMuxVersion = xferLoad.xferVersion(1);
+    if (upgradeMuxVersion !== 1) {
+      return null;
+    }
+    const upgradeExecuted = xferLoad.xferBool(false);
+    const generated = xferLoad.xferBool(false);
+    const hasTarget = xferLoad.xferBool(false);
+    const upgraded = xferLoad.xferBool(false);
+    const target = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const mineCount = xferLoad.xferUnsignedByte(0);
+    const mineIds: number[] = [];
+    for (let index = 0; index < mineCount; index += 1) {
+      mineIds.push(xferLoad.xferObjectID(0));
+    }
+    return xferLoad.getRemaining() === 0
+      ? {
+        upgradeExecuted,
+        generated,
+        hasTarget,
+        upgraded,
+        target,
+        mineIds,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function sourceGenerateMinefieldMineIds(
+  entity: MapEntity,
+  preservedState: SourceGenerateMinefieldBehaviorBlockState,
+): number[] {
+  const sourceIds = Array.isArray(entity.generateMinefieldMineIds)
+    ? entity.generateMinefieldMineIds
+    : preservedState.mineIds;
+  const mineIds = sourceIds.map(normalizeSourceObjectId);
+  if (mineIds.length > 0xff) {
+    throw new Error(`GenerateMinefieldBehavior source save has ${mineIds.length} mine ids; C++ xfers an unsigned byte count.`);
+  }
+  return mineIds;
+}
+
+function sourceGenerateMinefieldTarget(
+  entity: MapEntity,
+  preservedState: SourceGenerateMinefieldBehaviorBlockState,
+): Coord3D {
+  return runtimeCoord3DToSourceCoord3D(
+    {
+      x: entity.generateMinefieldTargetX,
+      y: entity.generateMinefieldTargetY,
+      z: entity.generateMinefieldTargetZ,
+    },
+    preservedState.target,
+  );
+}
+
+function buildSourceGenerateMinefieldBehaviorBlockData(
+  entity: MapEntity,
+  preservedState: SourceGenerateMinefieldBehaviorBlockState,
+): Uint8Array {
+  const mineIds = sourceGenerateMinefieldMineIds(entity, preservedState);
+  const saver = new XferSave();
+  saver.open('build-source-generate-minefield-behavior');
+  try {
+    saver.xferVersion(1);
+    xferSourceBehaviorModuleBase(saver);
+    saver.xferVersion(1);
+    saver.xferBool(typeof entity.generateMinefieldUpgradeExecuted === 'boolean'
+      ? entity.generateMinefieldUpgradeExecuted
+      : preservedState.upgradeExecuted);
+    saver.xferBool(typeof entity.generateMinefieldDone === 'boolean'
+      ? entity.generateMinefieldDone
+      : preservedState.generated);
+    saver.xferBool(typeof entity.generateMinefieldHasTarget === 'boolean'
+      ? entity.generateMinefieldHasTarget
+      : preservedState.hasTarget);
+    saver.xferBool(typeof entity.generateMinefieldUpgraded === 'boolean'
+      ? entity.generateMinefieldUpgraded
+      : preservedState.upgraded);
+    saver.xferCoord3D(sourceGenerateMinefieldTarget(entity, preservedState));
+    saver.xferUnsignedByte(mineIds.length);
+    for (const objectId of mineIds) {
+      saver.xferObjectID(objectId);
     }
     return new Uint8Array(saver.getBuffer());
   } finally {
@@ -12463,6 +12576,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceMinefieldBehaviorBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'GENERATEMINEFIELDBEHAVIOR' && entity.generateMinefieldProfile) {
+            const parsedSourceState = tryParseSourceGenerateMinefieldBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceGenerateMinefieldBehaviorBlockData(entity, parsedSourceState),
               };
             }
           }

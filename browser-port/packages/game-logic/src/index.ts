@@ -4157,6 +4157,13 @@ export interface MapEntity {
   // ── Source parity: GenerateMinefieldBehavior — spawns mines on death ──
   generateMinefieldProfile: GenerateMinefieldProfile | null;
   generateMinefieldDone: boolean;
+  generateMinefieldUpgradeExecuted: boolean;
+  generateMinefieldHasTarget: boolean;
+  generateMinefieldUpgraded: boolean;
+  generateMinefieldTargetX: number;
+  generateMinefieldTargetY: number;
+  generateMinefieldTargetZ: number;
+  generateMinefieldMineIds: number[];
 
   // ── Source parity: CreateCrateDie — crate spawning on death ──
   createCrateDieProfile: CreateCrateDieProfile | null;
@@ -5028,10 +5035,13 @@ interface SideBattlePlanBonuses {
  */
 interface GenerateMinefieldProfile {
   mineName: string;
+  upgradedMineName: string;
+  upgradedTriggeredBy: string;
   distanceAroundObject: number;
   borderOnly: boolean;
   alwaysCircular: boolean;
   generateOnlyOnDeath: boolean;
+  upgradable: boolean;
   /** Source parity: m_minesPerSquareFoot — mine density (parseReal). Default = GlobalData::m_standardMinefieldDensity (0.01). */
   minesPerSquareFoot: number;
   /** Source parity: m_smartBorder — use smart border algorithm. Default = false. */
@@ -9395,6 +9405,15 @@ interface SourceMinefieldBehaviorImportState {
   regenerates: boolean;
   draining: boolean;
   immunes: SourceMinefieldImmuneImportState[];
+}
+
+interface SourceGenerateMinefieldBehaviorImportState {
+  upgradeExecuted: boolean;
+  generated: boolean;
+  hasTarget: boolean;
+  upgraded: boolean;
+  target: { x: number; y: number; z: number };
+  mineIds: number[];
 }
 
 interface SourceWeaponSnapshotImportState {
@@ -19359,6 +19378,88 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceGenerateMinefieldBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceGenerateMinefieldBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'GENERATEMINEFIELDBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-generate-minefield-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      this.skipSourceImportBehaviorModuleBase(xfer);
+      const upgradeMuxVersion = xfer.xferVersion(1);
+      if (upgradeMuxVersion !== 1) {
+        return null;
+      }
+      const upgradeExecuted = xfer.xferBool(false);
+      const generated = xfer.xferBool(false);
+      const hasTarget = xfer.xferBool(false);
+      const upgraded = xfer.xferBool(false);
+      const target = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const mineCount = xfer.xferUnsignedByte(0);
+      const mineIds: number[] = [];
+      for (let index = 0; index < mineCount; index += 1) {
+        mineIds.push(xfer.xferObjectID(0));
+      }
+      return xfer.getRemaining() === 0
+        ? {
+          upgradeExecuted,
+          generated,
+          hasTarget,
+          upgraded,
+          target,
+          mineIds,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceGenerateMinefieldBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.generateMinefieldProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const mineState = this.tryParseSourceGenerateMinefieldBehaviorImportState(module.blockData, moduleType);
+      if (!mineState) {
+        continue;
+      }
+
+      const target = this.sourceCoord3DToRuntime(mineState.target);
+      entity.generateMinefieldUpgradeExecuted = mineState.upgradeExecuted;
+      entity.generateMinefieldDone = mineState.generated;
+      entity.generateMinefieldHasTarget = mineState.hasTarget;
+      entity.generateMinefieldUpgraded = mineState.upgraded;
+      entity.generateMinefieldTargetX = target.x;
+      entity.generateMinefieldTargetY = target.y;
+      entity.generateMinefieldTargetZ = target.z;
+      entity.generateMinefieldMineIds = mineState.mineIds
+        .map((objectId) => Math.max(0, Math.trunc(objectId)));
+      return;
+    }
+  }
+
   private parseSourceWeaponSnapshotImportState(xfer: XferLoad): SourceWeaponSnapshotImportState {
     const version = xfer.xferVersion(3);
     if (version < 1 || version > 3) {
@@ -20904,6 +21005,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceFireSpreadUpdateModulesToEntity(entity, sourceState);
     this.applySourcePoisonedBehaviorModulesToEntity(entity, sourceState);
     this.applySourceMinefieldBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceGenerateMinefieldBehaviorModulesToEntity(entity, sourceState);
     this.applySourceFireWhenDamagedModulesToEntity(entity, sourceState);
     this.applySourceFireWeaponUpdateModulesToEntity(entity, sourceState);
     this.applySourceFireWeaponCollideModulesToEntity(entity, sourceState);

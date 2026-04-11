@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 38;
+const ENTITY_XFER_VERSION = 39;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -2181,6 +2181,25 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.swCripplingDockDisabled = xfer.xferBool(e.swCripplingDockDisabled as boolean);
   e.generateMinefieldProfile = xferNullableJsonObject(xfer, e.generateMinefieldProfile as object | null);
   e.generateMinefieldDone = xfer.xferBool(e.generateMinefieldDone as boolean);
+  if (version >= 39) {
+    e.generateMinefieldUpgradeExecuted = xfer.xferBool(e.generateMinefieldUpgradeExecuted as boolean);
+    e.generateMinefieldHasTarget = xfer.xferBool(e.generateMinefieldHasTarget as boolean);
+    e.generateMinefieldUpgraded = xfer.xferBool(e.generateMinefieldUpgraded as boolean);
+    e.generateMinefieldTargetX = xfer.xferReal(e.generateMinefieldTargetX as number);
+    e.generateMinefieldTargetY = xfer.xferReal(e.generateMinefieldTargetY as number);
+    e.generateMinefieldTargetZ = xfer.xferReal(e.generateMinefieldTargetZ as number);
+    e.generateMinefieldMineIds = xfer.xferIntList(
+      (e.generateMinefieldMineIds as number[] | undefined) ?? [],
+    );
+  } else {
+    e.generateMinefieldUpgradeExecuted = false;
+    e.generateMinefieldHasTarget = false;
+    e.generateMinefieldUpgraded = false;
+    e.generateMinefieldTargetX = 0;
+    e.generateMinefieldTargetY = 0;
+    e.generateMinefieldTargetZ = 0;
+    e.generateMinefieldMineIds = [];
+  }
   e.createCrateDieProfile = xferNullableJsonObject(xfer, e.createCrateDieProfile as object | null);
   e.salvageCrateProfile = xferNullableJsonObject(xfer, e.salvageCrateProfile as object | null);
   e.crateCollideProfile = xferNullableJsonObject(xfer, e.crateCollideProfile as object | null);
