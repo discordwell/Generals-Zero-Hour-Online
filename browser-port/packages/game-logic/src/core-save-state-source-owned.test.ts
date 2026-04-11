@@ -292,6 +292,12 @@ function makeSourceOwnedCoreBundle() {
           MinHeight: 120,
         }),
       ]),
+      makeObjectDef('MissileAIObject', 'America', ['PROJECTILE', 'SMALL_MISSILE'], [
+        makeBlock('Behavior', 'MissileAIUpdate ModuleTag_MissileAI', {
+          TryToFollowTarget: true,
+          FuelLifetime: 4000,
+        }),
+      ]),
       makeObjectDef('ChinookObject', 'America', ['AIRCRAFT'], [
         makeBlock('Behavior', 'ChinookAIUpdate ModuleTag_ChinookAI', {
           MaxBoxes: 8,
@@ -2153,6 +2159,57 @@ function buildSourceJetAIUpdateModuleData(options: {
     saver.xferAsciiString('');
     saver.xferInt(options.flags);
     saver.xferBool(options.enginesOn);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceMissileAIUpdateModuleData(options: {
+  originalTargetPos: { x: number; y: number; z: number };
+  state: number;
+  stateTimestamp: number;
+  nextTargetTrackTime: number;
+  launcherId: number;
+  victimId: number;
+  isArmed: boolean;
+  fuelExpirationDate: number;
+  noTurnDistLeft: number;
+  maxAccel: number;
+  detonationWeaponTemplateName: string;
+  exhaustSystemTemplateName: string;
+  isTrackingTarget: boolean;
+  prevPos: { x: number; y: number; z: number };
+  extraBonusFlags: number;
+  exhaustIdBytes: Uint8Array;
+  framesTillDecoyed: number;
+  noDamage: boolean;
+  isJammed: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-missile-ai-update');
+  try {
+    saver.xferVersion(6);
+    saver.xferUser(new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd]));
+    saver.xferCoord3D(options.originalTargetPos);
+    saver.xferUser(sourceRawInt32(options.state));
+    saver.xferUnsignedInt(options.stateTimestamp);
+    saver.xferUnsignedInt(options.nextTargetTrackTime);
+    saver.xferObjectID(options.launcherId);
+    saver.xferObjectID(options.victimId);
+    saver.xferBool(options.isArmed);
+    saver.xferUnsignedInt(options.fuelExpirationDate);
+    saver.xferReal(options.noTurnDistLeft);
+    saver.xferReal(options.maxAccel);
+    saver.xferAsciiString(options.detonationWeaponTemplateName);
+    saver.xferAsciiString(options.exhaustSystemTemplateName);
+    saver.xferBool(options.isTrackingTarget);
+    saver.xferCoord3D(options.prevPos);
+    saver.xferUnsignedInt(options.extraBonusFlags);
+    saver.xferUser(options.exhaustIdBytes);
+    saver.xferUnsignedInt(options.framesTillDecoyed);
+    saver.xferBool(options.noDamage);
+    saver.xferBool(options.isJammed);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -5982,6 +6039,110 @@ describe('source-owned game-logic core save-state', () => {
       allowAirLoco: true,
       useReturnLoco: true,
       pendingCommand: { type: 'attackEntity', targetId: 333 },
+    });
+  });
+
+  it('imports source MissileAIUpdate tail state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const missileState = createEmptySourceMapEntitySaveState();
+    missileState.objectId = 126;
+    missileState.position = { x: 160, y: 0, z: 60 };
+    missileState.modules = [{
+      identifier: 'ModuleTag_MissileAI',
+      blockData: buildSourceMissileAIUpdateModuleData({
+        originalTargetPos: { x: 10, y: 20, z: 3 },
+        state: 4,
+        stateTimestamp: 410,
+        nextTargetTrackTime: 420,
+        launcherId: 301,
+        victimId: 302,
+        isArmed: true,
+        fuelExpirationDate: 430,
+        noTurnDistLeft: 44.5,
+        maxAccel: 12.25,
+        detonationWeaponTemplateName: 'TestDetonationWeapon',
+        exhaustSystemTemplateName: 'TestExhaust',
+        isTrackingTarget: true,
+        prevPos: { x: 30, y: 40, z: 5 },
+        extraBonusFlags: 0x77,
+        exhaustIdBytes: new Uint8Array([1, 3, 5, 7]),
+        framesTillDecoyed: 440,
+        noDamage: true,
+        isJammed: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'MissileAIObject', state: missileState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        sourceMissileAIUpdateState: {
+          originalTargetX: number;
+          originalTargetY: number;
+          originalTargetZ: number;
+          state: number;
+          stateTimestamp: number;
+          nextTargetTrackTime: number;
+          launcherId: number;
+          victimId: number;
+          isArmed: boolean;
+          fuelExpirationDate: number;
+          noTurnDistLeft: number;
+          maxAccel: number;
+          detonationWeaponTemplateName: string;
+          exhaustSystemTemplateName: string;
+          isTrackingTarget: boolean;
+          prevX: number;
+          prevY: number;
+          prevZ: number;
+          extraBonusFlags: number;
+          exhaustIdBytes: number[];
+          framesTillDecoyed: number;
+          noDamage: boolean;
+          isJammed: boolean;
+        } | null;
+      }>;
+    };
+
+    const importedMissile = privateLogic.spawnedEntities.get(126)!;
+    expect(importedMissile.sourceMissileAIUpdateState).toEqual({
+      originalTargetX: 10,
+      originalTargetY: 3,
+      originalTargetZ: 20,
+      state: 4,
+      stateTimestamp: 410,
+      nextTargetTrackTime: 420,
+      launcherId: 301,
+      victimId: 302,
+      isArmed: true,
+      fuelExpirationDate: 430,
+      noTurnDistLeft: 44.5,
+      maxAccel: 12.25,
+      detonationWeaponTemplateName: 'TestDetonationWeapon',
+      exhaustSystemTemplateName: 'TestExhaust',
+      isTrackingTarget: true,
+      prevX: 30,
+      prevY: 5,
+      prevZ: 40,
+      extraBonusFlags: 0x77,
+      exhaustIdBytes: [1, 3, 5, 7],
+      framesTillDecoyed: 440,
+      noDamage: true,
+      isJammed: true,
     });
   });
 

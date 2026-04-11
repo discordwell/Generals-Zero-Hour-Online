@@ -2295,6 +2295,123 @@ function parseSourceJetAIUpdateBlockData(data: Uint8Array) {
   throw new Error('Unable to parse jet AI test block.');
 }
 
+function createSourceMissileAIUpdateBlockData(options: {
+  originalTargetPos: Coord3D;
+  state: number;
+  stateTimestamp: number;
+  nextTargetTrackTime: number;
+  launcherId: number;
+  victimId: number;
+  isArmed: boolean;
+  fuelExpirationDate: number;
+  noTurnDistLeft: number;
+  maxAccel: number;
+  detonationWeaponTemplateName: string;
+  exhaustSystemTemplateName: string;
+  isTrackingTarget: boolean;
+  prevPos: Coord3D;
+  extraBonusFlags: number;
+  exhaustIdBytes: Uint8Array;
+  framesTillDecoyed: number;
+  noDamage: boolean;
+  isJammed: boolean;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-missile-ai-update');
+  try {
+    xferSave.xferVersion(6);
+    xferSave.xferUser(new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd]));
+    xferSave.xferCoord3D(options.originalTargetPos);
+    xferSave.xferUser(createRawInt32Bytes(options.state));
+    xferSave.xferUnsignedInt(options.stateTimestamp);
+    xferSave.xferUnsignedInt(options.nextTargetTrackTime);
+    xferSave.xferObjectID(options.launcherId);
+    xferSave.xferObjectID(options.victimId);
+    xferSave.xferBool(options.isArmed);
+    xferSave.xferUnsignedInt(options.fuelExpirationDate);
+    xferSave.xferReal(options.noTurnDistLeft);
+    xferSave.xferReal(options.maxAccel);
+    xferSave.xferAsciiString(options.detonationWeaponTemplateName);
+    xferSave.xferAsciiString(options.exhaustSystemTemplateName);
+    xferSave.xferBool(options.isTrackingTarget);
+    xferSave.xferCoord3D(options.prevPos);
+    xferSave.xferUnsignedInt(options.extraBonusFlags);
+    xferSave.xferUser(options.exhaustIdBytes);
+    xferSave.xferUnsignedInt(options.framesTillDecoyed);
+    xferSave.xferBool(options.noDamage);
+    xferSave.xferBool(options.isJammed);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceMissileAIUpdateBlockData(data: Uint8Array) {
+  const version = data[0] ?? 0;
+  for (let tailOffset = 1; tailOffset < data.byteLength; tailOffset += 1) {
+    const xferLoad = new XferLoad(data.slice(tailOffset).buffer);
+    xferLoad.open('parse-source-missile-ai-update');
+    try {
+      const originalTargetPos = version >= 2
+        ? xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 })
+        : { x: 0, y: 0, z: 0 };
+      const state = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+      if (state < 0 || state > 7) {
+        continue;
+      }
+      const stateTimestamp = xferLoad.xferUnsignedInt(0);
+      const nextTargetTrackTime = xferLoad.xferUnsignedInt(0);
+      const launcherId = xferLoad.xferObjectID(0);
+      const victimId = xferLoad.xferObjectID(0);
+      const isArmed = xferLoad.xferBool(false);
+      const fuelExpirationDate = xferLoad.xferUnsignedInt(0);
+      const noTurnDistLeft = xferLoad.xferReal(0);
+      const maxAccel = xferLoad.xferReal(0);
+      const detonationWeaponTemplateName = xferLoad.xferAsciiString('');
+      const exhaustSystemTemplateName = xferLoad.xferAsciiString('');
+      const isTrackingTarget = xferLoad.xferBool(false);
+      const prevPos = version >= 3
+        ? xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 })
+        : { x: 0, y: 0, z: 0 };
+      const extraBonusFlags = version >= 4 ? xferLoad.xferUnsignedInt(0) : 0;
+      const exhaustIdBytes = version >= 4 ? [...xferLoad.xferUser(new Uint8Array(4))] : [0, 0, 0, 0];
+      const framesTillDecoyed = version >= 5 ? xferLoad.xferUnsignedInt(0) : 0;
+      const noDamage = version >= 5 ? xferLoad.xferBool(false) : false;
+      const isJammed = version >= 6 ? xferLoad.xferBool(false) : false;
+      if (xferLoad.getRemaining() !== 0) {
+        continue;
+      }
+      return {
+        prefix: [...data.subarray(0, tailOffset)],
+        originalTargetPos,
+        state,
+        stateTimestamp,
+        nextTargetTrackTime,
+        launcherId,
+        victimId,
+        isArmed,
+        fuelExpirationDate,
+        noTurnDistLeft,
+        maxAccel,
+        detonationWeaponTemplateName,
+        exhaustSystemTemplateName,
+        isTrackingTarget,
+        prevPos,
+        extraBonusFlags,
+        exhaustIdBytes,
+        framesTillDecoyed,
+        noDamage,
+        isJammed,
+      };
+    } catch {
+      continue;
+    } finally {
+      xferLoad.close();
+    }
+  }
+  throw new Error('Unable to parse missile AI test block.');
+}
+
 function createSourceChinookAIUpdateBlockData(options: {
   flightStatus: number;
   airfieldForHealing: number;
@@ -13909,6 +14026,162 @@ describe('runtime-save-game', () => {
     expect(parsed.flags & 0x10).toBe(0);
     expect(parsed.flags & 0x20).toBe(0x20);
     expect(parsed.enginesOn).toBe(false);
+  });
+
+  it('rewrites source MissileAIUpdate tail while preserving inherited AIUpdate bytes', () => {
+    const sourceMissileBlock = createSourceMissileAIUpdateBlockData({
+      originalTargetPos: { x: 3, y: 4, z: 5 },
+      state: 2,
+      stateTimestamp: 100,
+      nextTargetTrackTime: 101,
+      launcherId: 11,
+      victimId: 12,
+      isArmed: false,
+      fuelExpirationDate: 102,
+      noTurnDistLeft: 7.5,
+      maxAccel: 8.5,
+      detonationWeaponTemplateName: 'OldDetonationWeapon',
+      exhaustSystemTemplateName: 'OldExhaust',
+      isTrackingTarget: false,
+      prevPos: { x: 6, y: 7, z: 8 },
+      extraBonusFlags: 0x10,
+      exhaustIdBytes: new Uint8Array([1, 2, 3, 4]),
+      framesTillDecoyed: 103,
+      noDamage: false,
+      isJammed: false,
+    });
+    const preserved = parseSourceMissileAIUpdateBlockData(sourceMissileBlock);
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_MissileAI',
+      blockData: sourceMissileBlock,
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source missile ai update rewrite',
+      mapPath: 'Maps/RuntimeMissile/RuntimeMissile.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeMissile',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            sourceMissileAIUpdateState: {
+              originalTargetX: 111,
+              originalTargetY: 5,
+              originalTargetZ: 222,
+              state: 4,
+              stateTimestamp: 501,
+              nextTargetTrackTime: 502,
+              launcherId: 61,
+              victimId: 62,
+              isArmed: true,
+              fuelExpirationDate: 503,
+              noTurnDistLeft: 9.25,
+              maxAccel: 10.5,
+              detonationWeaponTemplateName: 'NewDetonationWeapon',
+              exhaustSystemTemplateName: 'NewExhaust',
+              isTrackingTarget: true,
+              prevX: 333,
+              prevY: 6,
+              prevZ: 444,
+              extraBonusFlags: 0x33,
+              exhaustIdBytes: [9, 8, 7, 6],
+              framesTillDecoyed: 504,
+              noDamage: true,
+              isJammed: true,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_MissileAI') {
+            return 'MISSILEAIUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const missileModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_MissileAI');
+
+    expect(missileModule).toBeDefined();
+    const parsed = parseSourceMissileAIUpdateBlockData(missileModule!.blockData);
+    expect(parsed.prefix).toEqual(preserved.prefix);
+    expect(parsed.originalTargetPos).toEqual({ x: 111, y: 222, z: 5 });
+    expect(parsed.state).toBe(4);
+    expect(parsed.stateTimestamp).toBe(501);
+    expect(parsed.nextTargetTrackTime).toBe(502);
+    expect(parsed.launcherId).toBe(61);
+    expect(parsed.victimId).toBe(62);
+    expect(parsed.isArmed).toBe(true);
+    expect(parsed.fuelExpirationDate).toBe(503);
+    expect(parsed.noTurnDistLeft).toBeCloseTo(9.25);
+    expect(parsed.maxAccel).toBeCloseTo(10.5);
+    expect(parsed.detonationWeaponTemplateName).toBe('NewDetonationWeapon');
+    expect(parsed.exhaustSystemTemplateName).toBe('NewExhaust');
+    expect(parsed.isTrackingTarget).toBe(true);
+    expect(parsed.prevPos).toEqual({ x: 333, y: 444, z: 6 });
+    expect(parsed.extraBonusFlags).toBe(0x33);
+    expect(parsed.exhaustIdBytes).toEqual([9, 8, 7, 6]);
+    expect(parsed.framesTillDecoyed).toBe(504);
+    expect(parsed.noDamage).toBe(true);
+    expect(parsed.isJammed).toBe(true);
   });
 
   it('rewrites source WorkerAIUpdate tasks and supply tail while preserving state-machine bytes', () => {

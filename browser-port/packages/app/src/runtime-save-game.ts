@@ -6145,6 +6145,57 @@ interface SourceJetAIUpdateBlockState {
   enginesOn: boolean | null;
 }
 
+interface SourceMissileAIUpdateBlockState {
+  blockData: Uint8Array;
+  tailOffset: number;
+  version: number;
+  originalTargetPos: Coord3D;
+  state: number;
+  stateTimestamp: number;
+  nextTargetTrackTime: number;
+  launcherId: number;
+  victimId: number;
+  isArmed: boolean;
+  fuelExpirationDate: number;
+  noTurnDistLeft: number;
+  maxAccel: number;
+  detonationWeaponTemplateName: string;
+  exhaustSystemTemplateName: string;
+  isTrackingTarget: boolean;
+  prevPos: Coord3D;
+  extraBonusFlags: number;
+  exhaustIdBytes: Uint8Array;
+  framesTillDecoyed: number;
+  noDamage: boolean;
+  isJammed: boolean;
+}
+
+interface SourceMissileAIUpdateRuntimeState {
+  originalTargetX?: unknown;
+  originalTargetY?: unknown;
+  originalTargetZ?: unknown;
+  state?: unknown;
+  stateTimestamp?: unknown;
+  nextTargetTrackTime?: unknown;
+  launcherId?: unknown;
+  victimId?: unknown;
+  isArmed?: unknown;
+  fuelExpirationDate?: unknown;
+  noTurnDistLeft?: unknown;
+  maxAccel?: unknown;
+  detonationWeaponTemplateName?: unknown;
+  exhaustSystemTemplateName?: unknown;
+  isTrackingTarget?: unknown;
+  prevX?: unknown;
+  prevY?: unknown;
+  prevZ?: unknown;
+  extraBonusFlags?: unknown;
+  exhaustIdBytes?: unknown;
+  framesTillDecoyed?: unknown;
+  noDamage?: unknown;
+  isJammed?: unknown;
+}
+
 interface SourceWorkerAIUpdateBlockState {
   blockData: Uint8Array;
   taskOffset: number;
@@ -6683,6 +6734,9 @@ const SOURCE_JET_FLAG_TAKEOFF_IN_PROGRESS = 1 << 3;
 const SOURCE_JET_FLAG_LANDING_IN_PROGRESS = 1 << 4;
 const SOURCE_JET_FLAG_USE_SPECIAL_RETURN_LOCO = 1 << 5;
 const SOURCE_JET_TARGETED_BY_LIMIT = 0xffff;
+const SOURCE_MISSILE_AI_UPDATE_CURRENT_VERSION = 6;
+const SOURCE_MISSILE_AI_STATE_MIN = 0;
+const SOURCE_MISSILE_AI_STATE_MAX = 7;
 
 function isSourceHackInternetStateId(value: number): boolean {
   return value === SOURCE_AI_STATE_IDLE
@@ -7138,6 +7192,225 @@ function buildSourceJetAIUpdateBlockData(
     saver.xferInt(sourceJetFlagsForEntity(entity, preservedState.flags));
     if (preservedState.version >= 2) {
       saver.xferBool(preservedState.enginesOn === true);
+    }
+
+    const tailBytes = new Uint8Array(saver.getBuffer());
+    const blockData = new Uint8Array(preservedState.tailOffset + tailBytes.byteLength);
+    blockData.set(preservedState.blockData.subarray(0, preservedState.tailOffset));
+    blockData.set(tailBytes, preservedState.tailOffset);
+    return blockData;
+  } finally {
+    saver.close();
+  }
+}
+
+function isSourceMissileAIState(value: number): boolean {
+  return Number.isFinite(value)
+    && Math.trunc(value) >= SOURCE_MISSILE_AI_STATE_MIN
+    && Math.trunc(value) <= SOURCE_MISSILE_AI_STATE_MAX;
+}
+
+function tryParseSourceMissileAIUpdateBlockData(data: Uint8Array): SourceMissileAIUpdateBlockState | null {
+  const version = data[0] ?? 0;
+  if (version < 1 || version > SOURCE_MISSILE_AI_UPDATE_CURRENT_VERSION) {
+    return null;
+  }
+
+  for (let tailOffset = 1; tailOffset < data.byteLength; tailOffset += 1) {
+    const xferLoad = new XferLoad(copyBytesToArrayBuffer(data.subarray(tailOffset)));
+    xferLoad.open('parse-source-missile-ai-update-tail');
+    try {
+      const originalTargetPos = version >= 2
+        ? xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 })
+        : { x: 0, y: 0, z: 0 };
+      const state = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+      if (!isSourceMissileAIState(state)) {
+        continue;
+      }
+      const stateTimestamp = xferLoad.xferUnsignedInt(0);
+      const nextTargetTrackTime = xferLoad.xferUnsignedInt(0);
+      const launcherId = xferLoad.xferObjectID(0);
+      const victimId = xferLoad.xferObjectID(0);
+      const isArmed = xferLoad.xferBool(false);
+      const fuelExpirationDate = xferLoad.xferUnsignedInt(0);
+      const noTurnDistLeft = xferLoad.xferReal(0);
+      const maxAccel = xferLoad.xferReal(0);
+      const detonationWeaponTemplateName = xferLoad.xferAsciiString('');
+      const exhaustSystemTemplateName = xferLoad.xferAsciiString('');
+      const isTrackingTarget = xferLoad.xferBool(false);
+      const prevPos = version >= 3
+        ? xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 })
+        : { x: 0, y: 0, z: 0 };
+      const extraBonusFlags = version >= 4 ? xferLoad.xferUnsignedInt(0) : 0;
+      const exhaustIdBytes = version >= 4 ? xferLoad.xferUser(new Uint8Array(4)) : new Uint8Array(4);
+      const framesTillDecoyed = version >= 5 ? xferLoad.xferUnsignedInt(0) : 0;
+      const noDamage = version >= 5 ? xferLoad.xferBool(false) : false;
+      const isJammed = version >= 6 ? xferLoad.xferBool(false) : false;
+      if (xferLoad.getRemaining() !== 0) {
+        continue;
+      }
+      return {
+        blockData: new Uint8Array(data),
+        tailOffset,
+        version,
+        originalTargetPos,
+        state,
+        stateTimestamp,
+        nextTargetTrackTime,
+        launcherId,
+        victimId,
+        isArmed,
+        fuelExpirationDate,
+        noTurnDistLeft,
+        maxAccel,
+        detonationWeaponTemplateName,
+        exhaustSystemTemplateName,
+        isTrackingTarget,
+        prevPos,
+        extraBonusFlags,
+        exhaustIdBytes: new Uint8Array(exhaustIdBytes),
+        framesTillDecoyed,
+        noDamage,
+        isJammed,
+      };
+    } catch {
+      continue;
+    } finally {
+      xferLoad.close();
+    }
+  }
+  return null;
+}
+
+function sourceMissileRuntimeNumber(value: unknown, fallback: number): number {
+  return Number.isFinite(value) ? Number(value) : fallback;
+}
+
+function sourceMissileRuntimeInt(value: unknown, fallback: number): number {
+  return Number.isFinite(value) ? Math.trunc(Number(value)) : Math.trunc(fallback);
+}
+
+function sourceMissileRuntimeUnsignedFrame(value: unknown, fallback: number): number {
+  return sourceFlammableUnsignedFrame(value, fallback);
+}
+
+function sourceMissileRuntimeBool(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function sourceMissileRuntimeString(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function sourceMissileRuntimeExhaustIdBytes(value: unknown, fallback: Uint8Array): Uint8Array {
+  if (value instanceof Uint8Array && value.byteLength === 4) {
+    return new Uint8Array(value);
+  }
+  if (Array.isArray(value) && value.length === 4 && value.every((entry) => Number.isFinite(entry))) {
+    return new Uint8Array(value.map((entry) => Math.trunc(Number(entry)) & 0xff));
+  }
+  return new Uint8Array(fallback);
+}
+
+function sourceMissileRuntimeCoordToSource(
+  state: SourceMissileAIUpdateRuntimeState | null,
+  xKey: keyof SourceMissileAIUpdateRuntimeState,
+  yKey: keyof SourceMissileAIUpdateRuntimeState,
+  zKey: keyof SourceMissileAIUpdateRuntimeState,
+  fallback: Coord3D,
+): Coord3D {
+  return {
+    x: sourceMissileRuntimeNumber(state?.[xKey], fallback.x),
+    y: sourceMissileRuntimeNumber(state?.[zKey], fallback.y),
+    z: sourceMissileRuntimeNumber(state?.[yKey], fallback.z),
+  };
+}
+
+function buildSourceMissileAIUpdateBlockData(
+  entity: MapEntity,
+  preservedState: SourceMissileAIUpdateBlockState,
+): Uint8Array | null {
+  const runtimeState = (entity as {
+    sourceMissileAIUpdateState?: SourceMissileAIUpdateRuntimeState | null;
+  }).sourceMissileAIUpdateState ?? null;
+  const state = sourceMissileRuntimeInt(runtimeState?.state, preservedState.state);
+  if (!isSourceMissileAIState(state)) {
+    return null;
+  }
+
+  const saver = new XferSave();
+  saver.open('build-source-missile-ai-update-tail');
+  try {
+    if (preservedState.version >= 2) {
+      saver.xferCoord3D(sourceMissileRuntimeCoordToSource(
+        runtimeState,
+        'originalTargetX',
+        'originalTargetY',
+        'originalTargetZ',
+        preservedState.originalTargetPos,
+      ));
+    }
+    saver.xferUser(buildSourceRawInt32Bytes(state));
+    saver.xferUnsignedInt(sourceMissileRuntimeUnsignedFrame(
+      runtimeState?.stateTimestamp,
+      preservedState.stateTimestamp,
+    ));
+    saver.xferUnsignedInt(sourceMissileRuntimeUnsignedFrame(
+      runtimeState?.nextTargetTrackTime,
+      preservedState.nextTargetTrackTime,
+    ));
+    saver.xferObjectID(normalizeSourceObjectId(sourceMissileRuntimeInt(
+      runtimeState?.launcherId,
+      preservedState.launcherId,
+    )));
+    saver.xferObjectID(normalizeSourceObjectId(sourceMissileRuntimeInt(
+      runtimeState?.victimId,
+      preservedState.victimId,
+    )));
+    saver.xferBool(sourceMissileRuntimeBool(runtimeState?.isArmed, preservedState.isArmed));
+    saver.xferUnsignedInt(sourceMissileRuntimeUnsignedFrame(
+      runtimeState?.fuelExpirationDate,
+      preservedState.fuelExpirationDate,
+    ));
+    saver.xferReal(sourceMissileRuntimeNumber(runtimeState?.noTurnDistLeft, preservedState.noTurnDistLeft));
+    saver.xferReal(sourceMissileRuntimeNumber(runtimeState?.maxAccel, preservedState.maxAccel));
+    saver.xferAsciiString(sourceMissileRuntimeString(
+      runtimeState?.detonationWeaponTemplateName,
+      preservedState.detonationWeaponTemplateName,
+    ));
+    saver.xferAsciiString(sourceMissileRuntimeString(
+      runtimeState?.exhaustSystemTemplateName,
+      preservedState.exhaustSystemTemplateName,
+    ));
+    saver.xferBool(sourceMissileRuntimeBool(runtimeState?.isTrackingTarget, preservedState.isTrackingTarget));
+    if (preservedState.version >= 3) {
+      saver.xferCoord3D(sourceMissileRuntimeCoordToSource(
+        runtimeState,
+        'prevX',
+        'prevY',
+        'prevZ',
+        preservedState.prevPos,
+      ));
+    }
+    if (preservedState.version >= 4) {
+      saver.xferUnsignedInt(sourceMissileRuntimeUnsignedFrame(
+        runtimeState?.extraBonusFlags,
+        preservedState.extraBonusFlags,
+      ));
+      saver.xferUser(sourceMissileRuntimeExhaustIdBytes(
+        runtimeState?.exhaustIdBytes,
+        preservedState.exhaustIdBytes,
+      ));
+    }
+    if (preservedState.version >= 5) {
+      saver.xferUnsignedInt(sourceMissileRuntimeUnsignedFrame(
+        runtimeState?.framesTillDecoyed,
+        preservedState.framesTillDecoyed,
+      ));
+      saver.xferBool(sourceMissileRuntimeBool(runtimeState?.noDamage, preservedState.noDamage));
+    }
+    if (preservedState.version >= 6) {
+      saver.xferBool(sourceMissileRuntimeBool(runtimeState?.isJammed, preservedState.isJammed));
     }
 
     const tailBytes = new Uint8Array(saver.getBuffer());
@@ -14309,6 +14582,18 @@ function overlaySourceObjectModulesFromLiveEntity(
             const parsedSourceState = tryParseSourceJetAIUpdateBlockData(module.blockData);
             if (parsedSourceState) {
               const blockData = buildSourceJetAIUpdateBlockData(entity, parsedSourceState);
+              if (blockData) {
+                return {
+                  identifier: module.identifier,
+                  blockData,
+                };
+              }
+            }
+          }
+          if (moduleType === 'MISSILEAIUPDATE') {
+            const parsedSourceState = tryParseSourceMissileAIUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              const blockData = buildSourceMissileAIUpdateBlockData(entity, parsedSourceState);
               if (blockData) {
                 return {
                   identifier: module.identifier,

@@ -3109,6 +3109,32 @@ interface MissileAIRuntimeState {
   isJammed: boolean;
 }
 
+interface SourceMissileAIUpdateRuntimeState {
+  originalTargetX: number;
+  originalTargetY: number;
+  originalTargetZ: number;
+  state: number;
+  stateTimestamp: number;
+  nextTargetTrackTime: number;
+  launcherId: number;
+  victimId: number;
+  isArmed: boolean;
+  fuelExpirationDate: number;
+  noTurnDistLeft: number;
+  maxAccel: number;
+  detonationWeaponTemplateName: string;
+  exhaustSystemTemplateName: string;
+  isTrackingTarget: boolean;
+  prevX: number;
+  prevY: number;
+  prevZ: number;
+  extraBonusFlags: number;
+  exhaustIdBytes: number[];
+  framesTillDecoyed: number;
+  noDamage: boolean;
+  isJammed: boolean;
+}
+
 interface SellingEntityState {
   sellFrame: number;
   constructionPercent: number;
@@ -4331,6 +4357,8 @@ export interface MapEntity {
   // ── Source parity: NeutronMissileUpdate — nuke missile flight ──
   neutronMissileUpdateProfile: NeutronMissileUpdateProfile | null;
   neutronMissileUpdateState: NeutronMissileRuntimeState | null;
+  // ── Source parity: MissileAIUpdate — homing projectile save tail ──
+  sourceMissileAIUpdateState: SourceMissileAIUpdateRuntimeState | null;
 
   // ── Source parity: RadarUpdate — radar dish extension animation ──
   radarUpdateProfile: RadarUpdateProfile | null;
@@ -9083,6 +9111,28 @@ interface SourceJetAIUpdateImportState {
   flags: number;
 }
 
+interface SourceMissileAIUpdateImportState {
+  originalTargetPos: { x: number; y: number; z: number };
+  state: number;
+  stateTimestamp: number;
+  nextTargetTrackTime: number;
+  launcherId: number;
+  victimId: number;
+  isArmed: boolean;
+  fuelExpirationDate: number;
+  noTurnDistLeft: number;
+  maxAccel: number;
+  detonationWeaponTemplateName: string;
+  exhaustSystemTemplateName: string;
+  isTrackingTarget: boolean;
+  prevPos: { x: number; y: number; z: number };
+  extraBonusFlags: number;
+  exhaustIdBytes: number[];
+  framesTillDecoyed: number;
+  noDamage: boolean;
+  isJammed: boolean;
+}
+
 interface SourceWorkerAIUpdateImportState {
   tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
   preferredDockId: number;
@@ -9810,6 +9860,9 @@ const SOURCE_JET_FLAG_TAKEOFF_IN_PROGRESS = 1 << 3;
 const SOURCE_JET_FLAG_LANDING_IN_PROGRESS = 1 << 4;
 const SOURCE_JET_FLAG_USE_SPECIAL_RETURN_LOCO = 1 << 5;
 const SOURCE_JET_TARGETED_BY_LIMIT = 0xffff;
+const SOURCE_MISSILE_AI_UPDATE_CURRENT_VERSION = 6;
+const SOURCE_MISSILE_AI_STATE_MIN = 0;
+const SOURCE_MISSILE_AI_STATE_MAX = 7;
 const SOURCE_CONTAIN_VECTOR_LIMIT = 0xffff;
 const SOURCE_DEATH_TYPE_NAMES = [
   'NORMAL',
@@ -16616,6 +16669,135 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private isSourceMissileAIState(value: number): boolean {
+    return Number.isFinite(value)
+      && Math.trunc(value) >= SOURCE_MISSILE_AI_STATE_MIN
+      && Math.trunc(value) <= SOURCE_MISSILE_AI_STATE_MAX;
+  }
+
+  private tryParseSourceMissileAIUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceMissileAIUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'MISSILEAIUPDATE') {
+      return null;
+    }
+    const version = data[0] ?? 0;
+    if (version < 1 || version > SOURCE_MISSILE_AI_UPDATE_CURRENT_VERSION) {
+      return null;
+    }
+
+    for (let tailOffset = 1; tailOffset < data.byteLength; tailOffset += 1) {
+      const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data.subarray(tailOffset)));
+      xfer.open('source-missile-ai-update-import');
+      try {
+        const originalTargetPos = version >= 2
+          ? xfer.xferCoord3D({ x: 0, y: 0, z: 0 })
+          : { x: 0, y: 0, z: 0 };
+        const state = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+        if (!this.isSourceMissileAIState(state)) {
+          continue;
+        }
+        const stateTimestamp = xfer.xferUnsignedInt(0);
+        const nextTargetTrackTime = xfer.xferUnsignedInt(0);
+        const launcherId = xfer.xferObjectID(0);
+        const victimId = xfer.xferObjectID(0);
+        const isArmed = xfer.xferBool(false);
+        const fuelExpirationDate = xfer.xferUnsignedInt(0);
+        const noTurnDistLeft = xfer.xferReal(0);
+        const maxAccel = xfer.xferReal(0);
+        const detonationWeaponTemplateName = xfer.xferAsciiString('');
+        const exhaustSystemTemplateName = xfer.xferAsciiString('');
+        const isTrackingTarget = xfer.xferBool(false);
+        const prevPos = version >= 3
+          ? xfer.xferCoord3D({ x: 0, y: 0, z: 0 })
+          : { x: 0, y: 0, z: 0 };
+        const extraBonusFlags = version >= 4 ? xfer.xferUnsignedInt(0) : 0;
+        const exhaustIdBytes = version >= 4 ? Array.from(xfer.xferUser(new Uint8Array(4))) : [0, 0, 0, 0];
+        const framesTillDecoyed = version >= 5 ? xfer.xferUnsignedInt(0) : 0;
+        const noDamage = version >= 5 ? xfer.xferBool(false) : false;
+        const isJammed = version >= 6 ? xfer.xferBool(false) : false;
+        if (xfer.getRemaining() !== 0) {
+          continue;
+        }
+        return {
+          originalTargetPos,
+          state,
+          stateTimestamp,
+          nextTargetTrackTime,
+          launcherId,
+          victimId,
+          isArmed,
+          fuelExpirationDate,
+          noTurnDistLeft,
+          maxAccel,
+          detonationWeaponTemplateName,
+          exhaustSystemTemplateName,
+          isTrackingTarget,
+          prevPos,
+          extraBonusFlags,
+          exhaustIdBytes,
+          framesTillDecoyed,
+          noDamage,
+          isJammed,
+        };
+      } catch {
+        continue;
+      } finally {
+        xfer.close();
+      }
+    }
+    return null;
+  }
+
+  private applySourceMissileAIUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const missileState = this.tryParseSourceMissileAIUpdateImportState(module.blockData, moduleType);
+      if (!missileState) {
+        continue;
+      }
+
+      const originalTarget = this.sourceCoord3DToRuntime(missileState.originalTargetPos);
+      const previousPosition = this.sourceCoord3DToRuntime(missileState.prevPos);
+      entity.sourceMissileAIUpdateState = {
+        originalTargetX: originalTarget.x,
+        originalTargetY: originalTarget.y,
+        originalTargetZ: originalTarget.z,
+        state: Math.trunc(missileState.state),
+        stateTimestamp: Math.max(0, Math.trunc(missileState.stateTimestamp)),
+        nextTargetTrackTime: Math.max(0, Math.trunc(missileState.nextTargetTrackTime)),
+        launcherId: Math.max(0, Math.trunc(missileState.launcherId)),
+        victimId: Math.max(0, Math.trunc(missileState.victimId)),
+        isArmed: missileState.isArmed,
+        fuelExpirationDate: Math.max(0, Math.trunc(missileState.fuelExpirationDate)),
+        noTurnDistLeft: Number.isFinite(missileState.noTurnDistLeft) ? missileState.noTurnDistLeft : 0,
+        maxAccel: Number.isFinite(missileState.maxAccel) ? missileState.maxAccel : 0,
+        detonationWeaponTemplateName: missileState.detonationWeaponTemplateName,
+        exhaustSystemTemplateName: missileState.exhaustSystemTemplateName,
+        isTrackingTarget: missileState.isTrackingTarget,
+        prevX: previousPosition.x,
+        prevY: previousPosition.y,
+        prevZ: previousPosition.z,
+        extraBonusFlags: Math.max(0, Math.trunc(missileState.extraBonusFlags)),
+        exhaustIdBytes: missileState.exhaustIdBytes.map((value) => Math.trunc(value) & 0xff),
+        framesTillDecoyed: Math.max(0, Math.trunc(missileState.framesTillDecoyed)),
+        noDamage: missileState.noDamage,
+        isJammed: missileState.isJammed,
+      };
+      return;
+    }
+  }
+
   private findSourceHackInternetPendingCommand(
     data: Uint8Array,
     searchStartOffset: number,
@@ -22533,6 +22715,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceSupplyTruckAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceHackInternetAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceJetAIUpdateModulesToEntity(entity, sourceState);
+    this.applySourceMissileAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceWorkerAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceChinookAIUpdateModulesToEntity(entity, sourceState);
     this.applySourcePOWTruckAIUpdateModulesToEntity(entity, sourceState);

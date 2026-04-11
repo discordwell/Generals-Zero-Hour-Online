@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 42;
+const ENTITY_XFER_VERSION = 43;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -2463,6 +2463,14 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   // ── Jet AI ──
   e.jetAIProfile = xferNullableJsonObject(xfer, e.jetAIProfile as object | null);
   e.jetAIState = xferNullableJsonObject(xfer, e.jetAIState as object | null);
+  if (version >= 43) {
+    e.sourceMissileAIUpdateState = xferNullableJsonObject(
+      xfer,
+      (e.sourceMissileAIUpdateState as object | null | undefined) ?? null,
+    );
+  } else {
+    e.sourceMissileAIUpdateState = null;
+  }
 
   // ── Animation Steering ──
   e.animationSteeringProfile = xferNullableJsonObject(xfer, e.animationSteeringProfile as object | null);

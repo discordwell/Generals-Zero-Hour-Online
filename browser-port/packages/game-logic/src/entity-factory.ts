@@ -816,6 +816,8 @@ export function createMapEntity(self: GL,
     // NeutronMissileUpdate (nuke missile flight)
     neutronMissileUpdateProfile: extractNeutronMissileUpdateProfile(self, objectDef),
     neutronMissileUpdateState: null,
+    // MissileAIUpdate source save tail (homing projectiles)
+    sourceMissileAIUpdateState: null,
     // Special ability
     specialAbilityProfile: extractSpecialAbilityProfile(self, objectDef),
     specialAbilityState: null,
