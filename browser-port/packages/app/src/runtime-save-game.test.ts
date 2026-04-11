@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { XferLoad, XferMode, XferSave, listSaveGameChunks, type Coord3D, type Xfer } from '@generals/engine';
+import {
+  XferLoad,
+  XferMode,
+  XferSave,
+  listSaveGameChunks,
+  parseSaveGameMapInfo,
+  type Coord3D,
+  type Xfer,
+} from '@generals/engine';
 import {
   buildSourceMapEntityChunk,
   createEmptySourceMapEntitySaveState,
@@ -8489,7 +8497,17 @@ describe('runtime-save-game', () => {
           },
           buildList: [],
         }],
-        teams: [],
+        teams: [{
+          dict: {
+            teamName: 'TEAMTHEPLAYER',
+            teamOwner: 'The_Player',
+            teamIsSingleton: 'TRUE',
+            teamMaxInstances: '1',
+            teamProductionPriority: '3',
+            teamHome: 'HOME',
+            teamIsAIRecruitable: 'TRUE',
+          },
+        }],
       },
       objects: [],
       triggers: [{
@@ -8527,6 +8545,7 @@ describe('runtime-save-game', () => {
         zoom: 140,
         pitch: 1,
       },
+      includeBrowserRuntimeCoreState: true,
       inGameUiState: {
         version: 3,
         namedTimerLastFlashFrame: 17,
@@ -9392,6 +9411,7 @@ describe('runtime-save-game', () => {
       mapPath: 'assets/maps/TestMap.json',
       mapData,
       cameraState: null,
+      mapDrawableIdCounter: 1200,
       gameClientState: {
         version: 3,
         prefixBytes: new ArrayBuffer(0),
@@ -9448,6 +9468,7 @@ describe('runtime-save-game', () => {
     });
 
     const parsed = parseRuntimeSaveFile(incomingSave.data);
+    expect(parsed.mapDrawableIdCounter).toBe(1200);
     expect(parsed.gameClientState?.drawables).toEqual([
       expect.objectContaining({
         templateName: 'LegacyAttachedTank',
@@ -9468,6 +9489,7 @@ describe('runtime-save-game', () => {
       cameraState: parsed.cameraState,
       tacticalViewState: parsed.tacticalViewState,
       gameClientState: parsed.gameClientState,
+      mapDrawableIdCounter: parsed.mapDrawableIdCounter,
       gameClientLiveEntityIds: [7],
       renderableEntityStates: [
         {
@@ -9563,6 +9585,7 @@ describe('runtime-save-game', () => {
       drawableIds: [7, 900],
       briefingLines: ['MISSION_ALPHA'],
     });
+    expect(parseSaveGameMapInfo(rebuilt.data).drawableIdCounter).toBe(1200);
   });
 
   it('writes CHUNK_TS_RuntimeState for source GameLogic saves that need the TS core bridge', () => {
@@ -9591,6 +9614,7 @@ describe('runtime-save-game', () => {
         zoom: 180,
         pitch: 1,
       },
+      includeBrowserRuntimeCoreState: true,
       gameLogic: {
         captureSourceTerrainLogicRuntimeSaveState: () => ({
           version: 2,

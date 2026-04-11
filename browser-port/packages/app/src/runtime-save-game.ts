@@ -992,17 +992,28 @@ function resolveTeamNameBySourceId(
 
 function buildSourceTeamIdByNameMap(
   teamFactoryState: GameLogicTeamFactorySaveState | null | undefined,
+  sourcePrototypeNames?: readonly string[] | null,
 ): Map<string, number> {
   const teamsByName = teamFactoryState?.state.scriptTeamsByName;
   const sourceTeamIdByName = new Map<string, number>();
   if (!(teamsByName instanceof Map)) {
     return sourceTeamIdByName;
   }
+  const allowedPrototypeNames = Array.isArray(sourcePrototypeNames)
+    ? new Set(
+        sourcePrototypeNames
+          .map((name) => name.trim().toUpperCase())
+          .filter((name) => name.length > 0),
+      )
+    : null;
   for (const [teamName, team] of teamsByName) {
     if (typeof teamName !== 'string' || !team || typeof team !== 'object') {
       continue;
     }
     const normalizedTeamName = teamName.trim().toUpperCase();
+    if (allowedPrototypeNames !== null && !allowedPrototypeNames.has(normalizedTeamName)) {
+      continue;
+    }
     const sourceTeamId = Number((team as { sourceTeamId?: unknown }).sourceTeamId);
     if (!normalizedTeamName || !Number.isFinite(sourceTeamId)) {
       continue;
@@ -1013,6 +1024,35 @@ function buildSourceTeamIdByNameMap(
     }
   }
   return sourceTeamIdByName;
+}
+
+function readMapTeamName(dict: Record<string, unknown> | null | undefined): string | null {
+  if (!dict || typeof dict !== 'object') {
+    return null;
+  }
+  for (const [key, value] of Object.entries(dict)) {
+    if (key.trim().toLowerCase() !== 'teamname' || typeof value !== 'string') {
+      continue;
+    }
+    const normalized = value.trim().toUpperCase();
+    return normalized.length > 0 ? normalized : null;
+  }
+  return null;
+}
+
+function collectSourceTeamPrototypeNamesFromMapData(mapData: MapDataJSON): string[] {
+  const teams = mapData.sidesList?.teams ?? [];
+  const seen = new Set<string>();
+  const prototypeNames: string[] = [];
+  for (const team of teams) {
+    const teamName = readMapTeamName(team.dict);
+    if (!teamName || seen.has(teamName)) {
+      continue;
+    }
+    seen.add(teamName);
+    prototypeNames.push(teamName);
+  }
+  return prototypeNames;
 }
 
 function resolveScriptNameByEntityId(
@@ -2182,6 +2222,54 @@ function buildGameClientDrawableEntries(
     mergedEntries.push({ kind: 'generated', state: drawable });
   }
   return mergedEntries;
+}
+
+function readRawGameClientDrawableId(blockData: ArrayBuffer): number | null {
+  const xferLoad = new XferLoad(blockData.slice(0));
+  xferLoad.open('read-raw-game-client-drawable-id');
+  try {
+    xferLoad.xferObjectID(0);
+    xferLoad.xferVersion(7);
+    const drawableId = xferLoad.xferUnsignedInt(0);
+    return Number.isFinite(drawableId) && drawableId > 0
+      ? Math.trunc(drawableId)
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function normalizeRuntimeSaveIdCounter(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+  const normalized = Math.trunc(value);
+  return normalized > 0 ? normalized : null;
+}
+
+function resolveRuntimeSaveDrawableIdCounter(
+  objectIdCounter: number,
+  drawables: readonly RuntimeSaveGameClientDrawableEntry[],
+  requestedDrawableIdCounter: number | null | undefined,
+): number {
+  let counter = Math.max(1, normalizeRuntimeSaveIdCounter(objectIdCounter) ?? 1);
+  const requested = normalizeRuntimeSaveIdCounter(requestedDrawableIdCounter);
+  if (requested !== null) {
+    counter = Math.max(counter, requested);
+  }
+
+  for (const drawable of drawables) {
+    const drawableId = drawable.kind === 'generated'
+      ? normalizeRuntimeSaveIdCounter(drawable.state.drawableId)
+      : readRawGameClientDrawableId(drawable.state.blockData);
+    if (drawableId !== null) {
+      counter = Math.max(counter, drawableId + 1);
+    }
+  }
+
+  return counter;
 }
 
 class DrawableSnapshot implements Snapshot {
@@ -19911,12 +19999,16 @@ function createGeneratedSourceObjectStateFromLiveEntity(
 
   const sourceState = createEmptySourceMapEntitySaveState();
   sourceState.objectId = Math.trunc(entity.id);
-  sourceState.teamId = resolveGeneratedSourceObjectTeamId(entity, sourceTeamIdByName, fallbackTeamId);
+  const sourceTeamNameUpper = entity.sourceTeamNameUpper?.trim().toUpperCase() ?? '';
+  const hasSourceTeam = sourceTeamNameUpper.length > 0 && sourceTeamIdByName.has(sourceTeamNameUpper);
+  sourceState.teamId = hasSourceTeam
+    ? resolveGeneratedSourceObjectTeamId(entity, sourceTeamIdByName, fallbackTeamId)
+    : fallbackTeamId;
   const drawableId = (entity as unknown as { drawableId?: number }).drawableId;
   sourceState.drawableId = Number.isFinite(drawableId) && (drawableId ?? 0) > 0
     ? Math.trunc(drawableId ?? 0)
     : sourceState.objectId;
-  sourceState.originalTeamName = entity.sourceTeamNameUpper?.trim().toUpperCase() ?? '';
+  sourceState.originalTeamName = hasSourceTeam ? sourceTeamNameUpper : '';
   sourceState.geometryInfo = buildSourceGeometryInfoFromLiveEntity(entity, sourceState.geometryInfo);
   sourceState.modulesReady = true;
   sourceState.modules = buildGeneratedSourceObjectModulesFromDescriptors(
@@ -23652,6 +23744,9 @@ export function buildRuntimeSaveFile(params: {
   sourceGameMode?: number;
   campaign?: RuntimeSaveCampaignBootstrap | null;
   passthroughBlocks?: readonly RuntimeSavePassthroughBlock[];
+  mapDrawableIdCounter?: number | null;
+  browserRuntimeState?: unknown;
+  includeBrowserRuntimeCoreState?: boolean;
 }): {
   data: ArrayBuffer;
   metadata: {
@@ -23661,7 +23756,9 @@ export function buildRuntimeSaveFile(params: {
     sizeBytes: number;
   };
 } {
-  const browserGameLogicState = params.gameLogic.captureBrowserRuntimeSaveState();
+  const browserGameLogicState = params.browserRuntimeState === undefined
+    ? params.gameLogic.captureBrowserRuntimeSaveState()
+    : params.browserRuntimeState;
   const tacticalViewPayload = params.tacticalViewState
     ?? buildTacticalViewSaveState(params.cameraState);
   const terrainLogicPayload = params.gameLogic.captureSourceTerrainLogicRuntimeSaveState();
@@ -23709,11 +23806,13 @@ export function buildRuntimeSaveFile(params: {
   );
   const orderedPassthroughBlocks = orderPassthroughBlocks(params.passthroughBlocks);
   const hasSourceGameLogicPassthrough = hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GAME_LOGIC_BLOCK);
+  const includeBrowserRuntimeCoreState = params.includeBrowserRuntimeCoreState === true
+    && !hasSourceGameLogicPassthrough;
   const runtimePayload: BrowserRuntimeSavePayload = {
     version: BROWSER_RUNTIME_STATE_VERSION,
     cameraState: buildBrowserRuntimeCameraSaveState(params.cameraState),
     gameLogicState: browserGameLogicState,
-    gameLogicCoreState: hasSourceGameLogicPassthrough ? null : gameLogicPayload,
+    gameLogicCoreState: includeBrowserRuntimeCoreState ? gameLogicPayload : null,
   };
   const mergedGameClientBriefingLines = mergeBriefingLines(
     params.gameClientState?.briefingLines ?? [],
@@ -23726,6 +23825,12 @@ export function buildRuntimeSaveFile(params: {
   const resolvedChallengeGameInfoState = resolveChallengeGameInfoState(
     params.campaign,
     gameLogicPayload.gameRandomSeed,
+  );
+  const objectIdCounter = params.gameLogic.getObjectIdCounter();
+  const drawableIdCounter = resolveRuntimeSaveDrawableIdCounter(
+    objectIdCounter,
+    gameClientDrawableEntries,
+    params.mapDrawableIdCounter,
   );
 
   const metadataState = createMetadataState(params.description, params.mapPath);
@@ -23745,17 +23850,19 @@ export function buildRuntimeSaveFile(params: {
     pristineMapPath: params.mapPath ?? '',
     gameMode: params.sourceGameMode ?? SOURCE_GAME_MODE_SINGLE_PLAYER,
     embeddedMapBytes: params.embeddedMapBytes ?? encodeJsonBytes(params.mapData),
-    objectIdCounter: params.gameLogic.getObjectIdCounter(),
-    drawableIdCounter: params.gameLogic.getObjectIdCounter(),
+    objectIdCounter,
+    drawableIdCounter,
   };
 
   const state = new GameState();
+  const sourceTeamPrototypeNames = collectSourceTeamPrototypeNamesFromMapData(params.mapData);
   const teamFactoryChunk = buildSourceTeamFactoryChunk(
     teamFactoryPayload,
     playerPayload,
     sidesListPayload,
+    sourceTeamPrototypeNames,
   );
-  const sourceTeamIdByName = buildSourceTeamIdByNameMap(teamFactoryPayload);
+  const sourceTeamIdByName = buildSourceTeamIdByNameMap(teamFactoryPayload, sourceTeamPrototypeNames);
   state.addSnapshotBlock('CHUNK_GameState', new MetadataSnapshot(metadataState));
   state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, new CampaignSnapshot(campaignState));
   state.addSnapshotBlock('CHUNK_GameStateMap', new MapSnapshot(mapState));
@@ -23924,7 +24031,7 @@ export function buildRuntimeSaveFile(params: {
   }
   if (
     shouldWriteBrowserRuntimeStateBlock(browserGameLogicState)
-    || runtimePayload.gameLogicCoreState !== null
+    || includeBrowserRuntimeCoreState
   ) {
     state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, new BrowserRuntimeSnapshot(runtimePayload));
   }
@@ -24010,6 +24117,15 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     ? parseSourceGameLogicChunkState(gameLogicChunk)
     : null;
   const sourceGameLogicPrototypeNames = collectSourceGameLogicPrototypeNames(sourceGameLogicState);
+  const sourceMapTeamPrototypeNames = mapData
+    ? collectSourceTeamPrototypeNamesFromMapData(mapData)
+    : [];
+  const sourceTeamFactoryPrototypeNames = [
+    ...sourceMapTeamPrototypeNames,
+    ...sourceGameLogicPrototypeNames.filter(
+      (name) => !sourceMapTeamPrototypeNames.includes(name),
+    ),
+  ];
   const sourceGameLogicImportState = buildSourceGameLogicImportSaveState(
     sourceGameLogicState,
     mapInfo.objectIdCounter,
@@ -24037,7 +24153,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
                 resolvedPlayersState,
                 sidesListState,
                 gameLogicCoreState,
-                sourceGameLogicPrototypeNames,
+                sourceTeamFactoryPrototypeNames,
               );
             } catch {
               return null;

@@ -175,6 +175,23 @@ function getPrototypeOrder(state: GameLogicTeamFactorySaveState): string[] {
   return ordered;
 }
 
+function normalizePrototypeNames(names: readonly string[] | null | undefined): string[] | null {
+  if (!Array.isArray(names)) {
+    return null;
+  }
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const name of names) {
+    const normalized = name.trim().toUpperCase();
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    ordered.push(normalized);
+  }
+  return ordered;
+}
+
 function getActualTeamInstancesForPrototype(
   state: GameLogicTeamFactorySaveState,
   prototypeNameUpper: string,
@@ -434,8 +451,9 @@ class SourceTeamFactorySnapshot implements Snapshot {
 
     const teamMap = getTeamMap(this.state);
     const instanceMap = getInstanceMap(this.state);
-    const prototypeOrder = getPrototypeOrder(this.state);
-    if (prototypeOrder.length === 0) {
+    const explicitPrototypeOrder = normalizePrototypeNames(this.sourcePrototypeNames);
+    const prototypeOrder = explicitPrototypeOrder ?? getPrototypeOrder(this.state);
+    if (explicitPrototypeOrder === null && prototypeOrder.length === 0) {
       const defaultTeamNameBySide = this.sidesListState?.state.scriptDefaultTeamNameBySide;
       if (defaultTeamNameBySide instanceof Map) {
         for (const teamName of defaultTeamNameBySide.values()) {
@@ -453,7 +471,7 @@ class SourceTeamFactorySnapshot implements Snapshot {
         }
       }
     }
-    if (prototypeOrder.length === 0 && this.coreState) {
+    if (explicitPrototypeOrder === null && prototypeOrder.length === 0 && this.coreState) {
       for (const entity of this.coreState.spawnedEntities) {
         const sourceTeamNameUpper = entity.sourceTeamNameUpper?.trim().toUpperCase()
           || entity.controllingPlayerToken?.trim().toUpperCase()
@@ -470,7 +488,7 @@ class SourceTeamFactorySnapshot implements Snapshot {
         }
       }
     }
-    if (prototypeOrder.length === 0 && Array.isArray(this.sourcePrototypeNames)) {
+    if (explicitPrototypeOrder === null && prototypeOrder.length === 0 && Array.isArray(this.sourcePrototypeNames)) {
       for (const sourcePrototypeName of this.sourcePrototypeNames) {
         const prototypeNameUpper = sourcePrototypeName.trim().toUpperCase();
         if (!prototypeNameUpper || prototypeOrder.includes(prototypeNameUpper)) {
@@ -541,10 +559,17 @@ export function buildSourceTeamFactoryChunk(
   teamFactoryState: GameLogicTeamFactorySaveState,
   playerState: GameLogicPlayersSaveState | null | undefined,
   sidesListState: GameLogicSidesListSaveState | null | undefined,
+  sourcePrototypeNames?: readonly string[] | null | undefined,
 ): Uint8Array {
   const saver = new XferSave();
   saver.open('source-team-factory');
-  saver.xferSnapshot(new SourceTeamFactorySnapshot(teamFactoryState, playerState, sidesListState, null, null));
+  saver.xferSnapshot(new SourceTeamFactorySnapshot(
+    teamFactoryState,
+    playerState,
+    sidesListState,
+    null,
+    sourcePrototypeNames,
+  ));
   saver.close();
   return new Uint8Array(saver.getBuffer());
 }
