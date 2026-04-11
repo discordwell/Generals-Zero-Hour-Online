@@ -375,6 +375,23 @@ function createSourceFireWeaponWhenDeadBehaviorBlockData(upgradeExecuted: boolea
   }
 }
 
+function createSourceUpgradeModuleBlockData(upgradeExecuted: boolean): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-upgrade-module');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferBool(upgradeExecuted);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceGrantStealthBehaviorBlockData(
   nextCallFrameAndPhase: number,
   radiusParticleSystemId: number,
@@ -4850,6 +4867,24 @@ function parseSourceFireWeaponWhenDeadBehaviorBlockData(data: Uint8Array) {
   const xferLoad = new XferLoad(data.slice().buffer);
   xferLoad.open('parse-source-fire-weapon-when-dead-behavior');
   try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      upgradeExecuted: xferLoad.xferBool(false),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceUpgradeModuleBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-upgrade-module');
+  try {
+    xferLoad.xferVersion(1);
     xferLoad.xferVersion(1);
     xferLoad.xferVersion(1);
     xferLoad.xferVersion(1);
@@ -9820,6 +9855,101 @@ describe('runtime-save-game', () => {
 
     expect(module).toBeDefined();
     expect(parseSourceFireWeaponWhenDeadBehaviorBlockData(module!.blockData)).toEqual({
+      upgradeExecuted: true,
+    });
+  });
+
+  it('rewrites source UpgradeModule mux state from live executed module state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_StatusUpgrade',
+      blockData: createSourceUpgradeModuleBlockData(false),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source upgrade module rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            executedUpgradeModules: new Set(['upgrade-module-1']),
+            upgradeModules: [{
+              id: 'upgrade-module-1',
+              moduleTag: 'MODULETAG_STATUSUPGRADE',
+              moduleType: 'STATUSBITSUPGRADE',
+            }],
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_StatusUpgrade'
+            ? 'STATUSBITSUPGRADE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const module = firstObject?.modules.find((item) => item.identifier === 'ModuleTag_StatusUpgrade');
+
+    expect(module).toBeDefined();
+    expect(parseSourceUpgradeModuleBlockData(module!.blockData)).toEqual({
       upgradeExecuted: true,
     });
   });

@@ -179,6 +179,12 @@ function makeSourceOwnedCoreBundle() {
           BonusRange: 100,
         }),
       ]),
+      makeObjectDef('UpgradeMuxObject', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'StatusBitsUpgrade ModuleTag_StatusUpgrade', {
+          TriggeredBy: 'Upgrade_A',
+          StatusToSet: 'CAN_ATTACK',
+        }),
+      ]),
       makeObjectDef('CollideFireObject', 'GLA', ['STRUCTURE'], [
         makeBlock('Behavior', 'FireWeaponCollide ModuleTag_CollideFire', {
           CollideWeapon: 'CollideFireWeapon',
@@ -3417,6 +3423,25 @@ function buildSourceFireSpreadUpdateModuleData(options: {
     saver.xferVersion(1);
     saver.xferVersion(1);
     saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceUpgradeModuleData(options: {
+  upgradeExecuted: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-upgrade-module');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferBool(options.upgradeExecuted);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -7458,6 +7483,48 @@ describe('source-owned game-logic core save-state', () => {
     };
 
     expect(privateLogic.spawnedEntities.get(109)!.fireSpreadNextFrame).toBe(300);
+  });
+
+  it('imports source UpgradeModule mux execution state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 113;
+    sourceState.position = { x: 187, y: 0, z: 64 };
+    sourceState.completedUpgradeNames = ['Upgrade_A'];
+    sourceState.modules = [{
+      identifier: 'ModuleTag_StatusUpgrade',
+      blockData: buildSourceUpgradeModuleData({
+        upgradeExecuted: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 180,
+      objects: [
+        { templateName: 'UpgradeMuxObject', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        executedUpgradeModules: Set<string>;
+        upgradeModules: Array<{ id: string; moduleTag: string; moduleType: string }>;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(113)!;
+    const upgradeModule = entity.upgradeModules.find((module) => module.moduleTag === 'MODULETAG_STATUSUPGRADE')!;
+    expect(upgradeModule.moduleType).toBe('STATUSBITSUPGRADE');
+    expect(entity.executedUpgradeModules.has(upgradeModule.id)).toBe(true);
   });
 
   it('imports source FlammableUpdate runtime state', () => {

@@ -2254,6 +2254,7 @@ interface SpecialAbilityRuntimeState {
 
 interface UpgradeModuleProfile {
   id: string;
+  moduleTag: string;
   moduleType:
     | 'LOCOMOTORSETUPGRADE'
     | 'MAXHEALTHUPGRADE'
@@ -13610,6 +13611,34 @@ export class GameLogicSubsystem implements Subsystem {
     entity.leechRangeActive = weapon.leechWeaponRangeActive;
   }
 
+  private applySourceUpgradeModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const upgradeState = this.tryParseSourceUpgradeModuleImportState(module.blockData, moduleType);
+      if (!upgradeState) {
+        continue;
+      }
+      const liveModule = this.findSourceUpgradeModuleByTag(entity, moduleType, module.identifier);
+      if (!liveModule) {
+        continue;
+      }
+      if (upgradeState.upgradeExecuted) {
+        entity.executedUpgradeModules.add(liveModule.id);
+      } else {
+        entity.executedUpgradeModules.delete(liveModule.id);
+      }
+    }
+  }
+
   private sourceModuleBlockDataBuffer(data: Uint8Array): ArrayBuffer {
     const copy = new Uint8Array(data.byteLength);
     copy.set(data);
@@ -13754,6 +13783,88 @@ export class GameLogicSubsystem implements Subsystem {
     if (behaviorModuleVersion !== 1 || objectModuleVersion !== 1 || moduleVersion !== 1) {
       throw new Error('Unsupported source BehaviorModule import base version.');
     }
+  }
+
+  private isSourceUpgradeModuleType(moduleType: string): boolean {
+    switch (moduleType.trim().toUpperCase()) {
+      case 'LOCOMOTORSETUPGRADE':
+      case 'MAXHEALTHUPGRADE':
+      case 'ARMORUPGRADE':
+      case 'WEAPONSETUPGRADE':
+      case 'COMMANDSETUPGRADE':
+      case 'STATUSBITSUPGRADE':
+      case 'STEALTHUPGRADE':
+      case 'WEAPONBONUSUPGRADE':
+      case 'COSTMODIFIERUPGRADE':
+      case 'GRANTSCIENCEUPGRADE':
+      case 'POWERPLANTUPGRADE':
+      case 'RADARUPGRADE':
+      case 'PASSENGERSFIREUPGRADE':
+      case 'UNPAUSESPECIALPOWERUPGRADE':
+      case 'EXPERIENCESCALARUPGRADE':
+      case 'MODELCONDITIONUPGRADE':
+      case 'OBJECTCREATIONUPGRADE':
+      case 'ACTIVESHROUDUPGRADE':
+      case 'REPLACEOBJECTUPGRADE':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  private tryParseSourceUpgradeModuleImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): { upgradeExecuted: boolean } | null {
+    if (!this.isSourceUpgradeModuleType(moduleType)) {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-upgrade-module-import');
+    try {
+      const derivedVersion = xfer.xferVersion(1);
+      if (derivedVersion !== 1) {
+        return null;
+      }
+      const upgradeModuleVersion = xfer.xferVersion(1);
+      if (upgradeModuleVersion !== 1) {
+        return null;
+      }
+      this.skipSourceImportBehaviorModuleBase(xfer);
+      const upgradeMuxVersion = xfer.xferVersion(1);
+      if (upgradeMuxVersion !== 1) {
+        return null;
+      }
+      const upgradeExecuted = xfer.xferBool(false);
+      return xfer.getRemaining() === 0 ? { upgradeExecuted } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private findSourceUpgradeModuleByTag(
+    entity: MapEntity,
+    moduleType: string,
+    moduleTag: string,
+  ): UpgradeModuleProfile | null {
+    const normalizedType = moduleType.trim().toUpperCase();
+    const normalizedTag = this.normalizeSourceObjectModuleTag(moduleTag);
+    const matches = entity.upgradeModules.filter((module) => module.moduleType === normalizedType);
+    if (matches.length === 0) {
+      return null;
+    }
+    if (normalizedTag) {
+      const tagMatches = matches.filter(
+        (module) => this.normalizeSourceObjectModuleTag(module.moduleTag) === normalizedTag,
+      );
+      if (tagMatches.length === 1) {
+        return tagMatches[0]!;
+      }
+    }
+    return matches.length === 1 ? matches[0]! : null;
   }
 
   private sourceImportUpdateFrameFromFrameAndPhase(value: number): number {
@@ -20750,6 +20861,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceStatusBitsToEntity(entity, sourceState);
     this.applySourceDisabledFramesToEntity(entity, sourceState);
     this.applySourceWeaponStateToEntity(entity, sourceState);
+    this.applySourceUpgradeModulesToEntity(entity, sourceState);
     this.applySourceBodyModulesToEntity(entity, sourceState);
     this.applySourceProductionModulesToEntity(entity, sourceState);
     this.applySourceProductionExitModulesToEntity(entity, sourceState);

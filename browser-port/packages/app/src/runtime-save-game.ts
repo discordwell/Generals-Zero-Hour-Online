@@ -113,6 +113,27 @@ const SOURCE_DERIVED_SPECIAL_POWER_MODULE_TYPES = new Set([
   'SPECIALABILITY',
   'SPYVISIONSPECIALPOWER',
 ]);
+const SOURCE_UPGRADE_MODULE_TYPES = new Set([
+  'LOCOMOTORSETUPGRADE',
+  'MAXHEALTHUPGRADE',
+  'ARMORUPGRADE',
+  'WEAPONSETUPGRADE',
+  'COMMANDSETUPGRADE',
+  'STATUSBITSUPGRADE',
+  'STEALTHUPGRADE',
+  'WEAPONBONUSUPGRADE',
+  'COSTMODIFIERUPGRADE',
+  'GRANTSCIENCEUPGRADE',
+  'POWERPLANTUPGRADE',
+  'RADARUPGRADE',
+  'PASSENGERSFIREUPGRADE',
+  'UNPAUSESPECIALPOWERUPGRADE',
+  'EXPERIENCESCALARUPGRADE',
+  'MODELCONDITIONUPGRADE',
+  'OBJECTCREATIONUPGRADE',
+  'ACTIVESHROUDUPGRADE',
+  'REPLACEOBJECTUPGRADE',
+]);
 const SOURCE_OPEN_CONTAIN_MAX_FIRE_POINTS = 32;
 const SOURCE_MATRIX3D_BYTE_LENGTH = 48;
 const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH =
@@ -248,6 +269,7 @@ interface SourceObjectModuleSaveState {
 }
 
 type LiveSpecialPowerModuleProfile = MapEntity['specialPowerModules'] extends Map<string, infer T> ? T : never;
+type LiveUpgradeModuleProfile = MapEntity['upgradeModules'] extends Array<infer T> ? T : never;
 
 const SOURCE_SCRIPT_STATUS_BITS_BY_NAME = new Map<string, number>([
   ['SCRIPT_DISABLED', SOURCE_SCRIPT_STATUS_DISABLED],
@@ -8888,12 +8910,88 @@ function isSourceSpecialPowerModuleType(moduleType: string): boolean {
   return SOURCE_DERIVED_SPECIAL_POWER_MODULE_TYPES.has(normalizeSourceObjectModuleType(moduleType));
 }
 
+function isSourceUpgradeModuleType(moduleType: string): boolean {
+  return SOURCE_UPGRADE_MODULE_TYPES.has(normalizeSourceObjectModuleType(moduleType));
+}
+
 function xferSourceBehaviorModuleBase(xfer: Xfer): void {
   const behaviorVersion = xfer.xferVersion(1);
   const objectModuleVersion = xfer.xferVersion(1);
   const moduleVersion = xfer.xferVersion(1);
   if (behaviorVersion !== 1 || objectModuleVersion !== 1 || moduleVersion !== 1) {
     throw new Error('Unsupported source BehaviorModule base version');
+  }
+}
+
+function tryParseSourceUpgradeModuleBlockData(
+  data: Uint8Array,
+  moduleType: string,
+): { upgradeExecuted: boolean } | null {
+  if (!isSourceUpgradeModuleType(moduleType)) {
+    return null;
+  }
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-upgrade-module');
+  try {
+    const derivedVersion = xferLoad.xferVersion(1);
+    if (derivedVersion !== 1) {
+      return null;
+    }
+    const upgradeModuleVersion = xferLoad.xferVersion(1);
+    if (upgradeModuleVersion !== 1) {
+      return null;
+    }
+    xferSourceBehaviorModuleBase(xferLoad);
+    const upgradeMuxVersion = xferLoad.xferVersion(1);
+    if (upgradeMuxVersion !== 1) {
+      return null;
+    }
+    const upgradeExecuted = xferLoad.xferBool(false);
+    return xferLoad.getRemaining() === 0 ? { upgradeExecuted } : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function findLiveSourceUpgradeModule(
+  entity: MapEntity,
+  moduleType: string,
+  moduleTag: string,
+): LiveUpgradeModuleProfile | null {
+  const normalizedModuleType = normalizeSourceObjectModuleType(moduleType);
+  const normalizedModuleTag = normalizeSourceObjectModuleTag(moduleTag);
+  const upgradeModules = Array.isArray(entity.upgradeModules) ? entity.upgradeModules : [];
+  const matches = upgradeModules.filter(
+    (module) => normalizeSourceObjectModuleType(module.moduleType) === normalizedModuleType,
+  );
+  if (matches.length === 0) {
+    return null;
+  }
+  if (normalizedModuleTag) {
+    const tagMatches = matches.filter(
+      (module) => normalizeSourceObjectModuleTag(module.moduleTag) === normalizedModuleTag,
+    );
+    if (tagMatches.length === 1) {
+      return tagMatches[0]!;
+    }
+  }
+  return matches.length === 1 ? matches[0]! : null;
+}
+
+function buildSourceUpgradeModuleBlockData(upgradeExecuted: boolean): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-upgrade-module');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    xferSourceBehaviorModuleBase(saver);
+    saver.xferVersion(1);
+    saver.xferBool(upgradeExecuted);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
   }
 }
 
@@ -11967,6 +12065,19 @@ function overlaySourceObjectModulesFromLiveEntity(
                 parsedContainState,
               ),
             };
+          }
+          const parsedUpgradeModuleState = tryParseSourceUpgradeModuleBlockData(module.blockData, moduleType);
+          if (parsedUpgradeModuleState) {
+            const liveUpgradeModule = findLiveSourceUpgradeModule(entity, moduleType, module.identifier);
+            if (liveUpgradeModule) {
+              const upgradeExecuted = entity.executedUpgradeModules instanceof Set
+                ? entity.executedUpgradeModules.has(liveUpgradeModule.id)
+                : parsedUpgradeModuleState.upgradeExecuted;
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceUpgradeModuleBlockData(upgradeExecuted),
+              };
+            }
           }
           if (moduleType === 'AUTOHEALBEHAVIOR' && entity.autoHealProfile) {
             const parsedSourceState = tryParseSourceAutoHealBehaviorBlockData(module.blockData);

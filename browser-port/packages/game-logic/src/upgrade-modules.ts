@@ -10,6 +10,7 @@ export type ParsedMaxHealthChangeTypeName = 'SAME_CURRENTHEALTH' | 'PRESERVE_RAT
 
 export interface ParsedUpgradeModuleProfile {
   id: string;
+  moduleTag: string;
   moduleType:
     | 'LOCOMOTORSETUPGRADE'
     | 'MAXHEALTHUPGRADE'
@@ -118,8 +119,10 @@ export function extractUpgradeModulesFromBlocks(
 
   const visitBlock = (block: IniBlock): void => {
     if (block.type.toUpperCase() === 'BEHAVIOR') {
-      const moduleType = asSupportedUpgradeModuleType(block.name.split(/\s+/)[0]?.toUpperCase() ?? '');
+      const blockNameTokens = block.name.split(/\s+/).map((token) => token.trim()).filter(Boolean);
+      const moduleType = asSupportedUpgradeModuleType(blockNameTokens[0]?.toUpperCase() ?? '');
       if (moduleType !== null) {
+        const moduleTag = blockNameTokens[1]?.toUpperCase() ?? '';
         const triggeredBy = new Set(helpers.parseUpgradeNames(block.fields['TriggeredBy']));
         const conflictsWith = new Set(helpers.parseUpgradeNames(block.fields['ConflictsWith']));
         const removesUpgrades = new Set(helpers.parseUpgradeNames(block.fields['RemovesUpgrades']));
@@ -186,6 +189,7 @@ export function extractUpgradeModulesFromBlocks(
         index += 1;
         modules.push({
           id: moduleId,
+          moduleTag,
           moduleType,
           sourceUpgradeName,
           triggeredBy,
