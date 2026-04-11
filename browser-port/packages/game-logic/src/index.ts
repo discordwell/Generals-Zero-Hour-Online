@@ -6649,6 +6649,8 @@ interface GrantStealthProfile {
  * C++ file: TechBuildingBehavior.cpp.
  */
 interface TechBuildingBehaviorProfile {
+  /** Source parity: PulseFX pointer presence controls whether captured tech buildings wake for pulse FX. */
+  hasPulseFX: boolean;
   /** Source parity: PulseFXRate — visual-only (timer interval for FX pulse). */
   pulseFXRateFrames: number;
 }

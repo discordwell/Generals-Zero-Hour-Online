@@ -5216,6 +5216,7 @@ export function extractTechBuildingProfile(self: GL, objectDef: ObjectDef | unde
     const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
     if (moduleType !== 'TECHBUILDINGBEHAVIOR') return;
     profile = {
+      hasPulseFX: Boolean((readStringField(block.fields, ['PulseFX']) ?? '').trim()),
       pulseFXRateFrames: self.msToLogicFrames(readNumericField(block.fields, ['PulseFXRate']) ?? 0),
     };
   };

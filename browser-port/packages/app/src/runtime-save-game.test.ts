@@ -5056,6 +5056,25 @@ function parseSourceTensileFormationUpdateBlockData(data: Uint8Array) {
   }
 }
 
+function parseSourceBaseOnlyUpdateModuleBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-base-only-update-module');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const parsed = {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+    };
+    expect(xferLoad.getRemaining()).toBe(0);
+    return parsed;
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function parseSourceSpectreGunshipDeploymentUpdateBlockData(data: Uint8Array) {
   const xferLoad = new XferLoad(data.slice().buffer);
   xferLoad.open('parse-source-spectre-gunship-deployment-update');
@@ -12791,6 +12810,133 @@ describe('runtime-save-game', () => {
       lateralSpeed: 1.5,
       verticalSpeed: 2.5,
       targetPos: { x: 110, y: 111, z: 112 },
+    });
+  });
+
+  it('rewrites source base-only update behavior modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_TechBuilding',
+      blockData: createSourceBaseOnlyUpdateModuleBlockData((84 << 2) | 2),
+    }, {
+      identifier: 'ModuleTag_BunkerBuster',
+      blockData: createSourceBaseOnlyUpdateModuleBlockData((85 << 2) | 2),
+    }, {
+      identifier: 'ModuleTag_NeutronBlast',
+      blockData: createSourceBaseOnlyUpdateModuleBlockData((86 << 2) | 2),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source base-only update behavior rewrite',
+      mapPath: 'Maps/RuntimeBaseOnlyBehaviors/RuntimeBaseOnlyBehaviors.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeBaseOnlyBehaviors',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            modelConditionFlags: new Set(['CAPTURED']),
+            techBuildingProfile: {
+              hasPulseFX: true,
+              pulseFXRateFrames: 7,
+            },
+            bunkerBusterProfile: {
+              upgradeRequired: '',
+              occupantDamageWeaponName: '',
+              shockwaveWeaponName: '',
+            },
+            neutronBlastProfile: {
+              blastRadius: 10,
+              affectAirborne: true,
+              affectAllies: true,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName !== 'RuntimeTank') {
+            return null;
+          }
+          switch (moduleTag) {
+            case 'ModuleTag_TechBuilding': return 'TECHBUILDINGBEHAVIOR';
+            case 'ModuleTag_BunkerBuster': return 'BUNKERBUSTERBEHAVIOR';
+            case 'ModuleTag_NeutronBlast': return 'NEUTRONBLASTBEHAVIOR';
+            default: return null;
+          }
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const techModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_TechBuilding');
+    const bunkerModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_BunkerBuster');
+    const neutronModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_NeutronBlast');
+
+    expect(techModule).toBeDefined();
+    expect(parseSourceBaseOnlyUpdateModuleBlockData(techModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (49 << 2) | 2,
+    });
+    expect(bunkerModule).toBeDefined();
+    expect(parseSourceBaseOnlyUpdateModuleBlockData(bunkerModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+    });
+    expect(neutronModule).toBeDefined();
+    expect(parseSourceBaseOnlyUpdateModuleBlockData(neutronModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: 0xfffffffe,
     });
   });
 

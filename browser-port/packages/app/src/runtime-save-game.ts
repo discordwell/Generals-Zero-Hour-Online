@@ -5937,6 +5937,10 @@ interface SourceBridgeScaffoldBehaviorBlockState {
   targetPos: Coord3D;
 }
 
+interface SourceBaseOnlyUpdateModuleBlockState {
+  nextCallFrameAndPhase: number;
+}
+
 interface SourceSlowDeathBehaviorBlockState {
   nextCallFrameAndPhase: number;
   sinkFrame: number;
@@ -6889,6 +6893,56 @@ function buildSourceBridgeScaffoldBehaviorBlockData(
   } finally {
     saver.close();
   }
+}
+
+function tryParseSourceBaseOnlyUpdateModuleBlockData(
+  data: Uint8Array,
+  label: string,
+): SourceBaseOnlyUpdateModuleBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open(`parse-source-${label}`);
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(
+      xferLoad,
+      buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    );
+    return xferLoad.getRemaining() === 0 ? { nextCallFrameAndPhase } : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceBaseOnlyUpdateModuleBlockData(
+  label: string,
+  nextCallFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open(`build-source-${label}`);
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
+    ));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function sourceTechBuildingNextWakeFrame(entity: MapEntity, currentFrame: number): number {
+  const profile = entity.techBuildingProfile;
+  const modelConditionFlags = entity.modelConditionFlags;
+  const captured = modelConditionFlags instanceof Set && modelConditionFlags.has('CAPTURED');
+  if (profile?.hasPulseFX === true && profile.pulseFXRateFrames > 0 && captured) {
+    return currentFrame + Math.max(1, Math.trunc(profile.pulseFXRateFrames));
+  }
+  return SOURCE_FRAME_FOREVER;
 }
 
 function createDefaultSourceSlowDeathBehaviorBlockState(): SourceSlowDeathBehaviorBlockState {
@@ -12127,6 +12181,51 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceBridgeScaffoldBehaviorBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'TECHBUILDINGBEHAVIOR' && entity.techBuildingProfile) {
+            const parsedSourceState = tryParseSourceBaseOnlyUpdateModuleBlockData(
+              module.blockData,
+              'tech-building-behavior',
+            );
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceBaseOnlyUpdateModuleBlockData(
+                  'tech-building-behavior',
+                  sourceTechBuildingNextWakeFrame(entity, currentFrame),
+                ),
+              };
+            }
+          }
+          if (moduleType === 'BUNKERBUSTERBEHAVIOR' && entity.bunkerBusterProfile) {
+            const parsedSourceState = tryParseSourceBaseOnlyUpdateModuleBlockData(
+              module.blockData,
+              'bunker-buster-behavior',
+            );
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceBaseOnlyUpdateModuleBlockData(
+                  'bunker-buster-behavior',
+                  currentFrame + 1,
+                ),
+              };
+            }
+          }
+          if (moduleType === 'NEUTRONBLASTBEHAVIOR' && entity.neutronBlastProfile) {
+            const parsedSourceState = tryParseSourceBaseOnlyUpdateModuleBlockData(
+              module.blockData,
+              'neutron-blast-behavior',
+            );
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceBaseOnlyUpdateModuleBlockData(
+                  'neutron-blast-behavior',
+                  SOURCE_FRAME_FOREVER,
+                ),
               };
             }
           }
