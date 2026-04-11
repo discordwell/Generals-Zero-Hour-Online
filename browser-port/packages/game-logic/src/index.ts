@@ -5341,6 +5341,13 @@ interface SideBattlePlanBonuses {
   bombardmentCount: number;
   holdTheLineCount: number;
   searchAndDestroyCount: number;
+  armorScalar?: number;
+  sightRangeScalar?: number;
+  bombardment?: number;
+  holdTheLine?: number;
+  searchAndDestroy?: number;
+  validKindOf?: string[];
+  invalidKindOf?: string[];
 }
 
 /**

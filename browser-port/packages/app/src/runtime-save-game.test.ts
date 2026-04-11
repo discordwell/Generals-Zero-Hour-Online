@@ -14768,6 +14768,79 @@ describe('runtime-save-game', () => {
       ]);
   });
 
+  it('round-trips source player hunt, attacked-by, and battle-plan bonus fields', () => {
+    const mapData = {
+      ...createTinyRuntimeMapData(),
+      sidesList: {
+        sides: [{
+          dict: {
+            playerName: 'America',
+            playerFaction: 'America',
+          },
+          buildList: [],
+        }, {
+          dict: {
+            playerName: 'GLA',
+            playerFaction: 'GLA',
+          },
+          buildList: [],
+        }],
+        teams: [],
+      },
+    };
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source Player Runtime Fields',
+      mapPath: 'assets/maps/SourcePlayerRuntimeFields.json',
+      mapData,
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic([], {
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            playerSideByIndex: new Map([[0, 'America'], [1, 'GLA']]),
+            sidePlayerIndex: new Map([['America', 0], ['GLA', 1]]),
+            sideAttackedBy: new Map([
+              ['America', new Set(['GLA'])],
+            ]),
+            scriptSidesUnitsShouldHunt: new Set(['America']),
+            sideBattlePlanBonuses: new Map([
+              ['America', {
+                armorScalar: 1.25,
+                sightRangeScalar: 0.75,
+                bombardment: 3,
+                holdTheLine: 4,
+                searchAndDestroy: 5,
+                validKindOf: ['INFANTRY'],
+                invalidKindOf: ['VEHICLE'],
+                bombardmentCount: 6,
+                holdTheLineCount: 7,
+                searchAndDestroyCount: 8,
+              }],
+            ]),
+          },
+        }),
+      }),
+    });
+
+    const parsedState = parseRuntimeSaveFile(saveFile.data).gameLogicPlayersState?.state;
+    expect([...(parsedState?.sideAttackedBy as Map<string, Set<string>>).get('America')!])
+      .toEqual(['GLA']);
+    expect((parsedState?.scriptSidesUnitsShouldHunt as Set<string>).has('America')).toBe(true);
+    expect((parsedState?.sideBattlePlanBonuses as Map<string, Record<string, unknown>>).get('America'))
+      .toEqual({
+        armorScalar: 1.25,
+        sightRangeScalar: 0.75,
+        bombardment: 3,
+        holdTheLine: 4,
+        searchAndDestroy: 5,
+        validKindOf: ['INFANTRY'],
+        invalidKindOf: ['VEHICLE'],
+        bombardmentCount: 6,
+        holdTheLineCount: 7,
+        searchAndDestroyCount: 8,
+      });
+  });
+
   it('overlays live source Object::xfer status, disable, experience, and weapon fields on resave', () => {
     const sourceGameLogicBytes = createSourceGameLogicChunkData(true);
     const saveFile = buildRuntimeSaveFile({

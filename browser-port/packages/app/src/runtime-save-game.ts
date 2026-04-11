@@ -22074,6 +22074,10 @@ function buildSourcePlayerEntryState(
   const sideCashBountyPercent = getRuntimeStateMap<number>(state, 'sideCashBountyPercent').get(side);
   const sideSkillPointsModifier = getRuntimeStateMap<number>(state, 'sideSkillPointsModifier').get(side);
   const sideBattlePlanBonuses = getRuntimeStateMap<Record<string, unknown>>(state, 'sideBattlePlanBonuses').get(side);
+  const sideAttackedByMap = getRuntimeStateMap<Set<string>>(state, 'sideAttackedBy');
+  const scriptSidesUnitsShouldHunt = state.scriptSidesUnitsShouldHunt instanceof Set
+    ? state.scriptSidesUnitsShouldHunt as Set<string>
+    : new Set<string>();
   const sideScoreScreenExcluded = state.sideScoreScreenExcluded instanceof Set
     ? state.sideScoreScreenExcluded as Set<string>
     : new Set<string>();
@@ -22094,6 +22098,22 @@ function buildSourcePlayerEntryState(
     const prototypeId = Number(team.sourcePrototypeId);
     return controllingSide === side && Number.isFinite(prototypeId)
       ? [Math.max(0, Math.trunc(prototypeId))]
+      : [];
+  });
+  const playerIndexByNormalizedSide = new Map(
+    [...getPlayerIndexBySideMap(payload).entries()].map(([playerSide, mappedPlayerIndex]) =>
+      [normalizeControllingPlayerTokenValue(playerSide) ?? playerSide, mappedPlayerIndex] as const),
+  );
+  const sideAttackedBy = sideAttackedByMap.get(side)
+    ?? sideAttackedByMap.get(side.toLowerCase())
+    ?? sideAttackedByMap.get(side.toUpperCase())
+    ?? new Set<string>();
+  const attackedByPlayerIndices = [...sideAttackedBy.values()].flatMap((attackerSide) => {
+    const attackerIndex = playerIndexByNormalizedSide.get(
+      normalizeControllingPlayerTokenValue(attackerSide) ?? attackerSide,
+    );
+    return typeof attackerIndex === 'number' && Number.isFinite(attackerIndex)
+      ? [Math.trunc(attackerIndex)]
       : [];
   });
   const playerRelations: SourcePlayerRelationEntry[] = [];
@@ -22218,7 +22238,7 @@ function buildSourcePlayerEntryState(
     observer: false,
     skillPointsModifier: Number.isFinite(sideSkillPointsModifier) ? Number(sideSkillPointsModifier) : 1,
     listInScoreScreen: !sideScoreScreenExcluded.has(side),
-    attackedByPlayerIndices: [],
+    attackedByPlayerIndices,
     cashBountyPercent: Number.isFinite(sideCashBountyPercent) ? Number(sideCashBountyPercent) : 0,
     scoreKeeper: {
       totalMoneyEarned: Math.max(0, Math.trunc(Number(sideScoreState?.moneyEarned ?? 0))),
@@ -22240,19 +22260,25 @@ function buildSourcePlayerEntryState(
     currentSelection: [],
     battlePlanBonuses: sideBattlePlanBonuses
       ? {
-        armorScalar: 1,
-        sightRangeScalar: 1,
-        bombardment: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses.bombardmentCount ?? 0))),
-        holdTheLine: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses.holdTheLineCount ?? 0))),
-        searchAndDestroy: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses.searchAndDestroyCount ?? 0))),
-        validKindOf: [],
-        invalidKindOf: [],
+        armorScalar: Number.isFinite(sideBattlePlanBonuses.armorScalar) ? Number(sideBattlePlanBonuses.armorScalar) : 1,
+        sightRangeScalar: Number.isFinite(sideBattlePlanBonuses.sightRangeScalar) ? Number(sideBattlePlanBonuses.sightRangeScalar) : 1,
+        bombardment: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses.bombardment ?? sideBattlePlanBonuses.bombardmentCount ?? 0))),
+        holdTheLine: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses.holdTheLine ?? sideBattlePlanBonuses.holdTheLineCount ?? 0))),
+        searchAndDestroy: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses.searchAndDestroy ?? sideBattlePlanBonuses.searchAndDestroyCount ?? 0))),
+        validKindOf: Array.isArray(sideBattlePlanBonuses.validKindOf)
+          ? sideBattlePlanBonuses.validKindOf.filter((kindOfName): kindOfName is string => typeof kindOfName === 'string')
+          : [],
+        invalidKindOf: Array.isArray(sideBattlePlanBonuses.invalidKindOf)
+          ? sideBattlePlanBonuses.invalidKindOf.filter((kindOfName): kindOfName is string => typeof kindOfName === 'string')
+          : [],
       }
       : null,
     bombardBattlePlans: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses?.bombardmentCount ?? 0))),
     holdTheLineBattlePlans: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses?.holdTheLineCount ?? 0))),
     searchAndDestroyBattlePlans: Math.max(0, Math.trunc(Number(sideBattlePlanBonuses?.searchAndDestroyCount ?? 0))),
-    unitsShouldHunt: false,
+    unitsShouldHunt: scriptSidesUnitsShouldHunt.has(side)
+      || scriptSidesUnitsShouldHunt.has(side.toLowerCase())
+      || scriptSidesUnitsShouldHunt.has(side.toUpperCase()),
   };
 }
 
@@ -22291,7 +22317,16 @@ function buildGameLogicPlayersStateFromSourcePlayers(
     bombardmentCount: number;
     holdTheLineCount: number;
     searchAndDestroyCount: number;
+    armorScalar?: number;
+    sightRangeScalar?: number;
+    bombardment?: number;
+    holdTheLine?: number;
+    searchAndDestroy?: number;
+    validKindOf?: string[];
+    invalidKindOf?: string[];
   }>();
+  const sideAttackedBy = new Map<string, Set<string>>();
+  const scriptSidesUnitsShouldHunt = new Set<string>();
   const playerRelationshipOverrides = new Map<string, number>();
   const teamRelationshipOverrides = new Map<string, number>();
   const scriptAiBuildListEntriesBySide = new Map<string, Array<{ templateNameUpper: string; locationX: number; locationZ: number }>>();
@@ -22373,12 +22408,34 @@ function buildGameLogicPlayersStateFromSourcePlayers(
     if (!player.listInScoreScreen) {
       sideScoreScreenExcluded.add(player.side);
     }
+    for (const attackerPlayerIndex of player.attackedByPlayerIndices) {
+      const attackerSide = playerSideByIndex.get(attackerPlayerIndex);
+      if (!attackerSide) {
+        continue;
+      }
+      let attackedBySet = sideAttackedBy.get(player.side);
+      if (!attackedBySet) {
+        attackedBySet = new Set<string>();
+        sideAttackedBy.set(player.side, attackedBySet);
+      }
+      attackedBySet.add(attackerSide);
+    }
     if (player.battlePlanBonuses) {
       sideBattlePlanBonuses.set(player.side, {
         bombardmentCount: player.bombardBattlePlans,
         holdTheLineCount: player.holdTheLineBattlePlans,
         searchAndDestroyCount: player.searchAndDestroyBattlePlans,
+        armorScalar: player.battlePlanBonuses.armorScalar,
+        sightRangeScalar: player.battlePlanBonuses.sightRangeScalar,
+        bombardment: player.battlePlanBonuses.bombardment,
+        holdTheLine: player.battlePlanBonuses.holdTheLine,
+        searchAndDestroy: player.battlePlanBonuses.searchAndDestroy,
+        validKindOf: [...player.battlePlanBonuses.validKindOf],
+        invalidKindOf: [...player.battlePlanBonuses.invalidKindOf],
       });
+    }
+    if (player.unitsShouldHunt) {
+      scriptSidesUnitsShouldHunt.add(player.side);
     }
     if (player.buildListInfos.length > 0) {
       scriptAiBuildListEntriesBySide.set(player.side, player.buildListInfos.map((entry) => ({
@@ -22461,7 +22518,9 @@ function buildGameLogicPlayersStateFromSourcePlayers(
   state.sideRankState = sideRankState;
   state.sideScoreState = sideScoreState;
   state.sideScoreScreenExcluded = sideScoreScreenExcluded;
+  state.sideAttackedBy = sideAttackedBy;
   state.sideBattlePlanBonuses = sideBattlePlanBonuses;
+  state.scriptSidesUnitsShouldHunt = scriptSidesUnitsShouldHunt;
   state.playerRelationshipOverrides = playerRelationshipOverrides;
   state.teamRelationshipOverrides = teamRelationshipOverrides;
   state.scriptAiBuildListEntriesBySide = scriptAiBuildListEntriesBySide;
