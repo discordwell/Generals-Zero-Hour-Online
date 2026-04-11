@@ -7919,6 +7919,11 @@ const SOURCE_AI_TURRET_INVALID = -1;
 const SOURCE_AI_ATTITUDE_NORMAL = 0;
 const SOURCE_AI_INVALID_STATE_ID = 999999;
 const SOURCE_AI_MAX_TURRETS = 2;
+const SOURCE_ASSAULT_TRANSPORT_STATE_IDLE = 0;
+const SOURCE_CHINOOK_FLIGHT_FLYING = 1;
+const SOURCE_POW_TRUCK_AI_MODE_AUTOMATIC = 0;
+const SOURCE_POW_TRUCK_TASK_WAITING = 0;
+const SOURCE_RAILED_TRANSPORT_INVALID_PATH = -1;
 const SOURCE_LOCOMOTOR_SET_TYPE_BY_NAME = new Map<string, number>([
   ['SET_NORMAL', 0],
   ['SET_NORMAL_UPGRADED', 1],
@@ -7996,6 +8001,26 @@ function buildGeneratedSourceAIStateMachineBlockData(entity: MapEntity): Uint8Ar
     saver.xferBool(false);
     saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
     saver.xferUnsignedInt(0);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceStubStateMachineBlockData(stateId: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-stub-state-machine');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(0);
+    saver.xferUnsignedInt(stateId);
+    saver.xferUnsignedInt(stateId);
+    saver.xferBool(false);
+    saver.xferObjectID(0);
+    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+    saver.xferBool(false);
+    saver.xferBool(true);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -9571,6 +9596,51 @@ function buildSourceAssaultTransportAIUpdateBlockData(
   return blockData;
 }
 
+function buildGeneratedSourceAssaultTransportAIUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const state = entity.assaultTransportState;
+  const members = state && Array.isArray(state.members)
+    ? state.members.map((member) => ({
+        entityId: Number.isFinite(member.entityId)
+          ? Math.max(0, Math.trunc(member.entityId))
+          : 0,
+        isHealing: member.isHealing === true,
+      }))
+    : [];
+  if (members.length > SOURCE_ASSAULT_TRANSPORT_MAX_SLOTS) {
+    throw new Error(
+      `AssaultTransportAIUpdate member count ${members.length} exceeds limit ${SOURCE_ASSAULT_TRANSPORT_MAX_SLOTS}.`,
+    );
+  }
+
+  const saver = new XferSave();
+  saver.open('build-generated-source-assault-transport-ai-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame));
+    saver.xferInt(members.length);
+    for (const member of members) {
+      saver.xferObjectID(member.entityId);
+      saver.xferBool(member.isHealing);
+    }
+    saver.xferCoord3D({
+      x: Number.isFinite(state?.attackMoveGoalX) ? state!.attackMoveGoalX : 0,
+      y: Number.isFinite(state?.attackMoveGoalY) ? state!.attackMoveGoalY : 0,
+      z: Number.isFinite(state?.attackMoveGoalZ) ? state!.attackMoveGoalZ : 0,
+    });
+    saver.xferObjectID(normalizeSourceObjectId(state?.designatedTargetId ?? 0));
+    saver.xferInt(sourceFiniteInt(state?.assaultState, SOURCE_ASSAULT_TRANSPORT_STATE_IDLE));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(state?.framesRemaining, 0));
+    saver.xferBool(state?.isAttackMove === true);
+    saver.xferBool(state?.isAttackObject === true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function tryParseSourceSupplyTruckAIUpdateBlockData(
   data: Uint8Array,
 ): SourceSupplyTruckAIUpdateBlockState | null {
@@ -9626,6 +9696,35 @@ function buildSourceSupplyTruckAIUpdateBlockData(
     (typeof liveState?.forceBusy === 'boolean' ? liveState.forceBusy : preservedState.forcePending) ? 1 : 0,
   );
   return blockData;
+}
+
+function xferGeneratedSourceSupplyTruckTail(
+  saver: XferSave,
+  entity: MapEntity,
+  coreState?: GameLogicCoreSaveState | null,
+): void {
+  const liveState = findLiveSupplyTruckState(coreState, entity.id);
+  saver.xferObjectID(normalizeSourceObjectId(liveState?.preferredDockId ?? 0));
+  saver.xferInt(sourceFiniteInt(liveState?.currentBoxes, 0));
+  saver.xferBool(liveState?.forceBusy === true);
+}
+
+function buildGeneratedSourceSupplyTruckAIUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  coreState?: GameLogicCoreSaveState | null,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-supply-truck-ai-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame));
+    saver.xferUser(buildGeneratedSourceStubStateMachineBlockData(0));
+    xferGeneratedSourceSupplyTruckTail(saver, entity, coreState);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
 }
 
 function isSourceStubStateMachineAt(data: Uint8Array, offset: number): boolean {
@@ -9802,6 +9901,38 @@ function buildSourceChinookAIUpdateBlockData(
   return blockData;
 }
 
+function buildGeneratedSourceChinookAIUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  coreState?: GameLogicCoreSaveState | null,
+): Uint8Array {
+  const pendingCommand = entity.chinookPendingCommand ?? null;
+  const pendingCommandBytes = pendingCommand ? buildSourceAICommandStorageBytes(pendingCommand) : null;
+  if (pendingCommand && !pendingCommandBytes) {
+    throw new Error(`Cannot serialize unsupported ChinookAIUpdate pending command for ${entity.templateName}.`);
+  }
+
+  const saver = new XferSave();
+  saver.open('build-generated-source-chinook-ai-update');
+  try {
+    saver.xferVersion(2);
+    saver.xferVersion(1);
+    saver.xferUser(buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame));
+    saver.xferUser(buildGeneratedSourceStubStateMachineBlockData(0));
+    xferGeneratedSourceSupplyTruckTail(saver, entity, coreState);
+    saver.xferBool(!!pendingCommandBytes);
+    if (pendingCommandBytes) {
+      saver.xferUser(pendingCommandBytes);
+    }
+    saver.xferInt(sourceChinookFlightStatusToInt(entity.chinookFlightStatus, SOURCE_CHINOOK_FLIGHT_FLYING));
+    saver.xferObjectID(normalizeSourceObjectId(entity.chinookHealingAirfieldId ?? 0));
+    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function tryParseSourcePOWTruckAIUpdateBlockData(
   data: Uint8Array,
 ): SourcePOWTruckAIUpdateBlockState | null {
@@ -9863,6 +9994,33 @@ function buildSourcePOWTruckAIUpdateBlockData(
     true,
   );
   return blockData;
+}
+
+function buildGeneratedSourcePOWTruckAIUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-pow-truck-ai-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame));
+    saver.xferUser(buildSourceRawInt32Bytes(sourceFiniteInt(
+      entity.powTruckAIMode,
+      SOURCE_POW_TRUCK_AI_MODE_AUTOMATIC,
+    )));
+    saver.xferUser(buildSourceRawInt32Bytes(sourceFiniteInt(
+      entity.powTruckCurrentTask,
+      SOURCE_POW_TRUCK_TASK_WAITING,
+    )));
+    saver.xferObjectID(normalizeSourceObjectId(entity.powTruckTargetId ?? 0));
+    saver.xferObjectID(normalizeSourceObjectId(entity.powTruckPrisonId ?? 0));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(entity.powTruckEnteredWaitingFrame, 0));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(entity.powTruckLastFindFrame, 0));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
 }
 
 const SOURCE_DOZER_NUM_TASKS = 3;
@@ -11797,6 +11955,42 @@ function buildSourceRailedTransportAIUpdateBlockData(
   cursor += 4;
   view.setUint8(cursor, state?.waypointDataLoaded === true ? 1 : 0);
   return blockData;
+}
+
+function buildGeneratedSourceRailedTransportAIUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const state = entity.railedTransportState;
+  const paths = Array.isArray(state?.paths)
+    ? state!.paths.map((path) => ({
+        startWaypointID: Math.max(0, Math.trunc(path.startWaypointID)),
+        endWaypointID: Math.max(0, Math.trunc(path.endWaypointID)),
+      }))
+    : [];
+  if (paths.length > SOURCE_RAILED_TRANSPORT_MAX_WAYPOINT_PATHS) {
+    throw new Error(
+      `RailedTransportAIUpdate path count ${paths.length} exceeds limit ${SOURCE_RAILED_TRANSPORT_MAX_WAYPOINT_PATHS}.`,
+    );
+  }
+
+  const saver = new XferSave();
+  saver.open('build-generated-source-railed-transport-ai-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame));
+    saver.xferBool(state?.inTransit === true);
+    saver.xferInt(paths.length);
+    for (const path of paths) {
+      saver.xferUnsignedInt(path.startWaypointID);
+      saver.xferUnsignedInt(path.endWaypointID);
+    }
+    saver.xferInt(sourceFiniteInt(state?.currentPath, SOURCE_RAILED_TRANSPORT_INVALID_PATH));
+    saver.xferBool(state?.waypointDataLoaded === true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
 }
 
 function tryParseSourceRailedTransportDockUpdateBlockData(
@@ -18276,6 +18470,26 @@ function buildGeneratedSourceObjectModuleBlockData(
 
   if (normalizedModuleType === 'DEPLOYSTYLEAIUPDATE' && entity.deployStyleProfile) {
     return buildGeneratedSourceDeployStyleAIUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'ASSAULTTRANSPORTAIUPDATE') {
+    return buildGeneratedSourceAssaultTransportAIUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'SUPPLYTRUCKAIUPDATE') {
+    return buildGeneratedSourceSupplyTruckAIUpdateBlockData(entity, currentFrame, coreState);
+  }
+
+  if (normalizedModuleType === 'CHINOOKAIUPDATE') {
+    return buildGeneratedSourceChinookAIUpdateBlockData(entity, currentFrame, coreState);
+  }
+
+  if (normalizedModuleType === 'POWTRUCKAIUPDATE') {
+    return buildGeneratedSourcePOWTruckAIUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'RAILEDTRANSPORTAIUPDATE') {
+    return buildGeneratedSourceRailedTransportAIUpdateBlockData(entity, currentFrame);
   }
 
   if (normalizedModuleType === 'FLOATUPDATE' && entity.floatUpdateProfile) {

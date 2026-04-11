@@ -2321,6 +2321,38 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
   }
 }
 
+function parseSourceStubStateMachineForTest(data: Uint8Array, offset: number) {
+  const xferLoad = new XferLoad(data.slice(offset).buffer);
+  xferLoad.open('parse-source-stub-state-machine');
+  try {
+    const wrapperVersion = xferLoad.xferVersion(1);
+    const baseVersion = xferLoad.xferVersion(1);
+    const sleepTill = xferLoad.xferUnsignedInt(0);
+    const defaultStateId = xferLoad.xferUnsignedInt(0);
+    const currentStateId = xferLoad.xferUnsignedInt(0);
+    const snapshotAllStates = xferLoad.xferBool(false);
+    const goalObjectId = xferLoad.xferObjectID(0);
+    const goalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const locked = xferLoad.xferBool(false);
+    const defaultStateInited = xferLoad.xferBool(false);
+    return {
+      wrapperVersion,
+      baseVersion,
+      sleepTill,
+      defaultStateId,
+      currentStateId,
+      snapshotAllStates,
+      goalObjectId,
+      goalPosition,
+      locked,
+      defaultStateInited,
+      bytesRead: offset + xferLoad.getOffset(),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function createSourceAssaultTransportAIUpdateBlockData(options: {
   members: Array<{ entityId: number; isHealing: boolean }>;
   attackMoveGoal: Coord3D;
@@ -16958,6 +16990,219 @@ describe('runtime-save-game', () => {
       preferredHeightDamping: expect.closeTo(0.7, 5),
     }]);
     expect(parsedAI.bytesRead).toBe(deployModule!.blockData.byteLength - 8);
+  });
+
+  it('synthesizes source AIUpdate-derived transport and truck modules from descriptors', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'generated ai update module set',
+      mapPath: 'Maps/RuntimeGeneratedAIUpdates/RuntimeGeneratedAIUpdates.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeGeneratedAIUpdates',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          supplyTruckStates: [{
+            entityId: 22,
+            state: {
+              aiState: 3,
+              currentBoxes: 4,
+              targetWarehouseId: null,
+              targetDepotId: null,
+              actionDelayFinishFrame: 0,
+              preferredDockId: 51,
+              forceBusy: true,
+            },
+          }],
+          spawnedEntities: [{
+            id: 22,
+            templateName: 'RuntimeGeneratedAIUpdates',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            sourceAIIdleInitialSleepOffset: 12,
+            scriptAiRecruitable: true,
+            attackTargetEntityId: 99,
+            autoTargetScanNextFrame: 77,
+            assaultTransportState: {
+              members: [{ entityId: 31, isHealing: true, isNew: false }],
+              designatedTargetId: 44,
+              attackMoveGoalX: 5,
+              attackMoveGoalY: 6,
+              attackMoveGoalZ: 7,
+              assaultState: 1,
+              framesRemaining: 9,
+              isAttackMove: true,
+              isAttackObject: false,
+              newOccupantsAreNewMembers: false,
+            },
+            chinookFlightStatus: 'LANDING',
+            chinookHealingAirfieldId: 77,
+            chinookPendingCommand: null,
+            powTruckAIMode: 1,
+            powTruckCurrentTask: 3,
+            powTruckTargetId: 81,
+            powTruckPrisonId: 82,
+            powTruckEnteredWaitingFrame: 83,
+            powTruckLastFindFrame: 84,
+            railedTransportState: {
+              inTransit: true,
+              waypointDataLoaded: true,
+              paths: [{ startWaypointID: 91, endWaypointID: 92 }],
+              currentPath: 0,
+              transitWaypointIds: [],
+              transitWaypointIndex: 0,
+              dockState: null,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        listSourceObjectModuleDescriptors: (templateName) => templateName === 'RuntimeGeneratedAIUpdates'
+          ? [
+              { moduleType: 'AssaultTransportAIUpdate', moduleTag: 'ModuleTag_AssaultAI' },
+              { moduleType: 'SupplyTruckAIUpdate', moduleTag: 'ModuleTag_SupplyAI' },
+              { moduleType: 'ChinookAIUpdate', moduleTag: 'ModuleTag_ChinookAI' },
+              { moduleType: 'POWTruckAIUpdate', moduleTag: 'ModuleTag_POWAI' },
+              { moduleType: 'RailedTransportAIUpdate', moduleTag: 'ModuleTag_RailedAI' },
+            ]
+          : [],
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const generated = readSourceGameLogicObjectStates(saveFile.data)
+      ?.find((object) => object.templateName === 'RuntimeGeneratedAIUpdates')?.state;
+    const modules = new Map(generated?.modules.map((module) => [module.identifier, module]) ?? []);
+    const assaultModule = modules.get('ModuleTag_AssaultAI');
+    const supplyModule = modules.get('ModuleTag_SupplyAI');
+    const chinookModule = modules.get('ModuleTag_ChinookAI');
+    const powModule = modules.get('ModuleTag_POWAI');
+    const railedModule = modules.get('ModuleTag_RailedAI');
+
+    expect(assaultModule).toBeDefined();
+    const assaultAI = parseGeneratedSourceAIUpdateInterfaceForTest(assaultModule!.blockData);
+    const assault = parseSourceAssaultTransportAIUpdateBlockData(assaultModule!.blockData);
+    expect(assaultAI.idleInitialSleepOffset).toBe(12);
+    expect(assaultAI.currentVictimId).toBe(99);
+    expect(assaultAI.bytesRead).toBe(assault.prefix.length);
+    expect(assault.members).toEqual([{ entityId: 31, isHealing: true }]);
+    expect(assault.attackMoveGoal).toEqual({ x: 5, y: 6, z: 7 });
+    expect(assault.designatedTargetId).toBe(44);
+    expect(assault.assaultState).toBe(1);
+    expect(assault.framesRemaining).toBe(9);
+    expect(assault.isAttackMove).toBe(true);
+    expect(assault.isAttackObject).toBe(false);
+
+    expect(supplyModule).toBeDefined();
+    const supplyAI = parseGeneratedSourceAIUpdateInterfaceForTest(supplyModule!.blockData);
+    const supplyMachine = parseSourceStubStateMachineForTest(supplyModule!.blockData, supplyAI.bytesRead);
+    const supply = parseSourceSupplyTruckAIUpdateBlockData(supplyModule!.blockData);
+    expect(supplyMachine).toMatchObject({
+      wrapperVersion: 1,
+      baseVersion: 1,
+      defaultStateId: 0,
+      currentStateId: 0,
+      snapshotAllStates: false,
+      defaultStateInited: true,
+    });
+    expect(supply.prefix.length).toBe(supplyMachine.bytesRead);
+    expect(supply.preferredDockId).toBe(51);
+    expect(supply.numberBoxes).toBe(4);
+    expect(supply.forcePending).toBe(true);
+
+    expect(chinookModule).toBeDefined();
+    expect(chinookModule!.blockData[0]).toBe(2);
+    expect(chinookModule!.blockData[1]).toBe(1);
+    const chinookAI = parseGeneratedSourceAIUpdateInterfaceForTest(chinookModule!.blockData, 2);
+    const chinookMachine = parseSourceStubStateMachineForTest(chinookModule!.blockData, chinookAI.bytesRead);
+    const chinookView = new DataView(
+      chinookModule!.blockData.buffer,
+      chinookModule!.blockData.byteOffset,
+      chinookModule!.blockData.byteLength,
+    );
+    const chinookSupplyTailOffset = chinookMachine.bytesRead;
+    expect(chinookView.getUint32(chinookSupplyTailOffset, true)).toBe(51);
+    expect(chinookView.getInt32(chinookSupplyTailOffset + 4, true)).toBe(4);
+    expect(chinookView.getUint8(chinookSupplyTailOffset + 8)).toBe(1);
+    expect(chinookView.getUint8(chinookSupplyTailOffset + 9)).toBe(0);
+    const chinook = parseSourceChinookAIUpdateBlockData(chinookModule!.blockData);
+    expect(chinook.flightStatus).toBe(3);
+    expect(chinook.airfieldForHealing).toBe(77);
+    expect(chinook.originalPos).toEqual({ x: 0, y: 0, z: 0 });
+
+    expect(powModule).toBeDefined();
+    const powAI = parseGeneratedSourceAIUpdateInterfaceForTest(powModule!.blockData);
+    const pow = parseSourcePOWTruckAIUpdateBlockData(powModule!.blockData);
+    expect(powAI.bytesRead).toBe(pow.prefix.length);
+    expect(pow).toMatchObject({
+      aiMode: 1,
+      currentTask: 3,
+      targetId: 81,
+      prisonId: 82,
+      enteredWaitingFrame: 83,
+      lastFindFrame: 84,
+    });
+
+    expect(railedModule).toBeDefined();
+    const railedAI = parseGeneratedSourceAIUpdateInterfaceForTest(railedModule!.blockData);
+    const railed = parseSourceRailedTransportAIUpdateBlockData(railedModule!.blockData);
+    expect(railedAI.bytesRead).toBe(railedModule!.blockData.byteLength - 18);
+    expect(railed).toEqual({
+      inTransit: true,
+      paths: [{ startWaypointID: 91, endWaypointID: 92 }],
+      currentPath: 0,
+      waypointDataLoaded: true,
+    });
   });
 
   it('rewrites source AssaultTransportAIUpdate tail while preserving AIUpdateInterface bytes', () => {
