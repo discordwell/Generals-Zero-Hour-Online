@@ -110,6 +110,21 @@ function makeSourceOwnedCoreBundle() {
           InvalidMemberKindOf: 'AIRCRAFT',
         }),
       ]),
+      makeObjectDef('SlavedDrone', 'America', ['DRONE'], [
+        makeBlock('Behavior', 'SlavedUpdate ModuleTag_Slaved', {
+          GuardMaxRange: 60,
+          GuardWanderRange: 20,
+          AttackRange: 120,
+        }),
+      ]),
+      makeObjectDef('MobMember', 'GLA', ['INFANTRY'], [
+        makeBlock('Behavior', 'MobMemberSlavedUpdate ModuleTag_MobSlave', {
+          MustCatchUpRadius: 80,
+          NoNeedToCatchUpRadius: 30,
+          Squirrelliness: 0.5,
+          CatchUpCrisisBailTime: 25,
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -647,6 +662,66 @@ function buildSourceBattlePlanUpdateModuleData(options: {
     writeSourceStringBitFlags(saver, options.validKindOf);
     writeSourceStringBitFlags(saver, options.invalidKindOf);
     saver.xferObjectID(options.visionObjectId);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSlavedUpdateModuleData(options: {
+  slaverId: number;
+  guardPointOffset: { x: number; y: number; z: number };
+  framesToWait: number;
+  repairState: number;
+  repairing: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-slaved-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(0);
+    saver.xferObjectID(options.slaverId);
+    saver.xferCoord3D(options.guardPointOffset);
+    saver.xferInt(options.framesToWait);
+    saver.xferInt(options.repairState);
+    saver.xferBool(options.repairing);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceMobMemberSlavedUpdateModuleData(options: {
+  slaverId: number;
+  framesToWait: number;
+  mobState: number;
+  primaryVictimId: number;
+  isSelfTasking: boolean;
+  catchUpCrisisTimer: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-mob-member-slaved-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(0);
+    saver.xferObjectID(options.slaverId);
+    saver.xferInt(options.framesToWait);
+    saver.xferInt(options.mobState);
+    saver.xferReal(0.25);
+    saver.xferReal(0.3);
+    saver.xferReal(0.35);
+    saver.xferObjectID(options.primaryVictimId);
+    saver.xferReal(0.5);
+    saver.xferBool(options.isSelfTasking);
+    saver.xferUnsignedInt(options.catchUpCrisisTimer);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -1428,6 +1503,97 @@ describe('source-owned game-logic core save-state', () => {
     expect(state.transitionStatus).toBe('ACTIVE');
     expect(state.transitionFinishFrame).toBe(210);
     expect(state.idleCooldownFinishFrame).toBe(0);
+  });
+
+  it('imports source SlavedUpdate and MobMemberSlavedUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const masterState = createEmptySourceMapEntitySaveState();
+    masterState.objectId = 80;
+    masterState.position = { x: 90, y: 0, z: 50 };
+
+    const slavedState = createEmptySourceMapEntitySaveState();
+    slavedState.objectId = 81;
+    slavedState.position = { x: 95, y: 0, z: 52 };
+    slavedState.modules = [{
+      identifier: 'ModuleTag_Slaved',
+      blockData: buildSourceSlavedUpdateModuleData({
+        slaverId: 80,
+        guardPointOffset: { x: 6, y: -4, z: 0 },
+        framesToWait: 7,
+        repairState: 2,
+        repairing: true,
+      }),
+    }];
+
+    const mobState = createEmptySourceMapEntitySaveState();
+    mobState.objectId = 82;
+    mobState.position = { x: 92, y: 0, z: 54 };
+    mobState.modules = [{
+      identifier: 'ModuleTag_MobSlave',
+      blockData: buildSourceMobMemberSlavedUpdateModuleData({
+        slaverId: 80,
+        framesToWait: 11,
+        mobState: 1,
+        primaryVictimId: 83,
+        isSelfTasking: true,
+        catchUpCrisisTimer: 4,
+      }),
+    }];
+
+    const victimState = createEmptySourceMapEntitySaveState();
+    victimState.objectId = 83;
+    victimState.position = { x: 110, y: 0, z: 54 };
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 100,
+      objectIdCounter: 120,
+      objects: [
+        { templateName: 'DroneSpawner', state: masterState },
+        { templateName: 'SlavedDrone', state: slavedState },
+        { templateName: 'MobMember', state: mobState },
+        { templateName: 'AmericaRanger', state: victimState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        slaverEntityId: number | null;
+        slaveGuardOffsetX: number;
+        slaveGuardOffsetZ: number;
+        slavedNextUpdateFrame: number;
+        mobMemberState: {
+          framesToWait: number;
+          catchUpCrisisTimer: number;
+          primaryVictimId: number;
+          isSelfTasking: boolean;
+          mobState: number;
+        } | null;
+      }>;
+    };
+
+    const slaved = privateLogic.spawnedEntities.get(81)!;
+    expect(slaved.slaverEntityId).toBe(80);
+    expect(slaved.slaveGuardOffsetX).toBe(6);
+    expect(slaved.slaveGuardOffsetZ).toBe(-4);
+    expect(slaved.slavedNextUpdateFrame).toBe(107);
+
+    const mob = privateLogic.spawnedEntities.get(82)!;
+    expect(mob.slaverEntityId).toBe(80);
+    expect(mob.mobMemberState).toEqual({
+      framesToWait: 11,
+      catchUpCrisisTimer: 4,
+      primaryVictimId: 83,
+      isSelfTasking: true,
+      mobState: 1,
+    });
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {

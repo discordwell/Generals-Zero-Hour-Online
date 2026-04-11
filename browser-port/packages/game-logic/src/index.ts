@@ -8660,6 +8660,21 @@ interface SourceSpawnBehaviorImportState {
   active: boolean;
 }
 
+interface SourceSlavedUpdateImportState {
+  slaverId: number;
+  guardPointOffset: { x: number; y: number; z: number };
+  framesToWait: number;
+}
+
+interface SourceMobMemberSlavedUpdateImportState {
+  slaverId: number;
+  framesToWait: number;
+  mobState: number;
+  primaryVictimId: number;
+  isSelfTasking: boolean;
+  catchUpCrisisTimer: number;
+}
+
 interface SourceSpecialPowerModuleImportState {
   availableOnFrame: number;
   pausedCount: number;
@@ -13416,6 +13431,121 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceSlavedUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceSlavedUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'SLAVEDUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-slaved-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      this.skipSourceImportUpdateModuleBase(xfer);
+      const slaverId = xfer.xferObjectID(0);
+      const guardPointOffset = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const framesToWait = xfer.xferInt(0);
+      xfer.xferUser(new Uint8Array(4));
+      xfer.xferBool(false);
+      return xfer.getRemaining() === 0
+        ? { slaverId, guardPointOffset, framesToWait }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceMobMemberSlavedUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceMobMemberSlavedUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'MOBMEMBERSLAVEDUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-mob-member-slaved-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      this.skipSourceImportUpdateModuleBase(xfer);
+      const slaverId = xfer.xferObjectID(0);
+      const framesToWait = xfer.xferInt(0);
+      const mobState = xfer.xferInt(0);
+      xfer.xferReal(0);
+      xfer.xferReal(0);
+      xfer.xferReal(0);
+      const primaryVictimId = xfer.xferObjectID(0);
+      xfer.xferReal(0);
+      const isSelfTasking = xfer.xferBool(false);
+      const catchUpCrisisTimer = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? {
+          slaverId,
+          framesToWait,
+          mobState,
+          primaryVictimId,
+          isSelfTasking,
+          catchUpCrisisTimer,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceSlavedUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+
+      const slavedState = this.tryParseSourceSlavedUpdateImportState(module.blockData, moduleType);
+      if (slavedState && entity.slavedUpdateProfile) {
+        entity.slaverEntityId = slavedState.slaverId > 0 ? Math.trunc(slavedState.slaverId) : null;
+        entity.slaveGuardOffsetX = Number.isFinite(slavedState.guardPointOffset.x)
+          ? slavedState.guardPointOffset.x
+          : 0;
+        entity.slaveGuardOffsetZ = Number.isFinite(slavedState.guardPointOffset.y)
+          ? slavedState.guardPointOffset.y
+          : 0;
+        entity.slavedNextUpdateFrame = this.frameCounter + Math.max(0, Math.trunc(slavedState.framesToWait));
+        return;
+      }
+
+      const mobState = this.tryParseSourceMobMemberSlavedUpdateImportState(module.blockData, moduleType);
+      if (mobState && entity.mobMemberProfile) {
+        entity.slaverEntityId = mobState.slaverId > 0 ? Math.trunc(mobState.slaverId) : null;
+        entity.mobMemberState = {
+          framesToWait: Math.max(0, Math.trunc(mobState.framesToWait)),
+          catchUpCrisisTimer: Math.max(0, Math.trunc(mobState.catchUpCrisisTimer)),
+          primaryVictimId: mobState.primaryVictimId > 0 ? Math.trunc(mobState.primaryVictimId) : -1,
+          isSelfTasking: mobState.isSelfTasking,
+          mobState: Math.trunc(mobState.mobState),
+        };
+        return;
+      }
+    }
+  }
+
   private normalizeSourceObjectModuleType(moduleType: string): string {
     return moduleType.trim().toUpperCase();
   }
@@ -14324,6 +14454,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceProductionModulesToEntity(entity, sourceState);
     this.applySourceDockModulesToEntity(entity, sourceState);
     this.applySourceSpawnBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceSlavedUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
     this.applySourceBattlePlanUpdateModulesToEntity(entity, sourceState);
     this.applySourceStealthModulesToEntity(entity, sourceState);
