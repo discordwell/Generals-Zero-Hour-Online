@@ -123,13 +123,16 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     productionQueue: [],
     productionNextId: 1,
     queueProductionExitProfile: null,
+    spawnPointExitState: null,
     rallyPoint: null,
+    rallyPointY: 0,
     parkingPlaceProfile: null,
     containProfile: null,
     riderChangeContainProfile: null,
     scriptEvacDisposition: 0,
     queueProductionExitDelayFramesRemaining: 0,
     queueProductionExitBurstRemaining: 0,
+    queueProductionExitCreationClearDistance: 0,
 
     // Containment
     parkingSpaceProducerId: null,

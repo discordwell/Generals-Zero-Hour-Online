@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 33;
+const ENTITY_XFER_VERSION = 34;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1621,13 +1621,30 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.productionQueue = xferJsonObject(xfer, e.productionQueue as unknown[]);
   e.productionNextId = xfer.xferInt(e.productionNextId as number);
   e.queueProductionExitProfile = xferNullableJsonObject(xfer, e.queueProductionExitProfile as object | null);
+  if (version >= 34) {
+    e.spawnPointExitState = xferNullableJsonObject(xfer, e.spawnPointExitState as object | null);
+  } else {
+    e.spawnPointExitState = null;
+  }
   e.rallyPoint = xferNullableVectorXZ(xfer, e.rallyPoint as { x: number; z: number } | null);
+  if (version >= 34) {
+    e.rallyPointY = xfer.xferReal((e.rallyPointY as number | undefined) ?? 0);
+  } else {
+    e.rallyPointY = 0;
+  }
   e.parkingPlaceProfile = xferNullableJsonObject(xfer, e.parkingPlaceProfile as object | null);
   e.containProfile = xferNullableJsonObject(xfer, e.containProfile as object | null);
   e.riderChangeContainProfile = xferNullableJsonObject(xfer, e.riderChangeContainProfile as object | null);
   e.scriptEvacDisposition = xfer.xferInt(e.scriptEvacDisposition as number);
   e.queueProductionExitDelayFramesRemaining = xfer.xferInt(e.queueProductionExitDelayFramesRemaining as number);
   e.queueProductionExitBurstRemaining = xfer.xferInt(e.queueProductionExitBurstRemaining as number);
+  if (version >= 34) {
+    e.queueProductionExitCreationClearDistance = xfer.xferReal(
+      (e.queueProductionExitCreationClearDistance as number | undefined) ?? 0,
+    );
+  } else {
+    e.queueProductionExitCreationClearDistance = 0;
+  }
 
   // ── Containment ──
   e.parkingSpaceProducerId = xferNullableInt(xfer, e.parkingSpaceProducerId as number | null);

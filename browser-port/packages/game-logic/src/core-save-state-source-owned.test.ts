@@ -169,6 +169,31 @@ function makeSourceOwnedCoreBundle() {
           PristineFXList1: 'Bone:BONE01 OnlyOnce:No 1000 2000 FXList:FX_TestBone',
         }),
       ]),
+      makeObjectDef('DeployStyleUnit', 'GLA', ['VEHICLE'], [
+        makeBlock('Behavior', 'DeployStyleAIUpdate ModuleTag_Deploy', {
+          UnpackTime: 1000,
+          PackTime: 1000,
+        }),
+      ]),
+      makeObjectDef('DefaultExitStructure', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'DefaultProductionExitUpdate ModuleTag_DefaultExit', {
+          UnitCreatePoint: 'X:0 Y:0 Z:0',
+          NaturalRallyPoint: 'X:10 Y:0 Z:20',
+        }),
+      ]),
+      makeObjectDef('QueueExitStructure', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'QueueProductionExitUpdate ModuleTag_QueueExit', {
+          UnitCreatePoint: 'X:0 Y:0 Z:0',
+          NaturalRallyPoint: 'X:10 Y:0 Z:20',
+          ExitDelay: 1000,
+          InitialBurst: 2,
+        }),
+      ]),
+      makeObjectDef('SpawnPointExitStructure', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'SpawnPointProductionExitUpdate ModuleTag_SpawnExit', {
+          SpawnPointBoneName: 'SpawnPoint',
+        }),
+      ]),
       makeObjectDef('HealingSeeker', 'America', ['INFANTRY'], [
         makeBlock('Behavior', 'AutoFindHealingUpdate ModuleTag_AutoFindHealing', {
           ScanRate: 500,
@@ -350,6 +375,7 @@ function sourceUpdateFrameAndPhase(frame: number): number {
 const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
+const SOURCE_SPAWN_POINT_MAX_POINTS = 10;
 
 const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
 const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
@@ -1222,6 +1248,99 @@ function buildSourceBoneFxUpdateModuleData(options: {
       saver.xferBool(options.bonesResolved[index] ?? false);
     }
     saver.xferBool(options.active);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceDeployStyleAIUpdateModuleData(options: {
+  state: number;
+  frameToWaitForDeploy: number;
+}): Uint8Array {
+  const bytes = new Uint8Array(18);
+  bytes[0] = 4;
+  bytes[1] = 4;
+  bytes[2] = 1;
+  bytes[3] = 1;
+  bytes[4] = 1;
+  bytes[5] = 1;
+  bytes[6] = 0xaa;
+  bytes[7] = 0xbb;
+  bytes[8] = 0xcc;
+  bytes[9] = 0xdd;
+  const view = new DataView(bytes.buffer);
+  view.setInt32(bytes.byteLength - 8, options.state, true);
+  view.setUint32(bytes.byteLength - 4, options.frameToWaitForDeploy, true);
+  return bytes;
+}
+
+function buildSourceProductionExitRallyModuleData(options: {
+  nextCallFrame: number;
+  rallyPoint: { x: number; y: number; z: number };
+  rallyPointExists: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-production-exit-rally');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferCoord3D(options.rallyPoint);
+    saver.xferBool(options.rallyPointExists);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceQueueProductionExitModuleData(options: {
+  nextCallFrame: number;
+  currentDelay: number;
+  rallyPoint: { x: number; y: number; z: number };
+  rallyPointExists: boolean;
+  creationClearDistance: number;
+  currentBurstCount: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-queue-production-exit');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUnsignedInt(options.currentDelay);
+    saver.xferCoord3D(options.rallyPoint);
+    saver.xferBool(options.rallyPointExists);
+    saver.xferReal(options.creationClearDistance);
+    saver.xferUnsignedInt(options.currentBurstCount);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSpawnPointProductionExitModuleData(options: {
+  nextCallFrame: number;
+  occupierIds: number[];
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-spawn-point-production-exit');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    for (let index = 0; index < SOURCE_SPAWN_POINT_MAX_POINTS; index += 1) {
+      saver.xferObjectID(options.occupierIds[index] ?? 0);
+    }
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2976,6 +3095,106 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedBoneFx.currentBodyState).toBe(2);
     expect(importedBoneFx.bonesResolved).toEqual([true, false, true, true]);
     expect(importedBoneFx.active).toBe(true);
+  });
+
+  it('imports source DeployStyleAIUpdate and production exit runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const deployState = createEmptySourceMapEntitySaveState();
+    deployState.objectId = 118;
+    deployState.position = { x: 148, y: 0, z: 60 };
+    deployState.modules = [{
+      identifier: 'ModuleTag_Deploy',
+      blockData: buildSourceDeployStyleAIUpdateModuleData({
+        state: 3,
+        frameToWaitForDeploy: 345,
+      }),
+    }];
+
+    const defaultExitState = createEmptySourceMapEntitySaveState();
+    defaultExitState.objectId = 119;
+    defaultExitState.position = { x: 150, y: 0, z: 60 };
+    defaultExitState.modules = [{
+      identifier: 'ModuleTag_DefaultExit',
+      blockData: buildSourceProductionExitRallyModuleData({
+        nextCallFrame: 330,
+        rallyPoint: { x: 51, y: 6, z: 61 },
+        rallyPointExists: true,
+      }),
+    }];
+
+    const queueExitState = createEmptySourceMapEntitySaveState();
+    queueExitState.objectId = 120;
+    queueExitState.position = { x: 152, y: 0, z: 60 };
+    queueExitState.modules = [{
+      identifier: 'ModuleTag_QueueExit',
+      blockData: buildSourceQueueProductionExitModuleData({
+        nextCallFrame: 331,
+        currentDelay: 12,
+        rallyPoint: { x: 71, y: 8, z: 81 },
+        rallyPointExists: true,
+        creationClearDistance: 44.5,
+        currentBurstCount: 3,
+      }),
+    }];
+
+    const spawnExitState = createEmptySourceMapEntitySaveState();
+    spawnExitState.objectId = 121;
+    spawnExitState.position = { x: 154, y: 0, z: 60 };
+    spawnExitState.modules = [{
+      identifier: 'ModuleTag_SpawnExit',
+      blockData: buildSourceSpawnPointProductionExitModuleData({
+        nextCallFrame: 332,
+        occupierIds: [0, 401, 402, 0, 404],
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'DeployStyleUnit', state: deployState },
+        { templateName: 'DefaultExitStructure', state: defaultExitState },
+        { templateName: 'QueueExitStructure', state: queueExitState },
+        { templateName: 'SpawnPointExitStructure', state: spawnExitState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        deployState: string;
+        deployFrameToWait: number;
+        rallyPoint: { x: number; z: number } | null;
+        rallyPointY: number;
+        queueProductionExitDelayFramesRemaining: number;
+        queueProductionExitBurstRemaining: number;
+        queueProductionExitCreationClearDistance: number;
+        spawnPointExitState: { occupierIds: number[] } | null;
+      }>;
+    };
+
+    expect(privateLogic.spawnedEntities.get(118)!.deployState).toBe('UNDEPLOY');
+    expect(privateLogic.spawnedEntities.get(118)!.deployFrameToWait).toBe(345);
+
+    expect(privateLogic.spawnedEntities.get(119)!.rallyPoint).toEqual({ x: 51, z: 61 });
+    expect(privateLogic.spawnedEntities.get(119)!.rallyPointY).toBe(6);
+
+    const queueEntity = privateLogic.spawnedEntities.get(120)!;
+    expect(queueEntity.queueProductionExitDelayFramesRemaining).toBe(12);
+    expect(queueEntity.queueProductionExitBurstRemaining).toBe(3);
+    expect(queueEntity.queueProductionExitCreationClearDistance).toBeCloseTo(44.5);
+    expect(queueEntity.rallyPoint).toEqual({ x: 71, z: 81 });
+    expect(queueEntity.rallyPointY).toBe(8);
+
+    expect(privateLogic.spawnedEntities.get(121)!.spawnPointExitState?.occupierIds)
+      .toEqual([-1, 401, 402, -1, 404, -1, -1, -1, -1, -1]);
   });
 
   it('imports source HordeUpdate runtime state', () => {

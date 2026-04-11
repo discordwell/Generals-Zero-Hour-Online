@@ -3492,6 +3492,8 @@ export interface MapEntity {
   /** Source parity: SpawnPointProductionExitUpdate — spawn slot positions and occupancy. */
   spawnPointExitState: SpawnPointExitState | null;
   rallyPoint: VectorXZ | null;
+  /** Source parity: ProductionExitUpdate::m_rallyPoint.y, preserved separately from VectorXZ UI state. */
+  rallyPointY: number;
   parkingPlaceProfile: ParkingPlaceProfile | null;
   containProfile: ContainProfile | null;
   /** Source parity: RiderChangeContainModuleData — ZH rider-change vehicle profile (null = not a rider-change vehicle). */
@@ -3500,6 +3502,8 @@ export interface MapEntity {
   scriptEvacDisposition: number;
   queueProductionExitDelayFramesRemaining: number;
   queueProductionExitBurstRemaining: number;
+  /** Source parity: QueueProductionExitUpdate::m_creationClearDistance. */
+  queueProductionExitCreationClearDistance: number;
   parkingSpaceProducerId: number | null;
   helixCarrierId: number | null;
   garrisonContainerId: number | null;
@@ -8878,6 +8882,28 @@ interface SourceCommandButtonHuntUpdateImportState {
   commandButtonName: string;
 }
 
+interface SourceDeployStyleAIUpdateImportState {
+  state: number;
+  frameToWaitForDeploy: number;
+}
+
+interface SourceProductionExitRallyImportState {
+  nextCallFrame: number;
+  rallyPoint: { x: number; y: number; z: number };
+  rallyPointExists: boolean;
+}
+
+interface SourceQueueProductionExitImportState extends SourceProductionExitRallyImportState {
+  currentDelay: number;
+  creationClearDistance: number;
+  currentBurstCount: number;
+}
+
+interface SourceSpawnPointProductionExitImportState {
+  nextCallFrame: number;
+  occupierIds: number[];
+}
+
 interface SourceProjectileStreamUpdateImportState {
   nextCallFrame: number;
   projectileIds: number[];
@@ -9078,6 +9104,7 @@ const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
 const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
+const SOURCE_SPAWN_POINT_MAX_POINTS = 10;
 const SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_FLAG = -1;
 const SOURCE_DOCK_VECTOR_LIMIT = 0xffff;
 const SOURCE_PLAYER_MASK_BYTE_LENGTH = 2;
@@ -14899,6 +14926,220 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private sourceDeployStyleStateFromInt(value: number): DeployState | null {
+    switch (Math.trunc(value)) {
+      case 0: return 'READY_TO_MOVE';
+      case 1: return 'DEPLOY';
+      case 2: return 'READY_TO_ATTACK';
+      case 3: return 'UNDEPLOY';
+      default: return null;
+    }
+  }
+
+  private tryParseSourceDeployStyleAIUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceDeployStyleAIUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'DEPLOYSTYLEAIUPDATE') {
+      return null;
+    }
+    if (data.byteLength < 9 || data[0] !== 4) {
+      return null;
+    }
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    return {
+      state: view.getInt32(data.byteLength - 8, true),
+      frameToWaitForDeploy: view.getUint32(data.byteLength - 4, true),
+    };
+  }
+
+  private applySourceDeployStyleAIUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.deployStyleProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const deployState = this.tryParseSourceDeployStyleAIUpdateImportState(module.blockData, moduleType);
+      if (!deployState) {
+        continue;
+      }
+      const state = this.sourceDeployStyleStateFromInt(deployState.state);
+      if (!state) {
+        throw new Error(`Unsupported source DeployStyleAIUpdate state ${deployState.state}.`);
+      }
+      entity.deployState = state;
+      entity.deployFrameToWait = Math.max(0, Math.trunc(deployState.frameToWaitForDeploy));
+      return;
+    }
+  }
+
+  private tryParseSourceProductionExitRallyImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceProductionExitRallyImportState | null {
+    const normalizedType = moduleType.trim().toUpperCase();
+    if (
+      normalizedType !== 'DEFAULTPRODUCTIONEXITUPDATE'
+      && normalizedType !== 'SUPPLYCENTERPRODUCTIONEXITUPDATE'
+    ) {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-production-exit-rally-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const rallyPoint = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const rallyPointExists = xfer.xferBool(false);
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, rallyPoint, rallyPointExists }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceQueueProductionExitImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceQueueProductionExitImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'QUEUEPRODUCTIONEXITUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-queue-production-exit-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const currentDelay = xfer.xferUnsignedInt(0);
+      const rallyPoint = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const rallyPointExists = xfer.xferBool(false);
+      const creationClearDistance = xfer.xferReal(0);
+      const currentBurstCount = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            currentDelay,
+            rallyPoint,
+            rallyPointExists,
+            creationClearDistance,
+            currentBurstCount,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceSpawnPointProductionExitImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceSpawnPointProductionExitImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'SPAWNPOINTPRODUCTIONEXITUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-spawn-point-production-exit-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const occupierIds: number[] = [];
+      for (let index = 0; index < SOURCE_SPAWN_POINT_MAX_POINTS; index += 1) {
+        const id = xfer.xferObjectID(0);
+        occupierIds.push(id === 0 ? -1 : Math.max(0, Math.trunc(id)));
+      }
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, occupierIds }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceProductionExitModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.queueProductionExitProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const queueState = this.tryParseSourceQueueProductionExitImportState(module.blockData, moduleType);
+      if (queueState) {
+        entity.queueProductionExitDelayFramesRemaining = Math.max(0, Math.trunc(queueState.currentDelay));
+        entity.queueProductionExitBurstRemaining = Math.max(0, Math.trunc(queueState.currentBurstCount));
+        entity.queueProductionExitCreationClearDistance = Number.isFinite(queueState.creationClearDistance)
+          ? queueState.creationClearDistance
+          : 0;
+        entity.rallyPoint = queueState.rallyPointExists
+          ? { x: queueState.rallyPoint.x, z: queueState.rallyPoint.z }
+          : null;
+        entity.rallyPointY = queueState.rallyPoint.y;
+        continue;
+      }
+
+      const rallyState = this.tryParseSourceProductionExitRallyImportState(module.blockData, moduleType);
+      if (rallyState) {
+        entity.rallyPoint = rallyState.rallyPointExists
+          ? { x: rallyState.rallyPoint.x, z: rallyState.rallyPoint.z }
+          : null;
+        entity.rallyPointY = rallyState.rallyPoint.y;
+        continue;
+      }
+
+      const spawnPointState = this.tryParseSourceSpawnPointProductionExitImportState(module.blockData, moduleType);
+      if (spawnPointState) {
+        const state = entity.spawnPointExitState ?? this.initializeSpawnPointPositions(entity);
+        state.occupierIds = Array.from({ length: SOURCE_SPAWN_POINT_MAX_POINTS }, (_, index) =>
+          spawnPointState.occupierIds[index] ?? -1,
+        );
+        entity.spawnPointExitState = state;
+      }
+    }
+  }
+
   private tryParseSourceProjectileStreamUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -16747,6 +16988,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceWeaponStateToEntity(entity, sourceState);
     this.applySourceBodyModulesToEntity(entity, sourceState);
     this.applySourceProductionModulesToEntity(entity, sourceState);
+    this.applySourceProductionExitModulesToEntity(entity, sourceState);
     this.applySourceDockModulesToEntity(entity, sourceState);
     this.applySourceSpawnBehaviorModulesToEntity(entity, sourceState);
     this.applySourceSlavedUpdateModulesToEntity(entity, sourceState);
@@ -16763,6 +17005,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceAutoDepositUpdateModulesToEntity(entity, sourceState);
     this.applySourceBaseRegenerateUpdateModulesToEntity(entity, sourceState);
     this.applySourceCommandButtonHuntUpdateModulesToEntity(entity, sourceState);
+    this.applySourceDeployStyleAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);
     this.applySourceFireSpreadUpdateModulesToEntity(entity, sourceState);

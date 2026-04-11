@@ -1842,6 +1842,44 @@ function parseSourceQueueProductionExitBlockData(data: Uint8Array) {
   }
 }
 
+function createSourceSpawnPointProductionExitBlockData(
+  nextCallFrameAndPhase: number,
+  occupierIds: number[],
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-spawn-point-production-exit');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    for (let index = 0; index < 10; index += 1) {
+      xferSave.xferObjectID(occupierIds[index] ?? 0);
+    }
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceSpawnPointProductionExitBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-spawn-point-production-exit');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const occupierIds: number[] = [];
+    for (let index = 0; index < 10; index += 1) {
+      occupierIds.push(xferLoad.xferObjectID(0));
+    }
+    return { nextCallFrameAndPhase, occupierIds };
+  } finally {
+    xferLoad.close();
+  }
+}
+
 interface SourceDockUpdateTestState {
   nextCallFrameAndPhase: number;
   enterPosition: Coord3D;
@@ -11256,7 +11294,10 @@ describe('runtime-save-game', () => {
       ),
     }, {
       identifier: 'ModuleTag_SpawnExit',
-      blockData: createSourceBaseOnlyUpdateModuleBlockData((93 << 2) | 2),
+      blockData: createSourceSpawnPointProductionExitBlockData(
+        (93 << 2) | 2,
+        [301, 302, 303, 304],
+      ),
     }]);
 
     const saveFile = buildRuntimeSaveFile({
@@ -11332,8 +11373,16 @@ describe('runtime-save-game', () => {
               spawnPointBoneName: null,
             },
             rallyPoint: { x: 100, z: 200 },
+            rallyPointY: 66,
             queueProductionExitDelayFramesRemaining: 9,
             queueProductionExitBurstRemaining: 4,
+            queueProductionExitCreationClearDistance: 55.5,
+            spawnPointExitState: {
+              initialized: true,
+              spawnPointCount: 10,
+              spawnPositions: [],
+              occupierIds: [-1, 401, -1, 403, 404],
+            },
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
         resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
@@ -11362,27 +11411,28 @@ describe('runtime-save-game', () => {
     expect(defaultModule).toBeDefined();
     const parsedDefault = parseSourceProductionExitRallyBlockData(defaultModule!.blockData);
     expect(parsedDefault.nextCallFrameAndPhase).toBe(0xfffffffe);
-    expect(parsedDefault.rallyPoint).toEqual({ x: 100, y: 2, z: 200 });
+    expect(parsedDefault.rallyPoint).toEqual({ x: 100, y: 66, z: 200 });
     expect(parsedDefault.rallyPointExists).toBe(true);
 
     expect(supplyModule).toBeDefined();
     const parsedSupply = parseSourceProductionExitRallyBlockData(supplyModule!.blockData);
     expect(parsedSupply.nextCallFrameAndPhase).toBe(0xfffffffe);
-    expect(parsedSupply.rallyPoint).toEqual({ x: 100, y: 5, z: 200 });
+    expect(parsedSupply.rallyPoint).toEqual({ x: 100, y: 66, z: 200 });
     expect(parsedSupply.rallyPointExists).toBe(true);
 
     expect(queueModule).toBeDefined();
     const parsedQueue = parseSourceQueueProductionExitBlockData(queueModule!.blockData);
     expect(parsedQueue.nextCallFrameAndPhase).toBe((43 << 2) | 2);
     expect(parsedQueue.currentDelay).toBe(9);
-    expect(parsedQueue.rallyPoint).toEqual({ x: 100, y: 8, z: 200 });
+    expect(parsedQueue.rallyPoint).toEqual({ x: 100, y: 66, z: 200 });
     expect(parsedQueue.rallyPointExists).toBe(true);
-    expect(parsedQueue.creationClearDistance).toBeCloseTo(44.5);
+    expect(parsedQueue.creationClearDistance).toBeCloseTo(55.5);
     expect(parsedQueue.currentBurstCount).toBe(4);
 
     expect(spawnModule).toBeDefined();
-    const parsedSpawn = parseSourceAnimationSteeringUpdateBlockData(spawnModule!.blockData);
+    const parsedSpawn = parseSourceSpawnPointProductionExitBlockData(spawnModule!.blockData);
     expect(parsedSpawn.nextCallFrameAndPhase).toBe(0xfffffffe);
+    expect(parsedSpawn.occupierIds).toEqual([0, 401, 0, 403, 404, 0, 0, 0, 0, 0]);
   });
 
   it('rewrites source dock update modules while preserving source-only dock vectors', () => {
