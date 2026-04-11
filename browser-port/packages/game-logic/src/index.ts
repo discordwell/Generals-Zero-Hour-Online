@@ -8734,6 +8734,20 @@ interface SourceCleanupHazardUpdateImportState {
   moveRange: number;
 }
 
+interface SourceDynamicShroudClearingRangeUpdateImportState {
+  stateCountdown: number;
+  totalFrames: number;
+  growStartDeadline: number;
+  sustainDeadline: number;
+  shrinkStartDeadline: number;
+  doneForeverFrame: number;
+  changeIntervalCountdown: number;
+  decalsCreated: boolean;
+  visionChangePerInterval: number;
+  nativeClearingRange: number;
+  currentClearingRange: number;
+}
+
 interface SourceSpecialPowerModuleImportState {
   availableOnFrame: number;
   pausedCount: number;
@@ -14039,6 +14053,144 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceDynamicShroudClearingRangeUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceDynamicShroudClearingRangeUpdateImportState | null {
+    const normalizedModuleType = moduleType.trim().toUpperCase();
+    if (
+      normalizedModuleType !== 'DYNAMICSHROUDCLEARINGRANGEUPDATE'
+      && normalizedModuleType !== 'DYNAMICSHROUDCLEARINGRANGE'
+    ) {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-dynamic-shroud-clearing-range-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      this.skipSourceImportUpdateModuleBase(xfer);
+      const stateCountdown = xfer.xferInt(0);
+      const totalFrames = xfer.xferInt(0);
+      const growStartDeadline = xfer.xferUnsignedInt(0);
+      const sustainDeadline = xfer.xferUnsignedInt(0);
+      const shrinkStartDeadline = xfer.xferUnsignedInt(0);
+      const doneForeverFrame = xfer.xferUnsignedInt(0);
+      const changeIntervalCountdown = xfer.xferUnsignedInt(0);
+      const decalsCreated = xfer.xferBool(false);
+      const visionChangePerInterval = xfer.xferReal(0);
+      const nativeClearingRange = xfer.xferReal(0);
+      const currentClearingRange = xfer.xferReal(0);
+      return xfer.getRemaining() === 0
+        ? {
+          stateCountdown,
+          totalFrames,
+          growStartDeadline,
+          sustainDeadline,
+          shrinkStartDeadline,
+          doneForeverFrame,
+          changeIntervalCountdown,
+          decalsCreated,
+          visionChangePerInterval,
+          nativeClearingRange,
+          currentClearingRange,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private deriveSourceDynamicShroudState(state: SourceDynamicShroudClearingRangeUpdateImportState): DynamicShroudState {
+    const countdown = Number.isFinite(state.stateCountdown) ? Math.trunc(state.stateCountdown) : 0;
+    const doneForeverFrame = Number.isFinite(state.doneForeverFrame) ? Math.trunc(state.doneForeverFrame) : 0;
+    const shrinkStartDeadline = Number.isFinite(state.shrinkStartDeadline)
+      ? Math.trunc(state.shrinkStartDeadline)
+      : 0;
+    const sustainDeadline = Number.isFinite(state.sustainDeadline) ? Math.trunc(state.sustainDeadline) : 0;
+    const growStartDeadline = Number.isFinite(state.growStartDeadline) ? Math.trunc(state.growStartDeadline) : 0;
+
+    if (countdown <= 0 || this.frameCounter > doneForeverFrame) {
+      return 'DONE';
+    }
+    if (countdown <= shrinkStartDeadline) {
+      return 'SHRINKING';
+    }
+    if (countdown <= sustainDeadline) {
+      return 'SUSTAINING';
+    }
+    if (countdown <= growStartDeadline) {
+      return 'GROWING';
+    }
+    return 'NOT_STARTED';
+  }
+
+  private applySourceDynamicShroudClearingRangeUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.dynamicShroudProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const dynamicShroudState = this.tryParseSourceDynamicShroudClearingRangeUpdateImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (!dynamicShroudState) {
+        continue;
+      }
+
+      entity.dynamicShroudStateCountdown = Number.isFinite(dynamicShroudState.stateCountdown)
+        ? Math.trunc(dynamicShroudState.stateCountdown)
+        : 0;
+      entity.dynamicShroudTotalFrames = Number.isFinite(dynamicShroudState.totalFrames)
+        ? Math.max(1, Math.trunc(dynamicShroudState.totalFrames))
+        : 1;
+      entity.dynamicShroudGrowStartDeadline = Number.isFinite(dynamicShroudState.growStartDeadline)
+        ? Math.max(0, Math.trunc(dynamicShroudState.growStartDeadline))
+        : 0;
+      entity.dynamicShroudSustainDeadline = Number.isFinite(dynamicShroudState.sustainDeadline)
+        ? Math.max(0, Math.trunc(dynamicShroudState.sustainDeadline))
+        : 0;
+      entity.dynamicShroudShrinkStartDeadline = Number.isFinite(dynamicShroudState.shrinkStartDeadline)
+        ? Math.max(0, Math.trunc(dynamicShroudState.shrinkStartDeadline))
+        : 0;
+      entity.dynamicShroudDoneForeverFrame = Number.isFinite(dynamicShroudState.doneForeverFrame)
+        ? Math.max(0, Math.trunc(dynamicShroudState.doneForeverFrame))
+        : 0;
+      entity.dynamicShroudChangeIntervalCountdown = Number.isFinite(dynamicShroudState.changeIntervalCountdown)
+        ? Math.max(0, Math.trunc(dynamicShroudState.changeIntervalCountdown))
+        : 0;
+      entity.dynamicShroudDecalsCreated = dynamicShroudState.decalsCreated;
+      entity.dynamicShroudVisionChangePerInterval = Number.isFinite(dynamicShroudState.visionChangePerInterval)
+        ? dynamicShroudState.visionChangePerInterval
+        : 0;
+      entity.dynamicShroudNativeClearingRange = Number.isFinite(dynamicShroudState.nativeClearingRange)
+        ? dynamicShroudState.nativeClearingRange
+        : 0;
+      entity.dynamicShroudCurrentClearingRange = Number.isFinite(dynamicShroudState.currentClearingRange)
+        ? dynamicShroudState.currentClearingRange
+        : 0;
+      // C++ does not serialize m_state; update() derives it from these same countdown/deadline fields.
+      entity.dynamicShroudState = this.deriveSourceDynamicShroudState(dynamicShroudState);
+      return;
+    }
+  }
+
   private normalizeSourceObjectModuleType(moduleType: string): string {
     return moduleType.trim().toUpperCase();
   }
@@ -14953,6 +15105,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceFireOclAfterCooldownUpdateModulesToEntity(entity, sourceState);
     this.applySourceRadiusDecalUpdateModulesToEntity(entity, sourceState);
     this.applySourceCleanupHazardUpdateModulesToEntity(entity, sourceState);
+    this.applySourceDynamicShroudClearingRangeUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
     this.applySourceBattlePlanUpdateModulesToEntity(entity, sourceState);
     this.applySourceStealthModulesToEntity(entity, sourceState);

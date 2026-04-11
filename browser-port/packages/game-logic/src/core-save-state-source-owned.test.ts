@@ -180,6 +180,17 @@ function makeSourceOwnedCoreBundle() {
           ScanRange: 100,
         }),
       ]),
+      makeObjectDef('DynamicShroudUnit', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'DynamicShroudClearingRangeUpdate ModuleTag_DynamicShroud', {
+          FinalVision: 50,
+          ShrinkDelay: 3000,
+          ShrinkTime: 1000,
+          GrowDelay: 1000,
+          GrowTime: 1000,
+          ChangeInterval: 200,
+          GrowInterval: 100,
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -964,6 +975,46 @@ function buildSourceCleanupHazardUpdateModuleData(options: {
     saver.xferInt(options.nextShotAvailableInFrames);
     saver.xferCoord3D(options.position);
     saver.xferReal(options.moveRange);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceDynamicShroudClearingRangeUpdateModuleData(options: {
+  nextCallFrame: number;
+  stateCountdown: number;
+  totalFrames: number;
+  growStartDeadline: number;
+  sustainDeadline: number;
+  shrinkStartDeadline: number;
+  doneForeverFrame: number;
+  changeIntervalCountdown: number;
+  decalsCreated: boolean;
+  visionChangePerInterval: number;
+  nativeClearingRange: number;
+  currentClearingRange: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-dynamic-shroud-clearing-range-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferInt(options.stateCountdown);
+    saver.xferInt(options.totalFrames);
+    saver.xferUnsignedInt(options.growStartDeadline);
+    saver.xferUnsignedInt(options.sustainDeadline);
+    saver.xferUnsignedInt(options.shrinkStartDeadline);
+    saver.xferUnsignedInt(options.doneForeverFrame);
+    saver.xferUnsignedInt(options.changeIntervalCountdown);
+    saver.xferBool(options.decalsCreated);
+    saver.xferReal(options.visionChangePerInterval);
+    saver.xferReal(options.nativeClearingRange);
+    saver.xferReal(options.currentClearingRange);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2155,6 +2206,80 @@ describe('source-owned game-logic core save-state', () => {
       cleanupAreaPosition: { x: 5, y: 6, z: 7 },
       cleanupAreaMoveRange: 125,
     });
+  });
+
+  it('imports source DynamicShroudClearingRangeUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 100;
+    sourceState.position = { x: 164, y: 0, z: 64 };
+    sourceState.shroudClearingRange = 92;
+    sourceState.modules = [{
+      identifier: 'ModuleTag_DynamicShroud',
+      blockData: buildSourceDynamicShroudClearingRangeUpdateModuleData({
+        nextCallFrame: 201,
+        stateCountdown: 60,
+        totalFrames: 88,
+        growStartDeadline: 70,
+        sustainDeadline: 55,
+        shrinkStartDeadline: 33,
+        doneForeverFrame: 456,
+        changeIntervalCountdown: 6,
+        decalsCreated: true,
+        visionChangePerInterval: 1.25,
+        nativeClearingRange: 400,
+        currentClearingRange: 125,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 170,
+      objects: [
+        { templateName: 'DynamicShroudUnit', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        shroudClearingRange: number;
+        dynamicShroudState: string;
+        dynamicShroudStateCountdown: number;
+        dynamicShroudTotalFrames: number;
+        dynamicShroudGrowStartDeadline: number;
+        dynamicShroudSustainDeadline: number;
+        dynamicShroudShrinkStartDeadline: number;
+        dynamicShroudDoneForeverFrame: number;
+        dynamicShroudChangeIntervalCountdown: number;
+        dynamicShroudDecalsCreated: boolean;
+        dynamicShroudVisionChangePerInterval: number;
+        dynamicShroudNativeClearingRange: number;
+        dynamicShroudCurrentClearingRange: number;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(100)!;
+    expect(entity.shroudClearingRange).toBe(92);
+    expect(entity.dynamicShroudState).toBe('GROWING');
+    expect(entity.dynamicShroudStateCountdown).toBe(60);
+    expect(entity.dynamicShroudTotalFrames).toBe(88);
+    expect(entity.dynamicShroudGrowStartDeadline).toBe(70);
+    expect(entity.dynamicShroudSustainDeadline).toBe(55);
+    expect(entity.dynamicShroudShrinkStartDeadline).toBe(33);
+    expect(entity.dynamicShroudDoneForeverFrame).toBe(456);
+    expect(entity.dynamicShroudChangeIntervalCountdown).toBe(6);
+    expect(entity.dynamicShroudDecalsCreated).toBe(true);
+    expect(entity.dynamicShroudVisionChangePerInterval).toBeCloseTo(1.25);
+    expect(entity.dynamicShroudNativeClearingRange).toBeCloseTo(400);
+    expect(entity.dynamicShroudCurrentClearingRange).toBeCloseTo(125);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {
