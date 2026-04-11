@@ -1032,7 +1032,7 @@ function createSourceNeutronMissileUpdateBlockData(
   reachedIntermediatePos: boolean,
   frameAtLaunch: number,
   heightAtLaunch: number,
-  rawTailBytes: Uint8Array,
+  exhaustSystemTemplateName: string,
 ): Uint8Array {
   const xferSave = new XferSave();
   xferSave.open('create-source-neutron-missile-update');
@@ -1050,7 +1050,7 @@ function createSourceNeutronMissileUpdateBlockData(
     xferSave.xferBool(reachedIntermediatePos);
     xferSave.xferUnsignedInt(frameAtLaunch);
     xferSave.xferReal(heightAtLaunch);
-    xferSave.xferUser(rawTailBytes);
+    xferSave.xferAsciiString(exhaustSystemTemplateName);
     return new Uint8Array(xferSave.getBuffer());
   } finally {
     xferSave.close();
@@ -2469,9 +2469,7 @@ function parseSourceNeutronMissileUpdateBlockData(data: Uint8Array) {
     const reachedIntermediatePos = xferLoad.xferBool(false);
     const frameAtLaunch = xferLoad.xferUnsignedInt(0);
     const heightAtLaunch = xferLoad.xferReal(0);
-    const rawTailBytes = xferLoad.getRemaining() > 0
-      ? xferLoad.xferUser(new Uint8Array(xferLoad.getRemaining()))
-      : new Uint8Array();
+    const exhaustSystemTemplateName = xferLoad.xferAsciiString('');
     return {
       nextCallFrameAndPhase,
       state,
@@ -2489,7 +2487,7 @@ function parseSourceNeutronMissileUpdateBlockData(data: Uint8Array) {
       reachedIntermediatePos,
       frameAtLaunch,
       heightAtLaunch,
-      rawTailBytes,
+      exhaustSystemTemplateName,
     };
   } finally {
     xferLoad.close();
@@ -8982,7 +8980,6 @@ describe('runtime-save-game', () => {
       { x: 4.5, y: 5.5, z: 6.5 },
       99,
     );
-    const rawTailBytes = new Uint8Array([0xde, 0xad, 0xbe, 0xef, 0x03, 0x4f, 0x4b, 0x21]);
     const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
       identifier: 'ModuleTag_NeutronMissile',
       blockData: createSourceNeutronMissileUpdateBlockData(
@@ -8998,7 +8995,7 @@ describe('runtime-save-game', () => {
         false,
         77,
         12.25,
-        rawTailBytes,
+        'NukeExhaustTrail',
       ),
     }]);
 
@@ -9134,7 +9131,7 @@ describe('runtime-save-game', () => {
       reachedIntermediatePos: true,
       frameAtLaunch: 66,
       heightAtLaunch: 77.75,
-      rawTailBytes,
+      exhaustSystemTemplateName: 'NukeExhaustTrail',
     });
   });
 

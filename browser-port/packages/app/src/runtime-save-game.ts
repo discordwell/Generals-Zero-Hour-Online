@@ -4804,7 +4804,7 @@ function tryParseSourceNeutronMissileUpdateBlockData(
   accel: { x: number; y: number; z: number };
   vel: { x: number; y: number; z: number };
   stateTimestamp: number;
-  rawTailBytes: Uint8Array;
+  exhaustSystemTemplateName: string;
 } | null {
   const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
   xferLoad.open('parse-source-neutron-missile-update');
@@ -4833,18 +4833,17 @@ function tryParseSourceNeutronMissileUpdateBlockData(
     xferLoad.xferBool(false);
     xferLoad.xferUnsignedInt(0);
     xferLoad.xferReal(0);
-    const remaining = xferLoad.getRemaining();
-    const rawTailBytes = remaining > 0
-      ? xferLoad.xferUser(new Uint8Array(remaining))
-      : new Uint8Array();
-    return {
-      attachWeaponSlot,
-      attachSpecificBarrelToUse,
-      accel,
-      vel,
-      stateTimestamp,
-      rawTailBytes,
-    };
+    const exhaustSystemTemplateName = xferLoad.xferAsciiString('');
+    return xferLoad.getRemaining() === 0
+      ? {
+        attachWeaponSlot,
+        attachSpecificBarrelToUse,
+        accel,
+        vel,
+        stateTimestamp,
+        exhaustSystemTemplateName,
+      }
+      : null;
   } catch {
     return null;
   } finally {
@@ -4861,7 +4860,7 @@ function buildSourceNeutronMissileUpdateBlockData(
     accel: { x: number; y: number; z: number };
     vel: { x: number; y: number; z: number };
     stateTimestamp: number;
-    rawTailBytes: Uint8Array;
+    exhaustSystemTemplateName: string;
   } | null,
 ): Uint8Array {
   const saver = new XferSave();
@@ -4909,9 +4908,9 @@ function buildSourceNeutronMissileUpdateBlockData(
     saver.xferBool(state?.reachedIntermediatePos === true);
     saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.frameAtLaunch ?? 0)));
     saver.xferReal(state?.heightAtLaunch ?? 0);
-    if (preservedState?.rawTailBytes && preservedState.rawTailBytes.byteLength > 0) {
-      saver.xferUser(preservedState.rawTailBytes);
-    }
+    // Source parity: RadiusDecal::xferRadiusDecal is currently a no-op, then
+    // NeutronMissileUpdate::xfer writes m_exhaustSysTmpl's template name.
+    saver.xferAsciiString(preservedState?.exhaustSystemTemplateName ?? '');
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
