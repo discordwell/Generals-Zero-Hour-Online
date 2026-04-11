@@ -232,6 +232,76 @@ function makeSourceOwnedCoreBundle() {
           ParachuteName: 'ParachuteContainer',
         }),
       ]),
+      makeObjectDef('SpectreCommandCenter', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'SpectreGunshipDeploymentUpdate ModuleTag_SpectreDeploy', {
+          SpecialPowerTemplate: 'SpectrePower',
+          GunshipTemplateName: 'SpectreGunshipObject',
+          AttackAreaRadius: 200,
+          GunshipOrbitRadius: 250,
+        }),
+      ]),
+      makeObjectDef('SpectreGunshipObject', 'America', ['AIRCRAFT'], [
+        makeBlock('Behavior', 'SpectreGunshipUpdate ModuleTag_Spectre', {
+          SpecialPowerTemplate: 'SpectrePower',
+          AttackAreaRadius: 200,
+          TargetingReticleRadius: 25,
+          GunshipOrbitRadius: 250,
+          StrafingIncrement: 20,
+          OrbitInsertionSlope: 0.7,
+          OrbitTime: 3000,
+          HowitzerFiringRate: 333,
+          HowitzerFollowLag: 0,
+          RandomOffsetForHowitzer: 20,
+          HowitzerWeaponTemplate: 'PDLWeapon',
+          GattlingTemplateName: 'SpectreGattling',
+        }),
+      ]),
+      makeObjectDef('SpectreGattling', 'America', ['VEHICLE'], []),
+      makeObjectDef('NeutronMissileObject', 'China', ['PROJECTILE'], [
+        makeBlock('Behavior', 'NeutronMissileUpdate ModuleTag_Neutron', {
+          DistanceToTravelBeforeTurning: 100,
+          MaxTurnRate: 120,
+          ForwardDamping: 0.2,
+          RelativeSpeed: 3,
+          TargetFromDirectlyAbove: 150,
+          SpecialAccelFactor: 1.25,
+          SpecialSpeedTime: 1000,
+          SpecialSpeedHeight: 200,
+          DeliveryDecalRadius: 80,
+          SpecialJitterDistance: 10,
+        }),
+      ]),
+      makeObjectDef('ScudStormObject', 'GLA', ['STRUCTURE'], [
+        makeBlock('Behavior', 'MissileLauncherBuildingUpdate ModuleTag_MissileLauncher', {
+          SpecialPowerTemplate: 'ScudStormPower',
+          DoorOpenTime: 1000,
+          DoorWaitOpenTime: 2000,
+          DoorCloseTime: 1000,
+        }),
+      ]),
+      makeObjectDef('ParticleCannonObject', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'ParticleUplinkCannonUpdate ModuleTag_ParticleUplink', {
+          SpecialPowerTemplate: 'ParticleCannonPower',
+          BeginChargeTime: 1000,
+          RaiseAntennaTime: 1000,
+          ReadyDelayTime: 1000,
+          WidthGrowTime: 1000,
+          BeamTravelTime: 1000,
+          TotalFiringTime: 3000,
+          TotalScorchMarks: 4,
+          TotalDamagePulses: 3,
+          DamagePerSecond: 100,
+          DamageType: 'LASER',
+          DamageRadiusScalar: 1,
+          RevealRange: 50,
+          SwathOfDeathDistance: 100,
+          SwathOfDeathAmplitude: 20,
+          DelayBetweenLaunchFX: 500,
+          ManualDrivingSpeed: 30,
+          ManualFastDrivingSpeed: 60,
+          DoubleClickToFastDriveDelay: 500,
+        }),
+      ]),
       makeObjectDef('ToppleTree', 'Neutral', ['SHRUBBERY'], [
         makeBlock('Behavior', 'ToppleUpdate ModuleTag_Topple', {
           InitialVelocityPercent: '20%',
@@ -397,6 +467,9 @@ function makeSourceOwnedCoreBundle() {
       makeSpecialPowerDef('SpyVisionPower', { ReloadTime: 60000 }),
       makeSpecialPowerDef('AbilityPower', { ReloadTime: 60000 }),
       makeSpecialPowerDef('BattlePlanPower', { ReloadTime: 60000 }),
+      makeSpecialPowerDef('SpectrePower', { ReloadTime: 60000 }),
+      makeSpecialPowerDef('ScudStormPower', { ReloadTime: 60000 }),
+      makeSpecialPowerDef('ParticleCannonPower', { ReloadTime: 60000 }),
     ],
     weapons: [
       makeWeaponDef('AutoFireWeapon', { PrimaryDamage: 1, DelayBetweenShots: 1000 }),
@@ -1531,6 +1604,217 @@ function buildSourceHijackerUpdateModuleData(options: {
     saver.xferBool(options.update);
     saver.xferBool(options.isInVehicle);
     saver.xferBool(options.wasTargetAirborne);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSpectreGunshipDeploymentUpdateModuleData(options: {
+  nextCallFrame: number;
+  gunshipId: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-spectre-gunship-deployment-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferObjectID(options.gunshipId);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSpectreGunshipUpdateModuleData(options: {
+  nextCallFrame: number;
+  initialTargetPosition: { x: number; y: number; z: number };
+  overrideTargetDestination: { x: number; y: number; z: number };
+  satellitePosition: { x: number; y: number; z: number };
+  status: number;
+  orbitEscapeFrame: number;
+  gattlingTargetPosition: { x: number; y: number; z: number };
+  positionToShootAt: { x: number; y: number; z: number };
+  okToFireHowitzerCounter: number;
+  gattlingId: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-spectre-gunship-update');
+  try {
+    saver.xferVersion(2);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferCoord3D(options.initialTargetPosition);
+    saver.xferCoord3D(options.overrideTargetDestination);
+    saver.xferCoord3D(options.satellitePosition);
+    saver.xferUser(sourceRawInt32(options.status));
+    saver.xferUnsignedInt(options.orbitEscapeFrame);
+    saver.xferCoord3D(options.gattlingTargetPosition);
+    saver.xferCoord3D(options.positionToShootAt);
+    saver.xferUnsignedInt(options.okToFireHowitzerCounter);
+    saver.xferObjectID(options.gattlingId);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceNeutronMissileUpdateModuleData(options: {
+  nextCallFrame: number;
+  state: number;
+  targetPos: { x: number; y: number; z: number };
+  intermedPos: { x: number; y: number; z: number };
+  launcherId: number;
+  attachWeaponSlot: number;
+  attachSpecificBarrelToUse: number;
+  accel: { x: number; y: number; z: number };
+  vel: { x: number; y: number; z: number };
+  stateTimestamp: number;
+  isLaunched: boolean;
+  isArmed: boolean;
+  noTurnDistLeft: number;
+  reachedIntermediatePos: boolean;
+  frameAtLaunch: number;
+  heightAtLaunch: number;
+  exhaustSystemTemplateName: string;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-neutron-missile-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUser(sourceRawInt32(options.state));
+    saver.xferCoord3D(options.targetPos);
+    saver.xferCoord3D(options.intermedPos);
+    saver.xferObjectID(options.launcherId);
+    saver.xferUser(sourceRawInt32(options.attachWeaponSlot));
+    saver.xferInt(options.attachSpecificBarrelToUse);
+    saver.xferCoord3D(options.accel);
+    saver.xferCoord3D(options.vel);
+    saver.xferUnsignedInt(options.stateTimestamp);
+    saver.xferBool(options.isLaunched);
+    saver.xferBool(options.isArmed);
+    saver.xferReal(options.noTurnDistLeft);
+    saver.xferBool(options.reachedIntermediatePos);
+    saver.xferUnsignedInt(options.frameAtLaunch);
+    saver.xferReal(options.heightAtLaunch);
+    saver.xferAsciiString(options.exhaustSystemTemplateName);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceMissileLauncherBuildingUpdateModuleData(options: {
+  nextCallFrame: number;
+  doorState: number;
+  timeoutState: number;
+  timeoutFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-missile-launcher-building-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUser(sourceRawInt32(options.doorState));
+    saver.xferUser(sourceRawInt32(options.timeoutState));
+    saver.xferUnsignedInt(options.timeoutFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function writeSourceParticleUplinkVisualState(saver: XferSave): void {
+  for (let index = 0; index < 16; index += 1) {
+    saver.xferUnsignedInt(100 + index);
+  }
+  for (let index = 0; index < 16; index += 1) {
+    saver.xferUnsignedInt(200 + index);
+  }
+  saver.xferUnsignedInt(301);
+  saver.xferUnsignedInt(302);
+  saver.xferUnsignedInt(303);
+  saver.xferUnsignedInt(304);
+  for (let index = 0; index < 16; index += 1) {
+    saver.xferCoord3D({ x: index + 1, y: index + 2, z: index + 3 });
+  }
+  for (let matrixIndex = 0; matrixIndex < 16; matrixIndex += 1) {
+    const matrix = [1, 0, 0, matrixIndex, 0, 1, 0, matrixIndex + 1, 0, 0, 1, matrixIndex + 2];
+    for (const value of matrix) {
+      saver.xferReal(value);
+    }
+  }
+  saver.xferCoord3D({ x: 31, y: 32, z: 33 });
+  saver.xferCoord3D({ x: 41, y: 42, z: 43 });
+  saver.xferCoord3D({ x: 51, y: 52, z: 53 });
+  saver.xferBool(true);
+  saver.xferBool(true);
+  saver.xferBool(false);
+}
+
+function buildSourceParticleUplinkCannonUpdateModuleData(options: {
+  nextCallFrame: number;
+  status: number;
+  laserStatus: number;
+  frames: number;
+  initialTargetPosition: { x: number; y: number; z: number };
+  currentTargetPosition: { x: number; y: number; z: number };
+  scorchMarksMade: number;
+  nextScorchMarkFrame: number;
+  nextLaunchFXFrame: number;
+  damagePulsesMade: number;
+  nextDamagePulseFrame: number;
+  startAttackFrame: number;
+  startDecayFrame: number;
+  lastDrivingClickFrame: number;
+  secondLastDrivingClickFrame: number;
+  manualTargetMode: boolean;
+  scriptedWaypointMode: boolean;
+  nextDestWaypointID: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-particle-uplink-cannon-update');
+  try {
+    saver.xferVersion(3);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUser(sourceRawInt32(options.status));
+    saver.xferUser(sourceRawInt32(options.laserStatus));
+    saver.xferUnsignedInt(options.frames);
+    writeSourceParticleUplinkVisualState(saver);
+    saver.xferCoord3D(options.initialTargetPosition);
+    saver.xferCoord3D(options.currentTargetPosition);
+    saver.xferUnsignedInt(options.scorchMarksMade);
+    saver.xferUnsignedInt(options.nextScorchMarkFrame);
+    saver.xferUnsignedInt(options.nextLaunchFXFrame);
+    saver.xferUnsignedInt(options.damagePulsesMade);
+    saver.xferUnsignedInt(options.nextDamagePulseFrame);
+    saver.xferUnsignedInt(options.startAttackFrame);
+    saver.xferUnsignedInt(options.startDecayFrame);
+    saver.xferUnsignedInt(options.lastDrivingClickFrame);
+    saver.xferUnsignedInt(options.secondLastDrivingClickFrame);
+    saver.xferBool(options.manualTargetMode);
+    saver.xferBool(options.scriptedWaypointMode);
+    saver.xferUnsignedInt(options.nextDestWaypointID);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -3637,6 +3921,285 @@ describe('source-owned game-logic core save-state', () => {
       ejectX: 11,
       ejectY: 3,
       ejectZ: 22,
+    });
+  });
+
+  it('imports source weapon and special-power update runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const deploymentState = createEmptySourceMapEntitySaveState();
+    deploymentState.objectId = 128;
+    deploymentState.position = { x: 168, y: 0, z: 60 };
+    deploymentState.modules = [{
+      identifier: 'ModuleTag_SpectreDeploy',
+      blockData: buildSourceSpectreGunshipDeploymentUpdateModuleData({
+        nextCallFrame: 360,
+        gunshipId: 812,
+      }),
+    }];
+
+    const spectreState = createEmptySourceMapEntitySaveState();
+    spectreState.objectId = 129;
+    spectreState.position = { x: 170, y: 0, z: 60 };
+    spectreState.modules = [{
+      identifier: 'ModuleTag_Spectre',
+      blockData: buildSourceSpectreGunshipUpdateModuleData({
+        nextCallFrame: 361,
+        initialTargetPosition: { x: 10, y: 20, z: 3 },
+        overrideTargetDestination: { x: 11, y: 21, z: 4 },
+        satellitePosition: { x: 12, y: 22, z: 5 },
+        status: 1,
+        orbitEscapeFrame: 500,
+        gattlingTargetPosition: { x: 13, y: 23, z: 6 },
+        positionToShootAt: { x: 14, y: 24, z: 7 },
+        okToFireHowitzerCounter: 9,
+        gattlingId: 813,
+      }),
+    }];
+
+    const neutronState = createEmptySourceMapEntitySaveState();
+    neutronState.objectId = 130;
+    neutronState.position = { x: 172, y: 0, z: 60 };
+    neutronState.modules = [{
+      identifier: 'ModuleTag_Neutron',
+      blockData: buildSourceNeutronMissileUpdateModuleData({
+        nextCallFrame: 362,
+        state: 2,
+        targetPos: { x: 101, y: 202, z: 33 },
+        intermedPos: { x: 111, y: 222, z: 44 },
+        launcherId: 814,
+        attachWeaponSlot: 2,
+        attachSpecificBarrelToUse: 3,
+        accel: { x: 1.5, y: 2.5, z: 3.5 },
+        vel: { x: 4.5, y: 5.5, z: 6.5 },
+        stateTimestamp: 600,
+        isLaunched: true,
+        isArmed: true,
+        noTurnDistLeft: 42.25,
+        reachedIntermediatePos: true,
+        frameAtLaunch: 590,
+        heightAtLaunch: 123.5,
+        exhaustSystemTemplateName: 'NukeExhaustTrail',
+      }),
+    }];
+
+    const missileLauncherState = createEmptySourceMapEntitySaveState();
+    missileLauncherState.objectId = 131;
+    missileLauncherState.position = { x: 174, y: 0, z: 60 };
+    missileLauncherState.modules = [{
+      identifier: 'ModuleTag_MissileLauncher',
+      blockData: buildSourceMissileLauncherBuildingUpdateModuleData({
+        nextCallFrame: 363,
+        doorState: 3,
+        timeoutState: 4,
+        timeoutFrame: 700,
+      }),
+    }];
+
+    const particleState = createEmptySourceMapEntitySaveState();
+    particleState.objectId = 132;
+    particleState.position = { x: 176, y: 0, z: 60 };
+    particleState.modules = [{
+      identifier: 'ModuleTag_ParticleUplink',
+      blockData: buildSourceParticleUplinkCannonUpdateModuleData({
+        nextCallFrame: 364,
+        status: 6,
+        laserStatus: 1,
+        frames: 7,
+        initialTargetPosition: { x: 44, y: 66, z: 8 },
+        currentTargetPosition: { x: 55, y: 77, z: 9 },
+        scorchMarksMade: 4,
+        nextScorchMarkFrame: 144,
+        nextLaunchFXFrame: 155,
+        damagePulsesMade: 3,
+        nextDamagePulseFrame: 130,
+        startAttackFrame: 88,
+        startDecayFrame: 133,
+        lastDrivingClickFrame: 99,
+        secondLastDrivingClickFrame: 71,
+        manualTargetMode: true,
+        scriptedWaypointMode: false,
+        nextDestWaypointID: 321,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'SpectreCommandCenter', state: deploymentState },
+        { templateName: 'SpectreGunshipObject', state: spectreState },
+        { templateName: 'NeutronMissileObject', state: neutronState },
+        { templateName: 'ScudStormObject', state: missileLauncherState },
+        { templateName: 'ParticleCannonObject', state: particleState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        spectreGunshipDeploymentGunshipId: number;
+        spectreGunshipState: {
+          status: string;
+          initialTargetX: number;
+          initialTargetY?: number;
+          initialTargetZ: number;
+          overrideTargetX: number;
+          overrideTargetY?: number;
+          overrideTargetZ: number;
+          satelliteX: number;
+          satelliteY?: number;
+          satelliteZ: number;
+          gattlingTargetX: number;
+          gattlingTargetY?: number;
+          gattlingTargetZ: number;
+          positionToShootAtX: number;
+          positionToShootAtY?: number;
+          positionToShootAtZ: number;
+          orbitEscapeFrame: number;
+          okToFireHowitzerCounter: number;
+          gattlingEntityId: number;
+        } | null;
+        neutronMissileUpdateState: {
+          state: string;
+          targetX: number;
+          targetY: number;
+          targetZ: number;
+          intermedX: number;
+          intermedY: number;
+          intermedZ: number;
+          accelX: number;
+          accelY: number;
+          accelZ: number;
+          velX: number;
+          velY: number;
+          velZ: number;
+          launcherId: number;
+          attachWeaponSlot: number;
+          attachSpecificBarrelToUse: number;
+          stateTimestamp: number;
+          isLaunched: boolean;
+          isArmed: boolean;
+          noTurnDistLeft: number;
+          reachedIntermediatePos: boolean;
+          frameAtLaunch: number;
+          heightAtLaunch: number;
+        } | null;
+        missileLauncherBuildingState: {
+          doorState: string;
+          timeoutState: string;
+          timeoutFrame: number;
+        } | null;
+        particleUplinkCannonState: {
+          status: string;
+          laserStatus: string;
+          framesInState: number;
+          targetX: number;
+          targetY?: number;
+          targetZ: number;
+          currentTargetX: number;
+          currentTargetY?: number;
+          currentTargetZ: number;
+          scorchMarksMade: number;
+          nextScorchMarkFrame: number;
+          nextLaunchFXFrame: number;
+          damagePulsesMade: number;
+          nextDamagePulseFrame: number;
+          startAttackFrame: number;
+          startDecayFrame: number;
+          lastDrivingClickFrame: number;
+          secondLastDrivingClickFrame: number;
+          manualTargetMode: boolean;
+          scriptedWaypointMode: boolean;
+          nextDestWaypointID: number;
+        } | null;
+      }>;
+    };
+
+    expect(privateLogic.spawnedEntities.get(128)!.spectreGunshipDeploymentGunshipId).toBe(812);
+
+    expect(privateLogic.spawnedEntities.get(129)!.spectreGunshipState).toEqual({
+      status: 'ORBITING',
+      initialTargetX: 10,
+      initialTargetY: 3,
+      initialTargetZ: 20,
+      overrideTargetX: 11,
+      overrideTargetY: 4,
+      overrideTargetZ: 21,
+      satelliteX: 12,
+      satelliteY: 5,
+      satelliteZ: 22,
+      gattlingTargetX: 13,
+      gattlingTargetY: 6,
+      gattlingTargetZ: 23,
+      positionToShootAtX: 14,
+      positionToShootAtY: 7,
+      positionToShootAtZ: 24,
+      orbitEscapeFrame: 500,
+      okToFireHowitzerCounter: 9,
+      gattlingEntityId: 813,
+    });
+
+    expect(privateLogic.spawnedEntities.get(130)!.neutronMissileUpdateState).toEqual({
+      state: 'ATTACK',
+      targetX: 101,
+      targetY: 33,
+      targetZ: 202,
+      intermedX: 111,
+      intermedY: 44,
+      intermedZ: 222,
+      accelX: 1.5,
+      accelY: 3.5,
+      accelZ: 2.5,
+      velX: 4.5,
+      velY: 6.5,
+      velZ: 5.5,
+      launcherId: 814,
+      attachWeaponSlot: 2,
+      attachSpecificBarrelToUse: 3,
+      stateTimestamp: 600,
+      isArmed: true,
+      isLaunched: true,
+      noTurnDistLeft: 42.25,
+      reachedIntermediatePos: true,
+      frameAtLaunch: 590,
+      heightAtLaunch: 123.5,
+    });
+
+    expect(privateLogic.spawnedEntities.get(131)!.missileLauncherBuildingState).toEqual({
+      doorState: 'WAITING_TO_CLOSE',
+      timeoutState: 'CLOSING',
+      timeoutFrame: 700,
+    });
+
+    expect(privateLogic.spawnedEntities.get(132)!.particleUplinkCannonState).toEqual({
+      status: 'FIRING',
+      laserStatus: 'BORN',
+      framesInState: 7,
+      targetX: 44,
+      targetY: 8,
+      targetZ: 66,
+      currentTargetX: 55,
+      currentTargetY: 9,
+      currentTargetZ: 77,
+      scorchMarksMade: 4,
+      nextScorchMarkFrame: 144,
+      nextLaunchFXFrame: 155,
+      damagePulsesMade: 3,
+      nextDamagePulseFrame: 130,
+      startAttackFrame: 88,
+      startDecayFrame: 133,
+      lastDrivingClickFrame: 99,
+      secondLastDrivingClickFrame: 71,
+      manualTargetMode: true,
+      scriptedWaypointMode: false,
+      nextDestWaypointID: 321,
     });
   });
 

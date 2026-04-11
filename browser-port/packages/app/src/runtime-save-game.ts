@@ -9051,30 +9051,30 @@ function buildSourceSpectreGunshipUpdateBlockData(
     ));
     saver.xferCoord3D({
       x: state?.initialTargetX ?? preservedState?.initialTargetPosition.x ?? 0,
-      y: preservedState?.initialTargetPosition.y ?? 0,
-      z: state?.initialTargetZ ?? preservedState?.initialTargetPosition.z ?? 0,
+      y: state?.initialTargetZ ?? preservedState?.initialTargetPosition.y ?? 0,
+      z: state?.initialTargetY ?? preservedState?.initialTargetPosition.z ?? 0,
     });
     saver.xferCoord3D({
       x: state?.overrideTargetX ?? preservedState?.overrideTargetDestination.x ?? 0,
-      y: preservedState?.overrideTargetDestination.y ?? 0,
-      z: state?.overrideTargetZ ?? preservedState?.overrideTargetDestination.z ?? 0,
+      y: state?.overrideTargetZ ?? preservedState?.overrideTargetDestination.y ?? 0,
+      z: state?.overrideTargetY ?? preservedState?.overrideTargetDestination.z ?? 0,
     });
     saver.xferCoord3D({
       x: state?.satelliteX ?? preservedState?.satellitePosition.x ?? 0,
-      y: preservedState?.satellitePosition.y ?? entity.y ?? 0,
-      z: state?.satelliteZ ?? preservedState?.satellitePosition.z ?? 0,
+      y: state?.satelliteZ ?? preservedState?.satellitePosition.y ?? 0,
+      z: state?.satelliteY ?? preservedState?.satellitePosition.z ?? entity.y ?? 0,
     });
     saver.xferUser(buildSourceSpectreGunshipStatusBytes(state?.status ?? preservedState?.status ?? 'IDLE'));
     saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.orbitEscapeFrame ?? preservedState?.orbitEscapeFrame ?? 0)));
     saver.xferCoord3D({
       x: state?.gattlingTargetX ?? preservedState?.gattlingTargetPosition.x ?? 0,
-      y: preservedState?.gattlingTargetPosition.y ?? 0,
-      z: state?.gattlingTargetZ ?? preservedState?.gattlingTargetPosition.z ?? 0,
+      y: state?.gattlingTargetZ ?? preservedState?.gattlingTargetPosition.y ?? 0,
+      z: state?.gattlingTargetY ?? preservedState?.gattlingTargetPosition.z ?? 0,
     });
     saver.xferCoord3D({
       x: state?.positionToShootAtX ?? preservedState?.positionToShootAt.x ?? 0,
-      y: preservedState?.positionToShootAt.y ?? 0,
-      z: state?.positionToShootAtZ ?? preservedState?.positionToShootAt.z ?? 0,
+      y: state?.positionToShootAtZ ?? preservedState?.positionToShootAt.y ?? 0,
+      z: state?.positionToShootAtY ?? preservedState?.positionToShootAt.z ?? 0,
     });
     saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.okToFireHowitzerCounter ?? preservedState?.okToFireHowitzerCounter ?? 0)));
     saver.xferObjectID(Math.max(0, Math.trunc(state?.gattlingEntityId ?? preservedState?.gattlingId ?? 0)));
@@ -9277,13 +9277,13 @@ function buildSourceNeutronMissileUpdateBlockData(
     );
     saver.xferCoord3D({
       x: state?.targetX ?? 0,
-      y: state?.targetY ?? 0,
-      z: state?.targetZ ?? 0,
+      y: state?.targetZ ?? 0,
+      z: state?.targetY ?? 0,
     });
     saver.xferCoord3D({
       x: state?.intermedX ?? 0,
-      y: state?.intermedY ?? 0,
-      z: state?.intermedZ ?? 0,
+      y: state?.intermedZ ?? 0,
+      z: state?.intermedY ?? 0,
     });
     saver.xferObjectID(Math.max(0, Math.trunc(state?.launcherId ?? 0)));
     saver.xferUser(buildSourceRawInt32Bytes(
@@ -9292,13 +9292,13 @@ function buildSourceNeutronMissileUpdateBlockData(
     saver.xferInt(Math.trunc(state?.attachSpecificBarrelToUse ?? preservedState?.attachSpecificBarrelToUse ?? 0));
     saver.xferCoord3D({
       x: state?.accelX ?? preservedState?.accel.x ?? 0,
-      y: state?.accelY ?? preservedState?.accel.y ?? 0,
-      z: state?.accelZ ?? preservedState?.accel.z ?? 0,
+      y: state?.accelZ ?? preservedState?.accel.y ?? 0,
+      z: state?.accelY ?? preservedState?.accel.z ?? 0,
     });
     saver.xferCoord3D({
       x: state?.velX ?? preservedState?.vel.x ?? 0,
-      y: state?.velY ?? preservedState?.vel.y ?? 0,
-      z: state?.velZ ?? preservedState?.vel.z ?? 0,
+      y: state?.velZ ?? preservedState?.vel.y ?? 0,
+      z: state?.velY ?? preservedState?.vel.z ?? 0,
     });
     saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.stateTimestamp ?? preservedState?.stateTimestamp ?? 0)));
     saver.xferBool(state?.isLaunched === true);
@@ -9990,14 +9990,18 @@ function buildSourceRawInt32Bytes(value: number): Uint8Array {
 }
 
 function sourceParticleUplinkStatusToInt(
-  status: 'IDLE' | 'CHARGING' | 'READY' | 'FIRING' | 'POSTFIRE',
+  status: 'IDLE' | 'CHARGING' | 'PREPARING' | 'ALMOST_READY' | 'READY' | 'PREFIRE' | 'FIRING' | 'POSTFIRE' | 'PACKING',
 ): number {
   switch (status) {
     case 'IDLE': return 0;
     case 'CHARGING': return 1;
+    case 'PREPARING': return 2;
+    case 'ALMOST_READY': return 3;
     case 'READY': return 4;
+    case 'PREFIRE': return 5;
     case 'FIRING': return 6;
     case 'POSTFIRE': return 7;
+    case 'PACKING': return 8;
   }
 }
 
@@ -10131,7 +10135,7 @@ function buildSourceParticleUplinkCannonUpdateBlockData(
   try {
     const state = entity.particleUplinkCannonState;
     const isActivelyOwnedStatus = state
-      && (state.status === 'CHARGING' || state.status === 'READY' || state.status === 'FIRING' || state.status === 'POSTFIRE');
+      && state.status !== 'IDLE';
     const version = Math.max(1, Math.min(3, Math.trunc(preservedState.version || 3)));
     const nextCallFrameAndPhase = isActivelyOwnedStatus
       ? buildSourceUpdateModuleWakeFrame(currentFrame + 1)
@@ -10148,15 +10152,15 @@ function buildSourceParticleUplinkCannonUpdateBlockData(
     const initialTargetPosition = Number.isFinite(state?.targetX) || Number.isFinite(state?.targetZ)
       ? {
         x: Number.isFinite(state?.targetX) ? state!.targetX : preservedState.initialTargetPosition.x,
-        y: preservedState.initialTargetPosition.y,
-        z: Number.isFinite(state?.targetZ) ? state!.targetZ : preservedState.initialTargetPosition.z,
+        y: Number.isFinite(state?.targetZ) ? state!.targetZ : preservedState.initialTargetPosition.y,
+        z: Number.isFinite(state?.targetY) ? state!.targetY! : preservedState.initialTargetPosition.z,
       }
       : preservedState.initialTargetPosition;
     const currentTargetPosition = Number.isFinite(state?.currentTargetX) || Number.isFinite(state?.currentTargetZ)
       ? {
         x: Number.isFinite(state?.currentTargetX) ? state!.currentTargetX : preservedState.currentTargetPosition.x,
-        y: preservedState.currentTargetPosition.y,
-        z: Number.isFinite(state?.currentTargetZ) ? state!.currentTargetZ : preservedState.currentTargetPosition.z,
+        y: Number.isFinite(state?.currentTargetZ) ? state!.currentTargetZ : preservedState.currentTargetPosition.y,
+        z: Number.isFinite(state?.currentTargetY) ? state!.currentTargetY! : preservedState.currentTargetPosition.z,
       }
       : preservedState.currentTargetPosition;
     const damagePulsesMade = Number.isFinite(state?.damagePulsesMade)

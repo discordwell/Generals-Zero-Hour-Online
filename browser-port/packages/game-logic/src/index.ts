@@ -2548,18 +2548,23 @@ interface SpectreGunshipState {
   status: SpectreGunshipStatus;
   /** Source parity: m_initialTargetPosition — center of attack area (set on activation). */
   initialTargetX: number;
+  initialTargetY?: number;
   initialTargetZ: number;
   /** Source parity: m_overrideTargetDestination — player-redirectable targeting reticle position. */
   overrideTargetX: number;
+  overrideTargetY?: number;
   overrideTargetZ: number;
   /** Source parity: m_satellitePosition — computed orbital waypoint the gunship flies toward. */
   satelliteX: number;
+  satelliteY?: number;
   satelliteZ: number;
   /** Source parity: m_gattlingTargetPosition — position the gattling gun is currently strafing toward. */
   gattlingTargetX: number;
+  gattlingTargetY?: number;
   gattlingTargetZ: number;
   /** Source parity: m_positionToShootAt — current howitzer aim position. */
   positionToShootAtX: number;
+  positionToShootAtY?: number;
   positionToShootAtZ: number;
   /** Source parity: m_orbitEscapeFrame — frame at which the gunship departs. */
   orbitEscapeFrame: number;
@@ -6543,15 +6548,17 @@ interface ParticleUplinkCannonProfile {
   doubleClickToFastDriveDelayFrames: number;
 }
 
-type PUCStatus = 'IDLE' | 'CHARGING' | 'READY' | 'FIRING' | 'POSTFIRE';
+type PUCStatus = 'IDLE' | 'CHARGING' | 'PREPARING' | 'ALMOST_READY' | 'READY' | 'PREFIRE' | 'FIRING' | 'POSTFIRE' | 'PACKING';
 
 interface ParticleUplinkCannonState {
   status: PUCStatus;
   laserStatus: 'NONE' | 'BORN' | 'DECAYING' | 'DEAD';
   framesInState: number;
   targetX: number;
+  targetY?: number;
   targetZ: number;
   currentTargetX: number;
+  currentTargetY?: number;
   currentTargetZ: number;
   scorchMarksMade: number;
   nextScorchMarkFrame: number;
@@ -8984,6 +8991,72 @@ interface SourceHijackerUpdateImportState {
   update: boolean;
   isInVehicle: boolean;
   wasTargetAirborne: boolean;
+}
+
+interface SourceSpectreGunshipDeploymentUpdateImportState {
+  nextCallFrame: number;
+  gunshipId: number;
+}
+
+interface SourceSpectreGunshipUpdateImportState {
+  nextCallFrame: number;
+  initialTargetPosition: { x: number; y: number; z: number };
+  overrideTargetDestination: { x: number; y: number; z: number };
+  satellitePosition: { x: number; y: number; z: number };
+  status: number;
+  orbitEscapeFrame: number;
+  gattlingTargetPosition: { x: number; y: number; z: number };
+  positionToShootAt: { x: number; y: number; z: number };
+  okToFireHowitzerCounter: number;
+  gattlingId: number;
+}
+
+interface SourceNeutronMissileUpdateImportState {
+  nextCallFrame: number;
+  state: number;
+  targetPos: { x: number; y: number; z: number };
+  intermedPos: { x: number; y: number; z: number };
+  launcherId: number;
+  attachWeaponSlot: number;
+  attachSpecificBarrelToUse: number;
+  accel: { x: number; y: number; z: number };
+  vel: { x: number; y: number; z: number };
+  stateTimestamp: number;
+  isLaunched: boolean;
+  isArmed: boolean;
+  noTurnDistLeft: number;
+  reachedIntermediatePos: boolean;
+  frameAtLaunch: number;
+  heightAtLaunch: number;
+  exhaustSystemTemplateName: string;
+}
+
+interface SourceMissileLauncherBuildingUpdateImportState {
+  nextCallFrame: number;
+  doorState: number;
+  timeoutState: number;
+  timeoutFrame: number;
+}
+
+interface SourceParticleUplinkCannonUpdateImportState {
+  nextCallFrame: number;
+  status: number;
+  laserStatus: number;
+  frames: number;
+  initialTargetPosition: { x: number; y: number; z: number };
+  currentTargetPosition: { x: number; y: number; z: number };
+  scorchMarksMade: number;
+  nextScorchMarkFrame: number;
+  nextLaunchFXFrame: number;
+  damagePulsesMade: number;
+  nextDamagePulseFrame: number;
+  startAttackFrame: number;
+  startDecayFrame: number;
+  lastDrivingClickFrame: number;
+  secondLastDrivingClickFrame: number;
+  manualTargetMode: boolean;
+  scriptedWaypointMode: boolean;
+  nextDestWaypointID: number;
 }
 
 interface SourceToppleUpdateImportState {
@@ -13227,6 +13300,70 @@ export class GameLogicSubsystem implements Subsystem {
     return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getInt32(0, true);
   }
 
+  private sourceCoord3DToRuntime(coord: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
+    return {
+      x: Number.isFinite(coord.x) ? coord.x : 0,
+      y: Number.isFinite(coord.z) ? coord.z : 0,
+      z: Number.isFinite(coord.y) ? coord.y : 0,
+    };
+  }
+
+  private sourceSpectreGunshipStatusFromInt(value: number): SpectreGunshipStatus | null {
+    switch (Math.trunc(value)) {
+      case 0: return 'INSERTING';
+      case 1: return 'ORBITING';
+      case 2: return 'DEPARTING';
+      case 3: return 'IDLE';
+      default: return null;
+    }
+  }
+
+  private sourceNeutronMissileStateFromInt(value: number): NeutronMissileState | null {
+    switch (Math.trunc(value)) {
+      case 0: return 'PRELAUNCH';
+      case 1: return 'LAUNCH';
+      case 2: return 'ATTACK';
+      case 3: return 'DEAD';
+      default: return null;
+    }
+  }
+
+  private sourceMissileDoorStateFromInt(value: number): MissileDoorState | null {
+    switch (Math.trunc(value)) {
+      case 0: return 'CLOSED';
+      case 1: return 'OPENING';
+      case 2: return 'OPEN';
+      case 3: return 'WAITING_TO_CLOSE';
+      case 4: return 'CLOSING';
+      default: return null;
+    }
+  }
+
+  private sourceParticleUplinkStatusFromInt(value: number): PUCStatus | null {
+    switch (Math.trunc(value)) {
+      case 0: return 'IDLE';
+      case 1: return 'CHARGING';
+      case 2: return 'PREPARING';
+      case 3: return 'ALMOST_READY';
+      case 4: return 'READY';
+      case 5: return 'PREFIRE';
+      case 6: return 'FIRING';
+      case 7: return 'POSTFIRE';
+      case 8: return 'PACKING';
+      default: return null;
+    }
+  }
+
+  private sourceParticleUplinkLaserStatusFromInt(value: number): ParticleUplinkCannonState['laserStatus'] | null {
+    switch (Math.trunc(value)) {
+      case 0: return 'NONE';
+      case 1: return 'BORN';
+      case 2: return 'DECAYING';
+      case 3: return 'DEAD';
+      default: return null;
+    }
+  }
+
   private skipSourceImportUpdateModuleBase(xfer: XferLoad): number {
     const updateModuleVersion = xfer.xferVersion(1);
     const behaviorModuleVersion = xfer.xferVersion(1);
@@ -15716,6 +15853,441 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceSpectreGunshipDeploymentUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceSpectreGunshipDeploymentUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'SPECTREGUNSHIPDEPLOYMENTUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-spectre-gunship-deployment-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const gunshipId = xfer.xferObjectID(0);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, gunshipId } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceSpectreGunshipUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceSpectreGunshipUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'SPECTREGUNSHIPUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-spectre-gunship-update-import');
+    try {
+      const version = xfer.xferVersion(2);
+      if (version < 1 || version > 2) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const initialTargetPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const overrideTargetDestination = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const satellitePosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const status = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const orbitEscapeFrame = xfer.xferUnsignedInt(0);
+      if (version < 2) {
+        return null;
+      }
+      const gattlingTargetPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const positionToShootAt = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const okToFireHowitzerCounter = xfer.xferUnsignedInt(0);
+      const gattlingId = xfer.xferObjectID(0);
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            initialTargetPosition,
+            overrideTargetDestination,
+            satellitePosition,
+            status,
+            orbitEscapeFrame,
+            gattlingTargetPosition,
+            positionToShootAt,
+            okToFireHowitzerCounter,
+            gattlingId,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceSpectreGunshipUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+
+      const deploymentState = this.tryParseSourceSpectreGunshipDeploymentUpdateImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (deploymentState && entity.spectreGunshipDeploymentProfile) {
+        entity.spectreGunshipDeploymentGunshipId = Math.max(0, Math.trunc(deploymentState.gunshipId));
+        continue;
+      }
+
+      const gunshipState = this.tryParseSourceSpectreGunshipUpdateImportState(module.blockData, moduleType);
+      if (gunshipState && entity.spectreGunshipProfile) {
+        const status = this.sourceSpectreGunshipStatusFromInt(gunshipState.status);
+        if (!status) {
+          throw new Error(`Unsupported source SpectreGunshipUpdate status ${gunshipState.status}.`);
+        }
+        const initialTarget = this.sourceCoord3DToRuntime(gunshipState.initialTargetPosition);
+        const overrideTarget = this.sourceCoord3DToRuntime(gunshipState.overrideTargetDestination);
+        const satellite = this.sourceCoord3DToRuntime(gunshipState.satellitePosition);
+        const gattlingTarget = this.sourceCoord3DToRuntime(gunshipState.gattlingTargetPosition);
+        const positionToShootAt = this.sourceCoord3DToRuntime(gunshipState.positionToShootAt);
+        entity.spectreGunshipState = {
+          status,
+          initialTargetX: initialTarget.x,
+          initialTargetY: initialTarget.y,
+          initialTargetZ: initialTarget.z,
+          overrideTargetX: overrideTarget.x,
+          overrideTargetY: overrideTarget.y,
+          overrideTargetZ: overrideTarget.z,
+          satelliteX: satellite.x,
+          satelliteY: satellite.y,
+          satelliteZ: satellite.z,
+          gattlingTargetX: gattlingTarget.x,
+          gattlingTargetY: gattlingTarget.y,
+          gattlingTargetZ: gattlingTarget.z,
+          positionToShootAtX: positionToShootAt.x,
+          positionToShootAtY: positionToShootAt.y,
+          positionToShootAtZ: positionToShootAt.z,
+          orbitEscapeFrame: Math.max(0, Math.trunc(gunshipState.orbitEscapeFrame)),
+          okToFireHowitzerCounter: Math.max(0, Math.trunc(gunshipState.okToFireHowitzerCounter)),
+          gattlingEntityId: Math.max(0, Math.trunc(gunshipState.gattlingId)),
+        };
+      }
+    }
+  }
+
+  private tryParseSourceNeutronMissileUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceNeutronMissileUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'NEUTRONMISSILEUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-neutron-missile-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const state = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const targetPos = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const intermedPos = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const launcherId = xfer.xferObjectID(0);
+      const attachWeaponSlot = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const attachSpecificBarrelToUse = xfer.xferInt(0);
+      const accel = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const vel = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const stateTimestamp = xfer.xferUnsignedInt(0);
+      const isLaunched = xfer.xferBool(false);
+      const isArmed = xfer.xferBool(false);
+      const noTurnDistLeft = xfer.xferReal(0);
+      const reachedIntermediatePos = xfer.xferBool(false);
+      const frameAtLaunch = xfer.xferUnsignedInt(0);
+      const heightAtLaunch = xfer.xferReal(0);
+      const exhaustSystemTemplateName = xfer.xferAsciiString('');
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            state,
+            targetPos,
+            intermedPos,
+            launcherId,
+            attachWeaponSlot,
+            attachSpecificBarrelToUse,
+            accel,
+            vel,
+            stateTimestamp,
+            isLaunched,
+            isArmed,
+            noTurnDistLeft,
+            reachedIntermediatePos,
+            frameAtLaunch,
+            heightAtLaunch,
+            exhaustSystemTemplateName,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceMissileLauncherBuildingUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceMissileLauncherBuildingUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'MISSILELAUNCHERBUILDINGUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-missile-launcher-building-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const doorState = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const timeoutState = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const timeoutFrame = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, doorState, timeoutState, timeoutFrame }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private skipSourceParticleUplinkVisualState(xfer: XferLoad): void {
+    for (let index = 0; index < 16; index += 1) {
+      xfer.xferUnsignedInt(0);
+    }
+    for (let index = 0; index < 16; index += 1) {
+      xfer.xferUnsignedInt(0);
+    }
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    for (let index = 0; index < 16; index += 1) {
+      xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    }
+    for (let matrixIndex = 0; matrixIndex < 16; matrixIndex += 1) {
+      for (let valueIndex = 0; valueIndex < 12; valueIndex += 1) {
+        xfer.xferReal(0);
+      }
+    }
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+  }
+
+  private tryParseSourceParticleUplinkCannonUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceParticleUplinkCannonUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'PARTICLEUPLINKCANNONUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-particle-uplink-cannon-update-import');
+    try {
+      const version = xfer.xferVersion(3);
+      if (version < 1 || version > 3) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const status = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const laserStatus = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const frames = xfer.xferUnsignedInt(0);
+      this.skipSourceParticleUplinkVisualState(xfer);
+      const initialTargetPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const currentTargetPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const scorchMarksMade = xfer.xferUnsignedInt(0);
+      const nextScorchMarkFrame = xfer.xferUnsignedInt(0);
+      const nextLaunchFXFrame = xfer.xferUnsignedInt(0);
+      const damagePulsesMade = xfer.xferUnsignedInt(0);
+      const nextDamagePulseFrame = xfer.xferUnsignedInt(0);
+      const startAttackFrame = xfer.xferUnsignedInt(0);
+      const startDecayFrame = version >= 2 ? xfer.xferUnsignedInt(0) : 0;
+      const lastDrivingClickFrame = xfer.xferUnsignedInt(0);
+      const secondLastDrivingClickFrame = xfer.xferUnsignedInt(0);
+      const manualTargetMode = version >= 3 ? xfer.xferBool(false) : false;
+      const scriptedWaypointMode = version >= 3 ? xfer.xferBool(false) : false;
+      const nextDestWaypointID = version >= 3 ? xfer.xferUnsignedInt(0) : 0;
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            status,
+            laserStatus,
+            frames,
+            initialTargetPosition,
+            currentTargetPosition,
+            scorchMarksMade,
+            nextScorchMarkFrame,
+            nextLaunchFXFrame,
+            damagePulsesMade,
+            nextDamagePulseFrame,
+            startAttackFrame,
+            startDecayFrame,
+            lastDrivingClickFrame,
+            secondLastDrivingClickFrame,
+            manualTargetMode,
+            scriptedWaypointMode,
+            nextDestWaypointID,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceWeaponSpecialUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+
+      const neutronState = this.tryParseSourceNeutronMissileUpdateImportState(module.blockData, moduleType);
+      if (neutronState && entity.neutronMissileUpdateProfile) {
+        const state = this.sourceNeutronMissileStateFromInt(neutronState.state);
+        if (!state) {
+          throw new Error(`Unsupported source NeutronMissileUpdate state ${neutronState.state}.`);
+        }
+        const target = this.sourceCoord3DToRuntime(neutronState.targetPos);
+        const intermed = this.sourceCoord3DToRuntime(neutronState.intermedPos);
+        const accel = this.sourceCoord3DToRuntime(neutronState.accel);
+        const vel = this.sourceCoord3DToRuntime(neutronState.vel);
+        entity.neutronMissileUpdateState = {
+          state,
+          targetX: target.x,
+          targetY: target.y,
+          targetZ: target.z,
+          intermedX: intermed.x,
+          intermedY: intermed.y,
+          intermedZ: intermed.z,
+          accelX: accel.x,
+          accelY: accel.y,
+          accelZ: accel.z,
+          velX: vel.x,
+          velY: vel.y,
+          velZ: vel.z,
+          launcherId: Math.max(0, Math.trunc(neutronState.launcherId)),
+          attachWeaponSlot: Math.trunc(neutronState.attachWeaponSlot),
+          attachSpecificBarrelToUse: Math.trunc(neutronState.attachSpecificBarrelToUse),
+          stateTimestamp: Math.max(0, Math.trunc(neutronState.stateTimestamp)),
+          isArmed: neutronState.isArmed,
+          isLaunched: neutronState.isLaunched,
+          noTurnDistLeft: Number.isFinite(neutronState.noTurnDistLeft) ? neutronState.noTurnDistLeft : 0,
+          reachedIntermediatePos: neutronState.reachedIntermediatePos,
+          frameAtLaunch: Math.max(0, Math.trunc(neutronState.frameAtLaunch)),
+          heightAtLaunch: Number.isFinite(neutronState.heightAtLaunch) ? neutronState.heightAtLaunch : 0,
+        };
+        continue;
+      }
+
+      const missileLauncherState = this.tryParseSourceMissileLauncherBuildingUpdateImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (missileLauncherState && entity.missileLauncherBuildingProfile) {
+        const doorState = this.sourceMissileDoorStateFromInt(missileLauncherState.doorState);
+        const timeoutState = this.sourceMissileDoorStateFromInt(missileLauncherState.timeoutState);
+        if (!doorState || !timeoutState) {
+          throw new Error(
+            `Unsupported source MissileLauncherBuildingUpdate states `
+            + `${missileLauncherState.doorState}/${missileLauncherState.timeoutState}.`,
+          );
+        }
+        entity.missileLauncherBuildingState = {
+          doorState,
+          timeoutState,
+          timeoutFrame: Math.max(0, Math.trunc(missileLauncherState.timeoutFrame)),
+        };
+        continue;
+      }
+
+      const particleState = this.tryParseSourceParticleUplinkCannonUpdateImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (particleState && entity.particleUplinkCannonProfile) {
+        const status = this.sourceParticleUplinkStatusFromInt(particleState.status);
+        const laserStatus = this.sourceParticleUplinkLaserStatusFromInt(particleState.laserStatus);
+        if (!status || !laserStatus) {
+          throw new Error(
+            `Unsupported source ParticleUplinkCannonUpdate states `
+            + `${particleState.status}/${particleState.laserStatus}.`,
+          );
+        }
+        const initialTarget = this.sourceCoord3DToRuntime(particleState.initialTargetPosition);
+        const currentTarget = this.sourceCoord3DToRuntime(particleState.currentTargetPosition);
+        entity.particleUplinkCannonState = {
+          status,
+          laserStatus,
+          framesInState: Math.max(0, Math.trunc(particleState.frames)),
+          targetX: initialTarget.x,
+          targetY: initialTarget.y,
+          targetZ: initialTarget.z,
+          currentTargetX: currentTarget.x,
+          currentTargetY: currentTarget.y,
+          currentTargetZ: currentTarget.z,
+          scorchMarksMade: Math.max(0, Math.trunc(particleState.scorchMarksMade)),
+          nextScorchMarkFrame: Math.max(0, Math.trunc(particleState.nextScorchMarkFrame)),
+          nextLaunchFXFrame: Math.max(0, Math.trunc(particleState.nextLaunchFXFrame)),
+          damagePulsesMade: Math.max(0, Math.trunc(particleState.damagePulsesMade)),
+          nextDamagePulseFrame: Math.max(0, Math.trunc(particleState.nextDamagePulseFrame)),
+          startAttackFrame: Math.max(0, Math.trunc(particleState.startAttackFrame)),
+          startDecayFrame: Math.max(0, Math.trunc(particleState.startDecayFrame)),
+          lastDrivingClickFrame: Math.max(0, Math.trunc(particleState.lastDrivingClickFrame)),
+          secondLastDrivingClickFrame: Math.max(0, Math.trunc(particleState.secondLastDrivingClickFrame)),
+          manualTargetMode: particleState.manualTargetMode,
+          scriptedWaypointMode: particleState.scriptedWaypointMode,
+          nextDestWaypointID: Math.max(0, Math.trunc(particleState.nextDestWaypointID)),
+        };
+      }
+    }
+  }
+
   private sourceToppleStateFromInt(value: number, angularVelocity: number): ToppleState | null {
     switch (Math.trunc(value)) {
       case 0: return 'NONE';
@@ -17580,6 +18152,8 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);
     this.applySourcePointDefenseLaserUpdateModulesToEntity(entity, sourceState);
     this.applySourceSimpleUpdateModulesToEntity(entity, sourceState);
+    this.applySourceSpectreGunshipUpdateModulesToEntity(entity, sourceState);
+    this.applySourceWeaponSpecialUpdateModulesToEntity(entity, sourceState);
     this.applySourceToppleUpdateModulesToEntity(entity, sourceState);
     this.applySourceStructureToppleUpdateModulesToEntity(entity, sourceState);
     this.applySourceFireSpreadUpdateModulesToEntity(entity, sourceState);
