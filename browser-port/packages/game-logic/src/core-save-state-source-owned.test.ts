@@ -15,6 +15,7 @@ import {
   makeMapObject,
   makeObjectDef,
   makeRegistry,
+  makeUpgradeDef,
 } from './test-helpers.js';
 
 function makeSourceOwnedCoreBundle() {
@@ -22,7 +23,12 @@ function makeSourceOwnedCoreBundle() {
     objects: [
       makeObjectDef('AmericaBarracks', 'America', ['STRUCTURE'], [
         makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        makeBlock('Behavior', 'ProductionUpdate ModuleTag_Production', { MaxQueueEntries: 9 }),
       ]),
+      makeObjectDef('AmericaRanger', 'America', ['INFANTRY'], [], { BuildCost: 225, BuildTime: 5 }),
+    ],
+    upgrades: [
+      makeUpgradeDef('Upgrade_AmericaRangerCaptureBuilding', { Type: 'PLAYER', BuildCost: 1000, BuildTime: 30 }),
     ],
   });
 }
@@ -93,6 +99,54 @@ function buildSourceActiveBodyModuleData(options: {
     for (const flag of options.armorSetFlags) {
       saver.xferAsciiString(flag);
     }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceProductionUpdateModuleData(options: {
+  uniqueId: number;
+  queue: Array<{
+    type: number;
+    name: string;
+    productionId: number;
+    percentComplete: number;
+    framesUnderConstruction: number;
+    productionQuantityTotal: number;
+    productionQuantityProduced: number;
+    exitDoor: number;
+  }>;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-production-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(0);
+    saver.xferUnsignedShort(options.queue.length);
+    for (const entry of options.queue) {
+      saver.xferUser(sourceRawInt32(entry.type));
+      saver.xferAsciiString(entry.name);
+      saver.xferUser(sourceRawInt32(entry.productionId));
+      saver.xferReal(entry.percentComplete);
+      saver.xferInt(entry.framesUnderConstruction);
+      saver.xferInt(entry.productionQuantityTotal);
+      saver.xferInt(entry.productionQuantityProduced);
+      saver.xferInt(entry.exitDoor);
+    }
+    saver.xferUser(sourceRawInt32(options.uniqueId));
+    saver.xferUnsignedInt(options.queue.length);
+    saver.xferUnsignedInt(0);
+    saver.xferUser(new Uint8Array(64));
+    saver.xferVersion(1);
+    saver.xferInt(0);
+    saver.xferVersion(1);
+    saver.xferInt(0);
+    saver.xferBool(false);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -206,6 +260,118 @@ describe('source-owned game-logic core save-state', () => {
     expect(entity.backCrushed).toBe(true);
     expect(entity.isIndestructible).toBe(true);
     expect(entity.armorSetFlagsMask).toBe(ARMOR_SET_FLAG_MASK_BY_NAME.get('VETERAN'));
+  });
+
+  it('imports source ProductionUpdate queue state into live production entries', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 43;
+    sourceState.position = { x: 20, y: 0, z: 20 };
+    sourceState.orientation = 0;
+    sourceState.modules = [{
+      identifier: 'ModuleTag_Production',
+      blockData: buildSourceProductionUpdateModuleData({
+        uniqueId: 9,
+        queue: [
+          {
+            type: 1,
+            name: 'AmericaRanger',
+            productionId: 7,
+            percentComplete: 40,
+            framesUnderConstruction: 60,
+            productionQuantityTotal: 2,
+            productionQuantityProduced: 1,
+            exitDoor: -1,
+          },
+          {
+            type: 2,
+            name: 'Upgrade_AmericaRangerCaptureBuilding',
+            productionId: 0,
+            percentComplete: 25,
+            framesUnderConstruction: 225,
+            productionQuantityTotal: 0,
+            productionQuantityProduced: 0,
+            exitDoor: -1,
+          },
+        ],
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 77,
+      objectIdCounter: 100,
+      objects: [{
+        templateName: 'AmericaBarracks',
+        state: sourceState,
+      }],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        productionNextId: number;
+        productionQueue: Array<
+          | {
+            type: 'UNIT';
+            templateName: string;
+            productionId: number;
+            buildCost: number;
+            totalProductionFrames: number;
+            framesUnderConstruction: number;
+            percentComplete: number;
+            productionQuantityTotal: number;
+            productionQuantityProduced: number;
+          }
+          | {
+            type: 'UPGRADE';
+            upgradeName: string;
+            productionId: number;
+            buildCost: number;
+            totalProductionFrames: number;
+            framesUnderConstruction: number;
+            percentComplete: number;
+            upgradeType: 'PLAYER' | 'OBJECT';
+          }
+        >;
+      }>;
+      hasSideUpgradeInProduction(side: string, upgradeName: string): boolean;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(43)!;
+    expect(entity.productionNextId).toBe(9);
+    expect(entity.productionQueue).toHaveLength(2);
+    expect(entity.productionQueue[0]).toEqual({
+      type: 'UNIT',
+      templateName: 'AmericaRanger',
+      productionId: 7,
+      buildCost: 225,
+      totalProductionFrames: 150,
+      framesUnderConstruction: 60,
+      percentComplete: 40,
+      productionQuantityTotal: 2,
+      productionQuantityProduced: 1,
+    });
+    expect(entity.productionQueue[1]).toEqual({
+      type: 'UPGRADE',
+      upgradeName: 'UPGRADE_AMERICARANGERCAPTUREBUILDING',
+      productionId: 0,
+      buildCost: 1000,
+      totalProductionFrames: 900,
+      framesUnderConstruction: 225,
+      percentComplete: 25,
+      upgradeType: 'PLAYER',
+    });
+    expect(privateLogic.hasSideUpgradeInProduction(
+      'America',
+      'Upgrade_AmericaRangerCaptureBuilding',
+    )).toBe(true);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {

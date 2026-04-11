@@ -8614,6 +8614,22 @@ interface SourceActiveBodyImportState {
   armorSetFlags: string[];
 }
 
+interface SourceProductionQueueEntryImportState {
+  type: number;
+  name: string;
+  productionId: number;
+  percentComplete: number;
+  framesUnderConstruction: number;
+  productionQuantityTotal: number;
+  productionQuantityProduced: number;
+  exitDoor: number;
+}
+
+interface SourceProductionUpdateImportState {
+  queue: SourceProductionQueueEntryImportState[];
+  uniqueId: number;
+}
+
 export interface GameLogicObjectTriggerAreaEntrySaveState {
   triggerName: string;
   entered: number;
@@ -8633,6 +8649,9 @@ const SOURCE_OBJECT_WEAPON_SET_CONDITION_BETWEEN = 2;
 const SOURCE_OBJECT_WEAPON_SET_CONDITION_RELOADING = 3;
 const SOURCE_OBJECT_WEAPON_SET_CONDITION_PREATTACK = 4;
 const SOURCE_OBJECT_WEAPON_SLOT_COUNT = 3;
+const SOURCE_PRODUCTION_UNIT = 1;
+const SOURCE_PRODUCTION_UPGRADE = 2;
+const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
 const SOURCE_SCRIPT_STATUS_DISABLED = 0x01;
 const SOURCE_SCRIPT_STATUS_UNPOWERED = 0x02;
 const SOURCE_SCRIPT_STATUS_UNSELLABLE = 0x04;
@@ -12623,6 +12642,29 @@ export class GameLogicSubsystem implements Subsystem {
     return copy.buffer;
   }
 
+  private parseSourceImportRawInt32(bytes: Uint8Array): number {
+    if (bytes.byteLength < 4) {
+      throw new Error('Source import raw int32 is truncated.');
+    }
+    return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getInt32(0, true);
+  }
+
+  private skipSourceImportUpdateModuleBase(xfer: XferLoad): void {
+    const updateModuleVersion = xfer.xferVersion(1);
+    const behaviorModuleVersion = xfer.xferVersion(1);
+    const objectModuleVersion = xfer.xferVersion(1);
+    const moduleVersion = xfer.xferVersion(1);
+    if (
+      updateModuleVersion !== 1
+      || behaviorModuleVersion !== 1
+      || objectModuleVersion !== 1
+      || moduleVersion !== 1
+    ) {
+      throw new Error('Unsupported source UpdateModule import base version.');
+    }
+    xfer.xferUnsignedInt(0);
+  }
+
   private xferSourceImportStringBitFlags(xfer: XferLoad): string[] {
     const version = xfer.xferVersion(1);
     if (version !== 1) {
@@ -12788,6 +12830,131 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceProductionUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceProductionUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'PRODUCTIONUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-production-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      this.skipSourceImportUpdateModuleBase(xfer);
+      const queueCount = xfer.xferUnsignedShort(0);
+      const queue: SourceProductionQueueEntryImportState[] = [];
+      for (let index = 0; index < queueCount; index += 1) {
+        queue.push({
+          type: this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4))),
+          name: xfer.xferAsciiString(''),
+          productionId: this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4))),
+          percentComplete: xfer.xferReal(0),
+          framesUnderConstruction: xfer.xferInt(0),
+          productionQuantityTotal: xfer.xferInt(0),
+          productionQuantityProduced: xfer.xferInt(0),
+          exitDoor: xfer.xferInt(0),
+        });
+      }
+      const uniqueId = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      xfer.xferUnsignedInt(0);
+      xfer.xferUnsignedInt(0);
+      xfer.xferUser(new Uint8Array(SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH));
+      this.xferSourceImportStringBitFlags(xfer);
+      this.xferSourceImportStringBitFlags(xfer);
+      xfer.xferBool(false);
+      return xfer.getRemaining() === 0 ? { queue, uniqueId } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceProductionModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const productionState = this.tryParseSourceProductionUpdateImportState(module.blockData, moduleType);
+      if (!productionState) {
+        continue;
+      }
+
+      const registry = this.iniDataRegistry;
+      entity.productionQueue = [];
+      entity.productionNextId = Math.max(1, Math.trunc(productionState.uniqueId));
+      if (!registry) {
+        return;
+      }
+
+      for (const entry of productionState.queue) {
+        const sourceName = entry.name.trim();
+        if (!sourceName) {
+          continue;
+        }
+        if (entry.type === SOURCE_PRODUCTION_UNIT) {
+          const objectDef = findObjectDefByName(registry, sourceName);
+          if (!objectDef) {
+            continue;
+          }
+          const normalizedTemplateName = objectDef.name.trim();
+          const producerSide = entity.side ?? '';
+          entity.productionQueue.push({
+            type: 'UNIT',
+            templateName: normalizedTemplateName,
+            productionId: Math.max(0, Math.trunc(entry.productionId)),
+            buildCost: this.resolveObjectBuildCost(objectDef, producerSide),
+            totalProductionFrames: this.resolveObjectBuildTimeFrames(objectDef, producerSide),
+            framesUnderConstruction: Number.isFinite(entry.framesUnderConstruction)
+              ? entry.framesUnderConstruction
+              : 0,
+            percentComplete: Number.isFinite(entry.percentComplete) ? entry.percentComplete : 0,
+            productionQuantityTotal: Math.max(0, Math.trunc(entry.productionQuantityTotal)),
+            productionQuantityProduced: Math.max(0, Math.trunc(entry.productionQuantityProduced)),
+          });
+          continue;
+        }
+
+        if (entry.type === SOURCE_PRODUCTION_UPGRADE) {
+          const upgradeDef = findUpgradeDefByName(registry, sourceName);
+          if (!upgradeDef) {
+            continue;
+          }
+          const normalizedUpgradeName = upgradeDef.name.trim().toUpperCase();
+          const upgradeType = resolveUpgradeType(upgradeDef);
+          entity.productionQueue.push({
+            type: 'UPGRADE',
+            upgradeName: normalizedUpgradeName,
+            productionId: Math.max(0, Math.trunc(entry.productionId)),
+            buildCost: resolveUpgradeBuildCost(upgradeDef),
+            totalProductionFrames: resolveUpgradeBuildTimeFrames(upgradeDef, LOGIC_FRAME_RATE),
+            framesUnderConstruction: Number.isFinite(entry.framesUnderConstruction)
+              ? entry.framesUnderConstruction
+              : 0,
+            percentComplete: Number.isFinite(entry.percentComplete) ? entry.percentComplete : 0,
+            upgradeType,
+          });
+          if (upgradeType === 'PLAYER') {
+            this.setSideUpgradeInProduction(entity.side ?? '', normalizedUpgradeName, true);
+          }
+        }
+      }
+      return;
+    }
+  }
+
   private applySourceMapEntityStateToEntity(
     entity: MapEntity,
     sourceState: SourceMapEntitySaveState,
@@ -12840,6 +13007,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceDisabledFramesToEntity(entity, sourceState);
     this.applySourceWeaponStateToEntity(entity, sourceState);
     this.applySourceBodyModulesToEntity(entity, sourceState);
+    this.applySourceProductionModulesToEntity(entity, sourceState);
   }
 
   restoreSourceGameLogicImportSaveState(state: unknown): void {
