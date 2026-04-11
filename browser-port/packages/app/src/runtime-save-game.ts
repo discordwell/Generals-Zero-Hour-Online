@@ -5692,6 +5692,12 @@ interface SourceFireWeaponCollideBlockState {
   everFired: boolean;
 }
 
+interface SourceDeployStyleAIUpdateBlockState {
+  blockData: Uint8Array;
+  state: number;
+  frameToWaitForDeploy: number;
+}
+
 function createDefaultSourceWeaponSnapshotState(): SourceWeaponSnapshotBlockState {
   return {
     version: 3,
@@ -5887,6 +5893,50 @@ function buildSourceFireWeaponCollideBlockData(
   } finally {
     saver.close();
   }
+}
+
+function sourceDeployStyleStateToInt(state: unknown, fallback: number): number {
+  switch (state) {
+    case 'READY_TO_MOVE': return 0;
+    case 'DEPLOY': return 1;
+    case 'READY_TO_ATTACK': return 2;
+    case 'UNDEPLOY': return 3;
+    default:
+      return Number.isFinite(fallback) ? Math.max(0, Math.trunc(fallback)) : 0;
+  }
+}
+
+function tryParseSourceDeployStyleAIUpdateBlockData(
+  data: Uint8Array,
+): SourceDeployStyleAIUpdateBlockState | null {
+  if (data.byteLength < 9 || data[0] !== 4) {
+    return null;
+  }
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  return {
+    blockData: new Uint8Array(data),
+    state: view.getInt32(data.byteLength - 8, true),
+    frameToWaitForDeploy: view.getUint32(data.byteLength - 4, true),
+  };
+}
+
+function buildSourceDeployStyleAIUpdateBlockData(
+  entity: MapEntity,
+  preservedState: SourceDeployStyleAIUpdateBlockState,
+): Uint8Array {
+  const blockData = new Uint8Array(preservedState.blockData);
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  view.setInt32(
+    blockData.byteLength - 8,
+    sourceDeployStyleStateToInt(entity.deployState, preservedState.state),
+    true,
+  );
+  view.setUint32(
+    blockData.byteLength - 4,
+    sourceFlammableUnsignedFrame(entity.deployFrameToWait, preservedState.frameToWaitForDeploy),
+    true,
+  );
+  return blockData;
 }
 
 function findLiveSourceFireWeaponUpdateProfileIndex(
@@ -9731,6 +9781,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               identifier: module.identifier,
               blockData: buildSourceAnimationSteeringUpdateBlockData(currentFrame),
             };
+          }
+          if (moduleType === 'DEPLOYSTYLEAIUPDATE' && entity.deployStyleProfile) {
+            const parsedSourceState = tryParseSourceDeployStyleAIUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceDeployStyleAIUpdateBlockData(entity, parsedSourceState),
+              };
+            }
           }
           if (moduleType === 'FIRESTORMDYNAMICGEOMETRYINFOUPDATE' && entity.dynamicGeometryProfile) {
             const parsedSourceState = tryParseSourceFirestormDynamicGeometryInfoUpdateBlockData(module.blockData);

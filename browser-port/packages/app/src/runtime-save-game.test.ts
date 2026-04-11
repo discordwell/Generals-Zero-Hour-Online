@@ -1715,6 +1715,47 @@ function parseSourceAnimationSteeringUpdateBlockData(data: Uint8Array): { nextCa
   }
 }
 
+function createSourceDeployStyleAIUpdateBlockData(
+  state: number,
+  frameToWaitForDeploy: number,
+): Uint8Array {
+  const blockData = new Uint8Array([
+    4,
+    4,
+    1,
+    1,
+    1,
+    1,
+    0xaa,
+    0xbb,
+    0xcc,
+    0xdd,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+  ]);
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  view.setInt32(blockData.byteLength - 8, state, true);
+  view.setUint32(blockData.byteLength - 4, frameToWaitForDeploy, true);
+  return blockData;
+}
+
+function parseSourceDeployStyleAIUpdateBlockData(
+  data: Uint8Array,
+): { prefix: number[]; state: number; frameToWaitForDeploy: number } {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  return {
+    prefix: [...data.subarray(0, data.byteLength - 8)],
+    state: view.getInt32(data.byteLength - 8, true),
+    frameToWaitForDeploy: view.getUint32(data.byteLength - 4, true),
+  };
+}
+
 interface SourceProductionQueueEntryTestState {
   type: number;
   name: string;
@@ -10582,6 +10623,109 @@ describe('runtime-save-game', () => {
     expect(animationModule).toBeDefined();
     const parsedAnimation = parseSourceAnimationSteeringUpdateBlockData(animationModule!.blockData);
     expect(parsedAnimation.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+  });
+
+  it('rewrites source DeployStyleAIUpdate tail while preserving AIUpdateInterface bytes', () => {
+    const sourceDeployBlock = createSourceDeployStyleAIUpdateBlockData(0, 0);
+    const preservedPrefix = parseSourceDeployStyleAIUpdateBlockData(sourceDeployBlock).prefix;
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Deploy',
+      blockData: sourceDeployBlock,
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source deploy style ai update rewrite',
+      mapPath: 'Maps/RuntimeDeploy/RuntimeDeploy.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeDeploy',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            deployStyleProfile: {
+              unpackTimeFrames: 30,
+              packTimeFrames: 20,
+              turretsFunctionOnlyWhenDeployed: false,
+              resetTurretBeforePacking: false,
+              turretsMustCenterBeforePacking: false,
+            },
+            deployState: 'UNDEPLOY',
+            deployFrameToWait: 88,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Deploy') {
+            return 'DEPLOYSTYLEAIUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const deployModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Deploy');
+
+    expect(deployModule).toBeDefined();
+    const parsed = parseSourceDeployStyleAIUpdateBlockData(deployModule!.blockData);
+    expect(parsed.prefix).toEqual(preservedPrefix);
+    expect(parsed.state).toBe(3);
+    expect(parsed.frameToWaitForDeploy).toBe(88);
   });
 
   it('rewrites source PoisonedBehavior and MinefieldBehavior modules from live runtime state', () => {
