@@ -35031,6 +35031,11 @@ export class GameLogicSubsystem implements Subsystem {
     return [...descriptorsByTag.values()];
   }
 
+  /* @internal */ listSourceUpgradeNames(): string[] {
+    const registry = this.iniDataRegistry;
+    return registry ? [...registry.upgrades.values()].map((upgrade) => upgrade.name) : [];
+  }
+
   /* @internal */ resolveSourceObjectModuleTypeByTag(templateName: string, moduleTag: string): string | null {
     const normalizedTemplateName = templateName.trim();
     const normalizedModuleTag = moduleTag.trim().toUpperCase();

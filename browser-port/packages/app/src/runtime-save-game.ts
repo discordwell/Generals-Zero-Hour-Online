@@ -4585,9 +4585,61 @@ function sourceUpgradeNameSetsMatch(
   return true;
 }
 
+function orderSourceUpgradeNamesByRegistry(
+  names: Iterable<string>,
+  sourceUpgradeOrder: readonly string[] | null | undefined,
+  fallbackSort = false,
+): string[] {
+  const namesByUpper = new Map<string, string>();
+  for (const name of names) {
+    if (typeof name !== 'string') {
+      continue;
+    }
+    const trimmedName = name.trim();
+    if (trimmedName.length === 0) {
+      continue;
+    }
+    const normalizedName = normalizeSourceUpgradeName(trimmedName);
+    if (!namesByUpper.has(normalizedName)) {
+      namesByUpper.set(normalizedName, trimmedName);
+    }
+  }
+  const sourceIndexByUpper = new Map<string, number>();
+  const sourceCanonicalNameByUpper = new Map<string, string>();
+  for (let index = 0; index < (sourceUpgradeOrder?.length ?? 0); index += 1) {
+    const sourceName = sourceUpgradeOrder?.[index];
+    if (!sourceName) {
+      continue;
+    }
+    const trimmedSourceName = sourceName.trim();
+    if (trimmedSourceName.length === 0) {
+      continue;
+    }
+    const normalizedSourceName = normalizeSourceUpgradeName(trimmedSourceName);
+    if (!sourceIndexByUpper.has(normalizedSourceName)) {
+      sourceIndexByUpper.set(normalizedSourceName, index);
+      sourceCanonicalNameByUpper.set(normalizedSourceName, trimmedSourceName);
+    }
+  }
+  const orderedNames = [...namesByUpper.entries()].sort((left, right) => {
+    const leftIndex = sourceIndexByUpper.get(left[0]) ?? Number.POSITIVE_INFINITY;
+    const rightIndex = sourceIndexByUpper.get(right[0]) ?? Number.POSITIVE_INFINITY;
+    if (leftIndex !== rightIndex) {
+      return leftIndex - rightIndex;
+    }
+    if (fallbackSort || leftIndex !== Number.POSITIVE_INFINITY) {
+      return left[1].localeCompare(right[1]);
+    }
+    return 0;
+  });
+  return orderedNames.map(([normalizedName, name]) =>
+    sourceCanonicalNameByUpper.get(normalizedName) ?? name);
+}
+
 function resolveSourceCompletedUpgradeNames(
   sourceState: SourceMapEntitySaveState,
   entity: MapEntity,
+  sourceUpgradeOrder?: readonly string[] | null,
 ): string[] {
   if (!(entity.completedUpgrades instanceof Set)) {
     return sourceState.completedUpgradeNames;
@@ -4600,12 +4652,7 @@ function resolveSourceCompletedUpgradeNames(
   if (sourceUpgradeNameSetsMatch(sourceState.completedUpgradeNames, liveNames)) {
     return sourceState.completedUpgradeNames;
   }
-  // C++ saves UpgradeMaskType by UpgradeCenter template order. Runtime-only
-  // mutations do not currently expose that registry order here, so keep the
-  // previous deterministic fallback until the source upgrade registry is wired in.
-  return [...entity.completedUpgrades]
-    .filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
-    .sort();
+  return orderSourceUpgradeNamesByRegistry(entity.completedUpgrades, sourceUpgradeOrder, true);
 }
 
 function sourceObjectTriggerAreasFromLiveValue(
@@ -19726,6 +19773,7 @@ function overlaySourceObjectStateFromLiveEntity(
   objectXferOverlayState?: GameLogicObjectXferOverlayState | null,
   templateName?: string | null,
   resolveSourceObjectModuleTypeByTag?: ((templateName: string, moduleTag: string) => string | null) | null,
+  sourceUpgradeOrder?: readonly string[] | null,
 ): SourceMapEntitySaveState {
   const hasTransform = Number.isFinite(entity.x)
     && Number.isFinite(entity.y)
@@ -19808,7 +19856,7 @@ function overlaySourceObjectStateFromLiveEntity(
     constructionPercent: Number.isFinite(entity.constructionPercent)
       ? entity.constructionPercent
       : sourceState.constructionPercent,
-    completedUpgradeNames: resolveSourceCompletedUpgradeNames(sourceState, entity),
+    completedUpgradeNames: resolveSourceCompletedUpgradeNames(sourceState, entity, sourceUpgradeOrder),
     originalTeamName: entity.sourceTeamNameUpper?.trim().toUpperCase() || sourceState.originalTeamName,
     ...resolveSourceTriggerAreaState(sourceState, triggerAreaState, entity),
     ipos: sourceObjectIPosFromLiveEntity(entity, sourceState.ipos),
@@ -20735,6 +20783,7 @@ function createGeneratedSourceObjectStateFromLiveEntity(
   fallbackTeamId: number,
   sourceObjectModuleDescriptors: readonly GameLogicSourceObjectModuleDescriptor[],
   resolveSourceObjectModuleTypeByTag?: ((templateName: string, moduleTag: string) => string | null) | null,
+  sourceUpgradeOrder?: readonly string[] | null,
 ): SourceMapEntitySaveState {
   const templateName = typeof entity.templateName === 'string' ? entity.templateName.trim() : '';
   if (!templateName) {
@@ -20771,6 +20820,7 @@ function createGeneratedSourceObjectStateFromLiveEntity(
     objectXferOverlayState,
     templateName,
     resolveSourceObjectModuleTypeByTag,
+    sourceUpgradeOrder,
   );
 }
 
@@ -20783,6 +20833,7 @@ function buildSourceGameLogicChunk(
     resolveSourceObjectModuleTypeByTag?: ((templateName: string, moduleTag: string) => string | null) | null;
     listSourceObjectModuleDescriptors?: ((templateName: string) =>
       readonly GameLogicSourceObjectModuleDescriptor[] | null) | null;
+    sourceUpgradeOrder?: readonly string[] | null;
     sourceTeamIdByName?: ReadonlyMap<string, number> | null;
   } = {},
 ): Uint8Array {
@@ -20855,6 +20906,7 @@ function buildSourceGameLogicChunk(
         fallbackTeamId,
         sourceObjectModuleDescriptors,
         options.resolveSourceObjectModuleTypeByTag,
+        options.sourceUpgradeOrder,
       );
       const blockData = buildSourceMapEntityChunk(generatedState);
       generatedObjects.push({
@@ -20891,6 +20943,7 @@ function buildSourceGameLogicChunk(
                 objectXferOverlayStateByEntityId.get(liveEntity.id),
                 object.templateName ?? liveEntity.templateName,
                 options.resolveSourceObjectModuleTypeByTag,
+                options.sourceUpgradeOrder,
               ),
             ))
           : new Uint8Array(object.blockData),
@@ -21897,6 +21950,7 @@ function buildSourcePlayerEntryState(
     mapData?: MapDataJSON | null;
     teamFactoryState?: GameLogicTeamFactorySaveState | null;
     sidesListState?: GameLogicSidesListSaveState | null;
+    sourceUpgradeOrder?: readonly string[] | null;
   } = {},
 ): SourcePlayerEntryState {
   const state = payload?.state && typeof payload.state === 'object' && !Array.isArray(payload.state)
@@ -22024,8 +22078,14 @@ function buildSourcePlayerEntryState(
     isPlayerDead: false,
     disableProofRadarCount: Math.max(0, Math.trunc(Number(sideRadarState?.disableProofRadarCount ?? 0))),
     radarDisabled: Boolean(sideRadarState?.radarDisabled),
-    upgradesInProgress: [...(sideUpgradesInProduction ?? new Set<string>())],
-    upgradesCompleted: [...(sideCompletedUpgrades ?? new Set<string>())],
+    upgradesInProgress: orderSourceUpgradeNamesByRegistry(
+      sideUpgradesInProduction ?? [],
+      options.sourceUpgradeOrder,
+    ),
+    upgradesCompleted: orderSourceUpgradeNamesByRegistry(
+      sideCompletedUpgrades ?? [],
+      options.sourceUpgradeOrder,
+    ),
     powerSabotagedTillFrame: 0,
     teamPrototypeIds: [...new Set(teamPrototypeIds)].sort((a, b) => a - b),
     buildListInfos: buildSourcePlayerBuildListInfos(playerIndex, side, payload, options.mapData),
@@ -22171,14 +22231,14 @@ function buildGameLogicPlayersStateFromSourcePlayers(
         (scienceName): [string, 'hidden'] => [scienceName, 'hidden'],
       ),
     ]));
-    sideCompletedUpgrades.set(
-      player.side,
-      new Set(player.upgrades.filter((upgrade) => upgrade.status === 2).map((upgrade) => upgrade.name)),
-    );
-    sideUpgradesInProduction.set(
-      player.side,
-      new Set(player.upgrades.filter((upgrade) => upgrade.status === 1).map((upgrade) => upgrade.name)),
-    );
+    const completedUpgradeNames = player.upgradesCompleted.length > 0
+      ? player.upgradesCompleted
+      : player.upgrades.filter((upgrade) => upgrade.status === 2).map((upgrade) => upgrade.name);
+    const upgradesInProductionNames = player.upgradesInProgress.length > 0
+      ? player.upgradesInProgress
+      : player.upgrades.filter((upgrade) => upgrade.status === 1).map((upgrade) => upgrade.name);
+    sideCompletedUpgrades.set(player.side, new Set(completedUpgradeNames));
+    sideUpgradesInProduction.set(player.side, new Set(upgradesInProductionNames));
     sideRadarState.set(player.side, {
       radarCount: player.radarCount,
       disableProofRadarCount: player.disableProofRadarCount,
@@ -22318,6 +22378,7 @@ class SourcePlayersSnapshot implements Snapshot {
   private readonly mapData: MapDataJSON | null | undefined;
   private readonly teamFactoryState: GameLogicTeamFactorySaveState | null | undefined;
   private readonly sidesListState: GameLogicSidesListSaveState | null | undefined;
+  private readonly sourceUpgradeOrder: readonly string[] | null | undefined;
 
   constructor(
     payload: GameLogicPlayersSaveState | null = null,
@@ -22325,12 +22386,14 @@ class SourcePlayersSnapshot implements Snapshot {
       mapData?: MapDataJSON | null;
       teamFactoryState?: GameLogicTeamFactorySaveState | null;
       sidesListState?: GameLogicSidesListSaveState | null;
+      sourceUpgradeOrder?: readonly string[] | null;
     } = {},
   ) {
     this.payload = payload;
     this.mapData = options.mapData;
     this.teamFactoryState = options.teamFactoryState;
     this.sidesListState = options.sidesListState;
+    this.sourceUpgradeOrder = options.sourceUpgradeOrder;
   }
 
   crc(_xfer: Xfer): void {
@@ -22415,6 +22478,7 @@ class SourcePlayersSnapshot implements Snapshot {
           mapData: this.mapData,
           teamFactoryState: this.teamFactoryState,
           sidesListState: this.sidesListState,
+          sourceUpgradeOrder: this.sourceUpgradeOrder,
         });
 
       const playerVersion = xfer.xferVersion(SOURCE_PLAYER_ENTRY_SNAPSHOT_VERSION);
@@ -25088,6 +25152,7 @@ export function buildRuntimeSaveFile(params: {
     | 'resolveSourceObjectModuleTypeByTag'
     | 'listSourceObjectModuleDescriptors'
     | 'listSourceDrawableModuleDescriptors'
+    | 'listSourceUpgradeNames'
   >>);
   embeddedMapBytes?: Uint8Array | null;
   sourceGameMode?: number;
@@ -25143,6 +25208,9 @@ export function buildRuntimeSaveFile(params: {
     typeof params.gameLogic.listSourceDrawableModuleDescriptors === 'function'
       ? params.gameLogic.listSourceDrawableModuleDescriptors.bind(params.gameLogic)
       : null;
+  const sourceUpgradeOrder = typeof params.gameLogic.listSourceUpgradeNames === 'function'
+    ? params.gameLogic.listSourceUpgradeNames()
+    : null;
   const gameClientDrawableStates = buildSourceGameClientDrawableStates(
     params.renderableEntityStates,
     gameLogicPayload,
@@ -25262,6 +25330,7 @@ export function buildRuntimeSaveFile(params: {
         mapData: params.mapData,
         teamFactoryState: teamFactoryPayload,
         sidesListState: sidesListPayload,
+        sourceUpgradeOrder,
       }),
     );
   }
@@ -25283,6 +25352,7 @@ export function buildRuntimeSaveFile(params: {
               objectXferOverlayStates: objectXferOverlayPayload,
               resolveSourceObjectModuleTypeByTag,
               listSourceObjectModuleDescriptors,
+              sourceUpgradeOrder,
               sourceTeamIdByName,
             })
           : passthroughBlock.blockData,
@@ -25299,6 +25369,7 @@ export function buildRuntimeSaveFile(params: {
           objectXferOverlayStates: objectXferOverlayPayload,
           resolveSourceObjectModuleTypeByTag,
           listSourceObjectModuleDescriptors,
+          sourceUpgradeOrder,
           sourceTeamIdByName,
         },
       )),

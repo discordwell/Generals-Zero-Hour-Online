@@ -14500,6 +14500,79 @@ describe('runtime-save-game', () => {
     expect(droneState?.completedUpgradeNames).toEqual(['Upgrade_B', 'Upgrade_A']);
   });
 
+  it('writes changed source Object::xfer upgrade masks in UpgradeCenter order', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [], [{
+      objectId: 8,
+      templateName: 'RuntimeDrone',
+      completedUpgradeNames: ['Upgrade_B'],
+    }]);
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source Object Upgrade Registry Order',
+      mapPath: 'assets/maps/SourceObjectUpgradeRegistryOrder.json',
+      mapData: createTinyRuntimeMapData(),
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: createMinimalRuntimeGameLogic([{
+        id: 8,
+        templateName: 'RuntimeDrone',
+        completedUpgrades: new Set(['Upgrade_C', 'Upgrade_A']),
+      } as unknown as import('@generals/game-logic').MapEntity], {
+        getObjectIdCounter: () => 9,
+        listSourceUpgradeNames: () => ['Upgrade_A', 'Upgrade_B', 'Upgrade_C'],
+      }),
+    });
+
+    const objectStates = readSourceGameLogicObjectStates(saveFile.data) ?? [];
+    const droneState = objectStates.find((object) => object.state.objectId === 8)?.state;
+    expect(droneState?.completedUpgradeNames).toEqual(['Upgrade_A', 'Upgrade_C']);
+  });
+
+  it('writes player upgrade masks in UpgradeCenter order', () => {
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source Player Upgrade Registry Order',
+      mapPath: 'assets/maps/SourcePlayerUpgradeRegistryOrder.json',
+      mapData: {
+        ...createTinyRuntimeMapData(),
+        sidesList: {
+          sides: [{
+            dict: {
+              playerName: 'America',
+              playerFaction: 'America',
+            },
+            buildList: [],
+          }],
+          teams: [],
+        },
+      },
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic([], {
+        listSourceUpgradeNames: () => ['Upgrade_A', 'Upgrade_B', 'Upgrade_C'],
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            playerSideByIndex: new Map([[0, 'America']]),
+            sidePlayerIndex: new Map([['America', 0]]),
+            sideUpgradesInProduction: new Map([
+              ['America', new Set(['Upgrade_B', 'Upgrade_A'])],
+            ]),
+            sideCompletedUpgrades: new Map([
+              ['America', new Set(['Upgrade_C', 'Upgrade_A'])],
+            ]),
+          },
+        }),
+      }),
+    });
+
+    const playerState = parseRuntimeSaveFile(saveFile.data).gameLogicPlayersState?.state;
+    expect([...(playerState?.sideUpgradesInProduction as Map<string, Set<string>>).get('America')!])
+      .toEqual(['Upgrade_A', 'Upgrade_B']);
+    expect([...(playerState?.sideCompletedUpgrades as Map<string, Set<string>>).get('America')!])
+      .toEqual(['Upgrade_A', 'Upgrade_C']);
+  });
+
   it('overlays live source Object::xfer status, disable, experience, and weapon fields on resave', () => {
     const sourceGameLogicBytes = createSourceGameLogicChunkData(true);
     const saveFile = buildRuntimeSaveFile({
