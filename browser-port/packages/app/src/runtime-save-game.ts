@@ -5686,6 +5686,12 @@ interface SourceFireWeaponUpdateBlockState {
   initialDelayFrame: number;
 }
 
+interface SourceFireWeaponCollideBlockState {
+  weaponPresent: boolean;
+  weapon: SourceWeaponSnapshotBlockState;
+  everFired: boolean;
+}
+
 function createDefaultSourceWeaponSnapshotState(): SourceWeaponSnapshotBlockState {
   return {
     version: 3,
@@ -5707,6 +5713,14 @@ function createDefaultSourceWeaponSnapshotState(): SourceWeaponSnapshotBlockStat
     pitchLimited: false,
     leechWeaponRangeActive: false,
   };
+}
+
+function xferSourceCollideModuleBase(xfer: Xfer): void {
+  const collideVersion = xfer.xferVersion(1);
+  if (collideVersion !== 1) {
+    throw new Error(`Unsupported source CollideModule version ${collideVersion}`);
+  }
+  xferSourceBehaviorModuleBase(xfer);
 }
 
 function xferSourceWeaponSnapshot(
@@ -5788,6 +5802,93 @@ function tryParseSourceFireWeaponUpdateBlockData(
   }
 }
 
+function tryParseSourceFireWeaponCollideBlockData(
+  data: Uint8Array,
+): SourceFireWeaponCollideBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-fire-weapon-collide');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferSourceCollideModuleBase(xferLoad);
+    const weaponPresent = xferLoad.xferBool(false);
+    const weapon = weaponPresent
+      ? xferSourceWeaponSnapshot(xferLoad, createDefaultSourceWeaponSnapshotState())
+      : createDefaultSourceWeaponSnapshotState();
+    const everFired = xferLoad.xferBool(false);
+    return xferLoad.getRemaining() === 0
+      ? {
+        weaponPresent,
+        weapon,
+        everFired,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function findLiveSourceFireWeaponCollideProfileIndex(
+  entity: MapEntity,
+  moduleTag: string,
+  preservedState: SourceFireWeaponCollideBlockState,
+): number {
+  const profiles = entity.fireWeaponCollideProfiles ?? [];
+  if (profiles.length === 0) {
+    return -1;
+  }
+  const normalizedModuleTag = normalizeSourceObjectModuleTag(moduleTag);
+  const tagMatch = profiles.findIndex(
+    (profile) => normalizeSourceObjectModuleTag(profile.moduleTag) === normalizedModuleTag,
+  );
+  if (tagMatch >= 0) {
+    return tagMatch;
+  }
+
+  const normalizedWeaponName = preservedState.weapon.templateName.trim().toUpperCase();
+  const weaponMatches = profiles
+    .map((profile, index) => ({ profile, index }))
+    .filter(({ profile }) => profile.collideWeapon.trim().toUpperCase() === normalizedWeaponName);
+  if (weaponMatches.length === 1) {
+    return weaponMatches[0]!.index;
+  }
+  return profiles.length === 1 ? 0 : -1;
+}
+
+function buildSourceFireWeaponCollideBlockData(
+  entity: MapEntity,
+  moduleTag: string,
+  preservedState: SourceFireWeaponCollideBlockState,
+): Uint8Array | null {
+  const profileIndex = findLiveSourceFireWeaponCollideProfileIndex(entity, moduleTag, preservedState);
+  if (profileIndex < 0) {
+    return null;
+  }
+  const profile = entity.fireWeaponCollideProfiles[profileIndex]!;
+  const saver = new XferSave();
+  saver.open('build-source-fire-weapon-collide');
+  try {
+    saver.xferVersion(1);
+    xferSourceCollideModuleBase(saver);
+    saver.xferBool(preservedState.weaponPresent);
+    if (preservedState.weaponPresent) {
+      xferSourceWeaponSnapshot(saver, {
+        ...preservedState.weapon,
+        version: 3,
+        templateName: profile.collideWeapon || preservedState.weapon.templateName,
+      });
+    }
+    saver.xferBool(preservedState.everFired);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function findLiveSourceFireWeaponUpdateProfileIndex(
   entity: MapEntity,
   moduleTag: string,
@@ -5845,6 +5946,18 @@ function buildSourceFireWeaponUpdateBlockData(
       whenWeCanFireAgain: liveNextFireFrame,
     });
     saver.xferUnsignedInt(liveNextFireFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceAnimationSteeringUpdateBlockData(currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-animation-steering-update');
+  try {
+    saver.xferVersion(1);
+    xferSourceUpdateModuleBase(saver, buildSourceUpdateModuleWakeFrame(currentFrame + 1));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -9556,6 +9669,22 @@ function overlaySourceObjectModulesFromLiveEntity(
               };
             }
           }
+          if (moduleType === 'FIREWEAPONCOLLIDE' && entity.fireWeaponCollideProfiles.length > 0) {
+            const parsedSourceState = tryParseSourceFireWeaponCollideBlockData(module.blockData);
+            if (parsedSourceState) {
+              const blockData = buildSourceFireWeaponCollideBlockData(
+                entity,
+                module.identifier,
+                parsedSourceState,
+              );
+              if (blockData) {
+                return {
+                  identifier: module.identifier,
+                  blockData,
+                };
+              }
+            }
+          }
           if (moduleType === 'FIREWEAPONUPDATE' && entity.fireWeaponUpdateProfiles.length > 0) {
             const parsedSourceState = tryParseSourceFireWeaponUpdateBlockData(module.blockData);
             if (parsedSourceState) {
@@ -9595,6 +9724,12 @@ function overlaySourceObjectModulesFromLiveEntity(
             return {
               identifier: module.identifier,
               blockData: buildSourceSmartBombTargetHomingUpdateBlockData(currentFrame),
+            };
+          }
+          if (moduleType === 'ANIMATIONSTEERINGUPDATE' && entity.animationSteeringProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceAnimationSteeringUpdateBlockData(currentFrame),
             };
           }
           if (moduleType === 'FIRESTORMDYNAMICGEOMETRYINFOUPDATE' && entity.dynamicGeometryProfile) {

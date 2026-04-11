@@ -2492,12 +2492,14 @@ export function extractFireWeaponCollideProfiles(self: GL, objectDef: ObjectDef 
       if (moduleType === 'FIREWEAPONCOLLIDE') {
         const collideWeapon = readStringField(block.fields, ['CollideWeapon']);
         if (!collideWeapon) return;
+        const moduleTag = block.name.split(/\s+/)[1]?.trim().toUpperCase() ?? null;
         const fireOnce = readBooleanField(block.fields, ['FireOnce']) === true;
         const rsStr = readStringField(block.fields, ['RequiredStatus'])?.trim().toUpperCase() ?? '';
         const requiredStatus = new Set(rsStr.split(/\s+/).filter(Boolean));
         const fsStr = readStringField(block.fields, ['ForbiddenStatus'])?.trim().toUpperCase() ?? '';
         const forbiddenStatus = new Set(fsStr.split(/\s+/).filter(Boolean));
         profiles.push({
+          moduleTag,
           collideWeapon,
           fireOnce,
           requiredStatus,

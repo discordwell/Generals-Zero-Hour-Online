@@ -1530,6 +1530,12 @@ interface SourceFireWeaponUpdateTestState {
   initialDelayFrame: number;
 }
 
+interface SourceFireWeaponCollideTestState {
+  weaponPresent: boolean;
+  weapon: SourceWeaponSnapshotTestState;
+  everFired: boolean;
+}
+
 function createSourceWeaponSnapshotTestState(overrides: Partial<SourceWeaponSnapshotTestState> = {}) {
   return {
     version: 3,
@@ -1552,6 +1558,13 @@ function createSourceWeaponSnapshotTestState(overrides: Partial<SourceWeaponSnap
     leechWeaponRangeActive: false,
     ...overrides,
   };
+}
+
+function xferSourceCollideModuleBaseForTest(xfer: Xfer): void {
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
 }
 
 function xferSourceWeaponSnapshotForTest(
@@ -1602,6 +1615,44 @@ function xferSourceWeaponSnapshotForTest(
   };
 }
 
+function createSourceFireWeaponCollideBlockData(state: SourceFireWeaponCollideTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-fire-weapon-collide');
+  try {
+    xferSave.xferVersion(1);
+    xferSourceCollideModuleBaseForTest(xferSave);
+    xferSave.xferBool(state.weaponPresent);
+    if (state.weaponPresent) {
+      xferSourceWeaponSnapshotForTest(xferSave, state.weapon);
+    }
+    xferSave.xferBool(state.everFired);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceFireWeaponCollideBlockData(data: Uint8Array): SourceFireWeaponCollideTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-fire-weapon-collide');
+  try {
+    xferLoad.xferVersion(1);
+    xferSourceCollideModuleBaseForTest(xferLoad);
+    const weaponPresent = xferLoad.xferBool(false);
+    const weapon = weaponPresent
+      ? xferSourceWeaponSnapshotForTest(xferLoad, createSourceWeaponSnapshotTestState())
+      : createSourceWeaponSnapshotTestState();
+    const everFired = xferLoad.xferBool(false);
+    return {
+      weaponPresent,
+      weapon,
+      everFired,
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function createSourceFireWeaponUpdateBlockData(state: SourceFireWeaponUpdateTestState): Uint8Array {
   const xferSave = new XferSave();
   xferSave.open('create-source-fire-weapon-update');
@@ -1629,6 +1680,35 @@ function parseSourceFireWeaponUpdateBlockData(data: Uint8Array): SourceFireWeapo
       nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
       weapon: xferSourceWeaponSnapshotForTest(xferLoad, createSourceWeaponSnapshotTestState()),
       initialDelayFrame: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceAnimationSteeringUpdateBlockData(nextCallFrameAndPhase: number): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-animation-steering-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceAnimationSteeringUpdateBlockData(data: Uint8Array): { nextCallFrameAndPhase: number } {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-animation-steering-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
     };
   } finally {
     xferLoad.close();
@@ -10375,6 +10455,133 @@ describe('runtime-save-game', () => {
     expect(parsed.weapon.scatterTargetsUnused).toEqual([101, 102]);
     expect(parsed.weapon.pitchLimited).toBe(true);
     expect(parsed.weapon.leechWeaponRangeActive).toBe(true);
+  });
+
+  it('rewrites source FireWeaponCollide and AnimationSteeringUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Collide',
+      blockData: createSourceFireWeaponCollideBlockData({
+        weaponPresent: true,
+        weapon: createSourceWeaponSnapshotTestState({
+          templateName: 'OldCollideWeapon',
+          ammoInClip: 7,
+          whenWeCanFireAgain: 25,
+          lastFireFrame: 14,
+          currentBarrel: 1,
+          scatterTargetsUnused: [201],
+        }),
+        everFired: true,
+      }),
+    }, {
+      identifier: 'ModuleTag_AnimSteer',
+      blockData: createSourceAnimationSteeringUpdateBlockData((99 << 2) | 2),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source fire weapon collide and animation steering rewrite',
+      mapPath: 'Maps/RuntimeCollider/RuntimeCollider.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeCollider',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            fireWeaponCollideProfiles: [{
+              moduleTag: 'MODULETAG_COLLIDE',
+              collideWeapon: 'RuntimeCollideWeapon',
+              fireOnce: true,
+              requiredStatus: new Set<string>(),
+              forbiddenStatus: new Set<string>(),
+            }],
+            animationSteeringProfile: { transitionFrames: 3 },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Collide') {
+            return 'FIREWEAPONCOLLIDE';
+          }
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_AnimSteer') {
+            return 'ANIMATIONSTEERINGUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const collideModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Collide');
+    const animationModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_AnimSteer');
+
+    expect(collideModule).toBeDefined();
+    const parsedCollide = parseSourceFireWeaponCollideBlockData(collideModule!.blockData);
+    expect(parsedCollide.weaponPresent).toBe(true);
+    expect(parsedCollide.weapon.templateName).toBe('RuntimeCollideWeapon');
+    expect(parsedCollide.weapon.ammoInClip).toBe(7);
+    expect(parsedCollide.weapon.whenWeCanFireAgain).toBe(25);
+    expect(parsedCollide.weapon.lastFireFrame).toBe(14);
+    expect(parsedCollide.weapon.currentBarrel).toBe(1);
+    expect(parsedCollide.weapon.scatterTargetsUnused).toEqual([201]);
+    expect(parsedCollide.everFired).toBe(true);
+
+    expect(animationModule).toBeDefined();
+    const parsedAnimation = parseSourceAnimationSteeringUpdateBlockData(animationModule!.blockData);
+    expect(parsedAnimation.nextCallFrameAndPhase).toBe((43 << 2) | 2);
   });
 
   it('rewrites source PoisonedBehavior and MinefieldBehavior modules from live runtime state', () => {

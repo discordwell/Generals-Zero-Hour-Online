@@ -4903,6 +4903,8 @@ interface MineDetonatorEntry {
  * C++ file: FireWeaponCollide.cpp — fires a weapon on collision (used by mines, burning trees, ramming vehicles).
  */
 interface FireWeaponCollideProfile {
+  /** Source module tag from the INI block name (e.g. ModuleTag_03). */
+  moduleTag: string | null;
   /** Weapon template name to fire on collision. */
   collideWeapon: string;
   /** Only fire weapon once, then stop. C++ default: FALSE. */
