@@ -121,6 +121,9 @@ const SOURCE_PHYSICS_TURNING_BYTE_LENGTH = 4;
 const SOURCE_PHYSICS_INVALID_VEL_MAG = -1;
 const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_PROJECTILE_STREAM_MAX_ACTIVE = SOURCE_PROJECTILE_STREAM_MAX - 1;
+const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
+const SOURCE_BONE_FX_MAX_BONES = 8;
+const SOURCE_BONE_FX_BONES_RESOLVED_BYTE_LENGTH = SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT;
 const SOURCE_SCRIPT_STATUS_DISABLED = 0x01;
 const SOURCE_SCRIPT_STATUS_UNPOWERED = 0x02;
 const SOURCE_SCRIPT_STATUS_UNSELLABLE = 0x04;
@@ -4799,6 +4802,175 @@ function buildSourceProjectileStreamUpdateBlockData(
   }
 }
 
+interface SourceBoneFxUpdateBlockState {
+  version: number;
+  nextCallFrameAndPhase: number;
+  particleSystemIds: number[];
+  nextFxFrame: number[][];
+  nextOclFrame: number[][];
+  nextParticleSystemFrame: number[][];
+  fxBonePositions: Coord3D[][];
+  oclBonePositions: Coord3D[][];
+  particleSystemBonePositions: Coord3D[][];
+  currentBodyState: number;
+  bonesResolvedBytes: Uint8Array;
+  active: boolean;
+}
+
+function xferSourceBoneFxIntGrid(xfer: Xfer, values: readonly (readonly number[])[]): number[][] {
+  const result: number[][] = [];
+  for (let damageState = 0; damageState < SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT; damageState += 1) {
+    const row: number[] = [];
+    const sourceRow = values[damageState] ?? [];
+    for (let boneIndex = 0; boneIndex < SOURCE_BONE_FX_MAX_BONES; boneIndex += 1) {
+      row.push(xfer.xferInt(Math.trunc(sourcePhysicsFinite(sourceRow[boneIndex], 0))));
+    }
+    result.push(row);
+  }
+  return result;
+}
+
+function xferSourceBoneFxCoordGrid(xfer: Xfer, values: readonly (readonly Coord3D[])[]): Coord3D[][] {
+  const result: Coord3D[][] = [];
+  for (let damageState = 0; damageState < SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT; damageState += 1) {
+    const row: Coord3D[] = [];
+    const sourceRow = values[damageState] ?? [];
+    for (let boneIndex = 0; boneIndex < SOURCE_BONE_FX_MAX_BONES; boneIndex += 1) {
+      row.push(xfer.xferCoord3D(sourceRow[boneIndex] ?? { x: 0, y: 0, z: 0 }));
+    }
+    result.push(row);
+  }
+  return result;
+}
+
+function buildSourceBoneFxFrameGrid(
+  liveGrid: readonly (readonly number[])[] | undefined,
+  preservedGrid: readonly (readonly number[])[],
+): number[][] {
+  return Array.from({ length: SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT }, (_, damageState) => (
+    Array.from({ length: SOURCE_BONE_FX_MAX_BONES }, (_, boneIndex) => {
+      const liveValue = liveGrid?.[damageState]?.[boneIndex];
+      if (typeof liveValue === 'number' && Number.isFinite(liveValue)) {
+        return Math.trunc(liveValue);
+      }
+      return Math.trunc(sourcePhysicsFinite(preservedGrid[damageState]?.[boneIndex], -1));
+    })
+  ));
+}
+
+function sourceBoneFxBodyState(value: unknown, fallback: number): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const state = Math.trunc(value);
+    if (state >= 0 && state < SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT) {
+      return state;
+    }
+  }
+  return Math.trunc(sourcePhysicsFinite(fallback, 0));
+}
+
+function normalizeSourceBoneFxParticleSystemIds(values: unknown): number[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  return values.slice(0, 0xffff).map(normalizeSourceObjectId);
+}
+
+function tryParseSourceBoneFxUpdateBlockData(
+  data: Uint8Array,
+): SourceBoneFxUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-bone-fx-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const particleSystemCount = xferLoad.xferUnsignedShort(0);
+    const particleSystemIds: number[] = [];
+    for (let index = 0; index < particleSystemCount; index += 1) {
+      particleSystemIds.push(xferLoad.xferUnsignedInt(0));
+    }
+    const nextFxFrame = xferSourceBoneFxIntGrid(xferLoad, []);
+    const nextOclFrame = xferSourceBoneFxIntGrid(xferLoad, []);
+    const nextParticleSystemFrame = xferSourceBoneFxIntGrid(xferLoad, []);
+    const fxBonePositions = xferSourceBoneFxCoordGrid(xferLoad, []);
+    const oclBonePositions = xferSourceBoneFxCoordGrid(xferLoad, []);
+    const particleSystemBonePositions = xferSourceBoneFxCoordGrid(xferLoad, []);
+    const currentBodyState = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const bonesResolvedBytes = xferLoad.xferUser(new Uint8Array(SOURCE_BONE_FX_BONES_RESOLVED_BYTE_LENGTH));
+    const active = xferLoad.xferBool(false);
+    return xferLoad.getRemaining() === 0
+      ? {
+        version,
+        nextCallFrameAndPhase,
+        particleSystemIds,
+        nextFxFrame,
+        nextOclFrame,
+        nextParticleSystemFrame,
+        fxBonePositions,
+        oclBonePositions,
+        particleSystemBonePositions,
+        currentBodyState,
+        bonesResolvedBytes,
+        active,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceBoneFxUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceBoneFxUpdateBlockState,
+): Uint8Array {
+  const state = entity.boneFXState;
+  const particleSystemIds = normalizeSourceBoneFxParticleSystemIds(
+    state?.activeParticleIds ?? preservedState.particleSystemIds,
+  );
+  const saver = new XferSave();
+  saver.open('build-source-bone-fx-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferUnsignedShort(particleSystemIds.length);
+    for (const particleSystemId of particleSystemIds) {
+      saver.xferUnsignedInt(particleSystemId);
+    }
+    xferSourceBoneFxIntGrid(saver, buildSourceBoneFxFrameGrid(state?.nextFXFrame, preservedState.nextFxFrame));
+    xferSourceBoneFxIntGrid(saver, buildSourceBoneFxFrameGrid(state?.nextOCLFrame, preservedState.nextOclFrame));
+    xferSourceBoneFxIntGrid(
+      saver,
+      buildSourceBoneFxFrameGrid(state?.nextParticleFrame, preservedState.nextParticleSystemFrame),
+    );
+    xferSourceBoneFxCoordGrid(saver, preservedState.fxBonePositions);
+    xferSourceBoneFxCoordGrid(saver, preservedState.oclBonePositions);
+    xferSourceBoneFxCoordGrid(saver, preservedState.particleSystemBonePositions);
+    saver.xferUser(buildSourceRawInt32Bytes(
+      sourceBoneFxBodyState(state?.currentBodyState, preservedState.currentBodyState),
+    ));
+    saver.xferUser(
+      preservedState.bonesResolvedBytes.byteLength === SOURCE_BONE_FX_BONES_RESOLVED_BYTE_LENGTH
+        ? preservedState.bonesResolvedBytes
+        : new Uint8Array(SOURCE_BONE_FX_BONES_RESOLVED_BYTE_LENGTH),
+    );
+    saver.xferBool(typeof state?.active === 'boolean' ? state.active : preservedState.active);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 interface SourceRgbColorState {
   red: number;
   green: number;
@@ -6732,6 +6904,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceProjectileStreamUpdateBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'BONEFXUPDATE' && entity.boneFXState) {
+            const parsedSourceState = tryParseSourceBoneFxUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceBoneFxUpdateBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }

@@ -988,6 +988,8 @@ const SOURCE_PHYSICS_FLAG_IS_IN_UPDATE = 0x0400;
 const SOURCE_PHYSICS_FLAG_IS_STUNNED = 0x0800;
 const SOURCE_PHYSICS_INVALID_VEL_MAG = -1;
 const SOURCE_PROJECTILE_STREAM_MAX = 20;
+const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
+const SOURCE_BONE_FX_MAX_BONES = 8;
 
 interface SourcePhysicsBehaviorTestState {
   nextCallFrameAndPhase: number;
@@ -1061,6 +1063,87 @@ function createSourceProjectileStreamUpdateBlockData(state: SourceProjectileStre
     xferSave.xferObjectID(state.owningObject);
     xferSave.xferObjectID(state.targetObject);
     xferSave.xferCoord3D(state.targetPosition);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+interface SourceBoneFxUpdateTestState {
+  nextCallFrameAndPhase: number;
+  particleSystemIds: number[];
+  nextFxFrame: number[][];
+  nextOclFrame: number[][];
+  nextParticleSystemFrame: number[][];
+  fxBonePositions: Coord3D[][];
+  oclBonePositions: Coord3D[][];
+  particleSystemBonePositions: Coord3D[][];
+  currentBodyState: number;
+  bonesResolvedBytes: Uint8Array;
+  active: boolean;
+}
+
+function createSourceBoneFxIntGrid(seed: number): number[][] {
+  return Array.from({ length: SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT }, (_, damageState) =>
+    Array.from({ length: SOURCE_BONE_FX_MAX_BONES }, (_, boneIndex) =>
+      seed + (damageState * 10) + boneIndex,
+    ),
+  );
+}
+
+function createSourceBoneFxCoordGrid(seed: number): Coord3D[][] {
+  return Array.from({ length: SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT }, (_, damageState) =>
+    Array.from({ length: SOURCE_BONE_FX_MAX_BONES }, (_, boneIndex) => ({
+      x: seed + (damageState * 100) + boneIndex,
+      y: seed + (damageState * 100) + boneIndex + 0.25,
+      z: seed + (damageState * 100) + boneIndex + 0.5,
+    })),
+  );
+}
+
+function xferSourceBoneFxIntGrid(xfer: Xfer, grid: number[][]): number[][] {
+  const result: number[][] = [];
+  for (let damageState = 0; damageState < SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT; damageState += 1) {
+    const row: number[] = [];
+    for (let boneIndex = 0; boneIndex < SOURCE_BONE_FX_MAX_BONES; boneIndex += 1) {
+      row.push(xfer.xferInt(grid[damageState]?.[boneIndex] ?? 0));
+    }
+    result.push(row);
+  }
+  return result;
+}
+
+function xferSourceBoneFxCoordGrid(xfer: Xfer, grid: Coord3D[][]): Coord3D[][] {
+  const result: Coord3D[][] = [];
+  for (let damageState = 0; damageState < SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT; damageState += 1) {
+    const row: Coord3D[] = [];
+    for (let boneIndex = 0; boneIndex < SOURCE_BONE_FX_MAX_BONES; boneIndex += 1) {
+      row.push(xfer.xferCoord3D(grid[damageState]?.[boneIndex] ?? { x: 0, y: 0, z: 0 }));
+    }
+    result.push(row);
+  }
+  return result;
+}
+
+function createSourceBoneFxUpdateBlockData(state: SourceBoneFxUpdateTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-bone-fx-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferUnsignedShort(state.particleSystemIds.length);
+    for (const particleSystemId of state.particleSystemIds) {
+      xferSave.xferUnsignedInt(particleSystemId);
+    }
+    xferSourceBoneFxIntGrid(xferSave, state.nextFxFrame);
+    xferSourceBoneFxIntGrid(xferSave, state.nextOclFrame);
+    xferSourceBoneFxIntGrid(xferSave, state.nextParticleSystemFrame);
+    xferSourceBoneFxCoordGrid(xferSave, state.fxBonePositions);
+    xferSourceBoneFxCoordGrid(xferSave, state.oclBonePositions);
+    xferSourceBoneFxCoordGrid(xferSave, state.particleSystemBonePositions);
+    xferSave.xferUser(createRawInt32Bytes(state.currentBodyState));
+    xferSave.xferUser(state.bonesResolvedBytes);
+    xferSave.xferBool(state.active);
     return new Uint8Array(xferSave.getBuffer());
   } finally {
     xferSave.close();
@@ -2754,6 +2837,39 @@ function parseSourceProjectileStreamUpdateBlockData(data: Uint8Array): SourcePro
       owningObject: xferLoad.xferObjectID(0),
       targetObject: xferLoad.xferObjectID(0),
       targetPosition: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceBoneFxUpdateBlockData(data: Uint8Array): SourceBoneFxUpdateTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-bone-fx-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const particleSystemCount = xferLoad.xferUnsignedShort(0);
+    const particleSystemIds: number[] = [];
+    for (let index = 0; index < particleSystemCount; index += 1) {
+      particleSystemIds.push(xferLoad.xferUnsignedInt(0));
+    }
+    return {
+      nextCallFrameAndPhase,
+      particleSystemIds,
+      nextFxFrame: xferSourceBoneFxIntGrid(xferLoad, []),
+      nextOclFrame: xferSourceBoneFxIntGrid(xferLoad, []),
+      nextParticleSystemFrame: xferSourceBoneFxIntGrid(xferLoad, []),
+      fxBonePositions: xferSourceBoneFxCoordGrid(xferLoad, []),
+      oclBonePositions: xferSourceBoneFxCoordGrid(xferLoad, []),
+      particleSystemBonePositions: xferSourceBoneFxCoordGrid(xferLoad, []),
+      currentBodyState: readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+      bonesResolvedBytes: xferLoad.xferUser(new Uint8Array(SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT)),
+      active: xferLoad.xferBool(false),
     };
   } finally {
     xferLoad.close();
@@ -8678,6 +8794,131 @@ describe('runtime-save-game', () => {
     expect(parsed.owningObject).toBe(77);
     expect(parsed.targetObject).toBe(44);
     expect(parsed.targetPosition).toEqual({ x: 101, y: 202, z: 303 });
+  });
+
+  it('rewrites source BoneFXUpdate modules from live runtime state', () => {
+    const preservedFxPositions = createSourceBoneFxCoordGrid(10);
+    const preservedOclPositions = createSourceBoneFxCoordGrid(210);
+    const preservedParticlePositions = createSourceBoneFxCoordGrid(410);
+    const liveNextFxFrame = createSourceBoneFxIntGrid(1000);
+    const liveNextOclFrame = createSourceBoneFxIntGrid(2000);
+    const liveNextParticleFrame = createSourceBoneFxIntGrid(3000);
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_BoneFX',
+      blockData: createSourceBoneFxUpdateBlockData({
+        nextCallFrameAndPhase: (84 << 2) | 2,
+        particleSystemIds: [100, 101, 102],
+        nextFxFrame: createSourceBoneFxIntGrid(100),
+        nextOclFrame: createSourceBoneFxIntGrid(200),
+        nextParticleSystemFrame: createSourceBoneFxIntGrid(300),
+        fxBonePositions: preservedFxPositions,
+        oclBonePositions: preservedOclPositions,
+        particleSystemBonePositions: preservedParticlePositions,
+        currentBodyState: 1,
+        bonesResolvedBytes: new Uint8Array([1, 0, 1, 0]),
+        active: false,
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source bone fx update rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            boneFXState: {
+              currentBodyState: 2,
+              active: true,
+              nextFXFrame: liveNextFxFrame,
+              nextOCLFrame: liveNextOclFrame,
+              nextParticleFrame: liveNextParticleFrame,
+              activeParticleIds: [77, 88],
+              pendingVisualEvents: [],
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_BoneFX'
+            ? 'BONEFXUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const boneFxModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_BoneFX');
+
+    expect(boneFxModule).toBeDefined();
+    const parsed = parseSourceBoneFxUpdateBlockData(boneFxModule!.blockData);
+    expect(parsed.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsed.particleSystemIds).toEqual([77, 88]);
+    expect(parsed.nextFxFrame).toEqual(liveNextFxFrame);
+    expect(parsed.nextOclFrame).toEqual(liveNextOclFrame);
+    expect(parsed.nextParticleSystemFrame).toEqual(liveNextParticleFrame);
+    expect(parsed.fxBonePositions).toEqual(preservedFxPositions);
+    expect(parsed.oclBonePositions).toEqual(preservedOclPositions);
+    expect(parsed.particleSystemBonePositions).toEqual(preservedParticlePositions);
+    expect(parsed.currentBodyState).toBe(2);
+    expect(Array.from(parsed.bonesResolvedBytes)).toEqual([1, 0, 1, 0]);
+    expect(parsed.active).toBe(true);
   });
 
   it('rewrites source SlavedUpdate modules from live runtime state', () => {
