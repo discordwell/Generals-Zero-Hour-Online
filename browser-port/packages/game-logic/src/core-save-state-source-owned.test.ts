@@ -485,6 +485,27 @@ function makeSourceOwnedCoreBundle() {
           OffsetZ: 5,
         }),
       ]),
+      makeObjectDef('EnemyNearObject', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'EnemyNearUpdate ModuleTag_EnemyNear', {
+          ScanDelayTime: 1000,
+        }),
+      ]),
+      makeObjectDef('CheckpointObject', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'CheckpointUpdate ModuleTag_Checkpoint', {
+          EnemyScanDelayTime: 1000,
+        }),
+      ]),
+      makeObjectDef('ProneInfantry', 'America', ['INFANTRY'], [
+        makeBlock('Behavior', 'ProneUpdate ModuleTag_Prone', {
+          DamageToFramesRatio: 2,
+        }),
+      ]),
+      makeObjectDef('SmartBombTarget', 'America', ['PROJECTILE'], [
+        makeBlock('Behavior', 'SmartBombTargetHomingUpdate ModuleTag_SmartBomb', {
+          CourseCorrectionScalar: 0.95,
+        }),
+      ]),
+      makeObjectDef('HelperStateObject', 'America', ['VEHICLE'], []),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -523,14 +544,36 @@ function sourceRawInt32(value: number): Uint8Array {
   return bytes;
 }
 
-function sourceUpdateFrameAndPhase(frame: number): number {
-  return Math.max(0, Math.trunc(frame)) << 2;
+function sourceUpdateFrameAndPhase(frame: number, phase = 0): number {
+  return (Math.max(0, Math.trunc(frame)) << 2) | (phase & 0x03);
+}
+
+function writeTestSourceUpdateModuleBase(
+  saver: XferSave,
+  nextCallFrame: number,
+  phase = 0,
+): void {
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(sourceUpdateFrameAndPhase(nextCallFrame, phase));
+}
+
+function writeTestSourceObjectHelperBase(
+  saver: XferSave,
+  nextCallFrame: number,
+  phase = 0,
+): void {
+  saver.xferVersion(1);
+  writeTestSourceUpdateModuleBase(saver, nextCallFrame, phase);
 }
 
 const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
 const SOURCE_SPAWN_POINT_MAX_POINTS = 10;
+const SOURCE_UPDATE_PHASE_FINAL = 3;
 
 const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
 const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
@@ -1628,6 +1671,147 @@ function buildSourceHijackerUpdateModuleData(options: {
     saver.xferBool(options.update);
     saver.xferBool(options.isInVehicle);
     saver.xferBool(options.wasTargetAirborne);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceEnemyNearUpdateModuleData(options: {
+  nextCallFrame: number;
+  nextScanCountdown: number;
+  enemyNear: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-enemy-near-update');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+    saver.xferUnsignedInt(options.nextScanCountdown);
+    saver.xferBool(options.enemyNear);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceCheckpointUpdateModuleData(options: {
+  nextCallFrame: number;
+  enemyNear: boolean;
+  allyNear: boolean;
+  maxMinorRadius: number;
+  scanCountdown: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-checkpoint-update');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+    saver.xferBool(options.enemyNear);
+    saver.xferBool(options.allyNear);
+    saver.xferReal(options.maxMinorRadius);
+    saver.xferUnsignedInt(options.scanCountdown);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceProneUpdateModuleData(options: {
+  nextCallFrame: number;
+  proneFrames: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-prone-update');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+    saver.xferInt(options.proneFrames);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSmartBombTargetHomingUpdateModuleData(options: {
+  nextCallFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-smart-bomb-target-homing-update');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceBaseOnlyObjectHelperModuleData(options: {
+  nextCallFrame: number;
+  phase?: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-base-only-object-helper');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceObjectHelperBase(saver, options.nextCallFrame, options.phase ?? 0);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceObjectDefectionHelperModuleData(options: {
+  nextCallFrame: number;
+  detectionStartFrame: number;
+  detectionEndFrame: number;
+  flashPhase: number;
+  doFx: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-object-defection-helper');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceObjectHelperBase(saver, options.nextCallFrame);
+    saver.xferUnsignedInt(options.detectionStartFrame);
+    saver.xferUnsignedInt(options.detectionEndFrame);
+    saver.xferReal(options.flashPhase);
+    saver.xferBool(options.doFx);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceStatusDamageHelperModuleData(options: {
+  nextCallFrame: number;
+  statusType: number;
+  clearFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-status-damage-helper');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceObjectHelperBase(saver, options.nextCallFrame);
+    saver.xferUser(sourceRawInt32(options.statusType));
+    saver.xferUnsignedInt(options.clearFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSubdualDamageHelperModuleData(options: {
+  nextCallFrame: number;
+  healingStepCountdown: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-subdual-damage-helper');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceObjectHelperBase(saver, options.nextCallFrame);
+    saver.xferUnsignedInt(options.healingStepCountdown);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -4077,6 +4261,181 @@ describe('source-owned game-logic core save-state', () => {
       ejectY: 3,
       ejectZ: 22,
     });
+  });
+
+  it('imports miscellaneous source update and helper runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const enemyNearState = createEmptySourceMapEntitySaveState();
+    enemyNearState.objectId = 131;
+    enemyNearState.position = { x: 174, y: 0, z: 60 };
+    enemyNearState.modules = [{
+      identifier: 'ModuleTag_EnemyNear',
+      blockData: buildSourceEnemyNearUpdateModuleData({
+        nextCallFrame: 390,
+        nextScanCountdown: 14,
+        enemyNear: true,
+      }),
+    }];
+
+    const checkpointState = createEmptySourceMapEntitySaveState();
+    checkpointState.objectId = 132;
+    checkpointState.position = { x: 176, y: 0, z: 60 };
+    checkpointState.modules = [{
+      identifier: 'ModuleTag_Checkpoint',
+      blockData: buildSourceCheckpointUpdateModuleData({
+        nextCallFrame: 391,
+        enemyNear: false,
+        allyNear: true,
+        maxMinorRadius: 12.5,
+        scanCountdown: 15,
+      }),
+    }];
+
+    const proneState = createEmptySourceMapEntitySaveState();
+    proneState.objectId = 133;
+    proneState.position = { x: 178, y: 0, z: 60 };
+    proneState.modules = [{
+      identifier: 'ModuleTag_Prone',
+      blockData: buildSourceProneUpdateModuleData({
+        nextCallFrame: 392,
+        proneFrames: 27,
+      }),
+    }];
+
+    const smartBombState = createEmptySourceMapEntitySaveState();
+    smartBombState.objectId = 134;
+    smartBombState.position = { x: 180, y: 0, z: 60 };
+    smartBombState.modules = [{
+      identifier: 'ModuleTag_SmartBomb',
+      blockData: buildSourceSmartBombTargetHomingUpdateModuleData({
+        nextCallFrame: 393,
+      }),
+    }];
+
+    const helperState = createEmptySourceMapEntitySaveState();
+    helperState.objectId = 135;
+    helperState.position = { x: 182, y: 0, z: 60 };
+    helperState.specialModelConditionUntil = 260;
+    helperState.modules = [
+      {
+        identifier: 'ModuleTag_SMCHelper',
+        blockData: buildSourceBaseOnlyObjectHelperModuleData({
+          nextCallFrame: 260,
+        }),
+      },
+      {
+        identifier: 'ModuleTag_RepulsorHelper',
+        blockData: buildSourceBaseOnlyObjectHelperModuleData({
+          nextCallFrame: 270,
+        }),
+      },
+      {
+        identifier: 'ModuleTag_StatusDamageHelper',
+        blockData: buildSourceStatusDamageHelperModuleData({
+          nextCallFrame: 280,
+          statusType: 38,
+          clearFrame: 280,
+        }),
+      },
+      {
+        identifier: 'ModuleTag_DefectionHelper',
+        blockData: buildSourceObjectDefectionHelperModuleData({
+          nextCallFrame: 201,
+          detectionStartFrame: 200,
+          detectionEndFrame: 300,
+          flashPhase: 0.75,
+          doFx: true,
+        }),
+      },
+      {
+        identifier: 'ModuleTag_SubdualDamageHelper',
+        blockData: buildSourceSubdualDamageHelperModuleData({
+          nextCallFrame: 201,
+          healingStepCountdown: 9,
+        }),
+      },
+      {
+        identifier: 'ModuleTag_WeaponStatusHelper',
+        blockData: buildSourceBaseOnlyObjectHelperModuleData({
+          nextCallFrame: 201,
+          phase: SOURCE_UPDATE_PHASE_FINAL,
+        }),
+      },
+    ];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'EnemyNearObject', state: enemyNearState },
+        { templateName: 'CheckpointObject', state: checkpointState },
+        { templateName: 'ProneInfantry', state: proneState },
+        { templateName: 'SmartBombTarget', state: smartBombState },
+        { templateName: 'HelperStateObject', state: helperState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        enemyNearNextScanCountdown: number;
+        enemyNearDetected: boolean;
+        checkpointEnemyNear: boolean;
+        checkpointAllyNear: boolean;
+        checkpointMaxMinorRadius: number;
+        checkpointScanCountdown: number;
+        proneFramesRemaining: number;
+        smartBombProfile: object | null;
+        smartBombState: object | null;
+        cheerTimerFrames: number;
+        repulsorHelperUntilFrame: number;
+        statusDamageStatusName: string | null;
+        statusDamageClearFrame: number;
+        objectStatusFlags: Set<string>;
+        defectorHelperDetectionStartFrame: number;
+        defectorHelperDetectionEndFrame: number;
+        defectorHelperFlashPhase: number;
+        defectorHelperDoFx: boolean;
+        undetectedDefectorUntilFrame: number;
+        subdualHealingCountdown: number;
+      }>;
+    };
+
+    const importedEnemyNear = privateLogic.spawnedEntities.get(131)!;
+    expect(importedEnemyNear.enemyNearNextScanCountdown).toBe(14);
+    expect(importedEnemyNear.enemyNearDetected).toBe(true);
+
+    const importedCheckpoint = privateLogic.spawnedEntities.get(132)!;
+    expect(importedCheckpoint.checkpointEnemyNear).toBe(false);
+    expect(importedCheckpoint.checkpointAllyNear).toBe(true);
+    expect(importedCheckpoint.checkpointMaxMinorRadius).toBeCloseTo(12.5);
+    expect(importedCheckpoint.checkpointScanCountdown).toBe(15);
+
+    expect(privateLogic.spawnedEntities.get(133)!.proneFramesRemaining).toBe(27);
+
+    const importedSmartBomb = privateLogic.spawnedEntities.get(134)!;
+    expect(importedSmartBomb.smartBombProfile).not.toBeNull();
+    expect(importedSmartBomb.smartBombState).toBeNull();
+
+    const importedHelper = privateLogic.spawnedEntities.get(135)!;
+    expect(importedHelper.cheerTimerFrames).toBe(60);
+    expect(importedHelper.repulsorHelperUntilFrame).toBe(270);
+    expect(importedHelper.statusDamageStatusName).toBe('FAERIE_FIRE');
+    expect(importedHelper.statusDamageClearFrame).toBe(280);
+    expect(importedHelper.objectStatusFlags.has('FAERIE_FIRE')).toBe(true);
+    expect(importedHelper.defectorHelperDetectionStartFrame).toBe(200);
+    expect(importedHelper.defectorHelperDetectionEndFrame).toBe(300);
+    expect(importedHelper.defectorHelperFlashPhase).toBeCloseTo(0.75);
+    expect(importedHelper.defectorHelperDoFx).toBe(true);
+    expect(importedHelper.undetectedDefectorUntilFrame).toBe(300);
+    expect(importedHelper.subdualHealingCountdown).toBe(9);
   });
 
   it('imports source power, OCL, weapon bonus, and helper runtime state', () => {

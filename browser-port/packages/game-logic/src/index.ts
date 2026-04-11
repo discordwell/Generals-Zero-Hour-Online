@@ -8994,6 +8994,29 @@ interface SourceHijackerUpdateImportState {
   wasTargetAirborne: boolean;
 }
 
+interface SourceEnemyNearUpdateImportState {
+  nextCallFrame: number;
+  nextScanCountdown: number;
+  enemyNear: boolean;
+}
+
+interface SourceCheckpointUpdateImportState {
+  nextCallFrame: number;
+  enemyNear: boolean;
+  allyNear: boolean;
+  maxMinorRadius: number;
+  scanCountdown: number;
+}
+
+interface SourceProneUpdateImportState {
+  nextCallFrame: number;
+  proneFrames: number;
+}
+
+interface SourceSmartBombTargetHomingUpdateImportState {
+  nextCallFrame: number;
+}
+
 interface SourceFiringTrackerImportState {
   nextCallFrame: number;
   consecutiveShots: number;
@@ -9027,6 +9050,29 @@ interface SourceTempWeaponBonusHelperImportState {
   nextCallFrame: number;
   currentBonus: number;
   frameToRemove: number;
+}
+
+interface SourceBaseOnlyObjectHelperImportState {
+  nextCallFrame: number;
+}
+
+interface SourceObjectDefectionHelperImportState {
+  nextCallFrame: number;
+  detectionStartFrame: number;
+  detectionEndFrame: number;
+  flashPhase: number;
+  doFx: boolean;
+}
+
+interface SourceStatusDamageHelperImportState {
+  nextCallFrame: number;
+  statusName: string | null;
+  clearFrame: number;
+}
+
+interface SourceSubdualDamageHelperImportState {
+  nextCallFrame: number;
+  healingStepCountdown: number;
 }
 
 interface SourceSpectreGunshipDeploymentUpdateImportState {
@@ -13408,6 +13454,14 @@ export class GameLogicSubsystem implements Subsystem {
     return 1 << condition;
   }
 
+  private sourceObjectStatusNameFromType(value: number): string | null {
+    const enumValue = Math.trunc(value);
+    if (enumValue <= 0) {
+      return null;
+    }
+    return SCRIPT_OBJECT_STATUS_NAMES_BY_BIT_INDEX[enumValue - 1] ?? null;
+  }
+
   private skipSourceImportUpdateModuleBase(xfer: XferLoad): number {
     const updateModuleVersion = xfer.xferVersion(1);
     const behaviorModuleVersion = xfer.xferVersion(1);
@@ -15901,6 +15955,352 @@ export class GameLogicSubsystem implements Subsystem {
           ejectY: hijackerState.ejectPosition.z,
           ejectZ: hijackerState.ejectPosition.y,
         };
+      }
+    }
+  }
+
+  private tryParseSourceEnemyNearUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceEnemyNearUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'ENEMYNEARUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-enemy-near-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const nextScanCountdown = xfer.xferUnsignedInt(0);
+      const enemyNear = xfer.xferBool(false);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, nextScanCountdown, enemyNear } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceCheckpointUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceCheckpointUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'CHECKPOINTUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-checkpoint-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const enemyNear = xfer.xferBool(false);
+      const allyNear = xfer.xferBool(false);
+      const maxMinorRadius = xfer.xferReal(0);
+      const scanCountdown = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, enemyNear, allyNear, maxMinorRadius, scanCountdown }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceProneUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceProneUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'PRONEUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-prone-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const proneFrames = xfer.xferInt(0);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, proneFrames } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceSmartBombTargetHomingUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceSmartBombTargetHomingUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'SMARTBOMBTARGETHOMINGUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-smart-bomb-target-homing-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      return xfer.getRemaining() === 0 ? { nextCallFrame } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceBaseOnlyObjectHelperImportState(
+    data: Uint8Array,
+    xferName: string,
+  ): SourceBaseOnlyObjectHelperImportState | null {
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open(xferName);
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportObjectHelperBase(xfer),
+      );
+      return xfer.getRemaining() === 0 ? { nextCallFrame } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceObjectDefectionHelperImportState(
+    data: Uint8Array,
+  ): SourceObjectDefectionHelperImportState | null {
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-object-defection-helper-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportObjectHelperBase(xfer),
+      );
+      const detectionStartFrame = xfer.xferUnsignedInt(0);
+      const detectionEndFrame = xfer.xferUnsignedInt(0);
+      const flashPhase = xfer.xferReal(0);
+      const doFx = xfer.xferBool(false);
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, detectionStartFrame, detectionEndFrame, flashPhase, doFx }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceStatusDamageHelperImportState(
+    data: Uint8Array,
+  ): SourceStatusDamageHelperImportState | null {
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-status-damage-helper-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportObjectHelperBase(xfer),
+      );
+      const statusType = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const clearFrame = xfer.xferUnsignedInt(0);
+      const statusName = this.sourceObjectStatusNameFromType(statusType);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, statusName, clearFrame } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceSubdualDamageHelperImportState(
+    data: Uint8Array,
+  ): SourceSubdualDamageHelperImportState | null {
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-subdual-damage-helper-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportObjectHelperBase(xfer),
+      );
+      const healingStepCountdown = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, healingStepCountdown } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceMiscUpdateAndHelperModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    const specialModelConditionUntil = Math.max(
+      0,
+      Math.trunc(sourceState.specialModelConditionUntil),
+    );
+    entity.cheerTimerFrames =
+      specialModelConditionUntil > this.frameCounter
+      && specialModelConditionUntil < SOURCE_IMPORT_FRAME_FOREVER
+        ? specialModelConditionUntil - this.frameCounter
+        : 0;
+
+    for (const module of sourceState.modules) {
+      const normalizedModuleTag = module.identifier.trim().toUpperCase();
+      if (normalizedModuleTag === 'MODULETAG_SMCHELPER') {
+        this.tryParseSourceBaseOnlyObjectHelperImportState(
+          module.blockData,
+          'source-object-smc-helper-import',
+        );
+        continue;
+      }
+
+      if (normalizedModuleTag === 'MODULETAG_WEAPONSTATUSHELPER') {
+        this.tryParseSourceBaseOnlyObjectHelperImportState(
+          module.blockData,
+          'source-object-weapon-status-helper-import',
+        );
+        continue;
+      }
+
+      if (normalizedModuleTag === 'MODULETAG_REPULSORHELPER') {
+        const repulsorState = this.tryParseSourceBaseOnlyObjectHelperImportState(
+          module.blockData,
+          'source-object-repulsor-helper-import',
+        );
+        if (repulsorState) {
+          entity.repulsorHelperUntilFrame = repulsorState.nextCallFrame >= SOURCE_IMPORT_FRAME_FOREVER
+            ? 0
+            : Math.max(0, Math.trunc(repulsorState.nextCallFrame));
+        }
+        continue;
+      }
+
+      if (normalizedModuleTag === 'MODULETAG_STATUSDAMAGEHELPER') {
+        const statusState = this.tryParseSourceStatusDamageHelperImportState(module.blockData);
+        if (statusState) {
+          entity.statusDamageStatusName = statusState.statusName;
+          entity.statusDamageClearFrame = statusState.statusName
+            ? Math.max(0, Math.trunc(statusState.clearFrame))
+            : 0;
+          if (statusState.statusName && statusState.clearFrame > this.frameCounter) {
+            entity.objectStatusFlags.add(statusState.statusName);
+            this.syncDerivedStatusFields(entity);
+          }
+        }
+        continue;
+      }
+
+      if (normalizedModuleTag === 'MODULETAG_DEFECTIONHELPER') {
+        const defectionState = this.tryParseSourceObjectDefectionHelperImportState(module.blockData);
+        if (defectionState) {
+          entity.defectorHelperDetectionStartFrame = Math.max(
+            0,
+            Math.trunc(defectionState.detectionStartFrame),
+          );
+          entity.defectorHelperDetectionEndFrame = Math.max(
+            0,
+            Math.trunc(defectionState.detectionEndFrame),
+          );
+          entity.defectorHelperFlashPhase = defectionState.flashPhase;
+          entity.defectorHelperDoFx = defectionState.doFx;
+          entity.undetectedDefectorUntilFrame =
+            defectionState.detectionEndFrame > this.frameCounter
+              ? Math.max(0, Math.trunc(defectionState.detectionEndFrame))
+              : 0;
+        }
+        continue;
+      }
+
+      if (normalizedModuleTag === 'MODULETAG_SUBDUALDAMAGEHELPER') {
+        const subdualState = this.tryParseSourceSubdualDamageHelperImportState(module.blockData);
+        if (subdualState) {
+          entity.subdualHealingCountdown = Math.max(
+            0,
+            Math.trunc(subdualState.healingStepCountdown),
+          );
+        }
+        continue;
+      }
+
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+
+      const enemyNearState = this.tryParseSourceEnemyNearUpdateImportState(module.blockData, moduleType);
+      if (enemyNearState && entity.enemyNearScanDelayFrames > 0) {
+        entity.enemyNearNextScanCountdown = Math.max(
+          0,
+          Math.trunc(enemyNearState.nextScanCountdown),
+        );
+        entity.enemyNearDetected = enemyNearState.enemyNear;
+        continue;
+      }
+
+      const checkpointState = this.tryParseSourceCheckpointUpdateImportState(module.blockData, moduleType);
+      if (checkpointState && entity.checkpointProfile) {
+        entity.checkpointEnemyNear = checkpointState.enemyNear;
+        entity.checkpointAllyNear = checkpointState.allyNear;
+        entity.checkpointMaxMinorRadius = checkpointState.maxMinorRadius;
+        entity.checkpointScanCountdown = Math.max(
+          0,
+          Math.trunc(checkpointState.scanCountdown),
+        );
+        continue;
+      }
+
+      const proneState = this.tryParseSourceProneUpdateImportState(module.blockData, moduleType);
+      if (proneState && entity.proneDamageToFramesRatio !== null) {
+        entity.proneFramesRemaining = Math.max(0, Math.trunc(proneState.proneFrames));
+        continue;
+      }
+
+      const smartBombState = this.tryParseSourceSmartBombTargetHomingUpdateImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (smartBombState && entity.smartBombProfile) {
+        continue;
       }
     }
   }
@@ -18464,6 +18864,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);
     this.applySourcePointDefenseLaserUpdateModulesToEntity(entity, sourceState);
     this.applySourceSimpleUpdateModulesToEntity(entity, sourceState);
+    this.applySourceMiscUpdateAndHelperModulesToEntity(entity, sourceState);
     this.applySourcePowerAndHelperModulesToEntity(entity, sourceState);
     this.applySourceSpectreGunshipUpdateModulesToEntity(entity, sourceState);
     this.applySourceWeaponSpecialUpdateModulesToEntity(entity, sourceState);
