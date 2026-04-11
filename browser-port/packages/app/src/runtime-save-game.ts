@@ -9985,6 +9985,8 @@ type SourceContainModuleKind =
   | 'tunnel'
   | 'cave'
   | 'heal'
+  | 'prison'
+  | 'propagandaCenter'
   | 'internetHack'
   | 'riderChange'
   | 'railedTransport'
@@ -10024,6 +10026,23 @@ interface SourceTransportContainBlockState {
   frameExitNotBusy: number;
 }
 
+interface SourcePrisonVisualBlockState {
+  objectId: number;
+  drawableId: number;
+}
+
+interface SourcePrisonBehaviorBlockState {
+  open: SourceOpenContainBlockState;
+  visuals: SourcePrisonVisualBlockState[];
+}
+
+interface SourcePropagandaCenterBehaviorBlockState {
+  prison: SourcePrisonBehaviorBlockState;
+  brainwashingSubjectId: number;
+  brainwashingSubjectStartFrame: number;
+  brainwashedIds: number[];
+}
+
 interface SourceParachuteContainBlockState {
   open: SourceOpenContainBlockState;
   pitch: number;
@@ -10050,6 +10069,8 @@ interface SourceContainModuleBlockState {
   kind: SourceContainModuleKind;
   open?: SourceOpenContainBlockState;
   transport?: SourceTransportContainBlockState;
+  prison?: SourcePrisonBehaviorBlockState;
+  propagandaCenter?: SourcePropagandaCenterBehaviorBlockState;
   helixPortableStructureId?: number;
   redirectionActivated?: boolean;
   originalTeamId?: number;
@@ -10074,6 +10095,8 @@ function normalizeSourceContainModuleKind(moduleType: string): SourceContainModu
     case 'TUNNELCONTAIN': return 'tunnel';
     case 'CAVECONTAIN': return 'cave';
     case 'HEALCONTAIN': return 'heal';
+    case 'PRISONBEHAVIOR': return 'prison';
+    case 'PROPAGANDACENTERBEHAVIOR': return 'propagandaCenter';
     case 'INTERNETHACKCONTAIN': return 'internetHack';
     case 'RIDERCHANGECONTAIN': return 'riderChange';
     case 'RAILEDTRANSPORTCONTAIN': return 'railedTransport';
@@ -10107,6 +10130,25 @@ function xferSourceUpdateModuleBase(
 
 function xferSourceObjectIdListByUnsignedCount(xfer: Xfer, objectIds: readonly number[]): number[] {
   const count = xfer.xferUnsignedInt(objectIds.length);
+  const loaded: number[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < count; index += 1) {
+      loaded.push(xfer.xferObjectID(0));
+    }
+    return loaded;
+  }
+  for (const objectId of objectIds) {
+    loaded.push(xfer.xferObjectID(normalizeSourceObjectId(objectId)));
+  }
+  return loaded;
+}
+
+function xferSourceStlObjectIdList(xfer: Xfer, objectIds: readonly number[]): number[] {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source STL ObjectID list version ${version}`);
+  }
+  const count = xfer.xferUnsignedShort(objectIds.length);
   const loaded: number[] = [];
   if (xfer.getMode() === XferMode.XFER_LOAD) {
     for (let index = 0; index < count; index += 1) {
@@ -10215,6 +10257,62 @@ function xferSourceTransportContain(
   };
 }
 
+function xferSourcePrisonVisuals(
+  xfer: Xfer,
+  visuals: readonly SourcePrisonVisualBlockState[],
+): SourcePrisonVisualBlockState[] {
+  const count = xfer.xferUnsignedShort(visuals.length);
+  const loaded: SourcePrisonVisualBlockState[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < count; index += 1) {
+      loaded.push({
+        objectId: xfer.xferObjectID(0),
+        drawableId: xfer.xferUnsignedInt(0),
+      });
+    }
+    return loaded;
+  }
+  for (const visual of visuals) {
+    loaded.push({
+      objectId: xfer.xferObjectID(normalizeSourceObjectId(visual.objectId)),
+      drawableId: xfer.xferUnsignedInt(Math.max(0, Math.trunc(visual.drawableId))),
+    });
+  }
+  return loaded;
+}
+
+function xferSourcePrisonBehavior(
+  xfer: Xfer,
+  state: SourcePrisonBehaviorBlockState,
+): SourcePrisonBehaviorBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source PrisonBehavior version ${version}`);
+  }
+  return {
+    open: xferSourceOpenContain(xfer, state.open),
+    visuals: xferSourcePrisonVisuals(xfer, state.visuals),
+  };
+}
+
+function xferSourcePropagandaCenterBehavior(
+  xfer: Xfer,
+  state: SourcePropagandaCenterBehaviorBlockState,
+): SourcePropagandaCenterBehaviorBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source PropagandaCenterBehavior version ${version}`);
+  }
+  return {
+    prison: xferSourcePrisonBehavior(xfer, state.prison),
+    brainwashingSubjectId: xfer.xferObjectID(normalizeSourceObjectId(state.brainwashingSubjectId)),
+    brainwashingSubjectStartFrame: xfer.xferUnsignedInt(
+      Math.max(0, Math.trunc(state.brainwashingSubjectStartFrame)),
+    ),
+    brainwashedIds: xferSourceStlObjectIdList(xfer, state.brainwashedIds),
+  };
+}
+
 function xferSourceParachuteContain(
   xfer: Xfer,
   state: SourceParachuteContainBlockState,
@@ -10276,6 +10374,22 @@ function createDefaultSourceTransportContainState(): SourceTransportContainBlock
     payloadCreated: false,
     extraSlotsInUse: 0,
     frameExitNotBusy: 0,
+  };
+}
+
+function createDefaultSourcePrisonBehaviorState(): SourcePrisonBehaviorBlockState {
+  return {
+    open: createDefaultSourceOpenContainState(),
+    visuals: [],
+  };
+}
+
+function createDefaultSourcePropagandaCenterBehaviorState(): SourcePropagandaCenterBehaviorBlockState {
+  return {
+    prison: createDefaultSourcePrisonBehaviorState(),
+    brainwashingSubjectId: 0,
+    brainwashingSubjectStartFrame: 0,
+    brainwashedIds: [],
   };
 }
 
@@ -10396,6 +10510,20 @@ function tryParseSourceContainModuleBlockData(
         return null;
       }
       parsed = { kind, open: xferSourceOpenContain(xferLoad, createDefaultSourceOpenContainState()) };
+    } else if (kind === 'prison') {
+      const prison = xferSourcePrisonBehavior(xferLoad, createDefaultSourcePrisonBehaviorState());
+      parsed = { kind, prison, open: prison.open };
+    } else if (kind === 'propagandaCenter') {
+      const propagandaCenter = xferSourcePropagandaCenterBehavior(
+        xferLoad,
+        createDefaultSourcePropagandaCenterBehaviorState(),
+      );
+      parsed = {
+        kind,
+        propagandaCenter,
+        prison: propagandaCenter.prison,
+        open: propagandaCenter.prison.open,
+      };
     } else if (kind === 'riderChange') {
       const version = xferLoad.xferVersion(1);
       if (version !== 1) {
@@ -10480,6 +10608,62 @@ function overlaySourceTransportContainStateFromLiveEntity(
     payloadCreated: typeof entity.initialPayloadCreated === 'boolean'
       ? entity.initialPayloadCreated
       : preservedState.payloadCreated,
+  };
+}
+
+function sourcePrisonVisualsFromLiveEntity(
+  entity: MapEntity,
+  preservedVisuals: readonly SourcePrisonVisualBlockState[],
+): SourcePrisonVisualBlockState[] {
+  const liveVisuals = (entity as unknown as {
+    prisonVisuals?: Array<{ objectId?: number; drawableId?: number }>;
+  }).prisonVisuals;
+  const sourceVisuals = Array.isArray(liveVisuals) ? liveVisuals : preservedVisuals;
+  return sourceVisuals.map((visual) => ({
+    objectId: normalizeSourceObjectId(visual.objectId ?? 0),
+    drawableId: Math.max(0, Math.trunc(visual.drawableId ?? 0)),
+  }));
+}
+
+function overlaySourcePrisonBehaviorStateFromLiveEntity(
+  entity: MapEntity,
+  moduleType: string,
+  liveEntities: readonly MapEntity[],
+  preservedState: SourcePrisonBehaviorBlockState,
+): SourcePrisonBehaviorBlockState {
+  return {
+    open: overlaySourceOpenContainStateFromLiveEntity(entity, moduleType, liveEntities, preservedState.open),
+    visuals: sourcePrisonVisualsFromLiveEntity(entity, preservedState.visuals),
+  };
+}
+
+function overlaySourcePropagandaCenterBehaviorStateFromLiveEntity(
+  entity: MapEntity,
+  moduleType: string,
+  liveEntities: readonly MapEntity[],
+  preservedState: SourcePropagandaCenterBehaviorBlockState,
+): SourcePropagandaCenterBehaviorBlockState {
+  const liveState = entity as unknown as {
+    propagandaBrainwashingSubjectId?: number;
+    propagandaBrainwashingSubjectStartFrame?: number;
+    propagandaBrainwashedIds?: number[];
+  };
+  return {
+    prison: overlaySourcePrisonBehaviorStateFromLiveEntity(
+      entity,
+      moduleType,
+      liveEntities,
+      preservedState.prison,
+    ),
+    brainwashingSubjectId: Number.isFinite(liveState.propagandaBrainwashingSubjectId)
+      ? normalizeSourceObjectId(liveState.propagandaBrainwashingSubjectId ?? 0)
+      : preservedState.brainwashingSubjectId,
+    brainwashingSubjectStartFrame: Number.isFinite(liveState.propagandaBrainwashingSubjectStartFrame)
+      ? Math.max(0, Math.trunc(liveState.propagandaBrainwashingSubjectStartFrame ?? 0))
+      : preservedState.brainwashingSubjectStartFrame,
+    brainwashedIds: Array.isArray(liveState.propagandaBrainwashedIds)
+      ? liveState.propagandaBrainwashedIds.map((objectId) => normalizeSourceObjectId(objectId))
+      : preservedState.brainwashedIds,
   };
 }
 
@@ -10615,6 +10799,26 @@ function buildSourceContainModuleBlockData(
           moduleType,
           liveEntities,
           preservedState.open ?? createDefaultSourceOpenContainState(),
+        ),
+      );
+    } else if (kind === 'prison') {
+      xferSourcePrisonBehavior(
+        saver,
+        overlaySourcePrisonBehaviorStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.prison ?? createDefaultSourcePrisonBehaviorState(),
+        ),
+      );
+    } else if (kind === 'propagandaCenter') {
+      xferSourcePropagandaCenterBehavior(
+        saver,
+        overlaySourcePropagandaCenterBehaviorStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.propagandaCenter ?? createDefaultSourcePropagandaCenterBehaviorState(),
         ),
       );
     } else if (kind === 'riderChange') {

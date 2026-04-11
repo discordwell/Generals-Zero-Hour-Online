@@ -100,6 +100,22 @@ function makeSourceOwnedCoreBundle() {
           CaveIndex: 0,
         }),
       ]),
+      makeObjectDef('PrisonObject', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'PrisonBehavior ModuleTag_Prison', {
+          ContainMax: 4,
+          ShowPrisoners: true,
+          YardBonePrefix: 'Prisoner',
+        }),
+      ]),
+      makeObjectDef('PropagandaCenterObject', 'China', ['STRUCTURE'], [
+        makeBlock('Behavior', 'PropagandaCenterBehavior ModuleTag_PropCenter', {
+          ContainMax: 4,
+          ShowPrisoners: true,
+          YardBonePrefix: 'Prisoner',
+          BrainwashDuration: 1000,
+        }),
+      ]),
+      makeObjectDef('CapturedInfantry', 'GLA', ['INFANTRY'], []),
       makeObjectDef('SpyVisionBuilding', 'America', ['STRUCTURE'], [
         makeBlock('Behavior', 'SpyVisionSpecialPower ModuleTag_SpyPower', {
           SpecialPowerTemplate: 'SpyVisionPower',
@@ -936,6 +952,71 @@ function buildSourceCaveContainModuleData(options: {
     saver.xferBool(false);
     saver.xferInt(options.caveIndex);
     saver.xferUnsignedInt(0);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function writeSourceStlObjectIDList(saver: XferSave, objectIds: number[]): void {
+  saver.xferVersion(1);
+  saver.xferUnsignedShort(objectIds.length);
+  for (const objectId of objectIds) {
+    saver.xferObjectID(objectId);
+  }
+}
+
+function writeSourcePrisonBehavior(
+  saver: XferSave,
+  options: {
+    passengerIds: number[];
+    passengerAllowedToFire?: boolean;
+    visuals: Array<{ objectId: number; drawableId: number }>;
+  },
+): void {
+  saver.xferVersion(1);
+  writeSourceOpenContain(saver, {
+    passengerIds: options.passengerIds,
+    passengerAllowedToFire: options.passengerAllowedToFire,
+  });
+  saver.xferUnsignedShort(options.visuals.length);
+  for (const visual of options.visuals) {
+    saver.xferObjectID(visual.objectId);
+    saver.xferUnsignedInt(visual.drawableId);
+  }
+}
+
+function buildSourcePrisonBehaviorModuleData(options: {
+  passengerIds: number[];
+  passengerAllowedToFire?: boolean;
+  visuals: Array<{ objectId: number; drawableId: number }>;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-prison-behavior');
+  try {
+    writeSourcePrisonBehavior(saver, options);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourcePropagandaCenterBehaviorModuleData(options: {
+  passengerIds: number[];
+  passengerAllowedToFire?: boolean;
+  visuals: Array<{ objectId: number; drawableId: number }>;
+  brainwashingSubjectId: number;
+  brainwashingSubjectStartFrame: number;
+  brainwashedIds: number[];
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-propaganda-center-behavior');
+  try {
+    saver.xferVersion(1);
+    writeSourcePrisonBehavior(saver, options);
+    saver.xferObjectID(options.brainwashingSubjectId);
+    saver.xferUnsignedInt(options.brainwashingSubjectStartFrame);
+    writeSourceStlObjectIDList(saver, options.brainwashedIds);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -4455,6 +4536,101 @@ describe('source-owned game-logic core save-state', () => {
     expect(cavePassenger.tunnelContainerId).toBe(52);
     expect(privateLogic.caveTrackers.get(7)?.tunnelIds.has(52)).toBe(true);
     expect(privateLogic.caveTrackers.get(7)?.passengerIds.has(63)).toBe(true);
+  });
+
+  it('imports source PrisonBehavior and PropagandaCenterBehavior runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const prisonState = createEmptySourceMapEntitySaveState();
+    prisonState.objectId = 64;
+    prisonState.position = { x: 72, y: 0, z: 40 };
+    prisonState.modules = [{
+      identifier: 'ModuleTag_Prison',
+      blockData: buildSourcePrisonBehaviorModuleData({
+        passengerIds: [66],
+        passengerAllowedToFire: true,
+        visuals: [
+          { objectId: 66, drawableId: 660 },
+          { objectId: 67, drawableId: 670 },
+        ],
+      }),
+    }];
+
+    const propagandaState = createEmptySourceMapEntitySaveState();
+    propagandaState.objectId = 65;
+    propagandaState.position = { x: 76, y: 0, z: 40 };
+    propagandaState.modules = [{
+      identifier: 'ModuleTag_PropCenter',
+      blockData: buildSourcePropagandaCenterBehaviorModuleData({
+        passengerIds: [67],
+        passengerAllowedToFire: false,
+        visuals: [{ objectId: 67, drawableId: 671 }],
+        brainwashingSubjectId: 68,
+        brainwashingSubjectStartFrame: 333,
+        brainwashedIds: [66, 67],
+      }),
+    }];
+
+    const prisonPassengerState = createEmptySourceMapEntitySaveState();
+    prisonPassengerState.objectId = 66;
+    prisonPassengerState.position = { x: 80, y: 0, z: 40 };
+    const propagandaPassengerState = createEmptySourceMapEntitySaveState();
+    propagandaPassengerState.objectId = 67;
+    propagandaPassengerState.position = { x: 84, y: 0, z: 40 };
+    const brainwashingSubjectState = createEmptySourceMapEntitySaveState();
+    brainwashingSubjectState.objectId = 68;
+    brainwashingSubjectState.position = { x: 88, y: 0, z: 40 };
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 120,
+      objectIdCounter: 100,
+      objects: [
+        { templateName: 'PrisonObject', state: prisonState },
+        { templateName: 'PropagandaCenterObject', state: propagandaState },
+        { templateName: 'CapturedInfantry', state: prisonPassengerState },
+        { templateName: 'CapturedInfantry', state: propagandaPassengerState },
+        { templateName: 'CapturedInfantry', state: brainwashingSubjectState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        containProfile: { passengersAllowedToFire: boolean } | null;
+        transportContainerId: number | null;
+        objectStatusFlags: Set<string>;
+        prisonVisuals: Array<{ objectId: number; drawableId: number }>;
+        propagandaBrainwashingSubjectId: number;
+        propagandaBrainwashingSubjectStartFrame: number;
+        propagandaBrainwashedIds: number[];
+      }>;
+    };
+
+    const prison = privateLogic.spawnedEntities.get(64)!;
+    const propaganda = privateLogic.spawnedEntities.get(65)!;
+    const prisonPassenger = privateLogic.spawnedEntities.get(66)!;
+    const propagandaPassenger = privateLogic.spawnedEntities.get(67)!;
+
+    expect(prison.containProfile?.passengersAllowedToFire).toBe(true);
+    expect(prisonPassenger.transportContainerId).toBe(64);
+    expect(prisonPassenger.objectStatusFlags.has('DISABLED_HELD')).toBe(true);
+    expect(prison.prisonVisuals).toEqual([
+      { objectId: 66, drawableId: 660 },
+      { objectId: 67, drawableId: 670 },
+    ]);
+
+    expect(propaganda.containProfile?.passengersAllowedToFire).toBe(false);
+    expect(propagandaPassenger.transportContainerId).toBe(65);
+    expect(propaganda.prisonVisuals).toEqual([{ objectId: 67, drawableId: 671 }]);
+    expect(propaganda.propagandaBrainwashingSubjectId).toBe(68);
+    expect(propaganda.propagandaBrainwashingSubjectStartFrame).toBe(333);
+    expect(propaganda.propagandaBrainwashedIds).toEqual([66, 67]);
   });
 
   it('imports source SpyVisionUpdate active and timer state', () => {

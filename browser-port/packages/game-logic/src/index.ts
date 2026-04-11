@@ -3340,6 +3340,13 @@ interface PrisonBehaviorProfile {
   brainwashDurationFrames: number;
 }
 
+interface PrisonVisualState {
+  /** Source parity: PrisonVisual::m_objectID. */
+  objectId: number;
+  /** Source parity: PrisonVisual::m_drawableID. */
+  drawableId: number;
+}
+
 /**
  * Source parity: ChinookAIUpdate module data used by gameplay systems
  * currently implemented in this port (supply availability + combat-drop timing).
@@ -3699,6 +3706,14 @@ export interface MapEntity {
   dozerRepairTaskOrderFrame: number;
   /** Source parity: PrisonBehavior / PropagandaCenterBehavior module data. */
   prisonBehaviorProfile: PrisonBehaviorProfile | null;
+  /** Source parity: PrisonBehavior::m_visualList source-owned visual prisoner list. */
+  prisonVisuals: PrisonVisualState[];
+  /** Source parity: PropagandaCenterBehavior::m_brainwashingSubjectID. */
+  propagandaBrainwashingSubjectId: number;
+  /** Source parity: PropagandaCenterBehavior::m_brainwashingSubjectStartFrame. */
+  propagandaBrainwashingSubjectStartFrame: number;
+  /** Source parity: PropagandaCenterBehavior::m_brainwashedList. */
+  propagandaBrainwashedIds: number[];
   isSupplyCenter: boolean;
   /** Source parity: SupplyCenterDockUpdateModuleData::m_grantTemporaryStealthFrames — frames of
    *  temporary stealth granted to supply trucks after delivery. 0 = no stealth. ZH-only field. */
@@ -9602,6 +9617,8 @@ type SourceContainModuleKind =
   | 'tunnel'
   | 'cave'
   | 'heal'
+  | 'prison'
+  | 'propagandaCenter'
   | 'internetHack'
   | 'riderChange'
   | 'railedTransport'
@@ -9619,13 +9636,27 @@ interface SourceTransportContainImportState {
   payloadCreated: boolean;
 }
 
+interface SourcePrisonVisualImportState {
+  objectId: number;
+  drawableId: number;
+}
+
+interface SourcePrisonBehaviorImportState {
+  open: SourceOpenContainImportState;
+  visuals: SourcePrisonVisualImportState[];
+}
+
 interface SourceContainModuleImportState {
   kind: SourceContainModuleKind;
   open?: SourceOpenContainImportState;
   transport?: SourceTransportContainImportState;
+  prison?: SourcePrisonBehaviorImportState;
   helixPortableStructureId?: number;
   caveIndex?: number;
   riderChangePayloadCreated?: boolean;
+  propagandaBrainwashingSubjectId?: number;
+  propagandaBrainwashingSubjectStartFrame?: number;
+  propagandaBrainwashedIds?: number[];
 }
 
 interface SourceSpyVisionUpdateImportState {
@@ -21128,6 +21159,8 @@ export class GameLogicSubsystem implements Subsystem {
       case 'TUNNELCONTAIN': return 'tunnel';
       case 'CAVECONTAIN': return 'cave';
       case 'HEALCONTAIN': return 'heal';
+      case 'PRISONBEHAVIOR': return 'prison';
+      case 'PROPAGANDACENTERBEHAVIOR': return 'propagandaCenter';
       case 'INTERNETHACKCONTAIN': return 'internetHack';
       case 'RIDERCHANGECONTAIN': return 'riderChange';
       case 'RAILEDTRANSPORTCONTAIN': return 'railedTransport';
@@ -21141,6 +21174,19 @@ export class GameLogicSubsystem implements Subsystem {
     if (count > SOURCE_CONTAIN_VECTOR_LIMIT) {
       throw new Error(`Unsupported source contain ObjectID list size ${count}.`);
     }
+    const values: number[] = [];
+    for (let index = 0; index < count; index += 1) {
+      values.push(xfer.xferObjectID(0));
+    }
+    return values;
+  }
+
+  private parseSourceImportStlObjectIdList(xfer: XferLoad): number[] {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error(`Unsupported source STL ObjectID list version ${version}.`);
+    }
+    const count = xfer.xferUnsignedShort(0);
     const values: number[] = [];
     for (let index = 0; index < count; index += 1) {
       values.push(xfer.xferObjectID(0));
@@ -21197,6 +21243,23 @@ export class GameLogicSubsystem implements Subsystem {
     xfer.xferInt(0);
     xfer.xferUnsignedInt(0);
     return { open, payloadCreated };
+  }
+
+  private parseSourcePrisonBehaviorImportState(xfer: XferLoad): SourcePrisonBehaviorImportState {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error(`Unsupported source PrisonBehavior import version ${version}.`);
+    }
+    const open = this.parseSourceOpenContainImportState(xfer);
+    const visualCount = xfer.xferUnsignedShort(0);
+    const visuals: SourcePrisonVisualImportState[] = [];
+    for (let index = 0; index < visualCount; index += 1) {
+      visuals.push({
+        objectId: xfer.xferObjectID(0),
+        drawableId: xfer.xferUnsignedInt(0),
+      });
+    }
+    return { open, visuals };
   }
 
   private tryParseSourceContainModuleImportState(
@@ -21290,6 +21353,23 @@ export class GameLogicSubsystem implements Subsystem {
           return null;
         }
         parsed = { kind, open: this.parseSourceOpenContainImportState(xfer) };
+      } else if (kind === 'prison') {
+        const prison = this.parseSourcePrisonBehaviorImportState(xfer);
+        parsed = { kind, prison, open: prison.open };
+      } else if (kind === 'propagandaCenter') {
+        const version = xfer.xferVersion(1);
+        if (version !== 1) {
+          return null;
+        }
+        const prison = this.parseSourcePrisonBehaviorImportState(xfer);
+        parsed = {
+          kind,
+          prison,
+          open: prison.open,
+          propagandaBrainwashingSubjectId: xfer.xferObjectID(0),
+          propagandaBrainwashingSubjectStartFrame: xfer.xferUnsignedInt(0),
+          propagandaBrainwashedIds: this.parseSourceImportStlObjectIdList(xfer),
+        };
       } else if (kind === 'riderChange') {
         const version = xfer.xferVersion(1);
         if (version !== 1) {
@@ -21397,6 +21477,28 @@ export class GameLogicSubsystem implements Subsystem {
       entity.helixPortableRiderId = state.helixPortableStructureId > 0
         ? Math.trunc(state.helixPortableStructureId)
         : null;
+    }
+    if (state.prison) {
+      entity.prisonVisuals = state.prison.visuals.map((visual) => ({
+        objectId: Math.max(0, Math.trunc(visual.objectId)),
+        drawableId: Math.max(0, Math.trunc(visual.drawableId)),
+      }));
+    }
+    if (state.propagandaBrainwashingSubjectId !== undefined) {
+      entity.propagandaBrainwashingSubjectId = Math.max(
+        0,
+        Math.trunc(state.propagandaBrainwashingSubjectId),
+      );
+    }
+    if (state.propagandaBrainwashingSubjectStartFrame !== undefined) {
+      entity.propagandaBrainwashingSubjectStartFrame = Math.max(
+        0,
+        Math.trunc(state.propagandaBrainwashingSubjectStartFrame),
+      );
+    }
+    if (state.propagandaBrainwashedIds) {
+      entity.propagandaBrainwashedIds = state.propagandaBrainwashedIds
+        .map((objectId) => Math.max(0, Math.trunc(objectId)));
     }
   }
 

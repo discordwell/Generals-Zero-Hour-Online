@@ -145,6 +145,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     tunnelEnteredFrame: 0,
     tunnelFadeStartFrame: 0,
     healContainEnteredFrame: 0,
+    initialPayloadCreated: false,
     helixPortableRiderId: null,
 
     // Slaves
@@ -218,11 +219,17 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     commandButtonHuntButtonName: '',
     commandButtonHuntNextScanFrame: 0,
     dozerAIProfile: null,
+    powTruckAIProfile: null,
     dozerIdleTooLongTimestamp: 0,
     dozerBuildTargetEntityId: 0,
     dozerBuildTaskOrderFrame: 0,
     dozerRepairTargetEntityId: 0,
     dozerRepairTaskOrderFrame: 0,
+    prisonBehaviorProfile: null,
+    prisonVisuals: [],
+    propagandaBrainwashingSubjectId: 0,
+    propagandaBrainwashingSubjectStartFrame: 0,
+    propagandaBrainwashedIds: [],
     isSupplyCenter: false,
 
     // Experience
@@ -1192,6 +1199,54 @@ describe('entity-xfer', () => {
     });
     expect(loaded.repairDockLastRepairEntityId).toBe(11);
     expect(loaded.repairDockHealthToAddPerFrame).toBeCloseTo(2.5, 6);
+  });
+
+  it('round-trips prison and propaganda center source-owned runtime state', () => {
+    const original = createTestEntity({
+      initialPayloadCreated: true,
+      powTruckAIProfile: {
+        boredTimeFrames: 30,
+        atPrisonDistance: 80,
+      },
+      prisonBehaviorProfile: {
+        showPrisoners: true,
+        yardBonePrefix: 'Prisoner',
+        brainwashDurationFrames: 300,
+      },
+      prisonVisuals: [
+        { objectId: 21, drawableId: 101 },
+        { objectId: 22, drawableId: 102 },
+      ],
+      propagandaBrainwashingSubjectId: 23,
+      propagandaBrainwashingSubjectStartFrame: 456,
+      propagandaBrainwashedIds: [31, 32, 33],
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity();
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.initialPayloadCreated).toBe(true);
+    expect(loaded.powTruckAIProfile).toEqual({ boredTimeFrames: 30, atPrisonDistance: 80 });
+    expect(loaded.prisonBehaviorProfile).toEqual({
+      showPrisoners: true,
+      yardBonePrefix: 'Prisoner',
+      brainwashDurationFrames: 300,
+    });
+    expect(loaded.prisonVisuals).toEqual([
+      { objectId: 21, drawableId: 101 },
+      { objectId: 22, drawableId: 102 },
+    ]);
+    expect(loaded.propagandaBrainwashingSubjectId).toBe(23);
+    expect(loaded.propagandaBrainwashingSubjectStartFrame).toBe(456);
+    expect(loaded.propagandaBrainwashedIds).toEqual([31, 32, 33]);
   });
 
   it('CRC is deterministic for identical entities', () => {

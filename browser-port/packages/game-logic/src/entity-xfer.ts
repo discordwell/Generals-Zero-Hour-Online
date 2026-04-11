@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 40;
+const ENTITY_XFER_VERSION = 41;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1444,6 +1444,31 @@ function xferVectorXZList(
   return sourceValues;
 }
 
+function xferPrisonVisualStates(
+  xfer: Xfer,
+  values: Array<{ objectId: number; drawableId: number }> | null | undefined,
+): Array<{ objectId: number; drawableId: number }> {
+  const sourceValues = values ?? [];
+  const count = xfer.xferUnsignedInt(sourceValues.length);
+  const loaded: Array<{ objectId: number; drawableId: number }> = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < count; index += 1) {
+      loaded.push({
+        objectId: xfer.xferObjectID(0),
+        drawableId: xfer.xferUnsignedInt(0),
+      });
+    }
+    return loaded;
+  }
+  for (const visual of sourceValues) {
+    loaded.push({
+      objectId: xfer.xferObjectID(Math.max(0, Math.trunc(visual.objectId))),
+      drawableId: xfer.xferUnsignedInt(Math.max(0, Math.trunc(visual.drawableId))),
+    });
+  }
+  return loaded;
+}
+
 /**
  * Serialize a complex object as JSON string.
  * Used for INI-derived profile objects that contain nested structures.
@@ -1703,6 +1728,11 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.tunnelEnteredFrame = xfer.xferInt(e.tunnelEnteredFrame as number);
   e.tunnelFadeStartFrame = xfer.xferInt(e.tunnelFadeStartFrame as number);
   e.healContainEnteredFrame = xfer.xferInt(e.healContainEnteredFrame as number);
+  if (version >= 41) {
+    e.initialPayloadCreated = xfer.xferBool((e.initialPayloadCreated as boolean | undefined) ?? false);
+  } else {
+    e.initialPayloadCreated = false;
+  }
   e.helixPortableRiderId = xferNullableInt(xfer, e.helixPortableRiderId as number | null);
 
   // ── Slaves / Spawns ──
@@ -1825,6 +1855,14 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.commandButtonHuntButtonName = xfer.xferAsciiString(e.commandButtonHuntButtonName as string);
   e.commandButtonHuntNextScanFrame = xfer.xferInt(e.commandButtonHuntNextScanFrame as number);
   e.dozerAIProfile = xferNullableJsonObject(xfer, e.dozerAIProfile as object | null);
+  if (version >= 41) {
+    e.powTruckAIProfile = xferNullableJsonObject(
+      xfer,
+      (e.powTruckAIProfile as object | null | undefined) ?? null,
+    );
+  } else {
+    e.powTruckAIProfile = null;
+  }
   e.dozerIdleTooLongTimestamp = xfer.xferInt(e.dozerIdleTooLongTimestamp as number);
   if (version >= 10) {
     e.dozerBuildTargetEntityId = xfer.xferObjectID(e.dozerBuildTargetEntityId as number);
@@ -1838,6 +1876,31 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     e.dozerRepairTargetEntityId = 0;
   }
   e.dozerRepairTaskOrderFrame = xfer.xferInt(e.dozerRepairTaskOrderFrame as number);
+  if (version >= 41) {
+    e.prisonBehaviorProfile = xferNullableJsonObject(
+      xfer,
+      (e.prisonBehaviorProfile as object | null | undefined) ?? null,
+    );
+    e.prisonVisuals = xferPrisonVisualStates(
+      xfer,
+      e.prisonVisuals as Array<{ objectId: number; drawableId: number }> | undefined,
+    );
+    e.propagandaBrainwashingSubjectId = xfer.xferObjectID(
+      (e.propagandaBrainwashingSubjectId as number | undefined) ?? 0,
+    );
+    e.propagandaBrainwashingSubjectStartFrame = xfer.xferUnsignedInt(
+      (e.propagandaBrainwashingSubjectStartFrame as number | undefined) ?? 0,
+    );
+    e.propagandaBrainwashedIds = xfer.xferObjectIDList(
+      (e.propagandaBrainwashedIds as number[] | undefined) ?? [],
+    );
+  } else {
+    e.prisonBehaviorProfile = null;
+    e.prisonVisuals = [];
+    e.propagandaBrainwashingSubjectId = 0;
+    e.propagandaBrainwashingSubjectStartFrame = 0;
+    e.propagandaBrainwashedIds = [];
+  }
   e.isSupplyCenter = xfer.xferBool(e.isSupplyCenter as boolean);
 
   // ── Experience / Veterancy ──

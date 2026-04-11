@@ -3955,6 +3955,18 @@ interface SourceTransportContainTestState {
   frameExitNotBusy: number;
 }
 
+interface SourcePrisonBehaviorTestState {
+  open: SourceOpenContainTestState;
+  visuals: Array<{ objectId: number; drawableId: number }>;
+}
+
+interface SourcePropagandaCenterBehaviorTestState {
+  prison: SourcePrisonBehaviorTestState;
+  brainwashingSubjectId: number;
+  brainwashingSubjectStartFrame: number;
+  brainwashedIds: number[];
+}
+
 function createDefaultSourceOpenContainTestState(): SourceOpenContainTestState {
   return {
     nextCallFrameAndPhase: (99 << 2) | 2,
@@ -4091,6 +4103,118 @@ function parseSourceTransportContainBlockData(data: Uint8Array): SourceTransport
       payloadCreated: false,
       extraSlotsInUse: 0,
       frameExitNotBusy: 0,
+    });
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function xferSourcePrisonBehaviorForTest(
+  xfer: Xfer,
+  state: SourcePrisonBehaviorTestState,
+): SourcePrisonBehaviorTestState {
+  xfer.xferVersion(1);
+  const open = xferSourceOpenContainForTest(xfer, state.open);
+  const visualCount = xfer.xferUnsignedShort(state.visuals.length);
+  const visuals: Array<{ objectId: number; drawableId: number }> = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < visualCount; index += 1) {
+      visuals.push({
+        objectId: xfer.xferObjectID(0),
+        drawableId: xfer.xferUnsignedInt(0),
+      });
+    }
+  } else {
+    for (const visual of state.visuals) {
+      visuals.push({
+        objectId: xfer.xferObjectID(visual.objectId),
+        drawableId: xfer.xferUnsignedInt(visual.drawableId),
+      });
+    }
+  }
+  return { open, visuals };
+}
+
+function xferSourceStlObjectIDListForTest(xfer: Xfer, objectIds: number[]): number[] {
+  xfer.xferVersion(1);
+  const count = xfer.xferUnsignedShort(objectIds.length);
+  const loaded: number[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < count; index += 1) {
+      loaded.push(xfer.xferObjectID(0));
+    }
+  } else {
+    for (const objectId of objectIds) {
+      loaded.push(xfer.xferObjectID(objectId));
+    }
+  }
+  return loaded;
+}
+
+function xferSourcePropagandaCenterBehaviorForTest(
+  xfer: Xfer,
+  state: SourcePropagandaCenterBehaviorTestState,
+): SourcePropagandaCenterBehaviorTestState {
+  xfer.xferVersion(1);
+  return {
+    prison: xferSourcePrisonBehaviorForTest(xfer, state.prison),
+    brainwashingSubjectId: xfer.xferObjectID(state.brainwashingSubjectId),
+    brainwashingSubjectStartFrame: xfer.xferUnsignedInt(state.brainwashingSubjectStartFrame),
+    brainwashedIds: xferSourceStlObjectIDListForTest(xfer, state.brainwashedIds),
+  };
+}
+
+function createSourcePrisonBehaviorBlockData(state: SourcePrisonBehaviorTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-prison-behavior');
+  try {
+    xferSourcePrisonBehaviorForTest(xferSave, state);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourcePrisonBehaviorBlockData(data: Uint8Array): SourcePrisonBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-prison-behavior');
+  try {
+    return xferSourcePrisonBehaviorForTest(xferLoad, {
+      open: createDefaultSourceOpenContainTestState(),
+      visuals: [],
+    });
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourcePropagandaCenterBehaviorBlockData(
+  state: SourcePropagandaCenterBehaviorTestState,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-propaganda-center-behavior');
+  try {
+    xferSourcePropagandaCenterBehaviorForTest(xferSave, state);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourcePropagandaCenterBehaviorBlockData(
+  data: Uint8Array,
+): SourcePropagandaCenterBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-propaganda-center-behavior');
+  try {
+    return xferSourcePropagandaCenterBehaviorForTest(xferLoad, {
+      prison: {
+        open: createDefaultSourceOpenContainTestState(),
+        visuals: [],
+      },
+      brainwashingSubjectId: 0,
+      brainwashingSubjectStartFrame: 0,
+      brainwashedIds: [],
     });
   } finally {
     xferLoad.close();
@@ -16467,6 +16591,166 @@ describe('runtime-save-game', () => {
     expect(parsed.payloadCreated).toBe(true);
     expect(parsed.extraSlotsInUse).toBe(6);
     expect(parsed.frameExitNotBusy).toBe(77);
+  });
+
+  it('rewrites source PrisonBehavior and PropagandaCenterBehavior from live runtime state', () => {
+    const preservedOpen = createDefaultSourceOpenContainTestState();
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [
+      {
+        identifier: 'ModuleTag_Prison',
+        blockData: createSourcePrisonBehaviorBlockData({
+          open: {
+            ...preservedOpen,
+            passengerIds: [40],
+            passengerAllowedToFire: false,
+          },
+          visuals: [{ objectId: 40, drawableId: 400 }],
+        }),
+      },
+      {
+        identifier: 'ModuleTag_PropCenter',
+        blockData: createSourcePropagandaCenterBehaviorBlockData({
+          prison: {
+            open: {
+              ...preservedOpen,
+              passengerIds: [41],
+              passengerAllowedToFire: false,
+            },
+            visuals: [{ objectId: 41, drawableId: 410 }],
+          },
+          brainwashingSubjectId: 41,
+          brainwashingSubjectStartFrame: 100,
+          brainwashedIds: [40, 41],
+        }),
+      },
+    ]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source prison behavior rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [
+            {
+              id: 7,
+              templateName: 'RuntimeTank',
+              containProfile: {
+                moduleType: 'PRISON',
+                passengersAllowedToFire: true,
+              },
+              prisonVisuals: [
+                { objectId: 10, drawableId: 1000 },
+                { objectId: 8, drawableId: 800 },
+              ],
+              propagandaBrainwashingSubjectId: 10,
+              propagandaBrainwashingSubjectStartFrame: 321,
+              propagandaBrainwashedIds: [8, 10],
+            },
+            {
+              id: 10,
+              templateName: 'PassengerA',
+              transportContainerId: 7,
+            },
+            {
+              id: 8,
+              templateName: 'PassengerB',
+              transportContainerId: 7,
+            },
+          ] as unknown as import('@generals/game-logic').MapEntity[],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName !== 'RuntimeTank') {
+            return null;
+          }
+          if (moduleTag === 'ModuleTag_Prison') {
+            return 'PRISONBEHAVIOR';
+          }
+          if (moduleTag === 'ModuleTag_PropCenter') {
+            return 'PROPAGANDACENTERBEHAVIOR';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const prisonModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Prison');
+    const propagandaModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_PropCenter');
+
+    expect(prisonModule).toBeDefined();
+    const parsedPrison = parseSourcePrisonBehaviorBlockData(prisonModule!.blockData);
+    expect(parsedPrison.open.passengerIds).toEqual([8, 10]);
+    expect(parsedPrison.open.passengerAllowedToFire).toBe(true);
+    expect(parsedPrison.open.conditionState).toEqual(['LOADED']);
+    expect(parsedPrison.visuals).toEqual([
+      { objectId: 10, drawableId: 1000 },
+      { objectId: 8, drawableId: 800 },
+    ]);
+
+    expect(propagandaModule).toBeDefined();
+    const parsedPropaganda = parseSourcePropagandaCenterBehaviorBlockData(propagandaModule!.blockData);
+    expect(parsedPropaganda.prison.open.passengerIds).toEqual([8, 10]);
+    expect(parsedPropaganda.prison.open.passengerAllowedToFire).toBe(true);
+    expect(parsedPropaganda.prison.visuals).toEqual([
+      { objectId: 10, drawableId: 1000 },
+      { objectId: 8, drawableId: 800 },
+    ]);
+    expect(parsedPropaganda.brainwashingSubjectId).toBe(10);
+    expect(parsedPropaganda.brainwashingSubjectStartFrame).toBe(321);
+    expect(parsedPropaganda.brainwashedIds).toEqual([8, 10]);
   });
 
   it('rewrites source BattlePlanUpdate modules from live runtime state', () => {
