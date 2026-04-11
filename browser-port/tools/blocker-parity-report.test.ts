@@ -32,6 +32,11 @@ describe('blocker parity report', () => {
         objectCycles: [],
         scienceCycles: [],
       },
+      saveGeneratedModuleCoverage: {
+        totalSourceModuleTypes: 174,
+        coveredSourceModuleTypes: 174,
+        missingSourceModuleTypes: [],
+      },
       visualSceneParity: {
         summary: {
           blockedScenarios: 0,
@@ -84,6 +89,15 @@ describe('blocker parity report', () => {
         objectCycles: [['A', 'B', 'A']],
         scienceCycles: [['SCI_A', 'SCI_B', 'SCI_A']],
       },
+      saveGeneratedModuleCoverage: {
+        totalSourceModuleTypes: 174,
+        coveredSourceModuleTypes: 173,
+        missingSourceModuleTypes: [{
+          moduleType: 'MISSINGMODULE',
+          count: 2,
+          exampleObjectName: 'MissingObject',
+        }],
+      },
       visualSceneParity: {
         summary: {
           blockedScenarios: 2,
@@ -129,6 +143,7 @@ describe('blocker parity report', () => {
       'prerequisite-missing-references',
       'prerequisite-object-cycles',
       'prerequisite-science-cycles',
+      'save-generated-module-missing-serializers',
       'visual-scene-blocked-scenarios',
       'ui-layout-blocked-scenarios',
     ]));

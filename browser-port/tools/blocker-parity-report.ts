@@ -50,6 +50,15 @@ export interface BlockerReportInputs {
     objectCycles?: unknown[];
     scienceCycles?: unknown[];
   } | null;
+  saveGeneratedModuleCoverage?: {
+    totalSourceModuleTypes?: number;
+    coveredSourceModuleTypes?: number;
+    missingSourceModuleTypes?: Array<{
+      moduleType?: string;
+      count?: number;
+      exampleObjectName?: string | null;
+    }>;
+  } | null;
   visualSceneParity?: {
     summary?: {
       blockedScenarios?: number;
@@ -208,6 +217,35 @@ export function collectBlockerFindings(inputs: BlockerReportInputs): BlockerFind
     );
   }
 
+  if (!inputs.saveGeneratedModuleCoverage) {
+    pushBlocker(
+      blockers,
+      'save-generated-module-coverage-report-missing',
+      'save-files',
+      1,
+      ['save-generated-module-coverage-report.json missing'],
+    );
+  } else {
+    const total = normalizeCount(inputs.saveGeneratedModuleCoverage.totalSourceModuleTypes);
+    const covered = normalizeCount(inputs.saveGeneratedModuleCoverage.coveredSourceModuleTypes);
+    const missing = inputs.saveGeneratedModuleCoverage.missingSourceModuleTypes ?? [];
+    const missingDetails = missing.slice(0, 10).map((row) => {
+      const moduleType = row.moduleType ?? '(unknown module)';
+      const count = normalizeCount(row.count);
+      const example = row.exampleObjectName ? ` example ${row.exampleObjectName}` : '';
+      return `${moduleType} (${count} descriptors${example})`;
+    });
+    pushBlocker(
+      blockers,
+      'save-generated-module-missing-serializers',
+      'save-files',
+      Math.max(missing.length, total - covered),
+      missingDetails.length > 0
+        ? missingDetails
+        : ['Generated Object::xfer module coverage is incomplete.'],
+    );
+  }
+
   if (!inputs.visualSceneParity) {
     pushBlocker(blockers, 'visual-scene-report-missing', 'visual-scenes', 1, ['visual-scene-parity-report.json missing']);
   } else {
@@ -297,6 +335,9 @@ async function main(): Promise<void> {
   const prerequisiteCoverage = await readJsonOrNull<BlockerReportInputs['prerequisiteCoverage']>(
     path.join(rootDir, 'prerequisite-chain-report.json'),
   );
+  const saveGeneratedModuleCoverage = await readJsonOrNull<BlockerReportInputs['saveGeneratedModuleCoverage']>(
+    path.join(rootDir, 'save-generated-module-coverage-report.json'),
+  );
   const visualSceneParity = await readJsonOrNull<BlockerReportInputs['visualSceneParity']>(
     path.join(rootDir, 'visual-scene-parity-report.json'),
   );
@@ -309,6 +350,7 @@ async function main(): Promise<void> {
     commandCoverage,
     scriptCoverage,
     prerequisiteCoverage,
+    saveGeneratedModuleCoverage,
     visualSceneParity,
     uiLayoutParity,
   });
