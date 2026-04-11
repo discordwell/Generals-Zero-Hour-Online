@@ -98,8 +98,12 @@ export function applyCommand(self: GL, command: GameLogicCommand): void {
     case 'select': {
       const picked = self.spawnedEntities.get(command.entityId);
       if (!picked || picked.destroyed) return;
-      // Source parity: Object::isSelectable — UNSELECTABLE or MASKED status prevents player selection.
-      if (self.entityHasObjectStatus(picked, 'UNSELECTABLE') || self.entityHasObjectStatus(picked, 'MASKED')) return;
+      // Source parity: Object::isSelectable checks ALWAYS_SELECTABLE first, then m_isSelectable/status/death.
+      const kindOf = self.resolveEntityKindOfSet(picked);
+      if (!kindOf.has('ALWAYS_SELECTABLE')
+        && (!picked.isSelectable
+          || self.entityHasObjectStatus(picked, 'UNSELECTABLE')
+          || self.entityHasObjectStatus(picked, 'MASKED'))) return;
       const changed = self.selectedEntityIds.length !== 1 || self.selectedEntityIds[0] !== command.entityId;
       self.selectedEntityIds = [command.entityId];
       self.selectedEntityId = command.entityId;

@@ -3615,6 +3615,8 @@ export interface MapEntity {
   baseHeight: number;
   nominalHeight: number;
   selected: boolean;
+  /** Source parity: Object::m_isSelectable; Object::isSelectable also checks status/death. */
+  isSelectable: boolean;
   canMove: boolean;
   energyBonus: number;
   /** Source parity: ThingTemplate::m_energyBonus — extra production from upgrades (e.g. Control Rods). */
@@ -3826,6 +3828,26 @@ export interface MapEntity {
   sourceGeometryType?: 'SPHERE' | 'CYLINDER' | 'BOX';
   /** Source parity: GeometryInfo::m_isSmall, retained separately from TS pathfinding heuristics. */
   sourceGeometryIsSmall?: boolean;
+  /** Source parity: Object::m_visionSpiedBy, preserved for source Object::xfer emission. */
+  sourceObjectVisionSpiedBy: number[];
+  /** Source parity: Object::m_visionSpiedMask, preserved for source Object::xfer emission. */
+  sourceObjectVisionSpiedMask: number;
+  /** Source parity: Object::m_singleUseCommandUsed. */
+  sourceObjectSingleUseCommandUsed: boolean;
+  /** Source parity: Object::m_enteredOrExitedFrame fallback when trigger runtime has no newer state. */
+  sourceObjectEnteredOrExitedFrame: number;
+  /** Source parity: Object::m_iPos integer trigger-area position. */
+  sourceObjectIPos: { x: number; y: number; z: number };
+  /** Source parity: Object::m_layer pathfind layer enum. */
+  sourceObjectLayer: number;
+  /** Source parity: Object::m_destinationLayer pathfind layer enum. */
+  sourceObjectDestinationLayer: number;
+  /** Source parity: Object::m_safeOcclusionFrame. */
+  sourceObjectSafeOcclusionFrame: number;
+  /** Source parity: Object::m_formationID. */
+  sourceObjectFormationId: number;
+  /** Source parity: Object::m_formationOffset, present only when sourceObjectFormationId != 0. */
+  sourceObjectFormationOffset: { x: number; y: number } | null;
   obstacleFootprint: number;
   ignoredMovementObstacleId: number | null;
   movePath: VectorXZ[];
@@ -23661,6 +23683,25 @@ export class GameLogicSubsystem implements Subsystem {
     entity.scriptName = sourceState.internalName.trim() || null;
     entity.producerEntityId = Math.max(0, Math.trunc(sourceState.producerId));
     entity.builderId = Math.max(0, Math.trunc(sourceState.builderId));
+    entity.sourceObjectVisionSpiedBy = Array.isArray(sourceState.visionSpiedBy)
+      ? sourceState.visionSpiedBy.map((value) => Math.trunc(Number.isFinite(value) ? value : 0))
+      : [];
+    entity.sourceObjectVisionSpiedMask = Math.max(0, Math.trunc(sourceState.visionSpiedMask));
+    entity.sourceObjectSingleUseCommandUsed = sourceState.singleUseCommandUsed;
+    entity.sourceObjectEnteredOrExitedFrame = Math.max(0, Math.trunc(sourceState.enteredOrExitedFrame));
+    entity.sourceObjectIPos = {
+      x: Math.trunc(sourceState.ipos.x),
+      y: Math.trunc(sourceState.ipos.y),
+      z: Math.trunc(sourceState.ipos.z),
+    };
+    entity.sourceObjectLayer = Math.trunc(sourceState.layer);
+    entity.sourceObjectDestinationLayer = Math.trunc(sourceState.destinationLayer);
+    entity.isSelectable = sourceState.isSelectable;
+    entity.sourceObjectSafeOcclusionFrame = Math.max(0, Math.trunc(sourceState.safeOcclusionFrame));
+    entity.sourceObjectFormationId = Math.trunc(sourceState.formationId);
+    entity.sourceObjectFormationOffset = sourceState.formationOffset
+      ? { x: sourceState.formationOffset.x, y: sourceState.formationOffset.y }
+      : null;
     entity.visionRange = Number.isFinite(sourceState.visionRange) ? sourceState.visionRange : entity.visionRange;
     entity.baseVisionRange = entity.visionRange;
     entity.shroudClearingRange = Number.isFinite(sourceState.shroudClearingRange)
@@ -51511,8 +51552,11 @@ export class GameLogicSubsystem implements Subsystem {
       if (!entity || entity.destroyed) {
         continue;
       }
-      // Source parity: Object::isSelectable — UNSELECTABLE or MASKED status prevents player selection.
-      if (this.entityHasObjectStatus(entity, 'UNSELECTABLE') || this.entityHasObjectStatus(entity, 'MASKED')) {
+      // Source parity: Object::isSelectable checks ALWAYS_SELECTABLE first, then m_isSelectable/status/death.
+      if (!entity.kindOf.has('ALWAYS_SELECTABLE')
+        && (!entity.isSelectable
+          || this.entityHasObjectStatus(entity, 'UNSELECTABLE')
+          || this.entityHasObjectStatus(entity, 'MASKED'))) {
         continue;
       }
       if (seen.has(candidateId)) {

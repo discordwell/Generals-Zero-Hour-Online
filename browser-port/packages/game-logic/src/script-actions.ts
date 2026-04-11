@@ -8137,11 +8137,7 @@ export function applyScriptObjectPanelFlag(self: GL,
       }
       return;
     case 'SELECTABLE':
-      if (enabled) {
-        entity.objectStatusFlags.delete('UNSELECTABLE');
-      } else {
-        entity.objectStatusFlags.add('UNSELECTABLE');
-      }
+      entity.isSelectable = enabled;
       return;
     case 'AI_RECRUITABLE':
       // Source parity: ScriptActions::changeObjectPanelFlagForSingleObject routes

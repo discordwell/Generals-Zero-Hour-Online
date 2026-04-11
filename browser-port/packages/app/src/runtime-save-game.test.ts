@@ -14003,6 +14003,16 @@ describe('runtime-save-game', () => {
             sourceTeamNameUpper: 'TEAMSTATUS',
             visionRange: 250,
             shroudClearingRange: 225,
+            sourceObjectVisionSpiedBy: Array.from({ length: 16 }, (_entry, index) => index + 20),
+            sourceObjectVisionSpiedMask: 0x000b,
+            sourceObjectSingleUseCommandUsed: true,
+            sourceObjectIPos: { x: 10, y: 20, z: 0 },
+            sourceObjectLayer: 2,
+            sourceObjectDestinationLayer: 3,
+            isSelectable: false,
+            sourceObjectSafeOcclusionFrame: 456,
+            sourceObjectFormationId: 77,
+            sourceObjectFormationOffset: { x: 6.5, y: -4.25 },
             customIndicatorColor: 0x12ab34,
             healthBoxOffset: { x: 6, y: 4, z: -2 },
             constructionPercent: 50,
@@ -14094,6 +14104,17 @@ describe('runtime-save-game', () => {
     expect(firstObject?.disabledTillFrame[11]).toBe(0x3fffffff);
     expect(firstObject?.builderId).toBe(17);
     expect(firstObject?.shroudClearingRange).toBe(225);
+    expect(firstObject?.visionSpiedBy).toEqual(Array.from({ length: 16 }, (_entry, index) => index + 20));
+    expect(firstObject?.visionSpiedMask).toBe(0x000b);
+    expect(firstObject?.singleUseCommandUsed).toBe(true);
+    expect(firstObject?.ipos).toEqual({ x: 10, y: 20, z: 0 });
+    expect(firstObject?.layer).toBe(2);
+    expect(firstObject?.destinationLayer).toBe(3);
+    expect(firstObject?.isSelectable).toBe(false);
+    expect(firstObject?.safeOcclusionFrame).toBe(456);
+    expect(firstObject?.formationId).toBe(77);
+    expect(firstObject?.formationOffset?.x).toBeCloseTo(6.5);
+    expect(firstObject?.formationOffset?.y).toBeCloseTo(-4.25);
     expect(firstObject?.indicatorColor).toBe(0xff12ab34 | 0);
     expect(firstObject?.healthBoxOffset).toEqual({ x: 6, y: 4, z: -2 });
     expect(firstObject?.privateStatus).toBe(0x0c);

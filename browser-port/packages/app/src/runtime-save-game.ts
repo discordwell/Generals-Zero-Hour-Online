@@ -4046,10 +4046,14 @@ function resolveSourceContainedByState(
 function resolveSourceTriggerAreaState(
   sourceState: SourceMapEntitySaveState,
   triggerAreaState: GameLogicObjectTriggerAreaSaveState | null | undefined,
+  entity?: MapEntity | null,
 ): Pick<SourceMapEntitySaveState, 'enteredOrExitedFrame' | 'triggerAreas'> {
   if (!triggerAreaState) {
     return {
-      enteredOrExitedFrame: sourceState.enteredOrExitedFrame,
+      enteredOrExitedFrame: sourceUnsignedIntFromLiveValue(
+        entity?.sourceObjectEnteredOrExitedFrame,
+        sourceState.enteredOrExitedFrame,
+      ),
       triggerAreas: sourceState.triggerAreas,
     };
   }
@@ -4067,6 +4071,68 @@ function resolveSourceTriggerAreaState(
       }];
     }),
   };
+}
+
+function sourceIntFromLiveValue(value: unknown, fallback: number): number {
+  return Number.isFinite(value)
+    ? Math.trunc(value as number)
+    : Math.trunc(sourcePhysicsFinite(fallback, 0));
+}
+
+function sourceUnsignedIntFromLiveValue(value: unknown, fallback: number): number {
+  return Math.max(0, sourceIntFromLiveValue(value, fallback));
+}
+
+function sourceBoolFromLiveValue(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function sourceObjectVisionSpiedByFromLiveEntity(
+  entity: MapEntity,
+  fallback: readonly number[],
+): number[] {
+  const liveValues = Array.isArray(entity.sourceObjectVisionSpiedBy)
+    ? entity.sourceObjectVisionSpiedBy
+    : [];
+  const length = Math.max(16, fallback.length);
+  return Array.from({ length }, (_entry, index) =>
+    sourceIntFromLiveValue(liveValues[index], fallback[index] ?? 0),
+  );
+}
+
+function sourceObjectIPosFromLiveEntity(
+  entity: MapEntity,
+  fallback: SourceMapEntitySaveState['ipos'],
+): SourceMapEntitySaveState['ipos'] {
+  const liveIPos = entity.sourceObjectIPos;
+  if (liveIPos
+    && Number.isFinite(liveIPos.x)
+    && Number.isFinite(liveIPos.y)
+    && Number.isFinite(liveIPos.z)) {
+    return {
+      x: Math.trunc(liveIPos.x),
+      y: Math.trunc(liveIPos.y),
+      z: Math.trunc(liveIPos.z),
+    };
+  }
+  return {
+    x: sourceIntFromLiveValue(fallback.x, 0),
+    y: sourceIntFromLiveValue(fallback.y, 0),
+    z: sourceIntFromLiveValue(fallback.z, 0),
+  };
+}
+
+function sourceObjectFormationOffsetFromLiveEntity(
+  entity: MapEntity,
+  fallback: SourceMapEntitySaveState['formationOffset'],
+): SourceMapEntitySaveState['formationOffset'] {
+  const formationOffset = entity.sourceObjectFormationOffset;
+  if (formationOffset
+    && Number.isFinite(formationOffset.x)
+    && Number.isFinite(formationOffset.y)) {
+    return { x: formationOffset.x, y: formationOffset.y };
+  }
+  return fallback ? { x: fallback.x, y: fallback.y } : null;
 }
 
 function overlaySourceSpecialPowerBitsFromLiveEntity(
@@ -19088,6 +19154,15 @@ function overlaySourceObjectStateFromLiveEntity(
       ? entity.shroudClearingRange
       : sourceState.shroudClearingRange,
     shroudRange: Number.isFinite(entity.shroudRange) ? entity.shroudRange : sourceState.shroudRange,
+    visionSpiedBy: sourceObjectVisionSpiedByFromLiveEntity(entity, sourceState.visionSpiedBy),
+    visionSpiedMask: sourceUnsignedIntFromLiveValue(
+      entity.sourceObjectVisionSpiedMask,
+      sourceState.visionSpiedMask,
+    ) & 0xffff,
+    singleUseCommandUsed: sourceBoolFromLiveValue(
+      entity.sourceObjectSingleUseCommandUsed,
+      sourceState.singleUseCommandUsed,
+    ),
     builderId: Number.isFinite(entity.builderId) ? Math.trunc(entity.builderId) : sourceState.builderId,
     disabledMask: disabledState.disabledMask,
     disabledTillFrame: disabledState.disabledTillFrame,
@@ -19117,7 +19192,22 @@ function overlaySourceObjectStateFromLiveEntity(
       ? [...entity.completedUpgrades].sort()
       : sourceState.completedUpgradeNames,
     originalTeamName: entity.sourceTeamNameUpper?.trim().toUpperCase() || sourceState.originalTeamName,
-    ...resolveSourceTriggerAreaState(sourceState, triggerAreaState),
+    ...resolveSourceTriggerAreaState(sourceState, triggerAreaState, entity),
+    ipos: sourceObjectIPosFromLiveEntity(entity, sourceState.ipos),
+    layer: sourceIntFromLiveValue(entity.sourceObjectLayer, sourceState.layer),
+    destinationLayer: sourceIntFromLiveValue(
+      entity.sourceObjectDestinationLayer,
+      sourceState.destinationLayer,
+    ),
+    isSelectable: sourceBoolFromLiveValue(entity.isSelectable, sourceState.isSelectable),
+    safeOcclusionFrame: sourceUnsignedIntFromLiveValue(
+      entity.sourceObjectSafeOcclusionFrame,
+      sourceState.safeOcclusionFrame,
+    ),
+    formationId: sourceIntFromLiveValue(entity.sourceObjectFormationId, sourceState.formationId),
+    formationOffset: sourceIntFromLiveValue(entity.sourceObjectFormationId, sourceState.formationId) !== 0
+      ? sourceObjectFormationOffsetFromLiveEntity(entity, sourceState.formationOffset)
+      : null,
     indicatorColor: customIndicatorColor !== null
       ? normalizeSourcePackedColor(customIndicatorColor)
       : sourceState.indicatorColor,

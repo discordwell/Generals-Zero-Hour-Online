@@ -53,6 +53,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
 
     // Flags
     selected: false,
+    isSelectable: true,
     canMove: true,
     energyBonus: 0,
     energyUpgradeBonus: 0,
@@ -187,6 +188,16 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     blocksPath: true,
     geometryMajorRadius: 15.0,
     obstacleGeometry: null,
+    sourceObjectVisionSpiedBy: Array.from({ length: 16 }, (_, index) => index),
+    sourceObjectVisionSpiedMask: 0x0005,
+    sourceObjectSingleUseCommandUsed: true,
+    sourceObjectEnteredOrExitedFrame: 17,
+    sourceObjectIPos: { x: 100, y: 10, z: 0 },
+    sourceObjectLayer: 1,
+    sourceObjectDestinationLayer: 2,
+    sourceObjectSafeOcclusionFrame: 345,
+    sourceObjectFormationId: 99,
+    sourceObjectFormationOffset: { x: 4.5, y: -2.25 },
     obstacleFootprint: 0,
     ignoredMovementObstacleId: null,
     movePath: [{ x: 110, z: 210 }, { x: 120, z: 220 }],
@@ -728,6 +739,18 @@ describe('entity-xfer', () => {
     expect(loaded.category).toBe('vehicle');
     expect(loaded.side).toBe('USA');
     expect(loaded.controllingPlayerToken).toBe('player1');
+    expect(loaded.isSelectable).toBe(true);
+    expect(loaded.sourceObjectVisionSpiedBy).toEqual(Array.from({ length: 16 }, (_, index) => index));
+    expect(loaded.sourceObjectVisionSpiedMask).toBe(0x0005);
+    expect(loaded.sourceObjectSingleUseCommandUsed).toBe(true);
+    expect(loaded.sourceObjectEnteredOrExitedFrame).toBe(17);
+    expect(loaded.sourceObjectIPos).toEqual({ x: 100, y: 10, z: 0 });
+    expect(loaded.sourceObjectLayer).toBe(1);
+    expect(loaded.sourceObjectDestinationLayer).toBe(2);
+    expect(loaded.sourceObjectSafeOcclusionFrame).toBe(345);
+    expect(loaded.sourceObjectFormationId).toBe(99);
+    expect((loaded.sourceObjectFormationOffset as { x: number; y: number }).x).toBeCloseTo(4.5);
+    expect((loaded.sourceObjectFormationOffset as { x: number; y: number }).y).toBeCloseTo(-2.25);
   });
 
   it('preserves transform values', () => {

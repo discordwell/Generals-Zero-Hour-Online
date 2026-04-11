@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 50;
+const ENTITY_XFER_VERSION = 51;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1616,6 +1616,56 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
 
   // ── Flags ──
   e.selected = xfer.xferBool(e.selected as boolean);
+  {
+    const kindOf = e.kindOf instanceof Set ? e.kindOf as Set<string> : new Set<string>();
+    const defaultSelectable = kindOf.has('SELECTABLE') || kindOf.has('ALWAYS_SELECTABLE');
+    if (version >= 51) {
+      e.isSelectable = xfer.xferBool((e.isSelectable as boolean | undefined) ?? defaultSelectable);
+      e.sourceObjectVisionSpiedBy = xfer.xferIntList(
+        (e.sourceObjectVisionSpiedBy as number[] | undefined) ?? [],
+      );
+      e.sourceObjectVisionSpiedMask = xfer.xferUnsignedInt(
+        (e.sourceObjectVisionSpiedMask as number | undefined) ?? 0,
+      );
+      e.sourceObjectSingleUseCommandUsed = xfer.xferBool(
+        (e.sourceObjectSingleUseCommandUsed as boolean | undefined) ?? false,
+      );
+      e.sourceObjectEnteredOrExitedFrame = xfer.xferUnsignedInt(
+        (e.sourceObjectEnteredOrExitedFrame as number | undefined) ?? 0,
+      );
+      e.sourceObjectIPos = xferSourceICoord3DState(
+        xfer,
+        e.sourceObjectIPos as { x: number; y: number; z: number } | null | undefined,
+      );
+      e.sourceObjectLayer = xfer.xferInt((e.sourceObjectLayer as number | undefined) ?? 1);
+      e.sourceObjectDestinationLayer = xfer.xferInt(
+        (e.sourceObjectDestinationLayer as number | undefined) ?? 0,
+      );
+      e.sourceObjectSafeOcclusionFrame = xfer.xferUnsignedInt(
+        (e.sourceObjectSafeOcclusionFrame as number | undefined) ?? 0,
+      );
+      const sourceObjectFormationId = xfer.xferInt((e.sourceObjectFormationId as number | undefined) ?? 0);
+      e.sourceObjectFormationId = sourceObjectFormationId;
+      e.sourceObjectFormationOffset = sourceObjectFormationId !== 0
+        ? xferSourceCoord2DState(
+          xfer,
+          e.sourceObjectFormationOffset as { x: number; y: number } | null | undefined,
+        )
+        : null;
+    } else {
+      e.isSelectable = (e.isSelectable as boolean | undefined) ?? defaultSelectable;
+      e.sourceObjectVisionSpiedBy = [];
+      e.sourceObjectVisionSpiedMask = 0;
+      e.sourceObjectSingleUseCommandUsed = false;
+      e.sourceObjectEnteredOrExitedFrame = 0;
+      e.sourceObjectIPos = { x: 0, y: 0, z: 0 };
+      e.sourceObjectLayer = 1;
+      e.sourceObjectDestinationLayer = 0;
+      e.sourceObjectSafeOcclusionFrame = 0;
+      e.sourceObjectFormationId = 0;
+      e.sourceObjectFormationOffset = null;
+    }
+  }
   e.canMove = xfer.xferBool(e.canMove as boolean);
   e.energyBonus = xfer.xferReal(e.energyBonus as number);
   e.energyUpgradeBonus = xfer.xferReal(e.energyUpgradeBonus as number);
