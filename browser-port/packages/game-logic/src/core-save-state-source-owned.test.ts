@@ -230,6 +230,15 @@ function makeSourceOwnedCoreBundle() {
           BoredRange: 200,
         }),
       ]),
+      makeObjectDef('RebuildHoleObject', 'GLA', ['STRUCTURE', 'IMMOBILE'], [
+        makeBlock('Behavior', 'RebuildHoleBehavior ModuleTag_RebuildHole', {
+          WorkerObjectName: 'RebuildWorker',
+          WorkerRespawnDelay: 5000,
+          'HoleHealthRegen%PerSecond': 10,
+        }),
+      ]),
+      makeObjectDef('RebuildWorker', 'GLA', ['INFANTRY', 'DOZER'], []),
+      makeObjectDef('RebuildTarget', 'GLA', ['STRUCTURE'], []),
       makeObjectDef('SlowDeathObject', 'America', ['VEHICLE'], [
         makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_SlowDeath', {
           DestructionDelay: 3000,
@@ -1756,6 +1765,32 @@ function buildSourceDozerAIUpdateModuleData(options: {
       }
     }
     saver.xferInt(options.buildSubTask);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceRebuildHoleBehaviorModuleData(options: {
+  nextCallFrame: number;
+  workerId: number;
+  reconstructingId: number;
+  spawnerId: number;
+  workerWaitCounter: number;
+  workerTemplateName: string;
+  rebuildTemplateName: string;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-rebuild-hole-behavior');
+  try {
+    saver.xferVersion(2);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+    saver.xferObjectID(options.workerId);
+    saver.xferObjectID(options.reconstructingId);
+    saver.xferObjectID(options.spawnerId);
+    saver.xferUnsignedInt(options.workerWaitCounter);
+    saver.xferAsciiString(options.workerTemplateName);
+    saver.xferAsciiString(options.rebuildTemplateName);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -4948,6 +4983,58 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedDozer.dozerRepairTaskOrderFrame).toBe(140);
     expect(privateLogic.pendingConstructionActions.get(125)).toBe(501);
     expect(privateLogic.pendingRepairActions.get(125)).toBe(502);
+  });
+
+  it('imports source RebuildHoleBehavior runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const holeState = createEmptySourceMapEntitySaveState();
+    holeState.objectId = 126;
+    holeState.position = { x: 164, y: 0, z: 60 };
+    holeState.modules = [{
+      identifier: 'ModuleTag_RebuildHole',
+      blockData: buildSourceRebuildHoleBehaviorModuleData({
+        nextCallFrame: 201,
+        workerId: 501,
+        reconstructingId: 502,
+        spawnerId: 503,
+        workerWaitCounter: 37,
+        workerTemplateName: 'RebuildWorker',
+        rebuildTemplateName: 'RebuildTarget',
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'RebuildHoleObject', state: holeState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        rebuildHoleWorkerEntityId: number;
+        rebuildHoleReconstructingEntityId: number;
+        rebuildHoleSpawnerEntityId: number;
+        rebuildHoleWorkerWaitCounter: number;
+        rebuildHoleRebuildTemplateName: string;
+      }>;
+    };
+
+    const importedHole = privateLogic.spawnedEntities.get(126)!;
+    expect(importedHole.rebuildHoleWorkerEntityId).toBe(501);
+    expect(importedHole.rebuildHoleReconstructingEntityId).toBe(502);
+    expect(importedHole.rebuildHoleSpawnerEntityId).toBe(503);
+    expect(importedHole.rebuildHoleWorkerWaitCounter).toBe(37);
+    expect(importedHole.rebuildHoleRebuildTemplateName).toBe('RebuildTarget');
   });
 
   it('imports source slow-death behavior runtime state', () => {

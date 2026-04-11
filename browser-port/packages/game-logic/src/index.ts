@@ -8963,6 +8963,16 @@ interface SourceDozerAIUpdateImportState {
   tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
 }
 
+interface SourceRebuildHoleBehaviorImportState {
+  nextCallFrame: number;
+  workerId: number;
+  reconstructingId: number;
+  spawnerId: number;
+  workerWaitCounter: number;
+  workerTemplateName: string;
+  rebuildTemplateName: string;
+}
+
 interface SourceSlowDeathBehaviorImportState {
   nextCallFrame: number;
   sinkFrame: number;
@@ -15958,6 +15968,78 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceRebuildHoleBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceRebuildHoleBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'REBUILDHOLEBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-rebuild-hole-behavior-import');
+    try {
+      const version = xfer.xferVersion(2);
+      if (version < 1 || version > 2) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const workerId = xfer.xferObjectID(0);
+      const reconstructingId = xfer.xferObjectID(0);
+      const spawnerId = version >= 2 ? xfer.xferObjectID(0) : 0;
+      const workerWaitCounter = xfer.xferUnsignedInt(0);
+      const workerTemplateName = xfer.xferAsciiString('');
+      const rebuildTemplateName = xfer.xferAsciiString('');
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            workerId,
+            reconstructingId,
+            spawnerId,
+            workerWaitCounter,
+            workerTemplateName,
+            rebuildTemplateName,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceRebuildHoleBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.rebuildHoleProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const rebuildHoleState = this.tryParseSourceRebuildHoleBehaviorImportState(module.blockData, moduleType);
+      if (!rebuildHoleState) {
+        continue;
+      }
+
+      entity.rebuildHoleWorkerEntityId = Math.max(0, Math.trunc(rebuildHoleState.workerId));
+      entity.rebuildHoleReconstructingEntityId = Math.max(0, Math.trunc(rebuildHoleState.reconstructingId));
+      entity.rebuildHoleSpawnerEntityId = Math.max(0, Math.trunc(rebuildHoleState.spawnerId));
+      entity.rebuildHoleWorkerWaitCounter = Math.max(0, Math.trunc(rebuildHoleState.workerWaitCounter));
+      entity.rebuildHoleRebuildTemplateName = rebuildHoleState.rebuildTemplateName.trim();
+      return;
+    }
+  }
+
   private xferSourceSlowDeathBehaviorImportState(xfer: XferLoad): SourceSlowDeathBehaviorImportState | null {
     const version = xfer.xferVersion(1);
     if (version !== 1) {
@@ -20255,6 +20337,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceSupplyTruckAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceChinookAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceDozerAIUpdateModulesToEntity(entity, sourceState);
+    this.applySourceRebuildHoleBehaviorModulesToEntity(entity, sourceState);
     this.applySourceSlowDeathBehaviorModulesToEntity(entity, sourceState);
     this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);

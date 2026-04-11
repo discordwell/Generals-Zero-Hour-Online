@@ -1956,6 +1956,61 @@ function parseSourceDozerAIUpdateBlockData(data: Uint8Array) {
   };
 }
 
+interface SourceRebuildHoleBehaviorTestState {
+  nextCallFrameAndPhase: number;
+  workerId: number;
+  reconstructingId: number;
+  spawnerId: number;
+  workerWaitCounter: number;
+  workerTemplateName: string;
+  rebuildTemplateName: string;
+}
+
+function createSourceRebuildHoleBehaviorBlockData(
+  state: SourceRebuildHoleBehaviorTestState,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-rebuild-hole-behavior');
+  try {
+    xferSave.xferVersion(2);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferObjectID(state.workerId);
+    xferSave.xferObjectID(state.reconstructingId);
+    xferSave.xferObjectID(state.spawnerId);
+    xferSave.xferUnsignedInt(state.workerWaitCounter);
+    xferSave.xferAsciiString(state.workerTemplateName);
+    xferSave.xferAsciiString(state.rebuildTemplateName);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceRebuildHoleBehaviorBlockData(data: Uint8Array): SourceRebuildHoleBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-rebuild-hole-behavior');
+  try {
+    expect(xferLoad.xferVersion(2)).toBe(2);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const parsed = {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      workerId: xferLoad.xferObjectID(0),
+      reconstructingId: xferLoad.xferObjectID(0),
+      spawnerId: xferLoad.xferObjectID(0),
+      workerWaitCounter: xferLoad.xferUnsignedInt(0),
+      workerTemplateName: xferLoad.xferAsciiString(''),
+      rebuildTemplateName: xferLoad.xferAsciiString(''),
+    };
+    expect(xferLoad.getRemaining()).toBe(0);
+    return parsed;
+  } finally {
+    xferLoad.close();
+  }
+}
+
 interface SourceSlowDeathBehaviorTestState {
   nextCallFrameAndPhase: number;
   sinkFrame: number;
@@ -12250,6 +12305,122 @@ describe('runtime-save-game', () => {
     { targetObjectId: 7, taskOrderFrame: 14 },
   ]);
   expect(parsed.stateMachineAndSuffix).toEqual(preserved.stateMachineAndSuffix);
+  });
+
+  it('rewrites source RebuildHoleBehavior modules from live runtime state', () => {
+    const preserved: SourceRebuildHoleBehaviorTestState = {
+      nextCallFrameAndPhase: (90 << 2) | 2,
+      workerId: 11,
+      reconstructingId: 12,
+      spawnerId: 13,
+      workerWaitCounter: 5,
+      workerTemplateName: 'PreservedWorker',
+      rebuildTemplateName: 'PreservedTarget',
+    };
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_RebuildHole',
+      blockData: createSourceRebuildHoleBehaviorBlockData(preserved),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source rebuild hole rewrite',
+      mapPath: 'Maps/RuntimeRebuildHole/RuntimeRebuildHole.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeRebuildHole',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            rebuildHoleProfile: {
+              workerObjectName: 'RuntimeWorker',
+              workerRespawnDelay: 150,
+              holeHealthRegenPercentPerSecond: 0.1,
+            },
+            rebuildHoleWorkerEntityId: 51,
+            rebuildHoleReconstructingEntityId: 52,
+            rebuildHoleSpawnerEntityId: 53,
+            rebuildHoleWorkerWaitCounter: 37,
+            rebuildHoleRebuildTemplateName: 'RuntimeTarget',
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_RebuildHole') {
+            return 'REBUILDHOLEBEHAVIOR';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const rebuildHoleModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_RebuildHole');
+
+    expect(rebuildHoleModule).toBeDefined();
+    expect(parseSourceRebuildHoleBehaviorBlockData(rebuildHoleModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      workerId: 51,
+      reconstructingId: 52,
+      spawnerId: 53,
+      workerWaitCounter: 37,
+      workerTemplateName: 'RuntimeWorker',
+      rebuildTemplateName: 'RuntimeTarget',
+    });
   });
 
   it('rewrites source slow-death behavior modules from live runtime state', () => {

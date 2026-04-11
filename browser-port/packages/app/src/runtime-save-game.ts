@@ -5909,6 +5909,17 @@ interface SourceDozerAIUpdateBlockState {
   tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
 }
 
+interface SourceRebuildHoleBehaviorBlockState {
+  version: number;
+  nextCallFrameAndPhase: number;
+  workerId: number;
+  reconstructingId: number;
+  spawnerId: number;
+  workerWaitCounter: number;
+  workerTemplateName: string;
+  rebuildTemplateName: string;
+}
+
 interface SourceSlowDeathBehaviorBlockState {
   nextCallFrameAndPhase: number;
   sinkFrame: number;
@@ -6636,6 +6647,82 @@ function buildSourceDozerAIUpdateBlockData(
   view.setUint32(cursor, normalizeSourceObjectId(entity.dozerRepairTargetEntityId ?? repairTask.targetObjectId), true);
   view.setUint32(cursor + 4, sourceFiniteInt(entity.dozerRepairTaskOrderFrame, repairTask.taskOrderFrame), true);
   return blockData;
+}
+
+function tryParseSourceRebuildHoleBehaviorBlockData(
+  data: Uint8Array,
+): SourceRebuildHoleBehaviorBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-rebuild-hole-behavior');
+  try {
+    const version = xferLoad.xferVersion(2);
+    if (version < 1 || version > 2) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(
+      xferLoad,
+      buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    );
+    const workerId = xferLoad.xferObjectID(0);
+    const reconstructingId = xferLoad.xferObjectID(0);
+    const spawnerId = version >= 2 ? xferLoad.xferObjectID(0) : 0;
+    const workerWaitCounter = xferLoad.xferUnsignedInt(0);
+    const workerTemplateName = xferLoad.xferAsciiString('');
+    const rebuildTemplateName = xferLoad.xferAsciiString('');
+    return xferLoad.getRemaining() === 0
+      ? {
+          version,
+          nextCallFrameAndPhase,
+          workerId,
+          reconstructingId,
+          spawnerId,
+          workerWaitCounter,
+          workerTemplateName,
+          rebuildTemplateName,
+        }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceRebuildHoleBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceRebuildHoleBehaviorBlockState,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-rebuild-hole-behavior');
+  try {
+    const workerId = normalizeSourceObjectId(entity.rebuildHoleWorkerEntityId ?? preservedState.workerId);
+    const profileWorkerName = entity.rebuildHoleProfile?.workerObjectName?.trim() ?? '';
+    const workerTemplateName = workerId !== 0 && profileWorkerName
+      ? profileWorkerName
+      : preservedState.workerTemplateName;
+    const rebuildTemplateName = entity.rebuildHoleRebuildTemplateName?.trim()
+      || preservedState.rebuildTemplateName;
+
+    saver.xferVersion(2);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(entity.destroyed ? SOURCE_FRAME_FOREVER : currentFrame + 1),
+    ));
+    saver.xferObjectID(workerId);
+    saver.xferObjectID(normalizeSourceObjectId(
+      entity.rebuildHoleReconstructingEntityId ?? preservedState.reconstructingId,
+    ));
+    saver.xferObjectID(normalizeSourceObjectId(entity.rebuildHoleSpawnerEntityId ?? preservedState.spawnerId));
+    saver.xferUnsignedInt(sourceNonNegativeInt(
+      entity.rebuildHoleWorkerWaitCounter,
+      preservedState.workerWaitCounter,
+    ));
+    saver.xferAsciiString(workerTemplateName);
+    saver.xferAsciiString(rebuildTemplateName);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
 }
 
 function createDefaultSourceSlowDeathBehaviorBlockState(): SourceSlowDeathBehaviorBlockState {
@@ -11794,6 +11881,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceDozerAIUpdateBlockData(entity, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'REBUILDHOLEBEHAVIOR' && entity.rebuildHoleProfile) {
+            const parsedSourceState = tryParseSourceRebuildHoleBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceRebuildHoleBehaviorBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }
