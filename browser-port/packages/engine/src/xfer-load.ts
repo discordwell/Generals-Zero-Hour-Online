@@ -133,6 +133,15 @@ export class XferLoad extends Xfer {
     return this.offset;
   }
 
+  setOffset(offset: number): void {
+    if (!Number.isInteger(offset) || offset < 0 || offset > this.byteLength) {
+      throw new Error(
+        `XferLoad: invalid offset ${offset} for buffer size ${this.byteLength}`,
+      );
+    }
+    this.offset = offset;
+  }
+
   getRemaining(): number {
     return this.byteLength - this.offset;
   }

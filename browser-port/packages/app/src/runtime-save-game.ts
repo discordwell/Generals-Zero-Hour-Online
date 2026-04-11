@@ -423,6 +423,7 @@ const SOURCE_AI_PLAYER_SNAPSHOT_VERSION = 1;
 const SOURCE_AI_SKIRMISH_PLAYER_SNAPSHOT_VERSION = 1;
 const SOURCE_TEAM_IN_QUEUE_SNAPSHOT_VERSION = 1;
 const SOURCE_WORK_ORDER_SNAPSHOT_VERSION = 1;
+const SOURCE_AI_STRUCTURES_TO_REPAIR_COUNT = 2;
 const SOURCE_RESOURCE_GATHERING_MANAGER_SNAPSHOT_VERSION = 1;
 const SOURCE_TUNNEL_TRACKER_SNAPSHOT_VERSION = 1;
 const SOURCE_SCORE_KEEPER_SNAPSHOT_VERSION = 1;
@@ -21336,6 +21337,49 @@ function normalizeControllingPlayerTokenValue(value: unknown): string | null {
     : null;
 }
 
+function getRuntimeStateSideMapValue<T>(
+  map: Map<string | number, T>,
+  side: string,
+): T | undefined {
+  if (map.has(side)) {
+    return map.get(side);
+  }
+  const normalizedSide = normalizeControllingPlayerTokenValue(side);
+  const sideCandidates = [
+    side.toLowerCase(),
+    side.toUpperCase(),
+  ];
+  for (const candidate of sideCandidates) {
+    if (map.has(candidate)) {
+      return map.get(candidate);
+    }
+  }
+  if (!normalizedSide) {
+    return undefined;
+  }
+  for (const [key, value] of map.entries()) {
+    if (typeof key === 'string' && normalizeControllingPlayerTokenValue(key) === normalizedSide) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function runtimeStateSideMapHas<T>(
+  map: Map<string | number, T>,
+  side: string,
+): boolean {
+  if (map.has(side) || map.has(side.toLowerCase()) || map.has(side.toUpperCase())) {
+    return true;
+  }
+  const normalizedSide = normalizeControllingPlayerTokenValue(side);
+  return normalizedSide
+    ? [...map.keys()].some(
+        (key) => typeof key === 'string' && normalizeControllingPlayerTokenValue(key) === normalizedSide,
+      )
+    : false;
+}
+
 function resolveSourcePlayersCount(
   payload: GameLogicPlayersSaveState | null,
   mapData: MapDataJSON | null | undefined,
@@ -21625,17 +21669,33 @@ function xferSourceTeamInQueueState(
   };
 }
 
-function xferSourceAiPlayerState(
+function xferSourceFixedObjectIdArray(
+  xfer: Xfer,
+  objectIds: number[],
+  count: number,
+): number[] {
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    return Array.from({ length: count }, () => xfer.xferObjectID(0));
+  }
+  for (let index = 0; index < count; index += 1) {
+    xfer.xferObjectID(Math.max(0, Math.trunc(objectIds[index] ?? 0)));
+  }
+  return objectIds.slice(0, count);
+}
+
+function xferSourceKnownAiPlayerState(
   xfer: Xfer,
   aiPlayer: SourcePlayerAiState,
   playerIndex: number,
 ): SourcePlayerAiState {
-  const version = xfer.xferVersion(
-    aiPlayer.isSkirmishAi
-      ? SOURCE_AI_SKIRMISH_PLAYER_SNAPSHOT_VERSION
-      : SOURCE_AI_PLAYER_SNAPSHOT_VERSION,
-  );
-  if (version !== 1) {
+  if (aiPlayer.isSkirmishAi) {
+    const skirmishVersion = xfer.xferVersion(SOURCE_AI_SKIRMISH_PLAYER_SNAPSHOT_VERSION);
+    if (skirmishVersion !== SOURCE_AI_SKIRMISH_PLAYER_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported AI skirmish player snapshot version ${skirmishVersion}`);
+    }
+  }
+  const version = xfer.xferVersion(SOURCE_AI_PLAYER_SNAPSHOT_VERSION);
+  if (version !== SOURCE_AI_PLAYER_SNAPSHOT_VERSION) {
     throw new Error(`Unsupported AI player snapshot version ${version}`);
   }
   const teamBuildQueueCount = xfer.xferUnsignedShort(aiPlayer.teamBuildQueue.length);
@@ -21700,7 +21760,11 @@ function xferSourceAiPlayerState(
     baseCenter: xfer.xferCoord3D(aiPlayer.baseCenter),
     baseCenterSet: xfer.xferBool(aiPlayer.baseCenterSet),
     baseRadius: xfer.xferReal(aiPlayer.baseRadius),
-    structuresToRepair: xfer.xferObjectIDList(aiPlayer.structuresToRepair),
+    structuresToRepair: xferSourceFixedObjectIdArray(
+      xfer,
+      aiPlayer.structuresToRepair,
+      SOURCE_AI_STRUCTURES_TO_REPAIR_COUNT,
+    ),
     repairDozer: xfer.xferObjectID(aiPlayer.repairDozer),
     structuresInQueue: xfer.xferInt(aiPlayer.structuresInQueue),
     dozerQueuedForRepair: xfer.xferBool(aiPlayer.dozerQueuedForRepair),
@@ -21726,6 +21790,60 @@ function xferSourceAiPlayerState(
     nextState.curRightFlankRightDefenseAngle = xfer.xferReal(aiPlayer.curRightFlankRightDefenseAngle);
   }
   return nextState;
+}
+
+function xferSourceAiPlayerState(
+  xfer: Xfer,
+  aiPlayer: SourcePlayerAiState,
+  playerIndex: number,
+): SourcePlayerAiState {
+  if (xfer.getMode() !== XferMode.XFER_LOAD || !(xfer instanceof XferLoad)) {
+    return xferSourceKnownAiPlayerState(xfer, aiPlayer, playerIndex);
+  }
+
+  const startOffset = xfer.getOffset();
+  const firstLayout = aiPlayer.isSkirmishAi;
+  const layouts = [firstLayout, !firstLayout];
+  let firstError: unknown = null;
+  for (const isSkirmishAi of layouts) {
+    xfer.setOffset(startOffset);
+    try {
+      return xferSourceKnownAiPlayerState(
+        xfer,
+        { ...aiPlayer, isSkirmishAi },
+        playerIndex,
+      );
+    } catch (error) {
+      firstError ??= error;
+    }
+  }
+  xfer.setOffset(startOffset);
+  throw firstError instanceof Error
+    ? firstError
+    : new Error(`Unable to parse source AI player state for player ${playerIndex}.`);
+}
+
+function cloneSourceTeamInQueueState(teamInQueue: SourcePlayerTeamInQueueState): SourcePlayerTeamInQueueState {
+  return {
+    workOrders: teamInQueue.workOrders.map((workOrder) => ({ ...workOrder })),
+    priorityBuild: teamInQueue.priorityBuild,
+    teamId: teamInQueue.teamId,
+    frameStarted: teamInQueue.frameStarted,
+    sentToStartLocation: teamInQueue.sentToStartLocation,
+    stopQueueing: teamInQueue.stopQueueing,
+    reinforcement: teamInQueue.reinforcement,
+    reinforcementId: teamInQueue.reinforcementId,
+  };
+}
+
+function cloneSourceAiPlayerState(aiPlayer: SourcePlayerAiState): SourcePlayerAiState {
+  return {
+    ...aiPlayer,
+    teamBuildQueue: aiPlayer.teamBuildQueue.map((teamInQueue) => cloneSourceTeamInQueueState(teamInQueue)),
+    teamReadyQueue: aiPlayer.teamReadyQueue.map((teamInQueue) => cloneSourceTeamInQueueState(teamInQueue)),
+    baseCenter: { ...aiPlayer.baseCenter },
+    structuresToRepair: [...aiPlayer.structuresToRepair],
+  };
 }
 
 function xferSourceResourceGatheringManagerState(
@@ -22166,6 +22284,7 @@ function buildSourcePlayerEntryState(
   const sideUpgradesInProduction = getRuntimeStateMap<Set<string>>(state, 'sideUpgradesInProduction').get(side);
   const sideSourcePlayerUpgradeList = getRuntimeStateMap<unknown>(state, 'sideSourcePlayerUpgradeList').get(side);
   const sideSourcePlayerTeamPrototypeIdsMap = getRuntimeStateMap<unknown>(state, 'sideSourcePlayerTeamPrototypeIds');
+  const sideSourceAiPlayerStateMap = getRuntimeStateMap<SourcePlayerAiState | null>(state, 'sideSourceAiPlayerState');
   const sideSourceResourceGatheringManagerMap =
     getRuntimeStateMap<SourcePlayerResourceGatheringManagerState | null>(state, 'sideSourceResourceGatheringManager');
   const sideSourcePlayerSquadsMap = getRuntimeStateMap<unknown>(state, 'sideSourcePlayerSquads');
@@ -22173,7 +22292,7 @@ function buildSourcePlayerEntryState(
   const sideSourcePlayerCurrentSelectionPresentMap =
     getRuntimeStateMap<boolean>(state, 'sideSourcePlayerCurrentSelectionPresent');
   const specialPowerReadyTimers = normalizeSourceSpecialPowerReadyTimers(
-    getRuntimeStateMap<unknown>(state, 'sideSourceSpecialPowerReadyTimers').get(side),
+    getRuntimeStateSideMapValue(getRuntimeStateMap<unknown>(state, 'sideSourceSpecialPowerReadyTimers'), side),
   );
   const sideCashBountyPercent = getRuntimeStateMap<number>(state, 'sideCashBountyPercent').get(side);
   const sideSkillPointsModifier = getRuntimeStateMap<number>(state, 'sideSkillPointsModifier').get(side);
@@ -22204,24 +22323,38 @@ function buildSourcePlayerEntryState(
       ? [Math.max(0, Math.trunc(prototypeId))]
       : [];
   });
-  const aiPlayer = sidePlayerTypes.get(side) === 'COMPUTER'
-    ? buildDefaultSourceAiPlayerState(side, payload)
-    : null;
-  const sourceTeamPrototypeIds = sideSourcePlayerTeamPrototypeIdsMap.has(side)
-    ? normalizeSourceObjectIdArray(sideSourcePlayerTeamPrototypeIdsMap.get(side))
+  const hasSourceAiPlayerState = runtimeStateSideMapHas(sideSourceAiPlayerStateMap, side);
+  const sourceAiPlayerState = getRuntimeStateSideMapValue(sideSourceAiPlayerStateMap, side);
+  const aiPlayer = hasSourceAiPlayerState
+    ? (
+      sourceAiPlayerState
+        ? cloneSourceAiPlayerState(sourceAiPlayerState)
+        : null
+    )
+    : (
+      sidePlayerTypes.get(side) === 'COMPUTER'
+        ? buildDefaultSourceAiPlayerState(side, payload)
+        : null
+    );
+  const sourceTeamPrototypeIds = runtimeStateSideMapHas(sideSourcePlayerTeamPrototypeIdsMap, side)
+    ? normalizeSourceObjectIdArray(getRuntimeStateSideMapValue(sideSourcePlayerTeamPrototypeIdsMap, side))
     : [...new Set(teamPrototypeIds)].sort((a, b) => a - b);
-  const resourceGatheringManager = sideSourceResourceGatheringManagerMap.has(side)
-    ? normalizeSourceResourceGatheringManagerState(sideSourceResourceGatheringManagerMap.get(side))
+  const resourceGatheringManager = runtimeStateSideMapHas(sideSourceResourceGatheringManagerMap, side)
+    ? normalizeSourceResourceGatheringManagerState(
+        getRuntimeStateSideMapValue(sideSourceResourceGatheringManagerMap, side),
+      )
     : {
       supplyWarehouses: aiPlayer?.currentWarehouseId ? [aiPlayer.currentWarehouseId] : [],
       supplyCenters: [],
     };
-  const squads = sideSourcePlayerSquadsMap.has(side)
-    ? normalizeSourceSquadArrays(sideSourcePlayerSquadsMap.get(side))
+  const squads = runtimeStateSideMapHas(sideSourcePlayerSquadsMap, side)
+    ? normalizeSourceSquadArrays(getRuntimeStateSideMapValue(sideSourcePlayerSquadsMap, side))
     : Array.from({ length: SOURCE_PLAYER_HOTKEY_SQUAD_COUNT }, () => [] as number[]);
-  const currentSelection = normalizeSourceObjectIdArray(sideSourcePlayerCurrentSelectionMap.get(side));
-  const currentSelectionPresent = sideSourcePlayerCurrentSelectionPresentMap.has(side)
-    ? sideSourcePlayerCurrentSelectionPresentMap.get(side) === true
+  const currentSelection = normalizeSourceObjectIdArray(
+    getRuntimeStateSideMapValue(sideSourcePlayerCurrentSelectionMap, side),
+  );
+  const currentSelectionPresent = runtimeStateSideMapHas(sideSourcePlayerCurrentSelectionPresentMap, side)
+    ? getRuntimeStateSideMapValue(sideSourcePlayerCurrentSelectionPresentMap, side) === true
     : true;
   const playerIndexByNormalizedSide = new Map(
     [...getPlayerIndexBySideMap(payload).entries()].map(([playerSide, mappedPlayerIndex]) =>
@@ -22437,6 +22570,7 @@ function buildGameLogicPlayersStateFromSourcePlayers(
   const sideUpgradesInProduction = new Map<string, Set<string>>();
   const sideSourcePlayerUpgradeList = new Map<string, SourcePlayerUpgradeState[]>();
   const sideSourcePlayerTeamPrototypeIds = new Map<string, number[]>();
+  const sideSourceAiPlayerState = new Map<string, SourcePlayerAiState | null>();
   const sideIsPreorder = new Map<string, boolean>();
   const sideCanBuildBaseByScript = new Map<string, boolean>();
   const sideCanBuildUnitsByScript = new Map<string, boolean>();
@@ -22525,6 +22659,7 @@ function buildGameLogicPlayersStateFromSourcePlayers(
       player.upgrades.map((upgrade) => ({ name: upgrade.name, status: upgrade.status })),
     );
     sideSourcePlayerTeamPrototypeIds.set(player.side, [...player.teamPrototypeIds]);
+    sideSourceAiPlayerState.set(player.side, player.aiPlayer ? cloneSourceAiPlayerState(player.aiPlayer) : null);
     sideSourceResourceGatheringManager.set(
       player.side,
       player.resourceGatheringManager
@@ -22689,6 +22824,7 @@ function buildGameLogicPlayersStateFromSourcePlayers(
   state.sideUpgradesInProduction = sideUpgradesInProduction;
   state.sideSourcePlayerUpgradeList = sideSourcePlayerUpgradeList;
   state.sideSourcePlayerTeamPrototypeIds = sideSourcePlayerTeamPrototypeIds;
+  state.sideSourceAiPlayerState = sideSourceAiPlayerState;
   state.sideKindOfProductionCostModifiers = sideKindOfProductionCostModifiers;
   state.sideSourceSpecialPowerReadyTimers = sideSourceSpecialPowerReadyTimers;
   state.sideSourceResourceGatheringManager = sideSourceResourceGatheringManager;

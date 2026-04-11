@@ -15058,6 +15058,120 @@ describe('runtime-save-game', () => {
       .toBe(true);
   });
 
+  it('round-trips source AIPlayer state through the player chunk', () => {
+    const sourceAiPlayer = {
+      isSkirmishAi: true,
+      teamBuildQueue: [{
+        workOrders: [{
+          templateName: 'AmericaVehicleHumvee',
+          factoryId: 7,
+          numCompleted: 1,
+          numRequired: 3,
+          required: true,
+          isResourceGatherer: false,
+        }],
+        priorityBuild: true,
+        teamId: 41,
+        frameStarted: 120,
+        sentToStartLocation: false,
+        stopQueueing: true,
+        reinforcement: false,
+        reinforcementId: 0,
+      }],
+      teamReadyQueue: [{
+        workOrders: [],
+        priorityBuild: false,
+        teamId: 42,
+        frameStarted: 150,
+        sentToStartLocation: true,
+        stopQueueing: false,
+        reinforcement: true,
+        reinforcementId: 88,
+      }],
+      readyToBuildTeam: true,
+      readyToBuildStructure: false,
+      teamTimer: 3,
+      structureTimer: 4,
+      buildDelay: 5,
+      teamDelay: 6,
+      teamSeconds: 7,
+      currentWarehouseId: 100,
+      frameLastBuildingBuilt: 222,
+      difficulty: 2,
+      skillsetSelector: 1,
+      baseCenter: { x: 10, y: 0, z: 20 },
+      baseCenterSet: true,
+      baseRadius: 35,
+      structuresToRepair: [55, 66],
+      repairDozer: 77,
+      structuresInQueue: 2,
+      dozerQueuedForRepair: true,
+      dozerIsRepairing: false,
+      bridgeTimer: 9,
+      curFrontBaseDefense: 2,
+      curFlankBaseDefense: 3,
+      curFrontLeftDefenseAngle: 0.1,
+      curFrontRightDefenseAngle: 0.2,
+      curLeftFlankLeftDefenseAngle: 0.3,
+      curLeftFlankRightDefenseAngle: 0.4,
+      curRightFlankLeftDefenseAngle: 0.5,
+      curRightFlankRightDefenseAngle: 0.6,
+    };
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source AIPlayer State',
+      mapPath: 'assets/maps/SourceAIPlayerState.json',
+      mapData: {
+        ...createTinyRuntimeMapData(),
+        sidesList: {
+          sides: [{
+            dict: {
+              playerName: 'America',
+              playerFaction: 'America',
+            },
+            buildList: [],
+          }],
+          teams: [],
+        },
+      },
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic([], {
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            playerSideByIndex: new Map([[0, 'America']]),
+            sidePlayerIndex: new Map([['America', 0]]),
+            sideSourceAiPlayerState: new Map([['America', sourceAiPlayer]]),
+          },
+        }),
+      }),
+    });
+
+    const parsedAi = (
+      parseRuntimeSaveFile(saveFile.data).gameLogicPlayersState?.state.sideSourceAiPlayerState as Map<string, typeof sourceAiPlayer>
+    ).get('America');
+    expect(parsedAi).toMatchObject({
+      isSkirmishAi: true,
+      readyToBuildTeam: true,
+      teamTimer: 3,
+      currentWarehouseId: 100,
+      skillsetSelector: 1,
+      baseCenter: { x: 10, y: 0, z: 20 },
+      structuresToRepair: [55, 66],
+      repairDozer: 77,
+    });
+    expect(parsedAi?.curRightFlankRightDefenseAngle).toBeCloseTo(0.6);
+    expect(parsedAi?.teamBuildQueue[0]?.workOrders[0]).toMatchObject({
+      templateName: 'AmericaVehicleHumvee',
+      factoryId: 7,
+      numRequired: 3,
+    });
+    expect(parsedAi?.teamReadyQueue[0]).toMatchObject({
+      teamId: 42,
+      reinforcement: true,
+      reinforcementId: 88,
+    });
+  });
+
   it('overlays live source Object::xfer status, disable, experience, and weapon fields on resave', () => {
     const sourceGameLogicBytes = createSourceGameLogicChunkData(true);
     const saveFile = buildRuntimeSaveFile({
