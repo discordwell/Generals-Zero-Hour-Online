@@ -4184,7 +4184,9 @@ function buildSourceStickyBombUpdateBlockData(entity: MapEntity, currentFrame: n
   try {
     const dieFrame = Math.max(0, Math.trunc(entity.stickyBombDieFrame)) >>> 0;
     let nextPingFrame: number;
-    if (dieFrame > 0) {
+    if (Number.isFinite(entity.stickyBombNextPingFrame) && entity.stickyBombNextPingFrame > 0) {
+      nextPingFrame = Math.max(0, Math.trunc(entity.stickyBombNextPingFrame)) >>> 0;
+    } else if (dieFrame > 0) {
       const remainingFrames = Math.max(0, dieFrame - (currentFrame >>> 0));
       const pings = Math.trunc(remainingFrames / 30);
       nextPingFrame = (dieFrame - (pings * 30)) >>> 0;

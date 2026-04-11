@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 30;
+const ENTITY_XFER_VERSION = 31;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1982,6 +1982,11 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.stickyBombProfile = xferNullableJsonObject(xfer, e.stickyBombProfile as object | null);
   e.stickyBombTargetId = xfer.xferInt(e.stickyBombTargetId as number);
   e.stickyBombDieFrame = xfer.xferInt(e.stickyBombDieFrame as number);
+  if (version >= 31) {
+    e.stickyBombNextPingFrame = xfer.xferInt(e.stickyBombNextPingFrame as number);
+  } else {
+    e.stickyBombNextPingFrame = 0;
+  }
 
   // ── Fire When Damaged ──
   e.fireWhenDamagedProfiles = xferJsonObject(xfer, e.fireWhenDamagedProfiles as unknown[]);

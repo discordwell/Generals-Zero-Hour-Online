@@ -802,6 +802,11 @@ export function updateStickyBombs(self: GL): void {
       bomb.z = target.z;
       // bomb.y would be target.y + offsetZ if we had vertical positioning.
     }
+
+    // Source parity: StickyBombUpdate::update increments the ping deadline every second.
+    if (self.frameCounter >= bomb.stickyBombNextPingFrame) {
+      bomb.stickyBombNextPingFrame += 30;
+    }
   }
 }
 

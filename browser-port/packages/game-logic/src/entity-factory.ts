@@ -635,6 +635,7 @@ export function createMapEntity(self: GL,
     stickyBombProfile: extractStickyBombUpdateProfile(self, objectDef),
     stickyBombTargetId: 0,
     stickyBombDieFrame: 0,
+    stickyBombNextPingFrame: 0,
     // Fire weapon when damaged
     fireWhenDamagedProfiles: self.extractFireWhenDamagedProfiles(objectDef),
     // Fire weapon update (autonomous fire at own position)

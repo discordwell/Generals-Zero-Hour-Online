@@ -4004,6 +4004,8 @@ export interface MapEntity {
   stickyBombTargetId: number;
   /** Frame at which timed bomb detonates (0 = remote-triggered). */
   stickyBombDieFrame: number;
+  /** Source parity: StickyBombUpdate::m_nextPingFrame. */
+  stickyBombNextPingFrame: number;
 
   // ── Source parity: FireWeaponWhenDamagedBehavior — weapon fired on damage ──
   /** Reaction weapons keyed by body damage state (fired once per damage event). */
@@ -8845,6 +8847,13 @@ interface SourceHeightDieUpdateImportState {
   particlesDestroyed: boolean;
   lastPosition: { x: number; y: number; z: number };
   earliestDeathFrame: number;
+}
+
+interface SourceStickyBombUpdateImportState {
+  nextCallFrame: number;
+  targetId: number;
+  dieFrame: number;
+  nextPingFrame: number;
 }
 
 interface SourceStealthUpdateImportState {
@@ -14590,6 +14599,69 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceStickyBombUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceStickyBombUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'STICKYBOMBUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-sticky-bomb-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const targetId = xfer.xferObjectID(0);
+      const dieFrame = xfer.xferUnsignedInt(0);
+      const nextPingFrame = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            targetId,
+            dieFrame,
+            nextPingFrame,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceStickyBombUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.stickyBombProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const stickyBombState = this.tryParseSourceStickyBombUpdateImportState(module.blockData, moduleType);
+      if (!stickyBombState) {
+        continue;
+      }
+      entity.stickyBombTargetId = Math.max(0, Math.trunc(stickyBombState.targetId));
+      entity.stickyBombDieFrame = Math.max(0, Math.trunc(stickyBombState.dieFrame));
+      entity.stickyBombNextPingFrame = Math.max(0, Math.trunc(stickyBombState.nextPingFrame));
+      return;
+    }
+  }
+
   private normalizeSourceObjectModuleType(moduleType: string): string {
     return moduleType.trim().toUpperCase();
   }
@@ -15563,6 +15635,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceLifetimeUpdateModulesToEntity(entity, sourceState);
     this.applySourceDeletionUpdateModulesToEntity(entity, sourceState);
     this.applySourceHeightDieUpdateModulesToEntity(entity, sourceState);
+    this.applySourceStickyBombUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
     this.applySourceBattlePlanUpdateModulesToEntity(entity, sourceState);
     this.applySourceStealthDetectorUpdateModulesToEntity(entity, sourceState);

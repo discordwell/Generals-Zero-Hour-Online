@@ -9494,6 +9494,7 @@ describe('runtime-save-game', () => {
             },
             stickyBombTargetId: 77,
             stickyBombDieFrame: 90,
+            stickyBombNextPingFrame: 75,
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
         resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
@@ -9513,7 +9514,7 @@ describe('runtime-save-game', () => {
       nextCallFrameAndPhase: (43 << 2) | 2,
       targetId: 77,
       dieFrame: 90,
-      nextPingFrame: 60,
+      nextPingFrame: 75,
     });
   });
 

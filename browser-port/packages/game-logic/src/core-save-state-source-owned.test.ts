@@ -226,6 +226,11 @@ function makeSourceOwnedCoreBundle() {
           InitialDelay: 1000,
         }),
       ]),
+      makeObjectDef('StickyBombObject', 'America', ['PROJECTILE'], [
+        makeBlock('Behavior', 'StickyBombUpdate ModuleTag_StickyBomb', {
+          OffsetZ: 5,
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -1199,6 +1204,30 @@ function buildSourceHeightDieUpdateModuleData(options: {
     saver.xferBool(options.particlesDestroyed);
     saver.xferCoord3D(options.lastPosition);
     saver.xferUnsignedInt(options.earliestDeathFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceStickyBombUpdateModuleData(options: {
+  nextCallFrame: number;
+  targetId: number;
+  dieFrame: number;
+  nextPingFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-sticky-bomb-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferObjectID(options.targetId);
+    saver.xferUnsignedInt(options.dieFrame);
+    saver.xferUnsignedInt(options.nextPingFrame);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2770,6 +2799,51 @@ describe('source-owned game-logic core save-state', () => {
     expect(entity.heightDieLastPositionX).toBe(5);
     expect(entity.heightDieLastPositionZ).toBe(6);
     expect(entity.heightDieLastY).toBe(7);
+  });
+
+  it('imports source StickyBombUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 106;
+    sourceState.position = { x: 188, y: 0, z: 64 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_StickyBomb',
+      blockData: buildSourceStickyBombUpdateModuleData({
+        nextCallFrame: 666,
+        targetId: 55,
+        dieFrame: 300,
+        nextPingFrame: 270,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 180,
+      objects: [
+        { templateName: 'StickyBombObject', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        stickyBombTargetId: number;
+        stickyBombDieFrame: number;
+        stickyBombNextPingFrame: number;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(106)!;
+    expect(entity.stickyBombTargetId).toBe(55);
+    expect(entity.stickyBombDieFrame).toBe(300);
+    expect(entity.stickyBombNextPingFrame).toBe(270);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {

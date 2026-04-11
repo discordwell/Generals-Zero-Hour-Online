@@ -8014,6 +8014,7 @@ export function applyScriptBoobytrapToEntity(self: GL, boobytrapTemplateName: st
   }
 
   boobytrap.stickyBombTargetId = target.id;
+  boobytrap.stickyBombNextPingFrame = self.frameCounter + 30;
   target.objectStatusFlags.add('BOOBY_TRAPPED');
   return true;
 }

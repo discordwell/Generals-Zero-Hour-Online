@@ -383,6 +383,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     stickyBombProfile: null,
     stickyBombTargetId: 0,
     stickyBombDieFrame: 0,
+    stickyBombNextPingFrame: 0,
 
     // Fire When Damaged
     fireWhenDamagedProfiles: [],
