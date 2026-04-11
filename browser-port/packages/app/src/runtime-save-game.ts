@@ -4424,6 +4424,15 @@ type SourceHeightDieUpdateBlockState = {
   earliestDeathFrame: number;
 };
 
+function createDefaultSourceHeightDieUpdateBlockState(): SourceHeightDieUpdateBlockState {
+  return {
+    hasDied: false,
+    particlesDestroyed: false,
+    lastPosition: { x: -1, y: -1, z: -1 },
+    earliestDeathFrame: 0xffffffff,
+  };
+}
+
 function tryParseSourceHeightDieUpdateBlockData(
   data: Uint8Array,
 ): SourceHeightDieUpdateBlockState | null {
@@ -4476,9 +4485,15 @@ function buildSourceHeightDieUpdateBlockData(
     saver.xferBool(entity.heightDieHasDied === true);
     saver.xferBool(entity.heightDieParticlesDestroyed === true);
     saver.xferCoord3D({
-      x: Number.isFinite(entity.heightDieLastPositionX) ? entity.heightDieLastPositionX : entity.x,
-      y: Number.isFinite(entity.heightDieLastPositionZ) ? entity.heightDieLastPositionZ : entity.z,
-      z: Number.isFinite(entity.heightDieLastY) ? entity.heightDieLastY : entity.y,
+      x: Number.isFinite(entity.heightDieLastPositionX)
+        ? entity.heightDieLastPositionX
+        : preservedState?.lastPosition.x ?? -1,
+      y: Number.isFinite(entity.heightDieLastPositionZ)
+        ? entity.heightDieLastPositionZ
+        : preservedState?.lastPosition.y ?? -1,
+      z: Number.isFinite(entity.heightDieLastY)
+        ? entity.heightDieLastY
+        : preservedState?.lastPosition.z ?? -1,
     });
     saver.xferUnsignedInt(earliestDeathFrame);
     return new Uint8Array(saver.getBuffer());
@@ -4487,11 +4502,59 @@ function buildSourceHeightDieUpdateBlockData(
   }
 }
 
-function buildSourceStickyBombUpdateBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+type SourceStickyBombUpdateBlockState = {
+  nextCallFrameAndPhase: number;
+  targetId: number;
+  dieFrame: number;
+  nextPingFrame: number;
+};
+
+function createDefaultSourceStickyBombUpdateBlockState(): SourceStickyBombUpdateBlockState {
+  return {
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    targetId: 0,
+    dieFrame: 0,
+    nextPingFrame: 0,
+  };
+}
+
+function tryParseSourceStickyBombUpdateBlockData(data: Uint8Array): SourceStickyBombUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-sticky-bomb-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(xferLoad, 0);
+    const targetId = xferLoad.xferObjectID(0);
+    const dieFrame = xferLoad.xferUnsignedInt(0);
+    const nextPingFrame = xferLoad.xferUnsignedInt(0);
+    return xferLoad.getRemaining() === 0
+      ? {
+        nextCallFrameAndPhase,
+        targetId,
+        dieFrame,
+        nextPingFrame,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceStickyBombUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceStickyBombUpdateBlockState = createDefaultSourceStickyBombUpdateBlockState(),
+): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-sticky-bomb-update');
   try {
-    const dieFrame = Math.max(0, Math.trunc(entity.stickyBombDieFrame)) >>> 0;
+    const dieFrame = sourceFlammableUnsignedFrame(entity.stickyBombDieFrame, preservedState.dieFrame);
+    const targetId = normalizeSourceObjectId(entity.stickyBombTargetId ?? preservedState.targetId);
     let nextPingFrame: number;
     if (Number.isFinite(entity.stickyBombNextPingFrame) && entity.stickyBombNextPingFrame > 0) {
       nextPingFrame = Math.max(0, Math.trunc(entity.stickyBombNextPingFrame)) >>> 0;
@@ -4500,13 +4563,14 @@ function buildSourceStickyBombUpdateBlockData(entity: MapEntity, currentFrame: n
       const pings = Math.trunc(remainingFrames / 30);
       nextPingFrame = (dieFrame - (pings * 30)) >>> 0;
     } else {
-      nextPingFrame = ((currentFrame >>> 0) + 30) >>> 0;
+      nextPingFrame = preservedState.nextPingFrame;
     }
+    const nextCallFrameAndPhase = targetId > 0 || dieFrame > 0 || nextPingFrame > 0
+      ? buildSourceUpdateModuleWakeFrame(currentFrame + 1)
+      : preservedState.nextCallFrameAndPhase;
     saver.xferVersion(1);
-    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
-      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
-    ));
-    saver.xferObjectID(Math.max(0, Math.trunc(entity.stickyBombTargetId)) >>> 0);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    saver.xferObjectID(targetId);
     saver.xferUnsignedInt(dieFrame);
     saver.xferUnsignedInt(nextPingFrame);
     return new Uint8Array(saver.getBuffer());
@@ -4542,6 +4606,16 @@ function tryParseSourceCleanupHazardUpdateBlockData(
   } finally {
     xferLoad.close();
   }
+}
+
+function createDefaultSourceCleanupHazardUpdateBlockState(): {
+  position: { x: number; y: number; z: number };
+  moveRange: number;
+} {
+  return {
+    position: { x: 0, y: 0, z: 0 },
+    moveRange: 0,
+  };
 }
 
 function buildSourceCleanupHazardUpdateBlockData(
@@ -6054,6 +6128,61 @@ interface SourceGenerateMinefieldBehaviorBlockState {
   upgraded: boolean;
   target: Coord3D;
   mineIds: number[];
+}
+
+function createDefaultSourceFlammableUpdateBlockState(entity: MapEntity): SourceFlammableUpdateBlockState {
+  const profileLimit = entity.flammableProfile?.flameDamageLimit;
+  return {
+    version: 1,
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    status: SOURCE_FLAMMABLE_STATUS_NORMAL,
+    aflameEndFrame: 0,
+    burnedEndFrame: 0,
+    damageEndFrame: 0,
+    flameDamageLimit: typeof profileLimit === 'number' && Number.isFinite(profileLimit) ? profileLimit : 20,
+    lastFlameDamageDealt: 0,
+  };
+}
+
+function createDefaultSourcePoisonedBehaviorBlockState(): SourcePoisonedBehaviorBlockState {
+  return {
+    version: 2,
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    poisonDamageFrame: 0,
+    poisonOverallStopFrame: 0,
+    poisonDamageAmount: 0,
+    deathType: SOURCE_DEATH_TYPE_POISONED,
+  };
+}
+
+function createDefaultSourceMinefieldBehaviorBlockState(entity: MapEntity): SourceMinefieldBehaviorBlockState {
+  const virtualMines = sourceFlammableUnsignedFrame(entity.minefieldProfile?.numVirtualMines, 0);
+  return {
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    virtualMinesRemaining: virtualMines,
+    nextDeathCheckFrame: 0,
+    scootFramesLeft: 0,
+    scootVelocity: { x: 0, y: 0, z: 0 },
+    scootAcceleration: { x: 0, y: 0, z: 0 },
+    ignoreDamage: false,
+    regenerates: entity.minefieldProfile?.regenerates === true,
+    draining: false,
+    immunes: Array.from({ length: SOURCE_MINEFIELD_MAX_IMMUNITY }, () => ({
+      objectId: 0,
+      collideTime: 0,
+    })),
+  };
+}
+
+function createDefaultSourceGenerateMinefieldBehaviorBlockState(): SourceGenerateMinefieldBehaviorBlockState {
+  return {
+    upgradeExecuted: false,
+    generated: false,
+    hasTarget: false,
+    upgraded: false,
+    target: { x: 0, y: 0, z: 0 },
+    mineIds: [],
+  };
 }
 
 function tryParseSourcePoisonedBehaviorBlockData(
@@ -15788,12 +15917,17 @@ function overlaySourceObjectModulesFromLiveEntity(
             }
           }
           if (moduleType === 'STICKYBOMBUPDATE' && entity.stickyBombProfile) {
+            const parsedSourceState = tryParseSourceStickyBombUpdateBlockData(module.blockData);
             return {
               identifier: module.identifier,
-              blockData: buildSourceStickyBombUpdateBlockData(entity, currentFrame),
+              blockData: buildSourceStickyBombUpdateBlockData(
+                entity,
+                currentFrame,
+                parsedSourceState ?? createDefaultSourceStickyBombUpdateBlockState(),
+              ),
             };
           }
-          if (moduleType === 'CLEANUPHAZARDUPDATE' && entity.cleanupHazardProfile && entity.cleanupHazardState) {
+          if (moduleType === 'CLEANUPHAZARDUPDATE' && entity.cleanupHazardProfile) {
             const parsedSourceState = tryParseSourceCleanupHazardUpdateBlockData(module.blockData);
             if (parsedSourceState) {
               return {
@@ -17008,6 +17142,38 @@ function buildGeneratedSourceObjectModuleBlockData(
     return buildSourceBaseRegenerateUpdateBlockData(entity, currentFrame);
   }
 
+  if (normalizedModuleType === 'LIFETIMEUPDATE' && typeof entity.lifetimeDieFrame === 'number') {
+    return buildSourceLifetimeUpdateBlockData(entity);
+  }
+
+  if (normalizedModuleType === 'DELETIONUPDATE' && typeof entity.deletionDieFrame === 'number') {
+    return buildSourceDeletionUpdateBlockData(entity);
+  }
+
+  if (normalizedModuleType === 'HEIGHTDIEUPDATE' && entity.heightDieProfile) {
+    return buildSourceHeightDieUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceHeightDieUpdateBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'STICKYBOMBUPDATE' && entity.stickyBombProfile) {
+    return buildSourceStickyBombUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceStickyBombUpdateBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'CLEANUPHAZARDUPDATE' && entity.cleanupHazardProfile) {
+    return buildSourceCleanupHazardUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceCleanupHazardUpdateBlockState(),
+    );
+  }
+
   if (normalizedModuleType === 'DEMOTRAPUPDATE' && entity.demoTrapProfile) {
     return buildSourceDemoTrapUpdateBlockData(entity, currentFrame);
   }
@@ -17076,6 +17242,41 @@ function buildGeneratedSourceObjectModuleBlockData(
 
   if (normalizedModuleType === 'HIJACKERUPDATE' && (entity.hijackerUpdateProfile || entity.hijackerState)) {
     return buildSourceHijackerUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'FLAMMABLEUPDATE' && entity.flammableProfile) {
+    return buildSourceFlammableUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceFlammableUpdateBlockState(entity),
+    );
+  }
+
+  if (normalizedModuleType === 'FIRESPREADUPDATE' && entity.fireSpreadProfile) {
+    return buildSourceFireSpreadUpdateBlockData(entity);
+  }
+
+  if (normalizedModuleType === 'POISONEDBEHAVIOR' && entity.poisonedBehaviorProfile) {
+    return buildSourcePoisonedBehaviorBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourcePoisonedBehaviorBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'MINEFIELDBEHAVIOR' && entity.minefieldProfile) {
+    return buildSourceMinefieldBehaviorBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceMinefieldBehaviorBlockState(entity),
+    );
+  }
+
+  if (normalizedModuleType === 'GENERATEMINEFIELDBEHAVIOR' && entity.generateMinefieldProfile) {
+    return buildSourceGenerateMinefieldBehaviorBlockData(
+      entity,
+      createDefaultSourceGenerateMinefieldBehaviorBlockState(),
+    );
   }
 
   if (normalizedModuleType === 'TECHBUILDINGBEHAVIOR') {

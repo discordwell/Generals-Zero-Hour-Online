@@ -10336,6 +10336,42 @@ describe('runtime-save-game', () => {
                 killWhenNoLongerAttacking: true,
               }],
               baseRegenDelayUntilFrame: 70,
+              lifetimeDieFrame: 333,
+              deletionDieFrame: 444,
+              heightDieProfile: {
+                targetHeight: 30,
+                targetHeightIncludesStructures: false,
+                onlyWhenMovingDown: false,
+                destroyAttachedParticlesAtHeight: -1,
+                snapToGroundOnDeath: false,
+                initialDelayFrames: 15,
+              },
+              heightDieActiveFrame: 200,
+              heightDieHasDied: false,
+              heightDieLastPositionX: 10,
+              heightDieLastPositionZ: 19,
+              heightDieLastY: 3,
+              heightDieParticlesDestroyed: false,
+              stickyBombProfile: {
+                offsetZ: 5,
+                detonationWeaponName: 'Demo_StickyBombDetonationWeapon',
+              },
+              stickyBombTargetId: 77,
+              stickyBombDieFrame: 90,
+              stickyBombNextPingFrame: 75,
+              cleanupHazardProfile: {
+                weaponSlot: 'PRIMARY',
+                scanFrames: 20,
+                scanRange: 300,
+              },
+              cleanupHazardState: {
+                bestTargetId: 78,
+                nextScanFrame: 9,
+                inRange: true,
+                nextShotAvailableFrame: 123,
+                cleanupAreaPosition: { x: 4, y: 5, z: 6 },
+                cleanupAreaMoveRange: 125,
+              },
               demoTrapProfile: {},
               demoTrapNextScanFrame: 75,
               demoTrapDetonated: true,
@@ -10420,6 +10456,62 @@ describe('runtime-save-game', () => {
                 isInVehicle: true,
                 wasTargetAirborne: false,
               },
+              flameStatus: 'AFLAME',
+              flameEndFrame: 90,
+              flameBurnedEndFrame: 80,
+              flameDamageNextFrame: 75,
+              flameLastDamageReceivedFrame: 60,
+              flameDamageAccumulated: 15,
+              flammableProfile: {
+                flameDamageLimit: 20,
+                flameDamageExpirationDelayFrames: 60,
+                aflameDurationFrames: 120,
+                aflameDamageDelayFrames: 10,
+                aflameDamageAmount: 4,
+                burnedDelayFrames: 30,
+              },
+              fireSpreadProfile: {
+                minSpreadDelayFrames: 5,
+                maxSpreadDelayFrames: 8,
+                spreadTryRange: 30,
+              },
+              fireSpreadNextFrame: 77,
+              poisonDamageAmount: 6.5,
+              poisonNextDamageFrame: 70,
+              poisonExpireFrame: 90,
+              poisonDeathType: 'LASERED',
+              poisonedBehaviorProfile: {
+                poisonDamageIntervalFrames: 10,
+                poisonDurationFrames: 120,
+              },
+              minefieldProfile: {
+                creationListName: null,
+                numVirtualMines: 3,
+                regenerates: true,
+                stopsRegenAfterCreatorDies: true,
+              },
+              mineVirtualMinesRemaining: 2,
+              mineNextDeathCheckFrame: 110,
+              mineScootFramesLeft: 0,
+              mineIgnoreDamage: true,
+              mineRegenerates: false,
+              mineDraining: true,
+              mineImmunes: [
+                { entityId: 11, collideFrame: 41 },
+                { entityId: 12, collideFrame: 42 },
+              ],
+              generateMinefieldProfile: {
+                mineName: 'TestMine',
+                upgradedMineName: 'UpgradedMine',
+              },
+              generateMinefieldUpgradeExecuted: true,
+              generateMinefieldDone: true,
+              generateMinefieldHasTarget: true,
+              generateMinefieldUpgraded: true,
+              generateMinefieldTargetX: 11,
+              generateMinefieldTargetY: 3,
+              generateMinefieldTargetZ: 22,
+              generateMinefieldMineIds: [201, 202],
               techBuildingProfile: {
                 hasPulseFX: true,
                 pulseFXRateFrames: 7,
@@ -10498,6 +10590,11 @@ describe('runtime-save-game', () => {
               { moduleType: 'AutoFindHealingUpdate', moduleTag: 'ModuleTag_AutoHealScan' },
               { moduleType: 'RadiusDecalUpdate', moduleTag: 'ModuleTag_RadiusDecal' },
               { moduleType: 'BaseRegenerateUpdate', moduleTag: 'ModuleTag_BaseRegen' },
+              { moduleType: 'LifetimeUpdate', moduleTag: 'ModuleTag_Lifetime' },
+              { moduleType: 'DeletionUpdate', moduleTag: 'ModuleTag_Delete' },
+              { moduleType: 'HeightDieUpdate', moduleTag: 'ModuleTag_HeightDie' },
+              { moduleType: 'StickyBombUpdate', moduleTag: 'ModuleTag_StickyBomb' },
+              { moduleType: 'CleanupHazardUpdate', moduleTag: 'ModuleTag_Cleanup' },
               { moduleType: 'DemoTrapUpdate', moduleTag: 'ModuleTag_DemoTrap' },
               { moduleType: 'CommandButtonHuntUpdate', moduleTag: 'ModuleTag_Hunt' },
               { moduleType: 'AutoDepositUpdate', moduleTag: 'ModuleTag_AutoDeposit' },
@@ -10515,6 +10612,11 @@ describe('runtime-save-game', () => {
               { moduleType: 'MissileLauncherBuildingUpdate', moduleTag: 'ModuleTag_MissileLauncher' },
               { moduleType: 'CheckpointUpdate', moduleTag: 'ModuleTag_Checkpoint' },
               { moduleType: 'HijackerUpdate', moduleTag: 'ModuleTag_Hijacker' },
+              { moduleType: 'FlammableUpdate', moduleTag: 'ModuleTag_Flammable' },
+              { moduleType: 'FireSpreadUpdate', moduleTag: 'ModuleTag_FireSpread' },
+              { moduleType: 'PoisonedBehavior', moduleTag: 'ModuleTag_Poisoned' },
+              { moduleType: 'MinefieldBehavior', moduleTag: 'ModuleTag_Minefield' },
+              { moduleType: 'GenerateMinefieldBehavior', moduleTag: 'ModuleTag_GenerateMines' },
               { moduleType: 'TechBuildingBehavior', moduleTag: 'ModuleTag_TechBuilding' },
               { moduleType: 'BunkerBusterBehavior', moduleTag: 'ModuleTag_BunkerBuster' },
               { moduleType: 'NeutronBlastBehavior', moduleTag: 'ModuleTag_NeutronBlast' },
@@ -10571,6 +10673,11 @@ describe('runtime-save-game', () => {
       'ModuleTag_AutoHealScan',
       'ModuleTag_RadiusDecal',
       'ModuleTag_BaseRegen',
+      'ModuleTag_Lifetime',
+      'ModuleTag_Delete',
+      'ModuleTag_HeightDie',
+      'ModuleTag_StickyBomb',
+      'ModuleTag_Cleanup',
       'ModuleTag_DemoTrap',
       'ModuleTag_Hunt',
       'ModuleTag_AutoDeposit',
@@ -10588,6 +10695,11 @@ describe('runtime-save-game', () => {
       'ModuleTag_MissileLauncher',
       'ModuleTag_Checkpoint',
       'ModuleTag_Hijacker',
+      'ModuleTag_Flammable',
+      'ModuleTag_FireSpread',
+      'ModuleTag_Poisoned',
+      'ModuleTag_Minefield',
+      'ModuleTag_GenerateMines',
       'ModuleTag_TechBuilding',
       'ModuleTag_BunkerBuster',
       'ModuleTag_NeutronBlast',
@@ -10719,6 +10831,42 @@ describe('runtime-save-game', () => {
     expect(parseSourceBaseRegenerateUpdateBlockData(baseRegenModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (70 << 2) | 2,
     });
+    const lifetimeModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Lifetime');
+    expect(parseSourceLifetimeUpdateBlockData(lifetimeModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (333 << 2) | 2,
+      dieFrame: 333,
+    });
+    const deletionModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Delete');
+    expect(parseSourceDeletionUpdateBlockData(deletionModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (444 << 2) | 2,
+      dieFrame: 444,
+    });
+    const heightDieModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_HeightDie');
+    expect(parseSourceHeightDieUpdateBlockData(heightDieModule!.blockData)).toEqual({
+      version: 2,
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      hasDied: false,
+      particlesDestroyed: false,
+      lastPosition: { x: 10, y: 19, z: 3 },
+      earliestDeathFrame: 200,
+    });
+    const stickyBombModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_StickyBomb');
+    expect(parseSourceStickyBombUpdateBlockData(stickyBombModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      targetId: 77,
+      dieFrame: 90,
+      nextPingFrame: 75,
+    });
+    const cleanupModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Cleanup');
+    expect(parseSourceCleanupHazardUpdateBlockData(cleanupModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      bestTargetId: 78,
+      inRange: true,
+      nextScanFrames: 9,
+      nextShotAvailableInFrames: 81,
+      position: { x: 4, y: 5, z: 6 },
+      moveRange: 125,
+    });
     const demoTrapModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_DemoTrap');
     expect(parseSourceDemoTrapUpdateBlockData(demoTrapModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (43 << 2) | 2,
@@ -10841,6 +10989,55 @@ describe('runtime-save-game', () => {
       update: true,
       isInVehicle: true,
       wasTargetAirborne: false,
+    });
+    const flammableModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Flammable');
+    expect(parseSourceFlammableUpdateBlockData(flammableModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (75 << 2) | 2,
+      status: SOURCE_FLAMMABLE_STATUS_AFLAME,
+      aflameEndFrame: 90,
+      burnedEndFrame: 80,
+      damageEndFrame: 75,
+      flameDamageLimit: 5,
+      lastFlameDamageDealt: 60,
+    });
+    const fireSpreadModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_FireSpread');
+    expect(parseSourceFireSpreadUpdateBlockData(fireSpreadModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (77 << 2) | 2,
+    });
+    const poisonedModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Poisoned');
+    const poisoned = parseSourcePoisonedBehaviorBlockData(poisonedModule!.blockData);
+    expect(poisoned.nextCallFrameAndPhase).toBe((70 << 2) | 2);
+    expect(poisoned.poisonDamageFrame).toBe(70);
+    expect(poisoned.poisonOverallStopFrame).toBe(90);
+    expect(poisoned.poisonDamageAmount).toBeCloseTo(6.5, 6);
+    expect(poisoned.deathType).toBe(SOURCE_DEATH_TYPE_LASERED);
+    const minefieldModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Minefield');
+    expect(parseSourceMinefieldBehaviorBlockData(minefieldModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      virtualMinesRemaining: 2,
+      nextDeathCheckFrame: 110,
+      scootFramesLeft: 0,
+      scootVelocity: { x: 0, y: 0, z: 0 },
+      scootAcceleration: { x: 0, y: 0, z: 0 },
+      ignoreDamage: true,
+      regenerates: false,
+      draining: true,
+      immunes: [
+        { objectId: 11, collideTime: 41 },
+        { objectId: 12, collideTime: 42 },
+        { objectId: 0, collideTime: 0 },
+      ],
+    });
+    const generateMinesModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_GenerateMines',
+    );
+    expect(parseSourceGenerateMinefieldBehaviorBlockData(generateMinesModule!.blockData)).toEqual({
+      upgradeExecuted: true,
+      generated: true,
+      hasTarget: true,
+      upgraded: true,
+      target: { x: 11, y: 22, z: 3 },
+      mineIds: [201, 202],
     });
     const techModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_TechBuilding');
     expect(parseSourceBaseOnlyUpdateModuleBlockData(techModule!.blockData)).toEqual({
