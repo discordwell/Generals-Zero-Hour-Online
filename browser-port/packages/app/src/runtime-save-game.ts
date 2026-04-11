@@ -11312,7 +11312,41 @@ function sourceFlightDeckHealeesForEntity(
   return healees;
 }
 
-function buildSourceFlightDeckBehaviorBlockData(
+function defaultSourceFlightDeckBehaviorBlockState(entity: MapEntity): SourceFlightDeckBehaviorBlockState {
+  const state = entity.flightDeckState;
+  const profile = entity.flightDeckProfile;
+  const stateSpaceCount = Array.isArray(state?.parkingSpaces) ? state!.parkingSpaces.length : 0;
+  const profileRunwayCount = Math.max(0, Math.trunc(sourcePhysicsFinite(profile?.numRunways, 0)));
+  const profileSpacesPerRunway = Math.max(0, Math.trunc(sourcePhysicsFinite(profile?.numSpacesPerRunway, 0)));
+  const spaceCount = stateSpaceCount || profileRunwayCount * profileSpacesPerRunway;
+  const runwayCount = Math.max(
+    profileRunwayCount,
+    state?.runwayTakeoffReservation?.length ?? 0,
+    state?.runwayLandingReservation?.length ?? 0,
+  );
+
+  return {
+    blockData: new Uint8Array(),
+    tailOffset: 0,
+    spaces: Array.from({ length: spaceCount }, () => 0),
+    runways: Array.from({ length: runwayCount }, () => ({ takeoffId: 0, landingId: 0 })),
+    healees: [],
+    nextHealFrame: SOURCE_FRAME_FOREVER,
+    nextCleanupFrame: 0,
+    startedProductionFrame: SOURCE_FRAME_FOREVER,
+    nextAllowedProductionFrame: 0,
+    designatedTargetId: 0,
+    designatedCommandType: -1,
+    designatedPosition: { x: 0, y: 0, z: 0 },
+    nextLaunchWaveFrame: Array.from({ length: SOURCE_FLIGHT_DECK_MAX_RUNWAYS }, () => 0),
+    rampUpFrame: Array.from({ length: SOURCE_FLIGHT_DECK_MAX_RUNWAYS }, () => 0),
+    catapultSystemFrame: Array.from({ length: SOURCE_FLIGHT_DECK_MAX_RUNWAYS }, () => 0),
+    lowerRampFrame: Array.from({ length: SOURCE_FLIGHT_DECK_MAX_RUNWAYS }, () => 0),
+    rampUpXferFlags: Array.from({ length: SOURCE_FLIGHT_DECK_MAX_RUNWAYS }, () => false),
+  };
+}
+
+function buildSourceFlightDeckBehaviorTailData(
   entity: MapEntity,
   currentFrame: number,
   preservedState: SourceFlightDeckBehaviorBlockState,
@@ -11383,12 +11417,40 @@ function buildSourceFlightDeckBehaviorBlockData(
       ));
       tail.xferBool(rawRampFlags[index] === true);
     }
-    return concatSourceBytes(
-      preservedState.blockData.subarray(0, preservedState.tailOffset),
-      new Uint8Array(tail.getBuffer()),
-    );
+    return new Uint8Array(tail.getBuffer());
   } finally {
     tail.close();
+  }
+}
+
+function buildSourceFlightDeckBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceFlightDeckBehaviorBlockState,
+): Uint8Array {
+  return concatSourceBytes(
+    preservedState.blockData.subarray(0, preservedState.tailOffset),
+    buildSourceFlightDeckBehaviorTailData(entity, currentFrame, preservedState),
+  );
+}
+
+function buildGeneratedSourceFlightDeckBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-flight-deck-behavior');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame));
+    saver.xferUser(buildSourceFlightDeckBehaviorTailData(
+      entity,
+      currentFrame,
+      defaultSourceFlightDeckBehaviorBlockState(entity),
+    ));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
   }
 }
 
@@ -19233,6 +19295,10 @@ function buildGeneratedSourceObjectModuleBlockData(
       currentFrame,
       createDefaultSourceParkingPlaceBehaviorBlockState(currentFrame),
     );
+  }
+
+  if (normalizedModuleType === 'FLIGHTDECKBEHAVIOR' && entity.flightDeckProfile) {
+    return buildGeneratedSourceFlightDeckBehaviorBlockData(entity, currentFrame);
   }
 
   if (normalizedModuleType === 'SPECIALPOWERCOMPLETIONDIE') {

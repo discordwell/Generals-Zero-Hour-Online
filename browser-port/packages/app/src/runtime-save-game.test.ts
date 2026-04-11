@@ -17136,6 +17136,56 @@ describe('runtime-save-game', () => {
             dozerBuildTaskOrderFrame: 120,
             dozerRepairTargetEntityId: 72,
             dozerRepairTaskOrderFrame: 140,
+            flightDeckProfile: {
+              numRunways: 2,
+              numSpacesPerRunway: 2,
+              healAmountPerSecond: 5,
+              approachHeight: 50,
+              landingDeckHeightOffset: 4,
+              cleanupFrames: 30,
+              humanFollowFrames: 60,
+              replacementFrames: 90,
+              dockAnimationFrames: 12,
+              launchWaveFrames: 15,
+              launchRampFrames: 16,
+              lowerRampFrames: 17,
+              catapultFireFrames: 18,
+              payloadTemplateName: 'RuntimeJet',
+              runwaySpaces: [[], []],
+              runwayTakeoff: [['', ''], ['', '']],
+              runwayLanding: [['', ''], ['', '']],
+              runwayTaxi: [[], []],
+              runwayCreation: [[], []],
+            },
+            flightDeckState: {
+              parkingSpaces: [
+                { occupantId: 101, runway: 0 },
+                { occupantId: -1, runway: 1 },
+                { occupantId: 102, runway: 0 },
+                { occupantId: 0, runway: 1 },
+              ],
+              runwayTakeoffReservation: [201, -1],
+              runwayLandingReservation: [0, 202],
+              healeeEntityIds: new Set([301]),
+              healeeStates: [{ entityId: 302, healStartFrame: 30 }],
+              nextHealFrame: 90,
+              nextCleanupFrame: 91,
+              startedProductionFrame: 92,
+              nextAllowedProductionFrame: 93,
+              designatedTargetId: 401,
+              designatedCommand: 'ATTACK_POSITION',
+              designatedCommandType: 14,
+              designatedPositionX: 501,
+              designatedPositionY: 7,
+              designatedPositionZ: 602,
+              nextLaunchWaveFrame: [11, 12],
+              rampUpFrame: [13, 14],
+              catapultSystemFrame: [15, 16],
+              lowerRampFrame: [17, 18],
+              rampUp: [true, false],
+              sourceRampUpXferFlags: [false, true],
+              initialized: true,
+            },
             hackInternetRuntimeState: {
               cashUpdateDelayFrames: 30,
               cashAmountPerCycle: 5,
@@ -17275,6 +17325,7 @@ describe('runtime-save-game', () => {
               { moduleType: 'POWTruckAIUpdate', moduleTag: 'ModuleTag_POWAI' },
               { moduleType: 'DozerAIUpdate', moduleTag: 'ModuleTag_DozerAI' },
               { moduleType: 'WorkerAIUpdate', moduleTag: 'ModuleTag_WorkerAI' },
+              { moduleType: 'FlightDeckBehavior', moduleTag: 'ModuleTag_FlightDeck' },
               { moduleType: 'RailedTransportAIUpdate', moduleTag: 'ModuleTag_RailedAI' },
             ]
           : [],
@@ -17292,6 +17343,7 @@ describe('runtime-save-game', () => {
     const powModule = modules.get('ModuleTag_POWAI');
     const dozerModule = modules.get('ModuleTag_DozerAI');
     const workerModule = modules.get('ModuleTag_WorkerAI');
+    const flightDeckModule = modules.get('ModuleTag_FlightDeck');
     const railedModule = modules.get('ModuleTag_RailedAI');
     const hackModule = modules.get('ModuleTag_HackAI');
     const jetModule = modules.get('ModuleTag_JetAI');
@@ -17537,6 +17589,37 @@ describe('runtime-save-game', () => {
       currentStateId: 0,
       snapshotAllStates: false,
       defaultStateInited: true,
+    });
+
+    expect(flightDeckModule).toBeDefined();
+    const flightDeckAI = parseGeneratedSourceAIUpdateInterfaceForTest(flightDeckModule!.blockData);
+    const flightDeckDataForParse = new Uint8Array(1 + 4 + flightDeckModule!.blockData.byteLength - flightDeckAI.bytesRead);
+    flightDeckDataForParse[0] = 1;
+    flightDeckDataForParse.set([0xaa, 0xbb, 0xcc, 0xdd], 1);
+    flightDeckDataForParse.set(flightDeckModule!.blockData.subarray(flightDeckAI.bytesRead), 5);
+    const flightDeck = parseSourceFlightDeckBehaviorBlockData(flightDeckDataForParse);
+    expect(flightDeck.spaces).toEqual([101, 0, 102, 0]);
+    expect(flightDeck.runways).toEqual([
+      { takeoffId: 201, landingId: 0 },
+      { takeoffId: 0, landingId: 202 },
+    ]);
+    expect(flightDeck.healees).toEqual([
+      { entityId: 302, healStartFrame: 30 },
+      { entityId: 301, healStartFrame: 42 },
+    ]);
+    expect(flightDeck).toMatchObject({
+      nextHealFrame: 90,
+      nextCleanupFrame: 91,
+      startedProductionFrame: 92,
+      nextAllowedProductionFrame: 93,
+      designatedTargetId: 401,
+      designatedCommandType: 14,
+      designatedPosition: { x: 501, y: 7, z: 602 },
+      nextLaunchWaveFrame: [11, 12],
+      rampUpFrame: [13, 14],
+      catapultSystemFrame: [15, 16],
+      lowerRampFrame: [17, 18],
+      rampUpXferFlags: [false, true],
     });
 
     expect(railedModule).toBeDefined();
