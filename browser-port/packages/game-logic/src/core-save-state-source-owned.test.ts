@@ -155,6 +155,30 @@ function makeSourceOwnedCoreBundle() {
           Weapon: 'AutoFireWeapon',
         }),
       ]),
+      makeObjectDef('PowerPlantObject', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'PowerPlantUpdate ModuleTag_PowerPlant', {
+          RodsExtendTime: 1000,
+        }),
+        makeBlock('Behavior', 'OverchargeBehavior ModuleTag_Overcharge', {
+          HealthPercentToDrainPerSecond: '5%',
+          NotAllowedWhenHealthBelowPercent: '25%',
+        }),
+      ]),
+      makeObjectDef('OclEmitterObject', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'OCLUpdate ModuleTag_OCL', {
+          OCL: 'OCL_Test',
+          MinDelay: 1000,
+          MaxDelay: 1000,
+        }),
+      ]),
+      makeObjectDef('WeaponBonusAuraObject', 'GLA', ['STRUCTURE'], [
+        makeBlock('Behavior', 'WeaponBonusUpdate ModuleTag_WeaponBonus', {
+          BonusConditionType: 'FANATICISM',
+          BonusDuration: 1000,
+          BonusDelay: 500,
+          BonusRange: 100,
+        }),
+      ]),
       makeObjectDef('CollideFireObject', 'GLA', ['STRUCTURE'], [
         makeBlock('Behavior', 'FireWeaponCollide ModuleTag_CollideFire', {
           CollideWeapon: 'CollideFireWeapon',
@@ -1604,6 +1628,137 @@ function buildSourceHijackerUpdateModuleData(options: {
     saver.xferBool(options.update);
     saver.xferBool(options.isInVehicle);
     saver.xferBool(options.wasTargetAirborne);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceFiringTrackerModuleData(options: {
+  nextCallFrame: number;
+  consecutiveShots: number;
+  victimId: number;
+  frameToStartCooldown: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-firing-tracker');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferInt(options.consecutiveShots);
+    saver.xferObjectID(options.victimId);
+    saver.xferUnsignedInt(options.frameToStartCooldown);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceOverchargeBehaviorModuleData(options: {
+  nextCallFrame: number;
+  overchargeActive: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-overcharge-behavior');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferBool(options.overchargeActive);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourcePowerPlantUpdateModuleData(options: {
+  nextCallFrame: number;
+  extended: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-power-plant-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferBool(options.extended);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceOclUpdateModuleData(options: {
+  nextCallFrame: number;
+  nextCreationFrame: number;
+  timerStartedFrame: number;
+  factionNeutral: boolean;
+  currentPlayerColor: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-ocl-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUnsignedInt(options.nextCreationFrame);
+    saver.xferUnsignedInt(options.timerStartedFrame);
+    saver.xferBool(options.factionNeutral);
+    saver.xferInt(options.currentPlayerColor);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceWeaponBonusUpdateModuleData(options: {
+  nextCallFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-weapon-bonus-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceTempWeaponBonusHelperModuleData(options: {
+  nextCallFrame: number;
+  currentBonus: number;
+  frameToRemove: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-temp-weapon-bonus-helper');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUser(sourceRawInt32(options.currentBonus));
+    saver.xferUnsignedInt(options.frameToRemove);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -3922,6 +4077,129 @@ describe('source-owned game-logic core save-state', () => {
       ejectY: 3,
       ejectZ: 22,
     });
+  });
+
+  it('imports source power, OCL, weapon bonus, and helper runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const powerState = createEmptySourceMapEntitySaveState();
+    powerState.objectId = 128;
+    powerState.position = { x: 168, y: 0, z: 60 };
+    powerState.modules = [
+      {
+        identifier: 'ModuleTag_PowerPlant',
+        blockData: buildSourcePowerPlantUpdateModuleData({
+          nextCallFrame: 390,
+          extended: true,
+        }),
+      },
+      {
+        identifier: 'ModuleTag_Overcharge',
+        blockData: buildSourceOverchargeBehaviorModuleData({
+          nextCallFrame: 391,
+          overchargeActive: true,
+        }),
+      },
+      {
+        identifier: 'ModuleTag_FiringTrackerHelper',
+        blockData: buildSourceFiringTrackerModuleData({
+          nextCallFrame: 392,
+          consecutiveShots: 5,
+          victimId: 901,
+          frameToStartCooldown: 450,
+        }),
+      },
+      {
+        identifier: 'ModuleTag_TempWeaponBonusHelper',
+        blockData: buildSourceTempWeaponBonusHelperModuleData({
+          nextCallFrame: 470,
+          currentBonus: 23,
+          frameToRemove: 470,
+        }),
+      },
+    ];
+
+    const oclState = createEmptySourceMapEntitySaveState();
+    oclState.objectId = 129;
+    oclState.position = { x: 170, y: 0, z: 60 };
+    oclState.modules = [{
+      identifier: 'ModuleTag_OCL',
+      blockData: buildSourceOclUpdateModuleData({
+        nextCallFrame: 500,
+        nextCreationFrame: 520,
+        timerStartedFrame: 480,
+        factionNeutral: false,
+        currentPlayerColor: 7,
+      }),
+    }];
+
+    const weaponBonusState = createEmptySourceMapEntitySaveState();
+    weaponBonusState.objectId = 130;
+    weaponBonusState.position = { x: 172, y: 0, z: 60 };
+    weaponBonusState.modules = [{
+      identifier: 'ModuleTag_WeaponBonus',
+      blockData: buildSourceWeaponBonusUpdateModuleData({
+        nextCallFrame: 600,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'PowerPlantObject', state: powerState },
+        { templateName: 'OclEmitterObject', state: oclState },
+        { templateName: 'WeaponBonusAuraObject', state: weaponBonusState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        overchargeActive: boolean;
+        powerPlantUpdateState: { extended: boolean; upgradeFinishFrame: number } | null;
+        consecutiveShotsAtTarget: number;
+        consecutiveShotsTargetEntityId: number | null;
+        continuousFireCooldownFrame: number;
+        tempWeaponBonusFlag: number;
+        tempWeaponBonusExpiryFrame: number;
+        weaponBonusConditionFlags: number;
+        oclUpdateNextCreationFrames: number[];
+        oclUpdateTimerStartedFrames: number[];
+        oclUpdateTimerStarted: boolean[];
+        oclUpdateFactionNeutral: boolean[];
+        oclUpdateCurrentPlayerColors: number[];
+        weaponBonusUpdateNextPulseFrames: number[];
+      }>;
+    };
+
+    const importedPower = privateLogic.spawnedEntities.get(128)!;
+    expect(importedPower.overchargeActive).toBe(true);
+    expect(importedPower.powerPlantUpdateState).toEqual({
+      extended: true,
+      upgradeFinishFrame: 390,
+    });
+    expect(importedPower.consecutiveShotsAtTarget).toBe(5);
+    expect(importedPower.consecutiveShotsTargetEntityId).toBe(901);
+    expect(importedPower.continuousFireCooldownFrame).toBe(450);
+    expect(importedPower.tempWeaponBonusFlag).toBe(1 << 23);
+    expect(importedPower.tempWeaponBonusExpiryFrame).toBe(470);
+    expect((importedPower.weaponBonusConditionFlags & (1 << 23)) !== 0).toBe(true);
+
+    const importedOcl = privateLogic.spawnedEntities.get(129)!;
+    expect(importedOcl.oclUpdateNextCreationFrames[0]).toBe(520);
+    expect(importedOcl.oclUpdateTimerStartedFrames[0]).toBe(480);
+    expect(importedOcl.oclUpdateTimerStarted[0]).toBe(true);
+    expect(importedOcl.oclUpdateFactionNeutral[0]).toBe(false);
+    expect(importedOcl.oclUpdateCurrentPlayerColors[0]).toBe(7);
+
+    expect(privateLogic.spawnedEntities.get(130)!.weaponBonusUpdateNextPulseFrames[0]).toBe(600);
   });
 
   it('imports source weapon and special-power update runtime state', () => {

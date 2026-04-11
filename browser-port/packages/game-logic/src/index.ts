@@ -1277,6 +1277,7 @@ export const WEAPON_ANTI_PARACHUTE = 0x80;
 export const HUGE_DAMAGE_AMOUNT = 1_000_000_000;
 // Source parity: Thing::isSignificantlyAboveTerrain — -(3*3)*m_gravity with m_gravity=-1.0.
 export const SIGNIFICANTLY_ABOVE_TERRAIN_THRESHOLD = 9.0;
+const SOURCE_IMPORT_FRAME_FOREVER = 0x3fffffff;
 const ARMOR_SET_FLAG_VETERAN = 1 << 0;
 const ARMOR_SET_FLAG_ELITE = 1 << 1;
 const ARMOR_SET_FLAG_HERO = 1 << 2;
@@ -8993,6 +8994,41 @@ interface SourceHijackerUpdateImportState {
   wasTargetAirborne: boolean;
 }
 
+interface SourceFiringTrackerImportState {
+  nextCallFrame: number;
+  consecutiveShots: number;
+  victimId: number;
+  frameToStartCooldown: number;
+}
+
+interface SourceOverchargeBehaviorImportState {
+  nextCallFrame: number;
+  overchargeActive: boolean;
+}
+
+interface SourcePowerPlantUpdateImportState {
+  nextCallFrame: number;
+  extended: boolean;
+}
+
+interface SourceOclUpdateImportState {
+  nextCallFrame: number;
+  nextCreationFrame: number;
+  timerStartedFrame: number;
+  factionNeutral: boolean;
+  currentPlayerColor: number;
+}
+
+interface SourceWeaponBonusUpdateImportState {
+  nextCallFrame: number;
+}
+
+interface SourceTempWeaponBonusHelperImportState {
+  nextCallFrame: number;
+  currentBonus: number;
+  frameToRemove: number;
+}
+
 interface SourceSpectreGunshipDeploymentUpdateImportState {
   nextCallFrame: number;
   gunshipId: number;
@@ -13364,6 +13400,14 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private sourceWeaponBonusFlagFromCondition(value: number): number {
+    const condition = Math.trunc(value);
+    if (condition < 0 || condition > 30) {
+      return 0;
+    }
+    return 1 << condition;
+  }
+
   private skipSourceImportUpdateModuleBase(xfer: XferLoad): number {
     const updateModuleVersion = xfer.xferVersion(1);
     const behaviorModuleVersion = xfer.xferVersion(1);
@@ -13378,6 +13422,14 @@ export class GameLogicSubsystem implements Subsystem {
       throw new Error('Unsupported source UpdateModule import base version.');
     }
     return xfer.xferUnsignedInt(0);
+  }
+
+  private skipSourceImportObjectHelperBase(xfer: XferLoad): number {
+    const objectHelperVersion = xfer.xferVersion(1);
+    if (objectHelperVersion !== 1) {
+      throw new Error('Unsupported source ObjectHelper import base version.');
+    }
+    return this.skipSourceImportUpdateModuleBase(xfer);
   }
 
   private skipSourceImportBehaviorModuleBase(xfer: XferLoad): void {
@@ -15853,6 +15905,266 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceFiringTrackerImportState(data: Uint8Array): SourceFiringTrackerImportState | null {
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-firing-tracker-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const consecutiveShots = xfer.xferInt(0);
+      const victimId = xfer.xferObjectID(0);
+      const frameToStartCooldown = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, consecutiveShots, victimId, frameToStartCooldown }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceOverchargeBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceOverchargeBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'OVERCHARGEBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-overcharge-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const overchargeActive = xfer.xferBool(false);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, overchargeActive } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourcePowerPlantUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourcePowerPlantUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'POWERPLANTUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-power-plant-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const extended = xfer.xferBool(false);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, extended } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceOclUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceOclUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'OCLUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-ocl-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const nextCreationFrame = xfer.xferUnsignedInt(0);
+      const timerStartedFrame = xfer.xferUnsignedInt(0);
+      const factionNeutral = xfer.xferBool(false);
+      const currentPlayerColor = xfer.xferInt(0);
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, nextCreationFrame, timerStartedFrame, factionNeutral, currentPlayerColor }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceWeaponBonusUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceWeaponBonusUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'WEAPONBONUSUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-weapon-bonus-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      return xfer.getRemaining() === 0 ? { nextCallFrame } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceTempWeaponBonusHelperImportState(data: Uint8Array): SourceTempWeaponBonusHelperImportState | null {
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-temp-weapon-bonus-helper-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportObjectHelperBase(xfer),
+      );
+      const currentBonus = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const frameToRemove = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, currentBonus, frameToRemove } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private resolveSourceOclUpdateProfileIndex(entity: MapEntity, moduleTag: string): number {
+    const normalizedModuleTag = this.normalizeSourceObjectModuleTag(moduleTag);
+    const tagMatch = entity.oclUpdateProfiles.findIndex(
+      (profile) => this.normalizeSourceObjectModuleTag(profile.moduleTag) === normalizedModuleTag,
+    );
+    return tagMatch >= 0 ? tagMatch : (entity.oclUpdateProfiles.length === 1 ? 0 : -1);
+  }
+
+  private resolveSourceWeaponBonusUpdateProfileIndex(entity: MapEntity, moduleTag: string): number {
+    const normalizedModuleTag = this.normalizeSourceObjectModuleTag(moduleTag);
+    const tagMatch = entity.weaponBonusUpdateProfiles.findIndex(
+      (profile) => this.normalizeSourceObjectModuleTag(profile.moduleTag) === normalizedModuleTag,
+    );
+    return tagMatch >= 0 ? tagMatch : (entity.weaponBonusUpdateProfiles.length === 1 ? 0 : -1);
+  }
+
+  private applySourcePowerAndHelperModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const normalizedModuleTag = module.identifier.trim().toUpperCase();
+      if (normalizedModuleTag === 'MODULETAG_FIRINGTRACKERHELPER') {
+        const firingTrackerState = this.tryParseSourceFiringTrackerImportState(module.blockData);
+        if (firingTrackerState) {
+          entity.consecutiveShotsAtTarget = Math.max(0, Math.trunc(firingTrackerState.consecutiveShots));
+          entity.consecutiveShotsTargetEntityId = firingTrackerState.victimId > 0
+            ? Math.max(0, Math.trunc(firingTrackerState.victimId))
+            : null;
+          entity.continuousFireCooldownFrame = Math.max(0, Math.trunc(firingTrackerState.frameToStartCooldown));
+        }
+        continue;
+      }
+
+      if (normalizedModuleTag === 'MODULETAG_TEMPWEAPONBONUSHELPER') {
+        const tempBonusState = this.tryParseSourceTempWeaponBonusHelperImportState(module.blockData);
+        if (tempBonusState) {
+          const bonusFlag = this.sourceWeaponBonusFlagFromCondition(tempBonusState.currentBonus);
+          entity.tempWeaponBonusFlag = bonusFlag;
+          entity.tempWeaponBonusExpiryFrame = bonusFlag !== 0
+            ? Math.max(0, Math.trunc(tempBonusState.frameToRemove))
+            : 0;
+          if (bonusFlag !== 0) {
+            entity.weaponBonusConditionFlags |= bonusFlag;
+          }
+        }
+        continue;
+      }
+
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+
+      const overchargeState = this.tryParseSourceOverchargeBehaviorImportState(module.blockData, moduleType);
+      if (overchargeState && entity.overchargeBehaviorProfile) {
+        if (overchargeState.overchargeActive) {
+          this.enableOverchargeForEntity(entity, entity.overchargeBehaviorProfile);
+        } else {
+          entity.overchargeActive = false;
+        }
+        continue;
+      }
+
+      const powerPlantState = this.tryParseSourcePowerPlantUpdateImportState(module.blockData, moduleType);
+      if (powerPlantState && entity.powerPlantUpdateProfile) {
+        entity.powerPlantUpdateState = {
+          extended: powerPlantState.extended,
+          upgradeFinishFrame: powerPlantState.nextCallFrame >= SOURCE_IMPORT_FRAME_FOREVER
+            ? 0
+            : Math.max(0, Math.trunc(powerPlantState.nextCallFrame)),
+        };
+        continue;
+      }
+
+      const oclState = this.tryParseSourceOclUpdateImportState(module.blockData, moduleType);
+      if (oclState && entity.oclUpdateProfiles.length > 0) {
+        const index = this.resolveSourceOclUpdateProfileIndex(entity, module.identifier);
+        if (index >= 0) {
+          entity.oclUpdateNextCreationFrames[index] = Math.max(0, Math.trunc(oclState.nextCreationFrame));
+          entity.oclUpdateTimerStartedFrames[index] = Math.max(0, Math.trunc(oclState.timerStartedFrame));
+          entity.oclUpdateTimerStarted[index] = oclState.timerStartedFrame > 0 || oclState.nextCreationFrame > 0;
+          entity.oclUpdateFactionNeutral[index] = oclState.factionNeutral;
+          entity.oclUpdateCurrentPlayerColors[index] = Math.trunc(oclState.currentPlayerColor);
+        }
+        continue;
+      }
+
+      const weaponBonusState = this.tryParseSourceWeaponBonusUpdateImportState(module.blockData, moduleType);
+      if (weaponBonusState && entity.weaponBonusUpdateProfiles.length > 0) {
+        const index = this.resolveSourceWeaponBonusUpdateProfileIndex(entity, module.identifier);
+        if (index >= 0) {
+          entity.weaponBonusUpdateNextPulseFrames[index] = weaponBonusState.nextCallFrame >= SOURCE_IMPORT_FRAME_FOREVER
+            ? 0
+            : Math.max(0, Math.trunc(weaponBonusState.nextCallFrame));
+        }
+      }
+    }
+  }
+
   private tryParseSourceSpectreGunshipDeploymentUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -18152,6 +18464,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);
     this.applySourcePointDefenseLaserUpdateModulesToEntity(entity, sourceState);
     this.applySourceSimpleUpdateModulesToEntity(entity, sourceState);
+    this.applySourcePowerAndHelperModulesToEntity(entity, sourceState);
     this.applySourceSpectreGunshipUpdateModulesToEntity(entity, sourceState);
     this.applySourceWeaponSpecialUpdateModulesToEntity(entity, sourceState);
     this.applySourceToppleUpdateModulesToEntity(entity, sourceState);
