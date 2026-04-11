@@ -10571,6 +10571,8 @@ describe('runtime-save-game', () => {
               projectileIds: Array.from({ length: 22 }, (_, index) => index + 2),
               nextIndex: 2,
               ownerEntityId: 77,
+              targetObjectId: 55,
+              targetPosition: { x: 404, y: 505, z: 606 },
             },
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
@@ -10597,8 +10599,8 @@ describe('runtime-save-game', () => {
     expect(parsed.nextFreeIndex).toBe(19);
     expect(parsed.firstValidIndex).toBe(0);
     expect(parsed.owningObject).toBe(77);
-    expect(parsed.targetObject).toBe(44);
-    expect(parsed.targetPosition).toEqual({ x: 101, y: 202, z: 303 });
+    expect(parsed.targetObject).toBe(55);
+    expect(parsed.targetPosition).toEqual({ x: 404, y: 505, z: 606 });
   });
 
   it('rewrites source BoneFXUpdate modules from live runtime state', () => {
@@ -10608,6 +10610,9 @@ describe('runtime-save-game', () => {
     const liveNextFxFrame = createSourceBoneFxIntGrid(1000);
     const liveNextOclFrame = createSourceBoneFxIntGrid(2000);
     const liveNextParticleFrame = createSourceBoneFxIntGrid(3000);
+    const liveFxPositions = createSourceBoneFxCoordGrid(1010);
+    const liveOclPositions = createSourceBoneFxCoordGrid(1210);
+    const liveParticlePositions = createSourceBoneFxCoordGrid(1410);
     const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
       identifier: 'ModuleTag_BoneFX',
       blockData: createSourceBoneFxUpdateBlockData({
@@ -10694,6 +10699,10 @@ describe('runtime-save-game', () => {
               nextFXFrame: liveNextFxFrame,
               nextOCLFrame: liveNextOclFrame,
               nextParticleFrame: liveNextParticleFrame,
+              fxBonePositions: liveFxPositions,
+              oclBonePositions: liveOclPositions,
+              particleSystemBonePositions: liveParticlePositions,
+              bonesResolved: [false, true, false, true],
               activeParticleIds: [77, 88],
               pendingVisualEvents: [],
             },
@@ -10718,11 +10727,11 @@ describe('runtime-save-game', () => {
     expect(parsed.nextFxFrame).toEqual(liveNextFxFrame);
     expect(parsed.nextOclFrame).toEqual(liveNextOclFrame);
     expect(parsed.nextParticleSystemFrame).toEqual(liveNextParticleFrame);
-    expect(parsed.fxBonePositions).toEqual(preservedFxPositions);
-    expect(parsed.oclBonePositions).toEqual(preservedOclPositions);
-    expect(parsed.particleSystemBonePositions).toEqual(preservedParticlePositions);
+    expect(parsed.fxBonePositions).toEqual(liveFxPositions);
+    expect(parsed.oclBonePositions).toEqual(liveOclPositions);
+    expect(parsed.particleSystemBonePositions).toEqual(liveParticlePositions);
     expect(parsed.currentBodyState).toBe(2);
-    expect(Array.from(parsed.bonesResolvedBytes)).toEqual([1, 0, 1, 0]);
+    expect(Array.from(parsed.bonesResolvedBytes)).toEqual([0, 1, 0, 1]);
     expect(parsed.active).toBe(true);
   });
 

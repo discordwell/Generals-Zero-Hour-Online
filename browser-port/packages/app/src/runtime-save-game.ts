@@ -4885,6 +4885,14 @@ function normalizeSourceObjectId(value: unknown): number {
     : 0;
 }
 
+function normalizeSourceCoord3D(value: Coord3D | undefined, fallback: Coord3D): Coord3D {
+  return {
+    x: sourcePhysicsFinite(value?.x, fallback.x),
+    y: sourcePhysicsFinite(value?.y, fallback.y),
+    z: sourcePhysicsFinite(value?.z, fallback.z),
+  };
+}
+
 function tryParseSourceProjectileStreamUpdateBlockData(
   data: Uint8Array,
 ): SourceProjectileStreamUpdateBlockState | null {
@@ -4955,8 +4963,8 @@ function buildSourceProjectileStreamUpdateBlockData(
     saver.xferInt(liveProjectileIds.length % SOURCE_PROJECTILE_STREAM_MAX);
     saver.xferInt(0);
     saver.xferObjectID(normalizeSourceObjectId(state?.ownerEntityId ?? preservedState.owningObject));
-    saver.xferObjectID(normalizeSourceObjectId(preservedState.targetObject));
-    saver.xferCoord3D(preservedState.targetPosition);
+    saver.xferObjectID(normalizeSourceObjectId(state?.targetObjectId ?? preservedState.targetObject));
+    saver.xferCoord3D(normalizeSourceCoord3D(state?.targetPosition, preservedState.targetPosition));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -5019,6 +5027,18 @@ function buildSourceBoneFxFrameGrid(
   ));
 }
 
+function buildSourceBoneFxCoordGrid(
+  liveGrid: readonly (readonly Coord3D[])[] | undefined,
+  preservedGrid: readonly (readonly Coord3D[])[],
+): Coord3D[][] {
+  return Array.from({ length: SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT }, (_, damageState) => (
+    Array.from({ length: SOURCE_BONE_FX_MAX_BONES }, (_, boneIndex) => {
+      const preservedValue = preservedGrid[damageState]?.[boneIndex] ?? { x: 0, y: 0, z: 0 };
+      return normalizeSourceCoord3D(liveGrid?.[damageState]?.[boneIndex], preservedValue);
+    })
+  ));
+}
+
 function sourceBoneFxBodyState(value: unknown, fallback: number): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     const state = Math.trunc(value);
@@ -5034,6 +5054,22 @@ function normalizeSourceBoneFxParticleSystemIds(values: unknown): number[] {
     return [];
   }
   return values.slice(0, 0xffff).map(normalizeSourceObjectId);
+}
+
+function buildSourceBoneFxResolvedBytes(
+  liveValues: readonly boolean[] | undefined,
+  preservedBytes: Uint8Array,
+): Uint8Array {
+  if (!Array.isArray(liveValues)) {
+    return preservedBytes.byteLength === SOURCE_BONE_FX_BONES_RESOLVED_BYTE_LENGTH
+      ? preservedBytes
+      : new Uint8Array(SOURCE_BONE_FX_BONES_RESOLVED_BYTE_LENGTH);
+  }
+  return new Uint8Array(
+    Array.from({ length: SOURCE_BONE_FX_BONES_RESOLVED_BYTE_LENGTH }, (_, index) =>
+      liveValues[index] === true ? 1 : 0,
+    ),
+  );
 }
 
 function tryParseSourceBoneFxUpdateBlockData(
@@ -5114,17 +5150,25 @@ function buildSourceBoneFxUpdateBlockData(
       saver,
       buildSourceBoneFxFrameGrid(state?.nextParticleFrame, preservedState.nextParticleSystemFrame),
     );
-    xferSourceBoneFxCoordGrid(saver, preservedState.fxBonePositions);
-    xferSourceBoneFxCoordGrid(saver, preservedState.oclBonePositions);
-    xferSourceBoneFxCoordGrid(saver, preservedState.particleSystemBonePositions);
+    xferSourceBoneFxCoordGrid(
+      saver,
+      buildSourceBoneFxCoordGrid(state?.fxBonePositions, preservedState.fxBonePositions),
+    );
+    xferSourceBoneFxCoordGrid(
+      saver,
+      buildSourceBoneFxCoordGrid(state?.oclBonePositions, preservedState.oclBonePositions),
+    );
+    xferSourceBoneFxCoordGrid(
+      saver,
+      buildSourceBoneFxCoordGrid(
+        state?.particleSystemBonePositions,
+        preservedState.particleSystemBonePositions,
+      ),
+    );
     saver.xferUser(buildSourceRawInt32Bytes(
       sourceBoneFxBodyState(state?.currentBodyState, preservedState.currentBodyState),
     ));
-    saver.xferUser(
-      preservedState.bonesResolvedBytes.byteLength === SOURCE_BONE_FX_BONES_RESOLVED_BYTE_LENGTH
-        ? preservedState.bonesResolvedBytes
-        : new Uint8Array(SOURCE_BONE_FX_BONES_RESOLVED_BYTE_LENGTH),
-    );
+    saver.xferUser(buildSourceBoneFxResolvedBytes(state?.bonesResolved, preservedState.bonesResolvedBytes));
     saver.xferBool(typeof state?.active === 'boolean' ? state.active : preservedState.active);
     return new Uint8Array(saver.getBuffer());
   } finally {

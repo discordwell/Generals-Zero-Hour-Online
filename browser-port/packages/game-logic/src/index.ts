@@ -5616,6 +5616,10 @@ interface ProjectileStreamRuntimeState {
   nextIndex: number;
   /** Owner entity ID that created this stream. */
   ownerEntityId: number;
+  /** Source parity: ProjectileStreamUpdate::m_targetObject. */
+  targetObjectId?: number;
+  /** Source parity: ProjectileStreamUpdate::m_targetPosition. */
+  targetPosition?: { x: number; y: number; z: number };
 }
 
 /**
@@ -5655,6 +5659,14 @@ interface BoneFXState {
   nextFXFrame: number[][];
   nextOCLFrame: number[][];
   nextParticleFrame: number[][];
+  /** Source parity: BoneFXUpdate::m_FXBonePositions. */
+  fxBonePositions?: { x: number; y: number; z: number }[][];
+  /** Source parity: BoneFXUpdate::m_OCLBonePositions. */
+  oclBonePositions?: { x: number; y: number; z: number }[][];
+  /** Source parity: BoneFXUpdate::m_PSBonePositions. */
+  particleSystemBonePositions?: { x: number; y: number; z: number }[][];
+  /** Source parity: BoneFXUpdate::m_bonesResolved. */
+  bonesResolved?: boolean[];
   /** IDs of particle systems created by this module (for cleanup on state change). */
   activeParticleIds: number[];
   /** Pending visual events to emit this frame. */
@@ -8866,6 +8878,30 @@ interface SourceCommandButtonHuntUpdateImportState {
   commandButtonName: string;
 }
 
+interface SourceProjectileStreamUpdateImportState {
+  nextCallFrame: number;
+  projectileIds: number[];
+  nextFreeIndex: number;
+  firstValidIndex: number;
+  owningObject: number;
+  targetObject: number;
+  targetPosition: { x: number; y: number; z: number };
+}
+
+interface SourceBoneFxUpdateImportState {
+  nextCallFrame: number;
+  particleSystemIds: number[];
+  nextFxFrame: number[][];
+  nextOclFrame: number[][];
+  nextParticleSystemFrame: number[][];
+  fxBonePositions: { x: number; y: number; z: number }[][];
+  oclBonePositions: { x: number; y: number; z: number }[][];
+  particleSystemBonePositions: { x: number; y: number; z: number }[][];
+  currentBodyState: number;
+  bonesResolved: boolean[];
+  active: boolean;
+}
+
 interface SourceFireSpreadUpdateImportState {
   nextCallFrame: number;
 }
@@ -9039,6 +9075,9 @@ const SOURCE_OBJECT_WEAPON_SLOT_COUNT = 3;
 const SOURCE_PRODUCTION_UNIT = 1;
 const SOURCE_PRODUCTION_UPGRADE = 2;
 const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
+const SOURCE_PROJECTILE_STREAM_MAX = 20;
+const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
+const SOURCE_BONE_FX_MAX_BONES = 8;
 const SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_FLAG = -1;
 const SOURCE_DOCK_VECTOR_LIMIT = 0xffff;
 const SOURCE_PLAYER_MASK_BYTE_LENGTH = 2;
@@ -14860,6 +14899,231 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceProjectileStreamUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceProjectileStreamUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'PROJECTILESTREAMUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-projectile-stream-update-import');
+    try {
+      const version = xfer.xferVersion(2);
+      if (version < 1 || version > 2) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const projectileIds: number[] = [];
+      for (let index = 0; index < SOURCE_PROJECTILE_STREAM_MAX; index += 1) {
+        projectileIds.push(xfer.xferObjectID(0));
+      }
+      const nextFreeIndex = xfer.xferInt(0);
+      const firstValidIndex = xfer.xferInt(0);
+      const owningObject = xfer.xferObjectID(0);
+      const targetObject = version >= 2 ? xfer.xferObjectID(0) : 0;
+      const targetPosition = version >= 2
+        ? xfer.xferCoord3D({ x: 0, y: 0, z: 0 })
+        : { x: 0, y: 0, z: 0 };
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            projectileIds,
+            nextFreeIndex,
+            firstValidIndex,
+            owningObject,
+            targetObject,
+            targetPosition,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private unrollSourceProjectileStreamIds(state: SourceProjectileStreamUpdateImportState): number[] {
+    const firstValidIndex = Math.trunc(state.firstValidIndex);
+    const nextFreeIndex = Math.trunc(state.nextFreeIndex);
+    if (
+      firstValidIndex < 0
+      || firstValidIndex >= SOURCE_PROJECTILE_STREAM_MAX
+      || nextFreeIndex < 0
+      || nextFreeIndex >= SOURCE_PROJECTILE_STREAM_MAX
+    ) {
+      throw new Error(
+        `Unsupported source ProjectileStreamUpdate ring indexes first=${state.firstValidIndex} next=${state.nextFreeIndex}.`,
+      );
+    }
+
+    const projectileIds: number[] = [];
+    let index = firstValidIndex;
+    let visited = 0;
+    while (index !== nextFreeIndex && visited < SOURCE_PROJECTILE_STREAM_MAX) {
+      projectileIds.push(Math.max(0, Math.trunc(state.projectileIds[index] ?? 0)));
+      index = (index + 1) % SOURCE_PROJECTILE_STREAM_MAX;
+      visited += 1;
+    }
+    if (visited >= SOURCE_PROJECTILE_STREAM_MAX) {
+      throw new Error('Unsupported full source ProjectileStreamUpdate ring buffer.');
+    }
+    return projectileIds;
+  }
+
+  private applySourceProjectileStreamUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.projectileStreamProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const streamState = this.tryParseSourceProjectileStreamUpdateImportState(module.blockData, moduleType);
+      if (!streamState) {
+        continue;
+      }
+      const projectileIds = this.unrollSourceProjectileStreamIds(streamState);
+      entity.projectileStreamState = {
+        projectileIds,
+        nextIndex: projectileIds.length % SOURCE_PROJECTILE_STREAM_MAX,
+        ownerEntityId: Math.max(0, Math.trunc(streamState.owningObject)),
+        targetObjectId: Math.max(0, Math.trunc(streamState.targetObject)),
+        targetPosition: {
+          x: streamState.targetPosition.x,
+          y: streamState.targetPosition.y,
+          z: streamState.targetPosition.z,
+        },
+      };
+      return;
+    }
+  }
+
+  private xferSourceImportBoneFxIntGrid(xfer: XferLoad): number[][] {
+    const grid: number[][] = [];
+    for (let damageState = 0; damageState < SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT; damageState += 1) {
+      const row: number[] = [];
+      for (let boneIndex = 0; boneIndex < SOURCE_BONE_FX_MAX_BONES; boneIndex += 1) {
+        row.push(xfer.xferInt(0));
+      }
+      grid.push(row);
+    }
+    return grid;
+  }
+
+  private xferSourceImportBoneFxCoordGrid(xfer: XferLoad): { x: number; y: number; z: number }[][] {
+    const grid: { x: number; y: number; z: number }[][] = [];
+    for (let damageState = 0; damageState < SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT; damageState += 1) {
+      const row: { x: number; y: number; z: number }[] = [];
+      for (let boneIndex = 0; boneIndex < SOURCE_BONE_FX_MAX_BONES; boneIndex += 1) {
+        row.push(xfer.xferCoord3D({ x: 0, y: 0, z: 0 }));
+      }
+      grid.push(row);
+    }
+    return grid;
+  }
+
+  private tryParseSourceBoneFxUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceBoneFxUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'BONEFXUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-bone-fx-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const particleSystemCount = xfer.xferUnsignedShort(0);
+      const particleSystemIds: number[] = [];
+      for (let index = 0; index < particleSystemCount; index += 1) {
+        particleSystemIds.push(xfer.xferUnsignedInt(0));
+      }
+      const nextFxFrame = this.xferSourceImportBoneFxIntGrid(xfer);
+      const nextOclFrame = this.xferSourceImportBoneFxIntGrid(xfer);
+      const nextParticleSystemFrame = this.xferSourceImportBoneFxIntGrid(xfer);
+      const fxBonePositions = this.xferSourceImportBoneFxCoordGrid(xfer);
+      const oclBonePositions = this.xferSourceImportBoneFxCoordGrid(xfer);
+      const particleSystemBonePositions = this.xferSourceImportBoneFxCoordGrid(xfer);
+      const currentBodyState = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const bonesResolved: boolean[] = [];
+      for (let index = 0; index < SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT; index += 1) {
+        bonesResolved.push(xfer.xferBool(false));
+      }
+      const active = xfer.xferBool(false);
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            particleSystemIds,
+            nextFxFrame,
+            nextOclFrame,
+            nextParticleSystemFrame,
+            fxBonePositions,
+            oclBonePositions,
+            particleSystemBonePositions,
+            currentBodyState,
+            bonesResolved,
+            active,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceBoneFxUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const boneFxState = this.tryParseSourceBoneFxUpdateImportState(module.blockData, moduleType);
+      if (!boneFxState) {
+        continue;
+      }
+      entity.boneFXState = {
+        currentBodyState: Math.max(0, Math.trunc(boneFxState.currentBodyState)),
+        active: boneFxState.active,
+        nextFXFrame: boneFxState.nextFxFrame,
+        nextOCLFrame: boneFxState.nextOclFrame,
+        nextParticleFrame: boneFxState.nextParticleSystemFrame,
+        fxBonePositions: boneFxState.fxBonePositions,
+        oclBonePositions: boneFxState.oclBonePositions,
+        particleSystemBonePositions: boneFxState.particleSystemBonePositions,
+        bonesResolved: boneFxState.bonesResolved,
+        activeParticleIds: boneFxState.particleSystemIds.map((id) => Math.max(0, Math.trunc(id))),
+        pendingVisualEvents: [],
+      };
+      return;
+    }
+  }
+
   private tryParseSourceFireSpreadUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -16499,6 +16763,8 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceAutoDepositUpdateModulesToEntity(entity, sourceState);
     this.applySourceBaseRegenerateUpdateModulesToEntity(entity, sourceState);
     this.applySourceCommandButtonHuntUpdateModulesToEntity(entity, sourceState);
+    this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);
+    this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);
     this.applySourceFireSpreadUpdateModulesToEntity(entity, sourceState);
     this.applySourcePoisonedBehaviorModulesToEntity(entity, sourceState);
     this.applySourceMinefieldBehaviorModulesToEntity(entity, sourceState);
@@ -42264,6 +42530,8 @@ export class GameLogicSubsystem implements Subsystem {
         projectileIds: [],
         nextIndex: 0,
         ownerEntityId: streamEntityId,
+        targetObjectId: 0,
+        targetPosition: { x: 0, y: 0, z: 0 },
       };
     }
 

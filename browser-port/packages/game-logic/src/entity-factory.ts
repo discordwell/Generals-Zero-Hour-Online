@@ -1179,12 +1179,23 @@ export function createMapEntity(self: GL,
       }
       return grid;
     };
+    const makeCoordGrid = (): { x: number; y: number; z: number }[][] => {
+      const grid: { x: number; y: number; z: number }[][] = [];
+      for (let i = 0; i < numStates; i++) {
+        grid.push(Array.from({ length: numBones }, () => ({ x: 0, y: 0, z: 0 })));
+      }
+      return grid;
+    };
     entity.boneFXState = {
       currentBodyState: 0,
       active: false,
       nextFXFrame: makeFrameGrid(),
       nextOCLFrame: makeFrameGrid(),
       nextParticleFrame: makeFrameGrid(),
+      fxBonePositions: makeCoordGrid(),
+      oclBonePositions: makeCoordGrid(),
+      particleSystemBonePositions: makeCoordGrid(),
+      bonesResolved: new Array(numStates).fill(false),
       activeParticleIds: [],
       pendingVisualEvents: [],
     };

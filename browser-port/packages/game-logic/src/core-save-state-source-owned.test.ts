@@ -161,6 +161,14 @@ function makeSourceOwnedCoreBundle() {
           FireOnce: true,
         }),
       ]),
+      makeObjectDef('ProjectileStreamObject', 'GLA', ['PROJECTILE'], [
+        makeBlock('ClientUpdate', 'ProjectileStreamUpdate ModuleTag_Stream', {}),
+      ]),
+      makeObjectDef('BoneFxObject', 'GLA', ['STRUCTURE'], [
+        makeBlock('Behavior', 'BoneFXUpdate ModuleTag_BoneFX', {
+          PristineFXList1: 'Bone:BONE01 OnlyOnce:No 1000 2000 FXList:FX_TestBone',
+        }),
+      ]),
       makeObjectDef('HealingSeeker', 'America', ['INFANTRY'], [
         makeBlock('Behavior', 'AutoFindHealingUpdate ModuleTag_AutoFindHealing', {
           ScanRate: 500,
@@ -338,6 +346,10 @@ function sourceRawInt32(value: number): Uint8Array {
 function sourceUpdateFrameAndPhase(frame: number): number {
   return Math.max(0, Math.trunc(frame)) << 2;
 }
+
+const SOURCE_PROJECTILE_STREAM_MAX = 20;
+const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
+const SOURCE_BONE_FX_MAX_BONES = 8;
 
 const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
 const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
@@ -1100,6 +1112,116 @@ function buildSourceFireWeaponCollideModuleData(options: {
       });
     }
     saver.xferBool(options.everFired);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceProjectileStreamUpdateModuleData(options: {
+  nextCallFrame: number;
+  projectileIds: number[];
+  nextFreeIndex: number;
+  firstValidIndex: number;
+  owningObject: number;
+  targetObject: number;
+  targetPosition: { x: number; y: number; z: number };
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-projectile-stream-update');
+  try {
+    saver.xferVersion(2);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    for (let index = 0; index < SOURCE_PROJECTILE_STREAM_MAX; index += 1) {
+      saver.xferObjectID(options.projectileIds[index] ?? 0);
+    }
+    saver.xferInt(options.nextFreeIndex);
+    saver.xferInt(options.firstValidIndex);
+    saver.xferObjectID(options.owningObject);
+    saver.xferObjectID(options.targetObject);
+    saver.xferCoord3D(options.targetPosition);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function makeSourceBoneFxIntGrid(seed: number): number[][] {
+  return Array.from({ length: SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT }, (_, damageState) =>
+    Array.from({ length: SOURCE_BONE_FX_MAX_BONES }, (_, boneIndex) => seed + damageState * 10 + boneIndex),
+  );
+}
+
+function makeSourceBoneFxCoordGrid(seed: number): { x: number; y: number; z: number }[][] {
+  return Array.from({ length: SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT }, (_, damageState) =>
+    Array.from({ length: SOURCE_BONE_FX_MAX_BONES }, (_, boneIndex) => ({
+      x: seed + damageState,
+      y: seed + boneIndex,
+      z: seed + damageState * 10 + boneIndex,
+    })),
+  );
+}
+
+function xferSourceBoneFxIntGridForTest(saver: XferSave, grid: number[][]): void {
+  for (let damageState = 0; damageState < SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT; damageState += 1) {
+    for (let boneIndex = 0; boneIndex < SOURCE_BONE_FX_MAX_BONES; boneIndex += 1) {
+      saver.xferInt(grid[damageState]?.[boneIndex] ?? 0);
+    }
+  }
+}
+
+function xferSourceBoneFxCoordGridForTest(
+  saver: XferSave,
+  grid: { x: number; y: number; z: number }[][],
+): void {
+  for (let damageState = 0; damageState < SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT; damageState += 1) {
+    for (let boneIndex = 0; boneIndex < SOURCE_BONE_FX_MAX_BONES; boneIndex += 1) {
+      saver.xferCoord3D(grid[damageState]?.[boneIndex] ?? { x: 0, y: 0, z: 0 });
+    }
+  }
+}
+
+function buildSourceBoneFxUpdateModuleData(options: {
+  nextCallFrame: number;
+  particleSystemIds: number[];
+  nextFxFrame: number[][];
+  nextOclFrame: number[][];
+  nextParticleSystemFrame: number[][];
+  fxBonePositions: { x: number; y: number; z: number }[][];
+  oclBonePositions: { x: number; y: number; z: number }[][];
+  particleSystemBonePositions: { x: number; y: number; z: number }[][];
+  currentBodyState: number;
+  bonesResolved: boolean[];
+  active: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-bone-fx-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUnsignedShort(options.particleSystemIds.length);
+    for (const particleSystemId of options.particleSystemIds) {
+      saver.xferUnsignedInt(particleSystemId);
+    }
+    xferSourceBoneFxIntGridForTest(saver, options.nextFxFrame);
+    xferSourceBoneFxIntGridForTest(saver, options.nextOclFrame);
+    xferSourceBoneFxIntGridForTest(saver, options.nextParticleSystemFrame);
+    xferSourceBoneFxCoordGridForTest(saver, options.fxBonePositions);
+    xferSourceBoneFxCoordGridForTest(saver, options.oclBonePositions);
+    xferSourceBoneFxCoordGridForTest(saver, options.particleSystemBonePositions);
+    saver.xferUser(sourceRawInt32(options.currentBodyState));
+    for (let index = 0; index < SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT; index += 1) {
+      saver.xferBool(options.bonesResolved[index] ?? false);
+    }
+    saver.xferBool(options.active);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2748,6 +2870,112 @@ describe('source-owned game-logic core save-state', () => {
 
     expect(privateLogic.spawnedEntities.get(114)!.fireWeaponUpdateNextFireFrames).toEqual([310]);
     expect(privateLogic.spawnedEntities.get(115)!.fireWeaponCollideEverFired).toEqual([true]);
+  });
+
+  it('imports source ProjectileStreamUpdate and BoneFXUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const projectileIds = Array.from({ length: SOURCE_PROJECTILE_STREAM_MAX }, (_, index) => 300 + index);
+    const streamState = createEmptySourceMapEntitySaveState();
+    streamState.objectId = 116;
+    streamState.position = { x: 144, y: 0, z: 60 };
+    streamState.modules = [{
+      identifier: 'ModuleTag_Stream',
+      blockData: buildSourceProjectileStreamUpdateModuleData({
+        nextCallFrame: 305,
+        projectileIds,
+        nextFreeIndex: 9,
+        firstValidIndex: 4,
+        owningObject: 12,
+        targetObject: 44,
+        targetPosition: { x: 101, y: 202, z: 303 },
+      }),
+    }];
+
+    const nextFxFrame = makeSourceBoneFxIntGrid(100);
+    const nextOclFrame = makeSourceBoneFxIntGrid(200);
+    const nextParticleSystemFrame = makeSourceBoneFxIntGrid(300);
+    const fxBonePositions = makeSourceBoneFxCoordGrid(10);
+    const oclBonePositions = makeSourceBoneFxCoordGrid(210);
+    const particleSystemBonePositions = makeSourceBoneFxCoordGrid(410);
+    const boneFxState = createEmptySourceMapEntitySaveState();
+    boneFxState.objectId = 117;
+    boneFxState.position = { x: 146, y: 0, z: 60 };
+    boneFxState.modules = [{
+      identifier: 'ModuleTag_BoneFX',
+      blockData: buildSourceBoneFxUpdateModuleData({
+        nextCallFrame: 306,
+        particleSystemIds: [77, 88],
+        nextFxFrame,
+        nextOclFrame,
+        nextParticleSystemFrame,
+        fxBonePositions,
+        oclBonePositions,
+        particleSystemBonePositions,
+        currentBodyState: 2,
+        bonesResolved: [true, false, true, true],
+        active: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 180,
+      objects: [
+        { templateName: 'ProjectileStreamObject', state: streamState },
+        { templateName: 'BoneFxObject', state: boneFxState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        projectileStreamState: {
+          projectileIds: number[];
+          nextIndex: number;
+          ownerEntityId: number;
+          targetObjectId?: number;
+          targetPosition?: { x: number; y: number; z: number };
+        } | null;
+        boneFXState: {
+          currentBodyState: number;
+          active: boolean;
+          nextFXFrame: number[][];
+          nextOCLFrame: number[][];
+          nextParticleFrame: number[][];
+          fxBonePositions?: { x: number; y: number; z: number }[][];
+          oclBonePositions?: { x: number; y: number; z: number }[][];
+          particleSystemBonePositions?: { x: number; y: number; z: number }[][];
+          bonesResolved?: boolean[];
+          activeParticleIds: number[];
+        } | null;
+      }>;
+    };
+
+    const importedStream = privateLogic.spawnedEntities.get(116)!.projectileStreamState!;
+    expect(importedStream.projectileIds).toEqual([304, 305, 306, 307, 308]);
+    expect(importedStream.nextIndex).toBe(5);
+    expect(importedStream.ownerEntityId).toBe(12);
+    expect(importedStream.targetObjectId).toBe(44);
+    expect(importedStream.targetPosition).toEqual({ x: 101, y: 202, z: 303 });
+
+    const importedBoneFx = privateLogic.spawnedEntities.get(117)!.boneFXState!;
+    expect(importedBoneFx.activeParticleIds).toEqual([77, 88]);
+    expect(importedBoneFx.nextFXFrame).toEqual(nextFxFrame);
+    expect(importedBoneFx.nextOCLFrame).toEqual(nextOclFrame);
+    expect(importedBoneFx.nextParticleFrame).toEqual(nextParticleSystemFrame);
+    expect(importedBoneFx.fxBonePositions).toEqual(fxBonePositions);
+    expect(importedBoneFx.oclBonePositions).toEqual(oclBonePositions);
+    expect(importedBoneFx.particleSystemBonePositions).toEqual(particleSystemBonePositions);
+    expect(importedBoneFx.currentBodyState).toBe(2);
+    expect(importedBoneFx.bonesResolved).toEqual([true, false, true, true]);
+    expect(importedBoneFx.active).toBe(true);
   });
 
   it('imports source HordeUpdate runtime state', () => {
