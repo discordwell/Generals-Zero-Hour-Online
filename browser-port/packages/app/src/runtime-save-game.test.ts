@@ -1852,6 +1852,40 @@ function parseSourceSupplyTruckAIUpdateBlockData(data: Uint8Array) {
   };
 }
 
+function createSourceChinookAIUpdateBlockData(options: {
+  flightStatus: number;
+  airfieldForHealing: number;
+  originalPos: Coord3D;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-chinook-ai-update');
+  try {
+    xferSave.xferVersion(2);
+    xferSave.xferUser(new Uint8Array([1, 0xaa, 0xbb, 0xcc, 0]));
+    xferSave.xferInt(options.flightStatus);
+    xferSave.xferObjectID(options.airfieldForHealing);
+    xferSave.xferCoord3D(options.originalPos);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceChinookAIUpdateBlockData(data: Uint8Array) {
+  const tailOffset = data.byteLength - 20;
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  return {
+    prefix: [...data.subarray(0, tailOffset)],
+    flightStatus: view.getInt32(tailOffset, true),
+    airfieldForHealing: view.getUint32(tailOffset + 4, true),
+    originalPos: {
+      x: view.getFloat32(tailOffset + 8, true),
+      y: view.getFloat32(tailOffset + 12, true),
+      z: view.getFloat32(tailOffset + 16, true),
+    },
+  };
+}
+
 function createSourceProductionExitRallyBlockData(
   nextCallFrameAndPhase: number,
   rallyPoint: Coord3D,
@@ -11662,6 +11696,121 @@ describe('runtime-save-game', () => {
     expect(parsed.preferredDockId).toBe(51);
     expect(parsed.numberBoxes).toBe(4);
     expect(parsed.forcePending).toBe(true);
+  });
+
+  it('rewrites source ChinookAIUpdate flight tail while preserving inherited bytes', () => {
+    const sourceChinookBlock = createSourceChinookAIUpdateBlockData({
+      flightStatus: 1,
+      airfieldForHealing: 5,
+      originalPos: { x: 10, y: 11, z: 12 },
+    });
+    const preserved = parseSourceChinookAIUpdateBlockData(sourceChinookBlock);
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_ChinookAI',
+      blockData: sourceChinookBlock,
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source chinook ai update rewrite',
+      mapPath: 'Maps/RuntimeChinook/RuntimeChinook.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeChinook',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            chinookAIProfile: {
+              minDropHeight: 15,
+              waitForRopesToDropFrames: 30,
+              numRopes: 4,
+              perRopeDelayMinFrames: 2,
+              perRopeDelayMaxFrames: 4,
+              rappelSpeed: 1,
+              ropeWidth: 0,
+              ropeColor: null,
+              ropeWobbleLen: 0,
+              ropeWobbleAmplitude: 0,
+              rotorWashParticleSystem: null,
+              upgradedSupplyBoost: 0,
+            },
+            chinookFlightStatus: 'DOING_COMBAT_DROP',
+            chinookHealingAirfieldId: 77,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_ChinookAI') {
+            return 'CHINOOKAIUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const chinookModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_ChinookAI');
+
+    expect(chinookModule).toBeDefined();
+    const parsed = parseSourceChinookAIUpdateBlockData(chinookModule!.blockData);
+    expect(parsed.prefix).toEqual(preserved.prefix);
+    expect(parsed.flightStatus).toBe(2);
+    expect(parsed.airfieldForHealing).toBe(77);
+    expect(parsed.originalPos).toEqual(preserved.originalPos);
   });
 
   it('rewrites source production exit update modules from live rally and queue state', () => {

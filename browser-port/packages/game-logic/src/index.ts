@@ -8947,6 +8947,11 @@ interface SourceSupplyTruckAIUpdateImportState {
   forcePending: boolean;
 }
 
+interface SourceChinookAIUpdateImportState {
+  flightStatus: number;
+  airfieldForHealing: number;
+}
+
 interface SourceProductionExitRallyImportState {
   nextCallFrame: number;
   rallyPoint: { x: number; y: number; z: number };
@@ -15715,6 +15720,74 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private sourceChinookFlightStatusFromInt(value: number): ChinookFlightStatus | null {
+    switch (Math.trunc(value)) {
+      case 0: return 'TAKING_OFF';
+      case 1: return 'FLYING';
+      case 2: return 'DOING_COMBAT_DROP';
+      case 3: return 'LANDING';
+      case 4: return 'LANDED';
+      default: return null;
+    }
+  }
+
+  private tryParseSourceChinookAIUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceChinookAIUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'CHINOOKAIUPDATE') {
+      return null;
+    }
+    if (data.byteLength < 9) {
+      return null;
+    }
+    const version = data[0] ?? 0;
+    if (version < 1 || version > 2) {
+      return null;
+    }
+    const tailLength = version >= 2 ? 20 : 8;
+    const tailOffset = data.byteLength - tailLength;
+    if (tailOffset < 2) {
+      return null;
+    }
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    return {
+      flightStatus: view.getInt32(tailOffset, true),
+      airfieldForHealing: view.getUint32(tailOffset + 4, true),
+    };
+  }
+
+  private applySourceChinookAIUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.chinookAIProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const chinookState = this.tryParseSourceChinookAIUpdateImportState(module.blockData, moduleType);
+      if (!chinookState) {
+        continue;
+      }
+      const flightStatus = this.sourceChinookFlightStatusFromInt(chinookState.flightStatus);
+      if (!flightStatus) {
+        throw new Error(`Unsupported source ChinookAIUpdate flight status ${chinookState.flightStatus}.`);
+      }
+      entity.chinookFlightStatus = flightStatus;
+      entity.chinookFlightStatusEnteredFrame = this.frameCounter;
+      entity.chinookHealingAirfieldId = Math.max(0, Math.trunc(chinookState.airfieldForHealing));
+      return;
+    }
+  }
+
   private tryParseSourceProductionExitRallyImportState(
     data: Uint8Array,
     moduleType: string,
@@ -19595,6 +19668,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceDeployStyleAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceAssaultTransportAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceSupplyTruckAIUpdateModulesToEntity(entity, sourceState);
+    this.applySourceChinookAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);
     this.applySourcePointDefenseLaserUpdateModulesToEntity(entity, sourceState);

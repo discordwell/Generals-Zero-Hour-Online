@@ -5885,6 +5885,15 @@ interface SourceSupplyTruckAIUpdateBlockState {
   forcePending: boolean;
 }
 
+interface SourceChinookAIUpdateBlockState {
+  blockData: Uint8Array;
+  tailOffset: number;
+  version: number;
+  flightStatus: number;
+  airfieldForHealing: number;
+  originalPos: Coord3D | null;
+}
+
 interface SourceProductionExitRallyState {
   nextCallFrameAndPhase: number;
   rallyPoint: Coord3D;
@@ -6411,6 +6420,70 @@ function buildSourceSupplyTruckAIUpdateBlockData(
   view.setUint8(
     preservedState.tailOffset + 8,
     (typeof liveState?.forceBusy === 'boolean' ? liveState.forceBusy : preservedState.forcePending) ? 1 : 0,
+  );
+  return blockData;
+}
+
+function sourceChinookFlightStatusToInt(status: unknown, fallback: number): number {
+  switch (status) {
+    case 'TAKING_OFF': return 0;
+    case 'FLYING': return 1;
+    case 'DOING_COMBAT_DROP': return 2;
+    case 'LANDING': return 3;
+    case 'LANDED': return 4;
+    default:
+      return Number.isFinite(fallback) ? Math.trunc(fallback) : 1;
+  }
+}
+
+function tryParseSourceChinookAIUpdateBlockData(
+  data: Uint8Array,
+): SourceChinookAIUpdateBlockState | null {
+  if (data.byteLength < 9) {
+    return null;
+  }
+  const version = data[0] ?? 0;
+  if (version < 1 || version > 2) {
+    return null;
+  }
+  const tailLength = version >= 2 ? 20 : 8;
+  const tailOffset = data.byteLength - tailLength;
+  if (tailOffset < 2) {
+    return null;
+  }
+  const blockData = new Uint8Array(data);
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  return {
+    blockData,
+    tailOffset,
+    version,
+    flightStatus: view.getInt32(tailOffset, true),
+    airfieldForHealing: view.getUint32(tailOffset + 4, true),
+    originalPos: version >= 2
+      ? {
+        x: view.getFloat32(tailOffset + 8, true),
+        y: view.getFloat32(tailOffset + 12, true),
+        z: view.getFloat32(tailOffset + 16, true),
+      }
+      : null,
+  };
+}
+
+function buildSourceChinookAIUpdateBlockData(
+  entity: MapEntity,
+  preservedState: SourceChinookAIUpdateBlockState,
+): Uint8Array {
+  const blockData = new Uint8Array(preservedState.blockData);
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  view.setInt32(
+    preservedState.tailOffset,
+    sourceChinookFlightStatusToInt(entity.chinookFlightStatus, preservedState.flightStatus),
+    true,
+  );
+  view.setUint32(
+    preservedState.tailOffset + 4,
+    normalizeSourceObjectId(entity.chinookHealingAirfieldId ?? preservedState.airfieldForHealing),
+    true,
   );
   return blockData;
 }
@@ -11192,6 +11265,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceSupplyTruckAIUpdateBlockData(entity, parsedSourceState, coreState),
+              };
+            }
+          }
+          if (moduleType === 'CHINOOKAIUPDATE' && entity.chinookAIProfile) {
+            const parsedSourceState = tryParseSourceChinookAIUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceChinookAIUpdateBlockData(entity, parsedSourceState),
               };
             }
           }

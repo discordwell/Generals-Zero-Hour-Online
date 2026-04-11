@@ -215,6 +215,14 @@ function makeSourceOwnedCoreBundle() {
           SupplyWarehouseActionDelay: 1000,
         }),
       ]),
+      makeObjectDef('ChinookObject', 'America', ['AIRCRAFT'], [
+        makeBlock('Behavior', 'ChinookAIUpdate ModuleTag_ChinookAI', {
+          MaxBoxes: 8,
+          SupplyCenterActionDelay: 1000,
+          SupplyWarehouseActionDelay: 1000,
+          RotorWashParticleSystem: 'FX_RotorWash',
+        }),
+      ]),
       makeObjectDef('DefaultExitStructure', 'America', ['STRUCTURE'], [
         makeBlock('Behavior', 'DefaultProductionExitUpdate ModuleTag_DefaultExit', {
           UnitCreatePoint: 'X:0 Y:0 Z:0',
@@ -1657,6 +1665,25 @@ function buildSourceSupplyTruckAIUpdateModuleData(options: {
     saver.xferObjectID(options.preferredDockId);
     saver.xferInt(options.numberBoxes);
     saver.xferBool(options.forcePending);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceChinookAIUpdateModuleData(options: {
+  flightStatus: number;
+  airfieldForHealing: number;
+  originalPos: { x: number; y: number; z: number };
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-chinook-ai-update');
+  try {
+    saver.xferVersion(2);
+    saver.xferUser(new Uint8Array([1, 0xaa, 0xbb, 0xcc, 0]));
+    saver.xferInt(options.flightStatus);
+    saver.xferObjectID(options.airfieldForHealing);
+    saver.xferCoord3D(options.originalPos);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -4614,6 +4641,50 @@ describe('source-owned game-logic core save-state', () => {
       preferredDockId: 301,
       forceBusy: true,
     });
+  });
+
+  it('imports source ChinookAIUpdate flight state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const chinookState = createEmptySourceMapEntitySaveState();
+    chinookState.objectId = 124;
+    chinookState.position = { x: 160, y: 0, z: 60 };
+    chinookState.modules = [{
+      identifier: 'ModuleTag_ChinookAI',
+      blockData: buildSourceChinookAIUpdateModuleData({
+        flightStatus: 3,
+        airfieldForHealing: 401,
+        originalPos: { x: 10, y: 11, z: 12 },
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'ChinookObject', state: chinookState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        chinookFlightStatus: string | null;
+        chinookFlightStatusEnteredFrame: number;
+        chinookHealingAirfieldId: number;
+      }>;
+    };
+
+    const importedChinook = privateLogic.spawnedEntities.get(124)!;
+    expect(importedChinook.chinookFlightStatus).toBe('LANDING');
+    expect(importedChinook.chinookFlightStatusEnteredFrame).toBe(200);
+    expect(importedChinook.chinookHealingAirfieldId).toBe(401);
   });
 
   it('imports source PointDefenseLaserUpdate runtime state', () => {
