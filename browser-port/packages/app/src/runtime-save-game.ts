@@ -6166,6 +6166,16 @@ interface SourceSpecialPowerCompletionDieBlockState {
   creatorSet: boolean;
 }
 
+interface SourceParkingPlaceBehaviorBlockState {
+  nextCallFrameAndPhase: number;
+  spaces: Array<{ occupantId: number; reservedForExit: boolean }>;
+  runways: Array<{ inUseBy: number; nextInLineForTakeoff: number; wasInLine: boolean }>;
+  healees: Array<{ entityId: number; healStartFrame: number }>;
+  heliRallyPoint: Coord3D;
+  heliRallyPointExists: boolean;
+  nextHealFrame: number;
+}
+
 interface SourceBaseOnlyUpdateModuleBlockState {
   nextCallFrameAndPhase: number;
 }
@@ -7316,6 +7326,195 @@ function buildSourceSpecialPowerCompletionDieBlockData(
     saver.xferBool(typeof entity.specialPowerCompletionCreatorSet === 'boolean'
       ? entity.specialPowerCompletionCreatorSet
       : preservedState.creatorSet);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceParkingPlaceBehaviorBlockData(
+  data: Uint8Array,
+): SourceParkingPlaceBehaviorBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-parking-place-behavior');
+  try {
+    const version = xferLoad.xferVersion(3);
+    if (version < 1 || version > 3) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(xferLoad, 0);
+    const spaceCount = xferLoad.xferUnsignedByte(0);
+    const spaces: SourceParkingPlaceBehaviorBlockState['spaces'] = [];
+    for (let index = 0; index < spaceCount; index += 1) {
+      spaces.push({
+        occupantId: xferLoad.xferObjectID(0),
+        reservedForExit: xferLoad.xferBool(false),
+      });
+    }
+    const runwayCount = xferLoad.xferUnsignedByte(0);
+    const runways: SourceParkingPlaceBehaviorBlockState['runways'] = [];
+    for (let index = 0; index < runwayCount; index += 1) {
+      runways.push({
+        inUseBy: xferLoad.xferObjectID(0),
+        nextInLineForTakeoff: xferLoad.xferObjectID(0),
+        wasInLine: xferLoad.xferBool(false),
+      });
+    }
+    const healCount = xferLoad.xferUnsignedByte(0);
+    const healees: SourceParkingPlaceBehaviorBlockState['healees'] = [];
+    for (let index = 0; index < healCount; index += 1) {
+      healees.push({
+        entityId: xferLoad.xferObjectID(0),
+        healStartFrame: xferLoad.xferUnsignedInt(0),
+      });
+    }
+    const heliRallyPoint = version >= 2 ? xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }) : { x: 0, y: 0, z: 0 };
+    const heliRallyPointExists = version >= 2 ? xferLoad.xferBool(false) : false;
+    const nextHealFrame = version >= 3 ? xferLoad.xferUnsignedInt(0) : 0;
+    return xferLoad.getRemaining() === 0
+      ? {
+        nextCallFrameAndPhase,
+        spaces,
+        runways,
+        healees,
+        heliRallyPoint,
+        heliRallyPointExists,
+        nextHealFrame,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function assertSourceUnsignedByteCount(label: string, count: number): void {
+  if (count > 0xff) {
+    throw new Error(`${label} has ${count} entries; C++ xfers an unsigned byte count.`);
+  }
+}
+
+function sourceParkingSpacesForEntity(
+  entity: MapEntity,
+  preservedState: SourceParkingPlaceBehaviorBlockState,
+): SourceParkingPlaceBehaviorBlockState['spaces'] {
+  const profile = entity.parkingPlaceProfile;
+  const count = Math.max(0, Math.trunc(profile?.totalSpaces ?? preservedState.spaces.length));
+  assertSourceUnsignedByteCount('ParkingPlaceBehavior spaces', count);
+
+  const occupantIds = Array.isArray(profile?.spaceOccupantIds) ? profile!.spaceOccupantIds : [];
+  const reservedFlags = Array.isArray(profile?.spaceReservedForExit) ? profile!.spaceReservedForExit : [];
+  const spaces = Array.from({ length: count }, (_, index) => ({
+    occupantId: normalizeSourceObjectId(occupantIds[index] ?? preservedState.spaces[index]?.occupantId ?? 0),
+    reservedForExit: typeof reservedFlags[index] === 'boolean'
+      ? reservedFlags[index]!
+      : preservedState.spaces[index]?.reservedForExit === true,
+  }));
+
+  const liveOccupiedIds = profile?.occupiedSpaceEntityIds instanceof Set
+    ? Array.from(profile.occupiedSpaceEntityIds.values()).map(normalizeSourceObjectId).filter((entityId) => entityId > 0)
+    : [];
+  for (const occupiedId of liveOccupiedIds) {
+    if (spaces.some((space) => space.occupantId === occupiedId)) {
+      continue;
+    }
+    const freeSpace = spaces.find((space) => space.occupantId <= 0 && !space.reservedForExit);
+    if (freeSpace) {
+      freeSpace.occupantId = occupiedId;
+    }
+  }
+  return spaces;
+}
+
+function sourceParkingRunwaysForEntity(
+  entity: MapEntity,
+  preservedState: SourceParkingPlaceBehaviorBlockState,
+): SourceParkingPlaceBehaviorBlockState['runways'] {
+  const profile = entity.parkingPlaceProfile;
+  const inUseByIds = Array.isArray(profile?.runwayInUseByIds) ? profile!.runwayInUseByIds : [];
+  const nextInLineIds = Array.isArray(profile?.runwayNextInLineForTakeoffIds)
+    ? profile!.runwayNextInLineForTakeoffIds
+    : [];
+  const wasInLine = Array.isArray(profile?.runwayWasInLine) ? profile!.runwayWasInLine : [];
+  const count = Math.max(inUseByIds.length, nextInLineIds.length, wasInLine.length, preservedState.runways.length);
+  assertSourceUnsignedByteCount('ParkingPlaceBehavior runways', count);
+  return Array.from({ length: count }, (_, index) => ({
+    inUseBy: normalizeSourceObjectId(inUseByIds[index] ?? preservedState.runways[index]?.inUseBy ?? 0),
+    nextInLineForTakeoff: normalizeSourceObjectId(
+      nextInLineIds[index] ?? preservedState.runways[index]?.nextInLineForTakeoff ?? 0,
+    ),
+    wasInLine: typeof wasInLine[index] === 'boolean'
+      ? wasInLine[index]!
+      : preservedState.runways[index]?.wasInLine === true,
+  }));
+}
+
+function sourceParkingHealeesForEntity(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceParkingPlaceBehaviorBlockState,
+): SourceParkingPlaceBehaviorBlockState['healees'] {
+  const profile = entity.parkingPlaceProfile;
+  const healeeStates = Array.isArray(profile?.healeeStates) ? profile!.healeeStates : preservedState.healees;
+  const healees = healeeStates
+    .map((healee) => ({
+      entityId: normalizeSourceObjectId(healee.entityId),
+      healStartFrame: sourceFlammableUnsignedFrame(healee.healStartFrame, currentFrame),
+    }))
+    .filter((healee) => healee.entityId > 0);
+  const healeeIds = profile?.healeeEntityIds instanceof Set
+    ? Array.from(profile.healeeEntityIds.values()).map(normalizeSourceObjectId).filter((entityId) => entityId > 0)
+    : [];
+  for (const entityId of healeeIds) {
+    if (!healees.some((healee) => healee.entityId === entityId)) {
+      healees.push({ entityId, healStartFrame: Math.max(0, Math.trunc(currentFrame)) });
+    }
+  }
+  assertSourceUnsignedByteCount('ParkingPlaceBehavior healees', healees.length);
+  return healees;
+}
+
+function buildSourceParkingPlaceBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceParkingPlaceBehaviorBlockState,
+): Uint8Array {
+  const profile = entity.parkingPlaceProfile;
+  const spaces = sourceParkingSpacesForEntity(entity, preservedState);
+  const runways = sourceParkingRunwaysForEntity(entity, preservedState);
+  const healees = sourceParkingHealeesForEntity(entity, currentFrame, preservedState);
+  const heliRallyPoint = profile?.heliRallyPoint ?? preservedState.heliRallyPoint;
+  const saver = new XferSave();
+  saver.open('build-source-parking-place-behavior');
+  try {
+    saver.xferVersion(3);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(preservedState.nextCallFrameAndPhase));
+    saver.xferUnsignedByte(spaces.length);
+    for (const space of spaces) {
+      saver.xferObjectID(space.occupantId);
+      saver.xferBool(space.reservedForExit);
+    }
+    saver.xferUnsignedByte(runways.length);
+    for (const runway of runways) {
+      saver.xferObjectID(runway.inUseBy);
+      saver.xferObjectID(runway.nextInLineForTakeoff);
+      saver.xferBool(runway.wasInLine);
+    }
+    saver.xferUnsignedByte(healees.length);
+    for (const healee of healees) {
+      saver.xferObjectID(healee.entityId);
+      saver.xferUnsignedInt(healee.healStartFrame);
+    }
+    saver.xferCoord3D({
+      x: Number.isFinite(heliRallyPoint.x) ? heliRallyPoint.x : preservedState.heliRallyPoint.x,
+      y: Number.isFinite(heliRallyPoint.y) ? heliRallyPoint.y : preservedState.heliRallyPoint.y,
+      z: Number.isFinite(heliRallyPoint.z) ? heliRallyPoint.z : preservedState.heliRallyPoint.z,
+    });
+    saver.xferBool(typeof profile?.heliRallyPointExists === 'boolean'
+      ? profile.heliRallyPointExists
+      : preservedState.heliRallyPointExists);
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(profile?.nextHealFrame, preservedState.nextHealFrame));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -12859,6 +13058,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceDozerAIUpdateBlockData(entity, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'PARKINGPLACEBEHAVIOR' && entity.parkingPlaceProfile) {
+            const parsedSourceState = tryParseSourceParkingPlaceBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceParkingPlaceBehaviorBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }

@@ -250,6 +250,14 @@ function makeSourceOwnedCoreBundle() {
           BoredRange: 200,
         }),
       ]),
+      makeObjectDef('AirfieldObject', 'America', ['STRUCTURE', 'FS_AIRFIELD'], [
+        makeBlock('Behavior', 'ParkingPlaceBehavior ModuleTag_Parking', {
+          NumRows: 2,
+          NumCols: 2,
+          HasRunways: true,
+          HealAmountPerSecond: 10,
+        }),
+      ]),
       makeObjectDef('RebuildHoleObject', 'GLA', ['STRUCTURE', 'IMMOBILE'], [
         makeBlock('Behavior', 'RebuildHoleBehavior ModuleTag_RebuildHole', {
           WorkerObjectName: 'RebuildWorker',
@@ -2066,6 +2074,45 @@ function buildSourceSpecialPowerCompletionDieModuleData(options: {
     writeTestSourceBehaviorModuleBase(saver);
     saver.xferObjectID(options.creatorId);
     saver.xferBool(options.creatorSet);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceParkingPlaceBehaviorModuleData(options: {
+  nextCallFrame: number;
+  spaces: Array<{ occupantId: number; reservedForExit: boolean }>;
+  runways: Array<{ inUseBy: number; nextInLineForTakeoff: number; wasInLine: boolean }>;
+  healees: Array<{ entityId: number; healStartFrame: number }>;
+  heliRallyPoint: { x: number; y: number; z: number };
+  heliRallyPointExists: boolean;
+  nextHealFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-parking-place-behavior');
+  try {
+    saver.xferVersion(3);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+    saver.xferUnsignedByte(options.spaces.length);
+    for (const space of options.spaces) {
+      saver.xferObjectID(space.occupantId);
+      saver.xferBool(space.reservedForExit);
+    }
+    saver.xferUnsignedByte(options.runways.length);
+    for (const runway of options.runways) {
+      saver.xferObjectID(runway.inUseBy);
+      saver.xferObjectID(runway.nextInLineForTakeoff);
+      saver.xferBool(runway.wasInLine);
+    }
+    saver.xferUnsignedByte(options.healees.length);
+    for (const healee of options.healees) {
+      saver.xferObjectID(healee.entityId);
+      saver.xferUnsignedInt(healee.healStartFrame);
+    }
+    saver.xferCoord3D(options.heliRallyPoint);
+    saver.xferBool(options.heliRallyPointExists);
+    saver.xferUnsignedInt(options.nextHealFrame);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -5611,6 +5658,86 @@ describe('source-owned game-logic core save-state', () => {
     const importedProjectile = privateLogic.spawnedEntities.get(130)!;
     expect(importedProjectile.specialPowerCompletionCreatorId).toBe(77);
     expect(importedProjectile.specialPowerCompletionCreatorSet).toBe(true);
+  });
+
+  it('imports source ParkingPlaceBehavior runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const parkingState = createEmptySourceMapEntitySaveState();
+    parkingState.objectId = 131;
+    parkingState.position = { x: 190, y: 0, z: 80 };
+    parkingState.modules = [{
+      identifier: 'ModuleTag_Parking',
+      blockData: buildSourceParkingPlaceBehaviorModuleData({
+        nextCallFrame: 205,
+        spaces: [
+          { occupantId: 401, reservedForExit: false },
+          { occupantId: 0, reservedForExit: true },
+          { occupantId: 402, reservedForExit: false },
+          { occupantId: 0, reservedForExit: false },
+        ],
+        runways: [
+          { inUseBy: 501, nextInLineForTakeoff: 601, wasInLine: true },
+          { inUseBy: 502, nextInLineForTakeoff: 0, wasInLine: false },
+        ],
+        healees: [
+          { entityId: 701, healStartFrame: 44 },
+          { entityId: 702, healStartFrame: 45 },
+        ],
+        heliRallyPoint: { x: 11, y: 12, z: 13 },
+        heliRallyPointExists: true,
+        nextHealFrame: 230,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AirfieldObject', state: parkingState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        parkingPlaceProfile: {
+          occupiedSpaceEntityIds: Set<number>;
+          spaceOccupantIds: number[];
+          spaceReservedForExit: boolean[];
+          runwayInUseByIds: number[];
+          runwayNextInLineForTakeoffIds: number[];
+          runwayWasInLine: boolean[];
+          healeeEntityIds: Set<number>;
+          healeeStates: Array<{ entityId: number; healStartFrame: number }>;
+          heliRallyPoint: { x: number; y: number; z: number };
+          heliRallyPointExists: boolean;
+          nextHealFrame: number;
+        } | null;
+      }>;
+    };
+
+    const importedParking = privateLogic.spawnedEntities.get(131)!.parkingPlaceProfile!;
+    expect(importedParking.spaceOccupantIds).toEqual([401, 0, 402, 0]);
+    expect(importedParking.spaceReservedForExit).toEqual([false, true, false, false]);
+    expect(Array.from(importedParking.occupiedSpaceEntityIds.values())).toEqual([401, 402]);
+    expect(importedParking.runwayInUseByIds).toEqual([501, 502]);
+    expect(importedParking.runwayNextInLineForTakeoffIds).toEqual([601, 0]);
+    expect(importedParking.runwayWasInLine).toEqual([true, false]);
+    expect(Array.from(importedParking.healeeEntityIds.values())).toEqual([701, 702]);
+    expect(importedParking.healeeStates).toEqual([
+      { entityId: 701, healStartFrame: 44 },
+      { entityId: 702, healStartFrame: 45 },
+    ]);
+    expect(importedParking.heliRallyPoint).toEqual({ x: 11, y: 12, z: 13 });
+    expect(importedParking.heliRallyPointExists).toBe(true);
+    expect(importedParking.nextHealFrame).toBe(230);
   });
 
   it('imports source BridgeScaffoldBehavior runtime state', () => {

@@ -101,12 +101,21 @@ export function extractParkingPlaceProfile(self: GL, objectDef: ObjectDef | unde
     totalSpaces: numRows * numCols,
     occupiedSpaceEntityIds: new Set<number>(),
     reservedProductionIds: new Set<number>(),
+    spaceOccupantIds: Array.from({ length: numRows * numCols }, () => 0),
+    spaceReservedForExit: Array.from({ length: numRows * numCols }, () => false),
+    spaceReservedProductionIds: Array.from({ length: numRows * numCols }, () => null),
+    runwayInUseByIds: hasRunways ? Array.from({ length: numCols }, () => 0) : [],
+    runwayNextInLineForTakeoffIds: hasRunways ? Array.from({ length: numCols }, () => 0) : [],
+    runwayWasInLine: hasRunways ? Array.from({ length: numCols }, () => false) : [],
     healAmountPerSecond,
     approachHeight,
     hasRunways,
     parkInHangars,
     healeeEntityIds: new Set<number>(),
+    healeeStates: [],
     nextHealFrame: Number.POSITIVE_INFINITY,
+    heliRallyPoint: { x: 0, y: 0, z: 0 },
+    heliRallyPointExists: false,
   };
 }
 
@@ -639,16 +648,28 @@ export function setParkingPlaceHealee(self: GL, airfield: MapEntity, healee: Map
       const otherProfile = other.parkingPlaceProfile;
       if (otherProfile) {
         otherProfile.healeeEntityIds.delete(healee.id);
+        otherProfile.healeeStates = otherProfile.healeeStates.filter((state) => state.entityId !== healee.id);
       }
     }
     profile.healeeEntityIds.add(healee.id);
+    const existingState = profile.healeeStates.find((state) => state.entityId === healee.id);
+    if (existingState) {
+      existingState.healStartFrame = Math.max(0, Math.trunc(self.frameCounter));
+    } else {
+      profile.healeeStates.push({
+        entityId: healee.id,
+        healStartFrame: Math.max(0, Math.trunc(self.frameCounter)),
+      });
+    }
     if (profile.healeeEntityIds.size === 1) {
       profile.nextHealFrame = self.frameCounter + PARKING_PLACE_HEAL_RATE_FRAMES;
     }
     return;
   }
 
-  if (profile.healeeEntityIds.delete(healee.id) && profile.healeeEntityIds.size === 0) {
+  const deleted = profile.healeeEntityIds.delete(healee.id);
+  profile.healeeStates = profile.healeeStates.filter((state) => state.entityId !== healee.id);
+  if (deleted && profile.healeeEntityIds.size === 0) {
     profile.nextHealFrame = Number.POSITIVE_INFINITY;
   }
 }
@@ -657,7 +678,9 @@ export function clearParkingPlaceHealee(self: GL, healee: MapEntity): void {
   for (const other of self.spawnedEntities.values()) {
     const profile = other.parkingPlaceProfile;
     if (!profile) continue;
-    if (profile.healeeEntityIds.delete(healee.id) && profile.healeeEntityIds.size === 0) {
+    const deleted = profile.healeeEntityIds.delete(healee.id);
+    profile.healeeStates = profile.healeeStates.filter((state) => state.entityId !== healee.id);
+    if (deleted && profile.healeeEntityIds.size === 0) {
       profile.nextHealFrame = Number.POSITIVE_INFINITY;
     }
   }
@@ -697,6 +720,7 @@ export function updateParkingPlaceHealing(self: GL): void {
 
     for (const healeeId of toRemove) {
       profile.healeeEntityIds.delete(healeeId);
+      profile.healeeStates = profile.healeeStates.filter((state) => state.entityId !== healeeId);
     }
     if (profile.healeeEntityIds.size === 0) {
       profile.nextHealFrame = Number.POSITIVE_INFINITY;

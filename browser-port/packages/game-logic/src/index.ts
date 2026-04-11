@@ -2399,6 +2399,18 @@ interface ParkingPlaceProfile {
   totalSpaces: number;
   occupiedSpaceEntityIds: Set<number>;
   reservedProductionIds: Set<number>;
+  /** Source parity: ParkingPlaceBehavior::m_spaces[].m_objectInSpace. */
+  spaceOccupantIds: number[];
+  /** Source parity: ParkingPlaceBehavior::m_spaces[].m_reservedForExit. */
+  spaceReservedForExit: boolean[];
+  /** Runtime mapping for reserved exit doors created by browser production IDs. */
+  spaceReservedProductionIds: Array<number | null>;
+  /** Source parity: ParkingPlaceBehavior::m_runways[].m_inUseBy. */
+  runwayInUseByIds: number[];
+  /** Source parity: ParkingPlaceBehavior::m_runways[].m_nextInLineForTakeoff. */
+  runwayNextInLineForTakeoffIds: number[];
+  /** Source parity: ParkingPlaceBehavior::m_runways[].m_wasInLine. */
+  runwayWasInLine: boolean[];
   /** Source parity: ParkingPlaceBehaviorModuleData::m_healAmount (per second). */
   healAmountPerSecond: number;
   /** Source parity: ParkingPlaceBehaviorModuleData::m_approachHeight. */
@@ -2409,8 +2421,14 @@ interface ParkingPlaceProfile {
   parkInHangars: boolean;
   /** Source parity: ParkingPlaceBehavior::m_healing list. */
   healeeEntityIds: Set<number>;
+  /** Source parity: ParkingPlaceBehavior::m_healing entries, including m_healStartFrame. */
+  healeeStates: Array<{ entityId: number; healStartFrame: number }>;
   /** Source parity: ParkingPlaceBehavior::m_nextHealFrame. */
   nextHealFrame: number;
+  /** Source parity: ParkingPlaceBehavior::m_heliRallyPoint. */
+  heliRallyPoint: { x: number; y: number; z: number };
+  /** Source parity: ParkingPlaceBehavior::m_heliRallyPointExists. */
+  heliRallyPointExists: boolean;
 }
 
 /**
@@ -9043,6 +9061,16 @@ const SOURCE_BRIDGE_MAX_TOWERS = 4;
 interface SourceSpecialPowerCompletionDieImportState {
   creatorId: number;
   creatorSet: boolean;
+}
+
+interface SourceParkingPlaceBehaviorImportState {
+  nextCallFrame: number;
+  spaces: Array<{ occupantId: number; reservedForExit: boolean }>;
+  runways: Array<{ inUseBy: number; nextInLineForTakeoff: number; wasInLine: boolean }>;
+  healees: Array<{ entityId: number; healStartFrame: number }>;
+  heliRallyPoint: { x: number; y: number; z: number };
+  heliRallyPointExists: boolean;
+  nextHealFrame: number;
 }
 
 interface SourceSlowDeathBehaviorImportState {
@@ -16603,6 +16631,129 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceParkingPlaceBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceParkingPlaceBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'PARKINGPLACEBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-parking-place-behavior-import');
+    try {
+      const version = xfer.xferVersion(3);
+      if (version < 1 || version > 3) {
+        return null;
+      }
+      const nextCallFrame = this.skipSourceImportUpdateModuleBase(xfer);
+      const spaceCount = xfer.xferUnsignedByte(0);
+      const spaces: SourceParkingPlaceBehaviorImportState['spaces'] = [];
+      for (let index = 0; index < spaceCount; index += 1) {
+        spaces.push({
+          occupantId: xfer.xferObjectID(0),
+          reservedForExit: xfer.xferBool(false),
+        });
+      }
+      const runwayCount = xfer.xferUnsignedByte(0);
+      const runways: SourceParkingPlaceBehaviorImportState['runways'] = [];
+      for (let index = 0; index < runwayCount; index += 1) {
+        runways.push({
+          inUseBy: xfer.xferObjectID(0),
+          nextInLineForTakeoff: xfer.xferObjectID(0),
+          wasInLine: xfer.xferBool(false),
+        });
+      }
+      const healCount = xfer.xferUnsignedByte(0);
+      const healees: SourceParkingPlaceBehaviorImportState['healees'] = [];
+      for (let index = 0; index < healCount; index += 1) {
+        healees.push({
+          entityId: xfer.xferObjectID(0),
+          healStartFrame: xfer.xferUnsignedInt(0),
+        });
+      }
+      const heliRallyPoint = version >= 2 ? xfer.xferCoord3D({ x: 0, y: 0, z: 0 }) : { x: 0, y: 0, z: 0 };
+      const heliRallyPointExists = version >= 2 ? xfer.xferBool(false) : false;
+      const nextHealFrame = version >= 3 ? xfer.xferUnsignedInt(0) : 0;
+      return xfer.getRemaining() === 0
+        ? {
+          nextCallFrame,
+          spaces,
+          runways,
+          healees,
+          heliRallyPoint,
+          heliRallyPointExists,
+          nextHealFrame,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceParkingPlaceBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    const parkingProfile = entity.parkingPlaceProfile;
+    if (!parkingProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const parkingState = this.tryParseSourceParkingPlaceBehaviorImportState(module.blockData, moduleType);
+      if (!parkingState) {
+        continue;
+      }
+
+      const spaceCount = Math.max(0, Math.trunc(parkingProfile.totalSpaces));
+      parkingProfile.spaceOccupantIds = Array.from({ length: spaceCount }, (_, index) =>
+        Math.max(0, Math.trunc(parkingState.spaces[index]?.occupantId ?? 0)));
+      parkingProfile.spaceReservedForExit = Array.from({ length: spaceCount }, (_, index) =>
+        parkingState.spaces[index]?.reservedForExit === true);
+      parkingProfile.spaceReservedProductionIds = Array.from({ length: spaceCount }, () => null);
+      parkingProfile.occupiedSpaceEntityIds = new Set(
+        parkingProfile.spaceOccupantIds.filter((entityId) => entityId > 0),
+      );
+
+      const runwayCount = Math.max(
+        parkingProfile.runwayInUseByIds.length,
+        parkingProfile.hasRunways ? parkingState.runways.length : 0,
+      );
+      parkingProfile.runwayInUseByIds = Array.from({ length: runwayCount }, (_, index) =>
+        Math.max(0, Math.trunc(parkingState.runways[index]?.inUseBy ?? 0)));
+      parkingProfile.runwayNextInLineForTakeoffIds = Array.from({ length: runwayCount }, (_, index) =>
+        Math.max(0, Math.trunc(parkingState.runways[index]?.nextInLineForTakeoff ?? 0)));
+      parkingProfile.runwayWasInLine = Array.from({ length: runwayCount }, (_, index) =>
+        parkingState.runways[index]?.wasInLine === true);
+
+      parkingProfile.healeeStates = parkingState.healees
+        .map((healee) => ({
+          entityId: Math.max(0, Math.trunc(healee.entityId)),
+          healStartFrame: Math.max(0, Math.trunc(healee.healStartFrame)),
+        }))
+        .filter((healee) => healee.entityId > 0);
+      parkingProfile.healeeEntityIds = new Set(parkingProfile.healeeStates.map((healee) => healee.entityId));
+      parkingProfile.heliRallyPoint = {
+        x: Number.isFinite(parkingState.heliRallyPoint.x) ? parkingState.heliRallyPoint.x : 0,
+        y: Number.isFinite(parkingState.heliRallyPoint.y) ? parkingState.heliRallyPoint.y : 0,
+        z: Number.isFinite(parkingState.heliRallyPoint.z) ? parkingState.heliRallyPoint.z : 0,
+      };
+      parkingProfile.heliRallyPointExists = parkingState.heliRallyPointExists;
+      parkingProfile.nextHealFrame = Math.max(0, Math.trunc(parkingState.nextHealFrame));
+      return;
+    }
+  }
+
   private tryParseSourceBridgeScaffoldBehaviorImportState(
     data: Uint8Array,
     moduleType: string,
@@ -21208,6 +21359,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceSupplyTruckAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceChinookAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceDozerAIUpdateModulesToEntity(entity, sourceState);
+    this.applySourceParkingPlaceBehaviorModulesToEntity(entity, sourceState);
     this.applySourceRebuildHoleBehaviorModulesToEntity(entity, sourceState);
     this.applySourcePropagandaTowerBehaviorModulesToEntity(entity, sourceState);
     this.applySourceBridgeBehaviorModulesToEntity(entity, sourceState);

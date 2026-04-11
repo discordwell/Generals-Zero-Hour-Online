@@ -2,6 +2,9 @@ interface ParkingPlaceProfileLike {
   totalSpaces: number;
   occupiedSpaceEntityIds: Set<number>;
   reservedProductionIds: Set<number>;
+  spaceOccupantIds?: number[];
+  spaceReservedForExit?: boolean[];
+  spaceReservedProductionIds?: Array<number | null>;
 }
 
 interface ProductionQueueEntryLike {
@@ -37,7 +40,21 @@ export function releaseParkingDoorReservationForProduction(
   parkingProfile: ParkingPlaceProfileLike | null,
   productionId: number,
 ): void {
-  parkingProfile?.reservedProductionIds.delete(productionId);
+  if (!parkingProfile) {
+    return;
+  }
+  parkingProfile.reservedProductionIds.delete(productionId);
+  const reservedProductionIds = parkingProfile.spaceReservedProductionIds;
+  if (!Array.isArray(reservedProductionIds)) {
+    return;
+  }
+  const index = reservedProductionIds.findIndex((reservedProductionId) => reservedProductionId === productionId);
+  if (index >= 0) {
+    reservedProductionIds[index] = null;
+    if (Array.isArray(parkingProfile.spaceReservedForExit)) {
+      parkingProfile.spaceReservedForExit[index] = false;
+    }
+  }
 }
 
 export function pruneParkingReservations(
@@ -58,6 +75,16 @@ export function pruneParkingReservations(
   for (const reservedProductionId of Array.from(parkingProfile.reservedProductionIds.values())) {
     if (!activeUnitProductionIds.has(reservedProductionId)) {
       parkingProfile.reservedProductionIds.delete(reservedProductionId);
+      const reservedProductionIds = parkingProfile.spaceReservedProductionIds;
+      if (Array.isArray(reservedProductionIds)) {
+        const index = reservedProductionIds.findIndex((candidate) => candidate === reservedProductionId);
+        if (index >= 0) {
+          reservedProductionIds[index] = null;
+          if (Array.isArray(parkingProfile.spaceReservedForExit)) {
+            parkingProfile.spaceReservedForExit[index] = false;
+          }
+        }
+      }
     }
   }
 }
@@ -74,8 +101,56 @@ export function pruneParkingOccupancy(
     const occupiedEntity = spawnedEntities.get(occupiedEntityId);
     if (!occupiedEntity || occupiedEntity.destroyed) {
       parkingProfile.occupiedSpaceEntityIds.delete(occupiedEntityId);
+      if (Array.isArray(parkingProfile.spaceOccupantIds)) {
+        const index = parkingProfile.spaceOccupantIds.findIndex((candidate) => candidate === occupiedEntityId);
+        if (index >= 0) {
+          parkingProfile.spaceOccupantIds[index] = 0;
+          if (Array.isArray(parkingProfile.spaceReservedForExit)) {
+            parkingProfile.spaceReservedForExit[index] = false;
+          }
+          if (Array.isArray(parkingProfile.spaceReservedProductionIds)) {
+            parkingProfile.spaceReservedProductionIds[index] = null;
+          }
+        }
+      }
     }
   }
+}
+
+function syncParkingSpaceArraysFromOccupiedSet(parkingProfile: ParkingPlaceProfileLike): void {
+  const occupantIds = parkingProfile.spaceOccupantIds;
+  if (!Array.isArray(occupantIds) || occupantIds.length === 0) {
+    return;
+  }
+  const reservedFlags = parkingProfile.spaceReservedForExit;
+  for (const occupiedEntityId of parkingProfile.occupiedSpaceEntityIds.values()) {
+    if (occupantIds.includes(occupiedEntityId)) {
+      continue;
+    }
+    const freeIndex = occupantIds.findIndex((candidate, index) =>
+      (candidate ?? 0) <= 0 && reservedFlags?.[index] !== true);
+    if (freeIndex >= 0) {
+      occupantIds[freeIndex] = occupiedEntityId;
+    }
+  }
+}
+
+function findFreeParkingSpaceIndex(parkingProfile: ParkingPlaceProfileLike): number {
+  const occupantIds = parkingProfile.spaceOccupantIds;
+  const reservedFlags = parkingProfile.spaceReservedForExit;
+  if (!Array.isArray(occupantIds) || occupantIds.length === 0) {
+    return -1;
+  }
+  for (let index = 0; index < Math.min(occupantIds.length, parkingProfile.totalSpaces); index += 1) {
+    if ((occupantIds[index] ?? 0) <= 0 && reservedFlags?.[index] !== true) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function hasParkingSpaceArrays(parkingProfile: ParkingPlaceProfileLike): boolean {
+  return Array.isArray(parkingProfile.spaceOccupantIds) && parkingProfile.spaceOccupantIds.length > 0;
 }
 
 function refreshParkingState(
@@ -85,6 +160,7 @@ function refreshParkingState(
 ): void {
   pruneParkingOccupancy(parkingProfile, spawnedEntities);
   pruneParkingReservations(parkingProfile, productionQueue);
+  syncParkingSpaceArraysFromOccupiedSet(parkingProfile);
 }
 
 export function hasAvailableParkingSpace(
@@ -97,6 +173,9 @@ export function hasAvailableParkingSpace(
   }
 
   refreshParkingState(parkingProfile, productionQueue, spawnedEntities);
+  if (hasParkingSpaceArrays(parkingProfile)) {
+    return findFreeParkingSpaceIndex(parkingProfile) >= 0;
+  }
   return (parkingProfile.occupiedSpaceEntityIds.size + parkingProfile.reservedProductionIds.size)
     < parkingProfile.totalSpaces;
 }
@@ -112,6 +191,18 @@ export function reserveParkingDoorForQueuedUnit(
   }
 
   refreshParkingState(parkingProfile, productionQueue, spawnedEntities);
+  if (hasParkingSpaceArrays(parkingProfile)) {
+    const freeIndex = findFreeParkingSpaceIndex(parkingProfile);
+    if (freeIndex < 0) {
+      return false;
+    }
+    parkingProfile.spaceReservedForExit![freeIndex] = true;
+    if (Array.isArray(parkingProfile.spaceReservedProductionIds)) {
+      parkingProfile.spaceReservedProductionIds[freeIndex] = productionId;
+    }
+    parkingProfile.reservedProductionIds.add(productionId);
+    return true;
+  }
   if ((parkingProfile.occupiedSpaceEntityIds.size + parkingProfile.reservedProductionIds.size) >= parkingProfile.totalSpaces) {
     return false;
   }
@@ -136,6 +227,9 @@ export function canExitProducedUnitViaParking(
   if (parkingProfile.reservedProductionIds.has(productionId)) {
     return true;
   }
+  if (hasParkingSpaceArrays(parkingProfile)) {
+    return findFreeParkingSpaceIndex(parkingProfile) >= 0;
+  }
 
   return (parkingProfile.occupiedSpaceEntityIds.size + parkingProfile.reservedProductionIds.size)
     < parkingProfile.totalSpaces;
@@ -155,8 +249,30 @@ export function reserveParkingSpaceForProducedUnit(
   refreshParkingState(parkingProfile, productionQueue, spawnedEntities);
   if (parkingProfile.reservedProductionIds.has(productionId)) {
     parkingProfile.reservedProductionIds.delete(productionId);
+    const reservedProductionIds = parkingProfile.spaceReservedProductionIds;
+    if (Array.isArray(parkingProfile.spaceOccupantIds) && Array.isArray(reservedProductionIds)) {
+      const reservedIndex = reservedProductionIds.findIndex((candidate) => candidate === productionId);
+      if (reservedIndex >= 0) {
+        parkingProfile.spaceOccupantIds[reservedIndex] = producedUnitId;
+        if (Array.isArray(parkingProfile.spaceReservedForExit)) {
+          parkingProfile.spaceReservedForExit[reservedIndex] = false;
+        }
+        reservedProductionIds[reservedIndex] = null;
+        parkingProfile.occupiedSpaceEntityIds.add(producedUnitId);
+        return true;
+      }
+    }
   } else if ((parkingProfile.occupiedSpaceEntityIds.size + parkingProfile.reservedProductionIds.size) >= parkingProfile.totalSpaces) {
-    return false;
+    if (!hasParkingSpaceArrays(parkingProfile) || findFreeParkingSpaceIndex(parkingProfile) < 0) {
+      return false;
+    }
+  }
+
+  if (Array.isArray(parkingProfile.spaceOccupantIds)) {
+    const freeIndex = findFreeParkingSpaceIndex(parkingProfile);
+    if (freeIndex >= 0) {
+      parkingProfile.spaceOccupantIds[freeIndex] = producedUnitId;
+    }
   }
 
   parkingProfile.occupiedSpaceEntityIds.add(producedUnitId);

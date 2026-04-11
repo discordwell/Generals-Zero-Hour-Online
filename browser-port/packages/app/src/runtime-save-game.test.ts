@@ -2325,6 +2325,16 @@ interface SourceSpecialPowerCompletionDieTestState {
   creatorSet: boolean;
 }
 
+interface SourceParkingPlaceBehaviorTestState {
+  nextCallFrameAndPhase: number;
+  spaces: Array<{ occupantId: number; reservedForExit: boolean }>;
+  runways: Array<{ inUseBy: number; nextInLineForTakeoff: number; wasInLine: boolean }>;
+  healees: Array<{ entityId: number; healStartFrame: number }>;
+  heliRallyPoint: Coord3D;
+  heliRallyPointExists: boolean;
+  nextHealFrame: number;
+}
+
 function createSourceBridgeBehaviorBlockData(state: SourceBridgeBehaviorTestState): Uint8Array {
   const xferSave = new XferSave();
   xferSave.open('create-source-bridge-behavior');
@@ -2443,6 +2453,90 @@ function parseSourceSpecialPowerCompletionDieBlockData(
     };
     expect(xferLoad.getRemaining()).toBe(0);
     return parsed;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceParkingPlaceBehaviorBlockData(state: SourceParkingPlaceBehaviorTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-parking-place-behavior');
+  try {
+    xferSave.xferVersion(3);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferUnsignedByte(state.spaces.length);
+    for (const space of state.spaces) {
+      xferSave.xferObjectID(space.occupantId);
+      xferSave.xferBool(space.reservedForExit);
+    }
+    xferSave.xferUnsignedByte(state.runways.length);
+    for (const runway of state.runways) {
+      xferSave.xferObjectID(runway.inUseBy);
+      xferSave.xferObjectID(runway.nextInLineForTakeoff);
+      xferSave.xferBool(runway.wasInLine);
+    }
+    xferSave.xferUnsignedByte(state.healees.length);
+    for (const healee of state.healees) {
+      xferSave.xferObjectID(healee.entityId);
+      xferSave.xferUnsignedInt(healee.healStartFrame);
+    }
+    xferSave.xferCoord3D(state.heliRallyPoint);
+    xferSave.xferBool(state.heliRallyPointExists);
+    xferSave.xferUnsignedInt(state.nextHealFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceParkingPlaceBehaviorBlockData(data: Uint8Array): SourceParkingPlaceBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-parking-place-behavior');
+  try {
+    expect(xferLoad.xferVersion(3)).toBe(3);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const spaceCount = xferLoad.xferUnsignedByte(0);
+    const spaces: SourceParkingPlaceBehaviorTestState['spaces'] = [];
+    for (let index = 0; index < spaceCount; index += 1) {
+      spaces.push({
+        occupantId: xferLoad.xferObjectID(0),
+        reservedForExit: xferLoad.xferBool(false),
+      });
+    }
+    const runwayCount = xferLoad.xferUnsignedByte(0);
+    const runways: SourceParkingPlaceBehaviorTestState['runways'] = [];
+    for (let index = 0; index < runwayCount; index += 1) {
+      runways.push({
+        inUseBy: xferLoad.xferObjectID(0),
+        nextInLineForTakeoff: xferLoad.xferObjectID(0),
+        wasInLine: xferLoad.xferBool(false),
+      });
+    }
+    const healCount = xferLoad.xferUnsignedByte(0);
+    const healees: SourceParkingPlaceBehaviorTestState['healees'] = [];
+    for (let index = 0; index < healCount; index += 1) {
+      healees.push({
+        entityId: xferLoad.xferObjectID(0),
+        healStartFrame: xferLoad.xferUnsignedInt(0),
+      });
+    }
+    const heliRallyPoint = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const heliRallyPointExists = xferLoad.xferBool(false);
+    const nextHealFrame = xferLoad.xferUnsignedInt(0);
+    expect(xferLoad.getRemaining()).toBe(0);
+    return {
+      nextCallFrameAndPhase,
+      spaces,
+      runways,
+      healees,
+      heliRallyPoint,
+      heliRallyPointExists,
+      nextHealFrame,
+    };
   } finally {
     xferLoad.close();
   }
@@ -13646,6 +13740,150 @@ describe('runtime-save-game', () => {
     expect(parseSourceSpecialPowerCompletionDieBlockData(completionModule!.blockData)).toEqual({
       creatorId: 77,
       creatorSet: true,
+    });
+  });
+
+  it('rewrites source ParkingPlaceBehavior modules from live runtime state', () => {
+    const preserved: SourceParkingPlaceBehaviorTestState = {
+      nextCallFrameAndPhase: (90 << 2) | 2,
+      spaces: [
+        { occupantId: 10, reservedForExit: false },
+        { occupantId: 0, reservedForExit: true },
+      ],
+      runways: [
+        { inUseBy: 20, nextInLineForTakeoff: 30, wasInLine: true },
+      ],
+      healees: [{ entityId: 40, healStartFrame: 50 }],
+      heliRallyPoint: { x: 1, y: 2, z: 3 },
+      heliRallyPointExists: false,
+      nextHealFrame: 60,
+    };
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Parking',
+      blockData: createSourceParkingPlaceBehaviorBlockData(preserved),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source parking place behavior rewrite',
+      mapPath: 'Maps/RuntimeParking/RuntimeParking.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeParking',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            parkingPlaceProfile: {
+              totalSpaces: 3,
+              occupiedSpaceEntityIds: new Set([101, 102]),
+              reservedProductionIds: new Set<number>(),
+              spaceOccupantIds: [101, 0, 102],
+              spaceReservedForExit: [false, true, false],
+              spaceReservedProductionIds: [null, null, null],
+              runwayInUseByIds: [201, 202],
+              runwayNextInLineForTakeoffIds: [301, 0],
+              runwayWasInLine: [true, false],
+              healAmountPerSecond: 10,
+              approachHeight: 0,
+              hasRunways: true,
+              parkInHangars: false,
+              healeeEntityIds: new Set([401, 402]),
+              healeeStates: [
+                { entityId: 401, healStartFrame: 33 },
+                { entityId: 402, healStartFrame: 34 },
+              ],
+              nextHealFrame: 88,
+              heliRallyPoint: { x: 11, y: 12, z: 13 },
+              heliRallyPointExists: true,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Parking') {
+            return 'PARKINGPLACEBEHAVIOR';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const parkingModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Parking');
+
+    expect(parkingModule).toBeDefined();
+    expect(parseSourceParkingPlaceBehaviorBlockData(parkingModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: preserved.nextCallFrameAndPhase,
+      spaces: [
+        { occupantId: 101, reservedForExit: false },
+        { occupantId: 0, reservedForExit: true },
+        { occupantId: 102, reservedForExit: false },
+      ],
+      runways: [
+        { inUseBy: 201, nextInLineForTakeoff: 301, wasInLine: true },
+        { inUseBy: 202, nextInLineForTakeoff: 0, wasInLine: false },
+      ],
+      healees: [
+        { entityId: 401, healStartFrame: 33 },
+        { entityId: 402, healStartFrame: 34 },
+      ],
+      heliRallyPoint: { x: 11, y: 12, z: 13 },
+      heliRallyPointExists: true,
+      nextHealFrame: 88,
     });
   });
 
