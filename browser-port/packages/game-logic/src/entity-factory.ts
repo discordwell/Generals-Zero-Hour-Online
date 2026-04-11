@@ -4539,6 +4539,7 @@ export function extractSlowDeathProfiles(self: GL, objectDef: ObjectDef | undefi
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType.includes('SLOWDEATH') || moduleType === 'HELICOPTERSLOWDEATHBEHAVIOR'
           || moduleType === 'JETSLOWDEATHBEHAVIOR') {
+        const moduleTag = block.name.split(/\s+/)[1]?.trim().toUpperCase() ?? null;
         // Parse DeathTypes set.
         const deathTypes = new Set<string>();
         const deathTypesStr = readStringField(block.fields, ['DeathTypes']);
@@ -4606,6 +4607,8 @@ export function extractSlowDeathProfiles(self: GL, objectDef: ObjectDef | undefi
         parsePhaseEntries('Weapon', phaseWeapons);
 
         profiles.push({
+          moduleType,
+          moduleTag,
           probabilityModifier: readNumericField(block.fields, ['ProbabilityModifier']) ?? 10,
           modifierBonusPerOverkillPercent: readNumericField(block.fields, ['ModifierBonusPerOverkillPercent']) ?? 0,
           sinkDelay: self.msToLogicFrames(readNumericField(block.fields, ['SinkDelay']) ?? 0),
@@ -4650,6 +4653,7 @@ export function extractHelicopterSlowDeathProfiles(self: GL, objectDef: ObjectDe
     if (blockType !== 'BEHAVIOR' && blockType !== 'DIE') return;
     const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
     if (moduleType !== 'HELICOPTERSLOWDEATHBEHAVIOR') return;
+    const moduleTag = block.name.split(/\s+/)[1]?.trim().toUpperCase() ?? null;
 
     // DieMuxData fields.
     const deathTypes = new Set<string>();
@@ -4748,6 +4752,7 @@ export function extractHelicopterSlowDeathProfiles(self: GL, objectDef: ObjectDe
     const soundDeathLoop = readStringField(block.fields, ['SoundDeathLoop']) ?? null;
 
     profiles.push({
+      moduleTag,
       deathTypes,
       veterancyLevels,
       exemptStatus,

@@ -5499,6 +5499,9 @@ function damageTypeToDeathType(damageType: string): string {
  * Controls phased death sequences with configurable timing, effects, and sinking.
  */
 interface SlowDeathProfile {
+  /** Source module type/tag for mapping source Object::xfer module state back to the selected profile. */
+  moduleType?: string;
+  moduleTag?: string | null;
   /** Weighting for this death behavior when multiple are applicable. */
   probabilityModifier: number;
   /** Extra probability per % overkill damage. */
@@ -5831,6 +5834,8 @@ interface SlowDeathRuntimeState {
  * C++ file: HelicopterSlowDeathUpdate.cpp (extends SlowDeathBehavior).
  */
 interface HelicopterSlowDeathProfile {
+  /** Source module tag for mapping source Object::xfer module state back to this profile. */
+  moduleTag?: string | null;
   /** DieMuxData filtering. */
   deathTypes: Set<string>;
   veterancyLevels: Set<string>;
@@ -5918,6 +5923,8 @@ interface HelicopterSlowDeathState {
  * keeps flying straight with roll decay, descends via gravity, hits ground, final explosion.
  */
 interface JetSlowDeathProfile {
+  /** Source module tag for mapping source Object::xfer module state back to this profile. */
+  moduleTag?: string | null;
   /** DieMuxData filtering. */
   deathTypes: Set<string>;
   veterancyLevels: Set<string>;
@@ -8956,6 +8963,50 @@ interface SourceDozerAIUpdateImportState {
   tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
 }
 
+interface SourceSlowDeathBehaviorImportState {
+  nextCallFrame: number;
+  sinkFrame: number;
+  midpointFrame: number;
+  destructionFrame: number;
+  acceleratedTimeScale: number;
+  flags: number;
+}
+
+interface SourceBattleBusSlowDeathBehaviorImportState {
+  slowDeath: SourceSlowDeathBehaviorImportState;
+  isRealDeath: boolean;
+  isInFirstDeath: boolean;
+  groundCheckFrame: number;
+  penaltyDeathFrame: number;
+}
+
+interface SourceHelicopterSlowDeathBehaviorImportState {
+  slowDeath: SourceSlowDeathBehaviorImportState;
+  orbitDirection: number;
+  forwardAngle: number;
+  forwardSpeed: number;
+  selfSpin: number;
+  selfSpinTowardsMax: boolean;
+  lastSelfSpinUpdateFrame: number;
+  bladeFlyOffFrame: number;
+  hitGroundFrame: number;
+}
+
+interface SourceJetSlowDeathBehaviorImportState {
+  slowDeath: SourceSlowDeathBehaviorImportState;
+  timerDeathFrame: number;
+  timerOnGroundFrame: number;
+  rollRate: number;
+}
+
+interface SourceNeutronMissileSlowDeathBehaviorImportState {
+  slowDeath: SourceSlowDeathBehaviorImportState;
+  activationFrame: number;
+  completedBlasts: boolean[];
+  completedScorchBlasts: boolean[];
+  scorchPlaced: boolean;
+}
+
 interface SourceProductionExitRallyImportState {
   nextCallFrame: number;
   rallyPoint: { x: number; y: number; z: number };
@@ -9439,6 +9490,11 @@ const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
 const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
+const SOURCE_SLOW_DEATH_FLAG_ACTIVATED = 1 << 0;
+const SOURCE_SLOW_DEATH_FLAG_MIDPOINT_EXECUTED = 1 << 1;
+const SOURCE_SLOW_DEATH_FLAG_FLUNG_INTO_AIR = 1 << 2;
+const SOURCE_SLOW_DEATH_FLAG_BOUNCED = 1 << 3;
+const SOURCE_MAX_NEUTRON_BLASTS = 9;
 const SOURCE_SPAWN_POINT_MAX_POINTS = 10;
 const SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH = 16 * 4;
 const SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_FLAG = -1;
@@ -15902,6 +15958,421 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private xferSourceSlowDeathBehaviorImportState(xfer: XferLoad): SourceSlowDeathBehaviorImportState | null {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+      this.skipSourceImportUpdateModuleBase(xfer),
+    );
+    return {
+      nextCallFrame,
+      sinkFrame: xfer.xferUnsignedInt(0),
+      midpointFrame: xfer.xferUnsignedInt(0),
+      destructionFrame: xfer.xferUnsignedInt(0),
+      acceleratedTimeScale: xfer.xferReal(1),
+      flags: xfer.xferUnsignedInt(0),
+    };
+  }
+
+  private tryParseSourceSlowDeathBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceSlowDeathBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'SLOWDEATHBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-slow-death-behavior-import');
+    try {
+      const state = this.xferSourceSlowDeathBehaviorImportState(xfer);
+      return state && xfer.getRemaining() === 0 ? state : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceBattleBusSlowDeathBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceBattleBusSlowDeathBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'BATTLEBUSSLOWDEATHBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-battle-bus-slow-death-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const slowDeath = this.xferSourceSlowDeathBehaviorImportState(xfer);
+      if (!slowDeath) {
+        return null;
+      }
+      const isRealDeath = xfer.xferBool(false);
+      const isInFirstDeath = xfer.xferBool(false);
+      const groundCheckFrame = xfer.xferUnsignedInt(0);
+      const penaltyDeathFrame = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? { slowDeath, isRealDeath, isInFirstDeath, groundCheckFrame, penaltyDeathFrame }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceHelicopterSlowDeathBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceHelicopterSlowDeathBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'HELICOPTERSLOWDEATHBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-helicopter-slow-death-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const slowDeath = this.xferSourceSlowDeathBehaviorImportState(xfer);
+      if (!slowDeath) {
+        return null;
+      }
+      const orbitDirection = xfer.xferInt(0);
+      const forwardAngle = xfer.xferReal(0);
+      const forwardSpeed = xfer.xferReal(0);
+      const selfSpin = xfer.xferReal(0);
+      const selfSpinTowardsMax = xfer.xferBool(false);
+      const lastSelfSpinUpdateFrame = xfer.xferUnsignedInt(0);
+      const bladeFlyOffFrame = xfer.xferUnsignedInt(0);
+      const hitGroundFrame = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? {
+            slowDeath,
+            orbitDirection,
+            forwardAngle,
+            forwardSpeed,
+            selfSpin,
+            selfSpinTowardsMax,
+            lastSelfSpinUpdateFrame,
+            bladeFlyOffFrame,
+            hitGroundFrame,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceJetSlowDeathBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceJetSlowDeathBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'JETSLOWDEATHBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-jet-slow-death-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const slowDeath = this.xferSourceSlowDeathBehaviorImportState(xfer);
+      if (!slowDeath) {
+        return null;
+      }
+      const timerDeathFrame = xfer.xferUnsignedInt(0);
+      const timerOnGroundFrame = xfer.xferUnsignedInt(0);
+      const rollRate = xfer.xferReal(0);
+      return xfer.getRemaining() === 0
+        ? { slowDeath, timerDeathFrame, timerOnGroundFrame, rollRate }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceNeutronMissileSlowDeathBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceNeutronMissileSlowDeathBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'NEUTRONMISSILESLOWDEATHBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-neutron-missile-slow-death-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const slowDeath = this.xferSourceSlowDeathBehaviorImportState(xfer);
+      if (!slowDeath) {
+        return null;
+      }
+      const activationFrame = xfer.xferUnsignedInt(0);
+      const maxNeutronBlasts = xfer.xferUnsignedByte(SOURCE_MAX_NEUTRON_BLASTS);
+      if (maxNeutronBlasts !== SOURCE_MAX_NEUTRON_BLASTS) {
+        return null;
+      }
+      const completedBlasts: boolean[] = [];
+      for (let index = 0; index < maxNeutronBlasts; index += 1) {
+        completedBlasts.push(xfer.xferBool(false));
+      }
+      const completedScorchBlasts: boolean[] = [];
+      for (let index = 0; index < maxNeutronBlasts; index += 1) {
+        completedScorchBlasts.push(xfer.xferBool(false));
+      }
+      const scorchPlaced = xfer.xferBool(false);
+      return xfer.getRemaining() === 0
+        ? { slowDeath, activationFrame, completedBlasts, completedScorchBlasts, scorchPlaced }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private sourceSlowDeathProfileIndexForModule(
+    entity: MapEntity,
+    moduleType: string,
+    moduleTag: string,
+  ): number {
+    const normalizedType = moduleType.trim().toUpperCase();
+    const normalizedTag = moduleTag.trim().toUpperCase();
+    if (normalizedTag) {
+      const tagIndex = entity.slowDeathProfiles.findIndex(
+        (profile) => (profile.moduleTag ?? '').trim().toUpperCase() === normalizedTag,
+      );
+      if (tagIndex >= 0) {
+        return tagIndex;
+      }
+    }
+
+    const typeIndex = entity.slowDeathProfiles.findIndex(
+      (profile) => (profile.moduleType ?? '').trim().toUpperCase() === normalizedType,
+    );
+    if (typeIndex >= 0) {
+      return typeIndex;
+    }
+
+    if (normalizedType === 'BATTLEBUSSLOWDEATHBEHAVIOR') {
+      const battleBusIndex = entity.slowDeathProfiles.findIndex((profile) => profile.isBattleBus);
+      if (battleBusIndex >= 0) {
+        return battleBusIndex;
+      }
+    }
+
+    return entity.slowDeathProfiles.length > 0 ? 0 : -1;
+  }
+
+  private sourceHelicopterSlowDeathProfileIndexForModule(entity: MapEntity, moduleTag: string): number {
+    const normalizedTag = moduleTag.trim().toUpperCase();
+    if (normalizedTag) {
+      const tagIndex = entity.helicopterSlowDeathProfiles.findIndex(
+        (profile) => (profile.moduleTag ?? '').trim().toUpperCase() === normalizedTag,
+      );
+      if (tagIndex >= 0) {
+        return tagIndex;
+      }
+    }
+    return entity.helicopterSlowDeathProfiles.length > 0 ? 0 : -1;
+  }
+
+  private sourceJetSlowDeathProfileIndexForModule(entity: MapEntity, moduleTag: string): number {
+    const normalizedTag = moduleTag.trim().toUpperCase();
+    if (normalizedTag) {
+      const tagIndex = entity.jetSlowDeathProfiles.findIndex(
+        (profile) => (profile.moduleTag ?? '').trim().toUpperCase() === normalizedTag,
+      );
+      if (tagIndex >= 0) {
+        return tagIndex;
+      }
+    }
+    return entity.jetSlowDeathProfiles.length > 0 ? 0 : -1;
+  }
+
+  private sourceSlowDeathFlag(flags: number, bit: number): boolean {
+    return (Math.trunc(flags) & bit) !== 0;
+  }
+
+  private sourceSlowDeathRuntimeStateFromImport(
+    entity: MapEntity,
+    slowDeath: SourceSlowDeathBehaviorImportState,
+    profileIndex: number,
+    destroyOnCompletion: boolean,
+    overrides: Partial<SlowDeathRuntimeState> = {},
+  ): SlowDeathRuntimeState {
+    const physicsState = entity.physicsBehaviorState;
+    const isFlung = this.sourceSlowDeathFlag(slowDeath.flags, SOURCE_SLOW_DEATH_FLAG_FLUNG_INTO_AIR);
+    return {
+      profileIndex,
+      sinkFrame: Math.max(0, Math.trunc(slowDeath.sinkFrame)),
+      midpointFrame: Math.max(0, Math.trunc(slowDeath.midpointFrame)),
+      destructionFrame: Math.max(0, Math.trunc(slowDeath.destructionFrame)),
+      midpointExecuted: this.sourceSlowDeathFlag(slowDeath.flags, SOURCE_SLOW_DEATH_FLAG_MIDPOINT_EXECUTED),
+      destroyOnCompletion,
+      flingVelocityX: isFlung && physicsState ? physicsState.velX : 0,
+      flingVelocityY: isFlung && physicsState ? physicsState.velY : 0,
+      flingVelocityZ: isFlung && physicsState ? physicsState.velZ : 0,
+      isFlung,
+      hasBounced: this.sourceSlowDeathFlag(slowDeath.flags, SOURCE_SLOW_DEATH_FLAG_BOUNCED),
+      isBattleBusFakeDeath: false,
+      battleBusThrowVelocity: 0,
+      battleBusLandingCheckFrame: 0,
+      battleBusEmptyHulkDestroyFrame: 0,
+      ...overrides,
+    };
+  }
+
+  private applySourceSlowDeathBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+
+      const slowDeathState = this.tryParseSourceSlowDeathBehaviorImportState(module.blockData, moduleType);
+      if (slowDeathState && this.sourceSlowDeathFlag(slowDeathState.flags, SOURCE_SLOW_DEATH_FLAG_ACTIVATED)) {
+        const profileIndex = this.sourceSlowDeathProfileIndexForModule(entity, moduleType, module.identifier);
+        if (profileIndex >= 0) {
+          entity.slowDeathState = this.sourceSlowDeathRuntimeStateFromImport(
+            entity,
+            slowDeathState,
+            profileIndex,
+            true,
+          );
+        }
+        continue;
+      }
+
+      const battleBusState = this.tryParseSourceBattleBusSlowDeathBehaviorImportState(module.blockData, moduleType);
+      if (battleBusState) {
+        const profileIndex = this.sourceSlowDeathProfileIndexForModule(entity, moduleType, module.identifier);
+        if (profileIndex >= 0 && (battleBusState.isRealDeath || battleBusState.isInFirstDeath)) {
+          const isFakeDeath = battleBusState.isInFirstDeath && !battleBusState.isRealDeath;
+          entity.slowDeathState = this.sourceSlowDeathRuntimeStateFromImport(
+            entity,
+            battleBusState.slowDeath,
+            profileIndex,
+            !isFakeDeath,
+            {
+              isBattleBusFakeDeath: isFakeDeath,
+              battleBusThrowVelocity: isFakeDeath && entity.physicsBehaviorState
+                ? entity.physicsBehaviorState.velY
+                : 0,
+              battleBusLandingCheckFrame: Math.max(0, Math.trunc(battleBusState.groundCheckFrame)),
+            },
+          );
+        } else if (battleBusState.penaltyDeathFrame > 0) {
+          entity.battleBusEmptyHulkDestroyFrame = Math.max(0, Math.trunc(battleBusState.penaltyDeathFrame));
+        }
+        continue;
+      }
+
+      const helicopterState = this.tryParseSourceHelicopterSlowDeathBehaviorImportState(module.blockData, moduleType);
+      if (helicopterState
+        && this.sourceSlowDeathFlag(helicopterState.slowDeath.flags, SOURCE_SLOW_DEATH_FLAG_ACTIVATED)) {
+        const slowProfileIndex = this.sourceSlowDeathProfileIndexForModule(entity, moduleType, module.identifier);
+        const helicopterProfileIndex = this.sourceHelicopterSlowDeathProfileIndexForModule(entity, module.identifier);
+        if (slowProfileIndex >= 0) {
+          entity.slowDeathState = this.sourceSlowDeathRuntimeStateFromImport(
+            entity,
+            helicopterState.slowDeath,
+            slowProfileIndex,
+            true,
+          );
+        }
+        if (helicopterProfileIndex >= 0) {
+          entity.helicopterSlowDeathState = {
+            forwardAngle: Number.isFinite(helicopterState.forwardAngle) ? helicopterState.forwardAngle : 0,
+            forwardSpeed: Number.isFinite(helicopterState.forwardSpeed) ? helicopterState.forwardSpeed : 0,
+            verticalVelocity: entity.physicsBehaviorState ? entity.physicsBehaviorState.velY : 0,
+            selfSpin: Number.isFinite(helicopterState.selfSpin) ? helicopterState.selfSpin : 0,
+            selfSpinTowardsMax: helicopterState.selfSpinTowardsMax,
+            lastSelfSpinUpdateFrame: Math.max(0, Math.trunc(helicopterState.lastSelfSpinUpdateFrame)),
+            orbitDirection: Math.trunc(helicopterState.orbitDirection) || 1,
+            hitGroundFrame: Math.max(0, Math.trunc(helicopterState.hitGroundFrame)),
+            profileIndex: helicopterProfileIndex,
+          };
+        }
+        continue;
+      }
+
+      const jetState = this.tryParseSourceJetSlowDeathBehaviorImportState(module.blockData, moduleType);
+      if (jetState && this.sourceSlowDeathFlag(jetState.slowDeath.flags, SOURCE_SLOW_DEATH_FLAG_ACTIVATED)) {
+        const slowProfileIndex = this.sourceSlowDeathProfileIndexForModule(entity, moduleType, module.identifier);
+        const jetProfileIndex = this.sourceJetSlowDeathProfileIndexForModule(entity, module.identifier);
+        if (slowProfileIndex >= 0) {
+          entity.slowDeathState = this.sourceSlowDeathRuntimeStateFromImport(
+            entity,
+            jetState.slowDeath,
+            slowProfileIndex,
+            true,
+          );
+        }
+        if (jetProfileIndex >= 0) {
+          const physicsState = entity.physicsBehaviorState;
+          entity.jetSlowDeathState = {
+            deathFrame: Math.max(0, Math.trunc(jetState.timerDeathFrame)),
+            groundFrame: Math.max(0, Math.trunc(jetState.timerOnGroundFrame)),
+            rollRate: Number.isFinite(jetState.rollRate) ? jetState.rollRate : 0,
+            rollAngle: 0,
+            pitchAngle: 0,
+            forwardSpeed: physicsState ? Math.hypot(physicsState.velX, physicsState.velZ) : 0,
+            forwardAngle: entity.rotationY,
+            verticalVelocity: physicsState ? physicsState.velY : 0,
+            secondaryExecuted: Math.trunc(jetState.timerDeathFrame) === 0,
+            profileIndex: jetProfileIndex,
+          };
+        }
+        continue;
+      }
+
+      const neutronState = this.tryParseSourceNeutronMissileSlowDeathBehaviorImportState(module.blockData, moduleType);
+      if (neutronState && this.sourceSlowDeathFlag(neutronState.slowDeath.flags, SOURCE_SLOW_DEATH_FLAG_ACTIVATED)) {
+        const profileIndex = this.sourceSlowDeathProfileIndexForModule(entity, moduleType, module.identifier);
+        if (profileIndex >= 0) {
+          entity.slowDeathState = this.sourceSlowDeathRuntimeStateFromImport(
+            entity,
+            neutronState.slowDeath,
+            profileIndex,
+            true,
+          );
+        }
+        entity.neutronMissileSlowDeathState = {
+          activationFrame: Math.max(0, Math.trunc(neutronState.activationFrame)),
+          completedBlasts: neutronState.completedBlasts.map((completed) => completed === true),
+          completedScorchBlasts: neutronState.completedScorchBlasts.map((completed) => completed === true),
+        };
+      }
+    }
+  }
+
   private tryParseSourceProductionExitRallyImportState(
     data: Uint8Array,
     moduleType: string,
@@ -19784,6 +20255,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceSupplyTruckAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceChinookAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceDozerAIUpdateModulesToEntity(entity, sourceState);
+    this.applySourceSlowDeathBehaviorModulesToEntity(entity, sourceState);
     this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);
     this.applySourcePointDefenseLaserUpdateModulesToEntity(entity, sourceState);

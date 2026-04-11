@@ -1008,6 +1008,11 @@ const SOURCE_BATTLE_PLAN_HOLD_THE_LINE = 2;
 const SOURCE_BATTLE_PLAN_SEARCH_AND_DESTROY = 3;
 const SOURCE_BATTLE_PLAN_STATUS_ACTIVE = 2;
 const SOURCE_BATTLE_PLAN_STATUS_PACKING = 3;
+const SOURCE_SLOW_DEATH_FLAG_ACTIVATED = 0x00000001;
+const SOURCE_SLOW_DEATH_FLAG_MIDPOINT_EXECUTED = 0x00000002;
+const SOURCE_SLOW_DEATH_FLAG_FLUNG_INTO_AIR = 0x00000004;
+const SOURCE_SLOW_DEATH_FLAG_BOUNCED = 0x00000008;
+const SOURCE_MAX_NEUTRON_BLASTS = 9;
 
 interface SourcePhysicsBehaviorTestState {
   nextCallFrameAndPhase: number;
@@ -1949,6 +1954,260 @@ function parseSourceDozerAIUpdateBlockData(data: Uint8Array) {
     tasks,
     stateMachineAndSuffix: [...data.subarray(taskOffset + 28)],
   };
+}
+
+interface SourceSlowDeathBehaviorTestState {
+  nextCallFrameAndPhase: number;
+  sinkFrame: number;
+  midpointFrame: number;
+  destructionFrame: number;
+  acceleratedTimeScale: number;
+  flags: number;
+}
+
+function writeSourceSlowDeathBehaviorTestData(
+  xferSave: XferSave,
+  state: SourceSlowDeathBehaviorTestState,
+): void {
+  xferSave.xferVersion(1);
+  xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+  xferSave.xferUnsignedInt(state.sinkFrame);
+  xferSave.xferUnsignedInt(state.midpointFrame);
+  xferSave.xferUnsignedInt(state.destructionFrame);
+  xferSave.xferReal(state.acceleratedTimeScale);
+  xferSave.xferUnsignedInt(state.flags);
+}
+
+function readSourceSlowDeathBehaviorTestData(xferLoad: XferLoad): SourceSlowDeathBehaviorTestState {
+  xferLoad.xferVersion(1);
+  xferLoad.xferVersion(1);
+  xferLoad.xferVersion(1);
+  xferLoad.xferVersion(1);
+  xferLoad.xferVersion(1);
+  return {
+    nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+    sinkFrame: xferLoad.xferUnsignedInt(0),
+    midpointFrame: xferLoad.xferUnsignedInt(0),
+    destructionFrame: xferLoad.xferUnsignedInt(0),
+    acceleratedTimeScale: xferLoad.xferReal(0),
+    flags: xferLoad.xferUnsignedInt(0),
+  };
+}
+
+function createSourceSlowDeathBehaviorBlockData(state: SourceSlowDeathBehaviorTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-slow-death-behavior');
+  try {
+    writeSourceSlowDeathBehaviorTestData(xferSave, state);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceSlowDeathBehaviorBlockData(data: Uint8Array): SourceSlowDeathBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-slow-death-behavior');
+  try {
+    const state = readSourceSlowDeathBehaviorTestData(xferLoad);
+    expect(xferLoad.getRemaining()).toBe(0);
+    return state;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceBattleBusSlowDeathBehaviorBlockData(options: {
+  slowDeath: SourceSlowDeathBehaviorTestState;
+  isRealDeath: boolean;
+  isInFirstDeath: boolean;
+  groundCheckFrame: number;
+  penaltyDeathFrame: number;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-battle-bus-slow-death-behavior');
+  try {
+    xferSave.xferVersion(1);
+    writeSourceSlowDeathBehaviorTestData(xferSave, options.slowDeath);
+    xferSave.xferBool(options.isRealDeath);
+    xferSave.xferBool(options.isInFirstDeath);
+    xferSave.xferUnsignedInt(options.groundCheckFrame);
+    xferSave.xferUnsignedInt(options.penaltyDeathFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceBattleBusSlowDeathBehaviorBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-battle-bus-slow-death-behavior');
+  try {
+    xferLoad.xferVersion(1);
+    const slowDeath = readSourceSlowDeathBehaviorTestData(xferLoad);
+    const parsed = {
+      slowDeath,
+      isRealDeath: xferLoad.xferBool(false),
+      isInFirstDeath: xferLoad.xferBool(false),
+      groundCheckFrame: xferLoad.xferUnsignedInt(0),
+      penaltyDeathFrame: xferLoad.xferUnsignedInt(0),
+    };
+    expect(xferLoad.getRemaining()).toBe(0);
+    return parsed;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceHelicopterSlowDeathBehaviorBlockData(options: {
+  slowDeath: SourceSlowDeathBehaviorTestState;
+  orbitDirection: number;
+  forwardAngle: number;
+  forwardSpeed: number;
+  selfSpin: number;
+  selfSpinTowardsMax: boolean;
+  lastSelfSpinUpdateFrame: number;
+  bladeFlyOffFrame: number;
+  hitGroundFrame: number;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-helicopter-slow-death-behavior');
+  try {
+    xferSave.xferVersion(1);
+    writeSourceSlowDeathBehaviorTestData(xferSave, options.slowDeath);
+    xferSave.xferInt(options.orbitDirection);
+    xferSave.xferReal(options.forwardAngle);
+    xferSave.xferReal(options.forwardSpeed);
+    xferSave.xferReal(options.selfSpin);
+    xferSave.xferBool(options.selfSpinTowardsMax);
+    xferSave.xferUnsignedInt(options.lastSelfSpinUpdateFrame);
+    xferSave.xferUnsignedInt(options.bladeFlyOffFrame);
+    xferSave.xferUnsignedInt(options.hitGroundFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceHelicopterSlowDeathBehaviorBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-helicopter-slow-death-behavior');
+  try {
+    xferLoad.xferVersion(1);
+    const slowDeath = readSourceSlowDeathBehaviorTestData(xferLoad);
+    const parsed = {
+      slowDeath,
+      orbitDirection: xferLoad.xferInt(0),
+      forwardAngle: xferLoad.xferReal(0),
+      forwardSpeed: xferLoad.xferReal(0),
+      selfSpin: xferLoad.xferReal(0),
+      selfSpinTowardsMax: xferLoad.xferBool(false),
+      lastSelfSpinUpdateFrame: xferLoad.xferUnsignedInt(0),
+      bladeFlyOffFrame: xferLoad.xferUnsignedInt(0),
+      hitGroundFrame: xferLoad.xferUnsignedInt(0),
+    };
+    expect(xferLoad.getRemaining()).toBe(0);
+    return parsed;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceJetSlowDeathBehaviorBlockData(options: {
+  slowDeath: SourceSlowDeathBehaviorTestState;
+  timerDeathFrame: number;
+  timerOnGroundFrame: number;
+  rollRate: number;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-jet-slow-death-behavior');
+  try {
+    xferSave.xferVersion(1);
+    writeSourceSlowDeathBehaviorTestData(xferSave, options.slowDeath);
+    xferSave.xferUnsignedInt(options.timerDeathFrame);
+    xferSave.xferUnsignedInt(options.timerOnGroundFrame);
+    xferSave.xferReal(options.rollRate);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceJetSlowDeathBehaviorBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-jet-slow-death-behavior');
+  try {
+    xferLoad.xferVersion(1);
+    const slowDeath = readSourceSlowDeathBehaviorTestData(xferLoad);
+    const parsed = {
+      slowDeath,
+      timerDeathFrame: xferLoad.xferUnsignedInt(0),
+      timerOnGroundFrame: xferLoad.xferUnsignedInt(0),
+      rollRate: xferLoad.xferReal(0),
+    };
+    expect(xferLoad.getRemaining()).toBe(0);
+    return parsed;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceNeutronMissileSlowDeathBehaviorBlockData(options: {
+  slowDeath: SourceSlowDeathBehaviorTestState;
+  activationFrame: number;
+  completedBlasts: boolean[];
+  completedScorchBlasts: boolean[];
+  scorchPlaced: boolean;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-neutron-missile-slow-death-behavior');
+  try {
+    xferSave.xferVersion(1);
+    writeSourceSlowDeathBehaviorTestData(xferSave, options.slowDeath);
+    xferSave.xferUnsignedInt(options.activationFrame);
+    xferSave.xferUnsignedByte(SOURCE_MAX_NEUTRON_BLASTS);
+    for (let index = 0; index < SOURCE_MAX_NEUTRON_BLASTS; index += 1) {
+      xferSave.xferBool(options.completedBlasts[index] ?? false);
+    }
+    for (let index = 0; index < SOURCE_MAX_NEUTRON_BLASTS; index += 1) {
+      xferSave.xferBool(options.completedScorchBlasts[index] ?? false);
+    }
+    xferSave.xferBool(options.scorchPlaced);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceNeutronMissileSlowDeathBehaviorBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-neutron-missile-slow-death-behavior');
+  try {
+    xferLoad.xferVersion(1);
+    const slowDeath = readSourceSlowDeathBehaviorTestData(xferLoad);
+    const activationFrame = xferLoad.xferUnsignedInt(0);
+    const maxNeutronBlasts = xferLoad.xferUnsignedByte(0);
+    const completedBlasts: boolean[] = [];
+    for (let index = 0; index < maxNeutronBlasts; index += 1) {
+      completedBlasts.push(xferLoad.xferBool(false));
+    }
+    const completedScorchBlasts: boolean[] = [];
+    for (let index = 0; index < maxNeutronBlasts; index += 1) {
+      completedScorchBlasts.push(xferLoad.xferBool(false));
+    }
+    const parsed = {
+      slowDeath,
+      activationFrame,
+      maxNeutronBlasts,
+      completedBlasts,
+      completedScorchBlasts,
+      scorchPlaced: xferLoad.xferBool(false),
+    };
+    expect(xferLoad.getRemaining()).toBe(0);
+    return parsed;
+  } finally {
+    xferLoad.close();
+  }
 }
 
 function createSourceProductionExitRallyBlockData(
@@ -11985,12 +12244,263 @@ describe('runtime-save-game', () => {
     expect(dozerModule).toBeDefined();
     const parsed = parseSourceDozerAIUpdateBlockData(dozerModule!.blockData);
     expect(parsed.prefix).toEqual(preserved.prefix);
-    expect(parsed.tasks).toEqual([
-      { targetObjectId: 51, taskOrderFrame: 120 },
-      { targetObjectId: 52, taskOrderFrame: 140 },
-      { targetObjectId: 7, taskOrderFrame: 14 },
-    ]);
-    expect(parsed.stateMachineAndSuffix).toEqual(preserved.stateMachineAndSuffix);
+  expect(parsed.tasks).toEqual([
+    { targetObjectId: 51, taskOrderFrame: 120 },
+    { targetObjectId: 52, taskOrderFrame: 140 },
+    { targetObjectId: 7, taskOrderFrame: 14 },
+  ]);
+  expect(parsed.stateMachineAndSuffix).toEqual(preserved.stateMachineAndSuffix);
+  });
+
+  it('rewrites source slow-death behavior modules from live runtime state', () => {
+    const preservedSlowDeath: SourceSlowDeathBehaviorTestState = {
+      nextCallFrameAndPhase: (90 << 2) | 2,
+      sinkFrame: 1,
+      midpointFrame: 2,
+      destructionFrame: 3,
+      acceleratedTimeScale: 2.5,
+      flags: 0x00010000,
+    };
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_SlowDeath',
+      blockData: createSourceSlowDeathBehaviorBlockData(preservedSlowDeath),
+    }, {
+      identifier: 'ModuleTag_BattleBusSlowDeath',
+      blockData: createSourceBattleBusSlowDeathBehaviorBlockData({
+        slowDeath: preservedSlowDeath,
+        isRealDeath: true,
+        isInFirstDeath: false,
+        groundCheckFrame: 9,
+        penaltyDeathFrame: 99,
+      }),
+    }, {
+      identifier: 'ModuleTag_HeliSlowDeath',
+      blockData: createSourceHelicopterSlowDeathBehaviorBlockData({
+        slowDeath: preservedSlowDeath,
+        orbitDirection: 1,
+        forwardAngle: 0.25,
+        forwardSpeed: 0.5,
+        selfSpin: 0.75,
+        selfSpinTowardsMax: false,
+        lastSelfSpinUpdateFrame: 12,
+        bladeFlyOffFrame: 777,
+        hitGroundFrame: 0,
+      }),
+    }, {
+      identifier: 'ModuleTag_JetSlowDeath',
+      blockData: createSourceJetSlowDeathBehaviorBlockData({
+        slowDeath: preservedSlowDeath,
+        timerDeathFrame: 30,
+        timerOnGroundFrame: 0,
+        rollRate: 0.5,
+      }),
+    }, {
+      identifier: 'ModuleTag_NeutronSlowDeath',
+      blockData: createSourceNeutronMissileSlowDeathBehaviorBlockData({
+        slowDeath: preservedSlowDeath,
+        activationFrame: 40,
+        completedBlasts: Array.from({ length: SOURCE_MAX_NEUTRON_BLASTS }, (_, index) => index === 0),
+        completedScorchBlasts: Array.from({ length: SOURCE_MAX_NEUTRON_BLASTS }, (_, index) => index === 1),
+        scorchPlaced: true,
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source slow death rewrite',
+      mapPath: 'Maps/RuntimeSlowDeath/RuntimeSlowDeath.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeSlowDeath',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            slowDeathProfiles: [{}],
+            battleBusSlowDeathProfile: {},
+            helicopterSlowDeathProfiles: [{}],
+            jetSlowDeathProfiles: [{}],
+            neutronMissileSlowDeathProfile: {},
+            slowDeathState: {
+              profileIndex: 0,
+              sinkFrame: 111,
+              midpointFrame: 112,
+              destructionFrame: 113,
+              midpointExecuted: true,
+              destroyOnCompletion: true,
+              flingVelocityX: 0,
+              flingVelocityY: 0,
+              flingVelocityZ: 0,
+              isFlung: true,
+              hasBounced: true,
+              isBattleBusFakeDeath: true,
+              battleBusThrowVelocity: 0,
+              battleBusLandingCheckFrame: 140,
+              battleBusEmptyHulkDestroyFrame: 0,
+            },
+            helicopterSlowDeathState: {
+              profileIndex: 0,
+              orbitDirection: -1,
+              forwardAngle: 1.25,
+              forwardSpeed: 2.5,
+              verticalVelocity: -0.5,
+              selfSpin: 0.125,
+              selfSpinTowardsMax: true,
+              lastSelfSpinUpdateFrame: 144,
+              hitGroundFrame: 180,
+            },
+            jetSlowDeathState: {
+              profileIndex: 0,
+              deathFrame: 200,
+              groundFrame: 211,
+              rollRate: 0.3125,
+              rollAngle: 0,
+              pitchAngle: 0,
+              forwardSpeed: 3,
+              forwardAngle: 1,
+              verticalVelocity: -0.25,
+              secondaryExecuted: true,
+            },
+            neutronMissileSlowDeathState: {
+              activationFrame: 300,
+              completedBlasts: Array.from({ length: SOURCE_MAX_NEUTRON_BLASTS }, (_, index) => index % 2 === 0),
+              completedScorchBlasts: Array.from({ length: SOURCE_MAX_NEUTRON_BLASTS }, (_, index) => index % 3 === 0),
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName !== 'RuntimeTank') {
+            return null;
+          }
+          switch (moduleTag) {
+            case 'ModuleTag_SlowDeath': return 'SLOWDEATHBEHAVIOR';
+            case 'ModuleTag_BattleBusSlowDeath': return 'BATTLEBUSSLOWDEATHBEHAVIOR';
+            case 'ModuleTag_HeliSlowDeath': return 'HELICOPTERSLOWDEATHBEHAVIOR';
+            case 'ModuleTag_JetSlowDeath': return 'JETSLOWDEATHBEHAVIOR';
+            case 'ModuleTag_NeutronSlowDeath': return 'NEUTRONMISSILESLOWDEATHBEHAVIOR';
+            default: return null;
+          }
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const slowDeathModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_SlowDeath');
+    const battleBusModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_BattleBusSlowDeath');
+    const heliModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_HeliSlowDeath');
+    const jetModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_JetSlowDeath');
+    const neutronModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_NeutronSlowDeath');
+
+    const expectedSlowDeath = {
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      sinkFrame: 111,
+      midpointFrame: 112,
+      destructionFrame: 113,
+      acceleratedTimeScale: preservedSlowDeath.acceleratedTimeScale,
+      flags: 0x00010000
+        | SOURCE_SLOW_DEATH_FLAG_ACTIVATED
+        | SOURCE_SLOW_DEATH_FLAG_MIDPOINT_EXECUTED
+        | SOURCE_SLOW_DEATH_FLAG_FLUNG_INTO_AIR
+        | SOURCE_SLOW_DEATH_FLAG_BOUNCED,
+    };
+
+    expect(slowDeathModule).toBeDefined();
+    const parsedSlowDeath = parseSourceSlowDeathBehaviorBlockData(slowDeathModule!.blockData);
+    expect(parsedSlowDeath).toEqual(expectedSlowDeath);
+
+    expect(battleBusModule).toBeDefined();
+    const parsedBattleBus = parseSourceBattleBusSlowDeathBehaviorBlockData(battleBusModule!.blockData);
+    expect(parsedBattleBus.slowDeath).toEqual(expectedSlowDeath);
+    expect(parsedBattleBus.isRealDeath).toBe(false);
+    expect(parsedBattleBus.isInFirstDeath).toBe(true);
+    expect(parsedBattleBus.groundCheckFrame).toBe(140);
+    expect(parsedBattleBus.penaltyDeathFrame).toBe(0);
+
+    expect(heliModule).toBeDefined();
+    const parsedHeli = parseSourceHelicopterSlowDeathBehaviorBlockData(heliModule!.blockData);
+    expect(parsedHeli.slowDeath).toEqual(expectedSlowDeath);
+    expect(parsedHeli.orbitDirection).toBe(-1);
+    expect(parsedHeli.forwardAngle).toBeCloseTo(1.25);
+    expect(parsedHeli.forwardSpeed).toBeCloseTo(2.5);
+    expect(parsedHeli.selfSpin).toBeCloseTo(0.125);
+    expect(parsedHeli.selfSpinTowardsMax).toBe(true);
+    expect(parsedHeli.lastSelfSpinUpdateFrame).toBe(144);
+    expect(parsedHeli.bladeFlyOffFrame).toBe(777);
+    expect(parsedHeli.hitGroundFrame).toBe(180);
+
+    expect(jetModule).toBeDefined();
+    const parsedJet = parseSourceJetSlowDeathBehaviorBlockData(jetModule!.blockData);
+    expect(parsedJet.slowDeath).toEqual(expectedSlowDeath);
+    expect(parsedJet.timerDeathFrame).toBe(0);
+    expect(parsedJet.timerOnGroundFrame).toBe(211);
+    expect(parsedJet.rollRate).toBeCloseTo(0.3125);
+
+    expect(neutronModule).toBeDefined();
+    const parsedNeutron = parseSourceNeutronMissileSlowDeathBehaviorBlockData(neutronModule!.blockData);
+    expect(parsedNeutron.slowDeath).toEqual(expectedSlowDeath);
+    expect(parsedNeutron.activationFrame).toBe(300);
+    expect(parsedNeutron.maxNeutronBlasts).toBe(SOURCE_MAX_NEUTRON_BLASTS);
+    expect(parsedNeutron.completedBlasts).toEqual(
+      Array.from({ length: SOURCE_MAX_NEUTRON_BLASTS }, (_, index) => index % 2 === 0),
+    );
+    expect(parsedNeutron.completedScorchBlasts).toEqual(
+      Array.from({ length: SOURCE_MAX_NEUTRON_BLASTS }, (_, index) => index % 3 === 0),
+    );
+    expect(parsedNeutron.scorchPlaced).toBe(true);
   });
 
   it('rewrites source production exit update modules from live rally and queue state', () => {

@@ -287,6 +287,7 @@ export function extractJetSlowDeathProfiles(self: GL, objectDef: ObjectDef | und
     if (blockType !== 'BEHAVIOR' && blockType !== 'DIE') return;
     const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
     if (moduleType !== 'JETSLOWDEATHBEHAVIOR') return;
+    const moduleTag = block.name.split(/\s+/)[1]?.trim().toUpperCase() ?? null;
 
     // DieMuxData fields.
     const deathTypes = new Set<string>();
@@ -348,6 +349,7 @@ export function extractJetSlowDeathProfiles(self: GL, objectDef: ObjectDef | und
     if (fbStr) oclFinalBlowUp.push(fbStr);
 
     profiles.push({
+      moduleTag,
       deathTypes, veterancyLevels, exemptStatus, requiredStatus,
       oclOnGroundDeath, oclInitialDeath, delaySecondaryFromInitialDeath,
       oclSecondary, oclHitGround, delayFinalBlowUpFromHitGround, oclFinalBlowUp,
