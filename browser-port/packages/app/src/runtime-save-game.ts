@@ -26764,6 +26764,12 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
             return false;
           }
           if (
+            normalizedName === SOURCE_PARTICLE_SYSTEM_BLOCK.toLowerCase()
+            && particleSystemState !== null
+          ) {
+            return false;
+          }
+          if (
             normalizedName === SOURCE_GHOST_OBJECT_BLOCK.toLowerCase()
             && ghostObjectState !== null
           ) {

@@ -11739,10 +11739,10 @@ describe('runtime-save-game', () => {
     expect(parsed.gameClientState?.briefingLines).toEqual([]);
     expect(parsed.gameLogicCoreState).toBeNull();
     expect(parsed.gameLogicPlayersState).toBeNull();
+    expect(parsed.particleSystemState).not.toBeNull();
     expect(parsed.ghostObjectState).not.toBeNull();
     expect(parsed.passthroughBlocks.map((block) => block.blockName).sort()).toEqual([
       'CHUNK_GameLogic',
-      'CHUNK_ParticleSystem',
       'CHUNK_Players',
       'CHUNK_ScriptEngine',
       'CHUNK_TeamFactory',
@@ -11776,6 +11776,7 @@ describe('runtime-save-game', () => {
       tacticalViewState: parsed.tacticalViewState,
       gameClientBriefingLines: ['MISSION_GAMMA'],
       gameClientState: parsed.gameClientState,
+      particleSystemState: parsed.particleSystemState,
       ghostObjectState: parsed.ghostObjectState,
       passthroughBlocks: parsed.passthroughBlocks,
       gameLogic: {
