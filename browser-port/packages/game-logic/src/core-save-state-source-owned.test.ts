@@ -4455,6 +4455,31 @@ function buildSourceStickyBombUpdateModuleData(options: {
 }
 
 describe('source-owned game-logic core save-state', () => {
+  it('lists source object module descriptors from inherited Body and Behavior blocks', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('DescriptorParent', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 100 }),
+          makeBlock('Behavior', 'GrantUpgradeCreate ModuleTag_Create', {}),
+        ]),
+        makeObjectDef('DescriptorChild', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'StructureBody ModuleTag_Body', { MaxHealth: 200 }),
+          makeBlock('Behavior', 'TransportContain ModuleTag_Contain', {}),
+          makeBlock('Draw', 'W3DModelDraw ModuleTag_Draw', {}),
+        ], {}, 'DescriptorParent'),
+      ],
+    });
+    const registry = makeRegistry(bundle);
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(makeMap([], 32, 32), registry, makeHeightmap(32, 32));
+
+    expect(logic.listSourceObjectModuleDescriptors('DescriptorChild')).toEqual([
+      { moduleType: 'STRUCTUREBODY', moduleTag: 'ModuleTag_Body' },
+      { moduleType: 'GRANTUPGRADECREATE', moduleTag: 'ModuleTag_Create' },
+      { moduleType: 'TRANSPORTCONTAIN', moduleTag: 'ModuleTag_Contain' },
+    ]);
+  });
+
   it('rebuilds live entities from source GameLogic Object::xfer import state', () => {
     const bundle = makeSourceOwnedCoreBundle();
     const registry = makeRegistry(bundle);

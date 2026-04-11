@@ -10177,6 +10177,11 @@ export interface GameLogicObjectXferOverlayState {
   modulesReady: boolean;
 }
 
+export interface GameLogicSourceObjectModuleDescriptor {
+  moduleType: string;
+  moduleTag: string;
+}
+
 export interface GameLogicHistoricDamageEntrySaveState {
   frame: number;
   x: number;
@@ -34594,6 +34599,63 @@ export class GameLogicSubsystem implements Subsystem {
       this.resolveObjectDefParent(objectDef),
       normalizedModuleTag,
     );
+  }
+
+  private collectSourceObjectModuleDescriptorsFromBlock(
+    block: IniBlock,
+    descriptorsByTag: Map<string, GameLogicSourceObjectModuleDescriptor>,
+  ): void {
+    for (const child of block.blocks) {
+      this.collectSourceObjectModuleDescriptorsFromBlock(child, descriptorsByTag);
+    }
+
+    const blockType = block.type.trim().toUpperCase();
+    if (blockType !== 'BODY' && blockType !== 'BEHAVIOR') {
+      return;
+    }
+    const tokens = block.name
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0);
+    const moduleType = tokens[0]?.toUpperCase() ?? '';
+    const moduleTag = tokens.find((token) => token.toUpperCase().startsWith('MODULETAG_')) ?? '';
+    if (!moduleType || !moduleTag) {
+      return;
+    }
+    const normalizedModuleTag = moduleTag.toUpperCase();
+    descriptorsByTag.set(normalizedModuleTag, {
+      moduleType,
+      moduleTag,
+    });
+  }
+
+  private collectSourceObjectModuleDescriptorsFromObjectDef(
+    objectDef: ObjectDef | null | undefined,
+    descriptorsByTag: Map<string, GameLogicSourceObjectModuleDescriptor>,
+  ): void {
+    if (!objectDef) {
+      return;
+    }
+    this.collectSourceObjectModuleDescriptorsFromObjectDef(
+      this.resolveObjectDefParent(objectDef),
+      descriptorsByTag,
+    );
+    for (const block of objectDef.blocks) {
+      this.collectSourceObjectModuleDescriptorsFromBlock(block, descriptorsByTag);
+    }
+  }
+
+  /* @internal */ listSourceObjectModuleDescriptors(templateName: string): GameLogicSourceObjectModuleDescriptor[] {
+    const normalizedTemplateName = templateName.trim();
+    if (!normalizedTemplateName) {
+      return [];
+    }
+    const descriptorsByTag = new Map<string, GameLogicSourceObjectModuleDescriptor>();
+    this.collectSourceObjectModuleDescriptorsFromObjectDef(
+      this.resolveObjectDefByTemplateName(normalizedTemplateName),
+      descriptorsByTag,
+    );
+    return [...descriptorsByTag.values()];
   }
 
   /* @internal */ resolveSourceObjectModuleTypeByTag(templateName: string, moduleTag: string): string | null {

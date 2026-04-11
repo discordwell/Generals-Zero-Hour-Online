@@ -4737,6 +4737,19 @@ function parseSourceStructureBodyBlockData(data: Uint8Array) {
   }
 }
 
+function parseSourceActiveBodyBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-active-body');
+  try {
+    xferLoad.xferVersion(1);
+    const active = xferSourceActiveBodyForTest(xferLoad, createDefaultSourceActiveBodyTestState());
+    expect(xferLoad.getRemaining()).toBe(0);
+    return { active };
+  } finally {
+    xferLoad.close();
+  }
+}
+
 interface SourceSpecialPowerModuleTestState {
   availableOnFrame: number;
   pausedCount: number;
@@ -10108,6 +10121,10 @@ describe('runtime-save-game', () => {
               scriptName: 'UNIT_SPAWNED',
               sourceTeamNameUpper: 'TEAMUNIT',
               drawableId: 88,
+              health: 45,
+              maxHealth: 100,
+              initialHealth: 100,
+              currentSubdualDamage: 7,
               x: 11,
               y: 3,
               z: 19,
@@ -10123,11 +10140,48 @@ describe('runtime-save-game', () => {
                 minorRadius: 6,
                 height: 8,
               },
+              createModuleStates: [{
+                moduleType: 'GRANTUPGRADECREATE',
+                moduleTag: 'ModuleTag_Create',
+                needToRunOnBuildComplete: false,
+              }],
+              upgradeModules: [{
+                id: 'UpgradeModuleA',
+                moduleType: 'MAXHEALTHUPGRADE',
+                moduleTag: 'ModuleTag_HealthUpgrade',
+              }],
+              executedUpgradeModules: new Set(['UpgradeModuleA']),
+              specialPowerModules: new Map([[
+                'SPECIAL_TEST',
+                {
+                  specialPowerTemplateName: 'SPECIAL_TEST',
+                  moduleType: 'OCLSPECIALPOWER',
+                  moduleTag: 'ModuleTag_SpecialPower',
+                  availableOnFrame: 222,
+                  pausedCount: 1,
+                  pausedOnFrame: 111,
+                  pausedPercent: 0.5,
+                },
+              ]]),
+              initialPayloadCreated: true,
+              containProfile: {
+                moduleType: 'TRANSPORT',
+                passengersAllowedToFire: true,
+              },
             } as unknown as import('@generals/game-logic').MapEntity,
           ],
         }),
         captureBrowserRuntimeSaveState: () => ({ version: 1 }),
         getObjectIdCounter: () => 9,
+        listSourceObjectModuleDescriptors: (templateName) => templateName === 'RuntimeDrone'
+          ? [
+              { moduleType: 'ActiveBody', moduleTag: 'ModuleTag_Body' },
+              { moduleType: 'GrantUpgradeCreate', moduleTag: 'ModuleTag_Create' },
+              { moduleType: 'MaxHealthUpgrade', moduleTag: 'ModuleTag_HealthUpgrade' },
+              { moduleType: 'OCLSpecialPower', moduleTag: 'ModuleTag_SpecialPower' },
+              { moduleType: 'TransportContain', moduleTag: 'ModuleTag_Contain' },
+            ]
+          : [],
       },
     });
 
@@ -10153,8 +10207,45 @@ describe('runtime-save-game', () => {
       shroudRange: 120,
       constructionPercent: 100,
       completedUpgradeNames: ['Upgrade_Generated'],
-      modules: [],
       modulesReady: true,
+    });
+    expect(generated?.modules.map((module) => module.identifier)).toEqual([
+      'ModuleTag_Body',
+      'ModuleTag_Create',
+      'ModuleTag_HealthUpgrade',
+      'ModuleTag_SpecialPower',
+      'ModuleTag_Contain',
+    ]);
+    const bodyModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Body');
+    expect(parseSourceActiveBodyBlockData(bodyModule!.blockData).active).toMatchObject({
+      currentHealth: 45,
+      currentSubdualDamage: 7,
+      prevHealth: 45,
+      maxHealth: 100,
+      initialHealth: 100,
+      curDamageState: 1,
+    });
+    const createModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Create');
+    expect(parseSourceCreateModuleBlockData(createModule!.blockData)).toEqual({
+      needToRunOnBuildComplete: false,
+    });
+    const upgradeModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_HealthUpgrade');
+    expect(parseSourceUpgradeModuleBlockData(upgradeModule!.blockData)).toEqual({
+      upgradeExecuted: true,
+    });
+    const specialPowerModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_SpecialPower');
+    expect(parseSourceSpecialPowerModuleBlockData(specialPowerModule!.blockData)).toEqual({
+      availableOnFrame: 222,
+      pausedCount: 1,
+      pausedOnFrame: 111,
+      pausedPercent: 0.5,
+    });
+    const containModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Contain');
+    expect(parseSourceTransportContainBlockData(containModule!.blockData)).toMatchObject({
+      payloadCreated: true,
+      open: {
+        passengerAllowedToFire: true,
+      },
     });
     expect(generated?.weaponSet?.templateName).toBe('RuntimeDrone');
     expect(generated?.geometryInfo).toMatchObject({

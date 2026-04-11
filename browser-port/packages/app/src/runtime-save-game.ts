@@ -42,6 +42,7 @@ import {
   type GameLogicPlayersSaveState,
   type GameLogicPartitionSaveState,
   type GameLogicRadarSaveState,
+  type GameLogicSourceObjectModuleDescriptor,
   type GameLogicSourceScriptGroupSaveState,
   type GameLogicSourceScriptListSaveState,
   type GameLogicSourceScriptSaveState,
@@ -11789,6 +11790,25 @@ function createDefaultSourceActiveBodyState(): SourceActiveBodyBlockState {
   };
 }
 
+function createDefaultSourceBodyModuleBlockState(moduleType: string): SourceBodyModuleBlockState | null {
+  const kind = normalizeSourceBodyModuleKind(moduleType);
+  if (!kind) {
+    return null;
+  }
+  if (kind === 'inactive') {
+    return {
+      kind,
+      base: { damageScalar: 1 },
+    };
+  }
+  return {
+    kind,
+    active: createDefaultSourceActiveBodyState(),
+    constructorObjectId: 0,
+    isSecondLife: false,
+  };
+}
+
 interface SourceSpecialPowerModuleBlockState {
   availableOnFrame: number;
   pausedCount: number;
@@ -12083,6 +12103,24 @@ function buildSourceSpecialPowerModuleBlockData(
       saver,
       buildSourceSpecialPowerModuleState(liveModule, preservedState),
     );
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildDefaultSourceSpecialPowerModuleBlockData(
+  moduleType: string,
+  preservedState = createDefaultSourceSpecialPowerModuleState(),
+): Uint8Array | null {
+  if (!isSourceSpecialPowerModuleType(moduleType)) {
+    return null;
+  }
+  const saver = new XferSave();
+  saver.open('build-default-source-special-power-module');
+  try {
+    saver.xferVersion(1);
+    xferSourceSpecialPowerModule(saver, preservedState);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -12528,6 +12566,89 @@ function createDefaultSourceParachuteContainState(): SourceParachuteContainBlock
     needToUpdateRiderBones: false,
     needToUpdateParaBones: false,
     opened: false,
+  };
+}
+
+function createDefaultSourceContainModuleBlockState(moduleType: string): SourceContainModuleBlockState | null {
+  const kind = normalizeSourceContainModuleKind(moduleType);
+  if (!kind) {
+    return null;
+  }
+
+  if (kind === 'open' || kind === 'heal') {
+    return { kind, open: createDefaultSourceOpenContainState() };
+  }
+  if (kind === 'transport' || kind === 'internetHack' || kind === 'railedTransport') {
+    return { kind, transport: createDefaultSourceTransportContainState() };
+  }
+  if (kind === 'overlord') {
+    return {
+      kind,
+      transport: createDefaultSourceTransportContainState(),
+      redirectionActivated: false,
+    };
+  }
+  if (kind === 'helix') {
+    return {
+      kind,
+      helixPortableStructureId: 0,
+      transport: createDefaultSourceTransportContainState(),
+    };
+  }
+  if (kind === 'parachute') {
+    const parachute = createDefaultSourceParachuteContainState();
+    return { kind, parachute, open: parachute.open };
+  }
+  if (kind === 'garrison') {
+    return {
+      kind,
+      open: createDefaultSourceOpenContainState(),
+      originalTeamId: 0,
+    };
+  }
+  if (kind === 'tunnel') {
+    return {
+      kind,
+      open: createDefaultSourceOpenContainState(),
+      needToRunOnBuildComplete: false,
+      isCurrentlyRegistered: false,
+    };
+  }
+  if (kind === 'cave') {
+    return {
+      kind,
+      open: createDefaultSourceOpenContainState(),
+      needToRunOnBuildComplete: false,
+      caveIndex: 0,
+      originalTeamId: 0,
+    };
+  }
+  if (kind === 'prison') {
+    const prison = createDefaultSourcePrisonBehaviorState();
+    return { kind, prison, open: prison.open };
+  }
+  if (kind === 'propagandaCenter') {
+    const propagandaCenter = createDefaultSourcePropagandaCenterBehaviorState();
+    return {
+      kind,
+      propagandaCenter,
+      prison: propagandaCenter.prison,
+      open: propagandaCenter.prison.open,
+    };
+  }
+  if (kind === 'riderChange') {
+    return {
+      kind,
+      transport: createDefaultSourceTransportContainState(),
+      riderChangePayloadCreated: false,
+      riderChangeExtraSlotsInUse: 0,
+      riderChangeFrameExitNotBusy: 0,
+    };
+  }
+  return {
+    kind,
+    open: createDefaultSourceOpenContainState(),
+    extraSlotsInUse: 0,
   };
 }
 
@@ -16538,6 +16659,80 @@ function resolveGeneratedSourceObjectTeamId(
   return fallbackTeamId;
 }
 
+function buildGeneratedSourceObjectModuleBlockData(
+  descriptor: GameLogicSourceObjectModuleDescriptor,
+  entity: MapEntity,
+  liveEntities: readonly MapEntity[],
+): Uint8Array | null {
+  const moduleType = descriptor.moduleType.trim();
+  const moduleTag = descriptor.moduleTag.trim();
+  if (!moduleType || !moduleTag) {
+    return null;
+  }
+
+  const defaultBodyState = createDefaultSourceBodyModuleBlockState(moduleType);
+  if (defaultBodyState) {
+    return buildSourceBodyModuleBlockData(entity, moduleType, defaultBodyState);
+  }
+
+  if (isSourceCreateModuleType(moduleType)) {
+    const liveCreateModuleState = findLiveSourceCreateModuleState(entity, moduleType, moduleTag);
+    return buildSourceCreateModuleBlockData(liveCreateModuleState?.needToRunOnBuildComplete ?? true);
+  }
+
+  if (isSourceUpgradeModuleType(moduleType)) {
+    const liveUpgradeModule = findLiveSourceUpgradeModule(entity, moduleType, moduleTag);
+    const upgradeExecuted = liveUpgradeModule && entity.executedUpgradeModules instanceof Set
+      ? entity.executedUpgradeModules.has(liveUpgradeModule.id)
+      : false;
+    return buildSourceUpgradeModuleBlockData(upgradeExecuted);
+  }
+
+  if (isSourceSpecialPowerModuleType(moduleType)) {
+    const liveSpecialPowerModule = findLiveSourceSpecialPowerModule(entity, moduleType, moduleTag);
+    return liveSpecialPowerModule
+      ? buildSourceSpecialPowerModuleBlockData(
+          moduleType,
+          createDefaultSourceSpecialPowerModuleState(),
+          liveSpecialPowerModule,
+        )
+      : buildDefaultSourceSpecialPowerModuleBlockData(moduleType);
+  }
+
+  const defaultContainState = createDefaultSourceContainModuleBlockState(moduleType);
+  if (defaultContainState) {
+    return buildSourceContainModuleBlockData(entity, moduleType, liveEntities, defaultContainState);
+  }
+
+  return null;
+}
+
+function buildGeneratedSourceObjectModulesFromDescriptors(
+  descriptors: readonly GameLogicSourceObjectModuleDescriptor[],
+  entity: MapEntity,
+  liveEntities: readonly MapEntity[],
+): SourceMapEntitySaveState['modules'] {
+  const modules: SourceMapEntitySaveState['modules'] = [];
+  const seenTags = new Set<string>();
+  for (const descriptor of descriptors) {
+    const moduleTag = descriptor.moduleTag.trim();
+    const normalizedModuleTag = normalizeSourceObjectModuleTag(moduleTag);
+    if (!moduleTag || !normalizedModuleTag || seenTags.has(normalizedModuleTag)) {
+      continue;
+    }
+    seenTags.add(normalizedModuleTag);
+    const blockData = buildGeneratedSourceObjectModuleBlockData(descriptor, entity, liveEntities);
+    if (!blockData || blockData.byteLength === 0) {
+      continue;
+    }
+    modules.push({
+      identifier: moduleTag,
+      blockData,
+    });
+  }
+  return modules;
+}
+
 function createGeneratedSourceObjectStateFromLiveEntity(
   entity: MapEntity,
   liveEntities: readonly MapEntity[],
@@ -16547,6 +16742,7 @@ function createGeneratedSourceObjectStateFromLiveEntity(
   objectXferOverlayState: GameLogicObjectXferOverlayState | null | undefined,
   sourceTeamIdByName: ReadonlyMap<string, number>,
   fallbackTeamId: number,
+  sourceObjectModuleDescriptors: readonly GameLogicSourceObjectModuleDescriptor[],
   resolveSourceObjectModuleTypeByTag?: ((templateName: string, moduleTag: string) => string | null) | null,
 ): SourceMapEntitySaveState {
   const templateName = typeof entity.templateName === 'string' ? entity.templateName.trim() : '';
@@ -16566,9 +16762,11 @@ function createGeneratedSourceObjectStateFromLiveEntity(
   sourceState.originalTeamName = entity.sourceTeamNameUpper?.trim().toUpperCase() ?? '';
   sourceState.geometryInfo = buildSourceGeometryInfoFromLiveEntity(entity, sourceState.geometryInfo);
   sourceState.modulesReady = true;
-  // Source load constructs template behavior modules before Object::xfer. With no prior per-module
-  // block, omitted modules retain the constructor/onObjectCreated state instead of copying another object.
-  sourceState.modules = [];
+  sourceState.modules = buildGeneratedSourceObjectModulesFromDescriptors(
+    sourceObjectModuleDescriptors,
+    entity,
+    liveEntities,
+  );
   return overlaySourceObjectStateFromLiveEntity(
     sourceState,
     entity,
@@ -16589,6 +16787,8 @@ function buildSourceGameLogicChunk(
     coreState?: GameLogicCoreSaveState | null;
     objectXferOverlayStates?: readonly GameLogicObjectXferOverlayState[] | null;
     resolveSourceObjectModuleTypeByTag?: ((templateName: string, moduleTag: string) => string | null) | null;
+    listSourceObjectModuleDescriptors?: ((templateName: string) =>
+      readonly GameLogicSourceObjectModuleDescriptor[] | null) | null;
   } = {},
 ): Uint8Array {
   const saver = new XferSave();
@@ -16640,6 +16840,9 @@ function buildSourceGameLogicChunk(
           + `and cannot be synthesized: ${formatMissingSourceObjectXferEntity(entity)}.`,
         );
       }
+      const sourceObjectModuleDescriptors = typeof options.listSourceObjectModuleDescriptors === 'function'
+        ? options.listSourceObjectModuleDescriptors(templateName) ?? []
+        : [];
       const generatedState = createGeneratedSourceObjectStateFromLiveEntity(
         entity,
         liveEntities,
@@ -16649,6 +16852,7 @@ function buildSourceGameLogicChunk(
         objectXferOverlayStateByEntityId.get(entity.id),
         sourceTeamIdByName,
         fallbackTeamId,
+        sourceObjectModuleDescriptors,
         options.resolveSourceObjectModuleTypeByTag,
       );
       const blockData = buildSourceMapEntityChunk(generatedState);
@@ -20264,7 +20468,12 @@ export function buildRuntimeSaveFile(params: {
     | 'captureSourcePlayerRuntimeSaveState'
     | 'captureSourceGameLogicRuntimeSaveState'
     | 'getObjectIdCounter'
-  > & Partial<Pick<GameLogicSubsystem, 'captureSourceObjectXferOverlayState' | 'resolveSourceObjectModuleTypeByTag'>>);
+  > & Partial<Pick<
+    GameLogicSubsystem,
+    'captureSourceObjectXferOverlayState'
+    | 'resolveSourceObjectModuleTypeByTag'
+    | 'listSourceObjectModuleDescriptors'
+  >>);
   embeddedMapBytes?: Uint8Array | null;
   sourceGameMode?: number;
   campaign?: RuntimeSaveCampaignBootstrap | null;
@@ -20402,6 +20611,10 @@ export function buildRuntimeSaveFile(params: {
               resolveSourceObjectModuleTypeByTag:
                 typeof params.gameLogic.resolveSourceObjectModuleTypeByTag === 'function'
                   ? params.gameLogic.resolveSourceObjectModuleTypeByTag.bind(params.gameLogic)
+                  : null,
+              listSourceObjectModuleDescriptors:
+                typeof params.gameLogic.listSourceObjectModuleDescriptors === 'function'
+                  ? params.gameLogic.listSourceObjectModuleDescriptors.bind(params.gameLogic)
                   : null,
             })
           : passthroughBlock.blockData,
