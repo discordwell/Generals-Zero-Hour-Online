@@ -5497,9 +5497,11 @@ export function extractSpecialPowerModules(self: GL, objectDef: ObjectDef | unde
       if (specialPowerTemplate) {
         const normalizedSpecialPowerTemplate = specialPowerTemplate.trim().toUpperCase();
         if (normalizedSpecialPowerTemplate && normalizedSpecialPowerTemplate !== 'NONE') {
+          const moduleTag = block.name.split(/\s+/)[1]?.trim().toUpperCase() ?? null;
           specialPowerModules.set(normalizedSpecialPowerTemplate, {
             specialPowerTemplateName: normalizedSpecialPowerTemplate,
             moduleType,
+            moduleTag,
             updateModuleStartsAttack: readBooleanField(block.fields, ['UpdateModuleStartsAttack']) === true,
             startsPaused: readBooleanField(block.fields, ['StartsPaused']) === true,
             availableOnFrame: 0,

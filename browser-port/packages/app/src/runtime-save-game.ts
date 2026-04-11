@@ -100,6 +100,18 @@ const SOURCE_HELPER_MODULE_TAG_STATUS_DAMAGE = 'ModuleTag_StatusDamageHelper';
 const SOURCE_HELPER_MODULE_TAG_WEAPON_STATUS = 'ModuleTag_WeaponStatusHelper';
 const SOURCE_HELPER_MODULE_TAG_TEMP_WEAPON_BONUS = 'ModuleTag_TempWeaponBonusHelper';
 const SOURCE_HELPER_MODULE_TAG_SUBDUAL_DAMAGE = 'ModuleTag_SubdualDamageHelper';
+const SOURCE_DERIVED_SPECIAL_POWER_MODULE_TYPES = new Set([
+  'BAIKONURLAUNCHPOWER',
+  'CASHBOUNTYPOWER',
+  'CASHHACKSPECIALPOWER',
+  'CLEANUPAREAPOWER',
+  'DEFECTORSPECIALPOWER',
+  'DEMORALIZESPECIALPOWER',
+  'FIREWEAPONPOWER',
+  'OCLSPECIALPOWER',
+  'SPECIALABILITY',
+  'SPYVISIONSPECIALPOWER',
+]);
 const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
 const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
 const SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN = 0x0008;
@@ -186,6 +198,8 @@ interface SourceObjectModuleSaveState {
   identifier: string;
   blockData: Uint8Array;
 }
+
+type LiveSpecialPowerModuleProfile = MapEntity['specialPowerModules'] extends Map<string, infer T> ? T : never;
 
 const SOURCE_SCRIPT_STATUS_BITS_BY_NAME = new Map<string, number>([
   ['SCRIPT_DISABLED', SOURCE_SCRIPT_STATUS_DISABLED],
@@ -5597,6 +5611,151 @@ function createDefaultSourceActiveBodyState(): SourceActiveBodyBlockState {
   };
 }
 
+interface SourceSpecialPowerModuleBlockState {
+  availableOnFrame: number;
+  pausedCount: number;
+  pausedOnFrame: number;
+  pausedPercent: number;
+}
+
+function normalizeSourceObjectModuleType(moduleType: string): string {
+  return moduleType.trim().toUpperCase();
+}
+
+function normalizeSourceObjectModuleTag(moduleTag: unknown): string {
+  return typeof moduleTag === 'string' ? moduleTag.trim().toUpperCase() : '';
+}
+
+function isSourceSpecialPowerModuleType(moduleType: string): boolean {
+  return SOURCE_DERIVED_SPECIAL_POWER_MODULE_TYPES.has(normalizeSourceObjectModuleType(moduleType));
+}
+
+function xferSourceBehaviorModuleBase(xfer: Xfer): void {
+  const behaviorVersion = xfer.xferVersion(1);
+  const objectModuleVersion = xfer.xferVersion(1);
+  const moduleVersion = xfer.xferVersion(1);
+  if (behaviorVersion !== 1 || objectModuleVersion !== 1 || moduleVersion !== 1) {
+    throw new Error('Unsupported source BehaviorModule base version');
+  }
+}
+
+function xferSourceSpecialPowerModule(
+  xfer: Xfer,
+  state: SourceSpecialPowerModuleBlockState,
+): SourceSpecialPowerModuleBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source SpecialPowerModule version ${version}`);
+  }
+  xferSourceBehaviorModuleBase(xfer);
+  return {
+    availableOnFrame: xfer.xferUnsignedInt(state.availableOnFrame),
+    pausedCount: xfer.xferInt(state.pausedCount),
+    pausedOnFrame: xfer.xferUnsignedInt(state.pausedOnFrame),
+    pausedPercent: xfer.xferReal(state.pausedPercent),
+  };
+}
+
+function createDefaultSourceSpecialPowerModuleState(): SourceSpecialPowerModuleBlockState {
+  return {
+    availableOnFrame: 0,
+    pausedCount: 0,
+    pausedOnFrame: 0,
+    pausedPercent: 0,
+  };
+}
+
+function tryParseSourceSpecialPowerModuleBlockData(
+  data: Uint8Array,
+  moduleType: string,
+): SourceSpecialPowerModuleBlockState | null {
+  if (!isSourceSpecialPowerModuleType(moduleType)) {
+    return null;
+  }
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-special-power-module');
+  try {
+    const derivedVersion = xferLoad.xferVersion(1);
+    if (derivedVersion !== 1) {
+      return null;
+    }
+    const parsed = xferSourceSpecialPowerModule(xferLoad, createDefaultSourceSpecialPowerModuleState());
+    return xferLoad.getRemaining() === 0 ? parsed : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function findLiveSourceSpecialPowerModule(
+  entity: MapEntity,
+  moduleType: string,
+  moduleTag: string,
+): LiveSpecialPowerModuleProfile | null {
+  const normalizedModuleType = normalizeSourceObjectModuleType(moduleType);
+  const normalizedModuleTag = normalizeSourceObjectModuleTag(moduleTag);
+  const matches = Array.from(entity.specialPowerModules?.entries() ?? []).filter(
+    ([, profile]) => normalizeSourceObjectModuleType(profile.moduleType) === normalizedModuleType,
+  );
+  if (matches.length === 0) {
+    return null;
+  }
+
+  if (normalizedModuleTag) {
+    const tagMatches = matches.filter(
+      ([, profile]) => normalizeSourceObjectModuleTag(profile.moduleTag) === normalizedModuleTag,
+    );
+    if (tagMatches.length === 1) {
+      return tagMatches[0]![1];
+    }
+
+    const powerNameMatches = matches.filter(([powerName, profile]) =>
+      normalizeSourceObjectModuleTag(powerName) === normalizedModuleTag
+      || normalizeSourceObjectModuleTag(profile.specialPowerTemplateName) === normalizedModuleTag);
+    if (powerNameMatches.length === 1) {
+      return powerNameMatches[0]![1];
+    }
+  }
+
+  return matches.length === 1 ? matches[0]![1] : null;
+}
+
+function buildSourceSpecialPowerModuleState(
+  liveModule: LiveSpecialPowerModuleProfile,
+  preservedState: SourceSpecialPowerModuleBlockState,
+): SourceSpecialPowerModuleBlockState {
+  const pausedCount = sourcePhysicsFinite(liveModule.pausedCount, preservedState.pausedCount);
+  return {
+    availableOnFrame: sourceFlammableUnsignedFrame(liveModule.availableOnFrame, preservedState.availableOnFrame),
+    pausedCount: Math.max(0, Math.trunc(pausedCount)),
+    pausedOnFrame: sourceFlammableUnsignedFrame(liveModule.pausedOnFrame, preservedState.pausedOnFrame),
+    pausedPercent: sourcePhysicsFinite(liveModule.pausedPercent, preservedState.pausedPercent),
+  };
+}
+
+function buildSourceSpecialPowerModuleBlockData(
+  moduleType: string,
+  preservedState: SourceSpecialPowerModuleBlockState,
+  liveModule: LiveSpecialPowerModuleProfile,
+): Uint8Array {
+  if (!isSourceSpecialPowerModuleType(moduleType)) {
+    return new Uint8Array();
+  }
+  const saver = new XferSave();
+  saver.open('build-source-special-power-module');
+  try {
+    saver.xferVersion(1);
+    xferSourceSpecialPowerModule(
+      saver,
+      buildSourceSpecialPowerModuleState(liveModule, preservedState),
+    );
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 interface SourceProductionQueueEntryBlockState {
   type: number;
   name: string;
@@ -7718,6 +7877,24 @@ function overlaySourceObjectModulesFromLiveEntity(
               identifier: module.identifier,
               blockData: buildSourceBodyModuleBlockData(entity, moduleType, parsedBodyState),
             };
+          }
+          const parsedSpecialPowerState = tryParseSourceSpecialPowerModuleBlockData(module.blockData, moduleType);
+          if (parsedSpecialPowerState) {
+            const liveSpecialPowerModule = findLiveSourceSpecialPowerModule(
+              entity,
+              moduleType,
+              module.identifier,
+            );
+            if (liveSpecialPowerModule) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceSpecialPowerModuleBlockData(
+                  moduleType,
+                  parsedSpecialPowerState,
+                  liveSpecialPowerModule,
+                ),
+              };
+            }
           }
           if (moduleType === 'AUTOHEALBEHAVIOR' && entity.autoHealProfile) {
             const parsedSourceState = tryParseSourceAutoHealBehaviorBlockData(module.blockData);

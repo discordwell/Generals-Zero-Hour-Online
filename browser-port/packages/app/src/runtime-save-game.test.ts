@@ -1511,6 +1511,57 @@ function parseSourceStructureBodyBlockData(data: Uint8Array) {
   }
 }
 
+interface SourceSpecialPowerModuleTestState {
+  availableOnFrame: number;
+  pausedCount: number;
+  pausedOnFrame: number;
+  pausedPercent: number;
+}
+
+function xferSourceSpecialPowerModuleForTest(
+  xfer: Xfer,
+  state: SourceSpecialPowerModuleTestState,
+): SourceSpecialPowerModuleTestState {
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  return {
+    availableOnFrame: xfer.xferUnsignedInt(state.availableOnFrame),
+    pausedCount: xfer.xferInt(state.pausedCount),
+    pausedOnFrame: xfer.xferUnsignedInt(state.pausedOnFrame),
+    pausedPercent: xfer.xferReal(state.pausedPercent),
+  };
+}
+
+function createSourceSpecialPowerModuleBlockData(state: SourceSpecialPowerModuleTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-special-power-module');
+  try {
+    xferSave.xferVersion(1);
+    xferSourceSpecialPowerModuleForTest(xferSave, state);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceSpecialPowerModuleBlockData(data: Uint8Array): SourceSpecialPowerModuleTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-special-power-module');
+  try {
+    xferLoad.xferVersion(1);
+    return xferSourceSpecialPowerModuleForTest(xferLoad, {
+      availableOnFrame: 0,
+      pausedCount: 0,
+      pausedOnFrame: 0,
+      pausedPercent: 0,
+    });
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function xferSourceProductionQueueEntry(
   xfer: Xfer,
   entry: SourceProductionQueueEntryTestState,
@@ -9940,6 +9991,119 @@ describe('runtime-save-game', () => {
     expect(parsed.active.indestructible).toBe(true);
     expect(parsed.active.particleSystemIds).toEqual([15, 16]);
     expect(parsed.active.armorSetFlags).toEqual(['VETERAN', 'SECOND_LIFE', 'CRATE_UPGRADE_TWO']);
+  });
+
+  it('rewrites source SpecialPowerModule state from live runtime module tags', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_CargoDrop',
+      blockData: createSourceSpecialPowerModuleBlockData({
+        availableOnFrame: 100,
+        pausedCount: 0,
+        pausedOnFrame: 0,
+        pausedPercent: 0.25,
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source special power module rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            specialPowerModules: new Map([
+              ['SPECIAL_WRONG_OCL', {
+                specialPowerTemplateName: 'SPECIAL_WRONG_OCL',
+                moduleType: 'OCLSPECIALPOWER',
+                moduleTag: 'MODULETAG_OTHER',
+                availableOnFrame: 999,
+                pausedCount: 9,
+                pausedOnFrame: 999,
+                pausedPercent: 0.99,
+              }],
+              ['SPECIAL_CARGO_DROP', {
+                specialPowerTemplateName: 'SPECIAL_CARGO_DROP',
+                moduleType: 'OCLSPECIALPOWER',
+                moduleTag: 'MODULETAG_CARGODROP',
+                availableOnFrame: 321,
+                pausedCount: 2,
+                pausedOnFrame: 123,
+                pausedPercent: 0.75,
+              }],
+            ]),
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_CargoDrop'
+            ? 'OCLSPECIALPOWER'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const specialPowerModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_CargoDrop');
+
+    expect(specialPowerModule).toBeDefined();
+    expect(parseSourceSpecialPowerModuleBlockData(specialPowerModule!.blockData)).toEqual({
+      availableOnFrame: 321,
+      pausedCount: 2,
+      pausedOnFrame: 123,
+      pausedPercent: 0.75,
+    });
   });
 
   it('rewrites source BattlePlanUpdate modules from live runtime state', () => {

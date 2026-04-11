@@ -2077,6 +2077,8 @@ interface ArmorTemplateSetProfile {
 interface SpecialPowerModuleProfile {
   specialPowerTemplateName: string;
   moduleType: string;
+  /** Source parity: INI ModuleTag used to match C++ object-module save blocks. */
+  moduleTag?: string | null;
   updateModuleStartsAttack: boolean;
   startsPaused: boolean;
   /** Source parity: SpecialPowerModule::m_availableOnFrame for non-shared powers. */
@@ -2174,6 +2176,7 @@ interface SpecialPowerDispatchProfile {
 
 export const SPECIAL_POWER_BEHAVIOR_MODULE_TYPES = new Set<string>([
   'SPECIALPOWERMODULE',
+  'SPECIALABILITY',
   'SPECIALABILITYUPDATE',
   'BATTLEPLANUPDATE',
   'OCLSPECIALPOWER',
