@@ -6176,6 +6176,28 @@ interface SourceParkingPlaceBehaviorBlockState {
   nextHealFrame: number;
 }
 
+interface SourceFlightDeckBehaviorBlockState {
+  blockData: Uint8Array;
+  tailOffset: number;
+  spaces: number[];
+  runways: Array<{ takeoffId: number; landingId: number }>;
+  healees: Array<{ entityId: number; healStartFrame: number }>;
+  nextHealFrame: number;
+  nextCleanupFrame: number;
+  startedProductionFrame: number;
+  nextAllowedProductionFrame: number;
+  designatedTargetId: number;
+  designatedCommandType: number;
+  designatedPosition: Coord3D;
+  nextLaunchWaveFrame: number[];
+  rampUpFrame: number[];
+  catapultSystemFrame: number[];
+  lowerRampFrame: number[];
+  rampUpXferFlags: boolean[];
+}
+
+const SOURCE_FLIGHT_DECK_MAX_RUNWAYS = 2;
+
 interface SourceBaseOnlyUpdateModuleBlockState {
   nextCallFrameAndPhase: number;
 }
@@ -7518,6 +7540,250 @@ function buildSourceParkingPlaceBehaviorBlockData(
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
+  }
+}
+
+function tryParseSourceFlightDeckBehaviorBlockData(data: Uint8Array): SourceFlightDeckBehaviorBlockState | null {
+  if (data.byteLength < 78 || data[0] !== 1) {
+    return null;
+  }
+
+  const blockData = new Uint8Array(data);
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  for (let tailOffset = 1; tailOffset <= blockData.byteLength - 77; tailOffset += 1) {
+    let cursor = tailOffset;
+    const spaceCount = view.getUint8(cursor);
+    cursor += 1;
+    if (cursor + spaceCount * 4 >= blockData.byteLength) {
+      continue;
+    }
+    const spaces: number[] = [];
+    for (let index = 0; index < spaceCount; index += 1) {
+      spaces.push(view.getUint32(cursor, true));
+      cursor += 4;
+    }
+
+    if (cursor >= blockData.byteLength) {
+      continue;
+    }
+    const runwayCount = view.getUint8(cursor);
+    cursor += 1;
+    if (cursor + runwayCount * 8 >= blockData.byteLength) {
+      continue;
+    }
+    const runways: SourceFlightDeckBehaviorBlockState['runways'] = [];
+    for (let index = 0; index < runwayCount; index += 1) {
+      runways.push({
+        takeoffId: view.getUint32(cursor, true),
+        landingId: view.getUint32(cursor + 4, true),
+      });
+      cursor += 8;
+    }
+
+    if (cursor >= blockData.byteLength) {
+      continue;
+    }
+    const healCount = view.getUint8(cursor);
+    cursor += 1;
+    if (cursor + healCount * 8 + 74 !== blockData.byteLength) {
+      continue;
+    }
+    const healees: SourceFlightDeckBehaviorBlockState['healees'] = [];
+    for (let index = 0; index < healCount; index += 1) {
+      healees.push({
+        entityId: view.getUint32(cursor, true),
+        healStartFrame: view.getUint32(cursor + 4, true),
+      });
+      cursor += 8;
+    }
+
+    const nextHealFrame = view.getUint32(cursor, true); cursor += 4;
+    const nextCleanupFrame = view.getUint32(cursor, true); cursor += 4;
+    const startedProductionFrame = view.getUint32(cursor, true); cursor += 4;
+    const nextAllowedProductionFrame = view.getUint32(cursor, true); cursor += 4;
+    const designatedTargetId = view.getUint32(cursor, true); cursor += 4;
+    const designatedCommandType = view.getInt32(cursor, true); cursor += 4;
+    const designatedPosition = {
+      x: view.getFloat32(cursor, true),
+      y: view.getFloat32(cursor + 4, true),
+      z: view.getFloat32(cursor + 8, true),
+    };
+    cursor += 12;
+    const maxRunways = view.getUint32(cursor, true);
+    cursor += 4;
+    if (maxRunways !== SOURCE_FLIGHT_DECK_MAX_RUNWAYS) {
+      continue;
+    }
+
+    const nextLaunchWaveFrame: number[] = [];
+    const rampUpFrame: number[] = [];
+    const catapultSystemFrame: number[] = [];
+    const lowerRampFrame: number[] = [];
+    const rampUpXferFlags: boolean[] = [];
+    let valid = true;
+    for (let index = 0; index < SOURCE_FLIGHT_DECK_MAX_RUNWAYS; index += 1) {
+      nextLaunchWaveFrame.push(view.getUint32(cursor, true)); cursor += 4;
+      rampUpFrame.push(view.getUint32(cursor, true)); cursor += 4;
+      catapultSystemFrame.push(view.getUint32(cursor, true)); cursor += 4;
+      lowerRampFrame.push(view.getUint32(cursor, true)); cursor += 4;
+      const rampFlag = view.getUint8(cursor);
+      cursor += 1;
+      if (rampFlag !== 0 && rampFlag !== 1) {
+        valid = false;
+        break;
+      }
+      rampUpXferFlags.push(rampFlag !== 0);
+    }
+    if (!valid || cursor !== blockData.byteLength) {
+      continue;
+    }
+
+    return {
+      blockData,
+      tailOffset,
+      spaces,
+      runways,
+      healees,
+      nextHealFrame,
+      nextCleanupFrame,
+      startedProductionFrame,
+      nextAllowedProductionFrame,
+      designatedTargetId,
+      designatedCommandType,
+      designatedPosition,
+      nextLaunchWaveFrame,
+      rampUpFrame,
+      catapultSystemFrame,
+      lowerRampFrame,
+      rampUpXferFlags,
+    };
+  }
+  return null;
+}
+
+function concatSourceBytes(prefix: Uint8Array, suffix: Uint8Array): Uint8Array {
+  const result = new Uint8Array(prefix.byteLength + suffix.byteLength);
+  result.set(prefix, 0);
+  result.set(suffix, prefix.byteLength);
+  return result;
+}
+
+function sourceFlightDeckCommandType(command: unknown, fallback: number): number {
+  switch (typeof command === 'string' ? command.trim().toUpperCase() : '') {
+    case 'NONE': return -1;
+    case 'IDLE': return 5;
+    case 'ATTACK_OBJECT': return 11;
+    case 'FORCE_ATTACK_OBJECT': return 12;
+    case 'ATTACK_POSITION': return 14;
+    case 'ATTACKMOVE_TO_POSITION': return 15;
+    case 'GUARD_POSITION': return 29;
+    default:
+      return Number.isFinite(fallback) ? Math.trunc(fallback) : -1;
+  }
+}
+
+function sourceFlightDeckHealeesForEntity(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceFlightDeckBehaviorBlockState,
+): SourceFlightDeckBehaviorBlockState['healees'] {
+  const state = entity.flightDeckState;
+  const healeeStates = Array.isArray(state?.healeeStates) ? state!.healeeStates : preservedState.healees;
+  const healees = healeeStates
+    .map((healee) => ({
+      entityId: normalizeSourceObjectId(healee.entityId),
+      healStartFrame: sourceFlammableUnsignedFrame(healee.healStartFrame, currentFrame),
+    }))
+    .filter((healee) => healee.entityId > 0);
+  const healeeIds = state?.healeeEntityIds instanceof Set
+    ? Array.from(state.healeeEntityIds.values()).map(normalizeSourceObjectId).filter((entityId) => entityId > 0)
+    : [];
+  for (const entityId of healeeIds) {
+    if (!healees.some((healee) => healee.entityId === entityId)) {
+      healees.push({ entityId, healStartFrame: Math.max(0, Math.trunc(currentFrame)) });
+    }
+  }
+  assertSourceUnsignedByteCount('FlightDeckBehavior healees', healees.length);
+  return healees;
+}
+
+function buildSourceFlightDeckBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceFlightDeckBehaviorBlockState,
+): Uint8Array {
+  const state = entity.flightDeckState;
+  const spaces = Array.isArray(state?.parkingSpaces)
+    ? state!.parkingSpaces.map((space) => normalizeSourceObjectId(space.occupantId))
+    : preservedState.spaces;
+  assertSourceUnsignedByteCount('FlightDeckBehavior spaces', spaces.length);
+  const runways = Array.from(
+    { length: Math.max(state?.runwayTakeoffReservation?.length ?? 0, state?.runwayLandingReservation?.length ?? 0, preservedState.runways.length) },
+    (_, index) => ({
+      takeoffId: normalizeSourceObjectId(state?.runwayTakeoffReservation?.[index] ?? preservedState.runways[index]?.takeoffId ?? 0),
+      landingId: normalizeSourceObjectId(state?.runwayLandingReservation?.[index] ?? preservedState.runways[index]?.landingId ?? 0),
+    }),
+  );
+  assertSourceUnsignedByteCount('FlightDeckBehavior runways', runways.length);
+  const healees = sourceFlightDeckHealeesForEntity(entity, currentFrame, preservedState);
+  const rawRampFlags = Array.isArray(state?.sourceRampUpXferFlags) && state!.sourceRampUpXferFlags.length >= SOURCE_FLIGHT_DECK_MAX_RUNWAYS
+    ? state!.sourceRampUpXferFlags
+    : (Array.isArray(state?.rampUp) ? state!.rampUp : preservedState.rampUpXferFlags);
+
+  const tail = new XferSave();
+  tail.open('build-source-flight-deck-tail');
+  try {
+    tail.xferUnsignedByte(spaces.length);
+    for (const occupantId of spaces) {
+      tail.xferObjectID(occupantId);
+    }
+    tail.xferUnsignedByte(runways.length);
+    for (const runway of runways) {
+      tail.xferObjectID(runway.takeoffId);
+      tail.xferObjectID(runway.landingId);
+    }
+    tail.xferUnsignedByte(healees.length);
+    for (const healee of healees) {
+      tail.xferObjectID(healee.entityId);
+      tail.xferUnsignedInt(healee.healStartFrame);
+    }
+    tail.xferUnsignedInt(sourceFlammableUnsignedFrame(state?.nextHealFrame, preservedState.nextHealFrame));
+    tail.xferUnsignedInt(sourceFlammableUnsignedFrame(state?.nextCleanupFrame, preservedState.nextCleanupFrame));
+    tail.xferUnsignedInt(sourceFlammableUnsignedFrame(state?.startedProductionFrame, preservedState.startedProductionFrame));
+    tail.xferUnsignedInt(sourceFlammableUnsignedFrame(state?.nextAllowedProductionFrame, preservedState.nextAllowedProductionFrame));
+    tail.xferObjectID(normalizeSourceObjectId(state?.designatedTargetId ?? preservedState.designatedTargetId));
+    tail.xferInt(sourceFlightDeckCommandType(state?.designatedCommand, state?.designatedCommandType ?? preservedState.designatedCommandType));
+    tail.xferCoord3D({
+      x: sourcePhysicsFinite(state?.designatedPositionX, preservedState.designatedPosition.x),
+      y: sourcePhysicsFinite(state?.designatedPositionY, preservedState.designatedPosition.y),
+      z: sourcePhysicsFinite(state?.designatedPositionZ, preservedState.designatedPosition.z),
+    });
+    tail.xferUnsignedInt(SOURCE_FLIGHT_DECK_MAX_RUNWAYS);
+    for (let index = 0; index < SOURCE_FLIGHT_DECK_MAX_RUNWAYS; index += 1) {
+      tail.xferUnsignedInt(sourceFlammableUnsignedFrame(
+        state?.nextLaunchWaveFrame?.[index],
+        preservedState.nextLaunchWaveFrame[index] ?? 0,
+      ));
+      tail.xferUnsignedInt(sourceFlammableUnsignedFrame(
+        state?.rampUpFrame?.[index],
+        preservedState.rampUpFrame[index] ?? 0,
+      ));
+      tail.xferUnsignedInt(sourceFlammableUnsignedFrame(
+        state?.catapultSystemFrame?.[index],
+        preservedState.catapultSystemFrame[index] ?? 0,
+      ));
+      tail.xferUnsignedInt(sourceFlammableUnsignedFrame(
+        state?.lowerRampFrame?.[index],
+        preservedState.lowerRampFrame[index] ?? 0,
+      ));
+      tail.xferBool(rawRampFlags[index] === true);
+    }
+    return concatSourceBytes(
+      preservedState.blockData.subarray(0, preservedState.tailOffset),
+      new Uint8Array(tail.getBuffer()),
+    );
+  } finally {
+    tail.close();
   }
 }
 
@@ -13067,6 +13333,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceParkingPlaceBehaviorBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'FLIGHTDECKBEHAVIOR' && entity.flightDeckProfile && entity.flightDeckState) {
+            const parsedSourceState = tryParseSourceFlightDeckBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceFlightDeckBehaviorBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }

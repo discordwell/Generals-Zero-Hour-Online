@@ -2335,6 +2335,25 @@ interface SourceParkingPlaceBehaviorTestState {
   nextHealFrame: number;
 }
 
+interface SourceFlightDeckBehaviorTestState {
+  baseBytes: Uint8Array;
+  spaces: number[];
+  runways: Array<{ takeoffId: number; landingId: number }>;
+  healees: Array<{ entityId: number; healStartFrame: number }>;
+  nextHealFrame: number;
+  nextCleanupFrame: number;
+  startedProductionFrame: number;
+  nextAllowedProductionFrame: number;
+  designatedTargetId: number;
+  designatedCommandType: number;
+  designatedPosition: Coord3D;
+  nextLaunchWaveFrame: number[];
+  rampUpFrame: number[];
+  catapultSystemFrame: number[];
+  lowerRampFrame: number[];
+  rampUpXferFlags: boolean[];
+}
+
 function createSourceBridgeBehaviorBlockData(state: SourceBridgeBehaviorTestState): Uint8Array {
   const xferSave = new XferSave();
   xferSave.open('create-source-bridge-behavior');
@@ -2536,6 +2555,118 @@ function parseSourceParkingPlaceBehaviorBlockData(data: Uint8Array): SourceParki
       heliRallyPoint,
       heliRallyPointExists,
       nextHealFrame,
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceFlightDeckBehaviorBlockData(state: SourceFlightDeckBehaviorTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-flight-deck-behavior');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(state.baseBytes);
+    xferSave.xferUnsignedByte(state.spaces.length);
+    for (const occupantId of state.spaces) {
+      xferSave.xferObjectID(occupantId);
+    }
+    xferSave.xferUnsignedByte(state.runways.length);
+    for (const runway of state.runways) {
+      xferSave.xferObjectID(runway.takeoffId);
+      xferSave.xferObjectID(runway.landingId);
+    }
+    xferSave.xferUnsignedByte(state.healees.length);
+    for (const healee of state.healees) {
+      xferSave.xferObjectID(healee.entityId);
+      xferSave.xferUnsignedInt(healee.healStartFrame);
+    }
+    xferSave.xferUnsignedInt(state.nextHealFrame);
+    xferSave.xferUnsignedInt(state.nextCleanupFrame);
+    xferSave.xferUnsignedInt(state.startedProductionFrame);
+    xferSave.xferUnsignedInt(state.nextAllowedProductionFrame);
+    xferSave.xferObjectID(state.designatedTargetId);
+    xferSave.xferInt(state.designatedCommandType);
+    xferSave.xferCoord3D(state.designatedPosition);
+    xferSave.xferUnsignedInt(2);
+    for (let index = 0; index < 2; index += 1) {
+      xferSave.xferUnsignedInt(state.nextLaunchWaveFrame[index] ?? 0);
+      xferSave.xferUnsignedInt(state.rampUpFrame[index] ?? 0);
+      xferSave.xferUnsignedInt(state.catapultSystemFrame[index] ?? 0);
+      xferSave.xferUnsignedInt(state.lowerRampFrame[index] ?? 0);
+      xferSave.xferBool(state.rampUpXferFlags[index] === true);
+    }
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceFlightDeckBehaviorBlockData(data: Uint8Array): SourceFlightDeckBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-flight-deck-behavior');
+  try {
+    expect(xferLoad.xferVersion(1)).toBe(1);
+    const baseBytes = xferLoad.xferUser(new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd]));
+    const spaceCount = xferLoad.xferUnsignedByte(0);
+    const spaces: number[] = [];
+    for (let index = 0; index < spaceCount; index += 1) {
+      spaces.push(xferLoad.xferObjectID(0));
+    }
+    const runwayCount = xferLoad.xferUnsignedByte(0);
+    const runways: SourceFlightDeckBehaviorTestState['runways'] = [];
+    for (let index = 0; index < runwayCount; index += 1) {
+      runways.push({
+        takeoffId: xferLoad.xferObjectID(0),
+        landingId: xferLoad.xferObjectID(0),
+      });
+    }
+    const healCount = xferLoad.xferUnsignedByte(0);
+    const healees: SourceFlightDeckBehaviorTestState['healees'] = [];
+    for (let index = 0; index < healCount; index += 1) {
+      healees.push({
+        entityId: xferLoad.xferObjectID(0),
+        healStartFrame: xferLoad.xferUnsignedInt(0),
+      });
+    }
+    const nextHealFrame = xferLoad.xferUnsignedInt(0);
+    const nextCleanupFrame = xferLoad.xferUnsignedInt(0);
+    const startedProductionFrame = xferLoad.xferUnsignedInt(0);
+    const nextAllowedProductionFrame = xferLoad.xferUnsignedInt(0);
+    const designatedTargetId = xferLoad.xferObjectID(0);
+    const designatedCommandType = xferLoad.xferInt(0);
+    const designatedPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    expect(xferLoad.xferUnsignedInt(2)).toBe(2);
+    const nextLaunchWaveFrame: number[] = [];
+    const rampUpFrame: number[] = [];
+    const catapultSystemFrame: number[] = [];
+    const lowerRampFrame: number[] = [];
+    const rampUpXferFlags: boolean[] = [];
+    for (let index = 0; index < 2; index += 1) {
+      nextLaunchWaveFrame.push(xferLoad.xferUnsignedInt(0));
+      rampUpFrame.push(xferLoad.xferUnsignedInt(0));
+      catapultSystemFrame.push(xferLoad.xferUnsignedInt(0));
+      lowerRampFrame.push(xferLoad.xferUnsignedInt(0));
+      rampUpXferFlags.push(xferLoad.xferBool(false));
+    }
+    expect(xferLoad.getRemaining()).toBe(0);
+    return {
+      baseBytes,
+      spaces,
+      runways,
+      healees,
+      nextHealFrame,
+      nextCleanupFrame,
+      startedProductionFrame,
+      nextAllowedProductionFrame,
+      designatedTargetId,
+      designatedCommandType,
+      designatedPosition,
+      nextLaunchWaveFrame,
+      rampUpFrame,
+      catapultSystemFrame,
+      lowerRampFrame,
+      rampUpXferFlags,
     };
   } finally {
     xferLoad.close();
@@ -13884,6 +14015,166 @@ describe('runtime-save-game', () => {
       heliRallyPoint: { x: 11, y: 12, z: 13 },
       heliRallyPointExists: true,
       nextHealFrame: 88,
+    });
+  });
+
+  it('rewrites source FlightDeckBehavior modules from live runtime state while preserving AIUpdate bytes', () => {
+    const preserved: SourceFlightDeckBehaviorTestState = {
+      baseBytes: new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd]),
+      spaces: [10, 0],
+      runways: [{ takeoffId: 20, landingId: 30 }],
+      healees: [{ entityId: 40, healStartFrame: 50 }],
+      nextHealFrame: 60,
+      nextCleanupFrame: 61,
+      startedProductionFrame: 62,
+      nextAllowedProductionFrame: 63,
+      designatedTargetId: 64,
+      designatedCommandType: 5,
+      designatedPosition: { x: 1, y: 2, z: 3 },
+      nextLaunchWaveFrame: [71, 72],
+      rampUpFrame: [73, 74],
+      catapultSystemFrame: [75, 76],
+      lowerRampFrame: [77, 78],
+      rampUpXferFlags: [false, false],
+    };
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_FlightDeck',
+      blockData: createSourceFlightDeckBehaviorBlockData(preserved),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source flight deck behavior rewrite',
+      mapPath: 'Maps/RuntimeFlightDeck/RuntimeFlightDeck.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeFlightDeck',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            flightDeckProfile: {
+              numRunways: 2,
+              numSpacesPerRunway: 2,
+            },
+            flightDeckState: {
+              parkingSpaces: [
+                { occupantId: 101, runway: 0 },
+                { occupantId: -1, runway: 1 },
+                { occupantId: 102, runway: 0 },
+                { occupantId: -1, runway: 1 },
+              ],
+              runwayTakeoffReservation: [201, -1],
+              runwayLandingReservation: [301, 302],
+              healeeEntityIds: new Set([401]),
+              healeeStates: [{ entityId: 401, healStartFrame: 33 }],
+              nextHealFrame: 88,
+              nextCleanupFrame: 89,
+              startedProductionFrame: 90,
+              nextAllowedProductionFrame: 91,
+              designatedTargetId: 501,
+              designatedCommand: 'ATTACK_POSITION',
+              designatedCommandType: 14,
+              designatedPositionX: 11,
+              designatedPositionY: 12,
+              designatedPositionZ: 13,
+              nextLaunchWaveFrame: [601, 602],
+              rampUpFrame: [603, 604],
+              catapultSystemFrame: [605, 606],
+              lowerRampFrame: [607, 608],
+              rampUp: [true, false],
+              sourceRampUpXferFlags: [true, false],
+              initialized: true,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_FlightDeck') {
+            return 'FLIGHTDECKBEHAVIOR';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const flightDeckModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_FlightDeck');
+
+    expect(flightDeckModule).toBeDefined();
+    expect(parseSourceFlightDeckBehaviorBlockData(flightDeckModule!.blockData)).toEqual({
+      baseBytes: preserved.baseBytes,
+      spaces: [101, 0, 102, 0],
+      runways: [
+        { takeoffId: 201, landingId: 301 },
+        { takeoffId: 0, landingId: 302 },
+      ],
+      healees: [{ entityId: 401, healStartFrame: 33 }],
+      nextHealFrame: 88,
+      nextCleanupFrame: 89,
+      startedProductionFrame: 90,
+      nextAllowedProductionFrame: 91,
+      designatedTargetId: 501,
+      designatedCommandType: 14,
+      designatedPosition: { x: 11, y: 12, z: 13 },
+      nextLaunchWaveFrame: [601, 602],
+      rampUpFrame: [603, 604],
+      catapultSystemFrame: [605, 606],
+      lowerRampFrame: [607, 608],
+      rampUpXferFlags: [true, false],
     });
   });
 

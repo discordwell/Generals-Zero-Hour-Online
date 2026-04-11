@@ -2498,6 +2498,8 @@ interface FlightDeckState {
   runwayLandingReservation: number[];
   /** Healee entity IDs currently being healed. */
   healeeEntityIds: Set<number>;
+  /** Source parity: FlightDeckBehavior::m_healing entries, including m_healStartFrame. */
+  healeeStates: Array<{ entityId: number; healStartFrame: number }>;
   /** Frame of next heal tick. */
   nextHealFrame: number;
   /** Frame of next cleanup sweep. */
@@ -2510,8 +2512,12 @@ interface FlightDeckState {
   designatedTargetId: number;
   /** Designated command type for propagation to parked aircraft. */
   designatedCommand: string;
+  /** Source parity: raw AICommandType persisted as FlightDeckBehavior::m_designatedCommand. */
+  designatedCommandType: number;
   /** Designated position for positional commands. */
   designatedPositionX: number;
+  /** Source parity: FlightDeckBehavior::m_designatedPosition.y. */
+  designatedPositionY: number;
   designatedPositionZ: number;
   /** Per-runway: next frame when launch wave is allowed. */
   nextLaunchWaveFrame: number[];
@@ -2523,6 +2529,8 @@ interface FlightDeckState {
   lowerRampFrame: number[];
   /** Per-runway: whether ramp is currently raised. */
   rampUp: boolean[];
+  /** Source parity: raw bools xferred for FlightDeckBehavior::m_rampUp[MAX_RUNWAYS]. */
+  sourceRampUpXferFlags: boolean[];
   /** Whether initial buildInfo has been completed. */
   initialized: boolean;
 }
@@ -9072,6 +9080,26 @@ interface SourceParkingPlaceBehaviorImportState {
   heliRallyPointExists: boolean;
   nextHealFrame: number;
 }
+
+interface SourceFlightDeckBehaviorImportState {
+  spaces: number[];
+  runways: Array<{ takeoffId: number; landingId: number }>;
+  healees: Array<{ entityId: number; healStartFrame: number }>;
+  nextHealFrame: number;
+  nextCleanupFrame: number;
+  startedProductionFrame: number;
+  nextAllowedProductionFrame: number;
+  designatedTargetId: number;
+  designatedCommandType: number;
+  designatedPosition: { x: number; y: number; z: number };
+  nextLaunchWaveFrame: number[];
+  rampUpFrame: number[];
+  catapultSystemFrame: number[];
+  lowerRampFrame: number[];
+  rampUpXferFlags: boolean[];
+}
+
+const SOURCE_FLIGHT_DECK_MAX_RUNWAYS = 2;
 
 interface SourceSlowDeathBehaviorImportState {
   nextCallFrame: number;
@@ -16754,6 +16782,218 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private sourceFlightDeckCommandNameFromInt(value: number): string {
+    switch (Math.trunc(value)) {
+      case -1: return 'NONE';
+      case 5: return 'IDLE';
+      case 11: return 'ATTACK_OBJECT';
+      case 12: return 'FORCE_ATTACK_OBJECT';
+      case 14: return 'ATTACK_POSITION';
+      case 15: return 'ATTACKMOVE_TO_POSITION';
+      case 29: return 'GUARD_POSITION';
+      default: return 'NONE';
+    }
+  }
+
+  private tryParseSourceFlightDeckBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+    expectedSpaceCount: number,
+    expectedRunwayCount: number,
+  ): SourceFlightDeckBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'FLIGHTDECKBEHAVIOR' || data.byteLength < 78 || data[0] !== 1) {
+      return null;
+    }
+
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    for (let tailOffset = data.byteLength - 77; tailOffset >= 1; tailOffset -= 1) {
+      let cursor = tailOffset;
+      const spaceCount = view.getUint8(cursor);
+      cursor += 1;
+      if (spaceCount !== expectedSpaceCount || cursor + spaceCount * 4 >= data.byteLength) {
+        continue;
+      }
+      const spaces: number[] = [];
+      for (let index = 0; index < spaceCount; index += 1) {
+        spaces.push(view.getUint32(cursor, true));
+        cursor += 4;
+      }
+
+      if (cursor >= data.byteLength) {
+        continue;
+      }
+      const runwayCount = view.getUint8(cursor);
+      cursor += 1;
+      if (runwayCount !== expectedRunwayCount || cursor + runwayCount * 8 >= data.byteLength) {
+        continue;
+      }
+      const runways: SourceFlightDeckBehaviorImportState['runways'] = [];
+      for (let index = 0; index < runwayCount; index += 1) {
+        runways.push({
+          takeoffId: view.getUint32(cursor, true),
+          landingId: view.getUint32(cursor + 4, true),
+        });
+        cursor += 8;
+      }
+
+      if (cursor >= data.byteLength) {
+        continue;
+      }
+      const healCount = view.getUint8(cursor);
+      cursor += 1;
+      if (cursor + healCount * 8 + 74 !== data.byteLength) {
+        continue;
+      }
+      const healees: SourceFlightDeckBehaviorImportState['healees'] = [];
+      for (let index = 0; index < healCount; index += 1) {
+        healees.push({
+          entityId: view.getUint32(cursor, true),
+          healStartFrame: view.getUint32(cursor + 4, true),
+        });
+        cursor += 8;
+      }
+
+      const nextHealFrame = view.getUint32(cursor, true); cursor += 4;
+      const nextCleanupFrame = view.getUint32(cursor, true); cursor += 4;
+      const startedProductionFrame = view.getUint32(cursor, true); cursor += 4;
+      const nextAllowedProductionFrame = view.getUint32(cursor, true); cursor += 4;
+      const designatedTargetId = view.getUint32(cursor, true); cursor += 4;
+      const designatedCommandType = view.getInt32(cursor, true); cursor += 4;
+      const designatedPosition = {
+        x: view.getFloat32(cursor, true),
+        y: view.getFloat32(cursor + 4, true),
+        z: view.getFloat32(cursor + 8, true),
+      };
+      cursor += 12;
+      const maxRunways = view.getUint32(cursor, true);
+      cursor += 4;
+      if (maxRunways !== SOURCE_FLIGHT_DECK_MAX_RUNWAYS) {
+        continue;
+      }
+
+      const nextLaunchWaveFrame: number[] = [];
+      const rampUpFrame: number[] = [];
+      const catapultSystemFrame: number[] = [];
+      const lowerRampFrame: number[] = [];
+      const rampUpXferFlags: boolean[] = [];
+      let valid = true;
+      for (let index = 0; index < SOURCE_FLIGHT_DECK_MAX_RUNWAYS; index += 1) {
+        nextLaunchWaveFrame.push(view.getUint32(cursor, true)); cursor += 4;
+        rampUpFrame.push(view.getUint32(cursor, true)); cursor += 4;
+        catapultSystemFrame.push(view.getUint32(cursor, true)); cursor += 4;
+        lowerRampFrame.push(view.getUint32(cursor, true)); cursor += 4;
+        const rampFlag = view.getUint8(cursor);
+        cursor += 1;
+        if (rampFlag !== 0 && rampFlag !== 1) {
+          valid = false;
+          break;
+        }
+        rampUpXferFlags.push(rampFlag !== 0);
+      }
+      if (!valid || cursor !== data.byteLength) {
+        continue;
+      }
+
+      return {
+        spaces,
+        runways,
+        healees,
+        nextHealFrame,
+        nextCleanupFrame,
+        startedProductionFrame,
+        nextAllowedProductionFrame,
+        designatedTargetId,
+        designatedCommandType,
+        designatedPosition,
+        nextLaunchWaveFrame,
+        rampUpFrame,
+        catapultSystemFrame,
+        lowerRampFrame,
+        rampUpXferFlags,
+      };
+    }
+    return null;
+  }
+
+  private applySourceFlightDeckBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.flightDeckProfile || !entity.flightDeckState) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const deckState = this.tryParseSourceFlightDeckBehaviorImportState(
+        module.blockData,
+        moduleType,
+        entity.flightDeckState.parkingSpaces.length,
+        entity.flightDeckProfile.numRunways,
+      );
+      if (!deckState) {
+        continue;
+      }
+
+      entity.flightDeckState.parkingSpaces = entity.flightDeckState.parkingSpaces.map((space, index) => ({
+        ...space,
+        occupantId: deckState.spaces[index] && deckState.spaces[index]! > 0 ? deckState.spaces[index]! : -1,
+      }));
+      entity.flightDeckState.runwayTakeoffReservation = Array.from(
+        { length: entity.flightDeckProfile.numRunways },
+        (_, index) => {
+          const id = deckState.runways[index]?.takeoffId ?? 0;
+          return id > 0 ? Math.trunc(id) : -1;
+        },
+      );
+      entity.flightDeckState.runwayLandingReservation = Array.from(
+        { length: entity.flightDeckProfile.numRunways },
+        (_, index) => {
+          const id = deckState.runways[index]?.landingId ?? 0;
+          return id > 0 ? Math.trunc(id) : -1;
+        },
+      );
+      entity.flightDeckState.healeeStates = deckState.healees
+        .map((healee) => ({
+          entityId: Math.max(0, Math.trunc(healee.entityId)),
+          healStartFrame: Math.max(0, Math.trunc(healee.healStartFrame)),
+        }))
+        .filter((healee) => healee.entityId > 0);
+      entity.flightDeckState.healeeEntityIds = new Set(entity.flightDeckState.healeeStates.map((healee) => healee.entityId));
+      entity.flightDeckState.nextHealFrame = Math.max(0, Math.trunc(deckState.nextHealFrame));
+      entity.flightDeckState.nextCleanupFrame = Math.max(0, Math.trunc(deckState.nextCleanupFrame));
+      entity.flightDeckState.startedProductionFrame = Math.max(0, Math.trunc(deckState.startedProductionFrame));
+      entity.flightDeckState.nextAllowedProductionFrame = Math.max(0, Math.trunc(deckState.nextAllowedProductionFrame));
+      entity.flightDeckState.designatedTargetId = deckState.designatedTargetId > 0
+        ? Math.trunc(deckState.designatedTargetId)
+        : -1;
+      entity.flightDeckState.designatedCommandType = Math.trunc(deckState.designatedCommandType);
+      entity.flightDeckState.designatedCommand = this.sourceFlightDeckCommandNameFromInt(deckState.designatedCommandType);
+      entity.flightDeckState.designatedPositionX = Number.isFinite(deckState.designatedPosition.x)
+        ? deckState.designatedPosition.x
+        : 0;
+      entity.flightDeckState.designatedPositionY = Number.isFinite(deckState.designatedPosition.y)
+        ? deckState.designatedPosition.y
+        : 0;
+      entity.flightDeckState.designatedPositionZ = Number.isFinite(deckState.designatedPosition.z)
+        ? deckState.designatedPosition.z
+        : 0;
+      entity.flightDeckState.nextLaunchWaveFrame = deckState.nextLaunchWaveFrame.slice(0, entity.flightDeckProfile.numRunways);
+      entity.flightDeckState.rampUpFrame = deckState.rampUpFrame.slice(0, entity.flightDeckProfile.numRunways);
+      entity.flightDeckState.catapultSystemFrame = deckState.catapultSystemFrame.slice(0, entity.flightDeckProfile.numRunways);
+      entity.flightDeckState.lowerRampFrame = deckState.lowerRampFrame.slice(0, entity.flightDeckProfile.numRunways);
+      entity.flightDeckState.sourceRampUpXferFlags = deckState.rampUpXferFlags.slice();
+      entity.flightDeckState.rampUp = deckState.rampUpXferFlags.slice(0, entity.flightDeckProfile.numRunways);
+      return;
+    }
+  }
+
   private tryParseSourceBridgeScaffoldBehaviorImportState(
     data: Uint8Array,
     moduleType: string,
@@ -21360,6 +21600,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceChinookAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceDozerAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceParkingPlaceBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceFlightDeckBehaviorModulesToEntity(entity, sourceState);
     this.applySourceRebuildHoleBehaviorModulesToEntity(entity, sourceState);
     this.applySourcePropagandaTowerBehaviorModulesToEntity(entity, sourceState);
     this.applySourceBridgeBehaviorModulesToEntity(entity, sourceState);

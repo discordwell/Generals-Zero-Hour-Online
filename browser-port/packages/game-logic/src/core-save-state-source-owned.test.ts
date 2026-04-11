@@ -258,6 +258,15 @@ function makeSourceOwnedCoreBundle() {
           HealAmountPerSecond: 10,
         }),
       ]),
+      makeObjectDef('CarrierObject', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'FlightDeckBehavior ModuleTag_FlightDeck', {
+          NumRunways: 2,
+          NumSpacesPerRunway: 2,
+          HealAmountPerSecond: 10,
+          PayloadTemplate: 'CarrierJet',
+        }),
+      ]),
+      makeObjectDef('CarrierJet', 'America', ['AIRCRAFT'], []),
       makeObjectDef('RebuildHoleObject', 'GLA', ['STRUCTURE', 'IMMOBILE'], [
         makeBlock('Behavior', 'RebuildHoleBehavior ModuleTag_RebuildHole', {
           WorkerObjectName: 'RebuildWorker',
@@ -2113,6 +2122,64 @@ function buildSourceParkingPlaceBehaviorModuleData(options: {
     saver.xferCoord3D(options.heliRallyPoint);
     saver.xferBool(options.heliRallyPointExists);
     saver.xferUnsignedInt(options.nextHealFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceFlightDeckBehaviorModuleData(options: {
+  baseBytes?: Uint8Array;
+  spaces: number[];
+  runways: Array<{ takeoffId: number; landingId: number }>;
+  healees: Array<{ entityId: number; healStartFrame: number }>;
+  nextHealFrame: number;
+  nextCleanupFrame: number;
+  startedProductionFrame: number;
+  nextAllowedProductionFrame: number;
+  designatedTargetId: number;
+  designatedCommandType: number;
+  designatedPosition: { x: number; y: number; z: number };
+  nextLaunchWaveFrame: number[];
+  rampUpFrame: number[];
+  catapultSystemFrame: number[];
+  lowerRampFrame: number[];
+  rampUpXferFlags: boolean[];
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-flight-deck-behavior');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(options.baseBytes ?? new Uint8Array([9, 8, 7, 6, 5]));
+    saver.xferUnsignedByte(options.spaces.length);
+    for (const occupantId of options.spaces) {
+      saver.xferObjectID(occupantId);
+    }
+    saver.xferUnsignedByte(options.runways.length);
+    for (const runway of options.runways) {
+      saver.xferObjectID(runway.takeoffId);
+      saver.xferObjectID(runway.landingId);
+    }
+    saver.xferUnsignedByte(options.healees.length);
+    for (const healee of options.healees) {
+      saver.xferObjectID(healee.entityId);
+      saver.xferUnsignedInt(healee.healStartFrame);
+    }
+    saver.xferUnsignedInt(options.nextHealFrame);
+    saver.xferUnsignedInt(options.nextCleanupFrame);
+    saver.xferUnsignedInt(options.startedProductionFrame);
+    saver.xferUnsignedInt(options.nextAllowedProductionFrame);
+    saver.xferObjectID(options.designatedTargetId);
+    saver.xferInt(options.designatedCommandType);
+    saver.xferCoord3D(options.designatedPosition);
+    saver.xferUnsignedInt(2);
+    for (let index = 0; index < 2; index += 1) {
+      saver.xferUnsignedInt(options.nextLaunchWaveFrame[index] ?? 0);
+      saver.xferUnsignedInt(options.rampUpFrame[index] ?? 0);
+      saver.xferUnsignedInt(options.catapultSystemFrame[index] ?? 0);
+      saver.xferUnsignedInt(options.lowerRampFrame[index] ?? 0);
+      saver.xferBool(options.rampUpXferFlags[index] === true);
+    }
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -5738,6 +5805,103 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedParking.heliRallyPoint).toEqual({ x: 11, y: 12, z: 13 });
     expect(importedParking.heliRallyPointExists).toBe(true);
     expect(importedParking.nextHealFrame).toBe(230);
+  });
+
+  it('imports source FlightDeckBehavior runtime state from the source suffix', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const flightDeckState = createEmptySourceMapEntitySaveState();
+    flightDeckState.objectId = 132;
+    flightDeckState.position = { x: 200, y: 0, z: 90 };
+    flightDeckState.modules = [{
+      identifier: 'ModuleTag_FlightDeck',
+      blockData: buildSourceFlightDeckBehaviorModuleData({
+        spaces: [801, 0, 802, 0],
+        runways: [
+          { takeoffId: 901, landingId: 1001 },
+          { takeoffId: 902, landingId: 0 },
+        ],
+        healees: [{ entityId: 1101, healStartFrame: 77 }],
+        nextHealFrame: 300,
+        nextCleanupFrame: 301,
+        startedProductionFrame: 302,
+        nextAllowedProductionFrame: 303,
+        designatedTargetId: 1201,
+        designatedCommandType: 11,
+        designatedPosition: { x: 21, y: 22, z: 23 },
+        nextLaunchWaveFrame: [401, 402],
+        rampUpFrame: [403, 404],
+        catapultSystemFrame: [405, 406],
+        lowerRampFrame: [407, 408],
+        rampUpXferFlags: [true, false],
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'CarrierObject', state: flightDeckState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        flightDeckState: {
+          parkingSpaces: Array<{ occupantId: number; runway: number }>;
+          runwayTakeoffReservation: number[];
+          runwayLandingReservation: number[];
+          healeeEntityIds: Set<number>;
+          healeeStates: Array<{ entityId: number; healStartFrame: number }>;
+          nextHealFrame: number;
+          nextCleanupFrame: number;
+          startedProductionFrame: number;
+          nextAllowedProductionFrame: number;
+          designatedTargetId: number;
+          designatedCommand: string;
+          designatedCommandType: number;
+          designatedPositionX: number;
+          designatedPositionY: number;
+          designatedPositionZ: number;
+          nextLaunchWaveFrame: number[];
+          rampUpFrame: number[];
+          catapultSystemFrame: number[];
+          lowerRampFrame: number[];
+          rampUp: boolean[];
+          sourceRampUpXferFlags: boolean[];
+        } | null;
+      }>;
+    };
+
+    const importedDeck = privateLogic.spawnedEntities.get(132)!.flightDeckState!;
+    expect(importedDeck.parkingSpaces.map((space) => space.occupantId)).toEqual([801, -1, 802, -1]);
+    expect(importedDeck.runwayTakeoffReservation).toEqual([901, 902]);
+    expect(importedDeck.runwayLandingReservation).toEqual([1001, -1]);
+    expect(Array.from(importedDeck.healeeEntityIds.values())).toEqual([1101]);
+    expect(importedDeck.healeeStates).toEqual([{ entityId: 1101, healStartFrame: 77 }]);
+    expect(importedDeck.nextHealFrame).toBe(300);
+    expect(importedDeck.nextCleanupFrame).toBe(301);
+    expect(importedDeck.startedProductionFrame).toBe(302);
+    expect(importedDeck.nextAllowedProductionFrame).toBe(303);
+    expect(importedDeck.designatedTargetId).toBe(1201);
+    expect(importedDeck.designatedCommand).toBe('ATTACK_OBJECT');
+    expect(importedDeck.designatedCommandType).toBe(11);
+    expect(importedDeck.designatedPositionX).toBe(21);
+    expect(importedDeck.designatedPositionY).toBe(22);
+    expect(importedDeck.designatedPositionZ).toBe(23);
+    expect(importedDeck.nextLaunchWaveFrame).toEqual([401, 402]);
+    expect(importedDeck.rampUpFrame).toEqual([403, 404]);
+    expect(importedDeck.catapultSystemFrame).toEqual([405, 406]);
+    expect(importedDeck.lowerRampFrame).toEqual([407, 408]);
+    expect(importedDeck.rampUp).toEqual([true, false]);
+    expect(importedDeck.sourceRampUpXferFlags).toEqual([true, false]);
   });
 
   it('imports source BridgeScaffoldBehavior runtime state', () => {

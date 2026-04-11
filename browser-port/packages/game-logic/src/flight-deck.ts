@@ -206,19 +206,23 @@ export function initializeFlightDeckState(self: GL, entity: MapEntity, profile: 
     runwayTakeoffReservation,
     runwayLandingReservation,
     healeeEntityIds: new Set<number>(),
+    healeeStates: [],
     nextHealFrame: Number.POSITIVE_INFINITY,
     nextCleanupFrame: 0,
     startedProductionFrame: Number.POSITIVE_INFINITY,
     nextAllowedProductionFrame: 0,
     designatedTargetId: -1,
     designatedCommand: 'NONE',
+    designatedCommandType: -1,
     designatedPositionX: 0,
+    designatedPositionY: 0,
     designatedPositionZ: 0,
     nextLaunchWaveFrame,
     rampUpFrame,
     catapultSystemFrame,
     lowerRampFrame,
     rampUp,
+    sourceRampUpXferFlags: Array.from({ length: profile.numRunways }, () => false),
     initialized: true,
   };
 
@@ -258,6 +262,7 @@ export function flightDeckPurgeDead(self: GL, state: FlightDeckState): void {
   }
   for (const id of toRemove) {
     state.healeeEntityIds.delete(id);
+    state.healeeStates = state.healeeStates.filter((healee) => healee.entityId !== id);
   }
   if (state.healeeEntityIds.size === 0) {
     state.nextHealFrame = Number.POSITIVE_INFINITY;
@@ -369,11 +374,22 @@ export function flightDeckSetHealee(self: GL, state: FlightDeckState, healeeId: 
   if (add) {
     if (state.healeeEntityIds.has(healeeId)) return;
     state.healeeEntityIds.add(healeeId);
+    const existingState = state.healeeStates.find((healee) => healee.entityId === healeeId);
+    if (existingState) {
+      existingState.healStartFrame = Math.max(0, Math.trunc(self.frameCounter));
+    } else {
+      state.healeeStates.push({
+        entityId: healeeId,
+        healStartFrame: Math.max(0, Math.trunc(self.frameCounter)),
+      });
+    }
     if (state.healeeEntityIds.size === 1) {
       state.nextHealFrame = self.frameCounter + FLIGHT_DECK_HEAL_RATE_FRAMES;
     }
   } else {
-    if (state.healeeEntityIds.delete(healeeId) && state.healeeEntityIds.size === 0) {
+    const deleted = state.healeeEntityIds.delete(healeeId);
+    state.healeeStates = state.healeeStates.filter((healee) => healee.entityId !== healeeId);
+    if (deleted && state.healeeEntityIds.size === 0) {
       state.nextHealFrame = Number.POSITIVE_INFINITY;
     }
   }
