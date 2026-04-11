@@ -25850,7 +25850,9 @@ function xferSourceW3DTreeBufferEntry(
   };
 }
 
-class TerrainVisualSnapshot implements Snapshot {
+export class TerrainVisualSnapshot implements Snapshot {
+  payload: ParsedSourceTerrainVisualChunkState | null = null;
+
   constructor(
     private readonly mapData: MapDataJSON | null = null,
     private readonly treeEntries: readonly SourceW3DTreeBufferEntry[] = [],
@@ -25858,10 +25860,19 @@ class TerrainVisualSnapshot implements Snapshot {
   ) {}
 
   crc(_xfer: Xfer): void {
-    // Source terrain-visual snapshot is currently save-only in the TS runtime.
+    // Terrain-visual snapshot CRC is not part of source parity CRC yet.
   }
 
   xfer(xfer: Xfer): void {
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      const parsed = parseSourceTerrainVisualChunk(xfer.xferUser(new Uint8Array(0)));
+      if (parsed === null) {
+        throw new Error('Unsupported source terrain-visual snapshot payload.');
+      }
+      this.payload = parsed;
+      return;
+    }
+
     const heightMapBytes = tryBuildTerrainVisualHeightMapBytes(this.mapData);
     const targetW3dVersion = heightMapBytes
       ? SOURCE_W3D_TERRAIN_VISUAL_SNAPSHOT_VERSION
@@ -25914,7 +25925,7 @@ class TerrainVisualSnapshot implements Snapshot {
       throw new Error(`Unsupported W3D tree-buffer tree count ${treeCount}`);
     }
     if (xfer.getMode() !== XferMode.XFER_SAVE && treeCount !== this.treeEntries.length) {
-      throw new Error('Terrain-visual tree-buffer loading is not implemented.');
+      throw new Error('Terrain-visual tree-buffer count mismatch in non-save xfer.');
     }
     for (let index = 0; index < treeCount; index += 1) {
       xferSourceW3DTreeBufferEntry(xfer, this.treeEntries[index]!);
@@ -25931,17 +25942,28 @@ class TerrainVisualSnapshot implements Snapshot {
   }
 }
 
-class GhostObjectSnapshot implements Snapshot {
+export class GhostObjectSnapshot implements Snapshot {
+  payload: { mode: 'parsed' } | null = null;
+
   constructor(
-    private readonly localPlayerIndex: number,
+    private readonly localPlayerIndex = 0,
     private readonly ghostEntries: readonly SourceGhostObjectEntry[] = [],
   ) {}
 
   crc(_xfer: Xfer): void {
-    // Source ghost-object snapshot is currently save-only in the TS runtime.
+    // Ghost-object snapshot CRC is not part of source parity CRC yet.
   }
 
   xfer(xfer: Xfer): void {
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      const mode = inspectRuntimeGhostObjectChunkMode(xfer.xferUser(new Uint8Array(0)));
+      if (mode !== 'parsed') {
+        throw new Error('Unsupported source ghost-object snapshot payload.');
+      }
+      this.payload = { mode };
+      return;
+    }
+
     // Source parity: W3DGhostObjectManager::xfer writes its own version, then
     // GhostObjectManager::xfer writes the base version and local player index,
     // followed by the used ghost-object count. Fresh TS saves have no ghosts yet.
@@ -25957,7 +25979,7 @@ class GhostObjectSnapshot implements Snapshot {
     xfer.xferInt(this.localPlayerIndex);
     const ghostObjectCount = xfer.xferUnsignedShort(this.ghostEntries.length);
     if (ghostObjectCount !== this.ghostEntries.length) {
-      throw new Error('Ghost-object snapshot loading is not implemented.');
+      throw new Error('Ghost-object count mismatch in non-save xfer.');
     }
     for (const entry of this.ghostEntries) {
       xfer.xferObjectID(entry.parentObjectId);

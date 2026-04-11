@@ -18,11 +18,13 @@ import * as THREE from 'three';
 import {
   buildRuntimeSaveFile,
   GameClientSnapshot,
+  GhostObjectSnapshot,
   inspectGameLogicChunkLayout,
   inspectRuntimeSaveCoreChunkStatus,
   parseSourceSidesListChunk,
   parseRuntimeSaveFile,
   SOURCE_GAME_MODE_SINGLE_PLAYER,
+  TerrainVisualSnapshot,
   type RuntimeSaveChallengeGameInfoState,
 } from './runtime-save-game.js';
 import {
@@ -9697,6 +9699,25 @@ describe('runtime-save-game', () => {
       propBufferVersion: 1,
       trailingBytes: 0,
     });
+    const loadedTerrainVisualSnapshot = new TerrainVisualSnapshot();
+    const terrainVisualChunkBytes = readSaveChunkData(saveFile.data, 'CHUNK_TerrainVisual');
+    expect(terrainVisualChunkBytes).not.toBeNull();
+    const terrainVisualXfer = new XferLoad(
+      terrainVisualChunkBytes!.buffer.slice(
+        terrainVisualChunkBytes!.byteOffset,
+        terrainVisualChunkBytes!.byteOffset + terrainVisualChunkBytes!.byteLength,
+      ),
+    );
+    terrainVisualXfer.open('load-source-terrain-visual-snapshot');
+    try {
+      terrainVisualXfer.xferSnapshot(loadedTerrainVisualSnapshot);
+      expect(terrainVisualXfer.getRemaining()).toBe(0);
+    } finally {
+      terrainVisualXfer.close();
+    }
+    expect(loadedTerrainVisualSnapshot.payload?.mode).toBe('parsed');
+    expect(loadedTerrainVisualSnapshot.payload?.treeEntries).toEqual([]);
+    expect(loadedTerrainVisualSnapshot.payload?.waterGridSnapshot).toBeNull();
     expect(ghostObjectChunk).toEqual({
       w3dVersion: 1,
       baseVersion: 1,
@@ -9705,6 +9726,23 @@ describe('runtime-save-game', () => {
       ghostObjects: [],
       trailingBytes: 0,
     });
+    const loadedGhostObjectSnapshot = new GhostObjectSnapshot();
+    const ghostObjectChunkBytes = readSaveChunkData(saveFile.data, 'CHUNK_GhostObject');
+    expect(ghostObjectChunkBytes).not.toBeNull();
+    const ghostObjectXfer = new XferLoad(
+      ghostObjectChunkBytes!.buffer.slice(
+        ghostObjectChunkBytes!.byteOffset,
+        ghostObjectChunkBytes!.byteOffset + ghostObjectChunkBytes!.byteLength,
+      ),
+    );
+    ghostObjectXfer.open('load-source-ghost-object-snapshot');
+    try {
+      ghostObjectXfer.xferSnapshot(loadedGhostObjectSnapshot);
+      expect(ghostObjectXfer.getRemaining()).toBe(0);
+    } finally {
+      ghostObjectXfer.close();
+    }
+    expect(loadedGhostObjectSnapshot.payload).toEqual({ mode: 'parsed' });
     expect(parsed.mapPath).toBe('assets/maps/ScenarioSkirmish.json');
     expect(parsed.mapData).toEqual(mapData);
     expect(parsed.cameraState).toEqual({
