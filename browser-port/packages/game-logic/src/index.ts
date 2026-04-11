@@ -4492,6 +4492,23 @@ export interface MapEntity {
   /** Source ToppleUpdate::m_stumpID. */
   toppleStumpId: number;
 
+  // ── Source parity: W3DTreeBuffer client-side tree topple state ──
+  /** W3DTreeBuffer::TTree::m_toppleState, saved by CHUNK_TerrainVisual. */
+  w3dTreeBufferToppleState: W3DTreeBufferToppleState;
+  w3dTreeBufferDeleted: boolean;
+  w3dTreeBufferLocationX: number;
+  w3dTreeBufferLocationY: number;
+  w3dTreeBufferLocationZ: number;
+  w3dTreeBufferAngularVelocity: number;
+  w3dTreeBufferAngularAcceleration: number;
+  w3dTreeBufferToppleDirectionX: number;
+  w3dTreeBufferToppleDirectionY: number;
+  w3dTreeBufferToppleDirectionZ: number;
+  w3dTreeBufferAngularAccumulation: number;
+  w3dTreeBufferOptions: number;
+  w3dTreeBufferMatrix3D: number[];
+  w3dTreeBufferSinkFramesLeft: number;
+
   // ── Source parity: PhysicsBehavior — rigid body physics for projectiles/debris ──
   physicsBehaviorProfile: PhysicsBehaviorProfile | null;
   physicsBehaviorState: PhysicsBehaviorState | null;
@@ -5650,6 +5667,19 @@ interface ToppleProfile {
 }
 
 type ToppleState = 'NONE' | 'TOPPLING' | 'BOUNCING' | 'DONE';
+
+type W3DTreeBufferToppleState = 'UPRIGHT' | 'FALLING' | 'FOGGED' | 'SHROUDED' | 'DOWN';
+
+interface W3DTreeDrawToppleProfile {
+  doTopple: boolean;
+  initialVelocityPercent: number;
+  initialAccelPercent: number;
+  bounceVelocityPercent: number;
+  minimumToppleSpeed: number;
+  killWhenFinishedToppling: boolean;
+  sinkFrames: number;
+  sinkDistance: number;
+}
 
 /**
  * Source parity: PilotFindVehicleUpdateModuleData — AI pilot auto-enter vehicle behavior.
@@ -24691,6 +24721,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.updateDynamicShroud();
     this.updatePilotFindVehicle();
     this.updatePhysicsBehavior();
+    this.updateW3DTreeBufferTopples();
     this.updateToppleEntities();
     this.updateStructureTopple();
     this.updateMissileLauncherBuilding();
@@ -47763,6 +47794,127 @@ export class GameLogicSubsystem implements Subsystem {
   private static readonly TOPPLE_ANGULAR_LIMIT = Math.PI / 2 - Math.PI / 64;
   /** Below this velocity, stop bouncing. */
   private static readonly TOPPLE_VELOCITY_BOUNCE_LIMIT = 0.01;
+  private static readonly W3D_TREE_TOPPLE_ANGULAR_LIMIT = Math.PI / 2 - Math.PI / 64;
+  private static readonly W3D_TREE_TOPPLE_VELOCITY_BOUNCE_LIMIT = 0.01;
+
+  private sourceW3DTreeBufferMatrix3D(entity: MapEntity): number[] {
+    return [
+      1, 0, 0, entity.x,
+      0, 1, 0, entity.z,
+      0, 0, 1, entity.y,
+    ];
+  }
+
+  private setSourceW3DTreeBufferMatrix3DTranslation(entity: MapEntity): void {
+    const matrix = entity.w3dTreeBufferMatrix3D;
+    if (!Array.isArray(matrix) || matrix.length !== 12) {
+      entity.w3dTreeBufferMatrix3D = this.sourceW3DTreeBufferMatrix3D(entity);
+      return;
+    }
+    matrix[3] = entity.w3dTreeBufferLocationX;
+    matrix[7] = entity.w3dTreeBufferLocationY;
+    matrix[11] = entity.w3dTreeBufferLocationZ;
+  }
+
+  private preRotateSourceW3DTreeBufferMatrixX(entity: MapEntity, theta: number): void {
+    const matrix = entity.w3dTreeBufferMatrix3D;
+    if (!Array.isArray(matrix) || matrix.length !== 12) {
+      entity.w3dTreeBufferMatrix3D = this.sourceW3DTreeBufferMatrix3D(entity);
+    }
+    const m = entity.w3dTreeBufferMatrix3D;
+    const c = Math.cos(theta);
+    const s = Math.sin(theta);
+    for (const col of [0, 1, 2]) {
+      const row1 = 4 + col;
+      const row2 = 8 + col;
+      const tmp1 = m[row1] ?? 0;
+      const tmp2 = m[row2] ?? 0;
+      m[row1] = c * tmp1 - s * tmp2;
+      m[row2] = s * tmp1 + c * tmp2;
+    }
+  }
+
+  private preRotateSourceW3DTreeBufferMatrixY(entity: MapEntity, theta: number): void {
+    const matrix = entity.w3dTreeBufferMatrix3D;
+    if (!Array.isArray(matrix) || matrix.length !== 12) {
+      entity.w3dTreeBufferMatrix3D = this.sourceW3DTreeBufferMatrix3D(entity);
+    }
+    const m = entity.w3dTreeBufferMatrix3D;
+    const c = Math.cos(theta);
+    const s = Math.sin(theta);
+    for (const col of [0, 1, 2]) {
+      const row0 = col;
+      const row2 = 8 + col;
+      const tmp1 = m[row0] ?? 0;
+      const tmp2 = m[row2] ?? 0;
+      m[row0] = c * tmp1 + s * tmp2;
+      m[row2] = -s * tmp1 + c * tmp2;
+    }
+  }
+
+  private resolveW3DTreeDrawToppleProfile(entity: MapEntity): W3DTreeDrawToppleProfile | null {
+    const descriptors = this.listSourceDrawableModuleDescriptors(entity.templateName);
+    const descriptor = descriptors.find(
+      (candidate) =>
+        candidate.moduleKind === 'draw'
+        && candidate.moduleType.trim().toUpperCase() === 'W3DTREEDRAW',
+    );
+    if (!descriptor) {
+      return null;
+    }
+    const fields = descriptor.moduleFields ?? {};
+    const parsePercent = (value: number | null | undefined): number | null =>
+      value != null ? value / 100 : null;
+    return {
+      doTopple: readBooleanField(fields, ['DoTopple']) ?? false,
+      initialVelocityPercent: parsePercent(readNumericField(fields, ['InitialVelocityPercent'])) ?? 0.20,
+      initialAccelPercent: parsePercent(readNumericField(fields, ['InitialAccelPercent'])) ?? 0.01,
+      bounceVelocityPercent: parsePercent(readNumericField(fields, ['BounceVelocityPercent'])) ?? 0.30,
+      minimumToppleSpeed: readNumericField(fields, ['MinimumToppleSpeed']) ?? 0.5,
+      killWhenFinishedToppling: readBooleanField(fields, ['KillWhenFinishedToppling']) ?? true,
+      sinkFrames: this.msToLogicFrames(readNumericField(fields, ['SinkTime']) ?? 10000),
+      sinkDistance: readNumericField(fields, ['SinkDistance']) ?? 20,
+    };
+  }
+
+  /* @internal */ applyW3DTreeBufferTopplingForce(
+    entity: MapEntity,
+    dirX: number,
+    dirZ: number,
+    speed: number,
+    options = 0,
+  ): boolean {
+    const profile = this.resolveW3DTreeDrawToppleProfile(entity);
+    if (!profile?.doTopple) {
+      return false;
+    }
+    if (entity.w3dTreeBufferToppleState !== 'UPRIGHT') {
+      return false;
+    }
+    const len = Math.hypot(dirX, dirZ);
+    if (len < 0.001) {
+      return false;
+    }
+    const toppleSpeed = Math.max(
+      Number.isFinite(speed) ? speed : 0,
+      profile.minimumToppleSpeed,
+    );
+    entity.w3dTreeBufferLocationX = entity.x;
+    entity.w3dTreeBufferLocationY = entity.z;
+    entity.w3dTreeBufferLocationZ = entity.y;
+    entity.w3dTreeBufferToppleDirectionX = dirX / len;
+    entity.w3dTreeBufferToppleDirectionY = dirZ / len;
+    entity.w3dTreeBufferToppleDirectionZ = 0;
+    entity.w3dTreeBufferAngularAccumulation = 0;
+    entity.w3dTreeBufferAngularVelocity = toppleSpeed * profile.initialVelocityPercent;
+    entity.w3dTreeBufferAngularAcceleration = toppleSpeed * profile.initialAccelPercent;
+    entity.w3dTreeBufferToppleState = 'FALLING';
+    entity.w3dTreeBufferOptions = Math.max(0, Math.trunc(options));
+    entity.w3dTreeBufferMatrix3D = this.sourceW3DTreeBufferMatrix3D(entity);
+    entity.w3dTreeBufferSinkFramesLeft = 0;
+    entity.w3dTreeBufferDeleted = false;
+    return true;
+  }
 
   /**
    * Source parity: ToppleUpdate::applyTopplingForce() — initiate topple on an entity.
@@ -47819,6 +47971,7 @@ export class GameLogicSubsystem implements Subsystem {
     entity.toppleOptions = 0;
     entity.toppleStumpId = 0;
     entity.toppleState = 'TOPPLING';
+    this.applyW3DTreeBufferTopplingForce(entity, normDirX, normDirZ, speed, 0);
 
     // Source parity: KillWhenStartToppling — instant death.
     if (profile.killWhenStartToppling) {
@@ -48536,6 +48689,90 @@ export class GameLogicSubsystem implements Subsystem {
       const distSqr = dx * dx + dz * dz;
       if (distSqr <= radiusSqr) {
         this.applyWeaponDamageAmount(source.id, other, damage, damageType);
+      }
+    }
+  }
+
+  private updateW3DTreeBufferTopples(): void {
+    for (const entity of this.spawnedEntities.values()) {
+      if (entity.w3dTreeBufferDeleted) {
+        continue;
+      }
+      const state = entity.w3dTreeBufferToppleState;
+      if (state === 'UPRIGHT' || state === 'SHROUDED') {
+        continue;
+      }
+      const profile = this.resolveW3DTreeDrawToppleProfile(entity);
+      if (!profile) {
+        continue;
+      }
+
+      if (state === 'DOWN') {
+        if (profile.killWhenFinishedToppling) {
+          const sinkFrames = Math.max(1, Math.trunc(profile.sinkFrames));
+          if (entity.w3dTreeBufferSinkFramesLeft === 0) {
+            entity.w3dTreeBufferDeleted = true;
+            entity.w3dTreeBufferSinkFramesLeft = 0xffffffff;
+          } else {
+            entity.w3dTreeBufferSinkFramesLeft = Math.max(0, entity.w3dTreeBufferSinkFramesLeft - 1);
+          }
+          entity.w3dTreeBufferLocationZ -= profile.sinkDistance / sinkFrames;
+          this.setSourceW3DTreeBufferMatrix3DTranslation(entity);
+        }
+        continue;
+      }
+
+      if (state === 'FOGGED') {
+        entity.w3dTreeBufferAngularVelocity = 0;
+        entity.w3dTreeBufferToppleState = 'DOWN';
+        this.preRotateSourceW3DTreeBufferMatrixX(
+          entity,
+          -GameLogicSubsystem.W3D_TREE_TOPPLE_ANGULAR_LIMIT * entity.w3dTreeBufferToppleDirectionY,
+        );
+        this.preRotateSourceW3DTreeBufferMatrixY(
+          entity,
+          GameLogicSubsystem.W3D_TREE_TOPPLE_ANGULAR_LIMIT * entity.w3dTreeBufferToppleDirectionX,
+        );
+        if (profile.killWhenFinishedToppling) {
+          entity.w3dTreeBufferSinkFramesLeft = 0;
+        }
+        continue;
+      }
+
+      const angularLimit = GameLogicSubsystem.W3D_TREE_TOPPLE_ANGULAR_LIMIT;
+      let curVelToUse = entity.w3dTreeBufferAngularVelocity;
+      if (entity.w3dTreeBufferAngularAccumulation + curVelToUse > angularLimit) {
+        curVelToUse = angularLimit - entity.w3dTreeBufferAngularAccumulation;
+      }
+
+      this.preRotateSourceW3DTreeBufferMatrixX(
+        entity,
+        -curVelToUse * entity.w3dTreeBufferToppleDirectionY,
+      );
+      this.preRotateSourceW3DTreeBufferMatrixY(
+        entity,
+        curVelToUse * entity.w3dTreeBufferToppleDirectionX,
+      );
+      entity.w3dTreeBufferAngularAccumulation += curVelToUse;
+
+      if (
+        entity.w3dTreeBufferAngularAccumulation >= angularLimit
+        && entity.w3dTreeBufferAngularVelocity > 0
+      ) {
+        entity.w3dTreeBufferAngularVelocity *= -profile.bounceVelocityPercent;
+        if (
+          (entity.w3dTreeBufferOptions & 0x00000001) !== 0
+          || Math.abs(entity.w3dTreeBufferAngularVelocity)
+            < GameLogicSubsystem.W3D_TREE_TOPPLE_VELOCITY_BOUNCE_LIMIT
+        ) {
+          entity.w3dTreeBufferAngularVelocity = 0;
+          entity.w3dTreeBufferToppleState = 'DOWN';
+          if (profile.killWhenFinishedToppling) {
+            entity.w3dTreeBufferSinkFramesLeft = Math.max(0, Math.trunc(profile.sinkFrames));
+          }
+        }
+      } else {
+        entity.w3dTreeBufferAngularVelocity += entity.w3dTreeBufferAngularAcceleration;
       }
     }
   }

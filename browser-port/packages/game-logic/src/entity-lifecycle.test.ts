@@ -1178,6 +1178,76 @@ describe('ToppleUpdate', () => {
       expect(tree!.health).toBe(50);
     }
   });
+
+  it('tracks W3DTreeBuffer topple state for optimized W3DTreeDraw trees', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('CrusherTank', 'America', ['VEHICLE'], [
+          makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+          makeBlock('LocomotorSet', 'SET_NORMAL TankLocomotor', {}),
+        ], { CrusherLevel: 2, GeometryMajorRadius: 5, GeometryMinorRadius: 5 }),
+        makeObjectDef('OptimizedTree', 'Neutral', ['SHRUBBERY', 'IMMOBILE', 'OPTIMIZED_TREE'], [
+          makeBlock('Draw', 'W3DTreeDraw ModuleTag_Draw', {
+            ModelName: 'PTreeOak',
+            TextureName: 'PTreeOak.tga',
+            DoTopple: true,
+            InitialVelocityPercent: 20,
+            InitialAccelPercent: 1,
+            BounceVelocityPercent: 30,
+            MinimumToppleSpeed: 0.5,
+            KillWhenFinishedToppling: true,
+            SinkTime: 5000,
+            SinkDistance: 10,
+          }),
+        ], { GeometryMajorRadius: 3, GeometryMinorRadius: 3 }),
+      ],
+      locomotors: [
+        makeLocomotorDef('TankLocomotor', 180),
+      ],
+    });
+
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('CrusherTank', 205, 205),
+        makeMapObject('OptimizedTree', 215, 205),
+      ], 128, 128),
+      makeRegistry(bundle),
+      makeHeightmap(128, 128),
+    );
+
+    const entities = (logic as unknown as {
+      spawnedEntities: Map<number, {
+        id: number;
+        templateName: string;
+        w3dTreeBufferToppleState: string;
+        w3dTreeBufferAngularVelocity: number;
+        w3dTreeBufferAngularAcceleration: number;
+        w3dTreeBufferToppleDirectionX: number;
+        w3dTreeBufferToppleDirectionY: number;
+        w3dTreeBufferAngularAccumulation: number;
+        w3dTreeBufferMatrix3D: number[];
+      }>;
+    }).spawnedEntities;
+
+    const tree = [...entities.values()].find((entity) => entity.templateName === 'OptimizedTree')!;
+    logic.submitCommand({ type: 'moveTo', entityId: 1, targetX: 255, targetZ: 205 });
+
+    for (let i = 0; i < 60; i++) {
+      logic.update(1 / 30);
+      if (tree.w3dTreeBufferToppleState !== 'UPRIGHT') break;
+    }
+
+    expect(tree.w3dTreeBufferToppleState).toBe('FALLING');
+    expect(tree.w3dTreeBufferAngularVelocity).toBeGreaterThan(0);
+    expect(tree.w3dTreeBufferAngularAcceleration).toBeCloseTo(0.005);
+    expect(tree.w3dTreeBufferToppleDirectionX).toBeGreaterThan(0);
+    expect(tree.w3dTreeBufferToppleDirectionY).toBeCloseTo(0);
+    expect(tree.w3dTreeBufferAngularAccumulation).toBeGreaterThan(0);
+    expect(tree.w3dTreeBufferMatrix3D[3]).toBeCloseTo(215);
+    expect(tree.w3dTreeBufferMatrix3D[7]).toBeCloseTo(205);
+  });
 });
 
 describe('KeepObjectDie', () => {

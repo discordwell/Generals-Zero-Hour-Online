@@ -10022,6 +10022,145 @@ describe('runtime-save-game', () => {
     expect(terrainVisualChunk?.trailingBytes).toBe(0);
   });
 
+  it('writes active W3DTreeBuffer topple state from live runtime trees', () => {
+    const mapData = {
+      heightmap: {
+        width: 2,
+        height: 2,
+        borderSize: 0,
+        data: 'AAAAAA==',
+      },
+      objects: [],
+      triggers: [],
+      waypoints: { nodes: [], links: [] },
+      textureClasses: [],
+      blendTileCount: 0,
+    };
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'TerrainVisual Tree Topple Save',
+      mapPath: 'assets/maps/TestMap.json',
+      mapData,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: createSourceGameLogicChunkData(false, [], [{
+          objectId: 12,
+          templateName: 'TreeOak01',
+          drawableId: 12,
+        }]).slice().buffer,
+      }],
+      cameraState: null,
+      gameClientLiveEntityIds: [12],
+      renderableEntityStates: [{
+        id: 12,
+        templateName: 'TreeOak01',
+        resolved: true,
+        renderAssetCandidates: ['TreeOak01'],
+        renderAssetPath: 'TreeOak01.glb',
+        renderAssetResolved: true,
+        category: 'ground',
+        x: 30,
+        y: 5,
+        z: 40,
+        rotationY: Math.PI / 6,
+        animationState: 'IDLE',
+        health: 10,
+        maxHealth: 10,
+        isSelected: false,
+        veterancyLevel: 0,
+        isStealthed: false,
+        isDetected: false,
+        stealthFriendlyOpacity: 1,
+        disguiseTemplateName: null,
+        shroudStatus: 'CLEAR',
+        constructionPercent: -1,
+        capturePercent: -1,
+        toppleAngle: 0.3,
+        toppleDirX: 0.6,
+        toppleDirZ: 0.8,
+        turretAngles: [],
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: { localPlayerIndex: 0 },
+        }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 7,
+          nextId: 13,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 9,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [{
+            id: 12,
+            templateName: 'TreeOak01',
+            w3dTreeBufferToppleState: 'FALLING',
+            w3dTreeBufferDeleted: false,
+            w3dTreeBufferLocationX: 30,
+            w3dTreeBufferLocationY: 40,
+            w3dTreeBufferLocationZ: 5,
+            w3dTreeBufferAngularVelocity: 0.1,
+            w3dTreeBufferAngularAcceleration: 0.02,
+            w3dTreeBufferToppleDirectionX: 0.6,
+            w3dTreeBufferToppleDirectionY: 0.8,
+            w3dTreeBufferToppleDirectionZ: 0,
+            w3dTreeBufferAngularAccumulation: 0.3,
+            w3dTreeBufferOptions: 1,
+            w3dTreeBufferMatrix3D: [1, 0, 0, 30, 0, 1, 0, 40, 0, 0, 1, 5],
+            w3dTreeBufferSinkFramesLeft: 7,
+          } as any],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 13,
+        listSourceDrawableModuleDescriptors: (templateName: string) =>
+          templateName === 'TreeOak01'
+            ? [{
+                moduleType: 'W3DTreeDraw',
+                moduleTag: 'ModuleTag_Draw',
+                moduleKind: 'draw' as const,
+                moduleFields: {
+                  ModelName: 'PTreeOak',
+                  TextureName: 'PTreeOak.tga',
+                },
+              }]
+            : [],
+      },
+    });
+
+    const tree = readTerrainVisualChunk(saveFile.data)?.trees[0];
+    expect(tree?.location).toEqual({ x: 30, y: 40, z: 5 });
+    expect(tree?.angularVelocity).toBeCloseTo(0.1);
+    expect(tree?.angularAcceleration).toBeCloseTo(0.02);
+    expect(tree?.toppleDirection.x).toBeCloseTo(0.6);
+    expect(tree?.toppleDirection.y).toBeCloseTo(0.8);
+    expect(tree?.toppleDirection.z).toBe(0);
+    expect(tree?.toppleState).toBe(1);
+    expect(tree?.angularAccumulation).toBeCloseTo(0.3);
+    expect(tree?.options).toBe(1);
+    expect(tree?.matrix3D).toEqual([1, 0, 0, 30, 0, 1, 0, 40, 0, 0, 1, 5]);
+    expect(tree?.sinkFramesLeft).toBe(7);
+  });
+
   it('replaces parsed attached-object GameClient drawables while preserving unattached raw drawables', () => {
     const mapData = {
       heightmap: {

@@ -45,6 +45,7 @@ const SOURCE_LOCOMOTOR_FLAG_CLOSE_ENOUGH_DIST_3D = 1 << 10;
 const SOURCE_LOCOMOTOR_FLAG_OFFSET_INCREASING = 1 << 11;
 // Source parity: Locomotor donut delay is 2.5 seconds at LOGICFRAMES_PER_SECOND (30).
 const SOURCE_LOCOMOTOR_DONUT_DELAY_FRAMES = 75;
+const SOURCE_W3D_TREE_RADIUS_APPROX = 7.0;
 
 // ---- Entity movement implementations ----
 
@@ -1500,6 +1501,25 @@ export function updateUnitCollisionSeparation(self: GL): void {
   }
 }
 
+function updateW3DTreeBufferUnitMoved(self: GL, mover: MapEntity, moverRadius: number): void {
+  const radius = moverRadius + SOURCE_W3D_TREE_RADIUS_APPROX;
+  const radiusSqr = radius * radius;
+  for (const target of self.spawnedEntities.values()) {
+    if (target.id === mover.id || target.destroyed || target.w3dTreeBufferDeleted) {
+      continue;
+    }
+    if (target.w3dTreeBufferToppleState !== 'UPRIGHT') {
+      continue;
+    }
+    const dx = target.x - mover.x;
+    const dz = target.z - mover.z;
+    if ((dx * dx) + (dz * dz) > radiusSqr) {
+      continue;
+    }
+    self.applyW3DTreeBufferTopplingForce(target, dx, dz, 0, 0);
+  }
+}
+
 export function updateCrushCollisions(self: GL): void {
   for (const mover of self.spawnedEntities.values()) {
     if (mover.destroyed || !mover.canMove || !mover.moving) {
@@ -1516,6 +1536,9 @@ export function updateCrushCollisions(self: GL): void {
     // Source parity: geometry major radius comes from object geometry info.
     // In this port some units keep radius via pathDiameter even when obstacleGeometry is null.
     const moverRadius = self.resolveEntityMajorRadius(mover);
+    if (mover.crusherLevel > 1) {
+      updateW3DTreeBufferUnitMoved(self, mover, moverRadius);
+    }
 
     for (const target of self.spawnedEntities.values()) {
       if (target.destroyed || !target.canTakeDamage || target.id === mover.id) {

@@ -23890,15 +23890,41 @@ function findSourceW3DTreeDrawDescriptor(
   ) ?? null;
 }
 
+function sourceW3DTreeBufferToppleStateToInt(state: unknown): number {
+  switch (state) {
+    case 'FALLING':
+      return 1;
+    case 'FOGGED':
+      return 2;
+    case 'SHROUDED':
+      return 3;
+    case 'DOWN':
+      return 4;
+    default:
+      return 0;
+  }
+}
+
+function sourceW3DTreeBufferMatrixFromEntity(entity: MapEntity | null | undefined): number[] {
+  const matrix = entity?.w3dTreeBufferMatrix3D;
+  return Array.isArray(matrix) && matrix.length === 12
+    ? matrix.map((value) => sourcePhysicsFinite(value, 0))
+    : new Array(12).fill(0);
+}
+
 function buildSourceW3DTreeBufferEntries(
   drawableEntries: readonly RuntimeSaveDrawableSnapshotState[],
   renderableEntityStates: readonly GameLogicRenderableEntityState[] | null | undefined,
+  gameLogicState: GameLogicCoreSaveState,
 ): SourceW3DTreeBufferEntry[] {
   if (!renderableEntityStates || renderableEntityStates.length === 0) {
     return [];
   }
   const renderableById = new Map<number, GameLogicRenderableEntityState>(
     renderableEntityStates.map((state) => [state.id, state]),
+  );
+  const entityById = new Map<number, MapEntity>(
+    gameLogicState.spawnedEntities.map((entity) => [entity.id, entity]),
   );
   const entries: SourceW3DTreeBufferEntry[] = [];
   for (const drawable of drawableEntries) {
@@ -23914,26 +23940,59 @@ function buildSourceW3DTreeBufferEntries(
       continue;
     }
     const rotationY = sourcePhysicsFinite(renderable.rotationY, 0);
+    const entity = entityById.get(drawable.objectId);
+    const w3dTreeState = entity?.w3dTreeBufferToppleState ?? 'UPRIGHT';
+    const hasW3DTreeRuntimeState = entity !== undefined
+      && (w3dTreeState !== 'UPRIGHT' || entity.w3dTreeBufferDeleted === true);
+    const sourceLocation = hasW3DTreeRuntimeState
+      ? {
+          x: sourcePhysicsFinite(entity!.w3dTreeBufferLocationX, renderable.x),
+          y: sourcePhysicsFinite(entity!.w3dTreeBufferLocationY, renderable.z),
+          z: sourcePhysicsFinite(entity!.w3dTreeBufferLocationZ, renderable.y),
+        }
+      : sourceCoord3DFromRuntimeXYZ(renderable.x, renderable.y, renderable.z);
     entries.push({
-      modelName: readSourceDescriptorStringField(treeDescriptor, ['ModelName']),
-      textureName: readSourceDescriptorStringField(treeDescriptor, ['TextureName']),
-      location: sourceCoord3DFromRuntimeXYZ(renderable.x, renderable.y, renderable.z),
+      modelName: entity?.w3dTreeBufferDeleted === true
+        ? ''
+        : readSourceDescriptorStringField(treeDescriptor, ['ModelName']),
+      textureName: entity?.w3dTreeBufferDeleted === true
+        ? ''
+        : readSourceDescriptorStringField(treeDescriptor, ['TextureName']),
+      location: sourceLocation,
       // Source W3DTreeDraw uses Drawable::getScale(). TS does not track per-instance
       // drawable scale yet; source defaults to 1 for normal map tree instances.
       scale: 1,
       sin: Math.sin(rotationY),
       cos: Math.cos(rotationY),
       drawableId: drawable.drawableId,
-      // TODO(source parity): serialize W3DTreeBuffer runtime topple/push-aside state
-      // once TS tracks the client-side tree buffer instead of only object ToppleUpdate.
-      angularVelocity: 0,
-      angularAcceleration: 0,
-      toppleDirection: { x: 0, y: 0, z: 0 },
-      toppleState: 0,
-      angularAccumulation: 0,
-      options: 0,
-      matrix3D: new Array(12).fill(0),
-      sinkFramesLeft: 0,
+      angularVelocity: hasW3DTreeRuntimeState
+        ? sourcePhysicsFinite(entity!.w3dTreeBufferAngularVelocity, 0)
+        : 0,
+      angularAcceleration: hasW3DTreeRuntimeState
+        ? sourcePhysicsFinite(entity!.w3dTreeBufferAngularAcceleration, 0)
+        : 0,
+      toppleDirection: hasW3DTreeRuntimeState
+        ? {
+            x: sourcePhysicsFinite(entity!.w3dTreeBufferToppleDirectionX, 0),
+            y: sourcePhysicsFinite(entity!.w3dTreeBufferToppleDirectionY, 0),
+            z: sourcePhysicsFinite(entity!.w3dTreeBufferToppleDirectionZ, 0),
+          }
+        : { x: 0, y: 0, z: 0 },
+      toppleState: hasW3DTreeRuntimeState
+        ? sourceW3DTreeBufferToppleStateToInt(entity!.w3dTreeBufferToppleState)
+        : 0,
+      angularAccumulation: hasW3DTreeRuntimeState
+        ? sourcePhysicsFinite(entity!.w3dTreeBufferAngularAccumulation, 0)
+        : 0,
+      options: hasW3DTreeRuntimeState
+        ? Math.max(0, Math.trunc(sourcePhysicsFinite(entity!.w3dTreeBufferOptions, 0)))
+        : 0,
+      matrix3D: hasW3DTreeRuntimeState
+        ? sourceW3DTreeBufferMatrixFromEntity(entity!)
+        : new Array(12).fill(0),
+      sinkFramesLeft: hasW3DTreeRuntimeState
+        ? Math.max(0, Math.trunc(sourcePhysicsFinite(entity!.w3dTreeBufferSinkFramesLeft, 0)))
+        : 0,
     });
   }
   return entries;
@@ -24310,6 +24369,7 @@ export function buildRuntimeSaveFile(params: {
   const terrainVisualTreeEntries = buildSourceW3DTreeBufferEntries(
     gameClientDrawableStates,
     params.renderableEntityStates,
+    gameLogicPayload,
   );
   const terrainVisualWaterGridSnapshot = buildSourceWaterGridSnapshot(
     params.mapData,

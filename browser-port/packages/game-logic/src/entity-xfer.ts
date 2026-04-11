@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 48;
+const ENTITY_XFER_VERSION = 49;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -2375,6 +2375,59 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     e.toppleDoBounceFx = false;
     e.toppleOptions = 0;
     e.toppleStumpId = 0;
+  }
+
+  // ── W3DTreeBuffer client-side topple state ──
+  if (version >= 49) {
+    e.w3dTreeBufferToppleState = xfer.xferAsciiString(
+      (e.w3dTreeBufferToppleState as string | undefined) ?? 'UPRIGHT',
+    );
+    e.w3dTreeBufferDeleted = xfer.xferBool((e.w3dTreeBufferDeleted as boolean | undefined) ?? false);
+    e.w3dTreeBufferLocationX = xfer.xferReal((e.w3dTreeBufferLocationX as number | undefined) ?? 0);
+    e.w3dTreeBufferLocationY = xfer.xferReal((e.w3dTreeBufferLocationY as number | undefined) ?? 0);
+    e.w3dTreeBufferLocationZ = xfer.xferReal((e.w3dTreeBufferLocationZ as number | undefined) ?? 0);
+    e.w3dTreeBufferAngularVelocity = xfer.xferReal(
+      (e.w3dTreeBufferAngularVelocity as number | undefined) ?? 0,
+    );
+    e.w3dTreeBufferAngularAcceleration = xfer.xferReal(
+      (e.w3dTreeBufferAngularAcceleration as number | undefined) ?? 0,
+    );
+    e.w3dTreeBufferToppleDirectionX = xfer.xferReal(
+      (e.w3dTreeBufferToppleDirectionX as number | undefined) ?? 0,
+    );
+    e.w3dTreeBufferToppleDirectionY = xfer.xferReal(
+      (e.w3dTreeBufferToppleDirectionY as number | undefined) ?? 0,
+    );
+    e.w3dTreeBufferToppleDirectionZ = xfer.xferReal(
+      (e.w3dTreeBufferToppleDirectionZ as number | undefined) ?? 0,
+    );
+    e.w3dTreeBufferAngularAccumulation = xfer.xferReal(
+      (e.w3dTreeBufferAngularAccumulation as number | undefined) ?? 0,
+    );
+    e.w3dTreeBufferOptions = xfer.xferUnsignedInt((e.w3dTreeBufferOptions as number | undefined) ?? 0);
+    const currentMatrix = Array.isArray(e.w3dTreeBufferMatrix3D)
+      ? e.w3dTreeBufferMatrix3D as number[]
+      : [];
+    e.w3dTreeBufferMatrix3D = Array.from({ length: 12 }, (_value, index) =>
+      xfer.xferReal(currentMatrix[index] ?? 0));
+    e.w3dTreeBufferSinkFramesLeft = xfer.xferUnsignedInt(
+      (e.w3dTreeBufferSinkFramesLeft as number | undefined) ?? 0,
+    );
+  } else {
+    e.w3dTreeBufferToppleState = 'UPRIGHT';
+    e.w3dTreeBufferDeleted = false;
+    e.w3dTreeBufferLocationX = 0;
+    e.w3dTreeBufferLocationY = 0;
+    e.w3dTreeBufferLocationZ = 0;
+    e.w3dTreeBufferAngularVelocity = 0;
+    e.w3dTreeBufferAngularAcceleration = 0;
+    e.w3dTreeBufferToppleDirectionX = 0;
+    e.w3dTreeBufferToppleDirectionY = 0;
+    e.w3dTreeBufferToppleDirectionZ = 0;
+    e.w3dTreeBufferAngularAccumulation = 0;
+    e.w3dTreeBufferOptions = 0;
+    e.w3dTreeBufferMatrix3D = new Array(12).fill(0);
+    e.w3dTreeBufferSinkFramesLeft = 0;
   }
 
   // ── Physics ──
