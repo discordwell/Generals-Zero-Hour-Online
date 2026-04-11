@@ -20,6 +20,7 @@ import {
   parseSourceMapEntityChunk,
   type MapEntityChunkLayoutInspection,
   type SourceMapEntitySaveState,
+  SCRIPT_KIND_OF_NAMES_BY_SOURCE_BIT,
   SCRIPT_OBJECT_STATUS_BIT_INDEX_BY_NAME,
   WEAPON_SET_FLAG_MASK_BY_NAME,
   xferMapEntity,
@@ -127,6 +128,14 @@ const SOURCE_BONE_FX_BONES_RESOLVED_BYTE_LENGTH = SOURCE_BONE_FX_BODY_DAMAGE_TYP
 const SOURCE_FLAMMABLE_STATUS_NORMAL = 0;
 const SOURCE_FLAMMABLE_STATUS_AFLAME = 1;
 const SOURCE_FLAMMABLE_STATUS_BURNED = 2;
+const SOURCE_BATTLE_PLAN_NONE = 0;
+const SOURCE_BATTLE_PLAN_BOMBARDMENT = 1;
+const SOURCE_BATTLE_PLAN_HOLD_THE_LINE = 2;
+const SOURCE_BATTLE_PLAN_SEARCH_AND_DESTROY = 3;
+const SOURCE_BATTLE_PLAN_STATUS_IDLE = 0;
+const SOURCE_BATTLE_PLAN_STATUS_UNPACKING = 1;
+const SOURCE_BATTLE_PLAN_STATUS_ACTIVE = 2;
+const SOURCE_BATTLE_PLAN_STATUS_PACKING = 3;
 const SOURCE_SCRIPT_STATUS_DISABLED = 0x01;
 const SOURCE_SCRIPT_STATUS_UNPOWERED = 0x02;
 const SOURCE_SCRIPT_STATUS_UNSELLABLE = 0x04;
@@ -5134,6 +5143,257 @@ function buildSourceFireSpreadUpdateBlockData(entity: MapEntity): Uint8Array {
   }
 }
 
+interface SourceBattlePlanUpdateBlockState {
+  version: number;
+  nextCallFrameAndPhase: number;
+  currentPlan: number;
+  desiredPlan: number;
+  planAffectingArmy: number;
+  status: number;
+  nextReadyFrame: number;
+  invalidSettings: boolean;
+  centeringTurret: boolean;
+  armorScalar: number;
+  bombardment: number;
+  searchAndDestroy: number;
+  holdTheLine: number;
+  sightRangeScalar: number;
+  validKindOf: string[];
+  invalidKindOf: string[];
+  visionObjectId: number;
+}
+
+function sourceBattlePlanTypeToIntOrNull(value: unknown): number | null {
+  switch (value) {
+    case 'NONE': return SOURCE_BATTLE_PLAN_NONE;
+    case 'BOMBARDMENT': return SOURCE_BATTLE_PLAN_BOMBARDMENT;
+    case 'HOLDTHELINE': return SOURCE_BATTLE_PLAN_HOLD_THE_LINE;
+    case 'SEARCHANDDESTROY': return SOURCE_BATTLE_PLAN_SEARCH_AND_DESTROY;
+    default: return null;
+  }
+}
+
+function sourceBattlePlanTypeToInt(value: unknown, fallback: number): number {
+  return sourceBattlePlanTypeToIntOrNull(value) ?? fallback;
+}
+
+function sourceBattlePlanStatusToInt(value: unknown, fallback: number): number {
+  switch (value) {
+    case 'IDLE': return SOURCE_BATTLE_PLAN_STATUS_IDLE;
+    case 'UNPACKING': return SOURCE_BATTLE_PLAN_STATUS_UNPACKING;
+    case 'ACTIVE': return SOURCE_BATTLE_PLAN_STATUS_ACTIVE;
+    case 'PACKING': return SOURCE_BATTLE_PLAN_STATUS_PACKING;
+    default: return fallback;
+  }
+}
+
+function sourceBattlePlanCurrentPlan(
+  entity: MapEntity,
+  status: number,
+  desiredPlan: number,
+  planAffectingArmy: number,
+  preservedState: SourceBattlePlanUpdateBlockState,
+): number {
+  const state = entity.battlePlanState;
+  if (!state) {
+    return preservedState.currentPlan;
+  }
+  const currentPlan = sourceBattlePlanTypeToIntOrNull(state.currentPlan);
+  switch (status) {
+    case SOURCE_BATTLE_PLAN_STATUS_IDLE:
+      return SOURCE_BATTLE_PLAN_NONE;
+    case SOURCE_BATTLE_PLAN_STATUS_UNPACKING:
+      return desiredPlan;
+    case SOURCE_BATTLE_PLAN_STATUS_ACTIVE:
+      return currentPlan ?? sourceBattlePlanTypeToInt(state.activePlan, planAffectingArmy);
+    case SOURCE_BATTLE_PLAN_STATUS_PACKING:
+      return currentPlan
+        ?? (preservedState.currentPlan !== SOURCE_BATTLE_PLAN_NONE
+          ? preservedState.currentPlan
+          : sourceBattlePlanTypeToInt(state.activePlan, preservedState.currentPlan));
+    default:
+      return preservedState.currentPlan;
+  }
+}
+
+function sourceBattlePlanAffectingArmy(
+  entity: MapEntity,
+  status: number,
+  preservedState: SourceBattlePlanUpdateBlockState,
+): number {
+  const state = entity.battlePlanState;
+  if (!state) {
+    return preservedState.planAffectingArmy;
+  }
+  if (status !== SOURCE_BATTLE_PLAN_STATUS_ACTIVE) {
+    return SOURCE_BATTLE_PLAN_NONE;
+  }
+  return sourceBattlePlanTypeToInt(state.activePlan, preservedState.planAffectingArmy);
+}
+
+function sourceBattlePlanNextReadyFrame(
+  entity: MapEntity,
+  status: number,
+  preservedState: SourceBattlePlanUpdateBlockState,
+): number {
+  const state = entity.battlePlanState;
+  if (!state) {
+    return sourceFlammableUnsignedFrame(preservedState.nextReadyFrame);
+  }
+  switch (status) {
+    case SOURCE_BATTLE_PLAN_STATUS_IDLE:
+      return sourceFlammableUnsignedFrame(state.idleCooldownFinishFrame, preservedState.nextReadyFrame);
+    case SOURCE_BATTLE_PLAN_STATUS_UNPACKING:
+    case SOURCE_BATTLE_PLAN_STATUS_ACTIVE:
+    case SOURCE_BATTLE_PLAN_STATUS_PACKING:
+      return sourceFlammableUnsignedFrame(state.transitionFinishFrame, preservedState.nextReadyFrame);
+    default:
+      return sourceFlammableUnsignedFrame(preservedState.nextReadyFrame);
+  }
+}
+
+function sourceBattlePlanKindOfMaskNames(
+  names: ReadonlySet<string> | null | undefined,
+  fallback: string[],
+): string[] {
+  if (!names) {
+    return fallback;
+  }
+  const remaining = new Set(
+    [...names].map((name) => name.trim().toUpperCase()).filter((name) => name.length > 0),
+  );
+  const ordered = SCRIPT_KIND_OF_NAMES_BY_SOURCE_BIT.filter((name) => {
+    if (!remaining.has(name)) {
+      return false;
+    }
+    remaining.delete(name);
+    return true;
+  });
+  return [...ordered, ...remaining];
+}
+
+function tryParseSourceBattlePlanUpdateBlockData(
+  data: Uint8Array,
+): SourceBattlePlanUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-battle-plan-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const currentPlan = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const desiredPlan = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const planAffectingArmy = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const status = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const nextReadyFrame = xferLoad.xferUnsignedInt(0);
+    const invalidSettings = xferLoad.xferBool(false);
+    const centeringTurret = xferLoad.xferBool(false);
+    const armorScalar = xferLoad.xferReal(1);
+    const bombardment = xferLoad.xferInt(0);
+    const searchAndDestroy = xferLoad.xferInt(0);
+    const holdTheLine = xferLoad.xferInt(0);
+    const sightRangeScalar = xferLoad.xferReal(1);
+    const validKindOf = xferSourceKindOfNames(xferLoad, []);
+    const invalidKindOf = xferSourceKindOfNames(xferLoad, []);
+    const visionObjectId = xferLoad.xferObjectID(0);
+    return xferLoad.getRemaining() === 0
+      ? {
+        version,
+        nextCallFrameAndPhase,
+        currentPlan,
+        desiredPlan,
+        planAffectingArmy,
+        status,
+        nextReadyFrame,
+        invalidSettings,
+        centeringTurret,
+        armorScalar,
+        bombardment,
+        searchAndDestroy,
+        holdTheLine,
+        sightRangeScalar,
+        validKindOf,
+        invalidKindOf,
+        visionObjectId,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceBattlePlanUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceBattlePlanUpdateBlockState,
+): Uint8Array {
+  const state = entity.battlePlanState;
+  const profile = entity.battlePlanProfile;
+  const status = state
+    ? sourceBattlePlanStatusToInt(state.transitionStatus, preservedState.status)
+    : preservedState.status;
+  const desiredPlan = state
+    ? sourceBattlePlanTypeToInt(state.desiredPlan, preservedState.desiredPlan)
+    : preservedState.desiredPlan;
+  const planAffectingArmy = sourceBattlePlanAffectingArmy(entity, status, preservedState);
+  const currentPlan = sourceBattlePlanCurrentPlan(
+    entity,
+    status,
+    desiredPlan,
+    planAffectingArmy,
+    preservedState,
+  );
+  const hasLiveProfile = profile !== null && profile !== undefined;
+  const armorScalar = hasLiveProfile
+    ? (planAffectingArmy === SOURCE_BATTLE_PLAN_HOLD_THE_LINE
+      ? sourcePhysicsFinite(profile.holdTheLineArmorDamageScalar, 1)
+      : 1)
+    : preservedState.armorScalar;
+  const sightRangeScalar = hasLiveProfile
+    ? (planAffectingArmy === SOURCE_BATTLE_PLAN_SEARCH_AND_DESTROY
+      ? sourcePhysicsFinite(profile.searchAndDestroySightRangeScalar, 1)
+      : 1)
+    : preservedState.sightRangeScalar;
+  const validKindOf = sourceBattlePlanKindOfMaskNames(profile?.validMemberKindOf, preservedState.validKindOf);
+  const invalidKindOf = sourceBattlePlanKindOfMaskNames(profile?.invalidMemberKindOf, preservedState.invalidKindOf);
+  const invalidSettings = preservedState.invalidSettings
+    || (hasLiveProfile && profile.specialPowerTemplateName.trim().length === 0);
+  const saver = new XferSave();
+  saver.open('build-source-battle-plan-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferUser(buildSourceRawInt32Bytes(currentPlan));
+    saver.xferUser(buildSourceRawInt32Bytes(desiredPlan));
+    saver.xferUser(buildSourceRawInt32Bytes(planAffectingArmy));
+    saver.xferUser(buildSourceRawInt32Bytes(status));
+    saver.xferUnsignedInt(sourceBattlePlanNextReadyFrame(entity, status, preservedState));
+    saver.xferBool(invalidSettings);
+    saver.xferBool(preservedState.centeringTurret);
+    saver.xferReal(armorScalar);
+    saver.xferInt(planAffectingArmy === SOURCE_BATTLE_PLAN_BOMBARDMENT ? 1 : 0);
+    saver.xferInt(planAffectingArmy === SOURCE_BATTLE_PLAN_SEARCH_AND_DESTROY ? 1 : 0);
+    saver.xferInt(planAffectingArmy === SOURCE_BATTLE_PLAN_HOLD_THE_LINE ? 1 : 0);
+    saver.xferReal(sightRangeScalar);
+    xferSourceKindOfNames(saver, validKindOf);
+    xferSourceKindOfNames(saver, invalidKindOf);
+    saver.xferObjectID(normalizeSourceObjectId(preservedState.visionObjectId));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 interface SourceRgbColorState {
   red: number;
   green: number;
@@ -7094,6 +7354,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceFireSpreadUpdateBlockData(entity),
+              };
+            }
+          }
+          if (moduleType === 'BATTLEPLANUPDATE' && entity.battlePlanProfile) {
+            const parsedSourceState = tryParseSourceBattlePlanUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceBattlePlanUpdateBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }

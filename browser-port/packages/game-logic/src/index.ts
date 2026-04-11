@@ -4954,6 +4954,8 @@ type BattlePlanTransitionStatus = 'IDLE' | 'UNPACKING' | 'ACTIVE' | 'PACKING';
 interface BattlePlanRuntimeState {
   desiredPlan: BattlePlanType;
   activePlan: BattlePlanType;
+  /** Source m_currentPlan; remains the old plan during PACKING. */
+  currentPlan?: BattlePlanType;
   transitionStatus: BattlePlanTransitionStatus;
   transitionFinishFrame: number;
   idleCooldownFinishFrame: number;

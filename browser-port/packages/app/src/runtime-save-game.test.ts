@@ -991,6 +991,12 @@ const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
 const SOURCE_FLAMMABLE_STATUS_AFLAME = 1;
+const SOURCE_BATTLE_PLAN_NONE = 0;
+const SOURCE_BATTLE_PLAN_BOMBARDMENT = 1;
+const SOURCE_BATTLE_PLAN_HOLD_THE_LINE = 2;
+const SOURCE_BATTLE_PLAN_SEARCH_AND_DESTROY = 3;
+const SOURCE_BATTLE_PLAN_STATUS_ACTIVE = 2;
+const SOURCE_BATTLE_PLAN_STATUS_PACKING = 3;
 
 interface SourcePhysicsBehaviorTestState {
   nextCallFrameAndPhase: number;
@@ -1185,6 +1191,68 @@ function createSourceFireSpreadUpdateBlockData(nextCallFrameAndPhase: number): U
   try {
     xferSave.xferVersion(1);
     xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+interface SourceBattlePlanUpdateTestState {
+  nextCallFrameAndPhase: number;
+  currentPlan: number;
+  desiredPlan: number;
+  planAffectingArmy: number;
+  status: number;
+  nextReadyFrame: number;
+  invalidSettings: boolean;
+  centeringTurret: boolean;
+  armorScalar: number;
+  bombardment: number;
+  searchAndDestroy: number;
+  holdTheLine: number;
+  sightRangeScalar: number;
+  validKindOf: string[];
+  invalidKindOf: string[];
+  visionObjectId: number;
+}
+
+function xferSourceKindOfNamesForTest(xfer: Xfer, kindOfNames: string[]): string[] {
+  xfer.xferVersion(1);
+  const count = xfer.xferInt(kindOfNames.length);
+  const loaded: string[] = [];
+  if (kindOfNames.length === 0) {
+    for (let index = 0; index < count; index += 1) {
+      loaded.push(xfer.xferAsciiString(''));
+    }
+    return loaded;
+  }
+  for (const kindOfName of kindOfNames) {
+    xfer.xferAsciiString(kindOfName);
+  }
+  return kindOfNames;
+}
+
+function createSourceBattlePlanUpdateBlockData(state: SourceBattlePlanUpdateTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-battle-plan-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferUser(createRawInt32Bytes(state.currentPlan));
+    xferSave.xferUser(createRawInt32Bytes(state.desiredPlan));
+    xferSave.xferUser(createRawInt32Bytes(state.planAffectingArmy));
+    xferSave.xferUser(createRawInt32Bytes(state.status));
+    xferSave.xferUnsignedInt(state.nextReadyFrame);
+    xferSave.xferBool(state.invalidSettings);
+    xferSave.xferBool(state.centeringTurret);
+    xferSave.xferReal(state.armorScalar);
+    xferSave.xferInt(state.bombardment);
+    xferSave.xferInt(state.searchAndDestroy);
+    xferSave.xferInt(state.holdTheLine);
+    xferSave.xferReal(state.sightRangeScalar);
+    xferSourceKindOfNamesForTest(xferSave, state.validKindOf);
+    xferSourceKindOfNamesForTest(xferSave, state.invalidKindOf);
+    xferSave.xferObjectID(state.visionObjectId);
     return new Uint8Array(xferSave.getBuffer());
   } finally {
     xferSave.close();
@@ -2973,6 +3041,38 @@ function parseSourceSlavedUpdateBlockData(data: Uint8Array): SourceSlavedUpdateT
       framesToWait: xferLoad.xferInt(0),
       repairState: xferLoad.xferInt(0),
       repairing: xferLoad.xferBool(false),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceBattlePlanUpdateBlockData(data: Uint8Array): SourceBattlePlanUpdateTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-battle-plan-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      currentPlan: readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+      desiredPlan: readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+      planAffectingArmy: readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+      status: readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+      nextReadyFrame: xferLoad.xferUnsignedInt(0),
+      invalidSettings: xferLoad.xferBool(false),
+      centeringTurret: xferLoad.xferBool(false),
+      armorScalar: xferLoad.xferReal(0),
+      bombardment: xferLoad.xferInt(0),
+      searchAndDestroy: xferLoad.xferInt(0),
+      holdTheLine: xferLoad.xferInt(0),
+      sightRangeScalar: xferLoad.xferReal(0),
+      validKindOf: xferSourceKindOfNamesForTest(xferLoad, []),
+      invalidKindOf: xferSourceKindOfNamesForTest(xferLoad, []),
+      visionObjectId: xferLoad.xferObjectID(0),
     };
   } finally {
     xferLoad.close();
@@ -9138,6 +9238,149 @@ describe('runtime-save-game', () => {
     expect(parseSourceFireSpreadUpdateBlockData(fireSpreadModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (77 << 2) | 2,
     });
+  });
+
+  it('rewrites source BattlePlanUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_BattlePlan',
+      blockData: createSourceBattlePlanUpdateBlockData({
+        nextCallFrameAndPhase: (84 << 2) | 2,
+        currentPlan: SOURCE_BATTLE_PLAN_BOMBARDMENT,
+        desiredPlan: SOURCE_BATTLE_PLAN_SEARCH_AND_DESTROY,
+        planAffectingArmy: SOURCE_BATTLE_PLAN_BOMBARDMENT,
+        status: SOURCE_BATTLE_PLAN_STATUS_ACTIVE,
+        nextReadyFrame: 44,
+        invalidSettings: false,
+        centeringTurret: true,
+        armorScalar: 1,
+        bombardment: 1,
+        searchAndDestroy: 0,
+        holdTheLine: 0,
+        sightRangeScalar: 1,
+        validKindOf: ['STRUCTURE'],
+        invalidKindOf: [],
+        visionObjectId: 1234,
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source battle plan update rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            battlePlanProfile: {
+              specialPowerTemplateName: 'SPECIALPOWERCHANGEBATTLEPLANS',
+              bombardmentAnimationFrames: 12,
+              holdTheLineAnimationFrames: 13,
+              searchAndDestroyAnimationFrames: 14,
+              transitionIdleFrames: 15,
+              battlePlanParalyzeFrames: 16,
+              holdTheLineArmorDamageScalar: 0.5,
+              searchAndDestroySightRangeScalar: 1.75,
+              strategyCenterSearchAndDestroySightRangeScalar: 1.25,
+              strategyCenterSearchAndDestroyDetectsStealth: true,
+              strategyCenterHoldTheLineMaxHealthScalar: 1.5,
+              validMemberKindOf: new Set(['VEHICLE', 'INFANTRY']),
+              invalidMemberKindOf: new Set(['DRONE']),
+            },
+            battlePlanState: {
+              desiredPlan: 'HOLDTHELINE',
+              activePlan: 'NONE',
+              currentPlan: 'BOMBARDMENT',
+              transitionStatus: 'PACKING',
+              transitionFinishFrame: 88,
+              idleCooldownFinishFrame: 0,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_BattlePlan'
+            ? 'BATTLEPLANUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const battlePlanModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_BattlePlan');
+
+    expect(battlePlanModule).toBeDefined();
+    const parsed = parseSourceBattlePlanUpdateBlockData(battlePlanModule!.blockData);
+    expect(parsed.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsed.currentPlan).toBe(SOURCE_BATTLE_PLAN_BOMBARDMENT);
+    expect(parsed.desiredPlan).toBe(SOURCE_BATTLE_PLAN_HOLD_THE_LINE);
+    expect(parsed.planAffectingArmy).toBe(SOURCE_BATTLE_PLAN_NONE);
+    expect(parsed.status).toBe(SOURCE_BATTLE_PLAN_STATUS_PACKING);
+    expect(parsed.nextReadyFrame).toBe(88);
+    expect(parsed.invalidSettings).toBe(false);
+    expect(parsed.centeringTurret).toBe(true);
+    expect(parsed.armorScalar).toBe(1);
+    expect(parsed.bombardment).toBe(0);
+    expect(parsed.searchAndDestroy).toBe(0);
+    expect(parsed.holdTheLine).toBe(0);
+    expect(parsed.sightRangeScalar).toBe(1);
+    expect(parsed.validKindOf).toEqual(['INFANTRY', 'VEHICLE']);
+    expect(parsed.invalidKindOf).toEqual(['DRONE']);
+    expect(parsed.visionObjectId).toBe(1234);
   });
 
   it('rewrites source SlavedUpdate modules from live runtime state', () => {

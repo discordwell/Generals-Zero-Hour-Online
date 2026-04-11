@@ -960,6 +960,7 @@ export function createMapEntity(self: GL,
     entity.battlePlanState = {
       desiredPlan: 'NONE',
       activePlan: 'NONE',
+      currentPlan: 'NONE',
       transitionStatus: 'IDLE',
       transitionFinishFrame: 0,
       idleCooldownFinishFrame: 0,

@@ -2311,17 +2311,20 @@ export function updateBattlePlan(self: GL): void {
         case 'IDLE':
           // Waiting for cooldown after previous plan change.
           if (state.desiredPlan !== 'NONE' && self.frameCounter >= state.idleCooldownFinishFrame) {
+            state.currentPlan = state.desiredPlan;
             state.transitionStatus = 'UNPACKING';
             state.transitionFinishFrame = self.frameCounter
-              + self.getBattlePlanAnimationFrames(profile, state.desiredPlan);
+              + self.getBattlePlanAnimationFrames(profile, state.currentPlan);
           }
           break;
 
         case 'UNPACKING':
           if (self.frameCounter >= state.transitionFinishFrame) {
             // Transition to ACTIVE — apply bonuses.
+            const currentPlan = state.currentPlan ?? state.desiredPlan;
             state.transitionStatus = 'ACTIVE';
-            state.activePlan = state.desiredPlan;
+            state.currentPlan = currentPlan;
+            state.activePlan = currentPlan;
             self.applyBattlePlanBonuses(entity, state.activePlan, true);
           }
           break;
@@ -2330,14 +2333,15 @@ export function updateBattlePlan(self: GL): void {
           // If desired plan changed, begin packing.
           // Source parity: BattlePlanUpdate::setStatus(TRANSITIONSTATUS_PACKING) immediately
           // calls setBattlePlan(PLANSTATUS_NONE) which removes bonuses and paralyzes troops.
-          if (state.desiredPlan !== state.activePlan) {
+          if (state.desiredPlan !== (state.currentPlan ?? state.activePlan)) {
+            const packingPlan = state.currentPlan ?? state.activePlan;
             // Remove bonuses immediately at packing start (C++ parity).
             self.applyBattlePlanBonuses(entity, state.activePlan, false);
             self.paralyzeBattlePlanTroops(entity, profile);
             state.activePlan = 'NONE';
             state.transitionStatus = 'PACKING';
             state.transitionFinishFrame = self.frameCounter
-              + self.getBattlePlanAnimationFrames(profile, state.desiredPlan);
+              + self.getBattlePlanAnimationFrames(profile, packingPlan);
           }
           break;
 
@@ -2345,6 +2349,7 @@ export function updateBattlePlan(self: GL): void {
           if (self.frameCounter >= state.transitionFinishFrame) {
             // Packing animation complete → idle cooldown.
             state.transitionStatus = 'IDLE';
+            state.currentPlan = 'NONE';
             state.idleCooldownFinishFrame = self.frameCounter + profile.transitionIdleFrames;
           }
           break;
