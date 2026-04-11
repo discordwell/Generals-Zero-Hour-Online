@@ -16844,12 +16844,14 @@ function buildGeneratedSourceObjectModuleBlockData(
   descriptor: GameLogicSourceObjectModuleDescriptor,
   entity: MapEntity,
   liveEntities: readonly MapEntity[],
+  currentFrame: number,
 ): Uint8Array | null {
   const moduleType = descriptor.moduleType.trim();
   const moduleTag = descriptor.moduleTag.trim();
   if (!moduleType || !moduleTag) {
     return null;
   }
+  const normalizedModuleType = moduleType.toUpperCase();
 
   const defaultBodyState = createDefaultSourceBodyModuleBlockState(moduleType);
   if (defaultBodyState) {
@@ -16885,6 +16887,35 @@ function buildGeneratedSourceObjectModuleBlockData(
     return buildSourceContainModuleBlockData(entity, moduleType, liveEntities, defaultContainState);
   }
 
+  if (normalizedModuleType === 'TECHBUILDINGBEHAVIOR') {
+    return buildSourceBaseOnlyUpdateModuleBlockData(
+      'tech-building-behavior',
+      sourceTechBuildingNextWakeFrame(entity, currentFrame),
+    );
+  }
+
+  if (normalizedModuleType === 'BUNKERBUSTERBEHAVIOR') {
+    return buildSourceBaseOnlyUpdateModuleBlockData(
+      'bunker-buster-behavior',
+      currentFrame + 1,
+    );
+  }
+
+  if (normalizedModuleType === 'NEUTRONBLASTBEHAVIOR') {
+    return buildSourceBaseOnlyUpdateModuleBlockData(
+      'neutron-blast-behavior',
+      SOURCE_FRAME_FOREVER,
+    );
+  }
+
+  if (normalizedModuleType === 'SLOWDEATHBEHAVIOR') {
+    return buildSourceSlowDeathBehaviorBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceSlowDeathBehaviorBlockState(),
+    );
+  }
+
   return null;
 }
 
@@ -16892,6 +16923,7 @@ function buildGeneratedSourceObjectModulesFromDescriptors(
   descriptors: readonly GameLogicSourceObjectModuleDescriptor[],
   entity: MapEntity,
   liveEntities: readonly MapEntity[],
+  currentFrame: number,
 ): SourceMapEntitySaveState['modules'] {
   const modules: SourceMapEntitySaveState['modules'] = [];
   const seenTags = new Set<string>();
@@ -16902,7 +16934,7 @@ function buildGeneratedSourceObjectModulesFromDescriptors(
       continue;
     }
     seenTags.add(normalizedModuleTag);
-    const blockData = buildGeneratedSourceObjectModuleBlockData(descriptor, entity, liveEntities);
+    const blockData = buildGeneratedSourceObjectModuleBlockData(descriptor, entity, liveEntities, currentFrame);
     if (!blockData || blockData.byteLength === 0) {
       continue;
     }
@@ -16947,6 +16979,7 @@ function createGeneratedSourceObjectStateFromLiveEntity(
     sourceObjectModuleDescriptors,
     entity,
     liveEntities,
+    currentFrame,
   );
   return overlaySourceObjectStateFromLiveEntity(
     sourceState,

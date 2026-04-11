@@ -10170,6 +10170,7 @@ describe('runtime-save-game', () => {
               visionRange: 175,
               shroudClearingRange: 160,
               shroudRange: 120,
+              modelConditionFlags: new Set(['CAPTURED']),
               constructionPercent: 100,
               completedUpgrades: new Set(['Upgrade_Generated']),
               geometryInfo: {
@@ -10206,6 +10207,20 @@ describe('runtime-save-game', () => {
                 moduleType: 'TRANSPORT',
                 passengersAllowedToFire: true,
               },
+              techBuildingProfile: {
+                hasPulseFX: true,
+                pulseFXRateFrames: 7,
+              },
+              bunkerBusterProfile: {
+                upgradeRequired: '',
+                occupantDamageWeaponName: '',
+                shockwaveWeaponName: '',
+              },
+              neutronBlastProfile: {
+                blastRadius: 10,
+                affectAirborne: true,
+                affectAllies: true,
+              },
             } as unknown as import('@generals/game-logic').MapEntity,
           ],
         }),
@@ -10218,6 +10233,10 @@ describe('runtime-save-game', () => {
               { moduleType: 'MaxHealthUpgrade', moduleTag: 'ModuleTag_HealthUpgrade' },
               { moduleType: 'OCLSpecialPower', moduleTag: 'ModuleTag_SpecialPower' },
               { moduleType: 'TransportContain', moduleTag: 'ModuleTag_Contain' },
+              { moduleType: 'TechBuildingBehavior', moduleTag: 'ModuleTag_TechBuilding' },
+              { moduleType: 'BunkerBusterBehavior', moduleTag: 'ModuleTag_BunkerBuster' },
+              { moduleType: 'NeutronBlastBehavior', moduleTag: 'ModuleTag_NeutronBlast' },
+              { moduleType: 'SlowDeathBehavior', moduleTag: 'ModuleTag_SlowDeath' },
             ]
           : [],
       },
@@ -10253,6 +10272,10 @@ describe('runtime-save-game', () => {
       'ModuleTag_HealthUpgrade',
       'ModuleTag_SpecialPower',
       'ModuleTag_Contain',
+      'ModuleTag_TechBuilding',
+      'ModuleTag_BunkerBuster',
+      'ModuleTag_NeutronBlast',
+      'ModuleTag_SlowDeath',
     ]);
     const bodyModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Body');
     expect(parseSourceActiveBodyBlockData(bodyModule!.blockData).active).toMatchObject({
@@ -10284,6 +10307,27 @@ describe('runtime-save-game', () => {
       open: {
         passengerAllowedToFire: true,
       },
+    });
+    const techModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_TechBuilding');
+    expect(parseSourceBaseOnlyUpdateModuleBlockData(techModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (49 << 2) | 2,
+    });
+    const bunkerModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_BunkerBuster');
+    expect(parseSourceBaseOnlyUpdateModuleBlockData(bunkerModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+    });
+    const neutronModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_NeutronBlast');
+    expect(parseSourceBaseOnlyUpdateModuleBlockData(neutronModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: 0xfffffffe,
+    });
+    const slowDeathModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_SlowDeath');
+    expect(parseSourceSlowDeathBehaviorBlockData(slowDeathModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: 0xfffffffe,
+      sinkFrame: 0,
+      midpointFrame: 0,
+      destructionFrame: 0,
+      acceleratedTimeScale: 1,
+      flags: 0,
     });
     expect(generated?.weaponSet?.templateName).toBe('RuntimeDrone');
     expect(generated?.geometryInfo).toMatchObject({
