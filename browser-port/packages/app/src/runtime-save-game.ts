@@ -3996,6 +3996,58 @@ function tryParseSourceFireOclAfterCooldownUpdateBlockData(
   }
 }
 
+function tryParseSourceFireWeaponWhenDeadBehaviorBlockData(
+  data: Uint8Array,
+): { upgradeExecuted: boolean } | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-fire-weapon-when-dead-behavior');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferSourceBehaviorModuleBase(xferLoad);
+    const upgradeMuxVersion = xferLoad.xferVersion(1);
+    if (upgradeMuxVersion !== 1) {
+      return null;
+    }
+    const upgradeExecuted = xferLoad.xferBool(false);
+    return xferLoad.getRemaining() === 0
+      ? { upgradeExecuted }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function sourceFireWeaponWhenDeadUpgradeExecuted(
+  entity: MapEntity,
+  moduleIndex: number,
+  preservedUpgradeExecuted: boolean,
+): boolean {
+  const states = (entity as MapEntity & { fireWeaponWhenDeadUpgradeExecuted?: unknown }).fireWeaponWhenDeadUpgradeExecuted;
+  if (Array.isArray(states) && typeof states[moduleIndex] === 'boolean') {
+    return states[moduleIndex];
+  }
+  return preservedUpgradeExecuted;
+}
+
+function buildSourceFireWeaponWhenDeadBehaviorBlockData(upgradeExecuted: boolean): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-fire-weapon-when-dead-behavior');
+  try {
+    saver.xferVersion(1);
+    xferSourceBehaviorModuleBase(saver);
+    saver.xferVersion(1);
+    saver.xferBool(upgradeExecuted);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceFireOclAfterCooldownUpdateBlockData(
   currentFrame: number,
   upgradeExecuted: boolean,
@@ -11862,6 +11914,27 @@ function overlaySourceObjectModulesFromLiveEntity(
                     currentFrame,
                     upgradeExecuted,
                     state,
+                  ),
+                };
+              }
+            }
+          }
+          if (moduleType === 'FIREWEAPONWHENDEADBEHAVIOR' && entity.fireWeaponWhenDeadProfiles.length > 0) {
+            const moduleTag = module.identifier.trim().toUpperCase();
+            const moduleIndex = entity.fireWeaponWhenDeadProfiles.findIndex(
+              (profile) => (profile.moduleTag ?? '') === moduleTag,
+            );
+            if (moduleIndex >= 0) {
+              const parsedSourceState = tryParseSourceFireWeaponWhenDeadBehaviorBlockData(module.blockData);
+              if (parsedSourceState) {
+                return {
+                  identifier: module.identifier,
+                  blockData: buildSourceFireWeaponWhenDeadBehaviorBlockData(
+                    sourceFireWeaponWhenDeadUpgradeExecuted(
+                      entity,
+                      moduleIndex,
+                      parsedSourceState.upgradeExecuted,
+                    ),
                   ),
                 };
               }

@@ -508,6 +508,13 @@ function makeSourceOwnedCoreBundle() {
           OCLLifetimeMaxCap: 3000,
         }),
       ]),
+      makeObjectDef('DeathWeaponTank', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'FireWeaponWhenDeadBehavior ModuleTag_FWWD', {
+          StartsActive: true,
+          DeathWeapon: 'DeathBlast',
+          TriggeredBy: 'Upgrade_SelfDestruct',
+        }),
+      ]),
       makeObjectDef('RadiusDecalCaster', 'America', ['VEHICLE'], [
         makeBlock('Behavior', 'RadiusDecalUpdate ModuleTag_RadiusDecal', {}),
       ]),
@@ -1406,6 +1413,24 @@ function buildSourceAutoHealBehaviorModuleData(options: {
     saver.xferUnsignedInt(options.radiusParticleSystemId);
     saver.xferUnsignedInt(options.soonestHealFrame);
     saver.xferBool(options.stopped);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceFireWeaponWhenDeadBehaviorModuleData(options: {
+  upgradeExecuted: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-fire-weapon-when-dead-behavior');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferBool(options.upgradeExecuted);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -6642,6 +6667,51 @@ describe('source-owned game-logic core save-state', () => {
       consecutiveShots: 4,
       startFrame: 175,
     }]);
+  });
+
+  it('imports source FireWeaponWhenDeadBehavior UpgradeMux state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 161;
+    sourceState.position = { x: 144, y: 0, z: 68 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_FWWD',
+      blockData: buildSourceFireWeaponWhenDeadBehaviorModuleData({
+        upgradeExecuted: false,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 200,
+      objects: [
+        { templateName: 'DeathWeaponTank', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        fireWeaponWhenDeadProfiles: Array<{ startsActive: boolean; moduleTag: string | null }>;
+        fireWeaponWhenDeadUpgradeExecuted: boolean[];
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(161)!;
+    expect(entity.fireWeaponWhenDeadProfiles).toEqual([
+      expect.objectContaining({
+        startsActive: true,
+        moduleTag: 'MODULETAG_FWWD',
+      }),
+    ]);
+    expect(entity.fireWeaponWhenDeadUpgradeExecuted).toEqual([false]);
   });
 
   it('imports source RadiusDecalUpdate runtime state', () => {

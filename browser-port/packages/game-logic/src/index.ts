@@ -4066,6 +4066,8 @@ export interface MapEntity {
   instantDeathProfiles: InstantDeathProfile[];
   /** Parsed FireWeaponWhenDeadBehavior modules from INI (fire weapon on death with upgrade control). */
   fireWeaponWhenDeadProfiles: FireWeaponWhenDeadProfile[];
+  /** Source parity: FireWeaponWhenDeadBehavior UpgradeMux::m_upgradeExecuted per module. */
+  fireWeaponWhenDeadUpgradeExecuted: boolean[];
 
   // ── Source parity: SlowDeathBehavior — phased death sequences ──
   /** Parsed SlowDeathBehavior modules from INI (multiple per entity, one selected on death). */
@@ -5593,6 +5595,8 @@ interface InstantDeathProfile {
  * C++ file: FireWeaponWhenDeadBehavior.cpp / FireWeaponWhenDeadBehavior.h.
  */
 interface FireWeaponWhenDeadProfile {
+  /** Uppercase module tag used to map source save module blocks back to this profile. */
+  moduleTag: string | null;
   /** DieMuxData: which death types trigger this (empty = ALL). */
   deathTypes: Set<string>;
   /** DieMuxData: which veterancy levels allow this (empty = ALL). */
@@ -5609,6 +5613,10 @@ interface FireWeaponWhenDeadProfile {
   triggeredBy: string[];
   /** Source parity: ConflictsWithTriggeredBy — upgrade name(s) that disable this module. */
   conflictsWith: string[];
+  /** Source parity: RequiresAllTriggers — all TriggeredBy upgrades must be present. */
+  requiresAllTriggers: boolean;
+  /** Source parity: RemovesUpgrades — removed before the mux executes. */
+  removesUpgrades: string[];
 }
 
 /**
@@ -8842,6 +8850,10 @@ interface SourceFireOclAfterCooldownUpdateImportState {
   valid: boolean;
   consecutiveShots: number;
   startFrame: number;
+}
+
+interface SourceFireWeaponWhenDeadBehaviorImportState {
+  upgradeExecuted: boolean;
 }
 
 interface SourceRadiusDecalUpdateImportState {
@@ -14864,6 +14876,70 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceFireWeaponWhenDeadBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceFireWeaponWhenDeadBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'FIREWEAPONWHENDEADBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-fire-weapon-when-dead-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      this.skipSourceImportBehaviorModuleBase(xfer);
+      const upgradeMuxVersion = xfer.xferVersion(1);
+      if (upgradeMuxVersion !== 1) {
+        return null;
+      }
+      const upgradeExecuted = xfer.xferBool(false);
+      return xfer.getRemaining() === 0 ? { upgradeExecuted } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceFireWeaponWhenDeadBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (entity.fireWeaponWhenDeadProfiles.length === 0) {
+      return;
+    }
+    const states = this.ensureFireWeaponWhenDeadUpgradeStates(entity);
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const fireWeaponWhenDeadState = this.tryParseSourceFireWeaponWhenDeadBehaviorImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (!fireWeaponWhenDeadState) {
+        continue;
+      }
+      const moduleTag = module.identifier.trim().toUpperCase();
+      const moduleIndex = entity.fireWeaponWhenDeadProfiles.findIndex(
+        (profile) => (profile.moduleTag ?? '') === moduleTag,
+      );
+      if (moduleIndex < 0) {
+        continue;
+      }
+      states[moduleIndex] = fireWeaponWhenDeadState.upgradeExecuted;
+    }
+  }
+
   private tryParseSourceRadiusDecalUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -20542,6 +20618,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceSupportBehaviorModulesToEntity(entity, sourceState);
     this.applySourceHordeUpdateModulesToEntity(entity, sourceState);
     this.applySourceFireOclAfterCooldownUpdateModulesToEntity(entity, sourceState);
+    this.applySourceFireWeaponWhenDeadBehaviorModulesToEntity(entity, sourceState);
     this.applySourceRadiusDecalUpdateModulesToEntity(entity, sourceState);
     this.applySourceCleanupHazardUpdateModulesToEntity(entity, sourceState);
     this.applySourceDynamicShroudClearingRangeUpdateModulesToEntity(entity, sourceState);
@@ -30124,7 +30201,9 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
 
-    return this.executePendingUpgradeModules(entityId, entity);
+    const appliedUpgradeModules = this.executePendingUpgradeModules(entityId, entity);
+    const appliedFireWeaponWhenDeadMuxes = this.executePendingFireWeaponWhenDeadUpgradeMuxes(entity);
+    return appliedUpgradeModules || appliedFireWeaponWhenDeadMuxes;
   }
 
   private captureEntity(
@@ -30260,6 +30339,79 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     return appliedAny;
+  }
+
+  private ensureFireWeaponWhenDeadUpgradeStates(entity: MapEntity): boolean[] {
+    if (entity.fireWeaponWhenDeadUpgradeExecuted.length !== entity.fireWeaponWhenDeadProfiles.length) {
+      const current = entity.fireWeaponWhenDeadUpgradeExecuted;
+      entity.fireWeaponWhenDeadUpgradeExecuted = entity.fireWeaponWhenDeadProfiles.map(
+        (profile, index) => typeof current[index] === 'boolean' ? current[index] : profile.startsActive,
+      );
+    }
+    return entity.fireWeaponWhenDeadUpgradeExecuted;
+  }
+
+  private wouldExecuteFireWeaponWhenDeadMux(
+    profile: FireWeaponWhenDeadProfile,
+    upgradeMask: ReadonlySet<string>,
+    upgradeExecuted: boolean,
+  ): boolean {
+    if (upgradeExecuted || profile.triggeredBy.length === 0 || upgradeMask.size === 0) {
+      return false;
+    }
+
+    for (const conflictingUpgrade of profile.conflictsWith) {
+      if (upgradeMask.has(conflictingUpgrade)) {
+        return false;
+      }
+    }
+
+    if (profile.requiresAllTriggers) {
+      return profile.triggeredBy.every((activationUpgrade) => upgradeMask.has(activationUpgrade));
+    }
+    return profile.triggeredBy.some((activationUpgrade) => upgradeMask.has(activationUpgrade));
+  }
+
+  private executePendingFireWeaponWhenDeadUpgradeMuxes(entity: MapEntity): boolean {
+    if (entity.fireWeaponWhenDeadProfiles.length === 0) {
+      return false;
+    }
+
+    let appliedAny = false;
+    const states = this.ensureFireWeaponWhenDeadUpgradeStates(entity);
+    const upgradeMask = this.buildEntityUpgradeMask(entity);
+    for (let index = 0; index < entity.fireWeaponWhenDeadProfiles.length; index += 1) {
+      const profile = entity.fireWeaponWhenDeadProfiles[index]!;
+      if (!this.wouldExecuteFireWeaponWhenDeadMux(profile, upgradeMask, states[index] ?? false)) {
+        continue;
+      }
+
+      // Source parity: UpgradeMux::giveSelfUpgrade() processes RemovesUpgrades
+      // before setting m_upgradeExecuted.
+      for (const upgradeName of profile.removesUpgrades) {
+        this.removeEntityUpgrade(entity, upgradeName);
+      }
+      states[index] = true;
+      appliedAny = true;
+    }
+    return appliedAny;
+  }
+
+  private resetFireWeaponWhenDeadUpgradeMuxesForRemovedUpgrade(
+    entity: MapEntity,
+    removedUpgrade: string,
+  ): void {
+    if (entity.fireWeaponWhenDeadProfiles.length === 0) {
+      return;
+    }
+
+    const states = this.ensureFireWeaponWhenDeadUpgradeStates(entity);
+    for (let index = 0; index < entity.fireWeaponWhenDeadProfiles.length; index += 1) {
+      const profile = entity.fireWeaponWhenDeadProfiles[index]!;
+      if (states[index] && profile.triggeredBy.includes(removedUpgrade)) {
+        states[index] = false;
+      }
+    }
   }
 
   reset(): void {
@@ -32605,6 +32757,7 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity: Object::removeUpgrade calls UpgradeModule::resetUpgrade(removedUpgradeMask)
     // on all behavior modules; this loop mirrors that behavior by clearing modules whose
     // trigger mask no longer matches the current upgrade mask.
+    this.resetFireWeaponWhenDeadUpgradeMuxesForRemovedUpgrade(entity, normalizedUpgrade);
   }
 
   private entityHasObjectStatus(entity: MapEntity, statusName: string): boolean {
@@ -39584,6 +39737,7 @@ export class GameLogicSubsystem implements Subsystem {
       }
       // Skip side-global modules to avoid reapplying once per entity.
       this.executePendingUpgradeModules(entity.id, entity, true);
+      this.executePendingFireWeaponWhenDeadUpgradeMuxes(entity);
     }
   }
 
@@ -43646,6 +43800,7 @@ export class GameLogicSubsystem implements Subsystem {
     // Can't use applyUpgradeToEntity() because entity may not be in spawnedEntities yet.
     const normalizedUpgrade = prof.upgradeName.trim().toUpperCase();
     entity.completedUpgrades.add(normalizedUpgrade);
+    this.executePendingFireWeaponWhenDeadUpgradeMuxes(entity);
 
     // Source parity (ZH): GrantUpgradeCreate.cpp:109 — record for academy stats.
     const side = this.resolveEntityOwnerSide(entity);
@@ -47190,22 +47345,19 @@ export class GameLogicSubsystem implements Subsystem {
    * C++ file: FireWeaponWhenDeadBehavior.cpp lines 84-118.
    */
   /* @internal */ executeFireWeaponWhenDeadModules(entity: MapEntity): void {
-    for (const profile of entity.fireWeaponWhenDeadProfiles) {
+    const upgradeStates = this.ensureFireWeaponWhenDeadUpgradeStates(entity);
+    const upgradeMask = this.buildEntityUpgradeMask(entity);
+    for (let index = 0; index < entity.fireWeaponWhenDeadProfiles.length; index += 1) {
+      const profile = entity.fireWeaponWhenDeadProfiles[index]!;
       // Source parity: UpgradeMux — check if module is active.
-      // StartsActive=Yes means active by default; TriggeredBy activates via upgrade.
-      if (!profile.startsActive) {
-        // Need at least one TriggeredBy upgrade to be present.
-        if (profile.triggeredBy.length === 0) continue;
-        const hasActivation = profile.triggeredBy.some(
-          u => entity.completedUpgrades.has(u.toUpperCase()),
-        );
-        if (!hasActivation) continue;
+      if (!upgradeStates[index]) {
+        continue;
       }
 
       // Source parity: ConflictsWithTriggeredBy — if any conflicting upgrade is present, skip.
       if (profile.conflictsWith.length > 0) {
         const hasConflict = profile.conflictsWith.some(
-          u => entity.completedUpgrades.has(u.toUpperCase()),
+          u => upgradeMask.has(u.toUpperCase()),
         );
         if (hasConflict) continue;
       }

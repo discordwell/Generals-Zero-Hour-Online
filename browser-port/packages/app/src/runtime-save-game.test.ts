@@ -359,6 +359,22 @@ function createSourceAutoHealBehaviorBlockData(
   }
 }
 
+function createSourceFireWeaponWhenDeadBehaviorBlockData(upgradeExecuted: boolean): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-fire-weapon-when-dead-behavior');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferBool(upgradeExecuted);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceGrantStealthBehaviorBlockData(
   nextCallFrameAndPhase: number,
   radiusParticleSystemId: number,
@@ -4727,6 +4743,23 @@ function parseSourceFireOclAfterCooldownUpdateBlockData(data: Uint8Array) {
       valid: xferLoad.xferBool(false),
       consecutiveShots: xferLoad.xferUnsignedInt(0),
       startFrame: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceFireWeaponWhenDeadBehaviorBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-fire-weapon-when-dead-behavior');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      upgradeExecuted: xferLoad.xferBool(false),
     };
   } finally {
     xferLoad.close();
@@ -9594,6 +9627,103 @@ describe('runtime-save-game', () => {
       valid: true,
       consecutiveShots: 4,
       startFrame: 31,
+    });
+  });
+
+  it('rewrites source FireWeaponWhenDeadBehavior UpgradeMux state from live runtime modules', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_FWWD',
+      blockData: createSourceFireWeaponWhenDeadBehaviorBlockData(false),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source fire weapon when dead rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            fireWeaponWhenDeadProfiles: [{
+              moduleTag: 'MODULETAG_FWWD',
+              deathWeaponName: 'DeathBlast',
+              startsActive: false,
+              triggeredBy: ['Upgrade_SelfDestruct'],
+              conflictsWith: [],
+            }],
+            fireWeaponWhenDeadUpgradeExecuted: [true],
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_FWWD'
+            ? 'FIREWEAPONWHENDEADBEHAVIOR'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const module = firstObject?.modules.find((item) => item.identifier === 'ModuleTag_FWWD');
+
+    expect(module).toBeDefined();
+    expect(parseSourceFireWeaponWhenDeadBehaviorBlockData(module!.blockData)).toEqual({
+      upgradeExecuted: true,
     });
   });
 

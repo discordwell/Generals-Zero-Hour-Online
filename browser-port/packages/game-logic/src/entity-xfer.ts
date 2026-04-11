@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 37;
+const ENTITY_XFER_VERSION = 38;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -2109,6 +2109,15 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   // ── Death behaviors ──
   e.instantDeathProfiles = xferJsonObject(xfer, e.instantDeathProfiles as unknown[]);
   e.fireWeaponWhenDeadProfiles = xferJsonObject(xfer, e.fireWeaponWhenDeadProfiles as unknown[]);
+  if (version >= 38) {
+    e.fireWeaponWhenDeadUpgradeExecuted = xferJsonObject(
+      xfer,
+      (e.fireWeaponWhenDeadUpgradeExecuted as boolean[] | undefined) ?? [],
+    );
+  } else {
+    e.fireWeaponWhenDeadUpgradeExecuted = ((e.fireWeaponWhenDeadProfiles as Array<{ startsActive?: boolean }> | undefined) ?? [])
+      .map((profile) => profile.startsActive === true);
+  }
   e.slowDeathProfiles = xferJsonObject(xfer, e.slowDeathProfiles as unknown[]);
   e.slowDeathState = xferNullableJsonObject(xfer, e.slowDeathState as object | null);
   e.structureCollapseProfile = xferNullableJsonObject(xfer, e.structureCollapseProfile as object | null);

@@ -259,6 +259,7 @@ export function createMapEntity(self: GL,
   const rawPosY = Number.isFinite(mapObject.position.y) ? mapObject.position.y : 0;
   const mapCellX = Math.floor(rawPosX / MAP_XY_FACTOR);
   const mapCellZ = Math.floor(rawPosY / MAP_XY_FACTOR);
+  const fireWeaponWhenDeadProfiles = extractFireWeaponWhenDeadProfiles(self, objectDef);
 
   const [posCellX, posCellZ] = self.worldToGrid(x, z);
   const initialClipAmmo = attackWeapon && attackWeapon.clipSize > 0 ? attackWeapon.clipSize : 0;
@@ -663,7 +664,8 @@ export function createMapEntity(self: GL,
     // Instant death die modules
     instantDeathProfiles: extractInstantDeathProfiles(self, objectDef),
     // Fire weapon when dead die modules
-    fireWeaponWhenDeadProfiles: extractFireWeaponWhenDeadProfiles(self, objectDef),
+    fireWeaponWhenDeadProfiles,
+    fireWeaponWhenDeadUpgradeExecuted: fireWeaponWhenDeadProfiles.map((profile) => profile.startsActive),
     // Slow death
     slowDeathProfiles: extractSlowDeathProfiles(self, objectDef),
     slowDeathState: null,
@@ -5345,6 +5347,7 @@ export function extractFireWeaponWhenDeadProfiles(self: GL, objectDef: ObjectDef
     if (blockType === 'BEHAVIOR' || blockType === 'DIE') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType === 'FIREWEAPONWHENDEADBEHAVIOR') {
+        const moduleTag = block.name.split(/\s+/)[1]?.trim().toUpperCase() ?? null;
         // Parse DieMuxData fields.
         const deathTypes = new Set<string>();
         const deathTypesStr = readStringField(block.fields, ['DeathTypes']);
@@ -5382,24 +5385,14 @@ export function extractFireWeaponWhenDeadProfiles(self: GL, objectDef: ObjectDef
         // Source parity: C++ UpgradeMuxData::m_initiallyActive defaults to false.
         const startsActive = readBooleanField(block.fields, ['StartsActive']) ?? false;
 
-        const triggeredBy: string[] = [];
-        const triggeredByStr = readStringField(block.fields, ['TriggeredBy']);
-        if (triggeredByStr) {
-          for (const token of triggeredByStr.split(/\s+/)) {
-            if (token) triggeredBy.push(token);
-          }
-        }
-
-        const conflictsWith: string[] = [];
-        const conflictsStr = readStringField(block.fields, ['ConflictsWith']);
-        if (conflictsStr) {
-          for (const token of conflictsStr.split(/\s+/)) {
-            if (token) conflictsWith.push(token);
-          }
-        }
+        const triggeredBy = self.parseUpgradeNames(block.fields['TriggeredBy']);
+        const conflictsWith = self.parseUpgradeNames(block.fields['ConflictsWith']);
+        const requiresAllTriggers = readBooleanField(block.fields, ['RequiresAllTriggers']) === true;
+        const removesUpgrades = self.parseUpgradeNames(block.fields['RemovesUpgrades']);
 
         if (deathWeaponName) {
           profiles.push({
+            moduleTag,
             deathTypes,
             veterancyLevels,
             exemptStatus,
@@ -5408,6 +5401,8 @@ export function extractFireWeaponWhenDeadProfiles(self: GL, objectDef: ObjectDef
             startsActive,
             triggeredBy,
             conflictsWith,
+            requiresAllTriggers,
+            removesUpgrades,
           });
         }
       }
