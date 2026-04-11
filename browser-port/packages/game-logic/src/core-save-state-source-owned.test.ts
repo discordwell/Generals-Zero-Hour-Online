@@ -96,11 +96,26 @@ function makeSourceOwnedCoreBundle() {
           UnpackTime: 1000,
         }),
       ]),
+      makeObjectDef('StrategyCenter', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'BattlePlanUpdate ModuleTag_BattlePlan', {
+          SpecialPowerTemplate: 'BattlePlanPower',
+          BombardmentPlanAnimationTime: 1000,
+          HoldTheLinePlanAnimationTime: 1000,
+          SearchAndDestroyPlanAnimationTime: 1000,
+          TransitionIdleTime: 1000,
+          BattlePlanChangeParalyzeTime: 1000,
+          HoldTheLinePlanArmorDamageScalar: 0.75,
+          SearchAndDestroyPlanSightRangeScalar: 1.5,
+          ValidMemberKindOf: 'INFANTRY VEHICLE',
+          InvalidMemberKindOf: 'AIRCRAFT',
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
       makeSpecialPowerDef('SpyVisionPower', { ReloadTime: 60000 }),
       makeSpecialPowerDef('AbilityPower', { ReloadTime: 60000 }),
+      makeSpecialPowerDef('BattlePlanPower', { ReloadTime: 60000 }),
     ],
     upgrades: [
       makeUpgradeDef('Upgrade_AmericaRangerCaptureBuilding', { Type: 'PLAYER', BuildCost: 1000, BuildTime: 30 }),
@@ -112,6 +127,14 @@ function sourceRawInt32(value: number): Uint8Array {
   const bytes = new Uint8Array(4);
   new DataView(bytes.buffer).setInt32(0, Math.trunc(value), true);
   return bytes;
+}
+
+function writeSourceStringBitFlags(saver: XferSave, flags: string[]): void {
+  saver.xferVersion(1);
+  saver.xferInt(flags.length);
+  for (const flag of flags) {
+    saver.xferAsciiString(flag);
+  }
 }
 
 function writeSourceOpenContain(
@@ -577,6 +600,53 @@ function buildSourceSpecialAbilityUpdateModuleData(options: {
     saver.xferBool(options.withinStartAbilityRange);
     saver.xferBool(options.doDisableFxParticles);
     saver.xferReal(options.captureFlashPhase);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceBattlePlanUpdateModuleData(options: {
+  currentPlan: number;
+  desiredPlan: number;
+  planAffectingArmy: number;
+  status: number;
+  nextReadyFrame: number;
+  invalidSettings: boolean;
+  centeringTurret: boolean;
+  armorScalar: number;
+  bombardment: number;
+  searchAndDestroy: number;
+  holdTheLine: number;
+  sightRangeScalar: number;
+  validKindOf: string[];
+  invalidKindOf: string[];
+  visionObjectId: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-battle-plan-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(0);
+    saver.xferUser(sourceRawInt32(options.currentPlan));
+    saver.xferUser(sourceRawInt32(options.desiredPlan));
+    saver.xferUser(sourceRawInt32(options.planAffectingArmy));
+    saver.xferUser(sourceRawInt32(options.status));
+    saver.xferUnsignedInt(options.nextReadyFrame);
+    saver.xferBool(options.invalidSettings);
+    saver.xferBool(options.centeringTurret);
+    saver.xferReal(options.armorScalar);
+    saver.xferInt(options.bombardment);
+    saver.xferInt(options.searchAndDestroy);
+    saver.xferInt(options.holdTheLine);
+    saver.xferReal(options.sightRangeScalar);
+    writeSourceStringBitFlags(saver, options.validKindOf);
+    writeSourceStringBitFlags(saver, options.invalidKindOf);
+    saver.xferObjectID(options.visionObjectId);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -1294,6 +1364,70 @@ describe('source-owned game-logic core save-state', () => {
     expect(state.withinStartAbilityRange).toBe(true);
     expect(state.doDisableFxParticles).toBe(false);
     expect(state.captureFlashPhase).toBe(0.625);
+  });
+
+  it('imports source BattlePlanUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const strategyCenterState = createEmptySourceMapEntitySaveState();
+    strategyCenterState.objectId = 73;
+    strategyCenterState.position = { x: 80, y: 0, z: 44 };
+    strategyCenterState.modules = [{
+      identifier: 'ModuleTag_BattlePlan',
+      blockData: buildSourceBattlePlanUpdateModuleData({
+        currentPlan: 1,
+        desiredPlan: 3,
+        planAffectingArmy: 1,
+        status: 2,
+        nextReadyFrame: 210,
+        invalidSettings: false,
+        centeringTurret: true,
+        armorScalar: 1,
+        bombardment: 1,
+        searchAndDestroy: 0,
+        holdTheLine: 0,
+        sightRangeScalar: 1,
+        validKindOf: ['INFANTRY', 'VEHICLE'],
+        invalidKindOf: ['AIRCRAFT'],
+        visionObjectId: 77,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 150,
+      objectIdCounter: 100,
+      objects: [
+        { templateName: 'StrategyCenter', state: strategyCenterState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        battlePlanState: {
+          currentPlan?: string;
+          desiredPlan: string;
+          activePlan: string;
+          transitionStatus: string;
+          transitionFinishFrame: number;
+          idleCooldownFinishFrame: number;
+        } | null;
+      }>;
+    };
+
+    const state = privateLogic.spawnedEntities.get(73)!.battlePlanState!;
+    expect(state.currentPlan).toBe('BOMBARDMENT');
+    expect(state.desiredPlan).toBe('SEARCHANDDESTROY');
+    expect(state.activePlan).toBe('BOMBARDMENT');
+    expect(state.transitionStatus).toBe('ACTIVE');
+    expect(state.transitionFinishFrame).toBe(210);
+    expect(state.idleCooldownFinishFrame).toBe(0);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {

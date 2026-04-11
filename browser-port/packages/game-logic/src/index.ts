@@ -8740,6 +8740,14 @@ interface SourceSpecialAbilityUpdateImportState {
   captureFlashPhase: number;
 }
 
+interface SourceBattlePlanUpdateImportState {
+  currentPlan: BattlePlanType;
+  desiredPlan: BattlePlanType;
+  planAffectingArmy: BattlePlanType;
+  transitionStatus: BattlePlanTransitionStatus;
+  nextReadyFrame: number;
+}
+
 export interface GameLogicObjectTriggerAreaEntrySaveState {
   triggerName: string;
   entered: number;
@@ -14035,6 +14043,122 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private sourceBattlePlanTypeFromInt(value: number): BattlePlanType | null {
+    switch (Math.trunc(value)) {
+      case 0: return 'NONE';
+      case 1: return 'BOMBARDMENT';
+      case 2: return 'HOLDTHELINE';
+      case 3: return 'SEARCHANDDESTROY';
+      default: return null;
+    }
+  }
+
+  private sourceBattlePlanTransitionStatusFromInt(value: number): BattlePlanTransitionStatus | null {
+    switch (Math.trunc(value)) {
+      case 0: return 'IDLE';
+      case 1: return 'UNPACKING';
+      case 2: return 'ACTIVE';
+      case 3: return 'PACKING';
+      default: return null;
+    }
+  }
+
+  private tryParseSourceBattlePlanUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceBattlePlanUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'BATTLEPLANUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-battle-plan-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      this.skipSourceImportUpdateModuleBase(xfer);
+      const currentPlan = this.sourceBattlePlanTypeFromInt(
+        this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4))),
+      );
+      const desiredPlan = this.sourceBattlePlanTypeFromInt(
+        this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4))),
+      );
+      const planAffectingArmy = this.sourceBattlePlanTypeFromInt(
+        this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4))),
+      );
+      const transitionStatus = this.sourceBattlePlanTransitionStatusFromInt(
+        this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4))),
+      );
+      if (!currentPlan || !desiredPlan || !planAffectingArmy || !transitionStatus) {
+        return null;
+      }
+      const nextReadyFrame = xfer.xferUnsignedInt(0);
+      xfer.xferBool(false);
+      xfer.xferBool(false);
+      xfer.xferReal(1);
+      xfer.xferInt(0);
+      xfer.xferInt(0);
+      xfer.xferInt(0);
+      xfer.xferReal(1);
+      this.xferSourceImportStringBitFlags(xfer);
+      this.xferSourceImportStringBitFlags(xfer);
+      xfer.xferObjectID(0);
+      return xfer.getRemaining() === 0
+        ? {
+          currentPlan,
+          desiredPlan,
+          planAffectingArmy,
+          transitionStatus,
+          nextReadyFrame,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceBattlePlanUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    const state = entity.battlePlanState;
+    if (!state) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const battlePlanState = this.tryParseSourceBattlePlanUpdateImportState(module.blockData, moduleType);
+      if (!battlePlanState) {
+        continue;
+      }
+
+      state.currentPlan = battlePlanState.currentPlan;
+      state.desiredPlan = battlePlanState.desiredPlan;
+      state.activePlan = battlePlanState.planAffectingArmy;
+      state.transitionStatus = battlePlanState.transitionStatus;
+      const nextReadyFrame = Math.max(0, Math.trunc(battlePlanState.nextReadyFrame));
+      if (state.transitionStatus === 'IDLE') {
+        state.idleCooldownFinishFrame = nextReadyFrame;
+        state.transitionFinishFrame = 0;
+      } else {
+        state.transitionFinishFrame = nextReadyFrame;
+        state.idleCooldownFinishFrame = 0;
+      }
+      return;
+    }
+  }
+
   private sourceSpecialAbilityPackingStateFromInt(value: number): SpecialAbilityPackingState {
     switch (Math.trunc(value)) {
       case 1: return 'PACKING';
@@ -14201,6 +14325,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceDockModulesToEntity(entity, sourceState);
     this.applySourceSpawnBehaviorModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
+    this.applySourceBattlePlanUpdateModulesToEntity(entity, sourceState);
     this.applySourceStealthModulesToEntity(entity, sourceState);
     this.applySourceSpyVisionUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialAbilityUpdateModulesToEntity(entity, sourceState);
