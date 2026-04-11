@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import {
   XferLoad,
+  type Coord3D,
   type DeterministicGameLogicCrcSectionWriters,
   type Subsystem,
 } from '@generals/engine';
@@ -637,6 +638,7 @@ import {
   canCrushOrSquish as canCrushOrSquishImpl,
   resolveLocomotorProfiles as resolveLocomotorProfilesImpl,
   extractLocomotorSetEntries as extractLocomotorSetEntriesImpl,
+  refreshSourceLocomotorRuntimeSnapshots as refreshSourceLocomotorRuntimeSnapshotsImpl,
   updateMineCollisions as updateMineCollisionsImpl,
   handleMineCollision as handleMineCollisionImpl,
   updateCrateCollisions as updateCrateCollisionsImpl,
@@ -1239,6 +1241,35 @@ export const SOURCE_LOCOMOTOR_SET_NAMES = new Set<string>([
   LOCOMOTORSET_SUPERSONIC,
   LOCOMOTORSET_SLUGGISH,
 ]);
+
+interface SourceLocomotorSaveTemplateProfile {
+  templateName: string;
+  surfaceMask: number;
+  closeEnoughDist: number;
+  closeEnoughDist3D: boolean;
+  preferredHeight: number;
+  preferredHeightDamping: number;
+  wanderLengthFactor: number;
+}
+
+interface SourceLocomotorRuntimeSaveSnapshot {
+  templateName: string;
+  donutTimer: number;
+  maintainPos: Coord3D;
+  brakingFactor: number;
+  maxLift: number;
+  maxSpeed: number;
+  maxAccel: number;
+  maxBraking: number;
+  maxTurnRate: number;
+  closeEnoughDist: number;
+  flags: number;
+  preferredHeight: number;
+  preferredHeightDamping: number;
+  angleOffset: number;
+  offsetIncrement: number;
+}
+
 export const WEAPON_SET_FLAG_VETERAN = 1 << 0;
 export const WEAPON_SET_FLAG_ELITE = 1 << 1;
 export const WEAPON_SET_FLAG_HERO = 1 << 2;
@@ -1730,6 +1761,9 @@ type ChinookFlightStatus = 'TAKING_OFF' | 'FLYING' | 'DOING_COMBAT_DROP' | 'LAND
 interface LocomotorSetProfile {
   surfaceMask: number;
   downhillOnly: boolean;
+  sourceLocomotorTemplateProfiles: SourceLocomotorSaveTemplateProfile[];
+  sourceLocomotorSnapshots: SourceLocomotorRuntimeSaveSnapshot[];
+  sourceCurrentLocomotorTemplateName: string;
   movementSpeed: number;
   /**
    * Source parity: Locomotor::m_minSpeed — minimum speed when unit is moving.
@@ -3595,6 +3629,8 @@ export interface MapEntity {
   receivingDifficultyBonus: boolean;
   /** Source parity: ScriptActions::changeObjectPanelFlagForSingleObject "AI Recruitable". */
   scriptAiRecruitable: boolean;
+  /** Source parity: AIIdleState::m_initialSleepOffset initialized by AIUpdateInterface::onObjectCreated. */
+  sourceAIIdleInitialSleepOffset: number;
   /** Source parity: AIUpdateInterface::setAttackInfo from script attack-priority actions. */
   scriptAttackPrioritySetName: string;
   /** Source parity: AIUpdateInterface::m_attitude (default AI_NORMAL). */
@@ -27366,6 +27402,9 @@ export class GameLogicSubsystem implements Subsystem {
   private canCrushOrSquish(...args: any[]) { return (canCrushOrSquishImpl as any)(this, ...args); }
   private resolveLocomotorProfiles(...args: any[]) { return (resolveLocomotorProfilesImpl as any)(this, ...args); }
   /* @internal */ extractLocomotorSetEntries(...args: any[]) { return (extractLocomotorSetEntriesImpl as any)(this, ...args); }
+  /* @internal */ refreshSourceLocomotorRuntimeSnapshots(...args: any[]) {
+    return (refreshSourceLocomotorRuntimeSnapshotsImpl as any)(this, ...args);
+  }
   private updateMineCollisions(...args: any[]) { return (updateMineCollisionsImpl as any)(this, ...args); }
   /* @internal */ handleMineCollision(...args: any[]) { return (handleMineCollisionImpl as any)(this, ...args); }
   private updateCrateCollisions(...args: any[]) { return (updateCrateCollisionsImpl as any)(this, ...args); }

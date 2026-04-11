@@ -49,6 +49,25 @@ type GL = any;
 
 // ---- Entity factory implementations ----
 
+function hasAIUpdateInterfaceModule(objectDef: ObjectDef | undefined): boolean {
+  if (!objectDef) {
+    return false;
+  }
+  const visit = (blocks: readonly IniBlock[]): boolean => {
+    for (const block of blocks) {
+      const moduleType = block.name.split(/\s+/)[0]?.trim().toUpperCase() ?? '';
+      if (moduleType.includes('AIUPDATE') || moduleType === 'FLIGHTDECKBEHAVIOR') {
+        return true;
+      }
+      if (visit(block.blocks)) {
+        return true;
+      }
+    }
+    return false;
+  };
+  return visit(objectDef.blocks);
+}
+
 export function createMapEntity(self: GL, 
   mapObject: MapObjectJSON,
   objectDef: ObjectDef | undefined,
@@ -143,6 +162,9 @@ export function createMapEntity(self: GL,
   const locomotorProfile = locomotorSetProfiles.get(LOCOMOTORSET_NORMAL) ?? {
     surfaceMask: NO_SURFACES,
     downhillOnly: false,
+    sourceLocomotorTemplateProfiles: [],
+    sourceLocomotorSnapshots: [],
+    sourceCurrentLocomotorTemplateName: '',
     movementSpeed: 0,
     minSpeed: 0,
     acceleration: 0,
@@ -317,6 +339,7 @@ export function createMapEntity(self: GL,
     isIndestructible: false,
     receivingDifficultyBonus: self.scriptObjectsReceiveDifficultyBonus,
     scriptAiRecruitable: true,
+    sourceAIIdleInitialSleepOffset: 0,
     scriptAttackPrioritySetName: '',
     scriptAttitude: SCRIPT_AI_ATTITUDE_NORMAL,
     keepObjectOnDeath: self.hasKeepObjectDie(objectDef),
@@ -1281,6 +1304,11 @@ export function createMapEntity(self: GL,
       bridgeCells: [],
       deathFrame: 0,
     };
+  }
+
+  if (hasAIUpdateInterfaceModule(objectDef)) {
+    self.refreshSourceLocomotorRuntimeSnapshots(entity, entity.activeLocomotorSet);
+    entity.sourceAIIdleInitialSleepOffset = self.gameRandom.nextRange(0, LOGIC_FRAME_RATE * 2);
   }
 
   return entity;

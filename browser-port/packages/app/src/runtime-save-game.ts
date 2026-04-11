@@ -7909,6 +7909,26 @@ const SOURCE_HACK_INTERNET_STATE_SNAPSHOT_BYTE_LENGTH = 5;
 const SOURCE_AICMD_MOVE_TO_POSITION = 0;
 const SOURCE_AICMD_IDLE = 5;
 const SOURCE_AICMD_ATTACK_OBJECT = 11;
+const SOURCE_AI_FAST_AS_POSSIBLE = 999999.0;
+const SOURCE_AI_PRIOR_WAYPOINT_DEFAULT = 0xfacade;
+const SOURCE_AI_CURRENT_WAYPOINT_DEFAULT = 0xfacade;
+const SOURCE_AI_INVALID_WAYPOINT_ID = 0x7fffffff;
+const SOURCE_AI_CMD_FROM_AI = 2;
+const SOURCE_AI_GUARDTARGET_NONE = 3;
+const SOURCE_AI_TURRET_INVALID = -1;
+const SOURCE_AI_ATTITUDE_NORMAL = 0;
+const SOURCE_AI_INVALID_STATE_ID = 999999;
+const SOURCE_AI_MAX_TURRETS = 2;
+const SOURCE_LOCOMOTOR_SET_TYPE_BY_NAME = new Map<string, number>([
+  ['SET_NORMAL', 0],
+  ['SET_NORMAL_UPGRADED', 1],
+  ['SET_FREEFALL', 2],
+  ['SET_WANDER', 3],
+  ['SET_PANIC', 4],
+  ['SET_TAXIING', 5],
+  ['SET_SUPERSONIC', 6],
+  ['SET_SLUGGISH', 7],
+]);
 const SOURCE_JET_FLAG_HAS_PENDING_COMMAND = 1 << 0;
 const SOURCE_JET_FLAG_ALLOW_AIR_LOCO = 1 << 1;
 const SOURCE_JET_FLAG_HAS_PRODUCER_LOCATION = 1 << 2;
@@ -7933,6 +7953,216 @@ function isSourceHackInternetStateId(value: number): boolean {
 
 function isSourceBoolByte(value: number): boolean {
   return value === 0 || value === 1;
+}
+
+function sourceAIUnsignedFrame(value: unknown, fallback: number): number {
+  return sourceFlammableUnsignedFrame(value, fallback);
+}
+
+function sourceAILocomotorSetType(setName: unknown): number {
+  if (typeof setName !== 'string') {
+    return -1;
+  }
+  return SOURCE_LOCOMOTOR_SET_TYPE_BY_NAME.get(setName.trim().toUpperCase()) ?? -1;
+}
+
+function sourceAIIdleInitialSleepOffset(entity: MapEntity): number {
+  const value = (entity as { sourceAIIdleInitialSleepOffset?: unknown }).sourceAIIdleInitialSleepOffset;
+  return Number.isFinite(value)
+    ? Math.max(0, Math.min(0xffff, Math.trunc(Number(value))))
+    : 0;
+}
+
+function buildGeneratedSourceAIStateMachineBlockData(entity: MapEntity): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-state-machine');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(0);
+    saver.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+    saver.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+    saver.xferBool(false);
+    saver.xferVersion(1);
+    saver.xferUnsignedShort(sourceAIIdleInitialSleepOffset(entity));
+    saver.xferBool(true);
+    saver.xferBool(true);
+    saver.xferObjectID(0);
+    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+    saver.xferBool(false);
+    saver.xferBool(true);
+    saver.xferInt(0);
+    saver.xferAsciiString('');
+    saver.xferBool(false);
+    saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
+    saver.xferUnsignedInt(0);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function xferGeneratedSourceLocomotorSnapshot(
+  saver: XferSave,
+  snapshot: {
+    donutTimer?: unknown;
+    maintainPos?: unknown;
+    brakingFactor?: unknown;
+    maxLift?: unknown;
+    maxSpeed?: unknown;
+    maxAccel?: unknown;
+    maxBraking?: unknown;
+    maxTurnRate?: unknown;
+    closeEnoughDist?: unknown;
+    flags?: unknown;
+    preferredHeight?: unknown;
+    preferredHeightDamping?: unknown;
+    angleOffset?: unknown;
+    offsetIncrement?: unknown;
+  },
+): void {
+  const maintainPos = snapshot.maintainPos && typeof snapshot.maintainPos === 'object'
+    ? snapshot.maintainPos as Partial<Coord3D>
+    : {};
+  const real = (value: unknown, fallback: number) => Number.isFinite(value) ? Number(value) : fallback;
+  saver.xferVersion(2);
+  saver.xferUnsignedInt(sourceAIUnsignedFrame(snapshot.donutTimer, 0));
+  saver.xferCoord3D({
+    x: real(maintainPos.x, 0),
+    y: real(maintainPos.y, 0),
+    z: real(maintainPos.z, 0),
+  });
+  saver.xferReal(real(snapshot.brakingFactor, 1.0));
+  saver.xferReal(real(snapshot.maxLift, 99999.0));
+  saver.xferReal(real(snapshot.maxSpeed, 99999.0));
+  saver.xferReal(real(snapshot.maxAccel, 99999.0));
+  saver.xferReal(real(snapshot.maxBraking, 99999.0));
+  saver.xferReal(real(snapshot.maxTurnRate, 99999.0));
+  saver.xferReal(real(snapshot.closeEnoughDist, 1.0));
+  saver.xferUnsignedInt(sourceFiniteInt(snapshot.flags, 0));
+  saver.xferReal(real(snapshot.preferredHeight, 0));
+  saver.xferReal(real(snapshot.preferredHeightDamping, 1));
+  saver.xferReal(real(snapshot.angleOffset, 0));
+  saver.xferReal(real(snapshot.offsetIncrement, 0));
+}
+
+function xferGeneratedSourceLocomotorSetAndCurLocoPtr(saver: XferSave, entity: MapEntity): void {
+  const activeSetName = typeof entity.activeLocomotorSet === 'string' ? entity.activeLocomotorSet : 'SET_NORMAL';
+  const activeProfile = entity.locomotorSets?.get(activeSetName)
+    ?? entity.locomotorSets?.get('SET_NORMAL')
+    ?? null;
+  if (!activeProfile) {
+    saver.xferVersion(1);
+    saver.xferUnsignedShort(0);
+    saver.xferInt(0);
+    saver.xferBool(false);
+    saver.xferAsciiString('');
+    return;
+  }
+
+  const snapshots = Array.isArray(activeProfile.sourceLocomotorSnapshots)
+    ? activeProfile.sourceLocomotorSnapshots
+    : [];
+  if (snapshots.length > 0xffff) {
+    throw new Error(`Cannot serialize ${snapshots.length} locomotors in source LocomotorSet.`);
+  }
+
+  saver.xferVersion(1);
+  saver.xferUnsignedShort(snapshots.length);
+  for (const snapshot of snapshots) {
+    const templateName = typeof snapshot.templateName === 'string' ? snapshot.templateName : '';
+    if (!templateName) {
+      throw new Error(`Cannot serialize source LocomotorSet for ${entity.templateName}: missing locomotor template name.`);
+    }
+    saver.xferAsciiString(templateName);
+    xferGeneratedSourceLocomotorSnapshot(saver, snapshot);
+  }
+  saver.xferInt(sourceFiniteInt(activeProfile.surfaceMask, 0));
+  saver.xferBool(activeProfile.downhillOnly === true);
+  const currentTemplateName = typeof activeProfile.sourceCurrentLocomotorTemplateName === 'string'
+    && activeProfile.sourceCurrentLocomotorTemplateName.length > 0
+    ? activeProfile.sourceCurrentLocomotorTemplateName
+    : (snapshots[0]?.templateName ?? '');
+  saver.xferAsciiString(currentTemplateName);
+}
+
+function buildGeneratedSourceAIUpdateInterfaceBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-update-interface');
+  try {
+    saver.xferVersion(4);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferUnsignedInt(SOURCE_AI_PRIOR_WAYPOINT_DEFAULT);
+    saver.xferUnsignedInt(SOURCE_AI_CURRENT_WAYPOINT_DEFAULT);
+    saver.xferUser(buildGeneratedSourceAIStateMachineBlockData(entity));
+    saver.xferBool(false);
+    saver.xferBool(entity.scriptAiRecruitable !== false);
+    saver.xferUnsignedInt(0);
+    saver.xferObjectID(normalizeSourceObjectId(entity.attackTargetEntityId ?? 0));
+    saver.xferReal(SOURCE_AI_FAST_AS_POSSIBLE);
+    saver.xferUser(buildSourceRawInt32Bytes(SOURCE_AI_CMD_FROM_AI));
+    saver.xferUser(buildSourceRawInt32Bytes(SOURCE_AI_GUARDTARGET_NONE));
+    saver.xferUser(buildSourceRawInt32Bytes(SOURCE_AI_GUARDTARGET_NONE));
+    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+    saver.xferObjectID(0);
+    saver.xferAsciiString('');
+    saver.xferAsciiString(typeof entity.scriptAttackPrioritySetName === 'string'
+      ? entity.scriptAttackPrioritySetName
+      : '');
+    saver.xferInt(0);
+    saver.xferInt(0);
+    saver.xferBool(false);
+    saver.xferUnsignedInt(SOURCE_AI_INVALID_WAYPOINT_ID);
+    saver.xferBool(false);
+    saver.xferBool(false);
+    saver.xferObjectID(0);
+    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+    saver.xferObjectID(normalizeSourceObjectId(entity.ignoredMovementObstacleId ?? 0));
+    saver.xferReal(0);
+    saver.xferICoord2D(entity.pathfindGoalCell
+      ? { x: entity.pathfindGoalCell.x, y: entity.pathfindGoalCell.z }
+      : { x: -1, y: -1 });
+    saver.xferICoord2D(entity.pathfindPosCell
+      ? { x: entity.pathfindPosCell.x, y: entity.pathfindPosCell.z }
+      : { x: -1, y: -1 });
+    saver.xferUnsignedInt(0);
+    saver.xferUnsignedInt(0);
+    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+    saver.xferBool(false);
+    saver.xferBool(false);
+    saver.xferBool(false);
+    saver.xferBool(false);
+    saver.xferBool(false);
+    saver.xferBool(false);
+    saver.xferBool(false);
+    saver.xferBool(entity.locomotorUpgradeEnabled === true);
+    saver.xferBool(false);
+    saver.xferBool(true);
+    saver.xferObjectID(0);
+    saver.xferObjectID(0);
+    saver.xferObjectID(0);
+    saver.xferObjectID(0);
+    xferGeneratedSourceLocomotorSetAndCurLocoPtr(saver, entity);
+    saver.xferUser(buildSourceRawInt32Bytes(sourceAILocomotorSetType(entity.activeLocomotorSet)));
+    saver.xferUser(buildSourceRawInt32Bytes(0));
+    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+    for (let index = 0; index < SOURCE_AI_MAX_TURRETS; index += 1) {
+      // Null turret pointers are not serialized; this loop documents MAX_TURRETS ordering.
+    }
+    saver.xferUser(buildSourceRawInt32Bytes(SOURCE_AI_TURRET_INVALID));
+    saver.xferUser(buildSourceRawInt32Bytes(sourceFiniteInt(entity.scriptAttitude, SOURCE_AI_ATTITUDE_NORMAL)));
+    saver.xferUnsignedInt(sourceAIUnsignedFrame(entity.autoTargetScanNextFrame, currentFrame));
+    saver.xferObjectID(0);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
 }
 
 function sourceAsciiStringEndOffset(data: Uint8Array, offset: number): number | null {
@@ -9177,6 +9407,23 @@ function buildSourceDeployStyleAIUpdateBlockData(
     true,
   );
   return blockData;
+}
+
+function buildGeneratedSourceDeployStyleAIUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-deploy-style-ai-update');
+  try {
+    saver.xferVersion(4);
+    saver.xferUser(buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame));
+    saver.xferUser(buildSourceRawInt32Bytes(sourceDeployStyleStateToInt(entity.deployState, 0)));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(entity.deployFrameToWait, 0));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
 }
 
 const SOURCE_ASSAULT_TRANSPORT_MAX_SLOTS = 10;
@@ -18025,6 +18272,10 @@ function buildGeneratedSourceObjectModuleBlockData(
 
   if (normalizedModuleType === 'ANIMATIONSTEERINGUPDATE' && entity.animationSteeringProfile) {
     return buildSourceAnimationSteeringUpdateBlockData(currentFrame);
+  }
+
+  if (normalizedModuleType === 'DEPLOYSTYLEAIUPDATE' && entity.deployStyleProfile) {
+    return buildGeneratedSourceDeployStyleAIUpdateBlockData(entity, currentFrame);
   }
 
   if (normalizedModuleType === 'FLOATUPDATE' && entity.floatUpdateProfile) {

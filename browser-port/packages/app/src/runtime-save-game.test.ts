@@ -2113,6 +2113,214 @@ function parseSourceDeployStyleAIUpdateBlockData(
   };
 }
 
+function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset = 1) {
+  const xferLoad = new XferLoad(data.slice(offset).buffer);
+  xferLoad.open('parse-generated-source-ai-update-interface');
+  try {
+    const aiVersion = xferLoad.xferVersion(4);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const priorWaypointId = xferLoad.xferUnsignedInt(0);
+    const currentWaypointId = xferLoad.xferUnsignedInt(0);
+
+    const stateMachineVersion = xferLoad.xferVersion(1);
+    const baseStateMachineVersion = xferLoad.xferVersion(1);
+    const sleepTill = xferLoad.xferUnsignedInt(0);
+    const defaultStateId = xferLoad.xferUnsignedInt(0);
+    const currentStateId = xferLoad.xferUnsignedInt(0);
+    const snapshotAllStates = xferLoad.xferBool(false);
+    const idleStateVersion = xferLoad.xferVersion(1);
+    const idleInitialSleepOffset = xferLoad.xferUnsignedShort(0);
+    const idleShouldLookForTargets = xferLoad.xferBool(false);
+    const idleInited = xferLoad.xferBool(false);
+    const goalObjectId = xferLoad.xferObjectID(0);
+    const goalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const locked = xferLoad.xferBool(false);
+    const defaultStateInited = xferLoad.xferBool(false);
+    const goalPathCount = xferLoad.xferInt(0);
+    const waypointName = xferLoad.xferAsciiString('');
+    const hasSquad = xferLoad.xferBool(false);
+    const temporaryStateId = xferLoad.xferUnsignedInt(0);
+    const temporaryStateFrameEnd = xferLoad.xferUnsignedInt(0);
+
+    const isAiDead = xferLoad.xferBool(false);
+    const isRecruitable = xferLoad.xferBool(false);
+    const nextEnemyScanTime = xferLoad.xferUnsignedInt(0);
+    const currentVictimId = xferLoad.xferObjectID(0);
+    const desiredSpeed = xferLoad.xferReal(0);
+    const lastCommandSource = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const guardTarget0 = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const guardTarget1 = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const locationToGuard = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const objectToGuard = xferLoad.xferObjectID(0);
+    const areaToGuard = xferLoad.xferAsciiString('');
+    const attackInfo = xferLoad.xferAsciiString('');
+    const waypointCount = xferLoad.xferInt(0);
+    const waypointIndex = xferLoad.xferInt(0);
+    const executingWaypointQueue = xferLoad.xferBool(false);
+    const completedWaypointId = xferLoad.xferUnsignedInt(0);
+    const waitingForPath = xferLoad.xferBool(false);
+    const gotPath = xferLoad.xferBool(false);
+    const requestedVictimId = xferLoad.xferObjectID(0);
+    const requestedDestination = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const requestedDestination2 = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const ignoreObstacleId = xferLoad.xferObjectID(0);
+    const pathExtraDistance = xferLoad.xferReal(0);
+    const pathfindGoalCell = xferLoad.xferICoord2D({ x: 0, y: 0 });
+    const pathfindCurCell = xferLoad.xferICoord2D({ x: 0, y: 0 });
+    const ignoreCollisionsUntil = xferLoad.xferUnsignedInt(0);
+    const queueForPathFrame = xferLoad.xferUnsignedInt(0);
+    const finalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const doFinalPosition = xferLoad.xferBool(false);
+    const isAttackPath = xferLoad.xferBool(false);
+    const isFinalGoal = xferLoad.xferBool(false);
+    const isApproachPath = xferLoad.xferBool(false);
+    const isSafePath = xferLoad.xferBool(false);
+    const movementComplete = xferLoad.xferBool(false);
+    const isSafePathAgain = xferLoad.xferBool(false);
+    const upgradedLocomotors = xferLoad.xferBool(false);
+    const canPathThroughUnits = xferLoad.xferBool(false);
+    const randomlyOffsetMoodCheck = xferLoad.xferBool(false);
+    const repulsor1 = xferLoad.xferObjectID(0);
+    const repulsor2 = xferLoad.xferObjectID(0);
+    const moveOutOfWay1 = xferLoad.xferObjectID(0);
+    const moveOutOfWay2 = xferLoad.xferObjectID(0);
+
+    const locomotorSetVersion = xferLoad.xferVersion(1);
+    const locomotorCount = xferLoad.xferUnsignedShort(0);
+    const locomotors: Array<{
+      templateName: string;
+      donutTimer: number;
+      flags: number;
+      closeEnoughDist: number;
+      preferredHeight: number;
+      preferredHeightDamping: number;
+    }> = [];
+    for (let index = 0; index < locomotorCount; index += 1) {
+      const templateName = xferLoad.xferAsciiString('');
+      xferLoad.xferVersion(2);
+      const donutTimer = xferLoad.xferUnsignedInt(0);
+      xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      xferLoad.xferReal(0);
+      xferLoad.xferReal(0);
+      xferLoad.xferReal(0);
+      xferLoad.xferReal(0);
+      xferLoad.xferReal(0);
+      xferLoad.xferReal(0);
+      const closeEnoughDist = xferLoad.xferReal(0);
+      const flags = xferLoad.xferUnsignedInt(0);
+      const preferredHeight = xferLoad.xferReal(0);
+      const preferredHeightDamping = xferLoad.xferReal(0);
+      xferLoad.xferReal(0);
+      xferLoad.xferReal(0);
+      locomotors.push({
+        templateName,
+        donutTimer,
+        flags,
+        closeEnoughDist,
+        preferredHeight,
+        preferredHeightDamping,
+      });
+    }
+    const validLocomotorSurfaces = xferLoad.xferInt(0);
+    const downhillOnly = xferLoad.xferBool(false);
+    const currentLocomotorTemplateName = xferLoad.xferAsciiString('');
+    const currentLocomotorSet = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const locomotorGoalType = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const locomotorGoalData = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const turretSyncFlag = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const attitude = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const nextMoodCheckTime = xferLoad.xferUnsignedInt(0);
+    const crateCreated = xferLoad.xferObjectID(0);
+
+    return {
+      aiVersion,
+      nextCallFrameAndPhase,
+      priorWaypointId,
+      currentWaypointId,
+      stateMachineVersion,
+      baseStateMachineVersion,
+      sleepTill,
+      defaultStateId,
+      currentStateId,
+      snapshotAllStates,
+      idleStateVersion,
+      idleInitialSleepOffset,
+      idleShouldLookForTargets,
+      idleInited,
+      goalObjectId,
+      goalPosition,
+      locked,
+      defaultStateInited,
+      goalPathCount,
+      waypointName,
+      hasSquad,
+      temporaryStateId,
+      temporaryStateFrameEnd,
+      isAiDead,
+      isRecruitable,
+      nextEnemyScanTime,
+      currentVictimId,
+      desiredSpeed,
+      lastCommandSource,
+      guardTarget0,
+      guardTarget1,
+      locationToGuard,
+      objectToGuard,
+      areaToGuard,
+      attackInfo,
+      waypointCount,
+      waypointIndex,
+      executingWaypointQueue,
+      completedWaypointId,
+      waitingForPath,
+      gotPath,
+      requestedVictimId,
+      requestedDestination,
+      requestedDestination2,
+      ignoreObstacleId,
+      pathExtraDistance,
+      pathfindGoalCell,
+      pathfindCurCell,
+      ignoreCollisionsUntil,
+      queueForPathFrame,
+      finalPosition,
+      doFinalPosition,
+      isAttackPath,
+      isFinalGoal,
+      isApproachPath,
+      isSafePath,
+      movementComplete,
+      isSafePathAgain,
+      upgradedLocomotors,
+      canPathThroughUnits,
+      randomlyOffsetMoodCheck,
+      repulsor1,
+      repulsor2,
+      moveOutOfWay1,
+      moveOutOfWay2,
+      locomotorSetVersion,
+      locomotors,
+      validLocomotorSurfaces,
+      downhillOnly,
+      currentLocomotorTemplateName,
+      currentLocomotorSet,
+      locomotorGoalType,
+      locomotorGoalData,
+      turretSyncFlag,
+      attitude,
+      nextMoodCheckTime,
+      crateCreated,
+      bytesRead: offset + xferLoad.getOffset(),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function createSourceAssaultTransportAIUpdateBlockData(options: {
   members: Array<{ entityId: number; isHealing: boolean }>;
   attackMoveGoal: Coord3D;
@@ -16582,6 +16790,174 @@ describe('runtime-save-game', () => {
     expect(parsed.prefix).toEqual(preservedPrefix);
     expect(parsed.state).toBe(3);
     expect(parsed.frameToWaitForDeploy).toBe(88);
+  });
+
+  it('synthesizes DeployStyleAIUpdate with generated AIUpdateInterface and locomotor bytes', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'generated deploy style ai update',
+      mapPath: 'Maps/RuntimeGeneratedDeploy/RuntimeGeneratedDeploy.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeGeneratedDeploy',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 8,
+            templateName: 'RuntimeGeneratedDeploy',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            scriptAiRecruitable: false,
+            sourceAIIdleInitialSleepOffset: 17,
+            attackTargetEntityId: 99,
+            scriptAttackPrioritySetName: '',
+            scriptAttitude: 0,
+            autoTargetScanNextFrame: 77,
+            moving: false,
+            locomotorUpgradeEnabled: false,
+            ignoredMovementObstacleId: null,
+            pathfindGoalCell: null,
+            pathfindPosCell: null,
+            activeLocomotorSet: 'SET_NORMAL',
+            locomotorSets: new Map([[
+              'SET_NORMAL',
+              {
+                surfaceMask: 1,
+                downhillOnly: false,
+                sourceCurrentLocomotorTemplateName: 'RuntimeLoco',
+                sourceLocomotorSnapshots: [{
+                  templateName: 'RuntimeLoco',
+                  donutTimer: 117,
+                  maintainPos: { x: 0, y: 0, z: 0 },
+                  brakingFactor: 1,
+                  maxLift: 99999,
+                  maxSpeed: 99999,
+                  maxAccel: 99999,
+                  maxBraking: 99999,
+                  maxTurnRate: 99999,
+                  closeEnoughDist: 2.5,
+                  flags: 1 << 10,
+                  preferredHeight: 12,
+                  preferredHeightDamping: 0.7,
+                  angleOffset: 0.125,
+                  offsetIncrement: 0.25,
+                }],
+              },
+            ]]),
+            deployStyleProfile: {
+              unpackTimeFrames: 30,
+              packTimeFrames: 20,
+              turretsFunctionOnlyWhenDeployed: false,
+              resetTurretBeforePacking: false,
+              turretsMustCenterBeforePacking: false,
+            },
+            deployState: 'UNDEPLOY',
+            deployFrameToWait: 88,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        listSourceObjectModuleDescriptors: (templateName) => templateName === 'RuntimeGeneratedDeploy'
+          ? [{ moduleType: 'DeployStyleAIUpdate', moduleTag: 'ModuleTag_Deploy' }]
+          : [],
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const generated = readSourceGameLogicObjectStates(saveFile.data)
+      ?.find((object) => object.templateName === 'RuntimeGeneratedDeploy')?.state;
+    const deployModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Deploy');
+
+    expect(deployModule).toBeDefined();
+    const parsedDeploy = parseSourceDeployStyleAIUpdateBlockData(deployModule!.blockData);
+    expect(parsedDeploy.state).toBe(3);
+    expect(parsedDeploy.frameToWaitForDeploy).toBe(88);
+
+    const parsedAI = parseGeneratedSourceAIUpdateInterfaceForTest(deployModule!.blockData);
+    expect(parsedAI).toMatchObject({
+      aiVersion: 4,
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      priorWaypointId: 0xfacade,
+      currentWaypointId: 0xfacade,
+      idleInitialSleepOffset: 17,
+      idleShouldLookForTargets: true,
+      idleInited: true,
+      isAiDead: false,
+      isRecruitable: false,
+      currentVictimId: 99,
+      desiredSpeed: 999999,
+      lastCommandSource: 2,
+      guardTarget0: 3,
+      guardTarget1: 3,
+      waypointCount: 0,
+      completedWaypointId: 0x7fffffff,
+      currentLocomotorTemplateName: 'RuntimeLoco',
+      currentLocomotorSet: 0,
+      locomotorGoalType: 0,
+      turretSyncFlag: -1,
+      attitude: 0,
+      nextMoodCheckTime: 77,
+      crateCreated: 0,
+    });
+    expect(parsedAI.locomotors).toEqual([{
+      templateName: 'RuntimeLoco',
+      donutTimer: 117,
+      flags: 1 << 10,
+      closeEnoughDist: 2.5,
+      preferredHeight: 12,
+      preferredHeightDamping: expect.closeTo(0.7, 5),
+    }]);
+    expect(parsedAI.bytesRead).toBe(deployModule!.blockData.byteLength - 8);
   });
 
   it('rewrites source AssaultTransportAIUpdate tail while preserving AIUpdateInterface bytes', () => {

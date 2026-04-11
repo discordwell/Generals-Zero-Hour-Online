@@ -27,12 +27,102 @@ import {
   TEST_CRUSH_ONLY,
   HUGE_DAMAGE_AMOUNT,
   MINE_MAX_IMMUNITY,
+  LOCOMOTORSURFACE_GROUND,
+  LOCOMOTORSURFACE_WATER,
+  LOCOMOTORSURFACE_CLIFF,
+  LOCOMOTORSURFACE_AIR,
+  LOCOMOTORSURFACE_RUBBLE,
+  NAV_WATER,
+  NAV_CLIFF,
+  NAV_IMPASSABLE,
+  NAV_BRIDGE_IMPASSABLE,
 } from './index.js';
 type GL = any;
 
 const PATHFIND_CELL_SIZE = MAP_XY_FACTOR;
+const SOURCE_LOCOMOTOR_RUNTIME_BIGNUM = 99999.0;
+const SOURCE_LOCOMOTOR_FLAG_CLOSE_ENOUGH_DIST_3D = 1 << 10;
+const SOURCE_LOCOMOTOR_FLAG_OFFSET_INCREASING = 1 << 11;
+const SOURCE_LOCOMOTOR_DONUT_DELAY_FRAMES = Math.trunc(2.5 * LOGIC_FRAME_RATE);
 
 // ---- Entity movement implementations ----
+
+function sourceLocomotorAcceptableSurfacesForEntity(self: GL, entity: MapEntity): number {
+  const nav = self.navigationGrid;
+  if (!nav || !Number.isFinite(entity.x) || !Number.isFinite(entity.z)) {
+    return LOCOMOTORSURFACE_GROUND | LOCOMOTORSURFACE_AIR;
+  }
+  const cellX = Math.floor(entity.x / PATHFIND_CELL_SIZE);
+  const cellZ = Math.floor(entity.z / PATHFIND_CELL_SIZE);
+  if (cellX < 0 || cellZ < 0 || cellX >= nav.width || cellZ >= nav.height) {
+    return LOCOMOTORSURFACE_GROUND | LOCOMOTORSURFACE_AIR;
+  }
+  const cellType = nav.terrainType[cellZ * nav.width + cellX] ?? 0;
+  switch (cellType) {
+    case NAV_WATER:
+      return LOCOMOTORSURFACE_WATER | LOCOMOTORSURFACE_AIR;
+    case NAV_CLIFF:
+      return LOCOMOTORSURFACE_CLIFF | LOCOMOTORSURFACE_AIR;
+    case NAV_IMPASSABLE:
+    case NAV_BRIDGE_IMPASSABLE:
+      return LOCOMOTORSURFACE_AIR;
+    default:
+      return LOCOMOTORSURFACE_GROUND | LOCOMOTORSURFACE_AIR;
+  }
+}
+
+function sourceCurrentLocomotorTemplateName(self: GL, entity: MapEntity, profile: LocomotorSetProfile): string {
+  const templates = profile.sourceLocomotorTemplateProfiles;
+  const acceptableSurfaces = sourceLocomotorAcceptableSurfacesForEntity(self, entity);
+  const acceptable = templates.find((candidate) => (candidate.surfaceMask & acceptableSurfaces) !== 0);
+  if (acceptable) {
+    return acceptable.templateName;
+  }
+  const ground = templates.find((candidate) => (candidate.surfaceMask & LOCOMOTORSURFACE_GROUND) !== 0);
+  return ground?.templateName ?? templates[0]?.templateName ?? '';
+}
+
+export function refreshSourceLocomotorRuntimeSnapshots(self: GL, entity: MapEntity, setName: string): void {
+  const profile = entity.locomotorSets?.get(setName);
+  if (!profile) {
+    return;
+  }
+  const templates = Array.isArray(profile.sourceLocomotorTemplateProfiles)
+    ? profile.sourceLocomotorTemplateProfiles
+    : [];
+  profile.sourceCurrentLocomotorTemplateName = sourceCurrentLocomotorTemplateName(self, entity, profile);
+  profile.sourceLocomotorSnapshots = templates.map((template) => {
+    let flags = 0;
+    if (template.closeEnoughDist3D) {
+      flags |= SOURCE_LOCOMOTOR_FLAG_CLOSE_ENOUGH_DIST_3D;
+    }
+    const wanderLengthFactor = Number.isFinite(template.wanderLengthFactor) && template.wanderLengthFactor !== 0
+      ? template.wanderLengthFactor
+      : 1.0;
+    const angleOffset = (self.gameRandom.nextFloat() * 2 - 1) * (Math.PI / 6);
+    const offsetIncrement = (Math.PI / 40) * ((0.8 + self.gameRandom.nextFloat() * 0.4) / wanderLengthFactor);
+    if (self.gameRandom.nextRange(0, 1) !== 0) {
+      flags |= SOURCE_LOCOMOTOR_FLAG_OFFSET_INCREASING;
+    }
+    return {
+      templateName: template.templateName,
+      donutTimer: self.frameCounter + SOURCE_LOCOMOTOR_DONUT_DELAY_FRAMES,
+      maintainPos: { x: 0, y: 0, z: 0 },
+      brakingFactor: 1.0,
+      maxLift: SOURCE_LOCOMOTOR_RUNTIME_BIGNUM,
+      maxSpeed: SOURCE_LOCOMOTOR_RUNTIME_BIGNUM,
+      maxAccel: SOURCE_LOCOMOTOR_RUNTIME_BIGNUM,
+      maxBraking: SOURCE_LOCOMOTOR_RUNTIME_BIGNUM,
+      maxTurnRate: SOURCE_LOCOMOTOR_RUNTIME_BIGNUM,
+      closeEnoughDist: template.closeEnoughDist,
+      flags,
+      preferredHeight: template.preferredHeight,
+      preferredHeightDamping: template.preferredHeightDamping,
+      angleOffset,
+      offsetIncrement,
+    };
+  });
+}
 
 export function setEntityLocomotorSet(self: GL, entityId: number, setName: string): boolean {
   const entity = self.spawnedEntities.get(entityId);
@@ -61,7 +151,15 @@ export function setEntityLocomotorSet(self: GL, entityId: number, setName: strin
   if (!profile) {
     return false;
   }
+  const previousSet = entity.activeLocomotorSet;
   entity.activeLocomotorSet = resolvedSet;
+  if (
+    previousSet !== resolvedSet
+    || !Array.isArray(profile.sourceLocomotorSnapshots)
+    || profile.sourceLocomotorSnapshots.length === 0
+  ) {
+    refreshSourceLocomotorRuntimeSnapshots(self, entity, resolvedSet);
+  }
   entity.locomotorSurfaceMask = profile.surfaceMask;
   entity.locomotorDownhillOnly = profile.downhillOnly;
   entity.speed = profile.movementSpeed > 0 ? profile.movementSpeed : self.config.defaultMoveSpeed;
@@ -232,6 +330,7 @@ export function resolveLocomotorProfiles(self: GL,
     let rudderCorrectionRate = 0;
     let elevatorCorrectionDegree = 0;
     let elevatorCorrectionRate = 0;
+    const sourceLocomotorTemplateProfiles: LocomotorSetProfile['sourceLocomotorTemplateProfiles'] = [];
 
     let primaryLocomotor: LocomotorDef | null = null;
     for (const locomotorName of locomotorNames) {
@@ -239,6 +338,16 @@ export function resolveLocomotorProfiles(self: GL,
       if (!locomotor) {
         continue;
       }
+      const f = locomotor.fields;
+      sourceLocomotorTemplateProfiles.push({
+        templateName: locomotor.name || locomotorName,
+        surfaceMask: locomotor.surfaceMask,
+        closeEnoughDist: readNumericField(f, ['CloseEnoughDist']) ?? 1.0,
+        closeEnoughDist3D: readBooleanField(f, ['CloseEnoughDist3D']) ?? false,
+        preferredHeight: readNumericField(f, ['PreferredHeight']) ?? 0,
+        preferredHeightDamping: readNumericField(f, ['PreferredHeightDamping']) ?? 1,
+        wanderLengthFactor: readNumericField(f, ['WanderLengthFactor']) ?? 1.0,
+      });
       surfaceMask |= locomotor.surfaceMask;
       downhillOnly = downhillOnly || locomotor.downhillOnly;
       if ((locomotor.speed ?? 0) > movementSpeed) {
@@ -329,6 +438,9 @@ export function resolveLocomotorProfiles(self: GL,
     profiles.set(setName, {
       surfaceMask,
       downhillOnly,
+      sourceLocomotorTemplateProfiles,
+      sourceLocomotorSnapshots: [],
+      sourceCurrentLocomotorTemplateName: '',
       movementSpeed,
       minSpeed,
       acceleration,

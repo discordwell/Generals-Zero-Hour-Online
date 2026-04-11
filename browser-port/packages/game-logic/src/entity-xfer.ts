@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 47;
+const ENTITY_XFER_VERSION = 48;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1624,6 +1624,13 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.isIndestructible = xfer.xferBool(e.isIndestructible as boolean);
   e.receivingDifficultyBonus = xfer.xferBool(e.receivingDifficultyBonus as boolean);
   e.scriptAiRecruitable = xfer.xferBool(e.scriptAiRecruitable as boolean);
+  if (version >= 48) {
+    e.sourceAIIdleInitialSleepOffset = xfer.xferUnsignedShort(
+      (e.sourceAIIdleInitialSleepOffset as number | undefined) ?? 0,
+    );
+  } else {
+    e.sourceAIIdleInitialSleepOffset = 0;
+  }
   e.scriptAttackPrioritySetName = xfer.xferAsciiString(e.scriptAttackPrioritySetName as string);
   e.scriptAttitude = xfer.xferInt(e.scriptAttitude as number);
   e.keepObjectOnDeath = xfer.xferBool(e.keepObjectOnDeath as boolean);
