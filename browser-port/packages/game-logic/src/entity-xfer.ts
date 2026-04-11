@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 51;
+const ENTITY_XFER_VERSION = 52;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1621,6 +1621,24 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     const defaultSelectable = kindOf.has('SELECTABLE') || kindOf.has('ALWAYS_SELECTABLE');
     if (version >= 51) {
       e.isSelectable = xfer.xferBool((e.isSelectable as boolean | undefined) ?? defaultSelectable);
+      if (version >= 52) {
+        e.sourceObjectPartitionLastLook = xferSourceSightingInfoState(
+          xfer,
+          e.sourceObjectPartitionLastLook as SourceSightingInfoSaveState | null | undefined,
+        );
+        e.sourceObjectPartitionRevealAllLastLook = xferSourceSightingInfoState(
+          xfer,
+          e.sourceObjectPartitionRevealAllLastLook as SourceSightingInfoSaveState | null | undefined,
+        );
+        e.sourceObjectPartitionLastShroud = xferSourceSightingInfoState(
+          xfer,
+          e.sourceObjectPartitionLastShroud as SourceSightingInfoSaveState | null | undefined,
+        );
+      } else {
+        e.sourceObjectPartitionLastLook = createEmptySourceSightingInfoSaveState();
+        e.sourceObjectPartitionRevealAllLastLook = createEmptySourceSightingInfoSaveState();
+        e.sourceObjectPartitionLastShroud = createEmptySourceSightingInfoSaveState();
+      }
       e.sourceObjectVisionSpiedBy = xfer.xferIntList(
         (e.sourceObjectVisionSpiedBy as number[] | undefined) ?? [],
       );
@@ -1654,6 +1672,9 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
         : null;
     } else {
       e.isSelectable = (e.isSelectable as boolean | undefined) ?? defaultSelectable;
+      e.sourceObjectPartitionLastLook = createEmptySourceSightingInfoSaveState();
+      e.sourceObjectPartitionRevealAllLastLook = createEmptySourceSightingInfoSaveState();
+      e.sourceObjectPartitionLastShroud = createEmptySourceSightingInfoSaveState();
       e.sourceObjectVisionSpiedBy = [];
       e.sourceObjectVisionSpiedMask = 0;
       e.sourceObjectSingleUseCommandUsed = false;

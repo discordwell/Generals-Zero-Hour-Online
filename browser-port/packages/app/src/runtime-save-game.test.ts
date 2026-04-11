@@ -14003,6 +14003,27 @@ describe('runtime-save-game', () => {
             sourceTeamNameUpper: 'TEAMSTATUS',
             visionRange: 250,
             shroudClearingRange: 225,
+            sourceObjectPartitionLastLook: {
+              version: 1,
+              where: { x: 10, y: 20, z: 0 },
+              howFar: 225,
+              forWhomMask: 0x0003,
+              data: 31,
+            },
+            sourceObjectPartitionRevealAllLastLook: {
+              version: 1,
+              where: { x: 11, y: 21, z: 0 },
+              howFar: 45,
+              forWhomMask: 0x000c,
+              data: 32,
+            },
+            sourceObjectPartitionLastShroud: {
+              version: 1,
+              where: { x: 12, y: 22, z: 0 },
+              howFar: 15,
+              forWhomMask: 0x0010,
+              data: 33,
+            },
             sourceObjectVisionSpiedBy: Array.from({ length: 16 }, (_entry, index) => index + 20),
             sourceObjectVisionSpiedMask: 0x000b,
             sourceObjectSingleUseCommandUsed: true,
@@ -14104,6 +14125,27 @@ describe('runtime-save-game', () => {
     expect(firstObject?.disabledTillFrame[11]).toBe(0x3fffffff);
     expect(firstObject?.builderId).toBe(17);
     expect(firstObject?.shroudClearingRange).toBe(225);
+    expect(firstObject?.partitionLastLook).toEqual({
+      version: 1,
+      where: { x: 10, y: 20, z: 0 },
+      howFar: 225,
+      forWhomMask: 0x0003,
+      data: 31,
+    });
+    expect(firstObject?.partitionRevealAllLastLook).toEqual({
+      version: 1,
+      where: { x: 11, y: 21, z: 0 },
+      howFar: 45,
+      forWhomMask: 0x000c,
+      data: 32,
+    });
+    expect(firstObject?.partitionLastShroud).toEqual({
+      version: 1,
+      where: { x: 12, y: 22, z: 0 },
+      howFar: 15,
+      forWhomMask: 0x0010,
+      data: 33,
+    });
     expect(firstObject?.visionSpiedBy).toEqual(Array.from({ length: 16 }, (_entry, index) => index + 20));
     expect(firstObject?.visionSpiedMask).toBe(0x000b);
     expect(firstObject?.singleUseCommandUsed).toBe(true);

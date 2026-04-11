@@ -188,6 +188,27 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     blocksPath: true,
     geometryMajorRadius: 15.0,
     obstacleGeometry: null,
+    sourceObjectPartitionLastLook: {
+      version: 1,
+      where: { x: 90, y: 91, z: 4 },
+      howFar: 150,
+      forWhomMask: 0x0003,
+      data: 11,
+    },
+    sourceObjectPartitionRevealAllLastLook: {
+      version: 1,
+      where: { x: 92, y: 93, z: 5 },
+      howFar: 35,
+      forWhomMask: 0x000c,
+      data: 12,
+    },
+    sourceObjectPartitionLastShroud: {
+      version: 1,
+      where: { x: 94, y: 95, z: 6 },
+      howFar: 20,
+      forWhomMask: 0x0010,
+      data: 13,
+    },
     sourceObjectVisionSpiedBy: Array.from({ length: 16 }, (_, index) => index),
     sourceObjectVisionSpiedMask: 0x0005,
     sourceObjectSingleUseCommandUsed: true,
@@ -740,6 +761,27 @@ describe('entity-xfer', () => {
     expect(loaded.side).toBe('USA');
     expect(loaded.controllingPlayerToken).toBe('player1');
     expect(loaded.isSelectable).toBe(true);
+    expect(loaded.sourceObjectPartitionLastLook).toEqual({
+      version: 1,
+      where: { x: 90, y: 91, z: 4 },
+      howFar: 150,
+      forWhomMask: 0x0003,
+      data: 11,
+    });
+    expect(loaded.sourceObjectPartitionRevealAllLastLook).toEqual({
+      version: 1,
+      where: { x: 92, y: 93, z: 5 },
+      howFar: 35,
+      forWhomMask: 0x000c,
+      data: 12,
+    });
+    expect(loaded.sourceObjectPartitionLastShroud).toEqual({
+      version: 1,
+      where: { x: 94, y: 95, z: 6 },
+      howFar: 20,
+      forWhomMask: 0x0010,
+      data: 13,
+    });
     expect(loaded.sourceObjectVisionSpiedBy).toEqual(Array.from({ length: 16 }, (_, index) => index));
     expect(loaded.sourceObjectVisionSpiedMask).toBe(0x0005);
     expect(loaded.sourceObjectSingleUseCommandUsed).toBe(true);

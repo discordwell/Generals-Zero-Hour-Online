@@ -49,6 +49,16 @@ type GL = any;
 
 // ---- Entity factory implementations ----
 
+function createDefaultSourceSightingInfoSaveState() {
+  return {
+    version: 1,
+    where: { x: 0, y: 0, z: 0 },
+    howFar: 0,
+    forWhomMask: 0,
+    data: 0,
+  };
+}
+
 function hasAIUpdateInterfaceModule(objectDef: ObjectDef | undefined): boolean {
   if (!objectDef) {
     return false;
@@ -472,6 +482,9 @@ export function createMapEntity(self: GL,
     geometryInfo,
     sourceGeometryType,
     sourceGeometryIsSmall,
+    sourceObjectPartitionLastLook: createDefaultSourceSightingInfoSaveState(),
+    sourceObjectPartitionRevealAllLastLook: createDefaultSourceSightingInfoSaveState(),
+    sourceObjectPartitionLastShroud: createDefaultSourceSightingInfoSaveState(),
     sourceObjectVisionSpiedBy: Array.from({ length: 16 }, () => 0),
     sourceObjectVisionSpiedMask: 0,
     sourceObjectSingleUseCommandUsed: false,

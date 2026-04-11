@@ -4122,6 +4122,25 @@ function sourceObjectIPosFromLiveEntity(
   };
 }
 
+function sourceObjectSightingInfoFromLiveValue(
+  value: unknown,
+  fallback: SourceMapEntitySaveState['partitionLastLook'],
+): SourceMapEntitySaveState['partitionLastLook'] {
+  const live = value as Partial<SourceMapEntitySaveState['partitionLastLook']> | null | undefined;
+  const where = live?.where;
+  return {
+    version: sourceIntFromLiveValue(live?.version, fallback.version),
+    where: {
+      x: sourcePhysicsFinite(where?.x, fallback.where.x),
+      y: sourcePhysicsFinite(where?.y, fallback.where.y),
+      z: sourcePhysicsFinite(where?.z, fallback.where.z),
+    },
+    howFar: sourcePhysicsFinite(live?.howFar, fallback.howFar),
+    forWhomMask: sourceUnsignedIntFromLiveValue(live?.forWhomMask, fallback.forWhomMask) & 0xffff,
+    data: sourceUnsignedIntFromLiveValue(live?.data, fallback.data),
+  };
+}
+
 function sourceObjectFormationOffsetFromLiveEntity(
   entity: MapEntity,
   fallback: SourceMapEntitySaveState['formationOffset'],
@@ -19154,6 +19173,20 @@ function overlaySourceObjectStateFromLiveEntity(
       ? entity.shroudClearingRange
       : sourceState.shroudClearingRange,
     shroudRange: Number.isFinite(entity.shroudRange) ? entity.shroudRange : sourceState.shroudRange,
+    partitionLastLook: sourceObjectSightingInfoFromLiveValue(
+      entity.sourceObjectPartitionLastLook,
+      sourceState.partitionLastLook,
+    ),
+    partitionRevealAllLastLook: sourceState.partitionRevealAllLastLook
+      ? sourceObjectSightingInfoFromLiveValue(
+        entity.sourceObjectPartitionRevealAllLastLook,
+        sourceState.partitionRevealAllLastLook,
+      )
+      : null,
+    partitionLastShroud: sourceObjectSightingInfoFromLiveValue(
+      entity.sourceObjectPartitionLastShroud,
+      sourceState.partitionLastShroud,
+    ),
     visionSpiedBy: sourceObjectVisionSpiedByFromLiveEntity(entity, sourceState.visionSpiedBy),
     visionSpiedMask: sourceUnsignedIntFromLiveValue(
       entity.sourceObjectVisionSpiedMask,

@@ -3828,6 +3828,12 @@ export interface MapEntity {
   sourceGeometryType?: 'SPHERE' | 'CYLINDER' | 'BOX';
   /** Source parity: GeometryInfo::m_isSmall, retained separately from TS pathfinding heuristics. */
   sourceGeometryIsSmall?: boolean;
+  /** Source parity: Object::m_partitionLastLook SightingInfo, saved for shroud undo. */
+  sourceObjectPartitionLastLook: SourceMapEntitySaveState['partitionLastLook'];
+  /** Source parity: Object::m_partitionRevealAllLastLook SightingInfo, saved for shroud undo. */
+  sourceObjectPartitionRevealAllLastLook: SourceMapEntitySaveState['partitionLastLook'];
+  /** Source parity: Object::m_partitionLastShroud SightingInfo, saved for shroud-cover undo. */
+  sourceObjectPartitionLastShroud: SourceMapEntitySaveState['partitionLastLook'];
   /** Source parity: Object::m_visionSpiedBy, preserved for source Object::xfer emission. */
   sourceObjectVisionSpiedBy: number[];
   /** Source parity: Object::m_visionSpiedMask, preserved for source Object::xfer emission. */
@@ -14094,6 +14100,22 @@ export class GameLogicSubsystem implements Subsystem {
     };
   }
 
+  private cloneSourceSightingInfoState(
+    state: SourceMapEntitySaveState['partitionLastLook'] | null | undefined,
+  ): SourceMapEntitySaveState['partitionLastLook'] {
+    return {
+      version: Number.isFinite(state?.version) ? Math.trunc(state!.version) : 1,
+      where: {
+        x: Number.isFinite(state?.where?.x) ? state!.where.x : 0,
+        y: Number.isFinite(state?.where?.y) ? state!.where.y : 0,
+        z: Number.isFinite(state?.where?.z) ? state!.where.z : 0,
+      },
+      howFar: Number.isFinite(state?.howFar) ? state!.howFar : 0,
+      forWhomMask: Number.isFinite(state?.forWhomMask) ? Math.max(0, Math.trunc(state!.forWhomMask)) : 0,
+      data: Number.isFinite(state?.data) ? Math.max(0, Math.trunc(state!.data)) : 0,
+    };
+  }
+
   private clearEntitiesForSourceGameLogicImport(): void {
     this.spawnedEntities.clear();
     this.scriptExistedEntityIds.clear();
@@ -23683,6 +23705,11 @@ export class GameLogicSubsystem implements Subsystem {
     entity.scriptName = sourceState.internalName.trim() || null;
     entity.producerEntityId = Math.max(0, Math.trunc(sourceState.producerId));
     entity.builderId = Math.max(0, Math.trunc(sourceState.builderId));
+    entity.sourceObjectPartitionLastLook = this.cloneSourceSightingInfoState(sourceState.partitionLastLook);
+    entity.sourceObjectPartitionRevealAllLastLook = this.cloneSourceSightingInfoState(
+      sourceState.partitionRevealAllLastLook,
+    );
+    entity.sourceObjectPartitionLastShroud = this.cloneSourceSightingInfoState(sourceState.partitionLastShroud);
     entity.sourceObjectVisionSpiedBy = Array.isArray(sourceState.visionSpiedBy)
       ? sourceState.visionSpiedBy.map((value) => Math.trunc(Number.isFinite(value) ? value : 0))
       : [];

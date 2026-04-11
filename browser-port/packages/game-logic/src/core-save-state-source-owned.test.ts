@@ -4550,6 +4550,27 @@ describe('source-owned game-logic core save-state', () => {
     sourceState.scriptStatus = 0x04 | 0x10;
     sourceState.disabledMask = ['DISABLED_EMP'];
     sourceState.disabledTillFrame = disabledTillFrame;
+    sourceState.partitionLastLook = {
+      version: 1,
+      where: { x: 24, y: 28, z: 3 },
+      howFar: 120,
+      forWhomMask: 0x0003,
+      data: 10,
+    };
+    sourceState.partitionRevealAllLastLook = {
+      version: 1,
+      where: { x: 25, y: 29, z: 4 },
+      howFar: 40,
+      forWhomMask: 0x000c,
+      data: 11,
+    };
+    sourceState.partitionLastShroud = {
+      version: 1,
+      where: { x: 26, y: 30, z: 5 },
+      howFar: 35,
+      forWhomMask: 0x0010,
+      data: 12,
+    };
     sourceState.visionSpiedBy = Array.from({ length: 16 }, (_, index) => index + 10);
     sourceState.visionSpiedMask = 0x0007;
     sourceState.singleUseCommandUsed = true;
@@ -4603,6 +4624,9 @@ describe('source-owned game-logic core save-state', () => {
         rotationY: number;
         objectStatusFlags: Set<string>;
         isSelectable: boolean;
+        sourceObjectPartitionLastLook: unknown;
+        sourceObjectPartitionRevealAllLastLook: unknown;
+        sourceObjectPartitionLastShroud: unknown;
         sourceObjectVisionSpiedBy: number[];
         sourceObjectVisionSpiedMask: number;
         sourceObjectSingleUseCommandUsed: boolean;
@@ -4648,6 +4672,27 @@ describe('source-owned game-logic core save-state', () => {
     expect(entity.objectStatusFlags.has('SCRIPT_UNSELLABLE')).toBe(true);
     expect(entity.objectStatusFlags.has('SCRIPT_TARGETABLE')).toBe(true);
     expect(entity.isSelectable).toBe(false);
+    expect(entity.sourceObjectPartitionLastLook).toEqual({
+      version: 1,
+      where: { x: 24, y: 28, z: 3 },
+      howFar: 120,
+      forWhomMask: 0x0003,
+      data: 10,
+    });
+    expect(entity.sourceObjectPartitionRevealAllLastLook).toEqual({
+      version: 1,
+      where: { x: 25, y: 29, z: 4 },
+      howFar: 40,
+      forWhomMask: 0x000c,
+      data: 11,
+    });
+    expect(entity.sourceObjectPartitionLastShroud).toEqual({
+      version: 1,
+      where: { x: 26, y: 30, z: 5 },
+      howFar: 35,
+      forWhomMask: 0x0010,
+      data: 12,
+    });
     expect(entity.sourceObjectVisionSpiedBy).toEqual(Array.from({ length: 16 }, (_, index) => index + 10));
     expect(entity.sourceObjectVisionSpiedMask).toBe(0x0007);
     expect(entity.sourceObjectSingleUseCommandUsed).toBe(true);
