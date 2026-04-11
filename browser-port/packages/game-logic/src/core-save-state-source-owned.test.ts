@@ -208,6 +208,13 @@ function makeSourceOwnedCoreBundle() {
           ClearRangeRequiredToContinueAttackMove: 50,
         }),
       ]),
+      makeObjectDef('SupplyTruckObject', 'China', ['VEHICLE'], [
+        makeBlock('Behavior', 'SupplyTruckAIUpdate ModuleTag_SupplyTruckAI', {
+          MaxBoxes: 5,
+          SupplyCenterActionDelay: 1000,
+          SupplyWarehouseActionDelay: 1000,
+        }),
+      ]),
       makeObjectDef('DefaultExitStructure', 'America', ['STRUCTURE'], [
         makeBlock('Behavior', 'DefaultProductionExitUpdate ModuleTag_DefaultExit', {
           UnitCreatePoint: 'X:0 Y:0 Z:0',
@@ -1631,6 +1638,25 @@ function buildSourceAssaultTransportAIUpdateModuleData(options: {
     saver.xferUnsignedInt(options.framesRemaining);
     saver.xferBool(options.isAttackMove);
     saver.xferBool(options.isAttackObject);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSupplyTruckAIUpdateModuleData(options: {
+  preferredDockId: number;
+  numberBoxes: number;
+  forcePending: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-supply-truck-ai-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(new Uint8Array([4, 0xaa, 0xbb, 0xcc]));
+    saver.xferObjectID(options.preferredDockId);
+    saver.xferInt(options.numberBoxes);
+    saver.xferBool(options.forcePending);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -4543,6 +4569,51 @@ describe('source-owned game-logic core save-state', () => {
     expect(privateLogic.assaultTransportStateByEntityId.get(122)).toBe(
       privateLogic.spawnedEntities.get(122)!.assaultTransportState,
     );
+  });
+
+  it('imports source SupplyTruckAIUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const supplyTruckState = createEmptySourceMapEntitySaveState();
+    supplyTruckState.objectId = 123;
+    supplyTruckState.position = { x: 158, y: 0, z: 60 };
+    supplyTruckState.modules = [{
+      identifier: 'ModuleTag_SupplyTruckAI',
+      blockData: buildSourceSupplyTruckAIUpdateModuleData({
+        preferredDockId: 301,
+        numberBoxes: 4,
+        forcePending: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'SupplyTruckObject', state: supplyTruckState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      supplyTruckStates: Map<number, unknown>;
+    };
+
+    expect(privateLogic.supplyTruckStates.get(123)).toEqual({
+      aiState: 0,
+      currentBoxes: 4,
+      targetWarehouseId: null,
+      targetDepotId: null,
+      actionDelayFinishFrame: 0,
+      preferredDockId: 301,
+      forceBusy: true,
+    });
   });
 
   it('imports source PointDefenseLaserUpdate runtime state', () => {

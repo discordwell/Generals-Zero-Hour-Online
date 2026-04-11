@@ -1822,6 +1822,36 @@ function parseSourceAssaultTransportAIUpdateBlockData(data: Uint8Array) {
   throw new Error('Unable to parse assault transport AI test block.');
 }
 
+function createSourceSupplyTruckAIUpdateBlockData(options: {
+  preferredDockId: number;
+  numberBoxes: number;
+  forcePending: boolean;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-supply-truck-ai-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(new Uint8Array([4, 0xaa, 0xbb, 0xcc]));
+    xferSave.xferObjectID(options.preferredDockId);
+    xferSave.xferInt(options.numberBoxes);
+    xferSave.xferBool(options.forcePending);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceSupplyTruckAIUpdateBlockData(data: Uint8Array) {
+  const tailOffset = data.byteLength - 9;
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  return {
+    prefix: [...data.subarray(0, tailOffset)],
+    preferredDockId: view.getUint32(tailOffset, true),
+    numberBoxes: view.getInt32(tailOffset + 4, true),
+    forcePending: view.getUint8(tailOffset + 8) !== 0,
+  };
+}
+
 function createSourceProductionExitRallyBlockData(
   nextCallFrameAndPhase: number,
   rallyPoint: Coord3D,
@@ -11514,6 +11544,124 @@ describe('runtime-save-game', () => {
     expect(parsed.framesRemaining).toBe(45);
     expect(parsed.isAttackMove).toBe(true);
     expect(parsed.isAttackObject).toBe(false);
+  });
+
+  it('rewrites source SupplyTruckAIUpdate tail while preserving AIUpdateInterface and state-machine bytes', () => {
+    const sourceSupplyTruckBlock = createSourceSupplyTruckAIUpdateBlockData({
+      preferredDockId: 5,
+      numberBoxes: 1,
+      forcePending: false,
+    });
+    const preservedPrefix = parseSourceSupplyTruckAIUpdateBlockData(sourceSupplyTruckBlock).prefix;
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_SupplyTruckAI',
+      blockData: sourceSupplyTruckBlock,
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source supply truck ai update rewrite',
+      mapPath: 'Maps/RuntimeSupplyTruck/RuntimeSupplyTruck.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeSupplyTruck',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          supplyTruckStates: [{
+            entityId: 7,
+            state: {
+              aiState: 3,
+              currentBoxes: 4,
+              targetWarehouseId: null,
+              targetDepotId: null,
+              actionDelayFinishFrame: 0,
+              preferredDockId: 51,
+              forceBusy: true,
+            },
+          }],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            supplyTruckProfile: {
+              maxBoxes: 5,
+              supplyCenterActionDelayFrames: 30,
+              supplyWarehouseActionDelayFrames: 30,
+              supplyWarehouseScanDistance: 200,
+              upgradedSupplyBoost: 0,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_SupplyTruckAI') {
+            return 'SUPPLYTRUCKAIUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const supplyTruckModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_SupplyTruckAI');
+
+    expect(supplyTruckModule).toBeDefined();
+    const parsed = parseSourceSupplyTruckAIUpdateBlockData(supplyTruckModule!.blockData);
+    expect(parsed.prefix).toEqual(preservedPrefix);
+    expect(parsed.preferredDockId).toBe(51);
+    expect(parsed.numberBoxes).toBe(4);
+    expect(parsed.forcePending).toBe(true);
   });
 
   it('rewrites source production exit update modules from live rally and queue state', () => {

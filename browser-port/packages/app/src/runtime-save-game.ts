@@ -5877,6 +5877,14 @@ interface SourceAssaultTransportAIUpdateBlockState {
   isAttackObject: boolean;
 }
 
+interface SourceSupplyTruckAIUpdateBlockState {
+  blockData: Uint8Array;
+  tailOffset: number;
+  preferredDockId: number;
+  numberBoxes: number;
+  forcePending: boolean;
+}
+
 interface SourceProductionExitRallyState {
   nextCallFrameAndPhase: number;
   rallyPoint: Coord3D;
@@ -6347,6 +6355,63 @@ function buildSourceAssaultTransportAIUpdateBlockData(
   );
   view.setUint8(cursor + 24, state?.isAttackMove === true ? 1 : 0);
   view.setUint8(cursor + 25, state?.isAttackObject === true ? 1 : 0);
+  return blockData;
+}
+
+function tryParseSourceSupplyTruckAIUpdateBlockData(
+  data: Uint8Array,
+): SourceSupplyTruckAIUpdateBlockState | null {
+  if (data.byteLength < 10 || data[0] !== 1) {
+    return null;
+  }
+  const blockData = new Uint8Array(data);
+  const tailOffset = blockData.byteLength - 9;
+  if (tailOffset < 2) {
+    return null;
+  }
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  const forcePendingByte = view.getUint8(blockData.byteLength - 1);
+  if (forcePendingByte !== 0 && forcePendingByte !== 1) {
+    return null;
+  }
+  return {
+    blockData,
+    tailOffset,
+    preferredDockId: view.getUint32(tailOffset, true),
+    numberBoxes: view.getInt32(tailOffset + 4, true),
+    forcePending: forcePendingByte !== 0,
+  };
+}
+
+function findLiveSupplyTruckState(
+  coreState: GameLogicCoreSaveState | null | undefined,
+  entityId: number,
+) {
+  return coreState?.supplyTruckStates?.find((candidate) => candidate.entityId === entityId)?.state ?? null;
+}
+
+function buildSourceSupplyTruckAIUpdateBlockData(
+  entity: MapEntity,
+  preservedState: SourceSupplyTruckAIUpdateBlockState,
+  coreState?: GameLogicCoreSaveState | null,
+): Uint8Array {
+  const liveState = findLiveSupplyTruckState(coreState, entity.id);
+  const blockData = new Uint8Array(preservedState.blockData);
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  view.setUint32(
+    preservedState.tailOffset,
+    normalizeSourceObjectId(liveState?.preferredDockId ?? preservedState.preferredDockId),
+    true,
+  );
+  view.setInt32(
+    preservedState.tailOffset + 4,
+    sourceFiniteInt(liveState?.currentBoxes, preservedState.numberBoxes),
+    true,
+  );
+  view.setUint8(
+    preservedState.tailOffset + 8,
+    (typeof liveState?.forceBusy === 'boolean' ? liveState.forceBusy : preservedState.forcePending) ? 1 : 0,
+  );
   return blockData;
 }
 
@@ -11118,6 +11183,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceAssaultTransportAIUpdateBlockData(entity, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'SUPPLYTRUCKAIUPDATE' && entity.supplyTruckProfile) {
+            const parsedSourceState = tryParseSourceSupplyTruckAIUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceSupplyTruckAIUpdateBlockData(entity, parsedSourceState, coreState),
               };
             }
           }

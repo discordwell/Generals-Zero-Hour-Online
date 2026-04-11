@@ -8941,6 +8941,12 @@ interface SourceAssaultTransportAIUpdateImportState {
   isAttackObject: boolean;
 }
 
+interface SourceSupplyTruckAIUpdateImportState {
+  preferredDockId: number;
+  numberBoxes: number;
+  forcePending: boolean;
+}
+
 interface SourceProductionExitRallyImportState {
   nextCallFrame: number;
   rallyPoint: { x: number; y: number; z: number };
@@ -15646,6 +15652,69 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceSupplyTruckAIUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceSupplyTruckAIUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'SUPPLYTRUCKAIUPDATE') {
+      return null;
+    }
+    if (data.byteLength < 10 || data[0] !== 1) {
+      return null;
+    }
+    const tailOffset = data.byteLength - 9;
+    if (tailOffset < 2) {
+      return null;
+    }
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    const forcePendingByte = view.getUint8(data.byteLength - 1);
+    if (forcePendingByte !== 0 && forcePendingByte !== 1) {
+      return null;
+    }
+    return {
+      preferredDockId: view.getUint32(tailOffset, true),
+      numberBoxes: view.getInt32(tailOffset + 4, true),
+      forcePending: forcePendingByte !== 0,
+    };
+  }
+
+  private applySourceSupplyTruckAIUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.supplyTruckProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const supplyTruckState = this.tryParseSourceSupplyTruckAIUpdateImportState(module.blockData, moduleType);
+      if (!supplyTruckState) {
+        continue;
+      }
+      this.supplyTruckStates.set(entity.id, {
+        aiState: SupplyTruckAIState.IDLE,
+        currentBoxes: Number.isFinite(supplyTruckState.numberBoxes)
+          ? Math.trunc(supplyTruckState.numberBoxes)
+          : 0,
+        targetWarehouseId: null,
+        targetDepotId: null,
+        actionDelayFinishFrame: 0,
+        preferredDockId: supplyTruckState.preferredDockId > 0
+          ? Math.trunc(supplyTruckState.preferredDockId)
+          : null,
+        forceBusy: supplyTruckState.forcePending,
+      });
+      return;
+    }
+  }
+
   private tryParseSourceProductionExitRallyImportState(
     data: Uint8Array,
     moduleType: string,
@@ -19525,6 +19594,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceCommandButtonHuntUpdateModulesToEntity(entity, sourceState);
     this.applySourceDeployStyleAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceAssaultTransportAIUpdateModulesToEntity(entity, sourceState);
+    this.applySourceSupplyTruckAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);
     this.applySourcePointDefenseLaserUpdateModulesToEntity(entity, sourceState);
