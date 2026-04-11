@@ -5048,8 +5048,16 @@ interface GenerateMinefieldProfile {
  * Reaction weapons fire once per damage event; continuous weapons fire every frame.
  */
 interface FireWhenDamagedProfile {
+  moduleTag: string | null;
   reactionWeapons: [string | null, string | null, string | null, string | null];
   continuousWeapons: [string | null, string | null, string | null, string | null];
+  startsActive: boolean;
+  upgradeExecuted: boolean;
+  triggeredBy: string[];
+  conflictsWith: string[];
+  requiresAllTriggers: boolean;
+  removesUpgrades: string[];
+  damageTypes: Set<string>;
   damageAmount: number;
   // Source parity: per-weapon cooldown — each Weapon instance tracks m_whenWeCanFireAgain.
   reactionNextFireFrame: [number, number, number, number];
@@ -9403,6 +9411,28 @@ interface SourceFireWeaponCollideImportState {
   weaponPresent: boolean;
   weapon: SourceWeaponSnapshotImportState;
   everFired: boolean;
+}
+
+interface SourceFireWhenDamagedWeaponImportState {
+  weaponPresent: boolean;
+  weapon: SourceWeaponSnapshotImportState;
+}
+
+interface SourceFireWhenDamagedImportState {
+  nextCallFrame: number;
+  upgradeExecuted: boolean;
+  reactionWeapons: [
+    SourceFireWhenDamagedWeaponImportState,
+    SourceFireWhenDamagedWeaponImportState,
+    SourceFireWhenDamagedWeaponImportState,
+    SourceFireWhenDamagedWeaponImportState,
+  ];
+  continuousWeapons: [
+    SourceFireWhenDamagedWeaponImportState,
+    SourceFireWhenDamagedWeaponImportState,
+    SourceFireWhenDamagedWeaponImportState,
+    SourceFireWhenDamagedWeaponImportState,
+  ];
 }
 
 interface SourceFlammableUpdateImportState {
@@ -19248,6 +19278,117 @@ export class GameLogicSubsystem implements Subsystem {
     return { templateName, whenWeCanFireAgain };
   }
 
+  private parseSourceFireWhenDamagedWeaponImportState(
+    xfer: XferLoad,
+  ): SourceFireWhenDamagedWeaponImportState {
+    const weaponPresent = xfer.xferBool(false);
+    return {
+      weaponPresent,
+      weapon: weaponPresent
+        ? this.parseSourceWeaponSnapshotImportState(xfer)
+        : { templateName: '', whenWeCanFireAgain: 0 },
+    };
+  }
+
+  private tryParseSourceFireWhenDamagedImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceFireWhenDamagedImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'FIREWEAPONWHENDAMAGEDBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-fire-weapon-when-damaged-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const upgradeMuxVersion = xfer.xferVersion(1);
+      if (upgradeMuxVersion !== 1) {
+        return null;
+      }
+      const upgradeExecuted = xfer.xferBool(false);
+      const reactionWeapons = [
+        this.parseSourceFireWhenDamagedWeaponImportState(xfer),
+        this.parseSourceFireWhenDamagedWeaponImportState(xfer),
+        this.parseSourceFireWhenDamagedWeaponImportState(xfer),
+        this.parseSourceFireWhenDamagedWeaponImportState(xfer),
+      ] as SourceFireWhenDamagedImportState['reactionWeapons'];
+      const continuousWeapons = [
+        this.parseSourceFireWhenDamagedWeaponImportState(xfer),
+        this.parseSourceFireWhenDamagedWeaponImportState(xfer),
+        this.parseSourceFireWhenDamagedWeaponImportState(xfer),
+        this.parseSourceFireWhenDamagedWeaponImportState(xfer),
+      ] as SourceFireWhenDamagedImportState['continuousWeapons'];
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, upgradeExecuted, reactionWeapons, continuousWeapons }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private resolveSourceFireWhenDamagedProfileIndex(
+    entity: MapEntity,
+    moduleTag: string,
+  ): number {
+    const normalizedModuleTag = this.normalizeSourceObjectModuleTag(moduleTag);
+    const tagMatch = entity.fireWhenDamagedProfiles.findIndex(
+      (profile) => this.normalizeSourceObjectModuleTag(profile.moduleTag) === normalizedModuleTag,
+    );
+    if (tagMatch >= 0) {
+      return tagMatch;
+    }
+    return entity.fireWhenDamagedProfiles.length === 1 ? 0 : -1;
+  }
+
+  private applySourceFireWhenDamagedModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (entity.fireWhenDamagedProfiles.length === 0) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const fireWhenDamagedState = this.tryParseSourceFireWhenDamagedImportState(module.blockData, moduleType);
+      if (!fireWhenDamagedState) {
+        continue;
+      }
+      const profileIndex = this.resolveSourceFireWhenDamagedProfileIndex(entity, module.identifier);
+      if (profileIndex < 0) {
+        continue;
+      }
+      const profile = entity.fireWhenDamagedProfiles[profileIndex]!;
+      profile.upgradeExecuted = fireWhenDamagedState.upgradeExecuted;
+      for (let index = 0; index < 4; index += 1) {
+        const reactionWeapon = fireWhenDamagedState.reactionWeapons[index]!;
+        if (reactionWeapon.weaponPresent) {
+          profile.reactionNextFireFrame[index] = Math.max(0, Math.trunc(reactionWeapon.weapon.whenWeCanFireAgain));
+        }
+        const continuousWeapon = fireWhenDamagedState.continuousWeapons[index]!;
+        if (continuousWeapon.weaponPresent) {
+          profile.continuousNextFireFrame[index] = Math.max(0, Math.trunc(continuousWeapon.weapon.whenWeCanFireAgain));
+        }
+      }
+      void fireWhenDamagedState.nextCallFrame;
+    }
+  }
+
   private resolveSourceFireWeaponUpdateProfileIndex(
     entity: MapEntity,
     moduleTag: string,
@@ -20651,6 +20792,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceFireSpreadUpdateModulesToEntity(entity, sourceState);
     this.applySourcePoisonedBehaviorModulesToEntity(entity, sourceState);
     this.applySourceMinefieldBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceFireWhenDamagedModulesToEntity(entity, sourceState);
     this.applySourceFireWeaponUpdateModulesToEntity(entity, sourceState);
     this.applySourceFireWeaponCollideModulesToEntity(entity, sourceState);
     this.applySourceFlammableUpdateModulesToEntity(entity, sourceState);
@@ -30203,7 +30345,8 @@ export class GameLogicSubsystem implements Subsystem {
 
     const appliedUpgradeModules = this.executePendingUpgradeModules(entityId, entity);
     const appliedFireWeaponWhenDeadMuxes = this.executePendingFireWeaponWhenDeadUpgradeMuxes(entity);
-    return appliedUpgradeModules || appliedFireWeaponWhenDeadMuxes;
+    const appliedFireWhenDamagedMuxes = this.executePendingFireWhenDamagedUpgradeMuxes(entity);
+    return appliedUpgradeModules || appliedFireWeaponWhenDeadMuxes || appliedFireWhenDamagedMuxes;
   }
 
   private captureEntity(
@@ -30410,6 +30553,65 @@ export class GameLogicSubsystem implements Subsystem {
       const profile = entity.fireWeaponWhenDeadProfiles[index]!;
       if (states[index] && profile.triggeredBy.includes(removedUpgrade)) {
         states[index] = false;
+      }
+    }
+  }
+
+  private isFireWhenDamagedProfileUpgradeActive(profile: FireWhenDamagedProfile): boolean {
+    if (typeof profile.upgradeExecuted !== 'boolean') {
+      profile.upgradeExecuted = profile.startsActive === true;
+    }
+    return profile.upgradeExecuted;
+  }
+
+  private wouldExecuteFireWhenDamagedMux(
+    profile: FireWhenDamagedProfile,
+    upgradeMask: ReadonlySet<string>,
+  ): boolean {
+    if (this.isFireWhenDamagedProfileUpgradeActive(profile) || profile.triggeredBy.length === 0 || upgradeMask.size === 0) {
+      return false;
+    }
+
+    for (const conflictingUpgrade of profile.conflictsWith) {
+      if (upgradeMask.has(conflictingUpgrade)) {
+        return false;
+      }
+    }
+
+    if (profile.requiresAllTriggers) {
+      return profile.triggeredBy.every((activationUpgrade) => upgradeMask.has(activationUpgrade));
+    }
+    return profile.triggeredBy.some((activationUpgrade) => upgradeMask.has(activationUpgrade));
+  }
+
+  private executePendingFireWhenDamagedUpgradeMuxes(entity: MapEntity): boolean {
+    if (entity.fireWhenDamagedProfiles.length === 0) {
+      return false;
+    }
+
+    let appliedAny = false;
+    const upgradeMask = this.buildEntityUpgradeMask(entity);
+    for (const profile of entity.fireWhenDamagedProfiles) {
+      if (!this.wouldExecuteFireWhenDamagedMux(profile, upgradeMask)) {
+        continue;
+      }
+
+      for (const upgradeName of profile.removesUpgrades) {
+        this.removeEntityUpgrade(entity, upgradeName);
+      }
+      profile.upgradeExecuted = true;
+      appliedAny = true;
+    }
+    return appliedAny;
+  }
+
+  private resetFireWhenDamagedUpgradeMuxesForRemovedUpgrade(
+    entity: MapEntity,
+    removedUpgrade: string,
+  ): void {
+    for (const profile of entity.fireWhenDamagedProfiles) {
+      if (this.isFireWhenDamagedProfileUpgradeActive(profile) && profile.triggeredBy.includes(removedUpgrade)) {
+        profile.upgradeExecuted = false;
       }
     }
   }
@@ -32758,6 +32960,7 @@ export class GameLogicSubsystem implements Subsystem {
     // on all behavior modules; this loop mirrors that behavior by clearing modules whose
     // trigger mask no longer matches the current upgrade mask.
     this.resetFireWeaponWhenDeadUpgradeMuxesForRemovedUpgrade(entity, normalizedUpgrade);
+    this.resetFireWhenDamagedUpgradeMuxesForRemovedUpgrade(entity, normalizedUpgrade);
   }
 
   private entityHasObjectStatus(entity: MapEntity, statusName: string): boolean {
@@ -39738,6 +39941,7 @@ export class GameLogicSubsystem implements Subsystem {
       // Skip side-global modules to avoid reapplying once per entity.
       this.executePendingUpgradeModules(entity.id, entity, true);
       this.executePendingFireWeaponWhenDeadUpgradeMuxes(entity);
+      this.executePendingFireWhenDamagedUpgradeMuxes(entity);
     }
   }
 
@@ -43024,7 +43228,7 @@ export class GameLogicSubsystem implements Subsystem {
 
     // Source parity: FireWeaponWhenDamagedBehavior::onDamage — fire reaction weapons.
     if (target.fireWhenDamagedProfiles.length > 0) {
-      this.fireWhenDamagedReaction(target, adjustedDamage);
+      this.fireWhenDamagedReaction(target, adjustedDamage, normalizedDamageType);
     }
 
     // Source parity: SupplyWarehouseCripplingBehavior::onDamage — reset heal suppression.
@@ -43148,9 +43352,11 @@ export class GameLogicSubsystem implements Subsystem {
 
   // ── SlowDeathBehavior implementation ──────────────────────────────────────
 
-  private fireWhenDamagedReaction(entity: MapEntity, actualDamageDealt: number): void {
+  private fireWhenDamagedReaction(entity: MapEntity, actualDamageDealt: number, damageType: string): void {
     const bodyState = calcBodyDamageState(entity.health, entity.maxHealth);
     for (const profile of entity.fireWhenDamagedProfiles) {
+      if (!this.isFireWhenDamagedProfileUpgradeActive(profile)) continue;
+      if (profile.damageTypes.size > 0 && !profile.damageTypes.has(damageType)) continue;
       if (actualDamageDealt < profile.damageAmount) continue;
       // Source parity: Weapon::getStatus() == READY_TO_FIRE — check per-weapon cooldown.
       if (this.frameCounter < profile.reactionNextFireFrame[bodyState]) continue;
@@ -43170,6 +43376,7 @@ export class GameLogicSubsystem implements Subsystem {
       if (entity.fireWhenDamagedProfiles.length === 0) continue;
       const bodyState = calcBodyDamageState(entity.health, entity.maxHealth);
       for (const profile of entity.fireWhenDamagedProfiles) {
+        if (!this.isFireWhenDamagedProfileUpgradeActive(profile)) continue;
         // Source parity: Weapon::getStatus() == READY_TO_FIRE — check per-weapon cooldown.
         if (this.frameCounter < profile.continuousNextFireFrame[bodyState]) continue;
         const weaponName = profile.continuousWeapons[bodyState];
@@ -43801,6 +44008,7 @@ export class GameLogicSubsystem implements Subsystem {
     const normalizedUpgrade = prof.upgradeName.trim().toUpperCase();
     entity.completedUpgrades.add(normalizedUpgrade);
     this.executePendingFireWeaponWhenDeadUpgradeMuxes(entity);
+    this.executePendingFireWhenDamagedUpgradeMuxes(entity);
 
     // Source parity (ZH): GrantUpgradeCreate.cpp:109 — record for academy stats.
     const side = this.resolveEntityOwnerSide(entity);

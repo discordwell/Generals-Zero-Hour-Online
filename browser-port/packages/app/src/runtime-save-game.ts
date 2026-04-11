@@ -5920,6 +5920,28 @@ interface SourceFireWeaponCollideBlockState {
   everFired: boolean;
 }
 
+interface SourceFireWhenDamagedWeaponBlockState {
+  weaponPresent: boolean;
+  weapon: SourceWeaponSnapshotBlockState;
+}
+
+interface SourceFireWhenDamagedBlockState {
+  nextCallFrameAndPhase: number;
+  upgradeExecuted: boolean;
+  reactionWeapons: [
+    SourceFireWhenDamagedWeaponBlockState,
+    SourceFireWhenDamagedWeaponBlockState,
+    SourceFireWhenDamagedWeaponBlockState,
+    SourceFireWhenDamagedWeaponBlockState,
+  ];
+  continuousWeapons: [
+    SourceFireWhenDamagedWeaponBlockState,
+    SourceFireWhenDamagedWeaponBlockState,
+    SourceFireWhenDamagedWeaponBlockState,
+    SourceFireWhenDamagedWeaponBlockState,
+  ];
+}
+
 interface SourceDeployStyleAIUpdateBlockState {
   blockData: Uint8Array;
   state: number;
@@ -6201,6 +6223,69 @@ function xferSourceWeaponSnapshot(
     pitchLimited,
     leechWeaponRangeActive,
   };
+}
+
+function xferSourceFireWhenDamagedWeapon(
+  xfer: Xfer,
+  state: SourceFireWhenDamagedWeaponBlockState,
+): SourceFireWhenDamagedWeaponBlockState {
+  const weaponPresent = xfer.xferBool(state.weaponPresent);
+  return {
+    weaponPresent,
+    weapon: weaponPresent
+      ? xferSourceWeaponSnapshot(xfer, state.weapon)
+      : state.weapon,
+  };
+}
+
+function createSourceFireWhenDamagedWeaponState(
+  weaponPresent: boolean,
+  weapon: SourceWeaponSnapshotBlockState = createDefaultSourceWeaponSnapshotState(),
+): SourceFireWhenDamagedWeaponBlockState {
+  return { weaponPresent, weapon };
+}
+
+function tryParseSourceFireWhenDamagedBlockData(
+  data: Uint8Array,
+): SourceFireWhenDamagedBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-fire-weapon-when-damaged');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(xferLoad, 0);
+    const upgradeMuxVersion = xferLoad.xferVersion(1);
+    if (upgradeMuxVersion !== 1) {
+      return null;
+    }
+    const upgradeExecuted = xferLoad.xferBool(false);
+    const reactionWeapons = [
+      xferSourceFireWhenDamagedWeapon(xferLoad, createSourceFireWhenDamagedWeaponState(false)),
+      xferSourceFireWhenDamagedWeapon(xferLoad, createSourceFireWhenDamagedWeaponState(false)),
+      xferSourceFireWhenDamagedWeapon(xferLoad, createSourceFireWhenDamagedWeaponState(false)),
+      xferSourceFireWhenDamagedWeapon(xferLoad, createSourceFireWhenDamagedWeaponState(false)),
+    ] as SourceFireWhenDamagedBlockState['reactionWeapons'];
+    const continuousWeapons = [
+      xferSourceFireWhenDamagedWeapon(xferLoad, createSourceFireWhenDamagedWeaponState(false)),
+      xferSourceFireWhenDamagedWeapon(xferLoad, createSourceFireWhenDamagedWeaponState(false)),
+      xferSourceFireWhenDamagedWeapon(xferLoad, createSourceFireWhenDamagedWeaponState(false)),
+      xferSourceFireWhenDamagedWeapon(xferLoad, createSourceFireWhenDamagedWeaponState(false)),
+    ] as SourceFireWhenDamagedBlockState['continuousWeapons'];
+    return xferLoad.getRemaining() === 0
+      ? {
+        nextCallFrameAndPhase,
+        upgradeExecuted,
+        reactionWeapons,
+        continuousWeapons,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
 }
 
 function tryParseSourceFireWeaponUpdateBlockData(
@@ -8229,6 +8314,98 @@ function buildSourceFireWeaponUpdateBlockData(
       whenWeCanFireAgain: liveNextFireFrame,
     });
     saver.xferUnsignedInt(liveNextFireFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function findLiveSourceFireWhenDamagedProfileIndex(
+  entity: MapEntity,
+  moduleTag: string,
+): number {
+  const profiles = entity.fireWhenDamagedProfiles ?? [];
+  if (profiles.length === 0) {
+    return -1;
+  }
+  const normalizedModuleTag = normalizeSourceObjectModuleTag(moduleTag);
+  const tagMatch = profiles.findIndex(
+    (profile) => normalizeSourceObjectModuleTag(profile.moduleTag) === normalizedModuleTag,
+  );
+  if (tagMatch >= 0) {
+    return tagMatch;
+  }
+  return profiles.length === 1 ? 0 : -1;
+}
+
+function buildSourceFireWhenDamagedWeaponState(
+  preservedWeapon: SourceFireWhenDamagedWeaponBlockState,
+  weaponName: string | null,
+  nextFireFrame: number | undefined,
+  currentFrame: number,
+): SourceFireWhenDamagedWeaponBlockState {
+  if (!preservedWeapon.weaponPresent) {
+    return preservedWeapon;
+  }
+  const liveNextFireFrame = sourceFlammableUnsignedFrame(nextFireFrame, preservedWeapon.weapon.whenWeCanFireAgain);
+  return {
+    weaponPresent: true,
+    weapon: {
+      ...preservedWeapon.weapon,
+      version: 3,
+      templateName: weaponName || preservedWeapon.weapon.templateName,
+      status: liveNextFireFrame > currentFrame
+        ? SOURCE_WEAPON_STATUS_BETWEEN_FIRING_SHOTS
+        : SOURCE_WEAPON_STATUS_READY_TO_FIRE,
+      whenWeCanFireAgain: liveNextFireFrame,
+    },
+  };
+}
+
+function buildSourceFireWhenDamagedBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  moduleTag: string,
+  preservedState: SourceFireWhenDamagedBlockState,
+): Uint8Array | null {
+  const profileIndex = findLiveSourceFireWhenDamagedProfileIndex(entity, moduleTag);
+  if (profileIndex < 0) {
+    return null;
+  }
+  const profile = entity.fireWhenDamagedProfiles[profileIndex]!;
+  const upgradeExecuted = typeof profile.upgradeExecuted === 'boolean'
+    ? profile.upgradeExecuted
+    : preservedState.upgradeExecuted;
+  const hasContinuousWeapon = profile.continuousWeapons.some((weaponName) => Boolean(weaponName));
+  const nextCallFrameAndPhase = !upgradeExecuted
+    ? buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER)
+    : (hasContinuousWeapon ? buildSourceUpdateModuleWakeFrame(currentFrame + 1) : preservedState.nextCallFrameAndPhase);
+  const reactionWeapons = preservedState.reactionWeapons.map((weaponState, index) => buildSourceFireWhenDamagedWeaponState(
+    weaponState,
+    profile.reactionWeapons[index] ?? null,
+    profile.reactionNextFireFrame[index],
+    currentFrame,
+  )) as SourceFireWhenDamagedBlockState['reactionWeapons'];
+  const continuousWeapons = preservedState.continuousWeapons.map((weaponState, index) => buildSourceFireWhenDamagedWeaponState(
+    weaponState,
+    profile.continuousWeapons[index] ?? null,
+    profile.continuousNextFireFrame[index],
+    currentFrame,
+  )) as SourceFireWhenDamagedBlockState['continuousWeapons'];
+
+  const saver = new XferSave();
+  saver.open('build-source-fire-weapon-when-damaged');
+  try {
+    saver.xferVersion(1);
+    xferSourceUpdateModuleBase(saver, nextCallFrameAndPhase);
+    saver.xferVersion(1);
+    saver.xferBool(upgradeExecuted);
+    for (const weaponState of reactionWeapons) {
+      xferSourceFireWhenDamagedWeapon(saver, weaponState);
+    }
+    for (const weaponState of continuousWeapons) {
+      xferSourceFireWhenDamagedWeapon(saver, weaponState);
+    }
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -12108,6 +12285,23 @@ function overlaySourceObjectModulesFromLiveEntity(
                 identifier: module.identifier,
                 blockData: buildSourceFireSpreadUpdateBlockData(entity),
               };
+            }
+          }
+          if (moduleType === 'FIREWEAPONWHENDAMAGEDBEHAVIOR' && entity.fireWhenDamagedProfiles.length > 0) {
+            const parsedSourceState = tryParseSourceFireWhenDamagedBlockData(module.blockData);
+            if (parsedSourceState) {
+              const blockData = buildSourceFireWhenDamagedBlockData(
+                entity,
+                currentFrame,
+                module.identifier,
+                parsedSourceState,
+              );
+              if (blockData) {
+                return {
+                  identifier: module.identifier,
+                  blockData,
+                };
+              }
             }
           }
           if (moduleType === 'FIREWEAPONCOLLIDE' && entity.fireWeaponCollideProfiles.length > 0) {

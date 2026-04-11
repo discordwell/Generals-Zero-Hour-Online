@@ -651,6 +651,7 @@ describe('fire weapon when damaged behavior', () => {
         makeObjectDef('ToxicBuilding', 'China', ['STRUCTURE'], [
           makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
           makeBlock('Behavior', 'FireWeaponWhenDamagedBehavior ModuleTag_FWWD', {
+            StartsActive: true,
             ReactionWeaponPristine: 'ToxicSpray',
             ReactionWeaponDamaged: 'ToxicSprayDamaged',
             DamageAmount: 0,

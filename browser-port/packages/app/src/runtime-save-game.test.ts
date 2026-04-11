@@ -1574,6 +1574,28 @@ interface SourceFireWeaponCollideTestState {
   everFired: boolean;
 }
 
+interface SourceFireWhenDamagedWeaponTestState {
+  weaponPresent: boolean;
+  weapon: SourceWeaponSnapshotTestState;
+}
+
+interface SourceFireWhenDamagedTestState {
+  nextCallFrameAndPhase: number;
+  upgradeExecuted: boolean;
+  reactionWeapons: [
+    SourceFireWhenDamagedWeaponTestState,
+    SourceFireWhenDamagedWeaponTestState,
+    SourceFireWhenDamagedWeaponTestState,
+    SourceFireWhenDamagedWeaponTestState,
+  ];
+  continuousWeapons: [
+    SourceFireWhenDamagedWeaponTestState,
+    SourceFireWhenDamagedWeaponTestState,
+    SourceFireWhenDamagedWeaponTestState,
+    SourceFireWhenDamagedWeaponTestState,
+  ];
+}
+
 function createSourceWeaponSnapshotTestState(overrides: Partial<SourceWeaponSnapshotTestState> = {}) {
   return {
     version: 3,
@@ -1685,6 +1707,81 @@ function parseSourceFireWeaponCollideBlockData(data: Uint8Array): SourceFireWeap
       weaponPresent,
       weapon,
       everFired,
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceFireWhenDamagedWeaponTestState(
+  weaponPresent: boolean,
+  weapon: SourceWeaponSnapshotTestState = createSourceWeaponSnapshotTestState(),
+): SourceFireWhenDamagedWeaponTestState {
+  return { weaponPresent, weapon };
+}
+
+function xferSourceFireWhenDamagedWeaponForTest(
+  xfer: Xfer,
+  state: SourceFireWhenDamagedWeaponTestState,
+): SourceFireWhenDamagedWeaponTestState {
+  const weaponPresent = xfer.xferBool(state.weaponPresent);
+  return {
+    weaponPresent,
+    weapon: weaponPresent
+      ? xferSourceWeaponSnapshotForTest(xfer, state.weapon)
+      : state.weapon,
+  };
+}
+
+function createSourceFireWhenDamagedBlockData(state: SourceFireWhenDamagedTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-fire-weapon-when-damaged');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferVersion(1);
+    xferSave.xferBool(state.upgradeExecuted);
+    for (const weaponState of state.reactionWeapons) {
+      xferSourceFireWhenDamagedWeaponForTest(xferSave, weaponState);
+    }
+    for (const weaponState of state.continuousWeapons) {
+      xferSourceFireWhenDamagedWeaponForTest(xferSave, weaponState);
+    }
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceFireWhenDamagedBlockData(data: Uint8Array): SourceFireWhenDamagedTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-fire-weapon-when-damaged');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    xferLoad.xferVersion(1);
+    const upgradeExecuted = xferLoad.xferBool(false);
+    const reactionWeapons = [
+      xferSourceFireWhenDamagedWeaponForTest(xferLoad, createSourceFireWhenDamagedWeaponTestState(false)),
+      xferSourceFireWhenDamagedWeaponForTest(xferLoad, createSourceFireWhenDamagedWeaponTestState(false)),
+      xferSourceFireWhenDamagedWeaponForTest(xferLoad, createSourceFireWhenDamagedWeaponTestState(false)),
+      xferSourceFireWhenDamagedWeaponForTest(xferLoad, createSourceFireWhenDamagedWeaponTestState(false)),
+    ] as SourceFireWhenDamagedTestState['reactionWeapons'];
+    const continuousWeapons = [
+      xferSourceFireWhenDamagedWeaponForTest(xferLoad, createSourceFireWhenDamagedWeaponTestState(false)),
+      xferSourceFireWhenDamagedWeaponForTest(xferLoad, createSourceFireWhenDamagedWeaponTestState(false)),
+      xferSourceFireWhenDamagedWeaponForTest(xferLoad, createSourceFireWhenDamagedWeaponTestState(false)),
+      xferSourceFireWhenDamagedWeaponForTest(xferLoad, createSourceFireWhenDamagedWeaponTestState(false)),
+    ] as SourceFireWhenDamagedTestState['continuousWeapons'];
+    return {
+      nextCallFrameAndPhase,
+      upgradeExecuted,
+      reactionWeapons,
+      continuousWeapons,
     };
   } finally {
     xferLoad.close();
@@ -11892,6 +11989,134 @@ describe('runtime-save-game', () => {
     expect(parsed.weapon.scatterTargetsUnused).toEqual([101, 102]);
     expect(parsed.weapon.pitchLimited).toBe(true);
     expect(parsed.weapon.leechWeaponRangeActive).toBe(true);
+  });
+
+  it('rewrites source FireWeaponWhenDamaged mux and weapon cooldown state from live runtime modules', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_DamagedFire',
+      blockData: createSourceFireWhenDamagedBlockData({
+        nextCallFrameAndPhase: (80 << 2) | 2,
+        upgradeExecuted: false,
+        reactionWeapons: [
+          createSourceFireWhenDamagedWeaponTestState(true, createSourceWeaponSnapshotTestState({
+            templateName: 'OldReactionPristine',
+            ammoInClip: 6,
+            whenWeCanFireAgain: 12,
+          })),
+          createSourceFireWhenDamagedWeaponTestState(false),
+          createSourceFireWhenDamagedWeaponTestState(false),
+          createSourceFireWhenDamagedWeaponTestState(false),
+        ],
+        continuousWeapons: [
+          createSourceFireWhenDamagedWeaponTestState(false),
+          createSourceFireWhenDamagedWeaponTestState(true, createSourceWeaponSnapshotTestState({
+            templateName: 'OldContinuousDamaged',
+            ammoInClip: 2,
+            whenWeCanFireAgain: 18,
+          })),
+          createSourceFireWhenDamagedWeaponTestState(false),
+          createSourceFireWhenDamagedWeaponTestState(false),
+        ],
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source fire when damaged rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            fireWhenDamagedProfiles: [{
+              moduleTag: 'MODULETAG_DAMAGEDFIRE',
+              reactionWeapons: ['RuntimeReactionPristine', null, null, null],
+              continuousWeapons: [null, 'RuntimeContinuousDamaged', null, null],
+              upgradeExecuted: true,
+              reactionNextFireFrame: [75, 0, 0, 0],
+              continuousNextFireFrame: [0, 90, 0, 0],
+            }],
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_DamagedFire') {
+            return 'FIREWEAPONWHENDAMAGEDBEHAVIOR';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const module = firstObject?.modules.find((item) => item.identifier === 'ModuleTag_DamagedFire');
+
+    expect(module).toBeDefined();
+    const parsed = parseSourceFireWhenDamagedBlockData(module!.blockData);
+    expect(parsed.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsed.upgradeExecuted).toBe(true);
+    expect(parsed.reactionWeapons[0].weapon.templateName).toBe('RuntimeReactionPristine');
+    expect(parsed.reactionWeapons[0].weapon.whenWeCanFireAgain).toBe(75);
+    expect(parsed.reactionWeapons[0].weapon.ammoInClip).toBe(6);
+    expect(parsed.continuousWeapons[1].weapon.templateName).toBe('RuntimeContinuousDamaged');
+    expect(parsed.continuousWeapons[1].weapon.whenWeCanFireAgain).toBe(90);
+    expect(parsed.continuousWeapons[1].weapon.ammoInClip).toBe(2);
   });
 
   it('rewrites source FireWeaponCollide and AnimationSteeringUpdate modules from live runtime state', () => {

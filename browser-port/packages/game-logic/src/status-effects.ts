@@ -7,7 +7,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { MAP_XY_FACTOR } from '@generals/terrain';
-import { readNumericField, readStringField } from './ini-readers.js';
+import { readBooleanField, readNumericField, readStringField } from './ini-readers.js';
 import { DEFAULT_POISON_DAMAGE_INTERVAL_FRAMES } from './index.js';
 type GL = any;
 
@@ -70,7 +70,17 @@ export function extractFireWhenDamagedProfiles(self: GL, objectDef: ObjectDef | 
     if (blockType === 'BEHAVIOR') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
       if (moduleType === 'FIREWEAPONWHENDAMAGEDBEHAVIOR') {
+        const moduleTag = block.name.split(/\s+/)[1]?.trim().toUpperCase() ?? null;
+        const startsActive = readBooleanField(block.fields, ['StartsActive']) === true;
+        const damageTypes = new Set<string>();
+        const damageTypesRaw = readStringField(block.fields, ['DamageTypes']);
+        if (damageTypesRaw) {
+          for (const token of damageTypesRaw.trim().split(/\s+/)) {
+            if (token) damageTypes.add(token.toUpperCase());
+          }
+        }
         profiles.push({
+          moduleTag,
           reactionWeapons: [
             readStringField(block.fields, ['ReactionWeaponPristine']),
             readStringField(block.fields, ['ReactionWeaponDamaged']),
@@ -83,6 +93,13 @@ export function extractFireWhenDamagedProfiles(self: GL, objectDef: ObjectDef | 
             readStringField(block.fields, ['ContinuousWeaponReallyDamaged']),
             readStringField(block.fields, ['ContinuousWeaponRubble']),
           ],
+          startsActive,
+          upgradeExecuted: startsActive,
+          triggeredBy: self.parseUpgradeNames(block.fields['TriggeredBy']),
+          conflictsWith: self.parseUpgradeNames(block.fields['ConflictsWith']),
+          requiresAllTriggers: readBooleanField(block.fields, ['RequiresAllTriggers']) === true,
+          removesUpgrades: self.parseUpgradeNames(block.fields['RemovesUpgrades']),
+          damageTypes,
           damageAmount: readNumericField(block.fields, ['DamageAmount']) ?? 0,
           reactionNextFireFrame: [0, 0, 0, 0],
           continuousNextFireFrame: [0, 0, 0, 0],

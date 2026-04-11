@@ -515,6 +515,13 @@ function makeSourceOwnedCoreBundle() {
           TriggeredBy: 'Upgrade_SelfDestruct',
         }),
       ]),
+      makeObjectDef('DamageWeaponTank', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'FireWeaponWhenDamagedBehavior ModuleTag_FWWDmg', {
+          StartsActive: true,
+          ReactionWeaponPristine: 'ReactionPristine',
+          ContinuousWeaponDamaged: 'ContinuousDamaged',
+        }),
+      ]),
       makeObjectDef('RadiusDecalCaster', 'America', ['VEHICLE'], [
         makeBlock('Behavior', 'RadiusDecalUpdate ModuleTag_RadiusDecal', {}),
       ]),
@@ -1574,6 +1581,54 @@ function buildSourceFireWeaponCollideModuleData(options: {
       });
     }
     saver.xferBool(options.everFired);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function xferSourceFireWhenDamagedWeaponForTest(
+  saver: XferSave,
+  weapon: { weaponPresent: boolean; weaponName: string; whenWeCanFireAgain: number },
+): void {
+  saver.xferBool(weapon.weaponPresent);
+  if (weapon.weaponPresent) {
+    xferSourceWeaponSnapshotForTest(saver, {
+      templateName: weapon.weaponName,
+      whenWeCanFireAgain: weapon.whenWeCanFireAgain,
+    });
+  }
+}
+
+function buildSourceFireWhenDamagedModuleData(options: {
+  nextCallFrame: number;
+  upgradeExecuted: boolean;
+  reactionWeapons: Array<{ weaponPresent: boolean; weaponName: string; whenWeCanFireAgain: number }>;
+  continuousWeapons: Array<{ weaponPresent: boolean; weaponName: string; whenWeCanFireAgain: number }>;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-fire-weapon-when-damaged');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferVersion(1);
+    saver.xferBool(options.upgradeExecuted);
+    for (let index = 0; index < 4; index += 1) {
+      xferSourceFireWhenDamagedWeaponForTest(
+        saver,
+        options.reactionWeapons[index] ?? { weaponPresent: false, weaponName: '', whenWeCanFireAgain: 0 },
+      );
+    }
+    for (let index = 0; index < 4; index += 1) {
+      xferSourceFireWhenDamagedWeaponForTest(
+        saver,
+        options.continuousWeapons[index] ?? { weaponPresent: false, weaponName: '', whenWeCanFireAgain: 0 },
+      );
+    }
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -4676,6 +4731,60 @@ describe('source-owned game-logic core save-state', () => {
 
     expect(privateLogic.spawnedEntities.get(114)!.fireWeaponUpdateNextFireFrames).toEqual([310]);
     expect(privateLogic.spawnedEntities.get(115)!.fireWeaponCollideEverFired).toEqual([true]);
+  });
+
+  it('imports source FireWeaponWhenDamaged UpgradeMux and weapon cooldown state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 162;
+    sourceState.position = { x: 146, y: 0, z: 68 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_FWWDmg',
+      blockData: buildSourceFireWhenDamagedModuleData({
+        nextCallFrame: 205,
+        upgradeExecuted: false,
+        reactionWeapons: [
+          { weaponPresent: true, weaponName: 'ReactionPristine', whenWeCanFireAgain: 333 },
+        ],
+        continuousWeapons: [
+          { weaponPresent: false, weaponName: '', whenWeCanFireAgain: 0 },
+          { weaponPresent: true, weaponName: 'ContinuousDamaged', whenWeCanFireAgain: 444 },
+        ],
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 210,
+      objects: [
+        { templateName: 'DamageWeaponTank', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        fireWhenDamagedProfiles: Array<{
+          moduleTag: string | null;
+          upgradeExecuted: boolean;
+          reactionNextFireFrame: [number, number, number, number];
+          continuousNextFireFrame: [number, number, number, number];
+        }>;
+      }>;
+    };
+
+    const profile = privateLogic.spawnedEntities.get(162)!.fireWhenDamagedProfiles[0]!;
+    expect(profile.moduleTag).toBe('MODULETAG_FWWDMG');
+    expect(profile.upgradeExecuted).toBe(false);
+    expect(profile.reactionNextFireFrame).toEqual([333, 0, 0, 0]);
+    expect(profile.continuousNextFireFrame).toEqual([0, 444, 0, 0]);
   });
 
   it('imports source ProjectileStreamUpdate and BoneFXUpdate runtime state', () => {
