@@ -2364,15 +2364,22 @@ function buildTransformMatrix3DBytes(
   return new Uint8Array(values.buffer.slice(0));
 }
 
-function xferModelConditionFlags(xfer: Xfer, flags: readonly string[]): void {
+function xferModelConditionFlags(xfer: Xfer, flags: readonly string[]): string[] {
   const version = xfer.xferVersion(1);
   if (version !== 1) {
     throw new Error(`Unsupported ModelConditionFlags snapshot version ${version}`);
   }
   const normalizedFlags = normalizeSourceModelConditionFlags(flags);
   const count = xfer.xferInt(normalizedFlags.length);
-  if (xfer.getMode() !== XferMode.XFER_SAVE) {
-    throw new Error('ModelConditionFlags xfer is save-only in the TS runtime.');
+  if (count < 0) {
+    throw new Error(`ModelConditionFlags count ${count} is invalid.`);
+  }
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loadedFlags: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      loadedFlags.push(xfer.xferAsciiString(''));
+    }
+    return normalizeSourceModelConditionFlags(loadedFlags);
   }
   if (count !== normalizedFlags.length) {
     throw new Error(`ModelConditionFlags count mismatch: expected ${normalizedFlags.length}, got ${count}`);
@@ -2380,6 +2387,7 @@ function xferModelConditionFlags(xfer: Xfer, flags: readonly string[]): void {
   for (const flag of normalizedFlags) {
     xfer.xferAsciiString(flag);
   }
+  return normalizedFlags;
 }
 
 function normalizeSourceModelConditionFlags(flags: readonly string[]): string[] {
@@ -2960,7 +2968,7 @@ class DrawableSnapshot implements Snapshot {
   constructor(private readonly state: RuntimeSaveDrawableSnapshotState) {}
 
   crc(_xfer: Xfer): void {
-    // Source drawable snapshot is currently save-only in the TS runtime.
+    // Source drawables loaded from C++ saves are preserved as raw GameClient blocks.
   }
 
   xfer(xfer: Xfer): void {
