@@ -1067,6 +1067,52 @@ function createSourceProjectileStreamUpdateBlockData(state: SourceProjectileStre
   }
 }
 
+interface SourceRgbColorTestState {
+  red: number;
+  green: number;
+  blue: number;
+}
+
+interface SourceMobMemberSlavedUpdateTestState {
+  nextCallFrameAndPhase: number;
+  slaver: number;
+  framesToWait: number;
+  mobState: number;
+  personalColor: SourceRgbColorTestState;
+  primaryVictimId: number;
+  squirrellinessRatio: number;
+  isSelfTasking: boolean;
+  catchUpCrisisTimer: number;
+}
+
+function xferSourceRgbColor(xfer: Xfer, color: SourceRgbColorTestState): SourceRgbColorTestState {
+  return {
+    red: xfer.xferReal(color.red),
+    green: xfer.xferReal(color.green),
+    blue: xfer.xferReal(color.blue),
+  };
+}
+
+function createSourceMobMemberSlavedUpdateBlockData(state: SourceMobMemberSlavedUpdateTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-mob-member-slaved-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferObjectID(state.slaver);
+    xferSave.xferInt(state.framesToWait);
+    xferSave.xferInt(state.mobState);
+    xferSourceRgbColor(xferSave, state.personalColor);
+    xferSave.xferObjectID(state.primaryVictimId);
+    xferSave.xferReal(state.squirrellinessRatio);
+    xferSave.xferBool(state.isSelfTasking);
+    xferSave.xferUnsignedInt(state.catchUpCrisisTimer);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function sourceNeutronMissileStateToInt(
   state: 'PRELAUNCH' | 'LAUNCH' | 'ATTACK' | 'DEAD',
 ): number {
@@ -2682,6 +2728,31 @@ function parseSourceProjectileStreamUpdateBlockData(data: Uint8Array): SourcePro
       owningObject: xferLoad.xferObjectID(0),
       targetObject: xferLoad.xferObjectID(0),
       targetPosition: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceMobMemberSlavedUpdateBlockData(data: Uint8Array): SourceMobMemberSlavedUpdateTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-mob-member-slaved-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      slaver: xferLoad.xferObjectID(0),
+      framesToWait: xferLoad.xferInt(0),
+      mobState: xferLoad.xferInt(0),
+      personalColor: xferSourceRgbColor(xferLoad, { red: 0, green: 0, blue: 0 }),
+      primaryVictimId: xferLoad.xferObjectID(0),
+      squirrellinessRatio: xferLoad.xferReal(0),
+      isSelfTasking: xferLoad.xferBool(false),
+      catchUpCrisisTimer: xferLoad.xferUnsignedInt(0),
     };
   } finally {
     xferLoad.close();
@@ -8559,6 +8630,128 @@ describe('runtime-save-game', () => {
     expect(parsed.owningObject).toBe(77);
     expect(parsed.targetObject).toBe(44);
     expect(parsed.targetPosition).toEqual({ x: 101, y: 202, z: 303 });
+  });
+
+  it('rewrites source MobMemberSlavedUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_MobSlaved',
+      blockData: createSourceMobMemberSlavedUpdateBlockData({
+        nextCallFrameAndPhase: (84 << 2) | 2,
+        slaver: 12,
+        framesToWait: 4,
+        mobState: 1,
+        personalColor: { red: 0.1, green: 0.2, blue: 0.3 },
+        primaryVictimId: 33,
+        squirrellinessRatio: 0.25,
+        isSelfTasking: false,
+        catchUpCrisisTimer: 5,
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source mob member slaved rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            slaverEntityId: 88,
+            mobMemberProfile: {
+              mustCatchUpRadius: 80,
+              noNeedToCatchUpRadius: 30,
+              squirrellinessRatio: 0.625,
+              catchUpCrisisBailTime: 20,
+            },
+            mobMemberState: {
+              framesToWait: 11,
+              catchUpCrisisTimer: 7,
+              primaryVictimId: 99,
+              isSelfTasking: true,
+              mobState: 2,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_MobSlaved'
+            ? 'MOBMEMBERSLAVEDUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const mobModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_MobSlaved');
+
+    expect(mobModule).toBeDefined();
+    const parsed = parseSourceMobMemberSlavedUpdateBlockData(mobModule!.blockData);
+    expect(parsed.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsed.slaver).toBe(88);
+    expect(parsed.framesToWait).toBe(11);
+    expect(parsed.mobState).toBe(2);
+    expect(parsed.personalColor.red).toBeCloseTo(0.1, 6);
+    expect(parsed.personalColor.green).toBeCloseTo(0.2, 6);
+    expect(parsed.personalColor.blue).toBeCloseTo(0.3, 6);
+    expect(parsed.primaryVictimId).toBe(99);
+    expect(parsed.squirrellinessRatio).toBeCloseTo(0.625, 6);
+    expect(parsed.isSelfTasking).toBe(true);
+    expect(parsed.catchUpCrisisTimer).toBe(7);
   });
 
   it('rewrites source FloatUpdate modules from live runtime state', () => {

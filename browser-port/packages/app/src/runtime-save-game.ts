@@ -4799,6 +4799,113 @@ function buildSourceProjectileStreamUpdateBlockData(
   }
 }
 
+interface SourceRgbColorState {
+  red: number;
+  green: number;
+  blue: number;
+}
+
+interface SourceMobMemberSlavedUpdateBlockState {
+  version: number;
+  nextCallFrameAndPhase: number;
+  slaver: number;
+  framesToWait: number;
+  mobState: number;
+  personalColor: SourceRgbColorState;
+  primaryVictimId: number;
+  squirrellinessRatio: number;
+  isSelfTasking: boolean;
+  catchUpCrisisTimer: number;
+}
+
+function xferSourceRgbColor(xfer: Xfer, color: SourceRgbColorState): SourceRgbColorState {
+  return {
+    red: xfer.xferReal(color.red),
+    green: xfer.xferReal(color.green),
+    blue: xfer.xferReal(color.blue),
+  };
+}
+
+function sourceMobMemberVictimId(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && Math.trunc(value) >= 0
+    ? Math.trunc(value) >>> 0
+    : 0;
+}
+
+function tryParseSourceMobMemberSlavedUpdateBlockData(
+  data: Uint8Array,
+): SourceMobMemberSlavedUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-mob-member-slaved-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const slaver = xferLoad.xferObjectID(0);
+    const framesToWait = xferLoad.xferInt(0);
+    const mobState = xferLoad.xferInt(0);
+    const personalColor = xferSourceRgbColor(xferLoad, { red: 0, green: 0, blue: 0 });
+    const primaryVictimId = xferLoad.xferObjectID(0);
+    const squirrellinessRatio = xferLoad.xferReal(0);
+    const isSelfTasking = xferLoad.xferBool(false);
+    const catchUpCrisisTimer = xferLoad.xferUnsignedInt(0);
+    return xferLoad.getRemaining() === 0
+      ? {
+        version,
+        nextCallFrameAndPhase,
+        slaver,
+        framesToWait,
+        mobState,
+        personalColor,
+        primaryVictimId,
+        squirrellinessRatio,
+        isSelfTasking,
+        catchUpCrisisTimer,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceMobMemberSlavedUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceMobMemberSlavedUpdateBlockState,
+): Uint8Array {
+  const state = entity.mobMemberState;
+  const profile = entity.mobMemberProfile;
+  const saver = new XferSave();
+  saver.open('build-source-mob-member-slaved-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferObjectID(normalizeSourceObjectId(entity.slaverEntityId ?? preservedState.slaver));
+    saver.xferInt(Math.trunc(sourcePhysicsFinite(state?.framesToWait, preservedState.framesToWait)));
+    saver.xferInt(Math.trunc(sourcePhysicsFinite(state?.mobState, preservedState.mobState)));
+    xferSourceRgbColor(saver, preservedState.personalColor);
+    saver.xferObjectID(sourceMobMemberVictimId(state?.primaryVictimId ?? preservedState.primaryVictimId));
+    saver.xferReal(sourcePhysicsFinite(profile?.squirrellinessRatio, preservedState.squirrellinessRatio));
+    saver.xferBool(typeof state?.isSelfTasking === 'boolean' ? state.isSelfTasking : preservedState.isSelfTasking);
+    saver.xferUnsignedInt(
+      Math.max(0, Math.trunc(sourcePhysicsFinite(state?.catchUpCrisisTimer, preservedState.catchUpCrisisTimer))) >>> 0,
+    );
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceFloatUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -6547,6 +6654,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceProjectileStreamUpdateBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'MOBMEMBERSLAVEDUPDATE' && entity.mobMemberState) {
+            const parsedSourceState = tryParseSourceMobMemberSlavedUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceMobMemberSlavedUpdateBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }
