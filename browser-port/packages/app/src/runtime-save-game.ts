@@ -435,6 +435,7 @@ const SOURCE_W3D_TERRAIN_VISUAL_SNAPSHOT_VERSION = 3;
 const SOURCE_HEIGHT_MAP_RENDER_OBJECT_SNAPSHOT_VERSION = 1;
 const SOURCE_W3D_TREE_BUFFER_SNAPSHOT_VERSION = 1;
 const SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION = 1;
+const SOURCE_W3D_TREE_BUFFER_MAX_TREES = 4000;
 const SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION = 1;
 const SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION = 1;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
@@ -23691,8 +23692,162 @@ function tryBuildTerrainVisualHeightMapBytes(mapData: MapDataJSON | null): Uint8
   return bytes;
 }
 
+interface SourceW3DTreeBufferEntry {
+  modelName: string;
+  textureName: string;
+  location: Coord3D;
+  scale: number;
+  sin: number;
+  cos: number;
+  drawableId: number;
+  angularVelocity: number;
+  angularAcceleration: number;
+  toppleDirection: Coord3D;
+  toppleState: number;
+  angularAccumulation: number;
+  options: number;
+  matrix3D: readonly number[];
+  sinkFramesLeft: number;
+}
+
+function readSourceDescriptorStringField(
+  descriptor: GameLogicSourceDrawableModuleDescriptor,
+  names: readonly string[],
+): string {
+  const fields = descriptor.moduleFields ?? {};
+  for (const name of names) {
+    const value = fields[name];
+    if (typeof value === 'string') {
+      return value;
+    }
+  }
+  const normalizedNames = new Set(names.map((name) => name.toLowerCase()));
+  for (const [fieldName, value] of Object.entries(fields)) {
+    if (normalizedNames.has(fieldName.toLowerCase()) && typeof value === 'string') {
+      return value;
+    }
+  }
+  return '';
+}
+
+function findSourceW3DTreeDrawDescriptor(
+  descriptors: readonly GameLogicSourceDrawableModuleDescriptor[],
+): GameLogicSourceDrawableModuleDescriptor | null {
+  return descriptors.find(
+    (descriptor) =>
+      descriptor.moduleKind === 'draw'
+      && descriptor.moduleType.trim().toUpperCase() === 'W3DTREEDRAW',
+  ) ?? null;
+}
+
+function buildSourceW3DTreeBufferEntries(
+  drawableEntries: readonly RuntimeSaveDrawableSnapshotState[],
+  renderableEntityStates: readonly GameLogicRenderableEntityState[] | null | undefined,
+): SourceW3DTreeBufferEntry[] {
+  if (!renderableEntityStates || renderableEntityStates.length === 0) {
+    return [];
+  }
+  const renderableById = new Map<number, GameLogicRenderableEntityState>(
+    renderableEntityStates.map((state) => [state.id, state]),
+  );
+  const entries: SourceW3DTreeBufferEntry[] = [];
+  for (const drawable of drawableEntries) {
+    if (entries.length >= SOURCE_W3D_TREE_BUFFER_MAX_TREES) {
+      break;
+    }
+    const treeDescriptor = findSourceW3DTreeDrawDescriptor(drawable.sourceDrawableModuleDescriptors);
+    if (!treeDescriptor) {
+      continue;
+    }
+    const renderable = renderableById.get(drawable.objectId);
+    if (!renderable) {
+      continue;
+    }
+    const rotationY = sourcePhysicsFinite(renderable.rotationY, 0);
+    entries.push({
+      modelName: readSourceDescriptorStringField(treeDescriptor, ['ModelName']),
+      textureName: readSourceDescriptorStringField(treeDescriptor, ['TextureName']),
+      location: sourceCoord3DFromRuntimeXYZ(renderable.x, renderable.y, renderable.z),
+      // Source W3DTreeDraw uses Drawable::getScale(). TS does not track per-instance
+      // drawable scale yet; source defaults to 1 for normal map tree instances.
+      scale: 1,
+      sin: Math.sin(rotationY),
+      cos: Math.cos(rotationY),
+      drawableId: drawable.drawableId,
+      // TODO(source parity): serialize W3DTreeBuffer runtime topple/push-aside state
+      // once TS tracks the client-side tree buffer instead of only object ToppleUpdate.
+      angularVelocity: 0,
+      angularAcceleration: 0,
+      toppleDirection: { x: 0, y: 0, z: 0 },
+      toppleState: 0,
+      angularAccumulation: 0,
+      options: 0,
+      matrix3D: new Array(12).fill(0),
+      sinkFramesLeft: 0,
+    });
+  }
+  return entries;
+}
+
+function xferSourceMatrix3DBytes(xfer: Xfer, values: readonly number[]): number[] {
+  const matrixVersion = xfer.xferVersion(1);
+  if (matrixVersion !== 1) {
+    throw new Error(`Unsupported Matrix3D snapshot version ${matrixVersion}`);
+  }
+  const result: number[] = [];
+  for (let index = 0; index < 12; index += 1) {
+    result.push(xfer.xferReal(sourcePhysicsFinite(values[index], 0)));
+  }
+  return result;
+}
+
+function xferSourceW3DTreeBufferEntry(
+  xfer: Xfer,
+  entry: SourceW3DTreeBufferEntry,
+): SourceW3DTreeBufferEntry {
+  const modelName = xfer.xferAsciiString(entry.modelName);
+  const textureName = xfer.xferAsciiString(entry.textureName);
+  const location = {
+    x: xfer.xferReal(entry.location.x),
+    y: xfer.xferReal(entry.location.y),
+    z: xfer.xferReal(entry.location.z),
+  };
+  const scale = xfer.xferReal(entry.scale);
+  const sin = xfer.xferReal(entry.sin);
+  const cos = xfer.xferReal(entry.cos);
+  const drawableId = xfer.xferUnsignedInt(entry.drawableId);
+  const angularVelocity = xfer.xferReal(entry.angularVelocity);
+  const angularAcceleration = xfer.xferReal(entry.angularAcceleration);
+  const toppleDirection = xfer.xferCoord3D(entry.toppleDirection);
+  const toppleState = parseSourceRawInt32Bytes(xfer.xferUser(buildSourceRawInt32Bytes(entry.toppleState)));
+  const angularAccumulation = xfer.xferReal(entry.angularAccumulation);
+  const options = xfer.xferUnsignedInt(entry.options);
+  const matrix3D = xferSourceMatrix3DBytes(xfer, entry.matrix3D);
+  const sinkFramesLeft = xfer.xferUnsignedInt(entry.sinkFramesLeft);
+  return {
+    modelName,
+    textureName,
+    location,
+    scale,
+    sin,
+    cos,
+    drawableId,
+    angularVelocity,
+    angularAcceleration,
+    toppleDirection,
+    toppleState,
+    angularAccumulation,
+    options,
+    matrix3D,
+    sinkFramesLeft,
+  };
+}
+
 class TerrainVisualSnapshot implements Snapshot {
-  constructor(private readonly mapData: MapDataJSON | null = null) {}
+  constructor(
+    private readonly mapData: MapDataJSON | null = null,
+    private readonly treeEntries: readonly SourceW3DTreeBufferEntry[] = [],
+  ) {}
 
   crc(_xfer: Xfer): void {
     // Source terrain-visual snapshot is currently save-only in the TS runtime.
@@ -23743,8 +23898,16 @@ class TerrainVisualSnapshot implements Snapshot {
     if (treeBufferVersion !== SOURCE_W3D_TREE_BUFFER_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported W3D tree-buffer snapshot version ${treeBufferVersion}`);
     }
-    // TODO(source parity): serialize W3D tree buffer entries once TS tracks terrain render-object tree state.
-    xfer.xferInt(0);
+    const treeCount = xfer.xferInt(this.treeEntries.length);
+    if (treeCount < 0 || treeCount > SOURCE_W3D_TREE_BUFFER_MAX_TREES) {
+      throw new Error(`Unsupported W3D tree-buffer tree count ${treeCount}`);
+    }
+    if (xfer.getMode() !== XferMode.XFER_SAVE && treeCount !== this.treeEntries.length) {
+      throw new Error('Terrain-visual tree-buffer loading is not implemented.');
+    }
+    for (let index = 0; index < treeCount; index += 1) {
+      xferSourceW3DTreeBufferEntry(xfer, this.treeEntries[index]!);
+    }
 
     const propBufferVersion = xfer.xferVersion(SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION);
     if (propBufferVersion !== SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION) {
@@ -23887,6 +24050,10 @@ export function buildRuntimeSaveFile(params: {
   const gameClientDrawableEntries = buildGameClientDrawableEntries(
     params.gameClientState,
     gameClientDrawableStates,
+  );
+  const terrainVisualTreeEntries = buildSourceW3DTreeBufferEntries(
+    gameClientDrawableStates,
+    params.renderableEntityStates,
   );
   const orderedPassthroughBlocks = orderPassthroughBlocks(params.passthroughBlocks);
   const hasSourceGameLogicPassthrough = hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GAME_LOGIC_BLOCK);
@@ -24100,7 +24267,10 @@ export function buildRuntimeSaveFile(params: {
     state.addSnapshotBlock(SOURCE_PARTICLE_SYSTEM_BLOCK, new ParticleSystemSnapshot());
   }
   if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_TERRAIN_VISUAL_BLOCK)) {
-    state.addSnapshotBlock(SOURCE_TERRAIN_VISUAL_BLOCK, new TerrainVisualSnapshot(params.mapData));
+    state.addSnapshotBlock(
+      SOURCE_TERRAIN_VISUAL_BLOCK,
+      new TerrainVisualSnapshot(params.mapData, terrainVisualTreeEntries),
+    );
   }
   if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GHOST_OBJECT_BLOCK)) {
     state.addSnapshotBlock(SOURCE_GHOST_OBJECT_BLOCK, new GhostObjectSnapshot(resolvedLocalPlayerIndex));
@@ -24392,8 +24562,28 @@ function inspectRuntimeTerrainVisualChunkMode(
       return null;
     }
     const treeCount = xferLoad.xferInt(0);
-    if (treeCount !== 0) {
+    if (treeCount < 0 || treeCount > SOURCE_W3D_TREE_BUFFER_MAX_TREES) {
       return null;
+    }
+    const defaultTreeEntry: SourceW3DTreeBufferEntry = {
+      modelName: '',
+      textureName: '',
+      location: { x: 0, y: 0, z: 0 },
+      scale: 1,
+      sin: 0,
+      cos: 1,
+      drawableId: 0,
+      angularVelocity: 0,
+      angularAcceleration: 0,
+      toppleDirection: { x: 0, y: 0, z: 0 },
+      toppleState: 0,
+      angularAccumulation: 0,
+      options: 0,
+      matrix3D: new Array(12).fill(0),
+      sinkFramesLeft: 0,
+    };
+    for (let index = 0; index < treeCount; index += 1) {
+      xferSourceW3DTreeBufferEntry(xferLoad, defaultTreeEntry);
     }
     const propBufferVersion = xferLoad.xferVersion(SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION);
     if (propBufferVersion !== SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION || xferLoad.getRemaining() !== 0) {

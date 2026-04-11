@@ -10247,6 +10247,7 @@ export interface GameLogicSourceDrawableModuleDescriptor {
   moduleType: string;
   moduleTag: string;
   moduleKind: 'draw' | 'client-update';
+  moduleFields?: Record<string, IniValue>;
 }
 
 export interface GameLogicHistoricDamageEntrySaveState {
@@ -34752,11 +34753,15 @@ export class GameLogicSubsystem implements Subsystem {
       return;
     }
     const normalizedModuleTag = moduleTag.toUpperCase();
-    descriptorsByTag.set(`${moduleKind}:${normalizedModuleTag}`, {
+    const descriptor: GameLogicSourceDrawableModuleDescriptor = {
       moduleType,
       moduleTag,
       moduleKind,
-    });
+    };
+    if (moduleKind === 'draw' && moduleType === 'W3DTREEDRAW') {
+      descriptor.moduleFields = { ...block.fields };
+    }
+    descriptorsByTag.set(`${moduleKind}:${normalizedModuleTag}`, descriptor);
   }
 
   private collectSourceObjectModuleDescriptorsFromObjectDef(

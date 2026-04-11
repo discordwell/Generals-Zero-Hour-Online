@@ -8401,6 +8401,24 @@ function readTerrainVisualChunk(data: ArrayBuffer): {
   renderObjectVersion: number;
   treeBufferVersion: number;
   treeCount: number;
+  trees: {
+    modelName: string;
+    textureName: string;
+    location: { x: number; y: number; z: number };
+    scale: number;
+    sin: number;
+    cos: number;
+    drawableId: number;
+    angularVelocity: number;
+    angularAcceleration: number;
+    toppleDirection: { x: number; y: number; z: number };
+    toppleState: number;
+    angularAccumulation: number;
+    options: number;
+    matrixVersion: number;
+    matrix3D: number[];
+    sinkFramesLeft: number;
+  }[];
   propBufferVersion: number;
   trailingBytes: number;
 } | null {
@@ -8419,6 +8437,52 @@ function readTerrainVisualChunk(data: ArrayBuffer): {
     const renderObjectVersion = xferLoad.xferVersion(1);
     const treeBufferVersion = xferLoad.xferVersion(1);
     const treeCount = xferLoad.xferInt(0);
+    const trees: NonNullable<ReturnType<typeof readTerrainVisualChunk>>['trees'] = [];
+    for (let index = 0; index < treeCount; index += 1) {
+      const modelName = xferLoad.xferAsciiString('');
+      const textureName = xferLoad.xferAsciiString('');
+      const location = {
+        x: xferLoad.xferReal(0),
+        y: xferLoad.xferReal(0),
+        z: xferLoad.xferReal(0),
+      };
+      const scale = xferLoad.xferReal(0);
+      const sin = xferLoad.xferReal(0);
+      const cos = xferLoad.xferReal(0);
+      const drawableId = xferLoad.xferUnsignedInt(0);
+      const angularVelocity = xferLoad.xferReal(0);
+      const angularAcceleration = xferLoad.xferReal(0);
+      const toppleDirection = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const toppleStateBytes = xferLoad.xferUser(new Uint8Array(4));
+      const toppleState = new DataView(
+        toppleStateBytes.buffer,
+        toppleStateBytes.byteOffset,
+        toppleStateBytes.byteLength,
+      ).getInt32(0, true);
+      const angularAccumulation = xferLoad.xferReal(0);
+      const options = xferLoad.xferUnsignedInt(0);
+      const matrixVersion = xferLoad.xferVersion(1);
+      const matrix3D = Array.from({ length: 12 }, () => xferLoad.xferReal(0));
+      const sinkFramesLeft = xferLoad.xferUnsignedInt(0);
+      trees.push({
+        modelName,
+        textureName,
+        location,
+        scale,
+        sin,
+        cos,
+        drawableId,
+        angularVelocity,
+        angularAcceleration,
+        toppleDirection,
+        toppleState,
+        angularAccumulation,
+        options,
+        matrixVersion,
+        matrix3D,
+        sinkFramesLeft,
+      });
+    }
     const propBufferVersion = xferLoad.xferVersion(1);
     return {
       w3dVersion,
@@ -8429,6 +8493,7 @@ function readTerrainVisualChunk(data: ArrayBuffer): {
       renderObjectVersion,
       treeBufferVersion,
       treeCount,
+      trees,
       propBufferVersion,
       trailingBytes: chunkData.byteLength - xferLoad.getOffset(),
     };
@@ -8985,6 +9050,7 @@ describe('runtime-save-game', () => {
       renderObjectVersion: 1,
       treeBufferVersion: 1,
       treeCount: 0,
+      trees: [],
       propBufferVersion: 1,
       trailingBytes: 0,
     });
@@ -9442,6 +9508,132 @@ describe('runtime-save-game', () => {
         ],
       },
     ]);
+  });
+
+  it('writes W3DTreeDraw live drawables into fresh CHUNK_TerrainVisual tree buffers', () => {
+    const mapData = {
+      heightmap: {
+        width: 2,
+        height: 2,
+        borderSize: 0,
+        data: 'AAAAAA==',
+      },
+      objects: [],
+      triggers: [],
+      waypoints: { nodes: [], links: [] },
+      textureClasses: [],
+      blendTileCount: 0,
+    };
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'TerrainVisual Tree Save',
+      mapPath: 'assets/maps/TestMap.json',
+      mapData,
+      cameraState: null,
+      gameClientLiveEntityIds: [12],
+      renderableEntityStates: [{
+        id: 12,
+        templateName: 'TreeOak01',
+        resolved: true,
+        renderAssetCandidates: ['TreeOak01'],
+        renderAssetPath: 'TreeOak01.glb',
+        renderAssetResolved: true,
+        category: 'ground',
+        x: 30,
+        y: 5,
+        z: 40,
+        rotationY: Math.PI / 6,
+        animationState: 'IDLE',
+        health: 10,
+        maxHealth: 10,
+        isSelected: false,
+        veterancyLevel: 0,
+        isStealthed: false,
+        isDetected: false,
+        stealthFriendlyOpacity: 1,
+        disguiseTemplateName: null,
+        shroudStatus: 'CLEAR',
+        constructionPercent: -1,
+        capturePercent: -1,
+        toppleAngle: 0,
+        toppleDirX: 0,
+        toppleDirZ: 0,
+        turretAngles: [],
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: { localPlayerIndex: 0 },
+        }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 7,
+          nextId: 13,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 9,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 13,
+        listSourceDrawableModuleDescriptors: (templateName: string) =>
+          templateName === 'TreeOak01'
+            ? [{
+                moduleType: 'W3DTreeDraw',
+                moduleTag: 'ModuleTag_Draw',
+                moduleKind: 'draw' as const,
+                moduleFields: {
+                  ModelName: 'PTreeOak',
+                  TextureName: 'PTreeOak.tga',
+                },
+              }]
+            : [],
+      },
+    });
+
+    expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data).find(
+      (chunk) => chunk.blockName === 'CHUNK_TerrainVisual',
+    )).toEqual({ blockName: 'CHUNK_TerrainVisual', mode: 'parsed' });
+    const terrainVisualChunk = readTerrainVisualChunk(saveFile.data);
+    expect(terrainVisualChunk?.treeCount).toBe(1);
+    const tree = terrainVisualChunk?.trees[0];
+    expect(tree?.modelName).toBe('PTreeOak');
+    expect(tree?.textureName).toBe('PTreeOak.tga');
+    expect(tree?.location).toEqual({ x: 30, y: 40, z: 5 });
+    expect(tree?.scale).toBe(1);
+    expect(tree?.sin).toBeCloseTo(0.5, 5);
+    expect(tree?.cos).toBeCloseTo(Math.cos(Math.PI / 6), 5);
+    expect(tree?.drawableId).toBe(12);
+    expect(tree?.angularVelocity).toBe(0);
+    expect(tree?.angularAcceleration).toBe(0);
+    expect(tree?.toppleDirection).toEqual({ x: 0, y: 0, z: 0 });
+    expect(tree?.toppleState).toBe(0);
+    expect(tree?.angularAccumulation).toBe(0);
+    expect(tree?.options).toBe(0);
+    expect(tree?.matrixVersion).toBe(1);
+    expect(tree?.matrix3D).toEqual(new Array(12).fill(0));
+    expect(tree?.sinkFramesLeft).toBe(0);
+    expect(terrainVisualChunk?.propBufferVersion).toBe(1);
+    expect(terrainVisualChunk?.trailingBytes).toBe(0);
   });
 
   it('replaces parsed attached-object GameClient drawables while preserving unattached raw drawables', () => {

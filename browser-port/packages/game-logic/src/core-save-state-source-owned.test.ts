@@ -4505,6 +4505,32 @@ describe('source-owned game-logic core save-state', () => {
     ]);
   });
 
+  it('includes W3DTreeDraw source module fields in drawable descriptors', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('TreeDrawableDescriptor', 'Neutral', ['IMMOBILE'], [
+          makeBlock('Draw', 'W3DTreeDraw ModuleTag_Draw', {
+            ModelName: 'PTreeOak',
+            TextureName: 'PTreeOak.tga',
+          }),
+        ]),
+      ],
+    });
+    const registry = makeRegistry(bundle);
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(makeMap([], 32, 32), registry, makeHeightmap(32, 32));
+
+    expect(logic.listSourceDrawableModuleDescriptors('TreeDrawableDescriptor')).toEqual([{
+      moduleType: 'W3DTREEDRAW',
+      moduleTag: 'ModuleTag_Draw',
+      moduleKind: 'draw',
+      moduleFields: {
+        ModelName: 'PTreeOak',
+        TextureName: 'PTreeOak.tga',
+      },
+    }]);
+  });
+
   it('rebuilds live entities from source GameLogic Object::xfer import state', () => {
     const bundle = makeSourceOwnedCoreBundle();
     const registry = makeRegistry(bundle);
