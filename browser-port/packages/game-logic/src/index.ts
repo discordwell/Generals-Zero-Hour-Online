@@ -3566,6 +3566,8 @@ interface AmbientSoundCustomState {
 
 export interface MapEntity {
   id: number;
+  /** Source parity: Object::m_drawableID, used to cross-reference GameClient/TerrainVisual chunks. */
+  drawableId: number;
   templateName: string;
   /** Source parity: MapObject property "objectName" used by ScriptEngine named-unit lookups. */
   scriptName: string | null;
@@ -5668,7 +5670,24 @@ interface ToppleProfile {
 
 type ToppleState = 'NONE' | 'TOPPLING' | 'BOUNCING' | 'DONE';
 
-type W3DTreeBufferToppleState = 'UPRIGHT' | 'FALLING' | 'FOGGED' | 'SHROUDED' | 'DOWN';
+export type W3DTreeBufferToppleState = 'UPRIGHT' | 'FALLING' | 'FOGGED' | 'SHROUDED' | 'DOWN';
+
+export interface GameLogicSourceW3DTreeBufferImportState {
+  deleted: boolean;
+  locationX: number;
+  locationY: number;
+  locationZ: number;
+  angularVelocity: number;
+  angularAcceleration: number;
+  toppleDirectionX: number;
+  toppleDirectionY: number;
+  toppleDirectionZ: number;
+  toppleState: W3DTreeBufferToppleState;
+  angularAccumulation: number;
+  options: number;
+  matrix3D: number[];
+  sinkFramesLeft: number;
+}
 
 interface W3DTreeDrawToppleProfile {
   doTopple: boolean;
@@ -9053,6 +9072,7 @@ export interface GameLogicCoreSaveState {
 export interface GameLogicSourceGameLogicImportObjectSaveState {
   templateName: string | null;
   state: SourceMapEntitySaveState;
+  w3dTreeBufferState?: GameLogicSourceW3DTreeBufferImportState | null;
 }
 
 export interface GameLogicSourceGameLogicImportSaveState {
@@ -14131,7 +14151,35 @@ export class GameLogicSubsystem implements Subsystem {
 
     const entity = this.createMapEntity(mapObject, objectDef, registry, this.mapHeightmap) as MapEntity;
     entity.id = Math.max(1, Math.trunc(objectState.state.objectId));
+    entity.drawableId = Math.max(0, Math.trunc(objectState.state.drawableId));
     return entity;
+  }
+
+  private applySourceW3DTreeBufferImportStateToEntity(
+    entity: MapEntity,
+    state: GameLogicSourceW3DTreeBufferImportState | null | undefined,
+  ): void {
+    if (!state) {
+      return;
+    }
+    entity.w3dTreeBufferDeleted = state.deleted === true;
+    entity.w3dTreeBufferLocationX = Number.isFinite(state.locationX) ? state.locationX : entity.x;
+    entity.w3dTreeBufferLocationY = Number.isFinite(state.locationY) ? state.locationY : entity.z;
+    entity.w3dTreeBufferLocationZ = Number.isFinite(state.locationZ) ? state.locationZ : entity.y;
+    entity.w3dTreeBufferAngularVelocity = Number.isFinite(state.angularVelocity) ? state.angularVelocity : 0;
+    entity.w3dTreeBufferAngularAcceleration = Number.isFinite(state.angularAcceleration) ? state.angularAcceleration : 0;
+    entity.w3dTreeBufferToppleDirectionX = Number.isFinite(state.toppleDirectionX) ? state.toppleDirectionX : 0;
+    entity.w3dTreeBufferToppleDirectionY = Number.isFinite(state.toppleDirectionY) ? state.toppleDirectionY : 0;
+    entity.w3dTreeBufferToppleDirectionZ = Number.isFinite(state.toppleDirectionZ) ? state.toppleDirectionZ : 0;
+    entity.w3dTreeBufferToppleState = state.toppleState;
+    entity.w3dTreeBufferAngularAccumulation = Number.isFinite(state.angularAccumulation) ? state.angularAccumulation : 0;
+    entity.w3dTreeBufferOptions = Number.isFinite(state.options) ? Math.max(0, Math.trunc(state.options)) : 0;
+    entity.w3dTreeBufferMatrix3D = Array.isArray(state.matrix3D) && state.matrix3D.length === 12
+      ? state.matrix3D.map((value) => (Number.isFinite(value) ? Number(value) : 0))
+      : new Array(12).fill(0);
+    entity.w3dTreeBufferSinkFramesLeft = Number.isFinite(state.sinkFramesLeft)
+      ? Math.max(0, Math.trunc(state.sinkFramesLeft))
+      : 0;
   }
 
   private applySourceStatusBitsToEntity(
@@ -23726,6 +23774,7 @@ export class GameLogicSubsystem implements Subsystem {
         continue;
       }
       this.applySourceMapEntityStateToEntity(entity, objectState.state);
+      this.applySourceW3DTreeBufferImportStateToEntity(entity, objectState.w3dTreeBufferState);
       maxImportedObjectId = Math.max(maxImportedObjectId, entity.id);
       this.addEntityToWorld(entity);
       this.initializeMinefieldState(entity);

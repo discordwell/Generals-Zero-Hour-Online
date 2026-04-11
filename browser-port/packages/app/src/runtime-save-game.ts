@@ -44,6 +44,7 @@ import {
   type GameLogicPartitionSaveState,
   type GameLogicRadarSaveState,
   type GameLogicSourceDrawableModuleDescriptor,
+  type GameLogicSourceW3DTreeBufferImportState,
   type GameLogicSourceObjectModuleDescriptor,
   type GameLogicSourceScriptGroupSaveState,
   type GameLogicSourceScriptListSaveState,
@@ -438,7 +439,6 @@ const SOURCE_W3D_TREE_BUFFER_SNAPSHOT_VERSION = 1;
 const SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION = 1;
 const SOURCE_W3D_TREE_BUFFER_MAX_TREES = 4000;
 const SOURCE_WATER_RENDER_OBJECT_SNAPSHOT_VERSION = 1;
-const SOURCE_WATER_MESH_ENTRY_BYTE_LENGTH = 10;
 const SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION = 1;
 const SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION = 1;
 const SOURCE_GHOST_OBJECT_PLAYER_COUNT = 16;
@@ -3712,9 +3712,20 @@ function collectSourceGameLogicPrototypeNames(
 function buildSourceGameLogicImportSaveState(
   state: ParsedSourceGameLogicChunkState | null | undefined,
   objectIdCounter: number,
+  terrainVisualTreeEntries: readonly SourceW3DTreeBufferEntry[] = [],
 ): GameLogicSourceGameLogicImportSaveState | null {
   if (!state) {
     return null;
+  }
+  const treeBufferStateByDrawableId = new Map<number, GameLogicSourceW3DTreeBufferImportState>();
+  for (const treeEntry of terrainVisualTreeEntries) {
+    if (!Number.isFinite(treeEntry.drawableId) || treeEntry.drawableId <= 0) {
+      continue;
+    }
+    treeBufferStateByDrawableId.set(
+      Math.trunc(treeEntry.drawableId),
+      sourceW3DTreeBufferImportStateFromEntry(treeEntry),
+    );
   }
   return {
     version: 1,
@@ -3724,6 +3735,7 @@ function buildSourceGameLogicImportSaveState(
     objects: state.objects.map((object) => ({
       templateName: object.templateName,
       state: object.state,
+      w3dTreeBufferState: treeBufferStateByDrawableId.get(object.state.drawableId) ?? null,
     })),
     caveTrackers: state.caveTrackers,
     sellingEntities: state.sellingEntities,
@@ -23837,6 +23849,26 @@ interface SourceW3DTreeBufferEntry {
   sinkFramesLeft: number;
 }
 
+function createEmptySourceW3DTreeBufferEntry(): SourceW3DTreeBufferEntry {
+  return {
+    modelName: '',
+    textureName: '',
+    location: { x: 0, y: 0, z: 0 },
+    scale: 1,
+    sin: 0,
+    cos: 1,
+    drawableId: 0,
+    angularVelocity: 0,
+    angularAcceleration: 0,
+    toppleDirection: { x: 0, y: 0, z: 0 },
+    toppleState: 0,
+    angularAccumulation: 0,
+    options: 0,
+    matrix3D: new Array(12).fill(0),
+    sinkFramesLeft: 0,
+  };
+}
+
 interface SourceWaterMeshEntry {
   height: number;
   velocity: number;
@@ -23905,11 +23937,49 @@ function sourceW3DTreeBufferToppleStateToInt(state: unknown): number {
   }
 }
 
+function sourceW3DTreeBufferToppleStateFromInt(state: number): GameLogicSourceW3DTreeBufferImportState['toppleState'] {
+  switch (state) {
+    case 1:
+      return 'FALLING';
+    case 2:
+      return 'FOGGED';
+    case 3:
+      return 'SHROUDED';
+    case 4:
+      return 'DOWN';
+    default:
+      return 'UPRIGHT';
+  }
+}
+
 function sourceW3DTreeBufferMatrixFromEntity(entity: MapEntity | null | undefined): number[] {
   const matrix = entity?.w3dTreeBufferMatrix3D;
   return Array.isArray(matrix) && matrix.length === 12
     ? matrix.map((value) => sourcePhysicsFinite(value, 0))
     : new Array(12).fill(0);
+}
+
+function sourceW3DTreeBufferImportStateFromEntry(
+  entry: SourceW3DTreeBufferEntry,
+): GameLogicSourceW3DTreeBufferImportState {
+  return {
+    deleted: entry.modelName.length === 0 && entry.textureName.length === 0,
+    locationX: sourcePhysicsFinite(entry.location.x, 0),
+    locationY: sourcePhysicsFinite(entry.location.y, 0),
+    locationZ: sourcePhysicsFinite(entry.location.z, 0),
+    angularVelocity: sourcePhysicsFinite(entry.angularVelocity, 0),
+    angularAcceleration: sourcePhysicsFinite(entry.angularAcceleration, 0),
+    toppleDirectionX: sourcePhysicsFinite(entry.toppleDirection.x, 0),
+    toppleDirectionY: sourcePhysicsFinite(entry.toppleDirection.y, 0),
+    toppleDirectionZ: sourcePhysicsFinite(entry.toppleDirection.z, 0),
+    toppleState: sourceW3DTreeBufferToppleStateFromInt(Math.trunc(sourcePhysicsFinite(entry.toppleState, 0))),
+    angularAccumulation: sourcePhysicsFinite(entry.angularAccumulation, 0),
+    options: Math.max(0, Math.trunc(sourcePhysicsFinite(entry.options, 0))),
+    matrix3D: Array.isArray(entry.matrix3D) && entry.matrix3D.length === 12
+      ? entry.matrix3D.map((value) => sourcePhysicsFinite(value, 0))
+      : new Array(12).fill(0),
+    sinkFramesLeft: Math.max(0, Math.trunc(sourcePhysicsFinite(entry.sinkFramesLeft, 0))),
+  };
 }
 
 function buildSourceW3DTreeBufferEntries(
@@ -24715,6 +24785,8 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const sourceGameLogicState = gameLogicChunk
     ? parseSourceGameLogicChunkState(gameLogicChunk)
     : null;
+  const terrainVisualChunk = extractSaveChunkData(data, SOURCE_TERRAIN_VISUAL_BLOCK);
+  const sourceTerrainVisualState = parseSourceTerrainVisualChunk(terrainVisualChunk);
   const sourceGameLogicPrototypeNames = collectSourceGameLogicPrototypeNames(sourceGameLogicState);
   const sourceMapTeamPrototypeNames = mapData
     ? collectSourceTeamPrototypeNamesFromMapData(mapData)
@@ -24725,6 +24797,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const sourceGameLogicImportState = buildSourceGameLogicImportSaveState(
     sourceGameLogicState,
     mapInfo.objectIdCounter,
+    sourceTerrainVisualState?.treeEntries ?? [],
   );
   const sourceGameLogicCoreState = gameLogicChunk
     ? tryParseSourceGameLogicChunk(gameLogicChunk)
@@ -24853,14 +24926,20 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   };
 }
 
-function inspectRuntimeTerrainVisualChunkMode(
+interface ParsedSourceTerrainVisualChunkState {
+  mode: Exclude<RuntimeSaveCoreChunkMode, 'raw_passthrough' | 'missing'>;
+  treeEntries: SourceW3DTreeBufferEntry[];
+  waterGridSnapshot: SourceWaterGridSnapshot | null;
+}
+
+function parseSourceTerrainVisualChunk(
   data: Uint8Array | null,
-): Exclude<RuntimeSaveCoreChunkMode, 'raw_passthrough' | 'missing'> | null {
+): ParsedSourceTerrainVisualChunkState | null {
   if (!data) {
     return null;
   }
   const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
-  xferLoad.open('inspect-terrain-visual-chunk');
+  xferLoad.open('parse-terrain-visual-chunk');
   try {
     const w3dVersion = xferLoad.xferVersion(3);
     if (w3dVersion < 1 || w3dVersion > 3) {
@@ -24871,25 +24950,11 @@ function inspectRuntimeTerrainVisualChunkMode(
       return null;
     }
     const waterGridEnabled = xferLoad.xferBool(false);
-    if (waterGridEnabled) {
-      const waterVersion = xferLoad.xferVersion(SOURCE_WATER_RENDER_OBJECT_SNAPSHOT_VERSION);
-      if (waterVersion !== SOURCE_WATER_RENDER_OBJECT_SNAPSHOT_VERSION) {
-        return null;
-      }
-      const cellsX = xferLoad.xferInt(0);
-      const cellsY = xferLoad.xferInt(0);
-      const meshDataSize = sourceWaterGridMeshDataSize(cellsX, cellsY);
-      if (meshDataSize === null) {
-        return null;
-      }
-      const meshByteLength = meshDataSize * SOURCE_WATER_MESH_ENTRY_BYTE_LENGTH;
-      if (!Number.isSafeInteger(meshByteLength) || meshByteLength > xferLoad.getRemaining()) {
-        return null;
-      }
-      xferLoad.skip(meshByteLength);
-    }
+    const waterGridSnapshot = waterGridEnabled
+      ? xferSourceWaterGridSnapshot(xferLoad, { cellsX: 0, cellsY: 0 })
+      : null;
     if (w3dVersion === 1 && xferLoad.getRemaining() === 0) {
-      return 'legacy';
+      return { mode: 'legacy', treeEntries: [], waterGridSnapshot };
     }
     if (w3dVersion !== SOURCE_W3D_TERRAIN_VISUAL_SNAPSHOT_VERSION) {
       return null;
@@ -24911,36 +24976,26 @@ function inspectRuntimeTerrainVisualChunkMode(
     if (treeCount < 0 || treeCount > SOURCE_W3D_TREE_BUFFER_MAX_TREES) {
       return null;
     }
-    const defaultTreeEntry: SourceW3DTreeBufferEntry = {
-      modelName: '',
-      textureName: '',
-      location: { x: 0, y: 0, z: 0 },
-      scale: 1,
-      sin: 0,
-      cos: 1,
-      drawableId: 0,
-      angularVelocity: 0,
-      angularAcceleration: 0,
-      toppleDirection: { x: 0, y: 0, z: 0 },
-      toppleState: 0,
-      angularAccumulation: 0,
-      options: 0,
-      matrix3D: new Array(12).fill(0),
-      sinkFramesLeft: 0,
-    };
+    const treeEntries: SourceW3DTreeBufferEntry[] = [];
     for (let index = 0; index < treeCount; index += 1) {
-      xferSourceW3DTreeBufferEntry(xferLoad, defaultTreeEntry);
+      treeEntries.push(xferSourceW3DTreeBufferEntry(xferLoad, createEmptySourceW3DTreeBufferEntry()));
     }
     const propBufferVersion = xferLoad.xferVersion(SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION);
     if (propBufferVersion !== SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION || xferLoad.getRemaining() !== 0) {
       return null;
     }
-    return 'parsed';
+    return { mode: 'parsed', treeEntries, waterGridSnapshot };
   } catch {
     return null;
   } finally {
     xferLoad.close();
   }
+}
+
+function inspectRuntimeTerrainVisualChunkMode(
+  data: Uint8Array | null,
+): Exclude<RuntimeSaveCoreChunkMode, 'raw_passthrough' | 'missing'> | null {
+  return parseSourceTerrainVisualChunk(data)?.mode ?? null;
 }
 
 function readSourceGhostObjectMatrix3DBytes(xferLoad: XferLoad): void {

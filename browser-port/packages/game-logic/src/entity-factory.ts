@@ -299,6 +299,7 @@ export function createMapEntity(self: GL,
 
   const entity: MapEntity = {
     id: objectId,
+    drawableId: objectId,
     templateName: mapObject.templateName,
     scriptName,
     category,

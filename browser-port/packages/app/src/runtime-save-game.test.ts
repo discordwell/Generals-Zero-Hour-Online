@@ -10159,6 +10159,27 @@ describe('runtime-save-game', () => {
     expect(tree?.options).toBe(1);
     expect(tree?.matrix3D).toEqual([1, 0, 0, 30, 0, 1, 0, 40, 0, 0, 1, 5]);
     expect(tree?.sinkFramesLeft).toBe(7);
+
+    const parsed = parseRuntimeSaveFile(saveFile.data);
+    const importedTree = parsed.sourceGameLogicImportState?.objects.find(
+      (object) => object.templateName === 'TreeOak01',
+    )?.w3dTreeBufferState;
+    expect(importedTree).toMatchObject({
+      deleted: false,
+      locationX: 30,
+      locationY: 40,
+      locationZ: 5,
+      toppleDirectionZ: 0,
+      toppleState: 'FALLING',
+      options: 1,
+      sinkFramesLeft: 7,
+    });
+    expect(importedTree?.angularVelocity).toBeCloseTo(0.1);
+    expect(importedTree?.angularAcceleration).toBeCloseTo(0.02);
+    expect(importedTree?.toppleDirectionX).toBeCloseTo(0.6);
+    expect(importedTree?.toppleDirectionY).toBeCloseTo(0.8);
+    expect(importedTree?.angularAccumulation).toBeCloseTo(0.3);
+    expect(importedTree?.matrix3D).toEqual([1, 0, 0, 30, 0, 1, 0, 40, 0, 0, 1, 5]);
   });
 
   it('replaces parsed attached-object GameClient drawables while preserving unattached raw drawables', () => {

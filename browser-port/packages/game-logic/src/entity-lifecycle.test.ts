@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ObjectDef } from '@generals/ini-data';
 
-import { GameLogicSubsystem } from './index.js';
+import { createEmptySourceMapEntitySaveState, GameLogicSubsystem } from './index.js';
 import {
   makeBlock,
   makeObjectDef,
@@ -1247,6 +1247,86 @@ describe('ToppleUpdate', () => {
     expect(tree.w3dTreeBufferAngularAccumulation).toBeGreaterThan(0);
     expect(tree.w3dTreeBufferMatrix3D[3]).toBeCloseTo(215);
     expect(tree.w3dTreeBufferMatrix3D[7]).toBeCloseTo(205);
+  });
+
+  it('imports source TerrainVisual W3DTreeBuffer state through source GameLogic restore', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('OptimizedTree', 'Neutral', ['SHRUBBERY', 'IMMOBILE', 'OPTIMIZED_TREE'], [
+          makeBlock('Draw', 'W3DTreeDraw ModuleTag_Draw', {
+            ModelName: 'PTreeOak',
+            TextureName: 'PTreeOak.tga',
+            DoTopple: true,
+          }),
+        ], { GeometryMajorRadius: 3, GeometryMinorRadius: 3 }),
+      ],
+    });
+
+    const scene = new THREE.Scene();
+    const logic = new GameLogicSubsystem(scene);
+    logic.loadMapObjects(makeMap([], 128, 128), makeRegistry(bundle), makeHeightmap(128, 128));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 42;
+    sourceState.drawableId = 99;
+    sourceState.transformMatrix = [1, 0, 0, 215, 0, 1, 0, 205, 0, 0, 1, 0];
+    sourceState.originalTeamName = 'Neutral';
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 77,
+      objectIdCounter: 100,
+      objects: [{
+        templateName: 'OptimizedTree',
+        state: sourceState,
+        w3dTreeBufferState: {
+          deleted: false,
+          locationX: 215,
+          locationY: 205,
+          locationZ: 0,
+          angularVelocity: 0.1,
+          angularAcceleration: 0.02,
+          toppleDirectionX: 0.6,
+          toppleDirectionY: 0.8,
+          toppleDirectionZ: 0,
+          toppleState: 'FALLING',
+          angularAccumulation: 0.3,
+          options: 1,
+          matrix3D: [1, 0, 0, 215, 0, 1, 0, 205, 0, 0, 1, 0],
+          sinkFramesLeft: 7,
+        },
+      }],
+    });
+
+    const entities = (logic as unknown as {
+      spawnedEntities: Map<number, {
+        id: number;
+        drawableId: number;
+        templateName: string;
+        w3dTreeBufferToppleState: string;
+        w3dTreeBufferAngularVelocity: number;
+        w3dTreeBufferAngularAcceleration: number;
+        w3dTreeBufferToppleDirectionX: number;
+        w3dTreeBufferToppleDirectionY: number;
+        w3dTreeBufferAngularAccumulation: number;
+        w3dTreeBufferOptions: number;
+        w3dTreeBufferMatrix3D: number[];
+        w3dTreeBufferSinkFramesLeft: number;
+      }>;
+    }).spawnedEntities;
+    const tree = entities.get(42)!;
+
+    expect(tree.drawableId).toBe(99);
+    expect(tree.w3dTreeBufferToppleState).toBe('FALLING');
+    expect(tree.w3dTreeBufferAngularVelocity).toBeCloseTo(0.1);
+    expect(tree.w3dTreeBufferAngularAcceleration).toBeCloseTo(0.02);
+    expect(tree.w3dTreeBufferToppleDirectionX).toBeCloseTo(0.6);
+    expect(tree.w3dTreeBufferToppleDirectionY).toBeCloseTo(0.8);
+    expect(tree.w3dTreeBufferAngularAccumulation).toBeCloseTo(0.3);
+    expect(tree.w3dTreeBufferOptions).toBe(1);
+    expect(tree.w3dTreeBufferMatrix3D).toEqual([1, 0, 0, 215, 0, 1, 0, 205, 0, 0, 1, 0]);
+    expect(tree.w3dTreeBufferSinkFramesLeft).toBe(7);
   });
 });
 
