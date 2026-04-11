@@ -2412,6 +2412,220 @@ function parseSourceMissileAIUpdateBlockData(data: Uint8Array) {
   throw new Error('Unable to parse missile AI test block.');
 }
 
+interface TestSourceRadiusDecalTemplate {
+  name: string;
+  shadowTypeBytes: Uint8Array;
+  minOpacity: number;
+  maxOpacity: number;
+  opacityThrobTime: number;
+  color: number;
+  onlyVisibleToOwningPlayer: boolean;
+}
+
+function xferTestSourceRadiusDecalTemplate(
+  xfer: XferSave | XferLoad,
+  state: TestSourceRadiusDecalTemplate,
+): TestSourceRadiusDecalTemplate {
+  xfer.xferVersion(1);
+  return {
+    name: xfer.xferAsciiString(state.name),
+    shadowTypeBytes: new Uint8Array(xfer.xferUser(state.shadowTypeBytes)),
+    minOpacity: xfer.xferReal(state.minOpacity),
+    maxOpacity: xfer.xferReal(state.maxOpacity),
+    opacityThrobTime: xfer.xferUnsignedInt(state.opacityThrobTime),
+    color: xfer.xferInt(state.color),
+    onlyVisibleToOwningPlayer: xfer.xferBool(state.onlyVisibleToOwningPlayer),
+  };
+}
+
+function createSourceDeliverPayloadAIUpdateBlockData(options: {
+  targetPos: Coord3D;
+  moveToPos: Coord3D;
+  visibleItemsDelivered: number;
+  diveState: number;
+  visibleDropBoneName: string;
+  visibleSubObjectName: string;
+  visiblePayloadTemplateName: string;
+  distToTarget: number;
+  preOpenDistance: number;
+  maxAttempts: number;
+  dropOffset: Coord3D;
+  dropVariance: Coord3D;
+  dropDelay: number;
+  fireWeapon: boolean;
+  selfDestructObject: boolean;
+  visibleNumBones: number;
+  diveStartDistance: number;
+  diveEndDistance: number;
+  strafingWeaponSlot: number;
+  visibleItemsDroppedPerInterval: number;
+  inheritTransportVelocity: boolean;
+  isParachuteDirectly: boolean;
+  exitPitchRate: number;
+  strafeLength: number;
+  visiblePayloadWeaponTemplateName: string;
+  deliveryDecalTemplate: TestSourceRadiusDecalTemplate;
+  deliveryDecalRadius: number;
+  hasStateMachine: boolean;
+  stateMachineBytes: Uint8Array;
+  freeToExit: boolean;
+  acceptingCommands: boolean;
+  previousDistanceSqr: number;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-deliver-payload-ai-update');
+  try {
+    xferSave.xferVersion(5);
+    xferSave.xferUser(new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd]));
+    xferSave.xferCoord3D(options.targetPos);
+    xferSave.xferCoord3D(options.moveToPos);
+    xferSave.xferInt(options.visibleItemsDelivered);
+    xferSave.xferUser(createRawInt32Bytes(options.diveState));
+    xferSave.xferAsciiString(options.visibleDropBoneName);
+    xferSave.xferAsciiString(options.visibleSubObjectName);
+    xferSave.xferAsciiString(options.visiblePayloadTemplateName);
+    xferSave.xferReal(options.distToTarget);
+    xferSave.xferReal(options.preOpenDistance);
+    xferSave.xferInt(options.maxAttempts);
+    xferSave.xferCoord3D(options.dropOffset);
+    xferSave.xferCoord3D(options.dropVariance);
+    xferSave.xferUnsignedInt(options.dropDelay);
+    xferSave.xferBool(options.fireWeapon);
+    xferSave.xferBool(options.selfDestructObject);
+    xferSave.xferInt(options.visibleNumBones);
+    xferSave.xferReal(options.diveStartDistance);
+    xferSave.xferReal(options.diveEndDistance);
+    xferSave.xferUser(createRawInt32Bytes(options.strafingWeaponSlot));
+    xferSave.xferInt(options.visibleItemsDroppedPerInterval);
+    xferSave.xferBool(options.inheritTransportVelocity);
+    xferSave.xferBool(options.isParachuteDirectly);
+    xferSave.xferReal(options.exitPitchRate);
+    xferSave.xferReal(options.strafeLength);
+    xferSave.xferAsciiString(options.visiblePayloadWeaponTemplateName);
+    xferTestSourceRadiusDecalTemplate(xferSave, options.deliveryDecalTemplate);
+    xferSave.xferReal(options.deliveryDecalRadius);
+    xferSave.xferBool(options.hasStateMachine);
+    if (options.hasStateMachine) {
+      xferSave.xferUser(options.stateMachineBytes);
+    }
+    xferSave.xferBool(options.freeToExit);
+    xferSave.xferBool(options.acceptingCommands);
+    xferSave.xferReal(options.previousDistanceSqr);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceDeliverPayloadAIUpdateBlockData(data: Uint8Array) {
+  const version = data[0] ?? 0;
+  for (let tailOffset = 1; tailOffset < data.byteLength; tailOffset += 1) {
+    const tailData = data.subarray(tailOffset);
+    const xferLoad = new XferLoad(data.slice(tailOffset).buffer);
+    xferLoad.open('parse-source-deliver-payload-ai-update');
+    try {
+      const targetPos = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const moveToPos = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const visibleItemsDelivered = xferLoad.xferInt(0);
+      const diveState = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+      if (diveState < 0 || diveState > 2) {
+        continue;
+      }
+      const visibleDropBoneName = xferLoad.xferAsciiString('');
+      const visibleSubObjectName = xferLoad.xferAsciiString('');
+      const visiblePayloadTemplateName = xferLoad.xferAsciiString('');
+      const distToTarget = xferLoad.xferReal(0);
+      const preOpenDistance = version >= 5 ? xferLoad.xferReal(0) : 0;
+      const maxAttempts = xferLoad.xferInt(0);
+      const dropOffset = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const dropVariance = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const dropDelay = xferLoad.xferUnsignedInt(0);
+      const fireWeapon = xferLoad.xferBool(false);
+      const selfDestructObject = xferLoad.xferBool(false);
+      const visibleNumBones = xferLoad.xferInt(0);
+      const diveStartDistance = xferLoad.xferReal(0);
+      const diveEndDistance = xferLoad.xferReal(0);
+      const strafingWeaponSlot = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+      const visibleItemsDroppedPerInterval = xferLoad.xferInt(0);
+      const inheritTransportVelocity = xferLoad.xferBool(false);
+      const isParachuteDirectly = xferLoad.xferBool(false);
+      const exitPitchRate = xferLoad.xferReal(0);
+      const strafeLength = xferLoad.xferReal(0);
+      const visiblePayloadWeaponTemplateName = xferLoad.xferAsciiString('');
+      const deliveryDecalTemplate = xferTestSourceRadiusDecalTemplate(xferLoad, {
+        name: '',
+        shadowTypeBytes: new Uint8Array(4),
+        minOpacity: 0,
+        maxOpacity: 0,
+        opacityThrobTime: 0,
+        color: 0,
+        onlyVisibleToOwningPlayer: false,
+      });
+      const deliveryDecalRadius = xferLoad.xferReal(0);
+      if ((tailData[xferLoad.getOffset()] ?? 2) > 1) {
+        continue;
+      }
+      const hasStateMachine = xferLoad.xferBool(false);
+      const stateMachineByteLength = hasStateMachine ? xferLoad.getRemaining() - 6 : 0;
+      if (stateMachineByteLength < 0 || (!hasStateMachine && xferLoad.getRemaining() !== 6)) {
+        continue;
+      }
+      const stateMachineBytes = hasStateMachine
+        ? [...xferLoad.xferUser(new Uint8Array(stateMachineByteLength))]
+        : [];
+      if ((tailData[xferLoad.getOffset()] ?? 2) > 1 || (tailData[xferLoad.getOffset() + 1] ?? 2) > 1) {
+        continue;
+      }
+      const freeToExit = xferLoad.xferBool(false);
+      const acceptingCommands = xferLoad.xferBool(false);
+      const previousDistanceSqr = xferLoad.xferReal(0);
+      if (xferLoad.getRemaining() !== 0) {
+        continue;
+      }
+      return {
+        prefix: [...data.subarray(0, tailOffset)],
+        targetPos,
+        moveToPos,
+        visibleItemsDelivered,
+        diveState,
+        visibleDropBoneName,
+        visibleSubObjectName,
+        visiblePayloadTemplateName,
+        distToTarget,
+        preOpenDistance,
+        maxAttempts,
+        dropOffset,
+        dropVariance,
+        dropDelay,
+        fireWeapon,
+        selfDestructObject,
+        visibleNumBones,
+        diveStartDistance,
+        diveEndDistance,
+        strafingWeaponSlot,
+        visibleItemsDroppedPerInterval,
+        inheritTransportVelocity,
+        isParachuteDirectly,
+        exitPitchRate,
+        strafeLength,
+        visiblePayloadWeaponTemplateName,
+        deliveryDecalTemplate,
+        deliveryDecalRadius,
+        hasStateMachine,
+        stateMachineBytes,
+        freeToExit,
+        acceptingCommands,
+        previousDistanceSqr,
+      };
+    } catch {
+      continue;
+    } finally {
+      xferLoad.close();
+    }
+  }
+  throw new Error('Unable to parse deliver payload AI test block.');
+}
+
 function createSourceChinookAIUpdateBlockData(options: {
   flightStatus: number;
   airfieldForHealing: number;
@@ -14182,6 +14396,224 @@ describe('runtime-save-game', () => {
     expect(parsed.framesTillDecoyed).toBe(504);
     expect(parsed.noDamage).toBe(true);
     expect(parsed.isJammed).toBe(true);
+  });
+
+  it('rewrites source DeliverPayloadAIUpdate tail while preserving inherited AIUpdate bytes', () => {
+    const sourceDeliverBlock = createSourceDeliverPayloadAIUpdateBlockData({
+      targetPos: { x: 3, y: 4, z: 5 },
+      moveToPos: { x: 6, y: 7, z: 8 },
+      visibleItemsDelivered: 1,
+      diveState: 0,
+      visibleDropBoneName: 'OldDropBone',
+      visibleSubObjectName: 'OldSubObject',
+      visiblePayloadTemplateName: 'OldPayload',
+      distToTarget: 100,
+      preOpenDistance: 150,
+      maxAttempts: 2,
+      dropOffset: { x: 1, y: 2, z: 3 },
+      dropVariance: { x: 4, y: 5, z: 6 },
+      dropDelay: 30,
+      fireWeapon: false,
+      selfDestructObject: false,
+      visibleNumBones: 3,
+      diveStartDistance: 200,
+      diveEndDistance: 50,
+      strafingWeaponSlot: -1,
+      visibleItemsDroppedPerInterval: 1,
+      inheritTransportVelocity: false,
+      isParachuteDirectly: false,
+      exitPitchRate: 0.25,
+      strafeLength: 300,
+      visiblePayloadWeaponTemplateName: 'OldPayloadWeapon',
+      deliveryDecalTemplate: {
+        name: 'OldDecal',
+        shadowTypeBytes: new Uint8Array([1, 0, 0, 0]),
+        minOpacity: 0.1,
+        maxOpacity: 0.5,
+        opacityThrobTime: 33,
+        color: 0x11223344,
+        onlyVisibleToOwningPlayer: false,
+      },
+      deliveryDecalRadius: 35,
+      hasStateMachine: true,
+      stateMachineBytes: new Uint8Array([0x10, 0x20, 0x30]),
+      freeToExit: false,
+      acceptingCommands: true,
+      previousDistanceSqr: 456,
+    });
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_DeliverPayload',
+      blockData: sourceDeliverBlock,
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source deliver payload ai update rewrite',
+      mapPath: 'Maps/RuntimeDeliverPayload/RuntimeDeliverPayload.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeDeliverPayload',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            sourceDeliverPayloadAIUpdateState: {
+              targetX: 111,
+              targetY: 5,
+              targetZ: 222,
+              moveToX: 333,
+              moveToY: 6,
+              moveToZ: 444,
+              visibleItemsDelivered: 2,
+              diveState: 2,
+              visibleDropBoneName: 'NewDropBone',
+              visibleSubObjectName: 'NewSubObject',
+              visiblePayloadTemplateName: 'NewPayload',
+              distToTarget: 125,
+              preOpenDistance: 175,
+              maxAttempts: 4,
+              dropOffsetX: 11,
+              dropOffsetY: 1,
+              dropOffsetZ: 22,
+              dropVarianceX: 33,
+              dropVarianceY: 2,
+              dropVarianceZ: 44,
+              dropDelay: 55,
+              fireWeapon: true,
+              selfDestructObject: true,
+              visibleNumBones: 6,
+              diveStartDistance: 240,
+              diveEndDistance: 80,
+              strafingWeaponSlot: 1,
+              visibleItemsDroppedPerInterval: 3,
+              inheritTransportVelocity: true,
+              isParachuteDirectly: true,
+              exitPitchRate: 0.75,
+              strafeLength: 360,
+              visiblePayloadWeaponTemplateName: 'NewPayloadWeapon',
+              deliveryDecalTemplateName: 'NewDecal',
+              deliveryDecalTemplateShadowTypeBytes: [4, 3, 2, 1],
+              deliveryDecalTemplateMinOpacity: 0.2,
+              deliveryDecalTemplateMaxOpacity: 0.8,
+              deliveryDecalTemplateOpacityThrobTime: 66,
+              deliveryDecalTemplateColor: 0x55667711,
+              deliveryDecalTemplateOnlyVisibleToOwningPlayer: true,
+              deliveryDecalRadius: 45,
+              hasStateMachine: true,
+              stateMachineBytes: [9, 8, 7, 6],
+              freeToExit: true,
+              acceptingCommands: false,
+              previousDistanceSqr: 789,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_DeliverPayload') {
+            return 'DELIVERPAYLOADAIUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const deliverModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_DeliverPayload');
+
+    expect(deliverModule).toBeDefined();
+    const parsed = parseSourceDeliverPayloadAIUpdateBlockData(deliverModule!.blockData);
+    expect(parsed.prefix).toEqual([5, 0xaa, 0xbb, 0xcc, 0xdd]);
+    expect(parsed.targetPos).toEqual({ x: 111, y: 222, z: 5 });
+    expect(parsed.moveToPos).toEqual({ x: 333, y: 444, z: 6 });
+    expect(parsed.visibleItemsDelivered).toBe(2);
+    expect(parsed.diveState).toBe(2);
+    expect(parsed.visibleDropBoneName).toBe('NewDropBone');
+    expect(parsed.visibleSubObjectName).toBe('NewSubObject');
+    expect(parsed.visiblePayloadTemplateName).toBe('NewPayload');
+    expect(parsed.distToTarget).toBeCloseTo(125);
+    expect(parsed.preOpenDistance).toBeCloseTo(175);
+    expect(parsed.maxAttempts).toBe(4);
+    expect(parsed.dropOffset).toEqual({ x: 11, y: 22, z: 1 });
+    expect(parsed.dropVariance).toEqual({ x: 33, y: 44, z: 2 });
+    expect(parsed.dropDelay).toBe(55);
+    expect(parsed.fireWeapon).toBe(true);
+    expect(parsed.selfDestructObject).toBe(true);
+    expect(parsed.visibleNumBones).toBe(6);
+    expect(parsed.diveStartDistance).toBeCloseTo(240);
+    expect(parsed.diveEndDistance).toBeCloseTo(80);
+    expect(parsed.strafingWeaponSlot).toBe(1);
+    expect(parsed.visibleItemsDroppedPerInterval).toBe(3);
+    expect(parsed.inheritTransportVelocity).toBe(true);
+    expect(parsed.isParachuteDirectly).toBe(true);
+    expect(parsed.exitPitchRate).toBeCloseTo(0.75);
+    expect(parsed.strafeLength).toBeCloseTo(360);
+    expect(parsed.visiblePayloadWeaponTemplateName).toBe('NewPayloadWeapon');
+    expect(parsed.deliveryDecalTemplate.name).toBe('NewDecal');
+    expect([...parsed.deliveryDecalTemplate.shadowTypeBytes]).toEqual([4, 3, 2, 1]);
+    expect(parsed.deliveryDecalTemplate.minOpacity).toBeCloseTo(0.2);
+    expect(parsed.deliveryDecalTemplate.maxOpacity).toBeCloseTo(0.8);
+    expect(parsed.deliveryDecalTemplate.opacityThrobTime).toBe(66);
+    expect(parsed.deliveryDecalTemplate.color).toBe(0x55667711);
+    expect(parsed.deliveryDecalTemplate.onlyVisibleToOwningPlayer).toBe(true);
+    expect(parsed.deliveryDecalRadius).toBeCloseTo(45);
+    expect(parsed.hasStateMachine).toBe(true);
+    expect(parsed.stateMachineBytes).toEqual([9, 8, 7, 6]);
+    expect(parsed.freeToExit).toBe(true);
+    expect(parsed.acceptingCommands).toBe(false);
+    expect(parsed.previousDistanceSqr).toBeCloseTo(789);
   });
 
   it('rewrites source WorkerAIUpdate tasks and supply tail while preserving state-machine bytes', () => {

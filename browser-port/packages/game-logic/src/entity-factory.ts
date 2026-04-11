@@ -818,6 +818,8 @@ export function createMapEntity(self: GL,
     neutronMissileUpdateState: null,
     // MissileAIUpdate source save tail (homing projectiles)
     sourceMissileAIUpdateState: null,
+    // DeliverPayloadAIUpdate source save tail (airborne payload delivery)
+    sourceDeliverPayloadAIUpdateState: null,
     // Special ability
     specialAbilityProfile: extractSpecialAbilityProfile(self, objectDef),
     specialAbilityState: null,

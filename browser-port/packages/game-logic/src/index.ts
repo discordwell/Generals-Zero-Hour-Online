@@ -3135,6 +3135,55 @@ interface SourceMissileAIUpdateRuntimeState {
   isJammed: boolean;
 }
 
+interface SourceDeliverPayloadAIUpdateRuntimeState {
+  targetX: number;
+  targetY: number;
+  targetZ: number;
+  moveToX: number;
+  moveToY: number;
+  moveToZ: number;
+  visibleItemsDelivered: number;
+  diveState: number;
+  visibleDropBoneName: string;
+  visibleSubObjectName: string;
+  visiblePayloadTemplateName: string;
+  distToTarget: number;
+  preOpenDistance: number;
+  maxAttempts: number;
+  dropOffsetX: number;
+  dropOffsetY: number;
+  dropOffsetZ: number;
+  dropVarianceX: number;
+  dropVarianceY: number;
+  dropVarianceZ: number;
+  dropDelay: number;
+  fireWeapon: boolean;
+  selfDestructObject: boolean;
+  visibleNumBones: number;
+  diveStartDistance: number;
+  diveEndDistance: number;
+  strafingWeaponSlot: number;
+  visibleItemsDroppedPerInterval: number;
+  inheritTransportVelocity: boolean;
+  isParachuteDirectly: boolean;
+  exitPitchRate: number;
+  strafeLength: number;
+  visiblePayloadWeaponTemplateName: string;
+  deliveryDecalTemplateName: string;
+  deliveryDecalTemplateShadowTypeBytes: number[];
+  deliveryDecalTemplateMinOpacity: number;
+  deliveryDecalTemplateMaxOpacity: number;
+  deliveryDecalTemplateOpacityThrobTime: number;
+  deliveryDecalTemplateColor: number;
+  deliveryDecalTemplateOnlyVisibleToOwningPlayer: boolean;
+  deliveryDecalRadius: number;
+  hasStateMachine: boolean;
+  stateMachineBytes: number[];
+  freeToExit: boolean;
+  acceptingCommands: boolean;
+  previousDistanceSqr: number;
+}
+
 interface SellingEntityState {
   sellFrame: number;
   constructionPercent: number;
@@ -4359,6 +4408,8 @@ export interface MapEntity {
   neutronMissileUpdateState: NeutronMissileRuntimeState | null;
   // ── Source parity: MissileAIUpdate — homing projectile save tail ──
   sourceMissileAIUpdateState: SourceMissileAIUpdateRuntimeState | null;
+  // ── Source parity: DeliverPayloadAIUpdate — airborne payload delivery save tail ──
+  sourceDeliverPayloadAIUpdateState: SourceDeliverPayloadAIUpdateRuntimeState | null;
 
   // ── Source parity: RadarUpdate — radar dish extension animation ──
   radarUpdateProfile: RadarUpdateProfile | null;
@@ -9133,6 +9184,51 @@ interface SourceMissileAIUpdateImportState {
   isJammed: boolean;
 }
 
+interface SourceRadiusDecalTemplateImportState {
+  name: string;
+  shadowTypeBytes: number[];
+  minOpacity: number;
+  maxOpacity: number;
+  opacityThrobTime: number;
+  color: number;
+  onlyVisibleToOwningPlayer: boolean;
+}
+
+interface SourceDeliverPayloadAIUpdateImportState {
+  targetPos: { x: number; y: number; z: number };
+  moveToPos: { x: number; y: number; z: number };
+  visibleItemsDelivered: number;
+  diveState: number;
+  visibleDropBoneName: string;
+  visibleSubObjectName: string;
+  visiblePayloadTemplateName: string;
+  distToTarget: number;
+  preOpenDistance: number;
+  maxAttempts: number;
+  dropOffset: { x: number; y: number; z: number };
+  dropVariance: { x: number; y: number; z: number };
+  dropDelay: number;
+  fireWeapon: boolean;
+  selfDestructObject: boolean;
+  visibleNumBones: number;
+  diveStartDistance: number;
+  diveEndDistance: number;
+  strafingWeaponSlot: number;
+  visibleItemsDroppedPerInterval: number;
+  inheritTransportVelocity: boolean;
+  isParachuteDirectly: boolean;
+  exitPitchRate: number;
+  strafeLength: number;
+  visiblePayloadWeaponTemplateName: string;
+  deliveryDecalTemplate: SourceRadiusDecalTemplateImportState;
+  deliveryDecalRadius: number;
+  hasStateMachine: boolean;
+  stateMachineBytes: number[];
+  freeToExit: boolean;
+  acceptingCommands: boolean;
+  previousDistanceSqr: number;
+}
+
 interface SourceWorkerAIUpdateImportState {
   tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
   preferredDockId: number;
@@ -9863,6 +9959,9 @@ const SOURCE_JET_TARGETED_BY_LIMIT = 0xffff;
 const SOURCE_MISSILE_AI_UPDATE_CURRENT_VERSION = 6;
 const SOURCE_MISSILE_AI_STATE_MIN = 0;
 const SOURCE_MISSILE_AI_STATE_MAX = 7;
+const SOURCE_DELIVER_PAYLOAD_AI_UPDATE_CURRENT_VERSION = 5;
+const SOURCE_DELIVER_PAYLOAD_DIVE_STATE_MIN = 0;
+const SOURCE_DELIVER_PAYLOAD_DIVE_STATE_MAX = 2;
 const SOURCE_CONTAIN_VECTOR_LIMIT = 0xffff;
 const SOURCE_DEATH_TYPE_NAMES = [
   'NORMAL',
@@ -16798,6 +16897,247 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private isSourceDeliverPayloadDiveState(value: number): boolean {
+    return Number.isFinite(value)
+      && Math.trunc(value) >= SOURCE_DELIVER_PAYLOAD_DIVE_STATE_MIN
+      && Math.trunc(value) <= SOURCE_DELIVER_PAYLOAD_DIVE_STATE_MAX;
+  }
+
+  private sourceDeliverPayloadTrailerLength(version: number): number {
+    return (version >= 2 ? 1 : 0)
+      + (version >= 3 ? 1 : 0)
+      + (version >= 4 ? 4 : 0);
+  }
+
+  private isSourceBoolByte(value: number): boolean {
+    return value === 0 || value === 1;
+  }
+
+  private parseSourceRadiusDecalTemplateImportState(
+    xfer: XferLoad,
+  ): SourceRadiusDecalTemplateImportState {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error(`Unsupported RadiusDecalTemplate version ${version}.`);
+    }
+    return {
+      name: xfer.xferAsciiString(''),
+      shadowTypeBytes: Array.from(xfer.xferUser(new Uint8Array(4))),
+      minOpacity: xfer.xferReal(0),
+      maxOpacity: xfer.xferReal(0),
+      opacityThrobTime: xfer.xferUnsignedInt(0),
+      color: xfer.xferInt(0),
+      onlyVisibleToOwningPlayer: xfer.xferBool(false),
+    };
+  }
+
+  private tryParseSourceDeliverPayloadAIUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceDeliverPayloadAIUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'DELIVERPAYLOADAIUPDATE') {
+      return null;
+    }
+    const version = data[0] ?? 0;
+    if (version < 1 || version > SOURCE_DELIVER_PAYLOAD_AI_UPDATE_CURRENT_VERSION) {
+      return null;
+    }
+
+    for (let tailOffset = 1; tailOffset < data.byteLength; tailOffset += 1) {
+      const tailData = data.subarray(tailOffset);
+      const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(tailData));
+      xfer.open('source-deliver-payload-ai-update-import');
+      try {
+        const targetPos = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+        const moveToPos = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+        const visibleItemsDelivered = xfer.xferInt(0);
+        const diveState = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+        if (!this.isSourceDeliverPayloadDiveState(diveState)) {
+          continue;
+        }
+        const visibleDropBoneName = xfer.xferAsciiString('');
+        const visibleSubObjectName = xfer.xferAsciiString('');
+        const visiblePayloadTemplateName = xfer.xferAsciiString('');
+        const distToTarget = xfer.xferReal(0);
+        const preOpenDistance = version >= 5 ? xfer.xferReal(0) : 0;
+        const maxAttempts = xfer.xferInt(0);
+        const dropOffset = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+        const dropVariance = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+        const dropDelay = xfer.xferUnsignedInt(0);
+        const fireWeapon = xfer.xferBool(false);
+        const selfDestructObject = xfer.xferBool(false);
+        const visibleNumBones = xfer.xferInt(0);
+        const diveStartDistance = xfer.xferReal(0);
+        const diveEndDistance = xfer.xferReal(0);
+        const strafingWeaponSlot = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+        const visibleItemsDroppedPerInterval = xfer.xferInt(0);
+        const inheritTransportVelocity = xfer.xferBool(false);
+        const isParachuteDirectly = xfer.xferBool(false);
+        const exitPitchRate = xfer.xferReal(0);
+        const strafeLength = xfer.xferReal(0);
+        const visiblePayloadWeaponTemplateName = xfer.xferAsciiString('');
+        const deliveryDecalTemplate = this.parseSourceRadiusDecalTemplateImportState(xfer);
+        const deliveryDecalRadius = xfer.xferReal(0);
+        const hasStateMachineOffset = xfer.getOffset();
+        if (!this.isSourceBoolByte(tailData[hasStateMachineOffset] ?? 2)) {
+          continue;
+        }
+        const hasStateMachine = xfer.xferBool(false);
+        const trailerLength = this.sourceDeliverPayloadTrailerLength(version);
+        const stateMachineByteLength = hasStateMachine && version >= 2
+          ? xfer.getRemaining() - trailerLength
+          : 0;
+        if (stateMachineByteLength < 0) {
+          continue;
+        }
+        if ((!hasStateMachine || version < 2) && xfer.getRemaining() !== trailerLength) {
+          continue;
+        }
+        const stateMachineBytes = stateMachineByteLength > 0
+          ? Array.from(xfer.xferUser(new Uint8Array(stateMachineByteLength)))
+          : [];
+        const trailerOffset = xfer.getOffset();
+        if (version >= 2 && !this.isSourceBoolByte(tailData[trailerOffset] ?? 2)) {
+          continue;
+        }
+        if (version >= 3 && !this.isSourceBoolByte(tailData[trailerOffset + 1] ?? 2)) {
+          continue;
+        }
+        const freeToExit = version >= 2 ? xfer.xferBool(false) : false;
+        const acceptingCommands = version >= 3 ? xfer.xferBool(false) : false;
+        const previousDistanceSqr = version >= 4 ? xfer.xferReal(0) : 0;
+        if (xfer.getRemaining() !== 0) {
+          continue;
+        }
+        return {
+          targetPos,
+          moveToPos,
+          visibleItemsDelivered,
+          diveState,
+          visibleDropBoneName,
+          visibleSubObjectName,
+          visiblePayloadTemplateName,
+          distToTarget,
+          preOpenDistance,
+          maxAttempts,
+          dropOffset,
+          dropVariance,
+          dropDelay,
+          fireWeapon,
+          selfDestructObject,
+          visibleNumBones,
+          diveStartDistance,
+          diveEndDistance,
+          strafingWeaponSlot,
+          visibleItemsDroppedPerInterval,
+          inheritTransportVelocity,
+          isParachuteDirectly,
+          exitPitchRate,
+          strafeLength,
+          visiblePayloadWeaponTemplateName,
+          deliveryDecalTemplate,
+          deliveryDecalRadius,
+          hasStateMachine,
+          stateMachineBytes,
+          freeToExit,
+          acceptingCommands,
+          previousDistanceSqr,
+        };
+      } catch {
+        continue;
+      } finally {
+        xfer.close();
+      }
+    }
+    return null;
+  }
+
+  private applySourceDeliverPayloadAIUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const deliverState = this.tryParseSourceDeliverPayloadAIUpdateImportState(module.blockData, moduleType);
+      if (!deliverState) {
+        continue;
+      }
+
+      const target = this.sourceCoord3DToRuntime(deliverState.targetPos);
+      const moveTo = this.sourceCoord3DToRuntime(deliverState.moveToPos);
+      const dropOffset = this.sourceCoord3DToRuntime(deliverState.dropOffset);
+      const dropVariance = this.sourceCoord3DToRuntime(deliverState.dropVariance);
+      entity.sourceDeliverPayloadAIUpdateState = {
+        targetX: target.x,
+        targetY: target.y,
+        targetZ: target.z,
+        moveToX: moveTo.x,
+        moveToY: moveTo.y,
+        moveToZ: moveTo.z,
+        visibleItemsDelivered: Math.trunc(deliverState.visibleItemsDelivered),
+        diveState: Math.trunc(deliverState.diveState),
+        visibleDropBoneName: deliverState.visibleDropBoneName,
+        visibleSubObjectName: deliverState.visibleSubObjectName,
+        visiblePayloadTemplateName: deliverState.visiblePayloadTemplateName,
+        distToTarget: Number.isFinite(deliverState.distToTarget) ? deliverState.distToTarget : 0,
+        preOpenDistance: Number.isFinite(deliverState.preOpenDistance) ? deliverState.preOpenDistance : 0,
+        maxAttempts: Math.trunc(deliverState.maxAttempts),
+        dropOffsetX: dropOffset.x,
+        dropOffsetY: dropOffset.y,
+        dropOffsetZ: dropOffset.z,
+        dropVarianceX: dropVariance.x,
+        dropVarianceY: dropVariance.y,
+        dropVarianceZ: dropVariance.z,
+        dropDelay: Math.max(0, Math.trunc(deliverState.dropDelay)),
+        fireWeapon: deliverState.fireWeapon,
+        selfDestructObject: deliverState.selfDestructObject,
+        visibleNumBones: Math.trunc(deliverState.visibleNumBones),
+        diveStartDistance: Number.isFinite(deliverState.diveStartDistance) ? deliverState.diveStartDistance : 0,
+        diveEndDistance: Number.isFinite(deliverState.diveEndDistance) ? deliverState.diveEndDistance : 0,
+        strafingWeaponSlot: Math.trunc(deliverState.strafingWeaponSlot),
+        visibleItemsDroppedPerInterval: Math.trunc(deliverState.visibleItemsDroppedPerInterval),
+        inheritTransportVelocity: deliverState.inheritTransportVelocity,
+        isParachuteDirectly: deliverState.isParachuteDirectly,
+        exitPitchRate: Number.isFinite(deliverState.exitPitchRate) ? deliverState.exitPitchRate : 0,
+        strafeLength: Number.isFinite(deliverState.strafeLength) ? deliverState.strafeLength : 0,
+        visiblePayloadWeaponTemplateName: deliverState.visiblePayloadWeaponTemplateName,
+        deliveryDecalTemplateName: deliverState.deliveryDecalTemplate.name,
+        deliveryDecalTemplateShadowTypeBytes: deliverState.deliveryDecalTemplate.shadowTypeBytes
+          .map((value) => Math.trunc(value) & 0xff),
+        deliveryDecalTemplateMinOpacity: Number.isFinite(deliverState.deliveryDecalTemplate.minOpacity)
+          ? deliverState.deliveryDecalTemplate.minOpacity
+          : 0,
+        deliveryDecalTemplateMaxOpacity: Number.isFinite(deliverState.deliveryDecalTemplate.maxOpacity)
+          ? deliverState.deliveryDecalTemplate.maxOpacity
+          : 0,
+        deliveryDecalTemplateOpacityThrobTime: Math.max(
+          0,
+          Math.trunc(deliverState.deliveryDecalTemplate.opacityThrobTime),
+        ),
+        deliveryDecalTemplateColor: Math.trunc(deliverState.deliveryDecalTemplate.color),
+        deliveryDecalTemplateOnlyVisibleToOwningPlayer:
+          deliverState.deliveryDecalTemplate.onlyVisibleToOwningPlayer,
+        deliveryDecalRadius: Number.isFinite(deliverState.deliveryDecalRadius)
+          ? deliverState.deliveryDecalRadius
+          : 0,
+        hasStateMachine: deliverState.hasStateMachine,
+        stateMachineBytes: deliverState.stateMachineBytes.map((value) => Math.trunc(value) & 0xff),
+        freeToExit: deliverState.freeToExit,
+        acceptingCommands: deliverState.acceptingCommands,
+        previousDistanceSqr: Number.isFinite(deliverState.previousDistanceSqr)
+          ? deliverState.previousDistanceSqr
+          : 0,
+      };
+      return;
+    }
+  }
+
   private findSourceHackInternetPendingCommand(
     data: Uint8Array,
     searchStartOffset: number,
@@ -22716,6 +23056,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceHackInternetAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceJetAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceMissileAIUpdateModulesToEntity(entity, sourceState);
+    this.applySourceDeliverPayloadAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceWorkerAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceChinookAIUpdateModulesToEntity(entity, sourceState);
     this.applySourcePOWTruckAIUpdateModulesToEntity(entity, sourceState);

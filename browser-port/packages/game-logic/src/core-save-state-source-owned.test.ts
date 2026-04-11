@@ -298,6 +298,13 @@ function makeSourceOwnedCoreBundle() {
           FuelLifetime: 4000,
         }),
       ]),
+      makeObjectDef('DeliverPayloadObject', 'America', ['AIRCRAFT'], [
+        makeBlock('Behavior', 'DeliverPayloadAIUpdate ModuleTag_DeliverPayload', {
+          DoorDelay: 1000,
+          DropDelay: 500,
+          DeliveryDistance: 120,
+        }),
+      ]),
       makeObjectDef('ChinookObject', 'America', ['AIRCRAFT'], [
         makeBlock('Behavior', 'ChinookAIUpdate ModuleTag_ChinookAI', {
           MaxBoxes: 8,
@@ -2210,6 +2217,115 @@ function buildSourceMissileAIUpdateModuleData(options: {
     saver.xferUnsignedInt(options.framesTillDecoyed);
     saver.xferBool(options.noDamage);
     saver.xferBool(options.isJammed);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function writeSourceRadiusDecalTemplate(
+  saver: XferSave,
+  state: {
+    name: string;
+    shadowTypeBytes: Uint8Array;
+    minOpacity: number;
+    maxOpacity: number;
+    opacityThrobTime: number;
+    color: number;
+    onlyVisibleToOwningPlayer: boolean;
+  },
+): void {
+  saver.xferVersion(1);
+  saver.xferAsciiString(state.name);
+  saver.xferUser(state.shadowTypeBytes);
+  saver.xferReal(state.minOpacity);
+  saver.xferReal(state.maxOpacity);
+  saver.xferUnsignedInt(state.opacityThrobTime);
+  saver.xferInt(state.color);
+  saver.xferBool(state.onlyVisibleToOwningPlayer);
+}
+
+function buildSourceDeliverPayloadAIUpdateModuleData(options: {
+  targetPos: { x: number; y: number; z: number };
+  moveToPos: { x: number; y: number; z: number };
+  visibleItemsDelivered: number;
+  diveState: number;
+  visibleDropBoneName: string;
+  visibleSubObjectName: string;
+  visiblePayloadTemplateName: string;
+  distToTarget: number;
+  preOpenDistance: number;
+  maxAttempts: number;
+  dropOffset: { x: number; y: number; z: number };
+  dropVariance: { x: number; y: number; z: number };
+  dropDelay: number;
+  fireWeapon: boolean;
+  selfDestructObject: boolean;
+  visibleNumBones: number;
+  diveStartDistance: number;
+  diveEndDistance: number;
+  strafingWeaponSlot: number;
+  visibleItemsDroppedPerInterval: number;
+  inheritTransportVelocity: boolean;
+  isParachuteDirectly: boolean;
+  exitPitchRate: number;
+  strafeLength: number;
+  visiblePayloadWeaponTemplateName: string;
+  deliveryDecalTemplate: {
+    name: string;
+    shadowTypeBytes: Uint8Array;
+    minOpacity: number;
+    maxOpacity: number;
+    opacityThrobTime: number;
+    color: number;
+    onlyVisibleToOwningPlayer: boolean;
+  };
+  deliveryDecalRadius: number;
+  hasStateMachine: boolean;
+  stateMachineBytes: Uint8Array;
+  freeToExit: boolean;
+  acceptingCommands: boolean;
+  previousDistanceSqr: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-deliver-payload-ai-update');
+  try {
+    saver.xferVersion(5);
+    saver.xferUser(new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd]));
+    saver.xferCoord3D(options.targetPos);
+    saver.xferCoord3D(options.moveToPos);
+    saver.xferInt(options.visibleItemsDelivered);
+    saver.xferUser(sourceRawInt32(options.diveState));
+    saver.xferAsciiString(options.visibleDropBoneName);
+    saver.xferAsciiString(options.visibleSubObjectName);
+    saver.xferAsciiString(options.visiblePayloadTemplateName);
+    saver.xferReal(options.distToTarget);
+    saver.xferReal(options.preOpenDistance);
+    saver.xferInt(options.maxAttempts);
+    saver.xferCoord3D(options.dropOffset);
+    saver.xferCoord3D(options.dropVariance);
+    saver.xferUnsignedInt(options.dropDelay);
+    saver.xferBool(options.fireWeapon);
+    saver.xferBool(options.selfDestructObject);
+    saver.xferInt(options.visibleNumBones);
+    saver.xferReal(options.diveStartDistance);
+    saver.xferReal(options.diveEndDistance);
+    saver.xferUser(sourceRawInt32(options.strafingWeaponSlot));
+    saver.xferInt(options.visibleItemsDroppedPerInterval);
+    saver.xferBool(options.inheritTransportVelocity);
+    saver.xferBool(options.isParachuteDirectly);
+    saver.xferReal(options.exitPitchRate);
+    saver.xferReal(options.strafeLength);
+    saver.xferAsciiString(options.visiblePayloadWeaponTemplateName);
+    writeSourceRadiusDecalTemplate(saver, options.deliveryDecalTemplate);
+    saver.xferReal(options.deliveryDecalRadius);
+    saver.xferBool(options.hasStateMachine);
+    if (options.hasStateMachine) {
+      saver.xferUser(options.stateMachineBytes);
+    }
+    saver.xferBool(options.freeToExit);
+    saver.xferBool(options.acceptingCommands);
+    saver.xferReal(options.previousDistanceSqr);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -6143,6 +6259,177 @@ describe('source-owned game-logic core save-state', () => {
       framesTillDecoyed: 440,
       noDamage: true,
       isJammed: true,
+    });
+  });
+
+  it('imports source DeliverPayloadAIUpdate tail state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const deliverState = createEmptySourceMapEntitySaveState();
+    deliverState.objectId = 127;
+    deliverState.position = { x: 170, y: 0, z: 70 };
+    deliverState.modules = [{
+      identifier: 'ModuleTag_DeliverPayload',
+      blockData: buildSourceDeliverPayloadAIUpdateModuleData({
+        targetPos: { x: 10, y: 20, z: 3 },
+        moveToPos: { x: 30, y: 40, z: 5 },
+        visibleItemsDelivered: 2,
+        diveState: 1,
+        visibleDropBoneName: 'DropBone',
+        visibleSubObjectName: 'SubObject',
+        visiblePayloadTemplateName: 'PayloadObject',
+        distToTarget: 120.5,
+        preOpenDistance: 160.25,
+        maxAttempts: 3,
+        dropOffset: { x: 1, y: 2, z: 3 },
+        dropVariance: { x: 4, y: 5, z: 6 },
+        dropDelay: 70,
+        fireWeapon: true,
+        selfDestructObject: true,
+        visibleNumBones: 4,
+        diveStartDistance: 240,
+        diveEndDistance: 80,
+        strafingWeaponSlot: 1,
+        visibleItemsDroppedPerInterval: 2,
+        inheritTransportVelocity: true,
+        isParachuteDirectly: true,
+        exitPitchRate: 0.75,
+        strafeLength: 360,
+        visiblePayloadWeaponTemplateName: 'PayloadWeapon',
+        deliveryDecalTemplate: {
+          name: 'DeliveryDecal',
+          shadowTypeBytes: new Uint8Array([4, 3, 2, 1]),
+          minOpacity: 0.2,
+          maxOpacity: 0.8,
+          opacityThrobTime: 90,
+          color: 0x55667711,
+          onlyVisibleToOwningPlayer: true,
+        },
+        deliveryDecalRadius: 45,
+        hasStateMachine: true,
+        stateMachineBytes: new Uint8Array([9, 8, 7, 6]),
+        freeToExit: true,
+        acceptingCommands: false,
+        previousDistanceSqr: 789,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'DeliverPayloadObject', state: deliverState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        sourceDeliverPayloadAIUpdateState: {
+          targetX: number;
+          targetY: number;
+          targetZ: number;
+          moveToX: number;
+          moveToY: number;
+          moveToZ: number;
+          visibleItemsDelivered: number;
+          diveState: number;
+          visibleDropBoneName: string;
+          visibleSubObjectName: string;
+          visiblePayloadTemplateName: string;
+          distToTarget: number;
+          preOpenDistance: number;
+          maxAttempts: number;
+          dropOffsetX: number;
+          dropOffsetY: number;
+          dropOffsetZ: number;
+          dropVarianceX: number;
+          dropVarianceY: number;
+          dropVarianceZ: number;
+          dropDelay: number;
+          fireWeapon: boolean;
+          selfDestructObject: boolean;
+          visibleNumBones: number;
+          diveStartDistance: number;
+          diveEndDistance: number;
+          strafingWeaponSlot: number;
+          visibleItemsDroppedPerInterval: number;
+          inheritTransportVelocity: boolean;
+          isParachuteDirectly: boolean;
+          exitPitchRate: number;
+          strafeLength: number;
+          visiblePayloadWeaponTemplateName: string;
+          deliveryDecalTemplateName: string;
+          deliveryDecalTemplateShadowTypeBytes: number[];
+          deliveryDecalTemplateMinOpacity: number;
+          deliveryDecalTemplateMaxOpacity: number;
+          deliveryDecalTemplateOpacityThrobTime: number;
+          deliveryDecalTemplateColor: number;
+          deliveryDecalTemplateOnlyVisibleToOwningPlayer: boolean;
+          deliveryDecalRadius: number;
+          hasStateMachine: boolean;
+          stateMachineBytes: number[];
+          freeToExit: boolean;
+          acceptingCommands: boolean;
+          previousDistanceSqr: number;
+        } | null;
+      }>;
+    };
+
+    const importedDeliverer = privateLogic.spawnedEntities.get(127)!;
+    expect(importedDeliverer.sourceDeliverPayloadAIUpdateState).toEqual({
+      targetX: 10,
+      targetY: 3,
+      targetZ: 20,
+      moveToX: 30,
+      moveToY: 5,
+      moveToZ: 40,
+      visibleItemsDelivered: 2,
+      diveState: 1,
+      visibleDropBoneName: 'DropBone',
+      visibleSubObjectName: 'SubObject',
+      visiblePayloadTemplateName: 'PayloadObject',
+      distToTarget: 120.5,
+      preOpenDistance: 160.25,
+      maxAttempts: 3,
+      dropOffsetX: 1,
+      dropOffsetY: 3,
+      dropOffsetZ: 2,
+      dropVarianceX: 4,
+      dropVarianceY: 6,
+      dropVarianceZ: 5,
+      dropDelay: 70,
+      fireWeapon: true,
+      selfDestructObject: true,
+      visibleNumBones: 4,
+      diveStartDistance: 240,
+      diveEndDistance: 80,
+      strafingWeaponSlot: 1,
+      visibleItemsDroppedPerInterval: 2,
+      inheritTransportVelocity: true,
+      isParachuteDirectly: true,
+      exitPitchRate: 0.75,
+      strafeLength: 360,
+      visiblePayloadWeaponTemplateName: 'PayloadWeapon',
+      deliveryDecalTemplateName: 'DeliveryDecal',
+      deliveryDecalTemplateShadowTypeBytes: [4, 3, 2, 1],
+      deliveryDecalTemplateMinOpacity: 0.20000000298023224,
+      deliveryDecalTemplateMaxOpacity: 0.800000011920929,
+      deliveryDecalTemplateOpacityThrobTime: 90,
+      deliveryDecalTemplateColor: 0x55667711,
+      deliveryDecalTemplateOnlyVisibleToOwningPlayer: true,
+      deliveryDecalRadius: 45,
+      hasStateMachine: true,
+      stateMachineBytes: [9, 8, 7, 6],
+      freeToExit: true,
+      acceptingCommands: false,
+      previousDistanceSqr: 789,
     });
   });
 

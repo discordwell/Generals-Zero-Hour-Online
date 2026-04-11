@@ -6170,6 +6170,54 @@ interface SourceMissileAIUpdateBlockState {
   isJammed: boolean;
 }
 
+interface SourceRadiusDecalTemplateBlockState {
+  name: string;
+  shadowTypeBytes: Uint8Array;
+  minOpacity: number;
+  maxOpacity: number;
+  opacityThrobTime: number;
+  color: number;
+  onlyVisibleToOwningPlayer: boolean;
+}
+
+interface SourceDeliverPayloadAIUpdateBlockState {
+  blockData: Uint8Array;
+  tailOffset: number;
+  version: number;
+  targetPos: Coord3D;
+  moveToPos: Coord3D;
+  visibleItemsDelivered: number;
+  diveState: number;
+  visibleDropBoneName: string;
+  visibleSubObjectName: string;
+  visiblePayloadTemplateName: string;
+  distToTarget: number;
+  preOpenDistance: number;
+  maxAttempts: number;
+  dropOffset: Coord3D;
+  dropVariance: Coord3D;
+  dropDelay: number;
+  fireWeapon: boolean;
+  selfDestructObject: boolean;
+  visibleNumBones: number;
+  diveStartDistance: number;
+  diveEndDistance: number;
+  strafingWeaponSlot: number;
+  visibleItemsDroppedPerInterval: number;
+  inheritTransportVelocity: boolean;
+  isParachuteDirectly: boolean;
+  exitPitchRate: number;
+  strafeLength: number;
+  visiblePayloadWeaponTemplateName: string;
+  deliveryDecalTemplate: SourceRadiusDecalTemplateBlockState;
+  deliveryDecalRadius: number;
+  hasStateMachine: boolean;
+  stateMachineBytes: Uint8Array;
+  freeToExit: boolean;
+  acceptingCommands: boolean;
+  previousDistanceSqr: number;
+}
+
 interface SourceMissileAIUpdateRuntimeState {
   originalTargetX?: unknown;
   originalTargetY?: unknown;
@@ -6194,6 +6242,55 @@ interface SourceMissileAIUpdateRuntimeState {
   framesTillDecoyed?: unknown;
   noDamage?: unknown;
   isJammed?: unknown;
+}
+
+interface SourceDeliverPayloadAIUpdateRuntimeState {
+  targetX?: unknown;
+  targetY?: unknown;
+  targetZ?: unknown;
+  moveToX?: unknown;
+  moveToY?: unknown;
+  moveToZ?: unknown;
+  visibleItemsDelivered?: unknown;
+  diveState?: unknown;
+  visibleDropBoneName?: unknown;
+  visibleSubObjectName?: unknown;
+  visiblePayloadTemplateName?: unknown;
+  distToTarget?: unknown;
+  preOpenDistance?: unknown;
+  maxAttempts?: unknown;
+  dropOffsetX?: unknown;
+  dropOffsetY?: unknown;
+  dropOffsetZ?: unknown;
+  dropVarianceX?: unknown;
+  dropVarianceY?: unknown;
+  dropVarianceZ?: unknown;
+  dropDelay?: unknown;
+  fireWeapon?: unknown;
+  selfDestructObject?: unknown;
+  visibleNumBones?: unknown;
+  diveStartDistance?: unknown;
+  diveEndDistance?: unknown;
+  strafingWeaponSlot?: unknown;
+  visibleItemsDroppedPerInterval?: unknown;
+  inheritTransportVelocity?: unknown;
+  isParachuteDirectly?: unknown;
+  exitPitchRate?: unknown;
+  strafeLength?: unknown;
+  visiblePayloadWeaponTemplateName?: unknown;
+  deliveryDecalTemplateName?: unknown;
+  deliveryDecalTemplateShadowTypeBytes?: unknown;
+  deliveryDecalTemplateMinOpacity?: unknown;
+  deliveryDecalTemplateMaxOpacity?: unknown;
+  deliveryDecalTemplateOpacityThrobTime?: unknown;
+  deliveryDecalTemplateColor?: unknown;
+  deliveryDecalTemplateOnlyVisibleToOwningPlayer?: unknown;
+  deliveryDecalRadius?: unknown;
+  hasStateMachine?: unknown;
+  stateMachineBytes?: unknown;
+  freeToExit?: unknown;
+  acceptingCommands?: unknown;
+  previousDistanceSqr?: unknown;
 }
 
 interface SourceWorkerAIUpdateBlockState {
@@ -6737,6 +6834,9 @@ const SOURCE_JET_TARGETED_BY_LIMIT = 0xffff;
 const SOURCE_MISSILE_AI_UPDATE_CURRENT_VERSION = 6;
 const SOURCE_MISSILE_AI_STATE_MIN = 0;
 const SOURCE_MISSILE_AI_STATE_MAX = 7;
+const SOURCE_DELIVER_PAYLOAD_AI_UPDATE_CURRENT_VERSION = 5;
+const SOURCE_DELIVER_PAYLOAD_DIVE_STATE_MIN = 0;
+const SOURCE_DELIVER_PAYLOAD_DIVE_STATE_MAX = 2;
 
 function isSourceHackInternetStateId(value: number): boolean {
   return value === SOURCE_AI_STATE_IDLE
@@ -7411,6 +7511,410 @@ function buildSourceMissileAIUpdateBlockData(
     }
     if (preservedState.version >= 6) {
       saver.xferBool(sourceMissileRuntimeBool(runtimeState?.isJammed, preservedState.isJammed));
+    }
+
+    const tailBytes = new Uint8Array(saver.getBuffer());
+    const blockData = new Uint8Array(preservedState.tailOffset + tailBytes.byteLength);
+    blockData.set(preservedState.blockData.subarray(0, preservedState.tailOffset));
+    blockData.set(tailBytes, preservedState.tailOffset);
+    return blockData;
+  } finally {
+    saver.close();
+  }
+}
+
+function isSourceDeliverPayloadDiveState(value: number): boolean {
+  return Number.isFinite(value)
+    && Math.trunc(value) >= SOURCE_DELIVER_PAYLOAD_DIVE_STATE_MIN
+    && Math.trunc(value) <= SOURCE_DELIVER_PAYLOAD_DIVE_STATE_MAX;
+}
+
+function sourceDeliverPayloadTrailerLength(version: number): number {
+  return (version >= 2 ? 1 : 0)
+    + (version >= 3 ? 1 : 0)
+    + (version >= 4 ? 4 : 0);
+}
+
+function createDefaultSourceRadiusDecalTemplateBlockState(): SourceRadiusDecalTemplateBlockState {
+  return {
+    name: '',
+    shadowTypeBytes: new Uint8Array(4),
+    minOpacity: 0,
+    maxOpacity: 0,
+    opacityThrobTime: 0,
+    color: 0,
+    onlyVisibleToOwningPlayer: false,
+  };
+}
+
+function xferSourceRadiusDecalTemplateBlockState(
+  xfer: Xfer,
+  state: SourceRadiusDecalTemplateBlockState,
+): SourceRadiusDecalTemplateBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported RadiusDecalTemplate version ${version}.`);
+  }
+  return {
+    name: xfer.xferAsciiString(state.name),
+    shadowTypeBytes: new Uint8Array(xfer.xferUser(state.shadowTypeBytes)),
+    minOpacity: xfer.xferReal(state.minOpacity),
+    maxOpacity: xfer.xferReal(state.maxOpacity),
+    opacityThrobTime: xfer.xferUnsignedInt(state.opacityThrobTime),
+    color: xfer.xferInt(state.color),
+    onlyVisibleToOwningPlayer: xfer.xferBool(state.onlyVisibleToOwningPlayer),
+  };
+}
+
+function tryParseSourceDeliverPayloadAIUpdateBlockData(
+  data: Uint8Array,
+): SourceDeliverPayloadAIUpdateBlockState | null {
+  const version = data[0] ?? 0;
+  if (version < 1 || version > SOURCE_DELIVER_PAYLOAD_AI_UPDATE_CURRENT_VERSION) {
+    return null;
+  }
+
+  for (let tailOffset = 1; tailOffset < data.byteLength; tailOffset += 1) {
+    const tailData = data.subarray(tailOffset);
+    const xferLoad = new XferLoad(copyBytesToArrayBuffer(tailData));
+    xferLoad.open('parse-source-deliver-payload-ai-update-tail');
+    try {
+      const targetPos = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const moveToPos = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const visibleItemsDelivered = xferLoad.xferInt(0);
+      const diveState = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+      if (!isSourceDeliverPayloadDiveState(diveState)) {
+        continue;
+      }
+      const visibleDropBoneName = xferLoad.xferAsciiString('');
+      const visibleSubObjectName = xferLoad.xferAsciiString('');
+      const visiblePayloadTemplateName = xferLoad.xferAsciiString('');
+      const distToTarget = xferLoad.xferReal(0);
+      const preOpenDistance = version >= 5 ? xferLoad.xferReal(0) : 0;
+      const maxAttempts = xferLoad.xferInt(0);
+      const dropOffset = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const dropVariance = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const dropDelay = xferLoad.xferUnsignedInt(0);
+      const fireWeapon = xferLoad.xferBool(false);
+      const selfDestructObject = xferLoad.xferBool(false);
+      const visibleNumBones = xferLoad.xferInt(0);
+      const diveStartDistance = xferLoad.xferReal(0);
+      const diveEndDistance = xferLoad.xferReal(0);
+      const strafingWeaponSlot = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+      const visibleItemsDroppedPerInterval = xferLoad.xferInt(0);
+      const inheritTransportVelocity = xferLoad.xferBool(false);
+      const isParachuteDirectly = xferLoad.xferBool(false);
+      const exitPitchRate = xferLoad.xferReal(0);
+      const strafeLength = xferLoad.xferReal(0);
+      const visiblePayloadWeaponTemplateName = xferLoad.xferAsciiString('');
+      const deliveryDecalTemplate = xferSourceRadiusDecalTemplateBlockState(
+        xferLoad,
+        createDefaultSourceRadiusDecalTemplateBlockState(),
+      );
+      const deliveryDecalRadius = xferLoad.xferReal(0);
+      const hasStateMachineOffset = xferLoad.getOffset();
+      if (!isSourceBoolByte(tailData[hasStateMachineOffset] ?? 2)) {
+        continue;
+      }
+      const hasStateMachine = xferLoad.xferBool(false);
+      const trailerLength = sourceDeliverPayloadTrailerLength(version);
+      const stateMachineByteLength = hasStateMachine && version >= 2
+        ? xferLoad.getRemaining() - trailerLength
+        : 0;
+      if (stateMachineByteLength < 0) {
+        continue;
+      }
+      if ((!hasStateMachine || version < 2) && xferLoad.getRemaining() !== trailerLength) {
+        continue;
+      }
+      const stateMachineBytes = stateMachineByteLength > 0
+        ? xferLoad.xferUser(new Uint8Array(stateMachineByteLength))
+        : new Uint8Array();
+
+      const trailerOffset = xferLoad.getOffset();
+      if (version >= 2 && !isSourceBoolByte(tailData[trailerOffset] ?? 2)) {
+        continue;
+      }
+      if (version >= 3 && !isSourceBoolByte(tailData[trailerOffset + 1] ?? 2)) {
+        continue;
+      }
+      const freeToExit = version >= 2 ? xferLoad.xferBool(false) : false;
+      const acceptingCommands = version >= 3 ? xferLoad.xferBool(false) : false;
+      const previousDistanceSqr = version >= 4 ? xferLoad.xferReal(0) : 0;
+      if (xferLoad.getRemaining() !== 0) {
+        continue;
+      }
+      return {
+        blockData: new Uint8Array(data),
+        tailOffset,
+        version,
+        targetPos,
+        moveToPos,
+        visibleItemsDelivered,
+        diveState,
+        visibleDropBoneName,
+        visibleSubObjectName,
+        visiblePayloadTemplateName,
+        distToTarget,
+        preOpenDistance,
+        maxAttempts,
+        dropOffset,
+        dropVariance,
+        dropDelay,
+        fireWeapon,
+        selfDestructObject,
+        visibleNumBones,
+        diveStartDistance,
+        diveEndDistance,
+        strafingWeaponSlot,
+        visibleItemsDroppedPerInterval,
+        inheritTransportVelocity,
+        isParachuteDirectly,
+        exitPitchRate,
+        strafeLength,
+        visiblePayloadWeaponTemplateName,
+        deliveryDecalTemplate,
+        deliveryDecalRadius,
+        hasStateMachine,
+        stateMachineBytes: new Uint8Array(stateMachineBytes),
+        freeToExit,
+        acceptingCommands,
+        previousDistanceSqr,
+      };
+    } catch {
+      continue;
+    } finally {
+      xferLoad.close();
+    }
+  }
+  return null;
+}
+
+function sourceDeliverPayloadRuntimeNumber(value: unknown, fallback: number): number {
+  return Number.isFinite(value) ? Number(value) : fallback;
+}
+
+function sourceDeliverPayloadRuntimeInt(value: unknown, fallback: number): number {
+  return Number.isFinite(value) ? Math.trunc(Number(value)) : Math.trunc(fallback);
+}
+
+function sourceDeliverPayloadRuntimeBool(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function sourceDeliverPayloadRuntimeString(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function sourceDeliverPayloadRuntimeUnsignedInt(value: unknown, fallback: number): number {
+  return sourceFlammableUnsignedFrame(value, fallback);
+}
+
+function sourceDeliverPayloadRuntimeByteArray(
+  value: unknown,
+  fallback: Uint8Array,
+  requiredLength?: number,
+): Uint8Array {
+  const matchesLength = (length: number) => requiredLength === undefined || length === requiredLength;
+  if (value instanceof Uint8Array && matchesLength(value.byteLength)) {
+    return new Uint8Array(value);
+  }
+  if (Array.isArray(value)
+    && matchesLength(value.length)
+    && value.every((entry) => Number.isFinite(entry))) {
+    return new Uint8Array(value.map((entry) => Math.trunc(Number(entry)) & 0xff));
+  }
+  return new Uint8Array(fallback);
+}
+
+function sourceDeliverPayloadRuntimeCoordToSource(
+  state: SourceDeliverPayloadAIUpdateRuntimeState | null,
+  xKey: keyof SourceDeliverPayloadAIUpdateRuntimeState,
+  yKey: keyof SourceDeliverPayloadAIUpdateRuntimeState,
+  zKey: keyof SourceDeliverPayloadAIUpdateRuntimeState,
+  fallback: Coord3D,
+): Coord3D {
+  return {
+    x: sourceDeliverPayloadRuntimeNumber(state?.[xKey], fallback.x),
+    y: sourceDeliverPayloadRuntimeNumber(state?.[zKey], fallback.y),
+    z: sourceDeliverPayloadRuntimeNumber(state?.[yKey], fallback.z),
+  };
+}
+
+function sourceDeliverPayloadRuntimeRadiusDecalTemplate(
+  state: SourceDeliverPayloadAIUpdateRuntimeState | null,
+  preservedTemplate: SourceRadiusDecalTemplateBlockState,
+): SourceRadiusDecalTemplateBlockState {
+  return {
+    name: sourceDeliverPayloadRuntimeString(
+      state?.deliveryDecalTemplateName,
+      preservedTemplate.name,
+    ),
+    shadowTypeBytes: sourceDeliverPayloadRuntimeByteArray(
+      state?.deliveryDecalTemplateShadowTypeBytes,
+      preservedTemplate.shadowTypeBytes,
+      4,
+    ),
+    minOpacity: sourceDeliverPayloadRuntimeNumber(
+      state?.deliveryDecalTemplateMinOpacity,
+      preservedTemplate.minOpacity,
+    ),
+    maxOpacity: sourceDeliverPayloadRuntimeNumber(
+      state?.deliveryDecalTemplateMaxOpacity,
+      preservedTemplate.maxOpacity,
+    ),
+    opacityThrobTime: sourceDeliverPayloadRuntimeUnsignedInt(
+      state?.deliveryDecalTemplateOpacityThrobTime,
+      preservedTemplate.opacityThrobTime,
+    ),
+    color: sourceDeliverPayloadRuntimeInt(
+      state?.deliveryDecalTemplateColor,
+      preservedTemplate.color,
+    ),
+    onlyVisibleToOwningPlayer: sourceDeliverPayloadRuntimeBool(
+      state?.deliveryDecalTemplateOnlyVisibleToOwningPlayer,
+      preservedTemplate.onlyVisibleToOwningPlayer,
+    ),
+  };
+}
+
+function buildSourceDeliverPayloadAIUpdateBlockData(
+  entity: MapEntity,
+  preservedState: SourceDeliverPayloadAIUpdateBlockState,
+): Uint8Array | null {
+  const runtimeState = (entity as {
+    sourceDeliverPayloadAIUpdateState?: SourceDeliverPayloadAIUpdateRuntimeState | null;
+  }).sourceDeliverPayloadAIUpdateState ?? null;
+  const diveState = sourceDeliverPayloadRuntimeInt(runtimeState?.diveState, preservedState.diveState);
+  if (!isSourceDeliverPayloadDiveState(diveState)) {
+    return null;
+  }
+
+  const hasStateMachine = sourceDeliverPayloadRuntimeBool(
+    runtimeState?.hasStateMachine,
+    preservedState.hasStateMachine,
+  );
+  const stateMachineBytes = sourceDeliverPayloadRuntimeByteArray(
+    runtimeState?.stateMachineBytes,
+    preservedState.stateMachineBytes,
+  );
+
+  const saver = new XferSave();
+  saver.open('build-source-deliver-payload-ai-update-tail');
+  try {
+    saver.xferCoord3D(sourceDeliverPayloadRuntimeCoordToSource(
+      runtimeState,
+      'targetX',
+      'targetY',
+      'targetZ',
+      preservedState.targetPos,
+    ));
+    saver.xferCoord3D(sourceDeliverPayloadRuntimeCoordToSource(
+      runtimeState,
+      'moveToX',
+      'moveToY',
+      'moveToZ',
+      preservedState.moveToPos,
+    ));
+    saver.xferInt(sourceDeliverPayloadRuntimeInt(
+      runtimeState?.visibleItemsDelivered,
+      preservedState.visibleItemsDelivered,
+    ));
+    saver.xferUser(buildSourceRawInt32Bytes(diveState));
+    saver.xferAsciiString(sourceDeliverPayloadRuntimeString(
+      runtimeState?.visibleDropBoneName,
+      preservedState.visibleDropBoneName,
+    ));
+    saver.xferAsciiString(sourceDeliverPayloadRuntimeString(
+      runtimeState?.visibleSubObjectName,
+      preservedState.visibleSubObjectName,
+    ));
+    saver.xferAsciiString(sourceDeliverPayloadRuntimeString(
+      runtimeState?.visiblePayloadTemplateName,
+      preservedState.visiblePayloadTemplateName,
+    ));
+    saver.xferReal(sourceDeliverPayloadRuntimeNumber(runtimeState?.distToTarget, preservedState.distToTarget));
+    if (preservedState.version >= 5) {
+      saver.xferReal(sourceDeliverPayloadRuntimeNumber(
+        runtimeState?.preOpenDistance,
+        preservedState.preOpenDistance,
+      ));
+    }
+    saver.xferInt(sourceDeliverPayloadRuntimeInt(runtimeState?.maxAttempts, preservedState.maxAttempts));
+    saver.xferCoord3D(sourceDeliverPayloadRuntimeCoordToSource(
+      runtimeState,
+      'dropOffsetX',
+      'dropOffsetY',
+      'dropOffsetZ',
+      preservedState.dropOffset,
+    ));
+    saver.xferCoord3D(sourceDeliverPayloadRuntimeCoordToSource(
+      runtimeState,
+      'dropVarianceX',
+      'dropVarianceY',
+      'dropVarianceZ',
+      preservedState.dropVariance,
+    ));
+    saver.xferUnsignedInt(sourceDeliverPayloadRuntimeUnsignedInt(runtimeState?.dropDelay, preservedState.dropDelay));
+    saver.xferBool(sourceDeliverPayloadRuntimeBool(runtimeState?.fireWeapon, preservedState.fireWeapon));
+    saver.xferBool(sourceDeliverPayloadRuntimeBool(
+      runtimeState?.selfDestructObject,
+      preservedState.selfDestructObject,
+    ));
+    saver.xferInt(sourceDeliverPayloadRuntimeInt(runtimeState?.visibleNumBones, preservedState.visibleNumBones));
+    saver.xferReal(sourceDeliverPayloadRuntimeNumber(
+      runtimeState?.diveStartDistance,
+      preservedState.diveStartDistance,
+    ));
+    saver.xferReal(sourceDeliverPayloadRuntimeNumber(runtimeState?.diveEndDistance, preservedState.diveEndDistance));
+    saver.xferUser(buildSourceRawInt32Bytes(sourceDeliverPayloadRuntimeInt(
+      runtimeState?.strafingWeaponSlot,
+      preservedState.strafingWeaponSlot,
+    )));
+    saver.xferInt(sourceDeliverPayloadRuntimeInt(
+      runtimeState?.visibleItemsDroppedPerInterval,
+      preservedState.visibleItemsDroppedPerInterval,
+    ));
+    saver.xferBool(sourceDeliverPayloadRuntimeBool(
+      runtimeState?.inheritTransportVelocity,
+      preservedState.inheritTransportVelocity,
+    ));
+    saver.xferBool(sourceDeliverPayloadRuntimeBool(
+      runtimeState?.isParachuteDirectly,
+      preservedState.isParachuteDirectly,
+    ));
+    saver.xferReal(sourceDeliverPayloadRuntimeNumber(runtimeState?.exitPitchRate, preservedState.exitPitchRate));
+    saver.xferReal(sourceDeliverPayloadRuntimeNumber(runtimeState?.strafeLength, preservedState.strafeLength));
+    saver.xferAsciiString(sourceDeliverPayloadRuntimeString(
+      runtimeState?.visiblePayloadWeaponTemplateName,
+      preservedState.visiblePayloadWeaponTemplateName,
+    ));
+    xferSourceRadiusDecalTemplateBlockState(
+      saver,
+      sourceDeliverPayloadRuntimeRadiusDecalTemplate(runtimeState, preservedState.deliveryDecalTemplate),
+    );
+    saver.xferReal(sourceDeliverPayloadRuntimeNumber(
+      runtimeState?.deliveryDecalRadius,
+      preservedState.deliveryDecalRadius,
+    ));
+    saver.xferBool(hasStateMachine);
+    if (hasStateMachine && preservedState.version >= 2) {
+      saver.xferUser(stateMachineBytes);
+    }
+    if (preservedState.version >= 2) {
+      saver.xferBool(sourceDeliverPayloadRuntimeBool(runtimeState?.freeToExit, preservedState.freeToExit));
+    }
+    if (preservedState.version >= 3) {
+      saver.xferBool(sourceDeliverPayloadRuntimeBool(
+        runtimeState?.acceptingCommands,
+        preservedState.acceptingCommands,
+      ));
+    }
+    if (preservedState.version >= 4) {
+      saver.xferReal(sourceDeliverPayloadRuntimeNumber(
+        runtimeState?.previousDistanceSqr,
+        preservedState.previousDistanceSqr,
+      ));
     }
 
     const tailBytes = new Uint8Array(saver.getBuffer());
@@ -14594,6 +15098,18 @@ function overlaySourceObjectModulesFromLiveEntity(
             const parsedSourceState = tryParseSourceMissileAIUpdateBlockData(module.blockData);
             if (parsedSourceState) {
               const blockData = buildSourceMissileAIUpdateBlockData(entity, parsedSourceState);
+              if (blockData) {
+                return {
+                  identifier: module.identifier,
+                  blockData,
+                };
+              }
+            }
+          }
+          if (moduleType === 'DELIVERPAYLOADAIUPDATE') {
+            const parsedSourceState = tryParseSourceDeliverPayloadAIUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              const blockData = buildSourceDeliverPayloadAIUpdateBlockData(entity, parsedSourceState);
               if (blockData) {
                 return {
                   identifier: module.identifier,
