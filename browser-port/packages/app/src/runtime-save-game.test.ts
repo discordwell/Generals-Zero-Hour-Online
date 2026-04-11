@@ -991,6 +991,9 @@ const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
 const SOURCE_FLAMMABLE_STATUS_AFLAME = 1;
+const SOURCE_PRODUCTION_UNIT = 1;
+const SOURCE_PRODUCTION_UPGRADE = 2;
+const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
 const SOURCE_BATTLE_PLAN_NONE = 0;
 const SOURCE_BATTLE_PLAN_BOMBARDMENT = 1;
 const SOURCE_BATTLE_PLAN_HOLD_THE_LINE = 2;
@@ -1197,6 +1200,29 @@ function createSourceFireSpreadUpdateBlockData(nextCallFrameAndPhase: number): U
   }
 }
 
+interface SourceProductionQueueEntryTestState {
+  type: number;
+  name: string;
+  productionId: number;
+  percentComplete: number;
+  framesUnderConstruction: number;
+  productionQuantityTotal: number;
+  productionQuantityProduced: number;
+  exitDoor: number;
+}
+
+interface SourceProductionUpdateTestState {
+  nextCallFrameAndPhase: number;
+  queue: SourceProductionQueueEntryTestState[];
+  uniqueId: number;
+  productionCount: number;
+  constructionCompleteFrame: number;
+  doorInfoBytes: Uint8Array;
+  clearFlags: string[];
+  setFlags: string[];
+  flagsDirty: boolean;
+}
+
 interface SourceBattlePlanUpdateTestState {
   nextCallFrameAndPhase: number;
   currentPlan: number;
@@ -1216,6 +1242,23 @@ interface SourceBattlePlanUpdateTestState {
   visionObjectId: number;
 }
 
+function xferSourceStringBitFlagsForTest(xfer: Xfer, values: string[]): string[] {
+  xfer.xferVersion(1);
+  const uniqueValues = [...new Set(values.filter((value) => value.trim().length > 0))];
+  const count = xfer.xferInt(uniqueValues.length);
+  const loaded: string[] = [];
+  if (values.length === 0) {
+    for (let index = 0; index < count; index += 1) {
+      loaded.push(xfer.xferAsciiString(''));
+    }
+    return loaded;
+  }
+  for (const value of uniqueValues) {
+    xfer.xferAsciiString(value);
+  }
+  return uniqueValues;
+}
+
 function xferSourceKindOfNamesForTest(xfer: Xfer, kindOfNames: string[]): string[] {
   xfer.xferVersion(1);
   const count = xfer.xferInt(kindOfNames.length);
@@ -1230,6 +1273,45 @@ function xferSourceKindOfNamesForTest(xfer: Xfer, kindOfNames: string[]): string
     xfer.xferAsciiString(kindOfName);
   }
   return kindOfNames;
+}
+
+function xferSourceProductionQueueEntry(
+  xfer: Xfer,
+  entry: SourceProductionQueueEntryTestState,
+): SourceProductionQueueEntryTestState {
+  return {
+    type: readRawInt32Bytes(xfer.xferUser(createRawInt32Bytes(entry.type))),
+    name: xfer.xferAsciiString(entry.name),
+    productionId: readRawInt32Bytes(xfer.xferUser(createRawInt32Bytes(entry.productionId))),
+    percentComplete: xfer.xferReal(entry.percentComplete),
+    framesUnderConstruction: xfer.xferInt(entry.framesUnderConstruction),
+    productionQuantityTotal: xfer.xferInt(entry.productionQuantityTotal),
+    productionQuantityProduced: xfer.xferInt(entry.productionQuantityProduced),
+    exitDoor: xfer.xferInt(entry.exitDoor),
+  };
+}
+
+function createSourceProductionUpdateBlockData(state: SourceProductionUpdateTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-production-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferUnsignedShort(state.queue.length);
+    for (const entry of state.queue) {
+      xferSourceProductionQueueEntry(xferSave, entry);
+    }
+    xferSave.xferUser(createRawInt32Bytes(state.uniqueId));
+    xferSave.xferUnsignedInt(state.productionCount);
+    xferSave.xferUnsignedInt(state.constructionCompleteFrame);
+    xferSave.xferUser(state.doorInfoBytes);
+    xferSourceStringBitFlagsForTest(xferSave, state.clearFlags);
+    xferSourceStringBitFlagsForTest(xferSave, state.setFlags);
+    xferSave.xferBool(state.flagsDirty);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
 }
 
 function createSourceBattlePlanUpdateBlockData(state: SourceBattlePlanUpdateTestState): Uint8Array {
@@ -3019,6 +3101,46 @@ function parseSourceFireSpreadUpdateBlockData(data: Uint8Array) {
     xferLoad.xferVersion(1);
     return {
       nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceProductionUpdateBlockData(data: Uint8Array): SourceProductionUpdateTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-production-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const queueCount = xferLoad.xferUnsignedShort(0);
+    const queue: SourceProductionQueueEntryTestState[] = [];
+    for (let index = 0; index < queueCount; index += 1) {
+      queue.push(xferSourceProductionQueueEntry(xferLoad, {
+        type: 0,
+        name: '',
+        productionId: 0,
+        percentComplete: 0,
+        framesUnderConstruction: 0,
+        productionQuantityTotal: 0,
+        productionQuantityProduced: 0,
+        exitDoor: 0,
+      }));
+    }
+    return {
+      nextCallFrameAndPhase,
+      queue,
+      uniqueId: readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+      productionCount: xferLoad.xferUnsignedInt(0),
+      constructionCompleteFrame: xferLoad.xferUnsignedInt(0),
+      doorInfoBytes: xferLoad.xferUser(new Uint8Array(SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH)),
+      clearFlags: xferSourceStringBitFlagsForTest(xferLoad, []),
+      setFlags: xferSourceStringBitFlagsForTest(xferLoad, []),
+      flagsDirty: xferLoad.xferBool(false),
     };
   } finally {
     xferLoad.close();
@@ -9238,6 +9360,181 @@ describe('runtime-save-game', () => {
     expect(parseSourceFireSpreadUpdateBlockData(fireSpreadModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (77 << 2) | 2,
     });
+  });
+
+  it('rewrites source ProductionUpdate modules from live runtime state', () => {
+    const preservedDoorInfoBytes = new Uint8Array(
+      Array.from({ length: SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH }, (_, index) => (index * 3 + 1) & 0xff),
+    );
+    const preservedClearFlags = ['DOOR_1_CLOSING'];
+    const preservedSetFlags = ['ACTIVELY_CONSTRUCTING', 'DOOR_1_OPENING'];
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Production',
+      blockData: createSourceProductionUpdateBlockData({
+        nextCallFrameAndPhase: (84 << 2) | 2,
+        queue: [{
+          type: SOURCE_PRODUCTION_UNIT,
+          name: 'AmericaRanger',
+          productionId: 7,
+          percentComplete: 10,
+          framesUnderConstruction: 4,
+          productionQuantityTotal: 1,
+          productionQuantityProduced: 0,
+          exitDoor: 2,
+        }, {
+          type: SOURCE_PRODUCTION_UPGRADE,
+          name: 'Upgrade_AmericaRangerCaptureBuilding',
+          productionId: 0,
+          percentComplete: 5,
+          framesUnderConstruction: 2,
+          productionQuantityTotal: 0,
+          productionQuantityProduced: 0,
+          exitDoor: -1,
+        }],
+        uniqueId: 3,
+        productionCount: 2,
+        constructionCompleteFrame: 123,
+        doorInfoBytes: preservedDoorInfoBytes,
+        clearFlags: preservedClearFlags,
+        setFlags: preservedSetFlags,
+        flagsDirty: true,
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source production update rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            productionProfile: {
+              maxQueueEntries: 9,
+              quantityModifiers: [],
+              numDoorAnimations: 1,
+              doorOpeningTimeFrames: 15,
+              constructionCompleteDurationFrames: 30,
+            },
+            productionNextId: 9,
+            productionQueue: [{
+              type: 'UNIT',
+              templateName: 'AMERICARANGER',
+              productionId: 7,
+              buildCost: 225,
+              totalProductionFrames: 80,
+              framesUnderConstruction: 18.75,
+              percentComplete: 37.5,
+              productionQuantityTotal: 4,
+              productionQuantityProduced: 1,
+            }, {
+              type: 'UPGRADE',
+              upgradeName: 'UPGRADE_AMERICARANGERCAPTUREBUILDING',
+              productionId: 0,
+              buildCost: 1000,
+              totalProductionFrames: 60,
+              framesUnderConstruction: 30,
+              percentComplete: 50,
+              upgradeType: 'PLAYER',
+            }],
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Production'
+            ? 'PRODUCTIONUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const productionModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Production');
+
+    expect(productionModule).toBeDefined();
+    const parsed = parseSourceProductionUpdateBlockData(productionModule!.blockData);
+    expect(parsed.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsed.queue).toEqual([{
+      type: SOURCE_PRODUCTION_UNIT,
+      name: 'AmericaRanger',
+      productionId: 7,
+      percentComplete: 37.5,
+      framesUnderConstruction: 18,
+      productionQuantityTotal: 4,
+      productionQuantityProduced: 1,
+      exitDoor: 2,
+    }, {
+      type: SOURCE_PRODUCTION_UPGRADE,
+      name: 'Upgrade_AmericaRangerCaptureBuilding',
+      productionId: 0,
+      percentComplete: 50,
+      framesUnderConstruction: 30,
+      productionQuantityTotal: 0,
+      productionQuantityProduced: 0,
+      exitDoor: -1,
+    }]);
+    expect(parsed.uniqueId).toBe(9);
+    expect(parsed.productionCount).toBe(2);
+    expect(parsed.constructionCompleteFrame).toBe(123);
+    expect(Array.from(parsed.doorInfoBytes)).toEqual(Array.from(preservedDoorInfoBytes));
+    expect(parsed.clearFlags).toEqual(preservedClearFlags);
+    expect(parsed.setFlags).toEqual(preservedSetFlags);
+    expect(parsed.flagsDirty).toBe(true);
   });
 
   it('rewrites source BattlePlanUpdate modules from live runtime state', () => {

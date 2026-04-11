@@ -30691,7 +30691,9 @@ export class GameLogicSubsystem implements Subsystem {
     producer.productionQueue.push({
       type: 'UPGRADE',
       upgradeName: normalizedUpgradeName,
-      productionId: producer.productionNextId++,
+      // Source parity: ProductionUpdate::queueUpgrade stores PRODUCTIONID_INVALID;
+      // m_uniqueID is only consumed by queueCreateUnit/requestUniqueUnitID.
+      productionId: 0,
       buildCost,
       totalProductionFrames,
       framesUnderConstruction: 0,

@@ -136,6 +136,11 @@ const SOURCE_BATTLE_PLAN_STATUS_IDLE = 0;
 const SOURCE_BATTLE_PLAN_STATUS_UNPACKING = 1;
 const SOURCE_BATTLE_PLAN_STATUS_ACTIVE = 2;
 const SOURCE_BATTLE_PLAN_STATUS_PACKING = 3;
+const SOURCE_PRODUCTION_INVALID = 0;
+const SOURCE_PRODUCTION_UNIT = 1;
+const SOURCE_PRODUCTION_UPGRADE = 2;
+const SOURCE_PRODUCTIONID_INVALID = 0;
+const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
 const SOURCE_SCRIPT_STATUS_DISABLED = 0x01;
 const SOURCE_SCRIPT_STATUS_UNPOWERED = 0x02;
 const SOURCE_SCRIPT_STATUS_UNSELLABLE = 0x04;
@@ -5143,6 +5148,192 @@ function buildSourceFireSpreadUpdateBlockData(entity: MapEntity): Uint8Array {
   }
 }
 
+interface SourceProductionQueueEntryBlockState {
+  type: number;
+  name: string;
+  productionId: number;
+  percentComplete: number;
+  framesUnderConstruction: number;
+  productionQuantityTotal: number;
+  productionQuantityProduced: number;
+  exitDoor: number;
+}
+
+interface SourceProductionUpdateBlockState {
+  version: number;
+  nextCallFrameAndPhase: number;
+  queue: SourceProductionQueueEntryBlockState[];
+  uniqueId: number;
+  productionCount: number;
+  constructionCompleteFrame: number;
+  doorInfoBytes: Uint8Array;
+  clearFlags: string[];
+  setFlags: string[];
+  flagsDirty: boolean;
+}
+
+type LiveProductionQueueEntry = MapEntity['productionQueue'][number];
+
+function sourceProductionEntryType(entry: LiveProductionQueueEntry): number {
+  switch (entry.type) {
+    case 'UNIT': return SOURCE_PRODUCTION_UNIT;
+    case 'UPGRADE': return SOURCE_PRODUCTION_UPGRADE;
+    default: return SOURCE_PRODUCTION_INVALID;
+  }
+}
+
+function sourceProductionEntryName(entry: LiveProductionQueueEntry): string {
+  return entry.type === 'UNIT' ? entry.templateName : entry.upgradeName;
+}
+
+function sourceProductionEntryQuantityTotal(entry: LiveProductionQueueEntry): number {
+  return entry.type === 'UNIT' ? entry.productionQuantityTotal : 0;
+}
+
+function sourceProductionEntryQuantityProduced(entry: LiveProductionQueueEntry): number {
+  return entry.type === 'UNIT' ? entry.productionQuantityProduced : 0;
+}
+
+function sourceProductionEntryProductionId(entry: LiveProductionQueueEntry): number {
+  return entry.type === 'UPGRADE'
+    ? SOURCE_PRODUCTIONID_INVALID
+    : Math.max(0, Math.trunc(entry.productionId));
+}
+
+function sourceProductionEntryPreservedName(
+  entry: LiveProductionQueueEntry,
+  type: number,
+  preservedState: SourceProductionUpdateBlockState,
+): string {
+  const liveName = sourceProductionEntryName(entry).trim();
+  const liveNameUpper = liveName.toUpperCase();
+  const liveProductionId = sourceProductionEntryProductionId(entry);
+  const matched = preservedState.queue.find((candidate) =>
+    candidate.type === type
+    && candidate.productionId === liveProductionId
+    && candidate.name.trim().toUpperCase() === liveNameUpper,
+  );
+  return matched?.name ?? liveName;
+}
+
+function buildSourceProductionQueueEntries(
+  entity: MapEntity,
+  preservedState: SourceProductionUpdateBlockState,
+): SourceProductionQueueEntryBlockState[] {
+  return entity.productionQueue.map((entry) => {
+    const type = sourceProductionEntryType(entry);
+    return {
+      type,
+      name: sourceProductionEntryPreservedName(entry, type, preservedState),
+      productionId: sourceProductionEntryProductionId(entry),
+      percentComplete: sourcePhysicsFinite(entry.percentComplete, 0),
+      framesUnderConstruction: Math.trunc(sourcePhysicsFinite(entry.framesUnderConstruction, 0)),
+      productionQuantityTotal: Math.trunc(sourcePhysicsFinite(sourceProductionEntryQuantityTotal(entry), 0)),
+      productionQuantityProduced: Math.trunc(sourcePhysicsFinite(sourceProductionEntryQuantityProduced(entry), 0)),
+      exitDoor: preservedState.queue.find((candidate) =>
+        candidate.type === type
+        && candidate.productionId === sourceProductionEntryProductionId(entry)
+        && candidate.name.trim().toUpperCase() === sourceProductionEntryName(entry).trim().toUpperCase(),
+      )?.exitDoor ?? -1,
+    };
+  });
+}
+
+function tryParseSourceProductionUpdateBlockData(
+  data: Uint8Array,
+): SourceProductionUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-production-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const queueCount = xferLoad.xferUnsignedShort(0);
+    const queue: SourceProductionQueueEntryBlockState[] = [];
+    for (let index = 0; index < queueCount; index += 1) {
+      queue.push({
+        type: parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+        name: xferLoad.xferAsciiString(''),
+        productionId: parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+        percentComplete: xferLoad.xferReal(0),
+        framesUnderConstruction: xferLoad.xferInt(0),
+        productionQuantityTotal: xferLoad.xferInt(0),
+        productionQuantityProduced: xferLoad.xferInt(0),
+        exitDoor: xferLoad.xferInt(0),
+      });
+    }
+    const uniqueId = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const productionCount = xferLoad.xferUnsignedInt(0);
+    const constructionCompleteFrame = xferLoad.xferUnsignedInt(0);
+    const doorInfoBytes = xferLoad.xferUser(new Uint8Array(SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH));
+    const clearFlags = xferSourceStringBitFlags(xferLoad, []);
+    const setFlags = xferSourceStringBitFlags(xferLoad, []);
+    const flagsDirty = xferLoad.xferBool(false);
+    return xferLoad.getRemaining() === 0
+      ? {
+        version,
+        nextCallFrameAndPhase,
+        queue,
+        uniqueId,
+        productionCount,
+        constructionCompleteFrame,
+        doorInfoBytes,
+        clearFlags,
+        setFlags,
+        flagsDirty,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceProductionUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceProductionUpdateBlockState,
+): Uint8Array {
+  const queue = buildSourceProductionQueueEntries(entity, preservedState);
+  const uniqueId = Math.max(1, Math.trunc(sourcePhysicsFinite(entity.productionNextId, preservedState.uniqueId)));
+  const saver = new XferSave();
+  saver.open('build-source-production-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferUnsignedShort(queue.length);
+    for (const entry of queue) {
+      saver.xferUser(buildSourceRawInt32Bytes(entry.type));
+      saver.xferAsciiString(entry.name);
+      saver.xferUser(buildSourceRawInt32Bytes(entry.productionId));
+      saver.xferReal(entry.percentComplete);
+      saver.xferInt(entry.framesUnderConstruction);
+      saver.xferInt(entry.productionQuantityTotal);
+      saver.xferInt(entry.productionQuantityProduced);
+      saver.xferInt(entry.exitDoor);
+    }
+    saver.xferUser(buildSourceRawInt32Bytes(uniqueId));
+    saver.xferUnsignedInt(queue.length);
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(preservedState.constructionCompleteFrame));
+    saver.xferUser(preservedState.doorInfoBytes);
+    xferSourceStringBitFlags(saver, preservedState.clearFlags);
+    xferSourceStringBitFlags(saver, preservedState.setFlags);
+    saver.xferBool(preservedState.flagsDirty);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 interface SourceBattlePlanUpdateBlockState {
   version: number;
   nextCallFrameAndPhase: number;
@@ -7354,6 +7545,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceFireSpreadUpdateBlockData(entity),
+              };
+            }
+          }
+          if (moduleType === 'PRODUCTIONUPDATE' && entity.productionProfile) {
+            const parsedSourceState = tryParseSourceProductionUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceProductionUpdateBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }
