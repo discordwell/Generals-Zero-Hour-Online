@@ -10411,6 +10411,121 @@ describe('runtime-save-game', () => {
               detectorProfile: {},
               detectorEnabled: true,
               detectorNextScanFrame: 66,
+              physicsBehaviorProfile: {
+                mass: 31,
+                allowBouncing: true,
+                allowCollideForce: true,
+              },
+              physicsBehaviorState: {
+                velX: 32,
+                velY: 33,
+                velZ: 34,
+                accelX: 35,
+                accelY: 36,
+                accelZ: 37,
+                prevAccelX: 38,
+                prevAccelY: 39,
+                prevAccelZ: 40,
+                yawRate: 0.41,
+                pitchRate: 0.42,
+                rollRate: 0.43,
+                wasAirborneLastFrame: true,
+                stickToGround: false,
+                allowToFall: true,
+                isInFreeFall: false,
+                extraBounciness: 0.44,
+                extraFriction: 0.45,
+                isStunned: true,
+                turning: -1,
+                ignoreCollisionsWith: 46,
+                currentOverlap: 47,
+                previousOverlap: 48,
+                motiveForceExpires: 49,
+                updateEverRun: true,
+                hasPitchRollYaw: true,
+                applyFriction2dWhenAirborne: true,
+                immuneToFallingDamage: false,
+                isInUpdate: false,
+                velMag: 50,
+              },
+              sourceRailroadBehaviorState: {
+                nextStationTaskBytes: [1, 0, 0, 0],
+                trailerId: 51,
+                currentPointHandle: 52,
+                waitAtStationTimer: 53,
+                carriagesCreated: true,
+                hasEverBeenHitched: true,
+                waitingInWings: false,
+                endOfLine: true,
+                isLocomotive: false,
+                isLeadCarraige: true,
+                wantsToBeLeadCarraige: 54,
+                disembark: true,
+                inTunnel: false,
+                conductorStateBytes: [2, 0, 0, 0],
+                anchorWaypointIdBytes: [65, 1, 0, 0],
+                pullInfo: {
+                  direction: 1,
+                  speed: 55,
+                  trackDistance: 56,
+                  towHitchPositionX: 57,
+                  towHitchPositionY: 58,
+                  towHitchPositionZ: 59,
+                  mostRecentSpecialPointHandle: 60,
+                  previousWaypoint: 61,
+                  currentWaypoint: 62,
+                },
+                conductorPullInfo: {
+                  direction: -1,
+                  speed: 63,
+                  trackDistance: 64,
+                  towHitchPositionX: 65,
+                  towHitchPositionY: 66,
+                  towHitchPositionZ: 67,
+                  mostRecentSpecialPointHandle: 68,
+                  previousWaypoint: 69,
+                  currentWaypoint: 70,
+                },
+                held: true,
+              },
+              sourceWaveGuideUpdateState: {
+                nextCallFrameAndPhase: (99 << 2) | 2,
+                activeFrame: 88,
+                needDisable: false,
+                initialized: true,
+                shapePointCount: 2,
+                splashSoundFrame: 77,
+                finalDestinationX: 71,
+                finalDestinationY: 72,
+                finalDestinationZ: 73,
+              },
+              projectileStreamState: {
+                projectileIds: [901, 902],
+                ownerEntityId: 903,
+                targetObjectId: 904,
+                targetPosition: { x: 74, y: 75, z: 76 },
+              },
+              boneFXState: {
+                activeParticleIds: [905],
+                currentBodyState: 1,
+                bonesResolved: [true, false, true, false],
+                active: true,
+              },
+              sourceDumbProjectileBehaviorState: {
+                nextCallFrameAndPhase: (98 << 2) | 2,
+                launcherId: 91,
+                victimId: 92,
+                flightPathSegments: 3,
+                flightPathSpeed: 12.25,
+                flightPathStartX: 111,
+                flightPathStartY: 5,
+                flightPathStartZ: 222,
+                flightPathEndX: 333,
+                flightPathEndY: 6,
+                flightPathEndZ: 444,
+                detonationWeaponTemplateName: 'NewProjectileWeapon',
+                lifespanFrame: 504,
+              },
               smartBombProfile: {},
               animationSteeringProfile: {},
               floatUpdateProfile: {
@@ -10601,6 +10716,11 @@ describe('runtime-save-game', () => {
               { moduleType: 'DynamicShroudClearingRangeUpdate', moduleTag: 'ModuleTag_DynamicShroud' },
               { moduleType: 'StealthUpdate', moduleTag: 'ModuleTag_Stealth' },
               { moduleType: 'StealthDetectorUpdate', moduleTag: 'ModuleTag_Detector' },
+              { moduleType: 'PhysicsBehavior', moduleTag: 'ModuleTag_Physics' },
+              { moduleType: 'RailroadBehavior', moduleTag: 'ModuleTag_Railroad' },
+              { moduleType: 'WaveGuideUpdate', moduleTag: 'ModuleTag_WaveGuide' },
+              { moduleType: 'ProjectileStreamUpdate', moduleTag: 'ModuleTag_ProjectileStream' },
+              { moduleType: 'BoneFXUpdate', moduleTag: 'ModuleTag_BoneFX' },
               { moduleType: 'SmartBombTargetHomingUpdate', moduleTag: 'ModuleTag_SmartBomb' },
               { moduleType: 'AnimationSteeringUpdate', moduleTag: 'ModuleTag_AnimSteer' },
               { moduleType: 'FloatUpdate', moduleTag: 'ModuleTag_Float' },
@@ -10617,6 +10737,7 @@ describe('runtime-save-game', () => {
               { moduleType: 'PoisonedBehavior', moduleTag: 'ModuleTag_Poisoned' },
               { moduleType: 'MinefieldBehavior', moduleTag: 'ModuleTag_Minefield' },
               { moduleType: 'GenerateMinefieldBehavior', moduleTag: 'ModuleTag_GenerateMines' },
+              { moduleType: 'DumbProjectileBehavior', moduleTag: 'ModuleTag_DumbProjectile' },
               { moduleType: 'TechBuildingBehavior', moduleTag: 'ModuleTag_TechBuilding' },
               { moduleType: 'BunkerBusterBehavior', moduleTag: 'ModuleTag_BunkerBuster' },
               { moduleType: 'NeutronBlastBehavior', moduleTag: 'ModuleTag_NeutronBlast' },
@@ -10684,6 +10805,11 @@ describe('runtime-save-game', () => {
       'ModuleTag_DynamicShroud',
       'ModuleTag_Stealth',
       'ModuleTag_Detector',
+      'ModuleTag_Physics',
+      'ModuleTag_Railroad',
+      'ModuleTag_WaveGuide',
+      'ModuleTag_ProjectileStream',
+      'ModuleTag_BoneFX',
       'ModuleTag_SmartBomb',
       'ModuleTag_AnimSteer',
       'ModuleTag_Float',
@@ -10700,6 +10826,7 @@ describe('runtime-save-game', () => {
       'ModuleTag_Poisoned',
       'ModuleTag_Minefield',
       'ModuleTag_GenerateMines',
+      'ModuleTag_DumbProjectile',
       'ModuleTag_TechBuilding',
       'ModuleTag_BunkerBuster',
       'ModuleTag_NeutronBlast',
@@ -10922,6 +11049,94 @@ describe('runtime-save-game', () => {
       nextCallFrameAndPhase: (66 << 2) | 2,
       enabled: true,
     });
+    const physicsModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Physics');
+    const physics = parseSourcePhysicsBehaviorBlockData(physicsModule!.blockData);
+    expect(physics).toMatchObject({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      accel: { x: 35, y: 37, z: 36 },
+      prevAccel: { x: 38, y: 40, z: 39 },
+      vel: { x: 32, y: 34, z: 33 },
+      turning: -1,
+      ignoreCollisionsWith: 46,
+      flags: SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE
+        | SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE
+        | SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN
+        | SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME
+        | SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE
+        | SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL
+        | SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW
+        | SOURCE_PHYSICS_FLAG_IS_STUNNED,
+      mass: 31,
+      currentOverlap: 47,
+      previousOverlap: 48,
+      motiveForceExpires: 49,
+      velMag: 50,
+    });
+    expect(physics.yawRate).toBeCloseTo(0.41, 6);
+    expect(physics.rollRate).toBeCloseTo(0.43, 6);
+    expect(physics.pitchRate).toBeCloseTo(0.42, 6);
+    expect(physics.extraBounciness).toBeCloseTo(0.44, 6);
+    expect(physics.extraFriction).toBeCloseTo(0.45, 6);
+    const railroadModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Railroad');
+    const railroad = parseSourceRailroadBehaviorBlockData(railroadModule!.blockData);
+    expect(railroad.physics.vel).toEqual({ x: 32, y: 34, z: 33 });
+    expect(railroad.nextStationTask).toBe(1);
+    expect(railroad.trailerId).toBe(51);
+    expect(railroad.currentPointHandle).toBe(52);
+    expect(railroad.waitAtStationTimer).toBe(53);
+    expect(railroad.carriagesCreated).toBe(true);
+    expect(railroad.waitingInWings).toBe(false);
+    expect(railroad.isLeadCarraige).toBe(true);
+    expect(railroad.wantsToBeLeadCarraige).toBe(54);
+    expect(railroad.conductorState).toBe(2);
+    expect(railroad.anchorWaypointId).toBe(321);
+    expect(railroad.pullInfo).toMatchObject({
+      speed: 55,
+      trackDistance: 56,
+      towHitchPosition: { x: 57, y: 59, z: 58 },
+      mostRecentSpecialPointHandle: 60,
+      previousWaypoint: 61,
+      currentWaypoint: 62,
+    });
+    expect(railroad.conductorPullInfo).toMatchObject({
+      direction: -1,
+      speed: 63,
+      trackDistance: 64,
+      towHitchPosition: { x: 65, y: 67, z: 66 },
+      mostRecentSpecialPointHandle: 68,
+      previousWaypoint: 69,
+      currentWaypoint: 70,
+    });
+    expect(railroad.held).toBe(true);
+    const waveGuideModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_WaveGuide');
+    const waveGuide = parseSourceWaveGuideUpdateBlockData(waveGuideModule!.blockData);
+    expect(waveGuide.nextCallFrameAndPhase).toBe((99 << 2) | 2);
+    expect(waveGuide.activeFrame).toBe(88);
+    expect(waveGuide.needDisable).toBe(false);
+    expect(waveGuide.initialized).toBe(true);
+    expect(waveGuide.shapePointCount).toBe(2);
+    expect(waveGuide.splashSoundFrame).toBe(77);
+    expect(waveGuide.finalDestination).toEqual({ x: 71, y: 73, z: 72 });
+    expect(waveGuide.shapePointsBytes.byteLength).toBe(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH);
+    const projectileStreamModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_ProjectileStream',
+    );
+    const projectileStream = parseSourceProjectileStreamUpdateBlockData(projectileStreamModule!.blockData);
+    expect(projectileStream.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(projectileStream.projectileIds.slice(0, 4)).toEqual([901, 902, 0, 0]);
+    expect(projectileStream.nextFreeIndex).toBe(2);
+    expect(projectileStream.firstValidIndex).toBe(0);
+    expect(projectileStream.owningObject).toBe(903);
+    expect(projectileStream.targetObject).toBe(904);
+    expect(projectileStream.targetPosition).toEqual({ x: 74, y: 75, z: 76 });
+    const boneFxModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_BoneFX');
+    const boneFx = parseSourceBoneFxUpdateBlockData(boneFxModule!.blockData);
+    expect(boneFx.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(boneFx.particleSystemIds).toEqual([905]);
+    expect(boneFx.nextFxFrame[0]).toEqual([-1, -1, -1, -1, -1, -1, -1, -1]);
+    expect([...boneFx.bonesResolvedBytes]).toEqual([1, 0, 1, 0]);
+    expect(boneFx.currentBodyState).toBe(1);
+    expect(boneFx.active).toBe(true);
     const smartBombModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_SmartBomb');
     expect(parseSourceSmartBombTargetHomingUpdateBlockData(smartBombModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (43 << 2) | 2,
@@ -11038,6 +11253,21 @@ describe('runtime-save-game', () => {
       upgraded: true,
       target: { x: 11, y: 22, z: 3 },
       mineIds: [201, 202],
+    });
+    const dumbProjectileModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_DumbProjectile',
+    );
+    expect(parseSourceDumbProjectileBehaviorBlockData(dumbProjectileModule!.blockData)).toMatchObject({
+      prefix: [1, 1, 1, 1, 1],
+      nextCallFrameAndPhase: (98 << 2) | 2,
+      launcherId: 91,
+      victimId: 92,
+      flightPathSegments: 3,
+      flightPathSpeed: 12.25,
+      flightPathStart: { x: 111, y: 222, z: 5 },
+      flightPathEnd: { x: 333, y: 444, z: 6 },
+      detonationWeaponTemplateName: 'NewProjectileWeapon',
+      lifespanFrame: 504,
     });
     const techModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_TechBuilding');
     expect(parseSourceBaseOnlyUpdateModuleBlockData(techModule!.blockData)).toEqual({
@@ -14366,11 +14596,10 @@ describe('runtime-save-game', () => {
     expect(parsed.motiveForceExpires).toBe(1024);
     expect(parsed.extraBounciness).toBeCloseTo(0.75, 6);
     expect(parsed.extraFriction).toBeCloseTo(-0.125, 6);
-    expect(parsed.velMag).toBe(SOURCE_PHYSICS_INVALID_VEL_MAG);
+    expect(parsed.velMag).toBeCloseTo(2.5, 6);
     expect(parsed.flags).toBe(
       SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE
       | SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE
-      | SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN
       | SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE
       | SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME
       | SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL

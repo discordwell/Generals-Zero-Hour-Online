@@ -203,7 +203,6 @@ const SOURCE_PHYSICS_LIVE_OWNED_FLAG_MASK = SOURCE_PHYSICS_FLAG_STICK_TO_GROUND
   | SOURCE_PHYSICS_FLAG_IS_IN_UPDATE
   | SOURCE_PHYSICS_FLAG_IS_STUNNED;
 const SOURCE_PHYSICS_TURNING_BYTE_LENGTH = 4;
-const SOURCE_PHYSICS_INVALID_VEL_MAG = -1;
 const SOURCE_RAILROAD_BEHAVIOR_CURRENT_VERSION = 3;
 const SOURCE_RAILROAD_PULL_INFO_CURRENT_VERSION = 1;
 const SOURCE_RAILROAD_ENUM_BYTE_LENGTH = 4;
@@ -5033,6 +5032,88 @@ interface SourceWaveGuideUpdateBlockState {
   finalDestination: Coord3D;
 }
 
+function createDefaultSourcePhysicsBehaviorBlockState(entity: MapEntity): SourcePhysicsBehaviorBlockState {
+  const profile = entity.physicsBehaviorProfile;
+  let flags = SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE;
+  flags = setSourcePhysicsFlag(flags, SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE, profile?.allowBouncing === true);
+  flags = setSourcePhysicsFlag(flags, SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE, profile?.allowCollideForce !== false);
+  return {
+    version: 2,
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    yawRate: 0,
+    rollRate: 0,
+    pitchRate: 0,
+    accel: { x: 0, y: 0, z: 0 },
+    prevAccel: { x: 0, y: 0, z: 0 },
+    vel: { x: 0, y: 0, z: 0 },
+    turningBytes: new Uint8Array(SOURCE_PHYSICS_TURNING_BYTE_LENGTH),
+    ignoreCollisionsWith: 0,
+    flags,
+    mass: sourcePhysicsFinite(profile?.mass, 1),
+    currentOverlap: 0,
+    previousOverlap: 0,
+    motiveForceExpires: 0,
+    extraBounciness: 0,
+    extraFriction: 0,
+    velMag: 0,
+  };
+}
+
+function createDefaultSourceRailroadBehaviorPullInfoBlockState(): SourceRailroadBehaviorPullInfoBlockState {
+  return {
+    version: SOURCE_RAILROAD_PULL_INFO_CURRENT_VERSION,
+    direction: 1,
+    speed: 0,
+    trackDistance: 0,
+    towHitchPosition: { x: 0, y: 0, z: 0 },
+    mostRecentSpecialPointHandle: 0x00facade,
+    previousWaypoint: 0x00facade,
+    currentWaypoint: 0x00facade,
+  };
+}
+
+function createDefaultSourceRailroadBehaviorBlockState(entity: MapEntity): SourceRailroadBehaviorBlockState {
+  const pullInfo = createDefaultSourceRailroadBehaviorPullInfoBlockState();
+  return {
+    version: SOURCE_RAILROAD_BEHAVIOR_CURRENT_VERSION,
+    physics: createDefaultSourcePhysicsBehaviorBlockState(entity),
+    nextStationTaskBytes: buildSourceRawInt32Bytes(0),
+    trailerId: 0,
+    currentPointHandle: 0x00facade,
+    waitAtStationTimer: 0,
+    carriagesCreated: false,
+    hasEverBeenHitched: false,
+    waitingInWings: true,
+    endOfLine: false,
+    isLocomotive: false,
+    isLeadCarraige: false,
+    wantsToBeLeadCarraige: 0,
+    disembark: false,
+    inTunnel: false,
+    conductorStateBytes: buildSourceRawInt32Bytes(0),
+    anchorWaypointIdBytes: buildSourceRawInt32Bytes(0x7fffffff),
+    pullInfo,
+    conductorPullInfo: { ...pullInfo },
+    held: false,
+  };
+}
+
+function createDefaultSourceWaveGuideUpdateBlockState(currentFrame: number): SourceWaveGuideUpdateBlockState {
+  return {
+    version: SOURCE_WAVEGUIDE_CURRENT_VERSION,
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    activeFrame: 0,
+    needDisable: true,
+    initialized: false,
+    shapePointsBytes: new Uint8Array(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH),
+    transformedShapePointsBytes: new Uint8Array(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH),
+    shapeEffectsBytes: new Uint8Array(SOURCE_WAVEGUIDE_SHAPE_EFFECTS_BYTE_LENGTH),
+    shapePointCount: 0,
+    splashSoundFrame: 0,
+    finalDestination: { x: 0, y: 0, z: 0 },
+  };
+}
+
 function sourcePhysicsFinite(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
@@ -5058,7 +5139,9 @@ function buildSourcePhysicsBehaviorFlags(
   flags = setSourcePhysicsFlag(
     flags,
     SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN,
-    typeof state?.updateEverRun === 'boolean' ? state.updateEverRun : true,
+    typeof state?.updateEverRun === 'boolean'
+      ? state.updateEverRun
+      : sourcePhysicsFlag(preservedFlags, SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN),
   );
   flags = setSourcePhysicsFlag(
     flags,
@@ -5273,7 +5356,7 @@ function writeSourcePhysicsBehaviorBlockData(
   )) >>> 0);
   saver.xferReal(sourcePhysicsFinite(state?.extraBounciness, preservedState.extraBounciness));
   saver.xferReal(sourcePhysicsFinite(state?.extraFriction, preservedState.extraFriction));
-  saver.xferReal(sourcePhysicsFinite(state?.velMag, SOURCE_PHYSICS_INVALID_VEL_MAG));
+  saver.xferReal(sourcePhysicsFinite(state?.velMag, preservedState.velMag));
 }
 
 function buildSourcePhysicsBehaviorBlockData(
@@ -5637,6 +5720,21 @@ interface SourceProjectileStreamUpdateBlockState {
   targetPosition: Coord3D;
 }
 
+function createDefaultSourceProjectileStreamUpdateBlockState(
+  currentFrame: number,
+): SourceProjectileStreamUpdateBlockState {
+  return {
+    version: 2,
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    projectileIds: Array.from({ length: SOURCE_PROJECTILE_STREAM_MAX }, () => 0),
+    nextFreeIndex: 0,
+    firstValidIndex: 0,
+    owningObject: 0,
+    targetObject: 0,
+    targetPosition: { x: 0, y: 0, z: 0 },
+  };
+}
+
 function normalizeSourceObjectId(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.max(0, Math.trunc(value)) >>> 0
@@ -5742,6 +5840,35 @@ interface SourceBoneFxUpdateBlockState {
   currentBodyState: number;
   bonesResolvedBytes: Uint8Array;
   active: boolean;
+}
+
+function createSourceBoneFxNumberGrid(value: number): number[][] {
+  return Array.from({ length: SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT }, () =>
+    Array.from({ length: SOURCE_BONE_FX_MAX_BONES }, () => value),
+  );
+}
+
+function createSourceBoneFxCoordGrid(): Coord3D[][] {
+  return Array.from({ length: SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT }, () =>
+    Array.from({ length: SOURCE_BONE_FX_MAX_BONES }, () => ({ x: 0, y: 0, z: 0 })),
+  );
+}
+
+function createDefaultSourceBoneFxUpdateBlockState(currentFrame: number): SourceBoneFxUpdateBlockState {
+  return {
+    version: 1,
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    particleSystemIds: [],
+    nextFxFrame: createSourceBoneFxNumberGrid(-1),
+    nextOclFrame: createSourceBoneFxNumberGrid(-1),
+    nextParticleSystemFrame: createSourceBoneFxNumberGrid(-1),
+    fxBonePositions: createSourceBoneFxCoordGrid(),
+    oclBonePositions: createSourceBoneFxCoordGrid(),
+    particleSystemBonePositions: createSourceBoneFxCoordGrid(),
+    currentBodyState: 0,
+    bonesResolvedBytes: new Uint8Array(SOURCE_BONE_FX_BONES_RESOLVED_BYTE_LENGTH),
+    active: false,
+  };
 }
 
 function xferSourceBoneFxIntGrid(xfer: Xfer, values: readonly (readonly number[])[]): number[][] {
@@ -6949,6 +7076,23 @@ interface SourceDumbProjectileBehaviorBlockState {
   flightPathEnd: Coord3D;
   detonationWeaponTemplateName: string;
   lifespanFrame: number;
+}
+
+function createDefaultSourceDumbProjectileBehaviorBlockState(
+  currentFrame: number,
+): SourceDumbProjectileBehaviorBlockState {
+  return {
+    version: SOURCE_DUMB_PROJECTILE_BEHAVIOR_CURRENT_VERSION,
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    launcherId: 0,
+    victimId: 0,
+    flightPathSegments: 0,
+    flightPathSpeed: 0,
+    flightPathStart: { x: 0, y: 0, z: 0 },
+    flightPathEnd: { x: 0, y: 0, z: 0 },
+    detonationWeaponTemplateName: '',
+    lifespanFrame: 0,
+  };
 }
 
 interface SourceMissileAIUpdateRuntimeState {
@@ -17200,6 +17344,45 @@ function buildGeneratedSourceObjectModuleBlockData(
     return buildSourceStealthDetectorUpdateBlockData(entity, currentFrame);
   }
 
+  if (normalizedModuleType === 'PHYSICSBEHAVIOR' && entity.physicsBehaviorProfile) {
+    return buildSourcePhysicsBehaviorBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourcePhysicsBehaviorBlockState(entity),
+    );
+  }
+
+  if (normalizedModuleType === 'RAILROADBEHAVIOR') {
+    return buildSourceRailroadBehaviorBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceRailroadBehaviorBlockState(entity),
+    );
+  }
+
+  if (normalizedModuleType === 'WAVEGUIDEUPDATE') {
+    return buildSourceWaveGuideUpdateBlockData(
+      entity,
+      createDefaultSourceWaveGuideUpdateBlockState(currentFrame),
+    );
+  }
+
+  if (normalizedModuleType === 'PROJECTILESTREAMUPDATE') {
+    return buildSourceProjectileStreamUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceProjectileStreamUpdateBlockState(currentFrame),
+    );
+  }
+
+  if (normalizedModuleType === 'BONEFXUPDATE') {
+    return buildSourceBoneFxUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceBoneFxUpdateBlockState(currentFrame),
+    );
+  }
+
   if (normalizedModuleType === 'SMARTBOMBTARGETHOMINGUPDATE' && entity.smartBombProfile) {
     return buildSourceSmartBombTargetHomingUpdateBlockData(currentFrame);
   }
@@ -17276,6 +17459,13 @@ function buildGeneratedSourceObjectModuleBlockData(
     return buildSourceGenerateMinefieldBehaviorBlockData(
       entity,
       createDefaultSourceGenerateMinefieldBehaviorBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'DUMBPROJECTILEBEHAVIOR') {
+    return buildSourceDumbProjectileBehaviorBlockData(
+      entity,
+      createDefaultSourceDumbProjectileBehaviorBlockState(currentFrame),
     );
   }
 
