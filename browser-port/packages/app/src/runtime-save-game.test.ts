@@ -1085,12 +1085,38 @@ interface SourceMobMemberSlavedUpdateTestState {
   catchUpCrisisTimer: number;
 }
 
+interface SourceSlavedUpdateTestState {
+  nextCallFrameAndPhase: number;
+  slaver: number;
+  guardPointOffset: Coord3D;
+  framesToWait: number;
+  repairState: number;
+  repairing: boolean;
+}
+
 function xferSourceRgbColor(xfer: Xfer, color: SourceRgbColorTestState): SourceRgbColorTestState {
   return {
     red: xfer.xferReal(color.red),
     green: xfer.xferReal(color.green),
     blue: xfer.xferReal(color.blue),
   };
+}
+
+function createSourceSlavedUpdateBlockData(state: SourceSlavedUpdateTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-slaved-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferObjectID(state.slaver);
+    xferSave.xferCoord3D(state.guardPointOffset);
+    xferSave.xferInt(state.framesToWait);
+    xferSave.xferInt(state.repairState);
+    xferSave.xferBool(state.repairing);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
 }
 
 function createSourceMobMemberSlavedUpdateBlockData(state: SourceMobMemberSlavedUpdateTestState): Uint8Array {
@@ -2728,6 +2754,28 @@ function parseSourceProjectileStreamUpdateBlockData(data: Uint8Array): SourcePro
       owningObject: xferLoad.xferObjectID(0),
       targetObject: xferLoad.xferObjectID(0),
       targetPosition: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceSlavedUpdateBlockData(data: Uint8Array): SourceSlavedUpdateTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-slaved-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      slaver: xferLoad.xferObjectID(0),
+      guardPointOffset: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      framesToWait: xferLoad.xferInt(0),
+      repairState: xferLoad.xferInt(0),
+      repairing: xferLoad.xferBool(false),
     };
   } finally {
     xferLoad.close();
@@ -8630,6 +8678,111 @@ describe('runtime-save-game', () => {
     expect(parsed.owningObject).toBe(77);
     expect(parsed.targetObject).toBe(44);
     expect(parsed.targetPosition).toEqual({ x: 101, y: 202, z: 303 });
+  });
+
+  it('rewrites source SlavedUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Slaved',
+      blockData: createSourceSlavedUpdateBlockData({
+        nextCallFrameAndPhase: (84 << 2) | 2,
+        slaver: 12,
+        guardPointOffset: { x: 1, y: 2, z: 5 },
+        framesToWait: 4,
+        repairState: 4,
+        repairing: true,
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source slaved update rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            slaverEntityId: 88,
+            slavedUpdateProfile: { guardMaxRange: 30 },
+            slaveGuardOffsetX: 3.5,
+            slaveGuardOffsetZ: -4.5,
+            slavedNextUpdateFrame: 50,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Slaved'
+            ? 'SLAVEDUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const slavedModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Slaved');
+
+    expect(slavedModule).toBeDefined();
+    const parsed = parseSourceSlavedUpdateBlockData(slavedModule!.blockData);
+    expect(parsed.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsed.slaver).toBe(88);
+    expect(parsed.guardPointOffset).toEqual({ x: 3.5, y: -4.5, z: 5 });
+    expect(parsed.framesToWait).toBe(8);
+    expect(parsed.repairState).toBe(4);
+    expect(parsed.repairing).toBe(true);
   });
 
   it('rewrites source MobMemberSlavedUpdate modules from live runtime state', () => {

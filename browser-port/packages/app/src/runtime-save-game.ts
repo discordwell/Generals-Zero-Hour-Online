@@ -4818,6 +4818,16 @@ interface SourceMobMemberSlavedUpdateBlockState {
   catchUpCrisisTimer: number;
 }
 
+interface SourceSlavedUpdateBlockState {
+  version: number;
+  nextCallFrameAndPhase: number;
+  slaver: number;
+  guardPointOffset: Coord3D;
+  framesToWait: number;
+  repairState: number;
+  repairing: boolean;
+}
+
 function xferSourceRgbColor(xfer: Xfer, color: SourceRgbColorState): SourceRgbColorState {
   return {
     red: xfer.xferReal(color.red),
@@ -4873,6 +4883,74 @@ function tryParseSourceMobMemberSlavedUpdateBlockData(
     return null;
   } finally {
     xferLoad.close();
+  }
+}
+
+function tryParseSourceSlavedUpdateBlockData(
+  data: Uint8Array,
+): SourceSlavedUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-slaved-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const slaver = xferLoad.xferObjectID(0);
+    const guardPointOffset = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const framesToWait = xferLoad.xferInt(0);
+    const repairState = xferLoad.xferInt(0);
+    const repairing = xferLoad.xferBool(false);
+    return xferLoad.getRemaining() === 0
+      ? {
+        version,
+        nextCallFrameAndPhase,
+        slaver,
+        guardPointOffset,
+        framesToWait,
+        repairState,
+        repairing,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceSlavedUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceSlavedUpdateBlockState,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-slaved-update');
+  try {
+    const framesToWait = Number.isFinite(entity.slavedNextUpdateFrame)
+      ? Math.max(0, Math.trunc(entity.slavedNextUpdateFrame - currentFrame))
+      : preservedState.framesToWait;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferObjectID(normalizeSourceObjectId(entity.slaverEntityId ?? preservedState.slaver));
+    saver.xferCoord3D({
+      x: sourcePhysicsFinite(entity.slaveGuardOffsetX, preservedState.guardPointOffset.x),
+      y: sourcePhysicsFinite(entity.slaveGuardOffsetZ, preservedState.guardPointOffset.y),
+      z: preservedState.guardPointOffset.z,
+    });
+    saver.xferInt(Math.trunc(framesToWait));
+    saver.xferInt(Math.trunc(sourcePhysicsFinite(preservedState.repairState, 0)));
+    saver.xferBool(preservedState.repairing);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
   }
 }
 
@@ -6654,6 +6732,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceProjectileStreamUpdateBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'SLAVEDUPDATE' && entity.slavedUpdateProfile) {
+            const parsedSourceState = tryParseSourceSlavedUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceSlavedUpdateBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }
