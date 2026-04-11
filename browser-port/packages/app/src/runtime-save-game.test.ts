@@ -10208,6 +10208,21 @@ describe('runtime-save-game', () => {
                   pausedOnFrame: 111,
                   pausedPercent: 0.5,
                 },
+              ], [
+                'SPECIAL_SPY',
+                {
+                  specialPowerTemplateName: 'SPECIAL_SPY',
+                  moduleType: 'SPYVISIONSPECIALPOWER',
+                  moduleTag: 'ModuleTag_SpyVisionPower',
+                  availableOnFrame: 0,
+                  pausedCount: 0,
+                  pausedOnFrame: 0,
+                  pausedPercent: 0,
+                  spyVisionDeactivateFrame: 120,
+                  spyVisionCurrentlyActive: true,
+                  spyVisionResetTimersNextUpdate: false,
+                  spyVisionDisabledUntilFrame: 0,
+                },
               ]]),
               initialPayloadCreated: true,
               containProfile: {
@@ -10788,6 +10803,262 @@ describe('runtime-save-game', () => {
                 finalMinorRadius: 25,
                 reverseAtTransitionTime: false,
               },
+              firestormDamageState: { lastDamageFrame: 66 },
+              battlePlanProfile: {
+                specialPowerTemplateName: 'SPECIAL_BATTLEPLAN',
+                bombardmentAnimationFrames: 30,
+                holdTheLineAnimationFrames: 30,
+                searchAndDestroyAnimationFrames: 30,
+                transitionIdleFrames: 10,
+                battlePlanParalyzeFrames: 5,
+                holdTheLineArmorDamageScalar: 0.75,
+                searchAndDestroySightRangeScalar: 1.2,
+                strategyCenterSearchAndDestroySightRangeScalar: 1.5,
+                strategyCenterSearchAndDestroyDetectsStealth: false,
+                strategyCenterHoldTheLineMaxHealthScalar: 1.1,
+                validMemberKindOf: new Set(['INFANTRY']),
+                invalidMemberKindOf: new Set(['AIRCRAFT']),
+              },
+              battlePlanState: {
+                desiredPlan: 'SEARCHANDDESTROY',
+                activePlan: 'SEARCHANDDESTROY',
+                transitionStatus: 'ACTIVE',
+                transitionFinishFrame: 88,
+                idleCooldownFinishFrame: 0,
+              },
+              rebuildHoleProfile: {
+                workerObjectName: 'ChinaDozer',
+                workerRespawnDelay: 30,
+                holeHealthRegenPercentPerSecond: 0.1,
+              },
+              rebuildHoleWorkerEntityId: 601,
+              rebuildHoleReconstructingEntityId: 602,
+              rebuildHoleSpawnerEntityId: 603,
+              rebuildHoleWorkerWaitCounter: 7,
+              rebuildHoleRebuildTemplateName: 'ChinaPowerPlant',
+              propagandaTowerProfile: {
+                radius: 150,
+                scanDelayFrames: 20,
+                healPercentPerSecond: 0.01,
+                upgradedHealPercentPerSecond: 0.02,
+                upgradeRequired: null,
+                affectsSelf: true,
+              },
+              propagandaTowerNextScanFrame: 96,
+              propagandaTowerTrackedIds: [604, 605],
+              bridgeBehaviorProfile: {
+                scaffoldLateralSpeed: 1,
+                scaffoldVerticalSpeed: 1,
+                scaffoldObjectName: 'BridgeScaffold',
+              },
+              bridgeBehaviorState: {
+                towerIds: [611, 612],
+                scaffoldIds: [613],
+                scaffoldPresent: true,
+                isBridgeDestroyed: true,
+                bridgeCells: [],
+                deathFrame: 77,
+              },
+              bridgeTowerProfile: { _marker: true },
+              bridgeTowerState: {
+                bridgeEntityId: 614,
+                towerType: 2,
+              },
+              specialPowerCompletionCreatorId: 615,
+              specialPowerCompletionCreatorSet: true,
+              tensileFormationProfile: {
+                enabled: true,
+                crackSound: '',
+              },
+              tensileFormationState: {
+                enabled: true,
+                nextWakeFrame: 89,
+              },
+              spectreGunshipDeploymentProfile: {
+                specialPowerTemplate: 'SPECIAL_SPECTRE',
+                gunshipTemplateName: 'SpectreGunship',
+                attackAreaRadius: 200,
+                gunshipOrbitRadius: 250,
+                createLocation: 'NEAR_TARGET',
+                requiredScience: '',
+              },
+              spectreGunshipDeploymentGunshipId: 616,
+              spectreGunshipProfile: {
+                specialPowerTemplate: 'SPECIAL_SPECTRE',
+                attackAreaRadius: 200,
+                targetingReticleRadius: 25,
+                gunshipOrbitRadius: 250,
+                strafingIncrement: 20,
+                orbitInsertionSlope: 0.7,
+                howitzerFiringRate: 10,
+                howitzerFollowLag: 0,
+                randomOffsetForHowitzer: 20,
+                orbitFrames: 300,
+                howitzerWeaponTemplate: 'SpectreHowitzerGun',
+                gattlingTemplateName: 'SpectreGattling',
+              },
+              spectreGunshipState: {
+                status: 'ORBITING',
+                initialTargetX: 1,
+                initialTargetY: 2,
+                initialTargetZ: 3,
+                overrideTargetX: 4,
+                overrideTargetY: 5,
+                overrideTargetZ: 6,
+                satelliteX: 7,
+                satelliteY: 8,
+                satelliteZ: 9,
+                gattlingTargetX: 10,
+                gattlingTargetY: 11,
+                gattlingTargetZ: 12,
+                positionToShootAtX: 13,
+                positionToShootAtY: 14,
+                positionToShootAtZ: 15,
+                orbitEscapeFrame: 100,
+                okToFireHowitzerCounter: 2,
+                gattlingEntityId: 617,
+              },
+              pointDefenseLaserProfile: {
+                weaponName: 'PointDefenseLaser',
+                primaryTargetKindOf: new Set(['SMALL_MISSILE']),
+                secondaryTargetKindOf: new Set(['AIRCRAFT']),
+                scanRate: 4,
+                scanRange: 250,
+                predictTargetVelocityFactor: 1,
+              },
+              pdlBestTargetId: 618,
+              pdlInRange: true,
+              pdlNextScanFrame: 48,
+              pdlNextShotFrame: 52,
+              neutronMissileUpdateProfile: {
+                initialDist: 100,
+                maxTurnRate: 0.1,
+                forwardDamping: 0.9,
+                relativeSpeed: 1,
+                targetFromDirectlyAbove: 500,
+                specialAccelFactor: 2,
+                specialSpeedTimeFrames: 30,
+                specialSpeedHeight: 50,
+                deliveryDecalRadius: 30,
+                specialJitterDistance: 5,
+              },
+              neutronMissileUpdateState: {
+                state: 'ATTACK',
+                targetX: 21,
+                targetY: 22,
+                targetZ: 23,
+                intermedX: 24,
+                intermedY: 25,
+                intermedZ: 26,
+                accelX: 0.1,
+                accelY: 0.2,
+                accelZ: 0.3,
+                velX: 1.1,
+                velY: 1.2,
+                velZ: 1.3,
+                launcherId: 619,
+                attachWeaponSlot: 1,
+                attachSpecificBarrelToUse: 2,
+                stateTimestamp: 70,
+                isArmed: true,
+                isLaunched: true,
+                noTurnDistLeft: 9,
+                reachedIntermediatePos: true,
+                frameAtLaunch: 44,
+                heightAtLaunch: 55,
+              },
+              specialAbilityProfile: {
+                specialPowerTemplateName: 'SPECIAL_CAPTURE',
+                startAbilityRange: 10,
+                abilityAbortRange: 20,
+                preparationFrames: 5,
+                persistentPrepFrames: 0,
+                packTimeFrames: 0,
+                unpackTimeFrames: 0,
+                packUnpackVariationFactor: 0,
+                skipPackingWithNoTarget: false,
+                effectDurationFrames: 0,
+                fleeRangeAfterCompletion: 0,
+                flipOwnerAfterPacking: false,
+                flipOwnerAfterUnpacking: false,
+                loseStealthOnTrigger: false,
+                preTriggerUnstealthFrames: 0,
+                awardXPForTriggering: 0,
+                specialObject: null,
+                specialObjectAttachToBone: null,
+                maxSpecialObjects: 0,
+                specialObjectsPersistent: false,
+                effectValue: 0,
+                uniqueSpecialObjectTargets: false,
+                specialObjectsPersistWhenOwnerDies: false,
+                alwaysValidateSpecialObjects: false,
+                doCaptureFX: true,
+                needToFaceTarget: true,
+                approachRequiresLOS: false,
+                persistenceRequiresRecharge: false,
+              },
+              specialAbilityState: {
+                active: true,
+                packingState: 'PACKING',
+                prepFrames: 3,
+                animFrames: 4,
+                targetEntityId: null,
+                targetX: 31,
+                targetZ: 32,
+                withinStartAbilityRange: true,
+                noTargetCommand: false,
+                persistentTriggerCount: 0,
+                facingInitiated: true,
+                facingComplete: false,
+                captureFlashPhase: 0.25,
+                doDisableFxParticles: false,
+              },
+              toppleProfile: {
+                initialVelocityPercent: 0.2,
+                initialAccelPercent: 0.3,
+                bounceVelocityPercent: 0.4,
+                killWhenFinishedToppling: true,
+                killWhenStartToppling: false,
+                toppleLeftOrRightOnly: false,
+                stumpName: '',
+                killStumpWhenToppled: false,
+                reorientToppledRubble: false,
+              },
+              toppleState: 'TOPPLING',
+              toppleSpeed: 2,
+              toppleAngularVelocity: 0.4,
+              toppleAngularAcceleration: 0.6,
+              toppleDirX: 0.7,
+              toppleDirZ: 0.8,
+              toppleDirectionSourceZ: 0.9,
+              toppleAngularAccumulation: 1.1,
+              toppleAngleDeltaX: 1.2,
+              toppleNumAngleDeltaX: 3,
+              toppleDoBounceFx: true,
+              toppleOptions: 5,
+              toppleStumpId: 620,
+              structureToppleProfile: {
+                minToppleDelayFrames: 1,
+                maxToppleDelayFrames: 2,
+                minToppleBurstDelayFrames: 3,
+                maxToppleBurstDelayFrames: 4,
+                structuralIntegrity: 100,
+                structuralDecay: 1,
+                crushingWeaponName: 'CrushWeapon',
+              },
+              structureToppleState: {
+                state: 'TOPPLING',
+                toppleFrame: 71,
+                toppleVelocity: 0.45,
+                accumulatedAngle: 0.55,
+                structuralIntegrity: 80,
+                toppleDirX: 0.65,
+                toppleDirZ: 0.75,
+                buildingHeight: 30,
+                lastCrushedLocation: 2,
+                nextBurstFrame: 81,
+                delayBurstLocation: { x: 33, y: 34, z: 35 },
+              },
             } as unknown as import('@generals/game-logic').MapEntity,
           ],
         }),
@@ -10801,6 +11072,7 @@ describe('runtime-save-game', () => {
               { moduleType: 'OCLSpecialPower', moduleTag: 'ModuleTag_SpecialPower' },
               { moduleType: 'TransportContain', moduleTag: 'ModuleTag_Contain' },
               { moduleType: 'ProductionUpdate', moduleTag: 'ModuleTag_Production' },
+              { moduleType: 'BattlePlanUpdate', moduleTag: 'ModuleTag_BattlePlan' },
               { moduleType: 'OverchargeBehavior', moduleTag: 'ModuleTag_Overcharge' },
               { moduleType: 'AutoHealBehavior', moduleTag: 'ModuleTag_AutoHeal' },
               { moduleType: 'GrantStealthBehavior', moduleTag: 'ModuleTag_GrantStealth' },
@@ -10815,6 +11087,7 @@ describe('runtime-save-game', () => {
               { moduleType: 'FireWeaponWhenDeadBehavior', moduleTag: 'ModuleTag_FWWD' },
               { moduleType: 'AutoFindHealingUpdate', moduleTag: 'ModuleTag_AutoHealScan' },
               { moduleType: 'RadiusDecalUpdate', moduleTag: 'ModuleTag_RadiusDecal' },
+              { moduleType: 'FirestormDynamicGeometryInfoUpdate', moduleTag: 'ModuleTag_FirestormGeometry' },
               { moduleType: 'BaseRegenerateUpdate', moduleTag: 'ModuleTag_BaseRegen' },
               { moduleType: 'LifetimeUpdate', moduleTag: 'ModuleTag_Lifetime' },
               { moduleType: 'DeletionUpdate', moduleTag: 'ModuleTag_Delete' },
@@ -10867,6 +11140,20 @@ describe('runtime-save-game', () => {
               { moduleType: 'RepairDockUpdate', moduleTag: 'ModuleTag_RepairDock' },
               { moduleType: 'PrisonDockUpdate', moduleTag: 'ModuleTag_PrisonDock' },
               { moduleType: 'RailedTransportDockUpdate', moduleTag: 'ModuleTag_RailedDock' },
+              { moduleType: 'RebuildHoleBehavior', moduleTag: 'ModuleTag_RebuildHole' },
+              { moduleType: 'PropagandaTowerBehavior', moduleTag: 'ModuleTag_PropagandaTower' },
+              { moduleType: 'BridgeBehavior', moduleTag: 'ModuleTag_Bridge' },
+              { moduleType: 'BridgeTowerBehavior', moduleTag: 'ModuleTag_BridgeTower' },
+              { moduleType: 'SpecialPowerCompletionDie', moduleTag: 'ModuleTag_CompletionDie' },
+              { moduleType: 'TensileFormationUpdate', moduleTag: 'ModuleTag_Tensile' },
+              { moduleType: 'SpectreGunshipDeploymentUpdate', moduleTag: 'ModuleTag_SpectreDeploy' },
+              { moduleType: 'SpectreGunshipUpdate', moduleTag: 'ModuleTag_Spectre' },
+              { moduleType: 'PointDefenseLaserUpdate', moduleTag: 'ModuleTag_PDL' },
+              { moduleType: 'NeutronMissileUpdate', moduleTag: 'ModuleTag_NeutronMissile' },
+              { moduleType: 'SpyVisionUpdate', moduleTag: 'ModuleTag_SpyVisionUpdate' },
+              { moduleType: 'SpecialAbilityUpdate', moduleTag: 'ModuleTag_SpecialAbility' },
+              { moduleType: 'ToppleUpdate', moduleTag: 'ModuleTag_Topple' },
+              { moduleType: 'StructureToppleUpdate', moduleTag: 'ModuleTag_StructureTopple' },
               { moduleType: 'SpawnBehavior', moduleTag: 'ModuleTag_Spawn' },
               { moduleType: 'DynamicGeometryInfoUpdate', moduleTag: 'ModuleTag_DynamicGeometry' },
             ]
@@ -10905,6 +11192,7 @@ describe('runtime-save-game', () => {
       'ModuleTag_SpecialPower',
       'ModuleTag_Contain',
       'ModuleTag_Production',
+      'ModuleTag_BattlePlan',
       'ModuleTag_Overcharge',
       'ModuleTag_AutoHeal',
       'ModuleTag_GrantStealth',
@@ -10919,6 +11207,7 @@ describe('runtime-save-game', () => {
       'ModuleTag_FWWD',
       'ModuleTag_AutoHealScan',
       'ModuleTag_RadiusDecal',
+      'ModuleTag_FirestormGeometry',
       'ModuleTag_BaseRegen',
       'ModuleTag_Lifetime',
       'ModuleTag_Delete',
@@ -10971,6 +11260,20 @@ describe('runtime-save-game', () => {
       'ModuleTag_RepairDock',
       'ModuleTag_PrisonDock',
       'ModuleTag_RailedDock',
+      'ModuleTag_RebuildHole',
+      'ModuleTag_PropagandaTower',
+      'ModuleTag_Bridge',
+      'ModuleTag_BridgeTower',
+      'ModuleTag_CompletionDie',
+      'ModuleTag_Tensile',
+      'ModuleTag_SpectreDeploy',
+      'ModuleTag_Spectre',
+      'ModuleTag_PDL',
+      'ModuleTag_NeutronMissile',
+      'ModuleTag_SpyVisionUpdate',
+      'ModuleTag_SpecialAbility',
+      'ModuleTag_Topple',
+      'ModuleTag_StructureTopple',
       'ModuleTag_Spawn',
       'ModuleTag_DynamicGeometry',
     ]);
@@ -11036,6 +11339,24 @@ describe('runtime-save-game', () => {
     expect(production.clearFlags).toEqual([]);
     expect(production.setFlags).toEqual([]);
     expect(production.flagsDirty).toBe(false);
+    const battlePlanModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_BattlePlan');
+    const battlePlan = parseSourceBattlePlanUpdateBlockData(battlePlanModule!.blockData);
+    expect(battlePlan.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(battlePlan.currentPlan).toBe(SOURCE_BATTLE_PLAN_SEARCH_AND_DESTROY);
+    expect(battlePlan.desiredPlan).toBe(SOURCE_BATTLE_PLAN_SEARCH_AND_DESTROY);
+    expect(battlePlan.planAffectingArmy).toBe(SOURCE_BATTLE_PLAN_SEARCH_AND_DESTROY);
+    expect(battlePlan.status).toBe(SOURCE_BATTLE_PLAN_STATUS_ACTIVE);
+    expect(battlePlan.nextReadyFrame).toBe(88);
+    expect(battlePlan.invalidSettings).toBe(false);
+    expect(battlePlan.centeringTurret).toBe(false);
+    expect(battlePlan.armorScalar).toBeCloseTo(1, 6);
+    expect(battlePlan.bombardment).toBe(0);
+    expect(battlePlan.searchAndDestroy).toBe(1);
+    expect(battlePlan.holdTheLine).toBe(0);
+    expect(battlePlan.sightRangeScalar).toBeCloseTo(1.2, 6);
+    expect(battlePlan.validKindOf).toEqual(['INFANTRY']);
+    expect(battlePlan.invalidKindOf).toEqual(['AIRCRAFT']);
+    expect(battlePlan.visionObjectId).toBe(0);
     const overchargeModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Overcharge');
     expect(parseSourceOverchargeBehaviorBlockData(overchargeModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (43 << 2) | 2,
@@ -11125,6 +11446,30 @@ describe('runtime-save-game', () => {
       nextCallFrameAndPhase: (43 << 2) | 2,
       killWhenNoLongerAttacking: true,
     });
+    const firestormModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_FirestormGeometry');
+    const firestorm = parseSourceFirestormDynamicGeometryInfoUpdateBlockData(firestormModule!.blockData);
+    expect(firestorm.dynamic).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      startingDelayCountdown: 5,
+      timeActive: 7,
+      started: true,
+      finished: false,
+      reverseAtTransitionTime: false,
+      direction: 1,
+      switchedDirections: false,
+      initialHeight: 13,
+      initialMajorRadius: 14,
+      initialMinorRadius: 15,
+      finalHeight: 23,
+      finalMajorRadius: 24,
+      finalMinorRadius: 25,
+    });
+    expect(Array.from(firestorm.particleSystemIdBytes)).toEqual(
+      Array.from({ length: SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH }, () => 0),
+    );
+    expect(firestorm.effectsFired).toBe(false);
+    expect(firestorm.scorchPlaced).toBe(false);
+    expect(firestorm.lastDamageFrame).toBe(66);
     const baseRegenModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_BaseRegen');
     expect(parseSourceBaseRegenerateUpdateBlockData(baseRegenModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (70 << 2) | 2,
@@ -11596,6 +11941,167 @@ describe('runtime-save-game', () => {
     expect(railedDock.unloadingObjectId).toBe(72);
     expect(railedDock.pushOutsideDistancePerFrame).toBeCloseTo(4.5);
     expect(railedDock.unloadCount).toBe(1);
+    const rebuildHoleModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_RebuildHole');
+    expect(parseSourceRebuildHoleBehaviorBlockData(rebuildHoleModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      workerId: 601,
+      reconstructingId: 602,
+      spawnerId: 603,
+      workerWaitCounter: 7,
+      workerTemplateName: 'ChinaDozer',
+      rebuildTemplateName: 'ChinaPowerPlant',
+    });
+    const propagandaTowerModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_PropagandaTower',
+    );
+    expect(parseSourcePropagandaTowerBehaviorBlockData(propagandaTowerModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      lastScanFrame: 76,
+      trackedIds: [604, 605],
+    });
+    const bridgeModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Bridge');
+    expect(parseSourceBridgeBehaviorBlockData(bridgeModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: 0xfffffffe,
+      towerIds: [611, 612, 0, 0],
+      scaffoldPresent: true,
+      scaffoldIds: [613],
+      deathFrame: 77,
+    });
+    const bridgeTowerModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_BridgeTower');
+    expect(parseSourceBridgeTowerBehaviorBlockData(bridgeTowerModule!.blockData)).toEqual({
+      bridgeId: 614,
+      towerType: 2,
+    });
+    const completionDieModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_CompletionDie');
+    expect(parseSourceSpecialPowerCompletionDieBlockData(completionDieModule!.blockData)).toEqual({
+      creatorId: 615,
+      creatorSet: true,
+    });
+    const tensileModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Tensile');
+    expect(parseSourceTensileFormationUpdateBlockData(tensileModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      enabled: true,
+    });
+    const spectreDeployModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_SpectreDeploy',
+    );
+    expect(parseSourceSpectreGunshipDeploymentUpdateBlockData(spectreDeployModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      gunshipId: 616,
+    });
+    const spectreModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Spectre');
+    expect(parseSourceSpectreGunshipUpdateBlockData(spectreModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      initialTargetPosition: { x: 1, y: 3, z: 2 },
+      overrideTargetDestination: { x: 4, y: 6, z: 5 },
+      satellitePosition: { x: 7, y: 9, z: 8 },
+      status: 1,
+      orbitEscapeFrame: 100,
+      gattlingTargetPosition: { x: 10, y: 12, z: 11 },
+      positionToShootAt: { x: 13, y: 15, z: 14 },
+      okToFireHowitzerCounter: 2,
+      gattlingId: 617,
+    });
+    const pdlModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_PDL');
+    expect(parseSourcePointDefenseLaserUpdateBlockData(pdlModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      bestTargetId: 618,
+      inRange: true,
+      nextScanFrames: 6,
+      nextShotAvailableInFrames: 10,
+    });
+    const neutronMissileModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_NeutronMissile',
+    );
+    const neutronMissile = parseSourceNeutronMissileUpdateBlockData(neutronMissileModule!.blockData);
+    expect(neutronMissile).toMatchObject({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      state: 'ATTACK',
+      targetPos: { x: 21, y: 23, z: 22 },
+      intermedPos: { x: 24, y: 26, z: 25 },
+      launcherId: 619,
+      attachWeaponSlot: 1,
+      attachSpecificBarrelToUse: 2,
+      stateTimestamp: 70,
+      isLaunched: true,
+      isArmed: true,
+      reachedIntermediatePos: true,
+      frameAtLaunch: 44,
+      exhaustSystemTemplateName: '',
+    });
+    expect(neutronMissile.accel.x).toBeCloseTo(0.1, 6);
+    expect(neutronMissile.accel.y).toBeCloseTo(0.3, 6);
+    expect(neutronMissile.accel.z).toBeCloseTo(0.2, 6);
+    expect(neutronMissile.vel.x).toBeCloseTo(1.1, 6);
+    expect(neutronMissile.vel.y).toBeCloseTo(1.3, 6);
+    expect(neutronMissile.vel.z).toBeCloseTo(1.2, 6);
+    expect(neutronMissile.noTurnDistLeft).toBeCloseTo(9, 6);
+    expect(neutronMissile.heightAtLaunch).toBeCloseTo(55, 6);
+    const spyVisionModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_SpyVisionUpdate');
+    expect(parseSourceSpyVisionUpdateBlockData(spyVisionModule!.blockData)).toEqual({
+      version: 2,
+      nextCallFrameAndPhase: (120 << 2) | 2,
+      deactivateFrame: 120,
+      currentlyActive: true,
+      resetTimersNextUpdate: false,
+      disabledUntilFrame: 0,
+    });
+    const specialAbilityModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_SpecialAbility',
+    );
+    const specialAbility = parseSourceSpecialAbilityUpdateBlockData(specialAbilityModule!.blockData);
+    expect(specialAbility).toMatchObject({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      active: true,
+      prepFrames: 3,
+      animFrames: 4,
+      targetId: 0,
+      targetPos: { x: 31, y: 0, z: 32 },
+      locationCount: 0,
+      specialObjectIdList: [],
+      specialObjectEntries: 0,
+      noTargetCommand: false,
+      packingState: 'PACKING',
+      facingInitiated: true,
+      facingComplete: false,
+      withinStartAbilityRange: true,
+      doDisableFxParticles: false,
+    });
+    expect(specialAbility.captureFlashPhase).toBeCloseTo(0.25, 6);
+    const toppleModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Topple');
+    const topple = parseSourceToppleUpdateBlockData(toppleModule!.blockData);
+    expect(topple).toMatchObject({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      toppleState: 'TOPPLING',
+      numAngleDeltaX: 3,
+      doBounceFx: true,
+      options: 5,
+      stumpId: 620,
+    });
+    expect(topple.angularVelocity).toBeCloseTo(0.4, 6);
+    expect(topple.angularAcceleration).toBeCloseTo(0.6, 6);
+    expect(topple.toppleDirX).toBeCloseTo(0.7, 6);
+    expect(topple.toppleDirZ).toBeCloseTo(0.8, 6);
+    expect(topple.toppleDirectionSourceZ).toBeCloseTo(0.9, 6);
+    expect(topple.angularAccumulation).toBeCloseTo(1.1, 6);
+    expect(topple.angleDeltaX).toBeCloseTo(1.2, 6);
+    const structureToppleModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_StructureTopple',
+    );
+    const structureTopple = parseSourceStructureToppleUpdateBlockData(structureToppleModule!.blockData);
+    expect(structureTopple).toMatchObject({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      toppleFrame: 71,
+      toppleState: 'TOPPLING',
+      lastCrushedLocation: 2,
+      nextBurstFrame: 81,
+      delayBurstLocation: { x: 33, y: 35, z: 34 },
+    });
+    expect(structureTopple.toppleDirX).toBeCloseTo(0.65, 6);
+    expect(structureTopple.toppleDirZ).toBeCloseTo(0.75, 6);
+    expect(structureTopple.toppleVelocity).toBeCloseTo(0.45, 6);
+    expect(structureTopple.accumulatedAngle).toBeCloseTo(0.55, 6);
+    expect(structureTopple.structuralIntegrity).toBeCloseTo(80, 6);
     const spawnModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Spawn');
     expect(parseSourceSpawnBehaviorBlockData(spawnModule!.blockData)).toMatchObject({
       version: 2,

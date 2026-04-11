@@ -6866,6 +6866,17 @@ function buildSourceFirestormDynamicGeometryInfoUpdateBlockData(
   }
 }
 
+function createDefaultSourceFirestormDynamicGeometryInfoUpdateBlockState():
+  SourceFirestormDynamicGeometryInfoUpdateBlockState {
+  return {
+    dynamic: createDefaultSourceDynamicGeometryInfoUpdateState(),
+    particleSystemIdBytes: new Uint8Array(SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH),
+    effectsFired: false,
+    scorchPlaced: false,
+    lastDamageFrame: 0,
+  };
+}
+
 function buildSourceSmartBombTargetHomingUpdateBlockData(currentFrame: number): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-smart-bomb-target-homing-update');
@@ -9648,6 +9659,19 @@ function buildSourceRebuildHoleBehaviorBlockData(
   }
 }
 
+function createDefaultSourceRebuildHoleBehaviorBlockState(): SourceRebuildHoleBehaviorBlockState {
+  return {
+    version: 2,
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    workerId: 0,
+    reconstructingId: 0,
+    spawnerId: 0,
+    workerWaitCounter: 0,
+    workerTemplateName: '',
+    rebuildTemplateName: '',
+  };
+}
+
 function tryParseSourcePropagandaTowerBehaviorBlockData(
   data: Uint8Array,
 ): SourcePropagandaTowerBehaviorBlockState | null {
@@ -9713,6 +9737,14 @@ function buildSourcePropagandaTowerBehaviorBlockData(
   } finally {
     saver.close();
   }
+}
+
+function createDefaultSourcePropagandaTowerBehaviorBlockState(): SourcePropagandaTowerBehaviorBlockState {
+  return {
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    lastScanFrame: 0,
+    trackedIds: [],
+  };
 }
 
 function tryParseSourceBridgeScaffoldBehaviorBlockData(
@@ -9851,6 +9883,16 @@ function buildSourceBridgeBehaviorBlockData(
   }
 }
 
+function createDefaultSourceBridgeBehaviorBlockState(): SourceBridgeBehaviorBlockState {
+  return {
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    towerIds: Array.from({ length: SOURCE_BRIDGE_MAX_TOWERS }, () => 0),
+    scaffoldPresent: false,
+    scaffoldIds: [],
+    deathFrame: 0,
+  };
+}
+
 function tryParseSourceBridgeTowerBehaviorBlockData(
   data: Uint8Array,
 ): SourceBridgeTowerBehaviorBlockState | null {
@@ -9888,6 +9930,13 @@ function buildSourceBridgeTowerBehaviorBlockData(
   } finally {
     saver.close();
   }
+}
+
+function createDefaultSourceBridgeTowerBehaviorBlockState(): SourceBridgeTowerBehaviorBlockState {
+  return {
+    bridgeId: 0,
+    towerType: 0,
+  };
 }
 
 function tryParseSourceSpecialPowerCompletionDieBlockData(
@@ -9930,6 +9979,13 @@ function buildSourceSpecialPowerCompletionDieBlockData(
   } finally {
     saver.close();
   }
+}
+
+function createDefaultSourceSpecialPowerCompletionDieBlockState(): SourceSpecialPowerCompletionDieBlockState {
+  return {
+    creatorId: 0,
+    creatorSet: false,
+  };
 }
 
 function tryParseSourceParkingPlaceBehaviorBlockData(
@@ -14118,6 +14174,31 @@ function buildSourceBattlePlanUpdateBlockData(
   }
 }
 
+function createDefaultSourceBattlePlanUpdateBlockState(
+  entity: MapEntity,
+): SourceBattlePlanUpdateBlockState {
+  const profile = entity.battlePlanProfile;
+  return {
+    version: 1,
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    currentPlan: SOURCE_BATTLE_PLAN_NONE,
+    desiredPlan: SOURCE_BATTLE_PLAN_NONE,
+    planAffectingArmy: SOURCE_BATTLE_PLAN_NONE,
+    status: SOURCE_BATTLE_PLAN_STATUS_IDLE,
+    nextReadyFrame: 0,
+    invalidSettings: false,
+    centeringTurret: false,
+    armorScalar: 1,
+    bombardment: 0,
+    searchAndDestroy: 0,
+    holdTheLine: 0,
+    sightRangeScalar: 1,
+    validKindOf: sourceBattlePlanKindOfMaskNames(profile?.validMemberKindOf, []),
+    invalidKindOf: sourceBattlePlanKindOfMaskNames(profile?.invalidMemberKindOf, []),
+    visionObjectId: 0,
+  };
+}
+
 interface SourceRgbColorState {
   red: number;
   green: number;
@@ -14372,6 +14453,14 @@ function buildSourceTensileFormationUpdateBlockData(
   } finally {
     saver.close();
   }
+}
+
+function createDefaultSourceTensileFormationUpdateBlockState(entity: MapEntity):
+  SourceTensileFormationUpdateBlockState {
+  return {
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    enabled: entity.tensileFormationProfile?.enabled === true,
+  };
 }
 
 function buildSourcePilotFindVehicleUpdateBlockData(
@@ -14639,6 +14728,13 @@ function buildSourcePointDefenseLaserUpdateBlockData(
   } finally {
     saver.close();
   }
+}
+
+function createDefaultSourcePointDefenseLaserUpdateBlockState(): { bestTargetId: number; inRange: boolean } {
+  return {
+    bestTargetId: 0,
+    inRange: false,
+  };
 }
 
 function buildSourceLeafletDropBehaviorBlockData(entity: MapEntity): Uint8Array {
@@ -17408,6 +17504,14 @@ function buildGeneratedSourceObjectModuleBlockData(
     );
   }
 
+  if (normalizedModuleType === 'FIRESTORMDYNAMICGEOMETRYINFOUPDATE' && entity.dynamicGeometryProfile) {
+    return buildSourceFirestormDynamicGeometryInfoUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceFirestormDynamicGeometryInfoUpdateBlockState(),
+    );
+  }
+
   if (normalizedModuleType === 'BASEREGENERATEUPDATE') {
     return buildSourceBaseRegenerateUpdateBlockData(entity, currentFrame);
   }
@@ -17712,6 +17816,14 @@ function buildGeneratedSourceObjectModuleBlockData(
     );
   }
 
+  if (normalizedModuleType === 'BATTLEPLANUPDATE' && entity.battlePlanProfile) {
+    return buildSourceBattlePlanUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceBattlePlanUpdateBlockState(entity),
+    );
+  }
+
   if (normalizedModuleType === 'DEFAULTPRODUCTIONEXITUPDATE' && entity.queueProductionExitProfile) {
     return buildSourceProductionExitRallyBlockData(
       entity,
@@ -17746,11 +17858,107 @@ function buildGeneratedSourceObjectModuleBlockData(
     );
   }
 
+  if (normalizedModuleType === 'REBUILDHOLEBEHAVIOR' && entity.rebuildHoleProfile) {
+    return buildSourceRebuildHoleBehaviorBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceRebuildHoleBehaviorBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'PROPAGANDATOWERBEHAVIOR' && entity.propagandaTowerProfile) {
+    return buildSourcePropagandaTowerBehaviorBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourcePropagandaTowerBehaviorBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'BRIDGEBEHAVIOR' && entity.bridgeBehaviorProfile) {
+    return buildSourceBridgeBehaviorBlockData(
+      entity,
+      createDefaultSourceBridgeBehaviorBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'BRIDGETOWERBEHAVIOR' && entity.bridgeTowerProfile) {
+    return buildSourceBridgeTowerBehaviorBlockData(
+      entity,
+      createDefaultSourceBridgeTowerBehaviorBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'SPECIALPOWERCOMPLETIONDIE') {
+    return buildSourceSpecialPowerCompletionDieBlockData(
+      entity,
+      createDefaultSourceSpecialPowerCompletionDieBlockState(),
+    );
+  }
+
   if (normalizedModuleType === 'SPAWNBEHAVIOR') {
     return buildSourceSpawnBehaviorBlockData(
       entity,
       createDefaultSourceSpawnBehaviorBlockState(),
     ) ?? buildDefaultSourceSpawnBehaviorBlockData();
+  }
+
+  if (normalizedModuleType === 'TENSILEFORMATIONUPDATE' && entity.tensileFormationProfile) {
+    return buildSourceTensileFormationUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceTensileFormationUpdateBlockState(entity),
+    );
+  }
+
+  if (normalizedModuleType === 'SPECTREGUNSHIPDEPLOYMENTUPDATE' && entity.spectreGunshipDeploymentProfile) {
+    return buildSourceSpectreGunshipDeploymentUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'SPECTREGUNSHIPUPDATE' && entity.spectreGunshipProfile) {
+    return buildSourceSpectreGunshipUpdateBlockData(entity, currentFrame, null);
+  }
+
+  if (normalizedModuleType === 'POINTDEFENSELASERUPDATE' && entity.pointDefenseLaserProfile) {
+    return buildSourcePointDefenseLaserUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourcePointDefenseLaserUpdateBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'NEUTRONMISSILEUPDATE' && entity.neutronMissileUpdateProfile) {
+    return buildSourceNeutronMissileUpdateBlockData(entity, currentFrame, null);
+  }
+
+  if (normalizedModuleType === 'SPYVISIONUPDATE') {
+    const liveSpyVisionModule = Array.from(entity.specialPowerModules.values()).find(
+      (specialPowerModule) => specialPowerModule.moduleType === 'SPYVISIONSPECIALPOWER',
+    );
+    if (liveSpyVisionModule) {
+      return buildSourceSpyVisionUpdateBlockData(
+        currentFrame,
+        liveSpyVisionModule.spyVisionDeactivateFrame,
+        {
+          currentlyActive: liveSpyVisionModule.spyVisionCurrentlyActive,
+          resetTimersNextUpdate: liveSpyVisionModule.spyVisionResetTimersNextUpdate,
+          disabledUntilFrame: liveSpyVisionModule.spyVisionDisabledUntilFrame,
+        },
+        null,
+      );
+    }
+    return buildSourceSpyVisionUpdateBlockData(currentFrame, 0, null, null);
+  }
+
+  if (normalizedModuleType === 'SPECIALABILITYUPDATE' && entity.specialAbilityProfile) {
+    return buildSourceSpecialAbilityUpdateBlockData(entity, currentFrame, null);
+  }
+
+  if (normalizedModuleType === 'TOPPLEUPDATE' && entity.toppleProfile) {
+    return buildSourceToppleUpdateBlockData(entity, currentFrame, null);
+  }
+
+  if (normalizedModuleType === 'STRUCTURETOPPLEUPDATE' && entity.structureToppleProfile) {
+    return buildSourceStructureToppleUpdateBlockData(entity, currentFrame, null);
   }
 
   if (normalizedModuleType === 'DYNAMICGEOMETRYINFOUPDATE') {
