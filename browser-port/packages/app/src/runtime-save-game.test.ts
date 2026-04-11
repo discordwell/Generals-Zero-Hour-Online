@@ -10336,6 +10336,90 @@ describe('runtime-save-game', () => {
                 killWhenNoLongerAttacking: true,
               }],
               baseRegenDelayUntilFrame: 70,
+              demoTrapProfile: {},
+              demoTrapNextScanFrame: 75,
+              demoTrapDetonated: true,
+              commandButtonHuntProfile: {},
+              commandButtonHuntMode: 'HIJACK_VEHICLE',
+              commandButtonHuntButtonName: 'Command_HijackVehicle',
+              commandButtonHuntNextScanFrame: 80,
+              autoDepositProfile: {},
+              autoDepositNextFrame: 133,
+              autoDepositInitialized: true,
+              autoDepositCaptureBonusPending: true,
+              dynamicShroudProfile: {},
+              dynamicShroudStateCountdown: 5,
+              dynamicShroudTotalFrames: 30,
+              dynamicShroudGrowStartDeadline: 50,
+              dynamicShroudSustainDeadline: 70,
+              dynamicShroudShrinkStartDeadline: 90,
+              dynamicShroudDoneForeverFrame: 110,
+              dynamicShroudChangeIntervalCountdown: 3,
+              dynamicShroudDecalsCreated: true,
+              dynamicShroudVisionChangePerInterval: 1.5,
+              dynamicShroudNativeClearingRange: 160,
+              dynamicShroudCurrentClearingRange: 140,
+              stealthProfile: {},
+              stealthEnabled: true,
+              stealthDelayRemaining: 12,
+              detectedUntilFrame: 99,
+              stealthPulsePhaseRate: 0.5,
+              stealthPulsePhase: 0.25,
+              temporaryStealthGrant: false,
+              temporaryStealthExpireFrame: 0,
+              stealthDisguisePlayerIndex: -1,
+              stealthDisguiseTransitionFrames: 0,
+              stealthDisguiseHalfpointReached: false,
+              stealthTransitioningToDisguise: false,
+              disguiseTemplateName: null,
+              detectorProfile: {},
+              detectorEnabled: true,
+              detectorNextScanFrame: 66,
+              smartBombProfile: {},
+              animationSteeringProfile: {},
+              floatUpdateProfile: {
+                enabled: true,
+              },
+              pilotFindVehicleProfile: {},
+              pilotFindVehicleDidMoveToBase: true,
+              leafletDropProfile: {},
+              leafletDropState: {
+                startFrame: 12,
+              },
+              empUpdateProfile: {},
+              radarUpdateProfile: {},
+              radarExtendDoneFrame: 123,
+              radarExtendComplete: true,
+              radarActive: true,
+              structureCollapseProfile: {},
+              structureCollapseState: {
+                collapseFrame: 95,
+                burstFrame: 97,
+                state: 'COLLAPSING',
+                collapseVelocity: 1.5,
+                currentHeight: 9,
+              },
+              missileLauncherBuildingProfile: {},
+              missileLauncherBuildingState: {
+                doorState: 'OPENING',
+                timeoutState: 'WAITING_TO_CLOSE',
+                timeoutFrame: 111,
+              },
+              checkpointProfile: {},
+              checkpointEnemyNear: true,
+              checkpointAllyNear: false,
+              checkpointMaxMinorRadius: 44,
+              checkpointScanCountdown: 8,
+              hijackerUpdateProfile: {},
+              hijackerState: {
+                targetId: 501,
+                ejectX: 13,
+                ejectY: 14,
+                ejectZ: 15,
+                update: true,
+                isInVehicle: true,
+                wasTargetAirborne: false,
+              },
               techBuildingProfile: {
                 hasPulseFX: true,
                 pulseFXRateFrames: 7,
@@ -10414,6 +10498,23 @@ describe('runtime-save-game', () => {
               { moduleType: 'AutoFindHealingUpdate', moduleTag: 'ModuleTag_AutoHealScan' },
               { moduleType: 'RadiusDecalUpdate', moduleTag: 'ModuleTag_RadiusDecal' },
               { moduleType: 'BaseRegenerateUpdate', moduleTag: 'ModuleTag_BaseRegen' },
+              { moduleType: 'DemoTrapUpdate', moduleTag: 'ModuleTag_DemoTrap' },
+              { moduleType: 'CommandButtonHuntUpdate', moduleTag: 'ModuleTag_Hunt' },
+              { moduleType: 'AutoDepositUpdate', moduleTag: 'ModuleTag_AutoDeposit' },
+              { moduleType: 'DynamicShroudClearingRangeUpdate', moduleTag: 'ModuleTag_DynamicShroud' },
+              { moduleType: 'StealthUpdate', moduleTag: 'ModuleTag_Stealth' },
+              { moduleType: 'StealthDetectorUpdate', moduleTag: 'ModuleTag_Detector' },
+              { moduleType: 'SmartBombTargetHomingUpdate', moduleTag: 'ModuleTag_SmartBomb' },
+              { moduleType: 'AnimationSteeringUpdate', moduleTag: 'ModuleTag_AnimSteer' },
+              { moduleType: 'FloatUpdate', moduleTag: 'ModuleTag_Float' },
+              { moduleType: 'PilotFindVehicleUpdate', moduleTag: 'ModuleTag_Pilot' },
+              { moduleType: 'LeafletDropBehavior', moduleTag: 'ModuleTag_Leaflet' },
+              { moduleType: 'EMPUpdate', moduleTag: 'ModuleTag_EMP' },
+              { moduleType: 'RadarUpdate', moduleTag: 'ModuleTag_Radar' },
+              { moduleType: 'StructureCollapseUpdate', moduleTag: 'ModuleTag_Collapse' },
+              { moduleType: 'MissileLauncherBuildingUpdate', moduleTag: 'ModuleTag_MissileLauncher' },
+              { moduleType: 'CheckpointUpdate', moduleTag: 'ModuleTag_Checkpoint' },
+              { moduleType: 'HijackerUpdate', moduleTag: 'ModuleTag_Hijacker' },
               { moduleType: 'TechBuildingBehavior', moduleTag: 'ModuleTag_TechBuilding' },
               { moduleType: 'BunkerBusterBehavior', moduleTag: 'ModuleTag_BunkerBuster' },
               { moduleType: 'NeutronBlastBehavior', moduleTag: 'ModuleTag_NeutronBlast' },
@@ -10470,6 +10571,23 @@ describe('runtime-save-game', () => {
       'ModuleTag_AutoHealScan',
       'ModuleTag_RadiusDecal',
       'ModuleTag_BaseRegen',
+      'ModuleTag_DemoTrap',
+      'ModuleTag_Hunt',
+      'ModuleTag_AutoDeposit',
+      'ModuleTag_DynamicShroud',
+      'ModuleTag_Stealth',
+      'ModuleTag_Detector',
+      'ModuleTag_SmartBomb',
+      'ModuleTag_AnimSteer',
+      'ModuleTag_Float',
+      'ModuleTag_Pilot',
+      'ModuleTag_Leaflet',
+      'ModuleTag_EMP',
+      'ModuleTag_Radar',
+      'ModuleTag_Collapse',
+      'ModuleTag_MissileLauncher',
+      'ModuleTag_Checkpoint',
+      'ModuleTag_Hijacker',
       'ModuleTag_TechBuilding',
       'ModuleTag_BunkerBuster',
       'ModuleTag_NeutronBlast',
@@ -10600,6 +10718,129 @@ describe('runtime-save-game', () => {
     const baseRegenModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_BaseRegen');
     expect(parseSourceBaseRegenerateUpdateBlockData(baseRegenModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (70 << 2) | 2,
+    });
+    const demoTrapModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_DemoTrap');
+    expect(parseSourceDemoTrapUpdateBlockData(demoTrapModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      nextScanFrames: 33,
+      detonated: true,
+    });
+    const huntModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Hunt');
+    expect(parseSourceCommandButtonHuntUpdateBlockData(huntModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (80 << 2) | 2,
+      commandButtonName: 'Command_HijackVehicle',
+    });
+    const autoDepositModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_AutoDeposit');
+    expect(parseSourceAutoDepositUpdateBlockData(autoDepositModule!.blockData)).toEqual({
+      version: 2,
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      depositOnFrame: 133,
+      awardInitialCaptureBonus: true,
+      initialized: true,
+    });
+    const dynamicShroudModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_DynamicShroud');
+    expect(parseSourceDynamicShroudClearingRangeUpdateBlockData(dynamicShroudModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      stateCountDown: 5,
+      totalFrames: 30,
+      growStartDeadline: 50,
+      sustainDeadline: 70,
+      shrinkStartDeadline: 90,
+      doneForeverFrame: 110,
+      changeIntervalCountdown: 3,
+      decalsCreated: true,
+      visionChangePerInterval: 1.5,
+      nativeClearingRange: 160,
+      currentClearingRange: 140,
+    });
+    const stealthModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Stealth');
+    expect(parseSourceStealthUpdateBlockData(stealthModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      stealthAllowedFrame: 54,
+      detectionExpiresFrame: 99,
+      enabled: true,
+      pulsePhaseRate: 0.5,
+      pulsePhase: 0.25,
+      disguiseAsPlayerIndex: -1,
+      disguiseTemplateName: '',
+      disguiseTransitionFrames: 0,
+      disguiseHalfpointReached: false,
+      transitioningToDisguise: false,
+      disguised: false,
+      framesGranted: 0,
+    });
+    const detectorModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Detector');
+    expect(parseSourceStealthDetectorUpdateBlockData(detectorModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (66 << 2) | 2,
+      enabled: true,
+    });
+    const smartBombModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_SmartBomb');
+    expect(parseSourceSmartBombTargetHomingUpdateBlockData(smartBombModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+    });
+    const animSteerModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_AnimSteer');
+    expect(parseSourceAnimationSteeringUpdateBlockData(animSteerModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+    });
+    const floatModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Float');
+    expect(parseSourceFloatUpdateBlockData(floatModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      enabled: true,
+    });
+    const pilotModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Pilot');
+    expect(parseSourcePilotFindVehicleUpdateBlockData(pilotModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      didMoveToBase: true,
+    });
+    const leafletModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Leaflet');
+    expect(parseSourceLeafletDropBehaviorBlockData(leafletModule!.blockData)).toEqual({
+      startFrame: 12,
+    });
+    const empModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_EMP');
+    expect(parseSourceEmpUpdateBlockData(empModule!.blockData)).toEqual({
+      version: 1,
+    });
+    const radarModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Radar');
+    expect(parseSourceRadarUpdateBlockData(radarModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      extendDoneFrame: 123,
+      extendComplete: true,
+      radarActive: true,
+    });
+    const collapseModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Collapse');
+    expect(parseSourceStructureCollapseUpdateBlockData(collapseModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      collapseFrame: 95,
+      burstFrame: 97,
+      collapseState: 'COLLAPSING',
+      collapseVelocity: 1.5,
+      currentHeight: 9,
+    });
+    const missileLauncherModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_MissileLauncher',
+    );
+    expect(parseSourceMissileLauncherBuildingUpdateBlockData(missileLauncherModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      doorState: 'OPENING',
+      timeoutState: 'WAITING_TO_CLOSE',
+      timeoutFrame: 111,
+    });
+    const checkpointModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Checkpoint');
+    expect(parseSourceCheckpointUpdateBlockData(checkpointModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      enemyNear: true,
+      allyNear: false,
+      maxMinorRadius: 44,
+      enemyScanDelay: 8,
+    });
+    const hijackerModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Hijacker');
+    expect(parseSourceHijackerUpdateBlockData(hijackerModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      targetId: 501,
+      eject: { x: 13, y: 15, z: 14 },
+      update: true,
+      isInVehicle: true,
+      wasTargetAirborne: false,
     });
     const techModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_TechBuilding');
     expect(parseSourceBaseOnlyUpdateModuleBlockData(techModule!.blockData)).toEqual({

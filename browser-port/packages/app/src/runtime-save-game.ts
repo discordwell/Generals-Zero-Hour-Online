@@ -17008,6 +17008,76 @@ function buildGeneratedSourceObjectModuleBlockData(
     return buildSourceBaseRegenerateUpdateBlockData(entity, currentFrame);
   }
 
+  if (normalizedModuleType === 'DEMOTRAPUPDATE' && entity.demoTrapProfile) {
+    return buildSourceDemoTrapUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'COMMANDBUTTONHUNTUPDATE' && entity.commandButtonHuntProfile) {
+    return buildSourceCommandButtonHuntUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'AUTODEPOSITUPDATE' && entity.autoDepositProfile) {
+    return buildSourceAutoDepositUpdateBlockData(entity, currentFrame);
+  }
+
+  if ((normalizedModuleType === 'DYNAMICSHROUDCLEARINGRANGEUPDATE'
+    || normalizedModuleType === 'DYNAMICSHROUDCLEARINGRANGE')
+    && entity.dynamicShroudProfile) {
+    return buildSourceDynamicShroudClearingRangeUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'STEALTHUPDATE' && entity.stealthProfile) {
+    return buildSourceStealthUpdateBlockData(entity, currentFrame, null);
+  }
+
+  if (normalizedModuleType === 'STEALTHDETECTORUPDATE' && entity.detectorProfile) {
+    return buildSourceStealthDetectorUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'SMARTBOMBTARGETHOMINGUPDATE' && entity.smartBombProfile) {
+    return buildSourceSmartBombTargetHomingUpdateBlockData(currentFrame);
+  }
+
+  if (normalizedModuleType === 'ANIMATIONSTEERINGUPDATE' && entity.animationSteeringProfile) {
+    return buildSourceAnimationSteeringUpdateBlockData(currentFrame);
+  }
+
+  if (normalizedModuleType === 'FLOATUPDATE' && entity.floatUpdateProfile) {
+    return buildSourceFloatUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'PILOTFINDVEHICLEUPDATE' && entity.pilotFindVehicleProfile) {
+    return buildSourcePilotFindVehicleUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'LEAFLETDROPBEHAVIOR' && (entity.leafletDropProfile || entity.leafletDropState)) {
+    return buildSourceLeafletDropBehaviorBlockData(entity);
+  }
+
+  if (normalizedModuleType === 'EMPUPDATE' && entity.empUpdateProfile) {
+    return buildSourceEmpUpdateBlockData();
+  }
+
+  if (normalizedModuleType === 'RADARUPDATE' && entity.radarUpdateProfile) {
+    return buildSourceRadarUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'STRUCTURECOLLAPSEUPDATE' && entity.structureCollapseProfile) {
+    return buildSourceStructureCollapseUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'MISSILELAUNCHERBUILDINGUPDATE' && entity.missileLauncherBuildingProfile) {
+    return buildSourceMissileLauncherBuildingUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'CHECKPOINTUPDATE' && entity.checkpointProfile) {
+    return buildSourceCheckpointUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'HIJACKERUPDATE' && (entity.hijackerUpdateProfile || entity.hijackerState)) {
+    return buildSourceHijackerUpdateBlockData(entity, currentFrame);
+  }
+
   if (normalizedModuleType === 'TECHBUILDINGBEHAVIOR') {
     return buildSourceBaseOnlyUpdateModuleBlockData(
       'tech-building-behavior',
