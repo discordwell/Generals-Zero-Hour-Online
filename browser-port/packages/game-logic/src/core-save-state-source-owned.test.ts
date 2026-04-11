@@ -147,6 +147,13 @@ function makeSourceOwnedCoreBundle() {
         makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 300 }),
         makeBlock('Behavior', 'BaseRegenerateUpdate ModuleTag_BaseRegen', {}),
       ]),
+      makeObjectDef('AutoDepositStructure', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'AutoDepositUpdate ModuleTag_AutoDeposit', {
+          DepositTiming: 2000,
+          DepositAmount: 20,
+          InitialCaptureBonus: 100,
+        }),
+      ]),
       makeObjectDef('CommandHunter', 'America', ['VEHICLE'], [
         makeBlock('Behavior', 'CommandButtonHuntUpdate ModuleTag_Hunt', {
           ScanRate: 1000,
@@ -1229,6 +1236,34 @@ function buildSourceAutoFindHealingUpdateModuleData(options: {
     saver.xferVersion(1);
     saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
     saver.xferInt(options.nextScanFrames);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceAutoDepositUpdateModuleData(options: {
+  version?: 1 | 2;
+  nextCallFrame: number;
+  depositOnFrame: number;
+  awardInitialCaptureBonus: boolean;
+  initialized: boolean;
+}): Uint8Array {
+  const version = options.version ?? 2;
+  const saver = new XferSave();
+  saver.open('test-source-auto-deposit-update');
+  try {
+    saver.xferVersion(version);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUnsignedInt(options.depositOnFrame);
+    saver.xferBool(options.awardInitialCaptureBonus);
+    if (version > 1) {
+      saver.xferBool(options.initialized);
+    }
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2876,7 +2911,7 @@ describe('source-owned game-logic core save-state', () => {
     expect(privateLogic.spawnedEntities.get(105)!.autoFindHealingNextScanFrame).toBe(216);
   });
 
-  it('imports source BaseRegenerateUpdate wake state', () => {
+  it('imports source AutoDepositUpdate runtime state', () => {
     const bundle = makeSourceOwnedCoreBundle();
     const registry = makeRegistry(bundle);
     const map = makeMap([], 64, 64);
@@ -2886,6 +2921,51 @@ describe('source-owned game-logic core save-state', () => {
 
     const sourceState = createEmptySourceMapEntitySaveState();
     sourceState.objectId = 106;
+    sourceState.position = { x: 183, y: 0, z: 64 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_AutoDeposit',
+      blockData: buildSourceAutoDepositUpdateModuleData({
+        nextCallFrame: 210,
+        depositOnFrame: 260,
+        awardInitialCaptureBonus: true,
+        initialized: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 180,
+      objects: [
+        { templateName: 'AutoDepositStructure', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        autoDepositNextFrame: number;
+        autoDepositCaptureBonusPending: boolean;
+        autoDepositInitialized: boolean;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(106)!;
+    expect(entity.autoDepositNextFrame).toBe(260);
+    expect(entity.autoDepositCaptureBonusPending).toBe(true);
+    expect(entity.autoDepositInitialized).toBe(true);
+  });
+
+  it('imports source BaseRegenerateUpdate wake state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 107;
     sourceState.position = { x: 183, y: 0, z: 64 };
     sourceState.modules = [{
       identifier: 'ModuleTag_BaseRegen',
@@ -2910,7 +2990,7 @@ describe('source-owned game-logic core save-state', () => {
       }>;
     };
 
-    expect(privateLogic.spawnedEntities.get(106)!.baseRegenDelayUntilFrame).toBe(240);
+    expect(privateLogic.spawnedEntities.get(107)!.baseRegenDelayUntilFrame).toBe(240);
   });
 
   it('imports source CommandButtonHuntUpdate runtime state', () => {
@@ -2922,7 +3002,7 @@ describe('source-owned game-logic core save-state', () => {
     logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
 
     const sourceState = createEmptySourceMapEntitySaveState();
-    sourceState.objectId = 107;
+    sourceState.objectId = 108;
     sourceState.position = { x: 184, y: 0, z: 64 };
     sourceState.modules = [{
       identifier: 'ModuleTag_Hunt',
@@ -2950,7 +3030,7 @@ describe('source-owned game-logic core save-state', () => {
       }>;
     };
 
-    const entity = privateLogic.spawnedEntities.get(107)!;
+    const entity = privateLogic.spawnedEntities.get(108)!;
     expect(entity.commandButtonHuntMode).toBe('WEAPON');
     expect(entity.commandButtonHuntButtonName).toBe('Command_HuntFireWeapon');
     expect(entity.commandButtonHuntNextScanFrame).toBe(260);
@@ -2965,7 +3045,7 @@ describe('source-owned game-logic core save-state', () => {
     logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
 
     const sourceState = createEmptySourceMapEntitySaveState();
-    sourceState.objectId = 108;
+    sourceState.objectId = 109;
     sourceState.position = { x: 184, y: 0, z: 64 };
     sourceState.modules = [{
       identifier: 'ModuleTag_HeightDie',
@@ -2999,7 +3079,7 @@ describe('source-owned game-logic core save-state', () => {
       }>;
     };
 
-    const entity = privateLogic.spawnedEntities.get(108)!;
+    const entity = privateLogic.spawnedEntities.get(109)!;
     expect(entity.heightDieActiveFrame).toBe(260);
     expect(entity.heightDieHasDied).toBe(true);
     expect(entity.heightDieParticlesDestroyed).toBe(true);
@@ -3017,7 +3097,7 @@ describe('source-owned game-logic core save-state', () => {
     logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
 
     const sourceState = createEmptySourceMapEntitySaveState();
-    sourceState.objectId = 109;
+    sourceState.objectId = 110;
     sourceState.position = { x: 188, y: 0, z: 64 };
     sourceState.modules = [{
       identifier: 'ModuleTag_StickyBomb',
@@ -3047,7 +3127,7 @@ describe('source-owned game-logic core save-state', () => {
       }>;
     };
 
-    const entity = privateLogic.spawnedEntities.get(109)!;
+    const entity = privateLogic.spawnedEntities.get(110)!;
     expect(entity.stickyBombTargetId).toBe(55);
     expect(entity.stickyBombDieFrame).toBe(300);
     expect(entity.stickyBombNextPingFrame).toBe(270);

@@ -8846,6 +8846,13 @@ interface SourceAutoFindHealingUpdateImportState {
   nextScanFrames: number;
 }
 
+interface SourceAutoDepositUpdateImportState {
+  nextCallFrame: number;
+  depositOnFrame: number;
+  awardInitialCaptureBonus: boolean;
+  initialized: boolean;
+}
+
 interface SourceBaseRegenerateUpdateImportState {
   nextCallFrame: number;
 }
@@ -14594,6 +14601,69 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceAutoDepositUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceAutoDepositUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'AUTODEPOSITUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-auto-deposit-update-import');
+    try {
+      const version = xfer.xferVersion(2);
+      if (version < 1 || version > 2) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const depositOnFrame = xfer.xferUnsignedInt(0);
+      const awardInitialCaptureBonus = xfer.xferBool(false);
+      const initialized = version > 1 ? xfer.xferBool(false) : false;
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            depositOnFrame,
+            awardInitialCaptureBonus,
+            initialized,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceAutoDepositUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.autoDepositProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const autoDepositState = this.tryParseSourceAutoDepositUpdateImportState(module.blockData, moduleType);
+      if (!autoDepositState) {
+        continue;
+      }
+      entity.autoDepositNextFrame = Math.max(0, Math.trunc(autoDepositState.depositOnFrame));
+      entity.autoDepositCaptureBonusPending = autoDepositState.awardInitialCaptureBonus;
+      entity.autoDepositInitialized = autoDepositState.initialized;
+      return;
+    }
+  }
+
   private tryParseSourceBaseRegenerateUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -15819,6 +15889,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceLifetimeUpdateModulesToEntity(entity, sourceState);
     this.applySourceDeletionUpdateModulesToEntity(entity, sourceState);
     this.applySourceAutoFindHealingUpdateModulesToEntity(entity, sourceState);
+    this.applySourceAutoDepositUpdateModulesToEntity(entity, sourceState);
     this.applySourceBaseRegenerateUpdateModulesToEntity(entity, sourceState);
     this.applySourceCommandButtonHuntUpdateModulesToEntity(entity, sourceState);
     this.applySourceHeightDieUpdateModulesToEntity(entity, sourceState);
