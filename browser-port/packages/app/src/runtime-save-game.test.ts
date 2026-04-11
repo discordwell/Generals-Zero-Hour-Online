@@ -991,6 +991,8 @@ const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
 const SOURCE_FLAMMABLE_STATUS_AFLAME = 1;
+const SOURCE_DEATH_TYPE_POISONED = 5;
+const SOURCE_MINEFIELD_MAX_IMMUNITY = 3;
 const SOURCE_PRODUCTION_UNIT = 1;
 const SOURCE_PRODUCTION_UPGRADE = 2;
 const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
@@ -1200,6 +1202,129 @@ function createSourceFireSpreadUpdateBlockData(nextCallFrameAndPhase: number): U
     return new Uint8Array(xferSave.getBuffer());
   } finally {
     xferSave.close();
+  }
+}
+
+interface SourcePoisonedBehaviorTestState {
+  nextCallFrameAndPhase: number;
+  poisonDamageFrame: number;
+  poisonOverallStopFrame: number;
+  poisonDamageAmount: number;
+  deathType: number;
+}
+
+function createSourcePoisonedBehaviorBlockData(state: SourcePoisonedBehaviorTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-poisoned-behavior');
+  try {
+    xferSave.xferVersion(2);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferUnsignedInt(state.poisonDamageFrame);
+    xferSave.xferUnsignedInt(state.poisonOverallStopFrame);
+    xferSave.xferReal(state.poisonDamageAmount);
+    xferSave.xferUser(createRawInt32Bytes(state.deathType));
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourcePoisonedBehaviorBlockData(data: Uint8Array): SourcePoisonedBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-poisoned-behavior');
+  try {
+    xferLoad.xferVersion(2);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      poisonDamageFrame: xferLoad.xferUnsignedInt(0),
+      poisonOverallStopFrame: xferLoad.xferUnsignedInt(0),
+      poisonDamageAmount: xferLoad.xferReal(0),
+      deathType: readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+interface SourceMinefieldImmuneTestState {
+  objectId: number;
+  collideTime: number;
+}
+
+interface SourceMinefieldBehaviorTestState {
+  nextCallFrameAndPhase: number;
+  virtualMinesRemaining: number;
+  nextDeathCheckFrame: number;
+  scootFramesLeft: number;
+  scootVelocity: Coord3D;
+  scootAcceleration: Coord3D;
+  ignoreDamage: boolean;
+  regenerates: boolean;
+  draining: boolean;
+  immunes: SourceMinefieldImmuneTestState[];
+}
+
+function createSourceMinefieldBehaviorBlockData(state: SourceMinefieldBehaviorTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-minefield-behavior');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferUnsignedInt(state.virtualMinesRemaining);
+    xferSave.xferUnsignedInt(state.nextDeathCheckFrame);
+    xferSave.xferUnsignedInt(state.scootFramesLeft);
+    xferSave.xferCoord3D(state.scootVelocity);
+    xferSave.xferCoord3D(state.scootAcceleration);
+    xferSave.xferBool(state.ignoreDamage);
+    xferSave.xferBool(state.regenerates);
+    xferSave.xferBool(state.draining);
+    xferSave.xferUnsignedByte(SOURCE_MINEFIELD_MAX_IMMUNITY);
+    for (let index = 0; index < SOURCE_MINEFIELD_MAX_IMMUNITY; index += 1) {
+      const immune = state.immunes[index] ?? { objectId: 0, collideTime: 0 };
+      xferSave.xferObjectID(immune.objectId);
+      xferSave.xferUnsignedInt(immune.collideTime);
+    }
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceMinefieldBehaviorBlockData(data: Uint8Array): SourceMinefieldBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-minefield-behavior');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const state: SourceMinefieldBehaviorTestState = {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      virtualMinesRemaining: xferLoad.xferUnsignedInt(0),
+      nextDeathCheckFrame: xferLoad.xferUnsignedInt(0),
+      scootFramesLeft: xferLoad.xferUnsignedInt(0),
+      scootVelocity: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      scootAcceleration: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      ignoreDamage: xferLoad.xferBool(false),
+      regenerates: xferLoad.xferBool(false),
+      draining: xferLoad.xferBool(false),
+      immunes: [],
+    };
+    expect(xferLoad.xferUnsignedByte(0)).toBe(SOURCE_MINEFIELD_MAX_IMMUNITY);
+    for (let index = 0; index < SOURCE_MINEFIELD_MAX_IMMUNITY; index += 1) {
+      state.immunes.push({
+        objectId: xferLoad.xferObjectID(0),
+        collideTime: xferLoad.xferUnsignedInt(0),
+      });
+    }
+    return state;
+  } finally {
+    xferLoad.close();
   }
 }
 
@@ -9818,6 +9943,170 @@ describe('runtime-save-game', () => {
     expect(parseSourceFireSpreadUpdateBlockData(fireSpreadModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (77 << 2) | 2,
     });
+  });
+
+  it('rewrites source PoisonedBehavior and MinefieldBehavior modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Poisoned',
+      blockData: createSourcePoisonedBehaviorBlockData({
+        nextCallFrameAndPhase: (84 << 2) | 2,
+        poisonDamageFrame: 11,
+        poisonOverallStopFrame: 12,
+        poisonDamageAmount: 3,
+        deathType: SOURCE_DEATH_TYPE_POISONED,
+      }),
+    }, {
+      identifier: 'ModuleTag_Minefield',
+      blockData: createSourceMinefieldBehaviorBlockData({
+        nextCallFrameAndPhase: (88 << 2) | 2,
+        virtualMinesRemaining: 1,
+        nextDeathCheckFrame: 222,
+        scootFramesLeft: 0,
+        scootVelocity: { x: 1, y: 2, z: 3 },
+        scootAcceleration: { x: 4, y: 5, z: 6 },
+        ignoreDamage: false,
+        regenerates: true,
+        draining: false,
+        immunes: [
+          { objectId: 40, collideTime: 10 },
+          { objectId: 0, collideTime: 0 },
+          { objectId: 0, collideTime: 0 },
+        ],
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source poison minefield rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            producerEntityId: 33,
+            poisonDamageAmount: 6.5,
+            poisonNextDamageFrame: 70,
+            poisonExpireFrame: 90,
+            poisonedBehaviorProfile: {
+              poisonDamageIntervalFrames: 10,
+              poisonDurationFrames: 120,
+            },
+            minefieldProfile: {
+              stopsRegenAfterCreatorDies: true,
+            },
+            mineVirtualMinesRemaining: 2,
+            mineNextDeathCheckFrame: 110,
+            mineScootFramesLeft: 0,
+            mineIgnoreDamage: true,
+            mineRegenerates: false,
+            mineDraining: true,
+            mineImmunes: [
+              { entityId: 11, collideFrame: 41 },
+              { entityId: 12, collideFrame: 42 },
+            ],
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName !== 'RuntimeTank') {
+            return null;
+          }
+          if (moduleTag === 'ModuleTag_Poisoned') {
+            return 'POISONEDBEHAVIOR';
+          }
+          if (moduleTag === 'ModuleTag_Minefield') {
+            return 'MINEFIELDBEHAVIOR';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const poisonedModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Poisoned');
+    const minefieldModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Minefield');
+
+    expect(firstObject?.producerId).toBe(33);
+    expect(poisonedModule).toBeDefined();
+    expect(minefieldModule).toBeDefined();
+    const poisoned = parseSourcePoisonedBehaviorBlockData(poisonedModule!.blockData);
+    expect(poisoned.nextCallFrameAndPhase).toBe((70 << 2) | 2);
+    expect(poisoned.poisonDamageFrame).toBe(70);
+    expect(poisoned.poisonOverallStopFrame).toBe(90);
+    expect(poisoned.poisonDamageAmount).toBeCloseTo(6.5, 6);
+    expect(poisoned.deathType).toBe(SOURCE_DEATH_TYPE_POISONED);
+
+    const minefield = parseSourceMinefieldBehaviorBlockData(minefieldModule!.blockData);
+    expect(minefield.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(minefield.virtualMinesRemaining).toBe(2);
+    expect(minefield.nextDeathCheckFrame).toBe(110);
+    expect(minefield.scootFramesLeft).toBe(0);
+    expect(minefield.scootVelocity).toEqual({ x: 1, y: 2, z: 3 });
+    expect(minefield.scootAcceleration).toEqual({ x: 4, y: 5, z: 6 });
+    expect(minefield.ignoreDamage).toBe(true);
+    expect(minefield.regenerates).toBe(false);
+    expect(minefield.draining).toBe(true);
+    expect(minefield.immunes).toEqual([
+      { objectId: 11, collideTime: 41 },
+      { objectId: 12, collideTime: 42 },
+      { objectId: 0, collideTime: 0 },
+    ]);
   });
 
   it('rewrites source ProductionUpdate modules from live runtime state', () => {

@@ -117,6 +117,8 @@ const SOURCE_MATRIX3D_BYTE_LENGTH = 48;
 const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH =
   SOURCE_OPEN_CONTAIN_MAX_FIRE_POINTS * SOURCE_MATRIX3D_BYTE_LENGTH;
 const SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH = 4;
+const SOURCE_DEATH_TYPE_POISONED = 5;
+const SOURCE_MINEFIELD_MAX_IMMUNITY = 3;
 const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
 const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
 const SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN = 0x0008;
@@ -5171,6 +5173,242 @@ function buildSourceFireSpreadUpdateBlockData(entity: MapEntity): Uint8Array {
   }
 }
 
+interface SourcePoisonedBehaviorBlockState {
+  version: number;
+  nextCallFrameAndPhase: number;
+  poisonDamageFrame: number;
+  poisonOverallStopFrame: number;
+  poisonDamageAmount: number;
+  deathType: number;
+}
+
+interface SourceMinefieldImmuneBlockState {
+  objectId: number;
+  collideTime: number;
+}
+
+interface SourceMinefieldBehaviorBlockState {
+  nextCallFrameAndPhase: number;
+  virtualMinesRemaining: number;
+  nextDeathCheckFrame: number;
+  scootFramesLeft: number;
+  scootVelocity: Coord3D;
+  scootAcceleration: Coord3D;
+  ignoreDamage: boolean;
+  regenerates: boolean;
+  draining: boolean;
+  immunes: SourceMinefieldImmuneBlockState[];
+}
+
+function tryParseSourcePoisonedBehaviorBlockData(
+  data: Uint8Array,
+): SourcePoisonedBehaviorBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-poisoned-behavior');
+  try {
+    const version = xferLoad.xferVersion(2);
+    if (version < 1 || version > 2) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(xferLoad, 0);
+    const poisonDamageFrame = xferLoad.xferUnsignedInt(0);
+    const poisonOverallStopFrame = xferLoad.xferUnsignedInt(0);
+    const poisonDamageAmount = xferLoad.xferReal(0);
+    const deathType = version >= 2
+      ? parseSourceRawInt32Bytes(xferLoad.xferUser(buildSourceRawInt32Bytes(SOURCE_DEATH_TYPE_POISONED)))
+      : SOURCE_DEATH_TYPE_POISONED;
+    return xferLoad.getRemaining() === 0
+      ? {
+        version,
+        nextCallFrameAndPhase,
+        poisonDamageFrame,
+        poisonOverallStopFrame,
+        poisonDamageAmount,
+        deathType,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function sourcePoisonedWakeFrame(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourcePoisonedBehaviorBlockState,
+): number {
+  const poisonDamageAmount = sourcePhysicsFinite(entity.poisonDamageAmount, preservedState.poisonDamageAmount);
+  const poisonDamageFrame = sourceFlammableUnsignedFrame(entity.poisonNextDamageFrame, preservedState.poisonDamageFrame);
+  const poisonOverallStopFrame =
+    sourceFlammableUnsignedFrame(entity.poisonExpireFrame, preservedState.poisonOverallStopFrame);
+  if (poisonDamageAmount <= 0 || poisonOverallStopFrame === 0) {
+    return SOURCE_FRAME_FOREVER;
+  }
+  const candidates = [poisonDamageFrame, poisonOverallStopFrame].filter((frame) => frame > 0);
+  const nextWakeFrame = candidates.length > 0 ? Math.min(...candidates) : currentFrame + 1;
+  return nextWakeFrame > currentFrame ? nextWakeFrame : currentFrame + 1;
+}
+
+function buildSourcePoisonedBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourcePoisonedBehaviorBlockState,
+): Uint8Array {
+  const poisonDamageAmount = sourcePhysicsFinite(entity.poisonDamageAmount, preservedState.poisonDamageAmount);
+  const isPoisoned = poisonDamageAmount > 0;
+  const saver = new XferSave();
+  saver.open('build-source-poisoned-behavior');
+  try {
+    saver.xferVersion(2);
+    xferSourceUpdateModuleBase(
+      saver,
+      buildSourceUpdateModuleWakeFrame(sourcePoisonedWakeFrame(entity, currentFrame, preservedState)),
+    );
+    saver.xferUnsignedInt(isPoisoned
+      ? sourceFlammableUnsignedFrame(entity.poisonNextDamageFrame, preservedState.poisonDamageFrame)
+      : 0);
+    saver.xferUnsignedInt(isPoisoned
+      ? sourceFlammableUnsignedFrame(entity.poisonExpireFrame, preservedState.poisonOverallStopFrame)
+      : 0);
+    saver.xferReal(isPoisoned ? poisonDamageAmount : 0);
+    saver.xferUser(buildSourceRawInt32Bytes(preservedState.deathType));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceMinefieldBehaviorBlockData(
+  data: Uint8Array,
+): SourceMinefieldBehaviorBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-minefield-behavior');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(xferLoad, 0);
+    const virtualMinesRemaining = xferLoad.xferUnsignedInt(0);
+    const nextDeathCheckFrame = xferLoad.xferUnsignedInt(0);
+    const scootFramesLeft = xferLoad.xferUnsignedInt(0);
+    const scootVelocity = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const scootAcceleration = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const ignoreDamage = xferLoad.xferBool(false);
+    const regenerates = xferLoad.xferBool(false);
+    const draining = xferLoad.xferBool(false);
+    const maxImmunity = xferLoad.xferUnsignedByte(SOURCE_MINEFIELD_MAX_IMMUNITY);
+    if (maxImmunity !== SOURCE_MINEFIELD_MAX_IMMUNITY) {
+      return null;
+    }
+    const immunes: SourceMinefieldImmuneBlockState[] = [];
+    for (let index = 0; index < maxImmunity; index += 1) {
+      immunes.push({
+        objectId: xferLoad.xferObjectID(0),
+        collideTime: xferLoad.xferUnsignedInt(0),
+      });
+    }
+    return xferLoad.getRemaining() === 0
+      ? {
+        nextCallFrameAndPhase,
+        virtualMinesRemaining,
+        nextDeathCheckFrame,
+        scootFramesLeft,
+        scootVelocity,
+        scootAcceleration,
+        ignoreDamage,
+        regenerates,
+        draining,
+        immunes,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function sourceMinefieldImmuneEntries(entity: MapEntity): SourceMinefieldImmuneBlockState[] {
+  const entries = Array.isArray(entity.mineImmunes) ? entity.mineImmunes : [];
+  return Array.from({ length: SOURCE_MINEFIELD_MAX_IMMUNITY }, (_, index) => {
+    const entry = entries[index];
+    return {
+      objectId: normalizeSourceObjectId(entry?.entityId ?? 0),
+      collideTime: sourceFlammableUnsignedFrame(entry?.collideFrame, 0),
+    };
+  });
+}
+
+function sourceMinefieldWakeFrame(
+  entity: MapEntity,
+  currentFrame: number,
+  immunes: readonly SourceMinefieldImmuneBlockState[],
+): number {
+  if (entity.mineDraining
+    || sourceFlammableUnsignedFrame(entity.mineScootFramesLeft, 0) > 0
+    || immunes.some((entry) => entry.objectId !== 0)) {
+    return currentFrame + 1;
+  }
+  if (entity.mineRegenerates
+    && entity.minefieldProfile?.stopsRegenAfterCreatorDies
+    && Number.isFinite(entity.mineNextDeathCheckFrame)) {
+    const nextDeathCheckFrame = Math.max(0, Math.trunc(entity.mineNextDeathCheckFrame));
+    return nextDeathCheckFrame > currentFrame ? nextDeathCheckFrame : currentFrame + 1;
+  }
+  return SOURCE_FRAME_FOREVER;
+}
+
+function buildSourceMinefieldBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceMinefieldBehaviorBlockState,
+): Uint8Array {
+  const immunes = sourceMinefieldImmuneEntries(entity);
+  const saver = new XferSave();
+  saver.open('build-source-minefield-behavior');
+  try {
+    saver.xferVersion(1);
+    xferSourceUpdateModuleBase(
+      saver,
+      buildSourceUpdateModuleWakeFrame(sourceMinefieldWakeFrame(entity, currentFrame, immunes)),
+    );
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(
+      entity.mineVirtualMinesRemaining,
+      preservedState.virtualMinesRemaining,
+    ));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(
+      entity.mineNextDeathCheckFrame,
+      preservedState.nextDeathCheckFrame,
+    ));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(
+      entity.mineScootFramesLeft,
+      preservedState.scootFramesLeft,
+    ));
+    saver.xferCoord3D(preservedState.scootVelocity);
+    saver.xferCoord3D(preservedState.scootAcceleration);
+    saver.xferBool(typeof entity.mineIgnoreDamage === 'boolean'
+      ? entity.mineIgnoreDamage
+      : preservedState.ignoreDamage);
+    saver.xferBool(typeof entity.mineRegenerates === 'boolean'
+      ? entity.mineRegenerates
+      : preservedState.regenerates);
+    saver.xferBool(typeof entity.mineDraining === 'boolean'
+      ? entity.mineDraining
+      : preservedState.draining);
+    saver.xferUnsignedByte(SOURCE_MINEFIELD_MAX_IMMUNITY);
+    for (const entry of immunes) {
+      saver.xferObjectID(entry.objectId);
+      saver.xferUnsignedInt(entry.collideTime);
+    }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 interface SourceBodyModuleBaseBlockState {
   damageScalar: number;
 }
@@ -8876,6 +9114,24 @@ function overlaySourceObjectModulesFromLiveEntity(
               };
             }
           }
+          if (moduleType === 'POISONEDBEHAVIOR' && entity.poisonedBehaviorProfile) {
+            const parsedSourceState = tryParseSourcePoisonedBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourcePoisonedBehaviorBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'MINEFIELDBEHAVIOR' && entity.minefieldProfile) {
+            const parsedSourceState = tryParseSourceMinefieldBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceMinefieldBehaviorBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
           if (moduleType === 'PRODUCTIONUPDATE' && entity.productionProfile) {
             const parsedSourceState = tryParseSourceProductionUpdateBlockData(module.blockData);
             if (parsedSourceState) {
@@ -9125,6 +9381,9 @@ function overlaySourceObjectStateFromLiveEntity(
     statusBits: collectSourceObjectStatusBits(entity),
     scriptStatus,
     privateStatus: objectXferOverlayState?.privateStatus ?? sourceState.privateStatus,
+    producerId: Number.isFinite(entity.producerEntityId)
+      ? normalizeSourceObjectId(entity.producerEntityId)
+      : sourceState.producerId,
     visionRange: Number.isFinite(entity.visionRange) ? entity.visionRange : sourceState.visionRange,
     shroudClearingRange: Number.isFinite(entity.shroudClearingRange)
       ? entity.shroudClearingRange
