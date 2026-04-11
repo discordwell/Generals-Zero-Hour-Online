@@ -324,6 +324,102 @@ describe('player save-state', () => {
     );
   });
 
+  it('projects live AI build-list entries into source Player::m_pBuildList snapshots', () => {
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    const privateLogic = logic as unknown as {
+      sideSourceBuildListInfos: Map<string, unknown>;
+      scriptAiBuildListEntriesBySide: Map<string, Array<{
+        templateNameUpper: string;
+        locationX: number;
+        locationZ: number;
+      }>>;
+    };
+
+    privateLogic.sideSourceBuildListInfos.set('America', [{
+      buildingName: 'ForwardSupply',
+      templateName: 'AmericaSupplyCenter',
+      location: { x: 11, y: 5, z: 22 },
+      rallyPointOffset: { x: 4, y: 6 },
+      angle: 1.25,
+      isInitiallyBuilt: true,
+      numRebuilds: 3,
+      script: 'BuildSupply',
+      health: 87,
+      whiner: true,
+      unsellable: true,
+      repairable: false,
+      automaticallyBuild: false,
+      objectId: 9001,
+      objectTimestamp: 4321,
+      underConstruction: true,
+      resourceGatherers: [44, 55],
+      isSupplyBuilding: true,
+      desiredGatherers: 6,
+      priorityBuild: true,
+      currentGatherers: 2,
+    }]);
+    privateLogic.scriptAiBuildListEntriesBySide.set('america', [{
+      templateNameUpper: 'AMERICAPOWERPLANT',
+      locationX: 42,
+      locationZ: 84,
+    }]);
+    privateLogic.scriptAiBuildListEntriesBySide.set('china', [{
+      templateNameUpper: 'CHINABARRACKS',
+      locationX: 12,
+      locationZ: 34,
+    }]);
+
+    const playerState = logic.captureSourcePlayerRuntimeSaveState();
+    const buildListInfosBySide = playerState.state.sideSourceBuildListInfos as Map<string, unknown[]>;
+
+    expect(buildListInfosBySide.get('America')).toEqual([{
+      buildingName: 'ForwardSupply',
+      templateName: 'AMERICAPOWERPLANT',
+      location: { x: 42, y: 5, z: 84 },
+      rallyPointOffset: { x: 4, y: 6 },
+      angle: 1.25,
+      isInitiallyBuilt: true,
+      numRebuilds: 3,
+      script: 'BuildSupply',
+      health: 87,
+      whiner: true,
+      unsellable: true,
+      repairable: false,
+      automaticallyBuild: false,
+      objectId: 9001,
+      objectTimestamp: 4321,
+      underConstruction: true,
+      resourceGatherers: [44, 55],
+      isSupplyBuilding: true,
+      desiredGatherers: 6,
+      priorityBuild: true,
+      currentGatherers: 2,
+    }]);
+    expect(buildListInfosBySide.get('china')).toEqual([{
+      buildingName: 'china_BUILD_0',
+      templateName: 'CHINABARRACKS',
+      location: { x: 12, y: 0, z: 34 },
+      rallyPointOffset: { x: 0, y: 0 },
+      angle: 0,
+      isInitiallyBuilt: false,
+      numRebuilds: 0,
+      script: '',
+      health: 100,
+      whiner: false,
+      unsellable: false,
+      repairable: true,
+      automaticallyBuild: true,
+      objectId: 0,
+      objectTimestamp: 0,
+      underConstruction: false,
+      resourceGatherers: [],
+      isSupplyBuilding: false,
+      desiredGatherers: 0,
+      priorityBuild: false,
+      currentGatherers: 0,
+    }]);
+  });
+
   it('captures live local selection into source Player::m_currentSelection', () => {
     const bundle = makeBundle({
       objects: [

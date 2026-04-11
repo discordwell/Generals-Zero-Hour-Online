@@ -13411,6 +13411,141 @@ export class GameLogicSubsystem implements Subsystem {
     return aiPlayerStateBySide;
   }
 
+  private cloneSourceBuildListInfoRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    const record = value as Record<string, unknown>;
+    return {
+      ...record,
+      location: record.location && typeof record.location === 'object' && !Array.isArray(record.location)
+        ? { ...(record.location as Record<string, unknown>) }
+        : { x: 0, y: 0, z: 0 },
+      rallyPointOffset: record.rallyPointOffset
+        && typeof record.rallyPointOffset === 'object'
+        && !Array.isArray(record.rallyPointOffset)
+        ? { ...(record.rallyPointOffset as Record<string, unknown>) }
+        : { x: 0, y: 0 },
+      resourceGatherers: Array.isArray(record.resourceGatherers)
+        ? [...record.resourceGatherers]
+        : [],
+    };
+  }
+
+  private normalizeLiveSourceBuildListEntry(entry: unknown): ScriptAiBuildListEntry | null {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return null;
+    }
+    const record = entry as Partial<ScriptAiBuildListEntry>;
+    const templateNameUpper = typeof record.templateNameUpper === 'string'
+      ? record.templateNameUpper.trim().toUpperCase()
+      : '';
+    const locationX = Number(record.locationX);
+    const locationZ = Number(record.locationZ);
+    if (!templateNameUpper || !Number.isFinite(locationX) || !Number.isFinite(locationZ)) {
+      return null;
+    }
+    return { templateNameUpper, locationX, locationZ };
+  }
+
+  private createDefaultSourceBuildListInfoRecord(
+    side: string,
+    entryIndex: number,
+    liveEntry: ScriptAiBuildListEntry,
+  ): Record<string, unknown> {
+    return {
+      buildingName: `${side}_BUILD_${entryIndex}`,
+      templateName: liveEntry.templateNameUpper,
+      location: {
+        x: liveEntry.locationX,
+        y: 0,
+        z: liveEntry.locationZ,
+      },
+      rallyPointOffset: { x: 0, y: 0 },
+      angle: 0,
+      isInitiallyBuilt: false,
+      numRebuilds: 0,
+      script: '',
+      health: 100,
+      whiner: false,
+      unsellable: false,
+      repairable: true,
+      automaticallyBuild: true,
+      objectId: 0,
+      objectTimestamp: 0,
+      underConstruction: false,
+      resourceGatherers: [],
+      isSupplyBuilding: false,
+      desiredGatherers: 0,
+      priorityBuild: false,
+      currentGatherers: 0,
+    };
+  }
+
+  private overlayLiveSourceBuildListInfoRecord(
+    side: string,
+    entryIndex: number,
+    liveEntry: ScriptAiBuildListEntry,
+    preservedEntry: unknown,
+  ): Record<string, unknown> {
+    const next = this.cloneSourceBuildListInfoRecord(preservedEntry)
+      ?? this.createDefaultSourceBuildListInfoRecord(side, entryIndex, liveEntry);
+    const location = next.location && typeof next.location === 'object' && !Array.isArray(next.location)
+      ? next.location as Record<string, unknown>
+      : {};
+    next.templateName = liveEntry.templateNameUpper;
+    next.location = {
+      ...location,
+      x: liveEntry.locationX,
+      y: Number.isFinite(location.y) ? Number(location.y) : 0,
+      z: liveEntry.locationZ,
+    };
+    if (typeof next.buildingName !== 'string' || next.buildingName.trim().length === 0) {
+      next.buildingName = `${side}_BUILD_${entryIndex}`;
+    }
+    return next;
+  }
+
+  private overlayLiveSourceBuildListInfos(side: string, value: unknown): unknown {
+    const rawLiveEntries = this.getNormalizedSideMapValue(this.scriptAiBuildListEntriesBySide, side);
+    if (!rawLiveEntries) {
+      return Array.isArray(value)
+        ? value.map((entry) => this.cloneSourceBuildListInfoRecord(entry) ?? entry)
+        : value;
+    }
+    const liveEntries = rawLiveEntries.flatMap((entry) => {
+      const normalizedEntry = this.normalizeLiveSourceBuildListEntry(entry);
+      return normalizedEntry ? [normalizedEntry] : [];
+    });
+    if (liveEntries.length === 0) {
+      return Array.isArray(value)
+        ? value.map((entry) => this.cloneSourceBuildListInfoRecord(entry) ?? entry)
+        : value;
+    }
+    const preservedEntries = Array.isArray(value) ? value : [];
+    return liveEntries.map((liveEntry, index) =>
+      this.overlayLiveSourceBuildListInfoRecord(side, index, liveEntry, preservedEntries[index]));
+  }
+
+  private captureSourceBuildListInfosBySide(): Map<string, unknown> {
+    const buildListInfosBySide = new Map<string, unknown>();
+    for (const [side, state] of this.sideSourceBuildListInfos.entries()) {
+      buildListInfosBySide.set(side, this.overlayLiveSourceBuildListInfos(side, state));
+    }
+
+    for (const [side] of this.scriptAiBuildListEntriesBySide.entries()) {
+      const sideKey = this.resolveSourceSideMapKey(buildListInfosBySide, side);
+      if (buildListInfosBySide.has(sideKey)) {
+        continue;
+      }
+      const projectedState = this.overlayLiveSourceBuildListInfos(side, []);
+      if (Array.isArray(projectedState) && projectedState.length > 0) {
+        buildListInfosBySide.set(sideKey, projectedState);
+      }
+    }
+    return buildListInfosBySide;
+  }
+
   private getSourceSpecialPowerReadyTimersForSide(side: string): Array<{ templateId: number; readyFrame: number }> | null {
     const directTimers = this.sideSourceSpecialPowerReadyTimers.get(side);
     if (directTimers) {
@@ -13908,7 +14043,7 @@ export class GameLogicSubsystem implements Subsystem {
     const currentSelectionBySide = this.captureSourcePlayerCurrentSelectionBySide();
     state.sideSourceSpecialPowerReadyTimers = this.captureSourceSpecialPowerReadyTimersBySide();
     state.sideSourcePlayerTeamPrototypeIds = this.sideSourcePlayerTeamPrototypeIds;
-    state.sideSourceBuildListInfos = this.sideSourceBuildListInfos;
+    state.sideSourceBuildListInfos = this.captureSourceBuildListInfosBySide();
     state.sideSourceAiPlayerState = this.captureSourceAiPlayerStateBySide();
     state.sideSourcePlayerCoreState = this.sideSourcePlayerCoreState;
     state.sideSourcePlayerRelations = this.sideSourcePlayerRelations;
