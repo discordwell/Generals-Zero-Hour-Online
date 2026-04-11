@@ -93,36 +93,118 @@ export function angleDifference(from: number, to: number): number {
   return diff;
 }
 
-/** Integer-based random number generator (deterministic, seedable). */
+const SOURCE_RANDOM_SEED_BASE = [
+  0xf22d0e56,
+  0x883126e9,
+  0xc624dd2f,
+  0x0702c49c,
+  0x9e353f7d,
+  0x6fdf3b64,
+] as const;
+
+/**
+ * Integer-based random number generator (deterministic, seedable).
+ *
+ * Source parity: Common/RandomValue.cpp. Generals uses a six-word add-with-carry
+ * generator for GameLogic/GameClient/GameAudio random streams, not the MSVC LCG.
+ */
 export class GameRandom {
-  private seed: number;
+  private baseSeed: number;
+  private state: number[];
 
   constructor(seed: number = 1) {
-    this.seed = seed >>> 0;
+    this.baseSeed = seed >>> 0;
+    this.state = [...SOURCE_RANDOM_SEED_BASE];
+    this.setSeed(seed);
   }
 
-  /** Returns next pseudo-random integer [0, 2^31). */
+  /** Returns next pseudo-random unsigned 32-bit integer. */
   nextInt(): number {
-    // Linear congruential generator matching original engine parameters
-    this.seed = (this.seed * 214013 + 2531011) >>> 0;
-    return (this.seed >>> 16) & 0x7fff;
+    return this.randomValue();
   }
 
-  /** Returns float [0, 1). */
+  /** Returns float [0, 1], matching GetGame*RandomValueReal scaling. */
   nextFloat(): number {
-    return this.nextInt() / 32768;
+    return this.randomValue() / 0xffffffff;
   }
 
   /** Returns integer in [min, max] inclusive. */
   nextRange(min: number, max: number): number {
-    return min + (this.nextInt() % (max - min + 1));
+    const lo = Math.trunc(min);
+    const hi = Math.trunc(max);
+    const delta = (hi - lo + 1) >>> 0;
+    if (delta === 0) {
+      return hi;
+    }
+    return lo + (this.randomValue() % delta);
   }
 
+  /** Returns the initial/base seed for replay metadata. */
   getSeed(): number {
-    return this.seed;
+    return this.baseSeed;
   }
 
   setSeed(seed: number): void {
-    this.seed = seed >>> 0;
+    this.baseSeed = seed >>> 0;
+    let ax = this.baseSeed;
+    this.state = [];
+    ax = (ax + SOURCE_RANDOM_SEED_BASE[0]) >>> 0;
+    this.state[0] = ax;
+    for (let index = 1; index < SOURCE_RANDOM_SEED_BASE.length; index += 1) {
+      ax = (ax + (SOURCE_RANDOM_SEED_BASE[index]! - SOURCE_RANDOM_SEED_BASE[index - 1]!)) >>> 0;
+      this.state[index] = ax;
+    }
+  }
+
+  getState(): number[] {
+    return [...this.state];
+  }
+
+  setState(state: readonly number[]): void {
+    if (state.length !== SOURCE_RANDOM_SEED_BASE.length) {
+      throw new Error(`GameRandom state must contain ${SOURCE_RANDOM_SEED_BASE.length} words.`);
+    }
+    this.state = state.map((value) => Math.trunc(value) >>> 0);
+  }
+
+  private randomValue(): number {
+    let carry = 0;
+    let ax = 0;
+    const adc = (left: number, right: number): number => {
+      const sum = (left + right + carry) >>> 0;
+      carry = sum < left || sum < right ? 1 : 0;
+      return sum;
+    };
+
+    ax = adc(this.state[5]!, this.state[4]!);
+    this.state[4] = ax;
+    ax = adc(ax, this.state[3]!);
+    this.state[3] = ax;
+    ax = adc(ax, this.state[2]!);
+    this.state[2] = ax;
+    ax = adc(ax, this.state[1]!);
+    this.state[1] = ax;
+    ax = adc(ax, this.state[0]!);
+    this.state[0] = ax;
+
+    this.state[5] = (this.state[5]! + 1) >>> 0;
+    if (this.state[5] === 0) {
+      this.state[4] = (this.state[4]! + 1) >>> 0;
+      if (this.state[4] === 0) {
+        this.state[3] = (this.state[3]! + 1) >>> 0;
+        if (this.state[3] === 0) {
+          this.state[2] = (this.state[2]! + 1) >>> 0;
+          if (this.state[2] === 0) {
+            this.state[1] = (this.state[1]! + 1) >>> 0;
+            if (this.state[1] === 0) {
+              this.state[0] = (this.state[0]! + 1) >>> 0;
+              ax = (ax + 1) >>> 0;
+            }
+          }
+        }
+      }
+    }
+
+    return ax >>> 0;
   }
 }

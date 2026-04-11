@@ -572,22 +572,20 @@ describe('Combined disable types with independent timers (Object.cpp:setDisabled
 
     // Access internal disable maps.
     const privateApi = logic as unknown as {
-      disabledEmpStatusByEntityId: Map<number, number>;
-      disabledHackedStatusByEntityId: Map<number, number>;
       frameCounter: number;
     };
 
     // Apply EMP disable for 10 frames.
     (logic as any).applyEmpDisable(vehicle, 10);
     expect(vehicle.objectStatusFlags.has('DISABLED_EMP')).toBe(true);
-    const empExpiry = privateApi.disabledEmpStatusByEntityId.get(vehicle.id);
+    const empExpiry = vehicle.disabledEmpUntilFrame;
     expect(empExpiry).toBeDefined();
 
     // Apply HACKED disable for 20 frames.
     const { setDisabledHackedStatusUntil } = await import('./status-effects.js');
     setDisabledHackedStatusUntil(logic, vehicle, privateApi.frameCounter + 20);
     expect(vehicle.objectStatusFlags.has('DISABLED_HACKED')).toBe(true);
-    const hackedExpiry = privateApi.disabledHackedStatusByEntityId.get(vehicle.id);
+    const hackedExpiry = vehicle.disabledHackedUntilFrame;
     expect(hackedExpiry).toBeDefined();
 
     // Both disables are active simultaneously.
@@ -672,13 +670,12 @@ describe('Combined disable types with independent timers (Object.cpp:setDisabled
     const vehicle = vehicles[0];
 
     const privateApi = logic as unknown as {
-      disabledEmpStatusByEntityId: Map<number, number>;
       frameCounter: number;
     };
 
     // Apply EMP for 10 frames.
     (logic as any).applyEmpDisable(vehicle, 10);
-    const firstExpiry = privateApi.disabledEmpStatusByEntityId.get(vehicle.id);
+    const firstExpiry = vehicle.disabledEmpUntilFrame;
 
     // Advance 5 frames.
     for (let i = 0; i < 5; i++) {
@@ -687,7 +684,7 @@ describe('Combined disable types with independent timers (Object.cpp:setDisabled
 
     // Reapply EMP for 20 frames — should extend.
     (logic as any).applyEmpDisable(vehicle, 20);
-    const secondExpiry = privateApi.disabledEmpStatusByEntityId.get(vehicle.id);
+    const secondExpiry = vehicle.disabledEmpUntilFrame;
 
     // The new expiry should be later than the original.
     expect(secondExpiry).toBeGreaterThan(firstExpiry!);

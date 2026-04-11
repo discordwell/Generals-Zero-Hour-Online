@@ -382,19 +382,21 @@ describe('structure topple crushing geometry (StructureToppleUpdate.cpp:359-444)
     // With the 2D grid pattern, weapons fire at grid points across the building width.
     // Building has GeometryMajorRadius=25, GeometryMinorRadius=25.
     // Grid fires at facingWidth ~12.5 units offset, with PrimaryDamageRadius=15.
-    // Infantry at 20 units perpendicular should be within grid point + weapon radius.
+    // Infantry at 15 units perpendicular is outside a center-line-only hit but
+    // inside the source grid edge point + weapon radius.
     const bundle = makeToppleBundle('SmallCrush', 500, 15, 25, 25);
 
     const scene = new THREE.Scene();
     const logic = new GameLogicSubsystem(scene);
 
-    // Infantry at 20 units perpendicular from topple center line.
+    // Victims are repositioned after topple starts so the test follows the
+    // source-randomized topple direction rather than assuming due east.
     logic.loadMapObjects(
       makeMap([
         makeMapObject('ToppleBuilding', 120, 120),
-        makeMapObject('InfantryVictim', 140, 100),  // 20 units perpendicular
-        makeMapObject('InfantryVictim', 140, 120),   // at center line
-        makeMapObject('InfantryVictim', 140, 140),   // 20 units perpendicular
+        makeMapObject('InfantryVictim', 140, 100),
+        makeMapObject('InfantryVictim', 140, 120),
+        makeMapObject('InfantryVictim', 140, 140),
       ], 256, 256),
       makeRegistry(bundle),
       makeHeightmap(256, 256),
@@ -408,11 +410,28 @@ describe('structure topple crushing geometry (StructureToppleUpdate.cpp:359-444)
     // Directly initiate topple — attacker west, building topples east.
     const priv = logic as unknown as {
       beginStructureTopple: (entity: unknown, attacker: unknown) => void;
-      spawnedEntities: Map<number, unknown>;
+      spawnedEntities: Map<number, any>;
     };
     const building = priv.spawnedEntities.get(1)!;
     const mockAttacker = { x: 70, z: 120 };
     priv.beginStructureTopple(building, mockAttacker);
+    const toppleState = building.structureToppleState!;
+    const forwardX = toppleState.toppleDirX;
+    const forwardZ = toppleState.toppleDirZ;
+    // Source doDamageLine offsets by (sin(toppleAngle), cos(toppleAngle)).
+    const perpX = forwardZ;
+    const perpZ = forwardX;
+    const forwardDistance = 5;
+    const perpendicularDistance = 15;
+    const victimA = priv.spawnedEntities.get(2)!;
+    const victimCenter = priv.spawnedEntities.get(3)!;
+    const victimC = priv.spawnedEntities.get(4)!;
+    victimA.x = building.x + forwardX * forwardDistance - perpX * perpendicularDistance;
+    victimA.z = building.z + forwardZ * forwardDistance - perpZ * perpendicularDistance;
+    victimCenter.x = building.x + forwardX * forwardDistance;
+    victimCenter.z = building.z + forwardZ * forwardDistance;
+    victimC.x = building.x + forwardX * forwardDistance + perpX * perpendicularDistance;
+    victimC.z = building.z + forwardZ * forwardDistance + perpZ * perpendicularDistance;
 
     for (let i = 0; i < 200; i++) {
       logic.update(0);
@@ -428,8 +447,9 @@ describe('structure topple crushing geometry (StructureToppleUpdate.cpp:359-444)
     const survivors = [farAAlive, centerAlive, farCAlive].filter(Boolean).length;
 
     // The 2D grid fires across the building's perpendicular width.
-    // Infantry at 20 units perpendicular should be hit by grid edge points
-    // (facingWidth ~12.5) + weapon radius (15) = ~27.5 total coverage.
+    // Infantry at 15 units perpendicular should be hit by grid edge points
+    // (facingWidth ~12.5) + weapon radius (15), while center-line-only damage
+    // would miss it.
     // At minimum the center one must die.
     expect(centerAlive).toBe(false);
 

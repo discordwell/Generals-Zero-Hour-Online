@@ -324,6 +324,7 @@ describe('EMP disable cascade', () => {
     const priv = logic as unknown as {
       spawnedEntities: Map<number, {
         objectStatusFlags: Set<string>;
+        disabledEmpUntilFrame: number;
         moving: boolean;
         movePath: Array<{ x: number; z: number }>;
         attackTargetEntityId: number | null;
@@ -333,7 +334,6 @@ describe('EMP disable cascade', () => {
         z: number;
       }>;
       frameCounter: number;
-      disabledEmpStatusByEntityId: Map<number, number>;
     };
 
     return { logic, priv };
@@ -350,6 +350,7 @@ describe('EMP disable cascade', () => {
 
     // Apply DISABLED_EMP to the tank.
     tankEntity.objectStatusFlags.add('DISABLED_EMP');
+    tankEntity.disabledEmpUntilFrame = priv.frameCounter + 120;
 
     // Try to issue a move command while EMP'd.
     logic.submitCommand({
@@ -387,7 +388,9 @@ describe('EMP disable cascade', () => {
     expect(progressBefore).toBeGreaterThan(0);
 
     // Apply EMP to factory.
-    priv.spawnedEntities.get(2)!.objectStatusFlags.add('DISABLED_EMP');
+    const factoryEntity = priv.spawnedEntities.get(2)!;
+    factoryEntity.objectStatusFlags.add('DISABLED_EMP');
+    factoryEntity.disabledEmpUntilFrame = priv.frameCounter + 120;
 
     // Advance 20 frames — production should NOT advance.
     for (let i = 0; i < 20; i++) logic.update(1 / 30);
@@ -396,7 +399,8 @@ describe('EMP disable cascade', () => {
     expect(progressDuring).toBe(progressBefore);
 
     // Remove EMP — production should resume.
-    priv.spawnedEntities.get(2)!.objectStatusFlags.delete('DISABLED_EMP');
+    factoryEntity.objectStatusFlags.delete('DISABLED_EMP');
+    factoryEntity.disabledEmpUntilFrame = 0;
     for (let i = 0; i < 10; i++) logic.update(1 / 30);
     const prodAfter = logic.getProductionState(2);
     const progressAfter = prodAfter?.queue[0]?.framesUnderConstruction ?? 0;
@@ -414,7 +418,7 @@ describe('EMP disable cascade', () => {
     const entity = priv.spawnedEntities.get(1)!;
     entity.objectStatusFlags.add('DISABLED_EMP');
     const expiryFrame = priv.frameCounter + empDurationFrames;
-    priv.disabledEmpStatusByEntityId.set(1, expiryFrame);
+    entity.disabledEmpUntilFrame = expiryFrame;
 
     // Verify EMP is active.
     expect(entity.objectStatusFlags.has('DISABLED_EMP')).toBe(true);
@@ -428,7 +432,7 @@ describe('EMP disable cascade', () => {
 
     // EMP should have expired — flag should be cleared.
     expect(entity.objectStatusFlags.has('DISABLED_EMP')).toBe(false);
-    expect(priv.disabledEmpStatusByEntityId.has(1)).toBe(false);
+    expect(entity.disabledEmpUntilFrame).toBe(0);
   });
 
   it('all disabled functions resume after EMP removal', () => {
@@ -448,8 +452,12 @@ describe('EMP disable cascade', () => {
     for (let i = 0; i < 3; i++) logic.update(1 / 30);
 
     // Apply EMP to both tank and factory.
-    priv.spawnedEntities.get(1)!.objectStatusFlags.add('DISABLED_EMP');
-    priv.spawnedEntities.get(2)!.objectStatusFlags.add('DISABLED_EMP');
+    const empTank = priv.spawnedEntities.get(1)!;
+    const empFactory = priv.spawnedEntities.get(2)!;
+    empTank.objectStatusFlags.add('DISABLED_EMP');
+    empTank.disabledEmpUntilFrame = priv.frameCounter + 120;
+    empFactory.objectStatusFlags.add('DISABLED_EMP');
+    empFactory.disabledEmpUntilFrame = priv.frameCounter + 120;
 
     // Snapshot production progress while EMP'd.
     for (let i = 0; i < 10; i++) logic.update(1 / 30);
@@ -470,8 +478,10 @@ describe('EMP disable cascade', () => {
     expect(priv.spawnedEntities.get(1)!.z).toBe(tankStartZ);
 
     // Remove EMP from both entities.
-    priv.spawnedEntities.get(1)!.objectStatusFlags.delete('DISABLED_EMP');
-    priv.spawnedEntities.get(2)!.objectStatusFlags.delete('DISABLED_EMP');
+    empTank.objectStatusFlags.delete('DISABLED_EMP');
+    empTank.disabledEmpUntilFrame = 0;
+    empFactory.objectStatusFlags.delete('DISABLED_EMP');
+    empFactory.disabledEmpUntilFrame = 0;
 
     // Production should resume after EMP removal.
     for (let i = 0; i < 20; i++) logic.update(1 / 30);

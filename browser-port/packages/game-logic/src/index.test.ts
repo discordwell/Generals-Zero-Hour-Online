@@ -5858,20 +5858,18 @@ describe('GameLogicSubsystem combat + upgrades', () => {
     const noScatter = runProjectileScatterTimeline(0);
     expect(noScatter).toEqual([100, 70, 70, 70]);
 
-    // With scatter=200 and PrimaryDamageRadius=0.1, the deterministic random scatter
-    // offset lands within the entity's bounding sphere adjusted hit zone (~0.56 units
-    // for vehicles with baseHeight=1.5). Source parity: FROM_BOUNDINGSPHERE_3D makes
-    // larger entities easier to hit by subtracting BSR from distance.
+    // With source RandomValue.cpp scatter=200 and PrimaryDamageRadius=0.1,
+    // the deterministic scatter point misses the tiny BSR-adjusted hit zone.
     const withScatter = runProjectileScatterTimeline(200);
-    expect(withScatter).toEqual([100, 70, 70, 70]);
+    expect(withScatter).toEqual([100, 100, 100, 100]);
   });
 
   it('applies ScatterRadiusVsInfantry only when the projectile target is infantry', () => {
-    // Infantry target gets scatter=200 applied; with BSR-adjusted hit zone, the
-    // deterministic scatter still lands close enough to hit (same as scatter test above).
+    // Infantry target gets scatter=200 applied; the source RNG scatter point misses.
     const infantryTarget = runProjectileInfantryInaccuracyTimeline('INFANTRY');
-    expect(infantryTarget).toEqual([100, 70, 70, 70]);
+    expect(infantryTarget).toEqual([100, 100, 100, 100]);
 
+    // Vehicle target does not receive ScatterRadiusVsInfantry, so it still hits directly.
     const vehicleTarget = runProjectileInfantryInaccuracyTimeline('VEHICLE');
     expect(vehicleTarget).toEqual([100, 70, 70, 70]);
   });
@@ -23410,8 +23408,8 @@ describe('Script condition groundwork', () => {
       makeHeightmap(256, 256),
     );
 
-    logic.submitCommand({ type: 'setSidePlayerType', side: 'America', playerType: 'HUMAN' });
-    logic.submitCommand({ type: 'setSidePlayerType', side: 'GLA', playerType: 'COMPUTER' });
+    logic.setSidePlayerType('America', 'HUMAN');
+    logic.setSidePlayerType('GLA', 'COMPUTER');
     logic.update(1 / 30);
 
     expect(logic.getCellVisibility('America', 220, 220)).toBe(CELL_SHROUDED);
@@ -23428,7 +23426,7 @@ describe('Script condition groundwork', () => {
       actionType: 145, // MAP_SHROUD_AT_WAYPOINT (raw id)
       params: ['RevealSpot', 40, 'America'],
     })).toBe(true);
-    expect(logic.getCellVisibility('America', 220, 220)).toBe(CELL_SHROUDED);
+    expect(logic.getCellVisibility('America', 220, 220)).toBe(CELL_FOGGED);
 
     expect(logic.executeScriptAction({
       actionType: 295, // MAP_REVEAL_AT_WAYPOINT (offset/collision id)
@@ -23445,7 +23443,7 @@ describe('Script condition groundwork', () => {
       actionType: 350, // MAP_SHROUD_AT_WAYPOINT (offset/collision id)
       params: ['RevealSpot', 40, 'GLA'],
     })).toBe(true);
-    expect(logic.getCellVisibility('GLA', 220, 220)).toBe(CELL_SHROUDED);
+    expect(logic.getCellVisibility('GLA', 220, 220)).toBe(CELL_FOGGED);
 
     expect(logic.executeScriptAction({
       actionType: 90,

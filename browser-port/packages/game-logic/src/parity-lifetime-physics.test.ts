@@ -246,7 +246,7 @@ describe('PhysicsBehavior — gravity, friction, and bouncing', () => {
 
   it('friction dampens lateral velocity over time', () => {
     // Source parity: PhysicsUpdate.cpp — ground friction applies
-    // accelX += -(forwardFriction * mass * velX) each frame.
+    // mass * friction * velocity as a force, then applyForce() divides by mass.
     const { logic } = makePhysicsSetup();
 
     const priv = logic as unknown as {
@@ -285,6 +285,51 @@ describe('PhysicsBehavior — gravity, friction, and bouncing', () => {
     expect(finalSpeed).toBeLessThan(initialSpeed);
     // After 20 frames of friction, speed should be significantly reduced.
     expect(finalSpeed).toBeLessThan(initialSpeed * 0.5);
+  });
+
+  it('high-mass hulk physics remains finite while bouncing to rest', () => {
+    const { logic } = makePhysicsSetup({
+      Mass: 100.0,
+      KillWhenRestingOnGround: 'Yes',
+      AllowBouncing: 'Yes',
+    });
+
+    const priv = logic as unknown as {
+      spawnedEntities: Map<number, {
+        x: number; y: number; z: number;
+        baseHeight: number;
+        destroyed: boolean;
+        physicsBehaviorState: {
+          velX: number; velY: number; velZ: number;
+          accelX: number; accelY: number; accelZ: number;
+          stickToGround: boolean; allowToFall: boolean;
+        } | null;
+      }>;
+    };
+    const entity = priv.spawnedEntities.get(1)!;
+
+    logic.update(1 / 30);
+    const st = entity.physicsBehaviorState!;
+    entity.baseHeight = 0;
+    entity.y = 40;
+    st.velX = 0;
+    st.velY = 0.5;
+    st.velZ = 0;
+    st.accelX = 0;
+    st.accelY = 0;
+    st.accelZ = 0;
+    st.stickToGround = false;
+    st.allowToFall = true;
+
+    for (let i = 0; i < 300 && !entity.destroyed; i++) {
+      logic.update(1 / 30);
+      expect(Number.isFinite(entity.x)).toBe(true);
+      expect(Number.isFinite(entity.y)).toBe(true);
+      expect(Number.isFinite(entity.z)).toBe(true);
+      expect(Number.isFinite(st.velY)).toBe(true);
+    }
+
+    expect(entity.destroyed).toBe(true);
   });
 
   it('entity bounces when hitting ground with AllowBouncing enabled', () => {

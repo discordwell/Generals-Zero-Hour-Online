@@ -1484,11 +1484,15 @@ describe('disabled factory pauses production', () => {
     const beforeDisable = logic.getProductionState(1)!.queue[0]!.framesUnderConstruction;
     expect(beforeDisable).toBeGreaterThan(0);
 
-    // Manually set DISABLED_EMP on the factory entity.
+    // Manually set DISABLED_EMP on the factory entity, paired with the
+    // source Object::m_disabledTillFrame[DISABLED_EMP] timer.
     const priv = logic as unknown as {
-      spawnedEntities: Map<number, { objectStatusFlags: Set<string> }>;
+      spawnedEntities: Map<number, { objectStatusFlags: Set<string>; disabledEmpUntilFrame: number }>;
+      frameCounter: number;
     };
-    priv.spawnedEntities.get(1)!.objectStatusFlags.add('DISABLED_EMP');
+    const factoryEntity = priv.spawnedEntities.get(1)!;
+    factoryEntity.objectStatusFlags.add('DISABLED_EMP');
+    factoryEntity.disabledEmpUntilFrame = priv.frameCounter + 60;
 
     // Advance more frames — production should NOT advance.
     for (let i = 0; i < 10; i++) logic.update(1 / 30);
@@ -1496,7 +1500,8 @@ describe('disabled factory pauses production', () => {
     expect(afterDisable).toBe(beforeDisable);
 
     // Remove the flag — production should resume.
-    priv.spawnedEntities.get(1)!.objectStatusFlags.delete('DISABLED_EMP');
+    factoryEntity.objectStatusFlags.delete('DISABLED_EMP');
+    factoryEntity.disabledEmpUntilFrame = 0;
     for (let i = 0; i < 5; i++) logic.update(1 / 30);
     const afterResume = logic.getProductionState(1)!.queue[0]!.framesUnderConstruction;
     expect(afterResume).toBeGreaterThan(afterDisable);

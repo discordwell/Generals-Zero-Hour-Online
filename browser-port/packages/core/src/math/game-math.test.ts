@@ -72,6 +72,32 @@ describe('GameRandom', () => {
     expect(seq1).not.toEqual(seq2);
   });
 
+  it('matches the C++ RandomValue.cpp sequence for seed 1', () => {
+    const rng = new GameRandom(1);
+    expect(Array.from({ length: 10 }, () => rng.nextInt())).toEqual([
+      1436176883,
+      659466250,
+      3894933528,
+      1991661232,
+      2132492519,
+      3941128124,
+      1359027079,
+      1702176609,
+      1768189074,
+      2598104576,
+    ]);
+  });
+
+  it('can restore the full six-word C++ random stream state', () => {
+    const original = new GameRandom(1);
+    original.nextInt();
+    original.nextInt();
+    const restored = new GameRandom(99);
+    restored.setState(original.getState());
+    expect(restored.nextInt()).toBe(original.nextInt());
+    expect(restored.nextInt()).toBe(original.nextInt());
+  });
+
   it('nextRange produces values in range', () => {
     const rng = new GameRandom(123);
     for (let i = 0; i < 1000; i++) {
@@ -86,7 +112,7 @@ describe('GameRandom', () => {
     for (let i = 0; i < 1000; i++) {
       const val = rng.nextFloat();
       expect(val).toBeGreaterThanOrEqual(0);
-      expect(val).toBeLessThan(1);
+      expect(val).toBeLessThanOrEqual(1);
     }
   });
 });

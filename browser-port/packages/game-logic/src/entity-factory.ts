@@ -487,10 +487,8 @@ export function createMapEntity(self: GL,
     stealthEnabled: false,
     stealthDelayRemaining: 0,
     // Source parity: StealthUpdate ctor seeds pulse state from client random.
-    // We use deterministic game logic random here so save/load and tests stay stable
-    // until the client-side stealth visual update loop is ported separately.
     stealthPulsePhaseRate: 0.2,
-    stealthPulsePhase: self.gameRandom.nextFloat() * Math.PI,
+    stealthPulsePhase: self.gameClientRandom.nextFloat() * Math.PI,
     temporaryStealthGrant: false,
     temporaryStealthExpireFrame: 0,
     stealthDisguisePlayerIndex: -1,
@@ -5694,7 +5692,8 @@ export function spawnEntityFromTemplate(self: GL,
   self.registerTunnelEntity(entity);
   // Snap to terrain.
   if (self.mapHeightmap) {
-    entity.y = self.mapHeightmap.getInterpolatedHeight(worldX, worldZ) ?? 0;
+    const terrainHeight = self.mapHeightmap.getInterpolatedHeight(worldX, worldZ);
+    entity.y = Number.isFinite(terrainHeight) ? terrainHeight : 0;
   }
   // Source parity: Object.cpp:595-598 — record mine creation for academy stats.
   if (entity.kindOf.has('MINE') || entity.kindOf.has('BOOBY_TRAP') || entity.kindOf.has('DEMOTRAP')) {

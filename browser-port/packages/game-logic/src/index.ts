@@ -8337,6 +8337,7 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'raycaster',
   'groundPlane',
   'gameRandom',
+  'gameClientRandom',
   'commandQueue',
   'loadedMapData',
   'mapHeightmap',
@@ -8526,6 +8527,9 @@ export interface GameLogicBridgeSegmentSaveState {
 export interface GameLogicCoreSaveState {
   version: number;
   gameRandomSeed?: number;
+  gameRandomState?: readonly number[];
+  gameClientRandomSeed?: number;
+  gameClientRandomState?: readonly number[];
   nextId: number;
   nextProjectileVisualId: number;
   animationTime: number;
@@ -8824,6 +8828,7 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly raycaster = new THREE.Raycaster();
   private readonly groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private readonly gameRandom = new GameRandom(1);
+  private readonly gameClientRandom = new GameRandom(1);
 
   private nextId = 1;
   private nextProjectileVisualId = 1;
@@ -12182,6 +12187,9 @@ export class GameLogicSubsystem implements Subsystem {
     return {
       version: SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION,
       gameRandomSeed: this.gameRandom.getSeed(),
+      gameRandomState: this.gameRandom.getState(),
+      gameClientRandomSeed: this.gameClientRandom.getSeed(),
+      gameClientRandomState: this.gameClientRandom.getState(),
       nextId: this.nextId,
       nextProjectileVisualId: this.nextProjectileVisualId,
       animationTime: this.animationTime,
@@ -12374,8 +12382,15 @@ export class GameLogicSubsystem implements Subsystem {
     this.config.superweaponRestriction = Number.isFinite(snapshot.superweaponRestriction)
       ? Math.max(0, Math.trunc(snapshot.superweaponRestriction ?? 0))
       : 0;
-    if (Number.isFinite(snapshot.gameRandomSeed)) {
+    if (Array.isArray(snapshot.gameRandomState) && snapshot.gameRandomState.length === 6) {
+      this.gameRandom.setState(snapshot.gameRandomState.map((value) => Number(value)));
+    } else if (Number.isFinite(snapshot.gameRandomSeed)) {
       this.gameRandom.setSeed(Number(snapshot.gameRandomSeed));
+    }
+    if (Array.isArray(snapshot.gameClientRandomState) && snapshot.gameClientRandomState.length === 6) {
+      this.gameClientRandom.setState(snapshot.gameClientRandomState.map((value) => Number(value)));
+    } else if (Number.isFinite(snapshot.gameClientRandomSeed)) {
+      this.gameClientRandom.setSeed(Number(snapshot.gameClientRandomSeed));
     }
     (this as unknown as Record<string, unknown>).spawnedEntities = new Map(
       snapshot.spawnedEntities.map((entity) => [entity.id, entity]),
@@ -12542,7 +12557,11 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     for (const [key, value] of Object.entries(snapshot)) {
-      if (key === 'version' || key === 'gameRandomSeed') {
+      if (key === 'version'
+        || key === 'gameRandomSeed'
+        || key === 'gameRandomState'
+        || key === 'gameClientRandomSeed'
+        || key === 'gameClientRandomState') {
         continue;
       }
       if (NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS.has(key)) {
@@ -12566,6 +12585,16 @@ export class GameLogicSubsystem implements Subsystem {
     const restoredRandomSeed = Number(snapshot.gameRandomSeed);
     if (Number.isFinite(restoredRandomSeed)) {
       this.gameRandom.setSeed(restoredRandomSeed);
+    }
+    if (Array.isArray(snapshot.gameRandomState) && snapshot.gameRandomState.length === 6) {
+      this.gameRandom.setState(snapshot.gameRandomState.map((value) => Number(value)));
+    }
+    const restoredClientRandomSeed = Number(snapshot.gameClientRandomSeed);
+    if (Number.isFinite(restoredClientRandomSeed)) {
+      this.gameClientRandom.setSeed(restoredClientRandomSeed);
+    }
+    if (Array.isArray(snapshot.gameClientRandomState) && snapshot.gameClientRandomState.length === 6) {
+      this.gameClientRandom.setState(snapshot.gameClientRandomState.map((value) => Number(value)));
     }
 
     const maxEntityId = Array.from(this.spawnedEntities.keys()).reduce(
@@ -25775,7 +25804,8 @@ export class GameLogicSubsystem implements Subsystem {
     // Original C&C coordinates: x->ThreeX, y->ThreeZ, z->ThreeY.
     const worldZ = Number.isFinite(mapObject.position.y) ? mapObject.position.y : 0;
     const rawElevation = Number.isFinite(mapObject.position.z) ? mapObject.position.z : 0;
-    const terrainHeight = heightmap ? heightmap.getInterpolatedHeight(worldX, worldZ) : 0;
+    const rawTerrainHeight = heightmap ? heightmap.getInterpolatedHeight(worldX, worldZ) : 0;
+    const terrainHeight = Number.isFinite(rawTerrainHeight) ? rawTerrainHeight : 0;
     const worldY = terrainHeight + rawElevation;
 
     return [worldX, worldY, worldZ];
@@ -28597,7 +28627,9 @@ export class GameLogicSubsystem implements Subsystem {
     if (playerIndex < 0) {
       return;
     }
+    // Source parity: doShroudCover + undoShroudCover ("dollop" of shroud).
     grid.shroudAt(playerIndex, worldX, worldZ, radius);
+    grid.removeShrouder(playerIndex, worldX, worldZ, radius);
   }
 
   /* @internal */ setMapShroudEntireForSide(side: string): void {
@@ -30094,7 +30126,8 @@ export class GameLogicSubsystem implements Subsystem {
     if (!this.mapHeightmap) {
       return 0;
     }
-    return this.mapHeightmap.getInterpolatedHeight(worldX, worldZ);
+    const height = this.mapHeightmap.getInterpolatedHeight(worldX, worldZ);
+    return Number.isFinite(height) ? height : 0;
   }
 
   /**
@@ -36153,6 +36186,13 @@ export class GameLogicSubsystem implements Subsystem {
 
       if (st.state === 'WAITING') {
         // Dramatic pause before topple starts.
+        if (st.nextBurstFrame >= 0 && this.frameCounter >= st.nextBurstFrame) {
+          // Source parity: delay bursts are client-only FX, so they use GameClientRandomValue.
+          st.nextBurstFrame = this.frameCounter + this.gameClientRandom.nextRange(
+            prof.minToppleBurstDelayFrames,
+            Math.max(prof.minToppleBurstDelayFrames, prof.maxToppleBurstDelayFrames),
+          );
+        }
         if (this.frameCounter >= st.toppleFrame) {
           st.state = 'TOPPLING';
           st.structuralIntegrity = prof.structuralIntegrity;
@@ -36244,6 +36284,14 @@ export class GameLogicSubsystem implements Subsystem {
           st.toppleFrame = this.frameCounter;
         }
 
+        if (st.nextBurstFrame >= 0 && this.frameCounter >= st.nextBurstFrame) {
+          // Source parity: delay bursts are client-only FX, so they use GameClientRandomValue.
+          st.nextBurstFrame = this.frameCounter + this.gameClientRandom.nextRange(
+            prof.minToppleBurstDelayFrames,
+            Math.max(prof.minToppleBurstDelayFrames, prof.maxToppleBurstDelayFrames),
+          );
+        }
+
         // Update entity visual rotation (pitch along topple direction).
         // Note: rotationX is a visual-only topple pitch, not used for gameplay.
         (entity as any).toppleVisualPitch = -st.toppleVelocity * st.toppleDirZ;
@@ -36290,6 +36338,10 @@ export class GameLogicSubsystem implements Subsystem {
     const delayBurstX = entity.x + explosionRadius * Math.cos(toppleAngle);
     const delayBurstZ = entity.z + explosionRadius * Math.sin(toppleAngle);
     const delayBurstY = this.mapHeightmap?.getInterpolatedHeight(delayBurstX, delayBurstZ) ?? entity.y;
+    const burstDelay = this.gameClientRandom.nextRange(
+      prof.minToppleBurstDelayFrames,
+      Math.max(prof.minToppleBurstDelayFrames, prof.maxToppleBurstDelayFrames),
+    );
 
     entity.structureToppleState = {
       state: 'WAITING',
@@ -36301,8 +36353,7 @@ export class GameLogicSubsystem implements Subsystem {
       toppleDirZ: Math.sin(toppleAngle),
       buildingHeight: geometryHeight,
       lastCrushedLocation: 0,
-      // TODO(source-parity): schedule with GameClientRandomValue once the client RNG stream is ported.
-      nextBurstFrame: -1,
+      nextBurstFrame: this.frameCounter + burstDelay,
       delayBurstLocation: {
         x: delayBurstX,
         y: delayBurstY,

@@ -764,8 +764,13 @@ export function updateFloatEntities(self: GL): void {
 export function updatePhysicsBehavior(self: GL): void {
   const GRAVITY = -1.0; // Source parity: TheGlobalData->m_gravity default (GlobalData.cpp line 834)
   const GROUND_STIFFNESS = 0.5; // Source parity: TheGlobalData->m_groundStiffness default
+  const MIN_NON_AERO_FRICTION = 0.01;
+  const MIN_AERO_FRICTION = 0.0;
+  const MAX_FRICTION = 0.99;
   const VEL_THRESH = 0.001;
   const REST_THRESH = 0.01;
+  const clampFriction = (value: number, extra: number, min: number): number =>
+    Math.max(min, Math.min(MAX_FRICTION, value + extra));
 
   for (const entity of self.spawnedEntities.values()) {
     if (entity.destroyed) continue;
@@ -802,17 +807,31 @@ export function updatePhysicsBehavior(self: GL): void {
     if (!isAboveTerrain) {
       // Ground friction — lateral and forward.
       if (st.velX !== 0 || st.velZ !== 0) {
-        const ff = prof.mass * prof.forwardFriction;
-        st.accelX += -(ff * st.velX);
-        st.accelZ += -(ff * st.velZ);
-      }
-      // Source parity: ZFriction applied to vertical velocity on ground.
-      if (st.velY !== 0) {
-        st.accelY += -(prof.mass * prof.zFriction * st.velY);
+        const dirXRaw = Math.cos(entity.rotationY);
+        const dirZRaw = Math.sin(entity.rotationY);
+        const directionLength = Math.hypot(dirXRaw, dirZRaw);
+        const dirX = directionLength > 0 ? dirXRaw / directionLength : 1;
+        const dirZ = directionLength > 0 ? dirZRaw / directionLength : 0;
+        const perpX = -dirZ;
+        const perpZ = dirX;
+
+        const lateralDot = st.velX * perpX + st.velZ * perpZ;
+        const lateralVelX = lateralDot * perpX;
+        const lateralVelZ = lateralDot * perpZ;
+        const forwardDot = st.velX * dirX + st.velZ * dirZ;
+        const forwardVelX = forwardDot * dirX;
+        const forwardVelZ = forwardDot * dirZ;
+        const lateralFriction = clampFriction(prof.lateralFriction, st.extraFriction, MIN_NON_AERO_FRICTION);
+        const forwardFriction = clampFriction(prof.forwardFriction, st.extraFriction, MIN_NON_AERO_FRICTION);
+
+        // Source parity: PhysicsBehavior::applyFrictionalForces builds a force as
+        // mass * friction * velocity, then applyForce() divides by mass.
+        st.accelX += -(lateralFriction * lateralVelX + forwardFriction * forwardVelX);
+        st.accelZ += -(lateralFriction * lateralVelZ + forwardFriction * forwardVelZ);
       }
     } else {
       // Aerodynamic friction — proportional to velocity.
-      const aero = -prof.aerodynamicFriction;
+      const aero = -clampFriction(prof.aerodynamicFriction, st.extraFriction, MIN_AERO_FRICTION);
       st.accelX += st.velX * aero;
       st.accelY += st.velY * aero;
       st.accelZ += st.velZ * aero;
