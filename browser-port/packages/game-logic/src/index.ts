@@ -4372,6 +4372,7 @@ export interface MapEntity {
 
   // ── Source parity: RadiusDecalUpdate — ground radius decals for targeting ──
   radiusDecalStates: RadiusDecalState[];
+  radiusDecalModuleStates: RadiusDecalModuleState[];
   // ── Source parity: BridgeBehavior — bridge lifecycle manager ──
   bridgeBehaviorProfile: BridgeBehaviorProfile | null;
   bridgeBehaviorState: BridgeBehaviorState | null;
@@ -5657,6 +5658,11 @@ interface RadiusDecalState {
   positionZ: number;
   radius: number;
   visible: boolean;
+  killWhenNoLongerAttacking: boolean;
+}
+
+interface RadiusDecalModuleState {
+  moduleTag: string;
   killWhenNoLongerAttacking: boolean;
 }
 
@@ -8709,6 +8715,10 @@ interface SourceFireOclAfterCooldownUpdateImportState {
   valid: boolean;
   consecutiveShots: number;
   startFrame: number;
+}
+
+interface SourceRadiusDecalUpdateImportState {
+  killWhenNoLongerAttacking: boolean;
 }
 
 interface SourceSpecialPowerModuleImportState {
@@ -13882,6 +13892,66 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceRadiusDecalUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceRadiusDecalUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'RADIUSDECALUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-radius-decal-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      this.skipSourceImportUpdateModuleBase(xfer);
+      const killWhenNoLongerAttacking = xfer.xferBool(false);
+      return xfer.getRemaining() === 0
+        ? { killWhenNoLongerAttacking }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceRadiusDecalUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    let parsedAny = false;
+    const moduleStates: RadiusDecalModuleState[] = [];
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const radiusDecalState = this.tryParseSourceRadiusDecalUpdateImportState(module.blockData, moduleType);
+      if (!radiusDecalState) {
+        continue;
+      }
+      parsedAny = true;
+      moduleStates.push({
+        moduleTag: module.identifier.trim().toUpperCase(),
+        killWhenNoLongerAttacking: radiusDecalState.killWhenNoLongerAttacking,
+      });
+    }
+
+    if (!parsedAny) {
+      return;
+    }
+    entity.radiusDecalStates = [];
+    entity.radiusDecalModuleStates = moduleStates;
+  }
+
   private normalizeSourceObjectModuleType(moduleType: string): string {
     return moduleType.trim().toUpperCase();
   }
@@ -14794,6 +14864,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceSupportBehaviorModulesToEntity(entity, sourceState);
     this.applySourceHordeUpdateModulesToEntity(entity, sourceState);
     this.applySourceFireOclAfterCooldownUpdateModulesToEntity(entity, sourceState);
+    this.applySourceRadiusDecalUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
     this.applySourceBattlePlanUpdateModulesToEntity(entity, sourceState);
     this.applySourceStealthModulesToEntity(entity, sourceState);

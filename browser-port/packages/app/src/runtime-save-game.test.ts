@@ -9002,6 +9002,10 @@ describe('runtime-save-game', () => {
               positionZ: 20,
               radius: 35,
               visible: true,
+              killWhenNoLongerAttacking: false,
+            }],
+            radiusDecalModuleStates: [{
+              moduleTag: 'MODULETAG_RADIUSDECAL',
               killWhenNoLongerAttacking: true,
             }],
           } as unknown as import('@generals/game-logic').MapEntity],

@@ -10341,15 +10341,22 @@ function overlaySourceObjectModulesFromLiveEntity(
           }
           if (moduleType === 'RADIUSDECALUPDATE') {
             const parsedSourceState = tryParseSourceRadiusDecalUpdateBlockData(module.blockData);
+            const moduleTag = module.identifier.trim().toUpperCase();
+            const liveModuleState = entity.radiusDecalModuleStates?.find(
+              (state) => state.moduleTag === moduleTag,
+            );
             const liveKillWhenNoLongerAttacking = entity.radiusDecalStates.some(
               (state) => state.killWhenNoLongerAttacking,
             );
+            const killWhenNoLongerAttacking = liveModuleState
+              ? liveModuleState.killWhenNoLongerAttacking
+              : liveKillWhenNoLongerAttacking || (parsedSourceState?.killWhenNoLongerAttacking ?? false);
             return {
               identifier: module.identifier,
               blockData: buildSourceRadiusDecalUpdateBlockData(
                 entity,
                 currentFrame,
-                liveKillWhenNoLongerAttacking || (parsedSourceState?.killWhenNoLongerAttacking ?? false),
+                killWhenNoLongerAttacking,
               ),
             };
           }

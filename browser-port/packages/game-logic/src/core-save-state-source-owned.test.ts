@@ -170,6 +170,9 @@ function makeSourceOwnedCoreBundle() {
           OCLLifetimeMaxCap: 3000,
         }),
       ]),
+      makeObjectDef('RadiusDecalCaster', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'RadiusDecalUpdate ModuleTag_RadiusDecal', {}),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -904,6 +907,26 @@ function buildSourceFireOclAfterCooldownUpdateModuleData(options: {
     saver.xferBool(options.valid);
     saver.xferUnsignedInt(options.consecutiveShots);
     saver.xferUnsignedInt(options.startFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceRadiusDecalUpdateModuleData(options: {
+  nextCallFrame: number;
+  killWhenNoLongerAttacking: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-radius-decal-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferBool(options.killWhenNoLongerAttacking);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -1985,6 +2008,53 @@ describe('source-owned game-logic core save-state', () => {
       valid: true,
       consecutiveShots: 4,
       startFrame: 175,
+    }]);
+  });
+
+  it('imports source RadiusDecalUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 97;
+    sourceState.position = { x: 148, y: 0, z: 64 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_RadiusDecal',
+      blockData: buildSourceRadiusDecalUpdateModuleData({
+        nextCallFrame: 201,
+        killWhenNoLongerAttacking: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 160,
+      objects: [
+        { templateName: 'RadiusDecalCaster', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        radiusDecalStates: unknown[];
+        radiusDecalModuleStates: Array<{
+          moduleTag: string;
+          killWhenNoLongerAttacking: boolean;
+        }>;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(97)!;
+    expect(entity.radiusDecalStates).toEqual([]);
+    expect(entity.radiusDecalModuleStates).toEqual([{
+      moduleTag: 'MODULETAG_RADIUSDECAL',
+      killWhenNoLongerAttacking: true,
     }]);
   });
 

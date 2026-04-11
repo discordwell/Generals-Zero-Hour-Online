@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 28;
+const ENTITY_XFER_VERSION = 29;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -2281,6 +2281,11 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     e.boneFXProfile = xferNullableJsonObject(xfer, e.boneFXProfile as object | null);
     e.boneFXState = xferNullableJsonObject(xfer, e.boneFXState as object | null);
     e.radiusDecalStates = xferJsonObject(xfer, (e.radiusDecalStates as unknown[]) ?? []);
+    if (version >= 29) {
+      e.radiusDecalModuleStates = xferJsonObject(xfer, (e.radiusDecalModuleStates as unknown[]) ?? []);
+    } else {
+      e.radiusDecalModuleStates = [];
+    }
     e.bridgeBehaviorProfile = xferNullableJsonObject(xfer, e.bridgeBehaviorProfile as object | null);
     e.bridgeBehaviorState = xferNullableJsonObject(xfer, e.bridgeBehaviorState as object | null);
     e.bridgeTowerProfile = xferNullableJsonObject(xfer, e.bridgeTowerProfile as object | null);
@@ -2324,6 +2329,7 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.boneFXProfile = null;
   e.boneFXState = null;
   e.radiusDecalStates = [];
+  e.radiusDecalModuleStates = [];
   e.bridgeBehaviorProfile = null;
   e.bridgeBehaviorState = null;
   e.bridgeTowerProfile = null;

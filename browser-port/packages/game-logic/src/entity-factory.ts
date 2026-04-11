@@ -900,6 +900,7 @@ export function createMapEntity(self: GL,
     boneFXState: null,
     // RadiusDecalUpdate (ground radius decals — programmatically created, not INI-driven)
     radiusDecalStates: [],
+    radiusDecalModuleStates: [],
     // Bridge behavior (bridge lifecycle manager)
     bridgeBehaviorProfile: self.extractBridgeBehaviorProfile(objectDef),
     bridgeBehaviorState: null,
