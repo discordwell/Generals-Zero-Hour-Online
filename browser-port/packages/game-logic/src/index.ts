@@ -8682,6 +8682,42 @@ interface SourceStealthUpdateImportState {
   framesGranted: number;
 }
 
+type SourceContainModuleKind =
+  | 'open'
+  | 'transport'
+  | 'overlord'
+  | 'helix'
+  | 'parachute'
+  | 'garrison'
+  | 'tunnel'
+  | 'cave'
+  | 'heal'
+  | 'internetHack'
+  | 'riderChange'
+  | 'railedTransport'
+  | 'mobNexus';
+
+interface SourceOpenContainImportState {
+  passengerIds: number[];
+  rallyPoint: { x: number; y: number; z: number };
+  rallyPointExists: boolean;
+  passengerAllowedToFire: boolean;
+}
+
+interface SourceTransportContainImportState {
+  open: SourceOpenContainImportState;
+  payloadCreated: boolean;
+}
+
+interface SourceContainModuleImportState {
+  kind: SourceContainModuleKind;
+  open?: SourceOpenContainImportState;
+  transport?: SourceTransportContainImportState;
+  helixPortableStructureId?: number;
+  caveIndex?: number;
+  riderChangePayloadCreated?: boolean;
+}
+
 export interface GameLogicObjectTriggerAreaEntrySaveState {
   triggerName: string;
   entered: number;
@@ -8706,6 +8742,10 @@ const SOURCE_PRODUCTION_UPGRADE = 2;
 const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
 const SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_FLAG = -1;
 const SOURCE_DOCK_VECTOR_LIMIT = 0xffff;
+const SOURCE_PLAYER_MASK_BYTE_LENGTH = 2;
+const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH = 32 * 48;
+const SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH = 4;
+const SOURCE_CONTAIN_VECTOR_LIMIT = 0xffff;
 const SOURCE_DERIVED_SPECIAL_POWER_MODULE_TYPES = new Set<string>([
   'BAIKONURLAUNCHPOWER',
   'CASHBOUNTYPOWER',
@@ -13595,6 +13635,318 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private normalizeSourceContainModuleKind(moduleType: string): SourceContainModuleKind | null {
+    switch (moduleType.trim().toUpperCase()) {
+      case 'OPENCONTAIN': return 'open';
+      case 'TRANSPORTCONTAIN': return 'transport';
+      case 'OVERLORDCONTAIN': return 'overlord';
+      case 'HELIXCONTAIN': return 'helix';
+      case 'PARACHUTECONTAIN': return 'parachute';
+      case 'GARRISONCONTAIN': return 'garrison';
+      case 'TUNNELCONTAIN': return 'tunnel';
+      case 'CAVECONTAIN': return 'cave';
+      case 'HEALCONTAIN': return 'heal';
+      case 'INTERNETHACKCONTAIN': return 'internetHack';
+      case 'RIDERCHANGECONTAIN': return 'riderChange';
+      case 'RAILEDTRANSPORTCONTAIN': return 'railedTransport';
+      case 'MOBNEXUSCONTAIN': return 'mobNexus';
+      default: return null;
+    }
+  }
+
+  private parseSourceImportObjectIdListByUnsignedIntCount(xfer: XferLoad): number[] {
+    const count = xfer.xferUnsignedInt(0);
+    if (count > SOURCE_CONTAIN_VECTOR_LIMIT) {
+      throw new Error(`Unsupported source contain ObjectID list size ${count}.`);
+    }
+    const values: number[] = [];
+    for (let index = 0; index < count; index += 1) {
+      values.push(xfer.xferObjectID(0));
+    }
+    return values;
+  }
+
+  private skipSourceOpenContainEnterExitEntries(xfer: XferLoad): void {
+    const count = xfer.xferUnsignedShort(0);
+    for (let index = 0; index < count; index += 1) {
+      xfer.xferObjectID(0);
+      this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH)));
+    }
+  }
+
+  private parseSourceOpenContainImportState(xfer: XferLoad): SourceOpenContainImportState {
+    const version = xfer.xferVersion(2);
+    if (version < 1 || version > 2) {
+      throw new Error(`Unsupported source OpenContain import version ${version}.`);
+    }
+    this.skipSourceImportUpdateModuleBase(xfer);
+    const passengerIds = this.parseSourceImportObjectIdListByUnsignedIntCount(xfer);
+    xfer.xferUser(new Uint8Array(SOURCE_PLAYER_MASK_BYTE_LENGTH));
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    this.xferSourceImportStringBitFlags(xfer);
+    xfer.xferUser(new Uint8Array(SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH));
+    xfer.xferInt(0);
+    xfer.xferInt(0);
+    xfer.xferInt(0);
+    xfer.xferBool(false);
+    const rallyPoint = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const rallyPointExists = xfer.xferBool(false);
+    this.skipSourceOpenContainEnterExitEntries(xfer);
+    xfer.xferInt(1);
+    const passengerAllowedToFire = version >= 2 ? xfer.xferBool(false) : false;
+    return {
+      passengerIds,
+      rallyPoint,
+      rallyPointExists,
+      passengerAllowedToFire,
+    };
+  }
+
+  private parseSourceTransportContainImportState(xfer: XferLoad): SourceTransportContainImportState {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error(`Unsupported source TransportContain import version ${version}.`);
+    }
+    const open = this.parseSourceOpenContainImportState(xfer);
+    const payloadCreated = xfer.xferBool(false);
+    xfer.xferInt(0);
+    xfer.xferUnsignedInt(0);
+    return { open, payloadCreated };
+  }
+
+  private tryParseSourceContainModuleImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceContainModuleImportState | null {
+    const kind = this.normalizeSourceContainModuleKind(moduleType);
+    if (!kind) {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-contain-module-import');
+    try {
+      let parsed: SourceContainModuleImportState;
+      if (kind === 'open') {
+        parsed = { kind, open: this.parseSourceOpenContainImportState(xfer) };
+      } else if (kind === 'transport') {
+        parsed = { kind, transport: this.parseSourceTransportContainImportState(xfer) };
+      } else if (kind === 'internetHack' || kind === 'railedTransport') {
+        const version = xfer.xferVersion(1);
+        if (version !== 1) {
+          return null;
+        }
+        parsed = { kind, transport: this.parseSourceTransportContainImportState(xfer) };
+      } else if (kind === 'overlord') {
+        const version = xfer.xferVersion(1);
+        if (version !== 1) {
+          return null;
+        }
+        parsed = { kind, transport: this.parseSourceTransportContainImportState(xfer) };
+        xfer.xferBool(false);
+      } else if (kind === 'helix') {
+        const version = xfer.xferVersion(2);
+        if (version < 1 || version > 2) {
+          return null;
+        }
+        const helixPortableStructureId = version >= 2 ? xfer.xferObjectID(0) : 0;
+        parsed = {
+          kind,
+          helixPortableStructureId,
+          transport: this.parseSourceTransportContainImportState(xfer),
+        };
+      } else if (kind === 'parachute') {
+        const parachuteVersion = xfer.xferVersion(1);
+        if (parachuteVersion !== 1) {
+          return null;
+        }
+        const open = this.parseSourceOpenContainImportState(xfer);
+        xfer.xferReal(0);
+        xfer.xferReal(0);
+        xfer.xferReal(0);
+        xfer.xferReal(0);
+        xfer.xferReal(0);
+        xfer.xferBool(false);
+        for (let index = 0; index < 8; index += 1) {
+          xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+        }
+        xfer.xferBool(false);
+        xfer.xferBool(false);
+        xfer.xferBool(false);
+        parsed = { kind, open };
+      } else if (kind === 'garrison') {
+        const version = xfer.xferVersion(1);
+        if (version !== 1) {
+          return null;
+        }
+        parsed = { kind, open: this.parseSourceOpenContainImportState(xfer) };
+        xfer.xferUnsignedInt(0);
+      } else if (kind === 'tunnel') {
+        const version = xfer.xferVersion(1);
+        if (version !== 1) {
+          return null;
+        }
+        parsed = { kind, open: this.parseSourceOpenContainImportState(xfer) };
+        xfer.xferBool(false);
+        xfer.xferBool(false);
+      } else if (kind === 'cave') {
+        const version = xfer.xferVersion(1);
+        if (version !== 1) {
+          return null;
+        }
+        const open = this.parseSourceOpenContainImportState(xfer);
+        xfer.xferBool(false);
+        const caveIndex = xfer.xferInt(0);
+        xfer.xferUnsignedInt(0);
+        parsed = { kind, open, caveIndex };
+      } else if (kind === 'heal') {
+        const version = xfer.xferVersion(1);
+        if (version !== 1) {
+          return null;
+        }
+        parsed = { kind, open: this.parseSourceOpenContainImportState(xfer) };
+      } else if (kind === 'riderChange') {
+        const version = xfer.xferVersion(1);
+        if (version !== 1) {
+          return null;
+        }
+        const transport = this.parseSourceTransportContainImportState(xfer);
+        const riderChangePayloadCreated = xfer.xferBool(false);
+        xfer.xferInt(0);
+        xfer.xferUnsignedInt(0);
+        parsed = { kind, transport, riderChangePayloadCreated };
+      } else {
+        const version = xfer.xferVersion(1);
+        if (version !== 1) {
+          return null;
+        }
+        parsed = { kind, open: this.parseSourceOpenContainImportState(xfer) };
+        xfer.xferInt(0);
+      }
+      return xfer.getRemaining() === 0 ? parsed : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceContainedPassengerLink(
+    container: MapEntity,
+    kind: SourceContainModuleKind,
+    passengerId: number,
+  ): void {
+    const normalizedPassengerId = Math.max(0, Math.trunc(passengerId));
+    if (normalizedPassengerId <= 0 || normalizedPassengerId === container.id) {
+      return;
+    }
+    const passenger = this.spawnedEntities.get(normalizedPassengerId);
+    if (!passenger || passenger.destroyed) {
+      return;
+    }
+
+    passenger.transportContainerId = null;
+    passenger.garrisonContainerId = null;
+    passenger.tunnelContainerId = null;
+    passenger.objectStatusFlags.add('UNSELECTABLE');
+    passenger.objectStatusFlags.add('DISABLED_HELD');
+
+    if (kind === 'garrison') {
+      passenger.garrisonContainerId = container.id;
+    } else if (kind === 'tunnel' || kind === 'cave') {
+      passenger.tunnelContainerId = container.id;
+      passenger.objectStatusFlags.add('MASKED');
+      const tracker = this.resolveTunnelTrackerForContainer(container) as TunnelTrackerState | null;
+      tracker?.passengerIds.add(passenger.id);
+    } else {
+      passenger.transportContainerId = container.id;
+      if (this.isEnclosingContainer(container)) {
+        passenger.objectStatusFlags.add('MASKED');
+      }
+      if (container.containProfile?.moduleType === 'HEAL' && passenger.healContainEnteredFrame <= 0) {
+        passenger.healContainEnteredFrame = this.frameCounter;
+      }
+    }
+    this.syncDerivedStatusFields(passenger);
+  }
+
+  private applySourceOpenContainImportStateToEntity(
+    entity: MapEntity,
+    kind: SourceContainModuleKind,
+    open: SourceOpenContainImportState,
+  ): void {
+    if (entity.containProfile) {
+      entity.containProfile.passengersAllowedToFire = open.passengerAllowedToFire;
+    }
+    for (const passengerId of open.passengerIds) {
+      this.applySourceContainedPassengerLink(entity, kind, passengerId);
+    }
+  }
+
+  private applySourceContainModuleImportStateToEntity(
+    entity: MapEntity,
+    state: SourceContainModuleImportState,
+  ): void {
+    if (state.kind === 'cave' && state.caveIndex !== undefined) {
+      const caveIndex = Math.trunc(state.caveIndex);
+      for (const tracker of this.caveTrackers.values()) {
+        tracker.tunnelIds.delete(entity.id);
+      }
+      this.caveTrackerIndexByEntityId.set(entity.id, caveIndex);
+      if (entity.containProfile) {
+        entity.containProfile.caveIndex = caveIndex;
+      }
+      this.resolveCaveTracker(caveIndex)?.tunnelIds.add(entity.id);
+    }
+    const openState = state.transport?.open ?? state.open ?? null;
+    if (openState) {
+      this.applySourceOpenContainImportStateToEntity(entity, state.kind, openState);
+    }
+    if (state.transport) {
+      entity.initialPayloadCreated = state.transport.payloadCreated;
+    }
+    if (state.riderChangePayloadCreated !== undefined) {
+      entity.initialPayloadCreated = state.riderChangePayloadCreated;
+    }
+    if (state.helixPortableStructureId !== undefined) {
+      entity.helixPortableRiderId = state.helixPortableStructureId > 0
+        ? Math.trunc(state.helixPortableStructureId)
+        : null;
+    }
+  }
+
+  private applySourceContainModulesToImportedEntities(
+    objects: GameLogicSourceGameLogicImportObjectSaveState[],
+  ): void {
+    for (const objectState of objects) {
+      if (!objectState?.state) {
+        continue;
+      }
+      const entity = this.spawnedEntities.get(Math.trunc(objectState.state.objectId));
+      if (!entity) {
+        continue;
+      }
+      for (const module of objectState.state.modules) {
+        const moduleType = this.resolveSourceObjectModuleTypeByTag(
+          entity.templateName,
+          module.identifier,
+        );
+        if (!moduleType) {
+          continue;
+        }
+        const containState = this.tryParseSourceContainModuleImportState(module.blockData, moduleType);
+        if (!containState) {
+          continue;
+        }
+        this.applySourceContainModuleImportStateToEntity(entity, containState);
+        break;
+      }
+    }
+  }
+
   private applySourceMapEntityStateToEntity(
     entity: MapEntity,
     sourceState: SourceMapEntitySaveState,
@@ -13720,10 +14072,6 @@ export class GameLogicSubsystem implements Subsystem {
     this.scriptObjectTopologyVersion = 0;
     this.scriptObjectCountChangedFrame = this.frameCounter;
 
-    this.rebuildDozerTaskIndexesFromEntities();
-    this.rebuildChinookCombatDropIndexesFromEntities();
-    this.rebuildPendingEnterIndexesFromEntities();
-    this.rebuildRepairDockIndexesFromEntities();
     this.caveTrackers.clear();
     for (const caveTracker of snapshot.caveTrackers ?? []) {
       if (!caveTracker || typeof caveTracker.caveIndex !== 'number') {
@@ -13734,6 +14082,11 @@ export class GameLogicSubsystem implements Subsystem {
         this.restoreTunnelTrackerSaveState(caveTracker.tracker),
       );
     }
+    this.applySourceContainModulesToImportedEntities(snapshot.objects);
+    this.rebuildDozerTaskIndexesFromEntities();
+    this.rebuildChinookCombatDropIndexesFromEntities();
+    this.rebuildPendingEnterIndexesFromEntities();
+    this.rebuildRepairDockIndexesFromEntities();
     this.sellingEntities.clear();
     for (const sellingState of snapshot.sellingEntities ?? []) {
       if (!sellingState || typeof sellingState.entityId !== 'number' || !Number.isFinite(sellingState.sellFrame)) {

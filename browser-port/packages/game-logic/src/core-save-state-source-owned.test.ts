@@ -62,6 +62,23 @@ function makeSourceOwnedCoreBundle() {
           StealthForbiddenConditions: 'ATTACKING MOVING',
         }),
       ]),
+      makeObjectDef('TransportBox', 'America', ['VEHICLE', 'TRANSPORT'], [
+        makeBlock('Behavior', 'TransportContain ModuleTag_Contain', {
+          Slots: 2,
+          PassengersAllowedToFire: false,
+        }),
+      ]),
+      makeObjectDef('GarrisonBunker', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'GarrisonContain ModuleTag_Contain', {
+          ContainMax: 2,
+        }),
+      ]),
+      makeObjectDef('CaveNode', 'Neutral', ['STRUCTURE'], [
+        makeBlock('Behavior', 'CaveContain ModuleTag_Contain', {
+          ContainMax: 3,
+          CaveIndex: 0,
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -76,6 +93,108 @@ function sourceRawInt32(value: number): Uint8Array {
   const bytes = new Uint8Array(4);
   new DataView(bytes.buffer).setInt32(0, Math.trunc(value), true);
   return bytes;
+}
+
+function writeSourceOpenContain(
+  saver: XferSave,
+  options: {
+    passengerIds: number[];
+    passengerAllowedToFire?: boolean;
+    rallyPointExists?: boolean;
+    rallyPoint?: { x: number; y: number; z: number };
+  },
+): void {
+  saver.xferVersion(2);
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(options.passengerIds.length);
+  for (const passengerId of options.passengerIds) {
+    saver.xferObjectID(passengerId);
+  }
+  saver.xferUser(new Uint8Array(2));
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferVersion(1);
+  saver.xferInt(0);
+  saver.xferUser(new Uint8Array(32 * 48));
+  saver.xferInt(0);
+  saver.xferInt(0);
+  saver.xferInt(0);
+  saver.xferBool(false);
+  saver.xferCoord3D(options.rallyPoint ?? { x: 0, y: 0, z: 0 });
+  saver.xferBool(options.rallyPointExists ?? false);
+  saver.xferUnsignedShort(0);
+  saver.xferInt(1);
+  saver.xferBool(options.passengerAllowedToFire ?? false);
+}
+
+function writeSourceTransportContain(
+  saver: XferSave,
+  options: {
+    passengerIds: number[];
+    passengerAllowedToFire?: boolean;
+    payloadCreated: boolean;
+  },
+): void {
+  saver.xferVersion(1);
+  writeSourceOpenContain(saver, options);
+  saver.xferBool(options.payloadCreated);
+  saver.xferInt(0);
+  saver.xferUnsignedInt(0);
+}
+
+function buildSourceTransportContainModuleData(options: {
+  passengerIds: number[];
+  passengerAllowedToFire?: boolean;
+  payloadCreated: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-transport-contain');
+  try {
+    writeSourceTransportContain(saver, options);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceGarrisonContainModuleData(options: {
+  passengerIds: number[];
+  passengerAllowedToFire?: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-garrison-contain');
+  try {
+    saver.xferVersion(1);
+    writeSourceOpenContain(saver, options);
+    saver.xferUnsignedInt(0);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceCaveContainModuleData(options: {
+  passengerIds: number[];
+  caveIndex: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-cave-contain');
+  try {
+    saver.xferVersion(1);
+    writeSourceOpenContain(saver, { passengerIds: options.passengerIds });
+    saver.xferBool(false);
+    saver.xferInt(options.caveIndex);
+    saver.xferUnsignedInt(0);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
 }
 
 function buildSourceActiveBodyModuleData(options: {
@@ -857,6 +976,107 @@ describe('source-owned game-logic core save-state', () => {
     expect(entity.temporaryStealthGrant).toBe(true);
     expect(entity.temporaryStealthExpireFrame).toBe(165);
     expect(entity.objectStatusFlags.has('DISGUISED')).toBe(true);
+  });
+
+  it('imports source Contain passenger lists after all objects are created', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const transportState = createEmptySourceMapEntitySaveState();
+    transportState.objectId = 50;
+    transportState.position = { x: 40, y: 0, z: 40 };
+    transportState.modules = [{
+      identifier: 'ModuleTag_Contain',
+      blockData: buildSourceTransportContainModuleData({
+        passengerIds: [61],
+        passengerAllowedToFire: true,
+        payloadCreated: true,
+      }),
+    }];
+
+    const garrisonState = createEmptySourceMapEntitySaveState();
+    garrisonState.objectId = 51;
+    garrisonState.position = { x: 44, y: 0, z: 40 };
+    garrisonState.modules = [{
+      identifier: 'ModuleTag_Contain',
+      blockData: buildSourceGarrisonContainModuleData({
+        passengerIds: [62],
+        passengerAllowedToFire: true,
+      }),
+    }];
+
+    const caveState = createEmptySourceMapEntitySaveState();
+    caveState.objectId = 52;
+    caveState.position = { x: 48, y: 0, z: 40 };
+    caveState.modules = [{
+      identifier: 'ModuleTag_Contain',
+      blockData: buildSourceCaveContainModuleData({
+        passengerIds: [63],
+        caveIndex: 7,
+      }),
+    }];
+
+    const transportPassengerState = createEmptySourceMapEntitySaveState();
+    transportPassengerState.objectId = 61;
+    transportPassengerState.position = { x: 60, y: 0, z: 40 };
+    const garrisonPassengerState = createEmptySourceMapEntitySaveState();
+    garrisonPassengerState.objectId = 62;
+    garrisonPassengerState.position = { x: 64, y: 0, z: 40 };
+    const cavePassengerState = createEmptySourceMapEntitySaveState();
+    cavePassengerState.objectId = 63;
+    cavePassengerState.position = { x: 68, y: 0, z: 40 };
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 120,
+      objectIdCounter: 100,
+      objects: [
+        { templateName: 'TransportBox', state: transportState },
+        { templateName: 'GarrisonBunker', state: garrisonState },
+        { templateName: 'CaveNode', state: caveState },
+        { templateName: 'AmericaRanger', state: transportPassengerState },
+        { templateName: 'AmericaRanger', state: garrisonPassengerState },
+        { templateName: 'AmericaRanger', state: cavePassengerState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        containProfile: { passengersAllowedToFire: boolean; caveIndex?: number } | null;
+        initialPayloadCreated: boolean;
+        transportContainerId: number | null;
+        garrisonContainerId: number | null;
+        tunnelContainerId: number | null;
+        objectStatusFlags: Set<string>;
+      }>;
+      caveTrackerIndexByEntityId: Map<number, number>;
+      caveTrackers: Map<number, { tunnelIds: Set<number>; passengerIds: Set<number> }>;
+    };
+
+    const transport = privateLogic.spawnedEntities.get(50)!;
+    const garrison = privateLogic.spawnedEntities.get(51)!;
+    const cave = privateLogic.spawnedEntities.get(52)!;
+    const transportPassenger = privateLogic.spawnedEntities.get(61)!;
+    const garrisonPassenger = privateLogic.spawnedEntities.get(62)!;
+    const cavePassenger = privateLogic.spawnedEntities.get(63)!;
+
+    expect(transport.initialPayloadCreated).toBe(true);
+    expect(transport.containProfile?.passengersAllowedToFire).toBe(true);
+    expect(transportPassenger.transportContainerId).toBe(50);
+    expect(transportPassenger.objectStatusFlags.has('MASKED')).toBe(true);
+    expect(garrison.containProfile?.passengersAllowedToFire).toBe(true);
+    expect(garrisonPassenger.garrisonContainerId).toBe(51);
+    expect(garrisonPassenger.objectStatusFlags.has('DISABLED_HELD')).toBe(true);
+    expect(cave.containProfile?.caveIndex).toBe(7);
+    expect(privateLogic.caveTrackerIndexByEntityId.get(52)).toBe(7);
+    expect(cavePassenger.tunnelContainerId).toBe(52);
+    expect(privateLogic.caveTrackers.get(7)?.tunnelIds.has(52)).toBe(true);
+    expect(privateLogic.caveTrackers.get(7)?.passengerIds.has(63)).toBe(true);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {
