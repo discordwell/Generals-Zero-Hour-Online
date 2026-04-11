@@ -8650,6 +8650,16 @@ interface SourceRepairDockUpdateImportState {
   healthToAddPerFrame: number;
 }
 
+interface SourceSpawnBehaviorImportState {
+  version: number;
+  initialBurstTimesInited: boolean;
+  spawnTemplateName: string;
+  oneShotCountdown: number;
+  replacementTimes: number[];
+  spawnIds: number[];
+  active: boolean;
+}
+
 export interface GameLogicObjectTriggerAreaEntrySaveState {
   triggerName: string;
   entered: number;
@@ -12687,6 +12697,15 @@ export class GameLogicSubsystem implements Subsystem {
     xfer.xferUnsignedInt(0);
   }
 
+  private skipSourceImportBehaviorModuleBase(xfer: XferLoad): void {
+    const behaviorModuleVersion = xfer.xferVersion(1);
+    const objectModuleVersion = xfer.xferVersion(1);
+    const moduleVersion = xfer.xferVersion(1);
+    if (behaviorModuleVersion !== 1 || objectModuleVersion !== 1 || moduleVersion !== 1) {
+      throw new Error('Unsupported source BehaviorModule import base version.');
+    }
+  }
+
   private xferSourceImportStringBitFlags(xfer: XferLoad): string[] {
     const version = xfer.xferVersion(1);
     if (version !== 1) {
@@ -12850,6 +12869,24 @@ export class GameLogicSubsystem implements Subsystem {
       }, 0);
       return;
     }
+  }
+
+  private parseSourceImportIntListByUnsignedShortCount(xfer: XferLoad): number[] {
+    const count = xfer.xferUnsignedShort(0);
+    const values: number[] = [];
+    for (let index = 0; index < count; index += 1) {
+      values.push(xfer.xferInt(0));
+    }
+    return values;
+  }
+
+  private parseSourceImportObjectIdListByUnsignedShortCount(xfer: XferLoad): number[] {
+    const count = xfer.xferUnsignedShort(0);
+    const values: number[] = [];
+    for (let index = 0; index < count; index += 1) {
+      values.push(xfer.xferObjectID(0));
+    }
+    return values;
   }
 
   private tryParseSourceProductionUpdateImportState(
@@ -13178,6 +13215,103 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceSpawnBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceSpawnBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'SPAWNBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-spawn-behavior-import');
+    try {
+      const version = xfer.xferVersion(2);
+      if (version < 1 || version > 2) {
+        return null;
+      }
+      this.skipSourceImportBehaviorModuleBase(xfer);
+      const initialBurstTimesInited = version >= 2 ? xfer.xferBool(false) : false;
+      const spawnTemplateName = xfer.xferAsciiString('');
+      const oneShotCountdown = xfer.xferInt(-1);
+      xfer.xferInt(0);
+      xfer.xferInt(0);
+      const replacementTimesVersion = xfer.xferVersion(1);
+      if (replacementTimesVersion !== 1) {
+        return null;
+      }
+      const replacementTimes = this.parseSourceImportIntListByUnsignedShortCount(xfer);
+      const spawnIdsVersion = xfer.xferVersion(1);
+      if (spawnIdsVersion !== 1) {
+        return null;
+      }
+      const spawnIds = this.parseSourceImportObjectIdListByUnsignedShortCount(xfer);
+      const active = xfer.xferBool(true);
+      xfer.xferBool(false);
+      xfer.xferInt(0);
+      xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? {
+          version,
+          initialBurstTimesInited,
+          spawnTemplateName,
+          oneShotCountdown,
+          replacementTimes,
+          spawnIds,
+          active,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceSpawnBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    const state = entity.spawnBehaviorState;
+    if (!state) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const spawnState = this.tryParseSourceSpawnBehaviorImportState(module.blockData, moduleType);
+      if (!spawnState) {
+        continue;
+      }
+
+      const normalizedSpawnTemplateName = spawnState.spawnTemplateName.trim().toUpperCase();
+      const templateIndex = state.profile.spawnTemplateNames.findIndex(
+        (templateName) => templateName.trim().toUpperCase() === normalizedSpawnTemplateName,
+      );
+      if (templateIndex >= 0) {
+        state.templateNameIndex = templateIndex;
+      }
+      state.slaveIds = spawnState.spawnIds
+        .map((objectId) => Math.max(0, Math.trunc(objectId)))
+        .filter((objectId) => objectId > 0);
+      state.replacementFrames = spawnState.replacementTimes
+        .map((frame) => Math.max(0, Math.trunc(frame)))
+        .filter((frame) => Number.isFinite(frame));
+      state.oneShotRemaining = Number.isFinite(spawnState.oneShotCountdown)
+        ? Math.trunc(spawnState.oneShotCountdown)
+        : state.oneShotRemaining;
+      state.oneShotCompleted = state.profile.oneShot ? !spawnState.active : state.oneShotCompleted;
+      state.initialBurstApplied = spawnState.initialBurstTimesInited;
+      return;
+    }
+  }
+
   private applySourceMapEntityStateToEntity(
     entity: MapEntity,
     sourceState: SourceMapEntitySaveState,
@@ -13232,6 +13366,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceBodyModulesToEntity(entity, sourceState);
     this.applySourceProductionModulesToEntity(entity, sourceState);
     this.applySourceDockModulesToEntity(entity, sourceState);
+    this.applySourceSpawnBehaviorModulesToEntity(entity, sourceState);
   }
 
   restoreSourceGameLogicImportSaveState(state: unknown): void {

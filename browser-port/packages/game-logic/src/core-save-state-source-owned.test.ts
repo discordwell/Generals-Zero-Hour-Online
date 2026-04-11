@@ -38,6 +38,17 @@ function makeSourceOwnedCoreBundle() {
           TimeForFullHeal: 5000,
         }),
       ]),
+      makeObjectDef('DroneSpawner', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'SpawnBehavior ModuleTag_Spawn', {
+          SpawnNumber: 3,
+          SpawnTemplateName: 'DroneA DroneB',
+          OneShot: true,
+          InitialBurst: 2,
+          AggregateHealth: true,
+        }),
+      ]),
+      makeObjectDef('DroneA', 'America', ['DRONE'], []),
+      makeObjectDef('DroneB', 'America', ['DRONE'], []),
     ],
     upgrades: [
       makeUpgradeDef('Upgrade_AmericaRangerCaptureBuilding', { Type: 'PLAYER', BuildCost: 1000, BuildTime: 30 }),
@@ -235,6 +246,49 @@ function buildSourceRepairDockUpdateModuleData(options: {
     writeSourceDockUpdate(saver, options);
     saver.xferObjectID(options.lastRepair);
     saver.xferReal(options.healthToAddPerFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSpawnBehaviorModuleData(options: {
+  initialBurstTimesInited: boolean;
+  spawnTemplateName: string;
+  oneShotCountdown: number;
+  replacementTimes: number[];
+  spawnIds: number[];
+  active: boolean;
+  aggregateHealth: boolean;
+  spawnCount: number;
+  selfTaskingSpawnCount: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-spawn-behavior');
+  try {
+    saver.xferVersion(2);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferBool(options.initialBurstTimesInited);
+    saver.xferAsciiString(options.spawnTemplateName);
+    saver.xferInt(options.oneShotCountdown);
+    saver.xferInt(0);
+    saver.xferInt(0);
+    saver.xferVersion(1);
+    saver.xferUnsignedShort(options.replacementTimes.length);
+    for (const frame of options.replacementTimes) {
+      saver.xferInt(frame);
+    }
+    saver.xferVersion(1);
+    saver.xferUnsignedShort(options.spawnIds.length);
+    for (const objectId of options.spawnIds) {
+      saver.xferObjectID(objectId);
+    }
+    saver.xferBool(options.active);
+    saver.xferBool(options.aggregateHealth);
+    saver.xferInt(options.spawnCount);
+    saver.xferUnsignedInt(options.selfTaskingSpawnCount);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -529,6 +583,65 @@ describe('source-owned game-logic core save-state', () => {
     });
     expect(privateLogic.spawnedEntities.get(45)!.repairDockLastRepairEntityId).toBe(77);
     expect(privateLogic.spawnedEntities.get(45)!.repairDockHealthToAddPerFrame).toBe(1.25);
+  });
+
+  it('imports source SpawnBehavior slave and replacement state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 46;
+    sourceState.position = { x: 30, y: 0, z: 30 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_Spawn',
+      blockData: buildSourceSpawnBehaviorModuleData({
+        initialBurstTimesInited: true,
+        spawnTemplateName: 'DroneB',
+        oneShotCountdown: 2,
+        replacementTimes: [88, 99],
+        spawnIds: [1001, 1002],
+        active: false,
+        aggregateHealth: true,
+        spawnCount: 2,
+        selfTaskingSpawnCount: 1,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 77,
+      objectIdCounter: 100,
+      objects: [{
+        templateName: 'DroneSpawner',
+        state: sourceState,
+      }],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        spawnBehaviorState: {
+          slaveIds: number[];
+          replacementFrames: number[];
+          templateNameIndex: number;
+          oneShotRemaining: number;
+          oneShotCompleted: boolean;
+          initialBurstApplied: boolean;
+        } | null;
+      }>;
+    };
+
+    const state = privateLogic.spawnedEntities.get(46)!.spawnBehaviorState!;
+    expect(state.slaveIds).toEqual([1001, 1002]);
+    expect(state.replacementFrames).toEqual([88, 99]);
+    expect(state.templateNameIndex).toBe(1);
+    expect(state.oneShotRemaining).toBe(2);
+    expect(state.oneShotCompleted).toBe(true);
+    expect(state.initialBurstApplied).toBe(true);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {
