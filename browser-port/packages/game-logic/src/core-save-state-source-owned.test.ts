@@ -161,6 +161,16 @@ function makeSourceOwnedCoreBundle() {
           SpreadTryRange: 50,
         }),
       ]),
+      makeObjectDef('FlammableObject', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'FlammableUpdate ModuleTag_Flammable', {
+          BurnedDelay: 1000,
+          AflameDuration: 3000,
+          AflameDamageDelay: 500,
+          AflameDamageAmount: 2,
+          FlameDamageLimit: 20,
+          FlameDamageExpiration: 2000,
+        }),
+      ]),
       makeObjectDef('CommandHunter', 'America', ['VEHICLE'], [
         makeBlock('Behavior', 'CommandButtonHuntUpdate ModuleTag_Hunt', {
           ScanRate: 1000,
@@ -1327,6 +1337,36 @@ function buildSourceFireSpreadUpdateModuleData(options: {
     saver.xferVersion(1);
     saver.xferVersion(1);
     saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceFlammableUpdateModuleData(options: {
+  nextCallFrame: number;
+  status: number;
+  aflameEndFrame: number;
+  burnedEndFrame: number;
+  damageEndFrame: number;
+  flameDamageLimit: number;
+  lastFlameDamageDealt: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-flammable-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUser(sourceRawInt32(options.status));
+    saver.xferUnsignedInt(options.aflameEndFrame);
+    saver.xferUnsignedInt(options.burnedEndFrame);
+    saver.xferUnsignedInt(options.damageEndFrame);
+    saver.xferReal(options.flameDamageLimit);
+    saver.xferUnsignedInt(options.lastFlameDamageDealt);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -3096,6 +3136,63 @@ describe('source-owned game-logic core save-state', () => {
     };
 
     expect(privateLogic.spawnedEntities.get(109)!.fireSpreadNextFrame).toBe(300);
+  });
+
+  it('imports source FlammableUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 112;
+    sourceState.position = { x: 186, y: 0, z: 64 };
+    sourceState.statusBits = ['AFLAME'];
+    sourceState.modules = [{
+      identifier: 'ModuleTag_Flammable',
+      blockData: buildSourceFlammableUpdateModuleData({
+        nextCallFrame: 275,
+        status: 1,
+        aflameEndFrame: 320,
+        burnedEndFrame: 300,
+        damageEndFrame: 275,
+        flameDamageLimit: 5,
+        lastFlameDamageDealt: 260,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 180,
+      objects: [
+        { templateName: 'FlammableObject', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        flameStatus: string;
+        flameDamageAccumulated: number;
+        flameEndFrame: number;
+        flameBurnedEndFrame: number;
+        flameDamageNextFrame: number;
+        flameLastDamageReceivedFrame: number;
+        objectStatusFlags: Set<string>;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(112)!;
+    expect(entity.flameStatus).toBe('AFLAME');
+    expect(entity.flameEndFrame).toBe(320);
+    expect(entity.flameBurnedEndFrame).toBe(300);
+    expect(entity.flameDamageNextFrame).toBe(275);
+    expect(entity.flameLastDamageReceivedFrame).toBe(260);
+    expect(entity.flameDamageAccumulated).toBe(15);
+    expect(entity.objectStatusFlags.has('AFLAME')).toBe(true);
   });
 
   it('imports source HeightDieUpdate runtime state', () => {

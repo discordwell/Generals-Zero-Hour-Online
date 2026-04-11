@@ -8866,6 +8866,16 @@ interface SourceFireSpreadUpdateImportState {
   nextCallFrame: number;
 }
 
+interface SourceFlammableUpdateImportState {
+  nextCallFrame: number;
+  status: number;
+  aflameEndFrame: number;
+  burnedEndFrame: number;
+  damageEndFrame: number;
+  flameDamageLimit: number;
+  lastFlameDamageDealt: number;
+}
+
 interface SourceHeightDieUpdateImportState {
   nextCallFrame: number;
   hasDied: boolean;
@@ -14834,6 +14844,94 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceFlammableUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceFlammableUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'FLAMMABLEUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-flammable-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const status = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const aflameEndFrame = xfer.xferUnsignedInt(0);
+      const burnedEndFrame = xfer.xferUnsignedInt(0);
+      const damageEndFrame = xfer.xferUnsignedInt(0);
+      const flameDamageLimit = xfer.xferReal(0);
+      const lastFlameDamageDealt = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            status,
+            aflameEndFrame,
+            burnedEndFrame,
+            damageEndFrame,
+            flameDamageLimit,
+            lastFlameDamageDealt,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private sourceFlammableStatusToRuntime(status: number): MapEntity['flameStatus'] | null {
+    switch (status) {
+      case 0: return 'NORMAL';
+      case 1: return 'AFLAME';
+      case 2: return 'BURNED';
+      default: return null;
+    }
+  }
+
+  private applySourceFlammableUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.flammableProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const flammableState = this.tryParseSourceFlammableUpdateImportState(module.blockData, moduleType);
+      if (!flammableState) {
+        continue;
+      }
+      const flameStatus = this.sourceFlammableStatusToRuntime(flammableState.status);
+      if (!flameStatus) {
+        throw new Error(`Unsupported source FlammableUpdate status ${flammableState.status}.`);
+      }
+
+      entity.flameStatus = flameStatus;
+      entity.flameEndFrame = Math.max(0, Math.trunc(flammableState.aflameEndFrame));
+      entity.flameBurnedEndFrame = Math.max(0, Math.trunc(flammableState.burnedEndFrame));
+      entity.flameDamageNextFrame = Math.max(0, Math.trunc(flammableState.damageEndFrame));
+      entity.flameLastDamageReceivedFrame = Math.max(0, Math.trunc(flammableState.lastFlameDamageDealt));
+      entity.flameDamageAccumulated = Number.isFinite(flammableState.flameDamageLimit)
+        ? entity.flammableProfile.flameDamageLimit - flammableState.flameDamageLimit
+        : entity.flameDamageAccumulated;
+      return;
+    }
+  }
+
   private tryParseSourceHeightDieUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -15948,6 +16046,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceBaseRegenerateUpdateModulesToEntity(entity, sourceState);
     this.applySourceCommandButtonHuntUpdateModulesToEntity(entity, sourceState);
     this.applySourceFireSpreadUpdateModulesToEntity(entity, sourceState);
+    this.applySourceFlammableUpdateModulesToEntity(entity, sourceState);
     this.applySourceHeightDieUpdateModulesToEntity(entity, sourceState);
     this.applySourceStickyBombUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
