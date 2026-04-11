@@ -372,6 +372,7 @@ const SOURCE_WEAPON_LOCK_STATUS_BY_NAME = new Map<MapEntity['weaponLockStatus'],
 ]);
 const EMPTY_STATUS_FLAG_SET = new Set<string>();
 const PASSTHROUGH_BLOCK_ORDER = [
+  SOURCE_TEAM_FACTORY_BLOCK,
   SOURCE_GAME_LOGIC_BLOCK,
   SOURCE_GAME_CLIENT_BLOCK,
   SOURCE_IN_GAME_UI_BLOCK,
@@ -430,7 +431,9 @@ const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 10;
 const SOURCE_GAME_CLIENT_SNAPSHOT_VERSION = 3;
 const SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION = 1;
 const SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION = 1;
+const SOURCE_W3D_TERRAIN_VISUAL_COMPAT_SNAPSHOT_VERSION = 1;
 const SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION = 1;
+const SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION = 1;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
 const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
 const SOURCE_SCRIPT_ENGINE_SNAPSHOT_VERSION = 5;
@@ -23674,9 +23677,22 @@ class TerrainVisualSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
-    const version = xfer.xferVersion(SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION);
-    if (version !== SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION) {
-      throw new Error(`Unsupported terrain-visual snapshot version ${version}`);
+    // Source parity: GameState saves the W3DTerrainVisual wrapper, which then
+    // extends the base TerrainVisual snapshot. Version 1 is a source-supported
+    // compatibility shape that avoids serializing W3D-only height/render buffers.
+    const w3dVersion = xfer.xferVersion(SOURCE_W3D_TERRAIN_VISUAL_COMPAT_SNAPSHOT_VERSION);
+    if (w3dVersion !== SOURCE_W3D_TERRAIN_VISUAL_COMPAT_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported W3D terrain-visual snapshot version ${w3dVersion}`);
+    }
+
+    const baseVersion = xfer.xferVersion(SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION);
+    if (baseVersion !== SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported terrain-visual snapshot version ${baseVersion}`);
+    }
+
+    const waterGridEnabled = xfer.xferBool(false);
+    if (waterGridEnabled) {
+      throw new Error('Terrain-visual water-grid snapshots are not implemented.');
     }
   }
 
@@ -23693,11 +23709,23 @@ class GhostObjectSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
-    const version = xfer.xferVersion(SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION);
-    if (version !== SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION) {
-      throw new Error(`Unsupported ghost-object snapshot version ${version}`);
+    // Source parity: W3DGhostObjectManager::xfer writes its own version, then
+    // GhostObjectManager::xfer writes the base version and local player index,
+    // followed by the used ghost-object count. Fresh TS saves have no ghosts yet.
+    const w3dVersion = xfer.xferVersion(SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION);
+    if (w3dVersion !== SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported W3D ghost-object manager snapshot version ${w3dVersion}`);
+    }
+
+    const baseVersion = xfer.xferVersion(SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION);
+    if (baseVersion !== SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported ghost-object manager snapshot version ${baseVersion}`);
     }
     xfer.xferInt(this.localPlayerIndex);
+    const ghostObjectCount = xfer.xferUnsignedShort(0);
+    if (ghostObjectCount !== 0) {
+      throw new Error('Non-empty ghost-object snapshots are not implemented.');
+    }
   }
 
   loadPostProcess(): void {
@@ -23867,7 +23895,20 @@ export function buildRuntimeSaveFile(params: {
   state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, new CampaignSnapshot(campaignState));
   state.addSnapshotBlock('CHUNK_GameStateMap', new MapSnapshot(mapState));
   state.addSnapshotBlock(SOURCE_TERRAIN_LOGIC_BLOCK, new TerrainLogicSnapshot(terrainLogicPayload));
-  state.addSnapshotBlock(SOURCE_TEAM_FACTORY_BLOCK, new RawPassthroughSnapshot(teamFactoryChunk));
+  if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_TEAM_FACTORY_BLOCK)) {
+    const passthroughBlock = orderedPassthroughBlocks.find(
+      (block) => block.blockName.toLowerCase() === SOURCE_TEAM_FACTORY_BLOCK.toLowerCase(),
+    );
+    if (!passthroughBlock) {
+      throw new Error('Missing team-factory passthrough block after presence check.');
+    }
+    state.addSnapshotBlock(
+      SOURCE_TEAM_FACTORY_BLOCK,
+      new RawPassthroughSnapshot(passthroughBlock.blockData),
+    );
+  } else {
+    state.addSnapshotBlock(SOURCE_TEAM_FACTORY_BLOCK, new RawPassthroughSnapshot(teamFactoryChunk));
+  }
   if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_PLAYERS_BLOCK)) {
     const passthroughBlock = orderedPassthroughBlocks.find(
       (block) => block.blockName.toLowerCase() === SOURCE_PLAYERS_BLOCK.toLowerCase(),
@@ -24120,12 +24161,9 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const sourceMapTeamPrototypeNames = mapData
     ? collectSourceTeamPrototypeNamesFromMapData(mapData)
     : [];
-  const sourceTeamFactoryPrototypeNames = [
-    ...sourceMapTeamPrototypeNames,
-    ...sourceGameLogicPrototypeNames.filter(
-      (name) => !sourceMapTeamPrototypeNames.includes(name),
-    ),
-  ];
+  const sourceTeamFactoryPrototypeNames = mapData
+    ? sourceMapTeamPrototypeNames
+    : sourceGameLogicPrototypeNames;
   const sourceGameLogicImportState = buildSourceGameLogicImportSaveState(
     sourceGameLogicState,
     mapInfo.objectIdCounter,
@@ -24238,6 +24276,9 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
       ...extractPassthroughBlocks(data).filter(
         (block) => block.blockName.toLowerCase() !== SOURCE_GAME_CLIENT_BLOCK.toLowerCase(),
       ),
+      ...(teamFactoryChunk && resolvedTeamFactoryState === null
+        ? [{ blockName: SOURCE_TEAM_FACTORY_BLOCK, blockData: copyBytesToArrayBuffer(teamFactoryChunk) }]
+        : []),
       ...(playersChunk && resolvedPlayersState === null
         ? [{ blockName: SOURCE_PLAYERS_BLOCK, blockData: copyBytesToArrayBuffer(playersChunk) }]
         : []),
@@ -24252,6 +24293,68 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
         : []),
     ],
   };
+}
+
+function inspectRuntimeTerrainVisualChunkMode(
+  data: Uint8Array | null,
+): Exclude<RuntimeSaveCoreChunkMode, 'raw_passthrough' | 'missing'> | null {
+  if (!data) {
+    return null;
+  }
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('inspect-terrain-visual-chunk');
+  try {
+    const w3dVersion = xferLoad.xferVersion(3);
+    if (w3dVersion < 1 || w3dVersion > 3) {
+      return null;
+    }
+    const baseVersion = xferLoad.xferVersion(SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION);
+    if (baseVersion !== SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION) {
+      return null;
+    }
+    const waterGridEnabled = xferLoad.xferBool(false);
+    if (waterGridEnabled) {
+      return null;
+    }
+    if (w3dVersion === SOURCE_W3D_TERRAIN_VISUAL_COMPAT_SNAPSHOT_VERSION && xferLoad.getRemaining() === 0) {
+      return 'legacy';
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function inspectRuntimeGhostObjectChunkMode(
+  data: Uint8Array | null,
+): Exclude<RuntimeSaveCoreChunkMode, 'raw_passthrough' | 'missing'> | null {
+  if (!data) {
+    return null;
+  }
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('inspect-ghost-object-chunk');
+  try {
+    const w3dVersion = xferLoad.xferVersion(SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION);
+    if (w3dVersion !== SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION) {
+      return null;
+    }
+    const baseVersion = xferLoad.xferVersion(SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION);
+    if (baseVersion !== SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION) {
+      return null;
+    }
+    xferLoad.xferInt(0);
+    const ghostObjectCount = xferLoad.xferUnsignedShort(0);
+    if (ghostObjectCount !== 0 || xferLoad.getRemaining() !== 0) {
+      return null;
+    }
+    return 'parsed';
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
 }
 
 export function inspectRuntimeSaveCoreChunkStatus(
@@ -24269,6 +24372,7 @@ export function inspectRuntimeSaveCoreChunkStatus(
   const parsedGameLogicChunkLayout = gameLogicChunk
     ? inspectGameLogicChunkLayout(gameLogicChunk)
     : null;
+  const teamFactoryChunk = extractSaveChunkData(data, SOURCE_TEAM_FACTORY_BLOCK);
   const scriptEngineChunk = extractSaveChunkData(data, SOURCE_SCRIPT_ENGINE_BLOCK);
   const parsedScriptEngineChunk = scriptEngineChunk
     ? tryParseSourceScriptEngineChunk(scriptEngineChunk, {
@@ -24278,9 +24382,22 @@ export function inspectRuntimeSaveCoreChunkStatus(
       coreState: parsed.gameLogicCoreState,
     })
     : null;
+  const terrainVisualMode = inspectRuntimeTerrainVisualChunkMode(
+    extractSaveChunkData(data, SOURCE_TERRAIN_VISUAL_BLOCK),
+  );
+  const ghostObjectMode = inspectRuntimeGhostObjectChunkMode(
+    extractSaveChunkData(data, SOURCE_GHOST_OBJECT_BLOCK),
+  );
   const passthroughNames = new Set(
     parsed.passthroughBlocks.map((block) => block.blockName.toLowerCase()),
   );
+  const teamFactoryParsedState = parsed.gameLogicTeamFactoryState
+    ?? (
+      parsed.sourceTeamFactoryChunkData
+      && !passthroughNames.has(SOURCE_TEAM_FACTORY_BLOCK.toLowerCase())
+        ? parsed.sourceTeamFactoryChunkData
+        : null
+    );
 
   const describeChunk = (
     blockName: string,
@@ -24301,6 +24418,15 @@ export function inspectRuntimeSaveCoreChunkStatus(
   };
 
   return [
+    describeChunk('CHUNK_GameState', parsed.metadata),
+    describeChunk(SOURCE_CAMPAIGN_BLOCK, true),
+    describeChunk('CHUNK_GameStateMap', true),
+    describeChunk(SOURCE_TERRAIN_LOGIC_BLOCK, parsed.gameLogicTerrainLogicState),
+    describeChunk(
+      SOURCE_TEAM_FACTORY_BLOCK,
+      teamFactoryParsedState,
+      teamFactoryChunk ? 'parsed' : 'legacy',
+    ),
     describeChunk(
       SOURCE_PLAYERS_BLOCK,
       parsed.gameLogicPlayersState,
@@ -24313,15 +24439,31 @@ export function inspectRuntimeSaveCoreChunkStatus(
         : parsed.gameLogicCoreState,
       parsedGameLogicChunkLayout?.layout === 'source_outer' ? 'parsed' : 'legacy',
     ),
+    describeChunk(SOURCE_RADAR_BLOCK, parsed.gameLogicRadarState),
     describeChunk(
       SOURCE_SCRIPT_ENGINE_BLOCK,
       parsed.gameLogicScriptEngineState,
       parsedScriptEngineChunk ? 'parsed' : 'legacy',
     ),
+    describeChunk(SOURCE_SIDES_LIST_BLOCK, parsed.gameLogicSidesListState),
+    describeChunk(SOURCE_TACTICAL_VIEW_BLOCK, parsed.tacticalViewState),
+    describeChunk(SOURCE_GAME_CLIENT_BLOCK, parsed.gameClientState),
     describeChunk(
       SOURCE_IN_GAME_UI_BLOCK,
       parsed.inGameUiState,
       parsed.inGameUiState?.version === 1 ? 'legacy' : 'parsed',
+    ),
+    describeChunk(SOURCE_PARTITION_BLOCK, parsed.gameLogicPartitionState),
+    describeChunk(SOURCE_PARTICLE_SYSTEM_BLOCK, parsed.particleSystemState),
+    describeChunk(
+      SOURCE_TERRAIN_VISUAL_BLOCK,
+      terrainVisualMode,
+      terrainVisualMode ?? 'parsed',
+    ),
+    describeChunk(
+      SOURCE_GHOST_OBJECT_BLOCK,
+      ghostObjectMode,
+      ghostObjectMode ?? 'parsed',
     ),
   ];
 }

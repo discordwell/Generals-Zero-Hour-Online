@@ -8393,7 +8393,9 @@ function readFirstGeneratedDrawableModuleBlocks(data: ArrayBuffer): Array<{
 }
 
 function readTerrainVisualChunk(data: ArrayBuffer): {
-  version: number;
+  w3dVersion: number;
+  baseVersion: number;
+  waterGridEnabled: boolean;
   trailingBytes: number;
 } | null {
   const chunkData = readSaveChunkData(data, 'CHUNK_TerrainVisual');
@@ -8403,9 +8405,13 @@ function readTerrainVisualChunk(data: ArrayBuffer): {
   const xferLoad = new XferLoad(chunkData.buffer);
   xferLoad.open('read-terrain-visual-chunk');
   try {
-    const version = xferLoad.xferVersion(1);
+    const w3dVersion = xferLoad.xferVersion(3);
+    const baseVersion = xferLoad.xferVersion(1);
+    const waterGridEnabled = xferLoad.xferBool(false);
     return {
-      version,
+      w3dVersion,
+      baseVersion,
+      waterGridEnabled,
       trailingBytes: chunkData.byteLength - xferLoad.getOffset(),
     };
   } finally {
@@ -8414,8 +8420,10 @@ function readTerrainVisualChunk(data: ArrayBuffer): {
 }
 
 function readGhostObjectChunk(data: ArrayBuffer): {
-  version: number;
+  w3dVersion: number;
+  baseVersion: number;
   localPlayerIndex: number;
+  ghostObjectCount: number;
   trailingBytes: number;
 } | null {
   const chunkData = readSaveChunkData(data, 'CHUNK_GhostObject');
@@ -8425,11 +8433,15 @@ function readGhostObjectChunk(data: ArrayBuffer): {
   const xferLoad = new XferLoad(chunkData.buffer);
   xferLoad.open('read-ghost-object-chunk');
   try {
-    const version = xferLoad.xferVersion(1);
+    const w3dVersion = xferLoad.xferVersion(1);
+    const baseVersion = xferLoad.xferVersion(1);
     const localPlayerIndex = xferLoad.xferInt(0);
+    const ghostObjectCount = xferLoad.xferUnsignedShort(0);
     return {
-      version,
+      w3dVersion,
+      baseVersion,
       localPlayerIndex,
+      ghostObjectCount,
       trailingBytes: chunkData.byteLength - xferLoad.getOffset(),
     };
   } finally {
@@ -8887,10 +8899,23 @@ describe('runtime-save-game', () => {
     expect(parsed.mapObjectIdCounter).toBe(41);
     expect(parsed.mapDrawableIdCounter).toBe(41);
     expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data)).toEqual([
+      { blockName: 'CHUNK_GameState', mode: 'parsed' },
+      { blockName: 'CHUNK_Campaign', mode: 'parsed' },
+      { blockName: 'CHUNK_GameStateMap', mode: 'parsed' },
+      { blockName: 'CHUNK_TerrainLogic', mode: 'parsed' },
+      { blockName: 'CHUNK_TeamFactory', mode: 'parsed' },
       { blockName: 'CHUNK_Players', mode: 'parsed' },
       { blockName: 'CHUNK_GameLogic', mode: 'parsed' },
+      { blockName: 'CHUNK_Radar', mode: 'parsed' },
       { blockName: 'CHUNK_ScriptEngine', mode: 'parsed' },
+      { blockName: 'CHUNK_SidesList', mode: 'parsed' },
+      { blockName: 'CHUNK_TacticalView', mode: 'parsed' },
+      { blockName: 'CHUNK_GameClient', mode: 'parsed' },
       { blockName: 'CHUNK_InGameUI', mode: 'parsed' },
+      { blockName: 'CHUNK_Partition', mode: 'parsed' },
+      { blockName: 'CHUNK_ParticleSystem', mode: 'parsed' },
+      { blockName: 'CHUNK_TerrainVisual', mode: 'legacy' },
+      { blockName: 'CHUNK_GhostObject', mode: 'parsed' },
     ]);
     expect(inspectGameLogicChunkLayout(readSaveChunkData(saveFile.data, 'CHUNK_GameLogic')!)).toEqual({
       layout: 'source_outer',
@@ -8934,12 +8959,16 @@ describe('runtime-save-game', () => {
       trailingBytes: 0,
     });
     expect(terrainVisualChunk).toEqual({
-      version: 1,
+      w3dVersion: 1,
+      baseVersion: 1,
+      waterGridEnabled: false,
       trailingBytes: 0,
     });
     expect(ghostObjectChunk).toEqual({
-      version: 1,
+      w3dVersion: 1,
+      baseVersion: 1,
       localPlayerIndex: 0,
+      ghostObjectCount: 0,
       trailingBytes: 0,
     });
     expect(parsed.mapPath).toBe('assets/maps/ScenarioSkirmish.json');
@@ -9537,19 +9566,7 @@ describe('runtime-save-game', () => {
         },
         captureSourceRadarRuntimeSaveState: () => parsed.gameLogicRadarState ?? createEmptyRadarState(),
         captureSourceSidesListRuntimeSaveState: () => parsed.gameLogicSidesListState ?? createEmptySidesListState(),
-        captureSourceTeamFactoryRuntimeSaveState: () => (
-          parsed.gameLogicTeamFactoryState
-          ?? (
-            parsed.sourceTeamFactoryChunkData
-              ? applySourceTeamFactoryChunkToState(
-                  parsed.sourceTeamFactoryChunkData,
-                  createEmptyTeamFactoryState(),
-                  parsed.gameLogicPlayersState,
-                  parsed.gameLogicSidesListState,
-                )
-              : createEmptyTeamFactoryState()
-          )
-        ),
+        captureSourceTeamFactoryRuntimeSaveState: () => parsed.gameLogicTeamFactoryState ?? createEmptyTeamFactoryState(),
         captureSourceScriptEngineRuntimeSaveState: () => parsed.gameLogicScriptEngineState ?? { version: 1, state: {} },
         captureSourceInGameUiRuntimeSaveState: () => parsed.gameLogicInGameUiState ?? { version: 1, state: {} },
         captureSourceGameLogicRuntimeSaveState: () => ({
@@ -10147,12 +10164,17 @@ describe('runtime-save-game', () => {
     const rawScriptEngineBytes = new Uint8Array([0x05, 0x34, 0x12, 0x78]);
     const rawInGameUiBytes = new Uint8Array([0x03, 0xaa, 0xbb, 0xcc]);
     const rawPlayersBytes = new Uint8Array([0x7f, 0x11, 0x22, 0x33]);
+    const rawTeamFactoryBytes = new Uint8Array([0x7f, 0x44, 0x55, 0x66]);
     const saveFile = buildRuntimeSaveFile({
       description: 'Passthrough Save',
       mapPath: 'maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json',
       mapData,
       cameraState: null,
       passthroughBlocks: [
+        {
+          blockName: 'CHUNK_TeamFactory',
+          blockData: rawTeamFactoryBytes.buffer,
+        },
         {
           blockName: 'CHUNK_GameLogic',
           blockData: rawGameLogicBytes.buffer,
@@ -10221,19 +10243,23 @@ describe('runtime-save-game', () => {
       'CHUNK_ParticleSystem',
       'CHUNK_Players',
       'CHUNK_ScriptEngine',
+      'CHUNK_TeamFactory',
       'CHUNK_TerrainVisual',
       'CHUNK_InGameUI',
     ].sort());
+    const teamFactoryBlock = parsed.passthroughBlocks.find((block) => block.blockName === 'CHUNK_TeamFactory');
     const terrainVisualBlock = parsed.passthroughBlocks.find((block) => block.blockName === 'CHUNK_TerrainVisual');
     const gameLogicBlock = parsed.passthroughBlocks.find((block) => block.blockName === 'CHUNK_GameLogic');
     const playersBlock = parsed.passthroughBlocks.find((block) => block.blockName === 'CHUNK_Players');
     const scriptEngineBlock = parsed.passthroughBlocks.find((block) => block.blockName === 'CHUNK_ScriptEngine');
     const inGameUiBlock = parsed.passthroughBlocks.find((block) => block.blockName === 'CHUNK_InGameUI');
+    expect(teamFactoryBlock).toBeDefined();
     expect(terrainVisualBlock).toBeDefined();
     expect(gameLogicBlock).toBeDefined();
     expect(playersBlock).toBeDefined();
     expect(scriptEngineBlock).toBeDefined();
     expect(inGameUiBlock).toBeDefined();
+    expect(new Uint8Array(teamFactoryBlock!.blockData)).toEqual(rawTeamFactoryBytes);
     expect(new Uint8Array(terrainVisualBlock!.blockData)).toEqual(terrainVisualBytes);
     expect(new Uint8Array(gameLogicBlock!.blockData)).toEqual(rawGameLogicBytes);
     expect(new Uint8Array(playersBlock!.blockData)).toEqual(rawPlayersBytes);
@@ -10259,19 +10285,7 @@ describe('runtime-save-game', () => {
         captureSourcePlayerRuntimeSaveState: () => parsed.gameLogicPlayersState ?? { version: 1, state: {} },
         captureSourceRadarRuntimeSaveState: () => parsed.gameLogicRadarState ?? createEmptyRadarState(),
         captureSourceSidesListRuntimeSaveState: () => parsed.gameLogicSidesListState ?? createEmptySidesListState(),
-        captureSourceTeamFactoryRuntimeSaveState: () => (
-          parsed.gameLogicTeamFactoryState
-          ?? (
-            parsed.sourceTeamFactoryChunkData
-              ? applySourceTeamFactoryChunkToState(
-                  parsed.sourceTeamFactoryChunkData,
-                  createEmptyTeamFactoryState(),
-                  parsed.gameLogicPlayersState,
-                  parsed.gameLogicSidesListState,
-                )
-              : createEmptyTeamFactoryState()
-          )
-        ),
+        captureSourceTeamFactoryRuntimeSaveState: () => parsed.gameLogicTeamFactoryState ?? createEmptyTeamFactoryState(),
         captureSourceScriptEngineRuntimeSaveState: () => parsed.gameLogicScriptEngineState ?? { version: 1, state: {} },
         captureSourceInGameUiRuntimeSaveState: () => parsed.gameLogicInGameUiState ?? { version: 1, state: {} },
         captureSourceGameLogicRuntimeSaveState: () => parsed.gameLogicCoreState ?? {
@@ -10296,16 +10310,30 @@ describe('runtime-save-game', () => {
       },
     });
 
+    expect(readSaveChunkData(rebuilt.data, 'CHUNK_TeamFactory')).toEqual(rawTeamFactoryBytes);
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_TerrainVisual')).toEqual(terrainVisualBytes);
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_GameLogic')).toEqual(rawGameLogicBytes);
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_Players')).toEqual(rawPlayersBytes);
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_ScriptEngine')).toEqual(rawScriptEngineBytes);
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_InGameUI')).toEqual(rawInGameUiBytes);
     expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data)).toEqual([
+      { blockName: 'CHUNK_GameState', mode: 'parsed' },
+      { blockName: 'CHUNK_Campaign', mode: 'parsed' },
+      { blockName: 'CHUNK_GameStateMap', mode: 'parsed' },
+      { blockName: 'CHUNK_TerrainLogic', mode: 'parsed' },
+      { blockName: 'CHUNK_TeamFactory', mode: 'raw_passthrough' },
       { blockName: 'CHUNK_Players', mode: 'raw_passthrough' },
       { blockName: 'CHUNK_GameLogic', mode: 'raw_passthrough' },
+      { blockName: 'CHUNK_Radar', mode: 'parsed' },
       { blockName: 'CHUNK_ScriptEngine', mode: 'raw_passthrough' },
+      { blockName: 'CHUNK_SidesList', mode: 'parsed' },
+      { blockName: 'CHUNK_TacticalView', mode: 'parsed' },
+      { blockName: 'CHUNK_GameClient', mode: 'parsed' },
       { blockName: 'CHUNK_InGameUI', mode: 'raw_passthrough' },
+      { blockName: 'CHUNK_Partition', mode: 'parsed' },
+      { blockName: 'CHUNK_ParticleSystem', mode: 'parsed' },
+      { blockName: 'CHUNK_TerrainVisual', mode: 'raw_passthrough' },
+      { blockName: 'CHUNK_GhostObject', mode: 'parsed' },
     ]);
     expect(readGameClientChunk(rebuilt.data)?.briefingLines).toEqual(['MISSION_GAMMA']);
   });
@@ -10431,10 +10459,23 @@ describe('runtime-save-game', () => {
     });
     expect(parsed.sourceGameLogicPrototypeNames).toEqual(['TEAMUNIT']);
     expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data)).toEqual([
+      { blockName: 'CHUNK_GameState', mode: 'parsed' },
+      { blockName: 'CHUNK_Campaign', mode: 'parsed' },
+      { blockName: 'CHUNK_GameStateMap', mode: 'parsed' },
+      { blockName: 'CHUNK_TerrainLogic', mode: 'parsed' },
+      { blockName: 'CHUNK_TeamFactory', mode: 'parsed' },
       { blockName: 'CHUNK_Players', mode: 'parsed' },
       { blockName: 'CHUNK_GameLogic', mode: 'parsed' },
+      { blockName: 'CHUNK_Radar', mode: 'parsed' },
       { blockName: 'CHUNK_ScriptEngine', mode: 'parsed' },
+      { blockName: 'CHUNK_SidesList', mode: 'parsed' },
+      { blockName: 'CHUNK_TacticalView', mode: 'parsed' },
+      { blockName: 'CHUNK_GameClient', mode: 'parsed' },
       { blockName: 'CHUNK_InGameUI', mode: 'parsed' },
+      { blockName: 'CHUNK_Partition', mode: 'parsed' },
+      { blockName: 'CHUNK_ParticleSystem', mode: 'parsed' },
+      { blockName: 'CHUNK_TerrainVisual', mode: 'legacy' },
+      { blockName: 'CHUNK_GhostObject', mode: 'parsed' },
     ]);
     expect(scriptEngineState?.scriptToppleDirectionByEntityId).toEqual(
       new Map([[7, { x: 12, z: 34 }]]),
