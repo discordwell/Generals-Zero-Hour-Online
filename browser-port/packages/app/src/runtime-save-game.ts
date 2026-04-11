@@ -3179,6 +3179,86 @@ function xferSourceControlBarOverrideMapEntries(
   return entries;
 }
 
+function encodeSourceControlBarOverrideName(
+  override: GameLogicControlBarOverrideSaveState,
+): string | null {
+  const commandSetName = override.commandSetName.trim().toUpperCase();
+  const tsSlot = Math.trunc(override.slot);
+  if (!commandSetName || tsSlot < 1 || tsSlot > 18) {
+    return null;
+  }
+  const sourceSlot = tsSlot - 1;
+  return `${String.fromCharCode('0'.charCodeAt(0) + sourceSlot)}${commandSetName}`;
+}
+
+function decodeSourceControlBarOverrideName(
+  name: string,
+): { commandSetName: string; slot: number } | null {
+  if (name.length < 2) {
+    return null;
+  }
+  const sourceSlot = name.charCodeAt(0) - '0'.charCodeAt(0);
+  if (sourceSlot < 0 || sourceSlot >= 18) {
+    return null;
+  }
+  const commandSetName = name.slice(1).trim().toUpperCase();
+  if (!commandSetName) {
+    return null;
+  }
+  return {
+    commandSetName,
+    slot: sourceSlot + 1,
+  };
+}
+
+function buildSourceControlBarOverrideMapEntries(
+  overrides: readonly GameLogicControlBarOverrideSaveState[] | null | undefined,
+): ParsedSourceGameLogicControlBarOverrideState[] {
+  const entries: ParsedSourceGameLogicControlBarOverrideState[] = [];
+  for (const override of overrides ?? []) {
+    if (!override || typeof override.commandSetName !== 'string' || !Number.isFinite(override.slot)) {
+      continue;
+    }
+    const name = encodeSourceControlBarOverrideName(override);
+    if (name === null) {
+      continue;
+    }
+    entries.push({
+      name,
+      commandButtonName: typeof override.commandButtonName === 'string'
+        ? (override.commandButtonName.trim().toUpperCase() || null)
+        : null,
+    });
+  }
+  return entries.sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function buildCoreControlBarOverridesFromSourceEntries(
+  entries: readonly ParsedSourceGameLogicControlBarOverrideState[],
+): GameLogicControlBarOverrideSaveState[] {
+  const overrides: GameLogicControlBarOverrideSaveState[] = [];
+  for (const entry of entries) {
+    const decoded = decodeSourceControlBarOverrideName(entry.name);
+    if (!decoded) {
+      continue;
+    }
+    overrides.push({
+      commandSetName: decoded.commandSetName,
+      slot: decoded.slot,
+      commandButtonName: entry.commandButtonName === null
+        ? null
+        : entry.commandButtonName.trim().toUpperCase(),
+    });
+  }
+  return overrides.sort((left, right) => {
+    const commandSetCompare = left.commandSetName.localeCompare(right.commandSetName);
+    if (commandSetCompare !== 0) {
+      return commandSetCompare;
+    }
+    return left.slot - right.slot;
+  });
+}
+
 function inspectSourceGameLogicChunk(
   data: ArrayBuffer | Uint8Array,
 ): RuntimeSaveGameLogicChunkLayoutInspection | null {
@@ -3257,6 +3337,7 @@ function buildSourceGameLogicImportSaveState(
     drawIconUI: state.drawIconUI,
     showDynamicLOD: state.showDynamicLOD,
     scriptHulkMaxLifetimeOverride: state.scriptHulkMaxLifetimeOverride,
+    controlBarOverrides: buildCoreControlBarOverridesFromSourceEntries(state.controlBarOverrideEntries),
     rankPointsToAddAtGameStart: state.rankPointsToAddAtGameStart,
     superweaponRestriction: state.superweaponRestriction,
   };
@@ -17000,7 +17081,12 @@ function buildSourceGameLogicChunk(
       saver.xferBool(coreState?.drawIconUI ?? sourceState.drawIconUI ?? false);
       saver.xferBool(coreState?.showDynamicLOD ?? sourceState.showDynamicLOD ?? false);
       saver.xferInt(coreState?.scriptHulkMaxLifetimeOverride ?? sourceState.scriptHulkMaxLifetimeOverride ?? 0);
-      xferSourceControlBarOverrideMapEntries(saver, sourceState.controlBarOverrideEntries);
+      xferSourceControlBarOverrideMapEntries(
+        saver,
+        coreState
+          ? buildSourceControlBarOverrideMapEntries(coreState.controlBarOverrides)
+          : sourceState.controlBarOverrideEntries,
+      );
     }
     if (sourceState.version >= 9) {
       saver.xferInt(coreState?.rankPointsToAddAtGameStart ?? sourceState.rankPointsToAddAtGameStart ?? 0);

@@ -8331,6 +8331,10 @@ describe('runtime-save-game', () => {
             commandSetName: 'AMERICABARRACKSCOMMANDSET',
             slot: 1,
             commandButtonName: 'COMMAND_AMERICA_BARRACKS',
+          }, {
+            commandSetName: 'AMERICABARRACKSCOMMANDSET',
+            slot: 12,
+            commandButtonName: null,
           }],
           bridgeSegments: [{
             segmentId: 4,
@@ -8713,6 +8717,19 @@ describe('runtime-save-game', () => {
       commandSetName: 'AMERICABARRACKSCOMMANDSET',
       slot: 1,
       commandButtonName: 'COMMAND_AMERICA_BARRACKS',
+    }, {
+      commandSetName: 'AMERICABARRACKSCOMMANDSET',
+      slot: 12,
+      commandButtonName: null,
+    }]);
+    expect(parsed.sourceGameLogicImportState?.controlBarOverrides).toEqual([{
+      commandSetName: 'AMERICABARRACKSCOMMANDSET',
+      slot: 1,
+      commandButtonName: 'COMMAND_AMERICA_BARRACKS',
+    }, {
+      commandSetName: 'AMERICABARRACKSCOMMANDSET',
+      slot: 12,
+      commandButtonName: null,
     }]);
     expect(coreState?.bridgeSegments).toEqual([{
       segmentId: 4,

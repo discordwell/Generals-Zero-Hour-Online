@@ -8973,6 +8973,7 @@ export interface GameLogicSourceGameLogicImportSaveState {
   caveTrackers?: GameLogicCaveTrackerSaveState[];
   sellingEntities?: GameLogicSellingEntitySaveState[];
   buildableOverrides?: GameLogicBuildableOverrideSaveState[];
+  controlBarOverrides?: GameLogicControlBarOverrideSaveState[];
   scriptScoringEnabled?: boolean;
   rankLevelLimit?: number | null;
   showBehindBuildingMarkers?: boolean | null;
@@ -23689,6 +23690,26 @@ export class GameLogicSubsystem implements Subsystem {
         continue;
       }
       this.thingTemplateBuildableOverrides.set(normalizedTemplateName, override.buildableStatus);
+    }
+    this.commandSetButtonSlotOverrides.clear();
+    for (const override of snapshot.controlBarOverrides ?? []) {
+      if (!override || typeof override.commandSetName !== 'string' || !Number.isFinite(override.slot)) {
+        continue;
+      }
+      const normalizedCommandSetName = override.commandSetName.trim().toUpperCase();
+      const normalizedSlot = Math.trunc(override.slot);
+      if (!normalizedCommandSetName || normalizedSlot < 1 || normalizedSlot > 18) {
+        continue;
+      }
+      let slotOverrides = this.commandSetButtonSlotOverrides.get(normalizedCommandSetName);
+      if (!slotOverrides) {
+        slotOverrides = new Map<number, string | null>();
+        this.commandSetButtonSlotOverrides.set(normalizedCommandSetName, slotOverrides);
+      }
+      const commandButtonName = typeof override.commandButtonName === 'string'
+        ? (override.commandButtonName.trim().toUpperCase() || null)
+        : null;
+      slotOverrides.set(normalizedSlot, commandButtonName);
     }
   }
 
