@@ -3876,6 +3876,8 @@ export interface MapEntity {
   // ── Source parity: FireWeaponCollide — fires weapon on collision ──
   /** Parsed FireWeaponCollide modules from INI (multiple allowed per entity). */
   fireWeaponCollideProfiles: FireWeaponCollideProfile[];
+  /** Source parity: FireWeaponCollide::m_everFired, one per collide profile. */
+  fireWeaponCollideEverFired: boolean[];
 
   // ── Source parity: EjectPilotDie — pilot eject on death ──
   /** Template name of pilot unit to eject on death. Null = no eject. */
@@ -8890,6 +8892,23 @@ interface SourceMinefieldBehaviorImportState {
   regenerates: boolean;
   draining: boolean;
   immunes: SourceMinefieldImmuneImportState[];
+}
+
+interface SourceWeaponSnapshotImportState {
+  templateName: string;
+  whenWeCanFireAgain: number;
+}
+
+interface SourceFireWeaponUpdateImportState {
+  nextCallFrame: number;
+  weapon: SourceWeaponSnapshotImportState;
+  initialDelayFrame: number;
+}
+
+interface SourceFireWeaponCollideImportState {
+  weaponPresent: boolean;
+  weapon: SourceWeaponSnapshotImportState;
+  everFired: boolean;
 }
 
 interface SourceFlammableUpdateImportState {
@@ -15071,6 +15090,214 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private parseSourceWeaponSnapshotImportState(xfer: XferLoad): SourceWeaponSnapshotImportState {
+    const version = xfer.xferVersion(3);
+    if (version < 1 || version > 3) {
+      throw new Error(`Unsupported source Weapon import version ${version}.`);
+    }
+    const templateName = version >= 2 ? xfer.xferAsciiString('') : '';
+    xfer.xferInt(0);
+    xfer.xferInt(0);
+    xfer.xferUnsignedInt(0);
+    const whenWeCanFireAgain = xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    if (version >= 3) {
+      xfer.xferUnsignedInt(0);
+    }
+    xfer.xferObjectID(0);
+    xfer.xferObjectID(0);
+    xfer.xferInt(0);
+    xfer.xferInt(0);
+    xfer.xferInt(0);
+    const scatterTargetCount = xfer.xferUnsignedShort(0);
+    for (let index = 0; index < scatterTargetCount; index += 1) {
+      xfer.xferInt(0);
+    }
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    return { templateName, whenWeCanFireAgain };
+  }
+
+  private resolveSourceFireWeaponUpdateProfileIndex(
+    entity: MapEntity,
+    moduleTag: string,
+    weaponTemplateName: string,
+  ): number {
+    const normalizedModuleTag = this.normalizeSourceObjectModuleTag(moduleTag);
+    const tagMatch = entity.fireWeaponUpdateProfiles.findIndex(
+      (profile) => this.normalizeSourceObjectModuleTag(profile.moduleTag) === normalizedModuleTag,
+    );
+    if (tagMatch >= 0) {
+      return tagMatch;
+    }
+
+    const normalizedWeaponName = weaponTemplateName.trim().toUpperCase();
+    const weaponMatches = entity.fireWeaponUpdateProfiles
+      .map((profile, index) => ({ profile, index }))
+      .filter(({ profile }) => profile.weaponName.trim().toUpperCase() === normalizedWeaponName);
+    if (weaponMatches.length === 1) {
+      return weaponMatches[0]!.index;
+    }
+    return entity.fireWeaponUpdateProfiles.length === 1 ? 0 : -1;
+  }
+
+  private tryParseSourceFireWeaponUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceFireWeaponUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'FIREWEAPONUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-fire-weapon-update-import');
+    try {
+      const version = xfer.xferVersion(2);
+      if (version < 1 || version > 2) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const weapon = this.parseSourceWeaponSnapshotImportState(xfer);
+      const initialDelayFrame = version >= 2 ? xfer.xferUnsignedInt(0) : 0;
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, weapon, initialDelayFrame }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceFireWeaponUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (entity.fireWeaponUpdateProfiles.length === 0) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const fireWeaponState = this.tryParseSourceFireWeaponUpdateImportState(module.blockData, moduleType);
+      if (!fireWeaponState) {
+        continue;
+      }
+      const profileIndex = this.resolveSourceFireWeaponUpdateProfileIndex(
+        entity,
+        module.identifier,
+        fireWeaponState.weapon.templateName,
+      );
+      if (profileIndex < 0) {
+        continue;
+      }
+      entity.fireWeaponUpdateNextFireFrames[profileIndex] = Math.max(
+        0,
+        Math.trunc(fireWeaponState.initialDelayFrame || fireWeaponState.weapon.whenWeCanFireAgain),
+      );
+    }
+  }
+
+  private resolveSourceFireWeaponCollideProfileIndex(
+    entity: MapEntity,
+    moduleTag: string,
+    weaponTemplateName: string,
+  ): number {
+    const normalizedModuleTag = this.normalizeSourceObjectModuleTag(moduleTag);
+    const tagMatch = entity.fireWeaponCollideProfiles.findIndex(
+      (profile) => this.normalizeSourceObjectModuleTag(profile.moduleTag) === normalizedModuleTag,
+    );
+    if (tagMatch >= 0) {
+      return tagMatch;
+    }
+
+    const normalizedWeaponName = weaponTemplateName.trim().toUpperCase();
+    const weaponMatches = entity.fireWeaponCollideProfiles
+      .map((profile, index) => ({ profile, index }))
+      .filter(({ profile }) => profile.collideWeapon.trim().toUpperCase() === normalizedWeaponName);
+    if (weaponMatches.length === 1) {
+      return weaponMatches[0]!.index;
+    }
+    return entity.fireWeaponCollideProfiles.length === 1 ? 0 : -1;
+  }
+
+  private tryParseSourceFireWeaponCollideImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceFireWeaponCollideImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'FIREWEAPONCOLLIDE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-fire-weapon-collide-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const collideVersion = xfer.xferVersion(1);
+      if (collideVersion !== 1) {
+        return null;
+      }
+      this.skipSourceImportBehaviorModuleBase(xfer);
+      const weaponPresent = xfer.xferBool(false);
+      const weapon = weaponPresent
+        ? this.parseSourceWeaponSnapshotImportState(xfer)
+        : { templateName: '', whenWeCanFireAgain: 0 };
+      const everFired = xfer.xferBool(false);
+      return xfer.getRemaining() === 0
+        ? { weaponPresent, weapon, everFired }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceFireWeaponCollideModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (entity.fireWeaponCollideProfiles.length === 0) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const collideState = this.tryParseSourceFireWeaponCollideImportState(module.blockData, moduleType);
+      if (!collideState) {
+        continue;
+      }
+      const profileIndex = this.resolveSourceFireWeaponCollideProfileIndex(
+        entity,
+        module.identifier,
+        collideState.weapon.templateName,
+      );
+      if (profileIndex < 0) {
+        continue;
+      }
+      entity.fireWeaponCollideEverFired[profileIndex] = collideState.everFired;
+    }
+  }
+
   private tryParseSourceFlammableUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -16275,6 +16502,8 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceFireSpreadUpdateModulesToEntity(entity, sourceState);
     this.applySourcePoisonedBehaviorModulesToEntity(entity, sourceState);
     this.applySourceMinefieldBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceFireWeaponUpdateModulesToEntity(entity, sourceState);
+    this.applySourceFireWeaponCollideModulesToEntity(entity, sourceState);
     this.applySourceFlammableUpdateModulesToEntity(entity, sourceState);
     this.applySourceHeightDieUpdateModulesToEntity(entity, sourceState);
     this.applySourceStickyBombUpdateModulesToEntity(entity, sourceState);

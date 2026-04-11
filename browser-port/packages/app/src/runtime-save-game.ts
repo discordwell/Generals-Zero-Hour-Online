@@ -6079,7 +6079,11 @@ function buildSourceFireWeaponCollideBlockData(
         templateName: profile.collideWeapon || preservedState.weapon.templateName,
       });
     }
-    saver.xferBool(preservedState.everFired);
+    saver.xferBool(
+      typeof entity.fireWeaponCollideEverFired?.[profileIndex] === 'boolean'
+        ? entity.fireWeaponCollideEverFired[profileIndex]!
+        : preservedState.everFired,
+    );
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();

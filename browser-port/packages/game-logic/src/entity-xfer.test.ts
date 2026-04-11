@@ -315,6 +315,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
 
     // Fire weapon collide
     fireWeaponCollideProfiles: [],
+    fireWeaponCollideEverFired: [],
 
     // Eject
     ejectPilotTemplateName: null,

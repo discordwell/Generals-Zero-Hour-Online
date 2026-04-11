@@ -19,6 +19,7 @@ import {
   makeRegistry,
   makeSpecialPowerDef,
   makeUpgradeDef,
+  makeWeaponDef,
 } from './test-helpers.js';
 
 function makeSourceOwnedCoreBundle() {
@@ -147,6 +148,17 @@ function makeSourceOwnedCoreBundle() {
           Regenerates: true,
           StopsRegenAfterCreatorDies: true,
           DegenPercentPerSecondAfterCreatorDies: 10,
+        }),
+      ]),
+      makeObjectDef('AutoFireObject', 'GLA', ['STRUCTURE'], [
+        makeBlock('Behavior', 'FireWeaponUpdate ModuleTag_AutoFire', {
+          Weapon: 'AutoFireWeapon',
+        }),
+      ]),
+      makeObjectDef('CollideFireObject', 'GLA', ['STRUCTURE'], [
+        makeBlock('Behavior', 'FireWeaponCollide ModuleTag_CollideFire', {
+          CollideWeapon: 'CollideFireWeapon',
+          FireOnce: true,
         }),
       ]),
       makeObjectDef('HealingSeeker', 'America', ['INFANTRY'], [
@@ -295,6 +307,10 @@ function makeSourceOwnedCoreBundle() {
       makeSpecialPowerDef('SpyVisionPower', { ReloadTime: 60000 }),
       makeSpecialPowerDef('AbilityPower', { ReloadTime: 60000 }),
       makeSpecialPowerDef('BattlePlanPower', { ReloadTime: 60000 }),
+    ],
+    weapons: [
+      makeWeaponDef('AutoFireWeapon', { PrimaryDamage: 1, DelayBetweenShots: 1000 }),
+      makeWeaponDef('CollideFireWeapon', { PrimaryDamage: 1, DelayBetweenShots: 1000 }),
     ],
     commandButtons: [
       makeCommandButtonDef('Command_HuntFireWeapon', {
@@ -1008,6 +1024,82 @@ function buildSourceMinefieldBehaviorModuleData(options: {
       saver.xferObjectID(immune.objectId);
       saver.xferUnsignedInt(immune.collideFrame);
     }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function xferSourceWeaponSnapshotForTest(saver: XferSave, options: {
+  templateName: string;
+  whenWeCanFireAgain: number;
+}): void {
+  saver.xferVersion(3);
+  saver.xferAsciiString(options.templateName);
+  saver.xferInt(0);
+  saver.xferInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(options.whenWeCanFireAgain);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferObjectID(0);
+  saver.xferObjectID(0);
+  saver.xferInt(0);
+  saver.xferInt(0);
+  saver.xferInt(0);
+  saver.xferUnsignedShort(0);
+  saver.xferBool(false);
+  saver.xferBool(false);
+}
+
+function buildSourceFireWeaponUpdateModuleData(options: {
+  nextCallFrame: number;
+  weaponName: string;
+  whenWeCanFireAgain: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-fire-weapon-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    xferSourceWeaponSnapshotForTest(saver, {
+      templateName: options.weaponName,
+      whenWeCanFireAgain: options.whenWeCanFireAgain,
+    });
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceFireWeaponCollideModuleData(options: {
+  weaponPresent: boolean;
+  weaponName: string;
+  whenWeCanFireAgain: number;
+  everFired: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-fire-weapon-collide');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferBool(options.weaponPresent);
+    if (options.weaponPresent) {
+      xferSourceWeaponSnapshotForTest(saver, {
+        templateName: options.weaponName,
+        whenWeCanFireAgain: options.whenWeCanFireAgain,
+      });
+    }
+    saver.xferBool(options.everFired);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2601,6 +2693,61 @@ describe('source-owned game-logic core save-state', () => {
       { entityId: 61, collideFrame: 276 },
     ]);
     expect(entity.mineDetonators).toEqual([]);
+  });
+
+  it('imports source FireWeaponUpdate and FireWeaponCollide runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const autoFireState = createEmptySourceMapEntitySaveState();
+    autoFireState.objectId = 114;
+    autoFireState.position = { x: 140, y: 0, z: 60 };
+    autoFireState.modules = [{
+      identifier: 'ModuleTag_AutoFire',
+      blockData: buildSourceFireWeaponUpdateModuleData({
+        nextCallFrame: 280,
+        weaponName: 'AutoFireWeapon',
+        whenWeCanFireAgain: 310,
+      }),
+    }];
+
+    const collideState = createEmptySourceMapEntitySaveState();
+    collideState.objectId = 115;
+    collideState.position = { x: 142, y: 0, z: 60 };
+    collideState.modules = [{
+      identifier: 'ModuleTag_CollideFire',
+      blockData: buildSourceFireWeaponCollideModuleData({
+        weaponPresent: true,
+        weaponName: 'CollideFireWeapon',
+        whenWeCanFireAgain: 320,
+        everFired: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 160,
+      objects: [
+        { templateName: 'AutoFireObject', state: autoFireState },
+        { templateName: 'CollideFireObject', state: collideState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        fireWeaponUpdateNextFireFrames: number[];
+        fireWeaponCollideEverFired: boolean[];
+      }>;
+    };
+
+    expect(privateLogic.spawnedEntities.get(114)!.fireWeaponUpdateNextFireFrames).toEqual([310]);
+    expect(privateLogic.spawnedEntities.get(115)!.fireWeaponCollideEverFired).toEqual([true]);
   });
 
   it('imports source HordeUpdate runtime state', () => {

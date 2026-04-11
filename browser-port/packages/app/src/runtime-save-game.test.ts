@@ -11079,6 +11079,7 @@ describe('runtime-save-game', () => {
               requiredStatus: new Set<string>(),
               forbiddenStatus: new Set<string>(),
             }],
+            fireWeaponCollideEverFired: [false],
             animationSteeringProfile: { transitionFrames: 3 },
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
@@ -11109,7 +11110,7 @@ describe('runtime-save-game', () => {
     expect(parsedCollide.weapon.lastFireFrame).toBe(14);
     expect(parsedCollide.weapon.currentBarrel).toBe(1);
     expect(parsedCollide.weapon.scatterTargetsUnused).toEqual([201]);
-    expect(parsedCollide.everFired).toBe(true);
+    expect(parsedCollide.everFired).toBe(false);
 
     expect(animationModule).toBeDefined();
     const parsedAnimation = parseSourceAnimationSteeringUpdateBlockData(animationModule!.blockData);

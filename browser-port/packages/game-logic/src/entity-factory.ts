@@ -566,6 +566,7 @@ export function createMapEntity(self: GL,
     fireSpreadNextFrame: 0,
     // Fire weapon collide
     fireWeaponCollideProfiles: extractFireWeaponCollideProfiles(self, objectDef),
+    fireWeaponCollideEverFired: [],
     // Mine behavior
     minefieldProfile: extractMinefieldProfile(self, objectDef),
     mineVirtualMinesRemaining: 0,
@@ -1142,6 +1143,9 @@ export function createMapEntity(self: GL,
     entity.fireWeaponUpdateNextFireFrames = entity.fireWeaponUpdateProfiles.map(
       p => self.frameCounter + p.initialDelayFrames,
     );
+  }
+  if (entity.fireWeaponCollideProfiles.length > 0) {
+    entity.fireWeaponCollideEverFired = entity.fireWeaponCollideProfiles.map(() => false);
   }
 
   // Source parity: OCLUpdate — initialize per-module creation timers (start at 0, first check sets timer).
