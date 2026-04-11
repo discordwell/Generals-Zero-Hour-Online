@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 36;
+const ENTITY_XFER_VERSION = 37;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1294,7 +1294,47 @@ function xferAssaultTransportState(xfer: Xfer, value: unknown): unknown {
   return normalizedState;
 }
 
-function xferRailedTransportState(xfer: Xfer, value: unknown): unknown {
+function xferRailedTransportDockState(xfer: Xfer, value: unknown): unknown {
+  const hasValue = xfer.xferBool(value !== null && value !== undefined);
+  if (!hasValue) {
+    return null;
+  }
+
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    return {
+      dockingObjectId: xfer.xferObjectID(0),
+      pullInsideDistancePerFrame: xfer.xferReal(0),
+      unloadingObjectId: xfer.xferObjectID(0),
+      pushOutsideDistancePerFrame: xfer.xferReal(0),
+      unloadCount: xfer.xferInt(-1),
+    };
+  }
+
+  const state = (value && typeof value === 'object') ? value as Record<string, unknown> : {};
+  const normalizedState = {
+    dockingObjectId: Number.isFinite(state.dockingObjectId)
+      ? Math.max(0, Math.trunc(state.dockingObjectId as number))
+      : 0,
+    pullInsideDistancePerFrame: Number.isFinite(state.pullInsideDistancePerFrame)
+      ? state.pullInsideDistancePerFrame as number
+      : 0,
+    unloadingObjectId: Number.isFinite(state.unloadingObjectId)
+      ? Math.max(0, Math.trunc(state.unloadingObjectId as number))
+      : 0,
+    pushOutsideDistancePerFrame: Number.isFinite(state.pushOutsideDistancePerFrame)
+      ? state.pushOutsideDistancePerFrame as number
+      : 0,
+    unloadCount: Number.isFinite(state.unloadCount) ? Math.trunc(state.unloadCount as number) : -1,
+  };
+  xfer.xferObjectID(normalizedState.dockingObjectId);
+  xfer.xferReal(normalizedState.pullInsideDistancePerFrame);
+  xfer.xferObjectID(normalizedState.unloadingObjectId);
+  xfer.xferReal(normalizedState.pushOutsideDistancePerFrame);
+  xfer.xferInt(normalizedState.unloadCount);
+  return normalizedState;
+}
+
+function xferRailedTransportState(xfer: Xfer, value: unknown, entityVersion: number): unknown {
   const hasValue = xfer.xferBool(value !== null && value !== undefined);
   if (!hasValue) {
     return null;
@@ -1317,6 +1357,7 @@ function xferRailedTransportState(xfer: Xfer, value: unknown): unknown {
     }
     const currentPath = xfer.xferInt(-1);
     const waypointDataLoaded = xfer.xferBool(false);
+    const dockState = entityVersion >= 37 ? xferRailedTransportDockState(xfer, null) : null;
     return {
       inTransit,
       waypointDataLoaded,
@@ -1325,6 +1366,7 @@ function xferRailedTransportState(xfer: Xfer, value: unknown): unknown {
       // Source parity: these are TS-only helpers, not part of RailedTransportAIUpdate::xfer.
       transitWaypointIds: [],
       transitWaypointIndex: 0,
+      dockState,
     };
   }
 
@@ -1360,6 +1402,7 @@ function xferRailedTransportState(xfer: Xfer, value: unknown): unknown {
     transitWaypointIndex: Number.isFinite(state.transitWaypointIndex)
       ? Math.max(0, Math.trunc(state.transitWaypointIndex as number))
       : 0,
+    dockState: (state.dockState ?? null) as unknown,
   };
 
   xfer.xferBool(normalizedState.inTransit);
@@ -1370,6 +1413,9 @@ function xferRailedTransportState(xfer: Xfer, value: unknown): unknown {
   }
   xfer.xferInt(normalizedState.currentPath);
   xfer.xferBool(normalizedState.waypointDataLoaded);
+  if (entityVersion >= 37) {
+    normalizedState.dockState = xferRailedTransportDockState(xfer, normalizedState.dockState);
+  }
   return normalizedState;
 }
 
@@ -2318,7 +2364,7 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     e.assaultTransportState = null;
   }
   if (version >= 9) {
-    e.railedTransportState = xferRailedTransportState(xfer, e.railedTransportState);
+    e.railedTransportState = xferRailedTransportState(xfer, e.railedTransportState, version);
   } else {
     e.railedTransportState = null;
   }

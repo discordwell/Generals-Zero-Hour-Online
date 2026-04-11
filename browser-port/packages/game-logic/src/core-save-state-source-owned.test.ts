@@ -569,6 +569,16 @@ function makeSourceOwnedCoreBundle() {
           CollapseDamping: 0.1,
         }),
       ]),
+      makeObjectDef('RailedTransportObject', 'Civilian', ['VEHICLE'], [
+        makeBlock('Behavior', 'RailedTransportAIUpdate ModuleTag_RailedAI', {
+          PathPrefixName: 'TrainPath',
+        }),
+        makeBlock('Behavior', 'RailedTransportDockUpdate ModuleTag_RailedDock', {
+          PullInsideDuration: 1000,
+          PushOutsideDuration: 1000,
+          ToleranceDistance: 50,
+        }),
+      ]),
       makeObjectDef('HelperStateObject', 'America', ['VEHICLE'], []),
     ],
     specialPowers: [
@@ -946,6 +956,56 @@ function buildSourceRepairDockUpdateModuleData(options: {
     writeSourceDockUpdate(saver, options);
     saver.xferObjectID(options.lastRepair);
     saver.xferReal(options.healthToAddPerFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceRailedTransportAIUpdateModuleData(options: {
+  inTransit: boolean;
+  paths: Array<{ startWaypointID: number; endWaypointID: number }>;
+  currentPath: number;
+  waypointDataLoaded: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-railed-transport-ai-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(new Uint8Array([4, 0xaa, 0xbb, 0xcc]));
+    saver.xferBool(options.inTransit);
+    saver.xferInt(options.paths.length);
+    for (const path of options.paths) {
+      saver.xferUnsignedInt(path.startWaypointID);
+      saver.xferUnsignedInt(path.endWaypointID);
+    }
+    saver.xferInt(options.currentPath);
+    saver.xferBool(options.waypointDataLoaded);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceRailedTransportDockUpdateModuleData(options: {
+  dockingObjectId: number;
+  pullInsideDistancePerFrame: number;
+  unloadingObjectId: number;
+  pushOutsideDistancePerFrame: number;
+  unloadCount: number;
+  numberApproachPositions: number;
+  approachPositionOwners: number[];
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-railed-transport-dock-update');
+  try {
+    saver.xferVersion(1);
+    writeSourceDockUpdate(saver, options);
+    saver.xferObjectID(options.dockingObjectId);
+    saver.xferReal(options.pullInsideDistancePerFrame);
+    saver.xferObjectID(options.unloadingObjectId);
+    saver.xferReal(options.pushOutsideDistancePerFrame);
+    saver.xferInt(options.unloadCount);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -3233,6 +3293,82 @@ describe('source-owned game-logic core save-state', () => {
     });
     expect(privateLogic.spawnedEntities.get(45)!.repairDockLastRepairEntityId).toBe(77);
     expect(privateLogic.spawnedEntities.get(45)!.repairDockHealthToAddPerFrame).toBe(1.25);
+  });
+
+  it('imports source RailedTransportAIUpdate and RailedTransportDockUpdate state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const railedState = createEmptySourceMapEntitySaveState();
+    railedState.objectId = 46;
+    railedState.position = { x: 20, y: 0, z: 20 };
+    railedState.modules = [{
+      identifier: 'ModuleTag_RailedAI',
+      blockData: buildSourceRailedTransportAIUpdateModuleData({
+        inTransit: true,
+        paths: [
+          { startWaypointID: 1001, endWaypointID: 1002 },
+          { startWaypointID: 1003, endWaypointID: 1004 },
+        ],
+        currentPath: 1,
+        waypointDataLoaded: true,
+      }),
+    }, {
+      identifier: 'ModuleTag_RailedDock',
+      blockData: buildSourceRailedTransportDockUpdateModuleData({
+        dockingObjectId: 201,
+        pullInsideDistancePerFrame: 1.5,
+        unloadingObjectId: 202,
+        pushOutsideDistancePerFrame: 2.5,
+        unloadCount: -1,
+        numberApproachPositions: 2,
+        approachPositionOwners: [301, 0],
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 77,
+      objectIdCounter: 100,
+      objects: [
+        { templateName: 'RailedTransportObject', state: railedState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        railedTransportState: unknown;
+      }>;
+      dockApproachStates: Map<number, { currentDockerCount: number; maxDockers: number }>;
+    };
+
+    expect(privateLogic.spawnedEntities.get(46)!.railedTransportState).toEqual({
+      inTransit: true,
+      waypointDataLoaded: true,
+      paths: [
+        { startWaypointID: 1001, endWaypointID: 1002 },
+        { startWaypointID: 1003, endWaypointID: 1004 },
+      ],
+      currentPath: 1,
+      transitWaypointIds: [],
+      transitWaypointIndex: 0,
+      dockState: {
+        dockingObjectId: 201,
+        pullInsideDistancePerFrame: 1.5,
+        unloadingObjectId: 202,
+        pushOutsideDistancePerFrame: 2.5,
+        unloadCount: -1,
+      },
+    });
+    expect(privateLogic.dockApproachStates.get(46)).toEqual({
+      currentDockerCount: 1,
+      maxDockers: 2,
+    });
   });
 
   it('imports source SpawnBehavior slave and replacement state', () => {

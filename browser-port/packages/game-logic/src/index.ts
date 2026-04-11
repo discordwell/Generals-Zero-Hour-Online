@@ -8761,6 +8761,22 @@ interface SourceRepairDockUpdateImportState {
   healthToAddPerFrame: number;
 }
 
+interface SourceRailedTransportAIUpdateImportState {
+  inTransit: boolean;
+  paths: Array<{ startWaypointID: number; endWaypointID: number }>;
+  currentPath: number;
+  waypointDataLoaded: boolean;
+}
+
+interface SourceRailedTransportDockUpdateImportState {
+  dock: SourceDockUpdateImportState;
+  dockingObjectId: number;
+  pullInsideDistancePerFrame: number;
+  unloadingObjectId: number;
+  pushOutsideDistancePerFrame: number;
+  unloadCount: number;
+}
+
 interface SourceSpawnBehaviorImportState {
   version: number;
   initialBurstTimesInited: boolean;
@@ -9402,6 +9418,7 @@ const SOURCE_SPAWN_POINT_MAX_POINTS = 10;
 const SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH = 16 * 4;
 const SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_FLAG = -1;
 const SOURCE_DOCK_VECTOR_LIMIT = 0xffff;
+const SOURCE_RAILED_TRANSPORT_MAX_WAYPOINT_PATHS = 32;
 const SOURCE_PLAYER_MASK_BYTE_LENGTH = 2;
 const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH = 32 * 48;
 const SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH = 4;
@@ -12097,6 +12114,7 @@ export class GameLogicSubsystem implements Subsystem {
             : INVALID_RAILED_TRANSPORT_PATH,
           transitWaypointIds: [],
           transitWaypointIndex: 0,
+          dockState: null,
         };
         entity.railedTransportState = state;
         this.railedTransportStateByEntityId.set(entityId, state);
@@ -14009,6 +14027,94 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceRailedTransportAIUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceRailedTransportAIUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'RAILEDTRANSPORTAIUPDATE') {
+      return null;
+    }
+
+    const blockData = new Uint8Array(data);
+    if (blockData.byteLength < 10 || blockData[0] !== 1) {
+      return null;
+    }
+
+    const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+    // RailedTransportAIUpdate xfers AIUpdateInterface first; the railed fields are the fixed suffix.
+    for (let pathCount = SOURCE_RAILED_TRANSPORT_MAX_WAYPOINT_PATHS; pathCount >= 0; pathCount -= 1) {
+      const tailOffset = blockData.byteLength - (10 + pathCount * 8);
+      if (tailOffset < 2) {
+        continue;
+      }
+      const inTransitByte = view.getUint8(tailOffset);
+      const waypointDataLoadedByte = view.getUint8(blockData.byteLength - 1);
+      if (
+        (inTransitByte !== 0 && inTransitByte !== 1)
+        || (waypointDataLoadedByte !== 0 && waypointDataLoadedByte !== 1)
+        || view.getInt32(tailOffset + 1, true) !== pathCount
+      ) {
+        continue;
+      }
+
+      const paths: SourceRailedTransportAIUpdateImportState['paths'] = [];
+      let cursor = tailOffset + 5;
+      for (let index = 0; index < pathCount; index += 1) {
+        paths.push({
+          startWaypointID: view.getUint32(cursor, true),
+          endWaypointID: view.getUint32(cursor + 4, true),
+        });
+        cursor += 8;
+      }
+      return {
+        inTransit: inTransitByte !== 0,
+        paths,
+        currentPath: view.getInt32(cursor, true),
+        waypointDataLoaded: waypointDataLoadedByte !== 0,
+      };
+    }
+
+    return null;
+  }
+
+  private tryParseSourceRailedTransportDockUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceRailedTransportDockUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'RAILEDTRANSPORTDOCKUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-railed-transport-dock-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const dock = this.parseSourceDockUpdateImportState(xfer);
+      const dockingObjectId = xfer.xferObjectID(0);
+      const pullInsideDistancePerFrame = xfer.xferReal(0);
+      const unloadingObjectId = xfer.xferObjectID(0);
+      const pushOutsideDistancePerFrame = xfer.xferReal(0);
+      const unloadCount = xfer.xferInt(-1);
+      return xfer.getRemaining() === 0
+        ? {
+          dock,
+          dockingObjectId,
+          pullInsideDistancePerFrame,
+          unloadingObjectId,
+          pushOutsideDistancePerFrame,
+          unloadCount,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
   private applySourceDockUpdateImportStateToEntity(
     entity: MapEntity,
     dock: SourceDockUpdateImportState,
@@ -14035,6 +14141,47 @@ export class GameLogicSubsystem implements Subsystem {
         module.identifier,
       );
       if (!moduleType) {
+        continue;
+      }
+
+      const railedAIState = this.tryParseSourceRailedTransportAIUpdateImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (railedAIState) {
+        const state = this.resolveRailedTransportRuntimeState(entity.id);
+        entity.railedTransportState = state;
+        state.inTransit = railedAIState.inTransit;
+        state.paths = railedAIState.paths.map((path) => ({
+          startWaypointID: Math.max(0, Math.trunc(path.startWaypointID)),
+          endWaypointID: Math.max(0, Math.trunc(path.endWaypointID)),
+        }));
+        state.currentPath = Math.trunc(railedAIState.currentPath);
+        state.waypointDataLoaded = railedAIState.waypointDataLoaded;
+        state.transitWaypointIds = [];
+        state.transitWaypointIndex = 0;
+        continue;
+      }
+
+      const railedDockState = this.tryParseSourceRailedTransportDockUpdateImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (railedDockState) {
+        this.applySourceDockUpdateImportStateToEntity(entity, railedDockState.dock);
+        const state = this.resolveRailedTransportRuntimeState(entity.id);
+        entity.railedTransportState = state;
+        state.dockState = {
+          dockingObjectId: Math.max(0, Math.trunc(railedDockState.dockingObjectId)),
+          pullInsideDistancePerFrame: Number.isFinite(railedDockState.pullInsideDistancePerFrame)
+            ? railedDockState.pullInsideDistancePerFrame
+            : 0,
+          unloadingObjectId: Math.max(0, Math.trunc(railedDockState.unloadingObjectId)),
+          pushOutsideDistancePerFrame: Number.isFinite(railedDockState.pushOutsideDistancePerFrame)
+            ? railedDockState.pushOutsideDistancePerFrame
+            : 0,
+          unloadCount: Number.isFinite(railedDockState.unloadCount) ? Math.trunc(railedDockState.unloadCount) : -1,
+        };
         continue;
       }
 

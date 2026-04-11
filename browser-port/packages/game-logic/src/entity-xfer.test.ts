@@ -1023,6 +1023,13 @@ describe('entity-xfer', () => {
         currentPath: 1,
         transitWaypointIds: [10, 15, 20],
         transitWaypointIndex: 2,
+        dockState: {
+          dockingObjectId: 31,
+          pullInsideDistancePerFrame: 1.25,
+          unloadingObjectId: 32,
+          pushOutsideDistancePerFrame: 2.5,
+          unloadCount: -1,
+        },
       },
     });
 
@@ -1047,6 +1054,13 @@ describe('entity-xfer', () => {
       currentPath: 1,
       transitWaypointIds: [],
       transitWaypointIndex: 0,
+      dockState: {
+        dockingObjectId: 31,
+        pullInsideDistancePerFrame: 1.25,
+        unloadingObjectId: 32,
+        pushOutsideDistancePerFrame: 2.5,
+        unloadCount: -1,
+      },
     });
   });
 

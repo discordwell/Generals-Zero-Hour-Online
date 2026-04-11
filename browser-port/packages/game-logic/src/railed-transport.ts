@@ -36,6 +36,14 @@ export interface RailedTransportPathInfo {
   endWaypointID: number;
 }
 
+export interface RailedTransportDockRuntimeState {
+  dockingObjectId: number;
+  pullInsideDistancePerFrame: number;
+  unloadingObjectId: number;
+  pushOutsideDistancePerFrame: number;
+  unloadCount: number;
+}
+
 export interface RailedTransportRuntimeState {
   inTransit: boolean;
   waypointDataLoaded: boolean;
@@ -43,6 +51,7 @@ export interface RailedTransportRuntimeState {
   currentPath: number;
   transitWaypointIds: number[];
   transitWaypointIndex: number;
+  dockState: RailedTransportDockRuntimeState | null;
 }
 
 export interface RailedTransportProfile {
@@ -139,6 +148,7 @@ export function createRailedTransportRuntimeState(): RailedTransportRuntimeState
     currentPath: INVALID_RAILED_TRANSPORT_PATH,
     transitWaypointIds: [],
     transitWaypointIndex: 0,
+    dockState: null,
   };
 }
 

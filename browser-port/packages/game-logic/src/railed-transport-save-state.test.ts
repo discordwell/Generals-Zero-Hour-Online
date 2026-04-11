@@ -59,6 +59,13 @@ describe('railed transport save-state', () => {
       currentPath: 1,
       transitWaypointIds: [10, 15, 20],
       transitWaypointIndex: 2,
+      dockState: {
+        dockingObjectId: 31,
+        pullInsideDistancePerFrame: 1.25,
+        unloadingObjectId: 32,
+        pushOutsideDistancePerFrame: 2.5,
+        unloadCount: -1,
+      },
     };
     transport.railedTransportState = state;
     privateLogic.railedTransportStateByEntityId.set(1, state);
@@ -84,6 +91,13 @@ describe('railed transport save-state', () => {
       currentPath: 1,
       transitWaypointIds: [10, 15, 20],
       transitWaypointIndex: 2,
+      dockState: {
+        dockingObjectId: 31,
+        pullInsideDistancePerFrame: 1.25,
+        unloadingObjectId: 32,
+        pushOutsideDistancePerFrame: 2.5,
+        unloadCount: -1,
+      },
     });
     expect((restored as unknown as typeof privateLogic).railedTransportStateByEntityId.get(1)).toBe(
       restoredTransport?.railedTransportState,
@@ -110,6 +124,7 @@ describe('railed transport save-state', () => {
         currentPath: 0,
         transitWaypointIds: [100, 150, 200],
         transitWaypointIndex: 2,
+        dockState: null,
       }]]),
     });
 
@@ -123,6 +138,7 @@ describe('railed transport save-state', () => {
           currentPath: number;
           transitWaypointIds: number[];
           transitWaypointIndex: number;
+          dockState: unknown;
         } | null;
       }>;
     };
@@ -137,6 +153,7 @@ describe('railed transport save-state', () => {
       currentPath: 0,
       transitWaypointIds: [],
       transitWaypointIndex: 0,
+      dockState: null,
     });
     expect(privateLogic.railedTransportStateByEntityId.get(1)).toBe(
       restoredTransport?.railedTransportState,

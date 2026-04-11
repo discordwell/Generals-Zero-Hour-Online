@@ -5909,6 +5909,15 @@ interface SourceRepairDockUpdateBlockState {
   healthToAddPerFrame: number;
 }
 
+interface SourceRailedTransportAIUpdateBlockState {
+  blockData: Uint8Array;
+  tailOffset: number;
+  inTransit: boolean;
+  paths: Array<{ startWaypointID: number; endWaypointID: number }>;
+  currentPath: number;
+  waypointDataLoaded: boolean;
+}
+
 interface SourceRailedTransportDockUpdateBlockState {
   dock: SourceDockUpdateBlockState;
   dockingObjectId: number;
@@ -6368,6 +6377,7 @@ function buildSourceSpawnPointProductionExitBlockData(
 }
 
 const SOURCE_DOCK_VECTOR_LIMIT = 0xffff;
+const SOURCE_RAILED_TRANSPORT_MAX_WAYPOINT_PATHS = 32;
 
 function createDefaultSourceDockUpdateBlockState(): SourceDockUpdateBlockState {
   return {
@@ -6530,6 +6540,105 @@ function tryParseSourceRepairDockUpdateBlockData(data: Uint8Array): SourceRepair
   }
 }
 
+function tryParseSourceRailedTransportAIUpdateBlockData(
+  data: Uint8Array,
+): SourceRailedTransportAIUpdateBlockState | null {
+  if (data.byteLength < 10 || data[0] !== 1) {
+    return null;
+  }
+
+  const blockData = new Uint8Array(data);
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  // RailedTransportAIUpdate xfers the large AIUpdateInterface base before this fixed tail.
+  // Preserve those base bytes and only decode/rewrite the C++ railed transport suffix.
+  for (let pathCount = SOURCE_RAILED_TRANSPORT_MAX_WAYPOINT_PATHS; pathCount >= 0; pathCount -= 1) {
+    const tailOffset = blockData.byteLength - (10 + pathCount * 8);
+    if (tailOffset < 2) {
+      continue;
+    }
+
+    const inTransitByte = view.getUint8(tailOffset);
+    const waypointDataLoadedByte = view.getUint8(blockData.byteLength - 1);
+    if (
+      (inTransitByte !== 0 && inTransitByte !== 1)
+      || (waypointDataLoadedByte !== 0 && waypointDataLoadedByte !== 1)
+      || view.getInt32(tailOffset + 1, true) !== pathCount
+    ) {
+      continue;
+    }
+
+    const paths: SourceRailedTransportAIUpdateBlockState['paths'] = [];
+    let cursor = tailOffset + 5;
+    for (let index = 0; index < pathCount; index += 1) {
+      paths.push({
+        startWaypointID: view.getUint32(cursor, true),
+        endWaypointID: view.getUint32(cursor + 4, true),
+      });
+      cursor += 8;
+    }
+
+    return {
+      blockData,
+      tailOffset,
+      inTransit: inTransitByte !== 0,
+      paths,
+      currentPath: view.getInt32(cursor, true),
+      waypointDataLoaded: waypointDataLoadedByte !== 0,
+    };
+  }
+
+  return null;
+}
+
+function sourceRailedTransportPathsForEntity(
+  entity: MapEntity,
+  preservedState: SourceRailedTransportAIUpdateBlockState,
+): SourceRailedTransportAIUpdateBlockState['paths'] {
+  const livePaths = entity.railedTransportState?.paths;
+  const paths = Array.isArray(livePaths) ? livePaths : preservedState.paths;
+  if (paths.length > SOURCE_RAILED_TRANSPORT_MAX_WAYPOINT_PATHS) {
+    throw new Error(
+      `RailedTransportAIUpdate path count ${paths.length} exceeds limit ${SOURCE_RAILED_TRANSPORT_MAX_WAYPOINT_PATHS}.`,
+    );
+  }
+  return paths.map((path) => ({
+    startWaypointID: Math.max(0, Math.trunc(path.startWaypointID)),
+    endWaypointID: Math.max(0, Math.trunc(path.endWaypointID)),
+  }));
+}
+
+function buildSourceRailedTransportAIUpdateBlockData(
+  entity: MapEntity,
+  preservedState: SourceRailedTransportAIUpdateBlockState,
+): Uint8Array {
+  const paths = sourceRailedTransportPathsForEntity(entity, preservedState);
+  const tailLength = 10 + paths.length * 8;
+  const blockData = new Uint8Array(preservedState.tailOffset + tailLength);
+  blockData.set(preservedState.blockData.subarray(0, preservedState.tailOffset));
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  const state = entity.railedTransportState;
+  let cursor = preservedState.tailOffset;
+  view.setUint8(cursor, state?.inTransit === true ? 1 : 0);
+  cursor += 1;
+  view.setInt32(cursor, paths.length, true);
+  cursor += 4;
+  for (const path of paths) {
+    view.setUint32(cursor, path.startWaypointID, true);
+    view.setUint32(cursor + 4, path.endWaypointID, true);
+    cursor += 8;
+  }
+  view.setInt32(
+    cursor,
+    Number.isFinite(state?.currentPath)
+      ? Math.trunc(state?.currentPath ?? preservedState.currentPath)
+      : preservedState.currentPath,
+    true,
+  );
+  cursor += 4;
+  view.setUint8(cursor, state?.waypointDataLoaded === true ? 1 : 0);
+  return blockData;
+}
+
 function tryParseSourceRailedTransportDockUpdateBlockData(
   data: Uint8Array,
 ): SourceRailedTransportDockUpdateBlockState | null {
@@ -6655,22 +6764,30 @@ function buildSourceRepairDockUpdateBlockData(
 }
 
 function buildSourceRailedTransportDockUpdateBlockData(
+  entity: MapEntity,
   currentFrame: number,
   preservedState: SourceRailedTransportDockUpdateBlockState,
 ): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-railed-transport-dock-update');
   try {
+    const liveState = entity.railedTransportState?.dockState;
     saver.xferVersion(1);
     xferSourceDockUpdateBlockState(
       saver,
       sourceDockStateForRuntimeFrame(preservedState.dock, currentFrame),
     );
-    saver.xferObjectID(normalizeSourceObjectId(preservedState.dockingObjectId));
-    saver.xferReal(preservedState.pullInsideDistancePerFrame);
-    saver.xferObjectID(normalizeSourceObjectId(preservedState.unloadingObjectId));
-    saver.xferReal(preservedState.pushOutsideDistancePerFrame);
-    saver.xferInt(preservedState.unloadCount);
+    saver.xferObjectID(normalizeSourceObjectId(liveState?.dockingObjectId ?? preservedState.dockingObjectId));
+    saver.xferReal(sourcePhysicsFinite(
+      liveState?.pullInsideDistancePerFrame,
+      preservedState.pullInsideDistancePerFrame,
+    ));
+    saver.xferObjectID(normalizeSourceObjectId(liveState?.unloadingObjectId ?? preservedState.unloadingObjectId));
+    saver.xferReal(sourcePhysicsFinite(
+      liveState?.pushOutsideDistancePerFrame,
+      preservedState.pushOutsideDistancePerFrame,
+    ));
+    saver.xferInt(sourceFiniteInt(liveState?.unloadCount, preservedState.unloadCount));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -10892,12 +11009,21 @@ function overlaySourceObjectModulesFromLiveEntity(
               };
             }
           }
+          if (moduleType === 'RAILEDTRANSPORTAIUPDATE' && entity.railedTransportState) {
+            const parsedSourceState = tryParseSourceRailedTransportAIUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceRailedTransportAIUpdateBlockData(entity, parsedSourceState),
+              };
+            }
+          }
           if (moduleType === 'RAILEDTRANSPORTDOCKUPDATE') {
             const parsedSourceState = tryParseSourceRailedTransportDockUpdateBlockData(module.blockData);
             if (parsedSourceState) {
               return {
                 identifier: module.identifier,
-                blockData: buildSourceRailedTransportDockUpdateBlockData(currentFrame, parsedSourceState),
+                blockData: buildSourceRailedTransportDockUpdateBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }

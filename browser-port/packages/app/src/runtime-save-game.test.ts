@@ -2059,6 +2059,60 @@ function parseSourceRepairDockUpdateBlockData(data: Uint8Array) {
   }
 }
 
+function createSourceRailedTransportAIUpdateBlockData(options: {
+  inTransit: boolean;
+  paths: Array<{ startWaypointID: number; endWaypointID: number }>;
+  currentPath: number;
+  waypointDataLoaded: boolean;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-railed-transport-ai-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(new Uint8Array([4, 0xaa, 0xbb, 0xcc]));
+    xferSave.xferBool(options.inTransit);
+    xferSave.xferInt(options.paths.length);
+    for (const path of options.paths) {
+      xferSave.xferUnsignedInt(path.startWaypointID);
+      xferSave.xferUnsignedInt(path.endWaypointID);
+    }
+    xferSave.xferInt(options.currentPath);
+    xferSave.xferBool(options.waypointDataLoaded);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceRailedTransportAIUpdateBlockData(data: Uint8Array) {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  for (let pathCount = 32; pathCount >= 0; pathCount -= 1) {
+    const tailOffset = data.byteLength - (10 + pathCount * 8);
+    if (tailOffset < 2 || data[0] !== 1) {
+      continue;
+    }
+    if (view.getInt32(tailOffset + 1, true) !== pathCount) {
+      continue;
+    }
+    const paths: Array<{ startWaypointID: number; endWaypointID: number }> = [];
+    let cursor = tailOffset + 5;
+    for (let index = 0; index < pathCount; index += 1) {
+      paths.push({
+        startWaypointID: view.getUint32(cursor, true),
+        endWaypointID: view.getUint32(cursor + 4, true),
+      });
+      cursor += 8;
+    }
+    return {
+      inTransit: view.getUint8(tailOffset) !== 0,
+      paths,
+      currentPath: view.getInt32(cursor, true),
+      waypointDataLoaded: view.getUint8(cursor + 4) !== 0,
+    };
+  }
+  throw new Error('Unable to parse railed transport AI test block.');
+}
+
 function createSourceRailedTransportDockUpdateBlockData(
   dock: SourceDockUpdateTestState,
 ): Uint8Array {
@@ -11451,6 +11505,14 @@ describe('runtime-save-game', () => {
       identifier: 'ModuleTag_PrisonDock',
       blockData: createSourceDockOnlyUpdateBlockData(dockState),
     }, {
+      identifier: 'ModuleTag_RailedAI',
+      blockData: createSourceRailedTransportAIUpdateBlockData({
+        inTransit: false,
+        paths: [{ startWaypointID: 1, endWaypointID: 2 }],
+        currentPath: 0,
+        waypointDataLoaded: false,
+      }),
+    }, {
       identifier: 'ModuleTag_RailedDock',
       blockData: createSourceRailedTransportDockUpdateBlockData(dockState),
     }]);
@@ -11537,6 +11599,24 @@ describe('runtime-save-game', () => {
             },
             repairDockLastRepairEntityId: 44,
             repairDockHealthToAddPerFrame: 3.5,
+            railedTransportState: {
+              inTransit: true,
+              waypointDataLoaded: true,
+              paths: [
+                { startWaypointID: 10, endWaypointID: 20 },
+                { startWaypointID: 30, endWaypointID: 40 },
+              ],
+              currentPath: 1,
+              transitWaypointIds: [10, 15, 20],
+              transitWaypointIndex: 2,
+              dockState: {
+                dockingObjectId: 71,
+                pullInsideDistancePerFrame: 3.25,
+                unloadingObjectId: 72,
+                pushOutsideDistancePerFrame: 4.5,
+                unloadCount: 1,
+              },
+            },
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
         resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
@@ -11548,6 +11628,7 @@ describe('runtime-save-game', () => {
             case 'ModuleTag_WarehouseDock': return 'SUPPLYWAREHOUSEDOCKUPDATE';
             case 'ModuleTag_RepairDock': return 'REPAIRDOCKUPDATE';
             case 'ModuleTag_PrisonDock': return 'PRISONDOCKUPDATE';
+            case 'ModuleTag_RailedAI': return 'RAILEDTRANSPORTAIUPDATE';
             case 'ModuleTag_RailedDock': return 'RAILEDTRANSPORTDOCKUPDATE';
             default: return null;
           }
@@ -11562,6 +11643,7 @@ describe('runtime-save-game', () => {
     const warehouseModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_WarehouseDock');
     const repairModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_RepairDock');
     const prisonModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_PrisonDock');
+    const railedAIModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_RailedAI');
     const railedModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_RailedDock');
 
     expect(supplyCenterModule).toBeDefined();
@@ -11594,14 +11676,24 @@ describe('runtime-save-game', () => {
     expect(parsedPrison.nextCallFrameAndPhase).toBe((43 << 2) | 2);
     expect(parsedPrison.approachPositionOwners).toEqual(dockState.approachPositionOwners);
 
+    expect(railedAIModule).toBeDefined();
+    const parsedRailedAI = parseSourceRailedTransportAIUpdateBlockData(railedAIModule!.blockData);
+    expect(parsedRailedAI.inTransit).toBe(true);
+    expect(parsedRailedAI.paths).toEqual([
+      { startWaypointID: 10, endWaypointID: 20 },
+      { startWaypointID: 30, endWaypointID: 40 },
+    ]);
+    expect(parsedRailedAI.currentPath).toBe(1);
+    expect(parsedRailedAI.waypointDataLoaded).toBe(true);
+
     expect(railedModule).toBeDefined();
     const parsedRailed = parseSourceRailedTransportDockUpdateBlockData(railedModule!.blockData);
     expect(parsedRailed.dock.nextCallFrameAndPhase).toBe((43 << 2) | 2);
-    expect(parsedRailed.dockingObjectId).toBe(31);
-    expect(parsedRailed.pullInsideDistancePerFrame).toBeCloseTo(1.25);
-    expect(parsedRailed.unloadingObjectId).toBe(32);
-    expect(parsedRailed.pushOutsideDistancePerFrame).toBeCloseTo(2.5);
-    expect(parsedRailed.unloadCount).toBe(-1);
+    expect(parsedRailed.dockingObjectId).toBe(71);
+    expect(parsedRailed.pullInsideDistancePerFrame).toBeCloseTo(3.25);
+    expect(parsedRailed.unloadingObjectId).toBe(72);
+    expect(parsedRailed.pushOutsideDistancePerFrame).toBeCloseTo(4.5);
+    expect(parsedRailed.unloadCount).toBe(1);
   });
 
   it('rewrites source SupplyWarehouseCripplingBehavior heal timers from live runtime state', () => {
