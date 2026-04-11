@@ -420,6 +420,122 @@ describe('player save-state', () => {
     }]);
   });
 
+  it('projects live Player::xfer collection and core fields into source snapshots', () => {
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    const privateLogic = logic as unknown as {
+      sideSourcePlayerTeamPrototypeIds: Map<string, number[]>;
+      sideSourcePlayerCoreState: Map<string, unknown>;
+      sideSourceResourceGatheringManager: Map<string, {
+        supplyWarehouses: number[];
+        supplyCenters: number[];
+      } | null>;
+      sideSourcePlayerRelations: Map<string, Array<{ id: number; relationship: number }>>;
+      sideSourceTeamRelations: Map<string, Array<{ id: number; relationship: number }>>;
+      scriptTeamsByName: Map<string, Record<string, unknown>>;
+      scriptDefaultTeamNameBySide: Map<string, string>;
+      sidePowerBonus: Map<string, {
+        powerBonus: number;
+        energyProduction: number;
+        energyConsumption: number;
+        brownedOut: boolean;
+        powerSabotagedUntilFrame: number;
+      }>;
+      defeatedSides: Set<string>;
+      scriptCurrentSupplyWarehouseBySide: Map<string, number>;
+      sidePlayerIndex: Map<string, number>;
+      playerSideByIndex: Map<number, string>;
+      playerRelationshipOverrides: Map<string, number>;
+      teamRelationshipOverrides: Map<string, number>;
+    };
+
+    privateLogic.sideSourcePlayerTeamPrototypeIds.set('America', [99, 10]);
+    privateLogic.sideSourcePlayerCoreState.set('America', {
+      isPlayerDead: false,
+      powerSabotagedTillFrame: 0,
+      defaultTeamId: 5,
+      levelUp: 7,
+      levelDown: 3,
+      generalName: 'General Townes',
+      observer: false,
+    });
+    privateLogic.sideSourceResourceGatheringManager.set('America', {
+      supplyWarehouses: [3],
+      supplyCenters: [4],
+    });
+    privateLogic.sideSourcePlayerRelations.set('America', [{ id: 1, relationship: 0 }]);
+    privateLogic.sideSourceTeamRelations.set('America', [{ id: 88, relationship: 0 }]);
+    privateLogic.scriptTeamsByName.set('AMERICAAITEMPLATE', {
+      nameUpper: 'AMERICAAITEMPLATE',
+      prototypeNameUpper: 'AMERICAAITEMPLATE',
+      sourcePrototypeId: 10,
+      sourceTeamId: null,
+      controllingSide: 'america',
+      memberEntityIds: new Set<number>(),
+      created: false,
+    });
+    privateLogic.scriptTeamsByName.set('TEAMTHEPLAYER', {
+      nameUpper: 'TEAMTHEPLAYER',
+      prototypeNameUpper: 'TEAMTHEPLAYER',
+      sourcePrototypeId: 20,
+      sourceTeamId: 77,
+      controllingSide: 'america',
+      memberEntityIds: new Set<number>(),
+      created: false,
+    });
+    privateLogic.scriptTeamsByName.set('TEAMCHINA', {
+      nameUpper: 'TEAMCHINA',
+      prototypeNameUpper: 'TEAMCHINA',
+      sourcePrototypeId: 30,
+      sourceTeamId: 88,
+      controllingSide: 'china',
+      memberEntityIds: new Set<number>(),
+      created: false,
+    });
+    privateLogic.scriptDefaultTeamNameBySide.set('america', 'TEAMTHEPLAYER');
+    privateLogic.scriptDefaultTeamNameBySide.set('china', 'TEAMCHINA');
+    privateLogic.sidePowerBonus.set('america', {
+      powerBonus: 0,
+      energyProduction: 0,
+      energyConsumption: 0,
+      brownedOut: false,
+      powerSabotagedUntilFrame: 240,
+    });
+    privateLogic.defeatedSides.add('america');
+    privateLogic.scriptCurrentSupplyWarehouseBySide.set('america', 8);
+    privateLogic.sidePlayerIndex.set('America', 0);
+    privateLogic.sidePlayerIndex.set('China', 1);
+    privateLogic.playerSideByIndex.set(0, 'America');
+    privateLogic.playerSideByIndex.set(1, 'China');
+    privateLogic.playerRelationshipOverrides.set('america\u0000china', 2);
+    privateLogic.teamRelationshipOverrides.set('america\u0000china', 1);
+
+    const playerState = logic.captureSourcePlayerRuntimeSaveState();
+
+    expect((playerState.state.sideSourcePlayerTeamPrototypeIds as Map<string, number[]>).get('America'))
+      .toEqual([10, 20]);
+    expect((playerState.state.sideSourcePlayerCoreState as Map<string, Record<string, unknown>>).get('America'))
+      .toEqual({
+        isPlayerDead: true,
+        powerSabotagedTillFrame: 240,
+        defaultTeamId: 77,
+        levelUp: 7,
+        levelDown: 3,
+        generalName: 'General Townes',
+        observer: false,
+      });
+    expect((playerState.state.sideSourceResourceGatheringManager as Map<string, {
+      supplyWarehouses: number[];
+      supplyCenters: number[];
+    }>).get('America')).toEqual({
+      supplyWarehouses: [8, 3],
+      supplyCenters: [4],
+    });
+    expect((playerState.state.sideSourcePlayerRelations as Map<string, Array<{ id: number; relationship: number }>>)
+      .get('America')).toEqual([{ id: 1, relationship: 2 }]);
+    expect((playerState.state.sideSourceTeamRelations as Map<string, Array<{ id: number; relationship: number }>>)
+      .get('America')).toEqual([{ id: 88, relationship: 1 }]);
+  });
+
   it('captures live local selection into source Player::m_currentSelection', () => {
     const bundle = makeBundle({
       objects: [

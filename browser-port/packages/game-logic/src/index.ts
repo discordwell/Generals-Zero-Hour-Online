@@ -13546,6 +13546,337 @@ export class GameLogicSubsystem implements Subsystem {
     return buildListInfosBySide;
   }
 
+  private normalizeSourceObjectIdList(value: unknown): number[] {
+    const values = Array.isArray(value) ? value : [];
+    return values.flatMap((entry) =>
+      Number.isFinite(entry) && entry > 0 ? [Math.trunc(entry as number)] : []);
+  }
+
+  private resolveSourcePlayerIndexForSide(side: string): number | null {
+    const directIndex = this.getNormalizedSideMapValue(this.sidePlayerIndex, side);
+    if (Number.isFinite(directIndex)) {
+      return Math.max(0, Math.trunc(directIndex as number));
+    }
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return null;
+    }
+    for (const [playerIndex, playerSide] of this.playerSideByIndex.entries()) {
+      if (this.normalizeSide(playerSide) === normalizedSide && Number.isFinite(playerIndex)) {
+        return Math.max(0, Math.trunc(playerIndex));
+      }
+    }
+    return null;
+  }
+
+  private resolveSourceDefaultTeamIdForSide(side: string): number | null {
+    const defaultTeamName = this.getNormalizedSideMapValue(this.scriptDefaultTeamNameBySide, side)
+      ?.trim()
+      .toUpperCase();
+    if (!defaultTeamName) {
+      return null;
+    }
+    const team = this.scriptTeamsByName.get(defaultTeamName);
+    const sourceTeamId = team?.sourceTeamId;
+    return Number.isFinite(sourceTeamId) && Math.trunc(sourceTeamId!) > 0
+      ? Math.trunc(sourceTeamId!)
+      : null;
+  }
+
+  private collectSourceTeamPrototypeIdsBySide(): Map<string, number[]> {
+    this.normalizeSourceTeamFactoryIdentityState();
+    const idsBySide = new Map<string, number[]>();
+    for (const team of this.scriptTeamsByName.values()) {
+      const controllingSide = team.controllingSide ? this.normalizeSide(team.controllingSide) : null;
+      const sourcePrototypeId = team.sourcePrototypeId;
+      if (!controllingSide || !Number.isFinite(sourcePrototypeId) || Math.trunc(sourcePrototypeId!) <= 0) {
+        continue;
+      }
+      const ids = idsBySide.get(controllingSide) ?? [];
+      const normalizedId = Math.trunc(sourcePrototypeId!);
+      if (!ids.includes(normalizedId)) {
+        ids.push(normalizedId);
+      }
+      idsBySide.set(controllingSide, ids);
+    }
+    return idsBySide;
+  }
+
+  private overlayLiveSourcePlayerTeamPrototypeIds(
+    side: string,
+    value: unknown,
+    liveIdsBySide: Map<string, number[]>,
+  ): number[] {
+    const liveIds = this.getNormalizedSideMapValue(liveIdsBySide, side) ?? [];
+    const preservedIds = this.normalizeSourceObjectIdList(value);
+    if (liveIds.length === 0) {
+      return preservedIds;
+    }
+    const liveIdSet = new Set(liveIds);
+    const orderedIds = preservedIds.filter((id) => liveIdSet.has(id));
+    for (const id of liveIds) {
+      if (!orderedIds.includes(id)) {
+        orderedIds.push(id);
+      }
+    }
+    return orderedIds;
+  }
+
+  private captureSourcePlayerTeamPrototypeIdsBySide(): Map<string, number[]> {
+    const prototypeIdsBySide = new Map<string, number[]>();
+    const liveIdsBySide = this.collectSourceTeamPrototypeIdsBySide();
+    for (const [side, ids] of this.sideSourcePlayerTeamPrototypeIds.entries()) {
+      prototypeIdsBySide.set(side, this.overlayLiveSourcePlayerTeamPrototypeIds(side, ids, liveIdsBySide));
+    }
+    for (const [side, ids] of liveIdsBySide.entries()) {
+      const sideKey = this.resolveSourceSideMapKey(prototypeIdsBySide, side);
+      if (!prototypeIdsBySide.has(sideKey) && ids.length > 0) {
+        prototypeIdsBySide.set(sideKey, [...ids]);
+      }
+    }
+    return prototypeIdsBySide;
+  }
+
+  private cloneSourceResourceGatheringManagerRecord(
+    value: unknown,
+  ): { supplyWarehouses: number[]; supplyCenters: number[] } | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    const record = value as { supplyWarehouses?: unknown; supplyCenters?: unknown };
+    return {
+      supplyWarehouses: this.normalizeSourceObjectIdList(record.supplyWarehouses),
+      supplyCenters: this.normalizeSourceObjectIdList(record.supplyCenters),
+    };
+  }
+
+  private overlayLiveSourceResourceGatheringManager(
+    side: string,
+    value: unknown,
+  ): { supplyWarehouses: number[]; supplyCenters: number[] } | null {
+    const currentWarehouseId = this.getNormalizedSideMapValue(this.scriptCurrentSupplyWarehouseBySide, side);
+    const normalizedWarehouseId = Number.isFinite(currentWarehouseId) && Math.trunc(currentWarehouseId as number) > 0
+      ? Math.trunc(currentWarehouseId as number)
+      : null;
+    if (value === null && normalizedWarehouseId === null) {
+      return null;
+    }
+    const next = this.cloneSourceResourceGatheringManagerRecord(value)
+      ?? { supplyWarehouses: [], supplyCenters: [] };
+    if (normalizedWarehouseId !== null && !next.supplyWarehouses.includes(normalizedWarehouseId)) {
+      next.supplyWarehouses.unshift(normalizedWarehouseId);
+    }
+    return next;
+  }
+
+  private captureSourceResourceGatheringManagerBySide(): Map<string, { supplyWarehouses: number[]; supplyCenters: number[] } | null> {
+    const resourceManagersBySide = new Map<string, { supplyWarehouses: number[]; supplyCenters: number[] } | null>();
+    for (const [side, manager] of this.sideSourceResourceGatheringManager.entries()) {
+      resourceManagersBySide.set(side, this.overlayLiveSourceResourceGatheringManager(side, manager));
+    }
+    for (const [side] of this.scriptCurrentSupplyWarehouseBySide.entries()) {
+      const sideKey = this.resolveSourceSideMapKey(resourceManagersBySide, side);
+      if (!resourceManagersBySide.has(sideKey)) {
+        const manager = this.overlayLiveSourceResourceGatheringManager(side, undefined);
+        if (manager) {
+          resourceManagersBySide.set(sideKey, manager);
+        }
+      }
+    }
+    return resourceManagersBySide;
+  }
+
+  private cloneSourcePlayerCoreRecord(value: unknown): Record<string, unknown> {
+    const record = value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {};
+    return {
+      isPlayerDead: record.isPlayerDead === true,
+      powerSabotagedTillFrame: Number.isFinite(record.powerSabotagedTillFrame)
+        ? Math.max(0, Math.trunc(record.powerSabotagedTillFrame as number))
+        : 0,
+      defaultTeamId: Number.isFinite(record.defaultTeamId)
+        ? Math.max(0, Math.trunc(record.defaultTeamId as number))
+        : 0,
+      levelUp: Number.isFinite(record.levelUp) ? Math.trunc(record.levelUp as number) : 0,
+      levelDown: Number.isFinite(record.levelDown) ? Math.trunc(record.levelDown as number) : 0,
+      generalName: typeof record.generalName === 'string' ? record.generalName : '',
+      observer: record.observer === true,
+    };
+  }
+
+  private overlayLiveSourcePlayerCoreRecord(side: string, value: unknown): Record<string, unknown> {
+    const next = this.cloneSourcePlayerCoreRecord(value);
+    const normalizedSide = this.normalizeSide(side);
+    if (normalizedSide && this.defeatedSides.has(normalizedSide)) {
+      next.isPlayerDead = true;
+    }
+    const powerState = this.getNormalizedSideMapValue(this.sidePowerBonus, side);
+    if (powerState && Number.isFinite(powerState.powerSabotagedUntilFrame)) {
+      next.powerSabotagedTillFrame = Math.max(0, Math.trunc(powerState.powerSabotagedUntilFrame));
+    }
+    const defaultTeamId = this.resolveSourceDefaultTeamIdForSide(side);
+    if (defaultTeamId !== null) {
+      next.defaultTeamId = defaultTeamId;
+    }
+    if (normalizedSide === 'observer') {
+      next.observer = true;
+    }
+    return next;
+  }
+
+  private captureSourcePlayerCoreStateBySide(): Map<string, unknown> {
+    this.normalizeSourceTeamFactoryIdentityState();
+    const coreStateBySide = new Map<string, unknown>();
+    for (const [side, state] of this.sideSourcePlayerCoreState.entries()) {
+      coreStateBySide.set(side, this.overlayLiveSourcePlayerCoreRecord(side, state));
+    }
+    for (const side of this.defeatedSides.values()) {
+      const sideKey = this.resolveSourceSideMapKey(coreStateBySide, side);
+      if (!coreStateBySide.has(sideKey)) {
+        coreStateBySide.set(sideKey, this.overlayLiveSourcePlayerCoreRecord(side, undefined));
+      }
+    }
+    for (const [side, powerState] of this.sidePowerBonus.entries()) {
+      if (!Number.isFinite(powerState.powerSabotagedUntilFrame) || powerState.powerSabotagedUntilFrame <= 0) {
+        continue;
+      }
+      const sideKey = this.resolveSourceSideMapKey(coreStateBySide, side);
+      if (!coreStateBySide.has(sideKey)) {
+        coreStateBySide.set(sideKey, this.overlayLiveSourcePlayerCoreRecord(side, undefined));
+      }
+    }
+    for (const [side] of this.scriptDefaultTeamNameBySide.entries()) {
+      const sideKey = this.resolveSourceSideMapKey(coreStateBySide, side);
+      if (!coreStateBySide.has(sideKey) && this.resolveSourceDefaultTeamIdForSide(side) !== null) {
+        coreStateBySide.set(sideKey, this.overlayLiveSourcePlayerCoreRecord(side, undefined));
+      }
+    }
+    return coreStateBySide;
+  }
+
+  private normalizeSourceRelationEntries(value: unknown): Array<{ id: number; relationship: number }> {
+    const entries = Array.isArray(value) ? value : [];
+    return entries.flatMap((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        return [];
+      }
+      const record = entry as { id?: unknown; relationship?: unknown };
+      if (!Number.isFinite(record.id) || !Number.isFinite(record.relationship)) {
+        return [];
+      }
+      return [{
+        id: Math.max(0, Math.trunc(record.id as number)),
+        relationship: Math.trunc(record.relationship as number),
+      }];
+    });
+  }
+
+  private relationOverrideSourceSides(overrides: Map<string, number>): Set<string> {
+    const sourceSides = new Set<string>();
+    for (const key of overrides.keys()) {
+      const [sourceSide] = key.split('\u0000');
+      const normalizedSourceSide = this.normalizeSide(sourceSide ?? '');
+      if (normalizedSourceSide) {
+        sourceSides.add(normalizedSourceSide);
+      }
+    }
+    return sourceSides;
+  }
+
+  private overlayLiveSourceRelationEntries(
+    side: string,
+    value: unknown,
+    overrides: Map<string, number>,
+    resolveTargetId: (targetSide: string) => number | null,
+  ): Array<{ id: number; relationship: number }> {
+    const nextById = new Map<number, { id: number; relationship: number }>();
+    for (const entry of this.normalizeSourceRelationEntries(value)) {
+      nextById.set(entry.id, entry);
+    }
+
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return [...nextById.values()];
+    }
+    for (const [key, relationship] of overrides.entries()) {
+      if (!Number.isFinite(relationship) || !this.isValidRelationship(Math.trunc(relationship))) {
+        continue;
+      }
+      const [sourceSide, targetSide] = key.split('\u0000');
+      if (this.normalizeSide(sourceSide ?? '') !== normalizedSide || !targetSide) {
+        continue;
+      }
+      const targetId = resolveTargetId(targetSide);
+      if (targetId === null) {
+        continue;
+      }
+      nextById.set(targetId, { id: targetId, relationship: Math.trunc(relationship) });
+    }
+    return [...nextById.values()];
+  }
+
+  private captureSourcePlayerRelationsBySide(): Map<string, Array<{ id: number; relationship: number }>> {
+    const relationsBySide = new Map<string, Array<{ id: number; relationship: number }>>();
+    for (const [side, relations] of this.sideSourcePlayerRelations.entries()) {
+      relationsBySide.set(
+        side,
+        this.overlayLiveSourceRelationEntries(
+          side,
+          relations,
+          this.playerRelationshipOverrides,
+          (targetSide) => this.resolveSourcePlayerIndexForSide(targetSide),
+        ),
+      );
+    }
+    for (const side of this.relationOverrideSourceSides(this.playerRelationshipOverrides)) {
+      const sideKey = this.resolveSourceSideMapKey(relationsBySide, side);
+      if (!relationsBySide.has(sideKey)) {
+        relationsBySide.set(
+          sideKey,
+          this.overlayLiveSourceRelationEntries(
+            side,
+            [],
+            this.playerRelationshipOverrides,
+            (targetSide) => this.resolveSourcePlayerIndexForSide(targetSide),
+          ),
+        );
+      }
+    }
+    return relationsBySide;
+  }
+
+  private captureSourceTeamRelationsBySide(): Map<string, Array<{ id: number; relationship: number }>> {
+    this.normalizeSourceTeamFactoryIdentityState();
+    const relationsBySide = new Map<string, Array<{ id: number; relationship: number }>>();
+    for (const [side, relations] of this.sideSourceTeamRelations.entries()) {
+      relationsBySide.set(
+        side,
+        this.overlayLiveSourceRelationEntries(
+          side,
+          relations,
+          this.teamRelationshipOverrides,
+          (targetSide) => this.resolveSourceDefaultTeamIdForSide(targetSide),
+        ),
+      );
+    }
+    for (const side of this.relationOverrideSourceSides(this.teamRelationshipOverrides)) {
+      const sideKey = this.resolveSourceSideMapKey(relationsBySide, side);
+      if (!relationsBySide.has(sideKey)) {
+        relationsBySide.set(
+          sideKey,
+          this.overlayLiveSourceRelationEntries(
+            side,
+            [],
+            this.teamRelationshipOverrides,
+            (targetSide) => this.resolveSourceDefaultTeamIdForSide(targetSide),
+          ),
+        );
+      }
+    }
+    return relationsBySide;
+  }
+
   private getSourceSpecialPowerReadyTimersForSide(side: string): Array<{ templateId: number; readyFrame: number }> | null {
     const directTimers = this.sideSourceSpecialPowerReadyTimers.get(side);
     if (directTimers) {
@@ -14042,13 +14373,13 @@ export class GameLogicSubsystem implements Subsystem {
     const state = this.captureSourceRuntimeStateByKeys(SOURCE_PLAYER_RUNTIME_STATE_KEYS);
     const currentSelectionBySide = this.captureSourcePlayerCurrentSelectionBySide();
     state.sideSourceSpecialPowerReadyTimers = this.captureSourceSpecialPowerReadyTimersBySide();
-    state.sideSourcePlayerTeamPrototypeIds = this.sideSourcePlayerTeamPrototypeIds;
+    state.sideSourcePlayerTeamPrototypeIds = this.captureSourcePlayerTeamPrototypeIdsBySide();
     state.sideSourceBuildListInfos = this.captureSourceBuildListInfosBySide();
     state.sideSourceAiPlayerState = this.captureSourceAiPlayerStateBySide();
-    state.sideSourcePlayerCoreState = this.sideSourcePlayerCoreState;
-    state.sideSourcePlayerRelations = this.sideSourcePlayerRelations;
-    state.sideSourceTeamRelations = this.sideSourceTeamRelations;
-    state.sideSourceResourceGatheringManager = this.sideSourceResourceGatheringManager;
+    state.sideSourcePlayerCoreState = this.captureSourcePlayerCoreStateBySide();
+    state.sideSourcePlayerRelations = this.captureSourcePlayerRelationsBySide();
+    state.sideSourceTeamRelations = this.captureSourceTeamRelationsBySide();
+    state.sideSourceResourceGatheringManager = this.captureSourceResourceGatheringManagerBySide();
     state.sideSourcePlayerSquads = this.captureSourcePlayerSquadsBySide();
     state.sideSourcePlayerCurrentSelection = currentSelectionBySide;
     state.sideSourcePlayerCurrentSelectionPresent =
