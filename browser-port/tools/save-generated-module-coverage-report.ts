@@ -32,6 +32,8 @@ export interface SaveGeneratedModuleCoverageReport {
   missingSourceModuleTypes: SourceObjectModuleTypeUsage[];
 }
 
+const GENERATED_SAVE_MODULE_BLOCK_TYPES = new Set(['BODY', 'BEHAVIOR', 'DRAW', 'CLIENTUPDATE']);
+
 function normalizeModuleType(value: unknown): string {
   return typeof value === 'string' ? value.trim().toUpperCase() : '';
 }
@@ -46,7 +48,7 @@ function visitIniBlock(
   }
 
   const blockType = normalizeModuleType(block.type);
-  if (blockType !== 'BODY' && blockType !== 'BEHAVIOR') {
+  if (!GENERATED_SAVE_MODULE_BLOCK_TYPES.has(blockType)) {
     return;
   }
 

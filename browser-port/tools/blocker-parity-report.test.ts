@@ -33,8 +33,8 @@ describe('blocker parity report', () => {
         scienceCycles: [],
       },
       saveGeneratedModuleCoverage: {
-        totalSourceModuleTypes: 174,
-        coveredSourceModuleTypes: 174,
+        totalSourceModuleTypes: 195,
+        coveredSourceModuleTypes: 195,
         missingSourceModuleTypes: [],
       },
       visualSceneParity: {
@@ -90,8 +90,8 @@ describe('blocker parity report', () => {
         scienceCycles: [['SCI_A', 'SCI_B', 'SCI_A']],
       },
       saveGeneratedModuleCoverage: {
-        totalSourceModuleTypes: 174,
-        coveredSourceModuleTypes: 173,
+        totalSourceModuleTypes: 195,
+        coveredSourceModuleTypes: 194,
         missingSourceModuleTypes: [{
           moduleType: 'MISSINGMODULE',
           count: 2,

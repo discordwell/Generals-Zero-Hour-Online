@@ -8,18 +8,19 @@ import {
 } from './save-generated-module-coverage-report.js';
 
 describe('save generated module coverage report', () => {
-  it('collects Body and Behavior module descriptors with source ModuleTag tokens', () => {
+  it('collects generated save module descriptors with source ModuleTag tokens', () => {
     const usage = collectSourceObjectModuleTypeUsage({
       objects: [{
         name: 'RuntimeTestObject',
         blocks: [
           { type: 'Body', name: 'ActiveBody ModuleTag_Body' },
+          { type: 'Draw', name: 'W3DModelDraw ModuleTag_Draw' },
+          { type: 'ClientUpdate', name: 'SwayClientUpdate ModuleTag_Sway' },
           {
             type: 'Behavior',
             name: 'ParentBehavior ModuleTag_Parent',
             blocks: [{ type: 'Behavior', name: 'ChildBehavior ModuleTag_Child' }],
           },
-          { type: 'Draw', name: 'W3DModelDraw ModuleTag_Draw' },
           { type: 'Behavior', name: 'IgnoredBehavior MissingTag' },
         ],
       }],
@@ -29,6 +30,8 @@ describe('save generated module coverage report', () => {
       { moduleType: 'ACTIVEBODY', count: 1, exampleObjectName: 'RuntimeTestObject' },
       { moduleType: 'CHILDBEHAVIOR', count: 1, exampleObjectName: 'RuntimeTestObject' },
       { moduleType: 'PARENTBEHAVIOR', count: 1, exampleObjectName: 'RuntimeTestObject' },
+      { moduleType: 'SWAYCLIENTUPDATE', count: 1, exampleObjectName: 'RuntimeTestObject' },
+      { moduleType: 'W3DMODELDRAW', count: 1, exampleObjectName: 'RuntimeTestObject' },
     ]);
   });
 
@@ -91,7 +94,7 @@ describe('save generated module coverage report', () => {
     });
   });
 
-  it('live source parity scan covers every real generated Object::xfer module type', () => {
+  it('live source parity scan covers every real generated save module type', () => {
     const iniBundlePath = new URL('../packages/app/public/assets/data/ini-bundle.json', import.meta.url);
     const runtimeSaveGamePath = new URL('../packages/app/src/runtime-save-game.ts', import.meta.url);
     const report = buildSaveGeneratedModuleCoverageReport({
@@ -102,8 +105,8 @@ describe('save generated module coverage report', () => {
       generatedAt: 'fixed',
     });
 
-    expect(report.totalSourceModuleTypes).toBe(174);
-    expect(report.coveredSourceModuleTypes).toBe(174);
+    expect(report.totalSourceModuleTypes).toBe(195);
+    expect(report.coveredSourceModuleTypes).toBe(195);
     expect(report.missingSourceModuleTypes).toEqual([]);
   });
 });

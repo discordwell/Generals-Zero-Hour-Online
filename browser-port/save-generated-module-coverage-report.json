@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-04-11T17:08:57.640Z",
+  "generatedAt": "2026-04-11T17:21:58.955Z",
   "iniBundlePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/app/public/assets/data/ini-bundle.json",
   "runtimeSaveGamePath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port/packages/app/src/runtime-save-game.ts",
-  "totalSourceModuleTypes": 174,
-  "coveredSourceModuleTypes": 174,
+  "totalSourceModuleTypes": 195,
+  "coveredSourceModuleTypes": 195,
   "missingSourceModuleTypes": []
 }
