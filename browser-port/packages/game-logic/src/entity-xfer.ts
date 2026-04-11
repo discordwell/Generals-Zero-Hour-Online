@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 41;
+const ENTITY_XFER_VERSION = 42;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1862,6 +1862,23 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     );
   } else {
     e.powTruckAIProfile = null;
+  }
+  if (version >= 42) {
+    e.powTruckAIMode = xfer.xferInt((e.powTruckAIMode as number | undefined) ?? 0);
+    e.powTruckCurrentTask = xfer.xferInt((e.powTruckCurrentTask as number | undefined) ?? 0);
+    e.powTruckTargetId = xfer.xferObjectID((e.powTruckTargetId as number | undefined) ?? 0);
+    e.powTruckPrisonId = xfer.xferObjectID((e.powTruckPrisonId as number | undefined) ?? 0);
+    e.powTruckEnteredWaitingFrame = xfer.xferUnsignedInt(
+      (e.powTruckEnteredWaitingFrame as number | undefined) ?? 0,
+    );
+    e.powTruckLastFindFrame = xfer.xferUnsignedInt((e.powTruckLastFindFrame as number | undefined) ?? 0);
+  } else {
+    e.powTruckAIMode = 0;
+    e.powTruckCurrentTask = 0;
+    e.powTruckTargetId = 0;
+    e.powTruckPrisonId = 0;
+    e.powTruckEnteredWaitingFrame = 0;
+    e.powTruckLastFindFrame = 0;
   }
   e.dozerIdleTooLongTimestamp = xfer.xferInt(e.dozerIdleTooLongTimestamp as number);
   if (version >= 10) {

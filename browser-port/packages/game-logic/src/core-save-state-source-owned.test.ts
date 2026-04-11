@@ -279,6 +279,12 @@ function makeSourceOwnedCoreBundle() {
           BoredRange: 200,
         }),
       ]),
+      makeObjectDef('POWTruckObject', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'POWTruckAIUpdate ModuleTag_POWAI', {
+          BoredTime: 1000,
+          AtPrisonDistance: 80,
+        }),
+      ]),
       makeObjectDef('AirfieldObject', 'America', ['STRUCTURE', 'FS_AIRFIELD'], [
         makeBlock('Behavior', 'ParkingPlaceBehavior ModuleTag_Parking', {
           NumRows: 2,
@@ -2008,6 +2014,31 @@ function buildSourceChinookAIUpdateModuleData(options: {
     saver.xferInt(options.flightStatus);
     saver.xferObjectID(options.airfieldForHealing);
     saver.xferCoord3D(options.originalPos);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourcePOWTruckAIUpdateModuleData(options: {
+  aiMode: number;
+  currentTask: number;
+  targetId: number;
+  prisonId: number;
+  enteredWaitingFrame: number;
+  lastFindFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-pow-truck-ai-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(new Uint8Array([4, 0xaa, 0xbb, 0xcc]));
+    saver.xferUser(sourceRawInt32(options.aiMode));
+    saver.xferUser(sourceRawInt32(options.currentTask));
+    saver.xferObjectID(options.targetId);
+    saver.xferObjectID(options.prisonId);
+    saver.xferUnsignedInt(options.enteredWaitingFrame);
+    saver.xferUnsignedInt(options.lastFindFrame);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -5673,6 +5704,59 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedChinook.chinookHealingAirfieldId).toBe(401);
   });
 
+  it('imports source POWTruckAIUpdate task state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const powTruckState = createEmptySourceMapEntitySaveState();
+    powTruckState.objectId = 125;
+    powTruckState.position = { x: 162, y: 0, z: 60 };
+    powTruckState.modules = [{
+      identifier: 'ModuleTag_POWAI',
+      blockData: buildSourcePOWTruckAIUpdateModuleData({
+        aiMode: 1,
+        currentTask: 3,
+        targetId: 501,
+        prisonId: 502,
+        enteredWaitingFrame: 333,
+        lastFindFrame: 444,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'POWTruckObject', state: powTruckState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        powTruckAIMode: number;
+        powTruckCurrentTask: number;
+        powTruckTargetId: number;
+        powTruckPrisonId: number;
+        powTruckEnteredWaitingFrame: number;
+        powTruckLastFindFrame: number;
+      }>;
+    };
+
+    const importedPowTruck = privateLogic.spawnedEntities.get(125)!;
+    expect(importedPowTruck.powTruckAIMode).toBe(1);
+    expect(importedPowTruck.powTruckCurrentTask).toBe(3);
+    expect(importedPowTruck.powTruckTargetId).toBe(501);
+    expect(importedPowTruck.powTruckPrisonId).toBe(502);
+    expect(importedPowTruck.powTruckEnteredWaitingFrame).toBe(333);
+    expect(importedPowTruck.powTruckLastFindFrame).toBe(444);
+  });
+
   it('imports source DozerAIUpdate task targets', () => {
     const bundle = makeSourceOwnedCoreBundle();
     const registry = makeRegistry(bundle);
@@ -5682,8 +5766,8 @@ describe('source-owned game-logic core save-state', () => {
     logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
 
     const dozerState = createEmptySourceMapEntitySaveState();
-    dozerState.objectId = 125;
-    dozerState.position = { x: 162, y: 0, z: 60 };
+    dozerState.objectId = 126;
+    dozerState.position = { x: 164, y: 0, z: 60 };
     dozerState.modules = [{
       identifier: 'ModuleTag_DozerAI',
       blockData: buildSourceDozerAIUpdateModuleData({
@@ -5718,13 +5802,13 @@ describe('source-owned game-logic core save-state', () => {
       pendingRepairActions: Map<number, number>;
     };
 
-    const importedDozer = privateLogic.spawnedEntities.get(125)!;
+    const importedDozer = privateLogic.spawnedEntities.get(126)!;
     expect(importedDozer.dozerBuildTargetEntityId).toBe(501);
     expect(importedDozer.dozerBuildTaskOrderFrame).toBe(120);
     expect(importedDozer.dozerRepairTargetEntityId).toBe(502);
     expect(importedDozer.dozerRepairTaskOrderFrame).toBe(140);
-    expect(privateLogic.pendingConstructionActions.get(125)).toBe(501);
-    expect(privateLogic.pendingRepairActions.get(125)).toBe(502);
+    expect(privateLogic.pendingConstructionActions.get(126)).toBe(501);
+    expect(privateLogic.pendingRepairActions.get(126)).toBe(502);
   });
 
   it('imports source RebuildHoleBehavior runtime state', () => {

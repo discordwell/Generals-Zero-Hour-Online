@@ -6121,6 +6121,17 @@ interface SourceChinookAIUpdateBlockState {
   originalPos: Coord3D | null;
 }
 
+interface SourcePOWTruckAIUpdateBlockState {
+  blockData: Uint8Array;
+  tailOffset: number;
+  aiMode: number;
+  currentTask: number;
+  targetId: number;
+  prisonId: number;
+  enteredWaitingFrame: number;
+  lastFindFrame: number;
+}
+
 interface SourceDozerAIUpdateBlockState {
   blockData: Uint8Array;
   taskOffset: number;
@@ -6907,6 +6918,69 @@ function buildSourceChinookAIUpdateBlockData(
   view.setUint32(
     preservedState.tailOffset + 4,
     normalizeSourceObjectId(entity.chinookHealingAirfieldId ?? preservedState.airfieldForHealing),
+    true,
+  );
+  return blockData;
+}
+
+function tryParseSourcePOWTruckAIUpdateBlockData(
+  data: Uint8Array,
+): SourcePOWTruckAIUpdateBlockState | null {
+  if (data.byteLength < 25 || data[0] !== 1) {
+    return null;
+  }
+  const blockData = new Uint8Array(data);
+  const tailOffset = blockData.byteLength - 24;
+  if (tailOffset < 2) {
+    return null;
+  }
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  return {
+    blockData,
+    tailOffset,
+    aiMode: view.getInt32(tailOffset, true),
+    currentTask: view.getInt32(tailOffset + 4, true),
+    targetId: view.getUint32(tailOffset + 8, true),
+    prisonId: view.getUint32(tailOffset + 12, true),
+    enteredWaitingFrame: view.getUint32(tailOffset + 16, true),
+    lastFindFrame: view.getUint32(tailOffset + 20, true),
+  };
+}
+
+function buildSourcePOWTruckAIUpdateBlockData(
+  entity: MapEntity,
+  preservedState: SourcePOWTruckAIUpdateBlockState,
+): Uint8Array {
+  const blockData = new Uint8Array(preservedState.blockData);
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  view.setInt32(
+    preservedState.tailOffset,
+    sourceFiniteInt(entity.powTruckAIMode, preservedState.aiMode),
+    true,
+  );
+  view.setInt32(
+    preservedState.tailOffset + 4,
+    sourceFiniteInt(entity.powTruckCurrentTask, preservedState.currentTask),
+    true,
+  );
+  view.setUint32(
+    preservedState.tailOffset + 8,
+    normalizeSourceObjectId(entity.powTruckTargetId ?? preservedState.targetId),
+    true,
+  );
+  view.setUint32(
+    preservedState.tailOffset + 12,
+    normalizeSourceObjectId(entity.powTruckPrisonId ?? preservedState.prisonId),
+    true,
+  );
+  view.setUint32(
+    preservedState.tailOffset + 16,
+    sourceFlammableUnsignedFrame(entity.powTruckEnteredWaitingFrame, preservedState.enteredWaitingFrame),
+    true,
+  );
+  view.setUint32(
+    preservedState.tailOffset + 20,
+    sourceFlammableUnsignedFrame(entity.powTruckLastFindFrame, preservedState.lastFindFrame),
     true,
   );
   return blockData;
@@ -13610,6 +13684,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceChinookAIUpdateBlockData(entity, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'POWTRUCKAIUPDATE' && entity.powTruckAIProfile) {
+            const parsedSourceState = tryParseSourcePOWTruckAIUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourcePOWTruckAIUpdateBlockData(entity, parsedSourceState),
               };
             }
           }

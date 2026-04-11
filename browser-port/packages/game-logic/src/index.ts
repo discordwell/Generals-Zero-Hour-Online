@@ -3694,6 +3694,18 @@ export interface MapEntity {
   workerAIProfile: WorkerAIProfile | null;
   /** Source parity: POWTruckAIUpdateModuleData fields. */
   powTruckAIProfile: POWTruckAIProfile | null;
+  /** Source parity: POWTruckAIUpdate::m_aiMode (AUTOMATIC=0, MANUAL=1). */
+  powTruckAIMode: number;
+  /** Source parity: POWTruckAIUpdate::m_currentTask. */
+  powTruckCurrentTask: number;
+  /** Source parity: POWTruckAIUpdate::m_targetID. */
+  powTruckTargetId: number;
+  /** Source parity: POWTruckAIUpdate::m_prisonID. */
+  powTruckPrisonId: number;
+  /** Source parity: POWTruckAIUpdate::m_enteredWaitingFrame. */
+  powTruckEnteredWaitingFrame: number;
+  /** Source parity: POWTruckAIUpdate::m_lastFindFrame. */
+  powTruckLastFindFrame: number;
   /** Source parity: DozerPrimaryIdleState::m_idleTooLongTimestamp. */
   dozerIdleTooLongTimestamp: number;
   /** Source parity: DozerAIUpdate/WorkerAIUpdate::m_task[DOZER_TASK_BUILD].m_targetObjectID. */
@@ -9052,6 +9064,15 @@ interface SourceSupplyTruckAIUpdateImportState {
 interface SourceChinookAIUpdateImportState {
   flightStatus: number;
   airfieldForHealing: number;
+}
+
+interface SourcePOWTruckAIUpdateImportState {
+  aiMode: number;
+  currentTask: number;
+  targetId: number;
+  prisonId: number;
+  enteredWaitingFrame: number;
+  lastFindFrame: number;
 }
 
 interface SourceDozerAIUpdateImportState {
@@ -16342,6 +16363,65 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourcePOWTruckAIUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourcePOWTruckAIUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'POWTRUCKAIUPDATE') {
+      return null;
+    }
+    if (data.byteLength < 25 || data[0] !== 1) {
+      return null;
+    }
+    const tailOffset = data.byteLength - 24;
+    if (tailOffset < 2) {
+      return null;
+    }
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    return {
+      aiMode: view.getInt32(tailOffset, true),
+      currentTask: view.getInt32(tailOffset + 4, true),
+      targetId: view.getUint32(tailOffset + 8, true),
+      prisonId: view.getUint32(tailOffset + 12, true),
+      enteredWaitingFrame: view.getUint32(tailOffset + 16, true),
+      lastFindFrame: view.getUint32(tailOffset + 20, true),
+    };
+  }
+
+  private applySourcePOWTruckAIUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.powTruckAIProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const powTruckState = this.tryParseSourcePOWTruckAIUpdateImportState(module.blockData, moduleType);
+      if (!powTruckState) {
+        continue;
+      }
+      entity.powTruckAIMode = Number.isFinite(powTruckState.aiMode)
+        ? Math.trunc(powTruckState.aiMode)
+        : 0;
+      entity.powTruckCurrentTask = Number.isFinite(powTruckState.currentTask)
+        ? Math.trunc(powTruckState.currentTask)
+        : 0;
+      entity.powTruckTargetId = Math.max(0, Math.trunc(powTruckState.targetId));
+      entity.powTruckPrisonId = Math.max(0, Math.trunc(powTruckState.prisonId));
+      entity.powTruckEnteredWaitingFrame = Math.max(0, Math.trunc(powTruckState.enteredWaitingFrame));
+      entity.powTruckLastFindFrame = Math.max(0, Math.trunc(powTruckState.lastFindFrame));
+      return;
+    }
+  }
+
   private findSourceDozerTaskOffset(data: Uint8Array, suffixOffset: number): number {
     const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
     const afterTaskByteLength = 4 + SOURCE_DOZER_NUM_TASKS * SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH;
@@ -21900,6 +21980,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceAssaultTransportAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceSupplyTruckAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceChinookAIUpdateModulesToEntity(entity, sourceState);
+    this.applySourcePOWTruckAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceDozerAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceParkingPlaceBehaviorModulesToEntity(entity, sourceState);
     this.applySourceFlightDeckBehaviorModulesToEntity(entity, sourceState);

@@ -2124,6 +2124,45 @@ function parseSourceChinookAIUpdateBlockData(data: Uint8Array) {
   };
 }
 
+function createSourcePOWTruckAIUpdateBlockData(options: {
+  aiMode: number;
+  currentTask: number;
+  targetId: number;
+  prisonId: number;
+  enteredWaitingFrame: number;
+  lastFindFrame: number;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-pow-truck-ai-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(new Uint8Array([4, 0xaa, 0xbb, 0xcc]));
+    xferSave.xferUser(createRawInt32Bytes(options.aiMode));
+    xferSave.xferUser(createRawInt32Bytes(options.currentTask));
+    xferSave.xferObjectID(options.targetId);
+    xferSave.xferObjectID(options.prisonId);
+    xferSave.xferUnsignedInt(options.enteredWaitingFrame);
+    xferSave.xferUnsignedInt(options.lastFindFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourcePOWTruckAIUpdateBlockData(data: Uint8Array) {
+  const tailOffset = data.byteLength - 24;
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  return {
+    prefix: [...data.subarray(0, tailOffset)],
+    aiMode: view.getInt32(tailOffset, true),
+    currentTask: view.getInt32(tailOffset + 4, true),
+    targetId: view.getUint32(tailOffset + 8, true),
+    prisonId: view.getUint32(tailOffset + 12, true),
+    enteredWaitingFrame: view.getUint32(tailOffset + 16, true),
+    lastFindFrame: view.getUint32(tailOffset + 20, true),
+  };
+}
+
 function createSourceDozerAIUpdateBlockData(options: {
   tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
   currentTask: number;
@@ -13450,6 +13489,121 @@ describe('runtime-save-game', () => {
     expect(parsed.flightStatus).toBe(2);
     expect(parsed.airfieldForHealing).toBe(77);
     expect(parsed.originalPos).toEqual(preserved.originalPos);
+  });
+
+  it('rewrites source POWTruckAIUpdate tail while preserving AIUpdateInterface bytes', () => {
+    const sourcePowTruckBlock = createSourcePOWTruckAIUpdateBlockData({
+      aiMode: 0,
+      currentTask: 1,
+      targetId: 5,
+      prisonId: 6,
+      enteredWaitingFrame: 10,
+      lastFindFrame: 12,
+    });
+    const preserved = parseSourcePOWTruckAIUpdateBlockData(sourcePowTruckBlock);
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_POWAI',
+      blockData: sourcePowTruckBlock,
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source pow truck ai update rewrite',
+      mapPath: 'Maps/RuntimePOWTruck/RuntimePOWTruck.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimePOWTruck',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            powTruckAIProfile: {
+              boredTimeFrames: 30,
+              atPrisonDistance: 80,
+            },
+            powTruckAIMode: 1,
+            powTruckCurrentTask: 3,
+            powTruckTargetId: 51,
+            powTruckPrisonId: 52,
+            powTruckEnteredWaitingFrame: 333,
+            powTruckLastFindFrame: 444,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_POWAI') {
+            return 'POWTRUCKAIUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const powTruckModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_POWAI');
+
+    expect(powTruckModule).toBeDefined();
+    const parsed = parseSourcePOWTruckAIUpdateBlockData(powTruckModule!.blockData);
+    expect(parsed.prefix).toEqual(preserved.prefix);
+    expect(parsed.aiMode).toBe(1);
+    expect(parsed.currentTask).toBe(3);
+    expect(parsed.targetId).toBe(51);
+    expect(parsed.prisonId).toBe(52);
+    expect(parsed.enteredWaitingFrame).toBe(333);
+    expect(parsed.lastFindFrame).toBe(444);
   });
 
   it('rewrites source DozerAIUpdate task targets while preserving state-machine bytes', () => {

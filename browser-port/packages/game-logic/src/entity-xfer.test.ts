@@ -220,6 +220,12 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     commandButtonHuntNextScanFrame: 0,
     dozerAIProfile: null,
     powTruckAIProfile: null,
+    powTruckAIMode: 0,
+    powTruckCurrentTask: 0,
+    powTruckTargetId: 0,
+    powTruckPrisonId: 0,
+    powTruckEnteredWaitingFrame: 0,
+    powTruckLastFindFrame: 0,
     dozerIdleTooLongTimestamp: 0,
     dozerBuildTargetEntityId: 0,
     dozerBuildTaskOrderFrame: 0,
@@ -1208,6 +1214,12 @@ describe('entity-xfer', () => {
         boredTimeFrames: 30,
         atPrisonDistance: 80,
       },
+      powTruckAIMode: 1,
+      powTruckCurrentTask: 3,
+      powTruckTargetId: 24,
+      powTruckPrisonId: 25,
+      powTruckEnteredWaitingFrame: 111,
+      powTruckLastFindFrame: 222,
       prisonBehaviorProfile: {
         showPrisoners: true,
         yardBonePrefix: 'Prisoner',
@@ -1235,6 +1247,12 @@ describe('entity-xfer', () => {
 
     expect(loaded.initialPayloadCreated).toBe(true);
     expect(loaded.powTruckAIProfile).toEqual({ boredTimeFrames: 30, atPrisonDistance: 80 });
+    expect(loaded.powTruckAIMode).toBe(1);
+    expect(loaded.powTruckCurrentTask).toBe(3);
+    expect(loaded.powTruckTargetId).toBe(24);
+    expect(loaded.powTruckPrisonId).toBe(25);
+    expect(loaded.powTruckEnteredWaitingFrame).toBe(111);
+    expect(loaded.powTruckLastFindFrame).toBe(222);
     expect(loaded.prisonBehaviorProfile).toEqual({
       showPrisoners: true,
       yardBonePrefix: 'Prisoner',
