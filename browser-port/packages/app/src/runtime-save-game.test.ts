@@ -1064,6 +1064,8 @@ const SOURCE_PHYSICS_INVALID_VEL_MAG = -1;
 const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
+const SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH = 64 * 12;
+const SOURCE_WAVEGUIDE_SHAPE_EFFECTS_BYTE_LENGTH = 64 * 3 * 4;
 const SOURCE_FLAMMABLE_STATUS_AFLAME = 1;
 const SOURCE_DEATH_TYPE_POISONED = 5;
 const SOURCE_DEATH_TYPE_LASERED = 9;
@@ -1206,6 +1208,44 @@ function createSourceRailroadBehaviorBlockData(state: SourceRailroadBehaviorTest
     writeSourceRailroadPullInfo(xferSave, state.pullInfo);
     writeSourceRailroadPullInfo(xferSave, state.conductorPullInfo);
     xferSave.xferBool(state.held);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+interface SourceWaveGuideUpdateTestState {
+  nextCallFrameAndPhase: number;
+  activeFrame: number;
+  needDisable: boolean;
+  initialized: boolean;
+  shapePointsBytes: Uint8Array;
+  transformedShapePointsBytes: Uint8Array;
+  shapeEffectsBytes: Uint8Array;
+  shapePointCount: number;
+  splashSoundFrame: number;
+  finalDestination: Coord3D;
+}
+
+function createPatternBytes(length: number, seed: number): Uint8Array {
+  return Uint8Array.from({ length }, (_, index) => (seed + index * 17) & 0xff);
+}
+
+function createSourceWaveGuideUpdateBlockData(state: SourceWaveGuideUpdateTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-wave-guide-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferUnsignedInt(state.activeFrame);
+    xferSave.xferBool(state.needDisable);
+    xferSave.xferBool(state.initialized);
+    xferSave.xferUser(state.shapePointsBytes);
+    xferSave.xferUser(state.transformedShapePointsBytes);
+    xferSave.xferUser(state.shapeEffectsBytes);
+    xferSave.xferInt(state.shapePointCount);
+    xferSave.xferUnsignedInt(state.splashSoundFrame);
+    xferSave.xferCoord3D(state.finalDestination);
     return new Uint8Array(xferSave.getBuffer());
   } finally {
     xferSave.close();
@@ -6937,6 +6977,32 @@ function parseSourceRailroadBehaviorBlockData(data: Uint8Array): SourceRailroadB
       pullInfo,
       conductorPullInfo,
       held,
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceWaveGuideUpdateBlockData(data: Uint8Array): SourceWaveGuideUpdateTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-wave-guide-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      activeFrame: xferLoad.xferUnsignedInt(0),
+      needDisable: xferLoad.xferBool(false),
+      initialized: xferLoad.xferBool(false),
+      shapePointsBytes: xferLoad.xferUser(new Uint8Array(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH)),
+      transformedShapePointsBytes: xferLoad.xferUser(new Uint8Array(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH)),
+      shapeEffectsBytes: xferLoad.xferUser(new Uint8Array(SOURCE_WAVEGUIDE_SHAPE_EFFECTS_BYTE_LENGTH)),
+      shapePointCount: xferLoad.xferInt(0),
+      splashSoundFrame: xferLoad.xferUnsignedInt(0),
+      finalDestination: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
     };
   } finally {
     xferLoad.close();
@@ -15261,6 +15327,136 @@ describe('runtime-save-game', () => {
     expect(parsed.conductorPullInfo.speed).toBeCloseTo(63);
     expect(parsed.conductorPullInfo.currentWaypoint).toBe(70);
     expect(parsed.held).toBe(true);
+  });
+
+  it('rewrites source WaveGuideUpdate xfer state', () => {
+    const preservedShapePoints = createPatternBytes(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH, 3);
+    const preservedTransformedShapePoints = createPatternBytes(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH, 7);
+    const preservedShapeEffects = createPatternBytes(SOURCE_WAVEGUIDE_SHAPE_EFFECTS_BYTE_LENGTH, 11);
+    const liveShapePoints = createPatternBytes(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH, 13);
+    const liveTransformedShapePoints = createPatternBytes(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH, 17);
+    const liveShapeEffects = createPatternBytes(SOURCE_WAVEGUIDE_SHAPE_EFFECTS_BYTE_LENGTH, 19);
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_WaveGuide',
+      blockData: createSourceWaveGuideUpdateBlockData({
+        nextCallFrameAndPhase: (43 << 2) | 2,
+        activeFrame: 44,
+        needDisable: false,
+        initialized: true,
+        shapePointsBytes: preservedShapePoints,
+        transformedShapePointsBytes: preservedTransformedShapePoints,
+        shapeEffectsBytes: preservedShapeEffects,
+        shapePointCount: 5,
+        splashSoundFrame: 45,
+        finalDestination: { x: 100, y: 200, z: 3 },
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source wave guide update rewrite',
+      mapPath: 'Maps/RuntimeWaveGuide/RuntimeWaveGuide.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeWaveGuide',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            sourceWaveGuideUpdateState: {
+              nextCallFrameAndPhase: (90 << 2) | 2,
+              activeFrame: 91,
+              needDisable: true,
+              initialized: false,
+              shapePointsBytes: Array.from(liveShapePoints),
+              transformedShapePointsBytes: Array.from(liveTransformedShapePoints),
+              shapeEffectsBytes: Array.from(liveShapeEffects),
+              shapePointCount: 42,
+              splashSoundFrame: 93,
+              finalDestinationX: 501,
+              finalDestinationY: 7,
+              finalDestinationZ: 602,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_WaveGuide') {
+            return 'WAVEGUIDEUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const waveGuideModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_WaveGuide');
+
+    expect(waveGuideModule).toBeDefined();
+    const parsed = parseSourceWaveGuideUpdateBlockData(waveGuideModule!.blockData);
+    expect(parsed.nextCallFrameAndPhase).toBe((90 << 2) | 2);
+    expect(parsed.activeFrame).toBe(91);
+    expect(parsed.needDisable).toBe(true);
+    expect(parsed.initialized).toBe(false);
+    expect(Array.from(parsed.shapePointsBytes)).toEqual(Array.from(liveShapePoints));
+    expect(Array.from(parsed.transformedShapePointsBytes)).toEqual(Array.from(liveTransformedShapePoints));
+    expect(Array.from(parsed.shapeEffectsBytes)).toEqual(Array.from(liveShapeEffects));
+    expect(parsed.shapePointCount).toBe(42);
+    expect(parsed.splashSoundFrame).toBe(93);
+    expect(parsed.finalDestination).toEqual({ x: 501, y: 602, z: 7 });
   });
 
   it('rewrites source WorkerAIUpdate tasks and supply tail while preserving state-machine bytes', () => {

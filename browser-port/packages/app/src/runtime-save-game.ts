@@ -205,6 +205,14 @@ const SOURCE_PHYSICS_INVALID_VEL_MAG = -1;
 const SOURCE_RAILROAD_BEHAVIOR_CURRENT_VERSION = 3;
 const SOURCE_RAILROAD_PULL_INFO_CURRENT_VERSION = 1;
 const SOURCE_RAILROAD_ENUM_BYTE_LENGTH = 4;
+const SOURCE_WAVEGUIDE_CURRENT_VERSION = 1;
+const SOURCE_WAVEGUIDE_MAX_SHAPE_POINTS = 64;
+const SOURCE_WAVEGUIDE_MAX_SHAPE_EFFECTS = 3;
+const SOURCE_COORD3D_BYTE_LENGTH = 12;
+const SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH =
+  SOURCE_WAVEGUIDE_MAX_SHAPE_POINTS * SOURCE_COORD3D_BYTE_LENGTH;
+const SOURCE_WAVEGUIDE_SHAPE_EFFECTS_BYTE_LENGTH =
+  SOURCE_WAVEGUIDE_MAX_SHAPE_POINTS * SOURCE_WAVEGUIDE_MAX_SHAPE_EFFECTS * 4;
 const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_PROJECTILE_STREAM_MAX_ACTIVE = SOURCE_PROJECTILE_STREAM_MAX - 1;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
@@ -4754,6 +4762,20 @@ interface SourceRailroadBehaviorBlockState {
   held: boolean;
 }
 
+interface SourceWaveGuideUpdateBlockState {
+  version: number;
+  nextCallFrameAndPhase: number;
+  activeFrame: number;
+  needDisable: boolean;
+  initialized: boolean;
+  shapePointsBytes: Uint8Array;
+  transformedShapePointsBytes: Uint8Array;
+  shapeEffectsBytes: Uint8Array;
+  shapePointCount: number;
+  splashSoundFrame: number;
+  finalDestination: Coord3D;
+}
+
 function sourcePhysicsFinite(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
@@ -5217,6 +5239,130 @@ function buildSourceRailroadBehaviorBlockData(
     writeSourceRailroadBehaviorPullInfoBlockData(saver, pullInfo);
     writeSourceRailroadBehaviorPullInfoBlockData(saver, conductorPullInfo);
     saver.xferBool(sourceRailroadRuntimeBool(runtimeState?.held, preservedState.held));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceWaveGuideUpdateBlockData(
+  data: Uint8Array,
+): SourceWaveGuideUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-wave-guide-update');
+  try {
+    const version = xferLoad.xferVersion(SOURCE_WAVEGUIDE_CURRENT_VERSION);
+    if (version !== SOURCE_WAVEGUIDE_CURRENT_VERSION) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(xferLoad, 0);
+    const activeFrame = xferLoad.xferUnsignedInt(0);
+    const needDisable = xferLoad.xferBool(false);
+    const initialized = xferLoad.xferBool(false);
+    const shapePointsBytes = xferLoad.xferUser(new Uint8Array(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH));
+    const transformedShapePointsBytes = xferLoad.xferUser(
+      new Uint8Array(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH),
+    );
+    const shapeEffectsBytes = xferLoad.xferUser(new Uint8Array(SOURCE_WAVEGUIDE_SHAPE_EFFECTS_BYTE_LENGTH));
+    const shapePointCount = xferLoad.xferInt(0);
+    const splashSoundFrame = xferLoad.xferUnsignedInt(0);
+    const finalDestination = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    if (xferLoad.getRemaining() !== 0) {
+      return null;
+    }
+    return {
+      version,
+      nextCallFrameAndPhase,
+      activeFrame,
+      needDisable,
+      initialized,
+      shapePointsBytes,
+      transformedShapePointsBytes,
+      shapeEffectsBytes,
+      shapePointCount,
+      splashSoundFrame,
+      finalDestination,
+    };
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function sourceWaveGuideRuntimeNumber(value: unknown, fallback: number): number {
+  return Number.isFinite(value) ? Number(value) : fallback;
+}
+
+function sourceWaveGuideRuntimeInt(value: unknown, fallback: number): number {
+  return Number.isFinite(value) ? Math.trunc(Number(value)) : Math.trunc(fallback);
+}
+
+function sourceWaveGuideRuntimeBool(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function sourceWaveGuideRuntimeByteArray(
+  value: unknown,
+  fallback: Uint8Array,
+  byteLength: number,
+): Uint8Array {
+  const source = Array.isArray(value)
+    ? value.map((entry) => Math.trunc(Number(entry)) & 0xff)
+    : Array.from(fallback);
+  const result = new Uint8Array(byteLength);
+  for (let index = 0; index < byteLength; index += 1) {
+    result[index] = source[index] ?? 0;
+  }
+  return result;
+}
+
+function buildSourceWaveGuideUpdateBlockData(
+  entity: MapEntity,
+  preservedState: SourceWaveGuideUpdateBlockState,
+): Uint8Array {
+  const runtimeState = (entity as {
+    sourceWaveGuideUpdateState?: SourceWaveGuideUpdateRuntimeState | null;
+  }).sourceWaveGuideUpdateState ?? null;
+  const saver = new XferSave();
+  saver.open('build-source-wave-guide-update');
+  try {
+    saver.xferVersion(SOURCE_WAVEGUIDE_CURRENT_VERSION);
+    xferSourceUpdateModuleBase(
+      saver,
+      sourceFlammableUnsignedFrame(
+        runtimeState?.nextCallFrameAndPhase,
+        preservedState.nextCallFrameAndPhase,
+      ),
+    );
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(runtimeState?.activeFrame, preservedState.activeFrame));
+    saver.xferBool(sourceWaveGuideRuntimeBool(runtimeState?.needDisable, preservedState.needDisable));
+    saver.xferBool(sourceWaveGuideRuntimeBool(runtimeState?.initialized, preservedState.initialized));
+    saver.xferUser(sourceWaveGuideRuntimeByteArray(
+      runtimeState?.shapePointsBytes,
+      preservedState.shapePointsBytes,
+      SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH,
+    ));
+    saver.xferUser(sourceWaveGuideRuntimeByteArray(
+      runtimeState?.transformedShapePointsBytes,
+      preservedState.transformedShapePointsBytes,
+      SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH,
+    ));
+    saver.xferUser(sourceWaveGuideRuntimeByteArray(
+      runtimeState?.shapeEffectsBytes,
+      preservedState.shapeEffectsBytes,
+      SOURCE_WAVEGUIDE_SHAPE_EFFECTS_BYTE_LENGTH,
+    ));
+    saver.xferInt(sourceWaveGuideRuntimeInt(runtimeState?.shapePointCount, preservedState.shapePointCount));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(
+      runtimeState?.splashSoundFrame,
+      preservedState.splashSoundFrame,
+    ));
+    saver.xferCoord3D({
+      x: sourceWaveGuideRuntimeNumber(runtimeState?.finalDestinationX, preservedState.finalDestination.x),
+      y: sourceWaveGuideRuntimeNumber(runtimeState?.finalDestinationZ, preservedState.finalDestination.y),
+      z: sourceWaveGuideRuntimeNumber(runtimeState?.finalDestinationY, preservedState.finalDestination.z),
+    });
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -6616,6 +6762,21 @@ interface SourceRailroadBehaviorRuntimeState {
   pullInfo?: SourceRailroadBehaviorPullInfoRuntimeState | null;
   conductorPullInfo?: SourceRailroadBehaviorPullInfoRuntimeState | null;
   held?: unknown;
+}
+
+interface SourceWaveGuideUpdateRuntimeState {
+  nextCallFrameAndPhase?: unknown;
+  activeFrame?: unknown;
+  needDisable?: unknown;
+  initialized?: unknown;
+  shapePointsBytes?: unknown;
+  transformedShapePointsBytes?: unknown;
+  shapeEffectsBytes?: unknown;
+  shapePointCount?: unknown;
+  splashSoundFrame?: unknown;
+  finalDestinationX?: unknown;
+  finalDestinationY?: unknown;
+  finalDestinationZ?: unknown;
 }
 
 interface SourceWorkerAIUpdateBlockState {
@@ -15398,6 +15559,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceRailroadBehaviorBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'WAVEGUIDEUPDATE') {
+            const parsedSourceState = tryParseSourceWaveGuideUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceWaveGuideUpdateBlockData(entity, parsedSourceState),
               };
             }
           }

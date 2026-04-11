@@ -318,6 +318,11 @@ function makeSourceOwnedCoreBundle() {
           IsLocomotive: true,
         }),
       ]),
+      makeObjectDef('WaveGuideObject', 'Civilian', ['IMMOBILE'], [
+        makeBlock('Behavior', 'WaveGuideUpdate ModuleTag_WaveGuide', {
+          WaveDelay: 1000,
+        }),
+      ]),
       makeObjectDef('ChinookObject', 'America', ['AIRCRAFT'], [
         makeBlock('Behavior', 'ChinookAIUpdate ModuleTag_ChinookAI', {
           MaxBoxes: 8,
@@ -908,6 +913,8 @@ function writeTestSourceBehaviorModuleBase(saver: XferSave): void {
 const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
+const SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH = 64 * 12;
+const SOURCE_WAVEGUIDE_SHAPE_EFFECTS_BYTE_LENGTH = 64 * 3 * 4;
 const SOURCE_SLOW_DEATH_FLAG_ACTIVATED = 1 << 0;
 const SOURCE_SLOW_DEATH_FLAG_MIDPOINT_EXECUTED = 1 << 1;
 const SOURCE_SLOW_DEATH_FLAG_FLUNG_INTO_AIR = 1 << 2;
@@ -4143,6 +4150,43 @@ function buildSourceRailroadBehaviorModuleData(options: {
     writeSourceRailroadPullInfo(saver, options.pullInfo);
     writeSourceRailroadPullInfo(saver, options.conductorPullInfo);
     saver.xferBool(options.held);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function createSourcePatternBytes(length: number, seed: number): Uint8Array {
+  return Uint8Array.from({ length }, (_, index) => (seed + index * 17) & 0xff);
+}
+
+function buildSourceWaveGuideUpdateModuleData(options: {
+  nextCallFrame: number;
+  phase?: number;
+  activeFrame: number;
+  needDisable: boolean;
+  initialized: boolean;
+  shapePointsBytes: Uint8Array;
+  transformedShapePointsBytes: Uint8Array;
+  shapeEffectsBytes: Uint8Array;
+  shapePointCount: number;
+  splashSoundFrame: number;
+  finalDestination: { x: number; y: number; z: number };
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-wave-guide-update');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame, options.phase ?? 0);
+    saver.xferUnsignedInt(options.activeFrame);
+    saver.xferBool(options.needDisable);
+    saver.xferBool(options.initialized);
+    saver.xferUser(options.shapePointsBytes);
+    saver.xferUser(options.transformedShapePointsBytes);
+    saver.xferUser(options.shapeEffectsBytes);
+    saver.xferInt(options.shapePointCount);
+    saver.xferUnsignedInt(options.splashSoundFrame);
+    saver.xferCoord3D(options.finalDestination);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -9297,6 +9341,85 @@ describe('source-owned game-logic core save-state', () => {
       towHitchPositionZ: 23,
       currentWaypoint: 69,
     });
+  });
+
+  it('imports source WaveGuideUpdate xfer state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const shapePointsBytes = createSourcePatternBytes(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH, 21);
+    const transformedShapePointsBytes = createSourcePatternBytes(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH, 31);
+    const shapeEffectsBytes = createSourcePatternBytes(SOURCE_WAVEGUIDE_SHAPE_EFFECTS_BYTE_LENGTH, 41);
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 104;
+    sourceState.position = { x: 174, y: 0, z: 64 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_WaveGuide',
+      blockData: buildSourceWaveGuideUpdateModuleData({
+        nextCallFrame: 247,
+        phase: 2,
+        activeFrame: 301,
+        needDisable: true,
+        initialized: false,
+        shapePointsBytes,
+        transformedShapePointsBytes,
+        shapeEffectsBytes,
+        shapePointCount: 42,
+        splashSoundFrame: 303,
+        finalDestination: { x: 71, y: 72, z: 7 },
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 170,
+      objects: [
+        { templateName: 'WaveGuideObject', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        sourceWaveGuideUpdateState: {
+          nextCallFrameAndPhase: number;
+          activeFrame: number;
+          needDisable: boolean;
+          initialized: boolean;
+          shapePointsBytes: number[];
+          transformedShapePointsBytes: number[];
+          shapeEffectsBytes: number[];
+          shapePointCount: number;
+          splashSoundFrame: number;
+          finalDestinationX: number;
+          finalDestinationY: number;
+          finalDestinationZ: number;
+        } | null;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(104)!;
+    expect(entity.sourceWaveGuideUpdateState).toMatchObject({
+      nextCallFrameAndPhase: sourceUpdateFrameAndPhase(247, 2),
+      activeFrame: 301,
+      needDisable: true,
+      initialized: false,
+      shapePointCount: 42,
+      splashSoundFrame: 303,
+      finalDestinationX: 71,
+      finalDestinationY: 7,
+      finalDestinationZ: 72,
+    });
+    expect(entity.sourceWaveGuideUpdateState!.shapePointsBytes).toEqual(Array.from(shapePointsBytes));
+    expect(entity.sourceWaveGuideUpdateState!.transformedShapePointsBytes).toEqual(
+      Array.from(transformedShapePointsBytes),
+    );
+    expect(entity.sourceWaveGuideUpdateState!.shapeEffectsBytes).toEqual(Array.from(shapeEffectsBytes));
   });
 
   it('imports source LifetimeUpdate runtime state', () => {

@@ -3233,6 +3233,21 @@ interface SourceRailroadBehaviorRuntimeState {
   held: boolean;
 }
 
+interface SourceWaveGuideUpdateRuntimeState {
+  nextCallFrameAndPhase: number;
+  activeFrame: number;
+  needDisable: boolean;
+  initialized: boolean;
+  shapePointsBytes: number[];
+  transformedShapePointsBytes: number[];
+  shapeEffectsBytes: number[];
+  shapePointCount: number;
+  splashSoundFrame: number;
+  finalDestinationX: number;
+  finalDestinationY: number;
+  finalDestinationZ: number;
+}
+
 interface SellingEntityState {
   sellFrame: number;
   constructionPercent: number;
@@ -4635,6 +4650,8 @@ export interface MapEntity {
   spectreGunshipDeploymentGunshipId: number;
   // ── Source parity: WaveGuideUpdate — flood wave mechanics (dam break / GLA Sneak Attack) ──
   waveGuideProfile: WaveGuideProfile | null;
+  // ── Source parity: WaveGuideUpdate source save state ──
+  sourceWaveGuideUpdateState: SourceWaveGuideUpdateRuntimeState | null;
 
   // ── Source parity: DumbProjectileBehavior — projectile flight path and detonation config ──
   /** DumbProjectileBehavior profile (null = entity has no DumbProjectileBehavior module). */
@@ -6709,6 +6726,14 @@ const SOURCE_PHYSICS_FLAG_IS_STUNNED = 0x0800;
 const SOURCE_RAILROAD_BEHAVIOR_CURRENT_VERSION = 3;
 const SOURCE_RAILROAD_PULL_INFO_CURRENT_VERSION = 1;
 const SOURCE_RAILROAD_ENUM_BYTE_LENGTH = 4;
+const SOURCE_WAVEGUIDE_CURRENT_VERSION = 1;
+const SOURCE_WAVEGUIDE_MAX_SHAPE_POINTS = 64;
+const SOURCE_WAVEGUIDE_MAX_SHAPE_EFFECTS = 3;
+const SOURCE_COORD3D_BYTE_LENGTH = 12;
+const SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH =
+  SOURCE_WAVEGUIDE_MAX_SHAPE_POINTS * SOURCE_COORD3D_BYTE_LENGTH;
+const SOURCE_WAVEGUIDE_SHAPE_EFFECTS_BYTE_LENGTH =
+  SOURCE_WAVEGUIDE_MAX_SHAPE_POINTS * SOURCE_WAVEGUIDE_MAX_SHAPE_EFFECTS * 4;
 
 function sourcePhysicsFlag(flags: number, bit: number): boolean {
   return (flags & bit) !== 0;
@@ -9174,6 +9199,19 @@ interface SourceRailroadBehaviorImportState {
   pullInfo: SourceRailroadBehaviorPullInfoImportState;
   conductorPullInfo: SourceRailroadBehaviorPullInfoImportState;
   held: boolean;
+}
+
+interface SourceWaveGuideUpdateImportState {
+  nextCallFrameAndPhase: number;
+  activeFrame: number;
+  needDisable: boolean;
+  initialized: boolean;
+  shapePointsBytes: number[];
+  transformedShapePointsBytes: number[];
+  shapeEffectsBytes: number[];
+  shapePointCount: number;
+  splashSoundFrame: number;
+  finalDestination: { x: number; y: number; z: number };
 }
 
 interface SourceLifetimeUpdateImportState {
@@ -16192,6 +16230,96 @@ export class GameLogicSubsystem implements Subsystem {
         pullInfo: this.sourceRailroadPullInfoToRuntime(railroadState.pullInfo),
         conductorPullInfo: this.sourceRailroadPullInfoToRuntime(railroadState.conductorPullInfo),
         held: railroadState.held,
+      };
+      return;
+    }
+  }
+
+  private tryParseSourceWaveGuideUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceWaveGuideUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'WAVEGUIDEUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-wave-guide-update-import');
+    try {
+      const version = xfer.xferVersion(SOURCE_WAVEGUIDE_CURRENT_VERSION);
+      if (version !== SOURCE_WAVEGUIDE_CURRENT_VERSION) {
+        return null;
+      }
+      const nextCallFrameAndPhase = this.skipSourceImportUpdateModuleBase(xfer);
+      const activeFrame = xfer.xferUnsignedInt(0);
+      const needDisable = xfer.xferBool(false);
+      const initialized = xfer.xferBool(false);
+      const shapePointsBytes = Array.from(xfer.xferUser(
+        new Uint8Array(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH),
+      ));
+      const transformedShapePointsBytes = Array.from(xfer.xferUser(
+        new Uint8Array(SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH),
+      ));
+      const shapeEffectsBytes = Array.from(xfer.xferUser(
+        new Uint8Array(SOURCE_WAVEGUIDE_SHAPE_EFFECTS_BYTE_LENGTH),
+      ));
+      const shapePointCount = xfer.xferInt(0);
+      const splashSoundFrame = xfer.xferUnsignedInt(0);
+      const finalDestination = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      return xfer.getRemaining() === 0
+        ? {
+          nextCallFrameAndPhase,
+          activeFrame,
+          needDisable,
+          initialized,
+          shapePointsBytes,
+          transformedShapePointsBytes,
+          shapeEffectsBytes,
+          shapePointCount,
+          splashSoundFrame,
+          finalDestination,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceWaveGuideUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const waveGuideState = this.tryParseSourceWaveGuideUpdateImportState(module.blockData, moduleType);
+      if (!waveGuideState) {
+        continue;
+      }
+
+      const finalDestination = this.sourceCoord3DToRuntime(waveGuideState.finalDestination);
+      entity.sourceWaveGuideUpdateState = {
+        nextCallFrameAndPhase: Math.max(0, Math.trunc(waveGuideState.nextCallFrameAndPhase)),
+        activeFrame: Math.max(0, Math.trunc(waveGuideState.activeFrame)),
+        needDisable: waveGuideState.needDisable,
+        initialized: waveGuideState.initialized,
+        shapePointsBytes: waveGuideState.shapePointsBytes.map((value) => Math.trunc(value) & 0xff),
+        transformedShapePointsBytes: waveGuideState.transformedShapePointsBytes.map(
+          (value) => Math.trunc(value) & 0xff,
+        ),
+        shapeEffectsBytes: waveGuideState.shapeEffectsBytes.map((value) => Math.trunc(value) & 0xff),
+        shapePointCount: Math.trunc(waveGuideState.shapePointCount),
+        splashSoundFrame: Math.max(0, Math.trunc(waveGuideState.splashSoundFrame)),
+        finalDestinationX: finalDestination.x,
+        finalDestinationY: finalDestination.y,
+        finalDestinationZ: finalDestination.z,
       };
       return;
     }
@@ -23388,6 +23516,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceDynamicShroudClearingRangeUpdateModulesToEntity(entity, sourceState);
     this.applySourcePhysicsBehaviorModulesToEntity(entity, sourceState);
     this.applySourceRailroadBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceWaveGuideUpdateModulesToEntity(entity, sourceState);
     this.applySourceLifetimeUpdateModulesToEntity(entity, sourceState);
     this.applySourceDeletionUpdateModulesToEntity(entity, sourceState);
     this.applySourceAutoFindHealingUpdateModulesToEntity(entity, sourceState);

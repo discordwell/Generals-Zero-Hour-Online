@@ -971,6 +971,7 @@ export function createMapEntity(self: GL,
     spectreGunshipDeploymentGunshipId: 0,
     // WaveGuideUpdate (flood wave mechanics — dam break / GLA Sneak Attack)
     waveGuideProfile: extractWaveGuideProfile(self, objectDef),
+    sourceWaveGuideUpdateState: null,
     // DumbProjectileBehavior (projectile flight path and detonation)
     dumbProjectileProfile: extractDumbProjectileBehaviorProfile(self, objectDef),
   };
