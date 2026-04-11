@@ -8725,6 +8725,21 @@ interface SourceSpyVisionUpdateImportState {
   disabledUntilFrame: number;
 }
 
+interface SourceSpecialAbilityUpdateImportState {
+  active: boolean;
+  prepFrames: number;
+  animFrames: number;
+  targetId: number;
+  targetPos: { x: number; y: number; z: number };
+  noTargetCommand: boolean;
+  packingState: SpecialAbilityPackingState;
+  facingInitiated: boolean;
+  facingComplete: boolean;
+  withinStartAbilityRange: boolean;
+  doDisableFxParticles: boolean;
+  captureFlashPhase: number;
+}
+
 export interface GameLogicObjectTriggerAreaEntrySaveState {
   triggerName: string;
   entered: number;
@@ -14020,6 +14035,116 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private sourceSpecialAbilityPackingStateFromInt(value: number): SpecialAbilityPackingState {
+    switch (Math.trunc(value)) {
+      case 1: return 'PACKING';
+      case 2: return 'UNPACKING';
+      case 3: return 'PACKED';
+      case 4: return 'UNPACKED';
+      default: return 'NONE';
+    }
+  }
+
+  private tryParseSourceSpecialAbilityUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceSpecialAbilityUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'SPECIALABILITYUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-special-ability-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      this.skipSourceImportUpdateModuleBase(xfer);
+      const active = xfer.xferBool(false);
+      const prepFrames = xfer.xferUnsignedInt(0);
+      const animFrames = xfer.xferUnsignedInt(0);
+      const targetId = xfer.xferObjectID(0);
+      const targetPos = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      xfer.xferInt(0);
+      xfer.xferObjectIDList([]);
+      xfer.xferUnsignedInt(0);
+      const noTargetCommand = xfer.xferBool(false);
+      const packingState = this.sourceSpecialAbilityPackingStateFromInt(xfer.xferInt(0));
+      const facingInitiated = xfer.xferBool(false);
+      const facingComplete = xfer.xferBool(false);
+      const withinStartAbilityRange = xfer.xferBool(false);
+      const doDisableFxParticles = xfer.xferBool(true);
+      const captureFlashPhase = xfer.xferReal(0);
+      return xfer.getRemaining() === 0
+        ? {
+          active,
+          prepFrames,
+          animFrames,
+          targetId,
+          targetPos,
+          noTargetCommand,
+          packingState,
+          facingInitiated,
+          facingComplete,
+          withinStartAbilityRange,
+          doDisableFxParticles,
+          captureFlashPhase,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceSpecialAbilityUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    const state = entity.specialAbilityState;
+    if (!state) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const abilityState = this.tryParseSourceSpecialAbilityUpdateImportState(module.blockData, moduleType);
+      if (!abilityState) {
+        continue;
+      }
+
+      state.active = abilityState.active;
+      state.prepFrames = Math.max(0, Math.trunc(abilityState.prepFrames));
+      state.animFrames = Math.max(0, Math.trunc(abilityState.animFrames));
+      state.targetEntityId = abilityState.targetId > 0 ? Math.trunc(abilityState.targetId) : null;
+      if (state.targetEntityId !== null || abilityState.noTargetCommand) {
+        state.targetX = null;
+        state.targetZ = null;
+      } else {
+        state.targetX = Number.isFinite(abilityState.targetPos.x) ? abilityState.targetPos.x : null;
+        state.targetZ = Number.isFinite(abilityState.targetPos.z) ? abilityState.targetPos.z : null;
+      }
+      state.noTargetCommand = abilityState.noTargetCommand;
+      state.packingState = abilityState.packingState;
+      state.facingInitiated = abilityState.facingInitiated;
+      state.facingComplete = abilityState.facingComplete;
+      state.withinStartAbilityRange = abilityState.withinStartAbilityRange;
+      state.doDisableFxParticles = abilityState.doDisableFxParticles;
+      state.captureFlashPhase = Number.isFinite(abilityState.captureFlashPhase)
+        ? abilityState.captureFlashPhase
+        : 0;
+      return;
+    }
+  }
+
   private applySourceMapEntityStateToEntity(
     entity: MapEntity,
     sourceState: SourceMapEntitySaveState,
@@ -14078,6 +14203,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
     this.applySourceStealthModulesToEntity(entity, sourceState);
     this.applySourceSpyVisionUpdateModulesToEntity(entity, sourceState);
+    this.applySourceSpecialAbilityUpdateModulesToEntity(entity, sourceState);
   }
 
   restoreSourceGameLogicImportSaveState(state: unknown): void {

@@ -88,10 +88,19 @@ function makeSourceOwnedCoreBundle() {
           SpecialPowerTemplate: 'SpyVisionPower',
         }),
       ]),
+      makeObjectDef('AbilityUnit', 'America', ['INFANTRY'], [
+        makeBlock('Behavior', 'SpecialAbilityUpdate ModuleTag_Ability', {
+          SpecialPowerTemplate: 'AbilityPower',
+          PreparationTime: 1000,
+          PackTime: 1000,
+          UnpackTime: 1000,
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
       makeSpecialPowerDef('SpyVisionPower', { ReloadTime: 60000 }),
+      makeSpecialPowerDef('AbilityPower', { ReloadTime: 60000 }),
     ],
     upgrades: [
       makeUpgradeDef('Upgrade_AmericaRangerCaptureBuilding', { Type: 'PLAYER', BuildCost: 1000, BuildTime: 30 }),
@@ -524,6 +533,50 @@ function buildSourceSpyVisionUpdateModuleData(options: {
     saver.xferBool(options.currentlyActive);
     saver.xferBool(options.resetTimersNextUpdate);
     saver.xferUnsignedInt(options.disabledUntilFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSpecialAbilityUpdateModuleData(options: {
+  active: boolean;
+  prepFrames: number;
+  animFrames: number;
+  targetId: number;
+  targetPos: { x: number; y: number; z: number };
+  noTargetCommand: boolean;
+  packingState: number;
+  facingInitiated: boolean;
+  facingComplete: boolean;
+  withinStartAbilityRange: boolean;
+  doDisableFxParticles: boolean;
+  captureFlashPhase: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-special-ability-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(0);
+    saver.xferBool(options.active);
+    saver.xferUnsignedInt(options.prepFrames);
+    saver.xferUnsignedInt(options.animFrames);
+    saver.xferObjectID(options.targetId);
+    saver.xferCoord3D(options.targetPos);
+    saver.xferInt(0);
+    saver.xferObjectIDList([]);
+    saver.xferUnsignedInt(0);
+    saver.xferBool(options.noTargetCommand);
+    saver.xferInt(options.packingState);
+    saver.xferBool(options.facingInitiated);
+    saver.xferBool(options.facingComplete);
+    saver.xferBool(options.withinStartAbilityRange);
+    saver.xferBool(options.doDisableFxParticles);
+    saver.xferReal(options.captureFlashPhase);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -1162,6 +1215,85 @@ describe('source-owned game-logic core save-state', () => {
     expect(module.spyVisionCurrentlyActive).toBe(true);
     expect(module.spyVisionResetTimersNextUpdate).toBe(true);
     expect(module.spyVisionDisabledUntilFrame).toBe(180);
+  });
+
+  it('imports source SpecialAbilityUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const abilityState = createEmptySourceMapEntitySaveState();
+    abilityState.objectId = 71;
+    abilityState.position = { x: 74, y: 0, z: 40 };
+    abilityState.modules = [{
+      identifier: 'ModuleTag_Ability',
+      blockData: buildSourceSpecialAbilityUpdateModuleData({
+        active: true,
+        prepFrames: 12,
+        animFrames: 8,
+        targetId: 72,
+        targetPos: { x: 0, y: 0, z: 0 },
+        noTargetCommand: false,
+        packingState: 1,
+        facingInitiated: true,
+        facingComplete: false,
+        withinStartAbilityRange: true,
+        doDisableFxParticles: false,
+        captureFlashPhase: 0.625,
+      }),
+    }];
+    const targetState = createEmptySourceMapEntitySaveState();
+    targetState.objectId = 72;
+    targetState.position = { x: 78, y: 0, z: 40 };
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 120,
+      objectIdCounter: 100,
+      objects: [
+        { templateName: 'AbilityUnit', state: abilityState },
+        { templateName: 'AmericaRanger', state: targetState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        specialAbilityState: {
+          active: boolean;
+          prepFrames: number;
+          animFrames: number;
+          targetEntityId: number | null;
+          targetX: number | null;
+          targetZ: number | null;
+          noTargetCommand: boolean;
+          packingState: string;
+          facingInitiated: boolean;
+          facingComplete: boolean;
+          withinStartAbilityRange: boolean;
+          doDisableFxParticles: boolean;
+          captureFlashPhase: number;
+        } | null;
+      }>;
+    };
+
+    const state = privateLogic.spawnedEntities.get(71)!.specialAbilityState!;
+    expect(state.active).toBe(true);
+    expect(state.prepFrames).toBe(12);
+    expect(state.animFrames).toBe(8);
+    expect(state.targetEntityId).toBe(72);
+    expect(state.targetX).toBeNull();
+    expect(state.targetZ).toBeNull();
+    expect(state.noTargetCommand).toBe(false);
+    expect(state.packingState).toBe('PACKING');
+    expect(state.facingInitiated).toBe(true);
+    expect(state.facingComplete).toBe(false);
+    expect(state.withinStartAbilityRange).toBe(true);
+    expect(state.doDisableFxParticles).toBe(false);
+    expect(state.captureFlashPhase).toBe(0.625);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {
