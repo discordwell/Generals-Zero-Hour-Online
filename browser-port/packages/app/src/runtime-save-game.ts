@@ -5746,6 +5746,27 @@ interface SourceRailedTransportDockUpdateBlockState {
   unloadCount: number;
 }
 
+interface SourceSupplyWarehouseCripplingBehaviorBlockState {
+  nextCallFrameAndPhase: number;
+  healingSuppressedUntilFrame: number;
+  nextHealingFrame: number;
+}
+
+interface SourceSpawnBehaviorBlockState {
+  version: number;
+  initialBurstTimesInited: boolean;
+  spawnTemplateName: string;
+  oneShotCountdown: number;
+  framesToWait: number;
+  firstBatchCount: number;
+  replacementTimes: number[];
+  spawnIds: number[];
+  active: boolean;
+  aggregateHealth: boolean;
+  spawnCount: number;
+  selfTaskingSpawnCount: number;
+}
+
 function createDefaultSourceWeaponSnapshotState(): SourceWeaponSnapshotBlockState {
   return {
     version: 3,
@@ -6422,6 +6443,219 @@ function buildSourceRailedTransportDockUpdateBlockData(
     saver.xferObjectID(normalizeSourceObjectId(preservedState.unloadingObjectId));
     saver.xferReal(preservedState.pushOutsideDistancePerFrame);
     saver.xferInt(preservedState.unloadCount);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceSupplyWarehouseCripplingBehaviorBlockData(
+  data: Uint8Array,
+): SourceSupplyWarehouseCripplingBehaviorBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-supply-warehouse-crippling-behavior');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(xferLoad, 0);
+    const healingSuppressedUntilFrame = xferLoad.xferUnsignedInt(0);
+    const nextHealingFrame = xferLoad.xferUnsignedInt(0);
+    return xferLoad.getRemaining() === 0
+      ? {
+        nextCallFrameAndPhase,
+        healingSuppressedUntilFrame,
+        nextHealingFrame,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function sourceSupplyWarehouseCripplingWakeFrame(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceSupplyWarehouseCripplingBehaviorBlockState,
+): number {
+  if (Number.isFinite(entity.health)
+    && Number.isFinite(entity.maxHealth)
+    && entity.maxHealth > 0
+    && entity.health >= entity.maxHealth) {
+    return SOURCE_FRAME_FOREVER;
+  }
+  const healingSuppressedUntilFrame = sourceFlammableUnsignedFrame(
+    entity.swCripplingHealSuppressedUntilFrame,
+    preservedState.healingSuppressedUntilFrame,
+  );
+  if (healingSuppressedUntilFrame > currentFrame) {
+    return healingSuppressedUntilFrame;
+  }
+  const nextHealingFrame = sourceFlammableUnsignedFrame(
+    entity.swCripplingNextHealFrame,
+    preservedState.nextHealingFrame,
+  );
+  return nextHealingFrame > currentFrame ? nextHealingFrame : currentFrame + 1;
+}
+
+function buildSourceSupplyWarehouseCripplingBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceSupplyWarehouseCripplingBehaviorBlockState,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-supply-warehouse-crippling-behavior');
+  try {
+    saver.xferVersion(1);
+    xferSourceUpdateModuleBase(
+      saver,
+      buildSourceUpdateModuleWakeFrame(
+        sourceSupplyWarehouseCripplingWakeFrame(entity, currentFrame, preservedState),
+      ),
+    );
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(
+      entity.swCripplingHealSuppressedUntilFrame,
+      preservedState.healingSuppressedUntilFrame,
+    ));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(
+      entity.swCripplingNextHealFrame,
+      preservedState.nextHealingFrame,
+    ));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function xferSourceIntListByUnsignedShortCount(xfer: Xfer, values: readonly number[]): number[] {
+  const count = xfer.xferUnsignedShort(values.length);
+  const loaded: number[] = [];
+  for (let index = 0; index < count; index += 1) {
+    loaded.push(xfer.xferInt(sourceFiniteInt(values[index], 0)));
+  }
+  return loaded;
+}
+
+function xferSourceObjectIdListByUnsignedShortCount(xfer: Xfer, values: readonly number[]): number[] {
+  const count = xfer.xferUnsignedShort(values.length);
+  const loaded: number[] = [];
+  for (let index = 0; index < count; index += 1) {
+    loaded.push(xfer.xferObjectID(normalizeSourceObjectId(values[index] ?? 0)));
+  }
+  return loaded;
+}
+
+function xferSourceSpawnBehaviorBlockState(
+  xfer: Xfer,
+  state: SourceSpawnBehaviorBlockState,
+): SourceSpawnBehaviorBlockState {
+  const version = xfer.xferVersion(state.version);
+  if (version < 1 || version > 2) {
+    throw new Error(`Unsupported source SpawnBehavior version ${version}`);
+  }
+  xferSourceBehaviorModuleBase(xfer);
+  const initialBurstTimesInited = version >= 2
+    ? xfer.xferBool(state.initialBurstTimesInited)
+    : false;
+  const spawnTemplateName = xfer.xferAsciiString(state.spawnTemplateName);
+  const oneShotCountdown = xfer.xferInt(state.oneShotCountdown);
+  const framesToWait = xfer.xferInt(state.framesToWait);
+  const firstBatchCount = xfer.xferInt(state.firstBatchCount);
+  xfer.xferVersion(1);
+  const replacementTimes = xferSourceIntListByUnsignedShortCount(xfer, state.replacementTimes);
+  xfer.xferVersion(1);
+  const spawnIds = xferSourceObjectIdListByUnsignedShortCount(xfer, state.spawnIds);
+  const active = xfer.xferBool(state.active);
+  const aggregateHealth = xfer.xferBool(state.aggregateHealth);
+  const spawnCount = xfer.xferInt(state.spawnCount);
+  const selfTaskingSpawnCount = xfer.xferUnsignedInt(state.selfTaskingSpawnCount);
+  return {
+    version,
+    initialBurstTimesInited,
+    spawnTemplateName,
+    oneShotCountdown,
+    framesToWait,
+    firstBatchCount,
+    replacementTimes,
+    spawnIds,
+    active,
+    aggregateHealth,
+    spawnCount,
+    selfTaskingSpawnCount,
+  };
+}
+
+function createDefaultSourceSpawnBehaviorBlockState(): SourceSpawnBehaviorBlockState {
+  return {
+    version: 2,
+    initialBurstTimesInited: false,
+    spawnTemplateName: '',
+    oneShotCountdown: -1,
+    framesToWait: 0,
+    firstBatchCount: 0,
+    replacementTimes: [],
+    spawnIds: [],
+    active: true,
+    aggregateHealth: false,
+    spawnCount: -1,
+    selfTaskingSpawnCount: 0,
+  };
+}
+
+function tryParseSourceSpawnBehaviorBlockData(data: Uint8Array): SourceSpawnBehaviorBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-spawn-behavior');
+  try {
+    const parsed = xferSourceSpawnBehaviorBlockState(xferLoad, createDefaultSourceSpawnBehaviorBlockState());
+    return xferLoad.getRemaining() === 0 ? parsed : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceSpawnBehaviorBlockData(
+  entity: MapEntity,
+  preservedState: SourceSpawnBehaviorBlockState,
+): Uint8Array | null {
+  const state = entity.spawnBehaviorState;
+  if (!state) {
+    return null;
+  }
+  const profile = state.profile;
+  const templateNames = Array.isArray(profile.spawnTemplateNames) ? profile.spawnTemplateNames : [];
+  const templateIndex = sourceNonNegativeInt(state.templateNameIndex, 0);
+  const spawnTemplateName = templateNames[templateIndex] ?? templateNames[0] ?? preservedState.spawnTemplateName;
+  const slaveIds = Array.isArray(state.slaveIds) ? state.slaveIds.map(normalizeSourceObjectId) : preservedState.spawnIds;
+  const replacementTimes = Array.isArray(state.replacementFrames)
+    ? state.replacementFrames.map((frame) => sourceFiniteInt(frame, 0))
+    : preservedState.replacementTimes;
+  const oneShotRemaining = sourceFiniteInt(state.oneShotRemaining, preservedState.oneShotCountdown);
+  const oneShotCompleted = state.oneShotCompleted === true;
+  const initialBurstApplied = state.initialBurstApplied === true;
+  const spawnCount = slaveIds.length > 0 || initialBurstApplied
+    ? slaveIds.length
+    : preservedState.spawnCount;
+
+  const saver = new XferSave();
+  saver.open('build-source-spawn-behavior');
+  try {
+    xferSourceSpawnBehaviorBlockState(saver, {
+      ...preservedState,
+      version: Math.max(1, Math.min(2, Math.trunc(preservedState.version || 2))),
+      initialBurstTimesInited: initialBurstApplied,
+      spawnTemplateName,
+      oneShotCountdown: oneShotRemaining,
+      replacementTimes,
+      spawnIds: slaveIds,
+      active: profile.oneShot ? !oneShotCompleted : preservedState.active,
+      aggregateHealth: profile.aggregateHealth === true,
+      spawnCount,
+    });
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -10275,6 +10509,18 @@ function overlaySourceObjectModulesFromLiveEntity(
               };
             }
           }
+          if (moduleType === 'SPAWNBEHAVIOR' && entity.spawnBehaviorState) {
+            const parsedSourceState = tryParseSourceSpawnBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              const blockData = buildSourceSpawnBehaviorBlockData(entity, parsedSourceState);
+              if (blockData) {
+                return {
+                  identifier: module.identifier,
+                  blockData,
+                };
+              }
+            }
+          }
           if (moduleType === 'SMARTBOMBTARGETHOMINGUPDATE' && entity.smartBombProfile) {
             return {
               identifier: module.identifier,
@@ -10315,6 +10561,19 @@ function overlaySourceObjectModulesFromLiveEntity(
                   currentFrame,
                   parsedSourceState,
                   coreState,
+                ),
+              };
+            }
+          }
+          if (moduleType === 'SUPPLYWAREHOUSECRIPPLINGBEHAVIOR' && entity.supplyWarehouseCripplingProfile) {
+            const parsedSourceState = tryParseSourceSupplyWarehouseCripplingBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceSupplyWarehouseCripplingBehaviorBlockData(
+                  entity,
+                  currentFrame,
+                  parsedSourceState,
                 ),
               };
             }

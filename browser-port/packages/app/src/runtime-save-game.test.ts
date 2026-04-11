@@ -2058,6 +2058,158 @@ function parseSourceRailedTransportDockUpdateBlockData(data: Uint8Array) {
   }
 }
 
+function createSourceSupplyWarehouseCripplingBehaviorBlockData(
+  nextCallFrameAndPhase: number,
+  healingSuppressedUntilFrame: number,
+  nextHealingFrame: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-supply-warehouse-crippling-behavior');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferUnsignedInt(healingSuppressedUntilFrame);
+    xferSave.xferUnsignedInt(nextHealingFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceSupplyWarehouseCripplingBehaviorBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-supply-warehouse-crippling-behavior');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      healingSuppressedUntilFrame: xferLoad.xferUnsignedInt(0),
+      nextHealingFrame: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+interface SourceSpawnBehaviorTestState {
+  version: number;
+  initialBurstTimesInited: boolean;
+  spawnTemplateName: string;
+  oneShotCountdown: number;
+  framesToWait: number;
+  firstBatchCount: number;
+  replacementTimes: number[];
+  spawnIds: number[];
+  active: boolean;
+  aggregateHealth: boolean;
+  spawnCount: number;
+  selfTaskingSpawnCount: number;
+}
+
+function createSourceSpawnBehaviorTestState(
+  overrides: Partial<SourceSpawnBehaviorTestState> = {},
+): SourceSpawnBehaviorTestState {
+  return {
+    version: 2,
+    initialBurstTimesInited: false,
+    spawnTemplateName: 'OldDrone',
+    oneShotCountdown: 3,
+    framesToWait: 9,
+    firstBatchCount: 2,
+    replacementTimes: [30],
+    spawnIds: [40],
+    active: true,
+    aggregateHealth: false,
+    spawnCount: 1,
+    selfTaskingSpawnCount: 7,
+    ...overrides,
+  };
+}
+
+function xferSourceBehaviorModuleBaseForTest(xfer: Xfer): void {
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+}
+
+function xferSourceIntListForTest(xfer: Xfer, values: readonly number[]): number[] {
+  xfer.xferVersion(1);
+  const count = xfer.xferUnsignedShort(values.length);
+  const loaded: number[] = [];
+  for (let index = 0; index < count; index += 1) {
+    loaded.push(xfer.xferInt(values[index] ?? 0));
+  }
+  return loaded;
+}
+
+function xferSourceObjectIdListForTest(xfer: Xfer, values: readonly number[]): number[] {
+  xfer.xferVersion(1);
+  const count = xfer.xferUnsignedShort(values.length);
+  const loaded: number[] = [];
+  for (let index = 0; index < count; index += 1) {
+    loaded.push(xfer.xferObjectID(values[index] ?? 0));
+  }
+  return loaded;
+}
+
+function xferSourceSpawnBehaviorForTest(
+  xfer: Xfer,
+  state: SourceSpawnBehaviorTestState,
+): SourceSpawnBehaviorTestState {
+  const version = xfer.xferVersion(state.version);
+  xferSourceBehaviorModuleBaseForTest(xfer);
+  const initialBurstTimesInited = version >= 2 ? xfer.xferBool(state.initialBurstTimesInited) : false;
+  const spawnTemplateName = xfer.xferAsciiString(state.spawnTemplateName);
+  const oneShotCountdown = xfer.xferInt(state.oneShotCountdown);
+  const framesToWait = xfer.xferInt(state.framesToWait);
+  const firstBatchCount = xfer.xferInt(state.firstBatchCount);
+  const replacementTimes = xferSourceIntListForTest(xfer, state.replacementTimes);
+  const spawnIds = xferSourceObjectIdListForTest(xfer, state.spawnIds);
+  const active = xfer.xferBool(state.active);
+  const aggregateHealth = xfer.xferBool(state.aggregateHealth);
+  const spawnCount = xfer.xferInt(state.spawnCount);
+  const selfTaskingSpawnCount = xfer.xferUnsignedInt(state.selfTaskingSpawnCount);
+  return {
+    version,
+    initialBurstTimesInited,
+    spawnTemplateName,
+    oneShotCountdown,
+    framesToWait,
+    firstBatchCount,
+    replacementTimes,
+    spawnIds,
+    active,
+    aggregateHealth,
+    spawnCount,
+    selfTaskingSpawnCount,
+  };
+}
+
+function createSourceSpawnBehaviorBlockData(state: SourceSpawnBehaviorTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-spawn-behavior');
+  try {
+    xferSourceSpawnBehaviorForTest(xferSave, state);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceSpawnBehaviorBlockData(data: Uint8Array): SourceSpawnBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-spawn-behavior');
+  try {
+    return xferSourceSpawnBehaviorForTest(xferLoad, createSourceSpawnBehaviorTestState());
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function createSourceBaseOnlyUpdateModuleBlockData(nextCallFrameAndPhase: number): Uint8Array {
   const xferSave = new XferSave();
   xferSave.open('create-source-base-only-update-module');
@@ -11364,6 +11516,234 @@ describe('runtime-save-game', () => {
     expect(parsedRailed.unloadingObjectId).toBe(32);
     expect(parsedRailed.pushOutsideDistancePerFrame).toBeCloseTo(2.5);
     expect(parsedRailed.unloadCount).toBe(-1);
+  });
+
+  it('rewrites source SupplyWarehouseCripplingBehavior heal timers from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Cripple',
+      blockData: createSourceSupplyWarehouseCripplingBehaviorBlockData(
+        (90 << 2) | 2,
+        80,
+        95,
+      ),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source supply warehouse crippling rewrite',
+      mapPath: 'Maps/RuntimeCripple/RuntimeCripple.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeCripple',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            health: 300,
+            maxHealth: 1000,
+            supplyWarehouseCripplingProfile: {
+              selfHealSuppressionFrames: 30,
+              selfHealDelayFrames: 10,
+              selfHealAmount: 50,
+            },
+            swCripplingHealSuppressedUntilFrame: 100,
+            swCripplingNextHealFrame: 110,
+            swCripplingDockDisabled: true,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName !== 'RuntimeTank') {
+            return null;
+          }
+          return moduleTag === 'ModuleTag_Cripple' ? 'SUPPLYWAREHOUSECRIPPLINGBEHAVIOR' : null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const module = firstObject?.modules.find((candidate) => candidate.identifier === 'ModuleTag_Cripple');
+
+    expect(module).toBeDefined();
+    const parsed = parseSourceSupplyWarehouseCripplingBehaviorBlockData(module!.blockData);
+    expect(parsed.nextCallFrameAndPhase).toBe((100 << 2) | 2);
+    expect(parsed.healingSuppressedUntilFrame).toBe(100);
+    expect(parsed.nextHealingFrame).toBe(110);
+  });
+
+  it('rewrites source SpawnBehavior lists and counters from live runtime state', () => {
+    const sourceSpawnState = createSourceSpawnBehaviorTestState();
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Spawn',
+      blockData: createSourceSpawnBehaviorBlockData(sourceSpawnState),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source spawn behavior rewrite',
+      mapPath: 'Maps/RuntimeSpawn/RuntimeSpawn.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeSpawn',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            spawnBehaviorState: {
+              profile: {
+                spawnNumber: 3,
+                spawnReplaceDelayFrames: 30,
+                spawnTemplateNames: ['DroneA', 'DroneB'],
+                oneShot: true,
+                spawnedRequireSpawner: true,
+                aggregateHealth: true,
+                initialBurst: 2,
+                slavesHaveFreeWill: false,
+                canReclaimOrphans: false,
+                exitByBudding: false,
+              },
+              slaveIds: [51, 52],
+              replacementFrames: [70, 75],
+              templateNameIndex: 1,
+              oneShotRemaining: 1,
+              oneShotCompleted: false,
+              initialBurstApplied: true,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName !== 'RuntimeTank') {
+            return null;
+          }
+          return moduleTag === 'ModuleTag_Spawn' ? 'SPAWNBEHAVIOR' : null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const module = firstObject?.modules.find((candidate) => candidate.identifier === 'ModuleTag_Spawn');
+
+    expect(module).toBeDefined();
+    const parsed = parseSourceSpawnBehaviorBlockData(module!.blockData);
+    expect(parsed.version).toBe(2);
+    expect(parsed.initialBurstTimesInited).toBe(true);
+    expect(parsed.spawnTemplateName).toBe('DroneB');
+    expect(parsed.oneShotCountdown).toBe(1);
+    expect(parsed.framesToWait).toBe(sourceSpawnState.framesToWait);
+    expect(parsed.firstBatchCount).toBe(sourceSpawnState.firstBatchCount);
+    expect(parsed.replacementTimes).toEqual([70, 75]);
+    expect(parsed.spawnIds).toEqual([51, 52]);
+    expect(parsed.active).toBe(true);
+    expect(parsed.aggregateHealth).toBe(true);
+    expect(parsed.spawnCount).toBe(2);
+    expect(parsed.selfTaskingSpawnCount).toBe(sourceSpawnState.selfTaskingSpawnCount);
   });
 
   it('rewrites source PoisonedBehavior and MinefieldBehavior modules from live runtime state', () => {
