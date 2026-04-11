@@ -458,6 +458,7 @@ export interface BrowserRuntimeSavePayload {
   mapPath?: string | null;
   cameraState: BrowserRuntimeCameraSaveState | null;
   gameLogicState: unknown;
+  gameLogicCoreState?: GameLogicCoreSaveState | null;
 }
 
 export interface RuntimeSaveCampaignBootstrap {
@@ -917,6 +918,31 @@ function resolveTeamNameBySourceId(
     }
   }
   return null;
+}
+
+function buildSourceTeamIdByNameMap(
+  teamFactoryState: GameLogicTeamFactorySaveState | null | undefined,
+): Map<string, number> {
+  const teamsByName = teamFactoryState?.state.scriptTeamsByName;
+  const sourceTeamIdByName = new Map<string, number>();
+  if (!(teamsByName instanceof Map)) {
+    return sourceTeamIdByName;
+  }
+  for (const [teamName, team] of teamsByName) {
+    if (typeof teamName !== 'string' || !team || typeof team !== 'object') {
+      continue;
+    }
+    const normalizedTeamName = teamName.trim().toUpperCase();
+    const sourceTeamId = Number((team as { sourceTeamId?: unknown }).sourceTeamId);
+    if (!normalizedTeamName || !Number.isFinite(sourceTeamId)) {
+      continue;
+    }
+    const normalizedSourceTeamId = Math.max(0, Math.trunc(sourceTeamId));
+    if (normalizedSourceTeamId > 0) {
+      sourceTeamIdByName.set(normalizedTeamName, normalizedSourceTeamId);
+    }
+  }
+  return sourceTeamIdByName;
 }
 
 function resolveScriptNameByEntityId(
@@ -3233,6 +3259,40 @@ function buildSourceGameLogicImportSaveState(
     scriptHulkMaxLifetimeOverride: state.scriptHulkMaxLifetimeOverride,
     rankPointsToAddAtGameStart: state.rankPointsToAddAtGameStart,
     superweaponRestriction: state.superweaponRestriction,
+  };
+}
+
+function createFreshSourceGameLogicChunkState(
+  campaignState: RuntimeSaveCampaignState,
+): ParsedSourceGameLogicChunkState {
+  return {
+    version: SOURCE_GAME_LOGIC_SNAPSHOT_VERSION,
+    frameCounter: 0,
+    objectTocEntries: [],
+    objects: [],
+    campaignState: {
+      version: campaignState.version,
+      currentCampaign: campaignState.currentCampaign,
+      currentMission: campaignState.currentMission,
+      currentRankPoints: campaignState.currentRankPoints,
+      difficulty: campaignState.difficulty,
+      isChallengeCampaign: campaignState.isChallengeCampaign,
+      playerTemplateNum: campaignState.playerTemplateNum,
+      challengeGameInfoState: campaignState.challengeGameInfoState,
+    },
+    caveTrackers: [],
+    scriptScoringEnabled: true,
+    polygonTriggers: [],
+    rankLevelLimit: null,
+    sellingEntities: [],
+    buildableOverrides: [],
+    showBehindBuildingMarkers: false,
+    drawIconUI: true,
+    showDynamicLOD: true,
+    scriptHulkMaxLifetimeOverride: -1,
+    controlBarOverrideEntries: [],
+    rankPointsToAddAtGameStart: 0,
+    superweaponRestriction: 0,
   };
 }
 
@@ -16789,6 +16849,7 @@ function buildSourceGameLogicChunk(
     resolveSourceObjectModuleTypeByTag?: ((templateName: string, moduleTag: string) => string | null) | null;
     listSourceObjectModuleDescriptors?: ((templateName: string) =>
       readonly GameLogicSourceObjectModuleDescriptor[] | null) | null;
+    sourceTeamIdByName?: ReadonlyMap<string, number> | null;
   } = {},
 ): Uint8Array {
   const saver = new XferSave();
@@ -16812,6 +16873,12 @@ function buildSourceGameLogicChunk(
       const originalTeamName = object.state.originalTeamName.trim().toUpperCase();
       if (originalTeamName.length > 0 && !sourceTeamIdByName.has(originalTeamName)) {
         sourceTeamIdByName.set(originalTeamName, object.state.teamId);
+      }
+    }
+    for (const [teamName, teamId] of options.sourceTeamIdByName ?? []) {
+      const normalizedTeamName = teamName.trim().toUpperCase();
+      if (normalizedTeamName.length > 0 && !sourceTeamIdByName.has(normalizedTeamName)) {
+        sourceTeamIdByName.set(normalizedTeamName, Math.max(0, Math.trunc(teamId)));
       }
     }
     const fallbackTeamId = sourceState.objects[0]?.state.teamId ?? 0;
@@ -20488,11 +20555,6 @@ export function buildRuntimeSaveFile(params: {
   };
 } {
   const browserGameLogicState = params.gameLogic.captureBrowserRuntimeSaveState();
-  const runtimePayload: BrowserRuntimeSavePayload = {
-    version: BROWSER_RUNTIME_STATE_VERSION,
-    cameraState: buildBrowserRuntimeCameraSaveState(params.cameraState),
-    gameLogicState: browserGameLogicState,
-  };
   const tacticalViewPayload = params.tacticalViewState
     ?? buildTacticalViewSaveState(params.cameraState);
   const terrainLogicPayload = params.gameLogic.captureSourceTerrainLogicRuntimeSaveState();
@@ -20516,6 +20578,14 @@ export function buildRuntimeSaveFile(params: {
   const objectXferOverlayPayload = typeof params.gameLogic.captureSourceObjectXferOverlayState === 'function'
     ? params.gameLogic.captureSourceObjectXferOverlayState()
     : [];
+  const resolveSourceObjectModuleTypeByTag =
+    typeof params.gameLogic.resolveSourceObjectModuleTypeByTag === 'function'
+      ? params.gameLogic.resolveSourceObjectModuleTypeByTag.bind(params.gameLogic)
+      : null;
+  const listSourceObjectModuleDescriptors =
+    typeof params.gameLogic.listSourceObjectModuleDescriptors === 'function'
+      ? params.gameLogic.listSourceObjectModuleDescriptors.bind(params.gameLogic)
+      : null;
   const gameClientDrawableStates = buildSourceGameClientDrawableStates(
     params.renderableEntityStates,
     gameLogicPayload,
@@ -20526,6 +20596,13 @@ export function buildRuntimeSaveFile(params: {
     gameClientDrawableStates,
   );
   const orderedPassthroughBlocks = orderPassthroughBlocks(params.passthroughBlocks);
+  const hasSourceGameLogicPassthrough = hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GAME_LOGIC_BLOCK);
+  const runtimePayload: BrowserRuntimeSavePayload = {
+    version: BROWSER_RUNTIME_STATE_VERSION,
+    cameraState: buildBrowserRuntimeCameraSaveState(params.cameraState),
+    gameLogicState: browserGameLogicState,
+    gameLogicCoreState: hasSourceGameLogicPassthrough ? null : gameLogicPayload,
+  };
   const mergedGameClientBriefingLines = mergeBriefingLines(
     params.gameClientState?.briefingLines ?? [],
     params.gameClientBriefingLines ?? [],
@@ -20566,6 +20643,7 @@ export function buildRuntimeSaveFile(params: {
     playerPayload,
     sidesListPayload,
   );
+  const sourceTeamIdByName = buildSourceTeamIdByNameMap(teamFactoryPayload);
   state.addSnapshotBlock('CHUNK_GameState', new MetadataSnapshot(metadataState));
   state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, new CampaignSnapshot(campaignState));
   state.addSnapshotBlock('CHUNK_GameStateMap', new MapSnapshot(mapState));
@@ -20592,7 +20670,7 @@ export function buildRuntimeSaveFile(params: {
       }),
     );
   }
-  if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GAME_LOGIC_BLOCK)) {
+  if (hasSourceGameLogicPassthrough) {
     const passthroughBlock = orderedPassthroughBlocks.find(
       (block) => block.blockName.toLowerCase() === SOURCE_GAME_LOGIC_BLOCK.toLowerCase(),
     );
@@ -20608,20 +20686,28 @@ export function buildRuntimeSaveFile(params: {
               campaignState,
               coreState: gameLogicPayload,
               objectXferOverlayStates: objectXferOverlayPayload,
-              resolveSourceObjectModuleTypeByTag:
-                typeof params.gameLogic.resolveSourceObjectModuleTypeByTag === 'function'
-                  ? params.gameLogic.resolveSourceObjectModuleTypeByTag.bind(params.gameLogic)
-                  : null,
-              listSourceObjectModuleDescriptors:
-                typeof params.gameLogic.listSourceObjectModuleDescriptors === 'function'
-                  ? params.gameLogic.listSourceObjectModuleDescriptors.bind(params.gameLogic)
-                  : null,
+              resolveSourceObjectModuleTypeByTag,
+              listSourceObjectModuleDescriptors,
+              sourceTeamIdByName,
             })
           : passthroughBlock.blockData,
       ),
     );
   } else {
-    state.addSnapshotBlock(SOURCE_GAME_LOGIC_BLOCK, new LegacyGameLogicSnapshot(gameLogicPayload));
+    state.addSnapshotBlock(
+      SOURCE_GAME_LOGIC_BLOCK,
+      new RawPassthroughSnapshot(buildSourceGameLogicChunk(
+        createFreshSourceGameLogicChunkState(campaignState),
+        {
+          campaignState,
+          coreState: gameLogicPayload,
+          objectXferOverlayStates: objectXferOverlayPayload,
+          resolveSourceObjectModuleTypeByTag,
+          listSourceObjectModuleDescriptors,
+          sourceTeamIdByName,
+        },
+      )),
+    );
   }
   state.addSnapshotBlock(SOURCE_RADAR_BLOCK, new RadarSnapshot(radarPayload));
   if (hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_SCRIPT_ENGINE_BLOCK)) {
@@ -20724,7 +20810,10 @@ export function buildRuntimeSaveFile(params: {
       );
     }
   }
-  if (shouldWriteBrowserRuntimeStateBlock(browserGameLogicState)) {
+  if (
+    shouldWriteBrowserRuntimeStateBlock(browserGameLogicState)
+    || runtimePayload.gameLogicCoreState !== null
+  ) {
     state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, new BrowserRuntimeSnapshot(runtimePayload));
   }
   const saveResult = state.saveGame(params.description);
@@ -20819,7 +20908,8 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const legacyGameLogicCoreState = sourceGameLogicCoreState === null && gameLogicChunk
     ? tryParseLegacyGameLogicChunk(gameLogicChunk)
     : null;
-  const gameLogicCoreState = sourceGameLogicCoreState ?? legacyGameLogicCoreState;
+  const browserRuntimeCoreState = payload?.gameLogicCoreState ?? null;
+  const gameLogicCoreState = sourceGameLogicCoreState ?? legacyGameLogicCoreState ?? browserRuntimeCoreState;
   const sidesListChunk = extractSaveChunkData(data, SOURCE_SIDES_LIST_BLOCK);
   const sidesListState = sidesListChunk
     ? parseSourceSidesListChunk(sidesListChunk)
@@ -20911,7 +21001,9 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     gameLogicInGameUiState,
     gameLogicCoreState,
     sourceGameLogicImportState,
-    gameLogicState: payload?.gameLogicState ?? null,
+    gameLogicState: payload && shouldWriteBrowserRuntimeStateBlock(payload.gameLogicState)
+      ? payload.gameLogicState
+      : null,
     sourceGameLogicPrototypeNames,
     campaign,
     passthroughBlocks: [

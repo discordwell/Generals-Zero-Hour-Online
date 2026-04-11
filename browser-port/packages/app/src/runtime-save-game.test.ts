@@ -8456,23 +8456,22 @@ describe('runtime-save-game', () => {
     expect(parsed.mapDrawableIdCounter).toBe(41);
     expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data)).toEqual([
       { blockName: 'CHUNK_Players', mode: 'parsed' },
-      { blockName: 'CHUNK_GameLogic', mode: 'legacy' },
+      { blockName: 'CHUNK_GameLogic', mode: 'parsed' },
       { blockName: 'CHUNK_ScriptEngine', mode: 'parsed' },
       { blockName: 'CHUNK_InGameUI', mode: 'parsed' },
     ]);
     expect(inspectGameLogicChunkLayout(readSaveChunkData(saveFile.data, 'CHUNK_GameLogic')!)).toEqual({
-      layout: 'legacy',
-      version: null,
-      frameCounter: null,
-      objectTocCount: null,
-      objectCount: null,
+      layout: 'source_outer',
+      version: 10,
+      frameCounter: 21,
+      objectTocCount: 0,
+      objectCount: 0,
       firstObjectTemplateName: null,
       firstObjectTocId: null,
       firstObjectVersion: null,
       firstObjectInternalName: null,
       firstObjectTeamId: null,
       firstObjectLayout: null,
-      reason: expect.any(String),
     });
     expect(gameClientChunk).toEqual({
       version: 3,
@@ -9106,7 +9105,7 @@ describe('runtime-save-game', () => {
     });
   });
 
-  it('omits CHUNK_TS_RuntimeState when the browser runtime payload is empty', () => {
+  it('writes CHUNK_TS_RuntimeState for source GameLogic saves that need the TS core bridge', () => {
     const mapData = {
       heightmap: {
         width: 2,
@@ -9186,13 +9185,20 @@ describe('runtime-save-game', () => {
       'CHUNK_ParticleSystem',
       'CHUNK_TerrainVisual',
       'CHUNK_GhostObject',
+      'CHUNK_TS_RuntimeState',
     ]);
 
     const parsed = parseRuntimeSaveFile(saveFile.data);
 
     expect(parsed.mapPath).toBe('maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json');
     expect(parsed.mapData).toEqual(mapData);
-    expect(parsed.cameraState).toBeNull();
+    expect(parsed.cameraState).toEqual({
+      targetX: 64,
+      targetZ: 96,
+      angle: 0.5,
+      zoom: 180,
+      pitch: 1,
+    });
     expect(parsed.tacticalViewState).toEqual({
       version: 1,
       angle: 0.5,
