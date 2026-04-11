@@ -8396,6 +8396,12 @@ function readTerrainVisualChunk(data: ArrayBuffer): {
   w3dVersion: number;
   baseVersion: number;
   waterGridEnabled: boolean;
+  heightMapLength: number;
+  heightMapBytes: number[];
+  renderObjectVersion: number;
+  treeBufferVersion: number;
+  treeCount: number;
+  propBufferVersion: number;
   trailingBytes: number;
 } | null {
   const chunkData = readSaveChunkData(data, 'CHUNK_TerrainVisual');
@@ -8408,10 +8414,22 @@ function readTerrainVisualChunk(data: ArrayBuffer): {
     const w3dVersion = xferLoad.xferVersion(3);
     const baseVersion = xferLoad.xferVersion(1);
     const waterGridEnabled = xferLoad.xferBool(false);
+    const heightMapLength = xferLoad.xferInt(0);
+    const heightMapBytes = Array.from(xferLoad.xferUser(new Uint8Array(heightMapLength)));
+    const renderObjectVersion = xferLoad.xferVersion(1);
+    const treeBufferVersion = xferLoad.xferVersion(1);
+    const treeCount = xferLoad.xferInt(0);
+    const propBufferVersion = xferLoad.xferVersion(1);
     return {
       w3dVersion,
       baseVersion,
       waterGridEnabled,
+      heightMapLength,
+      heightMapBytes,
+      renderObjectVersion,
+      treeBufferVersion,
+      treeCount,
+      propBufferVersion,
       trailingBytes: chunkData.byteLength - xferLoad.getOffset(),
     };
   } finally {
@@ -8914,7 +8932,7 @@ describe('runtime-save-game', () => {
       { blockName: 'CHUNK_InGameUI', mode: 'parsed' },
       { blockName: 'CHUNK_Partition', mode: 'parsed' },
       { blockName: 'CHUNK_ParticleSystem', mode: 'parsed' },
-      { blockName: 'CHUNK_TerrainVisual', mode: 'legacy' },
+      { blockName: 'CHUNK_TerrainVisual', mode: 'parsed' },
       { blockName: 'CHUNK_GhostObject', mode: 'parsed' },
     ]);
     expect(inspectGameLogicChunkLayout(readSaveChunkData(saveFile.data, 'CHUNK_GameLogic')!)).toEqual({
@@ -8959,9 +8977,15 @@ describe('runtime-save-game', () => {
       trailingBytes: 0,
     });
     expect(terrainVisualChunk).toEqual({
-      w3dVersion: 1,
+      w3dVersion: 3,
       baseVersion: 1,
       waterGridEnabled: false,
+      heightMapLength: 16,
+      heightMapBytes: new Array(16).fill(0),
+      renderObjectVersion: 1,
+      treeBufferVersion: 1,
+      treeCount: 0,
+      propBufferVersion: 1,
       trailingBytes: 0,
     });
     expect(ghostObjectChunk).toEqual({
@@ -10474,7 +10498,7 @@ describe('runtime-save-game', () => {
       { blockName: 'CHUNK_InGameUI', mode: 'parsed' },
       { blockName: 'CHUNK_Partition', mode: 'parsed' },
       { blockName: 'CHUNK_ParticleSystem', mode: 'parsed' },
-      { blockName: 'CHUNK_TerrainVisual', mode: 'legacy' },
+      { blockName: 'CHUNK_TerrainVisual', mode: 'parsed' },
       { blockName: 'CHUNK_GhostObject', mode: 'parsed' },
     ]);
     expect(scriptEngineState?.scriptToppleDirectionByEntityId).toEqual(

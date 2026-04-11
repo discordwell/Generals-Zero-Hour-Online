@@ -431,7 +431,10 @@ const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 10;
 const SOURCE_GAME_CLIENT_SNAPSHOT_VERSION = 3;
 const SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION = 1;
 const SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION = 1;
-const SOURCE_W3D_TERRAIN_VISUAL_COMPAT_SNAPSHOT_VERSION = 1;
+const SOURCE_W3D_TERRAIN_VISUAL_SNAPSHOT_VERSION = 3;
+const SOURCE_HEIGHT_MAP_RENDER_OBJECT_SNAPSHOT_VERSION = 1;
+const SOURCE_W3D_TREE_BUFFER_SNAPSHOT_VERSION = 1;
+const SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION = 1;
 const SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION = 1;
 const SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION = 1;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
@@ -23671,18 +23674,40 @@ class ParticleSystemSnapshot implements Snapshot {
   }
 }
 
+function tryBuildTerrainVisualHeightMapBytes(mapData: MapDataJSON | null): Uint8Array | null {
+  if (!mapData?.heightmap || typeof mapData.heightmap.data !== 'string') {
+    return null;
+  }
+  const width = Math.trunc(Number(mapData.heightmap.width));
+  const height = Math.trunc(Number(mapData.heightmap.height));
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 0 || height < 0) {
+    return null;
+  }
+  const expectedLength = width * height;
+  const bytes = base64ToBytes(mapData.heightmap.data);
+  if (bytes.byteLength !== expectedLength) {
+    return null;
+  }
+  return bytes;
+}
+
 class TerrainVisualSnapshot implements Snapshot {
+  constructor(private readonly mapData: MapDataJSON | null = null) {}
+
   crc(_xfer: Xfer): void {
     // Source terrain-visual snapshot is currently save-only in the TS runtime.
   }
 
   xfer(xfer: Xfer): void {
-    // Source parity: GameState saves the W3DTerrainVisual wrapper, which then
-    // extends the base TerrainVisual snapshot. Version 1 is a source-supported
-    // compatibility shape that avoids serializing W3D-only height/render buffers.
-    const w3dVersion = xfer.xferVersion(SOURCE_W3D_TERRAIN_VISUAL_COMPAT_SNAPSHOT_VERSION);
-    if (w3dVersion !== SOURCE_W3D_TERRAIN_VISUAL_COMPAT_SNAPSHOT_VERSION) {
-      throw new Error(`Unsupported W3D terrain-visual snapshot version ${w3dVersion}`);
+    const heightMapBytes = tryBuildTerrainVisualHeightMapBytes(this.mapData);
+    const targetW3dVersion = heightMapBytes
+      ? SOURCE_W3D_TERRAIN_VISUAL_SNAPSHOT_VERSION
+      : 1;
+    const w3dVersion = xfer.xferVersion(targetW3dVersion);
+    if (w3dVersion !== SOURCE_W3D_TERRAIN_VISUAL_SNAPSHOT_VERSION) {
+      if (w3dVersion !== 1) {
+        throw new Error(`Unsupported W3D terrain-visual snapshot version ${w3dVersion}`);
+      }
     }
 
     const baseVersion = xfer.xferVersion(SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION);
@@ -23693,6 +23718,37 @@ class TerrainVisualSnapshot implements Snapshot {
     const waterGridEnabled = xfer.xferBool(false);
     if (waterGridEnabled) {
       throw new Error('Terrain-visual water-grid snapshots are not implemented.');
+    }
+    if (w3dVersion === 1) {
+      return;
+    }
+    if (!heightMapBytes) {
+      throw new Error('Terrain-visual heightmap bytes are missing for W3D v3 snapshot.');
+    }
+
+    const heightMapLength = xfer.xferInt(heightMapBytes.byteLength);
+    if (heightMapLength !== heightMapBytes.byteLength) {
+      throw new Error(
+        `Terrain-visual heightmap length mismatch: expected ${heightMapBytes.byteLength}, got ${heightMapLength}.`,
+      );
+    }
+    xfer.xferUser(heightMapBytes);
+
+    const renderObjectVersion = xfer.xferVersion(SOURCE_HEIGHT_MAP_RENDER_OBJECT_SNAPSHOT_VERSION);
+    if (renderObjectVersion !== SOURCE_HEIGHT_MAP_RENDER_OBJECT_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported height-map render object snapshot version ${renderObjectVersion}`);
+    }
+
+    const treeBufferVersion = xfer.xferVersion(SOURCE_W3D_TREE_BUFFER_SNAPSHOT_VERSION);
+    if (treeBufferVersion !== SOURCE_W3D_TREE_BUFFER_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported W3D tree-buffer snapshot version ${treeBufferVersion}`);
+    }
+    // TODO(source parity): serialize W3D tree buffer entries once TS tracks terrain render-object tree state.
+    xfer.xferInt(0);
+
+    const propBufferVersion = xfer.xferVersion(SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION);
+    if (propBufferVersion !== SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION) {
+      throw new Error(`Unsupported W3D prop-buffer snapshot version ${propBufferVersion}`);
     }
   }
 
@@ -24044,7 +24100,7 @@ export function buildRuntimeSaveFile(params: {
     state.addSnapshotBlock(SOURCE_PARTICLE_SYSTEM_BLOCK, new ParticleSystemSnapshot());
   }
   if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_TERRAIN_VISUAL_BLOCK)) {
-    state.addSnapshotBlock(SOURCE_TERRAIN_VISUAL_BLOCK, new TerrainVisualSnapshot());
+    state.addSnapshotBlock(SOURCE_TERRAIN_VISUAL_BLOCK, new TerrainVisualSnapshot(params.mapData));
   }
   if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GHOST_OBJECT_BLOCK)) {
     state.addSnapshotBlock(SOURCE_GHOST_OBJECT_BLOCK, new GhostObjectSnapshot(resolvedLocalPlayerIndex));
@@ -24316,10 +24372,34 @@ function inspectRuntimeTerrainVisualChunkMode(
     if (waterGridEnabled) {
       return null;
     }
-    if (w3dVersion === SOURCE_W3D_TERRAIN_VISUAL_COMPAT_SNAPSHOT_VERSION && xferLoad.getRemaining() === 0) {
+    if (w3dVersion === 1 && xferLoad.getRemaining() === 0) {
       return 'legacy';
     }
-    return null;
+    if (w3dVersion !== SOURCE_W3D_TERRAIN_VISUAL_SNAPSHOT_VERSION) {
+      return null;
+    }
+    const heightMapLength = xferLoad.xferInt(0);
+    if (heightMapLength < 0 || heightMapLength > xferLoad.getRemaining()) {
+      return null;
+    }
+    xferLoad.xferUser(new Uint8Array(heightMapLength));
+    const renderObjectVersion = xferLoad.xferVersion(SOURCE_HEIGHT_MAP_RENDER_OBJECT_SNAPSHOT_VERSION);
+    if (renderObjectVersion !== SOURCE_HEIGHT_MAP_RENDER_OBJECT_SNAPSHOT_VERSION) {
+      return null;
+    }
+    const treeBufferVersion = xferLoad.xferVersion(SOURCE_W3D_TREE_BUFFER_SNAPSHOT_VERSION);
+    if (treeBufferVersion !== SOURCE_W3D_TREE_BUFFER_SNAPSHOT_VERSION) {
+      return null;
+    }
+    const treeCount = xferLoad.xferInt(0);
+    if (treeCount !== 0) {
+      return null;
+    }
+    const propBufferVersion = xferLoad.xferVersion(SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION);
+    if (propBufferVersion !== SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION || xferLoad.getRemaining() !== 0) {
+      return null;
+    }
+    return 'parsed';
   } catch {
     return null;
   } finally {
