@@ -1841,6 +1841,223 @@ function parseSourceQueueProductionExitBlockData(data: Uint8Array) {
   }
 }
 
+interface SourceDockUpdateTestState {
+  nextCallFrameAndPhase: number;
+  enterPosition: Coord3D;
+  dockPosition: Coord3D;
+  exitPosition: Coord3D;
+  numberApproachPositions: number;
+  positionsLoaded: boolean;
+  approachPositions: Coord3D[];
+  approachPositionOwners: number[];
+  approachPositionReached: boolean[];
+  activeDocker: number;
+  dockerInside: boolean;
+  dockCrippled: boolean;
+  dockOpen: boolean;
+}
+
+function createSourceDockUpdateTestState(
+  overrides: Partial<SourceDockUpdateTestState> = {},
+): SourceDockUpdateTestState {
+  return {
+    nextCallFrameAndPhase: (80 << 2) | 2,
+    enterPosition: { x: 1, y: 2, z: 3 },
+    dockPosition: { x: 4, y: 5, z: 6 },
+    exitPosition: { x: 7, y: 8, z: 9 },
+    numberApproachPositions: 2,
+    positionsLoaded: true,
+    approachPositions: [
+      { x: 10, y: 11, z: 12 },
+      { x: 13, y: 14, z: 15 },
+    ],
+    approachPositionOwners: [21, 0],
+    approachPositionReached: [true, false],
+    activeDocker: 21,
+    dockerInside: true,
+    dockCrippled: false,
+    dockOpen: false,
+    ...overrides,
+  };
+}
+
+function xferSourceDockUpdateForTest(
+  xfer: Xfer,
+  state: SourceDockUpdateTestState,
+): SourceDockUpdateTestState {
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  const nextCallFrameAndPhase = xfer.xferUnsignedInt(state.nextCallFrameAndPhase);
+  const enterPosition = xfer.xferCoord3D(state.enterPosition);
+  const dockPosition = xfer.xferCoord3D(state.dockPosition);
+  const exitPosition = xfer.xferCoord3D(state.exitPosition);
+  const numberApproachPositions = xfer.xferInt(state.numberApproachPositions);
+  const positionsLoaded = xfer.xferBool(state.positionsLoaded);
+  const approachPositionCount = xfer.xferInt(state.approachPositions.length);
+  const approachPositions: Coord3D[] = [];
+  for (let index = 0; index < approachPositionCount; index += 1) {
+    approachPositions.push(xfer.xferCoord3D(state.approachPositions[index] ?? { x: 0, y: 0, z: 0 }));
+  }
+  const approachOwnerCount = xfer.xferInt(state.approachPositionOwners.length);
+  const approachPositionOwners: number[] = [];
+  for (let index = 0; index < approachOwnerCount; index += 1) {
+    approachPositionOwners.push(xfer.xferObjectID(state.approachPositionOwners[index] ?? 0));
+  }
+  const approachReachedCount = xfer.xferInt(state.approachPositionReached.length);
+  const approachPositionReached: boolean[] = [];
+  for (let index = 0; index < approachReachedCount; index += 1) {
+    approachPositionReached.push(xfer.xferBool(state.approachPositionReached[index] ?? false));
+  }
+  const activeDocker = xfer.xferObjectID(state.activeDocker);
+  const dockerInside = xfer.xferBool(state.dockerInside);
+  const dockCrippled = xfer.xferBool(state.dockCrippled);
+  const dockOpen = xfer.xferBool(state.dockOpen);
+  return {
+    nextCallFrameAndPhase,
+    enterPosition,
+    dockPosition,
+    exitPosition,
+    numberApproachPositions,
+    positionsLoaded,
+    approachPositions,
+    approachPositionOwners,
+    approachPositionReached,
+    activeDocker,
+    dockerInside,
+    dockCrippled,
+    dockOpen,
+  };
+}
+
+function createSourceDockOnlyUpdateBlockData(state: SourceDockUpdateTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-dock-only-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSourceDockUpdateForTest(xferSave, state);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceDockOnlyUpdateBlockData(data: Uint8Array): SourceDockUpdateTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-dock-only-update');
+  try {
+    xferLoad.xferVersion(1);
+    return xferSourceDockUpdateForTest(xferLoad, createSourceDockUpdateTestState());
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceSupplyWarehouseDockUpdateBlockData(
+  dock: SourceDockUpdateTestState,
+  boxesStored: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-supply-warehouse-dock-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSourceDockUpdateForTest(xferSave, dock);
+    xferSave.xferInt(boxesStored);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceSupplyWarehouseDockUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-supply-warehouse-dock-update');
+  try {
+    xferLoad.xferVersion(1);
+    const dock = xferSourceDockUpdateForTest(xferLoad, createSourceDockUpdateTestState());
+    return {
+      dock,
+      boxesStored: xferLoad.xferInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceRepairDockUpdateBlockData(
+  dock: SourceDockUpdateTestState,
+  lastRepair: number,
+  healthToAddPerFrame: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-repair-dock-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSourceDockUpdateForTest(xferSave, dock);
+    xferSave.xferObjectID(lastRepair);
+    xferSave.xferReal(healthToAddPerFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceRepairDockUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-repair-dock-update');
+  try {
+    xferLoad.xferVersion(1);
+    const dock = xferSourceDockUpdateForTest(xferLoad, createSourceDockUpdateTestState());
+    return {
+      dock,
+      lastRepair: xferLoad.xferObjectID(0),
+      healthToAddPerFrame: xferLoad.xferReal(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceRailedTransportDockUpdateBlockData(
+  dock: SourceDockUpdateTestState,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-railed-transport-dock-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSourceDockUpdateForTest(xferSave, dock);
+    xferSave.xferObjectID(31);
+    xferSave.xferReal(1.25);
+    xferSave.xferObjectID(32);
+    xferSave.xferReal(2.5);
+    xferSave.xferInt(-1);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceRailedTransportDockUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-railed-transport-dock-update');
+  try {
+    xferLoad.xferVersion(1);
+    const dock = xferSourceDockUpdateForTest(xferLoad, createSourceDockUpdateTestState());
+    return {
+      dock,
+      dockingObjectId: xferLoad.xferObjectID(0),
+      pullInsideDistancePerFrame: xferLoad.xferReal(0),
+      unloadingObjectId: xferLoad.xferObjectID(0),
+      pushOutsideDistancePerFrame: xferLoad.xferReal(0),
+      unloadCount: xferLoad.xferInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function createSourceBaseOnlyUpdateModuleBlockData(nextCallFrameAndPhase: number): Uint8Array {
   const xferSave = new XferSave();
   xferSave.open('create-source-base-only-update-module');
@@ -10979,6 +11196,174 @@ describe('runtime-save-game', () => {
     expect(spawnModule).toBeDefined();
     const parsedSpawn = parseSourceAnimationSteeringUpdateBlockData(spawnModule!.blockData);
     expect(parsedSpawn.nextCallFrameAndPhase).toBe(0xfffffffe);
+  });
+
+  it('rewrites source dock update modules while preserving source-only dock vectors', () => {
+    const dockState = createSourceDockUpdateTestState();
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_SupplyCenterDock',
+      blockData: createSourceDockOnlyUpdateBlockData(dockState),
+    }, {
+      identifier: 'ModuleTag_WarehouseDock',
+      blockData: createSourceSupplyWarehouseDockUpdateBlockData(dockState, 19),
+    }, {
+      identifier: 'ModuleTag_RepairDock',
+      blockData: createSourceRepairDockUpdateBlockData(dockState, 0, 0),
+    }, {
+      identifier: 'ModuleTag_PrisonDock',
+      blockData: createSourceDockOnlyUpdateBlockData(dockState),
+    }, {
+      identifier: 'ModuleTag_RailedDock',
+      blockData: createSourceRailedTransportDockUpdateBlockData(dockState),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source dock rewrite',
+      mapPath: 'Maps/RuntimeDock/RuntimeDock.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeDock',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          supplyWarehouseStates: [{
+            entityId: 7,
+            state: { currentBoxes: 6 },
+          }],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            isSupplyCenter: true,
+            supplyWarehouseProfile: {
+              startingBoxes: 20,
+              deleteWhenEmpty: false,
+              numberApproachPositions: 2,
+              allowsPassthrough: true,
+            },
+            swCripplingDockDisabled: true,
+            repairDockProfile: {
+              timeForFullHealFrames: 30,
+              numberApproachPositions: 2,
+              allowsPassthrough: false,
+            },
+            repairDockLastRepairEntityId: 44,
+            repairDockHealthToAddPerFrame: 3.5,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName !== 'RuntimeTank') {
+            return null;
+          }
+          switch (moduleTag) {
+            case 'ModuleTag_SupplyCenterDock': return 'SUPPLYCENTERDOCKUPDATE';
+            case 'ModuleTag_WarehouseDock': return 'SUPPLYWAREHOUSEDOCKUPDATE';
+            case 'ModuleTag_RepairDock': return 'REPAIRDOCKUPDATE';
+            case 'ModuleTag_PrisonDock': return 'PRISONDOCKUPDATE';
+            case 'ModuleTag_RailedDock': return 'RAILEDTRANSPORTDOCKUPDATE';
+            default: return null;
+          }
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const supplyCenterModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_SupplyCenterDock');
+    const warehouseModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_WarehouseDock');
+    const repairModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_RepairDock');
+    const prisonModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_PrisonDock');
+    const railedModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_RailedDock');
+
+    expect(supplyCenterModule).toBeDefined();
+    const parsedSupplyCenter = parseSourceDockOnlyUpdateBlockData(supplyCenterModule!.blockData);
+    expect(parsedSupplyCenter.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsedSupplyCenter.approachPositions).toEqual(dockState.approachPositions);
+    expect(parsedSupplyCenter.approachPositionOwners).toEqual(dockState.approachPositionOwners);
+    expect(parsedSupplyCenter.approachPositionReached).toEqual(dockState.approachPositionReached);
+    expect(parsedSupplyCenter.activeDocker).toBe(dockState.activeDocker);
+    expect(parsedSupplyCenter.dockerInside).toBe(dockState.dockerInside);
+    expect(parsedSupplyCenter.dockOpen).toBe(dockState.dockOpen);
+
+    expect(warehouseModule).toBeDefined();
+    const parsedWarehouse = parseSourceSupplyWarehouseDockUpdateBlockData(warehouseModule!.blockData);
+    expect(parsedWarehouse.dock.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsedWarehouse.dock.approachPositions).toEqual(dockState.approachPositions);
+    expect(parsedWarehouse.dock.approachPositionOwners).toEqual(dockState.approachPositionOwners);
+    expect(parsedWarehouse.dock.dockCrippled).toBe(true);
+    expect(parsedWarehouse.boxesStored).toBe(6);
+
+    expect(repairModule).toBeDefined();
+    const parsedRepair = parseSourceRepairDockUpdateBlockData(repairModule!.blockData);
+    expect(parsedRepair.dock.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsedRepair.dock.approachPositionReached).toEqual(dockState.approachPositionReached);
+    expect(parsedRepair.lastRepair).toBe(44);
+    expect(parsedRepair.healthToAddPerFrame).toBeCloseTo(3.5);
+
+    expect(prisonModule).toBeDefined();
+    const parsedPrison = parseSourceDockOnlyUpdateBlockData(prisonModule!.blockData);
+    expect(parsedPrison.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsedPrison.approachPositionOwners).toEqual(dockState.approachPositionOwners);
+
+    expect(railedModule).toBeDefined();
+    const parsedRailed = parseSourceRailedTransportDockUpdateBlockData(railedModule!.blockData);
+    expect(parsedRailed.dock.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsedRailed.dockingObjectId).toBe(31);
+    expect(parsedRailed.pullInsideDistancePerFrame).toBeCloseTo(1.25);
+    expect(parsedRailed.unloadingObjectId).toBe(32);
+    expect(parsedRailed.pushOutsideDistancePerFrame).toBeCloseTo(2.5);
+    expect(parsedRailed.unloadCount).toBe(-1);
   });
 
   it('rewrites source PoisonedBehavior and MinefieldBehavior modules from live runtime state', () => {

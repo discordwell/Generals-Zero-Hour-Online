@@ -5710,6 +5710,42 @@ interface SourceQueueProductionExitBlockState extends SourceProductionExitRallyS
   currentBurstCount: number;
 }
 
+interface SourceDockUpdateBlockState {
+  nextCallFrameAndPhase: number;
+  enterPosition: Coord3D;
+  dockPosition: Coord3D;
+  exitPosition: Coord3D;
+  numberApproachPositions: number;
+  positionsLoaded: boolean;
+  approachPositions: Coord3D[];
+  approachPositionOwners: number[];
+  approachPositionReached: boolean[];
+  activeDocker: number;
+  dockerInside: boolean;
+  dockCrippled: boolean;
+  dockOpen: boolean;
+}
+
+interface SourceSupplyWarehouseDockUpdateBlockState {
+  dock: SourceDockUpdateBlockState;
+  boxesStored: number;
+}
+
+interface SourceRepairDockUpdateBlockState {
+  dock: SourceDockUpdateBlockState;
+  lastRepair: number;
+  healthToAddPerFrame: number;
+}
+
+interface SourceRailedTransportDockUpdateBlockState {
+  dock: SourceDockUpdateBlockState;
+  dockingObjectId: number;
+  pullInsideDistancePerFrame: number;
+  unloadingObjectId: number;
+  pushOutsideDistancePerFrame: number;
+  unloadCount: number;
+}
+
 function createDefaultSourceWeaponSnapshotState(): SourceWeaponSnapshotBlockState {
   return {
     version: 3,
@@ -6076,6 +6112,316 @@ function buildSourceQueueProductionExitBlockData(
       entity.queueProductionExitBurstRemaining,
       preservedState.currentBurstCount,
     ));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+const SOURCE_DOCK_VECTOR_LIMIT = 0xffff;
+
+function createDefaultSourceDockUpdateBlockState(): SourceDockUpdateBlockState {
+  return {
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    enterPosition: { x: 0, y: 0, z: 0 },
+    dockPosition: { x: 0, y: 0, z: 0 },
+    exitPosition: { x: 0, y: 0, z: 0 },
+    numberApproachPositions: 0,
+    positionsLoaded: false,
+    approachPositions: [],
+    approachPositionOwners: [],
+    approachPositionReached: [],
+    activeDocker: 0,
+    dockerInside: false,
+    dockCrippled: false,
+    dockOpen: true,
+  };
+}
+
+function sourceFiniteInt(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.trunc(value)
+    : fallback;
+}
+
+function sourceNonNegativeInt(value: unknown, fallback: number): number {
+  const resolved = sourceFiniteInt(value, fallback);
+  return Math.max(0, resolved);
+}
+
+function xferSourceDockCoordVector(xfer: Xfer, values: readonly Coord3D[]): Coord3D[] {
+  const count = xfer.xferInt(values.length);
+  if (count < 0 || count > SOURCE_DOCK_VECTOR_LIMIT) {
+    throw new Error(`Unsupported source DockUpdate Coord3D vector size ${count}`);
+  }
+  const loaded: Coord3D[] = [];
+  for (let index = 0; index < count; index += 1) {
+    loaded.push(xfer.xferCoord3D(values[index] ?? { x: 0, y: 0, z: 0 }));
+  }
+  return loaded;
+}
+
+function xferSourceDockObjectIdVector(xfer: Xfer, values: readonly number[]): number[] {
+  const count = xfer.xferInt(values.length);
+  if (count < 0 || count > SOURCE_DOCK_VECTOR_LIMIT) {
+    throw new Error(`Unsupported source DockUpdate ObjectID vector size ${count}`);
+  }
+  const loaded: number[] = [];
+  for (let index = 0; index < count; index += 1) {
+    loaded.push(xfer.xferObjectID(normalizeSourceObjectId(values[index] ?? 0)));
+  }
+  return loaded;
+}
+
+function xferSourceDockBoolVector(xfer: Xfer, values: readonly boolean[]): boolean[] {
+  const count = xfer.xferInt(values.length);
+  if (count < 0 || count > SOURCE_DOCK_VECTOR_LIMIT) {
+    throw new Error(`Unsupported source DockUpdate Bool vector size ${count}`);
+  }
+  const loaded: boolean[] = [];
+  for (let index = 0; index < count; index += 1) {
+    loaded.push(xfer.xferBool(values[index] ?? false));
+  }
+  return loaded;
+}
+
+function xferSourceDockUpdateBlockState(
+  xfer: Xfer,
+  state: SourceDockUpdateBlockState,
+): SourceDockUpdateBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source DockUpdate version ${version}`);
+  }
+  const nextCallFrameAndPhase = xferSourceUpdateModuleBase(xfer, state.nextCallFrameAndPhase);
+  const enterPosition = xfer.xferCoord3D(state.enterPosition);
+  const dockPosition = xfer.xferCoord3D(state.dockPosition);
+  const exitPosition = xfer.xferCoord3D(state.exitPosition);
+  const numberApproachPositions = xfer.xferInt(state.numberApproachPositions);
+  const positionsLoaded = xfer.xferBool(state.positionsLoaded);
+  const approachPositions = xferSourceDockCoordVector(xfer, state.approachPositions);
+  const approachPositionOwners = xferSourceDockObjectIdVector(xfer, state.approachPositionOwners);
+  const approachPositionReached = xferSourceDockBoolVector(xfer, state.approachPositionReached);
+  const activeDocker = xfer.xferObjectID(normalizeSourceObjectId(state.activeDocker));
+  const dockerInside = xfer.xferBool(state.dockerInside);
+  const dockCrippled = xfer.xferBool(state.dockCrippled);
+  const dockOpen = xfer.xferBool(state.dockOpen);
+  return {
+    nextCallFrameAndPhase,
+    enterPosition,
+    dockPosition,
+    exitPosition,
+    numberApproachPositions,
+    positionsLoaded,
+    approachPositions,
+    approachPositionOwners,
+    approachPositionReached,
+    activeDocker,
+    dockerInside,
+    dockCrippled,
+    dockOpen,
+  };
+}
+
+function tryParseSourceDockOnlyUpdateBlockData(data: Uint8Array): SourceDockUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-dock-only-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const parsed = xferSourceDockUpdateBlockState(xferLoad, createDefaultSourceDockUpdateBlockState());
+    return xferLoad.getRemaining() === 0 ? parsed : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function tryParseSourceSupplyWarehouseDockUpdateBlockData(
+  data: Uint8Array,
+): SourceSupplyWarehouseDockUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-supply-warehouse-dock-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const dock = xferSourceDockUpdateBlockState(xferLoad, createDefaultSourceDockUpdateBlockState());
+    const boxesStored = xferLoad.xferInt(0);
+    return xferLoad.getRemaining() === 0 ? { dock, boxesStored } : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function tryParseSourceRepairDockUpdateBlockData(data: Uint8Array): SourceRepairDockUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-repair-dock-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const dock = xferSourceDockUpdateBlockState(xferLoad, createDefaultSourceDockUpdateBlockState());
+    const lastRepair = xferLoad.xferObjectID(0);
+    const healthToAddPerFrame = xferLoad.xferReal(0);
+    return xferLoad.getRemaining() === 0
+      ? { dock, lastRepair, healthToAddPerFrame }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function tryParseSourceRailedTransportDockUpdateBlockData(
+  data: Uint8Array,
+): SourceRailedTransportDockUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-railed-transport-dock-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const dock = xferSourceDockUpdateBlockState(xferLoad, createDefaultSourceDockUpdateBlockState());
+    const dockingObjectId = xferLoad.xferObjectID(0);
+    const pullInsideDistancePerFrame = xferLoad.xferReal(0);
+    const unloadingObjectId = xferLoad.xferObjectID(0);
+    const pushOutsideDistancePerFrame = xferLoad.xferReal(0);
+    const unloadCount = xferLoad.xferInt(-1);
+    return xferLoad.getRemaining() === 0
+      ? {
+        dock,
+        dockingObjectId,
+        pullInsideDistancePerFrame,
+        unloadingObjectId,
+        pushOutsideDistancePerFrame,
+        unloadCount,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function sourceDockStateForRuntimeFrame(
+  preservedState: SourceDockUpdateBlockState,
+  currentFrame: number,
+  dockCrippled?: boolean,
+): SourceDockUpdateBlockState {
+  return {
+    ...preservedState,
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    dockCrippled: dockCrippled ?? preservedState.dockCrippled,
+  };
+}
+
+function buildSourceDockOnlyUpdateBlockData(
+  currentFrame: number,
+  preservedState: SourceDockUpdateBlockState,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-dock-only-update');
+  try {
+    saver.xferVersion(1);
+    xferSourceDockUpdateBlockState(
+      saver,
+      sourceDockStateForRuntimeFrame(preservedState, currentFrame),
+    );
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function findLiveSupplyWarehouseBoxes(
+  coreState: GameLogicCoreSaveState | null | undefined,
+  entityId: number,
+  fallback: number,
+): number {
+  const liveState = coreState?.supplyWarehouseStates?.find((candidate) => candidate.entityId === entityId);
+  return sourceFiniteInt(liveState?.state?.currentBoxes, fallback);
+}
+
+function buildSourceSupplyWarehouseDockUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceSupplyWarehouseDockUpdateBlockState,
+  coreState?: GameLogicCoreSaveState | null,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-supply-warehouse-dock-update');
+  try {
+    saver.xferVersion(1);
+    xferSourceDockUpdateBlockState(
+      saver,
+      sourceDockStateForRuntimeFrame(
+        preservedState.dock,
+        currentFrame,
+        entity.swCripplingDockDisabled === true ? true : preservedState.dock.dockCrippled,
+      ),
+    );
+    saver.xferInt(findLiveSupplyWarehouseBoxes(coreState, entity.id, preservedState.boxesStored));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceRepairDockUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceRepairDockUpdateBlockState,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-repair-dock-update');
+  try {
+    const lastRepair = sourceNonNegativeInt(entity.repairDockLastRepairEntityId, preservedState.lastRepair);
+    saver.xferVersion(1);
+    xferSourceDockUpdateBlockState(
+      saver,
+      sourceDockStateForRuntimeFrame(preservedState.dock, currentFrame),
+    );
+    saver.xferObjectID(normalizeSourceObjectId(lastRepair));
+    saver.xferReal(lastRepair > 0
+      ? (typeof entity.repairDockHealthToAddPerFrame === 'number'
+        && Number.isFinite(entity.repairDockHealthToAddPerFrame)
+          ? Math.max(0, entity.repairDockHealthToAddPerFrame)
+          : preservedState.healthToAddPerFrame)
+      : 0);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceRailedTransportDockUpdateBlockData(
+  currentFrame: number,
+  preservedState: SourceRailedTransportDockUpdateBlockState,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-railed-transport-dock-update');
+  try {
+    saver.xferVersion(1);
+    xferSourceDockUpdateBlockState(
+      saver,
+      sourceDockStateForRuntimeFrame(preservedState.dock, currentFrame),
+    );
+    saver.xferObjectID(normalizeSourceObjectId(preservedState.dockingObjectId));
+    saver.xferReal(preservedState.pullInsideDistancePerFrame);
+    saver.xferObjectID(normalizeSourceObjectId(preservedState.unloadingObjectId));
+    saver.xferReal(preservedState.pushOutsideDistancePerFrame);
+    saver.xferInt(preservedState.unloadCount);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -9507,6 +9853,7 @@ function overlaySourceObjectModulesFromLiveEntity(
   entity: MapEntity,
   liveEntities: readonly MapEntity[],
   currentFrame: number,
+  coreState?: GameLogicCoreSaveState | null,
   templateName?: string | null,
   resolveSourceObjectModuleTypeByTag?: ((templateName: string, moduleTag: string) => string | null) | null,
 ): SourceObjectModuleSaveState[] {
@@ -9949,6 +10296,56 @@ function overlaySourceObjectModulesFromLiveEntity(
               };
             }
           }
+          if (moduleType === 'SUPPLYCENTERDOCKUPDATE' && entity.isSupplyCenter) {
+            const parsedSourceState = tryParseSourceDockOnlyUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceDockOnlyUpdateBlockData(currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'SUPPLYWAREHOUSEDOCKUPDATE' && entity.supplyWarehouseProfile) {
+            const parsedSourceState = tryParseSourceSupplyWarehouseDockUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceSupplyWarehouseDockUpdateBlockData(
+                  entity,
+                  currentFrame,
+                  parsedSourceState,
+                  coreState,
+                ),
+              };
+            }
+          }
+          if (moduleType === 'REPAIRDOCKUPDATE' && entity.repairDockProfile) {
+            const parsedSourceState = tryParseSourceRepairDockUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceRepairDockUpdateBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'PRISONDOCKUPDATE') {
+            const parsedSourceState = tryParseSourceDockOnlyUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceDockOnlyUpdateBlockData(currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'RAILEDTRANSPORTDOCKUPDATE') {
+            const parsedSourceState = tryParseSourceRailedTransportDockUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceRailedTransportDockUpdateBlockData(currentFrame, parsedSourceState),
+              };
+            }
+          }
           if (moduleType === 'DEFAULTPRODUCTIONEXITUPDATE' && entity.queueProductionExitProfile) {
             const parsedSourceState = tryParseSourceProductionExitRallyBlockData(module.blockData);
             if (parsedSourceState) {
@@ -10224,6 +10621,7 @@ function overlaySourceObjectStateFromLiveEntity(
   entity: MapEntity,
   liveEntities: readonly MapEntity[],
   currentFrame: number,
+  coreState?: GameLogicCoreSaveState | null,
   triggerAreaState?: GameLogicObjectTriggerAreaSaveState | null,
   objectXferOverlayState?: GameLogicObjectXferOverlayState | null,
   templateName?: string | null,
@@ -10326,6 +10724,7 @@ function overlaySourceObjectStateFromLiveEntity(
       entity,
       liveEntities,
       currentFrame,
+      coreState,
       templateName,
       resolveSourceObjectModuleTypeByTag,
     ),
@@ -10384,6 +10783,7 @@ function buildSourceGameLogicChunk(
                 liveEntity,
                 coreState?.spawnedEntities ?? [],
                 coreState?.frameCounter ?? sourceState.frameCounter,
+                coreState,
                 liveTriggerAreaStateByEntityId.get(liveEntity.id),
                 objectXferOverlayStateByEntityId.get(liveEntity.id),
                 object.templateName ?? liveEntity.templateName,
