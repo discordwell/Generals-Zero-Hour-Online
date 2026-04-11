@@ -19,6 +19,7 @@ import {
   ARMOR_SET_FLAG_MASK_BY_NAME,
   buildSourceMapEntityChunk,
   calcBodyDamageState,
+  createEmptySourceMapEntitySaveState,
   parseSourceMapEntityChunk,
   type MapEntityChunkLayoutInspection,
   type SourceMapEntitySaveState,
@@ -16394,6 +16395,7 @@ function overlaySourceObjectStateFromLiveEntity(
     shroudClearingRange: Number.isFinite(entity.shroudClearingRange)
       ? entity.shroudClearingRange
       : sourceState.shroudClearingRange,
+    shroudRange: Number.isFinite(entity.shroudRange) ? entity.shroudRange : sourceState.shroudRange,
     builderId: Number.isFinite(entity.builderId) ? Math.trunc(entity.builderId) : sourceState.builderId,
     disabledMask: disabledState.disabledMask,
     disabledTillFrame: disabledState.disabledTillFrame,
@@ -16484,6 +16486,102 @@ function formatMissingSourceObjectXferEntity(entity: MapEntity): string {
   return `${Math.trunc(entity.id)} ${templateName}${scriptName}`;
 }
 
+function buildSourceGeometryInfoFromLiveEntity(
+  entity: MapEntity,
+  fallback: SourceMapEntitySaveState['geometryInfo'],
+): SourceMapEntitySaveState['geometryInfo'] {
+  const entityGeometry = entity as unknown as {
+    geometryInfo?: { shape?: string; majorRadius?: number; minorRadius?: number; height?: number } | null;
+    obstacleGeometry?: { shape?: string; majorRadius?: number; minorRadius?: number; height?: number } | null;
+  };
+  const geometry = entityGeometry.geometryInfo ?? entityGeometry.obstacleGeometry ?? null;
+  if (!geometry) {
+    return fallback;
+  }
+
+  const majorRadius = Number.isFinite(geometry.majorRadius)
+    ? Math.max(0, geometry.majorRadius ?? 0)
+    : fallback.majorRadius;
+  const minorRadius = Number.isFinite(geometry.minorRadius)
+    ? Math.max(0, geometry.minorRadius ?? 0)
+    : majorRadius;
+  const height = Number.isFinite(geometry.height)
+    ? Math.max(0, geometry.height ?? 0)
+    : fallback.height;
+  const isBox = geometry.shape === 'box';
+  const halfHeight = height * 0.5;
+  return {
+    ...fallback,
+    type: isBox ? 2 : 1,
+    height,
+    majorRadius,
+    minorRadius,
+    boundingCircleRadius: isBox ? Math.hypot(majorRadius, minorRadius) : majorRadius,
+    boundingSphereRadius: isBox
+      ? Math.hypot(majorRadius, minorRadius, halfHeight)
+      : Math.max(majorRadius, halfHeight),
+  };
+}
+
+function resolveGeneratedSourceObjectTeamId(
+  entity: MapEntity,
+  sourceTeamIdByName: ReadonlyMap<string, number>,
+  fallbackTeamId: number,
+): number {
+  const sourceTeamName = entity.sourceTeamNameUpper?.trim().toUpperCase() ?? '';
+  if (sourceTeamName.length > 0) {
+    const teamId = sourceTeamIdByName.get(sourceTeamName);
+    if (teamId !== undefined) {
+      return teamId;
+    }
+  }
+  return fallbackTeamId;
+}
+
+function createGeneratedSourceObjectStateFromLiveEntity(
+  entity: MapEntity,
+  liveEntities: readonly MapEntity[],
+  currentFrame: number,
+  coreState: GameLogicCoreSaveState | null,
+  triggerAreaState: GameLogicObjectTriggerAreaSaveState | null | undefined,
+  objectXferOverlayState: GameLogicObjectXferOverlayState | null | undefined,
+  sourceTeamIdByName: ReadonlyMap<string, number>,
+  fallbackTeamId: number,
+  resolveSourceObjectModuleTypeByTag?: ((templateName: string, moduleTag: string) => string | null) | null,
+): SourceMapEntitySaveState {
+  const templateName = typeof entity.templateName === 'string' ? entity.templateName.trim() : '';
+  if (!templateName) {
+    throw new Error(
+      `Cannot synthesize source Object::xfer for live entity ${Math.trunc(entity.id)} without a template name.`,
+    );
+  }
+
+  const sourceState = createEmptySourceMapEntitySaveState();
+  sourceState.objectId = Math.trunc(entity.id);
+  sourceState.teamId = resolveGeneratedSourceObjectTeamId(entity, sourceTeamIdByName, fallbackTeamId);
+  const drawableId = (entity as unknown as { drawableId?: number }).drawableId;
+  sourceState.drawableId = Number.isFinite(drawableId) && (drawableId ?? 0) > 0
+    ? Math.trunc(drawableId ?? 0)
+    : sourceState.objectId;
+  sourceState.originalTeamName = entity.sourceTeamNameUpper?.trim().toUpperCase() ?? '';
+  sourceState.geometryInfo = buildSourceGeometryInfoFromLiveEntity(entity, sourceState.geometryInfo);
+  sourceState.modulesReady = true;
+  // Source load constructs template behavior modules before Object::xfer. With no prior per-module
+  // block, omitted modules retain the constructor/onObjectCreated state instead of copying another object.
+  sourceState.modules = [];
+  return overlaySourceObjectStateFromLiveEntity(
+    sourceState,
+    entity,
+    liveEntities,
+    currentFrame,
+    coreState,
+    triggerAreaState,
+    objectXferOverlayState,
+    templateName,
+    resolveSourceObjectModuleTypeByTag,
+  );
+}
+
 function buildSourceGameLogicChunk(
   sourceState: ParsedSourceGameLogicChunkState,
   options: {
@@ -16498,38 +16596,80 @@ function buildSourceGameLogicChunk(
   try {
     const coreState = options.coreState ?? null;
     const campaignState = options.campaignState ?? sourceState.campaignState;
+    const liveEntities = coreState?.spawnedEntities ?? [];
     const liveEntityById = new Map(
-      (coreState?.spawnedEntities ?? []).map((entity) => [entity.id, entity]),
+      liveEntities.map((entity) => [entity.id, entity]),
     );
     const sourceObjectIds = new Set(sourceState.objects.map((object) => object.state.objectId));
-    const missingSourceObjectXferEntities = [...liveEntityById.values()].filter((entity) =>
-      Number.isFinite(entity.id)
-      && Math.trunc(entity.id) > 0
-      && !sourceObjectIds.has(Math.trunc(entity.id)));
-    if (missingSourceObjectXferEntities.length > 0) {
-      throw new Error(
-        'Cannot rewrite source CHUNK_GameLogic because live entities have no source Object::xfer state: '
-        + `${missingSourceObjectXferEntities.map(formatMissingSourceObjectXferEntity).join(', ')}. `
-        + 'Full source-save parity requires serializing newly created objects instead of dropping them.',
-      );
-    }
     const liveTriggerAreaStateByEntityId = new Map(
       (coreState?.objectTriggerAreaStates ?? []).map((state) => [state.entityId, state]),
     );
     const objectXferOverlayStateByEntityId = new Map(
       (options.objectXferOverlayStates ?? []).map((state) => [state.entityId, state]),
     );
+    const sourceTeamIdByName = new Map<string, number>();
+    for (const object of sourceState.objects) {
+      const originalTeamName = object.state.originalTeamName.trim().toUpperCase();
+      if (originalTeamName.length > 0 && !sourceTeamIdByName.has(originalTeamName)) {
+        sourceTeamIdByName.set(originalTeamName, object.state.teamId);
+      }
+    }
+    const fallbackTeamId = sourceState.objects[0]?.state.teamId ?? 0;
+    const objectTocEntries = sourceState.objectTocEntries.map((entry) => ({ ...entry }));
+    const tocIdByTemplateName = new Map(objectTocEntries.map((entry) => [entry.templateName, entry.tocId]));
+    const getOrCreateObjectTocId = (templateName: string): number => {
+      const existing = tocIdByTemplateName.get(templateName);
+      if (existing !== undefined) {
+        return existing;
+      }
+      const nextTocId = objectTocEntries.reduce((max, entry) => Math.max(max, entry.tocId), 0) + 1;
+      objectTocEntries.push({ templateName, tocId: nextTocId });
+      tocIdByTemplateName.set(templateName, nextTocId);
+      return nextTocId;
+    };
+    const generatedObjects: ParsedSourceGameLogicObjectState[] = [];
+    const missingSourceObjectXferEntities = [...liveEntityById.values()].filter((entity) =>
+      Number.isFinite(entity.id)
+      && Math.trunc(entity.id) > 0
+      && !sourceObjectIds.has(Math.trunc(entity.id)));
+    for (const entity of missingSourceObjectXferEntities) {
+      const templateName = typeof entity.templateName === 'string' ? entity.templateName.trim() : '';
+      if (!templateName) {
+        throw new Error(
+          'Cannot rewrite source CHUNK_GameLogic because live entities have no source Object::xfer state '
+          + `and cannot be synthesized: ${formatMissingSourceObjectXferEntity(entity)}.`,
+        );
+      }
+      const generatedState = createGeneratedSourceObjectStateFromLiveEntity(
+        entity,
+        liveEntities,
+        coreState?.frameCounter ?? sourceState.frameCounter,
+        coreState,
+        liveTriggerAreaStateByEntityId.get(entity.id),
+        objectXferOverlayStateByEntityId.get(entity.id),
+        sourceTeamIdByName,
+        fallbackTeamId,
+        options.resolveSourceObjectModuleTypeByTag,
+      );
+      const blockData = buildSourceMapEntityChunk(generatedState);
+      generatedObjects.push({
+        tocId: getOrCreateObjectTocId(templateName),
+        templateName,
+        blockData,
+        state: generatedState,
+      });
+    }
     saver.xferVersion(sourceState.version);
     saver.xferUnsignedInt(coreState?.frameCounter ?? sourceState.frameCounter);
     saver.xferVersion(1);
-    saver.xferUnsignedInt(sourceState.objectTocEntries.length);
-    for (const tocEntry of sourceState.objectTocEntries) {
+    saver.xferUnsignedInt(objectTocEntries.length);
+    for (const tocEntry of objectTocEntries) {
       saver.xferAsciiString(tocEntry.templateName);
       saver.xferUnsignedShort(tocEntry.tocId);
     }
 
-    saver.xferUnsignedInt(sourceState.objects.length);
-    for (const object of sourceState.objects) {
+    saver.xferUnsignedInt(sourceState.objects.length + generatedObjects.length);
+    for (const object of [...sourceState.objects, ...generatedObjects]) {
       saver.xferUnsignedShort(object.tocId);
       saver.beginBlock();
       const liveEntity = liveEntityById.get(object.state.objectId);
@@ -16539,7 +16679,7 @@ function buildSourceGameLogicChunk(
               overlaySourceObjectStateFromLiveEntity(
                 object.state,
                 liveEntity,
-                coreState?.spawnedEntities ?? [],
+                liveEntities,
                 coreState?.frameCounter ?? sourceState.frameCounter,
                 coreState,
                 liveTriggerAreaStateByEntityId.get(liveEntity.id),

@@ -6071,37 +6071,47 @@ function createSourceGameLogicChunkData(
   }
 }
 
-function readFirstSourceGameLogicObjectState(data: ArrayBuffer) {
+function readSourceGameLogicObjectStates(data: ArrayBuffer) {
   const chunkData = readSaveChunkData(data, 'CHUNK_GameLogic');
   if (!chunkData) {
     return null;
   }
   const xferLoad = new XferLoad(chunkData.slice().buffer);
-  xferLoad.open('read-first-source-game-logic-object-state');
+  xferLoad.open('read-source-game-logic-object-states');
   try {
     xferLoad.xferVersion(3);
     xferLoad.xferUnsignedInt(0);
     xferLoad.xferVersion(1);
     const tocCount = xferLoad.xferUnsignedInt(0);
+    const tocById = new Map<number, string>();
     for (let index = 0; index < tocCount; index += 1) {
-      xferLoad.xferAsciiString('');
-      xferLoad.xferUnsignedShort(0);
+      const templateName = xferLoad.xferAsciiString('');
+      const tocId = xferLoad.xferUnsignedShort(0);
+      tocById.set(tocId, templateName);
     }
     const objectCount = xferLoad.xferUnsignedInt(0);
-    if (objectCount <= 0) {
-      return null;
+    const objects: Array<{ templateName: string | null; state: NonNullable<ReturnType<typeof parseSourceMapEntityChunk>> }> = [];
+    for (let index = 0; index < objectCount; index += 1) {
+      const tocId = xferLoad.xferUnsignedShort(0);
+      const blockSize = xferLoad.beginBlock();
+      const objectData = xferLoad.xferUser(new Uint8Array(blockSize)) as Uint8Array;
+      xferLoad.endBlock();
+      const parsed = parseSourceMapEntityChunk(objectData);
+      if (parsed) {
+        objects.push({
+          templateName: tocById.get(tocId) ?? null,
+          state: parsed,
+        });
+      }
     }
-    xferLoad.xferUnsignedShort(0);
-    const blockSize = xferLoad.beginBlock();
-    const blockStart = xferLoad.getOffset();
-    const objectData = chunkData.subarray(blockStart, blockStart + blockSize);
-    const parsed = parseSourceMapEntityChunk(objectData);
-    xferLoad.skip(blockSize);
-    xferLoad.endBlock();
-    return parsed;
+    return objects;
   } finally {
     xferLoad.close();
   }
+}
+
+function readFirstSourceGameLogicObjectState(data: ArrayBuffer) {
+  return readSourceGameLogicObjectStates(data)?.[0]?.state ?? null;
 }
 
 function parseSourceDefectionHelperBlockData(data: Uint8Array) {
@@ -10035,12 +10045,12 @@ describe('runtime-save-game', () => {
     });
   });
 
-  it('fails loudly instead of dropping live objects missing source Object::xfer state', () => {
+  it('appends generated source Object::xfer records for live objects missing source state', () => {
     const sourceGameLogicBytes = createSourceGameLogicChunkData();
 
-    expect(() => buildRuntimeSaveFile({
-      description: 'Source GameLogic Missing Object',
-      mapPath: 'assets/maps/SourceMissingObject.json',
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source GameLogic Generated Object',
+      mapPath: 'assets/maps/SourceGeneratedObject.json',
       mapData: {
         heightmap: {
           width: 1,
@@ -10096,6 +10106,127 @@ describe('runtime-save-game', () => {
               id: 8,
               templateName: 'RuntimeDrone',
               scriptName: 'UNIT_SPAWNED',
+              sourceTeamNameUpper: 'TEAMUNIT',
+              drawableId: 88,
+              x: 11,
+              y: 3,
+              z: 19,
+              rotationY: 0.5,
+              visionRange: 175,
+              shroudClearingRange: 160,
+              shroudRange: 120,
+              constructionPercent: 100,
+              completedUpgrades: new Set(['Upgrade_Generated']),
+              geometryInfo: {
+                shape: 'box',
+                majorRadius: 4,
+                minorRadius: 6,
+                height: 8,
+              },
+            } as unknown as import('@generals/game-logic').MapEntity,
+          ],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 9,
+      },
+    });
+
+    expect(inspectGameLogicChunkLayout(readSaveChunkData(saveFile.data, 'CHUNK_GameLogic')!)).toMatchObject({
+      layout: 'source_outer',
+      objectTocCount: 2,
+      objectCount: 2,
+    });
+    const objects = readSourceGameLogicObjectStates(saveFile.data);
+    expect(objects?.map((object) => [object.templateName, object.state.objectId])).toEqual([
+      ['RuntimeTank', 7],
+      ['RuntimeDrone', 8],
+    ]);
+    const generated = objects?.find((object) => object.state.objectId === 8)?.state;
+    expect(generated).toMatchObject({
+      objectId: 8,
+      teamId: 3,
+      drawableId: 88,
+      internalName: 'UNIT_SPAWNED',
+      originalTeamName: 'TEAMUNIT',
+      visionRange: 175,
+      shroudClearingRange: 160,
+      shroudRange: 120,
+      constructionPercent: 100,
+      completedUpgradeNames: ['Upgrade_Generated'],
+      modules: [],
+      modulesReady: true,
+    });
+    expect(generated?.weaponSet?.templateName).toBe('RuntimeDrone');
+    expect(generated?.geometryInfo).toMatchObject({
+      type: 2,
+      height: 8,
+      majorRadius: 4,
+      minorRadius: 6,
+    });
+    expect(generated?.geometryInfo.boundingCircleRadius).toBeCloseTo(Math.hypot(4, 6));
+    expect(generated?.geometryInfo.boundingSphereRadius).toBeCloseTo(Math.hypot(4, 6, 4));
+  });
+
+  it('fails loudly when a missing source Object::xfer record cannot be synthesized', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData();
+
+    expect(() => buildRuntimeSaveFile({
+      description: 'Source GameLogic Unsynthesizable Object',
+      mapPath: 'assets/maps/SourceUnsynthesizableObject.json',
+      mapData: {
+        heightmap: {
+          width: 1,
+          height: 1,
+          borderSize: 0,
+          data: 'AAAAAA==',
+        },
+        objects: [],
+        triggers: [],
+        waypoints: { nodes: [], links: [] },
+        textureClasses: [],
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 9,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [
+            {
+              id: 7,
+              templateName: 'RuntimeTank',
+            } as unknown as import('@generals/game-logic').MapEntity,
+            {
+              id: 8,
+              templateName: '',
             } as unknown as import('@generals/game-logic').MapEntity,
           ],
         }),
@@ -10103,9 +10234,8 @@ describe('runtime-save-game', () => {
         getObjectIdCounter: () => 9,
       },
     })).toThrow(
-      'Cannot rewrite source CHUNK_GameLogic because live entities have no source Object::xfer state: '
-      + '8 RuntimeDrone script="UNIT_SPAWNED". Full source-save parity requires serializing newly created objects '
-      + 'instead of dropping them.',
+      'Cannot rewrite source CHUNK_GameLogic because live entities have no source Object::xfer state '
+      + 'and cannot be synthesized: 8 <unknown-template>.',
     );
   });
 
