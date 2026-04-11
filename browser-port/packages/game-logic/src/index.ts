@@ -13188,9 +13188,9 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   private getSourceSpecialPowerReadyTimerProjectionEntries(): Array<{ templateId: number; readyFrame: number }> {
-    const localSide = this.resolveLocalPlayerSide();
-    if (localSide) {
-      return this.getSourceSpecialPowerReadyTimersForSide(localSide) ?? [];
+    const projectionSide = this.resolveSourceSpecialPowerReadyTimerProjectionSide();
+    if (projectionSide) {
+      return this.getSourceSpecialPowerReadyTimersForSide(projectionSide) ?? [];
     }
 
     if (this.sideSourceSpecialPowerReadyTimers.size === 1) {
@@ -13199,6 +13199,20 @@ export class GameLogicSubsystem implements Subsystem {
       }
     }
     return [];
+  }
+
+  private resolveSourceSpecialPowerReadyTimerProjectionSide(): string | null {
+    const localSide = this.resolveLocalPlayerSide();
+    if (localSide) {
+      return localSide;
+    }
+
+    if (this.sideSourceSpecialPowerReadyTimers.size === 1) {
+      for (const side of this.sideSourceSpecialPowerReadyTimers.keys()) {
+        return side;
+      }
+    }
+    return null;
   }
 
   private projectSourceSpecialPowerReadyTimersToSharedRuntimeIndex(): void {
@@ -13219,6 +13233,79 @@ export class GameLogicSubsystem implements Subsystem {
         Math.max(0, Math.trunc(timer.readyFrame)),
       );
     }
+  }
+
+  private captureSourceSpecialPowerReadyTimersBySide(): Map<string, Array<{ templateId: number; readyFrame: number }>> {
+    const timersBySide = new Map<string, Array<{ templateId: number; readyFrame: number }>>();
+    for (const [side, timers] of this.sideSourceSpecialPowerReadyTimers.entries()) {
+      timersBySide.set(
+        side,
+        timers.flatMap((timer) => (
+          Number.isFinite(timer.templateId) && Number.isFinite(timer.readyFrame)
+            ? [{
+              templateId: Math.max(0, Math.trunc(timer.templateId)),
+              readyFrame: Math.max(0, Math.trunc(timer.readyFrame)),
+            }]
+            : []
+        )),
+      );
+    }
+
+    const projectionSide = this.resolveSourceSpecialPowerReadyTimerProjectionSide();
+    if (!projectionSide) {
+      return timersBySide;
+    }
+    const normalizedProjectionSide = this.normalizeSide(projectionSide);
+    let projectionMapSide = projectionSide;
+    if (normalizedProjectionSide) {
+      for (const side of timersBySide.keys()) {
+        if (this.normalizeSide(side) === normalizedProjectionSide) {
+          projectionMapSide = side;
+          break;
+        }
+      }
+    }
+    let timers = timersBySide.get(projectionMapSide);
+    if (!timers) {
+      timers = [];
+      timersBySide.set(projectionMapSide, timers);
+    }
+
+    for (const [powerName, readyFrame] of this.sharedShortcutSpecialPowerReadyFrames.entries()) {
+      if (!Number.isFinite(readyFrame)) {
+        continue;
+      }
+      const normalizedPowerName = this.normalizeShortcutSpecialPowerName(powerName);
+      if (!normalizedPowerName) {
+        continue;
+      }
+      const specialPowerDef = this.resolveSpecialPowerDefByName(normalizedPowerName);
+      const sourceTemplateId = specialPowerDef?.sourceTemplateId;
+      if (!specialPowerDef
+        || !Number.isFinite(sourceTemplateId)
+        || sourceTemplateId === undefined
+        || sourceTemplateId <= 0) {
+        continue;
+      }
+      if (readBooleanField(specialPowerDef.fields, ['SharedSyncedTimer']) !== true) {
+        continue;
+      }
+      const normalizedTimer = {
+        templateId: Math.max(1, Math.trunc(sourceTemplateId)),
+        readyFrame: Math.max(0, Math.trunc(readyFrame)),
+      };
+      const existingTimer = timers.find((timer) => timer.templateId === normalizedTimer.templateId);
+      if (existingTimer) {
+        existingTimer.readyFrame = normalizedTimer.readyFrame;
+      } else {
+        timers.push(normalizedTimer);
+      }
+    }
+
+    if (timers.length === 0) {
+      timersBySide.delete(projectionMapSide);
+    }
+    return timersBySide;
   }
 
   private rebuildSpecialPowerRuntimeIndexes(): void {
@@ -13320,7 +13407,7 @@ export class GameLogicSubsystem implements Subsystem {
 
   captureSourcePlayerRuntimeSaveState(): GameLogicPlayersSaveState {
     const state = this.captureSourceRuntimeStateByKeys(SOURCE_PLAYER_RUNTIME_STATE_KEYS);
-    state.sideSourceSpecialPowerReadyTimers = this.sideSourceSpecialPowerReadyTimers;
+    state.sideSourceSpecialPowerReadyTimers = this.captureSourceSpecialPowerReadyTimersBySide();
     state.sideSourcePlayerTeamPrototypeIds = this.sideSourcePlayerTeamPrototypeIds;
     state.sideSourceBuildListInfos = this.sideSourceBuildListInfos;
     state.sideSourceAiPlayerState = this.sideSourceAiPlayerState;

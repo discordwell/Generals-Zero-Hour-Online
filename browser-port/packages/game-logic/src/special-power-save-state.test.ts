@@ -263,4 +263,46 @@ describe('special-power save-state', () => {
       new Map([['SPECIAL_PARTICLE_UPLINK_CANNON', 321]]),
     );
   });
+
+  it('captures shared runtime timers back to source SpecialPowerTemplate IDs', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('SharedPowerStructure', 'America', ['STRUCTURE', 'COMMANDCENTER'], [
+          makeBlock('Behavior', 'OCLSpecialPower ModuleTag_Shared', {
+            SpecialPowerTemplate: 'SPECIAL_PARTICLE_UPLINK_CANNON',
+          }),
+        ]),
+      ],
+      specialPowers: [
+        {
+          ...makeSpecialPowerDef('SPECIAL_PARTICLE_UPLINK_CANNON', {
+            ReloadTime: 6000,
+            SharedSyncedTimer: true,
+          }),
+          sourceTemplateId: 42,
+        },
+      ],
+    });
+    const registry = makeRegistry(bundle);
+    const map = makeMap([
+      makeMapObject('SharedPowerStructure', 20, 10),
+    ], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const privateLogic = logic as unknown as {
+      sharedShortcutSpecialPowerReadyFrames: Map<string, number>;
+    };
+    privateLogic.sharedShortcutSpecialPowerReadyFrames.set('SPECIAL_PARTICLE_UPLINK_CANNON', 321);
+
+    const playerState = logic.captureSourcePlayerRuntimeSaveState();
+    const timersBySide = playerState.state.sideSourceSpecialPowerReadyTimers as Map<string, Array<{
+      templateId: number;
+      readyFrame: number;
+    }>>;
+    expect(timersBySide.get('america')).toEqual([
+      { templateId: 42, readyFrame: 321 },
+    ]);
+  });
 });
