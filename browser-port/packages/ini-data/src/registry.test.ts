@@ -576,10 +576,32 @@ describe('IniDataRegistry', () => {
       expect(bundle.weapons[1]!.name).toBe('GunC');
       expect(bundle.specialPowers?.[0]!.name).toBe('POWER_A');
       expect(bundle.specialPowers?.[1]!.name).toBe('POWER_Z');
+      expect(bundle.specialPowers?.map((specialPower) => [
+        specialPower.name,
+        specialPower.sourceTemplateId,
+      ])).toEqual([
+        ['POWER_A', 2],
+        ['POWER_Z', 1],
+      ]);
       expect(bundle.objectCreationLists?.[0]!.name).toBe('Spawn_A');
       expect(bundle.objectCreationLists?.[1]!.name).toBe('Spawn_Z');
       expect(bundle.stats.objects).toBe(2);
       expect(bundle.stats.weapons).toBe(2);
+      expect(registry.getSpecialPowerBySourceTemplateId(1)?.name).toBe('POWER_Z');
+      expect(registry.getSpecialPowerBySourceTemplateId(2)?.name).toBe('POWER_A');
+    });
+
+    it('keeps SpecialPower source template IDs stable across override-style redeclarations', () => {
+      registry.loadBlocks([
+        makeBlock('SpecialPower', 'Power_A', { Type: 'Instant' }),
+        makeBlock('SpecialPower', 'Power_A', { ReloadTime: '1000' }),
+        makeBlock('SpecialPower', 'Power_B', { Type: 'Instant' }),
+      ]);
+
+      expect(registry.getSpecialPower('Power_A')?.sourceTemplateId).toBe(1);
+      expect(registry.getSpecialPower('Power_B')?.sourceTemplateId).toBe(2);
+      expect(registry.getSpecialPowerBySourceTemplateId(1)?.name).toBe('POWER_A');
+      expect(registry.getSpecialPowerBySourceTemplateId(2)?.name).toBe('POWER_B');
     });
   });
 
@@ -668,6 +690,7 @@ describe('IniDataRegistry', () => {
             name: 'SP_A',
             fields: { Type: 'Instant', SpecialPowerTemplate: 'OCL_01' },
             blocks: [{ type: 'ModuleTag', name: 'Power', fields: {}, blocks: [] }],
+            sourceTemplateId: 17,
           },
         ],
         objectCreationLists: [
@@ -714,6 +737,8 @@ describe('IniDataRegistry', () => {
       expect(registry.errors).toHaveLength(1);
       expect(registry.errors[0]!.type).toBe('duplicate');
       expect(registry.getSpecialPower('SP_A')?.fields).toMatchObject({ Type: 'Instant' });
+      expect(registry.getSpecialPower('SP_A')?.sourceTemplateId).toBe(17);
+      expect(registry.getSpecialPowerBySourceTemplateId(17)?.name).toBe('SP_A');
       expect(registry.getObjectCreationList('OCL_A')?.fields).toMatchObject({ CreateAtEdge: 'No' });
     });
 
@@ -948,6 +973,7 @@ describe('IniDataRegistry', () => {
       const bundle = registry.toBundle();
       expect(bundle.specialPowers).toHaveLength(1);
       expect(bundle.specialPowers[0]!.name).toBe('SUPERWEAPONDAISYCUTTER');
+      expect(bundle.specialPowers[0]!.sourceTemplateId).toBe(1);
       expect(bundle.objectCreationLists).toHaveLength(1);
 
       const restored = new IniDataRegistry();
@@ -957,6 +983,7 @@ describe('IniDataRegistry', () => {
       expect(sp).toBeDefined();
       expect(sp!.fields['ReloadTime']).toBe('360000');
       expect(sp!.fields['Type']).toBe('SPECIAL_DAISY_CUTTER');
+      expect(sp!.sourceTemplateId).toBe(1);
 
       const ocl = restored.getObjectCreationList('OCL_AmericaParadrop');
       expect(ocl).toBeDefined();

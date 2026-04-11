@@ -70,6 +70,12 @@ export interface SpecialPowerDef {
    * Parsed via INI::parseIndexList with TheAcademyClassificationTypeNames.
    */
   academyClassify?: string;
+  /**
+   * Source parity: SpecialPowerTemplate::m_id assigned by SpecialPowerStore in
+   * first-creation parse order. Player::xfer writes this numeric ID for shared
+   * special-power ready timers.
+   */
+  sourceTemplateId?: number;
 }
 
 export interface ObjectCreationListDef {
@@ -418,6 +424,7 @@ export class IniDataRegistry {
   readonly staticGameLODs = new Map<string, RawBlockDef>();
   readonly dynamicGameLODs = new Map<string, RawBlockDef>();
   readonly mappedImages = new Map<string, MappedImageDef>();
+  private nextSpecialPowerSourceTemplateId = 1;
   private commandMaps: RawBlockDef[] = [];
   private creditsBlocks: RawBlockDef[] = [];
   private mouseBlocks: RawBlockDef[] = [];
@@ -476,6 +483,7 @@ export class IniDataRegistry {
     this.sciences.clear();
     this.factions.clear();
     this.specialPowers.clear();
+    this.nextSpecialPowerSourceTemplateId = 1;
     this.objectCreationLists.clear();
     this.locomotors.clear();
     this.audioEvents.clear();
@@ -546,13 +554,23 @@ export class IniDataRegistry {
     for (const specialPower of bundle.specialPowers ?? []) {
       // Source parity: C++ NameKeyGenerator lowercases all names.
       // Store with uppercase key for case-insensitive lookup.
+      const sourceTemplateId = Number.isFinite(specialPower.sourceTemplateId)
+        ? Math.max(1, Math.trunc(specialPower.sourceTemplateId as number))
+        : undefined;
       this.specialPowers.set(specialPower.name.toUpperCase(), {
         ...specialPower,
         fields: { ...specialPower.fields },
         blocks: [...specialPower.blocks],
         resolved: specialPower.resolved ?? !specialPower.parent,
         hasUnresolvedParent: specialPower.hasUnresolvedParent ?? false,
+        sourceTemplateId,
       });
+      if (sourceTemplateId !== undefined) {
+        this.nextSpecialPowerSourceTemplateId = Math.max(
+          this.nextSpecialPowerSourceTemplateId,
+          sourceTemplateId + 1,
+        );
+      }
     }
     for (const objectCreationList of bundle.objectCreationLists ?? []) {
       this.objectCreationLists.set(objectCreationList.name, {
@@ -728,6 +746,22 @@ export class IniDataRegistry {
 
   getSpecialPower(name: string): SpecialPowerDef | undefined {
     return this.specialPowers.get(name.toUpperCase());
+  }
+
+  getSpecialPowerBySourceTemplateId(sourceTemplateId: number): SpecialPowerDef | undefined {
+    if (!Number.isFinite(sourceTemplateId)) {
+      return undefined;
+    }
+    const normalizedSourceTemplateId = Math.trunc(sourceTemplateId);
+    if (normalizedSourceTemplateId <= 0) {
+      return undefined;
+    }
+    for (const specialPower of this.specialPowers.values()) {
+      if (specialPower.sourceTemplateId === normalizedSourceTemplateId) {
+        return specialPower;
+      }
+    }
+    return undefined;
   }
 
   getObjectCreationList(name: string): ObjectCreationListDef | undefined {
@@ -1115,17 +1149,23 @@ export class IniDataRegistry {
         break;
       }
 
-      case 'SpecialPower':
+      case 'SpecialPower': {
+        const specialPowerName = block.name.toUpperCase();
+        const existingSpecialPower = this.specialPowers.get(specialPowerName);
+        const sourceTemplateId = existingSpecialPower?.sourceTemplateId
+          ?? this.nextSpecialPowerSourceTemplateId++;
         addDefinition(this.specialPowers, block.type, {
-          name: block.name.toUpperCase(),
+          name: specialPowerName,
           parent: block.parent,
           fields: block.fields,
           blocks: block.blocks,
           resolved: !block.parent,
           shortcutPower: extractBoolean(block.fields['ShortcutPower']),
           academyClassify: extractTokenString(block.fields['AcademyClassify']),
+          sourceTemplateId,
         });
         break;
+      }
 
       case 'ObjectCreationList':
         addDefinition(this.objectCreationLists, block.type, {

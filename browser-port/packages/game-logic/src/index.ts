@@ -13169,6 +13169,58 @@ export class GameLogicSubsystem implements Subsystem {
       : false;
   }
 
+  private getSourceSpecialPowerReadyTimersForSide(side: string): Array<{ templateId: number; readyFrame: number }> | null {
+    const directTimers = this.sideSourceSpecialPowerReadyTimers.get(side);
+    if (directTimers) {
+      return directTimers;
+    }
+
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return null;
+    }
+    for (const [candidateSide, timers] of this.sideSourceSpecialPowerReadyTimers.entries()) {
+      if (this.normalizeSide(candidateSide) === normalizedSide) {
+        return timers;
+      }
+    }
+    return null;
+  }
+
+  private getSourceSpecialPowerReadyTimerProjectionEntries(): Array<{ templateId: number; readyFrame: number }> {
+    const localSide = this.resolveLocalPlayerSide();
+    if (localSide) {
+      return this.getSourceSpecialPowerReadyTimersForSide(localSide) ?? [];
+    }
+
+    if (this.sideSourceSpecialPowerReadyTimers.size === 1) {
+      for (const timers of this.sideSourceSpecialPowerReadyTimers.values()) {
+        return timers;
+      }
+    }
+    return [];
+  }
+
+  private projectSourceSpecialPowerReadyTimersToSharedRuntimeIndex(): void {
+    for (const timer of this.getSourceSpecialPowerReadyTimerProjectionEntries()) {
+      if (!Number.isFinite(timer.templateId) || !Number.isFinite(timer.readyFrame)) {
+        continue;
+      }
+      const specialPowerDef = this.resolveSpecialPowerDefBySourceTemplateId(timer.templateId);
+      if (!specialPowerDef || readBooleanField(specialPowerDef.fields, ['SharedSyncedTimer']) !== true) {
+        continue;
+      }
+      const normalizedPowerName = this.normalizeShortcutSpecialPowerName(specialPowerDef.name);
+      if (!normalizedPowerName || this.sharedShortcutSpecialPowerReadyFrames.has(normalizedPowerName)) {
+        continue;
+      }
+      this.sharedShortcutSpecialPowerReadyFrames.set(
+        normalizedPowerName,
+        Math.max(0, Math.trunc(timer.readyFrame)),
+      );
+    }
+  }
+
   private rebuildSpecialPowerRuntimeIndexes(): void {
     this.shortcutSpecialPowerSourceByName.clear();
     this.shortcutSpecialPowerNamesByEntityId.clear();
@@ -13216,6 +13268,7 @@ export class GameLogicSubsystem implements Subsystem {
 
   finalizeSourceSpecialPowerRuntimeSaveState(): void {
     this.rebuildSpecialPowerRuntimeIndexes();
+    this.projectSourceSpecialPowerReadyTimersToSharedRuntimeIndex();
   }
 
   finalizeSourceSpyVisionRuntimeSaveState(): void {
@@ -39351,6 +39404,13 @@ export class GameLogicSubsystem implements Subsystem {
       if (key.toUpperCase() === normalizedName) return value;
     }
     return undefined;
+  }
+
+  private resolveSpecialPowerDefBySourceTemplateId(
+    sourceTemplateId: number,
+  ): ReturnType<IniDataRegistry['getSpecialPowerBySourceTemplateId']> {
+    const registry = this.iniDataRegistry;
+    return registry?.getSpecialPowerBySourceTemplateId(sourceTemplateId);
   }
 
   /**

@@ -214,4 +214,53 @@ describe('special-power save-state', () => {
       pausedPercent: 0.75,
     });
   });
+
+  it('projects source Player::m_specialPowerReadyTimerList IDs into shared runtime timers', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('SharedPowerStructure', 'America', ['STRUCTURE', 'COMMANDCENTER'], [
+          makeBlock('Behavior', 'OCLSpecialPower ModuleTag_Shared', {
+            SpecialPowerTemplate: 'SPECIAL_PARTICLE_UPLINK_CANNON',
+          }),
+        ]),
+      ],
+      specialPowers: [
+        {
+          ...makeSpecialPowerDef('SPECIAL_CARGO_DROP', {
+            ReloadTime: 6000,
+          }),
+          sourceTemplateId: 41,
+        },
+        {
+          ...makeSpecialPowerDef('SPECIAL_PARTICLE_UPLINK_CANNON', {
+            ReloadTime: 6000,
+            SharedSyncedTimer: true,
+          }),
+          sourceTemplateId: 42,
+        },
+      ],
+    });
+    const registry = makeRegistry(bundle);
+    const map = makeMap([
+      makeMapObject('SharedPowerStructure', 20, 10),
+    ], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const privateLogic = logic as unknown as {
+      sideSourceSpecialPowerReadyTimers: Map<string, Array<{ templateId: number; readyFrame: number }>>;
+      sharedShortcutSpecialPowerReadyFrames: Map<string, number>;
+    };
+    privateLogic.sideSourceSpecialPowerReadyTimers.set('america', [
+      { templateId: 41, readyFrame: 111 },
+      { templateId: 42, readyFrame: 321 },
+      { templateId: 999, readyFrame: 555 },
+    ]);
+    logic.finalizeSourceSpecialPowerRuntimeSaveState();
+
+    expect(privateLogic.sharedShortcutSpecialPowerReadyFrames).toEqual(
+      new Map([['SPECIAL_PARTICLE_UPLINK_CANNON', 321]]),
+    );
+  });
 });

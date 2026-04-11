@@ -35,6 +35,7 @@
       ]
     }
   ],
+  "mappedImages": [],
   "mouseBlocks": [],
   "mouseCursors": [],
   "multiplayerColors": [],
@@ -196,6 +197,7 @@
     "dynamicGameLODs": 0,
     "factions": 0,
     "fxLists": 0,
+    "mappedImages": 0,
     "objects": 3,
     "particleSystems": 0,
     "sciences": 0,
