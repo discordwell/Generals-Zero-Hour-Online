@@ -8667,6 +8667,21 @@ interface SourceSpecialPowerModuleImportState {
   pausedPercent: number;
 }
 
+interface SourceStealthUpdateImportState {
+  stealthAllowedFrame: number;
+  detectionExpiresFrame: number;
+  enabled: boolean;
+  pulsePhaseRate: number;
+  pulsePhase: number;
+  disguiseAsPlayerIndex: number;
+  disguiseTemplateName: string;
+  disguiseTransitionFrames: number;
+  disguiseHalfpointReached: boolean;
+  transitioningToDisguise: boolean;
+  disguised: boolean;
+  framesGranted: number;
+}
+
 export interface GameLogicObjectTriggerAreaEntrySaveState {
   triggerName: string;
   entered: number;
@@ -13476,6 +13491,110 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceStealthUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceStealthUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'STEALTHUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-stealth-update-import');
+    try {
+      const version = xfer.xferVersion(2);
+      if (version < 1 || version > 2) {
+        return null;
+      }
+      this.skipSourceImportUpdateModuleBase(xfer);
+      const stealthAllowedFrame = xfer.xferUnsignedInt(0);
+      const detectionExpiresFrame = xfer.xferUnsignedInt(0);
+      const enabled = xfer.xferBool(false);
+      const pulsePhaseRate = xfer.xferReal(0);
+      const pulsePhase = xfer.xferReal(0);
+      const disguiseAsPlayerIndex = xfer.xferInt(-1);
+      const disguiseTemplateName = xfer.xferAsciiString('');
+      const disguiseTransitionFrames = xfer.xferUnsignedInt(0);
+      const disguiseHalfpointReached = xfer.xferBool(false);
+      const transitioningToDisguise = xfer.xferBool(false);
+      const disguised = xfer.xferBool(false);
+      const framesGranted = version >= 2 ? xfer.xferUnsignedInt(0) : 0;
+      return xfer.getRemaining() === 0
+        ? {
+          stealthAllowedFrame,
+          detectionExpiresFrame,
+          enabled,
+          pulsePhaseRate,
+          pulsePhase,
+          disguiseAsPlayerIndex,
+          disguiseTemplateName,
+          disguiseTransitionFrames,
+          disguiseHalfpointReached,
+          transitioningToDisguise,
+          disguised,
+          framesGranted,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceStealthModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const stealthState = this.tryParseSourceStealthUpdateImportState(module.blockData, moduleType);
+      if (!stealthState) {
+        continue;
+      }
+
+      entity.stealthDelayRemaining = Math.max(
+        0,
+        Math.trunc(stealthState.stealthAllowedFrame) - this.frameCounter,
+      );
+      entity.detectedUntilFrame = Math.max(0, Math.trunc(stealthState.detectionExpiresFrame));
+      entity.stealthEnabled = stealthState.enabled;
+      entity.stealthPulsePhaseRate = Number.isFinite(stealthState.pulsePhaseRate)
+        ? stealthState.pulsePhaseRate
+        : entity.stealthPulsePhaseRate;
+      entity.stealthPulsePhase = Number.isFinite(stealthState.pulsePhase)
+        ? stealthState.pulsePhase
+        : entity.stealthPulsePhase;
+      entity.stealthDisguisePlayerIndex = Number.isFinite(stealthState.disguiseAsPlayerIndex)
+        ? Math.trunc(stealthState.disguiseAsPlayerIndex)
+        : -1;
+      entity.disguiseTemplateName = stealthState.disguiseTemplateName.trim() || null;
+      entity.stealthDisguiseTransitionFrames = Math.max(
+        0,
+        Math.trunc(stealthState.disguiseTransitionFrames),
+      );
+      entity.stealthDisguiseHalfpointReached = stealthState.disguiseHalfpointReached;
+      entity.stealthTransitioningToDisguise = stealthState.transitioningToDisguise;
+      entity.temporaryStealthGrant = stealthState.framesGranted > 0;
+      entity.temporaryStealthExpireFrame = stealthState.framesGranted > 0
+        ? this.frameCounter + Math.max(0, Math.trunc(stealthState.framesGranted))
+        : 0;
+      if (stealthState.disguised) {
+        entity.objectStatusFlags.add('DISGUISED');
+      } else {
+        entity.objectStatusFlags.delete('DISGUISED');
+      }
+      this.syncDerivedStatusFields(entity);
+      return;
+    }
+  }
+
   private applySourceMapEntityStateToEntity(
     entity: MapEntity,
     sourceState: SourceMapEntitySaveState,
@@ -13532,6 +13651,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceDockModulesToEntity(entity, sourceState);
     this.applySourceSpawnBehaviorModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
+    this.applySourceStealthModulesToEntity(entity, sourceState);
   }
 
   restoreSourceGameLogicImportSaveState(state: unknown): void {

@@ -56,6 +56,12 @@ function makeSourceOwnedCoreBundle() {
           OCL: 'OCL_TestBomb',
         }),
       ]),
+      makeObjectDef('StealthUnit', 'GLA', ['VEHICLE'], [
+        makeBlock('Behavior', 'StealthUpdate ModuleTag_Stealth', {
+          StealthDelay: 2000,
+          StealthForbiddenConditions: 'ATTACKING MOVING',
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -323,6 +329,47 @@ function buildSourceSpecialPowerModuleData(options: {
     saver.xferInt(options.pausedCount);
     saver.xferUnsignedInt(options.pausedOnFrame);
     saver.xferReal(options.pausedPercent);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceStealthUpdateModuleData(options: {
+  stealthAllowedFrame: number;
+  detectionExpiresFrame: number;
+  enabled: boolean;
+  pulsePhaseRate: number;
+  pulsePhase: number;
+  disguiseAsPlayerIndex: number;
+  disguiseTemplateName: string;
+  disguiseTransitionFrames: number;
+  disguiseHalfpointReached: boolean;
+  transitioningToDisguise: boolean;
+  disguised: boolean;
+  framesGranted: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-stealth-update');
+  try {
+    saver.xferVersion(2);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(0);
+    saver.xferUnsignedInt(options.stealthAllowedFrame);
+    saver.xferUnsignedInt(options.detectionExpiresFrame);
+    saver.xferBool(options.enabled);
+    saver.xferReal(options.pulsePhaseRate);
+    saver.xferReal(options.pulsePhase);
+    saver.xferInt(options.disguiseAsPlayerIndex);
+    saver.xferAsciiString(options.disguiseTemplateName);
+    saver.xferUnsignedInt(options.disguiseTransitionFrames);
+    saver.xferBool(options.disguiseHalfpointReached);
+    saver.xferBool(options.transitioningToDisguise);
+    saver.xferBool(options.disguised);
+    saver.xferUnsignedInt(options.framesGranted);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -735,6 +782,81 @@ describe('source-owned game-logic core save-state', () => {
     });
     expect(logic.resolveShortcutSpecialPowerReadyFrameForSourceEntity('SuperweaponTest', 47)).toBe(209);
     expect(logic.getSpecialPowerPercentReady('SuperweaponTest', 47)).toBe(0.375);
+  });
+
+  it('imports source StealthUpdate timing and disguise state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 48;
+    sourceState.position = { x: 38, y: 0, z: 38 };
+    sourceState.statusBits = ['CAN_STEALTH', 'STEALTHED'];
+    sourceState.modules = [{
+      identifier: 'ModuleTag_Stealth',
+      blockData: buildSourceStealthUpdateModuleData({
+        stealthAllowedFrame: 150,
+        detectionExpiresFrame: 240,
+        enabled: true,
+        pulsePhaseRate: 0.125,
+        pulsePhase: 1.75,
+        disguiseAsPlayerIndex: 2,
+        disguiseTemplateName: 'AmericaRanger',
+        disguiseTransitionFrames: 11,
+        disguiseHalfpointReached: true,
+        transitioningToDisguise: true,
+        disguised: true,
+        framesGranted: 45,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 120,
+      objectIdCounter: 100,
+      objects: [{
+        templateName: 'StealthUnit',
+        state: sourceState,
+      }],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        objectStatusFlags: Set<string>;
+        stealthDelayRemaining: number;
+        detectedUntilFrame: number;
+        stealthEnabled: boolean;
+        stealthPulsePhaseRate: number;
+        stealthPulsePhase: number;
+        stealthDisguisePlayerIndex: number;
+        disguiseTemplateName: string | null;
+        stealthDisguiseTransitionFrames: number;
+        stealthDisguiseHalfpointReached: boolean;
+        stealthTransitioningToDisguise: boolean;
+        temporaryStealthGrant: boolean;
+        temporaryStealthExpireFrame: number;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(48)!;
+    expect(entity.stealthDelayRemaining).toBe(30);
+    expect(entity.detectedUntilFrame).toBe(240);
+    expect(entity.stealthEnabled).toBe(true);
+    expect(entity.stealthPulsePhaseRate).toBe(0.125);
+    expect(entity.stealthPulsePhase).toBe(1.75);
+    expect(entity.stealthDisguisePlayerIndex).toBe(2);
+    expect(entity.disguiseTemplateName).toBe('AmericaRanger');
+    expect(entity.stealthDisguiseTransitionFrames).toBe(11);
+    expect(entity.stealthDisguiseHalfpointReached).toBe(true);
+    expect(entity.stealthTransitioningToDisguise).toBe(true);
+    expect(entity.temporaryStealthGrant).toBe(true);
+    expect(entity.temporaryStealthExpireFrame).toBe(165);
+    expect(entity.objectStatusFlags.has('DISGUISED')).toBe(true);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {
