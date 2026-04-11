@@ -203,6 +203,52 @@ function readSaveChunkData(data: ArrayBuffer, blockName: string): Uint8Array | n
   return new Uint8Array(data, chunk.blockDataOffset, chunk.blockSize).slice();
 }
 
+function readSourceScienceNames(xfer: Xfer): string[] {
+  expect(xfer.xferVersion(1)).toBe(1);
+  const count = xfer.xferUnsignedShort(0);
+  const names: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    names.push(xfer.xferAsciiString(''));
+  }
+  return names;
+}
+
+function readFirstSourcePlayerChunkState(chunk: Uint8Array): {
+  money: number;
+  isPreorder: boolean;
+  sciencesDisabled: string[];
+  sciencesHidden: string[];
+  upgrades: Array<{ name: string; status: number }>;
+} {
+  const xferLoad = new XferLoad(chunk.slice().buffer);
+  xferLoad.open('read-first-source-player-chunk-state');
+  try {
+    expect(xferLoad.xferVersion(1)).toBe(1);
+    expect(xferLoad.xferInt(0)).toBeGreaterThan(0);
+    const playerVersion = xferLoad.xferVersion(8);
+    expect(playerVersion).toBe(8);
+    expect(xferLoad.xferVersion(1)).toBe(1);
+    const money = xferLoad.xferUnsignedInt(0);
+    const upgradeCount = xferLoad.xferUnsignedShort(0);
+    const isPreorder = playerVersion >= 7 ? xferLoad.xferBool(false) : false;
+    const sciencesDisabled = playerVersion >= 8 ? readSourceScienceNames(xferLoad) : [];
+    const sciencesHidden = playerVersion >= 8 ? readSourceScienceNames(xferLoad) : [];
+    const upgrades: Array<{ name: string; status: number }> = [];
+    for (let index = 0; index < upgradeCount; index += 1) {
+      upgrades.push({
+        name: xferLoad.xferAsciiString(''),
+        status: (() => {
+          expect(xferLoad.xferVersion(1)).toBe(1);
+          return xferLoad.xferInt(0);
+        })(),
+      });
+    }
+    return { money, isPreorder, sciencesDisabled, sciencesHidden, upgrades };
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function createSourceObjectHelperBaseBlockData(nextCallFrameAndPhase: number): Uint8Array {
   const xferSave = new XferSave();
   xferSave.open('create-source-object-helper-base');
@@ -14571,6 +14617,155 @@ describe('runtime-save-game', () => {
       .toEqual(['Upgrade_A', 'Upgrade_B']);
     expect([...(playerState?.sideCompletedUpgrades as Map<string, Set<string>>).get('America')!])
       .toEqual(['Upgrade_A', 'Upgrade_C']);
+  });
+
+  it('writes source Player::xfer preorder and science fields before upgrade instances', () => {
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source Player Field Order',
+      mapPath: 'assets/maps/SourcePlayerFieldOrder.json',
+      mapData: {
+        ...createTinyRuntimeMapData(),
+        sidesList: {
+          sides: [{
+            dict: {
+              playerName: 'America',
+              playerFaction: 'America',
+            },
+            buildList: [],
+          }],
+          teams: [],
+        },
+      },
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic([], {
+        listSourceUpgradeNames: () => ['Upgrade_A'],
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            playerSideByIndex: new Map([[0, 'America']]),
+            sidePlayerIndex: new Map([['America', 0]]),
+            sideCredits: new Map([['America', 1000]]),
+            sideIsPreorder: new Map([['America', true]]),
+            sideScienceAvailability: new Map([['America', new Map([
+              ['SCIENCE_DISABLED', 'disabled'],
+              ['SCIENCE_HIDDEN', 'hidden'],
+            ])]]),
+            sideUpgradesInProduction: new Map([
+              ['America', new Set(['Upgrade_A'])],
+            ]),
+          },
+        }),
+      }),
+    });
+
+    const playersChunk = readSaveChunkData(saveFile.data, 'CHUNK_Players');
+    expect(playersChunk).not.toBeNull();
+    const xferLoad = new XferLoad(playersChunk!.slice().buffer);
+    xferLoad.open('inspect-source-player-field-order');
+    try {
+      expect(xferLoad.xferVersion(1)).toBe(1);
+      expect(xferLoad.xferInt(0)).toBe(1);
+      expect(xferLoad.xferVersion(8)).toBe(8);
+      expect(xferLoad.xferVersion(1)).toBe(1);
+      expect(xferLoad.xferUnsignedInt(0)).toBe(1000);
+      expect(xferLoad.xferUnsignedShort(0)).toBe(1);
+      expect(xferLoad.xferBool(false)).toBe(true);
+      expect(readSourceScienceNames(xferLoad)).toEqual(['SCIENCE_DISABLED']);
+      expect(readSourceScienceNames(xferLoad)).toEqual(['SCIENCE_HIDDEN']);
+      expect(xferLoad.xferAsciiString('')).toBe('Upgrade_A');
+      expect(xferLoad.xferVersion(1)).toBe(1);
+      expect(xferLoad.xferInt(0)).toBe(1);
+    } finally {
+      xferLoad.close();
+    }
+  });
+
+  it('preserves source Player::m_upgradeList order and invalid entries on resave', () => {
+    const mapData = {
+      ...createTinyRuntimeMapData(),
+      sidesList: {
+        sides: [{
+          dict: {
+            playerName: 'America',
+            playerFaction: 'America',
+          },
+          buildList: [],
+        }],
+        teams: [],
+      },
+    };
+    const sourceSave = buildRuntimeSaveFile({
+      description: 'Source Player Upgrade List',
+      mapPath: 'assets/maps/SourcePlayerUpgradeList.json',
+      mapData,
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic([], {
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            playerSideByIndex: new Map([[0, 'America']]),
+            sidePlayerIndex: new Map([['America', 0]]),
+            sideCompletedUpgrades: new Map([
+              ['America', new Set(['Upgrade_A'])],
+            ]),
+            sideSourcePlayerUpgradeList: new Map([
+              ['America', [
+                { name: 'Upgrade_B', status: 0 },
+                { name: 'Upgrade_A', status: 2 },
+              ]],
+            ]),
+          },
+        }),
+      }),
+    });
+
+    const parsed = parseRuntimeSaveFile(sourceSave.data);
+    const parsedUpgradeList = (
+      parsed.gameLogicPlayersState?.state.sideSourcePlayerUpgradeList as Map<string, Array<{ name: string; status: number }>>
+    ).get('America');
+    expect(parsedUpgradeList).toEqual([
+      { name: 'Upgrade_B', status: 0 },
+      { name: 'Upgrade_A', status: 2 },
+    ]);
+
+    const unchangedResave = buildRuntimeSaveFile({
+      description: 'Source Player Upgrade List Rebuilt',
+      mapPath: 'assets/maps/SourcePlayerUpgradeList.json',
+      mapData,
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic([], {
+        captureSourcePlayerRuntimeSaveState: () => parsed.gameLogicPlayersState!,
+      }),
+    });
+    expect(readFirstSourcePlayerChunkState(readSaveChunkData(unchangedResave.data, 'CHUNK_Players')!).upgrades)
+      .toEqual([
+        { name: 'Upgrade_B', status: 0 },
+        { name: 'Upgrade_A', status: 2 },
+      ]);
+
+    const editedPlayerState = {
+      ...parsed.gameLogicPlayersState!,
+      state: {
+        ...parsed.gameLogicPlayersState!.state,
+        sideCompletedUpgrades: new Map([
+          ['America', new Set(['Upgrade_A', 'Upgrade_B'])],
+        ]),
+      },
+    };
+    const editedResave = buildRuntimeSaveFile({
+      description: 'Source Player Upgrade List Edited',
+      mapPath: 'assets/maps/SourcePlayerUpgradeList.json',
+      mapData,
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic([], {
+        captureSourcePlayerRuntimeSaveState: () => editedPlayerState,
+      }),
+    });
+    expect(readFirstSourcePlayerChunkState(readSaveChunkData(editedResave.data, 'CHUNK_Players')!).upgrades)
+      .toEqual([
+        { name: 'Upgrade_B', status: 2 },
+        { name: 'Upgrade_A', status: 2 },
+      ]);
   });
 
   it('overlays live source Object::xfer status, disable, experience, and weapon fields on resave', () => {

@@ -8665,6 +8665,7 @@ const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
   'sideScriptSkillset',
   'sideUpgradesInProduction',
   'sideCompletedUpgrades',
+  'sideSourcePlayerUpgradeList',
   'sideKindOfProductionCostModifiers',
   'sideProductionTimeChangePercent',
   'sideHandicapBuildTime',
@@ -10651,6 +10652,7 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly sideScriptSkillset = new Map<string, number>();
   private readonly sideUpgradesInProduction = new Map<string, Set<string>>();
   private readonly sideCompletedUpgrades = new Map<string, Set<string>>();
+  private readonly sideSourcePlayerUpgradeList = new Map<string, Array<{ name: string; status: number }>>();
   private readonly sideKindOfProductionCostModifiers = new Map<string, KindOfProductionCostModifier[]>();
   /** Source parity: Player::m_productionTimeChanges — per-template build time modifier (e.g. -0.25 = 25% faster). */
   private readonly sideProductionTimeChangePercent = new Map<string, Map<string, number>>();
@@ -33732,6 +33734,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.sideBattlePlanBonuses.clear();
     this.sideUpgradesInProduction.clear();
     this.sideCompletedUpgrades.clear();
+    this.sideSourcePlayerUpgradeList.clear();
     this.sideKindOfProductionCostModifiers.clear();
     this.sideProductionTimeChangePercent.clear();
     this.sideSciences.clear();

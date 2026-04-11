@@ -21052,6 +21052,110 @@ interface SourcePlayerUpgradeState {
   status: number;
 }
 
+function normalizeSourcePlayerUpgradeStatus(value: unknown): number {
+  const status = Number(value);
+  return status === 1 || status === 2 ? status : 0;
+}
+
+function normalizeSourcePlayerUpgradeList(value: unknown): SourcePlayerUpgradeState[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const entries: SourcePlayerUpgradeState[] = [];
+  const indexByName = new Map<string, number>();
+  for (const rawEntry of value) {
+    if (!rawEntry || typeof rawEntry !== 'object' || Array.isArray(rawEntry)) {
+      continue;
+    }
+    const name = normalizeOptionalAsciiString((rawEntry as { name?: unknown }).name).trim();
+    if (name.length === 0) {
+      continue;
+    }
+    const normalizedName = normalizeSourceUpgradeName(name);
+    const status = normalizeSourcePlayerUpgradeStatus((rawEntry as { status?: unknown }).status);
+    const existingIndex = indexByName.get(normalizedName);
+    if (existingIndex === undefined) {
+      indexByName.set(normalizedName, entries.length);
+      entries.push({ name, status });
+    } else {
+      entries[existingIndex] = { ...entries[existingIndex]!, status };
+    }
+  }
+  return entries;
+}
+
+function buildSourcePlayerLiveUpgradeEntries(
+  inProduction: ReadonlySet<string>,
+  completed: ReadonlySet<string>,
+): SourcePlayerUpgradeState[] {
+  const entries: SourcePlayerUpgradeState[] = [];
+  const seen = new Set<string>();
+  for (const rawName of inProduction) {
+    const name = rawName.trim();
+    const normalizedName = normalizeSourceUpgradeName(name);
+    if (!normalizedName || seen.has(normalizedName)) {
+      continue;
+    }
+    seen.add(normalizedName);
+    entries.push({ name, status: 1 });
+  }
+  for (const rawName of completed) {
+    const name = rawName.trim();
+    const normalizedName = normalizeSourceUpgradeName(name);
+    if (!normalizedName || seen.has(normalizedName)) {
+      continue;
+    }
+    seen.add(normalizedName);
+    entries.push({ name, status: 2 });
+  }
+  return entries;
+}
+
+function buildSourcePlayerUpgradeList(
+  preservedUpgradeList: unknown,
+  inProduction: ReadonlySet<string>,
+  completed: ReadonlySet<string>,
+): SourcePlayerUpgradeState[] {
+  const liveEntries = buildSourcePlayerLiveUpgradeEntries(inProduction, completed);
+  const preservedEntries = normalizeSourcePlayerUpgradeList(preservedUpgradeList);
+  if (preservedEntries.length === 0) {
+    return liveEntries;
+  }
+
+  const liveByName = new Map(
+    liveEntries.map((entry) => [normalizeSourceUpgradeName(entry.name), entry] as const),
+  );
+  const seen = new Set<string>();
+  const retainedEntries: SourcePlayerUpgradeState[] = [];
+  for (const preservedEntry of preservedEntries) {
+    const normalizedName = normalizeSourceUpgradeName(preservedEntry.name);
+    if (!normalizedName || seen.has(normalizedName)) {
+      continue;
+    }
+    const liveEntry = liveByName.get(normalizedName);
+    if (liveEntry) {
+      retainedEntries.push({ name: preservedEntry.name, status: liveEntry.status });
+      seen.add(normalizedName);
+      continue;
+    }
+    if (preservedEntry.status === 0) {
+      retainedEntries.push(preservedEntry);
+      seen.add(normalizedName);
+    }
+  }
+
+  const newlyAddedEntries: SourcePlayerUpgradeState[] = [];
+  for (const liveEntry of liveEntries) {
+    const normalizedName = normalizeSourceUpgradeName(liveEntry.name);
+    if (!normalizedName || seen.has(normalizedName)) {
+      continue;
+    }
+    newlyAddedEntries.unshift(liveEntry);
+    seen.add(normalizedName);
+  }
+  return [...newlyAddedEntries, ...retainedEntries];
+}
+
 interface SourcePlayerBuildListInfoState {
   buildingName: string;
   templateName: string;
@@ -21966,6 +22070,7 @@ function buildSourcePlayerEntryState(
   const sideSciencesBySide = getRuntimeStateMap<Set<string>>(state, 'sideSciences').get(side);
   const sideCompletedUpgrades = getRuntimeStateMap<Set<string>>(state, 'sideCompletedUpgrades').get(side);
   const sideUpgradesInProduction = getRuntimeStateMap<Set<string>>(state, 'sideUpgradesInProduction').get(side);
+  const sideSourcePlayerUpgradeList = getRuntimeStateMap<unknown>(state, 'sideSourcePlayerUpgradeList').get(side);
   const sideCashBountyPercent = getRuntimeStateMap<number>(state, 'sideCashBountyPercent').get(side);
   const sideSkillPointsModifier = getRuntimeStateMap<number>(state, 'sideSkillPointsModifier').get(side);
   const sideBattlePlanBonuses = getRuntimeStateMap<Record<string, unknown>>(state, 'sideBattlePlanBonuses').get(side);
@@ -22040,12 +22145,13 @@ function buildSourcePlayerEntryState(
       }
     }
   }
-  const upgrades: SourcePlayerUpgradeState[] = [
-    ...[...(sideUpgradesInProduction ?? new Set<string>())].map((name) => ({ name, status: 1 })),
-    ...[...(sideCompletedUpgrades ?? new Set<string>())]
-      .filter((name) => !(sideUpgradesInProduction?.has(name) ?? false))
-      .map((name) => ({ name, status: 2 })),
-  ];
+  const sideUpgradesInProductionSet = sideUpgradesInProduction ?? new Set<string>();
+  const sideCompletedUpgradesSet = sideCompletedUpgrades ?? new Set<string>();
+  const upgrades = buildSourcePlayerUpgradeList(
+    sideSourcePlayerUpgradeList,
+    sideUpgradesInProductionSet,
+    sideCompletedUpgradesSet,
+  );
   const kindOfCostModifiers = getRuntimeStateMap<Array<Record<string, unknown>>>(state, 'sideKindOfProductionCostModifiers').get(side);
   const expandedKindOfCostModifiers: SourcePlayerKindOfCostModifierState[] = Array.isArray(kindOfCostModifiers)
     ? kindOfCostModifiers.flatMap((modifier) => {
@@ -22175,6 +22281,7 @@ function buildGameLogicPlayersStateFromSourcePlayers(
   }>();
   const sideCompletedUpgrades = new Map<string, Set<string>>();
   const sideUpgradesInProduction = new Map<string, Set<string>>();
+  const sideSourcePlayerUpgradeList = new Map<string, SourcePlayerUpgradeState[]>();
   const sideIsPreorder = new Map<string, boolean>();
   const sideCanBuildBaseByScript = new Map<string, boolean>();
   const sideCanBuildUnitsByScript = new Map<string, boolean>();
@@ -22239,6 +22346,10 @@ function buildGameLogicPlayersStateFromSourcePlayers(
       : player.upgrades.filter((upgrade) => upgrade.status === 1).map((upgrade) => upgrade.name);
     sideCompletedUpgrades.set(player.side, new Set(completedUpgradeNames));
     sideUpgradesInProduction.set(player.side, new Set(upgradesInProductionNames));
+    sideSourcePlayerUpgradeList.set(
+      player.side,
+      player.upgrades.map((upgrade) => ({ name: upgrade.name, status: upgrade.status })),
+    );
     sideRadarState.set(player.side, {
       radarCount: player.radarCount,
       disableProofRadarCount: player.disableProofRadarCount,
@@ -22345,6 +22456,7 @@ function buildGameLogicPlayersStateFromSourcePlayers(
   state.sideSciences = sideSciences;
   state.sideCompletedUpgrades = sideCompletedUpgrades;
   state.sideUpgradesInProduction = sideUpgradesInProduction;
+  state.sideSourcePlayerUpgradeList = sideSourcePlayerUpgradeList;
   state.sideRadarState = sideRadarState;
   state.sideRankState = sideRankState;
   state.sideScoreState = sideScoreState;
@@ -22491,6 +22603,13 @@ class SourcePlayersSnapshot implements Snapshot {
       }
       player.money = xfer.xferUnsignedInt(player.money);
       const upgradeCount = xfer.xferUnsignedShort(player.upgrades.length);
+      if (playerVersion >= 7) {
+        player.isPreorder = xfer.xferBool(player.isPreorder);
+      }
+      if (playerVersion >= 8) {
+        player.sciencesDisabled = xferSourceScienceNames(xfer, player.sciencesDisabled);
+        player.sciencesHidden = xferSourceScienceNames(xfer, player.sciencesHidden);
+      }
       if (xfer.getMode() === XferMode.XFER_LOAD) {
         player.upgrades = [];
         for (let index = 0; index < upgradeCount; index += 1) {
@@ -22502,13 +22621,6 @@ class SourcePlayersSnapshot implements Snapshot {
           xfer.xferAsciiString(upgrade.name);
           xferSourceUpgradeState(xfer, upgrade);
         }
-      }
-      if (playerVersion >= 7) {
-        player.isPreorder = xfer.xferBool(player.isPreorder);
-      }
-      if (playerVersion >= 8) {
-        player.sciencesDisabled = xferSourceScienceNames(xfer, player.sciencesDisabled);
-        player.sciencesHidden = xferSourceScienceNames(xfer, player.sciencesHidden);
       }
       player.radarCount = xfer.xferInt(player.radarCount);
       player.isPlayerDead = xfer.xferBool(player.isPlayerDead);
