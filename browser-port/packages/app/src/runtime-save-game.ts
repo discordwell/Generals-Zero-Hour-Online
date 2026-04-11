@@ -6218,6 +6218,19 @@ interface SourceDeliverPayloadAIUpdateBlockState {
   previousDistanceSqr: number;
 }
 
+interface SourceDumbProjectileBehaviorBlockState {
+  version: number;
+  nextCallFrameAndPhase: number;
+  launcherId: number;
+  victimId: number;
+  flightPathSegments: number;
+  flightPathSpeed: number;
+  flightPathStart: Coord3D;
+  flightPathEnd: Coord3D;
+  detonationWeaponTemplateName: string;
+  lifespanFrame: number;
+}
+
 interface SourceMissileAIUpdateRuntimeState {
   originalTargetX?: unknown;
   originalTargetY?: unknown;
@@ -6291,6 +6304,22 @@ interface SourceDeliverPayloadAIUpdateRuntimeState {
   freeToExit?: unknown;
   acceptingCommands?: unknown;
   previousDistanceSqr?: unknown;
+}
+
+interface SourceDumbProjectileBehaviorRuntimeState {
+  nextCallFrameAndPhase?: unknown;
+  launcherId?: unknown;
+  victimId?: unknown;
+  flightPathSegments?: unknown;
+  flightPathSpeed?: unknown;
+  flightPathStartX?: unknown;
+  flightPathStartY?: unknown;
+  flightPathStartZ?: unknown;
+  flightPathEndX?: unknown;
+  flightPathEndY?: unknown;
+  flightPathEndZ?: unknown;
+  detonationWeaponTemplateName?: unknown;
+  lifespanFrame?: unknown;
 }
 
 interface SourceWorkerAIUpdateBlockState {
@@ -6837,6 +6866,7 @@ const SOURCE_MISSILE_AI_STATE_MAX = 7;
 const SOURCE_DELIVER_PAYLOAD_AI_UPDATE_CURRENT_VERSION = 5;
 const SOURCE_DELIVER_PAYLOAD_DIVE_STATE_MIN = 0;
 const SOURCE_DELIVER_PAYLOAD_DIVE_STATE_MAX = 2;
+const SOURCE_DUMB_PROJECTILE_BEHAVIOR_CURRENT_VERSION = 1;
 
 function isSourceHackInternetStateId(value: number): boolean {
   return value === SOURCE_AI_STATE_IDLE
@@ -7922,6 +7952,139 @@ function buildSourceDeliverPayloadAIUpdateBlockData(
     blockData.set(preservedState.blockData.subarray(0, preservedState.tailOffset));
     blockData.set(tailBytes, preservedState.tailOffset);
     return blockData;
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceDumbProjectileBehaviorBlockData(
+  data: Uint8Array,
+): SourceDumbProjectileBehaviorBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-dumb-projectile-behavior');
+  try {
+    const version = xferLoad.xferVersion(SOURCE_DUMB_PROJECTILE_BEHAVIOR_CURRENT_VERSION);
+    if (version !== SOURCE_DUMB_PROJECTILE_BEHAVIOR_CURRENT_VERSION) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(xferLoad, 0);
+    const launcherId = xferLoad.xferObjectID(0);
+    const victimId = xferLoad.xferObjectID(0);
+    const flightPathSegments = xferLoad.xferInt(0);
+    const flightPathSpeed = xferLoad.xferReal(0);
+    const flightPathStart = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const flightPathEnd = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const detonationWeaponTemplateName = xferLoad.xferAsciiString('');
+    const lifespanFrame = xferLoad.xferUnsignedInt(0);
+    if (xferLoad.getRemaining() !== 0) {
+      return null;
+    }
+    return {
+      version,
+      nextCallFrameAndPhase,
+      launcherId,
+      victimId,
+      flightPathSegments,
+      flightPathSpeed,
+      flightPathStart,
+      flightPathEnd,
+      detonationWeaponTemplateName,
+      lifespanFrame,
+    };
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function sourceDumbProjectileRuntimeNumber(value: unknown, fallback: number): number {
+  return Number.isFinite(value) ? Number(value) : fallback;
+}
+
+function sourceDumbProjectileRuntimeInt(value: unknown, fallback: number): number {
+  return Number.isFinite(value) ? Math.trunc(Number(value)) : Math.trunc(fallback);
+}
+
+function sourceDumbProjectileRuntimeUnsignedFrame(value: unknown, fallback: number): number {
+  return sourceFlammableUnsignedFrame(value, fallback);
+}
+
+function sourceDumbProjectileRuntimeString(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function sourceDumbProjectileRuntimeCoordToSource(
+  state: SourceDumbProjectileBehaviorRuntimeState | null,
+  xKey: keyof SourceDumbProjectileBehaviorRuntimeState,
+  yKey: keyof SourceDumbProjectileBehaviorRuntimeState,
+  zKey: keyof SourceDumbProjectileBehaviorRuntimeState,
+  fallback: Coord3D,
+): Coord3D {
+  return {
+    x: sourceDumbProjectileRuntimeNumber(state?.[xKey], fallback.x),
+    y: sourceDumbProjectileRuntimeNumber(state?.[zKey], fallback.y),
+    z: sourceDumbProjectileRuntimeNumber(state?.[yKey], fallback.z),
+  };
+}
+
+function buildSourceDumbProjectileBehaviorBlockData(
+  entity: MapEntity,
+  preservedState: SourceDumbProjectileBehaviorBlockState,
+): Uint8Array {
+  const runtimeState = (entity as {
+    sourceDumbProjectileBehaviorState?: SourceDumbProjectileBehaviorRuntimeState | null;
+  }).sourceDumbProjectileBehaviorState ?? null;
+  const saver = new XferSave();
+  saver.open('build-source-dumb-projectile-behavior');
+  try {
+    saver.xferVersion(preservedState.version);
+    xferSourceUpdateModuleBase(
+      saver,
+      sourceDumbProjectileRuntimeUnsignedFrame(
+        runtimeState?.nextCallFrameAndPhase,
+        preservedState.nextCallFrameAndPhase,
+      ),
+    );
+    saver.xferObjectID(normalizeSourceObjectId(sourceDumbProjectileRuntimeInt(
+      runtimeState?.launcherId,
+      preservedState.launcherId,
+    )));
+    saver.xferObjectID(normalizeSourceObjectId(sourceDumbProjectileRuntimeInt(
+      runtimeState?.victimId,
+      preservedState.victimId,
+    )));
+    saver.xferInt(sourceDumbProjectileRuntimeInt(
+      runtimeState?.flightPathSegments,
+      preservedState.flightPathSegments,
+    ));
+    saver.xferReal(sourceDumbProjectileRuntimeNumber(
+      runtimeState?.flightPathSpeed,
+      preservedState.flightPathSpeed,
+    ));
+    saver.xferCoord3D(sourceDumbProjectileRuntimeCoordToSource(
+      runtimeState,
+      'flightPathStartX',
+      'flightPathStartY',
+      'flightPathStartZ',
+      preservedState.flightPathStart,
+    ));
+    saver.xferCoord3D(sourceDumbProjectileRuntimeCoordToSource(
+      runtimeState,
+      'flightPathEndX',
+      'flightPathEndY',
+      'flightPathEndZ',
+      preservedState.flightPathEnd,
+    ));
+    saver.xferAsciiString(sourceDumbProjectileRuntimeString(
+      runtimeState?.detonationWeaponTemplateName,
+      preservedState.detonationWeaponTemplateName,
+    ));
+    saver.xferUnsignedInt(sourceDumbProjectileRuntimeUnsignedFrame(
+      runtimeState?.lifespanFrame,
+      preservedState.lifespanFrame,
+    ));
+    return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
   }
@@ -15116,6 +15279,15 @@ function overlaySourceObjectModulesFromLiveEntity(
                   blockData,
                 };
               }
+            }
+          }
+          if (moduleType === 'DUMBPROJECTILEBEHAVIOR') {
+            const parsedSourceState = tryParseSourceDumbProjectileBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceDumbProjectileBehaviorBlockData(entity, parsedSourceState),
+              };
             }
           }
           if (moduleType === 'DEPLOYSTYLEAIUPDATE' && entity.deployStyleProfile) {

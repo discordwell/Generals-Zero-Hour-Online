@@ -2626,6 +2626,85 @@ function parseSourceDeliverPayloadAIUpdateBlockData(data: Uint8Array) {
   throw new Error('Unable to parse deliver payload AI test block.');
 }
 
+function createSourceDumbProjectileBehaviorBlockData(options: {
+  nextCallFrameAndPhase: number;
+  launcherId: number;
+  victimId: number;
+  flightPathSegments: number;
+  flightPathSpeed: number;
+  flightPathStart: Coord3D;
+  flightPathEnd: Coord3D;
+  detonationWeaponTemplateName: string;
+  lifespanFrame: number;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-dumb-projectile-behavior');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(options.nextCallFrameAndPhase));
+    xferSave.xferObjectID(options.launcherId);
+    xferSave.xferObjectID(options.victimId);
+    xferSave.xferInt(options.flightPathSegments);
+    xferSave.xferReal(options.flightPathSpeed);
+    xferSave.xferCoord3D(options.flightPathStart);
+    xferSave.xferCoord3D(options.flightPathEnd);
+    xferSave.xferAsciiString(options.detonationWeaponTemplateName);
+    xferSave.xferUnsignedInt(options.lifespanFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceDumbProjectileBehaviorBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-dumb-projectile-behavior');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      throw new Error('Unexpected DumbProjectileBehavior version.');
+    }
+    const updateModuleVersion = xferLoad.xferVersion(1);
+    const behaviorModuleVersion = xferLoad.xferVersion(1);
+    const objectModuleVersion = xferLoad.xferVersion(1);
+    const moduleVersion = xferLoad.xferVersion(1);
+    if (
+      updateModuleVersion !== 1
+      || behaviorModuleVersion !== 1
+      || objectModuleVersion !== 1
+      || moduleVersion !== 1
+    ) {
+      throw new Error('Unexpected DumbProjectileBehavior base version.');
+    }
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const launcherId = xferLoad.xferObjectID(0);
+    const victimId = xferLoad.xferObjectID(0);
+    const flightPathSegments = xferLoad.xferInt(0);
+    const flightPathSpeed = xferLoad.xferReal(0);
+    const flightPathStart = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const flightPathEnd = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const detonationWeaponTemplateName = xferLoad.xferAsciiString('');
+    const lifespanFrame = xferLoad.xferUnsignedInt(0);
+    if (xferLoad.getRemaining() !== 0) {
+      throw new Error('Unexpected DumbProjectileBehavior trailing bytes.');
+    }
+    return {
+      prefix: [...data.subarray(0, 5)],
+      nextCallFrameAndPhase,
+      launcherId,
+      victimId,
+      flightPathSegments,
+      flightPathSpeed,
+      flightPathStart,
+      flightPathEnd,
+      detonationWeaponTemplateName,
+      lifespanFrame,
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function createSourceChinookAIUpdateBlockData(options: {
   flightStatus: number;
   airfieldForHealing: number;
@@ -14614,6 +14693,131 @@ describe('runtime-save-game', () => {
     expect(parsed.freeToExit).toBe(true);
     expect(parsed.acceptingCommands).toBe(false);
     expect(parsed.previousDistanceSqr).toBeCloseTo(789);
+  });
+
+  it('rewrites source DumbProjectileBehavior xfer state', () => {
+    const sourceProjectileBlock = createSourceDumbProjectileBehaviorBlockData({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      launcherId: 11,
+      victimId: 12,
+      flightPathSegments: 9,
+      flightPathSpeed: 8.5,
+      flightPathStart: { x: 1, y: 2, z: 3 },
+      flightPathEnd: { x: 4, y: 5, z: 6 },
+      detonationWeaponTemplateName: 'OldProjectileWeapon',
+      lifespanFrame: 100,
+    });
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_DumbProjectile',
+      blockData: sourceProjectileBlock,
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source dumb projectile behavior rewrite',
+      mapPath: 'Maps/RuntimeDumbProjectile/RuntimeDumbProjectile.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeDumbProjectile',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            sourceDumbProjectileBehaviorState: {
+              nextCallFrameAndPhase: (90 << 2) | 2,
+              launcherId: 61,
+              victimId: 62,
+              flightPathSegments: 17,
+              flightPathSpeed: 12.25,
+              flightPathStartX: 111,
+              flightPathStartY: 5,
+              flightPathStartZ: 222,
+              flightPathEndX: 333,
+              flightPathEndY: 6,
+              flightPathEndZ: 444,
+              detonationWeaponTemplateName: 'NewProjectileWeapon',
+              lifespanFrame: 504,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_DumbProjectile') {
+            return 'DUMBPROJECTILEBEHAVIOR';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const projectileModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_DumbProjectile');
+
+    expect(projectileModule).toBeDefined();
+    const parsed = parseSourceDumbProjectileBehaviorBlockData(projectileModule!.blockData);
+    expect(parsed.prefix).toEqual([1, 1, 1, 1, 1]);
+    expect(parsed.nextCallFrameAndPhase).toBe((90 << 2) | 2);
+    expect(parsed.launcherId).toBe(61);
+    expect(parsed.victimId).toBe(62);
+    expect(parsed.flightPathSegments).toBe(17);
+    expect(parsed.flightPathSpeed).toBeCloseTo(12.25);
+    expect(parsed.flightPathStart).toEqual({ x: 111, y: 222, z: 5 });
+    expect(parsed.flightPathEnd).toEqual({ x: 333, y: 444, z: 6 });
+    expect(parsed.detonationWeaponTemplateName).toBe('NewProjectileWeapon');
+    expect(parsed.lifespanFrame).toBe(504);
   });
 
   it('rewrites source WorkerAIUpdate tasks and supply tail while preserving state-machine bytes', () => {

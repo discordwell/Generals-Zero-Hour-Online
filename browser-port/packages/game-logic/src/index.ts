@@ -3184,6 +3184,22 @@ interface SourceDeliverPayloadAIUpdateRuntimeState {
   previousDistanceSqr: number;
 }
 
+interface SourceDumbProjectileBehaviorRuntimeState {
+  nextCallFrameAndPhase: number;
+  launcherId: number;
+  victimId: number;
+  flightPathSegments: number;
+  flightPathSpeed: number;
+  flightPathStartX: number;
+  flightPathStartY: number;
+  flightPathStartZ: number;
+  flightPathEndX: number;
+  flightPathEndY: number;
+  flightPathEndZ: number;
+  detonationWeaponTemplateName: string;
+  lifespanFrame: number;
+}
+
 interface SellingEntityState {
   sellFrame: number;
   constructionPercent: number;
@@ -4410,6 +4426,8 @@ export interface MapEntity {
   sourceMissileAIUpdateState: SourceMissileAIUpdateRuntimeState | null;
   // ── Source parity: DeliverPayloadAIUpdate — airborne payload delivery save tail ──
   sourceDeliverPayloadAIUpdateState: SourceDeliverPayloadAIUpdateRuntimeState | null;
+  // ── Source parity: DumbProjectileBehavior — ballistic projectile save tail ──
+  sourceDumbProjectileBehaviorState: SourceDumbProjectileBehaviorRuntimeState | null;
 
   // ── Source parity: RadarUpdate — radar dish extension animation ──
   radarUpdateProfile: RadarUpdateProfile | null;
@@ -9229,6 +9247,18 @@ interface SourceDeliverPayloadAIUpdateImportState {
   previousDistanceSqr: number;
 }
 
+interface SourceDumbProjectileBehaviorImportState {
+  nextCallFrameAndPhase: number;
+  launcherId: number;
+  victimId: number;
+  flightPathSegments: number;
+  flightPathSpeed: number;
+  flightPathStart: { x: number; y: number; z: number };
+  flightPathEnd: { x: number; y: number; z: number };
+  detonationWeaponTemplateName: string;
+  lifespanFrame: number;
+}
+
 interface SourceWorkerAIUpdateImportState {
   tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
   preferredDockId: number;
@@ -9962,6 +9992,7 @@ const SOURCE_MISSILE_AI_STATE_MAX = 7;
 const SOURCE_DELIVER_PAYLOAD_AI_UPDATE_CURRENT_VERSION = 5;
 const SOURCE_DELIVER_PAYLOAD_DIVE_STATE_MIN = 0;
 const SOURCE_DELIVER_PAYLOAD_DIVE_STATE_MAX = 2;
+const SOURCE_DUMB_PROJECTILE_BEHAVIOR_CURRENT_VERSION = 1;
 const SOURCE_CONTAIN_VECTOR_LIMIT = 0xffff;
 const SOURCE_DEATH_TYPE_NAMES = [
   'NORMAL',
@@ -17138,6 +17169,88 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceDumbProjectileBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceDumbProjectileBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'DUMBPROJECTILEBEHAVIOR') {
+      return null;
+    }
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-dumb-projectile-behavior-import');
+    try {
+      const version = xfer.xferVersion(SOURCE_DUMB_PROJECTILE_BEHAVIOR_CURRENT_VERSION);
+      if (version !== SOURCE_DUMB_PROJECTILE_BEHAVIOR_CURRENT_VERSION) {
+        return null;
+      }
+      const nextCallFrameAndPhase = this.skipSourceImportUpdateModuleBase(xfer);
+      const launcherId = xfer.xferObjectID(0);
+      const victimId = xfer.xferObjectID(0);
+      const flightPathSegments = xfer.xferInt(0);
+      const flightPathSpeed = xfer.xferReal(0);
+      const flightPathStart = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const flightPathEnd = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const detonationWeaponTemplateName = xfer.xferAsciiString('');
+      const lifespanFrame = xfer.xferUnsignedInt(0);
+      if (xfer.getRemaining() !== 0) {
+        return null;
+      }
+      return {
+        nextCallFrameAndPhase,
+        launcherId,
+        victimId,
+        flightPathSegments,
+        flightPathSpeed,
+        flightPathStart,
+        flightPathEnd,
+        detonationWeaponTemplateName,
+        lifespanFrame,
+      };
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceDumbProjectileBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const projectileState = this.tryParseSourceDumbProjectileBehaviorImportState(module.blockData, moduleType);
+      if (!projectileState) {
+        continue;
+      }
+
+      const flightPathStart = this.sourceCoord3DToRuntime(projectileState.flightPathStart);
+      const flightPathEnd = this.sourceCoord3DToRuntime(projectileState.flightPathEnd);
+      entity.sourceDumbProjectileBehaviorState = {
+        nextCallFrameAndPhase: Math.max(0, Math.trunc(projectileState.nextCallFrameAndPhase)),
+        launcherId: Math.max(0, Math.trunc(projectileState.launcherId)),
+        victimId: Math.max(0, Math.trunc(projectileState.victimId)),
+        flightPathSegments: Math.trunc(projectileState.flightPathSegments),
+        flightPathSpeed: Number.isFinite(projectileState.flightPathSpeed) ? projectileState.flightPathSpeed : 0,
+        flightPathStartX: flightPathStart.x,
+        flightPathStartY: flightPathStart.y,
+        flightPathStartZ: flightPathStart.z,
+        flightPathEndX: flightPathEnd.x,
+        flightPathEndY: flightPathEnd.y,
+        flightPathEndZ: flightPathEnd.z,
+        detonationWeaponTemplateName: projectileState.detonationWeaponTemplateName,
+        lifespanFrame: Math.max(0, Math.trunc(projectileState.lifespanFrame)),
+      };
+      return;
+    }
+  }
+
   private findSourceHackInternetPendingCommand(
     data: Uint8Array,
     searchStartOffset: number,
@@ -23057,6 +23170,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceJetAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceMissileAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceDeliverPayloadAIUpdateModulesToEntity(entity, sourceState);
+    this.applySourceDumbProjectileBehaviorModulesToEntity(entity, sourceState);
     this.applySourceWorkerAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceChinookAIUpdateModulesToEntity(entity, sourceState);
     this.applySourcePOWTruckAIUpdateModulesToEntity(entity, sourceState);

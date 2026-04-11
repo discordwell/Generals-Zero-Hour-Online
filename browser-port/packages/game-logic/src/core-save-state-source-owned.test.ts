@@ -305,6 +305,11 @@ function makeSourceOwnedCoreBundle() {
           DeliveryDistance: 120,
         }),
       ]),
+      makeObjectDef('DumbProjectileObject', 'America', ['PROJECTILE'], [
+        makeBlock('Behavior', 'DumbProjectileBehavior ModuleTag_DumbProjectile', {
+          DetonateCallsKill: true,
+        }),
+      ]),
       makeObjectDef('ChinookObject', 'America', ['AIRCRAFT'], [
         makeBlock('Behavior', 'ChinookAIUpdate ModuleTag_ChinookAI', {
           MaxBoxes: 8,
@@ -2326,6 +2331,36 @@ function buildSourceDeliverPayloadAIUpdateModuleData(options: {
     saver.xferBool(options.freeToExit);
     saver.xferBool(options.acceptingCommands);
     saver.xferReal(options.previousDistanceSqr);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceDumbProjectileBehaviorModuleData(options: {
+  nextCallFrame: number;
+  launcherId: number;
+  victimId: number;
+  flightPathSegments: number;
+  flightPathSpeed: number;
+  flightPathStart: { x: number; y: number; z: number };
+  flightPathEnd: { x: number; y: number; z: number };
+  detonationWeaponTemplateName: string;
+  lifespanFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-dumb-projectile-behavior');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame, 2);
+    saver.xferObjectID(options.launcherId);
+    saver.xferObjectID(options.victimId);
+    saver.xferInt(options.flightPathSegments);
+    saver.xferReal(options.flightPathSpeed);
+    saver.xferCoord3D(options.flightPathStart);
+    saver.xferCoord3D(options.flightPathEnd);
+    saver.xferAsciiString(options.detonationWeaponTemplateName);
+    saver.xferUnsignedInt(options.lifespanFrame);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -6430,6 +6465,80 @@ describe('source-owned game-logic core save-state', () => {
       freeToExit: true,
       acceptingCommands: false,
       previousDistanceSqr: 789,
+    });
+  });
+
+  it('imports source DumbProjectileBehavior xfer state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const projectileState = createEmptySourceMapEntitySaveState();
+    projectileState.objectId = 128;
+    projectileState.position = { x: 180, y: 0, z: 80 };
+    projectileState.modules = [{
+      identifier: 'ModuleTag_DumbProjectile',
+      blockData: buildSourceDumbProjectileBehaviorModuleData({
+        nextCallFrame: 260,
+        launcherId: 401,
+        victimId: 402,
+        flightPathSegments: 17,
+        flightPathSpeed: 12.5,
+        flightPathStart: { x: 10, y: 20, z: 3 },
+        flightPathEnd: { x: 30, y: 40, z: 5 },
+        detonationWeaponTemplateName: 'ProjectileDetonationWeapon',
+        lifespanFrame: 510,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'DumbProjectileObject', state: projectileState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        sourceDumbProjectileBehaviorState: {
+          nextCallFrameAndPhase: number;
+          launcherId: number;
+          victimId: number;
+          flightPathSegments: number;
+          flightPathSpeed: number;
+          flightPathStartX: number;
+          flightPathStartY: number;
+          flightPathStartZ: number;
+          flightPathEndX: number;
+          flightPathEndY: number;
+          flightPathEndZ: number;
+          detonationWeaponTemplateName: string;
+          lifespanFrame: number;
+        } | null;
+      }>;
+    };
+
+    const importedProjectile = privateLogic.spawnedEntities.get(128)!;
+    expect(importedProjectile.sourceDumbProjectileBehaviorState).toEqual({
+      nextCallFrameAndPhase: sourceUpdateFrameAndPhase(260, 2),
+      launcherId: 401,
+      victimId: 402,
+      flightPathSegments: 17,
+      flightPathSpeed: 12.5,
+      flightPathStartX: 10,
+      flightPathStartY: 3,
+      flightPathStartZ: 20,
+      flightPathEndX: 30,
+      flightPathEndY: 5,
+      flightPathEndZ: 40,
+      detonationWeaponTemplateName: 'ProjectileDetonationWeapon',
+      lifespanFrame: 510,
     });
   });
 
