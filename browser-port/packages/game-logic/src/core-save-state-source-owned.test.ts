@@ -154,6 +154,13 @@ function makeSourceOwnedCoreBundle() {
           InitialCaptureBonus: 100,
         }),
       ]),
+      makeObjectDef('FireSpreader', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'FireSpreadUpdate ModuleTag_FireSpread', {
+          MinSpreadDelay: 1000,
+          MaxSpreadDelay: 1000,
+          SpreadTryRange: 50,
+        }),
+      ]),
       makeObjectDef('CommandHunter', 'America', ['VEHICLE'], [
         makeBlock('Behavior', 'CommandButtonHuntUpdate ModuleTag_Hunt', {
           ScanRate: 1000,
@@ -1302,6 +1309,24 @@ function buildSourceCommandButtonHuntUpdateModuleData(options: {
     saver.xferVersion(1);
     saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
     saver.xferAsciiString(options.commandButtonName);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceFireSpreadUpdateModuleData(options: {
+  nextCallFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-fire-spread-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -3036,7 +3061,7 @@ describe('source-owned game-logic core save-state', () => {
     expect(entity.commandButtonHuntNextScanFrame).toBe(260);
   });
 
-  it('imports source HeightDieUpdate runtime state', () => {
+  it('imports source FireSpreadUpdate wake state', () => {
     const bundle = makeSourceOwnedCoreBundle();
     const registry = makeRegistry(bundle);
     const map = makeMap([], 64, 64);
@@ -3046,6 +3071,43 @@ describe('source-owned game-logic core save-state', () => {
 
     const sourceState = createEmptySourceMapEntitySaveState();
     sourceState.objectId = 109;
+    sourceState.position = { x: 185, y: 0, z: 64 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_FireSpread',
+      blockData: buildSourceFireSpreadUpdateModuleData({
+        nextCallFrame: 300,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 180,
+      objects: [
+        { templateName: 'FireSpreader', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        fireSpreadNextFrame: number;
+      }>;
+    };
+
+    expect(privateLogic.spawnedEntities.get(109)!.fireSpreadNextFrame).toBe(300);
+  });
+
+  it('imports source HeightDieUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 110;
     sourceState.position = { x: 184, y: 0, z: 64 };
     sourceState.modules = [{
       identifier: 'ModuleTag_HeightDie',
@@ -3079,7 +3141,7 @@ describe('source-owned game-logic core save-state', () => {
       }>;
     };
 
-    const entity = privateLogic.spawnedEntities.get(109)!;
+    const entity = privateLogic.spawnedEntities.get(110)!;
     expect(entity.heightDieActiveFrame).toBe(260);
     expect(entity.heightDieHasDied).toBe(true);
     expect(entity.heightDieParticlesDestroyed).toBe(true);
@@ -3097,7 +3159,7 @@ describe('source-owned game-logic core save-state', () => {
     logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
 
     const sourceState = createEmptySourceMapEntitySaveState();
-    sourceState.objectId = 110;
+    sourceState.objectId = 111;
     sourceState.position = { x: 188, y: 0, z: 64 };
     sourceState.modules = [{
       identifier: 'ModuleTag_StickyBomb',
@@ -3127,7 +3189,7 @@ describe('source-owned game-logic core save-state', () => {
       }>;
     };
 
-    const entity = privateLogic.spawnedEntities.get(110)!;
+    const entity = privateLogic.spawnedEntities.get(111)!;
     expect(entity.stickyBombTargetId).toBe(55);
     expect(entity.stickyBombDieFrame).toBe(300);
     expect(entity.stickyBombNextPingFrame).toBe(270);

@@ -8862,6 +8862,10 @@ interface SourceCommandButtonHuntUpdateImportState {
   commandButtonName: string;
 }
 
+interface SourceFireSpreadUpdateImportState {
+  nextCallFrame: number;
+}
+
 interface SourceHeightDieUpdateImportState {
   nextCallFrame: number;
   hasDied: boolean;
@@ -14779,6 +14783,57 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceFireSpreadUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceFireSpreadUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'FIRESPREADUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-fire-spread-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      return xfer.getRemaining() === 0 ? { nextCallFrame } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceFireSpreadUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.fireSpreadProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const fireSpreadState = this.tryParseSourceFireSpreadUpdateImportState(module.blockData, moduleType);
+      if (!fireSpreadState) {
+        continue;
+      }
+      entity.fireSpreadNextFrame = Math.max(0, Math.trunc(fireSpreadState.nextCallFrame));
+      return;
+    }
+  }
+
   private tryParseSourceHeightDieUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -15892,6 +15947,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceAutoDepositUpdateModulesToEntity(entity, sourceState);
     this.applySourceBaseRegenerateUpdateModulesToEntity(entity, sourceState);
     this.applySourceCommandButtonHuntUpdateModulesToEntity(entity, sourceState);
+    this.applySourceFireSpreadUpdateModulesToEntity(entity, sourceState);
     this.applySourceHeightDieUpdateModulesToEntity(entity, sourceState);
     this.applySourceStickyBombUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
