@@ -9588,26 +9588,7 @@ describe('runtime-save-game', () => {
     const partitionState = parsed.gameLogicPartitionState;
     const radarState = parsed.gameLogicRadarState;
     const sidesListState = parsed.gameLogicSidesListState;
-    const teamFactoryState = parsed.gameLogicTeamFactoryState
-      ?? (
-        parsed.sourceTeamFactoryChunkData
-          ? applySourceTeamFactoryChunkToState(
-              parsed.sourceTeamFactoryChunkData,
-              createEmptyTeamFactoryState('TEAMTHEPLAYER', {
-                attackPrioritySetName: 'ANTIVEHICLESET',
-                isAIRecruitable: true,
-                homeWaypointName: 'HOME',
-                controllingSide: 'america',
-                controllingPlayerToken: 'the_player',
-                isSingleton: true,
-                maxInstances: 1,
-                productionPriority: 3,
-              }),
-              parsed.gameLogicPlayersState,
-              parsed.gameLogicSidesListState,
-            )
-          : null
-      );
+    const teamFactoryState = parsed.gameLogicTeamFactoryState;
     const scriptEngineState = parsed.gameLogicScriptEngineState;
     const inGameUiState = parsed.gameLogicInGameUiState;
     const terrainLogicState = parsed.gameLogicTerrainLogicState;

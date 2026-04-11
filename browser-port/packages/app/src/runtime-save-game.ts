@@ -61,6 +61,7 @@ import {
   type LegacyGameLogicRadarSaveState,
   type MapEntity,
   type RenderableEntityState as GameLogicRenderableEntityState,
+  type ScriptTeamRecord,
   type SourceInGameUiSuperweaponState,
   type StructuredGameLogicRadarSaveState,
 } from '@generals/game-logic';
@@ -1141,12 +1142,203 @@ function createEmptyRuntimeSaveTeamFactoryState(): GameLogicTeamFactorySaveState
   return {
     version: 1,
     state: {
-      scriptTeamsByName: new Map<string, unknown>(),
+      scriptTeamsByName: new Map<string, ScriptTeamRecord>(),
       scriptTeamInstanceNamesByPrototypeName: new Map<string, string[]>(),
       scriptNextSourceTeamId: 1,
       scriptNextSourceTeamPrototypeId: 1,
     },
   };
+}
+
+function normalizeMapPlayerToken(value: unknown): string | null {
+  const token = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return token.length > 0 ? token : null;
+}
+
+function readMapDictString(
+  dict: Record<string, unknown> | null | undefined,
+  keyName: string,
+): string {
+  if (!dict || typeof dict !== 'object') {
+    return '';
+  }
+  const normalizedKey = keyName.trim().toLowerCase();
+  for (const [key, value] of Object.entries(dict)) {
+    if (key.trim().toLowerCase() !== normalizedKey) {
+      continue;
+    }
+    return typeof value === 'string' ? value.trim() : String(value ?? '').trim();
+  }
+  return '';
+}
+
+function readMapDictNumber(
+  dict: Record<string, unknown> | null | undefined,
+  keyName: string,
+): number | null {
+  const value = readMapDictString(dict, keyName);
+  if (!value) {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readMapDictBoolean(
+  dict: Record<string, unknown> | null | undefined,
+  keyName: string,
+): boolean | null {
+  if (!dict || typeof dict !== 'object') {
+    return null;
+  }
+  const normalizedKey = keyName.trim().toLowerCase();
+  for (const [key, value] of Object.entries(dict)) {
+    if (key.trim().toLowerCase() !== normalizedKey) {
+      continue;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value !== 0;
+    }
+    const normalizedValue = String(value ?? '').trim().toLowerCase();
+    if (normalizedValue === 'true' || normalizedValue === 'yes' || normalizedValue === 'on' || normalizedValue === '1') {
+      return true;
+    }
+    if (normalizedValue === 'false' || normalizedValue === 'no' || normalizedValue === 'off' || normalizedValue === '0') {
+      return false;
+    }
+    return null;
+  }
+  return null;
+}
+
+function normalizeMapSideName(sideName: string): string | null {
+  const trimmed = sideName.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const withoutFactionPrefix = trimmed.toLowerCase().startsWith('faction') && trimmed.length > 'Faction'.length
+    ? trimmed.slice('Faction'.length)
+    : trimmed;
+  const normalized = withoutFactionPrefix.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function resolveMapPlayerSideByName(
+  mapData: MapDataJSON | null | undefined,
+  sidesListState: GameLogicSidesListSaveState | null | undefined,
+): Map<string, string> {
+  const result = new Map<string, string>();
+  const sourceStateMap = sidesListState?.state.scriptPlayerSideByName;
+  if (sourceStateMap instanceof Map) {
+    for (const [playerName, side] of sourceStateMap) {
+      if (typeof playerName !== 'string' || typeof side !== 'string') {
+        continue;
+      }
+      const normalizedPlayerName = playerName.trim().toUpperCase();
+      const normalizedSide = normalizeMapSideName(side);
+      if (normalizedPlayerName && normalizedSide) {
+        result.set(normalizedPlayerName, normalizedSide);
+      }
+    }
+  }
+
+  for (const side of mapData?.sidesList?.sides ?? []) {
+    const playerName = readMapDictString(side.dict, 'playerName');
+    const playerFaction = readMapDictString(side.dict, 'playerFaction');
+    const normalizedPlayerName = playerName.trim().toUpperCase();
+    const normalizedSide = normalizeMapSideName(playerFaction || playerName);
+    if (normalizedPlayerName && normalizedSide) {
+      result.set(normalizedPlayerName, normalizedSide);
+    }
+  }
+  return result;
+}
+
+function readMapTeamTemplateUnitEntries(dict: Record<string, unknown>): ScriptTeamRecord['reinforcementUnitEntries'] {
+  const entries: ScriptTeamRecord['reinforcementUnitEntries'] = [];
+  for (let slot = 1; slot <= 7; slot += 1) {
+    const templateName = readMapDictString(dict, `teamUnitType${slot}`);
+    const maxUnits = readMapDictNumber(dict, `teamUnitMaxCount${slot}`);
+    if (!templateName || maxUnits === null || Math.trunc(maxUnits) <= 0) {
+      continue;
+    }
+    const minUnits = readMapDictNumber(dict, `teamUnitMinCount${slot}`);
+    entries.push({
+      templateName,
+      minUnits: minUnits === null ? 0 : Math.max(0, Math.trunc(minUnits)),
+      maxUnits: Math.trunc(maxUnits),
+    });
+  }
+  return entries;
+}
+
+function createRuntimeSaveTeamRecordFromMapDict(
+  dict: Record<string, unknown>,
+  playerSideByName: Map<string, string>,
+): ScriptTeamRecord | null {
+  const teamNameUpper = readMapTeamName(dict);
+  if (!teamNameUpper) {
+    return null;
+  }
+
+  const ownerToken = normalizeMapPlayerToken(readMapDictString(dict, 'teamOwner'));
+  const ownerSide = ownerToken ? playerSideByName.get(ownerToken.toUpperCase()) ?? null : null;
+  const isSingleton = readMapDictBoolean(dict, 'teamIsSingleton') ?? false;
+  const maxInstances = readMapDictNumber(dict, 'teamMaxInstances');
+  const productionPriority = readMapDictNumber(dict, 'teamProductionPriority');
+  const successIncrease = readMapDictNumber(dict, 'teamProductionPrioritySuccessIncrease');
+  const failureDecrease = readMapDictNumber(dict, 'teamProductionPriorityFailureDecrease');
+  const teamStartsFull = readMapDictBoolean(dict, 'teamStartsFull');
+  const transportsExit = readMapDictBoolean(dict, 'teamTransportsExit');
+  const isAIRecruitable = readMapDictBoolean(dict, 'teamIsAIRecruitable');
+
+  return {
+    nameUpper: teamNameUpper,
+    prototypeNameUpper: teamNameUpper,
+    sourcePrototypeId: undefined,
+    sourceTeamId: null,
+    memberEntityIds: new Set<number>(),
+    created: false,
+    stateName: '',
+    attackPrioritySetName: '',
+    recruitableOverride: null,
+    isAIRecruitable: isAIRecruitable ?? false,
+    homeWaypointName: readMapDictString(dict, 'teamHome'),
+    controllingSide: ownerSide,
+    controllingPlayerToken: ownerToken,
+    isSingleton,
+    maxInstances: maxInstances === null ? 0 : Math.trunc(maxInstances),
+    productionPriority: productionPriority === null ? 0 : Math.trunc(productionPriority),
+    productionPrioritySuccessIncrease: successIncrease === null ? 0 : Math.trunc(successIncrease),
+    productionPriorityFailureDecrease: failureDecrease === null ? 0 : Math.trunc(failureDecrease),
+    reinforcementUnitEntries: readMapTeamTemplateUnitEntries(dict),
+    reinforcementTransportTemplateName: readMapDictString(dict, 'teamTransport'),
+    reinforcementStartWaypointName: readMapDictString(dict, 'teamReinforcementOrigin'),
+    reinforcementTeamStartsFull: teamStartsFull ?? false,
+    reinforcementTransportsExit: transportsExit ?? false,
+  };
+}
+
+function createRuntimeSaveTeamFactoryStateFromMapData(
+  mapData: MapDataJSON | null | undefined,
+  sidesListState: GameLogicSidesListSaveState | null | undefined,
+): GameLogicTeamFactorySaveState {
+  const state = createEmptyRuntimeSaveTeamFactoryState();
+  const playerSideByName = resolveMapPlayerSideByName(mapData, sidesListState);
+  const teamsByName = state.state.scriptTeamsByName as Map<string, ScriptTeamRecord>;
+  const instanceNamesByPrototype = state.state.scriptTeamInstanceNamesByPrototypeName as Map<string, string[]>;
+  for (const team of mapData?.sidesList?.teams ?? []) {
+    const record = createRuntimeSaveTeamRecordFromMapDict(team.dict, playerSideByName);
+    if (!record || teamsByName.has(record.nameUpper)) {
+      continue;
+    }
+    teamsByName.set(record.nameUpper, record);
+    instanceNamesByPrototype.set(record.nameUpper, [record.nameUpper]);
+  }
+  return state;
 }
 
 function getPlayerSideByIndexMap(
@@ -26270,7 +26462,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
             try {
               return applySourceTeamFactoryChunkToState(
                 teamFactoryChunk,
-                createEmptyRuntimeSaveTeamFactoryState(),
+                createRuntimeSaveTeamFactoryStateFromMapData(mapData, sidesListState),
                 resolvedPlayersState,
                 sidesListState,
                 gameLogicCoreState,
@@ -26340,7 +26532,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     particleSystemState,
     sourceTeamFactoryChunkData: teamFactoryChunk ?? null,
     gameLogicTerrainLogicState: terrainLogicSnapshot?.payload ?? null,
-    gameLogicTeamFactoryState: legacyTeamFactoryState,
+    gameLogicTeamFactoryState: resolvedTeamFactoryState,
     gameLogicPlayersState: resolvedPlayersState,
     gameLogicPartitionState: partitionSnapshot?.payload ?? null,
     gameLogicRadarState: radarSnapshot?.payload ?? null,
