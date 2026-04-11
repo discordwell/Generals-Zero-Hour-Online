@@ -79,9 +79,19 @@ function makeSourceOwnedCoreBundle() {
           CaveIndex: 0,
         }),
       ]),
+      makeObjectDef('SpyVisionBuilding', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'SpyVisionSpecialPower ModuleTag_SpyPower', {
+          SpecialPowerTemplate: 'SpyVisionPower',
+          BaseDuration: 30000,
+        }),
+        makeBlock('Behavior', 'SpyVisionUpdate ModuleTag_SpyUpdate', {
+          SpecialPowerTemplate: 'SpyVisionPower',
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
+      makeSpecialPowerDef('SpyVisionPower', { ReloadTime: 60000 }),
     ],
     upgrades: [
       makeUpgradeDef('Upgrade_AmericaRangerCaptureBuilding', { Type: 'PLAYER', BuildCost: 1000, BuildTime: 30 }),
@@ -489,6 +499,31 @@ function buildSourceStealthUpdateModuleData(options: {
     saver.xferBool(options.transitioningToDisguise);
     saver.xferBool(options.disguised);
     saver.xferUnsignedInt(options.framesGranted);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSpyVisionUpdateModuleData(options: {
+  deactivateFrame: number;
+  currentlyActive: boolean;
+  resetTimersNextUpdate: boolean;
+  disabledUntilFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-spy-vision-update');
+  try {
+    saver.xferVersion(2);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(0);
+    saver.xferUnsignedInt(options.deactivateFrame);
+    saver.xferBool(options.currentlyActive);
+    saver.xferBool(options.resetTimersNextUpdate);
+    saver.xferUnsignedInt(options.disabledUntilFrame);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -1077,6 +1112,56 @@ describe('source-owned game-logic core save-state', () => {
     expect(cavePassenger.tunnelContainerId).toBe(52);
     expect(privateLogic.caveTrackers.get(7)?.tunnelIds.has(52)).toBe(true);
     expect(privateLogic.caveTrackers.get(7)?.passengerIds.has(63)).toBe(true);
+  });
+
+  it('imports source SpyVisionUpdate active and timer state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 70;
+    sourceState.position = { x: 70, y: 0, z: 40 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_SpyUpdate',
+      blockData: buildSourceSpyVisionUpdateModuleData({
+        deactivateFrame: 300,
+        currentlyActive: true,
+        resetTimersNextUpdate: true,
+        disabledUntilFrame: 180,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 120,
+      objectIdCounter: 100,
+      objects: [{
+        templateName: 'SpyVisionBuilding',
+        state: sourceState,
+      }],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        specialPowerModules: Map<string, {
+          spyVisionDeactivateFrame: number;
+          spyVisionCurrentlyActive?: boolean;
+          spyVisionResetTimersNextUpdate?: boolean;
+          spyVisionDisabledUntilFrame?: number;
+        }>;
+      }>;
+    };
+
+    const module = privateLogic.spawnedEntities.get(70)!.specialPowerModules.get('SPYVISIONPOWER')!;
+    expect(module.spyVisionDeactivateFrame).toBe(300);
+    expect(module.spyVisionCurrentlyActive).toBe(true);
+    expect(module.spyVisionResetTimersNextUpdate).toBe(true);
+    expect(module.spyVisionDisabledUntilFrame).toBe(180);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {

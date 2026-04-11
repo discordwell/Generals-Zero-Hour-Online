@@ -8718,6 +8718,13 @@ interface SourceContainModuleImportState {
   riderChangePayloadCreated?: boolean;
 }
 
+interface SourceSpyVisionUpdateImportState {
+  deactivateFrame: number;
+  currentlyActive: boolean;
+  resetTimersNextUpdate: boolean;
+  disabledUntilFrame: number;
+}
+
 export interface GameLogicObjectTriggerAreaEntrySaveState {
   triggerName: string;
   entered: number;
@@ -13947,6 +13954,72 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceSpyVisionUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceSpyVisionUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'SPYVISIONUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-spy-vision-update-import');
+    try {
+      const version = xfer.xferVersion(2);
+      if (version < 1 || version > 2) {
+        return null;
+      }
+      this.skipSourceImportUpdateModuleBase(xfer);
+      const deactivateFrame = xfer.xferUnsignedInt(0);
+      const currentlyActive = xfer.xferBool(false);
+      const resetTimersNextUpdate = version >= 2 ? xfer.xferBool(false) : false;
+      const disabledUntilFrame = version >= 2 ? xfer.xferUnsignedInt(0) : 0;
+      return xfer.getRemaining() === 0
+        ? {
+          deactivateFrame,
+          currentlyActive,
+          resetTimersNextUpdate,
+          disabledUntilFrame,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceSpyVisionUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const spyVisionState = this.tryParseSourceSpyVisionUpdateImportState(module.blockData, moduleType);
+      if (!spyVisionState) {
+        continue;
+      }
+      const liveModule = Array.from(entity.specialPowerModules.values()).find(
+        (specialPowerModule) => resolveEffectCategoryImpl(specialPowerModule.moduleType) === 'SPY_VISION',
+      );
+      if (!liveModule) {
+        continue;
+      }
+      liveModule.spyVisionDeactivateFrame = Math.max(0, Math.trunc(spyVisionState.deactivateFrame));
+      liveModule.spyVisionCurrentlyActive = spyVisionState.currentlyActive;
+      liveModule.spyVisionResetTimersNextUpdate = spyVisionState.resetTimersNextUpdate;
+      liveModule.spyVisionDisabledUntilFrame = Math.max(0, Math.trunc(spyVisionState.disabledUntilFrame));
+      this.syncActiveSpyVisionRuntimeState();
+      return;
+    }
+  }
+
   private applySourceMapEntityStateToEntity(
     entity: MapEntity,
     sourceState: SourceMapEntitySaveState,
@@ -14004,6 +14077,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceSpawnBehaviorModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
     this.applySourceStealthModulesToEntity(entity, sourceState);
+    this.applySourceSpyVisionUpdateModulesToEntity(entity, sourceState);
   }
 
   restoreSourceGameLogicImportSaveState(state: unknown): void {
