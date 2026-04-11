@@ -8841,6 +8841,11 @@ interface SourceDeletionUpdateImportState {
   dieFrame: number;
 }
 
+interface SourceAutoFindHealingUpdateImportState {
+  nextCallFrame: number;
+  nextScanFrames: number;
+}
+
 interface SourceHeightDieUpdateImportState {
   nextCallFrame: number;
   hasDied: boolean;
@@ -14525,6 +14530,61 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceAutoFindHealingUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceAutoFindHealingUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'AUTOFINDHEALINGUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-auto-find-healing-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const nextScanFrames = xfer.xferInt(0);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, nextScanFrames } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceAutoFindHealingUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.autoFindHealingProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const autoFindHealingState = this.tryParseSourceAutoFindHealingUpdateImportState(module.blockData, moduleType);
+      if (!autoFindHealingState) {
+        continue;
+      }
+      entity.autoFindHealingNextScanFrame = this.frameCounter + Math.max(
+        0,
+        Math.trunc(autoFindHealingState.nextScanFrames),
+      ) + 1;
+      return;
+    }
+  }
+
   private tryParseSourceHeightDieUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -15634,6 +15694,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourcePhysicsBehaviorModulesToEntity(entity, sourceState);
     this.applySourceLifetimeUpdateModulesToEntity(entity, sourceState);
     this.applySourceDeletionUpdateModulesToEntity(entity, sourceState);
+    this.applySourceAutoFindHealingUpdateModulesToEntity(entity, sourceState);
     this.applySourceHeightDieUpdateModulesToEntity(entity, sourceState);
     this.applySourceStickyBombUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
