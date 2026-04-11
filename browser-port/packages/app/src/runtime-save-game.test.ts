@@ -14904,6 +14904,55 @@ describe('runtime-save-game', () => {
     expect(parsedScore?.objectsCaptured).toEqual([{ templateName: 'TechOilDerrick', count: 1 }]);
   });
 
+  it('round-trips source player kind-of production cost modifiers as masks', () => {
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source KindOf Cost Modifier',
+      mapPath: 'assets/maps/SourceKindOfCostModifier.json',
+      mapData: {
+        ...createTinyRuntimeMapData(),
+        sidesList: {
+          sides: [{
+            dict: {
+              playerName: 'America',
+              playerFaction: 'America',
+            },
+            buildList: [],
+          }],
+          teams: [],
+        },
+      },
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic([], {
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            playerSideByIndex: new Map([[0, 'America']]),
+            sidePlayerIndex: new Map([['America', 0]]),
+            sideKindOfProductionCostModifiers: new Map([
+              ['America', [{
+                kindOf: new Set(['INFANTRY', 'VEHICLE']),
+                multiplier: 0.75,
+                refCount: 2,
+              }]],
+            ]),
+          },
+        }),
+      }),
+    });
+
+    const parsedModifiers = (
+      parseRuntimeSaveFile(saveFile.data).gameLogicPlayersState?.state.sideKindOfProductionCostModifiers as Map<string, Array<{
+        kindOf: Set<string>;
+        multiplier: number;
+        refCount: number;
+      }>>
+    ).get('America');
+    expect(parsedModifiers).toHaveLength(1);
+    expect([...(parsedModifiers?.[0]?.kindOf ?? [])]).toEqual(['INFANTRY', 'VEHICLE']);
+    expect(parsedModifiers?.[0]?.multiplier).toBeCloseTo(0.75);
+    expect(parsedModifiers?.[0]?.refCount).toBe(2);
+  });
+
   it('overlays live source Object::xfer status, disable, experience, and weapon fields on resave', () => {
     const sourceGameLogicBytes = createSourceGameLogicChunkData(true);
     const saveFile = buildRuntimeSaveFile({

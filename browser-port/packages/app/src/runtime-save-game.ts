@@ -21275,6 +21275,7 @@ interface SourcePlayerBattlePlanBonusesState {
 
 interface SourcePlayerKindOfCostModifierState {
   kindOfName: string;
+  kindOfNames: string[];
   percent: number;
   refCount: number;
 }
@@ -21899,8 +21900,10 @@ function xferSourceKindOfCostModifiers(
   if (xfer.getMode() === XferMode.XFER_LOAD) {
     const loaded: SourcePlayerKindOfCostModifierState[] = [];
     for (let index = 0; index < count; index += 1) {
+      const kindOfNames = xferSourceKindOfNames(xfer, []);
       loaded.push({
-        kindOfName: xferSourceKindOfNames(xfer, [])[0] ?? '',
+        kindOfName: kindOfNames[0] ?? '',
+        kindOfNames,
         percent: xfer.xferReal(0),
         refCount: xfer.xferUnsignedInt(0),
       });
@@ -21908,7 +21911,10 @@ function xferSourceKindOfCostModifiers(
     return loaded;
   }
   for (const modifier of modifiers) {
-    xferSourceKindOfNames(xfer, [modifier.kindOfName]);
+    xferSourceKindOfNames(
+      xfer,
+      modifier.kindOfNames.length > 0 ? modifier.kindOfNames : [modifier.kindOfName],
+    );
     xfer.xferReal(modifier.percent);
     xfer.xferUnsignedInt(modifier.refCount);
   }
@@ -22214,17 +22220,19 @@ function buildSourcePlayerEntryState(
   const kindOfCostModifiers = getRuntimeStateMap<Array<Record<string, unknown>>>(state, 'sideKindOfProductionCostModifiers').get(side);
   const expandedKindOfCostModifiers: SourcePlayerKindOfCostModifierState[] = Array.isArray(kindOfCostModifiers)
     ? kindOfCostModifiers.flatMap((modifier) => {
-      const kindOfSet = modifier.kindOf instanceof Set ? [...modifier.kindOf.values()] : [];
+      const kindOfNames = modifier.kindOf instanceof Set
+        ? [...modifier.kindOf.values()].filter((kindOfName): kindOfName is string => typeof kindOfName === 'string')
+        : [];
       const percent = Number(modifier.multiplier);
       const refCount = Number(modifier.refCount);
-      return kindOfSet.flatMap((kindOfName) =>
-        typeof kindOfName === 'string' && Number.isFinite(percent) && Number.isFinite(refCount)
-          ? [{
-            kindOfName,
-            percent,
-            refCount: Math.max(0, Math.trunc(refCount)),
-          }]
-          : []);
+      return kindOfNames.length > 0 && Number.isFinite(percent) && Number.isFinite(refCount)
+        ? [{
+          kindOfName: kindOfNames[0]!,
+          kindOfNames,
+          percent,
+          refCount: Math.max(0, Math.trunc(refCount)),
+        }]
+        : [];
     })
     : [];
   const tunnelTracker = (payload?.tunnelTrackers ?? []).find((tracker) => tracker.side === side)?.tracker ?? null;
@@ -22360,6 +22368,11 @@ function buildGameLogicPlayersStateFromSourcePlayers(
   const sideCanBuildUnitsByScript = new Map<string, boolean>();
   const sideSkillPointsModifier = new Map<string, number>();
   const sideCashBountyPercent = new Map<string, number>();
+  const sideKindOfProductionCostModifiers = new Map<string, Array<{
+    kindOf: Set<string>;
+    multiplier: number;
+    refCount: number;
+  }>>();
   const sideBattlePlanBonuses = new Map<string, {
     bombardmentCount: number;
     holdTheLineCount: number;
@@ -22457,6 +22470,20 @@ function buildGameLogicPlayersStateFromSourcePlayers(
       objectsLost: player.scoreKeeper.objectsLost.map((entry) => ({ ...entry })),
       objectsCaptured: player.scoreKeeper.objectsCaptured.map((entry) => ({ ...entry })),
     });
+    if (player.kindOfCostModifiers.length > 0) {
+      sideKindOfProductionCostModifiers.set(player.side, player.kindOfCostModifiers.flatMap((modifier) => {
+        const kindOfNames = (modifier.kindOfNames.length > 0 ? modifier.kindOfNames : [modifier.kindOfName])
+          .map((kindOfName) => kindOfName.trim())
+          .filter(Boolean);
+        return kindOfNames.length > 0
+          ? [{
+            kindOf: new Set(kindOfNames),
+            multiplier: modifier.percent,
+            refCount: modifier.refCount,
+          }]
+          : [];
+      }));
+    }
     if (!player.listInScoreScreen) {
       sideScoreScreenExcluded.add(player.side);
     }
@@ -22566,6 +22593,7 @@ function buildGameLogicPlayersStateFromSourcePlayers(
   state.sideCompletedUpgrades = sideCompletedUpgrades;
   state.sideUpgradesInProduction = sideUpgradesInProduction;
   state.sideSourcePlayerUpgradeList = sideSourcePlayerUpgradeList;
+  state.sideKindOfProductionCostModifiers = sideKindOfProductionCostModifiers;
   state.sideRadarState = sideRadarState;
   state.sideRankState = sideRankState;
   state.sideScoreState = sideScoreState;
