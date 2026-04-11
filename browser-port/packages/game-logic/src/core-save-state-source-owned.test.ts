@@ -247,6 +247,9 @@ function makeSourceOwnedCoreBundle() {
           AffectsSelf: true,
         }),
       ]),
+      makeObjectDef('BridgeScaffoldObject', 'Neutral', ['STRUCTURE'], [
+        makeBlock('Behavior', 'BridgeScaffoldBehavior ModuleTag_BridgeScaffold', {}),
+      ]),
       makeObjectDef('SlowDeathObject', 'America', ['VEHICLE'], [
         makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_SlowDeath', {
           DestructionDelay: 3000,
@@ -1825,6 +1828,34 @@ function buildSourcePropagandaTowerBehaviorModuleData(options: {
     for (const trackedId of options.trackedIds) {
       saver.xferObjectID(trackedId);
     }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceBridgeScaffoldBehaviorModuleData(options: {
+  nextCallFrame: number;
+  targetMotion: number;
+  createPos: { x: number; y: number; z: number };
+  riseToPos: { x: number; y: number; z: number };
+  buildPos: { x: number; y: number; z: number };
+  lateralSpeed: number;
+  verticalSpeed: number;
+  targetPos: { x: number; y: number; z: number };
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-bridge-scaffold-behavior');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+    saver.xferUser(sourceRawInt32(options.targetMotion));
+    saver.xferCoord3D(options.createPos);
+    saver.xferCoord3D(options.riseToPos);
+    saver.xferCoord3D(options.buildPos);
+    saver.xferReal(options.lateralSpeed);
+    saver.xferReal(options.verticalSpeed);
+    saver.xferCoord3D(options.targetPos);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -5127,6 +5158,67 @@ describe('source-owned game-logic core save-state', () => {
     const importedTower = privateLogic.spawnedEntities.get(127)!;
     expect(importedTower.propagandaTowerNextScanFrame).toBe(200);
     expect(importedTower.propagandaTowerTrackedIds).toEqual([503, 502, 501]);
+  });
+
+  it('imports source BridgeScaffoldBehavior runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const scaffoldState = createEmptySourceMapEntitySaveState();
+    scaffoldState.objectId = 129;
+    scaffoldState.position = { x: 168, y: 20, z: 4 };
+    scaffoldState.modules = [{
+      identifier: 'ModuleTag_BridgeScaffold',
+      blockData: buildSourceBridgeScaffoldBehaviorModuleData({
+        nextCallFrame: 201,
+        targetMotion: 2,
+        createPos: { x: 1, y: 2, z: 3 },
+        riseToPos: { x: 4, y: 5, z: 6 },
+        buildPos: { x: 7, y: 8, z: 9 },
+        lateralSpeed: 1.5,
+        verticalSpeed: 2.5,
+        targetPos: { x: 10, y: 11, z: 12 },
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'BridgeScaffoldObject', state: scaffoldState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        bridgeScaffoldState: {
+          targetMotion: number;
+          createPos: { x: number; y: number; z: number };
+          riseToPos: { x: number; y: number; z: number };
+          buildPos: { x: number; y: number; z: number };
+          lateralSpeed: number;
+          verticalSpeed: number;
+          targetPos: { x: number; y: number; z: number };
+        } | null;
+      }>;
+    };
+
+    const importedScaffold = privateLogic.spawnedEntities.get(129)!.bridgeScaffoldState;
+    expect(importedScaffold).toMatchObject({
+      targetMotion: 2,
+      createPos: { x: 1, y: 3, z: 2 },
+      riseToPos: { x: 4, y: 6, z: 5 },
+      buildPos: { x: 7, y: 9, z: 8 },
+      lateralSpeed: 1.5,
+      verticalSpeed: 2.5,
+      targetPos: { x: 10, y: 12, z: 11 },
+    });
   });
 
   it('imports source slow-death behavior runtime state', () => {

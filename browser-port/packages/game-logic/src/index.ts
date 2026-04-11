@@ -8979,6 +8979,17 @@ interface SourcePropagandaTowerBehaviorImportState {
   trackedIds: number[];
 }
 
+interface SourceBridgeScaffoldBehaviorImportState {
+  nextCallFrame: number;
+  targetMotion: ScaffoldTargetMotion;
+  createPos: { x: number; y: number; z: number };
+  riseToPos: { x: number; y: number; z: number };
+  buildPos: { x: number; y: number; z: number };
+  lateralSpeed: number;
+  verticalSpeed: number;
+  targetPos: { x: number; y: number; z: number };
+}
+
 interface SourceSlowDeathBehaviorImportState {
   nextCallFrame: number;
   sinkFrame: number;
@@ -13576,6 +13587,17 @@ export class GameLogicSubsystem implements Subsystem {
     };
   }
 
+  private sourceScaffoldTargetMotionFromInt(value: number): ScaffoldTargetMotion | null {
+    switch (Math.trunc(value)) {
+      case STM_STILL: return STM_STILL;
+      case STM_RISE: return STM_RISE;
+      case STM_BUILD_ACROSS: return STM_BUILD_ACROSS;
+      case STM_TEAR_DOWN_ACROSS: return STM_TEAR_DOWN_ACROSS;
+      case STM_SINK: return STM_SINK;
+      default: return null;
+    }
+  }
+
   private sourceSpectreGunshipStatusFromInt(value: number): SpectreGunshipStatus | null {
     switch (Math.trunc(value)) {
       case 0: return 'INSERTING';
@@ -16119,6 +16141,85 @@ export class GameLogicSubsystem implements Subsystem {
       entity.propagandaTowerTrackedIds = [...propagandaTowerState.trackedIds]
         .reverse()
         .map((id) => Math.max(0, Math.trunc(id)));
+      return;
+    }
+  }
+
+  private tryParseSourceBridgeScaffoldBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceBridgeScaffoldBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'BRIDGESCAFFOLDBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-bridge-scaffold-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const targetMotion = this.sourceScaffoldTargetMotionFromInt(
+        this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4))),
+      );
+      if (targetMotion === null) {
+        return null;
+      }
+      const createPos = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const riseToPos = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const buildPos = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const lateralSpeed = xfer.xferReal(0);
+      const verticalSpeed = xfer.xferReal(0);
+      const targetPos = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            targetMotion,
+            createPos,
+            riseToPos,
+            buildPos,
+            lateralSpeed,
+            verticalSpeed,
+            targetPos,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceBridgeScaffoldBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const scaffoldState = this.tryParseSourceBridgeScaffoldBehaviorImportState(module.blockData, moduleType);
+      if (!scaffoldState) {
+        continue;
+      }
+
+      entity.bridgeScaffoldState = {
+        targetMotion: scaffoldState.targetMotion,
+        createPos: this.sourceCoord3DToRuntime(scaffoldState.createPos),
+        riseToPos: this.sourceCoord3DToRuntime(scaffoldState.riseToPos),
+        buildPos: this.sourceCoord3DToRuntime(scaffoldState.buildPos),
+        lateralSpeed: Number.isFinite(scaffoldState.lateralSpeed) ? scaffoldState.lateralSpeed : 0,
+        verticalSpeed: Number.isFinite(scaffoldState.verticalSpeed) ? scaffoldState.verticalSpeed : 0,
+        targetPos: this.sourceCoord3DToRuntime(scaffoldState.targetPos),
+      };
       return;
     }
   }
@@ -20456,6 +20557,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceDozerAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceRebuildHoleBehaviorModulesToEntity(entity, sourceState);
     this.applySourcePropagandaTowerBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceBridgeScaffoldBehaviorModulesToEntity(entity, sourceState);
     this.applySourceSlowDeathBehaviorModulesToEntity(entity, sourceState);
     this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);

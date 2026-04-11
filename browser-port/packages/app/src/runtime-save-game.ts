@@ -5926,6 +5926,17 @@ interface SourcePropagandaTowerBehaviorBlockState {
   trackedIds: number[];
 }
 
+interface SourceBridgeScaffoldBehaviorBlockState {
+  nextCallFrameAndPhase: number;
+  targetMotion: number;
+  createPos: Coord3D;
+  riseToPos: Coord3D;
+  buildPos: Coord3D;
+  lateralSpeed: number;
+  verticalSpeed: number;
+  targetPos: Coord3D;
+}
+
 interface SourceSlowDeathBehaviorBlockState {
   nextCallFrameAndPhase: number;
   sinkFrame: number;
@@ -6792,6 +6803,88 @@ function buildSourcePropagandaTowerBehaviorBlockData(
         ? entity.propagandaTowerTrackedIds
         : preservedState.trackedIds,
     );
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceBridgeScaffoldBehaviorBlockData(
+  data: Uint8Array,
+): SourceBridgeScaffoldBehaviorBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-bridge-scaffold-behavior');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(
+      xferLoad,
+      buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    );
+    const targetMotion = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const createPos = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const riseToPos = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const buildPos = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const lateralSpeed = xferLoad.xferReal(0);
+    const verticalSpeed = xferLoad.xferReal(0);
+    const targetPos = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    return xferLoad.getRemaining() === 0
+      ? {
+          nextCallFrameAndPhase,
+          targetMotion,
+          createPos,
+          riseToPos,
+          buildPos,
+          lateralSpeed,
+          verticalSpeed,
+          targetPos,
+        }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function runtimeCoord3DToSourceCoord3D(
+  coord: { x: number; y: number; z: number } | undefined,
+  fallback: Coord3D,
+): Coord3D {
+  return {
+    x: sourcePhysicsFinite(coord?.x, fallback.x),
+    y: sourcePhysicsFinite(coord?.z, fallback.y),
+    z: sourcePhysicsFinite(coord?.y, fallback.z),
+  };
+}
+
+function buildSourceBridgeScaffoldBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceBridgeScaffoldBehaviorBlockState,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-bridge-scaffold-behavior');
+  try {
+    const state = entity.bridgeScaffoldState;
+    const targetMotion = sourceFiniteInt(state?.targetMotion, preservedState.targetMotion);
+    const nextCallFrame = targetMotion === 0
+      ? Math.max(0, Math.trunc(preservedState.nextCallFrameAndPhase >>> 2))
+      : currentFrame + 1;
+
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextCallFrame),
+    ));
+    saver.xferUser(buildSourceRawInt32Bytes(targetMotion));
+    saver.xferCoord3D(runtimeCoord3DToSourceCoord3D(state?.createPos, preservedState.createPos));
+    saver.xferCoord3D(runtimeCoord3DToSourceCoord3D(state?.riseToPos, preservedState.riseToPos));
+    saver.xferCoord3D(runtimeCoord3DToSourceCoord3D(state?.buildPos, preservedState.buildPos));
+    saver.xferReal(sourcePhysicsFinite(state?.lateralSpeed, preservedState.lateralSpeed));
+    saver.xferReal(sourcePhysicsFinite(state?.verticalSpeed, preservedState.verticalSpeed));
+    saver.xferCoord3D(runtimeCoord3DToSourceCoord3D(state?.targetPos, preservedState.targetPos));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -12025,6 +12118,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourcePropagandaTowerBehaviorBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'BRIDGESCAFFOLDBEHAVIOR' && entity.bridgeScaffoldState) {
+            const parsedSourceState = tryParseSourceBridgeScaffoldBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceBridgeScaffoldBehaviorBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }

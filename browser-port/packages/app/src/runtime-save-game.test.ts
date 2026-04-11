@@ -2079,6 +2079,66 @@ function parseSourcePropagandaTowerBehaviorBlockData(data: Uint8Array): SourcePr
   }
 }
 
+interface SourceBridgeScaffoldBehaviorTestState {
+  nextCallFrameAndPhase: number;
+  targetMotion: number;
+  createPos: Coord3D;
+  riseToPos: Coord3D;
+  buildPos: Coord3D;
+  lateralSpeed: number;
+  verticalSpeed: number;
+  targetPos: Coord3D;
+}
+
+function createSourceBridgeScaffoldBehaviorBlockData(
+  state: SourceBridgeScaffoldBehaviorTestState,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-bridge-scaffold-behavior');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferUser(createRawInt32Bytes(state.targetMotion));
+    xferSave.xferCoord3D(state.createPos);
+    xferSave.xferCoord3D(state.riseToPos);
+    xferSave.xferCoord3D(state.buildPos);
+    xferSave.xferReal(state.lateralSpeed);
+    xferSave.xferReal(state.verticalSpeed);
+    xferSave.xferCoord3D(state.targetPos);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceBridgeScaffoldBehaviorBlockData(
+  data: Uint8Array,
+): SourceBridgeScaffoldBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-bridge-scaffold-behavior');
+  try {
+    expect(xferLoad.xferVersion(1)).toBe(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const parsed = {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      targetMotion: readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+      createPos: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      riseToPos: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      buildPos: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      lateralSpeed: xferLoad.xferReal(0),
+      verticalSpeed: xferLoad.xferReal(0),
+      targetPos: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+    };
+    expect(xferLoad.getRemaining()).toBe(0);
+    return parsed;
+  } finally {
+    xferLoad.close();
+  }
+}
+
 interface SourceSlowDeathBehaviorTestState {
   nextCallFrameAndPhase: number;
   sinkFrame: number;
@@ -12614,6 +12674,123 @@ describe('runtime-save-game', () => {
       nextCallFrameAndPhase: (43 << 2) | 2,
       lastScanFrame: 78,
       trackedIds: [51, 52, 53],
+    });
+  });
+
+  it('rewrites source BridgeScaffoldBehavior modules from live runtime state', () => {
+    const preserved: SourceBridgeScaffoldBehaviorTestState = {
+      nextCallFrameAndPhase: (90 << 2) | 2,
+      targetMotion: 1,
+      createPos: { x: 1, y: 2, z: 3 },
+      riseToPos: { x: 4, y: 5, z: 6 },
+      buildPos: { x: 7, y: 8, z: 9 },
+      lateralSpeed: 0.5,
+      verticalSpeed: 0.75,
+      targetPos: { x: 10, y: 11, z: 12 },
+    };
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_BridgeScaffold',
+      blockData: createSourceBridgeScaffoldBehaviorBlockData(preserved),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source bridge scaffold rewrite',
+      mapPath: 'Maps/RuntimeBridgeScaffold/RuntimeBridgeScaffold.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeBridgeScaffold',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            bridgeScaffoldState: {
+              targetMotion: 2,
+              createPos: { x: 101, y: 103, z: 102 },
+              riseToPos: { x: 104, y: 106, z: 105 },
+              buildPos: { x: 107, y: 109, z: 108 },
+              lateralSpeed: 1.5,
+              verticalSpeed: 2.5,
+              targetPos: { x: 110, y: 112, z: 111 },
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_BridgeScaffold') {
+            return 'BRIDGESCAFFOLDBEHAVIOR';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const scaffoldModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_BridgeScaffold');
+
+    expect(scaffoldModule).toBeDefined();
+    expect(parseSourceBridgeScaffoldBehaviorBlockData(scaffoldModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      targetMotion: 2,
+      createPos: { x: 101, y: 102, z: 103 },
+      riseToPos: { x: 104, y: 105, z: 106 },
+      buildPos: { x: 107, y: 108, z: 109 },
+      lateralSpeed: 1.5,
+      verticalSpeed: 2.5,
+      targetPos: { x: 110, y: 111, z: 112 },
     });
   });
 
