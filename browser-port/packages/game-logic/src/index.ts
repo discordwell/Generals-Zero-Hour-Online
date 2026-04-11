@@ -8846,6 +8846,10 @@ interface SourceAutoFindHealingUpdateImportState {
   nextScanFrames: number;
 }
 
+interface SourceBaseRegenerateUpdateImportState {
+  nextCallFrame: number;
+}
+
 interface SourceHeightDieUpdateImportState {
   nextCallFrame: number;
   hasDied: boolean;
@@ -14585,6 +14589,53 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceBaseRegenerateUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceBaseRegenerateUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'BASEREGENERATEUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-base-regenerate-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      return xfer.getRemaining() === 0 ? { nextCallFrame } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceBaseRegenerateUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const baseRegenerateState = this.tryParseSourceBaseRegenerateUpdateImportState(module.blockData, moduleType);
+      if (!baseRegenerateState) {
+        continue;
+      }
+      entity.baseRegenDelayUntilFrame = Math.max(0, Math.trunc(baseRegenerateState.nextCallFrame));
+      return;
+    }
+  }
+
   private tryParseSourceHeightDieUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -15695,6 +15746,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceLifetimeUpdateModulesToEntity(entity, sourceState);
     this.applySourceDeletionUpdateModulesToEntity(entity, sourceState);
     this.applySourceAutoFindHealingUpdateModulesToEntity(entity, sourceState);
+    this.applySourceBaseRegenerateUpdateModulesToEntity(entity, sourceState);
     this.applySourceHeightDieUpdateModulesToEntity(entity, sourceState);
     this.applySourceStickyBombUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
