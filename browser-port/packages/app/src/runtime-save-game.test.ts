@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { XferLoad, XferSave, listSaveGameChunks, type Coord3D, type Xfer } from '@generals/engine';
+import { XferLoad, XferMode, XferSave, listSaveGameChunks, type Coord3D, type Xfer } from '@generals/engine';
 import {
   buildSourceMapEntityChunk,
   createEmptySourceMapEntitySaveState,
@@ -994,6 +994,8 @@ const SOURCE_FLAMMABLE_STATUS_AFLAME = 1;
 const SOURCE_PRODUCTION_UNIT = 1;
 const SOURCE_PRODUCTION_UPGRADE = 2;
 const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
+const SOURCE_DAMAGE_TYPE_UNRESISTABLE = 11;
+const SOURCE_PLAYER_MASK_BYTE_LENGTH = 2;
 const SOURCE_BATTLE_PLAN_NONE = 0;
 const SOURCE_BATTLE_PLAN_BOMBARDMENT = 1;
 const SOURCE_BATTLE_PLAN_HOLD_THE_LINE = 2;
@@ -1273,6 +1275,240 @@ function xferSourceKindOfNamesForTest(xfer: Xfer, kindOfNames: string[]): string
     xfer.xferAsciiString(kindOfName);
   }
   return kindOfNames;
+}
+
+interface SourceDamageInfoInputTestState {
+  sourceId: number;
+  sourcePlayerMaskBytes: Uint8Array;
+  damageType: number;
+  damageFxOverride: number;
+  deathType: number;
+  amount: number;
+  kill: boolean;
+  damageStatusType: number;
+  shockWaveVector: Coord3D;
+  shockWaveAmount: number;
+  shockWaveRadius: number;
+  shockWaveTaperOff: number;
+  sourceTemplateName: string;
+}
+
+interface SourceDamageInfoOutputTestState {
+  actualDamageDealt: number;
+  actualDamageClipped: number;
+  noEffect: boolean;
+}
+
+interface SourceDamageInfoTestState {
+  input: SourceDamageInfoInputTestState;
+  output: SourceDamageInfoOutputTestState;
+}
+
+interface SourceActiveBodyTestState {
+  damageScalar: number;
+  currentHealth: number;
+  currentSubdualDamage: number;
+  prevHealth: number;
+  maxHealth: number;
+  initialHealth: number;
+  curDamageState: number;
+  nextDamageFXTime: number;
+  lastDamageFXDone: number;
+  lastDamageInfo: SourceDamageInfoTestState;
+  lastDamageTimestamp: number;
+  lastHealingTimestamp: number;
+  frontCrushed: boolean;
+  backCrushed: boolean;
+  lastDamageCleared: boolean;
+  indestructible: boolean;
+  particleSystemIds: number[];
+  armorSetFlags: string[];
+}
+
+function createDefaultSourceDamageInfoTestState(): SourceDamageInfoTestState {
+  return {
+    input: {
+      sourceId: 0,
+      sourcePlayerMaskBytes: new Uint8Array(SOURCE_PLAYER_MASK_BYTE_LENGTH),
+      damageType: 0,
+      damageFxOverride: SOURCE_DAMAGE_TYPE_UNRESISTABLE,
+      deathType: 0,
+      amount: 0,
+      kill: false,
+      damageStatusType: 0,
+      shockWaveVector: { x: 0, y: 0, z: 0 },
+      shockWaveAmount: 0,
+      shockWaveRadius: 0,
+      shockWaveTaperOff: 0,
+      sourceTemplateName: '',
+    },
+    output: {
+      actualDamageDealt: 0,
+      actualDamageClipped: 0,
+      noEffect: false,
+    },
+  };
+}
+
+function createDefaultSourceActiveBodyTestState(): SourceActiveBodyTestState {
+  return {
+    damageScalar: 1,
+    currentHealth: 100,
+    currentSubdualDamage: 0,
+    prevHealth: 100,
+    maxHealth: 100,
+    initialHealth: 100,
+    curDamageState: 0,
+    nextDamageFXTime: 0,
+    lastDamageFXDone: 0,
+    lastDamageInfo: createDefaultSourceDamageInfoTestState(),
+    lastDamageTimestamp: 0xffffffff,
+    lastHealingTimestamp: 0xffffffff,
+    frontCrushed: false,
+    backCrushed: false,
+    lastDamageCleared: false,
+    indestructible: false,
+    particleSystemIds: [],
+    armorSetFlags: [],
+  };
+}
+
+function xferSourceBodyModuleBaseForTest(xfer: Xfer, damageScalar: number): number {
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  return xfer.xferReal(damageScalar);
+}
+
+function xferSourceDamageInfoInputForTest(
+  xfer: Xfer,
+  state: SourceDamageInfoInputTestState,
+): SourceDamageInfoInputTestState {
+  xfer.xferVersion(3);
+  return {
+    sourceId: xfer.xferObjectID(state.sourceId),
+    sourcePlayerMaskBytes: xfer.xferUser(state.sourcePlayerMaskBytes),
+    damageType: readRawInt32Bytes(xfer.xferUser(createRawInt32Bytes(state.damageType))),
+    damageFxOverride: readRawInt32Bytes(xfer.xferUser(createRawInt32Bytes(state.damageFxOverride))),
+    deathType: readRawInt32Bytes(xfer.xferUser(createRawInt32Bytes(state.deathType))),
+    amount: xfer.xferReal(state.amount),
+    kill: xfer.xferBool(state.kill),
+    damageStatusType: readRawInt32Bytes(xfer.xferUser(createRawInt32Bytes(state.damageStatusType))),
+    shockWaveVector: xfer.xferCoord3D(state.shockWaveVector),
+    shockWaveAmount: xfer.xferReal(state.shockWaveAmount),
+    shockWaveRadius: xfer.xferReal(state.shockWaveRadius),
+    shockWaveTaperOff: xfer.xferReal(state.shockWaveTaperOff),
+    sourceTemplateName: xfer.xferAsciiString(state.sourceTemplateName),
+  };
+}
+
+function xferSourceDamageInfoOutputForTest(
+  xfer: Xfer,
+  state: SourceDamageInfoOutputTestState,
+): SourceDamageInfoOutputTestState {
+  xfer.xferVersion(1);
+  return {
+    actualDamageDealt: xfer.xferReal(state.actualDamageDealt),
+    actualDamageClipped: xfer.xferReal(state.actualDamageClipped),
+    noEffect: xfer.xferBool(state.noEffect),
+  };
+}
+
+function xferSourceDamageInfoForTest(
+  xfer: Xfer,
+  state: SourceDamageInfoTestState,
+): SourceDamageInfoTestState {
+  xfer.xferVersion(1);
+  return {
+    input: xferSourceDamageInfoInputForTest(xfer, state.input),
+    output: xferSourceDamageInfoOutputForTest(xfer, state.output),
+  };
+}
+
+function xferSourceActiveBodyForTest(
+  xfer: Xfer,
+  state: SourceActiveBodyTestState,
+): SourceActiveBodyTestState {
+  xfer.xferVersion(1);
+  const damageScalar = xferSourceBodyModuleBaseForTest(xfer, state.damageScalar);
+  const currentHealth = xfer.xferReal(state.currentHealth);
+  const currentSubdualDamage = xfer.xferReal(state.currentSubdualDamage);
+  const prevHealth = xfer.xferReal(state.prevHealth);
+  const maxHealth = xfer.xferReal(state.maxHealth);
+  const initialHealth = xfer.xferReal(state.initialHealth);
+  const curDamageState = readRawInt32Bytes(xfer.xferUser(createRawInt32Bytes(state.curDamageState)));
+  const nextDamageFXTime = xfer.xferUnsignedInt(state.nextDamageFXTime);
+  const lastDamageFXDone = readRawInt32Bytes(xfer.xferUser(createRawInt32Bytes(state.lastDamageFXDone)));
+  const lastDamageInfo = xferSourceDamageInfoForTest(xfer, state.lastDamageInfo);
+  const lastDamageTimestamp = xfer.xferUnsignedInt(state.lastDamageTimestamp);
+  const lastHealingTimestamp = xfer.xferUnsignedInt(state.lastHealingTimestamp);
+  const frontCrushed = xfer.xferBool(state.frontCrushed);
+  const backCrushed = xfer.xferBool(state.backCrushed);
+  const lastDamageCleared = xfer.xferBool(state.lastDamageCleared);
+  const indestructible = xfer.xferBool(state.indestructible);
+  const particleSystemCount = xfer.xferUnsignedShort(state.particleSystemIds.length);
+  const particleSystemIds: number[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < particleSystemCount; index += 1) {
+      particleSystemIds.push(readRawInt32Bytes(xfer.xferUser(new Uint8Array(4))));
+    }
+  } else {
+    for (const particleSystemId of state.particleSystemIds) {
+      xfer.xferUser(createRawInt32Bytes(particleSystemId));
+      particleSystemIds.push(particleSystemId);
+    }
+  }
+  const armorSetFlags = xferSourceStringBitFlagsForTest(xfer, state.armorSetFlags);
+  return {
+    damageScalar,
+    currentHealth,
+    currentSubdualDamage,
+    prevHealth,
+    maxHealth,
+    initialHealth,
+    curDamageState,
+    nextDamageFXTime,
+    lastDamageFXDone,
+    lastDamageInfo,
+    lastDamageTimestamp,
+    lastHealingTimestamp,
+    frontCrushed,
+    backCrushed,
+    lastDamageCleared,
+    indestructible,
+    particleSystemIds,
+    armorSetFlags,
+  };
+}
+
+function createSourceStructureBodyBlockData(
+  state: SourceActiveBodyTestState,
+  constructorObjectId: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-structure-body');
+  try {
+    xferSave.xferVersion(1);
+    xferSourceActiveBodyForTest(xferSave, state);
+    xferSave.xferObjectID(constructorObjectId);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceStructureBodyBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-structure-body');
+  try {
+    xferLoad.xferVersion(1);
+    const active = xferSourceActiveBodyForTest(xferLoad, createDefaultSourceActiveBodyTestState());
+    const constructorObjectId = xferLoad.xferObjectID(0);
+    return { active, constructorObjectId };
+  } finally {
+    xferLoad.close();
+  }
 }
 
 function xferSourceProductionQueueEntry(
@@ -9535,6 +9771,175 @@ describe('runtime-save-game', () => {
     expect(parsed.clearFlags).toEqual(preservedClearFlags);
     expect(parsed.setFlags).toEqual(preservedSetFlags);
     expect(parsed.flagsDirty).toBe(true);
+  });
+
+  it('rewrites source body modules from live runtime state', () => {
+    const preservedBody = {
+      ...createDefaultSourceActiveBodyTestState(),
+      damageScalar: 0.8,
+      currentHealth: 175,
+      currentSubdualDamage: 5,
+      prevHealth: 180,
+      maxHealth: 300,
+      initialHealth: 300,
+      curDamageState: 0,
+      nextDamageFXTime: 777,
+      lastDamageFXDone: 6,
+      lastDamageInfo: {
+        input: {
+          sourceId: 4,
+          sourcePlayerMaskBytes: new Uint8Array([0x34, 0x12]),
+          damageType: 3,
+          damageFxOverride: SOURCE_DAMAGE_TYPE_UNRESISTABLE,
+          deathType: 4,
+          amount: 99,
+          kill: false,
+          damageStatusType: 12,
+          shockWaveVector: { x: 1, y: 2, z: 3 },
+          shockWaveAmount: 4,
+          shockWaveRadius: 5,
+          shockWaveTaperOff: 6,
+          sourceTemplateName: 'OldSource',
+        },
+        output: {
+          actualDamageDealt: 33,
+          actualDamageClipped: 22,
+          noEffect: false,
+        },
+      },
+      lastDamageTimestamp: 88,
+      lastHealingTimestamp: 99,
+      frontCrushed: false,
+      backCrushed: true,
+      lastDamageCleared: true,
+      indestructible: false,
+      particleSystemIds: [15, 16],
+      armorSetFlags: ['ELITE', 'PLAYER_UPGRADE'],
+    };
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Body',
+      blockData: createSourceStructureBodyBlockData(preservedBody, 21),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source body module rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            health: 45,
+            maxHealth: 200,
+            initialHealth: 250,
+            currentSubdualDamage: 60,
+            battlePlanDamageScalar: 0.5,
+            frontCrushed: true,
+            backCrushed: false,
+            isIndestructible: true,
+            armorSetFlagsMask: (1 << 0) | (1 << 5) | (1 << 7),
+            builderId: 33,
+            lastDamageFrame: 41,
+            lastDamageInfoFrame: 40,
+            scriptLastDamageSourceEntityId: 9,
+            scriptLastDamageSourceTemplateName: 'GLATechnical',
+            lastDamageNoEffect: true,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Body'
+            ? 'STRUCTUREBODY'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const bodyModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Body');
+
+    expect(bodyModule).toBeDefined();
+    const parsed = parseSourceStructureBodyBlockData(bodyModule!.blockData);
+    expect(parsed.constructorObjectId).toBe(33);
+    expect(parsed.active.damageScalar).toBeCloseTo(0.5, 6);
+    expect(parsed.active.currentHealth).toBeCloseTo(45, 6);
+    expect(parsed.active.currentSubdualDamage).toBeCloseTo(60, 6);
+    expect(parsed.active.prevHealth).toBeCloseTo(45, 6);
+    expect(parsed.active.maxHealth).toBeCloseTo(200, 6);
+    expect(parsed.active.initialHealth).toBeCloseTo(250, 6);
+    expect(parsed.active.curDamageState).toBe(1);
+    expect(parsed.active.nextDamageFXTime).toBe(777);
+    expect(parsed.active.lastDamageFXDone).toBe(6);
+    expect(parsed.active.lastDamageInfo.input.sourceId).toBe(9);
+    expect(parsed.active.lastDamageInfo.input.sourceTemplateName).toBe('GLATechnical');
+    expect(Array.from(parsed.active.lastDamageInfo.input.sourcePlayerMaskBytes)).toEqual([0x34, 0x12]);
+    expect(parsed.active.lastDamageInfo.input.damageType).toBe(3);
+    expect(parsed.active.lastDamageInfo.output.actualDamageDealt).toBeCloseTo(33, 6);
+    expect(parsed.active.lastDamageInfo.output.actualDamageClipped).toBeCloseTo(22, 6);
+    expect(parsed.active.lastDamageInfo.output.noEffect).toBe(true);
+    expect(parsed.active.lastDamageTimestamp).toBe(41);
+    expect(parsed.active.lastHealingTimestamp).toBe(99);
+    expect(parsed.active.frontCrushed).toBe(true);
+    expect(parsed.active.backCrushed).toBe(false);
+    expect(parsed.active.lastDamageCleared).toBe(true);
+    expect(parsed.active.indestructible).toBe(true);
+    expect(parsed.active.particleSystemIds).toEqual([15, 16]);
+    expect(parsed.active.armorSetFlags).toEqual(['VETERAN', 'SECOND_LIFE', 'CRATE_UPGRADE_TWO']);
   });
 
   it('rewrites source BattlePlanUpdate modules from live runtime state', () => {

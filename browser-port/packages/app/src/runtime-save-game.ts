@@ -16,7 +16,9 @@ import {
 import type { CameraState } from '@generals/input';
 import * as THREE from 'three';
 import {
+  ARMOR_SET_FLAG_MASK_BY_NAME,
   buildSourceMapEntityChunk,
+  calcBodyDamageState,
   parseSourceMapEntityChunk,
   type MapEntityChunkLayoutInspection,
   type SourceMapEntitySaveState,
@@ -141,6 +143,8 @@ const SOURCE_PRODUCTION_UNIT = 1;
 const SOURCE_PRODUCTION_UPGRADE = 2;
 const SOURCE_PRODUCTIONID_INVALID = 0;
 const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
+const SOURCE_DAMAGE_TYPE_UNRESISTABLE = 11;
+const SOURCE_PLAYER_MASK_BYTE_LENGTH = 2;
 const SOURCE_SCRIPT_STATUS_DISABLED = 0x01;
 const SOURCE_SCRIPT_STATUS_UNPOWERED = 0x02;
 const SOURCE_SCRIPT_STATUS_UNSELLABLE = 0x04;
@@ -5148,6 +5152,451 @@ function buildSourceFireSpreadUpdateBlockData(entity: MapEntity): Uint8Array {
   }
 }
 
+interface SourceBodyModuleBaseBlockState {
+  damageScalar: number;
+}
+
+interface SourceDamageInfoInputBlockState {
+  sourceId: number;
+  sourcePlayerMaskBytes: Uint8Array;
+  damageType: number;
+  damageFxOverride: number;
+  deathType: number;
+  amount: number;
+  kill: boolean;
+  damageStatusType: number;
+  shockWaveVector: Coord3D;
+  shockWaveAmount: number;
+  shockWaveRadius: number;
+  shockWaveTaperOff: number;
+  sourceTemplateName: string;
+}
+
+interface SourceDamageInfoOutputBlockState {
+  actualDamageDealt: number;
+  actualDamageClipped: number;
+  noEffect: boolean;
+}
+
+interface SourceDamageInfoBlockState {
+  input: SourceDamageInfoInputBlockState;
+  output: SourceDamageInfoOutputBlockState;
+}
+
+interface SourceActiveBodyBlockState extends SourceBodyModuleBaseBlockState {
+  currentHealth: number;
+  currentSubdualDamage: number;
+  prevHealth: number;
+  maxHealth: number;
+  initialHealth: number;
+  curDamageState: number;
+  nextDamageFXTime: number;
+  lastDamageFXDone: number;
+  lastDamageInfo: SourceDamageInfoBlockState;
+  lastDamageTimestamp: number;
+  lastHealingTimestamp: number;
+  frontCrushed: boolean;
+  backCrushed: boolean;
+  lastDamageCleared: boolean;
+  indestructible: boolean;
+  particleSystemIds: number[];
+  armorSetFlags: string[];
+}
+
+type SourceBodyModuleKind = 'active' | 'structure' | 'hiveStructure' | 'undead' | 'inactive';
+
+interface SourceBodyModuleBlockState {
+  kind: SourceBodyModuleKind;
+  base?: SourceBodyModuleBaseBlockState;
+  active?: SourceActiveBodyBlockState;
+  constructorObjectId?: number;
+  isSecondLife?: boolean;
+}
+
+function normalizeSourceBodyModuleKind(moduleType: string): SourceBodyModuleKind | null {
+  switch (moduleType.trim().toUpperCase()) {
+    case 'ACTIVEBODY':
+    case 'IMMORTALBODY':
+    case 'HIGHLANDERBODY':
+      return 'active';
+    case 'STRUCTUREBODY':
+      return 'structure';
+    case 'HIVESTRUCTUREBODY':
+      return 'hiveStructure';
+    case 'UNDEADBODY':
+      return 'undead';
+    case 'INACTIVEBODY':
+      return 'inactive';
+    default:
+      return null;
+  }
+}
+
+function sourceBodyUnsignedFrame(value: unknown, fallback: number): number {
+  return sourceFlammableUnsignedFrame(value, fallback);
+}
+
+function sourceBodyDamageScalar(entity: MapEntity, fallback: number): number {
+  return sourcePhysicsFinite(entity.battlePlanDamageScalar, fallback);
+}
+
+function sourceBodyBool(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function sourceBodyArmorSetFlags(entity: MapEntity, preservedFlags: string[]): string[] {
+  const mask = sourcePhysicsFinite(entity.armorSetFlagsMask, NaN);
+  if (!Number.isFinite(mask)) {
+    return preservedFlags;
+  }
+  const normalizedMask = Math.trunc(mask);
+  return Array.from(ARMOR_SET_FLAG_MASK_BY_NAME.entries())
+    .filter(([, bit]) => (normalizedMask & bit) !== 0)
+    .map(([name]) => name);
+}
+
+function xferSourceBodyModuleBase(
+  xfer: Xfer,
+  state: SourceBodyModuleBaseBlockState,
+): SourceBodyModuleBaseBlockState {
+  const bodyVersion = xfer.xferVersion(1);
+  const behaviorVersion = xfer.xferVersion(1);
+  const objectModuleVersion = xfer.xferVersion(1);
+  const moduleVersion = xfer.xferVersion(1);
+  if (bodyVersion !== 1 || behaviorVersion !== 1 || objectModuleVersion !== 1 || moduleVersion !== 1) {
+    throw new Error('Unsupported source BodyModule base version');
+  }
+  return {
+    damageScalar: xfer.xferReal(state.damageScalar),
+  };
+}
+
+function xferSourceDamageInfoInput(
+  xfer: Xfer,
+  state: SourceDamageInfoInputBlockState,
+): SourceDamageInfoInputBlockState {
+  const version = xfer.xferVersion(3);
+  const sourceId = xfer.xferObjectID(normalizeSourceObjectId(state.sourceId));
+  const sourcePlayerMaskBytes = xfer.xferUser(
+    state.sourcePlayerMaskBytes.byteLength === SOURCE_PLAYER_MASK_BYTE_LENGTH
+      ? state.sourcePlayerMaskBytes
+      : new Uint8Array(SOURCE_PLAYER_MASK_BYTE_LENGTH),
+  );
+  const damageType = parseSourceRawInt32Bytes(xfer.xferUser(buildSourceRawInt32Bytes(state.damageType)));
+  const damageFxOverride = version >= 2
+    ? parseSourceRawInt32Bytes(xfer.xferUser(buildSourceRawInt32Bytes(state.damageFxOverride)))
+    : SOURCE_DAMAGE_TYPE_UNRESISTABLE;
+  const deathType = parseSourceRawInt32Bytes(xfer.xferUser(buildSourceRawInt32Bytes(state.deathType)));
+  const amount = xfer.xferReal(state.amount);
+  const kill = xfer.xferBool(state.kill);
+  const damageStatusType = parseSourceRawInt32Bytes(xfer.xferUser(buildSourceRawInt32Bytes(state.damageStatusType)));
+  const shockWaveVector = xfer.xferCoord3D(state.shockWaveVector);
+  const shockWaveAmount = xfer.xferReal(state.shockWaveAmount);
+  const shockWaveRadius = xfer.xferReal(state.shockWaveRadius);
+  const shockWaveTaperOff = xfer.xferReal(state.shockWaveTaperOff);
+  const sourceTemplateName = version >= 3 ? xfer.xferAsciiString(state.sourceTemplateName) : '';
+  return {
+    sourceId,
+    sourcePlayerMaskBytes,
+    damageType,
+    damageFxOverride,
+    deathType,
+    amount,
+    kill,
+    damageStatusType,
+    shockWaveVector,
+    shockWaveAmount,
+    shockWaveRadius,
+    shockWaveTaperOff,
+    sourceTemplateName,
+  };
+}
+
+function xferSourceDamageInfoOutput(
+  xfer: Xfer,
+  state: SourceDamageInfoOutputBlockState,
+): SourceDamageInfoOutputBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source DamageInfoOutput version ${version}`);
+  }
+  return {
+    actualDamageDealt: xfer.xferReal(state.actualDamageDealt),
+    actualDamageClipped: xfer.xferReal(state.actualDamageClipped),
+    noEffect: xfer.xferBool(state.noEffect),
+  };
+}
+
+function xferSourceDamageInfo(
+  xfer: Xfer,
+  state: SourceDamageInfoBlockState,
+): SourceDamageInfoBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source DamageInfo version ${version}`);
+  }
+  return {
+    input: xferSourceDamageInfoInput(xfer, state.input),
+    output: xferSourceDamageInfoOutput(xfer, state.output),
+  };
+}
+
+function xferSourceActiveBody(
+  xfer: Xfer,
+  state: SourceActiveBodyBlockState,
+): SourceActiveBodyBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source ActiveBody version ${version}`);
+  }
+  const base = xferSourceBodyModuleBase(xfer, state);
+  const currentHealth = xfer.xferReal(state.currentHealth);
+  const currentSubdualDamage = xfer.xferReal(state.currentSubdualDamage);
+  const prevHealth = xfer.xferReal(state.prevHealth);
+  const maxHealth = xfer.xferReal(state.maxHealth);
+  const initialHealth = xfer.xferReal(state.initialHealth);
+  const curDamageState = parseSourceRawInt32Bytes(xfer.xferUser(buildSourceRawInt32Bytes(state.curDamageState)));
+  const nextDamageFXTime = xfer.xferUnsignedInt(state.nextDamageFXTime);
+  const lastDamageFXDone = parseSourceRawInt32Bytes(xfer.xferUser(buildSourceRawInt32Bytes(state.lastDamageFXDone)));
+  const lastDamageInfo = xferSourceDamageInfo(xfer, state.lastDamageInfo);
+  const lastDamageTimestamp = xfer.xferUnsignedInt(state.lastDamageTimestamp);
+  const lastHealingTimestamp = xfer.xferUnsignedInt(state.lastHealingTimestamp);
+  const frontCrushed = xfer.xferBool(state.frontCrushed);
+  const backCrushed = xfer.xferBool(state.backCrushed);
+  const lastDamageCleared = xfer.xferBool(state.lastDamageCleared);
+  const indestructible = xfer.xferBool(state.indestructible);
+  const particleSystemCount = xfer.xferUnsignedShort(state.particleSystemIds.length);
+  const particleSystemIds: number[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < particleSystemCount; index += 1) {
+      particleSystemIds.push(parseSourceRawInt32Bytes(xfer.xferUser(new Uint8Array(4))));
+    }
+  } else {
+    for (const particleSystemId of state.particleSystemIds) {
+      particleSystemIds.push(particleSystemId);
+      xfer.xferUser(buildSourceRawInt32Bytes(particleSystemId));
+    }
+  }
+  const armorSetFlags = xferSourceStringBitFlags(xfer, state.armorSetFlags);
+  return {
+    ...base,
+    currentHealth,
+    currentSubdualDamage,
+    prevHealth,
+    maxHealth,
+    initialHealth,
+    curDamageState,
+    nextDamageFXTime,
+    lastDamageFXDone,
+    lastDamageInfo,
+    lastDamageTimestamp,
+    lastHealingTimestamp,
+    frontCrushed,
+    backCrushed,
+    lastDamageCleared,
+    indestructible,
+    particleSystemIds,
+    armorSetFlags,
+  };
+}
+
+function overlaySourceDamageInfoFromLiveEntity(
+  entity: MapEntity,
+  preservedState: SourceDamageInfoBlockState,
+): SourceDamageInfoBlockState {
+  const hasLiveDamageSnapshot =
+    sourcePhysicsFinite(entity.lastDamageInfoFrame, 0) > 0
+    || sourcePhysicsFinite(entity.lastDamageFrame, 0) > 0;
+  if (!hasLiveDamageSnapshot) {
+    return preservedState;
+  }
+  const liveSourceId = entity.scriptLastDamageSourceEntityId === null
+    ? 0
+    : normalizeSourceObjectId(entity.scriptLastDamageSourceEntityId);
+  const liveSourceTemplateName = typeof entity.scriptLastDamageSourceTemplateName === 'string'
+    ? entity.scriptLastDamageSourceTemplateName.trim()
+    : '';
+  return {
+    input: {
+      ...preservedState.input,
+      sourceId: liveSourceId,
+      sourceTemplateName: liveSourceTemplateName,
+    },
+    output: {
+      ...preservedState.output,
+      noEffect: sourceBodyBool(entity.lastDamageNoEffect, preservedState.output.noEffect),
+    },
+  };
+}
+
+function buildSourceActiveBodyState(
+  entity: MapEntity,
+  preservedState: SourceActiveBodyBlockState,
+): SourceActiveBodyBlockState {
+  const currentHealth = sourcePhysicsFinite(entity.health, preservedState.currentHealth);
+  const maxHealth = sourcePhysicsFinite(entity.maxHealth, preservedState.maxHealth);
+  const initialHealth = sourcePhysicsFinite(entity.initialHealth, preservedState.initialHealth);
+  const lastDamageFrame = sourcePhysicsFinite(entity.lastDamageFrame, 0);
+  const lastDamageInfoFrame = sourcePhysicsFinite(entity.lastDamageInfoFrame, 0);
+  const liveLastDamageTimestamp = lastDamageFrame > 0 ? lastDamageFrame : lastDamageInfoFrame;
+  return {
+    ...preservedState,
+    damageScalar: sourceBodyDamageScalar(entity, preservedState.damageScalar),
+    currentHealth,
+    currentSubdualDamage: sourcePhysicsFinite(entity.currentSubdualDamage, preservedState.currentSubdualDamage),
+    prevHealth: currentHealth,
+    maxHealth,
+    initialHealth,
+    curDamageState: calcBodyDamageState(currentHealth, maxHealth),
+    lastDamageInfo: overlaySourceDamageInfoFromLiveEntity(entity, preservedState.lastDamageInfo),
+    lastDamageTimestamp: liveLastDamageTimestamp > 0
+      ? sourceBodyUnsignedFrame(liveLastDamageTimestamp, preservedState.lastDamageTimestamp)
+      : preservedState.lastDamageTimestamp,
+    frontCrushed: sourceBodyBool(entity.frontCrushed, preservedState.frontCrushed),
+    backCrushed: sourceBodyBool(entity.backCrushed, preservedState.backCrushed),
+    indestructible: sourceBodyBool(entity.isIndestructible, preservedState.indestructible),
+    armorSetFlags: sourceBodyArmorSetFlags(entity, preservedState.armorSetFlags),
+  };
+}
+
+function tryParseSourceBodyModuleBlockData(
+  data: Uint8Array,
+  moduleType: string,
+): SourceBodyModuleBlockState | null {
+  const kind = normalizeSourceBodyModuleKind(moduleType);
+  if (!kind) {
+    return null;
+  }
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-body-module');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    let parsed: SourceBodyModuleBlockState;
+    if (kind === 'inactive') {
+      parsed = {
+        kind,
+        base: xferSourceBodyModuleBase(xferLoad, { damageScalar: 1 }),
+      };
+    } else if (kind === 'hiveStructure') {
+      const structureVersion = xferLoad.xferVersion(1);
+      if (structureVersion !== 1) {
+        return null;
+      }
+      parsed = {
+        kind,
+        active: xferSourceActiveBody(xferLoad, createDefaultSourceActiveBodyState()),
+        constructorObjectId: xferLoad.xferObjectID(0),
+      };
+    } else {
+      parsed = {
+        kind,
+        active: xferSourceActiveBody(xferLoad, createDefaultSourceActiveBodyState()),
+      };
+      if (kind === 'structure') {
+        parsed.constructorObjectId = xferLoad.xferObjectID(0);
+      } else if (kind === 'undead') {
+        parsed.isSecondLife = xferLoad.xferBool(false);
+      }
+    }
+    return xferLoad.getRemaining() === 0 ? parsed : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceBodyModuleBlockData(
+  entity: MapEntity,
+  moduleType: string,
+  preservedState: SourceBodyModuleBlockState,
+): Uint8Array {
+  const kind = normalizeSourceBodyModuleKind(moduleType);
+  if (!kind || kind !== preservedState.kind) {
+    return new Uint8Array();
+  }
+  const saver = new XferSave();
+  saver.open('build-source-body-module');
+  try {
+    saver.xferVersion(1);
+    if (kind === 'inactive') {
+      xferSourceBodyModuleBase(saver, {
+        damageScalar: sourceBodyDamageScalar(entity, preservedState.base?.damageScalar ?? 1),
+      });
+    } else {
+      const active = buildSourceActiveBodyState(
+        entity,
+        preservedState.active ?? createDefaultSourceActiveBodyState(),
+      );
+      if (kind === 'hiveStructure') {
+        saver.xferVersion(1);
+      }
+      xferSourceActiveBody(saver, active);
+      if (kind === 'structure' || kind === 'hiveStructure') {
+        saver.xferObjectID(normalizeSourceObjectId(
+          sourcePhysicsFinite(entity.builderId, preservedState.constructorObjectId ?? 0),
+        ));
+      } else if (kind === 'undead') {
+        saver.xferBool(sourceBodyBool(entity.undeadIsSecondLife, preservedState.isSecondLife ?? false));
+      }
+    }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function createDefaultSourceDamageInfoState(): SourceDamageInfoBlockState {
+  return {
+    input: {
+      sourceId: 0,
+      sourcePlayerMaskBytes: new Uint8Array(SOURCE_PLAYER_MASK_BYTE_LENGTH),
+      damageType: 0,
+      damageFxOverride: SOURCE_DAMAGE_TYPE_UNRESISTABLE,
+      deathType: 0,
+      amount: 0,
+      kill: false,
+      damageStatusType: 0,
+      shockWaveVector: { x: 0, y: 0, z: 0 },
+      shockWaveAmount: 0,
+      shockWaveRadius: 0,
+      shockWaveTaperOff: 0,
+      sourceTemplateName: '',
+    },
+    output: {
+      actualDamageDealt: 0,
+      actualDamageClipped: 0,
+      noEffect: false,
+    },
+  };
+}
+
+function createDefaultSourceActiveBodyState(): SourceActiveBodyBlockState {
+  return {
+    damageScalar: 1,
+    currentHealth: 0,
+    currentSubdualDamage: 0,
+    prevHealth: 0,
+    maxHealth: 0,
+    initialHealth: 0,
+    curDamageState: 0,
+    nextDamageFXTime: 0,
+    lastDamageFXDone: 0,
+    lastDamageInfo: createDefaultSourceDamageInfoState(),
+    lastDamageTimestamp: 0xffffffff,
+    lastHealingTimestamp: 0xffffffff,
+    frontCrushed: false,
+    backCrushed: false,
+    lastDamageCleared: false,
+    indestructible: false,
+    particleSystemIds: [],
+    armorSetFlags: [],
+  };
+}
+
 interface SourceProductionQueueEntryBlockState {
   type: number;
   name: string;
@@ -7263,6 +7712,13 @@ function overlaySourceObjectModulesFromLiveEntity(
       default:
         if (templateName && typeof resolveSourceObjectModuleTypeByTag === 'function') {
           const moduleType = resolveSourceObjectModuleTypeByTag(templateName, module.identifier)?.trim().toUpperCase() ?? '';
+          const parsedBodyState = tryParseSourceBodyModuleBlockData(module.blockData, moduleType);
+          if (parsedBodyState) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceBodyModuleBlockData(entity, moduleType, parsedBodyState),
+            };
+          }
           if (moduleType === 'AUTOHEALBEHAVIOR' && entity.autoHealProfile) {
             const parsedSourceState = tryParseSourceAutoHealBehaviorBlockData(module.blockData);
             if (parsedSourceState) {
