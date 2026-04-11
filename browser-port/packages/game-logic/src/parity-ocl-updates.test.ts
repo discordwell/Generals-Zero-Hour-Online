@@ -71,6 +71,7 @@ interface PrivateEntity {
   health: number;
   maxHealth: number;
   objectStatusFlags: Set<string>;
+  disabledEmpUntilFrame: number;
   oclUpdateProfiles: { oclName: string; minDelayFrames: number; maxDelayFrames: number }[];
   oclUpdateNextCreationFrames: number[];
   oclUpdateTimerStarted: boolean[];
@@ -235,8 +236,10 @@ describe('parity: OCLUpdate periodic object creation', () => {
     const creationFrameBefore = spawner.oclUpdateNextCreationFrames[0]!;
     expect(creationFrameBefore).toBeGreaterThan(0);
 
-    // Disable with EMP
+    // Disable with EMP. Source Object::setDisabledUntil only sets the disabled
+    // mask when the target frame is in the future, so keep the paired timer.
     spawner.objectStatusFlags.add('DISABLED_EMP');
+    spawner.disabledEmpUntilFrame = priv(logic).frameCounter + 30;
 
     // Run 30 frames while disabled -- timer should pause (no spawn)
     for (let i = 0; i < 30; i++) logic.update(1 / 30);
