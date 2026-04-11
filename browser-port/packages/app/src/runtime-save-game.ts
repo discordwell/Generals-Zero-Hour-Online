@@ -97,6 +97,30 @@ const SOURCE_HELPER_MODULE_TAG_STATUS_DAMAGE = 'ModuleTag_StatusDamageHelper';
 const SOURCE_HELPER_MODULE_TAG_WEAPON_STATUS = 'ModuleTag_WeaponStatusHelper';
 const SOURCE_HELPER_MODULE_TAG_TEMP_WEAPON_BONUS = 'ModuleTag_TempWeaponBonusHelper';
 const SOURCE_HELPER_MODULE_TAG_SUBDUAL_DAMAGE = 'ModuleTag_SubdualDamageHelper';
+const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
+const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
+const SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN = 0x0008;
+const SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME = 0x0010;
+const SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE = 0x0020;
+const SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL = 0x0040;
+const SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW = 0x0080;
+const SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL = 0x0200;
+const SOURCE_PHYSICS_FLAG_IS_IN_UPDATE = 0x0400;
+const SOURCE_PHYSICS_FLAG_IS_STUNNED = 0x0800;
+const SOURCE_PHYSICS_LIVE_OWNED_FLAG_MASK = SOURCE_PHYSICS_FLAG_STICK_TO_GROUND
+  | SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE
+  | SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN
+  | SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME
+  | SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE
+  | SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL
+  | SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW
+  | SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL
+  | SOURCE_PHYSICS_FLAG_IS_IN_UPDATE
+  | SOURCE_PHYSICS_FLAG_IS_STUNNED;
+const SOURCE_PHYSICS_TURNING_BYTE_LENGTH = 4;
+const SOURCE_PHYSICS_INVALID_VEL_MAG = -1;
+const SOURCE_PROJECTILE_STREAM_MAX = 20;
+const SOURCE_PROJECTILE_STREAM_MAX_ACTIVE = SOURCE_PROJECTILE_STREAM_MAX - 1;
 const SOURCE_SCRIPT_STATUS_DISABLED = 0x01;
 const SOURCE_SCRIPT_STATUS_UNPOWERED = 0x02;
 const SOURCE_SCRIPT_STATUS_UNSELLABLE = 0x04;
@@ -4456,6 +4480,325 @@ function buildSourceStealthDetectorUpdateBlockData(
   }
 }
 
+interface SourcePhysicsBehaviorBlockState {
+  version: number;
+  nextCallFrameAndPhase: number;
+  yawRate: number;
+  rollRate: number;
+  pitchRate: number;
+  accel: Coord3D;
+  prevAccel: Coord3D;
+  vel: Coord3D;
+  turningBytes: Uint8Array;
+  ignoreCollisionsWith: number;
+  flags: number;
+  mass: number;
+  currentOverlap: number;
+  previousOverlap: number;
+  motiveForceExpires: number;
+  extraBounciness: number;
+  extraFriction: number;
+  velMag: number;
+}
+
+function sourcePhysicsFinite(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function sourcePhysicsFlag(flags: number, bit: number): boolean {
+  return (flags & bit) !== 0;
+}
+
+function setSourcePhysicsFlag(flags: number, bit: number, enabled: boolean): number {
+  return enabled ? (flags | bit) : (flags & ~bit);
+}
+
+function buildSourcePhysicsBehaviorFlags(
+  preservedFlags: number,
+  entity: MapEntity,
+  yawRate: number,
+  rollRate: number,
+  pitchRate: number,
+): number {
+  const state = entity.physicsBehaviorState;
+  const profile = entity.physicsBehaviorProfile;
+  let flags = preservedFlags & ~SOURCE_PHYSICS_LIVE_OWNED_FLAG_MASK;
+  flags = setSourcePhysicsFlag(flags, SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN, true);
+  flags = setSourcePhysicsFlag(
+    flags,
+    SOURCE_PHYSICS_FLAG_STICK_TO_GROUND,
+    typeof state?.stickToGround === 'boolean'
+      ? state.stickToGround
+      : sourcePhysicsFlag(preservedFlags, SOURCE_PHYSICS_FLAG_STICK_TO_GROUND),
+  );
+  flags = setSourcePhysicsFlag(
+    flags,
+    SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE,
+    typeof profile?.allowBouncing === 'boolean'
+      ? profile.allowBouncing
+      : sourcePhysicsFlag(preservedFlags, SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE),
+  );
+  flags = setSourcePhysicsFlag(
+    flags,
+    SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME,
+    typeof state?.wasAirborneLastFrame === 'boolean'
+      ? state.wasAirborneLastFrame
+      : sourcePhysicsFlag(preservedFlags, SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME),
+  );
+  flags = setSourcePhysicsFlag(
+    flags,
+    SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE,
+    typeof profile?.allowCollideForce === 'boolean'
+      ? profile.allowCollideForce
+      : sourcePhysicsFlag(preservedFlags, SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE),
+  );
+  flags = setSourcePhysicsFlag(
+    flags,
+    SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL,
+    typeof state?.allowToFall === 'boolean'
+      ? state.allowToFall
+      : sourcePhysicsFlag(preservedFlags, SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL),
+  );
+  flags = setSourcePhysicsFlag(
+    flags,
+    SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW,
+    yawRate !== 0 || rollRate !== 0 || pitchRate !== 0,
+  );
+  flags = setSourcePhysicsFlag(
+    flags,
+    SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL,
+    typeof state?.isInFreeFall === 'boolean'
+      ? state.isInFreeFall
+      : sourcePhysicsFlag(preservedFlags, SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL),
+  );
+  flags = setSourcePhysicsFlag(flags, SOURCE_PHYSICS_FLAG_IS_IN_UPDATE, false);
+  flags = setSourcePhysicsFlag(
+    flags,
+    SOURCE_PHYSICS_FLAG_IS_STUNNED,
+    typeof state?.isStunned === 'boolean'
+      ? state.isStunned
+      : sourcePhysicsFlag(preservedFlags, SOURCE_PHYSICS_FLAG_IS_STUNNED),
+  );
+  return flags | 0;
+}
+
+function tryParseSourcePhysicsBehaviorBlockData(
+  data: Uint8Array,
+): SourcePhysicsBehaviorBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-physics-behavior');
+  try {
+    const version = xferLoad.xferVersion(2);
+    if (version !== 1 && version !== 2) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const yawRate = xferLoad.xferReal(0);
+    const rollRate = xferLoad.xferReal(0);
+    const pitchRate = xferLoad.xferReal(0);
+    const accel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const prevAccel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const vel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    if (version < 2) {
+      xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    }
+    const turningBytes = xferLoad.xferUser(new Uint8Array(SOURCE_PHYSICS_TURNING_BYTE_LENGTH));
+    const ignoreCollisionsWith = xferLoad.xferObjectID(0);
+    const flags = xferLoad.xferInt(0);
+    const mass = xferLoad.xferReal(0);
+    const currentOverlap = xferLoad.xferObjectID(0);
+    const previousOverlap = xferLoad.xferObjectID(0);
+    const motiveForceExpires = xferLoad.xferUnsignedInt(0);
+    const extraBounciness = xferLoad.xferReal(0);
+    const extraFriction = xferLoad.xferReal(0);
+    const velMag = xferLoad.xferReal(0);
+    return xferLoad.getRemaining() === 0
+      ? {
+        version,
+        nextCallFrameAndPhase,
+        yawRate,
+        rollRate,
+        pitchRate,
+        accel,
+        prevAccel,
+        vel,
+        turningBytes,
+        ignoreCollisionsWith,
+        flags,
+        mass,
+        currentOverlap,
+        previousOverlap,
+        motiveForceExpires,
+        extraBounciness,
+        extraFriction,
+        velMag,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourcePhysicsBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourcePhysicsBehaviorBlockState,
+): Uint8Array {
+  const state = entity.physicsBehaviorState;
+  const profile = entity.physicsBehaviorProfile;
+  const yawRate = sourcePhysicsFinite(state?.yawRate, preservedState.yawRate);
+  const rollRate = sourcePhysicsFinite(state?.rollRate, preservedState.rollRate);
+  const pitchRate = sourcePhysicsFinite(state?.pitchRate, preservedState.pitchRate);
+  const accel = {
+    x: sourcePhysicsFinite(state?.accelX, preservedState.accel.x),
+    y: sourcePhysicsFinite(state?.accelZ, preservedState.accel.y),
+    z: sourcePhysicsFinite(state?.accelY, preservedState.accel.z),
+  };
+  const vel = {
+    x: sourcePhysicsFinite(state?.velX, preservedState.vel.x),
+    y: sourcePhysicsFinite(state?.velZ, preservedState.vel.y),
+    z: sourcePhysicsFinite(state?.velY, preservedState.vel.z),
+  };
+  const saver = new XferSave();
+  saver.open('build-source-physics-behavior');
+  try {
+    saver.xferVersion(2);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    saver.xferReal(yawRate);
+    saver.xferReal(rollRate);
+    saver.xferReal(pitchRate);
+    saver.xferCoord3D(accel);
+    saver.xferCoord3D(preservedState.prevAccel);
+    saver.xferCoord3D(vel);
+    saver.xferUser(
+      preservedState.turningBytes.byteLength === SOURCE_PHYSICS_TURNING_BYTE_LENGTH
+        ? preservedState.turningBytes
+        : new Uint8Array(SOURCE_PHYSICS_TURNING_BYTE_LENGTH),
+    );
+    saver.xferObjectID(Math.max(0, Math.trunc(preservedState.ignoreCollisionsWith)) >>> 0);
+    saver.xferInt(buildSourcePhysicsBehaviorFlags(
+      preservedState.flags,
+      entity,
+      yawRate,
+      rollRate,
+      pitchRate,
+    ));
+    saver.xferReal(sourcePhysicsFinite(profile?.mass, preservedState.mass));
+    saver.xferObjectID(Math.max(0, Math.trunc(preservedState.currentOverlap)) >>> 0);
+    saver.xferObjectID(Math.max(0, Math.trunc(preservedState.previousOverlap)) >>> 0);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(preservedState.motiveForceExpires)) >>> 0);
+    saver.xferReal(sourcePhysicsFinite(state?.extraBounciness, preservedState.extraBounciness));
+    saver.xferReal(sourcePhysicsFinite(state?.extraFriction, preservedState.extraFriction));
+    saver.xferReal(SOURCE_PHYSICS_INVALID_VEL_MAG);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+interface SourceProjectileStreamUpdateBlockState {
+  version: number;
+  nextCallFrameAndPhase: number;
+  projectileIds: number[];
+  nextFreeIndex: number;
+  firstValidIndex: number;
+  owningObject: number;
+  targetObject: number;
+  targetPosition: Coord3D;
+}
+
+function normalizeSourceObjectId(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, Math.trunc(value)) >>> 0
+    : 0;
+}
+
+function tryParseSourceProjectileStreamUpdateBlockData(
+  data: Uint8Array,
+): SourceProjectileStreamUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-projectile-stream-update');
+  try {
+    const version = xferLoad.xferVersion(2);
+    if (version !== 1 && version !== 2) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const projectileIds: number[] = [];
+    for (let index = 0; index < SOURCE_PROJECTILE_STREAM_MAX; index += 1) {
+      projectileIds.push(xferLoad.xferObjectID(0));
+    }
+    const nextFreeIndex = xferLoad.xferInt(0);
+    const firstValidIndex = xferLoad.xferInt(0);
+    const owningObject = xferLoad.xferObjectID(0);
+    const targetObject = version >= 2 ? xferLoad.xferObjectID(0) : 0;
+    const targetPosition = version >= 2 ? xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }) : { x: 0, y: 0, z: 0 };
+    return xferLoad.getRemaining() === 0
+      ? {
+        version,
+        nextCallFrameAndPhase,
+        projectileIds,
+        nextFreeIndex,
+        firstValidIndex,
+        owningObject,
+        targetObject,
+        targetPosition,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceProjectileStreamUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceProjectileStreamUpdateBlockState,
+): Uint8Array {
+  const state = entity.projectileStreamState;
+  // Source asserts after an add if nextFreeIndex catches firstValidIndex, so a valid
+  // source save can represent at most 19 active entries in the 20-slot ring.
+  const liveProjectileIds = Array.isArray(state?.projectileIds)
+    ? state.projectileIds.map(normalizeSourceObjectId).slice(-SOURCE_PROJECTILE_STREAM_MAX_ACTIVE)
+    : [];
+  const projectileIds = Array.from({ length: SOURCE_PROJECTILE_STREAM_MAX }, (_, index) =>
+    liveProjectileIds[index] ?? 0,
+  );
+  const saver = new XferSave();
+  saver.open('build-source-projectile-stream-update');
+  try {
+    saver.xferVersion(2);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    for (const projectileId of projectileIds) {
+      saver.xferObjectID(projectileId);
+    }
+    saver.xferInt(liveProjectileIds.length % SOURCE_PROJECTILE_STREAM_MAX);
+    saver.xferInt(0);
+    saver.xferObjectID(normalizeSourceObjectId(state?.ownerEntityId ?? preservedState.owningObject));
+    saver.xferObjectID(normalizeSourceObjectId(preservedState.targetObject));
+    saver.xferCoord3D(preservedState.targetPosition);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceFloatUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -6186,6 +6529,24 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceStealthDetectorUpdateBlockData(entity, currentFrame),
+              };
+            }
+          }
+          if (moduleType === 'PHYSICSBEHAVIOR' && entity.physicsBehaviorState) {
+            const parsedSourceState = tryParseSourcePhysicsBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourcePhysicsBehaviorBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'PROJECTILESTREAMUPDATE' && entity.projectileStreamState) {
+            const parsedSourceState = tryParseSourceProjectileStreamUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceProjectileStreamUpdateBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }

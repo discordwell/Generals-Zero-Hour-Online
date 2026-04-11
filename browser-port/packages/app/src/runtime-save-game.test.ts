@@ -974,6 +974,99 @@ function createSourceRadarUpdateBlockData(
   }
 }
 
+const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
+const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
+const SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE = 0x0004;
+const SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN = 0x0008;
+const SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME = 0x0010;
+const SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE = 0x0020;
+const SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL = 0x0040;
+const SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW = 0x0080;
+const SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE = 0x0100;
+const SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL = 0x0200;
+const SOURCE_PHYSICS_FLAG_IS_IN_UPDATE = 0x0400;
+const SOURCE_PHYSICS_FLAG_IS_STUNNED = 0x0800;
+const SOURCE_PHYSICS_INVALID_VEL_MAG = -1;
+const SOURCE_PROJECTILE_STREAM_MAX = 20;
+
+interface SourcePhysicsBehaviorTestState {
+  nextCallFrameAndPhase: number;
+  yawRate: number;
+  rollRate: number;
+  pitchRate: number;
+  accel: Coord3D;
+  prevAccel: Coord3D;
+  vel: Coord3D;
+  turning: number;
+  ignoreCollisionsWith: number;
+  flags: number;
+  mass: number;
+  currentOverlap: number;
+  previousOverlap: number;
+  motiveForceExpires: number;
+  extraBounciness: number;
+  extraFriction: number;
+  velMag: number;
+}
+
+function createSourcePhysicsBehaviorBlockData(state: SourcePhysicsBehaviorTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-physics-behavior');
+  try {
+    xferSave.xferVersion(2);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferReal(state.yawRate);
+    xferSave.xferReal(state.rollRate);
+    xferSave.xferReal(state.pitchRate);
+    xferSave.xferCoord3D(state.accel);
+    xferSave.xferCoord3D(state.prevAccel);
+    xferSave.xferCoord3D(state.vel);
+    xferSave.xferUser(createRawInt32Bytes(state.turning));
+    xferSave.xferObjectID(state.ignoreCollisionsWith);
+    xferSave.xferInt(state.flags);
+    xferSave.xferReal(state.mass);
+    xferSave.xferObjectID(state.currentOverlap);
+    xferSave.xferObjectID(state.previousOverlap);
+    xferSave.xferUnsignedInt(state.motiveForceExpires);
+    xferSave.xferReal(state.extraBounciness);
+    xferSave.xferReal(state.extraFriction);
+    xferSave.xferReal(state.velMag);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+interface SourceProjectileStreamUpdateTestState {
+  nextCallFrameAndPhase: number;
+  projectileIds: number[];
+  nextFreeIndex: number;
+  firstValidIndex: number;
+  owningObject: number;
+  targetObject: number;
+  targetPosition: Coord3D;
+}
+
+function createSourceProjectileStreamUpdateBlockData(state: SourceProjectileStreamUpdateTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-projectile-stream-update');
+  try {
+    xferSave.xferVersion(2);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    for (let index = 0; index < SOURCE_PROJECTILE_STREAM_MAX; index += 1) {
+      xferSave.xferObjectID(state.projectileIds[index] ?? 0);
+    }
+    xferSave.xferInt(state.nextFreeIndex);
+    xferSave.xferInt(state.firstValidIndex);
+    xferSave.xferObjectID(state.owningObject);
+    xferSave.xferObjectID(state.targetObject);
+    xferSave.xferCoord3D(state.targetPosition);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function sourceNeutronMissileStateToInt(
   state: 'PRELAUNCH' | 'LAUNCH' | 'ATTACK' | 'DEAD',
 ): number {
@@ -2520,6 +2613,75 @@ function parseSourceRadarUpdateBlockData(data: Uint8Array) {
       extendDoneFrame: xferLoad.xferUnsignedInt(0),
       extendComplete: xferLoad.xferBool(false),
       radarActive: xferLoad.xferBool(false),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourcePhysicsBehaviorBlockData(data: Uint8Array): SourcePhysicsBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-physics-behavior');
+  try {
+    xferLoad.xferVersion(2);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const yawRate = xferLoad.xferReal(0);
+    const rollRate = xferLoad.xferReal(0);
+    const pitchRate = xferLoad.xferReal(0);
+    const accel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const prevAccel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const vel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const turning = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    return {
+      nextCallFrameAndPhase,
+      yawRate,
+      rollRate,
+      pitchRate,
+      accel,
+      prevAccel,
+      vel,
+      turning,
+      ignoreCollisionsWith: xferLoad.xferObjectID(0),
+      flags: xferLoad.xferInt(0),
+      mass: xferLoad.xferReal(0),
+      currentOverlap: xferLoad.xferObjectID(0),
+      previousOverlap: xferLoad.xferObjectID(0),
+      motiveForceExpires: xferLoad.xferUnsignedInt(0),
+      extraBounciness: xferLoad.xferReal(0),
+      extraFriction: xferLoad.xferReal(0),
+      velMag: xferLoad.xferReal(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceProjectileStreamUpdateBlockData(data: Uint8Array): SourceProjectileStreamUpdateTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-projectile-stream-update');
+  try {
+    xferLoad.xferVersion(2);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const projectileIds: number[] = [];
+    for (let index = 0; index < SOURCE_PROJECTILE_STREAM_MAX; index += 1) {
+      projectileIds.push(xferLoad.xferObjectID(0));
+    }
+    return {
+      nextCallFrameAndPhase,
+      projectileIds,
+      nextFreeIndex: xferLoad.xferInt(0),
+      firstValidIndex: xferLoad.xferInt(0),
+      owningObject: xferLoad.xferObjectID(0),
+      targetObject: xferLoad.xferObjectID(0),
+      targetPosition: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
     };
   } finally {
     xferLoad.close();
@@ -8116,6 +8278,287 @@ describe('runtime-save-game', () => {
       nextCallFrameAndPhase: (91 << 2) | 2,
       enabled: true,
     });
+  });
+
+  it('rewrites source PhysicsBehavior modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Physics',
+      blockData: createSourcePhysicsBehaviorBlockData({
+        nextCallFrameAndPhase: (84 << 2) | 2,
+        yawRate: 0.91,
+        rollRate: 0.82,
+        pitchRate: 0.73,
+        accel: { x: 9, y: 8, z: 7 },
+        prevAccel: { x: 6, y: 5, z: 4 },
+        vel: { x: 3, y: 2, z: 1 },
+        turning: -1,
+        ignoreCollisionsWith: 123,
+        flags: SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE
+          | SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE
+          | SOURCE_PHYSICS_FLAG_STICK_TO_GROUND
+          | SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE
+          | SOURCE_PHYSICS_FLAG_IS_IN_UPDATE,
+        mass: 5,
+        currentOverlap: 456,
+        previousOverlap: 789,
+        motiveForceExpires: 1024,
+        extraBounciness: 0.11,
+        extraFriction: 0.22,
+        velMag: 2.5,
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source physics behavior rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            physicsBehaviorProfile: {
+              mass: 12.5,
+              forwardFriction: 0.15,
+              lateralFriction: 0.16,
+              zFriction: 0.17,
+              aerodynamicFriction: 0.18,
+              centerOfMassOffset: 0,
+              killWhenRestingOnGround: false,
+              allowBouncing: true,
+              allowCollideForce: false,
+              pitchRollYawFactor: 1,
+            },
+            physicsBehaviorState: {
+              velX: 1.5,
+              velY: 2.5,
+              velZ: -3.5,
+              accelX: 0.125,
+              accelY: 0.25,
+              accelZ: -0.5,
+              yawRate: 0.03125,
+              pitchRate: 0,
+              rollRate: -0.0625,
+              wasAirborneLastFrame: true,
+              stickToGround: false,
+              allowToFall: true,
+              isInFreeFall: true,
+              extraBounciness: 0.75,
+              extraFriction: -0.125,
+              isStunned: true,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Physics'
+            ? 'PHYSICSBEHAVIOR'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const physicsModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Physics');
+
+    expect(physicsModule).toBeDefined();
+    const parsed = parseSourcePhysicsBehaviorBlockData(physicsModule!.blockData);
+    expect(parsed.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsed.yawRate).toBeCloseTo(0.03125, 6);
+    expect(parsed.rollRate).toBeCloseTo(-0.0625, 6);
+    expect(parsed.pitchRate).toBeCloseTo(0, 6);
+    expect(parsed.accel).toEqual({ x: 0.125, y: -0.5, z: 0.25 });
+    expect(parsed.prevAccel).toEqual({ x: 6, y: 5, z: 4 });
+    expect(parsed.vel).toEqual({ x: 1.5, y: -3.5, z: 2.5 });
+    expect(parsed.turning).toBe(-1);
+    expect(parsed.ignoreCollisionsWith).toBe(123);
+    expect(parsed.mass).toBeCloseTo(12.5, 6);
+    expect(parsed.currentOverlap).toBe(456);
+    expect(parsed.previousOverlap).toBe(789);
+    expect(parsed.motiveForceExpires).toBe(1024);
+    expect(parsed.extraBounciness).toBeCloseTo(0.75, 6);
+    expect(parsed.extraFriction).toBeCloseTo(-0.125, 6);
+    expect(parsed.velMag).toBe(SOURCE_PHYSICS_INVALID_VEL_MAG);
+    expect(parsed.flags).toBe(
+      SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE
+      | SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE
+      | SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN
+      | SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE
+      | SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME
+      | SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL
+      | SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW
+      | SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL
+      | SOURCE_PHYSICS_FLAG_IS_STUNNED
+    );
+    expect(parsed.flags & SOURCE_PHYSICS_FLAG_STICK_TO_GROUND).toBe(0);
+    expect(parsed.flags & SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE).toBe(0);
+    expect(parsed.flags & SOURCE_PHYSICS_FLAG_IS_IN_UPDATE).toBe(0);
+  });
+
+  it('rewrites source ProjectileStreamUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Stream',
+      blockData: createSourceProjectileStreamUpdateBlockData({
+        nextCallFrameAndPhase: (84 << 2) | 2,
+        projectileIds: Array.from({ length: SOURCE_PROJECTILE_STREAM_MAX }, (_, index) => 90 + index),
+        nextFreeIndex: 9,
+        firstValidIndex: 4,
+        owningObject: 12,
+        targetObject: 44,
+        targetPosition: { x: 101, y: 202, z: 303 },
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source projectile stream rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 24,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            projectileStreamProfile: { enabled: true },
+            projectileStreamState: {
+              projectileIds: Array.from({ length: 22 }, (_, index) => index + 2),
+              nextIndex: 2,
+              ownerEntityId: 77,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Stream'
+            ? 'PROJECTILESTREAMUPDATE'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 24,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const streamModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Stream');
+
+    expect(streamModule).toBeDefined();
+    const parsed = parseSourceProjectileStreamUpdateBlockData(streamModule!.blockData);
+    const expectedProjectileIds = [
+      ...Array.from({ length: SOURCE_PROJECTILE_STREAM_MAX - 1 }, (_, index) => index + 5),
+      0,
+    ];
+    expect(parsed.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsed.projectileIds).toEqual(expectedProjectileIds);
+    expect(parsed.nextFreeIndex).toBe(19);
+    expect(parsed.firstValidIndex).toBe(0);
+    expect(parsed.owningObject).toBe(77);
+    expect(parsed.targetObject).toBe(44);
+    expect(parsed.targetPosition).toEqual({ x: 101, y: 202, z: 303 });
   });
 
   it('rewrites source FloatUpdate modules from live runtime state', () => {
