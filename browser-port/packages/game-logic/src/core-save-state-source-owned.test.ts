@@ -308,6 +308,11 @@ function makeSourceOwnedCoreBundle() {
           Enabled: false,
         }),
       ]),
+      makeObjectDef('TensileObject', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'TensileFormationUpdate ModuleTag_Tensile', {
+          Enabled: false,
+        }),
+      ]),
       makeObjectDef('PilotUnit', 'America', ['INFANTRY'], [
         makeBlock('Behavior', 'PilotFindVehicleUpdate ModuleTag_Pilot', {
           ScanRate: 500,
@@ -2074,6 +2079,22 @@ function buildSourceFloatUpdateModuleData(options: {
     saver.xferVersion(1);
     saver.xferVersion(1);
     saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferBool(options.enabled);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceTensileFormationUpdateModuleData(options: {
+  nextCallFrame: number;
+  enabled: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-tensile-formation-update');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
     saver.xferBool(options.enabled);
     return new Uint8Array(saver.getBuffer());
   } finally {
@@ -5396,6 +5417,17 @@ describe('source-owned game-logic core save-state', () => {
       }),
     }];
 
+    const tensileState = createEmptySourceMapEntitySaveState();
+    tensileState.objectId = 128;
+    tensileState.position = { x: 168, y: 0, z: 60 };
+    tensileState.modules = [{
+      identifier: 'ModuleTag_Tensile',
+      blockData: buildSourceTensileFormationUpdateModuleData({
+        nextCallFrame: 354,
+        enabled: true,
+      }),
+    }];
+
     const pilotState = createEmptySourceMapEntitySaveState();
     pilotState.objectId = 124;
     pilotState.position = { x: 160, y: 0, z: 60 };
@@ -5452,6 +5484,7 @@ describe('source-owned game-logic core save-state', () => {
       objectIdCounter: 190,
       objects: [
         { templateName: 'FloatObject', state: floatState },
+        { templateName: 'TensileObject', state: tensileState },
         { templateName: 'PilotUnit', state: pilotState },
         { templateName: 'RadarStructure', state: radarState },
         { templateName: 'LeafletObject', state: leafletState },
@@ -5462,6 +5495,7 @@ describe('source-owned game-logic core save-state', () => {
     const privateLogic = logic as unknown as {
       spawnedEntities: Map<number, {
         floatUpdateProfile: { enabled: boolean } | null;
+        tensileFormationState: { enabled: boolean; nextWakeFrame: number } | null;
         pilotFindVehicleDidMoveToBase: boolean;
         pilotFindVehicleNextScanFrame: number;
         radarExtendDoneFrame: number;
@@ -5481,6 +5515,10 @@ describe('source-owned game-logic core save-state', () => {
     };
 
     expect(privateLogic.spawnedEntities.get(123)!.floatUpdateProfile?.enabled).toBe(true);
+    expect(privateLogic.spawnedEntities.get(128)!.tensileFormationState).toMatchObject({
+      enabled: true,
+      nextWakeFrame: 354,
+    });
 
     const importedPilot = privateLogic.spawnedEntities.get(124)!;
     expect(importedPilot.pilotFindVehicleDidMoveToBase).toBe(true);

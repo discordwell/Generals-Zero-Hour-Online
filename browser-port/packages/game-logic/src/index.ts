@@ -9077,6 +9077,11 @@ interface SourceFloatUpdateImportState {
   enabled: boolean;
 }
 
+interface SourceTensileFormationUpdateImportState {
+  nextCallFrame: number;
+  enabled: boolean;
+}
+
 interface SourcePilotFindVehicleUpdateImportState {
   nextCallFrame: number;
   didMoveToBase: boolean;
@@ -17008,6 +17013,33 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceTensileFormationUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceTensileFormationUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'TENSILEFORMATIONUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-tensile-formation-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const enabled = xfer.xferBool(false);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, enabled } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
   private tryParseSourcePilotFindVehicleUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -17139,6 +17171,13 @@ export class GameLogicSubsystem implements Subsystem {
       const floatState = this.tryParseSourceFloatUpdateImportState(module.blockData, moduleType);
       if (floatState && entity.floatUpdateProfile) {
         entity.floatUpdateProfile.enabled = floatState.enabled;
+        continue;
+      }
+
+      const tensileState = this.tryParseSourceTensileFormationUpdateImportState(module.blockData, moduleType);
+      if (tensileState && entity.tensileFormationState) {
+        entity.tensileFormationState.enabled = tensileState.enabled;
+        entity.tensileFormationState.nextWakeFrame = Math.max(0, Math.trunc(tensileState.nextCallFrame));
         continue;
       }
 

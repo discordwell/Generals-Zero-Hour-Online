@@ -9955,6 +9955,59 @@ function buildSourceFloatUpdateBlockData(
   }
 }
 
+interface SourceTensileFormationUpdateBlockState {
+  nextCallFrameAndPhase: number;
+  enabled: boolean;
+}
+
+function tryParseSourceTensileFormationUpdateBlockData(
+  data: Uint8Array,
+): SourceTensileFormationUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-tensile-formation-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(
+      xferLoad,
+      buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    );
+    const enabled = xferLoad.xferBool(false);
+    return xferLoad.getRemaining() === 0 ? { nextCallFrameAndPhase, enabled } : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceTensileFormationUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceTensileFormationUpdateBlockState,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-tensile-formation-update');
+  try {
+    const state = entity.tensileFormationState;
+    const enabled = typeof state?.enabled === 'boolean' ? state.enabled : preservedState.enabled;
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(
+        enabled
+          ? currentFrame + 1
+          : sourceNonNegativeInt(state?.nextWakeFrame, preservedState.nextCallFrameAndPhase >>> 2),
+      ),
+    ));
+    saver.xferBool(enabled);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourcePilotFindVehicleUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -12196,6 +12249,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               identifier: module.identifier,
               blockData: buildSourceFloatUpdateBlockData(entity, currentFrame),
             };
+          }
+          if (moduleType === 'TENSILEFORMATIONUPDATE' && entity.tensileFormationState) {
+            const parsedSourceState = tryParseSourceTensileFormationUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceTensileFormationUpdateBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
           }
           if (moduleType === 'SPECTREGUNSHIPDEPLOYMENTUPDATE' && entity.spectreGunshipDeploymentProfile) {
             const parsedSourceState = tryParseSourceSpectreGunshipDeploymentUpdateBlockData(module.blockData);

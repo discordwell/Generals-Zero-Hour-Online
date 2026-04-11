@@ -841,6 +841,22 @@ function createSourceFloatUpdateBlockData(
   }
 }
 
+function createSourceTensileFormationUpdateBlockData(
+  nextCallFrameAndPhase: number,
+  enabled: boolean,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-tensile-formation-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferBool(enabled);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceSpectreGunshipDeploymentUpdateBlockData(
   nextCallFrameAndPhase: number,
   gunshipId: number,
@@ -4947,6 +4963,24 @@ function parseSourceStealthUpdateBlockData(data: Uint8Array) {
 function parseSourceFloatUpdateBlockData(data: Uint8Array) {
   const xferLoad = new XferLoad(data.slice().buffer);
   xferLoad.open('parse-source-float-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      enabled: xferLoad.xferBool(false),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceTensileFormationUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-tensile-formation-update');
   try {
     xferLoad.xferVersion(1);
     xferLoad.xferVersion(1);
@@ -14755,10 +14789,13 @@ describe('runtime-save-game', () => {
     expect(parsed.catchUpCrisisTimer).toBe(7);
   });
 
-  it('rewrites source FloatUpdate modules from live runtime state', () => {
+  it('rewrites source FloatUpdate and TensileFormationUpdate modules from live runtime state', () => {
     const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
       identifier: 'ModuleTag_Float',
       blockData: createSourceFloatUpdateBlockData((84 << 2) | 2, false),
+    }, {
+      identifier: 'ModuleTag_Tensile',
+      blockData: createSourceTensileFormationUpdateBlockData((86 << 2) | 2, false),
     }]);
 
     const saveFile = buildRuntimeSaveFile({
@@ -14827,12 +14864,32 @@ describe('runtime-save-game', () => {
             floatUpdateProfile: {
               enabled: true,
             },
+            tensileFormationState: {
+              enabled: false,
+              linksInited: false,
+              links: [],
+              inertiaX: 0,
+              inertiaZ: 0,
+              motionlessCounter: 0,
+              life: 0,
+              lowestSlideElevation: 255,
+              nextWakeFrame: 144,
+              footprintRemoved: false,
+              originalBlocksPath: true,
+              done: false,
+            },
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
-        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
-          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Float'
-            ? 'FLOATUPDATE'
-            : null,
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName !== 'RuntimeTank') {
+            return null;
+          }
+          switch (moduleTag) {
+            case 'ModuleTag_Float': return 'FLOATUPDATE';
+            case 'ModuleTag_Tensile': return 'TENSILEFORMATIONUPDATE';
+            default: return null;
+          }
+        },
         captureBrowserRuntimeSaveState: () => ({ version: 1 }),
         getObjectIdCounter: () => 8,
       },
@@ -14840,11 +14897,17 @@ describe('runtime-save-game', () => {
 
     const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
     const floatModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Float');
+    const tensileModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Tensile');
 
     expect(floatModule).toBeDefined();
     expect(parseSourceFloatUpdateBlockData(floatModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (43 << 2) | 2,
       enabled: true,
+    });
+    expect(tensileModule).toBeDefined();
+    expect(parseSourceTensileFormationUpdateBlockData(tensileModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (144 << 2) | 2,
+      enabled: false,
     });
   });
 
