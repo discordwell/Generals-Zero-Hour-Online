@@ -1775,7 +1775,11 @@ async function startGame(
         runtimeSaveLoadContext.runtimeSave.gameLogicInGameUiState,
       );
     }
-    if (runtimeSaveLoadContext.runtimeSave.gameLogicCoreState) {
+    if (runtimeSaveLoadContext.runtimeSave.sourceGameLogicImportState) {
+      gameLogic.restoreSourceGameLogicImportSaveState(
+        runtimeSaveLoadContext.runtimeSave.sourceGameLogicImportState,
+      );
+    } else if (runtimeSaveLoadContext.runtimeSave.gameLogicCoreState) {
       gameLogic.restoreSourceGameLogicRuntimeSaveState(
         runtimeSaveLoadContext.runtimeSave.gameLogicCoreState,
       );

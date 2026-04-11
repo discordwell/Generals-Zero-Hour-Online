@@ -50,6 +50,7 @@ import {
   type GameLogicTeamFactorySaveState,
   type GameLogicTerrainLogicSaveState,
   type GameLogicTerrainWaterUpdateSaveState,
+  type GameLogicSourceGameLogicImportSaveState,
   type GameLogicSubsystem,
   type GameLogicTunnelTrackerSaveState,
   type LegacyGameLogicRadarSaveState,
@@ -528,6 +529,7 @@ export interface RuntimeSaveBootstrap {
   scriptEngineFadeState: ScriptCameraEffectFadeSaveState | null;
   gameLogicInGameUiState: GameLogicInGameUiSaveState | null;
   gameLogicCoreState: GameLogicCoreSaveState | null;
+  sourceGameLogicImportState: GameLogicSourceGameLogicImportSaveState | null;
   gameLogicState: unknown | null;
   sourceGameLogicPrototypeNames: readonly string[] | null;
   campaign: RuntimeSaveCampaignBootstrap | null;
@@ -3122,6 +3124,36 @@ function collectSourceGameLogicPrototypeNames(
     prototypeNames.push(prototypeNameUpper);
   }
   return prototypeNames;
+}
+
+function buildSourceGameLogicImportSaveState(
+  state: ParsedSourceGameLogicChunkState | null | undefined,
+  objectIdCounter: number,
+): GameLogicSourceGameLogicImportSaveState | null {
+  if (!state) {
+    return null;
+  }
+  return {
+    version: 1,
+    sourceChunkVersion: state.version,
+    frameCounter: state.frameCounter,
+    objectIdCounter: Math.max(1, Math.trunc(objectIdCounter) || 1),
+    objects: state.objects.map((object) => ({
+      templateName: object.templateName,
+      state: object.state,
+    })),
+    caveTrackers: state.caveTrackers,
+    sellingEntities: state.sellingEntities,
+    buildableOverrides: state.buildableOverrides,
+    scriptScoringEnabled: state.scriptScoringEnabled,
+    rankLevelLimit: state.rankLevelLimit,
+    showBehindBuildingMarkers: state.showBehindBuildingMarkers,
+    drawIconUI: state.drawIconUI,
+    showDynamicLOD: state.showDynamicLOD,
+    scriptHulkMaxLifetimeOverride: state.scriptHulkMaxLifetimeOverride,
+    rankPointsToAddAtGameStart: state.rankPointsToAddAtGameStart,
+    superweaponRestriction: state.superweaponRestriction,
+  };
 }
 
 function buildSourceTransformMatrixValues(
@@ -14957,6 +14989,10 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     ? parseSourceGameLogicChunkState(gameLogicChunk)
     : null;
   const sourceGameLogicPrototypeNames = collectSourceGameLogicPrototypeNames(sourceGameLogicState);
+  const sourceGameLogicImportState = buildSourceGameLogicImportSaveState(
+    sourceGameLogicState,
+    mapInfo.objectIdCounter,
+  );
   const sourceGameLogicCoreState = gameLogicChunk
     ? tryParseSourceGameLogicChunk(gameLogicChunk)
     : null;
@@ -15054,6 +15090,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     scriptEngineFadeState,
     gameLogicInGameUiState,
     gameLogicCoreState,
+    sourceGameLogicImportState,
     gameLogicState: payload?.gameLogicState ?? null,
     sourceGameLogicPrototypeNames,
     campaign,

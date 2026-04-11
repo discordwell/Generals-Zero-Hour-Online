@@ -7337,6 +7337,20 @@ describe('runtime-save-game', () => {
     } | undefined;
 
     expect(parsed.gameLogicCoreState).toBeNull();
+    expect(parsed.sourceGameLogicImportState).toMatchObject({
+      version: 1,
+      sourceChunkVersion: 3,
+      frameCounter: 42,
+      objectIdCounter: 8,
+      objects: [{
+        templateName: 'RuntimeTank',
+        state: {
+          objectId: 7,
+          internalName: 'UNIT_007',
+          originalTeamName: 'TEAMUNIT',
+        },
+      }],
+    });
     expect(parsed.sourceGameLogicPrototypeNames).toEqual(['TEAMUNIT']);
     expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data)).toEqual([
       { blockName: 'CHUNK_Players', mode: 'parsed' },

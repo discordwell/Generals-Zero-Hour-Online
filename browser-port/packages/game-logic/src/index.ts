@@ -222,6 +222,7 @@ export {
   parseSourceMapEntityChunk,
   xferMapEntity,
 } from './entity-xfer.js';
+import type { SourceMapEntitySaveState } from './entity-xfer.js';
 export type {
   MapEntityChunkLayoutInspection,
   SourceMapEntitySaveState,
@@ -8117,6 +8118,7 @@ export const SCRIPT_KIND_OF_ALLOW_SURRENDER_NAMES = new Set<string>([
 const BROWSER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION = 1;
+const SOURCE_GAME_LOGIC_IMPORT_SAVE_STATE_VERSION = 1;
 const SOURCE_OBJECT_TRIGGER_INFO_LIMIT = 5;
 const SOURCE_TERRAIN_LOGIC_RUNTIME_SAVE_STATE_VERSION = 2;
 const SOURCE_PARTITION_RUNTIME_SAVE_STATE_VERSION = 2;
@@ -8575,6 +8577,30 @@ export interface GameLogicCoreSaveState {
   historicDamageLog?: GameLogicHistoricDamageWeaponSaveState[];
 }
 
+export interface GameLogicSourceGameLogicImportObjectSaveState {
+  templateName: string | null;
+  state: SourceMapEntitySaveState;
+}
+
+export interface GameLogicSourceGameLogicImportSaveState {
+  version: number;
+  sourceChunkVersion: number;
+  frameCounter: number;
+  objectIdCounter: number;
+  objects: GameLogicSourceGameLogicImportObjectSaveState[];
+  caveTrackers?: GameLogicCaveTrackerSaveState[];
+  sellingEntities?: GameLogicSellingEntitySaveState[];
+  buildableOverrides?: GameLogicBuildableOverrideSaveState[];
+  scriptScoringEnabled?: boolean;
+  rankLevelLimit?: number | null;
+  showBehindBuildingMarkers?: boolean | null;
+  drawIconUI?: boolean | null;
+  showDynamicLOD?: boolean | null;
+  scriptHulkMaxLifetimeOverride?: number | null;
+  rankPointsToAddAtGameStart?: number | null;
+  superweaponRestriction?: number | null;
+}
+
 export interface GameLogicObjectTriggerAreaEntrySaveState {
   triggerName: string;
   entered: number;
@@ -8594,6 +8620,29 @@ const SOURCE_OBJECT_WEAPON_SET_CONDITION_BETWEEN = 2;
 const SOURCE_OBJECT_WEAPON_SET_CONDITION_RELOADING = 3;
 const SOURCE_OBJECT_WEAPON_SET_CONDITION_PREATTACK = 4;
 const SOURCE_OBJECT_WEAPON_SLOT_COUNT = 3;
+const SOURCE_SCRIPT_STATUS_DISABLED = 0x01;
+const SOURCE_SCRIPT_STATUS_UNPOWERED = 0x02;
+const SOURCE_SCRIPT_STATUS_UNSELLABLE = 0x04;
+const SOURCE_SCRIPT_STATUS_UNSTEALTHED = 0x08;
+const SOURCE_SCRIPT_STATUS_TARGETABLE = 0x10;
+const SOURCE_PRIVATE_STATUS_DESTROYED = 0x01;
+const SOURCE_PRIVATE_STATUS_UNDETECTED_DEFECTOR = 0x02;
+const SOURCE_PRIVATE_STATUS_CAPTURED = 0x04;
+const SOURCE_DISABLED_NAMES_IN_ORDER = [
+  'DEFAULT',
+  'DISABLED_HACKED',
+  'DISABLED_EMP',
+  'DISABLED_HELD',
+  'DISABLED_PARALYZED',
+  'DISABLED_UNMANNED',
+  'DISABLED_UNDERPOWERED',
+  'DISABLED_FREEFALL',
+  'DISABLED_AWESTRUCK',
+  'DISABLED_BRAINWASHED',
+  'DISABLED_SUBDUED',
+  'DISABLED_SCRIPT_DISABLED',
+  'DISABLED_SCRIPT_UNDERPOWERED',
+] as const;
 
 export interface GameLogicObjectXferOverlayState {
   entityId: number;
@@ -12346,6 +12395,379 @@ export class GameLogicSubsystem implements Subsystem {
       conditions[activeSlot] = SOURCE_OBJECT_WEAPON_SET_CONDITION_BETWEEN;
     }
     return conditions;
+  }
+
+  private sourceImportPosition(
+    sourceState: SourceMapEntitySaveState,
+  ): { x: number; y: number; z: number; rotationY: number } {
+    if (sourceState.position) {
+      return {
+        x: Number.isFinite(sourceState.position.x) ? sourceState.position.x : 0,
+        y: Number.isFinite(sourceState.position.y) ? sourceState.position.y : 0,
+        z: Number.isFinite(sourceState.position.z) ? sourceState.position.z : 0,
+        rotationY: Number.isFinite(sourceState.orientation) ? sourceState.orientation ?? 0 : 0,
+      };
+    }
+
+    const matrix = Array.isArray(sourceState.transformMatrix) ? sourceState.transformMatrix : [];
+    return {
+      x: Number.isFinite(matrix[3]) ? matrix[3]! : 0,
+      y: Number.isFinite(matrix[7]) ? matrix[7]! : 0,
+      z: Number.isFinite(matrix[11]) ? matrix[11]! : 0,
+      rotationY: Number.isFinite(matrix[0]) && Number.isFinite(matrix[2])
+        ? Math.atan2(matrix[2]!, matrix[0]!)
+        : 0,
+    };
+  }
+
+  private clearEntitiesForSourceGameLogicImport(): void {
+    this.spawnedEntities.clear();
+    this.scriptExistedEntityIds.clear();
+    this.scriptNamedEntitiesByName.clear();
+    this.scriptObjectCountBySideAndType.clear();
+    this.scriptObjectTypeListsByName.clear();
+    this.scriptTriggerMembershipByEntityId.clear();
+    this.scriptTriggerEnteredByEntityId.clear();
+    this.scriptTriggerExitedByEntityId.clear();
+    this.scriptTriggerEnterExitFrameByEntityId.clear();
+    this.scriptCompletedWaypointPathsByEntityId.clear();
+    this.scriptPendingWaypointPathByEntityId.clear();
+    this.scriptTransportStatusByEntityId.clear();
+    this.scriptAttackAreaStateByEntityId.clear();
+    this.scriptHuntStateByEntityId.clear();
+    this.assaultTransportStateByEntityId.clear();
+    this.railedTransportStateByEntityId.clear();
+    this.pendingCombatDropActions.clear();
+    this.pendingChinookRappels.clear();
+    this.pendingConstructionActions.clear();
+    this.pendingRepairActions.clear();
+    this.pendingEnterObjectActions.clear();
+    this.pendingRepairDockActions.clear();
+    this.pendingGarrisonActions.clear();
+    this.pendingTransportActions.clear();
+    this.pendingTunnelActions.clear();
+    this.supplyWarehouseStates.clear();
+    this.supplyTruckStates.clear();
+    this.dockApproachStates.clear();
+    for (const team of this.scriptTeamsByName.values()) {
+      team.memberEntityIds = new Set<number>();
+    }
+  }
+
+  private sourceTeamById(sourceTeamId: number): ScriptTeamRecord | null {
+    const normalizedTeamId = Math.trunc(sourceTeamId);
+    if (!Number.isFinite(normalizedTeamId) || normalizedTeamId <= 0) {
+      return null;
+    }
+    for (const team of this.scriptTeamsByName.values()) {
+      if (Math.trunc(team.sourceTeamId ?? 0) === normalizedTeamId) {
+        return team;
+      }
+    }
+    return null;
+  }
+
+  private createEntityForSourceGameLogicObject(
+    objectState: GameLogicSourceGameLogicImportObjectSaveState,
+  ): MapEntity | null {
+    const registry = this.iniDataRegistry;
+    const templateName = objectState.templateName?.trim() || '';
+    if (!registry || !templateName) {
+      return null;
+    }
+    const objectDef = this.resolveMapObjectDef(templateName, registry);
+    if (!objectDef) {
+      return null;
+    }
+
+    const sourcePosition = this.sourceImportPosition(objectState.state);
+    const sourceTeamName = objectState.state.originalTeamName.trim();
+    const mapObject: MapObjectJSON = {
+      templateName,
+      angle: THREE.MathUtils.radToDeg(sourcePosition.rotationY),
+      flags: 0,
+      position: {
+        x: sourcePosition.x,
+        y: sourcePosition.z,
+        z: sourcePosition.y,
+      },
+      properties: {
+        ...(sourceTeamName ? { originalOwner: sourceTeamName } : {}),
+        ...(objectState.state.internalName.trim() ? { objectName: objectState.state.internalName.trim() } : {}),
+      },
+    };
+
+    const entity = this.createMapEntity(mapObject, objectDef, registry, this.mapHeightmap) as MapEntity;
+    entity.id = Math.max(1, Math.trunc(objectState.state.objectId));
+    return entity;
+  }
+
+  private applySourceStatusBitsToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    const nextFlags = new Set<string>();
+    for (const statusName of sourceState.statusBits) {
+      const normalized = this.normalizeObjectStatusName(statusName);
+      if (normalized) {
+        nextFlags.add(normalized);
+      }
+    }
+    for (const disabledName of sourceState.disabledMask) {
+      const normalized = this.normalizeObjectStatusName(disabledName);
+      if (normalized && normalized !== 'DEFAULT') {
+        nextFlags.add(normalized);
+      }
+    }
+
+    if ((sourceState.scriptStatus & SOURCE_SCRIPT_STATUS_DISABLED) !== 0) {
+      nextFlags.add('SCRIPT_DISABLED');
+      nextFlags.add('DISABLED_SCRIPT_DISABLED');
+    }
+    if ((sourceState.scriptStatus & SOURCE_SCRIPT_STATUS_UNPOWERED) !== 0) {
+      nextFlags.add('SCRIPT_UNPOWERED');
+      nextFlags.add('DISABLED_SCRIPT_UNDERPOWERED');
+    }
+    if ((sourceState.scriptStatus & SOURCE_SCRIPT_STATUS_UNSELLABLE) !== 0) {
+      nextFlags.add('SCRIPT_UNSELLABLE');
+    }
+    if ((sourceState.scriptStatus & SOURCE_SCRIPT_STATUS_UNSTEALTHED) !== 0) {
+      nextFlags.add('SCRIPT_UNSTEALTHED');
+    }
+    if ((sourceState.scriptStatus & SOURCE_SCRIPT_STATUS_TARGETABLE) !== 0) {
+      nextFlags.add('SCRIPT_TARGETABLE');
+    }
+
+    entity.objectStatusFlags = nextFlags;
+    entity.destroyed = nextFlags.has('DESTROYED')
+      || (sourceState.privateStatus & SOURCE_PRIVATE_STATUS_DESTROYED) !== 0;
+    if (entity.destroyed) {
+      entity.objectStatusFlags.add('DESTROYED');
+    }
+    entity.capturedFromOriginalOwner = (sourceState.privateStatus & SOURCE_PRIVATE_STATUS_CAPTURED) !== 0;
+    entity.undetectedDefectorUntilFrame =
+      (sourceState.privateStatus & SOURCE_PRIVATE_STATUS_UNDETECTED_DEFECTOR) !== 0
+        ? Math.max(this.frameCounter + 1, entity.undetectedDefectorUntilFrame)
+        : 0;
+    this.syncDerivedStatusFields(entity);
+  }
+
+  private applySourceDisabledFramesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    const frameByName = new Map<string, number>();
+    SOURCE_DISABLED_NAMES_IN_ORDER.forEach((name, index) => {
+      const frame = sourceState.disabledTillFrame[index];
+      if (Number.isFinite(frame)) {
+        frameByName.set(name, Math.max(0, Math.trunc(frame!)));
+      }
+    });
+    entity.disabledHackedUntilFrame = frameByName.get('DISABLED_HACKED') ?? 0;
+    entity.disabledEmpUntilFrame = frameByName.get('DISABLED_EMP') ?? 0;
+    entity.disabledParalyzedUntilFrame = frameByName.get('DISABLED_PARALYZED') ?? 0;
+  }
+
+  private applySourceWeaponStateToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    entity.weaponSetFlagsMask = sourceState.weaponSetFlags.reduce((mask, flagName) => {
+      const bit = WEAPON_SET_FLAG_MASK_BY_NAME.get(flagName.trim().toUpperCase()) ?? 0;
+      return mask | bit;
+    }, 0);
+    entity.weaponBonusConditionFlags = Number.isFinite(sourceState.weaponBonusCondition)
+      ? Math.trunc(sourceState.weaponBonusCondition)
+      : entity.weaponBonusConditionFlags;
+
+    const weaponSet = sourceState.weaponSet;
+    if (!weaponSet) {
+      return;
+    }
+    const currentSlot = Math.max(0, Math.min(SOURCE_OBJECT_WEAPON_SLOT_COUNT - 1, Math.trunc(weaponSet.currentWeapon)));
+    const weapon = weaponSet.weapons[currentSlot] ?? null;
+    entity.attackWeaponSlotIndex = currentSlot;
+    entity.weaponLockStatus = weaponSet.currentWeaponLockedStatus === 2
+      ? 'LOCKED_PERMANENTLY'
+      : (weaponSet.currentWeaponLockedStatus === 1 ? 'LOCKED_TEMPORARILY' : 'NOT_LOCKED');
+    if (!weapon) {
+      return;
+    }
+    entity.attackAmmoInClip = Math.max(0, Math.trunc(weapon.ammoInClip));
+    entity.nextAttackFrame = Math.max(0, Math.trunc(weapon.whenWeCanFireAgain));
+    entity.preAttackFinishFrame = Math.max(0, Math.trunc(weapon.whenPreAttackFinished));
+    entity.attackReloadFinishFrame = Math.max(0, Math.trunc(weapon.whenLastReloadStarted));
+    entity.lastShotFrame = Math.max(0, Math.trunc(weapon.lastFireFrame));
+    entity.lastShotFrameBySlot[currentSlot] = entity.lastShotFrame;
+    entity.maxShotsRemaining = Math.trunc(weapon.maxShotCount);
+    entity.attackScatterTargetsUnused = [...weapon.scatterTargetsUnused];
+    entity.leechRangeActive = weapon.leechWeaponRangeActive;
+  }
+
+  private applySourceMapEntityStateToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    const sourcePosition = this.sourceImportPosition(sourceState);
+    entity.x = sourcePosition.x;
+    entity.y = sourcePosition.y;
+    entity.z = sourcePosition.z;
+    entity.rotationY = sourcePosition.rotationY;
+    entity.scriptName = sourceState.internalName.trim() || null;
+    entity.producerEntityId = Math.max(0, Math.trunc(sourceState.producerId));
+    entity.builderId = Math.max(0, Math.trunc(sourceState.builderId));
+    entity.visionRange = Number.isFinite(sourceState.visionRange) ? sourceState.visionRange : entity.visionRange;
+    entity.baseVisionRange = entity.visionRange;
+    entity.shroudClearingRange = Number.isFinite(sourceState.shroudClearingRange)
+      ? sourceState.shroudClearingRange
+      : entity.shroudClearingRange;
+    entity.baseShroudClearingRange = entity.shroudClearingRange;
+    entity.shroudRange = Number.isFinite(sourceState.shroudRange) ? sourceState.shroudRange : entity.shroudRange;
+    entity.constructionPercent = Number.isFinite(sourceState.constructionPercent)
+      ? sourceState.constructionPercent
+      : entity.constructionPercent;
+    entity.completedUpgrades = new Set(sourceState.completedUpgradeNames.map((name) => name.trim()).filter(Boolean));
+    entity.sourceTeamNameUpper = sourceState.originalTeamName.trim().toUpperCase() || entity.sourceTeamNameUpper;
+    const sourceTeam = this.sourceTeamById(sourceState.teamId);
+    if (sourceTeam) {
+      entity.sourceTeamNameUpper = sourceTeam.nameUpper;
+      entity.side = sourceTeam.controllingSide ?? entity.side;
+      entity.controllingPlayerToken = sourceTeam.controllingPlayerToken ?? sourceTeam.controllingSide;
+    }
+    entity.customIndicatorColor = Number.isFinite(sourceState.indicatorColor)
+      ? Math.trunc(sourceState.indicatorColor)
+      : entity.customIndicatorColor;
+    entity.healthBoxOffset = {
+      x: sourceState.healthBoxOffset.x,
+      y: sourceState.healthBoxOffset.y,
+      z: sourceState.healthBoxOffset.z,
+    };
+    entity.transportContainerId = sourceState.containedById ?? null;
+    entity.tunnelEnteredFrame = Math.max(0, Math.trunc(sourceState.containedByFrame));
+    entity.soleHealingBenefactorId = sourceState.soleHealingBenefactorId;
+    entity.soleHealingBenefactorExpirationFrame = Math.max(
+      0,
+      Math.trunc(sourceState.soleHealingBenefactorExpirationFrame),
+    );
+    entity.commandSetStringOverride = sourceState.commandSetStringOverride.trim() || null;
+    entity.receivingDifficultyBonus = sourceState.isReceivingDifficultyBonus;
+
+    this.applySourceStatusBitsToEntity(entity, sourceState);
+    this.applySourceDisabledFramesToEntity(entity, sourceState);
+    this.applySourceWeaponStateToEntity(entity, sourceState);
+  }
+
+  restoreSourceGameLogicImportSaveState(state: unknown): void {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      throw new Error('Source GameLogic import payload is malformed.');
+    }
+    const snapshot = state as GameLogicSourceGameLogicImportSaveState;
+    if (snapshot.version !== SOURCE_GAME_LOGIC_IMPORT_SAVE_STATE_VERSION) {
+      throw new Error(`Unsupported source GameLogic import version ${snapshot.version}.`);
+    }
+    if (!Array.isArray(snapshot.objects)) {
+      throw new Error('Source GameLogic import objects are malformed.');
+    }
+
+    this.frameCounter = Math.max(0, Math.trunc(snapshot.frameCounter));
+    this.rankLevelLimit = Number.isFinite(snapshot.rankLevelLimit)
+      ? Math.trunc(snapshot.rankLevelLimit ?? RANK_TABLE.length)
+      : RANK_TABLE.length;
+    this.scriptScoringEnabled = snapshot.scriptScoringEnabled ?? true;
+    this.scriptOcclusionModeEnabled = snapshot.showBehindBuildingMarkers ?? false;
+    this.scriptDrawIconUIEnabled = snapshot.drawIconUI ?? true;
+    this.scriptDynamicLodEnabled = snapshot.showDynamicLOD ?? true;
+    this.scriptHulkLifetimeOverrideFrames = Number.isFinite(snapshot.scriptHulkMaxLifetimeOverride)
+      ? Math.trunc(snapshot.scriptHulkMaxLifetimeOverride ?? -1)
+      : -1;
+    this.rankPointsToAddAtGameStart = Number.isFinite(snapshot.rankPointsToAddAtGameStart)
+      ? Math.max(0, Math.trunc(snapshot.rankPointsToAddAtGameStart ?? 0))
+      : 0;
+    this.config.superweaponRestriction = Number.isFinite(snapshot.superweaponRestriction)
+      ? Math.max(0, Math.trunc(snapshot.superweaponRestriction ?? 0))
+      : 0;
+
+    this.clearEntitiesForSourceGameLogicImport();
+    let maxImportedObjectId = 0;
+    for (const objectState of snapshot.objects) {
+      if (!objectState || !objectState.state) {
+        continue;
+      }
+      const entity = this.createEntityForSourceGameLogicObject(objectState);
+      if (!entity) {
+        continue;
+      }
+      this.applySourceMapEntityStateToEntity(entity, objectState.state);
+      maxImportedObjectId = Math.max(maxImportedObjectId, entity.id);
+      this.addEntityToWorld(entity);
+      this.initializeMinefieldState(entity);
+      this.registerTunnelEntity(entity);
+      if (entity.supplyWarehouseProfile) {
+        this.supplyWarehouseStates.set(
+          entity.id,
+          initializeWarehouseStateImpl(entity.supplyWarehouseProfile),
+        );
+      }
+    }
+
+    this.nextId = Math.max(
+      1,
+      Math.trunc(snapshot.objectIdCounter) || 1,
+      maxImportedObjectId + 1,
+      this.nextId,
+    );
+    this.selectedEntityId = null;
+    this.selectedEntityIds = [];
+    this.scriptSelectionChangedFrame = this.frameCounter;
+    this.controlBarDirtyFrame = this.frameCounter;
+    this.scriptObjectTopologyVersion = 0;
+    this.scriptObjectCountChangedFrame = this.frameCounter;
+
+    this.rebuildDozerTaskIndexesFromEntities();
+    this.rebuildChinookCombatDropIndexesFromEntities();
+    this.rebuildPendingEnterIndexesFromEntities();
+    this.rebuildRepairDockIndexesFromEntities();
+    this.caveTrackers.clear();
+    for (const caveTracker of snapshot.caveTrackers ?? []) {
+      if (!caveTracker || typeof caveTracker.caveIndex !== 'number') {
+        continue;
+      }
+      this.caveTrackers.set(
+        caveTracker.caveIndex,
+        this.restoreTunnelTrackerSaveState(caveTracker.tracker),
+      );
+    }
+    this.sellingEntities.clear();
+    for (const sellingState of snapshot.sellingEntities ?? []) {
+      if (!sellingState || typeof sellingState.entityId !== 'number' || !Number.isFinite(sellingState.sellFrame)) {
+        continue;
+      }
+      const entity = this.spawnedEntities.get(sellingState.entityId);
+      if (!entity || entity.destroyed) {
+        continue;
+      }
+      this.sellingEntities.set(
+        sellingState.entityId,
+        this.buildSellingEntitySaveState(Math.max(0, Math.trunc(sellingState.sellFrame))),
+      );
+    }
+    this.thingTemplateBuildableOverrides.clear();
+    for (const override of snapshot.buildableOverrides ?? []) {
+      if (!override || typeof override.templateName !== 'string' || typeof override.buildableStatus !== 'string') {
+        continue;
+      }
+      const normalizedTemplateName = normalizeMapTemplateName(override.templateName);
+      if (!normalizedTemplateName) {
+        continue;
+      }
+      if (override.buildableStatus !== 'YES'
+        && override.buildableStatus !== 'IGNORE_PREREQUISITES'
+        && override.buildableStatus !== 'NO'
+        && override.buildableStatus !== 'ONLY_BY_AI') {
+        continue;
+      }
+      this.thingTemplateBuildableOverrides.set(normalizedTemplateName, override.buildableStatus);
+    }
   }
 
   restoreSourceGameLogicRuntimeSaveState(state: unknown): void {

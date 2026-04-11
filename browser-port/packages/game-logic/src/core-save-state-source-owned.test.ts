@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
-import { GameLogicSubsystem } from './index.js';
+import {
+  createEmptySourceMapEntitySaveState,
+  GameLogicSubsystem,
+} from './index.js';
 import {
   makeBlock,
   makeBundle,
@@ -23,6 +26,82 @@ function makeSourceOwnedCoreBundle() {
 }
 
 describe('source-owned game-logic core save-state', () => {
+  it('rebuilds live entities from source GameLogic Object::xfer import state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    const disabledTillFrame = Array.from({ length: 13 }, () => 0);
+    disabledTillFrame[2] = 90;
+    sourceState.objectId = 42;
+    sourceState.position = { x: 24, y: 3, z: 28 };
+    sourceState.orientation = 0.75;
+    sourceState.internalName = 'SAVED_BARRACKS';
+    sourceState.statusBits = ['CAN_ATTACK'];
+    sourceState.scriptStatus = 0x04 | 0x10;
+    sourceState.disabledMask = ['DISABLED_EMP'];
+    sourceState.disabledTillFrame = disabledTillFrame;
+    sourceState.completedUpgradeNames = ['Upgrade_A'];
+    sourceState.commandSetStringOverride = 'CommandSet_Saved';
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 77,
+      objectIdCounter: 100,
+      objects: [{
+        templateName: 'AmericaBarracks',
+        state: sourceState,
+      }],
+      scriptScoringEnabled: false,
+      rankLevelLimit: 3,
+    });
+
+    const privateLogic = logic as unknown as {
+      frameCounter: number;
+      spawnedEntities: Map<number, {
+        id: number;
+        templateName: string;
+        scriptName: string | null;
+        x: number;
+        y: number;
+        z: number;
+        rotationY: number;
+        objectStatusFlags: Set<string>;
+        disabledEmpUntilFrame: number;
+        completedUpgrades: Set<string>;
+        commandSetStringOverride: string | null;
+      }>;
+      scriptScoringEnabled: boolean;
+      rankLevelLimit: number;
+    };
+
+    expect(privateLogic.frameCounter).toBe(77);
+    expect(privateLogic.scriptScoringEnabled).toBe(false);
+    expect(privateLogic.rankLevelLimit).toBe(3);
+    expect(logic.getObjectIdCounter()).toBe(100);
+    expect([...privateLogic.spawnedEntities.keys()]).toEqual([42]);
+
+    const entity = privateLogic.spawnedEntities.get(42)!;
+    expect(entity.templateName).toBe('AmericaBarracks');
+    expect(entity.scriptName).toBe('SAVED_BARRACKS');
+    expect(entity.x).toBe(24);
+    expect(entity.y).toBe(3);
+    expect(entity.z).toBe(28);
+    expect(entity.rotationY).toBe(0.75);
+    expect(entity.objectStatusFlags.has('CAN_ATTACK')).toBe(true);
+    expect(entity.objectStatusFlags.has('DISABLED_EMP')).toBe(true);
+    expect(entity.objectStatusFlags.has('SCRIPT_UNSELLABLE')).toBe(true);
+    expect(entity.objectStatusFlags.has('SCRIPT_TARGETABLE')).toBe(true);
+    expect(entity.disabledEmpUntilFrame).toBe(90);
+    expect(entity.completedUpgrades).toEqual(new Set(['Upgrade_A']));
+    expect(entity.commandSetStringOverride).toBe('CommandSet_Saved');
+  });
+
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {
     const bundle = makeSourceOwnedCoreBundle();
     const registry = makeRegistry(bundle);
