@@ -21921,6 +21921,25 @@ function xferSourceKindOfCostModifiers(
   return modifiers;
 }
 
+function normalizeSourceSpecialPowerReadyTimers(value: unknown): Array<{ templateId: number; readyFrame: number }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return [];
+    }
+    const timer = entry as { templateId?: unknown; readyFrame?: unknown };
+    if (!Number.isFinite(timer.templateId) || !Number.isFinite(timer.readyFrame)) {
+      return [];
+    }
+    return [{
+      templateId: Math.max(0, Math.trunc(timer.templateId as number)),
+      readyFrame: Math.max(0, Math.trunc(timer.readyFrame as number)),
+    }];
+  });
+}
+
 function xferSourceSquadObjectIds(
   xfer: Xfer,
   objectIds: number[],
@@ -22116,6 +22135,9 @@ function buildSourcePlayerEntryState(
   const sideCompletedUpgrades = getRuntimeStateMap<Set<string>>(state, 'sideCompletedUpgrades').get(side);
   const sideUpgradesInProduction = getRuntimeStateMap<Set<string>>(state, 'sideUpgradesInProduction').get(side);
   const sideSourcePlayerUpgradeList = getRuntimeStateMap<unknown>(state, 'sideSourcePlayerUpgradeList').get(side);
+  const specialPowerReadyTimers = normalizeSourceSpecialPowerReadyTimers(
+    getRuntimeStateMap<unknown>(state, 'sideSourceSpecialPowerReadyTimers').get(side),
+  );
   const sideCashBountyPercent = getRuntimeStateMap<number>(state, 'sideCashBountyPercent').get(side);
   const sideSkillPointsModifier = getRuntimeStateMap<number>(state, 'sideSkillPointsModifier').get(side);
   const sideBattlePlanBonuses = getRuntimeStateMap<Record<string, unknown>>(state, 'sideBattlePlanBonuses').get(side);
@@ -22306,7 +22328,7 @@ function buildSourcePlayerEntryState(
       objectsCaptured: normalizeSourceScoreObjectCountMap(sideScoreState?.objectsCaptured),
     },
     kindOfCostModifiers: expandedKindOfCostModifiers,
-    specialPowerReadyTimers: [],
+    specialPowerReadyTimers,
     squads: Array.from({ length: SOURCE_PLAYER_HOTKEY_SQUAD_COUNT }, () => [] as number[]),
     currentSelection: [],
     battlePlanBonuses: sideBattlePlanBonuses
@@ -22373,6 +22395,7 @@ function buildGameLogicPlayersStateFromSourcePlayers(
     multiplier: number;
     refCount: number;
   }>>();
+  const sideSourceSpecialPowerReadyTimers = new Map<string, Array<{ templateId: number; readyFrame: number }>>();
   const sideBattlePlanBonuses = new Map<string, {
     bombardmentCount: number;
     holdTheLineCount: number;
@@ -22484,6 +22507,9 @@ function buildGameLogicPlayersStateFromSourcePlayers(
           : [];
       }));
     }
+    if (player.specialPowerReadyTimers.length > 0) {
+      sideSourceSpecialPowerReadyTimers.set(player.side, player.specialPowerReadyTimers.map((timer) => ({ ...timer })));
+    }
     if (!player.listInScoreScreen) {
       sideScoreScreenExcluded.add(player.side);
     }
@@ -22594,6 +22620,7 @@ function buildGameLogicPlayersStateFromSourcePlayers(
   state.sideUpgradesInProduction = sideUpgradesInProduction;
   state.sideSourcePlayerUpgradeList = sideSourcePlayerUpgradeList;
   state.sideKindOfProductionCostModifiers = sideKindOfProductionCostModifiers;
+  state.sideSourceSpecialPowerReadyTimers = sideSourceSpecialPowerReadyTimers;
   state.sideRadarState = sideRadarState;
   state.sideRankState = sideRankState;
   state.sideScoreState = sideScoreState;

@@ -14953,6 +14953,53 @@ describe('runtime-save-game', () => {
     expect(parsedModifiers?.[0]?.refCount).toBe(2);
   });
 
+  it('round-trips source player special-power ready timers as raw template IDs', () => {
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source SpecialPower Timers',
+      mapPath: 'assets/maps/SourceSpecialPowerTimers.json',
+      mapData: {
+        ...createTinyRuntimeMapData(),
+        sidesList: {
+          sides: [{
+            dict: {
+              playerName: 'America',
+              playerFaction: 'America',
+            },
+            buildList: [],
+          }],
+          teams: [],
+        },
+      },
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic([], {
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            playerSideByIndex: new Map([[0, 'America']]),
+            sidePlayerIndex: new Map([['America', 0]]),
+            sideSourceSpecialPowerReadyTimers: new Map([
+              ['America', [
+                { templateId: 17, readyFrame: 240 },
+                { templateId: 23, readyFrame: 0xffffffff },
+              ]],
+            ]),
+          },
+        }),
+      }),
+    });
+
+    const parsedTimers = (
+      parseRuntimeSaveFile(saveFile.data).gameLogicPlayersState?.state.sideSourceSpecialPowerReadyTimers as Map<string, Array<{
+        templateId: number;
+        readyFrame: number;
+      }>>
+    ).get('America');
+    expect(parsedTimers).toEqual([
+      { templateId: 17, readyFrame: 240 },
+      { templateId: 23, readyFrame: 0xffffffff },
+    ]);
+  });
+
   it('overlays live source Object::xfer status, disable, experience, and weapon fields on resave', () => {
     const sourceGameLogicBytes = createSourceGameLogicChunkData(true);
     const saveFile = buildRuntimeSaveFile({

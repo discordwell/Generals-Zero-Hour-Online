@@ -8703,6 +8703,7 @@ const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
   'sideVisionSpiedBy',
   'sideVisionSpiedMask',
   'sideBattlePlanBonuses',
+  'sideSourceSpecialPowerReadyTimers',
   'sharedShortcutSpecialPowerReadyFrames',
   'scriptCurrentSupplyWarehouseBySide',
   'scriptSidesUnitsShouldHunt',
@@ -10802,6 +10803,8 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly shortcutSpecialPowerSourceByName = new Map<string, Map<number, number>>();
   private readonly shortcutSpecialPowerNamesByEntityId = new Map<number, Set<string>>();
   private readonly pausedShortcutSpecialPowerByName = new Map<string, Map<number, ScriptSpecialPowerPauseState>>();
+  /** Source parity: Player::m_specialPowerReadyTimerList raw SpecialPowerTemplate IDs. */
+  private readonly sideSourceSpecialPowerReadyTimers = new Map<string, Array<{ templateId: number; readyFrame: number }>>();
   private readonly sharedShortcutSpecialPowerReadyFrames = new Map<string, number>();
   /** Source parity: ScriptEngine::notifyOfObjectCreationOrDestruction dirty version. */
   private scriptObjectTopologyVersion = 0;
@@ -13239,9 +13242,11 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   captureSourcePlayerRuntimeSaveState(): GameLogicPlayersSaveState {
+    const state = this.captureSourceRuntimeStateByKeys(SOURCE_PLAYER_RUNTIME_STATE_KEYS);
+    state.sideSourceSpecialPowerReadyTimers = this.sideSourceSpecialPowerReadyTimers;
     return {
       version: SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION,
-      state: this.captureSourceRuntimeStateByKeys(SOURCE_PLAYER_RUNTIME_STATE_KEYS),
+      state,
       tunnelTrackers: Array.from(this.tunnelTrackers.entries()).map(([side, tracker]) => ({
         side,
         tracker: this.captureTunnelTrackerSaveState(tracker),
