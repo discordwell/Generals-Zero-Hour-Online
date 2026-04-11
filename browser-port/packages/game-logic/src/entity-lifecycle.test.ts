@@ -1271,6 +1271,16 @@ describe('ToppleUpdate', () => {
     sourceState.drawableId = 99;
     sourceState.transformMatrix = [1, 0, 0, 215, 0, 1, 0, 205, 0, 0, 1, 0];
     sourceState.originalTeamName = 'Neutral';
+    sourceState.geometryInfo = {
+      ...sourceState.geometryInfo,
+      type: 2,
+      isSmall: true,
+      height: 12,
+      majorRadius: 11,
+      minorRadius: 7,
+      boundingCircleRadius: 13,
+      boundingSphereRadius: 14,
+    };
 
     logic.restoreSourceGameLogicImportSaveState({
       version: 1,
@@ -1313,11 +1323,21 @@ describe('ToppleUpdate', () => {
         w3dTreeBufferOptions: number;
         w3dTreeBufferMatrix3D: number[];
         w3dTreeBufferSinkFramesLeft: number;
+        geometryInfo: { shape: string; majorRadius: number; minorRadius: number; height: number };
+        obstacleGeometry: { shape: string; majorRadius: number; minorRadius: number; height: number } | null;
+        geometryMajorRadius: number;
+        sourceGeometryType: string;
+        sourceGeometryIsSmall: boolean;
       }>;
     }).spawnedEntities;
     const tree = entities.get(42)!;
 
     expect(tree.drawableId).toBe(99);
+    expect(tree.geometryInfo).toEqual({ shape: 'box', majorRadius: 11, minorRadius: 7, height: 12 });
+    expect(tree.obstacleGeometry).toBeNull();
+    expect(tree.geometryMajorRadius).toBe(11);
+    expect(tree.sourceGeometryType).toBe('BOX');
+    expect(tree.sourceGeometryIsSmall).toBe(true);
     expect(tree.w3dTreeBufferToppleState).toBe('FALLING');
     expect(tree.w3dTreeBufferAngularVelocity).toBeCloseTo(0.1);
     expect(tree.w3dTreeBufferAngularAcceleration).toBeCloseTo(0.02);

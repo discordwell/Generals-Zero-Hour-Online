@@ -14248,6 +14248,46 @@ export class GameLogicSubsystem implements Subsystem {
     entity.disabledParalyzedUntilFrame = frameByName.get('DISABLED_PARALYZED') ?? 0;
   }
 
+  private sourceGeometryTypeNameFromValue(type: number): MapEntity['sourceGeometryType'] {
+    switch (Math.trunc(type)) {
+      case 2:
+        return 'BOX';
+      case 1:
+        return 'CYLINDER';
+      default:
+        return 'SPHERE';
+    }
+  }
+
+  private applySourceGeometryInfoToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    const geometry = sourceState.geometryInfo;
+    const majorRadius = Number.isFinite(geometry.majorRadius) ? Math.max(0, geometry.majorRadius) : 0;
+    if (majorRadius <= 0) {
+      return;
+    }
+    const minorRadius = Number.isFinite(geometry.minorRadius) && geometry.minorRadius > 0
+      ? geometry.minorRadius
+      : majorRadius;
+    const height = Number.isFinite(geometry.height) ? Math.max(0, geometry.height) : 0;
+    const sourceGeometryType = this.sourceGeometryTypeNameFromValue(geometry.type);
+    const nextGeometry: ObstacleGeometry = {
+      shape: sourceGeometryType === 'BOX' ? 'box' : 'circle',
+      majorRadius,
+      minorRadius,
+      height,
+    };
+    entity.geometryInfo = { ...nextGeometry };
+    entity.geometryMajorRadius = majorRadius;
+    entity.sourceGeometryType = sourceGeometryType;
+    entity.sourceGeometryIsSmall = geometry.isSmall === true;
+    if (entity.obstacleGeometry) {
+      entity.obstacleGeometry = { ...nextGeometry };
+    }
+  }
+
   private applySourceWeaponStateToEntity(
     entity: MapEntity,
     sourceState: SourceMapEntitySaveState,
@@ -23657,6 +23697,7 @@ export class GameLogicSubsystem implements Subsystem {
     entity.commandSetStringOverride = sourceState.commandSetStringOverride.trim() || null;
     entity.receivingDifficultyBonus = sourceState.isReceivingDifficultyBonus;
 
+    this.applySourceGeometryInfoToEntity(entity, sourceState);
     this.applySourceStatusBitsToEntity(entity, sourceState);
     this.applySourceDisabledFramesToEntity(entity, sourceState);
     this.applySourceWeaponStateToEntity(entity, sourceState);
