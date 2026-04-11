@@ -15741,6 +15741,52 @@ function tryParseSourceParticleUplinkCannonUpdateBlockData(
   }
 }
 
+function createDefaultSourceParticleUplinkCannonUpdateBlockState(): {
+  version: number;
+  nextCallFrameAndPhase: number;
+  statusBytes: Uint8Array;
+  laserStatusBytes: Uint8Array;
+  frames: number;
+  visualState: SourceParticleUplinkVisualState;
+  initialTargetPosition: { x: number; y: number; z: number };
+  currentTargetPosition: { x: number; y: number; z: number };
+  scorchMarksMade: number;
+  nextScorchMarkFrame: number;
+  nextLaunchFXFrame: number;
+  damagePulsesMade: number;
+  nextDamagePulseFrame: number;
+  startAttackFrame: number;
+  startDecayFrame: number;
+  lastDrivingClickFrame: number;
+  secondLastDrivingClickFrame: number;
+  manualTargetMode: boolean;
+  scriptedWaypointMode: boolean;
+  nextDestWaypointID: number;
+} {
+  return {
+    version: 3,
+    nextCallFrameAndPhase: 0,
+    statusBytes: buildSourceRawInt32Bytes(sourceParticleUplinkStatusToInt('IDLE')),
+    laserStatusBytes: buildSourceRawInt32Bytes(sourceParticleUplinkLaserStatusToInt('NONE')),
+    frames: 0,
+    visualState: createDefaultSourceParticleUplinkVisualState(),
+    initialTargetPosition: { x: 0, y: 0, z: 0 },
+    currentTargetPosition: { x: 0, y: 0, z: 0 },
+    scorchMarksMade: 0,
+    nextScorchMarkFrame: 0,
+    nextLaunchFXFrame: 0,
+    damagePulsesMade: 0,
+    nextDamagePulseFrame: 0,
+    startAttackFrame: 0,
+    startDecayFrame: 0,
+    lastDrivingClickFrame: 0,
+    secondLastDrivingClickFrame: 0,
+    manualTargetMode: false,
+    scriptedWaypointMode: false,
+    nextDestWaypointID: 0,
+  };
+}
+
 function buildSourceParticleUplinkCannonUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -17686,6 +17732,14 @@ function buildGeneratedSourceObjectModuleBlockData(
 
   if (normalizedModuleType === 'MISSILELAUNCHERBUILDINGUPDATE' && entity.missileLauncherBuildingProfile) {
     return buildSourceMissileLauncherBuildingUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'PARTICLEUPLINKCANNONUPDATE' && entity.particleUplinkCannonProfile) {
+    return buildSourceParticleUplinkCannonUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceParticleUplinkCannonUpdateBlockState(),
+    );
   }
 
   if (normalizedModuleType === 'CHECKPOINTUPDATE' && entity.checkpointProfile) {

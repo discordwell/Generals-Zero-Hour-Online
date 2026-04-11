@@ -5552,6 +5552,31 @@ function createTestParticleUplinkVisualState(): TestSourceParticleUplinkVisualSt
   };
 }
 
+function createDefaultTestParticleUplinkVisualState(): TestSourceParticleUplinkVisualState {
+  return {
+    outerSystemIds: new Array<number>(SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES).fill(0),
+    laserBeamIds: new Array<number>(SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES).fill(0),
+    groundToOrbitBeamId: 0,
+    orbitToTargetBeamId: 0,
+    connectorSystemId: 0,
+    laserBaseSystemId: 0,
+    outerNodePositions: Array.from(
+      { length: SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES },
+      () => ({ x: 0, y: 0, z: 0 }),
+    ),
+    outerNodeOrientations: Array.from(
+      { length: SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES },
+      () => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+    ),
+    connectorNodePosition: { x: 0, y: 0, z: 0 },
+    laserOriginPosition: { x: 0, y: 0, z: 0 },
+    overrideTargetDestination: { x: 0, y: 0, z: 0 },
+    upBonesCached: false,
+    defaultInfoCached: false,
+    invalidSettings: false,
+  };
+}
+
 function createRawInt32Bytes(value: number): Uint8Array {
   const xferSave = new XferSave();
   xferSave.open('create-raw-int32-bytes');
@@ -10654,6 +10679,45 @@ describe('runtime-save-game', () => {
                 timeoutState: 'WAITING_TO_CLOSE',
                 timeoutFrame: 111,
               },
+              particleUplinkCannonProfile: {
+                specialPowerTemplateName: 'SuperWeaponParticleUplinkCannon',
+                beginChargeFrames: 30,
+                raiseAntennaFrames: 20,
+                readyDelayFrames: 10,
+                widthGrowFrames: 15,
+                beamTravelFrames: 12,
+                totalFiringFrames: 90,
+                totalDamagePulses: 6,
+                damagePerSecond: 100,
+                damageType: 'LASER',
+                damageRadiusScalar: 1,
+                revealRange: 75,
+                swathOfDeathDistance: 120,
+                swathOfDeathAmplitude: 20,
+                manualDrivingSpeed: 10,
+                manualFastDrivingSpeed: 20,
+              },
+              particleUplinkCannonState: {
+                status: 'FIRING',
+                laserStatus: 'BORN',
+                framesInState: 7,
+                targetX: 44,
+                targetZ: 66,
+                currentTargetX: 55,
+                currentTargetZ: 77,
+                scorchMarksMade: 4,
+                nextScorchMarkFrame: 144,
+                nextLaunchFXFrame: 155,
+                damagePulsesMade: 3,
+                nextDamagePulseFrame: 130,
+                startAttackFrame: 88,
+                startDecayFrame: 133,
+                lastDrivingClickFrame: 99,
+                secondLastDrivingClickFrame: 71,
+                manualTargetMode: true,
+                scriptedWaypointMode: false,
+                nextDestWaypointID: 0,
+              },
               checkpointProfile: {},
               checkpointEnemyNear: true,
               checkpointAllyNear: false,
@@ -11149,6 +11213,7 @@ describe('runtime-save-game', () => {
               { moduleType: 'RadarUpdate', moduleTag: 'ModuleTag_Radar' },
               { moduleType: 'StructureCollapseUpdate', moduleTag: 'ModuleTag_Collapse' },
               { moduleType: 'MissileLauncherBuildingUpdate', moduleTag: 'ModuleTag_MissileLauncher' },
+              { moduleType: 'ParticleUplinkCannonUpdate', moduleTag: 'ModuleTag_ParticleUplink' },
               { moduleType: 'CheckpointUpdate', moduleTag: 'ModuleTag_Checkpoint' },
               { moduleType: 'HijackerUpdate', moduleTag: 'ModuleTag_Hijacker' },
               { moduleType: 'FlammableUpdate', moduleTag: 'ModuleTag_Flammable' },
@@ -11272,6 +11337,7 @@ describe('runtime-save-game', () => {
       'ModuleTag_Radar',
       'ModuleTag_Collapse',
       'ModuleTag_MissileLauncher',
+      'ModuleTag_ParticleUplink',
       'ModuleTag_Checkpoint',
       'ModuleTag_Hijacker',
       'ModuleTag_Flammable',
@@ -11752,6 +11818,31 @@ describe('runtime-save-game', () => {
       doorState: 'OPENING',
       timeoutState: 'WAITING_TO_CLOSE',
       timeoutFrame: 111,
+    });
+    const particleUplinkModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_ParticleUplink',
+    );
+    expect(parseSourceParticleUplinkCannonUpdateBlockData(particleUplinkModule!.blockData)).toEqual({
+      version: 3,
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      status: 'FIRING',
+      laserStatus: 1,
+      frames: 7,
+      visualState: createDefaultTestParticleUplinkVisualState(),
+      initialTargetPosition: { x: 44, y: 66, z: 0 },
+      currentTargetPosition: { x: 55, y: 77, z: 0 },
+      scorchMarksMade: 4,
+      nextScorchMarkFrame: 144,
+      nextLaunchFXFrame: 155,
+      damagePulsesMade: 3,
+      nextDamagePulseFrame: 130,
+      startAttackFrame: 88,
+      startDecayFrame: 133,
+      lastDrivingClickFrame: 99,
+      secondLastDrivingClickFrame: 71,
+      manualTargetMode: true,
+      scriptedWaypointMode: false,
+      nextDestWaypointID: 0,
     });
     const checkpointModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Checkpoint');
     expect(parseSourceCheckpointUpdateBlockData(checkpointModule!.blockData)).toEqual({
