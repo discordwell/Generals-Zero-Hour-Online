@@ -7990,6 +7990,89 @@ function createRawGameClientDrawableBlockData(objectId: number, drawableId: numb
   }
 }
 
+function createSourceW3DModelDrawBlockData(): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-w3d-model-draw-block-data');
+  try {
+    xferSave.xferVersion(2);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferUnsignedByte(7);
+    xferSave.xferUnsignedByte(8);
+    xferSave.xferUnsignedByte(9);
+    xferSave.xferUnsignedByte(10);
+    xferSave.xferBool(true);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceLikeGameClientDrawableBlockData(objectId: number, drawableId: number): ArrayBuffer {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-like-game-client-drawable-block-data');
+  try {
+    xferSave.xferObjectID(objectId);
+    xferSave.xferVersion(7);
+    xferSave.xferUnsignedInt(drawableId);
+    xferSave.xferVersion(1);
+    xferSave.xferInt(0);
+    writeRawMatrix3D(xferSave, [1, 0, 0, 9, 0, 1, 0, 8, 0, 0, 1, 7]);
+    xferSave.xferBool(false);
+    xferSave.xferBool(false);
+    xferSave.xferInt(2);
+    xferSave.xferReal(0.25);
+    xferSave.xferReal(0.35);
+    xferSave.xferReal(0.45);
+    xferSave.xferReal(0.75);
+    xferSave.xferReal(0.125);
+    xferSave.xferReal(0.5);
+    xferSave.xferObjectID(objectId);
+    xferSave.xferUnsignedInt(0x0000000d);
+    xferSave.xferUnsignedInt(0x00000010);
+    xferSave.xferUnsignedInt(0x00000008);
+    xferSave.xferInt(2);
+    xferSave.xferUnsignedInt(11);
+    xferSave.xferUnsignedInt(23);
+    xferSave.xferBool(true);
+    for (let index = 0; index < 17; index += 1) {
+      xferSave.xferReal(index + 0.5);
+    }
+    xferSave.xferInt(3);
+    xferSave.xferInt(4);
+
+    xferSave.xferVersion(1);
+    xferSave.xferUnsignedShort(2);
+    xferSave.xferUnsignedShort(1);
+    xferSave.xferAsciiString('ModuleTag_Draw');
+    xferSave.beginBlock();
+    xferSave.xferUser(createSourceW3DModelDrawBlockData());
+    xferSave.endBlock();
+    xferSave.xferUnsignedShort(0);
+
+    xferSave.xferInt(5);
+    xferSave.xferInt(6);
+    xferSave.xferColor(0x00112233);
+    xferSave.xferBool(true);
+    xferSave.xferBool(true);
+    xferSave.xferReal(0.625);
+    xferSave.xferBool(false);
+    writeRawMatrix3D(xferSave, [2, 0, 0, 4, 0, 2, 0, 5, 0, 0, 2, 6]);
+    xferSave.xferReal(1.75);
+    xferSave.xferObjectID(777);
+    xferSave.xferUnsignedInt(4242);
+    xferSave.xferUnsignedByte(0);
+    xferSave.xferBool(false);
+    xferSave.xferBool(false);
+    xferSave.xferBool(true);
+    xferSave.xferBool(true);
+    return xferSave.getBuffer();
+  } finally {
+    xferSave.close();
+  }
+}
+
 function readCampaignChunk(data: ArrayBuffer): {
   version: number;
   campaignName: string;
@@ -8404,7 +8487,9 @@ function readFirstGeneratedDrawableModuleBlocks(data: ArrayBuffer): Array<{
     xferLoad.xferUnsignedInt(0);
     xferLoad.xferUnsignedInt(0);
     const hasLocoInfo = xferLoad.xferBool(false);
-    expect(hasLocoInfo).toBe(false);
+    if (hasLocoInfo) {
+      xferLoad.skip((17 * 4) + 8);
+    }
 
     const drawableModuleVersion = xferLoad.xferVersion(1);
     expect(drawableModuleVersion).toBe(1);
@@ -8433,6 +8518,148 @@ function readFirstGeneratedDrawableModuleBlocks(data: ArrayBuffer): Array<{
     xferLoad.skip(blockSize - consumed);
     xferLoad.endBlock();
     return modules;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function readFirstGeneratedDrawableSourceFallbackFields(data: ArrayBuffer): {
+  terrainDecalType: number;
+  decalOpacityFadeTarget: number;
+  decalOpacityFadeRate: number;
+  decalOpacity: number;
+  statusBits: number;
+  tintStatus: number;
+  prevTintStatus: number;
+  fadeMode: number;
+  timeElapsedFade: number;
+  timeToFade: number;
+  hasLocoInfo: boolean;
+  stealthLook: number;
+  hidden: boolean;
+  hiddenByStealth: boolean;
+  secondMaterialPassOpacity: number;
+  instanceIsIdentity: boolean;
+  instanceScale: number;
+  expirationDate: number;
+  iconCount: number;
+  ambientSoundEnabled: boolean;
+  ambientSoundEnabledFromScript: boolean;
+  customizedAmbientSound: boolean;
+  customizedAmbientSoundToSilence: boolean;
+} | null {
+  const chunkData = readSaveChunkData(data, 'CHUNK_GameClient');
+  if (!chunkData) {
+    return null;
+  }
+  const xferLoad = new XferLoad(chunkData.buffer);
+  xferLoad.open('read-first-generated-drawable-source-fallback-fields');
+  try {
+    xferLoad.xferVersion(3);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferVersion(1);
+    const tocCount = xferLoad.xferUnsignedInt(0);
+    for (let index = 0; index < tocCount; index += 1) {
+      xferLoad.xferAsciiString('');
+      xferLoad.xferUnsignedShort(0);
+    }
+    const drawableCount = xferLoad.xferUnsignedShort(0);
+    if (drawableCount <= 0) {
+      return null;
+    }
+
+    xferLoad.xferUnsignedShort(0);
+    const blockSize = xferLoad.beginBlock();
+    const blockStart = xferLoad.getOffset();
+    xferLoad.xferObjectID(0);
+    xferLoad.xferVersion(7);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferVersion(1);
+    const conditionCount = xferLoad.xferInt(0);
+    for (let index = 0; index < conditionCount; index += 1) {
+      xferLoad.xferAsciiString('');
+    }
+    xferLoad.skip(12 * 4);
+    const hasSelectionEnvelope = xferLoad.xferBool(false);
+    expect(hasSelectionEnvelope).toBe(false);
+    const hasColorEnvelope = xferLoad.xferBool(false);
+    expect(hasColorEnvelope).toBe(false);
+    const terrainDecalType = xferLoad.xferInt(0);
+    xferLoad.xferReal(0);
+    xferLoad.xferReal(0);
+    xferLoad.xferReal(0);
+    const decalOpacityFadeTarget = xferLoad.xferReal(0);
+    const decalOpacityFadeRate = xferLoad.xferReal(0);
+    const decalOpacity = xferLoad.xferReal(0);
+    xferLoad.xferObjectID(0);
+    const statusBits = xferLoad.xferUnsignedInt(0);
+    const tintStatus = xferLoad.xferUnsignedInt(0);
+    const prevTintStatus = xferLoad.xferUnsignedInt(0);
+    const fadeMode = xferLoad.xferInt(0);
+    const timeElapsedFade = xferLoad.xferUnsignedInt(0);
+    const timeToFade = xferLoad.xferUnsignedInt(0);
+    const hasLocoInfo = xferLoad.xferBool(false);
+    if (hasLocoInfo) {
+      xferLoad.skip((17 * 4) + 8);
+    }
+    xferLoad.xferVersion(1);
+    const moduleTypeCount = xferLoad.xferUnsignedShort(0);
+    for (let moduleTypeIndex = 0; moduleTypeIndex < moduleTypeCount; moduleTypeIndex += 1) {
+      const moduleCount = xferLoad.xferUnsignedShort(0);
+      for (let moduleIndex = 0; moduleIndex < moduleCount; moduleIndex += 1) {
+        xferLoad.xferAsciiString('');
+        const moduleBlockSize = xferLoad.beginBlock();
+        xferLoad.skip(moduleBlockSize);
+        xferLoad.endBlock();
+      }
+    }
+    const stealthLook = xferLoad.xferInt(0);
+    xferLoad.xferInt(0);
+    xferLoad.xferColor(0);
+    const hidden = xferLoad.xferBool(false);
+    const hiddenByStealth = xferLoad.xferBool(false);
+    const secondMaterialPassOpacity = xferLoad.xferReal(0);
+    const instanceIsIdentity = xferLoad.xferBool(false);
+    xferLoad.skip(12 * 4);
+    const instanceScale = xferLoad.xferReal(0);
+    xferLoad.xferObjectID(0);
+    const expirationDate = xferLoad.xferUnsignedInt(0);
+    const iconCount = xferLoad.xferUnsignedByte(0);
+    expect(iconCount).toBe(0);
+    const ambientSoundEnabled = xferLoad.xferBool(true);
+    const ambientSoundEnabledFromScript = xferLoad.xferBool(true);
+    const customizedAmbientSound = xferLoad.xferBool(false);
+    const customizedAmbientSoundToSilence = customizedAmbientSound
+      ? xferLoad.xferBool(false)
+      : false;
+    const consumed = xferLoad.getOffset() - blockStart;
+    xferLoad.skip(blockSize - consumed);
+    xferLoad.endBlock();
+    return {
+      terrainDecalType,
+      decalOpacityFadeTarget,
+      decalOpacityFadeRate,
+      decalOpacity,
+      statusBits,
+      tintStatus,
+      prevTintStatus,
+      fadeMode,
+      timeElapsedFade,
+      timeToFade,
+      hasLocoInfo,
+      stealthLook,
+      hidden,
+      hiddenByStealth,
+      secondMaterialPassOpacity,
+      instanceIsIdentity,
+      instanceScale,
+      expirationDate,
+      iconCount,
+      ambientSoundEnabled,
+      ambientSoundEnabledFromScript,
+      customizedAmbientSound,
+      customizedAmbientSoundToSilence,
+    };
   } finally {
     xferLoad.close();
   }
@@ -10579,6 +10806,197 @@ describe('runtime-save-game', () => {
       briefingLines: ['MISSION_ALPHA'],
     });
     expect(parseSaveGameMapInfo(rebuilt.data).drawableIdCounter).toBe(1200);
+  });
+
+  it('preserves unsupported source drawable fields when replacing attached GameClient drawables', () => {
+    const mapData = {
+      heightmap: {
+        width: 2,
+        height: 2,
+        borderSize: 0,
+        data: 'AAAAAA==',
+      },
+      objects: [],
+      triggers: [],
+      waypoints: { nodes: [], links: [] },
+      textureClasses: [],
+      blendTileCount: 0,
+    };
+
+    const incomingSave = buildRuntimeSaveFile({
+      description: 'Source Drawable Fallback Save',
+      mapPath: 'assets/maps/TestMap.json',
+      mapData,
+      cameraState: null,
+      gameClientState: {
+        version: 3,
+        prefixBytes: new ArrayBuffer(0),
+        briefingLines: [],
+        drawables: [
+          {
+            templateName: 'AmericaTankCrusader',
+            objectId: 7,
+            blockData: createSourceLikeGameClientDrawableBlockData(7, 700),
+          },
+        ],
+      },
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: { localPlayerIndex: 0 },
+        }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 7,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 10,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [],
+        }),
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 8,
+      },
+    });
+    const parsed = parseRuntimeSaveFile(incomingSave.data);
+
+    const rebuilt = buildRuntimeSaveFile({
+      description: parsed.metadata.description,
+      mapPath: parsed.mapPath,
+      mapData: parsed.mapData ?? mapData,
+      cameraState: parsed.cameraState,
+      gameClientState: parsed.gameClientState,
+      gameClientLiveEntityIds: [7],
+      renderableEntityStates: [
+        {
+          id: 7,
+          templateName: 'AmericaTankCrusader',
+          resolved: true,
+          renderAssetCandidates: ['AmericaTankCrusader'],
+          renderAssetPath: 'AmericaTankCrusader.glb',
+          renderAssetResolved: true,
+          category: 'vehicle',
+          x: 10,
+          y: 0,
+          z: 20,
+          rotationY: 0,
+          animationState: 'MOVE',
+          health: 100,
+          maxHealth: 100,
+          isSelected: false,
+          veterancyLevel: 0,
+          isStealthed: false,
+          isDetected: false,
+          stealthFriendlyOpacity: 1,
+          disguiseTemplateName: null,
+          shroudStatus: 'CLEAR',
+          constructionPercent: -1,
+          capturePercent: -1,
+          toppleAngle: 0,
+          toppleDirX: 0,
+          toppleDirZ: 0,
+          turretAngles: [],
+          modelConditionFlags: ['MOVING'],
+          shadowType: 'SHADOW_VOLUME',
+        },
+      ],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => parsed.gameLogicTerrainLogicState ?? {
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        },
+        captureSourcePartitionRuntimeSaveState: () => parsed.gameLogicPartitionState ?? createEmptyPartitionState(),
+        captureSourcePlayerRuntimeSaveState: () => parsed.gameLogicPlayersState ?? {
+          version: 1,
+          state: { localPlayerIndex: 0 },
+        },
+        captureSourceRadarRuntimeSaveState: () => parsed.gameLogicRadarState ?? createEmptyRadarState(),
+        captureSourceSidesListRuntimeSaveState: () => parsed.gameLogicSidesListState ?? createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => parsed.gameLogicTeamFactoryState ?? createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => parsed.gameLogicScriptEngineState ?? { version: 1, state: {} },
+        captureSourceInGameUiRuntimeSaveState: () => parsed.gameLogicInGameUiState ?? { version: 1, state: {} },
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 7,
+          nextId: 8,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 20,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          spawnedEntities: [],
+        }),
+        captureBrowserRuntimeSaveState: () => parsed.gameLogicState ?? { version: 1 },
+        getObjectIdCounter: () => 8,
+        listSourceDrawableModuleDescriptors: () => [
+          {
+            moduleType: 'W3DMODELDRAW',
+            moduleTag: 'ModuleTag_Draw',
+            moduleKind: 'draw',
+          },
+        ],
+      },
+    });
+
+    const fallbackFields = readFirstGeneratedDrawableSourceFallbackFields(rebuilt.data);
+    expect(fallbackFields).toEqual({
+      terrainDecalType: 2,
+      decalOpacityFadeTarget: 0.75,
+      decalOpacityFadeRate: 0.125,
+      decalOpacity: 0.5,
+      statusBits: 0x0000000f,
+      tintStatus: 0x00000010,
+      prevTintStatus: 0x00000008,
+      fadeMode: 2,
+      timeElapsedFade: 11,
+      timeToFade: 23,
+      hasLocoInfo: true,
+      stealthLook: 5,
+      hidden: true,
+      hiddenByStealth: true,
+      secondMaterialPassOpacity: 0.625,
+      instanceIsIdentity: false,
+      instanceScale: 1.75,
+      expirationDate: 4242,
+      iconCount: 0,
+      ambientSoundEnabled: false,
+      ambientSoundEnabledFromScript: false,
+      customizedAmbientSound: true,
+      customizedAmbientSoundToSilence: true,
+    });
+    expect(readFirstGeneratedDrawableModuleBlocks(rebuilt.data)).toEqual([
+      {
+        moduleTypeIndex: 0,
+        identifier: 'ModuleTag_Draw',
+        blockData: createSourceW3DModelDrawBlockData(),
+      },
+    ]);
   });
 
   it('writes CHUNK_TS_RuntimeState for source GameLogic saves that need the TS core bridge', () => {

@@ -466,6 +466,9 @@ const SOURCE_SLOT_STATE_PLAYER = 5;
 const SOURCE_IN_GAME_UI_TIMESTAMP_UNINITIALIZED = 0xFFFFFFFF;
 const DRAWABLE_STATUS_SHADOWS = 0x00000002;
 const NUM_DRAWABLE_MODULE_TYPES = 2;
+const SOURCE_TINT_ENVELOPE_BYTE_LENGTH = 55;
+const SOURCE_DRAWABLE_LOCO_INFO_BYTE_LENGTH = 76;
+const SOURCE_ANIM2D_SNAPSHOT_BYTE_LENGTH = 20;
 const SOURCE_WEAPON_SLOT_COUNT = 3;
 const SOURCE_INVALID_DRAWABLE_ID = 0;
 const SOURCE_INVALID_PARTICLE_SYSTEM_ID = 0;
@@ -835,6 +838,7 @@ interface RuntimeSaveDrawableSnapshotState {
   readonly objectId: number;
   readonly templateName: string;
   readonly sourceDrawableModuleDescriptors: readonly GameLogicSourceDrawableModuleDescriptor[];
+  readonly sourceDrawableFallback: RuntimeSaveDrawableSourceFallbackState | null;
   readonly modelConditionFlags: readonly string[];
   readonly transformMatrixBytes: Uint8Array;
   readonly statusBits: number;
@@ -848,6 +852,35 @@ interface RuntimeSaveDrawableSnapshotState {
   readonly hidden: boolean;
   readonly hiddenByStealth: boolean;
   readonly shroudStatusObjectId: number;
+}
+
+interface RuntimeSaveDrawableSourceFallbackState {
+  readonly selectionFlashEnvelopeBytes: Uint8Array | null;
+  readonly colorTintEnvelopeBytes: Uint8Array | null;
+  readonly terrainDecalType: number;
+  readonly decalOpacityFadeTarget: number;
+  readonly decalOpacityFadeRate: number;
+  readonly decalOpacity: number;
+  readonly statusBits: number;
+  readonly tintStatus: number;
+  readonly prevTintStatus: number;
+  readonly fadeMode: number;
+  readonly timeElapsedFade: number;
+  readonly timeToFade: number;
+  readonly locoInfoBytes: Uint8Array | null;
+  readonly drawableModuleBlockDataByKey: ReadonlyMap<string, Uint8Array>;
+  readonly stealthLook: number;
+  readonly hidden: boolean;
+  readonly hiddenByStealth: boolean;
+  readonly secondMaterialPassOpacity: number;
+  readonly instanceIsIdentity: boolean;
+  readonly instanceMatrixBytes: Uint8Array;
+  readonly instanceScale: number;
+  readonly expirationDate: number;
+  readonly iconBytes: Uint8Array;
+  readonly ambientSoundEnabled: boolean;
+  readonly ambientSoundEnabledFromScript: boolean;
+  readonly customAmbientSoundBytes: Uint8Array;
 }
 
 interface RuntimeSaveRawGameClientDrawableState {
@@ -2399,6 +2432,7 @@ function buildSourceGameClientDrawableStates(
       sourceDrawableModuleDescriptors: typeof listSourceDrawableModuleDescriptors === 'function'
         ? listSourceDrawableModuleDescriptors(visualTemplateName) ?? []
         : [],
+      sourceDrawableFallback: null,
       modelConditionFlags: state.modelConditionFlags ?? [],
       transformMatrixBytes: buildTransformMatrix3DBytes(
         state.x,
@@ -2422,6 +2456,209 @@ function buildSourceGameClientDrawableStates(
 
   result.sort((left, right) => left.drawableId - right.drawableId);
   return result;
+}
+
+function sourceDrawableModuleKindIndex(kind: GameLogicSourceDrawableModuleDescriptor['moduleKind']): number {
+  return kind === 'draw' ? 0 : 1;
+}
+
+function sourceDrawableModuleBlockKey(
+  moduleTypeIndex: number,
+  moduleTag: string,
+): string {
+  return `${moduleTypeIndex}:${moduleTag.trim().toUpperCase()}`;
+}
+
+function sourceDrawableFallbackModuleBlockData(
+  fallback: RuntimeSaveDrawableSourceFallbackState | null | undefined,
+  descriptor: GameLogicSourceDrawableModuleDescriptor,
+): Uint8Array | null {
+  if (!fallback) {
+    return null;
+  }
+  const key = sourceDrawableModuleBlockKey(
+    sourceDrawableModuleKindIndex(descriptor.moduleKind),
+    descriptor.moduleTag,
+  );
+  const blockData = fallback.drawableModuleBlockDataByKey.get(key);
+  return blockData ? new Uint8Array(blockData) : null;
+}
+
+function readSourceDrawableEnvelopeBytes(
+  xferLoad: XferLoad,
+  rawBytes: Uint8Array,
+): Uint8Array | null {
+  const present = xferLoad.xferBool(false);
+  if (!present) {
+    return null;
+  }
+  const envelopeStart = xferLoad.getOffset();
+  xferLoad.skip(SOURCE_TINT_ENVELOPE_BYTE_LENGTH);
+  return rawBytes.slice(envelopeStart, xferLoad.getOffset());
+}
+
+function parseSourceDrawableModuleBlockDataByKey(
+  xferLoad: XferLoad,
+  rawBytes: Uint8Array,
+): Map<string, Uint8Array> {
+  const version = xferLoad.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source drawable module list version ${version}`);
+  }
+  const moduleTypeCount = xferLoad.xferUnsignedShort(0);
+  const blockDataByKey = new Map<string, Uint8Array>();
+  for (let moduleTypeIndex = 0; moduleTypeIndex < moduleTypeCount; moduleTypeIndex += 1) {
+    const moduleCount = xferLoad.xferUnsignedShort(0);
+    for (let moduleIndex = 0; moduleIndex < moduleCount; moduleIndex += 1) {
+      const moduleTag = xferLoad.xferAsciiString('');
+      const blockSize = xferLoad.beginBlock();
+      const blockStart = xferLoad.getOffset();
+      xferLoad.skip(blockSize);
+      xferLoad.endBlock();
+      blockDataByKey.set(
+        sourceDrawableModuleBlockKey(moduleTypeIndex, moduleTag),
+        rawBytes.slice(blockStart, blockStart + blockSize),
+      );
+    }
+  }
+  return blockDataByKey;
+}
+
+function readSourceDrawableIconBytes(
+  xferLoad: XferLoad,
+  rawBytes: Uint8Array,
+): Uint8Array {
+  const iconStart = xferLoad.getOffset();
+  const iconCount = xferLoad.xferUnsignedByte(0);
+  for (let iconIndex = 0; iconIndex < iconCount; iconIndex += 1) {
+    xferLoad.xferAsciiString('');
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferAsciiString('');
+    xferLoad.skip(SOURCE_ANIM2D_SNAPSHOT_BYTE_LENGTH);
+  }
+  return rawBytes.slice(iconStart, xferLoad.getOffset());
+}
+
+function parseRawGameClientDrawableFallback(
+  blockData: ArrayBuffer,
+): RuntimeSaveDrawableSourceFallbackState | null {
+  const rawBytes = new Uint8Array(blockData);
+  const xferLoad = new XferLoad(blockData.slice(0));
+  xferLoad.open('parse-raw-game-client-drawable-fallback');
+  try {
+    xferLoad.xferObjectID(0);
+    const version = xferLoad.xferVersion(7);
+    if (version !== 7) {
+      return null;
+    }
+    xferLoad.xferUnsignedInt(0);
+
+    const conditionVersion = xferLoad.xferVersion(1);
+    if (conditionVersion !== 1) {
+      throw new Error(`Unsupported source drawable condition flag version ${conditionVersion}`);
+    }
+    const conditionCount = xferLoad.xferInt(0);
+    if (conditionCount < 0) {
+      throw new Error(`Source drawable condition flag count ${conditionCount} is invalid.`);
+    }
+    for (let index = 0; index < conditionCount; index += 1) {
+      xferLoad.xferAsciiString('');
+    }
+
+    xferLoad.xferUser(new Uint8Array(SOURCE_MATRIX3D_BYTE_LENGTH));
+    const selectionFlashEnvelopeBytes = readSourceDrawableEnvelopeBytes(xferLoad, rawBytes);
+    const colorTintEnvelopeBytes = readSourceDrawableEnvelopeBytes(xferLoad, rawBytes);
+    const terrainDecalType = xferLoad.xferInt(TERRAIN_DECAL_NONE);
+    xferLoad.xferReal(1);
+    xferLoad.xferReal(1);
+    xferLoad.xferReal(1);
+    const decalOpacityFadeTarget = xferLoad.xferReal(0);
+    const decalOpacityFadeRate = xferLoad.xferReal(0);
+    const decalOpacity = xferLoad.xferReal(0);
+    xferLoad.xferObjectID(0);
+    const statusBits = xferLoad.xferUnsignedInt(0);
+    const tintStatus = xferLoad.xferUnsignedInt(0);
+    const prevTintStatus = xferLoad.xferUnsignedInt(0);
+    const fadeMode = xferLoad.xferInt(FADING_NONE);
+    const timeElapsedFade = xferLoad.xferUnsignedInt(0);
+    const timeToFade = xferLoad.xferUnsignedInt(0);
+    const hasLocoInfo = xferLoad.xferBool(false);
+    const locoInfoBytes = hasLocoInfo
+      ? rawBytes.slice(xferLoad.getOffset(), xferLoad.getOffset() + SOURCE_DRAWABLE_LOCO_INFO_BYTE_LENGTH)
+      : null;
+    if (hasLocoInfo) {
+      xferLoad.skip(SOURCE_DRAWABLE_LOCO_INFO_BYTE_LENGTH);
+    }
+
+    const drawableModuleBlockDataByKey = parseSourceDrawableModuleBlockDataByKey(xferLoad, rawBytes);
+    const stealthLook = xferLoad.xferInt(STEALTHLOOK_NONE);
+    xferLoad.xferInt(0);
+    xferLoad.xferColor(0);
+    const hidden = xferLoad.xferBool(false);
+    const hiddenByStealth = xferLoad.xferBool(false);
+    const secondMaterialPassOpacity = xferLoad.xferReal(0);
+    const instanceIsIdentity = xferLoad.xferBool(true);
+    const instanceMatrixBytes = xferLoad.xferUser(new Uint8Array(SOURCE_MATRIX3D_BYTE_LENGTH));
+    const instanceScale = xferLoad.xferReal(1);
+    xferLoad.xferObjectID(0);
+    const expirationDate = xferLoad.xferUnsignedInt(0);
+    const iconBytes = readSourceDrawableIconBytes(xferLoad, rawBytes);
+    const ambientSoundEnabled = xferLoad.xferBool(true);
+    const ambientSoundEnabledFromScript = xferLoad.xferBool(true);
+    const customAmbientStart = xferLoad.getOffset();
+    const customizedAmbientSound = xferLoad.xferBool(false);
+    if (customizedAmbientSound) {
+      xferLoad.xferBool(false);
+    } else if (xferLoad.getRemaining() !== 0) {
+      throw new Error(`Source drawable has ${xferLoad.getRemaining()} trailing custom ambient bytes.`);
+    }
+    const customAmbientSoundBytes = rawBytes.slice(customAmbientStart);
+    xferLoad.skip(xferLoad.getRemaining());
+
+    return {
+      selectionFlashEnvelopeBytes,
+      colorTintEnvelopeBytes,
+      terrainDecalType,
+      decalOpacityFadeTarget,
+      decalOpacityFadeRate,
+      decalOpacity,
+      statusBits,
+      tintStatus,
+      prevTintStatus,
+      fadeMode,
+      timeElapsedFade,
+      timeToFade,
+      locoInfoBytes,
+      drawableModuleBlockDataByKey,
+      stealthLook,
+      hidden,
+      hiddenByStealth,
+      secondMaterialPassOpacity,
+      instanceIsIdentity,
+      instanceMatrixBytes,
+      instanceScale,
+      expirationDate,
+      iconBytes,
+      ambientSoundEnabled,
+      ambientSoundEnabledFromScript,
+      customAmbientSoundBytes,
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function withSourceDrawableFallback(
+  state: RuntimeSaveDrawableSnapshotState,
+  fallback: RuntimeSaveDrawableSourceFallbackState | null,
+): RuntimeSaveDrawableSnapshotState {
+  if (!fallback) {
+    return state;
+  }
+  return {
+    ...state,
+    sourceDrawableFallback: fallback,
+  };
 }
 
 function buildGameClientDrawableEntries(
@@ -2451,7 +2688,13 @@ function buildGameClientDrawableEntries(
     if (drawable.objectId !== 0) {
       const regenerated = remainingGeneratedByObjectId.get(drawable.objectId);
       if (regenerated) {
-        mergedEntries.push({ kind: 'generated', state: regenerated });
+        mergedEntries.push({
+          kind: 'generated',
+          state: withSourceDrawableFallback(
+            regenerated,
+            parseRawGameClientDrawableFallback(drawable.blockData),
+          ),
+        });
         remainingGeneratedByObjectId.delete(drawable.objectId);
         continue;
       }
@@ -2533,25 +2776,41 @@ class DrawableSnapshot implements Snapshot {
     }
 
     xfer.xferUnsignedInt(this.state.drawableId);
+    const fallback = this.state.sourceDrawableFallback;
     xferModelConditionFlags(xfer, this.state.modelConditionFlags);
     xfer.xferUser(this.state.transformMatrixBytes);
-    xfer.xferBool(false);
-    xfer.xferBool(false);
-    xfer.xferInt(TERRAIN_DECAL_NONE);
+    const selectionFlashEnvelopeBytes = fallback?.selectionFlashEnvelopeBytes ?? null;
+    xfer.xferBool(selectionFlashEnvelopeBytes !== null);
+    if (selectionFlashEnvelopeBytes !== null) {
+      xfer.xferUser(selectionFlashEnvelopeBytes);
+    }
+    const colorTintEnvelopeBytes = fallback?.colorTintEnvelopeBytes ?? null;
+    xfer.xferBool(colorTintEnvelopeBytes !== null);
+    if (colorTintEnvelopeBytes !== null) {
+      xfer.xferUser(colorTintEnvelopeBytes);
+    }
+    xfer.xferInt(fallback?.terrainDecalType ?? TERRAIN_DECAL_NONE);
     xfer.xferReal(this.state.explicitOpacity);
     xfer.xferReal(this.state.stealthOpacity);
     xfer.xferReal(this.state.effectiveStealthOpacity);
-    xfer.xferReal(0);
-    xfer.xferReal(0);
-    xfer.xferReal(0);
+    xfer.xferReal(fallback?.decalOpacityFadeTarget ?? 0);
+    xfer.xferReal(fallback?.decalOpacityFadeRate ?? 0);
+    xfer.xferReal(fallback?.decalOpacity ?? 0);
     xfer.xferObjectID(this.state.objectId);
-    xfer.xferUnsignedInt(this.state.statusBits);
-    xfer.xferUnsignedInt(0);
-    xfer.xferUnsignedInt(0);
-    xfer.xferInt(FADING_NONE);
-    xfer.xferUnsignedInt(0);
-    xfer.xferUnsignedInt(0);
-    xfer.xferBool(false);
+    const statusBits = fallback
+      ? ((fallback.statusBits & ~DRAWABLE_STATUS_SHADOWS) | (this.state.statusBits & DRAWABLE_STATUS_SHADOWS))
+      : this.state.statusBits;
+    xfer.xferUnsignedInt(statusBits);
+    xfer.xferUnsignedInt(fallback?.tintStatus ?? 0);
+    xfer.xferUnsignedInt(fallback?.prevTintStatus ?? 0);
+    xfer.xferInt(fallback?.fadeMode ?? FADING_NONE);
+    xfer.xferUnsignedInt(fallback?.timeElapsedFade ?? 0);
+    xfer.xferUnsignedInt(fallback?.timeToFade ?? 0);
+    const locoInfoBytes = fallback?.locoInfoBytes ?? null;
+    xfer.xferBool(locoInfoBytes !== null);
+    if (locoInfoBytes !== null) {
+      xfer.xferUser(locoInfoBytes);
+    }
     xfer.xferVersion(1);
     xfer.xferUnsignedShort(NUM_DRAWABLE_MODULE_TYPES);
     for (const moduleKind of ['draw', 'client-update'] as const) {
@@ -2559,7 +2818,8 @@ class DrawableSnapshot implements Snapshot {
         .filter((descriptor) => descriptor.moduleKind === moduleKind)
         .map((descriptor) => ({
           descriptor,
-          blockData: buildSourceDrawableModuleBlockData(descriptor),
+          blockData: sourceDrawableFallbackModuleBlockData(fallback, descriptor)
+            ?? buildSourceDrawableModuleBlockData(descriptor),
         }))
         .filter((entry): entry is {
           descriptor: GameLogicSourceDrawableModuleDescriptor;
@@ -2573,21 +2833,21 @@ class DrawableSnapshot implements Snapshot {
         xfer.endBlock();
       }
     }
-    xfer.xferInt(STEALTHLOOK_NONE);
+    xfer.xferInt(fallback?.stealthLook ?? STEALTHLOOK_NONE);
     xfer.xferInt(this.state.flashCount);
     xfer.xferColor(this.state.flashColor);
-    xfer.xferBool(this.state.hidden);
-    xfer.xferBool(this.state.hiddenByStealth);
-    xfer.xferReal(0);
-    xfer.xferBool(true);
-    xfer.xferUser(this.identityMatrixBytes);
-    xfer.xferReal(1);
+    xfer.xferBool(this.state.hidden || (fallback?.hidden ?? false));
+    xfer.xferBool(this.state.hiddenByStealth || (fallback?.hiddenByStealth ?? false));
+    xfer.xferReal(fallback?.secondMaterialPassOpacity ?? 0);
+    xfer.xferBool(fallback?.instanceIsIdentity ?? true);
+    xfer.xferUser(fallback?.instanceMatrixBytes ?? this.identityMatrixBytes);
+    xfer.xferReal(fallback?.instanceScale ?? 1);
     xfer.xferObjectID(this.state.shroudStatusObjectId);
-    xfer.xferUnsignedInt(0);
-    xfer.xferUnsignedByte(0);
-    xfer.xferBool(this.state.ambientSoundEnabled);
-    xfer.xferBool(this.state.ambientSoundEnabledFromScript);
-    xfer.xferBool(false);
+    xfer.xferUnsignedInt(fallback?.expirationDate ?? 0);
+    xfer.xferUser(fallback?.iconBytes ?? new Uint8Array([0]));
+    xfer.xferBool(this.state.ambientSoundEnabled && (fallback?.ambientSoundEnabled ?? true));
+    xfer.xferBool(this.state.ambientSoundEnabledFromScript && (fallback?.ambientSoundEnabledFromScript ?? true));
+    xfer.xferUser(fallback?.customAmbientSoundBytes ?? new Uint8Array([0]));
   }
 
   loadPostProcess(): void {
