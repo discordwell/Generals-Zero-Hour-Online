@@ -7921,9 +7921,13 @@ const SOURCE_AI_INVALID_STATE_ID = 999999;
 const SOURCE_AI_MAX_TURRETS = 2;
 const SOURCE_ASSAULT_TRANSPORT_STATE_IDLE = 0;
 const SOURCE_CHINOOK_FLIGHT_FLYING = 1;
+const SOURCE_DELIVER_PAYLOAD_DIVE_STATE_PREDIVE = 0;
 const SOURCE_POW_TRUCK_AI_MODE_AUTOMATIC = 0;
 const SOURCE_POW_TRUCK_TASK_WAITING = 0;
 const SOURCE_RAILED_TRANSPORT_INVALID_PATH = -1;
+const SOURCE_MISSILE_AI_STATE_PRELAUNCH = 0;
+const SOURCE_MISSILE_AI_NEXT_TARGET_TRACK_NEVER = 0x7fffffff;
+const SOURCE_MISSILE_AI_BIGNUM = 99999.0;
 const SOURCE_LOCOMOTOR_SET_TYPE_BY_NAME = new Map<string, number>([
   ['SET_NORMAL', 0],
   ['SET_NORMAL_UPGRADED', 1],
@@ -7976,6 +7980,14 @@ function sourceAIIdleInitialSleepOffset(entity: MapEntity): number {
   return Number.isFinite(value)
     ? Math.max(0, Math.min(0xffff, Math.trunc(Number(value))))
     : 0;
+}
+
+function sourceCoord3DFromRuntimeXYZ(x: unknown, y: unknown, z: unknown): Coord3D {
+  return {
+    x: Number.isFinite(x) ? Number(x) : 0,
+    y: Number.isFinite(z) ? Number(z) : 0,
+    z: Number.isFinite(y) ? Number(y) : 0,
+  };
 }
 
 function buildGeneratedSourceAIStateMachineBlockData(entity: MapEntity): Uint8Array {
@@ -8114,6 +8126,7 @@ function xferGeneratedSourceLocomotorSetAndCurLocoPtr(saver: XferSave, entity: M
 function buildGeneratedSourceAIUpdateInterfaceBlockData(
   entity: MapEntity,
   currentFrame: number,
+  options: { stateMachineBlockData?: Uint8Array } = {},
 ): Uint8Array {
   const saver = new XferSave();
   saver.open('build-generated-source-ai-update-interface');
@@ -8124,7 +8137,7 @@ function buildGeneratedSourceAIUpdateInterfaceBlockData(
     ));
     saver.xferUnsignedInt(SOURCE_AI_PRIOR_WAYPOINT_DEFAULT);
     saver.xferUnsignedInt(SOURCE_AI_CURRENT_WAYPOINT_DEFAULT);
-    saver.xferUser(buildGeneratedSourceAIStateMachineBlockData(entity));
+    saver.xferUser(options.stateMachineBlockData ?? buildGeneratedSourceAIStateMachineBlockData(entity));
     saver.xferBool(false);
     saver.xferBool(entity.scriptAiRecruitable !== false);
     saver.xferUnsignedInt(0);
@@ -8485,6 +8498,85 @@ function buildSourceHackInternetAIUpdateBlockData(
   return blockData;
 }
 
+function sourceGeneratedHackInternetStateForEntity(
+  entity: MapEntity,
+  currentFrame: number,
+): { stateId: number; framesRemaining: number } {
+  const pending = entity.hackInternetPendingCommand;
+  if (pending) {
+    return {
+      stateId: SOURCE_HACK_INTERNET_STATE_PACKING,
+      framesRemaining: sourceFlammableUnsignedFrame(Number(pending.executeFrame) - currentFrame, 0),
+    };
+  }
+  const hackState = entity.hackInternetRuntimeState;
+  if (hackState) {
+    return {
+      stateId: SOURCE_HACK_INTERNET_STATE_HACKING,
+      framesRemaining: sourceFlammableUnsignedFrame(Number(hackState.nextCashFrame) - currentFrame, 0),
+    };
+  }
+  return { stateId: SOURCE_AI_STATE_IDLE, framesRemaining: 0 };
+}
+
+function buildGeneratedSourceHackInternetStateMachineBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const state = sourceGeneratedHackInternetStateForEntity(entity, currentFrame);
+  if (state.stateId === SOURCE_AI_STATE_IDLE) {
+    return buildGeneratedSourceAIStateMachineBlockData(entity);
+  }
+
+  const saver = new XferSave();
+  saver.open('build-generated-source-hack-internet-state-machine');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(0);
+    saver.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+    saver.xferUnsignedInt(state.stateId);
+    saver.xferBool(false);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(state.framesRemaining);
+    saver.xferObjectID(0);
+    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+    saver.xferBool(false);
+    saver.xferBool(true);
+    saver.xferInt(0);
+    saver.xferAsciiString('');
+    saver.xferBool(false);
+    saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
+    saver.xferUnsignedInt(0);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceHackInternetAIUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array | null {
+  const pendingTail = buildSourcePendingHackCommandTail(entity);
+  if (!pendingTail) {
+    return null;
+  }
+
+  const saver = new XferSave();
+  saver.open('build-generated-source-hack-internet-ai-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame, {
+      stateMachineBlockData: buildGeneratedSourceHackInternetStateMachineBlockData(entity, currentFrame),
+    }));
+    saver.xferUser(pendingTail);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function tryParseSourceJetAIUpdateBlockData(data: Uint8Array): SourceJetAIUpdateBlockState | null {
   const version = data[0] ?? 0;
   if (version < 1 || version > 2) {
@@ -8640,6 +8732,51 @@ function buildSourceJetAIUpdateBlockData(
     blockData.set(preservedState.blockData.subarray(0, preservedState.tailOffset));
     blockData.set(tailBytes, preservedState.tailOffset);
     return blockData;
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceJetAIUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array | null {
+  const jetState = entity.jetAIState as {
+    producerX?: unknown;
+    producerZ?: unknown;
+    pendingCommand?: unknown;
+    attackLocoExpireFrame?: unknown;
+    returnToBaseFrame?: unknown;
+  } | null | undefined;
+  const pendingCommand = jetState?.pendingCommand ?? null;
+  const commandStorageBytes = pendingCommand
+    ? buildSourceAICommandStorageBytes(pendingCommand)
+    : buildSourceAICommandStorageBytes({ type: 'stop' });
+  if (!commandStorageBytes) {
+    return null;
+  }
+
+  const saver = new XferSave();
+  saver.open('build-generated-source-jet-ai-update');
+  try {
+    saver.xferVersion(2);
+    saver.xferUser(buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame));
+    saver.xferCoord3D({
+      x: Number.isFinite(jetState?.producerX) ? Number(jetState!.producerX) : 0,
+      y: Number.isFinite(jetState?.producerZ) ? Number(jetState!.producerZ) : 0,
+      z: 0,
+    });
+    saver.xferUser(commandStorageBytes);
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(jetState?.attackLocoExpireFrame, 0));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(entity.attackersMissExpireFrame, 0));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(jetState?.returnToBaseFrame, 0));
+    saver.xferVersion(1);
+    saver.xferUnsignedShort(0);
+    saver.xferUnsignedInt(0);
+    saver.xferAsciiString('');
+    saver.xferInt(sourceJetFlagsForEntity(entity, 0));
+    saver.xferBool(true);
+    return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
   }
@@ -8859,6 +8996,72 @@ function buildSourceMissileAIUpdateBlockData(
     blockData.set(preservedState.blockData.subarray(0, preservedState.tailOffset));
     blockData.set(tailBytes, preservedState.tailOffset);
     return blockData;
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceMissileAIUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array | null {
+  const runtimeState = (entity as {
+    sourceMissileAIUpdateState?: SourceMissileAIUpdateRuntimeState | null;
+  }).sourceMissileAIUpdateState ?? null;
+  const missileProfile = (entity as {
+    missileAIProfile?: { distanceToTravelBeforeTurning?: unknown } | null;
+  }).missileAIProfile ?? null;
+  const state = sourceMissileRuntimeInt(runtimeState?.state, SOURCE_MISSILE_AI_STATE_PRELAUNCH);
+  if (!isSourceMissileAIState(state)) {
+    return null;
+  }
+  const defaultPosition = sourceCoord3DFromRuntimeXYZ(entity.x, entity.y, entity.z);
+
+  const saver = new XferSave();
+  saver.open('build-generated-source-missile-ai-update');
+  try {
+    saver.xferVersion(SOURCE_MISSILE_AI_UPDATE_CURRENT_VERSION);
+    saver.xferUser(buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame));
+    saver.xferCoord3D(sourceMissileRuntimeCoordToSource(
+      runtimeState,
+      'originalTargetX',
+      'originalTargetY',
+      'originalTargetZ',
+      { x: 0, y: 0, z: 0 },
+    ));
+    saver.xferUser(buildSourceRawInt32Bytes(state));
+    saver.xferUnsignedInt(sourceMissileRuntimeUnsignedFrame(runtimeState?.stateTimestamp, currentFrame));
+    saver.xferUnsignedInt(sourceMissileRuntimeUnsignedFrame(
+      runtimeState?.nextTargetTrackTime,
+      SOURCE_MISSILE_AI_NEXT_TARGET_TRACK_NEVER,
+    ));
+    saver.xferObjectID(normalizeSourceObjectId(sourceMissileRuntimeInt(runtimeState?.launcherId, 0)));
+    saver.xferObjectID(normalizeSourceObjectId(sourceMissileRuntimeInt(runtimeState?.victimId, 0)));
+    saver.xferBool(sourceMissileRuntimeBool(runtimeState?.isArmed, false));
+    saver.xferUnsignedInt(sourceMissileRuntimeUnsignedFrame(runtimeState?.fuelExpirationDate, 0));
+    saver.xferReal(sourceMissileRuntimeNumber(
+      runtimeState?.noTurnDistLeft,
+      Number.isFinite(missileProfile?.distanceToTravelBeforeTurning)
+        ? Number(missileProfile!.distanceToTravelBeforeTurning)
+        : 0,
+    ));
+    saver.xferReal(sourceMissileRuntimeNumber(runtimeState?.maxAccel, SOURCE_MISSILE_AI_BIGNUM));
+    saver.xferAsciiString(sourceMissileRuntimeString(runtimeState?.detonationWeaponTemplateName, ''));
+    saver.xferAsciiString(sourceMissileRuntimeString(runtimeState?.exhaustSystemTemplateName, ''));
+    saver.xferBool(sourceMissileRuntimeBool(runtimeState?.isTrackingTarget, false));
+    saver.xferCoord3D(sourceMissileRuntimeCoordToSource(
+      runtimeState,
+      'prevX',
+      'prevY',
+      'prevZ',
+      defaultPosition,
+    ));
+    saver.xferUnsignedInt(sourceMissileRuntimeUnsignedFrame(runtimeState?.extraBonusFlags, 0));
+    saver.xferUser(sourceMissileRuntimeExhaustIdBytes(runtimeState?.exhaustIdBytes, new Uint8Array(4)));
+    saver.xferUnsignedInt(sourceMissileRuntimeUnsignedFrame(runtimeState?.framesTillDecoyed, 0));
+    saver.xferBool(sourceMissileRuntimeBool(runtimeState?.noDamage, false));
+    saver.xferBool(sourceMissileRuntimeBool(runtimeState?.isJammed, false));
+    return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
   }
@@ -9263,6 +9466,105 @@ function buildSourceDeliverPayloadAIUpdateBlockData(
     blockData.set(preservedState.blockData.subarray(0, preservedState.tailOffset));
     blockData.set(tailBytes, preservedState.tailOffset);
     return blockData;
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceDeliverPayloadAIUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array | null {
+  const runtimeState = (entity as {
+    sourceDeliverPayloadAIUpdateState?: SourceDeliverPayloadAIUpdateRuntimeState | null;
+  }).sourceDeliverPayloadAIUpdateState ?? null;
+  const diveState = sourceDeliverPayloadRuntimeInt(
+    runtimeState?.diveState,
+    SOURCE_DELIVER_PAYLOAD_DIVE_STATE_PREDIVE,
+  );
+  if (!isSourceDeliverPayloadDiveState(diveState)) {
+    return null;
+  }
+
+  const hasStateMachine = sourceDeliverPayloadRuntimeBool(runtimeState?.hasStateMachine, false);
+  const stateMachineBytes = sourceDeliverPayloadRuntimeByteArray(
+    runtimeState?.stateMachineBytes,
+    new Uint8Array(),
+  );
+
+  const saver = new XferSave();
+  saver.open('build-generated-source-deliver-payload-ai-update');
+  try {
+    saver.xferVersion(SOURCE_DELIVER_PAYLOAD_AI_UPDATE_CURRENT_VERSION);
+    saver.xferUser(buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame));
+    saver.xferCoord3D(sourceDeliverPayloadRuntimeCoordToSource(
+      runtimeState,
+      'targetX',
+      'targetY',
+      'targetZ',
+      { x: 0, y: 0, z: 0 },
+    ));
+    saver.xferCoord3D(sourceDeliverPayloadRuntimeCoordToSource(
+      runtimeState,
+      'moveToX',
+      'moveToY',
+      'moveToZ',
+      { x: 0, y: 0, z: 0 },
+    ));
+    saver.xferInt(sourceDeliverPayloadRuntimeInt(runtimeState?.visibleItemsDelivered, 0));
+    saver.xferUser(buildSourceRawInt32Bytes(diveState));
+    saver.xferAsciiString(sourceDeliverPayloadRuntimeString(runtimeState?.visibleDropBoneName, ''));
+    saver.xferAsciiString(sourceDeliverPayloadRuntimeString(runtimeState?.visibleSubObjectName, ''));
+    saver.xferAsciiString(sourceDeliverPayloadRuntimeString(runtimeState?.visiblePayloadTemplateName, ''));
+    saver.xferReal(sourceDeliverPayloadRuntimeNumber(runtimeState?.distToTarget, 0));
+    saver.xferReal(sourceDeliverPayloadRuntimeNumber(runtimeState?.preOpenDistance, 0));
+    saver.xferInt(sourceDeliverPayloadRuntimeInt(runtimeState?.maxAttempts, 1));
+    saver.xferCoord3D(sourceDeliverPayloadRuntimeCoordToSource(
+      runtimeState,
+      'dropOffsetX',
+      'dropOffsetY',
+      'dropOffsetZ',
+      { x: 0, y: 0, z: 0 },
+    ));
+    saver.xferCoord3D(sourceDeliverPayloadRuntimeCoordToSource(
+      runtimeState,
+      'dropVarianceX',
+      'dropVarianceY',
+      'dropVarianceZ',
+      { x: 0, y: 0, z: 0 },
+    ));
+    saver.xferUnsignedInt(sourceDeliverPayloadRuntimeUnsignedInt(runtimeState?.dropDelay, 0));
+    saver.xferBool(sourceDeliverPayloadRuntimeBool(runtimeState?.fireWeapon, false));
+    saver.xferBool(sourceDeliverPayloadRuntimeBool(runtimeState?.selfDestructObject, false));
+    saver.xferInt(sourceDeliverPayloadRuntimeInt(runtimeState?.visibleNumBones, 0));
+    saver.xferReal(sourceDeliverPayloadRuntimeNumber(runtimeState?.diveStartDistance, 0));
+    saver.xferReal(sourceDeliverPayloadRuntimeNumber(runtimeState?.diveEndDistance, 0));
+    saver.xferUser(buildSourceRawInt32Bytes(sourceDeliverPayloadRuntimeInt(
+      runtimeState?.strafingWeaponSlot,
+      -1,
+    )));
+    saver.xferInt(sourceDeliverPayloadRuntimeInt(runtimeState?.visibleItemsDroppedPerInterval, 0));
+    saver.xferBool(sourceDeliverPayloadRuntimeBool(runtimeState?.inheritTransportVelocity, false));
+    saver.xferBool(sourceDeliverPayloadRuntimeBool(runtimeState?.isParachuteDirectly, false));
+    saver.xferReal(sourceDeliverPayloadRuntimeNumber(runtimeState?.exitPitchRate, 0));
+    saver.xferReal(sourceDeliverPayloadRuntimeNumber(runtimeState?.strafeLength, 0));
+    saver.xferAsciiString(sourceDeliverPayloadRuntimeString(runtimeState?.visiblePayloadWeaponTemplateName, ''));
+    xferSourceRadiusDecalTemplateBlockState(
+      saver,
+      sourceDeliverPayloadRuntimeRadiusDecalTemplate(
+        runtimeState,
+        createDefaultSourceRadiusDecalTemplateBlockState(),
+      ),
+    );
+    saver.xferReal(sourceDeliverPayloadRuntimeNumber(runtimeState?.deliveryDecalRadius, 0));
+    saver.xferBool(hasStateMachine);
+    if (hasStateMachine) {
+      saver.xferUser(stateMachineBytes);
+    }
+    saver.xferBool(sourceDeliverPayloadRuntimeBool(runtimeState?.freeToExit, false));
+    saver.xferBool(sourceDeliverPayloadRuntimeBool(runtimeState?.acceptingCommands, true));
+    saver.xferReal(sourceDeliverPayloadRuntimeNumber(runtimeState?.previousDistanceSqr, 0));
+    return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
   }
@@ -18470,6 +18772,22 @@ function buildGeneratedSourceObjectModuleBlockData(
 
   if (normalizedModuleType === 'DEPLOYSTYLEAIUPDATE' && entity.deployStyleProfile) {
     return buildGeneratedSourceDeployStyleAIUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'HACKINTERNETAIUPDATE') {
+    return buildGeneratedSourceHackInternetAIUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'JETAIUPDATE') {
+    return buildGeneratedSourceJetAIUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'MISSILEAIUPDATE') {
+    return buildGeneratedSourceMissileAIUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'DELIVERPAYLOADAIUPDATE') {
+    return buildGeneratedSourceDeliverPayloadAIUpdateBlockData(entity, currentFrame);
   }
 
   if (normalizedModuleType === 'ASSAULTTRANSPORTAIUPDATE') {

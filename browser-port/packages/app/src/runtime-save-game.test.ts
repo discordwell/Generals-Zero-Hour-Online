@@ -16992,7 +16992,7 @@ describe('runtime-save-game', () => {
     expect(parsedAI.bytesRead).toBe(deployModule!.blockData.byteLength - 8);
   });
 
-  it('synthesizes source AIUpdate-derived transport and truck modules from descriptors', () => {
+  it('synthesizes source AIUpdate-derived modules from descriptors', () => {
     const sourceGameLogicBytes = createSourceGameLogicChunkData(false);
 
     const saveFile = buildRuntimeSaveFile({
@@ -17074,6 +17074,101 @@ describe('runtime-save-game', () => {
             scriptAiRecruitable: true,
             attackTargetEntityId: 99,
             autoTargetScanNextFrame: 77,
+            hackInternetRuntimeState: {
+              cashUpdateDelayFrames: 30,
+              cashAmountPerCycle: 5,
+              nextCashFrame: 90,
+            },
+            hackInternetPendingCommand: null,
+            jetAIState: {
+              state: 'TAKING_OFF',
+              stateEnteredFrame: 40,
+              allowAirLoco: true,
+              pendingCommand: { type: 'moveTo', targetX: 123, targetZ: 456 },
+              producerX: 11,
+              producerZ: 22,
+              returnToBaseFrame: 120,
+              attackLocoExpireFrame: 66,
+              useReturnLoco: true,
+              reloadDoneFrame: 0,
+              reloadTotalFrames: 0,
+              circlingNextCheckFrame: 0,
+              cruiseHeight: 100,
+            },
+            attackersMissExpireFrame: 67,
+            sourceMissileAIUpdateState: {
+              originalTargetX: 1,
+              originalTargetY: 2,
+              originalTargetZ: 3,
+              state: 4,
+              stateTimestamp: 50,
+              nextTargetTrackTime: 60,
+              launcherId: 70,
+              victimId: 71,
+              isArmed: true,
+              fuelExpirationDate: 80,
+              noTurnDistLeft: 9.5,
+              maxAccel: 10.5,
+              detonationWeaponTemplateName: 'DetonationWeapon',
+              exhaustSystemTemplateName: 'ExhaustSys',
+              isTrackingTarget: true,
+              prevX: 4,
+              prevY: 5,
+              prevZ: 6,
+              extraBonusFlags: 7,
+              exhaustIdBytes: [8, 9, 10, 11],
+              framesTillDecoyed: 12,
+              noDamage: true,
+              isJammed: true,
+            },
+            sourceDeliverPayloadAIUpdateState: {
+              targetX: 1,
+              targetY: 2,
+              targetZ: 3,
+              moveToX: 4,
+              moveToY: 5,
+              moveToZ: 6,
+              visibleItemsDelivered: 2,
+              diveState: 1,
+              visibleDropBoneName: 'DropBone',
+              visibleSubObjectName: 'SubObject',
+              visiblePayloadTemplateName: 'PayloadTemplate',
+              distToTarget: 33,
+              preOpenDistance: 4,
+              maxAttempts: 5,
+              dropOffsetX: 6,
+              dropOffsetY: 7,
+              dropOffsetZ: 8,
+              dropVarianceX: 9,
+              dropVarianceY: 10,
+              dropVarianceZ: 11,
+              dropDelay: 12,
+              fireWeapon: true,
+              selfDestructObject: true,
+              visibleNumBones: 3,
+              diveStartDistance: 44,
+              diveEndDistance: 22,
+              strafingWeaponSlot: 1,
+              visibleItemsDroppedPerInterval: 2,
+              inheritTransportVelocity: true,
+              isParachuteDirectly: true,
+              exitPitchRate: 0.25,
+              strafeLength: 88,
+              visiblePayloadWeaponTemplateName: 'PayloadWeapon',
+              deliveryDecalTemplateName: 'DecalTemplate',
+              deliveryDecalTemplateShadowTypeBytes: [1, 2, 3, 4],
+              deliveryDecalTemplateMinOpacity: 0.1,
+              deliveryDecalTemplateMaxOpacity: 0.9,
+              deliveryDecalTemplateOpacityThrobTime: 13,
+              deliveryDecalTemplateColor: 0x11223344,
+              deliveryDecalTemplateOnlyVisibleToOwningPlayer: true,
+              deliveryDecalRadius: 99,
+              hasStateMachine: false,
+              stateMachineBytes: [],
+              freeToExit: true,
+              acceptingCommands: false,
+              previousDistanceSqr: 1234,
+            },
             assaultTransportState: {
               members: [{ entityId: 31, isHealing: true, isNew: false }],
               designatedTargetId: 44,
@@ -17108,6 +17203,10 @@ describe('runtime-save-game', () => {
         }),
         listSourceObjectModuleDescriptors: (templateName) => templateName === 'RuntimeGeneratedAIUpdates'
           ? [
+              { moduleType: 'HackInternetAIUpdate', moduleTag: 'ModuleTag_HackAI' },
+              { moduleType: 'JetAIUpdate', moduleTag: 'ModuleTag_JetAI' },
+              { moduleType: 'MissileAIUpdate', moduleTag: 'ModuleTag_MissileAI' },
+              { moduleType: 'DeliverPayloadAIUpdate', moduleTag: 'ModuleTag_DeliverPayloadAI' },
               { moduleType: 'AssaultTransportAIUpdate', moduleTag: 'ModuleTag_AssaultAI' },
               { moduleType: 'SupplyTruckAIUpdate', moduleTag: 'ModuleTag_SupplyAI' },
               { moduleType: 'ChinookAIUpdate', moduleTag: 'ModuleTag_ChinookAI' },
@@ -17128,6 +17227,121 @@ describe('runtime-save-game', () => {
     const chinookModule = modules.get('ModuleTag_ChinookAI');
     const powModule = modules.get('ModuleTag_POWAI');
     const railedModule = modules.get('ModuleTag_RailedAI');
+    const hackModule = modules.get('ModuleTag_HackAI');
+    const jetModule = modules.get('ModuleTag_JetAI');
+    const missileModule = modules.get('ModuleTag_MissileAI');
+    const deliverPayloadModule = modules.get('ModuleTag_DeliverPayloadAI');
+
+    expect(hackModule).toBeDefined();
+    const hack = parseSourceHackInternetAIUpdateBlockData(hackModule!.blockData);
+    expect(hack.currentStateId).toBe(1001);
+    expect(hack.framesRemaining).toBe(48);
+    expect(hack.hasPendingCommand).toBe(false);
+
+    expect(jetModule).toBeDefined();
+    const jetAI = parseGeneratedSourceAIUpdateInterfaceForTest(jetModule!.blockData);
+    const jetTailData = new Uint8Array(1 + jetModule!.blockData.byteLength - jetAI.bytesRead);
+    jetTailData[0] = jetModule!.blockData[0] ?? 0;
+    jetTailData.set(jetModule!.blockData.subarray(jetAI.bytesRead), 1);
+    const jet = parseSourceJetAIUpdateBlockData(jetTailData);
+    expect(jet.producerLocation).toEqual({ x: 11, y: 22, z: 0 });
+    expect(jet.command).toMatchObject({
+      commandType: 0,
+      duplicateCommandType: 0,
+      position: { x: 123, y: 456, z: 0 },
+      objectId: 0,
+    });
+    expect(jet.attackLocoExpireFrame).toBe(66);
+    expect(jet.attackersMissExpireFrame).toBe(67);
+    expect(jet.returnToBaseFrame).toBe(120);
+    expect(jet.targetedBy).toEqual([]);
+    expect(jet.untargetableExpireFrame).toBe(0);
+    expect(jet.lockonDrawableTemplateName).toBe('');
+    expect(jet.flags & (1 << 0)).not.toBe(0);
+    expect(jet.flags & (1 << 1)).not.toBe(0);
+    expect(jet.flags & (1 << 2)).not.toBe(0);
+    expect(jet.flags & (1 << 3)).not.toBe(0);
+    expect(jet.flags & (1 << 5)).not.toBe(0);
+    expect(jet.enginesOn).toBe(true);
+
+    expect(missileModule).toBeDefined();
+    const missileAI = parseGeneratedSourceAIUpdateInterfaceForTest(missileModule!.blockData);
+    const missileTailData = new Uint8Array(1 + missileModule!.blockData.byteLength - missileAI.bytesRead);
+    missileTailData[0] = missileModule!.blockData[0] ?? 0;
+    missileTailData.set(missileModule!.blockData.subarray(missileAI.bytesRead), 1);
+    const missile = parseSourceMissileAIUpdateBlockData(missileTailData);
+    expect(missile).toMatchObject({
+      originalTargetPos: { x: 1, y: 3, z: 2 },
+      state: 4,
+      stateTimestamp: 50,
+      nextTargetTrackTime: 60,
+      launcherId: 70,
+      victimId: 71,
+      isArmed: true,
+      fuelExpirationDate: 80,
+      noTurnDistLeft: 9.5,
+      maxAccel: 10.5,
+      detonationWeaponTemplateName: 'DetonationWeapon',
+      exhaustSystemTemplateName: 'ExhaustSys',
+      isTrackingTarget: true,
+      prevPos: { x: 4, y: 6, z: 5 },
+      extraBonusFlags: 7,
+      exhaustIdBytes: [8, 9, 10, 11],
+      framesTillDecoyed: 12,
+      noDamage: true,
+      isJammed: true,
+    });
+
+    expect(deliverPayloadModule).toBeDefined();
+    const deliverPayloadAI = parseGeneratedSourceAIUpdateInterfaceForTest(deliverPayloadModule!.blockData);
+    const deliverPayloadTailData = new Uint8Array(
+      1 + deliverPayloadModule!.blockData.byteLength - deliverPayloadAI.bytesRead,
+    );
+    deliverPayloadTailData[0] = deliverPayloadModule!.blockData[0] ?? 0;
+    deliverPayloadTailData.set(deliverPayloadModule!.blockData.subarray(deliverPayloadAI.bytesRead), 1);
+    const deliverPayload = parseSourceDeliverPayloadAIUpdateBlockData(deliverPayloadTailData);
+    expect(deliverPayload).toMatchObject({
+      targetPos: { x: 1, y: 3, z: 2 },
+      moveToPos: { x: 4, y: 6, z: 5 },
+      visibleItemsDelivered: 2,
+      diveState: 1,
+      visibleDropBoneName: 'DropBone',
+      visibleSubObjectName: 'SubObject',
+      visiblePayloadTemplateName: 'PayloadTemplate',
+      distToTarget: 33,
+      preOpenDistance: 4,
+      maxAttempts: 5,
+      dropOffset: { x: 6, y: 8, z: 7 },
+      dropVariance: { x: 9, y: 11, z: 10 },
+      dropDelay: 12,
+      fireWeapon: true,
+      selfDestructObject: true,
+      visibleNumBones: 3,
+      diveStartDistance: 44,
+      diveEndDistance: 22,
+      strafingWeaponSlot: 1,
+      visibleItemsDroppedPerInterval: 2,
+      inheritTransportVelocity: true,
+      isParachuteDirectly: true,
+      exitPitchRate: 0.25,
+      strafeLength: 88,
+      visiblePayloadWeaponTemplateName: 'PayloadWeapon',
+      deliveryDecalRadius: 99,
+      hasStateMachine: false,
+      stateMachineBytes: [],
+      freeToExit: true,
+      acceptingCommands: false,
+      previousDistanceSqr: 1234,
+    });
+    expect(deliverPayload.deliveryDecalTemplate).toMatchObject({
+      name: 'DecalTemplate',
+      opacityThrobTime: 13,
+      color: 0x11223344,
+      onlyVisibleToOwningPlayer: true,
+    });
+    expect(deliverPayload.deliveryDecalTemplate.minOpacity).toBeCloseTo(0.1, 6);
+    expect(deliverPayload.deliveryDecalTemplate.maxOpacity).toBeCloseTo(0.9, 6);
+    expect([...deliverPayload.deliveryDecalTemplate.shadowTypeBytes]).toEqual([1, 2, 3, 4]);
 
     expect(assaultModule).toBeDefined();
     const assaultAI = parseGeneratedSourceAIUpdateInterfaceForTest(assaultModule!.blockData);
