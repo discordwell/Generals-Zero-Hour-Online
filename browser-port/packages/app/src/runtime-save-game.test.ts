@@ -17669,6 +17669,181 @@ describe('runtime-save-game', () => {
     });
   });
 
+  it('synthesizes source stateless module families from descriptors', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false);
+    const moduleTypes = [
+      'FXListDie',
+      'DestroyDie',
+      'CreateObjectDie',
+      'CreateCrateDie',
+      'KeepObjectDie',
+      'RebuildHoleExposeDie',
+      'EjectPilotDie',
+      'CrushDie',
+      'InstantDeathBehavior',
+      'UpgradeDie',
+      'DamDie',
+      'SquishCollide',
+      'ConvertToCarBombCrateCollide',
+      'ConvertToHijackedVehicleCrateCollide',
+      'MoneyCrateCollide',
+      'SalvageCrateCollide',
+      'UnitCrateCollide',
+      'VeterancyCrateCollide',
+      'BoneFXDamage',
+      'TransitionDamageFX',
+      'AIUpdateInterface',
+      'TransportAIUpdate',
+      'WanderAIUpdate',
+      'AssistedTargetingUpdate',
+      'SubObjectsUpgrade',
+    ];
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'generated stateless module families',
+      mapPath: 'Maps/RuntimeGeneratedStateless/RuntimeGeneratedStateless.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeGeneratedStateless',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 22,
+            templateName: 'RuntimeGeneratedStateless',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            sourceAIIdleInitialSleepOffset: 3,
+            scriptAiRecruitable: true,
+            attackTargetEntityId: 99,
+            autoTargetScanNextFrame: 77,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        listSourceObjectModuleDescriptors: (templateName) => templateName === 'RuntimeGeneratedStateless'
+          ? moduleTypes.map((moduleType) => ({
+              moduleType,
+              moduleTag: `ModuleTag_${moduleType}`,
+            }))
+          : [],
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const generated = readSourceGameLogicObjectStates(saveFile.data)
+      ?.find((object) => object.templateName === 'RuntimeGeneratedStateless')?.state;
+    const modules = new Map(generated?.modules.map((module) => [module.identifier, module]) ?? []);
+    const expectBytes = (moduleType: string, bytes: number[]) => {
+      expect([...(modules.get(`ModuleTag_${moduleType}`)?.blockData ?? [])]).toEqual(bytes);
+    };
+
+    for (const moduleType of [
+      'FXListDie',
+      'DestroyDie',
+      'CreateObjectDie',
+      'CreateCrateDie',
+      'KeepObjectDie',
+      'RebuildHoleExposeDie',
+      'EjectPilotDie',
+      'CrushDie',
+      'InstantDeathBehavior',
+      'UpgradeDie',
+      'DamDie',
+      'SquishCollide',
+      'BoneFXDamage',
+    ]) {
+      expectBytes(moduleType, [1, 1, 1, 1, 1]);
+    }
+
+    for (const moduleType of [
+      'ConvertToCarBombCrateCollide',
+      'ConvertToHijackedVehicleCrateCollide',
+      'MoneyCrateCollide',
+      'SalvageCrateCollide',
+      'UnitCrateCollide',
+      'VeterancyCrateCollide',
+    ]) {
+      expectBytes(moduleType, [1, 1, 1, 1, 1, 1]);
+    }
+
+    const transition = modules.get('ModuleTag_TransitionDamageFX')?.blockData;
+    expect(transition?.byteLength).toBe(197);
+    expect([...(transition?.subarray(0, 5) ?? [])]).toEqual([1, 1, 1, 1, 1]);
+    expect([...(transition?.subarray(5) ?? [])].every((byte) => byte === 0)).toBe(true);
+
+    const ai = modules.get('ModuleTag_AIUpdateInterface')?.blockData;
+    expect(ai).toBeDefined();
+    const parsedAI = parseGeneratedSourceAIUpdateInterfaceForTest(ai!, 0);
+    expect(parsedAI.bytesRead).toBe(ai!.byteLength);
+    expect(parsedAI.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsedAI.currentVictimId).toBe(99);
+
+    for (const moduleType of ['TransportAIUpdate', 'WanderAIUpdate']) {
+      const module = modules.get(`ModuleTag_${moduleType}`)?.blockData;
+      expect(module?.[0]).toBe(1);
+      const parsedDerivedAI = parseGeneratedSourceAIUpdateInterfaceForTest(module!, 1);
+      expect(parsedDerivedAI.bytesRead).toBe(module!.byteLength);
+      expect(parsedDerivedAI.idleInitialSleepOffset).toBe(3);
+    }
+
+    const assisted = modules.get('ModuleTag_AssistedTargetingUpdate')?.blockData;
+    expect(assisted?.byteLength).toBe(9);
+    expect([...(assisted?.subarray(0, 5) ?? [])]).toEqual([1, 1, 1, 1, 1]);
+    expect(new DataView(assisted!.buffer, assisted!.byteOffset, assisted!.byteLength).getUint32(5, true))
+      .toBe((43 << 2) | 2);
+
+    expectBytes('SubObjectsUpgrade', [1, 1, 1, 1, 1, 1, 0]);
+  });
+
   it('rewrites source AssaultTransportAIUpdate tail while preserving AIUpdateInterface bytes', () => {
     const sourceAssaultBlock = createSourceAssaultTransportAIUpdateBlockData({
       members: [{ entityId: 5, isHealing: false }],

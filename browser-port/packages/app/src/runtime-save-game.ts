@@ -135,6 +135,7 @@ const SOURCE_UPGRADE_MODULE_TYPES = new Set([
   'OBJECTCREATIONUPGRADE',
   'ACTIVESHROUDUPGRADE',
   'REPLACEOBJECTUPGRADE',
+  'SUBOBJECTSUPGRADE',
 ]);
 const SOURCE_CREATE_MODULE_TYPES = new Set([
   'GRANTUPGRADECREATE',
@@ -145,10 +146,49 @@ const SOURCE_CREATE_MODULE_TYPES = new Set([
   'SUPPLYWAREHOUSECREATE',
   'VETERANCYGAINCREATE',
 ]);
+const SOURCE_STATELESS_DIE_MODULE_TYPES = new Set([
+  'FXLISTDIE',
+  'DESTROYDIE',
+  'CREATEOBJECTDIE',
+  'CREATECRATEDIE',
+  'KEEPOBJECTDIE',
+  'REBUILDHOLEEXPOSEDIE',
+  'EJECTPILOTDIE',
+  'CRUSHDIE',
+  'INSTANTDEATHBEHAVIOR',
+  'UPGRADEDIE',
+  'DAMDIE',
+]);
+const SOURCE_STATELESS_COLLIDE_MODULE_TYPES = new Set([
+  'SQUISHCOLLIDE',
+]);
+const SOURCE_CRATE_COLLIDE_MODULE_TYPES = new Set([
+  'CONVERTTOCARBOMBCRATECOLLIDE',
+  'CONVERTTOHIJACKEDVEHICLECRATECOLLIDE',
+  'MONEYCRATECOLLIDE',
+  'SALVAGECRATECOLLIDE',
+  'UNITCRATECOLLIDE',
+  'VETERANCYCRATECOLLIDE',
+]);
+const SOURCE_STATELESS_DAMAGE_MODULE_TYPES = new Set([
+  'BONEFXDAMAGE',
+]);
+const SOURCE_AIUPDATE_INTERFACE_DERIVED_MODULE_TYPES = new Set([
+  'TRANSPORTAIUPDATE',
+  'WANDERAIUPDATE',
+]);
+const SOURCE_STATELESS_UPDATE_MODULE_TYPES = new Set([
+  'ASSISTEDTARGETINGUPDATE',
+]);
 const SOURCE_OPEN_CONTAIN_MAX_FIRE_POINTS = 32;
 const SOURCE_MATRIX3D_BYTE_LENGTH = 48;
 const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH =
   SOURCE_OPEN_CONTAIN_MAX_FIRE_POINTS * SOURCE_MATRIX3D_BYTE_LENGTH;
+const SOURCE_BODY_DAMAGE_TYPE_COUNT = 4;
+const SOURCE_DAMAGE_MODULE_MAX_FX = 12;
+const SOURCE_PARTICLE_SYSTEM_ID_BYTE_LENGTH = 4;
+const SOURCE_TRANSITION_DAMAGE_FX_PARTICLE_SYSTEM_BYTES =
+  SOURCE_BODY_DAMAGE_TYPE_COUNT * SOURCE_DAMAGE_MODULE_MAX_FX * SOURCE_PARTICLE_SYSTEM_ID_BYTE_LENGTH;
 const SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH = 4;
 const SOURCE_DEATH_TYPE_POISONED = 5;
 const SOURCE_DEATH_TYPE_BY_NAME = new Map<string, number>([
@@ -13725,6 +13765,30 @@ function isSourceCreateModuleType(moduleType: string): boolean {
   return SOURCE_CREATE_MODULE_TYPES.has(normalizeSourceObjectModuleType(moduleType));
 }
 
+function isSourceStatelessDieModuleType(moduleType: string): boolean {
+  return SOURCE_STATELESS_DIE_MODULE_TYPES.has(normalizeSourceObjectModuleType(moduleType));
+}
+
+function isSourceStatelessCollideModuleType(moduleType: string): boolean {
+  return SOURCE_STATELESS_COLLIDE_MODULE_TYPES.has(normalizeSourceObjectModuleType(moduleType));
+}
+
+function isSourceCrateCollideModuleType(moduleType: string): boolean {
+  return SOURCE_CRATE_COLLIDE_MODULE_TYPES.has(normalizeSourceObjectModuleType(moduleType));
+}
+
+function isSourceStatelessDamageModuleType(moduleType: string): boolean {
+  return SOURCE_STATELESS_DAMAGE_MODULE_TYPES.has(normalizeSourceObjectModuleType(moduleType));
+}
+
+function isSourceAIUpdateInterfaceDerivedModuleType(moduleType: string): boolean {
+  return SOURCE_AIUPDATE_INTERFACE_DERIVED_MODULE_TYPES.has(normalizeSourceObjectModuleType(moduleType));
+}
+
+function isSourceStatelessUpdateModuleType(moduleType: string): boolean {
+  return SOURCE_STATELESS_UPDATE_MODULE_TYPES.has(normalizeSourceObjectModuleType(moduleType));
+}
+
 function xferSourceBehaviorModuleBase(xfer: Xfer): void {
   const behaviorVersion = xfer.xferVersion(1);
   const objectModuleVersion = xfer.xferVersion(1);
@@ -13740,6 +13804,109 @@ function xferSourceDieModuleBase(xfer: Xfer): void {
     throw new Error(`Unsupported source DieModule base version ${dieVersion}`);
   }
   xferSourceBehaviorModuleBase(xfer);
+}
+
+function xferSourceDamageModuleBase(xfer: Xfer): void {
+  const damageVersion = xfer.xferVersion(1);
+  if (damageVersion !== 1) {
+    throw new Error(`Unsupported source DamageModule base version ${damageVersion}`);
+  }
+  xferSourceBehaviorModuleBase(xfer);
+}
+
+function xferSourceCrateCollideBase(xfer: Xfer): void {
+  const crateVersion = xfer.xferVersion(1);
+  if (crateVersion !== 1) {
+    throw new Error(`Unsupported source CrateCollide base version ${crateVersion}`);
+  }
+  xferSourceCollideModuleBase(xfer);
+}
+
+function buildSourceStatelessDieModuleBlockData(): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-stateless-die-module');
+  try {
+    saver.xferVersion(1);
+    xferSourceDieModuleBase(saver);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceStatelessCollideModuleBlockData(): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-stateless-collide-module');
+  try {
+    saver.xferVersion(1);
+    xferSourceCollideModuleBase(saver);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceCrateCollideModuleBlockData(): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-crate-collide-module');
+  try {
+    saver.xferVersion(1);
+    xferSourceCrateCollideBase(saver);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceStatelessDamageModuleBlockData(): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-stateless-damage-module');
+  try {
+    saver.xferVersion(1);
+    xferSourceDamageModuleBase(saver);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceTransitionDamageFXBlockData(): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-transition-damage-fx');
+  try {
+    saver.xferVersion(1);
+    xferSourceDamageModuleBase(saver);
+    saver.xferUser(new Uint8Array(SOURCE_TRANSITION_DAMAGE_FX_PARTICLE_SYSTEM_BYTES));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceAIUpdateInterfaceDerivedBlockData(entity: MapEntity, currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-ai-update-interface-derived-module');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceStatelessUpdateModuleBlockData(currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-stateless-update-module');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    ));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
 }
 
 function xferSourceCreateModule(
@@ -18754,6 +18921,38 @@ function buildGeneratedSourceObjectModuleBlockData(
       ? entity.executedUpgradeModules.has(liveUpgradeModule.id)
       : false;
     return buildSourceUpgradeModuleBlockData(upgradeExecuted);
+  }
+
+  if (isSourceStatelessDieModuleType(moduleType)) {
+    return buildSourceStatelessDieModuleBlockData();
+  }
+
+  if (isSourceStatelessCollideModuleType(moduleType)) {
+    return buildSourceStatelessCollideModuleBlockData();
+  }
+
+  if (isSourceCrateCollideModuleType(moduleType)) {
+    return buildSourceCrateCollideModuleBlockData();
+  }
+
+  if (isSourceStatelessDamageModuleType(moduleType)) {
+    return buildSourceStatelessDamageModuleBlockData();
+  }
+
+  if (normalizedModuleType === 'TRANSITIONDAMAGEFX') {
+    return buildSourceTransitionDamageFXBlockData();
+  }
+
+  if (normalizedModuleType === 'AIUPDATEINTERFACE') {
+    return buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame);
+  }
+
+  if (isSourceAIUpdateInterfaceDerivedModuleType(moduleType)) {
+    return buildSourceAIUpdateInterfaceDerivedBlockData(entity, currentFrame);
+  }
+
+  if (isSourceStatelessUpdateModuleType(moduleType)) {
+    return buildSourceStatelessUpdateModuleBlockData(currentFrame);
   }
 
   if (normalizedModuleType === 'SPYVISIONSPECIALPOWER') {
