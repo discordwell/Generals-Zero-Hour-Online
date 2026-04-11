@@ -1756,6 +1756,103 @@ function parseSourceDeployStyleAIUpdateBlockData(
   };
 }
 
+function createSourceProductionExitRallyBlockData(
+  nextCallFrameAndPhase: number,
+  rallyPoint: Coord3D,
+  rallyPointExists: boolean,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-production-exit-rally');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferCoord3D(rallyPoint);
+    xferSave.xferBool(rallyPointExists);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceProductionExitRallyBlockData(
+  data: Uint8Array,
+): { nextCallFrameAndPhase: number; rallyPoint: Coord3D; rallyPointExists: boolean } {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-production-exit-rally');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      rallyPoint: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      rallyPointExists: xferLoad.xferBool(false),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceQueueProductionExitBlockData(
+  nextCallFrameAndPhase: number,
+  currentDelay: number,
+  rallyPoint: Coord3D,
+  rallyPointExists: boolean,
+  creationClearDistance: number,
+  currentBurstCount: number,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-queue-production-exit');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    xferSave.xferUnsignedInt(currentDelay);
+    xferSave.xferCoord3D(rallyPoint);
+    xferSave.xferBool(rallyPointExists);
+    xferSave.xferReal(creationClearDistance);
+    xferSave.xferUnsignedInt(currentBurstCount);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceQueueProductionExitBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-queue-production-exit');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      currentDelay: xferLoad.xferUnsignedInt(0),
+      rallyPoint: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      rallyPointExists: xferLoad.xferBool(false),
+      creationClearDistance: xferLoad.xferReal(0),
+      currentBurstCount: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceBaseOnlyUpdateModuleBlockData(nextCallFrameAndPhase: number): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-base-only-update-module');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 interface SourceProductionQueueEntryTestState {
   type: number;
   name: string;
@@ -10726,6 +10823,162 @@ describe('runtime-save-game', () => {
     expect(parsed.prefix).toEqual(preservedPrefix);
     expect(parsed.state).toBe(3);
     expect(parsed.frameToWaitForDeploy).toBe(88);
+  });
+
+  it('rewrites source production exit update modules from live rally and queue state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_DefaultExit',
+      blockData: createSourceProductionExitRallyBlockData(
+        (90 << 2) | 2,
+        { x: 1, y: 2, z: 3 },
+        false,
+      ),
+    }, {
+      identifier: 'ModuleTag_SupplyExit',
+      blockData: createSourceProductionExitRallyBlockData(
+        (91 << 2) | 2,
+        { x: 4, y: 5, z: 6 },
+        false,
+      ),
+    }, {
+      identifier: 'ModuleTag_QueueExit',
+      blockData: createSourceQueueProductionExitBlockData(
+        (92 << 2) | 2,
+        11,
+        { x: 7, y: 8, z: 9 },
+        false,
+        44.5,
+        2,
+      ),
+    }, {
+      identifier: 'ModuleTag_SpawnExit',
+      blockData: createSourceBaseOnlyUpdateModuleBlockData((93 << 2) | 2),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source production exit rewrite',
+      mapPath: 'Maps/RuntimeFactory/RuntimeFactory.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeFactory',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            queueProductionExitProfile: {
+              moduleType: 'QUEUE',
+              unitCreatePoint: { x: 0, y: 0, z: 0 },
+              naturalRallyPoint: null,
+              exitDelayFrames: 30,
+              allowAirborneCreation: false,
+              initialBurst: 5,
+              spawnPointBoneName: null,
+            },
+            rallyPoint: { x: 100, z: 200 },
+            queueProductionExitDelayFramesRemaining: 9,
+            queueProductionExitBurstRemaining: 4,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName !== 'RuntimeTank') {
+            return null;
+          }
+          switch (moduleTag) {
+            case 'ModuleTag_DefaultExit': return 'DEFAULTPRODUCTIONEXITUPDATE';
+            case 'ModuleTag_SupplyExit': return 'SUPPLYCENTERPRODUCTIONEXITUPDATE';
+            case 'ModuleTag_QueueExit': return 'QUEUEPRODUCTIONEXITUPDATE';
+            case 'ModuleTag_SpawnExit': return 'SPAWNPOINTPRODUCTIONEXITUPDATE';
+            default: return null;
+          }
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const defaultModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_DefaultExit');
+    const supplyModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_SupplyExit');
+    const queueModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_QueueExit');
+    const spawnModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_SpawnExit');
+
+    expect(defaultModule).toBeDefined();
+    const parsedDefault = parseSourceProductionExitRallyBlockData(defaultModule!.blockData);
+    expect(parsedDefault.nextCallFrameAndPhase).toBe(0xfffffffe);
+    expect(parsedDefault.rallyPoint).toEqual({ x: 100, y: 2, z: 200 });
+    expect(parsedDefault.rallyPointExists).toBe(true);
+
+    expect(supplyModule).toBeDefined();
+    const parsedSupply = parseSourceProductionExitRallyBlockData(supplyModule!.blockData);
+    expect(parsedSupply.nextCallFrameAndPhase).toBe(0xfffffffe);
+    expect(parsedSupply.rallyPoint).toEqual({ x: 100, y: 5, z: 200 });
+    expect(parsedSupply.rallyPointExists).toBe(true);
+
+    expect(queueModule).toBeDefined();
+    const parsedQueue = parseSourceQueueProductionExitBlockData(queueModule!.blockData);
+    expect(parsedQueue.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsedQueue.currentDelay).toBe(9);
+    expect(parsedQueue.rallyPoint).toEqual({ x: 100, y: 8, z: 200 });
+    expect(parsedQueue.rallyPointExists).toBe(true);
+    expect(parsedQueue.creationClearDistance).toBeCloseTo(44.5);
+    expect(parsedQueue.currentBurstCount).toBe(4);
+
+    expect(spawnModule).toBeDefined();
+    const parsedSpawn = parseSourceAnimationSteeringUpdateBlockData(spawnModule!.blockData);
+    expect(parsedSpawn.nextCallFrameAndPhase).toBe(0xfffffffe);
   });
 
   it('rewrites source PoisonedBehavior and MinefieldBehavior modules from live runtime state', () => {

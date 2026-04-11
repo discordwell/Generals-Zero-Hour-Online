@@ -5698,6 +5698,18 @@ interface SourceDeployStyleAIUpdateBlockState {
   frameToWaitForDeploy: number;
 }
 
+interface SourceProductionExitRallyState {
+  nextCallFrameAndPhase: number;
+  rallyPoint: Coord3D;
+  rallyPointExists: boolean;
+}
+
+interface SourceQueueProductionExitBlockState extends SourceProductionExitRallyState {
+  currentDelay: number;
+  creationClearDistance: number;
+  currentBurstCount: number;
+}
+
 function createDefaultSourceWeaponSnapshotState(): SourceWeaponSnapshotBlockState {
   return {
     version: 3,
@@ -5937,6 +5949,152 @@ function buildSourceDeployStyleAIUpdateBlockData(
     true,
   );
   return blockData;
+}
+
+function xferSourceProductionExitRallyState(
+  xfer: Xfer,
+  state: SourceProductionExitRallyState,
+): SourceProductionExitRallyState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source production exit version ${version}`);
+  }
+  const nextCallFrameAndPhase = xferSourceUpdateModuleBase(xfer, state.nextCallFrameAndPhase);
+  const rallyPoint = xfer.xferCoord3D(state.rallyPoint);
+  const rallyPointExists = xfer.xferBool(state.rallyPointExists);
+  return {
+    nextCallFrameAndPhase,
+    rallyPoint,
+    rallyPointExists,
+  };
+}
+
+function createDefaultSourceProductionExitRallyState(): SourceProductionExitRallyState {
+  return {
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    rallyPoint: { x: 0, y: 0, z: 0 },
+    rallyPointExists: false,
+  };
+}
+
+function tryParseSourceProductionExitRallyBlockData(
+  data: Uint8Array,
+): SourceProductionExitRallyState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-production-exit-rally');
+  try {
+    const state = xferSourceProductionExitRallyState(xferLoad, createDefaultSourceProductionExitRallyState());
+    return xferLoad.getRemaining() === 0 ? state : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceProductionExitRallyBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceProductionExitRallyState,
+  active = false,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-production-exit-rally');
+  try {
+    xferSourceProductionExitRallyState(saver, {
+      nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(
+        active ? currentFrame + 1 : SOURCE_FRAME_FOREVER,
+      ),
+      rallyPoint: {
+        x: entity.rallyPoint?.x ?? preservedState.rallyPoint.x,
+        y: preservedState.rallyPoint.y,
+        z: entity.rallyPoint?.z ?? preservedState.rallyPoint.z,
+      },
+      rallyPointExists: entity.rallyPoint !== null,
+    });
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceQueueProductionExitBlockData(
+  data: Uint8Array,
+): SourceQueueProductionExitBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-queue-production-exit');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(xferLoad, 0);
+    const currentDelay = xferLoad.xferUnsignedInt(0);
+    const rallyPoint = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const rallyPointExists = xferLoad.xferBool(false);
+    const creationClearDistance = xferLoad.xferReal(0);
+    const currentBurstCount = xferLoad.xferUnsignedInt(0);
+    return xferLoad.getRemaining() === 0
+      ? {
+        nextCallFrameAndPhase,
+        currentDelay,
+        rallyPoint,
+        rallyPointExists,
+        creationClearDistance,
+        currentBurstCount,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceQueueProductionExitBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceQueueProductionExitBlockState,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-queue-production-exit');
+  try {
+    saver.xferVersion(1);
+    xferSourceUpdateModuleBase(saver, buildSourceUpdateModuleWakeFrame(currentFrame + 1));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(
+      entity.queueProductionExitDelayFramesRemaining,
+      preservedState.currentDelay,
+    ));
+    saver.xferCoord3D({
+      x: entity.rallyPoint?.x ?? preservedState.rallyPoint.x,
+      y: preservedState.rallyPoint.y,
+      z: entity.rallyPoint?.z ?? preservedState.rallyPoint.z,
+    });
+    saver.xferBool(entity.rallyPoint !== null);
+    saver.xferReal(preservedState.creationClearDistance);
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(
+      entity.queueProductionExitBurstRemaining,
+      preservedState.currentBurstCount,
+    ));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceBaseOnlyUpdateModuleBlockData(currentFrame: number, active = true): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-base-only-update-module');
+  try {
+    saver.xferVersion(1);
+    xferSourceUpdateModuleBase(
+      saver,
+      buildSourceUpdateModuleWakeFrame(active ? currentFrame + 1 : SOURCE_FRAME_FOREVER),
+    );
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
 }
 
 function findLiveSourceFireWeaponUpdateProfileIndex(
@@ -9790,6 +9948,39 @@ function overlaySourceObjectModulesFromLiveEntity(
                 blockData: buildSourceDeployStyleAIUpdateBlockData(entity, parsedSourceState),
               };
             }
+          }
+          if (moduleType === 'DEFAULTPRODUCTIONEXITUPDATE' && entity.queueProductionExitProfile) {
+            const parsedSourceState = tryParseSourceProductionExitRallyBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceProductionExitRallyBlockData(entity, currentFrame, parsedSourceState, false),
+              };
+            }
+          }
+          if (moduleType === 'SUPPLYCENTERPRODUCTIONEXITUPDATE' && entity.queueProductionExitProfile) {
+            const parsedSourceState = tryParseSourceProductionExitRallyBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceProductionExitRallyBlockData(entity, currentFrame, parsedSourceState, false),
+              };
+            }
+          }
+          if (moduleType === 'QUEUEPRODUCTIONEXITUPDATE' && entity.queueProductionExitProfile) {
+            const parsedSourceState = tryParseSourceQueueProductionExitBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceQueueProductionExitBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'SPAWNPOINTPRODUCTIONEXITUPDATE' && entity.queueProductionExitProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceBaseOnlyUpdateModuleBlockData(currentFrame, false),
+            };
           }
           if (moduleType === 'FIRESTORMDYNAMICGEOMETRYINFOUPDATE' && entity.dynamicGeometryProfile) {
             const parsedSourceState = tryParseSourceFirestormDynamicGeometryInfoUpdateBlockData(module.blockData);
