@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 29;
+const ENTITY_XFER_VERSION = 30;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1961,6 +1961,15 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.lifetimeDieFrame = xferNullableInt(xfer, e.lifetimeDieFrame as number | null);
   e.heightDieProfile = xferNullableJsonObject(xfer, e.heightDieProfile as object | null);
   e.heightDieActiveFrame = xfer.xferInt(e.heightDieActiveFrame as number);
+  if (version >= 30) {
+    e.heightDieHasDied = xfer.xferBool(e.heightDieHasDied as boolean);
+    e.heightDieLastPositionX = xfer.xferReal(e.heightDieLastPositionX as number);
+    e.heightDieLastPositionZ = xfer.xferReal(e.heightDieLastPositionZ as number);
+  } else {
+    e.heightDieHasDied = false;
+    e.heightDieLastPositionX = 0;
+    e.heightDieLastPositionZ = 0;
+  }
   e.heightDieLastY = xfer.xferReal(e.heightDieLastY as number);
   if (version >= 26) {
     e.heightDieParticlesDestroyed = xfer.xferBool(e.heightDieParticlesDestroyed as boolean);

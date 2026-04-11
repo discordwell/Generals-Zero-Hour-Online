@@ -4108,9 +4108,16 @@ function buildSourceDeletionUpdateBlockData(entity: MapEntity): Uint8Array {
   }
 }
 
+type SourceHeightDieUpdateBlockState = {
+  hasDied: boolean;
+  particlesDestroyed: boolean;
+  lastPosition: { x: number; y: number; z: number };
+  earliestDeathFrame: number;
+};
+
 function tryParseSourceHeightDieUpdateBlockData(
   data: Uint8Array,
-): { particlesDestroyed: boolean } | null {
+): SourceHeightDieUpdateBlockState | null {
   const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
   xferLoad.open('parse-source-height-die-update');
   try {
@@ -4123,14 +4130,17 @@ function tryParseSourceHeightDieUpdateBlockData(
     xferLoad.xferVersion(1);
     xferLoad.xferVersion(1);
     xferLoad.xferUnsignedInt(0);
-    xferLoad.xferBool(false);
+    const hasDied = xferLoad.xferBool(false);
     const particlesDestroyed = xferLoad.xferBool(false);
-    xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
-    if (version >= 2) {
-      xferLoad.xferUnsignedInt(0);
-    }
+    const lastPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const earliestDeathFrame = version >= 2 ? xferLoad.xferUnsignedInt(0) : 0;
     return xferLoad.getRemaining() === 0
-      ? { particlesDestroyed }
+      ? {
+          hasDied,
+          particlesDestroyed,
+          lastPosition,
+          earliestDeathFrame,
+        }
       : null;
   } catch {
     return null;
@@ -4142,22 +4152,23 @@ function tryParseSourceHeightDieUpdateBlockData(
 function buildSourceHeightDieUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
+  preservedState?: SourceHeightDieUpdateBlockState,
 ): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-height-die-update');
   try {
     const earliestDeathFrame = entity.heightDieActiveFrame > 0
       ? (Math.max(0, Math.trunc(entity.heightDieActiveFrame)) >>> 0)
-      : 0xffffffff;
+      : (Math.max(0, Math.trunc(preservedState?.earliestDeathFrame ?? 0xffffffff)) >>> 0);
     saver.xferVersion(2);
     saver.xferUser(buildSourceUpdateModuleBaseBlockData(
       buildSourceUpdateModuleWakeFrame(currentFrame + 1),
     ));
-    saver.xferBool(entity.destroyed === true);
+    saver.xferBool(entity.heightDieHasDied === true);
     saver.xferBool(entity.heightDieParticlesDestroyed === true);
     saver.xferCoord3D({
-      x: entity.x,
-      y: entity.z,
+      x: Number.isFinite(entity.heightDieLastPositionX) ? entity.heightDieLastPositionX : entity.x,
+      y: Number.isFinite(entity.heightDieLastPositionZ) ? entity.heightDieLastPositionZ : entity.z,
       z: Number.isFinite(entity.heightDieLastY) ? entity.heightDieLastY : entity.y,
     });
     saver.xferUnsignedInt(earliestDeathFrame);
@@ -10431,7 +10442,7 @@ function overlaySourceObjectModulesFromLiveEntity(
             if (parsedSourceState) {
               return {
                 identifier: module.identifier,
-                blockData: buildSourceHeightDieUpdateBlockData(entity, currentFrame),
+                blockData: buildSourceHeightDieUpdateBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }

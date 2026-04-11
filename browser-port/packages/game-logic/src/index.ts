@@ -3982,7 +3982,13 @@ export interface MapEntity {
   heightDieProfile: HeightDieProfile | null;
   /** Frame after which height checks begin (accounts for InitialDelay). */
   heightDieActiveFrame: number;
-  /** Source parity: HeightDieUpdate — last-frame Y position for OnlyWhenMovingDown check. */
+  /** Source parity: HeightDieUpdate::m_hasDied. */
+  heightDieHasDied: boolean;
+  /** Source parity: HeightDieUpdate::m_lastPosition.x. */
+  heightDieLastPositionX: number;
+  /** Source parity: HeightDieUpdate::m_lastPosition.y mapped to TS horizontal Z. */
+  heightDieLastPositionZ: number;
+  /** Source parity: HeightDieUpdate::m_lastPosition.z mapped to TS vertical Y. */
   heightDieLastY: number;
   /** Source parity: HeightDieUpdate::m_particlesDestroyed. */
   heightDieParticlesDestroyed: boolean;
@@ -8831,6 +8837,14 @@ interface SourceLifetimeUpdateImportState {
 interface SourceDeletionUpdateImportState {
   nextCallFrame: number;
   dieFrame: number;
+}
+
+interface SourceHeightDieUpdateImportState {
+  nextCallFrame: number;
+  hasDied: boolean;
+  particlesDestroyed: boolean;
+  lastPosition: { x: number; y: number; z: number };
+  earliestDeathFrame: number;
 }
 
 interface SourceStealthUpdateImportState {
@@ -14502,6 +14516,80 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceHeightDieUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceHeightDieUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'HEIGHTDIEUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-height-die-update-import');
+    try {
+      const version = xfer.xferVersion(2);
+      if (version < 1 || version > 2) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const hasDied = xfer.xferBool(false);
+      const particlesDestroyed = xfer.xferBool(false);
+      const lastPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const earliestDeathFrame = version >= 2 ? xfer.xferUnsignedInt(0) : 0;
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            hasDied,
+            particlesDestroyed,
+            lastPosition,
+            earliestDeathFrame,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceHeightDieUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.heightDieProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const heightDieState = this.tryParseSourceHeightDieUpdateImportState(module.blockData, moduleType);
+      if (!heightDieState) {
+        continue;
+      }
+      entity.heightDieHasDied = heightDieState.hasDied;
+      entity.heightDieParticlesDestroyed = heightDieState.particlesDestroyed;
+      entity.heightDieLastPositionX = Number.isFinite(heightDieState.lastPosition.x)
+        ? heightDieState.lastPosition.x
+        : 0;
+      entity.heightDieLastPositionZ = Number.isFinite(heightDieState.lastPosition.y)
+        ? heightDieState.lastPosition.y
+        : 0;
+      entity.heightDieLastY = Number.isFinite(heightDieState.lastPosition.z)
+        ? heightDieState.lastPosition.z
+        : 0;
+      entity.heightDieActiveFrame = Math.max(0, Math.trunc(heightDieState.earliestDeathFrame));
+      return;
+    }
+  }
+
   private normalizeSourceObjectModuleType(moduleType: string): string {
     return moduleType.trim().toUpperCase();
   }
@@ -15474,6 +15562,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourcePhysicsBehaviorModulesToEntity(entity, sourceState);
     this.applySourceLifetimeUpdateModulesToEntity(entity, sourceState);
     this.applySourceDeletionUpdateModulesToEntity(entity, sourceState);
+    this.applySourceHeightDieUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
     this.applySourceBattlePlanUpdateModulesToEntity(entity, sourceState);
     this.applySourceStealthDetectorUpdateModulesToEntity(entity, sourceState);

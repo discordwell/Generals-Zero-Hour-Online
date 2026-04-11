@@ -624,6 +624,9 @@ export function createMapEntity(self: GL,
     // Height die
     heightDieProfile: extractHeightDieProfile(self, objectDef),
     heightDieActiveFrame: 0, // Set after first update.
+    heightDieHasDied: false,
+    heightDieLastPositionX: 0,
+    heightDieLastPositionZ: 0,
     heightDieLastY: 0,
     heightDieParticlesDestroyed: false,
     // Deletion

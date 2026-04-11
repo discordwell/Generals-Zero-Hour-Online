@@ -679,6 +679,8 @@ export function updateHeightDieEntities(self: GL): void {
     // Source parity: skip if contained (inside transport).
     // C++ line 131: m_lastPosition is still updated while contained.
     if (self.isEntityContained(entity)) {
+      entity.heightDieLastPositionX = entity.x;
+      entity.heightDieLastPositionZ = entity.z;
       entity.heightDieLastY = entity.y;
       continue;
     }
@@ -686,6 +688,8 @@ export function updateHeightDieEntities(self: GL): void {
     // Source parity: InitialDelay — don't check until delay expires.
     if (entity.heightDieActiveFrame === 0) {
       entity.heightDieActiveFrame = self.frameCounter + prof.initialDelayFrames;
+      entity.heightDieLastPositionX = entity.x;
+      entity.heightDieLastPositionZ = entity.z;
       entity.heightDieLastY = entity.y;
     }
     if (self.frameCounter < entity.heightDieActiveFrame) continue;
@@ -747,7 +751,7 @@ export function updateHeightDieEntities(self: GL): void {
     }
 
     // Source parity: C++ line 224 — death check gated on directionOK.
-    if (directionOK) {
+    if (!entity.heightDieHasDied && directionOK) {
       // Source parity: C++ uses raw pos->z (entity.y), not adjusted by baseHeight.
       if (entity.y < targetHeight) {
         // Source parity: C++ line 229 — snap if configured, or if entity position is below terrain.
@@ -757,18 +761,21 @@ export function updateHeightDieEntities(self: GL): void {
         }
         // Source parity: kill via UNRESISTABLE damage (same as LifetimeUpdate).
         self.applyWeaponDamageAmount(null, entity, entity.maxHealth, 'UNRESISTABLE');
+        entity.heightDieHasDied = true;
       }
     }
 
     if (
       !entity.heightDieParticlesDestroyed
       && entity.y < prof.destroyAttachedParticlesAtHeight
-      && (entity.destroyed || directionOK)
+      && (entity.heightDieHasDied || directionOK)
     ) {
       entity.heightDieParticlesDestroyed = true;
     }
 
     // Source parity: C++ line 266 — always update lastPosition at end of update.
+    entity.heightDieLastPositionX = entity.x;
+    entity.heightDieLastPositionZ = entity.z;
     entity.heightDieLastY = currentY;
   }
 }

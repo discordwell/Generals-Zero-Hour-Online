@@ -216,6 +216,16 @@ function makeSourceOwnedCoreBundle() {
           MaxLifetime: 1000,
         }),
       ]),
+      makeObjectDef('HeightDieUnit', 'America', ['AIRCRAFT'], [
+        makeBlock('Behavior', 'HeightDieUpdate ModuleTag_HeightDie', {
+          TargetHeight: 50,
+          TargetHeightIncludesStructures: false,
+          OnlyWhenMovingDown: false,
+          DestroyAttachedParticlesAtHeight: 20,
+          SnapToGroundOnDeath: false,
+          InitialDelay: 1000,
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -1163,6 +1173,32 @@ function buildSourceDeletionUpdateModuleData(options: {
     saver.xferVersion(1);
     saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
     saver.xferUnsignedInt(options.dieFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceHeightDieUpdateModuleData(options: {
+  nextCallFrame: number;
+  hasDied: boolean;
+  particlesDestroyed: boolean;
+  lastPosition: { x: number; y: number; z: number };
+  earliestDeathFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-height-die-update');
+  try {
+    saver.xferVersion(2);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferBool(options.hasDied);
+    saver.xferBool(options.particlesDestroyed);
+    saver.xferCoord3D(options.lastPosition);
+    saver.xferUnsignedInt(options.earliestDeathFrame);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2682,6 +2718,58 @@ describe('source-owned game-logic core save-state', () => {
     };
 
     expect(privateLogic.spawnedEntities.get(104)!.deletionDieFrame).toBe(444);
+  });
+
+  it('imports source HeightDieUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 105;
+    sourceState.position = { x: 184, y: 0, z: 64 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_HeightDie',
+      blockData: buildSourceHeightDieUpdateModuleData({
+        nextCallFrame: 555,
+        hasDied: true,
+        particlesDestroyed: true,
+        lastPosition: { x: 5, y: 6, z: 7 },
+        earliestDeathFrame: 260,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 180,
+      objects: [
+        { templateName: 'HeightDieUnit', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        heightDieActiveFrame: number;
+        heightDieHasDied: boolean;
+        heightDieLastPositionX: number;
+        heightDieLastPositionZ: number;
+        heightDieLastY: number;
+        heightDieParticlesDestroyed: boolean;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(105)!;
+    expect(entity.heightDieActiveFrame).toBe(260);
+    expect(entity.heightDieHasDied).toBe(true);
+    expect(entity.heightDieParticlesDestroyed).toBe(true);
+    expect(entity.heightDieLastPositionX).toBe(5);
+    expect(entity.heightDieLastPositionZ).toBe(6);
+    expect(entity.heightDieLastY).toBe(7);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {
