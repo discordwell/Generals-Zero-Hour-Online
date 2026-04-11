@@ -10826,6 +10826,31 @@ describe('runtime-save-game', () => {
                 transitionFinishFrame: 88,
                 idleCooldownFinishFrame: 0,
               },
+              slavedUpdateProfile: { guardMaxRange: 30 },
+              slaverEntityId: 621,
+              slaveGuardOffsetX: 1.5,
+              slaveGuardOffsetZ: 2.5,
+              slavedNextUpdateFrame: 50,
+              parkingPlaceProfile: {
+                totalSpaces: 2,
+                occupiedSpaceEntityIds: new Set([622]),
+                reservedProductionIds: new Set(),
+                spaceOccupantIds: [0, 623],
+                spaceReservedForExit: [false, true],
+                spaceReservedProductionIds: [null, null],
+                runwayInUseByIds: [624],
+                runwayNextInLineForTakeoffIds: [625],
+                runwayWasInLine: [true],
+                healAmountPerSecond: 10,
+                approachHeight: 25,
+                hasRunways: true,
+                parkInHangars: false,
+                healeeEntityIds: new Set([626]),
+                healeeStates: [{ entityId: 627, healStartFrame: 39 }],
+                nextHealFrame: 83,
+                heliRallyPoint: { x: 44, y: 45, z: 46 },
+                heliRallyPointExists: true,
+              },
               rebuildHoleProfile: {
                 workerObjectName: 'ChinaDozer',
                 workerRespawnDelay: 30,
@@ -10863,6 +10888,15 @@ describe('runtime-save-game', () => {
               bridgeTowerState: {
                 bridgeEntityId: 614,
                 towerType: 2,
+              },
+              bridgeScaffoldState: {
+                targetMotion: 2,
+                createPos: { x: 101, y: 103, z: 102 },
+                riseToPos: { x: 104, y: 106, z: 105 },
+                buildPos: { x: 107, y: 109, z: 108 },
+                lateralSpeed: 1.5,
+                verticalSpeed: 2.5,
+                targetPos: { x: 110, y: 112, z: 111 },
               },
               specialPowerCompletionCreatorId: 615,
               specialPowerCompletionCreatorSet: true,
@@ -11073,6 +11107,7 @@ describe('runtime-save-game', () => {
               { moduleType: 'TransportContain', moduleTag: 'ModuleTag_Contain' },
               { moduleType: 'ProductionUpdate', moduleTag: 'ModuleTag_Production' },
               { moduleType: 'BattlePlanUpdate', moduleTag: 'ModuleTag_BattlePlan' },
+              { moduleType: 'SlavedUpdate', moduleTag: 'ModuleTag_Slaved' },
               { moduleType: 'OverchargeBehavior', moduleTag: 'ModuleTag_Overcharge' },
               { moduleType: 'AutoHealBehavior', moduleTag: 'ModuleTag_AutoHeal' },
               { moduleType: 'GrantStealthBehavior', moduleTag: 'ModuleTag_GrantStealth' },
@@ -11144,6 +11179,8 @@ describe('runtime-save-game', () => {
               { moduleType: 'PropagandaTowerBehavior', moduleTag: 'ModuleTag_PropagandaTower' },
               { moduleType: 'BridgeBehavior', moduleTag: 'ModuleTag_Bridge' },
               { moduleType: 'BridgeTowerBehavior', moduleTag: 'ModuleTag_BridgeTower' },
+              { moduleType: 'BridgeScaffoldBehavior', moduleTag: 'ModuleTag_BridgeScaffold' },
+              { moduleType: 'ParkingPlaceBehavior', moduleTag: 'ModuleTag_Parking' },
               { moduleType: 'SpecialPowerCompletionDie', moduleTag: 'ModuleTag_CompletionDie' },
               { moduleType: 'TensileFormationUpdate', moduleTag: 'ModuleTag_Tensile' },
               { moduleType: 'SpectreGunshipDeploymentUpdate', moduleTag: 'ModuleTag_SpectreDeploy' },
@@ -11193,6 +11230,7 @@ describe('runtime-save-game', () => {
       'ModuleTag_Contain',
       'ModuleTag_Production',
       'ModuleTag_BattlePlan',
+      'ModuleTag_Slaved',
       'ModuleTag_Overcharge',
       'ModuleTag_AutoHeal',
       'ModuleTag_GrantStealth',
@@ -11264,6 +11302,8 @@ describe('runtime-save-game', () => {
       'ModuleTag_PropagandaTower',
       'ModuleTag_Bridge',
       'ModuleTag_BridgeTower',
+      'ModuleTag_BridgeScaffold',
+      'ModuleTag_Parking',
       'ModuleTag_CompletionDie',
       'ModuleTag_Tensile',
       'ModuleTag_SpectreDeploy',
@@ -11357,6 +11397,15 @@ describe('runtime-save-game', () => {
     expect(battlePlan.validKindOf).toEqual(['INFANTRY']);
     expect(battlePlan.invalidKindOf).toEqual(['AIRCRAFT']);
     expect(battlePlan.visionObjectId).toBe(0);
+    const slavedModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Slaved');
+    expect(parseSourceSlavedUpdateBlockData(slavedModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      slaver: 621,
+      guardPointOffset: { x: 1.5, y: 2.5, z: 0 },
+      framesToWait: 8,
+      repairState: 0,
+      repairing: false,
+    });
     const overchargeModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Overcharge');
     expect(parseSourceOverchargeBehaviorBlockData(overchargeModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (43 << 2) | 2,
@@ -11971,6 +12020,35 @@ describe('runtime-save-game', () => {
     expect(parseSourceBridgeTowerBehaviorBlockData(bridgeTowerModule!.blockData)).toEqual({
       bridgeId: 614,
       towerType: 2,
+    });
+    const bridgeScaffoldModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_BridgeScaffold',
+    );
+    expect(parseSourceBridgeScaffoldBehaviorBlockData(bridgeScaffoldModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      targetMotion: 2,
+      createPos: { x: 101, y: 102, z: 103 },
+      riseToPos: { x: 104, y: 105, z: 106 },
+      buildPos: { x: 107, y: 108, z: 109 },
+      lateralSpeed: 1.5,
+      verticalSpeed: 2.5,
+      targetPos: { x: 110, y: 111, z: 112 },
+    });
+    const parkingModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Parking');
+    expect(parseSourceParkingPlaceBehaviorBlockData(parkingModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      spaces: [
+        { occupantId: 622, reservedForExit: false },
+        { occupantId: 623, reservedForExit: true },
+      ],
+      runways: [{ inUseBy: 624, nextInLineForTakeoff: 625, wasInLine: true }],
+      healees: [
+        { entityId: 627, healStartFrame: 39 },
+        { entityId: 626, healStartFrame: 42 },
+      ],
+      heliRallyPoint: { x: 44, y: 45, z: 46 },
+      heliRallyPointExists: true,
+      nextHealFrame: 83,
     });
     const completionDieModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_CompletionDie');
     expect(parseSourceSpecialPowerCompletionDieBlockData(completionDieModule!.blockData)).toEqual({

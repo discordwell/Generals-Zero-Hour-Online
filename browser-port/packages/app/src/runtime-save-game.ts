@@ -10177,6 +10177,20 @@ function buildSourceParkingPlaceBehaviorBlockData(
   }
 }
 
+function createDefaultSourceParkingPlaceBehaviorBlockState(
+  currentFrame: number,
+): SourceParkingPlaceBehaviorBlockState {
+  return {
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    spaces: [],
+    runways: [],
+    healees: [],
+    heliRallyPoint: { x: 0, y: 0, z: 0 },
+    heliRallyPointExists: false,
+    nextHealFrame: SOURCE_FRAME_FOREVER,
+  };
+}
+
 function tryParseSourceFlightDeckBehaviorBlockData(data: Uint8Array): SourceFlightDeckBehaviorBlockState | null {
   if (data.byteLength < 78 || data[0] !== 1) {
     return null;
@@ -10461,6 +10475,19 @@ function buildSourceBridgeScaffoldBehaviorBlockData(
   } finally {
     saver.close();
   }
+}
+
+function createDefaultSourceBridgeScaffoldBehaviorBlockState(): SourceBridgeScaffoldBehaviorBlockState {
+  return {
+    nextCallFrameAndPhase: 0,
+    targetMotion: 0,
+    createPos: { x: 0, y: 0, z: 0 },
+    riseToPos: { x: 0, y: 0, z: 0 },
+    buildPos: { x: 0, y: 0, z: 0 },
+    lateralSpeed: 1,
+    verticalSpeed: 1,
+    targetPos: { x: 0, y: 0, z: 0 },
+  };
 }
 
 function tryParseSourceBaseOnlyUpdateModuleBlockData(
@@ -14354,6 +14381,18 @@ function buildSourceSlavedUpdateBlockData(
   }
 }
 
+function createDefaultSourceSlavedUpdateBlockState(): SourceSlavedUpdateBlockState {
+  return {
+    version: 1,
+    nextCallFrameAndPhase: 0,
+    slaver: 0,
+    guardPointOffset: { x: 0, y: 0, z: 0 },
+    framesToWait: 0,
+    repairState: 0,
+    repairing: false,
+  };
+}
+
 function buildSourceMobMemberSlavedUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -17824,6 +17863,14 @@ function buildGeneratedSourceObjectModuleBlockData(
     );
   }
 
+  if (normalizedModuleType === 'SLAVEDUPDATE' && entity.slavedUpdateProfile) {
+    return buildSourceSlavedUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceSlavedUpdateBlockState(),
+    );
+  }
+
   if (normalizedModuleType === 'DEFAULTPRODUCTIONEXITUPDATE' && entity.queueProductionExitProfile) {
     return buildSourceProductionExitRallyBlockData(
       entity,
@@ -17885,6 +17932,22 @@ function buildGeneratedSourceObjectModuleBlockData(
     return buildSourceBridgeTowerBehaviorBlockData(
       entity,
       createDefaultSourceBridgeTowerBehaviorBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'BRIDGESCAFFOLDBEHAVIOR' && entity.bridgeScaffoldState) {
+    return buildSourceBridgeScaffoldBehaviorBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceBridgeScaffoldBehaviorBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'PARKINGPLACEBEHAVIOR' && entity.parkingPlaceProfile) {
+    return buildSourceParkingPlaceBehaviorBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceParkingPlaceBehaviorBlockState(currentFrame),
     );
   }
 
