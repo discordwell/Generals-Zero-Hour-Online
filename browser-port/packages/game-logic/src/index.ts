@@ -8675,6 +8675,26 @@ interface SourceMobMemberSlavedUpdateImportState {
   catchUpCrisisTimer: number;
 }
 
+interface SourceAutoHealBehaviorImportState {
+  nextCallFrame: number;
+  soonestHealFrame: number;
+  stopped: boolean;
+}
+
+interface SourceGrantStealthBehaviorImportState {
+  currentScanRadius: number;
+}
+
+interface SourceCountermeasuresBehaviorImportState {
+  flareIds: number[];
+  availableCountermeasures: number;
+  activeCountermeasures: number;
+  divertedMissiles: number;
+  incomingMissiles: number;
+  reactionFrame: number;
+  nextVolleyFrame: number;
+}
+
 interface SourceSpecialPowerModuleImportState {
   availableOnFrame: number;
   pausedCount: number;
@@ -12800,7 +12820,7 @@ export class GameLogicSubsystem implements Subsystem {
     return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getInt32(0, true);
   }
 
-  private skipSourceImportUpdateModuleBase(xfer: XferLoad): void {
+  private skipSourceImportUpdateModuleBase(xfer: XferLoad): number {
     const updateModuleVersion = xfer.xferVersion(1);
     const behaviorModuleVersion = xfer.xferVersion(1);
     const objectModuleVersion = xfer.xferVersion(1);
@@ -12813,7 +12833,7 @@ export class GameLogicSubsystem implements Subsystem {
     ) {
       throw new Error('Unsupported source UpdateModule import base version.');
     }
-    xfer.xferUnsignedInt(0);
+    return xfer.xferUnsignedInt(0);
   }
 
   private skipSourceImportBehaviorModuleBase(xfer: XferLoad): void {
@@ -12823,6 +12843,10 @@ export class GameLogicSubsystem implements Subsystem {
     if (behaviorModuleVersion !== 1 || objectModuleVersion !== 1 || moduleVersion !== 1) {
       throw new Error('Unsupported source BehaviorModule import base version.');
     }
+  }
+
+  private sourceImportUpdateFrameFromFrameAndPhase(value: number): number {
+    return Math.max(0, Math.trunc(value) >>> 2);
   }
 
   private xferSourceImportStringBitFlags(xfer: XferLoad): string[] {
@@ -13542,6 +13566,161 @@ export class GameLogicSubsystem implements Subsystem {
           mobState: Math.trunc(mobState.mobState),
         };
         return;
+      }
+    }
+  }
+
+  private tryParseSourceAutoHealBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceAutoHealBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'AUTOHEALBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-auto-heal-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const upgradeMuxVersion = xfer.xferVersion(1);
+      if (upgradeMuxVersion !== 1) {
+        return null;
+      }
+      xfer.xferBool(false);
+      xfer.xferUnsignedInt(0);
+      const soonestHealFrame = xfer.xferUnsignedInt(0);
+      const stopped = xfer.xferBool(false);
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, soonestHealFrame, stopped }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceGrantStealthBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceGrantStealthBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'GRANTSTEALTHBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-grant-stealth-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      this.skipSourceImportUpdateModuleBase(xfer);
+      xfer.xferUnsignedInt(0);
+      const currentScanRadius = xfer.xferReal(0);
+      return xfer.getRemaining() === 0 ? { currentScanRadius } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceCountermeasuresBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceCountermeasuresBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'COUNTERMEASURESBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-countermeasures-behavior-import');
+    try {
+      const version = xfer.xferVersion(2);
+      if (version < 1 || version > 2) {
+        return null;
+      }
+      this.skipSourceImportUpdateModuleBase(xfer);
+      const upgradeMuxVersion = xfer.xferVersion(1);
+      if (upgradeMuxVersion !== 1) {
+        return null;
+      }
+      xfer.xferBool(false);
+      const flareIds = xfer.xferObjectIDList([]);
+      const availableCountermeasures = xfer.xferUnsignedInt(0);
+      const activeCountermeasures = xfer.xferUnsignedInt(0);
+      const divertedMissiles = xfer.xferUnsignedInt(0);
+      const incomingMissiles = xfer.xferUnsignedInt(0);
+      const reactionFrame = xfer.xferUnsignedInt(0);
+      const nextVolleyFrame = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? {
+          flareIds,
+          availableCountermeasures,
+          activeCountermeasures,
+          divertedMissiles,
+          incomingMissiles,
+          reactionFrame,
+          nextVolleyFrame,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceSupportBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+
+      const autoHealState = this.tryParseSourceAutoHealBehaviorImportState(module.blockData, moduleType);
+      if (autoHealState && entity.autoHealProfile) {
+        entity.autoHealNextFrame = Math.max(0, Math.trunc(autoHealState.nextCallFrame));
+        entity.autoHealSoonestHealFrame = Math.max(0, Math.trunc(autoHealState.soonestHealFrame));
+        entity.autoHealStopped = autoHealState.stopped;
+        continue;
+      }
+
+      const grantStealthState = this.tryParseSourceGrantStealthBehaviorImportState(module.blockData, moduleType);
+      if (grantStealthState && entity.grantStealthProfile) {
+        entity.grantStealthCurrentRadius = Number.isFinite(grantStealthState.currentScanRadius)
+          ? grantStealthState.currentScanRadius
+          : entity.grantStealthCurrentRadius;
+        continue;
+      }
+
+      const countermeasuresState = this.tryParseSourceCountermeasuresBehaviorImportState(module.blockData, moduleType);
+      if (countermeasuresState && entity.countermeasuresProfile) {
+        entity.countermeasuresState = {
+          availableCountermeasures: Math.max(0, Math.trunc(countermeasuresState.availableCountermeasures)),
+          activeCountermeasures: Math.max(0, Math.trunc(countermeasuresState.activeCountermeasures)),
+          flareIds: countermeasuresState.flareIds
+            .map((id) => Math.max(0, Math.trunc(id)))
+            .filter((id) => id > 0),
+          reactionFrame: Math.max(0, Math.trunc(countermeasuresState.reactionFrame)),
+          nextVolleyFrame: Math.max(0, Math.trunc(countermeasuresState.nextVolleyFrame)),
+          reloadFrame: 0,
+          incomingMissiles: Math.max(0, Math.trunc(countermeasuresState.incomingMissiles)),
+          divertedMissiles: Math.max(0, Math.trunc(countermeasuresState.divertedMissiles)),
+        };
       }
     }
   }
@@ -14455,6 +14634,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceDockModulesToEntity(entity, sourceState);
     this.applySourceSpawnBehaviorModulesToEntity(entity, sourceState);
     this.applySourceSlavedUpdateModulesToEntity(entity, sourceState);
+    this.applySourceSupportBehaviorModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
     this.applySourceBattlePlanUpdateModulesToEntity(entity, sourceState);
     this.applySourceStealthModulesToEntity(entity, sourceState);

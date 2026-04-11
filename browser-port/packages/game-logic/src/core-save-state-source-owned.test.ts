@@ -125,6 +125,33 @@ function makeSourceOwnedCoreBundle() {
           CatchUpCrisisBailTime: 25,
         }),
       ]),
+      makeObjectDef('AutoHealer', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'AutoHealBehavior ModuleTag_AutoHeal', {
+          StartsActive: true,
+          HealingAmount: 10,
+          HealingDelay: 1000,
+          StartHealingDelay: 500,
+        }),
+      ]),
+      makeObjectDef('StealthGrantingUnit', 'GLA', ['VEHICLE'], [
+        makeBlock('Behavior', 'GrantStealthBehavior ModuleTag_GrantStealth', {
+          StartRadius: 5,
+          FinalRadius: 80,
+          RadiusGrowRate: 10,
+          KindOf: 'INFANTRY VEHICLE',
+        }),
+      ]),
+      makeObjectDef('CountermeasureJet', 'America', ['AIRCRAFT'], [
+        makeBlock('Behavior', 'CountermeasuresBehavior ModuleTag_Countermeasures', {
+          FlareTemplateName: 'CountermeasureFlare',
+          VolleySize: 2,
+          NumberOfVolleys: 3,
+          DelayBetweenVolleys: 1000,
+          ReloadTime: 5000,
+          EvasionRate: 50,
+        }),
+      ]),
+      makeObjectDef('CountermeasureFlare', 'America', ['PROJECTILE'], []),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -142,6 +169,10 @@ function sourceRawInt32(value: number): Uint8Array {
   const bytes = new Uint8Array(4);
   new DataView(bytes.buffer).setInt32(0, Math.trunc(value), true);
   return bytes;
+}
+
+function sourceUpdateFrameAndPhase(frame: number): number {
+  return Math.max(0, Math.trunc(frame)) << 2;
 }
 
 function writeSourceStringBitFlags(saver: XferSave, flags: string[]): void {
@@ -722,6 +753,90 @@ function buildSourceMobMemberSlavedUpdateModuleData(options: {
     saver.xferReal(0.5);
     saver.xferBool(options.isSelfTasking);
     saver.xferUnsignedInt(options.catchUpCrisisTimer);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceAutoHealBehaviorModuleData(options: {
+  nextCallFrame: number;
+  upgradeExecuted: boolean;
+  radiusParticleSystemId: number;
+  soonestHealFrame: number;
+  stopped: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-auto-heal-behavior');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferVersion(1);
+    saver.xferBool(options.upgradeExecuted);
+    saver.xferUnsignedInt(options.radiusParticleSystemId);
+    saver.xferUnsignedInt(options.soonestHealFrame);
+    saver.xferBool(options.stopped);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceGrantStealthBehaviorModuleData(options: {
+  nextCallFrame: number;
+  radiusParticleSystemId: number;
+  currentScanRadius: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-grant-stealth-behavior');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUnsignedInt(options.radiusParticleSystemId);
+    saver.xferReal(options.currentScanRadius);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceCountermeasuresBehaviorModuleData(options: {
+  nextCallFrame: number;
+  upgradeExecuted: boolean;
+  flareIds: number[];
+  availableCountermeasures: number;
+  activeCountermeasures: number;
+  divertedMissiles: number;
+  incomingMissiles: number;
+  reactionFrame: number;
+  nextVolleyFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-countermeasures-behavior');
+  try {
+    saver.xferVersion(2);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferVersion(1);
+    saver.xferBool(options.upgradeExecuted);
+    saver.xferObjectIDList(options.flareIds);
+    saver.xferUnsignedInt(options.availableCountermeasures);
+    saver.xferUnsignedInt(options.activeCountermeasures);
+    saver.xferUnsignedInt(options.divertedMissiles);
+    saver.xferUnsignedInt(options.incomingMissiles);
+    saver.xferUnsignedInt(options.reactionFrame);
+    saver.xferUnsignedInt(options.nextVolleyFrame);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -1593,6 +1708,119 @@ describe('source-owned game-logic core save-state', () => {
       primaryVictimId: 83,
       isSelfTasking: true,
       mobState: 1,
+    });
+  });
+
+  it('imports source AutoHeal, GrantStealth, and Countermeasures runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const autoHealState = createEmptySourceMapEntitySaveState();
+    autoHealState.objectId = 90;
+    autoHealState.position = { x: 120, y: 0, z: 60 };
+    autoHealState.modules = [{
+      identifier: 'ModuleTag_AutoHeal',
+      blockData: buildSourceAutoHealBehaviorModuleData({
+        nextCallFrame: 240,
+        upgradeExecuted: true,
+        radiusParticleSystemId: 17,
+        soonestHealFrame: 260,
+        stopped: true,
+      }),
+    }];
+
+    const grantStealthState = createEmptySourceMapEntitySaveState();
+    grantStealthState.objectId = 91;
+    grantStealthState.position = { x: 124, y: 0, z: 60 };
+    grantStealthState.modules = [{
+      identifier: 'ModuleTag_GrantStealth',
+      blockData: buildSourceGrantStealthBehaviorModuleData({
+        nextCallFrame: 241,
+        radiusParticleSystemId: 18,
+        currentScanRadius: 42.5,
+      }),
+    }];
+
+    const countermeasureState = createEmptySourceMapEntitySaveState();
+    countermeasureState.objectId = 92;
+    countermeasureState.position = { x: 128, y: 0, z: 60 };
+    countermeasureState.modules = [{
+      identifier: 'ModuleTag_Countermeasures',
+      blockData: buildSourceCountermeasuresBehaviorModuleData({
+        nextCallFrame: 242,
+        upgradeExecuted: true,
+        flareIds: [93, 94],
+        availableCountermeasures: 3,
+        activeCountermeasures: 2,
+        divertedMissiles: 4,
+        incomingMissiles: 5,
+        reactionFrame: 250,
+        nextVolleyFrame: 270,
+      }),
+    }];
+
+    const flareAState = createEmptySourceMapEntitySaveState();
+    flareAState.objectId = 93;
+    flareAState.position = { x: 130, y: 0, z: 60 };
+    const flareBState = createEmptySourceMapEntitySaveState();
+    flareBState.objectId = 94;
+    flareBState.position = { x: 132, y: 0, z: 60 };
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 140,
+      objects: [
+        { templateName: 'AutoHealer', state: autoHealState },
+        { templateName: 'StealthGrantingUnit', state: grantStealthState },
+        { templateName: 'CountermeasureJet', state: countermeasureState },
+        { templateName: 'CountermeasureFlare', state: flareAState },
+        { templateName: 'CountermeasureFlare', state: flareBState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        autoHealNextFrame: number;
+        autoHealSoonestHealFrame: number;
+        autoHealStopped: boolean;
+        grantStealthCurrentRadius: number;
+        countermeasuresState: {
+          availableCountermeasures: number;
+          activeCountermeasures: number;
+          flareIds: number[];
+          reactionFrame: number;
+          nextVolleyFrame: number;
+          reloadFrame: number;
+          incomingMissiles: number;
+          divertedMissiles: number;
+        } | null;
+      }>;
+    };
+
+    const autoHeal = privateLogic.spawnedEntities.get(90)!;
+    expect(autoHeal.autoHealNextFrame).toBe(240);
+    expect(autoHeal.autoHealSoonestHealFrame).toBe(260);
+    expect(autoHeal.autoHealStopped).toBe(true);
+
+    const grantStealth = privateLogic.spawnedEntities.get(91)!;
+    expect(grantStealth.grantStealthCurrentRadius).toBeCloseTo(42.5);
+
+    const countermeasures = privateLogic.spawnedEntities.get(92)!.countermeasuresState!;
+    expect(countermeasures).toEqual({
+      availableCountermeasures: 3,
+      activeCountermeasures: 2,
+      flareIds: [93, 94],
+      reactionFrame: 250,
+      nextVolleyFrame: 270,
+      reloadFrame: 0,
+      incomingMissiles: 5,
+      divertedMissiles: 4,
     });
   });
 
