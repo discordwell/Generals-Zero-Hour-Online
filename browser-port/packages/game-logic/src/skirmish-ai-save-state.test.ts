@@ -54,4 +54,30 @@ describe('skirmish AI save-state', () => {
     expect(privateLogic.skirmishAIStates.get('america')?.builtStructureKeywords.has('PATRIOT')).toBe(true);
     expect(privateLogic.skirmishAIStates.get('america')?.lastAttackCheckFrame).toBe(240);
   });
+
+  it('hydrates source AIPlayer skirmish markers into active skirmish AI runtime', () => {
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.restoreSourcePlayerRuntimeSaveState({
+      version: 1,
+      state: {
+        skirmishAIStates: new Map([
+          ['America', {}],
+        ]),
+      },
+    });
+
+    const privateLogic = logic as unknown as {
+      skirmishAIStates: Map<string, {
+        enabled: boolean;
+        side: string;
+        builtStructureKeywords: Set<string>;
+        scoutWaypoints: Array<{ x: number; z: number }>;
+      }>;
+    };
+    const restoredState = privateLogic.skirmishAIStates.get('america');
+    expect(restoredState?.enabled).toBe(true);
+    expect(restoredState?.side).toBe('america');
+    expect(restoredState?.builtStructureKeywords).toBeInstanceOf(Set);
+    expect(restoredState?.scoutWaypoints).toEqual([]);
+  });
 });

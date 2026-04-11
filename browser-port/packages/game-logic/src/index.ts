@@ -11783,6 +11783,120 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private normalizeNumberSet(value: unknown): Set<number> {
+    const values = value instanceof Set
+      ? [...value]
+      : Array.isArray(value)
+        ? value
+        : [];
+    return new Set(values.flatMap((entry) =>
+      Number.isFinite(entry) ? [Math.trunc(entry as number)] : []));
+  }
+
+  private normalizeStringSet(value: unknown): Set<string> {
+    const values = value instanceof Set
+      ? [...value]
+      : Array.isArray(value)
+        ? value
+        : [];
+    return new Set(values.flatMap((entry) =>
+      typeof entry === 'string' && entry.trim().length > 0
+        ? [entry.trim().toUpperCase()]
+        : []));
+  }
+
+  private normalizeSkirmishWaypointArray(value: unknown): Array<{ x: number; z: number }> {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value.flatMap((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        return [];
+      }
+      const point = entry as { x?: unknown; z?: unknown };
+      const x = Number(point.x);
+      const z = Number(point.z);
+      return Number.isFinite(x) && Number.isFinite(z) ? [{ x, z }] : [];
+    });
+  }
+
+  private hydrateSkirmishAIState(side: string, value: unknown): SkirmishAIState {
+    const normalizedSide = this.normalizeSide(side) ?? side;
+    const defaults = createSkirmishAIStateImpl(normalizedSide);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return defaults;
+    }
+
+    const record = value as Record<string, unknown>;
+    const numberField = <K extends keyof SkirmishAIState>(key: K): number => {
+      const numeric = Number(record[key as string]);
+      const fallback = defaults[key];
+      return Number.isFinite(numeric) && typeof fallback === 'number'
+        ? numeric
+        : Number(fallback);
+    };
+    const boolField = <K extends keyof SkirmishAIState>(key: K): boolean => {
+      const valueAtKey = record[key as string];
+      const fallback = defaults[key];
+      return typeof valueAtKey === 'boolean' && typeof fallback === 'boolean'
+        ? valueAtKey
+        : Boolean(fallback);
+    };
+
+    return {
+      ...defaults,
+      ...record,
+      side: typeof record.side === 'string' && record.side.trim().length > 0
+        ? (this.normalizeSide(record.side) ?? record.side.trim())
+        : defaults.side,
+      enabled: boolField('enabled'),
+      lastEconomyFrame: Math.max(0, Math.trunc(numberField('lastEconomyFrame'))),
+      lastProductionFrame: Math.max(0, Math.trunc(numberField('lastProductionFrame'))),
+      lastCombatFrame: Math.max(0, Math.trunc(numberField('lastCombatFrame'))),
+      lastStructureFrame: Math.max(0, Math.trunc(numberField('lastStructureFrame'))),
+      lastDefenseFrame: Math.max(0, Math.trunc(numberField('lastDefenseFrame'))),
+      lastScoutFrame: Math.max(0, Math.trunc(numberField('lastScoutFrame'))),
+      lastPowerFrame: Math.max(0, Math.trunc(numberField('lastPowerFrame'))),
+      lastUpgradeFrame: Math.max(0, Math.trunc(numberField('lastUpgradeFrame'))),
+      lastScienceFrame: Math.max(0, Math.trunc(numberField('lastScienceFrame'))),
+      lastDozerFrame: Math.max(0, Math.trunc(numberField('lastDozerFrame'))),
+      rallyX: numberField('rallyX'),
+      rallyZ: numberField('rallyZ'),
+      enemyBaseX: numberField('enemyBaseX'),
+      enemyBaseZ: numberField('enemyBaseZ'),
+      enemyBaseKnown: boolField('enemyBaseKnown'),
+      attackWavesSent: Math.max(0, Math.trunc(numberField('attackWavesSent'))),
+      buildOrderPhase: Math.max(0, Math.trunc(numberField('buildOrderPhase'))),
+      scoutEntityId: Math.trunc(numberField('scoutEntityId')),
+      scoutWaypoints: this.normalizeSkirmishWaypointArray(record.scoutWaypoints),
+      scoutWaypointIndex: Math.max(0, Math.trunc(numberField('scoutWaypointIndex'))),
+      lastBaseThreatFrame: Math.max(0, Math.trunc(numberField('lastBaseThreatFrame'))),
+      builtStructureKeywords: this.normalizeStringSet(record.builtStructureKeywords),
+      lastEnemyVehicleRatio: numberField('lastEnemyVehicleRatio'),
+      productionRotationIndex: Math.max(0, Math.trunc(numberField('productionRotationIndex'))),
+      queuedUpgrades: this.normalizeStringSet(record.queuedUpgrades),
+      purchasedSciences: this.normalizeStringSet(record.purchasedSciences),
+      rallyPointEntities: this.normalizeNumberSet(record.rallyPointEntities),
+      lastSpecialPowerFrame: Math.max(0, Math.trunc(numberField('lastSpecialPowerFrame'))),
+    };
+  }
+
+  private normalizeSkirmishAIStates(): void {
+    if (!(this.skirmishAIStates instanceof Map)) {
+      return;
+    }
+
+    const entries = [...this.skirmishAIStates.entries()];
+    this.skirmishAIStates.clear();
+    for (const [side, aiState] of entries) {
+      if (typeof side !== 'string' || side.trim().length === 0) {
+        continue;
+      }
+      const normalizedSide = this.normalizeSide(side) ?? side.trim();
+      this.skirmishAIStates.set(normalizedSide, this.hydrateSkirmishAIState(normalizedSide, aiState));
+    }
+  }
+
   private rebuildBridgeRuntimeIndexesFromSegments(): void {
     this.bridgeSegmentByControlEntity.clear();
     this.bridgeSegmentIdsByCell.clear();
@@ -13715,6 +13829,7 @@ export class GameLogicSubsystem implements Subsystem {
 
     const runtimeState = snapshot.state as Record<string, unknown>;
     this.restoreSourceRuntimeStateByKeys(SOURCE_PLAYER_RUNTIME_STATE_KEYS, runtimeState);
+    this.normalizeSkirmishAIStates();
     this.tunnelTrackers.clear();
     for (const tunnelTracker of snapshot.tunnelTrackers ?? []) {
       if (!tunnelTracker || typeof tunnelTracker.side !== 'string') {
@@ -24700,6 +24815,7 @@ export class GameLogicSubsystem implements Subsystem {
     if (this.pendingWeaponDamageEvents.length > 0 && this.activeWeaponProjectileStateByVisualId.size === 0) {
       this.updateActiveWeaponProjectileInstances();
     }
+    this.normalizeSkirmishAIStates();
     this.resetBridgeDamageStateChanges();
     const restoredRandomSeed = Number(snapshot.gameRandomSeed);
     if (Number.isFinite(restoredRandomSeed)) {
