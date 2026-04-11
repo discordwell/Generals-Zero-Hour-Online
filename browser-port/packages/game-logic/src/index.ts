@@ -8952,6 +8952,10 @@ interface SourceChinookAIUpdateImportState {
   airfieldForHealing: number;
 }
 
+interface SourceDozerAIUpdateImportState {
+  tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
+}
+
 interface SourceProductionExitRallyImportState {
   nextCallFrame: number;
   rallyPoint: { x: number; y: number; z: number };
@@ -9441,6 +9445,16 @@ const SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_FLAG = -1;
 const SOURCE_DOCK_VECTOR_LIMIT = 0xffff;
 const SOURCE_RAILED_TRANSPORT_MAX_WAYPOINT_PATHS = 32;
 const SOURCE_ASSAULT_TRANSPORT_MAX_SLOTS = 10;
+const SOURCE_DOZER_NUM_TASKS = 3;
+const SOURCE_DOZER_NUM_DOCK_POINTS = 3;
+const SOURCE_DOZER_TASK_BUILD = 0;
+const SOURCE_DOZER_TASK_REPAIR = 1;
+const SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH = 8;
+const SOURCE_DOZER_DOCK_POINT_BYTE_LENGTH = 13;
+const SOURCE_DOZER_FIXED_SUFFIX_BYTE_LENGTH = 4
+  + 4
+  + SOURCE_DOZER_NUM_TASKS * SOURCE_DOZER_NUM_DOCK_POINTS * SOURCE_DOZER_DOCK_POINT_BYTE_LENGTH
+  + 4;
 const SOURCE_PLAYER_MASK_BYTE_LENGTH = 2;
 const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH = 32 * 48;
 const SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH = 4;
@@ -15788,6 +15802,106 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private findSourceDozerTaskOffset(data: Uint8Array, suffixOffset: number): number {
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    const afterTaskByteLength = 4 + SOURCE_DOZER_NUM_TASKS * SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH;
+    for (let offset = 1; offset + afterTaskByteLength + 2 <= suffixOffset; offset += 1) {
+      if (view.getInt32(offset, true) !== SOURCE_DOZER_NUM_TASKS) {
+        continue;
+      }
+      const machineOffset = offset + afterTaskByteLength;
+      if (data[machineOffset] === 1 && data[machineOffset + 1] === 1) {
+        return offset;
+      }
+    }
+    return -1;
+  }
+
+  private tryParseSourceDozerAIUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceDozerAIUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'DOZERAIUPDATE') {
+      return null;
+    }
+    if (data.byteLength < 1 + 4 + SOURCE_DOZER_NUM_TASKS * SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH
+      + SOURCE_DOZER_FIXED_SUFFIX_BYTE_LENGTH || data[0] !== 1) {
+      return null;
+    }
+
+    const suffixOffset = data.byteLength - SOURCE_DOZER_FIXED_SUFFIX_BYTE_LENGTH;
+    if (suffixOffset < 2) {
+      return null;
+    }
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    if (view.getInt32(suffixOffset + 4, true) !== SOURCE_DOZER_NUM_DOCK_POINTS) {
+      return null;
+    }
+    let cursor = suffixOffset + 8;
+    for (let taskIndex = 0; taskIndex < SOURCE_DOZER_NUM_TASKS; taskIndex += 1) {
+      for (let pointIndex = 0; pointIndex < SOURCE_DOZER_NUM_DOCK_POINTS; pointIndex += 1) {
+        const validByte = view.getUint8(cursor);
+        if (validByte !== 0 && validByte !== 1) {
+          return null;
+        }
+        cursor += SOURCE_DOZER_DOCK_POINT_BYTE_LENGTH;
+      }
+    }
+
+    const taskOffset = this.findSourceDozerTaskOffset(data, suffixOffset);
+    if (taskOffset < 0) {
+      return null;
+    }
+    const tasks: SourceDozerAIUpdateImportState['tasks'] = [];
+    cursor = taskOffset + 4;
+    for (let index = 0; index < SOURCE_DOZER_NUM_TASKS; index += 1) {
+      tasks.push({
+        targetObjectId: view.getUint32(cursor, true),
+        taskOrderFrame: view.getUint32(cursor + 4, true),
+      });
+      cursor += SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH;
+    }
+    return { tasks };
+  }
+
+  private applySourceDozerAIUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.dozerAIProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const dozerState = this.tryParseSourceDozerAIUpdateImportState(module.blockData, moduleType);
+      if (!dozerState) {
+        continue;
+      }
+      const buildTask = dozerState.tasks[SOURCE_DOZER_TASK_BUILD];
+      const repairTask = dozerState.tasks[SOURCE_DOZER_TASK_REPAIR];
+      entity.dozerBuildTargetEntityId = buildTask
+        ? Math.max(0, Math.trunc(buildTask.targetObjectId))
+        : 0;
+      entity.dozerBuildTaskOrderFrame = buildTask
+        ? Math.max(0, Math.trunc(buildTask.taskOrderFrame))
+        : 0;
+      entity.dozerRepairTargetEntityId = repairTask
+        ? Math.max(0, Math.trunc(repairTask.targetObjectId))
+        : 0;
+      entity.dozerRepairTaskOrderFrame = repairTask
+        ? Math.max(0, Math.trunc(repairTask.taskOrderFrame))
+        : 0;
+      return;
+    }
+  }
+
   private tryParseSourceProductionExitRallyImportState(
     data: Uint8Array,
     moduleType: string,
@@ -19669,6 +19783,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceAssaultTransportAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceSupplyTruckAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceChinookAIUpdateModulesToEntity(entity, sourceState);
+    this.applySourceDozerAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);
     this.applySourcePointDefenseLaserUpdateModulesToEntity(entity, sourceState);

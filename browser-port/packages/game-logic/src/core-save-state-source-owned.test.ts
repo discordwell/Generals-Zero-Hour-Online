@@ -223,6 +223,13 @@ function makeSourceOwnedCoreBundle() {
           RotorWashParticleSystem: 'FX_RotorWash',
         }),
       ]),
+      makeObjectDef('DozerObject', 'America', ['VEHICLE', 'DOZER'], [
+        makeBlock('Behavior', 'DozerAIUpdate ModuleTag_DozerAI', {
+          RepairHealthPercentPerSecond: 2,
+          BoredTime: 1000,
+          BoredRange: 200,
+        }),
+      ]),
       makeObjectDef('DefaultExitStructure', 'America', ['STRUCTURE'], [
         makeBlock('Behavior', 'DefaultProductionExitUpdate ModuleTag_DefaultExit', {
           UnitCreatePoint: 'X:0 Y:0 Z:0',
@@ -1684,6 +1691,38 @@ function buildSourceChinookAIUpdateModuleData(options: {
     saver.xferInt(options.flightStatus);
     saver.xferObjectID(options.airfieldForHealing);
     saver.xferCoord3D(options.originalPos);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceDozerAIUpdateModuleData(options: {
+  tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
+  currentTask: number;
+  buildSubTask: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-dozer-ai-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(new Uint8Array([4, 0xaa, 0xbb, 0xcc]));
+    saver.xferInt(3);
+    for (let index = 0; index < 3; index += 1) {
+      const task = options.tasks[index] ?? { targetObjectId: 0, taskOrderFrame: 0 };
+      saver.xferObjectID(task.targetObjectId);
+      saver.xferUnsignedInt(task.taskOrderFrame);
+    }
+    saver.xferUser(new Uint8Array([1, 1, 0xdd, 0xee]));
+    saver.xferInt(options.currentTask);
+    saver.xferInt(3);
+    for (let taskIndex = 0; taskIndex < 3; taskIndex += 1) {
+      for (let pointIndex = 0; pointIndex < 3; pointIndex += 1) {
+        saver.xferBool(false);
+        saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+      }
+    }
+    saver.xferInt(options.buildSubTask);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -4685,6 +4724,60 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedChinook.chinookFlightStatus).toBe('LANDING');
     expect(importedChinook.chinookFlightStatusEnteredFrame).toBe(200);
     expect(importedChinook.chinookHealingAirfieldId).toBe(401);
+  });
+
+  it('imports source DozerAIUpdate task targets', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const dozerState = createEmptySourceMapEntitySaveState();
+    dozerState.objectId = 125;
+    dozerState.position = { x: 162, y: 0, z: 60 };
+    dozerState.modules = [{
+      identifier: 'ModuleTag_DozerAI',
+      blockData: buildSourceDozerAIUpdateModuleData({
+        tasks: [
+          { targetObjectId: 501, taskOrderFrame: 120 },
+          { targetObjectId: 502, taskOrderFrame: 140 },
+          { targetObjectId: 503, taskOrderFrame: 160 },
+        ],
+        currentTask: 0,
+        buildSubTask: 2,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'DozerObject', state: dozerState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        dozerBuildTargetEntityId: number;
+        dozerBuildTaskOrderFrame: number;
+        dozerRepairTargetEntityId: number;
+        dozerRepairTaskOrderFrame: number;
+      }>;
+      pendingConstructionActions: Map<number, number>;
+      pendingRepairActions: Map<number, number>;
+    };
+
+    const importedDozer = privateLogic.spawnedEntities.get(125)!;
+    expect(importedDozer.dozerBuildTargetEntityId).toBe(501);
+    expect(importedDozer.dozerBuildTaskOrderFrame).toBe(120);
+    expect(importedDozer.dozerRepairTargetEntityId).toBe(502);
+    expect(importedDozer.dozerRepairTaskOrderFrame).toBe(140);
+    expect(privateLogic.pendingConstructionActions.get(125)).toBe(501);
+    expect(privateLogic.pendingRepairActions.get(125)).toBe(502);
   });
 
   it('imports source PointDefenseLaserUpdate runtime state', () => {

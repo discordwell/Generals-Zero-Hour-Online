@@ -5894,6 +5894,12 @@ interface SourceChinookAIUpdateBlockState {
   originalPos: Coord3D | null;
 }
 
+interface SourceDozerAIUpdateBlockState {
+  blockData: Uint8Array;
+  taskOffset: number;
+  tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
+}
+
 interface SourceProductionExitRallyState {
   nextCallFrameAndPhase: number;
   rallyPoint: Coord3D;
@@ -6485,6 +6491,97 @@ function buildSourceChinookAIUpdateBlockData(
     normalizeSourceObjectId(entity.chinookHealingAirfieldId ?? preservedState.airfieldForHealing),
     true,
   );
+  return blockData;
+}
+
+const SOURCE_DOZER_NUM_TASKS = 3;
+const SOURCE_DOZER_NUM_DOCK_POINTS = 3;
+const SOURCE_DOZER_TASK_BUILD = 0;
+const SOURCE_DOZER_TASK_REPAIR = 1;
+const SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH = 8;
+const SOURCE_DOZER_DOCK_POINT_BYTE_LENGTH = 13;
+const SOURCE_DOZER_FIXED_SUFFIX_BYTE_LENGTH = 4
+  + 4
+  + SOURCE_DOZER_NUM_TASKS * SOURCE_DOZER_NUM_DOCK_POINTS * SOURCE_DOZER_DOCK_POINT_BYTE_LENGTH
+  + 4;
+
+function findSourceDozerTaskOffset(data: Uint8Array, suffixOffset: number): number {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const afterTaskByteLength = 4 + SOURCE_DOZER_NUM_TASKS * SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH;
+  for (let offset = 1; offset + afterTaskByteLength + 2 <= suffixOffset; offset += 1) {
+    if (view.getInt32(offset, true) !== SOURCE_DOZER_NUM_TASKS) {
+      continue;
+    }
+    const machineOffset = offset + afterTaskByteLength;
+    // DozerPrimaryStateMachine::xfer writes version 1, then StateMachine::xfer writes version 1.
+    if (data[machineOffset] === 1 && data[machineOffset + 1] === 1) {
+      return offset;
+    }
+  }
+  return -1;
+}
+
+function tryParseSourceDozerAIUpdateBlockData(
+  data: Uint8Array,
+): SourceDozerAIUpdateBlockState | null {
+  if (data.byteLength < 1 + 4 + SOURCE_DOZER_NUM_TASKS * SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH
+    + SOURCE_DOZER_FIXED_SUFFIX_BYTE_LENGTH || data[0] !== 1) {
+    return null;
+  }
+  const suffixOffset = data.byteLength - SOURCE_DOZER_FIXED_SUFFIX_BYTE_LENGTH;
+  if (suffixOffset < 2) {
+    return null;
+  }
+  const blockData = new Uint8Array(data);
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  if (view.getInt32(suffixOffset + 4, true) !== SOURCE_DOZER_NUM_DOCK_POINTS) {
+    return null;
+  }
+  let cursor = suffixOffset + 8;
+  for (let taskIndex = 0; taskIndex < SOURCE_DOZER_NUM_TASKS; taskIndex += 1) {
+    for (let pointIndex = 0; pointIndex < SOURCE_DOZER_NUM_DOCK_POINTS; pointIndex += 1) {
+      const validByte = view.getUint8(cursor);
+      if (validByte !== 0 && validByte !== 1) {
+        return null;
+      }
+      cursor += SOURCE_DOZER_DOCK_POINT_BYTE_LENGTH;
+    }
+  }
+
+  const taskOffset = findSourceDozerTaskOffset(blockData, suffixOffset);
+  if (taskOffset < 0) {
+    return null;
+  }
+  const tasks: SourceDozerAIUpdateBlockState['tasks'] = [];
+  cursor = taskOffset + 4;
+  for (let index = 0; index < SOURCE_DOZER_NUM_TASKS; index += 1) {
+    tasks.push({
+      targetObjectId: view.getUint32(cursor, true),
+      taskOrderFrame: view.getUint32(cursor + 4, true),
+    });
+    cursor += SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH;
+  }
+  return { blockData, taskOffset, tasks };
+}
+
+function buildSourceDozerAIUpdateBlockData(
+  entity: MapEntity,
+  preservedState: SourceDozerAIUpdateBlockState,
+): Uint8Array {
+  const blockData = new Uint8Array(preservedState.blockData);
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  const taskCursor = (taskIndex: number) =>
+    preservedState.taskOffset + 4 + taskIndex * SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH;
+  const buildTask = preservedState.tasks[SOURCE_DOZER_TASK_BUILD] ?? { targetObjectId: 0, taskOrderFrame: 0 };
+  const repairTask = preservedState.tasks[SOURCE_DOZER_TASK_REPAIR] ?? { targetObjectId: 0, taskOrderFrame: 0 };
+
+  let cursor = taskCursor(SOURCE_DOZER_TASK_BUILD);
+  view.setUint32(cursor, normalizeSourceObjectId(entity.dozerBuildTargetEntityId ?? buildTask.targetObjectId), true);
+  view.setUint32(cursor + 4, sourceFiniteInt(entity.dozerBuildTaskOrderFrame, buildTask.taskOrderFrame), true);
+
+  cursor = taskCursor(SOURCE_DOZER_TASK_REPAIR);
+  view.setUint32(cursor, normalizeSourceObjectId(entity.dozerRepairTargetEntityId ?? repairTask.targetObjectId), true);
+  view.setUint32(cursor + 4, sourceFiniteInt(entity.dozerRepairTaskOrderFrame, repairTask.taskOrderFrame), true);
   return blockData;
 }
 
@@ -11274,6 +11371,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceChinookAIUpdateBlockData(entity, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'DOZERAIUPDATE' && entity.dozerAIProfile) {
+            const parsedSourceState = tryParseSourceDozerAIUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceDozerAIUpdateBlockData(entity, parsedSourceState),
               };
             }
           }

@@ -1886,6 +1886,71 @@ function parseSourceChinookAIUpdateBlockData(data: Uint8Array) {
   };
 }
 
+function createSourceDozerAIUpdateBlockData(options: {
+  tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
+  currentTask: number;
+  buildSubTask: number;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-dozer-ai-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(new Uint8Array([4, 0xaa, 0xbb, 0xcc]));
+    xferSave.xferInt(3);
+    for (let index = 0; index < 3; index += 1) {
+      const task = options.tasks[index] ?? { targetObjectId: 0, taskOrderFrame: 0 };
+      xferSave.xferObjectID(task.targetObjectId);
+      xferSave.xferUnsignedInt(task.taskOrderFrame);
+    }
+    xferSave.xferUser(new Uint8Array([1, 1, 0xdd, 0xee]));
+    xferSave.xferInt(options.currentTask);
+    xferSave.xferInt(3);
+    for (let taskIndex = 0; taskIndex < 3; taskIndex += 1) {
+      for (let pointIndex = 0; pointIndex < 3; pointIndex += 1) {
+        xferSave.xferBool(false);
+        xferSave.xferCoord3D({ x: 0, y: 0, z: 0 });
+      }
+    }
+    xferSave.xferInt(options.buildSubTask);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceDozerAIUpdateBlockData(data: Uint8Array) {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const suffixOffset = data.byteLength - 129;
+  let taskOffset = -1;
+  for (let offset = 1; offset + 30 <= suffixOffset; offset += 1) {
+    if (view.getInt32(offset, true) !== 3) {
+      continue;
+    }
+    const machineOffset = offset + 28;
+    if (data[machineOffset] === 1 && data[machineOffset + 1] === 1) {
+      taskOffset = offset;
+      break;
+    }
+  }
+  if (taskOffset < 0) {
+    throw new Error('Unable to parse dozer AI test block.');
+  }
+  const tasks: Array<{ targetObjectId: number; taskOrderFrame: number }> = [];
+  let cursor = taskOffset + 4;
+  for (let index = 0; index < 3; index += 1) {
+    tasks.push({
+      targetObjectId: view.getUint32(cursor, true),
+      taskOrderFrame: view.getUint32(cursor + 4, true),
+    });
+    cursor += 8;
+  }
+  return {
+    prefix: [...data.subarray(0, taskOffset)],
+    tasks,
+    stateMachineAndSuffix: [...data.subarray(taskOffset + 28)],
+  };
+}
+
 function createSourceProductionExitRallyBlockData(
   nextCallFrameAndPhase: number,
   rallyPoint: Coord3D,
@@ -11811,6 +11876,121 @@ describe('runtime-save-game', () => {
     expect(parsed.flightStatus).toBe(2);
     expect(parsed.airfieldForHealing).toBe(77);
     expect(parsed.originalPos).toEqual(preserved.originalPos);
+  });
+
+  it('rewrites source DozerAIUpdate task targets while preserving state-machine bytes', () => {
+    const sourceDozerBlock = createSourceDozerAIUpdateBlockData({
+      tasks: [
+        { targetObjectId: 5, taskOrderFrame: 10 },
+        { targetObjectId: 6, taskOrderFrame: 12 },
+        { targetObjectId: 7, taskOrderFrame: 14 },
+      ],
+      currentTask: 0,
+      buildSubTask: 2,
+    });
+    const preserved = parseSourceDozerAIUpdateBlockData(sourceDozerBlock);
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_DozerAI',
+      blockData: sourceDozerBlock,
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source dozer ai update rewrite',
+      mapPath: 'Maps/RuntimeDozer/RuntimeDozer.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeDozer',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            dozerAIProfile: {
+              repairHealthPercentPerSecond: 2,
+              boredTimeFrames: 30,
+              boredRange: 200,
+            },
+            dozerBuildTargetEntityId: 51,
+            dozerBuildTaskOrderFrame: 120,
+            dozerRepairTargetEntityId: 52,
+            dozerRepairTaskOrderFrame: 140,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_DozerAI') {
+            return 'DOZERAIUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const dozerModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_DozerAI');
+
+    expect(dozerModule).toBeDefined();
+    const parsed = parseSourceDozerAIUpdateBlockData(dozerModule!.blockData);
+    expect(parsed.prefix).toEqual(preserved.prefix);
+    expect(parsed.tasks).toEqual([
+      { targetObjectId: 51, taskOrderFrame: 120 },
+      { targetObjectId: 52, taskOrderFrame: 140 },
+      { targetObjectId: 7, taskOrderFrame: 14 },
+    ]);
+    expect(parsed.stateMachineAndSuffix).toEqual(preserved.stateMachineAndSuffix);
   });
 
   it('rewrites source production exit update modules from live rally and queue state', () => {
