@@ -14016,6 +14016,21 @@ function buildDefaultSourceSpecialPowerModuleBlockData(
   }
 }
 
+function buildGeneratedSourceSpecialPowerModuleBlockData(
+  entity: MapEntity,
+  moduleType: string,
+  moduleTag: string,
+): Uint8Array | null {
+  const liveSpecialPowerModule = findLiveSourceSpecialPowerModule(entity, moduleType, moduleTag);
+  return liveSpecialPowerModule
+    ? buildSourceSpecialPowerModuleBlockData(
+        moduleType,
+        createDefaultSourceSpecialPowerModuleState(),
+        liveSpecialPowerModule,
+      )
+    : buildDefaultSourceSpecialPowerModuleBlockData(moduleType);
+}
+
 type SourceContainModuleKind =
   | 'open'
   | 'transport'
@@ -15624,6 +15639,37 @@ function createDefaultSourceSlavedUpdateBlockState(): SourceSlavedUpdateBlockSta
   };
 }
 
+function sourceMobMemberPersonalColor(
+  state: MapEntity['mobMemberState'] | null | undefined,
+  preservedColor: SourceRgbColorState,
+): SourceRgbColorState {
+  const colorState = state as (MapEntity['mobMemberState'] & {
+    personalColorRed?: unknown;
+    personalColorGreen?: unknown;
+    personalColorBlue?: unknown;
+  }) | null | undefined;
+  return {
+    red: sourcePhysicsFinite(colorState?.personalColorRed, preservedColor.red),
+    green: sourcePhysicsFinite(colorState?.personalColorGreen, preservedColor.green),
+    blue: sourcePhysicsFinite(colorState?.personalColorBlue, preservedColor.blue),
+  };
+}
+
+function createDefaultSourceMobMemberSlavedUpdateBlockState(): SourceMobMemberSlavedUpdateBlockState {
+  return {
+    version: 1,
+    nextCallFrameAndPhase: 0,
+    slaver: 0,
+    framesToWait: 0,
+    mobState: 0,
+    personalColor: { red: 0.3, green: 0.3, blue: 0.3 },
+    primaryVictimId: 0,
+    squirrellinessRatio: 0,
+    isSelfTasking: false,
+    catchUpCrisisTimer: 0,
+  };
+}
+
 function buildSourceMobMemberSlavedUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -15641,7 +15687,7 @@ function buildSourceMobMemberSlavedUpdateBlockData(
     saver.xferObjectID(normalizeSourceObjectId(entity.slaverEntityId ?? preservedState.slaver));
     saver.xferInt(Math.trunc(sourcePhysicsFinite(state?.framesToWait, preservedState.framesToWait)));
     saver.xferInt(Math.trunc(sourcePhysicsFinite(state?.mobState, preservedState.mobState)));
-    xferSourceRgbColor(saver, preservedState.personalColor);
+    xferSourceRgbColor(saver, sourceMobMemberPersonalColor(state, preservedState.personalColor));
     saver.xferObjectID(sourceMobMemberVictimId(state?.primaryVictimId ?? preservedState.primaryVictimId));
     saver.xferReal(sourcePhysicsFinite(profile?.squirrellinessRatio, preservedState.squirrellinessRatio));
     saver.xferBool(typeof state?.isSelfTasking === 'boolean' ? state.isSelfTasking : preservedState.isSelfTasking);
@@ -15652,6 +15698,17 @@ function buildSourceMobMemberSlavedUpdateBlockData(
   } finally {
     saver.close();
   }
+}
+
+function buildGeneratedSourceMobMemberSlavedUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  return buildSourceMobMemberSlavedUpdateBlockData(
+    entity,
+    currentFrame,
+    createDefaultSourceMobMemberSlavedUpdateBlockState(),
+  );
 }
 
 function buildSourceFloatUpdateBlockData(
@@ -18699,15 +18756,12 @@ function buildGeneratedSourceObjectModuleBlockData(
     return buildSourceUpgradeModuleBlockData(upgradeExecuted);
   }
 
+  if (normalizedModuleType === 'SPYVISIONSPECIALPOWER') {
+    return buildGeneratedSourceSpecialPowerModuleBlockData(entity, moduleType, moduleTag);
+  }
+
   if (isSourceSpecialPowerModuleType(moduleType)) {
-    const liveSpecialPowerModule = findLiveSourceSpecialPowerModule(entity, moduleType, moduleTag);
-    return liveSpecialPowerModule
-      ? buildSourceSpecialPowerModuleBlockData(
-          moduleType,
-          createDefaultSourceSpecialPowerModuleState(),
-          liveSpecialPowerModule,
-        )
-      : buildDefaultSourceSpecialPowerModuleBlockData(moduleType);
+    return buildGeneratedSourceSpecialPowerModuleBlockData(entity, moduleType, moduleTag);
   }
 
   const defaultContainState = createDefaultSourceContainModuleBlockState(moduleType);
@@ -19215,6 +19269,10 @@ function buildGeneratedSourceObjectModuleBlockData(
       currentFrame,
       createDefaultSourceSlavedUpdateBlockState(),
     );
+  }
+
+  if (normalizedModuleType === 'MOBMEMBERSLAVEDUPDATE' && entity.mobMemberProfile) {
+    return buildGeneratedSourceMobMemberSlavedUpdateBlockData(entity, currentFrame);
   }
 
   if (normalizedModuleType === 'DEFAULTPRODUCTIONEXITUPDATE' && entity.queueProductionExitProfile) {

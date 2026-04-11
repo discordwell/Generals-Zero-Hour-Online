@@ -17186,6 +17186,23 @@ describe('runtime-save-game', () => {
               sourceRampUpXferFlags: [false, true],
               initialized: true,
             },
+            slaverEntityId: 601,
+            mobMemberProfile: {
+              mustCatchUpRadius: 50,
+              noNeedToCatchUpRadius: 25,
+              squirrellinessRatio: 0.65,
+              catchUpCrisisBailTime: 999999,
+            },
+            mobMemberState: {
+              framesToWait: 8,
+              personalColorRed: 0.21,
+              personalColorGreen: 0.31,
+              personalColorBlue: 0.41,
+              catchUpCrisisTimer: 6,
+              primaryVictimId: 602,
+              isSelfTasking: true,
+              mobState: 4,
+            },
             hackInternetRuntimeState: {
               cashUpdateDelayFrames: 30,
               cashAmountPerCycle: 5,
@@ -17326,6 +17343,7 @@ describe('runtime-save-game', () => {
               { moduleType: 'DozerAIUpdate', moduleTag: 'ModuleTag_DozerAI' },
               { moduleType: 'WorkerAIUpdate', moduleTag: 'ModuleTag_WorkerAI' },
               { moduleType: 'FlightDeckBehavior', moduleTag: 'ModuleTag_FlightDeck' },
+              { moduleType: 'MobMemberSlavedUpdate', moduleTag: 'ModuleTag_MobSlave' },
               { moduleType: 'RailedTransportAIUpdate', moduleTag: 'ModuleTag_RailedAI' },
             ]
           : [],
@@ -17344,6 +17362,7 @@ describe('runtime-save-game', () => {
     const dozerModule = modules.get('ModuleTag_DozerAI');
     const workerModule = modules.get('ModuleTag_WorkerAI');
     const flightDeckModule = modules.get('ModuleTag_FlightDeck');
+    const mobMemberModule = modules.get('ModuleTag_MobSlave');
     const railedModule = modules.get('ModuleTag_RailedAI');
     const hackModule = modules.get('ModuleTag_HackAI');
     const jetModule = modules.get('ModuleTag_JetAI');
@@ -17621,6 +17640,22 @@ describe('runtime-save-game', () => {
       lowerRampFrame: [17, 18],
       rampUpXferFlags: [false, true],
     });
+
+    expect(mobMemberModule).toBeDefined();
+    const mobMember = parseSourceMobMemberSlavedUpdateBlockData(mobMemberModule!.blockData);
+    expect(mobMember).toMatchObject({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      slaver: 601,
+      framesToWait: 8,
+      mobState: 4,
+      primaryVictimId: 602,
+      isSelfTasking: true,
+      catchUpCrisisTimer: 6,
+    });
+    expect(mobMember.squirrellinessRatio).toBeCloseTo(0.65, 6);
+    expect(mobMember.personalColor.red).toBeCloseTo(0.21, 6);
+    expect(mobMember.personalColor.green).toBeCloseTo(0.31, 6);
+    expect(mobMember.personalColor.blue).toBeCloseTo(0.41, 6);
 
     expect(railedModule).toBeDefined();
     const railedAI = parseGeneratedSourceAIUpdateInterfaceForTest(railedModule!.blockData);

@@ -373,6 +373,9 @@ export function createSpawnSlave(self: GL, slaver: MapEntity, state: SpawnBehavi
     if (slave.mobMemberProfile) {
       slave.mobMemberState = {
         framesToWait: self.gameRandom.nextRange(0, 20),
+        personalColorRed: 0.2 + self.gameRandom.nextFloat() * 0.2,
+        personalColorGreen: 0.2 + self.gameRandom.nextFloat() * 0.2,
+        personalColorBlue: 0.2 + self.gameRandom.nextFloat() * 0.2,
         catchUpCrisisTimer: 0,
         primaryVictimId: -1,
         isSelfTasking: false,

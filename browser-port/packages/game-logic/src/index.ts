@@ -5679,6 +5679,10 @@ interface MobMemberSlavedUpdateProfile {
 interface MobMemberSlavedState {
   /** Update throttle counter (init random 0-20). C++ m_framesToWait. */
   framesToWait: number;
+  /** Source parity: MobMemberSlavedUpdate::m_personalColor randomized in the constructor. */
+  personalColorRed: number;
+  personalColorGreen: number;
+  personalColorBlue: number;
   /** Consecutive 16-frame ticks spent critically far from master. C++ m_catchUpCrisisTimer. */
   catchUpCrisisTimer: number;
   /** Last known master's target entity ID. C++ m_primaryVictimID. */
@@ -9121,6 +9125,9 @@ interface SourceMobMemberSlavedUpdateImportState {
   slaverId: number;
   framesToWait: number;
   mobState: number;
+  personalColorRed: number;
+  personalColorGreen: number;
+  personalColorBlue: number;
   primaryVictimId: number;
   isSelfTasking: boolean;
   catchUpCrisisTimer: number;
@@ -15300,9 +15307,9 @@ export class GameLogicSubsystem implements Subsystem {
       const slaverId = xfer.xferObjectID(0);
       const framesToWait = xfer.xferInt(0);
       const mobState = xfer.xferInt(0);
-      xfer.xferReal(0);
-      xfer.xferReal(0);
-      xfer.xferReal(0);
+      const personalColorRed = xfer.xferReal(0);
+      const personalColorGreen = xfer.xferReal(0);
+      const personalColorBlue = xfer.xferReal(0);
       const primaryVictimId = xfer.xferObjectID(0);
       xfer.xferReal(0);
       const isSelfTasking = xfer.xferBool(false);
@@ -15312,6 +15319,9 @@ export class GameLogicSubsystem implements Subsystem {
           slaverId,
           framesToWait,
           mobState,
+          personalColorRed,
+          personalColorGreen,
+          personalColorBlue,
           primaryVictimId,
           isSelfTasking,
           catchUpCrisisTimer,
@@ -15355,6 +15365,9 @@ export class GameLogicSubsystem implements Subsystem {
         entity.slaverEntityId = mobState.slaverId > 0 ? Math.trunc(mobState.slaverId) : null;
         entity.mobMemberState = {
           framesToWait: Math.max(0, Math.trunc(mobState.framesToWait)),
+          personalColorRed: Number.isFinite(mobState.personalColorRed) ? mobState.personalColorRed : 0,
+          personalColorGreen: Number.isFinite(mobState.personalColorGreen) ? mobState.personalColorGreen : 0,
+          personalColorBlue: Number.isFinite(mobState.personalColorBlue) ? mobState.personalColorBlue : 0,
           catchUpCrisisTimer: Math.max(0, Math.trunc(mobState.catchUpCrisisTimer)),
           primaryVictimId: mobState.primaryVictimId > 0 ? Math.trunc(mobState.primaryVictimId) : -1,
           isSelfTasking: mobState.isSelfTasking,

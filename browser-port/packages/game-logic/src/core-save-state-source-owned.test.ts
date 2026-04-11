@@ -5493,6 +5493,9 @@ describe('source-owned game-logic core save-state', () => {
         slavedNextUpdateFrame: number;
         mobMemberState: {
           framesToWait: number;
+          personalColorRed: number;
+          personalColorGreen: number;
+          personalColorBlue: number;
           catchUpCrisisTimer: number;
           primaryVictimId: number;
           isSelfTasking: boolean;
@@ -5509,13 +5512,16 @@ describe('source-owned game-logic core save-state', () => {
 
     const mob = privateLogic.spawnedEntities.get(82)!;
     expect(mob.slaverEntityId).toBe(80);
-    expect(mob.mobMemberState).toEqual({
+    expect(mob.mobMemberState).toMatchObject({
       framesToWait: 11,
       catchUpCrisisTimer: 4,
       primaryVictimId: 83,
       isSelfTasking: true,
       mobState: 1,
     });
+    expect(mob.mobMemberState!.personalColorRed).toBeCloseTo(0.25, 6);
+    expect(mob.mobMemberState!.personalColorGreen).toBeCloseTo(0.3, 6);
+    expect(mob.mobMemberState!.personalColorBlue).toBeCloseTo(0.35, 6);
   });
 
   it('imports source AutoHeal, GrantStealth, and Countermeasures runtime state', () => {
