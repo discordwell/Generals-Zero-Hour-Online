@@ -283,6 +283,15 @@ function makeSourceOwnedCoreBundle() {
           RegularCashAmount: 5,
         }),
       ]),
+      makeObjectDef('JetAIObject', 'America', ['AIRCRAFT'], [
+        makeBlock('Behavior', 'JetAIUpdate ModuleTag_JetAI', {
+          NeedsRunway: true,
+          AttackLocomotorPersistTime: 3000,
+          AttackersMissPersistTime: 2000,
+          ReturnToBaseIdleTime: 5000,
+          MinHeight: 120,
+        }),
+      ]),
       makeObjectDef('ChinookObject', 'America', ['AIRCRAFT'], [
         makeBlock('Behavior', 'ChinookAIUpdate ModuleTag_ChinookAI', {
           MaxBoxes: 8,
@@ -815,6 +824,28 @@ function sourceRawInt32(value: number): Uint8Array {
   const bytes = new Uint8Array(4);
   new DataView(bytes.buffer).setInt32(0, Math.trunc(value), true);
   return bytes;
+}
+
+function writeSourceDefaultDamageInfoForTest(saver: XferSave): void {
+  saver.xferVersion(1);
+  saver.xferVersion(3);
+  saver.xferObjectID(0);
+  saver.xferUser(new Uint8Array(2));
+  saver.xferUser(sourceRawInt32(0));
+  saver.xferUser(sourceRawInt32(11));
+  saver.xferUser(sourceRawInt32(0));
+  saver.xferReal(0);
+  saver.xferBool(false);
+  saver.xferUser(sourceRawInt32(0));
+  saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+  saver.xferReal(0);
+  saver.xferReal(0);
+  saver.xferReal(0);
+  saver.xferAsciiString('');
+  saver.xferVersion(1);
+  saver.xferReal(0);
+  saver.xferReal(0);
+  saver.xferBool(false);
 }
 
 function sourceUpdateFrameAndPhase(frame: number, phase = 0): number {
@@ -2061,6 +2092,67 @@ function buildSourceHackInternetAIUpdateModuleData(options: {
     writeSourceHackInternetAIStateMachine(saver, options.currentStateId, options.framesRemaining);
     saver.xferUser(new Uint8Array([0xaa, 0xbb, 0xcc]));
     saver.xferBool(options.hasPendingCommand ?? false);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function writeSourceAICommandStorageForTest(
+  saver: XferSave,
+  options: {
+    commandType?: number;
+    position?: { x: number; y: number; z: number };
+    objectId?: number;
+  } = {},
+): void {
+  const commandType = options.commandType ?? 5;
+  saver.xferUser(sourceRawInt32(commandType));
+  saver.xferUser(sourceRawInt32(commandType));
+  saver.xferCoord3D(options.position ?? { x: 0, y: 0, z: 0 });
+  saver.xferObjectID(options.objectId ?? 0);
+  saver.xferObjectID(0);
+  saver.xferAsciiString('');
+  saver.xferInt(0);
+  saver.xferUnsignedInt(0xffffffff);
+  saver.xferAsciiString('');
+  saver.xferInt(0);
+  writeSourceDefaultDamageInfoForTest(saver);
+  saver.xferAsciiString('');
+  saver.xferBool(false);
+}
+
+function buildSourceJetAIUpdateModuleData(options: {
+  producerLocation: { x: number; y: number; z: number };
+  commandType?: number;
+  commandPosition?: { x: number; y: number; z: number };
+  commandObjectId?: number;
+  attackLocoExpireFrame: number;
+  attackersMissExpireFrame: number;
+  returnToBaseFrame: number;
+  flags: number;
+  enginesOn: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-jet-ai-update');
+  try {
+    saver.xferVersion(2);
+    saver.xferUser(new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd]));
+    saver.xferCoord3D(options.producerLocation);
+    writeSourceAICommandStorageForTest(saver, {
+      commandType: options.commandType,
+      position: options.commandPosition,
+      objectId: options.commandObjectId,
+    });
+    saver.xferUnsignedInt(options.attackLocoExpireFrame);
+    saver.xferUnsignedInt(options.attackersMissExpireFrame);
+    saver.xferUnsignedInt(options.returnToBaseFrame);
+    saver.xferVersion(1);
+    saver.xferUnsignedShort(0);
+    saver.xferUnsignedInt(0);
+    saver.xferAsciiString('');
+    saver.xferInt(options.flags);
+    saver.xferBool(options.enginesOn);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -5826,6 +5918,71 @@ describe('source-owned game-logic core save-state', () => {
       nextCashFrame: 237,
     });
     expect(importedHacker.hackInternetPendingCommand).toBeNull();
+  });
+
+  it('imports source JetAIUpdate runtime tail state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const jetState = createEmptySourceMapEntitySaveState();
+    jetState.objectId = 125;
+    jetState.position = { x: 160, y: 0, z: 60 };
+    jetState.modules = [{
+      identifier: 'ModuleTag_JetAI',
+      blockData: buildSourceJetAIUpdateModuleData({
+        producerLocation: { x: 10, y: 20, z: 3 },
+        commandType: 11,
+        commandObjectId: 333,
+        attackLocoExpireFrame: 410,
+        attackersMissExpireFrame: 420,
+        returnToBaseFrame: 430,
+        flags: 0x01 | 0x02 | 0x04 | 0x08 | 0x20,
+        enginesOn: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'JetAIObject', state: jetState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        attackersMissExpireFrame: number;
+        jetAIState: {
+          state: string;
+          producerX: number;
+          producerZ: number;
+          attackLocoExpireFrame: number;
+          returnToBaseFrame: number;
+          allowAirLoco: boolean;
+          useReturnLoco: boolean;
+          pendingCommand: unknown;
+        } | null;
+      }>;
+    };
+
+    const importedJet = privateLogic.spawnedEntities.get(125)!;
+    expect(importedJet.attackersMissExpireFrame).toBe(420);
+    expect(importedJet.jetAIState).toMatchObject({
+      state: 'TAKING_OFF',
+      producerX: 10,
+      producerZ: 20,
+      attackLocoExpireFrame: 410,
+      returnToBaseFrame: 430,
+      allowAirLoco: true,
+      useReturnLoco: true,
+      pendingCommand: { type: 'attackEntity', targetId: 333 },
+    });
   });
 
   it('imports source WorkerAIUpdate dozer tasks and supply state', () => {

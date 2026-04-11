@@ -9068,6 +9068,21 @@ interface SourceHackInternetAIUpdateImportState {
   pendingCommand: GameLogicCommand | null;
 }
 
+interface SourceAICommandStorageImportState {
+  commandType: number;
+  position: { x: number; y: number; z: number };
+  objectId: number;
+}
+
+interface SourceJetAIUpdateImportState {
+  producerLocation: { x: number; y: number; z: number };
+  mostRecentCommand: SourceAICommandStorageImportState;
+  attackLocoExpireFrame: number;
+  attackersMissExpireFrame: number;
+  returnToBaseFrame: number;
+  flags: number;
+}
+
 interface SourceWorkerAIUpdateImportState {
   tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
   preferredDockId: number;
@@ -9788,6 +9803,13 @@ const SOURCE_HACK_INTERNET_STATE_SNAPSHOT_BYTE_LENGTH = 5;
 const SOURCE_AICMD_MOVE_TO_POSITION = 0;
 const SOURCE_AICMD_IDLE = 5;
 const SOURCE_AICMD_ATTACK_OBJECT = 11;
+const SOURCE_JET_FLAG_HAS_PENDING_COMMAND = 1 << 0;
+const SOURCE_JET_FLAG_ALLOW_AIR_LOCO = 1 << 1;
+const SOURCE_JET_FLAG_HAS_PRODUCER_LOCATION = 1 << 2;
+const SOURCE_JET_FLAG_TAKEOFF_IN_PROGRESS = 1 << 3;
+const SOURCE_JET_FLAG_LANDING_IN_PROGRESS = 1 << 4;
+const SOURCE_JET_FLAG_USE_SPECIAL_RETURN_LOCO = 1 << 5;
+const SOURCE_JET_TARGETED_BY_LIMIT = 0xffff;
 const SOURCE_CONTAIN_VECTOR_LIMIT = 0xffff;
 const SOURCE_DEATH_TYPE_NAMES = [
   'NORMAL',
@@ -16386,13 +16408,7 @@ export class GameLogicSubsystem implements Subsystem {
     return null;
   }
 
-  private parseSourceAICommandStorageToEnd(
-    data: Uint8Array,
-    offset: number,
-    entityId: number,
-  ): GameLogicCommand | null {
-    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data.subarray(offset)));
-    xfer.open('source-ai-command-storage-import');
+  private parseSourceAICommandStorage(xfer: XferLoad): SourceAICommandStorageImportState | null {
     try {
       const commandType = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
       const duplicateCommandType = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
@@ -16416,37 +16432,187 @@ export class GameLogicSubsystem implements Subsystem {
       this.skipSourceImportDamageInfo(xfer);
       xfer.xferAsciiString('');
       const hasPath = xfer.xferBool(false);
-      if (hasPath || xfer.getRemaining() !== 0) {
+      if (hasPath) {
         return null;
       }
 
-      switch (commandType) {
-        case SOURCE_AICMD_MOVE_TO_POSITION:
-          return {
-            type: 'moveTo',
-            entityId,
-            targetX: Number.isFinite(position.x) ? position.x : 0,
-            targetZ: Number.isFinite(position.y) ? position.y : 0,
-            commandSource: 'AI',
-          };
-        case SOURCE_AICMD_ATTACK_OBJECT:
-          return objectId > 0
-            ? {
-              type: 'attackEntity',
-              entityId,
-              targetEntityId: Math.trunc(objectId),
-              commandSource: 'AI',
-            }
-            : null;
-        case SOURCE_AICMD_IDLE:
-          return { type: 'stop', entityId, commandSource: 'AI' };
-        default:
-          return null;
-      }
+      return { commandType, position, objectId };
     } catch {
       return null;
+    }
+  }
+
+  private sourceAICommandStorageToGameLogicCommand(
+    state: SourceAICommandStorageImportState,
+    entityId: number,
+  ): GameLogicCommand | null {
+    switch (state.commandType) {
+      case SOURCE_AICMD_MOVE_TO_POSITION:
+        return {
+          type: 'moveTo',
+          entityId,
+          targetX: Number.isFinite(state.position.x) ? state.position.x : 0,
+          targetZ: Number.isFinite(state.position.y) ? state.position.y : 0,
+          commandSource: 'AI',
+        };
+      case SOURCE_AICMD_ATTACK_OBJECT:
+        return state.objectId > 0
+          ? {
+            type: 'attackEntity',
+            entityId,
+            targetEntityId: Math.trunc(state.objectId),
+            commandSource: 'AI',
+          }
+          : null;
+      case SOURCE_AICMD_IDLE:
+        return { type: 'stop', entityId, commandSource: 'AI' };
+      default:
+        return null;
+    }
+  }
+
+  private parseSourceAICommandStorageToEnd(
+    data: Uint8Array,
+    offset: number,
+    entityId: number,
+  ): GameLogicCommand | null {
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data.subarray(offset)));
+    xfer.open('source-ai-command-storage-import');
+    try {
+      const state = this.parseSourceAICommandStorage(xfer);
+      if (!state || xfer.getRemaining() !== 0) {
+        return null;
+      }
+      return this.sourceAICommandStorageToGameLogicCommand(state, entityId);
     } finally {
       xfer.close();
+    }
+  }
+
+  private sourceAICommandStorageToJetPendingCommand(
+    state: SourceAICommandStorageImportState,
+  ): { type: 'moveTo'; x: number; z: number } | { type: 'attackEntity'; targetId: number } | null {
+    switch (state.commandType) {
+      case SOURCE_AICMD_MOVE_TO_POSITION:
+        return {
+          type: 'moveTo',
+          x: Number.isFinite(state.position.x) ? state.position.x : 0,
+          z: Number.isFinite(state.position.y) ? state.position.y : 0,
+        };
+      case SOURCE_AICMD_ATTACK_OBJECT:
+        return state.objectId > 0
+          ? { type: 'attackEntity', targetId: Math.trunc(state.objectId) }
+          : null;
+      default:
+        return null;
+    }
+  }
+
+  private tryParseSourceJetAIUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceJetAIUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'JETAIUPDATE') {
+      return null;
+    }
+    const version = data[0] ?? 0;
+    if (version < 1 || version > 2) {
+      return null;
+    }
+
+    for (let tailOffset = 1; tailOffset < data.byteLength; tailOffset += 1) {
+      const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data.subarray(tailOffset)));
+      xfer.open('source-jet-ai-update-import');
+      try {
+        const producerLocation = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+        const mostRecentCommand = this.parseSourceAICommandStorage(xfer);
+        if (!mostRecentCommand) {
+          continue;
+        }
+        const attackLocoExpireFrame = xfer.xferUnsignedInt(0);
+        const attackersMissExpireFrame = xfer.xferUnsignedInt(0);
+        const returnToBaseFrame = xfer.xferUnsignedInt(0);
+        const listVersion = xfer.xferVersion(1);
+        if (listVersion !== 1) {
+          continue;
+        }
+        const targetedByCount = xfer.xferUnsignedShort(0);
+        if (targetedByCount > SOURCE_JET_TARGETED_BY_LIMIT) {
+          continue;
+        }
+        for (let index = 0; index < targetedByCount; index += 1) {
+          xfer.xferObjectID(0);
+        }
+        xfer.xferUnsignedInt(0);
+        xfer.xferAsciiString('');
+        const flags = xfer.xferInt(0);
+        if (version >= 2) {
+          xfer.xferBool(false);
+        }
+        if (xfer.getRemaining() !== 0) {
+          continue;
+        }
+        return {
+          producerLocation,
+          mostRecentCommand,
+          attackLocoExpireFrame,
+          attackersMissExpireFrame,
+          returnToBaseFrame,
+          flags,
+        };
+      } catch {
+        continue;
+      } finally {
+        xfer.close();
+      }
+    }
+    return null;
+  }
+
+  private applySourceJetAIUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.jetAIState) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const jetState = this.tryParseSourceJetAIUpdateImportState(module.blockData, moduleType);
+      if (!jetState) {
+        continue;
+      }
+
+      const hasProducerLocation = (jetState.flags & SOURCE_JET_FLAG_HAS_PRODUCER_LOCATION) !== 0;
+      entity.jetAIState.producerX = hasProducerLocation && Number.isFinite(jetState.producerLocation.x)
+        ? jetState.producerLocation.x
+        : entity.jetAIState.producerX;
+      entity.jetAIState.producerZ = hasProducerLocation && Number.isFinite(jetState.producerLocation.y)
+        ? jetState.producerLocation.y
+        : entity.jetAIState.producerZ;
+      entity.jetAIState.attackLocoExpireFrame = Math.max(0, Math.trunc(jetState.attackLocoExpireFrame));
+      entity.attackersMissExpireFrame = Math.max(0, Math.trunc(jetState.attackersMissExpireFrame));
+      entity.jetAIState.returnToBaseFrame = Math.max(0, Math.trunc(jetState.returnToBaseFrame));
+      entity.jetAIState.allowAirLoco = (jetState.flags & SOURCE_JET_FLAG_ALLOW_AIR_LOCO) !== 0;
+      entity.jetAIState.useReturnLoco = (jetState.flags & SOURCE_JET_FLAG_USE_SPECIAL_RETURN_LOCO) !== 0;
+      entity.jetAIState.pendingCommand = (jetState.flags & SOURCE_JET_FLAG_HAS_PENDING_COMMAND) !== 0
+        ? this.sourceAICommandStorageToJetPendingCommand(jetState.mostRecentCommand)
+        : null;
+      if ((jetState.flags & SOURCE_JET_FLAG_TAKEOFF_IN_PROGRESS) !== 0) {
+        entity.jetAIState.state = 'TAKING_OFF';
+      } else if ((jetState.flags & SOURCE_JET_FLAG_LANDING_IN_PROGRESS) !== 0) {
+        entity.jetAIState.state = 'LANDING';
+      } else if ((jetState.flags & SOURCE_JET_FLAG_ALLOW_AIR_LOCO) === 0) {
+        entity.jetAIState.state = 'PARKED';
+      }
+      return;
     }
   }
 
@@ -22366,6 +22532,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceAssaultTransportAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceSupplyTruckAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceHackInternetAIUpdateModulesToEntity(entity, sourceState);
+    this.applySourceJetAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceWorkerAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceChinookAIUpdateModulesToEntity(entity, sourceState);
     this.applySourcePOWTruckAIUpdateModulesToEntity(entity, sourceState);

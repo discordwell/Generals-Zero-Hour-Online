@@ -2162,6 +2162,139 @@ function parseSourceHackInternetAIUpdateBlockData(data: Uint8Array) {
   throw new Error('Unable to parse hack internet AI test block.');
 }
 
+function writeSourceAICommandStorageForTest(
+  xferSave: XferSave,
+  options: {
+    commandType?: number;
+    position?: Coord3D;
+    objectId?: number;
+  } = {},
+): void {
+  const commandType = options.commandType ?? 5;
+  xferSave.xferUser(createRawInt32Bytes(commandType));
+  xferSave.xferUser(createRawInt32Bytes(commandType));
+  xferSave.xferCoord3D(options.position ?? { x: 0, y: 0, z: 0 });
+  xferSave.xferObjectID(options.objectId ?? 0);
+  xferSave.xferObjectID(0);
+  xferSave.xferAsciiString('');
+  xferSave.xferInt(0);
+  xferSave.xferUnsignedInt(0xffffffff);
+  xferSave.xferAsciiString('');
+  xferSave.xferInt(0);
+  xferSourceDamageInfoForTest(xferSave, createDefaultSourceDamageInfoTestState());
+  xferSave.xferAsciiString('');
+  xferSave.xferBool(false);
+}
+
+function createSourceJetAIUpdateBlockData(options: {
+  producerLocation: Coord3D;
+  commandType?: number;
+  commandPosition?: Coord3D;
+  commandObjectId?: number;
+  attackLocoExpireFrame: number;
+  attackersMissExpireFrame: number;
+  returnToBaseFrame: number;
+  flags: number;
+  enginesOn: boolean;
+  lockonDrawableTemplateName?: string;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-jet-ai-update');
+  try {
+    xferSave.xferVersion(2);
+    xferSave.xferUser(new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd]));
+    xferSave.xferCoord3D(options.producerLocation);
+    writeSourceAICommandStorageForTest(xferSave, {
+      commandType: options.commandType,
+      position: options.commandPosition,
+      objectId: options.commandObjectId,
+    });
+    xferSave.xferUnsignedInt(options.attackLocoExpireFrame);
+    xferSave.xferUnsignedInt(options.attackersMissExpireFrame);
+    xferSave.xferUnsignedInt(options.returnToBaseFrame);
+    xferSave.xferVersion(1);
+    xferSave.xferUnsignedShort(2);
+    xferSave.xferObjectID(21);
+    xferSave.xferObjectID(22);
+    xferSave.xferUnsignedInt(777);
+    xferSave.xferAsciiString(options.lockonDrawableTemplateName ?? 'LockonTemplate');
+    xferSave.xferInt(options.flags);
+    xferSave.xferBool(options.enginesOn);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceAICommandStorageForTest(xferLoad: XferLoad) {
+  const commandType = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+  const duplicateCommandType = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+  const position = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+  const objectId = xferLoad.xferObjectID(0);
+  xferLoad.xferObjectID(0);
+  xferLoad.xferAsciiString('');
+  const coordCount = xferLoad.xferInt(0);
+  for (let index = 0; index < coordCount; index += 1) {
+    xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+  }
+  xferLoad.xferUnsignedInt(0);
+  xferLoad.xferAsciiString('');
+  xferLoad.xferInt(0);
+  xferSourceDamageInfoForTest(xferLoad, createDefaultSourceDamageInfoTestState());
+  xferLoad.xferAsciiString('');
+  xferLoad.xferBool(false);
+  return { commandType, duplicateCommandType, position, objectId };
+}
+
+function parseSourceJetAIUpdateBlockData(data: Uint8Array) {
+  const version = data[0] ?? 0;
+  for (let tailOffset = 1; tailOffset < data.byteLength; tailOffset += 1) {
+    const xferLoad = new XferLoad(data.slice(tailOffset).buffer);
+    xferLoad.open('parse-source-jet-ai-update');
+    try {
+      const producerLocation = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const command = parseSourceAICommandStorageForTest(xferLoad);
+      const attackLocoExpireFrame = xferLoad.xferUnsignedInt(0);
+      const attackersMissExpireFrame = xferLoad.xferUnsignedInt(0);
+      const returnToBaseFrame = xferLoad.xferUnsignedInt(0);
+      const listVersion = xferLoad.xferVersion(1);
+      if (listVersion !== 1) {
+        continue;
+      }
+      const targetedByCount = xferLoad.xferUnsignedShort(0);
+      const targetedBy: number[] = [];
+      for (let index = 0; index < targetedByCount; index += 1) {
+        targetedBy.push(xferLoad.xferObjectID(0));
+      }
+      const untargetableExpireFrame = xferLoad.xferUnsignedInt(0);
+      const lockonDrawableTemplateName = xferLoad.xferAsciiString('');
+      const flags = xferLoad.xferInt(0);
+      const enginesOn = version >= 2 ? xferLoad.xferBool(false) : null;
+      if (xferLoad.getRemaining() !== 0) {
+        continue;
+      }
+      return {
+        prefix: [...data.subarray(0, tailOffset)],
+        producerLocation,
+        command,
+        attackLocoExpireFrame,
+        attackersMissExpireFrame,
+        returnToBaseFrame,
+        targetedBy,
+        untargetableExpireFrame,
+        lockonDrawableTemplateName,
+        flags,
+        enginesOn,
+      };
+    } catch {
+      continue;
+    } finally {
+      xferLoad.close();
+    }
+  }
+  throw new Error('Unable to parse jet AI test block.');
+}
+
 function createSourceChinookAIUpdateBlockData(options: {
   flightStatus: number;
   airfieldForHealing: number;
@@ -13643,6 +13776,139 @@ describe('runtime-save-game', () => {
     expect(parsed.currentStateId).toBe(1001);
     expect(parsed.framesRemaining).toBe(60);
     expect(parsed.hasPendingCommand).toBe(false);
+  });
+
+  it('rewrites source JetAIUpdate tail while preserving inherited AIUpdate bytes', () => {
+    const sourceJetBlock = createSourceJetAIUpdateBlockData({
+      producerLocation: { x: 3, y: 4, z: 5 },
+      commandType: 5,
+      attackLocoExpireFrame: 100,
+      attackersMissExpireFrame: 101,
+      returnToBaseFrame: 102,
+      flags: 0x06,
+      enginesOn: false,
+    });
+    const preserved = parseSourceJetAIUpdateBlockData(sourceJetBlock);
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_JetAI',
+      blockData: sourceJetBlock,
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source jet ai update rewrite',
+      mapPath: 'Maps/RuntimeJet/RuntimeJet.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeJet',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            attackersMissExpireFrame: 550,
+            jetAIState: {
+              state: 'TAKING_OFF',
+              stateEnteredFrame: 40,
+              allowAirLoco: true,
+              pendingCommand: { type: 'attackEntity', targetId: 88 },
+              producerX: 11,
+              producerZ: 22,
+              returnToBaseFrame: 600,
+              attackLocoExpireFrame: 500,
+              useReturnLoco: true,
+              reloadDoneFrame: 0,
+              reloadTotalFrames: 0,
+              circlingNextCheckFrame: 0,
+              cruiseHeight: 120,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_JetAI') {
+            return 'JETAIUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const jetModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_JetAI');
+
+    expect(jetModule).toBeDefined();
+    const parsed = parseSourceJetAIUpdateBlockData(jetModule!.blockData);
+    expect(parsed.prefix).toEqual(preserved.prefix);
+    expect(parsed.producerLocation).toEqual({ x: 11, y: 22, z: 5 });
+    expect(parsed.command.commandType).toBe(11);
+    expect(parsed.command.duplicateCommandType).toBe(11);
+    expect(parsed.command.objectId).toBe(88);
+    expect(parsed.attackLocoExpireFrame).toBe(500);
+    expect(parsed.attackersMissExpireFrame).toBe(550);
+    expect(parsed.returnToBaseFrame).toBe(600);
+    expect(parsed.targetedBy).toEqual([21, 22]);
+    expect(parsed.untargetableExpireFrame).toBe(777);
+    expect(parsed.lockonDrawableTemplateName).toBe('LockonTemplate');
+    expect(parsed.flags & 0x01).toBe(0x01);
+    expect(parsed.flags & 0x02).toBe(0x02);
+    expect(parsed.flags & 0x04).toBe(0x04);
+    expect(parsed.flags & 0x08).toBe(0x08);
+    expect(parsed.flags & 0x10).toBe(0);
+    expect(parsed.flags & 0x20).toBe(0x20);
+    expect(parsed.enginesOn).toBe(false);
   });
 
   it('rewrites source WorkerAIUpdate tasks and supply tail while preserving state-machine bytes', () => {

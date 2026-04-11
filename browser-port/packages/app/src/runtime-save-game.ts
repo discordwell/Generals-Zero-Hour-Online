@@ -6123,6 +6123,28 @@ interface SourceHackInternetAIUpdateBlockState {
   hasPendingCommand: boolean;
 }
 
+interface SourceAICommandStorageBlockState {
+  command: number;
+  position: Coord3D;
+  objectId: number;
+}
+
+interface SourceJetAIUpdateBlockState {
+  blockData: Uint8Array;
+  tailOffset: number;
+  version: number;
+  producerLocation: Coord3D;
+  commandStorageBytes: Uint8Array;
+  attackLocoExpireFrame: number;
+  attackersMissExpireFrame: number;
+  returnToBaseFrame: number;
+  targetedBy: number[];
+  untargetableExpireFrame: number;
+  lockonDrawableTemplateName: string;
+  flags: number;
+  enginesOn: boolean | null;
+}
+
 interface SourceWorkerAIUpdateBlockState {
   blockData: Uint8Array;
   taskOffset: number;
@@ -6654,6 +6676,13 @@ const SOURCE_HACK_INTERNET_STATE_SNAPSHOT_BYTE_LENGTH = 5;
 const SOURCE_AICMD_MOVE_TO_POSITION = 0;
 const SOURCE_AICMD_IDLE = 5;
 const SOURCE_AICMD_ATTACK_OBJECT = 11;
+const SOURCE_JET_FLAG_HAS_PENDING_COMMAND = 1 << 0;
+const SOURCE_JET_FLAG_ALLOW_AIR_LOCO = 1 << 1;
+const SOURCE_JET_FLAG_HAS_PRODUCER_LOCATION = 1 << 2;
+const SOURCE_JET_FLAG_TAKEOFF_IN_PROGRESS = 1 << 3;
+const SOURCE_JET_FLAG_LANDING_IN_PROGRESS = 1 << 4;
+const SOURCE_JET_FLAG_USE_SPECIAL_RETURN_LOCO = 1 << 5;
+const SOURCE_JET_TARGETED_BY_LIMIT = 0xffff;
 
 function isSourceHackInternetStateId(value: number): boolean {
   return value === SOURCE_AI_STATE_IDLE
@@ -6673,6 +6702,36 @@ function sourceAsciiStringEndOffset(data: Uint8Array, offset: number): number | 
   const length = data[offset] ?? 0;
   const endOffset = offset + 1 + length;
   return endOffset <= data.byteLength ? endOffset : null;
+}
+
+function tryParseSourceAICommandStorage(xferLoad: XferLoad): SourceAICommandStorageBlockState | null {
+  try {
+    const command = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const duplicateCommand = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    if (command !== duplicateCommand) {
+      return null;
+    }
+    const position = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const objectId = xferLoad.xferObjectID(0);
+    xferLoad.xferObjectID(0);
+    xferLoad.xferAsciiString('');
+    const coordCount = xferLoad.xferInt(0);
+    if (coordCount < 0 || coordCount > 256) {
+      return null;
+    }
+    for (let index = 0; index < coordCount; index += 1) {
+      xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    }
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferAsciiString('');
+    xferLoad.xferInt(0);
+    xferSourceDamageInfo(xferLoad, createDefaultSourceDamageInfoState());
+    xferLoad.xferAsciiString('');
+    const hasPath = xferLoad.xferBool(false);
+    return hasPath ? null : { command, position, objectId };
+  } catch {
+    return null;
+  }
 }
 
 function findSourceHackInternetAIStateMachineBlock(data: Uint8Array): {
@@ -6733,29 +6792,7 @@ function tryParseSourceAICommandStorageToEnd(data: Uint8Array, offset: number): 
   const xferLoad = new XferLoad(copyBytesToArrayBuffer(data.subarray(offset)));
   xferLoad.open('parse-source-ai-command-storage');
   try {
-    const command = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
-    const duplicateCommand = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
-    if (command !== duplicateCommand) {
-      return false;
-    }
-    xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
-    xferLoad.xferObjectID(0);
-    xferLoad.xferObjectID(0);
-    xferLoad.xferAsciiString('');
-    const coordCount = xferLoad.xferInt(0);
-    if (coordCount < 0 || coordCount > 256) {
-      return false;
-    }
-    for (let index = 0; index < coordCount; index += 1) {
-      xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
-    }
-    xferLoad.xferUnsignedInt(0);
-    xferLoad.xferAsciiString('');
-    xferLoad.xferInt(0);
-    xferSourceDamageInfo(xferLoad, createDefaultSourceDamageInfoState());
-    xferLoad.xferAsciiString('');
-    const hasPath = xferLoad.xferBool(false);
-    return !hasPath && xferLoad.getRemaining() === 0;
+    return tryParseSourceAICommandStorage(xferLoad) !== null && xferLoad.getRemaining() === 0;
   } catch {
     return false;
   } finally {
@@ -6859,26 +6896,36 @@ function sourceCommandTypeForPendingHackCommand(command: unknown): number | null
   }
 }
 
-function writeSourcePendingHackAICommandStorage(saver: XferSave, command: unknown): boolean {
+function sourceCommandTargetPosition(command: Record<string, unknown>): Coord3D {
+  const targetX = Number.isFinite(command.targetX) ? Number(command.targetX) : Number(command.x);
+  const targetZ = Number.isFinite(command.targetZ) ? Number(command.targetZ) : Number(command.z);
+  return {
+    x: Number.isFinite(targetX) ? targetX : 0,
+    y: Number.isFinite(targetZ) ? targetZ : 0,
+    z: 0,
+  };
+}
+
+function sourceCommandTargetObjectId(command: Record<string, unknown>): number {
+  const targetEntityId = Number.isFinite(command.targetEntityId)
+    ? Number(command.targetEntityId)
+    : Number(command.targetId);
+  return Number.isFinite(targetEntityId) ? normalizeSourceObjectId(targetEntityId) : 0;
+}
+
+function writeSourceAICommandStorage(saver: XferSave, command: unknown): boolean {
   const sourceCommandType = sourceCommandTypeForPendingHackCommand(command);
   if (sourceCommandType === null || !command || typeof command !== 'object') {
     return false;
   }
-  const commandRecord = command as {
-    targetX?: unknown;
-    targetZ?: unknown;
-    targetEntityId?: unknown;
-  };
-  const targetX = Number.isFinite(commandRecord.targetX) ? Number(commandRecord.targetX) : 0;
-  const targetZ = Number.isFinite(commandRecord.targetZ) ? Number(commandRecord.targetZ) : 0;
-  const targetEntityId = Number.isFinite(commandRecord.targetEntityId)
-    ? normalizeSourceObjectId(commandRecord.targetEntityId)
-    : 0;
+  const commandRecord = command as Record<string, unknown>;
+  const targetPosition = sourceCommandTargetPosition(commandRecord);
+  const targetEntityId = sourceCommandTargetObjectId(commandRecord);
 
   saver.xferUser(buildSourceRawInt32Bytes(sourceCommandType));
   // Source bug parity: AICommandParmsStorage::doXfer writes &m_cmd for sizeof(m_cmdSource).
   saver.xferUser(buildSourceRawInt32Bytes(sourceCommandType));
-  saver.xferCoord3D({ x: targetX, y: targetZ, z: 0 });
+  saver.xferCoord3D(targetPosition);
   saver.xferObjectID(sourceCommandType === SOURCE_AICMD_ATTACK_OBJECT ? targetEntityId : 0);
   saver.xferObjectID(0);
   saver.xferAsciiString('');
@@ -6892,6 +6939,19 @@ function writeSourcePendingHackAICommandStorage(saver: XferSave, command: unknow
   return true;
 }
 
+function buildSourceAICommandStorageBytes(command: unknown): Uint8Array | null {
+  const saver = new XferSave();
+  saver.open('build-source-ai-command-storage');
+  try {
+    if (!writeSourceAICommandStorage(saver, command)) {
+      return null;
+    }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourcePendingHackCommandTail(entity: MapEntity): Uint8Array | null {
   const pending = entity.hackInternetPendingCommand;
   const command = pending?.command;
@@ -6902,7 +6962,7 @@ function buildSourcePendingHackCommandTail(entity: MapEntity): Uint8Array | null
   saver.open('build-source-hack-internet-pending-command');
   try {
     saver.xferBool(true);
-    if (!writeSourcePendingHackAICommandStorage(saver, command)) {
+    if (!writeSourceAICommandStorage(saver, command)) {
       return null;
     }
     return new Uint8Array(saver.getBuffer());
@@ -6928,6 +6988,166 @@ function buildSourceHackInternetAIUpdateBlockData(
   view.setUint32(preservedState.currentStateOffset, state.stateId, true);
   view.setUint32(preservedState.framesRemainingOffset, state.framesRemaining, true);
   return blockData;
+}
+
+function tryParseSourceJetAIUpdateBlockData(data: Uint8Array): SourceJetAIUpdateBlockState | null {
+  const version = data[0] ?? 0;
+  if (version < 1 || version > 2) {
+    return null;
+  }
+
+  for (let tailOffset = 1; tailOffset < data.byteLength; tailOffset += 1) {
+    const xferLoad = new XferLoad(copyBytesToArrayBuffer(data.subarray(tailOffset)));
+    xferLoad.open('parse-source-jet-ai-update-tail');
+    try {
+      const producerLocation = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const commandStorageStart = xferLoad.getOffset();
+      if (!tryParseSourceAICommandStorage(xferLoad)) {
+        continue;
+      }
+      const commandStorageEnd = xferLoad.getOffset();
+      const attackLocoExpireFrame = xferLoad.xferUnsignedInt(0);
+      const attackersMissExpireFrame = xferLoad.xferUnsignedInt(0);
+      const returnToBaseFrame = xferLoad.xferUnsignedInt(0);
+      const listVersion = xferLoad.xferVersion(1);
+      if (listVersion !== 1) {
+        continue;
+      }
+      const targetedByCount = xferLoad.xferUnsignedShort(0);
+      if (targetedByCount > SOURCE_JET_TARGETED_BY_LIMIT) {
+        continue;
+      }
+      const targetedBy: number[] = [];
+      for (let index = 0; index < targetedByCount; index += 1) {
+        targetedBy.push(xferLoad.xferObjectID(0));
+      }
+      const untargetableExpireFrame = xferLoad.xferUnsignedInt(0);
+      const lockonDrawableTemplateName = xferLoad.xferAsciiString('');
+      const flags = xferLoad.xferInt(0);
+      const enginesOn = version >= 2 ? xferLoad.xferBool(false) : null;
+      if (xferLoad.getRemaining() !== 0) {
+        continue;
+      }
+      return {
+        blockData: new Uint8Array(data),
+        tailOffset,
+        version,
+        producerLocation,
+        commandStorageBytes: new Uint8Array(
+          data.subarray(tailOffset + commandStorageStart, tailOffset + commandStorageEnd),
+        ),
+        attackLocoExpireFrame,
+        attackersMissExpireFrame,
+        returnToBaseFrame,
+        targetedBy,
+        untargetableExpireFrame,
+        lockonDrawableTemplateName,
+        flags,
+        enginesOn,
+      };
+    } catch {
+      continue;
+    } finally {
+      xferLoad.close();
+    }
+  }
+  return null;
+}
+
+function sourceJetFlagsForEntity(entity: MapEntity, preservedFlags: number): number {
+  const jetState = entity.jetAIState as {
+    state?: unknown;
+    allowAirLoco?: unknown;
+    pendingCommand?: unknown;
+    useReturnLoco?: unknown;
+    producerX?: unknown;
+    producerZ?: unknown;
+  } | null | undefined;
+  let flags = preservedFlags;
+  const setFlag = (mask: number, enabled: boolean) => {
+    flags = enabled ? (flags | mask) : (flags & ~mask);
+  };
+
+  const hasPendingCommand = !!jetState?.pendingCommand;
+  setFlag(SOURCE_JET_FLAG_HAS_PENDING_COMMAND, hasPendingCommand);
+  if (typeof jetState?.allowAirLoco === 'boolean') {
+    setFlag(SOURCE_JET_FLAG_ALLOW_AIR_LOCO, jetState.allowAirLoco);
+  }
+  setFlag(
+    SOURCE_JET_FLAG_HAS_PRODUCER_LOCATION,
+    Number.isFinite(jetState?.producerX) && Number.isFinite(jetState?.producerZ),
+  );
+  setFlag(SOURCE_JET_FLAG_TAKEOFF_IN_PROGRESS, jetState?.state === 'TAKING_OFF');
+  setFlag(SOURCE_JET_FLAG_LANDING_IN_PROGRESS, jetState?.state === 'LANDING');
+  if (typeof jetState?.useReturnLoco === 'boolean') {
+    setFlag(SOURCE_JET_FLAG_USE_SPECIAL_RETURN_LOCO, jetState.useReturnLoco);
+  }
+  return flags;
+}
+
+function buildSourceJetAIUpdateBlockData(
+  entity: MapEntity,
+  preservedState: SourceJetAIUpdateBlockState,
+): Uint8Array | null {
+  const jetState = entity.jetAIState as {
+    producerX?: unknown;
+    producerZ?: unknown;
+    pendingCommand?: unknown;
+    attackLocoExpireFrame?: unknown;
+    returnToBaseFrame?: unknown;
+  } | null | undefined;
+  const pendingCommand = jetState?.pendingCommand ?? null;
+  const commandStorageBytes = pendingCommand
+    ? buildSourceAICommandStorageBytes(pendingCommand)
+    : preservedState.commandStorageBytes;
+  if (!commandStorageBytes) {
+    return null;
+  }
+
+  const saver = new XferSave();
+  saver.open('build-source-jet-ai-update-tail');
+  try {
+    saver.xferCoord3D({
+      x: Number.isFinite(jetState?.producerX) ? Number(jetState!.producerX) : preservedState.producerLocation.x,
+      y: Number.isFinite(jetState?.producerZ) ? Number(jetState!.producerZ) : preservedState.producerLocation.y,
+      z: preservedState.producerLocation.z,
+    });
+    saver.xferUser(commandStorageBytes);
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(
+      jetState?.attackLocoExpireFrame,
+      preservedState.attackLocoExpireFrame,
+    ));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(
+      entity.attackersMissExpireFrame,
+      preservedState.attackersMissExpireFrame,
+    ));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(
+      jetState?.returnToBaseFrame,
+      preservedState.returnToBaseFrame,
+    ));
+    saver.xferVersion(1);
+    saver.xferUnsignedShort(preservedState.targetedBy.length);
+    for (const objectId of preservedState.targetedBy) {
+      saver.xferObjectID(normalizeSourceObjectId(objectId));
+    }
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(
+      preservedState.untargetableExpireFrame,
+      preservedState.untargetableExpireFrame,
+    ));
+    saver.xferAsciiString(preservedState.lockonDrawableTemplateName);
+    saver.xferInt(sourceJetFlagsForEntity(entity, preservedState.flags));
+    if (preservedState.version >= 2) {
+      saver.xferBool(preservedState.enginesOn === true);
+    }
+
+    const tailBytes = new Uint8Array(saver.getBuffer());
+    const blockData = new Uint8Array(preservedState.tailOffset + tailBytes.byteLength);
+    blockData.set(preservedState.blockData.subarray(0, preservedState.tailOffset));
+    blockData.set(tailBytes, preservedState.tailOffset);
+    return blockData;
+  } finally {
+    saver.close();
+  }
 }
 
 function tryParseSourceDeployStyleAIUpdateBlockData(
@@ -14077,6 +14297,18 @@ function overlaySourceObjectModulesFromLiveEntity(
             const parsedSourceState = tryParseSourceHackInternetAIUpdateBlockData(module.blockData);
             if (parsedSourceState) {
               const blockData = buildSourceHackInternetAIUpdateBlockData(entity, currentFrame, parsedSourceState);
+              if (blockData) {
+                return {
+                  identifier: module.identifier,
+                  blockData,
+                };
+              }
+            }
+          }
+          if (moduleType === 'JETAIUPDATE' && entity.jetAIState) {
+            const parsedSourceState = tryParseSourceJetAIUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              const blockData = buildSourceJetAIUpdateBlockData(entity, parsedSourceState);
               if (blockData) {
                 return {
                   identifier: module.identifier,
