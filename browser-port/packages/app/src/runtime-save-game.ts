@@ -4227,6 +4227,7 @@ function buildSourceCleanupHazardUpdateBlockData(
   saver.open('build-source-cleanup-hazard-update');
   try {
     const state = entity.cleanupHazardState;
+    const cleanupAreaMoveRange = state?.cleanupAreaMoveRange;
     saver.xferVersion(1);
     saver.xferUser(buildSourceUpdateModuleBaseBlockData(
       buildSourceUpdateModuleWakeFrame(currentFrame + 1),
@@ -4234,9 +4235,11 @@ function buildSourceCleanupHazardUpdateBlockData(
     saver.xferObjectID(Math.max(0, Math.trunc(state?.bestTargetId ?? 0)) >>> 0);
     saver.xferBool(state?.inRange === true);
     saver.xferInt(Math.trunc(state?.nextScanFrame ?? 0));
-    saver.xferInt(Math.trunc(state?.nextShotAvailableFrame ?? 0));
-    saver.xferCoord3D(preservedState.position);
-    saver.xferReal(preservedState.moveRange);
+    saver.xferInt(Math.max(0, Math.trunc(state?.nextShotAvailableFrame ?? currentFrame) - currentFrame));
+    saver.xferCoord3D(state?.cleanupAreaPosition ?? preservedState.position);
+    saver.xferReal(Number.isFinite(cleanupAreaMoveRange)
+      ? Math.max(0, cleanupAreaMoveRange as number)
+      : preservedState.moveRange);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();

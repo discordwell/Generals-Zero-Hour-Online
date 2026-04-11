@@ -173,6 +173,13 @@ function makeSourceOwnedCoreBundle() {
       makeObjectDef('RadiusDecalCaster', 'America', ['VEHICLE'], [
         makeBlock('Behavior', 'RadiusDecalUpdate ModuleTag_RadiusDecal', {}),
       ]),
+      makeObjectDef('CleanupWorker', 'America', ['INFANTRY'], [
+        makeBlock('Behavior', 'CleanupHazardUpdate ModuleTag_Cleanup', {
+          WeaponSlot: 'PRIMARY',
+          ScanRate: 200,
+          ScanRange: 100,
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -927,6 +934,36 @@ function buildSourceRadiusDecalUpdateModuleData(options: {
     saver.xferVersion(1);
     saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
     saver.xferBool(options.killWhenNoLongerAttacking);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceCleanupHazardUpdateModuleData(options: {
+  nextCallFrame: number;
+  bestTargetId: number;
+  inRange: boolean;
+  nextScanFrames: number;
+  nextShotAvailableInFrames: number;
+  position: { x: number; y: number; z: number };
+  moveRange: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-cleanup-hazard-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferObjectID(options.bestTargetId);
+    saver.xferBool(options.inRange);
+    saver.xferInt(options.nextScanFrames);
+    saver.xferInt(options.nextShotAvailableInFrames);
+    saver.xferCoord3D(options.position);
+    saver.xferReal(options.moveRange);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2056,6 +2093,68 @@ describe('source-owned game-logic core save-state', () => {
       moduleTag: 'MODULETAG_RADIUSDECAL',
       killWhenNoLongerAttacking: true,
     }]);
+  });
+
+  it('imports source CleanupHazardUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const cleanupState = createEmptySourceMapEntitySaveState();
+    cleanupState.objectId = 98;
+    cleanupState.position = { x: 152, y: 0, z: 64 };
+    cleanupState.modules = [{
+      identifier: 'ModuleTag_Cleanup',
+      blockData: buildSourceCleanupHazardUpdateModuleData({
+        nextCallFrame: 201,
+        bestTargetId: 99,
+        inRange: true,
+        nextScanFrames: 7,
+        nextShotAvailableInFrames: 13,
+        position: { x: 5, y: 6, z: 7 },
+        moveRange: 125,
+      }),
+    }];
+
+    const hazardState = createEmptySourceMapEntitySaveState();
+    hazardState.objectId = 99;
+    hazardState.position = { x: 160, y: 0, z: 64 };
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 170,
+      objects: [
+        { templateName: 'CleanupWorker', state: cleanupState },
+        { templateName: 'SupplyPile', state: hazardState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        cleanupHazardState: {
+          bestTargetId: number;
+          inRange: boolean;
+          nextScanFrame: number;
+          nextShotAvailableFrame: number;
+          cleanupAreaPosition: { x: number; y: number; z: number };
+          cleanupAreaMoveRange: number;
+        } | null;
+      }>;
+    };
+
+    expect(privateLogic.spawnedEntities.get(98)!.cleanupHazardState).toEqual({
+      bestTargetId: 99,
+      inRange: true,
+      nextScanFrame: 7,
+      nextShotAvailableFrame: 213,
+      cleanupAreaPosition: { x: 5, y: 6, z: 7 },
+      cleanupAreaMoveRange: 125,
+    });
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {

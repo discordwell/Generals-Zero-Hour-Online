@@ -9601,6 +9601,8 @@ describe('runtime-save-game', () => {
               nextScanFrame: 9,
               inRange: true,
               nextShotAvailableFrame: 123,
+              cleanupAreaPosition: { x: 4, y: 5, z: 6 },
+              cleanupAreaMoveRange: 125,
             },
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
@@ -9622,9 +9624,9 @@ describe('runtime-save-game', () => {
       bestTargetId: 77,
       inRange: true,
       nextScanFrames: 9,
-      nextShotAvailableInFrames: 123,
-      position: { x: 1, y: 2, z: 3 },
-      moveRange: 250,
+      nextShotAvailableInFrames: 81,
+      position: { x: 4, y: 5, z: 6 },
+      moveRange: 125,
     });
   });
 

@@ -5938,8 +5938,12 @@ interface CleanupHazardState {
   nextScanFrame: number;
   /** Whether target was in firing range last check. */
   inRange: boolean;
-  /** C++ parity: m_nextShotAvailableInFrames — per-shot cooldown counter. */
+  /** Absolute frame when the next cleanup shot can fire. Source xfer stores this as a countdown. */
   nextShotAvailableFrame: number;
+  /** Source Coord3D target for CleanupAreaPower; stored in source coordinate order. */
+  cleanupAreaPosition: { x: number; y: number; z: number };
+  /** Source m_moveRange for cleanup-area commands. */
+  cleanupAreaMoveRange: number;
 }
 
 /**
@@ -8719,6 +8723,15 @@ interface SourceFireOclAfterCooldownUpdateImportState {
 
 interface SourceRadiusDecalUpdateImportState {
   killWhenNoLongerAttacking: boolean;
+}
+
+interface SourceCleanupHazardUpdateImportState {
+  bestTargetId: number;
+  inRange: boolean;
+  nextScanFrames: number;
+  nextShotAvailableInFrames: number;
+  position: { x: number; y: number; z: number };
+  moveRange: number;
 }
 
 interface SourceSpecialPowerModuleImportState {
@@ -13952,6 +13965,80 @@ export class GameLogicSubsystem implements Subsystem {
     entity.radiusDecalModuleStates = moduleStates;
   }
 
+  private tryParseSourceCleanupHazardUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceCleanupHazardUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'CLEANUPHAZARDUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-cleanup-hazard-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      this.skipSourceImportUpdateModuleBase(xfer);
+      const bestTargetId = xfer.xferObjectID(0);
+      const inRange = xfer.xferBool(false);
+      const nextScanFrames = xfer.xferInt(0);
+      const nextShotAvailableInFrames = xfer.xferInt(0);
+      const position = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const moveRange = xfer.xferReal(0);
+      return xfer.getRemaining() === 0
+        ? {
+          bestTargetId,
+          inRange,
+          nextScanFrames,
+          nextShotAvailableInFrames,
+          position,
+          moveRange,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceCleanupHazardUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.cleanupHazardProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const cleanupState = this.tryParseSourceCleanupHazardUpdateImportState(module.blockData, moduleType);
+      if (!cleanupState) {
+        continue;
+      }
+      const nextShotCountdown = Math.max(0, Math.trunc(cleanupState.nextShotAvailableInFrames));
+      entity.cleanupHazardState = {
+        bestTargetId: Math.max(0, Math.trunc(cleanupState.bestTargetId)),
+        inRange: cleanupState.inRange,
+        nextScanFrame: Math.max(0, Math.trunc(cleanupState.nextScanFrames)),
+        nextShotAvailableFrame: this.frameCounter + nextShotCountdown,
+        cleanupAreaPosition: cleanupState.position,
+        cleanupAreaMoveRange: Number.isFinite(cleanupState.moveRange)
+          ? Math.max(0, cleanupState.moveRange)
+          : 0,
+      };
+      return;
+    }
+  }
+
   private normalizeSourceObjectModuleType(moduleType: string): string {
     return moduleType.trim().toUpperCase();
   }
@@ -14865,6 +14952,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceHordeUpdateModulesToEntity(entity, sourceState);
     this.applySourceFireOclAfterCooldownUpdateModulesToEntity(entity, sourceState);
     this.applySourceRadiusDecalUpdateModulesToEntity(entity, sourceState);
+    this.applySourceCleanupHazardUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
     this.applySourceBattlePlanUpdateModulesToEntity(entity, sourceState);
     this.applySourceStealthModulesToEntity(entity, sourceState);
@@ -40796,6 +40884,8 @@ export class GameLogicSubsystem implements Subsystem {
           nextScanFrame: 0,
           inRange: false,
           nextShotAvailableFrame: 0,
+          cleanupAreaPosition: { x: 0, y: 0, z: 0 },
+          cleanupAreaMoveRange: 0,
         };
       }
       const state = entity.cleanupHazardState;
