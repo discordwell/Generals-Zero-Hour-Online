@@ -239,6 +239,14 @@ function makeSourceOwnedCoreBundle() {
       ]),
       makeObjectDef('RebuildWorker', 'GLA', ['INFANTRY', 'DOZER'], []),
       makeObjectDef('RebuildTarget', 'GLA', ['STRUCTURE'], []),
+      makeObjectDef('PropagandaTowerObject', 'China', ['STRUCTURE'], [
+        makeBlock('Behavior', 'PropagandaTowerBehavior ModuleTag_Propaganda', {
+          Radius: 120,
+          DelayBetweenUpdates: 30,
+          HealPercentEachSecond: 1,
+          AffectsSelf: true,
+        }),
+      ]),
       makeObjectDef('SlowDeathObject', 'America', ['VEHICLE'], [
         makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_SlowDeath', {
           DestructionDelay: 3000,
@@ -1791,6 +1799,27 @@ function buildSourceRebuildHoleBehaviorModuleData(options: {
     saver.xferUnsignedInt(options.workerWaitCounter);
     saver.xferAsciiString(options.workerTemplateName);
     saver.xferAsciiString(options.rebuildTemplateName);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourcePropagandaTowerBehaviorModuleData(options: {
+  nextCallFrame: number;
+  lastScanFrame: number;
+  trackedIds: number[];
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-propaganda-tower-behavior');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+    saver.xferUnsignedInt(options.lastScanFrame);
+    saver.xferUnsignedShort(options.trackedIds.length);
+    for (const trackedId of options.trackedIds) {
+      saver.xferObjectID(trackedId);
+    }
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -5035,6 +5064,48 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedHole.rebuildHoleSpawnerEntityId).toBe(503);
     expect(importedHole.rebuildHoleWorkerWaitCounter).toBe(37);
     expect(importedHole.rebuildHoleRebuildTemplateName).toBe('RebuildTarget');
+  });
+
+  it('imports source PropagandaTowerBehavior runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const towerState = createEmptySourceMapEntitySaveState();
+    towerState.objectId = 127;
+    towerState.position = { x: 166, y: 0, z: 60 };
+    towerState.modules = [{
+      identifier: 'ModuleTag_Propaganda',
+      blockData: buildSourcePropagandaTowerBehaviorModuleData({
+        nextCallFrame: 201,
+        lastScanFrame: 170,
+        trackedIds: [501, 502, 503],
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'PropagandaTowerObject', state: towerState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        propagandaTowerNextScanFrame: number;
+        propagandaTowerTrackedIds: number[];
+      }>;
+    };
+
+    const importedTower = privateLogic.spawnedEntities.get(127)!;
+    expect(importedTower.propagandaTowerNextScanFrame).toBe(200);
+    expect(importedTower.propagandaTowerTrackedIds).toEqual([503, 502, 501]);
   });
 
   it('imports source slow-death behavior runtime state', () => {

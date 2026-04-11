@@ -2011,6 +2011,58 @@ function parseSourceRebuildHoleBehaviorBlockData(data: Uint8Array): SourceRebuil
   }
 }
 
+interface SourcePropagandaTowerBehaviorTestState {
+  nextCallFrameAndPhase: number;
+  lastScanFrame: number;
+  trackedIds: number[];
+}
+
+function createSourcePropagandaTowerBehaviorBlockData(
+  state: SourcePropagandaTowerBehaviorTestState,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-propaganda-tower-behavior');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferUnsignedInt(state.lastScanFrame);
+    xferSave.xferUnsignedShort(state.trackedIds.length);
+    for (const trackedId of state.trackedIds) {
+      xferSave.xferObjectID(trackedId);
+    }
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourcePropagandaTowerBehaviorBlockData(data: Uint8Array): SourcePropagandaTowerBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-propaganda-tower-behavior');
+  try {
+    expect(xferLoad.xferVersion(1)).toBe(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const lastScanFrame = xferLoad.xferUnsignedInt(0);
+    const count = xferLoad.xferUnsignedShort(0);
+    const trackedIds: number[] = [];
+    for (let index = 0; index < count; index += 1) {
+      trackedIds.push(xferLoad.xferObjectID(0));
+    }
+    expect(xferLoad.getRemaining()).toBe(0);
+    return {
+      nextCallFrameAndPhase,
+      lastScanFrame,
+      trackedIds,
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
 interface SourceSlowDeathBehaviorTestState {
   nextCallFrameAndPhase: number;
   sinkFrame: number;
@@ -12420,6 +12472,114 @@ describe('runtime-save-game', () => {
       workerWaitCounter: 37,
       workerTemplateName: 'RuntimeWorker',
       rebuildTemplateName: 'RuntimeTarget',
+    });
+  });
+
+  it('rewrites source PropagandaTowerBehavior modules from live runtime state', () => {
+    const preserved: SourcePropagandaTowerBehaviorTestState = {
+      nextCallFrameAndPhase: (90 << 2) | 2,
+      lastScanFrame: 20,
+      trackedIds: [11, 12],
+    };
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Propaganda',
+      blockData: createSourcePropagandaTowerBehaviorBlockData(preserved),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source propaganda tower rewrite',
+      mapPath: 'Maps/RuntimePropaganda/RuntimePropaganda.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimePropaganda',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            propagandaTowerProfile: {
+              radius: 100,
+              scanDelayFrames: 10,
+              healPercentPerSecond: 0.01,
+              upgradedHealPercentPerSecond: 0.02,
+              upgradeRequired: null,
+              affectsSelf: true,
+            },
+            propagandaTowerNextScanFrame: 88,
+            propagandaTowerTrackedIds: [51, 52, 53],
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Propaganda') {
+            return 'PROPAGANDATOWERBEHAVIOR';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const propagandaModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Propaganda');
+
+    expect(propagandaModule).toBeDefined();
+    expect(parseSourcePropagandaTowerBehaviorBlockData(propagandaModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      lastScanFrame: 78,
+      trackedIds: [51, 52, 53],
     });
   });
 

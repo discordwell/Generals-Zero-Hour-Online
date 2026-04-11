@@ -8973,6 +8973,12 @@ interface SourceRebuildHoleBehaviorImportState {
   rebuildTemplateName: string;
 }
 
+interface SourcePropagandaTowerBehaviorImportState {
+  nextCallFrame: number;
+  lastScanFrame: number;
+  trackedIds: number[];
+}
+
 interface SourceSlowDeathBehaviorImportState {
   nextCallFrame: number;
   sinkFrame: number;
@@ -16040,6 +16046,78 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourcePropagandaTowerBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourcePropagandaTowerBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'PROPAGANDATOWERBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-propaganda-tower-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const lastScanFrame = xfer.xferUnsignedInt(0);
+      const count = xfer.xferUnsignedShort(0);
+      const trackedIds: number[] = [];
+      for (let index = 0; index < count; index += 1) {
+        trackedIds.push(xfer.xferObjectID(0));
+      }
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            lastScanFrame,
+            trackedIds,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourcePropagandaTowerBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.propagandaTowerProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const propagandaTowerState = this.tryParseSourcePropagandaTowerBehaviorImportState(module.blockData, moduleType);
+      if (!propagandaTowerState) {
+        continue;
+      }
+
+      entity.propagandaTowerNextScanFrame = Math.max(
+        0,
+        Math.trunc(propagandaTowerState.lastScanFrame)
+          + Math.max(0, Math.trunc(entity.propagandaTowerProfile.scanDelayFrames)),
+      );
+      // C++ load prepends each saved tracker entry into m_insideList.
+      entity.propagandaTowerTrackedIds = [...propagandaTowerState.trackedIds]
+        .reverse()
+        .map((id) => Math.max(0, Math.trunc(id)));
+      return;
+    }
+  }
+
   private xferSourceSlowDeathBehaviorImportState(xfer: XferLoad): SourceSlowDeathBehaviorImportState | null {
     const version = xfer.xferVersion(1);
     if (version !== 1) {
@@ -20338,6 +20416,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceChinookAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceDozerAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceRebuildHoleBehaviorModulesToEntity(entity, sourceState);
+    this.applySourcePropagandaTowerBehaviorModulesToEntity(entity, sourceState);
     this.applySourceSlowDeathBehaviorModulesToEntity(entity, sourceState);
     this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);

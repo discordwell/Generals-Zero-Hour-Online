@@ -5920,6 +5920,12 @@ interface SourceRebuildHoleBehaviorBlockState {
   rebuildTemplateName: string;
 }
 
+interface SourcePropagandaTowerBehaviorBlockState {
+  nextCallFrameAndPhase: number;
+  lastScanFrame: number;
+  trackedIds: number[];
+}
+
 interface SourceSlowDeathBehaviorBlockState {
   nextCallFrameAndPhase: number;
   sinkFrame: number;
@@ -6719,6 +6725,73 @@ function buildSourceRebuildHoleBehaviorBlockData(
     ));
     saver.xferAsciiString(workerTemplateName);
     saver.xferAsciiString(rebuildTemplateName);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourcePropagandaTowerBehaviorBlockData(
+  data: Uint8Array,
+): SourcePropagandaTowerBehaviorBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-propaganda-tower-behavior');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(
+      xferLoad,
+      buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    );
+    const lastScanFrame = xferLoad.xferUnsignedInt(0);
+    const trackedIds = xferSourceObjectIdListByUnsignedShortCount(xferLoad, []);
+    return xferLoad.getRemaining() === 0
+      ? {
+          nextCallFrameAndPhase,
+          lastScanFrame,
+          trackedIds,
+        }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourcePropagandaTowerBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourcePropagandaTowerBehaviorBlockState,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-propaganda-tower-behavior');
+  try {
+    const scanDelayFrames = sourceNonNegativeInt(
+      entity.propagandaTowerProfile?.scanDelayFrames,
+      0,
+    );
+    const nextScanFrame = sourceNonNegativeInt(
+      entity.propagandaTowerNextScanFrame,
+      preservedState.lastScanFrame + scanDelayFrames,
+    );
+    const lastScanFrame = Math.max(0, nextScanFrame - scanDelayFrames);
+    const statusFlags = entity.objectStatusFlags ?? new Set<string>();
+    const sleepsForever = entity.destroyed || statusFlags.has('SOLD');
+
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(sleepsForever ? SOURCE_FRAME_FOREVER : currentFrame + 1),
+    ));
+    saver.xferUnsignedInt(lastScanFrame);
+    xferSourceObjectIdListByUnsignedShortCount(
+      saver,
+      Array.isArray(entity.propagandaTowerTrackedIds)
+        ? entity.propagandaTowerTrackedIds
+        : preservedState.trackedIds,
+    );
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -11890,6 +11963,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceRebuildHoleBehaviorBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'PROPAGANDATOWERBEHAVIOR' && entity.propagandaTowerProfile) {
+            const parsedSourceState = tryParseSourcePropagandaTowerBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourcePropagandaTowerBehaviorBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }
