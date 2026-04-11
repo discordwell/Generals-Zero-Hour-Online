@@ -194,6 +194,15 @@ function makeSourceOwnedCoreBundle() {
           SpawnPointBoneName: 'SpawnPoint',
         }),
       ]),
+      makeObjectDef('PointDefenseObject', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'PointDefenseLaserUpdate ModuleTag_PDL', {
+          WeaponTemplate: 'PDLWeapon',
+          PrimaryTargetTypes: 'SMALL_MISSILE',
+          SecondaryTargetTypes: 'BALLISTIC_MISSILE',
+          ScanRate: 1000,
+          ScanRange: 300,
+        }),
+      ]),
       makeObjectDef('HealingSeeker', 'America', ['INFANTRY'], [
         makeBlock('Behavior', 'AutoFindHealingUpdate ModuleTag_AutoFindHealing', {
           ScanRate: 500,
@@ -344,6 +353,7 @@ function makeSourceOwnedCoreBundle() {
     weapons: [
       makeWeaponDef('AutoFireWeapon', { PrimaryDamage: 1, DelayBetweenShots: 1000 }),
       makeWeaponDef('CollideFireWeapon', { PrimaryDamage: 1, DelayBetweenShots: 1000 }),
+      makeWeaponDef('PDLWeapon', { PrimaryDamage: 1, DelayBetweenShots: 1000, AttackRange: 100 }),
     ],
     commandButtons: [
       makeCommandButtonDef('Command_HuntFireWeapon', {
@@ -1341,6 +1351,32 @@ function buildSourceSpawnPointProductionExitModuleData(options: {
     for (let index = 0; index < SOURCE_SPAWN_POINT_MAX_POINTS; index += 1) {
       saver.xferObjectID(options.occupierIds[index] ?? 0);
     }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourcePointDefenseLaserUpdateModuleData(options: {
+  nextCallFrame: number;
+  bestTargetId: number;
+  inRange: boolean;
+  nextScanFrames: number;
+  nextShotAvailableInFrames: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-point-defense-laser-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferObjectID(options.bestTargetId);
+    saver.xferBool(options.inRange);
+    saver.xferInt(options.nextScanFrames);
+    saver.xferInt(options.nextShotAvailableInFrames);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -3195,6 +3231,54 @@ describe('source-owned game-logic core save-state', () => {
 
     expect(privateLogic.spawnedEntities.get(121)!.spawnPointExitState?.occupierIds)
       .toEqual([-1, 401, 402, -1, 404, -1, -1, -1, -1, -1]);
+  });
+
+  it('imports source PointDefenseLaserUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const pdlState = createEmptySourceMapEntitySaveState();
+    pdlState.objectId = 122;
+    pdlState.position = { x: 156, y: 0, z: 60 };
+    pdlState.modules = [{
+      identifier: 'ModuleTag_PDL',
+      blockData: buildSourcePointDefenseLaserUpdateModuleData({
+        nextCallFrame: 340,
+        bestTargetId: 501,
+        inRange: true,
+        nextScanFrames: 7,
+        nextShotAvailableInFrames: 11,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'PointDefenseObject', state: pdlState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        pdlBestTargetId: number;
+        pdlInRange: boolean;
+        pdlNextScanFrame: number;
+        pdlNextShotFrame: number;
+      }>;
+    };
+
+    const importedPdl = privateLogic.spawnedEntities.get(122)!;
+    expect(importedPdl.pdlBestTargetId).toBe(501);
+    expect(importedPdl.pdlInRange).toBe(true);
+    expect(importedPdl.pdlNextScanFrame).toBe(207);
+    expect(importedPdl.pdlNextShotFrame).toBe(211);
   });
 
   it('imports source HordeUpdate runtime state', () => {

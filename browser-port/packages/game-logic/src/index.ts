@@ -4171,6 +4171,10 @@ export interface MapEntity {
   pointDefenseLaserProfile: PointDefenseLaserProfile | null;
   /** Frame when next expensive target scan should run. */
   pdlNextScanFrame: number;
+  /** Source parity: PointDefenseLaserUpdate::m_bestTargetID. */
+  pdlBestTargetId: number;
+  /** Source parity: PointDefenseLaserUpdate::m_inRange. */
+  pdlInRange: boolean;
   /** Visual ID of the currently tracked projectile event (0 = no target). */
   pdlTargetProjectileVisualId: number;
   /** Frame when the PDL weapon can fire again. */
@@ -8926,6 +8930,14 @@ interface SourceBoneFxUpdateImportState {
   currentBodyState: number;
   bonesResolved: boolean[];
   active: boolean;
+}
+
+interface SourcePointDefenseLaserUpdateImportState {
+  nextCallFrame: number;
+  bestTargetId: number;
+  inRange: boolean;
+  nextScanFrames: number;
+  nextShotAvailableInFrames: number;
 }
 
 interface SourceFireSpreadUpdateImportState {
@@ -15365,6 +15377,72 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourcePointDefenseLaserUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourcePointDefenseLaserUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'POINTDEFENSELASERUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-point-defense-laser-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const bestTargetId = xfer.xferObjectID(0);
+      const inRange = xfer.xferBool(false);
+      const nextScanFrames = xfer.xferInt(0);
+      const nextShotAvailableInFrames = xfer.xferInt(0);
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            bestTargetId,
+            inRange,
+            nextScanFrames,
+            nextShotAvailableInFrames,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourcePointDefenseLaserUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.pointDefenseLaserProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const pdlState = this.tryParseSourcePointDefenseLaserUpdateImportState(module.blockData, moduleType);
+      if (!pdlState) {
+        continue;
+      }
+      entity.pdlBestTargetId = Math.max(0, Math.trunc(pdlState.bestTargetId));
+      entity.pdlInRange = pdlState.inRange;
+      entity.pdlNextScanFrame = this.frameCounter + Math.max(0, Math.trunc(pdlState.nextScanFrames));
+      entity.pdlNextShotFrame = this.frameCounter + Math.max(0, Math.trunc(pdlState.nextShotAvailableInFrames));
+      return;
+    }
+  }
+
   private tryParseSourceFireSpreadUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -17008,6 +17086,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceDeployStyleAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);
+    this.applySourcePointDefenseLaserUpdateModulesToEntity(entity, sourceState);
     this.applySourceFireSpreadUpdateModulesToEntity(entity, sourceState);
     this.applySourcePoisonedBehaviorModulesToEntity(entity, sourceState);
     this.applySourceMinefieldBehaviorModulesToEntity(entity, sourceState);

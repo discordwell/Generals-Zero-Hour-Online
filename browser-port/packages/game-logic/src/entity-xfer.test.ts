@@ -493,6 +493,8 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     // PDL
     pointDefenseLaserProfile: null,
     pdlNextScanFrame: 0,
+    pdlBestTargetId: 0,
+    pdlInRange: false,
     pdlTargetProjectileVisualId: 0,
     pdlNextShotFrame: 0,
 

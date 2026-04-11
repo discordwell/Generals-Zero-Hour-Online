@@ -739,6 +739,8 @@ export function createMapEntity(self: GL,
     // Point defense laser
     pointDefenseLaserProfile: extractPointDefenseLaserProfile(self, objectDef),
     pdlNextScanFrame: 0,
+    pdlBestTargetId: 0,
+    pdlInRange: false,
     pdlTargetProjectileVisualId: 0,
     pdlNextShotFrame: 0,
     // Horde formation bonus

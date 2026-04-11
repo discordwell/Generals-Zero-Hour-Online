@@ -13655,6 +13655,8 @@ describe('runtime-save-game', () => {
               predictTargetVelocityFactor: 0,
             },
             pdlNextScanFrame: 51,
+            pdlBestTargetId: 22,
+            pdlInRange: false,
             pdlNextShotFrame: 62,
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
@@ -13673,8 +13675,8 @@ describe('runtime-save-game', () => {
     expect(pdlModule).toBeDefined();
     expect(parseSourcePointDefenseLaserUpdateBlockData(pdlModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (43 << 2) | 2,
-      bestTargetId: 11,
-      inRange: true,
+      bestTargetId: 22,
+      inRange: false,
       nextScanFrames: 9,
       nextShotAvailableInFrames: 20,
     });

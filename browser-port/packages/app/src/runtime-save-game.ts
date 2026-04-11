@@ -9129,8 +9129,8 @@ function buildSourcePointDefenseLaserUpdateBlockData(
     saver.xferUser(buildSourceUpdateModuleBaseBlockData(
       buildSourceUpdateModuleWakeFrame(currentFrame + 1),
     ));
-    saver.xferObjectID(preservedState.bestTargetId >>> 0);
-    saver.xferBool(preservedState.inRange);
+    saver.xferObjectID(normalizeSourceObjectId(entity.pdlBestTargetId ?? preservedState.bestTargetId));
+    saver.xferBool(typeof entity.pdlInRange === 'boolean' ? entity.pdlInRange : preservedState.inRange);
     saver.xferInt(nextScanFrames);
     saver.xferInt(nextShotAvailableInFrames);
     return new Uint8Array(saver.getBuffer());

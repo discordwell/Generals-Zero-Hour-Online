@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 34;
+const ENTITY_XFER_VERSION = 35;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -2140,6 +2140,13 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   // ── Point Defense Laser ──
   e.pointDefenseLaserProfile = xferNullableJsonObject(xfer, e.pointDefenseLaserProfile as object | null);
   e.pdlNextScanFrame = xfer.xferInt(e.pdlNextScanFrame as number);
+  if (version >= 35) {
+    e.pdlBestTargetId = xfer.xferObjectID((e.pdlBestTargetId as number | undefined) ?? 0);
+    e.pdlInRange = xfer.xferBool((e.pdlInRange as boolean | undefined) ?? false);
+  } else {
+    e.pdlBestTargetId = 0;
+    e.pdlInRange = false;
+  }
   e.pdlTargetProjectileVisualId = xfer.xferInt(e.pdlTargetProjectileVisualId as number);
   e.pdlNextShotFrame = xfer.xferInt(e.pdlNextShotFrame as number);
 
