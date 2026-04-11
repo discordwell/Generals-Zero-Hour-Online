@@ -6,9 +6,10 @@
  */
 
 import * as THREE from 'three';
-import type {
-  DeterministicGameLogicCrcSectionWriters,
-  Subsystem,
+import {
+  XferLoad,
+  type DeterministicGameLogicCrcSectionWriters,
+  type Subsystem,
 } from '@generals/engine';
 import { GameRandom, type IniBlock, type IniValue } from '@generals/core';
 import {
@@ -8601,6 +8602,18 @@ export interface GameLogicSourceGameLogicImportSaveState {
   superweaponRestriction?: number | null;
 }
 
+interface SourceActiveBodyImportState {
+  damageScalar: number;
+  currentHealth: number;
+  currentSubdualDamage: number;
+  maxHealth: number;
+  initialHealth: number;
+  frontCrushed: boolean;
+  backCrushed: boolean;
+  indestructible: boolean;
+  armorSetFlags: string[];
+}
+
 export interface GameLogicObjectTriggerAreaEntrySaveState {
   triggerName: string;
   entered: number;
@@ -12604,6 +12617,177 @@ export class GameLogicSubsystem implements Subsystem {
     entity.leechRangeActive = weapon.leechWeaponRangeActive;
   }
 
+  private sourceModuleBlockDataBuffer(data: Uint8Array): ArrayBuffer {
+    const copy = new Uint8Array(data.byteLength);
+    copy.set(data);
+    return copy.buffer;
+  }
+
+  private xferSourceImportStringBitFlags(xfer: XferLoad): string[] {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error(`Unsupported source import bitflags version ${version}.`);
+    }
+    const count = xfer.xferInt(0);
+    const names: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      names.push(xfer.xferAsciiString(''));
+    }
+    return names;
+  }
+
+  private skipSourceImportDamageInfo(xfer: XferLoad): void {
+    const damageInfoVersion = xfer.xferVersion(1);
+    if (damageInfoVersion !== 1) {
+      throw new Error(`Unsupported source DamageInfo import version ${damageInfoVersion}.`);
+    }
+    const inputVersion = xfer.xferVersion(3);
+    xfer.xferObjectID(0);
+    xfer.xferUser(new Uint8Array(2));
+    xfer.xferUser(new Uint8Array(4));
+    if (inputVersion >= 2) {
+      xfer.xferUser(new Uint8Array(4));
+    }
+    xfer.xferUser(new Uint8Array(4));
+    xfer.xferReal(0);
+    xfer.xferBool(false);
+    xfer.xferUser(new Uint8Array(4));
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    if (inputVersion >= 3) {
+      xfer.xferAsciiString('');
+    }
+    const outputVersion = xfer.xferVersion(1);
+    if (outputVersion !== 1) {
+      throw new Error(`Unsupported source DamageInfoOutput import version ${outputVersion}.`);
+    }
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xfer.xferBool(false);
+  }
+
+  private parseSourceActiveBodyImportState(xfer: XferLoad): SourceActiveBodyImportState {
+    const activeBodyVersion = xfer.xferVersion(1);
+    if (activeBodyVersion !== 1) {
+      throw new Error(`Unsupported source ActiveBody import version ${activeBodyVersion}.`);
+    }
+    const bodyVersion = xfer.xferVersion(1);
+    const behaviorVersion = xfer.xferVersion(1);
+    const objectModuleVersion = xfer.xferVersion(1);
+    const moduleVersion = xfer.xferVersion(1);
+    if (bodyVersion !== 1 || behaviorVersion !== 1 || objectModuleVersion !== 1 || moduleVersion !== 1) {
+      throw new Error('Unsupported source BodyModule import base version.');
+    }
+    const damageScalar = xfer.xferReal(1);
+    const currentHealth = xfer.xferReal(0);
+    const currentSubdualDamage = xfer.xferReal(0);
+    xfer.xferReal(0);
+    const maxHealth = xfer.xferReal(0);
+    const initialHealth = xfer.xferReal(0);
+    xfer.xferUser(new Uint8Array(4));
+    xfer.xferUnsignedInt(0);
+    xfer.xferUser(new Uint8Array(4));
+    this.skipSourceImportDamageInfo(xfer);
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    const frontCrushed = xfer.xferBool(false);
+    const backCrushed = xfer.xferBool(false);
+    xfer.xferBool(false);
+    const indestructible = xfer.xferBool(false);
+    const particleSystemCount = xfer.xferUnsignedShort(0);
+    for (let index = 0; index < particleSystemCount; index += 1) {
+      xfer.xferUser(new Uint8Array(4));
+    }
+    const armorSetFlags = this.xferSourceImportStringBitFlags(xfer);
+    return {
+      damageScalar,
+      currentHealth,
+      currentSubdualDamage,
+      maxHealth,
+      initialHealth,
+      frontCrushed,
+      backCrushed,
+      indestructible,
+      armorSetFlags,
+    };
+  }
+
+  private tryParseSourceBodyModuleImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceActiveBodyImportState | null {
+    const normalizedModuleType = moduleType.trim().toUpperCase();
+    const isActiveBodyModule = normalizedModuleType === 'ACTIVEBODY'
+      || normalizedModuleType === 'IMMORTALBODY'
+      || normalizedModuleType === 'HIGHLANDERBODY'
+      || normalizedModuleType === 'STRUCTUREBODY'
+      || normalizedModuleType === 'HIVESTRUCTUREBODY'
+      || normalizedModuleType === 'UNDEADBODY';
+    if (!isActiveBodyModule) {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-body-import');
+    try {
+      const bodyWrapperVersion = xfer.xferVersion(1);
+      if (bodyWrapperVersion !== 1) {
+        return null;
+      }
+      if (normalizedModuleType === 'HIVESTRUCTUREBODY') {
+        const hiveVersion = xfer.xferVersion(1);
+        if (hiveVersion !== 1) {
+          return null;
+        }
+      }
+      return this.parseSourceActiveBodyImportState(xfer);
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceBodyModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const bodyState = this.tryParseSourceBodyModuleImportState(module.blockData, moduleType);
+      if (!bodyState) {
+        continue;
+      }
+      entity.battlePlanDamageScalar = Number.isFinite(bodyState.damageScalar)
+        ? bodyState.damageScalar
+        : entity.battlePlanDamageScalar;
+      entity.health = Number.isFinite(bodyState.currentHealth) ? bodyState.currentHealth : entity.health;
+      entity.maxHealth = Number.isFinite(bodyState.maxHealth) ? bodyState.maxHealth : entity.maxHealth;
+      entity.initialHealth = Number.isFinite(bodyState.initialHealth)
+        ? bodyState.initialHealth
+        : entity.initialHealth;
+      entity.currentSubdualDamage = Number.isFinite(bodyState.currentSubdualDamage)
+        ? bodyState.currentSubdualDamage
+        : entity.currentSubdualDamage;
+      entity.frontCrushed = bodyState.frontCrushed;
+      entity.backCrushed = bodyState.backCrushed;
+      entity.isIndestructible = bodyState.indestructible;
+      entity.armorSetFlagsMask = bodyState.armorSetFlags.reduce((mask, flagName) => {
+        const bit = ARMOR_SET_FLAG_MASK_BY_NAME.get(flagName.trim().toUpperCase()) ?? 0;
+        return mask | bit;
+      }, 0);
+      return;
+    }
+  }
+
   private applySourceMapEntityStateToEntity(
     entity: MapEntity,
     sourceState: SourceMapEntitySaveState,
@@ -12655,6 +12839,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceStatusBitsToEntity(entity, sourceState);
     this.applySourceDisabledFramesToEntity(entity, sourceState);
     this.applySourceWeaponStateToEntity(entity, sourceState);
+    this.applySourceBodyModulesToEntity(entity, sourceState);
   }
 
   restoreSourceGameLogicImportSaveState(state: unknown): void {

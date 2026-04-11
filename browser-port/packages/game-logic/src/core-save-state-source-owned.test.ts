@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import { XferSave } from '@generals/engine';
 import { describe, expect, it } from 'vitest';
 
 import {
+  ARMOR_SET_FLAG_MASK_BY_NAME,
   createEmptySourceMapEntitySaveState,
   GameLogicSubsystem,
 } from './index.js';
@@ -23,6 +25,78 @@ function makeSourceOwnedCoreBundle() {
       ]),
     ],
   });
+}
+
+function sourceRawInt32(value: number): Uint8Array {
+  const bytes = new Uint8Array(4);
+  new DataView(bytes.buffer).setInt32(0, Math.trunc(value), true);
+  return bytes;
+}
+
+function buildSourceActiveBodyModuleData(options: {
+  health: number;
+  maxHealth: number;
+  initialHealth: number;
+  subdualDamage: number;
+  damageScalar: number;
+  frontCrushed: boolean;
+  backCrushed: boolean;
+  indestructible: boolean;
+  armorSetFlags: string[];
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-active-body');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferReal(options.damageScalar);
+    saver.xferReal(options.health);
+    saver.xferReal(options.subdualDamage);
+    saver.xferReal(options.health);
+    saver.xferReal(options.maxHealth);
+    saver.xferReal(options.initialHealth);
+    saver.xferUser(sourceRawInt32(0));
+    saver.xferUnsignedInt(0);
+    saver.xferUser(sourceRawInt32(0));
+    saver.xferVersion(1);
+    saver.xferVersion(3);
+    saver.xferObjectID(0);
+    saver.xferUser(new Uint8Array(2));
+    saver.xferUser(sourceRawInt32(0));
+    saver.xferUser(sourceRawInt32(11));
+    saver.xferUser(sourceRawInt32(0));
+    saver.xferReal(0);
+    saver.xferBool(false);
+    saver.xferUser(sourceRawInt32(0));
+    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+    saver.xferReal(0);
+    saver.xferReal(0);
+    saver.xferReal(0);
+    saver.xferAsciiString('');
+    saver.xferVersion(1);
+    saver.xferReal(0);
+    saver.xferReal(0);
+    saver.xferBool(false);
+    saver.xferUnsignedInt(0);
+    saver.xferUnsignedInt(0);
+    saver.xferBool(options.frontCrushed);
+    saver.xferBool(options.backCrushed);
+    saver.xferBool(false);
+    saver.xferBool(options.indestructible);
+    saver.xferUnsignedShort(0);
+    saver.xferVersion(1);
+    saver.xferInt(options.armorSetFlags.length);
+    for (const flag of options.armorSetFlags) {
+      saver.xferAsciiString(flag);
+    }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
 }
 
 describe('source-owned game-logic core save-state', () => {
@@ -47,6 +121,20 @@ describe('source-owned game-logic core save-state', () => {
     sourceState.disabledTillFrame = disabledTillFrame;
     sourceState.completedUpgradeNames = ['Upgrade_A'];
     sourceState.commandSetStringOverride = 'CommandSet_Saved';
+    sourceState.modules = [{
+      identifier: 'ModuleTag_Body',
+      blockData: buildSourceActiveBodyModuleData({
+        health: 321,
+        maxHealth: 500,
+        initialHealth: 450,
+        subdualDamage: 17,
+        damageScalar: 0.75,
+        frontCrushed: true,
+        backCrushed: true,
+        indestructible: true,
+        armorSetFlags: ['VETERAN'],
+      }),
+    }];
 
     logic.restoreSourceGameLogicImportSaveState({
       version: 1,
@@ -75,6 +163,15 @@ describe('source-owned game-logic core save-state', () => {
         disabledEmpUntilFrame: number;
         completedUpgrades: Set<string>;
         commandSetStringOverride: string | null;
+        health: number;
+        maxHealth: number;
+        initialHealth: number;
+        currentSubdualDamage: number;
+        battlePlanDamageScalar: number;
+        frontCrushed: boolean;
+        backCrushed: boolean;
+        isIndestructible: boolean;
+        armorSetFlagsMask: number;
       }>;
       scriptScoringEnabled: boolean;
       rankLevelLimit: number;
@@ -100,6 +197,15 @@ describe('source-owned game-logic core save-state', () => {
     expect(entity.disabledEmpUntilFrame).toBe(90);
     expect(entity.completedUpgrades).toEqual(new Set(['Upgrade_A']));
     expect(entity.commandSetStringOverride).toBe('CommandSet_Saved');
+    expect(entity.health).toBe(321);
+    expect(entity.maxHealth).toBe(500);
+    expect(entity.initialHealth).toBe(450);
+    expect(entity.currentSubdualDamage).toBe(17);
+    expect(entity.battlePlanDamageScalar).toBe(0.75);
+    expect(entity.frontCrushed).toBe(true);
+    expect(entity.backCrushed).toBe(true);
+    expect(entity.isIndestructible).toBe(true);
+    expect(entity.armorSetFlagsMask).toBe(ARMOR_SET_FLAG_MASK_BY_NAME.get('VETERAN'));
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {
