@@ -197,6 +197,13 @@ function makeSourceOwnedCoreBundle() {
           DetectionRange: 120,
         }),
       ]),
+      makeObjectDef('PhysicsUnit', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'PhysicsBehavior ModuleTag_Physics', {
+          Mass: 5,
+          AllowBouncing: false,
+          AllowCollideForce: false,
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -219,6 +226,19 @@ function sourceRawInt32(value: number): Uint8Array {
 function sourceUpdateFrameAndPhase(frame: number): number {
   return Math.max(0, Math.trunc(frame)) << 2;
 }
+
+const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
+const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
+const SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE = 0x0004;
+const SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN = 0x0008;
+const SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME = 0x0010;
+const SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE = 0x0020;
+const SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL = 0x0040;
+const SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW = 0x0080;
+const SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE = 0x0100;
+const SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL = 0x0200;
+const SOURCE_PHYSICS_FLAG_IS_IN_UPDATE = 0x0400;
+const SOURCE_PHYSICS_FLAG_IS_STUNNED = 0x0800;
 
 function writeSourceStringBitFlags(saver: XferSave, flags: string[]): void {
   saver.xferVersion(1);
@@ -1041,6 +1061,56 @@ function buildSourceStealthDetectorUpdateModuleData(options: {
     saver.xferVersion(1);
     saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
     saver.xferBool(options.enabled);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourcePhysicsBehaviorModuleData(options: {
+  nextCallFrame: number;
+  yawRate: number;
+  rollRate: number;
+  pitchRate: number;
+  accel: { x: number; y: number; z: number };
+  prevAccel: { x: number; y: number; z: number };
+  vel: { x: number; y: number; z: number };
+  turning: number;
+  ignoreCollisionsWith: number;
+  flags: number;
+  mass: number;
+  currentOverlap: number;
+  previousOverlap: number;
+  motiveForceExpires: number;
+  extraBounciness: number;
+  extraFriction: number;
+  velMag: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-physics-behavior');
+  try {
+    saver.xferVersion(2);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferReal(options.yawRate);
+    saver.xferReal(options.rollRate);
+    saver.xferReal(options.pitchRate);
+    saver.xferCoord3D(options.accel);
+    saver.xferCoord3D(options.prevAccel);
+    saver.xferCoord3D(options.vel);
+    saver.xferUser(sourceRawInt32(options.turning));
+    saver.xferObjectID(options.ignoreCollisionsWith);
+    saver.xferInt(options.flags);
+    saver.xferReal(options.mass);
+    saver.xferObjectID(options.currentOverlap);
+    saver.xferObjectID(options.previousOverlap);
+    saver.xferUnsignedInt(options.motiveForceExpires);
+    saver.xferReal(options.extraBounciness);
+    saver.xferReal(options.extraFriction);
+    saver.xferReal(options.velMag);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2347,6 +2417,143 @@ describe('source-owned game-logic core save-state', () => {
     const entity = privateLogic.spawnedEntities.get(101)!;
     expect(entity.detectorEnabled).toBe(false);
     expect(entity.detectorNextScanFrame).toBe(245);
+  });
+
+  it('imports source PhysicsBehavior runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 102;
+    sourceState.position = { x: 172, y: 0, z: 64 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_Physics',
+      blockData: buildSourcePhysicsBehaviorModuleData({
+        nextCallFrame: 245,
+        yawRate: 0.91,
+        rollRate: 0.82,
+        pitchRate: 0.73,
+        accel: { x: 9, y: 8, z: 7 },
+        prevAccel: { x: 6, y: 5, z: 4 },
+        vel: { x: 3, y: 2, z: 1 },
+        turning: -1,
+        ignoreCollisionsWith: 123,
+        flags: SOURCE_PHYSICS_FLAG_STICK_TO_GROUND
+          | SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE
+          | SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE
+          | SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN
+          | SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME
+          | SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE
+          | SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL
+          | SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW
+          | SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE
+          | SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL
+          | SOURCE_PHYSICS_FLAG_IS_IN_UPDATE
+          | SOURCE_PHYSICS_FLAG_IS_STUNNED,
+        mass: 12.5,
+        currentOverlap: 456,
+        previousOverlap: 789,
+        motiveForceExpires: 1024,
+        extraBounciness: 0.11,
+        extraFriction: 0.22,
+        velMag: 2.5,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 170,
+      objects: [
+        { templateName: 'PhysicsUnit', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        physicsBehaviorProfile: {
+          mass: number;
+          allowBouncing: boolean;
+          allowCollideForce: boolean;
+        } | null;
+        physicsBehaviorState: {
+          velX: number;
+          velY: number;
+          velZ: number;
+          accelX: number;
+          accelY: number;
+          accelZ: number;
+          prevAccelX?: number;
+          prevAccelY?: number;
+          prevAccelZ?: number;
+          yawRate: number;
+          pitchRate: number;
+          rollRate: number;
+          wasAirborneLastFrame: boolean;
+          stickToGround: boolean;
+          allowToFall: boolean;
+          isInFreeFall: boolean;
+          extraBounciness: number;
+          extraFriction: number;
+          isStunned: boolean;
+          turning?: number;
+          ignoreCollisionsWith?: number;
+          currentOverlap?: number;
+          previousOverlap?: number;
+          motiveForceExpires?: number;
+          updateEverRun?: boolean;
+          hasPitchRollYaw?: boolean;
+          applyFriction2dWhenAirborne?: boolean;
+          immuneToFallingDamage?: boolean;
+          isInUpdate?: boolean;
+          velMag?: number;
+        } | null;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(102)!;
+    expect(entity.physicsBehaviorProfile).toMatchObject({
+      mass: 12.5,
+      allowBouncing: true,
+      allowCollideForce: true,
+    });
+    expect(entity.physicsBehaviorState).toMatchObject({
+      velX: 3,
+      velY: 1,
+      velZ: 2,
+      accelX: 9,
+      accelY: 7,
+      accelZ: 8,
+      prevAccelX: 6,
+      prevAccelY: 4,
+      prevAccelZ: 5,
+      wasAirborneLastFrame: true,
+      stickToGround: true,
+      allowToFall: true,
+      isInFreeFall: true,
+      isStunned: true,
+      turning: -1,
+      ignoreCollisionsWith: 123,
+      currentOverlap: 456,
+      previousOverlap: 789,
+      motiveForceExpires: 1024,
+      updateEverRun: true,
+      hasPitchRollYaw: true,
+      applyFriction2dWhenAirborne: true,
+      immuneToFallingDamage: true,
+      isInUpdate: true,
+      velMag: 2.5,
+    });
+    expect(entity.physicsBehaviorState!.yawRate).toBeCloseTo(0.91);
+    expect(entity.physicsBehaviorState!.pitchRate).toBeCloseTo(0.73);
+    expect(entity.physicsBehaviorState!.rollRate).toBeCloseTo(0.82);
+    expect(entity.physicsBehaviorState!.extraBounciness).toBeCloseTo(0.11);
+    expect(entity.physicsBehaviorState!.extraFriction).toBeCloseTo(0.22);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {

@@ -904,9 +904,15 @@ export function updatePhysicsBehavior(self: GL): void {
     st.wasAirborneLastFrame = entity.y > groundY + 0.5;
 
     // Reset acceleration for next frame.
+    st.prevAccelX = st.accelX;
+    st.prevAccelY = st.accelY;
+    st.prevAccelZ = st.accelZ;
     st.accelX = 0;
     st.accelY = 0;
     st.accelZ = 0;
+    st.updateEverRun = true;
+    st.isInUpdate = false;
+    st.velMag = -1;
   }
 }
 

@@ -126,21 +126,25 @@ const SOURCE_WEAPON_STATUS_READY_TO_FIRE = 0;
 const SOURCE_WEAPON_STATUS_BETWEEN_FIRING_SHOTS = 2;
 const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
 const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
+const SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE = 0x0004;
 const SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN = 0x0008;
 const SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME = 0x0010;
 const SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE = 0x0020;
 const SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL = 0x0040;
 const SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW = 0x0080;
+const SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE = 0x0100;
 const SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL = 0x0200;
 const SOURCE_PHYSICS_FLAG_IS_IN_UPDATE = 0x0400;
 const SOURCE_PHYSICS_FLAG_IS_STUNNED = 0x0800;
 const SOURCE_PHYSICS_LIVE_OWNED_FLAG_MASK = SOURCE_PHYSICS_FLAG_STICK_TO_GROUND
   | SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE
+  | SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE
   | SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN
   | SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME
   | SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE
   | SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL
   | SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW
+  | SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE
   | SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL
   | SOURCE_PHYSICS_FLAG_IS_IN_UPDATE
   | SOURCE_PHYSICS_FLAG_IS_STUNNED;
@@ -4607,7 +4611,11 @@ function buildSourcePhysicsBehaviorFlags(
   const state = entity.physicsBehaviorState;
   const profile = entity.physicsBehaviorProfile;
   let flags = preservedFlags & ~SOURCE_PHYSICS_LIVE_OWNED_FLAG_MASK;
-  flags = setSourcePhysicsFlag(flags, SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN, true);
+  flags = setSourcePhysicsFlag(
+    flags,
+    SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN,
+    typeof state?.updateEverRun === 'boolean' ? state.updateEverRun : true,
+  );
   flags = setSourcePhysicsFlag(
     flags,
     SOURCE_PHYSICS_FLAG_STICK_TO_GROUND,
@@ -4646,7 +4654,23 @@ function buildSourcePhysicsBehaviorFlags(
   flags = setSourcePhysicsFlag(
     flags,
     SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW,
-    yawRate !== 0 || rollRate !== 0 || pitchRate !== 0,
+    typeof state?.hasPitchRollYaw === 'boolean'
+      ? state.hasPitchRollYaw
+      : (yawRate !== 0 || rollRate !== 0 || pitchRate !== 0),
+  );
+  flags = setSourcePhysicsFlag(
+    flags,
+    SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE,
+    typeof state?.applyFriction2dWhenAirborne === 'boolean'
+      ? state.applyFriction2dWhenAirborne
+      : sourcePhysicsFlag(preservedFlags, SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE),
+  );
+  flags = setSourcePhysicsFlag(
+    flags,
+    SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE,
+    typeof state?.immuneToFallingDamage === 'boolean'
+      ? state.immuneToFallingDamage
+      : sourcePhysicsFlag(preservedFlags, SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE),
   );
   flags = setSourcePhysicsFlag(
     flags,
@@ -4655,7 +4679,11 @@ function buildSourcePhysicsBehaviorFlags(
       ? state.isInFreeFall
       : sourcePhysicsFlag(preservedFlags, SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL),
   );
-  flags = setSourcePhysicsFlag(flags, SOURCE_PHYSICS_FLAG_IS_IN_UPDATE, false);
+  flags = setSourcePhysicsFlag(
+    flags,
+    SOURCE_PHYSICS_FLAG_IS_IN_UPDATE,
+    typeof state?.isInUpdate === 'boolean' ? state.isInUpdate : false,
+  );
   flags = setSourcePhysicsFlag(
     flags,
     SOURCE_PHYSICS_FLAG_IS_STUNNED,
@@ -4744,11 +4772,24 @@ function buildSourcePhysicsBehaviorBlockData(
     y: sourcePhysicsFinite(state?.accelZ, preservedState.accel.y),
     z: sourcePhysicsFinite(state?.accelY, preservedState.accel.z),
   };
+  const prevAccel = {
+    x: sourcePhysicsFinite(state?.prevAccelX, preservedState.prevAccel.x),
+    y: sourcePhysicsFinite(state?.prevAccelZ, preservedState.prevAccel.y),
+    z: sourcePhysicsFinite(state?.prevAccelY, preservedState.prevAccel.z),
+  };
   const vel = {
     x: sourcePhysicsFinite(state?.velX, preservedState.vel.x),
     y: sourcePhysicsFinite(state?.velZ, preservedState.vel.y),
     z: sourcePhysicsFinite(state?.velY, preservedState.vel.z),
   };
+  const turning = state?.turning;
+  const turningBytes = Number.isFinite(turning)
+    ? buildSourceRawInt32Bytes(Math.trunc(turning as number))
+    : (
+      preservedState.turningBytes.byteLength === SOURCE_PHYSICS_TURNING_BYTE_LENGTH
+        ? preservedState.turningBytes
+        : new Uint8Array(SOURCE_PHYSICS_TURNING_BYTE_LENGTH)
+    );
   const saver = new XferSave();
   saver.open('build-source-physics-behavior');
   try {
@@ -4760,14 +4801,12 @@ function buildSourcePhysicsBehaviorBlockData(
     saver.xferReal(rollRate);
     saver.xferReal(pitchRate);
     saver.xferCoord3D(accel);
-    saver.xferCoord3D(preservedState.prevAccel);
+    saver.xferCoord3D(prevAccel);
     saver.xferCoord3D(vel);
-    saver.xferUser(
-      preservedState.turningBytes.byteLength === SOURCE_PHYSICS_TURNING_BYTE_LENGTH
-        ? preservedState.turningBytes
-        : new Uint8Array(SOURCE_PHYSICS_TURNING_BYTE_LENGTH),
-    );
-    saver.xferObjectID(Math.max(0, Math.trunc(preservedState.ignoreCollisionsWith)) >>> 0);
+    saver.xferUser(turningBytes);
+    saver.xferObjectID(Math.max(0, Math.trunc(
+      sourcePhysicsFinite(state?.ignoreCollisionsWith, preservedState.ignoreCollisionsWith),
+    )) >>> 0);
     saver.xferInt(buildSourcePhysicsBehaviorFlags(
       preservedState.flags,
       entity,
@@ -4776,12 +4815,18 @@ function buildSourcePhysicsBehaviorBlockData(
       pitchRate,
     ));
     saver.xferReal(sourcePhysicsFinite(profile?.mass, preservedState.mass));
-    saver.xferObjectID(Math.max(0, Math.trunc(preservedState.currentOverlap)) >>> 0);
-    saver.xferObjectID(Math.max(0, Math.trunc(preservedState.previousOverlap)) >>> 0);
-    saver.xferUnsignedInt(Math.max(0, Math.trunc(preservedState.motiveForceExpires)) >>> 0);
+    saver.xferObjectID(Math.max(0, Math.trunc(
+      sourcePhysicsFinite(state?.currentOverlap, preservedState.currentOverlap),
+    )) >>> 0);
+    saver.xferObjectID(Math.max(0, Math.trunc(
+      sourcePhysicsFinite(state?.previousOverlap, preservedState.previousOverlap),
+    )) >>> 0);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(
+      sourcePhysicsFinite(state?.motiveForceExpires, preservedState.motiveForceExpires),
+    )) >>> 0);
     saver.xferReal(sourcePhysicsFinite(state?.extraBounciness, preservedState.extraBounciness));
     saver.xferReal(sourcePhysicsFinite(state?.extraFriction, preservedState.extraFriction));
-    saver.xferReal(SOURCE_PHYSICS_INVALID_VEL_MAG);
+    saver.xferReal(sourcePhysicsFinite(state?.velMag, SOURCE_PHYSICS_INVALID_VEL_MAG));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();

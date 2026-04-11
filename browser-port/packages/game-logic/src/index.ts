@@ -6362,6 +6362,9 @@ interface PhysicsBehaviorState {
   accelX: number;
   accelY: number;
   accelZ: number;
+  prevAccelX?: number;
+  prevAccelY?: number;
+  prevAccelZ?: number;
   yawRate: number;
   pitchRate: number;
   rollRate: number;
@@ -6373,6 +6376,45 @@ interface PhysicsBehaviorState {
   extraFriction: number;
   /** Source parity: PhysicsBehavior::IS_STUNNED — set by shockwave impact, cleared when velocity falls below threshold. */
   isStunned: boolean;
+  /** Source parity: PhysicsBehavior::m_turning raw enum (-1, 0, 1). */
+  turning?: number;
+  /** Source parity: PhysicsBehavior::m_ignoreCollisionsWith. */
+  ignoreCollisionsWith?: number;
+  /** Source parity: PhysicsBehavior::m_currentOverlap. */
+  currentOverlap?: number;
+  /** Source parity: PhysicsBehavior::m_previousOverlap. */
+  previousOverlap?: number;
+  /** Source parity: PhysicsBehavior::m_motiveForceExpires. */
+  motiveForceExpires?: number;
+  /** Source parity: PhysicsBehavior::UPDATE_EVER_RUN. */
+  updateEverRun?: boolean;
+  /** Source parity: PhysicsBehavior::HAS_PITCHROLLYAW. */
+  hasPitchRollYaw?: boolean;
+  /** Source parity: PhysicsBehavior::APPLY_FRICTION2D_WHEN_AIRBORNE. */
+  applyFriction2dWhenAirborne?: boolean;
+  /** Source parity: PhysicsBehavior::IMMUNE_TO_FALLING_DAMAGE. */
+  immuneToFallingDamage?: boolean;
+  /** Source parity: PhysicsBehavior::IS_IN_UPDATE. */
+  isInUpdate?: boolean;
+  /** Source parity: PhysicsBehavior::m_velMag cache; -1 means invalid. */
+  velMag?: number;
+}
+
+const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
+const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
+const SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE = 0x0004;
+const SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN = 0x0008;
+const SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME = 0x0010;
+const SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE = 0x0020;
+const SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL = 0x0040;
+const SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW = 0x0080;
+const SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE = 0x0100;
+const SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL = 0x0200;
+const SOURCE_PHYSICS_FLAG_IS_IN_UPDATE = 0x0400;
+const SOURCE_PHYSICS_FLAG_IS_STUNNED = 0x0800;
+
+function sourcePhysicsFlag(flags: number, bit: number): boolean {
+  return (flags & bit) !== 0;
 }
 
 /**
@@ -8758,6 +8800,27 @@ interface SourceSpecialPowerModuleImportState {
 interface SourceStealthDetectorUpdateImportState {
   nextCallFrame: number;
   enabled: boolean;
+}
+
+interface SourcePhysicsBehaviorImportState {
+  version: number;
+  nextCallFrame: number;
+  yawRate: number;
+  rollRate: number;
+  pitchRate: number;
+  accel: { x: number; y: number; z: number };
+  prevAccel: { x: number; y: number; z: number };
+  vel: { x: number; y: number; z: number };
+  turning: number;
+  ignoreCollisionsWith: number;
+  flags: number;
+  mass: number;
+  currentOverlap: number;
+  previousOverlap: number;
+  motiveForceExpires: number;
+  extraBounciness: number;
+  extraFriction: number;
+  velMag: number;
 }
 
 interface SourceStealthUpdateImportState {
@@ -14196,6 +14259,143 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourcePhysicsBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourcePhysicsBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'PHYSICSBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-physics-behavior-import');
+    try {
+      const version = xfer.xferVersion(2);
+      if (version !== 1 && version !== 2) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const yawRate = xfer.xferReal(0);
+      const rollRate = xfer.xferReal(0);
+      const pitchRate = xfer.xferReal(0);
+      const accel = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const prevAccel = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const vel = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      if (version < 2) {
+        xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      }
+      const turning = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const ignoreCollisionsWith = xfer.xferObjectID(0);
+      const flags = xfer.xferInt(0);
+      const mass = xfer.xferReal(0);
+      const currentOverlap = xfer.xferObjectID(0);
+      const previousOverlap = xfer.xferObjectID(0);
+      const motiveForceExpires = xfer.xferUnsignedInt(0);
+      const extraBounciness = xfer.xferReal(0);
+      const extraFriction = xfer.xferReal(0);
+      const velMag = xfer.xferReal(0);
+      return xfer.getRemaining() === 0
+        ? {
+          version,
+          nextCallFrame,
+          yawRate,
+          rollRate,
+          pitchRate,
+          accel,
+          prevAccel,
+          vel,
+          turning,
+          ignoreCollisionsWith,
+          flags,
+          mass,
+          currentOverlap,
+          previousOverlap,
+          motiveForceExpires,
+          extraBounciness,
+          extraFriction,
+          velMag,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourcePhysicsBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.physicsBehaviorProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const physicsState = this.tryParseSourcePhysicsBehaviorImportState(module.blockData, moduleType);
+      if (!physicsState) {
+        continue;
+      }
+
+      entity.physicsBehaviorProfile.mass = Number.isFinite(physicsState.mass)
+        ? physicsState.mass
+        : entity.physicsBehaviorProfile.mass;
+      entity.physicsBehaviorProfile.allowBouncing = sourcePhysicsFlag(
+        physicsState.flags,
+        SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE,
+      );
+      entity.physicsBehaviorProfile.allowCollideForce = sourcePhysicsFlag(
+        physicsState.flags,
+        SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE,
+      );
+      entity.physicsBehaviorState = {
+        velX: Number.isFinite(physicsState.vel.x) ? physicsState.vel.x : 0,
+        velY: Number.isFinite(physicsState.vel.z) ? physicsState.vel.z : 0,
+        velZ: Number.isFinite(physicsState.vel.y) ? physicsState.vel.y : 0,
+        accelX: Number.isFinite(physicsState.accel.x) ? physicsState.accel.x : 0,
+        accelY: Number.isFinite(physicsState.accel.z) ? physicsState.accel.z : 0,
+        accelZ: Number.isFinite(physicsState.accel.y) ? physicsState.accel.y : 0,
+        prevAccelX: Number.isFinite(physicsState.prevAccel.x) ? physicsState.prevAccel.x : 0,
+        prevAccelY: Number.isFinite(physicsState.prevAccel.z) ? physicsState.prevAccel.z : 0,
+        prevAccelZ: Number.isFinite(physicsState.prevAccel.y) ? physicsState.prevAccel.y : 0,
+        yawRate: Number.isFinite(physicsState.yawRate) ? physicsState.yawRate : 0,
+        pitchRate: Number.isFinite(physicsState.pitchRate) ? physicsState.pitchRate : 0,
+        rollRate: Number.isFinite(physicsState.rollRate) ? physicsState.rollRate : 0,
+        wasAirborneLastFrame: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME),
+        stickToGround: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_STICK_TO_GROUND),
+        allowToFall: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL),
+        isInFreeFall: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL),
+        extraBounciness: Number.isFinite(physicsState.extraBounciness) ? physicsState.extraBounciness : 0,
+        extraFriction: Number.isFinite(physicsState.extraFriction) ? physicsState.extraFriction : 0,
+        isStunned: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_IS_STUNNED),
+        turning: Number.isFinite(physicsState.turning) ? Math.trunc(physicsState.turning) : 0,
+        ignoreCollisionsWith: Math.max(0, Math.trunc(physicsState.ignoreCollisionsWith)),
+        currentOverlap: Math.max(0, Math.trunc(physicsState.currentOverlap)),
+        previousOverlap: Math.max(0, Math.trunc(physicsState.previousOverlap)),
+        motiveForceExpires: Math.max(0, Math.trunc(physicsState.motiveForceExpires)),
+        updateEverRun: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN),
+        hasPitchRollYaw: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW),
+        applyFriction2dWhenAirborne: sourcePhysicsFlag(
+          physicsState.flags,
+          SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE,
+        ),
+        immuneToFallingDamage: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE),
+        isInUpdate: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_IS_IN_UPDATE),
+        velMag: Number.isFinite(physicsState.velMag) ? physicsState.velMag : -1,
+      };
+      return;
+    }
+  }
+
   private normalizeSourceObjectModuleType(moduleType: string): string {
     return moduleType.trim().toUpperCase();
   }
@@ -15165,6 +15365,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceRadiusDecalUpdateModulesToEntity(entity, sourceState);
     this.applySourceCleanupHazardUpdateModulesToEntity(entity, sourceState);
     this.applySourceDynamicShroudClearingRangeUpdateModulesToEntity(entity, sourceState);
+    this.applySourcePhysicsBehaviorModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
     this.applySourceBattlePlanUpdateModulesToEntity(entity, sourceState);
     this.applySourceStealthDetectorUpdateModulesToEntity(entity, sourceState);
