@@ -109,8 +109,10 @@ export function extractFireWeaponUpdateProfiles(self: GL, objectDef: ObjectDef |
       if (moduleType === 'FIREWEAPONUPDATE') {
         const weaponName = readStringField(block.fields, ['Weapon']);
         if (!weaponName) return;
+        const moduleTag = block.name.split(/\s+/)[1]?.trim().toUpperCase() ?? null;
 
         profiles.push({
+          moduleTag,
           weaponName,
           initialDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['InitialDelay']) ?? 0),
           exclusiveWeaponDelayFrames: self.msToLogicFrames(readNumericField(block.fields, ['ExclusiveWeaponDelay']) ?? 0),

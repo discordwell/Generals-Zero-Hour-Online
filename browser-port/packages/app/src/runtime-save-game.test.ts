@@ -994,6 +994,7 @@ const SOURCE_FLAMMABLE_STATUS_AFLAME = 1;
 const SOURCE_DEATH_TYPE_POISONED = 5;
 const SOURCE_MINEFIELD_MAX_IMMUNITY = 3;
 const SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH = 16 * 4;
+const SOURCE_WEAPON_STATUS_BETWEEN_FIRING_SHOTS = 2;
 const SOURCE_PRODUCTION_UNIT = 1;
 const SOURCE_PRODUCTION_UPGRADE = 2;
 const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
@@ -1496,6 +1497,138 @@ function parseSourceSmartBombTargetHomingUpdateBlockData(data: Uint8Array) {
     xferLoad.xferVersion(1);
     return {
       nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+interface SourceWeaponSnapshotTestState {
+  version: number;
+  templateName: string;
+  slot: number;
+  status: number;
+  ammoInClip: number;
+  whenWeCanFireAgain: number;
+  whenPreAttackFinished: number;
+  whenLastReloadStarted: number;
+  lastFireFrame: number;
+  suspendFxFrame: number;
+  projectileStreamObjectId: number;
+  laserObjectIdUnused: number;
+  maxShotCount: number;
+  currentBarrel: number;
+  numShotsForCurrentBarrel: number;
+  scatterTargetsUnused: number[];
+  pitchLimited: boolean;
+  leechWeaponRangeActive: boolean;
+}
+
+interface SourceFireWeaponUpdateTestState {
+  nextCallFrameAndPhase: number;
+  weapon: SourceWeaponSnapshotTestState;
+  initialDelayFrame: number;
+}
+
+function createSourceWeaponSnapshotTestState(overrides: Partial<SourceWeaponSnapshotTestState> = {}) {
+  return {
+    version: 3,
+    templateName: 'OldFireWeapon',
+    slot: 0,
+    status: 0,
+    ammoInClip: 3,
+    whenWeCanFireAgain: 0,
+    whenPreAttackFinished: 0,
+    whenLastReloadStarted: 0,
+    lastFireFrame: 0,
+    suspendFxFrame: 0,
+    projectileStreamObjectId: 0,
+    laserObjectIdUnused: 0,
+    maxShotCount: 0,
+    currentBarrel: 0,
+    numShotsForCurrentBarrel: 0,
+    scatterTargetsUnused: [],
+    pitchLimited: false,
+    leechWeaponRangeActive: false,
+    ...overrides,
+  };
+}
+
+function xferSourceWeaponSnapshotForTest(
+  xfer: Xfer,
+  state: SourceWeaponSnapshotTestState,
+): SourceWeaponSnapshotTestState {
+  const version = xfer.xferVersion(state.version);
+  const templateName = version >= 2 ? xfer.xferAsciiString(state.templateName) : '';
+  const slot = xfer.xferInt(state.slot);
+  const status = xfer.xferInt(state.status);
+  const ammoInClip = xfer.xferUnsignedInt(state.ammoInClip);
+  const whenWeCanFireAgain = xfer.xferUnsignedInt(state.whenWeCanFireAgain);
+  const whenPreAttackFinished = xfer.xferUnsignedInt(state.whenPreAttackFinished);
+  const whenLastReloadStarted = xfer.xferUnsignedInt(state.whenLastReloadStarted);
+  const lastFireFrame = xfer.xferUnsignedInt(state.lastFireFrame);
+  const suspendFxFrame = version >= 3 ? xfer.xferUnsignedInt(state.suspendFxFrame) : 0;
+  const projectileStreamObjectId = xfer.xferObjectID(state.projectileStreamObjectId);
+  const laserObjectIdUnused = xfer.xferObjectID(state.laserObjectIdUnused);
+  const maxShotCount = xfer.xferInt(state.maxShotCount);
+  const currentBarrel = xfer.xferInt(state.currentBarrel);
+  const numShotsForCurrentBarrel = xfer.xferInt(state.numShotsForCurrentBarrel);
+  const scatterCount = xfer.xferUnsignedShort(state.scatterTargetsUnused.length);
+  const scatterTargetsUnused: number[] = [];
+  for (let index = 0; index < scatterCount; index += 1) {
+    scatterTargetsUnused.push(xfer.xferInt(state.scatterTargetsUnused[index] ?? 0));
+  }
+  const pitchLimited = xfer.xferBool(state.pitchLimited);
+  const leechWeaponRangeActive = xfer.xferBool(state.leechWeaponRangeActive);
+  return {
+    version,
+    templateName,
+    slot,
+    status,
+    ammoInClip,
+    whenWeCanFireAgain,
+    whenPreAttackFinished,
+    whenLastReloadStarted,
+    lastFireFrame,
+    suspendFxFrame,
+    projectileStreamObjectId,
+    laserObjectIdUnused,
+    maxShotCount,
+    currentBarrel,
+    numShotsForCurrentBarrel,
+    scatterTargetsUnused,
+    pitchLimited,
+    leechWeaponRangeActive,
+  };
+}
+
+function createSourceFireWeaponUpdateBlockData(state: SourceFireWeaponUpdateTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-fire-weapon-update');
+  try {
+    xferSave.xferVersion(2);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSourceWeaponSnapshotForTest(xferSave, state.weapon);
+    xferSave.xferUnsignedInt(state.initialDelayFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceFireWeaponUpdateBlockData(data: Uint8Array): SourceFireWeaponUpdateTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-fire-weapon-update');
+  try {
+    xferLoad.xferVersion(2);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      weapon: xferSourceWeaponSnapshotForTest(xferLoad, createSourceWeaponSnapshotTestState()),
+      initialDelayFrame: xferLoad.xferUnsignedInt(0),
     };
   } finally {
     xferLoad.close();
@@ -10117,6 +10250,131 @@ describe('runtime-save-game', () => {
     expect(parseSourceFireSpreadUpdateBlockData(fireSpreadModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (77 << 2) | 2,
     });
+  });
+
+  it('rewrites source FireWeaponUpdate weapon cooldown state from live runtime modules', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_AutoFire',
+      blockData: createSourceFireWeaponUpdateBlockData({
+        nextCallFrameAndPhase: (80 << 2) | 2,
+        weapon: createSourceWeaponSnapshotTestState({
+          templateName: 'OldAutoWeapon',
+          status: 0,
+          ammoInClip: 5,
+          whenWeCanFireAgain: 20,
+          whenLastReloadStarted: 12,
+          lastFireFrame: 11,
+          currentBarrel: 2,
+          numShotsForCurrentBarrel: 3,
+          scatterTargetsUnused: [101, 102],
+          pitchLimited: true,
+          leechWeaponRangeActive: true,
+        }),
+        initialDelayFrame: 15,
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source fire weapon update rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            fireWeaponUpdateProfiles: [{
+              moduleTag: 'MODULETAG_AUTOFIRE',
+              weaponName: 'RuntimeAutoWeapon',
+              initialDelayFrames: 4,
+              exclusiveWeaponDelayFrames: 0,
+            }],
+            fireWeaponUpdateNextFireFrames: [75],
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_AutoFire') {
+            return 'FIREWEAPONUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const fireWeaponModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_AutoFire');
+
+    expect(fireWeaponModule).toBeDefined();
+    const parsed = parseSourceFireWeaponUpdateBlockData(fireWeaponModule!.blockData);
+    expect(parsed.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsed.initialDelayFrame).toBe(75);
+    expect(parsed.weapon.templateName).toBe('RuntimeAutoWeapon');
+    expect(parsed.weapon.status).toBe(SOURCE_WEAPON_STATUS_BETWEEN_FIRING_SHOTS);
+    expect(parsed.weapon.whenWeCanFireAgain).toBe(75);
+    expect(parsed.weapon.ammoInClip).toBe(5);
+    expect(parsed.weapon.whenLastReloadStarted).toBe(12);
+    expect(parsed.weapon.lastFireFrame).toBe(11);
+    expect(parsed.weapon.currentBarrel).toBe(2);
+    expect(parsed.weapon.numShotsForCurrentBarrel).toBe(3);
+    expect(parsed.weapon.scatterTargetsUnused).toEqual([101, 102]);
+    expect(parsed.weapon.pitchLimited).toBe(true);
+    expect(parsed.weapon.leechWeaponRangeActive).toBe(true);
   });
 
   it('rewrites source PoisonedBehavior and MinefieldBehavior modules from live runtime state', () => {

@@ -5012,6 +5012,8 @@ interface FireWhenDamagedProfile {
  * Used for things like poison fields, area denial weapons, persistent effects.
  */
 interface FireWeaponUpdateProfile {
+  /** Source module tag from the INI block name (e.g. ModuleTag_AutoFire). */
+  moduleTag: string | null;
   /** Weapon template name to fire. */
   weaponName: string;
   /** Delay in logic frames before first fire after entity creation. */

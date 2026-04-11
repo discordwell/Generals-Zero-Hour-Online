@@ -121,6 +121,8 @@ const SOURCE_DEATH_TYPE_POISONED = 5;
 const SOURCE_MINEFIELD_MAX_IMMUNITY = 3;
 const SOURCE_FIRESTORM_MAX_SYSTEMS = 16;
 const SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH = SOURCE_FIRESTORM_MAX_SYSTEMS * 4;
+const SOURCE_WEAPON_STATUS_READY_TO_FIRE = 0;
+const SOURCE_WEAPON_STATUS_BETWEEN_FIRING_SHOTS = 2;
 const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
 const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
 const SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN = 0x0008;
@@ -5657,6 +5659,198 @@ function buildSourceSmartBombTargetHomingUpdateBlockData(currentFrame: number): 
   }
 }
 
+interface SourceWeaponSnapshotBlockState {
+  version: number;
+  templateName: string;
+  slot: number;
+  status: number;
+  ammoInClip: number;
+  whenWeCanFireAgain: number;
+  whenPreAttackFinished: number;
+  whenLastReloadStarted: number;
+  lastFireFrame: number;
+  suspendFxFrame: number;
+  projectileStreamObjectId: number;
+  laserObjectIdUnused: number;
+  maxShotCount: number;
+  currentBarrel: number;
+  numShotsForCurrentBarrel: number;
+  scatterTargetsUnused: number[];
+  pitchLimited: boolean;
+  leechWeaponRangeActive: boolean;
+}
+
+interface SourceFireWeaponUpdateBlockState {
+  nextCallFrameAndPhase: number;
+  weapon: SourceWeaponSnapshotBlockState;
+  initialDelayFrame: number;
+}
+
+function createDefaultSourceWeaponSnapshotState(): SourceWeaponSnapshotBlockState {
+  return {
+    version: 3,
+    templateName: '',
+    slot: 0,
+    status: SOURCE_WEAPON_STATUS_READY_TO_FIRE,
+    ammoInClip: 0,
+    whenWeCanFireAgain: 0,
+    whenPreAttackFinished: 0,
+    whenLastReloadStarted: 0,
+    lastFireFrame: 0,
+    suspendFxFrame: 0,
+    projectileStreamObjectId: 0,
+    laserObjectIdUnused: 0,
+    maxShotCount: 0,
+    currentBarrel: 0,
+    numShotsForCurrentBarrel: 0,
+    scatterTargetsUnused: [],
+    pitchLimited: false,
+    leechWeaponRangeActive: false,
+  };
+}
+
+function xferSourceWeaponSnapshot(
+  xfer: Xfer,
+  state: SourceWeaponSnapshotBlockState,
+): SourceWeaponSnapshotBlockState {
+  const version = xfer.xferVersion(state.version);
+  if (version < 1 || version > 3) {
+    throw new Error(`Unsupported source Weapon version ${version}`);
+  }
+  const templateName = version >= 2 ? xfer.xferAsciiString(state.templateName) : '';
+  const slot = xfer.xferInt(state.slot);
+  const status = xfer.xferInt(state.status);
+  const ammoInClip = xfer.xferUnsignedInt(state.ammoInClip);
+  const whenWeCanFireAgain = xfer.xferUnsignedInt(state.whenWeCanFireAgain);
+  const whenPreAttackFinished = xfer.xferUnsignedInt(state.whenPreAttackFinished);
+  const whenLastReloadStarted = xfer.xferUnsignedInt(state.whenLastReloadStarted);
+  const lastFireFrame = xfer.xferUnsignedInt(state.lastFireFrame);
+  const suspendFxFrame = version >= 3 ? xfer.xferUnsignedInt(state.suspendFxFrame) : 0;
+  const projectileStreamObjectId = xfer.xferObjectID(state.projectileStreamObjectId);
+  const laserObjectIdUnused = xfer.xferObjectID(state.laserObjectIdUnused);
+  const scatterTargetsInput = Array.isArray(state.scatterTargetsUnused) ? state.scatterTargetsUnused : [];
+  const maxShotCount = xfer.xferInt(state.maxShotCount);
+  const currentBarrel = xfer.xferInt(state.currentBarrel);
+  const numShotsForCurrentBarrel = xfer.xferInt(state.numShotsForCurrentBarrel);
+  const scatterCount = xfer.xferUnsignedShort(scatterTargetsInput.length);
+  const scatterTargetsUnused: number[] = [];
+  for (let index = 0; index < scatterCount; index += 1) {
+    scatterTargetsUnused.push(xfer.xferInt(scatterTargetsInput[index] ?? 0));
+  }
+  const pitchLimited = xfer.xferBool(state.pitchLimited);
+  const leechWeaponRangeActive = xfer.xferBool(state.leechWeaponRangeActive);
+  return {
+    version,
+    templateName,
+    slot,
+    status,
+    ammoInClip,
+    whenWeCanFireAgain,
+    whenPreAttackFinished,
+    whenLastReloadStarted,
+    lastFireFrame,
+    suspendFxFrame,
+    projectileStreamObjectId,
+    laserObjectIdUnused,
+    maxShotCount,
+    currentBarrel,
+    numShotsForCurrentBarrel,
+    scatterTargetsUnused,
+    pitchLimited,
+    leechWeaponRangeActive,
+  };
+}
+
+function tryParseSourceFireWeaponUpdateBlockData(
+  data: Uint8Array,
+): SourceFireWeaponUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-fire-weapon-update');
+  try {
+    const version = xferLoad.xferVersion(2);
+    if (version < 1 || version > 2) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(xferLoad, 0);
+    const weapon = xferSourceWeaponSnapshot(xferLoad, createDefaultSourceWeaponSnapshotState());
+    const initialDelayFrame = version >= 2 ? xferLoad.xferUnsignedInt(0) : 0;
+    return xferLoad.getRemaining() === 0
+      ? {
+        nextCallFrameAndPhase,
+        weapon,
+        initialDelayFrame,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function findLiveSourceFireWeaponUpdateProfileIndex(
+  entity: MapEntity,
+  moduleTag: string,
+  preservedState: SourceFireWeaponUpdateBlockState,
+): number {
+  const profiles = entity.fireWeaponUpdateProfiles ?? [];
+  if (profiles.length === 0) {
+    return -1;
+  }
+  const normalizedModuleTag = normalizeSourceObjectModuleTag(moduleTag);
+  const tagMatch = profiles.findIndex(
+    (profile) => normalizeSourceObjectModuleTag(profile.moduleTag) === normalizedModuleTag,
+  );
+  if (tagMatch >= 0) {
+    return tagMatch;
+  }
+
+  const normalizedWeaponName = preservedState.weapon.templateName.trim().toUpperCase();
+  const weaponMatches = profiles
+    .map((profile, index) => ({ profile, index }))
+    .filter(({ profile }) => profile.weaponName.trim().toUpperCase() === normalizedWeaponName);
+  if (weaponMatches.length === 1) {
+    return weaponMatches[0]!.index;
+  }
+  return profiles.length === 1 ? 0 : -1;
+}
+
+function buildSourceFireWeaponUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  moduleTag: string,
+  preservedState: SourceFireWeaponUpdateBlockState,
+): Uint8Array | null {
+  const profileIndex = findLiveSourceFireWeaponUpdateProfileIndex(entity, moduleTag, preservedState);
+  if (profileIndex < 0) {
+    return null;
+  }
+  const profile = entity.fireWeaponUpdateProfiles[profileIndex]!;
+  const liveNextFireFrame = sourceFlammableUnsignedFrame(
+    entity.fireWeaponUpdateNextFireFrames?.[profileIndex],
+    preservedState.weapon.whenWeCanFireAgain,
+  );
+  const saver = new XferSave();
+  saver.open('build-source-fire-weapon-update');
+  try {
+    saver.xferVersion(2);
+    xferSourceUpdateModuleBase(saver, buildSourceUpdateModuleWakeFrame(currentFrame + 1));
+    xferSourceWeaponSnapshot(saver, {
+      ...preservedState.weapon,
+      version: 3,
+      templateName: profile.weaponName || preservedState.weapon.templateName,
+      status: liveNextFireFrame > currentFrame
+        ? SOURCE_WEAPON_STATUS_BETWEEN_FIRING_SHOTS
+        : SOURCE_WEAPON_STATUS_READY_TO_FIRE,
+      whenWeCanFireAgain: liveNextFireFrame,
+    });
+    saver.xferUnsignedInt(liveNextFireFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 interface SourceBodyModuleBaseBlockState {
   damageScalar: number;
 }
@@ -9360,6 +9554,23 @@ function overlaySourceObjectModulesFromLiveEntity(
                 identifier: module.identifier,
                 blockData: buildSourceFireSpreadUpdateBlockData(entity),
               };
+            }
+          }
+          if (moduleType === 'FIREWEAPONUPDATE' && entity.fireWeaponUpdateProfiles.length > 0) {
+            const parsedSourceState = tryParseSourceFireWeaponUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              const blockData = buildSourceFireWeaponUpdateBlockData(
+                entity,
+                currentFrame,
+                module.identifier,
+                parsedSourceState,
+              );
+              if (blockData) {
+                return {
+                  identifier: module.identifier,
+                  blockData,
+                };
+              }
             }
           }
           if (moduleType === 'POISONEDBEHAVIOR' && entity.poisonedBehaviorProfile) {
