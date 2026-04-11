@@ -6112,6 +6112,16 @@ interface SourceSupplyTruckAIUpdateBlockState {
   forcePending: boolean;
 }
 
+interface SourceWorkerAIUpdateBlockState {
+  blockData: Uint8Array;
+  taskOffset: number;
+  supplyTailOffset: number;
+  tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
+  preferredDockId: number;
+  numberBoxes: number;
+  forcePending: boolean;
+}
+
 interface SourceChinookAIUpdateBlockState {
   blockData: Uint8Array;
   tailOffset: number;
@@ -6859,6 +6869,116 @@ function buildSourceSupplyTruckAIUpdateBlockData(
   return blockData;
 }
 
+function isSourceStubStateMachineAt(data: Uint8Array, offset: number): boolean {
+  if (offset < 0 || offset + SOURCE_STUB_STATE_MACHINE_BYTE_LENGTH > data.byteLength) {
+    return false;
+  }
+  // Wrapper xferVersion(1), then StateMachine::xfer version 1 with snapshotAllStates=false.
+  return data[offset] === 1 && data[offset + 1] === 1 && data[offset + 14] === 0;
+}
+
+function tryParseSourceWorkerAIUpdateBlockData(
+  data: Uint8Array,
+): SourceWorkerAIUpdateBlockState | null {
+  if (data.byteLength < 1 + 4 + SOURCE_DOZER_NUM_TASKS * SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH
+    + SOURCE_WORKER_FIXED_AFTER_DOZER_MACHINE_BYTE_LENGTH || data[0] !== 1) {
+    return null;
+  }
+
+  const blockData = new Uint8Array(data);
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  const dozerSuffixOffset = blockData.byteLength - SOURCE_WORKER_FIXED_AFTER_DOZER_MACHINE_BYTE_LENGTH;
+  if (dozerSuffixOffset < 2 || view.getInt32(dozerSuffixOffset + 4, true) !== SOURCE_DOZER_NUM_DOCK_POINTS) {
+    return null;
+  }
+
+  let cursor = dozerSuffixOffset + 8;
+  for (let taskIndex = 0; taskIndex < SOURCE_DOZER_NUM_TASKS; taskIndex += 1) {
+    for (let pointIndex = 0; pointIndex < SOURCE_DOZER_NUM_DOCK_POINTS; pointIndex += 1) {
+      const validByte = view.getUint8(cursor);
+      if (validByte !== 0 && validByte !== 1) {
+        return null;
+      }
+      cursor += SOURCE_DOZER_DOCK_POINT_BYTE_LENGTH;
+    }
+  }
+
+  const supplyMachineOffset = dozerSuffixOffset + SOURCE_DOZER_FIXED_SUFFIX_BYTE_LENGTH;
+  const supplyTailOffset = supplyMachineOffset + SOURCE_STUB_STATE_MACHINE_BYTE_LENGTH;
+  const workerMachineOffset = supplyTailOffset + SOURCE_SUPPLY_TRUCK_TAIL_BYTE_LENGTH;
+  if (!isSourceStubStateMachineAt(blockData, supplyMachineOffset)
+    || !isSourceStubStateMachineAt(blockData, workerMachineOffset)) {
+    return null;
+  }
+  const forcePendingByte = view.getUint8(supplyTailOffset + 8);
+  if (forcePendingByte !== 0 && forcePendingByte !== 1) {
+    return null;
+  }
+
+  const taskOffset = findSourceDozerTaskOffset(blockData, dozerSuffixOffset);
+  if (taskOffset < 0) {
+    return null;
+  }
+  const tasks: SourceWorkerAIUpdateBlockState['tasks'] = [];
+  cursor = taskOffset + 4;
+  for (let index = 0; index < SOURCE_DOZER_NUM_TASKS; index += 1) {
+    tasks.push({
+      targetObjectId: view.getUint32(cursor, true),
+      taskOrderFrame: view.getUint32(cursor + 4, true),
+    });
+    cursor += SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH;
+  }
+
+  return {
+    blockData,
+    taskOffset,
+    supplyTailOffset,
+    tasks,
+    preferredDockId: view.getUint32(supplyTailOffset, true),
+    numberBoxes: view.getInt32(supplyTailOffset + 4, true),
+    forcePending: forcePendingByte !== 0,
+  };
+}
+
+function buildSourceWorkerAIUpdateBlockData(
+  entity: MapEntity,
+  preservedState: SourceWorkerAIUpdateBlockState,
+  coreState?: GameLogicCoreSaveState | null,
+): Uint8Array {
+  const liveState = findLiveSupplyTruckState(coreState, entity.id);
+  const blockData = new Uint8Array(preservedState.blockData);
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  const taskCursor = (taskIndex: number) =>
+    preservedState.taskOffset + 4 + taskIndex * SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH;
+  const buildTask = preservedState.tasks[SOURCE_DOZER_TASK_BUILD] ?? { targetObjectId: 0, taskOrderFrame: 0 };
+  const repairTask = preservedState.tasks[SOURCE_DOZER_TASK_REPAIR] ?? { targetObjectId: 0, taskOrderFrame: 0 };
+
+  let cursor = taskCursor(SOURCE_DOZER_TASK_BUILD);
+  view.setUint32(cursor, normalizeSourceObjectId(entity.dozerBuildTargetEntityId || buildTask.targetObjectId), true);
+  view.setUint32(cursor + 4, sourceFlammableUnsignedFrame(entity.dozerBuildTaskOrderFrame, buildTask.taskOrderFrame), true);
+
+  cursor = taskCursor(SOURCE_DOZER_TASK_REPAIR);
+  view.setUint32(cursor, normalizeSourceObjectId(entity.dozerRepairTargetEntityId || repairTask.targetObjectId), true);
+  view.setUint32(cursor + 4, sourceFlammableUnsignedFrame(entity.dozerRepairTaskOrderFrame, repairTask.taskOrderFrame), true);
+
+  view.setUint32(
+    preservedState.supplyTailOffset,
+    normalizeSourceObjectId(liveState?.preferredDockId ?? preservedState.preferredDockId),
+    true,
+  );
+  view.setInt32(
+    preservedState.supplyTailOffset + 4,
+    sourceFiniteInt(liveState?.currentBoxes, preservedState.numberBoxes),
+    true,
+  );
+  view.setUint8(
+    preservedState.supplyTailOffset + 8,
+    (typeof liveState?.forceBusy === 'boolean' ? liveState.forceBusy : preservedState.forcePending) ? 1 : 0,
+  );
+
+  return blockData;
+}
+
 function sourceChinookFlightStatusToInt(status: unknown, fallback: number): number {
   switch (status) {
     case 'TAKING_OFF': return 0;
@@ -6996,6 +7116,12 @@ const SOURCE_DOZER_FIXED_SUFFIX_BYTE_LENGTH = 4
   + 4
   + SOURCE_DOZER_NUM_TASKS * SOURCE_DOZER_NUM_DOCK_POINTS * SOURCE_DOZER_DOCK_POINT_BYTE_LENGTH
   + 4;
+const SOURCE_STUB_STATE_MACHINE_BYTE_LENGTH = 33;
+const SOURCE_SUPPLY_TRUCK_TAIL_BYTE_LENGTH = 9;
+const SOURCE_WORKER_FIXED_AFTER_DOZER_MACHINE_BYTE_LENGTH = SOURCE_DOZER_FIXED_SUFFIX_BYTE_LENGTH
+  + SOURCE_STUB_STATE_MACHINE_BYTE_LENGTH
+  + SOURCE_SUPPLY_TRUCK_TAIL_BYTE_LENGTH
+  + SOURCE_STUB_STATE_MACHINE_BYTE_LENGTH;
 
 function findSourceDozerTaskOffset(data: Uint8Array, suffixOffset: number): number {
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
@@ -13675,6 +13801,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceSupplyTruckAIUpdateBlockData(entity, parsedSourceState, coreState),
+              };
+            }
+          }
+          if (moduleType === 'WORKERAIUPDATE' && entity.workerAIProfile) {
+            const parsedSourceState = tryParseSourceWorkerAIUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceWorkerAIUpdateBlockData(entity, parsedSourceState, coreState),
               };
             }
           }

@@ -264,6 +264,16 @@ function makeSourceOwnedCoreBundle() {
           SupplyWarehouseActionDelay: 1000,
         }),
       ]),
+      makeObjectDef('WorkerObject', 'GLA', ['INFANTRY', 'DOZER'], [
+        makeBlock('Behavior', 'WorkerAIUpdate ModuleTag_WorkerAI', {
+          MaxBoxes: 4,
+          SupplyCenterActionDelay: 1000,
+          SupplyWarehouseActionDelay: 1000,
+          RepairHealthPercentPerSecond: 2,
+          BoredTime: 1000,
+          BoredRange: 200,
+        }),
+      ]),
       makeObjectDef('ChinookObject', 'America', ['AIRCRAFT'], [
         makeBlock('Behavior', 'ChinookAIUpdate ModuleTag_ChinookAI', {
           MaxBoxes: 8,
@@ -2071,6 +2081,59 @@ function buildSourceDozerAIUpdateModuleData(options: {
       }
     }
     saver.xferInt(options.buildSubTask);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function writeSourceStubStateMachine(saver: XferSave, stateId: number): void {
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(stateId);
+  saver.xferUnsignedInt(stateId);
+  saver.xferBool(false);
+  saver.xferObjectID(0);
+  saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+  saver.xferBool(false);
+  saver.xferBool(true);
+}
+
+function buildSourceWorkerAIUpdateModuleData(options: {
+  tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
+  currentTask: number;
+  buildSubTask: number;
+  preferredDockId: number;
+  numberBoxes: number;
+  forcePending: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-worker-ai-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(new Uint8Array([4, 0xaa, 0xbb, 0xcc]));
+    saver.xferInt(3);
+    for (let index = 0; index < 3; index += 1) {
+      const task = options.tasks[index] ?? { targetObjectId: 0, taskOrderFrame: 0 };
+      saver.xferObjectID(task.targetObjectId);
+      saver.xferUnsignedInt(task.taskOrderFrame);
+    }
+    saver.xferUser(new Uint8Array([1, 1, 0xdd, 0xee]));
+    saver.xferUser(sourceRawInt32(options.currentTask));
+    saver.xferInt(3);
+    for (let taskIndex = 0; taskIndex < 3; taskIndex += 1) {
+      for (let pointIndex = 0; pointIndex < 3; pointIndex += 1) {
+        saver.xferBool(false);
+        saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+      }
+    }
+    saver.xferUser(sourceRawInt32(options.buildSubTask));
+    writeSourceStubStateMachine(saver, 0);
+    saver.xferObjectID(options.preferredDockId);
+    saver.xferInt(options.numberBoxes);
+    saver.xferBool(options.forcePending);
+    writeSourceStubStateMachine(saver, 0);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -5656,6 +5719,73 @@ describe('source-owned game-logic core save-state', () => {
       targetDepotId: null,
       actionDelayFinishFrame: 0,
       preferredDockId: 301,
+      forceBusy: true,
+    });
+  });
+
+  it('imports source WorkerAIUpdate dozer tasks and supply state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const workerState = createEmptySourceMapEntitySaveState();
+    workerState.objectId = 124;
+    workerState.position = { x: 159, y: 0, z: 60 };
+    workerState.modules = [{
+      identifier: 'ModuleTag_WorkerAI',
+      blockData: buildSourceWorkerAIUpdateModuleData({
+        tasks: [
+          { targetObjectId: 601, taskOrderFrame: 120 },
+          { targetObjectId: 602, taskOrderFrame: 140 },
+          { targetObjectId: 0, taskOrderFrame: 0 },
+        ],
+        currentTask: 0,
+        buildSubTask: 0,
+        preferredDockId: 603,
+        numberBoxes: 2,
+        forcePending: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'WorkerObject', state: workerState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        dozerBuildTargetEntityId: number;
+        dozerBuildTaskOrderFrame: number;
+        dozerRepairTargetEntityId: number;
+        dozerRepairTaskOrderFrame: number;
+      }>;
+      pendingConstructionActions: Map<number, number>;
+      pendingRepairActions: Map<number, number>;
+      supplyTruckStates: Map<number, unknown>;
+    };
+
+    const importedWorker = privateLogic.spawnedEntities.get(124)!;
+    expect(importedWorker.dozerBuildTargetEntityId).toBe(601);
+    expect(importedWorker.dozerBuildTaskOrderFrame).toBe(120);
+    expect(importedWorker.dozerRepairTargetEntityId).toBe(602);
+    expect(importedWorker.dozerRepairTaskOrderFrame).toBe(140);
+    expect(privateLogic.pendingConstructionActions.get(124)).toBe(601);
+    expect(privateLogic.pendingRepairActions.get(124)).toBe(602);
+    expect(privateLogic.supplyTruckStates.get(124)).toEqual({
+      aiState: 0,
+      currentBoxes: 2,
+      targetWarehouseId: null,
+      targetDepotId: null,
+      actionDelayFinishFrame: 0,
+      preferredDockId: 603,
       forceBusy: true,
     });
   });

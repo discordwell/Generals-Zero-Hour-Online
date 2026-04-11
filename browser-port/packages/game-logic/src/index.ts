@@ -9061,6 +9061,13 @@ interface SourceSupplyTruckAIUpdateImportState {
   forcePending: boolean;
 }
 
+interface SourceWorkerAIUpdateImportState {
+  tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
+  preferredDockId: number;
+  numberBoxes: number;
+  forcePending: boolean;
+}
+
 interface SourceChinookAIUpdateImportState {
   flightStatus: number;
   airfieldForHealing: number;
@@ -9756,6 +9763,12 @@ const SOURCE_DOZER_FIXED_SUFFIX_BYTE_LENGTH = 4
   + 4
   + SOURCE_DOZER_NUM_TASKS * SOURCE_DOZER_NUM_DOCK_POINTS * SOURCE_DOZER_DOCK_POINT_BYTE_LENGTH
   + 4;
+const SOURCE_STUB_STATE_MACHINE_BYTE_LENGTH = 33;
+const SOURCE_SUPPLY_TRUCK_TAIL_BYTE_LENGTH = 9;
+const SOURCE_WORKER_FIXED_AFTER_DOZER_MACHINE_BYTE_LENGTH = SOURCE_DOZER_FIXED_SUFFIX_BYTE_LENGTH
+  + SOURCE_STUB_STATE_MACHINE_BYTE_LENGTH
+  + SOURCE_SUPPLY_TRUCK_TAIL_BYTE_LENGTH
+  + SOURCE_STUB_STATE_MACHINE_BYTE_LENGTH;
 const SOURCE_PLAYER_MASK_BYTE_LENGTH = 2;
 const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH = 32 * 48;
 const SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH = 4;
@@ -16295,6 +16308,129 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private isSourceStubStateMachineAt(data: Uint8Array, offset: number): boolean {
+    if (offset < 0 || offset + SOURCE_STUB_STATE_MACHINE_BYTE_LENGTH > data.byteLength) {
+      return false;
+    }
+    return data[offset] === 1 && data[offset + 1] === 1 && data[offset + 14] === 0;
+  }
+
+  private tryParseSourceWorkerAIUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceWorkerAIUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'WORKERAIUPDATE') {
+      return null;
+    }
+    if (data.byteLength < 1 + 4 + SOURCE_DOZER_NUM_TASKS * SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH
+      + SOURCE_WORKER_FIXED_AFTER_DOZER_MACHINE_BYTE_LENGTH || data[0] !== 1) {
+      return null;
+    }
+
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    const dozerSuffixOffset = data.byteLength - SOURCE_WORKER_FIXED_AFTER_DOZER_MACHINE_BYTE_LENGTH;
+    if (dozerSuffixOffset < 2 || view.getInt32(dozerSuffixOffset + 4, true) !== SOURCE_DOZER_NUM_DOCK_POINTS) {
+      return null;
+    }
+
+    let cursor = dozerSuffixOffset + 8;
+    for (let taskIndex = 0; taskIndex < SOURCE_DOZER_NUM_TASKS; taskIndex += 1) {
+      for (let pointIndex = 0; pointIndex < SOURCE_DOZER_NUM_DOCK_POINTS; pointIndex += 1) {
+        const validByte = view.getUint8(cursor);
+        if (validByte !== 0 && validByte !== 1) {
+          return null;
+        }
+        cursor += SOURCE_DOZER_DOCK_POINT_BYTE_LENGTH;
+      }
+    }
+
+    const supplyMachineOffset = dozerSuffixOffset + SOURCE_DOZER_FIXED_SUFFIX_BYTE_LENGTH;
+    const supplyTailOffset = supplyMachineOffset + SOURCE_STUB_STATE_MACHINE_BYTE_LENGTH;
+    const workerMachineOffset = supplyTailOffset + SOURCE_SUPPLY_TRUCK_TAIL_BYTE_LENGTH;
+    if (!this.isSourceStubStateMachineAt(data, supplyMachineOffset)
+      || !this.isSourceStubStateMachineAt(data, workerMachineOffset)) {
+      return null;
+    }
+    const forcePendingByte = view.getUint8(supplyTailOffset + 8);
+    if (forcePendingByte !== 0 && forcePendingByte !== 1) {
+      return null;
+    }
+
+    const taskOffset = this.findSourceDozerTaskOffset(data, dozerSuffixOffset);
+    if (taskOffset < 0) {
+      return null;
+    }
+    const tasks: SourceWorkerAIUpdateImportState['tasks'] = [];
+    cursor = taskOffset + 4;
+    for (let index = 0; index < SOURCE_DOZER_NUM_TASKS; index += 1) {
+      tasks.push({
+        targetObjectId: view.getUint32(cursor, true),
+        taskOrderFrame: view.getUint32(cursor + 4, true),
+      });
+      cursor += SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH;
+    }
+
+    return {
+      tasks,
+      preferredDockId: view.getUint32(supplyTailOffset, true),
+      numberBoxes: view.getInt32(supplyTailOffset + 4, true),
+      forcePending: forcePendingByte !== 0,
+    };
+  }
+
+  private applySourceWorkerAIUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.workerAIProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const workerState = this.tryParseSourceWorkerAIUpdateImportState(module.blockData, moduleType);
+      if (!workerState) {
+        continue;
+      }
+
+      const buildTask = workerState.tasks[SOURCE_DOZER_TASK_BUILD];
+      const repairTask = workerState.tasks[SOURCE_DOZER_TASK_REPAIR];
+      entity.dozerBuildTargetEntityId = buildTask ? Math.max(0, Math.trunc(buildTask.targetObjectId)) : 0;
+      entity.dozerBuildTaskOrderFrame = buildTask ? Math.max(0, Math.trunc(buildTask.taskOrderFrame)) : 0;
+      entity.dozerRepairTargetEntityId = repairTask ? Math.max(0, Math.trunc(repairTask.targetObjectId)) : 0;
+      entity.dozerRepairTaskOrderFrame = repairTask ? Math.max(0, Math.trunc(repairTask.taskOrderFrame)) : 0;
+      if (entity.dozerBuildTargetEntityId > 0) {
+        this.pendingConstructionActions.set(entity.id, entity.dozerBuildTargetEntityId);
+      }
+      if (entity.dozerRepairTargetEntityId > 0) {
+        this.pendingRepairActions.set(entity.id, entity.dozerRepairTargetEntityId);
+      }
+
+      if (entity.supplyTruckProfile) {
+        this.supplyTruckStates.set(entity.id, {
+          aiState: SupplyTruckAIState.IDLE,
+          currentBoxes: Number.isFinite(workerState.numberBoxes)
+            ? Math.trunc(workerState.numberBoxes)
+            : 0,
+          targetWarehouseId: null,
+          targetDepotId: null,
+          actionDelayFinishFrame: 0,
+          preferredDockId: workerState.preferredDockId > 0
+            ? Math.trunc(workerState.preferredDockId)
+            : null,
+          forceBusy: workerState.forcePending,
+        });
+      }
+      return;
+    }
+  }
+
   private sourceChinookFlightStatusFromInt(value: number): ChinookFlightStatus | null {
     switch (Math.trunc(value)) {
       case 0: return 'TAKING_OFF';
@@ -21979,6 +22115,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceDeployStyleAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceAssaultTransportAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceSupplyTruckAIUpdateModulesToEntity(entity, sourceState);
+    this.applySourceWorkerAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceChinookAIUpdateModulesToEntity(entity, sourceState);
     this.applySourcePOWTruckAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceDozerAIUpdateModulesToEntity(entity, sourceState);

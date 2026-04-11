@@ -2228,6 +2228,97 @@ function parseSourceDozerAIUpdateBlockData(data: Uint8Array) {
   };
 }
 
+function writeSourceStubStateMachine(xferSave: XferSave, stateId: number): void {
+  xferSave.xferVersion(1);
+  xferSave.xferVersion(1);
+  xferSave.xferUnsignedInt(0);
+  xferSave.xferUnsignedInt(stateId);
+  xferSave.xferUnsignedInt(stateId);
+  xferSave.xferBool(false);
+  xferSave.xferObjectID(0);
+  xferSave.xferCoord3D({ x: 0, y: 0, z: 0 });
+  xferSave.xferBool(false);
+  xferSave.xferBool(true);
+}
+
+function createSourceWorkerAIUpdateBlockData(options: {
+  tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
+  currentTask: number;
+  buildSubTask: number;
+  preferredDockId: number;
+  numberBoxes: number;
+  forcePending: boolean;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-worker-ai-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(new Uint8Array([4, 0xaa, 0xbb, 0xcc]));
+    xferSave.xferInt(3);
+    for (let index = 0; index < 3; index += 1) {
+      const task = options.tasks[index] ?? { targetObjectId: 0, taskOrderFrame: 0 };
+      xferSave.xferObjectID(task.targetObjectId);
+      xferSave.xferUnsignedInt(task.taskOrderFrame);
+    }
+    xferSave.xferUser(new Uint8Array([1, 1, 0xdd, 0xee]));
+    xferSave.xferUser(createRawInt32Bytes(options.currentTask));
+    xferSave.xferInt(3);
+    for (let taskIndex = 0; taskIndex < 3; taskIndex += 1) {
+      for (let pointIndex = 0; pointIndex < 3; pointIndex += 1) {
+        xferSave.xferBool(false);
+        xferSave.xferCoord3D({ x: 0, y: 0, z: 0 });
+      }
+    }
+    xferSave.xferUser(createRawInt32Bytes(options.buildSubTask));
+    writeSourceStubStateMachine(xferSave, 0);
+    xferSave.xferObjectID(options.preferredDockId);
+    xferSave.xferInt(options.numberBoxes);
+    xferSave.xferBool(options.forcePending);
+    writeSourceStubStateMachine(xferSave, 0);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceWorkerAIUpdateBlockData(data: Uint8Array) {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const dozerSuffixOffset = data.byteLength - 204;
+  const supplyTailOffset = data.byteLength - 42;
+  let taskOffset = -1;
+  for (let offset = 1; offset + 30 <= dozerSuffixOffset; offset += 1) {
+    if (view.getInt32(offset, true) !== 3) {
+      continue;
+    }
+    const machineOffset = offset + 28;
+    if (data[machineOffset] === 1 && data[machineOffset + 1] === 1) {
+      taskOffset = offset;
+      break;
+    }
+  }
+  if (taskOffset < 0) {
+    throw new Error('Unable to parse worker AI test block.');
+  }
+  const tasks: Array<{ targetObjectId: number; taskOrderFrame: number }> = [];
+  let cursor = taskOffset + 4;
+  for (let index = 0; index < 3; index += 1) {
+    tasks.push({
+      targetObjectId: view.getUint32(cursor, true),
+      taskOrderFrame: view.getUint32(cursor + 4, true),
+    });
+    cursor += 8;
+  }
+  return {
+    prefix: [...data.subarray(0, taskOffset)],
+    tasks,
+    preservedMiddle: [...data.subarray(taskOffset + 28, supplyTailOffset)],
+    preferredDockId: view.getUint32(supplyTailOffset, true),
+    numberBoxes: view.getInt32(supplyTailOffset + 4, true),
+    forcePending: view.getUint8(supplyTailOffset + 8) !== 0,
+    preservedWorkerMachine: [...data.subarray(supplyTailOffset + 9)],
+  };
+}
+
 interface SourceRebuildHoleBehaviorTestState {
   nextCallFrameAndPhase: number;
   workerId: number;
@@ -13373,6 +13464,148 @@ describe('runtime-save-game', () => {
     expect(parsed.prefix).toEqual(preservedPrefix);
     expect(parsed.preferredDockId).toBe(51);
     expect(parsed.numberBoxes).toBe(4);
+    expect(parsed.forcePending).toBe(true);
+  });
+
+  it('rewrites source WorkerAIUpdate tasks and supply tail while preserving state-machine bytes', () => {
+    const sourceWorkerBlock = createSourceWorkerAIUpdateBlockData({
+      tasks: [
+        { targetObjectId: 11, taskOrderFrame: 12 },
+        { targetObjectId: 13, taskOrderFrame: 14 },
+        { targetObjectId: 0, taskOrderFrame: 0 },
+      ],
+      currentTask: 0,
+      buildSubTask: 0,
+      preferredDockId: 15,
+      numberBoxes: 1,
+      forcePending: false,
+    });
+    const preserved = parseSourceWorkerAIUpdateBlockData(sourceWorkerBlock);
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_WorkerAI',
+      blockData: sourceWorkerBlock,
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source worker ai update rewrite',
+      mapPath: 'Maps/RuntimeWorker/RuntimeWorker.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeWorker',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          supplyTruckStates: [{
+            entityId: 7,
+            state: {
+              aiState: 3,
+              currentBoxes: 3,
+              targetWarehouseId: null,
+              targetDepotId: null,
+              actionDelayFinishFrame: 0,
+              preferredDockId: 55,
+              forceBusy: true,
+            },
+          }],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeWorker',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            workerAIProfile: {
+              repairHealthPercentPerSecond: 0.02,
+              boredTimeFrames: 30,
+              boredRange: 200,
+              suppliesDepletedVoice: '',
+            },
+            supplyTruckProfile: {
+              maxBoxes: 4,
+              supplyCenterActionDelayFrames: 30,
+              supplyWarehouseActionDelayFrames: 30,
+              supplyWarehouseScanDistance: 200,
+              upgradedSupplyBoost: 0,
+            },
+            dozerBuildTargetEntityId: 71,
+            dozerBuildTaskOrderFrame: 120,
+            dozerRepairTargetEntityId: 72,
+            dozerRepairTaskOrderFrame: 140,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_WorkerAI') {
+            return 'WORKERAIUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const workerModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_WorkerAI');
+
+    expect(workerModule).toBeDefined();
+    const parsed = parseSourceWorkerAIUpdateBlockData(workerModule!.blockData);
+    expect(parsed.prefix).toEqual(preserved.prefix);
+    expect(parsed.preservedMiddle).toEqual(preserved.preservedMiddle);
+    expect(parsed.preservedWorkerMachine).toEqual(preserved.preservedWorkerMachine);
+    expect(parsed.tasks).toEqual([
+      { targetObjectId: 71, taskOrderFrame: 120 },
+      { targetObjectId: 72, taskOrderFrame: 140 },
+      { targetObjectId: 0, taskOrderFrame: 0 },
+    ]);
+    expect(parsed.preferredDockId).toBe(55);
+    expect(parsed.numberBoxes).toBe(3);
     expect(parsed.forcePending).toBe(true);
   });
 
