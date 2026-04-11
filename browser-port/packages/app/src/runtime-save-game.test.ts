@@ -996,6 +996,7 @@ const SOURCE_PRODUCTION_UPGRADE = 2;
 const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
 const SOURCE_DAMAGE_TYPE_UNRESISTABLE = 11;
 const SOURCE_PLAYER_MASK_BYTE_LENGTH = 2;
+const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH = 32 * 48;
 const SOURCE_BATTLE_PLAN_NONE = 0;
 const SOURCE_BATTLE_PLAN_BOMBARDMENT = 1;
 const SOURCE_BATTLE_PLAN_HOLD_THE_LINE = 2;
@@ -1556,6 +1557,176 @@ function parseSourceSpecialPowerModuleBlockData(data: Uint8Array): SourceSpecial
       pausedCount: 0,
       pausedOnFrame: 0,
       pausedPercent: 0,
+    });
+  } finally {
+    xferLoad.close();
+  }
+}
+
+interface SourceOpenContainTestState {
+  nextCallFrameAndPhase: number;
+  passengerIds: number[];
+  playerEnteredMaskBytes: Uint8Array;
+  lastUnloadSoundFrame: number;
+  lastLoadSoundFrame: number;
+  stealthUnitsContained: number;
+  doorCloseCountdown: number;
+  conditionState: string[];
+  firePointsBytes: Uint8Array;
+  firePointStart: number;
+  firePointNext: number;
+  firePointSize: number;
+  noFirePointsInArt: boolean;
+  rallyPoint: Coord3D;
+  rallyPointExists: boolean;
+  enterExitEntries: Array<{ objectId: number; type: number }>;
+  whichExitPath: number;
+  passengerAllowedToFire: boolean;
+}
+
+interface SourceTransportContainTestState {
+  open: SourceOpenContainTestState;
+  payloadCreated: boolean;
+  extraSlotsInUse: number;
+  frameExitNotBusy: number;
+}
+
+function createDefaultSourceOpenContainTestState(): SourceOpenContainTestState {
+  return {
+    nextCallFrameAndPhase: (99 << 2) | 2,
+    passengerIds: [],
+    playerEnteredMaskBytes: new Uint8Array([0x34, 0x12]),
+    lastUnloadSoundFrame: 11,
+    lastLoadSoundFrame: 12,
+    stealthUnitsContained: 3,
+    doorCloseCountdown: 4,
+    conditionState: ['LOADED'],
+    firePointsBytes: new Uint8Array(SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH).fill(0x5a),
+    firePointStart: 1,
+    firePointNext: 2,
+    firePointSize: 3,
+    noFirePointsInArt: true,
+    rallyPoint: { x: 5, y: 6, z: 7 },
+    rallyPointExists: true,
+    enterExitEntries: [{ objectId: 44, type: 1 }],
+    whichExitPath: 2,
+    passengerAllowedToFire: false,
+  };
+}
+
+function xferSourceOpenContainForTest(
+  xfer: Xfer,
+  state: SourceOpenContainTestState,
+): SourceOpenContainTestState {
+  xfer.xferVersion(2);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  const nextCallFrameAndPhase = xfer.xferUnsignedInt(state.nextCallFrameAndPhase);
+  const passengerCount = xfer.xferUnsignedInt(state.passengerIds.length);
+  const passengerIds: number[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < passengerCount; index += 1) {
+      passengerIds.push(xfer.xferObjectID(0));
+    }
+  } else {
+    for (const passengerId of state.passengerIds) {
+      passengerIds.push(xfer.xferObjectID(passengerId));
+    }
+  }
+  const playerEnteredMaskBytes = xfer.xferUser(state.playerEnteredMaskBytes);
+  const lastUnloadSoundFrame = xfer.xferUnsignedInt(state.lastUnloadSoundFrame);
+  const lastLoadSoundFrame = xfer.xferUnsignedInt(state.lastLoadSoundFrame);
+  const stealthUnitsContained = xfer.xferUnsignedInt(state.stealthUnitsContained);
+  const doorCloseCountdown = xfer.xferUnsignedInt(state.doorCloseCountdown);
+  const conditionState = xferSourceStringBitFlagsForTest(xfer, state.conditionState);
+  const firePointsBytes = xfer.xferUser(state.firePointsBytes);
+  const firePointStart = xfer.xferInt(state.firePointStart);
+  const firePointNext = xfer.xferInt(state.firePointNext);
+  const firePointSize = xfer.xferInt(state.firePointSize);
+  const noFirePointsInArt = xfer.xferBool(state.noFirePointsInArt);
+  const rallyPoint = xfer.xferCoord3D(state.rallyPoint);
+  const rallyPointExists = xfer.xferBool(state.rallyPointExists);
+  const enterExitCount = xfer.xferUnsignedShort(state.enterExitEntries.length);
+  const enterExitEntries: Array<{ objectId: number; type: number }> = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < enterExitCount; index += 1) {
+      enterExitEntries.push({
+        objectId: xfer.xferObjectID(0),
+        type: readRawInt32Bytes(xfer.xferUser(new Uint8Array(4))),
+      });
+    }
+  } else {
+    for (const entry of state.enterExitEntries) {
+      enterExitEntries.push({
+        objectId: xfer.xferObjectID(entry.objectId),
+        type: readRawInt32Bytes(xfer.xferUser(createRawInt32Bytes(entry.type))),
+      });
+    }
+  }
+  const whichExitPath = xfer.xferInt(state.whichExitPath);
+  const passengerAllowedToFire = xfer.xferBool(state.passengerAllowedToFire);
+  return {
+    nextCallFrameAndPhase,
+    passengerIds,
+    playerEnteredMaskBytes,
+    lastUnloadSoundFrame,
+    lastLoadSoundFrame,
+    stealthUnitsContained,
+    doorCloseCountdown,
+    conditionState,
+    firePointsBytes,
+    firePointStart,
+    firePointNext,
+    firePointSize,
+    noFirePointsInArt,
+    rallyPoint,
+    rallyPointExists,
+    enterExitEntries,
+    whichExitPath,
+    passengerAllowedToFire,
+  };
+}
+
+function xferSourceTransportContainForTest(
+  xfer: Xfer,
+  state: SourceTransportContainTestState,
+): SourceTransportContainTestState {
+  xfer.xferVersion(1);
+  return {
+    open: xferSourceOpenContainForTest(xfer, state.open),
+    payloadCreated: xfer.xferBool(state.payloadCreated),
+    extraSlotsInUse: xfer.xferInt(state.extraSlotsInUse),
+    frameExitNotBusy: xfer.xferUnsignedInt(state.frameExitNotBusy),
+  };
+}
+
+function createSourceTransportContainBlockData(state: SourceTransportContainTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-transport-contain');
+  try {
+    xferSourceTransportContainForTest(xferSave, state);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceTransportContainBlockData(data: Uint8Array): SourceTransportContainTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-transport-contain');
+  try {
+    return xferSourceTransportContainForTest(xferLoad, {
+      open: {
+        ...createDefaultSourceOpenContainTestState(),
+        passengerIds: [],
+        conditionState: [],
+        enterExitEntries: [],
+      },
+      payloadCreated: false,
+      extraSlotsInUse: 0,
+      frameExitNotBusy: 0,
     });
   } finally {
     xferLoad.close();
@@ -10104,6 +10275,134 @@ describe('runtime-save-game', () => {
       pausedOnFrame: 123,
       pausedPercent: 0.75,
     });
+  });
+
+  it('rewrites source TransportContain passenger lists from live containment state', () => {
+    const preservedOpen = createDefaultSourceOpenContainTestState();
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Contain',
+      blockData: createSourceTransportContainBlockData({
+        open: {
+          ...preservedOpen,
+          passengerIds: [40],
+          passengerAllowedToFire: false,
+        },
+        payloadCreated: false,
+        extraSlotsInUse: 6,
+        frameExitNotBusy: 77,
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source transport contain rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [
+            {
+              id: 7,
+              templateName: 'RuntimeTank',
+              initialPayloadCreated: true,
+              containProfile: {
+                moduleType: 'TRANSPORT',
+                passengersAllowedToFire: true,
+              },
+            },
+            {
+              id: 10,
+              templateName: 'PassengerA',
+              transportContainerId: 7,
+            },
+            {
+              id: 8,
+              templateName: 'PassengerB',
+              transportContainerId: 7,
+            },
+            {
+              id: 9,
+              templateName: 'OtherPassenger',
+              transportContainerId: 99,
+            },
+          ] as unknown as import('@generals/game-logic').MapEntity[],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
+          templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Contain'
+            ? 'TRANSPORTCONTAIN'
+            : null,
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const containModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Contain');
+
+    expect(containModule).toBeDefined();
+    const parsed = parseSourceTransportContainBlockData(containModule!.blockData);
+    expect(parsed.open.passengerIds).toEqual([8, 10]);
+    expect(parsed.open.passengerAllowedToFire).toBe(true);
+    expect(Array.from(parsed.open.playerEnteredMaskBytes)).toEqual([0x34, 0x12]);
+    expect(parsed.open.lastUnloadSoundFrame).toBe(11);
+    expect(parsed.open.lastLoadSoundFrame).toBe(12);
+    expect(parsed.open.stealthUnitsContained).toBe(3);
+    expect(parsed.open.doorCloseCountdown).toBe(4);
+    expect(parsed.open.conditionState).toEqual(['LOADED']);
+    expect(Array.from(parsed.open.firePointsBytes)).toEqual(Array.from(preservedOpen.firePointsBytes));
+    expect(parsed.open.enterExitEntries).toEqual([{ objectId: 44, type: 1 }]);
+    expect(parsed.payloadCreated).toBe(true);
+    expect(parsed.extraSlotsInUse).toBe(6);
+    expect(parsed.frameExitNotBusy).toBe(77);
   });
 
   it('rewrites source BattlePlanUpdate modules from live runtime state', () => {

@@ -112,6 +112,11 @@ const SOURCE_DERIVED_SPECIAL_POWER_MODULE_TYPES = new Set([
   'SPECIALABILITY',
   'SPYVISIONSPECIALPOWER',
 ]);
+const SOURCE_OPEN_CONTAIN_MAX_FIRE_POINTS = 32;
+const SOURCE_MATRIX3D_BYTE_LENGTH = 48;
+const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH =
+  SOURCE_OPEN_CONTAIN_MAX_FIRE_POINTS * SOURCE_MATRIX3D_BYTE_LENGTH;
+const SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH = 4;
 const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
 const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
 const SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN = 0x0008;
@@ -5756,6 +5761,683 @@ function buildSourceSpecialPowerModuleBlockData(
   }
 }
 
+type SourceContainModuleKind =
+  | 'open'
+  | 'transport'
+  | 'overlord'
+  | 'helix'
+  | 'parachute'
+  | 'garrison'
+  | 'tunnel'
+  | 'cave'
+  | 'heal'
+  | 'internetHack'
+  | 'riderChange'
+  | 'railedTransport'
+  | 'mobNexus';
+
+interface SourceOpenContainEnterExitEntry {
+  objectId: number;
+  type: number;
+}
+
+interface SourceOpenContainBlockState {
+  version: number;
+  nextCallFrameAndPhase: number;
+  passengerIds: number[];
+  playerEnteredMaskBytes: Uint8Array;
+  lastUnloadSoundFrame: number;
+  lastLoadSoundFrame: number;
+  stealthUnitsContained: number;
+  doorCloseCountdown: number;
+  conditionState: string[];
+  firePointsBytes: Uint8Array;
+  firePointStart: number;
+  firePointNext: number;
+  firePointSize: number;
+  noFirePointsInArt: boolean;
+  rallyPoint: Coord3D;
+  rallyPointExists: boolean;
+  enterExitEntries: SourceOpenContainEnterExitEntry[];
+  whichExitPath: number;
+  passengerAllowedToFire: boolean;
+}
+
+interface SourceTransportContainBlockState {
+  open: SourceOpenContainBlockState;
+  payloadCreated: boolean;
+  extraSlotsInUse: number;
+  frameExitNotBusy: number;
+}
+
+interface SourceParachuteContainBlockState {
+  open: SourceOpenContainBlockState;
+  pitch: number;
+  roll: number;
+  pitchRate: number;
+  rollRate: number;
+  startZ: number;
+  isLandingOverrideSet: boolean;
+  landingOverride: Coord3D;
+  riderAttachBone: Coord3D;
+  riderSwayBone: Coord3D;
+  paraAttachBone: Coord3D;
+  paraSwayBone: Coord3D;
+  riderAttachOffset: Coord3D;
+  riderSwayOffset: Coord3D;
+  paraAttachOffset: Coord3D;
+  paraSwayOffset: Coord3D;
+  needToUpdateRiderBones: boolean;
+  needToUpdateParaBones: boolean;
+  opened: boolean;
+}
+
+interface SourceContainModuleBlockState {
+  kind: SourceContainModuleKind;
+  open?: SourceOpenContainBlockState;
+  transport?: SourceTransportContainBlockState;
+  helixPortableStructureId?: number;
+  redirectionActivated?: boolean;
+  originalTeamId?: number;
+  needToRunOnBuildComplete?: boolean;
+  isCurrentlyRegistered?: boolean;
+  caveIndex?: number;
+  extraSlotsInUse?: number;
+  riderChangePayloadCreated?: boolean;
+  riderChangeExtraSlotsInUse?: number;
+  riderChangeFrameExitNotBusy?: number;
+  parachute?: SourceParachuteContainBlockState;
+}
+
+function normalizeSourceContainModuleKind(moduleType: string): SourceContainModuleKind | null {
+  switch (normalizeSourceObjectModuleType(moduleType)) {
+    case 'OPENCONTAIN': return 'open';
+    case 'TRANSPORTCONTAIN': return 'transport';
+    case 'OVERLORDCONTAIN': return 'overlord';
+    case 'HELIXCONTAIN': return 'helix';
+    case 'PARACHUTECONTAIN': return 'parachute';
+    case 'GARRISONCONTAIN': return 'garrison';
+    case 'TUNNELCONTAIN': return 'tunnel';
+    case 'CAVECONTAIN': return 'cave';
+    case 'HEALCONTAIN': return 'heal';
+    case 'INTERNETHACKCONTAIN': return 'internetHack';
+    case 'RIDERCHANGECONTAIN': return 'riderChange';
+    case 'RAILEDTRANSPORTCONTAIN': return 'railedTransport';
+    case 'MOBNEXUSCONTAIN': return 'mobNexus';
+    default: return null;
+  }
+}
+
+function normalizedSourceUserBytes(bytes: Uint8Array, byteLength: number): Uint8Array {
+  if (bytes.byteLength === byteLength) {
+    return bytes;
+  }
+  const normalized = new Uint8Array(byteLength);
+  normalized.set(bytes.subarray(0, byteLength));
+  return normalized;
+}
+
+function xferSourceUpdateModuleBase(
+  xfer: Xfer,
+  nextCallFrameAndPhase: number,
+): number {
+  const updateVersion = xfer.xferVersion(1);
+  const behaviorVersion = xfer.xferVersion(1);
+  const objectModuleVersion = xfer.xferVersion(1);
+  const moduleVersion = xfer.xferVersion(1);
+  if (updateVersion !== 1 || behaviorVersion !== 1 || objectModuleVersion !== 1 || moduleVersion !== 1) {
+    throw new Error('Unsupported source UpdateModule base version');
+  }
+  return xfer.xferUnsignedInt(nextCallFrameAndPhase);
+}
+
+function xferSourceObjectIdListByUnsignedCount(xfer: Xfer, objectIds: readonly number[]): number[] {
+  const count = xfer.xferUnsignedInt(objectIds.length);
+  const loaded: number[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < count; index += 1) {
+      loaded.push(xfer.xferObjectID(0));
+    }
+    return loaded;
+  }
+  for (const objectId of objectIds) {
+    loaded.push(xfer.xferObjectID(normalizeSourceObjectId(objectId)));
+  }
+  return loaded;
+}
+
+function xferSourceOpenContainEnterExitEntries(
+  xfer: Xfer,
+  entries: readonly SourceOpenContainEnterExitEntry[],
+): SourceOpenContainEnterExitEntry[] {
+  const count = xfer.xferUnsignedShort(entries.length);
+  const loaded: SourceOpenContainEnterExitEntry[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < count; index += 1) {
+      loaded.push({
+        objectId: xfer.xferObjectID(0),
+        type: parseSourceRawInt32Bytes(xfer.xferUser(new Uint8Array(SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH))),
+      });
+    }
+    return loaded;
+  }
+  for (const entry of entries) {
+    loaded.push({
+      objectId: xfer.xferObjectID(normalizeSourceObjectId(entry.objectId)),
+      type: parseSourceRawInt32Bytes(xfer.xferUser(buildSourceRawInt32Bytes(entry.type))),
+    });
+  }
+  return loaded;
+}
+
+function xferSourceOpenContain(
+  xfer: Xfer,
+  state: SourceOpenContainBlockState,
+): SourceOpenContainBlockState {
+  const version = xfer.xferVersion(2);
+  if (version < 1 || version > 2) {
+    throw new Error(`Unsupported source OpenContain version ${version}`);
+  }
+  const nextCallFrameAndPhase = xferSourceUpdateModuleBase(xfer, state.nextCallFrameAndPhase);
+  const passengerIds = xferSourceObjectIdListByUnsignedCount(xfer, state.passengerIds);
+  const playerEnteredMaskBytes = xfer.xferUser(
+    normalizedSourceUserBytes(state.playerEnteredMaskBytes, SOURCE_PLAYER_MASK_BYTE_LENGTH),
+  );
+  const lastUnloadSoundFrame = xfer.xferUnsignedInt(state.lastUnloadSoundFrame);
+  const lastLoadSoundFrame = xfer.xferUnsignedInt(state.lastLoadSoundFrame);
+  const stealthUnitsContained = xfer.xferUnsignedInt(state.stealthUnitsContained);
+  const doorCloseCountdown = xfer.xferUnsignedInt(state.doorCloseCountdown);
+  const conditionState = xferSourceStringBitFlags(xfer, state.conditionState);
+  const firePointsBytes = xfer.xferUser(
+    normalizedSourceUserBytes(state.firePointsBytes, SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH),
+  );
+  const firePointStart = xfer.xferInt(state.firePointStart);
+  const firePointNext = xfer.xferInt(state.firePointNext);
+  const firePointSize = xfer.xferInt(state.firePointSize);
+  const noFirePointsInArt = xfer.xferBool(state.noFirePointsInArt);
+  const rallyPoint = xfer.xferCoord3D(state.rallyPoint);
+  const rallyPointExists = xfer.xferBool(state.rallyPointExists);
+  const enterExitEntries = xferSourceOpenContainEnterExitEntries(xfer, state.enterExitEntries);
+  const whichExitPath = xfer.xferInt(state.whichExitPath);
+  const passengerAllowedToFire = version >= 2
+    ? xfer.xferBool(state.passengerAllowedToFire)
+    : state.passengerAllowedToFire;
+  return {
+    version,
+    nextCallFrameAndPhase,
+    passengerIds,
+    playerEnteredMaskBytes,
+    lastUnloadSoundFrame,
+    lastLoadSoundFrame,
+    stealthUnitsContained,
+    doorCloseCountdown,
+    conditionState,
+    firePointsBytes,
+    firePointStart,
+    firePointNext,
+    firePointSize,
+    noFirePointsInArt,
+    rallyPoint,
+    rallyPointExists,
+    enterExitEntries,
+    whichExitPath,
+    passengerAllowedToFire,
+  };
+}
+
+function xferSourceTransportContain(
+  xfer: Xfer,
+  state: SourceTransportContainBlockState,
+): SourceTransportContainBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source TransportContain version ${version}`);
+  }
+  return {
+    open: xferSourceOpenContain(xfer, state.open),
+    payloadCreated: xfer.xferBool(state.payloadCreated),
+    extraSlotsInUse: xfer.xferInt(state.extraSlotsInUse),
+    frameExitNotBusy: xfer.xferUnsignedInt(state.frameExitNotBusy),
+  };
+}
+
+function xferSourceParachuteContain(
+  xfer: Xfer,
+  state: SourceParachuteContainBlockState,
+): SourceParachuteContainBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source ParachuteContain version ${version}`);
+  }
+  return {
+    open: xferSourceOpenContain(xfer, state.open),
+    pitch: xfer.xferReal(state.pitch),
+    roll: xfer.xferReal(state.roll),
+    pitchRate: xfer.xferReal(state.pitchRate),
+    rollRate: xfer.xferReal(state.rollRate),
+    startZ: xfer.xferReal(state.startZ),
+    isLandingOverrideSet: xfer.xferBool(state.isLandingOverrideSet),
+    landingOverride: xfer.xferCoord3D(state.landingOverride),
+    riderAttachBone: xfer.xferCoord3D(state.riderAttachBone),
+    riderSwayBone: xfer.xferCoord3D(state.riderSwayBone),
+    paraAttachBone: xfer.xferCoord3D(state.paraAttachBone),
+    paraSwayBone: xfer.xferCoord3D(state.paraSwayBone),
+    riderAttachOffset: xfer.xferCoord3D(state.riderAttachOffset),
+    riderSwayOffset: xfer.xferCoord3D(state.riderSwayOffset),
+    paraAttachOffset: xfer.xferCoord3D(state.paraAttachOffset),
+    paraSwayOffset: xfer.xferCoord3D(state.paraSwayOffset),
+    needToUpdateRiderBones: xfer.xferBool(state.needToUpdateRiderBones),
+    needToUpdateParaBones: xfer.xferBool(state.needToUpdateParaBones),
+    opened: xfer.xferBool(state.opened),
+  };
+}
+
+function createDefaultSourceOpenContainState(): SourceOpenContainBlockState {
+  return {
+    version: 2,
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    passengerIds: [],
+    playerEnteredMaskBytes: new Uint8Array(SOURCE_PLAYER_MASK_BYTE_LENGTH),
+    lastUnloadSoundFrame: 0,
+    lastLoadSoundFrame: 0,
+    stealthUnitsContained: 0,
+    doorCloseCountdown: 0,
+    conditionState: [],
+    firePointsBytes: new Uint8Array(SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH),
+    firePointStart: 0,
+    firePointNext: 0,
+    firePointSize: 0,
+    noFirePointsInArt: false,
+    rallyPoint: { x: 0, y: 0, z: 0 },
+    rallyPointExists: false,
+    enterExitEntries: [],
+    whichExitPath: 1,
+    passengerAllowedToFire: false,
+  };
+}
+
+function createDefaultSourceTransportContainState(): SourceTransportContainBlockState {
+  return {
+    open: createDefaultSourceOpenContainState(),
+    payloadCreated: false,
+    extraSlotsInUse: 0,
+    frameExitNotBusy: 0,
+  };
+}
+
+function createDefaultSourceParachuteContainState(): SourceParachuteContainBlockState {
+  return {
+    open: createDefaultSourceOpenContainState(),
+    pitch: 0,
+    roll: 0,
+    pitchRate: 0,
+    rollRate: 0,
+    startZ: 0,
+    isLandingOverrideSet: false,
+    landingOverride: { x: 0, y: 0, z: 0 },
+    riderAttachBone: { x: 0, y: 0, z: 0 },
+    riderSwayBone: { x: 0, y: 0, z: 0 },
+    paraAttachBone: { x: 0, y: 0, z: 0 },
+    paraSwayBone: { x: 0, y: 0, z: 0 },
+    riderAttachOffset: { x: 0, y: 0, z: 0 },
+    riderSwayOffset: { x: 0, y: 0, z: 0 },
+    paraAttachOffset: { x: 0, y: 0, z: 0 },
+    paraSwayOffset: { x: 0, y: 0, z: 0 },
+    needToUpdateRiderBones: false,
+    needToUpdateParaBones: false,
+    opened: false,
+  };
+}
+
+function tryParseSourceContainModuleBlockData(
+  data: Uint8Array,
+  moduleType: string,
+): SourceContainModuleBlockState | null {
+  const kind = normalizeSourceContainModuleKind(moduleType);
+  if (!kind) {
+    return null;
+  }
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-contain-module');
+  try {
+    let parsed: SourceContainModuleBlockState;
+    if (kind === 'open') {
+      parsed = { kind, open: xferSourceOpenContain(xferLoad, createDefaultSourceOpenContainState()) };
+    } else if (kind === 'transport') {
+      parsed = {
+        kind,
+        transport: xferSourceTransportContain(xferLoad, createDefaultSourceTransportContainState()),
+      };
+    } else if (kind === 'internetHack' || kind === 'railedTransport') {
+      const version = xferLoad.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      parsed = {
+        kind,
+        transport: xferSourceTransportContain(xferLoad, createDefaultSourceTransportContainState()),
+      };
+    } else if (kind === 'overlord') {
+      const version = xferLoad.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      parsed = {
+        kind,
+        transport: xferSourceTransportContain(xferLoad, createDefaultSourceTransportContainState()),
+        redirectionActivated: xferLoad.xferBool(false),
+      };
+    } else if (kind === 'helix') {
+      const version = xferLoad.xferVersion(2);
+      if (version < 1 || version > 2) {
+        return null;
+      }
+      const helixPortableStructureId = version >= 2 ? xferLoad.xferObjectID(0) : 0;
+      parsed = {
+        kind,
+        helixPortableStructureId,
+        transport: xferSourceTransportContain(xferLoad, createDefaultSourceTransportContainState()),
+      };
+    } else if (kind === 'parachute') {
+      parsed = {
+        kind,
+        parachute: xferSourceParachuteContain(xferLoad, createDefaultSourceParachuteContainState()),
+      };
+    } else if (kind === 'garrison') {
+      const version = xferLoad.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      parsed = {
+        kind,
+        open: xferSourceOpenContain(xferLoad, createDefaultSourceOpenContainState()),
+        originalTeamId: xferLoad.xferUnsignedInt(0),
+      };
+    } else if (kind === 'tunnel') {
+      const version = xferLoad.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      parsed = {
+        kind,
+        open: xferSourceOpenContain(xferLoad, createDefaultSourceOpenContainState()),
+        needToRunOnBuildComplete: xferLoad.xferBool(false),
+        isCurrentlyRegistered: xferLoad.xferBool(false),
+      };
+    } else if (kind === 'cave') {
+      const version = xferLoad.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      parsed = {
+        kind,
+        open: xferSourceOpenContain(xferLoad, createDefaultSourceOpenContainState()),
+        needToRunOnBuildComplete: xferLoad.xferBool(false),
+        caveIndex: xferLoad.xferInt(0),
+        originalTeamId: xferLoad.xferUnsignedInt(0),
+      };
+    } else if (kind === 'heal') {
+      const version = xferLoad.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      parsed = { kind, open: xferSourceOpenContain(xferLoad, createDefaultSourceOpenContainState()) };
+    } else if (kind === 'riderChange') {
+      const version = xferLoad.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      parsed = {
+        kind,
+        transport: xferSourceTransportContain(xferLoad, createDefaultSourceTransportContainState()),
+        riderChangePayloadCreated: xferLoad.xferBool(false),
+        riderChangeExtraSlotsInUse: xferLoad.xferInt(0),
+        riderChangeFrameExitNotBusy: xferLoad.xferUnsignedInt(0),
+      };
+    } else {
+      const version = xferLoad.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      parsed = {
+        kind,
+        open: xferSourceOpenContain(xferLoad, createDefaultSourceOpenContainState()),
+        extraSlotsInUse: xferLoad.xferInt(0),
+      };
+    }
+    return xferLoad.getRemaining() === 0 ? parsed : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function collectSourceContainPassengerIds(
+  container: MapEntity,
+  moduleType: string,
+  liveEntities: readonly MapEntity[],
+): number[] {
+  const kind = normalizeSourceContainModuleKind(moduleType);
+  if (!kind) {
+    return [];
+  }
+  const passengerIds: number[] = [];
+  for (const passenger of liveEntities) {
+    if (!passenger || passenger.id === container.id || passenger.destroyed) {
+      continue;
+    }
+    if ((kind === 'garrison' && passenger.garrisonContainerId === container.id)
+      || ((kind === 'tunnel' || kind === 'cave') && passenger.tunnelContainerId === container.id)
+      || (kind !== 'garrison'
+        && kind !== 'tunnel'
+        && kind !== 'cave'
+        && passenger.transportContainerId === container.id)) {
+      passengerIds.push(Math.max(0, Math.trunc(passenger.id)));
+    }
+  }
+  return passengerIds.sort((a, b) => a - b);
+}
+
+function overlaySourceOpenContainStateFromLiveEntity(
+  entity: MapEntity,
+  moduleType: string,
+  liveEntities: readonly MapEntity[],
+  preservedState: SourceOpenContainBlockState,
+): SourceOpenContainBlockState {
+  return {
+    ...preservedState,
+    passengerIds: collectSourceContainPassengerIds(entity, moduleType, liveEntities),
+    passengerAllowedToFire: typeof entity.containProfile?.passengersAllowedToFire === 'boolean'
+      ? entity.containProfile.passengersAllowedToFire
+      : preservedState.passengerAllowedToFire,
+  };
+}
+
+function overlaySourceTransportContainStateFromLiveEntity(
+  entity: MapEntity,
+  moduleType: string,
+  liveEntities: readonly MapEntity[],
+  preservedState: SourceTransportContainBlockState,
+): SourceTransportContainBlockState {
+  return {
+    ...preservedState,
+    open: overlaySourceOpenContainStateFromLiveEntity(entity, moduleType, liveEntities, preservedState.open),
+    payloadCreated: typeof entity.initialPayloadCreated === 'boolean'
+      ? entity.initialPayloadCreated
+      : preservedState.payloadCreated,
+  };
+}
+
+function buildSourceContainModuleBlockData(
+  entity: MapEntity,
+  moduleType: string,
+  liveEntities: readonly MapEntity[],
+  preservedState: SourceContainModuleBlockState,
+): Uint8Array {
+  const kind = normalizeSourceContainModuleKind(moduleType);
+  if (!kind || kind !== preservedState.kind) {
+    return new Uint8Array();
+  }
+  const saver = new XferSave();
+  saver.open('build-source-contain-module');
+  try {
+    if (kind === 'open') {
+      xferSourceOpenContain(
+        saver,
+        overlaySourceOpenContainStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.open ?? createDefaultSourceOpenContainState(),
+        ),
+      );
+    } else if (kind === 'transport') {
+      xferSourceTransportContain(
+        saver,
+        overlaySourceTransportContainStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.transport ?? createDefaultSourceTransportContainState(),
+        ),
+      );
+    } else if (kind === 'internetHack' || kind === 'railedTransport') {
+      saver.xferVersion(1);
+      xferSourceTransportContain(
+        saver,
+        overlaySourceTransportContainStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.transport ?? createDefaultSourceTransportContainState(),
+        ),
+      );
+    } else if (kind === 'overlord') {
+      saver.xferVersion(1);
+      xferSourceTransportContain(
+        saver,
+        overlaySourceTransportContainStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.transport ?? createDefaultSourceTransportContainState(),
+        ),
+      );
+      saver.xferBool(preservedState.redirectionActivated ?? false);
+    } else if (kind === 'helix') {
+      saver.xferVersion(2);
+      saver.xferObjectID(normalizeSourceObjectId(
+        entity.helixPortableRiderId ?? preservedState.helixPortableStructureId ?? 0,
+      ));
+      xferSourceTransportContain(
+        saver,
+        overlaySourceTransportContainStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.transport ?? createDefaultSourceTransportContainState(),
+        ),
+      );
+    } else if (kind === 'parachute') {
+      const parachute = preservedState.parachute ?? createDefaultSourceParachuteContainState();
+      xferSourceParachuteContain(saver, {
+        ...parachute,
+        open: overlaySourceOpenContainStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          parachute.open,
+        ),
+      });
+    } else if (kind === 'garrison') {
+      saver.xferVersion(1);
+      xferSourceOpenContain(
+        saver,
+        overlaySourceOpenContainStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.open ?? createDefaultSourceOpenContainState(),
+        ),
+      );
+      saver.xferUnsignedInt(Math.max(0, Math.trunc(preservedState.originalTeamId ?? 0)));
+    } else if (kind === 'tunnel') {
+      saver.xferVersion(1);
+      xferSourceOpenContain(
+        saver,
+        overlaySourceOpenContainStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.open ?? createDefaultSourceOpenContainState(),
+        ),
+      );
+      saver.xferBool(preservedState.needToRunOnBuildComplete ?? false);
+      saver.xferBool(preservedState.isCurrentlyRegistered ?? false);
+    } else if (kind === 'cave') {
+      saver.xferVersion(1);
+      xferSourceOpenContain(
+        saver,
+        overlaySourceOpenContainStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.open ?? createDefaultSourceOpenContainState(),
+        ),
+      );
+      saver.xferBool(preservedState.needToRunOnBuildComplete ?? false);
+      saver.xferInt(Math.trunc(sourcePhysicsFinite(
+        entity.containProfile?.caveIndex,
+        preservedState.caveIndex ?? 0,
+      )));
+      saver.xferUnsignedInt(Math.max(0, Math.trunc(preservedState.originalTeamId ?? 0)));
+    } else if (kind === 'heal') {
+      saver.xferVersion(1);
+      xferSourceOpenContain(
+        saver,
+        overlaySourceOpenContainStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.open ?? createDefaultSourceOpenContainState(),
+        ),
+      );
+    } else if (kind === 'riderChange') {
+      saver.xferVersion(1);
+      xferSourceTransportContain(
+        saver,
+        overlaySourceTransportContainStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.transport ?? createDefaultSourceTransportContainState(),
+        ),
+      );
+      saver.xferBool(typeof entity.initialPayloadCreated === 'boolean'
+        ? entity.initialPayloadCreated
+        : preservedState.riderChangePayloadCreated ?? false);
+      saver.xferInt(preservedState.riderChangeExtraSlotsInUse ?? 0);
+      saver.xferUnsignedInt(preservedState.riderChangeFrameExitNotBusy ?? 0);
+    } else {
+      saver.xferVersion(1);
+      xferSourceOpenContain(
+        saver,
+        overlaySourceOpenContainStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.open ?? createDefaultSourceOpenContainState(),
+        ),
+      );
+      saver.xferInt(preservedState.extraSlotsInUse ?? 0);
+    }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 interface SourceProductionQueueEntryBlockState {
   type: number;
   name: string;
@@ -7822,6 +8504,7 @@ function buildSourceObjectWeaponStatusHelperBlockData(currentFrame: number): Uin
 function overlaySourceObjectModulesFromLiveEntity(
   sourceModules: readonly SourceObjectModuleSaveState[],
   entity: MapEntity,
+  liveEntities: readonly MapEntity[],
   currentFrame: number,
   templateName?: string | null,
   resolveSourceObjectModuleTypeByTag?: ((templateName: string, moduleTag: string) => string | null) | null,
@@ -7895,6 +8578,18 @@ function overlaySourceObjectModulesFromLiveEntity(
                 ),
               };
             }
+          }
+          const parsedContainState = tryParseSourceContainModuleBlockData(module.blockData, moduleType);
+          if (parsedContainState) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceContainModuleBlockData(
+                entity,
+                moduleType,
+                liveEntities,
+                parsedContainState,
+              ),
+            };
           }
           if (moduleType === 'AUTOHEALBEHAVIOR' && entity.autoHealProfile) {
             const parsedSourceState = tryParseSourceAutoHealBehaviorBlockData(module.blockData);
@@ -8399,6 +9094,7 @@ function overlaySourceObjectModulesFromLiveEntity(
 function overlaySourceObjectStateFromLiveEntity(
   sourceState: SourceMapEntitySaveState,
   entity: MapEntity,
+  liveEntities: readonly MapEntity[],
   currentFrame: number,
   triggerAreaState?: GameLogicObjectTriggerAreaSaveState | null,
   objectXferOverlayState?: GameLogicObjectXferOverlayState | null,
@@ -8497,6 +9193,7 @@ function overlaySourceObjectStateFromLiveEntity(
     modules: overlaySourceObjectModulesFromLiveEntity(
       sourceState.modules,
       entity,
+      liveEntities,
       currentFrame,
       templateName,
       resolveSourceObjectModuleTypeByTag,
@@ -8554,6 +9251,7 @@ function buildSourceGameLogicChunk(
               overlaySourceObjectStateFromLiveEntity(
                 object.state,
                 liveEntity,
+                coreState?.spawnedEntities ?? [],
                 coreState?.frameCounter ?? sourceState.frameCounter,
                 liveTriggerAreaStateByEntityId.get(liveEntity.id),
                 objectXferOverlayStateByEntityId.get(liveEntity.id),
