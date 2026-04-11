@@ -634,6 +634,7 @@ export interface RuntimeSaveGameLogicChunkLayoutInspection {
   frameCounter: number | null;
   objectTocCount: number | null;
   objectCount: number | null;
+  polygonTriggerCount: number | null;
   firstObjectTemplateName: string | null;
   firstObjectTocId: number | null;
   firstObjectVersion: number | null;
@@ -3259,6 +3260,42 @@ function buildCoreControlBarOverridesFromSourceEntries(
   });
 }
 
+function buildSourceGameLogicPolygonTriggerStates(
+  mapData: MapDataJSON | null | undefined,
+  terrainLogicState: GameLogicTerrainLogicSaveState | null | undefined,
+): ParsedSourceGameLogicPolygonTriggerState[] {
+  const currentWaterHeightByTriggerId = new Map<number, number>();
+  for (const waterUpdate of terrainLogicState?.waterUpdates ?? []) {
+    if (!waterUpdate || !Number.isFinite(waterUpdate.triggerId) || !Number.isFinite(waterUpdate.currentHeight)) {
+      continue;
+    }
+    currentWaterHeightByTriggerId.set(
+      Math.trunc(waterUpdate.triggerId),
+      waterUpdate.currentHeight,
+    );
+  }
+
+  return (mapData?.triggers ?? [])
+    .filter((trigger) =>
+      trigger
+      && Number.isFinite(trigger.id)
+      && Array.isArray(trigger.points)
+      && trigger.points.length >= 2)
+    .map((trigger) => {
+      const triggerId = Math.trunc(trigger.id);
+      const currentWaterHeight = currentWaterHeightByTriggerId.get(triggerId);
+      const points = trigger.points.map((point) => ({
+        x: point.x,
+        y: point.y,
+        z: currentWaterHeight ?? point.z,
+      }));
+      return {
+        triggerId,
+        snapshot: buildSourcePolygonTriggerSnapshotState(points),
+      };
+    });
+}
+
 function inspectSourceGameLogicChunk(
   data: ArrayBuffer | Uint8Array,
 ): RuntimeSaveGameLogicChunkLayoutInspection | null {
@@ -3284,6 +3321,7 @@ function inspectSourceGameLogicChunk(
     frameCounter: parsed.frameCounter,
     objectTocCount: parsed.objectTocEntries.length,
     objectCount: parsed.objects.length,
+    polygonTriggerCount: parsed.polygonTriggers.length,
     firstObjectTemplateName: firstObject?.templateName ?? null,
     firstObjectTocId: firstObject?.tocId ?? null,
     firstObjectVersion: firstObject?.state.version ?? null,
@@ -3345,6 +3383,8 @@ function buildSourceGameLogicImportSaveState(
 
 function createFreshSourceGameLogicChunkState(
   campaignState: RuntimeSaveCampaignState,
+  mapData?: MapDataJSON | null,
+  terrainLogicState?: GameLogicTerrainLogicSaveState | null,
 ): ParsedSourceGameLogicChunkState {
   return {
     version: SOURCE_GAME_LOGIC_SNAPSHOT_VERSION,
@@ -3363,7 +3403,7 @@ function createFreshSourceGameLogicChunkState(
     },
     caveTrackers: [],
     scriptScoringEnabled: true,
-    polygonTriggers: [],
+    polygonTriggers: buildSourceGameLogicPolygonTriggerStates(mapData, terrainLogicState),
     rankLevelLimit: null,
     sellingEntities: [],
     buildableOverrides: [],
@@ -17114,6 +17154,7 @@ export function inspectGameLogicChunkLayout(
       frameCounter: null,
       objectTocCount: null,
       objectCount: null,
+      polygonTriggerCount: null,
       firstObjectTemplateName: null,
       firstObjectTocId: null,
       firstObjectVersion: null,
@@ -17129,6 +17170,7 @@ export function inspectGameLogicChunkLayout(
     frameCounter: null,
     objectTocCount: null,
     objectCount: null,
+    polygonTriggerCount: null,
     firstObjectTemplateName: null,
     firstObjectTocId: null,
     firstObjectVersion: null,
@@ -20783,7 +20825,7 @@ export function buildRuntimeSaveFile(params: {
     state.addSnapshotBlock(
       SOURCE_GAME_LOGIC_BLOCK,
       new RawPassthroughSnapshot(buildSourceGameLogicChunk(
-        createFreshSourceGameLogicChunkState(campaignState),
+        createFreshSourceGameLogicChunkState(campaignState, params.mapData, terrainLogicPayload),
         {
           campaignState,
           coreState: gameLogicPayload,
