@@ -21257,6 +21257,10 @@ interface SourcePlayerScoreKeeperState {
   totalFactionBuildingsCaptured: number;
   currentScore: number;
   playerIndex: number;
+  objectsBuilt: Array<{ templateName: string; count: number }>;
+  objectsDestroyed: Array<Array<{ templateName: string; count: number }>>;
+  objectsLost: Array<{ templateName: string; count: number }>;
+  objectsCaptured: Array<{ templateName: string; count: number }>;
 }
 
 interface SourcePlayerBattlePlanBonusesState {
@@ -21785,6 +21789,36 @@ function xferSourceScoreObjectCountMap(
   return objectCounts;
 }
 
+function normalizeSourceScoreObjectCountMap(
+  value: unknown,
+): Array<{ templateName: string; count: number }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return [];
+    }
+    const templateName = normalizeOptionalAsciiString((entry as { templateName?: unknown }).templateName).trim();
+    const count = Number((entry as { count?: unknown }).count);
+    return templateName.length > 0 && Number.isFinite(count)
+      ? [{ templateName, count: Math.trunc(count) }]
+      : [];
+  });
+}
+
+function normalizeSourceScoreObjectCountMapArray(
+  value: unknown,
+): Array<Array<{ templateName: string; count: number }>> {
+  const maps = Array.isArray(value)
+    ? value.map((entry) => normalizeSourceScoreObjectCountMap(entry))
+    : [];
+  while (maps.length < SOURCE_SCRIPT_ENGINE_PLAYER_COUNT) {
+    maps.push([]);
+  }
+  return maps.slice(0, SOURCE_SCRIPT_ENGINE_PLAYER_COUNT);
+}
+
 function xferSourceScoreKeeperState(
   xfer: Xfer,
   scoreKeeper: SourcePlayerScoreKeeperState,
@@ -21815,17 +21849,22 @@ function xferSourceScoreKeeperState(
     totalFactionBuildingsCaptured: xfer.xferInt(scoreKeeper.totalFactionBuildingsCaptured),
     currentScore: xfer.xferInt(scoreKeeper.currentScore),
     playerIndex: xfer.xferInt(scoreKeeper.playerIndex),
+    objectsBuilt: [],
+    objectsDestroyed: [],
+    objectsLost: [],
+    objectsCaptured: [],
   };
-  void xferSourceScoreObjectCountMap(xfer, []);
+  nextState.objectsBuilt = xferSourceScoreObjectCountMap(xfer, scoreKeeper.objectsBuilt);
   const destroyedArraySize = xfer.xferUnsignedShort(SOURCE_SCRIPT_ENGINE_PLAYER_COUNT);
   if (destroyedArraySize !== SOURCE_SCRIPT_ENGINE_PLAYER_COUNT) {
     throw new Error(`Unexpected score destroyed-array size ${destroyedArraySize}`);
   }
+  const objectsDestroyed = normalizeSourceScoreObjectCountMapArray(scoreKeeper.objectsDestroyed);
   for (let index = 0; index < destroyedArraySize; index += 1) {
-    void xferSourceScoreObjectCountMap(xfer, []);
+    nextState.objectsDestroyed.push(xferSourceScoreObjectCountMap(xfer, objectsDestroyed[index] ?? []));
   }
-  void xferSourceScoreObjectCountMap(xfer, []);
-  void xferSourceScoreObjectCountMap(xfer, []);
+  nextState.objectsLost = xferSourceScoreObjectCountMap(xfer, scoreKeeper.objectsLost);
+  nextState.objectsCaptured = xferSourceScoreObjectCountMap(xfer, scoreKeeper.objectsCaptured);
   return nextState;
 }
 
@@ -22253,6 +22292,10 @@ function buildSourcePlayerEntryState(
       totalFactionBuildingsCaptured: 0,
       currentScore: 0,
       playerIndex,
+      objectsBuilt: normalizeSourceScoreObjectCountMap(sideScoreState?.objectsBuilt),
+      objectsDestroyed: normalizeSourceScoreObjectCountMapArray(sideScoreState?.objectsDestroyed),
+      objectsLost: normalizeSourceScoreObjectCountMap(sideScoreState?.objectsLost),
+      objectsCaptured: normalizeSourceScoreObjectCountMap(sideScoreState?.objectsCaptured),
     },
     kindOfCostModifiers: expandedKindOfCostModifiers,
     specialPowerReadyTimers: [],
@@ -22304,6 +22347,10 @@ function buildGameLogicPlayersStateFromSourcePlayers(
     unitsDestroyed: number;
     moneySpent: number;
     moneyEarned: number;
+    objectsBuilt?: Array<{ templateName: string; count: number }>;
+    objectsDestroyed?: Array<Array<{ templateName: string; count: number }>>;
+    objectsLost?: Array<{ templateName: string; count: number }>;
+    objectsCaptured?: Array<{ templateName: string; count: number }>;
   }>();
   const sideCompletedUpgrades = new Map<string, Set<string>>();
   const sideUpgradesInProduction = new Map<string, Set<string>>();
@@ -22404,6 +22451,11 @@ function buildGameLogicPlayersStateFromSourcePlayers(
       unitsDestroyed: player.scoreKeeper.totalUnitsDestroyed.reduce((sum, value) => sum + value, 0),
       moneySpent: player.scoreKeeper.totalMoneySpent,
       moneyEarned: player.scoreKeeper.totalMoneyEarned,
+      objectsBuilt: player.scoreKeeper.objectsBuilt.map((entry) => ({ ...entry })),
+      objectsDestroyed: player.scoreKeeper.objectsDestroyed.map((entries) =>
+        entries.map((entry) => ({ ...entry }))),
+      objectsLost: player.scoreKeeper.objectsLost.map((entry) => ({ ...entry })),
+      objectsCaptured: player.scoreKeeper.objectsCaptured.map((entry) => ({ ...entry })),
     });
     if (!player.listInScoreScreen) {
       sideScoreScreenExcluded.add(player.side);
@@ -22634,6 +22686,10 @@ class SourcePlayersSnapshot implements Snapshot {
             totalFactionBuildingsCaptured: 0,
             currentScore: 0,
             playerIndex,
+            objectsBuilt: [],
+            objectsDestroyed: Array.from({ length: SOURCE_SCRIPT_ENGINE_PLAYER_COUNT }, () => [] as Array<{ templateName: string; count: number }>),
+            objectsLost: [],
+            objectsCaptured: [],
           },
           kindOfCostModifiers: [],
           specialPowerReadyTimers: [],

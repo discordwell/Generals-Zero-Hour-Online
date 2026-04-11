@@ -7184,6 +7184,10 @@ interface SideScoreState {
   unitsDestroyed: number;
   moneySpent: number;
   moneyEarned: number;
+  objectsBuilt?: Array<{ templateName: string; count: number }>;
+  objectsDestroyed?: Array<Array<{ templateName: string; count: number }>>;
+  objectsLost?: Array<{ templateName: string; count: number }>;
+  objectsCaptured?: Array<{ templateName: string; count: number }>;
 }
 
 /**

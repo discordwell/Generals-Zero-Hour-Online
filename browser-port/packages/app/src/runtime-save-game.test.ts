@@ -14841,6 +14841,69 @@ describe('runtime-save-game', () => {
       });
   });
 
+  it('round-trips source ScoreKeeper object count maps', () => {
+    const destroyedMaps = Array.from({ length: 16 }, () => [] as Array<{ templateName: string; count: number }>);
+    destroyedMaps[1] = [{ templateName: 'GLAWorker', count: 3 }];
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source ScoreKeeper Object Count Maps',
+      mapPath: 'assets/maps/SourceScoreKeeperObjectMaps.json',
+      mapData: {
+        ...createTinyRuntimeMapData(),
+        sidesList: {
+          sides: [{
+            dict: {
+              playerName: 'America',
+              playerFaction: 'America',
+            },
+            buildList: [],
+          }, {
+            dict: {
+              playerName: 'GLA',
+              playerFaction: 'GLA',
+            },
+            buildList: [],
+          }],
+          teams: [],
+        },
+      },
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic([], {
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            playerSideByIndex: new Map([[0, 'America'], [1, 'GLA']]),
+            sidePlayerIndex: new Map([['America', 0], ['GLA', 1]]),
+            sideScoreState: new Map([
+              ['America', {
+                structuresBuilt: 2,
+                structuresLost: 1,
+                structuresDestroyed: 4,
+                unitsBuilt: 6,
+                unitsLost: 5,
+                unitsDestroyed: 7,
+                moneySpent: 1200,
+                moneyEarned: 3400,
+                objectsBuilt: [{ templateName: 'AmericaBarracks', count: 2 }],
+                objectsDestroyed: destroyedMaps,
+                objectsLost: [{ templateName: 'AmericaRanger', count: 1 }],
+                objectsCaptured: [{ templateName: 'TechOilDerrick', count: 1 }],
+              }],
+            ]),
+          },
+        }),
+      }),
+    });
+
+    const parsedScore = (
+      parseRuntimeSaveFile(saveFile.data).gameLogicPlayersState?.state.sideScoreState as Map<string, Record<string, unknown>>
+    ).get('America');
+    expect(parsedScore?.objectsBuilt).toEqual([{ templateName: 'AmericaBarracks', count: 2 }]);
+    expect((parsedScore?.objectsDestroyed as Array<Array<{ templateName: string; count: number }>>)[1])
+      .toEqual([{ templateName: 'GLAWorker', count: 3 }]);
+    expect(parsedScore?.objectsLost).toEqual([{ templateName: 'AmericaRanger', count: 1 }]);
+    expect(parsedScore?.objectsCaptured).toEqual([{ templateName: 'TechOilDerrick', count: 1 }]);
+  });
+
   it('overlays live source Object::xfer status, disable, experience, and weapon fields on resave', () => {
     const sourceGameLogicBytes = createSourceGameLogicChunkData(true);
     const saveFile = buildRuntimeSaveFile({
