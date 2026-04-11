@@ -8931,6 +8931,16 @@ interface SourceDeployStyleAIUpdateImportState {
   frameToWaitForDeploy: number;
 }
 
+interface SourceAssaultTransportAIUpdateImportState {
+  members: Array<{ entityId: number; isHealing: boolean }>;
+  attackMoveGoal: { x: number; y: number; z: number };
+  designatedTargetId: number;
+  assaultState: number;
+  framesRemaining: number;
+  isAttackMove: boolean;
+  isAttackObject: boolean;
+}
+
 interface SourceProductionExitRallyImportState {
   nextCallFrame: number;
   rallyPoint: { x: number; y: number; z: number };
@@ -9419,6 +9429,7 @@ const SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH = 16 * 4;
 const SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_FLAG = -1;
 const SOURCE_DOCK_VECTOR_LIMIT = 0xffff;
 const SOURCE_RAILED_TRANSPORT_MAX_WAYPOINT_PATHS = 32;
+const SOURCE_ASSAULT_TRANSPORT_MAX_SLOTS = 10;
 const SOURCE_PLAYER_MASK_BYTE_LENGTH = 2;
 const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH = 32 * 48;
 const SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH = 4;
@@ -15522,6 +15533,119 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceAssaultTransportAIUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceAssaultTransportAIUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'ASSAULTTRANSPORTAIUPDATE') {
+      return null;
+    }
+    if (data.byteLength < 31 || data[0] !== 1) {
+      return null;
+    }
+
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    // AssaultTransportAIUpdate xfers AIUpdateInterface first; the assault fields are the fixed suffix
+    // except for m_memberIDs/m_memberHealing, which are bounded by MAX_TRANSPORT_SLOTS.
+    for (let memberCount = SOURCE_ASSAULT_TRANSPORT_MAX_SLOTS; memberCount >= 0; memberCount -= 1) {
+      const tailOffset = data.byteLength - (30 + memberCount * 5);
+      if (tailOffset < 2 || view.getInt32(tailOffset, true) !== memberCount) {
+        continue;
+      }
+
+      const members: SourceAssaultTransportAIUpdateImportState['members'] = [];
+      let cursor = tailOffset + 4;
+      let valid = true;
+      for (let index = 0; index < memberCount; index += 1) {
+        const isHealingByte = view.getUint8(cursor + 4);
+        if (isHealingByte !== 0 && isHealingByte !== 1) {
+          valid = false;
+          break;
+        }
+        members.push({
+          entityId: view.getUint32(cursor, true),
+          isHealing: isHealingByte !== 0,
+        });
+        cursor += 5;
+      }
+      if (!valid) {
+        continue;
+      }
+
+      const isAttackMoveByte = view.getUint8(data.byteLength - 2);
+      const isAttackObjectByte = view.getUint8(data.byteLength - 1);
+      if (
+        (isAttackMoveByte !== 0 && isAttackMoveByte !== 1)
+        || (isAttackObjectByte !== 0 && isAttackObjectByte !== 1)
+      ) {
+        continue;
+      }
+
+      return {
+        members,
+        attackMoveGoal: {
+          x: view.getFloat32(cursor, true),
+          y: view.getFloat32(cursor + 4, true),
+          z: view.getFloat32(cursor + 8, true),
+        },
+        designatedTargetId: view.getUint32(cursor + 12, true),
+        assaultState: view.getInt32(cursor + 16, true),
+        framesRemaining: view.getUint32(cursor + 20, true),
+        isAttackMove: isAttackMoveByte !== 0,
+        isAttackObject: isAttackObjectByte !== 0,
+      };
+    }
+
+    return null;
+  }
+
+  private applySourceAssaultTransportAIUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.assaultTransportProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const assaultState = this.tryParseSourceAssaultTransportAIUpdateImportState(module.blockData, moduleType);
+      if (!assaultState) {
+        continue;
+      }
+      const state: AssaultTransportState = {
+        members: assaultState.members.map((member) => ({
+          entityId: Math.max(0, Math.trunc(member.entityId)),
+          isHealing: member.isHealing,
+          // Source parity: AssaultTransportAIUpdate::xfer does not persist m_newMember[].
+          isNew: false,
+        })),
+        designatedTargetId: assaultState.designatedTargetId > 0
+          ? Math.trunc(assaultState.designatedTargetId)
+          : null,
+        attackMoveGoalX: Number.isFinite(assaultState.attackMoveGoal.x) ? assaultState.attackMoveGoal.x : 0,
+        attackMoveGoalY: Number.isFinite(assaultState.attackMoveGoal.y) ? assaultState.attackMoveGoal.y : 0,
+        attackMoveGoalZ: Number.isFinite(assaultState.attackMoveGoal.z) ? assaultState.attackMoveGoal.z : 0,
+        assaultState: Number.isFinite(assaultState.assaultState) ? Math.trunc(assaultState.assaultState) : 0,
+        framesRemaining: Number.isFinite(assaultState.framesRemaining)
+          ? Math.max(0, Math.trunc(assaultState.framesRemaining))
+          : 0,
+        isAttackMove: assaultState.isAttackMove,
+        isAttackObject: assaultState.isAttackObject,
+        newOccupantsAreNewMembers: false,
+      };
+      entity.assaultTransportState = state;
+      this.assaultTransportStateByEntityId.set(entity.id, state);
+      return;
+    }
+  }
+
   private tryParseSourceProductionExitRallyImportState(
     data: Uint8Array,
     moduleType: string,
@@ -19400,6 +19524,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceBaseRegenerateUpdateModulesToEntity(entity, sourceState);
     this.applySourceCommandButtonHuntUpdateModulesToEntity(entity, sourceState);
     this.applySourceDeployStyleAIUpdateModulesToEntity(entity, sourceState);
+    this.applySourceAssaultTransportAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);
     this.applySourcePointDefenseLaserUpdateModulesToEntity(entity, sourceState);

@@ -199,6 +199,15 @@ function makeSourceOwnedCoreBundle() {
           PackTime: 1000,
         }),
       ]),
+      makeObjectDef('AssaultTransportObject', 'China', ['VEHICLE'], [
+        makeBlock('Behavior', 'TransportContain ModuleTag_Contain', {
+          ContainMax: 8,
+        }),
+        makeBlock('Behavior', 'AssaultTransportAIUpdate ModuleTag_AssaultAI', {
+          MembersGetHealedAtLifeRatio: 0.3,
+          ClearRangeRequiredToContinueAttackMove: 50,
+        }),
+      ]),
       makeObjectDef('DefaultExitStructure', 'America', ['STRUCTURE'], [
         makeBlock('Behavior', 'DefaultProductionExitUpdate ModuleTag_DefaultExit', {
           UnitCreatePoint: 'X:0 Y:0 Z:0',
@@ -1595,6 +1604,37 @@ function buildSourceDeployStyleAIUpdateModuleData(options: {
   view.setInt32(bytes.byteLength - 8, options.state, true);
   view.setUint32(bytes.byteLength - 4, options.frameToWaitForDeploy, true);
   return bytes;
+}
+
+function buildSourceAssaultTransportAIUpdateModuleData(options: {
+  members: Array<{ entityId: number; isHealing: boolean }>;
+  attackMoveGoal: { x: number; y: number; z: number };
+  designatedTargetId: number;
+  assaultState: number;
+  framesRemaining: number;
+  isAttackMove: boolean;
+  isAttackObject: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-assault-transport-ai-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(new Uint8Array([4, 0xaa, 0xbb, 0xcc]));
+    saver.xferInt(options.members.length);
+    for (const member of options.members) {
+      saver.xferObjectID(member.entityId);
+      saver.xferBool(member.isHealing);
+    }
+    saver.xferCoord3D(options.attackMoveGoal);
+    saver.xferObjectID(options.designatedTargetId);
+    saver.xferInt(options.assaultState);
+    saver.xferUnsignedInt(options.framesRemaining);
+    saver.xferBool(options.isAttackMove);
+    saver.xferBool(options.isAttackObject);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
 }
 
 function buildSourceProductionExitRallyModuleData(options: {
@@ -4439,6 +4479,70 @@ describe('source-owned game-logic core save-state', () => {
 
     expect(privateLogic.spawnedEntities.get(121)!.spawnPointExitState?.occupierIds)
       .toEqual([-1, 401, 402, -1, 404, -1, -1, -1, -1, -1]);
+  });
+
+  it('imports source AssaultTransportAIUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const assaultState = createEmptySourceMapEntitySaveState();
+    assaultState.objectId = 122;
+    assaultState.position = { x: 156, y: 0, z: 60 };
+    assaultState.modules = [{
+      identifier: 'ModuleTag_AssaultAI',
+      blockData: buildSourceAssaultTransportAIUpdateModuleData({
+        members: [
+          { entityId: 201, isHealing: true },
+          { entityId: 202, isHealing: false },
+        ],
+        attackMoveGoal: { x: 70, y: 6, z: 90 },
+        designatedTargetId: 301,
+        assaultState: 1,
+        framesRemaining: 45,
+        isAttackMove: true,
+        isAttackObject: false,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AssaultTransportObject', state: assaultState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        assaultTransportState: unknown;
+      }>;
+      assaultTransportStateByEntityId: Map<number, unknown>;
+    };
+
+    expect(privateLogic.spawnedEntities.get(122)!.assaultTransportState).toEqual({
+      members: [
+        { entityId: 201, isHealing: true, isNew: false },
+        { entityId: 202, isHealing: false, isNew: false },
+      ],
+      designatedTargetId: 301,
+      attackMoveGoalX: 70,
+      attackMoveGoalY: 6,
+      attackMoveGoalZ: 90,
+      assaultState: 1,
+      framesRemaining: 45,
+      isAttackMove: true,
+      isAttackObject: false,
+      newOccupantsAreNewMembers: false,
+    });
+    expect(privateLogic.assaultTransportStateByEntityId.get(122)).toBe(
+      privateLogic.spawnedEntities.get(122)!.assaultTransportState,
+    );
   });
 
   it('imports source PointDefenseLaserUpdate runtime state', () => {

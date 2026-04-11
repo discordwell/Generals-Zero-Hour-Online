@@ -1757,6 +1757,71 @@ function parseSourceDeployStyleAIUpdateBlockData(
   };
 }
 
+function createSourceAssaultTransportAIUpdateBlockData(options: {
+  members: Array<{ entityId: number; isHealing: boolean }>;
+  attackMoveGoal: Coord3D;
+  designatedTargetId: number;
+  assaultState: number;
+  framesRemaining: number;
+  isAttackMove: boolean;
+  isAttackObject: boolean;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-assault-transport-ai-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(new Uint8Array([4, 0xaa, 0xbb, 0xcc]));
+    xferSave.xferInt(options.members.length);
+    for (const member of options.members) {
+      xferSave.xferObjectID(member.entityId);
+      xferSave.xferBool(member.isHealing);
+    }
+    xferSave.xferCoord3D(options.attackMoveGoal);
+    xferSave.xferObjectID(options.designatedTargetId);
+    xferSave.xferInt(options.assaultState);
+    xferSave.xferUnsignedInt(options.framesRemaining);
+    xferSave.xferBool(options.isAttackMove);
+    xferSave.xferBool(options.isAttackObject);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceAssaultTransportAIUpdateBlockData(data: Uint8Array) {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  for (let memberCount = 10; memberCount >= 0; memberCount -= 1) {
+    const tailOffset = data.byteLength - (30 + memberCount * 5);
+    if (tailOffset < 2 || data[0] !== 1 || view.getInt32(tailOffset, true) !== memberCount) {
+      continue;
+    }
+    const members: Array<{ entityId: number; isHealing: boolean }> = [];
+    let cursor = tailOffset + 4;
+    for (let index = 0; index < memberCount; index += 1) {
+      members.push({
+        entityId: view.getUint32(cursor, true),
+        isHealing: view.getUint8(cursor + 4) !== 0,
+      });
+      cursor += 5;
+    }
+    return {
+      prefix: [...data.subarray(0, tailOffset)],
+      members,
+      attackMoveGoal: {
+        x: view.getFloat32(cursor, true),
+        y: view.getFloat32(cursor + 4, true),
+        z: view.getFloat32(cursor + 8, true),
+      },
+      designatedTargetId: view.getUint32(cursor + 12, true),
+      assaultState: view.getInt32(cursor + 16, true),
+      framesRemaining: view.getUint32(cursor + 20, true),
+      isAttackMove: view.getUint8(cursor + 24) !== 0,
+      isAttackObject: view.getUint8(cursor + 25) !== 0,
+    };
+  }
+  throw new Error('Unable to parse assault transport AI test block.');
+}
+
 function createSourceProductionExitRallyBlockData(
   nextCallFrameAndPhase: number,
   rallyPoint: Coord3D,
@@ -11320,6 +11385,135 @@ describe('runtime-save-game', () => {
     expect(parsed.prefix).toEqual(preservedPrefix);
     expect(parsed.state).toBe(3);
     expect(parsed.frameToWaitForDeploy).toBe(88);
+  });
+
+  it('rewrites source AssaultTransportAIUpdate tail while preserving AIUpdateInterface bytes', () => {
+    const sourceAssaultBlock = createSourceAssaultTransportAIUpdateBlockData({
+      members: [{ entityId: 5, isHealing: false }],
+      attackMoveGoal: { x: 1, y: 2, z: 3 },
+      designatedTargetId: 6,
+      assaultState: 0,
+      framesRemaining: 0,
+      isAttackMove: false,
+      isAttackObject: true,
+    });
+    const preservedPrefix = parseSourceAssaultTransportAIUpdateBlockData(sourceAssaultBlock).prefix;
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_AssaultAI',
+      blockData: sourceAssaultBlock,
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source assault transport ai update rewrite',
+      mapPath: 'Maps/RuntimeAssault/RuntimeAssault.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeAssault',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            assaultTransportProfile: {
+              membersGetHealedAtLifeRatio: 0.3,
+              clearRangeRequiredToContinueAttackMove: 50,
+            },
+            assaultTransportState: {
+              members: [
+                { entityId: 21, isHealing: true, isNew: true },
+                { entityId: 22, isHealing: false, isNew: false },
+              ],
+              designatedTargetId: 31,
+              attackMoveGoalX: 70,
+              attackMoveGoalY: 6,
+              attackMoveGoalZ: 90,
+              assaultState: 1,
+              framesRemaining: 45,
+              isAttackMove: true,
+              isAttackObject: false,
+              newOccupantsAreNewMembers: true,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_AssaultAI') {
+            return 'ASSAULTTRANSPORTAIUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const assaultModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_AssaultAI');
+
+    expect(assaultModule).toBeDefined();
+    const parsed = parseSourceAssaultTransportAIUpdateBlockData(assaultModule!.blockData);
+    expect(parsed.prefix).toEqual(preservedPrefix);
+    expect(parsed.members).toEqual([
+      { entityId: 21, isHealing: true },
+      { entityId: 22, isHealing: false },
+    ]);
+    expect(parsed.attackMoveGoal).toEqual({ x: 70, y: 6, z: 90 });
+    expect(parsed.designatedTargetId).toBe(31);
+    expect(parsed.assaultState).toBe(1);
+    expect(parsed.framesRemaining).toBe(45);
+    expect(parsed.isAttackMove).toBe(true);
+    expect(parsed.isAttackObject).toBe(false);
   });
 
   it('rewrites source production exit update modules from live rally and queue state', () => {

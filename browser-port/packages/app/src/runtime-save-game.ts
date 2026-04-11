@@ -5865,6 +5865,18 @@ interface SourceDeployStyleAIUpdateBlockState {
   frameToWaitForDeploy: number;
 }
 
+interface SourceAssaultTransportAIUpdateBlockState {
+  blockData: Uint8Array;
+  tailOffset: number;
+  members: Array<{ entityId: number; isHealing: boolean }>;
+  attackMoveGoal: Coord3D;
+  designatedTargetId: number;
+  assaultState: number;
+  framesRemaining: number;
+  isAttackMove: boolean;
+  isAttackObject: boolean;
+}
+
 interface SourceProductionExitRallyState {
   nextCallFrameAndPhase: number;
   rallyPoint: Coord3D;
@@ -6190,6 +6202,151 @@ function buildSourceDeployStyleAIUpdateBlockData(
     sourceFlammableUnsignedFrame(entity.deployFrameToWait, preservedState.frameToWaitForDeploy),
     true,
   );
+  return blockData;
+}
+
+const SOURCE_ASSAULT_TRANSPORT_MAX_SLOTS = 10;
+
+function tryParseSourceAssaultTransportAIUpdateBlockData(
+  data: Uint8Array,
+): SourceAssaultTransportAIUpdateBlockState | null {
+  if (data.byteLength < 31 || data[0] !== 1) {
+    return null;
+  }
+
+  const blockData = new Uint8Array(data);
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  // AssaultTransportAIUpdate xfers AIUpdateInterface first; the assault fields are the fixed suffix
+  // except for the persisted member array, which is bounded by MAX_TRANSPORT_SLOTS.
+  for (let memberCount = SOURCE_ASSAULT_TRANSPORT_MAX_SLOTS; memberCount >= 0; memberCount -= 1) {
+    const tailOffset = blockData.byteLength - (30 + memberCount * 5);
+    if (tailOffset < 2 || view.getInt32(tailOffset, true) !== memberCount) {
+      continue;
+    }
+
+    const members: SourceAssaultTransportAIUpdateBlockState['members'] = [];
+    let cursor = tailOffset + 4;
+    let valid = true;
+    for (let index = 0; index < memberCount; index += 1) {
+      const isHealingByte = view.getUint8(cursor + 4);
+      if (isHealingByte !== 0 && isHealingByte !== 1) {
+        valid = false;
+        break;
+      }
+      members.push({
+        entityId: view.getUint32(cursor, true),
+        isHealing: isHealingByte !== 0,
+      });
+      cursor += 5;
+    }
+    if (!valid) {
+      continue;
+    }
+
+    const isAttackMoveByte = view.getUint8(blockData.byteLength - 2);
+    const isAttackObjectByte = view.getUint8(blockData.byteLength - 1);
+    if (
+      (isAttackMoveByte !== 0 && isAttackMoveByte !== 1)
+      || (isAttackObjectByte !== 0 && isAttackObjectByte !== 1)
+    ) {
+      continue;
+    }
+
+    return {
+      blockData,
+      tailOffset,
+      members,
+      attackMoveGoal: {
+        x: view.getFloat32(cursor, true),
+        y: view.getFloat32(cursor + 4, true),
+        z: view.getFloat32(cursor + 8, true),
+      },
+      designatedTargetId: view.getUint32(cursor + 12, true),
+      assaultState: view.getInt32(cursor + 16, true),
+      framesRemaining: view.getUint32(cursor + 20, true),
+      isAttackMove: isAttackMoveByte !== 0,
+      isAttackObject: isAttackObjectByte !== 0,
+    };
+  }
+
+  return null;
+}
+
+function sourceAssaultTransportMembersForEntity(
+  entity: MapEntity,
+  preservedState: SourceAssaultTransportAIUpdateBlockState,
+): SourceAssaultTransportAIUpdateBlockState['members'] {
+  const state = entity.assaultTransportState;
+  const liveMembers = state && Array.isArray(state.members) ? state.members : preservedState.members;
+  if (liveMembers.length > SOURCE_ASSAULT_TRANSPORT_MAX_SLOTS) {
+    throw new Error(
+      `AssaultTransportAIUpdate member count ${liveMembers.length} exceeds limit ${SOURCE_ASSAULT_TRANSPORT_MAX_SLOTS}.`,
+    );
+  }
+  return liveMembers.map((member) => ({
+    entityId: Number.isFinite(member.entityId)
+      ? Math.max(0, Math.trunc(member.entityId))
+      : 0,
+    isHealing: member.isHealing === true,
+  }));
+}
+
+function buildSourceAssaultTransportAIUpdateBlockData(
+  entity: MapEntity,
+  preservedState: SourceAssaultTransportAIUpdateBlockState,
+): Uint8Array {
+  const state = entity.assaultTransportState;
+  const members = sourceAssaultTransportMembersForEntity(entity, preservedState);
+  const tailLength = 30 + members.length * 5;
+  const blockData = new Uint8Array(preservedState.tailOffset + tailLength);
+  blockData.set(preservedState.blockData.subarray(0, preservedState.tailOffset));
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  let cursor = preservedState.tailOffset;
+  view.setInt32(cursor, members.length, true);
+  cursor += 4;
+  for (const member of members) {
+    view.setUint32(cursor, member.entityId, true);
+    view.setUint8(cursor + 4, member.isHealing ? 1 : 0);
+    cursor += 5;
+  }
+  view.setFloat32(
+    cursor,
+    Number.isFinite(state?.attackMoveGoalX) ? state!.attackMoveGoalX : preservedState.attackMoveGoal.x,
+    true,
+  );
+  view.setFloat32(
+    cursor + 4,
+    Number.isFinite(state?.attackMoveGoalY) ? state!.attackMoveGoalY : preservedState.attackMoveGoal.y,
+    true,
+  );
+  view.setFloat32(
+    cursor + 8,
+    Number.isFinite(state?.attackMoveGoalZ) ? state!.attackMoveGoalZ : preservedState.attackMoveGoal.z,
+    true,
+  );
+  view.setUint32(
+    cursor + 12,
+    Number.isFinite(state?.designatedTargetId)
+      ? Math.max(0, Math.trunc(state!.designatedTargetId ?? 0))
+      : preservedState.designatedTargetId,
+    true,
+  );
+  view.setInt32(
+    cursor + 16,
+    Number.isFinite(state?.assaultState)
+      ? Math.trunc(state!.assaultState)
+      : preservedState.assaultState,
+    true,
+  );
+  view.setUint32(
+    cursor + 20,
+    Number.isFinite(state?.framesRemaining)
+      ? Math.max(0, Math.trunc(state!.framesRemaining))
+      : preservedState.framesRemaining,
+    true,
+  );
+  view.setUint8(cursor + 24, state?.isAttackMove === true ? 1 : 0);
+  view.setUint8(cursor + 25, state?.isAttackObject === true ? 1 : 0);
   return blockData;
 }
 
@@ -10952,6 +11109,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceDeployStyleAIUpdateBlockData(entity, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'ASSAULTTRANSPORTAIUPDATE' && entity.assaultTransportProfile) {
+            const parsedSourceState = tryParseSourceAssaultTransportAIUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceAssaultTransportAIUpdateBlockData(entity, parsedSourceState),
               };
             }
           }
