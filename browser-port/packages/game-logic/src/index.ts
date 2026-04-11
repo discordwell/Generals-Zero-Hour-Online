@@ -8660,6 +8660,13 @@ interface SourceSpawnBehaviorImportState {
   active: boolean;
 }
 
+interface SourceSpecialPowerModuleImportState {
+  availableOnFrame: number;
+  pausedCount: number;
+  pausedOnFrame: number;
+  pausedPercent: number;
+}
+
 export interface GameLogicObjectTriggerAreaEntrySaveState {
   triggerName: string;
   entered: number;
@@ -8684,6 +8691,18 @@ const SOURCE_PRODUCTION_UPGRADE = 2;
 const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
 const SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_FLAG = -1;
 const SOURCE_DOCK_VECTOR_LIMIT = 0xffff;
+const SOURCE_DERIVED_SPECIAL_POWER_MODULE_TYPES = new Set<string>([
+  'BAIKONURLAUNCHPOWER',
+  'CASHBOUNTYPOWER',
+  'CASHHACKSPECIALPOWER',
+  'CLEANUPAREAPOWER',
+  'DEFECTORSPECIALPOWER',
+  'DEMORALIZESPECIALPOWER',
+  'FIREWEAPONPOWER',
+  'OCLSPECIALPOWER',
+  'SPECIALABILITY',
+  'SPYVISIONSPECIALPOWER',
+]);
 const SOURCE_SCRIPT_STATUS_DISABLED = 0x01;
 const SOURCE_SCRIPT_STATUS_UNPOWERED = 0x02;
 const SOURCE_SCRIPT_STATUS_UNSELLABLE = 0x04;
@@ -13312,6 +13331,151 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private normalizeSourceObjectModuleType(moduleType: string): string {
+    return moduleType.trim().toUpperCase();
+  }
+
+  private normalizeSourceObjectModuleTag(moduleTag: unknown): string {
+    return typeof moduleTag === 'string' ? moduleTag.trim().toUpperCase() : '';
+  }
+
+  private isSourceSpecialPowerModuleType(moduleType: string): boolean {
+    return SOURCE_DERIVED_SPECIAL_POWER_MODULE_TYPES.has(
+      this.normalizeSourceObjectModuleType(moduleType),
+    );
+  }
+
+  private tryParseSourceSpecialPowerModuleImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceSpecialPowerModuleImportState | null {
+    if (!this.isSourceSpecialPowerModuleType(moduleType)) {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-special-power-module-import');
+    try {
+      const derivedVersion = xfer.xferVersion(1);
+      if (derivedVersion !== 1) {
+        return null;
+      }
+      const specialPowerModuleVersion = xfer.xferVersion(1);
+      if (specialPowerModuleVersion !== 1) {
+        return null;
+      }
+      this.skipSourceImportBehaviorModuleBase(xfer);
+      const availableOnFrame = xfer.xferUnsignedInt(0);
+      const pausedCount = xfer.xferInt(0);
+      const pausedOnFrame = xfer.xferUnsignedInt(0);
+      const pausedPercent = xfer.xferReal(0);
+      return xfer.getRemaining() === 0
+        ? {
+          availableOnFrame,
+          pausedCount,
+          pausedOnFrame,
+          pausedPercent,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private findLiveSourceSpecialPowerModule(
+    entity: MapEntity,
+    moduleType: string,
+    moduleTag: string,
+  ): [string, SpecialPowerModuleProfile] | null {
+    const normalizedModuleType = this.normalizeSourceObjectModuleType(moduleType);
+    const normalizedModuleTag = this.normalizeSourceObjectModuleTag(moduleTag);
+    const matches = Array.from(entity.specialPowerModules.entries()).filter(
+      ([, profile]) => this.normalizeSourceObjectModuleType(profile.moduleType) === normalizedModuleType,
+    );
+    if (matches.length === 0) {
+      return null;
+    }
+
+    if (normalizedModuleTag) {
+      const tagMatches = matches.filter(
+        ([, profile]) => this.normalizeSourceObjectModuleTag(profile.moduleTag) === normalizedModuleTag,
+      );
+      if (tagMatches.length === 1) {
+        return tagMatches[0]!;
+      }
+
+      const powerNameMatches = matches.filter(([powerName, profile]) =>
+        this.normalizeSourceObjectModuleTag(powerName) === normalizedModuleTag
+        || this.normalizeSourceObjectModuleTag(profile.specialPowerTemplateName) === normalizedModuleTag);
+      if (powerNameMatches.length === 1) {
+        return powerNameMatches[0]!;
+      }
+    }
+
+    return matches.length === 1 ? matches[0]! : null;
+  }
+
+  private applySourceSpecialPowerModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const specialPowerState = this.tryParseSourceSpecialPowerModuleImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (!specialPowerState) {
+        continue;
+      }
+      const liveModuleEntry = this.findLiveSourceSpecialPowerModule(
+        entity,
+        moduleType,
+        module.identifier,
+      );
+      if (!liveModuleEntry) {
+        continue;
+      }
+      const [powerName, liveModule] = liveModuleEntry;
+      liveModule.availableOnFrame = Math.max(0, Math.trunc(specialPowerState.availableOnFrame));
+      liveModule.pausedCount = Number.isFinite(specialPowerState.pausedCount)
+        ? Math.max(0, Math.trunc(specialPowerState.pausedCount))
+        : 0;
+      liveModule.pausedOnFrame = Math.max(0, Math.trunc(specialPowerState.pausedOnFrame));
+      liveModule.pausedPercent = Number.isFinite(specialPowerState.pausedPercent)
+        ? specialPowerState.pausedPercent
+        : 0;
+
+      const normalizedPowerName = this.normalizeShortcutSpecialPowerName(powerName);
+      if (normalizedPowerName && !this.isSharedSyncedSpecialPower(normalizedPowerName)) {
+        this.trackShortcutSpecialPowerSourceEntity(
+          normalizedPowerName,
+          entity.id,
+          liveModule.availableOnFrame,
+        );
+        if (liveModule.pausedCount > 0) {
+          let pausedBySource = this.pausedShortcutSpecialPowerByName.get(normalizedPowerName);
+          if (!pausedBySource) {
+            pausedBySource = new Map<number, ScriptSpecialPowerPauseState>();
+            this.pausedShortcutSpecialPowerByName.set(normalizedPowerName, pausedBySource);
+          }
+          pausedBySource.set(entity.id, {
+            pausedCount: liveModule.pausedCount,
+            pausedOnFrame: liveModule.pausedOnFrame,
+          });
+        }
+      }
+    }
+  }
+
   private applySourceMapEntityStateToEntity(
     entity: MapEntity,
     sourceState: SourceMapEntitySaveState,
@@ -13367,6 +13531,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceProductionModulesToEntity(entity, sourceState);
     this.applySourceDockModulesToEntity(entity, sourceState);
     this.applySourceSpawnBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
   }
 
   restoreSourceGameLogicImportSaveState(state: unknown): void {

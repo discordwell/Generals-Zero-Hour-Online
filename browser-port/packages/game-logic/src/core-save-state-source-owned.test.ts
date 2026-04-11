@@ -15,6 +15,7 @@ import {
   makeMapObject,
   makeObjectDef,
   makeRegistry,
+  makeSpecialPowerDef,
   makeUpgradeDef,
 } from './test-helpers.js';
 
@@ -49,6 +50,15 @@ function makeSourceOwnedCoreBundle() {
       ]),
       makeObjectDef('DroneA', 'America', ['DRONE'], []),
       makeObjectDef('DroneB', 'America', ['DRONE'], []),
+      makeObjectDef('SpecialPowerBuilding', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'OCLSpecialPower ModuleTag_Bomb', {
+          SpecialPowerTemplate: 'SuperweaponTest',
+          OCL: 'OCL_TestBomb',
+        }),
+      ]),
+    ],
+    specialPowers: [
+      makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
     ],
     upgrades: [
       makeUpgradeDef('Upgrade_AmericaRangerCaptureBuilding', { Type: 'PLAYER', BuildCost: 1000, BuildTime: 30 }),
@@ -289,6 +299,30 @@ function buildSourceSpawnBehaviorModuleData(options: {
     saver.xferBool(options.aggregateHealth);
     saver.xferInt(options.spawnCount);
     saver.xferUnsignedInt(options.selfTaskingSpawnCount);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSpecialPowerModuleData(options: {
+  availableOnFrame: number;
+  pausedCount: number;
+  pausedOnFrame: number;
+  pausedPercent: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-special-power-module');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(options.availableOnFrame);
+    saver.xferInt(options.pausedCount);
+    saver.xferUnsignedInt(options.pausedOnFrame);
+    saver.xferReal(options.pausedPercent);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -642,6 +676,65 @@ describe('source-owned game-logic core save-state', () => {
     expect(state.oneShotRemaining).toBe(2);
     expect(state.oneShotCompleted).toBe(true);
     expect(state.initialBurstApplied).toBe(true);
+  });
+
+  it('imports source SpecialPowerModule ready and pause state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 47;
+    sourceState.position = { x: 34, y: 0, z: 34 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_Bomb',
+      blockData: buildSourceSpecialPowerModuleData({
+        availableOnFrame: 180,
+        pausedCount: 2,
+        pausedOnFrame: 91,
+        pausedPercent: 0.375,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 120,
+      objectIdCounter: 100,
+      objects: [{
+        templateName: 'SpecialPowerBuilding',
+        state: sourceState,
+      }],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        specialPowerModules: Map<string, {
+          availableOnFrame: number;
+          pausedCount: number;
+          pausedOnFrame: number;
+          pausedPercent: number;
+        }>;
+      }>;
+      shortcutSpecialPowerSourceByName: Map<string, Map<number, number>>;
+      pausedShortcutSpecialPowerByName: Map<string, Map<number, { pausedCount: number; pausedOnFrame: number }>>;
+    };
+
+    const module = privateLogic.spawnedEntities.get(47)!.specialPowerModules.get('SUPERWEAPONTEST')!;
+    expect(module.availableOnFrame).toBe(180);
+    expect(module.pausedCount).toBe(2);
+    expect(module.pausedOnFrame).toBe(91);
+    expect(module.pausedPercent).toBe(0.375);
+    expect(privateLogic.shortcutSpecialPowerSourceByName.get('SUPERWEAPONTEST')?.get(47)).toBe(180);
+    expect(privateLogic.pausedShortcutSpecialPowerByName.get('SUPERWEAPONTEST')?.get(47)).toEqual({
+      pausedCount: 2,
+      pausedOnFrame: 91,
+    });
+    expect(logic.resolveShortcutSpecialPowerReadyFrameForSourceEntity('SuperweaponTest', 47)).toBe(209);
+    expect(logic.getSpecialPowerPercentReady('SuperweaponTest', 47)).toBe(0.375);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {
