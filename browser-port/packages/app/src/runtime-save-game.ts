@@ -16863,6 +16863,7 @@ function buildGeneratedSourceObjectModuleBlockData(
     return null;
   }
   const normalizedModuleType = moduleType.toUpperCase();
+  const normalizedModuleTag = moduleTag.toUpperCase();
 
   const defaultBodyState = createDefaultSourceBodyModuleBlockState(moduleType);
   if (defaultBodyState) {
@@ -16896,6 +16897,115 @@ function buildGeneratedSourceObjectModuleBlockData(
   const defaultContainState = createDefaultSourceContainModuleBlockState(moduleType);
   if (defaultContainState) {
     return buildSourceContainModuleBlockData(entity, moduleType, liveEntities, defaultContainState);
+  }
+
+  if (normalizedModuleType === 'OVERCHARGEBEHAVIOR') {
+    return buildSourceOverchargeBehaviorBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'AUTOHEALBEHAVIOR' && entity.autoHealProfile) {
+    return buildSourceAutoHealBehaviorBlockData(entity, currentFrame, false, 0);
+  }
+
+  if (normalizedModuleType === 'GRANTSTEALTHBEHAVIOR' && entity.grantStealthProfile) {
+    return buildSourceGrantStealthBehaviorBlockData(entity, currentFrame, 0);
+  }
+
+  if (normalizedModuleType === 'COUNTERMEASURESBEHAVIOR'
+    && (entity.countermeasuresProfile || entity.countermeasuresState)) {
+    return buildSourceCountermeasuresBehaviorBlockData(entity, currentFrame, false);
+  }
+
+  if (normalizedModuleType === 'WEAPONBONUSUPDATE' && (entity.weaponBonusUpdateProfiles?.length ?? 0) > 0) {
+    const moduleIndex = entity.weaponBonusUpdateProfiles.findIndex(
+      (profile) => (profile.moduleTag ?? '').trim().toUpperCase() === normalizedModuleTag,
+    );
+    if (moduleIndex >= 0) {
+      const nextPulseFrame = entity.weaponBonusUpdateNextPulseFrames[moduleIndex] ?? 0;
+      return buildSourceWeaponBonusUpdateBlockData(
+        nextPulseFrame > currentFrame ? nextPulseFrame : currentFrame + 1,
+      );
+    }
+  }
+
+  if (normalizedModuleType === 'OCLUPDATE' && (entity.oclUpdateProfiles?.length ?? 0) > 0) {
+    const moduleIndex = entity.oclUpdateProfiles.findIndex(
+      (profile) => (profile.moduleTag ?? '').trim().toUpperCase() === normalizedModuleTag,
+    );
+    if (moduleIndex >= 0) {
+      return buildSourceOclUpdateBlockData(entity, currentFrame, moduleIndex);
+    }
+  }
+
+  if (normalizedModuleType === 'POWERPLANTUPDATE' && (entity.powerPlantUpdateProfile || entity.powerPlantUpdateState)) {
+    return buildSourcePowerPlantUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'ENEMYNEARUPDATE' && entity.enemyNearScanDelayFrames > 0) {
+    return buildSourceEnemyNearUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'HORDEUPDATE' && entity.hordeProfile) {
+    return buildSourceHordeUpdateBlockData(
+      entity,
+      currentFrame,
+      entity.hordeHasFlag === true,
+    );
+  }
+
+  if (normalizedModuleType === 'PRONEUPDATE' && entity.proneDamageToFramesRatio != null) {
+    return buildSourceProneUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'FIREOCLAFTERWEAPONCOOLDOWNUPDATE'
+    && (entity.fireOCLAfterCooldownProfiles?.length ?? 0) > 0) {
+    const moduleIndex = entity.fireOCLAfterCooldownProfiles.findIndex(
+      (profile) => (profile.moduleTag ?? '').trim().toUpperCase() === normalizedModuleTag,
+    );
+    const state = moduleIndex >= 0 ? entity.fireOCLAfterCooldownStates[moduleIndex] : undefined;
+    if (moduleIndex >= 0 && state) {
+      return buildSourceFireOclAfterCooldownUpdateBlockData(
+        currentFrame,
+        false,
+        state,
+      );
+    }
+  }
+
+  if (normalizedModuleType === 'FIREWEAPONWHENDEADBEHAVIOR'
+    && (entity.fireWeaponWhenDeadProfiles?.length ?? 0) > 0) {
+    const moduleIndex = entity.fireWeaponWhenDeadProfiles.findIndex(
+      (profile) => (profile.moduleTag ?? '').trim().toUpperCase() === normalizedModuleTag,
+    );
+    if (moduleIndex >= 0) {
+      return buildSourceFireWeaponWhenDeadBehaviorBlockData(
+        sourceFireWeaponWhenDeadUpgradeExecuted(entity, moduleIndex, false),
+      );
+    }
+  }
+
+  if (normalizedModuleType === 'AUTOFINDHEALINGUPDATE' && entity.autoFindHealingProfile) {
+    return buildSourceAutoFindHealingUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'RADIUSDECALUPDATE') {
+    const liveModuleState = (entity.radiusDecalModuleStates ?? []).find(
+      (state) => state.moduleTag === normalizedModuleTag,
+    );
+    const liveKillWhenNoLongerAttacking = (entity.radiusDecalStates ?? []).some(
+      (state) => state.killWhenNoLongerAttacking,
+    );
+    return buildSourceRadiusDecalUpdateBlockData(
+      entity,
+      currentFrame,
+      liveModuleState
+        ? liveModuleState.killWhenNoLongerAttacking
+        : liveKillWhenNoLongerAttacking,
+    );
+  }
+
+  if (normalizedModuleType === 'BASEREGENERATEUPDATE') {
+    return buildSourceBaseRegenerateUpdateBlockData(entity, currentFrame);
   }
 
   if (normalizedModuleType === 'TECHBUILDINGBEHAVIOR') {

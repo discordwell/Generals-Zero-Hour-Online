@@ -10179,6 +10179,9 @@ describe('runtime-save-game', () => {
                 minorRadius: 6,
                 height: 8,
               },
+              destroyed: false,
+              kindOf: new Set<string>(['INFANTRY']),
+              objectStatusFlags: new Set<string>(),
               createModuleStates: [{
                 moduleType: 'GRANTUPGRADECREATE',
                 moduleTag: 'ModuleTag_Create',
@@ -10207,6 +10210,132 @@ describe('runtime-save-game', () => {
                 moduleType: 'TRANSPORT',
                 passengersAllowedToFire: true,
               },
+              overchargeActive: true,
+              autoHealProfile: {
+                healingAmount: 10,
+                healingDelayFrames: 30,
+                startHealingDelayFrames: 48,
+                radius: 0,
+                affectsWholePlayer: false,
+                initiallyActive: true,
+                singleBurst: false,
+                kindOf: null,
+                forbiddenKindOf: null,
+                radiusParticleSystemName: '',
+                unitHealPulseParticleSystemName: '',
+                skipSelfForHealing: false,
+              },
+              autoHealNextFrame: 88,
+              autoHealSoonestHealFrame: 77,
+              autoHealStopped: false,
+              autoHealDamageDelayUntilFrame: 90,
+              autoHealSingleBurstDone: false,
+              grantStealthProfile: {
+                startRadius: 0,
+                finalRadius: 100,
+                radiusGrowRate: 10,
+                kindOf: null,
+              },
+              grantStealthCurrentRadius: 35,
+              countermeasuresState: {
+                availableCountermeasures: 4,
+                activeCountermeasures: 2,
+                flareIds: [1001, 1002],
+                reactionFrame: 88,
+                nextVolleyFrame: 116,
+                reloadFrame: 0,
+                incomingMissiles: 7,
+                divertedMissiles: 5,
+              },
+              weaponBonusUpdateProfiles: [{
+                moduleTag: 'MODULETAG_PROPAGANDA',
+                requiredKindOf: new Set<string>(),
+                forbiddenKindOf: new Set<string>(),
+                bonusDurationFrames: 90,
+                bonusDelayFrames: 30,
+                bonusRange: 200,
+                bonusConditionFlag: 1 << 4,
+              }],
+              weaponBonusUpdateNextPulseFrames: [97],
+              oclUpdateProfiles: [{
+                moduleTag: 'MODULETAG_OCL',
+                creationName: 'OCL_Test',
+                createAtEdge: false,
+                minDelayFrames: 10,
+                maxDelayFrames: 10,
+                amount: 1,
+                factionTriggered: false,
+                requiresDistanceFromTarget: 0,
+              }],
+              oclUpdateNextCreationFrames: [121],
+              oclUpdateTimerStartedFrames: [41],
+              oclUpdateFactionNeutral: [true],
+              oclUpdateCurrentPlayerColors: [9],
+              powerPlantUpdateState: {
+                extended: true,
+                upgradeFinishFrame: 120,
+              },
+              enemyNearScanDelayFrames: 6,
+              enemyNearNextScanCountdown: 4,
+              enemyNearDetected: true,
+              hordeProfile: {
+                updateRate: 30,
+                kindOf: new Set<string>(),
+                minCount: 3,
+                minDist: 80,
+                rubOffRadius: 20,
+                alliesOnly: true,
+                exactMatch: false,
+                action: 'HORDE',
+                allowedNationalism: true,
+                flagSubObjectNames: [],
+              },
+              hordeNextCheckFrame: 62,
+              isInHorde: true,
+              hordeHasFlag: true,
+              proneDamageToFramesRatio: 2,
+              proneFramesRemaining: 17,
+              fireOCLAfterCooldownProfiles: [{
+                moduleTag: 'MODULETAG_FIREOCL',
+                weaponSlot: 0,
+                oclName: 'OCL_Fire',
+                minShotsRequired: 2,
+                oclLifetimePerSecond: 1000,
+                oclMaxFrames: 90,
+              }],
+              fireOCLAfterCooldownStates: [{
+                valid: true,
+                consecutiveShots: 4,
+                startFrame: 31,
+              }],
+              fireWeaponWhenDeadProfiles: [{
+                moduleTag: 'MODULETAG_FWWD',
+                deathWeaponName: 'DeathBlast',
+                startsActive: false,
+                triggeredBy: ['Upgrade_SelfDestruct'],
+                conflictsWith: [],
+              }],
+              fireWeaponWhenDeadUpgradeExecuted: [true],
+              autoFindHealingProfile: {
+                scanRateFrames: 12,
+                scanRange: 150,
+                neverHeal: 0.95,
+                alwaysHeal: 0.25,
+              },
+              autoFindHealingNextScanFrame: 58,
+              radiusDecalStates: [{
+                positionX: 11,
+                positionY: 3,
+                positionZ: 19,
+                radius: 35,
+                visible: true,
+                killWhenNoLongerAttacking: false,
+              }],
+              radiusDecalModuleStates: [{
+                moduleTag: 'MODULETAG_RADIUSDECAL',
+                killWhenNoLongerAttacking: true,
+              }],
+              baseRegenDelayUntilFrame: 70,
               techBuildingProfile: {
                 hasPulseFX: true,
                 pulseFXRateFrames: 7,
@@ -10270,6 +10399,21 @@ describe('runtime-save-game', () => {
               { moduleType: 'MaxHealthUpgrade', moduleTag: 'ModuleTag_HealthUpgrade' },
               { moduleType: 'OCLSpecialPower', moduleTag: 'ModuleTag_SpecialPower' },
               { moduleType: 'TransportContain', moduleTag: 'ModuleTag_Contain' },
+              { moduleType: 'OverchargeBehavior', moduleTag: 'ModuleTag_Overcharge' },
+              { moduleType: 'AutoHealBehavior', moduleTag: 'ModuleTag_AutoHeal' },
+              { moduleType: 'GrantStealthBehavior', moduleTag: 'ModuleTag_GrantStealth' },
+              { moduleType: 'CountermeasuresBehavior', moduleTag: 'ModuleTag_Countermeasures' },
+              { moduleType: 'WeaponBonusUpdate', moduleTag: 'ModuleTag_Propaganda' },
+              { moduleType: 'OCLUpdate', moduleTag: 'ModuleTag_OCL' },
+              { moduleType: 'PowerPlantUpdate', moduleTag: 'ModuleTag_PowerPlant' },
+              { moduleType: 'EnemyNearUpdate', moduleTag: 'ModuleTag_EnemyNear' },
+              { moduleType: 'HordeUpdate', moduleTag: 'ModuleTag_Horde' },
+              { moduleType: 'ProneUpdate', moduleTag: 'ModuleTag_Prone' },
+              { moduleType: 'FireOCLAfterWeaponCooldownUpdate', moduleTag: 'ModuleTag_FireOCL' },
+              { moduleType: 'FireWeaponWhenDeadBehavior', moduleTag: 'ModuleTag_FWWD' },
+              { moduleType: 'AutoFindHealingUpdate', moduleTag: 'ModuleTag_AutoHealScan' },
+              { moduleType: 'RadiusDecalUpdate', moduleTag: 'ModuleTag_RadiusDecal' },
+              { moduleType: 'BaseRegenerateUpdate', moduleTag: 'ModuleTag_BaseRegen' },
               { moduleType: 'TechBuildingBehavior', moduleTag: 'ModuleTag_TechBuilding' },
               { moduleType: 'BunkerBusterBehavior', moduleTag: 'ModuleTag_BunkerBuster' },
               { moduleType: 'NeutronBlastBehavior', moduleTag: 'ModuleTag_NeutronBlast' },
@@ -10311,6 +10455,21 @@ describe('runtime-save-game', () => {
       'ModuleTag_HealthUpgrade',
       'ModuleTag_SpecialPower',
       'ModuleTag_Contain',
+      'ModuleTag_Overcharge',
+      'ModuleTag_AutoHeal',
+      'ModuleTag_GrantStealth',
+      'ModuleTag_Countermeasures',
+      'ModuleTag_Propaganda',
+      'ModuleTag_OCL',
+      'ModuleTag_PowerPlant',
+      'ModuleTag_EnemyNear',
+      'ModuleTag_Horde',
+      'ModuleTag_Prone',
+      'ModuleTag_FireOCL',
+      'ModuleTag_FWWD',
+      'ModuleTag_AutoHealScan',
+      'ModuleTag_RadiusDecal',
+      'ModuleTag_BaseRegen',
       'ModuleTag_TechBuilding',
       'ModuleTag_BunkerBuster',
       'ModuleTag_NeutronBlast',
@@ -10348,6 +10507,99 @@ describe('runtime-save-game', () => {
       open: {
         passengerAllowedToFire: true,
       },
+    });
+    const overchargeModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Overcharge');
+    expect(parseSourceOverchargeBehaviorBlockData(overchargeModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      overchargeActive: true,
+    });
+    const autoHealModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_AutoHeal');
+    expect(parseSourceAutoHealBehaviorBlockData(autoHealModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (90 << 2) | 2,
+      upgradeExecuted: false,
+      radiusParticleSystemId: 0,
+      soonestHealFrame: 77,
+      stopped: false,
+    });
+    const grantStealthModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_GrantStealth');
+    expect(parseSourceGrantStealthBehaviorBlockData(grantStealthModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      radiusParticleSystemId: 0,
+      currentScanRadius: 35,
+    });
+    const countermeasuresModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_Countermeasures',
+    );
+    expect(parseSourceCountermeasuresBehaviorBlockData(countermeasuresModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: 0xfffffffe,
+      upgradeExecuted: false,
+      flareIds: [1001, 1002],
+      availableCountermeasures: 4,
+      activeCountermeasures: 2,
+      divertedMissiles: 5,
+      incomingMissiles: 7,
+      reactionFrame: 88,
+      nextVolleyFrame: 116,
+    });
+    const weaponBonusModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Propaganda');
+    expect(parseSourceWeaponBonusUpdateBlockData(weaponBonusModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (97 << 2) | 2,
+    });
+    const oclModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_OCL');
+    expect(parseSourceOclUpdateBlockData(oclModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      nextCreationFrame: 121,
+      timerStartedFrame: 41,
+      factionNeutral: true,
+      currentPlayerColor: 9,
+    });
+    const powerPlantModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_PowerPlant');
+    expect(parseSourcePowerPlantUpdateBlockData(powerPlantModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (120 << 2) | 2,
+      extended: true,
+    });
+    const enemyNearModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_EnemyNear');
+    expect(parseSourceEnemyNearUpdateBlockData(enemyNearModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      enemyScanDelay: 4,
+      enemyNear: true,
+    });
+    const hordeModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Horde');
+    expect(parseSourceHordeUpdateBlockData(hordeModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (62 << 2) | 2,
+      inHorde: true,
+      hasFlag: true,
+    });
+    const proneModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Prone');
+    expect(parseSourceProneUpdateBlockData(proneModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      proneFrames: 17,
+    });
+    const fireOclModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_FireOCL');
+    expect(parseSourceFireOclAfterCooldownUpdateBlockData(fireOclModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      upgradeExecuted: false,
+      valid: true,
+      consecutiveShots: 4,
+      startFrame: 31,
+    });
+    const fireWhenDeadModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_FWWD');
+    expect(parseSourceFireWeaponWhenDeadBehaviorBlockData(fireWhenDeadModule!.blockData)).toEqual({
+      upgradeExecuted: true,
+    });
+    const autoFindHealingModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_AutoHealScan');
+    expect(parseSourceAutoFindHealingUpdateBlockData(autoFindHealingModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      nextScanFrames: 15,
+    });
+    const radiusDecalModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_RadiusDecal');
+    expect(parseSourceRadiusDecalUpdateBlockData(radiusDecalModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      killWhenNoLongerAttacking: true,
+    });
+    const baseRegenModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_BaseRegen');
+    expect(parseSourceBaseRegenerateUpdateBlockData(baseRegenModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (70 << 2) | 2,
     });
     const techModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_TechBuilding');
     expect(parseSourceBaseOnlyUpdateModuleBlockData(techModule!.blockData)).toEqual({
