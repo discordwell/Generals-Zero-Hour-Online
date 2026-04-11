@@ -7928,6 +7928,11 @@ const SOURCE_RAILED_TRANSPORT_INVALID_PATH = -1;
 const SOURCE_MISSILE_AI_STATE_PRELAUNCH = 0;
 const SOURCE_MISSILE_AI_NEXT_TARGET_TRACK_NEVER = 0x7fffffff;
 const SOURCE_MISSILE_AI_BIGNUM = 99999.0;
+const SOURCE_DOZER_TASK_INVALID = -1;
+const SOURCE_DOZER_PRIMARY_IDLE = 0;
+const SOURCE_DOZER_SELECT_BUILD_DOCK_LOCATION = 0;
+const SOURCE_SUPPLY_TRUCK_STATE_BUSY = 1;
+const SOURCE_WORKER_ACT_AS_DOZER = 0;
 const SOURCE_LOCOMOTOR_SET_TYPE_BY_NAME = new Map<string, number>([
   ['SET_NORMAL', 0],
   ['SET_NORMAL_UPGRADED', 1],
@@ -10341,6 +10346,119 @@ const SOURCE_WORKER_FIXED_AFTER_DOZER_MACHINE_BYTE_LENGTH = SOURCE_DOZER_FIXED_S
   + SOURCE_STUB_STATE_MACHINE_BYTE_LENGTH
   + SOURCE_SUPPLY_TRUCK_TAIL_BYTE_LENGTH
   + SOURCE_STUB_STATE_MACHINE_BYTE_LENGTH;
+
+function sourceDozerTaskEntriesForEntity(
+  entity: MapEntity,
+): Array<{ targetObjectId: number; taskOrderFrame: number }> {
+  const buildTargetObjectId = normalizeSourceObjectId(entity.dozerBuildTargetEntityId ?? 0);
+  const repairTargetObjectId = normalizeSourceObjectId(entity.dozerRepairTargetEntityId ?? 0);
+  return [
+    {
+      targetObjectId: buildTargetObjectId,
+      taskOrderFrame: buildTargetObjectId
+        ? sourceFlammableUnsignedFrame(entity.dozerBuildTaskOrderFrame, 0)
+        : 0,
+    },
+    {
+      targetObjectId: repairTargetObjectId,
+      taskOrderFrame: repairTargetObjectId
+        ? sourceFlammableUnsignedFrame(entity.dozerRepairTaskOrderFrame, 0)
+        : 0,
+    },
+    { targetObjectId: 0, taskOrderFrame: 0 },
+  ];
+}
+
+function xferGeneratedSourceDozerTaskEntries(saver: XferSave, entity: MapEntity): void {
+  const tasks = sourceDozerTaskEntriesForEntity(entity);
+  saver.xferInt(SOURCE_DOZER_NUM_TASKS);
+  for (const task of tasks) {
+    saver.xferObjectID(task.targetObjectId);
+    saver.xferUnsignedInt(task.taskOrderFrame);
+  }
+}
+
+function buildGeneratedSourceDozerPrimaryStateMachineBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-dozer-primary-state-machine');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(0);
+    saver.xferUnsignedInt(SOURCE_DOZER_PRIMARY_IDLE);
+    saver.xferUnsignedInt(SOURCE_DOZER_PRIMARY_IDLE);
+    saver.xferBool(false);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(entity.dozerIdleTooLongTimestamp, currentFrame));
+    saver.xferInt(0);
+    saver.xferBool(false);
+    saver.xferObjectID(0);
+    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+    saver.xferBool(false);
+    saver.xferBool(true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function xferGeneratedSourceDozerSuffix(
+  saver: XferSave,
+  entity: MapEntity,
+  currentFrame: number,
+): void {
+  saver.xferUser(buildGeneratedSourceDozerPrimaryStateMachineBlockData(entity, currentFrame));
+  saver.xferUser(buildSourceRawInt32Bytes(SOURCE_DOZER_TASK_INVALID));
+  saver.xferInt(SOURCE_DOZER_NUM_DOCK_POINTS);
+  for (let taskIndex = 0; taskIndex < SOURCE_DOZER_NUM_TASKS; taskIndex += 1) {
+    for (let pointIndex = 0; pointIndex < SOURCE_DOZER_NUM_DOCK_POINTS; pointIndex += 1) {
+      saver.xferBool(false);
+      saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+    }
+  }
+  saver.xferUser(buildSourceRawInt32Bytes(SOURCE_DOZER_SELECT_BUILD_DOCK_LOCATION));
+}
+
+function buildGeneratedSourceDozerAIUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-dozer-ai-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame));
+    xferGeneratedSourceDozerTaskEntries(saver, entity);
+    xferGeneratedSourceDozerSuffix(saver, entity, currentFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceWorkerAIUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  coreState?: GameLogicCoreSaveState | null,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-worker-ai-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildGeneratedSourceAIUpdateInterfaceBlockData(entity, currentFrame));
+    xferGeneratedSourceDozerTaskEntries(saver, entity);
+    xferGeneratedSourceDozerSuffix(saver, entity, currentFrame);
+    saver.xferUser(buildGeneratedSourceStubStateMachineBlockData(SOURCE_SUPPLY_TRUCK_STATE_BUSY));
+    xferGeneratedSourceSupplyTruckTail(saver, entity, coreState);
+    saver.xferUser(buildGeneratedSourceStubStateMachineBlockData(SOURCE_WORKER_ACT_AS_DOZER));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
 
 function findSourceDozerTaskOffset(data: Uint8Array, suffixOffset: number): number {
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
@@ -18804,6 +18922,14 @@ function buildGeneratedSourceObjectModuleBlockData(
 
   if (normalizedModuleType === 'POWTRUCKAIUPDATE') {
     return buildGeneratedSourcePOWTruckAIUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'DOZERAIUPDATE') {
+    return buildGeneratedSourceDozerAIUpdateBlockData(entity, currentFrame);
+  }
+
+  if (normalizedModuleType === 'WORKERAIUPDATE') {
+    return buildGeneratedSourceWorkerAIUpdateBlockData(entity, currentFrame, coreState);
   }
 
   if (normalizedModuleType === 'RAILEDTRANSPORTAIUPDATE') {

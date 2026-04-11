@@ -3197,8 +3197,51 @@ function parseSourceDozerAIUpdateBlockData(data: Uint8Array) {
   return {
     prefix: [...data.subarray(0, taskOffset)],
     tasks,
+    dozerMachineOffset: taskOffset + 28,
+    currentTask: view.getInt32(suffixOffset, true),
+    buildSubTask: view.getInt32(data.byteLength - 4, true),
     stateMachineAndSuffix: [...data.subarray(taskOffset + 28)],
   };
+}
+
+function parseSourceDozerPrimaryStateMachineForTest(data: Uint8Array, offset: number) {
+  const xferLoad = new XferLoad(data.slice(offset).buffer);
+  xferLoad.open('parse-source-dozer-primary-state-machine');
+  try {
+    const wrapperVersion = xferLoad.xferVersion(1);
+    const baseVersion = xferLoad.xferVersion(1);
+    const sleepTill = xferLoad.xferUnsignedInt(0);
+    const defaultStateId = xferLoad.xferUnsignedInt(0);
+    const currentStateId = xferLoad.xferUnsignedInt(0);
+    const snapshotAllStates = xferLoad.xferBool(false);
+    const idleStateVersion = xferLoad.xferVersion(1);
+    const idleTooLongTimestamp = xferLoad.xferUnsignedInt(0);
+    const idlePlayerNumber = xferLoad.xferInt(0);
+    const isMarkedAsIdle = xferLoad.xferBool(false);
+    const goalObjectId = xferLoad.xferObjectID(0);
+    const goalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const locked = xferLoad.xferBool(false);
+    const defaultStateInited = xferLoad.xferBool(false);
+    return {
+      wrapperVersion,
+      baseVersion,
+      sleepTill,
+      defaultStateId,
+      currentStateId,
+      snapshotAllStates,
+      idleStateVersion,
+      idleTooLongTimestamp,
+      idlePlayerNumber,
+      isMarkedAsIdle,
+      goalObjectId,
+      goalPosition,
+      locked,
+      defaultStateInited,
+      bytesRead: offset + xferLoad.getOffset(),
+    };
+  } finally {
+    xferLoad.close();
+  }
 }
 
 function writeSourceStubStateMachine(xferSave: XferSave, stateId: number): void {
@@ -3284,6 +3327,9 @@ function parseSourceWorkerAIUpdateBlockData(data: Uint8Array) {
   return {
     prefix: [...data.subarray(0, taskOffset)],
     tasks,
+    dozerMachineOffset: taskOffset + 28,
+    currentTask: view.getInt32(dozerSuffixOffset, true),
+    buildSubTask: view.getInt32(supplyTailOffset - 37, true),
     preservedMiddle: [...data.subarray(taskOffset + 28, supplyTailOffset)],
     preferredDockId: view.getUint32(supplyTailOffset, true),
     numberBoxes: view.getInt32(supplyTailOffset + 4, true),
@@ -17074,6 +17120,22 @@ describe('runtime-save-game', () => {
             scriptAiRecruitable: true,
             attackTargetEntityId: 99,
             autoTargetScanNextFrame: 77,
+            dozerAIProfile: {
+              repairHealthPercentPerSecond: 0.02,
+              boredTimeFrames: 30,
+              boredRange: 200,
+            },
+            workerAIProfile: {
+              repairHealthPercentPerSecond: 0.02,
+              boredTimeFrames: 30,
+              boredRange: 200,
+              suppliesDepletedVoice: '',
+            },
+            dozerIdleTooLongTimestamp: 24,
+            dozerBuildTargetEntityId: 71,
+            dozerBuildTaskOrderFrame: 120,
+            dozerRepairTargetEntityId: 72,
+            dozerRepairTaskOrderFrame: 140,
             hackInternetRuntimeState: {
               cashUpdateDelayFrames: 30,
               cashAmountPerCycle: 5,
@@ -17211,6 +17273,8 @@ describe('runtime-save-game', () => {
               { moduleType: 'SupplyTruckAIUpdate', moduleTag: 'ModuleTag_SupplyAI' },
               { moduleType: 'ChinookAIUpdate', moduleTag: 'ModuleTag_ChinookAI' },
               { moduleType: 'POWTruckAIUpdate', moduleTag: 'ModuleTag_POWAI' },
+              { moduleType: 'DozerAIUpdate', moduleTag: 'ModuleTag_DozerAI' },
+              { moduleType: 'WorkerAIUpdate', moduleTag: 'ModuleTag_WorkerAI' },
               { moduleType: 'RailedTransportAIUpdate', moduleTag: 'ModuleTag_RailedAI' },
             ]
           : [],
@@ -17226,6 +17290,8 @@ describe('runtime-save-game', () => {
     const supplyModule = modules.get('ModuleTag_SupplyAI');
     const chinookModule = modules.get('ModuleTag_ChinookAI');
     const powModule = modules.get('ModuleTag_POWAI');
+    const dozerModule = modules.get('ModuleTag_DozerAI');
+    const workerModule = modules.get('ModuleTag_WorkerAI');
     const railedModule = modules.get('ModuleTag_RailedAI');
     const hackModule = modules.get('ModuleTag_HackAI');
     const jetModule = modules.get('ModuleTag_JetAI');
@@ -17405,6 +17471,72 @@ describe('runtime-save-game', () => {
       prisonId: 82,
       enteredWaitingFrame: 83,
       lastFindFrame: 84,
+    });
+
+    expect(dozerModule).toBeDefined();
+    const dozerAI = parseGeneratedSourceAIUpdateInterfaceForTest(dozerModule!.blockData);
+    const dozer = parseSourceDozerAIUpdateBlockData(dozerModule!.blockData);
+    const dozerMachine = parseSourceDozerPrimaryStateMachineForTest(
+      dozerModule!.blockData,
+      dozer.dozerMachineOffset,
+    );
+    expect(dozerAI.bytesRead).toBe(dozer.prefix.length);
+    expect(dozer.tasks).toEqual([
+      { targetObjectId: 71, taskOrderFrame: 120 },
+      { targetObjectId: 72, taskOrderFrame: 140 },
+      { targetObjectId: 0, taskOrderFrame: 0 },
+    ]);
+    expect(dozer.currentTask).toBe(-1);
+    expect(dozer.buildSubTask).toBe(0);
+    expect(dozerMachine).toMatchObject({
+      wrapperVersion: 1,
+      baseVersion: 1,
+      defaultStateId: 0,
+      currentStateId: 0,
+      snapshotAllStates: false,
+      idleStateVersion: 1,
+      idleTooLongTimestamp: 24,
+      idlePlayerNumber: 0,
+      isMarkedAsIdle: false,
+      defaultStateInited: true,
+    });
+
+    expect(workerModule).toBeDefined();
+    const workerAI = parseGeneratedSourceAIUpdateInterfaceForTest(workerModule!.blockData);
+    const worker = parseSourceWorkerAIUpdateBlockData(workerModule!.blockData);
+    const workerDozerMachine = parseSourceDozerPrimaryStateMachineForTest(
+      workerModule!.blockData,
+      worker.dozerMachineOffset,
+    );
+    const workerSupplyMachine = parseSourceStubStateMachineForTest(
+      workerModule!.blockData,
+      workerDozerMachine.bytesRead + 129,
+    );
+    const workerMachine = parseSourceStubStateMachineForTest(
+      workerModule!.blockData,
+      workerModule!.blockData.byteLength - 33,
+    );
+    expect(workerAI.bytesRead).toBe(worker.prefix.length);
+    expect(worker.tasks).toEqual([
+      { targetObjectId: 71, taskOrderFrame: 120 },
+      { targetObjectId: 72, taskOrderFrame: 140 },
+      { targetObjectId: 0, taskOrderFrame: 0 },
+    ]);
+    expect(worker.currentTask).toBe(-1);
+    expect(worker.buildSubTask).toBe(0);
+    expect(workerDozerMachine.idleTooLongTimestamp).toBe(24);
+    expect(workerSupplyMachine.defaultStateId).toBe(1);
+    expect(workerSupplyMachine.currentStateId).toBe(1);
+    expect(worker.preferredDockId).toBe(51);
+    expect(worker.numberBoxes).toBe(4);
+    expect(worker.forcePending).toBe(true);
+    expect(workerMachine).toMatchObject({
+      wrapperVersion: 1,
+      baseVersion: 1,
+      defaultStateId: 0,
+      currentStateId: 0,
+      snapshotAllStates: false,
+      defaultStateInited: true,
     });
 
     expect(railedModule).toBeDefined();
