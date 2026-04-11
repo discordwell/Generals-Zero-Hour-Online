@@ -13297,6 +13297,120 @@ export class GameLogicSubsystem implements Subsystem {
     return side;
   }
 
+  private getNormalizedSideMapValue<T>(map: Map<string, T>, side: string): T | undefined {
+    if (map.has(side)) {
+      return map.get(side);
+    }
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return undefined;
+    }
+    for (const [candidateSide, value] of map.entries()) {
+      if (this.normalizeSide(candidateSide) === normalizedSide) {
+        return value;
+      }
+    }
+    return undefined;
+  }
+
+  private cloneSourceAiPlayerRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    const record = value as Record<string, unknown>;
+    return {
+      ...record,
+      teamBuildQueue: Array.isArray(record.teamBuildQueue)
+        ? record.teamBuildQueue.map((entry) =>
+            entry && typeof entry === 'object' && !Array.isArray(entry) ? { ...entry } : entry)
+        : [],
+      teamReadyQueue: Array.isArray(record.teamReadyQueue)
+        ? record.teamReadyQueue.map((entry) =>
+            entry && typeof entry === 'object' && !Array.isArray(entry) ? { ...entry } : entry)
+        : [],
+      baseCenter: record.baseCenter && typeof record.baseCenter === 'object' && !Array.isArray(record.baseCenter)
+        ? { ...(record.baseCenter as Record<string, unknown>) }
+        : { x: 0, y: 0, z: 0 },
+      structuresToRepair: Array.isArray(record.structuresToRepair)
+        ? [...record.structuresToRepair]
+        : [],
+    };
+  }
+
+  private overlayLiveSourceAiPlayerRecord(side: string, value: unknown): unknown {
+    if (value === null) {
+      return null;
+    }
+    const next = this.cloneSourceAiPlayerRecord(value);
+    if (!next) {
+      return value;
+    }
+
+    const skillset = this.getNormalizedSideMapValue(this.sideScriptSkillset, side);
+    if (Number.isFinite(skillset)) {
+      next.skillsetSelector = Math.trunc(skillset as number);
+    }
+
+    const currentWarehouseId = this.getNormalizedSideMapValue(this.scriptCurrentSupplyWarehouseBySide, side);
+    if (Number.isFinite(currentWarehouseId)) {
+      next.currentWarehouseId = Math.max(0, Math.trunc(currentWarehouseId as number));
+    }
+
+    const teamSeconds = this.getNormalizedSideMapValue(this.sideTeamBuildDelaySecondsByScript, side);
+    if (Number.isFinite(teamSeconds)) {
+      next.teamSeconds = Math.max(0, Math.trunc(teamSeconds as number));
+    }
+
+    const baseState = this.getNormalizedSideMapValue(this.scriptSkirmishBaseCenterAndRadiusBySide, side);
+    if (baseState
+      && Number.isFinite(baseState.centerX)
+      && Number.isFinite(baseState.centerZ)
+      && Number.isFinite(baseState.radius)) {
+      next.baseCenter = {
+        x: baseState.centerX,
+        y: 0,
+        z: baseState.centerZ,
+      };
+      next.baseCenterSet = true;
+      next.baseRadius = baseState.radius;
+    }
+
+    const repairQueue = this.getNormalizedSideMapValue(this.scriptSideRepairQueue, side);
+    if (repairQueue instanceof Set) {
+      const structureIds = [...repairQueue.values()].flatMap((entityId) =>
+        Number.isFinite(entityId) && entityId > 0 ? [Math.trunc(entityId)] : []);
+      next.structuresToRepair = structureIds.slice(0, SOURCE_MAX_STRUCTURES_TO_REPAIR);
+      next.structuresInQueue = Math.min(structureIds.length, SOURCE_MAX_STRUCTURES_TO_REPAIR);
+    }
+
+    const skirmishState = this.getNormalizedSideMapValue(this.skirmishAIStates, side);
+    if (skirmishState) {
+      next.isSkirmishAi = true;
+    }
+
+    const defenseState = this.getNormalizedSideMapValue(this.scriptSkirmishBaseDefenseStateBySide, side);
+    if (defenseState) {
+      next.curFrontBaseDefense = Math.trunc(defenseState.curFrontBaseDefense);
+      next.curFlankBaseDefense = Math.trunc(defenseState.curFlankBaseDefense);
+      next.curFrontLeftDefenseAngle = defenseState.curFrontLeftDefenseAngle;
+      next.curFrontRightDefenseAngle = defenseState.curFrontRightDefenseAngle;
+      next.curLeftFlankLeftDefenseAngle = defenseState.curLeftFlankLeftDefenseAngle;
+      next.curLeftFlankRightDefenseAngle = defenseState.curLeftFlankRightDefenseAngle;
+      next.curRightFlankLeftDefenseAngle = defenseState.curRightFlankLeftDefenseAngle;
+      next.curRightFlankRightDefenseAngle = defenseState.curRightFlankRightDefenseAngle;
+    }
+
+    return next;
+  }
+
+  private captureSourceAiPlayerStateBySide(): Map<string, unknown> {
+    const aiPlayerStateBySide = new Map<string, unknown>();
+    for (const [side, state] of this.sideSourceAiPlayerState.entries()) {
+      aiPlayerStateBySide.set(side, this.overlayLiveSourceAiPlayerRecord(side, state));
+    }
+    return aiPlayerStateBySide;
+  }
+
   private getSourceSpecialPowerReadyTimersForSide(side: string): Array<{ templateId: number; readyFrame: number }> | null {
     const directTimers = this.sideSourceSpecialPowerReadyTimers.get(side);
     if (directTimers) {
@@ -13795,7 +13909,7 @@ export class GameLogicSubsystem implements Subsystem {
     state.sideSourceSpecialPowerReadyTimers = this.captureSourceSpecialPowerReadyTimersBySide();
     state.sideSourcePlayerTeamPrototypeIds = this.sideSourcePlayerTeamPrototypeIds;
     state.sideSourceBuildListInfos = this.sideSourceBuildListInfos;
-    state.sideSourceAiPlayerState = this.sideSourceAiPlayerState;
+    state.sideSourceAiPlayerState = this.captureSourceAiPlayerStateBySide();
     state.sideSourcePlayerCoreState = this.sideSourcePlayerCoreState;
     state.sideSourcePlayerRelations = this.sideSourcePlayerRelations;
     state.sideSourceTeamRelations = this.sideSourceTeamRelations;
