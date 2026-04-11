@@ -8823,6 +8823,11 @@ interface SourcePhysicsBehaviorImportState {
   velMag: number;
 }
 
+interface SourceLifetimeUpdateImportState {
+  nextCallFrame: number;
+  dieFrame: number;
+}
+
 interface SourceStealthUpdateImportState {
   stealthAllowedFrame: number;
   detectionExpiresFrame: number;
@@ -14396,6 +14401,54 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceLifetimeUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceLifetimeUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'LIFETIMEUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-lifetime-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const dieFrame = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, dieFrame } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceLifetimeUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const lifetimeState = this.tryParseSourceLifetimeUpdateImportState(module.blockData, moduleType);
+      if (!lifetimeState) {
+        continue;
+      }
+      entity.lifetimeDieFrame = Math.max(0, Math.trunc(lifetimeState.dieFrame));
+      return;
+    }
+  }
+
   private normalizeSourceObjectModuleType(moduleType: string): string {
     return moduleType.trim().toUpperCase();
   }
@@ -15366,6 +15419,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceCleanupHazardUpdateModulesToEntity(entity, sourceState);
     this.applySourceDynamicShroudClearingRangeUpdateModulesToEntity(entity, sourceState);
     this.applySourcePhysicsBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceLifetimeUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
     this.applySourceBattlePlanUpdateModulesToEntity(entity, sourceState);
     this.applySourceStealthDetectorUpdateModulesToEntity(entity, sourceState);

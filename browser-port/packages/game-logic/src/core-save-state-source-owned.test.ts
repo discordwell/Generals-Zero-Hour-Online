@@ -204,6 +204,12 @@ function makeSourceOwnedCoreBundle() {
           AllowCollideForce: false,
         }),
       ]),
+      makeObjectDef('LifetimeObject', 'America', ['PROJECTILE'], [
+        makeBlock('Behavior', 'LifetimeUpdate ModuleTag_Lifetime', {
+          MinLifetime: 1000,
+          MaxLifetime: 1000,
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -1111,6 +1117,26 @@ function buildSourcePhysicsBehaviorModuleData(options: {
     saver.xferReal(options.extraBounciness);
     saver.xferReal(options.extraFriction);
     saver.xferReal(options.velMag);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceLifetimeUpdateModuleData(options: {
+  nextCallFrame: number;
+  dieFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-lifetime-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUnsignedInt(options.dieFrame);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2554,6 +2580,44 @@ describe('source-owned game-logic core save-state', () => {
     expect(entity.physicsBehaviorState!.rollRate).toBeCloseTo(0.82);
     expect(entity.physicsBehaviorState!.extraBounciness).toBeCloseTo(0.11);
     expect(entity.physicsBehaviorState!.extraFriction).toBeCloseTo(0.22);
+  });
+
+  it('imports source LifetimeUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 103;
+    sourceState.position = { x: 176, y: 0, z: 64 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_Lifetime',
+      blockData: buildSourceLifetimeUpdateModuleData({
+        nextCallFrame: 333,
+        dieFrame: 333,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 180,
+      objects: [
+        { templateName: 'LifetimeObject', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        lifetimeDieFrame: number | null;
+      }>;
+    };
+
+    expect(privateLogic.spawnedEntities.get(103)!.lifetimeDieFrame).toBe(333);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {
