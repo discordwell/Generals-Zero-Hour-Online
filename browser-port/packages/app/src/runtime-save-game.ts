@@ -9580,6 +9580,11 @@ function sourceStructureCollapseStateToInt(
 function tryParseSourceToppleUpdateBlockData(
   data: Uint8Array,
 ): {
+  angularVelocity: number;
+  angularAcceleration: number;
+  toppleDirection: { x: number; y: number; z: number };
+  toppleState: number;
+  angularAccumulation: number;
   angleDeltaX: number;
   numAngleDeltaX: number;
   doBounceFx: boolean;
@@ -9598,18 +9603,29 @@ function tryParseSourceToppleUpdateBlockData(
     xferLoad.xferVersion(1);
     xferLoad.xferVersion(1);
     xferLoad.xferUnsignedInt(0);
-    xferLoad.xferReal(0);
-    xferLoad.xferReal(0);
-    xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
-    xferLoad.xferInt(0);
-    xferLoad.xferReal(0);
+    const angularVelocity = xferLoad.xferReal(0);
+    const angularAcceleration = xferLoad.xferReal(0);
+    const toppleDirection = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const toppleState = xferLoad.xferInt(0);
+    const angularAccumulation = xferLoad.xferReal(0);
     const angleDeltaX = xferLoad.xferReal(0);
     const numAngleDeltaX = xferLoad.xferInt(0);
     const doBounceFx = xferLoad.xferBool(false);
     const options = xferLoad.xferUnsignedInt(0);
     const stumpId = xferLoad.xferObjectID(0);
     return xferLoad.getRemaining() === 0
-      ? { angleDeltaX, numAngleDeltaX, doBounceFx, options, stumpId }
+      ? {
+          angularVelocity,
+          angularAcceleration,
+          toppleDirection,
+          toppleState,
+          angularAccumulation,
+          angleDeltaX,
+          numAngleDeltaX,
+          doBounceFx,
+          options,
+          stumpId,
+        }
       : null;
   } catch {
     return null;
@@ -9622,6 +9638,11 @@ function buildSourceToppleUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
   preservedState?: {
+    angularVelocity: number;
+    angularAcceleration: number;
+    toppleDirection: { x: number; y: number; z: number };
+    toppleState: number;
+    angularAccumulation: number;
     angleDeltaX: number;
     numAngleDeltaX: number;
     doBounceFx: boolean;
@@ -9640,20 +9661,32 @@ function buildSourceToppleUpdateBlockData(
     saver.xferUser(buildSourceUpdateModuleBaseBlockData(
       buildSourceUpdateModuleWakeFrame(nextCallFrame),
     ));
-    saver.xferReal(entity.toppleAngularVelocity);
-    saver.xferReal((profile?.initialAccelPercent ?? 0) * entity.toppleSpeed);
-    saver.xferCoord3D({ x: entity.toppleDirX, y: entity.toppleDirZ, z: 0 });
+    saver.xferReal(sourcePhysicsFinite(entity.toppleAngularVelocity, preservedState?.angularVelocity ?? 0));
+    saver.xferReal(sourcePhysicsFinite(
+      entity.toppleAngularAcceleration,
+      preservedState?.angularAcceleration ?? ((profile?.initialAccelPercent ?? 0) * entity.toppleSpeed),
+    ));
+    saver.xferCoord3D({
+      x: sourcePhysicsFinite(entity.toppleDirX, preservedState?.toppleDirection.x ?? 0),
+      y: sourcePhysicsFinite(entity.toppleDirZ, preservedState?.toppleDirection.y ?? 0),
+      z: sourcePhysicsFinite(entity.toppleDirectionSourceZ, preservedState?.toppleDirection.z ?? 0),
+    });
     saver.xferUser(
       sourceToppleStateToInt(entity.toppleState),
       (xfer, value) => { xfer.xferInt(value); },
       (xfer) => xfer.xferInt(0),
     );
-    saver.xferReal(entity.toppleAngularAccumulation);
-    saver.xferReal(preservedState?.angleDeltaX ?? 0);
-    saver.xferInt(Math.trunc(preservedState?.numAngleDeltaX ?? 0));
-    saver.xferBool(preservedState?.doBounceFx ?? false);
-    saver.xferUnsignedInt(Math.max(0, Math.trunc(preservedState?.options ?? 0)));
-    saver.xferObjectID(Math.max(0, Math.trunc(preservedState?.stumpId ?? 0)));
+    saver.xferReal(sourcePhysicsFinite(entity.toppleAngularAccumulation, preservedState?.angularAccumulation ?? 0));
+    saver.xferReal(sourcePhysicsFinite(entity.toppleAngleDeltaX, preservedState?.angleDeltaX ?? 0));
+    saver.xferInt(Math.trunc(sourcePhysicsFinite(entity.toppleNumAngleDeltaX, preservedState?.numAngleDeltaX ?? 0)));
+    saver.xferBool(typeof entity.toppleDoBounceFx === 'boolean'
+      ? entity.toppleDoBounceFx
+      : (preservedState?.doBounceFx ?? false));
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(sourcePhysicsFinite(
+      entity.toppleOptions,
+      preservedState?.options ?? 0,
+    ))));
+    saver.xferObjectID(normalizeSourceObjectId(entity.toppleStumpId ?? preservedState?.stumpId ?? 0));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -9693,6 +9726,14 @@ function buildSourceStructureCollapseUpdateBlockData(
 function tryParseSourceStructureToppleUpdateBlockData(
   data: Uint8Array,
 ): {
+  toppleFrame: number;
+  toppleDirX: number;
+  toppleDirZ: number;
+  toppleState: number;
+  toppleVelocity: number;
+  accumulatedAngle: number;
+  structuralIntegrity: number;
+  lastCrushedLocation: number;
   nextBurstFrame: number;
   delayBurstLocation: { x: number; y: number; z: number };
 } | null {
@@ -9708,18 +9749,29 @@ function tryParseSourceStructureToppleUpdateBlockData(
     xferLoad.xferVersion(1);
     xferLoad.xferVersion(1);
     xferLoad.xferUnsignedInt(0);
-    xferLoad.xferUnsignedInt(0);
-    xferLoad.xferReal(0);
-    xferLoad.xferReal(0);
-    xferLoad.xferInt(0);
-    xferLoad.xferReal(0);
-    xferLoad.xferReal(0);
-    xferLoad.xferReal(0);
-    xferLoad.xferReal(0);
+    const toppleFrame = xferLoad.xferUnsignedInt(0);
+    const toppleDirX = xferLoad.xferReal(0);
+    const toppleDirZ = xferLoad.xferReal(0);
+    const toppleState = xferLoad.xferInt(0);
+    const toppleVelocity = xferLoad.xferReal(0);
+    const accumulatedAngle = xferLoad.xferReal(0);
+    const structuralIntegrity = xferLoad.xferReal(0);
+    const lastCrushedLocation = xferLoad.xferReal(0);
     const nextBurstFrame = xferLoad.xferInt(0);
     const delayBurstLocation = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
     return xferLoad.getRemaining() === 0
-      ? { nextBurstFrame, delayBurstLocation }
+      ? {
+          toppleFrame,
+          toppleDirX,
+          toppleDirZ,
+          toppleState,
+          toppleVelocity,
+          accumulatedAngle,
+          structuralIntegrity,
+          lastCrushedLocation,
+          nextBurstFrame,
+          delayBurstLocation,
+        }
       : null;
   } catch {
     return null;
@@ -9732,6 +9784,14 @@ function buildSourceStructureToppleUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
   preservedState?: {
+    toppleFrame: number;
+    toppleDirX: number;
+    toppleDirZ: number;
+    toppleState: number;
+    toppleVelocity: number;
+    accumulatedAngle: number;
+    structuralIntegrity: number;
+    lastCrushedLocation: number;
     nextBurstFrame: number;
     delayBurstLocation: { x: number; y: number; z: number };
   } | null,
@@ -9747,24 +9807,30 @@ function buildSourceStructureToppleUpdateBlockData(
       && Number.isFinite(state.delayBurstLocation.x)
       && Number.isFinite(state.delayBurstLocation.y)
       && Number.isFinite(state.delayBurstLocation.z)
-        ? state.delayBurstLocation
+        ? {
+            x: state.delayBurstLocation.x,
+            y: state.delayBurstLocation.z,
+            z: state.delayBurstLocation.y,
+          }
         : (preservedState?.delayBurstLocation ?? { x: 0, y: 0, z: 0 });
     saver.xferVersion(1);
     saver.xferUser(buildSourceUpdateModuleBaseBlockData(
       buildSourceUpdateModuleWakeFrame(nextCallFrame),
     ));
-    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.toppleFrame ?? 0)));
-    saver.xferReal(state?.toppleDirX ?? 0);
-    saver.xferReal(state?.toppleDirZ ?? 0);
+    saver.xferUnsignedInt(Math.max(0, Math.trunc(state?.toppleFrame ?? preservedState?.toppleFrame ?? 0)));
+    saver.xferReal(sourcePhysicsFinite(state?.toppleDirX, preservedState?.toppleDirX ?? 0));
+    saver.xferReal(sourcePhysicsFinite(state?.toppleDirZ, preservedState?.toppleDirZ ?? 0));
     saver.xferUser(
-      sourceStructureToppleStateToInt(state?.state ?? 'STANDING'),
+      state
+        ? sourceStructureToppleStateToInt(state.state)
+        : Math.max(0, Math.trunc(preservedState?.toppleState ?? 0)),
       (xfer, value) => { xfer.xferInt(value); },
       (xfer) => xfer.xferInt(0),
     );
-    saver.xferReal(state?.toppleVelocity ?? 0);
-    saver.xferReal(state?.accumulatedAngle ?? 0.001);
-    saver.xferReal(state?.structuralIntegrity ?? 0);
-    saver.xferReal(state?.lastCrushedLocation ?? 0);
+    saver.xferReal(sourcePhysicsFinite(state?.toppleVelocity, preservedState?.toppleVelocity ?? 0));
+    saver.xferReal(sourcePhysicsFinite(state?.accumulatedAngle, preservedState?.accumulatedAngle ?? 0.001));
+    saver.xferReal(sourcePhysicsFinite(state?.structuralIntegrity, preservedState?.structuralIntegrity ?? 0));
+    saver.xferReal(sourcePhysicsFinite(state?.lastCrushedLocation, preservedState?.lastCrushedLocation ?? 0));
     saver.xferInt(
       Number.isFinite(state?.nextBurstFrame) && (state?.nextBurstFrame ?? -1) >= 0
         ? Math.trunc(state!.nextBurstFrame)

@@ -4968,6 +4968,7 @@ function parseSourceToppleUpdateBlockData(data: Uint8Array) {
         return {
           toppleDirX: direction.x,
           toppleDirZ: direction.y,
+          toppleDirectionSourceZ: direction.z,
         };
       })(),
       toppleState: sourceToppleStateFromInt(xferLoad.xferInt(0)),
@@ -15053,7 +15054,7 @@ describe('runtime-save-game', () => {
     expect(parsedToppleModule.structuralIntegrity).toBeCloseTo(0.35, 5);
     expect(parsedToppleModule.lastCrushedLocation).toBeCloseTo(19.5, 5);
     expect(parsedToppleModule.nextBurstFrame).toBe(95);
-    expect(parsedToppleModule.delayBurstLocation).toEqual({ x: 14, y: 3, z: 28 });
+    expect(parsedToppleModule.delayBurstLocation).toEqual({ x: 14, y: 28, z: 3 });
   });
 
   it('rewrites source ToppleUpdate modules from live runtime state', () => {
@@ -15151,8 +15152,15 @@ describe('runtime-save-game', () => {
             toppleDirX: -0.8,
             toppleDirZ: 0.6,
             toppleAngularVelocity: -0.35,
+            toppleAngularAcceleration: 0.07,
             toppleAngularAccumulation: 1.1,
             toppleSpeed: 5,
+            toppleDirectionSourceZ: 0.125,
+            toppleAngleDeltaX: 0.25,
+            toppleNumAngleDeltaX: 6,
+            toppleDoBounceFx: false,
+            toppleOptions: 1,
+            toppleStumpId: 100,
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
         resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) =>
@@ -15173,16 +15181,17 @@ describe('runtime-save-game', () => {
     const parsedToppleModule = parseSourceToppleUpdateBlockData(toppleModule!.blockData);
     expect(parsedToppleModule.nextCallFrameAndPhase).toBe((43 << 2) | 2);
     expect(parsedToppleModule.angularVelocity).toBeCloseTo(-0.35, 5);
-    expect(parsedToppleModule.angularAcceleration).toBeCloseTo(1.0, 5);
+    expect(parsedToppleModule.angularAcceleration).toBeCloseTo(0.07, 5);
     expect(parsedToppleModule.toppleDirX).toBeCloseTo(-0.8, 5);
     expect(parsedToppleModule.toppleDirZ).toBeCloseTo(0.6, 5);
+    expect(parsedToppleModule.toppleDirectionSourceZ).toBeCloseTo(0.125, 5);
     expect(parsedToppleModule.toppleState).toBe('TOPPLING');
     expect(parsedToppleModule.angularAccumulation).toBeCloseTo(1.1, 5);
-    expect(parsedToppleModule.angleDeltaX).toBeCloseTo(0.15, 5);
-    expect(parsedToppleModule.numAngleDeltaX).toBe(3);
-    expect(parsedToppleModule.doBounceFx).toBe(true);
-    expect(parsedToppleModule.options).toBe(2);
-    expect(parsedToppleModule.stumpId).toBe(99);
+    expect(parsedToppleModule.angleDeltaX).toBeCloseTo(0.25, 5);
+    expect(parsedToppleModule.numAngleDeltaX).toBe(6);
+    expect(parsedToppleModule.doBounceFx).toBe(false);
+    expect(parsedToppleModule.options).toBe(1);
+    expect(parsedToppleModule.stumpId).toBe(100);
   });
 
   it('rewrites source StructureCollapseUpdate modules from live runtime state', () => {

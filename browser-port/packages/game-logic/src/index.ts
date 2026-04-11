@@ -4224,10 +4224,24 @@ export interface MapEntity {
   toppleDirZ: number;
   /** Current angular velocity (radians/frame). */
   toppleAngularVelocity: number;
+  /** Current angular acceleration (radians/frame^2). */
+  toppleAngularAcceleration: number;
   /** Accumulated angular rotation (0..PI/2). */
   toppleAngularAccumulation: number;
   /** Topple speed used to compute acceleration. */
   toppleSpeed: number;
+  /** Raw source Coord3D.z for ToppleUpdate::m_toppleDirection. Usually zero, but serialized by source. */
+  toppleDirectionSourceZ: number;
+  /** Source ToppleUpdate::m_angleDeltaX, visual pre-rotation delta. */
+  toppleAngleDeltaX: number;
+  /** Source ToppleUpdate::m_numAngleDeltaX, visual pre-rotation frame count. */
+  toppleNumAngleDeltaX: number;
+  /** Source ToppleUpdate::m_doBounceFX. */
+  toppleDoBounceFx: boolean;
+  /** Source ToppleUpdate::m_options bitfield. */
+  toppleOptions: number;
+  /** Source ToppleUpdate::m_stumpID. */
+  toppleStumpId: number;
 
   // ── Source parity: PhysicsBehavior — rigid body physics for projectiles/debris ──
   physicsBehaviorProfile: PhysicsBehaviorProfile | null;
@@ -8938,6 +8952,33 @@ interface SourcePointDefenseLaserUpdateImportState {
   inRange: boolean;
   nextScanFrames: number;
   nextShotAvailableInFrames: number;
+}
+
+interface SourceToppleUpdateImportState {
+  nextCallFrame: number;
+  angularVelocity: number;
+  angularAcceleration: number;
+  toppleDirection: { x: number; y: number; z: number };
+  toppleState: number;
+  angularAccumulation: number;
+  angleDeltaX: number;
+  numAngleDeltaX: number;
+  doBounceFx: boolean;
+  options: number;
+  stumpId: number;
+}
+
+interface SourceStructureToppleUpdateImportState {
+  nextCallFrame: number;
+  toppleFrame: number;
+  toppleDirection: { x: number; y: number };
+  toppleState: number;
+  toppleVelocity: number;
+  accumulatedAngle: number;
+  structuralIntegrity: number;
+  lastCrushedLocation: number;
+  nextBurstFrame: number;
+  delayBurstLocation: { x: number; y: number; z: number };
 }
 
 interface SourceFireSpreadUpdateImportState {
@@ -15443,6 +15484,225 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private sourceToppleStateFromInt(value: number, angularVelocity: number): ToppleState | null {
+    switch (Math.trunc(value)) {
+      case 0: return 'NONE';
+      case 1: return angularVelocity < 0 ? 'BOUNCING' : 'TOPPLING';
+      case 2: return 'DONE';
+      default: return null;
+    }
+  }
+
+  private sourceStructureToppleStateFromInt(value: number): StructureToppleState | null {
+    switch (Math.trunc(value)) {
+      case 0: return 'STANDING';
+      case 1: return 'WAITING';
+      case 2: return 'TOPPLING';
+      case 3: return 'WAITING_DONE';
+      case 4: return 'DONE';
+      default: return null;
+    }
+  }
+
+  private tryParseSourceToppleUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceToppleUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'TOPPLEUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-topple-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const angularVelocity = xfer.xferReal(0);
+      const angularAcceleration = xfer.xferReal(0);
+      const toppleDirection = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const toppleState = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const angularAccumulation = xfer.xferReal(0);
+      const angleDeltaX = xfer.xferReal(0);
+      const numAngleDeltaX = xfer.xferInt(0);
+      const doBounceFx = xfer.xferBool(false);
+      const options = xfer.xferUnsignedInt(0);
+      const stumpId = xfer.xferObjectID(0);
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            angularVelocity,
+            angularAcceleration,
+            toppleDirection,
+            toppleState,
+            angularAccumulation,
+            angleDeltaX,
+            numAngleDeltaX,
+            doBounceFx,
+            options,
+            stumpId,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceStructureToppleUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceStructureToppleUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'STRUCTURETOPPLEUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-structure-topple-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const toppleFrame = xfer.xferUnsignedInt(0);
+      const toppleDirection = {
+        x: xfer.xferReal(0),
+        y: xfer.xferReal(0),
+      };
+      const toppleState = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const toppleVelocity = xfer.xferReal(0);
+      const accumulatedAngle = xfer.xferReal(0);
+      const structuralIntegrity = xfer.xferReal(0);
+      const lastCrushedLocation = xfer.xferReal(0);
+      const nextBurstFrame = xfer.xferInt(0);
+      const delayBurstLocation = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            toppleFrame,
+            toppleDirection,
+            toppleState,
+            toppleVelocity,
+            accumulatedAngle,
+            structuralIntegrity,
+            lastCrushedLocation,
+            nextBurstFrame,
+            delayBurstLocation,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceToppleUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const toppleState = this.tryParseSourceToppleUpdateImportState(module.blockData, moduleType);
+      if (!toppleState) {
+        continue;
+      }
+      const state = this.sourceToppleStateFromInt(toppleState.toppleState, toppleState.angularVelocity);
+      if (!state) {
+        throw new Error(`Unsupported source ToppleUpdate state ${toppleState.toppleState}.`);
+      }
+      entity.toppleState = state;
+      entity.toppleAngularVelocity = Number.isFinite(toppleState.angularVelocity)
+        ? toppleState.angularVelocity
+        : 0;
+      entity.toppleAngularAcceleration = Number.isFinite(toppleState.angularAcceleration)
+        ? toppleState.angularAcceleration
+        : 0;
+      entity.toppleDirX = Number.isFinite(toppleState.toppleDirection.x)
+        ? toppleState.toppleDirection.x
+        : 0;
+      entity.toppleDirZ = Number.isFinite(toppleState.toppleDirection.y)
+        ? toppleState.toppleDirection.y
+        : 0;
+      entity.toppleDirectionSourceZ = Number.isFinite(toppleState.toppleDirection.z)
+        ? toppleState.toppleDirection.z
+        : 0;
+      entity.toppleAngularAccumulation = Number.isFinite(toppleState.angularAccumulation)
+        ? toppleState.angularAccumulation
+        : 0;
+      entity.toppleSpeed = entity.toppleProfile?.initialAccelPercent
+        ? entity.toppleAngularAcceleration / entity.toppleProfile.initialAccelPercent
+        : (
+          entity.toppleProfile?.initialVelocityPercent
+            ? Math.abs(entity.toppleAngularVelocity / entity.toppleProfile.initialVelocityPercent)
+            : 0
+        );
+      entity.toppleAngleDeltaX = Number.isFinite(toppleState.angleDeltaX) ? toppleState.angleDeltaX : 0;
+      entity.toppleNumAngleDeltaX = Math.trunc(toppleState.numAngleDeltaX);
+      entity.toppleDoBounceFx = toppleState.doBounceFx;
+      entity.toppleOptions = Math.max(0, Math.trunc(toppleState.options));
+      entity.toppleStumpId = Math.max(0, Math.trunc(toppleState.stumpId));
+      return;
+    }
+  }
+
+  private applySourceStructureToppleUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const toppleState = this.tryParseSourceStructureToppleUpdateImportState(module.blockData, moduleType);
+      if (!toppleState) {
+        continue;
+      }
+      const state = this.sourceStructureToppleStateFromInt(toppleState.toppleState);
+      if (!state) {
+        throw new Error(`Unsupported source StructureToppleUpdate state ${toppleState.toppleState}.`);
+      }
+      entity.structureToppleState = {
+        state,
+        toppleFrame: Math.max(0, Math.trunc(toppleState.toppleFrame)),
+        toppleVelocity: Number.isFinite(toppleState.toppleVelocity) ? toppleState.toppleVelocity : 0,
+        accumulatedAngle: Number.isFinite(toppleState.accumulatedAngle) ? toppleState.accumulatedAngle : 0,
+        structuralIntegrity: Number.isFinite(toppleState.structuralIntegrity) ? toppleState.structuralIntegrity : 0,
+        toppleDirX: Number.isFinite(toppleState.toppleDirection.x) ? toppleState.toppleDirection.x : 0,
+        toppleDirZ: Number.isFinite(toppleState.toppleDirection.y) ? toppleState.toppleDirection.y : 0,
+        buildingHeight: entity.geometryInfo?.height ?? entity.obstacleGeometry?.height ?? entity.geometryMajorRadius ?? 0,
+        lastCrushedLocation: Number.isFinite(toppleState.lastCrushedLocation)
+          ? toppleState.lastCrushedLocation
+          : 0,
+        nextBurstFrame: Math.trunc(toppleState.nextBurstFrame),
+        delayBurstLocation: {
+          x: toppleState.delayBurstLocation.x,
+          y: toppleState.delayBurstLocation.z,
+          z: toppleState.delayBurstLocation.y,
+        },
+      };
+      return;
+    }
+  }
+
   private tryParseSourceFireSpreadUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -17087,6 +17347,8 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);
     this.applySourcePointDefenseLaserUpdateModulesToEntity(entity, sourceState);
+    this.applySourceToppleUpdateModulesToEntity(entity, sourceState);
+    this.applySourceStructureToppleUpdateModulesToEntity(entity, sourceState);
     this.applySourceFireSpreadUpdateModulesToEntity(entity, sourceState);
     this.applySourcePoisonedBehaviorModulesToEntity(entity, sourceState);
     this.applySourceMinefieldBehaviorModulesToEntity(entity, sourceState);
@@ -40966,7 +41228,14 @@ export class GameLogicSubsystem implements Subsystem {
     entity.toppleDirZ = normDirZ;
     entity.toppleSpeed = speed;
     entity.toppleAngularVelocity = speed * profile.initialVelocityPercent;
+    entity.toppleAngularAcceleration = speed * profile.initialAccelPercent;
     entity.toppleAngularAccumulation = 0;
+    entity.toppleDirectionSourceZ = 0;
+    entity.toppleAngleDeltaX = 0;
+    entity.toppleNumAngleDeltaX = 0;
+    entity.toppleDoBounceFx = false;
+    entity.toppleOptions = 0;
+    entity.toppleStumpId = 0;
     entity.toppleState = 'TOPPLING';
 
     // Source parity: KillWhenStartToppling — instant death.
@@ -41714,7 +41983,7 @@ export class GameLogicSubsystem implements Subsystem {
         // Source parity: reverse velocity and apply bounce damping.
         entity.toppleAngularVelocity *= -profile.bounceVelocityPercent;
 
-        if (Math.abs(entity.toppleAngularVelocity) < BOUNCE_LIMIT) {
+        if ((entity.toppleOptions & 0x00000001) !== 0 || Math.abs(entity.toppleAngularVelocity) < BOUNCE_LIMIT) {
           // Source parity: topple complete — velocity too small to bounce.
           entity.toppleAngularVelocity = 0;
           entity.toppleState = 'DONE';
@@ -41725,8 +41994,8 @@ export class GameLogicSubsystem implements Subsystem {
           entity.toppleState = 'BOUNCING';
         }
       } else {
-        // Source parity: acceleration only applied during falling, not during bouncing.
-        entity.toppleAngularVelocity += entity.toppleSpeed * profile.initialAccelPercent;
+        // Source parity: acceleration is the serialized ToppleUpdate::m_angularAcceleration.
+        entity.toppleAngularVelocity += entity.toppleAngularAcceleration;
       }
     }
   }

@@ -530,8 +530,15 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     toppleDirX: 0,
     toppleDirZ: 0,
     toppleAngularVelocity: 0,
+    toppleAngularAcceleration: 0,
     toppleAngularAccumulation: 0,
     toppleSpeed: 0,
+    toppleDirectionSourceZ: 0,
+    toppleAngleDeltaX: 0,
+    toppleNumAngleDeltaX: 0,
+    toppleDoBounceFx: false,
+    toppleOptions: 0,
+    toppleStumpId: 0,
 
     // Physics
     physicsBehaviorProfile: null,

@@ -203,6 +203,25 @@ function makeSourceOwnedCoreBundle() {
           ScanRange: 300,
         }),
       ]),
+      makeObjectDef('ToppleTree', 'Neutral', ['SHRUBBERY'], [
+        makeBlock('Behavior', 'ToppleUpdate ModuleTag_Topple', {
+          InitialVelocityPercent: '20%',
+          InitialAccelPercent: '10%',
+          BounceVelocityPercent: '30%',
+          KillWhenFinishedToppling: false,
+        }),
+      ]),
+      makeObjectDef('ToppleStructure', 'GLA', ['STRUCTURE'], [
+        makeBlock('Behavior', 'StructureToppleUpdate ModuleTag_ToppleStructure', {
+          MinToppleDelay: 1000,
+          MaxToppleDelay: 1000,
+          MinToppleBurstDelay: 200,
+          MaxToppleBurstDelay: 200,
+          StructuralIntegrity: 0.6,
+          StructuralDecay: 0.95,
+          CrushingWeaponName: 'PDLWeapon',
+        }),
+      ]),
       makeObjectDef('HealingSeeker', 'America', ['INFANTRY'], [
         makeBlock('Behavior', 'AutoFindHealingUpdate ModuleTag_AutoFindHealing', {
           ScanRate: 500,
@@ -1377,6 +1396,81 @@ function buildSourcePointDefenseLaserUpdateModuleData(options: {
     saver.xferBool(options.inRange);
     saver.xferInt(options.nextScanFrames);
     saver.xferInt(options.nextShotAvailableInFrames);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceToppleUpdateModuleData(options: {
+  nextCallFrame: number;
+  angularVelocity: number;
+  angularAcceleration: number;
+  toppleDirection: { x: number; y: number; z: number };
+  toppleState: number;
+  angularAccumulation: number;
+  angleDeltaX: number;
+  numAngleDeltaX: number;
+  doBounceFx: boolean;
+  toppleOptions: number;
+  stumpId: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-topple-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferReal(options.angularVelocity);
+    saver.xferReal(options.angularAcceleration);
+    saver.xferCoord3D(options.toppleDirection);
+    saver.xferUser(sourceRawInt32(options.toppleState));
+    saver.xferReal(options.angularAccumulation);
+    saver.xferReal(options.angleDeltaX);
+    saver.xferInt(options.numAngleDeltaX);
+    saver.xferBool(options.doBounceFx);
+    saver.xferUnsignedInt(options.toppleOptions);
+    saver.xferObjectID(options.stumpId);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceStructureToppleUpdateModuleData(options: {
+  nextCallFrame: number;
+  toppleFrame: number;
+  toppleDirection: { x: number; y: number };
+  toppleState: number;
+  toppleVelocity: number;
+  accumulatedAngle: number;
+  structuralIntegrity: number;
+  lastCrushedLocation: number;
+  nextBurstFrame: number;
+  delayBurstLocation: { x: number; y: number; z: number };
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-structure-topple-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUnsignedInt(options.toppleFrame);
+    saver.xferReal(options.toppleDirection.x);
+    saver.xferReal(options.toppleDirection.y);
+    saver.xferUser(sourceRawInt32(options.toppleState));
+    saver.xferReal(options.toppleVelocity);
+    saver.xferReal(options.accumulatedAngle);
+    saver.xferReal(options.structuralIntegrity);
+    saver.xferReal(options.lastCrushedLocation);
+    saver.xferInt(options.nextBurstFrame);
+    saver.xferCoord3D(options.delayBurstLocation);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -3279,6 +3373,120 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedPdl.pdlInRange).toBe(true);
     expect(importedPdl.pdlNextScanFrame).toBe(207);
     expect(importedPdl.pdlNextShotFrame).toBe(211);
+  });
+
+  it('imports source ToppleUpdate and StructureToppleUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const toppleState = createEmptySourceMapEntitySaveState();
+    toppleState.objectId = 123;
+    toppleState.position = { x: 158, y: 0, z: 60 };
+    toppleState.modules = [{
+      identifier: 'ModuleTag_Topple',
+      blockData: buildSourceToppleUpdateModuleData({
+        nextCallFrame: 350,
+        angularVelocity: -0.25,
+        angularAcceleration: 0.05,
+        toppleDirection: { x: 0.6, y: -0.8, z: 0.125 },
+        toppleState: 1,
+        angularAccumulation: 1.2,
+        angleDeltaX: 0.03,
+        numAngleDeltaX: 4,
+        doBounceFx: true,
+        toppleOptions: 3,
+        stumpId: 777,
+      }),
+    }];
+
+    const structureState = createEmptySourceMapEntitySaveState();
+    structureState.objectId = 124;
+    structureState.position = { x: 160, y: 0, z: 60 };
+    structureState.modules = [{
+      identifier: 'ModuleTag_ToppleStructure',
+      blockData: buildSourceStructureToppleUpdateModuleData({
+        nextCallFrame: 351,
+        toppleFrame: 420,
+        toppleDirection: { x: -0.4, y: 0.9 },
+        toppleState: 2,
+        toppleVelocity: 0.35,
+        accumulatedAngle: 0.75,
+        structuralIntegrity: 0.45,
+        lastCrushedLocation: 12.5,
+        nextBurstFrame: 500,
+        delayBurstLocation: { x: 20, y: 30, z: 4 },
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'ToppleTree', state: toppleState },
+        { templateName: 'ToppleStructure', state: structureState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        toppleState: string;
+        toppleAngularVelocity: number;
+        toppleAngularAcceleration: number;
+        toppleDirX: number;
+        toppleDirZ: number;
+        toppleDirectionSourceZ: number;
+        toppleAngularAccumulation: number;
+        toppleAngleDeltaX: number;
+        toppleNumAngleDeltaX: number;
+        toppleDoBounceFx: boolean;
+        toppleOptions: number;
+        toppleStumpId: number;
+        structureToppleState: {
+          state: string;
+          toppleFrame: number;
+          toppleVelocity: number;
+          accumulatedAngle: number;
+          structuralIntegrity: number;
+          toppleDirX: number;
+          toppleDirZ: number;
+          lastCrushedLocation: number;
+          nextBurstFrame: number;
+          delayBurstLocation: { x: number; y: number; z: number };
+        } | null;
+      }>;
+    };
+
+    const importedTopple = privateLogic.spawnedEntities.get(123)!;
+    expect(importedTopple.toppleState).toBe('BOUNCING');
+    expect(importedTopple.toppleAngularVelocity).toBeCloseTo(-0.25);
+    expect(importedTopple.toppleAngularAcceleration).toBeCloseTo(0.05);
+    expect(importedTopple.toppleDirX).toBeCloseTo(0.6);
+    expect(importedTopple.toppleDirZ).toBeCloseTo(-0.8);
+    expect(importedTopple.toppleDirectionSourceZ).toBeCloseTo(0.125);
+    expect(importedTopple.toppleAngularAccumulation).toBeCloseTo(1.2);
+    expect(importedTopple.toppleAngleDeltaX).toBeCloseTo(0.03);
+    expect(importedTopple.toppleNumAngleDeltaX).toBe(4);
+    expect(importedTopple.toppleDoBounceFx).toBe(true);
+    expect(importedTopple.toppleOptions).toBe(3);
+    expect(importedTopple.toppleStumpId).toBe(777);
+
+    const importedStructure = privateLogic.spawnedEntities.get(124)!.structureToppleState!;
+    expect(importedStructure.state).toBe('TOPPLING');
+    expect(importedStructure.toppleFrame).toBe(420);
+    expect(importedStructure.toppleDirX).toBeCloseTo(-0.4);
+    expect(importedStructure.toppleDirZ).toBeCloseTo(0.9);
+    expect(importedStructure.toppleVelocity).toBeCloseTo(0.35);
+    expect(importedStructure.accumulatedAngle).toBeCloseTo(0.75);
+    expect(importedStructure.structuralIntegrity).toBeCloseTo(0.45);
+    expect(importedStructure.lastCrushedLocation).toBeCloseTo(12.5);
+    expect(importedStructure.nextBurstFrame).toBe(500);
+    expect(importedStructure.delayBurstLocation).toEqual({ x: 20, y: 4, z: 30 });
   });
 
   it('imports source HordeUpdate runtime state', () => {

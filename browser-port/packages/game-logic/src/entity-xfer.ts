@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 35;
+const ENTITY_XFER_VERSION = 36;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -2186,8 +2186,35 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.toppleDirX = xfer.xferReal(e.toppleDirX as number);
   e.toppleDirZ = xfer.xferReal(e.toppleDirZ as number);
   e.toppleAngularVelocity = xfer.xferReal(e.toppleAngularVelocity as number);
+  if (version >= 36) {
+    e.toppleAngularAcceleration = xfer.xferReal((e.toppleAngularAcceleration as number | undefined) ?? 0);
+  } else {
+    e.toppleAngularAcceleration = 0;
+  }
   e.toppleAngularAccumulation = xfer.xferReal(e.toppleAngularAccumulation as number);
   e.toppleSpeed = xfer.xferReal(e.toppleSpeed as number);
+  if (version < 36) {
+    const profile = e.toppleProfile as { initialAccelPercent?: number } | null | undefined;
+    const toppleSpeed = e.toppleSpeed as number;
+    e.toppleAngularAcceleration = Number.isFinite(profile?.initialAccelPercent) && Number.isFinite(toppleSpeed)
+      ? (profile!.initialAccelPercent as number) * toppleSpeed
+      : 0;
+  }
+  if (version >= 36) {
+    e.toppleDirectionSourceZ = xfer.xferReal((e.toppleDirectionSourceZ as number | undefined) ?? 0);
+    e.toppleAngleDeltaX = xfer.xferReal((e.toppleAngleDeltaX as number | undefined) ?? 0);
+    e.toppleNumAngleDeltaX = xfer.xferInt((e.toppleNumAngleDeltaX as number | undefined) ?? 0);
+    e.toppleDoBounceFx = xfer.xferBool((e.toppleDoBounceFx as boolean | undefined) ?? false);
+    e.toppleOptions = xfer.xferUnsignedInt((e.toppleOptions as number | undefined) ?? 0);
+    e.toppleStumpId = xfer.xferObjectID((e.toppleStumpId as number | undefined) ?? 0);
+  } else {
+    e.toppleDirectionSourceZ = 0;
+    e.toppleAngleDeltaX = 0;
+    e.toppleNumAngleDeltaX = 0;
+    e.toppleDoBounceFx = false;
+    e.toppleOptions = 0;
+    e.toppleStumpId = 0;
+  }
 
   // ── Physics ──
   e.physicsBehaviorProfile = xferNullableJsonObject(xfer, e.physicsBehaviorProfile as object | null);
