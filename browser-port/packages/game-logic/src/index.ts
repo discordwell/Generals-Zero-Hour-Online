@@ -13816,6 +13816,36 @@ export class GameLogicSubsystem implements Subsystem {
     return [...nextById.values()];
   }
 
+  private removeSourceRelationEntry(
+    relationsBySide: Map<string, unknown>,
+    sourceSide: string,
+    targetId: number | null,
+  ): void {
+    if (targetId === null) {
+      return;
+    }
+    const sideKey = this.resolveSourceSideMapKey(relationsBySide, sourceSide);
+    if (!relationsBySide.has(sideKey)) {
+      return;
+    }
+    const entries = this.normalizeSourceRelationEntries(relationsBySide.get(sideKey));
+    const filteredEntries = entries.filter((entry) => entry.id !== targetId);
+    if (filteredEntries.length === entries.length) {
+      return;
+    }
+    relationsBySide.set(sideKey, filteredEntries);
+  }
+
+  private clearSourceRelationEntriesForSide(
+    relationsBySide: Map<string, unknown>,
+    sourceSide: string,
+  ): void {
+    const sideKey = this.resolveSourceSideMapKey(relationsBySide, sourceSide);
+    if (relationsBySide.has(sideKey)) {
+      relationsBySide.set(sideKey, []);
+    }
+  }
+
   private captureSourcePlayerRelationsBySide(): Map<string, Array<{ id: number; relationship: number }>> {
     const relationsBySide = new Map<string, Array<{ id: number; relationship: number }>>();
     for (const [side, relations] of this.sideSourcePlayerRelations.entries()) {
@@ -38714,6 +38744,11 @@ export class GameLogicSubsystem implements Subsystem {
       return;
     }
     this.teamRelationshipOverrides.delete(this.relationshipKey(source, target));
+    this.removeSourceRelationEntry(
+      this.sideSourceTeamRelations,
+      source,
+      this.resolveSourceDefaultTeamIdForSide(target),
+    );
   }
 
   setPlayerRelationship(sourceSide: string, targetSide: string, relationship: number): void {
@@ -38735,6 +38770,11 @@ export class GameLogicSubsystem implements Subsystem {
       return;
     }
     this.playerRelationshipOverrides.delete(this.relationshipKey(source, target));
+    this.removeSourceRelationEntry(
+      this.sideSourcePlayerRelations,
+      source,
+      this.resolveSourcePlayerIndexForSide(target),
+    );
   }
 
   clearRelationshipOverridesForSourceSide(sourceSide: string): void {
@@ -38753,11 +38793,15 @@ export class GameLogicSubsystem implements Subsystem {
         this.playerRelationshipOverrides.delete(key);
       }
     }
+    this.clearSourceRelationEntriesForSide(this.sideSourceTeamRelations, source);
+    this.clearSourceRelationEntriesForSide(this.sideSourcePlayerRelations, source);
   }
 
   clearTeamRelationshipOverrides(): void {
     this.teamRelationshipOverrides.clear();
     this.playerRelationshipOverrides.clear();
+    this.sideSourceTeamRelations.clear();
+    this.sideSourcePlayerRelations.clear();
   }
 
   private resolveObstacleGeometry(objectDef: ObjectDef | undefined): ObstacleGeometry | null {

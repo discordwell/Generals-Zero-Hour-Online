@@ -536,6 +536,45 @@ describe('player save-state', () => {
       .get('America')).toEqual([{ id: 88, relationship: 1 }]);
   });
 
+  it('removes source-backed Player::xfer relationship entries when live relationships are removed', () => {
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    const privateLogic = logic as unknown as {
+      sideSourcePlayerRelations: Map<string, Array<{ id: number; relationship: number }>>;
+      sideSourceTeamRelations: Map<string, Array<{ id: number; relationship: number }>>;
+      sidePlayerIndex: Map<string, number>;
+      playerSideByIndex: Map<number, string>;
+      scriptTeamsByName: Map<string, Record<string, unknown>>;
+      scriptDefaultTeamNameBySide: Map<string, string>;
+    };
+
+    privateLogic.sideSourcePlayerRelations.set('America', [{ id: 1, relationship: 0 }]);
+    privateLogic.sideSourceTeamRelations.set('America', [{ id: 88, relationship: 0 }]);
+    privateLogic.sidePlayerIndex.set('America', 0);
+    privateLogic.sidePlayerIndex.set('China', 1);
+    privateLogic.playerSideByIndex.set(0, 'America');
+    privateLogic.playerSideByIndex.set(1, 'China');
+    privateLogic.scriptTeamsByName.set('TEAMCHINA', {
+      nameUpper: 'TEAMCHINA',
+      prototypeNameUpper: 'TEAMCHINA',
+      sourcePrototypeId: 30,
+      sourceTeamId: 88,
+      controllingSide: 'china',
+      memberEntityIds: new Set<number>(),
+      created: false,
+    });
+    privateLogic.scriptDefaultTeamNameBySide.set('china', 'TEAMCHINA');
+
+    logic.removePlayerRelationship('America', 'China');
+    logic.removeTeamRelationship('America', 'China');
+
+    const playerState = logic.captureSourcePlayerRuntimeSaveState();
+
+    expect((playerState.state.sideSourcePlayerRelations as Map<string, Array<{ id: number; relationship: number }>>)
+      .get('America')).toEqual([]);
+    expect((playerState.state.sideSourceTeamRelations as Map<string, Array<{ id: number; relationship: number }>>)
+      .get('America')).toEqual([]);
+  });
+
   it('captures live local selection into source Player::m_currentSelection', () => {
     const bundle = makeBundle({
       objects: [
