@@ -2151,6 +2151,9 @@ function buildSourceGameClientDrawableStates(
     liveEntityIdsOverride
       ?? gameLogicState.spawnedEntities.map((entity) => entity.id),
   );
+  const liveEntityById = new Map<number, MapEntity>(
+    gameLogicState.spawnedEntities.map((entity) => [entity.id, entity]),
+  );
   const result: RuntimeSaveDrawableSnapshotState[] = [];
   for (const state of renderableEntityStates) {
     if (!liveIds.has(state.id)) {
@@ -2161,8 +2164,9 @@ function buildSourceGameClientDrawableStates(
       continue;
     }
 
+    const liveEntity = liveEntityById.get(state.id);
     result.push({
-      drawableId: state.id,
+      drawableId: sourceDrawableIdFromEntity(liveEntity, state.id),
       objectId: state.id,
       templateName: visualTemplateName,
       sourceDrawableModuleDescriptors: typeof listSourceDrawableModuleDescriptors === 'function'
@@ -19033,6 +19037,13 @@ function overlaySourceObjectModulesFromLiveEntity(
   });
 }
 
+function sourceDrawableIdFromEntity(entity: MapEntity | null | undefined, fallback: number): number {
+  const drawableId = entity?.drawableId;
+  return Number.isFinite(drawableId) && (drawableId ?? 0) > 0
+    ? Math.trunc(drawableId ?? 0)
+    : Math.max(0, Math.trunc(sourcePhysicsFinite(fallback, 0)));
+}
+
 function overlaySourceObjectStateFromLiveEntity(
   sourceState: SourceMapEntitySaveState,
   entity: MapEntity,
@@ -19057,6 +19068,7 @@ function overlaySourceObjectStateFromLiveEntity(
   return {
     ...sourceState,
     objectId: entity.id,
+    drawableId: sourceDrawableIdFromEntity(entity, sourceState.drawableId),
     transformMatrix: hasTransform
       ? buildSourceTransformMatrixValues(entity.x, entity.y, entity.z, entity.rotationY)
       : sourceState.transformMatrix,
@@ -20030,10 +20042,7 @@ function createGeneratedSourceObjectStateFromLiveEntity(
   sourceState.teamId = hasSourceTeam
     ? resolveGeneratedSourceObjectTeamId(entity, sourceTeamIdByName, fallbackTeamId)
     : fallbackTeamId;
-  const drawableId = (entity as unknown as { drawableId?: number }).drawableId;
-  sourceState.drawableId = Number.isFinite(drawableId) && (drawableId ?? 0) > 0
-    ? Math.trunc(drawableId ?? 0)
-    : sourceState.objectId;
+  sourceState.drawableId = sourceDrawableIdFromEntity(entity, sourceState.objectId);
   sourceState.originalTeamName = hasSourceTeam ? sourceTeamNameUpper : '';
   sourceState.geometryInfo = buildSourceGeometryInfoFromLiveEntity(entity, sourceState.geometryInfo);
   sourceState.modulesReady = true;

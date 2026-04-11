@@ -10220,6 +10220,7 @@ describe('runtime-save-game', () => {
       }],
       gameLogic: createMinimalRuntimeGameLogic([{
         id: 12,
+        drawableId: 99,
         templateName: 'TreeOak01',
         w3dTreeBufferToppleState: 'FALLING',
         w3dTreeBufferDeleted: false,
@@ -10257,6 +10258,7 @@ describe('runtime-save-game', () => {
     });
     const resavedTree = readTerrainVisualChunk(resaved.data)?.trees[0];
     expect(resavedTree?.location).toEqual({ x: 31, y: 41, z: 6 });
+    expect(resavedTree?.drawableId).toBe(99);
     expect(resavedTree?.angularVelocity).toBeCloseTo(0.4);
     expect(resavedTree?.angularAcceleration).toBeCloseTo(0.05);
     expect(resavedTree?.toppleDirection.x).toBeCloseTo(0.2);
@@ -10265,6 +10267,11 @@ describe('runtime-save-game', () => {
     expect(resavedTree?.options).toBe(2);
     expect(resavedTree?.matrix3D).toEqual([1, 0, 0, 31, 0, 1, 0, 41, 0, 0, 1, 6]);
     expect(resavedTree?.sinkFramesLeft).toBe(3);
+    expect(readGameClientChunk(resaved.data)?.drawableIds).toEqual([99]);
+    const resavedImportedTree = parseRuntimeSaveFile(resaved.data).sourceGameLogicImportState?.objects.find(
+      (object) => object.templateName === 'TreeOak01',
+    );
+    expect(resavedImportedTree?.state.drawableId).toBe(99);
   });
 
   it('replaces parsed attached-object GameClient drawables while preserving unattached raw drawables', () => {
