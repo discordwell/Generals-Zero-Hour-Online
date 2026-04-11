@@ -993,6 +993,7 @@ const SOURCE_BONE_FX_MAX_BONES = 8;
 const SOURCE_FLAMMABLE_STATUS_AFLAME = 1;
 const SOURCE_DEATH_TYPE_POISONED = 5;
 const SOURCE_MINEFIELD_MAX_IMMUNITY = 3;
+const SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH = 16 * 4;
 const SOURCE_PRODUCTION_UNIT = 1;
 const SOURCE_PRODUCTION_UPGRADE = 2;
 const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
@@ -1323,6 +1324,179 @@ function parseSourceMinefieldBehaviorBlockData(data: Uint8Array): SourceMinefiel
       });
     }
     return state;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+interface SourceDynamicGeometryInfoUpdateTestState {
+  nextCallFrameAndPhase: number;
+  startingDelayCountdown: number;
+  timeActive: number;
+  started: boolean;
+  finished: boolean;
+  reverseAtTransitionTime: boolean;
+  direction: number;
+  switchedDirections: boolean;
+  initialHeight: number;
+  initialMajorRadius: number;
+  initialMinorRadius: number;
+  finalHeight: number;
+  finalMajorRadius: number;
+  finalMinorRadius: number;
+}
+
+interface SourceFirestormDynamicGeometryInfoUpdateTestState {
+  dynamic: SourceDynamicGeometryInfoUpdateTestState;
+  particleSystemIdBytes: Uint8Array;
+  effectsFired: boolean;
+  scorchPlaced: boolean;
+  lastDamageFrame: number;
+}
+
+function xferSourceDynamicGeometryInfoUpdateForTest(
+  xfer: Xfer,
+  state: SourceDynamicGeometryInfoUpdateTestState,
+): SourceDynamicGeometryInfoUpdateTestState {
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  xfer.xferVersion(1);
+  return {
+    nextCallFrameAndPhase: xfer.xferUnsignedInt(state.nextCallFrameAndPhase),
+    startingDelayCountdown: xfer.xferUnsignedInt(state.startingDelayCountdown),
+    timeActive: xfer.xferUnsignedInt(state.timeActive),
+    started: xfer.xferBool(state.started),
+    finished: xfer.xferBool(state.finished),
+    reverseAtTransitionTime: xfer.xferBool(state.reverseAtTransitionTime),
+    direction: readRawInt32Bytes(xfer.xferUser(createRawInt32Bytes(state.direction))),
+    switchedDirections: xfer.xferBool(state.switchedDirections),
+    initialHeight: xfer.xferReal(state.initialHeight),
+    initialMajorRadius: xfer.xferReal(state.initialMajorRadius),
+    initialMinorRadius: xfer.xferReal(state.initialMinorRadius),
+    finalHeight: xfer.xferReal(state.finalHeight),
+    finalMajorRadius: xfer.xferReal(state.finalMajorRadius),
+    finalMinorRadius: xfer.xferReal(state.finalMinorRadius),
+  };
+}
+
+function createSourceDynamicGeometryInfoUpdateBlockData(
+  state: SourceDynamicGeometryInfoUpdateTestState,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-dynamic-geometry-info-update');
+  try {
+    xferSourceDynamicGeometryInfoUpdateForTest(xferSave, state);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceDynamicGeometryInfoUpdateBlockData(
+  data: Uint8Array,
+): SourceDynamicGeometryInfoUpdateTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-dynamic-geometry-info-update');
+  try {
+    return xferSourceDynamicGeometryInfoUpdateForTest(xferLoad, {
+      nextCallFrameAndPhase: 0,
+      startingDelayCountdown: 0,
+      timeActive: 0,
+      started: false,
+      finished: false,
+      reverseAtTransitionTime: false,
+      direction: 0,
+      switchedDirections: false,
+      initialHeight: 0,
+      initialMajorRadius: 0,
+      initialMinorRadius: 0,
+      finalHeight: 0,
+      finalMajorRadius: 0,
+      finalMinorRadius: 0,
+    });
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceFirestormDynamicGeometryInfoUpdateBlockData(
+  state: SourceFirestormDynamicGeometryInfoUpdateTestState,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-firestorm-dynamic-geometry-info-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSourceDynamicGeometryInfoUpdateForTest(xferSave, state.dynamic);
+    xferSave.xferUser(state.particleSystemIdBytes);
+    xferSave.xferBool(state.effectsFired);
+    xferSave.xferBool(state.scorchPlaced);
+    xferSave.xferUnsignedInt(state.lastDamageFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceFirestormDynamicGeometryInfoUpdateBlockData(
+  data: Uint8Array,
+): SourceFirestormDynamicGeometryInfoUpdateTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-firestorm-dynamic-geometry-info-update');
+  try {
+    xferLoad.xferVersion(1);
+    return {
+      dynamic: xferSourceDynamicGeometryInfoUpdateForTest(xferLoad, {
+        nextCallFrameAndPhase: 0,
+        startingDelayCountdown: 0,
+        timeActive: 0,
+        started: false,
+        finished: false,
+        reverseAtTransitionTime: false,
+        direction: 0,
+        switchedDirections: false,
+        initialHeight: 0,
+        initialMajorRadius: 0,
+        initialMinorRadius: 0,
+        finalHeight: 0,
+        finalMajorRadius: 0,
+        finalMinorRadius: 0,
+      }),
+      particleSystemIdBytes: xferLoad.xferUser(new Uint8Array(SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH)),
+      effectsFired: xferLoad.xferBool(false),
+      scorchPlaced: xferLoad.xferBool(false),
+      lastDamageFrame: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceSmartBombTargetHomingUpdateBlockData(nextCallFrameAndPhase: number): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-smart-bomb-target-homing-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceSmartBombTargetHomingUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-smart-bomb-target-homing-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+    };
   } finally {
     xferLoad.close();
   }
@@ -10107,6 +10281,205 @@ describe('runtime-save-game', () => {
       { objectId: 12, collideTime: 42 },
       { objectId: 0, collideTime: 0 },
     ]);
+  });
+
+  it('rewrites source dynamic-geometry and smart-bomb update modules from live runtime state', () => {
+    const preservedDynamicState: SourceDynamicGeometryInfoUpdateTestState = {
+      nextCallFrameAndPhase: (80 << 2) | 2,
+      startingDelayCountdown: 99,
+      timeActive: 1,
+      started: false,
+      finished: false,
+      reverseAtTransitionTime: true,
+      direction: -1,
+      switchedDirections: true,
+      initialHeight: 1,
+      initialMajorRadius: 2,
+      initialMinorRadius: 3,
+      finalHeight: 4,
+      finalMajorRadius: 5,
+      finalMinorRadius: 6,
+    };
+    const firestormParticleBytes = new Uint8Array(
+      Array.from({ length: SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH }, (_, index) => (index * 5 + 3) & 0xff),
+    );
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_DynamicGeometry',
+      blockData: createSourceDynamicGeometryInfoUpdateBlockData(preservedDynamicState),
+    }, {
+      identifier: 'ModuleTag_FirestormGeometry',
+      blockData: createSourceFirestormDynamicGeometryInfoUpdateBlockData({
+        dynamic: {
+          ...preservedDynamicState,
+          nextCallFrameAndPhase: (81 << 2) | 2,
+          direction: 1,
+        },
+        particleSystemIdBytes: firestormParticleBytes,
+        effectsFired: true,
+        scorchPlaced: false,
+        lastDamageFrame: 12,
+      }),
+    }, {
+      identifier: 'ModuleTag_SmartBomb',
+      blockData: createSourceSmartBombTargetHomingUpdateBlockData((82 << 2) | 2),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source dynamic geometry rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            dynamicGeometryProfile: {
+              initialDelayFrames: 3,
+              initialHeight: 10,
+              initialMajorRadius: 11,
+              initialMinorRadius: 12,
+              finalHeight: 20,
+              finalMajorRadius: 21,
+              finalMinorRadius: 22,
+              transitionTimeFrames: 30,
+              reverseAtTransitionTime: true,
+            },
+            dynamicGeometryState: {
+              delayCountdown: 5,
+              started: true,
+              finished: false,
+              timeActive: 7,
+              initialHeight: 13,
+              initialMajorRadius: 14,
+              initialMinorRadius: 15,
+              finalHeight: 23,
+              finalMajorRadius: 24,
+              finalMinorRadius: 25,
+              reverseAtTransitionTime: false,
+            },
+            firestormDamageProfile: {
+              damageAmount: 5,
+              delayBetweenDamageFrames: 10,
+              maxHeightForDamage: 30,
+            },
+            firestormDamageState: { lastDamageFrame: 66 },
+            smartBombProfile: { courseCorrectionScalar: 0.99 },
+            smartBombState: {
+              targetReceived: true,
+              targetX: 100,
+              targetZ: 120,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName !== 'RuntimeTank') {
+            return null;
+          }
+          if (moduleTag === 'ModuleTag_DynamicGeometry') {
+            return 'DYNAMICGEOMETRYINFOUPDATE';
+          }
+          if (moduleTag === 'ModuleTag_FirestormGeometry') {
+            return 'FIRESTORMDYNAMICGEOMETRYINFOUPDATE';
+          }
+          if (moduleTag === 'ModuleTag_SmartBomb') {
+            return 'SMARTBOMBTARGETHOMINGUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const dynamicModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_DynamicGeometry');
+    const firestormModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_FirestormGeometry');
+    const smartBombModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_SmartBomb');
+
+    expect(dynamicModule).toBeDefined();
+    expect(firestormModule).toBeDefined();
+    expect(smartBombModule).toBeDefined();
+    const dynamic = parseSourceDynamicGeometryInfoUpdateBlockData(dynamicModule!.blockData);
+    expect(dynamic.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(dynamic.startingDelayCountdown).toBe(5);
+    expect(dynamic.timeActive).toBe(7);
+    expect(dynamic.started).toBe(true);
+    expect(dynamic.finished).toBe(false);
+    expect(dynamic.reverseAtTransitionTime).toBe(false);
+    expect(dynamic.direction).toBe(-1);
+    expect(dynamic.switchedDirections).toBe(true);
+    expect(dynamic.initialHeight).toBeCloseTo(13, 6);
+    expect(dynamic.initialMajorRadius).toBeCloseTo(14, 6);
+    expect(dynamic.initialMinorRadius).toBeCloseTo(15, 6);
+    expect(dynamic.finalHeight).toBeCloseTo(23, 6);
+    expect(dynamic.finalMajorRadius).toBeCloseTo(24, 6);
+    expect(dynamic.finalMinorRadius).toBeCloseTo(25, 6);
+
+    const firestorm = parseSourceFirestormDynamicGeometryInfoUpdateBlockData(firestormModule!.blockData);
+    expect(firestorm.dynamic.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(firestorm.dynamic.timeActive).toBe(7);
+    expect(firestorm.dynamic.direction).toBe(1);
+    expect(Array.from(firestorm.particleSystemIdBytes)).toEqual(Array.from(firestormParticleBytes));
+    expect(firestorm.effectsFired).toBe(true);
+    expect(firestorm.scorchPlaced).toBe(false);
+    expect(firestorm.lastDamageFrame).toBe(66);
+    expect(parseSourceSmartBombTargetHomingUpdateBlockData(smartBombModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+    });
   });
 
   it('rewrites source ProductionUpdate modules from live runtime state', () => {

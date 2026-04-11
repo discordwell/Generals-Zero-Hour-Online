@@ -119,6 +119,8 @@ const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH =
 const SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH = 4;
 const SOURCE_DEATH_TYPE_POISONED = 5;
 const SOURCE_MINEFIELD_MAX_IMMUNITY = 3;
+const SOURCE_FIRESTORM_MAX_SYSTEMS = 16;
+const SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH = SOURCE_FIRESTORM_MAX_SYSTEMS * 4;
 const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
 const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
 const SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN = 0x0008;
@@ -5409,6 +5411,252 @@ function buildSourceMinefieldBehaviorBlockData(
   }
 }
 
+interface SourceDynamicGeometryInfoUpdateBlockState {
+  nextCallFrameAndPhase: number;
+  startingDelayCountdown: number;
+  timeActive: number;
+  started: boolean;
+  finished: boolean;
+  reverseAtTransitionTime: boolean;
+  direction: number;
+  switchedDirections: boolean;
+  initialHeight: number;
+  initialMajorRadius: number;
+  initialMinorRadius: number;
+  finalHeight: number;
+  finalMajorRadius: number;
+  finalMinorRadius: number;
+}
+
+interface SourceFirestormDynamicGeometryInfoUpdateBlockState {
+  dynamic: SourceDynamicGeometryInfoUpdateBlockState;
+  particleSystemIdBytes: Uint8Array;
+  effectsFired: boolean;
+  scorchPlaced: boolean;
+  lastDamageFrame: number;
+}
+
+function xferSourceDynamicGeometryInfoUpdate(
+  xfer: Xfer,
+  state: SourceDynamicGeometryInfoUpdateBlockState,
+): SourceDynamicGeometryInfoUpdateBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source DynamicGeometryInfoUpdate version ${version}`);
+  }
+  const nextCallFrameAndPhase = xferSourceUpdateModuleBase(xfer, state.nextCallFrameAndPhase);
+  const startingDelayCountdown = xfer.xferUnsignedInt(state.startingDelayCountdown);
+  const timeActive = xfer.xferUnsignedInt(state.timeActive);
+  const started = xfer.xferBool(state.started);
+  const finished = xfer.xferBool(state.finished);
+  const reverseAtTransitionTime = xfer.xferBool(state.reverseAtTransitionTime);
+  const direction = parseSourceRawInt32Bytes(xfer.xferUser(buildSourceRawInt32Bytes(state.direction)));
+  const switchedDirections = xfer.xferBool(state.switchedDirections);
+  const initialHeight = xfer.xferReal(state.initialHeight);
+  const initialMajorRadius = xfer.xferReal(state.initialMajorRadius);
+  const initialMinorRadius = xfer.xferReal(state.initialMinorRadius);
+  const finalHeight = xfer.xferReal(state.finalHeight);
+  const finalMajorRadius = xfer.xferReal(state.finalMajorRadius);
+  const finalMinorRadius = xfer.xferReal(state.finalMinorRadius);
+  return {
+    nextCallFrameAndPhase,
+    startingDelayCountdown,
+    timeActive,
+    started,
+    finished,
+    reverseAtTransitionTime,
+    direction,
+    switchedDirections,
+    initialHeight,
+    initialMajorRadius,
+    initialMinorRadius,
+    finalHeight,
+    finalMajorRadius,
+    finalMinorRadius,
+  };
+}
+
+function createDefaultSourceDynamicGeometryInfoUpdateState(): SourceDynamicGeometryInfoUpdateBlockState {
+  return {
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    startingDelayCountdown: 1,
+    timeActive: 0,
+    started: false,
+    finished: false,
+    reverseAtTransitionTime: false,
+    direction: 1,
+    switchedDirections: false,
+    initialHeight: 0,
+    initialMajorRadius: 0,
+    initialMinorRadius: 0,
+    finalHeight: 0,
+    finalMajorRadius: 0,
+    finalMinorRadius: 0,
+  };
+}
+
+function tryParseSourceDynamicGeometryInfoUpdateBlockData(
+  data: Uint8Array,
+): SourceDynamicGeometryInfoUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-dynamic-geometry-info-update');
+  try {
+    const parsed = xferSourceDynamicGeometryInfoUpdate(
+      xferLoad,
+      createDefaultSourceDynamicGeometryInfoUpdateState(),
+    );
+    return xferLoad.getRemaining() === 0 ? parsed : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceDynamicGeometryInfoUpdateState(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceDynamicGeometryInfoUpdateBlockState,
+): SourceDynamicGeometryInfoUpdateBlockState {
+  const profile = entity.dynamicGeometryProfile;
+  const state = entity.dynamicGeometryState;
+  return {
+    ...preservedState,
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    startingDelayCountdown: sourceFlammableUnsignedFrame(
+      state?.delayCountdown,
+      sourceFlammableUnsignedFrame(profile?.initialDelayFrames, preservedState.startingDelayCountdown),
+    ),
+    timeActive: sourceFlammableUnsignedFrame(state?.timeActive, preservedState.timeActive),
+    started: typeof state?.started === 'boolean' ? state.started : preservedState.started,
+    finished: typeof state?.finished === 'boolean' ? state.finished : preservedState.finished,
+    reverseAtTransitionTime: typeof state?.reverseAtTransitionTime === 'boolean'
+      ? state.reverseAtTransitionTime
+      : (typeof profile?.reverseAtTransitionTime === 'boolean'
+        ? profile.reverseAtTransitionTime
+        : preservedState.reverseAtTransitionTime),
+    initialHeight: sourcePhysicsFinite(
+      state?.initialHeight,
+      sourcePhysicsFinite(profile?.initialHeight, preservedState.initialHeight),
+    ),
+    initialMajorRadius: sourcePhysicsFinite(
+      state?.initialMajorRadius,
+      sourcePhysicsFinite(profile?.initialMajorRadius, preservedState.initialMajorRadius),
+    ),
+    initialMinorRadius: sourcePhysicsFinite(
+      state?.initialMinorRadius,
+      sourcePhysicsFinite(profile?.initialMinorRadius, preservedState.initialMinorRadius),
+    ),
+    finalHeight: sourcePhysicsFinite(
+      state?.finalHeight,
+      sourcePhysicsFinite(profile?.finalHeight, preservedState.finalHeight),
+    ),
+    finalMajorRadius: sourcePhysicsFinite(
+      state?.finalMajorRadius,
+      sourcePhysicsFinite(profile?.finalMajorRadius, preservedState.finalMajorRadius),
+    ),
+    finalMinorRadius: sourcePhysicsFinite(
+      state?.finalMinorRadius,
+      sourcePhysicsFinite(profile?.finalMinorRadius, preservedState.finalMinorRadius),
+    ),
+  };
+}
+
+function buildSourceDynamicGeometryInfoUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceDynamicGeometryInfoUpdateBlockState,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-dynamic-geometry-info-update');
+  try {
+    xferSourceDynamicGeometryInfoUpdate(
+      saver,
+      buildSourceDynamicGeometryInfoUpdateState(entity, currentFrame, preservedState),
+    );
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceFirestormDynamicGeometryInfoUpdateBlockData(
+  data: Uint8Array,
+): SourceFirestormDynamicGeometryInfoUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-firestorm-dynamic-geometry-info-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const dynamic = xferSourceDynamicGeometryInfoUpdate(
+      xferLoad,
+      createDefaultSourceDynamicGeometryInfoUpdateState(),
+    );
+    const particleSystemIdBytes = xferLoad.xferUser(
+      new Uint8Array(SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH),
+    );
+    const effectsFired = xferLoad.xferBool(false);
+    const scorchPlaced = xferLoad.xferBool(false);
+    const lastDamageFrame = xferLoad.xferUnsignedInt(0);
+    return xferLoad.getRemaining() === 0
+      ? {
+        dynamic,
+        particleSystemIdBytes,
+        effectsFired,
+        scorchPlaced,
+        lastDamageFrame,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceFirestormDynamicGeometryInfoUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceFirestormDynamicGeometryInfoUpdateBlockState,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-firestorm-dynamic-geometry-info-update');
+  try {
+    saver.xferVersion(1);
+    xferSourceDynamicGeometryInfoUpdate(
+      saver,
+      buildSourceDynamicGeometryInfoUpdateState(entity, currentFrame, preservedState.dynamic),
+    );
+    saver.xferUser(normalizedSourceUserBytes(
+      preservedState.particleSystemIdBytes,
+      SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH,
+    ));
+    saver.xferBool(preservedState.effectsFired);
+    saver.xferBool(preservedState.scorchPlaced);
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(
+      entity.firestormDamageState?.lastDamageFrame,
+      preservedState.lastDamageFrame,
+    ));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSmartBombTargetHomingUpdateBlockData(currentFrame: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-smart-bomb-target-homing-update');
+  try {
+    saver.xferVersion(1);
+    xferSourceUpdateModuleBase(saver, buildSourceUpdateModuleWakeFrame(currentFrame + 1));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 interface SourceBodyModuleBaseBlockState {
   damageScalar: number;
 }
@@ -9129,6 +9377,34 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceMinefieldBehaviorBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'SMARTBOMBTARGETHOMINGUPDATE' && entity.smartBombProfile) {
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceSmartBombTargetHomingUpdateBlockData(currentFrame),
+            };
+          }
+          if (moduleType === 'FIRESTORMDYNAMICGEOMETRYINFOUPDATE' && entity.dynamicGeometryProfile) {
+            const parsedSourceState = tryParseSourceFirestormDynamicGeometryInfoUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceFirestormDynamicGeometryInfoUpdateBlockData(
+                  entity,
+                  currentFrame,
+                  parsedSourceState,
+                ),
+              };
+            }
+          }
+          if (moduleType === 'DYNAMICGEOMETRYINFOUPDATE' && entity.dynamicGeometryProfile) {
+            const parsedSourceState = tryParseSourceDynamicGeometryInfoUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceDynamicGeometryInfoUpdateBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }
