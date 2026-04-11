@@ -10624,6 +10624,16 @@ function buildSourceBattleBusSlowDeathBehaviorBlockData(
   }
 }
 
+function createDefaultSourceBattleBusSlowDeathBehaviorBlockState(): SourceBattleBusSlowDeathBehaviorBlockState {
+  return {
+    slowDeath: createDefaultSourceSlowDeathBehaviorBlockState(),
+    isRealDeath: false,
+    isInFirstDeath: false,
+    groundCheckFrame: 0,
+    penaltyDeathFrame: 0,
+  };
+}
+
 function tryParseSourceHelicopterSlowDeathBehaviorBlockData(
   data: Uint8Array,
 ): SourceHelicopterSlowDeathBehaviorBlockState | null {
@@ -10699,6 +10709,21 @@ function buildSourceHelicopterSlowDeathBehaviorBlockData(
   }
 }
 
+function createDefaultSourceHelicopterSlowDeathBehaviorBlockState():
+  SourceHelicopterSlowDeathBehaviorBlockState {
+  return {
+    slowDeath: createDefaultSourceSlowDeathBehaviorBlockState(),
+    orbitDirection: 1,
+    forwardAngle: 0,
+    forwardSpeed: 0,
+    selfSpin: 0,
+    selfSpinTowardsMax: false,
+    lastSelfSpinUpdateFrame: 0,
+    bladeFlyOffFrame: 0,
+    hitGroundFrame: 0,
+  };
+}
+
 function tryParseSourceJetSlowDeathBehaviorBlockData(
   data: Uint8Array,
 ): SourceJetSlowDeathBehaviorBlockState | null {
@@ -10749,6 +10774,15 @@ function buildSourceJetSlowDeathBehaviorBlockData(
   } finally {
     saver.close();
   }
+}
+
+function createDefaultSourceJetSlowDeathBehaviorBlockState(): SourceJetSlowDeathBehaviorBlockState {
+  return {
+    slowDeath: createDefaultSourceSlowDeathBehaviorBlockState(),
+    timerDeathFrame: 0,
+    timerOnGroundFrame: 0,
+    rollRate: 0,
+  };
 }
 
 function tryParseSourceNeutronMissileSlowDeathBehaviorBlockData(
@@ -10818,6 +10852,17 @@ function buildSourceNeutronMissileSlowDeathBehaviorBlockData(
   }
 }
 
+function createDefaultSourceNeutronMissileSlowDeathBehaviorBlockState():
+  SourceNeutronMissileSlowDeathBehaviorBlockState {
+  return {
+    slowDeath: createDefaultSourceSlowDeathBehaviorBlockState(),
+    activationFrame: 0,
+    completedBlasts: Array.from({ length: SOURCE_MAX_NEUTRON_BLASTS }, () => false),
+    completedScorchBlasts: Array.from({ length: SOURCE_MAX_NEUTRON_BLASTS }, () => false),
+    scorchPlaced: false,
+  };
+}
+
 function xferSourceProductionExitRallyState(
   xfer: Xfer,
   state: SourceProductionExitRallyState,
@@ -10865,6 +10910,7 @@ function buildSourceProductionExitRallyBlockData(
   preservedState: SourceProductionExitRallyState,
   active = false,
 ): Uint8Array {
+  const rallyPointExists = entity.rallyPoint != null;
   const saver = new XferSave();
   saver.open('build-source-production-exit-rally');
   try {
@@ -10874,17 +10920,28 @@ function buildSourceProductionExitRallyBlockData(
       ),
       rallyPoint: {
         x: entity.rallyPoint?.x ?? preservedState.rallyPoint.x,
-        y: entity.rallyPoint !== null
+        y: rallyPointExists
           ? sourcePhysicsFinite(entity.rallyPointY, preservedState.rallyPoint.y)
           : preservedState.rallyPoint.y,
         z: entity.rallyPoint?.z ?? preservedState.rallyPoint.z,
       },
-      rallyPointExists: entity.rallyPoint !== null,
+      rallyPointExists,
     });
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
   }
+}
+
+function createDefaultSourceQueueProductionExitBlockState(
+  entity: MapEntity,
+): SourceQueueProductionExitBlockState {
+  return {
+    ...createDefaultSourceProductionExitRallyState(),
+    currentDelay: 0,
+    creationClearDistance: 0,
+    currentBurstCount: sourceNonNegativeInt(entity.queueProductionExitProfile?.initialBurst, 0),
+  };
 }
 
 function tryParseSourceQueueProductionExitBlockData(
@@ -10925,6 +10982,7 @@ function buildSourceQueueProductionExitBlockData(
   currentFrame: number,
   preservedState: SourceQueueProductionExitBlockState,
 ): Uint8Array {
+  const rallyPointExists = entity.rallyPoint != null;
   const saver = new XferSave();
   saver.open('build-source-queue-production-exit');
   try {
@@ -10936,12 +10994,12 @@ function buildSourceQueueProductionExitBlockData(
     ));
     saver.xferCoord3D({
       x: entity.rallyPoint?.x ?? preservedState.rallyPoint.x,
-      y: entity.rallyPoint !== null
+      y: rallyPointExists
         ? sourcePhysicsFinite(entity.rallyPointY, preservedState.rallyPoint.y)
         : preservedState.rallyPoint.y,
       z: entity.rallyPoint?.z ?? preservedState.rallyPoint.z,
     });
-    saver.xferBool(entity.rallyPoint !== null);
+    saver.xferBool(rallyPointExists);
     saver.xferReal(sourcePhysicsFinite(
       entity.queueProductionExitCreationClearDistance,
       preservedState.creationClearDistance,
@@ -11001,20 +11059,35 @@ function buildSourceSpawnPointProductionExitBlockData(
   }
 }
 
+function createDefaultSourceSpawnPointProductionExitBlockState(): SourceSpawnPointProductionExitBlockState {
+  return {
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    occupierIds: Array.from({ length: SOURCE_SPAWN_POINT_MAX_POINTS }, () => 0),
+  };
+}
+
 const SOURCE_DOCK_VECTOR_LIMIT = 0xffff;
 const SOURCE_RAILED_TRANSPORT_MAX_WAYPOINT_PATHS = 32;
+const SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_FLAG = -1;
+const SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_SIZE = 10;
 
-function createDefaultSourceDockUpdateBlockState(): SourceDockUpdateBlockState {
+function createDefaultSourceDockUpdateBlockState(
+  numberApproachPositions = 0,
+): SourceDockUpdateBlockState {
+  const normalizedCount = sourceFiniteInt(numberApproachPositions, 0);
+  const vectorSize = normalizedCount === SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_FLAG
+    ? SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_SIZE
+    : Math.max(0, normalizedCount);
   return {
     nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
     enterPosition: { x: 0, y: 0, z: 0 },
     dockPosition: { x: 0, y: 0, z: 0 },
     exitPosition: { x: 0, y: 0, z: 0 },
-    numberApproachPositions: 0,
+    numberApproachPositions: normalizedCount,
     positionsLoaded: false,
-    approachPositions: [],
-    approachPositionOwners: [],
-    approachPositionReached: [],
+    approachPositions: Array.from({ length: vectorSize }, () => ({ x: 0, y: 0, z: 0 })),
+    approachPositionOwners: Array.from({ length: vectorSize }, () => 0),
+    approachPositionReached: Array.from({ length: vectorSize }, () => false),
     activeDocker: 0,
     dockerInside: false,
     dockCrippled: false,
@@ -11336,6 +11409,15 @@ function findLiveSupplyWarehouseBoxes(
   return sourceFiniteInt(liveState?.state?.currentBoxes, fallback);
 }
 
+function createDefaultSourceSupplyWarehouseDockUpdateBlockState(
+  entity: MapEntity,
+): SourceSupplyWarehouseDockUpdateBlockState {
+  return {
+    dock: createDefaultSourceDockUpdateBlockState(entity.supplyWarehouseProfile?.numberApproachPositions),
+    boxesStored: sourceNonNegativeInt(entity.supplyWarehouseProfile?.startingBoxes, 1),
+  };
+}
+
 function buildSourceSupplyWarehouseDockUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -11388,6 +11470,14 @@ function buildSourceRepairDockUpdateBlockData(
   }
 }
 
+function createDefaultSourceRepairDockUpdateBlockState(entity: MapEntity): SourceRepairDockUpdateBlockState {
+  return {
+    dock: createDefaultSourceDockUpdateBlockState(entity.repairDockProfile?.numberApproachPositions),
+    lastRepair: 0,
+    healthToAddPerFrame: 0,
+  };
+}
+
 function buildSourceRailedTransportDockUpdateBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -11417,6 +11507,17 @@ function buildSourceRailedTransportDockUpdateBlockData(
   } finally {
     saver.close();
   }
+}
+
+function createDefaultSourceRailedTransportDockUpdateBlockState(): SourceRailedTransportDockUpdateBlockState {
+  return {
+    dock: createDefaultSourceDockUpdateBlockState(),
+    dockingObjectId: 0,
+    pullInsideDistancePerFrame: 0,
+    unloadingObjectId: 0,
+    pushOutsideDistancePerFrame: 0,
+    unloadCount: -1,
+  };
 }
 
 function tryParseSourceSupplyWarehouseCripplingBehaviorBlockData(
@@ -11498,6 +11599,15 @@ function buildSourceSupplyWarehouseCripplingBehaviorBlockData(
   } finally {
     saver.close();
   }
+}
+
+function createDefaultSourceSupplyWarehouseCripplingBehaviorBlockState():
+  SourceSupplyWarehouseCripplingBehaviorBlockState {
+  return {
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    healingSuppressedUntilFrame: 0,
+    nextHealingFrame: 0,
+  };
 }
 
 function xferSourceIntListByUnsignedShortCount(xfer: Xfer, values: readonly number[]): number[] {
@@ -13702,6 +13812,21 @@ function tryParseSourceProductionUpdateBlockData(
   } finally {
     xferLoad.close();
   }
+}
+
+function createDefaultSourceProductionUpdateBlockState(): SourceProductionUpdateBlockState {
+  return {
+    version: 1,
+    nextCallFrameAndPhase: buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    queue: [],
+    uniqueId: 1,
+    productionCount: 0,
+    constructionCompleteFrame: 0,
+    doorInfoBytes: new Uint8Array(SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH),
+    clearFlags: [],
+    setFlags: [],
+    flagsDirty: false,
+  };
 }
 
 function buildSourceProductionUpdateBlockData(
@@ -17134,6 +17259,7 @@ function buildGeneratedSourceObjectModuleBlockData(
   entity: MapEntity,
   liveEntities: readonly MapEntity[],
   currentFrame: number,
+  coreState?: GameLogicCoreSaveState | null,
 ): Uint8Array | null {
   const moduleType = descriptor.moduleType.trim();
   const moduleTag = descriptor.moduleTag.trim();
@@ -17490,11 +17616,133 @@ function buildGeneratedSourceObjectModuleBlockData(
     );
   }
 
+  if (normalizedModuleType === 'BATTLEBUSSLOWDEATHBEHAVIOR' && entity.battleBusSlowDeathProfile) {
+    return buildSourceBattleBusSlowDeathBehaviorBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceBattleBusSlowDeathBehaviorBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'HELICOPTERSLOWDEATHBEHAVIOR'
+    && (entity.helicopterSlowDeathProfiles?.length ?? 0) > 0) {
+    return buildSourceHelicopterSlowDeathBehaviorBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceHelicopterSlowDeathBehaviorBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'JETSLOWDEATHBEHAVIOR' && (entity.jetSlowDeathProfiles?.length ?? 0) > 0) {
+    return buildSourceJetSlowDeathBehaviorBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceJetSlowDeathBehaviorBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'NEUTRONMISSILESLOWDEATHBEHAVIOR' && entity.neutronMissileSlowDeathProfile) {
+    return buildSourceNeutronMissileSlowDeathBehaviorBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceNeutronMissileSlowDeathBehaviorBlockState(),
+    );
+  }
+
   if (normalizedModuleType === 'SLOWDEATHBEHAVIOR') {
     return buildSourceSlowDeathBehaviorBlockData(
       entity,
       currentFrame,
       createDefaultSourceSlowDeathBehaviorBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'SUPPLYCENTERDOCKUPDATE' && entity.isSupplyCenter) {
+    return buildSourceDockOnlyUpdateBlockData(
+      currentFrame,
+      createDefaultSourceDockUpdateBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'SUPPLYWAREHOUSEDOCKUPDATE' && entity.supplyWarehouseProfile) {
+    return buildSourceSupplyWarehouseDockUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceSupplyWarehouseDockUpdateBlockState(entity),
+      coreState,
+    );
+  }
+
+  if (normalizedModuleType === 'SUPPLYWAREHOUSECRIPPLINGBEHAVIOR' && entity.supplyWarehouseCripplingProfile) {
+    return buildSourceSupplyWarehouseCripplingBehaviorBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceSupplyWarehouseCripplingBehaviorBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'REPAIRDOCKUPDATE' && entity.repairDockProfile) {
+    return buildSourceRepairDockUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceRepairDockUpdateBlockState(entity),
+    );
+  }
+
+  if (normalizedModuleType === 'PRISONDOCKUPDATE') {
+    return buildSourceDockOnlyUpdateBlockData(
+      currentFrame,
+      createDefaultSourceDockUpdateBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'RAILEDTRANSPORTDOCKUPDATE') {
+    return buildSourceRailedTransportDockUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceRailedTransportDockUpdateBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'PRODUCTIONUPDATE' && entity.productionProfile) {
+    return buildSourceProductionUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceProductionUpdateBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'DEFAULTPRODUCTIONEXITUPDATE' && entity.queueProductionExitProfile) {
+    return buildSourceProductionExitRallyBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceProductionExitRallyState(),
+      false,
+    );
+  }
+
+  if (normalizedModuleType === 'SUPPLYCENTERPRODUCTIONEXITUPDATE' && entity.queueProductionExitProfile) {
+    return buildSourceProductionExitRallyBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceProductionExitRallyState(),
+      false,
+    );
+  }
+
+  if (normalizedModuleType === 'QUEUEPRODUCTIONEXITUPDATE' && entity.queueProductionExitProfile) {
+    return buildSourceQueueProductionExitBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceQueueProductionExitBlockState(entity),
+    );
+  }
+
+  if (normalizedModuleType === 'SPAWNPOINTPRODUCTIONEXITUPDATE' && entity.queueProductionExitProfile) {
+    return buildSourceSpawnPointProductionExitBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceSpawnPointProductionExitBlockState(),
     );
   }
 
@@ -17521,6 +17769,7 @@ function buildGeneratedSourceObjectModulesFromDescriptors(
   entity: MapEntity,
   liveEntities: readonly MapEntity[],
   currentFrame: number,
+  coreState?: GameLogicCoreSaveState | null,
 ): SourceMapEntitySaveState['modules'] {
   const modules: SourceMapEntitySaveState['modules'] = [];
   const seenTags = new Set<string>();
@@ -17531,7 +17780,13 @@ function buildGeneratedSourceObjectModulesFromDescriptors(
       continue;
     }
     seenTags.add(normalizedModuleTag);
-    const blockData = buildGeneratedSourceObjectModuleBlockData(descriptor, entity, liveEntities, currentFrame);
+    const blockData = buildGeneratedSourceObjectModuleBlockData(
+      descriptor,
+      entity,
+      liveEntities,
+      currentFrame,
+      coreState,
+    );
     if (!blockData || blockData.byteLength === 0) {
       continue;
     }
@@ -17577,6 +17832,7 @@ function createGeneratedSourceObjectStateFromLiveEntity(
     entity,
     liveEntities,
     currentFrame,
+    coreState,
   );
   return overlaySourceObjectStateFromLiveEntity(
     sourceState,

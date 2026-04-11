@@ -10148,6 +10148,10 @@ describe('runtime-save-game', () => {
           defeatedSides: new Set<string>(),
           gameEndFrame: null,
           scriptEndGameTimerActive: false,
+          supplyWarehouseStates: [{
+            entityId: 8,
+            state: { currentBoxes: 6 },
+          }],
           spawnedEntities: [
             {
               id: 7,
@@ -10210,6 +10214,34 @@ describe('runtime-save-game', () => {
                 moduleType: 'TRANSPORT',
                 passengersAllowedToFire: true,
               },
+              productionProfile: {
+                maxQueueEntries: 9,
+                quantityModifiers: [],
+                numDoorAnimations: 1,
+                doorOpeningTimeFrames: 15,
+                constructionCompleteDurationFrames: 30,
+              },
+              productionNextId: 9,
+              productionQueue: [{
+                type: 'UNIT',
+                templateName: 'AMERICARANGER',
+                productionId: 7,
+                buildCost: 225,
+                totalProductionFrames: 80,
+                framesUnderConstruction: 18.75,
+                percentComplete: 37.5,
+                productionQuantityTotal: 4,
+                productionQuantityProduced: 1,
+              }, {
+                type: 'UPGRADE',
+                upgradeName: 'UPGRADE_AMERICARANGERCAPTUREBUILDING',
+                productionId: 0,
+                buildCost: 1000,
+                totalProductionFrames: 60,
+                framesUnderConstruction: 30,
+                percentComplete: 50,
+                upgradeType: 'PLAYER',
+              }],
               overchargeActive: true,
               autoHealProfile: {
                 healingAmount: 10,
@@ -10526,6 +10558,57 @@ describe('runtime-save-game', () => {
                 detonationWeaponTemplateName: 'NewProjectileWeapon',
                 lifespanFrame: 504,
               },
+              queueProductionExitProfile: {
+                moduleType: 'QUEUE',
+                unitCreatePoint: { x: 0, y: 0, z: 0 },
+                naturalRallyPoint: null,
+                exitDelayFrames: 30,
+                allowAirborneCreation: false,
+                initialBurst: 5,
+                spawnPointBoneName: null,
+              },
+              rallyPoint: { x: 100, z: 200 },
+              rallyPointY: 66,
+              queueProductionExitDelayFramesRemaining: 9,
+              queueProductionExitBurstRemaining: 4,
+              queueProductionExitCreationClearDistance: 55.5,
+              spawnPointExitState: {
+                initialized: true,
+                spawnPointCount: 10,
+                spawnPositions: [],
+                occupierIds: [-1, 401, -1, 403, 404],
+              },
+              isSupplyCenter: true,
+              supplyWarehouseProfile: {
+                startingBoxes: 20,
+                deleteWhenEmpty: false,
+                numberApproachPositions: 2,
+                allowsPassthrough: true,
+              },
+              supplyWarehouseCripplingProfile: {
+                selfHealSuppressionFrames: 30,
+                selfHealDelayFrames: 10,
+                selfHealAmount: 50,
+              },
+              swCripplingHealSuppressedUntilFrame: 100,
+              swCripplingNextHealFrame: 110,
+              swCripplingDockDisabled: true,
+              repairDockProfile: {
+                timeForFullHealFrames: 30,
+                numberApproachPositions: 2,
+                allowsPassthrough: false,
+              },
+              repairDockLastRepairEntityId: 44,
+              repairDockHealthToAddPerFrame: 3.5,
+              railedTransportState: {
+                dockState: {
+                  dockingObjectId: 71,
+                  pullInsideDistancePerFrame: 3.25,
+                  unloadingObjectId: 72,
+                  pushOutsideDistancePerFrame: 4.5,
+                  unloadCount: 1,
+                },
+              },
               smartBombProfile: {},
               animationSteeringProfile: {},
               floatUpdateProfile: {
@@ -10641,6 +10724,33 @@ describe('runtime-save-game', () => {
                 affectAirborne: true,
                 affectAllies: true,
               },
+              battleBusSlowDeathProfile: {},
+              helicopterSlowDeathProfiles: [{}],
+              helicopterSlowDeathState: {
+                orbitDirection: -1,
+                forwardAngle: 1.25,
+                forwardSpeed: 2.5,
+                selfSpin: 0.5,
+                selfSpinTowardsMax: true,
+                lastSelfSpinUpdateFrame: 66,
+                hitGroundFrame: 70,
+              },
+              jetSlowDeathProfiles: [{}],
+              jetSlowDeathState: {
+                deathFrame: 71,
+                groundFrame: 80,
+                rollRate: 0.33,
+                secondaryExecuted: false,
+              },
+              neutronMissileSlowDeathProfile: {},
+              neutronMissileSlowDeathState: {
+                activationFrame: 92,
+                completedBlasts: Array.from({ length: SOURCE_MAX_NEUTRON_BLASTS }, (_, index) => index % 2 === 0),
+                completedScorchBlasts: Array.from(
+                  { length: SOURCE_MAX_NEUTRON_BLASTS },
+                  (_, index) => index % 3 === 0,
+                ),
+              },
               spawnBehaviorState: {
                 profile: {
                   spawnTemplateNames: ['DroneA', 'DroneB'],
@@ -10690,6 +10800,7 @@ describe('runtime-save-game', () => {
               { moduleType: 'MaxHealthUpgrade', moduleTag: 'ModuleTag_HealthUpgrade' },
               { moduleType: 'OCLSpecialPower', moduleTag: 'ModuleTag_SpecialPower' },
               { moduleType: 'TransportContain', moduleTag: 'ModuleTag_Contain' },
+              { moduleType: 'ProductionUpdate', moduleTag: 'ModuleTag_Production' },
               { moduleType: 'OverchargeBehavior', moduleTag: 'ModuleTag_Overcharge' },
               { moduleType: 'AutoHealBehavior', moduleTag: 'ModuleTag_AutoHeal' },
               { moduleType: 'GrantStealthBehavior', moduleTag: 'ModuleTag_GrantStealth' },
@@ -10741,7 +10852,21 @@ describe('runtime-save-game', () => {
               { moduleType: 'TechBuildingBehavior', moduleTag: 'ModuleTag_TechBuilding' },
               { moduleType: 'BunkerBusterBehavior', moduleTag: 'ModuleTag_BunkerBuster' },
               { moduleType: 'NeutronBlastBehavior', moduleTag: 'ModuleTag_NeutronBlast' },
+              { moduleType: 'BattleBusSlowDeathBehavior', moduleTag: 'ModuleTag_BattleBusSlowDeath' },
+              { moduleType: 'HelicopterSlowDeathBehavior', moduleTag: 'ModuleTag_HeliSlowDeath' },
+              { moduleType: 'JetSlowDeathBehavior', moduleTag: 'ModuleTag_JetSlowDeath' },
+              { moduleType: 'NeutronMissileSlowDeathBehavior', moduleTag: 'ModuleTag_NeutronMissileSlowDeath' },
               { moduleType: 'SlowDeathBehavior', moduleTag: 'ModuleTag_SlowDeath' },
+              { moduleType: 'DefaultProductionExitUpdate', moduleTag: 'ModuleTag_DefaultExit' },
+              { moduleType: 'SupplyCenterProductionExitUpdate', moduleTag: 'ModuleTag_SupplyExit' },
+              { moduleType: 'QueueProductionExitUpdate', moduleTag: 'ModuleTag_QueueExit' },
+              { moduleType: 'SpawnPointProductionExitUpdate', moduleTag: 'ModuleTag_SpawnExit' },
+              { moduleType: 'SupplyCenterDockUpdate', moduleTag: 'ModuleTag_SupplyCenterDock' },
+              { moduleType: 'SupplyWarehouseDockUpdate', moduleTag: 'ModuleTag_WarehouseDock' },
+              { moduleType: 'SupplyWarehouseCripplingBehavior', moduleTag: 'ModuleTag_Cripple' },
+              { moduleType: 'RepairDockUpdate', moduleTag: 'ModuleTag_RepairDock' },
+              { moduleType: 'PrisonDockUpdate', moduleTag: 'ModuleTag_PrisonDock' },
+              { moduleType: 'RailedTransportDockUpdate', moduleTag: 'ModuleTag_RailedDock' },
               { moduleType: 'SpawnBehavior', moduleTag: 'ModuleTag_Spawn' },
               { moduleType: 'DynamicGeometryInfoUpdate', moduleTag: 'ModuleTag_DynamicGeometry' },
             ]
@@ -10779,6 +10904,7 @@ describe('runtime-save-game', () => {
       'ModuleTag_HealthUpgrade',
       'ModuleTag_SpecialPower',
       'ModuleTag_Contain',
+      'ModuleTag_Production',
       'ModuleTag_Overcharge',
       'ModuleTag_AutoHeal',
       'ModuleTag_GrantStealth',
@@ -10830,7 +10956,21 @@ describe('runtime-save-game', () => {
       'ModuleTag_TechBuilding',
       'ModuleTag_BunkerBuster',
       'ModuleTag_NeutronBlast',
+      'ModuleTag_BattleBusSlowDeath',
+      'ModuleTag_HeliSlowDeath',
+      'ModuleTag_JetSlowDeath',
+      'ModuleTag_NeutronMissileSlowDeath',
       'ModuleTag_SlowDeath',
+      'ModuleTag_DefaultExit',
+      'ModuleTag_SupplyExit',
+      'ModuleTag_QueueExit',
+      'ModuleTag_SpawnExit',
+      'ModuleTag_SupplyCenterDock',
+      'ModuleTag_WarehouseDock',
+      'ModuleTag_Cripple',
+      'ModuleTag_RepairDock',
+      'ModuleTag_PrisonDock',
+      'ModuleTag_RailedDock',
       'ModuleTag_Spawn',
       'ModuleTag_DynamicGeometry',
     ]);
@@ -10865,6 +11005,37 @@ describe('runtime-save-game', () => {
         passengerAllowedToFire: true,
       },
     });
+    const productionModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Production');
+    const production = parseSourceProductionUpdateBlockData(productionModule!.blockData);
+    expect(production.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(production.queue).toEqual([{
+      type: SOURCE_PRODUCTION_UNIT,
+      name: 'AMERICARANGER',
+      productionId: 7,
+      percentComplete: 37.5,
+      framesUnderConstruction: 18,
+      productionQuantityTotal: 4,
+      productionQuantityProduced: 1,
+      exitDoor: -1,
+    }, {
+      type: SOURCE_PRODUCTION_UPGRADE,
+      name: 'UPGRADE_AMERICARANGERCAPTUREBUILDING',
+      productionId: 0,
+      percentComplete: 50,
+      framesUnderConstruction: 30,
+      productionQuantityTotal: 0,
+      productionQuantityProduced: 0,
+      exitDoor: -1,
+    }]);
+    expect(production.uniqueId).toBe(9);
+    expect(production.productionCount).toBe(2);
+    expect(production.constructionCompleteFrame).toBe(0);
+    expect(Array.from(production.doorInfoBytes)).toEqual(
+      Array.from({ length: SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH }, () => 0),
+    );
+    expect(production.clearFlags).toEqual([]);
+    expect(production.setFlags).toEqual([]);
+    expect(production.flagsDirty).toBe(false);
     const overchargeModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Overcharge');
     expect(parseSourceOverchargeBehaviorBlockData(overchargeModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (43 << 2) | 2,
@@ -11281,6 +11452,58 @@ describe('runtime-save-game', () => {
     expect(parseSourceBaseOnlyUpdateModuleBlockData(neutronModule!.blockData)).toEqual({
       nextCallFrameAndPhase: 0xfffffffe,
     });
+    const battleBusSlowDeathModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_BattleBusSlowDeath',
+    );
+    expect(parseSourceBattleBusSlowDeathBehaviorBlockData(battleBusSlowDeathModule!.blockData)).toEqual({
+      slowDeath: {
+        nextCallFrameAndPhase: 0xfffffffe,
+        sinkFrame: 0,
+        midpointFrame: 0,
+        destructionFrame: 0,
+        acceleratedTimeScale: 1,
+        flags: 0,
+      },
+      isRealDeath: false,
+      isInFirstDeath: false,
+      groundCheckFrame: 0,
+      penaltyDeathFrame: 0,
+    });
+    const heliSlowDeathModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_HeliSlowDeath',
+    );
+    const heliSlowDeath = parseSourceHelicopterSlowDeathBehaviorBlockData(heliSlowDeathModule!.blockData);
+    expect(heliSlowDeath.slowDeath.nextCallFrameAndPhase).toBe(0xfffffffe);
+    expect(heliSlowDeath.orbitDirection).toBe(-1);
+    expect(heliSlowDeath.forwardAngle).toBeCloseTo(1.25);
+    expect(heliSlowDeath.forwardSpeed).toBeCloseTo(2.5);
+    expect(heliSlowDeath.selfSpin).toBeCloseTo(0.5);
+    expect(heliSlowDeath.selfSpinTowardsMax).toBe(true);
+    expect(heliSlowDeath.lastSelfSpinUpdateFrame).toBe(66);
+    expect(heliSlowDeath.bladeFlyOffFrame).toBe(0);
+    expect(heliSlowDeath.hitGroundFrame).toBe(70);
+    const jetSlowDeathModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_JetSlowDeath');
+    const jetSlowDeath = parseSourceJetSlowDeathBehaviorBlockData(jetSlowDeathModule!.blockData);
+    expect(jetSlowDeath.slowDeath.nextCallFrameAndPhase).toBe(0xfffffffe);
+    expect(jetSlowDeath.timerDeathFrame).toBe(71);
+    expect(jetSlowDeath.timerOnGroundFrame).toBe(80);
+    expect(jetSlowDeath.rollRate).toBeCloseTo(0.33);
+    const neutronMissileSlowDeathModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_NeutronMissileSlowDeath',
+    );
+    const neutronMissileSlowDeath = parseSourceNeutronMissileSlowDeathBehaviorBlockData(
+      neutronMissileSlowDeathModule!.blockData,
+    );
+    expect(neutronMissileSlowDeath.slowDeath.nextCallFrameAndPhase).toBe(0xfffffffe);
+    expect(neutronMissileSlowDeath.activationFrame).toBe(92);
+    expect(neutronMissileSlowDeath.maxNeutronBlasts).toBe(SOURCE_MAX_NEUTRON_BLASTS);
+    expect(neutronMissileSlowDeath.completedBlasts).toEqual(
+      Array.from({ length: SOURCE_MAX_NEUTRON_BLASTS }, (_, index) => index % 2 === 0),
+    );
+    expect(neutronMissileSlowDeath.completedScorchBlasts).toEqual(
+      Array.from({ length: SOURCE_MAX_NEUTRON_BLASTS }, (_, index) => index % 3 === 0),
+    );
+    expect(neutronMissileSlowDeath.scorchPlaced).toBe(false);
     const slowDeathModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_SlowDeath');
     expect(parseSourceSlowDeathBehaviorBlockData(slowDeathModule!.blockData)).toEqual({
       nextCallFrameAndPhase: 0xfffffffe,
@@ -11290,6 +11513,89 @@ describe('runtime-save-game', () => {
       acceleratedTimeScale: 1,
       flags: 0,
     });
+    const defaultExitModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_DefaultExit');
+    expect(parseSourceProductionExitRallyBlockData(defaultExitModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: 0xfffffffe,
+      rallyPoint: { x: 100, y: 66, z: 200 },
+      rallyPointExists: true,
+    });
+    const supplyExitModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_SupplyExit');
+    expect(parseSourceProductionExitRallyBlockData(supplyExitModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: 0xfffffffe,
+      rallyPoint: { x: 100, y: 66, z: 200 },
+      rallyPointExists: true,
+    });
+    const queueExitModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_QueueExit');
+    const queueExit = parseSourceQueueProductionExitBlockData(queueExitModule!.blockData);
+    expect(queueExit.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(queueExit.currentDelay).toBe(9);
+    expect(queueExit.rallyPoint).toEqual({ x: 100, y: 66, z: 200 });
+    expect(queueExit.rallyPointExists).toBe(true);
+    expect(queueExit.creationClearDistance).toBeCloseTo(55.5);
+    expect(queueExit.currentBurstCount).toBe(4);
+    const spawnExitModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_SpawnExit');
+    expect(parseSourceSpawnPointProductionExitBlockData(spawnExitModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: 0xfffffffe,
+      occupierIds: [0, 401, 0, 403, 404, 0, 0, 0, 0, 0],
+    });
+    const supplyCenterDockModule = generated?.modules.find(
+      (module) => module.identifier === 'ModuleTag_SupplyCenterDock',
+    );
+    expect(parseSourceDockOnlyUpdateBlockData(supplyCenterDockModule!.blockData)).toMatchObject({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      numberApproachPositions: 0,
+      positionsLoaded: false,
+      approachPositions: [],
+      approachPositionOwners: [],
+      approachPositionReached: [],
+      activeDocker: 0,
+      dockerInside: false,
+      dockCrippled: false,
+      dockOpen: true,
+    });
+    const warehouseDockModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_WarehouseDock');
+    const warehouseDock = parseSourceSupplyWarehouseDockUpdateBlockData(warehouseDockModule!.blockData);
+    expect(warehouseDock.dock).toMatchObject({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      numberApproachPositions: 2,
+      positionsLoaded: false,
+      approachPositions: [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }],
+      approachPositionOwners: [0, 0],
+      approachPositionReached: [false, false],
+      dockCrippled: true,
+      dockOpen: true,
+    });
+    expect(warehouseDock.boxesStored).toBe(6);
+    const crippleModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Cripple');
+    expect(parseSourceSupplyWarehouseCripplingBehaviorBlockData(crippleModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (100 << 2) | 2,
+      healingSuppressedUntilFrame: 100,
+      nextHealingFrame: 110,
+    });
+    const repairDockModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_RepairDock');
+    const repairDock = parseSourceRepairDockUpdateBlockData(repairDockModule!.blockData);
+    expect(repairDock.dock).toMatchObject({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      numberApproachPositions: 2,
+      approachPositionOwners: [0, 0],
+      approachPositionReached: [false, false],
+    });
+    expect(repairDock.lastRepair).toBe(44);
+    expect(repairDock.healthToAddPerFrame).toBeCloseTo(3.5);
+    const prisonDockModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_PrisonDock');
+    expect(parseSourceDockOnlyUpdateBlockData(prisonDockModule!.blockData)).toMatchObject({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      numberApproachPositions: 0,
+      dockOpen: true,
+    });
+    const railedDockModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_RailedDock');
+    const railedDock = parseSourceRailedTransportDockUpdateBlockData(railedDockModule!.blockData);
+    expect(railedDock.dock.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(railedDock.dockingObjectId).toBe(71);
+    expect(railedDock.pullInsideDistancePerFrame).toBeCloseTo(3.25);
+    expect(railedDock.unloadingObjectId).toBe(72);
+    expect(railedDock.pushOutsideDistancePerFrame).toBeCloseTo(4.5);
+    expect(railedDock.unloadCount).toBe(1);
     const spawnModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Spawn');
     expect(parseSourceSpawnBehaviorBlockData(spawnModule!.blockData)).toMatchObject({
       version: 2,
