@@ -8,6 +8,7 @@ import {
   listSaveGameChunks,
   parseSaveGameInfo,
   parseSaveGameMapInfo,
+  type Coord3D,
   type ParsedSaveGameInfo,
   type Snapshot,
   type Xfer,
@@ -5408,21 +5409,110 @@ function buildSourceMissileLauncherBuildingUpdateBlockData(
 }
 
 const SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES = 16;
-const SOURCE_PARTICLE_UPLINK_RAW_VISUAL_PREFIX_BYTES =
-  (SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES * 4)
-  + (SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES * 4)
-  + 4
-  + 4
-  + 4
-  + 4
-  + (SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES * 12)
-  + (SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES * 48)
-  + 12
-  + 12
-  + 12
-  + 1
-  + 1
-  + 1;
+
+interface SourceParticleUplinkVisualState {
+  outerSystemIds: number[];
+  laserBeamIds: number[];
+  groundToOrbitBeamId: number;
+  orbitToTargetBeamId: number;
+  connectorSystemId: number;
+  laserBaseSystemId: number;
+  outerNodePositions: Coord3D[];
+  outerNodeOrientations: number[][];
+  connectorNodePosition: Coord3D;
+  laserOriginPosition: Coord3D;
+  overrideTargetDestination: Coord3D;
+  upBonesCached: boolean;
+  defaultInfoCached: boolean;
+  invalidSettings: boolean;
+}
+
+function xferSourceParticleUplinkIdArray(xfer: Xfer, values: readonly number[]): number[] {
+  const result: number[] = [];
+  for (let index = 0; index < SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES; index += 1) {
+    result.push(xfer.xferUnsignedInt(Math.max(0, Math.trunc(values[index] ?? 0))));
+  }
+  return result;
+}
+
+function xferSourceParticleUplinkCoordArray(xfer: Xfer, values: readonly Coord3D[]): Coord3D[] {
+  const result: Coord3D[] = [];
+  for (let index = 0; index < SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES; index += 1) {
+    result.push(xfer.xferCoord3D(values[index] ?? { x: 0, y: 0, z: 0 }));
+  }
+  return result;
+}
+
+function xferSourceRawMatrix3D(xfer: Xfer, values: readonly number[]): number[] {
+  const result: number[] = [];
+  for (let index = 0; index < 12; index += 1) {
+    result.push(xfer.xferReal(values[index] ?? (index === 0 || index === 5 || index === 10 ? 1 : 0)));
+  }
+  return result;
+}
+
+function xferSourceParticleUplinkMatrixArray(xfer: Xfer, values: readonly number[][]): number[][] {
+  const result: number[][] = [];
+  for (let index = 0; index < SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES; index += 1) {
+    result.push(xferSourceRawMatrix3D(xfer, values[index] ?? []));
+  }
+  return result;
+}
+
+function xferSourceParticleUplinkVisualState(
+  xfer: Xfer,
+  state: SourceParticleUplinkVisualState,
+): SourceParticleUplinkVisualState {
+  const outerSystemIds = xferSourceParticleUplinkIdArray(xfer, state.outerSystemIds);
+  const laserBeamIds = xferSourceParticleUplinkIdArray(xfer, state.laserBeamIds);
+  const groundToOrbitBeamId = xfer.xferUnsignedInt(Math.max(0, Math.trunc(state.groundToOrbitBeamId)));
+  const orbitToTargetBeamId = xfer.xferUnsignedInt(Math.max(0, Math.trunc(state.orbitToTargetBeamId)));
+  const connectorSystemId = xfer.xferUnsignedInt(Math.max(0, Math.trunc(state.connectorSystemId)));
+  const laserBaseSystemId = xfer.xferUnsignedInt(Math.max(0, Math.trunc(state.laserBaseSystemId)));
+  const outerNodePositions = xferSourceParticleUplinkCoordArray(xfer, state.outerNodePositions);
+  const outerNodeOrientations = xferSourceParticleUplinkMatrixArray(xfer, state.outerNodeOrientations);
+  return {
+    outerSystemIds,
+    laserBeamIds,
+    groundToOrbitBeamId,
+    orbitToTargetBeamId,
+    connectorSystemId,
+    laserBaseSystemId,
+    outerNodePositions,
+    outerNodeOrientations,
+    connectorNodePosition: xfer.xferCoord3D(state.connectorNodePosition),
+    laserOriginPosition: xfer.xferCoord3D(state.laserOriginPosition),
+    overrideTargetDestination: xfer.xferCoord3D(state.overrideTargetDestination),
+    upBonesCached: xfer.xferBool(state.upBonesCached),
+    defaultInfoCached: xfer.xferBool(state.defaultInfoCached),
+    invalidSettings: xfer.xferBool(state.invalidSettings),
+  };
+}
+
+function createDefaultSourceParticleUplinkVisualState(): SourceParticleUplinkVisualState {
+  return {
+    outerSystemIds: new Array<number>(SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES).fill(0),
+    laserBeamIds: new Array<number>(SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES).fill(0),
+    groundToOrbitBeamId: 0,
+    orbitToTargetBeamId: 0,
+    connectorSystemId: 0,
+    laserBaseSystemId: 0,
+    outerNodePositions: Array.from(
+      { length: SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES },
+      () => ({ x: 0, y: 0, z: 0 }),
+    ),
+    outerNodeOrientations: Array.from(
+      { length: SOURCE_PARTICLE_UPLINK_MAX_OUTER_NODES },
+      () => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+    ),
+    connectorNodePosition: { x: 0, y: 0, z: 0 },
+    laserOriginPosition: { x: 0, y: 0, z: 0 },
+    overrideTargetDestination: { x: 0, y: 0, z: 0 },
+    upBonesCached: false,
+    defaultInfoCached: false,
+    invalidSettings: false,
+  };
+}
 
 function buildSourceRawInt32Bytes(value: number): Uint8Array {
   const saver = new XferSave();
@@ -5466,7 +5556,7 @@ function tryParseSourceParticleUplinkCannonUpdateBlockData(
   statusBytes: Uint8Array;
   laserStatusBytes: Uint8Array;
   frames: number;
-  rawVisualPrefixBytes: Uint8Array;
+  visualState: SourceParticleUplinkVisualState;
   initialTargetPosition: { x: number; y: number; z: number };
   currentTargetPosition: { x: number; y: number; z: number };
   scorchMarksMade: number;
@@ -5497,8 +5587,9 @@ function tryParseSourceParticleUplinkCannonUpdateBlockData(
     const statusBytes = xferLoad.xferUser(new Uint8Array(4));
     const laserStatusBytes = xferLoad.xferUser(new Uint8Array(4));
     const frames = xferLoad.xferUnsignedInt(0);
-    const rawVisualPrefixBytes = xferLoad.xferUser(
-      new Uint8Array(SOURCE_PARTICLE_UPLINK_RAW_VISUAL_PREFIX_BYTES),
+    const visualState = xferSourceParticleUplinkVisualState(
+      xferLoad,
+      createDefaultSourceParticleUplinkVisualState(),
     );
     const initialTargetPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
     const currentTargetPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
@@ -5521,7 +5612,7 @@ function tryParseSourceParticleUplinkCannonUpdateBlockData(
         statusBytes,
         laserStatusBytes,
         frames,
-        rawVisualPrefixBytes,
+        visualState,
         initialTargetPosition,
         currentTargetPosition,
         scorchMarksMade,
@@ -5554,7 +5645,7 @@ function buildSourceParticleUplinkCannonUpdateBlockData(
     statusBytes: Uint8Array;
     laserStatusBytes: Uint8Array;
     frames: number;
-    rawVisualPrefixBytes: Uint8Array;
+    visualState: SourceParticleUplinkVisualState;
     initialTargetPosition: { x: number; y: number; z: number };
     currentTargetPosition: { x: number; y: number; z: number };
     scorchMarksMade: number;
@@ -5646,7 +5737,7 @@ function buildSourceParticleUplinkCannonUpdateBlockData(
     saver.xferUser(statusBytes);
     saver.xferUser(laserStatusBytes);
     saver.xferUnsignedInt(frames);
-    saver.xferUser(preservedState.rawVisualPrefixBytes);
+    xferSourceParticleUplinkVisualState(saver, preservedState.visualState);
     saver.xferCoord3D(initialTargetPosition);
     saver.xferCoord3D(currentTargetPosition);
     saver.xferUnsignedInt(scorchMarksMade);
