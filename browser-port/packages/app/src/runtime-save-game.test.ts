@@ -6195,6 +6195,7 @@ function createSourceObjectBlockData(
     teamId?: number;
     drawableId?: number;
     originalTeamName?: string;
+    completedUpgradeNames?: string[];
   } = {},
 ): Uint8Array {
   const state = createEmptySourceMapEntitySaveState();
@@ -6205,6 +6206,7 @@ function createSourceObjectBlockData(
   state.drawableId = options.drawableId ?? 9;
   state.internalName = options.internalName ?? `UNIT_${objectId.toString().padStart(3, '0')}`;
   state.originalTeamName = options.originalTeamName ?? 'TEAMUNIT';
+  state.completedUpgradeNames = options.completedUpgradeNames ?? [];
   state.statusBits = ['SELECTABLE'];
   state.geometryInfo = {
     ...state.geometryInfo,
@@ -6354,6 +6356,7 @@ function createSourceGameLogicChunkData(
     teamId?: number;
     drawableId?: number;
     originalTeamName?: string;
+    completedUpgradeNames?: string[];
   }> = [],
 ): Uint8Array {
   const xferSave = new XferSave();
@@ -8307,6 +8310,49 @@ function readFirstGeneratedDrawableTransform(data: ArrayBuffer): number[] | null
   }
 }
 
+function readFirstGeneratedDrawableConditionFlags(data: ArrayBuffer): string[] | null {
+  const chunkData = readSaveChunkData(data, 'CHUNK_GameClient');
+  if (!chunkData) {
+    return null;
+  }
+  const xferLoad = new XferLoad(chunkData.buffer);
+  xferLoad.open('read-first-generated-drawable-condition-flags');
+  try {
+    xferLoad.xferVersion(3);
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferVersion(1);
+    const tocCount = xferLoad.xferUnsignedInt(0);
+    for (let index = 0; index < tocCount; index += 1) {
+      xferLoad.xferAsciiString('');
+      xferLoad.xferUnsignedShort(0);
+    }
+    const drawableCount = xferLoad.xferUnsignedShort(0);
+    if (drawableCount <= 0) {
+      return null;
+    }
+
+    xferLoad.xferUnsignedShort(0);
+    const blockSize = xferLoad.beginBlock();
+    const blockStart = xferLoad.getOffset();
+    xferLoad.xferObjectID(0);
+    xferLoad.xferVersion(7);
+    xferLoad.xferUnsignedInt(0);
+    const conditionVersion = xferLoad.xferVersion(1);
+    expect(conditionVersion).toBe(1);
+    const conditionCount = xferLoad.xferInt(0);
+    const flags: string[] = [];
+    for (let index = 0; index < conditionCount; index += 1) {
+      flags.push(xferLoad.xferAsciiString(''));
+    }
+    const consumed = xferLoad.getOffset() - blockStart;
+    xferLoad.skip(blockSize - consumed);
+    xferLoad.endBlock();
+    return flags;
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function readFirstGeneratedDrawableModuleBlocks(data: ArrayBuffer): Array<{
   moduleTypeIndex: number;
   identifier: string;
@@ -9660,6 +9706,78 @@ describe('runtime-save-game', () => {
     expect(parsed.campaign).toBeNull();
   });
 
+  it('preserves InGameUI same-power superweapon list order', () => {
+    const saveFile = buildRuntimeSaveFile({
+      description: 'InGameUI Superweapon Order',
+      mapPath: 'assets/maps/TestMap.json',
+      mapData: createTinyRuntimeMapData(),
+      cameraState: null,
+      inGameUiState: {
+        version: 3,
+        namedTimerLastFlashFrame: 0,
+        namedTimerUsedFlashColor: false,
+        showNamedTimers: true,
+        namedTimers: [],
+        superweaponHiddenByScript: false,
+        superweapons: [
+          {
+            playerIndex: 0,
+            templateName: 'AmericaParticleCannonUplink',
+            powerName: 'SPECIAL_POWER_PARTICLE_UPLINK_CANNON',
+            objectId: 20,
+            timestamp: 200,
+            hiddenByScript: false,
+            hiddenByScience: false,
+            ready: true,
+            evaReadyPlayed: false,
+          },
+          {
+            playerIndex: 0,
+            templateName: 'AmericaParticleCannonUplink',
+            powerName: 'SPECIAL_POWER_PARTICLE_UPLINK_CANNON',
+            objectId: 10,
+            timestamp: 100,
+            hiddenByScript: false,
+            hiddenByScience: false,
+            ready: false,
+            evaReadyPlayed: false,
+          },
+          {
+            playerIndex: 0,
+            templateName: 'AmericaStrategyCenter',
+            powerName: 'SPECIAL_POWER_SPY_DRONE',
+            objectId: 5,
+            timestamp: 50,
+            hiddenByScript: false,
+            hiddenByScience: false,
+            ready: true,
+            evaReadyPlayed: true,
+          },
+        ],
+      },
+      gameLogic: createMinimalRuntimeGameLogic(),
+    });
+
+    const parsed = parseRuntimeSaveFile(saveFile.data);
+    expect(parsed.inGameUiState?.superweapons.map((superweapon) => ({
+      powerName: superweapon.powerName,
+      objectId: superweapon.objectId,
+    }))).toEqual([
+      {
+        powerName: 'SPECIAL_POWER_PARTICLE_UPLINK_CANNON',
+        objectId: 20,
+      },
+      {
+        powerName: 'SPECIAL_POWER_PARTICLE_UPLINK_CANNON',
+        objectId: 10,
+      },
+      {
+        powerName: 'SPECIAL_POWER_SPY_DRONE',
+        objectId: 5,
+      },
+    ]);
+  });
+
   it('writes source-shaped TerrainVisual water-grid snapshots for WaveGuide maps', () => {
     const mapData = {
       ...createTinyRuntimeMapData(),
@@ -9868,6 +9986,10 @@ describe('runtime-save-game', () => {
     for (let index = 0; index < expectedRows.length; index += 1) {
       expect(transformRows?.[index]).toBeCloseTo(expectedRows[index]!, 5);
     }
+    expect(readFirstGeneratedDrawableConditionFlags(saveFile.data)).toEqual([
+      'WEAPONSET_VETERAN',
+      'MOVING',
+    ]);
     const drawableModules = readFirstGeneratedDrawableModuleBlocks(saveFile.data);
     expect(drawableModules.map((module) => ({
       moduleTypeIndex: module.moduleTypeIndex,
@@ -13931,6 +14053,35 @@ describe('runtime-save-game', () => {
     });
   });
 
+  it('preserves source Object::xfer upgrade-mask order when live upgrades are unchanged', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [], [{
+      objectId: 8,
+      templateName: 'RuntimeDrone',
+      completedUpgradeNames: ['Upgrade_B', 'Upgrade_A'],
+    }]);
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source Object Upgrade Order',
+      mapPath: 'assets/maps/SourceObjectUpgradeOrder.json',
+      mapData: createTinyRuntimeMapData(),
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: createMinimalRuntimeGameLogic([{
+        id: 8,
+        templateName: 'RuntimeDrone',
+        completedUpgrades: new Set(['Upgrade_A', 'Upgrade_B']),
+      } as unknown as import('@generals/game-logic').MapEntity], {
+        getObjectIdCounter: () => 9,
+      }),
+    });
+
+    const objectStates = readSourceGameLogicObjectStates(saveFile.data) ?? [];
+    const droneState = objectStates.find((object) => object.state.objectId === 8)?.state;
+    expect(droneState?.completedUpgradeNames).toEqual(['Upgrade_B', 'Upgrade_A']);
+  });
+
   it('overlays live source Object::xfer status, disable, experience, and weapon fields on resave', () => {
     const sourceGameLogicBytes = createSourceGameLogicChunkData(true);
     const saveFile = buildRuntimeSaveFile({
@@ -14047,6 +14198,7 @@ describe('runtime-save-game', () => {
             sourceSpecialPowerBitNames: [
               'SPECIAL_PARTICLE_UPLINK_CANNON',
               'SPECIAL_CASH_HACK',
+              'SPECIAL_SPY_DRONE',
             ],
             undetectedDefectorUntilFrame: 140,
             defectorHelperDetectionStartFrame: 42,
@@ -14188,6 +14340,7 @@ describe('runtime-save-game', () => {
     expect(firstObject?.weaponSet?.totalAntiMask).toBe(12);
     expect(firstObject?.specialPowerBits).toEqual([
       'SPECIAL_CASH_HACK',
+      'SPECIAL_SPY_DRONE',
       'SPECIAL_PARTICLE_UPLINK_CANNON',
     ]);
     expect(firstObject?.modulesReady).toBe(true);

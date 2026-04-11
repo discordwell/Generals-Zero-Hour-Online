@@ -477,6 +477,206 @@ const SOURCE_SCRIPT_ENGINE_FADE_SUBTRACT = 1;
 const SOURCE_SCRIPT_ENGINE_FADE_ADD = 2;
 const SOURCE_SCRIPT_ENGINE_FADE_SATURATE = 3;
 const SOURCE_SCRIPT_ENGINE_FADE_MULTIPLY = 4;
+const SOURCE_MODEL_CONDITION_FLAG_ORDER = [
+  'TOPPLED',
+  'FRONTCRUSHED',
+  'BACKCRUSHED',
+  'DAMAGED',
+  'REALLYDAMAGED',
+  'RUBBLE',
+  'SPECIAL_DAMAGED',
+  'NIGHT',
+  'SNOW',
+  'PARACHUTING',
+  'GARRISONED',
+  'ENEMYNEAR',
+  'WEAPONSET_VETERAN',
+  'WEAPONSET_ELITE',
+  'WEAPONSET_HERO',
+  'WEAPONSET_CRATEUPGRADE_ONE',
+  'WEAPONSET_CRATEUPGRADE_TWO',
+  'WEAPONSET_PLAYER_UPGRADE',
+  'DOOR_1_OPENING',
+  'DOOR_1_CLOSING',
+  'DOOR_1_WAITING_OPEN',
+  'DOOR_1_WAITING_TO_CLOSE',
+  'DOOR_2_OPENING',
+  'DOOR_2_CLOSING',
+  'DOOR_2_WAITING_OPEN',
+  'DOOR_2_WAITING_TO_CLOSE',
+  'DOOR_3_OPENING',
+  'DOOR_3_CLOSING',
+  'DOOR_3_WAITING_OPEN',
+  'DOOR_3_WAITING_TO_CLOSE',
+  'DOOR_4_OPENING',
+  'DOOR_4_CLOSING',
+  'DOOR_4_WAITING_OPEN',
+  'DOOR_4_WAITING_TO_CLOSE',
+  'ATTACKING',
+  'PREATTACK_A',
+  'FIRING_A',
+  'BETWEEN_FIRING_SHOTS_A',
+  'RELOADING_A',
+  'PREATTACK_B',
+  'FIRING_B',
+  'BETWEEN_FIRING_SHOTS_B',
+  'RELOADING_B',
+  'PREATTACK_C',
+  'FIRING_C',
+  'BETWEEN_FIRING_SHOTS_C',
+  'RELOADING_C',
+  'TURRET_ROTATE',
+  'POST_COLLAPSE',
+  'MOVING',
+  'DYING',
+  'AWAITING_CONSTRUCTION',
+  'PARTIALLY_CONSTRUCTED',
+  'ACTIVELY_BEING_CONSTRUCTED',
+  'PRONE',
+  'FREEFALL',
+  'ACTIVELY_CONSTRUCTING',
+  'CONSTRUCTION_COMPLETE',
+  'RADAR_EXTENDING',
+  'RADAR_UPGRADED',
+  'PANICKING',
+  'AFLAME',
+  'SMOLDERING',
+  'BURNED',
+  'DOCKING',
+  'DOCKING_BEGINNING',
+  'DOCKING_ACTIVE',
+  'DOCKING_ENDING',
+  'CARRYING',
+  'FLOODED',
+  'LOADED',
+  'JETAFTERBURNER',
+  'JETEXHAUST',
+  'PACKING',
+  'UNPACKING',
+  'DEPLOYED',
+  'OVER_WATER',
+  'POWER_PLANT_UPGRADED',
+  'CLIMBING',
+  'SOLD',
+  'RAPPELLING',
+  'ARMED',
+  'POWER_PLANT_UPGRADING',
+  'SPECIAL_CHEERING',
+  'CONTINUOUS_FIRE_SLOW',
+  'CONTINUOUS_FIRE_MEAN',
+  'CONTINUOUS_FIRE_FAST',
+  'RAISING_FLAG',
+  'CAPTURED',
+  'EXPLODED_FLAILING',
+  'EXPLODED_BOUNCING',
+  'SPLATTED',
+  'USING_WEAPON_A',
+  'USING_WEAPON_B',
+  'USING_WEAPON_C',
+  'PREORDER',
+  'CENTER_TO_LEFT',
+  'LEFT_TO_CENTER',
+  'CENTER_TO_RIGHT',
+  'RIGHT_TO_CENTER',
+  'RIDER1',
+  'RIDER2',
+  'RIDER3',
+  'RIDER4',
+  'RIDER5',
+  'RIDER6',
+  'RIDER7',
+  'RIDER8',
+  'STUNNED_FLAILING',
+  'STUNNED',
+  'SECOND_LIFE',
+  'JAMMED',
+  'ARMORSET_CRATEUPGRADE_ONE',
+  'ARMORSET_CRATEUPGRADE_TWO',
+  'USER_1',
+  'USER_2',
+  'DISGUISED',
+] as const;
+const SOURCE_MODEL_CONDITION_FLAG_BY_NAME = new Map<string, {
+  name: string;
+  index: number;
+}>(
+  SOURCE_MODEL_CONDITION_FLAG_ORDER.map((name, index) => [
+    name,
+    { name, index },
+  ]),
+);
+const SOURCE_SPECIAL_POWER_BIT_ORDER = [
+  'SPECIAL_INVALID',
+  'SPECIAL_DAISY_CUTTER',
+  'SPECIAL_PARADROP_AMERICA',
+  'SPECIAL_CARPET_BOMB',
+  'SPECIAL_CLUSTER_MINES',
+  'SPECIAL_EMP_PULSE',
+  'SPECIAL_NAPALM_STRIKE',
+  'SPECIAL_CASH_HACK',
+  'SPECIAL_NEUTRON_MISSILE',
+  'SPECIAL_SPY_SATELLITE',
+  'SPECIAL_DEFECTOR',
+  'SPECIAL_TERROR_CELL',
+  'SPECIAL_AMBUSH',
+  'SPECIAL_BLACK_MARKET_NUKE',
+  'SPECIAL_ANTHRAX_BOMB',
+  'SPECIAL_SCUD_STORM',
+  'SPECIAL_DEMORALIZE_OBSOLETE',
+  'SPECIAL_CRATE_DROP',
+  'SPECIAL_A10_THUNDERBOLT_STRIKE',
+  'SPECIAL_DETONATE_DIRTY_NUKE',
+  'SPECIAL_ARTILLERY_BARRAGE',
+  'SPECIAL_MISSILE_DEFENDER_LASER_GUIDED_MISSILES',
+  'SPECIAL_REMOTE_CHARGES',
+  'SPECIAL_TIMED_CHARGES',
+  'SPECIAL_HELIX_NAPALM_BOMB',
+  'SPECIAL_HACKER_DISABLE_BUILDING',
+  'SPECIAL_TANKHUNTER_TNT_ATTACK',
+  'SPECIAL_BLACKLOTUS_CAPTURE_BUILDING',
+  'SPECIAL_BLACKLOTUS_DISABLE_VEHICLE_HACK',
+  'SPECIAL_BLACKLOTUS_STEAL_CASH_HACK',
+  'SPECIAL_INFANTRY_CAPTURE_BUILDING',
+  'SPECIAL_RADAR_VAN_SCAN',
+  'SPECIAL_SPY_DRONE',
+  'SPECIAL_DISGUISE_AS_VEHICLE',
+  'SPECIAL_BOOBY_TRAP',
+  'SPECIAL_REPAIR_VEHICLES',
+  'SPECIAL_PARTICLE_UPLINK_CANNON',
+  'SPECIAL_CASH_BOUNTY',
+  'SPECIAL_CHANGE_BATTLE_PLANS',
+  'SPECIAL_CIA_INTELLIGENCE',
+  'SPECIAL_CLEANUP_AREA',
+  'SPECIAL_LAUNCH_BAIKONUR_ROCKET',
+  'SPECIAL_SPECTRE_GUNSHIP',
+  'SPECIAL_GPS_SCRAMBLER',
+  'SPECIAL_FRENZY',
+  'SPECIAL_SNEAK_ATTACK',
+  'SPECIAL_CHINA_CARPET_BOMB',
+  'EARLY_SPECIAL_CHINA_CARPET_BOMB',
+  'SPECIAL_LEAFLET_DROP',
+  'EARLY_SPECIAL_LEAFLET_DROP',
+  'EARLY_SPECIAL_FRENZY',
+  'SPECIAL_COMMUNICATIONS_DOWNLOAD',
+  'EARLY_SPECIAL_REPAIR_VEHICLES',
+  'SPECIAL_TANK_PARADROP',
+  'SUPW_SPECIAL_PARTICLE_UPLINK_CANNON',
+  'AIRF_SPECIAL_DAISY_CUTTER',
+  'NUKE_SPECIAL_CLUSTER_MINES',
+  'NUKE_SPECIAL_NEUTRON_MISSILE',
+  'AIRF_SPECIAL_A10_THUNDERBOLT_STRIKE',
+  'AIRF_SPECIAL_SPECTRE_GUNSHIP',
+  'INFA_SPECIAL_PARADROP_AMERICA',
+  'SLTH_SPECIAL_GPS_SCRAMBLER',
+  'AIRF_SPECIAL_CARPET_BOMB',
+  'SUPR_SPECIAL_CRUISE_MISSILE',
+  'LAZR_SPECIAL_PARTICLE_UPLINK_CANNON',
+  'SUPW_SPECIAL_NEUTRON_MISSILE',
+  'SPECIAL_BATTLESHIP_BOMBARDMENT',
+] as const;
+const SOURCE_SPECIAL_POWER_BIT_INDEX_BY_NAME = new Map<string, number>(
+  SOURCE_SPECIAL_POWER_BIT_ORDER.map((name, index) => [name, index]),
+);
 
 interface RuntimeSaveMetadataState {
   saveFileType: SaveFileType;
@@ -1390,8 +1590,7 @@ function normalizeRuntimeSaveInGameUiSuperweapons(
     })
     .sort((left, right) =>
       left.playerIndex - right.playerIndex
-      || left.powerName.localeCompare(right.powerName)
-      || left.objectId - right.objectId);
+      || left.powerName.localeCompare(right.powerName));
 }
 
 function readLegacyInGameUiStateBoolean(
@@ -1943,7 +2142,7 @@ function xferModelConditionFlags(xfer: Xfer, flags: readonly string[]): void {
   if (version !== 1) {
     throw new Error(`Unsupported ModelConditionFlags snapshot version ${version}`);
   }
-  const normalizedFlags = [...new Set(flags.filter((flag) => flag.length > 0))].sort();
+  const normalizedFlags = normalizeSourceModelConditionFlags(flags);
   const count = xfer.xferInt(normalizedFlags.length);
   if (xfer.getMode() !== XferMode.XFER_SAVE) {
     throw new Error('ModelConditionFlags xfer is save-only in the TS runtime.');
@@ -1954,6 +2153,34 @@ function xferModelConditionFlags(xfer: Xfer, flags: readonly string[]): void {
   for (const flag of normalizedFlags) {
     xfer.xferAsciiString(flag);
   }
+}
+
+function normalizeSourceModelConditionFlags(flags: readonly string[]): string[] {
+  const namesByUpper = new Map<string, string>();
+  for (const flag of flags) {
+    const trimmedFlag = flag.trim();
+    if (trimmedFlag.length === 0) {
+      continue;
+    }
+    const upperName = trimmedFlag.toUpperCase();
+    if (!namesByUpper.has(upperName)) {
+      namesByUpper.set(
+        upperName,
+        SOURCE_MODEL_CONDITION_FLAG_BY_NAME.get(upperName)?.name ?? trimmedFlag,
+      );
+    }
+  }
+
+  return [...namesByUpper.values()].sort((left, right) => {
+    const leftIndex = SOURCE_MODEL_CONDITION_FLAG_BY_NAME.get(left.toUpperCase())?.index
+      ?? Number.POSITIVE_INFINITY;
+    const rightIndex = SOURCE_MODEL_CONDITION_FLAG_BY_NAME.get(right.toUpperCase())?.index
+      ?? Number.POSITIVE_INFINITY;
+    if (leftIndex !== rightIndex) {
+      return leftIndex - rightIndex;
+    }
+    return left.localeCompare(right);
+  });
 }
 
 function shouldEnableDrawableShadows(state: GameLogicRenderableEntityState): boolean {
@@ -4074,6 +4301,53 @@ function resolveSourceTriggerAreaState(
   };
 }
 
+function normalizeSourceUpgradeName(value: string): string {
+  return value.trim().toUpperCase();
+}
+
+function sourceUpgradeNameSetsMatch(
+  sourceNames: readonly string[],
+  liveNames: ReadonlySet<string>,
+): boolean {
+  const sourceNameSet = new Set(
+    sourceNames
+      .map(normalizeSourceUpgradeName)
+      .filter(Boolean),
+  );
+  if (sourceNameSet.size !== liveNames.size) {
+    return false;
+  }
+  for (const liveName of liveNames) {
+    if (!sourceNameSet.has(normalizeSourceUpgradeName(liveName))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function resolveSourceCompletedUpgradeNames(
+  sourceState: SourceMapEntitySaveState,
+  entity: MapEntity,
+): string[] {
+  if (!(entity.completedUpgrades instanceof Set)) {
+    return sourceState.completedUpgradeNames;
+  }
+  const liveNames = new Set(
+    [...entity.completedUpgrades]
+      .map(normalizeSourceUpgradeName)
+      .filter(Boolean),
+  );
+  if (sourceUpgradeNameSetsMatch(sourceState.completedUpgradeNames, liveNames)) {
+    return sourceState.completedUpgradeNames;
+  }
+  // C++ saves UpgradeMaskType by UpgradeCenter template order. Runtime-only
+  // mutations do not currently expose that registry order here, so keep the
+  // previous deterministic fallback until the source upgrade registry is wired in.
+  return [...entity.completedUpgrades]
+    .filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+    .sort();
+}
+
 function sourceObjectTriggerAreasFromLiveValue(
   value: unknown,
   fallback: SourceMapEntitySaveState['triggerAreas'],
@@ -4211,35 +4485,39 @@ function overlaySourceSpecialPowerBitsFromLiveEntity(
     return sourceState.specialPowerBits;
   }
 
-  const liveNames: string[] = [];
   const liveNameSet = new Set<string>();
   for (const rawName of entity.sourceSpecialPowerBitNames) {
     const normalizedName = typeof rawName === 'string' ? rawName.trim().toUpperCase() : '';
-    if (!normalizedName || normalizedName === 'NONE' || liveNameSet.has(normalizedName)) {
+    if (
+      !normalizedName
+      || normalizedName === 'NONE'
+      || normalizedName === 'SPECIAL_INVALID'
+      || liveNameSet.has(normalizedName)
+    ) {
       continue;
     }
     liveNameSet.add(normalizedName);
-    liveNames.push(normalizedName);
   }
+  return orderSourceSpecialPowerBitNames([...liveNameSet]);
+}
 
-  const orderedNames: string[] = [];
-  const emittedNames = new Set<string>();
-  for (const rawName of sourceState.specialPowerBits) {
+function orderSourceSpecialPowerBitNames(names: readonly string[]): string[] {
+  const normalizedNames = new Set<string>();
+  for (const rawName of names) {
     const normalizedName = typeof rawName === 'string' ? rawName.trim().toUpperCase() : '';
-    if (!normalizedName || !liveNameSet.has(normalizedName) || emittedNames.has(normalizedName)) {
+    if (!normalizedName || normalizedName === 'NONE' || normalizedName === 'SPECIAL_INVALID') {
       continue;
     }
-    emittedNames.add(normalizedName);
-    orderedNames.push(normalizedName);
+    normalizedNames.add(normalizedName);
   }
-  for (const liveName of liveNames) {
-    if (emittedNames.has(liveName)) {
-      continue;
+  return [...normalizedNames].sort((left, right) => {
+    const leftIndex = SOURCE_SPECIAL_POWER_BIT_INDEX_BY_NAME.get(left) ?? Number.POSITIVE_INFINITY;
+    const rightIndex = SOURCE_SPECIAL_POWER_BIT_INDEX_BY_NAME.get(right) ?? Number.POSITIVE_INFINITY;
+    if (leftIndex !== rightIndex) {
+      return leftIndex - rightIndex;
     }
-    emittedNames.add(liveName);
-    orderedNames.push(liveName);
-  }
-  return orderedNames;
+    return left.localeCompare(right);
+  });
 }
 
 function buildSourceUpdateModuleWakeFrame(frame: number, phase = SOURCE_UPDATE_PHASE_NORMAL): number {
@@ -19270,9 +19548,7 @@ function overlaySourceObjectStateFromLiveEntity(
     constructionPercent: Number.isFinite(entity.constructionPercent)
       ? entity.constructionPercent
       : sourceState.constructionPercent,
-    completedUpgradeNames: entity.completedUpgrades instanceof Set
-      ? [...entity.completedUpgrades].sort()
-      : sourceState.completedUpgradeNames,
+    completedUpgradeNames: resolveSourceCompletedUpgradeNames(sourceState, entity),
     originalTeamName: entity.sourceTeamNameUpper?.trim().toUpperCase() || sourceState.originalTeamName,
     ...resolveSourceTriggerAreaState(sourceState, triggerAreaState, entity),
     ipos: sourceObjectIPosFromLiveEntity(entity, sourceState.ipos),
