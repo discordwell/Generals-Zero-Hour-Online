@@ -4048,29 +4048,78 @@ function resolveSourceTriggerAreaState(
   triggerAreaState: GameLogicObjectTriggerAreaSaveState | null | undefined,
   entity?: MapEntity | null,
 ): Pick<SourceMapEntitySaveState, 'enteredOrExitedFrame' | 'triggerAreas'> {
+  const sourceOrderedTriggerAreas = sourceObjectTriggerAreasFromLiveValue(
+    entity?.sourceObjectTriggerAreas,
+    sourceState.triggerAreas,
+  );
   if (!triggerAreaState) {
     return {
       enteredOrExitedFrame: sourceUnsignedIntFromLiveValue(
         entity?.sourceObjectEnteredOrExitedFrame,
         sourceState.enteredOrExitedFrame,
       ),
-      triggerAreas: sourceState.triggerAreas,
+      triggerAreas: sourceOrderedTriggerAreas,
+    };
+  }
+  const liveTriggerAreas = sourceObjectTriggerAreasFromLiveValue(triggerAreaState.triggerAreas, []);
+  if (sourceTriggerAreasMatchLiveState(sourceOrderedTriggerAreas, liveTriggerAreas)) {
+    return {
+      enteredOrExitedFrame: Math.max(0, Math.trunc(triggerAreaState.enteredOrExitedFrame)),
+      triggerAreas: sourceOrderedTriggerAreas,
     };
   }
   return {
     enteredOrExitedFrame: Math.max(0, Math.trunc(triggerAreaState.enteredOrExitedFrame)),
-    triggerAreas: (triggerAreaState.triggerAreas ?? []).flatMap((triggerArea) => {
-      if (!triggerArea || typeof triggerArea.triggerName !== 'string') {
-        return [];
-      }
-      return [{
-        triggerName: triggerArea.triggerName,
-        entered: triggerArea.entered ? 1 : 0,
-        exited: triggerArea.exited ? 1 : 0,
-        isInside: triggerArea.isInside ? 1 : 0,
-      }];
-    }),
+    triggerAreas: liveTriggerAreas,
   };
+}
+
+function sourceObjectTriggerAreasFromLiveValue(
+  value: unknown,
+  fallback: SourceMapEntitySaveState['triggerAreas'],
+): SourceMapEntitySaveState['triggerAreas'] {
+  const input = Array.isArray(value) ? value : fallback;
+  return input.flatMap((triggerArea) => {
+    if (!triggerArea || typeof triggerArea.triggerName !== 'string') {
+      return [];
+    }
+    return [{
+      triggerName: triggerArea.triggerName,
+      entered: triggerArea.entered ? 1 : 0,
+      exited: triggerArea.exited ? 1 : 0,
+      isInside: triggerArea.isInside ? 1 : 0,
+    }];
+  });
+}
+
+function sourceTriggerAreasMatchLiveState(
+  sourceTriggerAreas: SourceMapEntitySaveState['triggerAreas'],
+  liveTriggerAreas: SourceMapEntitySaveState['triggerAreas'],
+): boolean {
+  if (sourceTriggerAreas.length === 0 || sourceTriggerAreas.length !== liveTriggerAreas.length) {
+    return false;
+  }
+  const serialize = (triggerArea: SourceMapEntitySaveState['triggerAreas'][number]) =>
+    `${triggerArea.triggerName.trim().toUpperCase()}\0${triggerArea.entered ? 1 : 0}`
+    + `\0${triggerArea.exited ? 1 : 0}\0${triggerArea.isInside ? 1 : 0}`;
+  const liveCounts = new Map<string, number>();
+  for (const triggerArea of liveTriggerAreas) {
+    const key = serialize(triggerArea);
+    liveCounts.set(key, (liveCounts.get(key) ?? 0) + 1);
+  }
+  for (const triggerArea of sourceTriggerAreas) {
+    const key = serialize(triggerArea);
+    const count = liveCounts.get(key) ?? 0;
+    if (count <= 0) {
+      return false;
+    }
+    if (count === 1) {
+      liveCounts.delete(key);
+    } else {
+      liveCounts.set(key, count - 1);
+    }
+  }
+  return liveCounts.size === 0;
 }
 
 function sourceIntFromLiveValue(value: unknown, fallback: number): number {

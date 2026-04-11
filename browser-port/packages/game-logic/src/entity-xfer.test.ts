@@ -213,6 +213,10 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     sourceObjectVisionSpiedMask: 0x0005,
     sourceObjectSingleUseCommandUsed: true,
     sourceObjectEnteredOrExitedFrame: 17,
+    sourceObjectTriggerAreas: [
+      { triggerName: 'Trigger_B', entered: 0, exited: 1, isInside: 0 },
+      { triggerName: 'Trigger_A', entered: 1, exited: 0, isInside: 1 },
+    ],
     sourceObjectIPos: { x: 100, y: 10, z: 0 },
     sourceObjectLayer: 1,
     sourceObjectDestinationLayer: 2,
@@ -786,6 +790,10 @@ describe('entity-xfer', () => {
     expect(loaded.sourceObjectVisionSpiedMask).toBe(0x0005);
     expect(loaded.sourceObjectSingleUseCommandUsed).toBe(true);
     expect(loaded.sourceObjectEnteredOrExitedFrame).toBe(17);
+    expect(loaded.sourceObjectTriggerAreas).toEqual([
+      { triggerName: 'Trigger_B', entered: 0, exited: 1, isInside: 0 },
+      { triggerName: 'Trigger_A', entered: 1, exited: 0, isInside: 1 },
+    ]);
     expect(loaded.sourceObjectIPos).toEqual({ x: 100, y: 10, z: 0 });
     expect(loaded.sourceObjectLayer).toBe(1);
     expect(loaded.sourceObjectDestinationLayer).toBe(2);

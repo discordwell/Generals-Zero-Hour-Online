@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 52;
+const ENTITY_XFER_VERSION = 53;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -305,6 +305,33 @@ export function createEmptySourceMapEntitySaveState(): SourceMapEntitySaveState 
     modulesReady: false,
     isReceivingDifficultyBonus: false,
   };
+}
+
+function xferRuntimeSourceObjectTriggerAreas(
+  xfer: Xfer,
+  current: SourceObjectTriggerAreaSaveState[] | null | undefined,
+): SourceObjectTriggerAreaSaveState[] {
+  const input = Array.isArray(current) ? current.slice(0, SOURCE_OBJECT_TRIGGER_INFO_LIMIT) : [];
+  const count = xfer.xferByte(xfer.getMode() === XferMode.XFER_LOAD ? 0 : input.length);
+  if (count > SOURCE_OBJECT_TRIGGER_INFO_LIMIT) {
+    throw new Error(`Trigger-area count ${count} exceeds limit ${SOURCE_OBJECT_TRIGGER_INFO_LIMIT}.`);
+  }
+  const result: SourceObjectTriggerAreaSaveState[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const triggerArea = input[index] ?? {
+      triggerName: '',
+      entered: 0,
+      exited: 0,
+      isInside: 0,
+    };
+    result.push({
+      triggerName: xfer.xferAsciiString(triggerArea.triggerName),
+      entered: xfer.xferByte(triggerArea.entered),
+      exited: xfer.xferByte(triggerArea.exited),
+      isInside: xfer.xferByte(triggerArea.isInside),
+    });
+  }
+  return result;
 }
 
 function toStandaloneArrayBuffer(data: ArrayBuffer | Uint8Array): ArrayBuffer {
@@ -1651,6 +1678,12 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
       e.sourceObjectEnteredOrExitedFrame = xfer.xferUnsignedInt(
         (e.sourceObjectEnteredOrExitedFrame as number | undefined) ?? 0,
       );
+      e.sourceObjectTriggerAreas = version >= 53
+        ? xferRuntimeSourceObjectTriggerAreas(
+          xfer,
+          e.sourceObjectTriggerAreas as SourceObjectTriggerAreaSaveState[] | null | undefined,
+        )
+        : [];
       e.sourceObjectIPos = xferSourceICoord3DState(
         xfer,
         e.sourceObjectIPos as { x: number; y: number; z: number } | null | undefined,
@@ -1679,6 +1712,7 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
       e.sourceObjectVisionSpiedMask = 0;
       e.sourceObjectSingleUseCommandUsed = false;
       e.sourceObjectEnteredOrExitedFrame = 0;
+      e.sourceObjectTriggerAreas = [];
       e.sourceObjectIPos = { x: 0, y: 0, z: 0 };
       e.sourceObjectLayer = 1;
       e.sourceObjectDestinationLayer = 0;

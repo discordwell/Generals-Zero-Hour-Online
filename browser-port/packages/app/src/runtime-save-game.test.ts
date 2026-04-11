@@ -14027,6 +14027,10 @@ describe('runtime-save-game', () => {
             sourceObjectVisionSpiedBy: Array.from({ length: 16 }, (_entry, index) => index + 20),
             sourceObjectVisionSpiedMask: 0x000b,
             sourceObjectSingleUseCommandUsed: true,
+            sourceObjectTriggerAreas: [
+              { triggerName: 'Trigger_B', entered: 0, exited: 1, isInside: 0 },
+              { triggerName: 'Trigger_A', entered: 1, exited: 0, isInside: 1 },
+            ],
             sourceObjectIPos: { x: 10, y: 20, z: 0 },
             sourceObjectLayer: 2,
             sourceObjectDestinationLayer: 3,
@@ -14172,8 +14176,8 @@ describe('runtime-save-game', () => {
     expect(firstObject?.containedByFrame).toBe(77);
     expect(firstObject?.enteredOrExitedFrame).toBe(42);
     expect(firstObject?.triggerAreas).toEqual([
-      { triggerName: 'Trigger_A', entered: 1, exited: 0, isInside: 1 },
       { triggerName: 'Trigger_B', entered: 0, exited: 1, isInside: 0 },
+      { triggerName: 'Trigger_A', entered: 1, exited: 0, isInside: 1 },
     ]);
     expect(firstObject?.soleHealingBenefactorId).toBe(44);
     expect(firstObject?.soleHealingBenefactorExpirationFrame).toBe(555);

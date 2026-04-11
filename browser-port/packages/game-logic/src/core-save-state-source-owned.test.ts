@@ -4575,6 +4575,10 @@ describe('source-owned game-logic core save-state', () => {
     sourceState.visionSpiedMask = 0x0007;
     sourceState.singleUseCommandUsed = true;
     sourceState.enteredOrExitedFrame = 66;
+    sourceState.triggerAreas = [
+      { triggerName: 'Trigger_B', entered: 0, exited: 1, isInside: 0 },
+      { triggerName: 'Trigger_A', entered: 1, exited: 0, isInside: 1 },
+    ];
     sourceState.ipos = { x: 24, y: 28, z: 0 };
     sourceState.layer = 2;
     sourceState.destinationLayer = 3;
@@ -4631,6 +4635,7 @@ describe('source-owned game-logic core save-state', () => {
         sourceObjectVisionSpiedMask: number;
         sourceObjectSingleUseCommandUsed: boolean;
         sourceObjectEnteredOrExitedFrame: number;
+        sourceObjectTriggerAreas: unknown;
         sourceObjectIPos: { x: number; y: number; z: number };
         sourceObjectLayer: number;
         sourceObjectDestinationLayer: number;
@@ -4697,6 +4702,10 @@ describe('source-owned game-logic core save-state', () => {
     expect(entity.sourceObjectVisionSpiedMask).toBe(0x0007);
     expect(entity.sourceObjectSingleUseCommandUsed).toBe(true);
     expect(entity.sourceObjectEnteredOrExitedFrame).toBe(66);
+    expect(entity.sourceObjectTriggerAreas).toEqual([
+      { triggerName: 'Trigger_B', entered: 0, exited: 1, isInside: 0 },
+      { triggerName: 'Trigger_A', entered: 1, exited: 0, isInside: 1 },
+    ]);
     expect(entity.sourceObjectIPos).toEqual({ x: 24, y: 28, z: 0 });
     expect(entity.sourceObjectLayer).toBe(2);
     expect(entity.sourceObjectDestinationLayer).toBe(3);

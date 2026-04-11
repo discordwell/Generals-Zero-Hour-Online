@@ -3842,6 +3842,8 @@ export interface MapEntity {
   sourceObjectSingleUseCommandUsed: boolean;
   /** Source parity: Object::m_enteredOrExitedFrame fallback when trigger runtime has no newer state. */
   sourceObjectEnteredOrExitedFrame: number;
+  /** Source parity: Object::m_triggerInfo entries, retained in source save order. */
+  sourceObjectTriggerAreas: SourceMapEntitySaveState['triggerAreas'];
   /** Source parity: Object::m_iPos integer trigger-area position. */
   sourceObjectIPos: { x: number; y: number; z: number };
   /** Source parity: Object::m_layer pathfind layer enum. */
@@ -14116,6 +14118,19 @@ export class GameLogicSubsystem implements Subsystem {
     };
   }
 
+  private cloneSourceObjectTriggerAreas(
+    triggerAreas: SourceMapEntitySaveState['triggerAreas'] | null | undefined,
+  ): SourceMapEntitySaveState['triggerAreas'] {
+    return Array.isArray(triggerAreas)
+      ? triggerAreas.slice(0, SOURCE_OBJECT_TRIGGER_INFO_LIMIT).map((triggerArea) => ({
+        triggerName: typeof triggerArea?.triggerName === 'string' ? triggerArea.triggerName : '',
+        entered: Number.isFinite(triggerArea?.entered) ? Math.trunc(triggerArea.entered) : 0,
+        exited: Number.isFinite(triggerArea?.exited) ? Math.trunc(triggerArea.exited) : 0,
+        isInside: Number.isFinite(triggerArea?.isInside) ? Math.trunc(triggerArea.isInside) : 0,
+      }))
+      : [];
+  }
+
   private clearEntitiesForSourceGameLogicImport(): void {
     this.spawnedEntities.clear();
     this.scriptExistedEntityIds.clear();
@@ -23716,6 +23731,7 @@ export class GameLogicSubsystem implements Subsystem {
     entity.sourceObjectVisionSpiedMask = Math.max(0, Math.trunc(sourceState.visionSpiedMask));
     entity.sourceObjectSingleUseCommandUsed = sourceState.singleUseCommandUsed;
     entity.sourceObjectEnteredOrExitedFrame = Math.max(0, Math.trunc(sourceState.enteredOrExitedFrame));
+    entity.sourceObjectTriggerAreas = this.cloneSourceObjectTriggerAreas(sourceState.triggerAreas);
     entity.sourceObjectIPos = {
       x: Math.trunc(sourceState.ipos.x),
       y: Math.trunc(sourceState.ipos.y),
@@ -39624,6 +39640,7 @@ export class GameLogicSubsystem implements Subsystem {
       const entered = this.scriptTriggerEnteredByEntityId.get(entity.id) ?? null;
       const exited = this.scriptTriggerExitedByEntityId.get(entity.id) ?? null;
       const enteredOrExitedFrame = this.scriptTriggerEnterExitFrameByEntityId.get(entity.id) ?? 0;
+      const sourceTriggerAreas = this.cloneSourceObjectTriggerAreas(entity.sourceObjectTriggerAreas);
       const triggerIndexes = new Set<number>();
       for (const triggerIndex of membership ?? []) {
         triggerIndexes.add(triggerIndex);
@@ -39648,17 +39665,50 @@ export class GameLogicSubsystem implements Subsystem {
           exited: exited?.has(triggerIndex) ? 1 : 0,
           isInside: membership?.has(triggerIndex) ? 1 : 0,
         }));
-      if (triggerAreas.length === 0 && enteredOrExitedFrame <= 0) {
+      const orderedTriggerAreas = this.sourceTriggerAreasMatchLiveState(sourceTriggerAreas, triggerAreas)
+        ? sourceTriggerAreas
+        : triggerAreas;
+      if (orderedTriggerAreas.length === 0 && enteredOrExitedFrame <= 0) {
         continue;
       }
       states.push({
         entityId: entity.id,
         enteredOrExitedFrame: Math.max(0, Math.trunc(enteredOrExitedFrame)),
-        triggerAreas,
+        triggerAreas: orderedTriggerAreas,
       });
     }
     states.sort((left, right) => left.entityId - right.entityId);
     return states;
+  }
+
+  private sourceTriggerAreasMatchLiveState(
+    sourceTriggerAreas: SourceMapEntitySaveState['triggerAreas'],
+    liveTriggerAreas: GameLogicObjectTriggerAreaEntrySaveState[],
+  ): boolean {
+    if (sourceTriggerAreas.length === 0 || sourceTriggerAreas.length !== liveTriggerAreas.length) {
+      return false;
+    }
+    const serialize = (triggerArea: GameLogicObjectTriggerAreaEntrySaveState) =>
+      `${triggerArea.triggerName.trim().toUpperCase()}\0${triggerArea.entered ? 1 : 0}`
+      + `\0${triggerArea.exited ? 1 : 0}\0${triggerArea.isInside ? 1 : 0}`;
+    const liveCounts = new Map<string, number>();
+    for (const triggerArea of liveTriggerAreas) {
+      const key = serialize(triggerArea);
+      liveCounts.set(key, (liveCounts.get(key) ?? 0) + 1);
+    }
+    for (const triggerArea of sourceTriggerAreas) {
+      const key = serialize(triggerArea);
+      const count = liveCounts.get(key) ?? 0;
+      if (count <= 0) {
+        return false;
+      }
+      if (count === 1) {
+        liveCounts.delete(key);
+      } else {
+        liveCounts.set(key, count - 1);
+      }
+    }
+    return liveCounts.size === 0;
   }
 
   private restoreSourceObjectTriggerAreaSaveState(
@@ -39692,15 +39742,19 @@ export class GameLogicSubsystem implements Subsystem {
       const membership = new Set<number>();
       const entered = new Set<number>();
       const exited = new Set<number>();
+      const sourceTriggerAreas: SourceMapEntitySaveState['triggerAreas'] = [];
       for (const triggerArea of saveState.triggerAreas ?? []) {
         if (!triggerArea || typeof triggerArea.triggerName !== 'string') {
           continue;
         }
         const normalizedName = triggerArea.triggerName.trim().toUpperCase();
-        if (!normalizedName) {
-          continue;
-        }
-        const triggerIndex = triggerIndexByNameUpper.get(normalizedName);
+        const triggerIndex = normalizedName ? triggerIndexByNameUpper.get(normalizedName) : undefined;
+        sourceTriggerAreas.push({
+          triggerName: triggerIndex !== undefined ? this.mapTriggerRegions[triggerIndex]!.name : '',
+          entered: triggerArea.entered ? 1 : 0,
+          exited: triggerArea.exited ? 1 : 0,
+          isInside: triggerArea.isInside ? 1 : 0,
+        });
         if (triggerIndex === undefined) {
           continue;
         }
@@ -39723,8 +39777,10 @@ export class GameLogicSubsystem implements Subsystem {
       if (exited.size > 0) {
         this.scriptTriggerExitedByEntityId.set(entityId, exited);
       }
+      entity.sourceObjectTriggerAreas = sourceTriggerAreas.slice(0, SOURCE_OBJECT_TRIGGER_INFO_LIMIT);
       const enteredOrExitedFrame = Number(saveState.enteredOrExitedFrame);
       if (Number.isFinite(enteredOrExitedFrame) && enteredOrExitedFrame > 0) {
+        entity.sourceObjectEnteredOrExitedFrame = Math.max(0, Math.trunc(enteredOrExitedFrame));
         this.scriptTriggerEnterExitFrameByEntityId.set(
           entityId,
           Math.max(0, Math.trunc(enteredOrExitedFrame)),

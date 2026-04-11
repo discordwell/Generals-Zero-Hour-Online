@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
 import { GameLogicSubsystem } from './index.js';
+import { createEmptySourceMapEntitySaveState } from './entity-xfer.js';
 import {
   makeBlock,
   makeBundle,
@@ -135,5 +136,41 @@ describe('trigger area save-state', () => {
     expect(privateLogic.scriptTriggerEnteredByEntityId.get(1)).toEqual(new Set([0]));
     expect(privateLogic.scriptTriggerExitedByEntityId.get(1)).toEqual(new Set([1]));
     expect(privateLogic.scriptTriggerEnterExitFrameByEntityId.get(1)).toBe(77);
+  });
+
+  it('retains source Object::xfer trigger-area order on imported entities', () => {
+    const bundle = makeTriggerAreaSaveBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeTriggerAreaSaveMap();
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 9;
+    sourceState.position = { x: 20, y: 0, z: 20 };
+    sourceState.orientation = 0;
+    sourceState.enteredOrExitedFrame = 123;
+    sourceState.triggerAreas = [
+      { triggerName: 'Trigger_B', entered: 0, exited: 1, isInside: 0 },
+      { triggerName: 'Trigger_A', entered: 1, exited: 0, isInside: 1 },
+    ];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 3,
+      frameCounter: 123,
+      objectIdCounter: 10,
+      objects: [{
+        templateName: 'TriggerDozer',
+        state: sourceState,
+      }],
+    });
+
+    const coreState = logic.captureSourceGameLogicRuntimeSaveState();
+    expect(coreState.spawnedEntities[0]?.sourceObjectTriggerAreas).toEqual([
+      { triggerName: 'Trigger_B', entered: 0, exited: 1, isInside: 0 },
+      { triggerName: 'Trigger_A', entered: 1, exited: 0, isInside: 1 },
+    ]);
   });
 });
