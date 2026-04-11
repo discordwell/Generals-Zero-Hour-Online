@@ -24905,7 +24905,19 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     campaign,
     passthroughBlocks: [
       ...extractPassthroughBlocks(data).filter(
-        (block) => block.blockName.toLowerCase() !== SOURCE_GAME_CLIENT_BLOCK.toLowerCase(),
+        (block) => {
+          const normalizedName = block.blockName.toLowerCase();
+          if (normalizedName === SOURCE_GAME_CLIENT_BLOCK.toLowerCase()) {
+            return false;
+          }
+          if (
+            normalizedName === SOURCE_TERRAIN_VISUAL_BLOCK.toLowerCase()
+            && sourceTerrainVisualState !== null
+          ) {
+            return false;
+          }
+          return true;
+        },
       ),
       ...(teamFactoryChunk && resolvedTeamFactoryState === null
         ? [{ blockName: SOURCE_TEAM_FACTORY_BLOCK, blockData: copyBytesToArrayBuffer(teamFactoryChunk) }]
