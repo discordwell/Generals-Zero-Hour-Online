@@ -1136,6 +1136,82 @@ function createSourcePhysicsBehaviorBlockData(state: SourcePhysicsBehaviorTestSt
   }
 }
 
+interface SourceRailroadBehaviorPullInfoTestState {
+  direction: number;
+  speed: number;
+  trackDistance: number;
+  towHitchPosition: Coord3D;
+  mostRecentSpecialPointHandle: number;
+  previousWaypoint: number;
+  currentWaypoint: number;
+}
+
+interface SourceRailroadBehaviorTestState {
+  physics: SourcePhysicsBehaviorTestState;
+  nextStationTask: number;
+  trailerId: number;
+  currentPointHandle: number;
+  waitAtStationTimer: number;
+  carriagesCreated: boolean;
+  hasEverBeenHitched: boolean;
+  waitingInWings: boolean;
+  endOfLine: boolean;
+  isLocomotive: boolean;
+  isLeadCarraige: boolean;
+  wantsToBeLeadCarraige: number;
+  disembark: boolean;
+  inTunnel: boolean;
+  conductorState: number;
+  anchorWaypointId: number;
+  pullInfo: SourceRailroadBehaviorPullInfoTestState;
+  conductorPullInfo: SourceRailroadBehaviorPullInfoTestState;
+  held: boolean;
+}
+
+function writeSourceRailroadPullInfo(
+  xferSave: XferSave,
+  state: SourceRailroadBehaviorPullInfoTestState,
+): void {
+  xferSave.xferVersion(1);
+  xferSave.xferReal(state.direction);
+  xferSave.xferReal(state.speed);
+  xferSave.xferReal(state.trackDistance);
+  xferSave.xferCoord3D(state.towHitchPosition);
+  xferSave.xferInt(state.mostRecentSpecialPointHandle);
+  xferSave.xferUnsignedInt(state.previousWaypoint);
+  xferSave.xferUnsignedInt(state.currentWaypoint);
+}
+
+function createSourceRailroadBehaviorBlockData(state: SourceRailroadBehaviorTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-railroad-behavior');
+  try {
+    xferSave.xferVersion(3);
+    xferSave.xferUser(createSourcePhysicsBehaviorBlockData(state.physics));
+    xferSave.xferUser(createRawInt32Bytes(state.nextStationTask));
+    xferSave.xferObjectID(state.trailerId);
+    xferSave.xferInt(state.currentPointHandle);
+    xferSave.xferInt(state.waitAtStationTimer);
+    xferSave.xferBool(state.carriagesCreated);
+    xferSave.xferBool(state.hasEverBeenHitched);
+    xferSave.xferBool(state.waitingInWings);
+    xferSave.xferBool(state.endOfLine);
+    xferSave.xferBool(state.isLocomotive);
+    xferSave.xferBool(state.isLeadCarraige);
+    xferSave.xferInt(state.wantsToBeLeadCarraige);
+    xferSave.xferBool(state.disembark);
+    xferSave.xferBool(state.inTunnel);
+    xferSave.xferUser(createRawInt32Bytes(state.conductorState));
+    xferSave.xferUser(createRawInt32Bytes(state.anchorWaypointId));
+    writeSourceRailroadPullInfo(xferSave, state.pullInfo);
+    writeSourceRailroadPullInfo(xferSave, state.conductorPullInfo);
+    xferSave.xferBool(state.held);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 interface SourceProjectileStreamUpdateTestState {
   nextCallFrameAndPhase: number;
   projectileIds: number[];
@@ -6763,6 +6839,104 @@ function parseSourcePhysicsBehaviorBlockData(data: Uint8Array): SourcePhysicsBeh
       extraBounciness: xferLoad.xferReal(0),
       extraFriction: xferLoad.xferReal(0),
       velMag: xferLoad.xferReal(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function readSourceRailroadPullInfo(xferLoad: XferLoad): SourceRailroadBehaviorPullInfoTestState {
+  xferLoad.xferVersion(1);
+  return {
+    direction: xferLoad.xferReal(0),
+    speed: xferLoad.xferReal(0),
+    trackDistance: xferLoad.xferReal(0),
+    towHitchPosition: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+    mostRecentSpecialPointHandle: xferLoad.xferInt(0),
+    previousWaypoint: xferLoad.xferUnsignedInt(0),
+    currentWaypoint: xferLoad.xferUnsignedInt(0),
+  };
+}
+
+function readSourcePhysicsBehaviorStateFromXfer(xferLoad: XferLoad): SourcePhysicsBehaviorTestState {
+  xferLoad.xferVersion(2);
+  xferLoad.xferVersion(1);
+  xferLoad.xferVersion(1);
+  xferLoad.xferVersion(1);
+  xferLoad.xferVersion(1);
+  const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+  const yawRate = xferLoad.xferReal(0);
+  const rollRate = xferLoad.xferReal(0);
+  const pitchRate = xferLoad.xferReal(0);
+  const accel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+  const prevAccel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+  const vel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+  const turning = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+  return {
+    nextCallFrameAndPhase,
+    yawRate,
+    rollRate,
+    pitchRate,
+    accel,
+    prevAccel,
+    vel,
+    turning,
+    ignoreCollisionsWith: xferLoad.xferObjectID(0),
+    flags: xferLoad.xferInt(0),
+    mass: xferLoad.xferReal(0),
+    currentOverlap: xferLoad.xferObjectID(0),
+    previousOverlap: xferLoad.xferObjectID(0),
+    motiveForceExpires: xferLoad.xferUnsignedInt(0),
+    extraBounciness: xferLoad.xferReal(0),
+    extraFriction: xferLoad.xferReal(0),
+    velMag: xferLoad.xferReal(0),
+  };
+}
+
+function parseSourceRailroadBehaviorBlockData(data: Uint8Array): SourceRailroadBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-railroad-behavior');
+  try {
+    xferLoad.xferVersion(3);
+    const physics = readSourcePhysicsBehaviorStateFromXfer(xferLoad);
+    const nextStationTask = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const trailerId = xferLoad.xferObjectID(0);
+    const currentPointHandle = xferLoad.xferInt(0);
+    const waitAtStationTimer = xferLoad.xferInt(0);
+    const carriagesCreated = xferLoad.xferBool(false);
+    const hasEverBeenHitched = xferLoad.xferBool(false);
+    const waitingInWings = xferLoad.xferBool(false);
+    const endOfLine = xferLoad.xferBool(false);
+    const isLocomotive = xferLoad.xferBool(false);
+    const isLeadCarraige = xferLoad.xferBool(false);
+    const wantsToBeLeadCarraige = xferLoad.xferInt(0);
+    const disembark = xferLoad.xferBool(false);
+    const inTunnel = xferLoad.xferBool(false);
+    const conductorState = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const anchorWaypointId = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const pullInfo = readSourceRailroadPullInfo(xferLoad);
+    const conductorPullInfo = readSourceRailroadPullInfo(xferLoad);
+    const held = xferLoad.xferBool(false);
+    return {
+      physics,
+      nextStationTask,
+      trailerId,
+      currentPointHandle,
+      waitAtStationTimer,
+      carriagesCreated,
+      hasEverBeenHitched,
+      waitingInWings,
+      endOfLine,
+      isLocomotive,
+      isLeadCarraige,
+      wantsToBeLeadCarraige,
+      disembark,
+      inTunnel,
+      conductorState,
+      anchorWaypointId,
+      pullInfo,
+      conductorPullInfo,
+      held,
     };
   } finally {
     xferLoad.close();
@@ -14818,6 +14992,275 @@ describe('runtime-save-game', () => {
     expect(parsed.flightPathEnd).toEqual({ x: 333, y: 444, z: 6 });
     expect(parsed.detonationWeaponTemplateName).toBe('NewProjectileWeapon');
     expect(parsed.lifespanFrame).toBe(504);
+  });
+
+  it('rewrites source RailroadBehavior xfer state', () => {
+    const sourceRailroadBlock = createSourceRailroadBehaviorBlockData({
+      physics: {
+        nextCallFrameAndPhase: (43 << 2) | 2,
+        yawRate: 0.1,
+        rollRate: 0.2,
+        pitchRate: 0.3,
+        accel: { x: 1, y: 2, z: 3 },
+        prevAccel: { x: 4, y: 5, z: 6 },
+        vel: { x: 7, y: 8, z: 9 },
+        turning: 0,
+        ignoreCollisionsWith: 10,
+        flags: SOURCE_PHYSICS_FLAG_STICK_TO_GROUND,
+        mass: 11,
+        currentOverlap: 12,
+        previousOverlap: 13,
+        motiveForceExpires: 14,
+        extraBounciness: 0.15,
+        extraFriction: 0.16,
+        velMag: 17,
+      },
+      nextStationTask: 0,
+      trailerId: 21,
+      currentPointHandle: 22,
+      waitAtStationTimer: 23,
+      carriagesCreated: false,
+      hasEverBeenHitched: false,
+      waitingInWings: true,
+      endOfLine: false,
+      isLocomotive: true,
+      isLeadCarraige: false,
+      wantsToBeLeadCarraige: 24,
+      disembark: false,
+      inTunnel: true,
+      conductorState: 0,
+      anchorWaypointId: 25,
+      pullInfo: {
+        direction: 1,
+        speed: 2,
+        trackDistance: 3,
+        towHitchPosition: { x: 4, y: 5, z: 6 },
+        mostRecentSpecialPointHandle: 7,
+        previousWaypoint: 8,
+        currentWaypoint: 9,
+      },
+      conductorPullInfo: {
+        direction: -1,
+        speed: 12,
+        trackDistance: 13,
+        towHitchPosition: { x: 14, y: 15, z: 16 },
+        mostRecentSpecialPointHandle: 17,
+        previousWaypoint: 18,
+        currentWaypoint: 19,
+      },
+      held: false,
+    });
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Railroad',
+      blockData: sourceRailroadBlock,
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source railroad behavior rewrite',
+      mapPath: 'Maps/RuntimeRailroad/RuntimeRailroad.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeRailroad',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            physicsBehaviorProfile: {
+              mass: 31,
+              allowBouncing: true,
+              allowCollideForce: true,
+            },
+            physicsBehaviorState: {
+              velX: 32,
+              velY: 33,
+              velZ: 34,
+              accelX: 35,
+              accelY: 36,
+              accelZ: 37,
+              prevAccelX: 38,
+              prevAccelY: 39,
+              prevAccelZ: 40,
+              yawRate: 0.41,
+              pitchRate: 0.42,
+              rollRate: 0.43,
+              wasAirborneLastFrame: true,
+              stickToGround: false,
+              allowToFall: true,
+              isInFreeFall: false,
+              extraBounciness: 0.44,
+              extraFriction: 0.45,
+              isStunned: true,
+              turning: -1,
+              ignoreCollisionsWith: 46,
+              currentOverlap: 47,
+              previousOverlap: 48,
+              motiveForceExpires: 49,
+              updateEverRun: true,
+              hasPitchRollYaw: true,
+              applyFriction2dWhenAirborne: true,
+              immuneToFallingDamage: false,
+              isInUpdate: false,
+              velMag: 50,
+            },
+            sourceRailroadBehaviorState: {
+              nextStationTaskBytes: [1, 0, 0, 0],
+              trailerId: 51,
+              currentPointHandle: 52,
+              waitAtStationTimer: 53,
+              carriagesCreated: true,
+              hasEverBeenHitched: true,
+              waitingInWings: false,
+              endOfLine: true,
+              isLocomotive: false,
+              isLeadCarraige: true,
+              wantsToBeLeadCarraige: 54,
+              disembark: true,
+              inTunnel: false,
+              conductorStateBytes: [2, 0, 0, 0],
+              anchorWaypointIdBytes: [65, 1, 0, 0],
+              pullInfo: {
+                direction: 1,
+                speed: 55,
+                trackDistance: 56,
+                towHitchPositionX: 57,
+                towHitchPositionY: 58,
+                towHitchPositionZ: 59,
+                mostRecentSpecialPointHandle: 60,
+                previousWaypoint: 61,
+                currentWaypoint: 62,
+              },
+              conductorPullInfo: {
+                direction: -1,
+                speed: 63,
+                trackDistance: 64,
+                towHitchPositionX: 65,
+                towHitchPositionY: 66,
+                towHitchPositionZ: 67,
+                mostRecentSpecialPointHandle: 68,
+                previousWaypoint: 69,
+                currentWaypoint: 70,
+              },
+              held: true,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Railroad') {
+            return 'RAILROADBEHAVIOR';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const railroadModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Railroad');
+
+    expect(railroadModule).toBeDefined();
+    const parsed = parseSourceRailroadBehaviorBlockData(railroadModule!.blockData);
+    expect(parsed.physics.nextCallFrameAndPhase).toBe((43 << 2) | 2);
+    expect(parsed.physics.yawRate).toBeCloseTo(0.41);
+    expect(parsed.physics.rollRate).toBeCloseTo(0.43);
+    expect(parsed.physics.pitchRate).toBeCloseTo(0.42);
+    expect(parsed.physics.accel).toEqual({ x: 35, y: 37, z: 36 });
+    expect(parsed.physics.prevAccel).toEqual({ x: 38, y: 40, z: 39 });
+    expect(parsed.physics.vel).toEqual({ x: 32, y: 34, z: 33 });
+    expect(parsed.physics.turning).toBe(-1);
+    expect(parsed.physics.ignoreCollisionsWith).toBe(46);
+    expect(parsed.physics.flags).toBe(
+      SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE
+      | SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE
+      | SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN
+      | SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME
+      | SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE
+      | SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL
+      | SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW
+      | SOURCE_PHYSICS_FLAG_IS_STUNNED,
+    );
+    expect(parsed.physics.mass).toBeCloseTo(31);
+    expect(parsed.physics.currentOverlap).toBe(47);
+    expect(parsed.physics.previousOverlap).toBe(48);
+    expect(parsed.physics.motiveForceExpires).toBe(49);
+    expect(parsed.physics.extraBounciness).toBeCloseTo(0.44);
+    expect(parsed.physics.extraFriction).toBeCloseTo(0.45);
+    expect(parsed.physics.velMag).toBeCloseTo(50);
+    expect(parsed.nextStationTask).toBe(1);
+    expect(parsed.trailerId).toBe(51);
+    expect(parsed.currentPointHandle).toBe(52);
+    expect(parsed.waitAtStationTimer).toBe(53);
+    expect(parsed.carriagesCreated).toBe(true);
+    expect(parsed.hasEverBeenHitched).toBe(true);
+    expect(parsed.waitingInWings).toBe(false);
+    expect(parsed.endOfLine).toBe(true);
+    expect(parsed.isLocomotive).toBe(false);
+    expect(parsed.isLeadCarraige).toBe(true);
+    expect(parsed.wantsToBeLeadCarraige).toBe(54);
+    expect(parsed.disembark).toBe(true);
+    expect(parsed.inTunnel).toBe(false);
+    expect(parsed.conductorState).toBe(2);
+    expect(parsed.anchorWaypointId).toBe(321);
+    expect(parsed.pullInfo.towHitchPosition).toEqual({ x: 57, y: 59, z: 58 });
+    expect(parsed.pullInfo.speed).toBeCloseTo(55);
+    expect(parsed.pullInfo.currentWaypoint).toBe(62);
+    expect(parsed.conductorPullInfo.towHitchPosition).toEqual({ x: 65, y: 67, z: 66 });
+    expect(parsed.conductorPullInfo.speed).toBeCloseTo(63);
+    expect(parsed.conductorPullInfo.currentWaypoint).toBe(70);
+    expect(parsed.held).toBe(true);
   });
 
   it('rewrites source WorkerAIUpdate tasks and supply tail while preserving state-machine bytes', () => {

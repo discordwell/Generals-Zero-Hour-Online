@@ -822,6 +822,8 @@ export function createMapEntity(self: GL,
     sourceDeliverPayloadAIUpdateState: null,
     // DumbProjectileBehavior source save tail (ballistic projectiles)
     sourceDumbProjectileBehaviorState: null,
+    // RailroadBehavior source save tail (train physics/conductor state)
+    sourceRailroadBehaviorState: null,
     // Special ability
     specialAbilityProfile: extractSpecialAbilityProfile(self, objectDef),
     specialAbilityState: null,
@@ -4022,7 +4024,7 @@ export function extractPhysicsBehaviorProfile(self: GL, objectDef: ObjectDef | u
     if (profile) return;
     if (block.type.toUpperCase() === 'BEHAVIOR') {
       const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
-      if (moduleType === 'PHYSICSBEHAVIOR') {
+      if (moduleType === 'PHYSICSBEHAVIOR' || moduleType === 'RAILROADBEHAVIOR') {
         const parseFrictionPerSec = (val: number | null | undefined, def: number): number => {
           if (val == null) return def;
           return val * SECONDS_PER_FRAME;

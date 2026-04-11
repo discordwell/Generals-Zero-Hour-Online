@@ -202,6 +202,9 @@ const SOURCE_PHYSICS_LIVE_OWNED_FLAG_MASK = SOURCE_PHYSICS_FLAG_STICK_TO_GROUND
   | SOURCE_PHYSICS_FLAG_IS_STUNNED;
 const SOURCE_PHYSICS_TURNING_BYTE_LENGTH = 4;
 const SOURCE_PHYSICS_INVALID_VEL_MAG = -1;
+const SOURCE_RAILROAD_BEHAVIOR_CURRENT_VERSION = 3;
+const SOURCE_RAILROAD_PULL_INFO_CURRENT_VERSION = 1;
+const SOURCE_RAILROAD_ENUM_BYTE_LENGTH = 4;
 const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_PROJECTILE_STREAM_MAX_ACTIVE = SOURCE_PROJECTILE_STREAM_MAX - 1;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
@@ -4717,6 +4720,40 @@ interface SourcePhysicsBehaviorBlockState {
   velMag: number;
 }
 
+interface SourceRailroadBehaviorPullInfoBlockState {
+  version: number;
+  direction: number;
+  speed: number;
+  trackDistance: number;
+  towHitchPosition: Coord3D;
+  mostRecentSpecialPointHandle: number;
+  previousWaypoint: number;
+  currentWaypoint: number;
+}
+
+interface SourceRailroadBehaviorBlockState {
+  version: number;
+  physics: SourcePhysicsBehaviorBlockState;
+  nextStationTaskBytes: Uint8Array;
+  trailerId: number;
+  currentPointHandle: number;
+  waitAtStationTimer: number;
+  carriagesCreated: boolean;
+  hasEverBeenHitched: boolean;
+  waitingInWings: boolean;
+  endOfLine: boolean;
+  isLocomotive: boolean;
+  isLeadCarraige: boolean;
+  wantsToBeLeadCarraige: number;
+  disembark: boolean;
+  inTunnel: boolean;
+  conductorStateBytes: Uint8Array;
+  anchorWaypointIdBytes: Uint8Array;
+  pullInfo: SourceRailroadBehaviorPullInfoBlockState;
+  conductorPullInfo: SourceRailroadBehaviorPullInfoBlockState;
+  held: boolean;
+}
+
 function sourcePhysicsFinite(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
@@ -4822,62 +4859,67 @@ function buildSourcePhysicsBehaviorFlags(
   return flags | 0;
 }
 
+function readSourcePhysicsBehaviorBlockState(
+  xferLoad: XferLoad,
+): SourcePhysicsBehaviorBlockState | null {
+  const version = xferLoad.xferVersion(2);
+  if (version !== 1 && version !== 2) {
+    return null;
+  }
+  xferLoad.xferVersion(1);
+  xferLoad.xferVersion(1);
+  xferLoad.xferVersion(1);
+  xferLoad.xferVersion(1);
+  const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+  const yawRate = xferLoad.xferReal(0);
+  const rollRate = xferLoad.xferReal(0);
+  const pitchRate = xferLoad.xferReal(0);
+  const accel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+  const prevAccel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+  const vel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+  if (version < 2) {
+    xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+  }
+  const turningBytes = xferLoad.xferUser(new Uint8Array(SOURCE_PHYSICS_TURNING_BYTE_LENGTH));
+  const ignoreCollisionsWith = xferLoad.xferObjectID(0);
+  const flags = xferLoad.xferInt(0);
+  const mass = xferLoad.xferReal(0);
+  const currentOverlap = xferLoad.xferObjectID(0);
+  const previousOverlap = xferLoad.xferObjectID(0);
+  const motiveForceExpires = xferLoad.xferUnsignedInt(0);
+  const extraBounciness = xferLoad.xferReal(0);
+  const extraFriction = xferLoad.xferReal(0);
+  const velMag = xferLoad.xferReal(0);
+  return {
+    version,
+    nextCallFrameAndPhase,
+    yawRate,
+    rollRate,
+    pitchRate,
+    accel,
+    prevAccel,
+    vel,
+    turningBytes,
+    ignoreCollisionsWith,
+    flags,
+    mass,
+    currentOverlap,
+    previousOverlap,
+    motiveForceExpires,
+    extraBounciness,
+    extraFriction,
+    velMag,
+  };
+}
+
 function tryParseSourcePhysicsBehaviorBlockData(
   data: Uint8Array,
 ): SourcePhysicsBehaviorBlockState | null {
   const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
   xferLoad.open('parse-source-physics-behavior');
   try {
-    const version = xferLoad.xferVersion(2);
-    if (version !== 1 && version !== 2) {
-      return null;
-    }
-    xferLoad.xferVersion(1);
-    xferLoad.xferVersion(1);
-    xferLoad.xferVersion(1);
-    xferLoad.xferVersion(1);
-    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
-    const yawRate = xferLoad.xferReal(0);
-    const rollRate = xferLoad.xferReal(0);
-    const pitchRate = xferLoad.xferReal(0);
-    const accel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
-    const prevAccel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
-    const vel = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
-    if (version < 2) {
-      xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
-    }
-    const turningBytes = xferLoad.xferUser(new Uint8Array(SOURCE_PHYSICS_TURNING_BYTE_LENGTH));
-    const ignoreCollisionsWith = xferLoad.xferObjectID(0);
-    const flags = xferLoad.xferInt(0);
-    const mass = xferLoad.xferReal(0);
-    const currentOverlap = xferLoad.xferObjectID(0);
-    const previousOverlap = xferLoad.xferObjectID(0);
-    const motiveForceExpires = xferLoad.xferUnsignedInt(0);
-    const extraBounciness = xferLoad.xferReal(0);
-    const extraFriction = xferLoad.xferReal(0);
-    const velMag = xferLoad.xferReal(0);
-    return xferLoad.getRemaining() === 0
-      ? {
-        version,
-        nextCallFrameAndPhase,
-        yawRate,
-        rollRate,
-        pitchRate,
-        accel,
-        prevAccel,
-        vel,
-        turningBytes,
-        ignoreCollisionsWith,
-        flags,
-        mass,
-        currentOverlap,
-        previousOverlap,
-        motiveForceExpires,
-        extraBounciness,
-        extraFriction,
-        velMag,
-      }
-      : null;
+    const state = readSourcePhysicsBehaviorBlockState(xferLoad);
+    return state && xferLoad.getRemaining() === 0 ? state : null;
   } catch {
     return null;
   } finally {
@@ -4885,11 +4927,12 @@ function tryParseSourcePhysicsBehaviorBlockData(
   }
 }
 
-function buildSourcePhysicsBehaviorBlockData(
+function writeSourcePhysicsBehaviorBlockData(
+  saver: XferSave,
   entity: MapEntity,
   currentFrame: number,
   preservedState: SourcePhysicsBehaviorBlockState,
-): Uint8Array {
+): void {
   const state = entity.physicsBehaviorState;
   const profile = entity.physicsBehaviorProfile;
   const yawRate = sourcePhysicsFinite(state?.yawRate, preservedState.yawRate);
@@ -4918,43 +4961,262 @@ function buildSourcePhysicsBehaviorBlockData(
         ? preservedState.turningBytes
         : new Uint8Array(SOURCE_PHYSICS_TURNING_BYTE_LENGTH)
     );
+  saver.xferVersion(2);
+  saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+    buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+  ));
+  saver.xferReal(yawRate);
+  saver.xferReal(rollRate);
+  saver.xferReal(pitchRate);
+  saver.xferCoord3D(accel);
+  saver.xferCoord3D(prevAccel);
+  saver.xferCoord3D(vel);
+  saver.xferUser(turningBytes);
+  saver.xferObjectID(Math.max(0, Math.trunc(
+    sourcePhysicsFinite(state?.ignoreCollisionsWith, preservedState.ignoreCollisionsWith),
+  )) >>> 0);
+  saver.xferInt(buildSourcePhysicsBehaviorFlags(
+    preservedState.flags,
+    entity,
+    yawRate,
+    rollRate,
+    pitchRate,
+  ));
+  saver.xferReal(sourcePhysicsFinite(profile?.mass, preservedState.mass));
+  saver.xferObjectID(Math.max(0, Math.trunc(
+    sourcePhysicsFinite(state?.currentOverlap, preservedState.currentOverlap),
+  )) >>> 0);
+  saver.xferObjectID(Math.max(0, Math.trunc(
+    sourcePhysicsFinite(state?.previousOverlap, preservedState.previousOverlap),
+  )) >>> 0);
+  saver.xferUnsignedInt(Math.max(0, Math.trunc(
+    sourcePhysicsFinite(state?.motiveForceExpires, preservedState.motiveForceExpires),
+  )) >>> 0);
+  saver.xferReal(sourcePhysicsFinite(state?.extraBounciness, preservedState.extraBounciness));
+  saver.xferReal(sourcePhysicsFinite(state?.extraFriction, preservedState.extraFriction));
+  saver.xferReal(sourcePhysicsFinite(state?.velMag, SOURCE_PHYSICS_INVALID_VEL_MAG));
+}
+
+function buildSourcePhysicsBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourcePhysicsBehaviorBlockState,
+): Uint8Array {
   const saver = new XferSave();
   saver.open('build-source-physics-behavior');
   try {
-    saver.xferVersion(2);
-    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
-      buildSourceUpdateModuleWakeFrame(currentFrame + 1),
+    writeSourcePhysicsBehaviorBlockData(saver, entity, currentFrame, preservedState);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function readSourceRailroadBehaviorPullInfoBlockState(
+  xferLoad: XferLoad,
+): SourceRailroadBehaviorPullInfoBlockState | null {
+  const version = xferLoad.xferVersion(SOURCE_RAILROAD_PULL_INFO_CURRENT_VERSION);
+  if (version !== SOURCE_RAILROAD_PULL_INFO_CURRENT_VERSION) {
+    return null;
+  }
+  return {
+    version,
+    direction: xferLoad.xferReal(0),
+    speed: xferLoad.xferReal(0),
+    trackDistance: xferLoad.xferReal(0),
+    towHitchPosition: xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 }),
+    mostRecentSpecialPointHandle: xferLoad.xferInt(0),
+    previousWaypoint: xferLoad.xferUnsignedInt(0),
+    currentWaypoint: xferLoad.xferUnsignedInt(0),
+  };
+}
+
+function tryParseSourceRailroadBehaviorBlockData(
+  data: Uint8Array,
+): SourceRailroadBehaviorBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-railroad-behavior');
+  try {
+    const version = xferLoad.xferVersion(SOURCE_RAILROAD_BEHAVIOR_CURRENT_VERSION);
+    if (version !== 2 && version !== SOURCE_RAILROAD_BEHAVIOR_CURRENT_VERSION) {
+      return null;
+    }
+    const physics = readSourcePhysicsBehaviorBlockState(xferLoad);
+    if (!physics) {
+      return null;
+    }
+    const nextStationTaskBytes = xferLoad.xferUser(new Uint8Array(SOURCE_RAILROAD_ENUM_BYTE_LENGTH));
+    const trailerId = xferLoad.xferObjectID(0);
+    const currentPointHandle = xferLoad.xferInt(0);
+    const waitAtStationTimer = xferLoad.xferInt(0);
+    const carriagesCreated = xferLoad.xferBool(false);
+    const hasEverBeenHitched = xferLoad.xferBool(false);
+    const waitingInWings = xferLoad.xferBool(false);
+    const endOfLine = xferLoad.xferBool(false);
+    const isLocomotive = xferLoad.xferBool(false);
+    const isLeadCarraige = xferLoad.xferBool(false);
+    const wantsToBeLeadCarraige = xferLoad.xferInt(0);
+    const disembark = xferLoad.xferBool(false);
+    const inTunnel = xferLoad.xferBool(false);
+    const conductorStateBytes = xferLoad.xferUser(new Uint8Array(SOURCE_RAILROAD_ENUM_BYTE_LENGTH));
+    const anchorWaypointIdBytes = xferLoad.xferUser(new Uint8Array(SOURCE_RAILROAD_ENUM_BYTE_LENGTH));
+    const pullInfo = readSourceRailroadBehaviorPullInfoBlockState(xferLoad);
+    const conductorPullInfo = readSourceRailroadBehaviorPullInfoBlockState(xferLoad);
+    if (!pullInfo || !conductorPullInfo) {
+      return null;
+    }
+    const held = version >= 3 ? xferLoad.xferBool(false) : false;
+    if (xferLoad.getRemaining() !== 0) {
+      return null;
+    }
+    return {
+      version,
+      physics,
+      nextStationTaskBytes,
+      trailerId,
+      currentPointHandle,
+      waitAtStationTimer,
+      carriagesCreated,
+      hasEverBeenHitched,
+      waitingInWings,
+      endOfLine,
+      isLocomotive,
+      isLeadCarraige,
+      wantsToBeLeadCarraige,
+      disembark,
+      inTunnel,
+      conductorStateBytes,
+      anchorWaypointIdBytes,
+      pullInfo,
+      conductorPullInfo,
+      held,
+    };
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function sourceRailroadRuntimeNumber(value: unknown, fallback: number): number {
+  return Number.isFinite(value) ? Number(value) : fallback;
+}
+
+function sourceRailroadRuntimeInt(value: unknown, fallback: number): number {
+  return Number.isFinite(value) ? Math.trunc(Number(value)) : Math.trunc(fallback);
+}
+
+function sourceRailroadRuntimeBool(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function sourceRailroadRuntimeByteArray(
+  value: unknown,
+  fallback: Uint8Array,
+  byteLength = SOURCE_RAILROAD_ENUM_BYTE_LENGTH,
+): Uint8Array {
+  const bytes = Array.isArray(value)
+    ? value.map((entry) => Math.trunc(Number(entry)) & 0xff)
+    : Array.from(fallback);
+  const result = new Uint8Array(byteLength);
+  for (let index = 0; index < byteLength; index += 1) {
+    result[index] = bytes[index] ?? 0;
+  }
+  return result;
+}
+
+function sourceRailroadRuntimePullInfoToSource(
+  state: SourceRailroadBehaviorPullInfoRuntimeState | null | undefined,
+  fallback: SourceRailroadBehaviorPullInfoBlockState,
+): SourceRailroadBehaviorPullInfoBlockState {
+  return {
+    version: SOURCE_RAILROAD_PULL_INFO_CURRENT_VERSION,
+    direction: sourceRailroadRuntimeNumber(state?.direction, fallback.direction),
+    speed: sourceRailroadRuntimeNumber(state?.speed, fallback.speed),
+    trackDistance: sourceRailroadRuntimeNumber(state?.trackDistance, fallback.trackDistance),
+    towHitchPosition: {
+      x: sourceRailroadRuntimeNumber(state?.towHitchPositionX, fallback.towHitchPosition.x),
+      y: sourceRailroadRuntimeNumber(state?.towHitchPositionZ, fallback.towHitchPosition.y),
+      z: sourceRailroadRuntimeNumber(state?.towHitchPositionY, fallback.towHitchPosition.z),
+    },
+    mostRecentSpecialPointHandle: sourceRailroadRuntimeInt(
+      state?.mostRecentSpecialPointHandle,
+      fallback.mostRecentSpecialPointHandle,
+    ),
+    previousWaypoint: normalizeSourceObjectId(
+      sourceRailroadRuntimeInt(state?.previousWaypoint, fallback.previousWaypoint),
+    ),
+    currentWaypoint: normalizeSourceObjectId(
+      sourceRailroadRuntimeInt(state?.currentWaypoint, fallback.currentWaypoint),
+    ),
+  };
+}
+
+function writeSourceRailroadBehaviorPullInfoBlockData(
+  saver: XferSave,
+  state: SourceRailroadBehaviorPullInfoBlockState,
+): void {
+  saver.xferVersion(SOURCE_RAILROAD_PULL_INFO_CURRENT_VERSION);
+  saver.xferReal(state.direction);
+  saver.xferReal(state.speed);
+  saver.xferReal(state.trackDistance);
+  saver.xferCoord3D(state.towHitchPosition);
+  saver.xferInt(state.mostRecentSpecialPointHandle);
+  saver.xferUnsignedInt(normalizeSourceObjectId(state.previousWaypoint));
+  saver.xferUnsignedInt(normalizeSourceObjectId(state.currentWaypoint));
+}
+
+function buildSourceRailroadBehaviorBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceRailroadBehaviorBlockState,
+): Uint8Array {
+  const runtimeState = (entity as {
+    sourceRailroadBehaviorState?: SourceRailroadBehaviorRuntimeState | null;
+  }).sourceRailroadBehaviorState ?? null;
+  const pullInfo = sourceRailroadRuntimePullInfoToSource(runtimeState?.pullInfo, preservedState.pullInfo);
+  const conductorPullInfo = sourceRailroadRuntimePullInfoToSource(
+    runtimeState?.conductorPullInfo,
+    preservedState.conductorPullInfo,
+  );
+  const saver = new XferSave();
+  saver.open('build-source-railroad-behavior');
+  try {
+    saver.xferVersion(SOURCE_RAILROAD_BEHAVIOR_CURRENT_VERSION);
+    writeSourcePhysicsBehaviorBlockData(saver, entity, currentFrame, preservedState.physics);
+    saver.xferUser(sourceRailroadRuntimeByteArray(
+      runtimeState?.nextStationTaskBytes,
+      preservedState.nextStationTaskBytes,
     ));
-    saver.xferReal(yawRate);
-    saver.xferReal(rollRate);
-    saver.xferReal(pitchRate);
-    saver.xferCoord3D(accel);
-    saver.xferCoord3D(prevAccel);
-    saver.xferCoord3D(vel);
-    saver.xferUser(turningBytes);
-    saver.xferObjectID(Math.max(0, Math.trunc(
-      sourcePhysicsFinite(state?.ignoreCollisionsWith, preservedState.ignoreCollisionsWith),
-    )) >>> 0);
-    saver.xferInt(buildSourcePhysicsBehaviorFlags(
-      preservedState.flags,
-      entity,
-      yawRate,
-      rollRate,
-      pitchRate,
+    saver.xferObjectID(normalizeSourceObjectId(sourceRailroadRuntimeInt(
+      runtimeState?.trailerId,
+      preservedState.trailerId,
+    )));
+    saver.xferInt(sourceRailroadRuntimeInt(runtimeState?.currentPointHandle, preservedState.currentPointHandle));
+    saver.xferInt(sourceRailroadRuntimeInt(runtimeState?.waitAtStationTimer, preservedState.waitAtStationTimer));
+    saver.xferBool(sourceRailroadRuntimeBool(runtimeState?.carriagesCreated, preservedState.carriagesCreated));
+    saver.xferBool(sourceRailroadRuntimeBool(runtimeState?.hasEverBeenHitched, preservedState.hasEverBeenHitched));
+    saver.xferBool(sourceRailroadRuntimeBool(runtimeState?.waitingInWings, preservedState.waitingInWings));
+    saver.xferBool(sourceRailroadRuntimeBool(runtimeState?.endOfLine, preservedState.endOfLine));
+    saver.xferBool(sourceRailroadRuntimeBool(runtimeState?.isLocomotive, preservedState.isLocomotive));
+    saver.xferBool(sourceRailroadRuntimeBool(runtimeState?.isLeadCarraige, preservedState.isLeadCarraige));
+    saver.xferInt(sourceRailroadRuntimeInt(
+      runtimeState?.wantsToBeLeadCarraige,
+      preservedState.wantsToBeLeadCarraige,
     ));
-    saver.xferReal(sourcePhysicsFinite(profile?.mass, preservedState.mass));
-    saver.xferObjectID(Math.max(0, Math.trunc(
-      sourcePhysicsFinite(state?.currentOverlap, preservedState.currentOverlap),
-    )) >>> 0);
-    saver.xferObjectID(Math.max(0, Math.trunc(
-      sourcePhysicsFinite(state?.previousOverlap, preservedState.previousOverlap),
-    )) >>> 0);
-    saver.xferUnsignedInt(Math.max(0, Math.trunc(
-      sourcePhysicsFinite(state?.motiveForceExpires, preservedState.motiveForceExpires),
-    )) >>> 0);
-    saver.xferReal(sourcePhysicsFinite(state?.extraBounciness, preservedState.extraBounciness));
-    saver.xferReal(sourcePhysicsFinite(state?.extraFriction, preservedState.extraFriction));
-    saver.xferReal(sourcePhysicsFinite(state?.velMag, SOURCE_PHYSICS_INVALID_VEL_MAG));
+    saver.xferBool(sourceRailroadRuntimeBool(runtimeState?.disembark, preservedState.disembark));
+    saver.xferBool(sourceRailroadRuntimeBool(runtimeState?.inTunnel, preservedState.inTunnel));
+    saver.xferUser(sourceRailroadRuntimeByteArray(
+      runtimeState?.conductorStateBytes,
+      preservedState.conductorStateBytes,
+    ));
+    saver.xferUser(sourceRailroadRuntimeByteArray(
+      runtimeState?.anchorWaypointIdBytes,
+      preservedState.anchorWaypointIdBytes,
+    ));
+    writeSourceRailroadBehaviorPullInfoBlockData(saver, pullInfo);
+    writeSourceRailroadBehaviorPullInfoBlockData(saver, conductorPullInfo);
+    saver.xferBool(sourceRailroadRuntimeBool(runtimeState?.held, preservedState.held));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -6320,6 +6582,40 @@ interface SourceDumbProjectileBehaviorRuntimeState {
   flightPathEndZ?: unknown;
   detonationWeaponTemplateName?: unknown;
   lifespanFrame?: unknown;
+}
+
+interface SourceRailroadBehaviorPullInfoRuntimeState {
+  version?: unknown;
+  direction?: unknown;
+  speed?: unknown;
+  trackDistance?: unknown;
+  towHitchPositionX?: unknown;
+  towHitchPositionY?: unknown;
+  towHitchPositionZ?: unknown;
+  mostRecentSpecialPointHandle?: unknown;
+  previousWaypoint?: unknown;
+  currentWaypoint?: unknown;
+}
+
+interface SourceRailroadBehaviorRuntimeState {
+  nextStationTaskBytes?: unknown;
+  trailerId?: unknown;
+  currentPointHandle?: unknown;
+  waitAtStationTimer?: unknown;
+  carriagesCreated?: unknown;
+  hasEverBeenHitched?: unknown;
+  waitingInWings?: unknown;
+  endOfLine?: unknown;
+  isLocomotive?: unknown;
+  isLeadCarraige?: unknown;
+  wantsToBeLeadCarraige?: unknown;
+  disembark?: unknown;
+  inTunnel?: unknown;
+  conductorStateBytes?: unknown;
+  anchorWaypointIdBytes?: unknown;
+  pullInfo?: SourceRailroadBehaviorPullInfoRuntimeState | null;
+  conductorPullInfo?: SourceRailroadBehaviorPullInfoRuntimeState | null;
+  held?: unknown;
 }
 
 interface SourceWorkerAIUpdateBlockState {
@@ -15093,6 +15389,15 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourcePhysicsBehaviorBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'RAILROADBEHAVIOR') {
+            const parsedSourceState = tryParseSourceRailroadBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceRailroadBehaviorBlockData(entity, currentFrame, parsedSourceState),
               };
             }
           }

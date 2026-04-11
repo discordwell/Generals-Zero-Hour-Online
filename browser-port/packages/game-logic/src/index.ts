@@ -3200,6 +3200,39 @@ interface SourceDumbProjectileBehaviorRuntimeState {
   lifespanFrame: number;
 }
 
+interface SourceRailroadBehaviorPullInfoRuntimeState {
+  direction: number;
+  speed: number;
+  trackDistance: number;
+  towHitchPositionX: number;
+  towHitchPositionY: number;
+  towHitchPositionZ: number;
+  mostRecentSpecialPointHandle: number;
+  previousWaypoint: number;
+  currentWaypoint: number;
+}
+
+interface SourceRailroadBehaviorRuntimeState {
+  nextStationTaskBytes: number[];
+  trailerId: number;
+  currentPointHandle: number;
+  waitAtStationTimer: number;
+  carriagesCreated: boolean;
+  hasEverBeenHitched: boolean;
+  waitingInWings: boolean;
+  endOfLine: boolean;
+  isLocomotive: boolean;
+  isLeadCarraige: boolean;
+  wantsToBeLeadCarraige: number;
+  disembark: boolean;
+  inTunnel: boolean;
+  conductorStateBytes: number[];
+  anchorWaypointIdBytes: number[];
+  pullInfo: SourceRailroadBehaviorPullInfoRuntimeState;
+  conductorPullInfo: SourceRailroadBehaviorPullInfoRuntimeState;
+  held: boolean;
+}
+
 interface SellingEntityState {
   sellFrame: number;
   constructionPercent: number;
@@ -4428,6 +4461,8 @@ export interface MapEntity {
   sourceDeliverPayloadAIUpdateState: SourceDeliverPayloadAIUpdateRuntimeState | null;
   // ── Source parity: DumbProjectileBehavior — ballistic projectile save tail ──
   sourceDumbProjectileBehaviorState: SourceDumbProjectileBehaviorRuntimeState | null;
+  // ── Source parity: RailroadBehavior — train physics/conductor save tail ──
+  sourceRailroadBehaviorState: SourceRailroadBehaviorRuntimeState | null;
 
   // ── Source parity: RadarUpdate — radar dish extension animation ──
   radarUpdateProfile: RadarUpdateProfile | null;
@@ -6671,6 +6706,9 @@ const SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE = 0x0100;
 const SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL = 0x0200;
 const SOURCE_PHYSICS_FLAG_IS_IN_UPDATE = 0x0400;
 const SOURCE_PHYSICS_FLAG_IS_STUNNED = 0x0800;
+const SOURCE_RAILROAD_BEHAVIOR_CURRENT_VERSION = 3;
+const SOURCE_RAILROAD_PULL_INFO_CURRENT_VERSION = 1;
+const SOURCE_RAILROAD_ENUM_BYTE_LENGTH = 4;
 
 function sourcePhysicsFlag(flags: number, bit: number): boolean {
   return (flags & bit) !== 0;
@@ -9104,6 +9142,38 @@ interface SourcePhysicsBehaviorImportState {
   extraBounciness: number;
   extraFriction: number;
   velMag: number;
+}
+
+interface SourceRailroadBehaviorPullInfoImportState {
+  direction: number;
+  speed: number;
+  trackDistance: number;
+  towHitchPosition: { x: number; y: number; z: number };
+  mostRecentSpecialPointHandle: number;
+  previousWaypoint: number;
+  currentWaypoint: number;
+}
+
+interface SourceRailroadBehaviorImportState {
+  physics: SourcePhysicsBehaviorImportState;
+  nextStationTaskBytes: number[];
+  trailerId: number;
+  currentPointHandle: number;
+  waitAtStationTimer: number;
+  carriagesCreated: boolean;
+  hasEverBeenHitched: boolean;
+  waitingInWings: boolean;
+  endOfLine: boolean;
+  isLocomotive: boolean;
+  isLeadCarraige: boolean;
+  wantsToBeLeadCarraige: number;
+  disembark: boolean;
+  inTunnel: boolean;
+  conductorStateBytes: number[];
+  anchorWaypointIdBytes: number[];
+  pullInfo: SourceRailroadBehaviorPullInfoImportState;
+  conductorPullInfo: SourceRailroadBehaviorPullInfoImportState;
+  held: boolean;
 }
 
 interface SourceLifetimeUpdateImportState {
@@ -15830,6 +15900,55 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private readSourcePhysicsBehaviorImportState(xfer: XferLoad): SourcePhysicsBehaviorImportState | null {
+    const version = xfer.xferVersion(2);
+    if (version !== 1 && version !== 2) {
+      return null;
+    }
+    const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+      this.skipSourceImportUpdateModuleBase(xfer),
+    );
+    const yawRate = xfer.xferReal(0);
+    const rollRate = xfer.xferReal(0);
+    const pitchRate = xfer.xferReal(0);
+    const accel = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const prevAccel = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const vel = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    if (version < 2) {
+      xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    }
+    const turning = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+    const ignoreCollisionsWith = xfer.xferObjectID(0);
+    const flags = xfer.xferInt(0);
+    const mass = xfer.xferReal(0);
+    const currentOverlap = xfer.xferObjectID(0);
+    const previousOverlap = xfer.xferObjectID(0);
+    const motiveForceExpires = xfer.xferUnsignedInt(0);
+    const extraBounciness = xfer.xferReal(0);
+    const extraFriction = xfer.xferReal(0);
+    const velMag = xfer.xferReal(0);
+    return {
+      version,
+      nextCallFrame,
+      yawRate,
+      rollRate,
+      pitchRate,
+      accel,
+      prevAccel,
+      vel,
+      turning,
+      ignoreCollisionsWith,
+      flags,
+      mass,
+      currentOverlap,
+      previousOverlap,
+      motiveForceExpires,
+      extraBounciness,
+      extraFriction,
+      velMag,
+    };
+  }
+
   private tryParseSourcePhysicsBehaviorImportState(
     data: Uint8Array,
     moduleType: string,
@@ -15841,59 +15960,68 @@ export class GameLogicSubsystem implements Subsystem {
     const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
     xfer.open('source-physics-behavior-import');
     try {
-      const version = xfer.xferVersion(2);
-      if (version !== 1 && version !== 2) {
-        return null;
-      }
-      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
-        this.skipSourceImportUpdateModuleBase(xfer),
-      );
-      const yawRate = xfer.xferReal(0);
-      const rollRate = xfer.xferReal(0);
-      const pitchRate = xfer.xferReal(0);
-      const accel = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
-      const prevAccel = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
-      const vel = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
-      if (version < 2) {
-        xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
-      }
-      const turning = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
-      const ignoreCollisionsWith = xfer.xferObjectID(0);
-      const flags = xfer.xferInt(0);
-      const mass = xfer.xferReal(0);
-      const currentOverlap = xfer.xferObjectID(0);
-      const previousOverlap = xfer.xferObjectID(0);
-      const motiveForceExpires = xfer.xferUnsignedInt(0);
-      const extraBounciness = xfer.xferReal(0);
-      const extraFriction = xfer.xferReal(0);
-      const velMag = xfer.xferReal(0);
-      return xfer.getRemaining() === 0
-        ? {
-          version,
-          nextCallFrame,
-          yawRate,
-          rollRate,
-          pitchRate,
-          accel,
-          prevAccel,
-          vel,
-          turning,
-          ignoreCollisionsWith,
-          flags,
-          mass,
-          currentOverlap,
-          previousOverlap,
-          motiveForceExpires,
-          extraBounciness,
-          extraFriction,
-          velMag,
-        }
-        : null;
+      const physicsState = this.readSourcePhysicsBehaviorImportState(xfer);
+      return physicsState && xfer.getRemaining() === 0 ? physicsState : null;
     } catch {
       return null;
     } finally {
       xfer.close();
     }
+  }
+
+  private applySourcePhysicsBehaviorImportStateToEntity(
+    entity: MapEntity,
+    physicsState: SourcePhysicsBehaviorImportState,
+  ): void {
+    if (!entity.physicsBehaviorProfile) {
+      return;
+    }
+    entity.physicsBehaviorProfile.mass = Number.isFinite(physicsState.mass)
+      ? physicsState.mass
+      : entity.physicsBehaviorProfile.mass;
+    entity.physicsBehaviorProfile.allowBouncing = sourcePhysicsFlag(
+      physicsState.flags,
+      SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE,
+    );
+    entity.physicsBehaviorProfile.allowCollideForce = sourcePhysicsFlag(
+      physicsState.flags,
+      SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE,
+    );
+    entity.physicsBehaviorState = {
+      velX: Number.isFinite(physicsState.vel.x) ? physicsState.vel.x : 0,
+      velY: Number.isFinite(physicsState.vel.z) ? physicsState.vel.z : 0,
+      velZ: Number.isFinite(physicsState.vel.y) ? physicsState.vel.y : 0,
+      accelX: Number.isFinite(physicsState.accel.x) ? physicsState.accel.x : 0,
+      accelY: Number.isFinite(physicsState.accel.z) ? physicsState.accel.z : 0,
+      accelZ: Number.isFinite(physicsState.accel.y) ? physicsState.accel.y : 0,
+      prevAccelX: Number.isFinite(physicsState.prevAccel.x) ? physicsState.prevAccel.x : 0,
+      prevAccelY: Number.isFinite(physicsState.prevAccel.z) ? physicsState.prevAccel.z : 0,
+      prevAccelZ: Number.isFinite(physicsState.prevAccel.y) ? physicsState.prevAccel.y : 0,
+      yawRate: Number.isFinite(physicsState.yawRate) ? physicsState.yawRate : 0,
+      pitchRate: Number.isFinite(physicsState.pitchRate) ? physicsState.pitchRate : 0,
+      rollRate: Number.isFinite(physicsState.rollRate) ? physicsState.rollRate : 0,
+      wasAirborneLastFrame: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME),
+      stickToGround: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_STICK_TO_GROUND),
+      allowToFall: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL),
+      isInFreeFall: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL),
+      extraBounciness: Number.isFinite(physicsState.extraBounciness) ? physicsState.extraBounciness : 0,
+      extraFriction: Number.isFinite(physicsState.extraFriction) ? physicsState.extraFriction : 0,
+      isStunned: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_IS_STUNNED),
+      turning: Number.isFinite(physicsState.turning) ? Math.trunc(physicsState.turning) : 0,
+      ignoreCollisionsWith: Math.max(0, Math.trunc(physicsState.ignoreCollisionsWith)),
+      currentOverlap: Math.max(0, Math.trunc(physicsState.currentOverlap)),
+      previousOverlap: Math.max(0, Math.trunc(physicsState.previousOverlap)),
+      motiveForceExpires: Math.max(0, Math.trunc(physicsState.motiveForceExpires)),
+      updateEverRun: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN),
+      hasPitchRollYaw: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW),
+      applyFriction2dWhenAirborne: sourcePhysicsFlag(
+        physicsState.flags,
+        SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE,
+      ),
+      immuneToFallingDamage: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE),
+      isInUpdate: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_IS_IN_UPDATE),
+      velMag: Number.isFinite(physicsState.velMag) ? physicsState.velMag : -1,
+    };
   }
 
   private applySourcePhysicsBehaviorModulesToEntity(
@@ -15917,51 +16045,153 @@ export class GameLogicSubsystem implements Subsystem {
         continue;
       }
 
-      entity.physicsBehaviorProfile.mass = Number.isFinite(physicsState.mass)
-        ? physicsState.mass
-        : entity.physicsBehaviorProfile.mass;
-      entity.physicsBehaviorProfile.allowBouncing = sourcePhysicsFlag(
-        physicsState.flags,
-        SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE,
+      this.applySourcePhysicsBehaviorImportStateToEntity(entity, physicsState);
+      return;
+    }
+  }
+
+  private readSourceRailroadBehaviorPullInfoImportState(
+    xfer: XferLoad,
+  ): SourceRailroadBehaviorPullInfoImportState | null {
+    const version = xfer.xferVersion(SOURCE_RAILROAD_PULL_INFO_CURRENT_VERSION);
+    if (version !== SOURCE_RAILROAD_PULL_INFO_CURRENT_VERSION) {
+      return null;
+    }
+    return {
+      direction: xfer.xferReal(0),
+      speed: xfer.xferReal(0),
+      trackDistance: xfer.xferReal(0),
+      towHitchPosition: xfer.xferCoord3D({ x: 0, y: 0, z: 0 }),
+      mostRecentSpecialPointHandle: xfer.xferInt(0),
+      previousWaypoint: xfer.xferUnsignedInt(0),
+      currentWaypoint: xfer.xferUnsignedInt(0),
+    };
+  }
+
+  private tryParseSourceRailroadBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceRailroadBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'RAILROADBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-railroad-behavior-import');
+    try {
+      const version = xfer.xferVersion(SOURCE_RAILROAD_BEHAVIOR_CURRENT_VERSION);
+      if (version !== 2 && version !== SOURCE_RAILROAD_BEHAVIOR_CURRENT_VERSION) {
+        return null;
+      }
+      const physics = this.readSourcePhysicsBehaviorImportState(xfer);
+      if (!physics) {
+        return null;
+      }
+      const nextStationTaskBytes = Array.from(xfer.xferUser(new Uint8Array(SOURCE_RAILROAD_ENUM_BYTE_LENGTH)));
+      const trailerId = xfer.xferObjectID(0);
+      const currentPointHandle = xfer.xferInt(0);
+      const waitAtStationTimer = xfer.xferInt(0);
+      const carriagesCreated = xfer.xferBool(false);
+      const hasEverBeenHitched = xfer.xferBool(false);
+      const waitingInWings = xfer.xferBool(false);
+      const endOfLine = xfer.xferBool(false);
+      const isLocomotive = xfer.xferBool(false);
+      const isLeadCarraige = xfer.xferBool(false);
+      const wantsToBeLeadCarraige = xfer.xferInt(0);
+      const disembark = xfer.xferBool(false);
+      const inTunnel = xfer.xferBool(false);
+      const conductorStateBytes = Array.from(xfer.xferUser(new Uint8Array(SOURCE_RAILROAD_ENUM_BYTE_LENGTH)));
+      const anchorWaypointIdBytes = Array.from(xfer.xferUser(new Uint8Array(SOURCE_RAILROAD_ENUM_BYTE_LENGTH)));
+      const pullInfo = this.readSourceRailroadBehaviorPullInfoImportState(xfer);
+      const conductorPullInfo = this.readSourceRailroadBehaviorPullInfoImportState(xfer);
+      if (!pullInfo || !conductorPullInfo) {
+        return null;
+      }
+      const held = version >= 3 ? xfer.xferBool(false) : false;
+      return xfer.getRemaining() === 0
+        ? {
+          physics,
+          nextStationTaskBytes,
+          trailerId,
+          currentPointHandle,
+          waitAtStationTimer,
+          carriagesCreated,
+          hasEverBeenHitched,
+          waitingInWings,
+          endOfLine,
+          isLocomotive,
+          isLeadCarraige,
+          wantsToBeLeadCarraige,
+          disembark,
+          inTunnel,
+          conductorStateBytes,
+          anchorWaypointIdBytes,
+          pullInfo,
+          conductorPullInfo,
+          held,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private sourceRailroadPullInfoToRuntime(
+    pullInfo: SourceRailroadBehaviorPullInfoImportState,
+  ): SourceRailroadBehaviorPullInfoRuntimeState {
+    const towHitch = this.sourceCoord3DToRuntime(pullInfo.towHitchPosition);
+    return {
+      direction: Number.isFinite(pullInfo.direction) ? pullInfo.direction : 0,
+      speed: Number.isFinite(pullInfo.speed) ? pullInfo.speed : 0,
+      trackDistance: Number.isFinite(pullInfo.trackDistance) ? pullInfo.trackDistance : 0,
+      towHitchPositionX: towHitch.x,
+      towHitchPositionY: towHitch.y,
+      towHitchPositionZ: towHitch.z,
+      mostRecentSpecialPointHandle: Math.trunc(pullInfo.mostRecentSpecialPointHandle),
+      previousWaypoint: Math.max(0, Math.trunc(pullInfo.previousWaypoint)),
+      currentWaypoint: Math.max(0, Math.trunc(pullInfo.currentWaypoint)),
+    };
+  }
+
+  private applySourceRailroadBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
       );
-      entity.physicsBehaviorProfile.allowCollideForce = sourcePhysicsFlag(
-        physicsState.flags,
-        SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE,
-      );
-      entity.physicsBehaviorState = {
-        velX: Number.isFinite(physicsState.vel.x) ? physicsState.vel.x : 0,
-        velY: Number.isFinite(physicsState.vel.z) ? physicsState.vel.z : 0,
-        velZ: Number.isFinite(physicsState.vel.y) ? physicsState.vel.y : 0,
-        accelX: Number.isFinite(physicsState.accel.x) ? physicsState.accel.x : 0,
-        accelY: Number.isFinite(physicsState.accel.z) ? physicsState.accel.z : 0,
-        accelZ: Number.isFinite(physicsState.accel.y) ? physicsState.accel.y : 0,
-        prevAccelX: Number.isFinite(physicsState.prevAccel.x) ? physicsState.prevAccel.x : 0,
-        prevAccelY: Number.isFinite(physicsState.prevAccel.z) ? physicsState.prevAccel.z : 0,
-        prevAccelZ: Number.isFinite(physicsState.prevAccel.y) ? physicsState.prevAccel.y : 0,
-        yawRate: Number.isFinite(physicsState.yawRate) ? physicsState.yawRate : 0,
-        pitchRate: Number.isFinite(physicsState.pitchRate) ? physicsState.pitchRate : 0,
-        rollRate: Number.isFinite(physicsState.rollRate) ? physicsState.rollRate : 0,
-        wasAirborneLastFrame: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_WAS_AIRBORNE_LAST_FRAME),
-        stickToGround: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_STICK_TO_GROUND),
-        allowToFall: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL),
-        isInFreeFall: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL),
-        extraBounciness: Number.isFinite(physicsState.extraBounciness) ? physicsState.extraBounciness : 0,
-        extraFriction: Number.isFinite(physicsState.extraFriction) ? physicsState.extraFriction : 0,
-        isStunned: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_IS_STUNNED),
-        turning: Number.isFinite(physicsState.turning) ? Math.trunc(physicsState.turning) : 0,
-        ignoreCollisionsWith: Math.max(0, Math.trunc(physicsState.ignoreCollisionsWith)),
-        currentOverlap: Math.max(0, Math.trunc(physicsState.currentOverlap)),
-        previousOverlap: Math.max(0, Math.trunc(physicsState.previousOverlap)),
-        motiveForceExpires: Math.max(0, Math.trunc(physicsState.motiveForceExpires)),
-        updateEverRun: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN),
-        hasPitchRollYaw: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_HAS_PITCH_ROLL_YAW),
-        applyFriction2dWhenAirborne: sourcePhysicsFlag(
-          physicsState.flags,
-          SOURCE_PHYSICS_FLAG_APPLY_FRICTION2D_WHEN_AIRBORNE,
-        ),
-        immuneToFallingDamage: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE),
-        isInUpdate: sourcePhysicsFlag(physicsState.flags, SOURCE_PHYSICS_FLAG_IS_IN_UPDATE),
-        velMag: Number.isFinite(physicsState.velMag) ? physicsState.velMag : -1,
+      if (!moduleType) {
+        continue;
+      }
+      const railroadState = this.tryParseSourceRailroadBehaviorImportState(module.blockData, moduleType);
+      if (!railroadState) {
+        continue;
+      }
+
+      this.applySourcePhysicsBehaviorImportStateToEntity(entity, railroadState.physics);
+      entity.sourceRailroadBehaviorState = {
+        nextStationTaskBytes: railroadState.nextStationTaskBytes.map((value) => Math.trunc(value) & 0xff),
+        trailerId: Math.max(0, Math.trunc(railroadState.trailerId)),
+        currentPointHandle: Math.trunc(railroadState.currentPointHandle),
+        waitAtStationTimer: Math.trunc(railroadState.waitAtStationTimer),
+        carriagesCreated: railroadState.carriagesCreated,
+        hasEverBeenHitched: railroadState.hasEverBeenHitched,
+        waitingInWings: railroadState.waitingInWings,
+        endOfLine: railroadState.endOfLine,
+        isLocomotive: railroadState.isLocomotive,
+        isLeadCarraige: railroadState.isLeadCarraige,
+        wantsToBeLeadCarraige: Math.trunc(railroadState.wantsToBeLeadCarraige),
+        disembark: railroadState.disembark,
+        inTunnel: railroadState.inTunnel,
+        conductorStateBytes: railroadState.conductorStateBytes.map((value) => Math.trunc(value) & 0xff),
+        anchorWaypointIdBytes: railroadState.anchorWaypointIdBytes.map((value) => Math.trunc(value) & 0xff),
+        pullInfo: this.sourceRailroadPullInfoToRuntime(railroadState.pullInfo),
+        conductorPullInfo: this.sourceRailroadPullInfoToRuntime(railroadState.conductorPullInfo),
+        held: railroadState.held,
       };
       return;
     }
@@ -23157,6 +23387,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceCleanupHazardUpdateModulesToEntity(entity, sourceState);
     this.applySourceDynamicShroudClearingRangeUpdateModulesToEntity(entity, sourceState);
     this.applySourcePhysicsBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceRailroadBehaviorModulesToEntity(entity, sourceState);
     this.applySourceLifetimeUpdateModulesToEntity(entity, sourceState);
     this.applySourceDeletionUpdateModulesToEntity(entity, sourceState);
     this.applySourceAutoFindHealingUpdateModulesToEntity(entity, sourceState);

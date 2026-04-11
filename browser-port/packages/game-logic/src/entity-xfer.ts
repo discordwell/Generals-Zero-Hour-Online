@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 45;
+const ENTITY_XFER_VERSION = 46;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -2486,6 +2486,14 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     );
   } else {
     e.sourceDumbProjectileBehaviorState = null;
+  }
+  if (version >= 46) {
+    e.sourceRailroadBehaviorState = xferNullableJsonObject(
+      xfer,
+      (e.sourceRailroadBehaviorState as object | null | undefined) ?? null,
+    );
+  } else {
+    e.sourceRailroadBehaviorState = null;
   }
 
   // ── Animation Steering ──

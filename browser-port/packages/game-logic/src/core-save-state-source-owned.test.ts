@@ -310,6 +310,14 @@ function makeSourceOwnedCoreBundle() {
           DetonateCallsKill: true,
         }),
       ]),
+      makeObjectDef('RailroadObject', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'RailroadBehavior ModuleTag_Railroad', {
+          Mass: 10,
+          AllowBouncing: false,
+          AllowCollideForce: true,
+          IsLocomotive: true,
+        }),
+      ]),
       makeObjectDef('ChinookObject', 'America', ['AIRCRAFT'], [
         makeBlock('Behavior', 'ChinookAIUpdate ModuleTag_ChinookAI', {
           MaxBoxes: 8,
@@ -4061,6 +4069,80 @@ function buildSourcePhysicsBehaviorModuleData(options: {
     saver.xferReal(options.extraBounciness);
     saver.xferReal(options.extraFriction);
     saver.xferReal(options.velMag);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+interface SourceRailroadPullInfoTestState {
+  direction: number;
+  speed: number;
+  trackDistance: number;
+  towHitchPosition: { x: number; y: number; z: number };
+  mostRecentSpecialPointHandle: number;
+  previousWaypoint: number;
+  currentWaypoint: number;
+}
+
+function writeSourceRailroadPullInfo(
+  saver: XferSave,
+  state: SourceRailroadPullInfoTestState,
+): void {
+  saver.xferVersion(1);
+  saver.xferReal(state.direction);
+  saver.xferReal(state.speed);
+  saver.xferReal(state.trackDistance);
+  saver.xferCoord3D(state.towHitchPosition);
+  saver.xferInt(state.mostRecentSpecialPointHandle);
+  saver.xferUnsignedInt(state.previousWaypoint);
+  saver.xferUnsignedInt(state.currentWaypoint);
+}
+
+function buildSourceRailroadBehaviorModuleData(options: {
+  physics: Parameters<typeof buildSourcePhysicsBehaviorModuleData>[0];
+  nextStationTask: number;
+  trailerId: number;
+  currentPointHandle: number;
+  waitAtStationTimer: number;
+  carriagesCreated: boolean;
+  hasEverBeenHitched: boolean;
+  waitingInWings: boolean;
+  endOfLine: boolean;
+  isLocomotive: boolean;
+  isLeadCarraige: boolean;
+  wantsToBeLeadCarraige: number;
+  disembark: boolean;
+  inTunnel: boolean;
+  conductorState: number;
+  anchorWaypointId: number;
+  pullInfo: SourceRailroadPullInfoTestState;
+  conductorPullInfo: SourceRailroadPullInfoTestState;
+  held: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-railroad-behavior');
+  try {
+    saver.xferVersion(3);
+    saver.xferUser(buildSourcePhysicsBehaviorModuleData(options.physics));
+    saver.xferUser(sourceRawInt32(options.nextStationTask));
+    saver.xferObjectID(options.trailerId);
+    saver.xferInt(options.currentPointHandle);
+    saver.xferInt(options.waitAtStationTimer);
+    saver.xferBool(options.carriagesCreated);
+    saver.xferBool(options.hasEverBeenHitched);
+    saver.xferBool(options.waitingInWings);
+    saver.xferBool(options.endOfLine);
+    saver.xferBool(options.isLocomotive);
+    saver.xferBool(options.isLeadCarraige);
+    saver.xferInt(options.wantsToBeLeadCarraige);
+    saver.xferBool(options.disembark);
+    saver.xferBool(options.inTunnel);
+    saver.xferUser(sourceRawInt32(options.conductorState));
+    saver.xferUser(sourceRawInt32(options.anchorWaypointId));
+    writeSourceRailroadPullInfo(saver, options.pullInfo);
+    writeSourceRailroadPullInfo(saver, options.conductorPullInfo);
+    saver.xferBool(options.held);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -9032,6 +9114,189 @@ describe('source-owned game-logic core save-state', () => {
     expect(entity.physicsBehaviorState!.rollRate).toBeCloseTo(0.82);
     expect(entity.physicsBehaviorState!.extraBounciness).toBeCloseTo(0.11);
     expect(entity.physicsBehaviorState!.extraFriction).toBeCloseTo(0.22);
+  });
+
+  it('imports source RailroadBehavior xfer state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 103;
+    sourceState.position = { x: 172, y: 0, z: 64 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_Railroad',
+      blockData: buildSourceRailroadBehaviorModuleData({
+        physics: {
+          nextCallFrame: 246,
+          yawRate: 0.51,
+          rollRate: 0.52,
+          pitchRate: 0.53,
+          accel: { x: 1, y: 2, z: 3 },
+          prevAccel: { x: 4, y: 5, z: 6 },
+          vel: { x: 7, y: 8, z: 9 },
+          turning: 1,
+          ignoreCollisionsWith: 77,
+          flags: SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE
+            | SOURCE_PHYSICS_FLAG_ALLOW_COLLIDE_FORCE
+            | SOURCE_PHYSICS_FLAG_ALLOW_TO_FALL
+            | SOURCE_PHYSICS_FLAG_UPDATE_EVER_RUN,
+          mass: 22.5,
+          currentOverlap: 78,
+          previousOverlap: 79,
+          motiveForceExpires: 80,
+          extraBounciness: 0.31,
+          extraFriction: 0.32,
+          velMag: 9.5,
+        },
+        nextStationTask: 1,
+        trailerId: 201,
+        currentPointHandle: 202,
+        waitAtStationTimer: 203,
+        carriagesCreated: true,
+        hasEverBeenHitched: true,
+        waitingInWings: false,
+        endOfLine: true,
+        isLocomotive: false,
+        isLeadCarraige: true,
+        wantsToBeLeadCarraige: 204,
+        disembark: true,
+        inTunnel: false,
+        conductorState: 2,
+        anchorWaypointId: 321,
+        pullInfo: {
+          direction: 1,
+          speed: 33,
+          trackDistance: 44,
+          towHitchPosition: { x: 11, y: 22, z: 3 },
+          mostRecentSpecialPointHandle: 55,
+          previousWaypoint: 66,
+          currentWaypoint: 67,
+        },
+        conductorPullInfo: {
+          direction: -1,
+          speed: 34,
+          trackDistance: 45,
+          towHitchPosition: { x: 12, y: 23, z: 4 },
+          mostRecentSpecialPointHandle: 56,
+          previousWaypoint: 68,
+          currentWaypoint: 69,
+        },
+        held: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 170,
+      objects: [
+        { templateName: 'RailroadObject', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        physicsBehaviorProfile: {
+          mass: number;
+          allowBouncing: boolean;
+          allowCollideForce: boolean;
+        } | null;
+        physicsBehaviorState: {
+          velX: number;
+          velY: number;
+          velZ: number;
+          turning?: number;
+          ignoreCollisionsWith?: number;
+          allowToFall: boolean;
+          updateEverRun?: boolean;
+        } | null;
+        sourceRailroadBehaviorState: {
+          nextStationTaskBytes: number[];
+          trailerId: number;
+          currentPointHandle: number;
+          waitAtStationTimer: number;
+          carriagesCreated: boolean;
+          hasEverBeenHitched: boolean;
+          waitingInWings: boolean;
+          endOfLine: boolean;
+          isLocomotive: boolean;
+          isLeadCarraige: boolean;
+          wantsToBeLeadCarraige: number;
+          disembark: boolean;
+          inTunnel: boolean;
+          conductorStateBytes: number[];
+          anchorWaypointIdBytes: number[];
+          pullInfo: {
+            speed: number;
+            towHitchPositionX: number;
+            towHitchPositionY: number;
+            towHitchPositionZ: number;
+            currentWaypoint: number;
+          };
+          conductorPullInfo: {
+            speed: number;
+            towHitchPositionX: number;
+            towHitchPositionY: number;
+            towHitchPositionZ: number;
+            currentWaypoint: number;
+          };
+          held: boolean;
+        } | null;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(103)!;
+    expect(entity.physicsBehaviorProfile).toMatchObject({
+      mass: 22.5,
+      allowBouncing: true,
+      allowCollideForce: true,
+    });
+    expect(entity.physicsBehaviorState).toMatchObject({
+      velX: 7,
+      velY: 9,
+      velZ: 8,
+      turning: 1,
+      ignoreCollisionsWith: 77,
+      allowToFall: true,
+      updateEverRun: true,
+    });
+    expect(entity.sourceRailroadBehaviorState).toMatchObject({
+      nextStationTaskBytes: [1, 0, 0, 0],
+      trailerId: 201,
+      currentPointHandle: 202,
+      waitAtStationTimer: 203,
+      carriagesCreated: true,
+      hasEverBeenHitched: true,
+      waitingInWings: false,
+      endOfLine: true,
+      isLocomotive: false,
+      isLeadCarraige: true,
+      wantsToBeLeadCarraige: 204,
+      disembark: true,
+      inTunnel: false,
+      conductorStateBytes: [2, 0, 0, 0],
+      anchorWaypointIdBytes: [65, 1, 0, 0],
+      held: true,
+    });
+    expect(entity.sourceRailroadBehaviorState!.pullInfo).toMatchObject({
+      speed: 33,
+      towHitchPositionX: 11,
+      towHitchPositionY: 3,
+      towHitchPositionZ: 22,
+      currentWaypoint: 67,
+    });
+    expect(entity.sourceRailroadBehaviorState!.conductorPullInfo).toMatchObject({
+      speed: 34,
+      towHitchPositionX: 12,
+      towHitchPositionY: 4,
+      towHitchPositionZ: 23,
+      currentWaypoint: 69,
+    });
   });
 
   it('imports source LifetimeUpdate runtime state', () => {
