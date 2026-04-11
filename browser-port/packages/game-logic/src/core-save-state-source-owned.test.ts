@@ -191,6 +191,12 @@ function makeSourceOwnedCoreBundle() {
           GrowInterval: 100,
         }),
       ]),
+      makeObjectDef('DetectorUnit', 'America', ['VEHICLE', 'DETECTOR'], [
+        makeBlock('Behavior', 'StealthDetectorUpdate ModuleTag_Detector', {
+          DetectionRate: 200,
+          DetectionRange: 120,
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -1015,6 +1021,26 @@ function buildSourceDynamicShroudClearingRangeUpdateModuleData(options: {
     saver.xferReal(options.visionChangePerInterval);
     saver.xferReal(options.nativeClearingRange);
     saver.xferReal(options.currentClearingRange);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceStealthDetectorUpdateModuleData(options: {
+  nextCallFrame: number;
+  enabled: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-stealth-detector-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferBool(options.enabled);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2280,6 +2306,47 @@ describe('source-owned game-logic core save-state', () => {
     expect(entity.dynamicShroudVisionChangePerInterval).toBeCloseTo(1.25);
     expect(entity.dynamicShroudNativeClearingRange).toBeCloseTo(400);
     expect(entity.dynamicShroudCurrentClearingRange).toBeCloseTo(125);
+  });
+
+  it('imports source StealthDetectorUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 101;
+    sourceState.position = { x: 168, y: 0, z: 64 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_Detector',
+      blockData: buildSourceStealthDetectorUpdateModuleData({
+        nextCallFrame: 245,
+        enabled: false,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 170,
+      objects: [
+        { templateName: 'DetectorUnit', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        detectorEnabled: boolean;
+        detectorNextScanFrame: number;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(101)!;
+    expect(entity.detectorEnabled).toBe(false);
+    expect(entity.detectorNextScanFrame).toBe(245);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {

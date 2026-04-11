@@ -8755,6 +8755,11 @@ interface SourceSpecialPowerModuleImportState {
   pausedPercent: number;
 }
 
+interface SourceStealthDetectorUpdateImportState {
+  nextCallFrame: number;
+  enabled: boolean;
+}
+
 interface SourceStealthUpdateImportState {
   stealthAllowedFrame: number;
   detectionExpiresFrame: number;
@@ -14387,6 +14392,60 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceStealthDetectorUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceStealthDetectorUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'STEALTHDETECTORUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-stealth-detector-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const enabled = xfer.xferBool(false);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, enabled } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceStealthDetectorUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.detectorProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const detectorState = this.tryParseSourceStealthDetectorUpdateImportState(module.blockData, moduleType);
+      if (!detectorState) {
+        continue;
+      }
+
+      entity.detectorEnabled = detectorState.enabled;
+      entity.detectorNextScanFrame = Math.max(0, Math.trunc(detectorState.nextCallFrame));
+      return;
+    }
+  }
+
   private applySourceStealthModulesToEntity(
     entity: MapEntity,
     sourceState: SourceMapEntitySaveState,
@@ -15108,6 +15167,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceDynamicShroudClearingRangeUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
     this.applySourceBattlePlanUpdateModulesToEntity(entity, sourceState);
+    this.applySourceStealthDetectorUpdateModulesToEntity(entity, sourceState);
     this.applySourceStealthModulesToEntity(entity, sourceState);
     this.applySourceSpyVisionUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialAbilityUpdateModulesToEntity(entity, sourceState);
