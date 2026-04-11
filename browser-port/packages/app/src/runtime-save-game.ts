@@ -124,6 +124,9 @@ const SOURCE_PROJECTILE_STREAM_MAX_ACTIVE = SOURCE_PROJECTILE_STREAM_MAX - 1;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
 const SOURCE_BONE_FX_BONES_RESOLVED_BYTE_LENGTH = SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT;
+const SOURCE_FLAMMABLE_STATUS_NORMAL = 0;
+const SOURCE_FLAMMABLE_STATUS_AFLAME = 1;
+const SOURCE_FLAMMABLE_STATUS_BURNED = 2;
 const SOURCE_SCRIPT_STATUS_DISABLED = 0x01;
 const SOURCE_SCRIPT_STATUS_UNPOWERED = 0x02;
 const SOURCE_SCRIPT_STATUS_UNSELLABLE = 0x04;
@@ -4971,6 +4974,166 @@ function buildSourceBoneFxUpdateBlockData(
   }
 }
 
+interface SourceFlammableUpdateBlockState {
+  version: number;
+  nextCallFrameAndPhase: number;
+  status: number;
+  aflameEndFrame: number;
+  burnedEndFrame: number;
+  damageEndFrame: number;
+  flameDamageLimit: number;
+  lastFlameDamageDealt: number;
+}
+
+function sourceFlammableStatusToInt(status: MapEntity['flameStatus'] | undefined): number {
+  switch (status) {
+    case 'AFLAME': return SOURCE_FLAMMABLE_STATUS_AFLAME;
+    case 'BURNED': return SOURCE_FLAMMABLE_STATUS_BURNED;
+    case 'NORMAL':
+    default: return SOURCE_FLAMMABLE_STATUS_NORMAL;
+  }
+}
+
+function sourceFlammableUnsignedFrame(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, Math.trunc(value)) >>> 0
+    : Math.max(0, Math.trunc(fallback)) >>> 0;
+}
+
+function sourceFlammableNextWakeFrame(entity: MapEntity, currentFrame: number): number {
+  if (entity.flameStatus !== 'AFLAME' || entity.flameEndFrame <= currentFrame) {
+    return SOURCE_FRAME_FOREVER;
+  }
+  let soonest = sourceFlammableUnsignedFrame(entity.flameEndFrame);
+  const burnedFrame = sourceFlammableUnsignedFrame(entity.flameBurnedEndFrame);
+  if (burnedFrame > currentFrame && burnedFrame < soonest) {
+    soonest = burnedFrame;
+  }
+  const damageFrame = sourceFlammableUnsignedFrame(entity.flameDamageNextFrame);
+  if (damageFrame > currentFrame && damageFrame < soonest) {
+    soonest = damageFrame;
+  }
+  return soonest;
+}
+
+function sourceFlammableRemainingDamageLimit(
+  entity: MapEntity,
+  preservedState: SourceFlammableUpdateBlockState,
+): number {
+  const limit = entity.flammableProfile?.flameDamageLimit;
+  if (typeof limit !== 'number' || !Number.isFinite(limit)) {
+    return preservedState.flameDamageLimit;
+  }
+  return limit - sourcePhysicsFinite(entity.flameDamageAccumulated, 0);
+}
+
+function tryParseSourceFlammableUpdateBlockData(
+  data: Uint8Array,
+): SourceFlammableUpdateBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-flammable-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const status = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const aflameEndFrame = xferLoad.xferUnsignedInt(0);
+    const burnedEndFrame = xferLoad.xferUnsignedInt(0);
+    const damageEndFrame = xferLoad.xferUnsignedInt(0);
+    const flameDamageLimit = xferLoad.xferReal(0);
+    const lastFlameDamageDealt = xferLoad.xferUnsignedInt(0);
+    return xferLoad.getRemaining() === 0
+      ? {
+        version,
+        nextCallFrameAndPhase,
+        status,
+        aflameEndFrame,
+        burnedEndFrame,
+        damageEndFrame,
+        flameDamageLimit,
+        lastFlameDamageDealt,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceFlammableUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceFlammableUpdateBlockState,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-flammable-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(sourceFlammableNextWakeFrame(entity, currentFrame)),
+    ));
+    saver.xferUser(buildSourceRawInt32Bytes(sourceFlammableStatusToInt(entity.flameStatus)));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(entity.flameEndFrame, preservedState.aflameEndFrame));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(entity.flameBurnedEndFrame, preservedState.burnedEndFrame));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(entity.flameDamageNextFrame, preservedState.damageEndFrame));
+    saver.xferReal(sourceFlammableRemainingDamageLimit(entity, preservedState));
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(
+      entity.flameLastDamageReceivedFrame,
+      preservedState.lastFlameDamageDealt,
+    ));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceFireSpreadUpdateBlockData(
+  data: Uint8Array,
+): { nextCallFrameAndPhase: number } | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-fire-spread-update');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    return xferLoad.getRemaining() === 0 ? { nextCallFrameAndPhase } : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceFireSpreadUpdateBlockData(entity: MapEntity): Uint8Array {
+  const nextWakeFrame = entity.flameStatus === 'AFLAME' && entity.fireSpreadNextFrame > 0
+    ? sourceFlammableUnsignedFrame(entity.fireSpreadNextFrame)
+    : SOURCE_FRAME_FOREVER;
+  const saver = new XferSave();
+  saver.open('build-source-fire-spread-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(
+      buildSourceUpdateModuleWakeFrame(nextWakeFrame),
+    ));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 interface SourceRgbColorState {
   red: number;
   green: number;
@@ -6913,6 +7076,24 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceBoneFxUpdateBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'FLAMMABLEUPDATE' && entity.flammableProfile) {
+            const parsedSourceState = tryParseSourceFlammableUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceFlammableUpdateBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'FIRESPREADUPDATE' && entity.fireSpreadProfile) {
+            const parsedSourceState = tryParseSourceFireSpreadUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceFireSpreadUpdateBlockData(entity),
               };
             }
           }

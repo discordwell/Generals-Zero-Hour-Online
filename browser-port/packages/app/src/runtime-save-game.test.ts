@@ -990,6 +990,7 @@ const SOURCE_PHYSICS_INVALID_VEL_MAG = -1;
 const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
+const SOURCE_FLAMMABLE_STATUS_AFLAME = 1;
 
 interface SourcePhysicsBehaviorTestState {
   nextCallFrameAndPhase: number;
@@ -1144,6 +1145,46 @@ function createSourceBoneFxUpdateBlockData(state: SourceBoneFxUpdateTestState): 
     xferSave.xferUser(createRawInt32Bytes(state.currentBodyState));
     xferSave.xferUser(state.bonesResolvedBytes);
     xferSave.xferBool(state.active);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+interface SourceFlammableUpdateTestState {
+  nextCallFrameAndPhase: number;
+  status: number;
+  aflameEndFrame: number;
+  burnedEndFrame: number;
+  damageEndFrame: number;
+  flameDamageLimit: number;
+  lastFlameDamageDealt: number;
+}
+
+function createSourceFlammableUpdateBlockData(state: SourceFlammableUpdateTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-flammable-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    xferSave.xferUser(createRawInt32Bytes(state.status));
+    xferSave.xferUnsignedInt(state.aflameEndFrame);
+    xferSave.xferUnsignedInt(state.burnedEndFrame);
+    xferSave.xferUnsignedInt(state.damageEndFrame);
+    xferSave.xferReal(state.flameDamageLimit);
+    xferSave.xferUnsignedInt(state.lastFlameDamageDealt);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function createSourceFireSpreadUpdateBlockData(nextCallFrameAndPhase: number): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-fire-spread-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(nextCallFrameAndPhase));
     return new Uint8Array(xferSave.getBuffer());
   } finally {
     xferSave.close();
@@ -2870,6 +2911,46 @@ function parseSourceBoneFxUpdateBlockData(data: Uint8Array): SourceBoneFxUpdateT
       currentBodyState: readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
       bonesResolvedBytes: xferLoad.xferUser(new Uint8Array(SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT)),
       active: xferLoad.xferBool(false),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceFlammableUpdateBlockData(data: Uint8Array): SourceFlammableUpdateTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-flammable-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
+      status: readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+      aflameEndFrame: xferLoad.xferUnsignedInt(0),
+      burnedEndFrame: xferLoad.xferUnsignedInt(0),
+      damageEndFrame: xferLoad.xferUnsignedInt(0),
+      flameDamageLimit: xferLoad.xferReal(0),
+      lastFlameDamageDealt: xferLoad.xferUnsignedInt(0),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function parseSourceFireSpreadUpdateBlockData(data: Uint8Array) {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-fire-spread-update');
+  try {
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    return {
+      nextCallFrameAndPhase: xferLoad.xferUnsignedInt(0),
     };
   } finally {
     xferLoad.close();
@@ -8919,6 +9000,144 @@ describe('runtime-save-game', () => {
     expect(parsed.currentBodyState).toBe(2);
     expect(Array.from(parsed.bonesResolvedBytes)).toEqual([1, 0, 1, 0]);
     expect(parsed.active).toBe(true);
+  });
+
+  it('rewrites source FlammableUpdate and FireSpreadUpdate modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Flammable',
+      blockData: createSourceFlammableUpdateBlockData({
+        nextCallFrameAndPhase: (84 << 2) | 2,
+        status: 0,
+        aflameEndFrame: 11,
+        burnedEndFrame: 12,
+        damageEndFrame: 13,
+        flameDamageLimit: 20,
+        lastFlameDamageDealt: 14,
+      }),
+    }, {
+      identifier: 'ModuleTag_FireSpread',
+      blockData: createSourceFireSpreadUpdateBlockData((99 << 2) | 2),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source fire update rewrite',
+      mapPath: 'Maps/RuntimeTank/RuntimeTank.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeTank',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          frameCounter: 42,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            flameStatus: 'AFLAME',
+            flameEndFrame: 90,
+            flameBurnedEndFrame: 80,
+            flameDamageNextFrame: 75,
+            flameLastDamageReceivedFrame: 60,
+            flameDamageAccumulated: 15,
+            flammableProfile: {
+              flameDamageLimit: 20,
+              flameDamageExpirationDelayFrames: 60,
+              aflameDurationFrames: 120,
+              aflameDamageDelayFrames: 10,
+              aflameDamageAmount: 4,
+              burnedDelayFrames: 30,
+            },
+            fireSpreadProfile: {
+              minSpreadDelayFrames: 5,
+              maxSpreadDelayFrames: 8,
+              spreadTryRange: 30,
+            },
+            fireSpreadNextFrame: 77,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName !== 'RuntimeTank') {
+            return null;
+          }
+          if (moduleTag === 'ModuleTag_Flammable') {
+            return 'FLAMMABLEUPDATE';
+          }
+          if (moduleTag === 'ModuleTag_FireSpread') {
+            return 'FIRESPREADUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const flammableModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Flammable');
+    const fireSpreadModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_FireSpread');
+
+    expect(flammableModule).toBeDefined();
+    expect(fireSpreadModule).toBeDefined();
+    const flammable = parseSourceFlammableUpdateBlockData(flammableModule!.blockData);
+    expect(flammable.nextCallFrameAndPhase).toBe((75 << 2) | 2);
+    expect(flammable.status).toBe(SOURCE_FLAMMABLE_STATUS_AFLAME);
+    expect(flammable.aflameEndFrame).toBe(90);
+    expect(flammable.burnedEndFrame).toBe(80);
+    expect(flammable.damageEndFrame).toBe(75);
+    expect(flammable.flameDamageLimit).toBeCloseTo(5, 6);
+    expect(flammable.lastFlameDamageDealt).toBe(60);
+    expect(parseSourceFireSpreadUpdateBlockData(fireSpreadModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (77 << 2) | 2,
+    });
   });
 
   it('rewrites source SlavedUpdate modules from live runtime state', () => {
