@@ -671,31 +671,42 @@ function sourceParticleToSavedParticle(
 }
 
 export class SourceParticleSystemSnapshot implements Snapshot {
+  payload: ParticleSystemManagerSaveState;
+
   constructor(
-    private readonly state: ParticleSystemManagerSaveState = {
+    state: ParticleSystemManagerSaveState = {
       version: 1,
       nextId: 1,
       systems: [],
     },
-  ) {}
+  ) {
+    this.payload = state;
+  }
 
   crc(_xfer: Xfer): void {}
 
   xfer(xfer: Xfer): void {
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      const payloadBytes = xfer.xferUser(new Uint8Array(0));
+      const parsed = parseSourceParticleSystemChunk(payloadBytes);
+      if (parsed === null) {
+        throw new Error('Unsupported source particle-system snapshot payload.');
+      }
+      this.payload = parsed;
+      return;
+    }
+
     const version = xfer.xferVersion(SOURCE_PARTICLE_SYSTEM_SNAPSHOT_VERSION);
     if (version !== SOURCE_PARTICLE_SYSTEM_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported particle-system snapshot version ${version}`);
     }
 
-    const uniqueSystemId = xfer.xferUnsignedInt(Math.max(0, this.state.nextId - 1));
-    const systemCount = xfer.xferUnsignedInt(this.state.systems.length);
-    if (xfer.getMode() !== XferMode.XFER_SAVE) {
-      throw new Error('SourceParticleSystemSnapshot is save-only.');
-    }
+    const uniqueSystemId = xfer.xferUnsignedInt(Math.max(0, this.payload.nextId - 1));
+    const systemCount = xfer.xferUnsignedInt(this.payload.systems.length);
     void uniqueSystemId;
     void systemCount;
 
-    for (const system of this.state.systems) {
+    for (const system of this.payload.systems) {
       xfer.xferAsciiString(system.template.name);
       xfer.xferVersion(1);
       const hydratedTemplate = xferTemplateInfo(xfer, system.template, system);

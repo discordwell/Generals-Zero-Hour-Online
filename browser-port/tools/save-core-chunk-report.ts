@@ -1,45 +1,112 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { listSaveGameChunks } from '@generals/engine';
 import {
   inspectGameLogicChunkLayout,
   inspectRuntimeSaveCoreChunkStatus,
+  type RuntimeSaveCoreChunkStatus,
 } from '../packages/app/src/runtime-save-game.js';
 
+export interface SaveCoreChunkReportSummary {
+  status: 'pass' | 'blocked';
+  totalCoreChunks: number;
+  parsedCoreChunks: number;
+  legacyCoreChunks: number;
+  rawPassthroughCoreChunks: number;
+  missingCoreChunks: number;
+}
+
+export interface SaveCoreChunkReport {
+  savePath: string;
+  summary: SaveCoreChunkReportSummary;
+  coreChunks: RuntimeSaveCoreChunkStatus[];
+  gameLogicLayout: ReturnType<typeof inspectGameLogicChunkLayout> | null;
+}
+
+export function getSaveCoreChunkBlockers(
+  chunkStatus: readonly RuntimeSaveCoreChunkStatus[],
+): RuntimeSaveCoreChunkStatus[] {
+  return chunkStatus.filter(
+    (chunk) => chunk.mode === 'raw_passthrough' || chunk.mode === 'missing',
+  );
+}
+
+export function summarizeSaveCoreChunkStatus(
+  chunkStatus: readonly RuntimeSaveCoreChunkStatus[],
+): SaveCoreChunkReportSummary {
+  const rawPassthroughCoreChunks = chunkStatus.filter((chunk) => chunk.mode === 'raw_passthrough').length;
+  const missingCoreChunks = chunkStatus.filter((chunk) => chunk.mode === 'missing').length;
+  return {
+    status: rawPassthroughCoreChunks > 0 || missingCoreChunks > 0 ? 'blocked' : 'pass',
+    totalCoreChunks: chunkStatus.length,
+    parsedCoreChunks: chunkStatus.filter((chunk) => chunk.mode === 'parsed').length,
+    legacyCoreChunks: chunkStatus.filter((chunk) => chunk.mode === 'legacy').length,
+    rawPassthroughCoreChunks,
+    missingCoreChunks,
+  };
+}
+
+export function buildSaveCoreChunkReport(
+  data: ArrayBuffer,
+  savePath: string,
+): SaveCoreChunkReport {
+  const chunkStatus = inspectRuntimeSaveCoreChunkStatus(data);
+  const chunkList = listSaveGameChunks(data);
+  const gameLogicChunk = chunkList.find((chunk) => chunk.blockName === 'CHUNK_GameLogic');
+  const gameLogicLayout = gameLogicChunk
+    ? inspectGameLogicChunkLayout(
+      new Uint8Array(
+        data,
+        gameLogicChunk.blockDataOffset,
+        gameLogicChunk.blockSize,
+      ).slice(),
+    )
+    : null;
+
+  return {
+    savePath,
+    summary: summarizeSaveCoreChunkStatus(chunkStatus),
+    coreChunks: chunkStatus,
+    gameLogicLayout,
+  };
+}
+
+function usage(): void {
+  console.error('Usage: tsx tools/save-core-chunk-report.ts [--strict] <save-file-path>');
+}
+
 function main(): void {
-  const [inputPath] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const strict = args.includes('--strict');
+  const inputPath = args.find((arg) => arg !== '--strict');
   if (!inputPath) {
-    console.error('Usage: tsx tools/save-core-chunk-report.ts <save-file-path>');
+    usage();
     process.exitCode = 1;
     return;
   }
 
   const absolutePath = resolve(process.cwd(), inputPath);
   const fileData = readFileSync(absolutePath);
-  const chunkStatus = inspectRuntimeSaveCoreChunkStatus(
-    fileData.buffer.slice(fileData.byteOffset, fileData.byteOffset + fileData.byteLength),
-  );
-  const chunkList = listSaveGameChunks(
-    fileData.buffer.slice(fileData.byteOffset, fileData.byteOffset + fileData.byteLength),
-  );
-  const gameLogicChunk = chunkList.find((chunk) => chunk.blockName === 'CHUNK_GameLogic');
-  const gameLogicLayout = gameLogicChunk
-    ? inspectGameLogicChunkLayout(
-      new Uint8Array(
-        fileData.buffer,
-        fileData.byteOffset + gameLogicChunk.blockDataOffset,
-        gameLogicChunk.blockSize,
-      ).slice(),
-    )
-    : null;
+  const data = fileData.buffer.slice(fileData.byteOffset, fileData.byteOffset + fileData.byteLength);
+  const report = buildSaveCoreChunkReport(data, absolutePath);
 
-  process.stdout.write(JSON.stringify({
-    savePath: absolutePath,
-    coreChunks: chunkStatus,
-    gameLogicLayout,
-  }, null, 2));
+  process.stdout.write(JSON.stringify(report, null, 2));
   process.stdout.write('\n');
+
+  const blockers = getSaveCoreChunkBlockers(report.coreChunks);
+  if (strict && blockers.length > 0) {
+    console.error(
+      `Save core chunk strict parity failed: ${blockers.length} raw/missing core chunk(s).`,
+    );
+    for (const blocker of blockers) {
+      console.error(`- ${blocker.blockName}: ${blocker.mode}`);
+    }
+    process.exitCode = 1;
+  }
 }
 
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

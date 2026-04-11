@@ -28,6 +28,7 @@ import {
   applySourceTeamFactoryChunkToState,
   buildSourceTeamFactoryChunk,
 } from './runtime-team-factory-save.js';
+import { SourceParticleSystemSnapshot } from './runtime-particle-system-save.js';
 
 function createEmptyRadarEvent() {
   return {
@@ -28227,5 +28228,25 @@ describe('runtime-save-game', () => {
     expect(parsed.particleSystemState?.systems[0]?.prevPositions?.[0]).toBeCloseTo(11.8, 5);
     expect(parsed.particleSystemState?.systems[0]?.prevPositions?.[1]).toBeCloseTo(2.9, 5);
     expect(parsed.particleSystemState?.systems[0]?.prevPositions?.[2]).toBeCloseTo(18.1, 5);
+
+    const particleChunk = readSaveChunkData(saveFile.data, 'CHUNK_ParticleSystem');
+    expect(particleChunk).not.toBeNull();
+    const snapshot = new SourceParticleSystemSnapshot();
+    const xferLoad = new XferLoad(
+      particleChunk!.buffer.slice(
+        particleChunk!.byteOffset,
+        particleChunk!.byteOffset + particleChunk!.byteLength,
+      ),
+    );
+    xferLoad.open('load-source-particle-system-snapshot');
+    try {
+      xferLoad.xferSnapshot(snapshot);
+      expect(xferLoad.getRemaining()).toBe(0);
+    } finally {
+      xferLoad.close();
+    }
+    expect(snapshot.payload.nextId).toBe(4);
+    expect(snapshot.payload.systems[0]?.template.name).toBe('SmokePuff');
+    expect(snapshot.payload.systems[0]?.particleCount).toBe(1);
   });
 });
