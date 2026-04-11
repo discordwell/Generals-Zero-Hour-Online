@@ -3820,6 +3820,10 @@ export interface MapEntity {
    * geometry used for collision detection, bounding sphere, etc.
    */
   geometryInfo: ObstacleGeometry;
+  /** Source parity: GeometryInfo::m_type, retained for binary save chunks that xfer the raw enum. */
+  sourceGeometryType?: 'SPHERE' | 'CYLINDER' | 'BOX';
+  /** Source parity: GeometryInfo::m_isSmall, retained separately from TS pathfinding heuristics. */
+  sourceGeometryIsSmall?: boolean;
   obstacleFootprint: number;
   ignoredMovementObstacleId: number | null;
   movePath: VectorXZ[];

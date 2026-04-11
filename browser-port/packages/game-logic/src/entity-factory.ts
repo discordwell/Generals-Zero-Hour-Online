@@ -245,6 +245,11 @@ export function createMapEntity(self: GL,
   // but geometryInfo is always present (matching C++ behavior).
   const geometryInfo: { shape: 'circle' | 'box'; majorRadius: number; minorRadius: number; height: number } =
     obstacleGeometry ?? self.resolveObstacleGeometry(objectDef) ?? { shape: 'circle', majorRadius: 1, minorRadius: 1, height: 1 };
+  const sourceGeometryRaw = readStringField(objectDef?.fields ?? {}, ['Geometry', 'GeometryType'])?.toUpperCase() ?? '';
+  const sourceGeometryType = sourceGeometryRaw.includes('BOX')
+    ? 'BOX'
+    : (sourceGeometryRaw.includes('CYLINDER') ? 'CYLINDER' : 'SPHERE');
+  const sourceGeometryIsSmall = readBooleanField(objectDef?.fields ?? {}, ['GeometryIsSmall']) === true;
   const obstacleFootprint = blocksPath ? self.footprintInCells(category, objectDef, obstacleGeometry) : 0;
   const { pathDiameter, pathfindCenterInCell } = self.resolvePathRadiusAndCenter(category, objectDef, obstacleGeometry);
   const geometryMajorRadius = objectDef
@@ -463,6 +468,8 @@ export function createMapEntity(self: GL,
     hijackGuard,
     obstacleGeometry,
     geometryInfo,
+    sourceGeometryType,
+    sourceGeometryIsSmall,
     obstacleFootprint,
     largestWeaponRange,
     totalWeaponAntiMask,

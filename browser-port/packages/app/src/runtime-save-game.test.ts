@@ -8507,6 +8507,23 @@ function readGhostObjectChunk(data: ArrayBuffer): {
   baseVersion: number;
   localPlayerIndex: number;
   ghostObjectCount: number;
+  ghostObjects: {
+    managerParentObjectId: number;
+    objectVersion: number;
+    objectBaseVersion: number;
+    parentObjectId: number;
+    parentGeometryType: number;
+    parentGeometryIsSmall: boolean;
+    parentGeometryMajorRadius: number;
+    parentGeometryMinorRadius: number;
+    parentAngle: number;
+    parentPosition: Coord3D;
+    drawableInfoShroudStatusObjectId: number;
+    drawableInfoFlags: number;
+    drawableId: number;
+    snapshotCounts: number[];
+    shroudednessCount: number;
+  }[];
   trailingBytes: number;
 } | null {
   const chunkData = readSaveChunkData(data, 'CHUNK_GhostObject');
@@ -8520,11 +8537,73 @@ function readGhostObjectChunk(data: ArrayBuffer): {
     const baseVersion = xferLoad.xferVersion(1);
     const localPlayerIndex = xferLoad.xferInt(0);
     const ghostObjectCount = xferLoad.xferUnsignedShort(0);
+    const ghostObjects: NonNullable<ReturnType<typeof readGhostObjectChunk>>['ghostObjects'] = [];
+    for (let index = 0; index < ghostObjectCount; index += 1) {
+      const managerParentObjectId = xferLoad.xferObjectID(0);
+      const objectVersion = xferLoad.xferVersion(1);
+      const objectBaseVersion = xferLoad.xferVersion(1);
+      const parentObjectId = xferLoad.xferObjectID(0);
+      const parentGeometryTypeBytes = xferLoad.xferUser(new Uint8Array(4));
+      const parentGeometryType = new DataView(
+        parentGeometryTypeBytes.buffer,
+        parentGeometryTypeBytes.byteOffset,
+        parentGeometryTypeBytes.byteLength,
+      ).getInt32(0, true);
+      const parentGeometryIsSmall = xferLoad.xferBool(false);
+      const parentGeometryMajorRadius = xferLoad.xferReal(0);
+      const parentGeometryMinorRadius = xferLoad.xferReal(0);
+      const parentAngle = xferLoad.xferReal(0);
+      const parentPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const drawableInfoShroudStatusObjectId = xferLoad.xferObjectID(0);
+      const drawableInfoFlags = xferLoad.xferInt(0);
+      const drawableId = xferLoad.xferUnsignedInt(0);
+      const snapshotCounts: number[] = [];
+      for (let playerIndex = 0; playerIndex < 16; playerIndex += 1) {
+        const snapshotCount = xferLoad.xferUnsignedByte(0);
+        snapshotCounts.push(snapshotCount);
+        for (let snapshotIndex = 0; snapshotIndex < snapshotCount; snapshotIndex += 1) {
+          xferLoad.xferAsciiString('');
+          xferLoad.xferReal(0);
+          xferLoad.xferUnsignedInt(0);
+          xferLoad.xferVersion(1);
+          xferLoad.xferUser(new Uint8Array(48));
+          const subObjectCount = xferLoad.xferInt(0);
+          for (let subObjectIndex = 0; subObjectIndex < subObjectCount; subObjectIndex += 1) {
+            xferLoad.xferAsciiString('');
+            xferLoad.xferBool(false);
+            xferLoad.xferUser(new Uint8Array(48));
+          }
+        }
+      }
+      const shroudednessCount = xferLoad.xferUnsignedByte(0);
+      for (let shroudednessIndex = 0; shroudednessIndex < shroudednessCount; shroudednessIndex += 1) {
+        xferLoad.xferUnsignedByte(0);
+        xferLoad.xferUser(new Uint8Array(4));
+      }
+      ghostObjects.push({
+        managerParentObjectId,
+        objectVersion,
+        objectBaseVersion,
+        parentObjectId,
+        parentGeometryType,
+        parentGeometryIsSmall,
+        parentGeometryMajorRadius,
+        parentGeometryMinorRadius,
+        parentAngle,
+        parentPosition,
+        drawableInfoShroudStatusObjectId,
+        drawableInfoFlags,
+        drawableId,
+        snapshotCounts,
+        shroudednessCount,
+      });
+    }
     return {
       w3dVersion,
       baseVersion,
       localPlayerIndex,
       ghostObjectCount,
+      ghostObjects,
       trailingBytes: chunkData.byteLength - xferLoad.getOffset(),
     };
   } finally {
@@ -8532,7 +8611,218 @@ function readGhostObjectChunk(data: ArrayBuffer): {
   }
 }
 
+function writeRawInt32(saver: XferSave, value: number): void {
+  saver.xferInt(value);
+}
+
+function writeRawMatrix3D(saver: XferSave, values: readonly number[] = []): void {
+  for (let index = 0; index < 12; index += 1) {
+    saver.xferReal(values[index] ?? 0);
+  }
+}
+
+function createSourceGhostObjectChunkData(): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-ghost-object-chunk');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferInt(0);
+    saver.xferUnsignedShort(1);
+
+    saver.xferObjectID(7);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferObjectID(7);
+    writeRawInt32(saver, 2);
+    saver.xferBool(true);
+    saver.xferReal(12);
+    saver.xferReal(8);
+    saver.xferReal(0.5);
+    saver.xferCoord3D({ x: 10, y: 30, z: 20 });
+    saver.xferObjectID(0);
+    saver.xferInt(0);
+    saver.xferUnsignedInt(0);
+
+    for (let playerIndex = 0; playerIndex < 16; playerIndex += 1) {
+      saver.xferUnsignedByte(playerIndex === 0 ? 1 : 0);
+      if (playerIndex !== 0) {
+        continue;
+      }
+      saver.xferAsciiString('RuntimeBuilding');
+      saver.xferReal(1);
+      saver.xferUnsignedInt(0x11223344);
+      saver.xferVersion(1);
+      writeRawMatrix3D(saver, [1, 0, 0, 10, 0, 1, 0, 20, 0, 0, 1, 30]);
+      saver.xferInt(1);
+      saver.xferAsciiString('MUZZLEFX01');
+      saver.xferBool(false);
+      writeRawMatrix3D(saver, [1, 0, 0, 11, 0, 1, 0, 21, 0, 0, 1, 31]);
+    }
+
+    saver.xferUnsignedByte(1);
+    saver.xferUnsignedByte(0);
+    writeRawInt32(saver, 3);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function createTinyRuntimeMapData() {
+  return {
+    heightmap: {
+      width: 2,
+      height: 2,
+      borderSize: 0,
+      data: 'AAAAAA==',
+    },
+    objects: [],
+    triggers: [],
+    waypoints: { nodes: [], links: [] },
+    textureClasses: [],
+    blendTileCount: 0,
+  };
+}
+
+function createMinimalRuntimeGameLogic(
+  spawnedEntities: readonly any[] = [],
+  extra: Record<string, unknown> = {},
+): any {
+  return {
+    captureSourceTerrainLogicRuntimeSaveState: () => ({
+      version: 2,
+      activeBoundary: 0,
+      waterUpdates: [],
+    }),
+    captureSourcePartitionRuntimeSaveState: () => createEmptyPartitionState(),
+    captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+    captureSourceRadarRuntimeSaveState: () => createEmptyRadarState(),
+    captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+    captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
+    captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+    captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+    captureSourceGameLogicRuntimeSaveState: () => ({
+      version: 1,
+      gameRandomSeed: 1,
+      nextId: 8,
+      nextProjectileVisualId: 1,
+      animationTime: 0,
+      selectedEntityId: null,
+      selectedEntityIds: [],
+      scriptSelectionChangedFrame: -1,
+      frameCounter: 0,
+      controlBarDirtyFrame: -1,
+      scriptObjectTopologyVersion: 0,
+      scriptObjectCountChangedFrame: 0,
+      defeatedSides: new Set<string>(),
+      gameEndFrame: null,
+      scriptEndGameTimerActive: false,
+      spawnedEntities,
+    }),
+    captureBrowserRuntimeSaveState: () => ({ version: 1, spawnedEntities: new Map() }),
+    getObjectIdCounter: () => 8,
+    ...extra,
+  };
+}
+
 describe('runtime-save-game', () => {
+  it('inspects source-shaped non-empty CHUNK_GhostObject payloads', () => {
+    const ghostObjectBytes = createSourceGhostObjectChunkData();
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Ghost Passthrough',
+      mapPath: 'assets/maps/Ghost.json',
+      mapData: createTinyRuntimeMapData(),
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GhostObject',
+        blockData: ghostObjectBytes,
+      }],
+      gameLogic: createMinimalRuntimeGameLogic(),
+    });
+
+    expect(readSaveChunkData(saveFile.data, 'CHUNK_GhostObject')).toEqual(ghostObjectBytes);
+    expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data).find(
+      (entry) => entry.blockName === 'CHUNK_GhostObject',
+    )).toEqual({ blockName: 'CHUNK_GhostObject', mode: 'parsed' });
+    expect(readGhostObjectChunk(saveFile.data)?.ghostObjects[0]).toMatchObject({
+      managerParentObjectId: 7,
+      parentObjectId: 7,
+      parentGeometryType: 2,
+      parentGeometryIsSmall: true,
+      parentGeometryMajorRadius: 12,
+      parentGeometryMinorRadius: 8,
+      parentAngle: 0.5,
+      parentPosition: { x: 10, y: 30, z: 20 },
+      snapshotCounts: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      shroudednessCount: 1,
+    });
+  });
+
+  it('emits source-shaped zero-snapshot ghost objects for immobile non-default-draw entities', () => {
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Generated Ghost',
+      mapPath: 'assets/maps/GhostGenerated.json',
+      mapData: createTinyRuntimeMapData(),
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: createSourceGameLogicChunkData(),
+      }],
+      gameLogic: createMinimalRuntimeGameLogic([{
+        id: 7,
+        templateName: 'RuntimeBuilding',
+        kindOf: new Set(['IMMOBILE', 'STRUCTURE']),
+        isImmobile: true,
+        resolved: true,
+        x: 10,
+        y: 20,
+        z: 30,
+        rotationY: 0.75,
+        geometryInfo: {
+          shape: 'box',
+          majorRadius: 12,
+          minorRadius: 8,
+          height: 24,
+        },
+        sourceGeometryType: 'BOX',
+        sourceGeometryIsSmall: true,
+      }], {
+        listSourceDrawableModuleDescriptors: () => [{
+          moduleType: 'W3DModelDraw',
+          moduleTag: 'ModuleTag_Draw',
+          moduleKind: 'draw',
+        }],
+      }),
+    });
+
+    const ghostChunk = readGhostObjectChunk(saveFile.data);
+    expect(ghostChunk).toMatchObject({
+      w3dVersion: 1,
+      baseVersion: 1,
+      localPlayerIndex: 0,
+      ghostObjectCount: 1,
+      trailingBytes: 0,
+    });
+    expect(ghostChunk?.ghostObjects[0]).toMatchObject({
+      managerParentObjectId: 7,
+      objectVersion: 1,
+      objectBaseVersion: 1,
+      parentObjectId: 7,
+      parentGeometryType: 2,
+      parentGeometryIsSmall: true,
+      parentGeometryMajorRadius: 12,
+      parentGeometryMinorRadius: 8,
+      parentAngle: 0.75,
+      parentPosition: { x: 10, y: 30, z: 20 },
+      drawableInfoShroudStatusObjectId: 0,
+      drawableInfoFlags: 0,
+      drawableId: 0,
+      snapshotCounts: new Array(16).fill(0),
+      shroudednessCount: 0,
+    });
+  });
+
   it('parses legacy JSON-backed CHUNK_SidesList payloads for backwards compatibility', () => {
     const legacyState = {
       version: 1,
@@ -9059,6 +9349,7 @@ describe('runtime-save-game', () => {
       baseVersion: 1,
       localPlayerIndex: 0,
       ghostObjectCount: 0,
+      ghostObjects: [],
       trailingBytes: 0,
     });
     expect(parsed.mapPath).toBe('assets/maps/ScenarioSkirmish.json');

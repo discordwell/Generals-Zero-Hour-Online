@@ -438,6 +438,10 @@ const SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION = 1;
 const SOURCE_W3D_TREE_BUFFER_MAX_TREES = 4000;
 const SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION = 1;
 const SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION = 1;
+const SOURCE_GHOST_OBJECT_PLAYER_COUNT = 16;
+const SOURCE_GEOMETRY_SPHERE = 0;
+const SOURCE_GEOMETRY_CYLINDER = 1;
+const SOURCE_GEOMETRY_BOX = 2;
 const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
 const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
 const SOURCE_SCRIPT_ENGINE_SNAPSHOT_VERSION = 5;
@@ -23710,6 +23714,16 @@ interface SourceW3DTreeBufferEntry {
   sinkFramesLeft: number;
 }
 
+interface SourceGhostObjectEntry {
+  parentObjectId: number;
+  parentGeometryType: number;
+  parentGeometryIsSmall: boolean;
+  parentGeometryMajorRadius: number;
+  parentGeometryMinorRadius: number;
+  parentAngle: number;
+  parentPosition: Coord3D;
+}
+
 function readSourceDescriptorStringField(
   descriptor: GameLogicSourceDrawableModuleDescriptor,
   names: readonly string[],
@@ -23786,6 +23800,77 @@ function buildSourceW3DTreeBufferEntries(
       sinkFramesLeft: 0,
     });
   }
+  return entries;
+}
+
+function sourceGeometryTypeValueFromEntity(entity: MapEntity): number | null {
+  switch (entity.sourceGeometryType) {
+    case 'SPHERE':
+      return SOURCE_GEOMETRY_SPHERE;
+    case 'CYLINDER':
+      return SOURCE_GEOMETRY_CYLINDER;
+    case 'BOX':
+      return SOURCE_GEOMETRY_BOX;
+    default:
+      // Older runtime states only retained the collapsed TS geometry shape.
+      // BOX can still be mapped exactly; circle cannot distinguish SPHERE from CYLINDER.
+      return entity.geometryInfo?.shape === 'box' ? SOURCE_GEOMETRY_BOX : null;
+  }
+}
+
+function hasSourceW3DDefaultDrawDescriptor(
+  descriptors: readonly GameLogicSourceDrawableModuleDescriptor[],
+): boolean {
+  return descriptors.some(
+    (descriptor) =>
+      descriptor.moduleKind === 'draw'
+      && descriptor.moduleType.trim().toUpperCase() === 'W3DDEFAULTDRAW',
+  );
+}
+
+function buildSourceGhostObjectEntries(
+  gameLogicState: GameLogicCoreSaveState,
+  listSourceDrawableModuleDescriptors: ((templateName: string) =>
+    readonly GameLogicSourceDrawableModuleDescriptor[] | null) | null,
+): SourceGhostObjectEntry[] {
+  if (!listSourceDrawableModuleDescriptors) {
+    return [];
+  }
+
+  const entries: SourceGhostObjectEntry[] = [];
+  for (const entity of gameLogicState.spawnedEntities) {
+    if (!entity.isImmobile && !entity.kindOf?.has('IMMOBILE')) {
+      continue;
+    }
+    if (!entity.resolved) {
+      continue;
+    }
+    const descriptors = listSourceDrawableModuleDescriptors(entity.templateName);
+    if (!descriptors || hasSourceW3DDefaultDrawDescriptor(descriptors)) {
+      continue;
+    }
+    const geometryType = sourceGeometryTypeValueFromEntity(entity);
+    if (geometryType === null) {
+      continue;
+    }
+    const geometry = entity.geometryInfo;
+    if (!geometry) {
+      continue;
+    }
+    entries.push({
+      parentObjectId: Math.max(0, Math.trunc(sourcePhysicsFinite(entity.id, 0))),
+      parentGeometryType: geometryType,
+      parentGeometryIsSmall: entity.sourceGeometryIsSmall === true,
+      parentGeometryMajorRadius: sourcePhysicsFinite(geometry.majorRadius, 1),
+      parentGeometryMinorRadius: sourcePhysicsFinite(geometry.minorRadius, geometry.majorRadius),
+      parentAngle: sourcePhysicsFinite(entity.rotationY, 0),
+      parentPosition: sourceCoord3DFromRuntimeXYZ(entity.x, entity.y, entity.z),
+    });
+  }
+
+  // Source W3DGhostObjectManager pushes newly attached modules onto the used-list head.
+  // Object ids are monotonic creation ids, so descending id reproduces that save order.
+  entries.sort((left, right) => right.parentObjectId - left.parentObjectId);
   return entries;
 }
 
@@ -23921,7 +24006,10 @@ class TerrainVisualSnapshot implements Snapshot {
 }
 
 class GhostObjectSnapshot implements Snapshot {
-  constructor(private readonly localPlayerIndex: number) {}
+  constructor(
+    private readonly localPlayerIndex: number,
+    private readonly ghostEntries: readonly SourceGhostObjectEntry[] = [],
+  ) {}
 
   crc(_xfer: Xfer): void {
     // Source ghost-object snapshot is currently save-only in the TS runtime.
@@ -23941,9 +24029,36 @@ class GhostObjectSnapshot implements Snapshot {
       throw new Error(`Unsupported ghost-object manager snapshot version ${baseVersion}`);
     }
     xfer.xferInt(this.localPlayerIndex);
-    const ghostObjectCount = xfer.xferUnsignedShort(0);
-    if (ghostObjectCount !== 0) {
-      throw new Error('Non-empty ghost-object snapshots are not implemented.');
+    const ghostObjectCount = xfer.xferUnsignedShort(this.ghostEntries.length);
+    if (ghostObjectCount !== this.ghostEntries.length) {
+      throw new Error('Ghost-object snapshot loading is not implemented.');
+    }
+    for (const entry of this.ghostEntries) {
+      xfer.xferObjectID(entry.parentObjectId);
+
+      const objectVersion = xfer.xferVersion(SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION);
+      if (objectVersion !== SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION) {
+        throw new Error(`Unsupported W3D ghost-object snapshot version ${objectVersion}`);
+      }
+      const baseObjectVersion = xfer.xferVersion(SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION);
+      if (baseObjectVersion !== SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION) {
+        throw new Error(`Unsupported base ghost-object snapshot version ${baseObjectVersion}`);
+      }
+      xfer.xferObjectID(entry.parentObjectId);
+      xfer.xferUser(buildSourceRawInt32Bytes(entry.parentGeometryType));
+      xfer.xferBool(entry.parentGeometryIsSmall);
+      xfer.xferReal(entry.parentGeometryMajorRadius);
+      xfer.xferReal(entry.parentGeometryMinorRadius);
+      xfer.xferReal(entry.parentAngle);
+      xfer.xferCoord3D(entry.parentPosition);
+
+      xfer.xferObjectID(0);
+      xfer.xferInt(0);
+      xfer.xferUnsignedInt(SOURCE_INVALID_DRAWABLE_ID);
+      for (let playerIndex = 0; playerIndex < SOURCE_GHOST_OBJECT_PLAYER_COUNT; playerIndex += 1) {
+        xfer.xferUnsignedByte(0);
+      }
+      xfer.xferUnsignedByte(0);
     }
   }
 
@@ -24054,6 +24169,10 @@ export function buildRuntimeSaveFile(params: {
   const terrainVisualTreeEntries = buildSourceW3DTreeBufferEntries(
     gameClientDrawableStates,
     params.renderableEntityStates,
+  );
+  const ghostObjectEntries = buildSourceGhostObjectEntries(
+    gameLogicPayload,
+    listSourceDrawableModuleDescriptors,
   );
   const orderedPassthroughBlocks = orderPassthroughBlocks(params.passthroughBlocks);
   const hasSourceGameLogicPassthrough = hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GAME_LOGIC_BLOCK);
@@ -24273,7 +24392,10 @@ export function buildRuntimeSaveFile(params: {
     );
   }
   if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GHOST_OBJECT_BLOCK)) {
-    state.addSnapshotBlock(SOURCE_GHOST_OBJECT_BLOCK, new GhostObjectSnapshot(resolvedLocalPlayerIndex));
+    state.addSnapshotBlock(
+      SOURCE_GHOST_OBJECT_BLOCK,
+      new GhostObjectSnapshot(resolvedLocalPlayerIndex, ghostObjectEntries),
+    );
   }
   for (const passthroughBlock of orderedPassthroughBlocks) {
     const normalizedName = passthroughBlock.blockName.toLowerCase();
@@ -24597,6 +24719,99 @@ function inspectRuntimeTerrainVisualChunkMode(
   }
 }
 
+function readSourceGhostObjectMatrix3DBytes(xferLoad: XferLoad): void {
+  xferLoad.xferUser(new Uint8Array(SOURCE_MATRIX3D_BYTE_LENGTH));
+}
+
+function inspectSourceW3DRenderObjectSnapshot(xferLoad: XferLoad): boolean {
+  const snapshotVersion = xferLoad.xferVersion(1);
+  if (snapshotVersion !== 1) {
+    return false;
+  }
+  readSourceGhostObjectMatrix3DBytes(xferLoad);
+  const subObjectCount = xferLoad.xferInt(0);
+  if (subObjectCount < 0 || subObjectCount > 4096) {
+    return false;
+  }
+  for (let subObjectIndex = 0; subObjectIndex < subObjectCount; subObjectIndex += 1) {
+    xferLoad.xferAsciiString('');
+    xferLoad.xferBool(false);
+    readSourceGhostObjectMatrix3DBytes(xferLoad);
+  }
+  return true;
+}
+
+function inspectSourceW3DGhostObjectSnapshot(xferLoad: XferLoad, managerParentObjectId: number): boolean {
+  const objectVersion = xferLoad.xferVersion(SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION);
+  if (objectVersion !== SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION) {
+    return false;
+  }
+  const baseObjectVersion = xferLoad.xferVersion(SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION);
+  if (baseObjectVersion !== SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION) {
+    return false;
+  }
+  const baseParentObjectId = xferLoad.xferObjectID(0);
+  if (baseParentObjectId !== managerParentObjectId) {
+    return false;
+  }
+  const parentGeometryType = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+  if (
+    parentGeometryType !== SOURCE_GEOMETRY_SPHERE
+    && parentGeometryType !== SOURCE_GEOMETRY_CYLINDER
+    && parentGeometryType !== SOURCE_GEOMETRY_BOX
+  ) {
+    return false;
+  }
+  xferLoad.xferBool(false);
+  xferLoad.xferReal(0);
+  xferLoad.xferReal(0);
+  xferLoad.xferReal(0);
+  xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+  xferLoad.xferObjectID(0);
+  xferLoad.xferInt(0);
+  xferLoad.xferUnsignedInt(SOURCE_INVALID_DRAWABLE_ID);
+
+  const snapshotCounts: number[] = [];
+  let playersWithSnapshots = 0;
+  for (let playerIndex = 0; playerIndex < SOURCE_GHOST_OBJECT_PLAYER_COUNT; playerIndex += 1) {
+    const snapshotCount = xferLoad.xferUnsignedByte(0);
+    snapshotCounts.push(snapshotCount);
+    if (snapshotCount > 0) {
+      playersWithSnapshots += 1;
+    }
+    for (let snapshotIndex = 0; snapshotIndex < snapshotCount; snapshotIndex += 1) {
+      xferLoad.xferAsciiString('');
+      xferLoad.xferReal(0);
+      xferLoad.xferUnsignedInt(0);
+      if (!inspectSourceW3DRenderObjectSnapshot(xferLoad)) {
+        return false;
+      }
+    }
+  }
+
+  const shroudednessCount = xferLoad.xferUnsignedByte(0);
+  if (shroudednessCount !== playersWithSnapshots) {
+    return false;
+  }
+  const seenShroudednessPlayers = new Set<number>();
+  for (let index = 0; index < shroudednessCount; index += 1) {
+    const playerIndex = xferLoad.xferUnsignedByte(0);
+    if (
+      playerIndex >= SOURCE_GHOST_OBJECT_PLAYER_COUNT
+      || snapshotCounts[playerIndex] === 0
+      || seenShroudednessPlayers.has(playerIndex)
+    ) {
+      return false;
+    }
+    seenShroudednessPlayers.add(playerIndex);
+    const previousShroudedness = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    if (previousShroudedness < 0 || previousShroudedness > 5) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function inspectRuntimeGhostObjectChunkMode(
   data: Uint8Array | null,
 ): Exclude<RuntimeSaveCoreChunkMode, 'raw_passthrough' | 'missing'> | null {
@@ -24616,7 +24831,13 @@ function inspectRuntimeGhostObjectChunkMode(
     }
     xferLoad.xferInt(0);
     const ghostObjectCount = xferLoad.xferUnsignedShort(0);
-    if (ghostObjectCount !== 0 || xferLoad.getRemaining() !== 0) {
+    for (let index = 0; index < ghostObjectCount; index += 1) {
+      const managerParentObjectId = xferLoad.xferObjectID(0);
+      if (!inspectSourceW3DGhostObjectSnapshot(xferLoad, managerParentObjectId)) {
+        return null;
+      }
+    }
+    if (xferLoad.getRemaining() !== 0) {
       return null;
     }
     return 'parsed';
