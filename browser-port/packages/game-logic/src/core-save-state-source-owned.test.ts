@@ -210,6 +210,12 @@ function makeSourceOwnedCoreBundle() {
           MaxLifetime: 1000,
         }),
       ]),
+      makeObjectDef('DeletionObject', 'America', ['PROJECTILE'], [
+        makeBlock('Behavior', 'DeletionUpdate ModuleTag_Delete', {
+          MinLifetime: 1000,
+          MaxLifetime: 1000,
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -1129,6 +1135,26 @@ function buildSourceLifetimeUpdateModuleData(options: {
 }): Uint8Array {
   const saver = new XferSave();
   saver.open('test-source-lifetime-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUnsignedInt(options.dieFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceDeletionUpdateModuleData(options: {
+  nextCallFrame: number;
+  dieFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-deletion-update');
   try {
     saver.xferVersion(1);
     saver.xferVersion(1);
@@ -2618,6 +2644,44 @@ describe('source-owned game-logic core save-state', () => {
     };
 
     expect(privateLogic.spawnedEntities.get(103)!.lifetimeDieFrame).toBe(333);
+  });
+
+  it('imports source DeletionUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 104;
+    sourceState.position = { x: 180, y: 0, z: 64 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_Delete',
+      blockData: buildSourceDeletionUpdateModuleData({
+        nextCallFrame: 444,
+        dieFrame: 444,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 180,
+      objects: [
+        { templateName: 'DeletionObject', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        deletionDieFrame: number | null;
+      }>;
+    };
+
+    expect(privateLogic.spawnedEntities.get(104)!.deletionDieFrame).toBe(444);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {
