@@ -265,6 +265,16 @@ function makeSourceOwnedCoreBundle() {
       makeObjectDef('BridgeScaffoldObject', 'Neutral', ['STRUCTURE'], [
         makeBlock('Behavior', 'BridgeScaffoldBehavior ModuleTag_BridgeScaffold', {}),
       ]),
+      makeObjectDef('BridgeObject', 'Neutral', ['STRUCTURE'], [
+        makeBlock('Behavior', 'BridgeBehavior ModuleTag_Bridge', {
+          LateralScaffoldSpeed: 1,
+          VerticalScaffoldSpeed: 1,
+          ScaffoldObjectName: 'BridgeScaffoldObject',
+        }),
+      ]),
+      makeObjectDef('BridgeTowerObject', 'Neutral', ['STRUCTURE'], [
+        makeBlock('Behavior', 'BridgeTowerBehavior ModuleTag_BridgeTower', {}),
+      ]),
       makeObjectDef('SlowDeathObject', 'America', ['VEHICLE'], [
         makeBlock('Behavior', 'SlowDeathBehavior ModuleTag_SlowDeath', {
           DestructionDelay: 3000,
@@ -756,6 +766,12 @@ function writeTestSourceObjectHelperBase(
   writeTestSourceUpdateModuleBase(saver, nextCallFrame, phase);
 }
 
+function writeTestSourceBehaviorModuleBase(saver: XferSave): void {
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+}
+
 const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
@@ -766,6 +782,7 @@ const SOURCE_SLOW_DEATH_FLAG_BOUNCED = 1 << 3;
 const SOURCE_MAX_NEUTRON_BLASTS = 9;
 const SOURCE_SPAWN_POINT_MAX_POINTS = 10;
 const SOURCE_UPDATE_PHASE_FINAL = 3;
+const SOURCE_BRIDGE_MAX_TOWERS = 4;
 
 const SOURCE_PHYSICS_FLAG_STICK_TO_GROUND = 0x0001;
 const SOURCE_PHYSICS_FLAG_ALLOW_BOUNCE = 0x0002;
@@ -1982,6 +1999,50 @@ function buildSourceBridgeScaffoldBehaviorModuleData(options: {
     saver.xferReal(options.lateralSpeed);
     saver.xferReal(options.verticalSpeed);
     saver.xferCoord3D(options.targetPos);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceBridgeBehaviorModuleData(options: {
+  nextCallFrame: number;
+  towerIds: number[];
+  scaffoldPresent: boolean;
+  scaffoldIds: number[];
+  deathFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-bridge-behavior');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+    for (let index = 0; index < SOURCE_BRIDGE_MAX_TOWERS; index += 1) {
+      saver.xferObjectID(options.towerIds[index] ?? 0);
+    }
+    saver.xferBool(options.scaffoldPresent);
+    saver.xferUnsignedShort(options.scaffoldIds.length);
+    for (const scaffoldId of options.scaffoldIds) {
+      saver.xferObjectID(scaffoldId);
+    }
+    saver.xferUnsignedInt(options.deathFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceBridgeTowerBehaviorModuleData(options: {
+  bridgeId: number;
+  towerType: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-bridge-tower-behavior');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceBehaviorModuleBase(saver);
+    saver.xferObjectID(options.bridgeId);
+    saver.xferUser(sourceRawInt32(options.towerType));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -5414,6 +5475,78 @@ describe('source-owned game-logic core save-state', () => {
     const importedTower = privateLogic.spawnedEntities.get(127)!;
     expect(importedTower.propagandaTowerNextScanFrame).toBe(200);
     expect(importedTower.propagandaTowerTrackedIds).toEqual([503, 502, 501]);
+  });
+
+  it('imports source BridgeBehavior and BridgeTowerBehavior runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const bridgeState = createEmptySourceMapEntitySaveState();
+    bridgeState.objectId = 128;
+    bridgeState.position = { x: 168, y: 0, z: 60 };
+    bridgeState.modules = [{
+      identifier: 'ModuleTag_Bridge',
+      blockData: buildSourceBridgeBehaviorModuleData({
+        nextCallFrame: 201,
+        towerIds: [301, 302, 303, 304],
+        scaffoldPresent: true,
+        scaffoldIds: [401, 402],
+        deathFrame: 220,
+      }),
+    }];
+
+    const towerState = createEmptySourceMapEntitySaveState();
+    towerState.objectId = 129;
+    towerState.position = { x: 170, y: 0, z: 62 };
+    towerState.modules = [{
+      identifier: 'ModuleTag_BridgeTower',
+      blockData: buildSourceBridgeTowerBehaviorModuleData({
+        bridgeId: 128,
+        towerType: 3,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'BridgeObject', state: bridgeState },
+        { templateName: 'BridgeTowerObject', state: towerState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        bridgeBehaviorState: {
+          towerIds: number[];
+          scaffoldIds: number[];
+          scaffoldPresent: boolean;
+          deathFrame: number;
+          isBridgeDestroyed: boolean;
+        } | null;
+        bridgeTowerState: {
+          bridgeEntityId: number;
+          towerType: number;
+        } | null;
+      }>;
+    };
+
+    const importedBridge = privateLogic.spawnedEntities.get(128)!.bridgeBehaviorState!;
+    expect(importedBridge.towerIds).toEqual([301, 302, 303, 304]);
+    expect(importedBridge.scaffoldIds).toEqual([401, 402]);
+    expect(importedBridge.scaffoldPresent).toBe(true);
+    expect(importedBridge.deathFrame).toBe(220);
+    expect(importedBridge.isBridgeDestroyed).toBe(true);
+
+    const importedTower = privateLogic.spawnedEntities.get(129)!.bridgeTowerState!;
+    expect(importedTower.bridgeEntityId).toBe(128);
+    expect(importedTower.towerType).toBe(3);
   });
 
   it('imports source BridgeScaffoldBehavior runtime state', () => {

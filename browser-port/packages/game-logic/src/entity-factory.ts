@@ -1226,6 +1226,7 @@ export function createMapEntity(self: GL,
     entity.bridgeBehaviorState = {
       towerIds: [],
       scaffoldIds: [],
+      scaffoldPresent: false,
       isBridgeDestroyed: false,
       bridgeCells: [],
       deathFrame: 0,

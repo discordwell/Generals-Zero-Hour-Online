@@ -6146,6 +6146,21 @@ interface SourceBridgeScaffoldBehaviorBlockState {
   targetPos: Coord3D;
 }
 
+interface SourceBridgeBehaviorBlockState {
+  nextCallFrameAndPhase: number;
+  towerIds: number[];
+  scaffoldPresent: boolean;
+  scaffoldIds: number[];
+  deathFrame: number;
+}
+
+interface SourceBridgeTowerBehaviorBlockState {
+  bridgeId: number;
+  towerType: number;
+}
+
+const SOURCE_BRIDGE_MAX_TOWERS = 4;
+
 interface SourceBaseOnlyUpdateModuleBlockState {
   nextCallFrameAndPhase: number;
 }
@@ -7122,6 +7137,141 @@ function tryParseSourceBridgeScaffoldBehaviorBlockData(
     return null;
   } finally {
     xferLoad.close();
+  }
+}
+
+function tryParseSourceBridgeBehaviorBlockData(
+  data: Uint8Array,
+): SourceBridgeBehaviorBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-bridge-behavior');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const nextCallFrameAndPhase = xferSourceUpdateModuleBase(
+      xferLoad,
+      buildSourceUpdateModuleWakeFrame(SOURCE_FRAME_FOREVER),
+    );
+    const towerIds: number[] = [];
+    for (let index = 0; index < SOURCE_BRIDGE_MAX_TOWERS; index += 1) {
+      towerIds.push(xferLoad.xferObjectID(0));
+    }
+    const scaffoldPresent = xferLoad.xferBool(false);
+    const scaffoldCount = xferLoad.xferUnsignedShort(0);
+    const scaffoldIds: number[] = [];
+    for (let index = 0; index < scaffoldCount; index += 1) {
+      scaffoldIds.push(xferLoad.xferObjectID(0));
+    }
+    const deathFrame = xferLoad.xferUnsignedInt(0);
+    return xferLoad.getRemaining() === 0
+      ? {
+        nextCallFrameAndPhase,
+        towerIds,
+        scaffoldPresent,
+        scaffoldIds,
+        deathFrame,
+      }
+      : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function sourceBridgeFixedTowerIds(
+  entity: MapEntity,
+  preservedState: SourceBridgeBehaviorBlockState,
+): number[] {
+  const sourceIds = Array.isArray(entity.bridgeBehaviorState?.towerIds)
+    ? entity.bridgeBehaviorState.towerIds
+    : preservedState.towerIds;
+  return Array.from({ length: SOURCE_BRIDGE_MAX_TOWERS }, (_, index) =>
+    normalizeSourceObjectId(sourceIds[index] ?? 0));
+}
+
+function sourceBridgeScaffoldIds(
+  entity: MapEntity,
+  preservedState: SourceBridgeBehaviorBlockState,
+): number[] {
+  const sourceIds = Array.isArray(entity.bridgeBehaviorState?.scaffoldIds)
+    ? entity.bridgeBehaviorState.scaffoldIds
+    : preservedState.scaffoldIds;
+  const scaffoldIds = sourceIds.map(normalizeSourceObjectId);
+  if (scaffoldIds.length > 0xffff) {
+    throw new Error(`BridgeBehavior source save has ${scaffoldIds.length} scaffold ids; C++ xfers an unsigned short count.`);
+  }
+  return scaffoldIds;
+}
+
+function buildSourceBridgeBehaviorBlockData(
+  entity: MapEntity,
+  preservedState: SourceBridgeBehaviorBlockState,
+): Uint8Array {
+  const towerIds = sourceBridgeFixedTowerIds(entity, preservedState);
+  const scaffoldIds = sourceBridgeScaffoldIds(entity, preservedState);
+  const bridgeState = entity.bridgeBehaviorState;
+  const scaffoldPresent = typeof bridgeState?.scaffoldPresent === 'boolean'
+    ? bridgeState.scaffoldPresent
+    : (scaffoldIds.length > 0 ? true : preservedState.scaffoldPresent);
+  const saver = new XferSave();
+  saver.open('build-source-bridge-behavior');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceUpdateModuleBaseBlockData(preservedState.nextCallFrameAndPhase));
+    for (const towerId of towerIds) {
+      saver.xferObjectID(towerId);
+    }
+    saver.xferBool(scaffoldPresent);
+    saver.xferUnsignedShort(scaffoldIds.length);
+    for (const scaffoldId of scaffoldIds) {
+      saver.xferObjectID(scaffoldId);
+    }
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(bridgeState?.deathFrame, preservedState.deathFrame));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceBridgeTowerBehaviorBlockData(
+  data: Uint8Array,
+): SourceBridgeTowerBehaviorBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-bridge-tower-behavior');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferSourceBehaviorModuleBase(xferLoad);
+    const bridgeId = xferLoad.xferObjectID(0);
+    const towerType = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    return xferLoad.getRemaining() === 0 ? { bridgeId, towerType } : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceBridgeTowerBehaviorBlockData(
+  entity: MapEntity,
+  preservedState: SourceBridgeTowerBehaviorBlockState,
+): Uint8Array {
+  const towerState = entity.bridgeTowerState;
+  const saver = new XferSave();
+  saver.open('build-source-bridge-tower-behavior');
+  try {
+    saver.xferVersion(1);
+    xferSourceBehaviorModuleBase(saver);
+    saver.xferObjectID(normalizeSourceObjectId(towerState?.bridgeEntityId ?? preservedState.bridgeId));
+    saver.xferUser(buildSourceRawInt32Bytes(sourceFiniteInt(towerState?.towerType, preservedState.towerType)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
   }
 }
 
@@ -12672,6 +12822,24 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourcePropagandaTowerBehaviorBlockData(entity, currentFrame, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'BRIDGEBEHAVIOR' && entity.bridgeBehaviorProfile) {
+            const parsedSourceState = tryParseSourceBridgeBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceBridgeBehaviorBlockData(entity, parsedSourceState),
+              };
+            }
+          }
+          if (moduleType === 'BRIDGETOWERBEHAVIOR' && entity.bridgeTowerProfile) {
+            const parsedSourceState = tryParseSourceBridgeTowerBehaviorBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceBridgeTowerBehaviorBlockData(entity, parsedSourceState),
               };
             }
           }

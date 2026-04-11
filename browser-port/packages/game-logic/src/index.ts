@@ -5769,6 +5769,8 @@ interface BridgeBehaviorState {
   towerIds: number[];
   /** Active scaffold entity IDs. */
   scaffoldIds: number[];
+  /** Source parity: BridgeBehavior::m_scaffoldPresent, separate from current list size. */
+  scaffoldPresent: boolean;
   /** Whether bridge is currently destroyed (nav grid impassable). */
   isBridgeDestroyed: boolean;
   /** Cells this bridge occupies in nav grid (for passability toggle). */
@@ -9022,6 +9024,21 @@ interface SourceBridgeScaffoldBehaviorImportState {
   verticalSpeed: number;
   targetPos: { x: number; y: number; z: number };
 }
+
+interface SourceBridgeBehaviorImportState {
+  nextCallFrame: number;
+  towerIds: number[];
+  scaffoldPresent: boolean;
+  scaffoldIds: number[];
+  deathFrame: number;
+}
+
+interface SourceBridgeTowerBehaviorImportState {
+  bridgeId: number;
+  towerType: number;
+}
+
+const SOURCE_BRIDGE_MAX_TOWERS = 4;
 
 interface SourceSlowDeathBehaviorImportState {
   nextCallFrame: number;
@@ -16383,6 +16400,140 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceBridgeBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceBridgeBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'BRIDGEBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-bridge-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const towerIds: number[] = [];
+      for (let index = 0; index < SOURCE_BRIDGE_MAX_TOWERS; index += 1) {
+        towerIds.push(xfer.xferObjectID(0));
+      }
+      const scaffoldPresent = xfer.xferBool(false);
+      const scaffoldCount = xfer.xferUnsignedShort(0);
+      const scaffoldIds: number[] = [];
+      for (let index = 0; index < scaffoldCount; index += 1) {
+        scaffoldIds.push(xfer.xferObjectID(0));
+      }
+      const deathFrame = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? {
+          nextCallFrame,
+          towerIds,
+          scaffoldPresent,
+          scaffoldIds,
+          deathFrame,
+        }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceBridgeBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.bridgeBehaviorProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const bridgeState = this.tryParseSourceBridgeBehaviorImportState(module.blockData, moduleType);
+      if (!bridgeState) {
+        continue;
+      }
+
+      const existing = entity.bridgeBehaviorState;
+      entity.bridgeBehaviorState = {
+        towerIds: bridgeState.towerIds.map((id) => Math.max(0, Math.trunc(id))),
+        scaffoldIds: bridgeState.scaffoldIds.map((id) => Math.max(0, Math.trunc(id))),
+        scaffoldPresent: bridgeState.scaffoldPresent,
+        isBridgeDestroyed: bridgeState.deathFrame > 0 || (existing?.isBridgeDestroyed ?? false),
+        bridgeCells: existing?.bridgeCells ?? [],
+        deathFrame: Math.max(0, Math.trunc(bridgeState.deathFrame)),
+      };
+      return;
+    }
+  }
+
+  private tryParseSourceBridgeTowerBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceBridgeTowerBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'BRIDGETOWERBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-bridge-tower-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      this.skipSourceImportBehaviorModuleBase(xfer);
+      const bridgeId = xfer.xferObjectID(0);
+      const towerType = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      return xfer.getRemaining() === 0 ? { bridgeId, towerType } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceBridgeTowerBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.bridgeTowerProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const towerState = this.tryParseSourceBridgeTowerBehaviorImportState(module.blockData, moduleType);
+      if (!towerState) {
+        continue;
+      }
+
+      entity.bridgeTowerState = {
+        bridgeEntityId: Math.max(0, Math.trunc(towerState.bridgeId)),
+        towerType: Math.max(0, Math.trunc(towerState.towerType)),
+      };
+      return;
+    }
+  }
+
   private tryParseSourceBridgeScaffoldBehaviorImportState(
     data: Uint8Array,
     moduleType: string,
@@ -20990,6 +21141,8 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceDozerAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceRebuildHoleBehaviorModulesToEntity(entity, sourceState);
     this.applySourcePropagandaTowerBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceBridgeBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceBridgeTowerBehaviorModulesToEntity(entity, sourceState);
     this.applySourceBridgeScaffoldBehaviorModulesToEntity(entity, sourceState);
     this.applySourceSlowDeathBehaviorModulesToEntity(entity, sourceState);
     this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);

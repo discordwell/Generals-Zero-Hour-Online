@@ -2295,6 +2295,104 @@ interface SourceBridgeScaffoldBehaviorTestState {
   targetPos: Coord3D;
 }
 
+interface SourceBridgeBehaviorTestState {
+  nextCallFrameAndPhase: number;
+  towerIds: number[];
+  scaffoldPresent: boolean;
+  scaffoldIds: number[];
+  deathFrame: number;
+}
+
+interface SourceBridgeTowerBehaviorTestState {
+  bridgeId: number;
+  towerType: number;
+}
+
+function createSourceBridgeBehaviorBlockData(state: SourceBridgeBehaviorTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-bridge-behavior');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceUpdateModuleBaseBlockData(state.nextCallFrameAndPhase));
+    for (let index = 0; index < 4; index += 1) {
+      xferSave.xferObjectID(state.towerIds[index] ?? 0);
+    }
+    xferSave.xferBool(state.scaffoldPresent);
+    xferSave.xferUnsignedShort(state.scaffoldIds.length);
+    for (const objectId of state.scaffoldIds) {
+      xferSave.xferObjectID(objectId);
+    }
+    xferSave.xferUnsignedInt(state.deathFrame);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceBridgeBehaviorBlockData(data: Uint8Array): SourceBridgeBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-bridge-behavior');
+  try {
+    expect(xferLoad.xferVersion(1)).toBe(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const nextCallFrameAndPhase = xferLoad.xferUnsignedInt(0);
+    const towerIds = Array.from({ length: 4 }, () => xferLoad.xferObjectID(0));
+    const scaffoldPresent = xferLoad.xferBool(false);
+    const scaffoldCount = xferLoad.xferUnsignedShort(0);
+    const scaffoldIds: number[] = [];
+    for (let index = 0; index < scaffoldCount; index += 1) {
+      scaffoldIds.push(xferLoad.xferObjectID(0));
+    }
+    const deathFrame = xferLoad.xferUnsignedInt(0);
+    expect(xferLoad.getRemaining()).toBe(0);
+    return {
+      nextCallFrameAndPhase,
+      towerIds,
+      scaffoldPresent,
+      scaffoldIds,
+      deathFrame,
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceBridgeTowerBehaviorBlockData(state: SourceBridgeTowerBehaviorTestState): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-bridge-tower-behavior');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceBehaviorModuleBaseBlockData());
+    xferSave.xferObjectID(state.bridgeId);
+    xferSave.xferUser(createRawInt32Bytes(state.towerType));
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceBridgeTowerBehaviorBlockData(data: Uint8Array): SourceBridgeTowerBehaviorTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-bridge-tower-behavior');
+  try {
+    expect(xferLoad.xferVersion(1)).toBe(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const parsed = {
+      bridgeId: xferLoad.xferObjectID(0),
+      towerType: readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+    };
+    expect(xferLoad.getRemaining()).toBe(0);
+    return parsed;
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function createSourceBridgeScaffoldBehaviorBlockData(
   state: SourceBridgeScaffoldBehaviorTestState,
 ): Uint8Array {
@@ -13253,6 +13351,143 @@ describe('runtime-save-game', () => {
       nextCallFrameAndPhase: (43 << 2) | 2,
       lastScanFrame: 78,
       trackedIds: [51, 52, 53],
+    });
+  });
+
+  it('rewrites source BridgeBehavior and BridgeTowerBehavior modules from live runtime state', () => {
+    const preservedBridge: SourceBridgeBehaviorTestState = {
+      nextCallFrameAndPhase: (90 << 2) | 2,
+      towerIds: [11, 12, 13, 14],
+      scaffoldPresent: false,
+      scaffoldIds: [21],
+      deathFrame: 150,
+    };
+    const preservedTower: SourceBridgeTowerBehaviorTestState = {
+      bridgeId: 7,
+      towerType: 0,
+    };
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Bridge',
+      blockData: createSourceBridgeBehaviorBlockData(preservedBridge),
+    }, {
+      identifier: 'ModuleTag_BridgeTower',
+      blockData: createSourceBridgeTowerBehaviorBlockData(preservedTower),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source bridge behavior rewrite',
+      mapPath: 'Maps/RuntimeBridge/RuntimeBridge.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeBridge',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            bridgeBehaviorProfile: {
+              scaffoldLateralSpeed: 1,
+              scaffoldVerticalSpeed: 1,
+              scaffoldObjectName: 'BridgeScaffold',
+            },
+            bridgeBehaviorState: {
+              towerIds: [31, 32, 33, 34],
+              scaffoldIds: [41, 42],
+              scaffoldPresent: true,
+              isBridgeDestroyed: true,
+              bridgeCells: [],
+              deathFrame: 210,
+            },
+            bridgeTowerProfile: { _marker: true },
+            bridgeTowerState: {
+              bridgeEntityId: 7,
+              towerType: 3,
+            },
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName !== 'RuntimeTank') {
+            return null;
+          }
+          switch (moduleTag) {
+            case 'ModuleTag_Bridge': return 'BRIDGEBEHAVIOR';
+            case 'ModuleTag_BridgeTower': return 'BRIDGETOWERBEHAVIOR';
+            default: return null;
+          }
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const bridgeModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Bridge');
+    const towerModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_BridgeTower');
+
+    expect(bridgeModule).toBeDefined();
+    expect(towerModule).toBeDefined();
+    expect(parseSourceBridgeBehaviorBlockData(bridgeModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: preservedBridge.nextCallFrameAndPhase,
+      towerIds: [31, 32, 33, 34],
+      scaffoldPresent: true,
+      scaffoldIds: [41, 42],
+      deathFrame: 210,
+    });
+    expect(parseSourceBridgeTowerBehaviorBlockData(towerModule!.blockData)).toEqual({
+      bridgeId: 7,
+      towerType: 3,
     });
   });
 
