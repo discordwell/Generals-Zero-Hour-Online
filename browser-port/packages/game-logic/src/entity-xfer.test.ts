@@ -492,6 +492,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     hordeNextCheckFrame: 0,
     isInHorde: false,
     isTrueHordeMember: false,
+    hordeHasFlag: false,
 
     // Enemy Near
     enemyNearScanDelayFrames: 60,

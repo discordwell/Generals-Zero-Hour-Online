@@ -10292,12 +10292,15 @@ function overlaySourceObjectModulesFromLiveEntity(
           }
           if (moduleType === 'HORDEUPDATE' && entity.hordeProfile) {
             const parsedSourceState = tryParseSourceHordeUpdateBlockData(module.blockData);
+            const hasFlag = typeof entity.hordeHasFlag === 'boolean'
+              ? entity.hordeHasFlag
+              : (parsedSourceState?.hasFlag ?? false);
             return {
               identifier: module.identifier,
               blockData: buildSourceHordeUpdateBlockData(
                 entity,
                 currentFrame,
-                parsedSourceState?.hasFlag ?? false,
+                hasFlag,
               ),
             };
           }

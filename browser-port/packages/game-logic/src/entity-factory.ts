@@ -738,6 +738,7 @@ export function createMapEntity(self: GL,
     hordeNextCheckFrame: 0,
     isInHorde: false,
     isTrueHordeMember: false,
+    hordeHasFlag: false,
     // EnemyNear
     enemyNearScanDelayFrames: extractEnemyNearScanDelay(self, objectDef),
     enemyNearNextScanCountdown: 0,

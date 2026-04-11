@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 27;
+const ENTITY_XFER_VERSION = 28;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -2103,6 +2103,11 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.hordeNextCheckFrame = xfer.xferInt(e.hordeNextCheckFrame as number);
   e.isInHorde = xfer.xferBool(e.isInHorde as boolean);
   e.isTrueHordeMember = xfer.xferBool(e.isTrueHordeMember as boolean);
+  if (version >= 28) {
+    e.hordeHasFlag = xfer.xferBool((e.hordeHasFlag as boolean | undefined) ?? false);
+  } else {
+    e.hordeHasFlag = false;
+  }
 
   // ── Enemy Near ──
   e.enemyNearScanDelayFrames = xfer.xferInt(e.enemyNearScanDelayFrames as number);

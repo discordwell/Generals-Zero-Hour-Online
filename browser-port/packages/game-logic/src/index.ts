@@ -4168,6 +4168,8 @@ export interface MapEntity {
   isInHorde: boolean;
   /** Counted enough nearby units to be a true horde member (vs rub-off inheritance). */
   isTrueHordeMember: boolean;
+  /** Source parity: HordeUpdate::m_hasFlag, serialized even though retail flag display is disabled. */
+  hordeHasFlag: boolean;
 
   // ── Source parity: EnemyNearUpdate — model condition flag when enemy in range ──
   enemyNearScanDelayFrames: number;
@@ -8693,6 +8695,12 @@ interface SourceCountermeasuresBehaviorImportState {
   incomingMissiles: number;
   reactionFrame: number;
   nextVolleyFrame: number;
+}
+
+interface SourceHordeUpdateImportState {
+  nextCallFrame: number;
+  inHorde: boolean;
+  hasFlag: boolean;
 }
 
 interface SourceSpecialPowerModuleImportState {
@@ -13725,6 +13733,64 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceHordeUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceHordeUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'HORDEUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-horde-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const inHorde = xfer.xferBool(false);
+      const hasFlag = xfer.xferBool(false);
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, inHorde, hasFlag }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceHordeUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.hordeProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const hordeState = this.tryParseSourceHordeUpdateImportState(module.blockData, moduleType);
+      if (!hordeState) {
+        continue;
+      }
+
+      entity.hordeNextCheckFrame = Math.max(0, Math.trunc(hordeState.nextCallFrame));
+      entity.isInHorde = hordeState.inHorde;
+      entity.hordeHasFlag = hordeState.hasFlag;
+      return;
+    }
+  }
+
   private normalizeSourceObjectModuleType(moduleType: string): string {
     return moduleType.trim().toUpperCase();
   }
@@ -14635,6 +14701,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceSpawnBehaviorModulesToEntity(entity, sourceState);
     this.applySourceSlavedUpdateModulesToEntity(entity, sourceState);
     this.applySourceSupportBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceHordeUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
     this.applySourceBattlePlanUpdateModulesToEntity(entity, sourceState);
     this.applySourceStealthModulesToEntity(entity, sourceState);

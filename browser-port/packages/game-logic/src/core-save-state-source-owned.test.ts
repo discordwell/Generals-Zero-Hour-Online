@@ -152,6 +152,15 @@ function makeSourceOwnedCoreBundle() {
         }),
       ]),
       makeObjectDef('CountermeasureFlare', 'America', ['PROJECTILE'], []),
+      makeObjectDef('HordeInfantry', 'China', ['INFANTRY'], [
+        makeBlock('Behavior', 'HordeUpdate ModuleTag_Horde', {
+          UpdateRate: 1000,
+          KindOf: 'INFANTRY',
+          Count: 5,
+          Radius: 60,
+          RubOffRadius: 20,
+        }),
+      ]),
     ],
     specialPowers: [
       makeSpecialPowerDef('SuperweaponTest', { ReloadTime: 60000 }),
@@ -837,6 +846,28 @@ function buildSourceCountermeasuresBehaviorModuleData(options: {
     saver.xferUnsignedInt(options.incomingMissiles);
     saver.xferUnsignedInt(options.reactionFrame);
     saver.xferUnsignedInt(options.nextVolleyFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceHordeUpdateModuleData(options: {
+  nextCallFrame: number;
+  inHorde: boolean;
+  hasFlag: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-horde-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferBool(options.inHorde);
+    saver.xferBool(options.hasFlag);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -1822,6 +1853,52 @@ describe('source-owned game-logic core save-state', () => {
       incomingMissiles: 5,
       divertedMissiles: 4,
     });
+  });
+
+  it('imports source HordeUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const hordeState = createEmptySourceMapEntitySaveState();
+    hordeState.objectId = 95;
+    hordeState.position = { x: 140, y: 0, z: 64 };
+    hordeState.modules = [{
+      identifier: 'ModuleTag_Horde',
+      blockData: buildSourceHordeUpdateModuleData({
+        nextCallFrame: 245,
+        inHorde: true,
+        hasFlag: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 160,
+      objects: [
+        { templateName: 'HordeInfantry', state: hordeState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        hordeNextCheckFrame: number;
+        isInHorde: boolean;
+        isTrueHordeMember: boolean;
+        hordeHasFlag: boolean;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(95)!;
+    expect(entity.hordeNextCheckFrame).toBe(245);
+    expect(entity.isInHorde).toBe(true);
+    expect(entity.isTrueHordeMember).toBe(false);
+    expect(entity.hordeHasFlag).toBe(true);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {
