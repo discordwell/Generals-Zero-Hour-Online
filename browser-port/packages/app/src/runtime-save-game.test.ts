@@ -17,6 +17,7 @@ import * as THREE from 'three';
 
 import {
   buildRuntimeSaveFile,
+  GameClientSnapshot,
   inspectGameLogicChunkLayout,
   inspectRuntimeSaveCoreChunkStatus,
   parseSourceSidesListChunk,
@@ -9656,6 +9657,23 @@ describe('runtime-save-game', () => {
       briefingLines: ['MISSION_BRIEFING_ALPHA', 'MISSION_BRIEFING_BETA'],
       drawables: [],
     });
+    const loadedGameClientSnapshot = new GameClientSnapshot();
+    const gameClientChunkBytes = readSaveChunkData(saveFile.data, 'CHUNK_GameClient');
+    expect(gameClientChunkBytes).not.toBeNull();
+    const gameClientXfer = new XferLoad(
+      gameClientChunkBytes!.buffer.slice(
+        gameClientChunkBytes!.byteOffset,
+        gameClientChunkBytes!.byteOffset + gameClientChunkBytes!.byteLength,
+      ),
+    );
+    gameClientXfer.open('load-source-game-client-snapshot');
+    try {
+      gameClientXfer.xferSnapshot(loadedGameClientSnapshot);
+      expect(gameClientXfer.getRemaining()).toBe(0);
+    } finally {
+      gameClientXfer.close();
+    }
+    expect(loadedGameClientSnapshot.payload).toEqual(parsed.gameClientState);
     expect(sidesListChunk).toEqual({
       version: 1,
       sideCount: 1,

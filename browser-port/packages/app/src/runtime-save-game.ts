@@ -3049,13 +3049,13 @@ class DrawableSnapshot implements Snapshot {
   }
 }
 
-function parseGameClientState(data: ArrayBuffer): RuntimeSaveGameClientState | null {
-  const chunkData = extractSaveChunkData(data, SOURCE_GAME_CLIENT_BLOCK);
-  if (!chunkData) {
-    return null;
-  }
-
-  const xferLoad = new XferLoad(copyBytesToArrayBuffer(chunkData));
+function parseSourceGameClientChunkData(
+  chunkData: Uint8Array | ArrayBuffer,
+): RuntimeSaveGameClientState {
+  const chunkBytes = chunkData instanceof Uint8Array
+    ? chunkData
+    : new Uint8Array(chunkData);
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(chunkBytes));
   xferLoad.open('parse-game-client-state');
   try {
     const version = xferLoad.xferVersion(SOURCE_GAME_CLIENT_SNAPSHOT_VERSION);
@@ -3086,11 +3086,11 @@ function parseGameClientState(data: ArrayBuffer): RuntimeSaveGameClientState | n
       drawables.push({
         templateName,
         objectId,
-        blockData: copyBytesToArrayBuffer(chunkData.slice(blockStart, blockStart + blockSize)),
+        blockData: copyBytesToArrayBuffer(chunkBytes.slice(blockStart, blockStart + blockSize)),
       });
     }
 
-    const prefixBytes = copyBytesToArrayBuffer(chunkData.slice(0, xferLoad.getOffset()));
+    const prefixBytes = copyBytesToArrayBuffer(chunkBytes.slice(0, xferLoad.getOffset()));
     const briefingLines: string[] = [];
     if (version >= 2) {
       const briefingCount = xferLoad.xferInt(0);
@@ -3111,6 +3111,11 @@ function parseGameClientState(data: ArrayBuffer): RuntimeSaveGameClientState | n
   } finally {
     xferLoad.close();
   }
+}
+
+function parseGameClientState(data: ArrayBuffer): RuntimeSaveGameClientState | null {
+  const chunkData = extractSaveChunkData(data, SOURCE_GAME_CLIENT_BLOCK);
+  return chunkData ? parseSourceGameClientChunkData(chunkData) : null;
 }
 
 function buildTacticalViewSaveState(
@@ -25219,9 +25224,11 @@ class RawPassthroughSnapshot implements Snapshot {
   }
 }
 
-class GameClientSnapshot implements Snapshot {
+export class GameClientSnapshot implements Snapshot {
+  payload: RuntimeSaveGameClientState | null = null;
+
   constructor(
-    private readonly frame: number,
+    private readonly frame = 0,
     private readonly briefingLines: readonly string[] = [],
     private readonly drawables: readonly RuntimeSaveGameClientDrawableEntry[] = [],
     private readonly rawPrefixBytes: Uint8Array | null = null,
@@ -25229,10 +25236,15 @@ class GameClientSnapshot implements Snapshot {
   ) {}
 
   crc(_xfer: Xfer): void {
-    // Source game-client snapshot is currently save-only in the TS runtime.
+    // GameClient snapshot CRC is not part of source parity CRC yet.
   }
 
   xfer(xfer: Xfer): void {
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      this.payload = parseSourceGameClientChunkData(xfer.xferUser(new Uint8Array(0)));
+      return;
+    }
+
     if (this.rawPrefixBytes !== null && this.drawables.length === 0) {
       xfer.xferUser(this.rawPrefixBytes);
       if (this.version >= 2) {
@@ -25308,22 +25320,30 @@ class GameClientSnapshot implements Snapshot {
 }
 
 class ParticleSystemSnapshot implements Snapshot {
+  payload: ParticleSystemManagerSaveState | null;
+
   constructor(
-    private readonly state: ParticleSystemManagerSaveState | null = null,
-  ) {}
+    state: ParticleSystemManagerSaveState | null = null,
+  ) {
+    this.payload = state;
+  }
 
   crc(_xfer: Xfer): void {
-    // Source particle-system snapshot is currently save-only in the TS runtime.
+    // Particle-system snapshot CRC is not part of source parity CRC yet.
   }
 
   xfer(xfer: Xfer): void {
-    new SourceParticleSystemSnapshot(
-      this.state ?? {
+    const snapshot = new SourceParticleSystemSnapshot(
+      this.payload ?? {
         version: 1,
         nextId: 1,
         systems: [],
       },
-    ).xfer(xfer);
+    );
+    snapshot.xfer(xfer);
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      this.payload = snapshot.payload;
+    }
   }
 
   loadPostProcess(): void {
