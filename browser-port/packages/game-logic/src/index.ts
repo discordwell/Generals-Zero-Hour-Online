@@ -8677,6 +8677,7 @@ const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
   'sideUpgradesInProduction',
   'sideCompletedUpgrades',
   'sideSourcePlayerUpgradeList',
+  'sideSourcePlayerTeamPrototypeIds',
   'sideKindOfProductionCostModifiers',
   'sideProductionTimeChangePercent',
   'sideHandicapBuildTime',
@@ -8704,6 +8705,10 @@ const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
   'sideVisionSpiedMask',
   'sideBattlePlanBonuses',
   'sideSourceSpecialPowerReadyTimers',
+  'sideSourceResourceGatheringManager',
+  'sideSourcePlayerSquads',
+  'sideSourcePlayerCurrentSelection',
+  'sideSourcePlayerCurrentSelectionPresent',
   'sharedShortcutSpecialPowerReadyFrames',
   'scriptCurrentSupplyWarehouseBySide',
   'scriptSidesUnitsShouldHunt',
@@ -10665,6 +10670,7 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly sideUpgradesInProduction = new Map<string, Set<string>>();
   private readonly sideCompletedUpgrades = new Map<string, Set<string>>();
   private readonly sideSourcePlayerUpgradeList = new Map<string, Array<{ name: string; status: number }>>();
+  private readonly sideSourcePlayerTeamPrototypeIds = new Map<string, number[]>();
   private readonly sideKindOfProductionCostModifiers = new Map<string, KindOfProductionCostModifier[]>();
   /** Source parity: Player::m_productionTimeChanges — per-template build time modifier (e.g. -0.25 = 25% faster). */
   private readonly sideProductionTimeChangePercent = new Map<string, Map<string, number>>();
@@ -10805,6 +10811,14 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly pausedShortcutSpecialPowerByName = new Map<string, Map<number, ScriptSpecialPowerPauseState>>();
   /** Source parity: Player::m_specialPowerReadyTimerList raw SpecialPowerTemplate IDs. */
   private readonly sideSourceSpecialPowerReadyTimers = new Map<string, Array<{ templateId: number; readyFrame: number }>>();
+  /** Source parity: Player::m_resourceGatheringManager snapshot, including absent/null state. */
+  private readonly sideSourceResourceGatheringManager = new Map<string, { supplyWarehouses: number[]; supplyCenters: number[] } | null>();
+  /** Source parity: Player::m_squads hotkey group ObjectID vectors. */
+  private readonly sideSourcePlayerSquads = new Map<string, number[][]>();
+  /** Source parity: Player::m_currentSelection ObjectID vector. */
+  private readonly sideSourcePlayerCurrentSelection = new Map<string, number[]>();
+  /** Source parity: Player::m_currentSelection pointer presence before Squad::xfer. */
+  private readonly sideSourcePlayerCurrentSelectionPresent = new Map<string, boolean>();
   private readonly sharedShortcutSpecialPowerReadyFrames = new Map<string, number>();
   /** Source parity: ScriptEngine::notifyOfObjectCreationOrDestruction dirty version. */
   private scriptObjectTopologyVersion = 0;
@@ -13244,6 +13258,11 @@ export class GameLogicSubsystem implements Subsystem {
   captureSourcePlayerRuntimeSaveState(): GameLogicPlayersSaveState {
     const state = this.captureSourceRuntimeStateByKeys(SOURCE_PLAYER_RUNTIME_STATE_KEYS);
     state.sideSourceSpecialPowerReadyTimers = this.sideSourceSpecialPowerReadyTimers;
+    state.sideSourcePlayerTeamPrototypeIds = this.sideSourcePlayerTeamPrototypeIds;
+    state.sideSourceResourceGatheringManager = this.sideSourceResourceGatheringManager;
+    state.sideSourcePlayerSquads = this.sideSourcePlayerSquads;
+    state.sideSourcePlayerCurrentSelection = this.sideSourcePlayerCurrentSelection;
+    state.sideSourcePlayerCurrentSelectionPresent = this.sideSourcePlayerCurrentSelectionPresent;
     return {
       version: SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION,
       state,

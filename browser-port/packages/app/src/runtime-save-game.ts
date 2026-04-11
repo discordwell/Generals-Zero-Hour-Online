@@ -21321,6 +21321,7 @@ interface SourcePlayerEntryState {
   kindOfCostModifiers: SourcePlayerKindOfCostModifierState[];
   specialPowerReadyTimers: Array<{ templateId: number; readyFrame: number }>;
   squads: number[][];
+  currentSelectionPresent: boolean;
   currentSelection: number[];
   battlePlanBonuses: SourcePlayerBattlePlanBonusesState | null;
   bombardBattlePlans: number;
@@ -21940,6 +21941,35 @@ function normalizeSourceSpecialPowerReadyTimers(value: unknown): Array<{ templat
   });
 }
 
+function normalizeSourceObjectIdArray(value: unknown): number[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((objectId) =>
+    Number.isFinite(objectId) ? [Math.max(0, Math.trunc(objectId as number))] : []);
+}
+
+function normalizeSourceSquadArrays(value: unknown): number[][] {
+  if (!Array.isArray(value)) {
+    return Array.from({ length: SOURCE_PLAYER_HOTKEY_SQUAD_COUNT }, () => [] as number[]);
+  }
+  return Array.from({ length: SOURCE_PLAYER_HOTKEY_SQUAD_COUNT }, (_unused, index) =>
+    normalizeSourceObjectIdArray(value[index]));
+}
+
+function normalizeSourceResourceGatheringManagerState(
+  value: unknown,
+): SourcePlayerResourceGatheringManagerState | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const manager = value as { supplyWarehouses?: unknown; supplyCenters?: unknown };
+  return {
+    supplyWarehouses: normalizeSourceObjectIdArray(manager.supplyWarehouses),
+    supplyCenters: normalizeSourceObjectIdArray(manager.supplyCenters),
+  };
+}
+
 function xferSourceSquadObjectIds(
   xfer: Xfer,
   objectIds: number[],
@@ -22135,6 +22165,13 @@ function buildSourcePlayerEntryState(
   const sideCompletedUpgrades = getRuntimeStateMap<Set<string>>(state, 'sideCompletedUpgrades').get(side);
   const sideUpgradesInProduction = getRuntimeStateMap<Set<string>>(state, 'sideUpgradesInProduction').get(side);
   const sideSourcePlayerUpgradeList = getRuntimeStateMap<unknown>(state, 'sideSourcePlayerUpgradeList').get(side);
+  const sideSourcePlayerTeamPrototypeIdsMap = getRuntimeStateMap<unknown>(state, 'sideSourcePlayerTeamPrototypeIds');
+  const sideSourceResourceGatheringManagerMap =
+    getRuntimeStateMap<SourcePlayerResourceGatheringManagerState | null>(state, 'sideSourceResourceGatheringManager');
+  const sideSourcePlayerSquadsMap = getRuntimeStateMap<unknown>(state, 'sideSourcePlayerSquads');
+  const sideSourcePlayerCurrentSelectionMap = getRuntimeStateMap<unknown>(state, 'sideSourcePlayerCurrentSelection');
+  const sideSourcePlayerCurrentSelectionPresentMap =
+    getRuntimeStateMap<boolean>(state, 'sideSourcePlayerCurrentSelectionPresent');
   const specialPowerReadyTimers = normalizeSourceSpecialPowerReadyTimers(
     getRuntimeStateMap<unknown>(state, 'sideSourceSpecialPowerReadyTimers').get(side),
   );
@@ -22167,6 +22204,25 @@ function buildSourcePlayerEntryState(
       ? [Math.max(0, Math.trunc(prototypeId))]
       : [];
   });
+  const aiPlayer = sidePlayerTypes.get(side) === 'COMPUTER'
+    ? buildDefaultSourceAiPlayerState(side, payload)
+    : null;
+  const sourceTeamPrototypeIds = sideSourcePlayerTeamPrototypeIdsMap.has(side)
+    ? normalizeSourceObjectIdArray(sideSourcePlayerTeamPrototypeIdsMap.get(side))
+    : [...new Set(teamPrototypeIds)].sort((a, b) => a - b);
+  const resourceGatheringManager = sideSourceResourceGatheringManagerMap.has(side)
+    ? normalizeSourceResourceGatheringManagerState(sideSourceResourceGatheringManagerMap.get(side))
+    : {
+      supplyWarehouses: aiPlayer?.currentWarehouseId ? [aiPlayer.currentWarehouseId] : [],
+      supplyCenters: [],
+    };
+  const squads = sideSourcePlayerSquadsMap.has(side)
+    ? normalizeSourceSquadArrays(sideSourcePlayerSquadsMap.get(side))
+    : Array.from({ length: SOURCE_PLAYER_HOTKEY_SQUAD_COUNT }, () => [] as number[]);
+  const currentSelection = normalizeSourceObjectIdArray(sideSourcePlayerCurrentSelectionMap.get(side));
+  const currentSelectionPresent = sideSourcePlayerCurrentSelectionPresentMap.has(side)
+    ? sideSourcePlayerCurrentSelectionPresentMap.get(side) === true
+    : true;
   const playerIndexByNormalizedSide = new Map(
     [...getPlayerIndexBySideMap(payload).entries()].map(([playerSide, mappedPlayerIndex]) =>
       [normalizeControllingPlayerTokenValue(playerSide) ?? playerSide, mappedPlayerIndex] as const),
@@ -22258,9 +22314,6 @@ function buildSourcePlayerEntryState(
     })
     : [];
   const tunnelTracker = (payload?.tunnelTrackers ?? []).find((tracker) => tracker.side === side)?.tracker ?? null;
-  const aiPlayer = sidePlayerTypes.get(side) === 'COMPUTER'
-    ? buildDefaultSourceAiPlayerState(side, payload)
-    : null;
   return {
     playerIndex,
     side,
@@ -22282,13 +22335,10 @@ function buildSourcePlayerEntryState(
       options.sourceUpgradeOrder,
     ),
     powerSabotagedTillFrame: 0,
-    teamPrototypeIds: [...new Set(teamPrototypeIds)].sort((a, b) => a - b),
+    teamPrototypeIds: sourceTeamPrototypeIds,
     buildListInfos: buildSourcePlayerBuildListInfos(playerIndex, side, payload, options.mapData),
     aiPlayer,
-    resourceGatheringManager: {
-      supplyWarehouses: aiPlayer?.currentWarehouseId ? [aiPlayer.currentWarehouseId] : [],
-      supplyCenters: [],
-    },
+    resourceGatheringManager,
     tunnelTracker,
     defaultTeamId: Number.isFinite(defaultTeam?.sourceTeamId)
       ? Math.max(0, Math.trunc(Number(defaultTeam?.sourceTeamId)))
@@ -22329,8 +22379,9 @@ function buildSourcePlayerEntryState(
     },
     kindOfCostModifiers: expandedKindOfCostModifiers,
     specialPowerReadyTimers,
-    squads: Array.from({ length: SOURCE_PLAYER_HOTKEY_SQUAD_COUNT }, () => [] as number[]),
-    currentSelection: [],
+    squads,
+    currentSelectionPresent,
+    currentSelection,
     battlePlanBonuses: sideBattlePlanBonuses
       ? {
         armorScalar: Number.isFinite(sideBattlePlanBonuses.armorScalar) ? Number(sideBattlePlanBonuses.armorScalar) : 1,
@@ -22385,6 +22436,7 @@ function buildGameLogicPlayersStateFromSourcePlayers(
   const sideCompletedUpgrades = new Map<string, Set<string>>();
   const sideUpgradesInProduction = new Map<string, Set<string>>();
   const sideSourcePlayerUpgradeList = new Map<string, SourcePlayerUpgradeState[]>();
+  const sideSourcePlayerTeamPrototypeIds = new Map<string, number[]>();
   const sideIsPreorder = new Map<string, boolean>();
   const sideCanBuildBaseByScript = new Map<string, boolean>();
   const sideCanBuildUnitsByScript = new Map<string, boolean>();
@@ -22396,6 +22448,10 @@ function buildGameLogicPlayersStateFromSourcePlayers(
     refCount: number;
   }>>();
   const sideSourceSpecialPowerReadyTimers = new Map<string, Array<{ templateId: number; readyFrame: number }>>();
+  const sideSourceResourceGatheringManager = new Map<string, SourcePlayerResourceGatheringManagerState | null>();
+  const sideSourcePlayerSquads = new Map<string, number[][]>();
+  const sideSourcePlayerCurrentSelection = new Map<string, number[]>();
+  const sideSourcePlayerCurrentSelectionPresent = new Map<string, boolean>();
   const sideBattlePlanBonuses = new Map<string, {
     bombardmentCount: number;
     holdTheLineCount: number;
@@ -22468,6 +22524,19 @@ function buildGameLogicPlayersStateFromSourcePlayers(
       player.side,
       player.upgrades.map((upgrade) => ({ name: upgrade.name, status: upgrade.status })),
     );
+    sideSourcePlayerTeamPrototypeIds.set(player.side, [...player.teamPrototypeIds]);
+    sideSourceResourceGatheringManager.set(
+      player.side,
+      player.resourceGatheringManager
+        ? {
+          supplyWarehouses: [...player.resourceGatheringManager.supplyWarehouses],
+          supplyCenters: [...player.resourceGatheringManager.supplyCenters],
+        }
+        : null,
+    );
+    sideSourcePlayerSquads.set(player.side, player.squads.map((squad) => [...squad]));
+    sideSourcePlayerCurrentSelection.set(player.side, [...player.currentSelection]);
+    sideSourcePlayerCurrentSelectionPresent.set(player.side, player.currentSelectionPresent);
     sideRadarState.set(player.side, {
       radarCount: player.radarCount,
       disableProofRadarCount: player.disableProofRadarCount,
@@ -22619,8 +22688,13 @@ function buildGameLogicPlayersStateFromSourcePlayers(
   state.sideCompletedUpgrades = sideCompletedUpgrades;
   state.sideUpgradesInProduction = sideUpgradesInProduction;
   state.sideSourcePlayerUpgradeList = sideSourcePlayerUpgradeList;
+  state.sideSourcePlayerTeamPrototypeIds = sideSourcePlayerTeamPrototypeIds;
   state.sideKindOfProductionCostModifiers = sideKindOfProductionCostModifiers;
   state.sideSourceSpecialPowerReadyTimers = sideSourceSpecialPowerReadyTimers;
+  state.sideSourceResourceGatheringManager = sideSourceResourceGatheringManager;
+  state.sideSourcePlayerSquads = sideSourcePlayerSquads;
+  state.sideSourcePlayerCurrentSelection = sideSourcePlayerCurrentSelection;
+  state.sideSourcePlayerCurrentSelectionPresent = sideSourcePlayerCurrentSelectionPresent;
   state.sideRadarState = sideRadarState;
   state.sideRankState = sideRankState;
   state.sideScoreState = sideScoreState;
@@ -22749,6 +22823,7 @@ class SourcePlayersSnapshot implements Snapshot {
           kindOfCostModifiers: [],
           specialPowerReadyTimers: [],
           squads: Array.from({ length: SOURCE_PLAYER_HOTKEY_SQUAD_COUNT }, () => [] as number[]),
+          currentSelectionPresent: false,
           currentSelection: [],
           battlePlanBonuses: null,
           bombardBattlePlans: 0,
@@ -22947,7 +23022,8 @@ class SourcePlayersSnapshot implements Snapshot {
           xferSourceSquadObjectIds(xfer, squad);
         }
       }
-      const currentSelectionPresent = xfer.xferBool(player.currentSelection.length > 0);
+      const currentSelectionPresent = xfer.xferBool(player.currentSelectionPresent);
+      player.currentSelectionPresent = currentSelectionPresent;
       if (xfer.getMode() === XferMode.XFER_LOAD) {
         player.currentSelection = currentSelectionPresent ? xferSourceSquadObjectIds(xfer, []) : [];
       } else if (currentSelectionPresent) {

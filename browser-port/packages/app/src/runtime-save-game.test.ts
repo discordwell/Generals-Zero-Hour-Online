@@ -15000,6 +15000,64 @@ describe('runtime-save-game', () => {
     ]);
   });
 
+  it('round-trips source player resource manager, team prototypes, squads, and current selection', () => {
+    const sourceSquads = Array.from({ length: 10 }, () => [] as number[]);
+    sourceSquads[0] = [11, 12];
+    sourceSquads[9] = [99];
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source Player Collections',
+      mapPath: 'assets/maps/SourcePlayerCollections.json',
+      mapData: {
+        ...createTinyRuntimeMapData(),
+        sidesList: {
+          sides: [{
+            dict: {
+              playerName: 'America',
+              playerFaction: 'America',
+            },
+            buildList: [],
+          }],
+          teams: [],
+        },
+      },
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic([], {
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            playerSideByIndex: new Map([[0, 'America']]),
+            sidePlayerIndex: new Map([['America', 0]]),
+            sideSourcePlayerTeamPrototypeIds: new Map([['America', [9, 2]]]),
+            sideSourceResourceGatheringManager: new Map([[
+              'America',
+              { supplyWarehouses: [100, 101], supplyCenters: [200] },
+            ]]),
+            sideSourcePlayerSquads: new Map([['America', sourceSquads]]),
+            sideSourcePlayerCurrentSelection: new Map([['America', [11, 99]]]),
+            sideSourcePlayerCurrentSelectionPresent: new Map([['America', true]]),
+          },
+        }),
+      }),
+    });
+
+    const parsedState = parseRuntimeSaveFile(saveFile.data).gameLogicPlayersState?.state;
+    expect((parsedState?.sideSourcePlayerTeamPrototypeIds as Map<string, number[]>).get('America'))
+      .toEqual([9, 2]);
+    expect((parsedState?.sideSourceResourceGatheringManager as Map<string, {
+      supplyWarehouses: number[];
+      supplyCenters: number[];
+    }>).get('America')).toEqual({
+      supplyWarehouses: [100, 101],
+      supplyCenters: [200],
+    });
+    expect((parsedState?.sideSourcePlayerSquads as Map<string, number[][]>).get('America'))
+      .toEqual(sourceSquads);
+    expect((parsedState?.sideSourcePlayerCurrentSelection as Map<string, number[]>).get('America'))
+      .toEqual([11, 99]);
+    expect((parsedState?.sideSourcePlayerCurrentSelectionPresent as Map<string, boolean>).get('America'))
+      .toBe(true);
+  });
+
   it('overlays live source Object::xfer status, disable, experience, and weapon fields on resave', () => {
     const sourceGameLogicBytes = createSourceGameLogicChunkData(true);
     const saveFile = buildRuntimeSaveFile({
