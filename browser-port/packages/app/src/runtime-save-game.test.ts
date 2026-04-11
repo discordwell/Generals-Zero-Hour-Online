@@ -8396,6 +8396,17 @@ function readTerrainVisualChunk(data: ArrayBuffer): {
   w3dVersion: number;
   baseVersion: number;
   waterGridEnabled: boolean;
+  waterGridSnapshot?: {
+    version: number;
+    cellsX: number;
+    cellsY: number;
+    meshData: Array<{
+      height: number;
+      velocity: number;
+      status: number;
+      preferredHeight: number;
+    }>;
+  };
   heightMapLength: number;
   heightMapBytes: number[];
   renderObjectVersion: number;
@@ -8432,6 +8443,25 @@ function readTerrainVisualChunk(data: ArrayBuffer): {
     const w3dVersion = xferLoad.xferVersion(3);
     const baseVersion = xferLoad.xferVersion(1);
     const waterGridEnabled = xferLoad.xferBool(false);
+    let waterGridSnapshot: NonNullable<ReturnType<typeof readTerrainVisualChunk>>['waterGridSnapshot'];
+    if (waterGridEnabled) {
+      const version = xferLoad.xferVersion(1);
+      const cellsX = xferLoad.xferInt(0);
+      const cellsY = xferLoad.xferInt(0);
+      const meshCount = (cellsX + 3) * (cellsY + 3);
+      const meshData: NonNullable<
+        NonNullable<ReturnType<typeof readTerrainVisualChunk>>['waterGridSnapshot']
+      >['meshData'] = [];
+      for (let index = 0; index < meshCount; index += 1) {
+        meshData.push({
+          height: xferLoad.xferReal(0),
+          velocity: xferLoad.xferReal(0),
+          status: xferLoad.xferUnsignedByte(0),
+          preferredHeight: xferLoad.xferUnsignedByte(0),
+        });
+      }
+      waterGridSnapshot = { version, cellsX, cellsY, meshData };
+    }
     const heightMapLength = xferLoad.xferInt(0);
     const heightMapBytes = Array.from(xferLoad.xferUser(new Uint8Array(heightMapLength)));
     const renderObjectVersion = xferLoad.xferVersion(1);
@@ -8484,7 +8514,7 @@ function readTerrainVisualChunk(data: ArrayBuffer): {
       });
     }
     const propBufferVersion = xferLoad.xferVersion(1);
-    return {
+    const result: NonNullable<ReturnType<typeof readTerrainVisualChunk>> = {
       w3dVersion,
       baseVersion,
       waterGridEnabled,
@@ -8497,6 +8527,10 @@ function readTerrainVisualChunk(data: ArrayBuffer): {
       propBufferVersion,
       trailingBytes: chunkData.byteLength - xferLoad.getOffset(),
     };
+    if (waterGridSnapshot) {
+      result.waterGridSnapshot = waterGridSnapshot;
+    }
+    return result;
   } finally {
     xferLoad.close();
   }
@@ -9624,6 +9658,67 @@ describe('runtime-save-game', () => {
     expect(logicState.spawnedEntities.get(7)?.templateName).toBe('RuntimeTank');
     expect(logicState.spawnedEntities.get(7)?.kindOf.has('VEHICLE')).toBe(true);
     expect(parsed.campaign).toBeNull();
+  });
+
+  it('writes source-shaped TerrainVisual water-grid snapshots for WaveGuide maps', () => {
+    const mapData = {
+      ...createTinyRuntimeMapData(),
+      waypoints: {
+        nodes: [{
+          id: 1,
+          name: 'WaveGuide1',
+          position: { x: 0, y: 0, z: 0 },
+        }],
+        links: [],
+      },
+    };
+    const saveFile = buildRuntimeSaveFile({
+      description: 'TerrainVisual Water Grid Save',
+      mapPath: 'maps/_extracted/MapsZH/Maps/CHI03/CHI03.json',
+      mapData,
+      cameraState: null,
+      sourceGameData: {
+        weaponBonusEntries: [],
+        healthBonuses: [1, 1, 1, 1],
+        soloPlayerHealthBonuses: [[1, 1, 1], [1, 1, 1]],
+        vertexWaterSettings: [{
+          index: 2,
+          availableMap: 'Maps\\CHI03\\CHI03.map',
+          heightClampLow: 0,
+          heightClampHi: 31.2,
+          angle: -12 * Math.PI / 180,
+          xPosition: 282,
+          yPosition: -20,
+          zPosition: 3,
+          xGridCells: 2,
+          yGridCells: 1,
+          gridSize: 11,
+          attenuationA: 1,
+          attenuationB: 0,
+          attenuationC: 0,
+          attenuationRange: 20,
+        }],
+      },
+      gameLogic: createMinimalRuntimeGameLogic(),
+    });
+
+    expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data).find(
+      (chunk) => chunk.blockName === 'CHUNK_TerrainVisual',
+    )).toEqual({ blockName: 'CHUNK_TerrainVisual', mode: 'parsed' });
+    const terrainVisualChunk = readTerrainVisualChunk(saveFile.data);
+    expect(terrainVisualChunk?.waterGridEnabled).toBe(true);
+    expect(terrainVisualChunk?.waterGridSnapshot?.version).toBe(1);
+    expect(terrainVisualChunk?.waterGridSnapshot?.cellsX).toBe(2);
+    expect(terrainVisualChunk?.waterGridSnapshot?.cellsY).toBe(1);
+    expect(terrainVisualChunk?.waterGridSnapshot?.meshData).toHaveLength(20);
+    expect(terrainVisualChunk?.waterGridSnapshot?.meshData.every((entry) =>
+      entry.height === 0
+      && entry.velocity === 0
+      && entry.status === 0
+      && entry.preferredHeight === 0,
+    )).toBe(true);
+    expect(terrainVisualChunk?.heightMapLength).toBe(4);
+    expect(terrainVisualChunk?.trailingBytes).toBe(0);
   });
 
   it('writes live attached-object drawables into fresh CHUNK_GameClient saves', () => {

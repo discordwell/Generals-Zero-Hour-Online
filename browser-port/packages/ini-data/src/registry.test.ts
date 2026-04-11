@@ -74,6 +74,51 @@ describe('IniDataRegistry', () => {
       expect(registry.factions.get('FactionAmerica')!.side).toBe('America');
     });
 
+    it('parses GameData vertex-water settings with source angle conversion', () => {
+      registry.loadBlocks([
+        makeBlock('GameData', 'Default', {
+          VertexWaterAvailableMaps2: 'Maps\\CHI03\\CHI03.map',
+          VertexWaterHeightClampLow2: 0,
+          VertexWaterHeightClampHi2: 31.2,
+          VertexWaterAngle2: -12,
+          VertexWaterXPosition2: 282,
+          VertexWaterYPosition2: -20,
+          VertexWaterZPosition2: 3,
+          VertexWaterXGridCells2: 100,
+          VertexWaterYGridCells2: 200,
+          VertexWaterGridSize2: 11,
+          VertexWaterAttenuationA2: 1,
+          VertexWaterAttenuationB2: 0,
+          VertexWaterAttenuationC2: 0,
+          VertexWaterAttenuationRange2: 20,
+        }),
+      ]);
+
+      const setting = registry.getGameData()?.vertexWaterSettings?.[0];
+      expect(setting).toEqual(expect.objectContaining({
+        index: 2,
+        availableMap: 'Maps\\CHI03\\CHI03.map',
+        heightClampLow: 0,
+        heightClampHi: 31.2,
+        xPosition: 282,
+        yPosition: -20,
+        zPosition: 3,
+        xGridCells: 100,
+        yGridCells: 200,
+        gridSize: 11,
+        attenuationA: 1,
+        attenuationB: 0,
+        attenuationC: 0,
+        attenuationRange: 20,
+      }));
+      expect(setting?.angle).toBeCloseTo(-12 * Math.PI / 180, 8);
+
+      const restored = new IniDataRegistry();
+      restored.loadBundle(registry.toBundle());
+      restored.getGameData()!.vertexWaterSettings![0]!.xGridCells = 1;
+      expect(registry.getGameData()?.vertexWaterSettings?.[0]?.xGridCells).toBe(100);
+    });
+
     it('tracks KindOf arrays', () => {
       registry.loadBlocks([
         makeBlock('Object', 'Tank', { KindOf: ['VEHICLE', 'SELECTABLE', 'CAN_ATTACK'] }),

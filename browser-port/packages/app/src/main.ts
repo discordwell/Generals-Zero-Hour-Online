@@ -5310,6 +5310,7 @@ async function startGame(
       renderableEntityStates: gameLogic.getRenderableEntityStates(),
       gameClientState: runtimeSaveLoadContext?.runtimeSave.gameClientState ?? null,
       particleSystemState: particleSystemManager.captureSaveState(),
+      sourceGameData: ctx.iniDataRegistry.getGameData() ?? null,
       currentMusicTrackName: musicManager.getCurrentTrackName(),
       gameLogic,
       embeddedMapBytes,

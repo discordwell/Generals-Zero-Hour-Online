@@ -13,6 +13,7 @@ import {
   type Snapshot,
   type Xfer,
 } from '@generals/engine';
+import type { GameDataConfig, VertexWaterSetting } from '@generals/ini-data';
 import type { CameraState } from '@generals/input';
 import * as THREE from 'three';
 import {
@@ -436,6 +437,8 @@ const SOURCE_HEIGHT_MAP_RENDER_OBJECT_SNAPSHOT_VERSION = 1;
 const SOURCE_W3D_TREE_BUFFER_SNAPSHOT_VERSION = 1;
 const SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION = 1;
 const SOURCE_W3D_TREE_BUFFER_MAX_TREES = 4000;
+const SOURCE_WATER_RENDER_OBJECT_SNAPSHOT_VERSION = 1;
+const SOURCE_WATER_MESH_ENTRY_BYTE_LENGTH = 10;
 const SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION = 1;
 const SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION = 1;
 const SOURCE_GHOST_OBJECT_PLAYER_COUNT = 16;
@@ -23696,6 +23699,126 @@ function tryBuildTerrainVisualHeightMapBytes(mapData: MapDataJSON | null): Uint8
   return bytes;
 }
 
+function sourceWaterGridMeshDataSize(cellsX: number, cellsY: number): number | null {
+  if (
+    !Number.isInteger(cellsX)
+    || !Number.isInteger(cellsY)
+    || cellsX < 0
+    || cellsY < 0
+  ) {
+    return null;
+  }
+  const size = (cellsX + 3) * (cellsY + 3);
+  return Number.isSafeInteger(size) ? size : null;
+}
+
+function xferSourceWaterGridSnapshot(
+  xfer: Xfer,
+  snapshot: SourceWaterGridSnapshot,
+): SourceWaterGridSnapshot {
+  const version = xfer.xferVersion(SOURCE_WATER_RENDER_OBJECT_SNAPSHOT_VERSION);
+  if (version !== SOURCE_WATER_RENDER_OBJECT_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported water render object snapshot version ${version}`);
+  }
+  const cellsX = xfer.xferInt(snapshot.cellsX);
+  const cellsY = xfer.xferInt(snapshot.cellsY);
+  const meshDataSize = sourceWaterGridMeshDataSize(cellsX, cellsY);
+  if (meshDataSize === null) {
+    throw new Error(`Unsupported water-grid dimensions ${cellsX}x${cellsY}.`);
+  }
+
+  const meshData: SourceWaterMeshEntry[] = [];
+  const sourceMeshData = snapshot.meshData ?? [];
+  for (let index = 0; index < meshDataSize; index += 1) {
+    const entry = sourceMeshData[index];
+    const height = xfer.xferReal(entry?.height ?? 0);
+    const velocity = xfer.xferReal(entry?.velocity ?? 0);
+    const status = xfer.xferUnsignedByte(entry?.status ?? 0);
+    const preferredHeight = xfer.xferUnsignedByte(entry?.preferredHeight ?? 0);
+    if (xfer.getMode() !== XferMode.XFER_SAVE) {
+      meshData.push({ height, velocity, status, preferredHeight });
+    }
+  }
+
+  return xfer.getMode() === XferMode.XFER_SAVE
+    ? snapshot
+    : { cellsX, cellsY, meshData };
+}
+
+function mapHasSourceWaterGridWaypoint(mapData: MapDataJSON | null | undefined): boolean {
+  return mapData?.waypoints?.nodes?.some((node) => node.name === 'WaveGuide1') === true;
+}
+
+function normalizeSourceMapPathForCompare(path: string): string {
+  let normalized = path.trim().replace(/\\/g, '/').toLowerCase();
+  if (normalized.endsWith('.json')) {
+    normalized = `${normalized.slice(0, -'.json'.length)}.map`;
+  }
+  const mapsSegment = '/maps/';
+  const mapsIndex = normalized.lastIndexOf(mapsSegment);
+  if (mapsIndex >= 0) {
+    normalized = normalized.slice(mapsIndex + 1);
+  }
+  return normalized.replace(/^\/+/, '');
+}
+
+function sourceMapLeafName(path: string): string {
+  const normalized = normalizeSourceMapPathForCompare(path);
+  return normalized.split('/').pop() ?? normalized;
+}
+
+function sourceMapPathMatchesVertexWaterSetting(
+  settingMapPath: string,
+  candidateMapPaths: readonly string[],
+): boolean {
+  const normalizedSetting = normalizeSourceMapPathForCompare(settingMapPath);
+  if (!normalizedSetting) {
+    return false;
+  }
+  const settingLeaf = sourceMapLeafName(normalizedSetting);
+  return candidateMapPaths.some((candidate) => {
+    const normalizedCandidate = normalizeSourceMapPathForCompare(candidate);
+    return normalizedCandidate === normalizedSetting
+      || sourceMapLeafName(normalizedCandidate) === settingLeaf;
+  });
+}
+
+function resolveSourceWaterGridSetting(
+  gameData: GameDataConfig | null | undefined,
+  mapPathCandidates: readonly (string | null | undefined)[],
+): VertexWaterSetting | null {
+  const candidateMapPaths = mapPathCandidates
+    .filter((candidate): candidate is string => typeof candidate === 'string' && candidate.trim().length > 0);
+  if (candidateMapPaths.length === 0) {
+    return null;
+  }
+  for (const setting of gameData?.vertexWaterSettings ?? []) {
+    if (sourceMapPathMatchesVertexWaterSetting(setting.availableMap, candidateMapPaths)) {
+      return setting;
+    }
+  }
+  return null;
+}
+
+function buildSourceWaterGridSnapshot(
+  mapData: MapDataJSON | null | undefined,
+  gameData: GameDataConfig | null | undefined,
+  mapPathCandidates: readonly (string | null | undefined)[],
+): SourceWaterGridSnapshot | null {
+  if (!mapHasSourceWaterGridWaypoint(mapData)) {
+    return null;
+  }
+  const setting = resolveSourceWaterGridSetting(gameData, mapPathCandidates);
+  if (!setting) {
+    return null;
+  }
+  const cellsX = Math.trunc(setting.xGridCells);
+  const cellsY = Math.trunc(setting.yGridCells);
+  return sourceWaterGridMeshDataSize(cellsX, cellsY) === null
+    ? null
+    : { cellsX, cellsY };
+}
+
 interface SourceW3DTreeBufferEntry {
   modelName: string;
   textureName: string;
@@ -23712,6 +23835,19 @@ interface SourceW3DTreeBufferEntry {
   options: number;
   matrix3D: readonly number[];
   sinkFramesLeft: number;
+}
+
+interface SourceWaterMeshEntry {
+  height: number;
+  velocity: number;
+  status: number;
+  preferredHeight: number;
+}
+
+interface SourceWaterGridSnapshot {
+  cellsX: number;
+  cellsY: number;
+  meshData?: readonly SourceWaterMeshEntry[];
 }
 
 interface SourceGhostObjectEntry {
@@ -23932,6 +24068,7 @@ class TerrainVisualSnapshot implements Snapshot {
   constructor(
     private readonly mapData: MapDataJSON | null = null,
     private readonly treeEntries: readonly SourceW3DTreeBufferEntry[] = [],
+    private readonly waterGridSnapshot: SourceWaterGridSnapshot | null = null,
   ) {}
 
   crc(_xfer: Xfer): void {
@@ -23955,9 +24092,12 @@ class TerrainVisualSnapshot implements Snapshot {
       throw new Error(`Unsupported terrain-visual snapshot version ${baseVersion}`);
     }
 
-    const waterGridEnabled = xfer.xferBool(false);
+    const waterGridEnabled = xfer.xferBool(this.waterGridSnapshot !== null);
     if (waterGridEnabled) {
-      throw new Error('Terrain-visual water-grid snapshots are not implemented.');
+      xferSourceWaterGridSnapshot(
+        xfer,
+        this.waterGridSnapshot ?? { cellsX: 0, cellsY: 0 },
+      );
     }
     if (w3dVersion === 1) {
       return;
@@ -24080,6 +24220,7 @@ export function buildRuntimeSaveFile(params: {
   renderableEntityStates?: readonly GameLogicRenderableEntityState[] | null;
   gameClientLiveEntityIds?: readonly number[] | null;
   particleSystemState?: ParticleSystemManagerSaveState | null;
+  sourceGameData?: GameDataConfig | null;
   currentMusicTrackName?: string | null;
   sourceDifficulty?: GameDifficulty | null;
   gameLogic: (Pick<
@@ -24169,6 +24310,11 @@ export function buildRuntimeSaveFile(params: {
   const terrainVisualTreeEntries = buildSourceW3DTreeBufferEntries(
     gameClientDrawableStates,
     params.renderableEntityStates,
+  );
+  const terrainVisualWaterGridSnapshot = buildSourceWaterGridSnapshot(
+    params.mapData,
+    params.sourceGameData ?? null,
+    [params.mapPath, params.campaign?.sourceMapName],
   );
   const ghostObjectEntries = buildSourceGhostObjectEntries(
     gameLogicPayload,
@@ -24388,7 +24534,11 @@ export function buildRuntimeSaveFile(params: {
   if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_TERRAIN_VISUAL_BLOCK)) {
     state.addSnapshotBlock(
       SOURCE_TERRAIN_VISUAL_BLOCK,
-      new TerrainVisualSnapshot(params.mapData, terrainVisualTreeEntries),
+      new TerrainVisualSnapshot(
+        params.mapData,
+        terrainVisualTreeEntries,
+        terrainVisualWaterGridSnapshot,
+      ),
     );
   }
   if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GHOST_OBJECT_BLOCK)) {
@@ -24662,7 +24812,21 @@ function inspectRuntimeTerrainVisualChunkMode(
     }
     const waterGridEnabled = xferLoad.xferBool(false);
     if (waterGridEnabled) {
-      return null;
+      const waterVersion = xferLoad.xferVersion(SOURCE_WATER_RENDER_OBJECT_SNAPSHOT_VERSION);
+      if (waterVersion !== SOURCE_WATER_RENDER_OBJECT_SNAPSHOT_VERSION) {
+        return null;
+      }
+      const cellsX = xferLoad.xferInt(0);
+      const cellsY = xferLoad.xferInt(0);
+      const meshDataSize = sourceWaterGridMeshDataSize(cellsX, cellsY);
+      if (meshDataSize === null) {
+        return null;
+      }
+      const meshByteLength = meshDataSize * SOURCE_WATER_MESH_ENTRY_BYTE_LENGTH;
+      if (!Number.isSafeInteger(meshByteLength) || meshByteLength > xferLoad.getRemaining()) {
+        return null;
+      }
+      xferLoad.skip(meshByteLength);
     }
     if (w3dVersion === 1 && xferLoad.getRemaining() === 0) {
       return 'legacy';

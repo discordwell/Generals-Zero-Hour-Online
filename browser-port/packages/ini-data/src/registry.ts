@@ -282,6 +282,28 @@ export interface WeaponBonusEntry {
 }
 
 /**
+ * Source parity: GlobalData::m_vertexWater* fixed setting rows from GameData.ini.
+ * TerrainLogic selects one of these rows when a map has the WaveGuide1 waypoint.
+ */
+export interface VertexWaterSetting {
+  index: number;
+  availableMap: string;
+  heightClampLow: number;
+  heightClampHi: number;
+  angle: number;
+  xPosition: number;
+  yPosition: number;
+  zPosition: number;
+  xGridCells: number;
+  yGridCells: number;
+  gridSize: number;
+  attenuationA: number;
+  attenuationB: number;
+  attenuationC: number;
+  attenuationRange: number;
+}
+
+/**
  * Source parity: TheGlobalData — selected fields from the global GameData INI block.
  */
 export interface GameDataConfig {
@@ -312,6 +334,10 @@ export interface GameDataConfig {
    * C++ default: all 1.0. Parsed via parsePercentToReal.
    */
   soloPlayerHealthBonuses: [[number, number, number], [number, number, number]];
+  /**
+   * Source parity: GlobalData::m_vertexWater* rows used by TerrainLogic::enableWaterGrid.
+   */
+  vertexWaterSettings?: VertexWaterSetting[];
 }
 
 export interface AudioSettingsConfig {
@@ -644,6 +670,9 @@ export class IniDataRegistry {
                 [...bundle.gameData.soloPlayerHealthBonuses[1]] as [number, number, number],
               ]
             : [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]],
+          vertexWaterSettings: bundle.gameData.vertexWaterSettings
+            ? bundle.gameData.vertexWaterSettings.map((setting) => ({ ...setting }))
+            : undefined,
         }
       : undefined;
     for (const unsupported of bundle.unsupportedBlockTypes) {
@@ -719,6 +748,9 @@ export class IniDataRegistry {
             [...this.gameData.soloPlayerHealthBonuses[0]] as [number, number, number],
             [...this.gameData.soloPlayerHealthBonuses[1]] as [number, number, number],
           ],
+          vertexWaterSettings: this.gameData.vertexWaterSettings
+            ? this.gameData.vertexWaterSettings.map((setting) => ({ ...setting }))
+            : undefined,
         }
       : undefined;
   }
@@ -942,6 +974,9 @@ export class IniDataRegistry {
               [...this.gameData.soloPlayerHealthBonuses[0]] as [number, number, number],
               [...this.gameData.soloPlayerHealthBonuses[1]] as [number, number, number],
             ],
+            vertexWaterSettings: this.gameData.vertexWaterSettings
+              ? this.gameData.vertexWaterSettings.map((setting) => ({ ...setting }))
+              : undefined,
           }
         : undefined,
       stats,
@@ -1378,7 +1413,18 @@ export class IniDataRegistry {
     const aiHard = extractUnclampedPercentToReal(block.fields['AISoloPlayerHealthBonus_Hard']);
     if (aiHard !== undefined) soloPlayerHealthBonuses[1][2] = aiHard;
 
-    this.gameData = { weaponBonusEntries: entries, healthBonuses, sellPercentage, soloPlayerHealthBonuses };
+    const vertexWaterSettings = parseVertexWaterSettings(
+      block.fields,
+      this.gameData?.vertexWaterSettings,
+    );
+
+    this.gameData = {
+      weaponBonusEntries: entries,
+      healthBonuses,
+      sellPercentage,
+      soloPlayerHealthBonuses,
+      vertexWaterSettings,
+    };
   }
 
   private resolveObjectChain(name: string, visited: Set<string>): ObjectDef | undefined {
@@ -1574,6 +1620,78 @@ export class IniDataRegistry {
 // ---------------------------------------------------------------------------
 
 const MAX_COMMAND_SET_SLOTS = 18; // Source parity: ZH ControlBar.h MAX_COMMANDS_PER_SET = 18 (Generals was 12)
+
+function parseVertexWaterSettings(
+  fields: Record<string, IniValue>,
+  previous: readonly VertexWaterSetting[] | undefined,
+): VertexWaterSetting[] | undefined {
+  const byIndex = new Map<number, VertexWaterSetting>();
+  for (const setting of previous ?? []) {
+    byIndex.set(setting.index, { ...setting });
+  }
+
+  for (let index = 1; index <= 4; index += 1) {
+    const prior = byIndex.get(index);
+    const availableMap = extractString(fields[`VertexWaterAvailableMaps${index}`])
+      ?? prior?.availableMap
+      ?? '';
+    const setting: VertexWaterSetting = {
+      index,
+      availableMap,
+      heightClampLow: extractNumber(fields[`VertexWaterHeightClampLow${index}`])
+        ?? prior?.heightClampLow
+        ?? 0,
+      heightClampHi: extractNumber(fields[`VertexWaterHeightClampHi${index}`])
+        ?? prior?.heightClampHi
+        ?? 0,
+      // Source INI::parseAngleReal stores radians from degree INI values.
+      angle: degreesToRadians(extractNumber(fields[`VertexWaterAngle${index}`]) ?? undefined)
+        ?? prior?.angle
+        ?? 0,
+      xPosition: extractNumber(fields[`VertexWaterXPosition${index}`])
+        ?? prior?.xPosition
+        ?? 0,
+      yPosition: extractNumber(fields[`VertexWaterYPosition${index}`])
+        ?? prior?.yPosition
+        ?? 0,
+      zPosition: extractNumber(fields[`VertexWaterZPosition${index}`])
+        ?? prior?.zPosition
+        ?? 0,
+      xGridCells: extractInteger(fields[`VertexWaterXGridCells${index}`])
+        ?? prior?.xGridCells
+        ?? 0,
+      yGridCells: extractInteger(fields[`VertexWaterYGridCells${index}`])
+        ?? prior?.yGridCells
+        ?? 0,
+      gridSize: extractNumber(fields[`VertexWaterGridSize${index}`])
+        ?? prior?.gridSize
+        ?? 0,
+      attenuationA: extractNumber(fields[`VertexWaterAttenuationA${index}`])
+        ?? prior?.attenuationA
+        ?? 0,
+      attenuationB: extractNumber(fields[`VertexWaterAttenuationB${index}`])
+        ?? prior?.attenuationB
+        ?? 0,
+      attenuationC: extractNumber(fields[`VertexWaterAttenuationC${index}`])
+        ?? prior?.attenuationC
+        ?? 0,
+      attenuationRange: extractNumber(fields[`VertexWaterAttenuationRange${index}`])
+        ?? prior?.attenuationRange
+        ?? 0,
+    };
+
+    if (availableMap || prior) {
+      byIndex.set(index, setting);
+    }
+  }
+
+  const settings = [...byIndex.values()].sort((left, right) => left.index - right.index);
+  return settings.length > 0 ? settings : undefined;
+}
+
+function degreesToRadians(value: number | undefined): number | undefined {
+  return value === undefined ? undefined : value * Math.PI / 180;
+}
 
 function extractString(value: IniValue | undefined): string | undefined {
   if (typeof value === 'string') return value;

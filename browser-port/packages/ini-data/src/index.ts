@@ -24,6 +24,7 @@ export type {
   RegistryError,
   AudioSettingsConfig,
   GameDataConfig,
+  VertexWaterSetting,
   WeaponBonusEntry,
   IniDataBundle,
 } from './registry.js';
