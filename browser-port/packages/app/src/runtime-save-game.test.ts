@@ -15058,6 +15058,105 @@ describe('runtime-save-game', () => {
       .toBe(true);
   });
 
+  it('round-trips source Player::xfer build-list, scalar, and relation fields', () => {
+    const sourceBuildListInfo = {
+      buildingName: 'ForwardSupply',
+      templateName: 'AmericaSupplyCenter',
+      location: { x: 101, y: 2, z: 303 },
+      rallyPointOffset: { x: 4, y: 5 },
+      angle: 1.25,
+      isInitiallyBuilt: true,
+      numRebuilds: 6,
+      script: 'BuildSupplyScript',
+      health: 47,
+      whiner: false,
+      unsellable: true,
+      repairable: false,
+      automaticallyBuild: false,
+      objectId: 9001,
+      objectTimestamp: 4321,
+      underConstruction: true,
+      resourceGatherers: [11, 22, 33],
+      isSupplyBuilding: true,
+      desiredGatherers: 4,
+      priorityBuild: true,
+      currentGatherers: 2,
+    };
+    const sourceCoreState = {
+      isPlayerDead: true,
+      powerSabotagedTillFrame: 9876,
+      defaultTeamId: 77,
+      levelUp: 300,
+      levelDown: 100,
+      generalName: 'General Alexander',
+      observer: true,
+    };
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Source Player Fields',
+      mapPath: 'assets/maps/SourcePlayerFields.json',
+      mapData: {
+        ...createTinyRuntimeMapData(),
+        sidesList: {
+          sides: [
+            {
+              dict: {
+                playerName: 'America',
+                playerFaction: 'America',
+              },
+              buildList: [],
+            },
+            {
+              dict: {
+                playerName: 'China',
+                playerFaction: 'China',
+              },
+              buildList: [],
+            },
+          ],
+          teams: [],
+        },
+      },
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic([], {
+        captureSourcePlayerRuntimeSaveState: () => ({
+          version: 1,
+          state: {
+            playerSideByIndex: new Map([[0, 'America'], [1, 'China']]),
+            sidePlayerIndex: new Map([['America', 0], ['China', 1]]),
+            sideSourceBuildListInfos: new Map([['America', [sourceBuildListInfo]]]),
+            sideSourcePlayerCoreState: new Map([['America', sourceCoreState]]),
+            sideSourcePlayerRelations: new Map([['America', [{ id: 1, relationship: 2 }]]]),
+            sideSourceTeamRelations: new Map([['America', [{ id: 88, relationship: 3 }]]]),
+          },
+        }),
+      }),
+    });
+
+    const parsedState = parseRuntimeSaveFile(saveFile.data).gameLogicPlayersState?.state;
+    expect((parsedState?.sideSourceBuildListInfos as Map<string, Array<typeof sourceBuildListInfo>>).get('America'))
+      .toMatchObject([{
+        buildingName: 'ForwardSupply',
+        templateName: 'AmericaSupplyCenter',
+        rallyPointOffset: { x: 4, y: 5 },
+        isInitiallyBuilt: true,
+        unsellable: true,
+        repairable: false,
+        automaticallyBuild: false,
+        objectId: 9001,
+        objectTimestamp: 4321,
+        underConstruction: true,
+        resourceGatherers: [11, 22, 33, 0, 0, 0, 0, 0, 0, 0],
+        desiredGatherers: 4,
+        currentGatherers: 2,
+      }]);
+    expect((parsedState?.sideSourcePlayerCoreState as Map<string, typeof sourceCoreState>).get('America'))
+      .toEqual(sourceCoreState);
+    expect((parsedState?.sideSourcePlayerRelations as Map<string, Array<{ id: number; relationship: number }>>)
+      .get('America')).toEqual([{ id: 1, relationship: 2 }]);
+    expect((parsedState?.sideSourceTeamRelations as Map<string, Array<{ id: number; relationship: number }>>)
+      .get('America')).toEqual([{ id: 88, relationship: 3 }]);
+  });
+
   it('round-trips source AIPlayer state through the player chunk', () => {
     const sourceAiPlayer = {
       isSkirmishAi: true,

@@ -8678,7 +8678,11 @@ const SOURCE_PLAYER_RUNTIME_STATE_KEYS = [
   'sideCompletedUpgrades',
   'sideSourcePlayerUpgradeList',
   'sideSourcePlayerTeamPrototypeIds',
+  'sideSourceBuildListInfos',
   'sideSourceAiPlayerState',
+  'sideSourcePlayerCoreState',
+  'sideSourcePlayerRelations',
+  'sideSourceTeamRelations',
   'sideKindOfProductionCostModifiers',
   'sideProductionTimeChangePercent',
   'sideHandicapBuildTime',
@@ -10672,7 +10676,11 @@ export class GameLogicSubsystem implements Subsystem {
   private readonly sideCompletedUpgrades = new Map<string, Set<string>>();
   private readonly sideSourcePlayerUpgradeList = new Map<string, Array<{ name: string; status: number }>>();
   private readonly sideSourcePlayerTeamPrototypeIds = new Map<string, number[]>();
+  private readonly sideSourceBuildListInfos = new Map<string, unknown>();
   private readonly sideSourceAiPlayerState = new Map<string, unknown>();
+  private readonly sideSourcePlayerCoreState = new Map<string, unknown>();
+  private readonly sideSourcePlayerRelations = new Map<string, unknown>();
+  private readonly sideSourceTeamRelations = new Map<string, unknown>();
   private readonly sideKindOfProductionCostModifiers = new Map<string, KindOfProductionCostModifier[]>();
   /** Source parity: Player::m_productionTimeChanges — per-template build time modifier (e.g. -0.25 = 25% faster). */
   private readonly sideProductionTimeChangePercent = new Map<string, Map<string, number>>();
@@ -13261,7 +13269,11 @@ export class GameLogicSubsystem implements Subsystem {
     const state = this.captureSourceRuntimeStateByKeys(SOURCE_PLAYER_RUNTIME_STATE_KEYS);
     state.sideSourceSpecialPowerReadyTimers = this.sideSourceSpecialPowerReadyTimers;
     state.sideSourcePlayerTeamPrototypeIds = this.sideSourcePlayerTeamPrototypeIds;
+    state.sideSourceBuildListInfos = this.sideSourceBuildListInfos;
     state.sideSourceAiPlayerState = this.sideSourceAiPlayerState;
+    state.sideSourcePlayerCoreState = this.sideSourcePlayerCoreState;
+    state.sideSourcePlayerRelations = this.sideSourcePlayerRelations;
+    state.sideSourceTeamRelations = this.sideSourceTeamRelations;
     state.sideSourceResourceGatheringManager = this.sideSourceResourceGatheringManager;
     state.sideSourcePlayerSquads = this.sideSourcePlayerSquads;
     state.sideSourcePlayerCurrentSelection = this.sideSourcePlayerCurrentSelection;

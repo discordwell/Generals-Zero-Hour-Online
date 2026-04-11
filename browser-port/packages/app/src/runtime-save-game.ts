@@ -423,6 +423,7 @@ const SOURCE_AI_PLAYER_SNAPSHOT_VERSION = 1;
 const SOURCE_AI_SKIRMISH_PLAYER_SNAPSHOT_VERSION = 1;
 const SOURCE_TEAM_IN_QUEUE_SNAPSHOT_VERSION = 1;
 const SOURCE_WORK_ORDER_SNAPSHOT_VERSION = 1;
+const SOURCE_BUILD_LIST_RESOURCE_GATHERER_COUNT = 10;
 const SOURCE_AI_STRUCTURES_TO_REPAIR_COUNT = 2;
 const SOURCE_RESOURCE_GATHERING_MANAGER_SNAPSHOT_VERSION = 1;
 const SOURCE_TUNNEL_TRACKER_SNAPSHOT_VERSION = 1;
@@ -21245,6 +21246,16 @@ interface SourcePlayerRelationEntry {
   relationship: number;
 }
 
+interface SourcePlayerCoreState {
+  isPlayerDead: boolean;
+  powerSabotagedTillFrame: number;
+  defaultTeamId: number;
+  levelUp: number;
+  levelDown: number;
+  generalName: string;
+  observer: boolean;
+}
+
 interface SourcePlayerScoreKeeperState {
   totalMoneyEarned: number;
   totalMoneySpent: number;
@@ -21602,7 +21613,11 @@ function xferSourceBuildListInfoState(
     objectId: xfer.xferObjectID(buildListInfo.objectId),
     objectTimestamp: xfer.xferUnsignedInt(buildListInfo.objectTimestamp),
     underConstruction: xfer.xferBool(buildListInfo.underConstruction),
-    resourceGatherers: xfer.xferObjectIDList(buildListInfo.resourceGatherers),
+    resourceGatherers: xferSourceFixedObjectIdArray(
+      xfer,
+      buildListInfo.resourceGatherers,
+      SOURCE_BUILD_LIST_RESOURCE_GATHERER_COUNT,
+    ),
     isSupplyBuilding: xfer.xferBool(buildListInfo.isSupplyBuilding),
     desiredGatherers: xfer.xferInt(buildListInfo.desiredGatherers),
     priorityBuild: xfer.xferBool(buildListInfo.priorityBuild),
@@ -21611,6 +21626,71 @@ function xferSourceBuildListInfoState(
       : buildListInfo.currentGatherers,
   };
   return nextState;
+}
+
+function cloneSourceBuildListInfoState(
+  buildListInfo: SourcePlayerBuildListInfoState,
+): SourcePlayerBuildListInfoState {
+  return {
+    ...buildListInfo,
+    location: { ...buildListInfo.location },
+    rallyPointOffset: { ...buildListInfo.rallyPointOffset },
+    resourceGatherers: [...buildListInfo.resourceGatherers],
+  };
+}
+
+function normalizeSourceBuildListInfoState(value: unknown): SourcePlayerBuildListInfoState | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const entry = value as Partial<SourcePlayerBuildListInfoState>;
+  const location = entry.location && typeof entry.location === 'object'
+    ? entry.location as Partial<{ x: number; y: number; z: number }>
+    : {};
+  const rallyPointOffset = entry.rallyPointOffset && typeof entry.rallyPointOffset === 'object'
+    ? entry.rallyPointOffset as Partial<{ x: number; y: number }>
+    : {};
+  return {
+    buildingName: normalizeOptionalAsciiString(entry.buildingName),
+    templateName: normalizeOptionalAsciiString(entry.templateName),
+    location: {
+      x: Number.isFinite(location.x) ? Number(location.x) : 0,
+      y: Number.isFinite(location.y) ? Number(location.y) : 0,
+      z: Number.isFinite(location.z) ? Number(location.z) : 0,
+    },
+    rallyPointOffset: {
+      x: Number.isFinite(rallyPointOffset.x) ? Number(rallyPointOffset.x) : 0,
+      y: Number.isFinite(rallyPointOffset.y) ? Number(rallyPointOffset.y) : 0,
+    },
+    angle: Number.isFinite(entry.angle) ? Number(entry.angle) : 0,
+    isInitiallyBuilt: entry.isInitiallyBuilt === true,
+    numRebuilds: Number.isFinite(entry.numRebuilds) ? Math.max(0, Math.trunc(entry.numRebuilds as number)) : 0,
+    script: normalizeOptionalAsciiString(entry.script),
+    health: Number.isFinite(entry.health) ? Math.trunc(entry.health as number) : 100,
+    whiner: entry.whiner !== false,
+    unsellable: entry.unsellable === true,
+    repairable: entry.repairable !== false,
+    automaticallyBuild: entry.automaticallyBuild !== false,
+    objectId: Number.isFinite(entry.objectId) ? Math.max(0, Math.trunc(entry.objectId as number)) : 0,
+    objectTimestamp: Number.isFinite(entry.objectTimestamp)
+      ? Math.max(0, Math.trunc(entry.objectTimestamp as number))
+      : 0,
+    underConstruction: entry.underConstruction === true,
+    resourceGatherers: normalizeSourceObjectIdArray(entry.resourceGatherers),
+    isSupplyBuilding: entry.isSupplyBuilding === true,
+    desiredGatherers: Number.isFinite(entry.desiredGatherers) ? Math.trunc(entry.desiredGatherers as number) : 0,
+    priorityBuild: entry.priorityBuild === true,
+    currentGatherers: Number.isFinite(entry.currentGatherers) ? Math.trunc(entry.currentGatherers as number) : 0,
+  };
+}
+
+function normalizeSourceBuildListInfos(value: unknown): SourcePlayerBuildListInfoState[] {
+  return Array.isArray(value)
+    ? value.flatMap((entry) => {
+        const normalized = normalizeSourceBuildListInfoState(entry);
+        return normalized ? [normalized] : [];
+      })
+    : [];
 }
 
 function xferSourceWorkOrderState(
@@ -22088,6 +22168,51 @@ function normalizeSourceResourceGatheringManagerState(
   };
 }
 
+function normalizeSourcePlayerCoreState(value: unknown): SourcePlayerCoreState | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const state = value as Partial<SourcePlayerCoreState>;
+  return {
+    isPlayerDead: state.isPlayerDead === true,
+    powerSabotagedTillFrame: Number.isFinite(state.powerSabotagedTillFrame)
+      ? Math.max(0, Math.trunc(state.powerSabotagedTillFrame as number))
+      : 0,
+    defaultTeamId: Number.isFinite(state.defaultTeamId)
+      ? Math.max(0, Math.trunc(state.defaultTeamId as number))
+      : 0,
+    levelUp: Number.isFinite(state.levelUp) ? Math.trunc(state.levelUp as number) : 0,
+    levelDown: Number.isFinite(state.levelDown) ? Math.trunc(state.levelDown as number) : 0,
+    generalName: typeof state.generalName === 'string' ? state.generalName : '',
+    observer: state.observer === true,
+  };
+}
+
+function normalizeSourcePlayerRelationEntries(value: unknown): SourcePlayerRelationEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return [];
+    }
+    const relation = entry as Partial<SourcePlayerRelationEntry>;
+    if (!Number.isFinite(relation.id) || !Number.isFinite(relation.relationship)) {
+      return [];
+    }
+    return [{
+      id: Math.trunc(relation.id as number),
+      relationship: Math.trunc(relation.relationship as number),
+    }];
+  });
+}
+
+function cloneSourcePlayerRelationEntries(
+  entries: SourcePlayerRelationEntry[],
+): SourcePlayerRelationEntry[] {
+  return entries.map((entry) => ({ ...entry }));
+}
+
 function xferSourceSquadObjectIds(
   xfer: Xfer,
   objectIds: number[],
@@ -22284,7 +22409,11 @@ function buildSourcePlayerEntryState(
   const sideUpgradesInProduction = getRuntimeStateMap<Set<string>>(state, 'sideUpgradesInProduction').get(side);
   const sideSourcePlayerUpgradeList = getRuntimeStateMap<unknown>(state, 'sideSourcePlayerUpgradeList').get(side);
   const sideSourcePlayerTeamPrototypeIdsMap = getRuntimeStateMap<unknown>(state, 'sideSourcePlayerTeamPrototypeIds');
+  const sideSourceBuildListInfosMap = getRuntimeStateMap<unknown>(state, 'sideSourceBuildListInfos');
   const sideSourceAiPlayerStateMap = getRuntimeStateMap<SourcePlayerAiState | null>(state, 'sideSourceAiPlayerState');
+  const sideSourcePlayerCoreStateMap = getRuntimeStateMap<unknown>(state, 'sideSourcePlayerCoreState');
+  const sideSourcePlayerRelationsMap = getRuntimeStateMap<unknown>(state, 'sideSourcePlayerRelations');
+  const sideSourceTeamRelationsMap = getRuntimeStateMap<unknown>(state, 'sideSourceTeamRelations');
   const sideSourceResourceGatheringManagerMap =
     getRuntimeStateMap<SourcePlayerResourceGatheringManagerState | null>(state, 'sideSourceResourceGatheringManager');
   const sideSourcePlayerSquadsMap = getRuntimeStateMap<unknown>(state, 'sideSourcePlayerSquads');
@@ -22339,6 +22468,12 @@ function buildSourcePlayerEntryState(
   const sourceTeamPrototypeIds = runtimeStateSideMapHas(sideSourcePlayerTeamPrototypeIdsMap, side)
     ? normalizeSourceObjectIdArray(getRuntimeStateSideMapValue(sideSourcePlayerTeamPrototypeIdsMap, side))
     : [...new Set(teamPrototypeIds)].sort((a, b) => a - b);
+  const sourceBuildListInfos = runtimeStateSideMapHas(sideSourceBuildListInfosMap, side)
+    ? normalizeSourceBuildListInfos(getRuntimeStateSideMapValue(sideSourceBuildListInfosMap, side))
+    : buildSourcePlayerBuildListInfos(playerIndex, side, payload, options.mapData);
+  const sourcePlayerCoreState = normalizeSourcePlayerCoreState(
+    getRuntimeStateSideMapValue(sideSourcePlayerCoreStateMap, side),
+  );
   const resourceGatheringManager = runtimeStateSideMapHas(sideSourceResourceGatheringManagerMap, side)
     ? normalizeSourceResourceGatheringManagerState(
         getRuntimeStateSideMapValue(sideSourceResourceGatheringManagerMap, side),
@@ -22374,41 +22509,53 @@ function buildSourcePlayerEntryState(
   });
   const playerRelations: SourcePlayerRelationEntry[] = [];
   const teamRelations: SourcePlayerRelationEntry[] = [];
-  for (const [key, relationship] of playerRelationshipOverrides) {
-    if (typeof key !== 'string' || !Number.isFinite(relationship)) {
-      continue;
+  if (runtimeStateSideMapHas(sideSourcePlayerRelationsMap, side)) {
+    playerRelations.push(
+      ...normalizeSourcePlayerRelationEntries(getRuntimeStateSideMapValue(sideSourcePlayerRelationsMap, side)),
+    );
+  } else {
+    for (const [key, relationship] of playerRelationshipOverrides) {
+      if (typeof key !== 'string' || !Number.isFinite(relationship)) {
+        continue;
+      }
+      const [sourceSide, targetSide] = key.split(relationSeparator);
+      if (sourceSide !== side || !targetSide) {
+        continue;
+      }
+      const targetPlayerIndex = getPlayerIndexBySideMap(payload).get(targetSide);
+      if (targetPlayerIndex === undefined || !Number.isFinite(targetPlayerIndex)) {
+        continue;
+      }
+      playerRelations.push({
+        id: Math.trunc(targetPlayerIndex),
+        relationship: Math.trunc(relationship),
+      });
     }
-    const [sourceSide, targetSide] = key.split(relationSeparator);
-    if (sourceSide !== side || !targetSide) {
-      continue;
-    }
-    const targetPlayerIndex = getPlayerIndexBySideMap(payload).get(targetSide);
-    if (targetPlayerIndex === undefined || !Number.isFinite(targetPlayerIndex)) {
-      continue;
-    }
-    playerRelations.push({
-      id: Math.trunc(targetPlayerIndex),
-      relationship: Math.trunc(relationship),
-    });
   }
-  for (const [key, relationship] of teamRelationshipOverrides) {
-    if (typeof key !== 'string' || !Number.isFinite(relationship)) {
-      continue;
+  if (runtimeStateSideMapHas(sideSourceTeamRelationsMap, side)) {
+    teamRelations.push(
+      ...normalizeSourcePlayerRelationEntries(getRuntimeStateSideMapValue(sideSourceTeamRelationsMap, side)),
+    );
+  } else {
+    for (const [key, relationship] of teamRelationshipOverrides) {
+      if (typeof key !== 'string' || !Number.isFinite(relationship)) {
+        continue;
+      }
+      const [sourceSide, targetSide] = key.split(relationSeparator);
+      if (sourceSide !== side || !targetSide) {
+        continue;
+      }
+      const targetDefaultTeamName = defaultTeamNameBySide.get(targetSide)?.trim().toUpperCase() ?? '';
+      const targetDefaultTeam = targetDefaultTeamName ? teamsByName.get(targetDefaultTeamName) : undefined;
+      const teamId = Number(targetDefaultTeam?.sourceTeamId);
+      if (!Number.isFinite(teamId)) {
+        continue;
+      }
+      teamRelations.push({
+        id: Math.max(0, Math.trunc(teamId)),
+        relationship: Math.trunc(relationship),
+      });
     }
-    const [sourceSide, targetSide] = key.split(relationSeparator);
-    if (sourceSide !== side || !targetSide) {
-      continue;
-    }
-    const targetDefaultTeamName = defaultTeamNameBySide.get(targetSide)?.trim().toUpperCase() ?? '';
-    const targetDefaultTeam = targetDefaultTeamName ? teamsByName.get(targetDefaultTeamName) : undefined;
-    const teamId = Number(targetDefaultTeam?.sourceTeamId);
-    if (!Number.isFinite(teamId)) {
-      continue;
-    }
-    teamRelations.push({
-      id: Math.max(0, Math.trunc(teamId)),
-      relationship: Math.trunc(relationship),
-    });
   }
   const sciencesDisabled: string[] = [];
   const sciencesHidden: string[] = [];
@@ -22456,7 +22603,7 @@ function buildSourcePlayerEntryState(
     sciencesDisabled,
     sciencesHidden,
     radarCount: Math.max(0, Math.trunc(Number(sideRadarState?.radarCount ?? 0))),
-    isPlayerDead: false,
+    isPlayerDead: sourcePlayerCoreState?.isPlayerDead ?? false,
     disableProofRadarCount: Math.max(0, Math.trunc(Number(sideRadarState?.disableProofRadarCount ?? 0))),
     radarDisabled: Boolean(sideRadarState?.radarDisabled),
     upgradesInProgress: orderSourceUpgradeNamesByRegistry(
@@ -22467,27 +22614,27 @@ function buildSourcePlayerEntryState(
       sideCompletedUpgrades ?? [],
       options.sourceUpgradeOrder,
     ),
-    powerSabotagedTillFrame: 0,
+    powerSabotagedTillFrame: sourcePlayerCoreState?.powerSabotagedTillFrame ?? 0,
     teamPrototypeIds: sourceTeamPrototypeIds,
-    buildListInfos: buildSourcePlayerBuildListInfos(playerIndex, side, payload, options.mapData),
+    buildListInfos: sourceBuildListInfos,
     aiPlayer,
     resourceGatheringManager,
     tunnelTracker,
-    defaultTeamId: Number.isFinite(defaultTeam?.sourceTeamId)
+    defaultTeamId: sourcePlayerCoreState?.defaultTeamId ?? (Number.isFinite(defaultTeam?.sourceTeamId)
       ? Math.max(0, Math.trunc(Number(defaultTeam?.sourceTeamId)))
-      : 0,
+      : 0),
     sciences: [...(sideSciencesBySide ?? new Set<string>())],
     rankLevel: Math.max(0, Math.trunc(Number(sideRankState?.rankLevel ?? 0))),
     skillPoints: Math.max(0, Math.trunc(Number(sideRankState?.skillPoints ?? 0))),
     sciencePurchasePoints: Math.max(0, Math.trunc(Number(sideRankState?.sciencePurchasePoints ?? 0))),
-    levelUp: 0,
-    levelDown: 0,
-    generalName: '',
+    levelUp: sourcePlayerCoreState?.levelUp ?? 0,
+    levelDown: sourcePlayerCoreState?.levelDown ?? 0,
+    generalName: sourcePlayerCoreState?.generalName ?? '',
     playerRelations,
     teamRelations,
     canBuildUnits: sideCanBuildUnitsByScript !== false,
     canBuildBase: sideCanBuildBaseByScript !== false,
-    observer: false,
+    observer: sourcePlayerCoreState?.observer ?? false,
     skillPointsModifier: Number.isFinite(sideSkillPointsModifier) ? Number(sideSkillPointsModifier) : 1,
     listInScoreScreen: !sideScoreScreenExcluded.has(side),
     attackedByPlayerIndices,
@@ -22570,7 +22717,11 @@ function buildGameLogicPlayersStateFromSourcePlayers(
   const sideUpgradesInProduction = new Map<string, Set<string>>();
   const sideSourcePlayerUpgradeList = new Map<string, SourcePlayerUpgradeState[]>();
   const sideSourcePlayerTeamPrototypeIds = new Map<string, number[]>();
+  const sideSourceBuildListInfos = new Map<string, SourcePlayerBuildListInfoState[]>();
   const sideSourceAiPlayerState = new Map<string, SourcePlayerAiState | null>();
+  const sideSourcePlayerCoreState = new Map<string, SourcePlayerCoreState>();
+  const sideSourcePlayerRelations = new Map<string, SourcePlayerRelationEntry[]>();
+  const sideSourceTeamRelations = new Map<string, SourcePlayerRelationEntry[]>();
   const sideIsPreorder = new Map<string, boolean>();
   const sideCanBuildBaseByScript = new Map<string, boolean>();
   const sideCanBuildUnitsByScript = new Map<string, boolean>();
@@ -22659,7 +22810,22 @@ function buildGameLogicPlayersStateFromSourcePlayers(
       player.upgrades.map((upgrade) => ({ name: upgrade.name, status: upgrade.status })),
     );
     sideSourcePlayerTeamPrototypeIds.set(player.side, [...player.teamPrototypeIds]);
+    sideSourceBuildListInfos.set(
+      player.side,
+      player.buildListInfos.map((entry) => cloneSourceBuildListInfoState(entry)),
+    );
     sideSourceAiPlayerState.set(player.side, player.aiPlayer ? cloneSourceAiPlayerState(player.aiPlayer) : null);
+    sideSourcePlayerCoreState.set(player.side, {
+      isPlayerDead: player.isPlayerDead,
+      powerSabotagedTillFrame: player.powerSabotagedTillFrame,
+      defaultTeamId: player.defaultTeamId,
+      levelUp: player.levelUp,
+      levelDown: player.levelDown,
+      generalName: player.generalName,
+      observer: player.observer,
+    });
+    sideSourcePlayerRelations.set(player.side, cloneSourcePlayerRelationEntries(player.playerRelations));
+    sideSourceTeamRelations.set(player.side, cloneSourcePlayerRelationEntries(player.teamRelations));
     sideSourceResourceGatheringManager.set(
       player.side,
       player.resourceGatheringManager
@@ -22824,7 +22990,11 @@ function buildGameLogicPlayersStateFromSourcePlayers(
   state.sideUpgradesInProduction = sideUpgradesInProduction;
   state.sideSourcePlayerUpgradeList = sideSourcePlayerUpgradeList;
   state.sideSourcePlayerTeamPrototypeIds = sideSourcePlayerTeamPrototypeIds;
+  state.sideSourceBuildListInfos = sideSourceBuildListInfos;
   state.sideSourceAiPlayerState = sideSourceAiPlayerState;
+  state.sideSourcePlayerCoreState = sideSourcePlayerCoreState;
+  state.sideSourcePlayerRelations = sideSourcePlayerRelations;
+  state.sideSourceTeamRelations = sideSourceTeamRelations;
   state.sideKindOfProductionCostModifiers = sideKindOfProductionCostModifiers;
   state.sideSourceSpecialPowerReadyTimers = sideSourceSpecialPowerReadyTimers;
   state.sideSourceResourceGatheringManager = sideSourceResourceGatheringManager;
