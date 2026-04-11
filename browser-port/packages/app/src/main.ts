@@ -2313,9 +2313,6 @@ async function startGame(
   gameContainer.appendChild(cinematicTextOverlay);
   gameContainer.appendChild(emoticonOverlay);
 
-  // Hoisted here so updateEntityInfoPanel can display control group badges.
-  const controlGroups = new Map<number, number[]>();
-
   const updateEntityInfoPanel = (): void => {
     const selectedIds = gameLogic.getLocalPlayerSelectionIds();
     if (selectedIds.length === 0) {
@@ -2389,8 +2386,9 @@ async function startGame(
     }
 
     // Show control group badge if the primary entity belongs to a numbered group.
-    for (const [groupNum, ids] of controlGroups) {
-      if (ids.includes(primaryId)) { lines.push(`Group ${groupNum}`); break; }
+    const controlGroupNumber = gameLogic.getLocalPlayerControlGroupNumberForEntity(primaryId);
+    if (controlGroupNumber !== null) {
+      lines.push(`Group ${controlGroupNumber}`);
     }
 
     entityInfoDetails.textContent = lines.join(' | ');
@@ -2825,9 +2823,9 @@ async function startGame(
         ['Click', 'Select unit/building'],
         ['Ctrl+A', 'Select all own units'],
         ['Double-click', 'Select same type'],
-        ['1\u20139', 'Recall control group'],
-        ['Ctrl+1\u20139', 'Save control group'],
-        ['Shift+1\u20139', 'Add to control group'],
+        ['0\u20139', 'Recall control group'],
+        ['Ctrl+0\u20139', 'Save control group'],
+        ['Shift+0\u20139', 'Add control group to selection'],
         ['Tab', 'Cycle idle buildings'],
       ],
     },
@@ -2974,8 +2972,8 @@ async function startGame(
     }
 
     // Activate control bar slots via hotkeys when Ctrl is NOT held.
-    // Digits 1-9 are reserved for control group recall (handled elsewhere).
-    if (!e.ctrlKey && !e.metaKey && !/^[1-9]$/.test(e.key)) {
+    // Digits 0-9 are reserved for control group recall (handled elsewhere).
+    if (!e.ctrlKey && !e.metaKey && !/^[0-9]$/.test(e.key)) {
       const resolvedSlot = resolveControlBarSlotFromHotkey(e.key);
       if (resolvedSlot !== null) {
         e.preventDefault();
@@ -3562,71 +3560,40 @@ async function startGame(
   };
 
   // ========================================================================
-  // Control groups (Ctrl+1-9 to save, 1-9 to recall, double-tap to center)
+  // Control groups (Ctrl+0-9 to save, 0-9 to recall, double-tap to center)
   // ========================================================================
 
-  // controlGroups is hoisted above updateEntityInfoPanel for badge display.
   const lastGroupTapTime = new Map<number, number>();
   const DOUBLE_TAP_MS = 400;
   let previousSelectionSnapshot: readonly number[] = [];
 
   window.addEventListener('keydown', (e) => {
     const digit = parseInt(e.key, 10);
-    if (isNaN(digit) || digit < 1 || digit > 9) return;
+    if (isNaN(digit) || digit < 0 || digit > 9) return;
 
     if (e.ctrlKey || e.metaKey) {
       // Ctrl+N: save current selection to group N.
       e.preventDefault();
-      const selectedIds = gameLogic.getLocalPlayerSelectionIds();
-      if (selectedIds.length > 0) {
-        controlGroups.set(digit, [...selectedIds]);
-      }
+      gameLogic.setLocalPlayerControlGroupFromCurrentSelection(digit);
     } else if (e.shiftKey && !e.altKey && !(e.ctrlKey || e.metaKey)) {
-      // Shift+N: append current selection to group N.
-      // Source parity: C++ InGameUI adds to existing group without replacing.
+      // Shift+N: add group N to the current selection.
+      // Source parity: SelectionXlat MSG_META_ADD_TEAM[N] does not mutate m_squads.
       e.preventDefault();
-      const selectedIds = gameLogic.getLocalPlayerSelectionIds();
-      if (selectedIds.length > 0) {
-        const existing = controlGroups.get(digit) ?? [];
-        const merged = [...new Set([...existing, ...selectedIds])];
-        controlGroups.set(digit, merged);
-      }
+      gameLogic.selectLocalPlayerControlGroup(digit, { addToCurrentSelection: true });
     } else if (!e.altKey && !e.shiftKey) {
       // N: recall group N.
-      const group = controlGroups.get(digit);
-      if (!group || group.length === 0) return;
       e.preventDefault();
-
-      // Filter out destroyed entities.
-      const aliveIds = group.filter((id) => {
-        const state = gameLogic.getEntityState(id);
-        return state !== null;
-      });
-      if (aliveIds.length === 0) {
-        controlGroups.delete(digit);
-        return;
-      }
-      controlGroups.set(digit, aliveIds);
-      gameLogic.submitCommand({ type: 'selectEntities', entityIds: aliveIds });
+      const selectedGroupIds = gameLogic.selectLocalPlayerControlGroup(digit);
+      if (selectedGroupIds.length === 0) return;
 
       // Double-tap: center camera on group.
       const now = performance.now();
       const lastTap = lastGroupTapTime.get(digit) ?? 0;
       lastGroupTapTime.set(digit, now);
       if (now - lastTap < DOUBLE_TAP_MS) {
-        let sumX = 0;
-        let sumZ = 0;
-        let count = 0;
-        for (const id of aliveIds) {
-          const entityState = gameLogic.getEntityState(id);
-          if (entityState) {
-            sumX += entityState.x;
-            sumZ += entityState.z;
-            count++;
-          }
-        }
-        if (count > 0) {
-          rtsCamera.lookAt(sumX / count, sumZ / count);
+        const entityState = gameLogic.getEntityState(selectedGroupIds[selectedGroupIds.length - 1]!);
+        if (entityState) {
+          rtsCamera.lookAt(entityState.x, entityState.z);
         }
       }
     }

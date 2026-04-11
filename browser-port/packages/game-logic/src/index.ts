@@ -8653,6 +8653,7 @@ const SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_GAME_LOGIC_RUNTIME_SAVE_STATE_VERSION = 1;
 const SOURCE_GAME_LOGIC_IMPORT_SAVE_STATE_VERSION = 1;
 const SOURCE_OBJECT_TRIGGER_INFO_LIMIT = 5;
+const SOURCE_PLAYER_HOTKEY_SQUAD_COUNT = 10;
 const SOURCE_TERRAIN_LOGIC_RUNTIME_SAVE_STATE_VERSION = 2;
 const SOURCE_PARTITION_RUNTIME_SAVE_STATE_VERSION = 2;
 const SOURCE_RADAR_RUNTIME_SAVE_STATE_VERSION = 2;
@@ -13354,6 +13355,171 @@ export class GameLogicSubsystem implements Subsystem {
     return selectionPresentBySide;
   }
 
+  private normalizeSourcePlayerSquadIds(entityIds: readonly number[] | undefined): number[] {
+    const normalizedIds: number[] = [];
+    for (const entityId of entityIds ?? []) {
+      if (!Number.isFinite(entityId) || entityId <= 0) {
+        continue;
+      }
+      normalizedIds.push(Math.trunc(entityId));
+    }
+    return normalizedIds;
+  }
+
+  private normalizeSourcePlayerSquads(squads: readonly (readonly number[])[] | undefined): number[][] {
+    return Array.from({ length: SOURCE_PLAYER_HOTKEY_SQUAD_COUNT }, (_unused, index) =>
+      this.normalizeSourcePlayerSquadIds(squads?.[index]));
+  }
+
+  private captureSourcePlayerSquadsBySide(): Map<string, number[][]> {
+    const squadsBySide = new Map<string, number[][]>();
+    for (const [side, squads] of this.sideSourcePlayerSquads.entries()) {
+      squadsBySide.set(side, this.normalizeSourcePlayerSquads(squads));
+    }
+
+    const localSide = this.resolveLocalPlayerSide();
+    if (!localSide) {
+      return squadsBySide;
+    }
+
+    const localSquads = this.getSourcePlayerSquadsForSide(localSide);
+    if (localSquads) {
+      squadsBySide.set(
+        this.resolveSourceSideMapKey(squadsBySide, localSide),
+        this.normalizeSourcePlayerSquads(localSquads),
+      );
+    }
+    return squadsBySide;
+  }
+
+  private getSourcePlayerSquadsForSide(side: string): number[][] | null {
+    const directSquads = this.sideSourcePlayerSquads.get(side);
+    if (directSquads) {
+      return directSquads;
+    }
+
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return null;
+    }
+    for (const [candidateSide, squads] of this.sideSourcePlayerSquads.entries()) {
+      if (this.normalizeSide(candidateSide) === normalizedSide) {
+        return squads;
+      }
+    }
+    return null;
+  }
+
+  private ensureSourcePlayerSquadsForSide(side: string): number[][] {
+    const sideKey = this.resolveSourceSideMapKey(this.sideSourcePlayerSquads, side);
+    const normalizedSquads = this.normalizeSourcePlayerSquads(this.sideSourcePlayerSquads.get(sideKey));
+    this.sideSourcePlayerSquads.set(sideKey, normalizedSquads);
+    return normalizedSquads;
+  }
+
+  private normalizeHotkeySquadIndex(groupIndex: number): number | null {
+    if (!Number.isFinite(groupIndex)) {
+      return null;
+    }
+    const normalizedIndex = Math.trunc(groupIndex);
+    return normalizedIndex >= 0 && normalizedIndex < SOURCE_PLAYER_HOTKEY_SQUAD_COUNT
+      ? normalizedIndex
+      : null;
+  }
+
+  private filterValidLocalPlayerControlGroupIds(entityIds: readonly number[]): number[] {
+    const localSide = this.resolveLocalPlayerSide();
+    const normalizedLocalSide = localSide ? this.normalizeSide(localSide) : null;
+    if (!normalizedLocalSide) {
+      return [];
+    }
+
+    return this.filterValidSelectionIds(entityIds).filter((entityId) => {
+      const entity = this.spawnedEntities.get(entityId);
+      return entity
+        ? this.normalizeSide(entity.side) === normalizedLocalSide
+        : false;
+    });
+  }
+
+  getLocalPlayerControlGroupIds(groupIndex: number): readonly number[] {
+    const normalizedIndex = this.normalizeHotkeySquadIndex(groupIndex);
+    const localSide = this.resolveLocalPlayerSide();
+    if (normalizedIndex === null || !localSide) {
+      return [];
+    }
+
+    const squads = this.getSourcePlayerSquadsForSide(localSide);
+    return this.filterValidLocalPlayerControlGroupIds(squads?.[normalizedIndex] ?? []);
+  }
+
+  getLocalPlayerControlGroupNumberForEntity(entityId: number): number | null {
+    if (!Number.isFinite(entityId)) {
+      return null;
+    }
+    const normalizedEntityId = Math.trunc(entityId);
+    for (let index = 0; index < SOURCE_PLAYER_HOTKEY_SQUAD_COUNT; index += 1) {
+      if (this.getLocalPlayerControlGroupIds(index).includes(normalizedEntityId)) {
+        return index;
+      }
+    }
+    return null;
+  }
+
+  setLocalPlayerControlGroup(groupIndex: number, entityIds: readonly number[]): boolean {
+    const normalizedIndex = this.normalizeHotkeySquadIndex(groupIndex);
+    const localSide = this.resolveLocalPlayerSide();
+    if (normalizedIndex === null || !localSide) {
+      return false;
+    }
+
+    const groupIds = this.filterValidLocalPlayerControlGroupIds(entityIds);
+    const squads = this.ensureSourcePlayerSquadsForSide(localSide);
+    const groupIdSet = new Set(groupIds);
+    for (let index = 0; index < SOURCE_PLAYER_HOTKEY_SQUAD_COUNT; index += 1) {
+      squads[index] = index === normalizedIndex
+        ? []
+        : this.normalizeSourcePlayerSquadIds(squads[index]).filter((entityId) => !groupIdSet.has(entityId));
+    }
+    squads[normalizedIndex] = groupIds;
+    return true;
+  }
+
+  setLocalPlayerControlGroupFromCurrentSelection(groupIndex: number): boolean {
+    return this.setLocalPlayerControlGroup(groupIndex, this.selectedEntityIds);
+  }
+
+  selectLocalPlayerControlGroup(
+    groupIndex: number,
+    options: { addToCurrentSelection?: boolean } = {},
+  ): readonly number[] {
+    const normalizedIndex = this.normalizeHotkeySquadIndex(groupIndex);
+    if (normalizedIndex === null) {
+      return [];
+    }
+
+    const groupIds = this.getLocalPlayerControlGroupIds(normalizedIndex);
+    const primarySelectedEntity = this.selectedEntityIds.length > 0
+      ? this.spawnedEntities.get(this.selectedEntityIds[0]!)
+      : undefined;
+    const baseSelectionIds = options.addToCurrentSelection === true
+      && !primarySelectedEntity?.kindOf.has('STRUCTURE')
+      ? this.selectedEntityIds
+      : [];
+    const nextSelectionIds = this.filterValidSelectionIds([
+      ...baseSelectionIds,
+      ...groupIds,
+    ]);
+
+    if (!this.selectionIdsEqual(this.selectedEntityIds, nextSelectionIds)) {
+      this.selectedEntityIds = nextSelectionIds;
+      this.selectedEntityId = nextSelectionIds[0] ?? null;
+      this.markScriptSelectionChanged();
+      this.updateSelectionHighlight();
+    }
+    return [...nextSelectionIds];
+  }
+
   private getSourcePlayerCurrentSelectionForSide(side: string): number[] | null {
     const directSelection = this.sideSourcePlayerCurrentSelection.get(side);
     if (directSelection) {
@@ -13520,7 +13686,7 @@ export class GameLogicSubsystem implements Subsystem {
     state.sideSourcePlayerRelations = this.sideSourcePlayerRelations;
     state.sideSourceTeamRelations = this.sideSourceTeamRelations;
     state.sideSourceResourceGatheringManager = this.sideSourceResourceGatheringManager;
-    state.sideSourcePlayerSquads = this.sideSourcePlayerSquads;
+    state.sideSourcePlayerSquads = this.captureSourcePlayerSquadsBySide();
     state.sideSourcePlayerCurrentSelection = currentSelectionBySide;
     state.sideSourcePlayerCurrentSelectionPresent =
       this.captureSourcePlayerCurrentSelectionPresentBySide(currentSelectionBySide);
@@ -34031,6 +34197,17 @@ export class GameLogicSubsystem implements Subsystem {
     this.sideUpgradesInProduction.clear();
     this.sideCompletedUpgrades.clear();
     this.sideSourcePlayerUpgradeList.clear();
+    this.sideSourcePlayerTeamPrototypeIds.clear();
+    this.sideSourceBuildListInfos.clear();
+    this.sideSourceAiPlayerState.clear();
+    this.sideSourcePlayerCoreState.clear();
+    this.sideSourcePlayerRelations.clear();
+    this.sideSourceTeamRelations.clear();
+    this.sideSourceSpecialPowerReadyTimers.clear();
+    this.sideSourceResourceGatheringManager.clear();
+    this.sideSourcePlayerSquads.clear();
+    this.sideSourcePlayerCurrentSelection.clear();
+    this.sideSourcePlayerCurrentSelectionPresent.clear();
     this.sideKindOfProductionCostModifiers.clear();
     this.sideProductionTimeChangePercent.clear();
     this.sideSciences.clear();

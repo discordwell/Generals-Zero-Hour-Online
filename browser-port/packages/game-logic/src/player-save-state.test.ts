@@ -382,4 +382,77 @@ describe('player save-state', () => {
 
     expect(logic.getLocalPlayerSelectionIds()).toEqual([1]);
   });
+
+  it('captures live control groups into source Player::m_squads', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Ranger', 'America', ['INFANTRY', 'SELECTABLE'], []),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Ranger', 10, 10),
+        makeMapObject('Ranger', 20, 10),
+      ], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+    logic.restoreSourcePlayerRuntimeSaveState({
+      version: 1,
+      state: {
+        playerSideByIndex: new Map([[0, 'America']]),
+        sidePlayerIndex: new Map([['America', 0]]),
+        localPlayerIndex: 0,
+        sideSourcePlayerSquads: new Map([
+          ['America', [[], [], [2], [], [], [], [], [], [], []]],
+        ]),
+      },
+    });
+    const selectionApi = logic as unknown as {
+      selectedEntityId: number | null;
+      selectedEntityIds: readonly number[];
+    };
+    selectionApi.selectedEntityIds = [1, 2, 999, 1];
+    selectionApi.selectedEntityId = 1;
+
+    expect(logic.setLocalPlayerControlGroupFromCurrentSelection(4)).toBe(true);
+
+    const playerState = logic.captureSourcePlayerRuntimeSaveState();
+    const squadsBySide = playerState.state.sideSourcePlayerSquads as Map<string, number[][]>;
+    expect(squadsBySide.get('America')?.[2]).toEqual([]);
+    expect(squadsBySide.get('America')?.[4]).toEqual([1, 2]);
+  });
+
+  it('restores source Player::m_squads into live control group selection', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Ranger', 'America', ['INFANTRY', 'SELECTABLE'], []),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([
+        makeMapObject('Ranger', 10, 10),
+        makeMapObject('Ranger', 20, 10),
+      ], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+    logic.restoreSourcePlayerRuntimeSaveState({
+      version: 1,
+      state: {
+        playerSideByIndex: new Map([[0, 'america']]),
+        sidePlayerIndex: new Map([['america', 0]]),
+        localPlayerIndex: 0,
+        sideSourcePlayerSquads: new Map([
+          ['america', [[2, 999, 2], [1], [], [], [], [], [], [], [], []]],
+        ]),
+      },
+    });
+
+    expect(logic.getLocalPlayerControlGroupIds(0)).toEqual([2]);
+    expect(logic.selectLocalPlayerControlGroup(1)).toEqual([1]);
+    expect(logic.getLocalPlayerSelectionIds()).toEqual([1]);
+  });
 });
