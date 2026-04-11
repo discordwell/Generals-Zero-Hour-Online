@@ -9040,6 +9040,11 @@ interface SourceBridgeTowerBehaviorImportState {
 
 const SOURCE_BRIDGE_MAX_TOWERS = 4;
 
+interface SourceSpecialPowerCompletionDieImportState {
+  creatorId: number;
+  creatorSet: boolean;
+}
+
 interface SourceSlowDeathBehaviorImportState {
   nextCallFrame: number;
   sinkFrame: number;
@@ -13821,6 +13826,14 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private skipSourceImportDieModuleBase(xfer: XferLoad): void {
+    const dieModuleVersion = xfer.xferVersion(1);
+    if (dieModuleVersion !== 1) {
+      throw new Error('Unsupported source DieModule import base version.');
+    }
+    this.skipSourceImportBehaviorModuleBase(xfer);
+  }
+
   private isSourceUpgradeModuleType(moduleType: string): boolean {
     switch (moduleType.trim().toUpperCase()) {
       case 'LOCOMOTORSETUPGRADE':
@@ -16530,6 +16543,62 @@ export class GameLogicSubsystem implements Subsystem {
         bridgeEntityId: Math.max(0, Math.trunc(towerState.bridgeId)),
         towerType: Math.max(0, Math.trunc(towerState.towerType)),
       };
+      return;
+    }
+  }
+
+  private tryParseSourceSpecialPowerCompletionDieImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceSpecialPowerCompletionDieImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'SPECIALPOWERCOMPLETIONDIE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-special-power-completion-die-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      this.skipSourceImportDieModuleBase(xfer);
+      const creatorId = xfer.xferObjectID(0);
+      const creatorSet = xfer.xferBool(false);
+      return xfer.getRemaining() === 0 ? { creatorId, creatorSet } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceSpecialPowerCompletionDieModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (entity.specialPowerCompletionDieProfiles.length === 0) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const completionState = this.tryParseSourceSpecialPowerCompletionDieImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (!completionState) {
+        continue;
+      }
+
+      entity.specialPowerCompletionCreatorId = Math.max(0, Math.trunc(completionState.creatorId));
+      entity.specialPowerCompletionCreatorSet = completionState.creatorSet;
       return;
     }
   }
@@ -21143,6 +21212,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourcePropagandaTowerBehaviorModulesToEntity(entity, sourceState);
     this.applySourceBridgeBehaviorModulesToEntity(entity, sourceState);
     this.applySourceBridgeTowerBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceSpecialPowerCompletionDieModulesToEntity(entity, sourceState);
     this.applySourceBridgeScaffoldBehaviorModulesToEntity(entity, sourceState);
     this.applySourceSlowDeathBehaviorModulesToEntity(entity, sourceState);
     this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);

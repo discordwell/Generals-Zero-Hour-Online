@@ -239,6 +239,18 @@ function createSourceBehaviorModuleBaseBlockData(): Uint8Array {
   }
 }
 
+function createSourceDieModuleBaseBlockData(): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-die-module-base');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceBehaviorModuleBaseBlockData());
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
 function createSourceDefectionHelperBlockData(
   nextCallFrameAndPhase: number,
   detectionStart: number,
@@ -2308,6 +2320,11 @@ interface SourceBridgeTowerBehaviorTestState {
   towerType: number;
 }
 
+interface SourceSpecialPowerCompletionDieTestState {
+  creatorId: number;
+  creatorSet: boolean;
+}
+
 function createSourceBridgeBehaviorBlockData(state: SourceBridgeBehaviorTestState): Uint8Array {
   const xferSave = new XferSave();
   xferSave.open('create-source-bridge-behavior');
@@ -2385,6 +2402,44 @@ function parseSourceBridgeTowerBehaviorBlockData(data: Uint8Array): SourceBridge
     const parsed = {
       bridgeId: xferLoad.xferObjectID(0),
       towerType: readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+    };
+    expect(xferLoad.getRemaining()).toBe(0);
+    return parsed;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function createSourceSpecialPowerCompletionDieBlockData(
+  state: SourceSpecialPowerCompletionDieTestState,
+): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-special-power-completion-die');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceDieModuleBaseBlockData());
+    xferSave.xferObjectID(state.creatorId);
+    xferSave.xferBool(state.creatorSet);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceSpecialPowerCompletionDieBlockData(
+  data: Uint8Array,
+): SourceSpecialPowerCompletionDieTestState {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-special-power-completion-die');
+  try {
+    expect(xferLoad.xferVersion(1)).toBe(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const parsed = {
+      creatorId: xferLoad.xferObjectID(0),
+      creatorSet: xferLoad.xferBool(false),
     };
     expect(xferLoad.getRemaining()).toBe(0);
     return parsed;
@@ -13488,6 +13543,109 @@ describe('runtime-save-game', () => {
     expect(parseSourceBridgeTowerBehaviorBlockData(towerModule!.blockData)).toEqual({
       bridgeId: 7,
       towerType: 3,
+    });
+  });
+
+  it('rewrites source SpecialPowerCompletionDie modules from live runtime state', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_CompletionDie',
+      blockData: createSourceSpecialPowerCompletionDieBlockData({
+        creatorId: 11,
+        creatorSet: false,
+      }),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source special power completion die rewrite',
+      mapPath: 'Maps/RuntimeCompletionDie/RuntimeCompletionDie.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeCompletionDie',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            specialPowerCompletionDieProfiles: [{
+              specialPowerTemplateName: 'SuperweaponTest',
+              damageType: null,
+              deathTypes: [],
+              veterancyLevels: [],
+            }],
+            specialPowerCompletionCreatorId: 77,
+            specialPowerCompletionCreatorSet: true,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_CompletionDie') {
+            return 'SPECIALPOWERCOMPLETIONDIE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const completionModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_CompletionDie');
+
+    expect(completionModule).toBeDefined();
+    expect(parseSourceSpecialPowerCompletionDieBlockData(completionModule!.blockData)).toEqual({
+      creatorId: 77,
+      creatorSet: true,
     });
   });
 

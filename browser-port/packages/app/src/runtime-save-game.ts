@@ -6161,6 +6161,11 @@ interface SourceBridgeTowerBehaviorBlockState {
 
 const SOURCE_BRIDGE_MAX_TOWERS = 4;
 
+interface SourceSpecialPowerCompletionDieBlockState {
+  creatorId: number;
+  creatorSet: boolean;
+}
+
 interface SourceBaseOnlyUpdateModuleBlockState {
   nextCallFrameAndPhase: number;
 }
@@ -7269,6 +7274,48 @@ function buildSourceBridgeTowerBehaviorBlockData(
     xferSourceBehaviorModuleBase(saver);
     saver.xferObjectID(normalizeSourceObjectId(towerState?.bridgeEntityId ?? preservedState.bridgeId));
     saver.xferUser(buildSourceRawInt32Bytes(sourceFiniteInt(towerState?.towerType, preservedState.towerType)));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function tryParseSourceSpecialPowerCompletionDieBlockData(
+  data: Uint8Array,
+): SourceSpecialPowerCompletionDieBlockState | null {
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-special-power-completion-die');
+  try {
+    const version = xferLoad.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    xferSourceDieModuleBase(xferLoad);
+    const creatorId = xferLoad.xferObjectID(0);
+    const creatorSet = xferLoad.xferBool(false);
+    return xferLoad.getRemaining() === 0 ? { creatorId, creatorSet } : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildSourceSpecialPowerCompletionDieBlockData(
+  entity: MapEntity,
+  preservedState: SourceSpecialPowerCompletionDieBlockState,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-special-power-completion-die');
+  try {
+    saver.xferVersion(1);
+    xferSourceDieModuleBase(saver);
+    saver.xferObjectID(normalizeSourceObjectId(
+      entity.specialPowerCompletionCreatorId ?? preservedState.creatorId,
+    ));
+    saver.xferBool(typeof entity.specialPowerCompletionCreatorSet === 'boolean'
+      ? entity.specialPowerCompletionCreatorSet
+      : preservedState.creatorSet);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -9184,6 +9231,14 @@ function xferSourceBehaviorModuleBase(xfer: Xfer): void {
   if (behaviorVersion !== 1 || objectModuleVersion !== 1 || moduleVersion !== 1) {
     throw new Error('Unsupported source BehaviorModule base version');
   }
+}
+
+function xferSourceDieModuleBase(xfer: Xfer): void {
+  const dieVersion = xfer.xferVersion(1);
+  if (dieVersion !== 1) {
+    throw new Error(`Unsupported source DieModule base version ${dieVersion}`);
+  }
+  xferSourceBehaviorModuleBase(xfer);
 }
 
 function tryParseSourceUpgradeModuleBlockData(
@@ -12840,6 +12895,18 @@ function overlaySourceObjectModulesFromLiveEntity(
               return {
                 identifier: module.identifier,
                 blockData: buildSourceBridgeTowerBehaviorBlockData(entity, parsedSourceState),
+              };
+            }
+          }
+          if (
+            moduleType === 'SPECIALPOWERCOMPLETIONDIE'
+            && entity.specialPowerCompletionDieProfiles.length > 0
+          ) {
+            const parsedSourceState = tryParseSourceSpecialPowerCompletionDieBlockData(module.blockData);
+            if (parsedSourceState) {
+              return {
+                identifier: module.identifier,
+                blockData: buildSourceSpecialPowerCompletionDieBlockData(entity, parsedSourceState),
               };
             }
           }

@@ -59,6 +59,11 @@ function makeSourceOwnedCoreBundle() {
           OCL: 'OCL_TestBomb',
         }),
       ]),
+      makeObjectDef('CompletionDieObject', 'America', ['PROJECTILE'], [
+        makeBlock('Behavior', 'SpecialPowerCompletionDie ModuleTag_CompletionDie', {
+          SpecialPowerTemplate: 'SuperweaponTest',
+        }),
+      ]),
       makeObjectDef('StealthUnit', 'GLA', ['VEHICLE'], [
         makeBlock('Behavior', 'StealthUpdate ModuleTag_Stealth', {
           StealthDelay: 2000,
@@ -2043,6 +2048,24 @@ function buildSourceBridgeTowerBehaviorModuleData(options: {
     writeTestSourceBehaviorModuleBase(saver);
     saver.xferObjectID(options.bridgeId);
     saver.xferUser(sourceRawInt32(options.towerType));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSpecialPowerCompletionDieModuleData(options: {
+  creatorId: number;
+  creatorSet: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-special-power-completion-die');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    writeTestSourceBehaviorModuleBase(saver);
+    saver.xferObjectID(options.creatorId);
+    saver.xferBool(options.creatorSet);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -5547,6 +5570,47 @@ describe('source-owned game-logic core save-state', () => {
     const importedTower = privateLogic.spawnedEntities.get(129)!.bridgeTowerState!;
     expect(importedTower.bridgeEntityId).toBe(128);
     expect(importedTower.towerType).toBe(3);
+  });
+
+  it('imports source SpecialPowerCompletionDie runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const completionState = createEmptySourceMapEntitySaveState();
+    completionState.objectId = 130;
+    completionState.position = { x: 180, y: 0, z: 70 };
+    completionState.modules = [{
+      identifier: 'ModuleTag_CompletionDie',
+      blockData: buildSourceSpecialPowerCompletionDieModuleData({
+        creatorId: 77,
+        creatorSet: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'CompletionDieObject', state: completionState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        specialPowerCompletionCreatorId: number;
+        specialPowerCompletionCreatorSet: boolean;
+      }>;
+    };
+
+    const importedProjectile = privateLogic.spawnedEntities.get(130)!;
+    expect(importedProjectile.specialPowerCompletionCreatorId).toBe(77);
+    expect(importedProjectile.specialPowerCompletionCreatorSet).toBe(true);
   });
 
   it('imports source BridgeScaffoldBehavior runtime state', () => {
