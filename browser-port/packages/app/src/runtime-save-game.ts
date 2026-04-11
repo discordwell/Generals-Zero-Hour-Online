@@ -16474,6 +16474,16 @@ function overlaySourceObjectStateFromLiveEntity(
   };
 }
 
+function formatMissingSourceObjectXferEntity(entity: MapEntity): string {
+  const templateName = typeof entity.templateName === 'string' && entity.templateName.trim().length > 0
+    ? entity.templateName.trim()
+    : '<unknown-template>';
+  const scriptName = typeof entity.scriptName === 'string' && entity.scriptName.trim().length > 0
+    ? ` script="${entity.scriptName.trim()}"`
+    : '';
+  return `${Math.trunc(entity.id)} ${templateName}${scriptName}`;
+}
+
 function buildSourceGameLogicChunk(
   sourceState: ParsedSourceGameLogicChunkState,
   options: {
@@ -16491,6 +16501,18 @@ function buildSourceGameLogicChunk(
     const liveEntityById = new Map(
       (coreState?.spawnedEntities ?? []).map((entity) => [entity.id, entity]),
     );
+    const sourceObjectIds = new Set(sourceState.objects.map((object) => object.state.objectId));
+    const missingSourceObjectXferEntities = [...liveEntityById.values()].filter((entity) =>
+      Number.isFinite(entity.id)
+      && Math.trunc(entity.id) > 0
+      && !sourceObjectIds.has(Math.trunc(entity.id)));
+    if (missingSourceObjectXferEntities.length > 0) {
+      throw new Error(
+        'Cannot rewrite source CHUNK_GameLogic because live entities have no source Object::xfer state: '
+        + `${missingSourceObjectXferEntities.map(formatMissingSourceObjectXferEntity).join(', ')}. `
+        + 'Full source-save parity requires serializing newly created objects instead of dropping them.',
+      );
+    }
     const liveTriggerAreaStateByEntityId = new Map(
       (coreState?.objectTriggerAreaStates ?? []).map((state) => [state.entityId, state]),
     );
