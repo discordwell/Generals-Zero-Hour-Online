@@ -10256,10 +10256,10 @@ function buildSourceHijackerUpdateBlockData(entity: MapEntity, currentFrame: num
     saver.xferObjectID(state?.targetId ?? 0);
     saver.xferCoord3D({
       x: state?.ejectX ?? 0,
-      y: state?.ejectY ?? 0,
-      z: state?.ejectZ ?? 0,
+      y: state?.ejectZ ?? 0,
+      z: state?.ejectY ?? 0,
     });
-    saver.xferBool(state !== null);
+    saver.xferBool(typeof state?.update === 'boolean' ? state.update : state !== null);
     saver.xferBool(state?.isInVehicle === true);
     saver.xferBool(state?.wasTargetAirborne === true);
     return new Uint8Array(saver.getBuffer());

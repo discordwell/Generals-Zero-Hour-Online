@@ -203,6 +203,35 @@ function makeSourceOwnedCoreBundle() {
           ScanRange: 300,
         }),
       ]),
+      makeObjectDef('FloatObject', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'FloatUpdate ModuleTag_Float', {
+          Enabled: false,
+        }),
+      ]),
+      makeObjectDef('PilotUnit', 'America', ['INFANTRY'], [
+        makeBlock('Behavior', 'PilotFindVehicleUpdate ModuleTag_Pilot', {
+          ScanRate: 500,
+          ScanRange: 200,
+          MinHealth: 0.4,
+        }),
+      ]),
+      makeObjectDef('RadarStructure', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'RadarUpdate ModuleTag_Radar', {
+          RadarExtendTime: 1000,
+        }),
+      ]),
+      makeObjectDef('LeafletObject', 'America', ['PROJECTILE'], [
+        makeBlock('Behavior', 'LeafletDropBehavior ModuleTag_Leaflet', {
+          Delay: 1000,
+          DisabledDuration: 3000,
+          AffectRadius: 60,
+        }),
+      ]),
+      makeObjectDef('HijackerUnit', 'GLA', ['INFANTRY'], [
+        makeBlock('Behavior', 'HijackerUpdate ModuleTag_Hijacker', {
+          ParachuteName: 'ParachuteContainer',
+        }),
+      ]),
       makeObjectDef('ToppleTree', 'Neutral', ['SHRUBBERY'], [
         makeBlock('Behavior', 'ToppleUpdate ModuleTag_Topple', {
           InitialVelocityPercent: '20%',
@@ -1396,6 +1425,112 @@ function buildSourcePointDefenseLaserUpdateModuleData(options: {
     saver.xferBool(options.inRange);
     saver.xferInt(options.nextScanFrames);
     saver.xferInt(options.nextShotAvailableInFrames);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceFloatUpdateModuleData(options: {
+  nextCallFrame: number;
+  enabled: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-float-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferBool(options.enabled);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourcePilotFindVehicleUpdateModuleData(options: {
+  nextCallFrame: number;
+  didMoveToBase: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-pilot-find-vehicle-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferBool(options.didMoveToBase);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceRadarUpdateModuleData(options: {
+  nextCallFrame: number;
+  extendDoneFrame: number;
+  extendComplete: boolean;
+  radarActive: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-radar-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUnsignedInt(options.extendDoneFrame);
+    saver.xferBool(options.extendComplete);
+    saver.xferBool(options.radarActive);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceLeafletDropBehaviorModuleData(options: {
+  startFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-leaflet-drop-behavior');
+  try {
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(options.startFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceHijackerUpdateModuleData(options: {
+  nextCallFrame: number;
+  targetId: number;
+  ejectPosition: { x: number; y: number; z: number };
+  update: boolean;
+  isInVehicle: boolean;
+  wasTargetAirborne: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-hijacker-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferObjectID(options.targetId);
+    saver.xferCoord3D(options.ejectPosition);
+    saver.xferBool(options.update);
+    saver.xferBool(options.isInVehicle);
+    saver.xferBool(options.wasTargetAirborne);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -3373,6 +3508,136 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedPdl.pdlInRange).toBe(true);
     expect(importedPdl.pdlNextScanFrame).toBe(207);
     expect(importedPdl.pdlNextShotFrame).toBe(211);
+  });
+
+  it('imports simple source update runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const floatState = createEmptySourceMapEntitySaveState();
+    floatState.objectId = 123;
+    floatState.position = { x: 158, y: 0, z: 60 };
+    floatState.modules = [{
+      identifier: 'ModuleTag_Float',
+      blockData: buildSourceFloatUpdateModuleData({
+        nextCallFrame: 350,
+        enabled: true,
+      }),
+    }];
+
+    const pilotState = createEmptySourceMapEntitySaveState();
+    pilotState.objectId = 124;
+    pilotState.position = { x: 160, y: 0, z: 60 };
+    pilotState.modules = [{
+      identifier: 'ModuleTag_Pilot',
+      blockData: buildSourcePilotFindVehicleUpdateModuleData({
+        nextCallFrame: 351,
+        didMoveToBase: true,
+      }),
+    }];
+
+    const radarState = createEmptySourceMapEntitySaveState();
+    radarState.objectId = 125;
+    radarState.position = { x: 162, y: 0, z: 60 };
+    radarState.modules = [{
+      identifier: 'ModuleTag_Radar',
+      blockData: buildSourceRadarUpdateModuleData({
+        nextCallFrame: 352,
+        extendDoneFrame: 420,
+        extendComplete: true,
+        radarActive: true,
+      }),
+    }];
+
+    const leafletState = createEmptySourceMapEntitySaveState();
+    leafletState.objectId = 126;
+    leafletState.position = { x: 164, y: 0, z: 60 };
+    leafletState.modules = [{
+      identifier: 'ModuleTag_Leaflet',
+      blockData: buildSourceLeafletDropBehaviorModuleData({
+        startFrame: 430,
+      }),
+    }];
+
+    const hijackerState = createEmptySourceMapEntitySaveState();
+    hijackerState.objectId = 127;
+    hijackerState.position = { x: 166, y: 0, z: 60 };
+    hijackerState.modules = [{
+      identifier: 'ModuleTag_Hijacker',
+      blockData: buildSourceHijackerUpdateModuleData({
+        nextCallFrame: 353,
+        targetId: 701,
+        ejectPosition: { x: 11, y: 22, z: 3 },
+        update: false,
+        isInVehicle: true,
+        wasTargetAirborne: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'FloatObject', state: floatState },
+        { templateName: 'PilotUnit', state: pilotState },
+        { templateName: 'RadarStructure', state: radarState },
+        { templateName: 'LeafletObject', state: leafletState },
+        { templateName: 'HijackerUnit', state: hijackerState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        floatUpdateProfile: { enabled: boolean } | null;
+        pilotFindVehicleDidMoveToBase: boolean;
+        pilotFindVehicleNextScanFrame: number;
+        radarExtendDoneFrame: number;
+        radarExtendComplete: boolean;
+        radarActive: boolean;
+        leafletDropState: { startFrame: number; fired: boolean } | null;
+        hijackerState: {
+          targetId: number;
+          update: boolean;
+          isInVehicle: boolean;
+          wasTargetAirborne: boolean;
+          ejectX: number;
+          ejectY: number;
+          ejectZ: number;
+        } | null;
+      }>;
+    };
+
+    expect(privateLogic.spawnedEntities.get(123)!.floatUpdateProfile?.enabled).toBe(true);
+
+    const importedPilot = privateLogic.spawnedEntities.get(124)!;
+    expect(importedPilot.pilotFindVehicleDidMoveToBase).toBe(true);
+    expect(importedPilot.pilotFindVehicleNextScanFrame).toBe(351);
+
+    const importedRadar = privateLogic.spawnedEntities.get(125)!;
+    expect(importedRadar.radarExtendDoneFrame).toBe(420);
+    expect(importedRadar.radarExtendComplete).toBe(true);
+    expect(importedRadar.radarActive).toBe(true);
+
+    expect(privateLogic.spawnedEntities.get(126)!.leafletDropState).toEqual({
+      startFrame: 430,
+      fired: false,
+    });
+
+    expect(privateLogic.spawnedEntities.get(127)!.hijackerState).toEqual({
+      targetId: 701,
+      update: false,
+      isInVehicle: true,
+      wasTargetAirborne: true,
+      ejectX: 11,
+      ejectY: 3,
+      ejectZ: 22,
+    });
   });
 
   it('imports source ToppleUpdate and StructureToppleUpdate runtime state', () => {

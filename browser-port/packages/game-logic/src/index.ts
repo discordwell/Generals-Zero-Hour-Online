@@ -6203,6 +6203,8 @@ interface HijackerUpdateProfile {
 interface HijackerRuntimeState {
   /** Entity ID of the hijacked vehicle. */
   targetId: number;
+  /** Source parity: HijackerUpdate::m_update gate. */
+  update: boolean;
   /** Whether the hijacker is currently hidden inside the vehicle. */
   isInVehicle: boolean;
   /** Whether the vehicle was airborne at last check (for parachute eject). */
@@ -8952,6 +8954,36 @@ interface SourcePointDefenseLaserUpdateImportState {
   inRange: boolean;
   nextScanFrames: number;
   nextShotAvailableInFrames: number;
+}
+
+interface SourceFloatUpdateImportState {
+  nextCallFrame: number;
+  enabled: boolean;
+}
+
+interface SourcePilotFindVehicleUpdateImportState {
+  nextCallFrame: number;
+  didMoveToBase: boolean;
+}
+
+interface SourceRadarUpdateImportState {
+  nextCallFrame: number;
+  extendDoneFrame: number;
+  extendComplete: boolean;
+  radarActive: boolean;
+}
+
+interface SourceLeafletDropBehaviorImportState {
+  startFrame: number;
+}
+
+interface SourceHijackerUpdateImportState {
+  nextCallFrame: number;
+  targetId: number;
+  ejectPosition: { x: number; y: number; z: number };
+  update: boolean;
+  isInVehicle: boolean;
+  wasTargetAirborne: boolean;
 }
 
 interface SourceToppleUpdateImportState {
@@ -15484,6 +15516,206 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceFloatUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceFloatUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'FLOATUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-float-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const enabled = xfer.xferBool(false);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, enabled } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourcePilotFindVehicleUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourcePilotFindVehicleUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'PILOTFINDVEHICLEUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-pilot-find-vehicle-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const didMoveToBase = xfer.xferBool(false);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, didMoveToBase } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceRadarUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceRadarUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'RADARUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-radar-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const extendDoneFrame = xfer.xferUnsignedInt(0);
+      const extendComplete = xfer.xferBool(false);
+      const radarActive = xfer.xferBool(false);
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, extendDoneFrame, extendComplete, radarActive }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceLeafletDropBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceLeafletDropBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'LEAFLETDROPBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-leaflet-drop-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const startFrame = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0 ? { startFrame } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceHijackerUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceHijackerUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'HIJACKERUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-hijacker-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const targetId = xfer.xferObjectID(0);
+      const ejectPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const update = xfer.xferBool(false);
+      const isInVehicle = xfer.xferBool(false);
+      const wasTargetAirborne = xfer.xferBool(false);
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, targetId, ejectPosition, update, isInVehicle, wasTargetAirborne }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceSimpleUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+
+      const floatState = this.tryParseSourceFloatUpdateImportState(module.blockData, moduleType);
+      if (floatState && entity.floatUpdateProfile) {
+        entity.floatUpdateProfile.enabled = floatState.enabled;
+        continue;
+      }
+
+      const pilotState = this.tryParseSourcePilotFindVehicleUpdateImportState(module.blockData, moduleType);
+      if (pilotState && entity.pilotFindVehicleProfile) {
+        entity.pilotFindVehicleDidMoveToBase = pilotState.didMoveToBase;
+        entity.pilotFindVehicleNextScanFrame = Math.max(0, Math.trunc(pilotState.nextCallFrame));
+        continue;
+      }
+
+      const radarState = this.tryParseSourceRadarUpdateImportState(module.blockData, moduleType);
+      if (radarState && entity.radarUpdateProfile) {
+        entity.radarExtendDoneFrame = Math.max(0, Math.trunc(radarState.extendDoneFrame));
+        entity.radarExtendComplete = radarState.extendComplete;
+        entity.radarActive = radarState.radarActive;
+        continue;
+      }
+
+      const leafletState = this.tryParseSourceLeafletDropBehaviorImportState(module.blockData, moduleType);
+      if (leafletState && entity.leafletDropProfile) {
+        entity.leafletDropState = {
+          startFrame: Math.max(0, Math.trunc(leafletState.startFrame)),
+          fired: false,
+        };
+        continue;
+      }
+
+      const hijackerState = this.tryParseSourceHijackerUpdateImportState(module.blockData, moduleType);
+      if (hijackerState && entity.hijackerUpdateProfile) {
+        entity.hijackerState = {
+          targetId: Math.max(0, Math.trunc(hijackerState.targetId)),
+          update: hijackerState.update,
+          isInVehicle: hijackerState.isInVehicle,
+          wasTargetAirborne: hijackerState.wasTargetAirborne,
+          ejectX: hijackerState.ejectPosition.x,
+          ejectY: hijackerState.ejectPosition.z,
+          ejectZ: hijackerState.ejectPosition.y,
+        };
+      }
+    }
+  }
+
   private sourceToppleStateFromInt(value: number, angularVelocity: number): ToppleState | null {
     switch (Math.trunc(value)) {
       case 0: return 'NONE';
@@ -17347,6 +17579,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceProjectileStreamUpdateModulesToEntity(entity, sourceState);
     this.applySourceBoneFxUpdateModulesToEntity(entity, sourceState);
     this.applySourcePointDefenseLaserUpdateModulesToEntity(entity, sourceState);
+    this.applySourceSimpleUpdateModulesToEntity(entity, sourceState);
     this.applySourceToppleUpdateModulesToEntity(entity, sourceState);
     this.applySourceStructureToppleUpdateModulesToEntity(entity, sourceState);
     this.applySourceFireSpreadUpdateModulesToEntity(entity, sourceState);
@@ -32348,6 +32581,7 @@ export class GameLogicSubsystem implements Subsystem {
       // Activate hijacker state.
       source.hijackerState = {
         targetId: target.id,
+        update: true,
         isInVehicle: true,
         wasTargetAirborne: false,
         ejectX: target.x,
@@ -42796,7 +43030,7 @@ export class GameLogicSubsystem implements Subsystem {
     for (const entity of this.spawnedEntities.values()) {
       if (entity.destroyed) continue;
       const state = entity.hijackerState;
-      if (!state || !state.isInVehicle) continue;
+      if (!state || state.update === false || !state.isInVehicle) continue;
 
       const vehicle = this.spawnedEntities.get(state.targetId);
 

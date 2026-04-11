@@ -13855,6 +13855,7 @@ describe('runtime-save-game', () => {
             },
             hijackerState: {
               targetId: 44,
+              update: true,
               isInVehicle: true,
               wasTargetAirborne: true,
               ejectX: 12,
@@ -13879,7 +13880,7 @@ describe('runtime-save-game', () => {
     expect(parseSourceHijackerUpdateBlockData(hijackerModule!.blockData)).toEqual({
       nextCallFrameAndPhase: (43 << 2) | 2,
       targetId: 44,
-      eject: { x: 12, y: 9, z: 34 },
+      eject: { x: 12, y: 34, z: 9 },
       update: true,
       isInVehicle: true,
       wasTargetAirborne: true,
