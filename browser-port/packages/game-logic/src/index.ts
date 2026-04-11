@@ -8876,6 +8876,22 @@ interface SourcePoisonedBehaviorImportState {
   deathType: number;
 }
 
+interface SourceMinefieldImmuneImportState {
+  objectId: number;
+  collideFrame: number;
+}
+
+interface SourceMinefieldBehaviorImportState {
+  nextCallFrame: number;
+  virtualMinesRemaining: number;
+  nextDeathCheckFrame: number;
+  scootFramesLeft: number;
+  ignoreDamage: boolean;
+  regenerates: boolean;
+  draining: boolean;
+  immunes: SourceMinefieldImmuneImportState[];
+}
+
 interface SourceFlammableUpdateImportState {
   nextCallFrame: number;
   status: number;
@@ -14961,6 +14977,100 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceMinefieldBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceMinefieldBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'MINEFIELDBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-minefield-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const virtualMinesRemaining = xfer.xferUnsignedInt(0);
+      const nextDeathCheckFrame = xfer.xferUnsignedInt(0);
+      const scootFramesLeft = xfer.xferUnsignedInt(0);
+      xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const ignoreDamage = xfer.xferBool(false);
+      const regenerates = xfer.xferBool(false);
+      const draining = xfer.xferBool(false);
+      const maxImmunity = xfer.xferUnsignedByte(MINE_MAX_IMMUNITY);
+      if (maxImmunity !== MINE_MAX_IMMUNITY) {
+        return null;
+      }
+      const immunes: SourceMinefieldImmuneImportState[] = [];
+      for (let index = 0; index < maxImmunity; index += 1) {
+        immunes.push({
+          objectId: xfer.xferObjectID(0),
+          collideFrame: xfer.xferUnsignedInt(0),
+        });
+      }
+      return xfer.getRemaining() === 0
+        ? {
+            nextCallFrame,
+            virtualMinesRemaining,
+            nextDeathCheckFrame,
+            scootFramesLeft,
+            ignoreDamage,
+            regenerates,
+            draining,
+            immunes,
+          }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceMinefieldBehaviorModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.minefieldProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const mineState = this.tryParseSourceMinefieldBehaviorImportState(module.blockData, moduleType);
+      if (!mineState) {
+        continue;
+      }
+
+      entity.mineVirtualMinesRemaining = Math.max(0, Math.trunc(mineState.virtualMinesRemaining));
+      entity.mineNextDeathCheckFrame = Math.max(0, Math.trunc(mineState.nextDeathCheckFrame));
+      entity.mineScootFramesLeft = Math.max(0, Math.trunc(mineState.scootFramesLeft));
+      entity.mineIgnoreDamage = mineState.ignoreDamage;
+      entity.mineRegenerates = mineState.regenerates;
+      entity.mineDraining = mineState.draining;
+      entity.mineImmunes = mineState.immunes
+        .filter((entry) => entry.objectId > 0)
+        .map((entry) => ({
+          entityId: Math.max(0, Math.trunc(entry.objectId)),
+          collideFrame: Math.max(0, Math.trunc(entry.collideFrame)),
+        }));
+      entity.mineDetonators = [];
+      return;
+    }
+  }
+
   private tryParseSourceFlammableUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -16164,6 +16274,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceCommandButtonHuntUpdateModulesToEntity(entity, sourceState);
     this.applySourceFireSpreadUpdateModulesToEntity(entity, sourceState);
     this.applySourcePoisonedBehaviorModulesToEntity(entity, sourceState);
+    this.applySourceMinefieldBehaviorModulesToEntity(entity, sourceState);
     this.applySourceFlammableUpdateModulesToEntity(entity, sourceState);
     this.applySourceHeightDieUpdateModulesToEntity(entity, sourceState);
     this.applySourceStickyBombUpdateModulesToEntity(entity, sourceState);
@@ -16219,6 +16330,7 @@ export class GameLogicSubsystem implements Subsystem {
       maxImportedObjectId = Math.max(maxImportedObjectId, entity.id);
       this.addEntityToWorld(entity);
       this.initializeMinefieldState(entity);
+      this.applySourceMinefieldBehaviorModulesToEntity(entity, objectState.state);
       this.registerTunnelEntity(entity);
       if (entity.supplyWarehouseProfile && !this.supplyWarehouseStates.has(entity.id)) {
         this.supplyWarehouseStates.set(

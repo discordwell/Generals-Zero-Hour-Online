@@ -141,6 +141,14 @@ function makeSourceOwnedCoreBundle() {
           PoisonDuration: 3000,
         }),
       ]),
+      makeObjectDef('MinefieldObject', 'GLA', ['IMMOBILE'], [
+        makeBlock('Behavior', 'MinefieldBehavior ModuleTag_Minefield', {
+          NumVirtualMines: 5,
+          Regenerates: true,
+          StopsRegenAfterCreatorDies: true,
+          DegenPercentPerSecondAfterCreatorDies: 10,
+        }),
+      ]),
       makeObjectDef('HealingSeeker', 'America', ['INFANTRY'], [
         makeBlock('Behavior', 'AutoFindHealingUpdate ModuleTag_AutoFindHealing', {
           ScanRate: 500,
@@ -959,6 +967,47 @@ function buildSourcePoisonedBehaviorModuleData(options: {
     saver.xferUnsignedInt(options.poisonOverallStopFrame);
     saver.xferReal(options.poisonDamageAmount);
     saver.xferUser(sourceRawInt32(options.deathType));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceMinefieldBehaviorModuleData(options: {
+  nextCallFrame: number;
+  virtualMinesRemaining: number;
+  nextDeathCheckFrame: number;
+  scootFramesLeft: number;
+  scootVelocity: { x: number; y: number; z: number };
+  scootAcceleration: { x: number; y: number; z: number };
+  ignoreDamage: boolean;
+  regenerates: boolean;
+  draining: boolean;
+  immunes: Array<{ objectId: number; collideFrame: number }>;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-minefield-behavior');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferUnsignedInt(options.virtualMinesRemaining);
+    saver.xferUnsignedInt(options.nextDeathCheckFrame);
+    saver.xferUnsignedInt(options.scootFramesLeft);
+    saver.xferCoord3D(options.scootVelocity);
+    saver.xferCoord3D(options.scootAcceleration);
+    saver.xferBool(options.ignoreDamage);
+    saver.xferBool(options.regenerates);
+    saver.xferBool(options.draining);
+    saver.xferUnsignedByte(3);
+    for (let index = 0; index < 3; index += 1) {
+      const immune = options.immunes[index] ?? { objectId: 0, collideFrame: 0 };
+      saver.xferObjectID(immune.objectId);
+      saver.xferUnsignedInt(immune.collideFrame);
+    }
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2484,6 +2533,74 @@ describe('source-owned game-logic core save-state', () => {
     expect(entity.poisonExpireFrame).toBe(330);
     expect(entity.poisonDeathType).toBe('LASERED');
     expect(entity.objectStatusFlags.has('POISONED')).toBe(true);
+  });
+
+  it('imports source MinefieldBehavior runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 113;
+    sourceState.position = { x: 138, y: 0, z: 60 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_Minefield',
+      blockData: buildSourceMinefieldBehaviorModuleData({
+        nextCallFrame: 281,
+        virtualMinesRemaining: 4,
+        nextDeathCheckFrame: 340,
+        scootFramesLeft: 17,
+        scootVelocity: { x: 1, y: 2, z: 3 },
+        scootAcceleration: { x: 4, y: 5, z: 6 },
+        ignoreDamage: true,
+        regenerates: true,
+        draining: true,
+        immunes: [
+          { objectId: 60, collideFrame: 275 },
+          { objectId: 61, collideFrame: 276 },
+          { objectId: 0, collideFrame: 0 },
+        ],
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 140,
+      objects: [
+        { templateName: 'MinefieldObject', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        mineVirtualMinesRemaining: number;
+        mineNextDeathCheckFrame: number;
+        mineScootFramesLeft: number;
+        mineIgnoreDamage: boolean;
+        mineRegenerates: boolean;
+        mineDraining: boolean;
+        mineImmunes: Array<{ entityId: number; collideFrame: number }>;
+        mineDetonators: unknown[];
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(113)!;
+    expect(entity.mineVirtualMinesRemaining).toBe(4);
+    expect(entity.mineNextDeathCheckFrame).toBe(340);
+    expect(entity.mineScootFramesLeft).toBe(17);
+    expect(entity.mineIgnoreDamage).toBe(true);
+    expect(entity.mineRegenerates).toBe(true);
+    expect(entity.mineDraining).toBe(true);
+    expect(entity.mineImmunes).toEqual([
+      { entityId: 60, collideFrame: 275 },
+      { entityId: 61, collideFrame: 276 },
+    ]);
+    expect(entity.mineDetonators).toEqual([]);
   });
 
   it('imports source HordeUpdate runtime state', () => {
