@@ -10,6 +10,8 @@ import {
 import {
   makeBlock,
   makeBundle,
+  makeCommandButtonDef,
+  makeCommandSetDef,
   makeHeightmap,
   makeMap,
   makeMapObject,
@@ -145,6 +147,12 @@ function makeSourceOwnedCoreBundle() {
         makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 300 }),
         makeBlock('Behavior', 'BaseRegenerateUpdate ModuleTag_BaseRegen', {}),
       ]),
+      makeObjectDef('CommandHunter', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'CommandButtonHuntUpdate ModuleTag_Hunt', {
+          ScanRate: 1000,
+          ScanRange: 300,
+        }),
+      ], { CommandSet: 'CommandSet_CommandHunter' }),
       makeObjectDef('StealthGrantingUnit', 'GLA', ['VEHICLE'], [
         makeBlock('Behavior', 'GrantStealthBehavior ModuleTag_GrantStealth', {
           StartRadius: 5,
@@ -249,6 +257,17 @@ function makeSourceOwnedCoreBundle() {
       makeSpecialPowerDef('SpyVisionPower', { ReloadTime: 60000 }),
       makeSpecialPowerDef('AbilityPower', { ReloadTime: 60000 }),
       makeSpecialPowerDef('BattlePlanPower', { ReloadTime: 60000 }),
+    ],
+    commandButtons: [
+      makeCommandButtonDef('Command_HuntFireWeapon', {
+        Command: 'FIRE_WEAPON',
+        WeaponSlot: 'PRIMARY',
+      }),
+    ],
+    commandSets: [
+      makeCommandSetDef('CommandSet_CommandHunter', {
+        1: 'Command_HuntFireWeapon',
+      }),
     ],
     upgrades: [
       makeUpgradeDef('Upgrade_AmericaRangerCaptureBuilding', { Type: 'PLAYER', BuildCost: 1000, BuildTime: 30 }),
@@ -1228,6 +1247,26 @@ function buildSourceBaseRegenerateUpdateModuleData(options: {
     saver.xferVersion(1);
     saver.xferVersion(1);
     saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceCommandButtonHuntUpdateModuleData(options: {
+  nextCallFrame: number;
+  commandButtonName: string;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-command-button-hunt-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceUpdateFrameAndPhase(options.nextCallFrame));
+    saver.xferAsciiString(options.commandButtonName);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -2874,7 +2913,7 @@ describe('source-owned game-logic core save-state', () => {
     expect(privateLogic.spawnedEntities.get(106)!.baseRegenDelayUntilFrame).toBe(240);
   });
 
-  it('imports source HeightDieUpdate runtime state', () => {
+  it('imports source CommandButtonHuntUpdate runtime state', () => {
     const bundle = makeSourceOwnedCoreBundle();
     const registry = makeRegistry(bundle);
     const map = makeMap([], 64, 64);
@@ -2884,6 +2923,49 @@ describe('source-owned game-logic core save-state', () => {
 
     const sourceState = createEmptySourceMapEntitySaveState();
     sourceState.objectId = 107;
+    sourceState.position = { x: 184, y: 0, z: 64 };
+    sourceState.modules = [{
+      identifier: 'ModuleTag_Hunt',
+      blockData: buildSourceCommandButtonHuntUpdateModuleData({
+        nextCallFrame: 260,
+        commandButtonName: 'Command_HuntFireWeapon',
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 180,
+      objects: [
+        { templateName: 'CommandHunter', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        commandButtonHuntMode: string;
+        commandButtonHuntButtonName: string;
+        commandButtonHuntNextScanFrame: number;
+      }>;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(107)!;
+    expect(entity.commandButtonHuntMode).toBe('WEAPON');
+    expect(entity.commandButtonHuntButtonName).toBe('Command_HuntFireWeapon');
+    expect(entity.commandButtonHuntNextScanFrame).toBe(260);
+  });
+
+  it('imports source HeightDieUpdate runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 108;
     sourceState.position = { x: 184, y: 0, z: 64 };
     sourceState.modules = [{
       identifier: 'ModuleTag_HeightDie',
@@ -2917,7 +2999,7 @@ describe('source-owned game-logic core save-state', () => {
       }>;
     };
 
-    const entity = privateLogic.spawnedEntities.get(107)!;
+    const entity = privateLogic.spawnedEntities.get(108)!;
     expect(entity.heightDieActiveFrame).toBe(260);
     expect(entity.heightDieHasDied).toBe(true);
     expect(entity.heightDieParticlesDestroyed).toBe(true);
@@ -2935,7 +3017,7 @@ describe('source-owned game-logic core save-state', () => {
     logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
 
     const sourceState = createEmptySourceMapEntitySaveState();
-    sourceState.objectId = 108;
+    sourceState.objectId = 109;
     sourceState.position = { x: 188, y: 0, z: 64 };
     sourceState.modules = [{
       identifier: 'ModuleTag_StickyBomb',
@@ -2965,7 +3047,7 @@ describe('source-owned game-logic core save-state', () => {
       }>;
     };
 
-    const entity = privateLogic.spawnedEntities.get(108)!;
+    const entity = privateLogic.spawnedEntities.get(109)!;
     expect(entity.stickyBombTargetId).toBe(55);
     expect(entity.stickyBombDieFrame).toBe(300);
     expect(entity.stickyBombNextPingFrame).toBe(270);

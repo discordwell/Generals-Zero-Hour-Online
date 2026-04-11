@@ -8850,6 +8850,11 @@ interface SourceBaseRegenerateUpdateImportState {
   nextCallFrame: number;
 }
 
+interface SourceCommandButtonHuntUpdateImportState {
+  nextCallFrame: number;
+  commandButtonName: string;
+}
+
 interface SourceHeightDieUpdateImportState {
   nextCallFrame: number;
   hasDied: boolean;
@@ -14636,6 +14641,74 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceCommandButtonHuntUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceCommandButtonHuntUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'COMMANDBUTTONHUNTUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-command-button-hunt-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const commandButtonName = xfer.xferAsciiString('');
+      return xfer.getRemaining() === 0 ? { nextCallFrame, commandButtonName } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceCommandButtonHuntUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    if (!entity.commandButtonHuntProfile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const huntState = this.tryParseSourceCommandButtonHuntUpdateImportState(module.blockData, moduleType);
+      if (!huntState) {
+        continue;
+      }
+      const commandButtonName = huntState.commandButtonName.trim();
+      if (!commandButtonName) {
+        this.clearCommandButtonHuntForEntity(entity);
+        return;
+      }
+
+      const commandButtons = this.findScriptEntityCommandButtonsByName(entity, commandButtonName);
+      const commandButtonDef = commandButtons[0];
+      const mode = commandButtonDef ? this.resolveScriptCommandButtonHuntMode(commandButtonDef) : 'NONE';
+      if (mode === 'NONE') {
+        this.clearCommandButtonHuntForEntity(entity);
+        return;
+      }
+
+      entity.commandButtonHuntButtonName = commandButtonName;
+      entity.commandButtonHuntMode = mode;
+      entity.commandButtonHuntNextScanFrame = Math.max(0, Math.trunc(huntState.nextCallFrame));
+      return;
+    }
+  }
+
   private tryParseSourceHeightDieUpdateImportState(
     data: Uint8Array,
     moduleType: string,
@@ -15747,6 +15820,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceDeletionUpdateModulesToEntity(entity, sourceState);
     this.applySourceAutoFindHealingUpdateModulesToEntity(entity, sourceState);
     this.applySourceBaseRegenerateUpdateModulesToEntity(entity, sourceState);
+    this.applySourceCommandButtonHuntUpdateModulesToEntity(entity, sourceState);
     this.applySourceHeightDieUpdateModulesToEntity(entity, sourceState);
     this.applySourceStickyBombUpdateModulesToEntity(entity, sourceState);
     this.applySourceSpecialPowerModulesToEntity(entity, sourceState);
