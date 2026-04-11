@@ -505,6 +505,70 @@ function makeSourceOwnedCoreBundle() {
           CourseCorrectionScalar: 0.95,
         }),
       ]),
+      makeObjectDef('DemoTrapObject', 'GLA', ['MINE'], [
+        makeBlock('Behavior', 'DemoTrapUpdate ModuleTag_DemoTrap', {
+          DefaultProximityMode: true,
+          TriggerDetonationRange: 50,
+          ScanRate: 500,
+        }),
+      ]),
+      makeObjectDef('DynamicGeometryObject', 'America', ['STRUCTURE'], [
+        makeBlock('Behavior', 'DynamicGeometryInfoUpdate ModuleTag_DynamicGeometry', {
+          InitialDelay: 1000,
+          InitialHeight: 1,
+          InitialMajorRadius: 2,
+          InitialMinorRadius: 3,
+          FinalHeight: 4,
+          FinalMajorRadius: 5,
+          FinalMinorRadius: 6,
+          TransitionTime: 2000,
+          ReverseAtTransitionTime: true,
+        }),
+      ]),
+      makeObjectDef('FirestormObject', 'America', ['PROJECTILE'], [
+        makeBlock('Behavior', 'FirestormDynamicGeometryInfoUpdate ModuleTag_FirestormGeometry', {
+          InitialDelay: 1000,
+          InitialHeight: 1,
+          InitialMajorRadius: 2,
+          InitialMinorRadius: 3,
+          FinalHeight: 4,
+          FinalMajorRadius: 5,
+          FinalMinorRadius: 6,
+          TransitionTime: 2000,
+          DamageAmount: 10,
+          DelayBetweenDamageFrames: 500,
+          MaxHeightForDamage: 20,
+        }),
+      ]),
+      makeObjectDef('SupplyCrippleWarehouse', 'GLA', ['STRUCTURE'], [
+        makeBlock('Behavior', 'SupplyWarehouseCripplingBehavior ModuleTag_Crippling', {
+          SelfHealSupression: 3000,
+          SelfHealDelay: 1000,
+          SelfHealAmount: 25,
+        }),
+      ]),
+      makeObjectDef('AnimationSteeringUnit', 'America', ['VEHICLE'], [
+        makeBlock('Behavior', 'AnimationSteeringUpdate ModuleTag_AnimationSteering', {
+          MinTransitionTime: 1000,
+        }),
+      ]),
+      makeObjectDef('EmpPulseObject', 'America', ['PROJECTILE'], [
+        makeBlock('Behavior', 'EMPUpdate ModuleTag_EMP', {
+          Lifetime: 3000,
+          StartFadeTime: 1000,
+          DisabledDuration: 5000,
+          EffectRadius: 120,
+        }),
+      ]),
+      makeObjectDef('StructureCollapseObject', 'GLA', ['STRUCTURE'], [
+        makeBlock('Behavior', 'StructureCollapseUpdate ModuleTag_Collapse', {
+          MinCollapseDelay: 1000,
+          MaxCollapseDelay: 1000,
+          MinBurstDelay: 500,
+          MaxBurstDelay: 500,
+          CollapseDamping: 0.1,
+        }),
+      ]),
       makeObjectDef('HelperStateObject', 'America', ['VEHICLE'], []),
     ],
     specialPowers: [
@@ -1741,6 +1805,162 @@ function buildSourceSmartBombTargetHomingUpdateModuleData(options: {
   try {
     saver.xferVersion(1);
     writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceDemoTrapUpdateModuleData(options: {
+  nextCallFrame: number;
+  nextScanFrames: number;
+  detonated: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-demo-trap-update');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+    saver.xferInt(options.nextScanFrames);
+    saver.xferBool(options.detonated);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function writeSourceDynamicGeometryInfoUpdate(
+  saver: XferSave,
+  options: {
+    nextCallFrame: number;
+    startingDelayCountdown: number;
+    timeActive: number;
+    started: boolean;
+    finished: boolean;
+    reverseAtTransitionTime: boolean;
+    direction: number;
+    switchedDirections: boolean;
+    initialHeight: number;
+    initialMajorRadius: number;
+    initialMinorRadius: number;
+    finalHeight: number;
+    finalMajorRadius: number;
+    finalMinorRadius: number;
+  },
+): void {
+  saver.xferVersion(1);
+  writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+  saver.xferUnsignedInt(options.startingDelayCountdown);
+  saver.xferUnsignedInt(options.timeActive);
+  saver.xferBool(options.started);
+  saver.xferBool(options.finished);
+  saver.xferBool(options.reverseAtTransitionTime);
+  saver.xferUser(sourceRawInt32(options.direction));
+  saver.xferBool(options.switchedDirections);
+  saver.xferReal(options.initialHeight);
+  saver.xferReal(options.initialMajorRadius);
+  saver.xferReal(options.initialMinorRadius);
+  saver.xferReal(options.finalHeight);
+  saver.xferReal(options.finalMajorRadius);
+  saver.xferReal(options.finalMinorRadius);
+}
+
+function buildSourceDynamicGeometryInfoUpdateModuleData(options: Parameters<typeof writeSourceDynamicGeometryInfoUpdate>[1]): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-dynamic-geometry-info-update');
+  try {
+    writeSourceDynamicGeometryInfoUpdate(saver, options);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceFirestormDynamicGeometryInfoUpdateModuleData(options: {
+  dynamic: Parameters<typeof writeSourceDynamicGeometryInfoUpdate>[1];
+  particleSystemIds?: number[];
+  effectsFired: boolean;
+  scorchPlaced: boolean;
+  lastDamageFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-firestorm-dynamic-geometry-info-update');
+  try {
+    saver.xferVersion(1);
+    writeSourceDynamicGeometryInfoUpdate(saver, options.dynamic);
+    for (let index = 0; index < 16; index += 1) {
+      saver.xferUnsignedInt(options.particleSystemIds?.[index] ?? 0);
+    }
+    saver.xferBool(options.effectsFired);
+    saver.xferBool(options.scorchPlaced);
+    saver.xferUnsignedInt(options.lastDamageFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceSupplyWarehouseCripplingBehaviorModuleData(options: {
+  nextCallFrame: number;
+  healingSuppressedUntilFrame: number;
+  nextHealingFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-supply-warehouse-crippling-behavior');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+    saver.xferUnsignedInt(options.healingSuppressedUntilFrame);
+    saver.xferUnsignedInt(options.nextHealingFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceAnimationSteeringUpdateModuleData(options: {
+  nextCallFrame: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-animation-steering-update');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceEmpUpdateModuleData(): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-emp-update');
+  try {
+    saver.xferVersion(1);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceStructureCollapseUpdateModuleData(options: {
+  nextCallFrame: number;
+  collapseFrame: number;
+  burstFrame: number;
+  collapseState: number;
+  collapseVelocity: number;
+  currentHeight: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-structure-collapse-update');
+  try {
+    saver.xferVersion(1);
+    writeTestSourceUpdateModuleBase(saver, options.nextCallFrame);
+    saver.xferUnsignedInt(options.collapseFrame);
+    saver.xferUnsignedInt(options.burstFrame);
+    saver.xferUser(sourceRawInt32(options.collapseState));
+    saver.xferReal(options.collapseVelocity);
+    saver.xferReal(options.currentHeight);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -4436,6 +4656,225 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedHelper.defectorHelperDoFx).toBe(true);
     expect(importedHelper.undetectedDefectorUntilFrame).toBe(300);
     expect(importedHelper.subdualHealingCountdown).toBe(9);
+  });
+
+  it('imports compact source update and behavior runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const demoTrapState = createEmptySourceMapEntitySaveState();
+    demoTrapState.objectId = 136;
+    demoTrapState.position = { x: 184, y: 0, z: 60 };
+    demoTrapState.modules = [{
+      identifier: 'ModuleTag_DemoTrap',
+      blockData: buildSourceDemoTrapUpdateModuleData({
+        nextCallFrame: 401,
+        nextScanFrames: 17,
+        detonated: true,
+      }),
+    }];
+
+    const dynamicState = createEmptySourceMapEntitySaveState();
+    dynamicState.objectId = 137;
+    dynamicState.position = { x: 186, y: 0, z: 60 };
+    dynamicState.modules = [{
+      identifier: 'ModuleTag_DynamicGeometry',
+      blockData: buildSourceDynamicGeometryInfoUpdateModuleData({
+        nextCallFrame: 402,
+        startingDelayCountdown: 7,
+        timeActive: 8,
+        started: true,
+        finished: false,
+        reverseAtTransitionTime: true,
+        direction: 2,
+        switchedDirections: true,
+        initialHeight: 11,
+        initialMajorRadius: 12,
+        initialMinorRadius: 13,
+        finalHeight: 21,
+        finalMajorRadius: 22,
+        finalMinorRadius: 23,
+      }),
+    }];
+
+    const firestormState = createEmptySourceMapEntitySaveState();
+    firestormState.objectId = 138;
+    firestormState.position = { x: 188, y: 0, z: 60 };
+    firestormState.modules = [{
+      identifier: 'ModuleTag_FirestormGeometry',
+      blockData: buildSourceFirestormDynamicGeometryInfoUpdateModuleData({
+        dynamic: {
+          nextCallFrame: 403,
+          startingDelayCountdown: 3,
+          timeActive: 4,
+          started: true,
+          finished: false,
+          reverseAtTransitionTime: false,
+          direction: 1,
+          switchedDirections: false,
+          initialHeight: 31,
+          initialMajorRadius: 32,
+          initialMinorRadius: 33,
+          finalHeight: 41,
+          finalMajorRadius: 42,
+          finalMinorRadius: 43,
+        },
+        particleSystemIds: [9001, 9002],
+        effectsFired: true,
+        scorchPlaced: true,
+        lastDamageFrame: 333,
+      }),
+    }];
+
+    const cripplingState = createEmptySourceMapEntitySaveState();
+    cripplingState.objectId = 139;
+    cripplingState.position = { x: 190, y: 0, z: 60 };
+    cripplingState.modules = [{
+      identifier: 'ModuleTag_Crippling',
+      blockData: buildSourceSupplyWarehouseCripplingBehaviorModuleData({
+        nextCallFrame: 404,
+        healingSuppressedUntilFrame: 250,
+        nextHealingFrame: 275,
+      }),
+    }];
+
+    const animationState = createEmptySourceMapEntitySaveState();
+    animationState.objectId = 140;
+    animationState.position = { x: 192, y: 0, z: 60 };
+    animationState.modules = [{
+      identifier: 'ModuleTag_AnimationSteering',
+      blockData: buildSourceAnimationSteeringUpdateModuleData({
+        nextCallFrame: 405,
+      }),
+    }];
+
+    const empState = createEmptySourceMapEntitySaveState();
+    empState.objectId = 141;
+    empState.position = { x: 194, y: 0, z: 60 };
+    empState.modules = [{
+      identifier: 'ModuleTag_EMP',
+      blockData: buildSourceEmpUpdateModuleData(),
+    }];
+
+    const collapseState = createEmptySourceMapEntitySaveState();
+    collapseState.objectId = 142;
+    collapseState.position = { x: 196, y: 0, z: 60 };
+    collapseState.modules = [{
+      identifier: 'ModuleTag_Collapse',
+      blockData: buildSourceStructureCollapseUpdateModuleData({
+        nextCallFrame: 406,
+        collapseFrame: 310,
+        burstFrame: 320,
+        collapseState: 2,
+        collapseVelocity: 1.5,
+        currentHeight: -2.25,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'DemoTrapObject', state: demoTrapState },
+        { templateName: 'DynamicGeometryObject', state: dynamicState },
+        { templateName: 'FirestormObject', state: firestormState },
+        { templateName: 'SupplyCrippleWarehouse', state: cripplingState },
+        { templateName: 'AnimationSteeringUnit', state: animationState },
+        { templateName: 'EmpPulseObject', state: empState },
+        { templateName: 'StructureCollapseObject', state: collapseState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        demoTrapNextScanFrame: number;
+        demoTrapDetonated: boolean;
+        dynamicGeometryProfile: object | null;
+        dynamicGeometryState: {
+          delayCountdown: number;
+          started: boolean;
+          finished: boolean;
+          timeActive: number;
+          initialHeight: number;
+          initialMajorRadius: number;
+          initialMinorRadius: number;
+          finalHeight: number;
+          finalMajorRadius: number;
+          finalMinorRadius: number;
+          reverseAtTransitionTime: boolean;
+        } | null;
+        firestormDamageState: { lastDamageFrame: number } | null;
+        swCripplingHealSuppressedUntilFrame: number;
+        swCripplingNextHealFrame: number;
+        animationSteeringProfile: object | null;
+        animationSteeringCurrentTurnAnim: string | null;
+        empUpdateProfile: object | null;
+        empUpdateState: object | null;
+        structureCollapseState: {
+          state: string;
+          collapseFrame: number;
+          burstFrame: number;
+          collapseVelocity: number;
+          currentHeight: number;
+        } | null;
+      }>;
+    };
+
+    const importedDemoTrap = privateLogic.spawnedEntities.get(136)!;
+    expect(importedDemoTrap.demoTrapNextScanFrame).toBe(217);
+    expect(importedDemoTrap.demoTrapDetonated).toBe(true);
+
+    const importedDynamic = privateLogic.spawnedEntities.get(137)!;
+    expect(importedDynamic.dynamicGeometryProfile).not.toBeNull();
+    expect(importedDynamic.dynamicGeometryState).toMatchObject({
+      delayCountdown: 7,
+      started: true,
+      finished: false,
+      timeActive: 8,
+      initialHeight: 11,
+      initialMajorRadius: 12,
+      initialMinorRadius: 13,
+      finalHeight: 21,
+      finalMajorRadius: 22,
+      finalMinorRadius: 23,
+      reverseAtTransitionTime: true,
+    });
+
+    const importedFirestorm = privateLogic.spawnedEntities.get(138)!;
+    expect(importedFirestorm.dynamicGeometryState).toMatchObject({
+      delayCountdown: 3,
+      started: true,
+      timeActive: 4,
+      initialHeight: 31,
+      finalMajorRadius: 42,
+    });
+    expect(importedFirestorm.firestormDamageState).toEqual({ lastDamageFrame: 333 });
+
+    const importedCrippling = privateLogic.spawnedEntities.get(139)!;
+    expect(importedCrippling.swCripplingHealSuppressedUntilFrame).toBe(250);
+    expect(importedCrippling.swCripplingNextHealFrame).toBe(275);
+
+    const importedAnimation = privateLogic.spawnedEntities.get(140)!;
+    expect(importedAnimation.animationSteeringProfile).not.toBeNull();
+    expect(importedAnimation.animationSteeringCurrentTurnAnim).toBeNull();
+
+    const importedEmp = privateLogic.spawnedEntities.get(141)!;
+    expect(importedEmp.empUpdateProfile).not.toBeNull();
+    expect(importedEmp.empUpdateState).toBeNull();
+
+    expect(privateLogic.spawnedEntities.get(142)!.structureCollapseState).toEqual({
+      state: 'COLLAPSING',
+      collapseFrame: 310,
+      burstFrame: 320,
+      collapseVelocity: 1.5,
+      currentHeight: -2.25,
+    });
   });
 
   it('imports source power, OCL, weapon bonus, and helper runtime state', () => {

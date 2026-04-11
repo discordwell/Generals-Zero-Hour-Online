@@ -9017,6 +9017,60 @@ interface SourceSmartBombTargetHomingUpdateImportState {
   nextCallFrame: number;
 }
 
+interface SourceDemoTrapUpdateImportState {
+  nextCallFrame: number;
+  nextScanFrames: number;
+  detonated: boolean;
+}
+
+interface SourceDynamicGeometryInfoUpdateImportState {
+  nextCallFrame: number;
+  startingDelayCountdown: number;
+  timeActive: number;
+  started: boolean;
+  finished: boolean;
+  reverseAtTransitionTime: boolean;
+  direction: number;
+  switchedDirections: boolean;
+  initialHeight: number;
+  initialMajorRadius: number;
+  initialMinorRadius: number;
+  finalHeight: number;
+  finalMajorRadius: number;
+  finalMinorRadius: number;
+}
+
+interface SourceFirestormDynamicGeometryInfoUpdateImportState {
+  dynamic: SourceDynamicGeometryInfoUpdateImportState;
+  particleSystemIdBytes: Uint8Array;
+  effectsFired: boolean;
+  scorchPlaced: boolean;
+  lastDamageFrame: number;
+}
+
+interface SourceSupplyWarehouseCripplingBehaviorImportState {
+  nextCallFrame: number;
+  healingSuppressedUntilFrame: number;
+  nextHealingFrame: number;
+}
+
+interface SourceAnimationSteeringUpdateImportState {
+  nextCallFrame: number;
+}
+
+interface SourceEmpUpdateImportState {
+  version: number;
+}
+
+interface SourceStructureCollapseUpdateImportState {
+  nextCallFrame: number;
+  collapseFrame: number;
+  burstFrame: number;
+  collapseState: number;
+  collapseVelocity: number;
+  currentHeight: number;
+}
+
 interface SourceFiringTrackerImportState {
   nextCallFrame: number;
   consecutiveShots: number;
@@ -9345,6 +9399,7 @@ const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
 const SOURCE_SPAWN_POINT_MAX_POINTS = 10;
+const SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH = 16 * 4;
 const SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_FLAG = -1;
 const SOURCE_DOCK_VECTOR_LIMIT = 0xffff;
 const SOURCE_PLAYER_MASK_BYTE_LENGTH = 2;
@@ -13462,6 +13517,15 @@ export class GameLogicSubsystem implements Subsystem {
     return SCRIPT_OBJECT_STATUS_NAMES_BY_BIT_INDEX[enumValue - 1] ?? null;
   }
 
+  private sourceStructureCollapseStateFromInt(value: number): StructureCollapseState | null {
+    switch (Math.trunc(value)) {
+      case 1: return 'WAITING';
+      case 2: return 'COLLAPSING';
+      case 3: return 'DONE';
+      default: return null;
+    }
+  }
+
   private skipSourceImportUpdateModuleBase(xfer: XferLoad): number {
     const updateModuleVersion = xfer.xferVersion(1);
     const behaviorModuleVersion = xfer.xferVersion(1);
@@ -16072,6 +16136,236 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private tryParseSourceDemoTrapUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceDemoTrapUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'DEMOTRAPUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-demo-trap-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const nextScanFrames = xfer.xferInt(0);
+      const detonated = xfer.xferBool(false);
+      return xfer.getRemaining() === 0 ? { nextCallFrame, nextScanFrames, detonated } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private parseSourceDynamicGeometryInfoUpdateImportState(
+    xfer: XferLoad,
+  ): SourceDynamicGeometryInfoUpdateImportState {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error('Unsupported source DynamicGeometryInfoUpdate import version.');
+    }
+    const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+      this.skipSourceImportUpdateModuleBase(xfer),
+    );
+    const startingDelayCountdown = xfer.xferUnsignedInt(0);
+    const timeActive = xfer.xferUnsignedInt(0);
+    const started = xfer.xferBool(false);
+    const finished = xfer.xferBool(false);
+    const reverseAtTransitionTime = xfer.xferBool(false);
+    const direction = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+    const switchedDirections = xfer.xferBool(false);
+    const initialHeight = xfer.xferReal(0);
+    const initialMajorRadius = xfer.xferReal(0);
+    const initialMinorRadius = xfer.xferReal(0);
+    const finalHeight = xfer.xferReal(0);
+    const finalMajorRadius = xfer.xferReal(0);
+    const finalMinorRadius = xfer.xferReal(0);
+    return {
+      nextCallFrame,
+      startingDelayCountdown,
+      timeActive,
+      started,
+      finished,
+      reverseAtTransitionTime,
+      direction,
+      switchedDirections,
+      initialHeight,
+      initialMajorRadius,
+      initialMinorRadius,
+      finalHeight,
+      finalMajorRadius,
+      finalMinorRadius,
+    };
+  }
+
+  private tryParseSourceDynamicGeometryInfoUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceDynamicGeometryInfoUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'DYNAMICGEOMETRYINFOUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-dynamic-geometry-info-update-import');
+    try {
+      const dynamicState = this.parseSourceDynamicGeometryInfoUpdateImportState(xfer);
+      return xfer.getRemaining() === 0 ? dynamicState : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceFirestormDynamicGeometryInfoUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceFirestormDynamicGeometryInfoUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'FIRESTORMDYNAMICGEOMETRYINFOUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-firestorm-dynamic-geometry-info-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const dynamic = this.parseSourceDynamicGeometryInfoUpdateImportState(xfer);
+      const particleSystemIdBytes = xfer.xferUser(
+        new Uint8Array(SOURCE_FIRESTORM_PARTICLE_IDS_BYTE_LENGTH),
+      );
+      const effectsFired = xfer.xferBool(false);
+      const scorchPlaced = xfer.xferBool(false);
+      const lastDamageFrame = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? { dynamic, particleSystemIdBytes, effectsFired, scorchPlaced, lastDamageFrame }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceSupplyWarehouseCripplingBehaviorImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceSupplyWarehouseCripplingBehaviorImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'SUPPLYWAREHOUSECRIPPLINGBEHAVIOR') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-supply-warehouse-crippling-behavior-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const healingSuppressedUntilFrame = xfer.xferUnsignedInt(0);
+      const nextHealingFrame = xfer.xferUnsignedInt(0);
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, healingSuppressedUntilFrame, nextHealingFrame }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceAnimationSteeringUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceAnimationSteeringUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'ANIMATIONSTEERINGUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-animation-steering-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      return xfer.getRemaining() === 0 ? { nextCallFrame } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceEmpUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceEmpUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'EMPUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-emp-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      return xfer.getRemaining() === 0 ? { version } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceStructureCollapseUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceStructureCollapseUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'STRUCTURECOLLAPSEUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-structure-collapse-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const nextCallFrame = this.sourceImportUpdateFrameFromFrameAndPhase(
+        this.skipSourceImportUpdateModuleBase(xfer),
+      );
+      const collapseFrame = xfer.xferUnsignedInt(0);
+      const burstFrame = xfer.xferUnsignedInt(0);
+      const collapseState = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const collapseVelocity = xfer.xferReal(0);
+      const currentHeight = xfer.xferReal(0);
+      return xfer.getRemaining() === 0
+        ? { nextCallFrame, collapseFrame, burstFrame, collapseState, collapseVelocity, currentHeight }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
   private tryParseSourceBaseOnlyObjectHelperImportState(
     data: Uint8Array,
     xferName: string,
@@ -16165,6 +16459,25 @@ export class GameLogicSubsystem implements Subsystem {
     } finally {
       xfer.close();
     }
+  }
+
+  private applySourceDynamicGeometryImportStateToEntity(
+    entity: MapEntity,
+    state: SourceDynamicGeometryInfoUpdateImportState,
+  ): void {
+    entity.dynamicGeometryState = {
+      delayCountdown: Math.max(0, Math.trunc(state.startingDelayCountdown)),
+      started: state.started,
+      finished: state.finished,
+      timeActive: Math.max(0, Math.trunc(state.timeActive)),
+      initialHeight: state.initialHeight,
+      initialMajorRadius: state.initialMajorRadius,
+      initialMinorRadius: state.initialMinorRadius,
+      finalHeight: state.finalHeight,
+      finalMajorRadius: state.finalMajorRadius,
+      finalMinorRadius: state.finalMinorRadius,
+      reverseAtTransitionTime: state.reverseAtTransitionTime,
+    };
   }
 
   private applySourceMiscUpdateAndHelperModulesToEntity(
@@ -16300,6 +16613,86 @@ export class GameLogicSubsystem implements Subsystem {
         moduleType,
       );
       if (smartBombState && entity.smartBombProfile) {
+        continue;
+      }
+
+      const demoTrapState = this.tryParseSourceDemoTrapUpdateImportState(module.blockData, moduleType);
+      if (demoTrapState && entity.demoTrapProfile) {
+        entity.demoTrapNextScanFrame = this.frameCounter + Math.max(
+          0,
+          Math.trunc(demoTrapState.nextScanFrames),
+        );
+        entity.demoTrapDetonated = demoTrapState.detonated;
+        continue;
+      }
+
+      const firestormState = this.tryParseSourceFirestormDynamicGeometryInfoUpdateImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (firestormState && entity.dynamicGeometryProfile) {
+        this.applySourceDynamicGeometryImportStateToEntity(entity, firestormState.dynamic);
+        if (entity.firestormDamageProfile) {
+          entity.firestormDamageState = {
+            lastDamageFrame: Math.max(0, Math.trunc(firestormState.lastDamageFrame)),
+          };
+        }
+        continue;
+      }
+
+      const dynamicGeometryState = this.tryParseSourceDynamicGeometryInfoUpdateImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (dynamicGeometryState && entity.dynamicGeometryProfile) {
+        this.applySourceDynamicGeometryImportStateToEntity(entity, dynamicGeometryState);
+        continue;
+      }
+
+      const supplyCrippleState = this.tryParseSourceSupplyWarehouseCripplingBehaviorImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (supplyCrippleState && entity.supplyWarehouseCripplingProfile) {
+        entity.swCripplingHealSuppressedUntilFrame = Math.max(
+          0,
+          Math.trunc(supplyCrippleState.healingSuppressedUntilFrame),
+        );
+        entity.swCripplingNextHealFrame = Math.max(
+          0,
+          Math.trunc(supplyCrippleState.nextHealingFrame),
+        );
+        continue;
+      }
+
+      const animationSteeringState = this.tryParseSourceAnimationSteeringUpdateImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (animationSteeringState && entity.animationSteeringProfile) {
+        continue;
+      }
+
+      const empState = this.tryParseSourceEmpUpdateImportState(module.blockData, moduleType);
+      if (empState && entity.empUpdateProfile) {
+        continue;
+      }
+
+      const structureCollapseState = this.tryParseSourceStructureCollapseUpdateImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (structureCollapseState && entity.structureCollapseProfile) {
+        const stateName = this.sourceStructureCollapseStateFromInt(structureCollapseState.collapseState);
+        entity.structureCollapseState = stateName
+          ? {
+            state: stateName,
+            collapseFrame: Math.max(0, Math.trunc(structureCollapseState.collapseFrame)),
+            burstFrame: Math.max(0, Math.trunc(structureCollapseState.burstFrame)),
+            collapseVelocity: structureCollapseState.collapseVelocity,
+            currentHeight: structureCollapseState.currentHeight,
+          }
+          : null;
         continue;
       }
     }
