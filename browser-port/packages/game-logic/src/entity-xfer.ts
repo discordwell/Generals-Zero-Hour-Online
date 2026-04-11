@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 39;
+const ENTITY_XFER_VERSION = 40;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -2327,6 +2327,11 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
 
   // ── Create Modules ──
   e.veterancyGainCreateProfiles = xferJsonObject(xfer, e.veterancyGainCreateProfiles as unknown[]);
+  if (version >= 40) {
+    e.createModuleStates = xferJsonObject(xfer, (e.createModuleStates as unknown[] | undefined) ?? []);
+  } else {
+    e.createModuleStates = [];
+  }
   e.fxListDieProfiles = xferJsonObject(xfer, e.fxListDieProfiles as unknown[]);
   e.crushDieProfiles = xferJsonObject(xfer, e.crushDieProfiles as unknown[]);
   e.destroyDieProfiles = xferJsonObject(xfer, e.destroyDieProfiles as unknown[]);
@@ -2338,6 +2343,11 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
   e.backCrushed = xfer.xferBool(e.backCrushed as boolean);
   e.grantUpgradeCreateProfiles = xferJsonObject(xfer, e.grantUpgradeCreateProfiles as unknown[]);
   e.lockWeaponCreateSlot = xferNullableInt(xfer, e.lockWeaponCreateSlot as number | null);
+  if (version >= 40) {
+    e.lockWeaponCreateModuleTag = xferNullableString(xfer, (e.lockWeaponCreateModuleTag as string | null | undefined) ?? null);
+  } else {
+    e.lockWeaponCreateModuleTag = null;
+  }
 
   // ── Upgrade Die ──
   e.upgradeDieProfiles = xferJsonObject(xfer, e.upgradeDieProfiles as unknown[]);
@@ -2410,6 +2420,14 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
 
   // ── Special Power Create ──
   e.hasSpecialPowerCreate = xfer.xferBool(e.hasSpecialPowerCreate as boolean);
+  if (version >= 40) {
+    e.specialPowerCreateModuleTags = xferJsonObject(
+      xfer,
+      (e.specialPowerCreateModuleTags as unknown[] | undefined) ?? [],
+    );
+  } else {
+    e.specialPowerCreateModuleTags = [];
+  }
   e.shroudRange = xfer.xferReal(e.shroudRange as number);
 
   // ── Subdual Damage ──

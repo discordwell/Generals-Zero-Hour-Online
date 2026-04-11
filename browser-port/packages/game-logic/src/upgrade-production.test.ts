@@ -583,6 +583,9 @@ describe('GrantUpgradeCreate', () => {
     // Clear the upgrade and set UNDER_CONSTRUCTION, then call completeConstruction.
     entity.completedUpgrades.delete('UPGRADE_POWER2');
     entity.objectStatusFlags.add('UNDER_CONSTRUCTION');
+    entity.createModuleStates.find(
+      (state) => state.moduleType === 'GRANTUPGRADECREATE' && state.moduleTag === 'ModuleTag_GUC',
+    )!.needToRunOnBuildComplete = true;
     // The upgrade should NOT be present.
     expect(entity.completedUpgrades.has('UPGRADE_POWER2')).toBe(false);
 
@@ -852,7 +855,7 @@ describe('ReplaceObjectUpgrade', () => {
     expect(newEntity!.completedUpgrades.has('UPGRADE_FACTORYBONUS')).toBe(true);
   });
 
-  it('applies VeterancyGainCreate on replacement using final owner side sciences', () => {
+  it('does not re-run VeterancyGainCreate on replacement build-complete callback', () => {
     const bundle = makeBundle({
       objects: [
         makeObjectDef('OldVehicle', 'America', ['VEHICLE'], [
@@ -892,7 +895,9 @@ describe('ReplaceObjectUpgrade', () => {
     const replacement = priv.spawnedEntities.get(2);
     expect(replacement).toBeDefined();
     expect(replacement!.side).toBe('America');
-    expect(replacement!.experienceState.currentLevel).toBe(1);
+    // Source parity: VeterancyGainCreate does not override onBuildComplete; ReplaceObjectUpgrade
+    // only calls CreateModule::onBuildComplete, so no final-owner science recheck occurs here.
+    expect(replacement!.experienceState.currentLevel).toBe(0);
   });
 
   it('refreshes navigation grid after replacement structure construction callback', () => {

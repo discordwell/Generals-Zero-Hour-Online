@@ -29,6 +29,19 @@ function makeSourceOwnedCoreBundle() {
         makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
         makeBlock('Behavior', 'ProductionUpdate ModuleTag_Production', { MaxQueueEntries: 9 }),
       ]),
+      makeObjectDef('CreateModuleBuilding', 'America', ['STRUCTURE'], [
+        makeBlock('Body', 'ActiveBody ModuleTag_Body', { MaxHealth: 500, InitialHealth: 500 }),
+        makeBlock('Behavior', 'GrantUpgradeCreate ModuleTag_Grant', {
+          UpgradeToGrant: 'Upgrade_AmericaRangerCaptureBuilding',
+        }),
+        makeBlock('Behavior', 'LockWeaponCreate ModuleTag_Lock', {
+          SlotToLock: 'SECONDARY_WEAPON',
+        }),
+        makeBlock('Behavior', 'SpecialPowerCreate ModuleTag_SPC', {}),
+        makeBlock('Behavior', 'VeterancyGainCreate ModuleTag_Vet', {
+          StartingLevel: 'VETERAN',
+        }),
+      ]),
       makeObjectDef('AmericaRanger', 'America', ['INFANTRY'], [], { BuildCost: 225, BuildTime: 5 }),
       makeObjectDef('SupplyPile', 'Neutral', ['STRUCTURE'], [
         makeBlock('Behavior', 'SupplyWarehouseDockUpdate ModuleTag_Dock', {
@@ -3680,6 +3693,24 @@ function buildSourceUpgradeModuleData(options: {
     saver.xferVersion(1);
     saver.xferVersion(1);
     saver.xferBool(options.upgradeExecuted);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceCreateModuleData(options: {
+  needToRunOnBuildComplete: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-create-module');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferBool(options.needToRunOnBuildComplete);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -8110,6 +8141,77 @@ describe('source-owned game-logic core save-state', () => {
     const upgradeModule = entity.upgradeModules.find((module) => module.moduleTag === 'MODULETAG_STATUSUPGRADE')!;
     expect(upgradeModule.moduleType).toBe('STATUSBITSUPGRADE');
     expect(entity.executedUpgradeModules.has(upgradeModule.id)).toBe(true);
+  });
+
+  it('imports source CreateModule build-complete gate state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const sourceState = createEmptySourceMapEntitySaveState();
+    sourceState.objectId = 114;
+    sourceState.position = { x: 190, y: 0, z: 64 };
+    sourceState.statusBits = ['UNDER_CONSTRUCTION'];
+    sourceState.constructionPercent = 50;
+    sourceState.modules = [
+      {
+        identifier: 'ModuleTag_Grant',
+        blockData: buildSourceCreateModuleData({ needToRunOnBuildComplete: false }),
+      },
+      {
+        identifier: 'ModuleTag_Lock',
+        blockData: buildSourceCreateModuleData({ needToRunOnBuildComplete: false }),
+      },
+      {
+        identifier: 'ModuleTag_SPC',
+        blockData: buildSourceCreateModuleData({ needToRunOnBuildComplete: true }),
+      },
+      {
+        identifier: 'ModuleTag_Vet',
+        blockData: buildSourceCreateModuleData({ needToRunOnBuildComplete: true }),
+      },
+    ];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 180,
+      objects: [
+        { templateName: 'CreateModuleBuilding', state: sourceState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        completedUpgrades: Set<string>;
+        createModuleStates: Array<{
+          moduleType: string;
+          moduleTag: string;
+          needToRunOnBuildComplete: boolean;
+        }>;
+      }>;
+      completeConstruction(entity: unknown): void;
+    };
+
+    const entity = privateLogic.spawnedEntities.get(114)!;
+    expect(entity.createModuleStates).toEqual(expect.arrayContaining([
+      { moduleType: 'GRANTUPGRADECREATE', moduleTag: 'ModuleTag_Grant', needToRunOnBuildComplete: false },
+      { moduleType: 'LOCKWEAPONCREATE', moduleTag: 'ModuleTag_Lock', needToRunOnBuildComplete: false },
+      { moduleType: 'SPECIALPOWERCREATE', moduleTag: 'ModuleTag_SPC', needToRunOnBuildComplete: true },
+      { moduleType: 'VETERANCYGAINCREATE', moduleTag: 'ModuleTag_Vet', needToRunOnBuildComplete: true },
+    ]));
+
+    privateLogic.completeConstruction(entity);
+    expect(entity.completedUpgrades.has('UPGRADE_AMERICARANGERCAPTUREBUILDING')).toBe(false);
+    expect(entity.createModuleStates).toEqual(expect.arrayContaining([
+      { moduleType: 'GRANTUPGRADECREATE', moduleTag: 'ModuleTag_Grant', needToRunOnBuildComplete: false },
+      { moduleType: 'SPECIALPOWERCREATE', moduleTag: 'ModuleTag_SPC', needToRunOnBuildComplete: false },
+      { moduleType: 'VETERANCYGAINCREATE', moduleTag: 'ModuleTag_Vet', needToRunOnBuildComplete: false },
+    ]));
   });
 
   it('imports source FlammableUpdate runtime state', () => {

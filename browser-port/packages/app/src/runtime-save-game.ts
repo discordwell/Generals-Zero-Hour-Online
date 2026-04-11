@@ -134,6 +134,15 @@ const SOURCE_UPGRADE_MODULE_TYPES = new Set([
   'ACTIVESHROUDUPGRADE',
   'REPLACEOBJECTUPGRADE',
 ]);
+const SOURCE_CREATE_MODULE_TYPES = new Set([
+  'GRANTUPGRADECREATE',
+  'LOCKWEAPONCREATE',
+  'PREORDERCREATE',
+  'SPECIALPOWERCREATE',
+  'SUPPLYCENTERCREATE',
+  'SUPPLYWAREHOUSECREATE',
+  'VETERANCYGAINCREATE',
+]);
 const SOURCE_OPEN_CONTAIN_MAX_FIRE_POINTS = 32;
 const SOURCE_MATRIX3D_BYTE_LENGTH = 48;
 const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH =
@@ -9689,6 +9698,10 @@ function isSourceUpgradeModuleType(moduleType: string): boolean {
   return SOURCE_UPGRADE_MODULE_TYPES.has(normalizeSourceObjectModuleType(moduleType));
 }
 
+function isSourceCreateModuleType(moduleType: string): boolean {
+  return SOURCE_CREATE_MODULE_TYPES.has(normalizeSourceObjectModuleType(moduleType));
+}
+
 function xferSourceBehaviorModuleBase(xfer: Xfer): void {
   const behaviorVersion = xfer.xferVersion(1);
   const objectModuleVersion = xfer.xferVersion(1);
@@ -9704,6 +9717,73 @@ function xferSourceDieModuleBase(xfer: Xfer): void {
     throw new Error(`Unsupported source DieModule base version ${dieVersion}`);
   }
   xferSourceBehaviorModuleBase(xfer);
+}
+
+function xferSourceCreateModule(
+  xfer: Xfer,
+  needToRunOnBuildComplete: boolean,
+): { needToRunOnBuildComplete: boolean } {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source CreateModule version ${version}`);
+  }
+  xferSourceBehaviorModuleBase(xfer);
+  return { needToRunOnBuildComplete: xfer.xferBool(needToRunOnBuildComplete) };
+}
+
+function tryParseSourceCreateModuleBlockData(
+  data: Uint8Array,
+  moduleType: string,
+): { needToRunOnBuildComplete: boolean } | null {
+  if (!isSourceCreateModuleType(moduleType)) {
+    return null;
+  }
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
+  xferLoad.open('parse-source-create-module');
+  try {
+    const derivedVersion = xferLoad.xferVersion(1);
+    if (derivedVersion !== 1) {
+      return null;
+    }
+    const parsed = xferSourceCreateModule(xferLoad, false);
+    return xferLoad.getRemaining() === 0 ? parsed : null;
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function findLiveSourceCreateModuleState(
+  entity: MapEntity,
+  moduleType: string,
+  moduleTag: string,
+): { needToRunOnBuildComplete: boolean } | null {
+  const normalizedModuleType = normalizeSourceObjectModuleType(moduleType);
+  const normalizedModuleTag = normalizeSourceObjectModuleTag(moduleTag);
+  const states = Array.isArray(entity.createModuleStates) ? entity.createModuleStates : [];
+  const matches = states.filter(
+    (state) => normalizeSourceObjectModuleType(state.moduleType) === normalizedModuleType,
+  );
+  if (normalizedModuleTag) {
+    const tagMatch = matches.find(
+      (state) => normalizeSourceObjectModuleTag(state.moduleTag) === normalizedModuleTag,
+    );
+    return tagMatch ?? null;
+  }
+  return matches.length === 1 ? matches[0]! : null;
+}
+
+function buildSourceCreateModuleBlockData(needToRunOnBuildComplete: boolean): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-source-create-module');
+  try {
+    saver.xferVersion(1);
+    xferSourceCreateModule(saver, needToRunOnBuildComplete);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
 }
 
 function tryParseSourceUpgradeModuleBlockData(
@@ -12812,6 +12892,17 @@ function overlaySourceObjectModulesFromLiveEntity(
       default:
         if (templateName && typeof resolveSourceObjectModuleTypeByTag === 'function') {
           const moduleType = resolveSourceObjectModuleTypeByTag(templateName, module.identifier)?.trim().toUpperCase() ?? '';
+          const parsedCreateModuleState = tryParseSourceCreateModuleBlockData(module.blockData, moduleType);
+          if (parsedCreateModuleState) {
+            const liveCreateModuleState = findLiveSourceCreateModuleState(entity, moduleType, module.identifier);
+            return {
+              identifier: module.identifier,
+              blockData: buildSourceCreateModuleBlockData(
+                liveCreateModuleState?.needToRunOnBuildComplete
+                  ?? parsedCreateModuleState.needToRunOnBuildComplete,
+              ),
+            };
+          }
           const parsedBodyState = tryParseSourceBodyModuleBlockData(module.blockData, moduleType);
           if (parsedBodyState) {
             return {

@@ -88,6 +88,7 @@ export function createMapEntity(self: GL,
   const parkingPlaceProfile = self.extractParkingPlaceProfile(objectDef);
   const flightDeckProfile = self.extractFlightDeckProfile(objectDef);
   const containProfile = extractContainProfile(self, objectDef);
+  const createModuleStates = extractCreateModuleStates(objectDef);
   const riderChangeContainProfile = extractRiderChangeContainProfile(self, objectDef);
   const supplyWarehouseProfile = extractSupplyWarehouseProfile(self, objectDef);
   const supplyTruckProfile = extractSupplyTruckProfile(self, objectDef);
@@ -823,6 +824,7 @@ export function createMapEntity(self: GL,
     scriptWanderInPlaceOriginZ: 0,
     // VeterancyGainCreate
     veterancyGainCreateProfiles: extractVeterancyGainCreateProfiles(self, objectDef),
+    createModuleStates,
     // FXListDie
     fxListDieProfiles: extractFXListDieProfiles(self, objectDef),
     // CrushDie
@@ -841,6 +843,8 @@ export function createMapEntity(self: GL,
     grantUpgradeCreateProfiles: extractGrantUpgradeCreateProfiles(self, objectDef),
     // LockWeaponCreate
     lockWeaponCreateSlot: extractLockWeaponCreateSlot(self, objectDef),
+    lockWeaponCreateModuleTag:
+      createModuleStates.find((state) => state.moduleType === 'LOCKWEAPONCREATE')?.moduleTag ?? null,
     // UpgradeDie
     upgradeDieProfiles: extractUpgradeDieProfiles(self, objectDef),
     producerEntityId: 0,
@@ -902,7 +906,10 @@ export function createMapEntity(self: GL,
     powerPlantUpdateProfile: extractPowerPlantUpdateProfile(self, objectDef),
     powerPlantUpdateState: null,
     // SpecialPowerCreate
-    hasSpecialPowerCreate: self.hasModuleType(objectDef, 'SPECIALPOWERCREATE'),
+    hasSpecialPowerCreate: createModuleStates.some((state) => state.moduleType === 'SPECIALPOWERCREATE'),
+    specialPowerCreateModuleTags: createModuleStates
+      .filter((state) => state.moduleType === 'SPECIALPOWERCREATE')
+      .map((state) => state.moduleTag),
     shroudRange: 0,
     // SubdualDamageHelper
     subdualDamageCap: bodyStats.subdualDamageCap,
@@ -3268,12 +3275,54 @@ export function extractEnemyNearScanDelay(self: GL, objectDef: ObjectDef | undef
   return result;
 }
 
+const SOURCE_CREATE_MODULE_TYPES = new Set([
+  'GRANTUPGRADECREATE',
+  'LOCKWEAPONCREATE',
+  'PREORDERCREATE',
+  'SPECIALPOWERCREATE',
+  'SUPPLYCENTERCREATE',
+  'SUPPLYWAREHOUSECREATE',
+  'VETERANCYGAINCREATE',
+]);
+
+function sourceModuleTypeFromBlockName(blockName: string): string {
+  return blockName.split(/\s+/)[0]?.trim().toUpperCase() ?? '';
+}
+
+function sourceModuleTagFromBlockName(blockName: string): string {
+  return blockName.split(/\s+/)[1]?.trim() ?? '';
+}
+
+function extractCreateModuleStates(objectDef: ObjectDef | undefined): CreateModuleRuntimeState[] {
+  if (!objectDef) return [];
+  const states: CreateModuleRuntimeState[] = [];
+  const visitBlock = (block: IniBlock): void => {
+    if (block.type.toUpperCase() === 'BEHAVIOR' || block.type.toUpperCase() === 'DRAW') {
+      const moduleType = sourceModuleTypeFromBlockName(block.name);
+      if (SOURCE_CREATE_MODULE_TYPES.has(moduleType)) {
+        states.push({
+          moduleType,
+          moduleTag: sourceModuleTagFromBlockName(block.name),
+          needToRunOnBuildComplete: true,
+        });
+      }
+    }
+    if (block.blocks) {
+      for (const child of block.blocks) visitBlock(child);
+    }
+  };
+  if (objectDef.blocks) {
+    for (const block of objectDef.blocks) visitBlock(block);
+  }
+  return states;
+}
+
 export function extractVeterancyGainCreateProfiles(self: GL, objectDef: ObjectDef | undefined): VeterancyGainCreateProfile[] {
   if (!objectDef) return [];
   const profiles: VeterancyGainCreateProfile[] = [];
   const visitBlock = (block: IniBlock): void => {
     if (block.type.toUpperCase() === 'BEHAVIOR' || block.type.toUpperCase() === 'DRAW') {
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      const moduleType = sourceModuleTypeFromBlockName(block.name);
       if (moduleType === 'VETERANCYGAINCREATE') {
         const levelStr = readStringField(block.fields, ['StartingLevel'])?.trim().toUpperCase() ?? '';
         let startingLevel: VeterancyLevel = LEVEL_REGULAR;
@@ -3285,7 +3334,11 @@ export function extractVeterancyGainCreateProfiles(self: GL, objectDef: ObjectDe
         const scienceRequired = (scienceStr && scienceStr !== 'NONE' && scienceStr !== 'SCIENCE_INVALID')
           ? scienceStr : null;
 
-        profiles.push({ startingLevel, scienceRequired });
+        profiles.push({
+          moduleTag: sourceModuleTagFromBlockName(block.name),
+          startingLevel,
+          scienceRequired,
+        });
       }
     }
     if (block.blocks) {
@@ -3491,7 +3544,7 @@ export function extractGrantUpgradeCreateProfiles(self: GL, objectDef: ObjectDef
   const profiles: GrantUpgradeCreateProfile[] = [];
   const visitBlock = (block: IniBlock): void => {
     if (block.type.toUpperCase() === 'BEHAVIOR') {
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      const moduleType = sourceModuleTypeFromBlockName(block.name);
       if (moduleType === 'GRANTUPGRADECREATE') {
         const upgradeName = readStringField(block.fields, ['UpgradeToGrant'])?.trim().toUpperCase() ?? '';
         if (upgradeName) {
@@ -3499,6 +3552,7 @@ export function extractGrantUpgradeCreateProfiles(self: GL, objectDef: ObjectDef
           // Source parity: determine if this is a PLAYER upgrade by checking the UpgradeDef.
           // We check at runtime; for now store the name and resolve type on application.
           profiles.push({
+            moduleTag: sourceModuleTagFromBlockName(block.name),
             upgradeName,
             isPlayerUpgrade: false, // Resolved at application time from UpgradeDef.
             exemptUnderConstruction: exemptStatus.includes('UNDER_CONSTRUCTION'),
@@ -3522,7 +3576,7 @@ export function extractLockWeaponCreateSlot(self: GL, objectDef: ObjectDef | und
   const visitBlock = (block: IniBlock): void => {
     if (slot !== null) return;
     if (block.type.toUpperCase() === 'BEHAVIOR') {
-      const moduleType = block.name.split(/\s+/)[0]?.toUpperCase() ?? '';
+      const moduleType = sourceModuleTypeFromBlockName(block.name);
       if (moduleType === 'LOCKWEAPONCREATE') {
         const slotName = readStringField(block.fields, ['SlotToLock'])?.trim().toUpperCase() ?? '';
         if (slotName === 'SECONDARY_WEAPON') {

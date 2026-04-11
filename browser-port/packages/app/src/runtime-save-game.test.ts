@@ -2439,6 +2439,39 @@ function parseSourceBridgeTowerBehaviorBlockData(data: Uint8Array): SourceBridge
   }
 }
 
+function createSourceCreateModuleBlockData(needToRunOnBuildComplete: boolean): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-create-module');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferUser(createSourceBehaviorModuleBaseBlockData());
+    xferSave.xferBool(needToRunOnBuildComplete);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceCreateModuleBlockData(data: Uint8Array): { needToRunOnBuildComplete: boolean } {
+  const xferLoad = new XferLoad(data.slice().buffer);
+  xferLoad.open('parse-source-create-module');
+  try {
+    expect(xferLoad.xferVersion(1)).toBe(1);
+    expect(xferLoad.xferVersion(1)).toBe(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    xferLoad.xferVersion(1);
+    const parsed = {
+      needToRunOnBuildComplete: xferLoad.xferBool(false),
+    };
+    expect(xferLoad.getRemaining()).toBe(0);
+    return parsed;
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function createSourceSpecialPowerCompletionDieBlockData(
   state: SourceSpecialPowerCompletionDieTestState,
 ): Uint8Array {
@@ -13871,6 +13904,102 @@ describe('runtime-save-game', () => {
     expect(parseSourceSpecialPowerCompletionDieBlockData(completionModule!.blockData)).toEqual({
       creatorId: 77,
       creatorSet: true,
+    });
+  });
+
+  it('rewrites source CreateModule build-complete gate state from live runtime modules', () => {
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_Grant',
+      blockData: createSourceCreateModuleBlockData(true),
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source create module rewrite',
+      mapPath: 'Maps/RuntimeCreateModule/RuntimeCreateModule.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeCreateModule',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            createModuleStates: [{
+              moduleType: 'GRANTUPGRADECREATE',
+              moduleTag: 'ModuleTag_Grant',
+              needToRunOnBuildComplete: false,
+            }],
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_Grant') {
+            return 'GRANTUPGRADECREATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const createModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_Grant');
+
+    expect(createModule).toBeDefined();
+    expect(parseSourceCreateModuleBlockData(createModule!.blockData)).toEqual({
+      needToRunOnBuildComplete: false,
     });
   });
 

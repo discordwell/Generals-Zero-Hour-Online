@@ -4325,6 +4325,8 @@ export interface MapEntity {
   scriptWanderInPlaceOriginZ: number;
   // ── Source parity: VeterancyGainCreate — sets veterancy level on creation if science owned ──
   veterancyGainCreateProfiles: VeterancyGainCreateProfile[];
+  /** Source parity: CreateModule::m_needToRunOnBuildComplete, keyed by INI module tag/type. */
+  createModuleStates: CreateModuleRuntimeState[];
   // ── Source parity: FXListDie — death FX lists with DieMuxData filtering ──
   fxListDieProfiles: FXListDieProfile[];
   // ── Source parity: CrushDie — sets FRONTCRUSHED/BACKCRUSHED model conditions on crush death ──
@@ -4347,6 +4349,8 @@ export interface MapEntity {
   grantUpgradeCreateProfiles: GrantUpgradeCreateProfile[];
   // ── Source parity: LockWeaponCreate — permanently forces a weapon slot on build complete ──
   lockWeaponCreateSlot: number | null;
+  /** Source module tag for LockWeaponCreate, used to match CreateModule::xfer state. */
+  lockWeaponCreateModuleTag: string | null;
 
   // ── Source parity: UpgradeDie — removes upgrade from producer on death ──
   upgradeDieProfiles: UpgradeDieProfile[];
@@ -4408,6 +4412,8 @@ export interface MapEntity {
 
   // ── Source parity: SpecialPowerCreate — starts special power timers on build complete ──
   hasSpecialPowerCreate: boolean;
+  /** Source module tags for SpecialPowerCreate modules on this object. */
+  specialPowerCreateModuleTags: string[];
   /**
    * Source parity: Object::m_shroudRange — distance this entity actively shrouds enemy vision.
    * Different from visionRange (sight distance) — this is the GPS Scrambler-style active shrouding.
@@ -4633,6 +4639,8 @@ interface HeightDieProfile {
  * C++ file: GrantUpgradeCreate.cpp — used by units that auto-grant upgrades on creation.
  */
 interface GrantUpgradeCreateProfile {
+  /** Source module tag from the INI block name (e.g. ModuleTag_GrantRadar). */
+  moduleTag: string;
   /** Name of upgrade to grant (normalized to uppercase). */
   upgradeName: string;
   /** If true, the upgrade is a PLAYER-scoped upgrade (granted to side, not object). */
@@ -4646,10 +4654,21 @@ interface GrantUpgradeCreateProfile {
  * the required science. C++ file: VeterancyGainCreate.cpp.
  */
 interface VeterancyGainCreateProfile {
+  /** Source module tag from the INI block name (e.g. ModuleTag_VetCreate). */
+  moduleTag: string;
   /** Veterancy level to set (0=REGULAR, 1=VETERAN, 2=ELITE, 3=HEROIC). */
   startingLevel: VeterancyLevel;
   /** Science name required (normalized to uppercase). Null = no science check (always applies). */
   scienceRequired: string | null;
+}
+
+interface CreateModuleRuntimeState {
+  /** Source module type, upper-case (e.g. GRANTUPGRADECREATE). */
+  moduleType: string;
+  /** Source module tag from the INI block name (e.g. ModuleTag_GrantRadar). */
+  moduleTag: string;
+  /** Source parity: CreateModule::m_needToRunOnBuildComplete. */
+  needToRunOnBuildComplete: boolean;
 }
 
 /**
@@ -9723,6 +9742,15 @@ const SOURCE_DERIVED_SPECIAL_POWER_MODULE_TYPES = new Set<string>([
   'SPECIALABILITY',
   'SPYVISIONSPECIALPOWER',
 ]);
+const SOURCE_CREATE_MODULE_TYPES = new Set<string>([
+  'GRANTUPGRADECREATE',
+  'LOCKWEAPONCREATE',
+  'PREORDERCREATE',
+  'SPECIALPOWERCREATE',
+  'SUPPLYCENTERCREATE',
+  'SUPPLYWAREHOUSECREATE',
+  'VETERANCYGAINCREATE',
+]);
 const SOURCE_SCRIPT_STATUS_DISABLED = 0x01;
 const SOURCE_SCRIPT_STATUS_UNPOWERED = 0x02;
 const SOURCE_SCRIPT_STATUS_UNSELLABLE = 0x04;
@@ -10673,11 +10701,10 @@ export class GameLogicSubsystem implements Subsystem {
         );
       }
 
-      // Source parity: SpecialPowerCreate::onBuildComplete — start special power timers.
-      // Map-placed buildings are born complete, so fire immediately after entity creation.
-      // Dozer-built buildings fire from completeConstruction() when construction finishes.
-      if (mapEntity.hasSpecialPowerCreate && !mapEntity.objectStatusFlags.has('UNDER_CONSTRUCTION')) {
-        this.onBuildCompleteSpecialPowerCreate(mapEntity);
+      // Source parity: map-placed objects are born complete, so fire CreateModule
+      // game-side build-complete hooks immediately after entity creation.
+      if (!mapEntity.objectStatusFlags.has('UNDER_CONSTRUCTION')) {
+        this.runCreateModuleBuildCompleteHooks(mapEntity);
       }
 
       this.placementSummary.spawnedObjects++;
@@ -13736,6 +13763,31 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private applySourceCreateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const createState = this.tryParseSourceCreateModuleImportState(module.blockData, moduleType);
+      if (!createState) {
+        continue;
+      }
+      this.setCreateModuleNeedsBuildComplete(
+        entity,
+        moduleType,
+        module.identifier,
+        createState.needToRunOnBuildComplete,
+      );
+    }
+  }
+
   private sourceModuleBlockDataBuffer(data: Uint8Array): ArrayBuffer {
     const copy = new Uint8Array(data.byteLength);
     copy.set(data);
@@ -13879,6 +13931,40 @@ export class GameLogicSubsystem implements Subsystem {
     const moduleVersion = xfer.xferVersion(1);
     if (behaviorModuleVersion !== 1 || objectModuleVersion !== 1 || moduleVersion !== 1) {
       throw new Error('Unsupported source BehaviorModule import base version.');
+    }
+  }
+
+  private parseSourceCreateModuleBaseImportState(xfer: XferLoad): { needToRunOnBuildComplete: boolean } {
+    const createModuleVersion = xfer.xferVersion(1);
+    if (createModuleVersion !== 1) {
+      throw new Error(`Unsupported source CreateModule import version ${createModuleVersion}.`);
+    }
+    this.skipSourceImportBehaviorModuleBase(xfer);
+    return { needToRunOnBuildComplete: xfer.xferBool(false) };
+  }
+
+  private tryParseSourceCreateModuleImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): { needToRunOnBuildComplete: boolean } | null {
+    const normalizedModuleType = moduleType.trim().toUpperCase();
+    if (!SOURCE_CREATE_MODULE_TYPES.has(normalizedModuleType)) {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-create-module-import');
+    try {
+      const derivedVersion = xfer.xferVersion(1);
+      if (derivedVersion !== 1) {
+        return null;
+      }
+      const state = this.parseSourceCreateModuleBaseImportState(xfer);
+      return xfer.getRemaining() === 0 ? state : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
     }
   }
 
@@ -20623,6 +20709,119 @@ export class GameLogicSubsystem implements Subsystem {
     return typeof moduleTag === 'string' ? moduleTag.trim().toUpperCase() : '';
   }
 
+  private findCreateModuleRuntimeState(
+    entity: MapEntity,
+    moduleType: string,
+    moduleTag?: string | null,
+  ): CreateModuleRuntimeState | null {
+    const normalizedType = this.normalizeSourceObjectModuleType(moduleType);
+    const normalizedTag = this.normalizeSourceObjectModuleTag(moduleTag ?? '');
+    const states = Array.isArray(entity.createModuleStates) ? entity.createModuleStates : [];
+    const typeMatches = states.filter(
+      (state) => this.normalizeSourceObjectModuleType(state.moduleType) === normalizedType,
+    );
+    if (normalizedTag) {
+      const tagMatch = typeMatches.find(
+        (state) => this.normalizeSourceObjectModuleTag(state.moduleTag) === normalizedTag,
+      );
+      return tagMatch ?? null;
+    }
+    return typeMatches.length === 1 ? typeMatches[0]! : null;
+  }
+
+  private setCreateModuleNeedsBuildComplete(
+    entity: MapEntity,
+    moduleType: string,
+    moduleTag: string,
+    needToRunOnBuildComplete: boolean,
+  ): void {
+    if (!Array.isArray(entity.createModuleStates)) {
+      entity.createModuleStates = [];
+    }
+    const normalizedType = this.normalizeSourceObjectModuleType(moduleType);
+    const normalizedTag = this.normalizeSourceObjectModuleTag(moduleTag);
+    const existing = entity.createModuleStates.find(
+      (state) => this.normalizeSourceObjectModuleType(state.moduleType) === normalizedType
+        && this.normalizeSourceObjectModuleTag(state.moduleTag) === normalizedTag,
+    );
+    if (existing) {
+      existing.needToRunOnBuildComplete = needToRunOnBuildComplete;
+      return;
+    }
+    entity.createModuleStates.push({
+      moduleType: normalizedType,
+      moduleTag,
+      needToRunOnBuildComplete,
+    });
+  }
+
+  private shouldRunCreateModuleOnBuildComplete(
+    entity: MapEntity,
+    moduleType: string,
+    moduleTag?: string | null,
+  ): boolean {
+    return this.findCreateModuleRuntimeState(entity, moduleType, moduleTag)?.needToRunOnBuildComplete ?? true;
+  }
+
+  private markCreateModuleBuildComplete(
+    entity: MapEntity,
+    moduleType: string,
+    moduleTag?: string | null,
+  ): void {
+    const normalizedType = this.normalizeSourceObjectModuleType(moduleType);
+    const normalizedTag = this.normalizeSourceObjectModuleTag(moduleTag ?? '');
+    const state = this.findCreateModuleRuntimeState(entity, normalizedType, moduleTag);
+    if (state) {
+      state.needToRunOnBuildComplete = false;
+      return;
+    }
+    if (!Array.isArray(entity.createModuleStates)) {
+      entity.createModuleStates = [];
+    }
+    entity.createModuleStates.push({
+      moduleType: normalizedType,
+      moduleTag: normalizedTag,
+      needToRunOnBuildComplete: false,
+    });
+  }
+
+  private createModuleTagsForType(entity: MapEntity, moduleType: string): string[] {
+    const normalizedType = this.normalizeSourceObjectModuleType(moduleType);
+    return (Array.isArray(entity.createModuleStates) ? entity.createModuleStates : [])
+      .filter((state) => this.normalizeSourceObjectModuleType(state.moduleType) === normalizedType)
+      .map((state) => state.moduleTag);
+  }
+
+  private shouldRunAnyCreateModuleOnBuildComplete(
+    entity: MapEntity,
+    moduleType: string,
+    moduleTags: readonly string[],
+  ): boolean {
+    const tags = moduleTags.length > 0 ? [...moduleTags] : this.createModuleTagsForType(entity, moduleType);
+    if (tags.length === 0) {
+      return this.shouldRunCreateModuleOnBuildComplete(entity, moduleType, null);
+    }
+    return tags.some((tag) => this.shouldRunCreateModuleOnBuildComplete(entity, moduleType, tag));
+  }
+
+  private markCreateModulesForTypeBuildComplete(
+    entity: MapEntity,
+    moduleType: string,
+    moduleTags: readonly string[] = [],
+  ): void {
+    const tags = moduleTags.length > 0 ? [...moduleTags] : this.createModuleTagsForType(entity, moduleType);
+    if (tags.length === 0) {
+      const state = this.findCreateModuleRuntimeState(entity, moduleType, null);
+      if (state) {
+        state.needToRunOnBuildComplete = false;
+      }
+      return;
+    }
+    for (const tag of tags) {
+      this.markCreateModuleBuildComplete(entity, moduleType, tag);
+    }
+  }
+
   private isSourceSpecialPowerModuleType(moduleType: string): boolean {
     return SOURCE_DERIVED_SPECIAL_POWER_MODULE_TYPES.has(
       this.normalizeSourceObjectModuleType(moduleType),
@@ -21573,6 +21772,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceStatusBitsToEntity(entity, sourceState);
     this.applySourceDisabledFramesToEntity(entity, sourceState);
     this.applySourceWeaponStateToEntity(entity, sourceState);
+    this.applySourceCreateModulesToEntity(entity, sourceState);
     this.applySourceUpgradeModulesToEntity(entity, sourceState);
     this.applySourceBodyModulesToEntity(entity, sourceState);
     this.applySourceProductionModulesToEntity(entity, sourceState);
@@ -26111,7 +26311,7 @@ export class GameLogicSubsystem implements Subsystem {
   /* @internal */ executeCrateUnit(...args: any[]) { return (executeCrateUnitImpl as any)(this, ...args); }
   /* @internal */ grantVeterancyLevels(...args: any[]) { return (grantVeterancyLevelsImpl as any)(this, ...args); }
   private clampVeterancyLevel(...args: any[]) { return (clampVeterancyLevelImpl as any)(this, ...args); }
-  private setMinVeterancyLevel(...args: any[]) { return (setMinVeterancyLevelImpl as any)(this, ...args); }
+  /* @internal */ setMinVeterancyLevel(...args: any[]) { return (setMinVeterancyLevelImpl as any)(this, ...args); }
   private doSalvageMoney(...args: any[]) { return (doSalvageMoneyImpl as any)(this, ...args); }
   private mineOnDamage(...args: any[]) { return (mineOnDamageImpl as any)(this, ...args); }
   private setWorkerMineClearingDetail(...args: any[]) { return (setWorkerMineClearingDetailImpl as any)(this, ...args); }
@@ -32901,27 +33101,8 @@ export class GameLogicSubsystem implements Subsystem {
     replacement.y = oldY;
     replacement.controllingPlayerToken = oldControllingPlayerToken;
 
-    // Source parity: C++ line 97-103 — call onBuildComplete on all create modules.
-    // GrantUpgradeCreate::onBuildComplete
-    for (const prof of replacement.grantUpgradeCreateProfiles) {
-      this.applyGrantUpgradeCreate(replacement, prof);
-    }
-    // VeterancyGainCreate::onCreate semantics are side/science dependent. ReplaceObjectUpgrade
-    // runs onBuildComplete after side transfer, so re-evaluate veterancy with final owner side.
-    for (const prof of replacement.veterancyGainCreateProfiles) {
-      if (prof.scienceRequired === null || this.hasSideScience(replacement.side ?? '', prof.scienceRequired)) {
-        this.setMinVeterancyLevel(replacement, prof.startingLevel);
-      }
-    }
-    // LockWeaponCreate::onBuildComplete
-    if (replacement.lockWeaponCreateSlot !== null) {
-      replacement.forcedWeaponSlot = replacement.lockWeaponCreateSlot;
-      replacement.weaponLockStatus = 'LOCKED_PERMANENTLY';
-    }
-    // SpecialPowerCreate::onBuildComplete
-    if (replacement.hasSpecialPowerCreate) {
-      this.onBuildCompleteSpecialPowerCreate(replacement);
-    }
+    // Source parity: ReplaceObjectUpgrade.cpp:97-103 — call onBuildComplete on all create modules.
+    this.runCreateModuleBuildCompleteHooks(replacement);
     if (replacement.kindOf.has('STRUCTURE')) {
       this.onStructureConstructionComplete(entity, replacement, false);
     }
@@ -34949,6 +35130,7 @@ export class GameLogicSubsystem implements Subsystem {
         break;
       }
       this.applyGrantUpgradeCreate(entity, {
+        moduleTag: '',
         upgradeName,
         isPlayerUpgrade: false,
         exemptUnderConstruction: false,
@@ -35876,23 +36058,7 @@ export class GameLogicSubsystem implements Subsystem {
     // Source parity: Player.cpp:1693 — markUIDirty after structure construction completion.
     this.markUIDirty();
 
-    // Source parity: GrantUpgradeCreate::onBuildComplete — grant upgrades when construction finishes.
-    for (const prof of building.grantUpgradeCreateProfiles) {
-      this.applyGrantUpgradeCreate(building, prof);
-    }
-
-    // Source parity: LockWeaponCreate::onBuildComplete — lock weapon slot for buildings.
-    if (building.lockWeaponCreateSlot !== null) {
-      building.forcedWeaponSlot = building.lockWeaponCreateSlot;
-      building.weaponLockStatus = 'LOCKED_PERMANENTLY';
-    }
-
-    // Source parity: SpecialPowerCreate::onBuildComplete — start special power timers.
-    // C++ file: SpecialPowerCreate.cpp line 58-72. Iterates all SpecialPowerModules on
-    // the object and calls onSpecialPowerCreation() which starts the recharge timer.
-    if (building.hasSpecialPowerCreate) {
-      this.onBuildCompleteSpecialPowerCreate(building);
-    }
+    this.runCreateModuleBuildCompleteHooks(building);
 
     this.onStructureConstructionComplete(builder, building, false);
   }
@@ -36993,6 +37159,41 @@ export class GameLogicSubsystem implements Subsystem {
         }
       }
     }
+  }
+
+  private runCreateModuleBuildCompleteHooks(entity: MapEntity): void {
+    // Source parity: build-complete loops call every CreateModuleInterface.
+    // Only implemented side effects are mirrored here; base-only modules still
+    // update CreateModule::m_needToRunOnBuildComplete for save parity.
+    for (const prof of entity.grantUpgradeCreateProfiles) {
+      if (!this.shouldRunCreateModuleOnBuildComplete(entity, 'GRANTUPGRADECREATE', prof.moduleTag)) {
+        continue;
+      }
+      this.markCreateModuleBuildComplete(entity, 'GRANTUPGRADECREATE', prof.moduleTag);
+      this.applyGrantUpgradeCreate(entity, prof);
+    }
+
+    for (const prof of entity.veterancyGainCreateProfiles) {
+      this.markCreateModuleBuildComplete(entity, 'VETERANCYGAINCREATE', prof.moduleTag);
+    }
+
+    if (entity.lockWeaponCreateSlot !== null) {
+      // LockWeaponCreate.cpp does not guard with shouldDoOnBuildComplete().
+      this.markCreateModuleBuildComplete(entity, 'LOCKWEAPONCREATE', entity.lockWeaponCreateModuleTag);
+      entity.forcedWeaponSlot = entity.lockWeaponCreateSlot;
+      entity.weaponLockStatus = 'LOCKED_PERMANENTLY';
+    }
+
+    if (entity.hasSpecialPowerCreate) {
+      const moduleTags = Array.isArray(entity.specialPowerCreateModuleTags) ? entity.specialPowerCreateModuleTags : [];
+      if (this.shouldRunAnyCreateModuleOnBuildComplete(entity, 'SPECIALPOWERCREATE', moduleTags)) {
+        this.markCreateModulesForTypeBuildComplete(entity, 'SPECIALPOWERCREATE', moduleTags);
+        this.onBuildCompleteSpecialPowerCreate(entity);
+      }
+    }
+
+    this.markCreateModulesForTypeBuildComplete(entity, 'SUPPLYCENTERCREATE');
+    this.markCreateModulesForTypeBuildComplete(entity, 'SUPPLYWAREHOUSECREATE');
   }
 
   /**
@@ -39253,10 +39454,8 @@ export class GameLogicSubsystem implements Subsystem {
           startingBuildingName, spawnPos.x, spawnPos.z, 0, side,
         );
         if (building) {
-          // Source parity: starting buildings are born complete — fire special power init.
-          if (building.hasSpecialPowerCreate && !building.objectStatusFlags.has('UNDER_CONSTRUCTION')) {
-            this.onBuildCompleteSpecialPowerCreate(building);
-          }
+          // Source parity: starting buildings are born complete.
+          this.runCreateModuleBuildCompleteHooks(building);
         }
       }
 
@@ -39592,10 +39791,10 @@ export class GameLogicSubsystem implements Subsystem {
       this.emitEvaEvent('CONSTRUCTION_COMPLETE', created.side, 'own', created.id, objectDef.name);
     }
 
-    // Source parity: SpecialPowerCreate::onBuildComplete — for instant-build buildings.
+    // Source parity: instant-build structures are born complete.
     // Normal dozer-built buildings fire this from completeConstruction().
-    if (buildTimeFrames <= 0 && created.hasSpecialPowerCreate) {
-      this.onBuildCompleteSpecialPowerCreate(created);
+    if (buildTimeFrames <= 0) {
+      this.runCreateModuleBuildCompleteHooks(created);
     }
     if (buildTimeFrames <= 0 && created.kindOf.has('STRUCTURE')) {
       this.onStructureConstructionComplete(constructor, created, false);
@@ -40836,6 +41035,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.initializeMinefieldState(created);
     this.registerTunnelEntity(created);
     this.applyQueueProductionExitPath(producer, created);
+    this.runCreateModuleBuildCompleteHooks(created);
 
     // Source parity: Eva UNIT_READY fires when a unit exits the production queue.
     if (created.side) {

@@ -577,6 +577,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
 
     // Create Modules
     veterancyGainCreateProfiles: [],
+    createModuleStates: [],
     fxListDieProfiles: [],
     crushDieProfiles: [],
     destroyDieProfiles: [],
@@ -588,6 +589,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     backCrushed: false,
     grantUpgradeCreateProfiles: [],
     lockWeaponCreateSlot: null,
+    lockWeaponCreateModuleTag: null,
 
     // Upgrade Die
     upgradeDieProfiles: [],
@@ -640,6 +642,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
 
     // Special Power Create
     hasSpecialPowerCreate: false,
+    specialPowerCreateModuleTags: [],
     shroudRange: 0,
 
     // Subdual Damage
