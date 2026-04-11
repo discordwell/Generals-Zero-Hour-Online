@@ -13169,6 +13169,19 @@ export class GameLogicSubsystem implements Subsystem {
       : false;
   }
 
+  private resolveSourceSideMapKey<T>(map: Map<string, T>, side: string): string {
+    const normalizedSide = this.normalizeSide(side);
+    if (!normalizedSide) {
+      return side;
+    }
+    for (const candidateSide of map.keys()) {
+      if (this.normalizeSide(candidateSide) === normalizedSide) {
+        return candidateSide;
+      }
+    }
+    return side;
+  }
+
   private getSourceSpecialPowerReadyTimersForSide(side: string): Array<{ templateId: number; readyFrame: number }> | null {
     const directTimers = this.sideSourceSpecialPowerReadyTimers.get(side);
     if (directTimers) {
@@ -13255,16 +13268,7 @@ export class GameLogicSubsystem implements Subsystem {
     if (!projectionSide) {
       return timersBySide;
     }
-    const normalizedProjectionSide = this.normalizeSide(projectionSide);
-    let projectionMapSide = projectionSide;
-    if (normalizedProjectionSide) {
-      for (const side of timersBySide.keys()) {
-        if (this.normalizeSide(side) === normalizedProjectionSide) {
-          projectionMapSide = side;
-          break;
-        }
-      }
-    }
+    const projectionMapSide = this.resolveSourceSideMapKey(timersBySide, projectionSide);
     let timers = timersBySide.get(projectionMapSide);
     if (!timers) {
       timers = [];
@@ -13306,6 +13310,48 @@ export class GameLogicSubsystem implements Subsystem {
       timersBySide.delete(projectionMapSide);
     }
     return timersBySide;
+  }
+
+  private captureSourcePlayerCurrentSelectionBySide(): Map<string, number[]> {
+    const selectionBySide = new Map<string, number[]>();
+    for (const [side, selectedIds] of this.sideSourcePlayerCurrentSelection.entries()) {
+      selectionBySide.set(
+        side,
+        selectedIds.flatMap((entityId) => (
+          Number.isFinite(entityId) && entityId > 0
+            ? [Math.trunc(entityId)]
+            : []
+        )),
+      );
+    }
+
+    const localSide = this.resolveLocalPlayerSide();
+    if (!localSide) {
+      return selectionBySide;
+    }
+    selectionBySide.set(
+      this.resolveSourceSideMapKey(selectionBySide, localSide),
+      this.filterValidSelectionIds(this.selectedEntityIds),
+    );
+    return selectionBySide;
+  }
+
+  private captureSourcePlayerCurrentSelectionPresentBySide(
+    selectionBySide: Map<string, number[]>,
+  ): Map<string, boolean> {
+    const selectionPresentBySide = new Map<string, boolean>();
+    for (const [side, present] of this.sideSourcePlayerCurrentSelectionPresent.entries()) {
+      selectionPresentBySide.set(side, present === true);
+    }
+
+    const localSide = this.resolveLocalPlayerSide();
+    if (localSide) {
+      selectionPresentBySide.set(
+        this.resolveSourceSideMapKey(selectionBySide, localSide),
+        true,
+      );
+    }
+    return selectionPresentBySide;
   }
 
   private rebuildSpecialPowerRuntimeIndexes(): void {
@@ -13407,6 +13453,7 @@ export class GameLogicSubsystem implements Subsystem {
 
   captureSourcePlayerRuntimeSaveState(): GameLogicPlayersSaveState {
     const state = this.captureSourceRuntimeStateByKeys(SOURCE_PLAYER_RUNTIME_STATE_KEYS);
+    const currentSelectionBySide = this.captureSourcePlayerCurrentSelectionBySide();
     state.sideSourceSpecialPowerReadyTimers = this.captureSourceSpecialPowerReadyTimersBySide();
     state.sideSourcePlayerTeamPrototypeIds = this.sideSourcePlayerTeamPrototypeIds;
     state.sideSourceBuildListInfos = this.sideSourceBuildListInfos;
@@ -13416,8 +13463,9 @@ export class GameLogicSubsystem implements Subsystem {
     state.sideSourceTeamRelations = this.sideSourceTeamRelations;
     state.sideSourceResourceGatheringManager = this.sideSourceResourceGatheringManager;
     state.sideSourcePlayerSquads = this.sideSourcePlayerSquads;
-    state.sideSourcePlayerCurrentSelection = this.sideSourcePlayerCurrentSelection;
-    state.sideSourcePlayerCurrentSelectionPresent = this.sideSourcePlayerCurrentSelectionPresent;
+    state.sideSourcePlayerCurrentSelection = currentSelectionBySide;
+    state.sideSourcePlayerCurrentSelectionPresent =
+      this.captureSourcePlayerCurrentSelectionPresentBySide(currentSelectionBySide);
     return {
       version: SOURCE_PLAYER_RUNTIME_SAVE_STATE_VERSION,
       state,

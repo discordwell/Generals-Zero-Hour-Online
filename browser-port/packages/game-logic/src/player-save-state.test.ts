@@ -2,6 +2,14 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
 import { GameLogicSubsystem } from './index.js';
+import {
+  makeBundle,
+  makeHeightmap,
+  makeMap,
+  makeMapObject,
+  makeObjectDef,
+  makeRegistry,
+} from './test-helpers.js';
 
 describe('player save-state', () => {
   it('captures player-owned AI/script state in the player chunk and omits source-unsaved caches', () => {
@@ -313,6 +321,37 @@ describe('player save-state', () => {
         curRightFlankLeftDefenseAngle: 1.5,
         curRightFlankRightDefenseAngle: 1.6,
       }]]),
+    );
+  });
+
+  it('captures live local selection into source Player::m_currentSelection', () => {
+    const bundle = makeBundle({
+      objects: [
+        makeObjectDef('Ranger', 'America', ['INFANTRY', 'SELECTABLE'], []),
+      ],
+    });
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(
+      makeMap([makeMapObject('Ranger', 10, 10)], 64, 64),
+      makeRegistry(bundle),
+      makeHeightmap(64, 64),
+    );
+    logic.setPlayerSide(0, 'america');
+
+    const selectionApi = logic as unknown as {
+      selectedEntityId: number | null;
+      selectedEntityIds: readonly number[];
+    };
+    selectionApi.selectedEntityId = 1;
+    selectionApi.selectedEntityIds = [1, 999, 1];
+
+    const playerState = logic.captureSourcePlayerRuntimeSaveState();
+
+    expect(playerState.state.sideSourcePlayerCurrentSelection).toEqual(
+      new Map([['america', [1]]]),
+    );
+    expect(playerState.state.sideSourcePlayerCurrentSelectionPresent).toEqual(
+      new Map([['america', true]]),
     );
   });
 });
