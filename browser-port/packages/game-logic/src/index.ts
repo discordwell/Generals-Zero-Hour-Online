@@ -8630,6 +8630,26 @@ interface SourceProductionUpdateImportState {
   uniqueId: number;
 }
 
+interface SourceDockUpdateImportState {
+  numberApproachPositions: number;
+  approachPositionOwners: number[];
+  activeDocker: number;
+  dockerInside: boolean;
+  dockCrippled: boolean;
+  dockOpen: boolean;
+}
+
+interface SourceSupplyWarehouseDockUpdateImportState {
+  dock: SourceDockUpdateImportState;
+  boxesStored: number;
+}
+
+interface SourceRepairDockUpdateImportState {
+  dock: SourceDockUpdateImportState;
+  lastRepair: number;
+  healthToAddPerFrame: number;
+}
+
 export interface GameLogicObjectTriggerAreaEntrySaveState {
   triggerName: string;
   entered: number;
@@ -8652,6 +8672,8 @@ const SOURCE_OBJECT_WEAPON_SLOT_COUNT = 3;
 const SOURCE_PRODUCTION_UNIT = 1;
 const SOURCE_PRODUCTION_UPGRADE = 2;
 const SOURCE_PRODUCTION_DOOR_INFO_BYTE_LENGTH = 64;
+const SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_FLAG = -1;
+const SOURCE_DOCK_VECTOR_LIMIT = 0xffff;
 const SOURCE_SCRIPT_STATUS_DISABLED = 0x01;
 const SOURCE_SCRIPT_STATUS_UNPOWERED = 0x02;
 const SOURCE_SCRIPT_STATUS_UNSELLABLE = 0x04;
@@ -12955,6 +12977,207 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private parseSourceDockCoordVector(xfer: XferLoad): void {
+    const count = xfer.xferInt(0);
+    if (count < 0 || count > SOURCE_DOCK_VECTOR_LIMIT) {
+      throw new Error(`Unsupported source DockUpdate Coord3D vector size ${count}.`);
+    }
+    for (let index = 0; index < count; index += 1) {
+      xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    }
+  }
+
+  private parseSourceDockObjectIdVector(xfer: XferLoad): number[] {
+    const count = xfer.xferInt(0);
+    if (count < 0 || count > SOURCE_DOCK_VECTOR_LIMIT) {
+      throw new Error(`Unsupported source DockUpdate ObjectID vector size ${count}.`);
+    }
+    const values: number[] = [];
+    for (let index = 0; index < count; index += 1) {
+      values.push(xfer.xferObjectID(0));
+    }
+    return values;
+  }
+
+  private parseSourceDockBoolVector(xfer: XferLoad): void {
+    const count = xfer.xferInt(0);
+    if (count < 0 || count > SOURCE_DOCK_VECTOR_LIMIT) {
+      throw new Error(`Unsupported source DockUpdate Bool vector size ${count}.`);
+    }
+    for (let index = 0; index < count; index += 1) {
+      xfer.xferBool(false);
+    }
+  }
+
+  private parseSourceDockUpdateImportState(xfer: XferLoad): SourceDockUpdateImportState {
+    const dockVersion = xfer.xferVersion(1);
+    if (dockVersion !== 1) {
+      throw new Error(`Unsupported source DockUpdate import version ${dockVersion}.`);
+    }
+    this.skipSourceImportUpdateModuleBase(xfer);
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const numberApproachPositions = xfer.xferInt(0);
+    xfer.xferBool(false);
+    this.parseSourceDockCoordVector(xfer);
+    const approachPositionOwners = this.parseSourceDockObjectIdVector(xfer);
+    this.parseSourceDockBoolVector(xfer);
+    const activeDocker = xfer.xferObjectID(0);
+    const dockerInside = xfer.xferBool(false);
+    const dockCrippled = xfer.xferBool(false);
+    const dockOpen = xfer.xferBool(true);
+    return {
+      numberApproachPositions,
+      approachPositionOwners,
+      activeDocker,
+      dockerInside,
+      dockCrippled,
+      dockOpen,
+    };
+  }
+
+  private tryParseSourceDockOnlyUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceDockUpdateImportState | null {
+    const normalizedModuleType = moduleType.trim().toUpperCase();
+    if (normalizedModuleType !== 'SUPPLYCENTERDOCKUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-dock-only-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const dock = this.parseSourceDockUpdateImportState(xfer);
+      return xfer.getRemaining() === 0 ? dock : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceSupplyWarehouseDockUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceSupplyWarehouseDockUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'SUPPLYWAREHOUSEDOCKUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-supply-warehouse-dock-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const dock = this.parseSourceDockUpdateImportState(xfer);
+      const boxesStored = xfer.xferInt(0);
+      return xfer.getRemaining() === 0 ? { dock, boxesStored } : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private tryParseSourceRepairDockUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceRepairDockUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'REPAIRDOCKUPDATE') {
+      return null;
+    }
+
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
+    xfer.open('source-repair-dock-update-import');
+    try {
+      const version = xfer.xferVersion(1);
+      if (version !== 1) {
+        return null;
+      }
+      const dock = this.parseSourceDockUpdateImportState(xfer);
+      const lastRepair = xfer.xferObjectID(0);
+      const healthToAddPerFrame = xfer.xferReal(0);
+      return xfer.getRemaining() === 0
+        ? { dock, lastRepair, healthToAddPerFrame }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private applySourceDockUpdateImportStateToEntity(
+    entity: MapEntity,
+    dock: SourceDockUpdateImportState,
+  ): void {
+    const currentDockerCount = dock.approachPositionOwners
+      .filter((objectId) => Number.isFinite(objectId) && Math.trunc(objectId) > 0)
+      .length;
+    const maxDockers = dock.numberApproachPositions === SOURCE_DOCK_DYNAMIC_APPROACH_VECTOR_FLAG
+      ? Number.MAX_SAFE_INTEGER
+      : Math.max(0, Math.trunc(dock.numberApproachPositions));
+    this.dockApproachStates.set(entity.id, {
+      currentDockerCount,
+      maxDockers,
+    });
+  }
+
+  private applySourceDockModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+
+      const supplyWarehouseState = this.tryParseSourceSupplyWarehouseDockUpdateImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (supplyWarehouseState) {
+        this.applySourceDockUpdateImportStateToEntity(entity, supplyWarehouseState.dock);
+        this.supplyWarehouseStates.set(entity.id, {
+          currentBoxes: Math.max(0, Math.trunc(supplyWarehouseState.boxesStored)),
+        });
+        entity.swCripplingDockDisabled = supplyWarehouseState.dock.dockCrippled;
+        return;
+      }
+
+      const repairDockState = this.tryParseSourceRepairDockUpdateImportState(
+        module.blockData,
+        moduleType,
+      );
+      if (repairDockState) {
+        this.applySourceDockUpdateImportStateToEntity(entity, repairDockState.dock);
+        entity.repairDockLastRepairEntityId = Math.max(0, Math.trunc(repairDockState.lastRepair));
+        entity.repairDockHealthToAddPerFrame = Number.isFinite(repairDockState.healthToAddPerFrame)
+          ? Math.max(0, repairDockState.healthToAddPerFrame)
+          : 0;
+        return;
+      }
+
+      const dockState = this.tryParseSourceDockOnlyUpdateImportState(module.blockData, moduleType);
+      if (dockState) {
+        this.applySourceDockUpdateImportStateToEntity(entity, dockState);
+        return;
+      }
+    }
+  }
+
   private applySourceMapEntityStateToEntity(
     entity: MapEntity,
     sourceState: SourceMapEntitySaveState,
@@ -13008,6 +13231,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceWeaponStateToEntity(entity, sourceState);
     this.applySourceBodyModulesToEntity(entity, sourceState);
     this.applySourceProductionModulesToEntity(entity, sourceState);
+    this.applySourceDockModulesToEntity(entity, sourceState);
   }
 
   restoreSourceGameLogicImportSaveState(state: unknown): void {
@@ -13055,7 +13279,7 @@ export class GameLogicSubsystem implements Subsystem {
       this.addEntityToWorld(entity);
       this.initializeMinefieldState(entity);
       this.registerTunnelEntity(entity);
-      if (entity.supplyWarehouseProfile) {
+      if (entity.supplyWarehouseProfile && !this.supplyWarehouseStates.has(entity.id)) {
         this.supplyWarehouseStates.set(
           entity.id,
           initializeWarehouseStateImpl(entity.supplyWarehouseProfile),

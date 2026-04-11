@@ -26,6 +26,18 @@ function makeSourceOwnedCoreBundle() {
         makeBlock('Behavior', 'ProductionUpdate ModuleTag_Production', { MaxQueueEntries: 9 }),
       ]),
       makeObjectDef('AmericaRanger', 'America', ['INFANTRY'], [], { BuildCost: 225, BuildTime: 5 }),
+      makeObjectDef('SupplyPile', 'Neutral', ['STRUCTURE'], [
+        makeBlock('Behavior', 'SupplyWarehouseDockUpdate ModuleTag_Dock', {
+          StartingBoxes: 50,
+          NumberApproachPositions: 3,
+        }),
+      ]),
+      makeObjectDef('RepairBay', 'Neutral', ['STRUCTURE'], [
+        makeBlock('Behavior', 'RepairDockUpdate ModuleTag_Dock', {
+          NumberApproachPositions: 2,
+          TimeForFullHeal: 5000,
+        }),
+      ]),
     ],
     upgrades: [
       makeUpgradeDef('Upgrade_AmericaRangerCaptureBuilding', { Type: 'PLAYER', BuildCost: 1000, BuildTime: 30 }),
@@ -147,6 +159,82 @@ function buildSourceProductionUpdateModuleData(options: {
     saver.xferVersion(1);
     saver.xferInt(0);
     saver.xferBool(false);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function writeSourceDockUpdate(
+  saver: XferSave,
+  options: {
+    numberApproachPositions: number;
+    approachPositionOwners: number[];
+    approachPositionReached?: boolean[];
+    activeDocker?: number;
+    dockerInside?: boolean;
+    dockCrippled?: boolean;
+    dockOpen?: boolean;
+  },
+): void {
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(0);
+  saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+  saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+  saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+  saver.xferInt(options.numberApproachPositions);
+  saver.xferBool(true);
+  saver.xferInt(0);
+  saver.xferInt(options.approachPositionOwners.length);
+  for (const owner of options.approachPositionOwners) {
+    saver.xferObjectID(owner);
+  }
+  const reached = options.approachPositionReached ?? [];
+  saver.xferInt(reached.length);
+  for (const value of reached) {
+    saver.xferBool(value);
+  }
+  saver.xferObjectID(options.activeDocker ?? 0);
+  saver.xferBool(options.dockerInside ?? false);
+  saver.xferBool(options.dockCrippled ?? false);
+  saver.xferBool(options.dockOpen ?? true);
+}
+
+function buildSourceSupplyWarehouseDockUpdateModuleData(options: {
+  boxesStored: number;
+  numberApproachPositions: number;
+  approachPositionOwners: number[];
+  dockCrippled: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-supply-warehouse-dock-update');
+  try {
+    saver.xferVersion(1);
+    writeSourceDockUpdate(saver, options);
+    saver.xferInt(options.boxesStored);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceRepairDockUpdateModuleData(options: {
+  lastRepair: number;
+  healthToAddPerFrame: number;
+  numberApproachPositions: number;
+  approachPositionOwners: number[];
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-repair-dock-update');
+  try {
+    saver.xferVersion(1);
+    writeSourceDockUpdate(saver, options);
+    saver.xferObjectID(options.lastRepair);
+    saver.xferReal(options.healthToAddPerFrame);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -372,6 +460,75 @@ describe('source-owned game-logic core save-state', () => {
       'America',
       'Upgrade_AmericaRangerCaptureBuilding',
     )).toBe(true);
+  });
+
+  it('imports source DockUpdate-owned warehouse and repair dock state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const warehouseState = createEmptySourceMapEntitySaveState();
+    warehouseState.objectId = 44;
+    warehouseState.position = { x: 10, y: 0, z: 10 };
+    warehouseState.modules = [{
+      identifier: 'ModuleTag_Dock',
+      blockData: buildSourceSupplyWarehouseDockUpdateModuleData({
+        boxesStored: 13,
+        numberApproachPositions: 3,
+        approachPositionOwners: [101, 0, 102],
+        dockCrippled: true,
+      }),
+    }];
+
+    const repairState = createEmptySourceMapEntitySaveState();
+    repairState.objectId = 45;
+    repairState.position = { x: 12, y: 0, z: 12 };
+    repairState.modules = [{
+      identifier: 'ModuleTag_Dock',
+      blockData: buildSourceRepairDockUpdateModuleData({
+        lastRepair: 77,
+        healthToAddPerFrame: 1.25,
+        numberApproachPositions: 2,
+        approachPositionOwners: [201],
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 77,
+      objectIdCounter: 100,
+      objects: [
+        { templateName: 'SupplyPile', state: warehouseState },
+        { templateName: 'RepairBay', state: repairState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        swCripplingDockDisabled: boolean;
+        repairDockLastRepairEntityId: number;
+        repairDockHealthToAddPerFrame: number;
+      }>;
+      supplyWarehouseStates: Map<number, { currentBoxes: number }>;
+      dockApproachStates: Map<number, { currentDockerCount: number; maxDockers: number }>;
+    };
+
+    expect(privateLogic.supplyWarehouseStates.get(44)).toEqual({ currentBoxes: 13 });
+    expect(privateLogic.dockApproachStates.get(44)).toEqual({
+      currentDockerCount: 2,
+      maxDockers: 3,
+    });
+    expect(privateLogic.spawnedEntities.get(44)!.swCripplingDockDisabled).toBe(true);
+    expect(privateLogic.dockApproachStates.get(45)).toEqual({
+      currentDockerCount: 1,
+      maxDockers: 2,
+    });
+    expect(privateLogic.spawnedEntities.get(45)!.repairDockLastRepairEntityId).toBe(77);
+    expect(privateLogic.spawnedEntities.get(45)!.repairDockHealthToAddPerFrame).toBe(1.25);
   });
 
   it('stores buildable overrides and sell-list state in the source game-logic chunk', () => {
