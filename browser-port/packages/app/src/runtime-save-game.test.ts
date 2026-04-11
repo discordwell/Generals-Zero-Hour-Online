@@ -10221,6 +10221,43 @@ describe('runtime-save-game', () => {
                 affectAirborne: true,
                 affectAllies: true,
               },
+              spawnBehaviorState: {
+                profile: {
+                  spawnTemplateNames: ['DroneA', 'DroneB'],
+                  oneShot: true,
+                  aggregateHealth: true,
+                },
+                slaveIds: [101],
+                replacementFrames: [55],
+                templateNameIndex: 1,
+                oneShotRemaining: 2,
+                oneShotCompleted: false,
+                initialBurstApplied: true,
+              },
+              dynamicGeometryProfile: {
+                initialDelayFrames: 3,
+                initialHeight: 10,
+                initialMajorRadius: 11,
+                initialMinorRadius: 12,
+                finalHeight: 20,
+                finalMajorRadius: 21,
+                finalMinorRadius: 22,
+                transitionTimeFrames: 30,
+                reverseAtTransitionTime: true,
+              },
+              dynamicGeometryState: {
+                delayCountdown: 5,
+                started: true,
+                finished: false,
+                timeActive: 7,
+                initialHeight: 13,
+                initialMajorRadius: 14,
+                initialMinorRadius: 15,
+                finalHeight: 23,
+                finalMajorRadius: 24,
+                finalMinorRadius: 25,
+                reverseAtTransitionTime: false,
+              },
             } as unknown as import('@generals/game-logic').MapEntity,
           ],
         }),
@@ -10237,6 +10274,8 @@ describe('runtime-save-game', () => {
               { moduleType: 'BunkerBusterBehavior', moduleTag: 'ModuleTag_BunkerBuster' },
               { moduleType: 'NeutronBlastBehavior', moduleTag: 'ModuleTag_NeutronBlast' },
               { moduleType: 'SlowDeathBehavior', moduleTag: 'ModuleTag_SlowDeath' },
+              { moduleType: 'SpawnBehavior', moduleTag: 'ModuleTag_Spawn' },
+              { moduleType: 'DynamicGeometryInfoUpdate', moduleTag: 'ModuleTag_DynamicGeometry' },
             ]
           : [],
       },
@@ -10276,6 +10315,8 @@ describe('runtime-save-game', () => {
       'ModuleTag_BunkerBuster',
       'ModuleTag_NeutronBlast',
       'ModuleTag_SlowDeath',
+      'ModuleTag_Spawn',
+      'ModuleTag_DynamicGeometry',
     ]);
     const bodyModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Body');
     expect(parseSourceActiveBodyBlockData(bodyModule!.blockData).active).toMatchObject({
@@ -10328,6 +10369,36 @@ describe('runtime-save-game', () => {
       destructionFrame: 0,
       acceleratedTimeScale: 1,
       flags: 0,
+    });
+    const spawnModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_Spawn');
+    expect(parseSourceSpawnBehaviorBlockData(spawnModule!.blockData)).toMatchObject({
+      version: 2,
+      initialBurstTimesInited: true,
+      spawnTemplateName: 'DroneB',
+      oneShotCountdown: 2,
+      replacementTimes: [55],
+      spawnIds: [101],
+      active: true,
+      aggregateHealth: true,
+      spawnCount: 1,
+      selfTaskingSpawnCount: 0,
+    });
+    const dynamicModule = generated?.modules.find((module) => module.identifier === 'ModuleTag_DynamicGeometry');
+    expect(parseSourceDynamicGeometryInfoUpdateBlockData(dynamicModule!.blockData)).toEqual({
+      nextCallFrameAndPhase: (43 << 2) | 2,
+      startingDelayCountdown: 5,
+      timeActive: 7,
+      started: true,
+      finished: false,
+      reverseAtTransitionTime: false,
+      direction: 1,
+      switchedDirections: false,
+      initialHeight: 13,
+      initialMajorRadius: 14,
+      initialMinorRadius: 15,
+      finalHeight: 23,
+      finalMajorRadius: 24,
+      finalMinorRadius: 25,
     });
     expect(generated?.weaponSet?.templateName).toBe('RuntimeDrone');
     expect(generated?.geometryInfo).toMatchObject({

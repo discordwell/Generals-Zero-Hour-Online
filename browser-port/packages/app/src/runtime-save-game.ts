@@ -11359,6 +11359,17 @@ function buildSourceSpawnBehaviorBlockData(
   }
 }
 
+function buildDefaultSourceSpawnBehaviorBlockData(): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-default-source-spawn-behavior');
+  try {
+    xferSourceSpawnBehaviorBlockState(saver, createDefaultSourceSpawnBehaviorBlockState());
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function findLiveSourceFireWeaponUpdateProfileIndex(
   entity: MapEntity,
   moduleTag: string,
@@ -16913,6 +16924,21 @@ function buildGeneratedSourceObjectModuleBlockData(
       entity,
       currentFrame,
       createDefaultSourceSlowDeathBehaviorBlockState(),
+    );
+  }
+
+  if (normalizedModuleType === 'SPAWNBEHAVIOR') {
+    return buildSourceSpawnBehaviorBlockData(
+      entity,
+      createDefaultSourceSpawnBehaviorBlockState(),
+    ) ?? buildDefaultSourceSpawnBehaviorBlockData();
+  }
+
+  if (normalizedModuleType === 'DYNAMICGEOMETRYINFOUPDATE') {
+    return buildSourceDynamicGeometryInfoUpdateBlockData(
+      entity,
+      currentFrame,
+      createDefaultSourceDynamicGeometryInfoUpdateState(),
     );
   }
 
