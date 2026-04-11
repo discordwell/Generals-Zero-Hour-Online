@@ -2090,6 +2090,78 @@ function parseSourceSupplyTruckAIUpdateBlockData(data: Uint8Array) {
   };
 }
 
+function writeSourceHackInternetAIStateMachine(
+  xferSave: XferSave,
+  currentStateId: number,
+  framesRemaining: number,
+): void {
+  xferSave.xferVersion(1);
+  xferSave.xferVersion(1);
+  xferSave.xferUnsignedInt(0);
+  xferSave.xferUnsignedInt(0);
+  xferSave.xferUnsignedInt(currentStateId);
+  xferSave.xferBool(false);
+  xferSave.xferVersion(1);
+  xferSave.xferUnsignedInt(framesRemaining);
+  xferSave.xferObjectID(0);
+  xferSave.xferCoord3D({ x: 0, y: 0, z: 0 });
+  xferSave.xferBool(false);
+  xferSave.xferBool(true);
+  xferSave.xferInt(0);
+  xferSave.xferAsciiString('');
+}
+
+function createSourceHackInternetAIUpdateBlockData(options: {
+  currentStateId: number;
+  framesRemaining: number;
+  hasPendingCommand?: boolean;
+}): Uint8Array {
+  const xferSave = new XferSave();
+  xferSave.open('create-source-hack-internet-ai-update');
+  try {
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(4);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferVersion(1);
+    xferSave.xferUnsignedInt(0);
+    xferSave.xferUnsignedInt(0);
+    xferSave.xferUnsignedInt(0);
+    writeSourceHackInternetAIStateMachine(xferSave, options.currentStateId, options.framesRemaining);
+    xferSave.xferUser(new Uint8Array([0xaa, 0xbb, 0xcc]));
+    xferSave.xferBool(options.hasPendingCommand ?? false);
+    return new Uint8Array(xferSave.getBuffer());
+  } finally {
+    xferSave.close();
+  }
+}
+
+function parseSourceHackInternetAIUpdateBlockData(data: Uint8Array) {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  for (let offset = 18; offset + 43 <= data.byteLength; offset += 1) {
+    if (data[offset] !== 1 || data[offset + 1] !== 1 || data[offset + 14] !== 0 || data[offset + 15] !== 1) {
+      continue;
+    }
+    if (view.getUint32(offset + 6, true) !== 0) {
+      continue;
+    }
+    const currentStateId = view.getUint32(offset + 10, true);
+    if (currentStateId !== 0 && currentStateId !== 1000 && currentStateId !== 1001 && currentStateId !== 1002) {
+      continue;
+    }
+    return {
+      prefix: [...data.subarray(0, offset)],
+      stateMachinePrefix: [...data.subarray(offset, offset + 10)],
+      currentStateId,
+      framesRemaining: view.getUint32(offset + 16, true),
+      suffixBeforePending: [...data.subarray(offset + 20, data.byteLength - 1)],
+      hasPendingCommand: data[data.byteLength - 1] !== 0,
+    };
+  }
+  throw new Error('Unable to parse hack internet AI test block.');
+}
+
 function createSourceChinookAIUpdateBlockData(options: {
   flightStatus: number;
   airfieldForHealing: number;
@@ -13465,6 +13537,112 @@ describe('runtime-save-game', () => {
     expect(parsed.preferredDockId).toBe(51);
     expect(parsed.numberBoxes).toBe(4);
     expect(parsed.forcePending).toBe(true);
+  });
+
+  it('rewrites source HackInternetAIUpdate state-machine bytes while preserving inherited bytes', () => {
+    const sourceHackBlock = createSourceHackInternetAIUpdateBlockData({
+      currentStateId: 1001,
+      framesRemaining: 12,
+    });
+    const preserved = parseSourceHackInternetAIUpdateBlockData(sourceHackBlock);
+    const sourceGameLogicBytes = createSourceGameLogicChunkData(false, [{
+      identifier: 'ModuleTag_HackAI',
+      blockData: sourceHackBlock,
+    }]);
+
+    const saveFile = buildRuntimeSaveFile({
+      description: 'source hack internet ai update rewrite',
+      mapPath: 'Maps/RuntimeHack/RuntimeHack.map',
+      mapData: {
+        width: 1,
+        height: 1,
+        tiles: [0],
+        objects: [],
+        waypoints: [],
+        namedAreas: [],
+        namedPolygons: [],
+        namedWaypointPaths: [],
+        startPositions: [],
+        meta: {
+          name: 'RuntimeHack',
+          players: 1,
+          supplyDockCount: 0,
+          oilDerrickCount: 0,
+          techBuildingCount: 0,
+        },
+        blendTileCount: 0,
+      },
+      cameraState: null,
+      passthroughBlocks: [{
+        blockName: 'CHUNK_GameLogic',
+        blockData: sourceGameLogicBytes.slice().buffer,
+      }],
+      gameLogic: {
+        captureSourceTerrainLogicRuntimeSaveState: () => ({
+          version: 2,
+          activeBoundary: 0,
+          waterUpdates: [],
+        }),
+        captureSourcePartitionRuntimeSaveState: createEmptyPartitionState,
+        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceRadarRuntimeSaveState: createEmptyRadarState,
+        captureSourceSidesListRuntimeSaveState: () => createEmptySidesListState(),
+        captureSourceTeamFactoryRuntimeSaveState: () => createEmptyTeamFactoryState(),
+        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+        captureSourceGameLogicRuntimeSaveState: () => ({
+          version: 10,
+          nextId: 101,
+          nextProjectileVisualId: 1,
+          animationTime: 0,
+          selectedEntityId: null,
+          selectedEntityIds: [],
+          scriptSelectionChangedFrame: 0,
+          controlBarDirtyFrame: 0,
+          scriptObjectTopologyVersion: 0,
+          scriptObjectCountChangedFrame: 0,
+          defeatedSides: new Set<string>(),
+          gameEndFrame: null,
+          scriptEndGameTimerActive: false,
+          objectTriggerAreaStates: [],
+          frameCounter: 42,
+          spawnedEntities: [{
+            id: 7,
+            templateName: 'RuntimeTank',
+            x: 10,
+            y: 0,
+            z: 20,
+            rotationY: 1.25,
+            hackInternetRuntimeState: {
+              cashUpdateDelayFrames: 60,
+              cashAmountPerCycle: 5,
+              nextCashFrame: 102,
+            },
+            hackInternetPendingCommand: null,
+          } as unknown as import('@generals/game-logic').MapEntity],
+        }),
+        resolveSourceObjectModuleTypeByTag: (templateName, moduleTag) => {
+          if (templateName === 'RuntimeTank' && moduleTag === 'ModuleTag_HackAI') {
+            return 'HACKINTERNETAIUPDATE';
+          }
+          return null;
+        },
+        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+        getObjectIdCounter: () => 101,
+      },
+    });
+
+    const firstObject = readFirstSourceGameLogicObjectState(saveFile.data);
+    const hackModule = firstObject?.modules.find((module) => module.identifier === 'ModuleTag_HackAI');
+
+    expect(hackModule).toBeDefined();
+    const parsed = parseSourceHackInternetAIUpdateBlockData(hackModule!.blockData);
+    expect(parsed.prefix).toEqual(preserved.prefix);
+    expect(parsed.stateMachinePrefix).toEqual(preserved.stateMachinePrefix);
+    expect(parsed.suffixBeforePending).toEqual(preserved.suffixBeforePending);
+    expect(parsed.currentStateId).toBe(1001);
+    expect(parsed.framesRemaining).toBe(60);
+    expect(parsed.hasPendingCommand).toBe(false);
   });
 
   it('rewrites source WorkerAIUpdate tasks and supply tail while preserving state-machine bytes', () => {

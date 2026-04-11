@@ -6112,6 +6112,17 @@ interface SourceSupplyTruckAIUpdateBlockState {
   forcePending: boolean;
 }
 
+interface SourceHackInternetAIUpdateBlockState {
+  blockData: Uint8Array;
+  stateMachineOffset: number;
+  currentStateOffset: number;
+  framesRemainingOffset: number;
+  pendingCommandOffset: number;
+  currentStateId: number;
+  framesRemaining: number;
+  hasPendingCommand: boolean;
+}
+
 interface SourceWorkerAIUpdateBlockState {
   blockData: Uint8Array;
   taskOffset: number;
@@ -6632,6 +6643,291 @@ function sourceDeployStyleStateToInt(state: unknown, fallback: number): number {
     default:
       return Number.isFinite(fallback) ? Math.max(0, Math.trunc(fallback)) : 0;
   }
+}
+
+const SOURCE_AI_STATE_IDLE = 0;
+const SOURCE_HACK_INTERNET_STATE_UNPACKING = 1000;
+const SOURCE_HACK_INTERNET_STATE_HACKING = 1001;
+const SOURCE_HACK_INTERNET_STATE_PACKING = 1002;
+const SOURCE_HACK_INTERNET_AI_STATE_MACHINE_OFFSET = 18;
+const SOURCE_HACK_INTERNET_STATE_SNAPSHOT_BYTE_LENGTH = 5;
+const SOURCE_AICMD_MOVE_TO_POSITION = 0;
+const SOURCE_AICMD_IDLE = 5;
+const SOURCE_AICMD_ATTACK_OBJECT = 11;
+
+function isSourceHackInternetStateId(value: number): boolean {
+  return value === SOURCE_AI_STATE_IDLE
+    || value === SOURCE_HACK_INTERNET_STATE_UNPACKING
+    || value === SOURCE_HACK_INTERNET_STATE_HACKING
+    || value === SOURCE_HACK_INTERNET_STATE_PACKING;
+}
+
+function isSourceBoolByte(value: number): boolean {
+  return value === 0 || value === 1;
+}
+
+function sourceAsciiStringEndOffset(data: Uint8Array, offset: number): number | null {
+  if (offset < 0 || offset >= data.byteLength) {
+    return null;
+  }
+  const length = data[offset] ?? 0;
+  const endOffset = offset + 1 + length;
+  return endOffset <= data.byteLength ? endOffset : null;
+}
+
+function findSourceHackInternetAIStateMachineBlock(data: Uint8Array): {
+  offset: number;
+  currentStateOffset: number;
+  framesRemainingOffset: number;
+  currentStateId: number;
+  framesRemaining: number;
+} | null {
+  if (data.byteLength < 44 || data[0] !== 1) {
+    return null;
+  }
+
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  for (
+    let offset = SOURCE_HACK_INTERNET_AI_STATE_MACHINE_OFFSET;
+    offset + 43 <= data.byteLength;
+    offset += 1
+  ) {
+    if (data[offset] !== 1 || data[offset + 1] !== 1 || data[offset + 14] !== 0 || data[offset + 15] !== 1) {
+      continue;
+    }
+    const defaultStateId = view.getUint32(offset + 6, true);
+    const currentStateId = view.getUint32(offset + 10, true);
+    if (defaultStateId !== SOURCE_AI_STATE_IDLE || !isSourceHackInternetStateId(currentStateId)) {
+      continue;
+    }
+    if (!isSourceBoolByte(data[offset + 36] ?? 2) || !isSourceBoolByte(data[offset + 37] ?? 2)) {
+      continue;
+    }
+
+    const goalPathCount = view.getInt32(offset + 38, true);
+    if (goalPathCount < 0 || goalPathCount > 256) {
+      continue;
+    }
+    const waypointNameOffset = offset + 42 + goalPathCount * 12;
+    if (sourceAsciiStringEndOffset(data, waypointNameOffset) === null) {
+      continue;
+    }
+
+    return {
+      offset,
+      currentStateOffset: offset + 10,
+      framesRemainingOffset: offset + 16,
+      currentStateId,
+      framesRemaining: currentStateId === SOURCE_AI_STATE_IDLE
+        ? 0
+        : view.getUint32(offset + 16, true),
+    };
+  }
+  return null;
+}
+
+function tryParseSourceAICommandStorageToEnd(data: Uint8Array, offset: number): boolean {
+  if (offset < 0 || offset >= data.byteLength) {
+    return false;
+  }
+  const xferLoad = new XferLoad(copyBytesToArrayBuffer(data.subarray(offset)));
+  xferLoad.open('parse-source-ai-command-storage');
+  try {
+    const command = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    const duplicateCommand = parseSourceRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+    if (command !== duplicateCommand) {
+      return false;
+    }
+    xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xferLoad.xferObjectID(0);
+    xferLoad.xferObjectID(0);
+    xferLoad.xferAsciiString('');
+    const coordCount = xferLoad.xferInt(0);
+    if (coordCount < 0 || coordCount > 256) {
+      return false;
+    }
+    for (let index = 0; index < coordCount; index += 1) {
+      xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    }
+    xferLoad.xferUnsignedInt(0);
+    xferLoad.xferAsciiString('');
+    xferLoad.xferInt(0);
+    xferSourceDamageInfo(xferLoad, createDefaultSourceDamageInfoState());
+    xferLoad.xferAsciiString('');
+    const hasPath = xferLoad.xferBool(false);
+    return !hasPath && xferLoad.getRemaining() === 0;
+  } catch {
+    return false;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function findSourceHackInternetPendingCommandOffset(
+  data: Uint8Array,
+  searchStartOffset: number,
+): { offset: number; hasPendingCommand: boolean } | null {
+  if (data.byteLength < 1) {
+    return null;
+  }
+  const lastByte = data[data.byteLength - 1] ?? 2;
+  if (lastByte === 0) {
+    return { offset: data.byteLength - 1, hasPendingCommand: false };
+  }
+
+  for (let offset = Math.max(1, searchStartOffset); offset < data.byteLength; offset += 1) {
+    if (data[offset] !== 1) {
+      continue;
+    }
+    if (tryParseSourceAICommandStorageToEnd(data, offset + 1)) {
+      return { offset, hasPendingCommand: true };
+    }
+  }
+  return null;
+}
+
+function tryParseSourceHackInternetAIUpdateBlockData(
+  data: Uint8Array,
+): SourceHackInternetAIUpdateBlockState | null {
+  const stateMachine = findSourceHackInternetAIStateMachineBlock(data);
+  if (!stateMachine) {
+    return null;
+  }
+  const stateMachineEndSearchOffset = stateMachine.offset
+    + 42
+    + SOURCE_HACK_INTERNET_STATE_SNAPSHOT_BYTE_LENGTH;
+  const pendingCommand = findSourceHackInternetPendingCommandOffset(data, stateMachineEndSearchOffset);
+  if (!pendingCommand) {
+    return null;
+  }
+  return {
+    blockData: new Uint8Array(data),
+    stateMachineOffset: stateMachine.offset,
+    currentStateOffset: stateMachine.currentStateOffset,
+    framesRemainingOffset: stateMachine.framesRemainingOffset,
+    pendingCommandOffset: pendingCommand.offset,
+    currentStateId: stateMachine.currentStateId,
+    framesRemaining: stateMachine.framesRemaining,
+    hasPendingCommand: pendingCommand.hasPendingCommand,
+  };
+}
+
+function sourceHackInternetStateForEntity(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceHackInternetAIUpdateBlockState,
+): { stateId: number; framesRemaining: number } {
+  const pending = entity.hackInternetPendingCommand;
+  if (pending) {
+    return {
+      stateId: SOURCE_HACK_INTERNET_STATE_PACKING,
+      framesRemaining: sourceFlammableUnsignedFrame(
+        Number(pending.executeFrame) - currentFrame,
+        preservedState.framesRemaining,
+      ),
+    };
+  }
+  const hackState = entity.hackInternetRuntimeState;
+  if (hackState) {
+    return {
+      stateId: SOURCE_HACK_INTERNET_STATE_HACKING,
+      framesRemaining: sourceFlammableUnsignedFrame(
+        Number(hackState.nextCashFrame) - currentFrame,
+        preservedState.framesRemaining,
+      ),
+    };
+  }
+  return {
+    stateId: preservedState.currentStateId === SOURCE_HACK_INTERNET_STATE_HACKING
+      || preservedState.currentStateId === SOURCE_HACK_INTERNET_STATE_UNPACKING
+      || preservedState.currentStateId === SOURCE_HACK_INTERNET_STATE_PACKING
+      ? SOURCE_AI_STATE_IDLE
+      : preservedState.currentStateId,
+    framesRemaining: 0,
+  };
+}
+
+function sourceCommandTypeForPendingHackCommand(command: unknown): number | null {
+  if (!command || typeof command !== 'object') {
+    return null;
+  }
+  switch ((command as { type?: unknown }).type) {
+    case 'moveTo': return SOURCE_AICMD_MOVE_TO_POSITION;
+    case 'attackEntity': return SOURCE_AICMD_ATTACK_OBJECT;
+    case 'stop': return SOURCE_AICMD_IDLE;
+    default: return null;
+  }
+}
+
+function writeSourcePendingHackAICommandStorage(saver: XferSave, command: unknown): boolean {
+  const sourceCommandType = sourceCommandTypeForPendingHackCommand(command);
+  if (sourceCommandType === null || !command || typeof command !== 'object') {
+    return false;
+  }
+  const commandRecord = command as {
+    targetX?: unknown;
+    targetZ?: unknown;
+    targetEntityId?: unknown;
+  };
+  const targetX = Number.isFinite(commandRecord.targetX) ? Number(commandRecord.targetX) : 0;
+  const targetZ = Number.isFinite(commandRecord.targetZ) ? Number(commandRecord.targetZ) : 0;
+  const targetEntityId = Number.isFinite(commandRecord.targetEntityId)
+    ? normalizeSourceObjectId(commandRecord.targetEntityId)
+    : 0;
+
+  saver.xferUser(buildSourceRawInt32Bytes(sourceCommandType));
+  // Source bug parity: AICommandParmsStorage::doXfer writes &m_cmd for sizeof(m_cmdSource).
+  saver.xferUser(buildSourceRawInt32Bytes(sourceCommandType));
+  saver.xferCoord3D({ x: targetX, y: targetZ, z: 0 });
+  saver.xferObjectID(sourceCommandType === SOURCE_AICMD_ATTACK_OBJECT ? targetEntityId : 0);
+  saver.xferObjectID(0);
+  saver.xferAsciiString('');
+  saver.xferInt(0);
+  saver.xferUnsignedInt(0xffffffff);
+  saver.xferAsciiString('');
+  saver.xferInt(0);
+  xferSourceDamageInfo(saver, createDefaultSourceDamageInfoState());
+  saver.xferAsciiString('');
+  saver.xferBool(false);
+  return true;
+}
+
+function buildSourcePendingHackCommandTail(entity: MapEntity): Uint8Array | null {
+  const pending = entity.hackInternetPendingCommand;
+  const command = pending?.command;
+  if (!command) {
+    return new Uint8Array([0]);
+  }
+  const saver = new XferSave();
+  saver.open('build-source-hack-internet-pending-command');
+  try {
+    saver.xferBool(true);
+    if (!writeSourcePendingHackAICommandStorage(saver, command)) {
+      return null;
+    }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceHackInternetAIUpdateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  preservedState: SourceHackInternetAIUpdateBlockState,
+): Uint8Array | null {
+  const pendingTail = buildSourcePendingHackCommandTail(entity);
+  if (!pendingTail) {
+    return null;
+  }
+  const state = sourceHackInternetStateForEntity(entity, currentFrame, preservedState);
+  const blockData = new Uint8Array(preservedState.pendingCommandOffset + pendingTail.byteLength);
+  blockData.set(preservedState.blockData.subarray(0, preservedState.pendingCommandOffset));
+  blockData.set(pendingTail, preservedState.pendingCommandOffset);
+  const view = new DataView(blockData.buffer, blockData.byteOffset, blockData.byteLength);
+  view.setUint32(preservedState.currentStateOffset, state.stateId, true);
+  view.setUint32(preservedState.framesRemainingOffset, state.framesRemaining, true);
+  return blockData;
 }
 
 function tryParseSourceDeployStyleAIUpdateBlockData(
@@ -13776,6 +14072,18 @@ function overlaySourceObjectModulesFromLiveEntity(
               identifier: module.identifier,
               blockData: buildSourceAnimationSteeringUpdateBlockData(currentFrame),
             };
+          }
+          if (moduleType === 'HACKINTERNETAIUPDATE') {
+            const parsedSourceState = tryParseSourceHackInternetAIUpdateBlockData(module.blockData);
+            if (parsedSourceState) {
+              const blockData = buildSourceHackInternetAIUpdateBlockData(entity, currentFrame, parsedSourceState);
+              if (blockData) {
+                return {
+                  identifier: module.identifier,
+                  blockData,
+                };
+              }
+            }
           }
           if (moduleType === 'DEPLOYSTYLEAIUPDATE' && entity.deployStyleProfile) {
             const parsedSourceState = tryParseSourceDeployStyleAIUpdateBlockData(module.blockData);

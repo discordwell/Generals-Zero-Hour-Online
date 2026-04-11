@@ -9061,6 +9061,13 @@ interface SourceSupplyTruckAIUpdateImportState {
   forcePending: boolean;
 }
 
+interface SourceHackInternetAIUpdateImportState {
+  currentStateId: number;
+  framesRemaining: number;
+  hasPendingCommand: boolean;
+  pendingCommand: GameLogicCommand | null;
+}
+
 interface SourceWorkerAIUpdateImportState {
   tasks: Array<{ targetObjectId: number; taskOrderFrame: number }>;
   preferredDockId: number;
@@ -9772,6 +9779,15 @@ const SOURCE_WORKER_FIXED_AFTER_DOZER_MACHINE_BYTE_LENGTH = SOURCE_DOZER_FIXED_S
 const SOURCE_PLAYER_MASK_BYTE_LENGTH = 2;
 const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH = 32 * 48;
 const SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH = 4;
+const SOURCE_AI_STATE_IDLE = 0;
+const SOURCE_HACK_INTERNET_STATE_UNPACKING = 1000;
+const SOURCE_HACK_INTERNET_STATE_HACKING = 1001;
+const SOURCE_HACK_INTERNET_STATE_PACKING = 1002;
+const SOURCE_HACK_INTERNET_AI_STATE_MACHINE_OFFSET = 18;
+const SOURCE_HACK_INTERNET_STATE_SNAPSHOT_BYTE_LENGTH = 5;
+const SOURCE_AICMD_MOVE_TO_POSITION = 0;
+const SOURCE_AICMD_IDLE = 5;
+const SOURCE_AICMD_ATTACK_OBJECT = 11;
 const SOURCE_CONTAIN_VECTOR_LIMIT = 0xffff;
 const SOURCE_DEATH_TYPE_NAMES = [
   'NORMAL',
@@ -16308,6 +16324,240 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private isSourceHackInternetStateId(value: number): boolean {
+    return value === SOURCE_AI_STATE_IDLE
+      || value === SOURCE_HACK_INTERNET_STATE_UNPACKING
+      || value === SOURCE_HACK_INTERNET_STATE_HACKING
+      || value === SOURCE_HACK_INTERNET_STATE_PACKING;
+  }
+
+  private sourceAsciiStringEndOffset(data: Uint8Array, offset: number): number | null {
+    if (offset < 0 || offset >= data.byteLength) {
+      return null;
+    }
+    const length = data[offset] ?? 0;
+    const endOffset = offset + 1 + length;
+    return endOffset <= data.byteLength ? endOffset : null;
+  }
+
+  private findSourceHackInternetAIStateMachineBlock(data: Uint8Array): {
+    offset: number;
+    currentStateId: number;
+    framesRemaining: number;
+  } | null {
+    if (data.byteLength < 44 || data[0] !== 1) {
+      return null;
+    }
+
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    for (
+      let offset = SOURCE_HACK_INTERNET_AI_STATE_MACHINE_OFFSET;
+      offset + 43 <= data.byteLength;
+      offset += 1
+    ) {
+      if (data[offset] !== 1 || data[offset + 1] !== 1 || data[offset + 14] !== 0 || data[offset + 15] !== 1) {
+        continue;
+      }
+      const defaultStateId = view.getUint32(offset + 6, true);
+      const currentStateId = view.getUint32(offset + 10, true);
+      if (defaultStateId !== SOURCE_AI_STATE_IDLE || !this.isSourceHackInternetStateId(currentStateId)) {
+        continue;
+      }
+      const lockedByte = data[offset + 36] ?? 2;
+      const defaultStateInitedByte = data[offset + 37] ?? 2;
+      if ((lockedByte !== 0 && lockedByte !== 1)
+        || (defaultStateInitedByte !== 0 && defaultStateInitedByte !== 1)) {
+        continue;
+      }
+      const goalPathCount = view.getInt32(offset + 38, true);
+      if (goalPathCount < 0 || goalPathCount > 256) {
+        continue;
+      }
+      const waypointNameOffset = offset + 42 + goalPathCount * 12;
+      if (this.sourceAsciiStringEndOffset(data, waypointNameOffset) === null) {
+        continue;
+      }
+      return {
+        offset,
+        currentStateId,
+        framesRemaining: currentStateId === SOURCE_AI_STATE_IDLE ? 0 : view.getUint32(offset + 16, true),
+      };
+    }
+    return null;
+  }
+
+  private parseSourceAICommandStorageToEnd(
+    data: Uint8Array,
+    offset: number,
+    entityId: number,
+  ): GameLogicCommand | null {
+    const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data.subarray(offset)));
+    xfer.open('source-ai-command-storage-import');
+    try {
+      const commandType = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      const duplicateCommandType = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+      if (commandType !== duplicateCommandType) {
+        return null;
+      }
+      const position = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const objectId = xfer.xferObjectID(0);
+      xfer.xferObjectID(0);
+      xfer.xferAsciiString('');
+      const coordCount = xfer.xferInt(0);
+      if (coordCount < 0 || coordCount > 256) {
+        return null;
+      }
+      for (let index = 0; index < coordCount; index += 1) {
+        xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      }
+      xfer.xferUnsignedInt(0);
+      xfer.xferAsciiString('');
+      xfer.xferInt(0);
+      this.skipSourceImportDamageInfo(xfer);
+      xfer.xferAsciiString('');
+      const hasPath = xfer.xferBool(false);
+      if (hasPath || xfer.getRemaining() !== 0) {
+        return null;
+      }
+
+      switch (commandType) {
+        case SOURCE_AICMD_MOVE_TO_POSITION:
+          return {
+            type: 'moveTo',
+            entityId,
+            targetX: Number.isFinite(position.x) ? position.x : 0,
+            targetZ: Number.isFinite(position.y) ? position.y : 0,
+            commandSource: 'AI',
+          };
+        case SOURCE_AICMD_ATTACK_OBJECT:
+          return objectId > 0
+            ? {
+              type: 'attackEntity',
+              entityId,
+              targetEntityId: Math.trunc(objectId),
+              commandSource: 'AI',
+            }
+            : null;
+        case SOURCE_AICMD_IDLE:
+          return { type: 'stop', entityId, commandSource: 'AI' };
+        default:
+          return null;
+      }
+    } catch {
+      return null;
+    } finally {
+      xfer.close();
+    }
+  }
+
+  private findSourceHackInternetPendingCommand(
+    data: Uint8Array,
+    searchStartOffset: number,
+    entityId: number,
+  ): { hasPendingCommand: boolean; pendingCommand: GameLogicCommand | null } | null {
+    if (data.byteLength < 1) {
+      return null;
+    }
+    if (data[data.byteLength - 1] === 0) {
+      return { hasPendingCommand: false, pendingCommand: null };
+    }
+    for (let offset = Math.max(1, searchStartOffset); offset < data.byteLength; offset += 1) {
+      if (data[offset] !== 1) {
+        continue;
+      }
+      const command = this.parseSourceAICommandStorageToEnd(data, offset + 1, entityId);
+      if (command) {
+        return { hasPendingCommand: true, pendingCommand: command };
+      }
+    }
+    return null;
+  }
+
+  private tryParseSourceHackInternetAIUpdateImportState(
+    data: Uint8Array,
+    moduleType: string,
+    entityId: number,
+  ): SourceHackInternetAIUpdateImportState | null {
+    if (moduleType.trim().toUpperCase() !== 'HACKINTERNETAIUPDATE') {
+      return null;
+    }
+    const stateMachine = this.findSourceHackInternetAIStateMachineBlock(data);
+    if (!stateMachine) {
+      return null;
+    }
+    const pending = this.findSourceHackInternetPendingCommand(
+      data,
+      stateMachine.offset + 42 + SOURCE_HACK_INTERNET_STATE_SNAPSHOT_BYTE_LENGTH,
+      entityId,
+    );
+    if (!pending) {
+      return null;
+    }
+    return {
+      currentStateId: stateMachine.currentStateId,
+      framesRemaining: stateMachine.framesRemaining,
+      hasPendingCommand: pending.hasPendingCommand,
+      pendingCommand: pending.pendingCommand,
+    };
+  }
+
+  private applySourceHackInternetAIUpdateModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    const objectDef = this.resolveObjectDefByTemplateName(entity.templateName);
+    const profile = this.extractHackInternetProfile(objectDef ?? undefined);
+    if (!profile) {
+      return;
+    }
+
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const hackState = this.tryParseSourceHackInternetAIUpdateImportState(module.blockData, moduleType, entity.id);
+      if (!hackState) {
+        continue;
+      }
+
+      const cashUpdateDelayFrames = this.isEntityContained(entity)
+        ? profile.cashUpdateDelayFastFrames
+        : profile.cashUpdateDelayFrames;
+      const cashAmountPerCycle = profile.regularCashAmount > 0
+        ? profile.regularCashAmount
+        : SOURCE_HACK_FALLBACK_CASH_AMOUNT;
+      if (hackState.currentStateId === SOURCE_HACK_INTERNET_STATE_HACKING) {
+        entity.hackInternetRuntimeState = {
+          cashUpdateDelayFrames,
+          cashAmountPerCycle,
+          nextCashFrame: this.frameCounter + Math.max(0, Math.trunc(hackState.framesRemaining)),
+        };
+      } else if (hackState.currentStateId === SOURCE_HACK_INTERNET_STATE_UNPACKING) {
+        entity.hackInternetRuntimeState = {
+          cashUpdateDelayFrames,
+          cashAmountPerCycle,
+          nextCashFrame: this.frameCounter
+            + Math.max(0, Math.trunc(hackState.framesRemaining))
+            + Math.max(1, Math.trunc(cashUpdateDelayFrames)),
+        };
+      } else {
+        entity.hackInternetRuntimeState = null;
+      }
+
+      entity.hackInternetPendingCommand = hackState.pendingCommand
+        ? {
+          command: hackState.pendingCommand,
+          executeFrame: this.frameCounter + Math.max(0, Math.trunc(hackState.framesRemaining)),
+        }
+        : null;
+      return;
+    }
+  }
+
   private isSourceStubStateMachineAt(data: Uint8Array, offset: number): boolean {
     if (offset < 0 || offset + SOURCE_STUB_STATE_MACHINE_BYTE_LENGTH > data.byteLength) {
       return false;
@@ -22115,6 +22365,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceDeployStyleAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceAssaultTransportAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceSupplyTruckAIUpdateModulesToEntity(entity, sourceState);
+    this.applySourceHackInternetAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceWorkerAIUpdateModulesToEntity(entity, sourceState);
     this.applySourceChinookAIUpdateModulesToEntity(entity, sourceState);
     this.applySourcePOWTruckAIUpdateModulesToEntity(entity, sourceState);

@@ -274,6 +274,15 @@ function makeSourceOwnedCoreBundle() {
           BoredRange: 200,
         }),
       ]),
+      makeObjectDef('HackInternetObject', 'China', ['INFANTRY'], [
+        makeBlock('Behavior', 'HackInternetAIUpdate ModuleTag_HackAI', {
+          UnpackTime: 1000,
+          PackTime: 1500,
+          CashUpdateDelay: 2000,
+          CashUpdateDelayFast: 1000,
+          RegularCashAmount: 5,
+        }),
+      ]),
       makeObjectDef('ChinookObject', 'America', ['AIRCRAFT'], [
         makeBlock('Behavior', 'ChinookAIUpdate ModuleTag_ChinookAI', {
           MaxBoxes: 8,
@@ -2005,6 +2014,53 @@ function buildSourceSupplyTruckAIUpdateModuleData(options: {
     saver.xferObjectID(options.preferredDockId);
     saver.xferInt(options.numberBoxes);
     saver.xferBool(options.forcePending);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function writeSourceHackInternetAIStateMachine(
+  saver: XferSave,
+  currentStateId: number,
+  framesRemaining: number,
+): void {
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(currentStateId);
+  saver.xferBool(false);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(framesRemaining);
+  saver.xferObjectID(0);
+  saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+  saver.xferBool(false);
+  saver.xferBool(true);
+  saver.xferInt(0);
+  saver.xferAsciiString('');
+}
+
+function buildSourceHackInternetAIUpdateModuleData(options: {
+  currentStateId: number;
+  framesRemaining: number;
+  hasPendingCommand?: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-hack-internet-ai-update');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(4);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(0);
+    saver.xferUnsignedInt(0);
+    saver.xferUnsignedInt(0);
+    writeSourceHackInternetAIStateMachine(saver, options.currentStateId, options.framesRemaining);
+    saver.xferUser(new Uint8Array([0xaa, 0xbb, 0xcc]));
+    saver.xferBool(options.hasPendingCommand ?? false);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -5721,6 +5777,55 @@ describe('source-owned game-logic core save-state', () => {
       preferredDockId: 301,
       forceBusy: true,
     });
+  });
+
+  it('imports source HackInternetAIUpdate state-machine runtime state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const hackerState = createEmptySourceMapEntitySaveState();
+    hackerState.objectId = 124;
+    hackerState.position = { x: 159, y: 0, z: 60 };
+    hackerState.modules = [{
+      identifier: 'ModuleTag_HackAI',
+      blockData: buildSourceHackInternetAIUpdateModuleData({
+        currentStateId: 1001,
+        framesRemaining: 37,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'HackInternetObject', state: hackerState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        hackInternetRuntimeState: {
+          cashUpdateDelayFrames: number;
+          cashAmountPerCycle: number;
+          nextCashFrame: number;
+        } | null;
+        hackInternetPendingCommand: unknown;
+      }>;
+    };
+
+    const importedHacker = privateLogic.spawnedEntities.get(124)!;
+    expect(importedHacker.hackInternetRuntimeState).toEqual({
+      cashUpdateDelayFrames: 60,
+      cashAmountPerCycle: 5,
+      nextCashFrame: 237,
+    });
+    expect(importedHacker.hackInternetPendingCommand).toBeNull();
   });
 
   it('imports source WorkerAIUpdate dozer tasks and supply state', () => {
