@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  SaveFileType,
   XferLoad,
   XferMode,
   XferSave,
@@ -11296,6 +11297,13 @@ describe('runtime-save-game', () => {
       },
       embeddedMapBytes,
       gameStateMapTrailingBytes,
+      sourceMetadata: {
+        saveFileType: SaveFileType.SAVE_FILE_TYPE_MISSION,
+        missionMapName: 'Maps\\MD_USA01\\MD_USA01.map',
+        mapLabel: 'GUI:MissionSave',
+        campaignSide: 'usa',
+        missionNumber: 0,
+      },
       sourceGameMode: SOURCE_GAME_MODE_SKIRMISH,
     });
 
@@ -11309,6 +11317,11 @@ describe('runtime-save-game', () => {
       Array.from(gameStateMapTrailingBytes),
     );
     expect(Array.from(new Uint8Array(mapInfo.trailingBytes))).toEqual(Array.from(gameStateMapTrailingBytes));
+    expect(parsed.metadata.saveFileType).toBe(SaveFileType.SAVE_FILE_TYPE_MISSION);
+    expect(parsed.metadata.missionMapName).toBe('Maps\\MD_USA01\\MD_USA01.map');
+    expect(parsed.metadata.mapLabel).toBe('GUI:MissionSave');
+    expect(parsed.metadata.campaignSide).toBe('usa');
+    expect(parsed.metadata.missionNumber).toBe(0);
     expect(parsed.campaign).toBeNull();
   });
 

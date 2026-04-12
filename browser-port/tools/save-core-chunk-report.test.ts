@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { SaveFileType } from '@generals/engine';
 
 import { buildRuntimeSaveFile } from '../packages/app/src/runtime-save-game.js';
 import {
@@ -286,6 +287,7 @@ describe('save core chunk report', () => {
     expect(report.roundTrip.status).toBe('pass');
     expect(report.roundTrip.summary?.status).toBe('pass');
     expect(report.roundTrip.chunkNamesPreserved).toBe(true);
+    expect(report.roundTrip.metadataPreserved).toBe(true);
     expect(report.roundTrip.embeddedMapBytesPreserved).toBe(true);
     expect(report.roundTrip.gameStateMapTrailingBytesPreserved).toBe(true);
   });
@@ -297,6 +299,13 @@ describe('save core chunk report', () => {
       mapData: null,
       embeddedMapBytes: new Uint8Array([0xde, 0xad, 0xbe, 0xef]),
       gameStateMapTrailingBytes: new Uint8Array([0xaa, 0xbb, 0xcc]),
+      sourceMetadata: {
+        saveFileType: SaveFileType.SAVE_FILE_TYPE_MISSION,
+        missionMapName: 'Maps\\MD_USA01\\MD_USA01.map',
+        mapLabel: 'GUI:MissionSave',
+        campaignSide: 'usa',
+        missionNumber: 0,
+      },
       cameraState: null,
       gameLogic: createRoundTripGameLogic(8),
     });
@@ -308,6 +317,7 @@ describe('save core chunk report', () => {
     expect(report.roundTrip.reason).toBeNull();
     expect(report.roundTrip.summary?.status).toBe('pass');
     expect(report.roundTrip.chunkNamesPreserved).toBe(true);
+    expect(report.roundTrip.metadataPreserved).toBe(true);
     expect(report.roundTrip.embeddedMapBytesPreserved).toBe(true);
     expect(report.roundTrip.gameStateMapTrailingBytesPreserved).toBe(true);
   });

@@ -1997,6 +1997,33 @@ function applyCampaignMetadata(
   metadata.missionNumber = campaign.missionNumber;
 }
 
+function applySourceMetadataOverrides(
+  metadata: RuntimeSaveMetadataState,
+  sourceMetadata: Partial<Pick<
+    ParsedSaveGameInfo,
+    'saveFileType' | 'missionMapName' | 'mapLabel' | 'campaignSide' | 'missionNumber'
+  >> | null | undefined,
+): void {
+  if (!sourceMetadata) {
+    return;
+  }
+  if (sourceMetadata.saveFileType !== undefined) {
+    metadata.saveFileType = sourceMetadata.saveFileType;
+  }
+  if (typeof sourceMetadata.missionMapName === 'string') {
+    metadata.missionMapName = sourceMetadata.missionMapName;
+  }
+  if (typeof sourceMetadata.mapLabel === 'string') {
+    metadata.mapLabel = sourceMetadata.mapLabel;
+  }
+  if (typeof sourceMetadata.campaignSide === 'string') {
+    metadata.campaignSide = sourceMetadata.campaignSide;
+  }
+  if (typeof sourceMetadata.missionNumber === 'number' && Number.isFinite(sourceMetadata.missionNumber)) {
+    metadata.missionNumber = Math.trunc(sourceMetadata.missionNumber);
+  }
+}
+
 function encodeJsonBytes(value: unknown): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(value));
 }
@@ -26384,6 +26411,10 @@ export function buildRuntimeSaveFile(params: {
   >>);
   embeddedMapBytes?: Uint8Array | null;
   gameStateMapTrailingBytes?: Uint8Array | null;
+  sourceMetadata?: Partial<Pick<
+    ParsedSaveGameInfo,
+    'saveFileType' | 'missionMapName' | 'mapLabel' | 'campaignSide' | 'missionNumber'
+  >> | null;
   sourceGameMode?: number;
   campaign?: RuntimeSaveCampaignBootstrap | null;
   passthroughBlocks?: readonly RuntimeSavePassthroughBlock[];
@@ -26516,6 +26547,7 @@ export function buildRuntimeSaveFile(params: {
     challengeGameInfoState: resolvedChallengeGameInfoState,
   };
   applyCampaignMetadata(metadataState, params.campaign ?? null);
+  applySourceMetadataOverrides(metadataState, params.sourceMetadata);
   const mapState: RuntimeSaveMapState = {
     saveGameMapPath: params.mapPath ?? '',
     pristineMapPath: params.mapPath ?? '',
