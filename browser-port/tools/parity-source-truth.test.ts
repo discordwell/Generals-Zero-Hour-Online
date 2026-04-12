@@ -1217,6 +1217,10 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(objectIdListCategory).toBeDefined();
       expect(objectIdListCategory!.status).toBe('match');
 
+      const scienceVectorCategory = report.categories.find((c) => c.category === 'save-science-vector-fields');
+      expect(scienceVectorCategory).toBeDefined();
+      expect(scienceVectorCategory!.status).toBe('match');
+
       const upgradeCategory = report.categories.find((c) => c.category === 'save-upgrade-fields');
       expect(upgradeCategory).toBeDefined();
       expect(upgradeCategory!.status).toBe('match');
@@ -1297,6 +1301,16 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         c.category === 'save-script-engine-named-object-fields');
       expect(scriptEngineNamedObjectCategory).toBeDefined();
       expect(scriptEngineNamedObjectCategory!.status).toBe('match');
+
+      const scriptEngineScienceVectorCategory = report.categories.find((c) =>
+        c.category === 'save-script-engine-science-vector-fields');
+      expect(scriptEngineScienceVectorCategory).toBeDefined();
+      expect(scriptEngineScienceVectorCategory!.status).toBe('match');
+
+      const scriptEngineObjectTypeListCategory = report.categories.find((c) =>
+        c.category === 'save-script-engine-object-type-list-fields');
+      expect(scriptEngineObjectTypeListCategory).toBeDefined();
+      expect(scriptEngineObjectTypeListCategory!.status).toBe('match');
 
       const scriptEngineStringCoordListCategory = report.categories.find((c) =>
         c.category === 'save-script-engine-string-coord-list-fields');

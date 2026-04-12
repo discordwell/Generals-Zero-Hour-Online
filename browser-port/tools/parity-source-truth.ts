@@ -1338,6 +1338,53 @@ export function parseTsScriptEngineNamedObjectXferFields(source: string): string
   return fields;
 }
 
+export function parseCppScienceVectorXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Xfer::xferScienceVec');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex = /\b(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapCppScienceVectorField(match[1]!, normalizeCppXferArgument(match[2]!)));
+  }
+  return fields;
+}
+
+export function parseTsSourceScienceVectorXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceScienceNames');
+  if (!body) return [];
+  return parseTsScienceVectorFields(body);
+}
+
+export function parseTsScriptEngineScienceVectorXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferScriptEngineScienceNames');
+  if (!body) return [];
+  return parseTsScienceVectorFields(body);
+}
+
+export function parseCppObjectTypesXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void ObjectTypes::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppObjectTypesField);
+}
+
+export function parseTsScriptEngineObjectTypeListXferFields(source: string): string[] {
+  const start = source.indexOf('function xferScriptEngineObjectTypeList');
+  if (start < 0) return [];
+  const end = source.indexOf('\nfunction xferScriptEngineAttackPrioritySet', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*1\s*\)|const resolvedListName\s*=\s*xfer\.xferAsciiString\s*\(|xfer\.xferUnsignedShort\s*\(\s*objectTypes\.length\s*\)|xfer\.xferAsciiString\s*\(\s*(?:''|objectType)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsObjectTypesField(match[0]!));
+  }
+  return fields;
+}
+
 export function parseCppScriptEngineStringCoordListXferFields(source: string): string[] {
   const body = extractFunctionBody(source, 'static void xferListAsciiStringCoord3D');
   if (!body) return [];
@@ -1499,6 +1546,18 @@ function parseCppXferFields(
     const method = match[1]!;
     const argument = normalizeCppXferArgument(match[2]!);
     pushUniqueField(fields, seen, mapper(method, argument));
+  }
+  return fields;
+}
+
+function parseTsScienceVectorFields(body: string): string[] {
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*1\s*\)|xfer\.xferUnsignedShort\s*\(|xfer\.xferAsciiString\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsScienceVectorField(match[0]!));
   }
   return fields;
 }
@@ -2752,6 +2811,37 @@ function mapTsScriptEngineNamedObjectField(token: string): string | null {
   return null;
 }
 
+function mapCppScienceVectorField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'count') return 'count';
+  if (method === 'xferScienceType' && argument === 'science') return 'entry.scienceName';
+  return null;
+}
+
+function mapTsScienceVectorField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('xferUnsignedShort')) return 'count';
+  if (token.includes('xferAsciiString')) return 'entry.scienceName';
+  return null;
+}
+
+function mapCppObjectTypesField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferAsciiString' && argument === 'm_listName') return 'listName';
+  if (method === 'xferUnsignedShort' && argument === 'objectTypesCount') return 'objectTypesCount';
+  if (method === 'xferAsciiString' && argument === '*it') return 'entry.objectTypeName';
+  if (method === 'xferAsciiString' && argument === 'typeName') return 'entry.objectTypeName';
+  return null;
+}
+
+function mapTsObjectTypesField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('resolvedListName')) return 'listName';
+  if (token.includes('objectTypes.length')) return 'objectTypesCount';
+  if (token.includes('xferAsciiString')) return 'entry.objectTypeName';
+  return null;
+}
+
 function mapCppScriptEngineStringCoordListField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferUnsignedShort' && argument === 'count') return 'count';
@@ -3189,6 +3279,18 @@ export function compareScriptEngineNamedObjectFields(cppFields: string[], tsFiel
   return compareOrderedStrings('save-script-engine-named-object-fields', cppFields, tsFields);
 }
 
+export function compareScienceVectorFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-science-vector-fields', cppFields, tsFields);
+}
+
+export function compareScriptEngineScienceVectorFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-script-engine-science-vector-fields', cppFields, tsFields);
+}
+
+export function compareScriptEngineObjectTypeListFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-script-engine-object-type-list-fields', cppFields, tsFields);
+}
+
 export function compareScriptEngineStringCoordListFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-script-engine-string-coord-list-fields', cppFields, tsFields);
 }
@@ -3422,6 +3524,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genXferCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/System/Xfer.cpp'),
   );
+  const zhObjectTypesCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/ObjectTypes.cpp'),
+  );
+  const genObjectTypesCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/ObjectTypes.cpp'),
+  );
   const zhUpgradeCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/System/Upgrade.cpp'),
   );
@@ -3625,6 +3733,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     categories.push(compareObjectIdListFields(cppObjectIdListFields, tsObjectIdListFields));
   }
 
+  const cppScienceVectorFields = parseCppScienceVectorXferFields(xferSource);
+  const tsSourceScienceVectorFields = parseTsSourceScienceVectorXferFields(tsRuntimeSave);
+  if (cppScienceVectorFields.length > 0 && tsSourceScienceVectorFields.length > 0) {
+    categories.push(compareScienceVectorFields(cppScienceVectorFields, tsSourceScienceVectorFields));
+  }
+
   const upgradeSource = zhUpgradeCpp || genUpgradeCpp;
   const cppUpgradeFields = parseCppUpgradeXferFields(upgradeSource);
   const tsUpgradeFields = parseTsUpgradeXferFields(tsRuntimeSave);
@@ -3754,6 +3868,24 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     categories.push(compareScriptEngineNamedObjectFields(
       cppScriptEngineNamedObjectFields,
       tsScriptEngineNamedObjectFields,
+    ));
+  }
+
+  const tsScriptEngineScienceVectorFields = parseTsScriptEngineScienceVectorXferFields(tsRuntimeSave);
+  if (cppScienceVectorFields.length > 0 && tsScriptEngineScienceVectorFields.length > 0) {
+    categories.push(compareScriptEngineScienceVectorFields(
+      cppScienceVectorFields,
+      tsScriptEngineScienceVectorFields,
+    ));
+  }
+
+  const objectTypesSource = zhObjectTypesCpp || genObjectTypesCpp;
+  const cppObjectTypesFields = parseCppObjectTypesXferFields(objectTypesSource);
+  const tsScriptEngineObjectTypeListFields = parseTsScriptEngineObjectTypeListXferFields(tsRuntimeSave);
+  if (cppObjectTypesFields.length > 0 && tsScriptEngineObjectTypeListFields.length > 0) {
+    categories.push(compareScriptEngineObjectTypeListFields(
+      cppObjectTypesFields,
+      tsScriptEngineObjectTypeListFields,
     ));
   }
 
