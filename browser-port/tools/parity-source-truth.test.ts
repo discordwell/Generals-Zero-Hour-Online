@@ -1283,6 +1283,7 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-special-power-module-fields',
         'save-behavior-module-fields',
         'save-update-module-fields',
+        'save-firing-tracker-fields',
         'save-object-helper-fields',
         'save-object-smc-helper-fields',
         'save-object-repulsor-helper-fields',

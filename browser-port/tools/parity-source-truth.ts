@@ -3049,6 +3049,16 @@ function sourceUpdateModuleDirectFields(): string[] {
   return ['version', ...sourceBehaviorModuleBaseFields(), 'nextCallFrameAndPhase'];
 }
 
+function sourceFiringTrackerFields(): string[] {
+  return [
+    'version',
+    ...sourceUpdateModuleBaseFields(),
+    'consecutiveShots',
+    'victimId',
+    'frameToStartCooldown',
+  ];
+}
+
 function sourceObjectHelperBaseFields(): string[] {
   return ['objectHelper.version', ...sourceUpdateModuleBaseFields()];
 }
@@ -3921,6 +3931,9 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
   if (className === 'UpdateModule') {
     return sourceUpdateModuleDirectFields();
   }
+  if (className === 'FiringTracker') {
+    return sourceFiringTrackerFields();
+  }
   if (className === 'ObjectHelper') {
     return sourceObjectHelperDirectFields();
   }
@@ -4203,6 +4216,9 @@ export function parseTsSourceObjectUpdateFields(
   }
   if (helperName === 'xferSourceUpdateModuleBase') {
     return sourceUpdateModuleDirectFields();
+  }
+  if (helperName === 'buildSourceFiringTrackerBlockData') {
+    return sourceFiringTrackerFields();
   }
   if (helperName === 'buildSourceObjectHelperBaseBlockData') {
     return sourceObjectHelperDirectFields();
@@ -9452,6 +9468,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AutoFindHealingUpdate.cpp',
     'AutoDepositUpdate.cpp',
     'AIUpdate/AssaultTransportAIUpdate.cpp',
+    '../FiringTracker.cpp',
     'AIUpdate/ChinookAIUpdate.cpp',
     'AIUpdate/DeployStyleAIUpdate.cpp',
     'AIUpdate/DeliverPayloadAIUpdate.cpp',
@@ -10361,6 +10378,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-update-module-fields',
       cppClass: 'UpdateModule',
       tsHelper: 'xferSourceUpdateModuleBase',
+    },
+    {
+      category: 'save-firing-tracker-fields',
+      cppClass: 'FiringTracker',
+      tsHelper: 'buildSourceFiringTrackerBlockData',
     },
     {
       category: 'save-object-helper-fields',
