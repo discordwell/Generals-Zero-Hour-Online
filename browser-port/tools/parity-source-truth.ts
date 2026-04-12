@@ -5037,6 +5037,18 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferReal' && argument === 'm_squirrellinessRatio') return 'squirrellinessRatio';
   if (method === 'xferBool' && argument === 'm_isSelfTasking') return 'isSelfTasking';
   if (method === 'xferUnsignedInt' && argument === 'm_catchUpCrisisTimer') return 'catchUpCrisisTimer';
+  if (method === 'xferCoord3D' && argument === 'm_initialTargetPosition') return 'initialTargetPosition';
+  if (method === 'xferCoord3D' && argument === 'm_overrideTargetDestination') {
+    return 'overrideTargetDestination';
+  }
+  if (method === 'xferCoord3D' && argument === 'm_satellitePosition') return 'satellitePosition';
+  if (method === 'xferUnsignedInt' && argument === 'm_orbitEscapeFrame') return 'orbitEscapeFrame';
+  if (method === 'xferCoord3D' && argument === 'm_gattlingTargetPosition') return 'gattlingTargetPosition';
+  if (method === 'xferCoord3D' && argument === 'm_positionToShootAt') return 'positionToShootAt';
+  if (method === 'xferUnsignedInt' && argument === 'm_okToFireHowitzerCounter') {
+    return 'okToFireHowitzerCounter';
+  }
+  if (method === 'xferObjectID' && argument === 'm_gattlingID') return 'gattlingId';
   if (method === 'xferReal' && argument === 'm_angularVelocity') return 'angularVelocity';
   if (method === 'xferReal' && argument === 'm_angularAcceleration') return 'angularAcceleration';
   if (method === 'xferCoord3D' && argument === 'm_toppleDirection') return 'toppleDirection';
@@ -5115,6 +5127,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('visionObjectId')) return 'visionObjectId';
     if (window.includes('primaryVictimId')) return 'primaryVictimId';
     if (window.includes('slaverEntityId') || window.includes('preservedState.slaver')) return 'slaver';
+    if (window.includes('gattlingEntityId') || window.includes('gattlingId')) return 'gattlingId';
     if (window.includes('ownerEntityId') || window.includes('owningObject')) return 'owningObject';
     if (window.includes('targetObjectId') || window.includes('targetObject')) return 'targetObject';
   }
@@ -5215,6 +5228,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('liveNextFireFrame')) return 'initialDelayFrame';
     if (window.includes('queue.length')) return 'productionCount';
     if (window.includes('constructionCompleteFrame')) return 'constructionCompleteFrame';
+    if (window.includes('orbitEscapeFrame')) return 'orbitEscapeFrame';
+    if (window.includes('okToFireHowitzerCounter')) return 'okToFireHowitzerCounter';
     if (window.includes('nextReadyFrame') || window.includes('sourceBattlePlanNextReadyFrame')) {
       return 'nextReadyFrame';
     }
@@ -5294,6 +5309,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('buildSourceRawInt32Bytes(entry.productionId)')) return 'queue.entry.productionId';
     if (window.includes('buildSourceRawInt32Bytes(uniqueId)')) return 'uniqueId';
     if (window.includes('doorInfoBytes')) return 'doorInfo';
+    if (window.includes('buildSourceSpectreGunshipStatusBytes')) return 'status';
     if (window.includes('buildSourceRawInt32Bytes(currentPlan)')) return 'currentPlan';
     if (window.includes('buildSourceRawInt32Bytes(desiredPlan)')) return 'desiredPlan';
     if (window.includes('buildSourceRawInt32Bytes(planAffectingArmy)')) return 'planAffectingArmy';
@@ -5333,6 +5349,11 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('delayBurstLocation')) return 'delayBurstLocation';
     if (window.includes('targetX')) return 'targetPosition';
     if (window.includes('intermedX')) return 'intermediatePosition';
+    if (window.includes('initialTarget')) return 'initialTargetPosition';
+    if (window.includes('overrideTarget')) return 'overrideTargetDestination';
+    if (window.includes('satellite')) return 'satellitePosition';
+    if (window.includes('gattlingTarget')) return 'gattlingTargetPosition';
+    if (window.includes('positionToShootAt')) return 'positionToShootAt';
     if (window.includes('accelX')) return 'acceleration';
     if (window.includes('velX')) return 'velocity';
     if (window.includes('finalDestination')) return 'finalDestination';
@@ -7325,6 +7346,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'RadarUpdate.cpp',
     'SmartBombTargetHomingUpdate.cpp',
     'SlavedUpdate.cpp',
+    'SpectreGunshipUpdate.cpp',
     'SpectreGunshipDeploymentUpdate.cpp',
     'SpyVisionUpdate.cpp',
     'StealthDetectorUpdate.cpp',
@@ -8311,6 +8333,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-spectre-gunship-deployment-update-fields',
       cppClass: 'SpectreGunshipDeploymentUpdate',
       tsHelper: 'buildSourceSpectreGunshipDeploymentUpdateBlockData',
+    },
+    {
+      category: 'save-spectre-gunship-update-fields',
+      cppClass: 'SpectreGunshipUpdate',
+      tsHelper: 'buildSourceSpectreGunshipUpdateBlockData',
     },
     {
       category: 'save-spy-vision-update-fields',
