@@ -1241,6 +1241,88 @@ export function parseTsScriptEngineBreezeXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppScriptEngineStringListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'static void xferListAsciiString( Xfer *xfer, ListAsciiString *list )');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppScriptEngineStringListField);
+}
+
+export function parseTsScriptEngineStringListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferScriptEngineAsciiStringEntries');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*1\s*\)|xfer\.xferUnsignedShort\s*\(\s*entries\.length\s*\)|xfer\.xferAsciiString\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsScriptEngineStringListField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppScriptEngineStringUIntListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'static void xferListAsciiStringUINT');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppScriptEngineStringUIntListField);
+}
+
+export function parseTsScriptEngineStringUIntListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferScriptEngineAsciiStringUIntEntries');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*1\s*\)|xfer\.xferUnsignedShort\s*\(\s*entries\.length\s*\)|xfer\.xferAsciiString\s*\(|xfer\.xferUnsignedInt\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsScriptEngineStringUIntListField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppScriptEngineStringObjectIdListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'static void xferListAsciiStringObjectID');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppScriptEngineStringObjectIdListField);
+}
+
+export function parseTsScriptEngineStringObjectIdListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferScriptEngineAsciiStringObjectIdEntries');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*1\s*\)|xfer\.xferUnsignedShort\s*\(\s*entries\.length\s*\)|xfer\.xferAsciiString\s*\(|xfer\.xferObjectID\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsScriptEngineStringObjectIdListField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppScriptEngineStringCoordListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'static void xferListAsciiStringCoord3D');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppScriptEngineStringCoordListField);
+}
+
+export function parseTsScriptEngineStringCoordListXferFields(source: string): string[] {
+  const start = source.indexOf('function xferScriptEngineAsciiStringCoord3DEntries');
+  if (start < 0) return [];
+  const end = source.indexOf('\nfunction xferScriptEngineScienceNames', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*1\s*\)|xfer\.xferUnsignedShort\s*\(\s*entries\.length\s*\)|xfer\.xferAsciiString\s*\(|xfer\.xferCoord3D\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsScriptEngineStringCoordListField(match[0]!));
+  }
+  return fields;
+}
+
 export function parseCppTeamTemplateInfoXferFields(source: string): string[] {
   const body = extractFunctionBody(source, 'void TeamTemplateInfo::xfer');
   if (!body) return [];
@@ -2574,6 +2656,68 @@ function mapTsScriptEngineBreezeField(token: string): string | null {
   return null;
 }
 
+function mapCppScriptEngineStringListField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'count') return 'count';
+  if (method === 'xferAsciiString' && argument === 'string') return 'entry.string';
+  return null;
+}
+
+function mapTsScriptEngineStringListField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('xferUnsignedShort')) return 'count';
+  if (token.includes('xferAsciiString')) return 'entry.string';
+  return null;
+}
+
+function mapCppScriptEngineStringUIntListField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'count') return 'count';
+  if (method === 'xferAsciiString' && argument === 'string') return 'entry.string';
+  if (method === 'xferUnsignedInt' && argument === 'unsignedIntData') return 'entry.unsignedInt';
+  return null;
+}
+
+function mapTsScriptEngineStringUIntListField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('xferUnsignedShort')) return 'count';
+  if (token.includes('xferAsciiString')) return 'entry.string';
+  if (token.includes('xferUnsignedInt')) return 'entry.unsignedInt';
+  return null;
+}
+
+function mapCppScriptEngineStringObjectIdListField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'count') return 'count';
+  if (method === 'xferAsciiString' && argument === 'string') return 'entry.string';
+  if (method === 'xferObjectID' && argument === 'objectID') return 'entry.objectId';
+  return null;
+}
+
+function mapTsScriptEngineStringObjectIdListField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('xferUnsignedShort')) return 'count';
+  if (token.includes('xferAsciiString')) return 'entry.string';
+  if (token.includes('xferObjectID')) return 'entry.objectId';
+  return null;
+}
+
+function mapCppScriptEngineStringCoordListField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'count') return 'count';
+  if (method === 'xferAsciiString' && argument === 'string') return 'entry.string';
+  if (method === 'xferCoord3D' && argument === 'coord') return 'entry.coord';
+  return null;
+}
+
+function mapTsScriptEngineStringCoordListField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('xferUnsignedShort')) return 'count';
+  if (token.includes('xferAsciiString')) return 'entry.string';
+  if (token.includes('xferCoord3D')) return 'entry.coord';
+  return null;
+}
+
 function mapCppTeamTemplateInfoField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferInt' && argument === 'm_productionPriority') return 'productionPriority';
@@ -2974,6 +3118,25 @@ export function compareAttackPriorityInfoFields(cppFields: string[], tsFields: s
 
 export function compareScriptEngineBreezeFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-script-engine-breeze-fields', cppFields, tsFields);
+}
+
+export function compareScriptEngineStringListFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-script-engine-string-list-fields', cppFields, tsFields);
+}
+
+export function compareScriptEngineStringUIntListFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-script-engine-string-uint-list-fields', cppFields, tsFields);
+}
+
+export function compareScriptEngineStringObjectIdListFields(
+  cppFields: string[],
+  tsFields: string[],
+): ParityCategoryResult {
+  return compareOrderedStrings('save-script-engine-string-object-id-list-fields', cppFields, tsFields);
+}
+
+export function compareScriptEngineStringCoordListFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-script-engine-string-coord-list-fields', cppFields, tsFields);
 }
 
 export function compareTeamTemplateInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
@@ -3501,6 +3664,43 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsScriptEngineBreezeFields = parseTsScriptEngineBreezeXferFields(tsRuntimeSave);
   if (cppScriptEngineBreezeFields.length > 0 && tsScriptEngineBreezeFields.length > 0) {
     categories.push(compareScriptEngineBreezeFields(cppScriptEngineBreezeFields, tsScriptEngineBreezeFields));
+  }
+
+  const cppScriptEngineStringListFields = parseCppScriptEngineStringListXferFields(scriptEngineSource);
+  const tsScriptEngineStringListFields = parseTsScriptEngineStringListXferFields(tsRuntimeSave);
+  if (cppScriptEngineStringListFields.length > 0 && tsScriptEngineStringListFields.length > 0) {
+    categories.push(compareScriptEngineStringListFields(
+      cppScriptEngineStringListFields,
+      tsScriptEngineStringListFields,
+    ));
+  }
+
+  const cppScriptEngineStringUIntListFields = parseCppScriptEngineStringUIntListXferFields(scriptEngineSource);
+  const tsScriptEngineStringUIntListFields = parseTsScriptEngineStringUIntListXferFields(tsRuntimeSave);
+  if (cppScriptEngineStringUIntListFields.length > 0 && tsScriptEngineStringUIntListFields.length > 0) {
+    categories.push(compareScriptEngineStringUIntListFields(
+      cppScriptEngineStringUIntListFields,
+      tsScriptEngineStringUIntListFields,
+    ));
+  }
+
+  const cppScriptEngineStringObjectIdListFields =
+    parseCppScriptEngineStringObjectIdListXferFields(scriptEngineSource);
+  const tsScriptEngineStringObjectIdListFields = parseTsScriptEngineStringObjectIdListXferFields(tsRuntimeSave);
+  if (cppScriptEngineStringObjectIdListFields.length > 0 && tsScriptEngineStringObjectIdListFields.length > 0) {
+    categories.push(compareScriptEngineStringObjectIdListFields(
+      cppScriptEngineStringObjectIdListFields,
+      tsScriptEngineStringObjectIdListFields,
+    ));
+  }
+
+  const cppScriptEngineStringCoordListFields = parseCppScriptEngineStringCoordListXferFields(scriptEngineSource);
+  const tsScriptEngineStringCoordListFields = parseTsScriptEngineStringCoordListXferFields(tsRuntimeSave);
+  if (cppScriptEngineStringCoordListFields.length > 0 && tsScriptEngineStringCoordListFields.length > 0) {
+    categories.push(compareScriptEngineStringCoordListFields(
+      cppScriptEngineStringCoordListFields,
+      tsScriptEngineStringCoordListFields,
+    ));
   }
 
   const cppTeamTemplateInfoFields = parseCppTeamTemplateInfoXferFields(teamSource);

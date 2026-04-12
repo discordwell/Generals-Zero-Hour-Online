@@ -1278,6 +1278,26 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(scriptEngineBreezeCategory).toBeDefined();
       expect(scriptEngineBreezeCategory!.status).toBe('match');
 
+      const scriptEngineStringListCategory = report.categories.find((c) =>
+        c.category === 'save-script-engine-string-list-fields');
+      expect(scriptEngineStringListCategory).toBeDefined();
+      expect(scriptEngineStringListCategory!.status).toBe('match');
+
+      const scriptEngineStringUIntListCategory = report.categories.find((c) =>
+        c.category === 'save-script-engine-string-uint-list-fields');
+      expect(scriptEngineStringUIntListCategory).toBeDefined();
+      expect(scriptEngineStringUIntListCategory!.status).toBe('match');
+
+      const scriptEngineStringObjectIdListCategory = report.categories.find((c) =>
+        c.category === 'save-script-engine-string-object-id-list-fields');
+      expect(scriptEngineStringObjectIdListCategory).toBeDefined();
+      expect(scriptEngineStringObjectIdListCategory!.status).toBe('match');
+
+      const scriptEngineStringCoordListCategory = report.categories.find((c) =>
+        c.category === 'save-script-engine-string-coord-list-fields');
+      expect(scriptEngineStringCoordListCategory).toBeDefined();
+      expect(scriptEngineStringCoordListCategory!.status).toBe('match');
+
       const teamTemplateInfoCategory = report.categories.find((c) => c.category === 'save-team-template-info-fields');
       expect(teamTemplateInfoCategory).toBeDefined();
       expect(teamTemplateInfoCategory!.status).toBe('match');
