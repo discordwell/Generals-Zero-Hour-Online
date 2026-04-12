@@ -6321,6 +6321,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('entity.enemyNearNextScanCountdown')) return 'enemyScanDelay';
     if (window.includes('state.consecutiveShots')) return 'consecutiveShots';
     if (window.includes('state.startFrame')) return 'startFrame';
+    if (window.includes('leafletDropState?.startFrame')) return 'startFrame';
     if (window.includes('nextPingFrame')) return 'nextPingFrame';
     if (window.includes('entity.autoDepositNextFrame')) return 'depositOnFrame';
     if (window.includes('entity.dynamicShroudGrowStartDeadline')) return 'growStartDeadline';
@@ -9525,6 +9526,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-spawn-behavior-fields',
       cppClass: 'SpawnBehavior',
       tsHelper: 'buildSourceSpawnBehaviorBlockData',
+    },
+    {
+      category: 'save-leaflet-drop-behavior-fields',
+      cppClass: 'LeafletDropBehavior',
+      tsHelper: 'buildSourceLeafletDropBehaviorBlockData',
     },
     {
       category: 'save-point-defense-laser-update-fields',
