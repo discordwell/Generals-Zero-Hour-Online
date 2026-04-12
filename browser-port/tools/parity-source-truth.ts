@@ -3065,6 +3065,10 @@ function sourceCreateModuleDirectFields(): string[] {
   return ['version', ...sourceBehaviorModuleBaseFields(), 'needToRunOnBuildComplete'];
 }
 
+function sourceDerivedCreateModuleFields(): string[] {
+  return ['version', ...prefixBaseVersion(sourceCreateModuleDirectFields(), 'createModule')];
+}
+
 function sourceSpecialPowerModuleDirectFields(): string[] {
   return [
     'version',
@@ -3685,6 +3689,17 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
   if (className === 'CreateModule') {
     return sourceCreateModuleDirectFields();
   }
+  if ([
+    'GrantUpgradeCreate',
+    'LockWeaponCreate',
+    'PreorderCreate',
+    'SpecialPowerCreate',
+    'SupplyCenterCreate',
+    'SupplyWarehouseCreate',
+    'VeterancyGainCreate',
+  ].includes(className)) {
+    return sourceDerivedCreateModuleFields();
+  }
   if (className === 'SpecialPowerModule') {
     return sourceSpecialPowerModuleDirectFields();
   }
@@ -3856,6 +3871,9 @@ export function parseTsSourceObjectUpdateFields(
   }
   if (helperName === 'xferSourceCreateModule') {
     return sourceCreateModuleDirectFields();
+  }
+  if (helperName === 'buildSourceCreateModuleBlockData') {
+    return sourceDerivedCreateModuleFields();
   }
   if (helperName === 'xferSourceSpecialPowerModule') {
     return sourceSpecialPowerModuleDirectFields();
@@ -9061,6 +9079,13 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     '../Contain/TunnelContain.cpp',
     '../Contain/TransportContain.cpp',
     '../Create/CreateModule.cpp',
+    '../Create/GrantUpgradeCreate.cpp',
+    '../Create/LockWeaponCreate.cpp',
+    '../Create/PreorderCreate.cpp',
+    '../Create/SpecialPowerCreate.cpp',
+    '../Create/SupplyCenterCreate.cpp',
+    '../Create/SupplyWarehouseCreate.cpp',
+    '../Create/VeterancyGainCreate.cpp',
     'CheckpointUpdate.cpp',
     'CleanupHazardUpdate.cpp',
     'CommandButtonHuntUpdate.cpp',
@@ -9835,6 +9860,41 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-create-module-object-fields',
       cppClass: 'CreateModule',
       tsHelper: 'xferSourceCreateModule',
+    },
+    {
+      category: 'save-grant-upgrade-create-fields',
+      cppClass: 'GrantUpgradeCreate',
+      tsHelper: 'buildSourceCreateModuleBlockData',
+    },
+    {
+      category: 'save-lock-weapon-create-fields',
+      cppClass: 'LockWeaponCreate',
+      tsHelper: 'buildSourceCreateModuleBlockData',
+    },
+    {
+      category: 'save-preorder-create-fields',
+      cppClass: 'PreorderCreate',
+      tsHelper: 'buildSourceCreateModuleBlockData',
+    },
+    {
+      category: 'save-special-power-create-fields',
+      cppClass: 'SpecialPowerCreate',
+      tsHelper: 'buildSourceCreateModuleBlockData',
+    },
+    {
+      category: 'save-supply-center-create-fields',
+      cppClass: 'SupplyCenterCreate',
+      tsHelper: 'buildSourceCreateModuleBlockData',
+    },
+    {
+      category: 'save-supply-warehouse-create-fields',
+      cppClass: 'SupplyWarehouseCreate',
+      tsHelper: 'buildSourceCreateModuleBlockData',
+    },
+    {
+      category: 'save-veterancy-gain-create-fields',
+      cppClass: 'VeterancyGainCreate',
+      tsHelper: 'buildSourceCreateModuleBlockData',
     },
     {
       category: 'save-special-power-module-object-fields',
