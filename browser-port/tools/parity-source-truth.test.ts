@@ -1263,6 +1263,16 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(aiSkirmishPlayerCategory).toBeDefined();
       expect(aiSkirmishPlayerCategory!.status).toBe('match');
 
+      const sequentialScriptCategory = report.categories.find((c) =>
+        c.category === 'save-script-engine-sequential-script-fields');
+      expect(sequentialScriptCategory).toBeDefined();
+      expect(sequentialScriptCategory!.status).toBe('match');
+
+      const attackPriorityCategory = report.categories.find((c) =>
+        c.category === 'save-script-engine-attack-priority-fields');
+      expect(attackPriorityCategory).toBeDefined();
+      expect(attackPriorityCategory!.status).toBe('match');
+
       const teamTemplateInfoCategory = report.categories.find((c) => c.category === 'save-team-template-info-fields');
       expect(teamTemplateInfoCategory).toBeDefined();
       expect(teamTemplateInfoCategory!.status).toBe('match');

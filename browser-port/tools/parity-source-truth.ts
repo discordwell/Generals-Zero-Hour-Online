@@ -1146,6 +1146,50 @@ export function parseTsAiSkirmishPlayerXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppSequentialScriptXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void SequentialScript::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppSequentialScriptField);
+}
+
+export function parseTsSequentialScriptXferFields(source: string): string[] {
+  const start = source.indexOf('function xferScriptEngineSequentialScript');
+  if (start < 0) return [];
+  const end = source.indexOf('\nexport function createRuntimeSaveInGameUiSuperweaponKey', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*1\s*\)|const (\w+)\s*=\s*xfer\.xfer\w+\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsSequentialScriptField(match[0]!, match[1]));
+  }
+  return fields;
+}
+
+export function parseCppAttackPriorityInfoXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void AttackPriorityInfo::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppAttackPriorityInfoField);
+}
+
+export function parseTsAttackPriorityInfoXferFields(source: string): string[] {
+  const start = source.indexOf('function xferScriptEngineAttackPrioritySet');
+  if (start < 0) return [];
+  const end = source.indexOf('\nfunction xferScriptEngineSequentialScript', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*1\s*\)|const resolvedName\s*=\s*xfer\.xferAsciiString\s*\(|const resolvedDefaultPriority\s*=\s*xfer\.xferInt\s*\(|const count\s*=\s*xfer\.xferUnsignedShort\s*\(|xfer\.xferAsciiString\s*\(\s*(?:''|templateName)\s*\)|xfer\.xferInt\s*\(\s*(?:0|Math\.trunc\(priority\))\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsAttackPriorityInfoField(match[0]!));
+  }
+  return fields;
+}
+
 export function parseCppTeamTemplateInfoXferFields(source: string): string[] {
   const body = extractFunctionBody(source, 'void TeamTemplateInfo::xfer');
   if (!body) return [];
@@ -2409,6 +2453,52 @@ function mapTsAiSkirmishPlayerField(rawName: string): string | null {
   return mappings.get(rawName) ?? null;
 }
 
+function mapCppSequentialScriptField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUser' && argument.startsWith('teamID')) return 'teamId';
+  if (method === 'xferObjectID' && argument === 'm_objectID') return 'objectId';
+  if (method === 'xferAsciiString' && argument === 'scriptName') return 'scriptName';
+  if (method === 'xferInt' && argument === 'm_currentInstruction') return 'currentInstruction';
+  if (method === 'xferInt' && argument === 'm_timesToLoop') return 'timesToLoop';
+  if (method === 'xferInt' && argument === 'm_framesToWait') return 'framesToWait';
+  if (method === 'xferBool' && argument === 'm_dontAdvanceInstruction') return 'dontAdvanceInstruction';
+  return null;
+}
+
+function mapTsSequentialScriptField(token: string, directField: string | undefined): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  const mappings = new Map<string, string>([
+    ['teamId', 'teamId'],
+    ['objectId', 'objectId'],
+    ['scriptNameUpper', 'scriptName'],
+    ['currentInstruction', 'currentInstruction'],
+    ['timesToLoop', 'timesToLoop'],
+    ['framesToWait', 'framesToWait'],
+    ['dontAdvanceInstruction', 'dontAdvanceInstruction'],
+  ]);
+  return directField ? mappings.get(directField) ?? null : null;
+}
+
+function mapCppAttackPriorityInfoField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferAsciiString' && argument === 'm_name') return 'name';
+  if (method === 'xferInt' && argument === 'm_defaultPriority') return 'defaultPriority';
+  if (method === 'xferUnsignedShort' && argument === 'priorityMapCount') return 'priorityMapCount';
+  if (method === 'xferAsciiString' && argument === 'thingTemplateName') return 'priority.templateName';
+  if (method === 'xferInt' && argument === 'priority') return 'priority.value';
+  return null;
+}
+
+function mapTsAttackPriorityInfoField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('resolvedName')) return 'name';
+  if (token.includes('resolvedDefaultPriority')) return 'defaultPriority';
+  if (token.includes('const count')) return 'priorityMapCount';
+  if (token.includes('xferAsciiString')) return 'priority.templateName';
+  if (token.includes('xferInt')) return 'priority.value';
+  return null;
+}
+
 function mapCppTeamTemplateInfoField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferInt' && argument === 'm_productionPriority') return 'productionPriority';
@@ -2799,6 +2889,14 @@ export function compareAiSkirmishPlayerFields(cppFields: string[], tsFields: str
   return compareOrderedStrings('save-ai-skirmish-player-fields', cppFields, tsFields);
 }
 
+export function compareSequentialScriptFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-script-engine-sequential-script-fields', cppFields, tsFields);
+}
+
+export function compareAttackPriorityInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-script-engine-attack-priority-fields', cppFields, tsFields);
+}
+
 export function compareTeamTemplateInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-team-template-info-fields', cppFields, tsFields);
 }
@@ -3070,6 +3168,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genAiSkirmishPlayerCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/AI/AISkirmishPlayer.cpp'),
   );
+  const zhScriptEngineCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/ScriptEngine/ScriptEngine.cpp'),
+  );
+  const genScriptEngineCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/ScriptEngine/ScriptEngine.cpp'),
+  );
 
   // Read TS port source
   const tsIndexPath = path.join(rootDir, 'packages/game-logic/src/index.ts');
@@ -3299,6 +3403,19 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsAiSkirmishPlayerFields = parseTsAiSkirmishPlayerXferFields(tsRuntimeSave);
   if (cppAiSkirmishPlayerFields.length > 0 && tsAiSkirmishPlayerFields.length > 0) {
     categories.push(compareAiSkirmishPlayerFields(cppAiSkirmishPlayerFields, tsAiSkirmishPlayerFields));
+  }
+
+  const scriptEngineSource = zhScriptEngineCpp || genScriptEngineCpp;
+  const cppSequentialScriptFields = parseCppSequentialScriptXferFields(scriptEngineSource);
+  const tsSequentialScriptFields = parseTsSequentialScriptXferFields(tsRuntimeSave);
+  if (cppSequentialScriptFields.length > 0 && tsSequentialScriptFields.length > 0) {
+    categories.push(compareSequentialScriptFields(cppSequentialScriptFields, tsSequentialScriptFields));
+  }
+
+  const cppAttackPriorityInfoFields = parseCppAttackPriorityInfoXferFields(scriptEngineSource);
+  const tsAttackPriorityInfoFields = parseTsAttackPriorityInfoXferFields(tsRuntimeSave);
+  if (cppAttackPriorityInfoFields.length > 0 && tsAttackPriorityInfoFields.length > 0) {
+    categories.push(compareAttackPriorityInfoFields(cppAttackPriorityInfoFields, tsAttackPriorityInfoFields));
   }
 
   const cppTeamTemplateInfoFields = parseCppTeamTemplateInfoXferFields(teamSource);
