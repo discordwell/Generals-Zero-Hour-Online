@@ -3246,6 +3246,41 @@ function sourceOpenContainFields(): string[] {
   ];
 }
 
+function sourceTransportContainFields(): string[] {
+  return [
+    'version',
+    ...sourceOpenContainFields(),
+    'payloadCreated',
+    'extraSlotsInUse',
+    'frameExitNotBusy',
+  ];
+}
+
+function sourceParachuteContainFields(): string[] {
+  return [
+    'version',
+    ...sourceOpenContainFields(),
+    'pitch',
+    'roll',
+    'pitchRate',
+    'rollRate',
+    'startZ',
+    'isLandingOverrideSet',
+    'landingOverride',
+    'riderAttachBone',
+    'riderSwayBone',
+    'paraAttachBone',
+    'paraSwayBone',
+    'riderAttachOffset',
+    'riderSwayOffset',
+    'paraAttachOffset',
+    'paraSwayOffset',
+    'needToUpdateRiderBones',
+    'needToUpdateParaBones',
+    'opened',
+  ];
+}
+
 function sourcePrisonVisualFields(): string[] {
   return ['visuals.count', 'visuals.objectId', 'visuals.drawableId'];
 }
@@ -3546,6 +3581,15 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
   if (className === 'AIUpdateInterface') {
     return sourceAIUpdateInterfaceFields();
   }
+  if (className === 'OpenContain') {
+    return sourceOpenContainFields();
+  }
+  if (className === 'TransportContain') {
+    return sourceTransportContainFields();
+  }
+  if (className === 'ParachuteContain') {
+    return sourceParachuteContainFields();
+  }
   const dynamicGeometryFields = parseCppSimpleModuleFields(
     source,
     'void DynamicGeometryInfoUpdate::xfer( Xfer *xfer )',
@@ -3660,6 +3704,15 @@ export function parseTsSourceObjectUpdateFields(
   }
   if (helperName === 'buildGeneratedSourceAIUpdateInterfaceBlockData') {
     return sourceAIUpdateInterfaceFields();
+  }
+  if (helperName === 'xferSourceOpenContain') {
+    return sourceOpenContainFields();
+  }
+  if (helperName === 'xferSourceTransportContain') {
+    return sourceTransportContainFields();
+  }
+  if (helperName === 'xferSourceParachuteContain') {
+    return sourceParachuteContainFields();
   }
   const body = extractFunctionBodyAfterParams(source, helperName);
   if (!body) return [];
@@ -8812,6 +8865,8 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     '../Behavior/SupplyWarehouseCripplingBehavior.cpp',
     '../Behavior/TechBuildingBehavior.cpp',
     '../Contain/OpenContain.cpp',
+    '../Contain/ParachuteContain.cpp',
+    '../Contain/TransportContain.cpp',
     'CheckpointUpdate.cpp',
     'CleanupHazardUpdate.cpp',
     'CommandButtonHuntUpdate.cpp',
@@ -9728,6 +9783,21 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-pilot-find-vehicle-update-fields',
       cppClass: 'PilotFindVehicleUpdate',
       tsHelper: 'buildSourcePilotFindVehicleUpdateBlockData',
+    },
+    {
+      category: 'save-open-contain-fields',
+      cppClass: 'OpenContain',
+      tsHelper: 'xferSourceOpenContain',
+    },
+    {
+      category: 'save-transport-contain-fields',
+      cppClass: 'TransportContain',
+      tsHelper: 'xferSourceTransportContain',
+    },
+    {
+      category: 'save-parachute-contain-fields',
+      cppClass: 'ParachuteContain',
+      tsHelper: 'xferSourceParachuteContain',
     },
     {
       category: 'save-physics-behavior-fields',
