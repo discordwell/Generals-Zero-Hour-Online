@@ -51,6 +51,11 @@ describe('LoadGameScreen', () => {
     expect((root.querySelector('[data-action="load"]') as HTMLButtonElement).disabled).toBe(false);
     expect((root.querySelector('[data-action="delete"]') as HTMLButtonElement).disabled).toBe(false);
 
+    const listboxText = root.querySelector('[data-ref="load-game-listbox"]')?.textContent ?? '';
+    expect(listboxText).toContain('USA Mission 1');
+    expect(listboxText).not.toContain('usa01-slot');
+    expect(listboxText).not.toContain('MD_USA01.map');
+
     (root.querySelector('[data-action="export"]') as HTMLButtonElement).click();
     await flushPromises();
     expect(onExportSave).toHaveBeenCalledWith('usa01-slot');
@@ -147,6 +152,6 @@ describe('LoadGameScreen', () => {
     await flushPromises();
 
     expect(root.querySelector('[data-ref="load-game-listbox"]')?.textContent).toContain('Downtown Assault');
-    expect(root.querySelector('[data-ref="load-game-listbox"]')?.textContent).not.toContain('00000046 |');
+    expect(root.querySelector('[data-ref="load-game-listbox"]')?.textContent).not.toContain('00000046');
   });
 });

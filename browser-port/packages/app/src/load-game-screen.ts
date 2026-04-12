@@ -208,15 +208,15 @@ function formatSourceRectData(rect: SourceRect): string {
   return `${rect.x},${rect.y},${rect.width},${rect.height}`;
 }
 
-function formatSaveTimestamp(timestamp: number): string {
-  return new Date(timestamp).toLocaleString();
+function formatSaveDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString();
 }
 
-function formatSaveMapName(mapName: string): string {
-  if (!mapName) {
-    return 'Unknown Map';
-  }
-  return mapName.replace(/\\/g, '/').split('/').pop() ?? mapName;
+function formatSaveTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 export class LoadGameScreen {
@@ -538,16 +538,14 @@ export class LoadGameScreen {
     }
 
     listbox.innerHTML = this.saves.map((save) => {
-      const meta = [
-        this.escapeHtml(this.formatSaveDisplayLabel(save)),
-        this.escapeHtml(formatSaveTimestamp(save.timestamp)),
-        this.escapeHtml(formatSaveMapName(save.mapName)),
-      ].join(' | ');
+      const label = this.formatSaveDisplayLabel(save);
+      const time = formatSaveTime(save.timestamp);
+      const date = formatSaveDate(save.timestamp);
 
       return `
         <div class="load-game-row${save.slotId === this.selectedSlotId ? ' selected' : ''}" data-slot-id="${this.escapeHtml(save.slotId)}">
-          <div class="load-game-row-title">${this.escapeHtml(save.slotId)}</div>
-          <div class="load-game-row-meta">${meta}</div>
+          <div class="load-game-row-title">${this.escapeHtml(label)}</div>
+          <div class="load-game-row-meta">${this.escapeHtml(time)} | ${this.escapeHtml(date)}</div>
         </div>
       `;
     }).join('');
