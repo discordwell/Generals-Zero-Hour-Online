@@ -3327,6 +3327,8 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppPhysicsBehaviorField;
   } else if (className === 'RailroadBehavior') {
     mapper = mapCppRailroadBehaviorField;
+  } else if (className === 'DumbProjectileBehavior') {
+    mapper = mapCppDumbProjectileBehaviorField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -5500,6 +5502,16 @@ function mapCppRailroadBehaviorField(method: string, argument: string): string |
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppDumbProjectileBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferInt' && argument === 'm_flightPathSegments') return 'flightPathSegments';
+  if (method === 'xferReal' && argument === 'm_flightPathSpeed') return 'flightPathSpeed';
+  if (method === 'xferCoord3D' && argument === 'm_flightPathStart') return 'flightPathStart';
+  if (method === 'xferCoord3D' && argument === 'm_flightPathEnd') return 'flightPathEnd';
+  if (method === 'xferAsciiString' && argument === 'weaponTemplateName') return 'detonationWeaponTemplateName';
+  if (method === 'xferUnsignedInt' && argument === 'm_lifespanFrame') return 'lifespanFrame';
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -5654,6 +5666,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('currentBoxes')) return 'numberBoxes';
     if (window.includes('sourceChinookFlightStatusToInt')) return 'flightStatus';
     if (window.includes('state?.currentPath')) return 'currentPath';
+    if (window.includes('flightPathSegments')) return 'flightPathSegments';
     if (window.includes('visibleItemsDelivered')) return 'visibleItemsDelivered';
     if (window.includes('maxAttempts')) return 'maxAttempts';
     if (window.includes('visibleNumBones')) return 'visibleNumBones';
@@ -5769,6 +5782,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('disabledUntilFrame')) return 'disabledUntilFrame';
     if (window.includes('dieFrame')) return 'dieFrame';
     if (window.includes('earliestDeathFrame')) return 'earliestDeathFrame';
+    if (window.includes('lifespanFrame')) return 'lifespanFrame';
   }
   if (token.includes('xferReal')) {
     if (window.includes('cleanupAreaMoveRange')) return 'moveRange';
@@ -5798,6 +5812,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('maxAccel')) return 'maxAccel';
     if (window.includes('distToTarget')) return 'distToTarget';
     if (window.includes('preOpenDistance')) return 'preOpenDistance';
+    if (window.includes('flightPathSpeed')) return 'flightPathSpeed';
     if (window.includes('diveStartDistance')) return 'diveStartDistance';
     if (window.includes('diveEndDistance')) return 'diveEndDistance';
     if (window.includes('exitPitchRate')) return 'exitPitchRate';
@@ -5902,6 +5917,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('originalTargetX')) return 'originalTargetPos';
     if (window.includes('prevX')) return 'prevPos';
     if (window.includes('moveToX')) return 'moveToPos';
+    if (window.includes('flightPathStartX')) return 'flightPathStart';
+    if (window.includes('flightPathEndX')) return 'flightPathEnd';
     if (window.includes('dropOffsetX')) return 'dropOffset';
     if (window.includes('dropVarianceX')) return 'dropVariance';
     if (window === 'saver.xferCoord3D(accel);') return 'accel';
@@ -7865,6 +7882,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'BaseRenerateUpdate.cpp',
     'BattlePlanUpdate.cpp',
     'BoneFXUpdate.cpp',
+    '../Behavior/DumbProjectileBehavior.cpp',
     'CheckpointUpdate.cpp',
     'CleanupHazardUpdate.cpp',
     'CommandButtonHuntUpdate.cpp',
@@ -8783,6 +8801,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-railroad-behavior-fields',
       cppClass: 'RailroadBehavior',
       tsHelper: 'buildSourceRailroadBehaviorBlockData',
+    },
+    {
+      category: 'save-dumb-projectile-behavior-fields',
+      cppClass: 'DumbProjectileBehavior',
+      tsHelper: 'buildSourceDumbProjectileBehaviorBlockData',
     },
     {
       category: 'save-point-defense-laser-update-fields',
