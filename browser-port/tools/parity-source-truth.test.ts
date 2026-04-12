@@ -1299,6 +1299,19 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-sway-client-update-fields',
         'save-laser-update-fields',
         'save-beacon-client-update-fields',
+        'save-weapon-bonus-update-fields',
+        'save-power-plant-update-fields',
+        'save-ocl-update-fields',
+        'save-enemy-near-update-fields',
+        'save-horde-update-fields',
+        'save-prone-update-fields',
+        'save-fire-ocl-after-weapon-cooldown-update-fields',
+        'save-auto-find-healing-update-fields',
+        'save-radius-decal-update-fields',
+        'save-base-regenerate-update-fields',
+        'save-lifetime-update-fields',
+        'save-deletion-update-fields',
+        'save-height-die-update-fields',
       ]) {
         const moduleCategory = report.categories.find((c) => c.category === category);
         expect(moduleCategory).toBeDefined();

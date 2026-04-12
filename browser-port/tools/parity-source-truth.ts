@@ -2955,6 +2955,14 @@ function sourceDrawableModuleBaseFields(): string[] {
   return ['drawableModule.version', 'module.version'];
 }
 
+function sourceUpdateModuleBaseFields(): string[] {
+  return ['update.version', 'behavior.version', 'objectModule.version', 'module.version', 'nextCallFrameAndPhase'];
+}
+
+function sourceUpgradeMuxFields(): string[] {
+  return ['upgradeMux.version', 'upgradeExecuted'];
+}
+
 export function parseCppSourceW3DModelDrawFields(source: string): string[] {
   return parseCppSimpleModuleFields(source, 'void W3DModelDraw::xfer( Xfer *xfer )', {
     'DrawModule::xfer': sourceDrawModuleBaseFields(),
@@ -3112,6 +3120,51 @@ export function parseTsSourceDrawableClientUpdateFields(source: string, helperNa
   });
 }
 
+export function parseCppSourceObjectUpdateFields(source: string, className: string): string[] {
+  return parseCppSimpleModuleFields(source, `void ${className}::xfer( Xfer *xfer )`, {
+    'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
+    'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
+  });
+}
+
+export function parseTsSourceObjectUpdateFields(
+  source: string,
+  helperName: string,
+  options: { hasUpgradeMux?: boolean } = {},
+): string[] {
+  const body = extractFunctionBodyAfterParams(source, helperName);
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /(?:saver|xfer)\.xfer(?:Version|UnsignedInt|Int|Bool|Coord3D)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+  let versionIndex = 0;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.includes('xferVersion')) {
+      if (versionIndex === 0) {
+        pushUniqueField(fields, seen, 'version');
+      } else if (options.hasUpgradeMux && versionIndex === 1) {
+        pushUniqueField(fields, seen, 'upgradeMux.version');
+      }
+      versionIndex += 1;
+      continue;
+    }
+    if (token.includes('xferUser')) {
+      const window = tsTokenStatement(body, match.index);
+      if (window.includes('buildSourceUpdateModuleBaseBlockData')) {
+        for (const field of sourceUpdateModuleBaseFields()) {
+          pushUniqueField(fields, seen, field);
+        }
+      }
+      continue;
+    }
+    pushUniqueField(fields, seen, mapTsSourceObjectUpdateField(token, body, match.index));
+  }
+  return fields;
+}
+
 function extractFunctionRegion(source: string, signature: string): string | null {
   const start = source.indexOf(signature);
   if (start < 0) {
@@ -3149,6 +3202,54 @@ function extractFunctionBody(source: string, signature: string): string | null {
     return null;
   }
   const openBrace = source.indexOf('{', start);
+  if (openBrace < 0) {
+    return null;
+  }
+  let depth = 0;
+  for (let index = openBrace; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === '{') {
+      depth += 1;
+    } else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(openBrace, index + 1);
+      }
+    }
+  }
+  return null;
+}
+
+function extractFunctionBodyAfterParams(source: string, functionName: string): string | null {
+  const signature = `function ${functionName}`;
+  const start = source.indexOf(signature);
+  if (start < 0) {
+    return null;
+  }
+  const openParen = source.indexOf('(', start + signature.length);
+  if (openParen < 0) {
+    return null;
+  }
+
+  let parenDepth = 0;
+  let closeParen = -1;
+  for (let index = openParen; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === '(') {
+      parenDepth += 1;
+    } else if (char === ')') {
+      parenDepth -= 1;
+      if (parenDepth === 0) {
+        closeParen = index;
+        break;
+      }
+    }
+  }
+  if (closeParen < 0) {
+    return null;
+  }
+
+  const openBrace = source.indexOf('{', closeParen);
   if (openBrace < 0) {
     return null;
   }
@@ -4635,6 +4736,60 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferDrawableID' && argument === 'm_targetID') return 'targetDrawableId';
   if (method === 'xferAsciiString' && argument === 'm_parentBoneName') return 'parentBoneName';
   if (method === 'xferUnsignedInt' && argument === 'm_lastRadarPulse') return 'lastRadarPulse';
+  if (method === 'xferBool' && argument === 'm_extended') return 'extended';
+  if (method === 'xferUnsignedInt' && argument === 'm_nextCreationFrame') return 'nextCreationFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_timerStartedFrame') return 'timerStartedFrame';
+  if (method === 'xferBool' && argument === 'm_isFactionNeutral') return 'factionNeutral';
+  if (method === 'xferInt' && argument === 'm_currentPlayerColor') return 'currentPlayerColor';
+  if (method === 'xferUnsignedInt' && argument === 'm_enemyScanDelay') return 'enemyScanDelay';
+  if (method === 'xferBool' && argument === 'm_enemyNear') return 'enemyNear';
+  if (method === 'xferBool' && argument === 'm_inHorde') return 'inHorde';
+  if (method === 'xferBool' && argument === 'm_hasFlag') return 'hasFlag';
+  if (method === 'xferInt' && argument === 'm_proneFrames') return 'proneFrames';
+  if (method === 'xferBool' && argument === 'm_valid') return 'valid';
+  if (method === 'xferUnsignedInt' && argument === 'm_consecutiveShots') return 'consecutiveShots';
+  if (method === 'xferUnsignedInt' && argument === 'm_startFrame') return 'startFrame';
+  if (method === 'xferInt' && argument === 'm_nextScanFrames') return 'nextScanFrames';
+  if (method === 'xferBool' && argument === 'm_killWhenNoLongerAttacking') return 'killWhenNoLongerAttacking';
+  if (method === 'xferUnsignedInt' && argument === 'm_dieFrame') return 'dieFrame';
+  if (method === 'xferBool' && argument === 'm_hasDied') return 'hasDied';
+  if (method === 'xferBool' && argument === 'm_particlesDestroyed') return 'particlesDestroyed';
+  if (method === 'xferCoord3D' && argument === 'm_lastPosition') return 'lastPosition';
+  if (method === 'xferUnsignedInt' && argument === 'm_earliestDeathFrame') return 'earliestDeathFrame';
+  return null;
+}
+
+function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
+  const window = tsTokenStatement(body, tokenIndex);
+  if (token.includes('xferBool')) {
+    if (window.includes('state?.extended')) return 'extended';
+    if (window.includes('entity.oclUpdateFactionNeutral')) return 'factionNeutral';
+    if (window.includes('entity.enemyNearDetected')) return 'enemyNear';
+    if (window.includes('entity.isInHorde')) return 'inHorde';
+    if (window.includes('hasFlag')) return 'hasFlag';
+    if (window.includes('state.upgradeExecuted') || window.includes('upgradeExecuted')) return 'upgradeExecuted';
+    if (window.includes('state.valid')) return 'valid';
+    if (window.includes('killWhenNoLongerAttacking')) return 'killWhenNoLongerAttacking';
+    if (window.includes('entity.heightDieHasDied')) return 'hasDied';
+    if (window.includes('entity.heightDieParticlesDestroyed')) return 'particlesDestroyed';
+  }
+  if (token.includes('xferInt')) {
+    if (window.includes('entity.oclUpdateCurrentPlayerColors')) return 'currentPlayerColor';
+    if (window.includes('entity.proneFramesRemaining')) return 'proneFrames';
+    if (window.includes('nextScanFrames')) return 'nextScanFrames';
+  }
+  if (token.includes('xferUnsignedInt')) {
+    if (window.includes('entity.oclUpdateNextCreationFrames')) return 'nextCreationFrame';
+    if (window.includes('entity.oclUpdateTimerStartedFrames')) return 'timerStartedFrame';
+    if (window.includes('entity.enemyNearNextScanCountdown')) return 'enemyScanDelay';
+    if (window.includes('state.consecutiveShots')) return 'consecutiveShots';
+    if (window.includes('state.startFrame')) return 'startFrame';
+    if (window.includes('dieFrame')) return 'dieFrame';
+    if (window.includes('earliestDeathFrame')) return 'earliestDeathFrame';
+  }
+  if (token.includes('xferCoord3D') && window.includes('heightDieLastPosition')) {
+    return 'lastPosition';
+  }
   return null;
 }
 
@@ -6112,6 +6267,14 @@ export function compareSourceW3DDrawModuleFields(
   return compareOrderedStrings(category, cppFields, tsFields);
 }
 
+export function compareSourceObjectUpdateFields(
+  category: string,
+  cppFields: string[],
+  tsFields: string[],
+): ParityCategoryResult {
+  return compareOrderedStrings(category, cppFields, tsFields);
+}
+
 export function compareRadarFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-radar-fields', cppFields, tsFields);
 }
@@ -6562,6 +6725,36 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genLaserUpdateCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/Update/LaserUpdate.cpp'),
   );
+  const objectUpdateFiles = [
+    'AutoFindHealingUpdate.cpp',
+    'BaseRenerateUpdate.cpp',
+    'DeletionUpdate.cpp',
+    'EnemyNearUpdate.cpp',
+    'FireOCLAfterWeaponCooldownUpdate.cpp',
+    'HeightDieUpdate.cpp',
+    'HordeUpdate.cpp',
+    'LifetimeUpdate.cpp',
+    'OCLUpdate.cpp',
+    'PowerPlantUpdate.cpp',
+    'ProneUpdate.cpp',
+    'RadiusDecalUpdate.cpp',
+    'WeaponBonusUpdate.cpp',
+    '../Upgrade/UpgradeModule.cpp',
+  ];
+  const zhObjectUpdateCpp = (await Promise.all(objectUpdateFiles.map((fileName) =>
+    readFileOrEmpty(path.join(
+      repoRoot,
+      'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update',
+      fileName,
+    )),
+  ))).join('\n');
+  const genObjectUpdateCpp = (await Promise.all(objectUpdateFiles.map((fileName) =>
+    readFileOrEmpty(path.join(
+      repoRoot,
+      'Generals/Code/GameEngine/Source/GameLogic/Object/Update',
+      fileName,
+    )),
+  ))).join('\n');
   const zhTerrainVisualCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameClient/Terrain/TerrainVisual.cpp'),
   );
@@ -7221,6 +7414,90 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   for (const check of drawableClientUpdateChecks) {
     if (check.cpp.length > 0 && check.ts.length > 0) {
       categories.push(compareSourceW3DDrawModuleFields(check.category, check.cpp, check.ts));
+    }
+  }
+
+  const objectUpdateSource = zhObjectUpdateCpp || genObjectUpdateCpp;
+  const objectUpdateChecks: Array<{
+    category: string;
+    cppClass: string;
+    tsHelper: string;
+    hasUpgradeMux?: boolean;
+  }> = [
+    {
+      category: 'save-weapon-bonus-update-fields',
+      cppClass: 'WeaponBonusUpdate',
+      tsHelper: 'buildSourceWeaponBonusUpdateBlockData',
+    },
+    {
+      category: 'save-power-plant-update-fields',
+      cppClass: 'PowerPlantUpdate',
+      tsHelper: 'buildSourcePowerPlantUpdateBlockData',
+    },
+    {
+      category: 'save-ocl-update-fields',
+      cppClass: 'OCLUpdate',
+      tsHelper: 'buildSourceOclUpdateBlockData',
+    },
+    {
+      category: 'save-enemy-near-update-fields',
+      cppClass: 'EnemyNearUpdate',
+      tsHelper: 'buildSourceEnemyNearUpdateBlockData',
+    },
+    {
+      category: 'save-horde-update-fields',
+      cppClass: 'HordeUpdate',
+      tsHelper: 'buildSourceHordeUpdateBlockData',
+    },
+    {
+      category: 'save-prone-update-fields',
+      cppClass: 'ProneUpdate',
+      tsHelper: 'buildSourceProneUpdateBlockData',
+    },
+    {
+      category: 'save-fire-ocl-after-weapon-cooldown-update-fields',
+      cppClass: 'FireOCLAfterWeaponCooldownUpdate',
+      tsHelper: 'buildSourceFireOclAfterCooldownUpdateBlockData',
+      hasUpgradeMux: true,
+    },
+    {
+      category: 'save-auto-find-healing-update-fields',
+      cppClass: 'AutoFindHealingUpdate',
+      tsHelper: 'buildSourceAutoFindHealingUpdateBlockData',
+    },
+    {
+      category: 'save-radius-decal-update-fields',
+      cppClass: 'RadiusDecalUpdate',
+      tsHelper: 'buildSourceRadiusDecalUpdateBlockData',
+    },
+    {
+      category: 'save-base-regenerate-update-fields',
+      cppClass: 'BaseRegenerateUpdate',
+      tsHelper: 'buildSourceBaseRegenerateUpdateBlockData',
+    },
+    {
+      category: 'save-lifetime-update-fields',
+      cppClass: 'LifetimeUpdate',
+      tsHelper: 'buildSourceLifetimeUpdateBlockData',
+    },
+    {
+      category: 'save-deletion-update-fields',
+      cppClass: 'DeletionUpdate',
+      tsHelper: 'buildSourceDeletionUpdateBlockData',
+    },
+    {
+      category: 'save-height-die-update-fields',
+      cppClass: 'HeightDieUpdate',
+      tsHelper: 'buildSourceHeightDieUpdateBlockData',
+    },
+  ];
+  for (const check of objectUpdateChecks) {
+    const cpp = parseCppSourceObjectUpdateFields(objectUpdateSource, check.cppClass);
+    const ts = parseTsSourceObjectUpdateFields(tsRuntimeSave, check.tsHelper, {
+      hasUpgradeMux: check.hasUpgradeMux,
+    });
+    if (cpp.length > 0 && ts.length > 0) {
+      categories.push(compareSourceObjectUpdateFields(check.category, cpp, ts));
     }
   }
 
