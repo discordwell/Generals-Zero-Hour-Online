@@ -3005,6 +3005,15 @@ function sourceDockUpdateFields(): string[] {
   ];
 }
 
+function sourceProductionExitRallyFields(): string[] {
+  return [
+    'version',
+    ...sourceUpdateModuleBaseFields(),
+    'rallyPoint',
+    'rallyPointExists',
+  ];
+}
+
 export function parseCppSourceW3DModelDrawFields(source: string): string[] {
   return parseCppSimpleModuleFields(source, 'void W3DModelDraw::xfer( Xfer *xfer )', {
     'DrawModule::xfer': sourceDrawModuleBaseFields(),
@@ -3188,7 +3197,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xferSource(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|BoneFx(?:Int|Coord)Grid)\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /xferSource(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|BoneFx(?:Int|Coord)Grid)\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -3219,6 +3228,12 @@ export function parseTsSourceObjectUpdateFields(
     }
     if (token.includes('xferSourceDockUpdateBlockState')) {
       for (const field of prefixBaseVersion(sourceDockUpdateFields(), 'dock')) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSourceProductionExitRallyState')) {
+      for (const field of sourceProductionExitRallyFields()) {
         pushUniqueField(fields, seen, field);
       }
       continue;
@@ -4937,6 +4952,12 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferObjectID' && argument === 'm_unloadingObjectID') return 'unloadingObjectId';
   if (method === 'xferReal' && argument === 'm_pushOutsideDistancePerFrame') return 'pushOutsideDistancePerFrame';
   if (method === 'xferInt' && argument === 'm_unloadCount') return 'unloadCount';
+  if (method === 'xferCoord3D' && argument === 'm_rallyPoint') return 'rallyPoint';
+  if (method === 'xferBool' && argument === 'm_rallyPointExists') return 'rallyPointExists';
+  if (method === 'xferUnsignedInt' && argument === 'm_currentDelay') return 'currentDelay';
+  if (method === 'xferReal' && argument === 'm_creationClearDistance') return 'creationClearDistance';
+  if (method === 'xferUnsignedInt' && argument === 'm_currentBurstCount') return 'currentBurstCount';
+  if (method === 'xferUser' && argument.startsWith('m_spawnPointOccupier')) return 'occupierIds';
   if (method === 'xferReal' && argument === 'm_angularVelocity') return 'angularVelocity';
   if (method === 'xferReal' && argument === 'm_angularAcceleration') return 'angularAcceleration';
   if (method === 'xferCoord3D' && argument === 'm_toppleDirection') return 'toppleDirection';
@@ -4991,6 +5012,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('toppleStumpId')) return 'stumpId';
     if (window.includes('launcherId')) return 'launcherId';
     if (window.includes('spectreGunshipDeploymentGunshipId')) return 'gunshipId';
+    if (window.includes('occupierIds')) return 'occupierIds';
     if (window.includes('ownerEntityId') || window.includes('owningObject')) return 'owningObject';
     if (window.includes('targetObjectId') || window.includes('targetObject')) return 'targetObject';
   }
@@ -5040,6 +5062,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('reachedIntermediatePos')) return 'reachedIntermediatePos';
     if (window.includes('currentlyActive')) return 'currentlyActive';
     if (window.includes('resetTimersNextUpdate')) return 'resetTimersNextUpdate';
+    if (window.includes('rallyPointExists')) return 'rallyPointExists';
     if (window.includes('detectorEnabled') || window.includes('enabled')) return 'enabled';
     if (window.includes('state.active')) return 'active';
   }
@@ -5065,6 +5088,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('nextBurstFrame')) return 'nextBurstFrame';
   }
   if (token.includes('xferUnsignedInt')) {
+    if (window.includes('currentDelay')) return 'currentDelay';
+    if (window.includes('currentBurstCount')) return 'currentBurstCount';
     if (window.includes('entity.oclUpdateNextCreationFrames')) return 'nextCreationFrame';
     if (window.includes('entity.oclUpdateTimerStartedFrames')) return 'timerStartedFrame';
     if (window.includes('entity.enemyNearNextScanCountdown')) return 'enemyScanDelay';
@@ -5129,6 +5154,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('lastCrushedLocation')) return 'lastCrushedLocation';
     if (window.includes('noTurnDistLeft')) return 'noTurnDistLeft';
     if (window.includes('heightAtLaunch')) return 'heightAtLaunch';
+    if (window.includes('creationClearDistance')) return 'creationClearDistance';
   }
   if (token.includes('xferUser')) {
     if (window.includes('shapePointsBytes')) return 'shapePoints';
@@ -5170,6 +5196,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('velX')) return 'velocity';
     if (window.includes('finalDestination')) return 'finalDestination';
     if (window.includes('targetPosition')) return 'targetPosition';
+    if (window.includes('rallyPoint')) return 'rallyPoint';
   }
   return null;
 }
@@ -7143,6 +7170,10 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'PowerPlantUpdate.cpp',
     'ProjectileStreamUpdate.cpp',
     'ProneUpdate.cpp',
+    'ProductionExitUpdate/DefaultProductionExitUpdate.cpp',
+    'ProductionExitUpdate/QueueProductionExitUpdate.cpp',
+    'ProductionExitUpdate/SpawnPointProductionExitUpdate.cpp',
+    'ProductionExitUpdate/SupplyCenterProductionExitUpdate.cpp',
     'RadiusDecalUpdate.cpp',
     'RadarUpdate.cpp',
     'SmartBombTargetHomingUpdate.cpp',
@@ -8067,6 +8098,26 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-railed-transport-dock-update-fields',
       cppClass: 'RailedTransportDockUpdate',
       tsHelper: 'buildSourceRailedTransportDockUpdateBlockData',
+    },
+    {
+      category: 'save-default-production-exit-update-fields',
+      cppClass: 'DefaultProductionExitUpdate',
+      tsHelper: 'buildSourceProductionExitRallyBlockData',
+    },
+    {
+      category: 'save-supply-center-production-exit-update-fields',
+      cppClass: 'SupplyCenterProductionExitUpdate',
+      tsHelper: 'buildSourceProductionExitRallyBlockData',
+    },
+    {
+      category: 'save-queue-production-exit-update-fields',
+      cppClass: 'QueueProductionExitUpdate',
+      tsHelper: 'buildSourceQueueProductionExitBlockData',
+    },
+    {
+      category: 'save-spawn-point-production-exit-update-fields',
+      cppClass: 'SpawnPointProductionExitUpdate',
+      tsHelper: 'buildSourceSpawnPointProductionExitBlockData',
     },
     {
       category: 'save-topple-update-fields',
