@@ -118,6 +118,120 @@ export function parseCppWeaponBonusEnumValues(source: string): string[] {
   return names;
 }
 
+/**
+ * Parse C++ GameState::init save/load snapshot block registration order.
+ * Source saves use this exact registration order for normal save files.
+ */
+export function parseCppSaveSnapshotBlockNames(source: string): string[] {
+  const defines = new Map<string, string>();
+  const defineRegex = /#define\s+(\w+)\s+"([^"]+)"/g;
+  let match;
+  while ((match = defineRegex.exec(source)) !== null) {
+    defines.set(match[1]!, match[2]!);
+  }
+
+  const names: string[] = [];
+  const blockRegex = /addSnapshotBlock\s*\(\s*([^,]+)\s*,[^;]+\);/g;
+  while ((match = blockRegex.exec(source)) !== null) {
+    if (!match[0].includes('SNAPSHOT_SAVELOAD')) {
+      continue;
+    }
+    const rawName = match[1]!.trim();
+    if (rawName.startsWith('"') && rawName.endsWith('"')) {
+      names.push(rawName.slice(1, -1));
+      continue;
+    }
+    const resolved = defines.get(rawName);
+    if (resolved) {
+      names.push(resolved);
+    }
+  }
+  return names;
+}
+
+/**
+ * Parse TS buildRuntimeSaveFile source-save block write order.
+ * Conditional alternatives can mention the same block more than once; first
+ * occurrence preserves the source stream position.
+ */
+export function parseTsSaveSnapshotBlockNames(source: string): string[] {
+  const constants = new Map<string, string>();
+  const constRegex = /(?:export\s+)?const\s+(\w+)\s*=\s*['"]([^'"]+)['"]/g;
+  let match;
+  while ((match = constRegex.exec(source)) !== null) {
+    constants.set(match[1]!, match[2]!);
+  }
+
+  const functionStart = source.indexOf('export function buildRuntimeSaveFile');
+  if (functionStart < 0) {
+    return [];
+  }
+  const functionEnd = source.indexOf('\nfunction parseRuntimeSaveGameMapInfoForMetadata', functionStart);
+  const functionBody = source.slice(functionStart, functionEnd < 0 ? undefined : functionEnd);
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const blockRegex = /state\.addSnapshotBlock\s*\(\s*([^,\s)]+)/g;
+  while ((match = blockRegex.exec(functionBody)) !== null) {
+    const rawName = match[1]!.trim();
+    let resolved: string | undefined;
+    if (rawName.startsWith("'") || rawName.startsWith('"')) {
+      resolved = rawName.slice(1, -1);
+    } else {
+      resolved = constants.get(rawName);
+    }
+    if (!resolved || resolved === 'CHUNK_TS_RuntimeState' || seen.has(resolved)) {
+      continue;
+    }
+    seen.add(resolved);
+    names.push(resolved);
+  }
+  return names;
+}
+
+/**
+ * Parse SaveGameInfo field xfer order from C++ GameState::xfer.
+ */
+export function parseCppSaveGameInfoXferFields(source: string): string[] {
+  const start = source.indexOf('void GameState::xfer( Xfer *xfer )');
+  if (start < 0) {
+    return [];
+  }
+  const end = source.indexOf('}  // end xfer', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const fieldRegex = /xfer->xfer\w+\s*\(\s*&saveGameInfo->(?:(date)\.)?(\w+)/g;
+  let match;
+  while ((match = fieldRegex.exec(body)) !== null) {
+    const fieldName = match[1] ? `date.${match[2]!}` : match[2]!;
+    if (seen.has(fieldName)) {
+      continue;
+    }
+    seen.add(fieldName);
+    fields.push(fieldName);
+  }
+  return fields;
+}
+
+/**
+ * Parse RuntimeSaveMetadataState field xfer order from TS MetadataSnapshot.
+ */
+export function parseTsSaveGameInfoXferFields(source: string): string[] {
+  const start = source.indexOf('class MetadataSnapshot');
+  if (start < 0) {
+    return [];
+  }
+  const end = source.indexOf('class MapSnapshot', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const fieldRegex = /this\.state\.(?:(date)\.)?(\w+)\s*=\s*xfer\.xfer\w+\(/g;
+  let match;
+  while ((match = fieldRegex.exec(body)) !== null) {
+    fields.push(match[1] ? `date.${match[2]!}` : match[2]!);
+  }
+  return fields;
+}
+
 function extractQuotedStrings(text: string): string[] {
   const names: string[] = [];
   const regex = /["']([^"']+)["']/g;
@@ -163,7 +277,7 @@ export function parseTsWeaponFieldNames(source: string): string[] {
 
   // Find the end of the method by looking for the next top-level method declaration
   const rest = source.slice(startIdx);
-  const nextMethodMatch = rest.match(/\n  (?:private|public|protected)\s+\w+\s*\(/);
+  const nextMethodMatch = rest.match(/\n {2}(?:private|public|protected)\s+\w+\s*\(/);
   const endOffset = nextMethodMatch?.index ?? 15000;
   const window = rest.slice(0, endOffset);
 
@@ -323,6 +437,39 @@ export function compareWeaponFields(cppFields: string[], tsFields: string[]): Pa
   };
 }
 
+export function compareSaveSnapshotBlockOrder(cppNames: string[], tsNames: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-snapshot-block-order', cppNames, tsNames);
+}
+
+export function compareSaveGameInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-game-info-fields', cppFields, tsFields);
+}
+
+function compareOrderedStrings(category: string, cppValues: string[], tsValues: string[]): ParityCategoryResult {
+  const mismatches: ParityMismatch[] = [];
+  const maxLength = Math.max(cppValues.length, tsValues.length);
+  for (let index = 0; index < maxLength; index += 1) {
+    const cppValue = cppValues[index];
+    const tsValue = tsValues[index];
+    if (cppValue === tsValue) {
+      continue;
+    }
+    mismatches.push({
+      category,
+      severity: 'error',
+      message: `Position ${index}: C++ has "${cppValue ?? '<missing>'}" but TS has "${tsValue ?? '<missing>'}"`,
+      cppValue,
+      tsValue,
+    });
+  }
+
+  return {
+    category,
+    status: mismatches.length === 0 ? 'match' : 'mismatch',
+    mismatches,
+  };
+}
+
 // ── Report Builder ──────────────────────────────────────────────────────────
 
 export function buildSourceParityReport(categories: ParityCategoryResult[]): SourceParityReport {
@@ -419,10 +566,18 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genWeaponCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/Weapon.cpp'),
   );
+  const zhGameStateCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/System/SaveGame/GameState.cpp'),
+  );
+  const genGameStateCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/System/SaveGame/GameState.cpp'),
+  );
 
   // Read TS port source
   const tsIndexPath = path.join(rootDir, 'packages/game-logic/src/index.ts');
   const tsIndex = await readFileOrEmpty(tsIndexPath);
+  const tsRuntimeSavePath = path.join(rootDir, 'packages/app/src/runtime-save-game.ts');
+  const tsRuntimeSave = await readFileOrEmpty(tsRuntimeSavePath);
 
   const categories: ParityCategoryResult[] = [];
 
@@ -449,6 +604,20 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsWeaponFields = parseTsWeaponFieldNames(tsIndex);
   if (cppWeaponFields.length > 0 && tsWeaponFields.length > 0) {
     categories.push(compareWeaponFields(cppWeaponFields, tsWeaponFields));
+  }
+
+  // D. Save GameState chunk order and SaveGameInfo field ABI
+  const gameStateSource = zhGameStateCpp || genGameStateCpp;
+  const cppSaveBlocks = parseCppSaveSnapshotBlockNames(gameStateSource);
+  const tsSaveBlocks = parseTsSaveSnapshotBlockNames(tsRuntimeSave);
+  if (cppSaveBlocks.length > 0 && tsSaveBlocks.length > 0) {
+    categories.push(compareSaveSnapshotBlockOrder(cppSaveBlocks, tsSaveBlocks));
+  }
+
+  const cppSaveGameInfoFields = parseCppSaveGameInfoXferFields(gameStateSource);
+  const tsSaveGameInfoFields = parseTsSaveGameInfoXferFields(tsRuntimeSave);
+  if (cppSaveGameInfoFields.length > 0 && tsSaveGameInfoFields.length > 0) {
+    categories.push(compareSaveGameInfoFields(cppSaveGameInfoFields, tsSaveGameInfoFields));
   }
 
   return buildSourceParityReport(categories);

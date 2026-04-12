@@ -5,15 +5,18 @@ import { describe, expect, it } from 'vitest';
 
 import {
   compareDamageTypes,
-  compareWeaponBonusConditions,
-  compareWeaponFields,
+  compareSaveGameInfoFields,
+  compareSaveSnapshotBlockOrder,
   parseCppDamageTypeNames,
+  parseCppSaveGameInfoXferFields,
+  parseCppSaveSnapshotBlockNames,
   parseCppWeaponBonusEnumValues,
   parseCppWeaponBonusNames,
   parseCppWeaponFieldNames,
   parseTsDamageTypeNames,
+  parseTsSaveGameInfoXferFields,
+  parseTsSaveSnapshotBlockNames,
   parseTsWeaponBonusConditionNames,
-  parseTsWeaponFieldNames,
   runSourceParityCheck,
 } from './parity-source-truth.js';
 
@@ -96,6 +99,81 @@ enum WeaponBonusConditionType
       expect(values).toEqual(['GARRISONED', 'HORDE', 'VETERAN']);
     });
 
+    it('parses C++ save snapshot block registration order', () => {
+      const source = `
+#define GAME_STATE_BLOCK_STRING "CHUNK_GameState"
+#define CAMPAIGN_BLOCK_STRING "CHUNK_Campaign"
+void GameState::init( void )
+{
+  addSnapshotBlock( GAME_STATE_BLOCK_STRING, TheGameState, SNAPSHOT_SAVELOAD );
+  addSnapshotBlock( CAMPAIGN_BLOCK_STRING, TheCampaignManager, SNAPSHOT_SAVELOAD );
+  addSnapshotBlock( "CHUNK_GameStateMap", TheGameStateMap, SNAPSHOT_SAVELOAD );
+  addSnapshotBlock( "CHUNK_TeamFactory", TheTeamFactory, SNAPSHOT_DEEPCRC_LOGICONLY );
+}`;
+      const names = parseCppSaveSnapshotBlockNames(source);
+      expect(names).toEqual(['CHUNK_GameState', 'CHUNK_Campaign', 'CHUNK_GameStateMap']);
+    });
+
+    it('parses TS source save snapshot block write order without runtime-only blocks', () => {
+      const source = `
+const SOURCE_CAMPAIGN_BLOCK = 'CHUNK_Campaign';
+const SOURCE_GAME_CLIENT_BLOCK = 'CHUNK_GameClient';
+export const BROWSER_RUNTIME_STATE_BLOCK = 'CHUNK_TS_RuntimeState';
+export function buildRuntimeSaveFile() {
+  const state = new GameState();
+  state.addSnapshotBlock('CHUNK_GameState', new MetadataSnapshot());
+  if (condition) {
+    state.addSnapshotBlock(SOURCE_GAME_CLIENT_BLOCK, new RawPassthroughSnapshot());
+  } else {
+    state.addSnapshotBlock(SOURCE_GAME_CLIENT_BLOCK, new GameClientSnapshot());
+  }
+  state.addSnapshotBlock(SOURCE_CAMPAIGN_BLOCK, new CampaignSnapshot());
+  state.addSnapshotBlock(BROWSER_RUNTIME_STATE_BLOCK, new BrowserRuntimeSnapshot());
+}
+function parseRuntimeSaveGameMapInfoForMetadata() {}
+function parseRuntimeSaveFile() {
+  state.addSnapshotBlock('CHUNK_NotWriteOrder', snapshot);
+}`;
+      const names = parseTsSaveSnapshotBlockNames(source);
+      expect(names).toEqual(['CHUNK_GameState', 'CHUNK_GameClient', 'CHUNK_Campaign']);
+    });
+
+    it('parses C++ SaveGameInfo xfer field order', () => {
+      const source = `
+void GameState::xfer( Xfer *xfer )
+{
+  SaveGameInfo *saveGameInfo = getSaveGameInfo();
+  xfer->xferUser( &saveGameInfo->saveFileType, sizeof( SaveFileType ) );
+  xfer->xferAsciiString( &saveGameInfo->missionMapName );
+  xfer->xferUnsignedShort( &saveGameInfo->date.year );
+  xfer->xferUnicodeString( &saveGameInfo->description );
+  xfer->xferAsciiString( &saveGameInfo->mapLabel );
+}  // end xfer`;
+      const fields = parseCppSaveGameInfoXferFields(source);
+      expect(fields).toEqual([
+        'saveFileType',
+        'missionMapName',
+        'date.year',
+        'description',
+        'mapLabel',
+      ]);
+    });
+
+    it('parses TS MetadataSnapshot xfer field order', () => {
+      const source = `
+class MetadataSnapshot implements Snapshot {
+  xfer(xfer: Xfer): void {
+    this.state.saveFileType = xfer.xferInt(this.state.saveFileType);
+    this.state.missionMapName = xfer.xferAsciiString(this.state.missionMapName);
+    this.state.date.year = xfer.xferUnsignedShort(this.state.date.year);
+    this.state.description = xfer.xferUnicodeString(this.state.description);
+  }
+}
+class MapSnapshot implements Snapshot {}`;
+      const fields = parseTsSaveGameInfoXferFields(source);
+      expect(fields).toEqual(['saveFileType', 'missionMapName', 'date.year', 'description']);
+    });
+
     it('parses TS damage type names', () => {
       const source = `
 const SOURCE_DAMAGE_TYPE_NAMES: readonly string[] = [
@@ -155,6 +233,24 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(result.status).toBe('mismatch');
       expect(result.mismatches.some((m) => m.message.includes('Extra in TS'))).toBe(true);
     });
+
+    it('detects matching save snapshot block order', () => {
+      const result = compareSaveSnapshotBlockOrder(
+        ['CHUNK_GameState', 'CHUNK_Campaign'],
+        ['CHUNK_GameState', 'CHUNK_Campaign'],
+      );
+      expect(result.status).toBe('match');
+      expect(result.mismatches).toEqual([]);
+    });
+
+    it('detects save metadata ABI reorderings', () => {
+      const result = compareSaveGameInfoFields(
+        ['saveFileType', 'missionMapName', 'date.year'],
+        ['missionMapName', 'saveFileType', 'date.year'],
+      );
+      expect(result.status).toBe('mismatch');
+      expect(result.mismatches).toHaveLength(2);
+    });
   });
 
   describe('live source comparison', () => {
@@ -209,6 +305,14 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(damageCategory).toBeDefined();
       expect(damageCategory!.status).toBe('match');
       expect(damageCategory!.mismatches).toEqual([]);
+
+      const saveBlockCategory = report.categories.find((c) => c.category === 'save-snapshot-block-order');
+      expect(saveBlockCategory).toBeDefined();
+      expect(saveBlockCategory!.status).toBe('match');
+
+      const saveMetadataCategory = report.categories.find((c) => c.category === 'save-game-info-fields');
+      expect(saveMetadataCategory).toBeDefined();
+      expect(saveMetadataCategory!.status).toBe('match');
     });
   });
 });
