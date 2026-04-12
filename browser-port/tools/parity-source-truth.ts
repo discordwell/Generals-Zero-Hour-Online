@@ -3057,8 +3057,20 @@ function sourceDieModuleDirectFields(): string[] {
   return ['version', ...sourceBehaviorModuleBaseFields()];
 }
 
+function sourceDamageModuleBaseFields(): string[] {
+  return ['damage.version', ...sourceBehaviorModuleBaseFields()];
+}
+
 function sourceDamageModuleDirectFields(): string[] {
   return ['version', ...sourceBehaviorModuleBaseFields()];
+}
+
+function sourceDerivedDamageModuleFields(): string[] {
+  return ['version', ...sourceDamageModuleBaseFields()];
+}
+
+function sourceTransitionDamageFXFields(): string[] {
+  return [...sourceDerivedDamageModuleFields(), 'particleSystemId'];
 }
 
 function sourceCreateModuleDirectFields(): string[] {
@@ -3686,6 +3698,12 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
   if (className === 'DamageModule') {
     return sourceDamageModuleDirectFields();
   }
+  if (className === 'BoneFXDamage') {
+    return sourceDerivedDamageModuleFields();
+  }
+  if (className === 'TransitionDamageFX') {
+    return sourceTransitionDamageFXFields();
+  }
   if (className === 'CreateModule') {
     return sourceCreateModuleDirectFields();
   }
@@ -3824,6 +3842,7 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
       'BehaviorModule::xfer': sourceBehaviorModuleBaseFields(),
       'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
       'DieModule::xfer': sourceDieModuleBaseFields(),
+      'DamageModule::xfer': sourceDamageModuleBaseFields(),
       'StateMachine::xfer': sourceStateMachineFields(),
       'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
       'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
@@ -3868,6 +3887,12 @@ export function parseTsSourceObjectUpdateFields(
   }
   if (helperName === 'xferSourceDamageModuleBase') {
     return sourceDamageModuleDirectFields();
+  }
+  if (helperName === 'buildSourceStatelessDamageModuleBlockData') {
+    return sourceDerivedDamageModuleFields();
+  }
+  if (helperName === 'buildSourceTransitionDamageFXBlockData') {
+    return sourceTransitionDamageFXFields();
   }
   if (helperName === 'xferSourceCreateModule') {
     return sourceCreateModuleDirectFields();
@@ -3919,7 +3944,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:BehaviorModuleBase|UpdateModuleBase|DieModuleBase|SlowDeathBehaviorBlockState|SpawnBehaviorBlockState|OpenContain|PrisonVisuals|PrisonBehavior|FireWhenDamagedWeapon|StlObjectIdList|ObjectIdListByUnsignedShortCount|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedByte|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:BehaviorModuleBase|UpdateModuleBase|DieModuleBase|DamageModuleBase|SlowDeathBehaviorBlockState|SpawnBehaviorBlockState|OpenContain|PrisonVisuals|PrisonBehavior|FireWhenDamagedWeapon|StlObjectIdList|ObjectIdListByUnsignedShortCount|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedByte|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let fireWhenDamagedWeaponLoopIndex = 0;
   let match;
@@ -3978,6 +4003,12 @@ export function parseTsSourceObjectUpdateFields(
     }
     if (token.includes('xferSourceDieModuleBase')) {
       for (const field of sourceDieModuleBaseFields()) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSourceDamageModuleBase')) {
+      for (const field of sourceDamageModuleBaseFields()) {
         pushUniqueField(fields, seen, field);
       }
       continue;
@@ -9091,7 +9122,9 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'CommandButtonHuntUpdate.cpp',
     'DeletionUpdate.cpp',
     'DemoTrapUpdate.cpp',
+    '../Damage/BoneFXDamage.cpp',
     '../Damage/DamageModule.cpp',
+    '../Damage/TransitionDamageFX.cpp',
     'DockUpdate/DockUpdate.cpp',
     'DockUpdate/PrisonDockUpdate.cpp',
     'DockUpdate/RailedTransportDockUpdate.cpp',
@@ -9855,6 +9888,16 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-damage-module-fields',
       cppClass: 'DamageModule',
       tsHelper: 'xferSourceDamageModuleBase',
+    },
+    {
+      category: 'save-bone-fx-damage-fields',
+      cppClass: 'BoneFXDamage',
+      tsHelper: 'buildSourceStatelessDamageModuleBlockData',
+    },
+    {
+      category: 'save-transition-damage-fx-fields',
+      cppClass: 'TransitionDamageFX',
+      tsHelper: 'buildSourceTransitionDamageFXBlockData',
     },
     {
       category: 'save-create-module-object-fields',

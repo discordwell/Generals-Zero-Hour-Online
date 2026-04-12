@@ -1285,6 +1285,8 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-update-module-fields',
         'save-die-module-fields',
         'save-damage-module-fields',
+        'save-bone-fx-damage-fields',
+        'save-transition-damage-fx-fields',
         'save-create-module-object-fields',
         'save-grant-upgrade-create-fields',
         'save-lock-weapon-create-fields',
