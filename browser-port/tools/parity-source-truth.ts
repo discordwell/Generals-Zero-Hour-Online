@@ -3200,6 +3200,10 @@ function sourceUpdateModuleDirectFields(): string[] {
   return ['version', ...sourceBehaviorModuleBaseFields(), 'nextCallFrameAndPhase'];
 }
 
+function sourceDerivedUpdateModuleFields(): string[] {
+  return ['version', ...sourceUpdateModuleBaseFields()];
+}
+
 function sourceFiringTrackerFields(): string[] {
   return [
     'version',
@@ -4120,6 +4124,9 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
   if (className === 'UpdateModule') {
     return sourceUpdateModuleDirectFields();
   }
+  if (className === 'DelayedWeaponSetUpgradeUpdate') {
+    return sourceDerivedUpdateModuleFields();
+  }
   if (className === 'FiringTracker') {
     return sourceFiringTrackerFields();
   }
@@ -4213,6 +4220,9 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
   }
   if (className === 'UpgradeModule') {
     return sourceUpgradeModuleDirectFields();
+  }
+  if (className === 'DelayedUpgrade') {
+    return sourceDerivedUpgradeModuleFields();
   }
   if ([
     'GrantUpgradeCreate',
@@ -9773,6 +9783,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'CheckpointUpdate.cpp',
     'CleanupHazardUpdate.cpp',
     'CommandButtonHuntUpdate.cpp',
+    'DelayedWeaponSetUpgradeUpdate.cpp',
     'DeletionUpdate.cpp',
     'DemoTrapUpdate.cpp',
     '../Damage/BoneFXDamage.cpp',
@@ -9858,6 +9869,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'UpdateModule.cpp',
     'WaveGuideUpdate.cpp',
     'WeaponBonusUpdate.cpp',
+    '../Upgrade/DelayedUpgrade.cpp',
     '../Upgrade/ActiveShroudUpgrade.cpp',
     '../Upgrade/ArmorUpgrade.cpp',
     '../Upgrade/CommandSetUpgrade.cpp',
@@ -10920,6 +10932,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       tsHelper: 'buildSourceUpgradeModuleBlockData',
     },
     {
+      category: 'save-delayed-upgrade-fields',
+      cppClass: 'DelayedUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
       category: 'save-armor-upgrade-fields',
       cppClass: 'ArmorUpgrade',
       tsHelper: 'buildSourceUpgradeModuleBlockData',
@@ -11223,6 +11240,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     {
       category: 'save-assisted-targeting-update-fields',
       cppClass: 'AssistedTargetingUpdate',
+      tsHelper: 'buildSourceStatelessUpdateModuleBlockData',
+    },
+    {
+      category: 'save-delayed-weapon-set-upgrade-update-fields',
+      cppClass: 'DelayedWeaponSetUpgradeUpdate',
       tsHelper: 'buildSourceStatelessUpdateModuleBlockData',
     },
     {
