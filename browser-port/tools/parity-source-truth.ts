@@ -3229,7 +3229,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xferSource(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /xferSource(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -5049,6 +5049,18 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
     return 'okToFireHowitzerCounter';
   }
   if (method === 'xferObjectID' && argument === 'm_gattlingID') return 'gattlingId';
+  if (method === 'xferUnsignedInt' && argument === 'm_prepFrames') return 'prepFrames';
+  if (method === 'xferUnsignedInt' && argument === 'm_animFrames') return 'animFrames';
+  if (method === 'xferInt' && argument === 'm_locationCount') return 'locationCount';
+  if (method === 'xferSTLObjectIDList' && argument === 'm_specialObjectIDList') return 'specialObjectIdList';
+  if (method === 'xferUnsignedInt' && argument === 'm_specialObjectEntries') return 'specialObjectEntries';
+  if (method === 'xferBool' && argument === 'm_noTargetCommand') return 'noTargetCommand';
+  if (method === 'xferUser' && argument.startsWith('m_packingState')) return 'packingState';
+  if (method === 'xferBool' && argument === 'm_facingInitiated') return 'facingInitiated';
+  if (method === 'xferBool' && argument === 'm_facingComplete') return 'facingComplete';
+  if (method === 'xferBool' && argument === 'm_withinStartAbilityRange') return 'withinStartAbilityRange';
+  if (method === 'xferBool' && argument === 'm_doDisableFXParticles') return 'doDisableFxParticles';
+  if (method === 'xferReal' && argument === 'm_captureFlashPhase') return 'captureFlashPhase';
   if (method === 'xferReal' && argument === 'm_angularVelocity') return 'angularVelocity';
   if (method === 'xferReal' && argument === 'm_angularAcceleration') return 'angularAcceleration';
   if (method === 'xferCoord3D' && argument === 'm_toppleDirection') return 'toppleDirection';
@@ -5115,8 +5127,10 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
   }
   if (token.includes('xferObjectID')) {
     if (window.includes('targetId')) return 'targetId';
+    if (window.includes('targetEntityId')) return 'targetId';
     if (window.includes('bestTargetId')) return 'bestTargetId';
     if (window.includes('projectileId')) return 'projectileIds';
+    if (window.includes('specialObjectIdList')) return 'specialObjectIdList';
     if (window.includes('lastRepair')) return 'lastRepair';
     if (window.includes('dockingObjectId')) return 'dockingObjectId';
     if (window.includes('unloadingObjectId')) return 'unloadingObjectId';
@@ -5180,6 +5194,12 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('currentlyActive')) return 'currentlyActive';
     if (window.includes('resetTimersNextUpdate')) return 'resetTimersNextUpdate';
     if (window.includes('rallyPointExists')) return 'rallyPointExists';
+    if (window.includes('state?.active')) return 'active';
+    if (window.includes('noTargetCommand')) return 'noTargetCommand';
+    if (window.includes('facingInitiated')) return 'facingInitiated';
+    if (window.includes('facingComplete')) return 'facingComplete';
+    if (window.includes('withinStartAbilityRange')) return 'withinStartAbilityRange';
+    if (window.includes('doDisableFxParticles')) return 'doDisableFxParticles';
     if (window.includes('invalidSettings')) return 'invalidSettings';
     if (window.includes('centeringTurret')) return 'centeringTurret';
     if (window.includes('repairing')) return 'repairing';
@@ -5202,6 +5222,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('framesToWait')) return 'framesToWait';
     if (window.includes('mobState')) return 'mobState';
     if (window.includes('repairState')) return 'repairState';
+    if (window.includes('locationCount')) return 'locationCount';
     if (window.includes('entity.oclUpdateCurrentPlayerColors')) return 'currentPlayerColor';
     if (window.includes('entity.proneFramesRemaining')) return 'proneFrames';
     if (window.includes('nextScanFrames')) return 'nextScanFrames';
@@ -5230,6 +5251,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('constructionCompleteFrame')) return 'constructionCompleteFrame';
     if (window.includes('orbitEscapeFrame')) return 'orbitEscapeFrame';
     if (window.includes('okToFireHowitzerCounter')) return 'okToFireHowitzerCounter';
+    if (window.includes('prepFrames')) return 'prepFrames';
+    if (window.includes('animFrames')) return 'animFrames';
+    if (window.includes('specialObjectEntries')) return 'specialObjectEntries';
     if (window.includes('nextReadyFrame') || window.includes('sourceBattlePlanNextReadyFrame')) {
       return 'nextReadyFrame';
     }
@@ -5303,6 +5327,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('armorScalar')) return 'armorScalar';
     if (window.includes('sightRangeScalar')) return 'sightRangeScalar';
     if (window.includes('squirrellinessRatio')) return 'squirrellinessRatio';
+    if (window.includes('captureFlashPhase')) return 'captureFlashPhase';
   }
   if (token.includes('xferUser')) {
     if (window.includes('buildSourceRawInt32Bytes(entry.type)')) return 'queue.entry.type';
@@ -5310,6 +5335,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('buildSourceRawInt32Bytes(uniqueId)')) return 'uniqueId';
     if (window.includes('doorInfoBytes')) return 'doorInfo';
     if (window.includes('buildSourceSpectreGunshipStatusBytes')) return 'status';
+    if (window.includes('sourceSpecialAbilityPackingStateToInt')) return 'packingState';
     if (window.includes('buildSourceRawInt32Bytes(currentPlan)')) return 'currentPlan';
     if (window.includes('buildSourceRawInt32Bytes(desiredPlan)')) return 'desiredPlan';
     if (window.includes('buildSourceRawInt32Bytes(planAffectingArmy)')) return 'planAffectingArmy';
@@ -5348,6 +5374,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('toppleDirX')) return 'toppleDirection';
     if (window.includes('delayBurstLocation')) return 'delayBurstLocation';
     if (window.includes('targetX')) return 'targetPosition';
+    if (window.includes('targetPos')) return 'targetPosition';
     if (window.includes('intermedX')) return 'intermediatePosition';
     if (window.includes('initialTarget')) return 'initialTargetPosition';
     if (window.includes('overrideTarget')) return 'overrideTargetDestination';
@@ -7348,6 +7375,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'SlavedUpdate.cpp',
     'SpectreGunshipUpdate.cpp',
     'SpectreGunshipDeploymentUpdate.cpp',
+    'SpecialAbilityUpdate.cpp',
     'SpyVisionUpdate.cpp',
     'StealthDetectorUpdate.cpp',
     'StealthUpdate.cpp',
@@ -8338,6 +8366,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-spectre-gunship-update-fields',
       cppClass: 'SpectreGunshipUpdate',
       tsHelper: 'buildSourceSpectreGunshipUpdateBlockData',
+    },
+    {
+      category: 'save-special-ability-update-fields',
+      cppClass: 'SpecialAbilityUpdate',
+      tsHelper: 'buildSourceSpecialAbilityUpdateBlockData',
     },
     {
       category: 'save-spy-vision-update-fields',
