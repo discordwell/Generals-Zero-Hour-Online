@@ -2197,6 +2197,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
     let moveState: Record<string, unknown> | undefined;
     let dockState: Record<string, unknown> | undefined;
     let enterState: Record<string, unknown> | undefined;
+    let exitState: Record<string, unknown> | undefined;
     let attackState: Record<string, unknown> | undefined;
     let guardState: Record<string, unknown> | undefined;
     if (currentStateId === 0) {
@@ -2293,6 +2294,12 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
         blockedRepathTimestamp,
         adjustDestinations,
         entryToClearId,
+      };
+    } else if (currentStateId === 37 || currentStateId === 42) {
+      exitState = {
+        kind: currentStateId === 42 ? 'EXIT_INSTANTLY' : 'EXIT',
+        version: xferLoad.xferVersion(1),
+        entryToClearId: xferLoad.xferObjectID(0),
       };
     } else if (currentStateId === 9 || currentStateId === 10 || currentStateId === 11) {
       const attackStateVersion = xferLoad.xferVersion(1);
@@ -2600,6 +2607,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
       moveState,
       dockState,
       enterState,
+      exitState,
       attackState,
       guardState,
       goalObjectId,
@@ -20761,6 +20769,40 @@ describe('runtime-save-game', () => {
               dockObjectId: 28,
               commandSource: 'PLAYER',
             },
+          } as unknown as import('@generals/game-logic').MapEntity, {
+            id: 30,
+            templateName: 'RuntimeGeneratedExitContainer',
+            x: 350,
+            y: 0,
+            z: 450,
+            rotationY: 0,
+          } as unknown as import('@generals/game-logic').MapEntity, {
+            id: 31,
+            templateName: 'RuntimeGeneratedExitAI',
+            x: 350,
+            y: 0,
+            z: 450,
+            rotationY: 0,
+            sourceAIIdleInitialSleepOffset: 9,
+            scriptAiRecruitable: true,
+            attackTargetEntityId: null,
+            attackTargetPosition: null,
+            attackSubState: 'IDLE',
+            lastCommandSource: 'SCRIPT',
+            autoTargetScanNextFrame: 87,
+            moving: false,
+            moveTarget: null,
+            locomotorUpgradeEnabled: false,
+            ignoredMovementObstacleId: null,
+            pathfindGoalCell: null,
+            pathfindPosCell: null,
+            activeLocomotorSet: 'SET_NORMAL',
+            guardState: 'NONE',
+            pendingExitState: {
+              containerObjectId: 30,
+              instantly: true,
+              commandSource: 'SCRIPT',
+            },
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
         listSourceObjectModuleDescriptors: (templateName) => {
@@ -20778,6 +20820,9 @@ describe('runtime-save-game', () => {
           }
           if (templateName === 'RuntimeGeneratedDockAI') {
             return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_DockAI' }];
+          }
+          if (templateName === 'RuntimeGeneratedExitAI') {
+            return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_ExitAI' }];
           }
           return templateName === 'RuntimeGeneratedAIUpdates'
             ? [
@@ -20990,6 +21035,27 @@ describe('runtime-save-game', () => {
       },
     });
     expect(dockAI.bytesRead).toBe(dockModule!.blockData.byteLength);
+
+    const generatedExit = readSourceGameLogicObjectStates(saveFile.data)
+      ?.find((object) => object.templateName === 'RuntimeGeneratedExitAI')?.state;
+    const exitModule = generatedExit?.modules.find((module) => module.identifier === 'ModuleTag_ExitAI');
+    expect(exitModule).toBeDefined();
+    const exitAI = parseGeneratedSourceAIUpdateInterfaceForTest(exitModule!.blockData, 0);
+    expect(exitAI).toMatchObject({
+      currentStateId: 42,
+      goalObjectId: 30,
+      goalPosition: { x: 350, y: 450, z: 0 },
+      nextEnemyScanTime: 87,
+      currentVictimId: 0,
+      nextMoodCheckTime: 87,
+      lastCommandSource: 1,
+      exitState: {
+        kind: 'EXIT_INSTANTLY',
+        version: 1,
+        entryToClearId: 30,
+      },
+    });
+    expect(exitAI.bytesRead).toBe(exitModule!.blockData.byteLength);
 
     expect(hackModule).toBeDefined();
     const hack = parseSourceHackInternetAIUpdateBlockData(hackModule!.blockData);

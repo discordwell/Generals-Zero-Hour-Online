@@ -16,7 +16,7 @@ import { XferLoad, XferMode, XferSave } from '@generals/engine';
 // Version for the entity serialization format.
 // Increment when adding new fields. Older saves with lower versions
 // will load the fields they have and use defaults for newer fields.
-const ENTITY_XFER_VERSION = 53;
+const ENTITY_XFER_VERSION = 54;
 const MAX_RAILED_TRANSPORT_PATHS = 32;
 const SOURCE_OBJECT_XFER_VERSION = 9;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
@@ -1943,6 +1943,14 @@ export function xferMapEntity(xfer: Xfer, e: Record<string, unknown>): void {
     e.pendingEnterState = xferNullableJsonObject(xfer, e.pendingEnterState as object | null);
   } else {
     e.pendingEnterState = null;
+  }
+  if (version >= 54) {
+    e.pendingExitState = xferNullableJsonObject(
+      xfer,
+      (e.pendingExitState as object | null | undefined) ?? null,
+    );
+  } else {
+    e.pendingExitState = null;
   }
   if (version >= 11) {
     e.chinookCombatDropState = xferNullableJsonObject(

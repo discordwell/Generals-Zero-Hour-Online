@@ -244,6 +244,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     chinookHealingAirfieldId: 0,
     chinookPendingCommand: null,
     pendingEnterState: null,
+    pendingExitState: null,
     chinookCombatDropState: null,
     chinookRappelState: null,
     repairDockState: null,
@@ -1241,6 +1242,33 @@ describe('entity-xfer', () => {
       targetObjectId: 33,
       action: 'enterTransport',
       commandSource: 'AI',
+    });
+  });
+
+  it('round-trips source-owned pending exit state', () => {
+    const original = createTestEntity({
+      pendingExitState: {
+        containerObjectId: 34,
+        instantly: true,
+        commandSource: 'SCRIPT',
+      },
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity();
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.pendingExitState).toEqual({
+      containerObjectId: 34,
+      instantly: true,
+      commandSource: 'SCRIPT',
     });
   });
 

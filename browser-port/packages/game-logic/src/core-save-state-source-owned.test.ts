@@ -2246,6 +2246,33 @@ function writeSourceEnterAIStateMachineForTest(
   saver.xferUnsignedInt(0);
 }
 
+function writeSourceExitAIStateMachineForTest(
+  saver: XferSave,
+  options: {
+    containerObjectId: number;
+    goalPosition: { x: number; y: number; z: number };
+    instantly: boolean;
+  },
+): void {
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(options.instantly ? 42 : 37);
+  saver.xferBool(false);
+  saver.xferVersion(1);
+  saver.xferObjectID(options.containerObjectId);
+  saver.xferObjectID(options.containerObjectId);
+  saver.xferCoord3D(options.goalPosition);
+  saver.xferBool(false);
+  saver.xferBool(true);
+  saver.xferInt(0);
+  saver.xferAsciiString('');
+  saver.xferBool(false);
+  saver.xferUnsignedInt(999999);
+  saver.xferUnsignedInt(0);
+}
+
 function writeSourceDockAIStateMachineForTest(
   saver: XferSave,
   options: {
@@ -2526,6 +2553,37 @@ function buildSourceAIUpdateInterfaceEnterModuleData(options: {
     writeSourceEnterAIStateMachineForTest(saver, {
       targetObjectId: options.targetObjectId,
       goalPosition: options.goalPosition,
+    });
+    saver.xferBool(false);
+    saver.xferBool(true);
+    saver.xferUnsignedInt(options.nextEnemyScanFrame);
+    saver.xferObjectID(0);
+    saver.xferReal(999999);
+    saver.xferUser(sourceRawInt32(options.lastCommandSource));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceAIUpdateInterfaceExitModuleData(options: {
+  containerObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+  nextEnemyScanFrame: number;
+  lastCommandSource: number;
+  instantly: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-ai-update-interface-exit');
+  try {
+    saver.xferVersion(4);
+    writeTestSourceUpdateModuleBase(saver, 84, 1);
+    saver.xferUnsignedInt(0xfacade);
+    saver.xferUnsignedInt(0xfacade);
+    writeSourceExitAIStateMachineForTest(saver, {
+      containerObjectId: options.containerObjectId,
+      goalPosition: options.goalPosition,
+      instantly: options.instantly,
     });
     saver.xferBool(false);
     saver.xferBool(true);
@@ -7173,6 +7231,88 @@ describe('source-owned game-logic core save-state', () => {
       lastRepairDockObjectId: 0,
       healthToAddPerFrame: 0,
     });
+  });
+
+  it('imports source AIUpdateInterface instant exit state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const transportState = createEmptySourceMapEntitySaveState();
+    transportState.objectId = 132;
+    transportState.position = { x: 300, y: 0, z: 80 };
+    transportState.modules = [{
+      identifier: 'ModuleTag_Contain',
+      blockData: buildSourceTransportContainModuleData({
+        passengerIds: [133],
+        payloadCreated: true,
+      }),
+    }];
+
+    const exitingState = createEmptySourceMapEntitySaveState();
+    exitingState.objectId = 133;
+    exitingState.position = { x: 300, y: 0, z: 80 };
+    exitingState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfaceExitModuleData({
+        containerObjectId: 132,
+        goalPosition: { x: 300, y: 80, z: 0 },
+        nextEnemyScanFrame: 789,
+        lastCommandSource: 1,
+        instantly: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'TransportBox', state: transportState },
+        { templateName: 'AttackImportUnit', state: exitingState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        moving: boolean;
+        moveTarget: { x: number; z: number } | null;
+        pendingExitState: unknown;
+        transportContainerId: number | null;
+        attackTargetEntityId: number | null;
+        attackTargetPosition: { x: number; z: number } | null;
+        attackSubState: string;
+        lastCommandSource: string;
+        autoTargetScanNextFrame: number;
+      }>;
+      pendingExitActions: Map<number, unknown>;
+    };
+
+    const importedPassenger = privateLogic.spawnedEntities.get(133)!;
+    expect(importedPassenger.transportContainerId).toBe(132);
+    expect(importedPassenger.pendingExitState).toEqual({
+      containerObjectId: 132,
+      instantly: true,
+      commandSource: 'SCRIPT',
+    });
+    expect(privateLogic.pendingExitActions.has(133)).toBe(true);
+    expect(importedPassenger.attackTargetEntityId).toBeNull();
+    expect(importedPassenger.attackTargetPosition).toBeNull();
+    expect(importedPassenger.attackSubState).toBe('IDLE');
+    expect(importedPassenger.lastCommandSource).toBe('SCRIPT');
+    expect(importedPassenger.autoTargetScanNextFrame).toBe(789);
+
+    logic.update(1 / 30);
+
+    expect(importedPassenger.transportContainerId).toBeNull();
+    expect(importedPassenger.pendingExitState).toBeNull();
+    expect(privateLogic.pendingExitActions.has(133)).toBe(false);
+    expect(importedPassenger.moving).toBe(true);
+    expect(importedPassenger.moveTarget).not.toBeNull();
   });
 
   it('imports source AIUpdateInterface full tail state', () => {

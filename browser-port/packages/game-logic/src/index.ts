@@ -3423,6 +3423,12 @@ interface EntityPendingEnterState {
   commandSource: 'PLAYER' | 'AI' | 'SCRIPT';
 }
 
+interface EntityPendingExitState {
+  containerObjectId: number;
+  instantly: boolean;
+  commandSource: 'PLAYER' | 'AI' | 'SCRIPT';
+}
+
 interface PendingRepairDockActionState {
   dockObjectId: number;
   /** Source parity: ActionManager::canGetRepairedAt command source for shroud legality. */
@@ -3909,6 +3915,8 @@ export interface MapEntity {
   chinookPendingCommand: GameLogicCommand | null;
   /** Source parity: AIEnterState::m_entryToClear / enter target owned by the unit AI state. */
   pendingEnterState: EntityPendingEnterState | null;
+  /** Source parity: AIExitState / AIExitInstantlyState target container owned by unit AI state. */
+  pendingExitState: EntityPendingExitState | null;
   /** Source parity: ChinookCombatDropState runtime owned by the Chinook AI update. */
   chinookCombatDropState: PendingCombatDropActionState | null;
   /** Source parity: active rappeller runtime owned by the passenger AI/state machine. */
@@ -8967,6 +8975,7 @@ const NON_SERIALIZED_BROWSER_RUNTIME_STATE_KEYS = new Set<string>([
   'assaultTransportStateByEntityId',
   'railedTransportStateByEntityId',
   'pendingEnterObjectActions',
+  'pendingExitActions',
   'pendingGarrisonActions',
   'pendingTransportActions',
   'pendingTunnelActions',
@@ -9486,6 +9495,10 @@ interface SourceAIEnterStateImportState {
   entryToClearId: number;
 }
 
+interface SourceAIExitStateImportState {
+  entryToClearId: number;
+}
+
 interface SourceAIDockMachineImportState {
   currentStateId: number;
   goalObjectId: number;
@@ -9526,6 +9539,7 @@ interface SourceAIStateMachineImportState {
   moveState: SourceAIInternalMoveToStateImportState | null;
   dockState: SourceAIDockStateImportState | null;
   enterState: SourceAIEnterStateImportState | null;
+  exitState: SourceAIExitStateImportState | null;
   attackState: SourceAIAttackStateImportState | null;
   guardState: SourceAIGuardStateImportState | null;
 }
@@ -10374,6 +10388,8 @@ const SOURCE_AI_STATE_FORCE_ATTACK_OBJECT = 11;
 const SOURCE_AI_STATE_DOCK = 14;
 const SOURCE_AI_STATE_ENTER = 15;
 const SOURCE_AI_STATE_GUARD = 16;
+const SOURCE_AI_STATE_EXIT = 37;
+const SOURCE_AI_STATE_EXIT_INSTANTLY = 42;
 const SOURCE_AI_INVALID_STATE_ID = 999999;
 const SOURCE_AI_MAX_WAYPOINTS = 16;
 const SOURCE_AI_MAX_TURRETS = 2;
@@ -11173,6 +11189,7 @@ export class GameLogicSubsystem implements Subsystem {
   private buildFacilityTemplateNamesCache: Set<string> | null = null;
   private buildFacilityTemplateNamesRegistry: IniDataRegistry | null = null;
   private readonly pendingEnterObjectActions = new Map<number, PendingEnterObjectActionState>();
+  private readonly pendingExitActions = new Map<number, EntityPendingExitState>();
   private readonly pendingRepairDockActions = new Map<number, PendingRepairDockActionState>();
   private readonly pendingGarrisonActions = new Map<number, number>();
   /** Source parity: TransportContain — passenger ID → transport ID for deferred enter. */
@@ -12719,6 +12736,28 @@ export class GameLogicSubsystem implements Subsystem {
         this.setEntityPendingEnterState(entityId, {
           targetObjectId: Math.trunc(record.targetObjectId as number),
           action: record.action as EnterObjectCommand['action'],
+          commandSource: record.commandSource,
+        });
+      }
+      return true;
+    }
+    if (key === 'pendingExitActions') {
+      if (this.pendingExitActions.size !== 0 || !(value instanceof Map)) {
+        return false;
+      }
+      for (const [entityId, pendingAction] of value.entries()) {
+        if (typeof entityId !== 'number' || !pendingAction || typeof pendingAction !== 'object') {
+          continue;
+        }
+        const record = pendingAction as Partial<EntityPendingExitState>;
+        if (!Number.isFinite(record.containerObjectId)
+          || typeof record.instantly !== 'boolean'
+          || (record.commandSource !== 'PLAYER' && record.commandSource !== 'AI' && record.commandSource !== 'SCRIPT')) {
+          continue;
+        }
+        this.setEntityPendingExitState(entityId, {
+          containerObjectId: Math.trunc(record.containerObjectId as number),
+          instantly: record.instantly,
           commandSource: record.commandSource,
         });
       }
@@ -15490,6 +15529,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.pendingConstructionActions.clear();
     this.pendingRepairActions.clear();
     this.pendingEnterObjectActions.clear();
+    this.pendingExitActions.clear();
     this.pendingRepairDockActions.clear();
     this.pendingGarrisonActions.clear();
     this.pendingTransportActions.clear();
@@ -16045,6 +16085,16 @@ export class GameLogicSubsystem implements Subsystem {
     return { moveState, entryToClearId };
   }
 
+  private parseSourceAIExitStateImportState(
+    xfer: XferLoad,
+  ): SourceAIExitStateImportState | null {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    return { entryToClearId: xfer.xferObjectID(0) };
+  }
+
   private parseSourceAIDockMachineCurrentStateSnapshot(
     xfer: XferLoad,
     currentStateId: number,
@@ -16323,6 +16373,7 @@ export class GameLogicSubsystem implements Subsystem {
     let moveState: SourceAIInternalMoveToStateImportState | null = null;
     let dockState: SourceAIDockStateImportState | null = null;
     let enterState: SourceAIEnterStateImportState | null = null;
+    let exitState: SourceAIExitStateImportState | null = null;
     let attackState: SourceAIAttackStateImportState | null = null;
     let guardState: SourceAIGuardStateImportState | null = null;
     if (currentStateId === SOURCE_AI_STATE_IDLE) {
@@ -16342,6 +16393,11 @@ export class GameLogicSubsystem implements Subsystem {
     } else if (currentStateId === SOURCE_AI_STATE_ENTER) {
       enterState = this.parseSourceAIEnterStateImportState(xfer);
       if (!enterState) {
+        return null;
+      }
+    } else if (currentStateId === SOURCE_AI_STATE_EXIT || currentStateId === SOURCE_AI_STATE_EXIT_INSTANTLY) {
+      exitState = this.parseSourceAIExitStateImportState(xfer);
+      if (!exitState) {
         return null;
       }
     } else if (this.isSourceAITopAttackStateId(currentStateId)) {
@@ -16379,7 +16435,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
     xfer.xferUnsignedInt(0);
 
-    return { currentStateId, goalObjectId, goalPosition, moveState, dockState, enterState, attackState, guardState };
+    return { currentStateId, goalObjectId, goalPosition, moveState, dockState, enterState, exitState, attackState, guardState };
   }
 
   private skipSourcePathSnapshot(xfer: XferLoad): void {
@@ -19279,6 +19335,34 @@ export class GameLogicSubsystem implements Subsystem {
             x: Math.floor(moveTarget.x / PATHFIND_CELL_SIZE),
             z: Math.floor(moveTarget.z / PATHFIND_CELL_SIZE),
           };
+        }
+      }
+
+      if ((stateMachine.currentStateId === SOURCE_AI_STATE_EXIT
+        || stateMachine.currentStateId === SOURCE_AI_STATE_EXIT_INSTANTLY)
+        && stateMachine.exitState) {
+        const containerObjectId = Math.trunc(
+          stateMachine.goalObjectId > 0
+            ? stateMachine.goalObjectId
+            : stateMachine.exitState.entryToClearId,
+        );
+        entity.attackTargetEntityId = null;
+        entity.attackTargetPosition = null;
+        entity.attackOriginalVictimPosition = null;
+        entity.attackSubState = 'IDLE';
+        entity.movePath = [];
+        entity.pathIndex = 0;
+        entity.moveTarget = null;
+        entity.moving = false;
+        entity.temporaryMoveExpireFrame = 0;
+        if (containerObjectId > 0) {
+          const pendingExitState = {
+            containerObjectId,
+            instantly: stateMachine.currentStateId === SOURCE_AI_STATE_EXIT_INSTANTLY,
+            commandSource: enterCommandSource,
+          } as const;
+          entity.pendingExitState = pendingExitState;
+          this.setEntityPendingExitState(entity.id, pendingExitState);
         }
       }
 
@@ -26202,6 +26286,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.rebuildDozerTaskIndexesFromEntities();
     this.rebuildChinookCombatDropIndexesFromEntities();
     this.rebuildPendingEnterIndexesFromEntities();
+    this.rebuildPendingExitIndexesFromEntities();
     this.rebuildRepairDockIndexesFromEntities();
     this.sellingEntities.clear();
     for (const sellingState of snapshot.sellingEntities ?? []) {
@@ -26319,6 +26404,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.pendingConstructionActions.clear();
     this.pendingRepairActions.clear();
     this.pendingEnterObjectActions.clear();
+    this.pendingExitActions.clear();
     this.pendingRepairDockActions.clear();
     this.pendingGarrisonActions.clear();
     this.pendingTransportActions.clear();
@@ -26334,6 +26420,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.rebuildDozerTaskIndexesFromEntities();
     this.rebuildChinookCombatDropIndexesFromEntities();
     this.rebuildPendingEnterIndexesFromEntities();
+    this.rebuildPendingExitIndexesFromEntities();
     this.rebuildRepairDockIndexesFromEntities();
     this.caveTrackers.clear();
     for (const caveTracker of snapshot.caveTrackers ?? []) {
@@ -26515,6 +26602,9 @@ export class GameLogicSubsystem implements Subsystem {
       this.gameClientRandom.setState(snapshot.gameClientRandomState.map((value) => Number(value)));
     }
 
+    this.rebuildPendingEnterIndexesFromEntities();
+    this.rebuildPendingExitIndexesFromEntities();
+
     const maxEntityId = Array.from(this.spawnedEntities.keys()).reduce(
       (currentMax, entityId) => Math.max(currentMax, entityId),
       0,
@@ -26604,6 +26694,30 @@ export class GameLogicSubsystem implements Subsystem {
       action: normalizedState.action,
       commandSource: normalizedState.commandSource,
     });
+  }
+
+  /* @internal */ setEntityPendingExitState(
+    entityId: number,
+    state: EntityPendingExitState | null,
+  ): void {
+    const entity = this.spawnedEntities.get(entityId);
+    const normalizedState = state === null
+      ? null
+      : {
+          containerObjectId: Math.max(1, Math.trunc(state.containerObjectId)),
+          instantly: state.instantly === true,
+          commandSource: state.commandSource,
+        };
+
+    if (entity) {
+      entity.pendingExitState = normalizedState;
+    }
+
+    if (normalizedState) {
+      this.pendingExitActions.set(entityId, normalizedState);
+    } else {
+      this.pendingExitActions.delete(entityId);
+    }
   }
 
   private syncRepairDockPendingAction(entityId: number): void {
@@ -26771,6 +26885,29 @@ export class GameLogicSubsystem implements Subsystem {
       if (entity.pendingEnterState) {
         this.setEntityPendingEnterState(entity.id, entity.pendingEnterState);
       }
+    }
+  }
+
+  private rebuildPendingExitIndexesFromEntities(): void {
+    this.pendingExitActions.clear();
+    for (const entity of this.spawnedEntities.values()) {
+      const pendingExitState = entity.pendingExitState;
+      if (!pendingExitState) {
+        continue;
+      }
+      if (!Number.isFinite(pendingExitState.containerObjectId)
+        || pendingExitState.containerObjectId <= 0
+        || (pendingExitState.commandSource !== 'PLAYER'
+          && pendingExitState.commandSource !== 'AI'
+          && pendingExitState.commandSource !== 'SCRIPT')) {
+        entity.pendingExitState = null;
+        continue;
+      }
+      this.setEntityPendingExitState(entity.id, {
+        containerObjectId: Math.trunc(pendingExitState.containerObjectId),
+        instantly: pendingExitState.instantly === true,
+        commandSource: pendingExitState.commandSource,
+      });
     }
   }
 
@@ -27092,6 +27229,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.updateCrushCollisions();
     this.updateRailedTransport();
     this.updatePendingEnterObjectActions();
+    this.updatePendingExitActions();
     this.updatePendingRepairDockActions();
     this.updatePendingGarrisonActions();
     this.updatePendingTransportActions();
@@ -41035,6 +41173,47 @@ export class GameLogicSubsystem implements Subsystem {
     }
   }
 
+  private updatePendingExitActions(): void {
+    for (const [entityId, pending] of this.pendingExitActions.entries()) {
+      const entity = this.spawnedEntities.get(entityId);
+      if (!entity || entity.destroyed) {
+        this.setEntityPendingExitState(entityId, null);
+        continue;
+      }
+
+      const currentContainerIds = [
+        entity.parkingSpaceProducerId,
+        entity.helixCarrierId,
+        entity.garrisonContainerId,
+        entity.transportContainerId,
+        entity.tunnelContainerId,
+      ].filter((containerId): containerId is number => Number.isFinite(containerId));
+      if (currentContainerIds.length === 0) {
+        this.setEntityPendingExitState(entityId, null);
+        continue;
+      }
+      if (!currentContainerIds.includes(pending.containerObjectId)) {
+        this.setEntityPendingExitState(entityId, null);
+        continue;
+      }
+
+      if (pending.instantly) {
+        this.handleExitContainerInstantlyCommand(entityId);
+      } else {
+        this.handleExitContainerCommand(entityId);
+      }
+
+      const stillContained = entity.parkingSpaceProducerId !== null
+        || entity.helixCarrierId !== null
+        || entity.garrisonContainerId !== null
+        || entity.transportContainerId !== null
+        || entity.tunnelContainerId !== null;
+      if (!stillContained) {
+        this.setEntityPendingExitState(entityId, null);
+      }
+    }
+  }
+
   /**
    * Source parity: AIDockProcessDockState + RepairDockUpdate::action.
    * While docked, heal docker each frame by precomputed amount, and fully heal associated drones.
@@ -54044,6 +54223,7 @@ export class GameLogicSubsystem implements Subsystem {
       entity.hackInternetPendingCommand = null;
       entity.chinookPendingCommand = null;
       entity.pendingEnterState = null;
+      entity.pendingExitState = null;
       entity.chinookCombatDropState = null;
       entity.chinookRappelState = null;
       entity.repairDockState = null;
@@ -54058,6 +54238,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.assaultTransportStateByEntityId.clear();
     this.sellingEntities.clear();
     this.pendingEnterObjectActions.clear();
+    this.pendingExitActions.clear();
     this.pendingRepairDockActions.clear();
     this.pendingCombatDropActions.clear();
     this.pendingChinookRappels.clear();
