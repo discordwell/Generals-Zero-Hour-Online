@@ -59,6 +59,15 @@ export interface BlockerReportInputs {
       exampleObjectName?: string | null;
     }>;
   } | null;
+  saveCoreChunks?: {
+    summary?: {
+      totalSaveFiles?: number;
+      blockedSaveFiles?: number;
+      rawPassthroughCoreChunks?: number;
+      missingCoreChunks?: number;
+      rawUnsupportedGameClientDrawables?: number;
+    };
+  } | null;
   visualSceneParity?: {
     summary?: {
       blockedScenarios?: number;
@@ -246,6 +255,52 @@ export function collectBlockerFindings(inputs: BlockerReportInputs): BlockerFind
     );
   }
 
+  if (!inputs.saveCoreChunks) {
+    pushBlocker(
+      blockers,
+      'save-core-chunk-report-missing',
+      'save-files',
+      1,
+      ['save-core-chunk-report.json missing'],
+    );
+  } else {
+    const summary = inputs.saveCoreChunks.summary ?? {};
+    const totalSaveFiles = normalizeCount(summary.totalSaveFiles);
+    const blockedSaveFiles = normalizeCount(summary.blockedSaveFiles);
+    const rawOrMissingChunks =
+      normalizeCount(summary.rawPassthroughCoreChunks)
+      + normalizeCount(summary.missingCoreChunks);
+    const unsupportedGameClientDrawables = normalizeCount(summary.rawUnsupportedGameClientDrawables);
+    pushBlocker(
+      blockers,
+      'save-core-no-wet-fixtures',
+      'save-files',
+      totalSaveFiles === 0 ? 1 : 0,
+      ['No C++ save fixtures were scanned for wet save/load parity.'],
+    );
+    pushBlocker(
+      blockers,
+      'save-core-blocked-fixtures',
+      'save-files',
+      blockedSaveFiles,
+      ['One or more save fixtures failed strict core chunk parity.'],
+    );
+    pushBlocker(
+      blockers,
+      'save-core-raw-or-missing-chunks',
+      'save-files',
+      rawOrMissingChunks,
+      ['Save fixtures contain raw passthrough or missing core chunks.'],
+    );
+    pushBlocker(
+      blockers,
+      'save-core-unsupported-gameclient-drawables',
+      'save-files',
+      unsupportedGameClientDrawables,
+      ['Save fixtures contain unsupported inner GameClient drawable records.'],
+    );
+  }
+
   if (!inputs.visualSceneParity) {
     pushBlocker(blockers, 'visual-scene-report-missing', 'visual-scenes', 1, ['visual-scene-parity-report.json missing']);
   } else {
@@ -338,6 +393,9 @@ async function main(): Promise<void> {
   const saveGeneratedModuleCoverage = await readJsonOrNull<BlockerReportInputs['saveGeneratedModuleCoverage']>(
     path.join(rootDir, 'save-generated-module-coverage-report.json'),
   );
+  const saveCoreChunks = await readJsonOrNull<BlockerReportInputs['saveCoreChunks']>(
+    path.join(rootDir, 'save-core-chunk-report.json'),
+  );
   const visualSceneParity = await readJsonOrNull<BlockerReportInputs['visualSceneParity']>(
     path.join(rootDir, 'visual-scene-parity-report.json'),
   );
@@ -351,6 +409,7 @@ async function main(): Promise<void> {
     scriptCoverage,
     prerequisiteCoverage,
     saveGeneratedModuleCoverage,
+    saveCoreChunks,
     visualSceneParity,
     uiLayoutParity,
   });

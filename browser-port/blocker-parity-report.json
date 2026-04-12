@@ -1,9 +1,18 @@
 {
-  "generatedAt": "2026-04-11T17:21:59.252Z",
-  "status": "clear",
+  "generatedAt": "2026-04-12T00:21:06.762Z",
+  "status": "blocked",
   "summary": {
-    "blockerGroups": 0,
-    "blockerItems": 0
+    "blockerGroups": 1,
+    "blockerItems": 1
   },
-  "blockers": []
+  "blockers": [
+    {
+      "id": "save-core-no-wet-fixtures",
+      "area": "save-files",
+      "count": 1,
+      "details": [
+        "No C++ save fixtures were scanned for wet save/load parity."
+      ]
+    }
+  ]
 }

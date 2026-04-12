@@ -1,0 +1,14 @@
+{
+  "rootPath": "/Users/discordwell/Projects/CnC_Generals_Zero_Hour/browser-port",
+  "summary": {
+    "status": "blocked",
+    "totalSaveFiles": 0,
+    "passedSaveFiles": 0,
+    "blockedSaveFiles": 0,
+    "totalCoreChunks": 0,
+    "rawPassthroughCoreChunks": 0,
+    "missingCoreChunks": 0,
+    "rawUnsupportedGameClientDrawables": 0
+  },
+  "saves": []
+}

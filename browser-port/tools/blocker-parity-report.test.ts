@@ -37,6 +37,15 @@ describe('blocker parity report', () => {
         coveredSourceModuleTypes: 195,
         missingSourceModuleTypes: [],
       },
+      saveCoreChunks: {
+        summary: {
+          totalSaveFiles: 1,
+          blockedSaveFiles: 0,
+          rawPassthroughCoreChunks: 0,
+          missingCoreChunks: 0,
+          rawUnsupportedGameClientDrawables: 0,
+        },
+      },
       visualSceneParity: {
         summary: {
           blockedScenarios: 0,
@@ -98,6 +107,15 @@ describe('blocker parity report', () => {
           exampleObjectName: 'MissingObject',
         }],
       },
+      saveCoreChunks: {
+        summary: {
+          totalSaveFiles: 0,
+          blockedSaveFiles: 0,
+          rawPassthroughCoreChunks: 2,
+          missingCoreChunks: 1,
+          rawUnsupportedGameClientDrawables: 3,
+        },
+      },
       visualSceneParity: {
         summary: {
           blockedScenarios: 2,
@@ -144,6 +162,9 @@ describe('blocker parity report', () => {
       'prerequisite-object-cycles',
       'prerequisite-science-cycles',
       'save-generated-module-missing-serializers',
+      'save-core-no-wet-fixtures',
+      'save-core-raw-or-missing-chunks',
+      'save-core-unsupported-gameclient-drawables',
       'visual-scene-blocked-scenarios',
       'ui-layout-blocked-scenarios',
     ]));
