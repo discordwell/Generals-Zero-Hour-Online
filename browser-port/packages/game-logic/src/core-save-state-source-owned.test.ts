@@ -1145,7 +1145,6 @@ function buildSourceActiveBodyModuleData(options: {
     saver.xferVersion(1);
     saver.xferVersion(1);
     saver.xferVersion(1);
-    saver.xferVersion(1);
     saver.xferReal(options.damageScalar);
     saver.xferReal(options.health);
     saver.xferReal(options.subdualDamage);

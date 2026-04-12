@@ -5087,7 +5087,6 @@ function parseSourceActiveBodyBlockData(data: Uint8Array) {
   const xferLoad = new XferLoad(data.slice().buffer);
   xferLoad.open('parse-source-active-body');
   try {
-    xferLoad.xferVersion(1);
     const active = xferSourceActiveBodyForTest(xferLoad, createDefaultSourceActiveBodyTestState());
     expect(xferLoad.getRemaining()).toBe(0);
     return { active };

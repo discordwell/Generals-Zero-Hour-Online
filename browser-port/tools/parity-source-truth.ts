@@ -3049,6 +3049,91 @@ function sourceUpdateModuleDirectFields(): string[] {
   return ['version', ...sourceBehaviorModuleBaseFields(), 'nextCallFrameAndPhase'];
 }
 
+function sourceBodyModuleBaseFields(): string[] {
+  return ['body.version', ...sourceBehaviorModuleBaseFields(), 'damageScalar'];
+}
+
+function sourceBodyModuleDirectFields(): string[] {
+  return ['version', ...sourceBehaviorModuleBaseFields(), 'damageScalar'];
+}
+
+function sourceDamageInfoFields(prefix: string): string[] {
+  return [
+    `${prefix}.version`,
+    `${prefix}.input.version`,
+    `${prefix}.input.sourceId`,
+    `${prefix}.input.sourcePlayerMask`,
+    `${prefix}.input.damageType`,
+    `${prefix}.input.damageFxOverride`,
+    `${prefix}.input.deathType`,
+    `${prefix}.input.amount`,
+    `${prefix}.input.kill`,
+    `${prefix}.input.damageStatusType`,
+    `${prefix}.input.shockWaveVector`,
+    `${prefix}.input.shockWaveAmount`,
+    `${prefix}.input.shockWaveRadius`,
+    `${prefix}.input.shockWaveTaperOff`,
+    `${prefix}.input.sourceTemplateName`,
+    `${prefix}.output.version`,
+    `${prefix}.output.actualDamageDealt`,
+    `${prefix}.output.actualDamageClipped`,
+    `${prefix}.output.noEffect`,
+  ];
+}
+
+function sourceActiveBodyFields(): string[] {
+  return [
+    'version',
+    ...sourceBodyModuleBaseFields(),
+    'currentHealth',
+    'currentSubdualDamage',
+    'prevHealth',
+    'maxHealth',
+    'initialHealth',
+    'curDamageState',
+    'nextDamageFXTime',
+    'lastDamageFXDone',
+    ...sourceDamageInfoFields('lastDamageInfo'),
+    'lastDamageTimestamp',
+    'lastHealingTimestamp',
+    'frontCrushed',
+    'backCrushed',
+    'lastDamageCleared',
+    'indestructible',
+    'particleSystem.count',
+    'particleSystem.id',
+    'armorSetFlags',
+  ];
+}
+
+function sourceDerivedActiveBodyFields(): string[] {
+  return ['version', ...prefixBaseVersion(sourceActiveBodyFields(), 'activeBody')];
+}
+
+function sourceStructureBodyFields(): string[] {
+  return [
+    'version',
+    ...prefixBaseVersion(sourceActiveBodyFields(), 'activeBody'),
+    'constructorObjectId',
+  ];
+}
+
+function sourceHiveStructureBodyFields(): string[] {
+  return ['version', ...prefixBaseVersion(sourceStructureBodyFields(), 'structureBody')];
+}
+
+function sourceUndeadBodyFields(): string[] {
+  return [
+    'version',
+    ...prefixBaseVersion(sourceActiveBodyFields(), 'activeBody'),
+    'isSecondLife',
+  ];
+}
+
+function sourceInactiveBodyFields(): string[] {
+  return ['version', ...sourceBodyModuleBaseFields()];
+}
+
 function sourceDieModuleBaseFields(): string[] {
   return ['die.version', ...sourceBehaviorModuleBaseFields()];
 }
@@ -3765,6 +3850,27 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
   if (className === 'UpdateModule') {
     return sourceUpdateModuleDirectFields();
   }
+  if (className === 'BodyModule') {
+    return sourceBodyModuleDirectFields();
+  }
+  if (className === 'ActiveBody') {
+    return sourceActiveBodyFields();
+  }
+  if (className === 'HighlanderBody' || className === 'ImmortalBody') {
+    return sourceDerivedActiveBodyFields();
+  }
+  if (className === 'StructureBody') {
+    return sourceStructureBodyFields();
+  }
+  if (className === 'HiveStructureBody') {
+    return sourceHiveStructureBodyFields();
+  }
+  if (className === 'UndeadBody') {
+    return sourceUndeadBodyFields();
+  }
+  if (className === 'InactiveBody') {
+    return sourceInactiveBodyFields();
+  }
   if (className === 'DieModule') {
     return sourceDieModuleDirectFields();
   }
@@ -3920,6 +4026,9 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     {
       'BehaviorModule::xfer': sourceBehaviorModuleBaseFields(),
       'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
+      'BodyModule::xfer': sourceBodyModuleBaseFields(),
+      'ActiveBody::xfer': prefixBaseVersion(sourceActiveBodyFields(), 'activeBody'),
+      'StructureBody::xfer': prefixBaseVersion(sourceStructureBodyFields(), 'structureBody'),
       'DieModule::xfer': sourceDieModuleBaseFields(),
       'DamageModule::xfer': sourceDamageModuleBaseFields(),
       'SpecialPowerModule::xfer': prefixBaseVersion(
@@ -3945,7 +4054,10 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
 export function parseTsSourceObjectUpdateFields(
   source: string,
   helperName: string,
-  options: { hasUpgradeMux?: boolean } = {},
+  options: {
+    hasUpgradeMux?: boolean;
+    bodyKind?: 'active' | 'derivedActive' | 'structure' | 'hiveStructure' | 'undead' | 'inactive';
+  } = {},
 ): string[] {
   if (helperName === 'buildGeneratedSourceHackInternetStateMachineBlockData') {
     return parseTsSourceHackInternetStateFields(source);
@@ -3965,6 +4077,30 @@ export function parseTsSourceObjectUpdateFields(
   }
   if (helperName === 'xferSourceUpdateModuleBase') {
     return sourceUpdateModuleDirectFields();
+  }
+  if (helperName === 'xferSourceBodyModuleBase') {
+    return sourceBodyModuleDirectFields();
+  }
+  if (helperName === 'xferSourceActiveBody') {
+    return sourceActiveBodyFields();
+  }
+  if (helperName === 'buildSourceBodyModuleBlockData') {
+    switch (options.bodyKind) {
+      case 'active':
+        return sourceActiveBodyFields();
+      case 'derivedActive':
+        return sourceDerivedActiveBodyFields();
+      case 'structure':
+        return sourceStructureBodyFields();
+      case 'hiveStructure':
+        return sourceHiveStructureBodyFields();
+      case 'undead':
+        return sourceUndeadBodyFields();
+      case 'inactive':
+        return sourceInactiveBodyFields();
+      default:
+        return [];
+    }
   }
   if (helperName === 'xferSourceDieModuleBase') {
     return sourceDieModuleDirectFields();
@@ -9171,6 +9307,14 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AnimationSteeringUpdate.cpp',
     '../Behavior/AutoHealBehavior.cpp',
     '../Behavior/BehaviorModule.cpp',
+    '../Body/ActiveBody.cpp',
+    '../Body/BodyModule.cpp',
+    '../Body/HighlanderBody.cpp',
+    '../Body/HiveStructureBody.cpp',
+    '../Body/ImmortalBody.cpp',
+    '../Body/InactiveBody.cpp',
+    '../Body/StructureBody.cpp',
+    '../Body/UndeadBody.cpp',
     'BaseRenerateUpdate.cpp',
     'BattlePlanUpdate.cpp',
     'BoneFXUpdate.cpp',
@@ -10015,6 +10159,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     cppClass: string;
     tsHelper: string;
     hasUpgradeMux?: boolean;
+    bodyKind?: 'active' | 'derivedActive' | 'structure' | 'hiveStructure' | 'undead' | 'inactive';
   }> = [
     {
       category: 'save-behavior-module-fields',
@@ -10025,6 +10170,53 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-update-module-fields',
       cppClass: 'UpdateModule',
       tsHelper: 'xferSourceUpdateModuleBase',
+    },
+    {
+      category: 'save-body-module-fields',
+      cppClass: 'BodyModule',
+      tsHelper: 'xferSourceBodyModuleBase',
+    },
+    {
+      category: 'save-active-body-fields',
+      cppClass: 'ActiveBody',
+      tsHelper: 'buildSourceBodyModuleBlockData',
+      bodyKind: 'active',
+    },
+    {
+      category: 'save-highlander-body-fields',
+      cppClass: 'HighlanderBody',
+      tsHelper: 'buildSourceBodyModuleBlockData',
+      bodyKind: 'derivedActive',
+    },
+    {
+      category: 'save-immortal-body-fields',
+      cppClass: 'ImmortalBody',
+      tsHelper: 'buildSourceBodyModuleBlockData',
+      bodyKind: 'derivedActive',
+    },
+    {
+      category: 'save-inactive-body-fields',
+      cppClass: 'InactiveBody',
+      tsHelper: 'buildSourceBodyModuleBlockData',
+      bodyKind: 'inactive',
+    },
+    {
+      category: 'save-structure-body-fields',
+      cppClass: 'StructureBody',
+      tsHelper: 'buildSourceBodyModuleBlockData',
+      bodyKind: 'structure',
+    },
+    {
+      category: 'save-hive-structure-body-fields',
+      cppClass: 'HiveStructureBody',
+      tsHelper: 'buildSourceBodyModuleBlockData',
+      bodyKind: 'hiveStructure',
+    },
+    {
+      category: 'save-undead-body-fields',
+      cppClass: 'UndeadBody',
+      tsHelper: 'buildSourceBodyModuleBlockData',
+      bodyKind: 'undead',
     },
     {
       category: 'save-die-module-fields',
@@ -11012,6 +11204,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     const cpp = parseCppSourceObjectUpdateFields(objectUpdateSource, check.cppClass);
     const ts = parseTsSourceObjectUpdateFields(tsRuntimeSave, check.tsHelper, {
       hasUpgradeMux: check.hasUpgradeMux,
+      bodyKind: check.bodyKind,
     });
     if (cpp.length > 0 && ts.length > 0) {
       categories.push(compareSourceObjectUpdateFields(check.category, cpp, ts));

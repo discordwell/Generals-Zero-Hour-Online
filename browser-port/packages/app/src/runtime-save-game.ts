@@ -15636,7 +15636,7 @@ interface SourceActiveBodyBlockState extends SourceBodyModuleBaseBlockState {
   armorSetFlags: string[];
 }
 
-type SourceBodyModuleKind = 'active' | 'structure' | 'hiveStructure' | 'undead' | 'inactive';
+type SourceBodyModuleKind = 'active' | 'derivedActive' | 'structure' | 'hiveStructure' | 'undead' | 'inactive';
 
 interface SourceBodyModuleBlockState {
   kind: SourceBodyModuleKind;
@@ -15649,9 +15649,10 @@ interface SourceBodyModuleBlockState {
 function normalizeSourceBodyModuleKind(moduleType: string): SourceBodyModuleKind | null {
   switch (moduleType.trim().toUpperCase()) {
     case 'ACTIVEBODY':
+      return 'active';
     case 'IMMORTALBODY':
     case 'HIGHLANDERBODY':
-      return 'active';
+      return 'derivedActive';
     case 'STRUCTUREBODY':
       return 'structure';
     case 'HIVESTRUCTUREBODY':
@@ -15903,17 +15904,26 @@ function tryParseSourceBodyModuleBlockData(
   const xferLoad = new XferLoad(copyBytesToArrayBuffer(data));
   xferLoad.open('parse-source-body-module');
   try {
-    const version = xferLoad.xferVersion(1);
-    if (version !== 1) {
-      return null;
-    }
     let parsed: SourceBodyModuleBlockState;
     if (kind === 'inactive') {
+      const inactiveVersion = xferLoad.xferVersion(1);
+      if (inactiveVersion !== 1) {
+        return null;
+      }
       parsed = {
         kind,
         base: xferSourceBodyModuleBase(xferLoad, { damageScalar: 1 }),
       };
+    } else if (kind === 'active') {
+      parsed = {
+        kind,
+        active: xferSourceActiveBody(xferLoad, createDefaultSourceActiveBodyState()),
+      };
     } else if (kind === 'hiveStructure') {
+      const hiveVersion = xferLoad.xferVersion(1);
+      if (hiveVersion !== 1) {
+        return null;
+      }
       const structureVersion = xferLoad.xferVersion(1);
       if (structureVersion !== 1) {
         return null;
@@ -15924,6 +15934,10 @@ function tryParseSourceBodyModuleBlockData(
         constructorObjectId: xferLoad.xferObjectID(0),
       };
     } else {
+      const bodyWrapperVersion = xferLoad.xferVersion(1);
+      if (bodyWrapperVersion !== 1) {
+        return null;
+      }
       parsed = {
         kind,
         active: xferSourceActiveBody(xferLoad, createDefaultSourceActiveBodyState()),
@@ -15954,8 +15968,8 @@ function buildSourceBodyModuleBlockData(
   const saver = new XferSave();
   saver.open('build-source-body-module');
   try {
-    saver.xferVersion(1);
     if (kind === 'inactive') {
+      saver.xferVersion(1);
       xferSourceBodyModuleBase(saver, {
         damageScalar: sourceBodyDamageScalar(entity, preservedState.base?.damageScalar ?? 1),
       });
@@ -15964,6 +15978,9 @@ function buildSourceBodyModuleBlockData(
         entity,
         preservedState.active ?? createDefaultSourceActiveBodyState(),
       );
+      if (kind !== 'active') {
+        saver.xferVersion(1);
+      }
       if (kind === 'hiveStructure') {
         saver.xferVersion(1);
       }

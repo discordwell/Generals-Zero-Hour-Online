@@ -16000,27 +16000,28 @@ export class GameLogicSubsystem implements Subsystem {
     moduleType: string,
   ): SourceActiveBodyImportState | null {
     const normalizedModuleType = moduleType.trim().toUpperCase();
-    const isActiveBodyModule = normalizedModuleType === 'ACTIVEBODY'
-      || normalizedModuleType === 'IMMORTALBODY'
-      || normalizedModuleType === 'HIGHLANDERBODY'
-      || normalizedModuleType === 'STRUCTUREBODY'
-      || normalizedModuleType === 'HIVESTRUCTUREBODY'
-      || normalizedModuleType === 'UNDEADBODY';
-    if (!isActiveBodyModule) {
+    if (normalizedModuleType !== 'ACTIVEBODY'
+      && normalizedModuleType !== 'IMMORTALBODY'
+      && normalizedModuleType !== 'HIGHLANDERBODY'
+      && normalizedModuleType !== 'STRUCTUREBODY'
+      && normalizedModuleType !== 'HIVESTRUCTUREBODY'
+      && normalizedModuleType !== 'UNDEADBODY') {
       return null;
     }
 
     const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data));
     xfer.open('source-body-import');
     try {
-      const bodyWrapperVersion = xfer.xferVersion(1);
-      if (bodyWrapperVersion !== 1) {
-        return null;
-      }
-      if (normalizedModuleType === 'HIVESTRUCTUREBODY') {
-        const hiveVersion = xfer.xferVersion(1);
-        if (hiveVersion !== 1) {
+      if (normalizedModuleType !== 'ACTIVEBODY') {
+        const bodyWrapperVersion = xfer.xferVersion(1);
+        if (bodyWrapperVersion !== 1) {
           return null;
+        }
+        if (normalizedModuleType === 'HIVESTRUCTUREBODY') {
+          const structureVersion = xfer.xferVersion(1);
+          if (structureVersion !== 1) {
+            return null;
+          }
         }
       }
       return this.parseSourceActiveBodyImportState(xfer);
