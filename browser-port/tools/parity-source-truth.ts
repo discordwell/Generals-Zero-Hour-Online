@@ -4937,6 +4937,45 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferObjectID' && argument === 'm_unloadingObjectID') return 'unloadingObjectId';
   if (method === 'xferReal' && argument === 'm_pushOutsideDistancePerFrame') return 'pushOutsideDistancePerFrame';
   if (method === 'xferInt' && argument === 'm_unloadCount') return 'unloadCount';
+  if (method === 'xferReal' && argument === 'm_angularVelocity') return 'angularVelocity';
+  if (method === 'xferReal' && argument === 'm_angularAcceleration') return 'angularAcceleration';
+  if (method === 'xferCoord3D' && argument === 'm_toppleDirection') return 'toppleDirection';
+  if (method === 'xferCoord2D' && argument === 'm_toppleDirection') return 'toppleDirection';
+  if (method === 'xferUser' && argument.startsWith('m_toppleState')) return 'toppleState';
+  if (method === 'xferReal' && argument === 'm_angularAccumulation') return 'angularAccumulation';
+  if (method === 'xferReal' && argument === 'm_angleDeltaX') return 'angleDeltaX';
+  if (method === 'xferInt' && argument === 'm_numAngleDeltaX') return 'numAngleDeltaX';
+  if (method === 'xferBool' && argument === 'm_doBounceFX') return 'doBounceFx';
+  if (method === 'xferUnsignedInt' && argument === 'm_options') return 'options';
+  if (method === 'xferObjectID' && argument === 'm_stumpID') return 'stumpId';
+  if (method === 'xferUnsignedInt' && argument === 'm_toppleFrame') return 'toppleFrame';
+  if (method === 'xferReal' && argument === 'm_toppleVelocity') return 'toppleVelocity';
+  if (method === 'xferReal' && argument === 'm_accumulatedAngle') return 'accumulatedAngle';
+  if (method === 'xferReal' && argument === 'm_structuralIntegrity') return 'structuralIntegrity';
+  if (method === 'xferReal' && argument === 'm_lastCrushedLocation') return 'lastCrushedLocation';
+  if (method === 'xferInt' && argument === 'm_nextBurstFrame') return 'nextBurstFrame';
+  if (method === 'xferCoord3D' && argument === 'm_delayBurstLocation') return 'delayBurstLocation';
+  if (method === 'xferUser' && argument.startsWith('m_state')) return 'state';
+  if (method === 'xferCoord3D' && argument === 'm_targetPos') return 'targetPosition';
+  if (method === 'xferCoord3D' && argument === 'm_intermedPos') return 'intermediatePosition';
+  if (method === 'xferObjectID' && argument === 'm_launcherID') return 'launcherId';
+  if (method === 'xferUser' && argument.startsWith('m_attach_wslot')) return 'attachWeaponSlot';
+  if (method === 'xferInt' && argument === 'm_attach_specificBarrelToUse') return 'attachSpecificBarrelToUse';
+  if (method === 'xferCoord3D' && argument === 'm_accel') return 'acceleration';
+  if (method === 'xferCoord3D' && argument === 'm_vel') return 'velocity';
+  if (method === 'xferUnsignedInt' && argument === 'm_stateTimestamp') return 'stateTimestamp';
+  if (method === 'xferBool' && argument === 'm_isLaunched') return 'isLaunched';
+  if (method === 'xferBool' && argument === 'm_isArmed') return 'isArmed';
+  if (method === 'xferReal' && argument === 'm_noTurnDistLeft') return 'noTurnDistLeft';
+  if (method === 'xferBool' && argument === 'm_reachedIntermediatePos') return 'reachedIntermediatePos';
+  if (method === 'xferUnsignedInt' && argument === 'm_frameAtLaunch') return 'frameAtLaunch';
+  if (method === 'xferReal' && argument === 'm_heightAtLaunch') return 'heightAtLaunch';
+  if (method === 'xferAsciiString' && argument === 'name') return 'exhaustSystemTemplateName';
+  if (method === 'xferUnsignedInt' && argument === 'm_deactivateFrame') return 'deactivateFrame';
+  if (method === 'xferBool' && argument === 'm_currentlyActive') return 'currentlyActive';
+  if (method === 'xferBool' && argument === 'm_resetTimersNextUpdate') return 'resetTimersNextUpdate';
+  if (method === 'xferUnsignedInt' && argument === 'm_disabledUntilFrame') return 'disabledUntilFrame';
+  if (method === 'xferObjectID' && argument === 'm_gunshipID') return 'gunshipId';
   return null;
 }
 
@@ -4949,12 +4988,16 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('lastRepair')) return 'lastRepair';
     if (window.includes('dockingObjectId')) return 'dockingObjectId';
     if (window.includes('unloadingObjectId')) return 'unloadingObjectId';
+    if (window.includes('toppleStumpId')) return 'stumpId';
+    if (window.includes('launcherId')) return 'launcherId';
+    if (window.includes('spectreGunshipDeploymentGunshipId')) return 'gunshipId';
     if (window.includes('ownerEntityId') || window.includes('owningObject')) return 'owningObject';
     if (window.includes('targetObjectId') || window.includes('targetObject')) return 'targetObject';
   }
   if (token.includes('xferAsciiString')) {
     if (window.includes('buttonName')) return 'commandButtonName';
     if (window.includes('disguiseTemplateName')) return 'disguiseTemplateName';
+    if (window.includes('exhaustSystemTemplateName')) return 'exhaustSystemTemplateName';
   }
   if (token.includes('xferUnsignedShort')) {
     if (window.includes('particleSystemIds.length')) return 'particleSystem.count';
@@ -4991,6 +5034,12 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('isInVehicle')) return 'isInVehicle';
     if (window.includes('wasTargetAirborne')) return 'wasTargetAirborne';
     if (window.includes('state?.update')) return 'update';
+    if (window.includes('toppleDoBounceFx')) return 'doBounceFx';
+    if (window.includes('isLaunched')) return 'isLaunched';
+    if (window.includes('isArmed')) return 'isArmed';
+    if (window.includes('reachedIntermediatePos')) return 'reachedIntermediatePos';
+    if (window.includes('currentlyActive')) return 'currentlyActive';
+    if (window.includes('resetTimersNextUpdate')) return 'resetTimersNextUpdate';
     if (window.includes('detectorEnabled') || window.includes('enabled')) return 'enabled';
     if (window.includes('state.active')) return 'active';
   }
@@ -5011,6 +5060,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('firstValidIndex')) return 'firstValidIndex';
     if (window.includes('findLiveSupplyWarehouseBoxes')) return 'boxesStored';
     if (window.includes('unloadCount')) return 'unloadCount';
+    if (window.includes('toppleNumAngleDeltaX')) return 'numAngleDeltaX';
+    if (window.includes('attachSpecificBarrelToUse')) return 'attachSpecificBarrelToUse';
+    if (window.includes('nextBurstFrame')) return 'nextBurstFrame';
   }
   if (token.includes('xferUnsignedInt')) {
     if (window.includes('entity.oclUpdateNextCreationFrames')) return 'nextCreationFrame';
@@ -5042,6 +5094,12 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('timeoutFrame')) return 'timeoutFrame';
     if (window.includes('collapseFrame')) return 'collapseFrame';
     if (window.includes('burstFrame')) return 'burstFrame';
+    if (window.includes('toppleOptions')) return 'options';
+    if (window.includes('toppleFrame')) return 'toppleFrame';
+    if (window.includes('stateTimestamp')) return 'stateTimestamp';
+    if (window.includes('frameAtLaunch')) return 'frameAtLaunch';
+    if (window.includes('deactivateFrame')) return 'deactivateFrame';
+    if (window.includes('disabledUntilFrame')) return 'disabledUntilFrame';
     if (window.includes('dieFrame')) return 'dieFrame';
     if (window.includes('earliestDeathFrame')) return 'earliestDeathFrame';
   }
@@ -5059,6 +5117,18 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('healthToAddPerFrame')) return 'healthToAddPerFrame';
     if (window.includes('pullInsideDistancePerFrame')) return 'pullInsideDistancePerFrame';
     if (window.includes('pushOutsideDistancePerFrame')) return 'pushOutsideDistancePerFrame';
+    if (window.includes('toppleAngularVelocity')) return 'angularVelocity';
+    if (window.includes('toppleAngularAcceleration')) return 'angularAcceleration';
+    if (window.includes('toppleAngularAccumulation')) return 'angularAccumulation';
+    if (window.includes('toppleAngleDeltaX')) return 'angleDeltaX';
+    if (window.includes('toppleDirX')) return 'toppleDirection';
+    if (window.includes('toppleDirZ')) return 'toppleDirection';
+    if (window.includes('toppleVelocity')) return 'toppleVelocity';
+    if (window.includes('accumulatedAngle')) return 'accumulatedAngle';
+    if (window.includes('structuralIntegrity')) return 'structuralIntegrity';
+    if (window.includes('lastCrushedLocation')) return 'lastCrushedLocation';
+    if (window.includes('noTurnDistLeft')) return 'noTurnDistLeft';
+    if (window.includes('heightAtLaunch')) return 'heightAtLaunch';
   }
   if (token.includes('xferUser')) {
     if (window.includes('shapePointsBytes')) return 'shapePoints';
@@ -5071,6 +5141,10 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('sourceMissileDoorStateToInt(state?.doorState')) return 'doorState';
     if (window.includes('sourceMissileDoorStateToInt(state?.timeoutState')) return 'timeoutState';
     if (window.includes('sourceStructureCollapseStateToInt')) return 'collapseState';
+    if (window.includes('sourceToppleStateToInt')) return 'toppleState';
+    if (window.includes('sourceStructureToppleStateToInt')) return 'toppleState';
+    if (window.includes('sourceNeutronMissileStateToInt')) return 'state';
+    if (window.includes('attachWeaponSlot')) return 'attachWeaponSlot';
   }
   if (token.includes('xferSourceBoneFxIntGrid')) {
     if (window.includes('nextFXFrame')) return 'nextFxFrame';
@@ -5088,6 +5162,12 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
   if (token.includes('xferCoord3D')) {
     if (window.includes('cleanupAreaPosition')) return 'position';
     if (window.includes('ejectX')) return 'ejectPosition';
+    if (window.includes('toppleDirX')) return 'toppleDirection';
+    if (window.includes('delayBurstLocation')) return 'delayBurstLocation';
+    if (window.includes('targetX')) return 'targetPosition';
+    if (window.includes('intermedX')) return 'intermediatePosition';
+    if (window.includes('accelX')) return 'acceleration';
+    if (window.includes('velX')) return 'velocity';
     if (window.includes('finalDestination')) return 'finalDestination';
     if (window.includes('targetPosition')) return 'targetPosition';
   }
@@ -7066,11 +7146,15 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'RadiusDecalUpdate.cpp',
     'RadarUpdate.cpp',
     'SmartBombTargetHomingUpdate.cpp',
+    'SpectreGunshipDeploymentUpdate.cpp',
+    'SpyVisionUpdate.cpp',
     'StealthDetectorUpdate.cpp',
     'StealthUpdate.cpp',
     'StickyBombUpdate.cpp',
     'StructureCollapseUpdate.cpp',
+    'StructureToppleUpdate.cpp',
     'TensileFormationUpdate.cpp',
+    'ToppleUpdate.cpp',
     'WaveGuideUpdate.cpp',
     'WeaponBonusUpdate.cpp',
     '../Upgrade/UpgradeModule.cpp',
@@ -7983,6 +8067,26 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-railed-transport-dock-update-fields',
       cppClass: 'RailedTransportDockUpdate',
       tsHelper: 'buildSourceRailedTransportDockUpdateBlockData',
+    },
+    {
+      category: 'save-topple-update-fields',
+      cppClass: 'ToppleUpdate',
+      tsHelper: 'buildSourceToppleUpdateBlockData',
+    },
+    {
+      category: 'save-structure-topple-update-fields',
+      cppClass: 'StructureToppleUpdate',
+      tsHelper: 'buildSourceStructureToppleUpdateBlockData',
+    },
+    {
+      category: 'save-spectre-gunship-deployment-update-fields',
+      cppClass: 'SpectreGunshipDeploymentUpdate',
+      tsHelper: 'buildSourceSpectreGunshipDeploymentUpdateBlockData',
+    },
+    {
+      category: 'save-spy-vision-update-fields',
+      cppClass: 'SpyVisionUpdate',
+      tsHelper: 'buildSourceSpyVisionUpdateBlockData',
     },
   ];
   for (const check of objectUpdateChecks) {

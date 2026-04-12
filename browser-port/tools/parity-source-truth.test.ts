@@ -1344,6 +1344,10 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-supply-warehouse-dock-update-fields',
         'save-repair-dock-update-fields',
         'save-railed-transport-dock-update-fields',
+        'save-topple-update-fields',
+        'save-structure-topple-update-fields',
+        'save-spectre-gunship-deployment-update-fields',
+        'save-spy-vision-update-fields',
       ]) {
         const moduleCategory = report.categories.find((c) => c.category === category);
         expect(moduleCategory).toBeDefined();
