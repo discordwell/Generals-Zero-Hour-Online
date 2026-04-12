@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
+import { SaveFileType } from '@generals/engine';
 
 import { LoadGameScreen } from './load-game-screen.js';
 
@@ -55,6 +56,7 @@ describe('LoadGameScreen', () => {
     expect(listboxText).toContain('USA Mission 1');
     expect(listboxText).not.toContain('usa01-slot');
     expect(listboxText).not.toContain('MD_USA01.map');
+    expect(root.querySelector('[data-slot-id="usa01-slot"]')?.classList.contains('normal-even')).toBe(true);
 
     (root.querySelector('[data-action="export"]') as HTMLButtonElement).click();
     await flushPromises();
@@ -153,5 +155,51 @@ describe('LoadGameScreen', () => {
 
     expect(root.querySelector('[data-ref="load-game-listbox"]')?.textContent).toContain('Downtown Assault');
     expect(root.querySelector('[data-ref="load-game-listbox"]')?.textContent).not.toContain('00000046');
+  });
+
+  it('uses source listbox colors for mission saves and alternating normal saves', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    const screen = new LoadGameScreen(root, {
+      listSaves: async () => [
+        {
+          slotId: 'normal-even',
+          description: 'Normal Even',
+          mapName: 'MapOne',
+          timestamp: Date.parse('2026-04-02T18:00:00.000Z'),
+          sizeBytes: 1024,
+          saveFileType: SaveFileType.SAVE_FILE_TYPE_NORMAL,
+        },
+        {
+          slotId: 'mission',
+          description: 'Mission',
+          mapName: 'MapMission',
+          timestamp: Date.parse('2026-04-02T19:00:00.000Z'),
+          sizeBytes: 2048,
+          saveFileType: SaveFileType.SAVE_FILE_TYPE_MISSION,
+        },
+        {
+          slotId: 'normal-odd',
+          description: 'Normal Odd',
+          mapName: 'MapTwo',
+          timestamp: Date.parse('2026-04-02T20:00:00.000Z'),
+          sizeBytes: 4096,
+          saveFileType: SaveFileType.SAVE_FILE_TYPE_NORMAL,
+        },
+      ],
+      onImportSave: async () => 'mission',
+      onExportSave: async () => undefined,
+      onLoadSave: async () => undefined,
+      onDeleteSave: async () => undefined,
+      onClose: () => undefined,
+    });
+
+    screen.show();
+    await flushPromises();
+
+    expect(root.querySelector('[data-slot-id="normal-even"]')?.classList.contains('normal-even')).toBe(true);
+    expect(root.querySelector('[data-slot-id="mission"]')?.classList.contains('mission')).toBe(true);
+    expect(root.querySelector('[data-slot-id="normal-odd"]')?.classList.contains('normal-even')).toBe(true);
   });
 });

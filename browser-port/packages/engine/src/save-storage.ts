@@ -8,7 +8,7 @@
  * Also provides download/upload helpers for file import/export.
  */
 
-import { parseSaveGameInfo, saveDateToTimestamp } from './save-game-file.js';
+import { parseSaveGameInfo, saveDateToTimestamp, SaveFileType } from './save-game-file.js';
 
 export interface SaveMetadata {
   slotId: string;
@@ -16,6 +16,7 @@ export interface SaveMetadata {
   mapName: string;
   timestamp: number;
   sizeBytes: number;
+  saveFileType?: SaveFileType;
 }
 
 const DEFAULT_DB_NAME = 'generals-saves';
@@ -217,6 +218,7 @@ export class SaveStorage {
       mapName: info.mapLabel || info.missionMapName,
       timestamp: timestamp > 0 ? timestamp : Date.now(),
       sizeBytes: data.byteLength,
+      saveFileType: info.saveFileType,
     };
     await this.saveToDB(slotId, data, metadata);
     return slotId;

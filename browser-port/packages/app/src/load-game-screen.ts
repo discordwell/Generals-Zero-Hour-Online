@@ -1,4 +1,4 @@
-import type { SaveMetadata } from '@generals/engine';
+import { SaveFileType, type SaveMetadata } from '@generals/engine';
 
 import { resolveLocalizedText } from './localization.js';
 
@@ -88,8 +88,17 @@ const STYLES = `
       linear-gradient(180deg, rgba(48, 72, 154, 0.62) 0%, rgba(16, 24, 78, 0.86) 100%);
     box-shadow: inset 0 0 0 1px rgba(122, 155, 255, 0.46);
   }
+  .load-game-row.normal-even {
+    color: rgb(170, 170, 235);
+  }
+  .load-game-row.normal-odd {
+    color: rgb(255, 255, 255);
+  }
+  .load-game-row.mission {
+    color: rgb(200, 255, 200);
+  }
   .load-game-row-title {
-    color: #f4f7ff;
+    color: inherit;
     font-size: clamp(0.8rem, 0.96vw, 0.88rem);
     letter-spacing: 0.02em;
     white-space: nowrap;
@@ -98,7 +107,8 @@ const STYLES = `
   }
   .load-game-row-meta {
     margin-top: 0.2rem;
-    color: rgba(212, 219, 244, 0.78);
+    color: inherit;
+    opacity: 0.78;
     font-size: clamp(0.68rem, 0.84vw, 0.76rem);
     line-height: 1.35;
   }
@@ -488,6 +498,13 @@ export class LoadGameScreen {
     return save.slotId;
   }
 
+  private formatSaveRowClass(save: SaveMetadata, index: number): string {
+    if (save.saveFileType === SaveFileType.SAVE_FILE_TYPE_MISSION) {
+      return 'mission';
+    }
+    return index % 2 === 0 ? 'normal-even' : 'normal-odd';
+  }
+
   private refreshArtwork(): void {
     if (!this.overlayEl) {
       return;
@@ -537,13 +554,14 @@ export class LoadGameScreen {
       return;
     }
 
-    listbox.innerHTML = this.saves.map((save) => {
+    listbox.innerHTML = this.saves.map((save, index) => {
       const label = this.formatSaveDisplayLabel(save);
       const time = formatSaveTime(save.timestamp);
       const date = formatSaveDate(save.timestamp);
+      const rowClass = this.formatSaveRowClass(save, index);
 
       return `
-        <div class="load-game-row${save.slotId === this.selectedSlotId ? ' selected' : ''}" data-slot-id="${this.escapeHtml(save.slotId)}">
+        <div class="load-game-row ${rowClass}${save.slotId === this.selectedSlotId ? ' selected' : ''}" data-slot-id="${this.escapeHtml(save.slotId)}">
           <div class="load-game-row-title">${this.escapeHtml(label)}</div>
           <div class="load-game-row-meta">${this.escapeHtml(time)} | ${this.escapeHtml(date)}</div>
         </div>

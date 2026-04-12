@@ -26568,6 +26568,7 @@ export function buildRuntimeSaveFile(params: {
     mapName: string;
     timestamp: number;
     sizeBytes: number;
+    saveFileType: SaveFileType;
   };
 } {
   const metadataState = createMetadataState(params.description, params.mapPath);
@@ -26597,6 +26598,7 @@ export function buildRuntimeSaveFile(params: {
         mapName: metadataState.mapLabel,
         timestamp: Date.now(),
         sizeBytes: saveResult.data.byteLength,
+        saveFileType: metadataState.saveFileType,
       },
     };
   }
@@ -26953,6 +26955,7 @@ export function buildRuntimeSaveFile(params: {
       mapName: metadataState.mapLabel,
       timestamp: Date.now(),
       sizeBytes: saveResult.data.byteLength,
+      saveFileType: metadataState.saveFileType,
     },
   };
 }

@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 
 import { SaveStorage } from './save-storage.js';
+import { SaveFileType } from './save-game-file.js';
 
 let testCounter = 0;
 
@@ -36,16 +37,18 @@ function pushUnicodeString(bytes: number[], value: string): void {
 function buildImportedSaveFile(options: {
   description?: string;
   mapLabel?: string;
+  saveFileType?: SaveFileType;
 } = {}): ArrayBuffer {
   const {
     description = 'Imported Campaign Save',
     mapLabel = 'Downtown Assault',
+    saveFileType = SaveFileType.SAVE_FILE_TYPE_NORMAL,
   } = options;
   const bytes: number[] = [];
   const gameStateData: number[] = [];
 
   gameStateData.push(2);
-  pushInt32(gameStateData, 0);
+  pushInt32(gameStateData, saveFileType);
   pushAsciiString(gameStateData, '');
   pushUint16(gameStateData, 2026);
   pushUint16(gameStateData, 4);
@@ -244,6 +247,7 @@ describe('SaveStorage', () => {
     expect(loaded?.metadata.mapName).toBe('Downtown Assault');
     expect(loaded?.metadata.sizeBytes).toBe(file.size);
     expect(loaded?.metadata.timestamp).toBeGreaterThan(0);
+    expect(loaded?.metadata.saveFileType).toBe(SaveFileType.SAVE_FILE_TYPE_NORMAL);
   });
 
   it('preserves empty source descriptions when importing save files', async () => {
@@ -256,6 +260,19 @@ describe('SaveStorage', () => {
 
     expect(loaded?.metadata.description).toBe('');
     expect(loaded?.metadata.mapName).toBe('Downtown Assault');
+  });
+
+  it('preserves mission save type metadata when importing save files', async () => {
+    const file = new File([buildImportedSaveFile({
+      saveFileType: SaveFileType.SAVE_FILE_TYPE_MISSION,
+    })], '00000047.sav', {
+      type: 'application/octet-stream',
+    });
+
+    const slotId = await storage.uploadSaveFile(file);
+    const loaded = await storage.loadFromDB(slotId);
+
+    expect(loaded?.metadata.saveFileType).toBe(SaveFileType.SAVE_FILE_TYPE_MISSION);
   });
 
   it('strips .save extension aliases when importing save files', async () => {
