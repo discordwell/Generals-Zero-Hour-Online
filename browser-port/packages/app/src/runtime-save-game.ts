@@ -10021,6 +10021,7 @@ const SOURCE_AI_STATE_GUARD = 16;
 const SOURCE_AI_STATE_FACE_OBJECT = 33;
 const SOURCE_AI_STATE_FACE_POSITION = 34;
 const SOURCE_AI_STATE_EXIT = 37;
+const SOURCE_AI_STATE_PICK_UP_CRATE = 38;
 const SOURCE_AI_STATE_BUSY = 41;
 const SOURCE_AI_STATE_EXIT_INSTANTLY = 42;
 const SOURCE_HACK_INTERNET_STATE_UNPACKING = 1000;
@@ -10181,6 +10182,50 @@ function isSourceAIFaceStateId(value: unknown): value is number {
     || value === SOURCE_AI_STATE_FACE_POSITION;
 }
 
+interface SourceAIInternalMoveToRuntimeSnapshot {
+  goalPosition: Coord3D;
+  goalLayer: number;
+  waitingForPath: boolean;
+  pathGoalPosition: Coord3D;
+  pathTimestamp: number;
+  blockedRepathTimestamp: number;
+  adjustDestinations: boolean;
+}
+
+function sourceFiniteCoord3D(value: unknown): Coord3D {
+  const coord = value && typeof value === 'object'
+    ? value as { x?: unknown; y?: unknown; z?: unknown }
+    : {};
+  return {
+    x: Number.isFinite(coord.x) ? Number(coord.x) : 0,
+    y: Number.isFinite(coord.y) ? Number(coord.y) : 0,
+    z: Number.isFinite(coord.z) ? Number(coord.z) : 0,
+  };
+}
+
+function sourceAIInternalMoveToRuntimeSnapshot(value: unknown): SourceAIInternalMoveToRuntimeSnapshot {
+  const snapshot = value && typeof value === 'object'
+    ? value as {
+      goalPosition?: unknown;
+      goalLayer?: unknown;
+      waitingForPath?: unknown;
+      pathGoalPosition?: unknown;
+      pathTimestamp?: unknown;
+      blockedRepathTimestamp?: unknown;
+      adjustDestinations?: unknown;
+    }
+    : {};
+  return {
+    goalPosition: sourceFiniteCoord3D(snapshot.goalPosition),
+    goalLayer: Number.isFinite(snapshot.goalLayer) ? Math.trunc(Number(snapshot.goalLayer)) : SOURCE_PATHFIND_LAYER_INVALID,
+    waitingForPath: snapshot.waitingForPath === true,
+    pathGoalPosition: sourceFiniteCoord3D(snapshot.pathGoalPosition),
+    pathTimestamp: sourceAIUnsignedFrame(snapshot.pathTimestamp, 0),
+    blockedRepathTimestamp: sourceAIUnsignedFrame(snapshot.blockedRepathTimestamp, 0),
+    adjustDestinations: snapshot.adjustDestinations === true,
+  };
+}
+
 function sourceCoord3DFromRuntimeXYZ(x: unknown, y: unknown, z: unknown): Coord3D {
   return {
     x: Number.isFinite(x) ? Number(x) : 0,
@@ -10339,6 +10384,40 @@ function sourceAIFaceState(entity: MapEntity): {
   };
 }
 
+function sourceAIPickUpCrateState(entity: MapEntity): {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: Coord3D;
+  moveState: SourceAIInternalMoveToRuntimeSnapshot;
+  delayCounter: number;
+  crateGoalPosition: Coord3D;
+} | null {
+  const state = (entity as {
+    sourceAIPickUpCrateState?: {
+      currentStateId?: unknown;
+      goalObjectId?: unknown;
+      goalPosition?: unknown;
+      moveState?: unknown;
+      delayCounter?: unknown;
+      crateGoalPosition?: unknown;
+    } | null;
+  }).sourceAIPickUpCrateState;
+  if (state?.currentStateId !== SOURCE_AI_STATE_PICK_UP_CRATE) {
+    return null;
+  }
+  const goalObjectId = Number.isFinite(state.goalObjectId)
+    ? normalizeSourceObjectId(Number(state.goalObjectId))
+    : 0;
+  return {
+    currentStateId: SOURCE_AI_STATE_PICK_UP_CRATE,
+    goalObjectId,
+    goalPosition: sourceFiniteCoord3D(state.goalPosition),
+    moveState: sourceAIInternalMoveToRuntimeSnapshot(state.moveState),
+    delayCounter: Number.isFinite(state.delayCounter) ? Math.trunc(Number(state.delayCounter)) : 0,
+    crateGoalPosition: sourceFiniteCoord3D(state.crateGoalPosition),
+  };
+}
+
 function sourceRepairDockGoalObjectId(entity: MapEntity): number {
   const dockObjectId = entity.repairDockState?.dockObjectId;
   return Number.isFinite(dockObjectId)
@@ -10482,6 +10561,26 @@ function buildGeneratedSourceAIInternalMoveToStateBlockData(
   }
 }
 
+function buildGeneratedSourceAIInternalMoveToStateSnapshotBlockData(
+  snapshot: SourceAIInternalMoveToRuntimeSnapshot,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-internal-move-to-state-snapshot');
+  try {
+    saver.xferVersion(1);
+    saver.xferCoord3D(snapshot.goalPosition);
+    saver.xferUser(buildSourceRawInt32Bytes(snapshot.goalLayer));
+    saver.xferBool(snapshot.waitingForPath);
+    saver.xferCoord3D(snapshot.pathGoalPosition);
+    saver.xferUnsignedInt(snapshot.pathTimestamp);
+    saver.xferUnsignedInt(snapshot.blockedRepathTimestamp);
+    saver.xferBool(snapshot.adjustDestinations);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildGeneratedSourceAIEnterStateBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -10529,6 +10628,22 @@ function buildGeneratedSourceAIFaceStateBlockData(canTurnInPlace: boolean): Uint
   try {
     saver.xferVersion(1);
     saver.xferBool(canTurnInPlace);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceAIPickUpCrateStateBlockData(
+  state: NonNullable<ReturnType<typeof sourceAIPickUpCrateState>>,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-pick-up-crate-state');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildGeneratedSourceAIInternalMoveToStateSnapshotBlockData(state.moveState));
+    saver.xferInt(state.delayCounter);
+    saver.xferCoord3D(state.crateGoalPosition);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -10727,6 +10842,10 @@ function isGeneratedSourceFaceAIStateMachine(entity: MapEntity): boolean {
   return sourceAIFaceState(entity) !== null;
 }
 
+function isGeneratedSourcePickUpCrateAIStateMachine(entity: MapEntity): boolean {
+  return sourceAIPickUpCrateState(entity) !== null;
+}
+
 function isGeneratedSourceDockAIStateMachine(entity: MapEntity): boolean {
   return sourceRepairDockGoalObjectId(entity) > 0
     && entity.moving !== true;
@@ -10741,7 +10860,8 @@ function isGeneratedSourceMoveAIStateMachine(entity: MapEntity): boolean {
 }
 
 function hasGeneratedSourceAIUpdateRuntimeState(entity: MapEntity): boolean {
-  return isGeneratedSourceFaceAIStateMachine(entity)
+  return isGeneratedSourcePickUpCrateAIStateMachine(entity)
+    || isGeneratedSourceFaceAIStateMachine(entity)
     || isGeneratedSourceStatelessAIStateMachine(entity)
     || isGeneratedSourceExitAIStateMachine(entity)
     || isGeneratedSourceDockAIStateMachine(entity)
@@ -10756,6 +10876,33 @@ function buildGeneratedSourceAIStateMachineBlockData(
   currentFrame = 0,
   options: { liveEntities?: readonly MapEntity[] | null } = {},
 ): Uint8Array {
+  const pickUpCrateState = sourceAIPickUpCrateState(entity);
+  if (pickUpCrateState) {
+    const saver = new XferSave();
+    saver.open('build-generated-source-ai-state-machine-pick-up-crate');
+    try {
+      saver.xferVersion(1);
+      saver.xferVersion(1);
+      saver.xferUnsignedInt(0);
+      saver.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+      saver.xferUnsignedInt(SOURCE_AI_STATE_PICK_UP_CRATE);
+      saver.xferBool(false);
+      saver.xferUser(buildGeneratedSourceAIPickUpCrateStateBlockData(pickUpCrateState));
+      saver.xferObjectID(pickUpCrateState.goalObjectId);
+      saver.xferCoord3D(pickUpCrateState.goalPosition);
+      saver.xferBool(false);
+      saver.xferBool(true);
+      saver.xferInt(0);
+      saver.xferAsciiString('');
+      saver.xferBool(false);
+      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
+      saver.xferUnsignedInt(0);
+      return new Uint8Array(saver.getBuffer());
+    } finally {
+      saver.close();
+    }
+  }
+
   const faceState = sourceAIFaceState(entity);
   if (faceState) {
     const saver = new XferSave();

@@ -2327,6 +2327,37 @@ function writeSourceFaceAIStateMachineForTest(
   saver.xferUnsignedInt(0);
 }
 
+function writeSourcePickUpCrateAIStateMachineForTest(
+  saver: XferSave,
+  options: {
+    goalObjectId: number;
+    goalPosition: { x: number; y: number; z: number };
+    moveGoalPosition: { x: number; y: number; z: number };
+    delayCounter: number;
+    crateGoalPosition: { x: number; y: number; z: number };
+  },
+): void {
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(38);
+  saver.xferBool(false);
+  saver.xferVersion(1);
+  writeSourceAIInternalMoveToStateForTest(saver, options.moveGoalPosition);
+  saver.xferInt(options.delayCounter);
+  saver.xferCoord3D(options.crateGoalPosition);
+  saver.xferObjectID(options.goalObjectId);
+  saver.xferCoord3D(options.goalPosition);
+  saver.xferBool(false);
+  saver.xferBool(true);
+  saver.xferInt(0);
+  saver.xferAsciiString('');
+  saver.xferBool(false);
+  saver.xferUnsignedInt(999999);
+  saver.xferUnsignedInt(0);
+}
+
 function writeSourceDockAIStateMachineForTest(
   saver: XferSave,
   options: {
@@ -2703,6 +2734,41 @@ function buildSourceAIUpdateInterfaceFaceModuleData(options: {
       goalObjectId: options.goalObjectId,
       goalPosition: options.goalPosition,
       canTurnInPlace: options.canTurnInPlace,
+    });
+    saver.xferBool(false);
+    saver.xferBool(true);
+    saver.xferUnsignedInt(options.nextEnemyScanFrame);
+    saver.xferObjectID(0);
+    saver.xferReal(999999);
+    saver.xferUser(sourceRawInt32(options.lastCommandSource));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceAIUpdateInterfacePickUpCrateModuleData(options: {
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+  moveGoalPosition: { x: number; y: number; z: number };
+  delayCounter: number;
+  crateGoalPosition: { x: number; y: number; z: number };
+  nextEnemyScanFrame: number;
+  lastCommandSource: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-ai-update-interface-pick-up-crate');
+  try {
+    saver.xferVersion(4);
+    writeTestSourceUpdateModuleBase(saver, 86, 1);
+    saver.xferUnsignedInt(0xfacade);
+    saver.xferUnsignedInt(0xfacade);
+    writeSourcePickUpCrateAIStateMachineForTest(saver, {
+      goalObjectId: options.goalObjectId,
+      goalPosition: options.goalPosition,
+      moveGoalPosition: options.moveGoalPosition,
+      delayCounter: options.delayCounter,
+      crateGoalPosition: options.crateGoalPosition,
     });
     saver.xferBool(false);
     saver.xferBool(true);
@@ -7557,6 +7623,79 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedFace.moveTarget).toBeNull();
     expect(importedFace.lastCommandSource).toBe('PLAYER');
     expect(importedFace.autoTargetScanNextFrame).toBe(791);
+  });
+
+  it('imports source AIUpdateInterface pick-up-crate state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const pickupState = createEmptySourceMapEntitySaveState();
+    pickupState.objectId = 136;
+    pickupState.position = { x: 360, y: 0, z: 112 };
+    pickupState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfacePickUpCrateModuleData({
+        goalObjectId: 999,
+        goalPosition: { x: 44, y: 54, z: 64 },
+        moveGoalPosition: { x: 45, y: 55, z: 65 },
+        delayCounter: 2,
+        crateGoalPosition: { x: 46, y: 56, z: 66 },
+        nextEnemyScanFrame: 792,
+        lastCommandSource: 1,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackImportUnit', state: pickupState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        moving: boolean;
+        moveTarget: { x: number; z: number } | null;
+        sourceAIPickUpCrateState: unknown;
+        attackTargetEntityId: number | null;
+        attackTargetPosition: { x: number; z: number } | null;
+        attackSubState: string;
+        lastCommandSource: string;
+        autoTargetScanNextFrame: number;
+      }>;
+    };
+
+    const importedPickup = privateLogic.spawnedEntities.get(136)!;
+    expect(importedPickup.sourceAIPickUpCrateState).toEqual({
+      currentStateId: 38,
+      goalObjectId: 999,
+      goalPosition: { x: 44, y: 54, z: 64 },
+      moveState: {
+        goalPosition: { x: 45, y: 55, z: 65 },
+        goalLayer: 0,
+        waitingForPath: false,
+        pathGoalPosition: { x: 45, y: 55, z: 65 },
+        pathTimestamp: 0,
+        blockedRepathTimestamp: 0,
+        adjustDestinations: true,
+      },
+      delayCounter: 2,
+      crateGoalPosition: { x: 46, y: 56, z: 66 },
+    });
+    expect(importedPickup.attackTargetEntityId).toBeNull();
+    expect(importedPickup.attackTargetPosition).toBeNull();
+    expect(importedPickup.attackSubState).toBe('IDLE');
+    expect(importedPickup.moving).toBe(false);
+    expect(importedPickup.moveTarget).toBeNull();
+    expect(importedPickup.lastCommandSource).toBe('SCRIPT');
+    expect(importedPickup.autoTargetScanNextFrame).toBe(792);
   });
 
   it('imports source AIUpdateInterface full tail state', () => {

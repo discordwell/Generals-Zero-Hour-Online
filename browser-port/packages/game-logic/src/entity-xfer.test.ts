@@ -249,6 +249,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     pendingExitState: null,
     sourceAIStatelessState: null,
     sourceAIFaceState: null,
+    sourceAIPickUpCrateState: null,
     chinookCombatDropState: null,
     chinookRappelState: null,
     repairDockState: null,
@@ -1331,6 +1332,55 @@ describe('entity-xfer', () => {
       goalObjectId: 0,
       goalPosition: { x: 12, y: 34, z: 56 },
       canTurnInPlace: true,
+    });
+  });
+
+  it('round-trips source-owned pick-up-crate AI state', () => {
+    const original = createTestEntity({
+      sourceAIPickUpCrateState: {
+        currentStateId: 38,
+        goalObjectId: 99,
+        goalPosition: { x: 10, y: 20, z: 30 },
+        moveState: {
+          goalPosition: { x: 11, y: 21, z: 31 },
+          goalLayer: 2,
+          waitingForPath: true,
+          pathGoalPosition: { x: 12, y: 22, z: 32 },
+          pathTimestamp: 123,
+          blockedRepathTimestamp: 124,
+          adjustDestinations: false,
+        },
+        delayCounter: 3,
+        crateGoalPosition: { x: 13, y: 23, z: 33 },
+      },
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity();
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.sourceAIPickUpCrateState).toEqual({
+      currentStateId: 38,
+      goalObjectId: 99,
+      goalPosition: { x: 10, y: 20, z: 30 },
+      moveState: {
+        goalPosition: { x: 11, y: 21, z: 31 },
+        goalLayer: 2,
+        waitingForPath: true,
+        pathGoalPosition: { x: 12, y: 22, z: 32 },
+        pathTimestamp: 123,
+        blockedRepathTimestamp: 124,
+        adjustDestinations: false,
+      },
+      delayCounter: 3,
+      crateGoalPosition: { x: 13, y: 23, z: 33 },
     });
   });
 

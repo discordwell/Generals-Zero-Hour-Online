@@ -2200,6 +2200,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
     let exitState: Record<string, unknown> | undefined;
     let statelessState: Record<string, unknown> | undefined;
     let faceState: Record<string, unknown> | undefined;
+    let pickUpCrateState: Record<string, unknown> | undefined;
     let attackState: Record<string, unknown> | undefined;
     let guardState: Record<string, unknown> | undefined;
     if (currentStateId === 0) {
@@ -2217,6 +2218,32 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
         kind: currentStateId === 33 ? 'FACE_OBJECT' : 'FACE_POSITION',
         version: xferLoad.xferVersion(1),
         canTurnInPlace: xferLoad.xferBool(false),
+      };
+    } else if (currentStateId === 38) {
+      const pickUpCrateVersion = xferLoad.xferVersion(1);
+      const moveToVersion = xferLoad.xferVersion(1);
+      const moveGoalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const moveGoalLayer = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+      const waitingForPath = xferLoad.xferBool(false);
+      const pathGoalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const pathTimestamp = xferLoad.xferUnsignedInt(0);
+      const blockedRepathTimestamp = xferLoad.xferUnsignedInt(0);
+      const adjustDestinations = xferLoad.xferBool(false);
+      const delayCounter = xferLoad.xferInt(0);
+      const crateGoalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      pickUpCrateState = {
+        kind: 'PICK_UP_CRATE',
+        pickUpCrateVersion,
+        moveToVersion,
+        moveGoalPosition,
+        moveGoalLayer,
+        waitingForPath,
+        pathGoalPosition,
+        pathTimestamp,
+        blockedRepathTimestamp,
+        adjustDestinations,
+        delayCounter,
+        crateGoalPosition,
       };
     } else if (currentStateId === 1) {
       const moveToVersion = xferLoad.xferVersion(1);
@@ -2623,6 +2650,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
       exitState,
       statelessState,
       faceState,
+      pickUpCrateState,
       attackState,
       guardState,
       goalObjectId,
@@ -20874,6 +20902,51 @@ describe('runtime-save-game', () => {
               goalPosition: { x: 5, y: 6, z: 7 },
               canTurnInPlace: true,
             },
+          } as unknown as import('@generals/game-logic').MapEntity, {
+            id: 34,
+            templateName: 'RuntimeGeneratedCrate',
+            x: 390,
+            y: 0,
+            z: 490,
+            rotationY: 0,
+          } as unknown as import('@generals/game-logic').MapEntity, {
+            id: 35,
+            templateName: 'RuntimeGeneratedPickUpCrateAI',
+            x: 380,
+            y: 0,
+            z: 480,
+            rotationY: 0,
+            sourceAIIdleInitialSleepOffset: 12,
+            scriptAiRecruitable: true,
+            attackTargetEntityId: null,
+            attackTargetPosition: null,
+            attackSubState: 'IDLE',
+            lastCommandSource: 'AI',
+            autoTargetScanNextFrame: 90,
+            moving: false,
+            moveTarget: null,
+            locomotorUpgradeEnabled: false,
+            ignoredMovementObstacleId: null,
+            pathfindGoalCell: null,
+            pathfindPosCell: null,
+            activeLocomotorSet: 'SET_NORMAL',
+            guardState: 'NONE',
+            sourceAIPickUpCrateState: {
+              currentStateId: 38,
+              goalObjectId: 34,
+              goalPosition: { x: 390, y: 490, z: 0 },
+              moveState: {
+                goalPosition: { x: 390, y: 490, z: 0 },
+                goalLayer: 0,
+                waitingForPath: false,
+                pathGoalPosition: { x: 380, y: 480, z: 0 },
+                pathTimestamp: 91,
+                blockedRepathTimestamp: 92,
+                adjustDestinations: true,
+              },
+              delayCounter: 2,
+              crateGoalPosition: { x: 392, y: 492, z: 0 },
+            },
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
         listSourceObjectModuleDescriptors: (templateName) => {
@@ -20900,6 +20973,9 @@ describe('runtime-save-game', () => {
           }
           if (templateName === 'RuntimeGeneratedFaceAI') {
             return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_FaceAI' }];
+          }
+          if (templateName === 'RuntimeGeneratedPickUpCrateAI') {
+            return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_PickUpCrateAI' }];
           }
           return templateName === 'RuntimeGeneratedAIUpdates'
             ? [
@@ -21175,6 +21251,37 @@ describe('runtime-save-game', () => {
       },
     });
     expect(faceAI.bytesRead).toBe(faceModule!.blockData.byteLength);
+
+    const generatedPickUpCrate = readSourceGameLogicObjectStates(saveFile.data)
+      ?.find((object) => object.templateName === 'RuntimeGeneratedPickUpCrateAI')?.state;
+    const pickUpCrateModule = generatedPickUpCrate?.modules
+      .find((module) => module.identifier === 'ModuleTag_PickUpCrateAI');
+    expect(pickUpCrateModule).toBeDefined();
+    const pickUpCrateAI = parseGeneratedSourceAIUpdateInterfaceForTest(pickUpCrateModule!.blockData, 0);
+    expect(pickUpCrateAI).toMatchObject({
+      currentStateId: 38,
+      goalObjectId: 34,
+      goalPosition: { x: 390, y: 490, z: 0 },
+      nextEnemyScanTime: 90,
+      currentVictimId: 0,
+      nextMoodCheckTime: 90,
+      lastCommandSource: 2,
+      pickUpCrateState: {
+        kind: 'PICK_UP_CRATE',
+        pickUpCrateVersion: 1,
+        moveToVersion: 1,
+        moveGoalPosition: { x: 390, y: 490, z: 0 },
+        moveGoalLayer: 0,
+        waitingForPath: false,
+        pathGoalPosition: { x: 380, y: 480, z: 0 },
+        pathTimestamp: 91,
+        blockedRepathTimestamp: 92,
+        adjustDestinations: true,
+        delayCounter: 2,
+        crateGoalPosition: { x: 392, y: 492, z: 0 },
+      },
+    });
+    expect(pickUpCrateAI.bytesRead).toBe(pickUpCrateModule!.blockData.byteLength);
 
     expect(hackModule).toBeDefined();
     const hack = parseSourceHackInternetAIUpdateBlockData(hackModule!.blockData);

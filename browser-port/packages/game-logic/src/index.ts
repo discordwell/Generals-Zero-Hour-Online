@@ -3429,6 +3429,16 @@ interface EntityPendingExitState {
   commandSource: 'PLAYER' | 'AI' | 'SCRIPT';
 }
 
+interface SourceAIInternalMoveToStateSnapshot {
+  goalPosition: { x: number; y: number; z: number };
+  goalLayer: number;
+  waitingForPath: boolean;
+  pathGoalPosition: { x: number; y: number; z: number };
+  pathTimestamp: number;
+  blockedRepathTimestamp: number;
+  adjustDestinations: boolean;
+}
+
 interface SourceAIStatelessStateMachineState {
   currentStateId: number;
   goalObjectId: number;
@@ -3440,6 +3450,15 @@ interface SourceAIFaceStateMachineState {
   goalObjectId: number;
   goalPosition: { x: number; y: number; z: number };
   canTurnInPlace: boolean;
+}
+
+interface SourceAIPickUpCrateStateMachineState {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+  moveState: SourceAIInternalMoveToStateSnapshot;
+  delayCounter: number;
+  crateGoalPosition: { x: number; y: number; z: number };
 }
 
 interface PendingRepairDockActionState {
@@ -3936,6 +3955,8 @@ export interface MapEntity {
   sourceAIStatelessState: SourceAIStatelessStateMachineState | null;
   /** Source parity: AI_FACE_OBJECT / AI_FACE_POSITION state. */
   sourceAIFaceState: SourceAIFaceStateMachineState | null;
+  /** Source parity: AI_PICK_UP_CRATE state. */
+  sourceAIPickUpCrateState: SourceAIPickUpCrateStateMachineState | null;
   /** Source parity: ChinookCombatDropState runtime owned by the Chinook AI update. */
   chinookCombatDropState: PendingCombatDropActionState | null;
   /** Source parity: active rappeller runtime owned by the passenger AI/state machine. */
@@ -9499,15 +9520,7 @@ interface SourceAttackStateMachineImportState {
   goalPosition: { x: number; y: number; z: number };
 }
 
-interface SourceAIInternalMoveToStateImportState {
-  goalPosition: { x: number; y: number; z: number };
-  goalLayer: number;
-  waitingForPath: boolean;
-  pathGoalPosition: { x: number; y: number; z: number };
-  pathTimestamp: number;
-  blockedRepathTimestamp: number;
-  adjustDestinations: boolean;
-}
+type SourceAIInternalMoveToStateImportState = SourceAIInternalMoveToStateSnapshot;
 
 interface SourceAIEnterStateImportState {
   moveState: SourceAIInternalMoveToStateImportState;
@@ -9520,6 +9533,12 @@ interface SourceAIExitStateImportState {
 
 interface SourceAIFaceStateImportState {
   canTurnInPlace: boolean;
+}
+
+interface SourceAIPickUpCrateStateImportState {
+  moveState: SourceAIInternalMoveToStateImportState;
+  delayCounter: number;
+  crateGoalPosition: { x: number; y: number; z: number };
 }
 
 interface SourceAIDockMachineImportState {
@@ -9564,6 +9583,7 @@ interface SourceAIStateMachineImportState {
   enterState: SourceAIEnterStateImportState | null;
   exitState: SourceAIExitStateImportState | null;
   faceState: SourceAIFaceStateImportState | null;
+  pickUpCrateState: SourceAIPickUpCrateStateImportState | null;
   attackState: SourceAIAttackStateImportState | null;
   guardState: SourceAIGuardStateImportState | null;
 }
@@ -10415,6 +10435,7 @@ const SOURCE_AI_STATE_DOCK = 14;
 const SOURCE_AI_STATE_ENTER = 15;
 const SOURCE_AI_STATE_GUARD = 16;
 const SOURCE_AI_STATE_EXIT = 37;
+const SOURCE_AI_STATE_PICK_UP_CRATE = 38;
 const SOURCE_AI_STATE_BUSY = 41;
 const SOURCE_AI_STATE_EXIT_INSTANTLY = 42;
 const SOURCE_AI_STATE_FACE_OBJECT = 33;
@@ -16054,6 +16075,22 @@ export class GameLogicSubsystem implements Subsystem {
     return { canTurnInPlace: xfer.xferBool(false) };
   }
 
+  private parseSourceAIPickUpCrateStateSnapshot(
+    xfer: XferLoad,
+  ): SourceAIPickUpCrateStateImportState | null {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const moveState = this.parseSourceAIInternalMoveToStateSnapshot(xfer);
+    if (!moveState) {
+      return null;
+    }
+    const delayCounter = xfer.xferInt(0);
+    const crateGoalPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    return { moveState, delayCounter, crateGoalPosition };
+  }
+
   private sourceAttackStateToRuntimeSubState(stateId: number): AttackSubState | null {
     switch (Math.trunc(stateId)) {
       case SOURCE_ATTACK_STATE_CHASE_TARGET:
@@ -16427,6 +16464,7 @@ export class GameLogicSubsystem implements Subsystem {
     let enterState: SourceAIEnterStateImportState | null = null;
     let exitState: SourceAIExitStateImportState | null = null;
     let faceState: SourceAIFaceStateImportState | null = null;
+    let pickUpCrateState: SourceAIPickUpCrateStateImportState | null = null;
     let attackState: SourceAIAttackStateImportState | null = null;
     let guardState: SourceAIGuardStateImportState | null = null;
     if (currentStateId === SOURCE_AI_STATE_IDLE) {
@@ -16440,6 +16478,11 @@ export class GameLogicSubsystem implements Subsystem {
     } else if (this.isSourceAIFaceTopStateId(currentStateId)) {
       faceState = this.parseSourceAIFaceStateSnapshot(xfer);
       if (!faceState) {
+        return null;
+      }
+    } else if (currentStateId === SOURCE_AI_STATE_PICK_UP_CRATE) {
+      pickUpCrateState = this.parseSourceAIPickUpCrateStateSnapshot(xfer);
+      if (!pickUpCrateState) {
         return null;
       }
     } else if (currentStateId === SOURCE_AI_STATE_MOVE_TO) {
@@ -16497,7 +16540,19 @@ export class GameLogicSubsystem implements Subsystem {
     }
     xfer.xferUnsignedInt(0);
 
-    return { currentStateId, goalObjectId, goalPosition, moveState, dockState, enterState, exitState, faceState, attackState, guardState };
+    return {
+      currentStateId,
+      goalObjectId,
+      goalPosition,
+      moveState,
+      dockState,
+      enterState,
+      exitState,
+      faceState,
+      pickUpCrateState,
+      attackState,
+      guardState,
+    };
   }
 
   private skipSourcePathSnapshot(xfer: XferLoad): void {
@@ -19390,6 +19445,56 @@ export class GameLogicSubsystem implements Subsystem {
             z: Number.isFinite(stateMachine.goalPosition.z) ? stateMachine.goalPosition.z : 0,
           },
           canTurnInPlace: stateMachine.faceState.canTurnInPlace,
+        };
+      }
+
+      if (stateMachine.currentStateId === SOURCE_AI_STATE_PICK_UP_CRATE && stateMachine.pickUpCrateState) {
+        const moveTarget = this.sourceCoord3DToRuntimeXZ(stateMachine.pickUpCrateState.moveState.goalPosition);
+        // TODO(source parity): AIPickUpCrateState::update delays, then runs AIInternalMoveToState and crate pickup.
+        entity.attackTargetEntityId = null;
+        entity.attackTargetPosition = null;
+        entity.attackOriginalVictimPosition = null;
+        entity.attackSubState = 'IDLE';
+        entity.movePath = stateMachine.pickUpCrateState.delayCounter <= 0 ? [moveTarget] : [];
+        entity.pathIndex = 0;
+        entity.moveTarget = stateMachine.pickUpCrateState.delayCounter <= 0 ? moveTarget : null;
+        entity.moving = stateMachine.pickUpCrateState.delayCounter <= 0;
+        if (entity.moving && aiUpdateState.pathfindGoalCell === null) {
+          entity.pathfindGoalCell = {
+            x: Math.floor(moveTarget.x / PATHFIND_CELL_SIZE),
+            z: Math.floor(moveTarget.z / PATHFIND_CELL_SIZE),
+          };
+        }
+        entity.temporaryMoveExpireFrame = 0;
+        entity.sourceAIPickUpCrateState = {
+          currentStateId: stateMachine.currentStateId,
+          goalObjectId: Math.max(0, Math.trunc(stateMachine.goalObjectId)),
+          goalPosition: {
+            x: Number.isFinite(stateMachine.goalPosition.x) ? stateMachine.goalPosition.x : 0,
+            y: Number.isFinite(stateMachine.goalPosition.y) ? stateMachine.goalPosition.y : 0,
+            z: Number.isFinite(stateMachine.goalPosition.z) ? stateMachine.goalPosition.z : 0,
+          },
+          moveState: {
+            goalPosition: { ...stateMachine.pickUpCrateState.moveState.goalPosition },
+            goalLayer: stateMachine.pickUpCrateState.moveState.goalLayer,
+            waitingForPath: stateMachine.pickUpCrateState.moveState.waitingForPath,
+            pathGoalPosition: { ...stateMachine.pickUpCrateState.moveState.pathGoalPosition },
+            pathTimestamp: stateMachine.pickUpCrateState.moveState.pathTimestamp,
+            blockedRepathTimestamp: stateMachine.pickUpCrateState.moveState.blockedRepathTimestamp,
+            adjustDestinations: stateMachine.pickUpCrateState.moveState.adjustDestinations,
+          },
+          delayCounter: Math.trunc(stateMachine.pickUpCrateState.delayCounter),
+          crateGoalPosition: {
+            x: Number.isFinite(stateMachine.pickUpCrateState.crateGoalPosition.x)
+              ? stateMachine.pickUpCrateState.crateGoalPosition.x
+              : 0,
+            y: Number.isFinite(stateMachine.pickUpCrateState.crateGoalPosition.y)
+              ? stateMachine.pickUpCrateState.crateGoalPosition.y
+              : 0,
+            z: Number.isFinite(stateMachine.pickUpCrateState.crateGoalPosition.z)
+              ? stateMachine.pickUpCrateState.crateGoalPosition.z
+              : 0,
+          },
         };
       }
 
@@ -26835,6 +26940,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
     entity.sourceAIStatelessState = null;
     entity.sourceAIFaceState = null;
+    entity.sourceAIPickUpCrateState = null;
     entity.sourceAIUpdateIsDead = false;
   }
 
@@ -54345,6 +54451,7 @@ export class GameLogicSubsystem implements Subsystem {
       entity.sourceAIUpdateIsDead = false;
       entity.sourceAIStatelessState = null;
       entity.sourceAIFaceState = null;
+      entity.sourceAIPickUpCrateState = null;
       entity.chinookCombatDropState = null;
       entity.chinookRappelState = null;
       entity.repairDockState = null;
