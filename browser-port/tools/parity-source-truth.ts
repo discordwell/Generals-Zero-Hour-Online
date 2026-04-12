@@ -3141,6 +3141,32 @@ function sourceRailroadPullInfoFields(prefix: string): string[] {
   ];
 }
 
+function sourceFlightDeckTailFields(): string[] {
+  return [
+    'spaces.count',
+    'spaces.occupantId',
+    'runways.count',
+    'runways.takeoffId',
+    'runways.landingId',
+    'healees.count',
+    'healees.entityId',
+    'healees.healStartFrame',
+    'nextHealFrame',
+    'nextCleanupFrame',
+    'startedProductionFrame',
+    'nextAllowedProductionFrame',
+    'designatedTargetId',
+    'designatedCommandType',
+    'designatedPosition',
+    'maxRunways',
+    'nextLaunchWaveFrame.entry',
+    'rampUpFrame.entry',
+    'catapultSystemFrame.entry',
+    'lowerRampFrame.entry',
+    'rampUpXferFlags.entry',
+  ];
+}
+
 function sourceDozerTaskEntryFields(): string[] {
   return ['task.count', 'task.targetObjectId', 'task.taskOrderFrame'];
 }
@@ -3359,6 +3385,8 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppBridgeTowerBehaviorField;
   } else if (className === 'ParkingPlaceBehavior') {
     mapper = mapCppParkingPlaceBehaviorField;
+  } else if (className === 'FlightDeckBehavior') {
+    mapper = mapCppFlightDeckBehaviorField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -3409,6 +3437,12 @@ export function parseTsSourceObjectUpdateFields(
       const window = tsTokenStatement(body, match.index);
       if (window.includes('buildGeneratedSourceAIUpdateInterfaceBlockData')) {
         pushUniqueField(fields, seen, 'aiUpdateInterface');
+        continue;
+      }
+      if (window.includes('buildSourceFlightDeckBehaviorTailData')) {
+        for (const field of sourceFlightDeckTailFields()) {
+          pushUniqueField(fields, seen, field);
+        }
         continue;
       }
       if (window.includes('buildSourceUpdateModuleBaseBlockData')) {
@@ -5802,6 +5836,41 @@ function mapCppParkingPlaceBehaviorField(method: string, argument: string): stri
   if (method === 'xferCoord3D' && argument === 'm_heliRallyPoint') return 'heliRallyPoint';
   if (method === 'xferBool' && argument === 'm_heliRallyPointExists') return 'heliRallyPointExists';
   if (method === 'xferUnsignedInt' && argument === 'm_nextHealFrame') return 'nextHealFrame';
+  return mapCppSimpleModuleField(method, argument);
+}
+
+function mapCppFlightDeckBehaviorField(method: string, argument: string): string | null {
+  const compactArgument = argument.replace(/\s+/g, '');
+  if (method === 'xferUnsignedByte' && argument === 'spacesCount') return 'spaces.count';
+  if (method === 'xferObjectID' && argument.includes('m_objectInSpace')) return 'spaces.occupantId';
+  if (method === 'xferObjectID' && argument === 'objectID') return 'spaces.occupantId';
+  if (method === 'xferUnsignedByte' && argument === 'runwaysCount') return 'runways.count';
+  if (method === 'xferObjectID' && argument.includes('m_inUseByForTakeoff')) return 'runways.takeoffId';
+  if (method === 'xferObjectID' && argument === 'inUseByForTakeoff') return 'runways.takeoffId';
+  if (method === 'xferObjectID' && argument.includes('m_inUseByForLanding')) return 'runways.landingId';
+  if (method === 'xferObjectID' && argument === 'inUseByForLanding') return 'runways.landingId';
+  if (method === 'xferUnsignedByte' && argument === 'healCount') return 'healees.count';
+  if (method === 'xferObjectID' && argument.includes('m_gettingHealedID')) return 'healees.entityId';
+  if (method === 'xferUnsignedInt' && argument.includes('m_healStartFrame')) return 'healees.healStartFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_nextHealFrame') return 'nextHealFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_nextCleanupFrame') return 'nextCleanupFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_startedProductionFrame') return 'startedProductionFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_nextAllowedProductionFrame') {
+    return 'nextAllowedProductionFrame';
+  }
+  if (method === 'xferObjectID' && argument === 'm_designatedTarget') return 'designatedTargetId';
+  if (method === 'xferInt' && argument === 'commandType') return 'designatedCommandType';
+  if (method === 'xferCoord3D' && argument === 'm_designatedPosition') return 'designatedPosition';
+  if (method === 'xferUnsignedInt' && argument === 'maxRunways') return 'maxRunways';
+  if (method === 'xferUnsignedInt' && compactArgument === 'm_nextLaunchWaveFrame[i]') {
+    return 'nextLaunchWaveFrame.entry';
+  }
+  if (method === 'xferUnsignedInt' && compactArgument === 'm_rampUpFrame[i]') return 'rampUpFrame.entry';
+  if (method === 'xferUnsignedInt' && compactArgument === 'm_catapultSystemFrame[i]') {
+    return 'catapultSystemFrame.entry';
+  }
+  if (method === 'xferUnsignedInt' && compactArgument === 'm_lowerRampFrame[i]') return 'lowerRampFrame.entry';
+  if (method === 'xferBool' && compactArgument === 'm_rampUp[MAX_RUNWAYS]') return 'rampUpXferFlags.entry';
   return mapCppSimpleModuleField(method, argument);
 }
 
@@ -8223,6 +8292,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     '../Behavior/CountermeasuresBehavior.cpp',
     '../Behavior/DumbProjectileBehavior.cpp',
     '../Behavior/FireWeaponWhenDeadBehavior.cpp',
+    '../Behavior/FlightDeckBehavior.cpp',
     '../Behavior/GenerateMinefieldBehavior.cpp',
     '../Behavior/GrantStealthBehavior.cpp',
     '../Behavior/MinefieldBehavior.cpp',
@@ -9228,6 +9298,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-parking-place-behavior-fields',
       cppClass: 'ParkingPlaceBehavior',
       tsHelper: 'buildSourceParkingPlaceBehaviorBlockData',
+    },
+    {
+      category: 'save-flight-deck-behavior-fields',
+      cppClass: 'FlightDeckBehavior',
+      tsHelper: 'buildGeneratedSourceFlightDeckBehaviorBlockData',
     },
     {
       category: 'save-point-defense-laser-update-fields',
