@@ -3331,6 +3331,8 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppDumbProjectileBehaviorField;
   } else if (className === 'RebuildHoleBehavior') {
     mapper = mapCppRebuildHoleBehaviorField;
+  } else if (className === 'PropagandaTowerBehavior') {
+    mapper = mapCppPropagandaTowerBehaviorField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -3358,7 +3360,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:UpdateModuleBase|ObjectIdListByUnsignedShortCount|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -3410,6 +3412,11 @@ export function parseTsSourceObjectUpdateFields(
       for (const field of sourceProductionExitRallyFields()) {
         pushUniqueField(fields, seen, field);
       }
+      continue;
+    }
+    if (token.includes('xferSourceObjectIdListByUnsignedShortCount')) {
+      pushUniqueField(fields, seen, 'trackedIds.count');
+      pushUniqueField(fields, seen, 'trackedIds.entry');
       continue;
     }
     if (token.includes('xferSourceParticleUplinkVisualState')) {
@@ -5524,6 +5531,13 @@ function mapCppRebuildHoleBehaviorField(method: string, argument: string): strin
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppPropagandaTowerBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferUnsignedInt' && argument === 'm_lastScanFrame') return 'lastScanFrame';
+  if (method === 'xferUnsignedShort' && argument === 'insideCount') return 'trackedIds.count';
+  if (method === 'xferObjectID' && argument === 'trackerEntry->objectID') return 'trackedIds.entry';
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -5787,6 +5801,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('flameDamageNextFrame')) return 'damageEndFrame';
     if (window.includes('flameLastDamageReceivedFrame')) return 'lastFlameDamageDealt';
     if (window.includes('lastDamageFrame')) return 'lastDamageFrame';
+    if (window.includes('lastScanFrame')) return 'lastScanFrame';
     if (window.includes('radarExtendDoneFrame')) return 'extendDoneFrame';
     if (window.includes('checkpointScanCountdown')) return 'enemyScanDelay';
     if (window.includes('timeoutFrame')) return 'timeoutFrame';
@@ -7901,6 +7916,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'BattlePlanUpdate.cpp',
     'BoneFXUpdate.cpp',
     '../Behavior/DumbProjectileBehavior.cpp',
+    '../Behavior/PropagandaTowerBehavior.cpp',
     '../Behavior/RebuildHoleBehavior.cpp',
     'CheckpointUpdate.cpp',
     'CleanupHazardUpdate.cpp',
@@ -8830,6 +8846,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-rebuild-hole-behavior-fields',
       cppClass: 'RebuildHoleBehavior',
       tsHelper: 'buildSourceRebuildHoleBehaviorBlockData',
+    },
+    {
+      category: 'save-propaganda-tower-behavior-fields',
+      cppClass: 'PropagandaTowerBehavior',
+      tsHelper: 'buildSourcePropagandaTowerBehaviorBlockData',
     },
     {
       category: 'save-point-defense-laser-update-fields',
