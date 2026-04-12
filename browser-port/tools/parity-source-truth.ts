@@ -3120,7 +3120,12 @@ function sourceSupplyTruckTailFields(): string[] {
 }
 
 function sourceSupplyTruckAIUpdateFields(): string[] {
-  return ['version', 'aiUpdateInterface', 'stateMachine', ...sourceSupplyTruckTailFields()];
+  return [
+    'version',
+    ...prefixBaseVersion(sourceAIUpdateInterfaceFields(), 'aiUpdateInterface'),
+    'stateMachine',
+    ...sourceSupplyTruckTailFields(),
+  ];
 }
 
 function sourceRadiusDecalTemplateFields(prefix: string): string[] {
@@ -3320,6 +3325,66 @@ function sourceWrappedStateMachineFields(): string[] {
   return ['version', ...sourceStateMachineFields()];
 }
 
+function sourceAIUpdateInterfaceFields(): string[] {
+  return [
+    'version',
+    ...sourceUpdateModuleBaseFields(),
+    'priorWaypointId',
+    'currentWaypointId',
+    'stateMachine',
+    'isAiDead',
+    'isRecruitable',
+    'nextEnemyScanTime',
+    'currentVictimId',
+    'desiredSpeed',
+    'lastCommandSource',
+    'guardTargetType0',
+    'guardTargetType1',
+    'locationToGuard',
+    'objectToGuard',
+    'areaToGuardName',
+    'attackInfoName',
+    'waypointCount',
+    'waypointIndex',
+    'executingWaypointQueue',
+    'completedWaypointId',
+    'waitingForPath',
+    'gotPath',
+    'requestedVictimId',
+    'requestedDestination',
+    'requestedDestination2',
+    'ignoreObstacleId',
+    'pathExtraDistance',
+    'pathfindGoalCell',
+    'pathfindCurCell',
+    'ignoreCollisionsUntil',
+    'queueForPathFrame',
+    'finalPosition',
+    'doFinalPosition',
+    'isAttackPath',
+    'isFinalGoal',
+    'isApproachPath',
+    'isSafePath',
+    'movementComplete',
+    'isSafePathPostMovement',
+    'upgradedLocomotors',
+    'canPathThroughUnits',
+    'randomlyOffsetMoodCheck',
+    'repulsor1',
+    'repulsor2',
+    'moveOutOfWay1',
+    'moveOutOfWay2',
+    'locomotorSet',
+    'curLocomotorSet',
+    'locomotorGoalType',
+    'locomotorGoalData',
+    'turretSyncFlag',
+    'attitude',
+    'nextMoodCheckTime',
+    'crateCreated',
+  ];
+}
+
 export function parseCppSourceW3DModelDrawFields(source: string): string[] {
   return parseCppSimpleModuleFields(source, 'void W3DModelDraw::xfer( Xfer *xfer )', {
     'DrawModule::xfer': sourceDrawModuleBaseFields(),
@@ -3478,6 +3543,9 @@ export function parseTsSourceDrawableClientUpdateFields(source: string, helperNa
 }
 
 export function parseCppSourceObjectUpdateFields(source: string, className: string): string[] {
+  if (className === 'AIUpdateInterface') {
+    return sourceAIUpdateInterfaceFields();
+  }
   const dynamicGeometryFields = parseCppSimpleModuleFields(
     source,
     'void DynamicGeometryInfoUpdate::xfer( Xfer *xfer )',
@@ -3569,7 +3637,7 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
       'PhysicsBehavior::xfer': prefixBaseVersion(sourcePhysicsBehaviorFields(), 'physics'),
       'SlowDeathBehavior::xfer': prefixBaseVersion(sourceSlowDeathBehaviorFields(), 'slowDeath'),
       'SupplyTruckAIUpdate::xfer': prefixBaseVersion(sourceSupplyTruckAIUpdateFields(), 'supplyTruck'),
-      'AIUpdateInterface::xfer': ['aiUpdateInterface'],
+      'AIUpdateInterface::xfer': prefixBaseVersion(sourceAIUpdateInterfaceFields(), 'aiUpdateInterface'),
     },
     mapper,
   );
@@ -3589,6 +3657,9 @@ export function parseTsSourceObjectUpdateFields(
   if (helperName === 'buildGeneratedSourceDeliverPayloadStateMachineBlockData'
     || helperName === 'buildGeneratedSourceDozerPrimaryStateMachineBlockData') {
     return sourceWrappedStateMachineFields();
+  }
+  if (helperName === 'buildGeneratedSourceAIUpdateInterfaceBlockData') {
+    return sourceAIUpdateInterfaceFields();
   }
   const body = extractFunctionBodyAfterParams(source, helperName);
   if (!body) return [];
@@ -3617,7 +3688,9 @@ export function parseTsSourceObjectUpdateFields(
     if (token.includes('xferUser')) {
       const window = tsTokenStatement(body, match.index);
       if (window.includes('buildGeneratedSourceAIUpdateInterfaceBlockData')) {
-        pushUniqueField(fields, seen, 'aiUpdateInterface');
+        for (const field of prefixBaseVersion(sourceAIUpdateInterfaceFields(), 'aiUpdateInterface')) {
+          pushUniqueField(fields, seen, field);
+        }
         continue;
       }
       if (window.includes('buildSourceFlightDeckBehaviorTailData')) {
@@ -8686,6 +8759,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/Update/LaserUpdate.cpp'),
   );
   const objectUpdateFiles = [
+    'AIUpdate.cpp',
     'AutoFindHealingUpdate.cpp',
     'AutoDepositUpdate.cpp',
     'AIUpdate/AssaultTransportAIUpdate.cpp',
@@ -9984,6 +10058,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-transport-ai-update-fields',
       cppClass: 'TransportAIUpdate',
       tsHelper: 'buildSourceAIUpdateInterfaceDerivedBlockData',
+    },
+    {
+      category: 'save-ai-update-interface-fields',
+      cppClass: 'AIUpdateInterface',
+      tsHelper: 'buildGeneratedSourceAIUpdateInterfaceBlockData',
     },
     {
       category: 'save-deploy-style-ai-update-fields',
