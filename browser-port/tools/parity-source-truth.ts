@@ -3561,6 +3561,9 @@ export function parseTsSourceObjectUpdateFields(
   helperName: string,
   options: { hasUpgradeMux?: boolean } = {},
 ): string[] {
+  if (helperName === 'buildGeneratedSourceHackInternetStateMachineBlockData') {
+    return parseTsSourceHackInternetStateFields(source);
+  }
   const body = extractFunctionBodyAfterParams(source, helperName);
   if (!body) return [];
   const fields: string[] = [];
@@ -3904,6 +3907,20 @@ export function parseTsSourceObjectUpdateFields(
       }
     }
     pushUniqueField(fields, seen, mapTsSourceObjectUpdateField(token, body, match.index));
+  }
+  return fields;
+}
+
+export function parseTsSourceHackInternetStateFields(source: string): string[] {
+  const body = extractFunctionBodyAfterParams(source, 'buildGeneratedSourceHackInternetStateMachineBlockData');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  if (body.includes('saver.xferVersion(1);')) {
+    pushUniqueField(fields, seen, 'version');
+  }
+  if (body.includes('state.framesRemaining')) {
+    pushUniqueField(fields, seen, 'framesRemaining');
   }
   return fields;
 }
@@ -9943,6 +9960,21 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-hack-internet-ai-update-fields',
       cppClass: 'HackInternetAIUpdate',
       tsHelper: 'buildGeneratedSourceHackInternetAIUpdateBlockData',
+    },
+    {
+      category: 'save-hack-internet-unpacking-state-fields',
+      cppClass: 'UnpackingState',
+      tsHelper: 'buildGeneratedSourceHackInternetStateMachineBlockData',
+    },
+    {
+      category: 'save-hack-internet-packing-state-fields',
+      cppClass: 'PackingState',
+      tsHelper: 'buildGeneratedSourceHackInternetStateMachineBlockData',
+    },
+    {
+      category: 'save-hack-internet-hack-state-fields',
+      cppClass: 'HackInternetState',
+      tsHelper: 'buildGeneratedSourceHackInternetStateMachineBlockData',
     },
     {
       category: 'save-jet-ai-update-fields',
