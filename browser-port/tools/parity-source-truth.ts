@@ -1137,6 +1137,137 @@ export function parseTsW3DPropBufferFields(source: string): string[] {
   return /xfer\.xferVersion\s*\(\s*SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION\s*\)/.test(body) ? ['version'] : [];
 }
 
+export function parseCppGhostObjectManagerFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void W3DGhostObjectManager::xfer');
+  const baseBody = extractFunctionBody(source, 'void GhostObjectManager::xfer( Xfer *xfer )');
+  if (!body || !baseBody) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /GhostObjectManager::xfer\s*\(\s*xfer\s*\)|xfer->xferSnapshot\s*\(\s*w3dGhostObject|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.startsWith('GhostObjectManager::xfer')) {
+      for (const field of parseCppGhostObjectManagerBaseFields(baseBody)) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSnapshot')) {
+      pushUniqueField(fields, seen, 'ghostObject.snapshot');
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppGhostObjectManagerField(match[1]!, normalizeCppXferArgument(match[2]!)));
+  }
+  return fields;
+}
+
+export function parseTsGhostObjectManagerFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'export class GhostObjectSnapshot');
+  if (!body) return [];
+  const saveStart = body.indexOf('const w3dVersion = xfer.xferVersion(SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION);');
+  if (saveStart < 0) return [];
+  const saveBody = body.slice(saveStart);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*(?:SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION|SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION)\s*\)|xfer\.xferInt\s*\(\s*this\.localPlayerIndex\s*\)|xfer\.xferUnsignedShort\s*\(\s*this\.ghostEntries\.length\s*\)|xfer\.xferObjectID\s*\(\s*entry\.managerParentObjectId\s*\)|const objectVersion\s*=\s*xfer\.xferVersion\s*\(\s*SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION\s*\)/g;
+  let nestedStarted = false;
+  let match;
+  while ((match = tokenRegex.exec(saveBody)) !== null) {
+    const token = match[0]!;
+    if (token.startsWith('const objectVersion')) {
+      nestedStarted = true;
+      pushUniqueField(fields, seen, 'ghostObject.snapshot');
+      continue;
+    }
+    if (nestedStarted && token.includes('SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION')) {
+      continue;
+    }
+    pushUniqueField(fields, seen, mapTsGhostObjectManagerField(token));
+  }
+  return fields;
+}
+
+export function parseCppGhostObjectFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void W3DGhostObject::xfer');
+  const baseBody = extractFunctionBody(source, 'void GhostObject::xfer( Xfer *xfer )');
+  if (!body || !baseBody) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /GhostObject::xfer\s*\(\s*xfer\s*\)|xfer->xferSnapshot\s*\(\s*objectSnapshot\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.startsWith('GhostObject::xfer')) {
+      for (const field of parseCppGhostObjectBaseFields(baseBody)) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSnapshot')) {
+      pushUniqueField(fields, seen, 'renderObject.snapshot');
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppGhostObjectField(match[1]!, normalizeCppXferArgument(match[2]!)));
+  }
+  return fields;
+}
+
+export function parseTsGhostObjectFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'export class GhostObjectSnapshot');
+  if (!body) return [];
+  const start = body.indexOf('const objectVersion = xfer.xferVersion(SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION);');
+  if (start < 0) return [];
+  const saveBody = body.slice(start);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*(?:SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION|SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION)\s*\)|xfer\.xferObjectID\s*\(\s*entry\.(?:parentObjectId|drawableInfoShroudStatusObjectId)\s*\)|xfer\.xferUser\s*\(\s*buildSourceRawInt32Bytes\((?:entry\.parentGeometryType|shroudednessEntry\.previousShroudedness)[^)]*?\)\s*\)|xfer\.xferBool\s*\(\s*entry\.parentGeometryIsSmall\s*\)|xfer\.xferReal\s*\(\s*entry\.(?:parentGeometryMajorRadius|parentGeometryMinorRadius|parentAngle)\s*\)|xfer\.xferCoord3D\s*\(\s*entry\.parentPosition\s*\)|xfer\.xferInt\s*\(\s*entry\.drawableInfoFlags\s*\)|xfer\.xferUnsignedInt\s*\(\s*entry\.drawableId\s*\)|xfer\.xferUnsignedByte\s*\(\s*snapshots\.length\s*\)|xfer\.xferAsciiString\s*\(\s*snapshot\.name\s*\)|xfer\.xferReal\s*\(\s*snapshot\.scale\s*\)|xfer\.xferUnsignedInt\s*\(\s*snapshot\.color\s*\)|const snapshotVersion\s*=\s*xfer\.xferVersion\s*\(\s*1\s*\)|xfer\.xferUnsignedByte\s*\(\s*shroudednessEntries\.length\s*\)|xfer\.xferUnsignedByte\s*\(\s*shroudednessEntry\.playerIndex\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(saveBody)) !== null) {
+    pushUniqueField(fields, seen, mapTsGhostObjectField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppW3DRenderObjectSnapshotFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void W3DRenderObjectSnapshot::xfer');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    const label = method === 'xferUser' && argument.startsWith('transform') && seen.has('transformMatrix')
+      ? 'subObject.transformMatrix'
+      : mapCppW3DRenderObjectSnapshotField(method, argument);
+    pushUniqueField(fields, seen, label);
+  }
+  return fields;
+}
+
+export function parseTsW3DRenderObjectSnapshotFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'export class GhostObjectSnapshot');
+  if (!body) return [];
+  const start = body.indexOf('const snapshotVersion = xfer.xferVersion(1);');
+  if (start < 0) return [];
+  const saveBody = body.slice(start);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*1\s*\)|xfer\.xferUser\s*\(\s*(?:transformMatrixBytes|subObjectMatrixBytes)\s*\)|xfer\.xferInt\s*\(\s*snapshot\.subObjects\.length\s*\)|xfer\.xferAsciiString\s*\(\s*subObject\.name\s*\)|xfer\.xferBool\s*\(\s*subObject\.visible\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(saveBody)) !== null) {
+    pushUniqueField(fields, seen, mapTsW3DRenderObjectSnapshotField(match[0]!));
+  }
+  return fields;
+}
+
 /**
  * Parse C++ Radar::xfer source-save field order.
  */
@@ -3320,6 +3451,123 @@ function mapTsW3DTreeBufferField(token: string): string | null {
   return null;
 }
 
+function parseCppGhostObjectManagerBaseFields(body: string): string[] {
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const fieldRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = fieldRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapCppGhostObjectManagerBaseField(match[1]!, normalizeCppXferArgument(match[2]!)));
+  }
+  return fields;
+}
+
+function parseCppGhostObjectBaseFields(body: string): string[] {
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const fieldRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = fieldRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapCppGhostObjectBaseField(match[1]!, normalizeCppXferArgument(match[2]!)));
+  }
+  return fields;
+}
+
+function mapCppGhostObjectManagerBaseField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'base.version';
+  if (method === 'xferInt' && argument === 'm_localPlayer') return 'localPlayer';
+  return null;
+}
+
+function mapCppGhostObjectManagerField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'w3d.version';
+  if (method === 'xferUnsignedShort' && argument === 'count') return 'ghostObject.count';
+  if (method === 'xferObjectID' && argument === 'objectID') return 'ghostObject.managerParentObjectId';
+  return null;
+}
+
+function mapTsGhostObjectManagerField(token: string): string | null {
+  if (token.includes('SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION')) return 'w3d.version';
+  if (token.includes('SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION')) return 'base.version';
+  if (token.includes('this.localPlayerIndex')) return 'localPlayer';
+  if (token.includes('this.ghostEntries.length')) return 'ghostObject.count';
+  if (token.includes('entry.managerParentObjectId')) return 'ghostObject.managerParentObjectId';
+  return null;
+}
+
+function mapCppGhostObjectBaseField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'base.version';
+  if (method === 'xferObjectID' && argument === 'parentObjectID') return 'parentObjectId';
+  if (method === 'xferUser' && argument.startsWith('m_parentGeometryType')) return 'parentGeometryType';
+  if (method === 'xferBool' && argument === 'm_parentGeometryIsSmall') return 'parentGeometryIsSmall';
+  if (method === 'xferReal' && argument === 'm_parentGeometryMajorRadius') return 'parentGeometryMajorRadius';
+  if (method === 'xferReal' && argument === 'm_parentGeometryminorRadius') return 'parentGeometryMinorRadius';
+  if (method === 'xferReal' && argument === 'm_parentAngle') return 'parentAngle';
+  if (method === 'xferCoord3D' && argument === 'm_parentPosition') return 'parentPosition';
+  return null;
+}
+
+function mapCppGhostObjectField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'w3d.version';
+  if (method === 'xferObjectID' && argument === 'm_drawableInfo.m_shroudStatusObjectID') {
+    return 'drawableInfo.shroudStatusObjectId';
+  }
+  if (method === 'xferInt' && argument === 'm_drawableInfo.m_flags') return 'drawableInfo.flags';
+  if (method === 'xferDrawableID' && argument === 'drawableID') return 'drawableInfo.drawableId';
+  if (method === 'xferUnsignedByte' && argument === 'snapshotCount') return 'snapshot.count';
+  if (method === 'xferAsciiString' && argument === 'name') return 'snapshot.name';
+  if (method === 'xferReal' && argument === 'scale') return 'snapshot.scale';
+  if (method === 'xferUnsignedInt' && argument === 'color') return 'snapshot.color';
+  if (method === 'xferUnsignedByte' && argument === 'shroudednessCount') return 'shroudedness.count';
+  if (method === 'xferUnsignedByte' && argument === 'playerIndex') return 'shroudedness.playerIndex';
+  if (method === 'xferUser' && argument.startsWith('status')) return 'shroudedness.previous';
+  return null;
+}
+
+function mapTsGhostObjectField(token: string): string | null {
+  if (token.includes('SOURCE_W3D_GHOST_OBJECT_MANAGER_SNAPSHOT_VERSION')) return 'w3d.version';
+  if (token.includes('SOURCE_GHOST_OBJECT_SNAPSHOT_VERSION')) return 'base.version';
+  if (token.includes('entry.parentObjectId')) return 'parentObjectId';
+  if (token.includes('entry.parentGeometryType')) return 'parentGeometryType';
+  if (token.includes('entry.parentGeometryIsSmall')) return 'parentGeometryIsSmall';
+  if (token.includes('entry.parentGeometryMajorRadius')) return 'parentGeometryMajorRadius';
+  if (token.includes('entry.parentGeometryMinorRadius')) return 'parentGeometryMinorRadius';
+  if (token.includes('entry.parentAngle')) return 'parentAngle';
+  if (token.includes('entry.parentPosition')) return 'parentPosition';
+  if (token.includes('entry.drawableInfoShroudStatusObjectId')) return 'drawableInfo.shroudStatusObjectId';
+  if (token.includes('entry.drawableInfoFlags')) return 'drawableInfo.flags';
+  if (token.includes('entry.drawableId')) return 'drawableInfo.drawableId';
+  if (token.includes('snapshots.length')) return 'snapshot.count';
+  if (token.includes('snapshot.name')) return 'snapshot.name';
+  if (token.includes('snapshot.scale')) return 'snapshot.scale';
+  if (token.includes('snapshot.color')) return 'snapshot.color';
+  if (token.includes('snapshotVersion')) return 'renderObject.snapshot';
+  if (token.includes('shroudednessEntries.length')) return 'shroudedness.count';
+  if (token.includes('shroudednessEntry.playerIndex')) return 'shroudedness.playerIndex';
+  if (token.includes('previousShroudedness')) return 'shroudedness.previous';
+  return null;
+}
+
+function mapCppW3DRenderObjectSnapshotField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUser' && argument.startsWith('transform,')) return 'transformMatrix';
+  if (method === 'xferInt' && argument === 'subObjectCount') return 'subObject.count';
+  if (method === 'xferAsciiString' && argument === 'subObjectName') return 'subObject.name';
+  if (method === 'xferBool' && argument === 'visible') return 'subObject.visible';
+  if (method === 'xferUser' && argument.startsWith('transform')) return 'subObject.transformMatrix';
+  return null;
+}
+
+function mapTsW3DRenderObjectSnapshotField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('transformMatrixBytes')) return 'transformMatrix';
+  if (token.includes('snapshot.subObjects.length')) return 'subObject.count';
+  if (token.includes('subObject.name')) return 'subObject.name';
+  if (token.includes('subObject.visible')) return 'subObject.visible';
+  if (token.includes('subObjectMatrixBytes')) return 'subObject.transformMatrix';
+  return null;
+}
+
 function mapCppRadarField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferBool' && argument === 'm_radarHidden') return 'radarHidden';
@@ -4630,6 +4878,18 @@ export function compareW3DPropBufferFields(cppFields: string[], tsFields: string
   return compareOrderedStrings('save-w3d-prop-buffer-fields', cppFields, tsFields);
 }
 
+export function compareGhostObjectManagerFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-ghost-object-manager-fields', cppFields, tsFields);
+}
+
+export function compareGhostObjectFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-ghost-object-fields', cppFields, tsFields);
+}
+
+export function compareW3DRenderObjectSnapshotFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-w3d-render-object-snapshot-fields', cppFields, tsFields);
+}
+
 export function compareRadarFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-radar-fields', cppFields, tsFields);
 }
@@ -4989,6 +5249,18 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   );
   const genW3DPropBufferCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngineDevice/Source/W3DDevice/GameClient/W3DPropBuffer.cpp'),
+  );
+  const zhW3DGhostObjectCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngineDevice/Source/W3DDevice/GameLogic/W3DGhostObject.cpp'),
+  );
+  const genW3DGhostObjectCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngineDevice/Source/W3DDevice/GameLogic/W3DGhostObject.cpp'),
+  );
+  const zhGhostObjectCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/GhostObject.cpp'),
+  );
+  const genGhostObjectCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/GhostObject.cpp'),
   );
   const zhGameLogicCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/System/GameLogic.cpp'),
@@ -5397,6 +5669,28 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsW3DPropBufferFields = parseTsW3DPropBufferFields(tsRuntimeSave);
   if (cppW3DPropBufferFields.length > 0 && tsW3DPropBufferFields.length > 0) {
     categories.push(compareW3DPropBufferFields(cppW3DPropBufferFields, tsW3DPropBufferFields));
+  }
+
+  const ghostObjectSource = `${zhW3DGhostObjectCpp || genW3DGhostObjectCpp}\n${zhGhostObjectCpp || genGhostObjectCpp}`;
+  const cppGhostObjectManagerFields = parseCppGhostObjectManagerFields(ghostObjectSource);
+  const tsGhostObjectManagerFields = parseTsGhostObjectManagerFields(tsRuntimeSave);
+  if (cppGhostObjectManagerFields.length > 0 && tsGhostObjectManagerFields.length > 0) {
+    categories.push(compareGhostObjectManagerFields(cppGhostObjectManagerFields, tsGhostObjectManagerFields));
+  }
+
+  const cppGhostObjectFields = parseCppGhostObjectFields(ghostObjectSource);
+  const tsGhostObjectFields = parseTsGhostObjectFields(tsRuntimeSave);
+  if (cppGhostObjectFields.length > 0 && tsGhostObjectFields.length > 0) {
+    categories.push(compareGhostObjectFields(cppGhostObjectFields, tsGhostObjectFields));
+  }
+
+  const cppW3DRenderObjectSnapshotFields = parseCppW3DRenderObjectSnapshotFields(ghostObjectSource);
+  const tsW3DRenderObjectSnapshotFields = parseTsW3DRenderObjectSnapshotFields(tsRuntimeSave);
+  if (cppW3DRenderObjectSnapshotFields.length > 0 && tsW3DRenderObjectSnapshotFields.length > 0) {
+    categories.push(compareW3DRenderObjectSnapshotFields(
+      cppW3DRenderObjectSnapshotFields,
+      tsW3DRenderObjectSnapshotFields,
+    ));
   }
 
   const radarSource = zhRadarCpp || genRadarCpp;

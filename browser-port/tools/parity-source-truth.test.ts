@@ -1270,6 +1270,22 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(w3dPropBufferCategory).toBeDefined();
       expect(w3dPropBufferCategory!.status).toBe('match');
 
+      const ghostObjectManagerCategory = report.categories.find(
+        (c) => c.category === 'save-ghost-object-manager-fields',
+      );
+      expect(ghostObjectManagerCategory).toBeDefined();
+      expect(ghostObjectManagerCategory!.status).toBe('match');
+
+      const ghostObjectCategory = report.categories.find((c) => c.category === 'save-ghost-object-fields');
+      expect(ghostObjectCategory).toBeDefined();
+      expect(ghostObjectCategory!.status).toBe('match');
+
+      const w3dRenderObjectCategory = report.categories.find(
+        (c) => c.category === 'save-w3d-render-object-snapshot-fields',
+      );
+      expect(w3dRenderObjectCategory).toBeDefined();
+      expect(w3dRenderObjectCategory!.status).toBe('match');
+
       const radarCategory = report.categories.find((c) => c.category === 'save-radar-fields');
       expect(radarCategory).toBeDefined();
       expect(radarCategory!.status).toBe('match');
