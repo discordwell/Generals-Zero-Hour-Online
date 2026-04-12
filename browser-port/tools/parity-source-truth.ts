@@ -3345,6 +3345,12 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppCountermeasuresBehaviorField;
   } else if (className === 'OverchargeBehavior') {
     mapper = mapCppOverchargeBehaviorField;
+  } else if (className === 'PoisonedBehavior') {
+    mapper = mapCppPoisonedBehaviorField;
+  } else if (className === 'MinefieldBehavior') {
+    mapper = mapCppMinefieldBehaviorField;
+  } else if (className === 'GenerateMinefieldBehavior') {
+    mapper = mapCppGenerateMinefieldBehaviorField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -3373,7 +3379,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:BehaviorModuleBase|UpdateModuleBase|ObjectIdListByUnsignedShortCount|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:BehaviorModuleBase|UpdateModuleBase|ObjectIdListByUnsignedShortCount|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedByte|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -3503,6 +3509,36 @@ export function parseTsSourceObjectUpdateFields(
       }
       if (token.includes('xferBool') && window === 'saver.xferBool(true);') {
         pushUniqueField(fields, seen, 'enginesOn');
+        continue;
+      }
+    }
+    if (helperName === 'buildSourceMinefieldBehaviorBlockData') {
+      const window = tsTokenStatement(body, match.index);
+      if (token.includes('xferUnsignedByte') && window.includes('SOURCE_MINEFIELD_MAX_IMMUNITY')) {
+        pushUniqueField(fields, seen, 'immunes.count');
+        continue;
+      }
+      if (token.includes('xferObjectID') && window.includes('entry.objectId')) {
+        pushUniqueField(fields, seen, 'immunes.id');
+        continue;
+      }
+      if (token.includes('xferUnsignedInt') && window.includes('entry.collideTime')) {
+        pushUniqueField(fields, seen, 'immunes.collideTime');
+        continue;
+      }
+    }
+    if (helperName === 'buildSourceGenerateMinefieldBehaviorBlockData') {
+      const window = tsTokenStatement(body, match.index);
+      if (token.includes('xferUnsignedByte') && window.includes('mineIds.length')) {
+        pushUniqueField(fields, seen, 'mineIds.count');
+        continue;
+      }
+      if (token.includes('xferObjectID') && window === 'saver.xferObjectID(objectId);') {
+        pushUniqueField(fields, seen, 'mineIds.entry');
+        continue;
+      }
+      if (token.includes('xferCoord3D') && window.includes('sourceGenerateMinefieldTarget')) {
+        pushUniqueField(fields, seen, 'target');
         continue;
       }
     }
@@ -5586,6 +5622,41 @@ function mapCppOverchargeBehaviorField(method: string, argument: string): string
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppPoisonedBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferUnsignedInt' && argument === 'm_poisonDamageFrame') return 'poisonDamageFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_poisonOverallStopFrame') return 'poisonOverallStopFrame';
+  if (method === 'xferReal' && argument === 'm_poisonDamageAmount') return 'poisonDamageAmount';
+  if (method === 'xferUser' && argument.startsWith('m_deathType')) return 'deathType';
+  return mapCppSimpleModuleField(method, argument);
+}
+
+function mapCppMinefieldBehaviorField(method: string, argument: string): string | null {
+  const compactArgument = argument.replace(/\s+/g, '');
+  if (method === 'xferUnsignedInt' && argument === 'm_virtualMinesRemaining') return 'virtualMinesRemaining';
+  if (method === 'xferUnsignedInt' && argument === 'm_nextDeathCheckFrame') return 'nextDeathCheckFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_scootFramesLeft') return 'scootFramesLeft';
+  if (method === 'xferCoord3D' && argument === 'm_scootVel') return 'scootVelocity';
+  if (method === 'xferCoord3D' && argument === 'm_scootAccel') return 'scootAcceleration';
+  if (method === 'xferBool' && argument === 'm_ignoreDamage') return 'ignoreDamage';
+  if (method === 'xferBool' && argument === 'm_regenerates') return 'regenerates';
+  if (method === 'xferBool' && argument === 'm_draining') return 'draining';
+  if (method === 'xferUnsignedByte' && argument === 'maxImmunity') return 'immunes.count';
+  if (method === 'xferObjectID' && compactArgument === 'm_immunes[i].id') return 'immunes.id';
+  if (method === 'xferUnsignedInt' && compactArgument === 'm_immunes[i].collideTime') return 'immunes.collideTime';
+  return mapCppSimpleModuleField(method, argument);
+}
+
+function mapCppGenerateMinefieldBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferBool' && argument === 'm_generated') return 'generated';
+  if (method === 'xferBool' && argument === 'm_hasTarget') return 'hasTarget';
+  if (method === 'xferBool' && argument === 'm_upgraded') return 'upgraded';
+  if (method === 'xferCoord3D' && argument === 'm_target') return 'target';
+  if (method === 'xferUnsignedByte' && argument === 'spacesCount') return 'mineIds.count';
+  if (method === 'xferObjectID' && argument === '(*it)') return 'mineIds.entry';
+  if (method === 'xferObjectID' && argument === 'objectID') return 'mineIds.entry';
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -5726,6 +5797,12 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('held')) return 'held';
     if (window.includes('autoHealStopped')) return 'stopped';
     if (window === 'saver.xferBool(active);') return 'overchargeActive';
+    if (window.includes('generateMinefieldDone')) return 'generated';
+    if (window.includes('generateMinefieldHasTarget')) return 'hasTarget';
+    if (window.includes('generateMinefieldUpgraded')) return 'upgraded';
+    if (window.includes('mineIgnoreDamage')) return 'ignoreDamage';
+    if (window.includes('mineRegenerates')) return 'regenerates';
+    if (window.includes('mineDraining')) return 'draining';
     if (window.includes('invalidSettings')) return 'invalidSettings';
     if (window.includes('centeringTurret')) return 'centeringTurret';
     if (window.includes('repairing')) return 'repairing';
@@ -5826,6 +5903,11 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('workerWaitCounter')) return 'workerWaitCounter';
     if (window.includes('radiusParticleSystemId')) return 'radiusParticleSystemId';
     if (window.includes('autoHealSoonestHealFrame')) return 'soonestHealFrame';
+    if (window.includes('poisonNextDamageFrame')) return 'poisonDamageFrame';
+    if (window.includes('poisonExpireFrame')) return 'poisonOverallStopFrame';
+    if (window.includes('mineVirtualMinesRemaining')) return 'virtualMinesRemaining';
+    if (window.includes('mineNextDeathCheckFrame')) return 'nextDeathCheckFrame';
+    if (window.includes('mineScootFramesLeft')) return 'scootFramesLeft';
     if (window.includes('availableCountermeasures')) return 'availableCountermeasures';
     if (window.includes('activeCountermeasures')) return 'activeCountermeasures';
     if (window.includes('divertedMissiles')) return 'divertedMissiles';
@@ -5911,6 +5993,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('strafeLength')) return 'strafeLength';
     if (window.includes('deliveryDecalRadius')) return 'deliveryDecalRadius';
     if (window.includes('previousDistanceSqr')) return 'previousDistanceSqr';
+    if (window.includes('poisonDamageAmount')) return 'poisonDamageAmount';
     if (window.includes('currentScanRadius')) return 'currentScanRadius';
     if (window.includes('yawRate')) return 'yawRate';
     if (window.includes('rollRate')) return 'rollRate';
@@ -5946,6 +6029,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('buildSourceRawInt32Bytes(diveState)')) return 'diveState';
     if (window.includes('strafingWeaponSlot')) return 'strafingWeaponSlot';
     if (window.includes('stateMachineBytes')) return 'stateMachine';
+    if (window.includes('sourceDeathTypeFromRuntimeName')) return 'deathType';
     if (window.includes('turningBytes')) return 'turning';
     if (window.includes('nextStationTaskBytes')) return 'nextStationTask';
     if (window.includes('conductorStateBytes')) return 'conductorState';
@@ -6012,6 +6096,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('moveToX')) return 'moveToPos';
     if (window.includes('flightPathStartX')) return 'flightPathStart';
     if (window.includes('flightPathEndX')) return 'flightPathEnd';
+    if (window.includes('scootVelocity')) return 'scootVelocity';
+    if (window.includes('scootAcceleration')) return 'scootAcceleration';
     if (window.includes('dropOffsetX')) return 'dropOffset';
     if (window.includes('dropVarianceX')) return 'dropVariance';
     if (window === 'saver.xferCoord3D(accel);') return 'accel';
@@ -7979,8 +8065,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     '../Behavior/CountermeasuresBehavior.cpp',
     '../Behavior/DumbProjectileBehavior.cpp',
     '../Behavior/FireWeaponWhenDeadBehavior.cpp',
+    '../Behavior/GenerateMinefieldBehavior.cpp',
     '../Behavior/GrantStealthBehavior.cpp',
+    '../Behavior/MinefieldBehavior.cpp',
     '../Behavior/OverchargeBehavior.cpp',
+    '../Behavior/PoisonedBehavior.cpp',
     '../Behavior/PropagandaTowerBehavior.cpp',
     '../Behavior/RebuildHoleBehavior.cpp',
     'CheckpointUpdate.cpp',
@@ -8943,6 +9032,22 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-fire-weapon-when-dead-behavior-fields',
       cppClass: 'FireWeaponWhenDeadBehavior',
       tsHelper: 'buildSourceFireWeaponWhenDeadBehaviorBlockData',
+      hasUpgradeMux: true,
+    },
+    {
+      category: 'save-poisoned-behavior-fields',
+      cppClass: 'PoisonedBehavior',
+      tsHelper: 'buildSourcePoisonedBehaviorBlockData',
+    },
+    {
+      category: 'save-minefield-behavior-fields',
+      cppClass: 'MinefieldBehavior',
+      tsHelper: 'buildSourceMinefieldBehaviorBlockData',
+    },
+    {
+      category: 'save-generate-minefield-behavior-fields',
+      cppClass: 'GenerateMinefieldBehavior',
+      tsHelper: 'buildSourceGenerateMinefieldBehaviorBlockData',
       hasUpgradeMux: true,
     },
     {
