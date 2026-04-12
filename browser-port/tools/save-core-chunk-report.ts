@@ -1,4 +1,4 @@
-import { closeSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
 import { basename, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -114,6 +114,9 @@ export function isSourceSaveFixtureFile(filePath: string): boolean {
 }
 
 export function listSaveFixturePaths(inputPath: string): string[] {
+  if (!existsSync(inputPath)) {
+    return [];
+  }
   const stats = statSync(inputPath);
   if (stats.isFile()) {
     return isSourceSaveFixtureFile(inputPath) ? [inputPath] : [];

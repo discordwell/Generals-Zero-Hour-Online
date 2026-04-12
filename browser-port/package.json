@@ -22,7 +22,7 @@
     "report:command-coverage": "tsx tools/command-type-coverage-report.ts",
     "report:script-coverage": "tsx tools/script-coverage-report.ts",
     "report:prerequisites": "tsx tools/prerequisite-chain-report.ts",
-    "report:save-core-chunks": "tsx tools/save-core-chunk-report.ts .. > save-core-chunk-report.json",
+    "report:save-core-chunks": "tsx tools/save-core-chunk-report.ts fixtures/source-saves > save-core-chunk-report.json",
     "report:save-generated-modules": "tsx tools/save-generated-module-coverage-report.ts",
     "report:visual-scenes": "vite build && tsx tools/visual-scene-parity-report.ts",
     "report:ui-layout": "vite build && tsx tools/ui-layout-parity-report.ts",

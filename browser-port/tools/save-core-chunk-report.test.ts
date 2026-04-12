@@ -192,6 +192,7 @@ describe('save core chunk report', () => {
       expect(isSourceSaveFixtureFile(validSavePath)).toBe(true);
       expect(isSourceSaveFixtureFile(bogusSavePath)).toBe(false);
       expect(listSaveFixturePaths(tempDir)).toEqual([validSavePath, nestedSavePath].sort());
+      expect(listSaveFixturePaths(join(tempDir, 'missing'))).toEqual([]);
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
