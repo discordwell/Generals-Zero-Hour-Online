@@ -1197,6 +1197,22 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(playerListCategory).toBeDefined();
       expect(playerListCategory!.status).toBe('match');
 
+      const playerCategory = report.categories.find((c) => c.category === 'save-player-fields');
+      expect(playerCategory).toBeDefined();
+      expect(playerCategory!.status).toBe('match');
+
+      const moneyCategory = report.categories.find((c) => c.category === 'save-money-fields');
+      expect(moneyCategory).toBeDefined();
+      expect(moneyCategory!.status).toBe('match');
+
+      const energyCategory = report.categories.find((c) => c.category === 'save-energy-fields');
+      expect(energyCategory).toBeDefined();
+      expect(energyCategory!.status).toBe('match');
+
+      const scoreKeeperCategory = report.categories.find((c) => c.category === 'save-score-keeper-fields');
+      expect(scoreKeeperCategory).toBeDefined();
+      expect(scoreKeeperCategory!.status).toBe('match');
+
       const teamTemplateInfoCategory = report.categories.find((c) => c.category === 'save-team-template-info-fields');
       expect(teamTemplateInfoCategory).toBeDefined();
       expect(teamTemplateInfoCategory!.status).toBe('match');

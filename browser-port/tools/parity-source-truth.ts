@@ -705,6 +705,151 @@ export function parseTsPlayerListXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppPlayerXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Player::xfer');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)|(entry->m_kindOf|m_battlePlanBonuses->m_validKindOf|m_battlePlanBonuses->m_invalidKindOf)\.xfer\s*\(\s*xfer\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[3]) {
+      pushUniqueField(fields, seen, mapCppPlayerBitFlagsField(match[3]!));
+      continue;
+    }
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    pushUniqueField(fields, seen, mapCppPlayerField(method, argument));
+  }
+  return fields;
+}
+
+export function parseTsPlayerXferFields(source: string): string[] {
+  const start = source.indexOf('class SourcePlayersSnapshot');
+  if (start < 0) return [];
+  const end = source.indexOf('class LegacyPlayersSnapshot', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  let squadObjectIdsCallCount = 0;
+  const tokenRegex =
+    /const playerVersion\s*=\s*xfer\.xferVersion\s*\(\s*SOURCE_PLAYER_ENTRY_SNAPSHOT_VERSION\s*\)|const moneyVersion\s*=\s*xfer\.xferVersion\s*\(\s*SOURCE_MONEY_SNAPSHOT_VERSION\s*\)|const upgradeCount\s*=\s*xfer\.xferUnsignedShort\s*\(\s*player\.upgrades\.length\s*\)|player\.\w+\s*=\s*xfer\.xfer\w+\s*\([^)]*?\)|player\.(?:sciencesDisabled|sciencesHidden|sciences|upgradesInProgress|upgradesCompleted|playerRelations|teamRelations|kindOfCostModifiers|scoreKeeper)\s*=\s*xferSource\w+\s*\(|const name\s*=\s*xfer\.xferAsciiString\s*\(\s*''\s*\)|xfer\.xferAsciiString\s*\(\s*upgrade\.name\s*\)|xferSourceUpgradeState\s*\(|const energyVersion\s*=\s*xfer\.xferVersion\s*\(\s*SOURCE_ENERGY_SNAPSHOT_VERSION\s*\)|const teamPrototypeCount\s*=\s*xfer\.xferUnsignedShort\s*\(\s*player\.teamPrototypeIds\.length\s*\)|player\.teamPrototypeIds\.push\s*\(\s*xfer\.xferUnsignedInt\s*\(\s*0\s*\)\s*\)|xfer\.xferUnsignedInt\s*\(\s*teamPrototypeId\s*\)|const buildListInfoCount\s*=\s*xfer\.xferUnsignedShort\s*\(\s*player\.buildListInfos\.length\s*\)|xferSourceBuildListInfoState\s*\(|const aiPlayerPresent\s*=\s*xfer\.xferBool\s*\(\s*player\.aiPlayer !== null\s*\)|xferSourceAiPlayerState\s*\(|const resourceGatheringManagerPresent\s*=\s*xfer\.xferBool\s*\(\s*player\.resourceGatheringManager !== null\s*\)|xferSourceResourceGatheringManagerState\s*\(|const tunnelTrackerPresent\s*=\s*xfer\.xferBool\s*\(\s*player\.tunnelTracker !== null\s*\)|xferSourcePlayerTunnelTrackerSnapshot\s*\(|xferSourcePlayerRelationEntries\s*\(|xferSourceTeamRelationEntries\s*\(|xfer\.xferBool\s*\(\s*player\.attackedByPlayerIndices\.includes\(index\)\s*\)|xferSourceScoreKeeperState\s*\(|xferSourceKindOfCostModifiers\s*\(|const timerListSize\s*=\s*xfer\.xferUnsignedShort\s*\(\s*player\.specialPowerReadyTimers\.length\s*\)|templateId:\s*xfer\.xferUnsignedInt\s*\(\s*0\s*\)|readyFrame:\s*xfer\.xferUnsignedInt\s*\(\s*0\s*\)|xfer\.xferUnsignedInt\s*\(\s*timer\.templateId\s*\)|xfer\.xferUnsignedInt\s*\(\s*timer\.readyFrame\s*\)|const squadCount\s*=\s*xfer\.xferUnsignedShort\s*\(\s*player\.squads\.length\s*\)|xferSourceSquadObjectIds\s*\(|const currentSelectionPresent\s*=\s*xfer\.xferBool\s*\(\s*player\.currentSelectionPresent\s*\)|const battlePlanBonusPresent\s*=\s*xfer\.xferBool\s*\(\s*player\.battlePlanBonuses !== null\s*\)|xferSourceBattlePlanBonusesState\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.startsWith('xferSourceSquadObjectIds')) {
+      pushUniqueField(fields, seen, squadObjectIdsCallCount < 2 ? 'squad.snapshot' : 'currentSelection.snapshot');
+      squadObjectIdsCallCount += 1;
+      continue;
+    }
+    if (token.includes('xferSourceKindOfCostModifiers')) {
+      for (const field of [
+        'kindOfCostModifierCount',
+        'kindOfCostModifier.kindOfMask',
+        'kindOfCostModifier.percent',
+        'kindOfCostModifier.ref',
+      ]) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSourceBattlePlanBonusesState')) {
+      for (const field of [
+        'battlePlanBonus.armorScalar',
+        'battlePlanBonus.sightRangeScalar',
+        'battlePlanBonus.bombardment',
+        'battlePlanBonus.holdTheLine',
+        'battlePlanBonus.searchAndDestroy',
+        'battlePlanBonus.validKindOf',
+        'battlePlanBonus.invalidKindOf',
+      ]) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    pushUniqueField(fields, seen, mapTsPlayerField(token));
+  }
+  return fields;
+}
+
+export function parseCppMoneyXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Money::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppMoneyField);
+}
+
+export function parseTsMoneyXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferMoneyAmount');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_MONEY_SNAPSHOT_VERSION\s*\)|xfer\.xferUnsignedInt\s*\(\s*value\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsMoneyField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppEnergyXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Energy::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppEnergyField);
+}
+
+export function parseTsEnergyXferFields(source: string): string[] {
+  const start = source.indexOf('class SourcePlayersSnapshot');
+  if (start < 0) return [];
+  const end = source.indexOf('class LegacyPlayersSnapshot', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /const energyVersion\s*=\s*xfer\.xferVersion\s*\(\s*SOURCE_ENERGY_SNAPSHOT_VERSION\s*\)|const energyPlayerIndex\s*=\s*xfer\.xferInt\s*\(\s*player\.playerIndex\s*\)|player\.powerSabotagedTillFrame\s*=\s*xfer\.xferUnsignedInt\s*\(\s*player\.powerSabotagedTillFrame\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsEnergyField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppScoreKeeperXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void ScoreKeeper::xfer( Xfer *xfer )');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)|xferObjectCountMap\s*\(\s*xfer\s*,\s*&([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[3]) {
+      pushUniqueField(fields, seen, mapCppScoreKeeperMapField(match[3]!.trim()));
+      continue;
+    }
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    pushUniqueField(fields, seen, mapCppScoreKeeperField(method, argument));
+  }
+  return fields;
+}
+
+export function parseTsScoreKeeperXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceScoreKeeperState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_SCORE_KEEPER_SNAPSHOT_VERSION\s*\)|(\w+):\s*xfer\.xferInt\s*\([^)]*?\)|totalUnitsDestroyed:\s*totalUnitsDestroyed\.map\s*\(\s*\(value\)\s*=>\s*xfer\.xferInt\s*\(value\)\s*\)|totalBuildingsDestroyed:\s*totalBuildingsDestroyed\.map\s*\(\s*\(value\)\s*=>\s*xfer\.xferInt\s*\(value\)\s*\)|xferSourceScoreObjectCountMap\s*\(\s*xfer\s*,\s*scoreKeeper\.(objectsBuilt|objectsLost|objectsCaptured)\s*\)|xferSourceScoreObjectCountMap\s*\(\s*xfer\s*,\s*objectsDestroyed\[index\][^)]*?\)|const destroyedArraySize\s*=\s*xfer\.xferUnsignedShort\s*\(\s*SOURCE_SCRIPT_ENGINE_PLAYER_COUNT\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    pushUniqueField(fields, seen, mapTsScoreKeeperField(token, match[1], match[2]));
+  }
+  return fields;
+}
+
 export function parseCppTeamTemplateInfoXferFields(source: string): string[] {
   const body = extractFunctionBody(source, 'void TeamTemplateInfo::xfer');
   if (!body) return [];
@@ -1436,6 +1581,237 @@ function mapTsPlayerListField(token: string): string | null {
   return null;
 }
 
+function mapCppPlayerField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferSnapshot' && argument === 'm_money') return 'money.snapshot';
+  if (method === 'xferUnsignedShort' && argument === 'upgradeCount') return 'upgradeCount';
+  if (method === 'xferBool' && argument === 'm_isPreorder') return 'isPreorder';
+  if (method === 'xferScienceVec' && argument === 'm_sciencesDisabled') return 'sciencesDisabled';
+  if (method === 'xferScienceVec' && argument === 'm_sciencesHidden') return 'sciencesHidden';
+  if (method === 'xferAsciiString' && argument === 'upgradeName') return 'upgrade.name';
+  if (method === 'xferSnapshot' && argument === 'upgrade') return 'upgrade.snapshot';
+  if (method === 'xferInt' && argument === 'm_radarCount') return 'radarCount';
+  if (method === 'xferBool' && argument === 'm_isPlayerDead') return 'isPlayerDead';
+  if (method === 'xferInt' && argument === 'm_disableProofRadarCount') return 'disableProofRadarCount';
+  if (method === 'xferBool' && argument === 'm_radarDisabled') return 'radarDisabled';
+  if (method === 'xferUpgradeMask' && argument === 'm_upgradesInProgress') return 'upgradesInProgress';
+  if (method === 'xferUpgradeMask' && argument === 'm_upgradesCompleted') return 'upgradesCompleted';
+  if (method === 'xferSnapshot' && argument === 'm_energy') return 'energy.snapshot';
+  if (method === 'xferUnsignedShort' && argument === 'prototypeCount') return 'teamPrototypeCount';
+  if (method === 'xferUser' && argument.startsWith('prototypeID')) return 'teamPrototype.id';
+  if (method === 'xferUnsignedShort' && argument === 'buildListInfoCount') return 'buildListInfoCount';
+  if (method === 'xferSnapshot' && argument === 'buildListInfo') return 'buildListInfo.snapshot';
+  if (method === 'xferBool' && argument === 'aiPlayerPresent') return 'aiPlayerPresent';
+  if (method === 'xferSnapshot' && argument === 'm_ai') return 'aiPlayer.snapshot';
+  if (method === 'xferBool' && argument === 'resourceGatheringManagerPresent') return 'resourceGatheringManagerPresent';
+  if (method === 'xferSnapshot' && argument === 'm_resourceGatheringManager') {
+    return 'resourceGatheringManager.snapshot';
+  }
+  if (method === 'xferBool' && argument === 'tunnelTrackerPresent') return 'tunnelTrackerPresent';
+  if (method === 'xferSnapshot' && argument === 'm_tunnelSystem') return 'tunnelTracker.snapshot';
+  if (method === 'xferUser' && argument.startsWith('teamID')) return 'defaultTeamId';
+  if (method === 'xferScienceVec' && argument === 'm_sciences') return 'sciences';
+  if (method === 'xferInt' && argument === 'm_rankLevel') return 'rankLevel';
+  if (method === 'xferInt' && argument === 'm_skillPoints') return 'skillPoints';
+  if (method === 'xferInt' && argument === 'm_sciencePurchasePoints') return 'sciencePurchasePoints';
+  if (method === 'xferInt' && argument === 'm_levelUp') return 'levelUp';
+  if (method === 'xferInt' && argument === 'm_levelDown') return 'levelDown';
+  if (method === 'xferUnicodeString' && argument === 'm_generalName') return 'generalName';
+  if (method === 'xferSnapshot' && argument === 'm_playerRelations') return 'playerRelations.snapshot';
+  if (method === 'xferSnapshot' && argument === 'm_teamRelations') return 'teamRelations.snapshot';
+  if (method === 'xferBool' && argument === 'm_canBuildUnits') return 'canBuildUnits';
+  if (method === 'xferBool' && argument === 'm_canBuildBase') return 'canBuildBase';
+  if (method === 'xferBool' && argument === 'm_observer') return 'observer';
+  if (method === 'xferReal' && argument === 'm_skillPointsModifier') return 'skillPointsModifier';
+  if (method === 'xferBool' && argument === 'm_listInScoreScreen') return 'listInScoreScreen';
+  if (method === 'xferUser' && argument.startsWith('m_attackedBy')) return 'attackedBy';
+  if (method === 'xferReal' && argument === 'm_cashBountyPercent') return 'cashBountyPercent';
+  if (method === 'xferSnapshot' && argument === 'm_scoreKeeper') return 'scoreKeeper.snapshot';
+  if (method === 'xferUnsignedShort' && argument === 'percentProductionChangeCount') {
+    return 'kindOfCostModifierCount';
+  }
+  if (method === 'xferReal' && argument === 'entry->m_percent') return 'kindOfCostModifier.percent';
+  if (method === 'xferUnsignedInt' && argument === 'entry->m_ref') return 'kindOfCostModifier.ref';
+  if (method === 'xferUnsignedShort' && argument === 'timerListSize') return 'specialPowerReadyTimerCount';
+  if (method === 'xferUnsignedInt' && argument === 'timer->m_templateID') return 'specialPowerReadyTimer.templateId';
+  if (method === 'xferUnsignedInt' && argument === 'timer->m_readyFrame') return 'specialPowerReadyTimer.readyFrame';
+  if (method === 'xferUnsignedShort' && argument === 'squadCount') return 'squadCount';
+  if (method === 'xferSnapshot' && argument === 'm_squads[ i ]') return 'squad.snapshot';
+  if (method === 'xferBool' && argument === 'currentSelectionPresent') return 'currentSelectionPresent';
+  if (method === 'xferSnapshot' && argument === 'm_currentSelection') return 'currentSelection.snapshot';
+  if (method === 'xferBool' && argument === 'battlePlanBonus') return 'battlePlanBonusPresent';
+  if (method === 'xferReal' && argument === 'm_battlePlanBonuses->m_armorScalar') {
+    return 'battlePlanBonus.armorScalar';
+  }
+  if (method === 'xferReal' && argument === 'm_battlePlanBonuses->m_sightRangeScalar') {
+    return 'battlePlanBonus.sightRangeScalar';
+  }
+  if (method === 'xferInt' && argument === 'm_battlePlanBonuses->m_bombardment') {
+    return 'battlePlanBonus.bombardment';
+  }
+  if (method === 'xferInt' && argument === 'm_battlePlanBonuses->m_holdTheLine') {
+    return 'battlePlanBonus.holdTheLine';
+  }
+  if (method === 'xferInt' && argument === 'm_battlePlanBonuses->m_searchAndDestroy') {
+    return 'battlePlanBonus.searchAndDestroy';
+  }
+  if (method === 'xferInt' && argument === 'm_bombardBattlePlans') return 'bombardBattlePlans';
+  if (method === 'xferInt' && argument === 'm_holdTheLineBattlePlans') return 'holdTheLineBattlePlans';
+  if (method === 'xferInt' && argument === 'm_searchAndDestroyBattlePlans') return 'searchAndDestroyBattlePlans';
+  if (method === 'xferBool' && argument === 'm_unitsShouldHunt') return 'unitsShouldHunt';
+  return null;
+}
+
+function mapCppPlayerBitFlagsField(token: string): string | null {
+  if (token === 'entry->m_kindOf') return 'kindOfCostModifier.kindOfMask';
+  if (token === 'm_battlePlanBonuses->m_validKindOf') return 'battlePlanBonus.validKindOf';
+  if (token === 'm_battlePlanBonuses->m_invalidKindOf') return 'battlePlanBonus.invalidKindOf';
+  return null;
+}
+
+function mapTsPlayerField(token: string): string | null {
+  if (token.includes('SOURCE_PLAYER_ENTRY_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('SOURCE_MONEY_SNAPSHOT_VERSION')) return 'money.snapshot';
+  if (token.includes('player.upgrades.length')) return 'upgradeCount';
+  if (token.includes('player.isPreorder')) return 'isPreorder';
+  if (token.includes('player.sciencesDisabled')) return 'sciencesDisabled';
+  if (token.includes('player.sciencesHidden')) return 'sciencesHidden';
+  if (token.includes("const name = xfer.xferAsciiString('')")) return 'upgrade.name';
+  if (token.includes('upgrade.name')) return 'upgrade.name';
+  if (token.includes('xferSourceUpgradeState')) return 'upgrade.snapshot';
+  if (token.includes('player.radarCount')) return 'radarCount';
+  if (token.includes('player.isPlayerDead')) return 'isPlayerDead';
+  if (token.includes('player.disableProofRadarCount')) return 'disableProofRadarCount';
+  if (token.includes('player.radarDisabled')) return 'radarDisabled';
+  if (token.includes('player.upgradesInProgress')) return 'upgradesInProgress';
+  if (token.includes('player.upgradesCompleted')) return 'upgradesCompleted';
+  if (token.includes('SOURCE_ENERGY_SNAPSHOT_VERSION')) return 'energy.snapshot';
+  if (token.includes('player.teamPrototypeIds.length')) return 'teamPrototypeCount';
+  if (token.includes('player.teamPrototypeIds.push') || token.includes('teamPrototypeId')) return 'teamPrototype.id';
+  if (token.includes('player.buildListInfos.length')) return 'buildListInfoCount';
+  if (token.includes('xferSourceBuildListInfoState')) return 'buildListInfo.snapshot';
+  if (token.includes('player.aiPlayer !== null')) return 'aiPlayerPresent';
+  if (token.includes('xferSourceAiPlayerState')) return 'aiPlayer.snapshot';
+  if (token.includes('player.resourceGatheringManager !== null')) return 'resourceGatheringManagerPresent';
+  if (token.includes('xferSourceResourceGatheringManagerState')) return 'resourceGatheringManager.snapshot';
+  if (token.includes('player.tunnelTracker !== null')) return 'tunnelTrackerPresent';
+  if (token.includes('xferSourcePlayerTunnelTrackerSnapshot')) return 'tunnelTracker.snapshot';
+  if (token.includes('player.defaultTeamId')) return 'defaultTeamId';
+  if (token.includes('player.sciences =')) return 'sciences';
+  if (token.includes('player.rankLevel')) return 'rankLevel';
+  if (token.includes('player.skillPoints =')) return 'skillPoints';
+  if (token.includes('player.sciencePurchasePoints')) return 'sciencePurchasePoints';
+  if (token.includes('player.levelUp')) return 'levelUp';
+  if (token.includes('player.levelDown')) return 'levelDown';
+  if (token.includes('player.generalName')) return 'generalName';
+  if (token.includes('xferSourcePlayerRelationEntries')) return 'playerRelations.snapshot';
+  if (token.includes('xferSourceTeamRelationEntries')) return 'teamRelations.snapshot';
+  if (token.includes('player.canBuildUnits')) return 'canBuildUnits';
+  if (token.includes('player.canBuildBase')) return 'canBuildBase';
+  if (token.includes('player.observer')) return 'observer';
+  if (token.includes('player.skillPointsModifier')) return 'skillPointsModifier';
+  if (token.includes('player.listInScoreScreen')) return 'listInScoreScreen';
+  if (token.includes('player.attackedByPlayerIndices.includes')) return 'attackedBy';
+  if (token.includes('player.cashBountyPercent')) return 'cashBountyPercent';
+  if (token.includes('xferSourceScoreKeeperState')) return 'scoreKeeper.snapshot';
+  if (token.includes('player.specialPowerReadyTimers.length')) return 'specialPowerReadyTimerCount';
+  if (token.includes('templateId')) return 'specialPowerReadyTimer.templateId';
+  if (token.includes('readyFrame')) return 'specialPowerReadyTimer.readyFrame';
+  if (token.includes('player.squads.length')) return 'squadCount';
+  if (token.includes('player.currentSelectionPresent')) return 'currentSelectionPresent';
+  if (token.includes('player.battlePlanBonuses !== null')) return 'battlePlanBonusPresent';
+  if (token.includes('player.bombardBattlePlans')) return 'bombardBattlePlans';
+  if (token.includes('player.holdTheLineBattlePlans')) return 'holdTheLineBattlePlans';
+  if (token.includes('player.searchAndDestroyBattlePlans')) return 'searchAndDestroyBattlePlans';
+  if (token.includes('player.unitsShouldHunt')) return 'unitsShouldHunt';
+  return null;
+}
+
+function mapCppMoneyField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedInt' && argument === 'm_money') return 'money';
+  return null;
+}
+
+function mapTsMoneyField(token: string): string | null {
+  if (token.includes('SOURCE_MONEY_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('xferUnsignedInt')) return 'money';
+  return null;
+}
+
+function mapCppEnergyField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferInt' && argument === 'owningPlayerIndex') return 'owningPlayerIndex';
+  if (method === 'xferUnsignedInt' && argument === 'm_powerSabotagedTillFrame') return 'powerSabotagedTillFrame';
+  return null;
+}
+
+function mapTsEnergyField(token: string): string | null {
+  if (token.includes('SOURCE_ENERGY_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('energyPlayerIndex')) return 'owningPlayerIndex';
+  if (token.includes('powerSabotagedTillFrame')) return 'powerSabotagedTillFrame';
+  return null;
+}
+
+function mapCppScoreKeeperField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  const mappings = new Map<string, string>([
+    ['m_totalMoneyEarned', 'totalMoneyEarned'],
+    ['m_totalMoneySpent', 'totalMoneySpent'],
+    ['m_totalUnitsBuilt', 'totalUnitsBuilt'],
+    ['m_totalUnitsLost', 'totalUnitsLost'],
+    ['m_totalBuildingsBuilt', 'totalBuildingsBuilt'],
+    ['m_totalBuildingsLost', 'totalBuildingsLost'],
+    ['m_totalTechBuildingsCaptured', 'totalTechBuildingsCaptured'],
+    ['m_totalFactionBuildingsCaptured', 'totalFactionBuildingsCaptured'],
+    ['m_currentScore', 'currentScore'],
+    ['m_myPlayerIdx', 'playerIndex'],
+    ['destroyedArraySize', 'objectsDestroyedArraySize'],
+  ]);
+  if (method === 'xferUser' && argument.startsWith('m_totalUnitsDestroyed')) return 'totalUnitsDestroyed';
+  if (method === 'xferUser' && argument.startsWith('m_totalBuildingsDestroyed')) return 'totalBuildingsDestroyed';
+  return mappings.get(argument) ?? null;
+}
+
+function mapCppScoreKeeperMapField(argument: string): string | null {
+  const mappings = new Map<string, string>([
+    ['m_objectsBuilt', 'objectsBuilt.map'],
+    ['m_objectsDestroyed[ i ]', 'objectsDestroyed.map'],
+    ['m_objectsLost', 'objectsLost.map'],
+    ['m_objectsCaptured', 'objectsCaptured.map'],
+  ]);
+  return mappings.get(argument) ?? null;
+}
+
+function mapTsScoreKeeperField(token: string, directIntField: string | undefined, mapField: string | undefined): string | null {
+  if (token.includes('SOURCE_SCORE_KEEPER_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('totalUnitsDestroyed.map')) return 'totalUnitsDestroyed';
+  if (token.includes('totalBuildingsDestroyed.map')) return 'totalBuildingsDestroyed';
+  if (token.includes('destroyedArraySize')) return 'objectsDestroyedArraySize';
+  if (token.includes('objectsDestroyed[index]')) return 'objectsDestroyed.map';
+  if (mapField) {
+    const mappings = new Map<string, string>([
+      ['objectsBuilt', 'objectsBuilt.map'],
+      ['objectsLost', 'objectsLost.map'],
+      ['objectsCaptured', 'objectsCaptured.map'],
+    ]);
+    return mappings.get(mapField) ?? null;
+  }
+  const mappings = new Map<string, string>([
+    ['totalMoneyEarned', 'totalMoneyEarned'],
+    ['totalMoneySpent', 'totalMoneySpent'],
+    ['totalUnitsBuilt', 'totalUnitsBuilt'],
+    ['totalUnitsLost', 'totalUnitsLost'],
+    ['totalBuildingsBuilt', 'totalBuildingsBuilt'],
+    ['totalBuildingsLost', 'totalBuildingsLost'],
+    ['totalTechBuildingsCaptured', 'totalTechBuildingsCaptured'],
+    ['totalFactionBuildingsCaptured', 'totalFactionBuildingsCaptured'],
+    ['currentScore', 'currentScore'],
+    ['playerIndex', 'playerIndex'],
+  ]);
+  return directIntField ? mappings.get(directIntField) ?? null : null;
+}
+
 function mapCppTeamTemplateInfoField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferInt' && argument === 'm_productionPriority') return 'productionPriority';
@@ -1762,6 +2138,22 @@ export function comparePlayerListFields(cppFields: string[], tsFields: string[])
   return compareOrderedStrings('save-player-list-fields', cppFields, tsFields);
 }
 
+export function comparePlayerFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-player-fields', cppFields, tsFields);
+}
+
+export function compareMoneyFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-money-fields', cppFields, tsFields);
+}
+
+export function compareEnergyFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-energy-fields', cppFields, tsFields);
+}
+
+export function compareScoreKeeperFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-score-keeper-fields', cppFields, tsFields);
+}
+
 export function compareTeamTemplateInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-team-template-info-fields', cppFields, tsFields);
 }
@@ -1961,6 +2353,30 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genPlayerListCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/RTS/PlayerList.cpp'),
   );
+  const zhPlayerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/RTS/Player.cpp'),
+  );
+  const genPlayerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/RTS/Player.cpp'),
+  );
+  const zhMoneyCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/RTS/Money.cpp'),
+  );
+  const genMoneyCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/RTS/Money.cpp'),
+  );
+  const zhEnergyCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/RTS/Energy.cpp'),
+  );
+  const genEnergyCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/RTS/Energy.cpp'),
+  );
+  const zhScoreKeeperCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/RTS/ScoreKeeper.cpp'),
+  );
+  const genScoreKeeperCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/RTS/ScoreKeeper.cpp'),
+  );
 
   // Read TS port source
   const tsIndexPath = path.join(rootDir, 'packages/game-logic/src/index.ts');
@@ -2079,6 +2495,34 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsPlayerListFields = parseTsPlayerListXferFields(tsRuntimeSave);
   if (cppPlayerListFields.length > 0 && tsPlayerListFields.length > 0) {
     categories.push(comparePlayerListFields(cppPlayerListFields, tsPlayerListFields));
+  }
+
+  const playerSource = zhPlayerCpp || genPlayerCpp;
+  const cppPlayerFields = parseCppPlayerXferFields(playerSource);
+  const tsPlayerFields = parseTsPlayerXferFields(tsRuntimeSave);
+  if (cppPlayerFields.length > 0 && tsPlayerFields.length > 0) {
+    categories.push(comparePlayerFields(cppPlayerFields, tsPlayerFields));
+  }
+
+  const moneySource = zhMoneyCpp || genMoneyCpp;
+  const cppMoneyFields = parseCppMoneyXferFields(moneySource);
+  const tsMoneyFields = parseTsMoneyXferFields(tsRuntimeSave);
+  if (cppMoneyFields.length > 0 && tsMoneyFields.length > 0) {
+    categories.push(compareMoneyFields(cppMoneyFields, tsMoneyFields));
+  }
+
+  const energySource = zhEnergyCpp || genEnergyCpp;
+  const cppEnergyFields = parseCppEnergyXferFields(energySource);
+  const tsEnergyFields = parseTsEnergyXferFields(tsRuntimeSave);
+  if (cppEnergyFields.length > 0 && tsEnergyFields.length > 0) {
+    categories.push(compareEnergyFields(cppEnergyFields, tsEnergyFields));
+  }
+
+  const scoreKeeperSource = zhScoreKeeperCpp || genScoreKeeperCpp;
+  const cppScoreKeeperFields = parseCppScoreKeeperXferFields(scoreKeeperSource);
+  const tsScoreKeeperFields = parseTsScoreKeeperXferFields(tsRuntimeSave);
+  if (cppScoreKeeperFields.length > 0 && tsScoreKeeperFields.length > 0) {
+    categories.push(compareScoreKeeperFields(cppScoreKeeperFields, tsScoreKeeperFields));
   }
 
   const cppTeamTemplateInfoFields = parseCppTeamTemplateInfoXferFields(teamSource);
