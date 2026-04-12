@@ -1348,6 +1348,7 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-bridge-scaffold-behavior-fields',
         'save-bridge-behavior-fields',
         'save-bridge-tower-behavior-fields',
+        'save-parking-place-behavior-fields',
         'save-point-defense-laser-update-fields',
         'save-emp-update-fields',
         'save-radar-update-fields',

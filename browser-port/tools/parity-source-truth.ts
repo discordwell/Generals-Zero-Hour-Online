@@ -3357,6 +3357,8 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppBridgeBehaviorField;
   } else if (className === 'BridgeTowerBehavior') {
     mapper = mapCppBridgeTowerBehaviorField;
+  } else if (className === 'ParkingPlaceBehavior') {
+    mapper = mapCppParkingPlaceBehaviorField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -3591,6 +3593,49 @@ export function parseTsSourceObjectUpdateFields(
       }
       if (token.includes('xferObjectID') && window === 'saver.xferObjectID(scaffoldId);') {
         pushUniqueField(fields, seen, 'scaffoldIds.entry');
+        continue;
+      }
+    }
+    if (helperName === 'buildSourceParkingPlaceBehaviorBlockData') {
+      const window = tsTokenStatement(body, match.index);
+      if (token.includes('xferUnsignedByte') && window.includes('spaces.length')) {
+        pushUniqueField(fields, seen, 'spaces.count');
+        continue;
+      }
+      if (token.includes('xferObjectID') && window.includes('space.occupantId')) {
+        pushUniqueField(fields, seen, 'spaces.occupantId');
+        continue;
+      }
+      if (token.includes('xferBool') && window.includes('space.reservedForExit')) {
+        pushUniqueField(fields, seen, 'spaces.reservedForExit');
+        continue;
+      }
+      if (token.includes('xferUnsignedByte') && window.includes('runways.length')) {
+        pushUniqueField(fields, seen, 'runways.count');
+        continue;
+      }
+      if (token.includes('xferObjectID') && window.includes('runway.inUseBy')) {
+        pushUniqueField(fields, seen, 'runways.inUseBy');
+        continue;
+      }
+      if (token.includes('xferObjectID') && window.includes('runway.nextInLineForTakeoff')) {
+        pushUniqueField(fields, seen, 'runways.nextInLineForTakeoff');
+        continue;
+      }
+      if (token.includes('xferBool') && window.includes('runway.wasInLine')) {
+        pushUniqueField(fields, seen, 'runways.wasInLine');
+        continue;
+      }
+      if (token.includes('xferUnsignedByte') && window.includes('healees.length')) {
+        pushUniqueField(fields, seen, 'healees.count');
+        continue;
+      }
+      if (token.includes('xferObjectID') && window.includes('healee.entityId')) {
+        pushUniqueField(fields, seen, 'healees.entityId');
+        continue;
+      }
+      if (token.includes('xferUnsignedInt') && window.includes('healee.healStartFrame')) {
+        pushUniqueField(fields, seen, 'healees.healStartFrame');
         continue;
       }
     }
@@ -5736,6 +5781,30 @@ function mapCppBridgeTowerBehaviorField(method: string, argument: string): strin
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppParkingPlaceBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferUnsignedByte' && argument === 'spacesCount') return 'spaces.count';
+  if (method === 'xferObjectID' && argument.includes('m_objectInSpace')) return 'spaces.occupantId';
+  if (method === 'xferObjectID' && argument === 'objectID') return 'spaces.occupantId';
+  if (method === 'xferBool' && argument.includes('m_reservedForExit')) return 'spaces.reservedForExit';
+  if (method === 'xferBool' && argument === 'reservedForExit') return 'spaces.reservedForExit';
+  if (method === 'xferUnsignedByte' && argument === 'runwaysCount') return 'runways.count';
+  if (method === 'xferObjectID' && argument.includes('m_inUseBy')) return 'runways.inUseBy';
+  if (method === 'xferObjectID' && argument === 'inUseBy') return 'runways.inUseBy';
+  if (method === 'xferObjectID' && argument.includes('m_nextInLineForTakeoff')) {
+    return 'runways.nextInLineForTakeoff';
+  }
+  if (method === 'xferObjectID' && argument === 'nextInLineForTakeoff') return 'runways.nextInLineForTakeoff';
+  if (method === 'xferBool' && argument.includes('m_wasInLine')) return 'runways.wasInLine';
+  if (method === 'xferBool' && argument === 'wasInLine') return 'runways.wasInLine';
+  if (method === 'xferUnsignedByte' && argument === 'healCount') return 'healees.count';
+  if (method === 'xferObjectID' && argument.includes('m_gettingHealedID')) return 'healees.entityId';
+  if (method === 'xferUnsignedInt' && argument.includes('m_healStartFrame')) return 'healees.healStartFrame';
+  if (method === 'xferCoord3D' && argument === 'm_heliRallyPoint') return 'heliRallyPoint';
+  if (method === 'xferBool' && argument === 'm_heliRallyPointExists') return 'heliRallyPointExists';
+  if (method === 'xferUnsignedInt' && argument === 'm_nextHealFrame') return 'nextHealFrame';
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -5884,6 +5953,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('mineRegenerates')) return 'regenerates';
     if (window.includes('mineDraining')) return 'draining';
     if (window.includes('scaffoldPresent')) return 'scaffoldPresent';
+    if (window.includes('heliRallyPointExists')) return 'heliRallyPointExists';
     if (window.includes('invalidSettings')) return 'invalidSettings';
     if (window.includes('centeringTurret')) return 'centeringTurret';
     if (window.includes('repairing')) return 'repairing';
@@ -5990,6 +6060,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('mineNextDeathCheckFrame')) return 'nextDeathCheckFrame';
     if (window.includes('mineScootFramesLeft')) return 'scootFramesLeft';
     if (window.includes('deathFrame')) return 'deathFrame';
+    if (window.includes('nextHealFrame')) return 'nextHealFrame';
     if (window.includes('availableCountermeasures')) return 'availableCountermeasures';
     if (window.includes('activeCountermeasures')) return 'activeCountermeasures';
     if (window.includes('divertedMissiles')) return 'divertedMissiles';
@@ -6181,6 +6252,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('flightPathEndX')) return 'flightPathEnd';
     if (window.includes('scootVelocity')) return 'scootVelocity';
     if (window.includes('scootAcceleration')) return 'scootAcceleration';
+    if (window.includes('heliRallyPoint')) return 'heliRallyPoint';
     if (window.includes('dropOffsetX')) return 'dropOffset';
     if (window.includes('dropVarianceX')) return 'dropVariance';
     if (window === 'saver.xferCoord3D(accel);') return 'accel';
@@ -8155,6 +8227,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     '../Behavior/GrantStealthBehavior.cpp',
     '../Behavior/MinefieldBehavior.cpp',
     '../Behavior/OverchargeBehavior.cpp',
+    '../Behavior/ParkingPlaceBehavior.cpp',
     '../Behavior/PoisonedBehavior.cpp',
     '../Behavior/PropagandaTowerBehavior.cpp',
     '../Behavior/RebuildHoleBehavior.cpp',
@@ -9150,6 +9223,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-bridge-tower-behavior-fields',
       cppClass: 'BridgeTowerBehavior',
       tsHelper: 'buildSourceBridgeTowerBehaviorBlockData',
+    },
+    {
+      category: 'save-parking-place-behavior-fields',
+      cppClass: 'ParkingPlaceBehavior',
+      tsHelper: 'buildSourceParkingPlaceBehaviorBlockData',
     },
     {
       category: 'save-point-defense-laser-update-fields',
