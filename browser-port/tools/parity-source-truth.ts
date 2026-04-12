@@ -2945,6 +2945,12 @@ function parseCppSimpleModuleFields(
       }
       continue;
     }
+    if (match[1] === 'xferSTLObjectIDList' && normalizeCppXferArgument(match[2]!) === 'm_brainwashedList') {
+      for (const field of sourceCountedListFields('brainwashedIds')) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
     const baseKey = token.split('(')[0]?.replace(/\s+/g, '');
     const baseFields = baseKey ? baseExpansions[baseKey] : undefined;
     if (baseFields) {
@@ -3193,6 +3199,45 @@ function sourceFlightDeckTailFields(): string[] {
 
 function sourceCountedListFields(prefix: string): string[] {
   return [`${prefix}.version`, `${prefix}.count`, `${prefix}.entry`];
+}
+
+function sourceOpenContainFields(): string[] {
+  return [
+    'version',
+    ...sourceUpdateModuleBaseFields(),
+    'passengerIds.count',
+    'passengerIds.entry',
+    'playerEnteredMask',
+    'lastUnloadSoundFrame',
+    'lastLoadSoundFrame',
+    'stealthUnitsContained',
+    'doorCloseCountdown',
+    'conditionState',
+    'firePoints',
+    'firePointStart',
+    'firePointNext',
+    'firePointSize',
+    'noFirePointsInArt',
+    'rallyPoint',
+    'rallyPointExists',
+    'enterExitEntries.count',
+    'enterExitEntries.objectId',
+    'enterExitEntries.type',
+    'whichExitPath',
+    'passengerAllowedToFire',
+  ];
+}
+
+function sourcePrisonVisualFields(): string[] {
+  return ['visuals.count', 'visuals.objectId', 'visuals.drawableId'];
+}
+
+function sourcePrisonBehaviorFields(): string[] {
+  return [
+    'version',
+    ...sourceOpenContainFields(),
+    ...sourcePrisonVisualFields(),
+  ];
 }
 
 function sourceSpawnBehaviorFields(): string[] {
@@ -3447,6 +3492,10 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppSupplyWarehouseCripplingBehaviorField;
   } else if (className === 'SpawnBehavior') {
     mapper = mapCppSpawnBehaviorField;
+  } else if (className === 'PrisonBehavior') {
+    mapper = mapCppPrisonBehaviorField;
+  } else if (className === 'PropagandaCenterBehavior') {
+    mapper = mapCppPropagandaCenterBehaviorField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -3457,6 +3506,8 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
       'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
       'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
       'DockUpdate::xfer': prefixBaseVersion(sourceDockUpdateFields(), 'dock'),
+      'OpenContain::xfer': sourceOpenContainFields(),
+      'PrisonBehavior::xfer': prefixBaseVersion(sourcePrisonBehaviorFields(), 'prison'),
       'PhysicsBehavior::xfer': prefixBaseVersion(sourcePhysicsBehaviorFields(), 'physics'),
       'SlowDeathBehavior::xfer': prefixBaseVersion(sourceSlowDeathBehaviorFields(), 'slowDeath'),
       'SupplyTruckAIUpdate::xfer': prefixBaseVersion(sourceSupplyTruckAIUpdateFields(), 'supplyTruck'),
@@ -3476,7 +3527,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:BehaviorModuleBase|UpdateModuleBase|SlowDeathBehaviorBlockState|SpawnBehaviorBlockState|ObjectIdListByUnsignedShortCount|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedByte|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:BehaviorModuleBase|UpdateModuleBase|SlowDeathBehaviorBlockState|SpawnBehaviorBlockState|OpenContain|PrisonVisuals|PrisonBehavior|StlObjectIdList|ObjectIdListByUnsignedShortCount|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedByte|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -3544,6 +3595,36 @@ export function parseTsSourceObjectUpdateFields(
         pushUniqueField(fields, seen, field);
       }
       continue;
+    }
+    if (token.includes('xferSourceOpenContain')) {
+      for (const field of sourceOpenContainFields()) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSourcePrisonVisuals')) {
+      for (const field of sourcePrisonVisualFields()) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSourcePrisonBehavior')) {
+      const prisonFields = helperName === 'xferSourcePrisonBehavior'
+        ? sourcePrisonBehaviorFields()
+        : prefixBaseVersion(sourcePrisonBehaviorFields(), 'prison');
+      for (const field of prisonFields) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSourceStlObjectIdList')) {
+      const window = tsTokenStatement(body, match.index);
+      if (window.includes('brainwashedIds')) {
+        for (const field of sourceCountedListFields('brainwashedIds')) {
+          pushUniqueField(fields, seen, field);
+        }
+        continue;
+      }
     }
     if (token.includes('xferSourceDockUpdateBlockState')) {
       for (const field of prefixBaseVersion(sourceDockUpdateFields(), 'dock')) {
@@ -6036,6 +6117,21 @@ function mapCppSpawnBehaviorField(method: string, argument: string): string | nu
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppPrisonBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferUnsignedShort' && argument === 'visualCount') return 'visuals.count';
+  if (method === 'xferObjectID' && argument === 'visual->m_objectID') return 'visuals.objectId';
+  if (method === 'xferDrawableID' && argument === 'visual->m_drawableID') return 'visuals.drawableId';
+  return mapCppSimpleModuleField(method, argument);
+}
+
+function mapCppPropagandaCenterBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferObjectID' && argument === 'm_brainwashingSubjectID') return 'brainwashingSubjectId';
+  if (method === 'xferUnsignedInt' && argument === 'm_brainwashingSubjectStartFrame') {
+    return 'brainwashingSubjectStartFrame';
+  }
+  return mapCppPrisonBehaviorField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -6057,6 +6153,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('reconstructingId')) return 'reconstructingId';
     if (window.includes('spawnerId')) return 'spawnerId';
     if (window.includes('bridgeEntityId')) return 'bridgeId';
+    if (window.includes('brainwashingSubjectId')) return 'brainwashingSubjectId';
     if (window.includes('bestTargetId')) return 'bestTargetId';
     if (window.includes('projectileId')) return 'projectileIds';
     if (window.includes('member.entityId')) return 'member.id';
@@ -6322,6 +6419,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('state.consecutiveShots')) return 'consecutiveShots';
     if (window.includes('state.startFrame')) return 'startFrame';
     if (window.includes('leafletDropState?.startFrame')) return 'startFrame';
+    if (window.includes('brainwashingSubjectStartFrame')) return 'brainwashingSubjectStartFrame';
     if (window.includes('nextPingFrame')) return 'nextPingFrame';
     if (window.includes('entity.autoDepositNextFrame')) return 'depositOnFrame';
     if (window.includes('entity.dynamicShroudGrowStartDeadline')) return 'growStartDeadline';
@@ -8482,11 +8580,14 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     '../Behavior/OverchargeBehavior.cpp',
     '../Behavior/ParkingPlaceBehavior.cpp',
     '../Behavior/PoisonedBehavior.cpp',
+    '../Behavior/PrisonBehavior.cpp',
+    '../Behavior/PropagandaCenterBehavior.cpp',
     '../Behavior/PropagandaTowerBehavior.cpp',
     '../Behavior/RebuildHoleBehavior.cpp',
     '../Behavior/SlowDeathBehavior.cpp',
     '../Behavior/SpawnBehavior.cpp',
     '../Behavior/SupplyWarehouseCripplingBehavior.cpp',
+    '../Contain/OpenContain.cpp',
     'CheckpointUpdate.cpp',
     'CleanupHazardUpdate.cpp',
     'CommandButtonHuntUpdate.cpp',
@@ -9531,6 +9632,16 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-leaflet-drop-behavior-fields',
       cppClass: 'LeafletDropBehavior',
       tsHelper: 'buildSourceLeafletDropBehaviorBlockData',
+    },
+    {
+      category: 'save-prison-behavior-fields',
+      cppClass: 'PrisonBehavior',
+      tsHelper: 'xferSourcePrisonBehavior',
+    },
+    {
+      category: 'save-propaganda-center-behavior-fields',
+      cppClass: 'PropagandaCenterBehavior',
+      tsHelper: 'xferSourcePropagandaCenterBehavior',
     },
     {
       category: 'save-point-defense-laser-update-fields',

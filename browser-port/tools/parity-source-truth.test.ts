@@ -1358,6 +1358,8 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-supply-warehouse-crippling-behavior-fields',
         'save-spawn-behavior-fields',
         'save-leaflet-drop-behavior-fields',
+        'save-prison-behavior-fields',
+        'save-propaganda-center-behavior-fields',
         'save-point-defense-laser-update-fields',
         'save-emp-update-fields',
         'save-radar-update-fields',
