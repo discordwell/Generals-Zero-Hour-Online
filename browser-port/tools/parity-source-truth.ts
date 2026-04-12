@@ -2883,7 +2883,7 @@ function parseCppSimpleModuleFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xfer->xferInt\s*\(\s*\(Int\*\)&production->m_exitDoor\s*\)|m_(?:clearFlags|setFlags)\.xfer\s*\(\s*xfer\s*\)|m_bonuses->m_(?:validKindOf|invalidKindOf)\.xfer\s*\(\s*xfer\s*\)|m_pendingCommand\.doXfer\s*\(\s*xfer\s*\)|[A-Za-z0-9_]+::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+    /xfer->xferInt\s*\(\s*\(Int\*\)&production->m_exitDoor\s*\)|m_(?:clearFlags|setFlags)\.xfer\s*\(\s*xfer\s*\)|m_bonuses->m_(?:validKindOf|invalidKindOf)\.xfer\s*\(\s*xfer\s*\)|m_(?:pendingCommand|mostRecentCommand)\.doXfer\s*\(\s*xfer\s*\)|[A-Za-z0-9_]+::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
     const token = match[0]!;
@@ -2909,6 +2909,10 @@ function parseCppSimpleModuleFields(
     }
     if (token.includes('m_pendingCommand.doXfer')) {
       pushUniqueField(fields, seen, 'pendingCommand');
+      continue;
+    }
+    if (token.includes('m_mostRecentCommand.doXfer')) {
+      pushUniqueField(fields, seen, 'mostRecentCommand');
       continue;
     }
     const baseKey = token.split('(')[0]?.replace(/\s+/g, '');
@@ -3246,6 +3250,8 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppNeutronMissileUpdateField;
   } else if (className === 'AssaultTransportAIUpdate') {
     mapper = mapCppAssaultTransportAIUpdateField;
+  } else if (className === 'JetAIUpdate') {
+    mapper = mapCppJetAIUpdateField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -3282,6 +3288,8 @@ export function parseTsSourceObjectUpdateFields(
         pushUniqueField(fields, seen, 'version');
       } else if (helperName === 'buildGeneratedSourceChinookAIUpdateBlockData' && versionIndex === 1) {
         pushUniqueField(fields, seen, 'supplyTruck.version');
+      } else if (helperName === 'buildGeneratedSourceJetAIUpdateBlockData' && versionIndex === 1) {
+        pushUniqueField(fields, seen, 'targetedBy');
       } else if (options.hasUpgradeMux && versionIndex === 1) {
         pushUniqueField(fields, seen, 'upgradeMux.version');
       }
@@ -3356,6 +3364,21 @@ export function parseTsSourceObjectUpdateFields(
         pushUniqueField(fields, seen, field);
       }
       continue;
+    }
+    if (helperName === 'buildGeneratedSourceJetAIUpdateBlockData') {
+      const window = tsTokenStatement(body, match.index);
+      if (token.includes('xferUnsignedInt') && window === 'saver.xferUnsignedInt(0);') {
+        pushUniqueField(fields, seen, 'untargetableExpireFrame');
+        continue;
+      }
+      if (token.includes('xferAsciiString') && window === "saver.xferAsciiString('');") {
+        pushUniqueField(fields, seen, 'lockonDrawableTemplateName');
+        continue;
+      }
+      if (token.includes('xferBool') && window === 'saver.xferBool(true);') {
+        pushUniqueField(fields, seen, 'enginesOn');
+        continue;
+      }
     }
     pushUniqueField(fields, seen, mapTsSourceObjectUpdateField(token, body, match.index));
   }
@@ -5190,6 +5213,16 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferObjectID' && argument === 'm_prisonID') return 'prisonId';
   if (method === 'xferUnsignedInt' && argument === 'm_enteredWaitingFrame') return 'enteredWaitingFrame';
   if (method === 'xferUnsignedInt' && argument === 'm_lastFindFrame') return 'lastFindFrame';
+  if (method === 'xferCoord3D' && argument === 'm_producerLocation') return 'producerLocation';
+  if (method === 'xferUnsignedInt' && argument === 'm_attackLocoExpireFrame') return 'attackLocoExpireFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_attackersMissExpireFrame') return 'attackersMissExpireFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_returnToBaseFrame') return 'returnToBaseFrame';
+  if (method === 'xferSTLObjectIDList' && argument === 'm_targetedBy') return 'targetedBy';
+  if (method === 'xferUnsignedInt' && argument === 'm_untargetableExpireFrame') {
+    return 'untargetableExpireFrame';
+  }
+  if (method === 'xferInt' && argument === 'm_flags') return 'flags';
+  if (method === 'xferBool' && argument === 'm_enginesOn') return 'enginesOn';
   if (method === 'xferInt' && argument === 'numTasks') return 'task.count';
   if (method === 'xferObjectID' && argument === 'm_task[i].m_targetObjectID') return 'task.targetObjectId';
   if (method === 'xferUnsignedInt' && argument === 'm_task[i].m_taskOrderFrame') return 'task.taskOrderFrame';
@@ -5266,6 +5299,11 @@ function mapCppAssaultTransportAIUpdateField(method: string, argument: string): 
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppJetAIUpdateField(method: string, argument: string): string | null {
+  if (method === 'xferAsciiString' && argument === 'drawName') return 'lockonDrawableTemplateName';
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -5309,6 +5347,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('buttonName')) return 'commandButtonName';
     if (window.includes('disguiseTemplateName')) return 'disguiseTemplateName';
     if (window.includes('exhaustSystemTemplateName')) return 'exhaustSystemTemplateName';
+    if (window.includes('lockonDrawableTemplateName')) return 'lockonDrawableTemplateName';
   }
   if (token.includes('xferUnsignedShort')) {
     if (window.includes('queue.length')) return 'queue.count';
@@ -5416,6 +5455,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('toppleNumAngleDeltaX')) return 'numAngleDeltaX';
     if (window.includes('attachSpecificBarrelToUse')) return 'attachSpecificBarrelToUse';
     if (window.includes('nextBurstFrame')) return 'nextBurstFrame';
+    if (window.includes('sourceJetFlagsForEntity')) return 'flags';
   }
   if (token.includes('xferUnsignedInt')) {
     if (window.includes('currentDelay')) return 'currentDelay';
@@ -5445,6 +5485,10 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('powTruckLastFindFrame')) return 'lastFindFrame';
     if (window.includes('path.startWaypointID')) return 'paths.entry.startWaypointID';
     if (window.includes('path.endWaypointID')) return 'paths.entry.endWaypointID';
+    if (window.includes('attackLocoExpireFrame')) return 'attackLocoExpireFrame';
+    if (window.includes('attackersMissExpireFrame')) return 'attackersMissExpireFrame';
+    if (window.includes('returnToBaseFrame')) return 'returnToBaseFrame';
+    if (window.includes('untargetableExpireFrame')) return 'untargetableExpireFrame';
     if (window.includes('nextReadyFrame') || window.includes('sourceBattlePlanNextReadyFrame')) {
       return 'nextReadyFrame';
     }
@@ -5533,6 +5577,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('SOURCE_WORKER_ACT_AS_DOZER')) return 'workerMachine';
     if (window.includes('buildGeneratedSourceStubStateMachineBlockData')) return 'stateMachine';
     if (window.includes('pendingCommandBytes')) return 'pendingCommand';
+    if (window.includes('commandStorageBytes')) return 'mostRecentCommand';
     if (window.includes('sourceChinookFlightStatusToInt')) return 'flightStatus';
     if (window.includes('entity.powTruckAIMode')) return 'aiMode';
     if (window.includes('entity.powTruckCurrentTask')) return 'currentTask';
@@ -5589,6 +5634,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('targetPosition')) return 'targetPosition';
     if (window.includes('rallyPoint')) return 'rallyPoint';
     if (window.includes('guardPointOffset') || window.includes('slaveGuardOffset')) return 'guardPointOffset';
+    if (window.includes('producerX')) return 'producerLocation';
     if (window.includes('{ x: 0, y: 0, z: 0 }')) return 'originalPos';
   }
   return null;
@@ -7534,6 +7580,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AIUpdate/DeployStyleAIUpdate.cpp',
     'AIUpdate/DozerAIUpdate.cpp',
     'AIUpdate/HackInternetAIUpdate.cpp',
+    'AIUpdate/JetAIUpdate.cpp',
     'AIUpdate/POWTruckAIUpdate.cpp',
     'AIUpdate/RailedTransportAIUpdate.cpp',
     'AIUpdate/SupplyTruckAIUpdate.cpp',
@@ -8615,6 +8662,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-hack-internet-ai-update-fields',
       cppClass: 'HackInternetAIUpdate',
       tsHelper: 'buildGeneratedSourceHackInternetAIUpdateBlockData',
+    },
+    {
+      category: 'save-jet-ai-update-fields',
+      cppClass: 'JetAIUpdate',
+      tsHelper: 'buildGeneratedSourceJetAIUpdateBlockData',
     },
     {
       category: 'save-dozer-ai-update-fields',
