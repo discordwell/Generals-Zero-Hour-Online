@@ -9485,12 +9485,27 @@ interface SourceAIAttackStateImportState {
   attackMachine: SourceAttackStateMachineImportState | null;
 }
 
+interface SourceAIGuardMachineImportState {
+  currentStateId: number;
+  targetToGuardId: number;
+  nemesisToAttackId: number;
+  positionToGuard: { x: number; y: number; z: number };
+  areaToGuardName: string;
+  nextEnemyScanTime: number | null;
+  nextReturnScanTime: number | null;
+}
+
+interface SourceAIGuardStateImportState {
+  guardMachine: SourceAIGuardMachineImportState | null;
+}
+
 interface SourceAIStateMachineImportState {
   currentStateId: number;
   goalObjectId: number;
   goalPosition: { x: number; y: number; z: number };
   moveState: SourceAIInternalMoveToStateImportState | null;
   attackState: SourceAIAttackStateImportState | null;
+  guardState: SourceAIGuardStateImportState | null;
 }
 
 interface SourceAIUpdateInterfaceImportState {
@@ -10334,6 +10349,7 @@ const SOURCE_AI_STATE_MOVE_TO = 1;
 const SOURCE_AI_STATE_ATTACK_POSITION = 9;
 const SOURCE_AI_STATE_ATTACK_OBJECT = 10;
 const SOURCE_AI_STATE_FORCE_ATTACK_OBJECT = 11;
+const SOURCE_AI_STATE_GUARD = 16;
 const SOURCE_AI_INVALID_STATE_ID = 999999;
 const SOURCE_AI_MAX_WAYPOINTS = 16;
 const SOURCE_AI_MAX_TURRETS = 2;
@@ -10342,6 +10358,12 @@ const SOURCE_ATTACK_STATE_CHASE_TARGET = 0;
 const SOURCE_ATTACK_STATE_APPROACH_TARGET = 1;
 const SOURCE_ATTACK_STATE_AIM_AT_TARGET = 2;
 const SOURCE_ATTACK_STATE_FIRE_WEAPON = 3;
+const SOURCE_AI_GUARD_INNER = 5000;
+const SOURCE_AI_GUARD_IDLE = 5001;
+const SOURCE_AI_GUARD_OUTER = 5002;
+const SOURCE_AI_GUARD_RETURN = 5003;
+const SOURCE_AI_GUARD_GET_CRATE = 5004;
+const SOURCE_AI_GUARD_ATTACK_AGGRESSOR = 5005;
 const SOURCE_HACK_INTERNET_STATE_UNPACKING = 1000;
 const SOURCE_HACK_INTERNET_STATE_HACKING = 1001;
 const SOURCE_HACK_INTERNET_STATE_PACKING = 1002;
@@ -15762,6 +15784,21 @@ export class GameLogicSubsystem implements Subsystem {
     return commandSource === 'DOZER' ? 'AI' : commandSource;
   }
 
+  private sourceGuardStateToRuntime(value: number): GuardState | null {
+    switch (Math.trunc(value)) {
+      case SOURCE_AI_GUARD_IDLE:
+        return 'IDLE';
+      case SOURCE_AI_GUARD_RETURN:
+        return 'RETURNING';
+      case SOURCE_AI_GUARD_INNER:
+      case SOURCE_AI_GUARD_OUTER:
+      case SOURCE_AI_GUARD_ATTACK_AGGRESSOR:
+        return 'PURSUING';
+      default:
+        return null;
+    }
+  }
+
   private sourceScaffoldTargetMotionFromInt(value: number): ScaffoldTargetMotion | null {
     switch (Math.trunc(value)) {
       case STM_STILL: return STM_STILL;
@@ -16032,6 +16069,109 @@ export class GameLogicSubsystem implements Subsystem {
     return { originalVictimPosition, attackMachine };
   }
 
+  private parseSourceAIGuardMachineCurrentStateSnapshot(
+    xfer: XferLoad,
+    currentStateId: number,
+  ): { nextEnemyScanTime: number | null; nextReturnScanTime: number | null } | null {
+    switch (currentStateId) {
+      case SOURCE_AI_GUARD_INNER:
+      case SOURCE_AI_GUARD_OUTER:
+      case SOURCE_AI_GUARD_ATTACK_AGGRESSOR: {
+        const version = xfer.xferVersion(1);
+        return version === 1
+          ? { nextEnemyScanTime: null, nextReturnScanTime: null }
+          : null;
+      }
+      case SOURCE_AI_GUARD_IDLE: {
+        const version = xfer.xferVersion(1);
+        if (version !== 1) {
+          return null;
+        }
+        return {
+          nextEnemyScanTime: xfer.xferUnsignedInt(0),
+          nextReturnScanTime: null,
+        };
+      }
+      case SOURCE_AI_GUARD_RETURN: {
+        const version = xfer.xferVersion(1);
+        if (version !== 1) {
+          return null;
+        }
+        return {
+          nextEnemyScanTime: null,
+          nextReturnScanTime: xfer.xferUnsignedInt(0),
+        };
+      }
+      case SOURCE_AI_GUARD_GET_CRATE: {
+        const version = xfer.xferVersion(1);
+        if (version !== 1 || !this.skipSourceAIInternalMoveToStateSnapshot(xfer)) {
+          return null;
+        }
+        xfer.xferInt(0);
+        xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+        return { nextEnemyScanTime: null, nextReturnScanTime: null };
+      }
+      default:
+        return null;
+    }
+  }
+
+  private parseSourceAIGuardMachineImportState(
+    xfer: XferLoad,
+  ): SourceAIGuardMachineImportState | null {
+    const version = xfer.xferVersion(2);
+    if (version !== 2) {
+      return null;
+    }
+    const stateMachineVersion = xfer.xferVersion(1);
+    if (stateMachineVersion !== 1) {
+      return null;
+    }
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(SOURCE_AI_GUARD_INNER);
+    const currentStateId = xfer.xferUnsignedInt(SOURCE_AI_GUARD_INNER);
+    const snapshotAllStates = xfer.xferBool(false);
+    if (snapshotAllStates) {
+      return null;
+    }
+    const currentStateSnapshot = this.parseSourceAIGuardMachineCurrentStateSnapshot(xfer, currentStateId);
+    if (!currentStateSnapshot) {
+      return null;
+    }
+    xfer.xferObjectID(0);
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    const targetToGuardId = xfer.xferObjectID(0);
+    const nemesisToAttackId = xfer.xferObjectID(0);
+    const positionToGuard = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const areaToGuardName = xfer.xferAsciiString('');
+    return {
+      currentStateId,
+      targetToGuardId,
+      nemesisToAttackId,
+      positionToGuard,
+      areaToGuardName,
+      nextEnemyScanTime: currentStateSnapshot.nextEnemyScanTime,
+      nextReturnScanTime: currentStateSnapshot.nextReturnScanTime,
+    };
+  }
+
+  private parseSourceAIGuardStateImportState(
+    xfer: XferLoad,
+  ): SourceAIGuardStateImportState | null {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const hasMachine = xfer.xferBool(false);
+    if (!hasMachine) {
+      return { guardMachine: null };
+    }
+    const guardMachine = this.parseSourceAIGuardMachineImportState(xfer);
+    return guardMachine ? { guardMachine } : null;
+  }
+
   private parseSourceAIStateMachineImportState(
     xfer: XferLoad,
   ): SourceAIStateMachineImportState | null {
@@ -16049,6 +16189,7 @@ export class GameLogicSubsystem implements Subsystem {
 
     let moveState: SourceAIInternalMoveToStateImportState | null = null;
     let attackState: SourceAIAttackStateImportState | null = null;
+    let guardState: SourceAIGuardStateImportState | null = null;
     if (currentStateId === SOURCE_AI_STATE_IDLE) {
       if (!this.skipSourceAIIdleStateSnapshot(xfer)) {
         return null;
@@ -16061,6 +16202,11 @@ export class GameLogicSubsystem implements Subsystem {
     } else if (this.isSourceAITopAttackStateId(currentStateId)) {
       attackState = this.parseSourceAIAttackStateImportState(xfer);
       if (!attackState) {
+        return null;
+      }
+    } else if (currentStateId === SOURCE_AI_STATE_GUARD) {
+      guardState = this.parseSourceAIGuardStateImportState(xfer);
+      if (!guardState) {
         return null;
       }
     } else {
@@ -16088,7 +16234,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
     xfer.xferUnsignedInt(0);
 
-    return { currentStateId, goalObjectId, goalPosition, moveState, attackState };
+    return { currentStateId, goalObjectId, goalPosition, moveState, attackState, guardState };
   }
 
   private skipSourcePathSnapshot(xfer: XferLoad): void {
@@ -18954,6 +19100,37 @@ export class GameLogicSubsystem implements Subsystem {
           };
         }
         entity.temporaryMoveExpireFrame = 0;
+      }
+
+      const guardMachine = stateMachine.guardState?.guardMachine ?? null;
+      const guardState = guardMachine ? this.sourceGuardStateToRuntime(guardMachine.currentStateId) : null;
+      if (stateMachine.currentStateId === SOURCE_AI_STATE_GUARD && guardMachine && guardState) {
+        const guardPosition = this.sourceCoord3DToRuntimeXZ(guardMachine.positionToGuard);
+        const { innerMod, outerMod } = this.resolveGuardVisionModifiers(entity);
+        entity.guardState = guardState;
+        entity.guardPositionX = guardPosition.x;
+        entity.guardPositionZ = guardPosition.z;
+        entity.guardObjectId = guardMachine.targetToGuardId > 0 ? Math.trunc(guardMachine.targetToGuardId) : 0;
+        // TODO(source parity): resolve guardMachine.areaToGuardName to a runtime trigger index once
+        // source trigger names are retained on mapTriggerRegions.
+        entity.guardAreaTriggerIndex = -1;
+        entity.guardInnerRange = Math.max(0, entity.visionRange * innerMod);
+        entity.guardOuterRange = Math.max(0, entity.visionRange * outerMod);
+        const guardNextScanFrame = guardMachine.nextEnemyScanTime ?? guardMachine.nextReturnScanTime;
+        if (typeof guardNextScanFrame === 'number' && Number.isFinite(guardNextScanFrame)) {
+          entity.guardNextScanFrame = Math.max(0, Math.trunc(guardNextScanFrame));
+        }
+        if (guardState === 'PURSUING' && guardMachine.nemesisToAttackId > 0) {
+          entity.attackTargetEntityId = Math.trunc(guardMachine.nemesisToAttackId);
+          entity.attackCommandSource = commandSource;
+          entity.lastCommandSource = commandSource === 'DOZER' ? 'AI' : commandSource;
+          entity.attackSubState = entity.attackSubState === 'IDLE' ? 'APPROACHING' : entity.attackSubState;
+        } else if (guardState !== 'PURSUING') {
+          entity.attackTargetEntityId = null;
+          entity.attackTargetPosition = null;
+          entity.attackOriginalVictimPosition = null;
+          entity.attackSubState = 'IDLE';
+        }
       }
 
       const attackState = stateMachine.attackState;

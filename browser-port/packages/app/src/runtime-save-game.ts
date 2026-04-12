@@ -10013,6 +10013,7 @@ const SOURCE_AI_STATE_IDLE = 0;
 const SOURCE_AI_STATE_MOVE_TO = 1;
 const SOURCE_AI_STATE_ATTACK_POSITION = 9;
 const SOURCE_AI_STATE_ATTACK_OBJECT = 10;
+const SOURCE_AI_STATE_GUARD = 16;
 const SOURCE_HACK_INTERNET_STATE_UNPACKING = 1000;
 const SOURCE_HACK_INTERNET_STATE_HACKING = 1001;
 const SOURCE_HACK_INTERNET_STATE_PACKING = 1002;
@@ -10029,11 +10030,16 @@ const SOURCE_AI_CMD_FROM_PLAYER = 0;
 const SOURCE_AI_CMD_FROM_SCRIPT = 1;
 const SOURCE_AI_CMD_FROM_AI = 2;
 const SOURCE_AI_CMD_FROM_DOZER = 3;
+const SOURCE_AI_GUARDTARGET_LOCATION = 0;
+const SOURCE_AI_GUARDTARGET_OBJECT = 1;
 const SOURCE_AI_GUARDTARGET_NONE = 3;
 const SOURCE_AI_TURRET_INVALID = -1;
 const SOURCE_AI_ATTITUDE_NORMAL = 0;
 const SOURCE_AI_INVALID_STATE_ID = 999999;
 const SOURCE_AI_MAX_TURRETS = 2;
+const SOURCE_AI_GUARD_INNER = 5000;
+const SOURCE_AI_GUARD_IDLE = 5001;
+const SOURCE_AI_GUARD_RETURN = 5003;
 const SOURCE_ATTACK_STATE_CHASE_TARGET = 0;
 const SOURCE_ATTACK_STATE_APPROACH_TARGET = 1;
 const SOURCE_ATTACK_STATE_AIM_AT_TARGET = 2;
@@ -10198,6 +10204,39 @@ function sourceMoveGoalPosition(entity: MapEntity): Coord3D {
   return sourceCoord3DFromRuntimeXZ(finalPathPoint ?? entity.moveTarget ?? null);
 }
 
+function sourceGuardPosition(entity: MapEntity): Coord3D {
+  return sourceCoord3DFromRuntimeXYZ(entity.guardPositionX, 0, entity.guardPositionZ);
+}
+
+function sourceGuardObjectId(entity: MapEntity): number {
+  const guardObjectId = entity.guardObjectId;
+  return Number.isFinite(guardObjectId) && guardObjectId > 0
+    ? normalizeSourceObjectId(Number(guardObjectId))
+    : 0;
+}
+
+function sourceGuardTargetType(entity: MapEntity): number {
+  if (sourceGuardMachineStateId(entity) === null) {
+    return SOURCE_AI_GUARDTARGET_NONE;
+  }
+  return sourceGuardObjectId(entity) > 0
+    ? SOURCE_AI_GUARDTARGET_OBJECT
+    : SOURCE_AI_GUARDTARGET_LOCATION;
+}
+
+function sourceGuardMachineStateId(entity: MapEntity): number | null {
+  switch (entity.guardState) {
+    case 'IDLE':
+      return SOURCE_AI_GUARD_IDLE;
+    case 'RETURNING':
+      return SOURCE_AI_GUARD_RETURN;
+    case 'PURSUING':
+      return SOURCE_AI_GUARD_INNER;
+    default:
+      return null;
+  }
+}
+
 function sourceAttackMachineStateId(entity: MapEntity): number | null {
   switch (entity.attackSubState) {
     case 'APPROACHING':
@@ -10342,9 +10381,72 @@ function buildGeneratedSourceAIAttackStateBlockData(
   }
 }
 
+function buildGeneratedSourceAIGuardMachineStateBlockData(entity: MapEntity): Uint8Array {
+  const currentStateId = sourceGuardMachineStateId(entity);
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-guard-machine-state');
+  try {
+    saver.xferVersion(1);
+    if (currentStateId === SOURCE_AI_GUARD_IDLE || currentStateId === SOURCE_AI_GUARD_RETURN) {
+      saver.xferUnsignedInt(sourceUnsignedInt(entity.guardNextScanFrame, 0));
+    }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceAIGuardMachineBlockData(entity: MapEntity): Uint8Array {
+  const currentStateId = sourceGuardMachineStateId(entity);
+  if (currentStateId === null) {
+    throw new Error(`Cannot serialize source AIGuardMachine for ${entity.templateName}: missing guard state.`);
+  }
+  const guardPosition = sourceGuardPosition(entity);
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-guard-machine');
+  try {
+    saver.xferVersion(2);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(0);
+    saver.xferUnsignedInt(SOURCE_AI_GUARD_INNER);
+    saver.xferUnsignedInt(currentStateId);
+    saver.xferBool(false);
+    saver.xferUser(buildGeneratedSourceAIGuardMachineStateBlockData(entity));
+    saver.xferObjectID(0);
+    saver.xferCoord3D(guardPosition);
+    saver.xferBool(false);
+    saver.xferBool(true);
+    saver.xferObjectID(sourceGuardObjectId(entity));
+    saver.xferObjectID(normalizeSourceObjectId(entity.attackTargetEntityId ?? 0));
+    saver.xferCoord3D(guardPosition);
+    saver.xferAsciiString('');
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceAIGuardStateBlockData(entity: MapEntity): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-guard-state');
+  try {
+    saver.xferVersion(1);
+    saver.xferBool(true);
+    saver.xferUser(buildGeneratedSourceAIGuardMachineBlockData(entity));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function isGeneratedSourceAttackAIStateMachine(entity: MapEntity): boolean {
   return (entity.attackTargetEntityId !== null || entity.attackTargetPosition !== null)
     && sourceAttackMachineStateId(entity) !== null;
+}
+
+function isGeneratedSourceGuardAIStateMachine(entity: MapEntity): boolean {
+  return sourceGuardMachineStateId(entity) !== null
+    && entity.guardAreaTriggerIndex < 0;
 }
 
 function isGeneratedSourceMoveAIStateMachine(entity: MapEntity): boolean {
@@ -10356,6 +10458,33 @@ function isGeneratedSourceMoveAIStateMachine(entity: MapEntity): boolean {
 }
 
 function buildGeneratedSourceAIStateMachineBlockData(entity: MapEntity, currentFrame = 0): Uint8Array {
+  if (isGeneratedSourceGuardAIStateMachine(entity)) {
+    const goalPosition = sourceGuardPosition(entity);
+    const saver = new XferSave();
+    saver.open('build-generated-source-ai-state-machine-guard');
+    try {
+      saver.xferVersion(1);
+      saver.xferVersion(1);
+      saver.xferUnsignedInt(0);
+      saver.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+      saver.xferUnsignedInt(SOURCE_AI_STATE_GUARD);
+      saver.xferBool(false);
+      saver.xferUser(buildGeneratedSourceAIGuardStateBlockData(entity));
+      saver.xferObjectID(sourceGuardObjectId(entity));
+      saver.xferCoord3D(goalPosition);
+      saver.xferBool(false);
+      saver.xferBool(true);
+      saver.xferInt(0);
+      saver.xferAsciiString('');
+      saver.xferBool(false);
+      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
+      saver.xferUnsignedInt(0);
+      return new Uint8Array(saver.getBuffer());
+    } finally {
+      saver.close();
+    }
+  }
+
   if (isGeneratedSourceAttackAIStateMachine(entity)) {
     const isAttackingObject = entity.attackTargetEntityId !== null;
     const currentStateId = isAttackingObject
@@ -10642,9 +10771,9 @@ function buildGeneratedSourceAIUpdateInterfaceBlockData(
     saver.xferReal(SOURCE_AI_FAST_AS_POSSIBLE);
     saver.xferUser(buildSourceRawInt32Bytes(sourceAICommandSourceFromRuntime(entity)));
     saver.xferUser(buildSourceRawInt32Bytes(SOURCE_AI_GUARDTARGET_NONE));
-    saver.xferUser(buildSourceRawInt32Bytes(SOURCE_AI_GUARDTARGET_NONE));
-    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
-    saver.xferObjectID(0);
+    saver.xferUser(buildSourceRawInt32Bytes(sourceGuardTargetType(entity)));
+    saver.xferCoord3D(sourceGuardPosition(entity));
+    saver.xferObjectID(sourceGuardObjectId(entity));
     saver.xferAsciiString('');
     saver.xferAsciiString(typeof entity.scriptAttackPrioritySetName === 'string'
       ? entity.scriptAttackPrioritySetName

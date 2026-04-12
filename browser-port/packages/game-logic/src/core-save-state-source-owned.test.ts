@@ -2219,6 +2219,79 @@ function writeSourceMoveToAIStateMachineForTest(
   saver.xferUnsignedInt(0);
 }
 
+function writeSourceAIGuardMachineForTest(
+  saver: XferSave,
+  options: {
+    currentStateId: number;
+    targetToGuardId: number;
+    nemesisToAttackId: number;
+    positionToGuard: { x: number; y: number; z: number };
+    nextScanFrame: number;
+  },
+): void {
+  saver.xferVersion(2);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(5000);
+  saver.xferUnsignedInt(options.currentStateId);
+  saver.xferBool(false);
+  saver.xferVersion(1);
+  if (options.currentStateId === 5001 || options.currentStateId === 5003) {
+    saver.xferUnsignedInt(options.nextScanFrame);
+  }
+  saver.xferObjectID(0);
+  saver.xferCoord3D(options.positionToGuard);
+  saver.xferBool(false);
+  saver.xferBool(true);
+  saver.xferObjectID(options.targetToGuardId);
+  saver.xferObjectID(options.nemesisToAttackId);
+  saver.xferCoord3D(options.positionToGuard);
+  saver.xferAsciiString('');
+}
+
+function writeSourceAIGuardStateForTest(
+  saver: XferSave,
+  options: {
+    currentStateId: number;
+    targetToGuardId: number;
+    nemesisToAttackId: number;
+    positionToGuard: { x: number; y: number; z: number };
+    nextScanFrame: number;
+  },
+): void {
+  saver.xferVersion(1);
+  saver.xferBool(true);
+  writeSourceAIGuardMachineForTest(saver, options);
+}
+
+function writeSourceGuardAIStateMachineForTest(
+  saver: XferSave,
+  options: {
+    currentStateId: number;
+    targetToGuardId: number;
+    nemesisToAttackId: number;
+    positionToGuard: { x: number; y: number; z: number };
+    nextScanFrame: number;
+  },
+): void {
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(16);
+  saver.xferBool(false);
+  writeSourceAIGuardStateForTest(saver, options);
+  saver.xferObjectID(options.targetToGuardId);
+  saver.xferCoord3D(options.positionToGuard);
+  saver.xferBool(false);
+  saver.xferBool(true);
+  saver.xferInt(0);
+  saver.xferAsciiString('');
+  saver.xferBool(false);
+  saver.xferUnsignedInt(999999);
+  saver.xferUnsignedInt(0);
+}
+
 interface SourceAIUpdateInterfaceTailForTestOptions {
   attackInfoName: string;
   ignoreObstacleId: number;
@@ -2365,6 +2438,41 @@ function buildSourceAIUpdateInterfaceMoveToModuleData(options: {
     if (options.tail) {
       writeSourceAIUpdateInterfaceTailForTest(saver, options.tail);
     }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceAIUpdateInterfaceGuardModuleData(options: {
+  currentStateId: number;
+  targetToGuardId: number;
+  nemesisToAttackId: number;
+  positionToGuard: { x: number; y: number; z: number };
+  nextEnemyScanFrame: number;
+  guardNextScanFrame: number;
+  lastCommandSource: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-ai-update-interface-guard');
+  try {
+    saver.xferVersion(4);
+    writeTestSourceUpdateModuleBase(saver, 81, 1);
+    saver.xferUnsignedInt(0xfacade);
+    saver.xferUnsignedInt(0xfacade);
+    writeSourceGuardAIStateMachineForTest(saver, {
+      currentStateId: options.currentStateId,
+      targetToGuardId: options.targetToGuardId,
+      nemesisToAttackId: options.nemesisToAttackId,
+      positionToGuard: options.positionToGuard,
+      nextScanFrame: options.guardNextScanFrame,
+    });
+    saver.xferBool(false);
+    saver.xferBool(true);
+    saver.xferUnsignedInt(options.nextEnemyScanFrame);
+    saver.xferObjectID(0);
+    saver.xferReal(999999);
+    saver.xferUser(sourceRawInt32(options.lastCommandSource));
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -6854,6 +6962,62 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedMover.ignoredMovementObstacleId).toBe(777);
     expect(importedMover.pathfindGoalCell).toEqual({ x: 22, z: 33 });
     expect(importedMover.pathfindPosCell).toEqual({ x: 44, z: 55 });
+  });
+
+  it('imports source AIUpdateInterface guard state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const guardSource = createEmptySourceMapEntitySaveState();
+    guardSource.objectId = 127;
+    guardSource.position = { x: 161, y: 0, z: 60 };
+    guardSource.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfaceGuardModuleData({
+        currentStateId: 5001,
+        targetToGuardId: 0,
+        nemesisToAttackId: 0,
+        positionToGuard: { x: 260, y: 270, z: 16 },
+        nextEnemyScanFrame: 222,
+        guardNextScanFrame: 654,
+        lastCommandSource: 2,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackImportUnit', state: guardSource },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        guardState: string;
+        guardPositionX: number;
+        guardPositionZ: number;
+        guardObjectId: number;
+        guardNextScanFrame: number;
+        attackTargetEntityId: number | null;
+        autoTargetScanNextFrame: number;
+      }>;
+    };
+
+    const importedGuard = privateLogic.spawnedEntities.get(127)!;
+    expect(importedGuard.guardState).toBe('IDLE');
+    expect(importedGuard.guardPositionX).toBe(260);
+    expect(importedGuard.guardPositionZ).toBe(270);
+    expect(importedGuard.guardObjectId).toBe(0);
+    expect(importedGuard.guardNextScanFrame).toBe(654);
+    expect(importedGuard.attackTargetEntityId).toBeNull();
+    expect(importedGuard.autoTargetScanNextFrame).toBe(222);
   });
 
   it('imports source AssaultTransportAIUpdate runtime state', () => {

@@ -2196,6 +2196,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
     let idleInited: boolean | undefined;
     let moveState: Record<string, unknown> | undefined;
     let attackState: Record<string, unknown> | undefined;
+    let guardState: Record<string, unknown> | undefined;
     if (currentStateId === 0) {
       idleStateVersion = xferLoad.xferVersion(1);
       idleInitialSleepOffset = xferLoad.xferUnsignedShort(0);
@@ -2306,6 +2307,69 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
         hasMachine: attackHasMachine,
         originalVictimPosition,
         attackMachine,
+      };
+    } else if (currentStateId === 16) {
+      const guardStateVersion = xferLoad.xferVersion(1);
+      const guardHasMachine = xferLoad.xferBool(false);
+      let guardMachine: Record<string, unknown> | undefined;
+      if (guardHasMachine) {
+        const guardMachineVersion = xferLoad.xferVersion(2);
+        const guardStateMachineVersion = xferLoad.xferVersion(1);
+        const guardSleepTill = xferLoad.xferUnsignedInt(0);
+        const guardDefaultStateId = xferLoad.xferUnsignedInt(0);
+        const guardCurrentStateId = xferLoad.xferUnsignedInt(0);
+        const guardSnapshotAllStates = xferLoad.xferBool(false);
+        let guardCurrentState: Record<string, unknown>;
+        if (guardCurrentStateId === 5001) {
+          guardCurrentState = {
+            kind: 'IDLE',
+            version: xferLoad.xferVersion(1),
+            nextEnemyScanTime: xferLoad.xferUnsignedInt(0),
+          };
+        } else if (guardCurrentStateId === 5003) {
+          guardCurrentState = {
+            kind: 'RETURN',
+            version: xferLoad.xferVersion(1),
+            nextReturnScanTime: xferLoad.xferUnsignedInt(0),
+          };
+        } else if (guardCurrentStateId === 5000 || guardCurrentStateId === 5002 || guardCurrentStateId === 5005) {
+          guardCurrentState = {
+            kind: 'EMPTY',
+            version: xferLoad.xferVersion(1),
+          };
+        } else {
+          throw new Error(`Unexpected generated guard-machine state ${guardCurrentStateId}.`);
+        }
+        const guardMachineGoalObjectId = xferLoad.xferObjectID(0);
+        const guardMachineGoalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+        const guardMachineLocked = xferLoad.xferBool(false);
+        const guardMachineDefaultStateInited = xferLoad.xferBool(false);
+        const targetToGuardId = xferLoad.xferObjectID(0);
+        const nemesisToAttackId = xferLoad.xferObjectID(0);
+        const positionToGuard = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+        const areaToGuard = xferLoad.xferAsciiString('');
+        guardMachine = {
+          version: guardMachineVersion,
+          stateMachineVersion: guardStateMachineVersion,
+          sleepTill: guardSleepTill,
+          defaultStateId: guardDefaultStateId,
+          currentStateId: guardCurrentStateId,
+          snapshotAllStates: guardSnapshotAllStates,
+          currentState: guardCurrentState,
+          goalObjectId: guardMachineGoalObjectId,
+          goalPosition: guardMachineGoalPosition,
+          locked: guardMachineLocked,
+          defaultStateInited: guardMachineDefaultStateInited,
+          targetToGuardId,
+          nemesisToAttackId,
+          positionToGuard,
+          areaToGuard,
+        };
+      }
+      guardState = {
+        version: guardStateVersion,
+        hasMachine: guardHasMachine,
+        guardMachine,
       };
     } else {
       throw new Error(`Unexpected generated AI state ${currentStateId}.`);
@@ -2463,6 +2527,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
       idleInited,
       moveState,
       attackState,
+      guardState,
       goalObjectId,
       goalPosition,
       locked,
@@ -20526,6 +20591,33 @@ describe('runtime-save-game', () => {
             pathfindPosCell: { x: 11, z: 21 },
             activeLocomotorSet: 'SET_NORMAL',
             guardState: 'NONE',
+          } as unknown as import('@generals/game-logic').MapEntity, {
+            id: 25,
+            templateName: 'RuntimeGeneratedGuardAI',
+            x: 115,
+            y: 0,
+            z: 215,
+            rotationY: 0,
+            sourceAIIdleInitialSleepOffset: 6,
+            scriptAiRecruitable: true,
+            attackTargetEntityId: null,
+            attackTargetPosition: null,
+            attackSubState: 'IDLE',
+            lastCommandSource: 'AI',
+            autoTargetScanNextFrame: 83,
+            moving: false,
+            moveTarget: null,
+            locomotorUpgradeEnabled: false,
+            ignoredMovementObstacleId: null,
+            pathfindGoalCell: null,
+            pathfindPosCell: null,
+            activeLocomotorSet: 'SET_NORMAL',
+            guardState: 'IDLE',
+            guardPositionX: 210,
+            guardPositionZ: 310,
+            guardObjectId: 23,
+            guardAreaTriggerIndex: -1,
+            guardNextScanFrame: 84,
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
         listSourceObjectModuleDescriptors: (templateName) => {
@@ -20534,6 +20626,9 @@ describe('runtime-save-game', () => {
           }
           if (templateName === 'RuntimeGeneratedMoveAI') {
             return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_MoveAI' }];
+          }
+          if (templateName === 'RuntimeGeneratedGuardAI') {
+            return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_GuardAI' }];
           }
           return templateName === 'RuntimeGeneratedAIUpdates'
             ? [
@@ -20638,6 +20733,47 @@ describe('runtime-save-game', () => {
       lastCommandSource: 1,
     });
     expect(moveAI.bytesRead).toBe(moveModule!.blockData.byteLength);
+
+    const generatedGuard = readSourceGameLogicObjectStates(saveFile.data)
+      ?.find((object) => object.templateName === 'RuntimeGeneratedGuardAI')?.state;
+    const guardModule = generatedGuard?.modules.find((module) => module.identifier === 'ModuleTag_GuardAI');
+    expect(guardModule).toBeDefined();
+    const guardAI = parseGeneratedSourceAIUpdateInterfaceForTest(guardModule!.blockData, 0);
+    expect(guardAI).toMatchObject({
+      currentStateId: 16,
+      goalObjectId: 23,
+      goalPosition: { x: 210, y: 310, z: 0 },
+      nextEnemyScanTime: 83,
+      guardTarget1: 1,
+      locationToGuard: { x: 210, y: 310, z: 0 },
+      objectToGuard: 23,
+      nextMoodCheckTime: 83,
+      lastCommandSource: 2,
+      guardState: {
+        version: 1,
+        hasMachine: true,
+        guardMachine: {
+          version: 2,
+          stateMachineVersion: 1,
+          defaultStateId: 5000,
+          currentStateId: 5001,
+          currentState: {
+            kind: 'IDLE',
+            version: 1,
+            nextEnemyScanTime: 84,
+          },
+          goalObjectId: 0,
+          goalPosition: { x: 210, y: 310, z: 0 },
+          locked: false,
+          defaultStateInited: true,
+          targetToGuardId: 23,
+          nemesisToAttackId: 0,
+          positionToGuard: { x: 210, y: 310, z: 0 },
+          areaToGuard: '',
+        },
+      },
+    });
+    expect(guardAI.bytesRead).toBe(guardModule!.blockData.byteLength);
 
     expect(hackModule).toBeDefined();
     const hack = parseSourceHackInternetAIUpdateBlockData(hackModule!.blockData);
