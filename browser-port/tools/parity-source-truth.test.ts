@@ -1496,6 +1496,7 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-pow-truck-ai-update-fields',
         'save-railed-transport-ai-update-fields',
         'save-spy-vision-update-fields',
+        'save-object-xfer-inventory',
       ]) {
         const moduleCategory = report.categories.find((c) => c.category === category);
         expect(moduleCategory).toBeDefined();

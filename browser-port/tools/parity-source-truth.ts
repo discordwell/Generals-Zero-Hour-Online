@@ -3136,6 +3136,59 @@ function sourceDynamicGeometryInfoUpdateFields(): string[] {
   ];
 }
 
+const SOURCE_OBJECT_XFER_ALLOWED_UNREACHABLE = new Set([
+  // DozerActionState::xfer saves DozerActionStateMachine, but that nested machine
+  // overrides xfer with version + m_task only and never calls StateMachine::xfer.
+  'DozerActionPickActionPosState',
+  'DozerActionMoveToActionPosState',
+  'DozerActionDoActionState',
+]);
+
+function parseCppXferClassNames(source: string): string[] {
+  const classes: string[] = [];
+  const seen = new Set<string>();
+  const classRegex = /void\s+([A-Za-z0-9_]+)::xfer\s*\(\s*Xfer\s*\*xfer\s*\)/g;
+  let match;
+  while ((match = classRegex.exec(source)) !== null) {
+    pushUniqueField(classes, seen, match[1]!);
+  }
+  return classes;
+}
+
+function compareSourceObjectXferInventory(
+  cppClasses: string[],
+  coveredClasses: string[],
+): ParityCategoryResult {
+  const covered = new Set([...coveredClasses, ...SOURCE_OBJECT_XFER_ALLOWED_UNREACHABLE]);
+  const sourceClassSet = new Set(cppClasses);
+  const mismatches: ParityMismatch[] = [];
+  for (const cppClass of cppClasses) {
+    if (!covered.has(cppClass)) {
+      mismatches.push({
+        category: 'save-object-xfer-inventory',
+        severity: 'error',
+        message: `Source object xfer class "${cppClass}" is not covered by a parity category.`,
+        cppValue: cppClass,
+      });
+    }
+  }
+  for (const unreachable of SOURCE_OBJECT_XFER_ALLOWED_UNREACHABLE) {
+    if (!sourceClassSet.has(unreachable)) {
+      mismatches.push({
+        category: 'save-object-xfer-inventory',
+        severity: 'error',
+        message: `Allowed unreachable source object xfer "${unreachable}" no longer exists in the source inventory.`,
+        tsValue: unreachable,
+      });
+    }
+  }
+  return {
+    category: 'save-object-xfer-inventory',
+    status: mismatches.length === 0 ? 'match' : 'mismatch',
+    mismatches,
+  };
+}
+
 function sourceDockUpdateFields(): string[] {
   return [
     'version',
@@ -10964,6 +11017,10 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       categories.push(compareSourceObjectUpdateFields(check.category, cpp, ts));
     }
   }
+  categories.push(compareSourceObjectXferInventory(
+    parseCppXferClassNames(objectUpdateSource),
+    objectUpdateChecks.map((check) => check.cppClass),
+  ));
 
   const terrainVisualSource = `${zhW3DTerrainVisualCpp || genW3DTerrainVisualCpp}\n${zhTerrainVisualCpp || genTerrainVisualCpp}`;
   const cppTerrainVisualFields = parseCppTerrainVisualFields(terrainVisualSource);
