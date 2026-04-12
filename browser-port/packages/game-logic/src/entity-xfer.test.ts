@@ -916,6 +916,42 @@ describe('entity-xfer', () => {
     expect(loaded.attackTargetEntityId).toBe(42);
   });
 
+  it('preserves active attack runtime state', () => {
+    const original = createTestEntity({
+      attackTargetEntityId: null,
+      attackTargetPosition: { x: 321.25, z: 654.5 },
+      attackOriginalVictimPosition: { x: 111.75, z: 222.125 },
+      attackCommandSource: 'SCRIPT',
+      lastCommandSource: 'SCRIPT',
+      attackSubState: 'APPROACHING',
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity({
+      attackTargetEntityId: 99,
+      attackTargetPosition: null,
+      attackOriginalVictimPosition: null,
+      attackCommandSource: 'AI',
+      lastCommandSource: 'AI',
+      attackSubState: 'IDLE',
+    });
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.attackTargetEntityId).toBeNull();
+    expect(loaded.attackTargetPosition).toEqual({ x: 321.25, z: 654.5 });
+    expect(loaded.attackOriginalVictimPosition).toEqual({ x: 111.75, z: 222.125 });
+    expect(loaded.attackCommandSource).toBe('SCRIPT');
+    expect(loaded.lastCommandSource).toBe('SCRIPT');
+    expect(loaded.attackSubState).toBe('APPROACHING');
+  });
+
   it('preserves undetected defector timers', () => {
     const original = createTestEntity({
       undetectedDefectorUntilFrame: 180,
