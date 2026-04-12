@@ -16789,6 +16789,143 @@ function xferSourceTransportContain(
   };
 }
 
+function xferSourceWrappedTransportContain(
+  xfer: Xfer,
+  state: SourceTransportContainBlockState,
+  label: string,
+): SourceTransportContainBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source ${label} version ${version}`);
+  }
+  return xferSourceTransportContain(xfer, state);
+}
+
+function xferSourceOverlordContain(
+  xfer: Xfer,
+  state: SourceTransportContainBlockState,
+  redirectionActivated: boolean,
+): { transport: SourceTransportContainBlockState; redirectionActivated: boolean } {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source OverlordContain version ${version}`);
+  }
+  return {
+    transport: xferSourceTransportContain(xfer, state),
+    redirectionActivated: xfer.xferBool(redirectionActivated),
+  };
+}
+
+function xferSourceHelixContain(
+  xfer: Xfer,
+  state: SourceTransportContainBlockState,
+  portableStructureId: number,
+): { transport: SourceTransportContainBlockState; portableStructureId: number } {
+  const version = xfer.xferVersion(2);
+  if (version < 1 || version > 2) {
+    throw new Error(`Unsupported source HelixContain version ${version}`);
+  }
+  return {
+    portableStructureId: version >= 2 ? xfer.xferObjectID(normalizeSourceObjectId(portableStructureId)) : 0,
+    transport: xferSourceTransportContain(xfer, state),
+  };
+}
+
+function xferSourceHealContain(
+  xfer: Xfer,
+  state: SourceOpenContainBlockState,
+): SourceOpenContainBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source HealContain version ${version}`);
+  }
+  return xferSourceOpenContain(xfer, state);
+}
+
+function xferSourceTunnelContain(
+  xfer: Xfer,
+  state: SourceOpenContainBlockState,
+  needToRunOnBuildComplete: boolean,
+  isCurrentlyRegistered: boolean,
+): {
+  open: SourceOpenContainBlockState;
+  needToRunOnBuildComplete: boolean;
+  isCurrentlyRegistered: boolean;
+} {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source TunnelContain version ${version}`);
+  }
+  return {
+    open: xferSourceOpenContain(xfer, state),
+    needToRunOnBuildComplete: xfer.xferBool(needToRunOnBuildComplete),
+    isCurrentlyRegistered: xfer.xferBool(isCurrentlyRegistered),
+  };
+}
+
+function xferSourceCaveContain(
+  xfer: Xfer,
+  state: SourceOpenContainBlockState,
+  needToRunOnBuildComplete: boolean,
+  caveIndex: number,
+  originalTeamId: number,
+): {
+  open: SourceOpenContainBlockState;
+  needToRunOnBuildComplete: boolean;
+  caveIndex: number;
+  originalTeamId: number;
+} {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source CaveContain version ${version}`);
+  }
+  return {
+    open: xferSourceOpenContain(xfer, state),
+    needToRunOnBuildComplete: xfer.xferBool(needToRunOnBuildComplete),
+    caveIndex: xfer.xferInt(Math.trunc(caveIndex)),
+    originalTeamId: parseSourceRawInt32Bytes(xfer.xferUser(buildSourceRawInt32Bytes(originalTeamId))),
+  };
+}
+
+function xferSourceMobNexusContain(
+  xfer: Xfer,
+  state: SourceOpenContainBlockState,
+  extraSlotsInUse: number,
+): { open: SourceOpenContainBlockState; extraSlotsInUse: number } {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source MobNexusContain version ${version}`);
+  }
+  return {
+    open: xferSourceOpenContain(xfer, state),
+    extraSlotsInUse: xfer.xferInt(Math.trunc(extraSlotsInUse)),
+  };
+}
+
+function xferSourceRiderChangeContain(
+  xfer: Xfer,
+  state: SourceTransportContainBlockState,
+  payloadCreated: boolean,
+  extraSlotsInUse: number,
+  frameExitNotBusy: number,
+): {
+  transport: SourceTransportContainBlockState;
+  payloadCreated: boolean;
+  extraSlotsInUse: number;
+  frameExitNotBusy: number;
+} {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source RiderChangeContain version ${version}`);
+  }
+  return {
+    transport: xferSourceTransportContain(xfer, state),
+    payloadCreated: xfer.xferBool(payloadCreated),
+    extraSlotsInUse: xfer.xferInt(Math.trunc(extraSlotsInUse)),
+    frameExitNotBusy: xfer.xferUnsignedInt(Math.max(0, Math.trunc(frameExitNotBusy))),
+  };
+}
+
 function xferSourcePrisonVisuals(
   xfer: Xfer,
   visuals: readonly SourcePrisonVisualBlockState[],
@@ -17334,9 +17471,8 @@ function buildSourceContainModuleBlockData(
           preservedState.transport ?? createDefaultSourceTransportContainState(),
         ),
       );
-    } else if (kind === 'internetHack' || kind === 'railedTransport') {
-      saver.xferVersion(1);
-      xferSourceTransportContain(
+    } else if (kind === 'internetHack') {
+      xferSourceWrappedTransportContain(
         saver,
         overlaySourceTransportContainStateFromLiveEntity(
           entity,
@@ -17344,10 +17480,21 @@ function buildSourceContainModuleBlockData(
           liveEntities,
           preservedState.transport ?? createDefaultSourceTransportContainState(),
         ),
+        'InternetHackContain',
+      );
+    } else if (kind === 'railedTransport') {
+      xferSourceWrappedTransportContain(
+        saver,
+        overlaySourceTransportContainStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.transport ?? createDefaultSourceTransportContainState(),
+        ),
+        'RailedTransportContain',
       );
     } else if (kind === 'overlord') {
-      saver.xferVersion(1);
-      xferSourceTransportContain(
+      xferSourceOverlordContain(
         saver,
         overlaySourceTransportContainStateFromLiveEntity(
           entity,
@@ -17355,14 +17502,10 @@ function buildSourceContainModuleBlockData(
           liveEntities,
           preservedState.transport ?? createDefaultSourceTransportContainState(),
         ),
+        preservedState.redirectionActivated ?? false,
       );
-      saver.xferBool(preservedState.redirectionActivated ?? false);
     } else if (kind === 'helix') {
-      saver.xferVersion(2);
-      saver.xferObjectID(normalizeSourceObjectId(
-        entity.helixPortableRiderId ?? preservedState.helixPortableStructureId ?? 0,
-      ));
-      xferSourceTransportContain(
+      xferSourceHelixContain(
         saver,
         overlaySourceTransportContainStateFromLiveEntity(
           entity,
@@ -17370,6 +17513,7 @@ function buildSourceContainModuleBlockData(
           liveEntities,
           preservedState.transport ?? createDefaultSourceTransportContainState(),
         ),
+        normalizeSourceObjectId(entity.helixPortableRiderId ?? preservedState.helixPortableStructureId ?? 0),
       );
     } else if (kind === 'parachute') {
       const parachute = preservedState.parachute ?? createDefaultSourceParachuteContainState();
@@ -17395,8 +17539,7 @@ function buildSourceContainModuleBlockData(
       );
       saver.xferUnsignedInt(Math.max(0, Math.trunc(preservedState.originalTeamId ?? 0)));
     } else if (kind === 'tunnel') {
-      saver.xferVersion(1);
-      xferSourceOpenContain(
+      xferSourceTunnelContain(
         saver,
         overlaySourceOpenContainStateFromLiveEntity(
           entity,
@@ -17404,12 +17547,11 @@ function buildSourceContainModuleBlockData(
           liveEntities,
           preservedState.open ?? createDefaultSourceOpenContainState(),
         ),
+        preservedState.needToRunOnBuildComplete ?? false,
+        preservedState.isCurrentlyRegistered ?? false,
       );
-      saver.xferBool(preservedState.needToRunOnBuildComplete ?? false);
-      saver.xferBool(preservedState.isCurrentlyRegistered ?? false);
     } else if (kind === 'cave') {
-      saver.xferVersion(1);
-      xferSourceOpenContain(
+      xferSourceCaveContain(
         saver,
         overlaySourceOpenContainStateFromLiveEntity(
           entity,
@@ -17417,16 +17559,12 @@ function buildSourceContainModuleBlockData(
           liveEntities,
           preservedState.open ?? createDefaultSourceOpenContainState(),
         ),
+        preservedState.needToRunOnBuildComplete ?? false,
+        Math.trunc(sourcePhysicsFinite(entity.containProfile?.caveIndex, preservedState.caveIndex ?? 0)),
+        Math.max(0, Math.trunc(preservedState.originalTeamId ?? 0)),
       );
-      saver.xferBool(preservedState.needToRunOnBuildComplete ?? false);
-      saver.xferInt(Math.trunc(sourcePhysicsFinite(
-        entity.containProfile?.caveIndex,
-        preservedState.caveIndex ?? 0,
-      )));
-      saver.xferUnsignedInt(Math.max(0, Math.trunc(preservedState.originalTeamId ?? 0)));
     } else if (kind === 'heal') {
-      saver.xferVersion(1);
-      xferSourceOpenContain(
+      xferSourceHealContain(
         saver,
         overlaySourceOpenContainStateFromLiveEntity(
           entity,
@@ -17466,8 +17604,7 @@ function buildSourceContainModuleBlockData(
         ),
       );
     } else if (kind === 'riderChange') {
-      saver.xferVersion(1);
-      xferSourceTransportContain(
+      xferSourceRiderChangeContain(
         saver,
         overlaySourceTransportContainStateFromLiveEntity(
           entity,
@@ -17475,15 +17612,14 @@ function buildSourceContainModuleBlockData(
           liveEntities,
           preservedState.transport ?? createDefaultSourceTransportContainState(),
         ),
+        typeof entity.initialPayloadCreated === 'boolean'
+          ? entity.initialPayloadCreated
+          : preservedState.riderChangePayloadCreated ?? false,
+        preservedState.riderChangeExtraSlotsInUse ?? 0,
+        preservedState.riderChangeFrameExitNotBusy ?? 0,
       );
-      saver.xferBool(typeof entity.initialPayloadCreated === 'boolean'
-        ? entity.initialPayloadCreated
-        : preservedState.riderChangePayloadCreated ?? false);
-      saver.xferInt(preservedState.riderChangeExtraSlotsInUse ?? 0);
-      saver.xferUnsignedInt(preservedState.riderChangeFrameExitNotBusy ?? 0);
     } else {
-      saver.xferVersion(1);
-      xferSourceOpenContain(
+      xferSourceMobNexusContain(
         saver,
         overlaySourceOpenContainStateFromLiveEntity(
           entity,
@@ -17491,8 +17627,8 @@ function buildSourceContainModuleBlockData(
           liveEntities,
           preservedState.open ?? createDefaultSourceOpenContainState(),
         ),
+        preservedState.extraSlotsInUse ?? 0,
       );
-      saver.xferInt(preservedState.extraSlotsInUse ?? 0);
     }
     return new Uint8Array(saver.getBuffer());
   } finally {

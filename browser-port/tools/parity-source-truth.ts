@@ -3021,6 +3021,10 @@ function prefixBaseVersion(fields: string[], prefix: string): string[] {
   return fields.map((field) => field === 'version' ? `${prefix}.version` : field);
 }
 
+function prefixFields(fields: string[], prefix: string): string[] {
+  return fields.map((field) => `${prefix}.${field}`);
+}
+
 function sourceDrawModuleBaseFields(): string[] {
   return ['drawModule.version', 'drawableModule.version', 'module.version'];
 }
@@ -3278,6 +3282,43 @@ function sourceParachuteContainFields(): string[] {
     'needToUpdateRiderBones',
     'needToUpdateParaBones',
     'opened',
+  ];
+}
+
+function sourceWrappedOpenContainFields(): string[] {
+  return ['version', ...prefixFields(sourceOpenContainFields(), 'open')];
+}
+
+function sourceWrappedTransportContainFields(): string[] {
+  return ['version', ...prefixFields(sourceTransportContainFields(), 'transport')];
+}
+
+function sourceOverlordContainFields(): string[] {
+  return [...sourceWrappedTransportContainFields(), 'redirectionActivated'];
+}
+
+function sourceHelixContainFields(): string[] {
+  return ['version', 'portableStructureId', ...prefixFields(sourceTransportContainFields(), 'transport')];
+}
+
+function sourceTunnelContainFields(): string[] {
+  return [...sourceWrappedOpenContainFields(), 'needToRunOnBuildComplete', 'isCurrentlyRegistered'];
+}
+
+function sourceCaveContainFields(): string[] {
+  return [...sourceWrappedOpenContainFields(), 'needToRunOnBuildComplete', 'caveIndex', 'originalTeamId'];
+}
+
+function sourceMobNexusContainFields(): string[] {
+  return [...sourceWrappedOpenContainFields(), 'extraSlotsInUse'];
+}
+
+function sourceRiderChangeContainFields(): string[] {
+  return [
+    ...sourceWrappedTransportContainFields(),
+    'payloadCreated',
+    'extraSlotsInUse',
+    'frameExitNotBusy',
   ];
 }
 
@@ -3590,6 +3631,30 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
   if (className === 'ParachuteContain') {
     return sourceParachuteContainFields();
   }
+  if (className === 'InternetHackContain' || className === 'RailedTransportContain') {
+    return sourceWrappedTransportContainFields();
+  }
+  if (className === 'OverlordContain') {
+    return sourceOverlordContainFields();
+  }
+  if (className === 'HelixContain') {
+    return sourceHelixContainFields();
+  }
+  if (className === 'HealContain') {
+    return sourceWrappedOpenContainFields();
+  }
+  if (className === 'TunnelContain') {
+    return sourceTunnelContainFields();
+  }
+  if (className === 'CaveContain') {
+    return sourceCaveContainFields();
+  }
+  if (className === 'MobNexusContain') {
+    return sourceMobNexusContainFields();
+  }
+  if (className === 'RiderChangeContain') {
+    return sourceRiderChangeContainFields();
+  }
   const dynamicGeometryFields = parseCppSimpleModuleFields(
     source,
     'void DynamicGeometryInfoUpdate::xfer( Xfer *xfer )',
@@ -3713,6 +3778,30 @@ export function parseTsSourceObjectUpdateFields(
   }
   if (helperName === 'xferSourceParachuteContain') {
     return sourceParachuteContainFields();
+  }
+  if (helperName === 'xferSourceWrappedTransportContain') {
+    return sourceWrappedTransportContainFields();
+  }
+  if (helperName === 'xferSourceOverlordContain') {
+    return sourceOverlordContainFields();
+  }
+  if (helperName === 'xferSourceHelixContain') {
+    return sourceHelixContainFields();
+  }
+  if (helperName === 'xferSourceHealContain') {
+    return sourceWrappedOpenContainFields();
+  }
+  if (helperName === 'xferSourceTunnelContain') {
+    return sourceTunnelContainFields();
+  }
+  if (helperName === 'xferSourceCaveContain') {
+    return sourceCaveContainFields();
+  }
+  if (helperName === 'xferSourceMobNexusContain') {
+    return sourceMobNexusContainFields();
+  }
+  if (helperName === 'xferSourceRiderChangeContain') {
+    return sourceRiderChangeContainFields();
   }
   const body = extractFunctionBodyAfterParams(source, helperName);
   if (!body) return [];
@@ -8864,8 +8953,17 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     '../Behavior/SpawnBehavior.cpp',
     '../Behavior/SupplyWarehouseCripplingBehavior.cpp',
     '../Behavior/TechBuildingBehavior.cpp',
+    '../Contain/CaveContain.cpp',
+    '../Contain/HealContain.cpp',
+    '../Contain/HelixContain.cpp',
+    '../Contain/InternetHackContain.cpp',
+    '../Contain/MobNexusContain.cpp',
     '../Contain/OpenContain.cpp',
+    '../Contain/OverlordContain.cpp',
     '../Contain/ParachuteContain.cpp',
+    '../Contain/RailedTransportContain.cpp',
+    '../Contain/RiderChangeContain.cpp',
+    '../Contain/TunnelContain.cpp',
     '../Contain/TransportContain.cpp',
     'CheckpointUpdate.cpp',
     'CleanupHazardUpdate.cpp',
@@ -9798,6 +9896,51 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-parachute-contain-fields',
       cppClass: 'ParachuteContain',
       tsHelper: 'xferSourceParachuteContain',
+    },
+    {
+      category: 'save-internet-hack-contain-fields',
+      cppClass: 'InternetHackContain',
+      tsHelper: 'xferSourceWrappedTransportContain',
+    },
+    {
+      category: 'save-railed-transport-contain-fields',
+      cppClass: 'RailedTransportContain',
+      tsHelper: 'xferSourceWrappedTransportContain',
+    },
+    {
+      category: 'save-overlord-contain-fields',
+      cppClass: 'OverlordContain',
+      tsHelper: 'xferSourceOverlordContain',
+    },
+    {
+      category: 'save-helix-contain-fields',
+      cppClass: 'HelixContain',
+      tsHelper: 'xferSourceHelixContain',
+    },
+    {
+      category: 'save-heal-contain-fields',
+      cppClass: 'HealContain',
+      tsHelper: 'xferSourceHealContain',
+    },
+    {
+      category: 'save-tunnel-contain-fields',
+      cppClass: 'TunnelContain',
+      tsHelper: 'xferSourceTunnelContain',
+    },
+    {
+      category: 'save-cave-contain-fields',
+      cppClass: 'CaveContain',
+      tsHelper: 'xferSourceCaveContain',
+    },
+    {
+      category: 'save-mob-nexus-contain-fields',
+      cppClass: 'MobNexusContain',
+      tsHelper: 'xferSourceMobNexusContain',
+    },
+    {
+      category: 'save-rider-change-contain-fields',
+      cppClass: 'RiderChangeContain',
+      tsHelper: 'xferSourceRiderChangeContain',
     },
     {
       category: 'save-physics-behavior-fields',
