@@ -1537,6 +1537,157 @@ export function parseTsParticleFields(source: string): string[] {
   return fields;
 }
 
+function mapCppLocomotorField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedInt' && argument === 'm_donutTimer') return 'donutTimer';
+  if (method === 'xferCoord3D' && argument === 'm_maintainPos') return 'maintainPos';
+  if (method === 'xferReal' && argument === 'm_brakingFactor') return 'brakingFactor';
+  if (method === 'xferReal' && argument === 'm_maxLift') return 'maxLift';
+  if (method === 'xferReal' && argument === 'm_maxSpeed') return 'maxSpeed';
+  if (method === 'xferReal' && argument === 'm_maxAccel') return 'maxAccel';
+  if (method === 'xferReal' && argument === 'm_maxBraking') return 'maxBraking';
+  if (method === 'xferReal' && argument === 'm_maxTurnRate') return 'maxTurnRate';
+  if (method === 'xferReal' && argument === 'm_closeEnoughDist') return 'closeEnoughDist';
+  if (method === 'xferUnsignedInt' && argument === 'm_flags') return 'flags';
+  if (method === 'xferReal' && argument === 'm_preferredHeight') return 'preferredHeight';
+  if (method === 'xferReal' && argument === 'm_preferredHeightDamping') return 'preferredHeightDamping';
+  if (method === 'xferReal' && argument === 'm_angleOffset') return 'angleOffset';
+  if (method === 'xferReal' && argument === 'm_offsetIncrement') return 'offsetIncrement';
+  return null;
+}
+
+export function parseCppSourceLocomotorFields(source: string): string[] {
+  return parseCppSimpleModuleFields(
+    source,
+    'void Locomotor::xfer( Xfer *xfer )',
+    {},
+    mapCppLocomotorField,
+  );
+}
+
+export function parseTsSourceLocomotorFields(source: string): string[] {
+  const body = extractFunctionBodyAfterParams(source, 'xferGeneratedSourceLocomotorSnapshot');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const allowedFields = new Set(sourceLocomotorFields());
+  const tokenRegex =
+    /saver\.xferVersion\s*\(\s*2\s*\)|saver\.xferUnsignedInt\s*\(\s*sourceAIUnsignedFrame\s*\(\s*snapshot\.donutTimer\b[^)]*\)\s*\)|saver\.xferCoord3D\s*\(\s*\{|saver\.xferReal\s*\(\s*real\s*\(\s*snapshot\.(\w+)\b|saver\.xferUnsignedInt\s*\(\s*sourceFiniteInt\s*\(\s*snapshot\.flags\b/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.includes('xferVersion')) {
+      pushUniqueField(fields, seen, 'version');
+      continue;
+    }
+    if (token.includes('snapshot.donutTimer')) {
+      pushUniqueField(fields, seen, 'donutTimer');
+      continue;
+    }
+    if (token.includes('xferCoord3D')) {
+      pushUniqueField(fields, seen, 'maintainPos');
+      continue;
+    }
+    if (token.includes('snapshot.flags')) {
+      pushUniqueField(fields, seen, 'flags');
+      continue;
+    }
+    if (match[1] && allowedFields.has(match[1]!)) {
+      pushUniqueField(fields, seen, match[1]!);
+    }
+  }
+  return fields;
+}
+
+function mapCppLocomotorSetField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'count') return 'count';
+  if (method === 'xferAsciiString' && argument === 'name') return 'locomotor.templateName';
+  if (method === 'xferSnapshot' && argument === 'loco') return 'locomotor.snapshot';
+  if (method === 'xferInt' && argument === 'm_validLocomotorSurfaces') return 'validSurfaces';
+  if (method === 'xferBool' && argument === 'm_downhillOnly') return 'downhillOnly';
+  return null;
+}
+
+export function parseCppSourceLocomotorSetFields(source: string): string[] {
+  return parseCppSimpleModuleFields(
+    source,
+    'void LocomotorSet::xfer( Xfer *xfer )',
+    {},
+    mapCppLocomotorSetField,
+  );
+}
+
+export function parseCppSourceLocomotorSetAndCurLocoPtrFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void LocomotorSet::xferSelfAndCurLocoPtr(Xfer *xfer, Locomotor** loco)');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer->xferSnapshot\s*\(\s*this\s*\)|xfer->xferAsciiString\s*\(\s*&name\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.includes('xferSnapshot')) {
+      for (const field of sourceLocomotorSetFields()) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    pushUniqueField(fields, seen, 'currentLocomotorTemplateName');
+  }
+  return fields;
+}
+
+export function parseTsSourceLocomotorSetAndCurLocoPtrFields(
+  source: string,
+  options: { includeCurrent?: boolean } = {},
+): string[] {
+  const body = extractFunctionBodyAfterParams(source, 'xferGeneratedSourceLocomotorSetAndCurLocoPtr');
+  if (!body) return [];
+  const mainPathStart = body.indexOf('const snapshots');
+  const mainPathBody = mainPathStart >= 0 ? body.slice(mainPathStart) : body;
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /saver\.xferVersion\s*\(\s*1\s*\)|saver\.xferUnsignedShort\s*\(\s*snapshots\.length\s*\)|saver\.xferAsciiString\s*\(\s*templateName\s*\)|xferGeneratedSourceLocomotorSnapshot\s*\(|saver\.xferInt\s*\(\s*sourceFiniteInt\s*\(\s*activeProfile\.surfaceMask\b|saver\.xferBool\s*\(\s*activeProfile\.downhillOnly\b|saver\.xferAsciiString\s*\(\s*currentTemplateName\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(mainPathBody)) !== null) {
+    const token = match[0]!;
+    if (token.includes('xferVersion')) {
+      pushUniqueField(fields, seen, 'version');
+      continue;
+    }
+    if (token.includes('xferUnsignedShort')) {
+      pushUniqueField(fields, seen, 'count');
+      continue;
+    }
+    if (token.includes('xferGeneratedSourceLocomotorSnapshot')) {
+      pushUniqueField(fields, seen, 'locomotor.snapshot');
+      continue;
+    }
+    if (token.includes('currentTemplateName')) {
+      if (options.includeCurrent !== false) {
+        pushUniqueField(fields, seen, 'currentLocomotorTemplateName');
+      }
+      continue;
+    }
+    if (token.includes('templateName')) {
+      pushUniqueField(fields, seen, 'locomotor.templateName');
+      continue;
+    }
+    if (token.includes('surfaceMask')) {
+      pushUniqueField(fields, seen, 'validSurfaces');
+      continue;
+    }
+    if (token.includes('downhillOnly')) {
+      pushUniqueField(fields, seen, 'downhillOnly');
+      continue;
+    }
+  }
+  return fields;
+}
+
 export function parseCppSourceModuleBaseFields(source: string): string[] {
   return parseCppSimpleModuleFields(source, 'void Module::xfer( Xfer *xfer )', {});
 }
@@ -3703,6 +3854,44 @@ function sourceStateMachineFields(): string[] {
   ];
 }
 
+function sourceLocomotorFields(): string[] {
+  return [
+    'version',
+    'donutTimer',
+    'maintainPos',
+    'brakingFactor',
+    'maxLift',
+    'maxSpeed',
+    'maxAccel',
+    'maxBraking',
+    'maxTurnRate',
+    'closeEnoughDist',
+    'flags',
+    'preferredHeight',
+    'preferredHeightDamping',
+    'angleOffset',
+    'offsetIncrement',
+  ];
+}
+
+function sourceLocomotorSetFields(): string[] {
+  return [
+    'version',
+    'count',
+    'locomotor.templateName',
+    'locomotor.snapshot',
+    'validSurfaces',
+    'downhillOnly',
+  ];
+}
+
+function sourceLocomotorSetAndCurLocoPtrFields(): string[] {
+  return [
+    ...sourceLocomotorSetFields(),
+    'currentLocomotorTemplateName',
+  ];
+}
+
 function sourceWrappedStateMachineFields(): string[] {
   return ['version', ...sourceStateMachineFields()];
 }
@@ -3756,7 +3945,7 @@ function sourceAIUpdateInterfaceFields(): string[] {
     'repulsor2',
     'moveOutOfWay1',
     'moveOutOfWay2',
-    'locomotorSet',
+    ...sourceLocomotorSetAndCurLocoPtrFields(),
     'curLocomotorSet',
     'locomotorGoalType',
     'locomotorGoalData',
@@ -9403,6 +9592,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genSpecialPowerModuleCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/SpecialPower/SpecialPowerModule.cpp'),
   );
+  const zhLocomotorCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Locomotor.cpp'),
+  );
+  const genLocomotorCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/Locomotor.cpp'),
+  );
   const w3dDrawFiles = [
     'W3DDefaultDraw.cpp',
     'W3DDependencyModelDraw.cpp',
@@ -10232,6 +10427,34 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   for (const check of moduleBaseChecks) {
     if (check.cpp.length > 0 && check.ts.length > 0) {
       categories.push(check.compare(check.cpp, check.ts));
+    }
+  }
+
+  const locomotorSource = zhLocomotorCpp || genLocomotorCpp;
+  const locomotorChecks: Array<{
+    category: string;
+    cpp: string[];
+    ts: string[];
+  }> = [
+    {
+      category: 'save-locomotor-fields',
+      cpp: parseCppSourceLocomotorFields(locomotorSource),
+      ts: parseTsSourceLocomotorFields(tsRuntimeSave),
+    },
+    {
+      category: 'save-locomotor-set-fields',
+      cpp: parseCppSourceLocomotorSetFields(locomotorSource),
+      ts: parseTsSourceLocomotorSetAndCurLocoPtrFields(tsRuntimeSave, { includeCurrent: false }),
+    },
+    {
+      category: 'save-locomotor-set-current-pointer-fields',
+      cpp: parseCppSourceLocomotorSetAndCurLocoPtrFields(locomotorSource),
+      ts: parseTsSourceLocomotorSetAndCurLocoPtrFields(tsRuntimeSave),
+    },
+  ];
+  for (const check of locomotorChecks) {
+    if (check.cpp.length > 0 && check.ts.length > 0) {
+      categories.push(compareSourceObjectUpdateFields(check.category, check.cpp, check.ts));
     }
   }
 
