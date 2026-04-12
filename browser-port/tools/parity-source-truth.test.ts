@@ -8,6 +8,7 @@ import {
   compareDamageTypes,
   compareGameStateMapFields,
   compareInGameUiFields,
+  compareRadarFields,
   compareSaveGameInfoFields,
   compareSaveSnapshotBlockOrder,
   compareSkirmishGameInfoFields,
@@ -17,6 +18,7 @@ import {
   parseCppDamageTypeNames,
   parseCppGameStateMapXferFields,
   parseCppInGameUiXferFields,
+  parseCppRadarXferFields,
   parseCppSaveGameInfoXferFields,
   parseCppSaveSnapshotBlockNames,
   parseCppSkirmishGameInfoXferFields,
@@ -29,6 +31,7 @@ import {
   parseTsDamageTypeNames,
   parseTsGameStateMapXferFields,
   parseTsInGameUiXferFields,
+  parseTsRadarXferFields,
   parseTsSaveGameInfoXferFields,
   parseTsSaveSnapshotBlockNames,
   parseTsSkirmishGameInfoXferFields,
@@ -622,6 +625,145 @@ class LegacyGameLogicSnapshot implements Snapshot {}`;
       ]);
     });
 
+    it('parses C++ Radar xfer field order', () => {
+      const source = `
+void RadarObject::xfer( Xfer *xfer )
+{
+  xfer->xferVersion( &version, currentVersion );
+  xfer->xferObjectID( &objectID );
+  xfer->xferColor( &m_color );
+}  // end xfer
+static void xferRadarObjectList( Xfer *xfer, RadarObject **head )
+{
+  xfer->xferVersion( &version, currentVersion );
+  xfer->xferUnsignedShort( &count );
+  xfer->xferSnapshot( radarObject );
+}  // end xferRadarObjectList
+void Radar::xfer( Xfer *xfer )
+{
+  xfer->xferVersion( &version, currentVersion );
+  xfer->xferBool( &m_radarHidden );
+  xfer->xferBool( &m_radarForceOn );
+  xferRadarObjectList( xfer, &m_localObjectList );
+  xferRadarObjectList( xfer, &m_objectList );
+  xfer->xferUnsignedShort( &eventCount );
+  xfer->xferUser( &m_event[ i ].type, sizeof( RadarEventType ) );
+  xfer->xferBool( &m_event[ i ].active );
+  xfer->xferUnsignedInt( &m_event[ i ].createFrame );
+  xfer->xferUnsignedInt( &m_event[ i ].dieFrame );
+  xfer->xferUnsignedInt( &m_event[ i ].fadeFrame );
+  xfer->xferRGBAColorInt( &m_event[ i ].color1 );
+  xfer->xferRGBAColorInt( &m_event[ i ].color2 );
+  xfer->xferCoord3D( &m_event[ i ].worldLoc );
+  xfer->xferICoord2D( &m_event[ i ].radarLoc );
+  xfer->xferBool( &m_event[ i ].soundPlayed );
+  xfer->xferInt( &m_nextFreeRadarEvent );
+  xfer->xferInt( &m_lastRadarEvent );
+}  // end xfer`;
+      const fields = parseCppRadarXferFields(source);
+      expect(fields).toEqual([
+        'version',
+        'radarHidden',
+        'radarForced',
+        'localObjectList.version',
+        'localObjectList.count',
+        'localObjectList.object.version',
+        'localObjectList.object.objectId',
+        'localObjectList.object.color',
+        'objectList.version',
+        'objectList.count',
+        'objectList.object.version',
+        'objectList.object.objectId',
+        'objectList.object.color',
+        'eventCount',
+        'event.type',
+        'event.active',
+        'event.createFrame',
+        'event.dieFrame',
+        'event.fadeFrame',
+        'event.color1',
+        'event.color2',
+        'event.worldLoc',
+        'event.radarLoc',
+        'event.soundPlayed',
+        'nextFreeRadarEvent',
+        'lastRadarEvent',
+      ]);
+    });
+
+    it('parses TS RadarSnapshot xfer field order', () => {
+      const source = `
+function xferSourceRadarObject(xfer: Xfer) {
+  const version = xfer.xferVersion(1);
+  return {
+    objectId: xfer.xferObjectID(objectState.objectId),
+    color: xfer.xferColor(objectState.color),
+  };
+}
+function xferSourceRadarObjectList(xfer: Xfer) {
+  const version = xfer.xferVersion(1);
+  const count = xfer.xferUnsignedShort(objectList.length);
+  xferSourceRadarObject(xfer, objectState);
+}
+function xferSourceRadarEvent(xfer: Xfer) {
+  return {
+    type: xfer.xferInt(eventState.type),
+    active: xfer.xferBool(eventState.active),
+    createFrame: xfer.xferUnsignedInt(eventState.createFrame),
+    dieFrame: xfer.xferUnsignedInt(eventState.dieFrame),
+    fadeFrame: xfer.xferUnsignedInt(eventState.fadeFrame),
+    color1: xfer.xferRGBAColorInt(eventState.color1),
+    color2: xfer.xferRGBAColorInt(eventState.color2),
+    worldLoc: xfer.xferCoord3D(eventState.worldLoc),
+    radarLoc: xfer.xferICoord2D(eventState.radarLoc),
+    soundPlayed: xfer.xferBool(eventState.soundPlayed),
+  };
+}
+class RadarSnapshot implements Snapshot {
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(1);
+    payload.radarHidden = xfer.xferBool(payload.radarHidden);
+    payload.radarForced = xfer.xferBool(payload.radarForced);
+    payload.localObjectList = xferSourceRadarObjectList(xfer, payload.localObjectList);
+    payload.objectList = xferSourceRadarObjectList(xfer, payload.objectList);
+    const eventCount = xfer.xferUnsignedShort(eventCountVerify);
+    xferSourceRadarEvent(xfer, event);
+    payload.nextFreeRadarEvent = xfer.xferInt(payload.nextFreeRadarEvent);
+    payload.lastRadarEvent = xfer.xferInt(payload.lastRadarEvent);
+  }
+}
+function buildScriptEngineNamedEventSlots() {}`;
+      const fields = parseTsRadarXferFields(source);
+      expect(fields).toEqual([
+        'version',
+        'radarHidden',
+        'radarForced',
+        'localObjectList.version',
+        'localObjectList.count',
+        'localObjectList.object.version',
+        'localObjectList.object.objectId',
+        'localObjectList.object.color',
+        'objectList.version',
+        'objectList.count',
+        'objectList.object.version',
+        'objectList.object.objectId',
+        'objectList.object.color',
+        'eventCount',
+        'event.type',
+        'event.active',
+        'event.createFrame',
+        'event.dieFrame',
+        'event.fadeFrame',
+        'event.color1',
+        'event.color2',
+        'event.worldLoc',
+        'event.radarLoc',
+        'event.soundPlayed',
+        'nextFreeRadarEvent',
+        'lastRadarEvent',
+      ]);
+    });
+
     it('parses TS damage type names', () => {
       const source = `
 const SOURCE_DAMAGE_TYPE_NAMES: readonly string[] = [
@@ -753,6 +895,15 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(result.status).toBe('mismatch');
       expect(result.mismatches).toHaveLength(2);
     });
+
+    it('detects Radar ABI reorderings', () => {
+      const result = compareRadarFields(
+        ['version', 'radarHidden', 'radarForced'],
+        ['version', 'radarForced', 'radarHidden'],
+      );
+      expect(result.status).toBe('mismatch');
+      expect(result.mismatches).toHaveLength(2);
+    });
   });
 
   describe('live source comparison', () => {
@@ -839,6 +990,10 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       const inGameUiCategory = report.categories.find((c) => c.category === 'save-in-game-ui-fields');
       expect(inGameUiCategory).toBeDefined();
       expect(inGameUiCategory!.status).toBe('match');
+
+      const radarCategory = report.categories.find((c) => c.category === 'save-radar-fields');
+      expect(radarCategory).toBeDefined();
+      expect(radarCategory!.status).toBe('match');
     });
   });
 });

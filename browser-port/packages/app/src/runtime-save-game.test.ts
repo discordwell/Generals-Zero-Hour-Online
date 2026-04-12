@@ -9707,6 +9707,67 @@ describe('runtime-save-game', () => {
       'CHUNK_TS_RuntimeState',
     ]);
 
+    const radarChunk = readSaveChunkData(saveFile.data, 'CHUNK_Radar');
+    expect(radarChunk).not.toBeNull();
+    const radarXfer = new XferLoad(radarChunk!.slice().buffer);
+    radarXfer.open('read-source-radar-chunk');
+    try {
+      expect(radarXfer.xferVersion(1)).toBe(1);
+      expect(radarXfer.xferBool(false)).toBe(true);
+      expect(radarXfer.xferBool(false)).toBe(false);
+      expect(radarXfer.xferVersion(1)).toBe(1);
+      expect(radarXfer.xferUnsignedShort(0)).toBe(1);
+      expect(radarXfer.xferVersion(1)).toBe(1);
+      expect(radarXfer.xferObjectID(0)).toBe(7);
+      expect(radarXfer.xferColor(0)).toBe(-16711936);
+      expect(radarXfer.xferVersion(1)).toBe(1);
+      expect(radarXfer.xferUnsignedShort(0)).toBe(0);
+      const radarEventCount = radarXfer.xferUnsignedShort(0);
+      expect(radarEventCount).toBe(64);
+      for (let index = 0; index < radarEventCount; index += 1) {
+        const eventType = radarXfer.xferInt(0);
+        const active = radarXfer.xferBool(false);
+        const createFrame = radarXfer.xferUnsignedInt(0);
+        const dieFrame = radarXfer.xferUnsignedInt(0);
+        const fadeFrame = radarXfer.xferUnsignedInt(0);
+        const color1 = radarXfer.xferRGBAColorInt({ red: 0, green: 0, blue: 0, alpha: 0 });
+        const color2 = radarXfer.xferRGBAColorInt({ red: 0, green: 0, blue: 0, alpha: 0 });
+        const worldLoc = radarXfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+        const radarLoc = radarXfer.xferICoord2D({ x: 0, y: 0 });
+        const soundPlayed = radarXfer.xferBool(false);
+        if (index === 0) {
+          expect({
+            eventType,
+            active,
+            createFrame,
+            dieFrame,
+            fadeFrame,
+            color1,
+            color2,
+            worldLoc,
+            radarLoc,
+            soundPlayed,
+          }).toEqual({
+            eventType: 4,
+            active: true,
+            createFrame: 31,
+            dieFrame: 151,
+            fadeFrame: 136,
+            color1: { red: 255, green: 255, blue: 0, alpha: 255 },
+            color2: { red: 255, green: 255, blue: 128, alpha: 255 },
+            worldLoc: { x: 18, y: 24, z: 0 },
+            radarLoc: { x: 9, y: 12 },
+            soundPlayed: false,
+          });
+        }
+      }
+      expect(radarXfer.xferInt(0)).toBe(1);
+      expect(radarXfer.xferInt(0)).toBe(0);
+      expect(radarXfer.getRemaining()).toBe(0);
+    } finally {
+      radarXfer.close();
+    }
+
     const parsed = parseRuntimeSaveFile(saveFile.data);
     const playerState = parsed.gameLogicPlayersState;
     const partitionState = parsed.gameLogicPartitionState;
@@ -9947,8 +10008,8 @@ describe('runtime-save-game', () => {
       worldLoc: { x: 18, y: 24, z: 0 },
       radarLoc: { x: 9, y: 12 },
       soundPlayed: false,
-      sourceEntityId: 7,
-      sourceTeamName: 'TEAMTHEPLAYER',
+      sourceEntityId: null,
+      sourceTeamName: null,
     });
     expect(radarState.nextFreeRadarEvent).toBe(1);
     expect(radarState.lastRadarEvent).toBe(0);

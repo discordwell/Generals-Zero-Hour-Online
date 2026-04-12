@@ -450,7 +450,8 @@ const SOURCE_GHOST_OBJECT_PLAYER_COUNT = 16;
 const SOURCE_GEOMETRY_SPHERE = 0;
 const SOURCE_GEOMETRY_CYLINDER = 1;
 const SOURCE_GEOMETRY_BOX = 2;
-const SOURCE_RADAR_SNAPSHOT_VERSION = 2;
+const SOURCE_RADAR_SNAPSHOT_VERSION = 1;
+const BROWSER_STRUCTURED_RADAR_SAVE_STATE_VERSION = 2;
 const SOURCE_RADAR_OBJECT_LIST_VERSION = 1;
 const SOURCE_SCRIPT_ENGINE_SNAPSHOT_VERSION = 5;
 const SOURCE_IN_GAME_UI_SNAPSHOT_VERSION = 3;
@@ -24121,7 +24122,7 @@ function createEmptySourceRadarEventState(): GameLogicRadarEventSaveState {
 
 function createEmptyStructuredRadarSaveState(): StructuredGameLogicRadarSaveState {
   return {
-    version: SOURCE_RADAR_SNAPSHOT_VERSION,
+    version: BROWSER_STRUCTURED_RADAR_SAVE_STATE_VERSION,
     radarHidden: false,
     radarForced: false,
     localObjectList: [],
@@ -24174,8 +24175,9 @@ function xferSourceRadarObjectList(
 function xferSourceRadarEvent(
   xfer: Xfer,
   eventState: GameLogicRadarEventSaveState,
+  includeBrowserOnlyFields = false,
 ): GameLogicRadarEventSaveState {
-  return {
+  const sourceEvent = {
     type: xfer.xferInt(eventState.type),
     active: xfer.xferBool(eventState.active),
     createFrame: xfer.xferUnsignedInt(eventState.createFrame),
@@ -24186,6 +24188,14 @@ function xferSourceRadarEvent(
     worldLoc: xfer.xferCoord3D(eventState.worldLoc),
     radarLoc: xfer.xferICoord2D(eventState.radarLoc),
     soundPlayed: xfer.xferBool(eventState.soundPlayed),
+    sourceEntityId: eventState.sourceEntityId,
+    sourceTeamName: eventState.sourceTeamName,
+  };
+  if (!includeBrowserOnlyFields) {
+    return sourceEvent;
+  }
+  return {
+    ...sourceEvent,
     sourceEntityId: xferNullableObjectId(xfer, eventState.sourceEntityId),
     sourceTeamName: xferNullableAsciiString(xfer, eventState.sourceTeamName),
   };
@@ -24203,27 +24213,63 @@ class RadarSnapshot implements Snapshot {
   }
 
   xfer(xfer: Xfer): void {
-    const version = xfer.xferVersion(SOURCE_RADAR_SNAPSHOT_VERSION);
-    if (version === 1) {
-      const legacyPayload = this.payload?.version === 1 ? this.payload : null;
-      const serialized = xfer.xferLongString(
-        legacyPayload === null ? '' : JSON.stringify(legacyPayload, runtimeJsonReplacer),
-      );
-      if (serialized.length === 0) {
-        this.payload = null;
-        return;
-      }
-      this.payload = JSON.parse(serialized, runtimeJsonReviver) as LegacyGameLogicRadarSaveState;
-      return;
-    }
-    if (version !== SOURCE_RADAR_SNAPSHOT_VERSION) {
+    const version = xfer.xferVersion(
+      xfer.getMode() === XferMode.XFER_LOAD
+        ? BROWSER_STRUCTURED_RADAR_SAVE_STATE_VERSION
+        : SOURCE_RADAR_SNAPSHOT_VERSION,
+    );
+    if (version !== SOURCE_RADAR_SNAPSHOT_VERSION && version !== BROWSER_STRUCTURED_RADAR_SAVE_STATE_VERSION) {
       throw new Error(`Unsupported radar snapshot version ${version}`);
     }
 
-    const payload = this.payload?.version === SOURCE_RADAR_SNAPSHOT_VERSION
+    if (
+      xfer.getMode() === XferMode.XFER_LOAD
+      && version === SOURCE_RADAR_SNAPSHOT_VERSION
+      && xfer instanceof XferLoad
+    ) {
+      if (this.looksLikeLegacyJsonPayload(xfer)) {
+        this.payload = this.xferLegacyJsonPayload(xfer);
+        return;
+      }
+    }
+
+    this.payload = this.xferStructuredPayload(
+      xfer,
+      version === BROWSER_STRUCTURED_RADAR_SAVE_STATE_VERSION,
+    );
+  }
+
+  private looksLikeLegacyJsonPayload(xfer: XferLoad): boolean {
+    const bodyOffset = xfer.getOffset();
+    try {
+      const serialized = xfer.xferLongString('');
+      return serialized.length === 0 || serialized.trimStart().startsWith('{');
+    } catch {
+      return false;
+    } finally {
+      xfer.setOffset(bodyOffset);
+    }
+  }
+
+  private xferLegacyJsonPayload(xfer: Xfer): GameLogicRadarSaveState | null {
+    const legacyPayload = this.payload?.version === 1 ? this.payload : null;
+    const serialized = xfer.xferLongString(
+      legacyPayload === null ? '' : JSON.stringify(legacyPayload, runtimeJsonReplacer),
+    );
+    if (serialized.length === 0) {
+      return null;
+    }
+    return JSON.parse(serialized, runtimeJsonReviver) as LegacyGameLogicRadarSaveState;
+  }
+
+  private xferStructuredPayload(
+    xfer: Xfer,
+    includeBrowserOnlyFields: boolean,
+  ): StructuredGameLogicRadarSaveState {
+    const payload = this.payload?.version === BROWSER_STRUCTURED_RADAR_SAVE_STATE_VERSION
       ? this.payload
       : createEmptyStructuredRadarSaveState();
-    payload.version = version;
+    payload.version = BROWSER_STRUCTURED_RADAR_SAVE_STATE_VERSION;
     payload.radarHidden = xfer.xferBool(payload.radarHidden);
     payload.radarForced = xfer.xferBool(payload.radarForced);
     payload.localObjectList = xferSourceRadarObjectList(xfer, payload.localObjectList);
@@ -24240,13 +24286,17 @@ class RadarSnapshot implements Snapshot {
     const events: GameLogicRadarEventSaveState[] = [];
     for (let index = 0; index < eventCount; index += 1) {
       events.push(
-        xferSourceRadarEvent(xfer, payload.events[index] ?? createEmptySourceRadarEventState()),
+        xferSourceRadarEvent(
+          xfer,
+          payload.events[index] ?? createEmptySourceRadarEventState(),
+          includeBrowserOnlyFields,
+        ),
       );
     }
     payload.events = events;
     payload.nextFreeRadarEvent = xfer.xferInt(payload.nextFreeRadarEvent);
     payload.lastRadarEvent = xfer.xferInt(payload.lastRadarEvent);
-    this.payload = payload;
+    return payload;
   }
 
   loadPostProcess(): void {

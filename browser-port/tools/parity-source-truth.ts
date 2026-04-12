@@ -492,6 +492,70 @@ export function parseTsInGameUiXferFields(source: string): string[] {
   return fields;
 }
 
+/**
+ * Parse C++ Radar::xfer source-save field order.
+ */
+export function parseCppRadarXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Radar::xfer');
+  if (!body) {
+    return [];
+  }
+  const objectListFields = parseCppRadarObjectListXferFields(source);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)|xferRadarObjectList\s*\(\s*xfer\s*,\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[3]) {
+      const prefix = match[3]!.includes('m_localObjectList') ? 'localObjectList' : 'objectList';
+      for (const field of objectListFields) {
+        pushUniqueField(fields, seen, `${prefix}.${field}`);
+      }
+      continue;
+    }
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    pushUniqueField(fields, seen, mapCppRadarField(method, argument));
+  }
+  return fields;
+}
+
+/**
+ * Parse TS RadarSnapshot source-save field order.
+ */
+export function parseTsRadarXferFields(source: string): string[] {
+  const start = source.indexOf('class RadarSnapshot');
+  if (start < 0) {
+    return [];
+  }
+  const end = source.indexOf('function buildScriptEngineNamedEventSlots', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const objectListFields = parseTsRadarObjectListXferFields(source);
+  const eventFields = parseTsRadarEventXferFields(source);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|payload\.radarHidden\s*=\s*xfer\.xferBool\s*\(|payload\.radarForced\s*=\s*xfer\.xferBool\s*\(|payload\.(localObjectList|objectList)\s*=\s*xferSourceRadarObjectList\s*\(|xfer\.xferUnsignedShort\s*\(\s*eventCountVerify\s*\)|xferSourceRadarEvent\s*\(|payload\.nextFreeRadarEvent\s*=\s*xfer\.xferInt\s*\(|payload\.lastRadarEvent\s*=\s*xfer\.xferInt\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[1]) {
+      for (const field of objectListFields) {
+        pushUniqueField(fields, seen, `${match[1]!}.${field}`);
+      }
+      continue;
+    }
+    if (match[0]!.startsWith('xferSourceRadarEvent')) {
+      for (const field of eventFields) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    pushUniqueField(fields, seen, mapTsRadarField(match[0]!));
+  }
+  return fields;
+}
+
 function extractQuotedStrings(text: string): string[] {
   const names: string[] = [];
   const regex = /["']([^"']+)["']/g;
@@ -526,13 +590,17 @@ function parseCppXferFields(
   let match;
   while ((match = fieldRegex.exec(body)) !== null) {
     const method = match[1]!;
-    const argument = match[2]!
-      .replace(/^&\s*/, '')
-      .replace(/^\(/, '')
-      .trim();
+    const argument = normalizeCppXferArgument(match[2]!);
     pushUniqueField(fields, seen, mapper(method, argument));
   }
   return fields;
+}
+
+function normalizeCppXferArgument(argument: string): string {
+  return argument
+    .replace(/^&\s*/, '')
+    .replace(/^\(/, '')
+    .trim();
 }
 
 function extractFunctionBody(source: string, signature: string): string | null {
@@ -589,6 +657,94 @@ function parseTsTerrainWaterUpdateXferFields(source: string): string[] {
   let match;
   while ((match = fieldRegex.exec(body)) !== null) {
     pushUniqueField(fields, seen, mapTsTerrainLogicField(match[1]!));
+  }
+  return fields;
+}
+
+function parseCppRadarObjectListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'static void xferRadarObjectList');
+  if (!body) {
+    return [];
+  }
+  const objectFields = parseCppRadarObjectXferFields(source);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)|xfer->xferSnapshot\s*\(\s*radarObject\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[0]!.includes('xferSnapshot')) {
+      for (const field of objectFields) {
+        pushUniqueField(fields, seen, `object.${field}`);
+      }
+      continue;
+    }
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    pushUniqueField(fields, seen, mapCppRadarObjectListField(method, argument));
+  }
+  return fields;
+}
+
+function parseCppRadarObjectXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void RadarObject::xfer');
+  if (!body) {
+    return [];
+  }
+  return parseCppXferFields(body, mapCppRadarObjectField);
+}
+
+function parseTsRadarObjectListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceRadarObjectList');
+  if (!body) {
+    return [];
+  }
+  const objectFields = parseTsRadarObjectXferFields(source);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|xfer\.xferUnsignedShort\s*\(\s*objectList\.length\s*\)|xferSourceRadarObject\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[0]!.startsWith('xferSourceRadarObject')) {
+      for (const field of objectFields) {
+        pushUniqueField(fields, seen, `object.${field}`);
+      }
+      continue;
+    }
+    pushUniqueField(fields, seen, mapTsRadarObjectListField(match[0]!));
+  }
+  return fields;
+}
+
+function parseTsRadarObjectXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceRadarObject');
+  if (!body) {
+    return [];
+  }
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|objectId:\s*xfer\.xferObjectID\s*\(|color:\s*xfer\.xferColor\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsRadarObjectField(match[0]!));
+  }
+  return fields;
+}
+
+function parseTsRadarEventXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceRadarEvent');
+  if (!body) {
+    return [];
+  }
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /(type|active|createFrame|dieFrame|fadeFrame|color1|color2|worldLoc|radarLoc|soundPlayed):\s*xfer\.xfer\w+\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsRadarEventField(match[1]!));
   }
   return fields;
 }
@@ -813,6 +969,80 @@ function mapTsInGameUiField(token: string): string | null {
   if (token.includes('superweapon.evaReadyPlayed')) return 'superweapon.evaReadyPlayed';
   if (token.includes('-1')) return 'superweaponSentinel';
   return null;
+}
+
+function mapCppRadarField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferBool' && argument === 'm_radarHidden') return 'radarHidden';
+  if (method === 'xferBool' && argument === 'm_radarForceOn') return 'radarForced';
+  if (method === 'xferUnsignedShort' && argument === 'eventCount') return 'eventCount';
+  if (method === 'xferUser' && argument.startsWith('m_event[ i ].type')) return 'event.type';
+  if (method === 'xferBool' && argument === 'm_event[ i ].active') return 'event.active';
+  if (method === 'xferUnsignedInt' && argument === 'm_event[ i ].createFrame') return 'event.createFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_event[ i ].dieFrame') return 'event.dieFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_event[ i ].fadeFrame') return 'event.fadeFrame';
+  if (method === 'xferRGBAColorInt' && argument === 'm_event[ i ].color1') return 'event.color1';
+  if (method === 'xferRGBAColorInt' && argument === 'm_event[ i ].color2') return 'event.color2';
+  if (method === 'xferCoord3D' && argument === 'm_event[ i ].worldLoc') return 'event.worldLoc';
+  if (method === 'xferICoord2D' && argument === 'm_event[ i ].radarLoc') return 'event.radarLoc';
+  if (method === 'xferBool' && argument === 'm_event[ i ].soundPlayed') return 'event.soundPlayed';
+  if (method === 'xferInt' && argument === 'm_nextFreeRadarEvent') return 'nextFreeRadarEvent';
+  if (method === 'xferInt' && argument === 'm_lastRadarEvent') return 'lastRadarEvent';
+  return null;
+}
+
+function mapCppRadarObjectListField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'count') return 'count';
+  return null;
+}
+
+function mapCppRadarObjectField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferObjectID' && argument === 'objectID') return 'objectId';
+  if (method === 'xferColor' && argument === 'm_color') return 'color';
+  return null;
+}
+
+function mapTsRadarField(token: string): string | null {
+  if (token.startsWith('xfer.xferVersion')) return 'version';
+  if (token.includes('payload.radarHidden')) return 'radarHidden';
+  if (token.includes('payload.radarForced')) return 'radarForced';
+  if (token.includes('eventCountVerify')) return 'eventCount';
+  if (token.includes('nextFreeRadarEvent')) return 'nextFreeRadarEvent';
+  if (token.includes('lastRadarEvent')) return 'lastRadarEvent';
+  return null;
+}
+
+function mapTsRadarObjectListField(token: string): string | null {
+  if (token.startsWith('xfer.xferVersion')) return 'version';
+  if (token.includes('objectList.length')) return 'count';
+  return null;
+}
+
+function mapTsRadarObjectField(token: string): string | null {
+  if (token.startsWith('xfer.xferVersion')) return 'version';
+  if (token.includes('objectId')) return 'objectId';
+  if (token.includes('color')) return 'color';
+  return null;
+}
+
+function mapTsRadarEventField(rawName: string): string | null {
+  const mappings = new Map<string, string>([
+    ['type', 'event.type'],
+    ['active', 'event.active'],
+    ['createFrame', 'event.createFrame'],
+    ['dieFrame', 'event.dieFrame'],
+    ['fadeFrame', 'event.fadeFrame'],
+    ['color1', 'event.color1'],
+    ['color2', 'event.color2'],
+    ['worldLoc', 'event.worldLoc'],
+    ['radarLoc', 'event.radarLoc'],
+    ['soundPlayed', 'event.soundPlayed'],
+    ['sourceEntityId', 'event.sourceEntityId'],
+    ['sourceTeamName', 'event.sourceTeamName'],
+  ]);
+  return mappings.get(rawName) ?? null;
 }
 
 // ── TS Port Extractors ──────────────────────────────────────────────────────
@@ -1042,6 +1272,10 @@ export function compareInGameUiFields(cppFields: string[], tsFields: string[]): 
   return compareOrderedStrings('save-in-game-ui-fields', cppFields, tsFields);
 }
 
+export function compareRadarFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-radar-fields', cppFields, tsFields);
+}
+
 function compareOrderedStrings(category: string, cppValues: string[], tsValues: string[]): ParityCategoryResult {
   const mismatches: ParityMismatch[] = [];
   const maxLength = Math.max(cppValues.length, tsValues.length);
@@ -1205,6 +1439,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genInGameUiCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameClient/InGameUI.cpp'),
   );
+  const zhRadarCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/System/Radar.cpp'),
+  );
+  const genRadarCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/System/Radar.cpp'),
+  );
 
   // Read TS port source
   const tsIndexPath = path.join(rootDir, 'packages/game-logic/src/index.ts');
@@ -1293,6 +1533,13 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsInGameUiFields = parseTsInGameUiXferFields(tsRuntimeSave);
   if (cppInGameUiFields.length > 0 && tsInGameUiFields.length > 0) {
     categories.push(compareInGameUiFields(cppInGameUiFields, tsInGameUiFields));
+  }
+
+  const radarSource = zhRadarCpp || genRadarCpp;
+  const cppRadarFields = parseCppRadarXferFields(radarSource);
+  const tsRadarFields = parseTsRadarXferFields(tsRuntimeSave);
+  if (cppRadarFields.length > 0 && tsRadarFields.length > 0) {
+    categories.push(compareRadarFields(cppRadarFields, tsRadarFields));
   }
 
   return buildSourceParityReport(categories);
