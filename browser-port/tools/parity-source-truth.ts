@@ -993,6 +993,150 @@ export function parseTsGameClientXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppTerrainVisualFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void W3DTerrainVisual::xfer');
+  const baseBody = extractFunctionBody(source, 'void TerrainVisual::xfer( Xfer *xfer )');
+  if (!body || !baseBody) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /TerrainVisual::xfer\s*\(\s*xfer\s*\)|xfer->xferSnapshot\s*\(\s*(m_waterRenderObject|m_terrainRenderObject)\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.startsWith('TerrainVisual::xfer')) {
+      if (/xferVersion\s*\(/.test(baseBody)) {
+        pushUniqueField(fields, seen, 'base.version');
+      }
+      continue;
+    }
+    if (token.includes('xferSnapshot')) {
+      pushUniqueField(
+        fields,
+        seen,
+        match[1] === 'm_waterRenderObject' ? 'waterRenderObject.snapshot' : 'heightMapRenderObject.snapshot',
+      );
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppTerrainVisualField(match[2]!, normalizeCppXferArgument(match[3]!)));
+  }
+  return fields;
+}
+
+export function parseTsTerrainVisualFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'export class TerrainVisualSnapshot');
+  if (!body) return [];
+  const saveStart = body.indexOf('const heightMapBytes = tryBuildTerrainVisualHeightMapBytes');
+  if (saveStart < 0) return [];
+  const saveBody = body.slice(saveStart);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*(?:targetW3dVersion|SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION|SOURCE_HEIGHT_MAP_RENDER_OBJECT_SNAPSHOT_VERSION)\s*\)|xfer\.xferBool\s*\(\s*this\.waterGridSnapshot\s*!==\s*null\s*\)|xferSourceWaterGridSnapshot\s*\(|xfer\.xferInt\s*\(\s*heightMapBytes\.byteLength\s*\)|xfer\.xferUser\s*\(\s*heightMapBytes\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(saveBody)) !== null) {
+    pushUniqueField(fields, seen, mapTsTerrainVisualField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppWaterRenderObjectFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void WaterRenderObjClass::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppWaterRenderObjectField);
+}
+
+export function parseTsWaterRenderObjectFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceWaterGridSnapshot');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_WATER_RENDER_OBJECT_SNAPSHOT_VERSION\s*\)|xfer\.xferInt\s*\(\s*snapshot\.(?:cellsX|cellsY)\s*\)|xfer\.xferReal\s*\(\s*entry\?\.(?:height|velocity)[^)]*?\)|xfer\.xferUnsignedByte\s*\(\s*entry\?\.(?:status|preferredHeight)[^)]*?\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsWaterRenderObjectField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppHeightMapRenderObjectFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void BaseHeightMapRenderObjClass::xfer');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex = /xfer->xferVersion\s*\(|xfer->xferSnapshot\s*\(\s*(m_treeBuffer|m_propBuffer)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.includes('xferVersion')) {
+      pushUniqueField(fields, seen, 'version');
+    } else if (match[1] === 'm_treeBuffer') {
+      pushUniqueField(fields, seen, 'treeBuffer.snapshot');
+    } else {
+      pushUniqueField(fields, seen, 'propBuffer.snapshot');
+    }
+  }
+  return fields;
+}
+
+export function parseTsHeightMapRenderObjectFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'export class TerrainVisualSnapshot');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*(?:SOURCE_HEIGHT_MAP_RENDER_OBJECT_SNAPSHOT_VERSION|SOURCE_W3D_TREE_BUFFER_SNAPSHOT_VERSION|SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsHeightMapRenderObjectField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppW3DTreeBufferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void W3DTreeBuffer::xfer');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex = /xfer->xferMatrix3D\s*\(\s*&tree\.m_mtx\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[0]!.includes('xferMatrix3D')) {
+      pushUniqueField(fields, seen, 'tree.matrix3D');
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppW3DTreeBufferField(match[1]!, normalizeCppXferArgument(match[2]!)));
+  }
+  return fields;
+}
+
+export function parseTsW3DTreeBufferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceW3DTreeBufferEntry');
+  if (!body) return [];
+  const fields = ['version', 'count'];
+  const seen = new Set(fields);
+  const tokenRegex =
+    /xfer\.xferAsciiString\s*\(\s*entry\.(?:modelName|textureName)\s*\)|xfer\.xferReal\s*\(\s*entry\.(?:location\.(?:x|y|z)|scale|sin|cos|angularVelocity|angularAcceleration|angularAccumulation)\s*\)|xfer\.xferUnsignedInt\s*\(\s*entry\.(?:drawableId|options|sinkFramesLeft)\s*\)|xfer\.xferCoord3D\s*\(\s*entry\.toppleDirection\s*\)|xfer\.xferUser\s*\(\s*buildSourceRawInt32Bytes\(entry\.toppleState\)\s*\)|xferSourceMatrix3DBytes\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsW3DTreeBufferField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppW3DPropBufferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void W3DPropBuffer::xfer');
+  if (!body) return [];
+  return /xferVersion\s*\(/.test(body) ? ['version'] : [];
+}
+
+export function parseTsW3DPropBufferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'export class TerrainVisualSnapshot');
+  if (!body) return [];
+  return /xfer\.xferVersion\s*\(\s*SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION\s*\)/.test(body) ? ['version'] : [];
+}
+
 /**
  * Parse C++ Radar::xfer source-save field order.
  */
@@ -3085,6 +3229,97 @@ function mapTsGameClientField(token: string): string | null {
   return null;
 }
 
+function mapCppTerrainVisualField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'w3d.version';
+  if (method === 'xferBool' && argument === 'gridEnabled') return 'waterGrid.enabled';
+  if (method === 'xferInt' && argument === 'xferLen') return 'heightMap.length';
+  if (method === 'xferUser' && argument.startsWith('data,')) return 'heightMap.bytes';
+  return null;
+}
+
+function mapTsTerrainVisualField(token: string): string | null {
+  if (token.includes('targetW3dVersion')) return 'w3d.version';
+  if (token.includes('SOURCE_TERRAIN_VISUAL_SNAPSHOT_VERSION')) return 'base.version';
+  if (token.includes('this.waterGridSnapshot')) return 'waterGrid.enabled';
+  if (token.includes('xferSourceWaterGridSnapshot')) return 'waterRenderObject.snapshot';
+  if (token.includes('heightMapBytes.byteLength')) return 'heightMap.length';
+  if (token.includes('xferUser(heightMapBytes')) return 'heightMap.bytes';
+  if (token.includes('SOURCE_HEIGHT_MAP_RENDER_OBJECT_SNAPSHOT_VERSION')) return 'heightMapRenderObject.snapshot';
+  return null;
+}
+
+function mapCppWaterRenderObjectField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferInt' && argument === 'cellsX') return 'cellsX';
+  if (method === 'xferInt' && argument === 'cellsY') return 'cellsY';
+  if (method === 'xferReal' && argument === 'm_meshData[ i ].height') return 'mesh.height';
+  if (method === 'xferReal' && argument === 'm_meshData[ i ].velocity') return 'mesh.velocity';
+  if (method === 'xferUnsignedByte' && argument === 'm_meshData[ i ].status') return 'mesh.status';
+  if (method === 'xferUnsignedByte' && argument === 'm_meshData[ i ].preferredHeight') return 'mesh.preferredHeight';
+  return null;
+}
+
+function mapTsWaterRenderObjectField(token: string): string | null {
+  if (token.includes('SOURCE_WATER_RENDER_OBJECT_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('snapshot.cellsX')) return 'cellsX';
+  if (token.includes('snapshot.cellsY')) return 'cellsY';
+  if (token.includes('entry?.height')) return 'mesh.height';
+  if (token.includes('entry?.velocity')) return 'mesh.velocity';
+  if (token.includes('entry?.status')) return 'mesh.status';
+  if (token.includes('entry?.preferredHeight')) return 'mesh.preferredHeight';
+  return null;
+}
+
+function mapTsHeightMapRenderObjectField(token: string): string | null {
+  if (token.includes('SOURCE_HEIGHT_MAP_RENDER_OBJECT_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('SOURCE_W3D_TREE_BUFFER_SNAPSHOT_VERSION')) return 'treeBuffer.snapshot';
+  if (token.includes('SOURCE_W3D_PROP_BUFFER_SNAPSHOT_VERSION')) return 'propBuffer.snapshot';
+  return null;
+}
+
+function mapCppW3DTreeBufferField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferInt' && argument === 'numTrees') return 'count';
+  if (method === 'xferAsciiString' && argument === 'modelName') return 'tree.modelName';
+  if (method === 'xferAsciiString' && argument === 'modelTexture') return 'tree.textureName';
+  if (method === 'xferReal' && argument === 'tree.location.X') return 'tree.location.x';
+  if (method === 'xferReal' && argument === 'tree.location.Y') return 'tree.location.y';
+  if (method === 'xferReal' && argument === 'tree.location.Z') return 'tree.location.z';
+  if (method === 'xferReal' && argument === 'tree.scale') return 'tree.scale';
+  if (method === 'xferReal' && argument === 'tree.sin') return 'tree.sin';
+  if (method === 'xferReal' && argument === 'tree.cos') return 'tree.cos';
+  if (method === 'xferDrawableID' && argument === 'tree.drawableID') return 'tree.drawableId';
+  if (method === 'xferReal' && argument === 'tree.m_angularVelocity') return 'tree.angularVelocity';
+  if (method === 'xferReal' && argument === 'tree.m_angularAcceleration') return 'tree.angularAcceleration';
+  if (method === 'xferCoord3D' && argument === 'tree.m_toppleDirection') return 'tree.toppleDirection';
+  if (method === 'xferUser' && argument.startsWith('tree.m_toppleState')) return 'tree.toppleState';
+  if (method === 'xferReal' && argument === 'tree.m_angularAccumulation') return 'tree.angularAccumulation';
+  if (method === 'xferUnsignedInt' && argument === 'tree.m_options') return 'tree.options';
+  if (method === 'xferUnsignedInt' && argument === 'tree.m_sinkFramesLeft') return 'tree.sinkFramesLeft';
+  return null;
+}
+
+function mapTsW3DTreeBufferField(token: string): string | null {
+  if (token.includes('entry.modelName')) return 'tree.modelName';
+  if (token.includes('entry.textureName')) return 'tree.textureName';
+  if (token.includes('entry.location.x')) return 'tree.location.x';
+  if (token.includes('entry.location.y')) return 'tree.location.y';
+  if (token.includes('entry.location.z')) return 'tree.location.z';
+  if (token.includes('entry.scale')) return 'tree.scale';
+  if (token.includes('entry.sinkFramesLeft')) return 'tree.sinkFramesLeft';
+  if (token.includes('entry.sin')) return 'tree.sin';
+  if (token.includes('entry.cos')) return 'tree.cos';
+  if (token.includes('entry.drawableId')) return 'tree.drawableId';
+  if (token.includes('entry.angularVelocity')) return 'tree.angularVelocity';
+  if (token.includes('entry.angularAcceleration')) return 'tree.angularAcceleration';
+  if (token.includes('entry.toppleDirection')) return 'tree.toppleDirection';
+  if (token.includes('entry.toppleState')) return 'tree.toppleState';
+  if (token.includes('entry.angularAccumulation')) return 'tree.angularAccumulation';
+  if (token.includes('entry.options')) return 'tree.options';
+  if (token.includes('xferSourceMatrix3DBytes')) return 'tree.matrix3D';
+  return null;
+}
+
 function mapCppRadarField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferBool' && argument === 'm_radarHidden') return 'radarHidden';
@@ -4375,6 +4610,26 @@ export function compareGameClientFields(cppFields: string[], tsFields: string[])
   return compareOrderedStrings('save-game-client-fields', cppFields, tsFields);
 }
 
+export function compareTerrainVisualFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-terrain-visual-fields', cppFields, tsFields);
+}
+
+export function compareWaterRenderObjectFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-water-render-object-fields', cppFields, tsFields);
+}
+
+export function compareHeightMapRenderObjectFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-height-map-render-object-fields', cppFields, tsFields);
+}
+
+export function compareW3DTreeBufferFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-w3d-tree-buffer-fields', cppFields, tsFields);
+}
+
+export function compareW3DPropBufferFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-w3d-prop-buffer-fields', cppFields, tsFields);
+}
+
 export function compareRadarFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-radar-fields', cppFields, tsFields);
 }
@@ -4698,6 +4953,42 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   );
   const genGameClientCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameClient/GameClient.cpp'),
+  );
+  const zhTerrainVisualCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameClient/Terrain/TerrainVisual.cpp'),
+  );
+  const genTerrainVisualCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameClient/Terrain/TerrainVisual.cpp'),
+  );
+  const zhW3DTerrainVisualCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngineDevice/Source/W3DDevice/GameClient/W3DTerrainVisual.cpp'),
+  );
+  const genW3DTerrainVisualCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngineDevice/Source/W3DDevice/GameClient/W3DTerrainVisual.cpp'),
+  );
+  const zhW3DWaterCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngineDevice/Source/W3DDevice/GameClient/Water/W3DWater.cpp'),
+  );
+  const genW3DWaterCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngineDevice/Source/W3DDevice/GameClient/Water/W3DWater.cpp'),
+  );
+  const zhBaseHeightMapCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngineDevice/Source/W3DDevice/GameClient/BaseHeightMap.cpp'),
+  );
+  const genBaseHeightMapCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngineDevice/Source/W3DDevice/GameClient/BaseHeightMap.cpp'),
+  );
+  const zhW3DTreeBufferCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngineDevice/Source/W3DDevice/GameClient/W3DTreeBuffer.cpp'),
+  );
+  const genW3DTreeBufferCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngineDevice/Source/W3DDevice/GameClient/W3DTreeBuffer.cpp'),
+  );
+  const zhW3DPropBufferCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngineDevice/Source/W3DDevice/GameClient/W3DPropBuffer.cpp'),
+  );
+  const genW3DPropBufferCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngineDevice/Source/W3DDevice/GameClient/W3DPropBuffer.cpp'),
   );
   const zhGameLogicCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/System/GameLogic.cpp'),
@@ -5071,6 +5362,41 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsGameClientFields = parseTsGameClientXferFields(tsRuntimeSave);
   if (cppGameClientFields.length > 0 && tsGameClientFields.length > 0) {
     categories.push(compareGameClientFields(cppGameClientFields, tsGameClientFields));
+  }
+
+  const terrainVisualSource = `${zhW3DTerrainVisualCpp || genW3DTerrainVisualCpp}\n${zhTerrainVisualCpp || genTerrainVisualCpp}`;
+  const cppTerrainVisualFields = parseCppTerrainVisualFields(terrainVisualSource);
+  const tsTerrainVisualFields = parseTsTerrainVisualFields(tsRuntimeSave);
+  if (cppTerrainVisualFields.length > 0 && tsTerrainVisualFields.length > 0) {
+    categories.push(compareTerrainVisualFields(cppTerrainVisualFields, tsTerrainVisualFields));
+  }
+
+  const waterRenderSource = zhW3DWaterCpp || genW3DWaterCpp;
+  const cppWaterRenderFields = parseCppWaterRenderObjectFields(waterRenderSource);
+  const tsWaterRenderFields = parseTsWaterRenderObjectFields(tsRuntimeSave);
+  if (cppWaterRenderFields.length > 0 && tsWaterRenderFields.length > 0) {
+    categories.push(compareWaterRenderObjectFields(cppWaterRenderFields, tsWaterRenderFields));
+  }
+
+  const heightMapRenderSource = zhBaseHeightMapCpp || genBaseHeightMapCpp;
+  const cppHeightMapRenderFields = parseCppHeightMapRenderObjectFields(heightMapRenderSource);
+  const tsHeightMapRenderFields = parseTsHeightMapRenderObjectFields(tsRuntimeSave);
+  if (cppHeightMapRenderFields.length > 0 && tsHeightMapRenderFields.length > 0) {
+    categories.push(compareHeightMapRenderObjectFields(cppHeightMapRenderFields, tsHeightMapRenderFields));
+  }
+
+  const w3dTreeBufferSource = zhW3DTreeBufferCpp || genW3DTreeBufferCpp;
+  const cppW3DTreeBufferFields = parseCppW3DTreeBufferFields(w3dTreeBufferSource);
+  const tsW3DTreeBufferFields = parseTsW3DTreeBufferFields(tsRuntimeSave);
+  if (cppW3DTreeBufferFields.length > 0 && tsW3DTreeBufferFields.length > 0) {
+    categories.push(compareW3DTreeBufferFields(cppW3DTreeBufferFields, tsW3DTreeBufferFields));
+  }
+
+  const w3dPropBufferSource = zhW3DPropBufferCpp || genW3DPropBufferCpp;
+  const cppW3DPropBufferFields = parseCppW3DPropBufferFields(w3dPropBufferSource);
+  const tsW3DPropBufferFields = parseTsW3DPropBufferFields(tsRuntimeSave);
+  if (cppW3DPropBufferFields.length > 0 && tsW3DPropBufferFields.length > 0) {
+    categories.push(compareW3DPropBufferFields(cppW3DPropBufferFields, tsW3DPropBufferFields));
   }
 
   const radarSource = zhRadarCpp || genRadarCpp;

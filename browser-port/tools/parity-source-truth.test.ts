@@ -1250,6 +1250,26 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(gameClientCategory).toBeDefined();
       expect(gameClientCategory!.status).toBe('match');
 
+      const terrainVisualCategory = report.categories.find((c) => c.category === 'save-terrain-visual-fields');
+      expect(terrainVisualCategory).toBeDefined();
+      expect(terrainVisualCategory!.status).toBe('match');
+
+      const waterRenderCategory = report.categories.find((c) => c.category === 'save-water-render-object-fields');
+      expect(waterRenderCategory).toBeDefined();
+      expect(waterRenderCategory!.status).toBe('match');
+
+      const heightMapRenderCategory = report.categories.find((c) => c.category === 'save-height-map-render-object-fields');
+      expect(heightMapRenderCategory).toBeDefined();
+      expect(heightMapRenderCategory!.status).toBe('match');
+
+      const w3dTreeBufferCategory = report.categories.find((c) => c.category === 'save-w3d-tree-buffer-fields');
+      expect(w3dTreeBufferCategory).toBeDefined();
+      expect(w3dTreeBufferCategory!.status).toBe('match');
+
+      const w3dPropBufferCategory = report.categories.find((c) => c.category === 'save-w3d-prop-buffer-fields');
+      expect(w3dPropBufferCategory).toBeDefined();
+      expect(w3dPropBufferCategory!.status).toBe('match');
+
       const radarCategory = report.categories.find((c) => c.category === 'save-radar-fields');
       expect(radarCategory).toBeDefined();
       expect(radarCategory!.status).toBe('match');
