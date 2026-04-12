@@ -2219,6 +2219,94 @@ function writeSourceMoveToAIStateMachineForTest(
   saver.xferUnsignedInt(0);
 }
 
+interface SourceAIUpdateInterfaceTailForTestOptions {
+  attackInfoName: string;
+  ignoreObstacleId: number;
+  pathfindGoalCell: { x: number; y: number };
+  pathfindCurCell: { x: number; y: number };
+  attitude: number;
+  nextMoodCheckFrame: number;
+}
+
+function writeSourcePathSnapshotForTest(saver: XferSave): void {
+  saver.xferVersion(1);
+  saver.xferInt(2);
+  saver.xferInt(2);
+  saver.xferCoord3D({ x: 10, y: 20, z: 0 });
+  saver.xferUser(sourceRawInt32(0));
+  saver.xferBool(true);
+  saver.xferInt(-1);
+  saver.xferInt(1);
+  saver.xferCoord3D({ x: 30, y: 40, z: 0 });
+  saver.xferUser(sourceRawInt32(0));
+  saver.xferBool(false);
+  saver.xferInt(-1);
+  saver.xferBool(true);
+  saver.xferInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferBool(false);
+}
+
+function writeSourceEmptyLocomotorSetAndCurLocoForTest(saver: XferSave): void {
+  saver.xferVersion(1);
+  saver.xferUnsignedShort(0);
+  saver.xferInt(0);
+  saver.xferBool(false);
+  saver.xferAsciiString('');
+}
+
+function writeSourceAIUpdateInterfaceTailForTest(
+  saver: XferSave,
+  options: SourceAIUpdateInterfaceTailForTestOptions,
+): void {
+  saver.xferUser(sourceRawInt32(3));
+  saver.xferUser(sourceRawInt32(3));
+  saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+  saver.xferObjectID(0);
+  saver.xferAsciiString('');
+  saver.xferAsciiString(options.attackInfoName);
+  saver.xferInt(1);
+  saver.xferCoord3D({ x: 1, y: 2, z: 3 });
+  saver.xferInt(0);
+  saver.xferBool(true);
+  saver.xferUnsignedInt(0xfacade);
+  saver.xferBool(false);
+  saver.xferBool(true);
+  writeSourcePathSnapshotForTest(saver);
+  saver.xferObjectID(0);
+  saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+  saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+  saver.xferObjectID(options.ignoreObstacleId);
+  saver.xferReal(12.5);
+  saver.xferICoord2D(options.pathfindGoalCell);
+  saver.xferICoord2D(options.pathfindCurCell);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+  saver.xferBool(false);
+  saver.xferBool(false);
+  saver.xferBool(false);
+  saver.xferBool(false);
+  saver.xferBool(false);
+  saver.xferBool(false);
+  saver.xferBool(false);
+  saver.xferBool(true);
+  saver.xferBool(false);
+  saver.xferBool(false);
+  saver.xferObjectID(0);
+  saver.xferObjectID(0);
+  saver.xferObjectID(0);
+  saver.xferObjectID(0);
+  writeSourceEmptyLocomotorSetAndCurLocoForTest(saver);
+  saver.xferUser(sourceRawInt32(0));
+  saver.xferUser(sourceRawInt32(0));
+  saver.xferCoord3D({ x: 0, y: 0, z: 0 });
+  saver.xferUser(sourceRawInt32(-1));
+  saver.xferUser(sourceRawInt32(options.attitude));
+  saver.xferUnsignedInt(options.nextMoodCheckFrame);
+  saver.xferObjectID(0);
+}
+
 function buildSourceAIUpdateInterfaceAttackObjectModuleData(options: {
   targetObjectId: number;
   goalPosition: { x: number; y: number; z: number };
@@ -2256,6 +2344,7 @@ function buildSourceAIUpdateInterfaceMoveToModuleData(options: {
   goalPosition: { x: number; y: number; z: number };
   nextEnemyScanFrame: number;
   lastCommandSource: number;
+  tail?: SourceAIUpdateInterfaceTailForTestOptions;
 }): Uint8Array {
   const saver = new XferSave();
   saver.open('test-source-ai-update-interface-move-to');
@@ -2273,6 +2362,9 @@ function buildSourceAIUpdateInterfaceMoveToModuleData(options: {
     saver.xferObjectID(0);
     saver.xferReal(999999);
     saver.xferUser(sourceRawInt32(options.lastCommandSource));
+    if (options.tail) {
+      writeSourceAIUpdateInterfaceTailForTest(saver, options.tail);
+    }
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -6702,6 +6794,66 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedMover.attackSubState).toBe('IDLE');
     expect(importedMover.lastCommandSource).toBe('SCRIPT');
     expect(importedMover.autoTargetScanNextFrame).toBe(456);
+  });
+
+  it('imports source AIUpdateInterface full tail state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const moveState = createEmptySourceMapEntitySaveState();
+    moveState.objectId = 126;
+    moveState.position = { x: 159, y: 0, z: 60 };
+    moveState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfaceMoveToModuleData({
+        goalPosition: { x: 180, y: 190, z: 15 },
+        nextEnemyScanFrame: 111,
+        lastCommandSource: 2,
+        tail: {
+          attackInfoName: 'PriorityAlpha',
+          ignoreObstacleId: 777,
+          pathfindGoalCell: { x: 22, y: 33 },
+          pathfindCurCell: { x: 44, y: 55 },
+          attitude: 2,
+          nextMoodCheckFrame: 999,
+        },
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackImportUnit', state: moveState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        autoTargetScanNextFrame: number;
+        scriptAttackPrioritySetName: string;
+        scriptAttitude: number;
+        locomotorUpgradeEnabled: boolean;
+        ignoredMovementObstacleId: number | null;
+        pathfindGoalCell: { x: number; z: number } | null;
+        pathfindPosCell: { x: number; z: number } | null;
+      }>;
+    };
+
+    const importedMover = privateLogic.spawnedEntities.get(126)!;
+    expect(importedMover.autoTargetScanNextFrame).toBe(999);
+    expect(importedMover.scriptAttackPrioritySetName).toBe('PriorityAlpha');
+    expect(importedMover.scriptAttitude).toBe(2);
+    expect(importedMover.locomotorUpgradeEnabled).toBe(true);
+    expect(importedMover.ignoredMovementObstacleId).toBe(777);
+    expect(importedMover.pathfindGoalCell).toEqual({ x: 22, z: 33 });
+    expect(importedMover.pathfindPosCell).toEqual({ x: 44, z: 55 });
   });
 
   it('imports source AssaultTransportAIUpdate runtime state', () => {

@@ -9499,8 +9499,25 @@ interface SourceAIUpdateInterfaceImportState {
   isAiDead: boolean;
   isRecruitable: boolean;
   nextEnemyScanTime: number;
+  nextMoodCheckTime: number | null;
   currentVictimId: number;
   lastCommandSource: number;
+  attackInfoName: string | null;
+  pathfindGoalCell: { x: number; y: number } | null;
+  pathfindCurCell: { x: number; y: number } | null;
+  ignoreObstacleId: number | null;
+  upgradedLocomotors: boolean | null;
+  attitude: number | null;
+}
+
+interface SourceAIUpdateInterfaceTailImportState {
+  nextMoodCheckTime: number;
+  attackInfoName: string;
+  pathfindGoalCell: { x: number; y: number };
+  pathfindCurCell: { x: number; y: number };
+  ignoreObstacleId: number;
+  upgradedLocomotors: boolean;
+  attitude: number;
 }
 
 interface SourceAICommandStorageImportState {
@@ -10318,6 +10335,9 @@ const SOURCE_AI_STATE_ATTACK_POSITION = 9;
 const SOURCE_AI_STATE_ATTACK_OBJECT = 10;
 const SOURCE_AI_STATE_FORCE_ATTACK_OBJECT = 11;
 const SOURCE_AI_INVALID_STATE_ID = 999999;
+const SOURCE_AI_MAX_WAYPOINTS = 16;
+const SOURCE_AI_MAX_TURRETS = 2;
+const SOURCE_PATH_SNAPSHOT_MAX_NODES = 4096;
 const SOURCE_ATTACK_STATE_CHASE_TARGET = 0;
 const SOURCE_ATTACK_STATE_APPROACH_TARGET = 1;
 const SOURCE_ATTACK_STATE_AIM_AT_TARGET = 2;
@@ -16071,6 +16091,164 @@ export class GameLogicSubsystem implements Subsystem {
     return { currentStateId, goalObjectId, goalPosition, moveState, attackState };
   }
 
+  private skipSourcePathSnapshot(xfer: XferLoad): void {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error(`Unsupported source Path import version ${version}.`);
+    }
+    const nodeCount = xfer.xferInt(0);
+    if (nodeCount < 0 || nodeCount > SOURCE_PATH_SNAPSHOT_MAX_NODES) {
+      throw new Error(`Invalid source Path node count ${nodeCount}.`);
+    }
+    for (let index = 0; index < nodeCount; index += 1) {
+      xfer.xferInt(0);
+      xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      xfer.xferUser(new Uint8Array(4));
+      xfer.xferBool(false);
+      xfer.xferInt(0);
+    }
+    xfer.xferBool(false);
+    xfer.xferInt(0);
+    xfer.xferUnsignedInt(0);
+    xfer.xferBool(false);
+  }
+
+  private skipSourceLocomotorSnapshot(xfer: XferLoad): void {
+    const version = xfer.xferVersion(2);
+    if (version < 1 || version > 2) {
+      throw new Error(`Unsupported source Locomotor import version ${version}.`);
+    }
+    if (version >= 2) {
+      xfer.xferUnsignedInt(0);
+    }
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xfer.xferUnsignedInt(0);
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+  }
+
+  private skipSourceLocomotorSetAndCurLocoPtr(xfer: XferLoad): void {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      throw new Error(`Unsupported source LocomotorSet import version ${version}.`);
+    }
+    const locomotorCount = xfer.xferUnsignedShort(0);
+    for (let index = 0; index < locomotorCount; index += 1) {
+      xfer.xferAsciiString('');
+      this.skipSourceLocomotorSnapshot(xfer);
+    }
+    xfer.xferInt(0);
+    xfer.xferBool(false);
+    xfer.xferAsciiString('');
+  }
+
+  private skipSourceTurretAISnapshot(xfer: XferLoad): void {
+    const version = xfer.xferVersion(2);
+    if (version < 1 || version > 2) {
+      throw new Error(`Unsupported source TurretAI import version ${version}.`);
+    }
+    const stateMachineVersion = xfer.xferVersion(1);
+    if (stateMachineVersion !== 1) {
+      throw new Error(`Unsupported source TurretStateMachine import version ${stateMachineVersion}.`);
+    }
+    xfer.xferReal(0);
+    xfer.xferReal(0);
+    xfer.xferUnsignedInt(0);
+    xfer.xferUser(new Uint8Array(4));
+    xfer.xferUnsignedInt(0);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    if (version >= 2) {
+      xfer.xferUnsignedInt(0);
+    }
+  }
+
+  private parseSourceAIUpdateInterfaceTailImportState(
+    xfer: XferLoad,
+    turretCount: number,
+  ): SourceAIUpdateInterfaceTailImportState {
+    xfer.xferUser(new Uint8Array(4));
+    xfer.xferUser(new Uint8Array(4));
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferObjectID(0);
+    xfer.xferAsciiString('');
+    const attackInfoName = xfer.xferAsciiString('');
+    const waypointCount = xfer.xferInt(0);
+    if (waypointCount < 0 || waypointCount > SOURCE_AI_MAX_WAYPOINTS) {
+      throw new Error(`Invalid source AIUpdateInterface waypoint count ${waypointCount}.`);
+    }
+    for (let index = 0; index < waypointCount; index += 1) {
+      xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    }
+    xfer.xferInt(0);
+    xfer.xferBool(false);
+    xfer.xferUnsignedInt(0);
+    xfer.xferBool(false);
+    const gotPath = xfer.xferBool(false);
+    if (gotPath) {
+      this.skipSourcePathSnapshot(xfer);
+    }
+    xfer.xferObjectID(0);
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const ignoreObstacleId = xfer.xferObjectID(0);
+    xfer.xferReal(0);
+    const pathfindGoalCell = xfer.xferICoord2D({ x: 0, y: 0 });
+    const pathfindCurCell = xfer.xferICoord2D({ x: 0, y: 0 });
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    const upgradedLocomotors = xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferObjectID(0);
+    xfer.xferObjectID(0);
+    xfer.xferObjectID(0);
+    xfer.xferObjectID(0);
+    this.skipSourceLocomotorSetAndCurLocoPtr(xfer);
+    xfer.xferUser(new Uint8Array(4));
+    xfer.xferUser(new Uint8Array(4));
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const boundedTurretCount = Math.min(Math.max(0, Math.trunc(turretCount)), SOURCE_AI_MAX_TURRETS);
+    for (let index = 0; index < boundedTurretCount; index += 1) {
+      this.skipSourceTurretAISnapshot(xfer);
+    }
+    xfer.xferUser(new Uint8Array(4));
+    const attitude = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+    const nextMoodCheckTime = xfer.xferUnsignedInt(0);
+    xfer.xferObjectID(0);
+    return {
+      nextMoodCheckTime,
+      attackInfoName,
+      pathfindGoalCell,
+      pathfindCurCell,
+      ignoreObstacleId,
+      upgradedLocomotors,
+      attitude,
+    };
+  }
+
   private isSourceAIUpdateInterfaceModuleType(moduleType: string): boolean {
     const normalizedModuleType = moduleType.trim().toUpperCase();
     return normalizedModuleType.includes('AIUPDATE')
@@ -16080,6 +16258,7 @@ export class GameLogicSubsystem implements Subsystem {
   private tryParseSourceAIUpdateInterfaceImportState(
     data: Uint8Array,
     moduleType: string,
+    turretCount: number,
   ): SourceAIUpdateInterfaceImportState | null {
     if (!this.isSourceAIUpdateInterfaceModuleType(moduleType)) {
       return null;
@@ -16107,14 +16286,29 @@ export class GameLogicSubsystem implements Subsystem {
         const currentVictimId = xfer.xferObjectID(0);
         xfer.xferReal(0);
         const lastCommandSource = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+        let tail: SourceAIUpdateInterfaceTailImportState | null = null;
+        if (xfer.getRemaining() > 0) {
+          try {
+            tail = this.parseSourceAIUpdateInterfaceTailImportState(xfer, turretCount);
+          } catch {
+            tail = null;
+          }
+        }
         return {
           offset,
           stateMachine,
           isAiDead,
           isRecruitable,
           nextEnemyScanTime,
+          nextMoodCheckTime: tail?.nextMoodCheckTime ?? null,
           currentVictimId,
           lastCommandSource,
+          attackInfoName: tail?.attackInfoName ?? null,
+          pathfindGoalCell: tail?.pathfindGoalCell ?? null,
+          pathfindCurCell: tail?.pathfindCurCell ?? null,
+          ignoreObstacleId: tail?.ignoreObstacleId ?? null,
+          upgradedLocomotors: tail?.upgradedLocomotors ?? null,
+          attitude: tail?.attitude ?? null,
         };
       } catch {
         // Try the next likely base-class offset; derived AI updates only prepend xferVersion tags.
@@ -18704,16 +18898,42 @@ export class GameLogicSubsystem implements Subsystem {
       if (!moduleType) {
         continue;
       }
-      const aiUpdateState = this.tryParseSourceAIUpdateInterfaceImportState(module.blockData, moduleType);
+      const aiUpdateState = this.tryParseSourceAIUpdateInterfaceImportState(
+        module.blockData,
+        moduleType,
+        entity.turretProfiles.length,
+      );
       if (!aiUpdateState) {
         continue;
       }
 
       entity.scriptAiRecruitable = aiUpdateState.isRecruitable;
-      entity.autoTargetScanNextFrame = Number.isFinite(aiUpdateState.nextEnemyScanTime)
-        ? Math.max(0, Math.trunc(aiUpdateState.nextEnemyScanTime))
+      const nextScanFrame = aiUpdateState.nextMoodCheckTime ?? aiUpdateState.nextEnemyScanTime;
+      entity.autoTargetScanNextFrame = Number.isFinite(nextScanFrame)
+        ? Math.max(0, Math.trunc(nextScanFrame))
         : entity.autoTargetScanNextFrame;
       entity.lastCommandSource = this.sourceLastCommandSourceToRuntime(aiUpdateState.lastCommandSource);
+      if (aiUpdateState.attackInfoName !== null) {
+        entity.scriptAttackPrioritySetName = aiUpdateState.attackInfoName;
+      }
+      if (aiUpdateState.attitude !== null && Number.isFinite(aiUpdateState.attitude)) {
+        entity.scriptAttitude = Math.trunc(aiUpdateState.attitude);
+      }
+      if (aiUpdateState.upgradedLocomotors !== null) {
+        entity.locomotorUpgradeEnabled = aiUpdateState.upgradedLocomotors;
+      }
+      if (aiUpdateState.ignoreObstacleId !== null) {
+        const ignoreObstacleId = Math.trunc(aiUpdateState.ignoreObstacleId);
+        entity.ignoredMovementObstacleId = ignoreObstacleId > 0 ? ignoreObstacleId : null;
+      }
+      if (aiUpdateState.pathfindGoalCell !== null) {
+        const { x, y } = aiUpdateState.pathfindGoalCell;
+        entity.pathfindGoalCell = x >= 0 && y >= 0 ? { x, z: y } : null;
+      }
+      if (aiUpdateState.pathfindCurCell !== null) {
+        const { x, y } = aiUpdateState.pathfindCurCell;
+        entity.pathfindPosCell = x >= 0 && y >= 0 ? { x, z: y } : null;
+      }
 
       const stateMachine = aiUpdateState.stateMachine;
       const commandSource = this.sourceCommandSourceToRuntime(aiUpdateState.lastCommandSource);
@@ -18727,10 +18947,12 @@ export class GameLogicSubsystem implements Subsystem {
         entity.pathIndex = 0;
         entity.moveTarget = moveTarget;
         entity.moving = true;
-        entity.pathfindGoalCell = {
-          x: Math.floor(moveTarget.x / PATHFIND_CELL_SIZE),
-          z: Math.floor(moveTarget.z / PATHFIND_CELL_SIZE),
-        };
+        if (aiUpdateState.pathfindGoalCell === null) {
+          entity.pathfindGoalCell = {
+            x: Math.floor(moveTarget.x / PATHFIND_CELL_SIZE),
+            z: Math.floor(moveTarget.z / PATHFIND_CELL_SIZE),
+          };
+        }
         entity.temporaryMoveExpireFrame = 0;
       }
 
