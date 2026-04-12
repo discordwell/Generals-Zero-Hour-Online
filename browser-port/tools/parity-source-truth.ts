@@ -1190,6 +1190,57 @@ export function parseTsAttackPriorityInfoXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppScriptEngineBreezeXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void ScriptEngine::xfer');
+  if (!body) return [];
+  const start = body.indexOf('// breeze info');
+  if (start < 0) return [];
+  const end = body.indexOf('// game difficulty', start);
+  const breezeBody = body.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const tokenRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let intensityIndex = 0;
+  let match;
+  while ((match = tokenRegex.exec(breezeBody)) !== null) {
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    if (argument === 'm_breezeInfo.m_intensity') {
+      fields.push(intensityIndex === 0 ? 'intensity' : 'intensityCopy');
+      intensityIndex += 1;
+      continue;
+    }
+    const field = mapCppScriptEngineBreezeField(method, argument);
+    if (field) {
+      fields.push(field);
+    }
+  }
+  return fields;
+}
+
+export function parseTsScriptEngineBreezeXferFields(source: string): string[] {
+  const start = source.indexOf('const breezeState =');
+  if (start < 0) return [];
+  const end = source.indexOf('const loadedDifficulty =', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const tokenRegex = /xfer\.xfer(?:Real|Short)\s*\(\s*([^)]*?)\s*\)/g;
+  let intensityIndex = 0;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.includes("'intensity'") || token.includes('loadedBreezeIntensity')) {
+      fields.push(intensityIndex === 0 ? 'intensity' : 'intensityCopy');
+      intensityIndex += 1;
+      continue;
+    }
+    const field = mapTsScriptEngineBreezeField(token);
+    if (field) {
+      fields.push(field);
+    }
+  }
+  return fields;
+}
+
 export function parseCppTeamTemplateInfoXferFields(source: string): string[] {
   const body = extractFunctionBody(source, 'void TeamTemplateInfo::xfer');
   if (!body) return [];
@@ -2499,6 +2550,30 @@ function mapTsAttackPriorityInfoField(token: string): string | null {
   return null;
 }
 
+function mapCppScriptEngineBreezeField(method: string, argument: string): string | null {
+  const mappings = new Map<string, string>([
+    ['m_breezeInfo.m_direction', 'direction'],
+    ['m_breezeInfo.m_directionVec.x', 'directionVec.x'],
+    ['m_breezeInfo.m_directionVec.y', 'directionVec.y'],
+    ['m_breezeInfo.m_lean', 'lean'],
+    ['m_breezeInfo.m_randomness', 'randomness'],
+    ['m_breezeInfo.m_breezePeriod', 'breezePeriod'],
+    ['m_breezeInfo.m_breezeVersion', 'breezeVersion'],
+  ]);
+  return method === 'xferReal' || method === 'xferShort' ? mappings.get(argument) ?? null : null;
+}
+
+function mapTsScriptEngineBreezeField(token: string): string | null {
+  if (token.includes("'direction'")) return 'direction';
+  if (token.includes("'directionX'")) return 'directionVec.x';
+  if (token.includes("'directionY'")) return 'directionVec.y';
+  if (token.includes("'lean'")) return 'lean';
+  if (token.includes("'randomness'")) return 'randomness';
+  if (token.includes("'breezePeriodFrames'")) return 'breezePeriod';
+  if (token.includes("'version'")) return 'breezeVersion';
+  return null;
+}
+
 function mapCppTeamTemplateInfoField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferInt' && argument === 'm_productionPriority') return 'productionPriority';
@@ -2895,6 +2970,10 @@ export function compareSequentialScriptFields(cppFields: string[], tsFields: str
 
 export function compareAttackPriorityInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-script-engine-attack-priority-fields', cppFields, tsFields);
+}
+
+export function compareScriptEngineBreezeFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-script-engine-breeze-fields', cppFields, tsFields);
 }
 
 export function compareTeamTemplateInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
@@ -3416,6 +3495,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsAttackPriorityInfoFields = parseTsAttackPriorityInfoXferFields(tsRuntimeSave);
   if (cppAttackPriorityInfoFields.length > 0 && tsAttackPriorityInfoFields.length > 0) {
     categories.push(compareAttackPriorityInfoFields(cppAttackPriorityInfoFields, tsAttackPriorityInfoFields));
+  }
+
+  const cppScriptEngineBreezeFields = parseCppScriptEngineBreezeXferFields(scriptEngineSource);
+  const tsScriptEngineBreezeFields = parseTsScriptEngineBreezeXferFields(tsRuntimeSave);
+  if (cppScriptEngineBreezeFields.length > 0 && tsScriptEngineBreezeFields.length > 0) {
+    categories.push(compareScriptEngineBreezeFields(cppScriptEngineBreezeFields, tsScriptEngineBreezeFields));
   }
 
   const cppTeamTemplateInfoFields = parseCppTeamTemplateInfoXferFields(teamSource);

@@ -1273,6 +1273,11 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(attackPriorityCategory).toBeDefined();
       expect(attackPriorityCategory!.status).toBe('match');
 
+      const scriptEngineBreezeCategory = report.categories.find((c) =>
+        c.category === 'save-script-engine-breeze-fields');
+      expect(scriptEngineBreezeCategory).toBeDefined();
+      expect(scriptEngineBreezeCategory!.status).toBe('match');
+
       const teamTemplateInfoCategory = report.categories.find((c) => c.category === 'save-team-template-info-fields');
       expect(teamTemplateInfoCategory).toBeDefined();
       expect(teamTemplateInfoCategory!.status).toBe('match');
