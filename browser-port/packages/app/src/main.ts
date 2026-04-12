@@ -150,6 +150,7 @@ import {
   SOURCE_GAME_MODE_SINGLE_PLAYER,
   SOURCE_GAME_MODE_SKIRMISH,
   type RuntimeSaveBootstrap,
+  type RuntimeSaveSkirmishGameInfoInput,
   type RuntimeSaveTrackedInGameUiSuperweaponState,
 } from './runtime-save-game.js';
 import { applySourceTeamFactoryChunkToState } from './runtime-team-factory-save.js';
@@ -610,6 +611,29 @@ function resolveSkirmishRuntimeSlots(
   }
 
   return resolvedSlots;
+}
+
+function buildRuntimeSaveSkirmishGameInfoInput(
+  settings: SkirmishSettings,
+  resolvedSlots: readonly ResolvedSkirmishRuntimeSlot[],
+  iniDataRegistry: IniDataRegistry,
+): RuntimeSaveSkirmishGameInfoInput {
+  return {
+    slots: resolvedSlots.map((slot) => ({
+      slotIndex: slot.slotIndex,
+      playerName: slot.playerName,
+      mode: slot.mode,
+      color: slot.color,
+      startPosition: slot.startPosition,
+      team: slot.team,
+      playerTemplateNum: resolvePlayerTemplateNum(
+        iniDataRegistry,
+        resolvePlayerFactionNameForSide(slot.factionSide),
+      ),
+    })),
+    startingCash: settings.startingCredits,
+    superweaponRestriction: settings.limitSuperweapons ? 1 : 0,
+  };
 }
 
 function mergeSkirmishSidesIntoMapData(
@@ -2125,8 +2149,8 @@ async function startGame(
       },
     ]),
   );
-  let namedTimerLastFlashFrame = restoredInGameUiState?.namedTimerLastFlashFrame ?? 0;
-  let namedTimerUsedFlashColor = restoredInGameUiState?.namedTimerUsedFlashColor ?? false;
+  const namedTimerLastFlashFrame = restoredInGameUiState?.namedTimerLastFlashFrame ?? 0;
+  const namedTimerUsedFlashColor = restoredInGameUiState?.namedTimerUsedFlashColor ?? false;
 
   // Entity info panel (bottom-center, shows selected unit details) — reuse on restart.
   let entityInfoPanel = document.getElementById('entity-info-panel') as HTMLDivElement | null;
@@ -3565,10 +3589,13 @@ async function startGame(
     for (const [id, mesh] of projectileMeshPool) {
       if (!activeIds.has(id)) {
         scene.remove(mesh);
-        mesh.geometry !== bulletGeometry &&
-          mesh.geometry !== missileGeometry &&
-          mesh.geometry !== artilleryGeometry &&
+        if (
+          mesh.geometry !== bulletGeometry
+          && mesh.geometry !== missileGeometry
+          && mesh.geometry !== artilleryGeometry
+        ) {
           mesh.geometry.dispose();
+        }
         projectileMeshPool.delete(id);
       }
     }
@@ -5358,6 +5385,16 @@ async function startGame(
       currentMusicTrackName: musicManager.getCurrentTrackName(),
       gameLogic,
       embeddedMapBytes,
+      gameStateMapTrailingBytes: runtimeSaveLoadContext?.runtimeSave.gameStateMapTrailingBytes
+        ? new Uint8Array(runtimeSaveLoadContext.runtimeSave.gameStateMapTrailingBytes)
+        : null,
+      sourceSkirmishGameInfo: skirmishSettings
+        ? buildRuntimeSaveSkirmishGameInfoInput(
+          skirmishSettings,
+          resolvedSkirmishRuntimeSlots,
+          ctx.iniDataRegistry,
+        )
+        : null,
       sourceSaveGameMapPath: runtimeSaveLoadContext?.runtimeSave.sourceSaveGameMapPath ?? null,
       sourcePristineMapPath:
         runtimeSaveLoadContext?.runtimeSave.sourcePristineMapPath

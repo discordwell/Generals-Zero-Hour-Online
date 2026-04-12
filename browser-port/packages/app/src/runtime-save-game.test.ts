@@ -11477,7 +11477,7 @@ describe('runtime-save-game', () => {
     const closedSlot = {
       state: 1,
       name: 'Closed',
-      isAccepted: false,
+      isAccepted: true,
       isMuted: false,
       color: -1,
       startPos: -1,
@@ -11499,7 +11499,7 @@ describe('runtime-save-game', () => {
       preorderMask: 0,
       crcInterval: 100,
       inGame: true,
-      inProgress: false,
+      inProgress: true,
       surrendered: false,
       gameId: 0,
       localIp: 0,
@@ -11514,6 +11514,87 @@ describe('runtime-save-game', () => {
     expect(skirmishGameInfo.state.slots).toEqual(
       Array.from({ length: 8 }, () => closedSlot),
     );
+  });
+
+  it('emits live skirmish slot settings in fresh TS skirmish saves', () => {
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Live Skirmish Save',
+      mapPath: 'maps/_extracted/MapsZH/Maps/Tournament Desert/Tournament Desert.json',
+      mapData: createTinyRuntimeMapData(),
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic(),
+      sourceSaveGameMapPath: 'Save\\Tournament Desert.map',
+      sourcePristineMapPath: 'Maps\\Tournament Desert\\Tournament Desert.map',
+      sourceGameMode: SOURCE_GAME_MODE_SKIRMISH,
+      sourceSkirmishGameInfo: {
+        startingCash: 25000,
+        superweaponRestriction: 1,
+        slots: [
+          {
+            slotIndex: 0,
+            playerName: 'Commander',
+            mode: 'human',
+            color: 2,
+            startPosition: 1,
+            team: 0,
+            playerTemplateNum: 0,
+          },
+          {
+            slotIndex: 1,
+            playerName: 'AI',
+            mode: 'hard-ai',
+            color: 1,
+            startPosition: 2,
+            team: 1,
+            playerTemplateNum: 1,
+          },
+        ],
+      },
+    });
+
+    const mapInfo = parseSaveGameMapInfo(saveFile.data);
+    const skirmishGameInfo = readChallengeGameInfoStateFromBytes(mapInfo.trailingBytes);
+
+    expect(skirmishGameInfo.trailingBytes).toBe(0);
+    expect(skirmishGameInfo.state).toMatchObject({
+      inGame: true,
+      inProgress: true,
+      mapName: 'Maps\\Tournament Desert\\Tournament Desert.map',
+      seed: 1,
+      superweaponRestriction: 1,
+      startingCash: 25000,
+    });
+    expect(skirmishGameInfo.state.slots[0]).toEqual({
+      state: 5,
+      name: 'Commander',
+      isAccepted: true,
+      isMuted: false,
+      color: 2,
+      startPos: 0,
+      playerTemplate: 0,
+      teamNumber: 0,
+      origColor: -1,
+      origStartPos: -1,
+      origPlayerTemplate: -1,
+    });
+    expect(skirmishGameInfo.state.slots[1]).toEqual({
+      state: 4,
+      name: 'Hard AI',
+      isAccepted: true,
+      isMuted: false,
+      color: 1,
+      startPos: 1,
+      playerTemplate: 1,
+      teamNumber: 1,
+      origColor: -1,
+      origStartPos: -1,
+      origPlayerTemplate: -1,
+    });
+    expect(skirmishGameInfo.state.slots[2]).toMatchObject({
+      state: 1,
+      name: 'Closed',
+      isAccepted: true,
+    });
   });
 
   it('writes source mission saves with only GameState and Campaign chunks', () => {

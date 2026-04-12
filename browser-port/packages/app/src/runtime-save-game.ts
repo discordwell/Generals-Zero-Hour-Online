@@ -799,6 +799,24 @@ export interface RuntimeSaveChallengeGameInfoState {
   startingCash: number;
 }
 
+export type RuntimeSaveSkirmishSlotMode = 'human' | 'open' | 'closed' | 'easy-ai' | 'medium-ai' | 'hard-ai';
+
+export interface RuntimeSaveSkirmishGameSlotInput {
+  slotIndex: number;
+  playerName: string;
+  mode: RuntimeSaveSkirmishSlotMode;
+  color: number;
+  startPosition: number | null;
+  team: number;
+  playerTemplateNum: number;
+}
+
+export interface RuntimeSaveSkirmishGameInfoInput {
+  slots: readonly RuntimeSaveSkirmishGameSlotInput[];
+  startingCash?: number | null;
+  superweaponRestriction?: number | null;
+}
+
 export interface RuntimeSaveGameClientState {
   version: number;
   prefixBytes: ArrayBuffer;
@@ -2253,6 +2271,99 @@ function createChallengePlayerSlotState(
   };
 }
 
+function createClosedInProgressSkirmishGameSlotState(): RuntimeSaveChallengeGameSlotState {
+  return {
+    ...createEmptyChallengeGameSlotState(),
+    isAccepted: true,
+  };
+}
+
+function encodeSkirmishSlotMode(mode: RuntimeSaveSkirmishSlotMode): number {
+  switch (mode) {
+    case 'human':
+      return SOURCE_SLOT_STATE_PLAYER;
+    case 'open':
+    case 'closed':
+      return SOURCE_SLOT_STATE_CLOSED;
+    case 'easy-ai':
+      return 2;
+    case 'medium-ai':
+      return 3;
+    case 'hard-ai':
+      return 4;
+    default:
+      return SOURCE_SLOT_STATE_CLOSED;
+  }
+}
+
+function resolveSkirmishSlotDisplayName(slot: RuntimeSaveSkirmishGameSlotInput, encodedState: number): string {
+  if (encodedState === SOURCE_SLOT_STATE_PLAYER) {
+    return slot.playerName.trim();
+  }
+  switch (slot.mode) {
+    case 'easy-ai':
+      return 'Easy AI';
+    case 'medium-ai':
+      return 'Medium AI';
+    case 'hard-ai':
+      return 'Hard AI';
+    case 'open':
+      return 'Open';
+    case 'closed':
+    default:
+      return 'Closed';
+  }
+}
+
+function coerceSourceInt(value: number | null | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : fallback;
+}
+
+function createSkirmishGameSlotState(
+  slot: RuntimeSaveSkirmishGameSlotInput,
+): RuntimeSaveChallengeGameSlotState {
+  const encodedState = encodeSkirmishSlotMode(slot.mode);
+  if (encodedState === SOURCE_SLOT_STATE_CLOSED) {
+    return createClosedInProgressSkirmishGameSlotState();
+  }
+  return {
+    ...createClosedInProgressSkirmishGameSlotState(),
+    state: encodedState,
+    name: resolveSkirmishSlotDisplayName(slot, encodedState),
+    color: coerceSourceInt(slot.color, -1),
+    startPos: slot.startPosition !== null ? coerceSourceInt(slot.startPosition, 0) - 1 : -1,
+    playerTemplate: coerceSourceInt(slot.playerTemplateNum, -1),
+    teamNumber: coerceSourceInt(slot.team, -1),
+  };
+}
+
+function applySkirmishGameInfoInput(
+  state: RuntimeSaveChallengeGameInfoState,
+  input: RuntimeSaveSkirmishGameInfoInput | null | undefined,
+): void {
+  state.slots = Array.from(
+    { length: SOURCE_SKIRMISH_GAME_SLOT_COUNT },
+    () => createClosedInProgressSkirmishGameSlotState(),
+  );
+  if (!input) {
+    return;
+  }
+
+  state.startingCash = Math.max(0, coerceSourceInt(input.startingCash, state.startingCash));
+  state.superweaponRestriction = coerceSourceInt(
+    input.superweaponRestriction,
+    state.superweaponRestriction,
+  ) & 0xffff;
+
+  for (const slot of input.slots) {
+    const slotIndex = coerceSourceInt(slot.slotIndex, -1);
+    if (slotIndex < 0 || slotIndex >= SOURCE_SKIRMISH_GAME_SLOT_COUNT) {
+      continue;
+    }
+    state.slots[slotIndex] = createSkirmishGameSlotState(slot);
+  }
+}
+
 function resolveFreshCampaignSnapshotVersion(
   campaign: RuntimeSaveCampaignBootstrap | null | undefined,
 ): number {
@@ -2290,16 +2401,18 @@ function createFreshChallengeGameInfoState(
 function createFreshSkirmishGameInfoState(
   sourceMapName: string,
   gameRandomSeed: number | undefined,
+  skirmishGameInfo: RuntimeSaveSkirmishGameInfoInput | null | undefined,
 ): RuntimeSaveChallengeGameInfoState {
   const state = createEmptyChallengeGameInfoState();
   state.inGame = true;
-  state.inProgress = false;
+  state.inProgress = true;
   state.seed = typeof gameRandomSeed === 'number' && Number.isFinite(gameRandomSeed)
     ? Math.trunc(gameRandomSeed)
     : state.seed;
   if (sourceMapName.trim().length > 0) {
     state.mapName = sourceMapName.trim();
   }
+  applySkirmishGameInfoInput(state, skirmishGameInfo);
   return state;
 }
 
@@ -26586,6 +26699,7 @@ export function buildRuntimeSaveFile(params: {
   >>);
   embeddedMapBytes?: Uint8Array | null;
   gameStateMapTrailingBytes?: Uint8Array | null;
+  sourceSkirmishGameInfo?: RuntimeSaveSkirmishGameInfoInput | null;
   sourceSaveGameMapPath?: string | null;
   sourcePristineMapPath?: string | null;
   sourceMetadata?: Partial<Pick<
@@ -26766,7 +26880,11 @@ export function buildRuntimeSaveFile(params: {
     drawableIdCounter,
     skirmishGameInfoState: sourceGameMode === SOURCE_GAME_MODE_SKIRMISH
       && gameStateMapTrailingBytes.byteLength === 0
-      ? createFreshSkirmishGameInfoState(sourcePristineMapPath, gameLogicPayload.gameRandomSeed)
+      ? createFreshSkirmishGameInfoState(
+        sourcePristineMapPath,
+        gameLogicPayload.gameRandomSeed,
+        params.sourceSkirmishGameInfo,
+      )
       : null,
     trailingBytes: gameStateMapTrailingBytes,
   };
