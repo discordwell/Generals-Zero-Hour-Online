@@ -936,6 +936,63 @@ export function parseTsDrawableXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppGameClientXferFields(source: string): string[] {
+  const tocBody = extractFunctionBody(source, 'void GameClient::xferDrawableTOC');
+  const body = extractFunctionBody(source, 'void GameClient::xfer( Xfer *xfer )');
+  if (!tocBody || !body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const mainRegex =
+    /xferDrawableTOC\s*\(\s*xfer\s*\)|xfer->beginBlock\s*\(\s*\)|xfer->endBlock\s*\(\s*\)|xfer->xferSnapshot\s*\(\s*draw\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  const tocRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = mainRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.startsWith('xferDrawableTOC')) {
+      let tocMatch;
+      while ((tocMatch = tocRegex.exec(tocBody)) !== null) {
+        pushUniqueField(fields, seen, mapCppGameClientTocField(tocMatch[1]!, normalizeCppXferArgument(tocMatch[2]!)));
+      }
+      continue;
+    }
+    if (token.includes('beginBlock')) {
+      pushUniqueField(fields, seen, 'drawable.block.begin');
+      continue;
+    }
+    if (token.includes('endBlock')) {
+      pushUniqueField(fields, seen, 'drawable.block.end');
+      continue;
+    }
+    if (token.includes('xferSnapshot')) {
+      pushUniqueField(fields, seen, 'drawable.snapshot');
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppGameClientField(match[1]!, normalizeCppXferArgument(match[2]!)));
+  }
+  return fields;
+}
+
+export function parseTsGameClientXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'export class GameClientSnapshot');
+  if (!body) return [];
+  const generatedStart = body.indexOf('const version = xfer.xferVersion(SOURCE_GAME_CLIENT_SNAPSHOT_VERSION);');
+  if (generatedStart < 0) return [];
+  const generatedBody = body.slice(generatedStart);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_GAME_CLIENT_SNAPSHOT_VERSION\s*\)|xfer\.xferUnsignedInt\s*\(\s*this\.frame\s*\)|xfer\.xferVersion\s*\(\s*SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION\s*\)|xfer\.xferUnsignedInt\s*\(\s*tocEntries\.size\s*\)|xfer\.xferAsciiString\s*\(\s*templateName\s*\)|xfer\.xferUnsignedShort\s*\(\s*tocId\s*\)|xfer\.xferUnsignedShort\s*\(\s*this\.drawables\.length\s*\)|xfer\.xferUnsignedShort\s*\(\s*tocId\s*\)|xfer\.beginBlock\s*\(\s*\)|xfer\.xferObjectID\s*\(\s*drawable\.state\.objectId\s*\)|xfer\.xferSnapshot\s*\(\s*new DrawableSnapshot|xfer\.endBlock\s*\(\s*\)|xfer\.xferInt\s*\(\s*this\.briefingLines\.length\s*\)|xfer\.xferAsciiString\s*\(\s*briefingLine\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(generatedBody)) !== null) {
+    const token = match[0]!;
+    const label = token.includes('xferUnsignedShort(tocId') && seen.has('drawableTOC.entry.id')
+      ? 'drawable.tocId'
+      : mapTsGameClientField(token);
+    pushUniqueField(fields, seen, label);
+  }
+  return fields;
+}
+
 /**
  * Parse C++ Radar::xfer source-save field order.
  */
@@ -2988,6 +3045,46 @@ function mapTsDrawableField(token: string): string | null {
   return null;
 }
 
+function mapCppGameClientTocField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'drawableTOC.version';
+  if (method === 'xferUnsignedInt' && argument === 'tocCount') return 'drawableTOC.count';
+  if (method === 'xferAsciiString' && (argument === 'tocEntry->name' || argument === 'templateName')) {
+    return 'drawableTOC.entry.name';
+  }
+  if (method === 'xferUnsignedShort' && (argument === 'tocEntry->id' || argument === 'id')) {
+    return 'drawableTOC.entry.id';
+  }
+  return null;
+}
+
+function mapCppGameClientField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedInt' && argument === 'm_frame') return 'frame';
+  if (method === 'xferUnsignedShort' && argument === 'drawableCount') return 'drawable.count';
+  if (method === 'xferUnsignedShort' && (argument === 'tocEntry->id' || argument === 'tocID')) return 'drawable.tocId';
+  if (method === 'xferObjectID' && argument === 'objectID') return 'drawable.objectId';
+  if (method === 'xferInt' && argument === 'numEntries') return 'briefing.count';
+  if (method === 'xferAsciiString' && argument === 'tempStr') return 'briefing.line';
+  return null;
+}
+
+function mapTsGameClientField(token: string): string | null {
+  if (token.includes('SOURCE_GAME_CLIENT_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('this.frame')) return 'frame';
+  if (token.includes('SOURCE_GAME_CLIENT_TOC_SNAPSHOT_VERSION')) return 'drawableTOC.version';
+  if (token.includes('tocEntries.size')) return 'drawableTOC.count';
+  if (token.includes('xferAsciiString(templateName')) return 'drawableTOC.entry.name';
+  if (token.includes('xferUnsignedShort(tocId')) return 'drawableTOC.entry.id';
+  if (token.includes('this.drawables.length')) return 'drawable.count';
+  if (token.includes('beginBlock')) return 'drawable.block.begin';
+  if (token.includes('drawable.state.objectId')) return 'drawable.objectId';
+  if (token.includes('new DrawableSnapshot')) return 'drawable.snapshot';
+  if (token.includes('endBlock')) return 'drawable.block.end';
+  if (token.includes('this.briefingLines.length')) return 'briefing.count';
+  if (token.includes('briefingLine')) return 'briefing.line';
+  return null;
+}
+
 function mapCppRadarField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferBool' && argument === 'm_radarHidden') return 'radarHidden';
@@ -4274,6 +4371,10 @@ export function compareDrawableFields(cppFields: string[], tsFields: string[]): 
   return compareOrderedStrings('save-drawable-fields', cppFields, tsFields);
 }
 
+export function compareGameClientFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-game-client-fields', cppFields, tsFields);
+}
+
 export function compareRadarFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-radar-fields', cppFields, tsFields);
 }
@@ -4591,6 +4692,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   );
   const genInGameUiCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameClient/InGameUI.cpp'),
+  );
+  const zhGameClientCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameClient/GameClient.cpp'),
+  );
+  const genGameClientCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameClient/GameClient.cpp'),
   );
   const zhGameLogicCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/System/GameLogic.cpp'),
@@ -4957,6 +5064,13 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsDrawableFields = parseTsDrawableXferFields(tsRuntimeSave);
   if (cppDrawableFields.length > 0 && tsDrawableFields.length > 0) {
     categories.push(compareDrawableFields(cppDrawableFields, tsDrawableFields));
+  }
+
+  const gameClientSource = zhGameClientCpp || genGameClientCpp;
+  const cppGameClientFields = parseCppGameClientXferFields(gameClientSource);
+  const tsGameClientFields = parseTsGameClientXferFields(tsRuntimeSave);
+  if (cppGameClientFields.length > 0 && tsGameClientFields.length > 0) {
+    categories.push(compareGameClientFields(cppGameClientFields, tsGameClientFields));
   }
 
   const radarSource = zhRadarCpp || genRadarCpp;

@@ -1246,6 +1246,10 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(drawableCategory).toBeDefined();
       expect(drawableCategory!.status).toBe('match');
 
+      const gameClientCategory = report.categories.find((c) => c.category === 'save-game-client-fields');
+      expect(gameClientCategory).toBeDefined();
+      expect(gameClientCategory!.status).toBe('match');
+
       const radarCategory = report.categories.find((c) => c.category === 'save-radar-fields');
       expect(radarCategory).toBeDefined();
       expect(radarCategory!.status).toBe('match');
