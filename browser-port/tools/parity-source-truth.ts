@@ -3302,6 +3302,24 @@ function sourceDozerSuffixFields(): string[] {
   return ['dozerMachine', 'currentTask', 'dockPoint.count', 'dockPoint.valid', 'dockPoint.location', 'buildSubTask'];
 }
 
+function sourceStateMachineFields(): string[] {
+  return [
+    'stateMachine.version',
+    'sleepTill',
+    'defaultStateId',
+    'currentStateId',
+    'snapshotAllStates',
+    'goalObjectId',
+    'goalPosition',
+    'locked',
+    'defaultStateInited',
+  ];
+}
+
+function sourceWrappedStateMachineFields(): string[] {
+  return ['version', ...sourceStateMachineFields()];
+}
+
 export function parseCppSourceW3DModelDrawFields(source: string): string[] {
   return parseCppSimpleModuleFields(source, 'void W3DModelDraw::xfer( Xfer *xfer )', {
     'DrawModule::xfer': sourceDrawModuleBaseFields(),
@@ -3542,6 +3560,7 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
       'BehaviorModule::xfer': sourceBehaviorModuleBaseFields(),
       'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
       'DieModule::xfer': sourceDieModuleBaseFields(),
+      'StateMachine::xfer': sourceStateMachineFields(),
       'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
       'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
       'DockUpdate::xfer': prefixBaseVersion(sourceDockUpdateFields(), 'dock'),
@@ -3563,6 +3582,9 @@ export function parseTsSourceObjectUpdateFields(
 ): string[] {
   if (helperName === 'buildGeneratedSourceHackInternetStateMachineBlockData') {
     return parseTsSourceHackInternetStateFields(source);
+  }
+  if (helperName === 'buildGeneratedSourceStubStateMachineBlockData') {
+    return sourceWrappedStateMachineFields();
   }
   const body = extractFunctionBodyAfterParams(source, helperName);
   if (!body) return [];
@@ -9997,9 +10019,19 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       tsHelper: 'buildGeneratedSourceWorkerAIUpdateBlockData',
     },
     {
+      category: 'save-worker-state-machine-fields',
+      cppClass: 'WorkerStateMachine',
+      tsHelper: 'buildGeneratedSourceStubStateMachineBlockData',
+    },
+    {
       category: 'save-supply-truck-ai-update-fields',
       cppClass: 'SupplyTruckAIUpdate',
       tsHelper: 'buildGeneratedSourceSupplyTruckAIUpdateBlockData',
+    },
+    {
+      category: 'save-supply-truck-state-machine-fields',
+      cppClass: 'SupplyTruckStateMachine',
+      tsHelper: 'buildGeneratedSourceStubStateMachineBlockData',
     },
     {
       category: 'save-pow-truck-ai-update-fields',
