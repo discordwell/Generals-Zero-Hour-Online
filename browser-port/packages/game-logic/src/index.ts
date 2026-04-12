@@ -3461,6 +3461,19 @@ interface SourceAIPickUpCrateStateMachineState {
   crateGoalPosition: { x: number; y: number; z: number };
 }
 
+interface SourceAISimpleMoveStateMachineState {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+  moveState: SourceAIInternalMoveToStateSnapshot;
+  okToRepathTimes: number | null;
+  checkForPath: boolean | null;
+  origin: { x: number; y: number; z: number } | null;
+  appendGoalPosition: boolean | null;
+  waitFrames: number | null;
+  timer: number | null;
+}
+
 interface PendingRepairDockActionState {
   dockObjectId: number;
   /** Source parity: ActionManager::canGetRepairedAt command source for shroud legality. */
@@ -3957,6 +3970,8 @@ export interface MapEntity {
   sourceAIFaceState: SourceAIFaceStateMachineState | null;
   /** Source parity: AI_PICK_UP_CRATE state. */
   sourceAIPickUpCrateState: SourceAIPickUpCrateStateMachineState | null;
+  /** Source parity: simple AIInternalMoveToState-derived top states. */
+  sourceAISimpleMoveState: SourceAISimpleMoveStateMachineState | null;
   /** Source parity: ChinookCombatDropState runtime owned by the Chinook AI update. */
   chinookCombatDropState: PendingCombatDropActionState | null;
   /** Source parity: active rappeller runtime owned by the passenger AI/state machine. */
@@ -9541,6 +9556,16 @@ interface SourceAIPickUpCrateStateImportState {
   crateGoalPosition: { x: number; y: number; z: number };
 }
 
+interface SourceAISimpleMoveStateImportState {
+  moveState: SourceAIInternalMoveToStateImportState;
+  okToRepathTimes: number | null;
+  checkForPath: boolean | null;
+  origin: { x: number; y: number; z: number } | null;
+  appendGoalPosition: boolean | null;
+  waitFrames: number | null;
+  timer: number | null;
+}
+
 interface SourceAIDockMachineImportState {
   currentStateId: number;
   goalObjectId: number;
@@ -9584,6 +9609,7 @@ interface SourceAIStateMachineImportState {
   exitState: SourceAIExitStateImportState | null;
   faceState: SourceAIFaceStateImportState | null;
   pickUpCrateState: SourceAIPickUpCrateStateImportState | null;
+  simpleMoveState: SourceAISimpleMoveStateImportState | null;
   attackState: SourceAIAttackStateImportState | null;
   guardState: SourceAIGuardStateImportState | null;
 }
@@ -10434,8 +10460,15 @@ const SOURCE_AI_STATE_DEAD = 13;
 const SOURCE_AI_STATE_DOCK = 14;
 const SOURCE_AI_STATE_ENTER = 15;
 const SOURCE_AI_STATE_GUARD = 16;
+const SOURCE_AI_STATE_MOVE_OUT_OF_THE_WAY = 23;
+const SOURCE_AI_STATE_MOVE_AND_TIGHTEN = 24;
+const SOURCE_AI_STATE_MOVE_AND_EVACUATE = 25;
+const SOURCE_AI_STATE_MOVE_AND_EVACUATE_AND_EXIT = 26;
+const SOURCE_AI_STATE_MOVE_AND_DELETE = 27;
 const SOURCE_AI_STATE_EXIT = 37;
 const SOURCE_AI_STATE_PICK_UP_CRATE = 38;
+const SOURCE_AI_STATE_MOVE_AWAY_FROM_REPULSORS = 39;
+const SOURCE_AI_STATE_WANDER_IN_PLACE = 40;
 const SOURCE_AI_STATE_BUSY = 41;
 const SOURCE_AI_STATE_EXIT_INSTANTLY = 42;
 const SOURCE_AI_STATE_FACE_OBJECT = 33;
@@ -16063,6 +16096,16 @@ export class GameLogicSubsystem implements Subsystem {
       || stateId === SOURCE_AI_STATE_FACE_POSITION;
   }
 
+  private isSourceAISimpleMoveTopStateId(stateId: number): boolean {
+    return stateId === SOURCE_AI_STATE_MOVE_OUT_OF_THE_WAY
+      || stateId === SOURCE_AI_STATE_MOVE_AND_TIGHTEN
+      || stateId === SOURCE_AI_STATE_MOVE_AND_EVACUATE
+      || stateId === SOURCE_AI_STATE_MOVE_AND_EVACUATE_AND_EXIT
+      || stateId === SOURCE_AI_STATE_MOVE_AND_DELETE
+      || stateId === SOURCE_AI_STATE_MOVE_AWAY_FROM_REPULSORS
+      || stateId === SOURCE_AI_STATE_WANDER_IN_PLACE;
+  }
+
   private skipSourceAIStatelessStateSnapshot(xfer: XferLoad): boolean {
     return xfer.xferVersion(1) === 1;
   }
@@ -16089,6 +16132,50 @@ export class GameLogicSubsystem implements Subsystem {
     const delayCounter = xfer.xferInt(0);
     const crateGoalPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
     return { moveState, delayCounter, crateGoalPosition };
+  }
+
+  private parseSourceAISimpleMoveStateSnapshot(
+    xfer: XferLoad,
+    currentStateId: number,
+  ): SourceAISimpleMoveStateImportState | null {
+    if (currentStateId !== SOURCE_AI_STATE_MOVE_OUT_OF_THE_WAY && xfer.xferVersion(1) !== 1) {
+      return null;
+    }
+    const moveState = this.parseSourceAIInternalMoveToStateSnapshot(xfer);
+    if (!moveState) {
+      return null;
+    }
+    let okToRepathTimes: number | null = null;
+    let checkForPath: boolean | null = null;
+    let origin: { x: number; y: number; z: number } | null = null;
+    let appendGoalPosition: boolean | null = null;
+    let waitFrames: number | null = null;
+    let timer: number | null = null;
+
+    if (currentStateId === SOURCE_AI_STATE_MOVE_AND_TIGHTEN
+      || currentStateId === SOURCE_AI_STATE_MOVE_AWAY_FROM_REPULSORS) {
+      okToRepathTimes = xfer.xferInt(0);
+      checkForPath = xfer.xferBool(false);
+    } else if (currentStateId === SOURCE_AI_STATE_MOVE_AND_EVACUATE
+      || currentStateId === SOURCE_AI_STATE_MOVE_AND_EVACUATE_AND_EXIT) {
+      origin = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    } else if (currentStateId === SOURCE_AI_STATE_MOVE_AND_DELETE) {
+      appendGoalPosition = xfer.xferBool(false);
+    } else if (currentStateId === SOURCE_AI_STATE_WANDER_IN_PLACE) {
+      origin = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+      waitFrames = xfer.xferInt(0);
+      timer = xfer.xferInt(0);
+    }
+
+    return {
+      moveState,
+      okToRepathTimes,
+      checkForPath,
+      origin,
+      appendGoalPosition,
+      waitFrames,
+      timer,
+    };
   }
 
   private sourceAttackStateToRuntimeSubState(stateId: number): AttackSubState | null {
@@ -16465,6 +16552,7 @@ export class GameLogicSubsystem implements Subsystem {
     let exitState: SourceAIExitStateImportState | null = null;
     let faceState: SourceAIFaceStateImportState | null = null;
     let pickUpCrateState: SourceAIPickUpCrateStateImportState | null = null;
+    let simpleMoveState: SourceAISimpleMoveStateImportState | null = null;
     let attackState: SourceAIAttackStateImportState | null = null;
     let guardState: SourceAIGuardStateImportState | null = null;
     if (currentStateId === SOURCE_AI_STATE_IDLE) {
@@ -16483,6 +16571,11 @@ export class GameLogicSubsystem implements Subsystem {
     } else if (currentStateId === SOURCE_AI_STATE_PICK_UP_CRATE) {
       pickUpCrateState = this.parseSourceAIPickUpCrateStateSnapshot(xfer);
       if (!pickUpCrateState) {
+        return null;
+      }
+    } else if (this.isSourceAISimpleMoveTopStateId(currentStateId)) {
+      simpleMoveState = this.parseSourceAISimpleMoveStateSnapshot(xfer, currentStateId);
+      if (!simpleMoveState) {
         return null;
       }
     } else if (currentStateId === SOURCE_AI_STATE_MOVE_TO) {
@@ -16550,6 +16643,7 @@ export class GameLogicSubsystem implements Subsystem {
       exitState,
       faceState,
       pickUpCrateState,
+      simpleMoveState,
       attackState,
       guardState,
     };
@@ -19495,6 +19589,50 @@ export class GameLogicSubsystem implements Subsystem {
               ? stateMachine.pickUpCrateState.crateGoalPosition.z
               : 0,
           },
+        };
+      }
+
+      if (this.isSourceAISimpleMoveTopStateId(stateMachine.currentStateId) && stateMachine.simpleMoveState) {
+        const moveTarget = this.sourceCoord3DToRuntimeXZ(stateMachine.simpleMoveState.moveState.goalPosition);
+        // TODO(source parity): implement each simple AIInternalMoveToState-derived state's update side effects.
+        entity.attackTargetEntityId = null;
+        entity.attackTargetPosition = null;
+        entity.attackOriginalVictimPosition = null;
+        entity.attackSubState = 'IDLE';
+        entity.movePath = [moveTarget];
+        entity.pathIndex = 0;
+        entity.moveTarget = moveTarget;
+        entity.moving = true;
+        if (aiUpdateState.pathfindGoalCell === null) {
+          entity.pathfindGoalCell = {
+            x: Math.floor(moveTarget.x / PATHFIND_CELL_SIZE),
+            z: Math.floor(moveTarget.z / PATHFIND_CELL_SIZE),
+          };
+        }
+        entity.temporaryMoveExpireFrame = 0;
+        entity.sourceAISimpleMoveState = {
+          currentStateId: stateMachine.currentStateId,
+          goalObjectId: Math.max(0, Math.trunc(stateMachine.goalObjectId)),
+          goalPosition: {
+            x: Number.isFinite(stateMachine.goalPosition.x) ? stateMachine.goalPosition.x : 0,
+            y: Number.isFinite(stateMachine.goalPosition.y) ? stateMachine.goalPosition.y : 0,
+            z: Number.isFinite(stateMachine.goalPosition.z) ? stateMachine.goalPosition.z : 0,
+          },
+          moveState: {
+            goalPosition: { ...stateMachine.simpleMoveState.moveState.goalPosition },
+            goalLayer: stateMachine.simpleMoveState.moveState.goalLayer,
+            waitingForPath: stateMachine.simpleMoveState.moveState.waitingForPath,
+            pathGoalPosition: { ...stateMachine.simpleMoveState.moveState.pathGoalPosition },
+            pathTimestamp: stateMachine.simpleMoveState.moveState.pathTimestamp,
+            blockedRepathTimestamp: stateMachine.simpleMoveState.moveState.blockedRepathTimestamp,
+            adjustDestinations: stateMachine.simpleMoveState.moveState.adjustDestinations,
+          },
+          okToRepathTimes: stateMachine.simpleMoveState.okToRepathTimes,
+          checkForPath: stateMachine.simpleMoveState.checkForPath,
+          origin: stateMachine.simpleMoveState.origin ? { ...stateMachine.simpleMoveState.origin } : null,
+          appendGoalPosition: stateMachine.simpleMoveState.appendGoalPosition,
+          waitFrames: stateMachine.simpleMoveState.waitFrames,
+          timer: stateMachine.simpleMoveState.timer,
         };
       }
 
@@ -26941,6 +27079,7 @@ export class GameLogicSubsystem implements Subsystem {
     entity.sourceAIStatelessState = null;
     entity.sourceAIFaceState = null;
     entity.sourceAIPickUpCrateState = null;
+    entity.sourceAISimpleMoveState = null;
     entity.sourceAIUpdateIsDead = false;
   }
 
@@ -54452,6 +54591,7 @@ export class GameLogicSubsystem implements Subsystem {
       entity.sourceAIStatelessState = null;
       entity.sourceAIFaceState = null;
       entity.sourceAIPickUpCrateState = null;
+      entity.sourceAISimpleMoveState = null;
       entity.chinookCombatDropState = null;
       entity.chinookRappelState = null;
       entity.repairDockState = null;

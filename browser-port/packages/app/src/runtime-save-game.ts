@@ -10018,10 +10018,17 @@ const SOURCE_AI_STATE_DEAD = 13;
 const SOURCE_AI_STATE_DOCK = 14;
 const SOURCE_AI_STATE_ENTER = 15;
 const SOURCE_AI_STATE_GUARD = 16;
+const SOURCE_AI_STATE_MOVE_OUT_OF_THE_WAY = 23;
+const SOURCE_AI_STATE_MOVE_AND_TIGHTEN = 24;
+const SOURCE_AI_STATE_MOVE_AND_EVACUATE = 25;
+const SOURCE_AI_STATE_MOVE_AND_EVACUATE_AND_EXIT = 26;
+const SOURCE_AI_STATE_MOVE_AND_DELETE = 27;
 const SOURCE_AI_STATE_FACE_OBJECT = 33;
 const SOURCE_AI_STATE_FACE_POSITION = 34;
 const SOURCE_AI_STATE_EXIT = 37;
 const SOURCE_AI_STATE_PICK_UP_CRATE = 38;
+const SOURCE_AI_STATE_MOVE_AWAY_FROM_REPULSORS = 39;
+const SOURCE_AI_STATE_WANDER_IN_PLACE = 40;
 const SOURCE_AI_STATE_BUSY = 41;
 const SOURCE_AI_STATE_EXIT_INSTANTLY = 42;
 const SOURCE_HACK_INTERNET_STATE_UNPACKING = 1000;
@@ -10180,6 +10187,16 @@ function isSourceAIStatelessStateId(value: unknown): value is number {
 function isSourceAIFaceStateId(value: unknown): value is number {
   return value === SOURCE_AI_STATE_FACE_OBJECT
     || value === SOURCE_AI_STATE_FACE_POSITION;
+}
+
+function isSourceAISimpleMoveStateId(value: unknown): value is number {
+  return value === SOURCE_AI_STATE_MOVE_OUT_OF_THE_WAY
+    || value === SOURCE_AI_STATE_MOVE_AND_TIGHTEN
+    || value === SOURCE_AI_STATE_MOVE_AND_EVACUATE
+    || value === SOURCE_AI_STATE_MOVE_AND_EVACUATE_AND_EXIT
+    || value === SOURCE_AI_STATE_MOVE_AND_DELETE
+    || value === SOURCE_AI_STATE_MOVE_AWAY_FROM_REPULSORS
+    || value === SOURCE_AI_STATE_WANDER_IN_PLACE;
 }
 
 interface SourceAIInternalMoveToRuntimeSnapshot {
@@ -10418,6 +10435,50 @@ function sourceAIPickUpCrateState(entity: MapEntity): {
   };
 }
 
+function sourceAISimpleMoveState(entity: MapEntity): {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: Coord3D;
+  moveState: SourceAIInternalMoveToRuntimeSnapshot;
+  okToRepathTimes: number | null;
+  checkForPath: boolean | null;
+  origin: Coord3D | null;
+  appendGoalPosition: boolean | null;
+  waitFrames: number | null;
+  timer: number | null;
+} | null {
+  const state = (entity as {
+    sourceAISimpleMoveState?: {
+      currentStateId?: unknown;
+      goalObjectId?: unknown;
+      goalPosition?: unknown;
+      moveState?: unknown;
+      okToRepathTimes?: unknown;
+      checkForPath?: unknown;
+      origin?: unknown;
+      appendGoalPosition?: unknown;
+      waitFrames?: unknown;
+      timer?: unknown;
+    } | null;
+  }).sourceAISimpleMoveState;
+  if (!state || !isSourceAISimpleMoveStateId(state.currentStateId)) {
+    return null;
+  }
+  const currentStateId = state.currentStateId;
+  return {
+    currentStateId,
+    goalObjectId: Number.isFinite(state?.goalObjectId) ? normalizeSourceObjectId(Number(state.goalObjectId)) : 0,
+    goalPosition: sourceFiniteCoord3D(state?.goalPosition),
+    moveState: sourceAIInternalMoveToRuntimeSnapshot(state?.moveState),
+    okToRepathTimes: Number.isFinite(state?.okToRepathTimes) ? Math.trunc(Number(state.okToRepathTimes)) : null,
+    checkForPath: typeof state?.checkForPath === 'boolean' ? state.checkForPath : null,
+    origin: state?.origin ? sourceFiniteCoord3D(state.origin) : null,
+    appendGoalPosition: typeof state?.appendGoalPosition === 'boolean' ? state.appendGoalPosition : null,
+    waitFrames: Number.isFinite(state?.waitFrames) ? Math.trunc(Number(state.waitFrames)) : null,
+    timer: Number.isFinite(state?.timer) ? Math.trunc(Number(state.timer)) : null,
+  };
+}
+
 function sourceRepairDockGoalObjectId(entity: MapEntity): number {
   const dockObjectId = entity.repairDockState?.dockObjectId;
   return Number.isFinite(dockObjectId)
@@ -10650,6 +10711,36 @@ function buildGeneratedSourceAIPickUpCrateStateBlockData(
   }
 }
 
+function buildGeneratedSourceAISimpleMoveStateBlockData(
+  state: NonNullable<ReturnType<typeof sourceAISimpleMoveState>>,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-simple-move-state');
+  try {
+    if (state.currentStateId !== SOURCE_AI_STATE_MOVE_OUT_OF_THE_WAY) {
+      saver.xferVersion(1);
+    }
+    saver.xferUser(buildGeneratedSourceAIInternalMoveToStateSnapshotBlockData(state.moveState));
+    if (state.currentStateId === SOURCE_AI_STATE_MOVE_AND_TIGHTEN
+      || state.currentStateId === SOURCE_AI_STATE_MOVE_AWAY_FROM_REPULSORS) {
+      saver.xferInt(state.okToRepathTimes ?? 0);
+      saver.xferBool(state.checkForPath === true);
+    } else if (state.currentStateId === SOURCE_AI_STATE_MOVE_AND_EVACUATE
+      || state.currentStateId === SOURCE_AI_STATE_MOVE_AND_EVACUATE_AND_EXIT) {
+      saver.xferCoord3D(state.origin ?? { x: 0, y: 0, z: 0 });
+    } else if (state.currentStateId === SOURCE_AI_STATE_MOVE_AND_DELETE) {
+      saver.xferBool(state.appendGoalPosition === true);
+    } else if (state.currentStateId === SOURCE_AI_STATE_WANDER_IN_PLACE) {
+      saver.xferCoord3D(state.origin ?? { x: 0, y: 0, z: 0 });
+      saver.xferInt(state.waitFrames ?? 0);
+      saver.xferInt(state.timer ?? 0);
+    }
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildGeneratedSourceAIDockProcessDockStateBlockData(): Uint8Array {
   const saver = new XferSave();
   saver.open('build-generated-source-ai-dock-process-dock-state');
@@ -10846,6 +10937,10 @@ function isGeneratedSourcePickUpCrateAIStateMachine(entity: MapEntity): boolean 
   return sourceAIPickUpCrateState(entity) !== null;
 }
 
+function isGeneratedSourceSimpleMoveAIStateMachine(entity: MapEntity): boolean {
+  return sourceAISimpleMoveState(entity) !== null;
+}
+
 function isGeneratedSourceDockAIStateMachine(entity: MapEntity): boolean {
   return sourceRepairDockGoalObjectId(entity) > 0
     && entity.moving !== true;
@@ -10860,7 +10955,8 @@ function isGeneratedSourceMoveAIStateMachine(entity: MapEntity): boolean {
 }
 
 function hasGeneratedSourceAIUpdateRuntimeState(entity: MapEntity): boolean {
-  return isGeneratedSourcePickUpCrateAIStateMachine(entity)
+  return isGeneratedSourceSimpleMoveAIStateMachine(entity)
+    || isGeneratedSourcePickUpCrateAIStateMachine(entity)
     || isGeneratedSourceFaceAIStateMachine(entity)
     || isGeneratedSourceStatelessAIStateMachine(entity)
     || isGeneratedSourceExitAIStateMachine(entity)
@@ -10876,6 +10972,33 @@ function buildGeneratedSourceAIStateMachineBlockData(
   currentFrame = 0,
   options: { liveEntities?: readonly MapEntity[] | null } = {},
 ): Uint8Array {
+  const simpleMoveState = sourceAISimpleMoveState(entity);
+  if (simpleMoveState) {
+    const saver = new XferSave();
+    saver.open('build-generated-source-ai-state-machine-simple-move');
+    try {
+      saver.xferVersion(1);
+      saver.xferVersion(1);
+      saver.xferUnsignedInt(0);
+      saver.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+      saver.xferUnsignedInt(simpleMoveState.currentStateId);
+      saver.xferBool(false);
+      saver.xferUser(buildGeneratedSourceAISimpleMoveStateBlockData(simpleMoveState));
+      saver.xferObjectID(simpleMoveState.goalObjectId);
+      saver.xferCoord3D(simpleMoveState.goalPosition);
+      saver.xferBool(false);
+      saver.xferBool(true);
+      saver.xferInt(0);
+      saver.xferAsciiString('');
+      saver.xferBool(false);
+      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
+      saver.xferUnsignedInt(0);
+      return new Uint8Array(saver.getBuffer());
+    } finally {
+      saver.close();
+    }
+  }
+
   const pickUpCrateState = sourceAIPickUpCrateState(entity);
   if (pickUpCrateState) {
     const saver = new XferSave();

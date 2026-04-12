@@ -250,6 +250,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     sourceAIStatelessState: null,
     sourceAIFaceState: null,
     sourceAIPickUpCrateState: null,
+    sourceAISimpleMoveState: null,
     chinookCombatDropState: null,
     chinookRappelState: null,
     repairDockState: null,
@@ -1381,6 +1382,63 @@ describe('entity-xfer', () => {
       },
       delayCounter: 3,
       crateGoalPosition: { x: 13, y: 23, z: 33 },
+    });
+  });
+
+  it('round-trips source-owned simple move AI state', () => {
+    const original = createTestEntity({
+      sourceAISimpleMoveState: {
+        currentStateId: 40,
+        goalObjectId: 0,
+        goalPosition: { x: 10, y: 20, z: 30 },
+        moveState: {
+          goalPosition: { x: 11, y: 21, z: 31 },
+          goalLayer: 0,
+          waitingForPath: false,
+          pathGoalPosition: { x: 12, y: 22, z: 32 },
+          pathTimestamp: 123,
+          blockedRepathTimestamp: 124,
+          adjustDestinations: true,
+        },
+        okToRepathTimes: null,
+        checkForPath: null,
+        origin: { x: 13, y: 23, z: 33 },
+        appendGoalPosition: null,
+        waitFrames: 7,
+        timer: 8,
+      },
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity();
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.sourceAISimpleMoveState).toEqual({
+      currentStateId: 40,
+      goalObjectId: 0,
+      goalPosition: { x: 10, y: 20, z: 30 },
+      moveState: {
+        goalPosition: { x: 11, y: 21, z: 31 },
+        goalLayer: 0,
+        waitingForPath: false,
+        pathGoalPosition: { x: 12, y: 22, z: 32 },
+        pathTimestamp: 123,
+        blockedRepathTimestamp: 124,
+        adjustDestinations: true,
+      },
+      okToRepathTimes: null,
+      checkForPath: null,
+      origin: { x: 13, y: 23, z: 33 },
+      appendGoalPosition: null,
+      waitFrames: 7,
+      timer: 8,
     });
   });
 

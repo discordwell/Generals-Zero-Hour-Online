@@ -2201,6 +2201,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
     let statelessState: Record<string, unknown> | undefined;
     let faceState: Record<string, unknown> | undefined;
     let pickUpCrateState: Record<string, unknown> | undefined;
+    let simpleMoveState: Record<string, unknown> | undefined;
     let attackState: Record<string, unknown> | undefined;
     let guardState: Record<string, unknown> | undefined;
     if (currentStateId === 0) {
@@ -2244,6 +2245,52 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
         adjustDestinations,
         delayCounter,
         crateGoalPosition,
+      };
+    } else if ([23, 24, 25, 26, 27, 39, 40].includes(currentStateId)) {
+      const simpleMoveVersion = currentStateId === 23 ? undefined : xferLoad.xferVersion(1);
+      const moveToVersion = xferLoad.xferVersion(1);
+      const moveGoalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const moveGoalLayer = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+      const waitingForPath = xferLoad.xferBool(false);
+      const pathGoalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const pathTimestamp = xferLoad.xferUnsignedInt(0);
+      const blockedRepathTimestamp = xferLoad.xferUnsignedInt(0);
+      const adjustDestinations = xferLoad.xferBool(false);
+      let okToRepathTimes: number | undefined;
+      let checkForPath: boolean | undefined;
+      let origin: Record<string, unknown> | undefined;
+      let appendGoalPosition: boolean | undefined;
+      let waitFrames: number | undefined;
+      let timer: number | undefined;
+      if (currentStateId === 24 || currentStateId === 39) {
+        okToRepathTimes = xferLoad.xferInt(0);
+        checkForPath = xferLoad.xferBool(false);
+      } else if (currentStateId === 25 || currentStateId === 26) {
+        origin = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      } else if (currentStateId === 27) {
+        appendGoalPosition = xferLoad.xferBool(false);
+      } else if (currentStateId === 40) {
+        origin = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+        waitFrames = xferLoad.xferInt(0);
+        timer = xferLoad.xferInt(0);
+      }
+      simpleMoveState = {
+        kind: 'SIMPLE_MOVE',
+        simpleMoveVersion,
+        moveToVersion,
+        moveGoalPosition,
+        moveGoalLayer,
+        waitingForPath,
+        pathGoalPosition,
+        pathTimestamp,
+        blockedRepathTimestamp,
+        adjustDestinations,
+        okToRepathTimes,
+        checkForPath,
+        origin,
+        appendGoalPosition,
+        waitFrames,
+        timer,
       };
     } else if (currentStateId === 1) {
       const moveToVersion = xferLoad.xferVersion(1);
@@ -2651,6 +2698,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
       statelessState,
       faceState,
       pickUpCrateState,
+      simpleMoveState,
       attackState,
       guardState,
       goalObjectId,
@@ -20947,6 +20995,48 @@ describe('runtime-save-game', () => {
               delayCounter: 2,
               crateGoalPosition: { x: 392, y: 492, z: 0 },
             },
+          } as unknown as import('@generals/game-logic').MapEntity, {
+            id: 36,
+            templateName: 'RuntimeGeneratedSimpleMoveAI',
+            x: 400,
+            y: 0,
+            z: 500,
+            rotationY: 0,
+            sourceAIIdleInitialSleepOffset: 13,
+            scriptAiRecruitable: true,
+            attackTargetEntityId: null,
+            attackTargetPosition: null,
+            attackSubState: 'IDLE',
+            lastCommandSource: 'SCRIPT',
+            autoTargetScanNextFrame: 91,
+            moving: true,
+            moveTarget: { x: 400, z: 500 },
+            locomotorUpgradeEnabled: false,
+            ignoredMovementObstacleId: null,
+            pathfindGoalCell: null,
+            pathfindPosCell: null,
+            activeLocomotorSet: 'SET_NORMAL',
+            guardState: 'NONE',
+            sourceAISimpleMoveState: {
+              currentStateId: 27,
+              goalObjectId: 0,
+              goalPosition: { x: 400, y: 500, z: 0 },
+              moveState: {
+                goalPosition: { x: 400, y: 500, z: 0 },
+                goalLayer: 0,
+                waitingForPath: false,
+                pathGoalPosition: { x: 401, y: 501, z: 0 },
+                pathTimestamp: 93,
+                blockedRepathTimestamp: 94,
+                adjustDestinations: false,
+              },
+              okToRepathTimes: null,
+              checkForPath: null,
+              origin: null,
+              appendGoalPosition: true,
+              waitFrames: null,
+              timer: null,
+            },
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
         listSourceObjectModuleDescriptors: (templateName) => {
@@ -20976,6 +21066,9 @@ describe('runtime-save-game', () => {
           }
           if (templateName === 'RuntimeGeneratedPickUpCrateAI') {
             return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_PickUpCrateAI' }];
+          }
+          if (templateName === 'RuntimeGeneratedSimpleMoveAI') {
+            return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_SimpleMoveAI' }];
           }
           return templateName === 'RuntimeGeneratedAIUpdates'
             ? [
@@ -21282,6 +21375,36 @@ describe('runtime-save-game', () => {
       },
     });
     expect(pickUpCrateAI.bytesRead).toBe(pickUpCrateModule!.blockData.byteLength);
+
+    const generatedSimpleMove = readSourceGameLogicObjectStates(saveFile.data)
+      ?.find((object) => object.templateName === 'RuntimeGeneratedSimpleMoveAI')?.state;
+    const simpleMoveModule = generatedSimpleMove?.modules
+      .find((module) => module.identifier === 'ModuleTag_SimpleMoveAI');
+    expect(simpleMoveModule).toBeDefined();
+    const simpleMoveAI = parseGeneratedSourceAIUpdateInterfaceForTest(simpleMoveModule!.blockData, 0);
+    expect(simpleMoveAI).toMatchObject({
+      currentStateId: 27,
+      goalObjectId: 0,
+      goalPosition: { x: 400, y: 500, z: 0 },
+      nextEnemyScanTime: 91,
+      currentVictimId: 0,
+      nextMoodCheckTime: 91,
+      lastCommandSource: 1,
+      simpleMoveState: {
+        kind: 'SIMPLE_MOVE',
+        simpleMoveVersion: 1,
+        moveToVersion: 1,
+        moveGoalPosition: { x: 400, y: 500, z: 0 },
+        moveGoalLayer: 0,
+        waitingForPath: false,
+        pathGoalPosition: { x: 401, y: 501, z: 0 },
+        pathTimestamp: 93,
+        blockedRepathTimestamp: 94,
+        adjustDestinations: false,
+        appendGoalPosition: true,
+      },
+    });
+    expect(simpleMoveAI.bytesRead).toBe(simpleMoveModule!.blockData.byteLength);
 
     expect(hackModule).toBeDefined();
     const hack = parseSourceHackInternetAIUpdateBlockData(hackModule!.blockData);
