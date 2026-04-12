@@ -339,6 +339,159 @@ export function parseTsSkirmishGameInfoXferFields(source: string): string[] {
   return fields;
 }
 
+/**
+ * Parse C++ CampaignManager::xfer source-save field order.
+ */
+export function parseCppCampaignManagerXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void CampaignManager::xfer');
+  if (!body) {
+    return [];
+  }
+  return parseCppXferFields(body, mapCppCampaignManagerField);
+}
+
+/**
+ * Parse TS CampaignSnapshot source-save field order.
+ */
+export function parseTsCampaignManagerXferFields(source: string): string[] {
+  const start = source.indexOf('class CampaignSnapshot');
+  if (start < 0) {
+    return [];
+  }
+  const end = source.indexOf('function createEmptyTerrainLogicSaveState', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|this\.state\.(currentCampaign|currentMission|currentRankPoints|isChallengeCampaign|playerTemplateNum)\s*=\s*xfer\.xfer\w+\s*\(|this\.state\.difficulty\s*=\s*decodeSourceDifficulty\s*\(\s*xfer\.xferInt\s*\(|this\.state\.challengeGameInfoState\s*=\s*xferChallengeGameInfoState\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    let label: string | null = null;
+    if (match[0]!.startsWith('xfer.xferVersion')) {
+      label = 'version';
+    } else if (match[0]!.includes('difficulty')) {
+      label = 'difficulty';
+    } else if (match[0]!.includes('challengeGameInfoState')) {
+      label = 'challengeGameInfoSnapshot';
+    } else if (match[1]) {
+      label = mapTsCampaignManagerField(match[1]!);
+    }
+    pushUniqueField(fields, seen, label);
+  }
+  return fields;
+}
+
+/**
+ * Parse C++ TerrainLogic::xfer source-save field order.
+ */
+export function parseCppTerrainLogicXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void TerrainLogic::xfer');
+  if (!body) {
+    return [];
+  }
+  return parseCppXferFields(body, mapCppTerrainLogicField);
+}
+
+/**
+ * Parse TS TerrainLogicSnapshot source-save field order.
+ */
+export function parseTsTerrainLogicXferFields(source: string): string[] {
+  const start = source.indexOf('class TerrainLogicSnapshot');
+  if (start < 0) {
+    return [];
+  }
+  const end = source.indexOf('class TacticalViewSnapshot', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const waterUpdateFields = parseTsTerrainWaterUpdateXferFields(source);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|payload\.activeBoundary\s*=\s*xfer\.xferInt\s*\(|xfer\.xferInt\s*\(\s*payload\.waterUpdates\.length\s*\)|xferSourceTerrainWaterUpdate\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[0]!.startsWith('xferSourceTerrainWaterUpdate')) {
+      for (const field of waterUpdateFields) {
+        pushUniqueField(fields, seen, field);
+      }
+    } else {
+      pushUniqueField(fields, seen, mapTsTerrainLogicField(match[0]!));
+    }
+  }
+  return fields;
+}
+
+/**
+ * Parse C++ View::xfer tactical-view field order.
+ */
+export function parseCppTacticalViewXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void View::xfer');
+  if (!body) {
+    return [];
+  }
+  return parseCppXferFields(body, mapCppTacticalViewField);
+}
+
+/**
+ * Parse TS TacticalViewSnapshot source-save field order.
+ */
+export function parseTsTacticalViewXferFields(source: string): string[] {
+  const start = source.indexOf('class TacticalViewSnapshot');
+  if (start < 0) {
+    return [];
+  }
+  const end = source.indexOf('class InGameUiSnapshot', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|payload\.angle\s*=\s*xfer\.xferReal\s*\(|payload\.position\.(x|y|z)\s*=\s*xfer\.xferReal\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    let label: string | null = null;
+    if (match[0]!.startsWith('xfer.xferVersion')) {
+      label = 'version';
+    } else if (match[0]!.includes('payload.angle')) {
+      label = 'angle';
+    } else if (match[1]) {
+      label = `position.${match[1]!}`;
+    }
+    pushUniqueField(fields, seen, label);
+  }
+  return fields;
+}
+
+/**
+ * Parse C++ InGameUI::xfer source-save field order.
+ */
+export function parseCppInGameUiXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void InGameUI::xfer');
+  if (!body) {
+    return [];
+  }
+  return parseCppXferFields(body, mapCppInGameUiField);
+}
+
+/**
+ * Parse TS InGameUiSnapshot source-save field order.
+ */
+export function parseTsInGameUiXferFields(source: string): string[] {
+  const start = source.indexOf('class InGameUiSnapshot');
+  if (start < 0) {
+    return [];
+  }
+  const end = source.indexOf('class LegacyGameLogicSnapshot', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|payload\.namedTimerLastFlashFrame\s*=\s*xfer\.xferInt\s*\(|payload\.namedTimerUsedFlashColor\s*=\s*xfer\.xferBool\s*\(|payload\.showNamedTimers\s*=\s*xfer\.xferBool\s*\(|xfer\.xferInt\s*\(\s*namedTimers\.length\s*\)|xfer\.xferAsciiString\s*\(\s*timer\.timerName\s*\)|xfer\.xferUnicodeString\s*\(\s*timer\.timerText\s*\)|xfer\.xferBool\s*\(\s*timer\.isCountdown\s*\)|payload\.superweaponHiddenByScript\s*=\s*xfer\.xferBool\s*\(|xfer\.xferInt\s*\(\s*superweapon\.playerIndex\s*\)|xfer\.xferAsciiString\s*\(\s*superweapon\.templateName\s*\)|xfer\.xferAsciiString\s*\(\s*superweapon\.powerName\s*\)|xfer\.xferObjectID\s*\(\s*superweapon\.objectId\s*\)|xfer\.xferUnsignedInt\s*\(\s*Math\.max\(|xfer\.xferBool\s*\(\s*superweapon\.hiddenByScript\s*\)|xfer\.xferBool\s*\(\s*superweapon\.hiddenByScience\s*\)|xfer\.xferBool\s*\(\s*superweapon\.ready\s*\)|xfer\.xferBool\s*\(\s*superweapon\.evaReadyPlayed\s*\)|xfer\.xferInt\s*\(\s*-1\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsInGameUiField(match[0]!));
+  }
+  return fields;
+}
+
 function extractQuotedStrings(text: string): string[] {
   const names: string[] = [];
   const regex = /["']([^"']+)["']/g;
@@ -353,6 +506,33 @@ function pushIfFound(fields: string[], body: string, label: string, pattern: Reg
   if (pattern.test(body)) {
     fields.push(label);
   }
+}
+
+function pushUniqueField(fields: string[], seen: Set<string>, label: string | null | undefined): void {
+  if (!label || seen.has(label)) {
+    return;
+  }
+  seen.add(label);
+  fields.push(label);
+}
+
+function parseCppXferFields(
+  body: string,
+  mapper: (method: string, argument: string) => string | null,
+): string[] {
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const fieldRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = fieldRegex.exec(body)) !== null) {
+    const method = match[1]!;
+    const argument = match[2]!
+      .replace(/^&\s*/, '')
+      .replace(/^\(/, '')
+      .trim();
+    pushUniqueField(fields, seen, mapper(method, argument));
+  }
+  return fields;
 }
 
 function extractFunctionBody(source: string, signature: string): string | null {
@@ -393,6 +573,22 @@ function parseTsSkirmishGameSlotXferFields(source: string): string[] {
     if (label?.startsWith('slot.')) {
       fields.push(label);
     }
+  }
+  return fields;
+}
+
+function parseTsTerrainWaterUpdateXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceTerrainWaterUpdate');
+  if (!body) {
+    return [];
+  }
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const fieldRegex =
+    /(triggerId|changePerFrame|targetHeight|damageAmount|currentHeight):\s*xfer\.xfer\w+\s*\(/g;
+  let match;
+  while ((match = fieldRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsTerrainLogicField(match[1]!));
   }
   return fields;
 }
@@ -469,6 +665,154 @@ function mapTsSkirmishGameInfoField(rawName: string): string | null {
     ['startingCash', 'startingCash'],
   ]);
   return mappings.get(rawName) ?? null;
+}
+
+function mapCppCampaignManagerField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') {
+    return 'version';
+  }
+  if (method === 'xferAsciiString' && argument === 'currentCampaign') {
+    return 'currentCampaign';
+  }
+  if (method === 'xferAsciiString' && argument === 'currentMission') {
+    return 'currentMission';
+  }
+  if (method === 'xferInt' && argument === 'm_currentRankPoints') {
+    return 'currentRankPoints';
+  }
+  if (method === 'xferUser' && argument.startsWith('m_difficulty')) {
+    return 'difficulty';
+  }
+  if (method === 'xferBool' && argument === 'isChallengeCampaign') {
+    return 'isChallengeCampaign';
+  }
+  if (method === 'xferSnapshot' && argument === 'TheChallengeGameInfo') {
+    return 'challengeGameInfoSnapshot';
+  }
+  if (method === 'xferInt' && argument === 'playerTemplateNum') {
+    return 'playerTemplateNum';
+  }
+  return null;
+}
+
+function mapTsCampaignManagerField(rawName: string): string | null {
+  const mappings = new Map<string, string>([
+    ['currentCampaign', 'currentCampaign'],
+    ['currentMission', 'currentMission'],
+    ['currentRankPoints', 'currentRankPoints'],
+    ['isChallengeCampaign', 'isChallengeCampaign'],
+    ['playerTemplateNum', 'playerTemplateNum'],
+  ]);
+  return mappings.get(rawName) ?? null;
+}
+
+function mapCppTerrainLogicField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') {
+    return 'version';
+  }
+  if (method === 'xferInt' && argument === 'activeBoundary') {
+    return 'activeBoundary';
+  }
+  if (method === 'xferInt' && argument === 'm_numWaterToUpdate') {
+    return 'waterUpdateCount';
+  }
+  if (method === 'xferInt' && argument === 'triggerID') {
+    return 'waterUpdate.triggerId';
+  }
+  if (method === 'xferReal' && argument.endsWith('.changePerFrame')) {
+    return 'waterUpdate.changePerFrame';
+  }
+  if (method === 'xferReal' && argument.endsWith('.targetHeight')) {
+    return 'waterUpdate.targetHeight';
+  }
+  if (method === 'xferReal' && argument.endsWith('.damageAmount')) {
+    return 'waterUpdate.damageAmount';
+  }
+  if (method === 'xferReal' && argument.endsWith('.currentHeight')) {
+    return 'waterUpdate.currentHeight';
+  }
+  return null;
+}
+
+function mapTsTerrainLogicField(token: string): string | null {
+  if (token.startsWith('xfer.xferVersion')) return 'version';
+  if (token.includes('payload.activeBoundary')) return 'activeBoundary';
+  if (token.includes('payload.waterUpdates.length')) return 'waterUpdateCount';
+  if (token.includes('triggerId')) return 'waterUpdate.triggerId';
+  if (token.includes('changePerFrame')) return 'waterUpdate.changePerFrame';
+  if (token.includes('targetHeight')) return 'waterUpdate.targetHeight';
+  if (token.includes('damageAmount')) return 'waterUpdate.damageAmount';
+  if (token.includes('currentHeight')) return 'waterUpdate.currentHeight';
+  return null;
+}
+
+function mapCppTacticalViewField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') {
+    return 'version';
+  }
+  if (method === 'xferReal' && argument === 'angle') {
+    return 'angle';
+  }
+  if (method === 'xferReal' && argument === 'viewPos.x') {
+    return 'position.x';
+  }
+  if (method === 'xferReal' && argument === 'viewPos.y') {
+    return 'position.y';
+  }
+  if (method === 'xferReal' && argument === 'viewPos.z') {
+    return 'position.z';
+  }
+  return null;
+}
+
+function mapCppInGameUiField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') {
+    return 'version';
+  }
+  const mappings = new Map<string, string>([
+    ['m_namedTimerLastFlashFrame', 'namedTimerLastFlashFrame'],
+    ['m_namedTimerUsedFlashColor', 'namedTimerUsedFlashColor'],
+    ['m_showNamedTimers', 'showNamedTimers'],
+    ['timerCount', 'namedTimerCount'],
+    ['timerIter->second->m_timerName', 'namedTimer.name'],
+    ['timerIter->second->timerText', 'namedTimer.text'],
+    ['timerIter->second->isCountdown', 'namedTimer.isCountdown'],
+    ['m_superweaponHiddenByScript', 'superweaponHiddenByScript'],
+    ['playerIndex', 'superweapon.playerIndex'],
+    ['templateName', 'superweapon.templateName'],
+    ['powerName', 'superweapon.powerName'],
+    ['swInfo->m_id', 'superweapon.objectId'],
+    ['swInfo->m_timestamp', 'superweapon.timestamp'],
+    ['swInfo->m_hiddenByScript', 'superweapon.hiddenByScript'],
+    ['swInfo->m_hiddenByScience', 'superweapon.hiddenByScience'],
+    ['swInfo->m_ready', 'superweapon.ready'],
+    ['swInfo->m_evaReadyPlayed', 'superweapon.evaReadyPlayed'],
+    ['noMorePlayers', 'superweaponSentinel'],
+  ]);
+  return mappings.get(argument) ?? null;
+}
+
+function mapTsInGameUiField(token: string): string | null {
+  if (token.startsWith('xfer.xferVersion')) return 'version';
+  if (token.includes('namedTimerLastFlashFrame')) return 'namedTimerLastFlashFrame';
+  if (token.includes('namedTimerUsedFlashColor')) return 'namedTimerUsedFlashColor';
+  if (token.includes('showNamedTimers')) return 'showNamedTimers';
+  if (token.includes('namedTimers.length')) return 'namedTimerCount';
+  if (token.includes('timer.timerName')) return 'namedTimer.name';
+  if (token.includes('timer.timerText')) return 'namedTimer.text';
+  if (token.includes('timer.isCountdown')) return 'namedTimer.isCountdown';
+  if (token.includes('superweaponHiddenByScript')) return 'superweaponHiddenByScript';
+  if (token.includes('superweapon.playerIndex')) return 'superweapon.playerIndex';
+  if (token.includes('superweapon.templateName')) return 'superweapon.templateName';
+  if (token.includes('superweapon.powerName')) return 'superweapon.powerName';
+  if (token.includes('superweapon.objectId')) return 'superweapon.objectId';
+  if (token.includes('Math.max')) return 'superweapon.timestamp';
+  if (token.includes('superweapon.hiddenByScript')) return 'superweapon.hiddenByScript';
+  if (token.includes('superweapon.hiddenByScience')) return 'superweapon.hiddenByScience';
+  if (token.includes('superweapon.ready')) return 'superweapon.ready';
+  if (token.includes('superweapon.evaReadyPlayed')) return 'superweapon.evaReadyPlayed';
+  if (token.includes('-1')) return 'superweaponSentinel';
+  return null;
 }
 
 // ── TS Port Extractors ──────────────────────────────────────────────────────
@@ -682,6 +1026,22 @@ export function compareSkirmishGameInfoFields(cppFields: string[], tsFields: str
   return compareOrderedStrings('save-skirmish-game-info-fields', cppFields, tsFields);
 }
 
+export function compareCampaignManagerFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-campaign-manager-fields', cppFields, tsFields);
+}
+
+export function compareTerrainLogicFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-terrain-logic-fields', cppFields, tsFields);
+}
+
+export function compareTacticalViewFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-tactical-view-fields', cppFields, tsFields);
+}
+
+export function compareInGameUiFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-in-game-ui-fields', cppFields, tsFields);
+}
+
 function compareOrderedStrings(category: string, cppValues: string[], tsValues: string[]): ParityCategoryResult {
   const mismatches: ParityMismatch[] = [];
   const maxLength = Math.max(cppValues.length, tsValues.length);
@@ -821,6 +1181,30 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genGameInfoCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameNetwork/GameInfo.cpp'),
   );
+  const zhCampaignManagerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameClient/System/CampaignManager.cpp'),
+  );
+  const genCampaignManagerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameClient/System/CampaignManager.cpp'),
+  );
+  const zhTerrainLogicCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Map/TerrainLogic.cpp'),
+  );
+  const genTerrainLogicCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Map/TerrainLogic.cpp'),
+  );
+  const zhViewCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameClient/View.cpp'),
+  );
+  const genViewCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameClient/View.cpp'),
+  );
+  const zhInGameUiCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameClient/InGameUI.cpp'),
+  );
+  const genInGameUiCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameClient/InGameUI.cpp'),
+  );
 
   // Read TS port source
   const tsIndexPath = path.join(rootDir, 'packages/game-logic/src/index.ts');
@@ -881,6 +1265,34 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsSkirmishGameInfoFields = parseTsSkirmishGameInfoXferFields(tsRuntimeSave);
   if (cppSkirmishGameInfoFields.length > 0 && tsSkirmishGameInfoFields.length > 0) {
     categories.push(compareSkirmishGameInfoFields(cppSkirmishGameInfoFields, tsSkirmishGameInfoFields));
+  }
+
+  const campaignManagerSource = zhCampaignManagerCpp || genCampaignManagerCpp;
+  const cppCampaignManagerFields = parseCppCampaignManagerXferFields(campaignManagerSource);
+  const tsCampaignManagerFields = parseTsCampaignManagerXferFields(tsRuntimeSave);
+  if (cppCampaignManagerFields.length > 0 && tsCampaignManagerFields.length > 0) {
+    categories.push(compareCampaignManagerFields(cppCampaignManagerFields, tsCampaignManagerFields));
+  }
+
+  const terrainLogicSource = zhTerrainLogicCpp || genTerrainLogicCpp;
+  const cppTerrainLogicFields = parseCppTerrainLogicXferFields(terrainLogicSource);
+  const tsTerrainLogicFields = parseTsTerrainLogicXferFields(tsRuntimeSave);
+  if (cppTerrainLogicFields.length > 0 && tsTerrainLogicFields.length > 0) {
+    categories.push(compareTerrainLogicFields(cppTerrainLogicFields, tsTerrainLogicFields));
+  }
+
+  const viewSource = zhViewCpp || genViewCpp;
+  const cppTacticalViewFields = parseCppTacticalViewXferFields(viewSource);
+  const tsTacticalViewFields = parseTsTacticalViewXferFields(tsRuntimeSave);
+  if (cppTacticalViewFields.length > 0 && tsTacticalViewFields.length > 0) {
+    categories.push(compareTacticalViewFields(cppTacticalViewFields, tsTacticalViewFields));
+  }
+
+  const inGameUiSource = zhInGameUiCpp || genInGameUiCpp;
+  const cppInGameUiFields = parseCppInGameUiXferFields(inGameUiSource);
+  const tsInGameUiFields = parseTsInGameUiXferFields(tsRuntimeSave);
+  if (cppInGameUiFields.length > 0 && tsInGameUiFields.length > 0) {
+    categories.push(compareInGameUiFields(cppInGameUiFields, tsInGameUiFields));
   }
 
   return buildSourceParityReport(categories);

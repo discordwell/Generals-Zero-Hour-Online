@@ -4,24 +4,36 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
+  compareCampaignManagerFields,
   compareDamageTypes,
   compareGameStateMapFields,
+  compareInGameUiFields,
   compareSaveGameInfoFields,
   compareSaveSnapshotBlockOrder,
   compareSkirmishGameInfoFields,
+  compareTacticalViewFields,
+  compareTerrainLogicFields,
+  parseCppCampaignManagerXferFields,
   parseCppDamageTypeNames,
   parseCppGameStateMapXferFields,
+  parseCppInGameUiXferFields,
   parseCppSaveGameInfoXferFields,
   parseCppSaveSnapshotBlockNames,
   parseCppSkirmishGameInfoXferFields,
+  parseCppTacticalViewXferFields,
+  parseCppTerrainLogicXferFields,
   parseCppWeaponBonusEnumValues,
   parseCppWeaponBonusNames,
   parseCppWeaponFieldNames,
+  parseTsCampaignManagerXferFields,
   parseTsDamageTypeNames,
   parseTsGameStateMapXferFields,
+  parseTsInGameUiXferFields,
   parseTsSaveGameInfoXferFields,
   parseTsSaveSnapshotBlockNames,
   parseTsSkirmishGameInfoXferFields,
+  parseTsTacticalViewXferFields,
+  parseTsTerrainLogicXferFields,
   parseTsWeaponBonusConditionNames,
   runSourceParityCheck,
 } from './parity-source-truth.js';
@@ -368,6 +380,248 @@ function xferChallengeGameInfoState(xfer: Xfer): RuntimeSaveChallengeGameInfoSta
       ]);
     });
 
+    it('parses C++ CampaignManager xfer field order', () => {
+      const source = `
+void CampaignManager::xfer( Xfer *xfer )
+{
+  xfer->xferVersion( &version, currentVersion );
+  xfer->xferAsciiString( &currentCampaign );
+  xfer->xferAsciiString( &currentMission );
+  xfer->xferInt( &m_currentRankPoints );
+  xfer->xferUser( &m_difficulty, sizeof(m_difficulty) );
+  xfer->xferBool(&isChallengeCampaign);
+  xfer->xferSnapshot(TheChallengeGameInfo);
+  xfer->xferInt(&playerTemplateNum);
+}  // end xfer`;
+      const fields = parseCppCampaignManagerXferFields(source);
+      expect(fields).toEqual([
+        'version',
+        'currentCampaign',
+        'currentMission',
+        'currentRankPoints',
+        'difficulty',
+        'isChallengeCampaign',
+        'challengeGameInfoSnapshot',
+        'playerTemplateNum',
+      ]);
+    });
+
+    it('parses TS CampaignSnapshot xfer field order', () => {
+      const source = `
+class CampaignSnapshot implements Snapshot {
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(5);
+    this.state.currentCampaign = xfer.xferAsciiString(this.state.currentCampaign);
+    this.state.currentMission = xfer.xferAsciiString(this.state.currentMission);
+    this.state.currentRankPoints = xfer.xferInt(this.state.currentRankPoints);
+    this.state.difficulty = decodeSourceDifficulty(xfer.xferInt(encodeSourceDifficulty(this.state.difficulty)));
+    this.state.isChallengeCampaign = xfer.xferBool(this.state.isChallengeCampaign);
+    this.state.challengeGameInfoState = xferChallengeGameInfoState(xfer, this.state.challengeGameInfoState);
+    this.state.playerTemplateNum = xfer.xferInt(this.state.playerTemplateNum);
+  }
+}
+function createEmptyTerrainLogicSaveState() {}`;
+      const fields = parseTsCampaignManagerXferFields(source);
+      expect(fields).toEqual([
+        'version',
+        'currentCampaign',
+        'currentMission',
+        'currentRankPoints',
+        'difficulty',
+        'isChallengeCampaign',
+        'challengeGameInfoSnapshot',
+        'playerTemplateNum',
+      ]);
+    });
+
+    it('parses C++ TerrainLogic xfer field order', () => {
+      const source = `
+void TerrainLogic::xfer( Xfer *xfer )
+{
+  xfer->xferVersion( &version, currentVersion );
+  xfer->xferInt( &activeBoundary );
+  xfer->xferInt( &m_numWaterToUpdate );
+  xfer->xferInt( &triggerID );
+  xfer->xferInt( &triggerID );
+  xfer->xferReal( &m_waterToUpdate[ i ].changePerFrame );
+  xfer->xferReal( &m_waterToUpdate[ i ].targetHeight );
+  xfer->xferReal( &m_waterToUpdate[ i ].damageAmount );
+  xfer->xferReal( &m_waterToUpdate[ i ].currentHeight );
+}  // end xfer`;
+      const fields = parseCppTerrainLogicXferFields(source);
+      expect(fields).toEqual([
+        'version',
+        'activeBoundary',
+        'waterUpdateCount',
+        'waterUpdate.triggerId',
+        'waterUpdate.changePerFrame',
+        'waterUpdate.targetHeight',
+        'waterUpdate.damageAmount',
+        'waterUpdate.currentHeight',
+      ]);
+    });
+
+    it('parses TS TerrainLogicSnapshot xfer field order', () => {
+      const source = `
+function xferSourceTerrainWaterUpdate(xfer: Xfer) {
+  return {
+    triggerId: xfer.xferInt(waterUpdate.triggerId),
+    changePerFrame: xfer.xferReal(waterUpdate.changePerFrame),
+    targetHeight: xfer.xferReal(waterUpdate.targetHeight),
+    damageAmount: xfer.xferReal(waterUpdate.damageAmount),
+    currentHeight: xfer.xferReal(waterUpdate.currentHeight),
+  };
+}
+class TerrainLogicSnapshot implements Snapshot {
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(2);
+    payload.activeBoundary = xfer.xferInt(payload.activeBoundary);
+    const waterUpdateCount = xfer.xferInt(payload.waterUpdates.length);
+    waterUpdates.push(xferSourceTerrainWaterUpdate(xfer, waterUpdate));
+  }
+}
+class TacticalViewSnapshot implements Snapshot {}`;
+      const fields = parseTsTerrainLogicXferFields(source);
+      expect(fields).toEqual([
+        'version',
+        'activeBoundary',
+        'waterUpdateCount',
+        'waterUpdate.triggerId',
+        'waterUpdate.changePerFrame',
+        'waterUpdate.targetHeight',
+        'waterUpdate.damageAmount',
+        'waterUpdate.currentHeight',
+      ]);
+    });
+
+    it('parses C++ tactical View xfer field order', () => {
+      const source = `
+void View::xfer( Xfer *xfer )
+{
+  xfer->xferVersion( &version, currentVersion );
+  xfer->xferReal( &angle );
+  xfer->xferReal( &viewPos.x );
+  xfer->xferReal( &viewPos.y );
+  xfer->xferReal( &viewPos.z );
+}  // end xfer`;
+      const fields = parseCppTacticalViewXferFields(source);
+      expect(fields).toEqual(['version', 'angle', 'position.x', 'position.y', 'position.z']);
+    });
+
+    it('parses TS TacticalViewSnapshot xfer field order', () => {
+      const source = `
+class TacticalViewSnapshot implements Snapshot {
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(1);
+    payload.angle = xfer.xferReal(payload.angle);
+    payload.position.x = xfer.xferReal(payload.position.x);
+    payload.position.y = xfer.xferReal(payload.position.y);
+    payload.position.z = xfer.xferReal(payload.position.z);
+  }
+}
+class InGameUiSnapshot implements Snapshot {}`;
+      const fields = parseTsTacticalViewXferFields(source);
+      expect(fields).toEqual(['version', 'angle', 'position.x', 'position.y', 'position.z']);
+    });
+
+    it('parses C++ InGameUI xfer field order', () => {
+      const source = `
+void InGameUI::xfer( Xfer *xfer )
+{
+  xfer->xferVersion( &version, currentVersion );
+  xfer->xferInt(&m_namedTimerLastFlashFrame);
+  xfer->xferBool(&m_namedTimerUsedFlashColor);
+  xfer->xferBool(&m_showNamedTimers);
+  xfer->xferInt( &timerCount );
+  xfer->xferAsciiString( &(timerIter->second->m_timerName) );
+  xfer->xferUnicodeString( &(timerIter->second->timerText) );
+  xfer->xferBool( &(timerIter->second->isCountdown) );
+  xfer->xferBool(&m_superweaponHiddenByScript);
+  xfer->xferInt(&playerIndex);
+  xfer->xferAsciiString(&templateName);
+  xfer->xferAsciiString(&powerName);
+  xfer->xferObjectID(&swInfo->m_id);
+  xfer->xferUnsignedInt(&swInfo->m_timestamp);
+  xfer->xferBool(&swInfo->m_hiddenByScript);
+  xfer->xferBool(&swInfo->m_hiddenByScience);
+  xfer->xferBool(&swInfo->m_ready);
+  xfer->xferBool( &swInfo->m_evaReadyPlayed );
+  xfer->xferInt(&noMorePlayers);
+}  // end xfer`;
+      const fields = parseCppInGameUiXferFields(source);
+      expect(fields).toEqual([
+        'version',
+        'namedTimerLastFlashFrame',
+        'namedTimerUsedFlashColor',
+        'showNamedTimers',
+        'namedTimerCount',
+        'namedTimer.name',
+        'namedTimer.text',
+        'namedTimer.isCountdown',
+        'superweaponHiddenByScript',
+        'superweapon.playerIndex',
+        'superweapon.templateName',
+        'superweapon.powerName',
+        'superweapon.objectId',
+        'superweapon.timestamp',
+        'superweapon.hiddenByScript',
+        'superweapon.hiddenByScience',
+        'superweapon.ready',
+        'superweapon.evaReadyPlayed',
+        'superweaponSentinel',
+      ]);
+    });
+
+    it('parses TS InGameUiSnapshot xfer field order', () => {
+      const source = `
+class InGameUiSnapshot implements Snapshot {
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(3);
+    payload.namedTimerLastFlashFrame = xfer.xferInt(payload.namedTimerLastFlashFrame);
+    payload.namedTimerUsedFlashColor = xfer.xferBool(payload.namedTimerUsedFlashColor);
+    payload.showNamedTimers = xfer.xferBool(payload.showNamedTimers);
+    xfer.xferInt(namedTimers.length);
+    xfer.xferAsciiString(timer.timerName);
+    xfer.xferUnicodeString(timer.timerText);
+    xfer.xferBool(timer.isCountdown);
+    payload.superweaponHiddenByScript = xfer.xferBool(payload.superweaponHiddenByScript);
+    xfer.xferInt(superweapon.playerIndex);
+    xfer.xferAsciiString(superweapon.templateName);
+    xfer.xferAsciiString(superweapon.powerName);
+    xfer.xferObjectID(superweapon.objectId);
+    xfer.xferUnsignedInt(Math.max(0, superweapon.timestamp >>> 0));
+    xfer.xferBool(superweapon.hiddenByScript);
+    xfer.xferBool(superweapon.hiddenByScience);
+    xfer.xferBool(superweapon.ready);
+    xfer.xferBool(superweapon.evaReadyPlayed);
+    xfer.xferInt(-1);
+  }
+}
+class LegacyGameLogicSnapshot implements Snapshot {}`;
+      const fields = parseTsInGameUiXferFields(source);
+      expect(fields).toEqual([
+        'version',
+        'namedTimerLastFlashFrame',
+        'namedTimerUsedFlashColor',
+        'showNamedTimers',
+        'namedTimerCount',
+        'namedTimer.name',
+        'namedTimer.text',
+        'namedTimer.isCountdown',
+        'superweaponHiddenByScript',
+        'superweapon.playerIndex',
+        'superweapon.templateName',
+        'superweapon.powerName',
+        'superweapon.objectId',
+        'superweapon.timestamp',
+        'superweapon.hiddenByScript',
+        'superweapon.hiddenByScience',
+        'superweapon.ready',
+        'superweapon.evaReadyPlayed',
+        'superweaponSentinel',
+      ]);
+    });
+
     it('parses TS damage type names', () => {
       const source = `
 const SOURCE_DAMAGE_TYPE_NAMES: readonly string[] = [
@@ -463,6 +717,42 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(result.status).toBe('mismatch');
       expect(result.mismatches).toHaveLength(2);
     });
+
+    it('detects CampaignManager ABI reorderings', () => {
+      const result = compareCampaignManagerFields(
+        ['version', 'currentCampaign', 'currentMission'],
+        ['version', 'currentMission', 'currentCampaign'],
+      );
+      expect(result.status).toBe('mismatch');
+      expect(result.mismatches).toHaveLength(2);
+    });
+
+    it('detects TerrainLogic ABI reorderings', () => {
+      const result = compareTerrainLogicFields(
+        ['version', 'activeBoundary', 'waterUpdateCount'],
+        ['version', 'waterUpdateCount', 'activeBoundary'],
+      );
+      expect(result.status).toBe('mismatch');
+      expect(result.mismatches).toHaveLength(2);
+    });
+
+    it('detects TacticalView ABI reorderings', () => {
+      const result = compareTacticalViewFields(
+        ['version', 'angle', 'position.x'],
+        ['version', 'position.x', 'angle'],
+      );
+      expect(result.status).toBe('mismatch');
+      expect(result.mismatches).toHaveLength(2);
+    });
+
+    it('detects InGameUI ABI reorderings', () => {
+      const result = compareInGameUiFields(
+        ['version', 'namedTimerCount', 'superweaponSentinel'],
+        ['version', 'superweaponSentinel', 'namedTimerCount'],
+      );
+      expect(result.status).toBe('mismatch');
+      expect(result.mismatches).toHaveLength(2);
+    });
   });
 
   describe('live source comparison', () => {
@@ -533,6 +823,22 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       const skirmishInfoCategory = report.categories.find((c) => c.category === 'save-skirmish-game-info-fields');
       expect(skirmishInfoCategory).toBeDefined();
       expect(skirmishInfoCategory!.status).toBe('match');
+
+      const campaignCategory = report.categories.find((c) => c.category === 'save-campaign-manager-fields');
+      expect(campaignCategory).toBeDefined();
+      expect(campaignCategory!.status).toBe('match');
+
+      const terrainLogicCategory = report.categories.find((c) => c.category === 'save-terrain-logic-fields');
+      expect(terrainLogicCategory).toBeDefined();
+      expect(terrainLogicCategory!.status).toBe('match');
+
+      const tacticalViewCategory = report.categories.find((c) => c.category === 'save-tactical-view-fields');
+      expect(tacticalViewCategory).toBeDefined();
+      expect(tacticalViewCategory!.status).toBe('match');
+
+      const inGameUiCategory = report.categories.find((c) => c.category === 'save-in-game-ui-fields');
+      expect(inGameUiCategory).toBeDefined();
+      expect(inGameUiCategory!.status).toBe('match');
     });
   });
 });
