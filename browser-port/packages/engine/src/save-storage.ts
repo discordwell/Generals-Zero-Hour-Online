@@ -22,6 +22,8 @@ const DEFAULT_DB_NAME = 'generals-saves';
 const DB_VERSION = 1;
 const STORE_FILES = 'save-files';
 const STORE_METADATA = 'save-metadata';
+const SOURCE_MAX_SAVE_FILE_NUMBER = 99999999;
+const SOURCE_SAVE_SLOT_ID_PATTERN = /^\d{8}$/;
 
 function openDatabase(dbName: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -60,6 +62,29 @@ function txGetAllKeys(db: IDBDatabase, storeName: string): Promise<string[]> {
   });
 }
 
+function normalizeSaveSlotId(slotId: string): string {
+  const trimmed = slotId.trim();
+  const leaf = trimmed.split(/[\\/]/).pop() ?? trimmed;
+  return leaf.replace(/\.(?:sav|save)$/i, '');
+}
+
+function requireSaveSlotId(slotId: string): string {
+  const normalized = normalizeSaveSlotId(slotId);
+  if (!normalized) {
+    throw new Error('Save slot ID must not be empty.');
+  }
+  return normalized;
+}
+
+function formatSourceSaveSlotId(fileNumber: number): string {
+  return String(fileNumber).padStart(8, '0');
+}
+
+function formatSaveDownloadName(slotId: string): string {
+  const normalized = requireSaveSlotId(slotId);
+  return `${normalized}.sav`;
+}
+
 export class SaveStorage {
   private dbPromise: Promise<IDBDatabase> | null = null;
   private readonly dbName: string;
@@ -76,22 +101,24 @@ export class SaveStorage {
   }
 
   async saveToDB(slotId: string, data: ArrayBuffer, metadata: Omit<SaveMetadata, 'slotId'>): Promise<void> {
+    const normalizedSlotId = requireSaveSlotId(slotId);
     const db = await this.getDb();
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction([STORE_FILES, STORE_METADATA], 'readwrite');
-      tx.objectStore(STORE_FILES).put(data, slotId);
-      tx.objectStore(STORE_METADATA).put({ slotId, ...metadata }, slotId);
+      tx.objectStore(STORE_FILES).put(data, normalizedSlotId);
+      tx.objectStore(STORE_METADATA).put({ slotId: normalizedSlotId, ...metadata }, normalizedSlotId);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
   }
 
   async loadFromDB(slotId: string): Promise<{ data: ArrayBuffer; metadata: SaveMetadata } | null> {
+    const normalizedSlotId = requireSaveSlotId(slotId);
     const db = await this.getDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction([STORE_FILES, STORE_METADATA], 'readonly');
-      const fileReq = tx.objectStore(STORE_FILES).get(slotId);
-      const metaReq = tx.objectStore(STORE_METADATA).get(slotId);
+      const fileReq = tx.objectStore(STORE_FILES).get(normalizedSlotId);
+      const metaReq = tx.objectStore(STORE_METADATA).get(normalizedSlotId);
       tx.oncomplete = () => {
         const data = fileReq.result as ArrayBuffer | undefined;
         const metadata = metaReq.result as SaveMetadata | undefined;
@@ -114,14 +141,42 @@ export class SaveStorage {
   }
 
   async deleteSave(slotId: string): Promise<void> {
+    const normalizedSlotId = requireSaveSlotId(slotId);
     const db = await this.getDb();
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction([STORE_FILES, STORE_METADATA], 'readwrite');
-      tx.objectStore(STORE_FILES).delete(slotId);
-      tx.objectStore(STORE_METADATA).delete(slotId);
+      tx.objectStore(STORE_FILES).delete(normalizedSlotId);
+      tx.objectStore(STORE_METADATA).delete(normalizedSlotId);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
+  }
+
+  /**
+   * Source parity: GameState::findNextSaveFilename() searches 00000000.sav upward
+   * and returns the lowest missing filename. Browser slot IDs omit the .sav suffix.
+   */
+  async findNextSourceSaveSlotId(): Promise<string> {
+    const db = await this.getDb();
+    const usedSourceSlotIds = new Set<string>();
+    for (const storeName of [STORE_FILES, STORE_METADATA]) {
+      const keys = await txGetAllKeys(db, storeName);
+      for (const key of keys) {
+        const normalized = normalizeSaveSlotId(String(key));
+        if (SOURCE_SAVE_SLOT_ID_PATTERN.test(normalized)) {
+          usedSourceSlotIds.add(normalized);
+        }
+      }
+    }
+
+    for (let i = 0; i <= SOURCE_MAX_SAVE_FILE_NUMBER; i++) {
+      const slotId = formatSourceSaveSlotId(i);
+      if (!usedSourceSlotIds.has(slotId)) {
+        return slotId;
+      }
+    }
+
+    throw new Error('Unable to find an available source-compatible save slot.');
   }
 
   /**
@@ -135,7 +190,7 @@ export class SaveStorage {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `${slotId}.sav`;
+    anchor.download = formatSaveDownloadName(slotId);
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -145,7 +200,7 @@ export class SaveStorage {
    */
   async uploadSaveFile(file: File): Promise<string> {
     const data = await file.arrayBuffer();
-    const slotId = file.name.replace(/\.(?:sav|save)$/i, '');
+    const slotId = requireSaveSlotId(file.name);
     let info: ReturnType<typeof parseSaveGameInfo>;
     try {
       info = parseSaveGameInfo(data);

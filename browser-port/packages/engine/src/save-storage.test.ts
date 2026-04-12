@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 
 import { SaveStorage } from './save-storage.js';
@@ -67,6 +67,10 @@ describe('SaveStorage', () => {
   beforeEach(() => {
     testCounter++;
     storage = new SaveStorage(`generals-saves-test-${testCounter}`);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   function makeTestData(content: string): ArrayBuffer {
@@ -161,6 +165,51 @@ describe('SaveStorage', () => {
     expect(saves.filter((s) => s.slotId === 'slot1')).toHaveLength(1);
   });
 
+  it('normalizes source save filenames at the storage boundary', async () => {
+    const data = makeTestData('source filename');
+    await storage.saveToDB('00000044.sav', data, {
+      description: 'Source filename',
+      mapName: '',
+      timestamp: 1000,
+      sizeBytes: data.byteLength,
+    });
+
+    const loadedBySlot = await storage.loadFromDB('00000044');
+    const loadedByFilename = await storage.loadFromDB('Save\\00000044.sav');
+    const saves = await storage.listSaves();
+
+    expect(loadedBySlot).not.toBeNull();
+    expect(loadedByFilename).not.toBeNull();
+    expect(saves).toHaveLength(1);
+    expect(saves[0]!.slotId).toBe('00000044');
+
+    await storage.deleteSave('00000044.sav');
+    expect(await storage.loadFromDB('00000044')).toBeNull();
+  });
+
+  it('finds the lowest source-compatible numeric save slot', async () => {
+    await storage.saveToDB('00000000.sav', makeTestData('zero'), {
+      description: 'Zero',
+      mapName: '',
+      timestamp: 1000,
+      sizeBytes: 4,
+    });
+    await storage.saveToDB('00000002', makeTestData('two'), {
+      description: 'Two',
+      mapName: '',
+      timestamp: 1000,
+      sizeBytes: 3,
+    });
+    await storage.saveToDB('manual-save', makeTestData('manual'), {
+      description: 'Manual',
+      mapName: '',
+      timestamp: 1000,
+      sizeBytes: 6,
+    });
+
+    await expect(storage.findNextSourceSaveSlotId()).resolves.toBe('00000001');
+  });
+
   it('preserves binary data integrity', async () => {
     const data = new Uint8Array([0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0xFF]);
     await storage.saveToDB('binary', data.buffer as ArrayBuffer, {
@@ -198,6 +247,35 @@ describe('SaveStorage', () => {
     const slotId = await storage.uploadSaveFile(file);
 
     expect(slotId).toBe('00000043');
+  });
+
+  it('downloads save files with a single .sav extension', async () => {
+    const data = makeTestData('download');
+    await storage.saveToDB('00000045.sav', data, {
+      description: 'Download',
+      mapName: '',
+      timestamp: 1000,
+      sizeBytes: data.byteLength,
+    });
+
+    const anchor = {
+      href: '',
+      download: '',
+      click: vi.fn(),
+    };
+    vi.stubGlobal('document', {
+      createElement: vi.fn(() => anchor),
+    });
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:save'),
+      revokeObjectURL: vi.fn(),
+    });
+
+    await storage.downloadSaveFile('00000045.sav');
+
+    expect(anchor.download).toBe('00000045.sav');
+    expect(anchor.click).toHaveBeenCalledOnce();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:save');
   });
 
   it('rejects non-Generals save files on import', async () => {

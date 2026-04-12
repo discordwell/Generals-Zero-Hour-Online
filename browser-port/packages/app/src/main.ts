@@ -5256,7 +5256,8 @@ async function startGame(
     delete (globalThis as Record<string, unknown>)['__GENERALS_E2E__'];
   };
 
-  const saveCurrentGame = async (slotId: string, description: string): Promise<void> => {
+  const saveCurrentGame = async (slotId: string, description: string): Promise<string> => {
+    const resolvedSlotId = slotId.trim() || await ctx.saveStorage.findNextSourceSaveSlotId();
     const embeddedMapBytes = await resolveRuntimeSaveEmbeddedMapBytes(ctx.assets, activeMapPath, mapData);
     const activeCampaign = campaignContext?.campaignManager.getCurrentCampaign()
       ?? campaignContext?.settings.campaign
@@ -5333,7 +5334,8 @@ async function startGame(
         : null,
       sourceDifficulty: campaignContext?.settings.difficulty ?? null,
     });
-    await ctx.saveStorage.saveToDB(slotId, saveFile.data, saveFile.metadata);
+    await ctx.saveStorage.saveToDB(resolvedSlotId, saveFile.data, saveFile.metadata);
+    return resolvedSlotId.replace(/\.(?:sav|save)$/i, '');
   };
 
   const loadSavedGameData = async (data: ArrayBuffer): Promise<void> => {
@@ -5453,9 +5455,10 @@ async function startGame(
         },
       );
     },
-    saveGame: (slotId: string, description: string) => saveCurrentGame(slotId, description),
+    saveGame: (slotId?: string, description = 'Quick Save') => saveCurrentGame(slotId ?? '', description),
     loadGameFromSlot: (slotId: string) => loadSavedGameSlot(slotId),
     listSaves: () => ctx.saveStorage.listSaves(),
+    findNextSaveSlotId: () => ctx.saveStorage.findNextSourceSaveSlotId(),
     debugSpawnParticleSystem: (templateName: string, position: { x: number; y: number; z: number }) =>
       particleSystemManager.createSystem(
         templateName,

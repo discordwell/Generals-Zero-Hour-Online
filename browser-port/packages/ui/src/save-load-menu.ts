@@ -18,6 +18,7 @@ export interface SaveLoadMenuCallbacks {
   onUpload(file: File): Promise<void>;
   onClose(): void;
   listSaves(): Promise<SaveMetadata[]>;
+  findNextSaveSlotId?(): Promise<string>;
 }
 
 export class SaveLoadMenu {
@@ -258,9 +259,16 @@ export class SaveLoadMenu {
 
   private async handleSave(): Promise<void> {
     const description = this.descriptionInput?.value || 'Quick Save';
-    const slotId = this.selectedSlotId || `save-${Date.now()}`;
+    const slotId = this.selectedSlotId ?? await this.findNextSaveSlotId();
     await this.callbacks.onSave(slotId, description);
     await this.refreshSlotList();
+  }
+
+  private async findNextSaveSlotId(): Promise<string> {
+    if (this.callbacks.findNextSaveSlotId) {
+      return this.callbacks.findNextSaveSlotId();
+    }
+    return '';
   }
 
   private async handleLoad(): Promise<void> {
