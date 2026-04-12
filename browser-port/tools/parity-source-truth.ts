@@ -819,6 +819,26 @@ export function parseTsBitFlagsXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppWeaponXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Weapon::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppWeaponSaveField);
+}
+
+export function parseTsWeaponXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceWeaponState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|xfer\.xferAsciiString\s*\(\s*current\.templateName\s*\)|xfer\.xferInt\s*\(\s*current\.(?:slot|status|maxShotCount|currentBarrel|numShotsForCurrentBarrel)\s*\)|xfer\.xferUnsignedInt\s*\(\s*current\.(?:ammoInClip|whenWeCanFireAgain|whenPreAttackFinished|whenLastReloadStarted|lastFireFrame|suspendFXFrame)\s*\)|xfer\.xferObjectID\s*\(\s*current\.projectileStreamObjectId\s*\)|xfer\.xferObjectID\s*\(\s*0\s*\)|xfer\.xferUnsignedShort\s*\(|xfer\.xferInt\s*\(\s*xfer\.getMode\(\)\s*===\s*XferMode\.XFER_LOAD\s*\?\s*0\s*:\s*scatterTargetsInput\[index\]!\s*,?\s*\)|xfer\.xferBool\s*\(\s*current\.(?:pitchLimited|leechWeaponRangeActive)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsWeaponSaveField(match[0]!));
+  }
+  return fields;
+}
+
 export function parseCppWeaponSetXferFields(source: string): string[] {
   const body = extractFunctionBody(source, 'void WeaponSet::xfer');
   if (!body) return [];
@@ -2760,6 +2780,52 @@ function mapTsBitFlagsField(token: string): string | null {
   return null;
 }
 
+function mapCppWeaponSaveField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferAsciiString' && argument === 'tmplName') return 'templateName';
+  if (method === 'xferUser' && argument.startsWith('m_wslot')) return 'slot';
+  if (method === 'xferUser' && argument.startsWith('m_status')) return 'status';
+  if (method === 'xferUnsignedInt' && argument === 'm_ammoInClip') return 'ammoInClip';
+  if (method === 'xferUnsignedInt' && argument === 'm_whenWeCanFireAgain') return 'whenWeCanFireAgain';
+  if (method === 'xferUnsignedInt' && argument === 'm_whenPreAttackFinished') return 'whenPreAttackFinished';
+  if (method === 'xferUnsignedInt' && argument === 'm_whenLastReloadStarted') return 'whenLastReloadStarted';
+  if (method === 'xferUnsignedInt' && argument === 'm_lastFireFrame') return 'lastFireFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_suspendFXFrame') return 'suspendFXFrame';
+  if (method === 'xferObjectID' && argument === 'm_projectileStreamID') return 'projectileStreamObjectId';
+  if (method === 'xferObjectID' && argument === 'laserIDUnused') return 'laserObjectIdUnused';
+  if (method === 'xferInt' && argument === 'm_maxShotCount') return 'maxShotCount';
+  if (method === 'xferInt' && argument === 'm_curBarrel') return 'currentBarrel';
+  if (method === 'xferInt' && argument === 'm_numShotsForCurBarrel') return 'numShotsForCurrentBarrel';
+  if (method === 'xferUnsignedShort' && argument === 'scatterCount') return 'scatterTargetsUnused.count';
+  if (method === 'xferInt' && argument === 'intData') return 'scatterTargetsUnused.entry';
+  if (method === 'xferBool' && argument === 'm_pitchLimited') return 'pitchLimited';
+  if (method === 'xferBool' && argument === 'm_leechWeaponRangeActive') return 'leechWeaponRangeActive';
+  return null;
+}
+
+function mapTsWeaponSaveField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('current.templateName')) return 'templateName';
+  if (token.includes('current.slot')) return 'slot';
+  if (token.includes('current.status')) return 'status';
+  if (token.includes('current.ammoInClip')) return 'ammoInClip';
+  if (token.includes('current.whenWeCanFireAgain')) return 'whenWeCanFireAgain';
+  if (token.includes('current.whenPreAttackFinished')) return 'whenPreAttackFinished';
+  if (token.includes('current.whenLastReloadStarted')) return 'whenLastReloadStarted';
+  if (token.includes('current.lastFireFrame')) return 'lastFireFrame';
+  if (token.includes('current.suspendFXFrame')) return 'suspendFXFrame';
+  if (token.includes('current.projectileStreamObjectId')) return 'projectileStreamObjectId';
+  if (/xferObjectID\s*\(\s*0\s*\)/.test(token)) return 'laserObjectIdUnused';
+  if (token.includes('current.maxShotCount')) return 'maxShotCount';
+  if (token.includes('current.currentBarrel')) return 'currentBarrel';
+  if (token.includes('current.numShotsForCurrentBarrel')) return 'numShotsForCurrentBarrel';
+  if (token.includes('xferUnsignedShort')) return 'scatterTargetsUnused.count';
+  if (token.includes('scatterTargetsInput[index]')) return 'scatterTargetsUnused.entry';
+  if (token.includes('current.pitchLimited')) return 'pitchLimited';
+  if (token.includes('current.leechWeaponRangeActive')) return 'leechWeaponRangeActive';
+  return null;
+}
+
 function mapCppWeaponSetField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferAsciiString' && argument === 'ttName') return 'templateName';
@@ -4060,6 +4126,10 @@ export function compareBitFlagsFields(cppFields: string[], tsFields: string[]): 
   return compareOrderedStrings('save-bit-flags-fields', cppFields, tsFields);
 }
 
+export function compareWeaponSaveFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-weapon-fields', cppFields, tsFields);
+}
+
 export function compareWeaponSetFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-weapon-set-fields', cppFields, tsFields);
 }
@@ -4720,6 +4790,13 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsBitFlagsFields = parseTsBitFlagsXferFields(tsEntityXfer);
   if (cppBitFlagsFields.length > 0 && tsBitFlagsFields.length > 0) {
     categories.push(compareBitFlagsFields(cppBitFlagsFields, tsBitFlagsFields));
+  }
+
+  const weaponSource = zhWeaponCpp || genWeaponCpp;
+  const cppWeaponSaveFields = parseCppWeaponXferFields(weaponSource);
+  const tsWeaponSaveFields = parseTsWeaponXferFields(tsEntityXfer);
+  if (cppWeaponSaveFields.length > 0 && tsWeaponSaveFields.length > 0) {
+    categories.push(compareWeaponSaveFields(cppWeaponSaveFields, tsWeaponSaveFields));
   }
 
   const weaponSetSource = zhWeaponSetCpp || genWeaponSetCpp;

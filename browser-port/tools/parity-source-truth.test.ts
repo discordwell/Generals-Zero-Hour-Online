@@ -1234,6 +1234,10 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(bitFlagsCategory).toBeDefined();
       expect(bitFlagsCategory!.status).toBe('match');
 
+      const weaponCategory = report.categories.find((c) => c.category === 'save-weapon-fields');
+      expect(weaponCategory).toBeDefined();
+      expect(weaponCategory!.status).toBe('match');
+
       const weaponSetCategory = report.categories.find((c) => c.category === 'save-weapon-set-fields');
       expect(weaponSetCategory).toBeDefined();
       expect(weaponSetCategory!.status).toBe('match');
