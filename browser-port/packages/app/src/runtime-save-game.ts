@@ -10010,6 +10010,7 @@ function sourceDeployStyleStateToInt(state: unknown, fallback: number): number {
 }
 
 const SOURCE_AI_STATE_IDLE = 0;
+const SOURCE_AI_STATE_MOVE_TO = 1;
 const SOURCE_AI_STATE_ATTACK_POSITION = 9;
 const SOURCE_AI_STATE_ATTACK_OBJECT = 10;
 const SOURCE_HACK_INTERNET_STATE_UNPACKING = 1000;
@@ -10167,6 +10168,15 @@ function sourceAttackGoalPosition(entity: MapEntity): Coord3D {
   );
 }
 
+function sourceMoveGoalPosition(entity: MapEntity): Coord3D {
+  const pathIndex = Number.isFinite(entity.pathIndex) ? Math.max(0, Math.trunc(entity.pathIndex)) : 0;
+  const remainingPath = Array.isArray(entity.movePath)
+    ? entity.movePath.slice(pathIndex).filter(Boolean)
+    : [];
+  const finalPathPoint = remainingPath.length > 0 ? remainingPath[remainingPath.length - 1] : null;
+  return sourceCoord3DFromRuntimeXZ(finalPathPoint ?? entity.moveTarget ?? null);
+}
+
 function sourceAttackMachineStateId(entity: MapEntity): number | null {
   switch (entity.attackSubState) {
     case 'APPROACHING':
@@ -10236,6 +10246,28 @@ function buildGeneratedSourceAIAttackApproachTargetStateBlockData(
   }
 }
 
+function buildGeneratedSourceAIInternalMoveToStateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const goalPosition = sourceMoveGoalPosition(entity);
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-internal-move-to-state');
+  try {
+    saver.xferVersion(1);
+    saver.xferCoord3D(goalPosition);
+    saver.xferUser(buildSourceRawInt32Bytes(SOURCE_PATHFIND_LAYER_INVALID));
+    saver.xferBool(false);
+    saver.xferCoord3D(entity.moveTarget ? sourceCoord3DFromRuntimeXZ(entity.moveTarget) : goalPosition);
+    saver.xferUnsignedInt(sourceAIUnsignedFrame(currentFrame, 0));
+    saver.xferUnsignedInt(0);
+    saver.xferBool(true);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildGeneratedSourceAttackStateMachineBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -10294,6 +10326,14 @@ function isGeneratedSourceAttackAIStateMachine(entity: MapEntity): boolean {
     && sourceAttackMachineStateId(entity) !== null;
 }
 
+function isGeneratedSourceMoveAIStateMachine(entity: MapEntity): boolean {
+  return entity.moving === true
+    && entity.moveTarget !== null
+    && entity.attackTargetEntityId === null
+    && entity.attackTargetPosition === null
+    && ((entity as { guardState?: unknown }).guardState ?? 'NONE') === 'NONE';
+}
+
 function buildGeneratedSourceAIStateMachineBlockData(entity: MapEntity, currentFrame = 0): Uint8Array {
   if (isGeneratedSourceAttackAIStateMachine(entity)) {
     const isAttackingObject = entity.attackTargetEntityId !== null;
@@ -10312,6 +10352,33 @@ function buildGeneratedSourceAIStateMachineBlockData(entity: MapEntity, currentF
       saver.xferBool(false);
       saver.xferUser(buildGeneratedSourceAIAttackStateBlockData(entity, currentFrame));
       saver.xferObjectID(isAttackingObject ? sourceAttackGoalObjectId(entity) : 0);
+      saver.xferCoord3D(goalPosition);
+      saver.xferBool(false);
+      saver.xferBool(true);
+      saver.xferInt(0);
+      saver.xferAsciiString('');
+      saver.xferBool(false);
+      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
+      saver.xferUnsignedInt(0);
+      return new Uint8Array(saver.getBuffer());
+    } finally {
+      saver.close();
+    }
+  }
+
+  if (isGeneratedSourceMoveAIStateMachine(entity)) {
+    const goalPosition = sourceMoveGoalPosition(entity);
+    const saver = new XferSave();
+    saver.open('build-generated-source-ai-state-machine-move-to');
+    try {
+      saver.xferVersion(1);
+      saver.xferVersion(1);
+      saver.xferUnsignedInt(0);
+      saver.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+      saver.xferUnsignedInt(SOURCE_AI_STATE_MOVE_TO);
+      saver.xferBool(false);
+      saver.xferUser(buildGeneratedSourceAIInternalMoveToStateBlockData(entity, currentFrame));
+      saver.xferObjectID(0);
       saver.xferCoord3D(goalPosition);
       saver.xferBool(false);
       saver.xferBool(true);
