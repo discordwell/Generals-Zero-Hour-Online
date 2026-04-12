@@ -1364,6 +1364,7 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-deploy-style-ai-update-fields',
         'save-assault-transport-ai-update-fields',
         'save-chinook-ai-update-fields',
+        'save-hack-internet-ai-update-fields',
         'save-dozer-ai-update-fields',
         'save-worker-ai-update-fields',
         'save-supply-truck-ai-update-fields',

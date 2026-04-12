@@ -3300,6 +3300,11 @@ export function parseTsSourceObjectUpdateFields(
         }
         continue;
       }
+      if (window.includes('pendingTail')) {
+        pushUniqueField(fields, seen, 'hasPendingCommand');
+        pushUniqueField(fields, seen, 'pendingCommand');
+        continue;
+      }
     }
     if (token.includes('xferSourceUpdateModuleBase')) {
       for (const field of sourceUpdateModuleBaseFields()) {
@@ -7528,6 +7533,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AIUpdate/ChinookAIUpdate.cpp',
     'AIUpdate/DeployStyleAIUpdate.cpp',
     'AIUpdate/DozerAIUpdate.cpp',
+    'AIUpdate/HackInternetAIUpdate.cpp',
     'AIUpdate/POWTruckAIUpdate.cpp',
     'AIUpdate/RailedTransportAIUpdate.cpp',
     'AIUpdate/SupplyTruckAIUpdate.cpp',
@@ -8604,6 +8610,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-chinook-ai-update-fields',
       cppClass: 'ChinookAIUpdate',
       tsHelper: 'buildGeneratedSourceChinookAIUpdateBlockData',
+    },
+    {
+      category: 'save-hack-internet-ai-update-fields',
+      cppClass: 'HackInternetAIUpdate',
+      tsHelper: 'buildGeneratedSourceHackInternetAIUpdateBlockData',
     },
     {
       category: 'save-dozer-ai-update-fields',
