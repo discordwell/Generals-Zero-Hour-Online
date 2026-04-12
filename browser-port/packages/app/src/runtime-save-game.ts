@@ -926,6 +926,8 @@ export interface RuntimeSaveBootstrap {
   embeddedMapBytes: ArrayBuffer;
   gameStateMapTrailingBytes: ArrayBuffer;
   mapPath: string | null;
+  sourceSaveGameMapPath: string;
+  sourcePristineMapPath: string;
   sourceGameMode: number;
   mapObjectIdCounter: number;
   mapDrawableIdCounter: number;
@@ -1980,6 +1982,60 @@ function createMetadataState(description: string, mapPath: string | null): Runti
     campaignSide: '',
     missionNumber: INVALID_MISSION_NUMBER,
   };
+}
+
+function normalizeRuntimeSaveSourceMapPath(path: string | null | undefined): string | null {
+  if (typeof path !== 'string') {
+    return null;
+  }
+  const trimmed = path.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function replaceSourceMapExtension(path: string): string {
+  return path.replace(/\.map$/i, '.json');
+}
+
+function resolveRuntimeSaveMapAssetPath(path: string | null | undefined): string | null {
+  const rawPath = normalizeRuntimeSaveSourceMapPath(path);
+  if (!rawPath) {
+    return null;
+  }
+  const normalized = rawPath
+    .replace(/\\/g, '/')
+    .replace(/^(?:\.\/)+/, '')
+    .replace(/^\/+/, '')
+    .replace(/\/\.\//g, '/')
+    .replace(/\/{2,}/g, '/');
+  if (!normalized) {
+    return null;
+  }
+  const lower = normalized.toLowerCase();
+  if (lower.endsWith('.json') || lower.startsWith('assets/')) {
+    return normalized;
+  }
+  if (lower.startsWith('mapszh/')) {
+    return `maps/_extracted/${replaceSourceMapExtension(normalized)}`;
+  }
+  if (lower.startsWith('maps/')) {
+    return `maps/_extracted/MapsZH/${replaceSourceMapExtension(normalized)}`;
+  }
+  if (lower.startsWith('save/')) {
+    return null;
+  }
+  return normalized;
+}
+
+function resolveRuntimeSaveMapAssetPathFromCandidates(
+  paths: readonly (string | null | undefined)[],
+): string | null {
+  for (const path of paths) {
+    const resolved = resolveRuntimeSaveMapAssetPath(path);
+    if (resolved !== null) {
+      return resolved;
+    }
+  }
+  return null;
 }
 
 function applyCampaignMetadata(
@@ -24643,7 +24699,6 @@ class ScriptEngineSnapshot implements Snapshot {
           frame: 0,
         };
       }
-      void loadedDifficulty;
       this.payload = {
         version: 1,
         state: restoredState,
@@ -26423,6 +26478,8 @@ export function buildRuntimeSaveFile(params: {
   >>);
   embeddedMapBytes?: Uint8Array | null;
   gameStateMapTrailingBytes?: Uint8Array | null;
+  sourceSaveGameMapPath?: string | null;
+  sourcePristineMapPath?: string | null;
   sourceMetadata?: Partial<Pick<
     ParsedSaveGameInfo,
     'saveFileType' | 'missionMapName' | 'date' | 'mapLabel' | 'campaignSide' | 'missionNumber'
@@ -26560,9 +26617,15 @@ export function buildRuntimeSaveFile(params: {
   };
   applyCampaignMetadata(metadataState, params.campaign ?? null);
   applySourceMetadataOverrides(metadataState, params.sourceMetadata);
+  const sourceSaveGameMapPath = normalizeRuntimeSaveSourceMapPath(params.sourceSaveGameMapPath)
+    ?? params.mapPath
+    ?? '';
+  const sourcePristineMapPath = normalizeRuntimeSaveSourceMapPath(params.sourcePristineMapPath)
+    ?? params.mapPath
+    ?? '';
   const mapState: RuntimeSaveMapState = {
-    saveGameMapPath: params.mapPath ?? '',
-    pristineMapPath: params.mapPath ?? '',
+    saveGameMapPath: sourceSaveGameMapPath,
+    pristineMapPath: sourcePristineMapPath,
     gameMode: params.sourceGameMode ?? SOURCE_GAME_MODE_SINGLE_PLAYER,
     embeddedMapBytes,
     objectIdCounter,
@@ -26843,15 +26906,11 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     ? null
     : coerceBrowserRuntimeCameraSaveState(payload.cameraState);
 
-  const resolvedMapPath = (
-    mapInfo.pristineMapPath
-    || mapInfo.saveGameMapPath
-    || (
-      typeof payload?.mapPath === 'string' && payload.mapPath.length > 0
-        ? payload.mapPath
-        : null
-      )
-  );
+  const resolvedMapPath = resolveRuntimeSaveMapAssetPathFromCandidates([
+    mapInfo.pristineMapPath,
+    mapInfo.saveGameMapPath,
+    typeof payload?.mapPath === 'string' ? payload.mapPath : null,
+  ]);
   const mapData = tryDecodeJsonBytes<MapDataJSON>(mapInfo.embeddedMapData);
   const teamFactoryChunk = extractSaveChunkData(data, SOURCE_TEAM_FACTORY_BLOCK);
   const legacyTeamFactoryState = teamFactoryChunk
@@ -26967,6 +27026,8 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     embeddedMapBytes: mapInfo.embeddedMapData,
     gameStateMapTrailingBytes: mapInfo.trailingBytes,
     mapPath: resolvedMapPath,
+    sourceSaveGameMapPath: mapInfo.saveGameMapPath,
+    sourcePristineMapPath: mapInfo.pristineMapPath,
     sourceGameMode: mapInfo.gameMode,
     mapObjectIdCounter: mapInfo.objectIdCounter,
     mapDrawableIdCounter: mapInfo.drawableIdCounter,

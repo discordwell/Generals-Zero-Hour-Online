@@ -11297,6 +11297,8 @@ describe('runtime-save-game', () => {
       },
       embeddedMapBytes,
       gameStateMapTrailingBytes,
+      sourceSaveGameMapPath: 'Save\\MD_USA01.map',
+      sourcePristineMapPath: 'Maps\\MD_USA01\\MD_USA01.map',
       sourceMetadata: {
         saveFileType: SaveFileType.SAVE_FILE_TYPE_MISSION,
         missionMapName: 'Maps\\MD_USA01\\MD_USA01.map',
@@ -11322,7 +11324,11 @@ describe('runtime-save-game', () => {
     const mapInfo = parseSaveGameMapInfo(saveFile.data);
 
     expect(parsed.mapPath).toBe('maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json');
+    expect(parsed.sourceSaveGameMapPath).toBe('Save\\MD_USA01.map');
+    expect(parsed.sourcePristineMapPath).toBe('Maps\\MD_USA01\\MD_USA01.map');
     expect(parsed.sourceGameMode).toBe(SOURCE_GAME_MODE_SKIRMISH);
+    expect(mapInfo.saveGameMapPath).toBe('Save\\MD_USA01.map');
+    expect(mapInfo.pristineMapPath).toBe('Maps\\MD_USA01\\MD_USA01.map');
     expect(mapInfo.gameMode).toBe(SOURCE_GAME_MODE_SKIRMISH);
     expect(parsed.mapData).toBeNull();
     expect(Array.from(new Uint8Array(parsed.embeddedMapBytes))).toEqual(Array.from(embeddedMapBytes));

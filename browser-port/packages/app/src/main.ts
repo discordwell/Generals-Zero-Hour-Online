@@ -5283,6 +5283,11 @@ async function startGame(
       currentMusicTrackName: musicManager.getCurrentTrackName(),
       gameLogic,
       embeddedMapBytes,
+      sourceSaveGameMapPath: runtimeSaveLoadContext?.runtimeSave.sourceSaveGameMapPath ?? null,
+      sourcePristineMapPath:
+        runtimeSaveLoadContext?.runtimeSave.sourcePristineMapPath
+        ?? activeMission?.mapName
+        ?? null,
       sourceGameMode: skirmishSettings ? SOURCE_GAME_MODE_SKIRMISH : SOURCE_GAME_MODE_SINGLE_PLAYER,
       gameClientBriefingLines: scriptMessageRuntimeBridge.getBriefingHistory(),
       passthroughBlocks: runtimeSaveLoadContext?.runtimeSave.passthroughBlocks ?? [],

@@ -300,10 +300,12 @@ describe('save core chunk report', () => {
   it('round-trips parsed source saves with non-JSON embedded map payloads', () => {
     const saveFile = buildRuntimeSaveFile({
       description: 'Retail Map Payload Fixture',
-      mapPath: 'Save\\MD_USA01.map',
+      mapPath: 'maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json',
       mapData: null,
       embeddedMapBytes: new Uint8Array([0xde, 0xad, 0xbe, 0xef]),
       gameStateMapTrailingBytes: new Uint8Array([0xaa, 0xbb, 0xcc]),
+      sourceSaveGameMapPath: 'Save\\MD_USA01.map',
+      sourcePristineMapPath: 'Maps\\MD_USA01\\MD_USA01.map',
       sourceMetadata: {
         saveFileType: SaveFileType.SAVE_FILE_TYPE_MISSION,
         missionMapName: 'Maps\\MD_USA01\\MD_USA01.map',

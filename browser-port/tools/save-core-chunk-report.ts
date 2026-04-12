@@ -244,6 +244,8 @@ function buildRoundTripSaveData(data: ArrayBuffer): ArrayBuffer | null {
     mapData: parsed.mapData,
     embeddedMapBytes: new Uint8Array(parsed.embeddedMapBytes),
     gameStateMapTrailingBytes: new Uint8Array(parsed.gameStateMapTrailingBytes),
+    sourceSaveGameMapPath: parsed.sourceSaveGameMapPath,
+    sourcePristineMapPath: parsed.sourcePristineMapPath,
     sourceMetadata: parsed.metadata,
     sourceGameMode: parsed.sourceGameMode,
     cameraState: parsed.cameraState,
