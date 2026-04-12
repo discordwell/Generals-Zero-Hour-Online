@@ -2246,7 +2246,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
         delayCounter,
         crateGoalPosition,
       };
-    } else if ([23, 24, 25, 26, 27, 39, 40].includes(currentStateId)) {
+    } else if ([6, 7, 23, 24, 25, 26, 27, 39, 40].includes(currentStateId)) {
       const simpleMoveVersion = currentStateId === 23 ? undefined : xferLoad.xferVersion(1);
       const moveToVersion = xferLoad.xferVersion(1);
       const moveGoalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
@@ -2258,11 +2258,18 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
       const adjustDestinations = xferLoad.xferBool(false);
       let okToRepathTimes: number | undefined;
       let checkForPath: boolean | undefined;
+      let simplePathIndex: number | undefined;
+      let adjustFinal: boolean | undefined;
+      let adjustFinalOverride: boolean | undefined;
       let origin: Record<string, unknown> | undefined;
       let appendGoalPosition: boolean | undefined;
       let waitFrames: number | undefined;
       let timer: number | undefined;
-      if (currentStateId === 24 || currentStateId === 39) {
+      if (currentStateId === 6 || currentStateId === 7) {
+        simplePathIndex = xferLoad.xferInt(0);
+        adjustFinal = xferLoad.xferBool(false);
+        adjustFinalOverride = xferLoad.xferBool(false);
+      } else if (currentStateId === 24 || currentStateId === 39) {
         okToRepathTimes = xferLoad.xferInt(0);
         checkForPath = xferLoad.xferBool(false);
       } else if (currentStateId === 25 || currentStateId === 26) {
@@ -2285,6 +2292,9 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
         pathTimestamp,
         blockedRepathTimestamp,
         adjustDestinations,
+        simplePathIndex,
+        adjustFinal,
+        adjustFinalOverride,
         okToRepathTimes,
         checkForPath,
         origin,

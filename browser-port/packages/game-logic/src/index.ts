@@ -3466,6 +3466,9 @@ interface SourceAISimpleMoveStateMachineState {
   goalObjectId: number;
   goalPosition: { x: number; y: number; z: number };
   moveState: SourceAIInternalMoveToStateSnapshot;
+  pathIndex: number | null;
+  adjustFinal: boolean | null;
+  adjustFinalOverride: boolean | null;
   okToRepathTimes: number | null;
   checkForPath: boolean | null;
   origin: { x: number; y: number; z: number } | null;
@@ -9558,6 +9561,9 @@ interface SourceAIPickUpCrateStateImportState {
 
 interface SourceAISimpleMoveStateImportState {
   moveState: SourceAIInternalMoveToStateImportState;
+  pathIndex: number | null;
+  adjustFinal: boolean | null;
+  adjustFinalOverride: boolean | null;
   okToRepathTimes: number | null;
   checkForPath: boolean | null;
   origin: { x: number; y: number; z: number } | null;
@@ -10452,6 +10458,8 @@ const SOURCE_GARRISON_POINT_BYTES_LENGTH =
   SOURCE_GARRISON_MAX_POINTS * SOURCE_GARRISON_POINT_CONDITIONS * SOURCE_COORD3D_BYTE_LENGTH;
 const SOURCE_AI_STATE_IDLE = 0;
 const SOURCE_AI_STATE_MOVE_TO = 1;
+const SOURCE_AI_STATE_FOLLOW_PATH = 6;
+const SOURCE_AI_STATE_FOLLOW_EXITPRODUCTION_PATH = 7;
 const SOURCE_AI_STATE_WAIT = 8;
 const SOURCE_AI_STATE_ATTACK_POSITION = 9;
 const SOURCE_AI_STATE_ATTACK_OBJECT = 10;
@@ -16097,7 +16105,9 @@ export class GameLogicSubsystem implements Subsystem {
   }
 
   private isSourceAISimpleMoveTopStateId(stateId: number): boolean {
-    return stateId === SOURCE_AI_STATE_MOVE_OUT_OF_THE_WAY
+    return stateId === SOURCE_AI_STATE_FOLLOW_PATH
+      || stateId === SOURCE_AI_STATE_FOLLOW_EXITPRODUCTION_PATH
+      || stateId === SOURCE_AI_STATE_MOVE_OUT_OF_THE_WAY
       || stateId === SOURCE_AI_STATE_MOVE_AND_TIGHTEN
       || stateId === SOURCE_AI_STATE_MOVE_AND_EVACUATE
       || stateId === SOURCE_AI_STATE_MOVE_AND_EVACUATE_AND_EXIT
@@ -16147,12 +16157,20 @@ export class GameLogicSubsystem implements Subsystem {
     }
     let okToRepathTimes: number | null = null;
     let checkForPath: boolean | null = null;
+    let pathIndex: number | null = null;
+    let adjustFinal: boolean | null = null;
+    let adjustFinalOverride: boolean | null = null;
     let origin: { x: number; y: number; z: number } | null = null;
     let appendGoalPosition: boolean | null = null;
     let waitFrames: number | null = null;
     let timer: number | null = null;
 
-    if (currentStateId === SOURCE_AI_STATE_MOVE_AND_TIGHTEN
+    if (currentStateId === SOURCE_AI_STATE_FOLLOW_PATH
+      || currentStateId === SOURCE_AI_STATE_FOLLOW_EXITPRODUCTION_PATH) {
+      pathIndex = xfer.xferInt(0);
+      adjustFinal = xfer.xferBool(false);
+      adjustFinalOverride = xfer.xferBool(false);
+    } else if (currentStateId === SOURCE_AI_STATE_MOVE_AND_TIGHTEN
       || currentStateId === SOURCE_AI_STATE_MOVE_AWAY_FROM_REPULSORS) {
       okToRepathTimes = xfer.xferInt(0);
       checkForPath = xfer.xferBool(false);
@@ -16169,6 +16187,9 @@ export class GameLogicSubsystem implements Subsystem {
 
     return {
       moveState,
+      pathIndex,
+      adjustFinal,
+      adjustFinalOverride,
       okToRepathTimes,
       checkForPath,
       origin,
@@ -19627,6 +19648,9 @@ export class GameLogicSubsystem implements Subsystem {
             blockedRepathTimestamp: stateMachine.simpleMoveState.moveState.blockedRepathTimestamp,
             adjustDestinations: stateMachine.simpleMoveState.moveState.adjustDestinations,
           },
+          pathIndex: stateMachine.simpleMoveState.pathIndex,
+          adjustFinal: stateMachine.simpleMoveState.adjustFinal,
+          adjustFinalOverride: stateMachine.simpleMoveState.adjustFinalOverride,
           okToRepathTimes: stateMachine.simpleMoveState.okToRepathTimes,
           checkForPath: stateMachine.simpleMoveState.checkForPath,
           origin: stateMachine.simpleMoveState.origin ? { ...stateMachine.simpleMoveState.origin } : null,

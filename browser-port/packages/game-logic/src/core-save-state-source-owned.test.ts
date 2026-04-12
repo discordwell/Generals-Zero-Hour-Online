@@ -2365,6 +2365,9 @@ function writeSourceSimpleMoveAIStateMachineForTest(
     goalObjectId: number;
     goalPosition: { x: number; y: number; z: number };
     moveGoalPosition: { x: number; y: number; z: number };
+    pathIndex?: number;
+    adjustFinal?: boolean;
+    adjustFinalOverride?: boolean;
     okToRepathTimes?: number;
     checkForPath?: boolean;
     origin?: { x: number; y: number; z: number };
@@ -2383,7 +2386,11 @@ function writeSourceSimpleMoveAIStateMachineForTest(
     saver.xferVersion(1);
   }
   writeSourceAIInternalMoveToStateForTest(saver, options.moveGoalPosition);
-  if (options.currentStateId === 24 || options.currentStateId === 39) {
+  if (options.currentStateId === 6 || options.currentStateId === 7) {
+    saver.xferInt(options.pathIndex ?? 0);
+    saver.xferBool(options.adjustFinal ?? true);
+    saver.xferBool(options.adjustFinalOverride ?? false);
+  } else if (options.currentStateId === 24 || options.currentStateId === 39) {
     saver.xferInt(options.okToRepathTimes ?? 0);
     saver.xferBool(options.checkForPath ?? false);
   } else if (options.currentStateId === 25 || options.currentStateId === 26) {
@@ -2835,6 +2842,9 @@ function buildSourceAIUpdateInterfaceSimpleMoveModuleData(options: {
   goalObjectId: number;
   goalPosition: { x: number; y: number; z: number };
   moveGoalPosition: { x: number; y: number; z: number };
+  pathIndex?: number;
+  adjustFinal?: boolean;
+  adjustFinalOverride?: boolean;
   okToRepathTimes?: number;
   checkForPath?: boolean;
   origin?: { x: number; y: number; z: number };
@@ -7786,6 +7796,8 @@ describe('source-owned game-logic core save-state', () => {
     const map = makeMap([], 64, 64);
 
     const cases = [
+      { id: 138, currentStateId: 6, extras: { pathIndex: 2, adjustFinal: false, adjustFinalOverride: true } },
+      { id: 139, currentStateId: 7, extras: { pathIndex: 3, adjustFinal: true, adjustFinalOverride: false } },
       { id: 140, currentStateId: 23, extras: {} },
       { id: 141, currentStateId: 24, extras: { okToRepathTimes: 3, checkForPath: true } },
       { id: 142, currentStateId: 25, extras: { origin: { x: 15, y: 25, z: 35 } } },
@@ -7869,6 +7881,11 @@ describe('source-owned game-logic core save-state', () => {
     expect(privateLogic.spawnedEntities.get(141)!.sourceAISimpleMoveState).toMatchObject({
       okToRepathTimes: 3,
       checkForPath: true,
+    });
+    expect(privateLogic.spawnedEntities.get(138)!.sourceAISimpleMoveState).toMatchObject({
+      pathIndex: 2,
+      adjustFinal: false,
+      adjustFinalOverride: true,
     });
     expect(privateLogic.spawnedEntities.get(142)!.sourceAISimpleMoveState).toMatchObject({
       origin: { x: 15, y: 25, z: 35 },

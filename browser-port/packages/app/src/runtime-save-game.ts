@@ -10011,6 +10011,8 @@ function sourceDeployStyleStateToInt(state: unknown, fallback: number): number {
 
 const SOURCE_AI_STATE_IDLE = 0;
 const SOURCE_AI_STATE_MOVE_TO = 1;
+const SOURCE_AI_STATE_FOLLOW_PATH = 6;
+const SOURCE_AI_STATE_FOLLOW_EXITPRODUCTION_PATH = 7;
 const SOURCE_AI_STATE_WAIT = 8;
 const SOURCE_AI_STATE_ATTACK_POSITION = 9;
 const SOURCE_AI_STATE_ATTACK_OBJECT = 10;
@@ -10190,7 +10192,9 @@ function isSourceAIFaceStateId(value: unknown): value is number {
 }
 
 function isSourceAISimpleMoveStateId(value: unknown): value is number {
-  return value === SOURCE_AI_STATE_MOVE_OUT_OF_THE_WAY
+  return value === SOURCE_AI_STATE_FOLLOW_PATH
+    || value === SOURCE_AI_STATE_FOLLOW_EXITPRODUCTION_PATH
+    || value === SOURCE_AI_STATE_MOVE_OUT_OF_THE_WAY
     || value === SOURCE_AI_STATE_MOVE_AND_TIGHTEN
     || value === SOURCE_AI_STATE_MOVE_AND_EVACUATE
     || value === SOURCE_AI_STATE_MOVE_AND_EVACUATE_AND_EXIT
@@ -10440,6 +10444,9 @@ function sourceAISimpleMoveState(entity: MapEntity): {
   goalObjectId: number;
   goalPosition: Coord3D;
   moveState: SourceAIInternalMoveToRuntimeSnapshot;
+  pathIndex: number | null;
+  adjustFinal: boolean | null;
+  adjustFinalOverride: boolean | null;
   okToRepathTimes: number | null;
   checkForPath: boolean | null;
   origin: Coord3D | null;
@@ -10453,6 +10460,9 @@ function sourceAISimpleMoveState(entity: MapEntity): {
       goalObjectId?: unknown;
       goalPosition?: unknown;
       moveState?: unknown;
+      pathIndex?: unknown;
+      adjustFinal?: unknown;
+      adjustFinalOverride?: unknown;
       okToRepathTimes?: unknown;
       checkForPath?: unknown;
       origin?: unknown;
@@ -10470,6 +10480,9 @@ function sourceAISimpleMoveState(entity: MapEntity): {
     goalObjectId: Number.isFinite(state?.goalObjectId) ? normalizeSourceObjectId(Number(state.goalObjectId)) : 0,
     goalPosition: sourceFiniteCoord3D(state?.goalPosition),
     moveState: sourceAIInternalMoveToRuntimeSnapshot(state?.moveState),
+    pathIndex: Number.isFinite(state?.pathIndex) ? Math.trunc(Number(state.pathIndex)) : null,
+    adjustFinal: typeof state?.adjustFinal === 'boolean' ? state.adjustFinal : null,
+    adjustFinalOverride: typeof state?.adjustFinalOverride === 'boolean' ? state.adjustFinalOverride : null,
     okToRepathTimes: Number.isFinite(state?.okToRepathTimes) ? Math.trunc(Number(state.okToRepathTimes)) : null,
     checkForPath: typeof state?.checkForPath === 'boolean' ? state.checkForPath : null,
     origin: state?.origin ? sourceFiniteCoord3D(state.origin) : null,
@@ -10721,7 +10734,12 @@ function buildGeneratedSourceAISimpleMoveStateBlockData(
       saver.xferVersion(1);
     }
     saver.xferUser(buildGeneratedSourceAIInternalMoveToStateSnapshotBlockData(state.moveState));
-    if (state.currentStateId === SOURCE_AI_STATE_MOVE_AND_TIGHTEN
+    if (state.currentStateId === SOURCE_AI_STATE_FOLLOW_PATH
+      || state.currentStateId === SOURCE_AI_STATE_FOLLOW_EXITPRODUCTION_PATH) {
+      saver.xferInt(state.pathIndex ?? 0);
+      saver.xferBool(state.adjustFinal !== false);
+      saver.xferBool(state.adjustFinalOverride === true);
+    } else if (state.currentStateId === SOURCE_AI_STATE_MOVE_AND_TIGHTEN
       || state.currentStateId === SOURCE_AI_STATE_MOVE_AWAY_FROM_REPULSORS) {
       saver.xferInt(state.okToRepathTimes ?? 0);
       saver.xferBool(state.checkForPath === true);
