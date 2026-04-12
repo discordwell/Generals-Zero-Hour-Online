@@ -16287,6 +16287,22 @@ function buildSourceCreateModuleBlockData(needToRunOnBuildComplete: boolean): Ui
   }
 }
 
+function xferSourceUpgradeModule(
+  xfer: Xfer,
+  upgradeExecuted: boolean,
+): { upgradeExecuted: boolean } {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source UpgradeModule version ${version}`);
+  }
+  xferSourceBehaviorModuleBase(xfer);
+  const upgradeMuxVersion = xfer.xferVersion(1);
+  if (upgradeMuxVersion !== 1) {
+    throw new Error(`Unsupported source UpgradeMux version ${upgradeMuxVersion}`);
+  }
+  return { upgradeExecuted: xfer.xferBool(upgradeExecuted) };
+}
+
 function tryParseSourceUpgradeModuleBlockData(
   data: Uint8Array,
   moduleType: string,
@@ -16301,17 +16317,8 @@ function tryParseSourceUpgradeModuleBlockData(
     if (derivedVersion !== 1) {
       return null;
     }
-    const upgradeModuleVersion = xferLoad.xferVersion(1);
-    if (upgradeModuleVersion !== 1) {
-      return null;
-    }
-    xferSourceBehaviorModuleBase(xferLoad);
-    const upgradeMuxVersion = xferLoad.xferVersion(1);
-    if (upgradeMuxVersion !== 1) {
-      return null;
-    }
-    const upgradeExecuted = xferLoad.xferBool(false);
-    return xferLoad.getRemaining() === 0 ? { upgradeExecuted } : null;
+    const parsed = xferSourceUpgradeModule(xferLoad, false);
+    return xferLoad.getRemaining() === 0 ? parsed : null;
   } catch {
     return null;
   } finally {
@@ -16349,10 +16356,7 @@ function buildSourceUpgradeModuleBlockData(upgradeExecuted: boolean): Uint8Array
   saver.open('build-source-upgrade-module');
   try {
     saver.xferVersion(1);
-    saver.xferVersion(1);
-    xferSourceBehaviorModuleBase(saver);
-    saver.xferVersion(1);
-    saver.xferBool(upgradeExecuted);
+    xferSourceUpgradeModule(saver, upgradeExecuted);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();

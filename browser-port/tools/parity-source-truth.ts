@@ -3108,6 +3108,14 @@ function sourceUpgradeMuxFields(): string[] {
   return ['upgradeMux.version', 'upgradeExecuted'];
 }
 
+function sourceUpgradeModuleDirectFields(): string[] {
+  return ['version', ...sourceBehaviorModuleBaseFields(), ...sourceUpgradeMuxFields()];
+}
+
+function sourceDerivedUpgradeModuleFields(): string[] {
+  return ['version', ...prefixBaseVersion(sourceUpgradeModuleDirectFields(), 'upgradeModule')];
+}
+
 function sourceDynamicGeometryInfoUpdateFields(): string[] {
   return [
     'version',
@@ -3719,6 +3727,9 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
   if (className === 'CreateModule') {
     return sourceCreateModuleDirectFields();
   }
+  if (className === 'UpgradeModule') {
+    return sourceUpgradeModuleDirectFields();
+  }
   if ([
     'GrantUpgradeCreate',
     'LockWeaponCreate',
@@ -3862,6 +3873,7 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
         sourceSpecialPowerModuleDirectFields(),
         'specialPowerModule',
       ),
+      'UpgradeModule::xfer': prefixBaseVersion(sourceUpgradeModuleDirectFields(), 'upgradeModule'),
       'StateMachine::xfer': sourceStateMachineFields(),
       'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
       'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
@@ -3924,6 +3936,12 @@ export function parseTsSourceObjectUpdateFields(
   }
   if (helperName === 'buildSourceCreateModuleBlockData') {
     return sourceDerivedCreateModuleFields();
+  }
+  if (helperName === 'xferSourceUpgradeModule') {
+    return sourceUpgradeModuleDirectFields();
+  }
+  if (helperName === 'buildSourceUpgradeModuleBlockData') {
+    return sourceDerivedUpgradeModuleFields();
   }
   if (helperName === 'xferSourceSpecialPowerModule') {
     return sourceSpecialPowerModuleDirectFields();
@@ -9240,7 +9258,27 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'UpdateModule.cpp',
     'WaveGuideUpdate.cpp',
     'WeaponBonusUpdate.cpp',
+    '../Upgrade/ActiveShroudUpgrade.cpp',
+    '../Upgrade/ArmorUpgrade.cpp',
+    '../Upgrade/CommandSetUpgrade.cpp',
+    '../Upgrade/CostModifierUpgrade.cpp',
+    '../Upgrade/ExperienceScalarUpgrade.cpp',
+    '../Upgrade/GrantScienceUpgrade.cpp',
+    '../Upgrade/LocomotorSetUpgrade.cpp',
+    '../Upgrade/MaxHealthUpgrade.cpp',
+    '../Upgrade/ModelConditionUpgrade.cpp',
+    '../Upgrade/ObjectCreationUpgrade.cpp',
+    '../Upgrade/PassengersFireUpgrade.cpp',
+    '../Upgrade/PowerPlantUpgrade.cpp',
+    '../Upgrade/RadarUpgrade.cpp',
+    '../Upgrade/ReplaceObjectUpgrade.cpp',
+    '../Upgrade/StatusBitsUpgrade.cpp',
+    '../Upgrade/StealthUpgrade.cpp',
+    '../Upgrade/SubObjectsUpgrade.cpp',
+    '../Upgrade/UnpauseSpecialPowerUpgrade.cpp',
     '../Upgrade/UpgradeModule.cpp',
+    '../Upgrade/WeaponBonusUpgrade.cpp',
+    '../Upgrade/WeaponSetUpgrade.cpp',
   ];
   const zhObjectUpdateCpp = (await Promise.all(objectUpdateFiles.map((fileName) =>
     readFileOrEmpty(path.join(
@@ -10049,6 +10087,111 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-veterancy-gain-create-fields',
       cppClass: 'VeterancyGainCreate',
       tsHelper: 'buildSourceCreateModuleBlockData',
+    },
+    {
+      category: 'save-upgrade-module-object-fields',
+      cppClass: 'UpgradeModule',
+      tsHelper: 'xferSourceUpgradeModule',
+    },
+    {
+      category: 'save-active-shroud-upgrade-fields',
+      cppClass: 'ActiveShroudUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-armor-upgrade-fields',
+      cppClass: 'ArmorUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-command-set-upgrade-fields',
+      cppClass: 'CommandSetUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-cost-modifier-upgrade-fields',
+      cppClass: 'CostModifierUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-experience-scalar-upgrade-fields',
+      cppClass: 'ExperienceScalarUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-grant-science-upgrade-fields',
+      cppClass: 'GrantScienceUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-locomotor-set-upgrade-fields',
+      cppClass: 'LocomotorSetUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-max-health-upgrade-fields',
+      cppClass: 'MaxHealthUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-model-condition-upgrade-fields',
+      cppClass: 'ModelConditionUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-object-creation-upgrade-fields',
+      cppClass: 'ObjectCreationUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-passengers-fire-upgrade-fields',
+      cppClass: 'PassengersFireUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-power-plant-upgrade-fields',
+      cppClass: 'PowerPlantUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-radar-upgrade-fields',
+      cppClass: 'RadarUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-replace-object-upgrade-fields',
+      cppClass: 'ReplaceObjectUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-status-bits-upgrade-fields',
+      cppClass: 'StatusBitsUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-stealth-upgrade-fields',
+      cppClass: 'StealthUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-sub-objects-upgrade-fields',
+      cppClass: 'SubObjectsUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-unpause-special-power-upgrade-fields',
+      cppClass: 'UnpauseSpecialPowerUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-weapon-bonus-upgrade-fields',
+      cppClass: 'WeaponBonusUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
+    },
+    {
+      category: 'save-weapon-set-upgrade-fields',
+      cppClass: 'WeaponSetUpgrade',
+      tsHelper: 'buildSourceUpgradeModuleBlockData',
     },
     {
       category: 'save-special-power-module-object-fields',

@@ -15838,6 +15838,7 @@ export class GameLogicSubsystem implements Subsystem {
       case 'OBJECTCREATIONUPGRADE':
       case 'ACTIVESHROUDUPGRADE':
       case 'REPLACEOBJECTUPGRADE':
+      case 'SUBOBJECTSUPGRADE':
         return true;
       default:
         return false;
