@@ -1022,7 +1022,21 @@ function buildSourceGarrisonContainModuleData(options: {
   try {
     saver.xferVersion(1);
     writeSourceOpenContain(saver, options);
-    saver.xferUnsignedInt(0);
+    saver.xferUser(new Uint8Array(4));
+    saver.xferBool(false);
+    saver.xferUnsignedShort(40);
+    for (let index = 0; index < 40; index += 1) {
+      saver.xferObjectID(0);
+      saver.xferObjectID(0);
+      saver.xferUnsignedInt(0);
+      saver.xferUnsignedInt(0);
+      saver.xferUnsignedInt(0);
+    }
+    saver.xferInt(0);
+    saver.xferUser(new Uint8Array(3 * 40 * 12));
+    saver.xferBool(false);
+    saver.xferBool(false);
+    saver.xferCoord3D({ x: 0, y: 0, z: 0 });
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();

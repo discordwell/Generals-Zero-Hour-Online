@@ -207,11 +207,16 @@ const SOURCE_W3D_MODEL_DRAW_DERIVED_MODULE_TYPES = new Set([
   'W3DTANKTRUCKDRAW',
   'W3DTRUCKDRAW',
 ]);
+const SOURCE_COORD3D_BYTE_LENGTH = 12;
 const SOURCE_OPEN_CONTAIN_MAX_FIRE_POINTS = 32;
+const SOURCE_GARRISON_MAX_POINTS = 40;
+const SOURCE_GARRISON_POINT_CONDITIONS = 3;
 const SOURCE_MATRIX3D_XFER_VERSION = 1;
 const SOURCE_MATRIX3D_BYTE_LENGTH = 48;
 const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH =
   SOURCE_OPEN_CONTAIN_MAX_FIRE_POINTS * SOURCE_MATRIX3D_BYTE_LENGTH;
+const SOURCE_GARRISON_POINT_BYTES_LENGTH =
+  SOURCE_GARRISON_MAX_POINTS * SOURCE_GARRISON_POINT_CONDITIONS * SOURCE_COORD3D_BYTE_LENGTH;
 const SOURCE_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_DAMAGE_MODULE_MAX_FX = 12;
 const SOURCE_PARTICLE_SYSTEM_ID_BYTE_LENGTH = 4;
@@ -281,7 +286,6 @@ const SOURCE_RAILROAD_ENUM_BYTE_LENGTH = 4;
 const SOURCE_WAVEGUIDE_CURRENT_VERSION = 1;
 const SOURCE_WAVEGUIDE_MAX_SHAPE_POINTS = 64;
 const SOURCE_WAVEGUIDE_MAX_SHAPE_EFFECTS = 3;
-const SOURCE_COORD3D_BYTE_LENGTH = 12;
 const SOURCE_WAVEGUIDE_SHAPE_POINTS_BYTE_LENGTH =
   SOURCE_WAVEGUIDE_MAX_SHAPE_POINTS * SOURCE_COORD3D_BYTE_LENGTH;
 const SOURCE_WAVEGUIDE_SHAPE_EFFECTS_BYTE_LENGTH =
@@ -16596,12 +16600,33 @@ interface SourceParachuteContainBlockState {
   opened: boolean;
 }
 
+interface SourceGarrisonPointDataBlockState {
+  objectId: number;
+  targetId: number;
+  placeFrame: number;
+  lastEffectFrame: number;
+  drawableId: number;
+}
+
+interface SourceGarrisonContainBlockState {
+  open: SourceOpenContainBlockState;
+  originalTeamId: number;
+  hideGarrisonedStateFromNonallies: boolean;
+  pointData: SourceGarrisonPointDataBlockState[];
+  pointsInUse: number;
+  garrisonPointBytes: Uint8Array;
+  garrisonPointsInitialized: boolean;
+  rallyValid: boolean;
+  exitRallyPoint: Coord3D;
+}
+
 interface SourceContainModuleBlockState {
   kind: SourceContainModuleKind;
   open?: SourceOpenContainBlockState;
   transport?: SourceTransportContainBlockState;
   prison?: SourcePrisonBehaviorBlockState;
   propagandaCenter?: SourcePropagandaCenterBehaviorBlockState;
+  garrison?: SourceGarrisonContainBlockState;
   helixPortableStructureId?: number;
   redirectionActivated?: boolean;
   originalTeamId?: number;
@@ -16926,6 +16951,89 @@ function xferSourceRiderChangeContain(
   };
 }
 
+function createDefaultSourceGarrisonPointData(): SourceGarrisonPointDataBlockState {
+  return {
+    objectId: 0,
+    targetId: 0,
+    placeFrame: 0,
+    lastEffectFrame: 0,
+    drawableId: SOURCE_INVALID_DRAWABLE_ID,
+  };
+}
+
+function normalizeSourceGarrisonPointData(
+  pointData: readonly SourceGarrisonPointDataBlockState[],
+): SourceGarrisonPointDataBlockState[] {
+  return Array.from({ length: SOURCE_GARRISON_MAX_POINTS }, (_, index) => {
+    const entry = pointData[index] ?? createDefaultSourceGarrisonPointData();
+    return {
+      objectId: normalizeSourceObjectId(entry.objectId),
+      targetId: normalizeSourceObjectId(entry.targetId),
+      placeFrame: Math.max(0, Math.trunc(entry.placeFrame)),
+      lastEffectFrame: Math.max(0, Math.trunc(entry.lastEffectFrame)),
+      drawableId: Math.max(0, Math.trunc(entry.drawableId)) >>> 0,
+    };
+  });
+}
+
+function xferSourceGarrisonPointData(
+  xfer: Xfer,
+  pointData: readonly SourceGarrisonPointDataBlockState[],
+): SourceGarrisonPointDataBlockState[] {
+  const normalizedPointData = normalizeSourceGarrisonPointData(pointData);
+  const count = xfer.xferUnsignedShort(normalizedPointData.length);
+  const loaded: SourceGarrisonPointDataBlockState[] = [];
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    for (let index = 0; index < count; index += 1) {
+      const entry = {
+        objectId: xfer.xferObjectID(0),
+        targetId: xfer.xferObjectID(0),
+        placeFrame: xfer.xferUnsignedInt(0),
+        lastEffectFrame: xfer.xferUnsignedInt(0),
+        drawableId: xfer.xferUnsignedInt(SOURCE_INVALID_DRAWABLE_ID),
+      };
+      if (index < SOURCE_GARRISON_MAX_POINTS) {
+        loaded.push(entry);
+      }
+    }
+    return normalizeSourceGarrisonPointData(loaded);
+  }
+  for (let index = 0; index < count; index += 1) {
+    const entry = normalizedPointData[index] ?? createDefaultSourceGarrisonPointData();
+    loaded.push({
+      objectId: xfer.xferObjectID(entry.objectId),
+      targetId: xfer.xferObjectID(entry.targetId),
+      placeFrame: xfer.xferUnsignedInt(entry.placeFrame),
+      lastEffectFrame: xfer.xferUnsignedInt(entry.lastEffectFrame),
+      drawableId: xfer.xferUnsignedInt(entry.drawableId),
+    });
+  }
+  return loaded;
+}
+
+function xferSourceGarrisonContain(
+  xfer: Xfer,
+  state: SourceGarrisonContainBlockState,
+): SourceGarrisonContainBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source GarrisonContain version ${version}`);
+  }
+  return {
+    open: xferSourceOpenContain(xfer, state.open),
+    originalTeamId: parseSourceRawInt32Bytes(xfer.xferUser(buildSourceRawInt32Bytes(state.originalTeamId))),
+    hideGarrisonedStateFromNonallies: xfer.xferBool(state.hideGarrisonedStateFromNonallies),
+    pointData: xferSourceGarrisonPointData(xfer, state.pointData),
+    pointsInUse: xfer.xferInt(Math.trunc(state.pointsInUse)),
+    garrisonPointBytes: xfer.xferUser(
+      normalizedSourceUserBytes(state.garrisonPointBytes, SOURCE_GARRISON_POINT_BYTES_LENGTH),
+    ),
+    garrisonPointsInitialized: xfer.xferBool(state.garrisonPointsInitialized),
+    rallyValid: xfer.xferBool(state.rallyValid),
+    exitRallyPoint: xfer.xferCoord3D(state.exitRallyPoint),
+  };
+}
+
 function xferSourcePrisonVisuals(
   xfer: Xfer,
   visuals: readonly SourcePrisonVisualBlockState[],
@@ -17097,6 +17205,20 @@ function createDefaultSourceParachuteContainState(): SourceParachuteContainBlock
   };
 }
 
+function createDefaultSourceGarrisonContainState(): SourceGarrisonContainBlockState {
+  return {
+    open: createDefaultSourceOpenContainState(),
+    originalTeamId: 0,
+    hideGarrisonedStateFromNonallies: false,
+    pointData: normalizeSourceGarrisonPointData([]),
+    pointsInUse: 0,
+    garrisonPointBytes: new Uint8Array(SOURCE_GARRISON_POINT_BYTES_LENGTH),
+    garrisonPointsInitialized: false,
+    rallyValid: false,
+    exitRallyPoint: { x: 0, y: 0, z: 0 },
+  };
+}
+
 function createDefaultSourceContainModuleBlockState(moduleType: string): SourceContainModuleBlockState | null {
   const kind = normalizeSourceContainModuleKind(moduleType);
   if (!kind) {
@@ -17128,10 +17250,12 @@ function createDefaultSourceContainModuleBlockState(moduleType: string): SourceC
     return { kind, parachute, open: parachute.open };
   }
   if (kind === 'garrison') {
+    const garrison = createDefaultSourceGarrisonContainState();
     return {
       kind,
-      open: createDefaultSourceOpenContainState(),
-      originalTeamId: 0,
+      garrison,
+      open: garrison.open,
+      originalTeamId: garrison.originalTeamId,
     };
   }
   if (kind === 'tunnel') {
@@ -17238,14 +17362,12 @@ function tryParseSourceContainModuleBlockData(
         parachute: xferSourceParachuteContain(xferLoad, createDefaultSourceParachuteContainState()),
       };
     } else if (kind === 'garrison') {
-      const version = xferLoad.xferVersion(1);
-      if (version !== 1) {
-        return null;
-      }
+      const garrison = xferSourceGarrisonContain(xferLoad, createDefaultSourceGarrisonContainState());
       parsed = {
         kind,
-        open: xferSourceOpenContain(xferLoad, createDefaultSourceOpenContainState()),
-        originalTeamId: xferLoad.xferUnsignedInt(0),
+        garrison,
+        open: garrison.open,
+        originalTeamId: garrison.originalTeamId,
       };
     } else if (kind === 'tunnel') {
       const version = xferLoad.xferVersion(1);
@@ -17527,17 +17649,17 @@ function buildSourceContainModuleBlockData(
         ),
       });
     } else if (kind === 'garrison') {
-      saver.xferVersion(1);
-      xferSourceOpenContain(
-        saver,
-        overlaySourceOpenContainStateFromLiveEntity(
+      const garrison = preservedState.garrison ?? createDefaultSourceGarrisonContainState();
+      xferSourceGarrisonContain(saver, {
+        ...garrison,
+        open: overlaySourceOpenContainStateFromLiveEntity(
           entity,
           moduleType,
           liveEntities,
-          preservedState.open ?? createDefaultSourceOpenContainState(),
+          garrison.open,
         ),
-      );
-      saver.xferUnsignedInt(Math.max(0, Math.trunc(preservedState.originalTeamId ?? 0)));
+        originalTeamId: preservedState.originalTeamId ?? garrison.originalTeamId,
+      });
     } else if (kind === 'tunnel') {
       xferSourceTunnelContain(
         saver,

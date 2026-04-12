@@ -1343,6 +1343,7 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-heal-contain-fields',
         'save-tunnel-contain-fields',
         'save-cave-contain-fields',
+        'save-garrison-contain-fields',
         'save-mob-nexus-contain-fields',
         'save-rider-change-contain-fields',
         'save-physics-behavior-fields',

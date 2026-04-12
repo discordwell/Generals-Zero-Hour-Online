@@ -3285,6 +3285,26 @@ function sourceParachuteContainFields(): string[] {
   ];
 }
 
+function sourceGarrisonContainFields(): string[] {
+  return [
+    'version',
+    ...prefixFields(sourceOpenContainFields(), 'open'),
+    'originalTeamId',
+    'hideGarrisonedStateFromNonallies',
+    'pointData.count',
+    'pointData.objectId',
+    'pointData.targetId',
+    'pointData.placeFrame',
+    'pointData.lastEffectFrame',
+    'pointData.drawableId',
+    'pointsInUse',
+    'garrisonPoints',
+    'garrisonPointsInitialized',
+    'rallyValid',
+    'exitRallyPoint',
+  ];
+}
+
 function sourceWrappedOpenContainFields(): string[] {
   return ['version', ...prefixFields(sourceOpenContainFields(), 'open')];
 }
@@ -3631,6 +3651,9 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
   if (className === 'ParachuteContain') {
     return sourceParachuteContainFields();
   }
+  if (className === 'GarrisonContain') {
+    return sourceGarrisonContainFields();
+  }
   if (className === 'InternetHackContain' || className === 'RailedTransportContain') {
     return sourceWrappedTransportContainFields();
   }
@@ -3778,6 +3801,9 @@ export function parseTsSourceObjectUpdateFields(
   }
   if (helperName === 'xferSourceParachuteContain') {
     return sourceParachuteContainFields();
+  }
+  if (helperName === 'xferSourceGarrisonContain') {
+    return sourceGarrisonContainFields();
   }
   if (helperName === 'xferSourceWrappedTransportContain') {
     return sourceWrappedTransportContainFields();
@@ -8954,6 +8980,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     '../Behavior/SupplyWarehouseCripplingBehavior.cpp',
     '../Behavior/TechBuildingBehavior.cpp',
     '../Contain/CaveContain.cpp',
+    '../Contain/GarrisonContain.cpp',
     '../Contain/HealContain.cpp',
     '../Contain/HelixContain.cpp',
     '../Contain/InternetHackContain.cpp',
@@ -9896,6 +9923,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-parachute-contain-fields',
       cppClass: 'ParachuteContain',
       tsHelper: 'xferSourceParachuteContain',
+    },
+    {
+      category: 'save-garrison-contain-fields',
+      cppClass: 'GarrisonContain',
+      tsHelper: 'xferSourceGarrisonContain',
     },
     {
       category: 'save-internet-hack-contain-fields',

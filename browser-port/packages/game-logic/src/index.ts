@@ -10247,6 +10247,10 @@ const SOURCE_WORKER_FIXED_AFTER_DOZER_MACHINE_BYTE_LENGTH = SOURCE_DOZER_FIXED_S
 const SOURCE_PLAYER_MASK_BYTE_LENGTH = 2;
 const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH = 32 * 48;
 const SOURCE_OBJECT_ENTER_EXIT_TYPE_BYTE_LENGTH = 4;
+const SOURCE_GARRISON_MAX_POINTS = 40;
+const SOURCE_GARRISON_POINT_CONDITIONS = 3;
+const SOURCE_GARRISON_POINT_BYTES_LENGTH =
+  SOURCE_GARRISON_MAX_POINTS * SOURCE_GARRISON_POINT_CONDITIONS * SOURCE_COORD3D_BYTE_LENGTH;
 const SOURCE_AI_STATE_IDLE = 0;
 const SOURCE_HACK_INTERNET_STATE_UNPACKING = 1000;
 const SOURCE_HACK_INTERNET_STATE_HACKING = 1001;
@@ -24319,6 +24323,24 @@ export class GameLogicSubsystem implements Subsystem {
     return { open, payloadCreated };
   }
 
+  private skipSourceGarrisonContainTail(xfer: XferLoad): void {
+    xfer.xferUser(new Uint8Array(4));
+    xfer.xferBool(false);
+    const pointDataCount = xfer.xferUnsignedShort(0);
+    for (let index = 0; index < pointDataCount; index += 1) {
+      xfer.xferObjectID(0);
+      xfer.xferObjectID(0);
+      xfer.xferUnsignedInt(0);
+      xfer.xferUnsignedInt(0);
+      xfer.xferUnsignedInt(0);
+    }
+    xfer.xferInt(0);
+    xfer.xferUser(new Uint8Array(SOURCE_GARRISON_POINT_BYTES_LENGTH));
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+  }
+
   private parseSourcePrisonBehaviorImportState(xfer: XferLoad): SourcePrisonBehaviorImportState {
     const version = xfer.xferVersion(1);
     if (version !== 1) {
@@ -24402,7 +24424,7 @@ export class GameLogicSubsystem implements Subsystem {
           return null;
         }
         parsed = { kind, open: this.parseSourceOpenContainImportState(xfer) };
-        xfer.xferUnsignedInt(0);
+        this.skipSourceGarrisonContainTail(xfer);
       } else if (kind === 'tunnel') {
         const version = xfer.xferVersion(1);
         if (version !== 1) {
@@ -47231,9 +47253,10 @@ export class GameLogicSubsystem implements Subsystem {
         target.pendingDeathType = weaponDeathType || damageTypeToDeathType(damageType);
         target.pendingDeathSourceTemplateName = sourceTemplateName;
         if (!target.slowDeathState && !target.structureCollapseState) {
-          this.tryBeginStructureCollapse(target) ||
-            this.tryBeginSlowDeath(target, sourceEntityId ?? -1) ||
+          if (!this.tryBeginStructureCollapse(target)
+            && !this.tryBeginSlowDeath(target, sourceEntityId ?? -1)) {
             this.markEntityDestroyed(target.id, sourceEntityId ?? -1);
+          }
         }
       }
       return;
@@ -47726,9 +47749,10 @@ export class GameLogicSubsystem implements Subsystem {
         this.detonateDemoTrap(target, target.demoTrapProfile);
         return; // detonateDemoTrap calls markEntityDestroyed
       }
-      this.tryBeginStructureCollapse(target) ||
-        this.tryBeginSlowDeath(target, sourceEntityId ?? -1) ||
+      if (!this.tryBeginStructureCollapse(target)
+        && !this.tryBeginSlowDeath(target, sourceEntityId ?? -1)) {
         this.markEntityDestroyed(target.id, sourceEntityId ?? -1);
+      }
     }
   }
 
@@ -52132,6 +52156,8 @@ export class GameLogicSubsystem implements Subsystem {
         finalTargetX += randomRadius * Math.cos(randomAngle);
         finalTargetZ += randomRadius * Math.sin(randomAngle);
       }
+      void finalTargetX;
+      void finalTargetZ;
 
       // Compute orientation from start toward target.
       const orient = Math.atan2(startZ - tgtZ, startX - tgtX);
