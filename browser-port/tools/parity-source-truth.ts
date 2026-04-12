@@ -3057,6 +3057,35 @@ function sourceBodyModuleDirectFields(): string[] {
   return ['version', ...sourceBehaviorModuleBaseFields(), 'damageScalar'];
 }
 
+function sourceCollideModuleBaseFields(): string[] {
+  return ['collide.version', ...sourceBehaviorModuleBaseFields()];
+}
+
+function sourceCollideModuleDirectFields(): string[] {
+  return ['version', ...sourceBehaviorModuleBaseFields()];
+}
+
+function sourceDerivedCollideModuleFields(): string[] {
+  return ['version', ...sourceCollideModuleBaseFields()];
+}
+
+function sourceCrateCollideFields(): string[] {
+  return ['version', ...sourceCollideModuleBaseFields()];
+}
+
+function sourceDerivedCrateCollideFields(): string[] {
+  return ['version', ...prefixBaseVersion(sourceCrateCollideFields(), 'crateCollide')];
+}
+
+function sourceFireWeaponCollideFields(): string[] {
+  return [
+    ...sourceDerivedCollideModuleFields(),
+    'weapon.present',
+    'weapon.snapshot',
+    'everFired',
+  ];
+}
+
 function sourceDamageInfoFields(prefix: string): string[] {
   return [
     `${prefix}.version`,
@@ -3853,6 +3882,38 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
   if (className === 'BodyModule') {
     return sourceBodyModuleDirectFields();
   }
+  if (className === 'CollideModule') {
+    return sourceCollideModuleDirectFields();
+  }
+  if (className === 'SquishCollide') {
+    return sourceDerivedCollideModuleFields();
+  }
+  if (className === 'FireWeaponCollide') {
+    return sourceFireWeaponCollideFields();
+  }
+  if (className === 'CrateCollide') {
+    return sourceCrateCollideFields();
+  }
+  if ([
+    'ConvertToCarBombCrateCollide',
+    'ConvertToHijackedVehicleCrateCollide',
+    'HealCrateCollide',
+    'MoneyCrateCollide',
+    'SabotageCommandCenterCrateCollide',
+    'SabotageFakeBuildingCrateCollide',
+    'SabotageInternetCenterCrateCollide',
+    'SabotageMilitaryFactoryCrateCollide',
+    'SabotagePowerPlantCrateCollide',
+    'SabotageSuperweaponCrateCollide',
+    'SabotageSupplyCenterCrateCollide',
+    'SabotageSupplyDropzoneCrateCollide',
+    'SalvageCrateCollide',
+    'ShroudCrateCollide',
+    'UnitCrateCollide',
+    'VeterancyCrateCollide',
+  ].includes(className)) {
+    return sourceDerivedCrateCollideFields();
+  }
   if (className === 'ActiveBody') {
     return sourceActiveBodyFields();
   }
@@ -4027,6 +4088,8 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
       'BehaviorModule::xfer': sourceBehaviorModuleBaseFields(),
       'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
       'BodyModule::xfer': sourceBodyModuleBaseFields(),
+      'CollideModule::xfer': sourceCollideModuleBaseFields(),
+      'CrateCollide::xfer': prefixBaseVersion(sourceCrateCollideFields(), 'crateCollide'),
       'ActiveBody::xfer': prefixBaseVersion(sourceActiveBodyFields(), 'activeBody'),
       'StructureBody::xfer': prefixBaseVersion(sourceStructureBodyFields(), 'structureBody'),
       'DieModule::xfer': sourceDieModuleBaseFields(),
@@ -4080,6 +4143,22 @@ export function parseTsSourceObjectUpdateFields(
   }
   if (helperName === 'xferSourceBodyModuleBase') {
     return sourceBodyModuleDirectFields();
+  }
+  if (helperName === 'xferSourceCollideModuleBase') {
+    return sourceCollideModuleDirectFields();
+  }
+  if (helperName === 'xferSourceCrateCollideBase') {
+    return sourceCrateCollideFields();
+  }
+  if (helperName === 'buildSourceStatelessCollideModuleBlockData') {
+    return sourceDerivedCollideModuleFields();
+  }
+  if (helperName === 'buildSourceCrateCollideModuleBlockData') {
+    return sourceDerivedCrateCollideFields();
+  }
+  if (helperName === 'buildSourceFireWeaponCollideBlockData'
+    || helperName === 'buildGeneratedSourceFireWeaponCollideBlockData') {
+    return sourceFireWeaponCollideFields();
   }
   if (helperName === 'xferSourceActiveBody') {
     return sourceActiveBodyFields();
@@ -9315,6 +9394,26 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     '../Body/InactiveBody.cpp',
     '../Body/StructureBody.cpp',
     '../Body/UndeadBody.cpp',
+    '../Collide/CollideModule.cpp',
+    '../Collide/FireWeaponCollide.cpp',
+    '../Collide/SquishCollide.cpp',
+    '../Collide/CrateCollide/ConvertToCarBombCrateCollide.cpp',
+    '../Collide/CrateCollide/ConvertToHijackedVehicleCrateCollide.cpp',
+    '../Collide/CrateCollide/CrateCollide.cpp',
+    '../Collide/CrateCollide/HealCrateCollide.cpp',
+    '../Collide/CrateCollide/MoneyCrateCollide.cpp',
+    '../Collide/CrateCollide/SabotageCommandCenterCrateCollide.cpp',
+    '../Collide/CrateCollide/SabotageFakeBuilding.cpp',
+    '../Collide/CrateCollide/SabotageInternetCenterCrateCollide.cpp',
+    '../Collide/CrateCollide/SabotageMilitaryFactoryCrateCollide.cpp',
+    '../Collide/CrateCollide/SabotagePowerPlantCrateCollide.cpp',
+    '../Collide/CrateCollide/SabotageSuperweaponCrateCollide.cpp',
+    '../Collide/CrateCollide/SabotageSupplyCenterCrateCollide.cpp',
+    '../Collide/CrateCollide/SabotageSupplyDropzoneCrateCollide.cpp',
+    '../Collide/CrateCollide/SalvageCrateCollide.cpp',
+    '../Collide/CrateCollide/ShroudCrateCollide.cpp',
+    '../Collide/CrateCollide/UnitCrateCollide.cpp',
+    '../Collide/CrateCollide/VeterancyCrateCollide.cpp',
     'BaseRenerateUpdate.cpp',
     'BattlePlanUpdate.cpp',
     'BoneFXUpdate.cpp',
@@ -10217,6 +10316,106 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       cppClass: 'UndeadBody',
       tsHelper: 'buildSourceBodyModuleBlockData',
       bodyKind: 'undead',
+    },
+    {
+      category: 'save-collide-module-fields',
+      cppClass: 'CollideModule',
+      tsHelper: 'xferSourceCollideModuleBase',
+    },
+    {
+      category: 'save-squish-collide-fields',
+      cppClass: 'SquishCollide',
+      tsHelper: 'buildSourceStatelessCollideModuleBlockData',
+    },
+    {
+      category: 'save-fire-weapon-collide-fields',
+      cppClass: 'FireWeaponCollide',
+      tsHelper: 'buildSourceFireWeaponCollideBlockData',
+    },
+    {
+      category: 'save-crate-collide-fields',
+      cppClass: 'CrateCollide',
+      tsHelper: 'xferSourceCrateCollideBase',
+    },
+    {
+      category: 'save-convert-to-car-bomb-crate-collide-fields',
+      cppClass: 'ConvertToCarBombCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-convert-to-hijacked-vehicle-crate-collide-fields',
+      cppClass: 'ConvertToHijackedVehicleCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-heal-crate-collide-fields',
+      cppClass: 'HealCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-money-crate-collide-fields',
+      cppClass: 'MoneyCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-sabotage-command-center-crate-collide-fields',
+      cppClass: 'SabotageCommandCenterCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-sabotage-fake-building-crate-collide-fields',
+      cppClass: 'SabotageFakeBuildingCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-sabotage-internet-center-crate-collide-fields',
+      cppClass: 'SabotageInternetCenterCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-sabotage-military-factory-crate-collide-fields',
+      cppClass: 'SabotageMilitaryFactoryCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-sabotage-power-plant-crate-collide-fields',
+      cppClass: 'SabotagePowerPlantCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-sabotage-superweapon-crate-collide-fields',
+      cppClass: 'SabotageSuperweaponCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-sabotage-supply-center-crate-collide-fields',
+      cppClass: 'SabotageSupplyCenterCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-sabotage-supply-dropzone-crate-collide-fields',
+      cppClass: 'SabotageSupplyDropzoneCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-salvage-crate-collide-fields',
+      cppClass: 'SalvageCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-shroud-crate-collide-fields',
+      cppClass: 'ShroudCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-unit-crate-collide-fields',
+      cppClass: 'UnitCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
+    },
+    {
+      category: 'save-veterancy-crate-collide-fields',
+      cppClass: 'VeterancyCrateCollide',
+      tsHelper: 'buildSourceCrateCollideModuleBlockData',
     },
     {
       category: 'save-die-module-fields',
