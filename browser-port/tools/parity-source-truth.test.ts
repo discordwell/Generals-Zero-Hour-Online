@@ -1281,6 +1281,20 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-damage-module-base-fields',
         'save-create-module-fields',
         'save-special-power-module-fields',
+        'save-w3d-draw-base-only-fields',
+        'save-w3d-model-draw-fields',
+        'save-w3d-tank-draw-fields',
+        'save-w3d-truck-draw-fields',
+        'save-w3d-tank-truck-draw-fields',
+        'save-w3d-overlord-aircraft-draw-fields',
+        'save-w3d-science-model-draw-fields',
+        'save-w3d-supply-draw-fields',
+        'save-w3d-overlord-tank-draw-fields',
+        'save-w3d-overlord-truck-draw-fields',
+        'save-w3d-police-car-draw-fields',
+        'save-w3d-dependency-model-draw-fields',
+        'save-w3d-debris-draw-fields',
+        'save-w3d-rope-draw-fields',
       ]) {
         const moduleCategory = report.categories.find((c) => c.category === category);
         expect(moduleCategory).toBeDefined();

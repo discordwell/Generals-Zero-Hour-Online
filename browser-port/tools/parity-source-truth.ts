@@ -2882,7 +2882,7 @@ function parseCppSimpleModuleFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /(?:[A-Za-z]+Module|Module|DrawableModule|ObjectModule|BehaviorModule|UpgradeMux)::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+    /[A-Za-z0-9_]+::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
     const token = match[0]!;
@@ -2941,6 +2941,159 @@ function parseTsSimpleModuleFields(source: string, signature: string, labels: Re
     }
   }
   return fields;
+}
+
+function prefixBaseVersion(fields: string[], prefix: string): string[] {
+  return fields.map((field) => field === 'version' ? `${prefix}.version` : field);
+}
+
+function sourceDrawModuleBaseFields(): string[] {
+  return ['drawModule.version', 'drawableModule.version', 'module.version'];
+}
+
+export function parseCppSourceW3DModelDrawFields(source: string): string[] {
+  return parseCppSimpleModuleFields(source, 'void W3DModelDraw::xfer( Xfer *xfer )', {
+    'DrawModule::xfer': sourceDrawModuleBaseFields(),
+  });
+}
+
+export function parseCppSourceW3DDrawBaseOnlyFields(source: string): string[] {
+  return parseCppSimpleModuleFields(source, 'void W3DDefaultDraw::xfer( Xfer *xfer )', {
+    'DrawModule::xfer': sourceDrawModuleBaseFields(),
+  });
+}
+
+export function parseCppSourceW3DDrawModuleFields(source: string, className: string): string[] {
+  const modelFields = parseCppSourceW3DModelDrawFields(source);
+  const tankFields = parseCppSimpleModuleFields(source, 'void W3DTankDraw::xfer( Xfer *xfer )', {
+    'W3DModelDraw::xfer': prefixBaseVersion(modelFields, 'modelDraw'),
+  });
+  const truckFields = parseCppSimpleModuleFields(source, 'void W3DTruckDraw::xfer( Xfer *xfer )', {
+    'W3DModelDraw::xfer': prefixBaseVersion(modelFields, 'modelDraw'),
+  });
+
+  switch (className) {
+    case 'W3DModelDraw':
+      return modelFields;
+    case 'W3DTankDraw':
+      return tankFields;
+    case 'W3DTruckDraw':
+      return truckFields;
+    case 'W3DOverlordTankDraw':
+      return parseCppSimpleModuleFields(source, 'void W3DOverlordTankDraw::xfer( Xfer *xfer )', {
+        'W3DTankDraw::xfer': prefixBaseVersion(tankFields, 'tankDraw'),
+      });
+    case 'W3DOverlordTruckDraw':
+      return parseCppSimpleModuleFields(source, 'void W3DOverlordTruckDraw::xfer( Xfer *xfer )', {
+        'W3DTruckDraw::xfer': prefixBaseVersion(truckFields, 'truckDraw'),
+      });
+    case 'W3DPoliceCarDraw':
+      return parseCppSimpleModuleFields(source, 'void W3DPoliceCarDraw::xfer( Xfer *xfer )', {
+        'W3DTruckDraw::xfer': prefixBaseVersion(truckFields, 'truckDraw'),
+      });
+    case 'W3DDependencyModelDraw':
+      return parseCppSimpleModuleFields(source, 'void W3DDependencyModelDraw::xfer( Xfer *xfer )', {
+        'W3DModelDraw::xfer': prefixBaseVersion(modelFields, 'modelDraw'),
+      });
+    case 'W3DTankTruckDraw':
+    case 'W3DOverlordAircraftDraw':
+    case 'W3DScienceModelDraw':
+    case 'W3DSupplyDraw':
+      return parseCppSimpleModuleFields(source, `void ${className}::xfer( Xfer *xfer )`, {
+        'W3DModelDraw::xfer': prefixBaseVersion(modelFields, 'modelDraw'),
+      });
+    case 'W3DDebrisDraw':
+    case 'W3DRopeDraw':
+      return parseCppSimpleModuleFields(source, `void ${className}::xfer( Xfer *xfer )`, {
+        'DrawModule::xfer': sourceDrawModuleBaseFields(),
+      });
+    default:
+      return [];
+  }
+}
+
+function parseTsSourceW3DDrawFields(
+  source: string,
+  signature: string,
+  baseExpansions: Record<string, string[]>,
+): string[] {
+  const body = extractFunctionBody(source, signature);
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xferSource\w+\s*\(|xfer\.xfer(?:Version|UnsignedByte|Bool|AsciiString|Color|Int|Real)\s*\(|xfer\.xferUser\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    const callName = token.match(/^(xferSource\w+)/)?.[1];
+    if (callName && baseExpansions[callName]) {
+      for (const field of baseExpansions[callName]) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    pushUniqueField(fields, seen, mapTsSourceW3DDrawField(token, body, match.index));
+  }
+  return fields;
+}
+
+export function parseTsSourceW3DModelDrawFields(source: string): string[] {
+  return parseTsSourceW3DDrawFields(source, 'function xferSourceW3DModelDrawBase', {
+    xferSourceDrawModuleBase: sourceDrawModuleBaseFields(),
+    xferSourceW3DWeaponRecoilInfo: ['weaponRecoil.state', 'weaponRecoil.shift', 'weaponRecoil.recoilRate'],
+    xferSourceW3DSubObjectInfo: ['subObject.name', 'subObject.hide'],
+    xferSourceW3DAnimationState: ['animation.mode', 'animation.percent'],
+  });
+}
+
+export function parseTsSourceW3DDrawBaseOnlyFields(source: string): string[] {
+  return parseTsSourceW3DDrawFields(source, 'function xferSourceW3DBaseDraw', {
+    xferSourceDrawModuleBase: sourceDrawModuleBaseFields(),
+  });
+}
+
+export function parseTsSourceW3DDrawModuleFields(source: string, helperName: string): string[] {
+  const modelFields = parseTsSourceW3DModelDrawFields(source);
+  const tankFields = parseTsSourceW3DDrawFields(source, 'function xferSourceW3DTankDraw', {
+    xferSourceW3DModelDrawBase: prefixBaseVersion(modelFields, 'modelDraw'),
+  });
+  const truckFields = parseTsSourceW3DDrawFields(source, 'function xferSourceW3DTruckDraw', {
+    xferSourceW3DModelDrawBase: prefixBaseVersion(modelFields, 'modelDraw'),
+  });
+
+  switch (helperName) {
+    case 'xferSourceW3DModelDrawBase':
+      return modelFields;
+    case 'xferSourceW3DModelDrawDerived':
+      return parseTsSourceW3DDrawFields(source, 'function xferSourceW3DModelDrawDerived', {
+        xferSourceW3DModelDrawBase: prefixBaseVersion(modelFields, 'modelDraw'),
+      });
+    case 'xferSourceW3DTankDraw':
+      return tankFields;
+    case 'xferSourceW3DTruckDraw':
+      return truckFields;
+    case 'xferSourceW3DOverlordTankDraw':
+      return parseTsSourceW3DDrawFields(source, 'function xferSourceW3DOverlordTankDraw', {
+        xferSourceW3DTankDraw: prefixBaseVersion(tankFields, 'tankDraw'),
+      });
+    case 'xferSourceW3DOverlordTruckDraw':
+      return parseTsSourceW3DDrawFields(source, 'function xferSourceW3DOverlordTruckDraw', {
+        xferSourceW3DTruckDraw: prefixBaseVersion(truckFields, 'truckDraw'),
+      });
+    case 'xferSourceW3DDependencyModelDraw':
+      return parseTsSourceW3DDrawFields(source, 'function xferSourceW3DDependencyModelDraw', {
+        xferSourceW3DModelDrawDerived: parseTsSourceW3DDrawModuleFields(source, 'xferSourceW3DModelDrawDerived'),
+      });
+    case 'xferSourceW3DDebrisDraw':
+    case 'xferSourceW3DRopeDraw':
+      return parseTsSourceW3DDrawFields(source, `function ${helperName}`, {
+        xferSourceDrawModuleBase: sourceDrawModuleBaseFields(),
+        xferSourceRGBColor: ['color'],
+      });
+    default:
+      return [];
+  }
 }
 
 function extractFunctionRegion(source: string, signature: string): string | null {
@@ -4412,6 +4565,80 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferInt' && argument === 'm_pausedCount') return 'pausedCount';
   if (method === 'xferUnsignedInt' && argument === 'm_pausedOnFrame') return 'pausedOnFrame';
   if (method === 'xferReal' && argument === 'm_pausedPercent') return 'pausedPercent';
+  if (method === 'xferUnsignedByte' && argument === 'recoilInfoCount') return 'weaponRecoil.count';
+  if (method === 'xferUser' && argument.startsWith('weaponRecoilInfo.m_state')) return 'weaponRecoil.state';
+  if (method === 'xferReal' && argument === 'weaponRecoilInfo.m_shift') return 'weaponRecoil.shift';
+  if (method === 'xferReal' && argument === 'weaponRecoilInfo.m_recoilRate') return 'weaponRecoil.recoilRate';
+  if (method === 'xferUnsignedByte' && argument === 'subObjectCount') return 'subObject.count';
+  if (method === 'xferAsciiString' && argument === 'hideShowSubObjInfo.subObjName') return 'subObject.name';
+  if (method === 'xferBool' && argument === 'hideShowSubObjInfo.hide') return 'subObject.hide';
+  if (method === 'xferBool' && argument === 'present') return 'animation.present';
+  if (method === 'xferInt' && argument === 'mode') return 'animation.mode';
+  if (method === 'xferReal' && argument === 'percent') return 'animation.percent';
+  if (method === 'xferBool' && argument === 'm_dependencyCleared') return 'dependencyCleared';
+  if (method === 'xferAsciiString' && argument === 'm_modelName') return 'modelName';
+  if (method === 'xferColor' && argument === 'm_modelColor') return 'modelColor';
+  if (method === 'xferAsciiString' && argument === 'm_animInitial') return 'animInitial';
+  if (method === 'xferAsciiString' && argument === 'm_animFlying') return 'animFlying';
+  if (method === 'xferAsciiString' && argument === 'm_animFinal') return 'animFinal';
+  if (method === 'xferInt' && argument === 'm_state') return 'state';
+  if (method === 'xferInt' && argument === 'm_frames') return 'frames';
+  if (method === 'xferBool' && argument === 'm_finalStop') return 'finalStop';
+  if (method === 'xferReal' && argument === 'm_curLen') return 'curLen';
+  if (method === 'xferReal' && argument === 'm_maxLen') return 'maxLen';
+  if (method === 'xferReal' && argument === 'm_width') return 'width';
+  if (method === 'xferRGBColor' && argument === 'm_color') return 'color';
+  if (method === 'xferReal' && argument === 'm_curSpeed') return 'curSpeed';
+  if (method === 'xferReal' && argument === 'm_maxSpeed') return 'maxSpeed';
+  if (method === 'xferReal' && argument === 'm_accel') return 'accel';
+  if (method === 'xferReal' && argument === 'm_wobbleLen') return 'wobbleLen';
+  if (method === 'xferReal' && argument === 'm_wobbleAmp') return 'wobbleAmp';
+  if (method === 'xferReal' && argument === 'm_wobbleRate') return 'wobbleRate';
+  if (method === 'xferReal' && argument === 'm_curWobblePhase') return 'curWobblePhase';
+  if (method === 'xferReal' && argument === 'm_curZOffset') return 'curZOffset';
+  return null;
+}
+
+function mapTsSourceW3DDrawField(token: string, body: string, tokenIndex: number): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('xferUnsignedByte')) {
+    const window = body.slice(tokenIndex, tokenIndex + 96);
+    if (window.includes('recoilEntries.length')) return 'weaponRecoil.count';
+    if (window.includes('subObjects.length')) return 'subObject.count';
+  }
+  if (token.includes('xferBool')) {
+    const window = body.slice(tokenIndex, tokenIndex + 96);
+    if (window.includes('hasAnimation')) return 'animation.present';
+    if (window.includes('state.finalStop')) return 'finalStop';
+    if (window.includes('false')) return 'dependencyCleared';
+  }
+  if (token.includes('xferAsciiString')) {
+    const window = body.slice(tokenIndex, tokenIndex + 96);
+    if (window.includes('state.modelName')) return 'modelName';
+    if (window.includes('state.animInitial')) return 'animInitial';
+    if (window.includes('state.animFlying')) return 'animFlying';
+    if (window.includes('state.animFinal')) return 'animFinal';
+  }
+  if (token.includes('xferColor')) return 'modelColor';
+  if (token.includes('xferInt')) {
+    const window = body.slice(tokenIndex, tokenIndex + 96);
+    if (window.includes('state.state')) return 'state';
+    if (window.includes('state.frames')) return 'frames';
+  }
+  if (token.includes('xferReal')) {
+    const window = body.slice(tokenIndex, tokenIndex + 128);
+    if (window.includes('state.curLen')) return 'curLen';
+    if (window.includes('state.maxLen')) return 'maxLen';
+    if (window.includes('state.width')) return 'width';
+    if (window.includes('state.curSpeed')) return 'curSpeed';
+    if (window.includes('state.maxSpeed')) return 'maxSpeed';
+    if (window.includes('state.accel')) return 'accel';
+    if (window.includes('state.wobbleLen')) return 'wobbleLen';
+    if (window.includes('state.wobbleAmp')) return 'wobbleAmp';
+    if (window.includes('state.wobbleRate')) return 'wobbleRate';
+    if (window.includes('state.curWobblePhase')) return 'curWobblePhase';
+    if (window.includes('state.curZOffset')) return 'curZOffset';
+  }
   return null;
 }
 
@@ -5801,6 +6028,14 @@ export function compareSourceSpecialPowerModuleFields(cppFields: string[], tsFie
   return compareOrderedStrings('save-special-power-module-fields', cppFields, tsFields);
 }
 
+export function compareSourceW3DDrawModuleFields(
+  category: string,
+  cppFields: string[],
+  tsFields: string[],
+): ParityCategoryResult {
+  return compareOrderedStrings(category, cppFields, tsFields);
+}
+
 export function compareRadarFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-radar-fields', cppFields, tsFields);
 }
@@ -6191,6 +6426,41 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genSpecialPowerModuleCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/SpecialPower/SpecialPowerModule.cpp'),
   );
+  const w3dDrawFiles = [
+    'W3DDefaultDraw.cpp',
+    'W3DDependencyModelDraw.cpp',
+    'W3DDebrisDraw.cpp',
+    'W3DLaserDraw.cpp',
+    'W3DModelDraw.cpp',
+    'W3DOverlordAircraftDraw.cpp',
+    'W3DOverlordTankDraw.cpp',
+    'W3DOverlordTruckDraw.cpp',
+    'W3DPoliceCarDraw.cpp',
+    'W3DProjectileStreamDraw.cpp',
+    'W3DPropDraw.cpp',
+    'W3DRopeDraw.cpp',
+    'W3DScienceModelDraw.cpp',
+    'W3DSupplyDraw.cpp',
+    'W3DTankDraw.cpp',
+    'W3DTankTruckDraw.cpp',
+    'W3DTracerDraw.cpp',
+    'W3DTreeDraw.cpp',
+    'W3DTruckDraw.cpp',
+  ];
+  const zhW3DDrawCpp = (await Promise.all(w3dDrawFiles.map((fileName) =>
+    readFileOrEmpty(path.join(
+      repoRoot,
+      'GeneralsMD/Code/GameEngineDevice/Source/W3DDevice/GameClient/Drawable/Draw',
+      fileName,
+    )),
+  ))).join('\n');
+  const genW3DDrawCpp = (await Promise.all(w3dDrawFiles.map((fileName) =>
+    readFileOrEmpty(path.join(
+      repoRoot,
+      'Generals/Code/GameEngineDevice/Source/W3DDevice/GameClient/Drawable/Draw',
+      fileName,
+    )),
+  ))).join('\n');
   const zhTerrainVisualCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameClient/Terrain/TerrainVisual.cpp'),
   );
@@ -6724,6 +6994,97 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   for (const check of moduleBaseChecks) {
     if (check.cpp.length > 0 && check.ts.length > 0) {
       categories.push(check.compare(check.cpp, check.ts));
+    }
+  }
+
+  const w3dDrawSource = zhW3DDrawCpp || genW3DDrawCpp;
+  const w3dModelDerivedFields = parseTsSourceW3DDrawModuleFields(
+    tsRuntimeSave,
+    'xferSourceW3DModelDrawDerived',
+  );
+  const w3dOverlordTruckFields = parseTsSourceW3DDrawModuleFields(
+    tsRuntimeSave,
+    'xferSourceW3DOverlordTruckDraw',
+  );
+  const w3dDrawChecks: Array<{
+    category: string;
+    cpp: string[];
+    ts: string[];
+  }> = [
+    {
+      category: 'save-w3d-draw-base-only-fields',
+      cpp: parseCppSourceW3DDrawBaseOnlyFields(w3dDrawSource),
+      ts: parseTsSourceW3DDrawBaseOnlyFields(tsRuntimeSave),
+    },
+    {
+      category: 'save-w3d-model-draw-fields',
+      cpp: parseCppSourceW3DDrawModuleFields(w3dDrawSource, 'W3DModelDraw'),
+      ts: parseTsSourceW3DDrawModuleFields(tsRuntimeSave, 'xferSourceW3DModelDrawBase'),
+    },
+    {
+      category: 'save-w3d-tank-draw-fields',
+      cpp: parseCppSourceW3DDrawModuleFields(w3dDrawSource, 'W3DTankDraw'),
+      ts: parseTsSourceW3DDrawModuleFields(tsRuntimeSave, 'xferSourceW3DTankDraw'),
+    },
+    {
+      category: 'save-w3d-truck-draw-fields',
+      cpp: parseCppSourceW3DDrawModuleFields(w3dDrawSource, 'W3DTruckDraw'),
+      ts: parseTsSourceW3DDrawModuleFields(tsRuntimeSave, 'xferSourceW3DTruckDraw'),
+    },
+    {
+      category: 'save-w3d-tank-truck-draw-fields',
+      cpp: parseCppSourceW3DDrawModuleFields(w3dDrawSource, 'W3DTankTruckDraw'),
+      ts: w3dModelDerivedFields,
+    },
+    {
+      category: 'save-w3d-overlord-aircraft-draw-fields',
+      cpp: parseCppSourceW3DDrawModuleFields(w3dDrawSource, 'W3DOverlordAircraftDraw'),
+      ts: w3dModelDerivedFields,
+    },
+    {
+      category: 'save-w3d-science-model-draw-fields',
+      cpp: parseCppSourceW3DDrawModuleFields(w3dDrawSource, 'W3DScienceModelDraw'),
+      ts: w3dModelDerivedFields,
+    },
+    {
+      category: 'save-w3d-supply-draw-fields',
+      cpp: parseCppSourceW3DDrawModuleFields(w3dDrawSource, 'W3DSupplyDraw'),
+      ts: w3dModelDerivedFields,
+    },
+    {
+      category: 'save-w3d-overlord-tank-draw-fields',
+      cpp: parseCppSourceW3DDrawModuleFields(w3dDrawSource, 'W3DOverlordTankDraw'),
+      ts: parseTsSourceW3DDrawModuleFields(tsRuntimeSave, 'xferSourceW3DOverlordTankDraw'),
+    },
+    {
+      category: 'save-w3d-overlord-truck-draw-fields',
+      cpp: parseCppSourceW3DDrawModuleFields(w3dDrawSource, 'W3DOverlordTruckDraw'),
+      ts: w3dOverlordTruckFields,
+    },
+    {
+      category: 'save-w3d-police-car-draw-fields',
+      cpp: parseCppSourceW3DDrawModuleFields(w3dDrawSource, 'W3DPoliceCarDraw'),
+      ts: w3dOverlordTruckFields,
+    },
+    {
+      category: 'save-w3d-dependency-model-draw-fields',
+      cpp: parseCppSourceW3DDrawModuleFields(w3dDrawSource, 'W3DDependencyModelDraw'),
+      ts: parseTsSourceW3DDrawModuleFields(tsRuntimeSave, 'xferSourceW3DDependencyModelDraw'),
+    },
+    {
+      category: 'save-w3d-debris-draw-fields',
+      cpp: parseCppSourceW3DDrawModuleFields(w3dDrawSource, 'W3DDebrisDraw'),
+      ts: parseTsSourceW3DDrawModuleFields(tsRuntimeSave, 'xferSourceW3DDebrisDraw'),
+    },
+    {
+      category: 'save-w3d-rope-draw-fields',
+      cpp: parseCppSourceW3DDrawModuleFields(w3dDrawSource, 'W3DRopeDraw'),
+      ts: parseTsSourceW3DDrawModuleFields(tsRuntimeSave, 'xferSourceW3DRopeDraw'),
+    },
+  ];
+  for (const check of w3dDrawChecks) {
+    if (check.cpp.length > 0 && check.ts.length > 0) {
+      categories.push(compareSourceW3DDrawModuleFields(check.category, check.cpp, check.ts));
     }
   }
 

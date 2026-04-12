@@ -2807,14 +2807,171 @@ function xferSourceDrawModuleBase(xfer: Xfer): void {
   xferSourceDrawableModuleBase(xfer);
 }
 
-function xferSourceW3DModelDrawBase(xfer: Xfer): void {
+interface SourceW3DWeaponRecoilInfoState {
+  readonly state: number;
+  readonly shift: number;
+  readonly recoilRate: number;
+}
+
+interface SourceW3DSubObjectInfoState {
+  readonly name: string;
+  readonly hidden: boolean;
+}
+
+interface SourceW3DAnimationState {
+  readonly mode: number;
+  readonly percent: number;
+}
+
+interface SourceW3DModelDrawState {
+  readonly weaponRecoilInfoBySlot?: readonly (readonly SourceW3DWeaponRecoilInfoState[] | null | undefined)[];
+  readonly subObjects?: readonly SourceW3DSubObjectInfoState[];
+  readonly animation?: SourceW3DAnimationState | null;
+}
+
+interface SourceRGBColorState {
+  readonly red: number;
+  readonly green: number;
+  readonly blue: number;
+}
+
+interface SourceW3DDebrisDrawState {
+  readonly modelName: string;
+  readonly modelColor: number;
+  readonly animInitial: string;
+  readonly animFlying: string;
+  readonly animFinal: string;
+  readonly state: number;
+  readonly frames: number;
+  readonly finalStop: boolean;
+}
+
+interface SourceW3DRopeDrawState {
+  readonly curLen: number;
+  readonly maxLen: number;
+  readonly width: number;
+  readonly color: SourceRGBColorState;
+  readonly curSpeed: number;
+  readonly maxSpeed: number;
+  readonly accel: number;
+  readonly wobbleLen: number;
+  readonly wobbleAmp: number;
+  readonly wobbleRate: number;
+  readonly curWobblePhase: number;
+  readonly curZOffset: number;
+}
+
+const EMPTY_SOURCE_W3D_WEAPON_RECOIL_INFO_BY_SLOT:
+  readonly (readonly SourceW3DWeaponRecoilInfoState[] | null | undefined)[] = [];
+
+const EMPTY_SOURCE_W3D_MODEL_DRAW_STATE: SourceW3DModelDrawState = {
+  weaponRecoilInfoBySlot: EMPTY_SOURCE_W3D_WEAPON_RECOIL_INFO_BY_SLOT,
+  subObjects: [],
+  animation: null,
+};
+
+const EMPTY_SOURCE_W3D_DEBRIS_DRAW_STATE: SourceW3DDebrisDrawState = {
+  modelName: '',
+  modelColor: 0,
+  animInitial: '',
+  animFlying: '',
+  animFinal: '',
+  state: 0,
+  frames: 0,
+  finalStop: false,
+};
+
+const EMPTY_SOURCE_RGB_COLOR: SourceRGBColorState = {
+  red: 0,
+  green: 0,
+  blue: 0,
+};
+
+const EMPTY_SOURCE_W3D_ROPE_DRAW_STATE: SourceW3DRopeDrawState = {
+  curLen: 0,
+  maxLen: 1,
+  width: 0.5,
+  color: EMPTY_SOURCE_RGB_COLOR,
+  curSpeed: 0,
+  maxSpeed: 0,
+  accel: 0,
+  wobbleLen: 0,
+  wobbleAmp: 0,
+  wobbleRate: 1,
+  curWobblePhase: 0,
+  curZOffset: 0,
+};
+
+function xferSourceRGBColor(xfer: Xfer, color: SourceRGBColorState): SourceRGBColorState {
+  const red = xfer.xferReal(sourcePhysicsFinite(color.red, 0));
+  const green = xfer.xferReal(sourcePhysicsFinite(color.green, 0));
+  const blue = xfer.xferReal(sourcePhysicsFinite(color.blue, 0));
+  return { red, green, blue };
+}
+
+function xferSourceW3DWeaponRecoilInfo(
+  xfer: Xfer,
+  info: SourceW3DWeaponRecoilInfoState,
+): SourceW3DWeaponRecoilInfoState {
+  const state = parseSourceRawInt32Bytes(xfer.xferUser(buildSourceRawInt32Bytes(info.state)));
+  const shift = xfer.xferReal(sourcePhysicsFinite(info.shift, 0));
+  const recoilRate = xfer.xferReal(sourcePhysicsFinite(info.recoilRate, 0));
+  return { state, shift, recoilRate };
+}
+
+function xferSourceW3DSubObjectInfo(
+  xfer: Xfer,
+  info: SourceW3DSubObjectInfoState,
+): SourceW3DSubObjectInfoState {
+  const name = xfer.xferAsciiString(info.name);
+  const hidden = xfer.xferBool(info.hidden);
+  return { name, hidden };
+}
+
+function xferSourceW3DAnimationState(
+  xfer: Xfer,
+  animation: SourceW3DAnimationState,
+): SourceW3DAnimationState {
+  const mode = xfer.xferInt(sourceFiniteInt(animation.mode, 0));
+  const percent = xfer.xferReal(sourcePhysicsFinite(animation.percent, 0));
+  return { mode, percent };
+}
+
+function xferSourceW3DBaseDraw(xfer: Xfer): void {
+  xfer.xferVersion(1);
+  xferSourceDrawModuleBase(xfer);
+}
+
+function xferSourceW3DModelDrawBase(
+  xfer: Xfer,
+  state: SourceW3DModelDrawState = EMPTY_SOURCE_W3D_MODEL_DRAW_STATE,
+): void {
   xfer.xferVersion(2);
   xferSourceDrawModuleBase(xfer);
+  const recoilInfoBySlot = state.weaponRecoilInfoBySlot ?? EMPTY_SOURCE_W3D_WEAPON_RECOIL_INFO_BY_SLOT;
   for (let index = 0; index < SOURCE_WEAPON_SLOT_COUNT; index += 1) {
-    xfer.xferUnsignedByte(0);
+    const recoilEntries = recoilInfoBySlot[index] ?? [];
+    xfer.xferUnsignedByte(recoilEntries.length);
+    for (const recoilEntry of recoilEntries) {
+      xferSourceW3DWeaponRecoilInfo(xfer, recoilEntry);
+    }
   }
-  xfer.xferUnsignedByte(0);
-  xfer.xferBool(false);
+  const subObjects = state.subObjects ?? [];
+  xfer.xferUnsignedByte(subObjects.length);
+  for (const subObject of subObjects) {
+    xferSourceW3DSubObjectInfo(xfer, subObject);
+  }
+  const animation = state.animation ?? null;
+  const hasAnimation = animation !== null;
+  xfer.xferBool(hasAnimation);
+  if (animation !== null) {
+    xferSourceW3DAnimationState(xfer, animation);
+  }
+}
+
+function xferSourceW3DModelDrawDerived(xfer: Xfer): void {
+  xfer.xferVersion(1);
+  xferSourceW3DModelDrawBase(xfer);
 }
 
 function xferSourceW3DTankDraw(xfer: Xfer): void {
@@ -2827,6 +2984,57 @@ function xferSourceW3DTruckDraw(xfer: Xfer): void {
   xferSourceW3DModelDrawBase(xfer);
 }
 
+function xferSourceW3DOverlordTankDraw(xfer: Xfer): void {
+  xfer.xferVersion(1);
+  xferSourceW3DTankDraw(xfer);
+}
+
+function xferSourceW3DOverlordTruckDraw(xfer: Xfer): void {
+  xfer.xferVersion(1);
+  xferSourceW3DTruckDraw(xfer);
+}
+
+function xferSourceW3DDependencyModelDraw(xfer: Xfer): void {
+  xferSourceW3DModelDrawDerived(xfer);
+  xfer.xferBool(false);
+}
+
+function xferSourceW3DDebrisDraw(
+  xfer: Xfer,
+  state: SourceW3DDebrisDrawState = EMPTY_SOURCE_W3D_DEBRIS_DRAW_STATE,
+): void {
+  xfer.xferVersion(1);
+  xferSourceDrawModuleBase(xfer);
+  xfer.xferAsciiString(state.modelName);
+  xfer.xferColor(state.modelColor);
+  xfer.xferAsciiString(state.animInitial);
+  xfer.xferAsciiString(state.animFlying);
+  xfer.xferAsciiString(state.animFinal);
+  xfer.xferInt(sourceFiniteInt(state.state, 0));
+  xfer.xferInt(sourceFiniteInt(state.frames, 0));
+  xfer.xferBool(state.finalStop);
+}
+
+function xferSourceW3DRopeDraw(
+  xfer: Xfer,
+  state: SourceW3DRopeDrawState = EMPTY_SOURCE_W3D_ROPE_DRAW_STATE,
+): void {
+  xfer.xferVersion(1);
+  xferSourceDrawModuleBase(xfer);
+  xfer.xferReal(sourcePhysicsFinite(state.curLen, 0));
+  xfer.xferReal(sourcePhysicsFinite(state.maxLen, 0));
+  xfer.xferReal(sourcePhysicsFinite(state.width, 0));
+  xferSourceRGBColor(xfer, state.color);
+  xfer.xferReal(sourcePhysicsFinite(state.curSpeed, 0));
+  xfer.xferReal(sourcePhysicsFinite(state.maxSpeed, 0));
+  xfer.xferReal(sourcePhysicsFinite(state.accel, 0));
+  xfer.xferReal(sourcePhysicsFinite(state.wobbleLen, 0));
+  xfer.xferReal(sourcePhysicsFinite(state.wobbleAmp, 0));
+  xfer.xferReal(sourcePhysicsFinite(state.wobbleRate, 0));
+  xfer.xferReal(sourcePhysicsFinite(state.curWobblePhase, 0));
+  xfer.xferReal(sourcePhysicsFinite(state.curZOffset, 0));
+}
+
 function xferSourceW3DDrawableModulePayload(
   xfer: Xfer,
   descriptor: GameLogicSourceDrawableModuleDescriptor,
@@ -2834,8 +3042,7 @@ function xferSourceW3DDrawableModulePayload(
   const normalizedModuleType = descriptor.moduleType.trim().toUpperCase();
   if (descriptor.moduleKind === 'draw') {
     if (SOURCE_W3D_DRAW_BASE_ONLY_MODULE_TYPES.has(normalizedModuleType)) {
-      xfer.xferVersion(1);
-      xferSourceDrawModuleBase(xfer);
+      xferSourceW3DBaseDraw(xfer);
       return true;
     }
     if (SOURCE_W3D_MODEL_DRAW_DERIVED_MODULE_TYPES.has(normalizedModuleType)) {
@@ -2844,60 +3051,35 @@ function xferSourceW3DDrawableModulePayload(
           xferSourceW3DModelDrawBase(xfer);
           return true;
         case 'W3DTANKDRAW':
+          xferSourceW3DTankDraw(xfer);
+          return true;
         case 'W3DTANKTRUCKDRAW':
         case 'W3DOVERLORDAIRCRAFTDRAW':
         case 'W3DSCIENCEMODELDRAW':
         case 'W3DSUPPLYDRAW':
-          xfer.xferVersion(1);
-          xferSourceW3DModelDrawBase(xfer);
+          xferSourceW3DModelDrawDerived(xfer);
           return true;
         case 'W3DTRUCKDRAW':
           xferSourceW3DTruckDraw(xfer);
           return true;
         case 'W3DOVERLORDTANKDRAW':
-          xfer.xferVersion(1);
-          xferSourceW3DTankDraw(xfer);
+          xferSourceW3DOverlordTankDraw(xfer);
           return true;
         case 'W3DOVERLORDTRUCKDRAW':
         case 'W3DPOLICECARDRAW':
-          xfer.xferVersion(1);
-          xferSourceW3DTruckDraw(xfer);
+          xferSourceW3DOverlordTruckDraw(xfer);
           return true;
         case 'W3DDEPENDENCYMODELDRAW':
-          xfer.xferVersion(1);
-          xferSourceW3DModelDrawBase(xfer);
-          xfer.xferBool(false);
+          xferSourceW3DDependencyModelDraw(xfer);
           return true;
       }
     }
     if (normalizedModuleType === 'W3DDEBRISDRAW') {
-      xfer.xferVersion(1);
-      xferSourceDrawModuleBase(xfer);
-      xfer.xferAsciiString('');
-      xfer.xferColor(0);
-      xfer.xferAsciiString('');
-      xfer.xferAsciiString('');
-      xfer.xferAsciiString('');
-      xfer.xferInt(0);
-      xfer.xferInt(0);
-      xfer.xferBool(false);
+      xferSourceW3DDebrisDraw(xfer);
       return true;
     }
     if (normalizedModuleType === 'W3DROPEDRAW') {
-      xfer.xferVersion(1);
-      xferSourceDrawModuleBase(xfer);
-      xfer.xferReal(0);
-      xfer.xferReal(1);
-      xfer.xferReal(0.5);
-      xfer.xferReal(0);
-      xfer.xferReal(0);
-      xfer.xferReal(0);
-      xfer.xferReal(0);
-      xfer.xferReal(0);
-      xfer.xferReal(0);
-      xfer.xferReal(1);
-      xfer.xferReal(0);
-      xfer.xferReal(0);
+      xferSourceW3DRopeDraw(xfer);
       return true;
     }
   }
