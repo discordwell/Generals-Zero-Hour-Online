@@ -11982,7 +11982,17 @@ describe('runtime-save-game', () => {
       scriptToppleDirectionByEntityId?: Map<number, { x: number; z: number }>;
     } | undefined;
 
-    expect(parsed.gameLogicCoreState).toBeNull();
+    expect(parsed.gameLogicCoreState).toMatchObject({
+      version: 1,
+      nextId: 8,
+      frameCounter: 42,
+      scriptSelectionChangedFrame: 42,
+      controlBarDirtyFrame: 42,
+      scriptObjectCountChangedFrame: 42,
+      scriptScoringEnabled: false,
+      spawnedEntities: [],
+    });
+    expect(parsed.passthroughBlocks.some((block) => block.blockName === 'CHUNK_GameLogic')).toBe(true);
     expect(parsed.sourceGameLogicImportState).toMatchObject({
       version: 1,
       sourceChunkVersion: 3,

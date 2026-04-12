@@ -24978,11 +24978,49 @@ function tryParseLegacyPlayersChunk(data: ArrayBuffer | Uint8Array): GameLogicPl
 }
 
 function tryParseSourceGameLogicChunk(data: ArrayBuffer | Uint8Array): GameLogicCoreSaveState | null {
-  const inspection = inspectSourceGameLogicChunk(data);
-  if (inspection?.layout !== 'source_outer') {
+  const sourceState = parseSourceGameLogicChunkState(data);
+  if (sourceState === null) {
     return null;
   }
-  return null;
+  const nextObjectId = sourceState.objects.reduce(
+    (maxId, object) => Math.max(maxId, Math.trunc(object.state.objectId) + 1),
+    1,
+  );
+  return {
+    version: 1,
+    nextId: nextObjectId,
+    // Source GameLogic::xfer does not serialize TS-only projectile visual/random state.
+    nextProjectileVisualId: 1,
+    animationTime: 0,
+    selectedEntityId: null,
+    selectedEntityIds: [],
+    scriptSelectionChangedFrame: sourceState.frameCounter,
+    frameCounter: sourceState.frameCounter,
+    controlBarDirtyFrame: sourceState.frameCounter,
+    scriptObjectTopologyVersion: 0,
+    scriptObjectCountChangedFrame: sourceState.frameCounter,
+    defeatedSides: new Set<string>(),
+    gameEndFrame: null,
+    scriptEndGameTimerActive: false,
+    rankLevelLimit: sourceState.rankLevelLimit ?? undefined,
+    difficultyBonusesInitialized: false,
+    scriptScoringEnabled: sourceState.scriptScoringEnabled,
+    showBehindBuildingMarkers: sourceState.showBehindBuildingMarkers ?? undefined,
+    drawIconUI: sourceState.drawIconUI ?? undefined,
+    showDynamicLOD: sourceState.showDynamicLOD ?? undefined,
+    scriptHulkMaxLifetimeOverride: sourceState.scriptHulkMaxLifetimeOverride ?? undefined,
+    rankPointsToAddAtGameStart: sourceState.rankPointsToAddAtGameStart ?? undefined,
+    superweaponRestriction: sourceState.superweaponRestriction ?? undefined,
+    spawnedEntities: [],
+    caveTrackers: sourceState.caveTrackers,
+    sellingEntities: sourceState.sellingEntities,
+    buildableOverrides: sourceState.buildableOverrides,
+    controlBarOverrides: buildCoreControlBarOverridesFromSourceEntries(sourceState.controlBarOverrideEntries),
+    bridgeSegments: [],
+    objectTriggerAreaStates: [],
+    pendingWeaponDamageEvents: [],
+    historicDamageLog: [],
+  };
 }
 
 function tryParseLegacyGameLogicChunk(data: ArrayBuffer | Uint8Array): GameLogicCoreSaveState | null {
@@ -26792,7 +26830,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     ? tryParseLegacyGameLogicChunk(gameLogicChunk)
     : null;
   const browserRuntimeCoreState = payload?.gameLogicCoreState ?? null;
-  const gameLogicCoreState = sourceGameLogicCoreState ?? legacyGameLogicCoreState ?? browserRuntimeCoreState;
+  const gameLogicCoreState = legacyGameLogicCoreState ?? browserRuntimeCoreState ?? sourceGameLogicCoreState;
   const sidesListChunk = extractSaveChunkData(data, SOURCE_SIDES_LIST_BLOCK);
   const sidesListState = sidesListChunk
     ? parseSourceSidesListChunk(sidesListChunk)
@@ -26926,7 +26964,10 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
       ...(playersChunk && resolvedPlayersState === null
         ? [{ blockName: SOURCE_PLAYERS_BLOCK, blockData: copyBytesToArrayBuffer(playersChunk) }]
         : []),
-      ...(gameLogicChunk && gameLogicCoreState === null
+      ...(gameLogicChunk && (gameLogicCoreState === null || (
+        sourceGameLogicState !== null
+        && browserRuntimeCoreState === null
+      ))
         ? [{ blockName: SOURCE_GAME_LOGIC_BLOCK, blockData: copyBytesToArrayBuffer(gameLogicChunk) }]
         : []),
       ...(scriptEngineChunk && scriptEngineState === null
