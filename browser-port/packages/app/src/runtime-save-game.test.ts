@@ -12008,6 +12008,15 @@ describe('runtime-save-game', () => {
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_Players')).toEqual(rawPlayersBytes);
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_ScriptEngine')).toEqual(rawScriptEngineBytes);
     expect(readSaveChunkData(rebuilt.data, 'CHUNK_InGameUI')).toEqual(rawInGameUiBytes);
+    const rebuiltChunkNames = listSaveGameChunks(rebuilt.data).map((chunk) => chunk.blockName);
+    expect(rebuiltChunkNames.slice(
+      rebuiltChunkNames.indexOf('CHUNK_ParticleSystem'),
+      rebuiltChunkNames.indexOf('CHUNK_GhostObject') + 1,
+    )).toEqual([
+      'CHUNK_ParticleSystem',
+      'CHUNK_TerrainVisual',
+      'CHUNK_GhostObject',
+    ]);
     expect(inspectRuntimeSaveCoreChunkStatus(saveFile.data)).toEqual([
       { blockName: 'CHUNK_GameState', mode: 'parsed' },
       { blockName: 'CHUNK_Campaign', mode: 'parsed' },

@@ -26892,15 +26892,34 @@ export function buildRuntimeSaveFile(params: {
     state.addSnapshotBlock(SOURCE_IN_GAME_UI_BLOCK, new InGameUiSnapshot(inGameUiPayload));
   }
   state.addSnapshotBlock(SOURCE_PARTITION_BLOCK, new PartitionSnapshot(partitionPayload));
+  const particleSystemPassthroughBlock = orderedPassthroughBlocks.find(
+    (block) => block.blockName.toLowerCase() === SOURCE_PARTICLE_SYSTEM_BLOCK.toLowerCase(),
+  );
+  const terrainVisualPassthroughBlock = orderedPassthroughBlocks.find(
+    (block) => block.blockName.toLowerCase() === SOURCE_TERRAIN_VISUAL_BLOCK.toLowerCase(),
+  );
+  const ghostObjectPassthroughBlock = orderedPassthroughBlocks.find(
+    (block) => block.blockName.toLowerCase() === SOURCE_GHOST_OBJECT_BLOCK.toLowerCase(),
+  );
   if (params.particleSystemState) {
     state.addSnapshotBlock(
       SOURCE_PARTICLE_SYSTEM_BLOCK,
       new ParticleSystemSnapshot(params.particleSystemState),
     );
-  } else if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_PARTICLE_SYSTEM_BLOCK)) {
+  } else if (particleSystemPassthroughBlock) {
+    state.addSnapshotBlock(
+      particleSystemPassthroughBlock.blockName,
+      new RawPassthroughSnapshot(particleSystemPassthroughBlock.blockData),
+    );
+  } else {
     state.addSnapshotBlock(SOURCE_PARTICLE_SYSTEM_BLOCK, new ParticleSystemSnapshot());
   }
-  if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_TERRAIN_VISUAL_BLOCK)) {
+  if (terrainVisualPassthroughBlock) {
+    state.addSnapshotBlock(
+      terrainVisualPassthroughBlock.blockName,
+      new RawPassthroughSnapshot(terrainVisualPassthroughBlock.blockData),
+    );
+  } else {
     state.addSnapshotBlock(
       SOURCE_TERRAIN_VISUAL_BLOCK,
       new TerrainVisualSnapshot(
@@ -26910,13 +26929,18 @@ export function buildRuntimeSaveFile(params: {
       ),
     );
   }
-  if (!hasPassthroughBlock(orderedPassthroughBlocks, SOURCE_GHOST_OBJECT_BLOCK) || ghostObjectState !== null) {
+  if (ghostObjectState !== null || !ghostObjectPassthroughBlock) {
     state.addSnapshotBlock(
       SOURCE_GHOST_OBJECT_BLOCK,
       new GhostObjectSnapshot(
         ghostObjectState?.localPlayerIndex ?? resolvedLocalPlayerIndex,
         ghostObjectEntries,
       ),
+    );
+  } else {
+    state.addSnapshotBlock(
+      ghostObjectPassthroughBlock.blockName,
+      new RawPassthroughSnapshot(ghostObjectPassthroughBlock.blockData),
     );
   }
   for (const passthroughBlock of orderedPassthroughBlocks) {
@@ -26926,17 +26950,12 @@ export function buildRuntimeSaveFile(params: {
     }
     if (
       normalizedName === SOURCE_PARTICLE_SYSTEM_BLOCK.toLowerCase()
-      && params.particleSystemState
+      || normalizedName === SOURCE_TERRAIN_VISUAL_BLOCK.toLowerCase()
+      || normalizedName === SOURCE_GHOST_OBJECT_BLOCK.toLowerCase()
     ) {
       continue;
     }
     if (KNOWN_RUNTIME_SAVE_BLOCKS.has(normalizedName)) {
-      continue;
-    }
-    if (
-      normalizedName === SOURCE_GHOST_OBJECT_BLOCK.toLowerCase()
-      && ghostObjectState !== null
-    ) {
       continue;
     }
     if (normalizedName !== SOURCE_GAME_CLIENT_BLOCK.toLowerCase()) {
