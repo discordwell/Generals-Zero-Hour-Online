@@ -2883,7 +2883,7 @@ function parseCppSimpleModuleFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xfer->xferInt\s*\(\s*\(Int\*\)&production->m_exitDoor\s*\)|m_(?:clearFlags|setFlags)\.xfer\s*\(\s*xfer\s*\)|m_bonuses->m_(?:validKindOf|invalidKindOf)\.xfer\s*\(\s*xfer\s*\)|[A-Za-z0-9_]+::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+    /xfer->xferInt\s*\(\s*\(Int\*\)&production->m_exitDoor\s*\)|m_(?:clearFlags|setFlags)\.xfer\s*\(\s*xfer\s*\)|m_bonuses->m_(?:validKindOf|invalidKindOf)\.xfer\s*\(\s*xfer\s*\)|m_pendingCommand\.doXfer\s*\(\s*xfer\s*\)|[A-Za-z0-9_]+::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
     const token = match[0]!;
@@ -2905,6 +2905,10 @@ function parseCppSimpleModuleFields(
     }
     if (token.includes('m_bonuses->m_invalidKindOf.xfer')) {
       pushUniqueField(fields, seen, 'invalidKindOf');
+      continue;
+    }
+    if (token.includes('m_pendingCommand.doXfer')) {
+      pushUniqueField(fields, seen, 'pendingCommand');
       continue;
     }
     const baseKey = token.split('(')[0]?.replace(/\s+/g, '');
@@ -3056,6 +3060,10 @@ function sourceParticleUplinkVisualFields(): string[] {
 
 function sourceSupplyTruckTailFields(): string[] {
   return ['preferredDockId', 'numberBoxes', 'forcePending'];
+}
+
+function sourceSupplyTruckAIUpdateFields(): string[] {
+  return ['version', 'aiUpdateInterface', 'stateMachine', ...sourceSupplyTruckTailFields()];
 }
 
 function sourceDozerTaskEntryFields(): string[] {
@@ -3247,6 +3255,7 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
       'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
       'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
       'DockUpdate::xfer': prefixBaseVersion(sourceDockUpdateFields(), 'dock'),
+      'SupplyTruckAIUpdate::xfer': prefixBaseVersion(sourceSupplyTruckAIUpdateFields(), 'supplyTruck'),
       'AIUpdateInterface::xfer': ['aiUpdateInterface'],
     },
     mapper,
@@ -3271,6 +3280,8 @@ export function parseTsSourceObjectUpdateFields(
     if (token.includes('xferVersion')) {
       if (versionIndex === 0) {
         pushUniqueField(fields, seen, 'version');
+      } else if (helperName === 'buildGeneratedSourceChinookAIUpdateBlockData' && versionIndex === 1) {
+        pushUniqueField(fields, seen, 'supplyTruck.version');
       } else if (options.hasUpgradeMux && versionIndex === 1) {
         pushUniqueField(fields, seen, 'upgradeMux.version');
       }
@@ -5165,6 +5176,10 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferObjectID' && argument === 'm_preferredDock') return 'preferredDockId';
   if (method === 'xferInt' && argument === 'm_numberBoxes') return 'numberBoxes';
   if (method === 'xferBool' && argument === 'm_forcePending') return 'forcePending';
+  if (method === 'xferBool' && argument === 'm_hasPendingCommand') return 'hasPendingCommand';
+  if (method === 'xferUser' && argument.startsWith('m_flightStatus')) return 'flightStatus';
+  if (method === 'xferObjectID' && argument === 'm_airfieldForHealing') return 'airfieldForHealing';
+  if (method === 'xferCoord3D' && argument === 'm_originalPos') return 'originalPos';
   if (method === 'xferUser' && argument.startsWith('m_aiMode')) return 'aiMode';
   if (method === 'xferUser' && argument.startsWith('m_currentTask')) return 'currentTask';
   if (method === 'xferObjectID' && argument === 'm_prisonID') return 'prisonId';
@@ -5268,6 +5283,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('designatedTargetId')) return 'designatedTargetId';
     if (window.includes('preferredDockId')) return 'preferredDockId';
     if (window.includes('powTruckPrisonId')) return 'prisonId';
+    if (window.includes('chinookHealingAirfieldId')) return 'airfieldForHealing';
     if (window.includes('specialObjectIdList')) return 'specialObjectIdList';
     if (window.includes('lastRepair')) return 'lastRepair';
     if (window.includes('dockingObjectId')) return 'dockingObjectId';
@@ -5344,6 +5360,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('isAttackMove')) return 'isAttackMove';
     if (window.includes('isAttackObject')) return 'isAttackObject';
     if (window.includes('forceBusy')) return 'forcePending';
+    if (window.includes('pendingCommandBytes')) return 'hasPendingCommand';
     if (window.includes('state?.inTransit')) return 'inTransit';
     if (window.includes('state?.waypointDataLoaded')) return 'waypointDataLoaded';
     if (window.includes('invalidSettings')) return 'invalidSettings';
@@ -5366,6 +5383,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('paths.length')) return 'paths.count';
     if (window.includes('assaultState')) return 'assaultState';
     if (window.includes('currentBoxes')) return 'numberBoxes';
+    if (window.includes('sourceChinookFlightStatusToInt')) return 'flightStatus';
     if (window.includes('state?.currentPath')) return 'currentPath';
     if (window.includes('currentPlan')) return 'currentPlan';
     if (window.includes('desiredPlan')) return 'desiredPlan';
@@ -5509,6 +5527,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('sourceDeployStyleStateToInt')) return 'state';
     if (window.includes('SOURCE_WORKER_ACT_AS_DOZER')) return 'workerMachine';
     if (window.includes('buildGeneratedSourceStubStateMachineBlockData')) return 'stateMachine';
+    if (window.includes('pendingCommandBytes')) return 'pendingCommand';
+    if (window.includes('sourceChinookFlightStatusToInt')) return 'flightStatus';
     if (window.includes('entity.powTruckAIMode')) return 'aiMode';
     if (window.includes('entity.powTruckCurrentTask')) return 'currentTask';
     if (window.includes('buildSourceRawInt32Bytes(currentPlan)')) return 'currentPlan';
@@ -5564,6 +5584,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('targetPosition')) return 'targetPosition';
     if (window.includes('rallyPoint')) return 'rallyPoint';
     if (window.includes('guardPointOffset') || window.includes('slaveGuardOffset')) return 'guardPointOffset';
+    if (window.includes('{ x: 0, y: 0, z: 0 }')) return 'originalPos';
   }
   return null;
 }
@@ -7504,6 +7525,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AutoFindHealingUpdate.cpp',
     'AutoDepositUpdate.cpp',
     'AIUpdate/AssaultTransportAIUpdate.cpp',
+    'AIUpdate/ChinookAIUpdate.cpp',
     'AIUpdate/DeployStyleAIUpdate.cpp',
     'AIUpdate/DozerAIUpdate.cpp',
     'AIUpdate/POWTruckAIUpdate.cpp',
@@ -8577,6 +8599,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-assault-transport-ai-update-fields',
       cppClass: 'AssaultTransportAIUpdate',
       tsHelper: 'buildGeneratedSourceAssaultTransportAIUpdateBlockData',
+    },
+    {
+      category: 'save-chinook-ai-update-fields',
+      cppClass: 'ChinookAIUpdate',
+      tsHelper: 'buildGeneratedSourceChinookAIUpdateBlockData',
     },
     {
       category: 'save-dozer-ai-update-fields',
