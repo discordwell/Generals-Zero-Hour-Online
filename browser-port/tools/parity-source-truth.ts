@@ -8634,8 +8634,10 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AIUpdate/RailedTransportAIUpdate.cpp',
     'AIUpdate/RailroadGuideAIUpdate.cpp',
     'AIUpdate/SupplyTruckAIUpdate.cpp',
+    'AIUpdate/TransportAIUpdate.cpp',
     'AIUpdate/WanderAIUpdate.cpp',
     'AIUpdate/WorkerAIUpdate.cpp',
+    'AssistedTargetingUpdate.cpp',
     'AnimationSteeringUpdate.cpp',
     '../Behavior/AutoHealBehavior.cpp',
     'BaseRenerateUpdate.cpp',
@@ -8720,6 +8722,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'SpectreGunshipUpdate.cpp',
     'SpectreGunshipDeploymentUpdate.cpp',
     'SpecialAbilityUpdate.cpp',
+    'SpecialPowerUpdateModule.cpp',
     'SpyVisionUpdate.cpp',
     'StealthDetectorUpdate.cpp',
     'StealthUpdate.cpp',
@@ -9567,6 +9570,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       tsHelper: 'buildSourceAnimationSteeringUpdateBlockData',
     },
     {
+      category: 'save-assisted-targeting-update-fields',
+      cppClass: 'AssistedTargetingUpdate',
+      tsHelper: 'buildSourceStatelessUpdateModuleBlockData',
+    },
+    {
       category: 'save-float-update-fields',
       cppClass: 'FloatUpdate',
       tsHelper: 'buildSourceFloatUpdateBlockData',
@@ -9892,6 +9900,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       tsHelper: 'buildSourceSpecialAbilityUpdateBlockData',
     },
     {
+      category: 'save-special-power-update-module-fields',
+      cppClass: 'SpecialPowerUpdateModule',
+      tsHelper: 'buildSourceStatelessUpdateModuleBlockData',
+    },
+    {
       category: 'save-particle-uplink-cannon-update-fields',
       cppClass: 'ParticleUplinkCannonUpdate',
       tsHelper: 'buildSourceParticleUplinkCannonUpdateBlockData',
@@ -9899,6 +9912,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     {
       category: 'save-wander-ai-update-fields',
       cppClass: 'WanderAIUpdate',
+      tsHelper: 'buildSourceAIUpdateInterfaceDerivedBlockData',
+    },
+    {
+      category: 'save-transport-ai-update-fields',
+      cppClass: 'TransportAIUpdate',
       tsHelper: 'buildSourceAIUpdateInterfaceDerivedBlockData',
     },
     {
