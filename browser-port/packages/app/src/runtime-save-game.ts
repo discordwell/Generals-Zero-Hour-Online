@@ -457,7 +457,6 @@ const SOURCE_SCRIPT_ENGINE_MAX_COUNTERS = 256;
 const SOURCE_SCRIPT_ENGINE_MAX_FLAGS = 256;
 const SOURCE_SCRIPT_ENGINE_MAX_ATTACK_PRIORITIES = 256;
 const SOURCE_SCRIPT_ENGINE_PLAYER_COUNT = 16;
-const SOURCE_SCRIPT_ENGINE_FIRST_LOAD_FADE_DECREASE_FRAMES = 33;
 const INVALID_MISSION_NUMBER = -1;
 export const SOURCE_GAME_MODE_SINGLE_PLAYER = 0;
 export const SOURCE_GAME_MODE_SKIRMISH = 2;
@@ -1093,19 +1092,6 @@ function getRuntimeStateNumber(
 
 function normalizeOptionalAsciiString(value: unknown): string {
   return typeof value === 'string' ? value : '';
-}
-
-function createEmptyScriptEngineFadeState(): ScriptCameraEffectFadeSaveState {
-  return {
-    fadeType: 'MULTIPLY',
-    minFade: 1,
-    maxFade: 0,
-    currentFadeValue: 0,
-    currentFadeFrame: 0,
-    increaseFrames: 0,
-    holdFrames: 0,
-    decreaseFrames: SOURCE_SCRIPT_ENGINE_FIRST_LOAD_FADE_DECREASE_FRAMES,
-  };
 }
 
 function normalizeScriptEngineFadeTypeToSourceValue(
@@ -2002,7 +1988,7 @@ function applySourceMetadataOverrides(
   metadata: RuntimeSaveMetadataState,
   sourceMetadata: Partial<Pick<
     ParsedSaveGameInfo,
-    'saveFileType' | 'missionMapName' | 'mapLabel' | 'campaignSide' | 'missionNumber'
+    'saveFileType' | 'missionMapName' | 'date' | 'mapLabel' | 'campaignSide' | 'missionNumber'
   >> | null | undefined,
 ): void {
   if (!sourceMetadata) {
@@ -2013,6 +1999,19 @@ function applySourceMetadataOverrides(
   }
   if (typeof sourceMetadata.missionMapName === 'string') {
     metadata.missionMapName = sourceMetadata.missionMapName;
+  }
+  if (sourceMetadata.date && typeof sourceMetadata.date === 'object') {
+    const date = sourceMetadata.date;
+    metadata.date = {
+      year: Number.isFinite(date.year) ? Math.trunc(date.year) : metadata.date.year,
+      month: Number.isFinite(date.month) ? Math.trunc(date.month) : metadata.date.month,
+      day: Number.isFinite(date.day) ? Math.trunc(date.day) : metadata.date.day,
+      dayOfWeek: Number.isFinite(date.dayOfWeek) ? Math.trunc(date.dayOfWeek) : metadata.date.dayOfWeek,
+      hour: Number.isFinite(date.hour) ? Math.trunc(date.hour) : metadata.date.hour,
+      minute: Number.isFinite(date.minute) ? Math.trunc(date.minute) : metadata.date.minute,
+      second: Number.isFinite(date.second) ? Math.trunc(date.second) : metadata.date.second,
+      milliseconds: Number.isFinite(date.milliseconds) ? Math.trunc(date.milliseconds) : metadata.date.milliseconds,
+    };
   }
   if (typeof sourceMetadata.mapLabel === 'string') {
     metadata.mapLabel = sourceMetadata.mapLabel;
@@ -24578,7 +24577,7 @@ class ScriptEngineSnapshot implements Snapshot {
             holdFrames: Math.max(0, Math.trunc(loadedHoldFrames)),
             decreaseFrames: Math.max(0, Math.trunc(loadedDecreaseFrames)),
           }
-        : createEmptyScriptEngineFadeState();
+        : null;
 
       const restoredState: Record<string, unknown> = {
         scriptSequentialScripts: loadedSequentialScripts,
@@ -26414,7 +26413,7 @@ export function buildRuntimeSaveFile(params: {
   gameStateMapTrailingBytes?: Uint8Array | null;
   sourceMetadata?: Partial<Pick<
     ParsedSaveGameInfo,
-    'saveFileType' | 'missionMapName' | 'mapLabel' | 'campaignSide' | 'missionNumber'
+    'saveFileType' | 'missionMapName' | 'date' | 'mapLabel' | 'campaignSide' | 'missionNumber'
   >> | null;
   sourceGameMode?: number;
   campaign?: RuntimeSaveCampaignBootstrap | null;

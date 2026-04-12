@@ -11300,6 +11300,16 @@ describe('runtime-save-game', () => {
       sourceMetadata: {
         saveFileType: SaveFileType.SAVE_FILE_TYPE_MISSION,
         missionMapName: 'Maps\\MD_USA01\\MD_USA01.map',
+        date: {
+          year: 2003,
+          month: 9,
+          day: 22,
+          dayOfWeek: 1,
+          hour: 13,
+          minute: 14,
+          second: 15,
+          milliseconds: 16,
+        },
         mapLabel: 'GUI:MissionSave',
         campaignSide: 'usa',
         missionNumber: 0,
@@ -11321,9 +11331,20 @@ describe('runtime-save-game', () => {
     expect(Array.from(new Uint8Array(mapInfo.trailingBytes))).toEqual(Array.from(gameStateMapTrailingBytes));
     expect(parsed.metadata.saveFileType).toBe(SaveFileType.SAVE_FILE_TYPE_MISSION);
     expect(parsed.metadata.missionMapName).toBe('Maps\\MD_USA01\\MD_USA01.map');
+    expect(parsed.metadata.date).toEqual({
+      year: 2003,
+      month: 9,
+      day: 22,
+      dayOfWeek: 1,
+      hour: 13,
+      minute: 14,
+      second: 15,
+      milliseconds: 16,
+    });
     expect(parsed.metadata.mapLabel).toBe('GUI:MissionSave');
     expect(parsed.metadata.campaignSide).toBe('usa');
     expect(parsed.metadata.missionNumber).toBe(0);
+    expect(parsed.scriptEngineFadeState).toBeNull();
     expect(parsed.campaign).toBeNull();
   });
 

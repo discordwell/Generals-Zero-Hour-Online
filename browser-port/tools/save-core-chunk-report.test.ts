@@ -287,6 +287,8 @@ describe('save core chunk report', () => {
     expect(report.roundTrip.status).toBe('pass');
     expect(report.roundTrip.summary?.status).toBe('pass');
     expect(report.roundTrip.chunkNamesPreserved).toBe(true);
+    expect(report.roundTrip.chunkPayloadBytesPreserved).toBe(true);
+    expect(report.roundTrip.changedChunkPayloads).toEqual([]);
     expect(report.roundTrip.metadataPreserved).toBe(true);
     expect(report.roundTrip.gameStateMapHeaderPreserved).toBe(true);
     expect(report.roundTrip.embeddedMapBytesPreserved).toBe(true);
@@ -319,6 +321,8 @@ describe('save core chunk report', () => {
     expect(report.roundTrip.reason).toBeNull();
     expect(report.roundTrip.summary?.status).toBe('pass');
     expect(report.roundTrip.chunkNamesPreserved).toBe(true);
+    expect(report.roundTrip.chunkPayloadBytesPreserved).toBe(true);
+    expect(report.roundTrip.changedChunkPayloads).toEqual([]);
     expect(report.roundTrip.metadataPreserved).toBe(true);
     expect(report.roundTrip.gameStateMapHeaderPreserved).toBe(true);
     expect(report.roundTrip.embeddedMapBytesPreserved).toBe(true);

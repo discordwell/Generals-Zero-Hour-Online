@@ -39,10 +39,20 @@ export interface SaveCoreChunkRoundTripReport {
   sourceChunkNames?: string[];
   rebuiltChunkNames?: string[];
   chunkNamesPreserved?: boolean;
+  chunkPayloadBytesPreserved?: boolean;
+  changedChunkPayloads?: SaveCoreChunkPayloadDiff[];
   metadataPreserved?: boolean;
   gameStateMapHeaderPreserved?: boolean;
   embeddedMapBytesPreserved?: boolean;
   gameStateMapTrailingBytesPreserved?: boolean;
+}
+
+export interface SaveCoreChunkPayloadDiff {
+  index: number;
+  blockName: string;
+  sourceBlockSize: number;
+  rebuiltBlockName: string | null;
+  rebuiltBlockSize: number | null;
 }
 
 export interface SaveCoreChunkCollectionReportSummary {
@@ -302,11 +312,54 @@ function arrayValuesEqual<T>(left: readonly T[], right: readonly T[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.byteLength !== right.byteLength) {
+    return false;
+  }
+  for (let index = 0; index < left.byteLength; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function getChunkPayloadBytes(data: ArrayBuffer, chunk: ReturnType<typeof listSaveGameChunks>[number]): Uint8Array {
+  return new Uint8Array(data, chunk.blockDataOffset, chunk.blockSize);
+}
+
+function buildChangedChunkPayloads(
+  sourceData: ArrayBuffer,
+  rebuiltData: ArrayBuffer,
+): SaveCoreChunkPayloadDiff[] {
+  const sourceChunks = listSaveGameChunks(sourceData);
+  const rebuiltChunks = listSaveGameChunks(rebuiltData);
+  return sourceChunks.flatMap((sourceChunk, index) => {
+    const rebuiltChunk = rebuiltChunks[index] ?? null;
+    const payloadsEqual = rebuiltChunk !== null
+      && sourceChunk.blockName === rebuiltChunk.blockName
+      && bytesEqual(
+        getChunkPayloadBytes(sourceData, sourceChunk),
+        getChunkPayloadBytes(rebuiltData, rebuiltChunk),
+      );
+    return payloadsEqual
+      ? []
+      : [{
+          index,
+          blockName: sourceChunk.blockName,
+          sourceBlockSize: sourceChunk.blockSize,
+          rebuiltBlockName: rebuiltChunk?.blockName ?? null,
+          rebuiltBlockSize: rebuiltChunk?.blockSize ?? null,
+        }];
+  });
+}
+
 function buildSaveMetadataIdentity(data: ArrayBuffer): Record<string, unknown> {
   const metadata = parseSaveGameInfo(data);
   return {
     saveFileType: metadata.saveFileType,
     missionMapName: metadata.missionMapName,
+    date: metadata.date,
     description: metadata.description,
     mapLabel: metadata.mapLabel,
     campaignSide: metadata.campaignSide,
@@ -343,6 +396,8 @@ function buildSaveCoreChunkRoundTripReport(
     const sourceChunkNames = listSaveGameChunks(data).map((chunk) => chunk.blockName);
     const rebuiltChunkNames = listSaveGameChunks(rebuiltData).map((chunk) => chunk.blockName);
     const chunkNamesPreserved = arrayValuesEqual(sourceChunkNames, rebuiltChunkNames);
+    const changedChunkPayloads = buildChangedChunkPayloads(data, rebuiltData);
+    const chunkPayloadBytesPreserved = changedChunkPayloads.length === 0;
     const metadataPreserved = JSON.stringify(buildSaveMetadataIdentity(data))
       === JSON.stringify(buildSaveMetadataIdentity(rebuiltData));
     const gameStateMapHeaderPreserved = JSON.stringify(buildGameStateMapHeaderIdentity(data))
@@ -359,15 +414,17 @@ function buildSaveCoreChunkRoundTripReport(
     );
     const preservationBlockReason = !chunkNamesPreserved
       ? 'roundtrip-chunk-names-changed'
-      : !metadataPreserved
-        ? 'roundtrip-metadata-changed'
-        : !gameStateMapHeaderPreserved
-          ? 'roundtrip-gamestate-map-header-changed'
-          : !embeddedMapBytesPreserved
-            ? 'roundtrip-map-payload-changed'
-            : !gameStateMapTrailingBytesPreserved
-              ? 'roundtrip-gamestate-map-trailing-bytes-changed'
-              : null;
+      : !chunkPayloadBytesPreserved
+        ? 'roundtrip-chunk-payload-bytes-changed'
+        : !metadataPreserved
+          ? 'roundtrip-metadata-changed'
+          : !gameStateMapHeaderPreserved
+            ? 'roundtrip-gamestate-map-header-changed'
+            : !embeddedMapBytesPreserved
+              ? 'roundtrip-map-payload-changed'
+              : !gameStateMapTrailingBytesPreserved
+                ? 'roundtrip-gamestate-map-trailing-bytes-changed'
+                : null;
     const status = preservationBlockReason === null
       ? rebuiltReport.summary.status
       : 'blocked';
@@ -379,6 +436,8 @@ function buildSaveCoreChunkRoundTripReport(
       sourceChunkNames,
       rebuiltChunkNames,
       chunkNamesPreserved,
+      chunkPayloadBytesPreserved,
+      changedChunkPayloads,
       metadataPreserved,
       gameStateMapHeaderPreserved,
       embeddedMapBytesPreserved,
