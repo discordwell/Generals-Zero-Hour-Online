@@ -3333,6 +3333,12 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppRebuildHoleBehaviorField;
   } else if (className === 'PropagandaTowerBehavior') {
     mapper = mapCppPropagandaTowerBehaviorField;
+  } else if (className === 'AutoHealBehavior') {
+    mapper = mapCppAutoHealBehaviorField;
+  } else if (className === 'GrantStealthBehavior') {
+    mapper = mapCppGrantStealthBehaviorField;
+  } else if (className === 'CountermeasuresBehavior') {
+    mapper = mapCppCountermeasuresBehaviorField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -5538,6 +5544,30 @@ function mapCppPropagandaTowerBehaviorField(method: string, argument: string): s
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppAutoHealBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferUser' && argument.startsWith('m_radiusParticleSystemID')) return 'radiusParticleSystemId';
+  if (method === 'xferUnsignedInt' && argument === 'm_soonestHealFrame') return 'soonestHealFrame';
+  if (method === 'xferBool' && argument === 'm_stopped') return 'stopped';
+  return mapCppSimpleModuleField(method, argument);
+}
+
+function mapCppGrantStealthBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferUser' && argument.startsWith('m_radiusParticleSystemID')) return 'radiusParticleSystemId';
+  if (method === 'xferReal' && argument === 'm_currentScanRadius') return 'currentScanRadius';
+  return mapCppSimpleModuleField(method, argument);
+}
+
+function mapCppCountermeasuresBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferSTLObjectIDVector' && argument === 'm_counterMeasures') return 'counterMeasures';
+  if (method === 'xferUnsignedInt' && argument === 'm_availableCountermeasures') return 'availableCountermeasures';
+  if (method === 'xferUnsignedInt' && argument === 'm_activeCountermeasures') return 'activeCountermeasures';
+  if (method === 'xferUnsignedInt' && argument === 'm_divertedMissiles') return 'divertedMissiles';
+  if (method === 'xferUnsignedInt' && argument === 'm_incomingMissiles') return 'incomingMissiles';
+  if (method === 'xferUnsignedInt' && argument === 'm_reactionFrame') return 'reactionFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_nextVolleyFrame') return 'nextVolleyFrame';
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -5551,6 +5581,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('setFlags')) return 'setFlags';
   }
   if (token.includes('xferObjectID')) {
+    if (window.includes('flareIds')) return 'counterMeasures';
     if (window.includes('targetId')) return 'targetId';
     if (window.includes('targetEntityId')) return 'targetId';
     if (window.includes('powTruckTargetId')) return 'targetId';
@@ -5675,6 +5706,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('disembark')) return 'disembark';
     if (window.includes('inTunnel')) return 'inTunnel';
     if (window.includes('held')) return 'held';
+    if (window.includes('autoHealStopped')) return 'stopped';
     if (window.includes('invalidSettings')) return 'invalidSettings';
     if (window.includes('centeringTurret')) return 'centeringTurret';
     if (window.includes('repairing')) return 'repairing';
@@ -5773,6 +5805,14 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('dropDelay')) return 'dropDelay';
     if (window.includes('motiveForceExpires')) return 'motiveForceExpires';
     if (window.includes('workerWaitCounter')) return 'workerWaitCounter';
+    if (window.includes('radiusParticleSystemId')) return 'radiusParticleSystemId';
+    if (window.includes('autoHealSoonestHealFrame')) return 'soonestHealFrame';
+    if (window.includes('availableCountermeasures')) return 'availableCountermeasures';
+    if (window.includes('activeCountermeasures')) return 'activeCountermeasures';
+    if (window.includes('divertedMissiles')) return 'divertedMissiles';
+    if (window.includes('incomingMissiles')) return 'incomingMissiles';
+    if (window.includes('reactionFrame')) return 'reactionFrame';
+    if (window.includes('nextVolleyFrame')) return 'nextVolleyFrame';
     if (window.includes('nextReadyFrame') || window.includes('sourceBattlePlanNextReadyFrame')) {
       return 'nextReadyFrame';
     }
@@ -5852,6 +5892,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('strafeLength')) return 'strafeLength';
     if (window.includes('deliveryDecalRadius')) return 'deliveryDecalRadius';
     if (window.includes('previousDistanceSqr')) return 'previousDistanceSqr';
+    if (window.includes('currentScanRadius')) return 'currentScanRadius';
     if (window.includes('yawRate')) return 'yawRate';
     if (window.includes('rollRate')) return 'rollRate';
     if (window.includes('pitchRate')) return 'pitchRate';
@@ -7912,10 +7953,13 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AIUpdate/WanderAIUpdate.cpp',
     'AIUpdate/WorkerAIUpdate.cpp',
     'AnimationSteeringUpdate.cpp',
+    '../Behavior/AutoHealBehavior.cpp',
     'BaseRenerateUpdate.cpp',
     'BattlePlanUpdate.cpp',
     'BoneFXUpdate.cpp',
+    '../Behavior/CountermeasuresBehavior.cpp',
     '../Behavior/DumbProjectileBehavior.cpp',
+    '../Behavior/GrantStealthBehavior.cpp',
     '../Behavior/PropagandaTowerBehavior.cpp',
     '../Behavior/RebuildHoleBehavior.cpp',
     'CheckpointUpdate.cpp',
@@ -8851,6 +8895,23 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-propaganda-tower-behavior-fields',
       cppClass: 'PropagandaTowerBehavior',
       tsHelper: 'buildSourcePropagandaTowerBehaviorBlockData',
+    },
+    {
+      category: 'save-auto-heal-behavior-fields',
+      cppClass: 'AutoHealBehavior',
+      tsHelper: 'buildSourceAutoHealBehaviorBlockData',
+      hasUpgradeMux: true,
+    },
+    {
+      category: 'save-grant-stealth-behavior-fields',
+      cppClass: 'GrantStealthBehavior',
+      tsHelper: 'buildSourceGrantStealthBehaviorBlockData',
+    },
+    {
+      category: 'save-countermeasures-behavior-fields',
+      cppClass: 'CountermeasuresBehavior',
+      tsHelper: 'buildSourceCountermeasuresBehaviorBlockData',
+      hasUpgradeMux: true,
     },
     {
       category: 'save-point-defense-laser-update-fields',
