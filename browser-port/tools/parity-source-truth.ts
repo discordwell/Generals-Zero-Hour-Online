@@ -3049,6 +3049,48 @@ function sourceUpdateModuleDirectFields(): string[] {
   return ['version', ...sourceBehaviorModuleBaseFields(), 'nextCallFrameAndPhase'];
 }
 
+function sourceObjectHelperBaseFields(): string[] {
+  return ['objectHelper.version', ...sourceUpdateModuleBaseFields()];
+}
+
+function sourceObjectHelperDirectFields(): string[] {
+  return ['version', ...sourceUpdateModuleBaseFields()];
+}
+
+function sourceDerivedObjectHelperFields(): string[] {
+  return ['version', ...sourceObjectHelperBaseFields()];
+}
+
+function sourceObjectDefectionHelperFields(): string[] {
+  return [
+    ...sourceDerivedObjectHelperFields(),
+    'defectionDetectionStart',
+    'defectionDetectionEnd',
+    'defectionDetectionFlashPhase',
+    'doDefectorFx',
+  ];
+}
+
+function sourceStatusDamageHelperFields(): string[] {
+  return [
+    ...sourceDerivedObjectHelperFields(),
+    'statusToHeal',
+    'frameToHeal',
+  ];
+}
+
+function sourceSubdualDamageHelperFields(): string[] {
+  return [...sourceDerivedObjectHelperFields(), 'healingStepCountdown'];
+}
+
+function sourceTempWeaponBonusHelperFields(): string[] {
+  return [
+    ...sourceDerivedObjectHelperFields(),
+    'currentBonus',
+    'frameToRemove',
+  ];
+}
+
 function sourceBodyModuleBaseFields(): string[] {
   return ['body.version', ...sourceBehaviorModuleBaseFields(), 'damageScalar'];
 }
@@ -3879,6 +3921,26 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
   if (className === 'UpdateModule') {
     return sourceUpdateModuleDirectFields();
   }
+  if (className === 'ObjectHelper') {
+    return sourceObjectHelperDirectFields();
+  }
+  if (className === 'ObjectSMCHelper'
+    || className === 'ObjectRepulsorHelper'
+    || className === 'ObjectWeaponStatusHelper') {
+    return sourceDerivedObjectHelperFields();
+  }
+  if (className === 'ObjectDefectionHelper') {
+    return sourceObjectDefectionHelperFields();
+  }
+  if (className === 'StatusDamageHelper') {
+    return sourceStatusDamageHelperFields();
+  }
+  if (className === 'SubdualDamageHelper') {
+    return sourceSubdualDamageHelperFields();
+  }
+  if (className === 'TempWeaponBonusHelper') {
+    return sourceTempWeaponBonusHelperFields();
+  }
   if (className === 'BodyModule') {
     return sourceBodyModuleDirectFields();
   }
@@ -4087,6 +4149,7 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     {
       'BehaviorModule::xfer': sourceBehaviorModuleBaseFields(),
       'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
+      'ObjectHelper::xfer': sourceObjectHelperBaseFields(),
       'BodyModule::xfer': sourceBodyModuleBaseFields(),
       'CollideModule::xfer': sourceCollideModuleBaseFields(),
       'CrateCollide::xfer': prefixBaseVersion(sourceCrateCollideFields(), 'crateCollide'),
@@ -4140,6 +4203,27 @@ export function parseTsSourceObjectUpdateFields(
   }
   if (helperName === 'xferSourceUpdateModuleBase') {
     return sourceUpdateModuleDirectFields();
+  }
+  if (helperName === 'buildSourceObjectHelperBaseBlockData') {
+    return sourceObjectHelperDirectFields();
+  }
+  if (helperName === 'buildSourceBaseOnlyObjectHelperBlockData'
+    || helperName === 'buildSourceObjectSmcHelperBlockData'
+    || helperName === 'buildSourceObjectRepulsorHelperBlockData'
+    || helperName === 'buildSourceObjectWeaponStatusHelperBlockData') {
+    return sourceDerivedObjectHelperFields();
+  }
+  if (helperName === 'buildSourceObjectDefectionHelperBlockData') {
+    return sourceObjectDefectionHelperFields();
+  }
+  if (helperName === 'buildSourceStatusDamageHelperBlockData') {
+    return sourceStatusDamageHelperFields();
+  }
+  if (helperName === 'buildSourceSubdualDamageHelperBlockData') {
+    return sourceSubdualDamageHelperFields();
+  }
+  if (helperName === 'buildSourceTempWeaponBonusHelperBlockData') {
+    return sourceTempWeaponBonusHelperFields();
   }
   if (helperName === 'xferSourceBodyModuleBase') {
     return sourceBodyModuleDirectFields();
@@ -9386,6 +9470,14 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AnimationSteeringUpdate.cpp',
     '../Behavior/AutoHealBehavior.cpp',
     '../Behavior/BehaviorModule.cpp',
+    '../Helper/ObjectDefectionHelper.cpp',
+    '../Helper/ObjectHelper.cpp',
+    '../Helper/ObjectRepulsorHelper.cpp',
+    '../Helper/ObjectSMCHelper.cpp',
+    '../Helper/ObjectWeaponStatusHelper.cpp',
+    '../Helper/StatusDamageHelper.cpp',
+    '../Helper/SubdualDamageHelper.cpp',
+    '../Helper/TempWeaponBonusHelper.cpp',
     '../Body/ActiveBody.cpp',
     '../Body/BodyModule.cpp',
     '../Body/HighlanderBody.cpp',
@@ -10269,6 +10361,46 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-update-module-fields',
       cppClass: 'UpdateModule',
       tsHelper: 'xferSourceUpdateModuleBase',
+    },
+    {
+      category: 'save-object-helper-fields',
+      cppClass: 'ObjectHelper',
+      tsHelper: 'buildSourceObjectHelperBaseBlockData',
+    },
+    {
+      category: 'save-object-smc-helper-fields',
+      cppClass: 'ObjectSMCHelper',
+      tsHelper: 'buildSourceObjectSmcHelperBlockData',
+    },
+    {
+      category: 'save-object-repulsor-helper-fields',
+      cppClass: 'ObjectRepulsorHelper',
+      tsHelper: 'buildSourceObjectRepulsorHelperBlockData',
+    },
+    {
+      category: 'save-object-weapon-status-helper-fields',
+      cppClass: 'ObjectWeaponStatusHelper',
+      tsHelper: 'buildSourceObjectWeaponStatusHelperBlockData',
+    },
+    {
+      category: 'save-object-defection-helper-fields',
+      cppClass: 'ObjectDefectionHelper',
+      tsHelper: 'buildSourceObjectDefectionHelperBlockData',
+    },
+    {
+      category: 'save-status-damage-helper-fields',
+      cppClass: 'StatusDamageHelper',
+      tsHelper: 'buildSourceStatusDamageHelperBlockData',
+    },
+    {
+      category: 'save-subdual-damage-helper-fields',
+      cppClass: 'SubdualDamageHelper',
+      tsHelper: 'buildSourceSubdualDamageHelperBlockData',
+    },
+    {
+      category: 'save-temp-weapon-bonus-helper-fields',
+      cppClass: 'TempWeaponBonusHelper',
+      tsHelper: 'buildSourceTempWeaponBonusHelperBlockData',
     },
     {
       category: 'save-body-module-fields',
