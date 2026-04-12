@@ -2876,16 +2876,29 @@ function parseCppSimpleModuleFields(
   source: string,
   signature: string,
   baseExpansions: Record<string, string[]>,
+  mapper: (method: string, argument: string) => string | null = mapCppSimpleModuleField,
 ): string[] {
   const body = extractFunctionBody(source, signature);
   if (!body) return [];
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /m_bonuses->m_(?:validKindOf|invalidKindOf)\.xfer\s*\(\s*xfer\s*\)|[A-Za-z0-9_]+::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+    /xfer->xferInt\s*\(\s*\(Int\*\)&production->m_exitDoor\s*\)|m_(?:clearFlags|setFlags)\.xfer\s*\(\s*xfer\s*\)|m_bonuses->m_(?:validKindOf|invalidKindOf)\.xfer\s*\(\s*xfer\s*\)|[A-Za-z0-9_]+::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
     const token = match[0]!;
+    if (token.includes('production->m_exitDoor')) {
+      pushUniqueField(fields, seen, 'queue.entry.exitDoor');
+      continue;
+    }
+    if (token.includes('m_clearFlags.xfer')) {
+      pushUniqueField(fields, seen, 'clearFlags');
+      continue;
+    }
+    if (token.includes('m_setFlags.xfer')) {
+      pushUniqueField(fields, seen, 'setFlags');
+      continue;
+    }
     if (token.includes('m_bonuses->m_validKindOf.xfer')) {
       pushUniqueField(fields, seen, 'validKindOf');
       continue;
@@ -2902,7 +2915,7 @@ function parseCppSimpleModuleFields(
       }
       continue;
     }
-    pushUniqueField(fields, seen, mapCppSimpleModuleField(match[1]!, normalizeCppXferArgument(match[2]!)));
+    pushUniqueField(fields, seen, mapper(match[1]!, normalizeCppXferArgument(match[2]!)));
   }
   return fields;
 }
@@ -3187,12 +3200,17 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
       'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
     },
   );
-  return parseCppSimpleModuleFields(source, `void ${className}::xfer( Xfer *xfer )`, {
-    'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
-    'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
-    'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
-    'DockUpdate::xfer': prefixBaseVersion(sourceDockUpdateFields(), 'dock'),
-  });
+  return parseCppSimpleModuleFields(
+    source,
+    `void ${className}::xfer( Xfer *xfer )`,
+    {
+      'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
+      'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
+      'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
+      'DockUpdate::xfer': prefixBaseVersion(sourceDockUpdateFields(), 'dock'),
+    },
+    className === 'ProductionUpdate' ? mapCppProductionUpdateField : mapCppSimpleModuleField,
+  );
 }
 
 export function parseTsSourceObjectUpdateFields(
@@ -3205,7 +3223,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xferSource(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|WeaponSnapshot|KindOfNames|RgbColor|BoneFx(?:Int|Coord)Grid)\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /xferSource(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -4966,6 +4984,28 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferReal' && argument === 'm_creationClearDistance') return 'creationClearDistance';
   if (method === 'xferUnsignedInt' && argument === 'm_currentBurstCount') return 'currentBurstCount';
   if (method === 'xferUser' && argument.startsWith('m_spawnPointOccupier')) return 'occupierIds';
+  if (method === 'xferUnsignedShort' && argument === 'productionCount') return 'queue.count';
+  if (method === 'xferUser' && argument.startsWith('production->m_type')) return 'queue.entry.type';
+  if (method === 'xferAsciiString' && argument === 'name') return 'queue.entry.name';
+  if (method === 'xferUser' && argument.startsWith('production->m_productionID')) return 'queue.entry.productionId';
+  if (method === 'xferReal' && argument === 'production->m_percentComplete') return 'queue.entry.percentComplete';
+  if (method === 'xferInt' && argument === 'production->m_framesUnderConstruction') {
+    return 'queue.entry.framesUnderConstruction';
+  }
+  if (method === 'xferInt' && argument === 'production->m_productionQuantityTotal') {
+    return 'queue.entry.productionQuantityTotal';
+  }
+  if (method === 'xferInt' && argument === 'production->m_productionQuantityProduced') {
+    return 'queue.entry.productionQuantityProduced';
+  }
+  if (method === 'xferInt' && argument.includes('production->m_exitDoor')) return 'queue.entry.exitDoor';
+  if (method === 'xferUser' && argument.startsWith('m_uniqueID')) return 'uniqueId';
+  if (method === 'xferUnsignedInt' && argument === 'm_productionCount') return 'productionCount';
+  if (method === 'xferUnsignedInt' && argument === 'm_constructionCompleteFrame') {
+    return 'constructionCompleteFrame';
+  }
+  if (method === 'xferUser' && argument.startsWith('m_doors')) return 'doorInfo';
+  if (method === 'xferBool' && argument === 'm_flagsDirty') return 'flagsDirty';
   if (method === 'xferSnapshot' && argument === 'm_weapon') return 'weapon.snapshot';
   if (method === 'xferUnsignedInt' && argument === 'm_initialDelayFrame') return 'initialDelayFrame';
   if (method === 'xferUser' && argument.startsWith('m_currentPlan')) return 'currentPlan';
@@ -5033,6 +5073,11 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   return null;
 }
 
+function mapCppProductionUpdateField(method: string, argument: string): string | null {
+  if (method === 'xferAsciiString' && argument === 'name') return 'queue.entry.name';
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -5040,6 +5085,10 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
   if (token.includes('xferSourceKindOfNames')) {
     if (window.includes('invalidKindOf')) return 'invalidKindOf';
     if (window.includes('validKindOf')) return 'validKindOf';
+  }
+  if (token.includes('xferSourceStringBitFlags')) {
+    if (window.includes('clearFlags')) return 'clearFlags';
+    if (window.includes('setFlags')) return 'setFlags';
   }
   if (token.includes('xferObjectID')) {
     if (window.includes('targetId')) return 'targetId';
@@ -5059,11 +5108,13 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('targetObjectId') || window.includes('targetObject')) return 'targetObject';
   }
   if (token.includes('xferAsciiString')) {
+    if (window.includes('entry.name')) return 'queue.entry.name';
     if (window.includes('buttonName')) return 'commandButtonName';
     if (window.includes('disguiseTemplateName')) return 'disguiseTemplateName';
     if (window.includes('exhaustSystemTemplateName')) return 'exhaustSystemTemplateName';
   }
   if (token.includes('xferUnsignedShort')) {
+    if (window.includes('queue.length')) return 'queue.count';
     if (window.includes('particleSystemIds.length')) return 'particleSystem.count';
   }
   if (token.includes('xferBool')) {
@@ -5109,6 +5160,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('centeringTurret')) return 'centeringTurret';
     if (window.includes('repairing')) return 'repairing';
     if (window.includes('isSelfTasking')) return 'isSelfTasking';
+    if (window.includes('flagsDirty')) return 'flagsDirty';
     if (window.includes('detectorEnabled') || window.includes('enabled')) return 'enabled';
     if (window.includes('state.active')) return 'active';
   }
@@ -5116,6 +5168,10 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('SOURCE_BATTLE_PLAN_BOMBARDMENT')) return 'bombardment';
     if (window.includes('SOURCE_BATTLE_PLAN_SEARCH_AND_DESTROY')) return 'searchAndDestroy';
     if (window.includes('SOURCE_BATTLE_PLAN_HOLD_THE_LINE')) return 'holdTheLine';
+    if (window.includes('entry.framesUnderConstruction')) return 'queue.entry.framesUnderConstruction';
+    if (window.includes('entry.productionQuantityTotal')) return 'queue.entry.productionQuantityTotal';
+    if (window.includes('entry.productionQuantityProduced')) return 'queue.entry.productionQuantityProduced';
+    if (window.includes('entry.exitDoor')) return 'queue.entry.exitDoor';
     if (window.includes('currentPlan')) return 'currentPlan';
     if (window.includes('desiredPlan')) return 'desiredPlan';
     if (window.includes('planAffectingArmy')) return 'planAffectingArmy';
@@ -5146,6 +5202,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('currentDelay')) return 'currentDelay';
     if (window.includes('currentBurstCount')) return 'currentBurstCount';
     if (window.includes('liveNextFireFrame')) return 'initialDelayFrame';
+    if (window.includes('queue.length')) return 'productionCount';
+    if (window.includes('constructionCompleteFrame')) return 'constructionCompleteFrame';
     if (window.includes('nextReadyFrame') || window.includes('sourceBattlePlanNextReadyFrame')) {
       return 'nextReadyFrame';
     }
@@ -5215,11 +5273,16 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('noTurnDistLeft')) return 'noTurnDistLeft';
     if (window.includes('heightAtLaunch')) return 'heightAtLaunch';
     if (window.includes('creationClearDistance')) return 'creationClearDistance';
+    if (window.includes('entry.percentComplete')) return 'queue.entry.percentComplete';
     if (window.includes('armorScalar')) return 'armorScalar';
     if (window.includes('sightRangeScalar')) return 'sightRangeScalar';
     if (window.includes('squirrellinessRatio')) return 'squirrellinessRatio';
   }
   if (token.includes('xferUser')) {
+    if (window.includes('buildSourceRawInt32Bytes(entry.type)')) return 'queue.entry.type';
+    if (window.includes('buildSourceRawInt32Bytes(entry.productionId)')) return 'queue.entry.productionId';
+    if (window.includes('buildSourceRawInt32Bytes(uniqueId)')) return 'uniqueId';
+    if (window.includes('doorInfoBytes')) return 'doorInfo';
     if (window.includes('buildSourceRawInt32Bytes(currentPlan)')) return 'currentPlan';
     if (window.includes('buildSourceRawInt32Bytes(desiredPlan)')) return 'desiredPlan';
     if (window.includes('buildSourceRawInt32Bytes(planAffectingArmy)')) return 'planAffectingArmy';
@@ -7245,6 +7308,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'ProductionExitUpdate/QueueProductionExitUpdate.cpp',
     'ProductionExitUpdate/SpawnPointProductionExitUpdate.cpp',
     'ProductionExitUpdate/SupplyCenterProductionExitUpdate.cpp',
+    'ProductionUpdate.cpp',
     'RadiusDecalUpdate.cpp',
     'RadarUpdate.cpp',
     'SmartBombTargetHomingUpdate.cpp',
@@ -8195,6 +8259,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-fire-weapon-update-fields',
       cppClass: 'FireWeaponUpdate',
       tsHelper: 'buildSourceFireWeaponUpdateBlockData',
+    },
+    {
+      category: 'save-production-update-fields',
+      cppClass: 'ProductionUpdate',
+      tsHelper: 'buildSourceProductionUpdateBlockData',
     },
     {
       category: 'save-battle-plan-update-fields',

@@ -1349,6 +1349,7 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-queue-production-exit-update-fields',
         'save-spawn-point-production-exit-update-fields',
         'save-fire-weapon-update-fields',
+        'save-production-update-fields',
         'save-battle-plan-update-fields',
         'save-slaved-update-fields',
         'save-mob-member-slaved-update-fields',
