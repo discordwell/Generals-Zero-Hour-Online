@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SaveFileType } from '@generals/engine';
 
-import { buildRuntimeSaveFile } from '../packages/app/src/runtime-save-game.js';
+import { buildRuntimeSaveFile, SOURCE_GAME_MODE_SKIRMISH } from '../packages/app/src/runtime-save-game.js';
 import {
   buildSaveCoreChunkReport,
   getSaveCoreChunkBlockers,
@@ -288,6 +288,7 @@ describe('save core chunk report', () => {
     expect(report.roundTrip.summary?.status).toBe('pass');
     expect(report.roundTrip.chunkNamesPreserved).toBe(true);
     expect(report.roundTrip.metadataPreserved).toBe(true);
+    expect(report.roundTrip.gameStateMapHeaderPreserved).toBe(true);
     expect(report.roundTrip.embeddedMapBytesPreserved).toBe(true);
     expect(report.roundTrip.gameStateMapTrailingBytesPreserved).toBe(true);
   });
@@ -306,6 +307,7 @@ describe('save core chunk report', () => {
         campaignSide: 'usa',
         missionNumber: 0,
       },
+      sourceGameMode: SOURCE_GAME_MODE_SKIRMISH,
       cameraState: null,
       gameLogic: createRoundTripGameLogic(8),
     });
@@ -318,6 +320,7 @@ describe('save core chunk report', () => {
     expect(report.roundTrip.summary?.status).toBe('pass');
     expect(report.roundTrip.chunkNamesPreserved).toBe(true);
     expect(report.roundTrip.metadataPreserved).toBe(true);
+    expect(report.roundTrip.gameStateMapHeaderPreserved).toBe(true);
     expect(report.roundTrip.embeddedMapBytesPreserved).toBe(true);
     expect(report.roundTrip.gameStateMapTrailingBytesPreserved).toBe(true);
   });

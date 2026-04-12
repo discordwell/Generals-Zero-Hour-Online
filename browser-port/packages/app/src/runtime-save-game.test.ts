@@ -11311,6 +11311,8 @@ describe('runtime-save-game', () => {
     const mapInfo = parseSaveGameMapInfo(saveFile.data);
 
     expect(parsed.mapPath).toBe('maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json');
+    expect(parsed.sourceGameMode).toBe(SOURCE_GAME_MODE_SKIRMISH);
+    expect(mapInfo.gameMode).toBe(SOURCE_GAME_MODE_SKIRMISH);
     expect(parsed.mapData).toBeNull();
     expect(Array.from(new Uint8Array(parsed.embeddedMapBytes))).toEqual(Array.from(embeddedMapBytes));
     expect(Array.from(new Uint8Array(parsed.gameStateMapTrailingBytes))).toEqual(

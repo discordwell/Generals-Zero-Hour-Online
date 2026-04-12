@@ -927,6 +927,7 @@ export interface RuntimeSaveBootstrap {
   embeddedMapBytes: ArrayBuffer;
   gameStateMapTrailingBytes: ArrayBuffer;
   mapPath: string | null;
+  sourceGameMode: number;
   mapObjectIdCounter: number;
   mapDrawableIdCounter: number;
   cameraState: CameraState | null;
@@ -26955,6 +26956,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     embeddedMapBytes: mapInfo.embeddedMapData,
     gameStateMapTrailingBytes: mapInfo.trailingBytes,
     mapPath: resolvedMapPath,
+    sourceGameMode: mapInfo.gameMode,
     mapObjectIdCounter: mapInfo.objectIdCounter,
     mapDrawableIdCounter: mapInfo.drawableIdCounter,
     cameraState: resolveRestoredCameraState(tacticalViewSnapshot.payload, browserCameraState),

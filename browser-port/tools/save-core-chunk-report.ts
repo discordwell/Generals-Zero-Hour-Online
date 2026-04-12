@@ -40,6 +40,7 @@ export interface SaveCoreChunkRoundTripReport {
   rebuiltChunkNames?: string[];
   chunkNamesPreserved?: boolean;
   metadataPreserved?: boolean;
+  gameStateMapHeaderPreserved?: boolean;
   embeddedMapBytesPreserved?: boolean;
   gameStateMapTrailingBytesPreserved?: boolean;
 }
@@ -231,6 +232,7 @@ function buildRoundTripSaveData(data: ArrayBuffer): ArrayBuffer | null {
     embeddedMapBytes: new Uint8Array(parsed.embeddedMapBytes),
     gameStateMapTrailingBytes: new Uint8Array(parsed.gameStateMapTrailingBytes),
     sourceMetadata: parsed.metadata,
+    sourceGameMode: parsed.sourceGameMode,
     cameraState: parsed.cameraState,
     tacticalViewState: parsed.tacticalViewState,
     gameClientState: parsed.gameClientState,
@@ -277,7 +279,7 @@ function buildRoundTripSaveData(data: ArrayBuffer): ArrayBuffer | null {
       captureSourceInGameUiRuntimeSaveState: () => parsed.gameLogicInGameUiState ?? { version: 1, state: {} },
       captureSourceGameLogicRuntimeSaveState: () => parsed.gameLogicCoreState ?? fallbackCoreState,
       captureBrowserRuntimeSaveState: () => parsed.gameLogicState ?? { version: 1 },
-      getObjectIdCounter: () => parsed.gameLogicCoreState?.nextId ?? parsed.mapObjectIdCounter,
+      getObjectIdCounter: () => parsed.mapObjectIdCounter,
     },
   }).data;
 }
@@ -312,6 +314,17 @@ function buildSaveMetadataIdentity(data: ArrayBuffer): Record<string, unknown> {
   };
 }
 
+function buildGameStateMapHeaderIdentity(data: ArrayBuffer): Record<string, unknown> {
+  const mapInfo = parseSaveGameMapInfo(data);
+  return {
+    saveGameMapPath: mapInfo.saveGameMapPath,
+    pristineMapPath: mapInfo.pristineMapPath,
+    gameMode: mapInfo.gameMode,
+    objectIdCounter: mapInfo.objectIdCounter,
+    drawableIdCounter: mapInfo.drawableIdCounter,
+  };
+}
+
 function buildSaveCoreChunkRoundTripReport(
   data: ArrayBuffer,
   savePath: string,
@@ -332,6 +345,8 @@ function buildSaveCoreChunkRoundTripReport(
     const chunkNamesPreserved = arrayValuesEqual(sourceChunkNames, rebuiltChunkNames);
     const metadataPreserved = JSON.stringify(buildSaveMetadataIdentity(data))
       === JSON.stringify(buildSaveMetadataIdentity(rebuiltData));
+    const gameStateMapHeaderPreserved = JSON.stringify(buildGameStateMapHeaderIdentity(data))
+      === JSON.stringify(buildGameStateMapHeaderIdentity(rebuiltData));
     const sourceMapInfo = parseSaveGameMapInfo(data);
     const rebuiltMapInfo = parseSaveGameMapInfo(rebuiltData);
     const embeddedMapBytesPreserved = arrayBuffersEqual(
@@ -346,11 +361,13 @@ function buildSaveCoreChunkRoundTripReport(
       ? 'roundtrip-chunk-names-changed'
       : !metadataPreserved
         ? 'roundtrip-metadata-changed'
-        : !embeddedMapBytesPreserved
-          ? 'roundtrip-map-payload-changed'
-          : !gameStateMapTrailingBytesPreserved
-            ? 'roundtrip-gamestate-map-trailing-bytes-changed'
-            : null;
+        : !gameStateMapHeaderPreserved
+          ? 'roundtrip-gamestate-map-header-changed'
+          : !embeddedMapBytesPreserved
+            ? 'roundtrip-map-payload-changed'
+            : !gameStateMapTrailingBytesPreserved
+              ? 'roundtrip-gamestate-map-trailing-bytes-changed'
+              : null;
     const status = preservationBlockReason === null
       ? rebuiltReport.summary.status
       : 'blocked';
@@ -363,6 +380,7 @@ function buildSaveCoreChunkRoundTripReport(
       rebuiltChunkNames,
       chunkNamesPreserved,
       metadataPreserved,
+      gameStateMapHeaderPreserved,
       embeddedMapBytesPreserved,
       gameStateMapTrailingBytesPreserved,
     };
