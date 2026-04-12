@@ -25,7 +25,6 @@ import {
   parseSourceSidesListChunk,
   parseRuntimeSaveFile,
   SOURCE_GAME_MODE_SKIRMISH,
-  SOURCE_GAME_MODE_SINGLE_PLAYER,
   TerrainVisualSnapshot,
   type RuntimeSaveChallengeGameInfoState,
 } from './runtime-save-game.js';
@@ -1120,7 +1119,6 @@ const SOURCE_PHYSICS_FLAG_IMMUNE_TO_FALLING_DAMAGE = 0x0100;
 const SOURCE_PHYSICS_FLAG_IS_IN_FREEFALL = 0x0200;
 const SOURCE_PHYSICS_FLAG_IS_IN_UPDATE = 0x0400;
 const SOURCE_PHYSICS_FLAG_IS_STUNNED = 0x0800;
-const SOURCE_PHYSICS_INVALID_VEL_MAG = -1;
 const SOURCE_PROJECTILE_STREAM_MAX = 20;
 const SOURCE_BONE_FX_BODY_DAMAGE_TYPE_COUNT = 4;
 const SOURCE_BONE_FX_MAX_BONES = 8;
@@ -8316,6 +8314,80 @@ function createChallengeGameInfoState(
   };
 }
 
+function readChallengeGameInfoStateFromBytes(data: ArrayBuffer | Uint8Array): {
+  state: RuntimeSaveChallengeGameInfoState;
+  trailingBytes: number;
+} {
+  const buffer = data instanceof Uint8Array ? data.slice().buffer : data;
+  const xferLoad = new XferLoad(buffer);
+  xferLoad.open('read-challenge-game-info-state');
+  try {
+    const version = xferLoad.xferVersion(4);
+    const preorderMask = xferLoad.xferInt(0);
+    const crcInterval = xferLoad.xferInt(0);
+    const inGame = xferLoad.xferBool(false);
+    const inProgress = xferLoad.xferBool(false);
+    const surrendered = xferLoad.xferBool(false);
+    const gameId = xferLoad.xferInt(0);
+    const slotCount = xferLoad.xferInt(0);
+    const slots: RuntimeSaveChallengeGameInfoState['slots'] = [];
+    for (let index = 0; index < slotCount; index += 1) {
+      slots.push({
+        state: xferLoad.xferInt(0),
+        name: version >= 2 ? xferLoad.xferUnicodeString('') : '',
+        isAccepted: xferLoad.xferBool(false),
+        isMuted: xferLoad.xferBool(false),
+        color: xferLoad.xferInt(0),
+        startPos: xferLoad.xferInt(0),
+        playerTemplate: xferLoad.xferInt(0),
+        teamNumber: xferLoad.xferInt(0),
+        origColor: xferLoad.xferInt(0),
+        origStartPos: xferLoad.xferInt(0),
+        origPlayerTemplate: xferLoad.xferInt(0),
+      });
+    }
+    const localIp = xferLoad.xferUnsignedInt(0);
+    const mapName = xferLoad.xferAsciiString('');
+    const mapCrc = xferLoad.xferUnsignedInt(0);
+    const mapSize = xferLoad.xferUnsignedInt(0);
+    const mapMask = xferLoad.xferInt(0);
+    const seed = xferLoad.xferInt(0);
+    let superweaponRestriction = 0;
+    let startingCash = 10000;
+    if (version >= 3) {
+      superweaponRestriction = xferLoad.xferUnsignedShort(0);
+      if (version === 3) {
+        xferLoad.xferBool(false);
+      }
+      expect(xferLoad.xferVersion(1)).toBe(1);
+      startingCash = xferLoad.xferUnsignedInt(0);
+    }
+    return {
+      state: {
+        version,
+        preorderMask,
+        crcInterval,
+        inGame,
+        inProgress,
+        surrendered,
+        gameId,
+        slots,
+        localIp,
+        mapName,
+        mapCrc,
+        mapSize,
+        mapMask,
+        seed,
+        superweaponRestriction,
+        startingCash,
+      },
+      trailingBytes: xferLoad.getRemaining(),
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
 function readGameClientChunk(data: ArrayBuffer): {
   version: number;
   frame: number;
@@ -11385,6 +11457,63 @@ describe('runtime-save-game', () => {
     expect(parsed.gameLogicScriptEngineState?.state.scriptGameDifficulty).toBe('HARD');
     expect(parsed.scriptEngineFadeState).toBeNull();
     expect(parsed.campaign).toBeNull();
+  });
+
+  it('emits source skirmish game info in GameStateMap for fresh TS skirmish saves', () => {
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Fresh Skirmish Save',
+      mapPath: 'maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json',
+      mapData: createTinyRuntimeMapData(),
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic(),
+      sourceSaveGameMapPath: 'Save\\MD_USA01.map',
+      sourcePristineMapPath: 'Maps\\MD_USA01\\MD_USA01.map',
+      sourceGameMode: SOURCE_GAME_MODE_SKIRMISH,
+    });
+
+    const mapInfo = parseSaveGameMapInfo(saveFile.data);
+    const parsed = parseRuntimeSaveFile(saveFile.data);
+    const skirmishGameInfo = readChallengeGameInfoStateFromBytes(mapInfo.trailingBytes);
+    const closedSlot = {
+      state: 1,
+      name: 'Closed',
+      isAccepted: false,
+      isMuted: false,
+      color: -1,
+      startPos: -1,
+      playerTemplate: -1,
+      teamNumber: -1,
+      origColor: -1,
+      origStartPos: -1,
+      origPlayerTemplate: -1,
+    };
+
+    expect(mapInfo.gameMode).toBe(SOURCE_GAME_MODE_SKIRMISH);
+    expect(mapInfo.trailingBytes.byteLength).toBeGreaterThan(0);
+    expect(Array.from(new Uint8Array(parsed.gameStateMapTrailingBytes))).toEqual(
+      Array.from(new Uint8Array(mapInfo.trailingBytes)),
+    );
+    expect(skirmishGameInfo.trailingBytes).toBe(0);
+    expect(skirmishGameInfo.state).toMatchObject({
+      version: 4,
+      preorderMask: 0,
+      crcInterval: 100,
+      inGame: true,
+      inProgress: false,
+      surrendered: false,
+      gameId: 0,
+      localIp: 0,
+      mapName: 'Maps\\MD_USA01\\MD_USA01.map',
+      mapCrc: 0,
+      mapSize: 0,
+      mapMask: 0,
+      seed: 1,
+      superweaponRestriction: 0,
+      startingCash: 10000,
+    });
+    expect(skirmishGameInfo.state.slots).toEqual(
+      Array.from({ length: 8 }, () => closedSlot),
+    );
   });
 
   it('writes source mission saves with only GameState and Campaign chunks', () => {

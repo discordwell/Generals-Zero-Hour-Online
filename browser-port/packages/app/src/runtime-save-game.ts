@@ -711,6 +711,7 @@ interface RuntimeSaveMapState {
   embeddedMapBytes: Uint8Array;
   objectIdCounter: number;
   drawableIdCounter: number;
+  skirmishGameInfoState: RuntimeSaveChallengeGameInfoState | null;
   trailingBytes: Uint8Array;
 }
 
@@ -2286,6 +2287,22 @@ function createFreshChallengeGameInfoState(
   return state;
 }
 
+function createFreshSkirmishGameInfoState(
+  sourceMapName: string,
+  gameRandomSeed: number | undefined,
+): RuntimeSaveChallengeGameInfoState {
+  const state = createEmptyChallengeGameInfoState();
+  state.inGame = true;
+  state.inProgress = false;
+  state.seed = typeof gameRandomSeed === 'number' && Number.isFinite(gameRandomSeed)
+    ? Math.trunc(gameRandomSeed)
+    : state.seed;
+  if (sourceMapName.trim().length > 0) {
+    state.mapName = sourceMapName.trim();
+  }
+  return state;
+}
+
 function resolveChallengeGameInfoState(
   campaign: RuntimeSaveCampaignBootstrap | null | undefined,
   gameRandomSeed: number | undefined,
@@ -3682,8 +3699,23 @@ class MapSnapshot implements Snapshot {
 
     this.state.objectIdCounter = xfer.xferObjectID(this.state.objectIdCounter);
     this.state.drawableIdCounter = xfer.xferUnsignedInt(this.state.drawableIdCounter);
-    if (xfer.getMode() === XferMode.XFER_SAVE && this.state.trailingBytes.byteLength > 0) {
+    if (xfer.getMode() === XferMode.XFER_LOAD) {
+      if (this.state.gameMode === SOURCE_GAME_MODE_SKIRMISH) {
+        this.state.skirmishGameInfoState = xferChallengeGameInfoState(
+          xfer,
+          this.state.skirmishGameInfoState ?? createEmptyChallengeGameInfoState(),
+        );
+      }
+      return;
+    }
+
+    if (this.state.trailingBytes.byteLength > 0) {
       xfer.xferUser(this.state.trailingBytes);
+    } else if (this.state.gameMode === SOURCE_GAME_MODE_SKIRMISH) {
+      this.state.skirmishGameInfoState = xferChallengeGameInfoState(
+        xfer,
+        this.state.skirmishGameInfoState ?? createEmptyChallengeGameInfoState(),
+      );
     }
   }
 
@@ -25299,8 +25331,7 @@ class InGameUiSnapshot implements Snapshot {
 
     if (xfer.getMode() === XferMode.XFER_SAVE) {
       const namedTimers = normalizeRuntimeSaveInGameUiNamedTimers(payload.namedTimers);
-      let timerCount = namedTimers.length;
-      timerCount = xfer.xferInt(timerCount);
+      xfer.xferInt(namedTimers.length);
       for (const timer of namedTimers) {
         xfer.xferAsciiString(timer.timerName);
         xfer.xferUnicodeString(timer.timerText);
@@ -26724,14 +26755,20 @@ export function buildRuntimeSaveFile(params: {
   const sourcePristineMapPath = portableSourcePristineMapPath
     ?? params.mapPath
     ?? '';
+  const sourceGameMode = params.sourceGameMode ?? SOURCE_GAME_MODE_SINGLE_PLAYER;
+  const gameStateMapTrailingBytes = params.gameStateMapTrailingBytes ?? new Uint8Array(0);
   const mapState: RuntimeSaveMapState = {
     saveGameMapPath: sourceSaveGameMapPath,
     pristineMapPath: sourcePristineMapPath,
-    gameMode: params.sourceGameMode ?? SOURCE_GAME_MODE_SINGLE_PLAYER,
+    gameMode: sourceGameMode,
     embeddedMapBytes,
     objectIdCounter,
     drawableIdCounter,
-    trailingBytes: params.gameStateMapTrailingBytes ?? new Uint8Array(0),
+    skirmishGameInfoState: sourceGameMode === SOURCE_GAME_MODE_SKIRMISH
+      && gameStateMapTrailingBytes.byteLength === 0
+      ? createFreshSkirmishGameInfoState(sourcePristineMapPath, gameLogicPayload.gameRandomSeed)
+      : null,
+    trailingBytes: gameStateMapTrailingBytes,
   };
 
   const state = new GameState();
