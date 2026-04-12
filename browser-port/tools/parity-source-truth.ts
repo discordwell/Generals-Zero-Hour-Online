@@ -3275,6 +3275,8 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppMissileAIUpdateField;
   } else if (className === 'DeliverPayloadAIUpdate') {
     mapper = mapCppDeliverPayloadAIUpdateField;
+  } else if (className === 'PhysicsBehavior') {
+    mapper = mapCppPhysicsBehaviorField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -5393,6 +5395,26 @@ function mapCppDeliverPayloadAIUpdateField(method: string, argument: string): st
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppPhysicsBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferReal' && argument === 'm_yawRate') return 'yawRate';
+  if (method === 'xferReal' && argument === 'm_rollRate') return 'rollRate';
+  if (method === 'xferReal' && argument === 'm_pitchRate') return 'pitchRate';
+  if (method === 'xferCoord3D' && argument === 'm_accel') return 'accel';
+  if (method === 'xferCoord3D' && argument === 'm_prevAccel') return 'prevAccel';
+  if (method === 'xferCoord3D' && argument === 'm_vel') return 'vel';
+  if (method === 'xferUser' && argument.startsWith('m_turning')) return 'turning';
+  if (method === 'xferObjectID' && argument === 'm_ignoreCollisionsWith') return 'ignoreCollisionsWith';
+  if (method === 'xferInt' && argument === 'm_flags') return 'flags';
+  if (method === 'xferReal' && argument === 'm_mass') return 'mass';
+  if (method === 'xferObjectID' && argument === 'm_currentOverlap') return 'currentOverlap';
+  if (method === 'xferObjectID' && argument === 'm_previousOverlap') return 'previousOverlap';
+  if (method === 'xferUnsignedInt' && argument === 'm_motiveForceExpires') return 'motiveForceExpires';
+  if (method === 'xferReal' && argument === 'm_extraBounciness') return 'extraBounciness';
+  if (method === 'xferReal' && argument === 'm_extraFriction') return 'extraFriction';
+  if (method === 'xferReal' && argument === 'm_velMag') return 'velMag';
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -5416,6 +5438,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('preferredDockId')) return 'preferredDockId';
     if (window.includes('powTruckPrisonId')) return 'prisonId';
     if (window.includes('chinookHealingAirfieldId')) return 'airfieldForHealing';
+    if (window.includes('ignoreCollisionsWith')) return 'ignoreCollisionsWith';
+    if (window.includes('currentOverlap')) return 'currentOverlap';
+    if (window.includes('previousOverlap')) return 'previousOverlap';
     if (window.includes('specialObjectIdList')) return 'specialObjectIdList';
     if (window.includes('lastRepair')) return 'lastRepair';
     if (window.includes('dockingObjectId')) return 'dockingObjectId';
@@ -5565,6 +5590,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('attachSpecificBarrelToUse')) return 'attachSpecificBarrelToUse';
     if (window.includes('nextBurstFrame')) return 'nextBurstFrame';
     if (window.includes('sourceJetFlagsForEntity')) return 'flags';
+    if (window.includes('buildSourcePhysicsBehaviorFlags')) return 'flags';
   }
   if (token.includes('xferUnsignedInt')) {
     if (window.includes('currentDelay')) return 'currentDelay';
@@ -5603,6 +5629,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('extraBonusFlags')) return 'extraBonusFlags';
     if (window.includes('framesTillDecoyed')) return 'framesTillDecoyed';
     if (window.includes('dropDelay')) return 'dropDelay';
+    if (window.includes('motiveForceExpires')) return 'motiveForceExpires';
     if (window.includes('nextReadyFrame') || window.includes('sourceBattlePlanNextReadyFrame')) {
       return 'nextReadyFrame';
     }
@@ -5679,6 +5706,13 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('strafeLength')) return 'strafeLength';
     if (window.includes('deliveryDecalRadius')) return 'deliveryDecalRadius';
     if (window.includes('previousDistanceSqr')) return 'previousDistanceSqr';
+    if (window.includes('yawRate')) return 'yawRate';
+    if (window.includes('rollRate')) return 'rollRate';
+    if (window.includes('pitchRate')) return 'pitchRate';
+    if (window.includes('mass')) return 'mass';
+    if (window.includes('extraBounciness')) return 'extraBounciness';
+    if (window.includes('extraFriction')) return 'extraFriction';
+    if (window.includes('velMag')) return 'velMag';
     if (window.includes('heightAtLaunch')) return 'heightAtLaunch';
     if (window.includes('creationClearDistance')) return 'creationClearDistance';
     if (window.includes('entry.percentComplete')) return 'queue.entry.percentComplete';
@@ -5706,6 +5740,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('buildSourceRawInt32Bytes(diveState)')) return 'diveState';
     if (window.includes('strafingWeaponSlot')) return 'strafingWeaponSlot';
     if (window.includes('stateMachineBytes')) return 'stateMachine';
+    if (window.includes('turningBytes')) return 'turning';
     if (window.includes('sourceChinookFlightStatusToInt')) return 'flightStatus';
     if (window.includes('entity.powTruckAIMode')) return 'aiMode';
     if (window.includes('entity.powTruckCurrentTask')) return 'currentTask';
@@ -5768,6 +5803,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('moveToX')) return 'moveToPos';
     if (window.includes('dropOffsetX')) return 'dropOffset';
     if (window.includes('dropVarianceX')) return 'dropVariance';
+    if (window === 'saver.xferCoord3D(accel);') return 'accel';
+    if (window === 'saver.xferCoord3D(prevAccel);') return 'prevAccel';
+    if (window === 'saver.xferCoord3D(vel);') return 'vel';
     if (window.includes('{ x: 0, y: 0, z: 0 }')) return 'originalPos';
   }
   return null;
@@ -7755,6 +7793,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'NeutronMissileUpdate.cpp',
     'OCLUpdate.cpp',
     'PilotFindVehicleUpdate.cpp',
+    'PhysicsUpdate.cpp',
     'PointDefenseLaserUpdate.cpp',
     'PowerPlantUpdate.cpp',
     'ProjectileStreamUpdate.cpp',
@@ -8632,6 +8671,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-pilot-find-vehicle-update-fields',
       cppClass: 'PilotFindVehicleUpdate',
       tsHelper: 'buildSourcePilotFindVehicleUpdateBlockData',
+    },
+    {
+      category: 'save-physics-behavior-fields',
+      cppClass: 'PhysicsBehavior',
+      tsHelper: 'writeSourcePhysicsBehaviorBlockData',
     },
     {
       category: 'save-point-defense-laser-update-fields',
