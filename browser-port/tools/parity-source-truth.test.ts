@@ -9,22 +9,26 @@ import {
   compareGameStateMapFields,
   compareInGameUiFields,
   comparePartitionFields,
+  comparePlayerListFields,
   compareRadarFields,
   compareSaveGameInfoFields,
   compareSaveSnapshotBlockOrder,
   compareSkirmishGameInfoFields,
   compareTacticalViewFields,
+  compareTeamFactoryFields,
   compareTerrainLogicFields,
   parseCppCampaignManagerXferFields,
   parseCppDamageTypeNames,
   parseCppGameStateMapXferFields,
   parseCppInGameUiXferFields,
   parseCppPartitionXferFields,
+  parseCppPlayerListXferFields,
   parseCppRadarXferFields,
   parseCppSaveGameInfoXferFields,
   parseCppSaveSnapshotBlockNames,
   parseCppSkirmishGameInfoXferFields,
   parseCppTacticalViewXferFields,
+  parseCppTeamFactoryXferFields,
   parseCppTerrainLogicXferFields,
   parseCppWeaponBonusEnumValues,
   parseCppWeaponBonusNames,
@@ -34,11 +38,13 @@ import {
   parseTsGameStateMapXferFields,
   parseTsInGameUiXferFields,
   parseTsPartitionXferFields,
+  parseTsPlayerListXferFields,
   parseTsRadarXferFields,
   parseTsSaveGameInfoXferFields,
   parseTsSaveSnapshotBlockNames,
   parseTsSkirmishGameInfoXferFields,
   parseTsTacticalViewXferFields,
+  parseTsTeamFactoryXferFields,
   parseTsTerrainLogicXferFields,
   parseTsWeaponBonusConditionNames,
   runSourceParityCheck,
@@ -855,6 +861,72 @@ function xferNullableObjectId() {}`;
       ]);
     });
 
+    it('parses TeamFactory top-level xfer field order', () => {
+      const cppSource = `
+void TeamFactory::xfer( Xfer *xfer )
+{
+  xfer->xferVersion( &version, currentVersion );
+  xfer->xferUser( &m_uniqueTeamID, sizeof( TeamID ) );
+  xfer->xferUnsignedShort( &prototypeCount );
+  xfer->xferUser( &teamPrototypeID, sizeof( TeamPrototypeID ) );
+  xfer->xferSnapshot( teamPrototype );
+}  // end xfer`;
+      const tsSource = `
+class SourceTeamFactorySnapshot implements Snapshot {
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(SOURCE_TEAM_FACTORY_SNAPSHOT_VERSION);
+    const nextTeamId = xfer.xferUnsignedInt(normalizePositiveInt(this.state.state.scriptNextSourceTeamId, 1));
+    const prototypeCount = xfer.xferUnsignedShort(prototypeOrder.length);
+    const prototypeId = xfer.xferUnsignedInt(normalizePositiveInt(prototypeRecord.sourcePrototypeId, index + 1));
+    xfer.xferSnapshot(new SourceTeamPrototypeSnapshot());
+  }
+}
+export function buildSourceTeamFactoryChunk() {}`;
+      expect(parseCppTeamFactoryXferFields(cppSource)).toEqual([
+        'version',
+        'uniqueTeamId',
+        'prototypeCount',
+        'prototype.id',
+        'prototype.snapshot',
+      ]);
+      expect(parseTsTeamFactoryXferFields(tsSource)).toEqual([
+        'version',
+        'uniqueTeamId',
+        'prototypeCount',
+        'prototype.id',
+        'prototype.snapshot',
+      ]);
+    });
+
+    it('parses PlayerList top-level xfer field order', () => {
+      const cppSource = `
+void PlayerList::xfer( Xfer *xfer )
+{
+  xfer->xferVersion( &version, currentVersion );
+  xfer->xferInt( &playerCount );
+  xfer->xferSnapshot( m_players[ i ] );
+}  // end xfer`;
+      const tsSource = `
+class SourcePlayersSnapshot implements Snapshot {
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(SOURCE_PLAYERS_LIST_SNAPSHOT_VERSION);
+    const playerCount = xfer.xferInt(resolveSourcePlayersCount(this.payload, this.mapData));
+    const playerVersion = xfer.xferVersion(SOURCE_PLAYER_ENTRY_SNAPSHOT_VERSION);
+  }
+}
+class LegacyPlayersSnapshot implements Snapshot {}`;
+      expect(parseCppPlayerListXferFields(cppSource)).toEqual([
+        'version',
+        'playerCount',
+        'player.snapshot',
+      ]);
+      expect(parseTsPlayerListXferFields(tsSource)).toEqual([
+        'version',
+        'playerCount',
+        'player.snapshot',
+      ]);
+    });
+
     it('parses TS damage type names', () => {
       const source = `
 const SOURCE_DAMAGE_TYPE_NAMES: readonly string[] = [
@@ -1004,6 +1076,24 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(result.status).toBe('mismatch');
       expect(result.mismatches).toHaveLength(2);
     });
+
+    it('detects TeamFactory ABI reorderings', () => {
+      const result = compareTeamFactoryFields(
+        ['version', 'uniqueTeamId', 'prototypeCount'],
+        ['version', 'prototypeCount', 'uniqueTeamId'],
+      );
+      expect(result.status).toBe('mismatch');
+      expect(result.mismatches).toHaveLength(2);
+    });
+
+    it('detects PlayerList ABI reorderings', () => {
+      const result = comparePlayerListFields(
+        ['version', 'playerCount', 'player.snapshot'],
+        ['version', 'player.snapshot', 'playerCount'],
+      );
+      expect(result.status).toBe('mismatch');
+      expect(result.mismatches).toHaveLength(2);
+    });
   });
 
   describe('live source comparison', () => {
@@ -1098,6 +1188,14 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       const partitionCategory = report.categories.find((c) => c.category === 'save-partition-fields');
       expect(partitionCategory).toBeDefined();
       expect(partitionCategory!.status).toBe('match');
+
+      const teamFactoryCategory = report.categories.find((c) => c.category === 'save-team-factory-fields');
+      expect(teamFactoryCategory).toBeDefined();
+      expect(teamFactoryCategory!.status).toBe('match');
+
+      const playerListCategory = report.categories.find((c) => c.category === 'save-player-list-fields');
+      expect(playerListCategory).toBeDefined();
+      expect(playerListCategory!.status).toBe('match');
     });
   });
 });

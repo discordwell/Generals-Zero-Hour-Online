@@ -638,6 +638,73 @@ export function parseTsPartitionXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppTeamFactoryXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void TeamFactory::xfer');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    pushUniqueField(fields, seen, mapCppTeamFactoryField(method, argument));
+  }
+  return fields;
+}
+
+export function parseTsTeamFactoryXferFields(source: string): string[] {
+  const start = source.indexOf('class SourceTeamFactorySnapshot');
+  if (start < 0) return [];
+  const end = source.indexOf('export function buildSourceTeamFactoryChunk', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_TEAM_FACTORY_SNAPSHOT_VERSION\s*\)|xfer\.xferUnsignedInt\s*\(\s*normalizePositiveInt\(this\.state\.state\.scriptNextSourceTeamId|xfer\.xferUnsignedShort\s*\(\s*prototypeOrder\.length\s*\)|xfer\.xferUnsignedInt\s*\(\s*normalizePositiveInt\(prototypeRecord\.sourcePrototypeId|xfer\.xferSnapshot\s*\(\s*new SourceTeamPrototypeSnapshot/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsTeamFactoryField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppPlayerListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void PlayerList::xfer');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)|xfer->xferSnapshot\s*\(\s*m_players\s*\[\s*i\s*\]\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[0]!.includes('xferSnapshot')) {
+      pushUniqueField(fields, seen, 'player.snapshot');
+      continue;
+    }
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    pushUniqueField(fields, seen, mapCppPlayerListField(method, argument));
+  }
+  return fields;
+}
+
+export function parseTsPlayerListXferFields(source: string): string[] {
+  const start = source.indexOf('class SourcePlayersSnapshot');
+  if (start < 0) return [];
+  const end = source.indexOf('class LegacyPlayersSnapshot', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_PLAYERS_LIST_SNAPSHOT_VERSION\s*\)|xfer\.xferInt\s*\(\s*resolveSourcePlayersCount|xfer\.xferVersion\s*\(\s*SOURCE_PLAYER_ENTRY_SNAPSHOT_VERSION\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsPlayerListField(match[0]!));
+  }
+  return fields;
+}
+
 function extractQuotedStrings(text: string): string[] {
   const names: string[] = [];
   const regex = /["']([^"']+)["']/g;
@@ -1234,6 +1301,38 @@ function mapTsPartitionField(token: string): string | null {
   return null;
 }
 
+function mapCppTeamFactoryField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUser' && argument.startsWith('m_uniqueTeamID')) return 'uniqueTeamId';
+  if (method === 'xferUnsignedShort' && argument === 'prototypeCount') return 'prototypeCount';
+  if (method === 'xferUser' && argument.startsWith('teamPrototypeID')) return 'prototype.id';
+  if (method === 'xferSnapshot' && argument === 'teamPrototype') return 'prototype.snapshot';
+  return null;
+}
+
+function mapTsTeamFactoryField(token: string): string | null {
+  if (token.includes('SOURCE_TEAM_FACTORY_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('scriptNextSourceTeamId')) return 'uniqueTeamId';
+  if (token.includes('prototypeOrder.length')) return 'prototypeCount';
+  if (token.includes('prototypeRecord.sourcePrototypeId')) return 'prototype.id';
+  if (token.includes('SourceTeamPrototypeSnapshot')) return 'prototype.snapshot';
+  return null;
+}
+
+function mapCppPlayerListField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferInt' && argument === 'playerCount') return 'playerCount';
+  if (method === 'xferSnapshot' && argument === 'm_players[ i ]') return 'player.snapshot';
+  return null;
+}
+
+function mapTsPlayerListField(token: string): string | null {
+  if (token.includes('SOURCE_PLAYERS_LIST_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('resolveSourcePlayersCount')) return 'playerCount';
+  if (token.includes('SOURCE_PLAYER_ENTRY_SNAPSHOT_VERSION')) return 'player.snapshot';
+  return null;
+}
+
 // ── TS Port Extractors ──────────────────────────────────────────────────────
 
 /**
@@ -1469,6 +1568,14 @@ export function comparePartitionFields(cppFields: string[], tsFields: string[]):
   return compareOrderedStrings('save-partition-fields', cppFields, tsFields);
 }
 
+export function compareTeamFactoryFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-team-factory-fields', cppFields, tsFields);
+}
+
+export function comparePlayerListFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-player-list-fields', cppFields, tsFields);
+}
+
 function compareOrderedStrings(category: string, cppValues: string[], tsValues: string[]): ParityCategoryResult {
   const mismatches: ParityMismatch[] = [];
   const maxLength = Math.max(cppValues.length, tsValues.length);
@@ -1644,12 +1751,26 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genPartitionManagerCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/PartitionManager.cpp'),
   );
+  const zhTeamCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/RTS/Team.cpp'),
+  );
+  const genTeamCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/RTS/Team.cpp'),
+  );
+  const zhPlayerListCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/RTS/PlayerList.cpp'),
+  );
+  const genPlayerListCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/RTS/PlayerList.cpp'),
+  );
 
   // Read TS port source
   const tsIndexPath = path.join(rootDir, 'packages/game-logic/src/index.ts');
   const tsIndex = await readFileOrEmpty(tsIndexPath);
   const tsRuntimeSavePath = path.join(rootDir, 'packages/app/src/runtime-save-game.ts');
   const tsRuntimeSave = await readFileOrEmpty(tsRuntimeSavePath);
+  const tsRuntimeTeamFactoryPath = path.join(rootDir, 'packages/app/src/runtime-team-factory-save.ts');
+  const tsRuntimeTeamFactory = await readFileOrEmpty(tsRuntimeTeamFactoryPath);
 
   const categories: ParityCategoryResult[] = [];
 
@@ -1746,6 +1867,20 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsPartitionFields = parseTsPartitionXferFields(tsRuntimeSave);
   if (cppPartitionFields.length > 0 && tsPartitionFields.length > 0) {
     categories.push(comparePartitionFields(cppPartitionFields, tsPartitionFields));
+  }
+
+  const teamSource = zhTeamCpp || genTeamCpp;
+  const cppTeamFactoryFields = parseCppTeamFactoryXferFields(teamSource);
+  const tsTeamFactoryFields = parseTsTeamFactoryXferFields(tsRuntimeTeamFactory);
+  if (cppTeamFactoryFields.length > 0 && tsTeamFactoryFields.length > 0) {
+    categories.push(compareTeamFactoryFields(cppTeamFactoryFields, tsTeamFactoryFields));
+  }
+
+  const playerListSource = zhPlayerListCpp || genPlayerListCpp;
+  const cppPlayerListFields = parseCppPlayerListXferFields(playerListSource);
+  const tsPlayerListFields = parseTsPlayerListXferFields(tsRuntimeSave);
+  if (cppPlayerListFields.length > 0 && tsPlayerListFields.length > 0) {
+    categories.push(comparePlayerListFields(cppPlayerListFields, tsPlayerListFields));
   }
 
   return buildSourceParityReport(categories);
