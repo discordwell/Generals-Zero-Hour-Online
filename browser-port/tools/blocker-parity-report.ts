@@ -383,6 +383,7 @@ async function readJsonOrNull<T>(filePath: string): Promise<T | null> {
 }
 
 async function main(): Promise<void> {
+  const strict = process.argv.includes('--strict');
   const scriptPath = fileURLToPath(import.meta.url);
   const rootDir = path.resolve(path.dirname(scriptPath), '..');
   const outputPath = path.join(rootDir, 'blocker-parity-report.json');
@@ -436,6 +437,9 @@ async function main(): Promise<void> {
     count: blocker.count,
   })));
   console.log('Summary:', report.summary);
+  if (strict) {
+    process.exitCode = 1;
+  }
 }
 
 const executedScriptPath = process.argv[1] ? path.resolve(process.argv[1]) : null;

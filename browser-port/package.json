@@ -16,7 +16,7 @@
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test e2e/smoke.e2e.ts",
     "verify:local": "npm run typecheck && npm run test && npm run test:e2e:smoke",
-    "verify:full": "npm run typecheck && npm run test && npm run test:e2e && npm run report:conversion-parity && npm run report:command-coverage && npm run report:script-coverage && npm run report:prerequisites && npm run report:save-generated-modules && npm run report:save-core-chunks && npm run report:visual-scenes && npm run report:ui-layout && npm run report:blockers",
+    "verify:full": "npm run typecheck && npm run test && npm run test:e2e && npm run report:conversion-parity && npm run report:command-coverage && npm run report:script-coverage && npm run report:prerequisites && npm run report:save-generated-modules && npm run report:save-core-chunks && npm run report:visual-scenes && npm run report:ui-layout && npm run report:blockers -- --strict",
     "report:parity-debt": "tsx tools/parity-debt-report.ts",
     "report:conversion-parity": "tsx tools/conversion-parity-report.ts",
     "report:command-coverage": "tsx tools/command-type-coverage-report.ts",
