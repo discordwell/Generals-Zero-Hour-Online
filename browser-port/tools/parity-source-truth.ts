@@ -2884,6 +2884,7 @@ function parseCppSimpleModuleFields(
   const seen = new Set<string>();
   const tokenRegex =
     /xfer->xferInt\s*\(\s*\(Int\*\)&production->m_exitDoor\s*\)|m_(?:clearFlags|setFlags)\.xfer\s*\(\s*xfer\s*\)|m_bonuses->m_(?:validKindOf|invalidKindOf)\.xfer\s*\(\s*xfer\s*\)|m_(?:pendingCommand|mostRecentCommand)\.doXfer\s*\(\s*xfer\s*\)|data\.m_deliveryDecalTemplate\.xferRadiusDecalTemplate\s*\(\s*xfer\s*\)|m_pullInfo\.xferPullInfo\s*\(\s*xfer\s*\)|conductorPullInfo\.xferPullInfo\s*\(\s*xfer\s*\)|[A-Za-z0-9_]+::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let fireWhenDamagedWeaponPresentIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
     const token = match[0]!;
@@ -2950,6 +2951,14 @@ function parseCppSimpleModuleFields(
         pushUniqueField(fields, seen, field);
       }
       continue;
+    }
+    if (match[1] === 'xferBool' && normalizeCppXferArgument(match[2]!) === 'weaponPresent') {
+      const prefix = FIRE_WHEN_DAMAGED_WEAPON_PREFIXES[fireWhenDamagedWeaponPresentIndex];
+      fireWhenDamagedWeaponPresentIndex += 1;
+      if (prefix) {
+        pushUniqueField(fields, seen, `${prefix}.present`);
+        continue;
+      }
     }
     const baseKey = token.split('(')[0]?.replace(/\s+/g, '');
     const baseFields = baseKey ? baseExpansions[baseKey] : undefined;
@@ -3026,6 +3035,10 @@ function sourceBehaviorModuleBaseFields(): string[] {
 
 function sourceUpdateModuleBaseFields(): string[] {
   return ['update.version', ...sourceBehaviorModuleBaseFields(), 'nextCallFrameAndPhase'];
+}
+
+function sourceDieModuleBaseFields(): string[] {
+  return ['die.version', ...sourceBehaviorModuleBaseFields()];
 }
 
 function sourceUpgradeMuxFields(): string[] {
@@ -3238,6 +3251,29 @@ function sourcePrisonBehaviorFields(): string[] {
     ...sourceOpenContainFields(),
     ...sourcePrisonVisualFields(),
   ];
+}
+
+const FIRE_WHEN_DAMAGED_REACTION_WEAPON_PREFIXES = [
+  'reactionWeapons.pristine',
+  'reactionWeapons.damaged',
+  'reactionWeapons.reallyDamaged',
+  'reactionWeapons.rubble',
+];
+
+const FIRE_WHEN_DAMAGED_CONTINUOUS_WEAPON_PREFIXES = [
+  'continuousWeapons.pristine',
+  'continuousWeapons.damaged',
+  'continuousWeapons.reallyDamaged',
+  'continuousWeapons.rubble',
+];
+
+const FIRE_WHEN_DAMAGED_WEAPON_PREFIXES = [
+  ...FIRE_WHEN_DAMAGED_REACTION_WEAPON_PREFIXES,
+  ...FIRE_WHEN_DAMAGED_CONTINUOUS_WEAPON_PREFIXES,
+];
+
+function sourceFireWhenDamagedWeaponFields(prefix: string): string[] {
+  return [`${prefix}.present`, `${prefix}.weapon.snapshot`];
 }
 
 function sourceSpawnBehaviorFields(): string[] {
@@ -3462,6 +3498,8 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppCountermeasuresBehaviorField;
   } else if (className === 'OverchargeBehavior') {
     mapper = mapCppOverchargeBehaviorField;
+  } else if (className === 'FireWeaponWhenDamagedBehavior') {
+    mapper = mapCppFireWeaponWhenDamagedBehaviorField;
   } else if (className === 'PoisonedBehavior') {
     mapper = mapCppPoisonedBehaviorField;
   } else if (className === 'MinefieldBehavior') {
@@ -3503,6 +3541,7 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     {
       'BehaviorModule::xfer': sourceBehaviorModuleBaseFields(),
       'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
+      'DieModule::xfer': sourceDieModuleBaseFields(),
       'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
       'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
       'DockUpdate::xfer': prefixBaseVersion(sourceDockUpdateFields(), 'dock'),
@@ -3527,8 +3566,9 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:BehaviorModuleBase|UpdateModuleBase|SlowDeathBehaviorBlockState|SpawnBehaviorBlockState|OpenContain|PrisonVisuals|PrisonBehavior|StlObjectIdList|ObjectIdListByUnsignedShortCount|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedByte|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:BehaviorModuleBase|UpdateModuleBase|DieModuleBase|SlowDeathBehaviorBlockState|SpawnBehaviorBlockState|OpenContain|PrisonVisuals|PrisonBehavior|FireWhenDamagedWeapon|StlObjectIdList|ObjectIdListByUnsignedShortCount|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedByte|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
+  let fireWhenDamagedWeaponLoopIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
     const token = match[0]!;
@@ -3581,6 +3621,12 @@ export function parseTsSourceObjectUpdateFields(
       }
       continue;
     }
+    if (token.includes('xferSourceDieModuleBase')) {
+      for (const field of sourceDieModuleBaseFields()) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
     if (token.includes('xferSourceSlowDeathBehaviorBlockState')) {
       const slowDeathFields = helperName === 'buildSourceSlowDeathBehaviorBlockData'
         ? sourceSlowDeathBehaviorFields()
@@ -3614,6 +3660,18 @@ export function parseTsSourceObjectUpdateFields(
         : prefixBaseVersion(sourcePrisonBehaviorFields(), 'prison');
       for (const field of prisonFields) {
         pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSourceFireWhenDamagedWeapon')) {
+      const prefixes = fireWhenDamagedWeaponLoopIndex === 0
+        ? FIRE_WHEN_DAMAGED_REACTION_WEAPON_PREFIXES
+        : FIRE_WHEN_DAMAGED_CONTINUOUS_WEAPON_PREFIXES;
+      fireWhenDamagedWeaponLoopIndex += 1;
+      for (const prefix of prefixes) {
+        for (const field of sourceFireWhenDamagedWeaponFields(prefix)) {
+          pushUniqueField(fields, seen, field);
+        }
       }
       continue;
     }
@@ -6124,6 +6182,24 @@ function mapCppPrisonBehaviorField(method: string, argument: string): string | n
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppFireWeaponWhenDamagedBehaviorField(method: string, argument: string): string | null {
+  const snapshotPrefixByArgument = new Map<string, string>([
+    ['m_reactionWeaponPristine', 'reactionWeapons.pristine'],
+    ['m_reactionWeaponDamaged', 'reactionWeapons.damaged'],
+    ['m_reactionWeaponReallyDamaged', 'reactionWeapons.reallyDamaged'],
+    ['m_reactionWeaponRubble', 'reactionWeapons.rubble'],
+    ['m_continuousWeaponPristine', 'continuousWeapons.pristine'],
+    ['m_continuousWeaponDamaged', 'continuousWeapons.damaged'],
+    ['m_continuousWeaponReallyDamaged', 'continuousWeapons.reallyDamaged'],
+    ['m_continuousWeaponRubble', 'continuousWeapons.rubble'],
+  ]);
+  if (method === 'xferSnapshot') {
+    const prefix = snapshotPrefixByArgument.get(argument);
+    if (prefix) return `${prefix}.weapon.snapshot`;
+  }
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapCppPropagandaCenterBehaviorField(method: string, argument: string): string | null {
   if (method === 'xferObjectID' && argument === 'm_brainwashingSubjectID') return 'brainwashingSubjectId';
   if (method === 'xferUnsignedInt' && argument === 'm_brainwashingSubjectStartFrame') {
@@ -8566,20 +8642,25 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'BattlePlanUpdate.cpp',
     'BoneFXUpdate.cpp',
     '../Behavior/BattleBusSlowDeathBehavior.cpp',
+    '../Behavior/BunkerBusterBehavior.cpp',
     '../Behavior/BridgeBehavior.cpp',
     '../Behavior/BridgeScaffoldBehavior.cpp',
     '../Behavior/BridgeTowerBehavior.cpp',
     '../Behavior/CountermeasuresBehavior.cpp',
     '../Behavior/DumbProjectileBehavior.cpp',
+    '../Behavior/FireWeaponWhenDamagedBehavior.cpp',
     '../Behavior/FireWeaponWhenDeadBehavior.cpp',
     '../Behavior/FlightDeckBehavior.cpp',
     '../Behavior/GenerateMinefieldBehavior.cpp',
     '../Behavior/GrantStealthBehavior.cpp',
+    '../Behavior/InstantDeathBehavior.cpp',
     '../Behavior/JetSlowDeathBehavior.cpp',
     '../Behavior/MinefieldBehavior.cpp',
+    '../Behavior/NeutonBlastBehavior.cpp',
     '../Behavior/OverchargeBehavior.cpp',
     '../Behavior/ParkingPlaceBehavior.cpp',
     '../Behavior/PoisonedBehavior.cpp',
+    '../Behavior/POWTruckBehavior.cpp',
     '../Behavior/PrisonBehavior.cpp',
     '../Behavior/PropagandaCenterBehavior.cpp',
     '../Behavior/PropagandaTowerBehavior.cpp',
@@ -8587,6 +8668,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     '../Behavior/SlowDeathBehavior.cpp',
     '../Behavior/SpawnBehavior.cpp',
     '../Behavior/SupplyWarehouseCripplingBehavior.cpp',
+    '../Behavior/TechBuildingBehavior.cpp',
     '../Contain/OpenContain.cpp',
     'CheckpointUpdate.cpp',
     'CleanupHazardUpdate.cpp',
@@ -9547,6 +9629,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       tsHelper: 'buildSourceOverchargeBehaviorBlockData',
     },
     {
+      category: 'save-fire-weapon-when-damaged-behavior-fields',
+      cppClass: 'FireWeaponWhenDamagedBehavior',
+      tsHelper: 'buildSourceFireWhenDamagedBlockData',
+      hasUpgradeMux: true,
+    },
+    {
       category: 'save-fire-weapon-when-dead-behavior-fields',
       cppClass: 'FireWeaponWhenDeadBehavior',
       tsHelper: 'buildSourceFireWeaponWhenDeadBehaviorBlockData',
@@ -9632,6 +9720,31 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-leaflet-drop-behavior-fields',
       cppClass: 'LeafletDropBehavior',
       tsHelper: 'buildSourceLeafletDropBehaviorBlockData',
+    },
+    {
+      category: 'save-tech-building-behavior-fields',
+      cppClass: 'TechBuildingBehavior',
+      tsHelper: 'buildSourceBaseOnlyUpdateModuleBlockData',
+    },
+    {
+      category: 'save-bunker-buster-behavior-fields',
+      cppClass: 'BunkerBusterBehavior',
+      tsHelper: 'buildSourceBaseOnlyUpdateModuleBlockData',
+    },
+    {
+      category: 'save-neutron-blast-behavior-fields',
+      cppClass: 'NeutronBlastBehavior',
+      tsHelper: 'buildSourceBaseOnlyUpdateModuleBlockData',
+    },
+    {
+      category: 'save-pow-truck-behavior-fields',
+      cppClass: 'POWTruckBehavior',
+      tsHelper: 'xferSourcePOWTruckBehavior',
+    },
+    {
+      category: 'save-instant-death-behavior-fields',
+      cppClass: 'InstantDeathBehavior',
+      tsHelper: 'buildSourceStatelessDieModuleBlockData',
     },
     {
       category: 'save-prison-behavior-fields',

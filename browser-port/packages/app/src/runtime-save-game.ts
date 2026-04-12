@@ -16250,6 +16250,7 @@ type SourceContainModuleKind =
   | 'heal'
   | 'prison'
   | 'propagandaCenter'
+  | 'powTruck'
   | 'internetHack'
   | 'riderChange'
   | 'railedTransport'
@@ -16360,6 +16361,7 @@ function normalizeSourceContainModuleKind(moduleType: string): SourceContainModu
     case 'HEALCONTAIN': return 'heal';
     case 'PRISONBEHAVIOR': return 'prison';
     case 'PROPAGANDACENTERBEHAVIOR': return 'propagandaCenter';
+    case 'POWTRUCKBEHAVIOR': return 'powTruck';
     case 'INTERNETHACKCONTAIN': return 'internetHack';
     case 'RIDERCHANGECONTAIN': return 'riderChange';
     case 'RAILEDTRANSPORTCONTAIN': return 'railedTransport';
@@ -16576,6 +16578,17 @@ function xferSourcePropagandaCenterBehavior(
   };
 }
 
+function xferSourcePOWTruckBehavior(
+  xfer: Xfer,
+  state: SourceOpenContainBlockState,
+): SourceOpenContainBlockState {
+  const version = xfer.xferVersion(1);
+  if (version !== 1) {
+    throw new Error(`Unsupported source POWTruckBehavior version ${version}`);
+  }
+  return xferSourceOpenContain(xfer, state);
+}
+
 function xferSourceParachuteContain(
   xfer: Xfer,
   state: SourceParachuteContainBlockState,
@@ -16747,6 +16760,9 @@ function createDefaultSourceContainModuleBlockState(moduleType: string): SourceC
       open: propagandaCenter.prison.open,
     };
   }
+  if (kind === 'powTruck') {
+    return { kind, open: createDefaultSourceOpenContainState() };
+  }
   if (kind === 'riderChange') {
     return {
       kind,
@@ -16869,6 +16885,11 @@ function tryParseSourceContainModuleBlockData(
         propagandaCenter,
         prison: propagandaCenter.prison,
         open: propagandaCenter.prison.open,
+      };
+    } else if (kind === 'powTruck') {
+      parsed = {
+        kind,
+        open: xferSourcePOWTruckBehavior(xferLoad, createDefaultSourceOpenContainState()),
       };
     } else if (kind === 'riderChange') {
       const version = xferLoad.xferVersion(1);
@@ -17165,6 +17186,16 @@ function buildSourceContainModuleBlockData(
           moduleType,
           liveEntities,
           preservedState.propagandaCenter ?? createDefaultSourcePropagandaCenterBehaviorState(),
+        ),
+      );
+    } else if (kind === 'powTruck') {
+      xferSourcePOWTruckBehavior(
+        saver,
+        overlaySourceOpenContainStateFromLiveEntity(
+          entity,
+          moduleType,
+          liveEntities,
+          preservedState.open ?? createDefaultSourceOpenContainState(),
         ),
       );
     } else if (kind === 'riderChange') {
