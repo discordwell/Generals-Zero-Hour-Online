@@ -2951,6 +2951,10 @@ function sourceDrawModuleBaseFields(): string[] {
   return ['drawModule.version', 'drawableModule.version', 'module.version'];
 }
 
+function sourceDrawableModuleBaseFields(): string[] {
+  return ['drawableModule.version', 'module.version'];
+}
+
 export function parseCppSourceW3DModelDrawFields(source: string): string[] {
   return parseCppSimpleModuleFields(source, 'void W3DModelDraw::xfer( Xfer *xfer )', {
     'DrawModule::xfer': sourceDrawModuleBaseFields(),
@@ -3022,7 +3026,7 @@ function parseTsSourceW3DDrawFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xferSource\w+\s*\(|xfer\.xfer(?:Version|UnsignedByte|Bool|AsciiString|Color|Int|Real)\s*\(|xfer\.xferUser\s*\(/g;
+    /xferSource\w+\s*\(|xfer\.xfer(?:Version|UnsignedByte|UnsignedInt|Bool|AsciiString|Color|Coord3D|Short|Int|Real)\s*\(|xfer\.xferUser\s*\(/g;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
     const token = match[0]!;
@@ -3094,6 +3098,18 @@ export function parseTsSourceW3DDrawModuleFields(source: string, helperName: str
     default:
       return [];
   }
+}
+
+export function parseCppSourceDrawableClientUpdateFields(source: string, className: string): string[] {
+  return parseCppSimpleModuleFields(source, `void ${className}::xfer( Xfer *xfer )`, {
+    'ClientUpdateModule::xfer': sourceDrawableModuleBaseFields(),
+  });
+}
+
+export function parseTsSourceDrawableClientUpdateFields(source: string, helperName: string): string[] {
+  return parseTsSourceW3DDrawFields(source, `function ${helperName}`, {
+    xferSourceDrawableModuleBase: sourceDrawableModuleBaseFields(),
+  });
 }
 
 function extractFunctionRegion(source: string, signature: string): string | null {
@@ -4596,37 +4612,91 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferReal' && argument === 'm_wobbleRate') return 'wobbleRate';
   if (method === 'xferReal' && argument === 'm_curWobblePhase') return 'curWobblePhase';
   if (method === 'xferReal' && argument === 'm_curZOffset') return 'curZOffset';
+  if (method === 'xferReal' && argument === 'm_curValue') return 'curValue';
+  if (method === 'xferReal' && argument === 'm_curAngle') return 'curAngle';
+  if (method === 'xferReal' && argument === 'm_curDelta') return 'curDelta';
+  if (method === 'xferReal' && argument === 'm_curAngleLimit') return 'curAngleLimit';
+  if (method === 'xferReal' && argument === 'm_leanAngle') return 'leanAngle';
+  if (method === 'xferShort' && argument === 'm_curVersion') return 'curVersion';
+  if (method === 'xferBool' && argument === 'm_swaying') return 'swaying';
+  if (method === 'xferCoord3D' && argument === 'm_startPos') return 'startPos';
+  if (method === 'xferCoord3D' && argument === 'm_endPos') return 'endPos';
+  if (method === 'xferBool' && argument === 'm_dirty') return 'dirty';
+  if (method === 'xferUser' && argument.startsWith('m_particleSystemID')) return 'particleSystemId';
+  if (method === 'xferUser' && argument.startsWith('m_targetParticleSystemID')) return 'targetParticleSystemId';
+  if (method === 'xferBool' && argument === 'm_widening') return 'widening';
+  if (method === 'xferBool' && argument === 'm_decaying') return 'decaying';
+  if (method === 'xferUnsignedInt' && argument === 'm_widenStartFrame') return 'widenStartFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_widenFinishFrame') return 'widenFinishFrame';
+  if (method === 'xferReal' && argument === 'm_currentWidthScalar') return 'currentWidthScalar';
+  if (method === 'xferUnsignedInt' && argument === 'm_decayStartFrame') return 'decayStartFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_decayFinishFrame') return 'decayFinishFrame';
+  if (method === 'xferDrawableID' && argument === 'm_parentID') return 'parentDrawableId';
+  if (method === 'xferDrawableID' && argument === 'm_targetID') return 'targetDrawableId';
+  if (method === 'xferAsciiString' && argument === 'm_parentBoneName') return 'parentBoneName';
+  if (method === 'xferUnsignedInt' && argument === 'm_lastRadarPulse') return 'lastRadarPulse';
   return null;
 }
 
 function mapTsSourceW3DDrawField(token: string, body: string, tokenIndex: number): string | null {
   if (token.includes('xferVersion')) return 'version';
+  if (token.includes('xferCoord3D')) {
+    const window = tsTokenStatement(body, tokenIndex);
+    if (window.includes('state.startPos')) return 'startPos';
+    if (window.includes('state.endPos')) return 'endPos';
+  }
+  if (token.includes('xferUser')) {
+    const window = tsTokenStatement(body, tokenIndex);
+    if (window.includes('state.targetParticleSystemId')) return 'targetParticleSystemId';
+    if (window.includes('state.particleSystemId')) return 'particleSystemId';
+  }
   if (token.includes('xferUnsignedByte')) {
-    const window = body.slice(tokenIndex, tokenIndex + 96);
+    const window = tsTokenStatement(body, tokenIndex);
     if (window.includes('recoilEntries.length')) return 'weaponRecoil.count';
     if (window.includes('subObjects.length')) return 'subObject.count';
   }
+  if (token.includes('xferUnsignedInt')) {
+    const window = tsTokenStatement(body, tokenIndex);
+    if (window.includes('state.widenStartFrame')) return 'widenStartFrame';
+    if (window.includes('state.widenFinishFrame')) return 'widenFinishFrame';
+    if (window.includes('state.decayStartFrame')) return 'decayStartFrame';
+    if (window.includes('state.decayFinishFrame')) return 'decayFinishFrame';
+    if (window.includes('state.parentDrawableId')) return 'parentDrawableId';
+    if (window.includes('state.targetDrawableId')) return 'targetDrawableId';
+    if (window.includes('state.lastRadarPulse')) return 'lastRadarPulse';
+  }
   if (token.includes('xferBool')) {
-    const window = body.slice(tokenIndex, tokenIndex + 96);
+    const window = tsTokenStatement(body, tokenIndex);
     if (window.includes('hasAnimation')) return 'animation.present';
     if (window.includes('state.finalStop')) return 'finalStop';
+    if (window.includes('state.swaying')) return 'swaying';
+    if (window.includes('state.dirty')) return 'dirty';
+    if (window.includes('state.widening')) return 'widening';
+    if (window.includes('state.decaying')) return 'decaying';
     if (window.includes('false')) return 'dependencyCleared';
   }
   if (token.includes('xferAsciiString')) {
-    const window = body.slice(tokenIndex, tokenIndex + 96);
+    const window = tsTokenStatement(body, tokenIndex);
     if (window.includes('state.modelName')) return 'modelName';
     if (window.includes('state.animInitial')) return 'animInitial';
     if (window.includes('state.animFlying')) return 'animFlying';
     if (window.includes('state.animFinal')) return 'animFinal';
+    if (window.includes('state.parentBoneName')) return 'parentBoneName';
   }
   if (token.includes('xferColor')) return 'modelColor';
+  if (token.includes('xferShort')) return 'curVersion';
   if (token.includes('xferInt')) {
-    const window = body.slice(tokenIndex, tokenIndex + 96);
+    const window = tsTokenStatement(body, tokenIndex);
     if (window.includes('state.state')) return 'state';
     if (window.includes('state.frames')) return 'frames';
   }
   if (token.includes('xferReal')) {
-    const window = body.slice(tokenIndex, tokenIndex + 128);
+    const window = tsTokenStatement(body, tokenIndex);
+    if (window.includes('state.curValue')) return 'curValue';
+    if (window.includes('state.curAngleLimit')) return 'curAngleLimit';
+    if (window.includes('state.curAngle')) return 'curAngle';
+    if (window.includes('state.curDelta')) return 'curDelta';
+    if (window.includes('state.leanAngle')) return 'leanAngle';
     if (window.includes('state.curLen')) return 'curLen';
     if (window.includes('state.maxLen')) return 'maxLen';
     if (window.includes('state.width')) return 'width';
@@ -4638,8 +4708,14 @@ function mapTsSourceW3DDrawField(token: string, body: string, tokenIndex: number
     if (window.includes('state.wobbleRate')) return 'wobbleRate';
     if (window.includes('state.curWobblePhase')) return 'curWobblePhase';
     if (window.includes('state.curZOffset')) return 'curZOffset';
+    if (window.includes('state.currentWidthScalar')) return 'currentWidthScalar';
   }
   return null;
+}
+
+function tsTokenStatement(body: string, tokenIndex: number): string {
+  const end = body.indexOf(';', tokenIndex);
+  return body.slice(tokenIndex, end >= 0 ? end + 1 : tokenIndex + 160);
 }
 
 function mapCppRadarField(method: string, argument: string): string | null {
@@ -6461,6 +6537,31 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       fileName,
     )),
   ))).join('\n');
+  const drawableClientUpdateFiles = [
+    'AnimatedParticleSysBoneClientUpdate.cpp',
+    'BeaconClientUpdate.cpp',
+    'SwayClientUpdate.cpp',
+  ];
+  const zhDrawableClientUpdateCpp = (await Promise.all(drawableClientUpdateFiles.map((fileName) =>
+    readFileOrEmpty(path.join(
+      repoRoot,
+      'GeneralsMD/Code/GameEngine/Source/GameClient/Drawable/Update',
+      fileName,
+    )),
+  ))).join('\n');
+  const genDrawableClientUpdateCpp = (await Promise.all(drawableClientUpdateFiles.map((fileName) =>
+    readFileOrEmpty(path.join(
+      repoRoot,
+      'Generals/Code/GameEngine/Source/GameClient/Drawable/Update',
+      fileName,
+    )),
+  ))).join('\n');
+  const zhLaserUpdateCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/LaserUpdate.cpp'),
+  );
+  const genLaserUpdateCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/Update/LaserUpdate.cpp'),
+  );
   const zhTerrainVisualCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameClient/Terrain/TerrainVisual.cpp'),
   );
@@ -7083,6 +7184,41 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     },
   ];
   for (const check of w3dDrawChecks) {
+    if (check.cpp.length > 0 && check.ts.length > 0) {
+      categories.push(compareSourceW3DDrawModuleFields(check.category, check.cpp, check.ts));
+    }
+  }
+
+  const drawableClientUpdateSource = `${zhDrawableClientUpdateCpp || genDrawableClientUpdateCpp}\n${
+    zhLaserUpdateCpp || genLaserUpdateCpp
+  }`;
+  const drawableClientUpdateChecks: Array<{
+    category: string;
+    cpp: string[];
+    ts: string[];
+  }> = [
+    {
+      category: 'save-animated-particle-sys-bone-client-update-fields',
+      cpp: parseCppSourceDrawableClientUpdateFields(drawableClientUpdateSource, 'AnimatedParticleSysBoneClientUpdate'),
+      ts: parseTsSourceDrawableClientUpdateFields(tsRuntimeSave, 'xferSourceAnimatedParticleSysBoneClientUpdate'),
+    },
+    {
+      category: 'save-sway-client-update-fields',
+      cpp: parseCppSourceDrawableClientUpdateFields(drawableClientUpdateSource, 'SwayClientUpdate'),
+      ts: parseTsSourceDrawableClientUpdateFields(tsRuntimeSave, 'xferSourceSwayClientUpdate'),
+    },
+    {
+      category: 'save-laser-update-fields',
+      cpp: parseCppSourceDrawableClientUpdateFields(drawableClientUpdateSource, 'LaserUpdate'),
+      ts: parseTsSourceDrawableClientUpdateFields(tsRuntimeSave, 'xferSourceLaserUpdate'),
+    },
+    {
+      category: 'save-beacon-client-update-fields',
+      cpp: parseCppSourceDrawableClientUpdateFields(drawableClientUpdateSource, 'BeaconClientUpdate'),
+      ts: parseTsSourceDrawableClientUpdateFields(tsRuntimeSave, 'xferSourceBeaconClientUpdate'),
+    },
+  ];
+  for (const check of drawableClientUpdateChecks) {
     if (check.cpp.length > 0 && check.ts.length > 0) {
       categories.push(compareSourceW3DDrawModuleFields(check.category, check.cpp, check.ts));
     }

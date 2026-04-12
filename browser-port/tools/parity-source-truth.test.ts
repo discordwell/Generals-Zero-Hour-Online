@@ -1295,6 +1295,10 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-w3d-dependency-model-draw-fields',
         'save-w3d-debris-draw-fields',
         'save-w3d-rope-draw-fields',
+        'save-animated-particle-sys-bone-client-update-fields',
+        'save-sway-client-update-fields',
+        'save-laser-update-fields',
+        'save-beacon-client-update-fields',
       ]) {
         const moduleCategory = report.categories.find((c) => c.category === category);
         expect(moduleCategory).toBeDefined();

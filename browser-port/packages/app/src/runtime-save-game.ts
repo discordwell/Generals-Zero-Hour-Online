@@ -2861,6 +2861,39 @@ interface SourceW3DRopeDrawState {
   readonly curZOffset: number;
 }
 
+interface SourceSwayClientUpdateState {
+  readonly curValue: number;
+  readonly curAngle: number;
+  readonly curDelta: number;
+  readonly curAngleLimit: number;
+  readonly leanAngle: number;
+  readonly curVersion: number;
+  readonly swaying: boolean;
+}
+
+interface SourceLaserUpdateState {
+  readonly startPos: Coord3D;
+  readonly endPos: Coord3D;
+  readonly dirty: boolean;
+  readonly particleSystemId: number;
+  readonly targetParticleSystemId: number;
+  readonly widening: boolean;
+  readonly decaying: boolean;
+  readonly widenStartFrame: number;
+  readonly widenFinishFrame: number;
+  readonly currentWidthScalar: number;
+  readonly decayStartFrame: number;
+  readonly decayFinishFrame: number;
+  readonly parentDrawableId: number;
+  readonly targetDrawableId: number;
+  readonly parentBoneName: string;
+}
+
+interface SourceBeaconClientUpdateState {
+  readonly particleSystemId: number;
+  readonly lastRadarPulse: number;
+}
+
 const EMPTY_SOURCE_W3D_WEAPON_RECOIL_INFO_BY_SLOT:
   readonly (readonly SourceW3DWeaponRecoilInfoState[] | null | undefined)[] = [];
 
@@ -2900,6 +2933,41 @@ const EMPTY_SOURCE_W3D_ROPE_DRAW_STATE: SourceW3DRopeDrawState = {
   wobbleRate: 1,
   curWobblePhase: 0,
   curZOffset: 0,
+};
+
+const ZERO_SOURCE_COORD3D: Coord3D = { x: 0, y: 0, z: 0 };
+
+const EMPTY_SOURCE_SWAY_CLIENT_UPDATE_STATE: SourceSwayClientUpdateState = {
+  curValue: 0,
+  curAngle: 0,
+  curDelta: 0,
+  curAngleLimit: 0,
+  leanAngle: 0,
+  curVersion: -1,
+  swaying: true,
+};
+
+const EMPTY_SOURCE_LASER_UPDATE_STATE: SourceLaserUpdateState = {
+  startPos: ZERO_SOURCE_COORD3D,
+  endPos: ZERO_SOURCE_COORD3D,
+  dirty: false,
+  particleSystemId: SOURCE_INVALID_PARTICLE_SYSTEM_ID,
+  targetParticleSystemId: SOURCE_INVALID_PARTICLE_SYSTEM_ID,
+  widening: false,
+  decaying: false,
+  widenStartFrame: 0,
+  widenFinishFrame: 0,
+  currentWidthScalar: 1,
+  decayStartFrame: 0,
+  decayFinishFrame: 0,
+  parentDrawableId: SOURCE_INVALID_DRAWABLE_ID,
+  targetDrawableId: SOURCE_INVALID_DRAWABLE_ID,
+  parentBoneName: '',
+};
+
+const EMPTY_SOURCE_BEACON_CLIENT_UPDATE_STATE: SourceBeaconClientUpdateState = {
+  particleSystemId: SOURCE_INVALID_PARTICLE_SYSTEM_ID,
+  lastRadarPulse: 0,
 };
 
 function xferSourceRGBColor(xfer: Xfer, color: SourceRGBColorState): SourceRGBColorState {
@@ -3035,6 +3103,59 @@ function xferSourceW3DRopeDraw(
   xfer.xferReal(sourcePhysicsFinite(state.curZOffset, 0));
 }
 
+function xferSourceAnimatedParticleSysBoneClientUpdate(xfer: Xfer): void {
+  xfer.xferVersion(1);
+  xferSourceDrawableModuleBase(xfer);
+}
+
+function xferSourceSwayClientUpdate(
+  xfer: Xfer,
+  state: SourceSwayClientUpdateState = EMPTY_SOURCE_SWAY_CLIENT_UPDATE_STATE,
+): void {
+  xfer.xferVersion(1);
+  xferSourceDrawableModuleBase(xfer);
+  xfer.xferReal(sourcePhysicsFinite(state.curValue, 0));
+  xfer.xferReal(sourcePhysicsFinite(state.curAngle, 0));
+  xfer.xferReal(sourcePhysicsFinite(state.curDelta, 0));
+  xfer.xferReal(sourcePhysicsFinite(state.curAngleLimit, 0));
+  xfer.xferReal(sourcePhysicsFinite(state.leanAngle, 0));
+  xfer.xferShort(sourceFiniteInt(state.curVersion, -1));
+  xfer.xferBool(state.swaying);
+}
+
+function xferSourceLaserUpdate(
+  xfer: Xfer,
+  state: SourceLaserUpdateState = EMPTY_SOURCE_LASER_UPDATE_STATE,
+): void {
+  xfer.xferVersion(1);
+  xferSourceDrawableModuleBase(xfer);
+  xfer.xferCoord3D(state.startPos);
+  xfer.xferCoord3D(state.endPos);
+  xfer.xferBool(state.dirty);
+  xfer.xferUser(buildSourceRawInt32Bytes(state.particleSystemId));
+  xfer.xferUser(buildSourceRawInt32Bytes(state.targetParticleSystemId));
+  xfer.xferBool(state.widening);
+  xfer.xferBool(state.decaying);
+  xfer.xferUnsignedInt(Math.max(0, sourceFiniteInt(state.widenStartFrame, 0)));
+  xfer.xferUnsignedInt(Math.max(0, sourceFiniteInt(state.widenFinishFrame, 0)));
+  xfer.xferReal(sourcePhysicsFinite(state.currentWidthScalar, 1));
+  xfer.xferUnsignedInt(Math.max(0, sourceFiniteInt(state.decayStartFrame, 0)));
+  xfer.xferUnsignedInt(Math.max(0, sourceFiniteInt(state.decayFinishFrame, 0)));
+  xfer.xferUnsignedInt(Math.max(0, sourceFiniteInt(state.parentDrawableId, SOURCE_INVALID_DRAWABLE_ID)));
+  xfer.xferUnsignedInt(Math.max(0, sourceFiniteInt(state.targetDrawableId, SOURCE_INVALID_DRAWABLE_ID)));
+  xfer.xferAsciiString(state.parentBoneName);
+}
+
+function xferSourceBeaconClientUpdate(
+  xfer: Xfer,
+  state: SourceBeaconClientUpdateState = EMPTY_SOURCE_BEACON_CLIENT_UPDATE_STATE,
+): void {
+  xfer.xferVersion(1);
+  xferSourceDrawableModuleBase(xfer);
+  xfer.xferUser(buildSourceRawInt32Bytes(state.particleSystemId));
+  xfer.xferUnsignedInt(Math.max(0, sourceFiniteInt(state.lastRadarPulse, 0)));
+}
+
 function xferSourceW3DDrawableModulePayload(
   xfer: Xfer,
   descriptor: GameLogicSourceDrawableModuleDescriptor,
@@ -3086,40 +3207,19 @@ function xferSourceW3DDrawableModulePayload(
 
   if (descriptor.moduleKind === 'client-update') {
     if (normalizedModuleType === 'ANIMATEDPARTICLESYSBONECLIENTUPDATE') {
-      xfer.xferVersion(1);
-      xferSourceDrawableModuleBase(xfer);
+      xferSourceAnimatedParticleSysBoneClientUpdate(xfer);
       return true;
     }
     if (normalizedModuleType === 'SWAYCLIENTUPDATE') {
-      xfer.xferVersion(1);
-      xferSourceDrawableModuleBase(xfer);
-      xfer.xferReal(0);
-      xfer.xferReal(0);
-      xfer.xferReal(0);
-      xfer.xferReal(0);
-      xfer.xferReal(0);
-      xfer.xferShort(-1);
-      xfer.xferBool(true);
+      xferSourceSwayClientUpdate(xfer);
       return true;
     }
     if (normalizedModuleType === 'LASERUPDATE') {
-      xfer.xferVersion(1);
-      xferSourceDrawableModuleBase(xfer);
-      xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
-      xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
-      xfer.xferBool(false);
-      xfer.xferUnsignedInt(SOURCE_INVALID_PARTICLE_SYSTEM_ID);
-      xfer.xferUnsignedInt(SOURCE_INVALID_PARTICLE_SYSTEM_ID);
-      xfer.xferBool(false);
-      xfer.xferBool(false);
-      xfer.xferUnsignedInt(0);
-      xfer.xferUnsignedInt(0);
-      xfer.xferReal(1);
-      xfer.xferUnsignedInt(0);
-      xfer.xferUnsignedInt(0);
-      xfer.xferUnsignedInt(SOURCE_INVALID_DRAWABLE_ID);
-      xfer.xferUnsignedInt(SOURCE_INVALID_DRAWABLE_ID);
-      xfer.xferAsciiString('');
+      xferSourceLaserUpdate(xfer);
+      return true;
+    }
+    if (normalizedModuleType === 'BEACONCLIENTUPDATE') {
+      xferSourceBeaconClientUpdate(xfer);
       return true;
     }
   }
