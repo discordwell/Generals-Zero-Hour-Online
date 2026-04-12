@@ -2195,6 +2195,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
     let idleShouldLookForTargets: boolean | undefined;
     let idleInited: boolean | undefined;
     let moveState: Record<string, unknown> | undefined;
+    let dockState: Record<string, unknown> | undefined;
     let enterState: Record<string, unknown> | undefined;
     let attackState: Record<string, unknown> | undefined;
     let guardState: Record<string, unknown> | undefined;
@@ -2222,6 +2223,52 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
         pathTimestamp,
         blockedRepathTimestamp,
         adjustDestinations,
+      };
+    } else if (currentStateId === 14) {
+      const dockStateVersion = xferLoad.xferVersion(1);
+      const dockHasMachine = xferLoad.xferBool(false);
+      let dockMachine: Record<string, unknown> | undefined;
+      if (dockHasMachine) {
+        const dockMachineVersion = xferLoad.xferVersion(1);
+        const dockStateMachineVersion = xferLoad.xferVersion(1);
+        const dockSleepTill = xferLoad.xferUnsignedInt(0);
+        const dockDefaultStateId = xferLoad.xferUnsignedInt(0);
+        const dockCurrentStateId = xferLoad.xferUnsignedInt(0);
+        const dockSnapshotAllStates = xferLoad.xferBool(false);
+        let dockCurrentState: Record<string, unknown>;
+        if (dockCurrentStateId === 5) {
+          dockCurrentState = {
+            kind: 'PROCESS_DOCK',
+            version: xferLoad.xferVersion(1),
+          };
+        } else {
+          throw new Error(`Unexpected generated dock-machine state ${dockCurrentStateId}.`);
+        }
+        const dockMachineGoalObjectId = xferLoad.xferObjectID(0);
+        const dockMachineGoalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+        const dockMachineLocked = xferLoad.xferBool(false);
+        const dockMachineDefaultStateInited = xferLoad.xferBool(false);
+        const approachPosition = xferLoad.xferInt(0);
+        dockMachine = {
+          version: dockMachineVersion,
+          stateMachineVersion: dockStateMachineVersion,
+          sleepTill: dockSleepTill,
+          defaultStateId: dockDefaultStateId,
+          currentStateId: dockCurrentStateId,
+          snapshotAllStates: dockSnapshotAllStates,
+          currentState: dockCurrentState,
+          goalObjectId: dockMachineGoalObjectId,
+          goalPosition: dockMachineGoalPosition,
+          locked: dockMachineLocked,
+          defaultStateInited: dockMachineDefaultStateInited,
+          approachPosition,
+        };
+      }
+      dockState = {
+        version: dockStateVersion,
+        hasMachine: dockHasMachine,
+        dockMachine,
+        usingPrecisionMovement: xferLoad.xferBool(false),
       };
     } else if (currentStateId === 15) {
       const enterVersion = xferLoad.xferVersion(1);
@@ -2551,6 +2598,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
       idleShouldLookForTargets,
       idleInited,
       moveState,
+      dockState,
       enterState,
       attackState,
       guardState,
@@ -20680,6 +20728,39 @@ describe('runtime-save-game', () => {
               action: 'enterTransport',
               commandSource: 'SCRIPT',
             },
+          } as unknown as import('@generals/game-logic').MapEntity, {
+            id: 28,
+            templateName: 'RuntimeGeneratedRepairDock',
+            x: 330,
+            y: 0,
+            z: 430,
+            rotationY: 0,
+          } as unknown as import('@generals/game-logic').MapEntity, {
+            id: 29,
+            templateName: 'RuntimeGeneratedDockAI',
+            x: 330,
+            y: 0,
+            z: 430,
+            rotationY: 0,
+            sourceAIIdleInitialSleepOffset: 8,
+            scriptAiRecruitable: true,
+            attackTargetEntityId: null,
+            attackTargetPosition: null,
+            attackSubState: 'IDLE',
+            lastCommandSource: 'PLAYER',
+            autoTargetScanNextFrame: 86,
+            moving: false,
+            moveTarget: null,
+            locomotorUpgradeEnabled: false,
+            ignoredMovementObstacleId: 28,
+            pathfindGoalCell: null,
+            pathfindPosCell: null,
+            activeLocomotorSet: 'SET_NORMAL',
+            guardState: 'NONE',
+            repairDockState: {
+              dockObjectId: 28,
+              commandSource: 'PLAYER',
+            },
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
         listSourceObjectModuleDescriptors: (templateName) => {
@@ -20694,6 +20775,9 @@ describe('runtime-save-game', () => {
           }
           if (templateName === 'RuntimeGeneratedEnterAI') {
             return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_EnterAI' }];
+          }
+          if (templateName === 'RuntimeGeneratedDockAI') {
+            return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_DockAI' }];
           }
           return templateName === 'RuntimeGeneratedAIUpdates'
             ? [
@@ -20869,6 +20953,43 @@ describe('runtime-save-game', () => {
       },
     });
     expect(enterAI.bytesRead).toBe(enterModule!.blockData.byteLength);
+
+    const generatedDock = readSourceGameLogicObjectStates(saveFile.data)
+      ?.find((object) => object.templateName === 'RuntimeGeneratedDockAI')?.state;
+    const dockModule = generatedDock?.modules.find((module) => module.identifier === 'ModuleTag_DockAI');
+    expect(dockModule).toBeDefined();
+    const dockAI = parseGeneratedSourceAIUpdateInterfaceForTest(dockModule!.blockData, 0);
+    expect(dockAI).toMatchObject({
+      currentStateId: 14,
+      goalObjectId: 28,
+      goalPosition: { x: 330, y: 430, z: 0 },
+      nextEnemyScanTime: 86,
+      currentVictimId: 0,
+      nextMoodCheckTime: 86,
+      lastCommandSource: 0,
+      ignoreObstacleId: 28,
+      dockState: {
+        version: 1,
+        hasMachine: true,
+        usingPrecisionMovement: false,
+        dockMachine: {
+          version: 1,
+          stateMachineVersion: 1,
+          defaultStateId: 0,
+          currentStateId: 5,
+          currentState: {
+            kind: 'PROCESS_DOCK',
+            version: 1,
+          },
+          goalObjectId: 28,
+          goalPosition: { x: 330, y: 430, z: 0 },
+          locked: false,
+          defaultStateInited: true,
+          approachPosition: -1,
+        },
+      },
+    });
+    expect(dockAI.bytesRead).toBe(dockModule!.blockData.byteLength);
 
     expect(hackModule).toBeDefined();
     const hack = parseSourceHackInternetAIUpdateBlockData(hackModule!.blockData);

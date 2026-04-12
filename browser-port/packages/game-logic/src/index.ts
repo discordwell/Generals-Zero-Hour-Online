@@ -9486,6 +9486,20 @@ interface SourceAIEnterStateImportState {
   entryToClearId: number;
 }
 
+interface SourceAIDockMachineImportState {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+  approachPosition: number;
+  moveState: SourceAIInternalMoveToStateImportState | null;
+  waitEnterFrame: number | null;
+}
+
+interface SourceAIDockStateImportState {
+  dockMachine: SourceAIDockMachineImportState | null;
+  usingPrecisionMovement: boolean;
+}
+
 interface SourceAIAttackStateImportState {
   originalVictimPosition: { x: number; y: number; z: number };
   attackMachine: SourceAttackStateMachineImportState | null;
@@ -9510,6 +9524,7 @@ interface SourceAIStateMachineImportState {
   goalObjectId: number;
   goalPosition: { x: number; y: number; z: number };
   moveState: SourceAIInternalMoveToStateImportState | null;
+  dockState: SourceAIDockStateImportState | null;
   enterState: SourceAIEnterStateImportState | null;
   attackState: SourceAIAttackStateImportState | null;
   guardState: SourceAIGuardStateImportState | null;
@@ -10356,6 +10371,7 @@ const SOURCE_AI_STATE_MOVE_TO = 1;
 const SOURCE_AI_STATE_ATTACK_POSITION = 9;
 const SOURCE_AI_STATE_ATTACK_OBJECT = 10;
 const SOURCE_AI_STATE_FORCE_ATTACK_OBJECT = 11;
+const SOURCE_AI_STATE_DOCK = 14;
 const SOURCE_AI_STATE_ENTER = 15;
 const SOURCE_AI_STATE_GUARD = 16;
 const SOURCE_AI_INVALID_STATE_ID = 999999;
@@ -10372,6 +10388,14 @@ const SOURCE_AI_GUARD_OUTER = 5002;
 const SOURCE_AI_GUARD_RETURN = 5003;
 const SOURCE_AI_GUARD_GET_CRATE = 5004;
 const SOURCE_AI_GUARD_ATTACK_AGGRESSOR = 5005;
+const SOURCE_AI_DOCK_APPROACH = 0;
+const SOURCE_AI_DOCK_WAIT_FOR_CLEARANCE = 1;
+const SOURCE_AI_DOCK_ADVANCE_POSITION = 2;
+const SOURCE_AI_DOCK_MOVE_TO_ENTRY = 3;
+const SOURCE_AI_DOCK_MOVE_TO_DOCK = 4;
+const SOURCE_AI_DOCK_PROCESS_DOCK = 5;
+const SOURCE_AI_DOCK_MOVE_TO_EXIT = 6;
+const SOURCE_AI_DOCK_MOVE_TO_RALLY = 7;
 const SOURCE_HACK_INTERNET_STATE_UNPACKING = 1000;
 const SOURCE_HACK_INTERNET_STATE_HACKING = 1001;
 const SOURCE_HACK_INTERNET_STATE_PACKING = 1002;
@@ -16021,6 +16045,92 @@ export class GameLogicSubsystem implements Subsystem {
     return { moveState, entryToClearId };
   }
 
+  private parseSourceAIDockMachineCurrentStateSnapshot(
+    xfer: XferLoad,
+    currentStateId: number,
+  ): { moveState: SourceAIInternalMoveToStateImportState | null; waitEnterFrame: number | null } | null {
+    switch (Math.trunc(currentStateId)) {
+      case SOURCE_AI_DOCK_APPROACH: {
+        const version = xfer.xferVersion(2);
+        if (version !== 2) {
+          return null;
+        }
+        const moveState = this.parseSourceAIInternalMoveToStateSnapshot(xfer);
+        return moveState ? { moveState, waitEnterFrame: null } : null;
+      }
+      case SOURCE_AI_DOCK_WAIT_FOR_CLEARANCE: {
+        const version = xfer.xferVersion(2);
+        if (version !== 2) {
+          return null;
+        }
+        return { moveState: null, waitEnterFrame: xfer.xferUnsignedInt(0) };
+      }
+      case SOURCE_AI_DOCK_ADVANCE_POSITION:
+      case SOURCE_AI_DOCK_MOVE_TO_ENTRY:
+      case SOURCE_AI_DOCK_MOVE_TO_DOCK:
+      case SOURCE_AI_DOCK_MOVE_TO_EXIT:
+      case SOURCE_AI_DOCK_MOVE_TO_RALLY: {
+        const moveState = this.parseSourceAIInternalMoveToStateSnapshot(xfer);
+        return moveState ? { moveState, waitEnterFrame: null } : null;
+      }
+      case SOURCE_AI_DOCK_PROCESS_DOCK: {
+        const version = xfer.xferVersion(1);
+        return version === 1 ? { moveState: null, waitEnterFrame: null } : null;
+      }
+      default:
+        return null;
+    }
+  }
+
+  private parseSourceAIDockMachineImportState(
+    xfer: XferLoad,
+  ): SourceAIDockMachineImportState | null {
+    const version = xfer.xferVersion(1);
+    const stateMachineVersion = xfer.xferVersion(1);
+    if (version !== 1 || stateMachineVersion !== 1) {
+      return null;
+    }
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(SOURCE_AI_DOCK_APPROACH);
+    const currentStateId = xfer.xferUnsignedInt(SOURCE_AI_DOCK_APPROACH);
+    if (xfer.xferBool(false)) {
+      return null;
+    }
+    const currentStateSnapshot = this.parseSourceAIDockMachineCurrentStateSnapshot(xfer, currentStateId);
+    if (!currentStateSnapshot) {
+      return null;
+    }
+    const goalObjectId = xfer.xferObjectID(0);
+    const goalPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    const approachPosition = xfer.xferInt(-1);
+    return {
+      currentStateId,
+      goalObjectId,
+      goalPosition,
+      approachPosition,
+      moveState: currentStateSnapshot.moveState,
+      waitEnterFrame: currentStateSnapshot.waitEnterFrame,
+    };
+  }
+
+  private parseSourceAIDockStateImportState(
+    xfer: XferLoad,
+  ): SourceAIDockStateImportState | null {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const hasMachine = xfer.xferBool(false);
+    const dockMachine = hasMachine ? this.parseSourceAIDockMachineImportState(xfer) : null;
+    if (hasMachine && !dockMachine) {
+      return null;
+    }
+    const usingPrecisionMovement = xfer.xferBool(false);
+    return { dockMachine, usingPrecisionMovement };
+  }
+
   private skipSourceAIAttackMoveTargetStateSnapshot(xfer: XferLoad): boolean {
     const version = xfer.xferVersion(1);
     if (version !== 1 || !this.skipSourceAIInternalMoveToStateSnapshot(xfer)) {
@@ -16211,6 +16321,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     let moveState: SourceAIInternalMoveToStateImportState | null = null;
+    let dockState: SourceAIDockStateImportState | null = null;
     let enterState: SourceAIEnterStateImportState | null = null;
     let attackState: SourceAIAttackStateImportState | null = null;
     let guardState: SourceAIGuardStateImportState | null = null;
@@ -16221,6 +16332,11 @@ export class GameLogicSubsystem implements Subsystem {
     } else if (currentStateId === SOURCE_AI_STATE_MOVE_TO) {
       moveState = this.parseSourceAIInternalMoveToStateSnapshot(xfer);
       if (!moveState) {
+        return null;
+      }
+    } else if (currentStateId === SOURCE_AI_STATE_DOCK) {
+      dockState = this.parseSourceAIDockStateImportState(xfer);
+      if (!dockState) {
         return null;
       }
     } else if (currentStateId === SOURCE_AI_STATE_ENTER) {
@@ -16263,7 +16379,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
     xfer.xferUnsignedInt(0);
 
-    return { currentStateId, goalObjectId, goalPosition, moveState, enterState, attackState, guardState };
+    return { currentStateId, goalObjectId, goalPosition, moveState, dockState, enterState, attackState, guardState };
   }
 
   private skipSourcePathSnapshot(xfer: XferLoad): void {
@@ -19163,6 +19279,48 @@ export class GameLogicSubsystem implements Subsystem {
             x: Math.floor(moveTarget.x / PATHFIND_CELL_SIZE),
             z: Math.floor(moveTarget.z / PATHFIND_CELL_SIZE),
           };
+        }
+      }
+
+      const dockMachine = stateMachine.dockState?.dockMachine ?? null;
+      if (stateMachine.currentStateId === SOURCE_AI_STATE_DOCK && dockMachine) {
+        const dockObjectId = Math.trunc(
+          stateMachine.goalObjectId > 0
+            ? stateMachine.goalObjectId
+            : dockMachine.goalObjectId,
+        );
+        entity.attackTargetEntityId = null;
+        entity.attackTargetPosition = null;
+        entity.attackOriginalVictimPosition = null;
+        entity.attackSubState = 'IDLE';
+        if (dockObjectId > 0) {
+          const repairDockState = {
+            dockObjectId,
+            commandSource: enterCommandSource,
+          } as const;
+          entity.repairDockState = repairDockState;
+          this.setEntityRepairDockState(entity.id, repairDockState);
+          entity.ignoredMovementObstacleId = dockObjectId;
+        }
+        if (dockMachine.moveState) {
+          const moveTarget = this.sourceCoord3DToRuntimeXZ(dockMachine.moveState.goalPosition);
+          entity.movePath = [moveTarget];
+          entity.pathIndex = 0;
+          entity.moveTarget = moveTarget;
+          entity.moving = true;
+          entity.temporaryMoveExpireFrame = 0;
+          if (aiUpdateState.pathfindGoalCell === null) {
+            entity.pathfindGoalCell = {
+              x: Math.floor(moveTarget.x / PATHFIND_CELL_SIZE),
+              z: Math.floor(moveTarget.z / PATHFIND_CELL_SIZE),
+            };
+          }
+        } else if (dockMachine.currentStateId === SOURCE_AI_DOCK_PROCESS_DOCK) {
+          entity.movePath = [];
+          entity.pathIndex = 0;
+          entity.moveTarget = null;
+          entity.moving = false;
+          entity.temporaryMoveExpireFrame = 0;
         }
       }
 
