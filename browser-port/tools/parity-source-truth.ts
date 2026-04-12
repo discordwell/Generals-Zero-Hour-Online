@@ -2883,7 +2883,7 @@ function parseCppSimpleModuleFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xfer->xferInt\s*\(\s*\(Int\*\)&production->m_exitDoor\s*\)|m_(?:clearFlags|setFlags)\.xfer\s*\(\s*xfer\s*\)|m_bonuses->m_(?:validKindOf|invalidKindOf)\.xfer\s*\(\s*xfer\s*\)|m_(?:pendingCommand|mostRecentCommand)\.doXfer\s*\(\s*xfer\s*\)|data\.m_deliveryDecalTemplate\.xferRadiusDecalTemplate\s*\(\s*xfer\s*\)|[A-Za-z0-9_]+::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+    /xfer->xferInt\s*\(\s*\(Int\*\)&production->m_exitDoor\s*\)|m_(?:clearFlags|setFlags)\.xfer\s*\(\s*xfer\s*\)|m_bonuses->m_(?:validKindOf|invalidKindOf)\.xfer\s*\(\s*xfer\s*\)|m_(?:pendingCommand|mostRecentCommand)\.doXfer\s*\(\s*xfer\s*\)|data\.m_deliveryDecalTemplate\.xferRadiusDecalTemplate\s*\(\s*xfer\s*\)|m_pullInfo\.xferPullInfo\s*\(\s*xfer\s*\)|conductorPullInfo\.xferPullInfo\s*\(\s*xfer\s*\)|[A-Za-z0-9_]+::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
     const token = match[0]!;
@@ -2917,6 +2917,18 @@ function parseCppSimpleModuleFields(
     }
     if (token.includes('data.m_deliveryDecalTemplate.xferRadiusDecalTemplate')) {
       for (const field of sourceRadiusDecalTemplateFields('deliveryDecalTemplate')) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('m_pullInfo.xferPullInfo')) {
+      for (const field of sourceRailroadPullInfoFields('pullInfo')) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('conductorPullInfo.xferPullInfo')) {
+      for (const field of sourceRailroadPullInfoFields('conductorPullInfo')) {
         pushUniqueField(fields, seen, field);
       }
       continue;
@@ -3086,6 +3098,42 @@ function sourceRadiusDecalTemplateFields(prefix: string): string[] {
     `${prefix}.opacityThrobTime`,
     `${prefix}.color`,
     `${prefix}.onlyVisibleToOwningPlayer`,
+  ];
+}
+
+function sourcePhysicsBehaviorFields(): string[] {
+  return [
+    'version',
+    ...sourceUpdateModuleBaseFields(),
+    'yawRate',
+    'rollRate',
+    'pitchRate',
+    'accel',
+    'prevAccel',
+    'vel',
+    'turning',
+    'ignoreCollisionsWith',
+    'flags',
+    'mass',
+    'currentOverlap',
+    'previousOverlap',
+    'motiveForceExpires',
+    'extraBounciness',
+    'extraFriction',
+    'velMag',
+  ];
+}
+
+function sourceRailroadPullInfoFields(prefix: string): string[] {
+  return [
+    `${prefix}.version`,
+    `${prefix}.direction`,
+    `${prefix}.speed`,
+    `${prefix}.trackDistance`,
+    `${prefix}.towHitchPosition`,
+    `${prefix}.mostRecentSpecialPointHandle`,
+    `${prefix}.previousWaypoint`,
+    `${prefix}.currentWaypoint`,
   ];
 }
 
@@ -3277,6 +3325,8 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppDeliverPayloadAIUpdateField;
   } else if (className === 'PhysicsBehavior') {
     mapper = mapCppPhysicsBehaviorField;
+  } else if (className === 'RailroadBehavior') {
+    mapper = mapCppRailroadBehaviorField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -3286,6 +3336,7 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
       'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
       'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
       'DockUpdate::xfer': prefixBaseVersion(sourceDockUpdateFields(), 'dock'),
+      'PhysicsBehavior::xfer': prefixBaseVersion(sourcePhysicsBehaviorFields(), 'physics'),
       'SupplyTruckAIUpdate::xfer': prefixBaseVersion(sourceSupplyTruckAIUpdateFields(), 'supplyTruck'),
       'AIUpdateInterface::xfer': ['aiUpdateInterface'],
     },
@@ -3303,7 +3354,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xfer(?:Source(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -3392,6 +3443,20 @@ export function parseTsSourceObjectUpdateFields(
         ? prefixBaseVersion(sourceDynamicGeometryInfoUpdateFields(), 'dynamicGeometry')
         : sourceDynamicGeometryInfoUpdateFields();
       for (const field of dynamicGeometryFields) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('writeSourcePhysicsBehaviorBlockData')) {
+      for (const field of prefixBaseVersion(sourcePhysicsBehaviorFields(), 'physics')) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('writeSourceRailroadBehaviorPullInfoBlockData')) {
+      const window = tsTokenStatement(body, match.index);
+      const prefix = window.includes('conductorPullInfo') ? 'conductorPullInfo' : 'pullInfo';
+      for (const field of sourceRailroadPullInfoFields(prefix)) {
         pushUniqueField(fields, seen, field);
       }
       continue;
@@ -5415,6 +5480,26 @@ function mapCppPhysicsBehaviorField(method: string, argument: string): string | 
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppRailroadBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferUser' && argument.startsWith('m_nextStationTask')) return 'nextStationTask';
+  if (method === 'xferObjectID' && argument === 'm_trailerID') return 'trailerId';
+  if (method === 'xferInt' && argument === 'm_currentPointHandle') return 'currentPointHandle';
+  if (method === 'xferInt' && argument === 'm_waitAtStationTimer') return 'waitAtStationTimer';
+  if (method === 'xferBool' && argument === 'm_carriagesCreated') return 'carriagesCreated';
+  if (method === 'xferBool' && argument === 'm_hasEverBeenHitched') return 'hasEverBeenHitched';
+  if (method === 'xferBool' && argument === 'm_waitingInWings') return 'waitingInWings';
+  if (method === 'xferBool' && argument === 'm_endOfLine') return 'endOfLine';
+  if (method === 'xferBool' && argument === 'm_isLocomotive') return 'isLocomotive';
+  if (method === 'xferBool' && argument === 'm_isLeadCarraige') return 'isLeadCarraige';
+  if (method === 'xferInt' && argument === 'm_wantsToBeLeadCarraige') return 'wantsToBeLeadCarraige';
+  if (method === 'xferBool' && argument === 'm_disembark') return 'disembark';
+  if (method === 'xferBool' && argument === 'm_inTunnel') return 'inTunnel';
+  if (method === 'xferUser' && argument.startsWith('m_conductorState')) return 'conductorState';
+  if (method === 'xferUser' && argument.startsWith('m_anchorWaypointID')) return 'anchorWaypointId';
+  if (method === 'xferBool' && argument === 'm_held') return 'held';
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -5441,6 +5526,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('ignoreCollisionsWith')) return 'ignoreCollisionsWith';
     if (window.includes('currentOverlap')) return 'currentOverlap';
     if (window.includes('previousOverlap')) return 'previousOverlap';
+    if (window.includes('trailerId')) return 'trailerId';
     if (window.includes('specialObjectIdList')) return 'specialObjectIdList';
     if (window.includes('lastRepair')) return 'lastRepair';
     if (window.includes('dockingObjectId')) return 'dockingObjectId';
@@ -5537,6 +5623,15 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('hasStateMachine')) return 'hasStateMachine';
     if (window.includes('freeToExit')) return 'freeToExit';
     if (window.includes('acceptingCommands')) return 'acceptingCommands';
+    if (window.includes('carriagesCreated')) return 'carriagesCreated';
+    if (window.includes('hasEverBeenHitched')) return 'hasEverBeenHitched';
+    if (window.includes('waitingInWings')) return 'waitingInWings';
+    if (window.includes('endOfLine')) return 'endOfLine';
+    if (window.includes('isLocomotive')) return 'isLocomotive';
+    if (window.includes('isLeadCarraige')) return 'isLeadCarraige';
+    if (window.includes('disembark')) return 'disembark';
+    if (window.includes('inTunnel')) return 'inTunnel';
+    if (window.includes('held')) return 'held';
     if (window.includes('invalidSettings')) return 'invalidSettings';
     if (window.includes('centeringTurret')) return 'centeringTurret';
     if (window.includes('repairing')) return 'repairing';
@@ -5563,6 +5658,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('maxAttempts')) return 'maxAttempts';
     if (window.includes('visibleNumBones')) return 'visibleNumBones';
     if (window.includes('visibleItemsDroppedPerInterval')) return 'visibleItemsDroppedPerInterval';
+    if (window.includes('currentPointHandle')) return 'currentPointHandle';
+    if (window.includes('waitAtStationTimer')) return 'waitAtStationTimer';
+    if (window.includes('wantsToBeLeadCarraige')) return 'wantsToBeLeadCarraige';
     if (window.includes('currentPlan')) return 'currentPlan';
     if (window.includes('desiredPlan')) return 'desiredPlan';
     if (window.includes('planAffectingArmy')) return 'planAffectingArmy';
@@ -5741,6 +5839,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('strafingWeaponSlot')) return 'strafingWeaponSlot';
     if (window.includes('stateMachineBytes')) return 'stateMachine';
     if (window.includes('turningBytes')) return 'turning';
+    if (window.includes('nextStationTaskBytes')) return 'nextStationTask';
+    if (window.includes('conductorStateBytes')) return 'conductorState';
+    if (window.includes('anchorWaypointIdBytes')) return 'anchorWaypointId';
     if (window.includes('sourceChinookFlightStatusToInt')) return 'flightStatus';
     if (window.includes('entity.powTruckAIMode')) return 'aiMode';
     if (window.includes('entity.powTruckCurrentTask')) return 'currentTask';
@@ -7756,6 +7857,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AIUpdate/MissileAIUpdate.cpp',
     'AIUpdate/POWTruckAIUpdate.cpp',
     'AIUpdate/RailedTransportAIUpdate.cpp',
+    'AIUpdate/RailroadGuideAIUpdate.cpp',
     'AIUpdate/SupplyTruckAIUpdate.cpp',
     'AIUpdate/WanderAIUpdate.cpp',
     'AIUpdate/WorkerAIUpdate.cpp',
@@ -8676,6 +8778,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-physics-behavior-fields',
       cppClass: 'PhysicsBehavior',
       tsHelper: 'writeSourcePhysicsBehaviorBlockData',
+    },
+    {
+      category: 'save-railroad-behavior-fields',
+      cppClass: 'RailroadBehavior',
+      tsHelper: 'buildSourceRailroadBehaviorBlockData',
     },
     {
       category: 'save-point-defense-laser-update-fields',

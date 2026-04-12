@@ -1333,6 +1333,7 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-tensile-formation-update-fields',
         'save-pilot-find-vehicle-update-fields',
         'save-physics-behavior-fields',
+        'save-railroad-behavior-fields',
         'save-point-defense-laser-update-fields',
         'save-emp-update-fields',
         'save-radar-update-fields',
