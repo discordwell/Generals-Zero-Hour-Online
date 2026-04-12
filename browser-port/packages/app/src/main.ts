@@ -122,6 +122,7 @@ import {
 } from './challenge-generals.js';
 import { buildStartingCreditsOptionsFromRegistry } from './shell-runtime-data.js';
 import { loadLocalizationStrings } from './localization.js';
+import { buildCampaignMissionSavePayload } from './campaign-mission-save.js';
 import {
   OptionsScreen,
   saveOptionsToStorage,
@@ -1076,6 +1077,7 @@ interface RuntimeSaveLoadContext {
 interface RuntimeSaveCampaignServices {
   campaignManager: CampaignManager;
   videoPlayer: VideoPlayer | null;
+  localizedStrings: ReadonlyMap<string, string>;
   onReturnToShell: () => void;
 }
 
@@ -1379,6 +1381,7 @@ async function startGame(
   campaignContext?: {
     campaignManager: CampaignManager;
     videoPlayer: VideoPlayer | null;
+    localizedStrings: ReadonlyMap<string, string>;
     settings: CampaignStartSettings;
     onReturnToShell: () => void;
   },
@@ -5133,27 +5136,34 @@ async function startGame(
             // Advance to next mission
             const nextMission = cm.gotoNextMission();
             if (nextMission) {
-              // Play transition movie if available, then load next mission
-              const movieName = nextMission.movieLabel;
-              const playMovie = movieName && vp
-                ? vp.playFullscreen(movieName)
-                : Promise.resolve();
-              playMovie.then(() => {
-                const nextMapPath = cm.resolveMapAssetPath(nextMission);
-                if (nextMapPath) {
-                  // Reload with the next mission map
-                  disposeGame();
-                  void startGame(ctx, nextMapPath, null, {
-                    ...campaignContext,
-                    settings: {
-                      ...campaignContext.settings,
-                      mapPath: nextMapPath,
-                      mission: nextMission,
-                    },
-                  });
-                } else {
-                  campaignContext.onReturnToShell();
-                }
+              const continueToNextMission = (): void => {
+                // Play transition movie if available, then load next mission.
+                const movieName = nextMission.movieLabel;
+                const playMovie = movieName && vp
+                  ? vp.playFullscreen(movieName)
+                  : Promise.resolve();
+                playMovie.then(() => {
+                  const nextMapPath = cm.resolveMapAssetPath(nextMission);
+                  if (nextMapPath) {
+                    // Reload with the next mission map
+                    disposeGame();
+                    void startGame(ctx, nextMapPath, null, {
+                      ...campaignContext,
+                      settings: {
+                        ...campaignContext.settings,
+                        mapPath: nextMapPath,
+                        mission: nextMission,
+                      },
+                    });
+                  } else {
+                    campaignContext.onReturnToShell();
+                  }
+                });
+              };
+              // Source parity: ScoreScreen.cpp advances the CampaignManager,
+              // calls GameState::missionSave(), then enables SaveAndContinue.
+              void saveCurrentMissionGame().then(continueToNextMission, (error) => {
+                throw error;
               });
               return; // Skip postgame screen for mid-campaign victory
             } else {
@@ -5256,6 +5266,58 @@ async function startGame(
     delete (globalThis as Record<string, unknown>)['__GENERALS_E2E__'];
   };
 
+  const saveCurrentMissionGame = async (slotId = ''): Promise<string> => {
+    if (!campaignContext) {
+      throw new Error('Mission saves require an active campaign context.');
+    }
+    const activeCampaign = campaignContext.campaignManager.getCurrentCampaign()
+      ?? campaignContext.settings.campaign
+      ?? null;
+    const activeMission = campaignContext.campaignManager.getCurrentMission()
+      ?? campaignContext.settings.mission
+      ?? null;
+    const missionNumber = campaignContext.campaignManager.getCurrentMissionNumber();
+    if (!activeCampaign || !activeMission) {
+      throw new Error('Mission save requested without an active campaign and mission.');
+    }
+
+    const missionSave = buildCampaignMissionSavePayload({
+      campaign: activeCampaign,
+      mission: activeMission,
+      missionNumber,
+      difficulty: campaignContext.campaignManager.difficulty,
+      rankPoints: campaignContext.campaignManager.getRankPoints(),
+      playerTemplateNum:
+        runtimeSaveLoadContext?.runtimeSave.campaign?.playerTemplateNum
+        ?? campaignContext.settings.playerTemplateNum
+        ?? -1,
+      localizedStrings: campaignContext.localizedStrings,
+      playerDisplayName: activeCampaign.isChallengeCampaign
+        ? resolveChallengePlayerDisplayName(
+            ctx.iniDataRegistry,
+            activeCampaign.name,
+            activeCampaign.playerFactionName,
+          )
+        : undefined,
+      challengeGameInfoState:
+        runtimeSaveLoadContext?.runtimeSave.campaign?.challengeGameInfoState
+        ?? null,
+    });
+    const saveFile = buildRuntimeSaveFile({
+      description: missionSave.description,
+      mapPath: activeMapPath,
+      mapData: null,
+      cameraState: null,
+      gameLogic,
+      sourceMetadata: missionSave.sourceMetadata,
+      campaign: missionSave.campaign,
+      sourceDifficulty: campaignContext.campaignManager.difficulty,
+    });
+    const resolvedSlotId = slotId.trim() || await ctx.saveStorage.findNextSourceSaveSlotId();
+    await ctx.saveStorage.saveToDB(resolvedSlotId, saveFile.data, saveFile.metadata);
+    return resolvedSlotId.replace(/\.(?:sav|save)$/i, '');
+  };
+
   const saveCurrentGame = async (slotId: string, description: string): Promise<string> => {
     const resolvedSlotId = slotId.trim() || await ctx.saveStorage.findNextSourceSaveSlotId();
     const embeddedMapBytes = await resolveRuntimeSaveEmbeddedMapBytes(ctx.assets, activeMapPath, mapData);
@@ -5347,6 +5409,7 @@ async function startGame(
         ? {
             campaignManager: campaignContext.campaignManager,
             videoPlayer: campaignContext.videoPlayer,
+            localizedStrings: campaignContext.localizedStrings,
             onReturnToShell: campaignContext.onReturnToShell,
           }
         : undefined,
@@ -5456,6 +5519,7 @@ async function startGame(
       );
     },
     saveGame: (slotId?: string, description = 'Quick Save') => saveCurrentGame(slotId ?? '', description),
+    missionSave: (slotId?: string) => saveCurrentMissionGame(slotId ?? ''),
     loadGameFromSlot: (slotId: string) => loadSavedGameSlot(slotId),
     listSaves: () => ctx.saveStorage.listSaves(),
     findNextSaveSlotId: () => ctx.saveStorage.findNextSourceSaveSlotId(),
@@ -5501,7 +5565,7 @@ async function startGameFromRuntimeSave(
       );
     }
 
-    const { campaignManager, videoPlayer, onReturnToShell } = campaignServices;
+    const { campaignManager, videoPlayer, localizedStrings, onReturnToShell } = campaignServices;
     const restored = campaignManager.setCampaignAndMission(
       runtimeSave.campaign.campaignName,
       runtimeSave.campaign.missionName,
@@ -5527,6 +5591,7 @@ async function startGameFromRuntimeSave(
     restoredCampaignContext = {
       campaignManager,
       videoPlayer,
+      localizedStrings,
       settings: {
         gameMode: runtimeSave.campaign.isChallengeCampaign ? 'CHALLENGE' : 'CAMPAIGN',
         campaignName: currentCampaign.name,
@@ -5677,6 +5742,7 @@ async function init(): Promise<void> {
       await startGameFromRuntimeSave(ctx, loadedSave.data, {
         campaignManager,
         videoPlayer,
+        localizedStrings,
         onReturnToShell: () => {
           window.location.reload();
         },
@@ -5705,6 +5771,7 @@ async function init(): Promise<void> {
       await startGame(ctx, settings.mapPath, null, {
         campaignManager,
         videoPlayer,
+        localizedStrings,
         settings: {
           ...settings,
           playerTemplateNum: resolvedPlayerTemplateNum,

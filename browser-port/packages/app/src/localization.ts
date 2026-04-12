@@ -41,6 +41,26 @@ export function resolveLocalizedText(
   return localizedStrings.get(trimmed) ?? value;
 }
 
+export function formatSourceText(
+  template: string,
+  args: readonly (string | number)[],
+): string {
+  let argIndex = 0;
+  return template.replace(/%([%ds])/g, (match, specifier: string) => {
+    if (specifier === '%') {
+      return '%';
+    }
+    const arg = args[argIndex++];
+    if (arg === undefined) {
+      return match;
+    }
+    if (specifier === 'd') {
+      return String(Math.trunc(Number(arg)));
+    }
+    return String(arg);
+  });
+}
+
 export async function loadLocalizationStrings(
   assets: AssetManager,
   assetPaths: readonly string[],

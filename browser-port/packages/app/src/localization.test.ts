@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildLocalizationStrings,
+  formatSourceText,
   resolveLocalizedText,
   type LocalizationData,
 } from './localization.js';
@@ -43,5 +44,11 @@ describe('localization', () => {
 
     expect(resolveLocalizedText('CAMPAIGN:USA', localizedStrings)).toBe('USA');
     expect(resolveLocalizedText('MISSING:LABEL', localizedStrings)).toBe('MISSING:LABEL');
+  });
+
+  it('formats source-style localized text placeholders', () => {
+    expect(formatSourceText('Mission Start - %s %d', ['USA', 2])).toBe('Mission Start - USA 2');
+    expect(formatSourceText('Saved %% %d', [2.8])).toBe('Saved % 2');
+    expect(formatSourceText('Missing %s %d', ['arg'])).toBe('Missing arg %d');
   });
 });

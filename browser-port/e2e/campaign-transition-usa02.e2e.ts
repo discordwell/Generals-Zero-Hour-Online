@@ -93,8 +93,43 @@ test('USA campaign mission 1 -> mission 2 transition does not auto-defeat', asyn
   const mission2Snapshot = await getMissionSnapshot(page);
   console.log('campaign transition: mission2 snapshot', JSON.stringify(mission2Snapshot));
 
+  const missionSaveState = await page.evaluate(async () => {
+    const hook = (window as Record<string, any>)['__GENERALS_E2E__'];
+    const saves = await hook.listSaves();
+    const missionSave = saves
+      .filter((save: { description?: string }) => save.description === 'Mission Start - USA 2')
+      .sort((a: { timestamp: number }, b: { timestamp: number }) => b.timestamp - a.timestamp)[0] ?? null;
+    return { missionSave, saves };
+  });
+  console.log('campaign transition: saves after mission autosave', JSON.stringify(missionSaveState.saves));
+  const missionSave = missionSaveState.missionSave;
+
+  expect(missionSave).not.toBeNull();
+  expect(missionSave?.slotId).toMatch(/^\d{8}$/);
+  expect(missionSave?.saveFileType).toBe(1);
+
+  await page.evaluate(async (slotId: string) => {
+    const hook = (window as Record<string, any>)['__GENERALS_E2E__'];
+    await hook.loadGameFromSlot(slotId);
+  }, missionSave!.slotId);
+
+  await waitForE2EHook(page);
+  await expect(page.locator('#loading-screen')).toBeHidden({ timeout: 120_000 });
+  await expect(page.locator('#game-canvas')).toBeVisible({ timeout: 120_000 });
+  await page.waitForFunction(() => {
+    const hook = (window as Record<string, any>)['__GENERALS_E2E__'];
+    const logic = hook?.gameLogic;
+    return logic?.loadedMapData?.heightmap?.width === 490;
+  }, { timeout: 120_000 });
+
+  const loadedMissionSaveSnapshot = await getMissionSnapshot(page);
+  console.log('campaign transition: mission save load snapshot', JSON.stringify(loadedMissionSaveSnapshot));
+
   expect(errors).toEqual([]);
   expect(mission2Snapshot).not.toBeNull();
   expect(mission2Snapshot?.conditionThePlayer).toBe(false);
   expect(mission2Snapshot?.endState?.status).not.toBe('DEFEAT');
+  expect(loadedMissionSaveSnapshot).not.toBeNull();
+  expect(loadedMissionSaveSnapshot?.playerSide0?.toLowerCase?.()).toBe('america');
+  expect(loadedMissionSaveSnapshot?.endState?.status).not.toBe('DEFEAT');
 });
