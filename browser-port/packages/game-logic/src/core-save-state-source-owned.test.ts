@@ -13,6 +13,7 @@ import {
   makeCommandButtonDef,
   makeCommandSetDef,
   makeHeightmap,
+  makeLocomotorDef,
   makeMap,
   makeMapObject,
   makeObjectDef,
@@ -249,6 +250,7 @@ function makeSourceOwnedCoreBundle() {
         }),
       ]),
       makeObjectDef('AttackImportUnit', 'GLA', ['VEHICLE'], [
+        makeBlock('LocomotorSet', 'SET_NORMAL AttackImportLoco', {}),
         makeBlock('Behavior', 'AIUpdateInterface ModuleTag_AI', {}),
       ]),
       makeObjectDef('AssaultTransportObject', 'China', ['VEHICLE'], [
@@ -836,6 +838,9 @@ function makeSourceOwnedCoreBundle() {
       makeWeaponDef('AutoFireWeapon', { PrimaryDamage: 1, DelayBetweenShots: 1000 }),
       makeWeaponDef('CollideFireWeapon', { PrimaryDamage: 1, DelayBetweenShots: 1000 }),
       makeWeaponDef('PDLWeapon', { PrimaryDamage: 1, DelayBetweenShots: 1000, AttackRange: 100 }),
+    ],
+    locomotors: [
+      makeLocomotorDef('AttackImportLoco', 30),
     ],
     commandButtons: [
       makeCommandButtonDef('Command_HuntFireWeapon', {
@@ -2190,6 +2195,30 @@ function writeSourceAttackAIStateMachineForTest(
   saver.xferUnsignedInt(0);
 }
 
+function writeSourceMoveToAIStateMachineForTest(
+  saver: XferSave,
+  options: {
+    goalPosition: { x: number; y: number; z: number };
+  },
+): void {
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(1);
+  saver.xferBool(false);
+  writeSourceAIInternalMoveToStateForTest(saver, options.goalPosition);
+  saver.xferObjectID(0);
+  saver.xferCoord3D(options.goalPosition);
+  saver.xferBool(false);
+  saver.xferBool(true);
+  saver.xferInt(0);
+  saver.xferAsciiString('');
+  saver.xferBool(false);
+  saver.xferUnsignedInt(999999);
+  saver.xferUnsignedInt(0);
+}
+
 function buildSourceAIUpdateInterfaceAttackObjectModuleData(options: {
   targetObjectId: number;
   goalPosition: { x: number; y: number; z: number };
@@ -2215,6 +2244,33 @@ function buildSourceAIUpdateInterfaceAttackObjectModuleData(options: {
     saver.xferBool(true);
     saver.xferUnsignedInt(options.nextEnemyScanFrame);
     saver.xferObjectID(options.currentVictimId);
+    saver.xferReal(999999);
+    saver.xferUser(sourceRawInt32(options.lastCommandSource));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceAIUpdateInterfaceMoveToModuleData(options: {
+  goalPosition: { x: number; y: number; z: number };
+  nextEnemyScanFrame: number;
+  lastCommandSource: number;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-ai-update-interface-move-to');
+  try {
+    saver.xferVersion(4);
+    writeTestSourceUpdateModuleBase(saver, 80, 1);
+    saver.xferUnsignedInt(0xfacade);
+    saver.xferUnsignedInt(0xfacade);
+    writeSourceMoveToAIStateMachineForTest(saver, {
+      goalPosition: options.goalPosition,
+    });
+    saver.xferBool(false);
+    saver.xferBool(true);
+    saver.xferUnsignedInt(options.nextEnemyScanFrame);
+    saver.xferObjectID(0);
     saver.xferReal(999999);
     saver.xferUser(sourceRawInt32(options.lastCommandSource));
     return new Uint8Array(saver.getBuffer());
@@ -6592,6 +6648,60 @@ describe('source-owned game-logic core save-state', () => {
     expect(importedAttacker.lastCommandSource).toBe('SCRIPT');
     expect(importedAttacker.attackSubState).toBe('APPROACHING');
     expect(importedAttacker.autoTargetScanNextFrame).toBe(321);
+  });
+
+  it('imports source AIUpdateInterface move-to state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const moveState = createEmptySourceMapEntitySaveState();
+    moveState.objectId = 125;
+    moveState.position = { x: 158, y: 0, z: 60 };
+    moveState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfaceMoveToModuleData({
+        goalPosition: { x: 160, y: 170, z: 14 },
+        nextEnemyScanFrame: 456,
+        lastCommandSource: 1,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackImportUnit', state: moveState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        moving: boolean;
+        moveTarget: { x: number; z: number } | null;
+        movePath: Array<{ x: number; z: number }>;
+        attackTargetEntityId: number | null;
+        attackTargetPosition: { x: number; z: number } | null;
+        attackSubState: string;
+        lastCommandSource: string;
+        autoTargetScanNextFrame: number;
+      }>;
+    };
+
+    const importedMover = privateLogic.spawnedEntities.get(125)!;
+    expect(importedMover.moving).toBe(true);
+    expect(importedMover.moveTarget).not.toBeNull();
+    expect(importedMover.movePath[importedMover.movePath.length - 1]).toEqual({ x: 160, z: 170 });
+    expect(importedMover.attackTargetEntityId).toBeNull();
+    expect(importedMover.attackTargetPosition).toBeNull();
+    expect(importedMover.attackSubState).toBe('IDLE');
+    expect(importedMover.lastCommandSource).toBe('SCRIPT');
+    expect(importedMover.autoTargetScanNextFrame).toBe(456);
   });
 
   it('imports source AssaultTransportAIUpdate runtime state', () => {

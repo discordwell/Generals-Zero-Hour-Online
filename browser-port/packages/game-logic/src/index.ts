@@ -3881,6 +3881,8 @@ export interface MapEntity {
   movePath: VectorXZ[];
   pathIndex: number;
   moving: boolean;
+  /** Source parity: AIStateMachine temporary move expiry used by AI-internal displacement moves. */
+  temporaryMoveExpireFrame: number;
   /** Max speed from the active locomotor set (world-units per second). */
   speed: number;
   /**
@@ -9468,6 +9470,16 @@ interface SourceAttackStateMachineImportState {
   goalPosition: { x: number; y: number; z: number };
 }
 
+interface SourceAIInternalMoveToStateImportState {
+  goalPosition: { x: number; y: number; z: number };
+  goalLayer: number;
+  waitingForPath: boolean;
+  pathGoalPosition: { x: number; y: number; z: number };
+  pathTimestamp: number;
+  blockedRepathTimestamp: number;
+  adjustDestinations: boolean;
+}
+
 interface SourceAIAttackStateImportState {
   originalVictimPosition: { x: number; y: number; z: number };
   attackMachine: SourceAttackStateMachineImportState | null;
@@ -9477,6 +9489,7 @@ interface SourceAIStateMachineImportState {
   currentStateId: number;
   goalObjectId: number;
   goalPosition: { x: number; y: number; z: number };
+  moveState: SourceAIInternalMoveToStateImportState | null;
   attackState: SourceAIAttackStateImportState | null;
 }
 
@@ -10300,6 +10313,7 @@ const SOURCE_GARRISON_POINT_CONDITIONS = 3;
 const SOURCE_GARRISON_POINT_BYTES_LENGTH =
   SOURCE_GARRISON_MAX_POINTS * SOURCE_GARRISON_POINT_CONDITIONS * SOURCE_COORD3D_BYTE_LENGTH;
 const SOURCE_AI_STATE_IDLE = 0;
+const SOURCE_AI_STATE_MOVE_TO = 1;
 const SOURCE_AI_STATE_ATTACK_POSITION = 9;
 const SOURCE_AI_STATE_ATTACK_OBJECT = 10;
 const SOURCE_AI_STATE_FORCE_ATTACK_OBJECT = 11;
@@ -15898,19 +15912,33 @@ export class GameLogicSubsystem implements Subsystem {
     return xfer.xferVersion(1) === 1;
   }
 
-  private skipSourceAIInternalMoveToStateSnapshot(xfer: XferLoad): boolean {
+  private parseSourceAIInternalMoveToStateSnapshot(
+    xfer: XferLoad,
+  ): SourceAIInternalMoveToStateImportState | null {
     const version = xfer.xferVersion(1);
     if (version !== 1) {
-      return false;
+      return null;
     }
-    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
-    this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
-    xfer.xferBool(false);
-    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
-    xfer.xferUnsignedInt(0);
-    xfer.xferUnsignedInt(0);
-    xfer.xferBool(false);
-    return true;
+    const goalPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const goalLayer = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+    const waitingForPath = xfer.xferBool(false);
+    const pathGoalPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const pathTimestamp = xfer.xferUnsignedInt(0);
+    const blockedRepathTimestamp = xfer.xferUnsignedInt(0);
+    const adjustDestinations = xfer.xferBool(false);
+    return {
+      goalPosition,
+      goalLayer,
+      waitingForPath,
+      pathGoalPosition,
+      pathTimestamp,
+      blockedRepathTimestamp,
+      adjustDestinations,
+    };
+  }
+
+  private skipSourceAIInternalMoveToStateSnapshot(xfer: XferLoad): boolean {
+    return this.parseSourceAIInternalMoveToStateSnapshot(xfer) !== null;
   }
 
   private skipSourceAIAttackMoveTargetStateSnapshot(xfer: XferLoad): boolean {
@@ -15999,9 +16027,15 @@ export class GameLogicSubsystem implements Subsystem {
       return null;
     }
 
+    let moveState: SourceAIInternalMoveToStateImportState | null = null;
     let attackState: SourceAIAttackStateImportState | null = null;
     if (currentStateId === SOURCE_AI_STATE_IDLE) {
       if (!this.skipSourceAIIdleStateSnapshot(xfer)) {
+        return null;
+      }
+    } else if (currentStateId === SOURCE_AI_STATE_MOVE_TO) {
+      moveState = this.parseSourceAIInternalMoveToStateSnapshot(xfer);
+      if (!moveState) {
         return null;
       }
     } else if (this.isSourceAITopAttackStateId(currentStateId)) {
@@ -16034,7 +16068,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
     xfer.xferUnsignedInt(0);
 
-    return { currentStateId, goalObjectId, goalPosition, attackState };
+    return { currentStateId, goalObjectId, goalPosition, moveState, attackState };
   }
 
   private isSourceAIUpdateInterfaceModuleType(moduleType: string): boolean {
@@ -18682,6 +18716,24 @@ export class GameLogicSubsystem implements Subsystem {
       entity.lastCommandSource = this.sourceLastCommandSourceToRuntime(aiUpdateState.lastCommandSource);
 
       const stateMachine = aiUpdateState.stateMachine;
+      const commandSource = this.sourceCommandSourceToRuntime(aiUpdateState.lastCommandSource);
+      if (stateMachine.currentStateId === SOURCE_AI_STATE_MOVE_TO && stateMachine.moveState) {
+        const moveTarget = this.sourceCoord3DToRuntimeXZ(stateMachine.moveState.goalPosition);
+        entity.attackTargetEntityId = null;
+        entity.attackTargetPosition = null;
+        entity.attackOriginalVictimPosition = null;
+        entity.attackSubState = 'IDLE';
+        entity.movePath = [moveTarget];
+        entity.pathIndex = 0;
+        entity.moveTarget = moveTarget;
+        entity.moving = true;
+        entity.pathfindGoalCell = {
+          x: Math.floor(moveTarget.x / PATHFIND_CELL_SIZE),
+          z: Math.floor(moveTarget.z / PATHFIND_CELL_SIZE),
+        };
+        entity.temporaryMoveExpireFrame = 0;
+      }
+
       const attackState = stateMachine.attackState;
       const attackMachine = attackState?.attackMachine ?? null;
       const attackSubState = attackMachine
@@ -18694,7 +18746,6 @@ export class GameLogicSubsystem implements Subsystem {
         && attackMachine
         && attackSubState
       ) {
-        const commandSource = this.sourceCommandSourceToRuntime(aiUpdateState.lastCommandSource);
         const isAttackingPosition = stateMachine.currentStateId === SOURCE_AI_STATE_ATTACK_POSITION;
         const targetEntityId = isAttackingPosition
           ? null
