@@ -3329,6 +3329,8 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppRailroadBehaviorField;
   } else if (className === 'DumbProjectileBehavior') {
     mapper = mapCppDumbProjectileBehaviorField;
+  } else if (className === 'RebuildHoleBehavior') {
+    mapper = mapCppRebuildHoleBehaviorField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -5512,6 +5514,16 @@ function mapCppDumbProjectileBehaviorField(method: string, argument: string): st
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppRebuildHoleBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferObjectID' && argument === 'm_workerID') return 'workerId';
+  if (method === 'xferObjectID' && argument === 'm_reconstructingID') return 'reconstructingId';
+  if (method === 'xferObjectID' && argument === 'm_spawnerObjectID') return 'spawnerId';
+  if (method === 'xferUnsignedInt' && argument === 'm_workerWaitCounter') return 'workerWaitCounter';
+  if (method === 'xferAsciiString' && argument === 'workerName') return 'workerTemplateName';
+  if (method === 'xferAsciiString' && argument === 'rebuildName') return 'rebuildTemplateName';
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -5528,6 +5540,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('targetId')) return 'targetId';
     if (window.includes('targetEntityId')) return 'targetId';
     if (window.includes('powTruckTargetId')) return 'targetId';
+    if (window.includes('workerId')) return 'workerId';
+    if (window.includes('reconstructingId')) return 'reconstructingId';
+    if (window.includes('spawnerId')) return 'spawnerId';
     if (window.includes('bestTargetId')) return 'bestTargetId';
     if (window.includes('projectileId')) return 'projectileIds';
     if (window.includes('member.entityId')) return 'member.id';
@@ -5566,6 +5581,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('visibleSubObjectName')) return 'visibleSubObjectName';
     if (window.includes('visiblePayloadTemplateName')) return 'visiblePayloadTemplateName';
     if (window.includes('visiblePayloadWeaponTemplateName')) return 'visiblePayloadWeaponTemplateName';
+    if (window.includes('workerTemplateName')) return 'workerTemplateName';
+    if (window.includes('rebuildTemplateName')) return 'rebuildTemplateName';
   }
   if (token.includes('xferUnsignedShort')) {
     if (window.includes('queue.length')) return 'queue.count';
@@ -5741,6 +5758,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('framesTillDecoyed')) return 'framesTillDecoyed';
     if (window.includes('dropDelay')) return 'dropDelay';
     if (window.includes('motiveForceExpires')) return 'motiveForceExpires';
+    if (window.includes('workerWaitCounter')) return 'workerWaitCounter';
     if (window.includes('nextReadyFrame') || window.includes('sourceBattlePlanNextReadyFrame')) {
       return 'nextReadyFrame';
     }
@@ -7883,6 +7901,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'BattlePlanUpdate.cpp',
     'BoneFXUpdate.cpp',
     '../Behavior/DumbProjectileBehavior.cpp',
+    '../Behavior/RebuildHoleBehavior.cpp',
     'CheckpointUpdate.cpp',
     'CleanupHazardUpdate.cpp',
     'CommandButtonHuntUpdate.cpp',
@@ -8806,6 +8825,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-dumb-projectile-behavior-fields',
       cppClass: 'DumbProjectileBehavior',
       tsHelper: 'buildSourceDumbProjectileBehaviorBlockData',
+    },
+    {
+      category: 'save-rebuild-hole-behavior-fields',
+      cppClass: 'RebuildHoleBehavior',
+      tsHelper: 'buildSourceRebuildHoleBehaviorBlockData',
     },
     {
       category: 'save-point-defense-laser-update-fields',
