@@ -5,7 +5,9 @@ import { pathToFileURL } from 'node:url';
 import { listSaveGameChunks } from '@generals/engine';
 import {
   inspectGameLogicChunkLayout,
+  inspectRuntimeSaveGameClientDrawableHydrationStatus,
   inspectRuntimeSaveCoreChunkStatus,
+  type RuntimeSaveGameClientDrawableHydrationStatus,
   type RuntimeSaveCoreChunkStatus,
 } from '../packages/app/src/runtime-save-game.js';
 
@@ -16,12 +18,14 @@ export interface SaveCoreChunkReportSummary {
   legacyCoreChunks: number;
   rawPassthroughCoreChunks: number;
   missingCoreChunks: number;
+  rawUnsupportedGameClientDrawables: number;
 }
 
 export interface SaveCoreChunkReport {
   savePath: string;
   summary: SaveCoreChunkReportSummary;
   coreChunks: RuntimeSaveCoreChunkStatus[];
+  gameClientDrawables: RuntimeSaveGameClientDrawableHydrationStatus[];
   gameLogicLayout: ReturnType<typeof inspectGameLogicChunkLayout> | null;
 }
 
@@ -35,16 +39,23 @@ export function getSaveCoreChunkBlockers(
 
 export function summarizeSaveCoreChunkStatus(
   chunkStatus: readonly RuntimeSaveCoreChunkStatus[],
+  gameClientDrawables: readonly RuntimeSaveGameClientDrawableHydrationStatus[] = [],
 ): SaveCoreChunkReportSummary {
   const rawPassthroughCoreChunks = chunkStatus.filter((chunk) => chunk.mode === 'raw_passthrough').length;
   const missingCoreChunks = chunkStatus.filter((chunk) => chunk.mode === 'missing').length;
+  const rawUnsupportedGameClientDrawables = gameClientDrawables.filter(
+    (drawable) => drawable.mode === 'raw_unsupported',
+  ).length;
   return {
-    status: rawPassthroughCoreChunks > 0 || missingCoreChunks > 0 ? 'blocked' : 'pass',
+    status: rawPassthroughCoreChunks > 0 || missingCoreChunks > 0 || rawUnsupportedGameClientDrawables > 0
+      ? 'blocked'
+      : 'pass',
     totalCoreChunks: chunkStatus.length,
     parsedCoreChunks: chunkStatus.filter((chunk) => chunk.mode === 'parsed').length,
     legacyCoreChunks: chunkStatus.filter((chunk) => chunk.mode === 'legacy').length,
     rawPassthroughCoreChunks,
     missingCoreChunks,
+    rawUnsupportedGameClientDrawables,
   };
 }
 
@@ -53,6 +64,7 @@ export function buildSaveCoreChunkReport(
   savePath: string,
 ): SaveCoreChunkReport {
   const chunkStatus = inspectRuntimeSaveCoreChunkStatus(data);
+  const gameClientDrawables = inspectRuntimeSaveGameClientDrawableHydrationStatus(data);
   const chunkList = listSaveGameChunks(data);
   const gameLogicChunk = chunkList.find((chunk) => chunk.blockName === 'CHUNK_GameLogic');
   const gameLogicLayout = gameLogicChunk
@@ -67,8 +79,9 @@ export function buildSaveCoreChunkReport(
 
   return {
     savePath,
-    summary: summarizeSaveCoreChunkStatus(chunkStatus),
+    summary: summarizeSaveCoreChunkStatus(chunkStatus, gameClientDrawables),
     coreChunks: chunkStatus,
+    gameClientDrawables,
     gameLogicLayout,
   };
 }
@@ -96,12 +109,23 @@ function main(): void {
   process.stdout.write('\n');
 
   const blockers = getSaveCoreChunkBlockers(report.coreChunks);
-  if (strict && blockers.length > 0) {
+  const rawUnsupportedDrawables = report.gameClientDrawables.filter(
+    (drawable) => drawable.mode === 'raw_unsupported',
+  );
+  if (strict && (blockers.length > 0 || rawUnsupportedDrawables.length > 0)) {
     console.error(
-      `Save core chunk strict parity failed: ${blockers.length} raw/missing core chunk(s).`,
+      `Save core chunk strict parity failed: ${blockers.length} raw/missing core chunk(s), `
+      + `${rawUnsupportedDrawables.length} unsupported GameClient drawable(s).`,
     );
     for (const blocker of blockers) {
       console.error(`- ${blocker.blockName}: ${blocker.mode}`);
+    }
+    for (const drawable of rawUnsupportedDrawables) {
+      console.error(
+        `- CHUNK_GameClient drawable #${drawable.index} `
+        + `${drawable.templateName} object=${drawable.objectId} version=${drawable.version ?? 'unknown'}: `
+        + drawable.mode,
+      );
     }
     process.exitCode = 1;
   }

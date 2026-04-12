@@ -961,6 +961,15 @@ export interface RuntimeSaveCoreChunkStatus {
   mode: RuntimeSaveCoreChunkMode;
 }
 
+export interface RuntimeSaveGameClientDrawableHydrationStatus {
+  index: number;
+  templateName: string;
+  objectId: number;
+  drawableId: number | null;
+  version: number | null;
+  mode: 'structured' | 'raw_unsupported';
+}
+
 export interface RuntimeSaveGameLogicChunkLayoutInspection {
   layout: 'source_outer' | 'legacy' | 'unknown';
   version: number | null;
@@ -3027,6 +3036,42 @@ function readRawGameClientDrawableId(blockData: ArrayBuffer): number | null {
   } finally {
     xferLoad.close();
   }
+}
+
+function inspectRawGameClientDrawableHeader(
+  blockData: ArrayBuffer,
+): { objectId: number; version: number; drawableId: number } | null {
+  const xferLoad = new XferLoad(blockData.slice(0));
+  xferLoad.open('inspect-raw-game-client-drawable-header');
+  try {
+    return {
+      objectId: xferLoad.xferObjectID(0),
+      version: xferLoad.xferVersion(7),
+      drawableId: xferLoad.xferUnsignedInt(0),
+    };
+  } catch {
+    return null;
+  } finally {
+    xferLoad.close();
+  }
+}
+
+export function inspectRuntimeSaveGameClientDrawableHydrationStatus(
+  data: ArrayBuffer,
+): RuntimeSaveGameClientDrawableHydrationStatus[] {
+  const gameClientState = parseGameClientState(data);
+  return (gameClientState?.drawables ?? []).map((drawable, index) => {
+    const header = inspectRawGameClientDrawableHeader(drawable.blockData);
+    const parsedState = parseRawGameClientDrawableSnapshotState(drawable);
+    return {
+      index,
+      templateName: drawable.templateName,
+      objectId: header?.objectId ?? drawable.objectId,
+      drawableId: header?.drawableId ?? null,
+      version: header?.version ?? null,
+      mode: parsedState ? 'structured' : 'raw_unsupported',
+    };
+  });
 }
 
 function normalizeRuntimeSaveIdCounter(value: unknown): number | null {
