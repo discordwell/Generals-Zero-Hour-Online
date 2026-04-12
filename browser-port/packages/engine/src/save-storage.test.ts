@@ -199,4 +199,15 @@ describe('SaveStorage', () => {
 
     expect(slotId).toBe('00000043');
   });
+
+  it('rejects non-Generals save files on import', async () => {
+    const file = new File([new Uint8Array([0x04, 0x49, 0x44, 0x4c, 0x00])], 'scipy.sav', {
+      type: 'application/octet-stream',
+    });
+
+    await expect(storage.uploadSaveFile(file)).rejects.toThrow(
+      'File "scipy.sav" is not a C&C Generals save file',
+    );
+    expect(await storage.listSaves()).toEqual([]);
+  });
 });

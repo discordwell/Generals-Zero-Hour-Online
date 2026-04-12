@@ -146,24 +146,23 @@ export class SaveStorage {
   async uploadSaveFile(file: File): Promise<string> {
     const data = await file.arrayBuffer();
     const slotId = file.name.replace(/\.(?:sav|save)$/i, '');
-    let metadata: Omit<SaveMetadata, 'slotId'>;
+    let info: ReturnType<typeof parseSaveGameInfo>;
     try {
-      const info = parseSaveGameInfo(data);
-      const timestamp = saveDateToTimestamp(info.date);
-      metadata = {
-        description: info.description.trim() || `Imported: ${file.name}`,
-        mapName: info.mapLabel.trim() || info.missionMapName.trim(),
-        timestamp: timestamp > 0 ? timestamp : Date.now(),
-        sizeBytes: data.byteLength,
-      };
-    } catch {
-      metadata = {
-        description: `Imported: ${file.name}`,
-        mapName: '',
-        timestamp: Date.now(),
-        sizeBytes: data.byteLength,
-      };
+      info = parseSaveGameInfo(data);
+    } catch (error) {
+      throw new Error(
+        `File "${file.name}" is not a C&C Generals save file: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
+    const timestamp = saveDateToTimestamp(info.date);
+    const metadata: Omit<SaveMetadata, 'slotId'> = {
+      description: info.description.trim() || `Imported: ${file.name}`,
+      mapName: info.mapLabel.trim() || info.missionMapName.trim(),
+      timestamp: timestamp > 0 ? timestamp : Date.now(),
+      sizeBytes: data.byteLength,
+    };
     await this.saveToDB(slotId, data, metadata);
     return slotId;
   }
