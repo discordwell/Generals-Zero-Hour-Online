@@ -3351,6 +3351,12 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppMinefieldBehaviorField;
   } else if (className === 'GenerateMinefieldBehavior') {
     mapper = mapCppGenerateMinefieldBehaviorField;
+  } else if (className === 'BridgeScaffoldBehavior') {
+    mapper = mapCppBridgeScaffoldBehaviorField;
+  } else if (className === 'BridgeBehavior') {
+    mapper = mapCppBridgeBehaviorField;
+  } else if (className === 'BridgeTowerBehavior') {
+    mapper = mapCppBridgeTowerBehaviorField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -3539,6 +3545,52 @@ export function parseTsSourceObjectUpdateFields(
       }
       if (token.includes('xferCoord3D') && window.includes('sourceGenerateMinefieldTarget')) {
         pushUniqueField(fields, seen, 'target');
+        continue;
+      }
+    }
+    if (helperName === 'buildSourceBridgeScaffoldBehaviorBlockData') {
+      const window = tsTokenStatement(body, match.index);
+      if (token.includes('xferUser') && window.includes('targetMotion')) {
+        pushUniqueField(fields, seen, 'targetMotion');
+        continue;
+      }
+      if (token.includes('xferCoord3D') && window.includes('state?.createPos')) {
+        pushUniqueField(fields, seen, 'createPos');
+        continue;
+      }
+      if (token.includes('xferCoord3D') && window.includes('state?.riseToPos')) {
+        pushUniqueField(fields, seen, 'riseToPos');
+        continue;
+      }
+      if (token.includes('xferCoord3D') && window.includes('state?.buildPos')) {
+        pushUniqueField(fields, seen, 'buildPos');
+        continue;
+      }
+      if (token.includes('xferReal') && window.includes('lateralSpeed')) {
+        pushUniqueField(fields, seen, 'lateralSpeed');
+        continue;
+      }
+      if (token.includes('xferReal') && window.includes('verticalSpeed')) {
+        pushUniqueField(fields, seen, 'verticalSpeed');
+        continue;
+      }
+      if (token.includes('xferCoord3D') && window.includes('state?.targetPos')) {
+        pushUniqueField(fields, seen, 'targetPos');
+        continue;
+      }
+    }
+    if (helperName === 'buildSourceBridgeBehaviorBlockData') {
+      const window = tsTokenStatement(body, match.index);
+      if (token.includes('xferObjectID') && window === 'saver.xferObjectID(towerId);') {
+        pushUniqueField(fields, seen, 'towerIds.entry');
+        continue;
+      }
+      if (token.includes('xferUnsignedShort') && window.includes('scaffoldIds.length')) {
+        pushUniqueField(fields, seen, 'scaffoldIds.count');
+        continue;
+      }
+      if (token.includes('xferObjectID') && window === 'saver.xferObjectID(scaffoldId);') {
+        pushUniqueField(fields, seen, 'scaffoldIds.entry');
         continue;
       }
     }
@@ -5657,6 +5709,33 @@ function mapCppGenerateMinefieldBehaviorField(method: string, argument: string):
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppBridgeScaffoldBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferUser' && argument.startsWith('m_targetMotion')) return 'targetMotion';
+  if (method === 'xferCoord3D' && argument === 'm_createPos') return 'createPos';
+  if (method === 'xferCoord3D' && argument === 'm_riseToPos') return 'riseToPos';
+  if (method === 'xferCoord3D' && argument === 'm_buildPos') return 'buildPos';
+  if (method === 'xferReal' && argument === 'm_lateralSpeed') return 'lateralSpeed';
+  if (method === 'xferReal' && argument === 'm_verticalSpeed') return 'verticalSpeed';
+  if (method === 'xferCoord3D' && argument === 'm_targetPos') return 'targetPos';
+  return mapCppSimpleModuleField(method, argument);
+}
+
+function mapCppBridgeBehaviorField(method: string, argument: string): string | null {
+  const compactArgument = argument.replace(/\s+/g, '');
+  if (method === 'xferObjectID' && compactArgument === 'm_towerID[i]') return 'towerIds.entry';
+  if (method === 'xferBool' && argument === 'm_scaffoldPresent') return 'scaffoldPresent';
+  if (method === 'xferUnsignedShort' && argument === 'scaffoldObjectCount') return 'scaffoldIds.count';
+  if (method === 'xferObjectID' && argument === 'scaffoldObjectID') return 'scaffoldIds.entry';
+  if (method === 'xferUnsignedInt' && argument === 'm_deathFrame') return 'deathFrame';
+  return mapCppSimpleModuleField(method, argument);
+}
+
+function mapCppBridgeTowerBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferObjectID' && argument === 'm_bridgeID') return 'bridgeId';
+  if (method === 'xferUser' && argument.startsWith('m_type')) return 'towerType';
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -5677,6 +5756,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('workerId')) return 'workerId';
     if (window.includes('reconstructingId')) return 'reconstructingId';
     if (window.includes('spawnerId')) return 'spawnerId';
+    if (window.includes('bridgeEntityId')) return 'bridgeId';
     if (window.includes('bestTargetId')) return 'bestTargetId';
     if (window.includes('projectileId')) return 'projectileIds';
     if (window.includes('member.entityId')) return 'member.id';
@@ -5803,6 +5883,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('mineIgnoreDamage')) return 'ignoreDamage';
     if (window.includes('mineRegenerates')) return 'regenerates';
     if (window.includes('mineDraining')) return 'draining';
+    if (window.includes('scaffoldPresent')) return 'scaffoldPresent';
     if (window.includes('invalidSettings')) return 'invalidSettings';
     if (window.includes('centeringTurret')) return 'centeringTurret';
     if (window.includes('repairing')) return 'repairing';
@@ -5908,6 +5989,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('mineVirtualMinesRemaining')) return 'virtualMinesRemaining';
     if (window.includes('mineNextDeathCheckFrame')) return 'nextDeathCheckFrame';
     if (window.includes('mineScootFramesLeft')) return 'scootFramesLeft';
+    if (window.includes('deathFrame')) return 'deathFrame';
     if (window.includes('availableCountermeasures')) return 'availableCountermeasures';
     if (window.includes('activeCountermeasures')) return 'activeCountermeasures';
     if (window.includes('divertedMissiles')) return 'divertedMissiles';
@@ -6030,6 +6112,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('strafingWeaponSlot')) return 'strafingWeaponSlot';
     if (window.includes('stateMachineBytes')) return 'stateMachine';
     if (window.includes('sourceDeathTypeFromRuntimeName')) return 'deathType';
+    if (window.includes('towerType')) return 'towerType';
     if (window.includes('turningBytes')) return 'turning';
     if (window.includes('nextStationTaskBytes')) return 'nextStationTask';
     if (window.includes('conductorStateBytes')) return 'conductorState';
@@ -8062,6 +8145,9 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'BaseRenerateUpdate.cpp',
     'BattlePlanUpdate.cpp',
     'BoneFXUpdate.cpp',
+    '../Behavior/BridgeBehavior.cpp',
+    '../Behavior/BridgeScaffoldBehavior.cpp',
+    '../Behavior/BridgeTowerBehavior.cpp',
     '../Behavior/CountermeasuresBehavior.cpp',
     '../Behavior/DumbProjectileBehavior.cpp',
     '../Behavior/FireWeaponWhenDeadBehavior.cpp',
@@ -9049,6 +9135,21 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       cppClass: 'GenerateMinefieldBehavior',
       tsHelper: 'buildSourceGenerateMinefieldBehaviorBlockData',
       hasUpgradeMux: true,
+    },
+    {
+      category: 'save-bridge-scaffold-behavior-fields',
+      cppClass: 'BridgeScaffoldBehavior',
+      tsHelper: 'buildSourceBridgeScaffoldBehaviorBlockData',
+    },
+    {
+      category: 'save-bridge-behavior-fields',
+      cppClass: 'BridgeBehavior',
+      tsHelper: 'buildSourceBridgeBehaviorBlockData',
+    },
+    {
+      category: 'save-bridge-tower-behavior-fields',
+      cppClass: 'BridgeTowerBehavior',
+      tsHelper: 'buildSourceBridgeTowerBehaviorBlockData',
     },
     {
       category: 'save-point-defense-laser-update-fields',
