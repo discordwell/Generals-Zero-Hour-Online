@@ -1284,6 +1284,8 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-locomotor-fields',
         'save-locomotor-set-fields',
         'save-locomotor-set-current-pointer-fields',
+        'save-ai-idle-state-fields',
+        'save-generated-ai-state-machine-fields',
         'save-behavior-module-fields',
         'save-update-module-fields',
         'save-firing-tracker-fields',

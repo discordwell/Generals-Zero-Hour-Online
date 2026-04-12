@@ -1688,6 +1688,107 @@ export function parseTsSourceLocomotorSetAndCurLocoPtrFields(
   return fields;
 }
 
+function mapCppAIIdleStateField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'm_initialSleepOffset') return 'initialSleepOffset';
+  if (method === 'xferBool' && argument === 'm_shouldLookForTargets') return 'shouldLookForTargets';
+  if (method === 'xferBool' && argument === 'm_inited') return 'inited';
+  return null;
+}
+
+export function parseCppSourceAIIdleStateFields(source: string): string[] {
+  return parseCppSimpleModuleFields(
+    source,
+    'void AIIdleState::xfer( Xfer *xfer )',
+    {},
+    mapCppAIIdleStateField,
+  );
+}
+
+export function parseCppGeneratedSourceAIStateMachineFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void AIStateMachine::xfer( Xfer *xfer )');
+  if (!body || !body.includes('StateMachine::xfer(xfer)')) return [];
+  const idleStateFields = parseCppSourceAIIdleStateFields(source);
+  return idleStateFields.length > 0 ? sourceGeneratedAIStateMachineFields() : [];
+}
+
+export function parseTsSourceGeneratedAIStateMachineFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function buildGeneratedSourceAIStateMachineBlockData');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /saver\.xferVersion\s*\(\s*1\s*\)|saver\.xferUnsignedInt\s*\(\s*(?:0|SOURCE_AI_STATE_IDLE|SOURCE_AI_INVALID_STATE_ID)\s*\)|saver\.xferBool\s*\(\s*(?:false|true)\s*\)|saver\.xferUnsignedShort\s*\(\s*sourceAIIdleInitialSleepOffset\s*\(|saver\.xferObjectID\s*\(\s*0\s*\)|saver\.xferCoord3D\s*\(\s*\{|saver\.xferInt\s*\(\s*0\s*\)|saver\.xferAsciiString\s*\(\s*''\s*\)/g;
+  let versionIndex = 0;
+  let unsignedIntIndex = 0;
+  let boolIndex = 0;
+  while (true) {
+    const match = tokenRegex.exec(body);
+    if (!match) break;
+    const token = match[0]!;
+    if (token.includes('xferVersion')) {
+      const field = versionIndex === 0
+        ? 'version'
+        : versionIndex === 1
+          ? 'stateMachine.version'
+          : 'stateMachine.currentState.version';
+      versionIndex += 1;
+      pushUniqueField(fields, seen, field);
+      continue;
+    }
+    if (token.includes('xferUnsignedInt')) {
+      const field = [
+        'sleepTill',
+        'defaultStateId',
+        'currentStateId',
+        'temporaryStateId',
+        'temporaryStateFrameEnd',
+      ][unsignedIntIndex];
+      unsignedIntIndex += 1;
+      pushUniqueField(fields, seen, field ?? null);
+      continue;
+    }
+    if (token.includes('xferBool')) {
+      const field = [
+        'snapshotAllStates',
+        'stateMachine.currentState.shouldLookForTargets',
+        'stateMachine.currentState.inited',
+        'locked',
+        'defaultStateInited',
+        'goalSquad.present',
+      ][boolIndex];
+      boolIndex += 1;
+      pushUniqueField(fields, seen, field ?? null);
+      continue;
+    }
+    if (token.includes('xferUnsignedShort')) {
+      pushUniqueField(fields, seen, 'stateMachine.currentState.initialSleepOffset');
+      continue;
+    }
+    if (token.includes('xferObjectID')) {
+      pushUniqueField(fields, seen, 'goalObjectId');
+      continue;
+    }
+    if (token.includes('xferCoord3D')) {
+      pushUniqueField(fields, seen, 'goalPosition');
+      continue;
+    }
+    if (token.includes('xferInt')) {
+      pushUniqueField(fields, seen, 'goalPath.count');
+      continue;
+    }
+    pushUniqueField(fields, seen, 'goalWaypointName');
+  }
+  return fields;
+}
+
+export function parseTsSourceAIIdleStateFields(source: string): string[] {
+  const prefix = 'stateMachine.currentState.';
+  return parseTsSourceGeneratedAIStateMachineFields(source)
+    .filter((field) => field.startsWith(prefix))
+    .map((field) => field.slice(prefix.length));
+}
+
 export function parseCppSourceModuleBaseFields(source: string): string[] {
   return parseCppSimpleModuleFields(source, 'void Module::xfer( Xfer *xfer )', {});
 }
@@ -3855,6 +3956,31 @@ function sourceStateMachineFields(): string[] {
     'goalPosition',
     'locked',
     'defaultStateInited',
+  ];
+}
+
+function sourceAIIdleStateFields(): string[] {
+  return ['version', 'initialSleepOffset', 'shouldLookForTargets', 'inited'];
+}
+
+function sourceGeneratedAIStateMachineFields(): string[] {
+  return [
+    'version',
+    'stateMachine.version',
+    'sleepTill',
+    'defaultStateId',
+    'currentStateId',
+    'snapshotAllStates',
+    ...prefixFields(sourceAIIdleStateFields(), 'stateMachine.currentState'),
+    'goalObjectId',
+    'goalPosition',
+    'locked',
+    'defaultStateInited',
+    'goalPath.count',
+    'goalWaypointName',
+    'goalSquad.present',
+    'temporaryStateId',
+    'temporaryStateFrameEnd',
   ];
 }
 
@@ -10104,6 +10230,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genAiSkirmishPlayerCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/AI/AISkirmishPlayer.cpp'),
   );
+  const zhAiStatesCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/AI/AIStates.cpp'),
+  );
+  const genAiStatesCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/AI/AIStates.cpp'),
+  );
   const zhScriptEngineCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/ScriptEngine/ScriptEngine.cpp'),
   );
@@ -10465,6 +10597,29 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     },
   ];
   for (const check of locomotorChecks) {
+    if (check.cpp.length > 0 && check.ts.length > 0) {
+      categories.push(compareSourceObjectUpdateFields(check.category, check.cpp, check.ts));
+    }
+  }
+
+  const aiStatesSource = zhAiStatesCpp || genAiStatesCpp;
+  const aiStateMachineChecks: Array<{
+    category: string;
+    cpp: string[];
+    ts: string[];
+  }> = [
+    {
+      category: 'save-ai-idle-state-fields',
+      cpp: parseCppSourceAIIdleStateFields(aiStatesSource),
+      ts: parseTsSourceAIIdleStateFields(tsRuntimeSave),
+    },
+    {
+      category: 'save-generated-ai-state-machine-fields',
+      cpp: parseCppGeneratedSourceAIStateMachineFields(aiStatesSource),
+      ts: parseTsSourceGeneratedAIStateMachineFields(tsRuntimeSave),
+    },
+  ];
+  for (const check of aiStateMachineChecks) {
     if (check.cpp.length > 0 && check.ts.length > 0) {
       categories.push(compareSourceObjectUpdateFields(check.category, check.cpp, check.ts));
     }
