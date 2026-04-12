@@ -148,7 +148,7 @@ export function getSaveCoreChunkBlockers(
   chunkStatus: readonly RuntimeSaveCoreChunkStatus[],
 ): RuntimeSaveCoreChunkStatus[] {
   return chunkStatus.filter(
-    (chunk) => chunk.mode === 'raw_passthrough' || chunk.mode === 'missing',
+    (chunk) => chunk.mode === 'legacy' || chunk.mode === 'raw_passthrough' || chunk.mode === 'missing',
   );
 }
 
@@ -158,16 +158,20 @@ export function summarizeSaveCoreChunkStatus(
 ): SaveCoreChunkReportSummary {
   const rawPassthroughCoreChunks = chunkStatus.filter((chunk) => chunk.mode === 'raw_passthrough').length;
   const missingCoreChunks = chunkStatus.filter((chunk) => chunk.mode === 'missing').length;
+  const legacyCoreChunks = chunkStatus.filter((chunk) => chunk.mode === 'legacy').length;
   const rawUnsupportedGameClientDrawables = gameClientDrawables.filter(
     (drawable) => drawable.mode === 'raw_unsupported',
   ).length;
   return {
-    status: rawPassthroughCoreChunks > 0 || missingCoreChunks > 0 || rawUnsupportedGameClientDrawables > 0
+    status: legacyCoreChunks > 0
+      || rawPassthroughCoreChunks > 0
+      || missingCoreChunks > 0
+      || rawUnsupportedGameClientDrawables > 0
       ? 'blocked'
       : 'pass',
     totalCoreChunks: chunkStatus.length,
     parsedCoreChunks: chunkStatus.filter((chunk) => chunk.mode === 'parsed').length,
-    legacyCoreChunks: chunkStatus.filter((chunk) => chunk.mode === 'legacy').length,
+    legacyCoreChunks,
     rawPassthroughCoreChunks,
     missingCoreChunks,
     rawUnsupportedGameClientDrawables,
@@ -540,7 +544,7 @@ function main(): void {
       console.error('Save core chunk strict parity failed: no save fixture files found.');
     }
     console.error(
-      `Save core chunk strict parity failed: ${blockers.length} raw/missing core chunk(s), `
+      `Save core chunk strict parity failed: ${blockers.length} legacy/raw/missing core chunk(s), `
       + `${rawUnsupportedDrawables.length} unsupported GameClient drawable(s).`,
     );
     for (const { savePath, blocker } of blockers) {

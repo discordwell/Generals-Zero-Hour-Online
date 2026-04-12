@@ -27193,7 +27193,7 @@ function parseSourceTerrainVisualChunk(
       ? xferSourceWaterGridSnapshot(xferLoad, { cellsX: 0, cellsY: 0 })
       : null;
     if (w3dVersion === 1 && xferLoad.getRemaining() === 0) {
-      return { mode: 'legacy', treeEntries: [], waterGridSnapshot };
+      return { mode: 'parsed', treeEntries: [], waterGridSnapshot };
     }
     if (w3dVersion !== SOURCE_W3D_TERRAIN_VISUAL_SNAPSHOT_VERSION) {
       return null;

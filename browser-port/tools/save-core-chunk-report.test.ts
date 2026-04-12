@@ -84,7 +84,7 @@ describe('save core chunk report', () => {
     };
   }
 
-  it('passes strict status when every core chunk is parsed or legacy-readable', () => {
+  it('blocks strict status on legacy-readable core chunks', () => {
     const chunks = [
       { blockName: 'CHUNK_GameState', mode: 'parsed' },
       { blockName: 'CHUNK_GameClient', mode: 'legacy' },
@@ -92,7 +92,7 @@ describe('save core chunk report', () => {
     ] as const;
 
     expect(summarizeSaveCoreChunkStatus(chunks)).toEqual({
-      status: 'pass',
+      status: 'blocked',
       totalCoreChunks: 3,
       parsedCoreChunks: 2,
       legacyCoreChunks: 1,
@@ -100,7 +100,9 @@ describe('save core chunk report', () => {
       missingCoreChunks: 0,
       rawUnsupportedGameClientDrawables: 0,
     });
-    expect(getSaveCoreChunkBlockers(chunks)).toEqual([]);
+    expect(getSaveCoreChunkBlockers(chunks)).toEqual([
+      { blockName: 'CHUNK_GameClient', mode: 'legacy' },
+    ]);
   });
 
   it('surfaces raw passthrough and missing chunks as strict blockers', () => {
