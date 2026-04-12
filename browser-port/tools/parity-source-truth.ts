@@ -556,6 +556,88 @@ export function parseTsRadarXferFields(source: string): string[] {
   return fields;
 }
 
+/**
+ * Parse C++ PartitionManager::xfer source-save field order.
+ */
+export function parseCppPartitionXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void PartitionManager::xfer');
+  if (!body) {
+    return [];
+  }
+  const cellFields = parseCppPartitionCellXferFields(source);
+  const undoRevealFields = parseCppPartitionUndoRevealXferFields(source);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)|xfer->xferSnapshot\s*\(\s*(cell|newInfo|saveInfo)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[3] === 'cell') {
+      for (const field of cellFields) {
+        pushUniqueField(fields, seen, `cell.${field}`);
+      }
+      continue;
+    }
+    if (match[3] === 'newInfo' || match[3] === 'saveInfo') {
+      for (const field of undoRevealFields) {
+        pushUniqueField(fields, seen, `undoReveal.${field}`);
+      }
+      continue;
+    }
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    if (method === 'xferSnapshot' && argument === 'cell') {
+      for (const field of cellFields) {
+        pushUniqueField(fields, seen, `cell.${field}`);
+      }
+      continue;
+    }
+    if (method === 'xferSnapshot' && (argument === 'newInfo' || argument === 'saveInfo')) {
+      for (const field of undoRevealFields) {
+        pushUniqueField(fields, seen, `undoReveal.${field}`);
+      }
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppPartitionField(method, argument));
+  }
+  return fields;
+}
+
+/**
+ * Parse TS PartitionSnapshot source-save field order.
+ */
+export function parseTsPartitionXferFields(source: string): string[] {
+  const start = source.indexOf('class PartitionSnapshot');
+  if (start < 0) {
+    return [];
+  }
+  const end = source.indexOf('function xferNullableObjectId', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const shroudFields = parseTsPartitionShroudLevelXferFields(source);
+  const undoRevealFields = parseTsPartitionUndoRevealXferFields(source);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_PARTITION_SNAPSHOT_VERSION\s*\)|payload\.cellSize\s*=\s*xfer\.xferReal\s*\(|payload\.totalCellCount\s*=\s*xfer\.xferInt\s*\(|xfer\.xferVersion\s*\(\s*SOURCE_PARTITION_CELL_SNAPSHOT_VERSION\s*\)|xferSourcePartitionShroudLevel\s*\(|xfer\.xferInt\s*\(\s*payload\.pendingUndoShroudReveals\.length\s*\)|xferSourcePartitionUndoReveal\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[0]!.startsWith('xferSourcePartitionShroudLevel')) {
+      for (const field of shroudFields) {
+        pushUniqueField(fields, seen, `cell.shroudLevel.${field}`);
+      }
+      continue;
+    }
+    if (match[0]!.startsWith('xferSourcePartitionUndoReveal')) {
+      for (const field of undoRevealFields) {
+        pushUniqueField(fields, seen, `undoReveal.${field}`);
+      }
+      continue;
+    }
+    pushUniqueField(fields, seen, mapTsPartitionField(match[0]!));
+  }
+  return fields;
+}
+
 function extractQuotedStrings(text: string): string[] {
   const names: string[] = [];
   const regex = /["']([^"']+)["']/g;
@@ -745,6 +827,79 @@ function parseTsRadarEventXferFields(source: string): string[] {
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
     pushUniqueField(fields, seen, mapTsRadarEventField(match[1]!));
+  }
+  return fields;
+}
+
+function parseCppPartitionCellXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void PartitionCell::xfer');
+  if (!body) {
+    return [];
+  }
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    const labels = mapCppPartitionCellFields(method, argument);
+    for (const label of labels) {
+      pushUniqueField(fields, seen, label);
+    }
+  }
+  return fields;
+}
+
+function parseCppPartitionUndoRevealXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void SightingInfo::xfer');
+  if (!body) {
+    return [];
+  }
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    pushUniqueField(fields, seen, mapCppPartitionUndoRevealField(method, argument));
+  }
+  return fields;
+}
+
+function parseTsPartitionShroudLevelXferFields(source: string): string[] {
+  const start = source.indexOf('function xferSourcePartitionShroudLevel');
+  if (start < 0) {
+    return [];
+  }
+  const end = source.indexOf('function xferSourcePartitionUndoReveal', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex = /(currentShroud|activeShroudLevel):\s*xfer\.xferShort\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, match[1]!);
+  }
+  return fields;
+}
+
+function parseTsPartitionUndoRevealXferFields(source: string): string[] {
+  const start = source.indexOf('function xferSourcePartitionUndoReveal');
+  if (start < 0) {
+    return [];
+  }
+  const end = source.indexOf('class PartitionSnapshot', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|(where):\s*xfer\.xferCoord3D\s*\(|(howFar):\s*xfer\.xferReal\s*\(|(forWhom):\s*xfer\.xferUnsignedShort\s*\(|(data):\s*xfer\.xferUnsignedInt\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const rawName = match[1] ?? match[2] ?? match[3] ?? match[4];
+    pushUniqueField(fields, seen, rawName ?? 'version');
   }
   return fields;
 }
@@ -1045,6 +1200,40 @@ function mapTsRadarEventField(rawName: string): string | null {
   return mappings.get(rawName) ?? null;
 }
 
+function mapCppPartitionField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferReal' && argument === 'cellSize') return 'cellSize';
+  if (method === 'xferInt' && argument === 'totalCellCount') return 'totalCellCount';
+  if (method === 'xferInt' && argument === 'queueSize') return 'undoRevealCount';
+  return null;
+}
+
+function mapCppPartitionCellFields(method: string, argument: string): string[] {
+  if (method === 'xferVersion') return ['version'];
+  if (method === 'xferUser' && argument.startsWith('m_shroudLevel')) {
+    return ['shroudLevel.currentShroud', 'shroudLevel.activeShroudLevel'];
+  }
+  return [];
+}
+
+function mapCppPartitionUndoRevealField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferCoord3D' && argument === 'm_where') return 'where';
+  if (method === 'xferReal' && argument === 'm_howFar') return 'howFar';
+  if (method === 'xferUser' && argument.startsWith('m_forWhom')) return 'forWhom';
+  if (method === 'xferUnsignedInt' && argument === 'm_data') return 'data';
+  return null;
+}
+
+function mapTsPartitionField(token: string): string | null {
+  if (token.includes('SOURCE_PARTITION_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('payload.cellSize')) return 'cellSize';
+  if (token.includes('payload.totalCellCount')) return 'totalCellCount';
+  if (token.includes('SOURCE_PARTITION_CELL_SNAPSHOT_VERSION')) return 'cell.version';
+  if (token.includes('pendingUndoShroudReveals.length')) return 'undoRevealCount';
+  return null;
+}
+
 // ── TS Port Extractors ──────────────────────────────────────────────────────
 
 /**
@@ -1276,6 +1465,10 @@ export function compareRadarFields(cppFields: string[], tsFields: string[]): Par
   return compareOrderedStrings('save-radar-fields', cppFields, tsFields);
 }
 
+export function comparePartitionFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-partition-fields', cppFields, tsFields);
+}
+
 function compareOrderedStrings(category: string, cppValues: string[], tsValues: string[]): ParityCategoryResult {
   const mismatches: ParityMismatch[] = [];
   const maxLength = Math.max(cppValues.length, tsValues.length);
@@ -1445,6 +1638,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genRadarCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/System/Radar.cpp'),
   );
+  const zhPartitionManagerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/PartitionManager.cpp'),
+  );
+  const genPartitionManagerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/PartitionManager.cpp'),
+  );
 
   // Read TS port source
   const tsIndexPath = path.join(rootDir, 'packages/game-logic/src/index.ts');
@@ -1540,6 +1739,13 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsRadarFields = parseTsRadarXferFields(tsRuntimeSave);
   if (cppRadarFields.length > 0 && tsRadarFields.length > 0) {
     categories.push(compareRadarFields(cppRadarFields, tsRadarFields));
+  }
+
+  const partitionSource = zhPartitionManagerCpp || genPartitionManagerCpp;
+  const cppPartitionFields = parseCppPartitionXferFields(partitionSource);
+  const tsPartitionFields = parseTsPartitionXferFields(tsRuntimeSave);
+  if (cppPartitionFields.length > 0 && tsPartitionFields.length > 0) {
+    categories.push(comparePartitionFields(cppPartitionFields, tsPartitionFields));
   }
 
   return buildSourceParityReport(categories);

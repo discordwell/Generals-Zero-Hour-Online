@@ -8,6 +8,7 @@ import {
   compareDamageTypes,
   compareGameStateMapFields,
   compareInGameUiFields,
+  comparePartitionFields,
   compareRadarFields,
   compareSaveGameInfoFields,
   compareSaveSnapshotBlockOrder,
@@ -18,6 +19,7 @@ import {
   parseCppDamageTypeNames,
   parseCppGameStateMapXferFields,
   parseCppInGameUiXferFields,
+  parseCppPartitionXferFields,
   parseCppRadarXferFields,
   parseCppSaveGameInfoXferFields,
   parseCppSaveSnapshotBlockNames,
@@ -31,6 +33,7 @@ import {
   parseTsDamageTypeNames,
   parseTsGameStateMapXferFields,
   parseTsInGameUiXferFields,
+  parseTsPartitionXferFields,
   parseTsRadarXferFields,
   parseTsSaveGameInfoXferFields,
   parseTsSaveSnapshotBlockNames,
@@ -764,6 +767,94 @@ function buildScriptEngineNamedEventSlots() {}`;
       ]);
     });
 
+    it('parses C++ PartitionManager xfer field order', () => {
+      const source = `
+void PartitionCell::xfer( Xfer *xfer )
+{
+  xfer->xferVersion( &version, currentVersion );
+  xfer->xferUser( &m_shroudLevel, sizeof( ShroudLevel ) * MAX_PLAYER_COUNT );
+}  // end xfer
+void SightingInfo::xfer( Xfer *xfer )
+{
+  xfer->xferVersion( &version, currentVersion );
+  xfer->xferCoord3D( &m_where );
+  xfer->xferReal( &m_howFar );
+  xfer->xferUser( &m_forWhom, sizeof( PlayerMaskType ) );
+  xfer->xferUnsignedInt( &m_data );
+}  // end xfer
+void PartitionManager::xfer( Xfer *xfer )
+{
+  xfer->xferVersion( &version, currentVersion );
+  xfer->xferReal( &cellSize );
+  xfer->xferInt( &totalCellCount );
+  xfer->xferSnapshot( cell );
+  xfer->xferInt(&queueSize);
+  xfer->xferSnapshot(newInfo);
+  xfer->xferSnapshot(saveInfo);
+}  // end xfer`;
+      const fields = parseCppPartitionXferFields(source);
+      expect(fields).toEqual([
+        'version',
+        'cellSize',
+        'totalCellCount',
+        'cell.version',
+        'cell.shroudLevel.currentShroud',
+        'cell.shroudLevel.activeShroudLevel',
+        'undoRevealCount',
+        'undoReveal.version',
+        'undoReveal.where',
+        'undoReveal.howFar',
+        'undoReveal.forWhom',
+        'undoReveal.data',
+      ]);
+    });
+
+    it('parses TS PartitionSnapshot xfer field order', () => {
+      const source = `
+function xferSourcePartitionShroudLevel(xfer: Xfer) {
+  return {
+    currentShroud: xfer.xferShort(level.currentShroud),
+    activeShroudLevel: xfer.xferShort(level.activeShroudLevel),
+  };
+}
+function xferSourcePartitionUndoReveal(xfer: Xfer) {
+  const version = xfer.xferVersion(1);
+  return {
+    where: xfer.xferCoord3D(reveal.where),
+    howFar: xfer.xferReal(reveal.howFar),
+    forWhom: xfer.xferUnsignedShort(reveal.forWhom),
+    data: xfer.xferUnsignedInt(reveal.data),
+  };
+}
+class PartitionSnapshot implements Snapshot {
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(SOURCE_PARTITION_SNAPSHOT_VERSION);
+    payload.cellSize = xfer.xferReal(payload.cellSize);
+    payload.totalCellCount = xfer.xferInt(payload.totalCellCount);
+    xfer.xferVersion(SOURCE_PARTITION_CELL_SNAPSHOT_VERSION);
+    xferSourcePartitionShroudLevel(xfer, level);
+    const queueSize = xfer.xferInt(payload.pendingUndoShroudReveals.length);
+    xferSourcePartitionUndoReveal(xfer, reveal);
+  }
+}
+function xferNullableObjectId() {}`;
+      const fields = parseTsPartitionXferFields(source);
+      expect(fields).toEqual([
+        'version',
+        'cellSize',
+        'totalCellCount',
+        'cell.version',
+        'cell.shroudLevel.currentShroud',
+        'cell.shroudLevel.activeShroudLevel',
+        'undoRevealCount',
+        'undoReveal.version',
+        'undoReveal.where',
+        'undoReveal.howFar',
+        'undoReveal.forWhom',
+        'undoReveal.data',
+      ]);
+    });
+
     it('parses TS damage type names', () => {
       const source = `
 const SOURCE_DAMAGE_TYPE_NAMES: readonly string[] = [
@@ -904,6 +995,15 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(result.status).toBe('mismatch');
       expect(result.mismatches).toHaveLength(2);
     });
+
+    it('detects Partition ABI reorderings', () => {
+      const result = comparePartitionFields(
+        ['version', 'cellSize', 'totalCellCount'],
+        ['version', 'totalCellCount', 'cellSize'],
+      );
+      expect(result.status).toBe('mismatch');
+      expect(result.mismatches).toHaveLength(2);
+    });
   });
 
   describe('live source comparison', () => {
@@ -994,6 +1094,10 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       const radarCategory = report.categories.find((c) => c.category === 'save-radar-fields');
       expect(radarCategory).toBeDefined();
       expect(radarCategory!.status).toBe('match');
+
+      const partitionCategory = report.categories.find((c) => c.category === 'save-partition-fields');
+      expect(partitionCategory).toBeDefined();
+      expect(partitionCategory!.status).toBe('match');
     });
   });
 });
