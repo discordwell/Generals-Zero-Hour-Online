@@ -12,6 +12,20 @@ npm --prefix browser-port run fixtures:import-source-saves -- /path/to/source/sa
 
 The importer only accepts files whose first save block is `CHUNK_GameState`, writes sanitized `.sav` fixture names, and leaves identical already-imported saves unchanged.
 
+If the only available source is an opaque capture or VM disk, use the carver instead:
+
+```sh
+npm --prefix browser-port run fixtures:carve-source-saves -- /path/to/capture-or-disk-image
+```
+
+The carver scans for the source Xfer stream framing, validates a complete `CHUNK_GameState`-first save through the save parser, and rejects browser-generated saves that contain `CHUNK_TS_RuntimeState`.
+
+Current local VM status: `tools/visual-oracle/vm/generals-win10.qcow2` cannot boot or provide source saves until its missing backing image is restored:
+
+```text
+/Users/discordwell/Projects/emperorbfdune/tools/visual-oracle/vm/emperor-win10.qcow2
+```
+
 Recommended fixture names:
 - `zh-skirmish-usa-open.sav`
 - `zh-campaign-usa01-open.sav`
