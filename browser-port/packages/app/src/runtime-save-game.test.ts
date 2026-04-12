@@ -2190,10 +2190,105 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
     const defaultStateId = xferLoad.xferUnsignedInt(0);
     const currentStateId = xferLoad.xferUnsignedInt(0);
     const snapshotAllStates = xferLoad.xferBool(false);
-    const idleStateVersion = xferLoad.xferVersion(1);
-    const idleInitialSleepOffset = xferLoad.xferUnsignedShort(0);
-    const idleShouldLookForTargets = xferLoad.xferBool(false);
-    const idleInited = xferLoad.xferBool(false);
+    let idleStateVersion: number | undefined;
+    let idleInitialSleepOffset: number | undefined;
+    let idleShouldLookForTargets: boolean | undefined;
+    let idleInited: boolean | undefined;
+    let attackState: Record<string, unknown> | undefined;
+    if (currentStateId === 0) {
+      idleStateVersion = xferLoad.xferVersion(1);
+      idleInitialSleepOffset = xferLoad.xferUnsignedShort(0);
+      idleShouldLookForTargets = xferLoad.xferBool(false);
+      idleInited = xferLoad.xferBool(false);
+    } else if (currentStateId === 9 || currentStateId === 10 || currentStateId === 11) {
+      const attackStateVersion = xferLoad.xferVersion(1);
+      const attackHasMachine = xferLoad.xferBool(false);
+      const originalVictimPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      let attackMachine: Record<string, unknown> | undefined;
+      if (attackHasMachine) {
+        const attackMachineVersion = xferLoad.xferVersion(1);
+        const attackMachineBaseVersion = xferLoad.xferVersion(1);
+        const attackMachineSleepTill = xferLoad.xferUnsignedInt(0);
+        const attackMachineDefaultStateId = xferLoad.xferUnsignedInt(0);
+        const attackMachineCurrentStateId = xferLoad.xferUnsignedInt(0);
+        const attackMachineSnapshotAllStates = xferLoad.xferBool(false);
+        let attackMachineCurrentState: Record<string, unknown> | undefined;
+        if (attackMachineCurrentStateId === 0 || attackMachineCurrentStateId === 1) {
+          const approachVersion = xferLoad.xferVersion(1);
+          const moveToVersion = xferLoad.xferVersion(1);
+          const moveGoalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+          const moveGoalLayer = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+          const waitingForPath = xferLoad.xferBool(false);
+          const pathGoalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+          const pathTimestamp = xferLoad.xferUnsignedInt(0);
+          const blockedRepathTimestamp = xferLoad.xferUnsignedInt(0);
+          const adjustDestinations = xferLoad.xferBool(false);
+          const previousVictimPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+          const approachTimestamp = xferLoad.xferUnsignedInt(0);
+          const follow = xferLoad.xferBool(false);
+          const isAttackingObject = xferLoad.xferBool(false);
+          const stopIfInRange = xferLoad.xferBool(false);
+          const isInitialApproach = xferLoad.xferBool(false);
+          attackMachineCurrentState = {
+            kind: 'APPROACH',
+            approachVersion,
+            moveToVersion,
+            moveGoalPosition,
+            moveGoalLayer,
+            waitingForPath,
+            pathGoalPosition,
+            pathTimestamp,
+            blockedRepathTimestamp,
+            adjustDestinations,
+            previousVictimPosition,
+            approachTimestamp,
+            follow,
+            isAttackingObject,
+            stopIfInRange,
+            isInitialApproach,
+          };
+        } else if (attackMachineCurrentStateId === 2) {
+          attackMachineCurrentState = {
+            kind: 'AIM',
+            version: xferLoad.xferVersion(1),
+            canTurnInPlace: xferLoad.xferBool(false),
+            setLocomotor: xferLoad.xferBool(false),
+          };
+        } else if (attackMachineCurrentStateId === 3) {
+          attackMachineCurrentState = {
+            kind: 'FIRE',
+            version: xferLoad.xferVersion(1),
+          };
+        } else {
+          throw new Error(`Unexpected generated attack-machine state ${attackMachineCurrentStateId}.`);
+        }
+        const attackMachineGoalObjectId = xferLoad.xferObjectID(0);
+        const attackMachineGoalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+        const attackMachineLocked = xferLoad.xferBool(false);
+        const attackMachineDefaultStateInited = xferLoad.xferBool(false);
+        attackMachine = {
+          version: attackMachineVersion,
+          baseVersion: attackMachineBaseVersion,
+          sleepTill: attackMachineSleepTill,
+          defaultStateId: attackMachineDefaultStateId,
+          currentStateId: attackMachineCurrentStateId,
+          snapshotAllStates: attackMachineSnapshotAllStates,
+          currentState: attackMachineCurrentState,
+          goalObjectId: attackMachineGoalObjectId,
+          goalPosition: attackMachineGoalPosition,
+          locked: attackMachineLocked,
+          defaultStateInited: attackMachineDefaultStateInited,
+        };
+      }
+      attackState = {
+        version: attackStateVersion,
+        hasMachine: attackHasMachine,
+        originalVictimPosition,
+        attackMachine,
+      };
+    } else {
+      throw new Error(`Unexpected generated AI state ${currentStateId}.`);
+    }
     const goalObjectId = xferLoad.xferObjectID(0);
     const goalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
     const locked = xferLoad.xferBool(false);
@@ -2345,6 +2440,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
       idleInitialSleepOffset,
       idleShouldLookForTargets,
       idleInited,
+      attackState,
       goalObjectId,
       goalPosition,
       locked,
@@ -20360,10 +20456,36 @@ describe('runtime-save-game', () => {
               transitWaypointIndex: 0,
               dockState: null,
             },
+          } as unknown as import('@generals/game-logic').MapEntity, {
+            id: 23,
+            templateName: 'RuntimeGeneratedAttackAI',
+            x: 100,
+            y: 0,
+            z: 200,
+            rotationY: 0,
+            sourceAIIdleInitialSleepOffset: 4,
+            scriptAiRecruitable: true,
+            attackTargetEntityId: 99,
+            attackTargetPosition: null,
+            attackOriginalVictimPosition: { x: 150, z: 250 },
+            attackSubState: 'AIMING',
+            attackCommandSource: 'PLAYER',
+            autoTargetScanNextFrame: 81,
+            moving: false,
+            moveTarget: null,
+            locomotorUpgradeEnabled: false,
+            ignoredMovementObstacleId: null,
+            pathfindGoalCell: null,
+            pathfindPosCell: null,
+            activeLocomotorSet: 'SET_NORMAL',
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
-        listSourceObjectModuleDescriptors: (templateName) => templateName === 'RuntimeGeneratedAIUpdates'
-          ? [
+        listSourceObjectModuleDescriptors: (templateName) => {
+          if (templateName === 'RuntimeGeneratedAttackAI') {
+            return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_AttackAI' }];
+          }
+          return templateName === 'RuntimeGeneratedAIUpdates'
+            ? [
               { moduleType: 'HackInternetAIUpdate', moduleTag: 'ModuleTag_HackAI' },
               { moduleType: 'JetAIUpdate', moduleTag: 'ModuleTag_JetAI' },
               { moduleType: 'MissileAIUpdate', moduleTag: 'ModuleTag_MissileAI' },
@@ -20378,7 +20500,8 @@ describe('runtime-save-game', () => {
               { moduleType: 'MobMemberSlavedUpdate', moduleTag: 'ModuleTag_MobSlave' },
               { moduleType: 'RailedTransportAIUpdate', moduleTag: 'ModuleTag_RailedAI' },
             ]
-          : [],
+            : [];
+        },
         captureBrowserRuntimeSaveState: () => ({ version: 1 }),
         getObjectIdCounter: () => 101,
       },
@@ -20400,6 +20523,41 @@ describe('runtime-save-game', () => {
     const jetModule = modules.get('ModuleTag_JetAI');
     const missileModule = modules.get('ModuleTag_MissileAI');
     const deliverPayloadModule = modules.get('ModuleTag_DeliverPayloadAI');
+
+    const generatedAttack = readSourceGameLogicObjectStates(saveFile.data)
+      ?.find((object) => object.templateName === 'RuntimeGeneratedAttackAI')?.state;
+    const attackModule = generatedAttack?.modules.find((module) => module.identifier === 'ModuleTag_AttackAI');
+    expect(attackModule).toBeDefined();
+    const attackAI = parseGeneratedSourceAIUpdateInterfaceForTest(attackModule!.blockData, 0);
+    expect(attackAI).toMatchObject({
+      currentStateId: 10,
+      goalObjectId: 99,
+      goalPosition: { x: 150, y: 250, z: 0 },
+      currentVictimId: 99,
+      nextMoodCheckTime: 81,
+      attackState: {
+        version: 1,
+        hasMachine: true,
+        originalVictimPosition: { x: 150, y: 250, z: 0 },
+        attackMachine: {
+          version: 1,
+          baseVersion: 1,
+          defaultStateId: 2,
+          currentStateId: 2,
+          currentState: {
+            kind: 'AIM',
+            version: 1,
+            canTurnInPlace: false,
+            setLocomotor: false,
+          },
+          goalObjectId: 99,
+          goalPosition: { x: 150, y: 250, z: 0 },
+          locked: false,
+          defaultStateInited: true,
+        },
+      },
+    });
+    expect(attackAI.bytesRead).toBe(attackModule!.blockData.byteLength);
 
     expect(hackModule).toBeDefined();
     const hack = parseSourceHackInternetAIUpdateBlockData(hackModule!.blockData);

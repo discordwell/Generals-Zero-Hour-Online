@@ -1705,6 +1705,104 @@ export function parseCppSourceAIIdleStateFields(source: string): string[] {
   );
 }
 
+function mapCppAIAttackAimAtTargetStateField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferBool' && argument === 'm_canTurnInPlace') return 'canTurnInPlace';
+  if (method === 'xferBool' && argument === 'm_setLocomotor') return 'setLocomotor';
+  return null;
+}
+
+export function parseCppSourceAIAttackAimAtTargetStateFields(source: string): string[] {
+  return parseCppSimpleModuleFields(
+    source,
+    'void AIAttackAimAtTargetState::xfer( Xfer *xfer )',
+    {},
+    mapCppAIAttackAimAtTargetStateField,
+  );
+}
+
+export function parseCppSourceAIAttackFireWeaponStateFields(source: string): string[] {
+  const classMatch = /class\s+AIAttackFireWeaponState[\s\S]*?virtual\s+void\s+xfer\s*\(\s*Xfer\s*\*xfer\s*\)\s*\{([\s\S]*?)\}/m
+    .exec(source);
+  const body = classMatch?.[1] ?? '';
+  return body.includes('xfer->xferVersion')
+    ? sourceAIAttackFireWeaponStateFields()
+    : [];
+}
+
+function mapCppAIInternalMoveToStateField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferCoord3D' && argument === 'm_goalPosition') return 'goalPosition';
+  if (method === 'xferUser' && argument.startsWith('m_goalLayer')) return 'goalLayer';
+  if (method === 'xferBool' && argument === 'm_waitingForPath') return 'waitingForPath';
+  if (method === 'xferCoord3D' && argument === 'm_pathGoalPosition') return 'pathGoalPosition';
+  if (method === 'xferUnsignedInt' && argument === 'm_pathTimestamp') return 'pathTimestamp';
+  if (method === 'xferUnsignedInt' && argument === 'm_blockedRepathTimestamp') {
+    return 'blockedRepathTimestamp';
+  }
+  if (method === 'xferBool' && argument === 'm_adjustDestinations') return 'adjustDestinations';
+  return null;
+}
+
+export function parseCppSourceAIInternalMoveToStateFields(source: string): string[] {
+  return parseCppSimpleModuleFields(
+    source,
+    'void AIInternalMoveToState::xfer( Xfer *xfer )',
+    {},
+    mapCppAIInternalMoveToStateField,
+  );
+}
+
+function mapCppAIAttackApproachTargetStateField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferCoord3D' && argument === 'm_prevVictimPos') return 'previousVictimPosition';
+  if (method === 'xferUnsignedInt' && argument === 'm_approachTimestamp') return 'approachTimestamp';
+  if (method === 'xferBool' && argument === 'm_follow') return 'follow';
+  if (method === 'xferBool' && argument === 'm_isAttackingObject') return 'isAttackingObject';
+  if (method === 'xferBool' && argument === 'm_stopIfInRange') return 'stopIfInRange';
+  if (method === 'xferBool' && argument === 'm_isInitialApproach') return 'isInitialApproach';
+  return null;
+}
+
+export function parseCppSourceAIAttackApproachTargetStateFields(source: string): string[] {
+  return parseCppSimpleModuleFields(
+    source,
+    'void AIAttackApproachTargetState::xfer( Xfer *xfer )',
+    {
+      'AIInternalMoveToState::xfer': prefixFields(sourceAIInternalMoveToStateFields(), 'moveTo'),
+    },
+    mapCppAIAttackApproachTargetStateField,
+  );
+}
+
+function mapCppAIAttackStateField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferBool' && argument === 'hasMachine') return 'hasMachine';
+  if (method === 'xferCoord3D' && argument === 'm_originalVictimPos') return 'originalVictimPosition';
+  return null;
+}
+
+export function parseCppSourceAIAttackStateFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void AIAttackState::xfer( Xfer *xfer )');
+  if (!body) return [];
+  const fields = parseCppSimpleModuleFields(
+    source,
+    'void AIAttackState::xfer( Xfer *xfer )',
+    {},
+    mapCppAIAttackStateField,
+  );
+  if (body.includes('xfer->xferSnapshot(m_attackMachine)')) {
+    fields.push('attackMachine.snapshot');
+  }
+  return fields;
+}
+
+export function parseCppSourceAttackStateMachineFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void AttackStateMachine::xfer( Xfer *xfer )');
+  if (!body || !body.includes('StateMachine::xfer(xfer)')) return [];
+  return sourceAttackStateMachineFields();
+}
+
 export function parseCppGeneratedSourceAIStateMachineFields(source: string): string[] {
   const body = extractFunctionBody(source, 'void AIStateMachine::xfer( Xfer *xfer )');
   if (!body || !body.includes('StateMachine::xfer(xfer)')) return [];
@@ -1715,6 +1813,8 @@ export function parseCppGeneratedSourceAIStateMachineFields(source: string): str
 export function parseTsSourceGeneratedAIStateMachineFields(source: string): string[] {
   const body = extractFunctionBody(source, 'function buildGeneratedSourceAIStateMachineBlockData');
   if (!body) return [];
+  const idleBranchStart = body.indexOf("saver.open('build-generated-source-ai-state-machine')");
+  const parseBody = idleBranchStart >= 0 ? body.slice(idleBranchStart) : body;
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
@@ -1723,7 +1823,7 @@ export function parseTsSourceGeneratedAIStateMachineFields(source: string): stri
   let unsignedIntIndex = 0;
   let boolIndex = 0;
   while (true) {
-    const match = tokenRegex.exec(body);
+    const match = tokenRegex.exec(parseBody);
     if (!match) break;
     const token = match[0]!;
     if (token.includes('xferVersion')) {
@@ -1787,6 +1887,41 @@ export function parseTsSourceAIIdleStateFields(source: string): string[] {
   return parseTsSourceGeneratedAIStateMachineFields(source)
     .filter((field) => field.startsWith(prefix))
     .map((field) => field.slice(prefix.length));
+}
+
+export function parseTsSourceGeneratedAIAttackAimAtTargetStateFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function buildGeneratedSourceAIAttackAimAtTargetStateBlockData');
+  return body && body.includes('saver.xferBool(false)')
+    ? sourceAIAttackAimAtTargetStateFields()
+    : [];
+}
+
+export function parseTsSourceGeneratedAIAttackFireWeaponStateFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function buildGeneratedSourceAIAttackFireWeaponStateBlockData');
+  return body && body.includes('saver.xferVersion(1)')
+    ? sourceAIAttackFireWeaponStateFields()
+    : [];
+}
+
+export function parseTsSourceGeneratedAIAttackApproachTargetStateFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function buildGeneratedSourceAIAttackApproachTargetStateBlockData');
+  return body && body.includes('buildSourceRawInt32Bytes(SOURCE_PATHFIND_LAYER_INVALID)')
+    ? sourceAIAttackApproachTargetStateFields()
+    : [];
+}
+
+export function parseTsSourceGeneratedAttackStateMachineFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function buildGeneratedSourceAttackStateMachineBlockData');
+  return body && body.includes('saver.xferUser(currentStateBlock)')
+    ? sourceAttackStateMachineFields()
+    : [];
+}
+
+export function parseTsSourceGeneratedAIAttackStateFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function buildGeneratedSourceAIAttackStateBlockData');
+  return body && body.includes('buildGeneratedSourceAttackStateMachineBlockData')
+    ? sourceAIAttackStateFields()
+    : [];
 }
 
 export function parseCppSourceModuleBaseFields(source: string): string[] {
@@ -3961,6 +4096,53 @@ function sourceStateMachineFields(): string[] {
 
 function sourceAIIdleStateFields(): string[] {
   return ['version', 'initialSleepOffset', 'shouldLookForTargets', 'inited'];
+}
+
+function sourceAIAttackAimAtTargetStateFields(): string[] {
+  return ['version', 'canTurnInPlace', 'setLocomotor'];
+}
+
+function sourceAIAttackFireWeaponStateFields(): string[] {
+  return ['version'];
+}
+
+function sourceAIInternalMoveToStateFields(): string[] {
+  return [
+    'version',
+    'goalPosition',
+    'goalLayer',
+    'waitingForPath',
+    'pathGoalPosition',
+    'pathTimestamp',
+    'blockedRepathTimestamp',
+    'adjustDestinations',
+  ];
+}
+
+function sourceAIAttackApproachTargetStateFields(): string[] {
+  return [
+    'version',
+    ...prefixFields(sourceAIInternalMoveToStateFields(), 'moveTo'),
+    'previousVictimPosition',
+    'approachTimestamp',
+    'follow',
+    'isAttackingObject',
+    'stopIfInRange',
+    'isInitialApproach',
+  ];
+}
+
+function sourceAttackStateMachineFields(): string[] {
+  return ['version', ...sourceStateMachineFields()];
+}
+
+function sourceAIAttackStateFields(): string[] {
+  return [
+    'version',
+    'hasMachine',
+    'originalVictimPosition',
+    'attackMachine.snapshot',
+  ];
 }
 
 function sourceGeneratedAIStateMachineFields(): string[] {
@@ -10387,6 +10569,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genAiStatesCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/AI/AIStates.cpp'),
   );
+  const zhAiStateMachineHeader = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Include/GameLogic/AIStateMachine.h'),
+  );
+  const genAiStateMachineHeader = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Include/GameLogic/AIStateMachine.h'),
+  );
   const zhTurretAiCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/AI/TurretAI.cpp'),
   );
@@ -10760,6 +10948,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   }
 
   const aiStatesSource = zhAiStatesCpp || genAiStatesCpp;
+  const aiStateMachineHeader = zhAiStateMachineHeader || genAiStateMachineHeader;
   const aiStateMachineChecks: Array<{
     category: string;
     cpp: string[];
@@ -10774,6 +10963,38 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-generated-ai-state-machine-fields',
       cpp: parseCppGeneratedSourceAIStateMachineFields(aiStatesSource),
       ts: parseTsSourceGeneratedAIStateMachineFields(tsRuntimeSave),
+    },
+    {
+      category: 'save-ai-attack-aim-state-fields',
+      cpp: parseCppSourceAIAttackAimAtTargetStateFields(aiStatesSource),
+      ts: parseTsSourceGeneratedAIAttackAimAtTargetStateFields(tsRuntimeSave),
+    },
+    {
+      category: 'save-ai-attack-fire-state-fields',
+      cpp: parseCppSourceAIAttackFireWeaponStateFields(aiStateMachineHeader),
+      ts: parseTsSourceGeneratedAIAttackFireWeaponStateFields(tsRuntimeSave),
+    },
+    {
+      category: 'save-ai-internal-move-to-state-fields',
+      cpp: parseCppSourceAIInternalMoveToStateFields(aiStatesSource),
+      ts: parseTsSourceGeneratedAIAttackApproachTargetStateFields(tsRuntimeSave)
+        .filter((field) => field.startsWith('moveTo.'))
+        .map((field) => field.slice('moveTo.'.length)),
+    },
+    {
+      category: 'save-ai-attack-approach-state-fields',
+      cpp: parseCppSourceAIAttackApproachTargetStateFields(aiStatesSource),
+      ts: parseTsSourceGeneratedAIAttackApproachTargetStateFields(tsRuntimeSave),
+    },
+    {
+      category: 'save-attack-state-machine-fields',
+      cpp: parseCppSourceAttackStateMachineFields(aiStatesSource),
+      ts: parseTsSourceGeneratedAttackStateMachineFields(tsRuntimeSave),
+    },
+    {
+      category: 'save-ai-attack-state-fields',
+      cpp: parseCppSourceAIAttackStateFields(aiStatesSource),
+      ts: parseTsSourceGeneratedAIAttackStateFields(tsRuntimeSave),
     },
   ];
   for (const check of aiStateMachineChecks) {
