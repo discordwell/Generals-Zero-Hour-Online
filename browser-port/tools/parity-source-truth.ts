@@ -3748,6 +3748,9 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
   if (className === 'GarrisonContain') {
     return sourceGarrisonContainFields();
   }
+  if (className === 'DockUpdate') {
+    return sourceDockUpdateFields();
+  }
   if (className === 'InternetHackContain' || className === 'RailedTransportContain') {
     return sourceWrappedTransportContainFields();
   }
@@ -3965,6 +3968,9 @@ export function parseTsSourceObjectUpdateFields(
   }
   if (helperName === 'xferSourceRiderChangeContain') {
     return sourceRiderChangeContainFields();
+  }
+  if (helperName === 'xferSourceDockUpdateBlockState') {
+    return sourceDockUpdateFields();
   }
   const body = extractFunctionBodyAfterParams(source, helperName);
   if (!body) return [];
@@ -10544,6 +10550,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-structure-collapse-update-fields',
       cppClass: 'StructureCollapseUpdate',
       tsHelper: 'buildSourceStructureCollapseUpdateBlockData',
+    },
+    {
+      category: 'save-dock-update-fields',
+      cppClass: 'DockUpdate',
+      tsHelper: 'xferSourceDockUpdateBlockState',
     },
     {
       category: 'save-supply-center-dock-update-fields',

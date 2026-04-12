@@ -1423,6 +1423,7 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-hijacker-update-fields',
         'save-missile-launcher-building-update-fields',
         'save-structure-collapse-update-fields',
+        'save-dock-update-fields',
         'save-supply-center-dock-update-fields',
         'save-prison-dock-update-fields',
         'save-supply-warehouse-dock-update-fields',
