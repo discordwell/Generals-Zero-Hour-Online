@@ -91,6 +91,13 @@ export interface BlockerReportInputs {
   } | null;
 }
 
+const SOURCE_SAVE_FIXTURE_ACTION_DETAILS = [
+  'No C++ save fixtures were scanned for wet save/load parity.',
+  'Import real retail/source saves with: npm run fixtures:import-source-saves -- <save-file-or-directory>',
+  'Carve opaque disk captures with: npm run fixtures:carve-source-saves -- <capture-or-disk-image>',
+  'Current local VM overlay needs its missing backing qcow2 restored before it can boot and produce wet source saves.',
+];
+
 function normalizeCount(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
 }
@@ -278,7 +285,7 @@ export function collectBlockerFindings(inputs: BlockerReportInputs): BlockerFind
       'save-core-no-wet-fixtures',
       'save-files',
       totalSaveFiles === 0 ? 1 : 0,
-      ['No C++ save fixtures were scanned for wet save/load parity.'],
+      SOURCE_SAVE_FIXTURE_ACTION_DETAILS,
     );
     pushBlocker(
       blockers,

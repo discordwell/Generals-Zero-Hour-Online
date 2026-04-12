@@ -171,5 +171,10 @@ describe('blocker parity report', () => {
       'visual-scene-blocked-scenarios',
       'ui-layout-blocked-scenarios',
     ]));
+    const wetFixtureBlocker = report.blockers.find((blocker) => blocker.id === 'save-core-no-wet-fixtures');
+    expect(wetFixtureBlocker?.details).toEqual(expect.arrayContaining([
+      'Import real retail/source saves with: npm run fixtures:import-source-saves -- <save-file-or-directory>',
+      'Carve opaque disk captures with: npm run fixtures:carve-source-saves -- <capture-or-disk-image>',
+    ]));
   });
 });
