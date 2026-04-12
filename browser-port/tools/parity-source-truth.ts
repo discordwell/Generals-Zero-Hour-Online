@@ -2882,10 +2882,18 @@ function parseCppSimpleModuleFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /[A-Za-z0-9_]+::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+    /m_bonuses->m_(?:validKindOf|invalidKindOf)\.xfer\s*\(\s*xfer\s*\)|[A-Za-z0-9_]+::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
     const token = match[0]!;
+    if (token.includes('m_bonuses->m_validKindOf.xfer')) {
+      pushUniqueField(fields, seen, 'validKindOf');
+      continue;
+    }
+    if (token.includes('m_bonuses->m_invalidKindOf.xfer')) {
+      pushUniqueField(fields, seen, 'invalidKindOf');
+      continue;
+    }
     const baseKey = token.split('(')[0]?.replace(/\s+/g, '');
     const baseFields = baseKey ? baseExpansions[baseKey] : undefined;
     if (baseFields) {
@@ -3197,7 +3205,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xferSource(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|BoneFx(?:Int|Coord)Grid)\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /xferSource(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|WeaponSnapshot|KindOfNames|RgbColor|BoneFx(?:Int|Coord)Grid)\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -4958,6 +4966,31 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferReal' && argument === 'm_creationClearDistance') return 'creationClearDistance';
   if (method === 'xferUnsignedInt' && argument === 'm_currentBurstCount') return 'currentBurstCount';
   if (method === 'xferUser' && argument.startsWith('m_spawnPointOccupier')) return 'occupierIds';
+  if (method === 'xferSnapshot' && argument === 'm_weapon') return 'weapon.snapshot';
+  if (method === 'xferUnsignedInt' && argument === 'm_initialDelayFrame') return 'initialDelayFrame';
+  if (method === 'xferUser' && argument.startsWith('m_currentPlan')) return 'currentPlan';
+  if (method === 'xferUser' && argument.startsWith('m_desiredPlan')) return 'desiredPlan';
+  if (method === 'xferUser' && argument.startsWith('m_planAffectingArmy')) return 'planAffectingArmy';
+  if (method === 'xferUnsignedInt' && argument === 'm_nextReadyFrame') return 'nextReadyFrame';
+  if (method === 'xferBool' && argument === 'm_invalidSettings') return 'invalidSettings';
+  if (method === 'xferBool' && argument === 'm_centeringTurret') return 'centeringTurret';
+  if (method === 'xferReal' && argument === 'm_bonuses->m_armorScalar') return 'armorScalar';
+  if (method === 'xferInt' && argument === 'm_bonuses->m_bombardment') return 'bombardment';
+  if (method === 'xferInt' && argument === 'm_bonuses->m_searchAndDestroy') return 'searchAndDestroy';
+  if (method === 'xferInt' && argument === 'm_bonuses->m_holdTheLine') return 'holdTheLine';
+  if (method === 'xferReal' && argument === 'm_bonuses->m_sightRangeScalar') return 'sightRangeScalar';
+  if (method === 'xferObjectID' && argument === 'm_visionObjectID') return 'visionObjectId';
+  if (method === 'xferObjectID' && argument === 'm_slaver') return 'slaver';
+  if (method === 'xferCoord3D' && argument === 'm_guardPointOffset') return 'guardPointOffset';
+  if (method === 'xferInt' && argument === 'm_framesToWait') return 'framesToWait';
+  if (method === 'xferUser' && argument.startsWith('m_repairState')) return 'repairState';
+  if (method === 'xferBool' && argument === 'm_repairing') return 'repairing';
+  if (method === 'xferUser' && argument.startsWith('m_mobState')) return 'mobState';
+  if (method === 'xferRGBColor' && argument === 'm_personalColor') return 'personalColor';
+  if (method === 'xferObjectID' && argument === 'm_primaryVictimID') return 'primaryVictimId';
+  if (method === 'xferReal' && argument === 'm_squirrellinessRatio') return 'squirrellinessRatio';
+  if (method === 'xferBool' && argument === 'm_isSelfTasking') return 'isSelfTasking';
+  if (method === 'xferUnsignedInt' && argument === 'm_catchUpCrisisTimer') return 'catchUpCrisisTimer';
   if (method === 'xferReal' && argument === 'm_angularVelocity') return 'angularVelocity';
   if (method === 'xferReal' && argument === 'm_angularAcceleration') return 'angularAcceleration';
   if (method === 'xferCoord3D' && argument === 'm_toppleDirection') return 'toppleDirection';
@@ -5002,6 +5035,12 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
 
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
+  if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
+  if (token.includes('xferSourceRgbColor')) return 'personalColor';
+  if (token.includes('xferSourceKindOfNames')) {
+    if (window.includes('invalidKindOf')) return 'invalidKindOf';
+    if (window.includes('validKindOf')) return 'validKindOf';
+  }
   if (token.includes('xferObjectID')) {
     if (window.includes('targetId')) return 'targetId';
     if (window.includes('bestTargetId')) return 'bestTargetId';
@@ -5013,6 +5052,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('launcherId')) return 'launcherId';
     if (window.includes('spectreGunshipDeploymentGunshipId')) return 'gunshipId';
     if (window.includes('occupierIds')) return 'occupierIds';
+    if (window.includes('visionObjectId')) return 'visionObjectId';
+    if (window.includes('primaryVictimId')) return 'primaryVictimId';
+    if (window.includes('slaverEntityId') || window.includes('preservedState.slaver')) return 'slaver';
     if (window.includes('ownerEntityId') || window.includes('owningObject')) return 'owningObject';
     if (window.includes('targetObjectId') || window.includes('targetObject')) return 'targetObject';
   }
@@ -5063,10 +5105,23 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('currentlyActive')) return 'currentlyActive';
     if (window.includes('resetTimersNextUpdate')) return 'resetTimersNextUpdate';
     if (window.includes('rallyPointExists')) return 'rallyPointExists';
+    if (window.includes('invalidSettings')) return 'invalidSettings';
+    if (window.includes('centeringTurret')) return 'centeringTurret';
+    if (window.includes('repairing')) return 'repairing';
+    if (window.includes('isSelfTasking')) return 'isSelfTasking';
     if (window.includes('detectorEnabled') || window.includes('enabled')) return 'enabled';
     if (window.includes('state.active')) return 'active';
   }
   if (token.includes('xferInt')) {
+    if (window.includes('SOURCE_BATTLE_PLAN_BOMBARDMENT')) return 'bombardment';
+    if (window.includes('SOURCE_BATTLE_PLAN_SEARCH_AND_DESTROY')) return 'searchAndDestroy';
+    if (window.includes('SOURCE_BATTLE_PLAN_HOLD_THE_LINE')) return 'holdTheLine';
+    if (window.includes('currentPlan')) return 'currentPlan';
+    if (window.includes('desiredPlan')) return 'desiredPlan';
+    if (window.includes('planAffectingArmy')) return 'planAffectingArmy';
+    if (window.includes('framesToWait')) return 'framesToWait';
+    if (window.includes('mobState')) return 'mobState';
+    if (window.includes('repairState')) return 'repairState';
     if (window.includes('entity.oclUpdateCurrentPlayerColors')) return 'currentPlayerColor';
     if (window.includes('entity.proneFramesRemaining')) return 'proneFrames';
     if (window.includes('nextScanFrames')) return 'nextScanFrames';
@@ -5090,6 +5145,11 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
   if (token.includes('xferUnsignedInt')) {
     if (window.includes('currentDelay')) return 'currentDelay';
     if (window.includes('currentBurstCount')) return 'currentBurstCount';
+    if (window.includes('liveNextFireFrame')) return 'initialDelayFrame';
+    if (window.includes('nextReadyFrame') || window.includes('sourceBattlePlanNextReadyFrame')) {
+      return 'nextReadyFrame';
+    }
+    if (window.includes('catchUpCrisisTimer')) return 'catchUpCrisisTimer';
     if (window.includes('entity.oclUpdateNextCreationFrames')) return 'nextCreationFrame';
     if (window.includes('entity.oclUpdateTimerStartedFrames')) return 'timerStartedFrame';
     if (window.includes('entity.enemyNearNextScanCountdown')) return 'enemyScanDelay';
@@ -5155,8 +5215,15 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('noTurnDistLeft')) return 'noTurnDistLeft';
     if (window.includes('heightAtLaunch')) return 'heightAtLaunch';
     if (window.includes('creationClearDistance')) return 'creationClearDistance';
+    if (window.includes('armorScalar')) return 'armorScalar';
+    if (window.includes('sightRangeScalar')) return 'sightRangeScalar';
+    if (window.includes('squirrellinessRatio')) return 'squirrellinessRatio';
   }
   if (token.includes('xferUser')) {
+    if (window.includes('buildSourceRawInt32Bytes(currentPlan)')) return 'currentPlan';
+    if (window.includes('buildSourceRawInt32Bytes(desiredPlan)')) return 'desiredPlan';
+    if (window.includes('buildSourceRawInt32Bytes(planAffectingArmy)')) return 'planAffectingArmy';
+    if (window.includes('buildSourceRawInt32Bytes(status)')) return 'status';
     if (window.includes('shapePointsBytes')) return 'shapePoints';
     if (window.includes('transformedShapePointsBytes')) return 'transformedShapePoints';
     if (window.includes('shapeEffectsBytes')) return 'shapeEffects';
@@ -5197,6 +5264,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('finalDestination')) return 'finalDestination';
     if (window.includes('targetPosition')) return 'targetPosition';
     if (window.includes('rallyPoint')) return 'rallyPoint';
+    if (window.includes('guardPointOffset') || window.includes('slaveGuardOffset')) return 'guardPointOffset';
   }
   return null;
 }
@@ -7138,6 +7206,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AutoDepositUpdate.cpp',
     'AnimationSteeringUpdate.cpp',
     'BaseRenerateUpdate.cpp',
+    'BattlePlanUpdate.cpp',
     'BoneFXUpdate.cpp',
     'CheckpointUpdate.cpp',
     'CleanupHazardUpdate.cpp',
@@ -7154,6 +7223,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'DynamicShroudClearingRangeUpdate.cpp',
     'EMPUpdate.cpp',
     'EnemyNearUpdate.cpp',
+    'FireWeaponUpdate.cpp',
     'FireOCLAfterWeaponCooldownUpdate.cpp',
     'FireSpreadUpdate.cpp',
     'FirestormDynamicGeometryInfoUpdate.cpp',
@@ -7164,6 +7234,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'HordeUpdate.cpp',
     'LifetimeUpdate.cpp',
     'MissileLauncherBuildingUpdate.cpp',
+    'MobMemberSlavedUpdate.cpp',
     'OCLUpdate.cpp',
     'PilotFindVehicleUpdate.cpp',
     'PointDefenseLaserUpdate.cpp',
@@ -7177,6 +7248,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'RadiusDecalUpdate.cpp',
     'RadarUpdate.cpp',
     'SmartBombTargetHomingUpdate.cpp',
+    'SlavedUpdate.cpp',
     'SpectreGunshipDeploymentUpdate.cpp',
     'SpyVisionUpdate.cpp',
     'StealthDetectorUpdate.cpp',
@@ -8118,6 +8190,26 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-spawn-point-production-exit-update-fields',
       cppClass: 'SpawnPointProductionExitUpdate',
       tsHelper: 'buildSourceSpawnPointProductionExitBlockData',
+    },
+    {
+      category: 'save-fire-weapon-update-fields',
+      cppClass: 'FireWeaponUpdate',
+      tsHelper: 'buildSourceFireWeaponUpdateBlockData',
+    },
+    {
+      category: 'save-battle-plan-update-fields',
+      cppClass: 'BattlePlanUpdate',
+      tsHelper: 'buildSourceBattlePlanUpdateBlockData',
+    },
+    {
+      category: 'save-slaved-update-fields',
+      cppClass: 'SlavedUpdate',
+      tsHelper: 'buildSourceSlavedUpdateBlockData',
+    },
+    {
+      category: 'save-mob-member-slaved-update-fields',
+      cppClass: 'MobMemberSlavedUpdate',
+      tsHelper: 'buildSourceMobMemberSlavedUpdateBlockData',
     },
     {
       category: 'save-topple-update-fields',
