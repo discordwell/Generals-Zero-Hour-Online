@@ -3200,6 +3200,12 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
       'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
     },
   );
+  let mapper = mapCppSimpleModuleField;
+  if (className === 'ProductionUpdate') {
+    mapper = mapCppProductionUpdateField;
+  } else if (className === 'NeutronMissileUpdate') {
+    mapper = mapCppNeutronMissileUpdateField;
+  }
   return parseCppSimpleModuleFields(
     source,
     `void ${className}::xfer( Xfer *xfer )`,
@@ -3209,7 +3215,7 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
       'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
       'DockUpdate::xfer': prefixBaseVersion(sourceDockUpdateFields(), 'dock'),
     },
-    className === 'ProductionUpdate' ? mapCppProductionUpdateField : mapCppSimpleModuleField,
+    mapper,
   );
 }
 
@@ -5075,6 +5081,11 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
 
 function mapCppProductionUpdateField(method: string, argument: string): string | null {
   if (method === 'xferAsciiString' && argument === 'name') return 'queue.entry.name';
+  return mapCppSimpleModuleField(method, argument);
+}
+
+function mapCppNeutronMissileUpdateField(method: string, argument: string): string | null {
+  if (method === 'xferAsciiString' && argument === 'name') return 'exhaustSystemTemplateName';
   return mapCppSimpleModuleField(method, argument);
 }
 
@@ -7298,6 +7309,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'LifetimeUpdate.cpp',
     'MissileLauncherBuildingUpdate.cpp',
     'MobMemberSlavedUpdate.cpp',
+    'NeutronMissileUpdate.cpp',
     'OCLUpdate.cpp',
     'PilotFindVehicleUpdate.cpp',
     'PointDefenseLaserUpdate.cpp',
@@ -8279,6 +8291,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-mob-member-slaved-update-fields',
       cppClass: 'MobMemberSlavedUpdate',
       tsHelper: 'buildSourceMobMemberSlavedUpdateBlockData',
+    },
+    {
+      category: 'save-neutron-missile-update-fields',
+      cppClass: 'NeutronMissileUpdate',
+      tsHelper: 'buildSourceNeutronMissileUpdateBlockData',
     },
     {
       category: 'save-topple-update-fields',

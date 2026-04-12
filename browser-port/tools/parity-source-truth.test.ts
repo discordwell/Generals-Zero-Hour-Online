@@ -1353,6 +1353,7 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-battle-plan-update-fields',
         'save-slaved-update-fields',
         'save-mob-member-slaved-update-fields',
+        'save-neutron-missile-update-fields',
         'save-topple-update-fields',
         'save-structure-topple-update-fields',
         'save-spectre-gunship-deployment-update-fields',
