@@ -1312,6 +1312,19 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-lifetime-update-fields',
         'save-deletion-update-fields',
         'save-height-die-update-fields',
+        'save-sticky-bomb-update-fields',
+        'save-cleanup-hazard-update-fields',
+        'save-demo-trap-update-fields',
+        'save-command-button-hunt-update-fields',
+        'save-auto-deposit-update-fields',
+        'save-dynamic-shroud-clearing-range-update-fields',
+        'save-stealth-update-fields',
+        'save-stealth-detector-update-fields',
+        'save-wave-guide-update-fields',
+        'save-projectile-stream-update-fields',
+        'save-bone-fx-update-fields',
+        'save-flammable-update-fields',
+        'save-fire-spread-update-fields',
       ]) {
         const moduleCategory = report.categories.find((c) => c.category === category);
         expect(moduleCategory).toBeDefined();

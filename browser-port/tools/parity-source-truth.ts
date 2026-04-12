@@ -3137,7 +3137,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /(?:saver|xfer)\.xfer(?:Version|UnsignedInt|Int|Bool|Coord3D)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /xferSourceUpdateModuleBase\s*\(|xferSourceBoneFx(?:Int|Coord)Grid\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -3157,6 +3157,12 @@ export function parseTsSourceObjectUpdateFields(
         for (const field of sourceUpdateModuleBaseFields()) {
           pushUniqueField(fields, seen, field);
         }
+        continue;
+      }
+    }
+    if (token.includes('xferSourceUpdateModuleBase')) {
+      for (const field of sourceUpdateModuleBaseFields()) {
+        pushUniqueField(fields, seen, field);
       }
       continue;
     }
@@ -4756,11 +4762,91 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferBool' && argument === 'm_particlesDestroyed') return 'particlesDestroyed';
   if (method === 'xferCoord3D' && argument === 'm_lastPosition') return 'lastPosition';
   if (method === 'xferUnsignedInt' && argument === 'm_earliestDeathFrame') return 'earliestDeathFrame';
+  if (method === 'xferObjectID' && argument === 'm_targetID') return 'targetId';
+  if (method === 'xferUnsignedInt' && argument === 'm_nextPingFrame') return 'nextPingFrame';
+  if (method === 'xferObjectID' && argument === 'm_bestTargetID') return 'bestTargetId';
+  if (method === 'xferBool' && argument === 'm_inRange') return 'inRange';
+  if (method === 'xferInt' && argument === 'm_nextShotAvailableInFrames') return 'nextShotAvailableInFrames';
+  if (method === 'xferCoord3D' && argument === 'm_pos') return 'position';
+  if (method === 'xferReal' && argument === 'm_moveRange') return 'moveRange';
+  if (method === 'xferBool' && argument === 'm_detonated') return 'detonated';
+  if (method === 'xferAsciiString' && argument === 'm_commandButtonName') return 'commandButtonName';
+  if (method === 'xferUnsignedInt' && argument === 'm_depositOnFrame') return 'depositOnFrame';
+  if (method === 'xferBool' && argument === 'm_awardInitialCaptureBonus') return 'awardInitialCaptureBonus';
+  if (method === 'xferBool' && argument === 'm_initialized') return 'initialized';
+  if (method === 'xferInt' && argument === 'm_stateCountDown') return 'stateCountdown';
+  if (method === 'xferInt' && argument === 'm_totalFrames') return 'totalFrames';
+  if (method === 'xferUnsignedInt' && argument === 'm_growStartDeadline') return 'growStartDeadline';
+  if (method === 'xferUnsignedInt' && argument === 'm_sustainDeadline') return 'sustainDeadline';
+  if (method === 'xferUnsignedInt' && argument === 'm_shrinkStartDeadline') return 'shrinkStartDeadline';
+  if (method === 'xferUnsignedInt' && argument === 'm_doneForeverFrame') return 'doneForeverFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_changeIntervalCountdown') return 'changeIntervalCountdown';
+  if (method === 'xferBool' && argument === 'm_decalsCreated') return 'decalsCreated';
+  if (method === 'xferReal' && argument === 'm_visionChangePerInterval') return 'visionChangePerInterval';
+  if (method === 'xferReal' && argument === 'm_nativeClearingRange') return 'nativeClearingRange';
+  if (method === 'xferReal' && argument === 'm_currentClearingRange') return 'currentClearingRange';
+  if (method === 'xferUnsignedInt' && argument === 'm_stealthAllowedFrame') return 'stealthAllowedFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_detectionExpiresFrame') return 'detectionExpiresFrame';
+  if (method === 'xferBool' && argument === 'm_enabled') return 'enabled';
+  if (method === 'xferReal' && argument === 'm_pulsePhaseRate') return 'pulsePhaseRate';
+  if (method === 'xferReal' && argument === 'm_pulsePhase') return 'pulsePhase';
+  if (method === 'xferInt' && argument === 'm_disguiseAsPlayerIndex') return 'disguiseAsPlayerIndex';
+  if (method === 'xferAsciiString' && argument === 'name') return 'disguiseTemplateName';
+  if (method === 'xferUnsignedInt' && argument === 'm_disguiseTransitionFrames') return 'disguiseTransitionFrames';
+  if (method === 'xferBool' && argument === 'm_disguiseHalfpointReached') return 'disguiseHalfpointReached';
+  if (method === 'xferBool' && argument === 'm_transitioningToDisguise') return 'transitioningToDisguise';
+  if (method === 'xferBool' && argument === 'm_disguised') return 'disguised';
+  if (method === 'xferUnsignedInt' && argument === 'm_framesGranted') return 'framesGranted';
+  if (method === 'xferUnsignedInt' && argument === 'm_activeFrame') return 'activeFrame';
+  if (method === 'xferBool' && argument === 'm_needDisable') return 'needDisable';
+  if (method === 'xferUser' && argument.startsWith('m_shapePoints')) return 'shapePoints';
+  if (method === 'xferUser' && argument.startsWith('m_transformedShapePoints')) return 'transformedShapePoints';
+  if (method === 'xferUser' && argument.startsWith('m_shapeEffects')) return 'shapeEffects';
+  if (method === 'xferInt' && argument === 'm_shapePointCount') return 'shapePointCount';
+  if (method === 'xferUnsignedInt' && argument === 'm_splashSoundFrame') return 'splashSoundFrame';
+  if (method === 'xferCoord3D' && argument === 'm_finalDestination') return 'finalDestination';
+  if (method === 'xferUser' && argument.startsWith('m_projectileIDs')) return 'projectileIds';
+  if (method === 'xferInt' && argument === 'm_nextFreeIndex') return 'nextFreeIndex';
+  if (method === 'xferInt' && argument === 'm_firstValidIndex') return 'firstValidIndex';
+  if (method === 'xferObjectID' && argument === 'm_owningObject') return 'owningObject';
+  if (method === 'xferObjectID' && argument === 'm_targetObject') return 'targetObject';
+  if (method === 'xferCoord3D' && argument === 'm_targetPosition') return 'targetPosition';
+  if (method === 'xferUnsignedShort' && argument === 'particleSystemCount') return 'particleSystem.count';
+  if (method === 'xferUser' && argument.startsWith('systemID')) return 'particleSystem.id';
+  if (method === 'xferUser' && argument.startsWith('m_nextFXFrame')) return 'nextFxFrame';
+  if (method === 'xferUser' && argument.startsWith('m_nextOCLFrame')) return 'nextOclFrame';
+  if (method === 'xferUser' && argument.startsWith('m_nextParticleSystemFrame')) return 'nextParticleSystemFrame';
+  if (method === 'xferUser' && argument.startsWith('m_FXBonePositions')) return 'fxBonePositions';
+  if (method === 'xferUser' && argument.startsWith('m_OCLBonePositions')) return 'oclBonePositions';
+  if (method === 'xferUser' && argument.startsWith('m_PSBonePositions')) return 'particleSystemBonePositions';
+  if (method === 'xferUser' && argument.startsWith('m_curBodyState')) return 'currentBodyState';
+  if (method === 'xferUser' && argument.startsWith('m_bonesResolved')) return 'bonesResolved';
+  if (method === 'xferBool' && argument === 'm_active') return 'active';
+  if (method === 'xferUser' && argument.startsWith('m_status')) return 'status';
+  if (method === 'xferUnsignedInt' && argument === 'm_aflameEndFrame') return 'aflameEndFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_burnedEndFrame') return 'burnedEndFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_damageEndFrame') return 'damageEndFrame';
+  if (method === 'xferReal' && argument === 'm_flameDamageLimit') return 'flameDamageLimit';
+  if (method === 'xferUnsignedInt' && argument === 'm_lastFlameDamageDealt') return 'lastFlameDamageDealt';
   return null;
 }
 
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
+  if (token.includes('xferObjectID')) {
+    if (window.includes('targetId')) return 'targetId';
+    if (window.includes('bestTargetId')) return 'bestTargetId';
+    if (window.includes('projectileId')) return 'projectileIds';
+    if (window.includes('ownerEntityId') || window.includes('owningObject')) return 'owningObject';
+    if (window.includes('targetObjectId') || window.includes('targetObject')) return 'targetObject';
+  }
+  if (token.includes('xferAsciiString')) {
+    if (window.includes('buttonName')) return 'commandButtonName';
+    if (window.includes('disguiseTemplateName')) return 'disguiseTemplateName';
+  }
+  if (token.includes('xferUnsignedShort')) {
+    if (window.includes('particleSystemIds.length')) return 'particleSystem.count';
+  }
   if (token.includes('xferBool')) {
     if (window.includes('state?.extended')) return 'extended';
     if (window.includes('entity.oclUpdateFactionNeutral')) return 'factionNeutral';
@@ -4772,11 +4858,33 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('killWhenNoLongerAttacking')) return 'killWhenNoLongerAttacking';
     if (window.includes('entity.heightDieHasDied')) return 'hasDied';
     if (window.includes('entity.heightDieParticlesDestroyed')) return 'particlesDestroyed';
+    if (window.includes('state?.inRange')) return 'inRange';
+    if (window.includes('entity.demoTrapDetonated')) return 'detonated';
+    if (window.includes('entity.autoDepositCaptureBonusPending')) return 'awardInitialCaptureBonus';
+    if (window.includes('entity.autoDepositInitialized')) return 'initialized';
+    if (window.includes('entity.dynamicShroudDecalsCreated')) return 'decalsCreated';
+    if (window.includes('disguiseHalfpointReached')) return 'disguiseHalfpointReached';
+    if (window.includes('transitioningToDisguise')) return 'transitioningToDisguise';
+    if (window.includes('isDisguised')) return 'disguised';
+    if (window.includes('needDisable')) return 'needDisable';
+    if (window.includes('initialized')) return 'initialized';
+    if (window.includes('detectorEnabled') || window.includes('enabled')) return 'enabled';
+    if (window.includes('state.active')) return 'active';
   }
   if (token.includes('xferInt')) {
     if (window.includes('entity.oclUpdateCurrentPlayerColors')) return 'currentPlayerColor';
     if (window.includes('entity.proneFramesRemaining')) return 'proneFrames';
     if (window.includes('nextScanFrames')) return 'nextScanFrames';
+    if (window.includes('nextScanFrame')) return 'nextScanFrames';
+    if (window.includes('nextShotAvailableFrame')) return 'nextShotAvailableInFrames';
+    if (window.includes('entity.dynamicShroudStateCountdown')) return 'stateCountdown';
+    if (window.includes('entity.dynamicShroudTotalFrames')) return 'totalFrames';
+    if (window.includes('disguiseAsPlayerIndex')) return 'disguiseAsPlayerIndex';
+    if (window.includes('shapePointCount')) return 'shapePointCount';
+    if (window.includes('liveProjectileIds.length')) return 'nextFreeIndex';
+    if (window === 'saver.xferInt(0);') return 'firstValidIndex';
+    if (window.includes('nextFreeIndex')) return 'nextFreeIndex';
+    if (window.includes('firstValidIndex')) return 'firstValidIndex';
   }
   if (token.includes('xferUnsignedInt')) {
     if (window.includes('entity.oclUpdateNextCreationFrames')) return 'nextCreationFrame';
@@ -4784,11 +4892,61 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('entity.enemyNearNextScanCountdown')) return 'enemyScanDelay';
     if (window.includes('state.consecutiveShots')) return 'consecutiveShots';
     if (window.includes('state.startFrame')) return 'startFrame';
+    if (window.includes('nextPingFrame')) return 'nextPingFrame';
+    if (window.includes('entity.autoDepositNextFrame')) return 'depositOnFrame';
+    if (window.includes('entity.dynamicShroudGrowStartDeadline')) return 'growStartDeadline';
+    if (window.includes('entity.dynamicShroudSustainDeadline')) return 'sustainDeadline';
+    if (window.includes('entity.dynamicShroudShrinkStartDeadline')) return 'shrinkStartDeadline';
+    if (window.includes('entity.dynamicShroudDoneForeverFrame')) return 'doneForeverFrame';
+    if (window.includes('entity.dynamicShroudChangeIntervalCountdown')) return 'changeIntervalCountdown';
+    if (window.includes('stealthAllowedFrame')) return 'stealthAllowedFrame';
+    if (window.includes('entity.detectedUntilFrame')) return 'detectionExpiresFrame';
+    if (window.includes('disguiseTransitionFrames')) return 'disguiseTransitionFrames';
+    if (window.includes('framesGranted')) return 'framesGranted';
+    if (window.includes('activeFrame')) return 'activeFrame';
+    if (window.includes('splashSoundFrame')) return 'splashSoundFrame';
+    if (window.includes('particleSystemId')) return 'particleSystem.id';
+    if (window.includes('flameEndFrame')) return 'aflameEndFrame';
+    if (window.includes('flameBurnedEndFrame')) return 'burnedEndFrame';
+    if (window.includes('flameDamageNextFrame')) return 'damageEndFrame';
+    if (window.includes('flameLastDamageReceivedFrame')) return 'lastFlameDamageDealt';
     if (window.includes('dieFrame')) return 'dieFrame';
     if (window.includes('earliestDeathFrame')) return 'earliestDeathFrame';
   }
+  if (token.includes('xferReal')) {
+    if (window.includes('cleanupAreaMoveRange')) return 'moveRange';
+    if (window.includes('entity.dynamicShroudVisionChangePerInterval')) return 'visionChangePerInterval';
+    if (window.includes('entity.dynamicShroudNativeClearingRange')) return 'nativeClearingRange';
+    if (window.includes('entity.dynamicShroudCurrentClearingRange')) return 'currentClearingRange';
+    if (window.includes('stealthPulsePhaseRate')) return 'pulsePhaseRate';
+    if (window.includes('stealthPulsePhase')) return 'pulsePhase';
+    if (window.includes('sourceFlammableRemainingDamageLimit')) return 'flameDamageLimit';
+  }
+  if (token.includes('xferUser')) {
+    if (window.includes('shapePointsBytes')) return 'shapePoints';
+    if (window.includes('transformedShapePointsBytes')) return 'transformedShapePoints';
+    if (window.includes('shapeEffectsBytes')) return 'shapeEffects';
+    if (window.includes('currentBodyState')) return 'currentBodyState';
+    if (window.includes('bonesResolved')) return 'bonesResolved';
+    if (window.includes('sourceFlammableStatusToInt')) return 'status';
+  }
+  if (token.includes('xferSourceBoneFxIntGrid')) {
+    if (window.includes('nextFXFrame')) return 'nextFxFrame';
+    if (window.includes('nextOCLFrame')) return 'nextOclFrame';
+    if (window.includes('nextParticleFrame')) return 'nextParticleSystemFrame';
+  }
+  if (token.includes('xferSourceBoneFxCoordGrid')) {
+    if (window.includes('fxBonePositions')) return 'fxBonePositions';
+    if (window.includes('oclBonePositions')) return 'oclBonePositions';
+    if (window.includes('particleSystemBonePositions')) return 'particleSystemBonePositions';
+  }
   if (token.includes('xferCoord3D') && window.includes('heightDieLastPosition')) {
     return 'lastPosition';
+  }
+  if (token.includes('xferCoord3D')) {
+    if (window.includes('cleanupAreaPosition')) return 'position';
+    if (window.includes('finalDestination')) return 'finalDestination';
+    if (window.includes('targetPosition')) return 'targetPosition';
   }
   return null;
 }
@@ -6727,17 +6885,30 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   );
   const objectUpdateFiles = [
     'AutoFindHealingUpdate.cpp',
+    'AutoDepositUpdate.cpp',
     'BaseRenerateUpdate.cpp',
+    'BoneFXUpdate.cpp',
+    'CleanupHazardUpdate.cpp',
+    'CommandButtonHuntUpdate.cpp',
     'DeletionUpdate.cpp',
+    'DemoTrapUpdate.cpp',
+    'DynamicShroudClearingRangeUpdate.cpp',
     'EnemyNearUpdate.cpp',
     'FireOCLAfterWeaponCooldownUpdate.cpp',
+    'FireSpreadUpdate.cpp',
+    'FlammableUpdate.cpp',
     'HeightDieUpdate.cpp',
     'HordeUpdate.cpp',
     'LifetimeUpdate.cpp',
     'OCLUpdate.cpp',
     'PowerPlantUpdate.cpp',
+    'ProjectileStreamUpdate.cpp',
     'ProneUpdate.cpp',
     'RadiusDecalUpdate.cpp',
+    'StealthDetectorUpdate.cpp',
+    'StealthUpdate.cpp',
+    'StickyBombUpdate.cpp',
+    'WaveGuideUpdate.cpp',
     'WeaponBonusUpdate.cpp',
     '../Upgrade/UpgradeModule.cpp',
   ];
@@ -7489,6 +7660,71 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-height-die-update-fields',
       cppClass: 'HeightDieUpdate',
       tsHelper: 'buildSourceHeightDieUpdateBlockData',
+    },
+    {
+      category: 'save-sticky-bomb-update-fields',
+      cppClass: 'StickyBombUpdate',
+      tsHelper: 'buildSourceStickyBombUpdateBlockData',
+    },
+    {
+      category: 'save-cleanup-hazard-update-fields',
+      cppClass: 'CleanupHazardUpdate',
+      tsHelper: 'buildSourceCleanupHazardUpdateBlockData',
+    },
+    {
+      category: 'save-demo-trap-update-fields',
+      cppClass: 'DemoTrapUpdate',
+      tsHelper: 'buildSourceDemoTrapUpdateBlockData',
+    },
+    {
+      category: 'save-command-button-hunt-update-fields',
+      cppClass: 'CommandButtonHuntUpdate',
+      tsHelper: 'buildSourceCommandButtonHuntUpdateBlockData',
+    },
+    {
+      category: 'save-auto-deposit-update-fields',
+      cppClass: 'AutoDepositUpdate',
+      tsHelper: 'buildSourceAutoDepositUpdateBlockData',
+    },
+    {
+      category: 'save-dynamic-shroud-clearing-range-update-fields',
+      cppClass: 'DynamicShroudClearingRangeUpdate',
+      tsHelper: 'buildSourceDynamicShroudClearingRangeUpdateBlockData',
+    },
+    {
+      category: 'save-stealth-update-fields',
+      cppClass: 'StealthUpdate',
+      tsHelper: 'buildSourceStealthUpdateBlockData',
+    },
+    {
+      category: 'save-stealth-detector-update-fields',
+      cppClass: 'StealthDetectorUpdate',
+      tsHelper: 'buildSourceStealthDetectorUpdateBlockData',
+    },
+    {
+      category: 'save-wave-guide-update-fields',
+      cppClass: 'WaveGuideUpdate',
+      tsHelper: 'buildSourceWaveGuideUpdateBlockData',
+    },
+    {
+      category: 'save-projectile-stream-update-fields',
+      cppClass: 'ProjectileStreamUpdate',
+      tsHelper: 'buildSourceProjectileStreamUpdateBlockData',
+    },
+    {
+      category: 'save-bone-fx-update-fields',
+      cppClass: 'BoneFXUpdate',
+      tsHelper: 'buildSourceBoneFxUpdateBlockData',
+    },
+    {
+      category: 'save-flammable-update-fields',
+      cppClass: 'FlammableUpdate',
+      tsHelper: 'buildSourceFlammableUpdateBlockData',
+    },
+    {
+      category: 'save-fire-spread-update-fields',
+      cppClass: 'FireSpreadUpdate',
+      tsHelper: 'buildSourceFireSpreadUpdateBlockData',
     },
   ];
   for (const check of objectUpdateChecks) {
