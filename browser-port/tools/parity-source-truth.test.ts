@@ -5,17 +5,23 @@ import { describe, expect, it } from 'vitest';
 
 import {
   compareDamageTypes,
+  compareGameStateMapFields,
   compareSaveGameInfoFields,
   compareSaveSnapshotBlockOrder,
+  compareSkirmishGameInfoFields,
   parseCppDamageTypeNames,
+  parseCppGameStateMapXferFields,
   parseCppSaveGameInfoXferFields,
   parseCppSaveSnapshotBlockNames,
+  parseCppSkirmishGameInfoXferFields,
   parseCppWeaponBonusEnumValues,
   parseCppWeaponBonusNames,
   parseCppWeaponFieldNames,
   parseTsDamageTypeNames,
+  parseTsGameStateMapXferFields,
   parseTsSaveGameInfoXferFields,
   parseTsSaveSnapshotBlockNames,
+  parseTsSkirmishGameInfoXferFields,
   parseTsWeaponBonusConditionNames,
   runSourceParityCheck,
 } from './parity-source-truth.js';
@@ -174,6 +180,194 @@ class MapSnapshot implements Snapshot {}`;
       expect(fields).toEqual(['saveFileType', 'missionMapName', 'date.year', 'description']);
     });
 
+    it('parses C++ GameStateMap xfer field order', () => {
+      const source = `
+void GameStateMap::xfer( Xfer *xfer )
+{
+  xfer->xferVersion( &version, currentVersion );
+  xfer->xferAsciiString( &tmp );
+  xfer->xferAsciiString( &tmp );
+  xfer->xferInt( &gameMode );
+  embedPristineMap( saveGameInfo->pristineMapName, xfer );
+  xfer->xferObjectID( &highObjectID );
+  xfer->xferDrawableID( &highDrawableID );
+  xfer->xferSnapshot(TheSkirmishGameInfo);
+}  // end xfer`;
+      const fields = parseCppGameStateMapXferFields(source);
+      expect(fields).toEqual([
+        'version',
+        'saveGameMapPath',
+        'pristineMapPath',
+        'gameMode',
+        'embeddedMapBytes',
+        'objectIdCounter',
+        'drawableIdCounter',
+        'skirmishGameInfoSnapshot',
+      ]);
+    });
+
+    it('parses TS MapSnapshot xfer field order', () => {
+      const source = `
+class MapSnapshot implements Snapshot {
+  xfer(xfer: Xfer): void {
+    const version = xfer.xferVersion(GAME_STATE_MAP_VERSION);
+    this.state.saveGameMapPath = xfer.xferAsciiString(this.state.saveGameMapPath);
+    this.state.pristineMapPath = xfer.xferAsciiString(this.state.pristineMapPath);
+    this.state.gameMode = xfer.xferInt(this.state.gameMode);
+    this.state.embeddedMapBytes = xfer.xferUser(new Uint8Array(0));
+    this.state.objectIdCounter = xfer.xferObjectID(this.state.objectIdCounter);
+    this.state.drawableIdCounter = xfer.xferUnsignedInt(this.state.drawableIdCounter);
+    this.state.skirmishGameInfoState = xferChallengeGameInfoState(xfer, this.state.skirmishGameInfoState);
+  }
+}
+class CampaignSnapshot implements Snapshot {}`;
+      const fields = parseTsGameStateMapXferFields(source);
+      expect(fields).toEqual([
+        'version',
+        'saveGameMapPath',
+        'pristineMapPath',
+        'gameMode',
+        'embeddedMapBytes',
+        'objectIdCounter',
+        'drawableIdCounter',
+        'skirmishGameInfoSnapshot',
+      ]);
+    });
+
+    it('parses C++ SkirmishGameInfo xfer field order', () => {
+      const source = `
+void SkirmishGameInfo::xfer( Xfer *xfer )
+{
+  xfer->xferVersion( &version, currentVersion );
+  xfer->xferInt(&m_preorderMask);
+  xfer->xferInt(&m_crcInterval);
+  xfer->xferBool(&m_inGame);
+  xfer->xferBool(&m_inProgress);
+  xfer->xferBool(&m_surrendered);
+  xfer->xferInt(&m_gameID);
+  xfer->xferInt(&slot);
+  xfer->xferInt(&state);
+  xfer->xferUnicodeString(&name);
+  xfer->xferBool(&isAccepted);
+  xfer->xferBool(&isMuted);
+  xfer->xferInt(&color);
+  xfer->xferInt(&startPos);
+  xfer->xferInt(&playerTemplate);
+  xfer->xferInt(&teamNumber);
+  xfer->xferInt(&origColor);
+  xfer->xferInt(&origStartPos);
+  xfer->xferInt(&origPlayerTemplate);
+  xfer->xferUnsignedInt(&m_localIP);
+  xfer->xferMapName(&m_mapName);
+  xfer->xferUnsignedInt(&m_mapCRC);
+  xfer->xferUnsignedInt(&m_mapSize);
+  xfer->xferInt(&m_mapMask);
+  xfer->xferInt(&m_seed);
+  xfer->xferUnsignedShort( &m_superweaponRestriction );
+  xfer->xferBool( &obsoleteBool );
+  xfer->xferSnapshot( &m_startingCash );
+}  // end xfer`;
+      const fields = parseCppSkirmishGameInfoXferFields(source);
+      expect(fields).toEqual([
+        'version',
+        'preorderMask',
+        'crcInterval',
+        'inGame',
+        'inProgress',
+        'surrendered',
+        'gameId',
+        'slotCount',
+        'slot.state',
+        'slot.name',
+        'slot.isAccepted',
+        'slot.isMuted',
+        'slot.color',
+        'slot.startPos',
+        'slot.playerTemplate',
+        'slot.teamNumber',
+        'slot.origColor',
+        'slot.origStartPos',
+        'slot.origPlayerTemplate',
+        'localIp',
+        'mapName',
+        'mapCrc',
+        'mapSize',
+        'mapMask',
+        'seed',
+        'superweaponRestriction',
+        'version3ObsoleteBool',
+        'startingCash',
+      ]);
+    });
+
+    it('parses TS SkirmishGameInfo xfer field order', () => {
+      const source = `
+function xferChallengeGameSlotState(xfer: Xfer): RuntimeSaveChallengeGameSlotState {
+  const state = xfer.xferInt(slotState.state);
+  const name = version >= 2 ? xfer.xferUnicodeString(slotState.name) : slotState.name;
+  const isAccepted = xfer.xferBool(slotState.isAccepted);
+  const isMuted = xfer.xferBool(slotState.isMuted);
+  const color = xfer.xferInt(slotState.color);
+  const startPos = xfer.xferInt(slotState.startPos);
+  const playerTemplate = xfer.xferInt(slotState.playerTemplate);
+  const teamNumber = xfer.xferInt(slotState.teamNumber);
+  const origColor = xfer.xferInt(slotState.origColor);
+  const origStartPos = xfer.xferInt(slotState.origStartPos);
+  const origPlayerTemplate = xfer.xferInt(slotState.origPlayerTemplate);
+}
+function xferChallengeGameInfoState(xfer: Xfer): RuntimeSaveChallengeGameInfoState {
+  const version = xfer.xferVersion(4);
+  const preorderMask = xfer.xferInt(state.preorderMask);
+  const crcInterval = xfer.xferInt(state.crcInterval);
+  const inGame = xfer.xferBool(state.inGame);
+  const inProgress = xfer.xferBool(state.inProgress);
+  const surrendered = xfer.xferBool(state.surrendered);
+  const gameId = xfer.xferInt(state.gameId);
+  const slotCount = xfer.xferInt(state.slots.length);
+  slots.push(xferChallengeGameSlotState(xfer));
+  const localIp = xfer.xferUnsignedInt(state.localIp);
+  const mapName = xfer.xferAsciiString(state.mapName);
+  const mapCrc = xfer.xferUnsignedInt(state.mapCrc);
+  const mapSize = xfer.xferUnsignedInt(state.mapSize);
+  const mapMask = xfer.xferInt(state.mapMask);
+  const seed = xfer.xferInt(state.seed);
+  superweaponRestriction = xfer.xferUnsignedShort(superweaponRestriction);
+  xfer.xferBool(false);
+  startingCash = xferMoneyAmount(xfer, startingCash);
+}`;
+      const fields = parseTsSkirmishGameInfoXferFields(source);
+      expect(fields).toEqual([
+        'version',
+        'preorderMask',
+        'crcInterval',
+        'inGame',
+        'inProgress',
+        'surrendered',
+        'gameId',
+        'slotCount',
+        'slot.state',
+        'slot.name',
+        'slot.isAccepted',
+        'slot.isMuted',
+        'slot.color',
+        'slot.startPos',
+        'slot.playerTemplate',
+        'slot.teamNumber',
+        'slot.origColor',
+        'slot.origStartPos',
+        'slot.origPlayerTemplate',
+        'localIp',
+        'mapName',
+        'mapCrc',
+        'mapSize',
+        'mapMask',
+        'seed',
+        'superweaponRestriction',
+        'version3ObsoleteBool',
+        'startingCash',
+      ]);
+    });
+
     it('parses TS damage type names', () => {
       const source = `
 const SOURCE_DAMAGE_TYPE_NAMES: readonly string[] = [
@@ -251,6 +445,24 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(result.status).toBe('mismatch');
       expect(result.mismatches).toHaveLength(2);
     });
+
+    it('detects GameStateMap ABI reorderings', () => {
+      const result = compareGameStateMapFields(
+        ['version', 'saveGameMapPath', 'pristineMapPath'],
+        ['version', 'pristineMapPath', 'saveGameMapPath'],
+      );
+      expect(result.status).toBe('mismatch');
+      expect(result.mismatches).toHaveLength(2);
+    });
+
+    it('detects SkirmishGameInfo ABI reorderings', () => {
+      const result = compareSkirmishGameInfoFields(
+        ['version', 'preorderMask', 'crcInterval'],
+        ['version', 'crcInterval', 'preorderMask'],
+      );
+      expect(result.status).toBe('mismatch');
+      expect(result.mismatches).toHaveLength(2);
+    });
   });
 
   describe('live source comparison', () => {
@@ -313,6 +525,14 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       const saveMetadataCategory = report.categories.find((c) => c.category === 'save-game-info-fields');
       expect(saveMetadataCategory).toBeDefined();
       expect(saveMetadataCategory!.status).toBe('match');
+
+      const saveMapCategory = report.categories.find((c) => c.category === 'save-game-state-map-fields');
+      expect(saveMapCategory).toBeDefined();
+      expect(saveMapCategory!.status).toBe('match');
+
+      const skirmishInfoCategory = report.categories.find((c) => c.category === 'save-skirmish-game-info-fields');
+      expect(skirmishInfoCategory).toBeDefined();
+      expect(skirmishInfoCategory!.status).toBe('match');
     });
   });
 });

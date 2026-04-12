@@ -232,6 +232,113 @@ export function parseTsSaveGameInfoXferFields(source: string): string[] {
   return fields;
 }
 
+/**
+ * Parse C++ GameStateMap::xfer source-save field order.
+ */
+export function parseCppGameStateMapXferFields(source: string): string[] {
+  const start = source.indexOf('void GameStateMap::xfer( Xfer *xfer )');
+  if (start < 0) {
+    return [];
+  }
+  const end = source.indexOf('}  // end xfer', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+
+  pushIfFound(fields, body, 'version', /xfer->xferVersion\s*\(/);
+  const asciiStringMatches = [...body.matchAll(/xfer->xferAsciiString\s*\(/g)];
+  if (asciiStringMatches.length >= 1) {
+    fields.push('saveGameMapPath');
+  }
+  if (asciiStringMatches.length >= 2) {
+    fields.push('pristineMapPath');
+  }
+  pushIfFound(fields, body, 'gameMode', /xfer->xferInt\s*\(\s*&gameMode\s*\)/);
+  if (/embedPristineMap|embedInUseMap|extractAndSaveMap/.test(body)) {
+    fields.push('embeddedMapBytes');
+  }
+  pushIfFound(fields, body, 'objectIdCounter', /xfer->xferObjectID\s*\(\s*&highObjectID\s*\)/);
+  pushIfFound(fields, body, 'drawableIdCounter', /xfer->xferDrawableID\s*\(\s*&highDrawableID\s*\)/);
+  pushIfFound(fields, body, 'skirmishGameInfoSnapshot', /xfer->xferSnapshot\s*\(\s*TheSkirmishGameInfo\s*\)/);
+  return fields;
+}
+
+/**
+ * Parse TS MapSnapshot source-save field order.
+ */
+export function parseTsGameStateMapXferFields(source: string): string[] {
+  const start = source.indexOf('class MapSnapshot');
+  if (start < 0) {
+    return [];
+  }
+  const end = source.indexOf('class CampaignSnapshot', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  pushIfFound(fields, body, 'version', /xfer\.xferVersion\s*\(/);
+  pushIfFound(fields, body, 'saveGameMapPath', /this\.state\.saveGameMapPath\s*=\s*xfer\.xferAsciiString\s*\(/);
+  pushIfFound(fields, body, 'pristineMapPath', /this\.state\.pristineMapPath\s*=\s*xfer\.xferAsciiString\s*\(/);
+  pushIfFound(fields, body, 'gameMode', /this\.state\.gameMode\s*=\s*xfer\.xferInt\s*\(/);
+  pushIfFound(fields, body, 'embeddedMapBytes', /this\.state\.embeddedMapBytes|xfer\.xferUser\s*\(\s*this\.state\.embeddedMapBytes\s*\)/);
+  pushIfFound(fields, body, 'objectIdCounter', /this\.state\.objectIdCounter\s*=\s*xfer\.xferObjectID\s*\(/);
+  pushIfFound(fields, body, 'drawableIdCounter', /this\.state\.drawableIdCounter\s*=\s*xfer\.xferUnsignedInt\s*\(/);
+  pushIfFound(fields, body, 'skirmishGameInfoSnapshot', /this\.state\.skirmishGameInfoState\s*=\s*xferChallengeGameInfoState\s*\(/);
+  return fields;
+}
+
+/**
+ * Parse C++ SkirmishGameInfo::xfer field order.
+ */
+export function parseCppSkirmishGameInfoXferFields(source: string): string[] {
+  const start = source.indexOf('void SkirmishGameInfo::xfer( Xfer *xfer )');
+  if (start < 0) {
+    return [];
+  }
+  const end = source.indexOf('}  // end xfer', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const fieldRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = fieldRegex.exec(body)) !== null) {
+    const method = match[1]!;
+    const argument = match[2]!.replace(/^&\s*/, '').trim();
+    const label = mapCppSkirmishGameInfoField(method, argument);
+    if (label) {
+      fields.push(label);
+    }
+  }
+  return fields;
+}
+
+/**
+ * Parse TS xferChallengeGameInfoState field order.
+ */
+export function parseTsSkirmishGameInfoXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferChallengeGameInfoState');
+  if (!body) {
+    return [];
+  }
+  const slotFields = parseTsSkirmishGameSlotXferFields(source);
+  const fields: string[] = [];
+  const tokenRegex =
+    /(?:const|let)\s+(\w+)\s*=\s*xfer\.xfer\w+\s*\(|(\w+)\s*=\s*xfer\.xfer\w+\s*\(|(\w+)\s*=\s*xferMoneyAmount\s*\(|xfer\.xferBool\s*\(\s*false\s*\)|xferChallengeGameSlotState\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[0]!.startsWith('xferChallengeGameSlotState')) {
+      fields.push(...slotFields);
+      continue;
+    }
+    if (match[0]!.startsWith('xfer.xferBool')) {
+      fields.push('version3ObsoleteBool');
+      continue;
+    }
+    const rawName = match[1] ?? match[2] ?? match[3];
+    const label = rawName ? mapTsSkirmishGameInfoField(rawName) : null;
+    if (label) {
+      fields.push(label);
+    }
+  }
+  return fields;
+}
+
 function extractQuotedStrings(text: string): string[] {
   const names: string[] = [];
   const regex = /["']([^"']+)["']/g;
@@ -240,6 +347,128 @@ function extractQuotedStrings(text: string): string[] {
     names.push(m[1]!);
   }
   return names;
+}
+
+function pushIfFound(fields: string[], body: string, label: string, pattern: RegExp): void {
+  if (pattern.test(body)) {
+    fields.push(label);
+  }
+}
+
+function extractFunctionBody(source: string, signature: string): string | null {
+  const start = source.indexOf(signature);
+  if (start < 0) {
+    return null;
+  }
+  const openBrace = source.indexOf('{', start);
+  if (openBrace < 0) {
+    return null;
+  }
+  let depth = 0;
+  for (let index = openBrace; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === '{') {
+      depth += 1;
+    } else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(openBrace, index + 1);
+      }
+    }
+  }
+  return null;
+}
+
+function parseTsSkirmishGameSlotXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferChallengeGameSlotState');
+  if (!body) {
+    return [];
+  }
+  const fields: string[] = [];
+  const fieldRegex = /const\s+(\w+)\s*=\s*(?:version\s+>=\s+2\s+\?\s*)?xfer\.xfer\w+\s*\(/g;
+  let match;
+  while ((match = fieldRegex.exec(body)) !== null) {
+    const rawName = match[1]!;
+    const label = mapTsSkirmishGameInfoField(rawName);
+    if (label?.startsWith('slot.')) {
+      fields.push(label);
+    }
+  }
+  return fields;
+}
+
+function mapCppSkirmishGameInfoField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') {
+    return 'version';
+  }
+  if (method === 'xferMapName' && argument === 'm_mapName') {
+    return 'mapName';
+  }
+  if (method === 'xferSnapshot' && argument === 'm_startingCash') {
+    return 'startingCash';
+  }
+  const normalized = argument.replace(/^m_/, '');
+  const mappings = new Map<string, string>([
+    ['preorderMask', 'preorderMask'],
+    ['crcInterval', 'crcInterval'],
+    ['inGame', 'inGame'],
+    ['inProgress', 'inProgress'],
+    ['surrendered', 'surrendered'],
+    ['gameID', 'gameId'],
+    ['slot', 'slotCount'],
+    ['state', 'slot.state'],
+    ['name', 'slot.name'],
+    ['isAccepted', 'slot.isAccepted'],
+    ['isMuted', 'slot.isMuted'],
+    ['color', 'slot.color'],
+    ['startPos', 'slot.startPos'],
+    ['playerTemplate', 'slot.playerTemplate'],
+    ['teamNumber', 'slot.teamNumber'],
+    ['origColor', 'slot.origColor'],
+    ['origStartPos', 'slot.origStartPos'],
+    ['origPlayerTemplate', 'slot.origPlayerTemplate'],
+    ['localIP', 'localIp'],
+    ['mapCRC', 'mapCrc'],
+    ['mapSize', 'mapSize'],
+    ['mapMask', 'mapMask'],
+    ['seed', 'seed'],
+    ['superweaponRestriction', 'superweaponRestriction'],
+    ['obsoleteBool', 'version3ObsoleteBool'],
+  ]);
+  return mappings.get(normalized) ?? null;
+}
+
+function mapTsSkirmishGameInfoField(rawName: string): string | null {
+  const mappings = new Map<string, string>([
+    ['version', 'version'],
+    ['preorderMask', 'preorderMask'],
+    ['crcInterval', 'crcInterval'],
+    ['inGame', 'inGame'],
+    ['inProgress', 'inProgress'],
+    ['surrendered', 'surrendered'],
+    ['gameId', 'gameId'],
+    ['slotCount', 'slotCount'],
+    ['state', 'slot.state'],
+    ['name', 'slot.name'],
+    ['isAccepted', 'slot.isAccepted'],
+    ['isMuted', 'slot.isMuted'],
+    ['color', 'slot.color'],
+    ['startPos', 'slot.startPos'],
+    ['playerTemplate', 'slot.playerTemplate'],
+    ['teamNumber', 'slot.teamNumber'],
+    ['origColor', 'slot.origColor'],
+    ['origStartPos', 'slot.origStartPos'],
+    ['origPlayerTemplate', 'slot.origPlayerTemplate'],
+    ['localIp', 'localIp'],
+    ['mapName', 'mapName'],
+    ['mapCrc', 'mapCrc'],
+    ['mapSize', 'mapSize'],
+    ['mapMask', 'mapMask'],
+    ['seed', 'seed'],
+    ['superweaponRestriction', 'superweaponRestriction'],
+    ['startingCash', 'startingCash'],
+  ]);
+  return mappings.get(rawName) ?? null;
 }
 
 // ── TS Port Extractors ──────────────────────────────────────────────────────
@@ -445,6 +674,14 @@ export function compareSaveGameInfoFields(cppFields: string[], tsFields: string[
   return compareOrderedStrings('save-game-info-fields', cppFields, tsFields);
 }
 
+export function compareGameStateMapFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-game-state-map-fields', cppFields, tsFields);
+}
+
+export function compareSkirmishGameInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-skirmish-game-info-fields', cppFields, tsFields);
+}
+
 function compareOrderedStrings(category: string, cppValues: string[], tsValues: string[]): ParityCategoryResult {
   const mismatches: ParityMismatch[] = [];
   const maxLength = Math.max(cppValues.length, tsValues.length);
@@ -572,6 +809,18 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genGameStateCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/System/SaveGame/GameState.cpp'),
   );
+  const zhGameStateMapCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/System/SaveGame/GameStateMap.cpp'),
+  );
+  const genGameStateMapCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/System/SaveGame/GameStateMap.cpp'),
+  );
+  const zhGameInfoCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameNetwork/GameInfo.cpp'),
+  );
+  const genGameInfoCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameNetwork/GameInfo.cpp'),
+  );
 
   // Read TS port source
   const tsIndexPath = path.join(rootDir, 'packages/game-logic/src/index.ts');
@@ -618,6 +867,20 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsSaveGameInfoFields = parseTsSaveGameInfoXferFields(tsRuntimeSave);
   if (cppSaveGameInfoFields.length > 0 && tsSaveGameInfoFields.length > 0) {
     categories.push(compareSaveGameInfoFields(cppSaveGameInfoFields, tsSaveGameInfoFields));
+  }
+
+  const gameStateMapSource = zhGameStateMapCpp || genGameStateMapCpp;
+  const cppGameStateMapFields = parseCppGameStateMapXferFields(gameStateMapSource);
+  const tsGameStateMapFields = parseTsGameStateMapXferFields(tsRuntimeSave);
+  if (cppGameStateMapFields.length > 0 && tsGameStateMapFields.length > 0) {
+    categories.push(compareGameStateMapFields(cppGameStateMapFields, tsGameStateMapFields));
+  }
+
+  const gameInfoSource = zhGameInfoCpp || genGameInfoCpp;
+  const cppSkirmishGameInfoFields = parseCppSkirmishGameInfoXferFields(gameInfoSource);
+  const tsSkirmishGameInfoFields = parseTsSkirmishGameInfoXferFields(tsRuntimeSave);
+  if (cppSkirmishGameInfoFields.length > 0 && tsSkirmishGameInfoFields.length > 0) {
+    categories.push(compareSkirmishGameInfoFields(cppSkirmishGameInfoFields, tsSkirmishGameInfoFields));
   }
 
   return buildSourceParityReport(categories);
