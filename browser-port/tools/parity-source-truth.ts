@@ -3002,8 +3002,12 @@ function sourceDrawableModuleBaseFields(): string[] {
   return ['drawableModule.version', 'module.version'];
 }
 
+function sourceBehaviorModuleBaseFields(): string[] {
+  return ['behavior.version', 'objectModule.version', 'module.version'];
+}
+
 function sourceUpdateModuleBaseFields(): string[] {
-  return ['update.version', 'behavior.version', 'objectModule.version', 'module.version', 'nextCallFrameAndPhase'];
+  return ['update.version', ...sourceBehaviorModuleBaseFields(), 'nextCallFrameAndPhase'];
 }
 
 function sourceUpgradeMuxFields(): string[] {
@@ -3339,11 +3343,14 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppGrantStealthBehaviorField;
   } else if (className === 'CountermeasuresBehavior') {
     mapper = mapCppCountermeasuresBehaviorField;
+  } else if (className === 'OverchargeBehavior') {
+    mapper = mapCppOverchargeBehaviorField;
   }
   return parseCppSimpleModuleFields(
     source,
     `void ${className}::xfer( Xfer *xfer )`,
     {
+      'BehaviorModule::xfer': sourceBehaviorModuleBaseFields(),
       'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
       'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
       'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
@@ -3366,7 +3373,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:UpdateModuleBase|ObjectIdListByUnsignedShortCount|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:BehaviorModuleBase|UpdateModuleBase|ObjectIdListByUnsignedShortCount|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -3404,6 +3411,12 @@ export function parseTsSourceObjectUpdateFields(
     }
     if (token.includes('xferSourceUpdateModuleBase')) {
       for (const field of sourceUpdateModuleBaseFields()) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSourceBehaviorModuleBase')) {
+      for (const field of sourceBehaviorModuleBaseFields()) {
         pushUniqueField(fields, seen, field);
       }
       continue;
@@ -5568,6 +5581,11 @@ function mapCppCountermeasuresBehaviorField(method: string, argument: string): s
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppOverchargeBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferBool' && argument === 'm_overchargeActive') return 'overchargeActive';
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -5707,6 +5725,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('inTunnel')) return 'inTunnel';
     if (window.includes('held')) return 'held';
     if (window.includes('autoHealStopped')) return 'stopped';
+    if (window === 'saver.xferBool(active);') return 'overchargeActive';
     if (window.includes('invalidSettings')) return 'invalidSettings';
     if (window.includes('centeringTurret')) return 'centeringTurret';
     if (window.includes('repairing')) return 'repairing';
@@ -7959,7 +7978,9 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'BoneFXUpdate.cpp',
     '../Behavior/CountermeasuresBehavior.cpp',
     '../Behavior/DumbProjectileBehavior.cpp',
+    '../Behavior/FireWeaponWhenDeadBehavior.cpp',
     '../Behavior/GrantStealthBehavior.cpp',
+    '../Behavior/OverchargeBehavior.cpp',
     '../Behavior/PropagandaTowerBehavior.cpp',
     '../Behavior/RebuildHoleBehavior.cpp',
     'CheckpointUpdate.cpp',
@@ -8911,6 +8932,17 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-countermeasures-behavior-fields',
       cppClass: 'CountermeasuresBehavior',
       tsHelper: 'buildSourceCountermeasuresBehaviorBlockData',
+      hasUpgradeMux: true,
+    },
+    {
+      category: 'save-overcharge-behavior-fields',
+      cppClass: 'OverchargeBehavior',
+      tsHelper: 'buildSourceOverchargeBehaviorBlockData',
+    },
+    {
+      category: 'save-fire-weapon-when-dead-behavior-fields',
+      cppClass: 'FireWeaponWhenDeadBehavior',
+      tsHelper: 'buildSourceFireWeaponWhenDeadBehaviorBlockData',
       hasUpgradeMux: true,
     },
     {

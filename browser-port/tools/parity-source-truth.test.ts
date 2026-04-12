@@ -1340,6 +1340,8 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-auto-heal-behavior-fields',
         'save-grant-stealth-behavior-fields',
         'save-countermeasures-behavior-fields',
+        'save-overcharge-behavior-fields',
+        'save-fire-weapon-when-dead-behavior-fields',
         'save-point-defense-laser-update-fields',
         'save-emp-update-fields',
         'save-radar-update-fields',
