@@ -10916,6 +10916,42 @@ describe('runtime-save-game', () => {
     expect(parseSaveGameMapInfo(rebuilt.data).drawableIdCounter).toBe(1200);
   });
 
+  it('rewrites parseable unattached source GameClient drawables from structured state', () => {
+    const mapData = createTinyRuntimeMapData();
+    const incomingSave = buildRuntimeSaveFile({
+      description: 'Structured Unattached Drawable Save',
+      mapPath: 'assets/maps/TestMap.json',
+      mapData,
+      cameraState: null,
+      gameClientState: {
+        version: 3,
+        prefixBytes: new ArrayBuffer(0),
+        briefingLines: ['MISSION_ALPHA'],
+        drawables: [{
+          templateName: 'LegacyScorchMark',
+          objectId: 0,
+          blockData: createSourceLikeGameClientDrawableBlockData(0, 901),
+        }],
+      },
+      gameLogic: createMinimalRuntimeGameLogic(),
+    });
+    const parsed = parseRuntimeSaveFile(incomingSave.data);
+
+    const rebuilt = buildRuntimeSaveFile({
+      description: parsed.metadata.description,
+      mapPath: parsed.mapPath,
+      mapData: parsed.mapData ?? mapData,
+      cameraState: parsed.cameraState,
+      tacticalViewState: parsed.tacticalViewState,
+      gameClientState: parsed.gameClientState,
+      gameLogic: createMinimalRuntimeGameLogic(),
+    });
+
+    expect(readSaveChunkData(rebuilt.data, 'CHUNK_GameClient')).toEqual(
+      readSaveChunkData(incomingSave.data, 'CHUNK_GameClient'),
+    );
+  });
+
   it('preserves unsupported source drawable fields when replacing attached GameClient drawables', () => {
     const mapData = {
       heightmap: {

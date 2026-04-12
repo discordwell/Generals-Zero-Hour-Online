@@ -861,9 +861,13 @@ interface RuntimeSaveDrawableSourceFallbackState {
   readonly selectionFlashEnvelopeBytes: Uint8Array | null;
   readonly colorTintEnvelopeBytes: Uint8Array | null;
   readonly terrainDecalType: number;
+  readonly explicitOpacity: number;
+  readonly stealthOpacity: number;
+  readonly effectiveStealthOpacity: number;
   readonly decalOpacityFadeTarget: number;
   readonly decalOpacityFadeRate: number;
   readonly decalOpacity: number;
+  readonly shroudStatusObjectId: number;
   readonly statusBits: number;
   readonly tintStatus: number;
   readonly prevTintStatus: number;
@@ -871,8 +875,11 @@ interface RuntimeSaveDrawableSourceFallbackState {
   readonly timeElapsedFade: number;
   readonly timeToFade: number;
   readonly locoInfoBytes: Uint8Array | null;
+  readonly drawableModuleBlocks: readonly SourceDrawableModuleBlockState[];
   readonly drawableModuleBlockDataByKey: ReadonlyMap<string, Uint8Array>;
   readonly stealthLook: number;
+  readonly flashCount: number;
+  readonly flashColor: number;
   readonly hidden: boolean;
   readonly hiddenByStealth: boolean;
   readonly secondMaterialPassOpacity: number;
@@ -884,6 +891,12 @@ interface RuntimeSaveDrawableSourceFallbackState {
   readonly ambientSoundEnabled: boolean;
   readonly ambientSoundEnabledFromScript: boolean;
   readonly customAmbientSoundBytes: Uint8Array;
+}
+
+interface SourceDrawableModuleBlockState {
+  readonly moduleTypeIndex: number;
+  readonly moduleTag: string;
+  readonly blockData: Uint8Array;
 }
 
 interface RuntimeSaveRawGameClientDrawableState {
@@ -2700,16 +2713,20 @@ function readSourceDrawableEnvelopeBytes(
   return rawBytes.slice(envelopeStart, xferLoad.getOffset());
 }
 
-function parseSourceDrawableModuleBlockDataByKey(
+function parseSourceDrawableModuleBlocks(
   xferLoad: XferLoad,
   rawBytes: Uint8Array,
-): Map<string, Uint8Array> {
+): {
+  blockDataByKey: Map<string, Uint8Array>;
+  blocks: SourceDrawableModuleBlockState[];
+} {
   const version = xferLoad.xferVersion(1);
   if (version !== 1) {
     throw new Error(`Unsupported source drawable module list version ${version}`);
   }
   const moduleTypeCount = xferLoad.xferUnsignedShort(0);
   const blockDataByKey = new Map<string, Uint8Array>();
+  const blocks: SourceDrawableModuleBlockState[] = [];
   for (let moduleTypeIndex = 0; moduleTypeIndex < moduleTypeCount; moduleTypeIndex += 1) {
     const moduleCount = xferLoad.xferUnsignedShort(0);
     for (let moduleIndex = 0; moduleIndex < moduleCount; moduleIndex += 1) {
@@ -2718,13 +2735,15 @@ function parseSourceDrawableModuleBlockDataByKey(
       const blockStart = xferLoad.getOffset();
       xferLoad.skip(blockSize);
       xferLoad.endBlock();
+      const blockData = rawBytes.slice(blockStart, blockStart + blockSize);
       blockDataByKey.set(
         sourceDrawableModuleBlockKey(moduleTypeIndex, moduleTag),
-        rawBytes.slice(blockStart, blockStart + blockSize),
+        blockData,
       );
+      blocks.push({ moduleTypeIndex, moduleTag, blockData });
     }
   }
-  return blockDataByKey;
+  return { blockDataByKey, blocks };
 }
 
 function readSourceDrawableIconBytes(
@@ -2772,13 +2791,13 @@ function parseRawGameClientDrawableFallback(
     const selectionFlashEnvelopeBytes = readSourceDrawableEnvelopeBytes(xferLoad, rawBytes);
     const colorTintEnvelopeBytes = readSourceDrawableEnvelopeBytes(xferLoad, rawBytes);
     const terrainDecalType = xferLoad.xferInt(TERRAIN_DECAL_NONE);
-    xferLoad.xferReal(1);
-    xferLoad.xferReal(1);
-    xferLoad.xferReal(1);
+    const explicitOpacity = xferLoad.xferReal(1);
+    const stealthOpacity = xferLoad.xferReal(1);
+    const effectiveStealthOpacity = xferLoad.xferReal(1);
     const decalOpacityFadeTarget = xferLoad.xferReal(0);
     const decalOpacityFadeRate = xferLoad.xferReal(0);
     const decalOpacity = xferLoad.xferReal(0);
-    xferLoad.xferObjectID(0);
+    const shroudStatusObjectId = xferLoad.xferObjectID(0);
     const statusBits = xferLoad.xferUnsignedInt(0);
     const tintStatus = xferLoad.xferUnsignedInt(0);
     const prevTintStatus = xferLoad.xferUnsignedInt(0);
@@ -2793,10 +2812,10 @@ function parseRawGameClientDrawableFallback(
       xferLoad.skip(SOURCE_DRAWABLE_LOCO_INFO_BYTE_LENGTH);
     }
 
-    const drawableModuleBlockDataByKey = parseSourceDrawableModuleBlockDataByKey(xferLoad, rawBytes);
+    const drawableModuleBlocks = parseSourceDrawableModuleBlocks(xferLoad, rawBytes);
     const stealthLook = xferLoad.xferInt(STEALTHLOOK_NONE);
-    xferLoad.xferInt(0);
-    xferLoad.xferColor(0);
+    const flashCount = xferLoad.xferInt(0);
+    const flashColor = xferLoad.xferColor(0);
     const hidden = xferLoad.xferBool(false);
     const hiddenByStealth = xferLoad.xferBool(false);
     const secondMaterialPassOpacity = xferLoad.xferReal(0);
@@ -2822,9 +2841,13 @@ function parseRawGameClientDrawableFallback(
       selectionFlashEnvelopeBytes,
       colorTintEnvelopeBytes,
       terrainDecalType,
+      explicitOpacity,
+      stealthOpacity,
+      effectiveStealthOpacity,
       decalOpacityFadeTarget,
       decalOpacityFadeRate,
       decalOpacity,
+      shroudStatusObjectId,
       statusBits,
       tintStatus,
       prevTintStatus,
@@ -2832,7 +2855,8 @@ function parseRawGameClientDrawableFallback(
       timeElapsedFade,
       timeToFade,
       locoInfoBytes,
-      drawableModuleBlockDataByKey,
+      drawableModuleBlocks: drawableModuleBlocks.blocks,
+      drawableModuleBlockDataByKey: drawableModuleBlocks.blockDataByKey,
       stealthLook,
       hidden,
       hiddenByStealth,
@@ -2845,10 +2869,83 @@ function parseRawGameClientDrawableFallback(
       ambientSoundEnabled,
       ambientSoundEnabledFromScript,
       customAmbientSoundBytes,
+      flashCount,
+      flashColor,
     };
   } finally {
     xferLoad.close();
   }
+}
+
+function sourceDrawableModuleDescriptorsFromFallback(
+  fallback: RuntimeSaveDrawableSourceFallbackState,
+): GameLogicSourceDrawableModuleDescriptor[] {
+  const descriptors: GameLogicSourceDrawableModuleDescriptor[] = [];
+  for (const block of fallback.drawableModuleBlocks) {
+    if (!Number.isInteger(block.moduleTypeIndex) || block.moduleTag.length === 0) {
+      continue;
+    }
+    descriptors.push({
+      moduleType: 'RawSourceDrawableModule',
+      moduleTag: block.moduleTag,
+      moduleKind: block.moduleTypeIndex === 0 ? 'draw' : 'client-update',
+    });
+  }
+  return descriptors;
+}
+
+function parseRawGameClientDrawableSnapshotState(
+  drawable: RuntimeSaveRawGameClientDrawableState,
+): RuntimeSaveDrawableSnapshotState | null {
+  const fallback = parseRawGameClientDrawableFallback(drawable.blockData);
+  if (fallback === null) {
+    return null;
+  }
+  const xferLoad = new XferLoad(drawable.blockData.slice(0));
+  xferLoad.open('parse-raw-game-client-drawable-snapshot');
+  try {
+    const objectId = xferLoad.xferObjectID(0);
+    const version = xferLoad.xferVersion(7);
+    if (version !== 7) {
+      return null;
+    }
+    const drawableId = xferLoad.xferUnsignedInt(0);
+    const modelConditionFlags = xferModelConditionFlags(xferLoad, []);
+    const transformMatrixBytes = copyBytesToArrayBuffer(
+      xferLoad.xferUser(new Uint8Array(SOURCE_MATRIX3D_BYTE_LENGTH)),
+    );
+    return {
+      drawableId,
+      objectId,
+      templateName: drawable.templateName,
+      sourceDrawableModuleDescriptors: sourceDrawableModuleDescriptorsFromFallback(fallback),
+      sourceDrawableFallback: fallback,
+      modelConditionFlags,
+      transformMatrixBytes: new Uint8Array(transformMatrixBytes),
+      statusBits: fallback.statusBits,
+      explicitOpacity: fallback.explicitOpacity,
+      stealthOpacity: fallback.stealthOpacity,
+      effectiveStealthOpacity: fallback.effectiveStealthOpacity,
+      ambientSoundEnabled: fallback.ambientSoundEnabled,
+      ambientSoundEnabledFromScript: fallback.ambientSoundEnabledFromScript,
+      flashCount: fallback.flashCount,
+      flashColor: fallback.flashColor,
+      hidden: fallback.hidden,
+      hiddenByStealth: fallback.hiddenByStealth,
+      shroudStatusObjectId: fallback.shroudStatusObjectId,
+    };
+  } finally {
+    xferLoad.close();
+  }
+}
+
+function buildGameClientDrawableEntryFromRaw(
+  drawable: RuntimeSaveRawGameClientDrawableState,
+): RuntimeSaveGameClientDrawableEntry {
+  const parsedState = parseRawGameClientDrawableSnapshotState(drawable);
+  return parsedState
+    ? { kind: 'generated', state: parsedState }
+    : { kind: 'raw', state: drawable };
 }
 
 function withSourceDrawableFallback(
@@ -2873,7 +2970,7 @@ function buildGameClientDrawableEntries(
     return generatedDrawables.map((state) => ({ kind: 'generated', state }));
   }
   if (generatedDrawables.length === 0) {
-    return rawDrawables.map((state) => ({ kind: 'raw', state }));
+    return rawDrawables.map((state) => buildGameClientDrawableEntryFromRaw(state));
   }
 
   const remainingGeneratedByObjectId = new Map<number, RuntimeSaveDrawableSnapshotState>();
@@ -2902,7 +2999,7 @@ function buildGameClientDrawableEntries(
         continue;
       }
     }
-    mergedEntries.push({ kind: 'raw', state: drawable });
+    mergedEntries.push(buildGameClientDrawableEntryFromRaw(drawable));
   }
 
   const remainingGenerated = [
@@ -2969,7 +3066,7 @@ class DrawableSnapshot implements Snapshot {
   constructor(private readonly state: RuntimeSaveDrawableSnapshotState) {}
 
   crc(_xfer: Xfer): void {
-    // Source drawables loaded from C++ saves are preserved as raw GameClient blocks.
+    // Drawable snapshot CRC is not part of source parity CRC yet.
   }
 
   xfer(xfer: Xfer): void {
