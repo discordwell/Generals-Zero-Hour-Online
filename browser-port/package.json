@@ -28,6 +28,7 @@
     "report:ui-layout": "vite build && tsx tools/ui-layout-parity-report.ts",
     "report:blockers": "tsx tools/blocker-parity-report.ts",
     "fixtures:import-source-saves": "tsx tools/import-source-save-fixtures.ts",
+    "fixtures:carve-source-saves": "tsx tools/source-save-carver.ts",
     "test:ini": "vitest run --reporter=verbose packages/core/src/ini packages/ini-data/src",
     "test:converters": "vitest run --reporter=verbose tools/*/src",
     "lint": "eslint 'packages/*/src/**/*.ts' 'tools/*/src/**/*.ts'",

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildRuntimeSaveFile } from '../packages/app/src/runtime-save-game.js';
 import { importSourceSaveFixtures } from './import-source-save-fixtures.js';
+import { carveSourceSaveFixtures, findSourceSaveCandidatesInFile } from './source-save-carver.js';
 
 function createEmptyRadarEventState() {
   return {
@@ -155,6 +156,84 @@ describe('import source save fixtures', () => {
         unchanged: 0,
       });
       expect(report.fixtures).toEqual([]);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('carves embedded source saves from opaque capture files without accepting browser saves', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'generals-source-save-carve-'));
+    try {
+      const outputDir = join(tempDir, 'fixtures');
+      const capturePath = join(tempDir, 'disk-capture.bin');
+      const sourceSave = buildSourceLikeSave();
+      const browserSave = Buffer.from(buildRuntimeSaveFile({
+        description: 'Browser Save',
+        mapPath: 'assets/maps/BrowserFixture.json',
+        mapData: {
+          heightmap: {
+            width: 1,
+            height: 1,
+            borderSize: 0,
+            data: 'AAAAAA==',
+          },
+          objects: [],
+          triggers: [],
+          waypoints: { nodes: [], links: [] },
+          textureClasses: [],
+          blendTileCount: 0,
+        },
+        cameraState: null,
+        includeBrowserRuntimeCoreState: true,
+        gameLogic: createRoundTripGameLogic(6),
+      }).data);
+      const prefix = Buffer.from([
+        0x00,
+        ...Buffer.from('CHUNK_GameState', 'ascii'),
+        0x41,
+        0x42,
+        0x43,
+      ]);
+      writeFileSync(capturePath, Buffer.concat([
+        prefix,
+        sourceSave,
+        Buffer.from([0xde, 0xad, 0xbe, 0xef]),
+        browserSave,
+      ]));
+
+      const candidates = findSourceSaveCandidatesInFile(capturePath, {
+        scanChunkBytes: 32,
+        maxCarveBytes: sourceSave.byteLength + browserSave.byteLength + 32,
+      });
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0]?.offset).toBe(prefix.byteLength);
+      expect(candidates[0]?.data).toEqual(sourceSave);
+
+      const report = carveSourceSaveFixtures({
+        inputPaths: [capturePath],
+        outputDir,
+        scanChunkBytes: 32,
+        maxCarveBytes: sourceSave.byteLength + browserSave.byteLength + 32,
+      });
+
+      expect(report.summary).toEqual({
+        scannedPaths: 1,
+        scannedFiles: 1,
+        sourceSaveCandidates: 1,
+        imported: 1,
+        unchanged: 0,
+      });
+      expect(report.fixtures).toHaveLength(1);
+      expect(readFileSync(report.fixtures[0]!.fixturePath)).toEqual(sourceSave);
+
+      const secondReport = carveSourceSaveFixtures({
+        inputPaths: [capturePath],
+        outputDir,
+        scanChunkBytes: 32,
+        maxCarveBytes: sourceSave.byteLength + browserSave.byteLength + 32,
+      });
+      expect(secondReport.summary.imported).toBe(0);
+      expect(secondReport.summary.unchanged).toBe(1);
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
