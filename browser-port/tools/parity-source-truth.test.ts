@@ -1181,6 +1181,30 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(inGameUiCategory).toBeDefined();
       expect(inGameUiCategory!.status).toBe('match');
 
+      const gameLogicObjectTocCategory = report.categories.find((c) =>
+        c.category === 'save-game-logic-object-toc-fields');
+      expect(gameLogicObjectTocCategory).toBeDefined();
+      expect(gameLogicObjectTocCategory!.status).toBe('match');
+
+      const buildAssistantSellListCategory = report.categories.find((c) =>
+        c.category === 'save-build-assistant-sell-list-fields');
+      expect(buildAssistantSellListCategory).toBeDefined();
+      expect(buildAssistantSellListCategory!.status).toBe('match');
+
+      const gameLogicBuildableOverrideCategory = report.categories.find((c) =>
+        c.category === 'save-game-logic-buildable-overrides-fields');
+      expect(gameLogicBuildableOverrideCategory).toBeDefined();
+      expect(gameLogicBuildableOverrideCategory!.status).toBe('match');
+
+      const gameLogicControlBarOverrideCategory = report.categories.find((c) =>
+        c.category === 'save-game-logic-control-bar-overrides-fields');
+      expect(gameLogicControlBarOverrideCategory).toBeDefined();
+      expect(gameLogicControlBarOverrideCategory!.status).toBe('match');
+
+      const gameLogicCategory = report.categories.find((c) => c.category === 'save-game-logic-fields');
+      expect(gameLogicCategory).toBeDefined();
+      expect(gameLogicCategory!.status).toBe('match');
+
       const radarCategory = report.categories.find((c) => c.category === 'save-radar-fields');
       expect(radarCategory).toBeDefined();
       expect(radarCategory!.status).toBe('match');

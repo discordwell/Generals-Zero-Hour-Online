@@ -492,6 +492,152 @@ export function parseTsInGameUiXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppGameLogicObjectTocXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void GameLogic::xferObjectTOC');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppGameLogicObjectTocField);
+}
+
+export function parseTsGameLogicObjectTocXferFields(source: string): string[] {
+  const start = source.indexOf('function buildSourceGameLogicChunk');
+  if (start < 0) return [];
+  const tocStart = source.indexOf('saver.xferVersion(1);', start);
+  if (tocStart < 0) return [];
+  const end = source.indexOf('saver.xferUnsignedInt(sourceState.objects.length', tocStart);
+  const body = source.slice(tocStart, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /saver\.xferVersion\s*\(\s*1\s*\)|saver\.xferUnsignedInt\s*\(\s*objectTocEntries\.length\s*\)|saver\.xferAsciiString\s*\(\s*tocEntry\.templateName\s*\)|saver\.xferUnsignedShort\s*\(\s*tocEntry\.tocId\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsGameLogicObjectTocField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppBuildAssistantSellListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void BuildAssistant::xferTheSellList');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppBuildAssistantSellListField);
+}
+
+export function parseTsSourceSellingEntitiesXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceSellingEntities');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferInt\s*\(\s*entries\.length\s*\)|entityId:\s*xfer\.xferObjectID\s*\(\s*0\s*\)|sellFrame:\s*xfer\.xferUnsignedInt\s*\(\s*0\s*\)|xfer\.xferObjectID\s*\(\s*entry\.entityId\s*\)|xfer\.xferUnsignedInt\s*\(\s*entry\.sellFrame\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsSourceSellingEntitiesField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppGameLogicBuildableOverrideMapXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void GameLogic::xfer( Xfer *xfer )');
+  if (!body) return [];
+  const start = body.indexOf('m_thingTemplateBuildableOverrides.begin()');
+  if (start < 0) return [];
+  const end = body.indexOf('if (version >= 8)', start);
+  const buildableBody = body.slice(start, end < 0 ? undefined : end);
+  return parseCppXferFields(buildableBody, mapCppGameLogicBuildableOverrideMapField);
+}
+
+export function parseTsGameLogicBuildableOverrideMapXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceBuildableOverrideMap');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /const templateName\s*=\s*xfer\.xferAsciiString\s*\(\s*''\s*\)|buildableStatus:\s*decodeBuildableStatus\s*\(\s*xfer\.xferInt\s*\(\s*0\s*\)\s*\)|xfer\.xferAsciiString\s*\(\s*override\.templateName\s*\)|xfer\.xferInt\s*\(\s*encodeBuildableStatus|xfer\.xferAsciiString\s*\(\s*''\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsGameLogicBuildableOverrideMapField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppGameLogicControlBarOverrideMapXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void GameLogic::xfer( Xfer *xfer )');
+  if (!body) return [];
+  const start = body.indexOf('m_controlBarOverrides.begin()');
+  if (start < 0) return [];
+  const end = body.indexOf('if (version >= 9)', start);
+  const controlBarBody = body.slice(start, end < 0 ? undefined : end);
+  return parseCppXferFields(controlBarBody, mapCppGameLogicControlBarOverrideMapField);
+}
+
+export function parseTsGameLogicControlBarOverrideMapXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceControlBarOverrideMapEntries');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /const name\s*=\s*xfer\.xferAsciiString\s*\(\s*''\s*\)|const commandButtonName\s*=\s*xfer\.xferAsciiString\s*\(\s*''\s*\)|xfer\.xferAsciiString\s*\(\s*entry\.name\s*\)|xfer\.xferAsciiString\s*\(\s*entry\.commandButtonName\s*\?\?\s*''\s*\)|xfer\.xferAsciiString\s*\(\s*''\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsGameLogicControlBarOverrideMapField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppGameLogicXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void GameLogic::xfer( Xfer *xfer )');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xferObjectTOC\s*\(\s*xfer\s*\)|TheBuildAssistant->xferTheSellList\s*\(\s*xfer\s*\)|m_thingTemplateBuildableOverrides\.begin\s*\(\s*\)|m_controlBarOverrides\.begin\s*\(\s*\)|xfer->beginBlock\s*\(\s*\)|xfer->endBlock\s*\(\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[0]!.startsWith('xferObjectTOC')) {
+      pushUniqueField(fields, seen, 'objectTOC.snapshot');
+      continue;
+    }
+    if (match[0]!.startsWith('TheBuildAssistant->xferTheSellList')) {
+      pushUniqueField(fields, seen, 'sellList.snapshot');
+      continue;
+    }
+    if (match[0]!.startsWith('m_thingTemplateBuildableOverrides.begin')) {
+      pushUniqueField(fields, seen, 'buildableOverrides.map');
+      continue;
+    }
+    if (match[0]!.startsWith('m_controlBarOverrides.begin')) {
+      pushUniqueField(fields, seen, 'controlBarOverrides.map');
+      continue;
+    }
+    if (match[0]!.includes('beginBlock')) {
+      pushUniqueField(fields, seen, 'object.block.begin');
+      continue;
+    }
+    if (match[0]!.includes('endBlock')) {
+      pushUniqueField(fields, seen, 'object.block.end');
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppGameLogicField(match[1]!, normalizeCppXferArgument(match[2]!)));
+  }
+  return fields;
+}
+
+export function parseTsSourceGameLogicXferFields(source: string): string[] {
+  const start = source.indexOf('function buildSourceGameLogicChunk');
+  if (start < 0) return [];
+  const end = source.indexOf('\nexport function inspectGameLogicChunkLayout', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /saver\.xferVersion\s*\(\s*sourceState\.version\s*\)|saver\.xferUnsignedInt\s*\(\s*coreState\?\.frameCounter|saver\.xferVersion\s*\(\s*1\s*\)|saver\.xferUnsignedInt\s*\(\s*sourceState\.objects\.length|saver\.xferUnsignedShort\s*\(\s*object\.tocId\s*\)|saver\.beginBlock\s*\(\s*\)|saver\.xferUser\s*\(|saver\.endBlock\s*\(\s*\)|saver\.xferSnapshot\s*\(\s*new CampaignSnapshot|xferSourceCaveTrackerVector\s*\(|saver\.xferBool\s*\(\s*coreState\?\.scriptScoringEnabled|saver\.xferUnsignedInt\s*\(\s*sourceState\.polygonTriggers\.length\s*\)|saver\.xferInt\s*\(\s*polygonTrigger\.triggerId\s*\)|xferSourcePolygonTriggerSnapshot\s*\(|saver\.xferInt\s*\(\s*coreState\?\.rankLevelLimit|xferSourceSellingEntities\s*\(|xferSourceBuildableOverrideMap\s*\(|saver\.xferBool\s*\(\s*coreState\?\.showBehindBuildingMarkers|saver\.xferBool\s*\(\s*coreState\?\.drawIconUI|saver\.xferBool\s*\(\s*coreState\?\.showDynamicLOD|saver\.xferInt\s*\(\s*coreState\?\.scriptHulkMaxLifetimeOverride|xferSourceControlBarOverrideMapEntries\s*\(|saver\.xferInt\s*\(\s*coreState\?\.rankPointsToAddAtGameStart|saver\.xferUnsignedShort\s*\(\s*coreState\?\.superweaponRestriction/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsSourceGameLogicField(match[0]!));
+  }
+  return fields;
+}
+
 /**
  * Parse C++ Radar::xfer source-save field order.
  */
@@ -2093,6 +2239,116 @@ function mapTsInGameUiField(token: string): string | null {
   return null;
 }
 
+function mapCppGameLogicObjectTocField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedInt' && argument === 'tocCount') return 'tocCount';
+  if (method === 'xferAsciiString' && (argument === 'tocEntry->name' || argument === 'templateName')) {
+    return 'entry.templateName';
+  }
+  if (method === 'xferUnsignedShort' && (argument === 'tocEntry->id' || argument === 'id')) return 'entry.tocId';
+  return null;
+}
+
+function mapTsGameLogicObjectTocField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('objectTocEntries.length')) return 'tocCount';
+  if (token.includes('tocEntry.templateName')) return 'entry.templateName';
+  if (token.includes('tocEntry.tocId')) return 'entry.tocId';
+  return null;
+}
+
+function mapCppBuildAssistantSellListField(method: string, argument: string): string | null {
+  if (method === 'xferInt' && argument === 'count') return 'count';
+  if (method === 'xferObjectID' && argument === 'sellInfo->m_id') return 'entry.objectId';
+  if (method === 'xferUnsignedInt' && argument === 'sellInfo->m_sellFrame') return 'entry.sellFrame';
+  return null;
+}
+
+function mapTsSourceSellingEntitiesField(token: string): string | null {
+  if (token.includes('entries.length')) return 'count';
+  if (token.includes('xferObjectID')) return 'entry.objectId';
+  if (token.includes('xferUnsignedInt')) return 'entry.sellFrame';
+  return null;
+}
+
+function mapCppGameLogicBuildableOverrideMapField(method: string, argument: string): string | null {
+  if (method === 'xferAsciiString' && argument === 'name') return 'entry.templateName';
+  if (method === 'xferUser' && argument === 'bs, sizeof(bs') return 'entry.status';
+  if (method === 'xferAsciiString' && argument === 'empty') return 'terminator';
+  return null;
+}
+
+function mapTsGameLogicBuildableOverrideMapField(token: string): string | null {
+  if (token.includes('templateName')) return 'entry.templateName';
+  if (token.includes('xferInt')) return 'entry.status';
+  if (token.includes("xferAsciiString(''")) return 'terminator';
+  return null;
+}
+
+function mapCppGameLogicControlBarOverrideMapField(method: string, argument: string): string | null {
+  if (method === 'xferAsciiString' && argument === 'name') return 'entry.name';
+  if (method === 'xferAsciiString' && argument === 'value') return 'entry.commandButtonName';
+  if (method === 'xferAsciiString' && argument === 'empty') return 'terminator';
+  return null;
+}
+
+function mapTsGameLogicControlBarOverrideMapField(token: string): string | null {
+  if (token.includes('entry.name') || token.includes('const name')) return 'entry.name';
+  if (token.includes('commandButtonName')) return 'entry.commandButtonName';
+  if (token.includes("xferAsciiString(''")) return 'terminator';
+  return null;
+}
+
+function mapCppGameLogicField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedInt' && argument === 'm_frame') return 'frame';
+  if (method === 'xferUnsignedInt' && argument === 'objectCount') return 'objectCount';
+  if (method === 'xferUnsignedShort' && (argument === 'tocEntry->id' || argument === 'tocID')) return 'object.tocId';
+  if (method === 'xferSnapshot' && argument === 'obj') return 'object.snapshot';
+  if (method === 'xferSnapshot' && argument === 'TheCampaignManager') return 'campaign.snapshot';
+  if (method === 'xferSnapshot' && argument === 'TheCaveSystem') return 'caveSystem.snapshot';
+  if (method === 'xferBool' && argument === 'm_isScoringEnabled') return 'scoringEnabled';
+  if (method === 'xferUnsignedInt' && argument === 'triggerCount') return 'polygonTriggerCount';
+  if (method === 'xferInt' && argument === 'triggerID') return 'polygonTrigger.id';
+  if (method === 'xferSnapshot' && argument === 'poly') return 'polygonTrigger.snapshot';
+  if (method === 'xferInt' && argument === 'm_rankLevelLimit') return 'rankLevelLimit';
+  if (method === 'xferBool' && argument === 'm_showBehindBuildingMarkers') return 'showBehindBuildingMarkers';
+  if (method === 'xferBool' && argument === 'm_drawIconUI') return 'drawIconUI';
+  if (method === 'xferBool' && argument === 'm_showDynamicLOD') return 'showDynamicLOD';
+  if (method === 'xferInt' && argument === 'm_scriptHulkMaxLifetimeOverride') return 'scriptHulkMaxLifetimeOverride';
+  if (method === 'xferInt' && argument === 'm_rankPointsToAddAtGameStart') return 'rankPointsToAddAtGameStart';
+  if (method === 'xferUnsignedShort' && argument === 'm_superweaponRestriction') return 'superweaponRestriction';
+  return null;
+}
+
+function mapTsSourceGameLogicField(token: string): string | null {
+  if (token.includes('sourceState.version')) return 'version';
+  if (token.includes('frameCounter')) return 'frame';
+  if (token.includes('xferVersion(1')) return 'objectTOC.snapshot';
+  if (token.includes('sourceState.objects.length')) return 'objectCount';
+  if (token.includes('object.tocId')) return 'object.tocId';
+  if (token.includes('beginBlock')) return 'object.block.begin';
+  if (token.includes('xferUser')) return 'object.snapshot';
+  if (token.includes('endBlock')) return 'object.block.end';
+  if (token.includes('CampaignSnapshot')) return 'campaign.snapshot';
+  if (token.includes('xferSourceCaveTrackerVector')) return 'caveSystem.snapshot';
+  if (token.includes('scriptScoringEnabled')) return 'scoringEnabled';
+  if (token.includes('polygonTriggers.length')) return 'polygonTriggerCount';
+  if (token.includes('polygonTrigger.triggerId')) return 'polygonTrigger.id';
+  if (token.includes('xferSourcePolygonTriggerSnapshot')) return 'polygonTrigger.snapshot';
+  if (token.includes('rankLevelLimit')) return 'rankLevelLimit';
+  if (token.includes('xferSourceSellingEntities')) return 'sellList.snapshot';
+  if (token.includes('xferSourceBuildableOverrideMap')) return 'buildableOverrides.map';
+  if (token.includes('showBehindBuildingMarkers')) return 'showBehindBuildingMarkers';
+  if (token.includes('drawIconUI')) return 'drawIconUI';
+  if (token.includes('showDynamicLOD')) return 'showDynamicLOD';
+  if (token.includes('scriptHulkMaxLifetimeOverride')) return 'scriptHulkMaxLifetimeOverride';
+  if (token.includes('xferSourceControlBarOverrideMapEntries')) return 'controlBarOverrides.map';
+  if (token.includes('rankPointsToAddAtGameStart')) return 'rankPointsToAddAtGameStart';
+  if (token.includes('superweaponRestriction')) return 'superweaponRestriction';
+  return null;
+}
+
 function mapCppRadarField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferBool' && argument === 'm_radarHidden') return 'radarHidden';
@@ -3313,6 +3569,32 @@ export function compareInGameUiFields(cppFields: string[], tsFields: string[]): 
   return compareOrderedStrings('save-in-game-ui-fields', cppFields, tsFields);
 }
 
+export function compareGameLogicObjectTocFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-game-logic-object-toc-fields', cppFields, tsFields);
+}
+
+export function compareBuildAssistantSellListFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-build-assistant-sell-list-fields', cppFields, tsFields);
+}
+
+export function compareGameLogicBuildableOverrideMapFields(
+  cppFields: string[],
+  tsFields: string[],
+): ParityCategoryResult {
+  return compareOrderedStrings('save-game-logic-buildable-overrides-fields', cppFields, tsFields);
+}
+
+export function compareGameLogicControlBarOverrideMapFields(
+  cppFields: string[],
+  tsFields: string[],
+): ParityCategoryResult {
+  return compareOrderedStrings('save-game-logic-control-bar-overrides-fields', cppFields, tsFields);
+}
+
+export function compareGameLogicFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-game-logic-fields', cppFields, tsFields);
+}
+
 export function compareRadarFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-radar-fields', cppFields, tsFields);
 }
@@ -3631,6 +3913,18 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genInGameUiCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameClient/InGameUI.cpp'),
   );
+  const zhGameLogicCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/System/GameLogic.cpp'),
+  );
+  const genGameLogicCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/System/GameLogic.cpp'),
+  );
+  const zhBuildAssistantCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/System/BuildAssistant.cpp'),
+  );
+  const genBuildAssistantCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/System/BuildAssistant.cpp'),
+  );
   const zhRadarCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/System/Radar.cpp'),
   );
@@ -3835,6 +4129,48 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsInGameUiFields = parseTsInGameUiXferFields(tsRuntimeSave);
   if (cppInGameUiFields.length > 0 && tsInGameUiFields.length > 0) {
     categories.push(compareInGameUiFields(cppInGameUiFields, tsInGameUiFields));
+  }
+
+  const gameLogicSource = zhGameLogicCpp || genGameLogicCpp;
+  const cppGameLogicObjectTocFields = parseCppGameLogicObjectTocXferFields(gameLogicSource);
+  const tsGameLogicObjectTocFields = parseTsGameLogicObjectTocXferFields(tsRuntimeSave);
+  if (cppGameLogicObjectTocFields.length > 0 && tsGameLogicObjectTocFields.length > 0) {
+    categories.push(compareGameLogicObjectTocFields(cppGameLogicObjectTocFields, tsGameLogicObjectTocFields));
+  }
+
+  const buildAssistantSource = zhBuildAssistantCpp || genBuildAssistantCpp;
+  const cppBuildAssistantSellListFields = parseCppBuildAssistantSellListXferFields(buildAssistantSource);
+  const tsSourceSellingEntitiesFields = parseTsSourceSellingEntitiesXferFields(tsRuntimeSave);
+  if (cppBuildAssistantSellListFields.length > 0 && tsSourceSellingEntitiesFields.length > 0) {
+    categories.push(compareBuildAssistantSellListFields(
+      cppBuildAssistantSellListFields,
+      tsSourceSellingEntitiesFields,
+    ));
+  }
+
+  const cppGameLogicBuildableOverrideMapFields = parseCppGameLogicBuildableOverrideMapXferFields(gameLogicSource);
+  const tsGameLogicBuildableOverrideMapFields = parseTsGameLogicBuildableOverrideMapXferFields(tsRuntimeSave);
+  if (cppGameLogicBuildableOverrideMapFields.length > 0 && tsGameLogicBuildableOverrideMapFields.length > 0) {
+    categories.push(compareGameLogicBuildableOverrideMapFields(
+      cppGameLogicBuildableOverrideMapFields,
+      tsGameLogicBuildableOverrideMapFields,
+    ));
+  }
+
+  const cppGameLogicControlBarOverrideMapFields =
+    parseCppGameLogicControlBarOverrideMapXferFields(gameLogicSource);
+  const tsGameLogicControlBarOverrideMapFields = parseTsGameLogicControlBarOverrideMapXferFields(tsRuntimeSave);
+  if (cppGameLogicControlBarOverrideMapFields.length > 0 && tsGameLogicControlBarOverrideMapFields.length > 0) {
+    categories.push(compareGameLogicControlBarOverrideMapFields(
+      cppGameLogicControlBarOverrideMapFields,
+      tsGameLogicControlBarOverrideMapFields,
+    ));
+  }
+
+  const cppGameLogicFields = parseCppGameLogicXferFields(gameLogicSource);
+  const tsGameLogicFields = parseTsSourceGameLogicXferFields(tsRuntimeSave);
+  if (cppGameLogicFields.length > 0 && tsGameLogicFields.length > 0) {
+    categories.push(compareGameLogicFields(cppGameLogicFields, tsGameLogicFields));
   }
 
   const radarSource = zhRadarCpp || genRadarCpp;
