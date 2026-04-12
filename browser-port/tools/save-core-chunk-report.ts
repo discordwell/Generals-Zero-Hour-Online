@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { closeSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
 import { basename, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -58,6 +58,7 @@ export interface SaveCoreChunkCollectionReport {
 
 const SAVE_FIXTURE_EXTENSIONS = new Set(['.sav', '.save']);
 const SKIPPED_FIXTURE_DIRS = new Set(['.git', 'node_modules', 'dist', 'build']);
+const SOURCE_SAVE_FIRST_BLOCK = 'CHUNK_GameState';
 
 export function isSaveFixturePath(filePath: string): boolean {
   const normalized = filePath.toLowerCase();
@@ -68,10 +69,37 @@ export function isSaveFixturePath(filePath: string): boolean {
   return extension === '.bin' && basename(normalized).includes('save');
 }
 
+function readFirstSaveBlockName(filePath: string): string | null {
+  let fd: number | null = null;
+  try {
+    fd = openSync(filePath, 'r');
+    const header = Buffer.alloc(256);
+    const bytesRead = readSync(fd, header, 0, header.byteLength, 0);
+    if (bytesRead < 1) {
+      return null;
+    }
+    const length = header.readUInt8(0);
+    if (length <= 0 || bytesRead < 1 + length) {
+      return null;
+    }
+    return header.subarray(1, 1 + length).toString('ascii');
+  } catch {
+    return null;
+  } finally {
+    if (fd !== null) {
+      closeSync(fd);
+    }
+  }
+}
+
+export function isSourceSaveFixtureFile(filePath: string): boolean {
+  return readFirstSaveBlockName(filePath)?.toLowerCase() === SOURCE_SAVE_FIRST_BLOCK.toLowerCase();
+}
+
 export function listSaveFixturePaths(inputPath: string): string[] {
   const stats = statSync(inputPath);
   if (stats.isFile()) {
-    return [inputPath];
+    return isSourceSaveFixtureFile(inputPath) ? [inputPath] : [];
   }
   if (!stats.isDirectory()) {
     return [];
@@ -87,7 +115,7 @@ export function listSaveFixturePaths(inputPath: string): string[] {
         }
         continue;
       }
-      if (entry.isFile() && isSaveFixturePath(entryPath)) {
+      if (entry.isFile() && isSaveFixturePath(entryPath) && isSourceSaveFixtureFile(entryPath)) {
         results.push(entryPath);
       }
     }

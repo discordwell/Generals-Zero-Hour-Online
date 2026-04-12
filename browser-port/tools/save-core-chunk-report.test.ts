@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { buildRuntimeSaveFile } from '../packages/app/src/runtime-save-game.js';
 import {
   buildSaveCoreChunkReport,
   getSaveCoreChunkBlockers,
+  isSourceSaveFixtureFile,
   isSaveFixturePath,
+  listSaveFixturePaths,
   summarizeSaveCoreChunkStatus,
   summarizeSaveCoreChunkReports,
 } from './save-core-chunk-report.js';
@@ -149,6 +154,46 @@ describe('save core chunk report', () => {
     expect(isSaveFixturePath('/fixtures/retail-save.bin')).toBe(true);
     expect(isSaveFixturePath('/fixtures/texture.bin')).toBe(false);
     expect(isSaveFixturePath('/fixtures/replay.rep')).toBe(false);
+  });
+
+  it('only lists candidate save files with a source save-game header', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'generals-save-fixtures-'));
+    try {
+      const mapData = {
+        heightmap: {
+          width: 1,
+          height: 1,
+          borderSize: 0,
+          data: 'AAAAAA==',
+        },
+        objects: [],
+        triggers: [],
+        waypoints: { nodes: [], links: [] },
+        textureClasses: [],
+        blendTileCount: 0,
+      };
+      const saveFile = buildRuntimeSaveFile({
+        description: 'Header Fixture',
+        mapPath: 'assets/maps/HeaderFixture.json',
+        mapData,
+        cameraState: null,
+        gameLogic: createRoundTripGameLogic(5),
+      });
+      const validSavePath = join(tempDir, '00000000.sav');
+      const bogusSavePath = join(tempDir, 'scipy-idl.sav');
+      const nestedDir = join(tempDir, 'nested');
+      const nestedSavePath = join(nestedDir, 'retail-save.bin');
+      mkdirSync(nestedDir);
+      writeFileSync(validSavePath, Buffer.from(saveFile.data));
+      writeFileSync(bogusSavePath, Buffer.from([0x04, 0x49, 0x44, 0x4c, 0x00]));
+      writeFileSync(nestedSavePath, Buffer.from(saveFile.data));
+
+      expect(isSourceSaveFixtureFile(validSavePath)).toBe(true);
+      expect(isSourceSaveFixtureFile(bogusSavePath)).toBe(false);
+      expect(listSaveFixturePaths(tempDir)).toEqual([validSavePath, nestedSavePath].sort());
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it('summarizes directory fixture reports and blocks empty wet-test sets', () => {
