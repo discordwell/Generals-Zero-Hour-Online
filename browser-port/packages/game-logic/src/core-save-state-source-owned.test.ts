@@ -2273,6 +2273,32 @@ function writeSourceExitAIStateMachineForTest(
   saver.xferUnsignedInt(0);
 }
 
+function writeSourceStatelessAIStateMachineForTest(
+  saver: XferSave,
+  options: {
+    currentStateId: number;
+    goalObjectId: number;
+    goalPosition: { x: number; y: number; z: number };
+  },
+): void {
+  saver.xferVersion(1);
+  saver.xferVersion(1);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(0);
+  saver.xferUnsignedInt(options.currentStateId);
+  saver.xferBool(false);
+  saver.xferVersion(1);
+  saver.xferObjectID(options.goalObjectId);
+  saver.xferCoord3D(options.goalPosition);
+  saver.xferBool(false);
+  saver.xferBool(true);
+  saver.xferInt(0);
+  saver.xferAsciiString('');
+  saver.xferBool(false);
+  saver.xferUnsignedInt(999999);
+  saver.xferUnsignedInt(0);
+}
+
 function writeSourceDockAIStateMachineForTest(
   saver: XferSave,
   options: {
@@ -2586,6 +2612,38 @@ function buildSourceAIUpdateInterfaceExitModuleData(options: {
       instantly: options.instantly,
     });
     saver.xferBool(false);
+    saver.xferBool(true);
+    saver.xferUnsignedInt(options.nextEnemyScanFrame);
+    saver.xferObjectID(0);
+    saver.xferReal(999999);
+    saver.xferUser(sourceRawInt32(options.lastCommandSource));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildSourceAIUpdateInterfaceStatelessModuleData(options: {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+  nextEnemyScanFrame: number;
+  lastCommandSource: number;
+  isAiDead: boolean;
+}): Uint8Array {
+  const saver = new XferSave();
+  saver.open('test-source-ai-update-interface-stateless');
+  try {
+    saver.xferVersion(4);
+    writeTestSourceUpdateModuleBase(saver, 84, 1);
+    saver.xferUnsignedInt(0xfacade);
+    saver.xferUnsignedInt(0xfacade);
+    writeSourceStatelessAIStateMachineForTest(saver, {
+      currentStateId: options.currentStateId,
+      goalObjectId: options.goalObjectId,
+      goalPosition: options.goalPosition,
+    });
+    saver.xferBool(options.isAiDead);
     saver.xferBool(true);
     saver.xferUnsignedInt(options.nextEnemyScanFrame);
     saver.xferObjectID(0);
@@ -7313,6 +7371,69 @@ describe('source-owned game-logic core save-state', () => {
     expect(privateLogic.pendingExitActions.has(133)).toBe(false);
     expect(importedPassenger.moving).toBe(true);
     expect(importedPassenger.moveTarget).not.toBeNull();
+  });
+
+  it('imports source AIUpdateInterface stateless top state', () => {
+    const bundle = makeSourceOwnedCoreBundle();
+    const registry = makeRegistry(bundle);
+    const map = makeMap([], 64, 64);
+
+    const logic = new GameLogicSubsystem(new THREE.Scene());
+    logic.loadMapObjects(map, registry, makeHeightmap(64, 64));
+
+    const busyState = createEmptySourceMapEntitySaveState();
+    busyState.objectId = 134;
+    busyState.position = { x: 320, y: 0, z: 96 };
+    busyState.modules = [{
+      identifier: 'ModuleTag_AI',
+      blockData: buildSourceAIUpdateInterfaceStatelessModuleData({
+        currentStateId: 41,
+        goalObjectId: 132,
+        goalPosition: { x: 10, y: 20, z: 30 },
+        nextEnemyScanFrame: 790,
+        lastCommandSource: 2,
+        isAiDead: true,
+      }),
+    }];
+
+    logic.restoreSourceGameLogicImportSaveState({
+      version: 1,
+      sourceChunkVersion: 10,
+      frameCounter: 200,
+      objectIdCounter: 190,
+      objects: [
+        { templateName: 'AttackImportUnit', state: busyState },
+      ],
+    });
+
+    const privateLogic = logic as unknown as {
+      spawnedEntities: Map<number, {
+        moving: boolean;
+        moveTarget: { x: number; z: number } | null;
+        sourceAIUpdateIsDead: boolean;
+        sourceAIStatelessState: unknown;
+        attackTargetEntityId: number | null;
+        attackTargetPosition: { x: number; z: number } | null;
+        attackSubState: string;
+        lastCommandSource: string;
+        autoTargetScanNextFrame: number;
+      }>;
+    };
+
+    const importedBusy = privateLogic.spawnedEntities.get(134)!;
+    expect(importedBusy.sourceAIUpdateIsDead).toBe(true);
+    expect(importedBusy.sourceAIStatelessState).toEqual({
+      currentStateId: 41,
+      goalObjectId: 132,
+      goalPosition: { x: 10, y: 20, z: 30 },
+    });
+    expect(importedBusy.attackTargetEntityId).toBeNull();
+    expect(importedBusy.attackTargetPosition).toBeNull();
+    expect(importedBusy.attackSubState).toBe('IDLE');
+    expect(importedBusy.moving).toBe(false);
+    expect(importedBusy.moveTarget).toBeNull();
+    expect(importedBusy.lastCommandSource).toBe('AI');
+    expect(importedBusy.autoTargetScanNextFrame).toBe(790);
   });
 
   it('imports source AIUpdateInterface full tail state', () => {

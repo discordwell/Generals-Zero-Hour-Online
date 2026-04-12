@@ -67,6 +67,8 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     isIndestructible: false,
     receivingDifficultyBonus: false,
     scriptAiRecruitable: true,
+    sourceAIUpdateIsDead: false,
+    sourceAIIdleInitialSleepOffset: 0,
     scriptAttackPrioritySetName: '',
     scriptAttitude: 0,
     keepObjectOnDeath: false,
@@ -245,6 +247,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     chinookPendingCommand: null,
     pendingEnterState: null,
     pendingExitState: null,
+    sourceAIStatelessState: null,
     chinookCombatDropState: null,
     chinookRappelState: null,
     repairDockState: null,
@@ -1269,6 +1272,35 @@ describe('entity-xfer', () => {
       containerObjectId: 34,
       instantly: true,
       commandSource: 'SCRIPT',
+    });
+  });
+
+  it('round-trips source-owned stateless AI state', () => {
+    const original = createTestEntity({
+      sourceAIUpdateIsDead: true,
+      sourceAIStatelessState: {
+        currentStateId: 41,
+        goalObjectId: 77,
+        goalPosition: { x: 11, y: 22, z: 33 },
+      },
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity();
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.sourceAIUpdateIsDead).toBe(true);
+    expect(loaded.sourceAIStatelessState).toEqual({
+      currentStateId: 41,
+      goalObjectId: 77,
+      goalPosition: { x: 11, y: 22, z: 33 },
     });
   });
 

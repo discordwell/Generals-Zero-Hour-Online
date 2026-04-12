@@ -3429,6 +3429,12 @@ interface EntityPendingExitState {
   commandSource: 'PLAYER' | 'AI' | 'SCRIPT';
 }
 
+interface SourceAIStatelessStateMachineState {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+}
+
 interface PendingRepairDockActionState {
   dockObjectId: number;
   /** Source parity: ActionManager::canGetRepairedAt command source for shroud legality. */
@@ -3660,6 +3666,8 @@ export interface MapEntity {
   receivingDifficultyBonus: boolean;
   /** Source parity: ScriptActions::changeObjectPanelFlagForSingleObject "AI Recruitable". */
   scriptAiRecruitable: boolean;
+  /** Source parity: AIUpdateInterface::m_isAiDead. */
+  sourceAIUpdateIsDead: boolean;
   /** Source parity: AIIdleState::m_initialSleepOffset initialized by AIUpdateInterface::onObjectCreated. */
   sourceAIIdleInitialSleepOffset: number;
   /** Source parity: AIUpdateInterface::setAttackInfo from script attack-priority actions. */
@@ -3917,6 +3925,8 @@ export interface MapEntity {
   pendingEnterState: EntityPendingEnterState | null;
   /** Source parity: AIExitState / AIExitInstantlyState target container owned by unit AI state. */
   pendingExitState: EntityPendingExitState | null;
+  /** Source parity: top-level AI_WAIT / AI_DEAD / AI_BUSY states with version-only xfer payloads. */
+  sourceAIStatelessState: SourceAIStatelessStateMachineState | null;
   /** Source parity: ChinookCombatDropState runtime owned by the Chinook AI update. */
   chinookCombatDropState: PendingCombatDropActionState | null;
   /** Source parity: active rappeller runtime owned by the passenger AI/state machine. */
@@ -10382,13 +10392,16 @@ const SOURCE_GARRISON_POINT_BYTES_LENGTH =
   SOURCE_GARRISON_MAX_POINTS * SOURCE_GARRISON_POINT_CONDITIONS * SOURCE_COORD3D_BYTE_LENGTH;
 const SOURCE_AI_STATE_IDLE = 0;
 const SOURCE_AI_STATE_MOVE_TO = 1;
+const SOURCE_AI_STATE_WAIT = 8;
 const SOURCE_AI_STATE_ATTACK_POSITION = 9;
 const SOURCE_AI_STATE_ATTACK_OBJECT = 10;
 const SOURCE_AI_STATE_FORCE_ATTACK_OBJECT = 11;
+const SOURCE_AI_STATE_DEAD = 13;
 const SOURCE_AI_STATE_DOCK = 14;
 const SOURCE_AI_STATE_ENTER = 15;
 const SOURCE_AI_STATE_GUARD = 16;
 const SOURCE_AI_STATE_EXIT = 37;
+const SOURCE_AI_STATE_BUSY = 41;
 const SOURCE_AI_STATE_EXIT_INSTANTLY = 42;
 const SOURCE_AI_INVALID_STATE_ID = 999999;
 const SOURCE_AI_MAX_WAYPOINTS = 16;
@@ -16002,6 +16015,16 @@ export class GameLogicSubsystem implements Subsystem {
       || stateId === SOURCE_AI_STATE_FORCE_ATTACK_OBJECT;
   }
 
+  private isSourceAIStatelessTopStateId(stateId: number): boolean {
+    return stateId === SOURCE_AI_STATE_WAIT
+      || stateId === SOURCE_AI_STATE_DEAD
+      || stateId === SOURCE_AI_STATE_BUSY;
+  }
+
+  private skipSourceAIStatelessStateSnapshot(xfer: XferLoad): boolean {
+    return xfer.xferVersion(1) === 1;
+  }
+
   private sourceAttackStateToRuntimeSubState(stateId: number): AttackSubState | null {
     switch (Math.trunc(stateId)) {
       case SOURCE_ATTACK_STATE_CHASE_TARGET:
@@ -16378,6 +16401,10 @@ export class GameLogicSubsystem implements Subsystem {
     let guardState: SourceAIGuardStateImportState | null = null;
     if (currentStateId === SOURCE_AI_STATE_IDLE) {
       if (!this.skipSourceAIIdleStateSnapshot(xfer)) {
+        return null;
+      }
+    } else if (this.isSourceAIStatelessTopStateId(currentStateId)) {
+      if (!this.skipSourceAIStatelessStateSnapshot(xfer)) {
         return null;
       }
     } else if (currentStateId === SOURCE_AI_STATE_MOVE_TO) {
@@ -19255,6 +19282,7 @@ export class GameLogicSubsystem implements Subsystem {
       }
 
       entity.scriptAiRecruitable = aiUpdateState.isRecruitable;
+      entity.sourceAIUpdateIsDead = aiUpdateState.isAiDead;
       const nextScanFrame = aiUpdateState.nextMoodCheckTime ?? aiUpdateState.nextEnemyScanTime;
       entity.autoTargetScanNextFrame = Number.isFinite(nextScanFrame)
         ? Math.max(0, Math.trunc(nextScanFrame))
@@ -19285,6 +19313,28 @@ export class GameLogicSubsystem implements Subsystem {
       const stateMachine = aiUpdateState.stateMachine;
       const commandSource = this.sourceCommandSourceToRuntime(aiUpdateState.lastCommandSource);
       const enterCommandSource = this.sourceLastCommandSourceToRuntime(aiUpdateState.lastCommandSource);
+      if (this.isSourceAIStatelessTopStateId(stateMachine.currentStateId)) {
+        // TODO(source parity): AI_DEAD also reapplies DYING/effectively-dead flags each update.
+        entity.attackTargetEntityId = null;
+        entity.attackTargetPosition = null;
+        entity.attackOriginalVictimPosition = null;
+        entity.attackSubState = 'IDLE';
+        entity.movePath = [];
+        entity.pathIndex = 0;
+        entity.moveTarget = null;
+        entity.moving = false;
+        entity.temporaryMoveExpireFrame = 0;
+        entity.sourceAIStatelessState = {
+          currentStateId: stateMachine.currentStateId,
+          goalObjectId: Math.max(0, Math.trunc(stateMachine.goalObjectId)),
+          goalPosition: {
+            x: Number.isFinite(stateMachine.goalPosition.x) ? stateMachine.goalPosition.x : 0,
+            y: Number.isFinite(stateMachine.goalPosition.y) ? stateMachine.goalPosition.y : 0,
+            z: Number.isFinite(stateMachine.goalPosition.z) ? stateMachine.goalPosition.z : 0,
+          },
+        };
+      }
+
       if (stateMachine.currentStateId === SOURCE_AI_STATE_MOVE_TO && stateMachine.moveState) {
         const moveTarget = this.sourceCoord3DToRuntimeXZ(stateMachine.moveState.goalPosition);
         entity.attackTargetEntityId = null;
@@ -26718,6 +26768,15 @@ export class GameLogicSubsystem implements Subsystem {
     } else {
       this.pendingExitActions.delete(entityId);
     }
+  }
+
+  /* @internal */ clearEntitySourceAIStateOverride(entityId: number): void {
+    const entity = this.spawnedEntities.get(entityId);
+    if (!entity) {
+      return;
+    }
+    entity.sourceAIStatelessState = null;
+    entity.sourceAIUpdateIsDead = false;
   }
 
   private syncRepairDockPendingAction(entityId: number): void {
@@ -54224,6 +54283,8 @@ export class GameLogicSubsystem implements Subsystem {
       entity.chinookPendingCommand = null;
       entity.pendingEnterState = null;
       entity.pendingExitState = null;
+      entity.sourceAIUpdateIsDead = false;
+      entity.sourceAIStatelessState = null;
       entity.chinookCombatDropState = null;
       entity.chinookRappelState = null;
       entity.repairDockState = null;

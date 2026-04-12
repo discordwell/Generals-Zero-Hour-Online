@@ -2198,6 +2198,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
     let dockState: Record<string, unknown> | undefined;
     let enterState: Record<string, unknown> | undefined;
     let exitState: Record<string, unknown> | undefined;
+    let statelessState: Record<string, unknown> | undefined;
     let attackState: Record<string, unknown> | undefined;
     let guardState: Record<string, unknown> | undefined;
     if (currentStateId === 0) {
@@ -2205,6 +2206,11 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
       idleInitialSleepOffset = xferLoad.xferUnsignedShort(0);
       idleShouldLookForTargets = xferLoad.xferBool(false);
       idleInited = xferLoad.xferBool(false);
+    } else if (currentStateId === 8 || currentStateId === 13 || currentStateId === 41) {
+      statelessState = {
+        kind: currentStateId === 8 ? 'WAIT' : currentStateId === 13 ? 'DEAD' : 'BUSY',
+        version: xferLoad.xferVersion(1),
+      };
     } else if (currentStateId === 1) {
       const moveToVersion = xferLoad.xferVersion(1);
       const moveGoalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
@@ -2608,6 +2614,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
       dockState,
       enterState,
       exitState,
+      statelessState,
       attackState,
       guardState,
       goalObjectId,
@@ -20803,6 +20810,34 @@ describe('runtime-save-game', () => {
               instantly: true,
               commandSource: 'SCRIPT',
             },
+          } as unknown as import('@generals/game-logic').MapEntity, {
+            id: 32,
+            templateName: 'RuntimeGeneratedBusyAI',
+            x: 360,
+            y: 0,
+            z: 460,
+            rotationY: 0,
+            sourceAIIdleInitialSleepOffset: 10,
+            scriptAiRecruitable: true,
+            sourceAIUpdateIsDead: true,
+            attackTargetEntityId: null,
+            attackTargetPosition: null,
+            attackSubState: 'IDLE',
+            lastCommandSource: 'AI',
+            autoTargetScanNextFrame: 88,
+            moving: false,
+            moveTarget: null,
+            locomotorUpgradeEnabled: false,
+            ignoredMovementObstacleId: null,
+            pathfindGoalCell: null,
+            pathfindPosCell: null,
+            activeLocomotorSet: 'SET_NORMAL',
+            guardState: 'NONE',
+            sourceAIStatelessState: {
+              currentStateId: 41,
+              goalObjectId: 30,
+              goalPosition: { x: 1, y: 2, z: 3 },
+            },
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
         listSourceObjectModuleDescriptors: (templateName) => {
@@ -20823,6 +20858,9 @@ describe('runtime-save-game', () => {
           }
           if (templateName === 'RuntimeGeneratedExitAI') {
             return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_ExitAI' }];
+          }
+          if (templateName === 'RuntimeGeneratedBusyAI') {
+            return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_BusyAI' }];
           }
           return templateName === 'RuntimeGeneratedAIUpdates'
             ? [
@@ -21056,6 +21094,27 @@ describe('runtime-save-game', () => {
       },
     });
     expect(exitAI.bytesRead).toBe(exitModule!.blockData.byteLength);
+
+    const generatedBusy = readSourceGameLogicObjectStates(saveFile.data)
+      ?.find((object) => object.templateName === 'RuntimeGeneratedBusyAI')?.state;
+    const busyModule = generatedBusy?.modules.find((module) => module.identifier === 'ModuleTag_BusyAI');
+    expect(busyModule).toBeDefined();
+    const busyAI = parseGeneratedSourceAIUpdateInterfaceForTest(busyModule!.blockData, 0);
+    expect(busyAI).toMatchObject({
+      currentStateId: 41,
+      goalObjectId: 30,
+      goalPosition: { x: 1, y: 2, z: 3 },
+      isAiDead: true,
+      nextEnemyScanTime: 88,
+      currentVictimId: 0,
+      nextMoodCheckTime: 88,
+      lastCommandSource: 2,
+      statelessState: {
+        kind: 'BUSY',
+        version: 1,
+      },
+    });
+    expect(busyAI.bytesRead).toBe(busyModule!.blockData.byteLength);
 
     expect(hackModule).toBeDefined();
     const hack = parseSourceHackInternetAIUpdateBlockData(hackModule!.blockData);

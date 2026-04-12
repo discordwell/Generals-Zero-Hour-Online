@@ -10011,12 +10011,15 @@ function sourceDeployStyleStateToInt(state: unknown, fallback: number): number {
 
 const SOURCE_AI_STATE_IDLE = 0;
 const SOURCE_AI_STATE_MOVE_TO = 1;
+const SOURCE_AI_STATE_WAIT = 8;
 const SOURCE_AI_STATE_ATTACK_POSITION = 9;
 const SOURCE_AI_STATE_ATTACK_OBJECT = 10;
+const SOURCE_AI_STATE_DEAD = 13;
 const SOURCE_AI_STATE_DOCK = 14;
 const SOURCE_AI_STATE_ENTER = 15;
 const SOURCE_AI_STATE_GUARD = 16;
 const SOURCE_AI_STATE_EXIT = 37;
+const SOURCE_AI_STATE_BUSY = 41;
 const SOURCE_AI_STATE_EXIT_INSTANTLY = 42;
 const SOURCE_HACK_INTERNET_STATE_UNPACKING = 1000;
 const SOURCE_HACK_INTERNET_STATE_HACKING = 1001;
@@ -10165,6 +10168,12 @@ function sourceAIIdleInitialSleepOffset(entity: MapEntity): number {
     : 0;
 }
 
+function isSourceAIStatelessStateId(value: unknown): value is number {
+  return value === SOURCE_AI_STATE_WAIT
+    || value === SOURCE_AI_STATE_DEAD
+    || value === SOURCE_AI_STATE_BUSY;
+}
+
 function sourceCoord3DFromRuntimeXYZ(x: unknown, y: unknown, z: unknown): Coord3D {
   return {
     x: Number.isFinite(x) ? Number(x) : 0,
@@ -10256,6 +10265,37 @@ function sourceExitGoalPosition(
     return sourceCoord3DFromRuntimeXYZ(container.x, container.y, container.z);
   }
   return sourceCoord3DFromRuntimeXYZ(entity.x, entity.y, entity.z);
+}
+
+function sourceAIStatelessState(entity: MapEntity): {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: Coord3D;
+} | null {
+  const state = (entity as {
+    sourceAIStatelessState?: {
+      currentStateId?: unknown;
+      goalObjectId?: unknown;
+      goalPosition?: { x?: unknown; y?: unknown; z?: unknown } | null;
+    } | null;
+  }).sourceAIStatelessState;
+  const currentStateId = state?.currentStateId;
+  if (!isSourceAIStatelessStateId(currentStateId)) {
+    return null;
+  }
+  const goalObjectId = Number.isFinite(state?.goalObjectId)
+    ? normalizeSourceObjectId(Number(state?.goalObjectId))
+    : 0;
+  const goalPosition = state?.goalPosition;
+  return {
+    currentStateId,
+    goalObjectId,
+    goalPosition: {
+      x: Number.isFinite(goalPosition?.x) ? Number(goalPosition?.x) : 0,
+      y: Number.isFinite(goalPosition?.y) ? Number(goalPosition?.y) : 0,
+      z: Number.isFinite(goalPosition?.z) ? Number(goalPosition?.z) : 0,
+    },
+  };
 }
 
 function sourceRepairDockGoalObjectId(entity: MapEntity): number {
@@ -10425,6 +10465,17 @@ function buildGeneratedSourceAIExitStateBlockData(entity: MapEntity): Uint8Array
   try {
     saver.xferVersion(1);
     saver.xferObjectID(sourceExitGoalObjectId(entity));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceAIStatelessStateBlockData(): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-stateless-state');
+  try {
+    saver.xferVersion(1);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -10615,6 +10666,10 @@ function isGeneratedSourceExitAIStateMachine(entity: MapEntity): boolean {
   return sourceExitGoalObjectId(entity) > 0;
 }
 
+function isGeneratedSourceStatelessAIStateMachine(entity: MapEntity): boolean {
+  return sourceAIStatelessState(entity) !== null;
+}
+
 function isGeneratedSourceDockAIStateMachine(entity: MapEntity): boolean {
   return sourceRepairDockGoalObjectId(entity) > 0
     && entity.moving !== true;
@@ -10629,7 +10684,8 @@ function isGeneratedSourceMoveAIStateMachine(entity: MapEntity): boolean {
 }
 
 function hasGeneratedSourceAIUpdateRuntimeState(entity: MapEntity): boolean {
-  return isGeneratedSourceExitAIStateMachine(entity)
+  return isGeneratedSourceStatelessAIStateMachine(entity)
+    || isGeneratedSourceExitAIStateMachine(entity)
     || isGeneratedSourceDockAIStateMachine(entity)
     || isGeneratedSourceEnterAIStateMachine(entity)
     || isGeneratedSourceGuardAIStateMachine(entity)
@@ -10642,6 +10698,33 @@ function buildGeneratedSourceAIStateMachineBlockData(
   currentFrame = 0,
   options: { liveEntities?: readonly MapEntity[] | null } = {},
 ): Uint8Array {
+  const statelessState = sourceAIStatelessState(entity);
+  if (statelessState) {
+    const saver = new XferSave();
+    saver.open('build-generated-source-ai-state-machine-stateless');
+    try {
+      saver.xferVersion(1);
+      saver.xferVersion(1);
+      saver.xferUnsignedInt(0);
+      saver.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+      saver.xferUnsignedInt(statelessState.currentStateId);
+      saver.xferBool(false);
+      saver.xferUser(buildGeneratedSourceAIStatelessStateBlockData());
+      saver.xferObjectID(statelessState.goalObjectId);
+      saver.xferCoord3D(statelessState.goalPosition);
+      saver.xferBool(false);
+      saver.xferBool(true);
+      saver.xferInt(0);
+      saver.xferAsciiString('');
+      saver.xferBool(false);
+      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
+      saver.xferUnsignedInt(0);
+      return new Uint8Array(saver.getBuffer());
+    } finally {
+      saver.close();
+    }
+  }
+
   if (isGeneratedSourceExitAIStateMachine(entity)) {
     const goalObjectId = sourceExitGoalObjectId(entity);
     const goalPosition = sourceExitGoalPosition(entity, options.liveEntities);
@@ -11038,7 +11121,7 @@ function buildGeneratedSourceAIUpdateInterfaceBlockData(
     saver.xferUser(options.stateMachineBlockData ?? buildGeneratedSourceAIStateMachineBlockData(entity, currentFrame, {
       liveEntities: options.liveEntities,
     }));
-    saver.xferBool(false);
+    saver.xferBool((entity as { sourceAIUpdateIsDead?: unknown }).sourceAIUpdateIsDead === true);
     saver.xferBool(entity.scriptAiRecruitable !== false);
     saver.xferUnsignedInt(sourceAIUnsignedFrame(entity.autoTargetScanNextFrame, currentFrame));
     saver.xferObjectID(normalizeSourceObjectId(entity.attackTargetEntityId ?? 0));

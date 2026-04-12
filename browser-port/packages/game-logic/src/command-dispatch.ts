@@ -1019,6 +1019,7 @@ export function cancelEntityCommandPathActions(self: GL,
   self.cancelRailedTransportTransit(entityId);
   self.setEntityPendingEnterState(entityId, null);
   self.setEntityPendingExitState(entityId, null);
+  self.clearEntitySourceAIStateOverride(entityId);
   self.setEntityRepairDockState(entityId, null);
   self.setChinookCombatDropState(entityId, null);
   self.scriptAttackAreaStateByEntityId.delete(entityId);
