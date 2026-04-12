@@ -285,6 +285,8 @@ describe('save core chunk report', () => {
     expect(report.summary.status).toBe('pass');
     expect(report.roundTrip.status).toBe('pass');
     expect(report.roundTrip.summary?.status).toBe('pass');
+    expect(report.roundTrip.chunkNamesPreserved).toBe(true);
+    expect(report.roundTrip.embeddedMapBytesPreserved).toBe(true);
   });
 
   it('round-trips parsed source saves with non-JSON embedded map payloads', () => {
@@ -303,5 +305,7 @@ describe('save core chunk report', () => {
     expect(report.roundTrip.status).toBe('pass');
     expect(report.roundTrip.reason).toBeNull();
     expect(report.roundTrip.summary?.status).toBe('pass');
+    expect(report.roundTrip.chunkNamesPreserved).toBe(true);
+    expect(report.roundTrip.embeddedMapBytesPreserved).toBe(true);
   });
 });

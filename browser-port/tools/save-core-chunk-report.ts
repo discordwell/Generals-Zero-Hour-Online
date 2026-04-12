@@ -2,7 +2,7 @@ import { closeSync, openSync, readFileSync, readSync, readdirSync, statSync } fr
 import { basename, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { listSaveGameChunks } from '@generals/engine';
+import { listSaveGameChunks, parseSaveGameMapInfo } from '@generals/engine';
 import {
   buildRuntimeSaveFile,
   inspectGameLogicChunkLayout,
@@ -36,6 +36,10 @@ export interface SaveCoreChunkRoundTripReport {
   status: 'pass' | 'blocked' | 'skipped';
   reason: string | null;
   summary?: SaveCoreChunkReportSummary;
+  sourceChunkNames?: string[];
+  rebuiltChunkNames?: string[];
+  chunkNamesPreserved?: boolean;
+  embeddedMapBytesPreserved?: boolean;
 }
 
 export interface SaveCoreChunkCollectionReportSummary {
@@ -274,6 +278,24 @@ function buildRoundTripSaveData(data: ArrayBuffer): ArrayBuffer | null {
   }).data;
 }
 
+function arrayBuffersEqual(left: ArrayBuffer, right: ArrayBuffer): boolean {
+  if (left.byteLength !== right.byteLength) {
+    return false;
+  }
+  const leftBytes = new Uint8Array(left);
+  const rightBytes = new Uint8Array(right);
+  for (let index = 0; index < leftBytes.byteLength; index += 1) {
+    if (leftBytes[index] !== rightBytes[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function arrayValuesEqual<T>(left: readonly T[], right: readonly T[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 function buildSaveCoreChunkRoundTripReport(
   data: ArrayBuffer,
   savePath: string,
@@ -289,10 +311,30 @@ function buildSaveCoreChunkRoundTripReport(
     const rebuiltReport = buildSaveCoreChunkReport(rebuiltData, `${savePath}#roundtrip`, {
       includeRoundTrip: false,
     });
+    const sourceChunkNames = listSaveGameChunks(data).map((chunk) => chunk.blockName);
+    const rebuiltChunkNames = listSaveGameChunks(rebuiltData).map((chunk) => chunk.blockName);
+    const chunkNamesPreserved = arrayValuesEqual(sourceChunkNames, rebuiltChunkNames);
+    const embeddedMapBytesPreserved = arrayBuffersEqual(
+      parseSaveGameMapInfo(data).embeddedMapData,
+      parseSaveGameMapInfo(rebuiltData).embeddedMapData,
+    );
+    const preservationBlockReason = !chunkNamesPreserved
+      ? 'roundtrip-chunk-names-changed'
+      : !embeddedMapBytesPreserved
+        ? 'roundtrip-map-payload-changed'
+        : null;
+    const status = preservationBlockReason === null
+      ? rebuiltReport.summary.status
+      : 'blocked';
     return {
-      status: rebuiltReport.summary.status,
-      reason: rebuiltReport.summary.status === 'pass' ? null : 'roundtrip-core-summary-blocked',
+      status,
+      reason: preservationBlockReason
+        ?? (rebuiltReport.summary.status === 'pass' ? null : 'roundtrip-core-summary-blocked'),
       summary: rebuiltReport.summary,
+      sourceChunkNames,
+      rebuiltChunkNames,
+      chunkNamesPreserved,
+      embeddedMapBytesPreserved,
     };
   } catch (error) {
     return {
