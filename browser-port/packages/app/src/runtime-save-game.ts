@@ -923,6 +923,7 @@ export interface RuntimeSavePassthroughBlock {
 export interface RuntimeSaveBootstrap {
   metadata: ParsedSaveGameInfo;
   mapData: MapDataJSON | null;
+  embeddedMapBytes: ArrayBuffer;
   mapPath: string | null;
   mapObjectIdCounter: number;
   mapDrawableIdCounter: number;
@@ -26341,7 +26342,7 @@ export class GhostObjectSnapshot implements Snapshot {
 export function buildRuntimeSaveFile(params: {
   description: string;
   mapPath: string | null;
-  mapData: MapDataJSON;
+  mapData: MapDataJSON | null;
   cameraState: CameraState | null;
   tacticalViewState?: RuntimeSaveTacticalViewState | null;
   gameClientBriefingLines?: readonly string[];
@@ -26490,6 +26491,12 @@ export function buildRuntimeSaveFile(params: {
     gameClientDrawableEntries,
     params.mapDrawableIdCounter,
   );
+  const embeddedMapBytes = params.embeddedMapBytes ?? (
+    params.mapData ? encodeJsonBytes(params.mapData) : null
+  );
+  if (embeddedMapBytes === null) {
+    throw new Error('Runtime save requires JSON map data or embedded source map bytes.');
+  }
 
   const metadataState = createMetadataState(params.description, params.mapPath);
   const campaignState: RuntimeSaveCampaignState = {
@@ -26507,13 +26514,15 @@ export function buildRuntimeSaveFile(params: {
     saveGameMapPath: params.mapPath ?? '',
     pristineMapPath: params.mapPath ?? '',
     gameMode: params.sourceGameMode ?? SOURCE_GAME_MODE_SINGLE_PLAYER,
-    embeddedMapBytes: params.embeddedMapBytes ?? encodeJsonBytes(params.mapData),
+    embeddedMapBytes,
     objectIdCounter,
     drawableIdCounter,
   };
 
   const state = new GameState();
-  const sourceTeamPrototypeNames = collectSourceTeamPrototypeNamesFromMapData(params.mapData);
+  const sourceTeamPrototypeNames = params.mapData
+    ? collectSourceTeamPrototypeNamesFromMapData(params.mapData)
+    : [];
   const teamFactoryChunk = buildSourceTeamFactoryChunk(
     teamFactoryPayload,
     playerPayload,
@@ -26904,6 +26913,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   return {
     metadata,
     mapData,
+    embeddedMapBytes: mapInfo.embeddedMapData,
     mapPath: resolvedMapPath,
     mapObjectIdCounter: mapInfo.objectIdCounter,
     mapDrawableIdCounter: mapInfo.drawableIdCounter,

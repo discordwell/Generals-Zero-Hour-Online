@@ -189,14 +189,12 @@ function createFallbackGameLogicCoreState(nextId: number) {
 
 function buildRoundTripSaveData(data: ArrayBuffer): ArrayBuffer | null {
   const parsed = parseRuntimeSaveFile(data);
-  if (parsed.mapData === null) {
-    return null;
-  }
   const fallbackCoreState = createFallbackGameLogicCoreState(parsed.mapObjectIdCounter);
   return buildRuntimeSaveFile({
     description: parsed.metadata.description,
     mapPath: parsed.mapPath,
     mapData: parsed.mapData,
+    embeddedMapBytes: new Uint8Array(parsed.embeddedMapBytes),
     cameraState: parsed.cameraState,
     tacticalViewState: parsed.tacticalViewState,
     gameClientState: parsed.gameClientState,
@@ -257,7 +255,7 @@ function buildSaveCoreChunkRoundTripReport(
     if (rebuiltData === null) {
       return {
         status: 'blocked',
-        reason: 'missing-json-map-data',
+        reason: 'missing-map-payload',
       };
     }
     const rebuiltReport = buildSaveCoreChunkReport(rebuiltData, `${savePath}#roundtrip`, {

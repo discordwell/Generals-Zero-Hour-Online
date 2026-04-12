@@ -27,6 +27,57 @@ describe('save core chunk report', () => {
     };
   }
 
+  function createRoundTripGameLogic(nextId = 4) {
+    return {
+      captureSourceTerrainLogicRuntimeSaveState: () => ({
+        version: 2,
+        activeBoundary: 0,
+        waterUpdates: [],
+      }),
+      captureSourcePartitionRuntimeSaveState: () => ({
+        version: 2,
+        cellSize: 10,
+        totalCellCount: 0,
+        cells: [],
+        pendingUndoShroudReveals: [],
+      }),
+      captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
+      captureSourceRadarRuntimeSaveState: () => ({
+        version: 2,
+        radarHidden: false,
+        radarForced: false,
+        localObjectList: [],
+        objectList: [],
+        events: Array.from({ length: 64 }, () => createEmptyRadarEventState()),
+        nextFreeRadarEvent: 0,
+        lastRadarEvent: -1,
+      }),
+      captureSourceSidesListRuntimeSaveState: () => ({ version: 2, state: {}, scriptLists: [] }),
+      captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
+      captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
+      captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
+      captureSourceGameLogicRuntimeSaveState: () => ({
+        version: 1,
+        nextId,
+        nextProjectileVisualId: 1,
+        animationTime: 0,
+        selectedEntityId: null,
+        selectedEntityIds: [],
+        scriptSelectionChangedFrame: 0,
+        frameCounter: 0,
+        controlBarDirtyFrame: 0,
+        scriptObjectTopologyVersion: 0,
+        scriptObjectCountChangedFrame: 0,
+        defeatedSides: new Set<string>(),
+        gameEndFrame: null,
+        scriptEndGameTimerActive: false,
+        spawnedEntities: [],
+      }),
+      captureBrowserRuntimeSaveState: () => ({ version: 1 }),
+      getObjectIdCounter: () => nextId,
+    };
+  }
+
   it('passes strict status when every core chunk is parsed or legacy-readable', () => {
     const chunks = [
       { blockName: 'CHUNK_GameState', mode: 'parsed' },
@@ -181,60 +232,31 @@ describe('save core chunk report', () => {
       mapPath: 'assets/maps/RoundTrip.json',
       mapData,
       cameraState: null,
-      gameLogic: {
-        captureSourceTerrainLogicRuntimeSaveState: () => ({
-          version: 2,
-          activeBoundary: 0,
-          waterUpdates: [],
-        }),
-        captureSourcePartitionRuntimeSaveState: () => ({
-          version: 2,
-          cellSize: 10,
-          totalCellCount: 0,
-          cells: [],
-          pendingUndoShroudReveals: [],
-        }),
-        captureSourcePlayerRuntimeSaveState: () => ({ version: 1, state: {} }),
-        captureSourceRadarRuntimeSaveState: () => ({
-          version: 2,
-          radarHidden: false,
-          radarForced: false,
-          localObjectList: [],
-          objectList: [],
-          events: Array.from({ length: 64 }, () => createEmptyRadarEventState()),
-          nextFreeRadarEvent: 0,
-          lastRadarEvent: -1,
-        }),
-        captureSourceSidesListRuntimeSaveState: () => ({ version: 2, state: {}, scriptLists: [] }),
-        captureSourceTeamFactoryRuntimeSaveState: () => ({ version: 1, state: {} }),
-        captureSourceScriptEngineRuntimeSaveState: () => ({ version: 1, state: {} }),
-        captureSourceInGameUiRuntimeSaveState: () => ({ version: 1, state: {} }),
-        captureSourceGameLogicRuntimeSaveState: () => ({
-          version: 1,
-          nextId: 4,
-          nextProjectileVisualId: 1,
-          animationTime: 0,
-          selectedEntityId: null,
-          selectedEntityIds: [],
-          scriptSelectionChangedFrame: 0,
-          frameCounter: 0,
-          controlBarDirtyFrame: 0,
-          scriptObjectTopologyVersion: 0,
-          scriptObjectCountChangedFrame: 0,
-          defeatedSides: new Set<string>(),
-          gameEndFrame: null,
-          scriptEndGameTimerActive: false,
-          spawnedEntities: [],
-        }),
-        captureBrowserRuntimeSaveState: () => ({ version: 1 }),
-        getObjectIdCounter: () => 4,
-      },
+      gameLogic: createRoundTripGameLogic(4),
     });
 
     const report = buildSaveCoreChunkReport(saveFile.data, '/fixtures/round-trip.sav');
 
     expect(report.summary.status).toBe('pass');
     expect(report.roundTrip.status).toBe('pass');
+    expect(report.roundTrip.summary?.status).toBe('pass');
+  });
+
+  it('round-trips parsed source saves with non-JSON embedded map payloads', () => {
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Retail Map Payload Fixture',
+      mapPath: 'Save\\MD_USA01.map',
+      mapData: null,
+      embeddedMapBytes: new Uint8Array([0xde, 0xad, 0xbe, 0xef]),
+      cameraState: null,
+      gameLogic: createRoundTripGameLogic(8),
+    });
+
+    const report = buildSaveCoreChunkReport(saveFile.data, '/fixtures/retail-map-payload.sav');
+
+    expect(report.summary.status).toBe('pass');
+    expect(report.roundTrip.status).toBe('pass');
+    expect(report.roundTrip.reason).toBeNull();
     expect(report.roundTrip.summary?.status).toBe('pass');
   });
 });

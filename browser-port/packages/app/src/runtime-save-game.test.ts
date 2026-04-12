@@ -11252,24 +11252,12 @@ describe('runtime-save-game', () => {
   });
 
   it('treats embedded retail map bytes as non-JSON payloads and falls back to map path reload', () => {
-    const mapData = {
-      heightmap: {
-        width: 2,
-        height: 2,
-        borderSize: 0,
-        data: 'AAAAAA==',
-      },
-      objects: [],
-      triggers: [],
-      waypoints: { nodes: [], links: [] },
-      textureClasses: [],
-      blendTileCount: 0,
-    };
+    const embeddedMapBytes = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
 
     const saveFile = buildRuntimeSaveFile({
       description: 'Retail Map Bytes',
       mapPath: 'maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json',
-      mapData,
+      mapData: null,
       cameraState: null,
       gameLogic: {
         captureSourceTerrainLogicRuntimeSaveState: () => ({
@@ -11304,7 +11292,7 @@ describe('runtime-save-game', () => {
         captureBrowserRuntimeSaveState: () => ({ version: 1, spawnedEntities: [] }),
         getObjectIdCounter: () => 10,
       },
-      embeddedMapBytes: new Uint8Array([0xde, 0xad, 0xbe, 0xef]),
+      embeddedMapBytes,
       sourceGameMode: SOURCE_GAME_MODE_SINGLE_PLAYER,
     });
 
@@ -11312,6 +11300,7 @@ describe('runtime-save-game', () => {
 
     expect(parsed.mapPath).toBe('maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json');
     expect(parsed.mapData).toBeNull();
+    expect(Array.from(new Uint8Array(parsed.embeddedMapBytes))).toEqual(Array.from(embeddedMapBytes));
     expect(parsed.campaign).toBeNull();
   });
 
