@@ -705,6 +705,109 @@ export function parseTsPlayerListXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppTeamTemplateInfoXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void TeamTemplateInfo::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppTeamTemplateInfoField);
+}
+
+export function parseTsTeamTemplateInfoXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'class SourceTeamTemplateInfoSnapshot');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_TEAM_TEMPLATE_INFO_SNAPSHOT_VERSION\s*\)|this\.team\.productionPriority\s*=\s*xfer\.xferInt\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsTeamTemplateInfoField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppTeamPrototypeXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void TeamPrototype::xfer');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    pushUniqueField(fields, seen, mapCppTeamPrototypeField(method, argument));
+  }
+  return fields;
+}
+
+export function parseTsTeamPrototypeXferFields(source: string): string[] {
+  const start = source.indexOf('class SourceTeamPrototypeSnapshot');
+  if (start < 0) return [];
+  const end = source.indexOf('class SourceTeamFactorySnapshot', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_TEAM_PROTOTYPE_SNAPSHOT_VERSION\s*\)|const ownerIndex\s*=\s*xfer\.xferInt\s*\(|this\.prototypeRecord\.attackPrioritySetName\s*=\s*xfer\.xferAsciiString\s*\(|xfer\.xferBool\s*\(\s*false\s*\)|xfer\.xferSnapshot\s*\(\s*new SourceTeamTemplateInfoSnapshot|xfer\.xferUnsignedShort\s*\(\s*(?:0|savedTeams\.length)\s*\)|xfer\.xferUnsignedInt\s*\(\s*(?:0|normalizePositiveInt\(team\.sourceTeamId)|xfer\.xferSnapshot\s*\(\s*new SourceTeamSnapshot/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsTeamPrototypeField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppTeamXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Team::xfer');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    pushUniqueField(fields, seen, mapCppTeamField(method, argument));
+  }
+  return fields;
+}
+
+export function parseTsTeamXferFields(source: string): string[] {
+  const start = source.indexOf('class SourceTeamSnapshot');
+  if (start < 0) return [];
+  const end = source.indexOf('class SourceTeamPrototypeSnapshot', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  let falseBoolIndex = 0;
+  let objectIdZeroIndex = 0;
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_TEAM_SNAPSHOT_VERSION\s*\)|const teamId\s*=\s*xfer\.xferUnsignedInt\s*\(|xfer\.xferUnsignedShort\s*\(\s*(?:0|memberIds\.length)\s*\)|xfer\.xferObjectID\s*\(\s*(?:0|memberId)\s*\)|this\.team\.stateName\s*=\s*xfer\.xferAsciiString\s*\(|xfer\.xferBool\s*\(\s*false\s*\)|xfer\.xferBool\s*\(\s*this\.team\.created\s*\|\||this\.team\.created\s*=\s*xfer\.xferBool\s*\(|xfer\.xferInt\s*\(\s*0\s*\)|xfer\.xferInt\s*\(\s*this\.team\.memberEntityIds\.size\s*\)|xfer\.xferUnsignedInt\s*\(\s*0\s*\)|xfer\.xferUnsignedShort\s*\(\s*GENERIC_SCRIPT_SLOT_COUNT\s*\)|xfer\.xferBool\s*\(\s*true\s*\)|const hasRecruitableOverride\s*=\s*xfer\.xferBool\s*\(|const recruitableValue\s*=\s*xfer\.xferBool\s*\(|xfer\.xferSnapshot\s*\(\s*new SourceEmptyTeamRelationSnapshot|xfer\.xferSnapshot\s*\(\s*new SourceEmptyPlayerRelationSnapshot/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token === 'xfer.xferBool(false)') {
+      const falseBoolLabels = [
+        'enteredOrExited',
+        'checkEnemySighted',
+        'seeEnemy',
+        'prevSeeEnemy',
+        'wasIdle',
+      ];
+      pushUniqueField(fields, seen, falseBoolLabels[falseBoolIndex]);
+      falseBoolIndex += 1;
+      continue;
+    }
+    if (token === 'xfer.xferObjectID(0)') {
+      pushUniqueField(fields, seen, objectIdZeroIndex === 0 ? 'member.id' : 'commonAttackTarget');
+      objectIdZeroIndex += 1;
+      continue;
+    }
+    pushUniqueField(fields, seen, mapTsTeamField(token));
+  }
+  return fields;
+}
+
 function extractQuotedStrings(text: string): string[] {
   const names: string[] = [];
   const regex = /["']([^"']+)["']/g;
@@ -1333,6 +1436,89 @@ function mapTsPlayerListField(token: string): string | null {
   return null;
 }
 
+function mapCppTeamTemplateInfoField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferInt' && argument === 'm_productionPriority') return 'productionPriority';
+  return null;
+}
+
+function mapTsTeamTemplateInfoField(token: string): string | null {
+  if (token.includes('SOURCE_TEAM_TEMPLATE_INFO_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('productionPriority')) return 'productionPriority';
+  return null;
+}
+
+function mapCppTeamPrototypeField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferInt' && argument === 'owningPlayerIndex') return 'owningPlayerIndex';
+  if (method === 'xferAsciiString' && argument === 'm_attackPriorityName') return 'attackPriorityName';
+  if (method === 'xferBool' && argument === 'm_productionConditionAlwaysFalse') return 'productionConditionAlwaysFalse';
+  if (method === 'xferSnapshot' && argument === 'm_teamTemplate') return 'teamTemplateInfoSnapshot';
+  if (method === 'xferUnsignedShort' && argument === 'teamInstanceCount') return 'teamInstanceCount';
+  if (method === 'xferUser' && argument.startsWith('teamID')) return 'team.id';
+  if (method === 'xferSnapshot' && argument === 'teamInstance') return 'team.snapshot';
+  return null;
+}
+
+function mapTsTeamPrototypeField(token: string): string | null {
+  if (token.includes('SOURCE_TEAM_PROTOTYPE_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('ownerIndex')) return 'owningPlayerIndex';
+  if (token.includes('attackPrioritySetName')) return 'attackPriorityName';
+  if (token === 'xfer.xferBool(false)') return 'productionConditionAlwaysFalse';
+  if (token.includes('SourceTeamTemplateInfoSnapshot')) return 'teamTemplateInfoSnapshot';
+  if (token.includes('xfer.xferUnsignedShort')) return 'teamInstanceCount';
+  if (token.includes('xfer.xferUnsignedInt')) return 'team.id';
+  if (token.includes('SourceTeamSnapshot')) return 'team.snapshot';
+  return null;
+}
+
+function mapCppTeamField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUser' && argument.startsWith('teamID')) return 'teamId';
+  if (method === 'xferUnsignedShort' && argument === 'memberCount') return 'memberCount';
+  if (method === 'xferObjectID' && argument === 'memberID') return 'member.id';
+  if (method === 'xferAsciiString' && argument === 'm_state') return 'state';
+  if (method === 'xferBool' && argument === 'm_enteredOrExited') return 'enteredOrExited';
+  if (method === 'xferBool' && argument === 'm_active') return 'active';
+  if (method === 'xferBool' && argument === 'm_created') return 'created';
+  if (method === 'xferBool' && argument === 'm_checkEnemySighted') return 'checkEnemySighted';
+  if (method === 'xferBool' && argument === 'm_seeEnemy') return 'seeEnemy';
+  if (method === 'xferBool' && argument === 'm_prevSeeEnemy') return 'prevSeeEnemy';
+  if (method === 'xferBool' && argument === 'm_wasIdle') return 'wasIdle';
+  if (method === 'xferInt' && argument === 'm_destroyThreshold') return 'destroyThreshold';
+  if (method === 'xferInt' && argument === 'm_curUnits') return 'curUnits';
+  if (method === 'xferUnsignedInt' && argument === 'currentWaypointID') return 'currentWaypointId';
+  if (method === 'xferUnsignedShort' && argument === 'shouldAttemptGenericScriptCount') return 'genericScriptCount';
+  if (method === 'xferBool' && argument === 'm_shouldAttemptGenericScript[i]') return 'genericScript.shouldAttempt';
+  if (method === 'xferBool' && argument === 'm_isRecruitablitySet') return 'isRecruitabilitySet';
+  if (method === 'xferBool' && argument === 'm_isRecruitable') return 'isRecruitable';
+  if (method === 'xferObjectID' && argument === 'm_commonAttackTarget') return 'commonAttackTarget';
+  if (method === 'xferSnapshot' && argument === 'm_teamRelations') return 'teamRelations';
+  if (method === 'xferSnapshot' && argument === 'm_playerRelations') return 'playerRelations';
+  return null;
+}
+
+function mapTsTeamField(token: string): string | null {
+  if (token.includes('SOURCE_TEAM_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('const teamId')) return 'teamId';
+  if (token.includes('xfer.xferUnsignedShort') && token.includes('memberIds')) return 'memberCount';
+  if (token.includes('xfer.xferUnsignedShort') && token.includes('0')) return 'memberCount';
+  if (token.includes('xfer.xferObjectID') && (token.includes('memberId') || token.includes('0'))) return 'member.id';
+  if (token.includes('stateName')) return 'state';
+  if (token.includes('this.team.created ||')) return 'active';
+  if (token.includes('this.team.created =')) return 'created';
+  if (token === 'xfer.xferInt(0)') return 'destroyThreshold';
+  if (token.includes('memberEntityIds.size')) return 'curUnits';
+  if (token === 'xfer.xferUnsignedInt(0)') return 'currentWaypointId';
+  if (token.includes('GENERIC_SCRIPT_SLOT_COUNT')) return 'genericScriptCount';
+  if (token === 'xfer.xferBool(true)') return 'genericScript.shouldAttempt';
+  if (token.includes('hasRecruitableOverride')) return 'isRecruitabilitySet';
+  if (token.includes('recruitableValue')) return 'isRecruitable';
+  if (token.includes('SourceEmptyTeamRelationSnapshot')) return 'teamRelations';
+  if (token.includes('SourceEmptyPlayerRelationSnapshot')) return 'playerRelations';
+  return null;
+}
+
 // ── TS Port Extractors ──────────────────────────────────────────────────────
 
 /**
@@ -1574,6 +1760,18 @@ export function compareTeamFactoryFields(cppFields: string[], tsFields: string[]
 
 export function comparePlayerListFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-player-list-fields', cppFields, tsFields);
+}
+
+export function compareTeamTemplateInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-team-template-info-fields', cppFields, tsFields);
+}
+
+export function compareTeamPrototypeFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-team-prototype-fields', cppFields, tsFields);
+}
+
+export function compareTeamFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-team-fields', cppFields, tsFields);
 }
 
 function compareOrderedStrings(category: string, cppValues: string[], tsValues: string[]): ParityCategoryResult {
@@ -1881,6 +2079,24 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsPlayerListFields = parseTsPlayerListXferFields(tsRuntimeSave);
   if (cppPlayerListFields.length > 0 && tsPlayerListFields.length > 0) {
     categories.push(comparePlayerListFields(cppPlayerListFields, tsPlayerListFields));
+  }
+
+  const cppTeamTemplateInfoFields = parseCppTeamTemplateInfoXferFields(teamSource);
+  const tsTeamTemplateInfoFields = parseTsTeamTemplateInfoXferFields(tsRuntimeTeamFactory);
+  if (cppTeamTemplateInfoFields.length > 0 && tsTeamTemplateInfoFields.length > 0) {
+    categories.push(compareTeamTemplateInfoFields(cppTeamTemplateInfoFields, tsTeamTemplateInfoFields));
+  }
+
+  const cppTeamPrototypeFields = parseCppTeamPrototypeXferFields(teamSource);
+  const tsTeamPrototypeFields = parseTsTeamPrototypeXferFields(tsRuntimeTeamFactory);
+  if (cppTeamPrototypeFields.length > 0 && tsTeamPrototypeFields.length > 0) {
+    categories.push(compareTeamPrototypeFields(cppTeamPrototypeFields, tsTeamPrototypeFields));
+  }
+
+  const cppTeamFields = parseCppTeamXferFields(teamSource);
+  const tsTeamFields = parseTsTeamXferFields(tsRuntimeTeamFactory);
+  if (cppTeamFields.length > 0 && tsTeamFields.length > 0) {
+    categories.push(compareTeamFields(cppTeamFields, tsTeamFields));
   }
 
   return buildSourceParityReport(categories);
