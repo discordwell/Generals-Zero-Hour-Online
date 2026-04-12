@@ -3224,6 +3224,8 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppProductionUpdateField;
   } else if (className === 'NeutronMissileUpdate') {
     mapper = mapCppNeutronMissileUpdateField;
+  } else if (className === 'AssaultTransportAIUpdate') {
+    mapper = mapCppAssaultTransportAIUpdateField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -3233,6 +3235,7 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
       'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
       'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
       'DockUpdate::xfer': prefixBaseVersion(sourceDockUpdateFields(), 'dock'),
+      'AIUpdateInterface::xfer': ['aiUpdateInterface'],
     },
     mapper,
   );
@@ -3264,6 +3267,10 @@ export function parseTsSourceObjectUpdateFields(
     }
     if (token.includes('xferUser')) {
       const window = tsTokenStatement(body, match.index);
+      if (window.includes('buildGeneratedSourceAIUpdateInterfaceBlockData')) {
+        pushUniqueField(fields, seen, 'aiUpdateInterface');
+        continue;
+      }
       if (window.includes('buildSourceUpdateModuleBaseBlockData')) {
         for (const field of sourceUpdateModuleBaseFields()) {
           pushUniqueField(fields, seen, field);
@@ -5115,6 +5122,15 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferBool' && argument === 'm_manualTargetMode') return 'manualTargetMode';
   if (method === 'xferBool' && argument === 'm_scriptedWaypointMode') return 'scriptedWaypointMode';
   if (method === 'xferUnsignedInt' && argument === 'm_nextDestWaypointID') return 'nextDestWaypointId';
+  if (method === 'xferUnsignedInt' && argument === 'm_frameToWaitForDeploy') return 'frameToWaitForDeploy';
+  if (method === 'xferInt' && argument === 'm_currentMembers') return 'member.count';
+  if (method === 'xferObjectID' && argument.startsWith('m_memberIDs')) return 'member.id';
+  if (method === 'xferBool' && argument.startsWith('m_memberHealing')) return 'member.isHealing';
+  if (method === 'xferCoord3D' && argument === 'm_attackMoveGoalPos') return 'attackMoveGoal';
+  if (method === 'xferObjectID' && argument === 'm_designatedTarget') return 'designatedTargetId';
+  if (method === 'xferUnsignedInt' && argument === 'm_framesRemaining') return 'framesRemaining';
+  if (method === 'xferBool' && argument === 'm_isAttackMove') return 'isAttackMove';
+  if (method === 'xferBool' && argument === 'm_isAttackObject') return 'isAttackObject';
   if (method === 'xferReal' && argument === 'm_angularVelocity') return 'angularVelocity';
   if (method === 'xferReal' && argument === 'm_angularAcceleration') return 'angularAcceleration';
   if (method === 'xferCoord3D' && argument === 'm_toppleDirection') return 'toppleDirection';
@@ -5167,6 +5183,11 @@ function mapCppNeutronMissileUpdateField(method: string, argument: string): stri
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppAssaultTransportAIUpdateField(method: string, argument: string): string | null {
+  if (method === 'xferInt' && argument === 'state') return 'assaultState';
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -5184,6 +5205,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('targetEntityId')) return 'targetId';
     if (window.includes('bestTargetId')) return 'bestTargetId';
     if (window.includes('projectileId')) return 'projectileIds';
+    if (window.includes('member.entityId')) return 'member.id';
+    if (window.includes('designatedTargetId')) return 'designatedTargetId';
     if (window.includes('specialObjectIdList')) return 'specialObjectIdList';
     if (window.includes('lastRepair')) return 'lastRepair';
     if (window.includes('dockingObjectId')) return 'dockingObjectId';
@@ -5256,6 +5279,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('doDisableFxParticles')) return 'doDisableFxParticles';
     if (window.includes('manualTargetMode')) return 'manualTargetMode';
     if (window.includes('scriptedWaypointMode')) return 'scriptedWaypointMode';
+    if (window.includes('member.isHealing')) return 'member.isHealing';
+    if (window.includes('isAttackMove')) return 'isAttackMove';
+    if (window.includes('isAttackObject')) return 'isAttackObject';
     if (window.includes('invalidSettings')) return 'invalidSettings';
     if (window.includes('centeringTurret')) return 'centeringTurret';
     if (window.includes('repairing')) return 'repairing';
@@ -5272,6 +5298,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('entry.productionQuantityTotal')) return 'queue.entry.productionQuantityTotal';
     if (window.includes('entry.productionQuantityProduced')) return 'queue.entry.productionQuantityProduced';
     if (window.includes('entry.exitDoor')) return 'queue.entry.exitDoor';
+    if (window.includes('members.length')) return 'member.count';
+    if (window.includes('assaultState')) return 'assaultState';
     if (window.includes('currentPlan')) return 'currentPlan';
     if (window.includes('desiredPlan')) return 'desiredPlan';
     if (window.includes('planAffectingArmy')) return 'planAffectingArmy';
@@ -5321,6 +5349,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('lastDrivingClickFrame')) return 'lastDrivingClickFrame';
     if (window.includes('secondLastDrivingClickFrame')) return 'secondLastDrivingClickFrame';
     if (window.includes('nextDestWaypointID')) return 'nextDestWaypointId';
+    if (window.includes('deployFrameToWait')) return 'frameToWaitForDeploy';
+    if (window.includes('framesRemaining')) return 'framesRemaining';
     if (window.includes('nextReadyFrame') || window.includes('sourceBattlePlanNextReadyFrame')) {
       return 'nextReadyFrame';
     }
@@ -5405,6 +5435,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('statusBytes')) return 'status';
     if (window.includes('laserStatusBytes')) return 'laserStatus';
     if (window.includes('sourceSpecialAbilityPackingStateToInt')) return 'packingState';
+    if (window.includes('sourceDeployStyleStateToInt')) return 'state';
     if (window.includes('buildSourceRawInt32Bytes(currentPlan)')) return 'currentPlan';
     if (window.includes('buildSourceRawInt32Bytes(desiredPlan)')) return 'desiredPlan';
     if (window.includes('buildSourceRawInt32Bytes(planAffectingArmy)')) return 'planAffectingArmy';
@@ -5451,6 +5482,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('satellite')) return 'satellitePosition';
     if (window.includes('gattlingTarget')) return 'gattlingTargetPosition';
     if (window.includes('positionToShootAt')) return 'positionToShootAt';
+    if (window.includes('attackMoveGoal')) return 'attackMoveGoal';
     if (window.includes('accelX')) return 'acceleration';
     if (window.includes('velX')) return 'velocity';
     if (window.includes('finalDestination')) return 'finalDestination';
@@ -7396,6 +7428,9 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const objectUpdateFiles = [
     'AutoFindHealingUpdate.cpp',
     'AutoDepositUpdate.cpp',
+    'AIUpdate/AssaultTransportAIUpdate.cpp',
+    'AIUpdate/DeployStyleAIUpdate.cpp',
+    'AIUpdate/WanderAIUpdate.cpp',
     'AnimationSteeringUpdate.cpp',
     'BaseRenerateUpdate.cpp',
     'BattlePlanUpdate.cpp',
@@ -8447,6 +8482,21 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-particle-uplink-cannon-update-fields',
       cppClass: 'ParticleUplinkCannonUpdate',
       tsHelper: 'buildSourceParticleUplinkCannonUpdateBlockData',
+    },
+    {
+      category: 'save-wander-ai-update-fields',
+      cppClass: 'WanderAIUpdate',
+      tsHelper: 'buildSourceAIUpdateInterfaceDerivedBlockData',
+    },
+    {
+      category: 'save-deploy-style-ai-update-fields',
+      cppClass: 'DeployStyleAIUpdate',
+      tsHelper: 'buildGeneratedSourceDeployStyleAIUpdateBlockData',
+    },
+    {
+      category: 'save-assault-transport-ai-update-fields',
+      cppClass: 'AssaultTransportAIUpdate',
+      tsHelper: 'buildGeneratedSourceAssaultTransportAIUpdateBlockData',
     },
     {
       category: 'save-spy-vision-update-fields',
