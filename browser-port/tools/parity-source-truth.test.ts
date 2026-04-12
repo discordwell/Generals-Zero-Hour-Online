@@ -1268,6 +1268,25 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(particleCategory).toBeDefined();
       expect(particleCategory!.status).toBe('match');
 
+      for (const category of [
+        'save-module-base-fields',
+        'save-object-module-base-fields',
+        'save-drawable-module-base-fields',
+        'save-draw-module-base-fields',
+        'save-behavior-module-base-fields',
+        'save-update-module-base-fields',
+        'save-body-module-base-fields',
+        'save-collide-module-base-fields',
+        'save-die-module-base-fields',
+        'save-damage-module-base-fields',
+        'save-create-module-fields',
+        'save-special-power-module-fields',
+      ]) {
+        const moduleCategory = report.categories.find((c) => c.category === category);
+        expect(moduleCategory).toBeDefined();
+        expect(moduleCategory!.status).toBe('match');
+      }
+
       const terrainVisualCategory = report.categories.find((c) => c.category === 'save-terrain-visual-fields');
       expect(terrainVisualCategory).toBeDefined();
       expect(terrainVisualCategory!.status).toBe('match');

@@ -1537,6 +1537,175 @@ export function parseTsParticleFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppSourceModuleBaseFields(source: string): string[] {
+  return parseCppSimpleModuleFields(source, 'void Module::xfer( Xfer *xfer )', {});
+}
+
+export function parseTsSourceModuleBaseFields(source: string): string[] {
+  return parseTsSimpleModuleFields(source, 'function xferSourceModuleBase', {
+    'xfer.xferVersion': 'version',
+  });
+}
+
+export function parseCppSourceObjectModuleBaseFields(source: string): string[] {
+  return parseCppSimpleModuleFields(source, 'void ObjectModule::xfer( Xfer *xfer )', {
+    'Module::xfer': ['module.version'],
+  });
+}
+
+export function parseCppSourceDrawableModuleBaseFields(source: string): string[] {
+  return parseCppSimpleModuleFields(source, 'void DrawableModule::xfer( Xfer *xfer )', {
+    'Module::xfer': ['module.version'],
+  });
+}
+
+export function parseTsSourceDrawableModuleBaseFields(source: string): string[] {
+  return parseTsSimpleModuleFields(source, 'function xferSourceDrawableModuleBase', {
+    'xfer.xferVersion': 'version',
+    xferSourceModuleBase: 'module.version',
+  });
+}
+
+export function parseCppSourceDrawModuleBaseFields(source: string): string[] {
+  return parseCppSimpleModuleFields(source, 'void DrawModule::xfer( Xfer *xfer )', {
+    'DrawableModule::xfer': ['drawableModule.version', 'module.version'],
+  });
+}
+
+export function parseTsSourceDrawModuleBaseFields(source: string): string[] {
+  return parseTsSimpleModuleFields(source, 'function xferSourceDrawModuleBase', {
+    'xfer.xferVersion': 'version',
+    xferSourceDrawableModuleBase: 'drawableModule.version',
+    xferSourceModuleBase: 'module.version',
+  });
+}
+
+export function parseCppSourceBehaviorModuleBaseFields(source: string): string[] {
+  return parseCppSimpleModuleFields(source, 'void BehaviorModule::xfer( Xfer *xfer )', {
+    'ObjectModule::xfer': ['objectModule.version', 'module.version'],
+  });
+}
+
+export function parseTsSourceBehaviorModuleBaseFields(source: string): string[] {
+  return parseTsSimpleModuleFields(source, 'function xferSourceBehaviorModuleBase', {
+    behaviorVersion: 'version',
+    objectModuleVersion: 'objectModule.version',
+    moduleVersion: 'module.version',
+  });
+}
+
+export function parseCppSourceUpdateModuleBaseFields(source: string): string[] {
+  return parseCppSimpleModuleFields(source, 'void UpdateModule::xfer( Xfer *xfer )', {
+    'BehaviorModule::xfer': ['behavior.version', 'objectModule.version', 'module.version'],
+  });
+}
+
+export function parseTsSourceUpdateModuleBaseFields(source: string): string[] {
+  return parseTsSimpleModuleFields(source, 'function xferSourceUpdateModuleBase', {
+    updateVersion: 'version',
+    behaviorVersion: 'behavior.version',
+    objectModuleVersion: 'objectModule.version',
+    moduleVersion: 'module.version',
+    nextCallFrameAndPhase: 'nextCallFrameAndPhase',
+  });
+}
+
+export function parseCppSourceBodyModuleBaseFields(source: string): string[] {
+  return parseCppSimpleModuleFields(source, 'void BodyModule::xfer( Xfer *xfer )', {
+    'BehaviorModule::xfer': ['behavior.version', 'objectModule.version', 'module.version'],
+  });
+}
+
+export function parseTsSourceBodyModuleBaseFields(source: string): string[] {
+  return parseTsSimpleModuleFields(source, 'function xferSourceBodyModuleBase', {
+    bodyVersion: 'version',
+    behaviorVersion: 'behavior.version',
+    objectModuleVersion: 'objectModule.version',
+    moduleVersion: 'module.version',
+    damageScalar: 'damageScalar',
+  });
+}
+
+export function parseCppSourceCollideModuleBaseFields(source: string): string[] {
+  return parseCppSimpleModuleFields(source, 'void CollideModule::xfer( Xfer *xfer )', {
+    'BehaviorModule::xfer': ['behavior.version', 'objectModule.version', 'module.version'],
+  });
+}
+
+export function parseTsSourceCollideModuleBaseFields(source: string): string[] {
+  return parseTsSimpleModuleFields(source, 'function xferSourceCollideModuleBase', {
+    collideVersion: 'version',
+    xferSourceBehaviorModuleBase: 'behavior.version',
+    objectModuleVersion: 'objectModule.version',
+    moduleVersion: 'module.version',
+  });
+}
+
+export function parseCppSourceDieModuleBaseFields(source: string): string[] {
+  return parseCppSimpleModuleFields(source, 'void DieModule::xfer( Xfer *xfer )', {
+    'BehaviorModule::xfer': ['behavior.version', 'objectModule.version', 'module.version'],
+  });
+}
+
+export function parseTsSourceDieModuleBaseFields(source: string): string[] {
+  return parseTsSimpleModuleFields(source, 'function xferSourceDieModuleBase', {
+    dieVersion: 'version',
+    xferSourceBehaviorModuleBase: 'behavior.version',
+    objectModuleVersion: 'objectModule.version',
+    moduleVersion: 'module.version',
+  });
+}
+
+export function parseCppSourceDamageModuleBaseFields(source: string): string[] {
+  return parseCppSimpleModuleFields(source, 'void DamageModule::xfer( Xfer *xfer )', {
+    'BehaviorModule::xfer': ['behavior.version', 'objectModule.version', 'module.version'],
+  });
+}
+
+export function parseTsSourceDamageModuleBaseFields(source: string): string[] {
+  return parseTsSimpleModuleFields(source, 'function xferSourceDamageModuleBase', {
+    damageVersion: 'version',
+    xferSourceBehaviorModuleBase: 'behavior.version',
+    objectModuleVersion: 'objectModule.version',
+    moduleVersion: 'module.version',
+  });
+}
+
+export function parseCppSourceCreateModuleFields(source: string): string[] {
+  return parseCppSimpleModuleFields(source, 'void CreateModule::xfer( Xfer *xfer )', {
+    'BehaviorModule::xfer': ['behavior.version', 'objectModule.version', 'module.version'],
+  });
+}
+
+export function parseTsSourceCreateModuleFields(source: string): string[] {
+  return parseTsSimpleModuleFields(source, 'function xferSourceCreateModule', {
+    version: 'version',
+    xferSourceBehaviorModuleBase: 'behavior.version',
+    objectModuleVersion: 'objectModule.version',
+    moduleVersion: 'module.version',
+    needToRunOnBuildComplete: 'needToRunOnBuildComplete',
+  });
+}
+
+export function parseCppSourceSpecialPowerModuleFields(source: string): string[] {
+  return parseCppSimpleModuleFields(source, 'void SpecialPowerModule::xfer( Xfer *xfer )', {
+    'BehaviorModule::xfer': ['behavior.version', 'objectModule.version', 'module.version'],
+  });
+}
+
+export function parseTsSourceSpecialPowerModuleFields(source: string): string[] {
+  return parseTsSimpleModuleFields(source, 'function xferSourceSpecialPowerModule', {
+    version: 'version',
+    xferSourceBehaviorModuleBase: 'behavior.version',
+    objectModuleVersion: 'objectModule.version',
+    moduleVersion: 'module.version',
+    availableOnFrame: 'availableOnFrame',
+    pausedCount: 'pausedCount',
+    pausedOnFrame: 'pausedOnFrame',
+    pausedPercent: 'pausedPercent',
+  });
+}
+
 /**
  * Parse C++ Radar::xfer source-save field order.
  */
@@ -2701,6 +2870,89 @@ function parseCppXferFields(
     pushUniqueField(fields, seen, mapper(method, argument));
   }
   return fields;
+}
+
+function parseCppSimpleModuleFields(
+  source: string,
+  signature: string,
+  baseExpansions: Record<string, string[]>,
+): string[] {
+  const body = extractFunctionBody(source, signature);
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /(?:[A-Za-z]+Module|Module|DrawableModule|ObjectModule|BehaviorModule|UpgradeMux)::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    const baseKey = token.split('(')[0]?.replace(/\s+/g, '');
+    const baseFields = baseKey ? baseExpansions[baseKey] : undefined;
+    if (baseFields) {
+      for (const field of baseFields) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppSimpleModuleField(match[1]!, normalizeCppXferArgument(match[2]!)));
+  }
+  return fields;
+}
+
+function parseTsSimpleModuleFields(source: string, signature: string, labels: Record<string, string>): string[] {
+  let body = extractFunctionBody(source, signature);
+  if (body && !body.includes('xfer.')) {
+    body = extractFunctionRegion(source, signature);
+  }
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /const\s+(\w+)\s*=\s*xfer\.xfer(?:Version|Real|UnsignedInt|Int|Bool)\s*\(|(\w+):\s*xfer\.xfer(?:Real|UnsignedInt|Int|Bool)\s*\(|return\s+xfer\.xferUnsignedInt\s*\(\s*(\w+)\s*\)|xfer\.xferVersion\s*\(|xferSource(?:ModuleBase|DrawableModuleBase|BehaviorModuleBase)\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.includes('xferSourceBehaviorModuleBase')) {
+      for (const field of ['behavior.version', 'objectModule.version', 'module.version']) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSourceDrawableModuleBase')) {
+      for (const field of ['drawableModule.version', 'module.version']) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSourceModuleBase')) {
+      pushUniqueField(fields, seen, 'module.version');
+      continue;
+    }
+    const rawName = match[1] ?? match[2] ?? match[3];
+    if (rawName) {
+      pushUniqueField(fields, seen, labels[rawName]);
+      continue;
+    }
+    for (const [needle, label] of Object.entries(labels)) {
+      if (token.includes(needle)) {
+        pushUniqueField(fields, seen, label);
+        break;
+      }
+    }
+  }
+  return fields;
+}
+
+function extractFunctionRegion(source: string, signature: string): string | null {
+  const start = source.indexOf(signature);
+  if (start < 0) {
+    return null;
+  }
+  const nextFunction = source.indexOf('\nfunction ', start + signature.length);
+  const nextClass = source.indexOf('\nclass ', start + signature.length);
+  const candidates = [nextFunction, nextClass].filter((index) => index >= 0);
+  const end = candidates.length > 0 ? Math.min(...candidates) : source.length;
+  return source.slice(start, end);
 }
 
 function parseTsScienceVectorFields(body: string): string[] {
@@ -4150,6 +4402,19 @@ function mapTsParticleField(rawName: string): string | null {
   return fields[rawName] ?? null;
 }
 
+function mapCppSimpleModuleField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedInt' && argument === 'm_nextCallFrameAndPhase') return 'nextCallFrameAndPhase';
+  if (method === 'xferReal' && argument === 'm_damageScalar') return 'damageScalar';
+  if (method === 'xferBool' && argument === 'm_needToRunOnBuildComplete') return 'needToRunOnBuildComplete';
+  if (method === 'xferBool' && argument === 'm_upgradeExecuted') return 'upgradeExecuted';
+  if (method === 'xferUnsignedInt' && argument === 'm_availableOnFrame') return 'availableOnFrame';
+  if (method === 'xferInt' && argument === 'm_pausedCount') return 'pausedCount';
+  if (method === 'xferUnsignedInt' && argument === 'm_pausedOnFrame') return 'pausedOnFrame';
+  if (method === 'xferReal' && argument === 'm_pausedPercent') return 'pausedPercent';
+  return null;
+}
+
 function mapCppRadarField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferBool' && argument === 'm_radarHidden') return 'radarHidden';
@@ -5488,6 +5753,54 @@ export function compareParticleFields(cppFields: string[], tsFields: string[]): 
   return compareOrderedStrings('save-particle-fields', cppFields, tsFields);
 }
 
+export function compareSourceModuleBaseFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-module-base-fields', cppFields, tsFields);
+}
+
+export function compareSourceObjectModuleBaseFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-object-module-base-fields', cppFields, tsFields);
+}
+
+export function compareSourceDrawableModuleBaseFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-drawable-module-base-fields', cppFields, tsFields);
+}
+
+export function compareSourceDrawModuleBaseFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-draw-module-base-fields', cppFields, tsFields);
+}
+
+export function compareSourceBehaviorModuleBaseFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-behavior-module-base-fields', cppFields, tsFields);
+}
+
+export function compareSourceUpdateModuleBaseFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-update-module-base-fields', cppFields, tsFields);
+}
+
+export function compareSourceBodyModuleBaseFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-body-module-base-fields', cppFields, tsFields);
+}
+
+export function compareSourceCollideModuleBaseFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-collide-module-base-fields', cppFields, tsFields);
+}
+
+export function compareSourceDieModuleBaseFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-die-module-base-fields', cppFields, tsFields);
+}
+
+export function compareSourceDamageModuleBaseFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-damage-module-base-fields', cppFields, tsFields);
+}
+
+export function compareSourceCreateModuleFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-create-module-fields', cppFields, tsFields);
+}
+
+export function compareSourceSpecialPowerModuleFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-special-power-module-fields', cppFields, tsFields);
+}
+
 export function compareRadarFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-radar-fields', cppFields, tsFields);
 }
@@ -5817,6 +6130,66 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   );
   const genParticleSysCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameClient/System/ParticleSys.cpp'),
+  );
+  const zhModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/Thing/Module.cpp'),
+  );
+  const genModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/Thing/Module.cpp'),
+  );
+  const zhDrawModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/Thing/DrawModule.cpp'),
+  );
+  const genDrawModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/Thing/DrawModule.cpp'),
+  );
+  const zhBehaviorModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/BehaviorModule.cpp'),
+  );
+  const genBehaviorModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/Behavior/BehaviorModule.cpp'),
+  );
+  const zhUpdateModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/UpdateModule.cpp'),
+  );
+  const genUpdateModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/Update/UpdateModule.cpp'),
+  );
+  const zhBodyModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Body/BodyModule.cpp'),
+  );
+  const genBodyModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/Body/BodyModule.cpp'),
+  );
+  const zhCollideModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Collide/CollideModule.cpp'),
+  );
+  const genCollideModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/Collide/CollideModule.cpp'),
+  );
+  const zhDieModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp'),
+  );
+  const genDieModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/Die/DieModule.cpp'),
+  );
+  const zhDamageModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Damage/DamageModule.cpp'),
+  );
+  const genDamageModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/Damage/DamageModule.cpp'),
+  );
+  const zhCreateModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Create/CreateModule.cpp'),
+  );
+  const genCreateModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/Create/CreateModule.cpp'),
+  );
+  const zhSpecialPowerModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/SpecialPower/SpecialPowerModule.cpp'),
+  );
+  const genSpecialPowerModuleCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/SpecialPower/SpecialPowerModule.cpp'),
   );
   const zhTerrainVisualCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameClient/Terrain/TerrainVisual.cpp'),
@@ -6268,6 +6641,90 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsParticleFields = parseTsParticleFields(tsRuntimeParticleSystem);
   if (cppParticleFields.length > 0 && tsParticleFields.length > 0) {
     categories.push(compareParticleFields(cppParticleFields, tsParticleFields));
+  }
+
+  const moduleBaseSource = [
+    zhModuleCpp || genModuleCpp,
+    zhDrawModuleCpp || genDrawModuleCpp,
+    zhBehaviorModuleCpp || genBehaviorModuleCpp,
+    zhUpdateModuleCpp || genUpdateModuleCpp,
+    zhBodyModuleCpp || genBodyModuleCpp,
+    zhCollideModuleCpp || genCollideModuleCpp,
+    zhDieModuleCpp || genDieModuleCpp,
+    zhDamageModuleCpp || genDamageModuleCpp,
+    zhCreateModuleCpp || genCreateModuleCpp,
+    zhSpecialPowerModuleCpp || genSpecialPowerModuleCpp,
+  ].join('\n');
+  const moduleBaseChecks: Array<{
+    cpp: string[];
+    ts: string[];
+    compare: (cppFields: string[], tsFields: string[]) => ParityCategoryResult;
+  }> = [
+    {
+      cpp: parseCppSourceModuleBaseFields(moduleBaseSource),
+      ts: parseTsSourceModuleBaseFields(tsRuntimeSave),
+      compare: compareSourceModuleBaseFields,
+    },
+    {
+      cpp: parseCppSourceObjectModuleBaseFields(moduleBaseSource),
+      ts: ['version', 'module.version'],
+      compare: compareSourceObjectModuleBaseFields,
+    },
+    {
+      cpp: parseCppSourceDrawableModuleBaseFields(moduleBaseSource),
+      ts: parseTsSourceDrawableModuleBaseFields(tsRuntimeSave),
+      compare: compareSourceDrawableModuleBaseFields,
+    },
+    {
+      cpp: parseCppSourceDrawModuleBaseFields(moduleBaseSource),
+      ts: parseTsSourceDrawModuleBaseFields(tsRuntimeSave),
+      compare: compareSourceDrawModuleBaseFields,
+    },
+    {
+      cpp: parseCppSourceBehaviorModuleBaseFields(moduleBaseSource),
+      ts: parseTsSourceBehaviorModuleBaseFields(tsRuntimeSave),
+      compare: compareSourceBehaviorModuleBaseFields,
+    },
+    {
+      cpp: parseCppSourceUpdateModuleBaseFields(moduleBaseSource),
+      ts: parseTsSourceUpdateModuleBaseFields(tsRuntimeSave),
+      compare: compareSourceUpdateModuleBaseFields,
+    },
+    {
+      cpp: parseCppSourceBodyModuleBaseFields(moduleBaseSource),
+      ts: parseTsSourceBodyModuleBaseFields(tsRuntimeSave),
+      compare: compareSourceBodyModuleBaseFields,
+    },
+    {
+      cpp: parseCppSourceCollideModuleBaseFields(moduleBaseSource),
+      ts: parseTsSourceCollideModuleBaseFields(tsRuntimeSave),
+      compare: compareSourceCollideModuleBaseFields,
+    },
+    {
+      cpp: parseCppSourceDieModuleBaseFields(moduleBaseSource),
+      ts: parseTsSourceDieModuleBaseFields(tsRuntimeSave),
+      compare: compareSourceDieModuleBaseFields,
+    },
+    {
+      cpp: parseCppSourceDamageModuleBaseFields(moduleBaseSource),
+      ts: parseTsSourceDamageModuleBaseFields(tsRuntimeSave),
+      compare: compareSourceDamageModuleBaseFields,
+    },
+    {
+      cpp: parseCppSourceCreateModuleFields(moduleBaseSource),
+      ts: parseTsSourceCreateModuleFields(tsRuntimeSave),
+      compare: compareSourceCreateModuleFields,
+    },
+    {
+      cpp: parseCppSourceSpecialPowerModuleFields(moduleBaseSource),
+      ts: parseTsSourceSpecialPowerModuleFields(tsRuntimeSave),
+      compare: compareSourceSpecialPowerModuleFields,
+    },
+  ];
+  for (const check of moduleBaseChecks) {
+    if (check.cpp.length > 0 && check.ts.length > 0) {
+      categories.push(check.compare(check.cpp, check.ts));
+    }
   }
 
   const terrainVisualSource = `${zhW3DTerrainVisualCpp || genW3DTerrainVisualCpp}\n${zhTerrainVisualCpp || genTerrainVisualCpp}`;
