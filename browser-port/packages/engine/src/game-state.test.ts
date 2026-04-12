@@ -49,6 +49,12 @@ class MultiFieldSnapshot implements Snapshot {
   }
 }
 
+class ThrowingPostProcessSnapshot extends SimpleSnapshot {
+  loadPostProcess(): void {
+    throw new Error('post-process failed');
+  }
+}
+
 describe('GameState', () => {
   it('round-trips a single snapshot block', () => {
     const saveState = new GameState();
@@ -199,6 +205,32 @@ describe('GameState', () => {
     loadState.loadGame(data);
     loadState.loadGame(data);
     expect(extraSnap.postProcessCount).toBe(1);
+  });
+
+  it('returns SC_INVALID_DATA and preserves the load error when xfer fails', () => {
+    const state = new GameState();
+    state.addSnapshotBlock('CHUNK_Test', new SimpleSnapshot());
+
+    const result = state.loadGame(new ArrayBuffer(1));
+
+    expect(result).toBe(SaveCode.SC_INVALID_DATA);
+    expect(state.getLastLoadError()?.message).toContain('read past end');
+  });
+
+  it('returns SC_INVALID_DATA when post-process fails', () => {
+    const saveState = new GameState();
+    const snap = new SimpleSnapshot();
+    snap.value = 5;
+    saveState.addSnapshotBlock('CHUNK_Test', snap);
+    const { data } = saveState.saveGame('post process failure');
+
+    const loadState = new GameState();
+    loadState.addSnapshotBlock('CHUNK_Test', new ThrowingPostProcessSnapshot());
+
+    const result = loadState.loadGame(data);
+
+    expect(result).toBe(SaveCode.SC_INVALID_DATA);
+    expect(loadState.getLastLoadError()?.message).toBe('post-process failed');
   });
 
   it('computeCrc returns non-zero for non-empty state', () => {

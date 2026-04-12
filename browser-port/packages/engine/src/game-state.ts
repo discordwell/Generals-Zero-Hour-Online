@@ -104,29 +104,40 @@ export class GameState {
     xferLoad.open('load');
     this.lastLoadError = null;
     const loadedSnapshots: Snapshot[] = [];
+    let loadError: Error | null = null;
 
     try {
       this.xferSaveData(xferLoad, loadedSnapshots);
     } catch (error) {
-      this.lastLoadError = error instanceof Error
+      loadError = error instanceof Error
         ? error
         : new Error(String(error));
-      return SaveCode.SC_ERROR;
     }
 
     xferLoad.close();
 
-    // Source parity: XferLoad::xferSnapshot registers only loaded snapshots
-    // for GameState::gameStatePostProcessLoad().
-    for (const snapshot of loadedSnapshots) {
-      snapshot.loadPostProcess();
-    }
+    try {
+      // Source parity: XferLoad::xferSnapshot registers only loaded snapshots
+      // for GameState::gameStatePostProcessLoad().
+      for (const snapshot of loadedSnapshots) {
+        snapshot.loadPostProcess();
+      }
 
-    // Post-process additional registered snapshots
-    for (const snapshot of this.postProcessList) {
-      snapshot.loadPostProcess();
+      // Post-process additional registered snapshots
+      for (const snapshot of this.postProcessList) {
+        snapshot.loadPostProcess();
+      }
+    } catch (error) {
+      loadError ??= error instanceof Error
+        ? error
+        : new Error(String(error));
     }
     this.postProcessList.length = 0;
+
+    if (loadError !== null) {
+      this.lastLoadError = loadError;
+      return SaveCode.SC_INVALID_DATA;
+    }
 
     return SaveCode.SC_OK;
   }
