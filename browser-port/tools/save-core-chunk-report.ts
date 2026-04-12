@@ -387,6 +387,22 @@ function buildGameStateMapHeaderIdentity(data: ArrayBuffer): Record<string, unkn
   };
 }
 
+function tryBuildGameStateMapHeaderIdentity(data: ArrayBuffer): Record<string, unknown> | null {
+  try {
+    return buildGameStateMapHeaderIdentity(data);
+  } catch {
+    return null;
+  }
+}
+
+function tryParseSaveGameMapInfo(data: ArrayBuffer): ReturnType<typeof parseSaveGameMapInfo> | null {
+  try {
+    return parseSaveGameMapInfo(data);
+  } catch {
+    return null;
+  }
+}
+
 function buildSaveCoreChunkRoundTripReport(
   data: ArrayBuffer,
   savePath: string,
@@ -409,18 +425,23 @@ function buildSaveCoreChunkRoundTripReport(
     const chunkPayloadBytesPreserved = changedChunkPayloads.length === 0;
     const metadataPreserved = JSON.stringify(buildSaveMetadataIdentity(data))
       === JSON.stringify(buildSaveMetadataIdentity(rebuiltData));
-    const gameStateMapHeaderPreserved = JSON.stringify(buildGameStateMapHeaderIdentity(data))
-      === JSON.stringify(buildGameStateMapHeaderIdentity(rebuiltData));
-    const sourceMapInfo = parseSaveGameMapInfo(data);
-    const rebuiltMapInfo = parseSaveGameMapInfo(rebuiltData);
-    const embeddedMapBytesPreserved = arrayBuffersEqual(
-      sourceMapInfo.embeddedMapData,
-      rebuiltMapInfo.embeddedMapData,
-    );
-    const gameStateMapTrailingBytesPreserved = arrayBuffersEqual(
-      sourceMapInfo.trailingBytes,
-      rebuiltMapInfo.trailingBytes,
-    );
+    const sourceMapHeader = tryBuildGameStateMapHeaderIdentity(data);
+    const rebuiltMapHeader = tryBuildGameStateMapHeaderIdentity(rebuiltData);
+    const gameStateMapHeaderPreserved = JSON.stringify(sourceMapHeader) === JSON.stringify(rebuiltMapHeader);
+    const sourceMapInfo = tryParseSaveGameMapInfo(data);
+    const rebuiltMapInfo = tryParseSaveGameMapInfo(rebuiltData);
+    const embeddedMapBytesPreserved = sourceMapInfo === null || rebuiltMapInfo === null
+      ? sourceMapInfo === rebuiltMapInfo
+      : arrayBuffersEqual(
+        sourceMapInfo.embeddedMapData,
+        rebuiltMapInfo.embeddedMapData,
+      );
+    const gameStateMapTrailingBytesPreserved = sourceMapInfo === null || rebuiltMapInfo === null
+      ? sourceMapInfo === rebuiltMapInfo
+      : arrayBuffersEqual(
+        sourceMapInfo.trailingBytes,
+        rebuiltMapInfo.trailingBytes,
+      );
     const preservationBlockReason = !chunkNamesPreserved
       ? 'roundtrip-chunk-names-changed'
       : !chunkPayloadBytesPreserved

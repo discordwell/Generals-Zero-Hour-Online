@@ -10,6 +10,7 @@ import {
   parseSaveGameMapInfo,
   type Coord3D,
   type ParsedSaveGameInfo,
+  type ParsedSaveGameMapInfo,
   type Snapshot,
   type Xfer,
 } from '@generals/engine';
@@ -2290,6 +2291,22 @@ function resolveChallengeGameInfoState(
     return campaign.challengeGameInfoState;
   }
   return createFreshChallengeGameInfoState(campaign, gameRandomSeed);
+}
+
+function createRuntimeSaveCampaignState(
+  campaign: RuntimeSaveCampaignBootstrap | null | undefined,
+  gameRandomSeed: number | undefined,
+): RuntimeSaveCampaignState {
+  return {
+    version: resolveFreshCampaignSnapshotVersion(campaign),
+    currentCampaign: campaign?.campaignName ?? '',
+    currentMission: campaign?.missionName ?? '',
+    currentRankPoints: campaign?.rankPoints ?? 0,
+    difficulty: campaign?.difficulty ?? 'NORMAL',
+    isChallengeCampaign: campaign?.isChallengeCampaign ?? false,
+    playerTemplateNum: campaign?.playerTemplateNum ?? -1,
+    challengeGameInfoState: resolveChallengeGameInfoState(campaign, gameRandomSeed),
+  };
 }
 
 function xferMoneyAmount(xfer: Xfer, value: number): number {
@@ -26553,6 +26570,37 @@ export function buildRuntimeSaveFile(params: {
     sizeBytes: number;
   };
 } {
+  const metadataState = createMetadataState(params.description, params.mapPath);
+  applyCampaignMetadata(metadataState, params.campaign ?? null);
+  applySourceMetadataOverrides(metadataState, params.sourceMetadata);
+  if (
+    metadataState.saveFileType === SaveFileType.SAVE_FILE_TYPE_MISSION
+    && metadataState.missionMapName.trim().length === 0
+  ) {
+    metadataState.missionMapName = normalizeRuntimeSaveSourceMapPath(params.campaign?.sourceMapName)
+      ?? normalizeRuntimeSaveSourceMapPath(params.sourcePristineMapPath)
+      ?? normalizeRuntimeSaveSourceMapPath(params.mapPath)
+      ?? '';
+  }
+  if (metadataState.saveFileType === SaveFileType.SAVE_FILE_TYPE_MISSION) {
+    const state = new GameState();
+    state.addSnapshotBlock('CHUNK_GameState', new MetadataSnapshot(metadataState));
+    state.addSnapshotBlock(
+      SOURCE_CAMPAIGN_BLOCK,
+      new CampaignSnapshot(createRuntimeSaveCampaignState(params.campaign ?? null, undefined)),
+    );
+    const saveResult = state.saveGame(params.description);
+    return {
+      data: saveResult.data,
+      metadata: {
+        description: metadataState.description,
+        mapName: metadataState.mapLabel,
+        timestamp: Date.now(),
+        sizeBytes: saveResult.data.byteLength,
+      },
+    };
+  }
+
   const browserGameLogicState = params.browserRuntimeState === undefined
     ? params.gameLogic.captureBrowserRuntimeSaveState()
     : params.browserRuntimeState;
@@ -26642,10 +26690,6 @@ export function buildRuntimeSaveFile(params: {
     (playerPayload?.state as Record<string, unknown> | undefined)?.localPlayerIndex ?? 0,
   );
   const resolvedLocalPlayerIndex = Number.isFinite(localPlayerIndex) ? Math.trunc(localPlayerIndex) : 0;
-  const resolvedChallengeGameInfoState = resolveChallengeGameInfoState(
-    params.campaign,
-    gameLogicPayload.gameRandomSeed,
-  );
   const objectIdCounter = params.gameLogic.getObjectIdCounter();
   const drawableIdCounter = resolveRuntimeSaveDrawableIdCounter(
     objectIdCounter,
@@ -26659,19 +26703,7 @@ export function buildRuntimeSaveFile(params: {
     throw new Error('Runtime save requires JSON map data or embedded source map bytes.');
   }
 
-  const metadataState = createMetadataState(params.description, params.mapPath);
-  const campaignState: RuntimeSaveCampaignState = {
-    version: resolveFreshCampaignSnapshotVersion(params.campaign),
-    currentCampaign: params.campaign?.campaignName ?? '',
-    currentMission: params.campaign?.missionName ?? '',
-    currentRankPoints: params.campaign?.rankPoints ?? 0,
-    difficulty: params.campaign?.difficulty ?? 'NORMAL',
-    isChallengeCampaign: params.campaign?.isChallengeCampaign ?? false,
-    playerTemplateNum: params.campaign?.playerTemplateNum ?? -1,
-    challengeGameInfoState: resolvedChallengeGameInfoState,
-  };
-  applyCampaignMetadata(metadataState, params.campaign ?? null);
-  applySourceMetadataOverrides(metadataState, params.sourceMetadata);
+  const campaignState = createRuntimeSaveCampaignState(params.campaign, gameLogicPayload.gameRandomSeed);
   const explicitSourceSaveGameMapPath = normalizeRuntimeSaveSourceMapPath(params.sourceSaveGameMapPath);
   const explicitSourcePristineMapPath = normalizeRuntimeSaveSourceMapPath(params.sourcePristineMapPath);
   const portableSourcePristineMapPath = explicitSourcePristineMapPath
@@ -26925,9 +26957,31 @@ export function buildRuntimeSaveFile(params: {
   };
 }
 
+function parseRuntimeSaveGameMapInfoForMetadata(
+  data: ArrayBuffer,
+  metadata: ParsedSaveGameInfo,
+): ParsedSaveGameMapInfo {
+  try {
+    return parseSaveGameMapInfo(data);
+  } catch (error) {
+    if (metadata.saveFileType !== SaveFileType.SAVE_FILE_TYPE_MISSION) {
+      throw error;
+    }
+    return {
+      saveGameMapPath: '',
+      pristineMapPath: metadata.missionMapName,
+      gameMode: SOURCE_GAME_MODE_SINGLE_PLAYER,
+      embeddedMapData: new ArrayBuffer(0),
+      objectIdCounter: 1,
+      drawableIdCounter: 1,
+      trailingBytes: new ArrayBuffer(0),
+    };
+  }
+}
+
 export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
   const metadata = parseSaveGameInfo(data);
-  const mapInfo = parseSaveGameMapInfo(data);
+  const mapInfo = parseRuntimeSaveGameMapInfoForMetadata(data, metadata);
 
   const campaignSnapshot = new CampaignSnapshot({
     version: SOURCE_CAMPAIGN_SNAPSHOT_FRESH_VERSION,
@@ -26971,6 +27025,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     typeof payload?.mapPath === 'string' ? payload.mapPath : null,
     mapInfo.pristineMapPath,
     mapInfo.saveGameMapPath,
+    metadata.missionMapName,
   ]);
   const mapData = tryDecodeJsonBytes<MapDataJSON>(mapInfo.embeddedMapData);
   const teamFactoryChunk = extractSaveChunkData(data, SOURCE_TEAM_FACTORY_BLOCK);
@@ -27476,6 +27531,13 @@ export function inspectRuntimeSaveCoreChunkStatus(
     }
     return { blockName, mode: 'missing' };
   };
+
+  if (parsed.metadata.saveFileType === SaveFileType.SAVE_FILE_TYPE_MISSION) {
+    return [
+      describeChunk('CHUNK_GameState', parsed.metadata),
+      describeChunk(SOURCE_CAMPAIGN_BLOCK, true),
+    ];
+  }
 
   return [
     describeChunk('CHUNK_GameState', parsed.metadata),

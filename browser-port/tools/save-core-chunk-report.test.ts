@@ -309,8 +309,8 @@ describe('save core chunk report', () => {
       sourceSaveGameMapPath: 'Save\\MD_USA01.map',
       sourcePristineMapPath: 'Maps\\MD_USA01\\MD_USA01.map',
       sourceMetadata: {
-        saveFileType: SaveFileType.SAVE_FILE_TYPE_MISSION,
-        missionMapName: 'Maps\\MD_USA01\\MD_USA01.map',
+        saveFileType: SaveFileType.SAVE_FILE_TYPE_NORMAL,
+        missionMapName: '',
         mapLabel: 'GUI:MissionSave',
         campaignSide: 'usa',
         missionNumber: 0,
@@ -333,5 +333,48 @@ describe('save core chunk report', () => {
     expect(report.roundTrip.gameStateMapHeaderPreserved).toBe(true);
     expect(report.roundTrip.embeddedMapBytesPreserved).toBe(true);
     expect(report.roundTrip.gameStateMapTrailingBytesPreserved).toBe(true);
+  });
+
+  it('round-trips source mission saves as GameState and Campaign only', () => {
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Mission Save Fixture',
+      mapPath: null,
+      mapData: null,
+      cameraState: null,
+      sourceMetadata: {
+        saveFileType: SaveFileType.SAVE_FILE_TYPE_MISSION,
+        missionMapName: 'Maps\\MD_USA01\\MD_USA01.map',
+        mapLabel: 'GUI:MissionSave',
+        campaignSide: 'usa',
+        missionNumber: 0,
+      },
+      campaign: {
+        campaignName: 'CampaignUSA',
+        missionName: 'Mission01',
+        missionNumber: 0,
+        difficulty: 'HARD',
+        rankPoints: 5,
+        isChallengeCampaign: false,
+        playerTemplateNum: -1,
+        sourceMapName: 'Maps\\MD_USA01\\MD_USA01.map',
+      },
+      gameLogic: createRoundTripGameLogic(8),
+    });
+
+    const report = buildSaveCoreChunkReport(saveFile.data, '/fixtures/mission-save.sav');
+
+    expect(report.summary).toMatchObject({
+      status: 'pass',
+      totalCoreChunks: 2,
+      parsedCoreChunks: 2,
+    });
+    expect(report.coreChunks).toEqual([
+      { blockName: 'CHUNK_GameState', mode: 'parsed' },
+      { blockName: 'CHUNK_Campaign', mode: 'parsed' },
+    ]);
+    expect(report.roundTrip.status).toBe('pass');
+    expect(report.roundTrip.sourceChunkNames).toEqual(['CHUNK_GameState', 'CHUNK_Campaign']);
+    expect(report.roundTrip.chunkNamesPreserved).toBe(true);
+    expect(report.roundTrip.chunkPayloadBytesPreserved).toBe(true);
   });
 });

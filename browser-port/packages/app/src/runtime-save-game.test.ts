@@ -11305,8 +11305,8 @@ describe('runtime-save-game', () => {
       sourceSaveGameMapPath: 'Save\\MD_USA01.map',
       sourcePristineMapPath: 'Maps\\MD_USA01\\MD_USA01.map',
       sourceMetadata: {
-        saveFileType: SaveFileType.SAVE_FILE_TYPE_MISSION,
-        missionMapName: 'Maps\\MD_USA01\\MD_USA01.map',
+        saveFileType: SaveFileType.SAVE_FILE_TYPE_NORMAL,
+        missionMapName: '',
         date: {
           year: 2003,
           month: 9,
@@ -11341,8 +11341,8 @@ describe('runtime-save-game', () => {
       Array.from(gameStateMapTrailingBytes),
     );
     expect(Array.from(new Uint8Array(mapInfo.trailingBytes))).toEqual(Array.from(gameStateMapTrailingBytes));
-    expect(parsed.metadata.saveFileType).toBe(SaveFileType.SAVE_FILE_TYPE_MISSION);
-    expect(parsed.metadata.missionMapName).toBe('Maps\\MD_USA01\\MD_USA01.map');
+    expect(parsed.metadata.saveFileType).toBe(SaveFileType.SAVE_FILE_TYPE_NORMAL);
+    expect(parsed.metadata.missionMapName).toBe('');
     expect(parsed.metadata.date).toEqual({
       year: 2003,
       month: 9,
@@ -11359,6 +11359,66 @@ describe('runtime-save-game', () => {
     expect(parsed.gameLogicScriptEngineState?.state.scriptGameDifficulty).toBe('HARD');
     expect(parsed.scriptEngineFadeState).toBeNull();
     expect(parsed.campaign).toBeNull();
+  });
+
+  it('writes source mission saves with only GameState and Campaign chunks', () => {
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Mission Save',
+      mapPath: null,
+      mapData: null,
+      cameraState: null,
+      gameLogic: createMinimalRuntimeGameLogic(),
+      sourceMetadata: {
+        saveFileType: SaveFileType.SAVE_FILE_TYPE_MISSION,
+        missionMapName: 'Maps\\MD_USA01\\MD_USA01.map',
+        date: {
+          year: 2003,
+          month: 9,
+          day: 22,
+          dayOfWeek: 1,
+          hour: 13,
+          minute: 14,
+          second: 15,
+          milliseconds: 16,
+        },
+        mapLabel: 'GUI:MissionSave',
+        campaignSide: 'CampaignUSA',
+        missionNumber: 0,
+      },
+      campaign: {
+        campaignName: 'CampaignUSA',
+        missionName: 'Mission01',
+        missionNumber: 0,
+        difficulty: 'HARD',
+        rankPoints: 7,
+        isChallengeCampaign: false,
+        playerTemplateNum: -1,
+        sourceMapName: 'Maps\\MD_USA01\\MD_USA01.map',
+      },
+    });
+
+    expect(listSaveGameChunks(saveFile.data).map((chunk) => chunk.blockName)).toEqual([
+      'CHUNK_GameState',
+      'CHUNK_Campaign',
+    ]);
+    expect(() => parseSaveGameMapInfo(saveFile.data)).toThrow('CHUNK_GameStateMap');
+
+    const parsed = parseRuntimeSaveFile(saveFile.data);
+
+    expect(parsed.metadata.saveFileType).toBe(SaveFileType.SAVE_FILE_TYPE_MISSION);
+    expect(parsed.metadata.missionMapName).toBe('Maps\\MD_USA01\\MD_USA01.map');
+    expect(parsed.mapPath).toBe('maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json');
+    expect(parsed.sourceSaveGameMapPath).toBe('');
+    expect(parsed.sourcePristineMapPath).toBe('Maps\\MD_USA01\\MD_USA01.map');
+    expect(parsed.embeddedMapBytes.byteLength).toBe(0);
+    expect(parsed.gameStateMapTrailingBytes.byteLength).toBe(0);
+    expect(parsed.campaign).toMatchObject({
+      campaignName: 'CampaignUSA',
+      missionName: 'Mission01',
+      missionNumber: 0,
+      difficulty: 'HARD',
+      rankPoints: 7,
+    });
   });
 
   it('resolves lowercased C++ portable map paths to extracted runtime map candidates', () => {
