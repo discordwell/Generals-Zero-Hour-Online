@@ -2798,8 +2798,14 @@ interface TurretProfile {
    * 0 means instant rotation (fallback).
    */
   turnRate: number;
+  /** Source parity: TurretAIData::m_pitchRate — radians per logic frame. */
+  pitchRate: number;
   /** Source parity: TurretAIData::m_naturalTurretAngle — resting angle in radians. */
   naturalAngle: number;
+  /** Source parity: TurretAIData::m_naturalTurretPitch — resting pitch in radians. */
+  naturalPitch: number;
+  /** Source parity: TurretAIData::m_isAllowsPitch. */
+  allowsPitch: boolean;
   /** Source parity: TurretAIData::m_firesWhileTurning — can fire before fully aligned. */
   firesWhileTurning: boolean;
   /**
@@ -2813,6 +2819,8 @@ interface TurretProfile {
 interface TurretRuntimeState {
   /** Current turret angle in radians (relative to owner body rotation). */
   currentAngle: number;
+  /** Current turret pitch in radians. */
+  currentPitch: number;
   /** Turret AI state machine state. */
   state: 'IDLE' | 'AIM' | 'RECENTER' | 'HOLD';
   /** Frame at which the turret should begin recentering (hold→recenter transition). */
@@ -2823,6 +2831,18 @@ interface TurretRuntimeState {
    * When null, the turret falls back to the entity's main attackTargetEntityId.
    */
   targetEntityId: number | null;
+  /** Source save parity: TurretAI::m_enableSweepUntil. */
+  enableSweepUntilFrame?: number;
+  /** Source save parity: TurretAI::m_continuousFireExpirationFrame. */
+  continuousFireExpirationFrame?: number;
+  /** Source save parity: TurretAI packed sound/sweep/firing bits. */
+  playRotSound?: boolean;
+  playPitchSound?: boolean;
+  positiveSweep?: boolean;
+  didFire?: boolean;
+  targetWasSetByIdleMood?: boolean;
+  /** Source save parity: TurretAI::m_sleepUntil. */
+  sleepUntilFrame?: number;
 }
 
 /**

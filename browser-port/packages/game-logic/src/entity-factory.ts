@@ -1060,6 +1060,7 @@ export function createMapEntity(self: GL,
   // Source parity: TurretAI init — create runtime state for each turret.
   entity.turretStates = entity.turretProfiles.map((tp) => ({
     currentAngle: tp.naturalAngle,
+    currentPitch: tp.naturalPitch,
     state: 'IDLE' as const,
     holdUntilFrame: 0,
     targetEntityId: null,
@@ -2521,9 +2522,19 @@ export function extractTurretProfiles(self: GL, objectDef: ObjectDef | undefined
           ? turnRateDegPerSec * (Math.PI / 180) / LOGIC_FRAME_RATE
           : 0.01;
 
+        // Source parity: TurretPitchRate uses the same AngularVelocity parser and default
+        // as TurretTurnRate (TurretAIData::m_pitchRate = DEFAULT_PITCH_RATE).
+        const pitchRateDegPerSec = readNumericField(block.fields, ['TurretPitchRate']);
+        const pitchRate = pitchRateDegPerSec != null && pitchRateDegPerSec > 0
+          ? pitchRateDegPerSec * (Math.PI / 180) / LOGIC_FRAME_RATE
+          : 0.01;
+
         // Source parity: NaturalTurretAngle is an angle (degrees in INI → radians).
         const naturalAngleDeg = readNumericField(block.fields, ['NaturalTurretAngle']) ?? 0;
         const naturalAngle = naturalAngleDeg * (Math.PI / 180);
+        const naturalPitchDeg = readNumericField(block.fields, ['NaturalTurretPitch']) ?? 0;
+        const naturalPitch = naturalPitchDeg * (Math.PI / 180);
+        const allowsPitch = readBooleanField(block.fields, ['AllowsPitch']) === true;
 
         const firesWhileTurning = readBooleanField(block.fields, ['FiresWhileTurning']) === true;
 
@@ -2542,7 +2553,10 @@ export function extractTurretProfiles(self: GL, objectDef: ObjectDef | undefined
             initiallyDisabled,
             enabled: !initiallyDisabled,
             turnRate,
+            pitchRate,
             naturalAngle,
+            naturalPitch,
+            allowsPitch,
             firesWhileTurning,
             recenterTimeFrames,
           });

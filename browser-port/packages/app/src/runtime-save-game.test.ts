@@ -2171,7 +2171,7 @@ function parseSourceDeployStyleAIUpdateBlockData(
   };
 }
 
-function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset = 1) {
+function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset = 1, turretCount = 0) {
   const xferLoad = new XferLoad(data.slice(offset).buffer);
   xferLoad.open('parse-generated-source-ai-update-interface');
   try {
@@ -2289,6 +2289,42 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
     const currentLocomotorSet = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
     const locomotorGoalType = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
     const locomotorGoalData = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const turrets: Array<{
+      version: number;
+      stateMachineVersion: number;
+      angle: number;
+      pitch: number;
+      enableSweepUntil: number;
+      targetType: number;
+      continuousFireExpirationFrame: number;
+      playRotSound: boolean;
+      playPitchSound: boolean;
+      positiveSweep: boolean;
+      didFire: boolean;
+      enabled: boolean;
+      firesWhileTurning: boolean;
+      targetWasSetByIdleMood: boolean;
+      sleepUntil: number;
+    }> = [];
+    for (let index = 0; index < turretCount; index += 1) {
+      turrets.push({
+        version: xferLoad.xferVersion(2),
+        stateMachineVersion: xferLoad.xferVersion(1),
+        angle: xferLoad.xferReal(0),
+        pitch: xferLoad.xferReal(0),
+        enableSweepUntil: xferLoad.xferUnsignedInt(0),
+        targetType: readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4))),
+        continuousFireExpirationFrame: xferLoad.xferUnsignedInt(0),
+        playRotSound: xferLoad.xferBool(false),
+        playPitchSound: xferLoad.xferBool(false),
+        positiveSweep: xferLoad.xferBool(false),
+        didFire: xferLoad.xferBool(false),
+        enabled: xferLoad.xferBool(false),
+        firesWhileTurning: xferLoad.xferBool(false),
+        targetWasSetByIdleMood: xferLoad.xferBool(false),
+        sleepUntil: xferLoad.xferUnsignedInt(0),
+      });
+    }
     const turretSyncFlag = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
     const attitude = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
     const nextMoodCheckTime = xferLoad.xferUnsignedInt(0);
@@ -2368,6 +2404,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
       currentLocomotorSet,
       locomotorGoalType,
       locomotorGoalData,
+      turrets,
       turretSyncFlag,
       attitude,
       nextMoodCheckTime,
@@ -20761,6 +20798,33 @@ describe('runtime-save-game', () => {
             scriptAiRecruitable: true,
             attackTargetEntityId: 99,
             autoTargetScanNextFrame: 77,
+            turretProfiles: [{
+              controlledWeaponSlotsMask: 1,
+              initiallyDisabled: false,
+              enabled: true,
+              turnRate: 0.01,
+              pitchRate: 0.02,
+              naturalAngle: 0.25,
+              naturalPitch: 0.15,
+              allowsPitch: true,
+              firesWhileTurning: true,
+              recenterTimeFrames: 60,
+            }],
+            turretStates: [{
+              currentAngle: 1.5,
+              currentPitch: 0.35,
+              state: 'AIM',
+              holdUntilFrame: 0,
+              targetEntityId: 99,
+              enableSweepUntilFrame: 88,
+              continuousFireExpirationFrame: 91,
+              playRotSound: true,
+              playPitchSound: false,
+              positiveSweep: false,
+              didFire: true,
+              targetWasSetByIdleMood: true,
+              sleepUntilFrame: 45,
+            }],
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
         listSourceObjectModuleDescriptors: (templateName) => templateName === 'RuntimeGeneratedStateless'
@@ -20817,17 +20881,35 @@ describe('runtime-save-game', () => {
 
     const ai = modules.get('ModuleTag_AIUpdateInterface')?.blockData;
     expect(ai).toBeDefined();
-    const parsedAI = parseGeneratedSourceAIUpdateInterfaceForTest(ai!, 0);
+    const parsedAI = parseGeneratedSourceAIUpdateInterfaceForTest(ai!, 0, 1);
     expect(parsedAI.bytesRead).toBe(ai!.byteLength);
     expect(parsedAI.nextCallFrameAndPhase).toBe((43 << 2) | 2);
     expect(parsedAI.currentVictimId).toBe(99);
+    expect(parsedAI.turrets).toEqual([{
+      version: 2,
+      stateMachineVersion: 1,
+      angle: expect.closeTo(1.5, 5),
+      pitch: expect.closeTo(0.35, 5),
+      enableSweepUntil: 88,
+      targetType: 1,
+      continuousFireExpirationFrame: 91,
+      playRotSound: true,
+      playPitchSound: false,
+      positiveSweep: false,
+      didFire: true,
+      enabled: true,
+      firesWhileTurning: true,
+      targetWasSetByIdleMood: true,
+      sleepUntil: 45,
+    }]);
 
     for (const moduleType of ['TransportAIUpdate', 'WanderAIUpdate']) {
       const module = modules.get(`ModuleTag_${moduleType}`)?.blockData;
       expect(module?.[0]).toBe(1);
-      const parsedDerivedAI = parseGeneratedSourceAIUpdateInterfaceForTest(module!, 1);
+      const parsedDerivedAI = parseGeneratedSourceAIUpdateInterfaceForTest(module!, 1, 1);
       expect(parsedDerivedAI.bytesRead).toBe(module!.byteLength);
       expect(parsedDerivedAI.idleInitialSleepOffset).toBe(3);
+      expect(parsedDerivedAI.turrets[0]?.stateMachineVersion).toBe(1);
     }
 
     const assisted = modules.get('ModuleTag_AssistedTargetingUpdate')?.blockData;

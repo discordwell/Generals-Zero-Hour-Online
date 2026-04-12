@@ -10028,6 +10028,10 @@ const SOURCE_AI_TURRET_INVALID = -1;
 const SOURCE_AI_ATTITUDE_NORMAL = 0;
 const SOURCE_AI_INVALID_STATE_ID = 999999;
 const SOURCE_AI_MAX_TURRETS = 2;
+const SOURCE_TURRET_TARGET_NONE = 0;
+const SOURCE_TURRET_TARGET_OBJECT = 1;
+const SOURCE_TURRET_TARGET_POSITION = 2;
+const SOURCE_TURRET_CONTINUOUS_FIRE_NEVER = 0xffffffff;
 const SOURCE_ASSAULT_TRANSPORT_STATE_IDLE = 0;
 const SOURCE_CHINOOK_FLIGHT_FLYING = 1;
 const SOURCE_DELIVER_PAYLOAD_DIVE_STATE_PREDIVE = 0;
@@ -10098,6 +10102,12 @@ function isSourceBoolByte(value: number): boolean {
 
 function sourceAIUnsignedFrame(value: unknown, fallback: number): number {
   return sourceFlammableUnsignedFrame(value, fallback);
+}
+
+function sourceUnsignedInt(value: unknown, fallback: number): number {
+  return (typeof value === 'number' && Number.isFinite(value)
+    ? Math.trunc(value)
+    : Math.trunc(fallback)) >>> 0;
 }
 
 function sourceAILocomotorSetType(setName: unknown): number {
@@ -10255,6 +10265,77 @@ function xferGeneratedSourceLocomotorSetAndCurLocoPtr(saver: XferSave, entity: M
   saver.xferAsciiString(currentTemplateName);
 }
 
+function sourceTurretTargetType(entity: MapEntity, turretState: Record<string, unknown>): number {
+  if (Number.isFinite(turretState.targetEntityId) || Number.isFinite(entity.attackTargetEntityId)) {
+    return SOURCE_TURRET_TARGET_OBJECT;
+  }
+  return entity.attackTargetPosition !== null && entity.attackTargetPosition !== undefined
+    ? SOURCE_TURRET_TARGET_POSITION
+    : SOURCE_TURRET_TARGET_NONE;
+}
+
+function sourceTurretProfileAt(entity: MapEntity, index: number): Record<string, unknown> {
+  const profiles = Array.isArray(entity.turretProfiles) ? entity.turretProfiles : [];
+  const profile = profiles[index];
+  return profile && typeof profile === 'object' ? profile as unknown as Record<string, unknown> : {};
+}
+
+function sourceTurretStateAt(entity: MapEntity, index: number): Record<string, unknown> {
+  const states = Array.isArray(entity.turretStates) ? entity.turretStates : [];
+  const state = states[index];
+  return state && typeof state === 'object' ? state as unknown as Record<string, unknown> : {};
+}
+
+function buildGeneratedSourceTurretStateMachineBlockData(): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-turret-state-machine');
+  try {
+    saver.xferVersion(1);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceTurretAIBlockData(
+  entity: MapEntity,
+  index: number,
+): Uint8Array {
+  const profile = sourceTurretProfileAt(entity, index);
+  const state = sourceTurretStateAt(entity, index);
+  const finiteReal = (value: unknown, fallback: unknown) => Number.isFinite(value)
+    ? Number(value)
+    : (Number.isFinite(fallback) ? Number(fallback) : 0);
+  const boolValue = (value: unknown, fallback: boolean) => typeof value === 'boolean' ? value : fallback;
+  const enabled = boolValue(state.enabled, boolValue(profile.enabled, !boolValue(profile.initiallyDisabled, false)));
+
+  const saver = new XferSave();
+  saver.open('build-generated-source-turret-ai');
+  try {
+    saver.xferVersion(2);
+    saver.xferUser(buildGeneratedSourceTurretStateMachineBlockData());
+    saver.xferReal(finiteReal(state.currentAngle, profile.naturalAngle));
+    saver.xferReal(finiteReal(state.currentPitch, profile.naturalPitch));
+    saver.xferUnsignedInt(sourceUnsignedInt(state.enableSweepUntilFrame, 0));
+    saver.xferUser(buildSourceRawInt32Bytes(sourceTurretTargetType(entity, state)));
+    saver.xferUnsignedInt(sourceUnsignedInt(
+      state.continuousFireExpirationFrame,
+      SOURCE_TURRET_CONTINUOUS_FIRE_NEVER,
+    ));
+    saver.xferBool(boolValue(state.playRotSound, false));
+    saver.xferBool(boolValue(state.playPitchSound, false));
+    saver.xferBool(boolValue(state.positiveSweep, true));
+    saver.xferBool(boolValue(state.didFire, false));
+    saver.xferBool(enabled);
+    saver.xferBool(boolValue(profile.firesWhileTurning, false));
+    saver.xferBool(boolValue(state.targetWasSetByIdleMood, false));
+    saver.xferUnsignedInt(sourceUnsignedInt(state.sleepUntilFrame, 0));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildGeneratedSourceAIUpdateInterfaceBlockData(
   entity: MapEntity,
   currentFrame: number,
@@ -10322,8 +10403,13 @@ function buildGeneratedSourceAIUpdateInterfaceBlockData(
     saver.xferUser(buildSourceRawInt32Bytes(sourceAILocomotorSetType(entity.activeLocomotorSet)));
     saver.xferUser(buildSourceRawInt32Bytes(0));
     saver.xferCoord3D({ x: 0, y: 0, z: 0 });
-    for (let index = 0; index < SOURCE_AI_MAX_TURRETS; index += 1) {
-      // Null turret pointers are not serialized; this loop documents MAX_TURRETS ordering.
+    const turretProfiles = Array.isArray(entity.turretProfiles) ? entity.turretProfiles : [];
+    const turretCount = Math.min(turretProfiles.length, SOURCE_AI_MAX_TURRETS);
+    if (turretProfiles.length > SOURCE_AI_MAX_TURRETS) {
+      throw new Error(`Cannot serialize ${turretProfiles.length} TurretAI snapshots for ${entity.templateName}: source MAX_TURRETS is ${SOURCE_AI_MAX_TURRETS}.`);
+    }
+    for (let index = 0; index < turretCount; index += 1) {
+      saver.xferUser(buildGeneratedSourceTurretAIBlockData(entity, index));
     }
     saver.xferUser(buildSourceRawInt32Bytes(SOURCE_AI_TURRET_INVALID));
     saver.xferUser(buildSourceRawInt32Bytes(sourceFiniteInt(entity.scriptAttitude, SOURCE_AI_ATTITUDE_NORMAL)));

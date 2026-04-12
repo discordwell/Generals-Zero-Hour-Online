@@ -4022,6 +4022,30 @@ function sourceLocomotorSetAndCurLocoPtrFields(): string[] {
   ];
 }
 
+function sourceTurretStateMachineFields(): string[] {
+  return ['version'];
+}
+
+function sourceTurretAIFields(): string[] {
+  return [
+    'version',
+    ...prefixFields(sourceTurretStateMachineFields(), 'stateMachine'),
+    'angle',
+    'pitch',
+    'enableSweepUntil',
+    'targetType',
+    'continuousFireExpirationFrame',
+    'playRotSound',
+    'playPitchSound',
+    'positiveSweep',
+    'didFire',
+    'enabled',
+    'firesWhileTurning',
+    'targetWasSetByIdleMood',
+    'sleepUntil',
+  ];
+}
+
 function sourceWrappedStateMachineFields(): string[] {
   return ['version', ...sourceStateMachineFields()];
 }
@@ -4079,6 +4103,7 @@ function sourceAIUpdateInterfaceFields(): string[] {
     'curLocomotorSet',
     'locomotorGoalType',
     'locomotorGoalData',
+    'turret.snapshot',
     'turretSyncFlag',
     'attitude',
     'nextMoodCheckTime',
@@ -5048,6 +5073,132 @@ export function parseTsSourceHackInternetStateFields(source: string): string[] {
   }
   if (body.includes('state.framesRemaining')) {
     pushUniqueField(fields, seen, 'framesRemaining');
+  }
+  return fields;
+}
+
+function mapCppTurretAIField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferReal' && argument === 'm_angle') return 'angle';
+  if (method === 'xferReal' && argument === 'm_pitch') return 'pitch';
+  if (method === 'xferUnsignedInt' && argument === 'm_enableSweepUntil') return 'enableSweepUntil';
+  if (method === 'xferUser' && argument.startsWith('m_target')) return 'targetType';
+  if (method === 'xferUnsignedInt' && argument === 'm_continuousFireExpirationFrame') {
+    return 'continuousFireExpirationFrame';
+  }
+  if (method === 'xferUnsignedInt' && argument === 'm_sleepUntil') return 'sleepUntil';
+  return null;
+}
+
+function mapCppTurretAIMacroField(argument: string): string | null {
+  switch (argument) {
+    case 'm_playRotSound': return 'playRotSound';
+    case 'm_playPitchSound': return 'playPitchSound';
+    case 'm_positiveSweep': return 'positiveSweep';
+    case 'm_didFire': return 'didFire';
+    case 'm_enabled': return 'enabled';
+    case 'm_firesWhileTurning': return 'firesWhileTurning';
+    case 'm_targetWasSetByIdleMood': return 'targetWasSetByIdleMood';
+    default: return null;
+  }
+}
+
+export function parseCppSourceTurretStateMachineFields(source: string): string[] {
+  return parseCppSimpleModuleFields(
+    source,
+    'void TurretStateMachine::xfer( Xfer *xfer )',
+    {},
+    (method) => method === 'xferVersion' ? 'version' : null,
+  );
+}
+
+export function parseCppSourceTurretAIFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void TurretAI::xfer( Xfer *xfer )');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer->xferSnapshot\s*\(\s*m_turretStateMachine\s*\)|UNPACK_AND_XFER\s*\(\s*([^)]*?)\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.includes('xferSnapshot')) {
+      for (const field of prefixFields(sourceTurretStateMachineFields(), 'stateMachine')) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('UNPACK_AND_XFER')) {
+      pushUniqueField(fields, seen, mapCppTurretAIMacroField(match[1]!.trim()));
+      continue;
+    }
+    const method = match[2]!;
+    const argument = normalizeCppXferArgument(match[3]!);
+    if (argument === 'tmpBool') {
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppTurretAIField(method, argument));
+  }
+  const knownFields = new Set(sourceTurretAIFields());
+  return fields.filter((field) => knownFields.has(field));
+}
+
+export function parseTsSourceGeneratedTurretStateMachineFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function buildGeneratedSourceTurretStateMachineBlockData');
+  return body?.includes('saver.xferVersion(1);') ? sourceTurretStateMachineFields() : [];
+}
+
+export function parseTsSourceGeneratedTurretAIFields(source: string): string[] {
+  const body = extractFunctionBodyAfterParams(source, 'buildGeneratedSourceTurretAIBlockData');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /saver\.xferVersion\s*\(\s*2\s*\)|buildGeneratedSourceTurretStateMachineBlockData\s*\(|saver\.xferReal\s*\(|saver\.xferUnsignedInt\s*\(|saver\.xferUser\s*\(\s*buildSourceRawInt32Bytes\s*\(\s*sourceTurretTargetType|saver\.xferBool\s*\(/g;
+  let realIndex = 0;
+  while (true) {
+    const match = tokenRegex.exec(body);
+    if (!match) break;
+    const token = match[0]!;
+    const window = tsTokenStatement(body, match.index);
+    if (token.includes('xferVersion')) {
+      pushUniqueField(fields, seen, 'version');
+      continue;
+    }
+    if (token.includes('buildGeneratedSourceTurretStateMachineBlockData')) {
+      for (const field of prefixFields(sourceTurretStateMachineFields(), 'stateMachine')) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferReal')) {
+      pushUniqueField(fields, seen, realIndex === 0 ? 'angle' : 'pitch');
+      realIndex += 1;
+      continue;
+    }
+    if (token.includes('sourceTurretTargetType')) {
+      pushUniqueField(fields, seen, 'targetType');
+      continue;
+    }
+    if (token.includes('xferUnsignedInt')) {
+      if (window.includes('enableSweepUntilFrame')) {
+        pushUniqueField(fields, seen, 'enableSweepUntil');
+      } else if (window.includes('continuousFireExpirationFrame')) {
+        pushUniqueField(fields, seen, 'continuousFireExpirationFrame');
+      } else if (window.includes('sleepUntilFrame')) {
+        pushUniqueField(fields, seen, 'sleepUntil');
+      }
+      continue;
+    }
+    if (token.includes('xferBool')) {
+      if (window.includes('playRotSound')) pushUniqueField(fields, seen, 'playRotSound');
+      else if (window.includes('playPitchSound')) pushUniqueField(fields, seen, 'playPitchSound');
+      else if (window.includes('positiveSweep')) pushUniqueField(fields, seen, 'positiveSweep');
+      else if (window.includes('didFire')) pushUniqueField(fields, seen, 'didFire');
+      else if (window.includes('enabled')) pushUniqueField(fields, seen, 'enabled');
+      else if (window.includes('firesWhileTurning')) pushUniqueField(fields, seen, 'firesWhileTurning');
+      else if (window.includes('targetWasSetByIdleMood')) pushUniqueField(fields, seen, 'targetWasSetByIdleMood');
+    }
   }
   return fields;
 }
@@ -10236,6 +10387,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genAiStatesCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/AI/AIStates.cpp'),
   );
+  const zhTurretAiCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/AI/TurretAI.cpp'),
+  );
+  const genTurretAiCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/AI/TurretAI.cpp'),
+  );
   const zhScriptEngineCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/ScriptEngine/ScriptEngine.cpp'),
   );
@@ -10620,6 +10777,29 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     },
   ];
   for (const check of aiStateMachineChecks) {
+    if (check.cpp.length > 0 && check.ts.length > 0) {
+      categories.push(compareSourceObjectUpdateFields(check.category, check.cpp, check.ts));
+    }
+  }
+
+  const turretAiSource = zhTurretAiCpp || genTurretAiCpp;
+  const turretAiChecks: Array<{
+    category: string;
+    cpp: string[];
+    ts: string[];
+  }> = [
+    {
+      category: 'save-turret-state-machine-fields',
+      cpp: parseCppSourceTurretStateMachineFields(turretAiSource),
+      ts: parseTsSourceGeneratedTurretStateMachineFields(tsRuntimeSave),
+    },
+    {
+      category: 'save-turret-ai-fields',
+      cpp: parseCppSourceTurretAIFields(turretAiSource),
+      ts: parseTsSourceGeneratedTurretAIFields(tsRuntimeSave),
+    },
+  ];
+  for (const check of turretAiChecks) {
     if (check.cpp.length > 0 && check.ts.length > 0) {
       categories.push(compareSourceObjectUpdateFields(check.category, check.cpp, check.ts));
     }
