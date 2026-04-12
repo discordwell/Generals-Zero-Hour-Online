@@ -2963,6 +2963,26 @@ function sourceUpgradeMuxFields(): string[] {
   return ['upgradeMux.version', 'upgradeExecuted'];
 }
 
+function sourceDynamicGeometryInfoUpdateFields(): string[] {
+  return [
+    'version',
+    ...sourceUpdateModuleBaseFields(),
+    'startingDelayCountdown',
+    'timeActive',
+    'started',
+    'finished',
+    'reverseAtTransitionTime',
+    'direction',
+    'switchedDirections',
+    'initialHeight',
+    'initialMajorRadius',
+    'initialMinorRadius',
+    'finalHeight',
+    'finalMajorRadius',
+    'finalMinorRadius',
+  ];
+}
+
 export function parseCppSourceW3DModelDrawFields(source: string): string[] {
   return parseCppSimpleModuleFields(source, 'void W3DModelDraw::xfer( Xfer *xfer )', {
     'DrawModule::xfer': sourceDrawModuleBaseFields(),
@@ -3121,9 +3141,17 @@ export function parseTsSourceDrawableClientUpdateFields(source: string, helperNa
 }
 
 export function parseCppSourceObjectUpdateFields(source: string, className: string): string[] {
+  const dynamicGeometryFields = parseCppSimpleModuleFields(
+    source,
+    'void DynamicGeometryInfoUpdate::xfer( Xfer *xfer )',
+    {
+      'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
+    },
+  );
   return parseCppSimpleModuleFields(source, `void ${className}::xfer( Xfer *xfer )`, {
     'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
     'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
+    'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
   });
 }
 
@@ -3137,7 +3165,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xferSourceUpdateModuleBase\s*\(|xferSourceBoneFx(?:Int|Coord)Grid\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /xferSource(?:UpdateModuleBase|DynamicGeometryInfoUpdate|BoneFx(?:Int|Coord)Grid)\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -3162,6 +3190,15 @@ export function parseTsSourceObjectUpdateFields(
     }
     if (token.includes('xferSourceUpdateModuleBase')) {
       for (const field of sourceUpdateModuleBaseFields()) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSourceDynamicGeometryInfoUpdate')) {
+      const dynamicGeometryFields = helperName === 'buildSourceFirestormDynamicGeometryInfoUpdateBlockData'
+        ? prefixBaseVersion(sourceDynamicGeometryInfoUpdateFields(), 'dynamicGeometry')
+        : sourceDynamicGeometryInfoUpdateFields();
+      for (const field of dynamicGeometryFields) {
         pushUniqueField(fields, seen, field);
       }
       continue;
@@ -4828,6 +4865,41 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferUnsignedInt' && argument === 'm_damageEndFrame') return 'damageEndFrame';
   if (method === 'xferReal' && argument === 'm_flameDamageLimit') return 'flameDamageLimit';
   if (method === 'xferUnsignedInt' && argument === 'm_lastFlameDamageDealt') return 'lastFlameDamageDealt';
+  if (method === 'xferUnsignedInt' && argument === 'm_startingDelayCountdown') return 'startingDelayCountdown';
+  if (method === 'xferUnsignedInt' && argument === 'm_timeActive') return 'timeActive';
+  if (method === 'xferBool' && argument === 'm_started') return 'started';
+  if (method === 'xferBool' && argument === 'm_finished') return 'finished';
+  if (method === 'xferBool' && argument === 'm_reverseAtTransitionTime') return 'reverseAtTransitionTime';
+  if (method === 'xferUser' && argument.startsWith('m_direction')) return 'direction';
+  if (method === 'xferBool' && argument === 'm_switchedDirections') return 'switchedDirections';
+  if (method === 'xferReal' && argument === 'm_initialHeight') return 'initialHeight';
+  if (method === 'xferReal' && argument === 'm_initialMajorRadius') return 'initialMajorRadius';
+  if (method === 'xferReal' && argument === 'm_initialMinorRadius') return 'initialMinorRadius';
+  if (method === 'xferReal' && argument === 'm_finalHeight') return 'finalHeight';
+  if (method === 'xferReal' && argument === 'm_finalMajorRadius') return 'finalMajorRadius';
+  if (method === 'xferReal' && argument === 'm_finalMinorRadius') return 'finalMinorRadius';
+  if (method === 'xferUser' && argument.startsWith('m_myParticleSystemID')) return 'particleSystemIds';
+  if (method === 'xferBool' && argument === 'm_effectsFired') return 'effectsFired';
+  if (method === 'xferBool' && argument === 'm_scorchPlaced') return 'scorchPlaced';
+  if (method === 'xferUnsignedInt' && argument === 'm_lastDamageFrame') return 'lastDamageFrame';
+  if (method === 'xferBool' && argument === 'm_didMoveToBase') return 'didMoveToBase';
+  if (method === 'xferUnsignedInt' && argument === 'm_extendDoneFrame') return 'extendDoneFrame';
+  if (method === 'xferBool' && argument === 'm_extendComplete') return 'extendComplete';
+  if (method === 'xferBool' && argument === 'm_radarActive') return 'radarActive';
+  if (method === 'xferBool' && argument === 'm_allyNear') return 'allyNear';
+  if (method === 'xferReal' && argument === 'm_maxMinorRadius') return 'maxMinorRadius';
+  if (method === 'xferCoord3D' && argument === 'm_ejectPos') return 'ejectPosition';
+  if (method === 'xferBool' && argument === 'm_update') return 'update';
+  if (method === 'xferBool' && argument === 'm_isInVehicle') return 'isInVehicle';
+  if (method === 'xferBool' && argument === 'm_wasTargetAirborne') return 'wasTargetAirborne';
+  if (method === 'xferUser' && argument.startsWith('m_doorState')) return 'doorState';
+  if (method === 'xferUser' && argument.startsWith('m_timeoutState')) return 'timeoutState';
+  if (method === 'xferUnsignedInt' && argument === 'm_timeoutFrame') return 'timeoutFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_collapseFrame') return 'collapseFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_burstFrame') return 'burstFrame';
+  if (method === 'xferUser' && argument.startsWith('m_collapseState')) return 'collapseState';
+  if (method === 'xferReal' && argument === 'm_collapseVelocity') return 'collapseVelocity';
+  if (method === 'xferReal' && argument === 'm_currentHeight') return 'currentHeight';
   return null;
 }
 
@@ -4859,15 +4931,26 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('entity.heightDieHasDied')) return 'hasDied';
     if (window.includes('entity.heightDieParticlesDestroyed')) return 'particlesDestroyed';
     if (window.includes('state?.inRange')) return 'inRange';
+    if (window.includes('pdlInRange')) return 'inRange';
     if (window.includes('entity.demoTrapDetonated')) return 'detonated';
     if (window.includes('entity.autoDepositCaptureBonusPending')) return 'awardInitialCaptureBonus';
     if (window.includes('entity.autoDepositInitialized')) return 'initialized';
     if (window.includes('entity.dynamicShroudDecalsCreated')) return 'decalsCreated';
+    if (window.includes('preservedState.effectsFired')) return 'effectsFired';
+    if (window.includes('preservedState.scorchPlaced')) return 'scorchPlaced';
     if (window.includes('disguiseHalfpointReached')) return 'disguiseHalfpointReached';
     if (window.includes('transitioningToDisguise')) return 'transitioningToDisguise';
     if (window.includes('isDisguised')) return 'disguised';
     if (window.includes('needDisable')) return 'needDisable';
     if (window.includes('initialized')) return 'initialized';
+    if (window.includes('pilotFindVehicleDidMoveToBase')) return 'didMoveToBase';
+    if (window.includes('radarExtendComplete')) return 'extendComplete';
+    if (window.includes('radarActive')) return 'radarActive';
+    if (window.includes('checkpointEnemyNear')) return 'enemyNear';
+    if (window.includes('checkpointAllyNear')) return 'allyNear';
+    if (window.includes('isInVehicle')) return 'isInVehicle';
+    if (window.includes('wasTargetAirborne')) return 'wasTargetAirborne';
+    if (window.includes('state?.update')) return 'update';
     if (window.includes('detectorEnabled') || window.includes('enabled')) return 'enabled';
     if (window.includes('state.active')) return 'active';
   }
@@ -4876,6 +4959,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('entity.proneFramesRemaining')) return 'proneFrames';
     if (window.includes('nextScanFrames')) return 'nextScanFrames';
     if (window.includes('nextScanFrame')) return 'nextScanFrames';
+    if (window.includes('nextShotAvailableInFrames')) return 'nextShotAvailableInFrames';
     if (window.includes('nextShotAvailableFrame')) return 'nextShotAvailableInFrames';
     if (window.includes('entity.dynamicShroudStateCountdown')) return 'stateCountdown';
     if (window.includes('entity.dynamicShroudTotalFrames')) return 'totalFrames';
@@ -4910,6 +4994,12 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('flameBurnedEndFrame')) return 'burnedEndFrame';
     if (window.includes('flameDamageNextFrame')) return 'damageEndFrame';
     if (window.includes('flameLastDamageReceivedFrame')) return 'lastFlameDamageDealt';
+    if (window.includes('lastDamageFrame')) return 'lastDamageFrame';
+    if (window.includes('radarExtendDoneFrame')) return 'extendDoneFrame';
+    if (window.includes('checkpointScanCountdown')) return 'enemyScanDelay';
+    if (window.includes('timeoutFrame')) return 'timeoutFrame';
+    if (window.includes('collapseFrame')) return 'collapseFrame';
+    if (window.includes('burstFrame')) return 'burstFrame';
     if (window.includes('dieFrame')) return 'dieFrame';
     if (window.includes('earliestDeathFrame')) return 'earliestDeathFrame';
   }
@@ -4921,6 +5011,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('stealthPulsePhaseRate')) return 'pulsePhaseRate';
     if (window.includes('stealthPulsePhase')) return 'pulsePhase';
     if (window.includes('sourceFlammableRemainingDamageLimit')) return 'flameDamageLimit';
+    if (window.includes('checkpointMaxMinorRadius')) return 'maxMinorRadius';
+    if (window.includes('collapseVelocity')) return 'collapseVelocity';
+    if (window.includes('currentHeight')) return 'currentHeight';
   }
   if (token.includes('xferUser')) {
     if (window.includes('shapePointsBytes')) return 'shapePoints';
@@ -4929,6 +5022,10 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('currentBodyState')) return 'currentBodyState';
     if (window.includes('bonesResolved')) return 'bonesResolved';
     if (window.includes('sourceFlammableStatusToInt')) return 'status';
+    if (window.includes('particleSystemIdBytes')) return 'particleSystemIds';
+    if (window.includes('sourceMissileDoorStateToInt(state?.doorState')) return 'doorState';
+    if (window.includes('sourceMissileDoorStateToInt(state?.timeoutState')) return 'timeoutState';
+    if (window.includes('sourceStructureCollapseStateToInt')) return 'collapseState';
   }
   if (token.includes('xferSourceBoneFxIntGrid')) {
     if (window.includes('nextFXFrame')) return 'nextFxFrame';
@@ -4945,6 +5042,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
   }
   if (token.includes('xferCoord3D')) {
     if (window.includes('cleanupAreaPosition')) return 'position';
+    if (window.includes('ejectX')) return 'ejectPosition';
     if (window.includes('finalDestination')) return 'finalDestination';
     if (window.includes('targetPosition')) return 'targetPosition';
   }
@@ -6886,28 +6984,42 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const objectUpdateFiles = [
     'AutoFindHealingUpdate.cpp',
     'AutoDepositUpdate.cpp',
+    'AnimationSteeringUpdate.cpp',
     'BaseRenerateUpdate.cpp',
     'BoneFXUpdate.cpp',
+    'CheckpointUpdate.cpp',
     'CleanupHazardUpdate.cpp',
     'CommandButtonHuntUpdate.cpp',
     'DeletionUpdate.cpp',
     'DemoTrapUpdate.cpp',
+    'DynamicGeometryInfoUpdate.cpp',
     'DynamicShroudClearingRangeUpdate.cpp',
+    'EMPUpdate.cpp',
     'EnemyNearUpdate.cpp',
     'FireOCLAfterWeaponCooldownUpdate.cpp',
     'FireSpreadUpdate.cpp',
+    'FirestormDynamicGeometryInfoUpdate.cpp',
     'FlammableUpdate.cpp',
+    'FloatUpdate.cpp',
     'HeightDieUpdate.cpp',
+    'HijackerUpdate.cpp',
     'HordeUpdate.cpp',
     'LifetimeUpdate.cpp',
+    'MissileLauncherBuildingUpdate.cpp',
     'OCLUpdate.cpp',
+    'PilotFindVehicleUpdate.cpp',
+    'PointDefenseLaserUpdate.cpp',
     'PowerPlantUpdate.cpp',
     'ProjectileStreamUpdate.cpp',
     'ProneUpdate.cpp',
     'RadiusDecalUpdate.cpp',
+    'RadarUpdate.cpp',
+    'SmartBombTargetHomingUpdate.cpp',
     'StealthDetectorUpdate.cpp',
     'StealthUpdate.cpp',
     'StickyBombUpdate.cpp',
+    'StructureCollapseUpdate.cpp',
+    'TensileFormationUpdate.cpp',
     'WaveGuideUpdate.cpp',
     'WeaponBonusUpdate.cpp',
     '../Upgrade/UpgradeModule.cpp',
@@ -7725,6 +7837,76 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-fire-spread-update-fields',
       cppClass: 'FireSpreadUpdate',
       tsHelper: 'buildSourceFireSpreadUpdateBlockData',
+    },
+    {
+      category: 'save-dynamic-geometry-info-update-fields',
+      cppClass: 'DynamicGeometryInfoUpdate',
+      tsHelper: 'buildSourceDynamicGeometryInfoUpdateBlockData',
+    },
+    {
+      category: 'save-firestorm-dynamic-geometry-info-update-fields',
+      cppClass: 'FirestormDynamicGeometryInfoUpdate',
+      tsHelper: 'buildSourceFirestormDynamicGeometryInfoUpdateBlockData',
+    },
+    {
+      category: 'save-smart-bomb-target-homing-update-fields',
+      cppClass: 'SmartBombTargetHomingUpdate',
+      tsHelper: 'buildSourceSmartBombTargetHomingUpdateBlockData',
+    },
+    {
+      category: 'save-animation-steering-update-fields',
+      cppClass: 'AnimationSteeringUpdate',
+      tsHelper: 'buildSourceAnimationSteeringUpdateBlockData',
+    },
+    {
+      category: 'save-float-update-fields',
+      cppClass: 'FloatUpdate',
+      tsHelper: 'buildSourceFloatUpdateBlockData',
+    },
+    {
+      category: 'save-tensile-formation-update-fields',
+      cppClass: 'TensileFormationUpdate',
+      tsHelper: 'buildSourceTensileFormationUpdateBlockData',
+    },
+    {
+      category: 'save-pilot-find-vehicle-update-fields',
+      cppClass: 'PilotFindVehicleUpdate',
+      tsHelper: 'buildSourcePilotFindVehicleUpdateBlockData',
+    },
+    {
+      category: 'save-point-defense-laser-update-fields',
+      cppClass: 'PointDefenseLaserUpdate',
+      tsHelper: 'buildSourcePointDefenseLaserUpdateBlockData',
+    },
+    {
+      category: 'save-emp-update-fields',
+      cppClass: 'EMPUpdate',
+      tsHelper: 'buildSourceEmpUpdateBlockData',
+    },
+    {
+      category: 'save-radar-update-fields',
+      cppClass: 'RadarUpdate',
+      tsHelper: 'buildSourceRadarUpdateBlockData',
+    },
+    {
+      category: 'save-checkpoint-update-fields',
+      cppClass: 'CheckpointUpdate',
+      tsHelper: 'buildSourceCheckpointUpdateBlockData',
+    },
+    {
+      category: 'save-hijacker-update-fields',
+      cppClass: 'HijackerUpdate',
+      tsHelper: 'buildSourceHijackerUpdateBlockData',
+    },
+    {
+      category: 'save-missile-launcher-building-update-fields',
+      cppClass: 'MissileLauncherBuildingUpdate',
+      tsHelper: 'buildSourceMissileLauncherBuildingUpdateBlockData',
+    },
+    {
+      category: 'save-structure-collapse-update-fields',
+      cppClass: 'StructureCollapseUpdate',
+      tsHelper: 'buildSourceStructureCollapseUpdateBlockData',
     },
   ];
   for (const check of objectUpdateChecks) {
