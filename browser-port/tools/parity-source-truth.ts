@@ -2983,6 +2983,28 @@ function sourceDynamicGeometryInfoUpdateFields(): string[] {
   ];
 }
 
+function sourceDockUpdateFields(): string[] {
+  return [
+    'version',
+    ...sourceUpdateModuleBaseFields(),
+    'enterPosition',
+    'dockPosition',
+    'exitPosition',
+    'numberApproachPositions',
+    'positionsLoaded',
+    'approachPositions.count',
+    'approachPositions.entry',
+    'approachPositionOwners.count',
+    'approachPositionOwners.entry',
+    'approachPositionReached.count',
+    'approachPositionReached.entry',
+    'activeDocker',
+    'dockerInside',
+    'dockCrippled',
+    'dockOpen',
+  ];
+}
+
 export function parseCppSourceW3DModelDrawFields(source: string): string[] {
   return parseCppSimpleModuleFields(source, 'void W3DModelDraw::xfer( Xfer *xfer )', {
     'DrawModule::xfer': sourceDrawModuleBaseFields(),
@@ -3152,6 +3174,7 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
     'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
     'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
+    'DockUpdate::xfer': prefixBaseVersion(sourceDockUpdateFields(), 'dock'),
   });
 }
 
@@ -3165,7 +3188,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xferSource(?:UpdateModuleBase|DynamicGeometryInfoUpdate|BoneFx(?:Int|Coord)Grid)\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /xferSource(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|BoneFx(?:Int|Coord)Grid)\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -3190,6 +3213,12 @@ export function parseTsSourceObjectUpdateFields(
     }
     if (token.includes('xferSourceUpdateModuleBase')) {
       for (const field of sourceUpdateModuleBaseFields()) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSourceDockUpdateBlockState')) {
+      for (const field of prefixBaseVersion(sourceDockUpdateFields(), 'dock')) {
         pushUniqueField(fields, seen, field);
       }
       continue;
@@ -4900,6 +4929,14 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferUser' && argument.startsWith('m_collapseState')) return 'collapseState';
   if (method === 'xferReal' && argument === 'm_collapseVelocity') return 'collapseVelocity';
   if (method === 'xferReal' && argument === 'm_currentHeight') return 'currentHeight';
+  if (method === 'xferInt' && argument === 'm_boxesStored') return 'boxesStored';
+  if (method === 'xferObjectID' && argument === 'm_lastRepair') return 'lastRepair';
+  if (method === 'xferReal' && argument === 'm_healthToAddPerFrame') return 'healthToAddPerFrame';
+  if (method === 'xferObjectID' && argument === 'm_dockingObjectID') return 'dockingObjectId';
+  if (method === 'xferReal' && argument === 'm_pullInsideDistancePerFrame') return 'pullInsideDistancePerFrame';
+  if (method === 'xferObjectID' && argument === 'm_unloadingObjectID') return 'unloadingObjectId';
+  if (method === 'xferReal' && argument === 'm_pushOutsideDistancePerFrame') return 'pushOutsideDistancePerFrame';
+  if (method === 'xferInt' && argument === 'm_unloadCount') return 'unloadCount';
   return null;
 }
 
@@ -4909,6 +4946,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('targetId')) return 'targetId';
     if (window.includes('bestTargetId')) return 'bestTargetId';
     if (window.includes('projectileId')) return 'projectileIds';
+    if (window.includes('lastRepair')) return 'lastRepair';
+    if (window.includes('dockingObjectId')) return 'dockingObjectId';
+    if (window.includes('unloadingObjectId')) return 'unloadingObjectId';
     if (window.includes('ownerEntityId') || window.includes('owningObject')) return 'owningObject';
     if (window.includes('targetObjectId') || window.includes('targetObject')) return 'targetObject';
   }
@@ -4969,6 +5009,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window === 'saver.xferInt(0);') return 'firstValidIndex';
     if (window.includes('nextFreeIndex')) return 'nextFreeIndex';
     if (window.includes('firstValidIndex')) return 'firstValidIndex';
+    if (window.includes('findLiveSupplyWarehouseBoxes')) return 'boxesStored';
+    if (window.includes('unloadCount')) return 'unloadCount';
   }
   if (token.includes('xferUnsignedInt')) {
     if (window.includes('entity.oclUpdateNextCreationFrames')) return 'nextCreationFrame';
@@ -5014,6 +5056,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('checkpointMaxMinorRadius')) return 'maxMinorRadius';
     if (window.includes('collapseVelocity')) return 'collapseVelocity';
     if (window.includes('currentHeight')) return 'currentHeight';
+    if (window.includes('healthToAddPerFrame')) return 'healthToAddPerFrame';
+    if (window.includes('pullInsideDistancePerFrame')) return 'pullInsideDistancePerFrame';
+    if (window.includes('pushOutsideDistancePerFrame')) return 'pushOutsideDistancePerFrame';
   }
   if (token.includes('xferUser')) {
     if (window.includes('shapePointsBytes')) return 'shapePoints';
@@ -6992,6 +7037,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'CommandButtonHuntUpdate.cpp',
     'DeletionUpdate.cpp',
     'DemoTrapUpdate.cpp',
+    'DockUpdate/DockUpdate.cpp',
+    'DockUpdate/PrisonDockUpdate.cpp',
+    'DockUpdate/RailedTransportDockUpdate.cpp',
+    'DockUpdate/RepairDockUpdate.cpp',
+    'DockUpdate/SupplyCenterDockUpdate.cpp',
+    'DockUpdate/SupplyWarehouseDockUpdate.cpp',
     'DynamicGeometryInfoUpdate.cpp',
     'DynamicShroudClearingRangeUpdate.cpp',
     'EMPUpdate.cpp',
@@ -7907,6 +7958,31 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-structure-collapse-update-fields',
       cppClass: 'StructureCollapseUpdate',
       tsHelper: 'buildSourceStructureCollapseUpdateBlockData',
+    },
+    {
+      category: 'save-supply-center-dock-update-fields',
+      cppClass: 'SupplyCenterDockUpdate',
+      tsHelper: 'buildSourceDockOnlyUpdateBlockData',
+    },
+    {
+      category: 'save-prison-dock-update-fields',
+      cppClass: 'PrisonDockUpdate',
+      tsHelper: 'buildSourceDockOnlyUpdateBlockData',
+    },
+    {
+      category: 'save-supply-warehouse-dock-update-fields',
+      cppClass: 'SupplyWarehouseDockUpdate',
+      tsHelper: 'buildSourceSupplyWarehouseDockUpdateBlockData',
+    },
+    {
+      category: 'save-repair-dock-update-fields',
+      cppClass: 'RepairDockUpdate',
+      tsHelper: 'buildSourceRepairDockUpdateBlockData',
+    },
+    {
+      category: 'save-railed-transport-dock-update-fields',
+      cppClass: 'RailedTransportDockUpdate',
+      tsHelper: 'buildSourceRailedTransportDockUpdateBlockData',
     },
   ];
   for (const check of objectUpdateChecks) {
