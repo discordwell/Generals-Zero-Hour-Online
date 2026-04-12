@@ -13,6 +13,7 @@ import { RUNTIME_ASSET_BASE_URL } from './types.js';
  */
 export class RuntimeManifest {
   private readonly byOutputPath = new Map<string, ManifestEntry>();
+  private readonly byOutputPathLower = new Map<string, ManifestEntry>();
   private readonly bySourcePath = new Map<string, ManifestEntry>();
   private readonly byBasenameLower = new Map<string, ManifestEntry>();
 
@@ -23,6 +24,9 @@ export class RuntimeManifest {
 
     for (const entry of raw.entries) {
       this.byOutputPath.set(entry.outputPath, entry);
+      if (!this.byOutputPathLower.has(entry.outputPath.toLowerCase())) {
+        this.byOutputPathLower.set(entry.outputPath.toLowerCase(), entry);
+      }
       this.bySourcePath.set(entry.sourcePath, entry);
 
       // Index .glb entries by lowercase basename (without extension) for
@@ -62,6 +66,11 @@ export class RuntimeManifest {
   /** Look up a manifest entry by its output path. */
   getByOutputPath(outputPath: string): ManifestEntry | undefined {
     return this.byOutputPath.get(outputPath);
+  }
+
+  /** Look up a manifest entry by output path without requiring exact case. */
+  getByOutputPathIgnoreCase(outputPath: string): ManifestEntry | undefined {
+    return this.byOutputPathLower.get(outputPath.toLowerCase());
   }
 
   /** Look up a manifest entry by its source path. */

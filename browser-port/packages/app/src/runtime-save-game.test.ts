@@ -11230,8 +11230,13 @@ describe('runtime-save-game', () => {
     ]);
 
     const parsed = parseRuntimeSaveFile(saveFile.data);
+    const mapInfo = parseSaveGameMapInfo(saveFile.data);
 
     expect(parsed.mapPath).toBe('maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json');
+    expect(parsed.sourceSaveGameMapPath).toBe('save\\md_usa01.map');
+    expect(parsed.sourcePristineMapPath).toBe('maps\\md_usa01\\md_usa01.map');
+    expect(mapInfo.saveGameMapPath).toBe('save\\md_usa01.map');
+    expect(mapInfo.pristineMapPath).toBe('maps\\md_usa01\\md_usa01.map');
     expect(parsed.mapData).toEqual(mapData);
     expect(parsed.cameraState).toEqual({
       targetX: 64,
@@ -11354,6 +11359,26 @@ describe('runtime-save-game', () => {
     expect(parsed.gameLogicScriptEngineState?.state.scriptGameDifficulty).toBe('HARD');
     expect(parsed.scriptEngineFadeState).toBeNull();
     expect(parsed.campaign).toBeNull();
+  });
+
+  it('resolves lowercased C++ portable map paths to extracted runtime map candidates', () => {
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Lowercase C++ Map Path',
+      mapPath: 'maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json',
+      mapData: null,
+      embeddedMapBytes: new Uint8Array([0xde, 0xad, 0xbe, 0xef]),
+      sourceSaveGameMapPath: 'save\\md_usa01.map',
+      sourcePristineMapPath: 'maps\\md_usa01\\md_usa01.map',
+      cameraState: null,
+      browserRuntimeState: null,
+      gameLogic: createMinimalRuntimeGameLogic(),
+    });
+
+    const parsed = parseRuntimeSaveFile(saveFile.data);
+
+    expect(parsed.mapPath).toBe('maps/_extracted/MapsZH/Maps/md_usa01/md_usa01.json');
+    expect(parsed.sourceSaveGameMapPath).toBe('save\\md_usa01.map');
+    expect(parsed.sourcePristineMapPath).toBe('maps\\md_usa01\\md_usa01.map');
   });
 
   it('round-trips non-challenge campaign metadata through CHUNK_Campaign', () => {

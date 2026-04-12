@@ -229,6 +229,12 @@ describe('RuntimeManifest', () => {
     expect(manifest.getByOutputPath('nonexistent')).toBeUndefined();
   });
 
+  it('indexes entries by output path without exact case', () => {
+    const entry = manifest.getByOutputPathIgnoreCase('MAPS/alpine.JSON');
+    expect(entry).toBeDefined();
+    expect(entry!.outputPath).toBe('maps/Alpine.json');
+  });
+
   it('returns undefined for missing source path', () => {
     expect(manifest.getBySourcePath('nonexistent')).toBeUndefined();
   });

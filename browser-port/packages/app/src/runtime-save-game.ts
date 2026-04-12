@@ -1992,8 +1992,64 @@ function normalizeRuntimeSaveSourceMapPath(path: string | null | undefined): str
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normalizeRuntimeSaveMapPathSlashes(path: string): string {
+  return path
+    .replace(/\\/g, '/')
+    .replace(/^(?:\.\/)+/, '')
+    .replace(/^\/+/, '')
+    .replace(/\/\.\//g, '/')
+    .replace(/\/{2,}/g, '/');
+}
+
 function replaceSourceMapExtension(path: string): string {
-  return path.replace(/\.map$/i, '.json');
+  return path.replace(/\.(?:json|map)$/i, '.json');
+}
+
+function replaceRuntimeMapExtensionWithSource(path: string): string {
+  return path.replace(/\.(?:json|map)$/i, '.map');
+}
+
+function normalizePortableSourceMapPath(path: string | null | undefined): string | null {
+  const rawPath = normalizeRuntimeSaveSourceMapPath(path);
+  if (!rawPath) {
+    return null;
+  }
+  const normalized = normalizeRuntimeSaveMapPathSlashes(rawPath);
+  if (!/\.(?:json|map)$/i.test(normalized)) {
+    return null;
+  }
+  const lower = normalized.toLowerCase();
+  let portablePath: string | null = null;
+  if (lower.startsWith('maps/_extracted/mapszh/')) {
+    portablePath = normalized.slice('maps/_extracted/MapsZH/'.length);
+  } else if (lower.startsWith('_extracted/mapszh/')) {
+    portablePath = normalized.slice('_extracted/MapsZH/'.length);
+  } else if (lower.startsWith('mapszh/')) {
+    portablePath = normalized.slice('MapsZH/'.length);
+  } else if (lower.startsWith('maps/')) {
+    portablePath = normalized;
+  } else if (lower.startsWith('userdata/maps/')) {
+    portablePath = normalized;
+  }
+  if (!portablePath) {
+    return null;
+  }
+  return replaceRuntimeMapExtensionWithSource(portablePath)
+    .replace(/\//g, '\\')
+    .toLowerCase();
+}
+
+function derivePortableSaveMapPath(sourceMapPath: string | null | undefined): string | null {
+  const rawPath = normalizeRuntimeSaveSourceMapPath(sourceMapPath);
+  if (!rawPath) {
+    return null;
+  }
+  const normalized = normalizeRuntimeSaveMapPathSlashes(rawPath);
+  const leafName = normalized.split('/').pop();
+  if (!leafName || !/\.(?:json|map)$/i.test(leafName)) {
+    return null;
+  }
+  return `save\\${replaceRuntimeMapExtensionWithSource(leafName).toLowerCase()}`;
 }
 
 function resolveRuntimeSaveMapAssetPath(path: string | null | undefined): string | null {
@@ -2001,12 +2057,7 @@ function resolveRuntimeSaveMapAssetPath(path: string | null | undefined): string
   if (!rawPath) {
     return null;
   }
-  const normalized = rawPath
-    .replace(/\\/g, '/')
-    .replace(/^(?:\.\/)+/, '')
-    .replace(/^\/+/, '')
-    .replace(/\/\.\//g, '/')
-    .replace(/\/{2,}/g, '/');
+  const normalized = normalizeRuntimeSaveMapPathSlashes(rawPath);
   if (!normalized) {
     return null;
   }
@@ -2014,11 +2065,14 @@ function resolveRuntimeSaveMapAssetPath(path: string | null | undefined): string
   if (lower.endsWith('.json') || lower.startsWith('assets/')) {
     return normalized;
   }
+  if (lower.startsWith('mapszh/maps/')) {
+    return `maps/_extracted/MapsZH/Maps/${replaceSourceMapExtension(normalized.slice('MapsZH/Maps/'.length))}`;
+  }
   if (lower.startsWith('mapszh/')) {
     return `maps/_extracted/${replaceSourceMapExtension(normalized)}`;
   }
   if (lower.startsWith('maps/')) {
-    return `maps/_extracted/MapsZH/${replaceSourceMapExtension(normalized)}`;
+    return `maps/_extracted/MapsZH/Maps/${replaceSourceMapExtension(normalized.slice('Maps/'.length))}`;
   }
   if (lower.startsWith('save/')) {
     return null;
@@ -26575,6 +26629,7 @@ export function buildRuntimeSaveFile(params: {
     && !hasSourceGameLogicPassthrough;
   const runtimePayload: BrowserRuntimeSavePayload = {
     version: BROWSER_RUNTIME_STATE_VERSION,
+    mapPath: params.mapPath,
     cameraState: buildBrowserRuntimeCameraSaveState(params.cameraState),
     gameLogicState: browserGameLogicState,
     gameLogicCoreState: includeBrowserRuntimeCoreState ? gameLogicPayload : null,
@@ -26617,10 +26672,16 @@ export function buildRuntimeSaveFile(params: {
   };
   applyCampaignMetadata(metadataState, params.campaign ?? null);
   applySourceMetadataOverrides(metadataState, params.sourceMetadata);
-  const sourceSaveGameMapPath = normalizeRuntimeSaveSourceMapPath(params.sourceSaveGameMapPath)
+  const explicitSourceSaveGameMapPath = normalizeRuntimeSaveSourceMapPath(params.sourceSaveGameMapPath);
+  const explicitSourcePristineMapPath = normalizeRuntimeSaveSourceMapPath(params.sourcePristineMapPath);
+  const portableSourcePristineMapPath = explicitSourcePristineMapPath
+    ?? normalizePortableSourceMapPath(params.campaign?.sourceMapName)
+    ?? normalizePortableSourceMapPath(params.mapPath);
+  const sourceSaveGameMapPath = explicitSourceSaveGameMapPath
+    ?? derivePortableSaveMapPath(portableSourcePristineMapPath)
     ?? params.mapPath
     ?? '';
-  const sourcePristineMapPath = normalizeRuntimeSaveSourceMapPath(params.sourcePristineMapPath)
+  const sourcePristineMapPath = portableSourcePristineMapPath
     ?? params.mapPath
     ?? '';
   const mapState: RuntimeSaveMapState = {
@@ -26907,9 +26968,9 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     : coerceBrowserRuntimeCameraSaveState(payload.cameraState);
 
   const resolvedMapPath = resolveRuntimeSaveMapAssetPathFromCandidates([
+    typeof payload?.mapPath === 'string' ? payload.mapPath : null,
     mapInfo.pristineMapPath,
     mapInfo.saveGameMapPath,
-    typeof payload?.mapPath === 'string' ? payload.mapPath : null,
   ]);
   const mapData = tryDecodeJsonBytes<MapDataJSON>(mapInfo.embeddedMapData);
   const teamFactoryChunk = extractSaveChunkData(data, SOURCE_TEAM_FACTORY_BLOCK);

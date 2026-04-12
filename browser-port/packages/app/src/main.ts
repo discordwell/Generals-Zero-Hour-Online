@@ -25,6 +25,7 @@ import {
   AssetManager,
   RUNTIME_ASSET_BASE_URL,
   RUNTIME_MANIFEST_FILE,
+  type RuntimeManifest,
 } from '@generals/assets';
 import {
   ObjectVisualManager,
@@ -349,6 +350,17 @@ function normalizeRuntimeAssetPath(pathValue: string | null): string | null {
     return '';
   }
   return normalized.replace(runtimeAssetPrefixPattern, '');
+}
+
+function resolveManifestOutputPathCase(
+  manifest: RuntimeManifest | null,
+  outputPath: string | null,
+): string | null {
+  const normalized = normalizeRuntimeAssetPath(outputPath);
+  if (!normalized) {
+    return normalized;
+  }
+  return manifest?.getByOutputPathIgnoreCase(normalized)?.outputPath ?? normalized;
 }
 
 function encodeRuntimeSaveJsonFallback(value: unknown): Uint8Array {
@@ -5476,7 +5488,7 @@ async function startGameFromRuntimeSave(
 ): Promise<void> {
   const runtimeSave = parseRuntimeSaveFile(data);
   let restoredCampaignContext: Parameters<typeof startGame>[3];
-  let resolvedMapPath = runtimeSave.mapPath;
+  let resolvedMapPath = resolveManifestOutputPathCase(ctx.assets.getManifest(), runtimeSave.mapPath);
 
   if (runtimeSave.campaign) {
     if (!campaignServices) {
