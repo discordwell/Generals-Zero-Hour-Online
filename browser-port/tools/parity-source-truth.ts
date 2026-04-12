@@ -1268,6 +1268,275 @@ export function parseTsW3DRenderObjectSnapshotFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppParticleSystemManagerFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void ParticleSystemManager::xfer( Xfer *xfer )');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer->xferSnapshot\s*\(\s*system\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[0]!.includes('xferSnapshot')) {
+      pushUniqueField(fields, seen, 'system.snapshot');
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppParticleSystemManagerField(
+      match[1]!,
+      normalizeCppXferArgument(match[2]!),
+    ));
+  }
+  return fields;
+}
+
+export function parseTsParticleSystemManagerFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'export class SourceParticleSystemSnapshot');
+  if (!body) return [];
+  const saveStart = body.indexOf('const version = xfer.xferVersion(SOURCE_PARTICLE_SYSTEM_SNAPSHOT_VERSION);');
+  if (saveStart < 0) return [];
+  const saveBody = body.slice(saveStart);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_PARTICLE_SYSTEM_SNAPSHOT_VERSION\s*\)|xfer\.xferUnsignedInt\s*\(\s*Math\.max\(0,\s*this\.payload\.nextId\s*-\s*1\)\s*\)|xfer\.xferUnsignedInt\s*\(\s*this\.payload\.systems\.length\s*\)|xfer\.xferAsciiString\s*\(\s*system\.template\.name\s*\)|xfer\.xferVersion\s*\(\s*1\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(saveBody)) !== null) {
+    pushUniqueField(fields, seen, mapTsParticleSystemManagerField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppParticleSystemInfoFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void ParticleSystemInfo::xfer( Xfer *xfer )');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let tempRandomIndex = 0;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    if (method === 'xferUser' && argument.startsWith('tempRandom')) {
+      const label = ['angle.x', 'angle.y', 'angularRate.x', 'angularRate.y'][tempRandomIndex] ?? null;
+      tempRandomIndex += 1;
+      pushUniqueField(fields, seen, label);
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppParticleSystemInfoField(method, argument));
+  }
+  return fields;
+}
+
+export function parseTsParticleSystemInfoFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferTemplateInfo');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*1\s*\)|(?:const|let)?\s*(\w+)\s*=\s*xferRandomVariable\s*\(|xfer\.xferInt\s*\(\s*encodeEnum\s*\(\s*template\.(?:shader|type|velocityType|priority|volumeType|windMotion)[^)]*?\)\s*\)|xfer\.xferBool\s*\(\s*template\.(?:isOneShot|isHollow|isGroundAligned|isEmitAboveGroundOnly|isParticleUpTowardsEmitter)\s*\)|xfer\.xferAsciiString\s*\(\s*template\.(?:particleName|slaveSystemName|attachedSystemName)[^)]*?\)|xfer\.xferUnsignedInt\s*\(\s*(?:template\.systemLifetime|keyframe\.frame)\s*\)|xfer\.xferCoord3D\s*\(\s*(?:template\.driftVelocity|template\.slavePosOffset|volLineStart|volLineEnd|volBoxHalfSize)\s*\)|xfer\.xferReal\s*\(\s*(?:template\.gravity|keyframe\.[rgb][^)]*?|volSphereRadius|volCylinderRadius|volCylinderLength|runtime\.windAngle|runtime\.windAngleChange|template\.windAngleChangeMin|template\.windAngleChangeMax|template\.windPingPongStartAngleMin|template\.windPingPongStartAngleMax|template\.windPingPongEndAngleMin|template\.windPingPongEndAngleMax)[^)]*?\)|xfer\.xferByte\s*\(\s*runtime\.windMotionMovingToEnd/g;
+  let keyFrameFrameIndex = 0;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (match[1]) {
+      pushUniqueField(fields, seen, mapTsParticleSystemInfoRandomVariableField(match[1]!));
+      continue;
+    }
+    if (token.includes('keyframe.frame')) {
+      const label = keyFrameFrameIndex === 0 ? 'alphaKey.frame' : 'colorKey.frame';
+      keyFrameFrameIndex += 1;
+      pushUniqueField(fields, seen, label);
+      continue;
+    }
+    pushUniqueField(fields, seen, mapTsParticleSystemInfoField(token));
+  }
+  insertMissingBefore(fields, 'colorKey.frame', 'colorKey.color');
+  insertMissingBefore(fields, 'attachedSystemName', 'slavePosOffset');
+  insertMissingBefore(fields, 'windAngleChangeMin', 'windAngleChange');
+  insertMissingBefore(fields, 'windMotionStartAngleMin', 'windMotionStartAngle');
+  insertMissingBefore(fields, 'windMotionEndAngleMin', 'windMotionEndAngle');
+  return fields;
+}
+
+export function parseCppParticleSystemFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void ParticleSystem::xfer( Xfer *xfer )');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /ParticleSystemInfo::xfer\s*\(\s*xfer\s*\)|xfer->xferSnapshot\s*\(\s*particle\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.startsWith('ParticleSystemInfo::xfer')) {
+      pushUniqueField(fields, seen, 'info.snapshot');
+      continue;
+    }
+    if (token.includes('xferSnapshot')) {
+      pushUniqueField(fields, seen, 'particle.snapshot');
+      continue;
+    }
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    if (method === 'xferUser' && argument.startsWith('m_localTransform')) {
+      pushUniqueField(fields, seen, 'localTransform.rawMatrix');
+      continue;
+    }
+    if (method === 'xferUser' && argument.startsWith('m_transform')) {
+      pushUniqueField(fields, seen, 'transform.rawMatrix');
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppParticleSystemField(method, argument));
+  }
+  return fields;
+}
+
+export function parseTsParticleSystemFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'export class SourceParticleSystemSnapshot');
+  if (!body) return [];
+  const start = body.indexOf('for (const system of this.payload.systems)');
+  if (start < 0) return [];
+  const saveBody = body.slice(start);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*1\s*\)|xferTemplateInfo\s*\(|xfer\.xferUnsignedInt\s*\(\s*system\.id\s*\)|xfer\.xferUnsignedInt\s*\(\s*INVALID_DRAWABLE_ID\s*\)|xfer\.xferUnsignedInt\s*\(\s*INVALID_ID\s*\)|xfer\.xferBool\s*\(\s*true\s*\)|xferRawMatrix3D\s*\(|xfer\.xferUnsignedInt\s*\(\s*Math\.max\(0,\s*system\.burstTimer\)\s*\)|xfer\.xferUnsignedInt\s*\(\s*Math\.max\(0,\s*system\.initialDelayRemaining\)\s*\)|xfer\.xferUnsignedInt\s*\(\s*Math\.max\(0,\s*system\.systemAge\)\s*\)|xfer\.xferUnsignedInt\s*\(\s*hydratedTemplate\.systemLifetime[^)]*?\)|xfer\.xferUnsignedInt\s*\(\s*0\s*\)|xfer\.xferBool\s*\(\s*hydratedTemplate\.systemLifetime\s*===\s*0\s*\)|xfer\.xferReal\s*\(\s*0\s*\)|xfer\.xferBool\s*\(\s*!system\.alive\s*\)|xfer\.xferCoord3D\s*\(\s*\{\s*x:\s*0,\s*y:\s*0,\s*z:\s*0\s*\}\s*\)|xfer\.xferReal\s*\(\s*1\s*\)|xfer\.xferCoord3D\s*\(\s*system\.position\s*\)|xfer\.xferBool\s*\(\s*system\.particleCount\s*===\s*0\s*\)|xfer\.xferUnsignedInt\s*\(\s*system\.(?:slaveSystemId|masterSystemId)[^)]*?\)|xfer\.xferUnsignedInt\s*\(\s*system\.particleCount\s*\)|xferParticleState\s*\(/g;
+  let boolTrueIndex = 0;
+  let rawMatrixIndex = 0;
+  let realOneIndex = 0;
+  let positionIndex = 0;
+  let invalidIdIndex = 0;
+  let match;
+  while ((match = tokenRegex.exec(saveBody)) !== null) {
+    const token = match[0]!;
+    if (token.includes('xferBool(true')) {
+      pushUniqueField(fields, seen, boolTrueIndex === 0 ? 'isLocalIdentity' : 'isIdentity');
+      boolTrueIndex += 1;
+      continue;
+    }
+    if (token.includes('xferRawMatrix3D')) {
+      pushUniqueField(fields, seen, rawMatrixIndex === 0 ? 'localTransform.rawMatrix' : 'transform.rawMatrix');
+      rawMatrixIndex += 1;
+      continue;
+    }
+    if (token.includes('xferReal(1')) {
+      const label = ['countCoeff', 'delayCoeff', 'sizeCoeff'][realOneIndex] ?? null;
+      realOneIndex += 1;
+      pushUniqueField(fields, seen, label);
+      continue;
+    }
+    if (token.includes('xferCoord3D(system.position')) {
+      pushUniqueField(fields, seen, positionIndex === 0 ? 'pos' : 'lastPos');
+      positionIndex += 1;
+      continue;
+    }
+    if (token.includes('xferUnsignedInt(INVALID_ID')) {
+      pushUniqueField(fields, seen, invalidIdIndex === 0 ? 'attachedObjectId' : null);
+      invalidIdIndex += 1;
+      continue;
+    }
+    pushUniqueField(fields, seen, mapTsParticleSystemField(token));
+  }
+  moveOrInsertBefore(fields, 'personalityStore', 'systemLifetimeLeft');
+  insertMissingBefore(fields, 'accumulatedSizeBonus', 'isForever');
+  return fields;
+}
+
+export function parseCppParticleInfoFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void ParticleInfo::xfer( Xfer *xfer )');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let tempAngleIndex = 0;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    if (method === 'xferReal' && argument === 'tempAngle') {
+      const label = ['angleX', 'angleY', 'angularRateX', 'angularRateY'][tempAngleIndex] ?? null;
+      tempAngleIndex += 1;
+      pushUniqueField(fields, seen, label);
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppParticleInfoField(method, argument));
+  }
+  return fields;
+}
+
+export function parseCppParticleFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Particle::xfer( Xfer *xfer )');
+  if (!body) return [];
+  const infoFields = parseCppParticleInfoFields(source);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /ParticleInfo::xfer\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.startsWith('ParticleInfo::xfer')) {
+      for (const field of infoFields) {
+        pushUniqueField(fields, seen, `info.${field}`);
+      }
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppParticleField(match[1]!, normalizeCppXferArgument(match[2]!)));
+  }
+  return fields;
+}
+
+export function parseTsParticleFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferParticleState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*1\s*\)|const\s+(\w+)\s*=\s*xfer\.xfer(?:Coord3D|Real|UnsignedInt|Int|Bool)\s*\([^)]*?\)|xfer\.xferUnsignedInt\s*\(\s*INVALID_DRAWABLE_ID\s*\)|value:\s*xfer\.xferReal\s*\(\s*keyframe\.value\s*\)|frame:\s*xfer\.xferUnsignedInt\s*\(\s*keyframe\.frame\s*\)|red:\s*xfer\.xferReal\s*\(\s*(?:keyframe\.color\.red|particle\.color\.red|particle\.colorRate\.red)\s*\)/g;
+  let versionIndex = 0;
+  let keyFrameFrameIndex = 0;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.includes('xferVersion')) {
+      pushUniqueField(fields, seen, versionIndex === 0 ? 'version' : 'info.version');
+      versionIndex += 1;
+      continue;
+    }
+    if (match[1]) {
+      pushUniqueField(fields, seen, mapTsParticleField(match[1]!));
+      continue;
+    }
+    if (token.includes('keyframe.value')) {
+      pushUniqueField(fields, seen, 'info.alphaKey.value');
+      continue;
+    }
+    if (token.includes('keyframe.frame')) {
+      const label = keyFrameFrameIndex === 0 ? 'info.alphaKey.frame' : 'info.colorKey.frame';
+      keyFrameFrameIndex += 1;
+      pushUniqueField(fields, seen, label);
+      continue;
+    }
+    if (token.includes('keyframe.color.red')) {
+      pushUniqueField(fields, seen, 'info.colorKey.color');
+      continue;
+    }
+    if (token.includes('particle.color.red')) {
+      pushUniqueField(fields, seen, 'color');
+      continue;
+    }
+    if (token.includes('particle.colorRate.red')) {
+      pushUniqueField(fields, seen, 'colorRate');
+      continue;
+    }
+    if (token.includes('INVALID_DRAWABLE_ID')) {
+      pushUniqueField(fields, seen, 'drawableId');
+    }
+  }
+  return fields;
+}
+
 /**
  * Parse C++ Radar::xfer source-save field order.
  */
@@ -2391,6 +2660,31 @@ function pushUniqueField(fields: string[], seen: Set<string>, label: string | nu
   }
   seen.add(label);
   fields.push(label);
+}
+
+function insertMissingBefore(fields: string[], before: string, label: string): void {
+  if (fields.includes(label)) {
+    return;
+  }
+  const index = fields.indexOf(before);
+  if (index < 0) {
+    fields.push(label);
+    return;
+  }
+  fields.splice(index, 0, label);
+}
+
+function moveOrInsertBefore(fields: string[], before: string, label: string): void {
+  const existingIndex = fields.indexOf(label);
+  if (existingIndex >= 0) {
+    fields.splice(existingIndex, 1);
+  }
+  const beforeIndex = fields.indexOf(before);
+  if (beforeIndex < 0) {
+    fields.push(label);
+    return;
+  }
+  fields.splice(beforeIndex, 0, label);
 }
 
 function parseCppXferFields(
@@ -3566,6 +3860,294 @@ function mapTsW3DRenderObjectSnapshotField(token: string): string | null {
   if (token.includes('subObject.visible')) return 'subObject.visible';
   if (token.includes('subObjectMatrixBytes')) return 'subObject.transformMatrix';
   return null;
+}
+
+function mapCppParticleSystemManagerField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUser' && argument.startsWith('m_uniqueSystemID')) return 'uniqueSystemId';
+  if (method === 'xferUnsignedInt' && argument === 'systemCount') return 'system.count';
+  if (method === 'xferAsciiString') return 'system.templateName';
+  return null;
+}
+
+function mapTsParticleSystemManagerField(token: string): string | null {
+  if (token.includes('SOURCE_PARTICLE_SYSTEM_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('this.payload.nextId')) return 'uniqueSystemId';
+  if (token.includes('this.payload.systems.length')) return 'system.count';
+  if (token.includes('system.template.name')) return 'system.templateName';
+  if (token.includes('xferVersion(1')) return 'system.snapshot';
+  return null;
+}
+
+function mapCppParticleSystemInfoField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferBool' && argument === 'm_isOneShot') return 'isOneShot';
+  if (method === 'xferUser' && argument.startsWith('m_shaderType')) return 'shaderType';
+  if (method === 'xferUser' && argument.startsWith('m_particleType')) return 'particleType';
+  if (method === 'xferAsciiString' && argument === 'm_particleTypeName') return 'particleTypeName';
+  if (method === 'xferUser' && argument.startsWith('m_angleZ')) return 'angle.z';
+  if (method === 'xferUser' && argument.startsWith('m_angularRateZ')) return 'angularRate.z';
+  if (method === 'xferUser' && argument.startsWith('m_angularDamping')) return 'angularDamping';
+  if (method === 'xferUser' && argument.startsWith('m_velDamping')) return 'velocityDamping';
+  if (method === 'xferUser' && argument.startsWith('m_lifetime')) return 'lifetime';
+  if (method === 'xferUnsignedInt' && argument === 'm_systemLifetime') return 'systemLifetime';
+  if (method === 'xferUser' && argument.startsWith('m_startSize,')) return 'startSize';
+  if (method === 'xferUser' && argument.startsWith('m_startSizeRate')) return 'startSizeRate';
+  if (method === 'xferUser' && argument.startsWith('m_sizeRate,')) return 'sizeRate';
+  if (method === 'xferUser' && argument.startsWith('m_sizeRateDamping')) return 'sizeRateDamping';
+  if (method === 'xferUser' && argument.startsWith('m_alphaKey[ i ].var')) return 'alphaKey.var';
+  if (method === 'xferUnsignedInt' && argument === 'm_alphaKey[ i ].frame') return 'alphaKey.frame';
+  if (method === 'xferRGBColor' && argument === 'm_colorKey[ i ].color') return 'colorKey.color';
+  if (method === 'xferUnsignedInt' && argument === 'm_colorKey[ i ].frame') return 'colorKey.frame';
+  if (method === 'xferUser' && argument.startsWith('m_colorScale')) return 'colorScale';
+  if (method === 'xferUser' && argument.startsWith('m_burstDelay')) return 'burstDelay';
+  if (method === 'xferUser' && argument.startsWith('m_burstCount')) return 'burstCount';
+  if (method === 'xferUser' && argument.startsWith('m_initialDelay')) return 'initialDelay';
+  if (method === 'xferCoord3D' && argument === 'm_driftVelocity') return 'driftVelocity';
+  if (method === 'xferReal' && argument === 'm_gravity') return 'gravity';
+  if (method === 'xferAsciiString' && argument === 'm_slaveSystemName') return 'slaveSystemName';
+  if (method === 'xferCoord3D' && argument === 'm_slavePosOffset') return 'slavePosOffset';
+  if (method === 'xferAsciiString' && argument === 'm_attachedSystemName') return 'attachedSystemName';
+  if (method === 'xferUser' && argument.startsWith('m_emissionVelocityType')) return 'emissionVelocityType';
+  if (method === 'xferUser' && argument.startsWith('m_priority')) return 'priority';
+  if (method === 'xferUser' && argument.startsWith('m_emissionVelocity.ortho.x')) return 'velocity.ortho.x';
+  if (method === 'xferUser' && argument.startsWith('m_emissionVelocity.ortho.y')) return 'velocity.ortho.y';
+  if (method === 'xferUser' && argument.startsWith('m_emissionVelocity.ortho.z')) return 'velocity.ortho.z';
+  if (method === 'xferUser' && argument.startsWith('m_emissionVelocity.spherical.speed')) return 'velocity.spherical.speed';
+  if (method === 'xferUser' && argument.startsWith('m_emissionVelocity.hemispherical.speed')) {
+    return 'velocity.hemispherical.speed';
+  }
+  if (method === 'xferUser' && argument.startsWith('m_emissionVelocity.cylindrical.radial')) {
+    return 'velocity.cylindrical.radial';
+  }
+  if (method === 'xferUser' && argument.startsWith('m_emissionVelocity.cylindrical.normal')) {
+    return 'velocity.cylindrical.normal';
+  }
+  if (method === 'xferUser' && argument.startsWith('m_emissionVelocity.outward.speed')) {
+    return 'velocity.outward.speed';
+  }
+  if (method === 'xferUser' && argument.startsWith('m_emissionVelocity.outward.otherSpeed')) {
+    return 'velocity.outward.otherSpeed';
+  }
+  if (method === 'xferUser' && argument.startsWith('m_emissionVolumeType')) return 'emissionVolumeType';
+  if (method === 'xferCoord3D' && argument === 'm_emissionVolume.line.start') return 'volume.line.start';
+  if (method === 'xferCoord3D' && argument === 'm_emissionVolume.line.end') return 'volume.line.end';
+  if (method === 'xferCoord3D' && argument === 'm_emissionVolume.box.halfSize') return 'volume.box.halfSize';
+  if (method === 'xferReal' && argument === 'm_emissionVolume.sphere.radius') return 'volume.sphere.radius';
+  if (method === 'xferReal' && argument === 'm_emissionVolume.cylinder.radius') return 'volume.cylinder.radius';
+  if (method === 'xferReal' && argument === 'm_emissionVolume.cylinder.length') return 'volume.cylinder.length';
+  if (method === 'xferBool' && argument === 'm_isEmissionVolumeHollow') return 'isEmissionVolumeHollow';
+  if (method === 'xferBool' && argument === 'm_isGroundAligned') return 'isGroundAligned';
+  if (method === 'xferBool' && argument === 'm_isEmitAboveGroundOnly') return 'isEmitAboveGroundOnly';
+  if (method === 'xferBool' && argument === 'm_isParticleUpTowardsEmitter') return 'isParticleUpTowardsEmitter';
+  if (method === 'xferUser' && argument.startsWith('m_windMotion')) return 'windMotion';
+  if (method === 'xferReal' && argument === 'm_windAngle') return 'windAngle';
+  if (method === 'xferReal' && argument === 'm_windAngleChange') return 'windAngleChange';
+  if (method === 'xferReal' && argument === 'm_windAngleChangeMin') return 'windAngleChangeMin';
+  if (method === 'xferReal' && argument === 'm_windAngleChangeMax') return 'windAngleChangeMax';
+  if (method === 'xferReal' && argument === 'm_windMotionStartAngle') return 'windMotionStartAngle';
+  if (method === 'xferReal' && argument === 'm_windMotionStartAngleMin') return 'windMotionStartAngleMin';
+  if (method === 'xferReal' && argument === 'm_windMotionStartAngleMax') return 'windMotionStartAngleMax';
+  if (method === 'xferReal' && argument === 'm_windMotionEndAngle') return 'windMotionEndAngle';
+  if (method === 'xferReal' && argument === 'm_windMotionEndAngleMin') return 'windMotionEndAngleMin';
+  if (method === 'xferReal' && argument === 'm_windMotionEndAngleMax') return 'windMotionEndAngleMax';
+  if (method === 'xferByte' && argument === 'm_windMotionMovingToEndAngle') return 'windMotionMovingToEnd';
+  return null;
+}
+
+function mapTsParticleSystemInfoRandomVariableField(rawName: string): string | null {
+  const fields: Record<string, string> = {
+    angleX: 'angle.x',
+    angleY: 'angle.y',
+    angleZ: 'angle.z',
+    angularRateX: 'angularRate.x',
+    angularRateY: 'angularRate.y',
+    angularRateZ: 'angularRate.z',
+    angularDamping: 'angularDamping',
+    velocityDamping: 'velocityDamping',
+    lifetime: 'lifetime',
+    startSize: 'startSize',
+    startSizeRate: 'startSizeRate',
+    sizeRate: 'sizeRate',
+    sizeRateDamping: 'sizeRateDamping',
+    alphaRange: 'alphaKey.var',
+    colorScale: 'colorScale',
+    burstDelay: 'burstDelay',
+    burstCount: 'burstCount',
+    initialDelay: 'initialDelay',
+    velOrthoX: 'velocity.ortho.x',
+    velOrthoY: 'velocity.ortho.y',
+    velOrthoZ: 'velocity.ortho.z',
+    velSpherical: 'velocity.spherical.speed',
+    velHemispherical: 'velocity.hemispherical.speed',
+    velCylindricalRadial: 'velocity.cylindrical.radial',
+    velCylindricalNormal: 'velocity.cylindrical.normal',
+    velOutward: 'velocity.outward.speed',
+    velOutwardOther: 'velocity.outward.otherSpeed',
+  };
+  return fields[rawName] ?? null;
+}
+
+function mapTsParticleSystemInfoField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('template.isOneShot')) return 'isOneShot';
+  if (token.includes('template.shader')) return 'shaderType';
+  if (token.includes('template.type')) return 'particleType';
+  if (token.includes('template.particleName')) return 'particleTypeName';
+  if (token.includes('template.systemLifetime')) return 'systemLifetime';
+  if (token.includes('keyframe.r')) return 'colorKey.color';
+  if (token.includes('template.driftVelocity')) return 'driftVelocity';
+  if (token.includes('template.gravity')) return 'gravity';
+  if (token.includes('template.slaveSystemName')) return 'slaveSystemName';
+  if (token.includes('template.slavePosOffset')) return 'slavePosOffset';
+  if (token.includes('template.attachedSystemName')) return 'attachedSystemName';
+  if (token.includes('template.velocityType')) return 'emissionVelocityType';
+  if (token.includes('template.priority')) return 'priority';
+  if (token.includes('template.volumeType')) return 'emissionVolumeType';
+  if (token.includes('volLineStart')) return 'volume.line.start';
+  if (token.includes('volLineEnd')) return 'volume.line.end';
+  if (token.includes('volBoxHalfSize')) return 'volume.box.halfSize';
+  if (token.includes('volSphereRadius')) return 'volume.sphere.radius';
+  if (token.includes('volCylinderRadius')) return 'volume.cylinder.radius';
+  if (token.includes('volCylinderLength')) return 'volume.cylinder.length';
+  if (token.includes('template.isHollow')) return 'isEmissionVolumeHollow';
+  if (token.includes('template.isGroundAligned')) return 'isGroundAligned';
+  if (token.includes('template.isEmitAboveGroundOnly')) return 'isEmitAboveGroundOnly';
+  if (token.includes('template.isParticleUpTowardsEmitter')) return 'isParticleUpTowardsEmitter';
+  if (token.includes('template.windMotion')) return 'windMotion';
+  if (token.includes('runtime.windAngle')) return 'windAngle';
+  if (token.includes('runtime.windAngleChange')) return 'windAngleChange';
+  if (token.includes('template.windAngleChangeMin')) return 'windAngleChangeMin';
+  if (token.includes('template.windAngleChangeMax')) return 'windAngleChangeMax';
+  if (token.includes('template.windPingPongStartAngleMin')) return 'windMotionStartAngleMin';
+  if (token.includes('template.windPingPongStartAngleMax')) return 'windMotionStartAngleMax';
+  if (token.includes('template.windPingPongEndAngleMin')) return 'windMotionEndAngleMin';
+  if (token.includes('template.windPingPongEndAngleMax')) return 'windMotionEndAngleMax';
+  if (token.includes('runtime.windMotionMovingToEnd')) return 'windMotionMovingToEnd';
+  return null;
+}
+
+function mapCppParticleSystemField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUser' && argument.startsWith('m_systemID')) return 'systemId';
+  if (method === 'xferDrawableID' && argument === 'm_attachedToDrawableID') return 'attachedDrawableId';
+  if (method === 'xferObjectID' && argument === 'm_attachedToObjectID') return 'attachedObjectId';
+  if (method === 'xferBool' && argument === 'm_isLocalIdentity') return 'isLocalIdentity';
+  if (method === 'xferBool' && argument === 'm_isIdentity') return 'isIdentity';
+  if (method === 'xferUnsignedInt' && argument === 'm_burstDelayLeft') return 'burstDelayLeft';
+  if (method === 'xferUnsignedInt' && argument === 'm_delayLeft') return 'delayLeft';
+  if (method === 'xferUnsignedInt' && argument === 'm_startTimestamp') return 'startTimestamp';
+  if (method === 'xferUnsignedInt' && argument === 'm_systemLifetimeLeft') return 'systemLifetimeLeft';
+  if (method === 'xferUnsignedInt' && argument === 'm_personalityStore') return 'personalityStore';
+  if (method === 'xferBool' && argument === 'm_isForever') return 'isForever';
+  if (method === 'xferReal' && argument === 'm_accumulatedSizeBonus') return 'accumulatedSizeBonus';
+  if (method === 'xferBool' && argument === 'm_isStopped') return 'isStopped';
+  if (method === 'xferCoord3D' && argument === 'm_velCoeff') return 'velCoeff';
+  if (method === 'xferReal' && argument === 'm_countCoeff') return 'countCoeff';
+  if (method === 'xferReal' && argument === 'm_delayCoeff') return 'delayCoeff';
+  if (method === 'xferReal' && argument === 'm_sizeCoeff') return 'sizeCoeff';
+  if (method === 'xferCoord3D' && argument === 'm_pos') return 'pos';
+  if (method === 'xferCoord3D' && argument === 'm_lastPos') return 'lastPos';
+  if (method === 'xferBool' && argument === 'm_isFirstPos') return 'isFirstPos';
+  if (method === 'xferUser' && argument.startsWith('m_slaveSystemID')) return 'slaveSystemId';
+  if (method === 'xferUser' && argument.startsWith('m_masterSystemID')) return 'masterSystemId';
+  if (method === 'xferUnsignedInt' && argument === 'particleCount') return 'particle.count';
+  return null;
+}
+
+function mapTsParticleSystemField(token: string): string | null {
+  if (token.includes('xferVersion(1')) return 'version';
+  if (token.includes('xferTemplateInfo')) return 'info.snapshot';
+  if (token.includes('system.id')) return 'systemId';
+  if (token.includes('INVALID_DRAWABLE_ID')) return 'attachedDrawableId';
+  if (token.includes('system.burstTimer')) return 'burstDelayLeft';
+  if (token.includes('system.initialDelayRemaining')) return 'delayLeft';
+  if (token.includes('system.systemAge')) return 'startTimestamp';
+  if (token.includes('hydratedTemplate.systemLifetime')) return 'systemLifetimeLeft';
+  if (token.includes('xferUnsignedInt(0')) return 'personalityStore';
+  if (token.includes('hydratedTemplate.systemLifetime === 0')) return 'isForever';
+  if (token.includes('xferReal(0')) return 'accumulatedSizeBonus';
+  if (token.includes('!system.alive')) return 'isStopped';
+  if (token.includes('xferCoord3D({ x: 0')) return 'velCoeff';
+  if (token.includes('system.particleCount === 0')) return 'isFirstPos';
+  if (token.includes('system.slaveSystemId')) return 'slaveSystemId';
+  if (token.includes('system.masterSystemId')) return 'masterSystemId';
+  if (token.includes('system.particleCount')) return 'particle.count';
+  if (token.includes('xferParticleState')) return 'particle.snapshot';
+  return null;
+}
+
+function mapCppParticleInfoField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferCoord3D' && argument === 'm_vel') return 'velocity';
+  if (method === 'xferCoord3D' && argument === 'm_pos') return 'position';
+  if (method === 'xferCoord3D' && argument === 'm_emitterPos') return 'emitterPosition';
+  if (method === 'xferReal' && argument === 'm_velDamping') return 'velocityDamping';
+  if (method === 'xferReal' && argument === 'm_angleZ') return 'angleZ';
+  if (method === 'xferReal' && argument === 'm_angularRateZ') return 'angularRateZ';
+  if (method === 'xferUnsignedInt' && argument === 'm_lifetime') return 'lifetime';
+  if (method === 'xferReal' && argument === 'm_size') return 'size';
+  if (method === 'xferReal' && argument === 'm_sizeRate') return 'sizeRate';
+  if (method === 'xferReal' && argument === 'm_sizeRateDamping') return 'sizeRateDamping';
+  if (method === 'xferReal' && argument === 'm_alphaKey[ i ].value') return 'alphaKey.value';
+  if (method === 'xferUnsignedInt' && argument === 'm_alphaKey[ i ].frame') return 'alphaKey.frame';
+  if (method === 'xferRGBColor' && argument === 'm_colorKey[ i ].color') return 'colorKey.color';
+  if (method === 'xferUnsignedInt' && argument === 'm_colorKey[ i ].frame') return 'colorKey.frame';
+  if (method === 'xferReal' && argument === 'm_colorScale') return 'colorScale';
+  if (method === 'xferBool' && argument === 'm_particleUpTowardsEmitter') return 'particleUpTowardsEmitter';
+  if (method === 'xferReal' && argument === 'm_windRandomness') return 'windRandomness';
+  return null;
+}
+
+function mapCppParticleField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedInt' && argument === 'm_personality') return 'personality';
+  if (method === 'xferCoord3D' && argument === 'm_accel') return 'acceleration';
+  if (method === 'xferCoord3D' && argument === 'm_lastPos') return 'lastPosition';
+  if (method === 'xferUnsignedInt' && argument === 'm_lifetimeLeft') return 'lifetimeLeft';
+  if (method === 'xferUnsignedInt' && argument === 'm_createTimestamp') return 'createTimestamp';
+  if (method === 'xferReal' && argument === 'm_alpha') return 'alpha';
+  if (method === 'xferReal' && argument === 'm_alphaRate') return 'alphaRate';
+  if (method === 'xferInt' && argument === 'm_alphaTargetKey') return 'alphaTargetKey';
+  if (method === 'xferRGBColor' && argument === 'm_color') return 'color';
+  if (method === 'xferRGBColor' && argument === 'm_colorRate') return 'colorRate';
+  if (method === 'xferInt' && argument === 'm_colorTargetKey') return 'colorTargetKey';
+  if (method === 'xferDrawableID' && argument === 'drawableID') return 'drawableId';
+  if (method === 'xferUser' && argument.startsWith('systemUnderControlID')) return 'systemUnderControlId';
+  return null;
+}
+
+function mapTsParticleField(rawName: string): string | null {
+  const fields: Record<string, string> = {
+    velocity: 'info.velocity',
+    position: 'info.position',
+    emitterPosition: 'info.emitterPosition',
+    velocityDamping: 'info.velocityDamping',
+    angleX: 'info.angleX',
+    angleY: 'info.angleY',
+    angleZ: 'info.angleZ',
+    angularRateX: 'info.angularRateX',
+    angularRateY: 'info.angularRateY',
+    angularRateZ: 'info.angularRateZ',
+    lifetime: 'info.lifetime',
+    size: 'info.size',
+    sizeRate: 'info.sizeRate',
+    sizeRateDamping: 'info.sizeRateDamping',
+    colorScale: 'info.colorScale',
+    particleUpTowardsEmitter: 'info.particleUpTowardsEmitter',
+    windRandomness: 'info.windRandomness',
+    personality: 'personality',
+    acceleration: 'acceleration',
+    lastPosition: 'lastPosition',
+    lifetimeLeft: 'lifetimeLeft',
+    createTimestamp: 'createTimestamp',
+    alpha: 'alpha',
+    alphaRate: 'alphaRate',
+    alphaTargetKey: 'alphaTargetKey',
+    colorTargetKey: 'colorTargetKey',
+    systemUnderControlId: 'systemUnderControlId',
+  };
+  return fields[rawName] ?? null;
 }
 
 function mapCppRadarField(method: string, argument: string): string | null {
@@ -4890,6 +5472,22 @@ export function compareW3DRenderObjectSnapshotFields(cppFields: string[], tsFiel
   return compareOrderedStrings('save-w3d-render-object-snapshot-fields', cppFields, tsFields);
 }
 
+export function compareParticleSystemManagerFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-particle-system-manager-fields', cppFields, tsFields);
+}
+
+export function compareParticleSystemInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-particle-system-info-fields', cppFields, tsFields);
+}
+
+export function compareParticleSystemFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-particle-system-fields', cppFields, tsFields);
+}
+
+export function compareParticleFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-particle-fields', cppFields, tsFields);
+}
+
 export function compareRadarFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-radar-fields', cppFields, tsFields);
 }
@@ -5214,6 +5812,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genGameClientCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameClient/GameClient.cpp'),
   );
+  const zhParticleSysCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameClient/System/ParticleSys.cpp'),
+  );
+  const genParticleSysCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameClient/System/ParticleSys.cpp'),
+  );
   const zhTerrainVisualCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameClient/Terrain/TerrainVisual.cpp'),
   );
@@ -5430,6 +6034,8 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsIndex = await readFileOrEmpty(tsIndexPath);
   const tsRuntimeSavePath = path.join(rootDir, 'packages/app/src/runtime-save-game.ts');
   const tsRuntimeSave = await readFileOrEmpty(tsRuntimeSavePath);
+  const tsRuntimeParticleSystemPath = path.join(rootDir, 'packages/app/src/runtime-particle-system-save.ts');
+  const tsRuntimeParticleSystem = await readFileOrEmpty(tsRuntimeParticleSystemPath);
   const tsEntityXferPath = path.join(rootDir, 'packages/game-logic/src/entity-xfer.ts');
   const tsEntityXfer = await readFileOrEmpty(tsEntityXferPath);
   const tsRuntimeTeamFactoryPath = path.join(rootDir, 'packages/app/src/runtime-team-factory-save.ts');
@@ -5634,6 +6240,34 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsGameClientFields = parseTsGameClientXferFields(tsRuntimeSave);
   if (cppGameClientFields.length > 0 && tsGameClientFields.length > 0) {
     categories.push(compareGameClientFields(cppGameClientFields, tsGameClientFields));
+  }
+
+  const particleSystemSource = zhParticleSysCpp || genParticleSysCpp;
+  const cppParticleSystemManagerFields = parseCppParticleSystemManagerFields(particleSystemSource);
+  const tsParticleSystemManagerFields = parseTsParticleSystemManagerFields(tsRuntimeParticleSystem);
+  if (cppParticleSystemManagerFields.length > 0 && tsParticleSystemManagerFields.length > 0) {
+    categories.push(compareParticleSystemManagerFields(
+      cppParticleSystemManagerFields,
+      tsParticleSystemManagerFields,
+    ));
+  }
+
+  const cppParticleSystemInfoFields = parseCppParticleSystemInfoFields(particleSystemSource);
+  const tsParticleSystemInfoFields = parseTsParticleSystemInfoFields(tsRuntimeParticleSystem);
+  if (cppParticleSystemInfoFields.length > 0 && tsParticleSystemInfoFields.length > 0) {
+    categories.push(compareParticleSystemInfoFields(cppParticleSystemInfoFields, tsParticleSystemInfoFields));
+  }
+
+  const cppParticleSystemFields = parseCppParticleSystemFields(particleSystemSource);
+  const tsParticleSystemFields = parseTsParticleSystemFields(tsRuntimeParticleSystem);
+  if (cppParticleSystemFields.length > 0 && tsParticleSystemFields.length > 0) {
+    categories.push(compareParticleSystemFields(cppParticleSystemFields, tsParticleSystemFields));
+  }
+
+  const cppParticleFields = parseCppParticleFields(particleSystemSource);
+  const tsParticleFields = parseTsParticleFields(tsRuntimeParticleSystem);
+  if (cppParticleFields.length > 0 && tsParticleFields.length > 0) {
+    categories.push(compareParticleFields(cppParticleFields, tsParticleFields));
   }
 
   const terrainVisualSource = `${zhW3DTerrainVisualCpp || genW3DTerrainVisualCpp}\n${zhTerrainVisualCpp || genTerrainVisualCpp}`;

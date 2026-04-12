@@ -17,11 +17,18 @@ const SOURCE_PARTICLE_SYSTEM_SNAPSHOT_VERSION = 1;
 const MAX_PARTICLE_KEYFRAMES = 8;
 const INVALID_ID = 0xffffffff;
 const INVALID_DRAWABLE_ID = 0xffffffff;
-const SHADER_TYPES = ['ADDITIVE', 'ALPHA', 'ALPHA_TEST', 'MULTIPLY'] as const;
-const PARTICLE_TYPES = ['PARTICLE', 'DRAWABLE', 'STREAK', 'VOLUME_PARTICLE'] as const;
-const EMISSION_VELOCITY_TYPES = ['ORTHO', 'SPHERICAL', 'HEMISPHERICAL', 'CYLINDRICAL', 'OUTWARD'] as const;
-const EMISSION_VOLUME_TYPES = ['POINT', 'LINE', 'BOX', 'SPHERE', 'CYLINDER'] as const;
-const WIND_MOTION_TYPES = ['Unused', 'PingPong', 'Circular'] as const;
+const SOURCE_SHADER_TYPES = ['NONE', 'ADDITIVE', 'ALPHA', 'ALPHA_TEST', 'MULTIPLY'] as const;
+const SOURCE_PARTICLE_TYPES = ['NONE', 'PARTICLE', 'DRAWABLE', 'STREAK', 'VOLUME_PARTICLE', 'SMUDGE'] as const;
+const SOURCE_EMISSION_VELOCITY_TYPES = [
+  'NONE',
+  'ORTHO',
+  'SPHERICAL',
+  'HEMISPHERICAL',
+  'CYLINDRICAL',
+  'OUTWARD',
+] as const;
+const SOURCE_EMISSION_VOLUME_TYPES = ['NONE', 'POINT', 'LINE', 'BOX', 'SPHERE', 'CYLINDER'] as const;
+const SOURCE_WIND_MOTION_TYPES = ['NONE', 'Unused', 'PingPong', 'Circular'] as const;
 
 interface RandomVariableState {
   distributionType: number;
@@ -101,11 +108,7 @@ function xferRandomVariable(xfer: Xfer, value: RandomVariableState): RandomVaria
   };
 }
 
-function xferMatrix3D(xfer: Xfer, values: number[]): number[] {
-  const version = xfer.xferVersion(1);
-  if (version !== 1) {
-    throw new Error(`Unsupported Matrix3D snapshot version ${version}`);
-  }
+function xferRawMatrix3D(xfer: Xfer, values: number[]): number[] {
   const result: number[] = [];
   for (let index = 0; index < 12; index += 1) {
     result.push(xfer.xferReal(values[index] ?? 0));
@@ -161,6 +164,15 @@ function decodeEnum<T extends readonly string[]>(index: number, values: T): T[nu
   return values[index] ?? values[0]!;
 }
 
+function decodeSourceEnum<T extends readonly string[]>(
+  index: number,
+  values: T,
+  fallback: T[number],
+): T[number] {
+  const value = decodeEnum(index, values);
+  return value === 'NONE' ? fallback : value;
+}
+
 function xferTemplateInfo(
   xfer: Xfer,
   template: ParticleSystemTemplate,
@@ -175,14 +187,16 @@ function xferTemplateInfo(
   }
 
   const isOneShot = xfer.xferBool(template.isOneShot);
-  const shader = decodeEnum(
-    xfer.xferInt(encodeEnum(template.shader, SHADER_TYPES)),
-    SHADER_TYPES,
-  );
-  const type = decodeEnum(
-    xfer.xferInt(encodeEnum(template.type, PARTICLE_TYPES)),
-    PARTICLE_TYPES,
-  );
+  const shader = decodeSourceEnum(
+    xfer.xferInt(encodeEnum(template.shader, SOURCE_SHADER_TYPES)),
+    SOURCE_SHADER_TYPES,
+    'ALPHA',
+  ) as ParticleSystemTemplate['shader'];
+  const type = decodeSourceEnum(
+    xfer.xferInt(encodeEnum(template.type, SOURCE_PARTICLE_TYPES)),
+    SOURCE_PARTICLE_TYPES,
+    'PARTICLE',
+  ) as ParticleSystemTemplate['type'];
   const particleName = xfer.xferAsciiString(template.particleName);
 
   const angleX = xferRandomVariable(xfer, rangeToRandomVariable(0, 0));
@@ -267,60 +281,89 @@ function xferTemplateInfo(
   const slavePosOffset = xfer.xferCoord3D(template.slavePosOffset ?? { x: 0, y: 0, z: 0 });
   const attachedSystemName = xfer.xferAsciiString(template.attachedSystemName ?? '');
 
-  const velocityType = decodeEnum(
-    xfer.xferInt(encodeEnum(template.velocityType, EMISSION_VELOCITY_TYPES)),
-    EMISSION_VELOCITY_TYPES,
-  );
+  const velocityTypeIndex = xfer.xferInt(encodeEnum(template.velocityType, SOURCE_EMISSION_VELOCITY_TYPES));
+  const velocityType = decodeSourceEnum(
+    velocityTypeIndex,
+    SOURCE_EMISSION_VELOCITY_TYPES,
+    'ORTHO',
+  ) as ParticleSystemTemplate['velocityType'];
   const priority = decodeEnum(
     xfer.xferInt(encodeEnum(template.priority, PARTICLE_PRIORITY_ORDER)),
     PARTICLE_PRIORITY_ORDER,
   ) as ParticlePriority;
 
-  const velOrthoX = xferRandomVariable(xfer, rangeToRandomVariable(template.velOrtho.x.min, template.velOrtho.x.max));
-  const velOrthoY = xferRandomVariable(xfer, rangeToRandomVariable(template.velOrtho.y.min, template.velOrtho.y.max));
-  const velOrthoZ = xferRandomVariable(xfer, rangeToRandomVariable(template.velOrtho.z.min, template.velOrtho.z.max));
-  const velSpherical = xferRandomVariable(
-    xfer,
-    rangeToRandomVariable(template.velSpherical.min, template.velSpherical.max),
-  );
-  const velHemispherical = xferRandomVariable(
-    xfer,
-    rangeToRandomVariable(template.velHemispherical.min, template.velHemispherical.max),
-  );
-  const velCylindricalRadial = xferRandomVariable(
-    xfer,
-    rangeToRandomVariable(template.velCylindrical.radial.min, template.velCylindrical.radial.max),
-  );
-  const velCylindricalNormal = xferRandomVariable(
-    xfer,
-    rangeToRandomVariable(template.velCylindrical.normal.min, template.velCylindrical.normal.max),
-  );
-  const velOutward = xferRandomVariable(xfer, rangeToRandomVariable(template.velOutward.min, template.velOutward.max));
-  const velOutwardOther = xferRandomVariable(
-    xfer,
-    rangeToRandomVariable(template.velOutwardOther.min, template.velOutwardOther.max),
-  );
+  let velOrthoX = rangeToRandomVariable(template.velOrtho.x.min, template.velOrtho.x.max);
+  let velOrthoY = rangeToRandomVariable(template.velOrtho.y.min, template.velOrtho.y.max);
+  let velOrthoZ = rangeToRandomVariable(template.velOrtho.z.min, template.velOrtho.z.max);
+  let velSpherical = rangeToRandomVariable(template.velSpherical.min, template.velSpherical.max);
+  let velHemispherical = rangeToRandomVariable(template.velHemispherical.min, template.velHemispherical.max);
+  let velCylindricalRadial =
+    rangeToRandomVariable(template.velCylindrical.radial.min, template.velCylindrical.radial.max);
+  let velCylindricalNormal =
+    rangeToRandomVariable(template.velCylindrical.normal.min, template.velCylindrical.normal.max);
+  let velOutward = rangeToRandomVariable(template.velOutward.min, template.velOutward.max);
+  let velOutwardOther = rangeToRandomVariable(template.velOutwardOther.min, template.velOutwardOther.max);
+  switch (SOURCE_EMISSION_VELOCITY_TYPES[velocityTypeIndex]) {
+    case 'ORTHO':
+      velOrthoX = xferRandomVariable(xfer, velOrthoX);
+      velOrthoY = xferRandomVariable(xfer, velOrthoY);
+      velOrthoZ = xferRandomVariable(xfer, velOrthoZ);
+      break;
+    case 'SPHERICAL':
+      velSpherical = xferRandomVariable(xfer, velSpherical);
+      break;
+    case 'HEMISPHERICAL':
+      velHemispherical = xferRandomVariable(xfer, velHemispherical);
+      break;
+    case 'CYLINDRICAL':
+      velCylindricalRadial = xferRandomVariable(xfer, velCylindricalRadial);
+      velCylindricalNormal = xferRandomVariable(xfer, velCylindricalNormal);
+      break;
+    case 'OUTWARD':
+      velOutward = xferRandomVariable(xfer, velOutward);
+      velOutwardOther = xferRandomVariable(xfer, velOutwardOther);
+      break;
+  }
 
-  const volumeType = decodeEnum(
-    xfer.xferInt(encodeEnum(template.volumeType, EMISSION_VOLUME_TYPES)),
-    EMISSION_VOLUME_TYPES,
-  );
-  const volLineStart = xfer.xferCoord3D(template.volLineStart);
-  const volLineEnd = xfer.xferCoord3D(template.volLineEnd);
-  const volBoxHalfSize = xfer.xferCoord3D(template.volBoxHalfSize);
-  const volSphereRadius = xfer.xferReal(template.volSphereRadius);
-  const volCylinderRadius = xfer.xferReal(template.volCylinderRadius);
-  const volCylinderLength = xfer.xferReal(template.volCylinderLength);
+  const volumeTypeIndex = xfer.xferInt(encodeEnum(template.volumeType, SOURCE_EMISSION_VOLUME_TYPES));
+  const volumeType = decodeSourceEnum(
+    volumeTypeIndex,
+    SOURCE_EMISSION_VOLUME_TYPES,
+    'POINT',
+  ) as ParticleSystemTemplate['volumeType'];
+  let volLineStart = template.volLineStart;
+  let volLineEnd = template.volLineEnd;
+  let volBoxHalfSize = template.volBoxHalfSize;
+  let volSphereRadius = template.volSphereRadius;
+  let volCylinderRadius = template.volCylinderRadius;
+  let volCylinderLength = template.volCylinderLength;
+  switch (SOURCE_EMISSION_VOLUME_TYPES[volumeTypeIndex]) {
+    case 'LINE':
+      volLineStart = xfer.xferCoord3D(volLineStart);
+      volLineEnd = xfer.xferCoord3D(volLineEnd);
+      break;
+    case 'BOX':
+      volBoxHalfSize = xfer.xferCoord3D(volBoxHalfSize);
+      break;
+    case 'SPHERE':
+      volSphereRadius = xfer.xferReal(volSphereRadius);
+      break;
+    case 'CYLINDER':
+      volCylinderRadius = xfer.xferReal(volCylinderRadius);
+      volCylinderLength = xfer.xferReal(volCylinderLength);
+      break;
+  }
 
   const isHollow = xfer.xferBool(template.isHollow);
   const isGroundAligned = xfer.xferBool(template.isGroundAligned);
   const isEmitAboveGroundOnly = xfer.xferBool(template.isEmitAboveGroundOnly);
   const isParticleUpTowardsEmitter = xfer.xferBool(template.isParticleUpTowardsEmitter);
 
-  const windMotion = decodeEnum(
-    xfer.xferInt(encodeEnum(template.windMotion, WIND_MOTION_TYPES)),
-    WIND_MOTION_TYPES,
-  );
+  const windMotion = decodeSourceEnum(
+    xfer.xferInt(encodeEnum(template.windMotion, SOURCE_WIND_MOTION_TYPES)),
+    SOURCE_WIND_MOTION_TYPES,
+    'Unused',
+  ) as ParticleSystemTemplate['windMotion'];
   const windAngle = xfer.xferReal(runtime.windAngle);
   const windAngleChange = xfer.xferReal(runtime.windAngleChange);
   const windAngleChangeMin = xfer.xferReal(template.windAngleChangeMin);
@@ -523,9 +566,13 @@ function buildParticleState(
 }
 
 function xferParticleState(xfer: Xfer, particle: SourceParticleState): SourceParticleState {
-  const version = xfer.xferVersion(1);
-  if (version !== 1) {
-    throw new Error(`Unsupported particle snapshot version ${version}`);
+  const particleVersion = xfer.xferVersion(1);
+  if (particleVersion !== 1) {
+    throw new Error(`Unsupported particle snapshot version ${particleVersion}`);
+  }
+  const infoVersion = xfer.xferVersion(1);
+  if (infoVersion !== 1) {
+    throw new Error(`Unsupported particle info snapshot version ${infoVersion}`);
   }
 
   const velocity = xfer.xferCoord3D(particle.velocity);
@@ -714,9 +761,9 @@ export class SourceParticleSystemSnapshot implements Snapshot {
       xfer.xferUnsignedInt(INVALID_DRAWABLE_ID);
       xfer.xferUnsignedInt(INVALID_ID);
       xfer.xferBool(true);
-      xferMatrix3D(xfer, quaternionToMatrixRows(system.position, system.orientation, false));
+      xferRawMatrix3D(xfer, quaternionToMatrixRows(system.position, system.orientation, false));
       xfer.xferBool(true);
-      xferMatrix3D(xfer, quaternionToMatrixRows(system.position, system.orientation, true));
+      xferRawMatrix3D(xfer, quaternionToMatrixRows(system.position, system.orientation, true));
       xfer.xferUnsignedInt(Math.max(0, system.burstTimer));
       xfer.xferUnsignedInt(Math.max(0, system.initialDelayRemaining));
       xfer.xferUnsignedInt(Math.max(0, system.systemAge));
@@ -842,9 +889,9 @@ export function parseSourceParticleSystemChunk(
       xferLoad.xferUnsignedInt(INVALID_DRAWABLE_ID);
       xferLoad.xferUnsignedInt(INVALID_ID);
       xferLoad.xferBool(true);
-      xferMatrix3D(xferLoad, new Array<number>(12).fill(0));
+      xferRawMatrix3D(xferLoad, new Array<number>(12).fill(0));
       xferLoad.xferBool(true);
-      const transformRows = xferMatrix3D(xferLoad, new Array<number>(12).fill(0));
+      const transformRows = xferRawMatrix3D(xferLoad, new Array<number>(12).fill(0));
       const burstTimer = xferLoad.xferUnsignedInt(0);
       const initialDelayRemaining = xferLoad.xferUnsignedInt(0);
       const systemAge = xferLoad.xferUnsignedInt(0);

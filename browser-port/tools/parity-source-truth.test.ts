@@ -1250,6 +1250,24 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(gameClientCategory).toBeDefined();
       expect(gameClientCategory!.status).toBe('match');
 
+      const particleSystemManagerCategory = report.categories.find((c) =>
+        c.category === 'save-particle-system-manager-fields');
+      expect(particleSystemManagerCategory).toBeDefined();
+      expect(particleSystemManagerCategory!.status).toBe('match');
+
+      const particleSystemInfoCategory = report.categories.find((c) =>
+        c.category === 'save-particle-system-info-fields');
+      expect(particleSystemInfoCategory).toBeDefined();
+      expect(particleSystemInfoCategory!.status).toBe('match');
+
+      const particleSystemCategory = report.categories.find((c) => c.category === 'save-particle-system-fields');
+      expect(particleSystemCategory).toBeDefined();
+      expect(particleSystemCategory!.status).toBe('match');
+
+      const particleCategory = report.categories.find((c) => c.category === 'save-particle-fields');
+      expect(particleCategory).toBeDefined();
+      expect(particleCategory!.status).toBe('match');
+
       const terrainVisualCategory = report.categories.find((c) => c.category === 'save-terrain-visual-fields');
       expect(terrainVisualCategory).toBeDefined();
       expect(terrainVisualCategory!.status).toBe('match');
