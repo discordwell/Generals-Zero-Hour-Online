@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   getSaveCoreChunkBlockers,
+  isSaveFixturePath,
   summarizeSaveCoreChunkStatus,
+  summarizeSaveCoreChunkReports,
 } from './save-core-chunk-report.js';
 
 describe('save core chunk report', () => {
@@ -68,6 +70,66 @@ describe('save core chunk report', () => {
       rawPassthroughCoreChunks: 0,
       missingCoreChunks: 0,
       rawUnsupportedGameClientDrawables: 1,
+    });
+  });
+
+  it('classifies save fixture file names without accepting arbitrary binaries', () => {
+    expect(isSaveFixturePath('/fixtures/USA01.SAV')).toBe(true);
+    expect(isSaveFixturePath('/fixtures/usa01.save')).toBe(true);
+    expect(isSaveFixturePath('/fixtures/retail-save.bin')).toBe(true);
+    expect(isSaveFixturePath('/fixtures/texture.bin')).toBe(false);
+    expect(isSaveFixturePath('/fixtures/replay.rep')).toBe(false);
+  });
+
+  it('summarizes directory fixture reports and blocks empty wet-test sets', () => {
+    expect(summarizeSaveCoreChunkReports([])).toEqual({
+      status: 'blocked',
+      totalSaveFiles: 0,
+      passedSaveFiles: 0,
+      blockedSaveFiles: 0,
+      totalCoreChunks: 0,
+      rawPassthroughCoreChunks: 0,
+      missingCoreChunks: 0,
+      rawUnsupportedGameClientDrawables: 0,
+    });
+
+    expect(summarizeSaveCoreChunkReports([{
+      savePath: '/fixtures/pass.sav',
+      summary: {
+        status: 'pass',
+        totalCoreChunks: 17,
+        parsedCoreChunks: 17,
+        legacyCoreChunks: 0,
+        rawPassthroughCoreChunks: 0,
+        missingCoreChunks: 0,
+        rawUnsupportedGameClientDrawables: 0,
+      },
+      coreChunks: [],
+      gameClientDrawables: [],
+      gameLogicLayout: null,
+    }, {
+      savePath: '/fixtures/blocked.sav',
+      summary: {
+        status: 'blocked',
+        totalCoreChunks: 17,
+        parsedCoreChunks: 15,
+        legacyCoreChunks: 0,
+        rawPassthroughCoreChunks: 1,
+        missingCoreChunks: 1,
+        rawUnsupportedGameClientDrawables: 2,
+      },
+      coreChunks: [],
+      gameClientDrawables: [],
+      gameLogicLayout: null,
+    }])).toEqual({
+      status: 'blocked',
+      totalSaveFiles: 2,
+      passedSaveFiles: 1,
+      blockedSaveFiles: 1,
+      totalCoreChunks: 34,
+      rawPassthroughCoreChunks: 1,
+      missingCoreChunks: 1,
+      rawUnsupportedGameClientDrawables: 2,
     });
   });
 });
