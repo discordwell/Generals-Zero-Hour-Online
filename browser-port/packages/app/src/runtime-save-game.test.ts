@@ -8068,7 +8068,7 @@ function createSourceLikeGameClientDrawableBlockData(objectId: number, drawableI
     xferSave.xferUnsignedInt(drawableId);
     xferSave.xferVersion(1);
     xferSave.xferInt(0);
-    writeRawMatrix3D(xferSave, [1, 0, 0, 9, 0, 1, 0, 8, 0, 0, 1, 7]);
+    writeXferMatrix3D(xferSave, [1, 0, 0, 9, 0, 1, 0, 8, 0, 0, 1, 7]);
     xferSave.xferBool(false);
     xferSave.xferBool(false);
     xferSave.xferInt(2);
@@ -8502,6 +8502,7 @@ function readFirstGeneratedDrawableTransform(data: ArrayBuffer): number[] | null
     for (let index = 0; index < conditionCount; index += 1) {
       xferLoad.xferAsciiString('');
     }
+    xferLoad.xferVersion(1);
     const matrixOffset = xferLoad.getOffset();
     const matrixView = new DataView(chunkData.buffer, chunkData.byteOffset + matrixOffset, 12 * 4);
     const rows: number[] = [];
@@ -8596,6 +8597,7 @@ function readFirstGeneratedDrawableModuleBlocks(data: ArrayBuffer): Array<{
     for (let index = 0; index < conditionCount; index += 1) {
       xferLoad.xferAsciiString('');
     }
+    xferLoad.xferVersion(1);
     xferLoad.skip(12 * 4);
     xferLoad.xferBool(false);
     xferLoad.xferBool(false);
@@ -8703,6 +8705,7 @@ function readFirstGeneratedDrawableSourceFallbackFields(data: ArrayBuffer): {
     for (let index = 0; index < conditionCount; index += 1) {
       xferLoad.xferAsciiString('');
     }
+    xferLoad.xferVersion(1);
     xferLoad.skip(12 * 4);
     const hasSelectionEnvelope = xferLoad.xferBool(false);
     expect(hasSelectionEnvelope).toBe(false);
@@ -9050,6 +9053,11 @@ function writeRawMatrix3D(saver: XferSave, values: readonly number[] = []): void
   for (let index = 0; index < 12; index += 1) {
     saver.xferReal(values[index] ?? 0);
   }
+}
+
+function writeXferMatrix3D(saver: XferSave, values: readonly number[] = []): void {
+  saver.xferVersion(1);
+  writeRawMatrix3D(saver, values);
 }
 
 function createSourceGhostObjectChunkData(): Uint8Array {

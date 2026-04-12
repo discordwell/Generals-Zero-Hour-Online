@@ -208,6 +208,7 @@ const SOURCE_W3D_MODEL_DRAW_DERIVED_MODULE_TYPES = new Set([
   'W3DTRUCKDRAW',
 ]);
 const SOURCE_OPEN_CONTAIN_MAX_FIRE_POINTS = 32;
+const SOURCE_MATRIX3D_XFER_VERSION = 1;
 const SOURCE_MATRIX3D_BYTE_LENGTH = 48;
 const SOURCE_OPEN_CONTAIN_FIRE_POINTS_BYTE_LENGTH =
   SOURCE_OPEN_CONTAIN_MAX_FIRE_POINTS * SOURCE_MATRIX3D_BYTE_LENGTH;
@@ -2714,6 +2715,17 @@ function buildTransformMatrix3DBytes(
   return new Uint8Array(values.buffer.slice(0));
 }
 
+function xferSourceMatrix3DRawBytes(xfer: Xfer, bytes: Uint8Array): Uint8Array {
+  const version = xfer.xferVersion(SOURCE_MATRIX3D_XFER_VERSION);
+  if (version !== SOURCE_MATRIX3D_XFER_VERSION) {
+    throw new Error(`Unsupported Matrix3D snapshot version ${version}`);
+  }
+  if (bytes.byteLength !== SOURCE_MATRIX3D_BYTE_LENGTH) {
+    throw new Error(`Matrix3D raw byte length ${bytes.byteLength} is invalid.`);
+  }
+  return xfer.xferUser(bytes);
+}
+
 function xferModelConditionFlags(xfer: Xfer, flags: readonly string[]): string[] {
   const version = xfer.xferVersion(1);
   if (version !== 1) {
@@ -3123,7 +3135,7 @@ function parseRawGameClientDrawableFallback(
       xferLoad.xferAsciiString('');
     }
 
-    xferLoad.xferUser(new Uint8Array(SOURCE_MATRIX3D_BYTE_LENGTH));
+    xferSourceMatrix3DRawBytes(xferLoad, new Uint8Array(SOURCE_MATRIX3D_BYTE_LENGTH));
     const selectionFlashEnvelopeBytes = readSourceDrawableEnvelopeBytes(xferLoad, rawBytes);
     const colorTintEnvelopeBytes = readSourceDrawableEnvelopeBytes(xferLoad, rawBytes);
     const terrainDecalType = xferLoad.xferInt(TERRAIN_DECAL_NONE);
@@ -3248,7 +3260,7 @@ function parseRawGameClientDrawableSnapshotState(
     const drawableId = xferLoad.xferUnsignedInt(0);
     const modelConditionFlags = xferModelConditionFlags(xferLoad, []);
     const transformMatrixBytes = copyBytesToArrayBuffer(
-      xferLoad.xferUser(new Uint8Array(SOURCE_MATRIX3D_BYTE_LENGTH)),
+      xferSourceMatrix3DRawBytes(xferLoad, new Uint8Array(SOURCE_MATRIX3D_BYTE_LENGTH)),
     );
     return {
       drawableId,
@@ -3450,7 +3462,7 @@ class DrawableSnapshot implements Snapshot {
     xfer.xferUnsignedInt(this.state.drawableId);
     const fallback = this.state.sourceDrawableFallback;
     xferModelConditionFlags(xfer, this.state.modelConditionFlags);
-    xfer.xferUser(this.state.transformMatrixBytes);
+    xferSourceMatrix3DRawBytes(xfer, this.state.transformMatrixBytes);
     const selectionFlashEnvelopeBytes = fallback?.selectionFlashEnvelopeBytes ?? null;
     xfer.xferBool(selectionFlashEnvelopeBytes !== null);
     if (selectionFlashEnvelopeBytes !== null) {

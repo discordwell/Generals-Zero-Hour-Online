@@ -891,6 +891,51 @@ export function parseTsWeaponSetXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppDrawableXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Drawable::xfer( Xfer *xfer )');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /m_conditionState\.xfer\s*\(\s*xfer\s*\)|xfer->xferMatrix3D\s*\(\s*&mtx\s*\)|xferDrawableModules\s*\(\s*xfer\s*\)|xfer->xferSnapshot\s*\(\s*([^)]*?)\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.startsWith('m_conditionState.xfer')) {
+      pushUniqueField(fields, seen, 'conditionState');
+      continue;
+    }
+    if (token.includes('xferMatrix3D')) {
+      pushUniqueField(fields, seen, 'transformMatrix3D');
+      continue;
+    }
+    if (token.startsWith('xferDrawableModules')) {
+      pushUniqueField(fields, seen, 'drawableModules');
+      continue;
+    }
+    if (token.includes('xferSnapshot')) {
+      pushUniqueField(fields, seen, mapCppDrawableSnapshotField(normalizeCppXferArgument(match[1]!)));
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppDrawableField(match[2]!, normalizeCppXferArgument(match[3]!)));
+  }
+  return fields;
+}
+
+export function parseTsDrawableXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'class DrawableSnapshot');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*7\s*\)|xfer\.xferUnsignedInt\s*\(\s*this\.state\.drawableId\s*\)|xferModelConditionFlags\s*\(|xferSourceMatrix3DRawBytes\s*\(|xfer\.xferBool\s*\(\s*(?:selectionFlashEnvelopeBytes|colorTintEnvelopeBytes|locoInfoBytes)\s*!==\s*null\s*\)|xfer\.xferUser\s*\(\s*(?:selectionFlashEnvelopeBytes|colorTintEnvelopeBytes|locoInfoBytes|blockData|fallback\?\.instanceMatrixBytes|fallback\?\.iconBytes|fallback\?\.customAmbientSoundBytes)[^)]*?\)|xfer\.xferInt\s*\(\s*fallback\?\.(?:terrainDecalType|fadeMode|stealthLook)[^)]*?\)|xfer\.xferReal\s*\(\s*(?:this\.state|fallback\?)\.(?:explicitOpacity|stealthOpacity|effectiveStealthOpacity|decalOpacityFadeTarget|decalOpacityFadeRate|decalOpacity|secondMaterialPassOpacity|instanceScale)[^)]*?\)|xfer\.xferObjectID\s*\(\s*this\.state\.(?:objectId|shroudStatusObjectId)\s*\)|xfer\.xferUnsignedInt\s*\(\s*(?:statusBits|fallback\?\.(?:tintStatus|prevTintStatus|timeElapsedFade|timeToFade|expirationDate))[^)]*?\)|xfer\.xferUnsignedShort\s*\(\s*NUM_DRAWABLE_MODULE_TYPES\s*\)|xfer\.xferInt\s*\(\s*this\.state\.flashCount\s*\)|xfer\.xferColor\s*\(\s*this\.state\.flashColor\s*\)|xfer\.xferBool\s*\(\s*this\.state\.(?:hidden|hiddenByStealth|ambientSoundEnabled|ambientSoundEnabledFromScript)[^)]*?\)|xfer\.xferBool\s*\(\s*fallback\?\.instanceIsIdentity[^)]*?\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsDrawableField(match[0]!));
+  }
+  return fields;
+}
+
 /**
  * Parse C++ Radar::xfer source-save field order.
  */
@@ -2852,6 +2897,97 @@ function mapTsWeaponSetField(token: string): string | null {
   return null;
 }
 
+function mapCppDrawableSnapshotField(argument: string): string | null {
+  if (argument === 'm_selectionFlashEnvelope') return 'selectionFlashEnvelope.snapshot';
+  if (argument === 'm_colorTintEnvelope') return 'colorTintEnvelope.snapshot';
+  return null;
+}
+
+function mapCppDrawableField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferDrawableID' && argument === 'id') return 'drawableId';
+  if (method === 'xferBool' && argument === 'selFlash') return 'selectionFlashEnvelope.present';
+  if (method === 'xferBool' && argument === 'colFlash') return 'colorTintEnvelope.present';
+  if (method === 'xferUser' && argument.startsWith('decal,')) return 'terrainDecalType';
+  if (method === 'xferReal' && argument === 'm_explicitOpacity') return 'explicitOpacity';
+  if (method === 'xferReal' && argument === 'm_stealthOpacity') return 'stealthOpacity';
+  if (method === 'xferReal' && argument === 'm_effectiveStealthOpacity') return 'effectiveStealthOpacity';
+  if (method === 'xferReal' && argument === 'm_decalOpacityFadeTarget') return 'decalOpacityFadeTarget';
+  if (method === 'xferReal' && argument === 'm_decalOpacityFadeRate') return 'decalOpacityFadeRate';
+  if (method === 'xferReal' && argument === 'm_decalOpacity') return 'decalOpacity';
+  if (method === 'xferObjectID' && argument === 'objectID') return 'objectId';
+  if (method === 'xferUnsignedInt' && argument === 'm_status') return 'status';
+  if (method === 'xferUnsignedInt' && argument === 'm_tintStatus') return 'tintStatus';
+  if (method === 'xferUnsignedInt' && argument === 'm_prevTintStatus') return 'prevTintStatus';
+  if (method === 'xferUser' && argument.startsWith('m_fadeMode')) return 'fadeMode';
+  if (method === 'xferUnsignedInt' && argument === 'm_timeElapsedFade') return 'timeElapsedFade';
+  if (method === 'xferUnsignedInt' && argument === 'm_timeToFade') return 'timeToFade';
+  if (method === 'xferBool' && argument === 'hasLocoInfo') return 'locoInfo.present';
+  if (method === 'xferReal' && argument.startsWith('m_locoInfo->')) return 'locoInfo.payload';
+  if (method === 'xferUser' && argument.startsWith('m_stealthLook')) return 'stealthLook';
+  if (method === 'xferInt' && argument === 'm_flashCount') return 'flashCount';
+  if (method === 'xferColor' && argument === 'm_flashColor') return 'flashColor';
+  if (method === 'xferBool' && argument === 'm_hidden') return 'hidden';
+  if (method === 'xferBool' && argument === 'm_hiddenByStealth') return 'hiddenByStealth';
+  if (method === 'xferReal' && argument === 'm_secondMaterialPassOpacity') return 'secondMaterialPassOpacity';
+  if (method === 'xferBool' && argument === 'm_instanceIsIdentity') return 'instanceIsIdentity';
+  if (method === 'xferUser' && argument.startsWith('m_instance')) return 'instanceMatrix';
+  if (method === 'xferReal' && argument === 'm_instanceScale') return 'instanceScale';
+  if (method === 'xferObjectID' && argument === 'm_drawableInfo.m_shroudStatusObjectID') {
+    return 'drawableInfo.shroudStatusObjectId';
+  }
+  if (method === 'xferUnsignedInt' && argument === 'm_expirationDate') return 'expirationDate';
+  if (method === 'xferUnsignedByte' && argument === 'iconCount') return 'icon.payload';
+  if (method === 'xferBool' && argument === 'm_ambientSoundEnabled') return 'ambientSoundEnabled';
+  if (method === 'xferBool' && argument === 'm_ambientSoundEnabledFromScript') return 'ambientSoundEnabledFromScript';
+  if (method === 'xferBool' && argument === 'customized') return 'customAmbientSound.payload';
+  return null;
+}
+
+function mapTsDrawableField(token: string): string | null {
+  if (token.includes('xferVersion(7')) return 'version';
+  if (token.includes('this.state.drawableId')) return 'drawableId';
+  if (token.includes('xferModelConditionFlags')) return 'conditionState';
+  if (token.includes('xferSourceMatrix3DRawBytes')) return 'transformMatrix3D';
+  if (token.includes('selectionFlashEnvelopeBytes !== null')) return 'selectionFlashEnvelope.present';
+  if (token.includes('xferUser(selectionFlashEnvelopeBytes')) return 'selectionFlashEnvelope.snapshot';
+  if (token.includes('colorTintEnvelopeBytes !== null')) return 'colorTintEnvelope.present';
+  if (token.includes('xferUser(colorTintEnvelopeBytes')) return 'colorTintEnvelope.snapshot';
+  if (token.includes('fallback?.terrainDecalType')) return 'terrainDecalType';
+  if (token.includes('.explicitOpacity')) return 'explicitOpacity';
+  if (token.includes('.stealthOpacity')) return 'stealthOpacity';
+  if (token.includes('.effectiveStealthOpacity')) return 'effectiveStealthOpacity';
+  if (token.includes('.decalOpacityFadeTarget')) return 'decalOpacityFadeTarget';
+  if (token.includes('.decalOpacityFadeRate')) return 'decalOpacityFadeRate';
+  if (token.includes('.decalOpacity')) return 'decalOpacity';
+  if (token.includes('this.state.objectId')) return 'objectId';
+  if (token.includes('statusBits')) return 'status';
+  if (token.includes('fallback?.tintStatus')) return 'tintStatus';
+  if (token.includes('fallback?.prevTintStatus')) return 'prevTintStatus';
+  if (token.includes('fallback?.fadeMode')) return 'fadeMode';
+  if (token.includes('fallback?.timeElapsedFade')) return 'timeElapsedFade';
+  if (token.includes('fallback?.timeToFade')) return 'timeToFade';
+  if (token.includes('locoInfoBytes !== null')) return 'locoInfo.present';
+  if (token.includes('xferUser(locoInfoBytes')) return 'locoInfo.payload';
+  if (token.includes('NUM_DRAWABLE_MODULE_TYPES')) return 'drawableModules';
+  if (token.includes('fallback?.stealthLook')) return 'stealthLook';
+  if (token.includes('this.state.flashCount')) return 'flashCount';
+  if (token.includes('this.state.flashColor')) return 'flashColor';
+  if (token.includes('this.state.hiddenByStealth')) return 'hiddenByStealth';
+  if (token.includes('this.state.hidden')) return 'hidden';
+  if (token.includes('fallback?.secondMaterialPassOpacity')) return 'secondMaterialPassOpacity';
+  if (token.includes('fallback?.instanceIsIdentity')) return 'instanceIsIdentity';
+  if (token.includes('fallback?.instanceMatrixBytes')) return 'instanceMatrix';
+  if (token.includes('fallback?.instanceScale')) return 'instanceScale';
+  if (token.includes('this.state.shroudStatusObjectId')) return 'drawableInfo.shroudStatusObjectId';
+  if (token.includes('fallback?.expirationDate')) return 'expirationDate';
+  if (token.includes('fallback?.iconBytes')) return 'icon.payload';
+  if (token.includes('this.state.ambientSoundEnabledFromScript')) return 'ambientSoundEnabledFromScript';
+  if (token.includes('this.state.ambientSoundEnabled')) return 'ambientSoundEnabled';
+  if (token.includes('fallback?.customAmbientSoundBytes')) return 'customAmbientSound.payload';
+  return null;
+}
+
 function mapCppRadarField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferBool' && argument === 'm_radarHidden') return 'radarHidden';
@@ -4134,6 +4270,10 @@ export function compareWeaponSetFields(cppFields: string[], tsFields: string[]):
   return compareOrderedStrings('save-weapon-set-fields', cppFields, tsFields);
 }
 
+export function compareDrawableFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-drawable-fields', cppFields, tsFields);
+}
+
 export function compareRadarFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-radar-fields', cppFields, tsFields);
 }
@@ -4482,6 +4622,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genWeaponSetCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/WeaponSet.cpp'),
   );
+  const zhDrawableCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameClient/Drawable.cpp'),
+  );
+  const genDrawableCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameClient/Drawable.cpp'),
+  );
   const zhBitFlagsIoH = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Include/Common/BitFlagsIO.h'),
   );
@@ -4804,6 +4950,13 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsWeaponSetFields = parseTsWeaponSetXferFields(tsEntityXfer);
   if (cppWeaponSetFields.length > 0 && tsWeaponSetFields.length > 0) {
     categories.push(compareWeaponSetFields(cppWeaponSetFields, tsWeaponSetFields));
+  }
+
+  const drawableSource = zhDrawableCpp || genDrawableCpp;
+  const cppDrawableFields = parseCppDrawableXferFields(drawableSource);
+  const tsDrawableFields = parseTsDrawableXferFields(tsRuntimeSave);
+  if (cppDrawableFields.length > 0 && tsDrawableFields.length > 0) {
+    categories.push(compareDrawableFields(cppDrawableFields, tsDrawableFields));
   }
 
   const radarSource = zhRadarCpp || genRadarCpp;
