@@ -9271,6 +9271,19 @@ interface SourceDeliverPayloadAIUpdateRuntimeState {
   deliveryDecalRadius?: unknown;
   hasStateMachine?: unknown;
   stateMachineBytes?: unknown;
+  stateMachineSleepTill?: unknown;
+  stateMachineDefaultStateId?: unknown;
+  stateMachineCurrentStateId?: unknown;
+  stateMachineGoalObjectId?: unknown;
+  stateMachineGoalX?: unknown;
+  stateMachineGoalY?: unknown;
+  stateMachineGoalZ?: unknown;
+  stateMachineLocked?: unknown;
+  stateMachineDefaultStateInited?: unknown;
+  stateDropDelayLeft?: unknown;
+  stateDidOpen?: unknown;
+  stateNumberEntriesToState?: unknown;
+  stateReEntryFrame?: unknown;
   freeToExit?: unknown;
   acceptingCommands?: unknown;
   previousDistanceSqr?: unknown;
@@ -10002,6 +10015,12 @@ const SOURCE_AI_MAX_TURRETS = 2;
 const SOURCE_ASSAULT_TRANSPORT_STATE_IDLE = 0;
 const SOURCE_CHINOOK_FLIGHT_FLYING = 1;
 const SOURCE_DELIVER_PAYLOAD_DIVE_STATE_PREDIVE = 0;
+const SOURCE_DELIVER_PAYLOAD_STATE_APPROACH = 0;
+const SOURCE_DELIVER_PAYLOAD_STATE_DELIVERING = 1;
+const SOURCE_DELIVER_PAYLOAD_STATE_CONSIDER_NEW_APPROACH = 2;
+const SOURCE_DELIVER_PAYLOAD_STATE_RECOVER_FROM_OFF_MAP = 3;
+const SOURCE_DELIVER_PAYLOAD_STATE_HEAD_OFF_MAP = 4;
+const SOURCE_DELIVER_PAYLOAD_STATE_CLEAN_UP = 5;
 const SOURCE_POW_TRUCK_AI_MODE_AUTOMATIC = 0;
 const SOURCE_POW_TRUCK_TASK_WAITING = 0;
 const SOURCE_RAILED_TRANSPORT_INVALID_PATH = -1;
@@ -10037,6 +10056,18 @@ const SOURCE_DELIVER_PAYLOAD_AI_UPDATE_CURRENT_VERSION = 5;
 const SOURCE_DELIVER_PAYLOAD_DIVE_STATE_MIN = 0;
 const SOURCE_DELIVER_PAYLOAD_DIVE_STATE_MAX = 2;
 const SOURCE_DUMB_PROJECTILE_BEHAVIOR_CURRENT_VERSION = 1;
+const SOURCE_DOZER_TASK_BUILD = 0;
+const SOURCE_DOZER_TASK_REPAIR = 1;
+const SOURCE_DOZER_TASK_FORTIFY = 2;
+const SOURCE_DOZER_PRIMARY_BUILD = 1;
+const SOURCE_DOZER_PRIMARY_REPAIR = 2;
+const SOURCE_DOZER_PRIMARY_FORTIFY = 3;
+const SOURCE_DOZER_PRIMARY_GO_HOME = 4;
+
+function isSourceDeliverPayloadStateId(value: number): boolean {
+  return value >= SOURCE_DELIVER_PAYLOAD_STATE_APPROACH
+    && value <= SOURCE_DELIVER_PAYLOAD_STATE_CLEAN_UP;
+}
 
 function isSourceHackInternetStateId(value: number): boolean {
   return value === SOURCE_AI_STATE_IDLE
@@ -11407,6 +11438,150 @@ function sourceDeliverPayloadRuntimeRadiusDecalTemplate(
   };
 }
 
+function sourceDeliverPayloadRuntimeStateId(value: unknown, fallback: number): number {
+  const stateId = sourceDeliverPayloadRuntimeInt(value, fallback);
+  return isSourceDeliverPayloadStateId(stateId) ? stateId : fallback;
+}
+
+function buildGeneratedSourceDeliverPayloadApproachStateBlockData(): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-deliver-payload-approach-state');
+  try {
+    saver.xferVersion(1);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceDeliverPayloadDeliveringStateBlockData(
+  runtimeState: SourceDeliverPayloadAIUpdateRuntimeState | null,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-deliver-payload-delivering-state');
+  try {
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceDeliverPayloadRuntimeUnsignedInt(runtimeState?.stateDropDelayLeft, 0));
+    saver.xferBool(sourceDeliverPayloadRuntimeBool(runtimeState?.stateDidOpen, false));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceDeliverPayloadConsiderNewApproachStateBlockData(
+  runtimeState: SourceDeliverPayloadAIUpdateRuntimeState | null,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-deliver-payload-consider-new-approach-state');
+  try {
+    saver.xferVersion(1);
+    saver.xferInt(sourceDeliverPayloadRuntimeInt(runtimeState?.stateNumberEntriesToState, 0));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceDeliverPayloadRecoverFromOffMapStateBlockData(
+  runtimeState: SourceDeliverPayloadAIUpdateRuntimeState | null,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-deliver-payload-recover-from-off-map-state');
+  try {
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceDeliverPayloadRuntimeUnsignedInt(runtimeState?.stateReEntryFrame, 0));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceDeliverPayloadHeadOffMapStateBlockData(): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-deliver-payload-head-off-map-state');
+  try {
+    saver.xferVersion(1);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceDeliverPayloadCleanUpStateBlockData(): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-deliver-payload-clean-up-state');
+  try {
+    saver.xferVersion(1);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceDeliverPayloadStateBlockData(
+  runtimeState: SourceDeliverPayloadAIUpdateRuntimeState | null,
+  stateId: number,
+): Uint8Array | null {
+  switch (stateId) {
+    case SOURCE_DELIVER_PAYLOAD_STATE_APPROACH:
+      return buildGeneratedSourceDeliverPayloadApproachStateBlockData();
+    case SOURCE_DELIVER_PAYLOAD_STATE_DELIVERING:
+      return buildGeneratedSourceDeliverPayloadDeliveringStateBlockData(runtimeState);
+    case SOURCE_DELIVER_PAYLOAD_STATE_CONSIDER_NEW_APPROACH:
+      return buildGeneratedSourceDeliverPayloadConsiderNewApproachStateBlockData(runtimeState);
+    case SOURCE_DELIVER_PAYLOAD_STATE_RECOVER_FROM_OFF_MAP:
+      return buildGeneratedSourceDeliverPayloadRecoverFromOffMapStateBlockData(runtimeState);
+    case SOURCE_DELIVER_PAYLOAD_STATE_HEAD_OFF_MAP:
+      return buildGeneratedSourceDeliverPayloadHeadOffMapStateBlockData();
+    case SOURCE_DELIVER_PAYLOAD_STATE_CLEAN_UP:
+      return buildGeneratedSourceDeliverPayloadCleanUpStateBlockData();
+    default:
+      return null;
+  }
+}
+
+function buildGeneratedSourceDeliverPayloadStateMachineBlockData(
+  runtimeState: SourceDeliverPayloadAIUpdateRuntimeState | null,
+): Uint8Array | null {
+  const currentStateId = sourceDeliverPayloadRuntimeStateId(
+    runtimeState?.stateMachineCurrentStateId,
+    SOURCE_DELIVER_PAYLOAD_STATE_APPROACH,
+  );
+  const stateBlockData = buildGeneratedSourceDeliverPayloadStateBlockData(runtimeState, currentStateId);
+  if (!stateBlockData) {
+    return null;
+  }
+
+  const saver = new XferSave();
+  saver.open('build-generated-source-deliver-payload-state-machine');
+  try {
+    saver.xferVersion(1);
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceDeliverPayloadRuntimeUnsignedInt(runtimeState?.stateMachineSleepTill, 0));
+    saver.xferUnsignedInt(sourceDeliverPayloadRuntimeStateId(
+      runtimeState?.stateMachineDefaultStateId,
+      SOURCE_DELIVER_PAYLOAD_STATE_APPROACH,
+    ));
+    saver.xferUnsignedInt(currentStateId);
+    saver.xferBool(false);
+    saver.xferUser(stateBlockData);
+    saver.xferObjectID(normalizeSourceObjectId(runtimeState?.stateMachineGoalObjectId ?? 0));
+    saver.xferCoord3D(sourceDeliverPayloadRuntimeCoordToSource(
+      runtimeState,
+      'stateMachineGoalX',
+      'stateMachineGoalY',
+      'stateMachineGoalZ',
+      { x: 0, y: 0, z: 0 },
+    ));
+    saver.xferBool(sourceDeliverPayloadRuntimeBool(runtimeState?.stateMachineLocked, false));
+    saver.xferBool(sourceDeliverPayloadRuntimeBool(runtimeState?.stateMachineDefaultStateInited, true));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
 function buildSourceDeliverPayloadAIUpdateBlockData(
   entity: MapEntity,
   preservedState: SourceDeliverPayloadAIUpdateBlockState,
@@ -11576,6 +11751,12 @@ function buildGeneratedSourceDeliverPayloadAIUpdateBlockData(
     runtimeState?.stateMachineBytes,
     new Uint8Array(),
   );
+  const generatedStateMachineBytes = hasStateMachine && stateMachineBytes.byteLength === 0
+    ? buildGeneratedSourceDeliverPayloadStateMachineBlockData(runtimeState)
+    : stateMachineBytes;
+  if (hasStateMachine && !generatedStateMachineBytes) {
+    throw new Error('Cannot serialize DeliverPayloadAIUpdate with an unsupported source state-machine state.');
+  }
 
   const saver = new XferSave();
   saver.open('build-generated-source-deliver-payload-ai-update');
@@ -11643,8 +11824,8 @@ function buildGeneratedSourceDeliverPayloadAIUpdateBlockData(
     );
     saver.xferReal(sourceDeliverPayloadRuntimeNumber(runtimeState?.deliveryDecalRadius, 0));
     saver.xferBool(hasStateMachine);
-    if (hasStateMachine) {
-      saver.xferUser(stateMachineBytes);
+    if (hasStateMachine && generatedStateMachineBytes) {
+      saver.xferUser(generatedStateMachineBytes);
     }
     saver.xferBool(sourceDeliverPayloadRuntimeBool(runtimeState?.freeToExit, false));
     saver.xferBool(sourceDeliverPayloadRuntimeBool(runtimeState?.acceptingCommands, true));
@@ -12412,8 +12593,6 @@ function buildGeneratedSourcePOWTruckAIUpdateBlockData(
 
 const SOURCE_DOZER_NUM_TASKS = 3;
 const SOURCE_DOZER_NUM_DOCK_POINTS = 3;
-const SOURCE_DOZER_TASK_BUILD = 0;
-const SOURCE_DOZER_TASK_REPAIR = 1;
 const SOURCE_DOZER_TASK_ENTRY_BYTE_LENGTH = 8;
 const SOURCE_DOZER_DOCK_POINT_BYTE_LENGTH = 13;
 const SOURCE_DOZER_FIXED_SUFFIX_BYTE_LENGTH = 4
@@ -12458,10 +12637,101 @@ function xferGeneratedSourceDozerTaskEntries(saver: XferSave, entity: MapEntity)
   }
 }
 
+function sourceDozerRuntimeInt(entity: MapEntity, key: string, fallback: number): number {
+  const value = (entity as unknown as Record<string, unknown>)[key];
+  return Number.isFinite(value) ? Math.trunc(Number(value)) : fallback;
+}
+
+function sourceDozerRuntimeBool(entity: MapEntity, key: string, fallback: boolean): boolean {
+  const value = (entity as unknown as Record<string, unknown>)[key];
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function sourceDozerPrimaryStateId(entity: MapEntity): number {
+  const stateId = sourceDozerRuntimeInt(entity, 'sourceDozerPrimaryStateId', SOURCE_DOZER_PRIMARY_IDLE);
+  return stateId >= SOURCE_DOZER_PRIMARY_IDLE && stateId <= SOURCE_DOZER_PRIMARY_GO_HOME
+    ? stateId
+    : SOURCE_DOZER_PRIMARY_IDLE;
+}
+
+function sourceDozerTaskForPrimaryState(stateId: number): number {
+  switch (stateId) {
+    case SOURCE_DOZER_PRIMARY_BUILD:
+      return SOURCE_DOZER_TASK_BUILD;
+    case SOURCE_DOZER_PRIMARY_REPAIR:
+      return SOURCE_DOZER_TASK_REPAIR;
+    case SOURCE_DOZER_PRIMARY_FORTIFY:
+      return SOURCE_DOZER_TASK_FORTIFY;
+    default:
+      return SOURCE_DOZER_TASK_INVALID;
+  }
+}
+
+function buildGeneratedSourceDozerActionStateMachineBlockData(dozerTask: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-dozer-action-state-machine');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceRawInt32Bytes(dozerTask));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceDozerActionStateBlockData(dozerTask: number): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-dozer-action-state');
+  try {
+    saver.xferVersion(1);
+    saver.xferUser(buildSourceRawInt32Bytes(dozerTask));
+    saver.xferUser(buildGeneratedSourceDozerActionStateMachineBlockData(dozerTask));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceDozerPrimaryIdleStateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-dozer-primary-idle-state');
+  try {
+    saver.xferVersion(1);
+    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(entity.dozerIdleTooLongTimestamp, currentFrame));
+    saver.xferInt(sourceDozerRuntimeInt(entity, 'sourceDozerIdlePlayerNumber', 0));
+    saver.xferBool(sourceDozerRuntimeBool(entity, 'sourceDozerIsMarkedAsIdle', false));
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceDozerPrimaryStateBlockData(
+  entity: MapEntity,
+  currentFrame: number,
+  stateId: number,
+): Uint8Array {
+  switch (stateId) {
+    case SOURCE_DOZER_PRIMARY_BUILD:
+    case SOURCE_DOZER_PRIMARY_REPAIR:
+    case SOURCE_DOZER_PRIMARY_FORTIFY:
+      return buildGeneratedSourceDozerActionStateBlockData(sourceDozerTaskForPrimaryState(stateId));
+    case SOURCE_DOZER_PRIMARY_GO_HOME:
+      return new Uint8Array();
+    case SOURCE_DOZER_PRIMARY_IDLE:
+    default:
+      return buildGeneratedSourceDozerPrimaryIdleStateBlockData(entity, currentFrame);
+  }
+}
+
 function buildGeneratedSourceDozerPrimaryStateMachineBlockData(
   entity: MapEntity,
   currentFrame: number,
 ): Uint8Array {
+  const currentStateId = sourceDozerPrimaryStateId(entity);
   const saver = new XferSave();
   saver.open('build-generated-source-dozer-primary-state-machine');
   try {
@@ -12469,12 +12739,9 @@ function buildGeneratedSourceDozerPrimaryStateMachineBlockData(
     saver.xferVersion(1);
     saver.xferUnsignedInt(0);
     saver.xferUnsignedInt(SOURCE_DOZER_PRIMARY_IDLE);
-    saver.xferUnsignedInt(SOURCE_DOZER_PRIMARY_IDLE);
+    saver.xferUnsignedInt(currentStateId);
     saver.xferBool(false);
-    saver.xferVersion(1);
-    saver.xferUnsignedInt(sourceFlammableUnsignedFrame(entity.dozerIdleTooLongTimestamp, currentFrame));
-    saver.xferInt(0);
-    saver.xferBool(false);
+    saver.xferUser(buildGeneratedSourceDozerPrimaryStateBlockData(entity, currentFrame, currentStateId));
     saver.xferObjectID(0);
     saver.xferCoord3D({ x: 0, y: 0, z: 0 });
     saver.xferBool(false);

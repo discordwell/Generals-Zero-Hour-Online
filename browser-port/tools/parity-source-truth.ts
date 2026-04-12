@@ -3586,6 +3586,10 @@ export function parseTsSourceObjectUpdateFields(
   if (helperName === 'buildGeneratedSourceStubStateMachineBlockData') {
     return sourceWrappedStateMachineFields();
   }
+  if (helperName === 'buildGeneratedSourceDeliverPayloadStateMachineBlockData'
+    || helperName === 'buildGeneratedSourceDozerPrimaryStateMachineBlockData') {
+    return sourceWrappedStateMachineFields();
+  }
   const body = extractFunctionBodyAfterParams(source, helperName);
   if (!body) return [];
   const fields: string[] = [];
@@ -5832,6 +5836,10 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferBool' && argument === 'm_freeToExit') return 'freeToExit';
   if (method === 'xferBool' && argument === 'm_acceptingCommands') return 'acceptingCommands';
   if (method === 'xferReal' && argument === 'm_previousDistanceSqr') return 'previousDistanceSqr';
+  if (method === 'xferUnsignedInt' && argument === 'm_dropDelayLeft') return 'dropDelayLeft';
+  if (method === 'xferBool' && argument === 'm_didOpen') return 'didOpen';
+  if (method === 'xferInt' && argument === 'm_numberEntriesToState') return 'numberEntriesToState';
+  if (method === 'xferUnsignedInt' && argument === 'm_reEntryFrame') return 'reEntryFrame';
   if (method === 'xferInt' && argument === 'numTasks') return 'task.count';
   if (method === 'xferObjectID' && argument === 'm_task[i].m_targetObjectID') return 'task.targetObjectId';
   if (method === 'xferUnsignedInt' && argument === 'm_task[i].m_taskOrderFrame') return 'task.taskOrderFrame';
@@ -5841,6 +5849,13 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferCoord3D' && argument === 'm_dockPoint[i][j].location') return 'dockPoint.location';
   if (method === 'xferUser' && argument.startsWith('m_buildSubTask')) return 'buildSubTask';
   if (method === 'xferSnapshot' && argument === 'm_workerMachine') return 'workerMachine';
+  if (method === 'xferUser' && argument.startsWith('m_task')) return 'task';
+  if (method === 'xferInt' && argument === 'm_failedAttempts') return 'failedAttempts';
+  if (method === 'xferUnsignedInt' && argument === 'm_enterFrame') return 'enterFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_idleTooLongTimestamp') return 'idleTooLongTimestamp';
+  if (method === 'xferInt' && argument === 'm_idlePlayerNumber') return 'idlePlayerNumber';
+  if (method === 'xferBool' && argument === 'm_isMarkedAsIdle') return 'isMarkedAsIdle';
+  if (method === 'xferSnapshot' && argument === 'm_actionMachine') return 'actionMachine';
   if (method === 'xferBool' && argument === 'm_inTransit') return 'inTransit';
   if (method === 'xferInt' && argument === 'm_numPaths') return 'paths.count';
   if (method === 'xferUnsignedInt' && argument === 'm_path[i].startWaypointID') {
@@ -6378,6 +6393,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('hasStateMachine')) return 'hasStateMachine';
     if (window.includes('freeToExit')) return 'freeToExit';
     if (window.includes('acceptingCommands')) return 'acceptingCommands';
+    if (window.includes('stateDidOpen')) return 'didOpen';
+    if (window.includes('sourceDozerIsMarkedAsIdle')) return 'isMarkedAsIdle';
     if (window.includes('carriagesCreated')) return 'carriagesCreated';
     if (window.includes('hasEverBeenHitched')) return 'hasEverBeenHitched';
     if (window.includes('waitingInWings')) return 'waitingInWings';
@@ -6427,6 +6444,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('maxAttempts')) return 'maxAttempts';
     if (window.includes('visibleNumBones')) return 'visibleNumBones';
     if (window.includes('visibleItemsDroppedPerInterval')) return 'visibleItemsDroppedPerInterval';
+    if (window.includes('stateNumberEntriesToState')) return 'numberEntriesToState';
+    if (window.includes('failedAttempts')) return 'failedAttempts';
+    if (window.includes('sourceDozerIdlePlayerNumber')) return 'idlePlayerNumber';
     if (window.includes('currentPointHandle')) return 'currentPointHandle';
     if (window.includes('waitAtStationTimer')) return 'waitAtStationTimer';
     if (window.includes('wantsToBeLeadCarraige')) return 'wantsToBeLeadCarraige';
@@ -6497,6 +6517,10 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('extraBonusFlags')) return 'extraBonusFlags';
     if (window.includes('framesTillDecoyed')) return 'framesTillDecoyed';
     if (window.includes('dropDelay')) return 'dropDelay';
+    if (window.includes('stateDropDelayLeft')) return 'dropDelayLeft';
+    if (window.includes('stateReEntryFrame')) return 'reEntryFrame';
+    if (window.includes('dozerIdleTooLongTimestamp')) return 'idleTooLongTimestamp';
+    if (window.includes('enterFrame')) return 'enterFrame';
     if (window.includes('motiveForceExpires')) return 'motiveForceExpires';
     if (window.includes('workerWaitCounter')) return 'workerWaitCounter';
     if (window.includes('radiusParticleSystemId')) return 'radiusParticleSystemId';
@@ -6641,10 +6665,13 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('pendingCommandBytes')) return 'pendingCommand';
     if (window.includes('commandStorageBytes')) return 'mostRecentCommand';
     if (window.includes('buildSourceRawInt32Bytes(state)')) return 'state';
+    if (window.includes('buildSourceRawInt32Bytes(dozerTask)')) return 'task';
     if (window.includes('sourceMissileRuntimeExhaustIdBytes')) return 'exhaustIdBytes';
     if (window.includes('buildSourceRawInt32Bytes(diveState)')) return 'diveState';
     if (window.includes('strafingWeaponSlot')) return 'strafingWeaponSlot';
-    if (window.includes('stateMachineBytes')) return 'stateMachine';
+    if (window.includes('stateMachineBytes') || window.includes('generatedStateMachineBytes')) return 'stateMachine';
+    if (window.includes('buildGeneratedSourceDeliverPayloadStateMachineBlockData')) return 'stateMachine';
+    if (window.includes('buildGeneratedSourceDozerActionStateMachineBlockData')) return 'actionMachine';
     if (window.includes('sourceDeathTypeFromRuntimeName')) return 'deathType';
     if (window.includes('towerType')) return 'towerType';
     if (window.includes('turningBytes')) return 'turning';
@@ -9979,6 +10006,26 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       tsHelper: 'buildGeneratedSourceDeliverPayloadAIUpdateBlockData',
     },
     {
+      category: 'save-deliver-payload-state-machine-fields',
+      cppClass: 'DeliverPayloadStateMachine',
+      tsHelper: 'buildGeneratedSourceDeliverPayloadStateMachineBlockData',
+    },
+    {
+      category: 'save-deliver-payload-delivering-state-fields',
+      cppClass: 'DeliveringState',
+      tsHelper: 'buildGeneratedSourceDeliverPayloadDeliveringStateBlockData',
+    },
+    {
+      category: 'save-deliver-payload-consider-new-approach-state-fields',
+      cppClass: 'ConsiderNewApproachState',
+      tsHelper: 'buildGeneratedSourceDeliverPayloadConsiderNewApproachStateBlockData',
+    },
+    {
+      category: 'save-deliver-payload-recover-from-off-map-state-fields',
+      cppClass: 'RecoverFromOffMapState',
+      tsHelper: 'buildGeneratedSourceDeliverPayloadRecoverFromOffMapStateBlockData',
+    },
+    {
       category: 'save-hack-internet-ai-update-fields',
       cppClass: 'HackInternetAIUpdate',
       tsHelper: 'buildGeneratedSourceHackInternetAIUpdateBlockData',
@@ -10012,6 +10059,26 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-dozer-ai-update-fields',
       cppClass: 'DozerAIUpdate',
       tsHelper: 'buildGeneratedSourceDozerAIUpdateBlockData',
+    },
+    {
+      category: 'save-dozer-action-state-machine-fields',
+      cppClass: 'DozerActionStateMachine',
+      tsHelper: 'buildGeneratedSourceDozerActionStateMachineBlockData',
+    },
+    {
+      category: 'save-dozer-primary-idle-state-fields',
+      cppClass: 'DozerPrimaryIdleState',
+      tsHelper: 'buildGeneratedSourceDozerPrimaryIdleStateBlockData',
+    },
+    {
+      category: 'save-dozer-action-state-fields',
+      cppClass: 'DozerActionState',
+      tsHelper: 'buildGeneratedSourceDozerActionStateBlockData',
+    },
+    {
+      category: 'save-dozer-primary-state-machine-fields',
+      cppClass: 'DozerPrimaryStateMachine',
+      tsHelper: 'buildGeneratedSourceDozerPrimaryStateMachineBlockData',
     },
     {
       category: 'save-worker-ai-update-fields',
