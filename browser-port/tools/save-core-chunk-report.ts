@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 
 import { listSaveGameChunks, parseSaveGameInfo, parseSaveGameMapInfo } from '@generals/engine';
 import {
+  BROWSER_RUNTIME_STATE_BLOCK,
   buildRuntimeSaveFile,
   inspectGameLogicChunkLayout,
   inspectRuntimeSaveGameClientDrawableHydrationStatus,
@@ -110,7 +111,18 @@ function readFirstSaveBlockName(filePath: string): string | null {
 }
 
 export function isSourceSaveFixtureFile(filePath: string): boolean {
-  return readFirstSaveBlockName(filePath)?.toLowerCase() === SOURCE_SAVE_FIRST_BLOCK.toLowerCase();
+  if (readFirstSaveBlockName(filePath)?.toLowerCase() !== SOURCE_SAVE_FIRST_BLOCK.toLowerCase()) {
+    return false;
+  }
+  try {
+    const data = readFileSync(filePath);
+    const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    return !listSaveGameChunks(buffer).some(
+      (chunk) => chunk.blockName.toLowerCase() === BROWSER_RUNTIME_STATE_BLOCK.toLowerCase(),
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function listSaveFixturePaths(inputPath: string): string[] {

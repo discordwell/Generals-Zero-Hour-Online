@@ -184,15 +184,26 @@ describe('save core chunk report', () => {
       });
       const validSavePath = join(tempDir, '00000000.sav');
       const bogusSavePath = join(tempDir, 'scipy-idl.sav');
+      const browserSavePath = join(tempDir, 'browser-generated.sav');
       const nestedDir = join(tempDir, 'nested');
       const nestedSavePath = join(nestedDir, 'retail-save.bin');
+      const browserSaveFile = buildRuntimeSaveFile({
+        description: 'Browser Fixture',
+        mapPath: 'assets/maps/BrowserFixture.json',
+        mapData,
+        cameraState: null,
+        includeBrowserRuntimeCoreState: true,
+        gameLogic: createRoundTripGameLogic(5),
+      });
       mkdirSync(nestedDir);
       writeFileSync(validSavePath, Buffer.from(saveFile.data));
       writeFileSync(bogusSavePath, Buffer.from([0x04, 0x49, 0x44, 0x4c, 0x00]));
+      writeFileSync(browserSavePath, Buffer.from(browserSaveFile.data));
       writeFileSync(nestedSavePath, Buffer.from(saveFile.data));
 
       expect(isSourceSaveFixtureFile(validSavePath)).toBe(true);
       expect(isSourceSaveFixtureFile(bogusSavePath)).toBe(false);
+      expect(isSourceSaveFixtureFile(browserSavePath)).toBe(false);
       expect(listSaveFixturePaths(tempDir)).toEqual([validSavePath, nestedSavePath].sort());
       expect(listSaveFixturePaths(join(tempDir, 'missing'))).toEqual([]);
     } finally {
