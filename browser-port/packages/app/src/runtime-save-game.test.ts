@@ -9086,6 +9086,32 @@ function createMinimalRuntimeGameLogic(
 }
 
 describe('runtime-save-game', () => {
+  it('derives returned save metadata timestamps from the CHUNK_GameState date', () => {
+    const sourceDate = {
+      year: 2026,
+      month: 4,
+      day: 2,
+      dayOfWeek: 4,
+      hour: 18,
+      minute: 19,
+      second: 8,
+      milliseconds: 123,
+    };
+    const saveFile = buildRuntimeSaveFile({
+      description: 'Header Date Save',
+      mapPath: 'assets/maps/HeaderDate.json',
+      mapData: createTinyRuntimeMapData(),
+      cameraState: null,
+      sourceMetadata: {
+        date: sourceDate,
+      },
+      gameLogic: createMinimalRuntimeGameLogic(),
+    });
+
+    expect(saveFile.metadata.timestamp).toBe(new Date(2026, 3, 2, 18, 19, 8, 123).getTime());
+    expect(parseRuntimeSaveFile(saveFile.data).metadata.date).toEqual(sourceDate);
+  });
+
   it('inspects source-shaped non-empty CHUNK_GhostObject payloads', () => {
     const ghostObjectBytes = createSourceGhostObjectChunkData();
     const saveFile = buildRuntimeSaveFile({

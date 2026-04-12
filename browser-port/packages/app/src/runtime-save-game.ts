@@ -8,6 +8,7 @@ import {
   listSaveGameChunks,
   parseSaveGameInfo,
   parseSaveGameMapInfo,
+  saveDateToTimestamp,
   type Coord3D,
   type ParsedSaveGameInfo,
   type ParsedSaveGameMapInfo,
@@ -1983,6 +1984,11 @@ function createMetadataState(description: string, mapPath: string | null): Runti
     campaignSide: '',
     missionNumber: INVALID_MISSION_NUMBER,
   };
+}
+
+function getRuntimeSaveMetadataTimestamp(metadata: RuntimeSaveMetadataState): number {
+  const timestamp = saveDateToTimestamp(metadata.date);
+  return timestamp > 0 ? timestamp : Date.now();
 }
 
 function normalizeRuntimeSaveSourceMapPath(path: string | null | undefined): string | null {
@@ -26596,7 +26602,7 @@ export function buildRuntimeSaveFile(params: {
       metadata: {
         description: metadataState.description,
         mapName: metadataState.mapLabel,
-        timestamp: Date.now(),
+        timestamp: getRuntimeSaveMetadataTimestamp(metadataState),
         sizeBytes: saveResult.data.byteLength,
         saveFileType: metadataState.saveFileType,
       },
@@ -26953,7 +26959,7 @@ export function buildRuntimeSaveFile(params: {
     metadata: {
       description: metadataState.description,
       mapName: metadataState.mapLabel,
-      timestamp: Date.now(),
+      timestamp: getRuntimeSaveMetadataTimestamp(metadataState),
       sizeBytes: saveResult.data.byteLength,
       saveFileType: metadataState.saveFileType,
     },
