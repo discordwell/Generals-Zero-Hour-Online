@@ -11315,6 +11315,7 @@ describe('runtime-save-game', () => {
         missionNumber: 0,
       },
       sourceGameMode: SOURCE_GAME_MODE_SKIRMISH,
+      sourceDifficulty: 'HARD',
     });
 
     const parsed = parseRuntimeSaveFile(saveFile.data);
@@ -11344,6 +11345,7 @@ describe('runtime-save-game', () => {
     expect(parsed.metadata.mapLabel).toBe('GUI:MissionSave');
     expect(parsed.metadata.campaignSide).toBe('usa');
     expect(parsed.metadata.missionNumber).toBe(0);
+    expect(parsed.gameLogicScriptEngineState?.state.scriptGameDifficulty).toBe('HARD');
     expect(parsed.scriptEngineFadeState).toBeNull();
     expect(parsed.campaign).toBeNull();
   });

@@ -1151,6 +1151,15 @@ function resolveDifficultyFromSourceValue(difficulty: number): GameDifficulty {
   }
 }
 
+function getRuntimeStateDifficulty(
+  state: Record<string, unknown>,
+  key: string,
+  fallback: GameDifficulty,
+): GameDifficulty {
+  const value = state[key];
+  return value === 'EASY' || value === 'NORMAL' || value === 'HARD' ? value : fallback;
+}
+
 function createEmptyRuntimeSaveTeamFactoryState(): GameLogicTeamFactorySaveState {
   return {
     version: 1,
@@ -24490,7 +24499,9 @@ class ScriptEngineSnapshot implements Snapshot {
     const loadedBreezeVersion = xfer.xferShort(getRuntimeStateNumber(breezeState, 'version', 1));
 
     const loadedDifficulty = resolveDifficultyFromSourceValue(
-      xfer.xferInt(resolveSourceDifficultyValue(this.difficulty)),
+      xfer.xferInt(resolveSourceDifficultyValue(
+        getRuntimeStateDifficulty(state, 'scriptGameDifficulty', this.difficulty),
+      )),
     );
     const freezeByScript = xfer.xferBool(getRuntimeStateBoolean(state, 'scriptTimeFrozenByScript'));
 
@@ -24614,6 +24625,7 @@ class ScriptEngineSnapshot implements Snapshot {
           randomness: loadedBreezeRandomness,
           breezePeriodFrames: loadedBreezePeriodFrames,
         },
+        scriptGameDifficulty: loadedDifficulty,
         scriptTimeFrozenByScript: freezeByScript,
         scriptNamedMapRevealByName: loadedNamedReveals,
         scriptObjectTypeListsByName: loadedObjectTypeLists,

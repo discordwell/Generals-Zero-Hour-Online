@@ -279,6 +279,7 @@ describe('save core chunk report', () => {
       mapPath: 'assets/maps/RoundTrip.json',
       mapData,
       cameraState: null,
+      sourceDifficulty: 'HARD',
       gameLogic: createRoundTripGameLogic(4),
     });
 
