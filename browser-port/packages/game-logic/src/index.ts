@@ -9462,6 +9462,34 @@ interface SourceHackInternetAIUpdateImportState {
   pendingCommand: GameLogicCommand | null;
 }
 
+interface SourceAttackStateMachineImportState {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+}
+
+interface SourceAIAttackStateImportState {
+  originalVictimPosition: { x: number; y: number; z: number };
+  attackMachine: SourceAttackStateMachineImportState | null;
+}
+
+interface SourceAIStateMachineImportState {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+  attackState: SourceAIAttackStateImportState | null;
+}
+
+interface SourceAIUpdateInterfaceImportState {
+  offset: number;
+  stateMachine: SourceAIStateMachineImportState;
+  isAiDead: boolean;
+  isRecruitable: boolean;
+  nextEnemyScanTime: number;
+  currentVictimId: number;
+  lastCommandSource: number;
+}
+
 interface SourceAICommandStorageImportState {
   commandType: number;
   position: { x: number; y: number; z: number };
@@ -10272,6 +10300,14 @@ const SOURCE_GARRISON_POINT_CONDITIONS = 3;
 const SOURCE_GARRISON_POINT_BYTES_LENGTH =
   SOURCE_GARRISON_MAX_POINTS * SOURCE_GARRISON_POINT_CONDITIONS * SOURCE_COORD3D_BYTE_LENGTH;
 const SOURCE_AI_STATE_IDLE = 0;
+const SOURCE_AI_STATE_ATTACK_POSITION = 9;
+const SOURCE_AI_STATE_ATTACK_OBJECT = 10;
+const SOURCE_AI_STATE_FORCE_ATTACK_OBJECT = 11;
+const SOURCE_AI_INVALID_STATE_ID = 999999;
+const SOURCE_ATTACK_STATE_CHASE_TARGET = 0;
+const SOURCE_ATTACK_STATE_APPROACH_TARGET = 1;
+const SOURCE_ATTACK_STATE_AIM_AT_TARGET = 2;
+const SOURCE_ATTACK_STATE_FIRE_WEAPON = 3;
 const SOURCE_HACK_INTERNET_STATE_UNPACKING = 1000;
 const SOURCE_HACK_INTERNET_STATE_HACKING = 1001;
 const SOURCE_HACK_INTERNET_STATE_PACKING = 1002;
@@ -15670,6 +15706,28 @@ export class GameLogicSubsystem implements Subsystem {
     };
   }
 
+  private sourceCoord3DToRuntimeXZ(coord: { x: number; y: number; z: number }): VectorXZ {
+    return {
+      x: Number.isFinite(coord.x) ? coord.x : 0,
+      z: Number.isFinite(coord.y) ? coord.y : 0,
+    };
+  }
+
+  private sourceCommandSourceToRuntime(value: number): AttackCommandSource {
+    switch (Math.trunc(value)) {
+      case 0: return 'PLAYER';
+      case 1: return 'SCRIPT';
+      case 2: return 'AI';
+      case 3: return 'DOZER';
+      default: return 'AI';
+    }
+  }
+
+  private sourceLastCommandSourceToRuntime(value: number): 'PLAYER' | 'AI' | 'SCRIPT' {
+    const commandSource = this.sourceCommandSourceToRuntime(value);
+    return commandSource === 'DOZER' ? 'AI' : commandSource;
+  }
+
   private sourceScaffoldTargetMotionFromInt(value: number): ScaffoldTargetMotion | null {
     switch (Math.trunc(value)) {
       case STM_STILL: return STM_STILL;
@@ -15793,6 +15851,244 @@ export class GameLogicSubsystem implements Subsystem {
     if (behaviorModuleVersion !== 1 || objectModuleVersion !== 1 || moduleVersion !== 1) {
       throw new Error('Unsupported source BehaviorModule import base version.');
     }
+  }
+
+  private isSourceAITopAttackStateId(stateId: number): boolean {
+    return stateId === SOURCE_AI_STATE_ATTACK_POSITION
+      || stateId === SOURCE_AI_STATE_ATTACK_OBJECT
+      || stateId === SOURCE_AI_STATE_FORCE_ATTACK_OBJECT;
+  }
+
+  private sourceAttackStateToRuntimeSubState(stateId: number): AttackSubState | null {
+    switch (Math.trunc(stateId)) {
+      case SOURCE_ATTACK_STATE_CHASE_TARGET:
+      case SOURCE_ATTACK_STATE_APPROACH_TARGET:
+        return 'APPROACHING';
+      case SOURCE_ATTACK_STATE_AIM_AT_TARGET:
+        return 'AIMING';
+      case SOURCE_ATTACK_STATE_FIRE_WEAPON:
+        return 'FIRING';
+      default:
+        return null;
+    }
+  }
+
+  private skipSourceAIIdleStateSnapshot(xfer: XferLoad): boolean {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      return false;
+    }
+    xfer.xferUnsignedShort(0);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    return true;
+  }
+
+  private skipSourceAIAttackAimAtTargetStateSnapshot(xfer: XferLoad): boolean {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      return false;
+    }
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    return true;
+  }
+
+  private skipSourceAIAttackFireWeaponStateSnapshot(xfer: XferLoad): boolean {
+    return xfer.xferVersion(1) === 1;
+  }
+
+  private skipSourceAIInternalMoveToStateSnapshot(xfer: XferLoad): boolean {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      return false;
+    }
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+    xfer.xferBool(false);
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    xfer.xferBool(false);
+    return true;
+  }
+
+  private skipSourceAIAttackMoveTargetStateSnapshot(xfer: XferLoad): boolean {
+    const version = xfer.xferVersion(1);
+    if (version !== 1 || !this.skipSourceAIInternalMoveToStateSnapshot(xfer)) {
+      return false;
+    }
+    xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferUnsignedInt(0);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    return true;
+  }
+
+  private skipSourceAttackMachineCurrentStateSnapshot(
+    xfer: XferLoad,
+    currentStateId: number,
+  ): boolean {
+    switch (Math.trunc(currentStateId)) {
+      case SOURCE_ATTACK_STATE_CHASE_TARGET:
+      case SOURCE_ATTACK_STATE_APPROACH_TARGET:
+        return this.skipSourceAIAttackMoveTargetStateSnapshot(xfer);
+      case SOURCE_ATTACK_STATE_AIM_AT_TARGET:
+        return this.skipSourceAIAttackAimAtTargetStateSnapshot(xfer);
+      case SOURCE_ATTACK_STATE_FIRE_WEAPON:
+        return this.skipSourceAIAttackFireWeaponStateSnapshot(xfer);
+      default:
+        return false;
+    }
+  }
+
+  private parseSourceAttackStateMachineImportState(
+    xfer: XferLoad,
+  ): SourceAttackStateMachineImportState | null {
+    const version = xfer.xferVersion(1);
+    const stateMachineVersion = xfer.xferVersion(1);
+    if (version !== 1 || stateMachineVersion !== 1) {
+      return null;
+    }
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    const currentStateId = xfer.xferUnsignedInt(0);
+    if (xfer.xferBool(false)) {
+      return null;
+    }
+    if (!this.skipSourceAttackMachineCurrentStateSnapshot(xfer, currentStateId)) {
+      return null;
+    }
+    const goalObjectId = xfer.xferObjectID(0);
+    const goalPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    return { currentStateId, goalObjectId, goalPosition };
+  }
+
+  private parseSourceAIAttackStateImportState(
+    xfer: XferLoad,
+  ): SourceAIAttackStateImportState | null {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const hasMachine = xfer.xferBool(false);
+    const originalVictimPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    const attackMachine = hasMachine ? this.parseSourceAttackStateMachineImportState(xfer) : null;
+    if (hasMachine && !attackMachine) {
+      return null;
+    }
+    return { originalVictimPosition, attackMachine };
+  }
+
+  private parseSourceAIStateMachineImportState(
+    xfer: XferLoad,
+  ): SourceAIStateMachineImportState | null {
+    const version = xfer.xferVersion(1);
+    const stateMachineVersion = xfer.xferVersion(1);
+    if (version !== 1 || stateMachineVersion !== 1) {
+      return null;
+    }
+    xfer.xferUnsignedInt(0);
+    xfer.xferUnsignedInt(0);
+    const currentStateId = xfer.xferUnsignedInt(0);
+    if (xfer.xferBool(false)) {
+      return null;
+    }
+
+    let attackState: SourceAIAttackStateImportState | null = null;
+    if (currentStateId === SOURCE_AI_STATE_IDLE) {
+      if (!this.skipSourceAIIdleStateSnapshot(xfer)) {
+        return null;
+      }
+    } else if (this.isSourceAITopAttackStateId(currentStateId)) {
+      attackState = this.parseSourceAIAttackStateImportState(xfer);
+      if (!attackState) {
+        return null;
+      }
+    } else {
+      return null;
+    }
+
+    const goalObjectId = xfer.xferObjectID(0);
+    const goalPosition = xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    xfer.xferBool(false);
+    xfer.xferBool(false);
+    const goalPathCount = xfer.xferInt(0);
+    if (goalPathCount < 0 || goalPathCount > 256) {
+      return null;
+    }
+    for (let index = 0; index < goalPathCount; index += 1) {
+      xfer.xferCoord3D({ x: 0, y: 0, z: 0 });
+    }
+    xfer.xferAsciiString('');
+    if (xfer.xferBool(false)) {
+      return null;
+    }
+    const temporaryStateId = xfer.xferUnsignedInt(0);
+    if (temporaryStateId !== SOURCE_AI_INVALID_STATE_ID) {
+      return null;
+    }
+    xfer.xferUnsignedInt(0);
+
+    return { currentStateId, goalObjectId, goalPosition, attackState };
+  }
+
+  private isSourceAIUpdateInterfaceModuleType(moduleType: string): boolean {
+    const normalizedModuleType = moduleType.trim().toUpperCase();
+    return normalizedModuleType.includes('AIUPDATE')
+      || normalizedModuleType === 'FLIGHTDECKBEHAVIOR';
+  }
+
+  private tryParseSourceAIUpdateInterfaceImportState(
+    data: Uint8Array,
+    moduleType: string,
+  ): SourceAIUpdateInterfaceImportState | null {
+    if (!this.isSourceAIUpdateInterfaceModuleType(moduleType)) {
+      return null;
+    }
+
+    const maxOffset = Math.min(3, Math.max(0, data.byteLength - 1));
+    for (let offset = 0; offset <= maxOffset; offset += 1) {
+      const xfer = new XferLoad(this.sourceModuleBlockDataBuffer(data.subarray(offset)));
+      xfer.open('source-ai-update-interface-import');
+      try {
+        const version = xfer.xferVersion(4);
+        if (version !== 4) {
+          continue;
+        }
+        this.skipSourceImportUpdateModuleBase(xfer);
+        xfer.xferUnsignedInt(0);
+        xfer.xferUnsignedInt(0);
+        const stateMachine = this.parseSourceAIStateMachineImportState(xfer);
+        if (!stateMachine) {
+          continue;
+        }
+        const isAiDead = xfer.xferBool(false);
+        const isRecruitable = xfer.xferBool(false);
+        const nextEnemyScanTime = xfer.xferUnsignedInt(0);
+        const currentVictimId = xfer.xferObjectID(0);
+        xfer.xferReal(0);
+        const lastCommandSource = this.parseSourceImportRawInt32(xfer.xferUser(new Uint8Array(4)));
+        return {
+          offset,
+          stateMachine,
+          isAiDead,
+          isRecruitable,
+          nextEnemyScanTime,
+          currentVictimId,
+          lastCommandSource,
+        };
+      } catch {
+        // Try the next likely base-class offset; derived AI updates only prepend xferVersion tags.
+      } finally {
+        xfer.close();
+      }
+    }
+    return null;
   }
 
   private parseSourceCreateModuleBaseImportState(xfer: XferLoad): { needToRunOnBuildComplete: boolean } {
@@ -18358,6 +18654,66 @@ export class GameLogicSubsystem implements Subsystem {
           : null,
         forceBusy: supplyTruckState.forcePending,
       });
+      return;
+    }
+  }
+
+  private applySourceAIUpdateInterfaceModulesToEntity(
+    entity: MapEntity,
+    sourceState: SourceMapEntitySaveState,
+  ): void {
+    for (const module of sourceState.modules) {
+      const moduleType = this.resolveSourceObjectModuleTypeByTag(
+        entity.templateName,
+        module.identifier,
+      );
+      if (!moduleType) {
+        continue;
+      }
+      const aiUpdateState = this.tryParseSourceAIUpdateInterfaceImportState(module.blockData, moduleType);
+      if (!aiUpdateState) {
+        continue;
+      }
+
+      entity.scriptAiRecruitable = aiUpdateState.isRecruitable;
+      entity.autoTargetScanNextFrame = Number.isFinite(aiUpdateState.nextEnemyScanTime)
+        ? Math.max(0, Math.trunc(aiUpdateState.nextEnemyScanTime))
+        : entity.autoTargetScanNextFrame;
+      entity.lastCommandSource = this.sourceLastCommandSourceToRuntime(aiUpdateState.lastCommandSource);
+
+      const stateMachine = aiUpdateState.stateMachine;
+      const attackState = stateMachine.attackState;
+      const attackMachine = attackState?.attackMachine ?? null;
+      const attackSubState = attackMachine
+        ? this.sourceAttackStateToRuntimeSubState(attackMachine.currentStateId)
+        : null;
+
+      if (
+        this.isSourceAITopAttackStateId(stateMachine.currentStateId)
+        && attackState
+        && attackMachine
+        && attackSubState
+      ) {
+        const commandSource = this.sourceCommandSourceToRuntime(aiUpdateState.lastCommandSource);
+        const isAttackingPosition = stateMachine.currentStateId === SOURCE_AI_STATE_ATTACK_POSITION;
+        const targetEntityId = isAttackingPosition
+          ? null
+          : Math.trunc(stateMachine.goalObjectId > 0
+            ? stateMachine.goalObjectId
+            : aiUpdateState.currentVictimId);
+
+        if (isAttackingPosition || (targetEntityId !== null && targetEntityId > 0)) {
+          entity.attackTargetEntityId = targetEntityId;
+          entity.attackTargetPosition = isAttackingPosition
+            ? this.sourceCoord3DToRuntimeXZ(stateMachine.goalPosition)
+            : null;
+          entity.attackOriginalVictimPosition = this.sourceCoord3DToRuntimeXZ(attackState.originalVictimPosition);
+          entity.attackCommandSource = commandSource;
+          entity.lastCommandSource = commandSource === 'DOZER' ? 'AI' : commandSource;
+          entity.attackSubState = attackSubState;
+        }
+      }
+
       return;
     }
   }
@@ -25018,6 +25374,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.applySourceStatusBitsToEntity(entity, sourceState);
     this.applySourceDisabledFramesToEntity(entity, sourceState);
     this.applySourceWeaponStateToEntity(entity, sourceState);
+    this.applySourceAIUpdateInterfaceModulesToEntity(entity, sourceState);
     this.applySourceCreateModulesToEntity(entity, sourceState);
     this.applySourceUpgradeModulesToEntity(entity, sourceState);
     this.applySourceBodyModulesToEntity(entity, sourceState);
