@@ -145,7 +145,7 @@ export class SaveStorage {
    */
   async uploadSaveFile(file: File): Promise<string> {
     const data = await file.arrayBuffer();
-    const slotId = file.name.replace(/\.sav$/i, '');
+    const slotId = file.name.replace(/\.(?:sav|save)$/i, '');
     let metadata: Omit<SaveMetadata, 'slotId'>;
     try {
       const info = parseSaveGameInfo(data);

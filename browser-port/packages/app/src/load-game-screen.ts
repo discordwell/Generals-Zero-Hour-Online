@@ -23,6 +23,8 @@ export interface LoadGameMappedImageResolver {
 
 export interface LoadGameScreenCallbacks {
   listSaves(): Promise<SaveMetadata[]>;
+  onImportSave(file: File): Promise<string | void>;
+  onExportSave(slotId: string): Promise<void>;
   onLoadSave(slotId: string): Promise<void>;
   onDeleteSave(slotId: string): Promise<void>;
   onClose(): void;
@@ -130,6 +132,22 @@ const STYLES = `
       linear-gradient(180deg, rgba(26, 32, 56, 0.96) 0%, rgba(8, 11, 24, 0.98) 100%);
     cursor: default;
   }
+  .load-game-transfer-button {
+    font-size: clamp(0.66rem, 0.76vw, 0.72rem);
+    letter-spacing: 0.06em;
+  }
+  .load-game-transfer-status {
+    color: rgba(212, 219, 244, 0.82);
+    font-size: clamp(0.58rem, 0.72vw, 0.68rem);
+    letter-spacing: 0.03em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+  }
+  .load-game-file-input {
+    display: none;
+  }
   .load-game-dialog {
     border: 1px solid rgba(47, 55, 168, 0.94);
     background:
@@ -157,6 +175,9 @@ const SOURCE_RESOLUTION = { width: 800, height: 600 } as const;
 const PARENT_RECT: SourceRect = { x: 0, y: 0, width: 798, height: 599 };
 const PANEL_RECT: SourceRect = { x: 40, y: 40, width: 718, height: 518 };
 const TITLE_RECT: SourceRect = { x: 54, y: 41, width: 352, height: 44 };
+const IMPORT_BUTTON_RECT: SourceRect = { x: 444, y: 52, width: 132, height: 26 };
+const EXPORT_BUTTON_RECT: SourceRect = { x: 590, y: 52, width: 132, height: 26 };
+const TRANSFER_STATUS_RECT: SourceRect = { x: 444, y: 80, width: 288, height: 14 };
 const LISTBOX_RECT: SourceRect = { x: 60, y: 100, width: 672, height: 392 };
 const SAVE_BUTTON_RECT: SourceRect = { x: 60, y: 508, width: 156, height: 32 };
 const LOAD_BUTTON_RECT: SourceRect = { x: 232, y: 508, width: 156, height: 32 };
@@ -261,6 +282,30 @@ export class LoadGameScreen {
         data-source-rect="${formatSourceRectData(TITLE_RECT)}"
         style="${formatSourceRectStyle(TITLE_RECT)}"
       ></div>
+      <input
+        class="load-game-file-input"
+        data-ref="load-game-import-input"
+        type="file"
+        accept=".sav,.save,application/octet-stream"
+      />
+      <button
+        class="load-game-button load-game-transfer-button load-game-source-rect"
+        data-action="import"
+        data-browser-rect="${formatSourceRectData(IMPORT_BUTTON_RECT)}"
+        style="${formatSourceRectStyle(IMPORT_BUTTON_RECT)}"
+      ></button>
+      <button
+        class="load-game-button load-game-transfer-button load-game-source-rect"
+        data-action="export"
+        data-browser-rect="${formatSourceRectData(EXPORT_BUTTON_RECT)}"
+        style="${formatSourceRectStyle(EXPORT_BUTTON_RECT)}"
+      ></button>
+      <div
+        class="load-game-transfer-status load-game-source-rect"
+        data-ref="load-game-transfer-status"
+        data-browser-rect="${formatSourceRectData(TRANSFER_STATUS_RECT)}"
+        style="${formatSourceRectStyle(TRANSFER_STATUS_RECT)}"
+      ></div>
       <div
         class="load-game-listbox load-game-source-rect"
         data-ref="load-game-listbox"
@@ -340,6 +385,10 @@ export class LoadGameScreen {
       const action = actionTarget.dataset.action;
       if (action === 'back') {
         this.hide();
+      } else if (action === 'import') {
+        this.openImportFilePicker();
+      } else if (action === 'export') {
+        void this.exportSelectedSave();
       } else if (action === 'load') {
         this.openDialog('load');
       } else if (action === 'delete') {
@@ -350,6 +399,15 @@ export class LoadGameScreen {
         void this.confirmLoad();
       } else if (action === 'confirm-delete') {
         void this.confirmDelete();
+      }
+    });
+
+    const importInput = overlay.querySelector<HTMLInputElement>('[data-ref="load-game-import-input"]');
+    importInput?.addEventListener('change', () => {
+      const file = importInput.files?.[0] ?? null;
+      importInput.value = '';
+      if (file) {
+        void this.importSaveFile(file);
       }
     });
 
@@ -401,6 +459,8 @@ export class LoadGameScreen {
     };
 
     setText('[data-ref="load-game-title"]', this.resolveText('GUI:SelectAGame', 'Select a Game'));
+    setText('[data-action="import"]', this.resolveText('GUI:Import', 'Import .sav'));
+    setText('[data-action="export"]', this.resolveText('GUI:Export', 'Export .sav'));
     setText('[data-action="save"]', this.resolveText('GUI:SaveGame', 'Save Game'));
     setText('[data-action="load"]', this.resolveText('GUI:LoadGame', 'Load Game'));
     setText('[data-action="delete"]', this.resolveText('GUI:DeleteGame', 'Delete Game'));
@@ -513,9 +573,43 @@ export class LoadGameScreen {
     if (deleteButton) {
       deleteButton.disabled = !hasSelection;
     }
+    const exportButton = this.overlayEl.querySelector<HTMLButtonElement>('[data-action="export"]');
+    if (exportButton) {
+      exportButton.disabled = !hasSelection;
+    }
     const saveButton = this.overlayEl.querySelector<HTMLButtonElement>('[data-action="save"]');
     if (saveButton) {
       saveButton.disabled = true;
+    }
+  }
+
+  private openImportFilePicker(): void {
+    const importInput = this.overlayEl?.querySelector<HTMLInputElement>('[data-ref="load-game-import-input"]');
+    importInput?.click();
+  }
+
+  private async importSaveFile(file: File): Promise<void> {
+    try {
+      const importedSlotId = await this.callbacks.onImportSave(file);
+      if (typeof importedSlotId === 'string' && importedSlotId.length > 0) {
+        this.selectedSlotId = importedSlotId;
+      }
+      await this.refreshList();
+      this.setTransferStatus(`Imported ${file.name}`);
+    } catch (error) {
+      this.setTransferStatus(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  private async exportSelectedSave(): Promise<void> {
+    if (!this.selectedSlotId) {
+      return;
+    }
+    try {
+      await this.callbacks.onExportSave(this.selectedSlotId);
+      this.setTransferStatus(`Exported ${this.selectedSlotId}.sav`);
+    } catch (error) {
+      this.setTransferStatus(error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -583,6 +677,13 @@ export class LoadGameScreen {
     const element = this.overlayEl?.querySelector<HTMLElement>(
       kind === 'load' ? '[data-ref="load-game-load-confirm-copy"]' : '[data-ref="load-game-delete-confirm-copy"]',
     );
+    if (element) {
+      element.textContent = message;
+    }
+  }
+
+  private setTransferStatus(message: string): void {
+    const element = this.overlayEl?.querySelector<HTMLElement>('[data-ref="load-game-transfer-status"]');
     if (element) {
       element.textContent = message;
     }

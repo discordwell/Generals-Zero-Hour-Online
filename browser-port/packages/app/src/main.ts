@@ -5662,6 +5662,8 @@ async function init(): Promise<void> {
   });
   const loadGameScreen = new LoadGameScreen(gameContainer, {
     listSaves: () => ctx.saveStorage.listSaves(),
+    onImportSave: (file: File) => ctx.saveStorage.uploadSaveFile(file),
+    onExportSave: (slotId: string) => ctx.saveStorage.downloadSaveFile(slotId),
     onLoadSave: async (slotId: string) => {
       const loadedSave = await ctx.saveStorage.loadFromDB(slotId);
       if (!loadedSave) {

@@ -189,4 +189,14 @@ describe('SaveStorage', () => {
     expect(loaded?.metadata.sizeBytes).toBe(file.size);
     expect(loaded?.metadata.timestamp).toBeGreaterThan(0);
   });
+
+  it('strips .save extension aliases when importing save files', async () => {
+    const file = new File([buildImportedSaveFile()], '00000043.save', {
+      type: 'application/octet-stream',
+    });
+
+    const slotId = await storage.uploadSaveFile(file);
+
+    expect(slotId).toBe('00000043');
+  });
 });
