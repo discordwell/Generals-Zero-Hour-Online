@@ -2883,7 +2883,7 @@ function parseCppSimpleModuleFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xfer->xferInt\s*\(\s*\(Int\*\)&production->m_exitDoor\s*\)|m_(?:clearFlags|setFlags)\.xfer\s*\(\s*xfer\s*\)|m_bonuses->m_(?:validKindOf|invalidKindOf)\.xfer\s*\(\s*xfer\s*\)|m_(?:pendingCommand|mostRecentCommand)\.doXfer\s*\(\s*xfer\s*\)|[A-Za-z0-9_]+::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+    /xfer->xferInt\s*\(\s*\(Int\*\)&production->m_exitDoor\s*\)|m_(?:clearFlags|setFlags)\.xfer\s*\(\s*xfer\s*\)|m_bonuses->m_(?:validKindOf|invalidKindOf)\.xfer\s*\(\s*xfer\s*\)|m_(?:pendingCommand|mostRecentCommand)\.doXfer\s*\(\s*xfer\s*\)|data\.m_deliveryDecalTemplate\.xferRadiusDecalTemplate\s*\(\s*xfer\s*\)|[A-Za-z0-9_]+::(?:xfer|upgradeMuxXfer)\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
     const token = match[0]!;
@@ -2913,6 +2913,12 @@ function parseCppSimpleModuleFields(
     }
     if (token.includes('m_mostRecentCommand.doXfer')) {
       pushUniqueField(fields, seen, 'mostRecentCommand');
+      continue;
+    }
+    if (token.includes('data.m_deliveryDecalTemplate.xferRadiusDecalTemplate')) {
+      for (const field of sourceRadiusDecalTemplateFields('deliveryDecalTemplate')) {
+        pushUniqueField(fields, seen, field);
+      }
       continue;
     }
     const baseKey = token.split('(')[0]?.replace(/\s+/g, '');
@@ -3068,6 +3074,19 @@ function sourceSupplyTruckTailFields(): string[] {
 
 function sourceSupplyTruckAIUpdateFields(): string[] {
   return ['version', 'aiUpdateInterface', 'stateMachine', ...sourceSupplyTruckTailFields()];
+}
+
+function sourceRadiusDecalTemplateFields(prefix: string): string[] {
+  return [
+    `${prefix}.version`,
+    `${prefix}.name`,
+    `${prefix}.shadowType`,
+    `${prefix}.minOpacity`,
+    `${prefix}.maxOpacity`,
+    `${prefix}.opacityThrobTime`,
+    `${prefix}.color`,
+    `${prefix}.onlyVisibleToOwningPlayer`,
+  ];
 }
 
 function sourceDozerTaskEntryFields(): string[] {
@@ -3254,6 +3273,8 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppJetAIUpdateField;
   } else if (className === 'MissileAIUpdate') {
     mapper = mapCppMissileAIUpdateField;
+  } else if (className === 'DeliverPayloadAIUpdate') {
+    mapper = mapCppDeliverPayloadAIUpdateField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -3280,7 +3301,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xfer(?:Source(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /xfer(?:Source(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -3336,6 +3357,12 @@ export function parseTsSourceObjectUpdateFields(
     }
     if (token.includes('xferSourceParticleUplinkVisualState')) {
       for (const field of sourceParticleUplinkVisualFields()) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSourceRadiusDecalTemplateBlockState')) {
+      for (const field of sourceRadiusDecalTemplateFields('deliveryDecalTemplate')) {
         pushUniqueField(fields, seen, field);
       }
       continue;
@@ -5237,6 +5264,41 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferUnsignedInt' && argument === 'm_framesTillDecoyed') return 'framesTillDecoyed';
   if (method === 'xferBool' && argument === 'm_noDamage') return 'noDamage';
   if (method === 'xferBool' && argument === 'm_isJammed') return 'isJammed';
+  if (method === 'xferCoord3D' && argument === 'm_moveToPos') return 'moveToPos';
+  if (method === 'xferInt' && argument === 'm_visibleItemsDelivered') return 'visibleItemsDelivered';
+  if (method === 'xferUser' && argument.startsWith('m_diveState')) return 'diveState';
+  if (method === 'xferAsciiString' && argument === 'data.m_visibleDropBoneName') return 'visibleDropBoneName';
+  if (method === 'xferAsciiString' && argument === 'data.m_visibleSubObjectName') return 'visibleSubObjectName';
+  if (method === 'xferAsciiString' && argument === 'data.m_visiblePayloadTemplateName') {
+    return 'visiblePayloadTemplateName';
+  }
+  if (method === 'xferReal' && argument === 'data.m_distToTarget') return 'distToTarget';
+  if (method === 'xferReal' && argument === 'data.m_preOpenDistance') return 'preOpenDistance';
+  if (method === 'xferInt' && argument === 'data.m_maxAttempts') return 'maxAttempts';
+  if (method === 'xferCoord3D' && argument === 'data.m_dropOffset') return 'dropOffset';
+  if (method === 'xferCoord3D' && argument === 'data.m_dropVariance') return 'dropVariance';
+  if (method === 'xferUnsignedInt' && argument === 'data.m_dropDelay') return 'dropDelay';
+  if (method === 'xferBool' && argument === 'data.m_fireWeapon') return 'fireWeapon';
+  if (method === 'xferBool' && argument === 'data.m_selfDestructObject') return 'selfDestructObject';
+  if (method === 'xferInt' && argument === 'data.m_visibleNumBones') return 'visibleNumBones';
+  if (method === 'xferReal' && argument === 'data.m_diveStartDistance') return 'diveStartDistance';
+  if (method === 'xferReal' && argument === 'data.m_diveEndDistance') return 'diveEndDistance';
+  if (method === 'xferUser' && argument.startsWith('data.m_strafingWeaponSlot')) return 'strafingWeaponSlot';
+  if (method === 'xferInt' && argument === 'data.m_visibleItemsDroppedPerInterval') {
+    return 'visibleItemsDroppedPerInterval';
+  }
+  if (method === 'xferBool' && argument === 'data.m_inheritTransportVelocity') {
+    return 'inheritTransportVelocity';
+  }
+  if (method === 'xferBool' && argument === 'data.m_isParachuteDirectly') return 'isParachuteDirectly';
+  if (method === 'xferReal' && argument === 'data.m_exitPitchRate') return 'exitPitchRate';
+  if (method === 'xferReal' && argument === 'data.m_strafeLength') return 'strafeLength';
+  if (method === 'xferReal' && argument === 'data.m_deliveryDecalRadius') return 'deliveryDecalRadius';
+  if (method === 'xferBool' && argument === 'hasStateMachine') return 'hasStateMachine';
+  if (method === 'xferSnapshot' && argument === 'm_deliverPayloadStateMachine') return 'stateMachine';
+  if (method === 'xferBool' && argument === 'm_freeToExit') return 'freeToExit';
+  if (method === 'xferBool' && argument === 'm_acceptingCommands') return 'acceptingCommands';
+  if (method === 'xferReal' && argument === 'm_previousDistanceSqr') return 'previousDistanceSqr';
   if (method === 'xferInt' && argument === 'numTasks') return 'task.count';
   if (method === 'xferObjectID' && argument === 'm_task[i].m_targetObjectID') return 'task.targetObjectId';
   if (method === 'xferUnsignedInt' && argument === 'm_task[i].m_taskOrderFrame') return 'task.taskOrderFrame';
@@ -5324,6 +5386,13 @@ function mapCppMissileAIUpdateField(method: string, argument: string): string | 
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppDeliverPayloadAIUpdateField(method: string, argument: string): string | null {
+  if (method === 'xferAsciiString' && argument === 'weaponTemplateName') {
+    return 'visiblePayloadWeaponTemplateName';
+  }
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -5370,6 +5439,10 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('detonationWeaponTemplateName')) return 'detonationWeaponTemplateName';
     if (window.includes('exhaustSystemTemplateName')) return 'exhaustSystemTemplateName';
     if (window.includes('lockonDrawableTemplateName')) return 'lockonDrawableTemplateName';
+    if (window.includes('visibleDropBoneName')) return 'visibleDropBoneName';
+    if (window.includes('visibleSubObjectName')) return 'visibleSubObjectName';
+    if (window.includes('visiblePayloadTemplateName')) return 'visiblePayloadTemplateName';
+    if (window.includes('visiblePayloadWeaponTemplateName')) return 'visiblePayloadWeaponTemplateName';
   }
   if (token.includes('xferUnsignedShort')) {
     if (window.includes('queue.length')) return 'queue.count';
@@ -5432,6 +5505,13 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('isTrackingTarget')) return 'isTrackingTarget';
     if (window.includes('noDamage')) return 'noDamage';
     if (window.includes('isJammed')) return 'isJammed';
+    if (window.includes('fireWeapon')) return 'fireWeapon';
+    if (window.includes('selfDestructObject')) return 'selfDestructObject';
+    if (window.includes('inheritTransportVelocity')) return 'inheritTransportVelocity';
+    if (window.includes('isParachuteDirectly')) return 'isParachuteDirectly';
+    if (window.includes('hasStateMachine')) return 'hasStateMachine';
+    if (window.includes('freeToExit')) return 'freeToExit';
+    if (window.includes('acceptingCommands')) return 'acceptingCommands';
     if (window.includes('invalidSettings')) return 'invalidSettings';
     if (window.includes('centeringTurret')) return 'centeringTurret';
     if (window.includes('repairing')) return 'repairing';
@@ -5454,6 +5534,10 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('currentBoxes')) return 'numberBoxes';
     if (window.includes('sourceChinookFlightStatusToInt')) return 'flightStatus';
     if (window.includes('state?.currentPath')) return 'currentPath';
+    if (window.includes('visibleItemsDelivered')) return 'visibleItemsDelivered';
+    if (window.includes('maxAttempts')) return 'maxAttempts';
+    if (window.includes('visibleNumBones')) return 'visibleNumBones';
+    if (window.includes('visibleItemsDroppedPerInterval')) return 'visibleItemsDroppedPerInterval';
     if (window.includes('currentPlan')) return 'currentPlan';
     if (window.includes('desiredPlan')) return 'desiredPlan';
     if (window.includes('planAffectingArmy')) return 'planAffectingArmy';
@@ -5518,6 +5602,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('fuelExpirationDate')) return 'fuelExpirationDate';
     if (window.includes('extraBonusFlags')) return 'extraBonusFlags';
     if (window.includes('framesTillDecoyed')) return 'framesTillDecoyed';
+    if (window.includes('dropDelay')) return 'dropDelay';
     if (window.includes('nextReadyFrame') || window.includes('sourceBattlePlanNextReadyFrame')) {
       return 'nextReadyFrame';
     }
@@ -5586,6 +5671,14 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('lastCrushedLocation')) return 'lastCrushedLocation';
     if (window.includes('noTurnDistLeft')) return 'noTurnDistLeft';
     if (window.includes('maxAccel')) return 'maxAccel';
+    if (window.includes('distToTarget')) return 'distToTarget';
+    if (window.includes('preOpenDistance')) return 'preOpenDistance';
+    if (window.includes('diveStartDistance')) return 'diveStartDistance';
+    if (window.includes('diveEndDistance')) return 'diveEndDistance';
+    if (window.includes('exitPitchRate')) return 'exitPitchRate';
+    if (window.includes('strafeLength')) return 'strafeLength';
+    if (window.includes('deliveryDecalRadius')) return 'deliveryDecalRadius';
+    if (window.includes('previousDistanceSqr')) return 'previousDistanceSqr';
     if (window.includes('heightAtLaunch')) return 'heightAtLaunch';
     if (window.includes('creationClearDistance')) return 'creationClearDistance';
     if (window.includes('entry.percentComplete')) return 'queue.entry.percentComplete';
@@ -5610,6 +5703,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('commandStorageBytes')) return 'mostRecentCommand';
     if (window.includes('buildSourceRawInt32Bytes(state)')) return 'state';
     if (window.includes('sourceMissileRuntimeExhaustIdBytes')) return 'exhaustIdBytes';
+    if (window.includes('buildSourceRawInt32Bytes(diveState)')) return 'diveState';
+    if (window.includes('strafingWeaponSlot')) return 'strafingWeaponSlot';
+    if (window.includes('stateMachineBytes')) return 'stateMachine';
     if (window.includes('sourceChinookFlightStatusToInt')) return 'flightStatus';
     if (window.includes('entity.powTruckAIMode')) return 'aiMode';
     if (window.includes('entity.powTruckCurrentTask')) return 'currentTask';
@@ -5669,6 +5765,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('producerX')) return 'producerLocation';
     if (window.includes('originalTargetX')) return 'originalTargetPos';
     if (window.includes('prevX')) return 'prevPos';
+    if (window.includes('moveToX')) return 'moveToPos';
+    if (window.includes('dropOffsetX')) return 'dropOffset';
+    if (window.includes('dropVarianceX')) return 'dropVariance';
     if (window.includes('{ x: 0, y: 0, z: 0 }')) return 'originalPos';
   }
   return null;
@@ -7612,6 +7711,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AIUpdate/AssaultTransportAIUpdate.cpp',
     'AIUpdate/ChinookAIUpdate.cpp',
     'AIUpdate/DeployStyleAIUpdate.cpp',
+    'AIUpdate/DeliverPayloadAIUpdate.cpp',
     'AIUpdate/DozerAIUpdate.cpp',
     'AIUpdate/HackInternetAIUpdate.cpp',
     'AIUpdate/JetAIUpdate.cpp',
@@ -8692,6 +8792,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-chinook-ai-update-fields',
       cppClass: 'ChinookAIUpdate',
       tsHelper: 'buildGeneratedSourceChinookAIUpdateBlockData',
+    },
+    {
+      category: 'save-deliver-payload-ai-update-fields',
+      cppClass: 'DeliverPayloadAIUpdate',
+      tsHelper: 'buildGeneratedSourceDeliverPayloadAIUpdateBlockData',
     },
     {
       category: 'save-hack-internet-ai-update-fields',
