@@ -3057,6 +3057,14 @@ function sourceDieModuleDirectFields(): string[] {
   return ['version', ...sourceBehaviorModuleBaseFields()];
 }
 
+function sourceDerivedDieModuleFields(): string[] {
+  return ['version', ...sourceDieModuleBaseFields()];
+}
+
+function sourceSpecialPowerCompletionDieFields(): string[] {
+  return [...sourceDerivedDieModuleFields(), 'creatorId', 'creatorSet'];
+}
+
 function sourceDamageModuleBaseFields(): string[] {
   return ['damage.version', ...sourceBehaviorModuleBaseFields()];
 }
@@ -3884,6 +3892,12 @@ export function parseTsSourceObjectUpdateFields(
   }
   if (helperName === 'xferSourceDieModuleBase') {
     return sourceDieModuleDirectFields();
+  }
+  if (helperName === 'buildSourceStatelessDieModuleBlockData') {
+    return sourceDerivedDieModuleFields();
+  }
+  if (helperName === 'buildSourceSpecialPowerCompletionDieBlockData') {
+    return sourceSpecialPowerCompletionDieFields();
   }
   if (helperName === 'xferSourceDamageModuleBase') {
     return sourceDamageModuleDirectFields();
@@ -5832,6 +5846,8 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferUnsignedByte' && argument === 'subObjectCount') return 'subObject.count';
   if (method === 'xferAsciiString' && argument === 'hideShowSubObjInfo.subObjName') return 'subObject.name';
   if (method === 'xferBool' && argument === 'hideShowSubObjInfo.hide') return 'subObject.hide';
+  if (method === 'xferObjectID' && argument === 'm_creatorID') return 'creatorId';
+  if (method === 'xferBool' && argument === 'm_creatorSet') return 'creatorSet';
   if (method === 'xferBool' && argument === 'present') return 'animation.present';
   if (method === 'xferInt' && argument === 'mode') return 'animation.mode';
   if (method === 'xferReal' && argument === 'percent') return 'animation.percent';
@@ -9136,6 +9152,17 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'EMPUpdate.cpp',
     'EnemyNearUpdate.cpp',
     '../Die/DieModule.cpp',
+    '../Die/CreateCrateDie.cpp',
+    '../Die/CreateObjectDie.cpp',
+    '../Die/CrushDie.cpp',
+    '../Die/DamDie.cpp',
+    '../Die/DestroyDie.cpp',
+    '../Die/EjectPilotDie.cpp',
+    '../Die/FXListDie.cpp',
+    '../Die/KeepObjectDie.cpp',
+    '../Die/RebuildHoleExposeDie.cpp',
+    '../Die/SpecialPowerCompletionDie.cpp',
+    '../Die/UpgradeDie.cpp',
     'FireWeaponUpdate.cpp',
     'FireOCLAfterWeaponCooldownUpdate.cpp',
     'FireSpreadUpdate.cpp',
@@ -9883,6 +9910,61 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-die-module-fields',
       cppClass: 'DieModule',
       tsHelper: 'xferSourceDieModuleBase',
+    },
+    {
+      category: 'save-create-crate-die-fields',
+      cppClass: 'CreateCrateDie',
+      tsHelper: 'buildSourceStatelessDieModuleBlockData',
+    },
+    {
+      category: 'save-create-object-die-fields',
+      cppClass: 'CreateObjectDie',
+      tsHelper: 'buildSourceStatelessDieModuleBlockData',
+    },
+    {
+      category: 'save-crush-die-fields',
+      cppClass: 'CrushDie',
+      tsHelper: 'buildSourceStatelessDieModuleBlockData',
+    },
+    {
+      category: 'save-dam-die-fields',
+      cppClass: 'DamDie',
+      tsHelper: 'buildSourceStatelessDieModuleBlockData',
+    },
+    {
+      category: 'save-destroy-die-fields',
+      cppClass: 'DestroyDie',
+      tsHelper: 'buildSourceStatelessDieModuleBlockData',
+    },
+    {
+      category: 'save-eject-pilot-die-fields',
+      cppClass: 'EjectPilotDie',
+      tsHelper: 'buildSourceStatelessDieModuleBlockData',
+    },
+    {
+      category: 'save-fx-list-die-fields',
+      cppClass: 'FXListDie',
+      tsHelper: 'buildSourceStatelessDieModuleBlockData',
+    },
+    {
+      category: 'save-keep-object-die-fields',
+      cppClass: 'KeepObjectDie',
+      tsHelper: 'buildSourceStatelessDieModuleBlockData',
+    },
+    {
+      category: 'save-rebuild-hole-expose-die-fields',
+      cppClass: 'RebuildHoleExposeDie',
+      tsHelper: 'buildSourceStatelessDieModuleBlockData',
+    },
+    {
+      category: 'save-special-power-completion-die-fields',
+      cppClass: 'SpecialPowerCompletionDie',
+      tsHelper: 'buildSourceSpecialPowerCompletionDieBlockData',
+    },
+    {
+      category: 'save-upgrade-die-fields',
+      cppClass: 'UpgradeDie',
+      tsHelper: 'buildSourceStatelessDieModuleBlockData',
     },
     {
       category: 'save-damage-module-fields',
