@@ -1385,6 +1385,89 @@ export function parseTsScriptEngineObjectTypeListXferFields(source: string): str
   return fields;
 }
 
+export function parseCppScriptXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Script::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppSourceScriptField);
+}
+
+export function parseTsSourceScriptXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceScriptState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex = /xfer\.xferVersion\s*\(\s*1\s*\)|xfer\.xferBool\s*\(\s*scriptState\.active\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsSourceScriptField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppScriptGroupXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void ScriptGroup::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppSourceScriptGroupField);
+}
+
+export function parseTsSourceScriptGroupXferFields(source: string): string[] {
+  const start = source.indexOf('function xferSourceScriptGroupState');
+  if (start < 0) return [];
+  const end = source.indexOf('\nfunction xferSourceScriptListState', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*2\s*\)|xfer\.xferBool\s*\(\s*groupState\.active\s*\)|xfer\.xferUnsignedShort\s*\(\s*groupState\.scripts\.length\s*\)|xferSourceScriptState\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsSourceScriptGroupField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppScriptListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void ScriptList::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppSourceScriptListField);
+}
+
+export function parseTsSourceScriptListXferFields(source: string): string[] {
+  const start = source.indexOf('function xferSourceScriptListState');
+  if (start < 0) return [];
+  const end = source.indexOf('\nclass SidesListSnapshot', start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*1\s*\)|xfer\.xferUnsignedShort\s*\(\s*scriptListState\.scripts\.length\s*\)|xferSourceScriptState\s*\(|xfer\.xferUnsignedShort\s*\(\s*scriptListState\.groups\.length\s*\)|xferSourceScriptGroupState\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsSourceScriptListField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppSidesListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void SidesList::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppSidesListField);
+}
+
+export function parseTsSidesListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'class SidesListSnapshot');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*1\s*\)|xfer\.xferInt\s*\(\s*scriptLists\.length\s*\)|xfer\.xferBool\s*\(\s*scriptListState\.present\s*\)|xferSourceScriptListState\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsSidesListField(match[0]!));
+  }
+  return fields;
+}
+
 export function parseCppScriptEngineStringCoordListXferFields(source: string): string[] {
   const body = extractFunctionBody(source, 'static void xferListAsciiStringCoord3D');
   if (!body) return [];
@@ -2842,6 +2925,68 @@ function mapTsObjectTypesField(token: string): string | null {
   return null;
 }
 
+function mapCppSourceScriptField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferBool' && argument === 'active') return 'active';
+  return null;
+}
+
+function mapTsSourceScriptField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('scriptState.active')) return 'active';
+  return null;
+}
+
+function mapCppSourceScriptGroupField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferBool' && argument === 'm_isGroupActive') return 'active';
+  if (method === 'xferUnsignedShort' && argument === 'scriptCount') return 'scriptCount';
+  if (method === 'xferSnapshot' && (argument === 'script' || argument === 's_mtScript')) return 'script.snapshot';
+  return null;
+}
+
+function mapTsSourceScriptGroupField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('groupState.active')) return 'active';
+  if (token.includes('groupState.scripts.length')) return 'scriptCount';
+  if (token.includes('xferSourceScriptState')) return 'script.snapshot';
+  return null;
+}
+
+function mapCppSourceScriptListField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'scriptCount') return 'scriptCount';
+  if (method === 'xferSnapshot' && (argument === 'script' || argument === 's_mtScript')) return 'script.snapshot';
+  if (method === 'xferUnsignedShort' && argument === 'scriptGroupCount') return 'groupCount';
+  if (method === 'xferSnapshot' && (argument === 'scriptGroup' || argument === 's_mtGroup')) return 'group.snapshot';
+  return null;
+}
+
+function mapTsSourceScriptListField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('scriptListState.scripts.length')) return 'scriptCount';
+  if (token.includes('xferSourceScriptState')) return 'script.snapshot';
+  if (token.includes('scriptListState.groups.length')) return 'groupCount';
+  if (token.includes('xferSourceScriptGroupState')) return 'group.snapshot';
+  return null;
+}
+
+function mapCppSidesListField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferInt' && argument === 'sideCount') return 'sideCount';
+  if (method === 'xferBool' && argument === 'scriptListPresent') return 'scriptList.present';
+  if (method === 'xferSnapshot' && argument === 'scriptList') return 'scriptList.snapshot';
+  return null;
+}
+
+function mapTsSidesListField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('scriptLists.length')) return 'sideCount';
+  if (token.includes('scriptListState.present')) return 'scriptList.present';
+  if (token.includes('xferSourceScriptListState')) return 'scriptList.snapshot';
+  return null;
+}
+
 function mapCppScriptEngineStringCoordListField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferUnsignedShort' && argument === 'count') return 'count';
@@ -3291,6 +3436,22 @@ export function compareScriptEngineObjectTypeListFields(cppFields: string[], tsF
   return compareOrderedStrings('save-script-engine-object-type-list-fields', cppFields, tsFields);
 }
 
+export function compareSourceScriptFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-source-script-fields', cppFields, tsFields);
+}
+
+export function compareSourceScriptGroupFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-source-script-group-fields', cppFields, tsFields);
+}
+
+export function compareSourceScriptListFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-source-script-list-fields', cppFields, tsFields);
+}
+
+export function compareSidesListFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-sides-list-fields', cppFields, tsFields);
+}
+
 export function compareScriptEngineStringCoordListFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-script-engine-string-coord-list-fields', cppFields, tsFields);
 }
@@ -3578,6 +3739,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genScriptEngineCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/ScriptEngine/ScriptEngine.cpp'),
   );
+  const zhScriptsCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/ScriptEngine/Scripts.cpp'),
+  );
+  const genScriptsCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/ScriptEngine/Scripts.cpp'),
+  );
 
   // Read TS port source
   const tsIndexPath = path.join(rootDir, 'packages/game-logic/src/index.ts');
@@ -3759,6 +3926,31 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   }
 
   const sidesListSource = zhSidesListCpp || genSidesListCpp;
+  const scriptsSource = zhScriptsCpp || genScriptsCpp;
+  const cppScriptFields = parseCppScriptXferFields(scriptsSource);
+  const tsScriptFields = parseTsSourceScriptXferFields(tsRuntimeSave);
+  if (cppScriptFields.length > 0 && tsScriptFields.length > 0) {
+    categories.push(compareSourceScriptFields(cppScriptFields, tsScriptFields));
+  }
+
+  const cppScriptGroupFields = parseCppScriptGroupXferFields(scriptsSource);
+  const tsScriptGroupFields = parseTsSourceScriptGroupXferFields(tsRuntimeSave);
+  if (cppScriptGroupFields.length > 0 && tsScriptGroupFields.length > 0) {
+    categories.push(compareSourceScriptGroupFields(cppScriptGroupFields, tsScriptGroupFields));
+  }
+
+  const cppScriptListFields = parseCppScriptListXferFields(scriptsSource);
+  const tsScriptListFields = parseTsSourceScriptListXferFields(tsRuntimeSave);
+  if (cppScriptListFields.length > 0 && tsScriptListFields.length > 0) {
+    categories.push(compareSourceScriptListFields(cppScriptListFields, tsScriptListFields));
+  }
+
+  const cppSidesListFields = parseCppSidesListXferFields(sidesListSource);
+  const tsSidesListFields = parseTsSidesListXferFields(tsRuntimeSave);
+  if (cppSidesListFields.length > 0 && tsSidesListFields.length > 0) {
+    categories.push(compareSidesListFields(cppSidesListFields, tsSidesListFields));
+  }
+
   const cppBuildListInfoFields = parseCppBuildListInfoXferFields(sidesListSource);
   const tsBuildListInfoFields = parseTsBuildListInfoXferFields(tsRuntimeSave);
   if (cppBuildListInfoFields.length > 0 && tsBuildListInfoFields.length > 0) {

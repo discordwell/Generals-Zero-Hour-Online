@@ -1233,6 +1233,23 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(teamRelationMapCategory).toBeDefined();
       expect(teamRelationMapCategory!.status).toBe('match');
 
+      const sourceScriptCategory = report.categories.find((c) => c.category === 'save-source-script-fields');
+      expect(sourceScriptCategory).toBeDefined();
+      expect(sourceScriptCategory!.status).toBe('match');
+
+      const sourceScriptGroupCategory = report.categories.find((c) =>
+        c.category === 'save-source-script-group-fields');
+      expect(sourceScriptGroupCategory).toBeDefined();
+      expect(sourceScriptGroupCategory!.status).toBe('match');
+
+      const sourceScriptListCategory = report.categories.find((c) => c.category === 'save-source-script-list-fields');
+      expect(sourceScriptListCategory).toBeDefined();
+      expect(sourceScriptListCategory!.status).toBe('match');
+
+      const sidesListCategory = report.categories.find((c) => c.category === 'save-sides-list-fields');
+      expect(sidesListCategory).toBeDefined();
+      expect(sidesListCategory!.status).toBe('match');
+
       const buildListInfoCategory = report.categories.find((c) => c.category === 'save-build-list-info-fields');
       expect(buildListInfoCategory).toBeDefined();
       expect(buildListInfoCategory!.status).toBe('match');
