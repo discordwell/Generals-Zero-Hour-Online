@@ -33,7 +33,14 @@ function pushUnicodeString(bytes: number[], value: string): void {
   }
 }
 
-function buildImportedSaveFile(): ArrayBuffer {
+function buildImportedSaveFile(options: {
+  description?: string;
+  mapLabel?: string;
+} = {}): ArrayBuffer {
+  const {
+    description = 'Imported Campaign Save',
+    mapLabel = 'Downtown Assault',
+  } = options;
   const bytes: number[] = [];
   const gameStateData: number[] = [];
 
@@ -48,8 +55,8 @@ function buildImportedSaveFile(): ArrayBuffer {
   pushUint16(gameStateData, 8);
   pushUint16(gameStateData, 7);
   pushUint16(gameStateData, 123);
-  pushUnicodeString(gameStateData, 'Imported Campaign Save');
-  pushAsciiString(gameStateData, 'Downtown Assault');
+  pushUnicodeString(gameStateData, description);
+  pushAsciiString(gameStateData, mapLabel);
   pushAsciiString(gameStateData, 'America');
   pushInt32(gameStateData, 2);
 
@@ -237,6 +244,18 @@ describe('SaveStorage', () => {
     expect(loaded?.metadata.mapName).toBe('Downtown Assault');
     expect(loaded?.metadata.sizeBytes).toBe(file.size);
     expect(loaded?.metadata.timestamp).toBeGreaterThan(0);
+  });
+
+  it('preserves empty source descriptions when importing save files', async () => {
+    const file = new File([buildImportedSaveFile({ description: '', mapLabel: 'Downtown Assault' })], '00000046.sav', {
+      type: 'application/octet-stream',
+    });
+
+    const slotId = await storage.uploadSaveFile(file);
+    const loaded = await storage.loadFromDB(slotId);
+
+    expect(loaded?.metadata.description).toBe('');
+    expect(loaded?.metadata.mapName).toBe('Downtown Assault');
   });
 
   it('strips .save extension aliases when importing save files', async () => {

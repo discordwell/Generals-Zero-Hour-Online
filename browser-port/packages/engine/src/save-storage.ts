@@ -213,8 +213,8 @@ export class SaveStorage {
     }
     const timestamp = saveDateToTimestamp(info.date);
     const metadata: Omit<SaveMetadata, 'slotId'> = {
-      description: info.description.trim() || `Imported: ${file.name}`,
-      mapName: info.mapLabel.trim() || info.missionMapName.trim(),
+      description: info.description,
+      mapName: info.mapLabel || info.missionMapName,
       timestamp: timestamp > 0 ? timestamp : Date.now(),
       sizeBytes: data.byteLength,
     };

@@ -120,4 +120,33 @@ describe('LoadGameScreen', () => {
     expect(root.querySelector('[data-slot-id="00000042"]')?.classList.contains('selected')).toBe(true);
     expect(root.querySelector('[data-ref="load-game-transfer-status"]')?.textContent).toBe('Imported 00000042.sav');
   });
+
+  it('displays the localized map label when a source save description is empty', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    const screen = new LoadGameScreen(root, {
+      listSaves: async () => [{
+        slotId: '00000046',
+        description: '',
+        mapName: 'MAP:DowntownAssault',
+        timestamp: Date.parse('2026-04-02T18:00:00.000Z'),
+        sizeBytes: 2048,
+      }],
+      onImportSave: async () => '00000046',
+      onExportSave: async () => undefined,
+      onLoadSave: async () => undefined,
+      onDeleteSave: async () => undefined,
+      onClose: () => undefined,
+    });
+    screen.setLocalizedStrings(new Map([
+      ['MAP:DowntownAssault', 'Downtown Assault'],
+    ]));
+
+    screen.show();
+    await flushPromises();
+
+    expect(root.querySelector('[data-ref="load-game-listbox"]')?.textContent).toContain('Downtown Assault');
+    expect(root.querySelector('[data-ref="load-game-listbox"]')?.textContent).not.toContain('00000046 |');
+  });
 });

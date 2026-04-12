@@ -478,6 +478,16 @@ export class LoadGameScreen {
     return resolved === token ? fallback : resolved;
   }
 
+  private formatSaveDisplayLabel(save: SaveMetadata): string {
+    if (save.description) {
+      return save.description;
+    }
+    if (save.mapName) {
+      return this.resolveText(save.mapName, save.mapName);
+    }
+    return save.slotId;
+  }
+
   private refreshArtwork(): void {
     if (!this.overlayEl) {
       return;
@@ -529,7 +539,7 @@ export class LoadGameScreen {
 
     listbox.innerHTML = this.saves.map((save) => {
       const meta = [
-        this.escapeHtml(save.description || save.slotId),
+        this.escapeHtml(this.formatSaveDisplayLabel(save)),
         this.escapeHtml(formatSaveTimestamp(save.timestamp)),
         this.escapeHtml(formatSaveMapName(save.mapName)),
       ].join(' | ');
