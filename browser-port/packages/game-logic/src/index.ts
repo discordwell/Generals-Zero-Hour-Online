@@ -3435,6 +3435,13 @@ interface SourceAIStatelessStateMachineState {
   goalPosition: { x: number; y: number; z: number };
 }
 
+interface SourceAIFaceStateMachineState {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: { x: number; y: number; z: number };
+  canTurnInPlace: boolean;
+}
+
 interface PendingRepairDockActionState {
   dockObjectId: number;
   /** Source parity: ActionManager::canGetRepairedAt command source for shroud legality. */
@@ -3927,6 +3934,8 @@ export interface MapEntity {
   pendingExitState: EntityPendingExitState | null;
   /** Source parity: top-level AI_WAIT / AI_DEAD / AI_BUSY states with version-only xfer payloads. */
   sourceAIStatelessState: SourceAIStatelessStateMachineState | null;
+  /** Source parity: AI_FACE_OBJECT / AI_FACE_POSITION state. */
+  sourceAIFaceState: SourceAIFaceStateMachineState | null;
   /** Source parity: ChinookCombatDropState runtime owned by the Chinook AI update. */
   chinookCombatDropState: PendingCombatDropActionState | null;
   /** Source parity: active rappeller runtime owned by the passenger AI/state machine. */
@@ -9509,6 +9518,10 @@ interface SourceAIExitStateImportState {
   entryToClearId: number;
 }
 
+interface SourceAIFaceStateImportState {
+  canTurnInPlace: boolean;
+}
+
 interface SourceAIDockMachineImportState {
   currentStateId: number;
   goalObjectId: number;
@@ -9550,6 +9563,7 @@ interface SourceAIStateMachineImportState {
   dockState: SourceAIDockStateImportState | null;
   enterState: SourceAIEnterStateImportState | null;
   exitState: SourceAIExitStateImportState | null;
+  faceState: SourceAIFaceStateImportState | null;
   attackState: SourceAIAttackStateImportState | null;
   guardState: SourceAIGuardStateImportState | null;
 }
@@ -10403,6 +10417,8 @@ const SOURCE_AI_STATE_GUARD = 16;
 const SOURCE_AI_STATE_EXIT = 37;
 const SOURCE_AI_STATE_BUSY = 41;
 const SOURCE_AI_STATE_EXIT_INSTANTLY = 42;
+const SOURCE_AI_STATE_FACE_OBJECT = 33;
+const SOURCE_AI_STATE_FACE_POSITION = 34;
 const SOURCE_AI_INVALID_STATE_ID = 999999;
 const SOURCE_AI_MAX_WAYPOINTS = 16;
 const SOURCE_AI_MAX_TURRETS = 2;
@@ -16021,8 +16037,21 @@ export class GameLogicSubsystem implements Subsystem {
       || stateId === SOURCE_AI_STATE_BUSY;
   }
 
+  private isSourceAIFaceTopStateId(stateId: number): boolean {
+    return stateId === SOURCE_AI_STATE_FACE_OBJECT
+      || stateId === SOURCE_AI_STATE_FACE_POSITION;
+  }
+
   private skipSourceAIStatelessStateSnapshot(xfer: XferLoad): boolean {
     return xfer.xferVersion(1) === 1;
+  }
+
+  private parseSourceAIFaceStateSnapshot(xfer: XferLoad): SourceAIFaceStateImportState | null {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    return { canTurnInPlace: xfer.xferBool(false) };
   }
 
   private sourceAttackStateToRuntimeSubState(stateId: number): AttackSubState | null {
@@ -16397,6 +16426,7 @@ export class GameLogicSubsystem implements Subsystem {
     let dockState: SourceAIDockStateImportState | null = null;
     let enterState: SourceAIEnterStateImportState | null = null;
     let exitState: SourceAIExitStateImportState | null = null;
+    let faceState: SourceAIFaceStateImportState | null = null;
     let attackState: SourceAIAttackStateImportState | null = null;
     let guardState: SourceAIGuardStateImportState | null = null;
     if (currentStateId === SOURCE_AI_STATE_IDLE) {
@@ -16405,6 +16435,11 @@ export class GameLogicSubsystem implements Subsystem {
       }
     } else if (this.isSourceAIStatelessTopStateId(currentStateId)) {
       if (!this.skipSourceAIStatelessStateSnapshot(xfer)) {
+        return null;
+      }
+    } else if (this.isSourceAIFaceTopStateId(currentStateId)) {
+      faceState = this.parseSourceAIFaceStateSnapshot(xfer);
+      if (!faceState) {
         return null;
       }
     } else if (currentStateId === SOURCE_AI_STATE_MOVE_TO) {
@@ -16462,7 +16497,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
     xfer.xferUnsignedInt(0);
 
-    return { currentStateId, goalObjectId, goalPosition, moveState, dockState, enterState, exitState, attackState, guardState };
+    return { currentStateId, goalObjectId, goalPosition, moveState, dockState, enterState, exitState, faceState, attackState, guardState };
   }
 
   private skipSourcePathSnapshot(xfer: XferLoad): void {
@@ -19332,6 +19367,29 @@ export class GameLogicSubsystem implements Subsystem {
             y: Number.isFinite(stateMachine.goalPosition.y) ? stateMachine.goalPosition.y : 0,
             z: Number.isFinite(stateMachine.goalPosition.z) ? stateMachine.goalPosition.z : 0,
           },
+        };
+      }
+
+      if (this.isSourceAIFaceTopStateId(stateMachine.currentStateId) && stateMachine.faceState) {
+        // TODO(source parity): AIFaceState::update drives locomotor orientation until within source threshold.
+        entity.attackTargetEntityId = null;
+        entity.attackTargetPosition = null;
+        entity.attackOriginalVictimPosition = null;
+        entity.attackSubState = 'IDLE';
+        entity.movePath = [];
+        entity.pathIndex = 0;
+        entity.moveTarget = null;
+        entity.moving = false;
+        entity.temporaryMoveExpireFrame = 0;
+        entity.sourceAIFaceState = {
+          currentStateId: stateMachine.currentStateId,
+          goalObjectId: Math.max(0, Math.trunc(stateMachine.goalObjectId)),
+          goalPosition: {
+            x: Number.isFinite(stateMachine.goalPosition.x) ? stateMachine.goalPosition.x : 0,
+            y: Number.isFinite(stateMachine.goalPosition.y) ? stateMachine.goalPosition.y : 0,
+            z: Number.isFinite(stateMachine.goalPosition.z) ? stateMachine.goalPosition.z : 0,
+          },
+          canTurnInPlace: stateMachine.faceState.canTurnInPlace,
         };
       }
 
@@ -26776,6 +26834,7 @@ export class GameLogicSubsystem implements Subsystem {
       return;
     }
     entity.sourceAIStatelessState = null;
+    entity.sourceAIFaceState = null;
     entity.sourceAIUpdateIsDead = false;
   }
 
@@ -54285,6 +54344,7 @@ export class GameLogicSubsystem implements Subsystem {
       entity.pendingExitState = null;
       entity.sourceAIUpdateIsDead = false;
       entity.sourceAIStatelessState = null;
+      entity.sourceAIFaceState = null;
       entity.chinookCombatDropState = null;
       entity.chinookRappelState = null;
       entity.repairDockState = null;

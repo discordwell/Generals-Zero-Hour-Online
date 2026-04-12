@@ -2199,6 +2199,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
     let enterState: Record<string, unknown> | undefined;
     let exitState: Record<string, unknown> | undefined;
     let statelessState: Record<string, unknown> | undefined;
+    let faceState: Record<string, unknown> | undefined;
     let attackState: Record<string, unknown> | undefined;
     let guardState: Record<string, unknown> | undefined;
     if (currentStateId === 0) {
@@ -2210,6 +2211,12 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
       statelessState = {
         kind: currentStateId === 8 ? 'WAIT' : currentStateId === 13 ? 'DEAD' : 'BUSY',
         version: xferLoad.xferVersion(1),
+      };
+    } else if (currentStateId === 33 || currentStateId === 34) {
+      faceState = {
+        kind: currentStateId === 33 ? 'FACE_OBJECT' : 'FACE_POSITION',
+        version: xferLoad.xferVersion(1),
+        canTurnInPlace: xferLoad.xferBool(false),
       };
     } else if (currentStateId === 1) {
       const moveToVersion = xferLoad.xferVersion(1);
@@ -2615,6 +2622,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
       enterState,
       exitState,
       statelessState,
+      faceState,
       attackState,
       guardState,
       goalObjectId,
@@ -20838,6 +20846,34 @@ describe('runtime-save-game', () => {
               goalObjectId: 30,
               goalPosition: { x: 1, y: 2, z: 3 },
             },
+          } as unknown as import('@generals/game-logic').MapEntity, {
+            id: 33,
+            templateName: 'RuntimeGeneratedFaceAI',
+            x: 370,
+            y: 0,
+            z: 470,
+            rotationY: 0,
+            sourceAIIdleInitialSleepOffset: 11,
+            scriptAiRecruitable: true,
+            attackTargetEntityId: null,
+            attackTargetPosition: null,
+            attackSubState: 'IDLE',
+            lastCommandSource: 'PLAYER',
+            autoTargetScanNextFrame: 89,
+            moving: false,
+            moveTarget: null,
+            locomotorUpgradeEnabled: false,
+            ignoredMovementObstacleId: null,
+            pathfindGoalCell: null,
+            pathfindPosCell: null,
+            activeLocomotorSet: 'SET_NORMAL',
+            guardState: 'NONE',
+            sourceAIFaceState: {
+              currentStateId: 34,
+              goalObjectId: 0,
+              goalPosition: { x: 5, y: 6, z: 7 },
+              canTurnInPlace: true,
+            },
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
         listSourceObjectModuleDescriptors: (templateName) => {
@@ -20861,6 +20897,9 @@ describe('runtime-save-game', () => {
           }
           if (templateName === 'RuntimeGeneratedBusyAI') {
             return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_BusyAI' }];
+          }
+          if (templateName === 'RuntimeGeneratedFaceAI') {
+            return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_FaceAI' }];
           }
           return templateName === 'RuntimeGeneratedAIUpdates'
             ? [
@@ -21115,6 +21154,27 @@ describe('runtime-save-game', () => {
       },
     });
     expect(busyAI.bytesRead).toBe(busyModule!.blockData.byteLength);
+
+    const generatedFace = readSourceGameLogicObjectStates(saveFile.data)
+      ?.find((object) => object.templateName === 'RuntimeGeneratedFaceAI')?.state;
+    const faceModule = generatedFace?.modules.find((module) => module.identifier === 'ModuleTag_FaceAI');
+    expect(faceModule).toBeDefined();
+    const faceAI = parseGeneratedSourceAIUpdateInterfaceForTest(faceModule!.blockData, 0);
+    expect(faceAI).toMatchObject({
+      currentStateId: 34,
+      goalObjectId: 0,
+      goalPosition: { x: 5, y: 6, z: 7 },
+      nextEnemyScanTime: 89,
+      currentVictimId: 0,
+      nextMoodCheckTime: 89,
+      lastCommandSource: 0,
+      faceState: {
+        kind: 'FACE_POSITION',
+        version: 1,
+        canTurnInPlace: true,
+      },
+    });
+    expect(faceAI.bytesRead).toBe(faceModule!.blockData.byteLength);
 
     expect(hackModule).toBeDefined();
     const hack = parseSourceHackInternetAIUpdateBlockData(hackModule!.blockData);

@@ -10018,6 +10018,8 @@ const SOURCE_AI_STATE_DEAD = 13;
 const SOURCE_AI_STATE_DOCK = 14;
 const SOURCE_AI_STATE_ENTER = 15;
 const SOURCE_AI_STATE_GUARD = 16;
+const SOURCE_AI_STATE_FACE_OBJECT = 33;
+const SOURCE_AI_STATE_FACE_POSITION = 34;
 const SOURCE_AI_STATE_EXIT = 37;
 const SOURCE_AI_STATE_BUSY = 41;
 const SOURCE_AI_STATE_EXIT_INSTANTLY = 42;
@@ -10174,6 +10176,11 @@ function isSourceAIStatelessStateId(value: unknown): value is number {
     || value === SOURCE_AI_STATE_BUSY;
 }
 
+function isSourceAIFaceStateId(value: unknown): value is number {
+  return value === SOURCE_AI_STATE_FACE_OBJECT
+    || value === SOURCE_AI_STATE_FACE_POSITION;
+}
+
 function sourceCoord3DFromRuntimeXYZ(x: unknown, y: unknown, z: unknown): Coord3D {
   return {
     x: Number.isFinite(x) ? Number(x) : 0,
@@ -10295,6 +10302,40 @@ function sourceAIStatelessState(entity: MapEntity): {
       y: Number.isFinite(goalPosition?.y) ? Number(goalPosition?.y) : 0,
       z: Number.isFinite(goalPosition?.z) ? Number(goalPosition?.z) : 0,
     },
+  };
+}
+
+function sourceAIFaceState(entity: MapEntity): {
+  currentStateId: number;
+  goalObjectId: number;
+  goalPosition: Coord3D;
+  canTurnInPlace: boolean;
+} | null {
+  const state = (entity as {
+    sourceAIFaceState?: {
+      currentStateId?: unknown;
+      goalObjectId?: unknown;
+      goalPosition?: { x?: unknown; y?: unknown; z?: unknown } | null;
+      canTurnInPlace?: unknown;
+    } | null;
+  }).sourceAIFaceState;
+  const currentStateId = state?.currentStateId;
+  if (!isSourceAIFaceStateId(currentStateId)) {
+    return null;
+  }
+  const goalObjectId = Number.isFinite(state?.goalObjectId)
+    ? normalizeSourceObjectId(Number(state?.goalObjectId))
+    : 0;
+  const goalPosition = state?.goalPosition;
+  return {
+    currentStateId,
+    goalObjectId,
+    goalPosition: {
+      x: Number.isFinite(goalPosition?.x) ? Number(goalPosition?.x) : 0,
+      y: Number.isFinite(goalPosition?.y) ? Number(goalPosition?.y) : 0,
+      z: Number.isFinite(goalPosition?.z) ? Number(goalPosition?.z) : 0,
+    },
+    canTurnInPlace: state?.canTurnInPlace === true,
   };
 }
 
@@ -10476,6 +10517,18 @@ function buildGeneratedSourceAIStatelessStateBlockData(): Uint8Array {
   saver.open('build-generated-source-ai-stateless-state');
   try {
     saver.xferVersion(1);
+    return new Uint8Array(saver.getBuffer());
+  } finally {
+    saver.close();
+  }
+}
+
+function buildGeneratedSourceAIFaceStateBlockData(canTurnInPlace: boolean): Uint8Array {
+  const saver = new XferSave();
+  saver.open('build-generated-source-ai-face-state');
+  try {
+    saver.xferVersion(1);
+    saver.xferBool(canTurnInPlace);
     return new Uint8Array(saver.getBuffer());
   } finally {
     saver.close();
@@ -10670,6 +10723,10 @@ function isGeneratedSourceStatelessAIStateMachine(entity: MapEntity): boolean {
   return sourceAIStatelessState(entity) !== null;
 }
 
+function isGeneratedSourceFaceAIStateMachine(entity: MapEntity): boolean {
+  return sourceAIFaceState(entity) !== null;
+}
+
 function isGeneratedSourceDockAIStateMachine(entity: MapEntity): boolean {
   return sourceRepairDockGoalObjectId(entity) > 0
     && entity.moving !== true;
@@ -10684,7 +10741,8 @@ function isGeneratedSourceMoveAIStateMachine(entity: MapEntity): boolean {
 }
 
 function hasGeneratedSourceAIUpdateRuntimeState(entity: MapEntity): boolean {
-  return isGeneratedSourceStatelessAIStateMachine(entity)
+  return isGeneratedSourceFaceAIStateMachine(entity)
+    || isGeneratedSourceStatelessAIStateMachine(entity)
     || isGeneratedSourceExitAIStateMachine(entity)
     || isGeneratedSourceDockAIStateMachine(entity)
     || isGeneratedSourceEnterAIStateMachine(entity)
@@ -10698,6 +10756,33 @@ function buildGeneratedSourceAIStateMachineBlockData(
   currentFrame = 0,
   options: { liveEntities?: readonly MapEntity[] | null } = {},
 ): Uint8Array {
+  const faceState = sourceAIFaceState(entity);
+  if (faceState) {
+    const saver = new XferSave();
+    saver.open('build-generated-source-ai-state-machine-face');
+    try {
+      saver.xferVersion(1);
+      saver.xferVersion(1);
+      saver.xferUnsignedInt(0);
+      saver.xferUnsignedInt(SOURCE_AI_STATE_IDLE);
+      saver.xferUnsignedInt(faceState.currentStateId);
+      saver.xferBool(false);
+      saver.xferUser(buildGeneratedSourceAIFaceStateBlockData(faceState.canTurnInPlace));
+      saver.xferObjectID(faceState.goalObjectId);
+      saver.xferCoord3D(faceState.goalPosition);
+      saver.xferBool(false);
+      saver.xferBool(true);
+      saver.xferInt(0);
+      saver.xferAsciiString('');
+      saver.xferBool(false);
+      saver.xferUnsignedInt(SOURCE_AI_INVALID_STATE_ID);
+      saver.xferUnsignedInt(0);
+      return new Uint8Array(saver.getBuffer());
+    } finally {
+      saver.close();
+    }
+  }
+
   const statelessState = sourceAIStatelessState(entity);
   if (statelessState) {
     const saver = new XferSave();

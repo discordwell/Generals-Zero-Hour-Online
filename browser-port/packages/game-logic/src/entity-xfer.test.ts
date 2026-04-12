@@ -248,6 +248,7 @@ function createTestEntity(overrides: Record<string, unknown> = {}): Record<strin
     pendingEnterState: null,
     pendingExitState: null,
     sourceAIStatelessState: null,
+    sourceAIFaceState: null,
     chinookCombatDropState: null,
     chinookRappelState: null,
     repairDockState: null,
@@ -1301,6 +1302,35 @@ describe('entity-xfer', () => {
       currentStateId: 41,
       goalObjectId: 77,
       goalPosition: { x: 11, y: 22, z: 33 },
+    });
+  });
+
+  it('round-trips source-owned face AI state', () => {
+    const original = createTestEntity({
+      sourceAIFaceState: {
+        currentStateId: 34,
+        goalObjectId: 0,
+        goalPosition: { x: 12, y: 34, z: 56 },
+        canTurnInPlace: true,
+      },
+    });
+
+    const saver = new XferSave();
+    saver.open('entity');
+    xferMapEntity(saver, original);
+    saver.close();
+
+    const loaded = createTestEntity();
+    const loader = new XferLoad(saver.getBuffer());
+    loader.open('entity');
+    xferMapEntity(loader, loaded);
+    loader.close();
+
+    expect(loaded.sourceAIFaceState).toEqual({
+      currentStateId: 34,
+      goalObjectId: 0,
+      goalPosition: { x: 12, y: 34, z: 56 },
+      canTurnInPlace: true,
     });
   });
 
