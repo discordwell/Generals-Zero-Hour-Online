@@ -1017,6 +1017,135 @@ export function parseTsSquadXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppWorkOrderXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void WorkOrder::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppWorkOrderField);
+}
+
+export function parseTsWorkOrderXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceWorkOrderState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_WORK_ORDER_SNAPSHOT_VERSION\s*\)|(\w+):\s*xfer\.xfer\w+\s*\(\s*workOrder\.\w+\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsWorkOrderField(match[0]!, match[1]));
+  }
+  return fields;
+}
+
+export function parseCppTeamInQueueXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void TeamInQueue::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppTeamInQueueField);
+}
+
+export function parseTsTeamInQueueXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceTeamInQueueState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_TEAM_IN_QUEUE_SNAPSHOT_VERSION\s*\)|const workOrderCount\s*=\s*xfer\.xferUnsignedShort\s*\(\s*teamInQueue\.workOrders\.length\s*\)|xferSourceWorkOrderState\s*\(|(\w+):\s*xfer\.xfer\w+\s*\(\s*teamInQueue\.\w+\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsTeamInQueueField(match[0]!, match[1]));
+  }
+  return fields;
+}
+
+export function parseCppAiPlayerXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void AIPlayer::xfer');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  let teamInQueueSnapshotIndex = 0;
+  const tokenRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    if (method === 'xferSnapshot' && (argument === 'teamInQueue' || argument === 'teamReadyQueue')) {
+      pushUniqueField(
+        fields,
+        seen,
+        teamInQueueSnapshotIndex < 2 ? 'teamBuildQueue.snapshot' : 'teamReadyQueue.snapshot',
+      );
+      teamInQueueSnapshotIndex += 1;
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppAiPlayerField(method, argument));
+  }
+  return fields;
+}
+
+export function parseTsAiPlayerXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceKnownAiPlayerState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  let teamInQueueSnapshotIndex = 0;
+  const tokenRegex =
+    /const version\s*=\s*xfer\.xferVersion\s*\(\s*SOURCE_AI_PLAYER_SNAPSHOT_VERSION\s*\)|const teamBuildQueueCount\s*=\s*xfer\.xferUnsignedShort\s*\(\s*aiPlayer\.teamBuildQueue\.length\s*\)|const teamReadyQueueCount\s*=\s*xfer\.xferUnsignedShort\s*\(\s*aiPlayer\.teamReadyQueue\.length\s*\)|xferSourceTeamInQueueState\s*\(|const savedPlayerIndex\s*=\s*xfer\.xferInt\s*\(\s*playerIndex\s*\)|(\w+):\s*xfer\.xfer\w+\s*\(\s*aiPlayer\.\w+\s*\)|structuresToRepair:\s*xferSourceFixedObjectIdArray\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.startsWith('xferSourceTeamInQueueState')) {
+      pushUniqueField(
+        fields,
+        seen,
+        teamInQueueSnapshotIndex < 2 ? 'teamBuildQueue.snapshot' : 'teamReadyQueue.snapshot',
+      );
+      teamInQueueSnapshotIndex += 1;
+      continue;
+    }
+    pushUniqueField(fields, seen, mapTsAiPlayerField(token, match[1]));
+  }
+  return fields;
+}
+
+export function parseCppAiSkirmishPlayerXferFields(source: string, aiPlayerSource: string): string[] {
+  const body = extractFunctionBody(source, 'void AISkirmishPlayer::xfer');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex = /xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)|AIPlayer::xfer\s*\(\s*xfer\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    if (match[0]!.startsWith('AIPlayer::xfer')) {
+      for (const field of parseCppAiPlayerXferFields(aiPlayerSource)) {
+        pushUniqueField(fields, seen, `base.${field}`);
+      }
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppAiSkirmishPlayerField(match[1]!, normalizeCppXferArgument(match[2]!)));
+  }
+  return fields;
+}
+
+export function parseTsAiSkirmishPlayerXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceKnownAiPlayerState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const skirmishVersionRegex = /const skirmishVersion\s*=\s*xfer\.xferVersion\s*\(\s*SOURCE_AI_SKIRMISH_PLAYER_SNAPSHOT_VERSION\s*\)/;
+  if (skirmishVersionRegex.test(body)) {
+    pushUniqueField(fields, seen, 'version');
+  }
+  for (const field of parseTsAiPlayerXferFields(source)) {
+    pushUniqueField(fields, seen, `base.${field}`);
+  }
+  const tokenRegex = /nextState\.(\w+)\s*=\s*xfer\.xfer(?:Int|Real)\s*\(\s*aiPlayer\.\w+\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsAiSkirmishPlayerField(match[1]!));
+  }
+  return fields;
+}
+
 export function parseCppTeamTemplateInfoXferFields(source: string): string[] {
   const body = extractFunctionBody(source, 'void TeamTemplateInfo::xfer');
   if (!body) return [];
@@ -2139,6 +2268,147 @@ function mapTsSquadField(token: string): string | null {
   return null;
 }
 
+function mapCppWorkOrderField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  const mappings = new Map<string, string>([
+    ['thingTemplateName', 'templateName'],
+    ['m_factoryID', 'factoryId'],
+    ['m_numCompleted', 'numCompleted'],
+    ['m_numRequired', 'numRequired'],
+    ['m_required', 'required'],
+    ['m_isResourceGatherer', 'isResourceGatherer'],
+  ]);
+  return mappings.get(argument) ?? null;
+}
+
+function mapTsWorkOrderField(token: string, directField: string | undefined): string | null {
+  if (token.includes('SOURCE_WORK_ORDER_SNAPSHOT_VERSION')) return 'version';
+  const mappings = new Map<string, string>([
+    ['templateName', 'templateName'],
+    ['factoryId', 'factoryId'],
+    ['numCompleted', 'numCompleted'],
+    ['numRequired', 'numRequired'],
+    ['required', 'required'],
+    ['isResourceGatherer', 'isResourceGatherer'],
+  ]);
+  return directField ? mappings.get(directField) ?? null : null;
+}
+
+function mapCppTeamInQueueField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'workOrderCount') return 'workOrderCount';
+  if (method === 'xferSnapshot' && argument === 'workOrder') return 'workOrder.snapshot';
+  if (method === 'xferBool' && argument === 'm_priorityBuild') return 'priorityBuild';
+  if (method === 'xferUser' && argument.startsWith('teamID')) return 'teamId';
+  if (method === 'xferInt' && argument === 'm_frameStarted') return 'frameStarted';
+  if (method === 'xferBool' && argument === 'm_sentToStartLocation') return 'sentToStartLocation';
+  if (method === 'xferBool' && argument === 'm_stopQueueing') return 'stopQueueing';
+  if (method === 'xferBool' && argument === 'm_reinforcement') return 'reinforcement';
+  if (method === 'xferObjectID' && argument === 'm_reinforcementID') return 'reinforcementId';
+  return null;
+}
+
+function mapTsTeamInQueueField(token: string, directField: string | undefined): string | null {
+  if (token.includes('SOURCE_TEAM_IN_QUEUE_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('workOrderCount')) return 'workOrderCount';
+  if (token.includes('xferSourceWorkOrderState')) return 'workOrder.snapshot';
+  const mappings = new Map<string, string>([
+    ['priorityBuild', 'priorityBuild'],
+    ['teamId', 'teamId'],
+    ['frameStarted', 'frameStarted'],
+    ['sentToStartLocation', 'sentToStartLocation'],
+    ['stopQueueing', 'stopQueueing'],
+    ['reinforcement', 'reinforcement'],
+    ['reinforcementId', 'reinforcementId'],
+  ]);
+  return directField ? mappings.get(directField) ?? null : null;
+}
+
+function mapCppAiPlayerField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'teamBuildQueueCount') return 'teamBuildQueueCount';
+  if (method === 'xferUnsignedShort' && argument === 'teamReadyQueueCount') return 'teamReadyQueueCount';
+  if (method === 'xferUser' && argument.startsWith('playerIndex')) return 'playerIndex';
+  if (method === 'xferBool' && argument === 'm_readyToBuildTeam') return 'readyToBuildTeam';
+  if (method === 'xferBool' && argument === 'm_readyToBuildStructure') return 'readyToBuildStructure';
+  if (method === 'xferInt' && argument === 'm_teamTimer') return 'teamTimer';
+  if (method === 'xferInt' && argument === 'm_structureTimer') return 'structureTimer';
+  if (method === 'xferInt' && argument === 'm_buildDelay') return 'buildDelay';
+  if (method === 'xferInt' && argument === 'm_teamDelay') return 'teamDelay';
+  if (method === 'xferInt' && argument === 'm_teamSeconds') return 'teamSeconds';
+  if (method === 'xferObjectID' && argument === 'm_curWarehouseID') return 'currentWarehouseId';
+  if (method === 'xferInt' && argument === 'm_frameLastBuildingBuilt') return 'frameLastBuildingBuilt';
+  if (method === 'xferUser' && argument.startsWith('m_difficulty')) return 'difficulty';
+  if (method === 'xferInt' && argument === 'm_skillsetSelector') return 'skillsetSelector';
+  if (method === 'xferCoord3D' && argument === 'm_baseCenter') return 'baseCenter';
+  if (method === 'xferBool' && argument === 'm_baseCenterSet') return 'baseCenterSet';
+  if (method === 'xferReal' && argument === 'm_baseRadius') return 'baseRadius';
+  if (method === 'xferUser' && argument.startsWith('m_structuresToRepair')) return 'structuresToRepair';
+  if (method === 'xferObjectID' && argument === 'm_repairDozer') return 'repairDozer';
+  if (method === 'xferInt' && argument === 'm_structuresInQueue') return 'structuresInQueue';
+  if (method === 'xferBool' && argument === 'm_dozerQueuedForRepair') return 'dozerQueuedForRepair';
+  if (method === 'xferBool' && argument === 'm_dozerIsRepairing') return 'dozerIsRepairing';
+  if (method === 'xferInt' && argument === 'm_bridgeTimer') return 'bridgeTimer';
+  return null;
+}
+
+function mapTsAiPlayerField(token: string, directField: string | undefined): string | null {
+  if (token.includes('SOURCE_AI_PLAYER_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('teamBuildQueue.length')) return 'teamBuildQueueCount';
+  if (token.includes('teamReadyQueue.length')) return 'teamReadyQueueCount';
+  if (token.includes('savedPlayerIndex')) return 'playerIndex';
+  if (token.includes('structuresToRepair')) return 'structuresToRepair';
+  const mappings = new Map<string, string>([
+    ['readyToBuildTeam', 'readyToBuildTeam'],
+    ['readyToBuildStructure', 'readyToBuildStructure'],
+    ['teamTimer', 'teamTimer'],
+    ['structureTimer', 'structureTimer'],
+    ['buildDelay', 'buildDelay'],
+    ['teamDelay', 'teamDelay'],
+    ['teamSeconds', 'teamSeconds'],
+    ['currentWarehouseId', 'currentWarehouseId'],
+    ['frameLastBuildingBuilt', 'frameLastBuildingBuilt'],
+    ['difficulty', 'difficulty'],
+    ['skillsetSelector', 'skillsetSelector'],
+    ['baseCenter', 'baseCenter'],
+    ['baseCenterSet', 'baseCenterSet'],
+    ['baseRadius', 'baseRadius'],
+    ['repairDozer', 'repairDozer'],
+    ['structuresInQueue', 'structuresInQueue'],
+    ['dozerQueuedForRepair', 'dozerQueuedForRepair'],
+    ['dozerIsRepairing', 'dozerIsRepairing'],
+    ['bridgeTimer', 'bridgeTimer'],
+  ]);
+  return directField ? mappings.get(directField) ?? null : null;
+}
+
+function mapCppAiSkirmishPlayerField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferInt' && argument === 'm_curFrontBaseDefense') return 'curFrontBaseDefense';
+  if (method === 'xferInt' && argument === 'm_curFlankBaseDefense') return 'curFlankBaseDefense';
+  if (method === 'xferReal' && argument === 'm_curFrontLeftDefenseAngle') return 'curFrontLeftDefenseAngle';
+  if (method === 'xferReal' && argument === 'm_curFrontRightDefenseAngle') return 'curFrontRightDefenseAngle';
+  if (method === 'xferReal' && argument === 'm_curLeftFlankLeftDefenseAngle') return 'curLeftFlankLeftDefenseAngle';
+  if (method === 'xferReal' && argument === 'm_curLeftFlankRightDefenseAngle') return 'curLeftFlankRightDefenseAngle';
+  if (method === 'xferReal' && argument === 'm_curRightFlankLeftDefenseAngle') return 'curRightFlankLeftDefenseAngle';
+  if (method === 'xferReal' && argument === 'm_curRightFlankRightDefenseAngle') return 'curRightFlankRightDefenseAngle';
+  return null;
+}
+
+function mapTsAiSkirmishPlayerField(rawName: string): string | null {
+  const mappings = new Map<string, string>([
+    ['curFrontBaseDefense', 'curFrontBaseDefense'],
+    ['curFlankBaseDefense', 'curFlankBaseDefense'],
+    ['curFrontLeftDefenseAngle', 'curFrontLeftDefenseAngle'],
+    ['curFrontRightDefenseAngle', 'curFrontRightDefenseAngle'],
+    ['curLeftFlankLeftDefenseAngle', 'curLeftFlankLeftDefenseAngle'],
+    ['curLeftFlankRightDefenseAngle', 'curLeftFlankRightDefenseAngle'],
+    ['curRightFlankLeftDefenseAngle', 'curRightFlankLeftDefenseAngle'],
+    ['curRightFlankRightDefenseAngle', 'curRightFlankRightDefenseAngle'],
+  ]);
+  return mappings.get(rawName) ?? null;
+}
+
 function mapCppTeamTemplateInfoField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferInt' && argument === 'm_productionPriority') return 'productionPriority';
@@ -2513,6 +2783,22 @@ export function compareSquadFields(cppFields: string[], tsFields: string[]): Par
   return compareOrderedStrings('save-squad-fields', cppFields, tsFields);
 }
 
+export function compareWorkOrderFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-work-order-fields', cppFields, tsFields);
+}
+
+export function compareTeamInQueueFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-team-in-queue-fields', cppFields, tsFields);
+}
+
+export function compareAiPlayerFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-ai-player-fields', cppFields, tsFields);
+}
+
+export function compareAiSkirmishPlayerFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-ai-skirmish-player-fields', cppFields, tsFields);
+}
+
 export function compareTeamTemplateInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-team-template-info-fields', cppFields, tsFields);
 }
@@ -2772,6 +3058,18 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genSquadCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/AI/Squad.cpp'),
   );
+  const zhAiPlayerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/AI/AIPlayer.cpp'),
+  );
+  const genAiPlayerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/AI/AIPlayer.cpp'),
+  );
+  const zhAiSkirmishPlayerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/AI/AISkirmishPlayer.cpp'),
+  );
+  const genAiSkirmishPlayerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/AI/AISkirmishPlayer.cpp'),
+  );
 
   // Read TS port source
   const tsIndexPath = path.join(rootDir, 'packages/game-logic/src/index.ts');
@@ -2975,6 +3273,32 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsSquadFields = parseTsSquadXferFields(tsRuntimeSave);
   if (cppSquadFields.length > 0 && tsSquadFields.length > 0) {
     categories.push(compareSquadFields(cppSquadFields, tsSquadFields));
+  }
+
+  const aiPlayerSource = zhAiPlayerCpp || genAiPlayerCpp;
+  const cppWorkOrderFields = parseCppWorkOrderXferFields(aiPlayerSource);
+  const tsWorkOrderFields = parseTsWorkOrderXferFields(tsRuntimeSave);
+  if (cppWorkOrderFields.length > 0 && tsWorkOrderFields.length > 0) {
+    categories.push(compareWorkOrderFields(cppWorkOrderFields, tsWorkOrderFields));
+  }
+
+  const cppTeamInQueueFields = parseCppTeamInQueueXferFields(aiPlayerSource);
+  const tsTeamInQueueFields = parseTsTeamInQueueXferFields(tsRuntimeSave);
+  if (cppTeamInQueueFields.length > 0 && tsTeamInQueueFields.length > 0) {
+    categories.push(compareTeamInQueueFields(cppTeamInQueueFields, tsTeamInQueueFields));
+  }
+
+  const cppAiPlayerFields = parseCppAiPlayerXferFields(aiPlayerSource);
+  const tsAiPlayerFields = parseTsAiPlayerXferFields(tsRuntimeSave);
+  if (cppAiPlayerFields.length > 0 && tsAiPlayerFields.length > 0) {
+    categories.push(compareAiPlayerFields(cppAiPlayerFields, tsAiPlayerFields));
+  }
+
+  const aiSkirmishPlayerSource = zhAiSkirmishPlayerCpp || genAiSkirmishPlayerCpp;
+  const cppAiSkirmishPlayerFields = parseCppAiSkirmishPlayerXferFields(aiSkirmishPlayerSource, aiPlayerSource);
+  const tsAiSkirmishPlayerFields = parseTsAiSkirmishPlayerXferFields(tsRuntimeSave);
+  if (cppAiSkirmishPlayerFields.length > 0 && tsAiSkirmishPlayerFields.length > 0) {
+    categories.push(compareAiSkirmishPlayerFields(cppAiSkirmishPlayerFields, tsAiSkirmishPlayerFields));
   }
 
   const cppTeamTemplateInfoFields = parseCppTeamTemplateInfoXferFields(teamSource);

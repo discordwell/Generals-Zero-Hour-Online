@@ -1246,6 +1246,23 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(squadCategory).toBeDefined();
       expect(squadCategory!.status).toBe('match');
 
+      const workOrderCategory = report.categories.find((c) => c.category === 'save-work-order-fields');
+      expect(workOrderCategory).toBeDefined();
+      expect(workOrderCategory!.status).toBe('match');
+
+      const teamInQueueCategory = report.categories.find((c) => c.category === 'save-team-in-queue-fields');
+      expect(teamInQueueCategory).toBeDefined();
+      expect(teamInQueueCategory!.status).toBe('match');
+
+      const aiPlayerCategory = report.categories.find((c) => c.category === 'save-ai-player-fields');
+      expect(aiPlayerCategory).toBeDefined();
+      expect(aiPlayerCategory!.status).toBe('match');
+
+      const aiSkirmishPlayerCategory = report.categories.find((c) =>
+        c.category === 'save-ai-skirmish-player-fields');
+      expect(aiSkirmishPlayerCategory).toBeDefined();
+      expect(aiSkirmishPlayerCategory!.status).toBe('match');
+
       const teamTemplateInfoCategory = report.categories.find((c) => c.category === 'save-team-template-info-fields');
       expect(teamTemplateInfoCategory).toBeDefined();
       expect(teamTemplateInfoCategory!.status).toBe('match');
