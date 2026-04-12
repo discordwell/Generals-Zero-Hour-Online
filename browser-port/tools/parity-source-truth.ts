@@ -723,6 +723,154 @@ export function parseTsObjectXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppMatrix3DXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Xfer::xferMatrix3D');
+  if (!body) return [];
+  if (!/xferVersion\s*\(/.test(body) || !/xferReal\s*\(&tmp0\.X\)/.test(body)) return [];
+  return ['version', ...Array.from({ length: 12 }, (_value, index) => `value.${index}`)];
+}
+
+export function parseTsMatrix3DXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceMatrix3DState');
+  if (!body) return [];
+  if (!/xfer\.xferVersion\s*\(/.test(body) || !/index\s*<\s*12/.test(body) || !/xfer\.xferReal\s*\(/.test(body)) {
+    return [];
+  }
+  return ['version', ...Array.from({ length: 12 }, (_value, index) => `value.${index}`)];
+}
+
+export function parseCppGeometryInfoXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void GeometryInfo::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppGeometryInfoField);
+}
+
+export function parseTsGeometryInfoXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceGeometryInfoState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|(type):\s*xfer\.xferInt\s*\(|(isSmall):\s*xfer\.xferBool\s*\(|(height|majorRadius|minorRadius|boundingCircleRadius|boundingSphereRadius):\s*xfer\.xferReal\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, match[1] ?? match[2] ?? match[3] ?? 'version');
+  }
+  return fields;
+}
+
+export function parseCppSightingInfoXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void SightingInfo::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppSightingInfoField);
+}
+
+export function parseTsSightingInfoXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceSightingInfoState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|(where):\s*xfer\.xferCoord3D\s*\(|(howFar):\s*xfer\.xferReal\s*\(|(forWhomMask):\s*xfer\.xferUnsignedShort\s*\(|(data):\s*xfer\.xferUnsignedInt\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, match[1] ?? match[2] ?? match[3] ?? match[4] ?? 'version');
+  }
+  return fields;
+}
+
+export function parseCppExperienceTrackerXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void ExperienceTracker::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppExperienceTrackerField);
+}
+
+export function parseTsExperienceTrackerXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceExperienceTrackerState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|(currentLevel):\s*xfer\.xferInt\s*\(|(currentExperience):\s*xfer\.xferInt\s*\(|(experienceSinkObjectId):\s*xfer\.xferObjectID\s*\(|(experienceScalar):\s*xfer\.xferReal\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, match[1] ?? match[2] ?? match[3] ?? match[4] ?? 'version');
+  }
+  return fields;
+}
+
+export function parseCppBitFlagsXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void BitFlags<NUMBITS>::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppBitFlagsField);
+}
+
+export function parseTsBitFlagsXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceStringBitFlagsState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|xfer\.xferInt\s*\(|xfer\.xferAsciiString\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsBitFlagsField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppWeaponSetXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void WeaponSet::xfer');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /wsFlags\.xfer\s*\(\s*xfer\s*\)|m_totalDamageTypeMask\.xfer\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let hasDamageWeaponIndex = 0;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.startsWith('wsFlags.xfer')) {
+      pushUniqueField(fields, seen, 'templateSetFlags');
+      continue;
+    }
+    if (token.startsWith('m_totalDamageTypeMask.xfer')) {
+      pushUniqueField(fields, seen, 'totalDamageTypeMask');
+      continue;
+    }
+    const method = match[1]!;
+    const argument = normalizeCppXferArgument(match[2]!);
+    if (method === 'xferBool' && argument === 'm_hasDamageWeapon') {
+      fields.push(hasDamageWeaponIndex === 0 ? 'hasDamageWeapon' : 'hasDamageWeaponCopy');
+      hasDamageWeaponIndex += 1;
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppWeaponSetField(method, argument));
+  }
+  return fields;
+}
+
+export function parseTsWeaponSetXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceWeaponSetState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|xfer\.xferAsciiString\s*\(\s*current\.templateName\s*\)|xferSourceStringBitFlagsState\s*\(\s*xfer\s*,\s*current\.(?:templateSetFlags|totalDamageTypeMask)|xfer\.xferBool\s*\(\s*sourceWeapon !== null\s*\)|xferSourceWeaponState\s*\(|xfer\.xferInt\s*\(\s*current\.(?:currentWeapon|currentWeaponLockedStatus|totalAntiMask)\s*\)|xfer\.xferUnsignedInt\s*\(\s*current\.filledWeaponSlotMask\s*\)|xfer\.xferBool\s*\(\s*current\.hasDamageWeapon\s*\)/g;
+  let hasDamageWeaponIndex = 0;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.includes('current.hasDamageWeapon')) {
+      fields.push(hasDamageWeaponIndex === 0 ? 'hasDamageWeapon' : 'hasDamageWeaponCopy');
+      hasDamageWeaponIndex += 1;
+      continue;
+    }
+    pushUniqueField(fields, seen, mapTsWeaponSetField(token));
+  }
+  return fields;
+}
+
 /**
  * Parse C++ Radar::xfer source-save field order.
  */
@@ -2568,6 +2716,76 @@ function mapTsObjectField(token: string): string | null {
   return null;
 }
 
+function mapCppGeometryInfoField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUser' && argument.startsWith('m_type')) return 'type';
+  if (method === 'xferBool' && argument === 'm_isSmall') return 'isSmall';
+  if (method === 'xferReal' && argument === 'm_height') return 'height';
+  if (method === 'xferReal' && argument === 'm_majorRadius') return 'majorRadius';
+  if (method === 'xferReal' && argument === 'm_minorRadius') return 'minorRadius';
+  if (method === 'xferReal' && argument === 'm_boundingCircleRadius') return 'boundingCircleRadius';
+  if (method === 'xferReal' && argument === 'm_boundingSphereRadius') return 'boundingSphereRadius';
+  return null;
+}
+
+function mapCppSightingInfoField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferCoord3D' && argument === 'm_where') return 'where';
+  if (method === 'xferReal' && argument === 'm_howFar') return 'howFar';
+  if (method === 'xferUser' && argument.startsWith('m_forWhom')) return 'forWhomMask';
+  if (method === 'xferUnsignedInt' && argument === 'm_data') return 'data';
+  return null;
+}
+
+function mapCppExperienceTrackerField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUser' && argument.startsWith('m_currentLevel')) return 'currentLevel';
+  if (method === 'xferInt' && argument === 'm_currentExperience') return 'currentExperience';
+  if (method === 'xferObjectID' && argument === 'm_experienceSink') return 'experienceSinkObjectId';
+  if (method === 'xferReal' && argument === 'm_experienceScalar') return 'experienceScalar';
+  return null;
+}
+
+function mapCppBitFlagsField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferInt' && argument === 'c') return 'count';
+  if (method === 'xferAsciiString' && (argument === 'bitNameA' || argument === 'string')) return 'entry.name';
+  return null;
+}
+
+function mapTsBitFlagsField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('xferInt')) return 'count';
+  if (token.includes('xferAsciiString')) return 'entry.name';
+  return null;
+}
+
+function mapCppWeaponSetField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferAsciiString' && argument === 'ttName') return 'templateName';
+  if (method === 'xferBool' && argument === 'hasWeaponInSlot') return 'weapon.hasWeapon';
+  if (method === 'xferSnapshot' && argument === 'm_weapons[i]') return 'weapon.snapshot';
+  if (method === 'xferUser' && argument.startsWith('m_curWeapon,')) return 'currentWeapon';
+  if (method === 'xferUser' && argument.startsWith('m_curWeaponLockedStatus')) return 'currentWeaponLockedStatus';
+  if (method === 'xferUnsignedInt' && argument === 'm_filledWeaponSlotMask') return 'filledWeaponSlotMask';
+  if (method === 'xferInt' && argument === 'm_totalAntiMask') return 'totalAntiMask';
+  return null;
+}
+
+function mapTsWeaponSetField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('current.templateName')) return 'templateName';
+  if (token.includes('current.templateSetFlags')) return 'templateSetFlags';
+  if (token.includes('sourceWeapon !== null')) return 'weapon.hasWeapon';
+  if (token.includes('xferSourceWeaponState')) return 'weapon.snapshot';
+  if (token.includes('current.currentWeaponLockedStatus')) return 'currentWeaponLockedStatus';
+  if (token.includes('current.currentWeapon')) return 'currentWeapon';
+  if (token.includes('current.filledWeaponSlotMask')) return 'filledWeaponSlotMask';
+  if (token.includes('current.totalAntiMask')) return 'totalAntiMask';
+  if (token.includes('current.totalDamageTypeMask')) return 'totalDamageTypeMask';
+  return null;
+}
+
 function mapCppRadarField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferBool' && argument === 'm_radarHidden') return 'radarHidden';
@@ -3822,6 +4040,30 @@ export function compareObjectFields(cppFields: string[], tsFields: string[]): Pa
   return compareOrderedStrings('save-object-fields', cppFields, tsFields);
 }
 
+export function compareMatrix3DFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-matrix3d-fields', cppFields, tsFields);
+}
+
+export function compareGeometryInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-geometry-info-fields', cppFields, tsFields);
+}
+
+export function compareSightingInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-sighting-info-fields', cppFields, tsFields);
+}
+
+export function compareExperienceTrackerFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-experience-tracker-fields', cppFields, tsFields);
+}
+
+export function compareBitFlagsFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-bit-flags-fields', cppFields, tsFields);
+}
+
+export function compareWeaponSetFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-weapon-set-fields', cppFields, tsFields);
+}
+
 export function compareRadarFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-radar-fields', cppFields, tsFields);
 }
@@ -4152,6 +4394,30 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genObjectCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/Object.cpp'),
   );
+  const zhGeometryCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/System/Geometry.cpp'),
+  );
+  const genGeometryCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/System/Geometry.cpp'),
+  );
+  const zhExperienceTrackerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/ExperienceTracker.cpp'),
+  );
+  const genExperienceTrackerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/ExperienceTracker.cpp'),
+  );
+  const zhWeaponSetCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/WeaponSet.cpp'),
+  );
+  const genWeaponSetCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/WeaponSet.cpp'),
+  );
+  const zhBitFlagsIoH = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Include/Common/BitFlagsIO.h'),
+  );
+  const genBitFlagsIoH = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Include/Common/BitFlagsIO.h'),
+  );
   const zhBuildAssistantCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/System/BuildAssistant.cpp'),
   );
@@ -4419,6 +4685,48 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsObjectFields = parseTsObjectXferFields(tsEntityXfer);
   if (cppObjectFields.length > 0 && tsObjectFields.length > 0) {
     categories.push(compareObjectFields(cppObjectFields, tsObjectFields));
+  }
+
+  const matrixSource = zhXferCpp || genXferCpp;
+  const cppMatrix3DFields = parseCppMatrix3DXferFields(matrixSource);
+  const tsMatrix3DFields = parseTsMatrix3DXferFields(tsEntityXfer);
+  if (cppMatrix3DFields.length > 0 && tsMatrix3DFields.length > 0) {
+    categories.push(compareMatrix3DFields(cppMatrix3DFields, tsMatrix3DFields));
+  }
+
+  const geometrySource = zhGeometryCpp || genGeometryCpp;
+  const cppGeometryInfoFields = parseCppGeometryInfoXferFields(geometrySource);
+  const tsGeometryInfoFields = parseTsGeometryInfoXferFields(tsEntityXfer);
+  if (cppGeometryInfoFields.length > 0 && tsGeometryInfoFields.length > 0) {
+    categories.push(compareGeometryInfoFields(cppGeometryInfoFields, tsGeometryInfoFields));
+  }
+
+  const sightingInfoSource = zhPartitionManagerCpp || genPartitionManagerCpp;
+  const cppSightingInfoFields = parseCppSightingInfoXferFields(sightingInfoSource);
+  const tsSightingInfoFields = parseTsSightingInfoXferFields(tsEntityXfer);
+  if (cppSightingInfoFields.length > 0 && tsSightingInfoFields.length > 0) {
+    categories.push(compareSightingInfoFields(cppSightingInfoFields, tsSightingInfoFields));
+  }
+
+  const experienceTrackerSource = zhExperienceTrackerCpp || genExperienceTrackerCpp;
+  const cppExperienceTrackerFields = parseCppExperienceTrackerXferFields(experienceTrackerSource);
+  const tsExperienceTrackerFields = parseTsExperienceTrackerXferFields(tsEntityXfer);
+  if (cppExperienceTrackerFields.length > 0 && tsExperienceTrackerFields.length > 0) {
+    categories.push(compareExperienceTrackerFields(cppExperienceTrackerFields, tsExperienceTrackerFields));
+  }
+
+  const bitFlagsSource = zhBitFlagsIoH || genBitFlagsIoH;
+  const cppBitFlagsFields = parseCppBitFlagsXferFields(bitFlagsSource);
+  const tsBitFlagsFields = parseTsBitFlagsXferFields(tsEntityXfer);
+  if (cppBitFlagsFields.length > 0 && tsBitFlagsFields.length > 0) {
+    categories.push(compareBitFlagsFields(cppBitFlagsFields, tsBitFlagsFields));
+  }
+
+  const weaponSetSource = zhWeaponSetCpp || genWeaponSetCpp;
+  const cppWeaponSetFields = parseCppWeaponSetXferFields(weaponSetSource);
+  const tsWeaponSetFields = parseTsWeaponSetXferFields(tsEntityXfer);
+  if (cppWeaponSetFields.length > 0 && tsWeaponSetFields.length > 0) {
+    categories.push(compareWeaponSetFields(cppWeaponSetFields, tsWeaponSetFields));
   }
 
   const radarSource = zhRadarCpp || genRadarCpp;

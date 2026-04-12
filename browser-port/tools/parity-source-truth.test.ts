@@ -1214,6 +1214,30 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(objectCategory).toBeDefined();
       expect(objectCategory!.status).toBe('match');
 
+      const matrix3dCategory = report.categories.find((c) => c.category === 'save-matrix3d-fields');
+      expect(matrix3dCategory).toBeDefined();
+      expect(matrix3dCategory!.status).toBe('match');
+
+      const geometryInfoCategory = report.categories.find((c) => c.category === 'save-geometry-info-fields');
+      expect(geometryInfoCategory).toBeDefined();
+      expect(geometryInfoCategory!.status).toBe('match');
+
+      const sightingInfoCategory = report.categories.find((c) => c.category === 'save-sighting-info-fields');
+      expect(sightingInfoCategory).toBeDefined();
+      expect(sightingInfoCategory!.status).toBe('match');
+
+      const experienceTrackerCategory = report.categories.find((c) => c.category === 'save-experience-tracker-fields');
+      expect(experienceTrackerCategory).toBeDefined();
+      expect(experienceTrackerCategory!.status).toBe('match');
+
+      const bitFlagsCategory = report.categories.find((c) => c.category === 'save-bit-flags-fields');
+      expect(bitFlagsCategory).toBeDefined();
+      expect(bitFlagsCategory!.status).toBe('match');
+
+      const weaponSetCategory = report.categories.find((c) => c.category === 'save-weapon-set-fields');
+      expect(weaponSetCategory).toBeDefined();
+      expect(weaponSetCategory!.status).toBe('match');
+
       const radarCategory = report.categories.find((c) => c.category === 'save-radar-fields');
       expect(radarCategory).toBeDefined();
       expect(radarCategory!.status).toBe('match');
