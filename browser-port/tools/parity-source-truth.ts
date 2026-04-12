@@ -3054,6 +3054,10 @@ function sourceParticleUplinkVisualFields(): string[] {
   ];
 }
 
+function sourceSupplyTruckTailFields(): string[] {
+  return ['preferredDockId', 'numberBoxes', 'forcePending'];
+}
+
 export function parseCppSourceW3DModelDrawFields(source: string): string[] {
   return parseCppSimpleModuleFields(source, 'void W3DModelDraw::xfer( Xfer *xfer )', {
     'DrawModule::xfer': sourceDrawModuleBaseFields(),
@@ -3251,7 +3255,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xferSource(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /xfer(?:Source(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSourceSupplyTruckTail)\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -3298,6 +3302,12 @@ export function parseTsSourceObjectUpdateFields(
     }
     if (token.includes('xferSourceParticleUplinkVisualState')) {
       for (const field of sourceParticleUplinkVisualFields()) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferGeneratedSourceSupplyTruckTail')) {
+      for (const field of sourceSupplyTruckTailFields()) {
         pushUniqueField(fields, seen, field);
       }
       continue;
@@ -5131,6 +5141,15 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferUnsignedInt' && argument === 'm_framesRemaining') return 'framesRemaining';
   if (method === 'xferBool' && argument === 'm_isAttackMove') return 'isAttackMove';
   if (method === 'xferBool' && argument === 'm_isAttackObject') return 'isAttackObject';
+  if (method === 'xferSnapshot' && argument === 'm_supplyTruckStateMachine') return 'stateMachine';
+  if (method === 'xferObjectID' && argument === 'm_preferredDock') return 'preferredDockId';
+  if (method === 'xferInt' && argument === 'm_numberBoxes') return 'numberBoxes';
+  if (method === 'xferBool' && argument === 'm_forcePending') return 'forcePending';
+  if (method === 'xferUser' && argument.startsWith('m_aiMode')) return 'aiMode';
+  if (method === 'xferUser' && argument.startsWith('m_currentTask')) return 'currentTask';
+  if (method === 'xferObjectID' && argument === 'm_prisonID') return 'prisonId';
+  if (method === 'xferUnsignedInt' && argument === 'm_enteredWaitingFrame') return 'enteredWaitingFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_lastFindFrame') return 'lastFindFrame';
   if (method === 'xferReal' && argument === 'm_angularVelocity') return 'angularVelocity';
   if (method === 'xferReal' && argument === 'm_angularAcceleration') return 'angularAcceleration';
   if (method === 'xferCoord3D' && argument === 'm_toppleDirection') return 'toppleDirection';
@@ -5203,10 +5222,13 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
   if (token.includes('xferObjectID')) {
     if (window.includes('targetId')) return 'targetId';
     if (window.includes('targetEntityId')) return 'targetId';
+    if (window.includes('powTruckTargetId')) return 'targetId';
     if (window.includes('bestTargetId')) return 'bestTargetId';
     if (window.includes('projectileId')) return 'projectileIds';
     if (window.includes('member.entityId')) return 'member.id';
     if (window.includes('designatedTargetId')) return 'designatedTargetId';
+    if (window.includes('preferredDockId')) return 'preferredDockId';
+    if (window.includes('powTruckPrisonId')) return 'prisonId';
     if (window.includes('specialObjectIdList')) return 'specialObjectIdList';
     if (window.includes('lastRepair')) return 'lastRepair';
     if (window.includes('dockingObjectId')) return 'dockingObjectId';
@@ -5282,6 +5304,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('member.isHealing')) return 'member.isHealing';
     if (window.includes('isAttackMove')) return 'isAttackMove';
     if (window.includes('isAttackObject')) return 'isAttackObject';
+    if (window.includes('forceBusy')) return 'forcePending';
     if (window.includes('invalidSettings')) return 'invalidSettings';
     if (window.includes('centeringTurret')) return 'centeringTurret';
     if (window.includes('repairing')) return 'repairing';
@@ -5300,6 +5323,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('entry.exitDoor')) return 'queue.entry.exitDoor';
     if (window.includes('members.length')) return 'member.count';
     if (window.includes('assaultState')) return 'assaultState';
+    if (window.includes('currentBoxes')) return 'numberBoxes';
     if (window.includes('currentPlan')) return 'currentPlan';
     if (window.includes('desiredPlan')) return 'desiredPlan';
     if (window.includes('planAffectingArmy')) return 'planAffectingArmy';
@@ -5351,6 +5375,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('nextDestWaypointID')) return 'nextDestWaypointId';
     if (window.includes('deployFrameToWait')) return 'frameToWaitForDeploy';
     if (window.includes('framesRemaining')) return 'framesRemaining';
+    if (window.includes('powTruckEnteredWaitingFrame')) return 'enteredWaitingFrame';
+    if (window.includes('powTruckLastFindFrame')) return 'lastFindFrame';
     if (window.includes('nextReadyFrame') || window.includes('sourceBattlePlanNextReadyFrame')) {
       return 'nextReadyFrame';
     }
@@ -5436,6 +5462,9 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('laserStatusBytes')) return 'laserStatus';
     if (window.includes('sourceSpecialAbilityPackingStateToInt')) return 'packingState';
     if (window.includes('sourceDeployStyleStateToInt')) return 'state';
+    if (window.includes('buildGeneratedSourceStubStateMachineBlockData')) return 'stateMachine';
+    if (window.includes('entity.powTruckAIMode')) return 'aiMode';
+    if (window.includes('entity.powTruckCurrentTask')) return 'currentTask';
     if (window.includes('buildSourceRawInt32Bytes(currentPlan)')) return 'currentPlan';
     if (window.includes('buildSourceRawInt32Bytes(desiredPlan)')) return 'desiredPlan';
     if (window.includes('buildSourceRawInt32Bytes(planAffectingArmy)')) return 'planAffectingArmy';
@@ -7430,6 +7459,8 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AutoDepositUpdate.cpp',
     'AIUpdate/AssaultTransportAIUpdate.cpp',
     'AIUpdate/DeployStyleAIUpdate.cpp',
+    'AIUpdate/POWTruckAIUpdate.cpp',
+    'AIUpdate/SupplyTruckAIUpdate.cpp',
     'AIUpdate/WanderAIUpdate.cpp',
     'AnimationSteeringUpdate.cpp',
     'BaseRenerateUpdate.cpp',
@@ -8497,6 +8528,16 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-assault-transport-ai-update-fields',
       cppClass: 'AssaultTransportAIUpdate',
       tsHelper: 'buildGeneratedSourceAssaultTransportAIUpdateBlockData',
+    },
+    {
+      category: 'save-supply-truck-ai-update-fields',
+      cppClass: 'SupplyTruckAIUpdate',
+      tsHelper: 'buildGeneratedSourceSupplyTruckAIUpdateBlockData',
+    },
+    {
+      category: 'save-pow-truck-ai-update-fields',
+      cppClass: 'POWTruckAIUpdate',
+      tsHelper: 'buildGeneratedSourcePOWTruckAIUpdateBlockData',
     },
     {
       category: 'save-spy-vision-update-fields',
