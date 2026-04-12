@@ -850,6 +850,173 @@ export function parseTsScoreKeeperXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppObjectIdListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Xfer::xferSTLObjectIDList');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex = /(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapCppObjectIdListField(match[1]!, normalizeCppXferArgument(match[2]!)));
+  }
+  return fields;
+}
+
+export function parseTsObjectIdListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceObjectIdLinkedList');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_OBJECT_ID_LINKED_LIST_VERSION\s*\)|xfer\.xferUnsignedShort\s*\(\s*objectIds\.length\s*\)|xfer\.xferObjectID\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsObjectIdListField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppUpgradeXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Upgrade::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppUpgradeField);
+}
+
+export function parseTsUpgradeXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceUpgradeState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_UPGRADE_SNAPSHOT_VERSION\s*\)|status:\s*xfer\.xferInt\s*\(\s*upgrade\.status\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsUpgradeField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppPlayerRelationMapXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void PlayerRelationMap::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppPlayerRelationMapField);
+}
+
+export function parseTsPlayerRelationMapXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourcePlayerRelationEntries');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_PLAYER_RELATION_MAP_SNAPSHOT_VERSION\s*\)|xfer\.xferUnsignedShort\s*\(\s*entries\.length\s*\)|id:\s*xfer\.xferInt\s*\(\s*0\s*\)|relationship:\s*xfer\.xferInt\s*\(\s*0\s*\)|xfer\.xferInt\s*\(\s*Math\.trunc\(entry\.id\)\s*\)|xfer\.xferInt\s*\(\s*Math\.trunc\(entry\.relationship\)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsPlayerRelationMapField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppTeamRelationMapXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void TeamRelationMap::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppTeamRelationMapField);
+}
+
+export function parseTsTeamRelationMapXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceTeamRelationEntries');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_PLAYER_RELATION_MAP_SNAPSHOT_VERSION\s*\)|xfer\.xferUnsignedShort\s*\(\s*entries\.length\s*\)|id:\s*xfer\.xferUnsignedInt\s*\(\s*0\s*\)|relationship:\s*xfer\.xferInt\s*\(\s*0\s*\)|xfer\.xferUnsignedInt\s*\(\s*Math\.max\(0, Math\.trunc\(entry\.id\)\)\s*\)|xfer\.xferInt\s*\(\s*Math\.trunc\(entry\.relationship\)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsTeamRelationMapField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppBuildListInfoXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void BuildListInfo::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppBuildListInfoField);
+}
+
+export function parseTsBuildListInfoXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceBuildListInfoState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_BUILD_LIST_INFO_SNAPSHOT_VERSION\s*\)|(\w+):\s*xfer\.xfer\w+\s*\(\s*buildListInfo\.\w+\s*\)|rallyPointOffset:\s*xferSourceCoord2D\s*\(|resourceGatherers:\s*xferSourceFixedObjectIdArray\s*\(|currentGatherers:\s*version >= 2\s*\?\s*xfer\.xferInt\s*\(\s*buildListInfo\.currentGatherers\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsBuildListInfoField(match[0]!, match[1]));
+  }
+  return fields;
+}
+
+export function parseCppResourceGatheringManagerXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void ResourceGatheringManager::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppResourceGatheringManagerField);
+}
+
+export function parseTsResourceGatheringManagerXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceResourceGatheringManagerState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_RESOURCE_GATHERING_MANAGER_SNAPSHOT_VERSION\s*\)|supplyWarehouses:\s*xferSourceObjectIdLinkedList\s*\(|supplyCenters:\s*xferSourceObjectIdLinkedList\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsResourceGatheringManagerField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppTunnelTrackerXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void TunnelTracker::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppTunnelTrackerField);
+}
+
+export function parseTsTunnelTrackerXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourcePlayerTunnelTrackerSnapshot');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_TUNNEL_TRACKER_SNAPSHOT_VERSION\s*\)|const tunnelIds\s*=\s*xferSourceObjectIdLinkedList\s*\(|const passengerCount\s*=\s*xfer\.xferInt\s*\(\s*tunnelTracker\.passengerIds\.length\s*\)|xfer\.xferObjectID\s*\(\s*(?:0|passengerId)\s*\)|tunnelCount:\s*xfer\.xferUnsignedInt\s*\(\s*tunnelTracker\.tunnelCount\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsTunnelTrackerField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppSquadXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Squad::xfer');
+  if (!body) return [];
+  return parseCppXferFields(body, mapCppSquadField);
+}
+
+export function parseTsSquadXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceSquadObjectIds');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(\s*SOURCE_SQUAD_SNAPSHOT_VERSION\s*\)|xfer\.xferUnsignedShort\s*\(\s*objectIds\.length\s*\)|xfer\.xferObjectID\s*\(\s*(?:0|objectId)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsSquadField(match[0]!));
+  }
+  return fields;
+}
+
 export function parseCppTeamTemplateInfoXferFields(source: string): string[] {
   const body = extractFunctionBody(source, 'void TeamTemplateInfo::xfer');
   if (!body) return [];
@@ -1812,6 +1979,166 @@ function mapTsScoreKeeperField(token: string, directIntField: string | undefined
   return directIntField ? mappings.get(directIntField) ?? null : null;
 }
 
+function mapCppObjectIdListField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'listCount') return 'count';
+  if (method === 'xferObjectID' && argument === 'objectID') return 'objectId';
+  return null;
+}
+
+function mapTsObjectIdListField(token: string): string | null {
+  if (token.includes('SOURCE_OBJECT_ID_LINKED_LIST_VERSION')) return 'version';
+  if (token.includes('xferUnsignedShort')) return 'count';
+  if (token.includes('xferObjectID')) return 'objectId';
+  return null;
+}
+
+function mapCppUpgradeField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUser' && argument.startsWith('m_status')) return 'status';
+  return null;
+}
+
+function mapTsUpgradeField(token: string): string | null {
+  if (token.includes('SOURCE_UPGRADE_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('status')) return 'status';
+  return null;
+}
+
+function mapCppPlayerRelationMapField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'playerRelationCount') return 'relationCount';
+  if (method === 'xferInt' && argument === 'playerIndex') return 'relation.playerIndex';
+  if (method === 'xferUser' && argument.startsWith('r')) return 'relation.relationship';
+  return null;
+}
+
+function mapTsPlayerRelationMapField(token: string): string | null {
+  if (token.includes('SOURCE_PLAYER_RELATION_MAP_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('entries.length')) return 'relationCount';
+  if (token.includes('id') || token.includes('entry.id')) return 'relation.playerIndex';
+  if (token.includes('relationship')) return 'relation.relationship';
+  return null;
+}
+
+function mapCppTeamRelationMapField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'teamRelationCount') return 'relationCount';
+  if (method === 'xferUser' && argument.startsWith('teamID')) return 'relation.teamId';
+  if (method === 'xferUser' && argument.startsWith('r')) return 'relation.relationship';
+  return null;
+}
+
+function mapTsTeamRelationMapField(token: string): string | null {
+  if (token.includes('SOURCE_PLAYER_RELATION_MAP_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('entries.length')) return 'relationCount';
+  if (token.includes('id') || token.includes('entry.id')) return 'relation.teamId';
+  if (token.includes('relationship')) return 'relation.relationship';
+  return null;
+}
+
+function mapCppBuildListInfoField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  const mappings = new Map<string, string>([
+    ['m_buildingName', 'buildingName'],
+    ['m_templateName', 'templateName'],
+    ['m_location', 'location'],
+    ['m_rallyPointOffset', 'rallyPointOffset'],
+    ['m_angle', 'angle'],
+    ['m_isInitiallyBuilt', 'isInitiallyBuilt'],
+    ['m_numRebuilds', 'numRebuilds'],
+    ['m_script', 'script'],
+    ['m_health', 'health'],
+    ['m_whiner', 'whiner'],
+    ['m_unsellable', 'unsellable'],
+    ['m_repairable', 'repairable'],
+    ['m_automaticallyBuild', 'automaticallyBuild'],
+    ['m_objectID', 'objectId'],
+    ['m_objectTimestamp', 'objectTimestamp'],
+    ['m_underConstruction', 'underConstruction'],
+    ['m_isSupplyBuilding', 'isSupplyBuilding'],
+    ['m_desiredGatherers', 'desiredGatherers'],
+    ['m_priorityBuild', 'priorityBuild'],
+    ['m_currentGatherers', 'currentGatherers'],
+  ]);
+  if (method === 'xferUser' && argument.startsWith('m_resourceGatherers')) return 'resourceGatherers';
+  return mappings.get(argument) ?? null;
+}
+
+function mapTsBuildListInfoField(token: string, directField: string | undefined): string | null {
+  if (token.includes('SOURCE_BUILD_LIST_INFO_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('xferSourceCoord2D')) return 'rallyPointOffset';
+  if (token.includes('xferSourceFixedObjectIdArray')) return 'resourceGatherers';
+  if (token.includes('currentGatherers')) return 'currentGatherers';
+  const mappings = new Map<string, string>([
+    ['buildingName', 'buildingName'],
+    ['templateName', 'templateName'],
+    ['location', 'location'],
+    ['angle', 'angle'],
+    ['isInitiallyBuilt', 'isInitiallyBuilt'],
+    ['numRebuilds', 'numRebuilds'],
+    ['script', 'script'],
+    ['health', 'health'],
+    ['whiner', 'whiner'],
+    ['unsellable', 'unsellable'],
+    ['repairable', 'repairable'],
+    ['automaticallyBuild', 'automaticallyBuild'],
+    ['objectId', 'objectId'],
+    ['objectTimestamp', 'objectTimestamp'],
+    ['underConstruction', 'underConstruction'],
+    ['isSupplyBuilding', 'isSupplyBuilding'],
+    ['desiredGatherers', 'desiredGatherers'],
+    ['priorityBuild', 'priorityBuild'],
+  ]);
+  return directField ? mappings.get(directField) ?? null : null;
+}
+
+function mapCppResourceGatheringManagerField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferSTLObjectIDList' && argument === 'm_supplyWarehouses') return 'supplyWarehouses.objectIdList';
+  if (method === 'xferSTLObjectIDList' && argument === 'm_supplyCenters') return 'supplyCenters.objectIdList';
+  return null;
+}
+
+function mapTsResourceGatheringManagerField(token: string): string | null {
+  if (token.includes('SOURCE_RESOURCE_GATHERING_MANAGER_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('supplyWarehouses')) return 'supplyWarehouses.objectIdList';
+  if (token.includes('supplyCenters')) return 'supplyCenters.objectIdList';
+  return null;
+}
+
+function mapCppTunnelTrackerField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferSTLObjectIDList' && argument === 'm_tunnelIDs') return 'tunnelIds.objectIdList';
+  if (method === 'xferInt' && argument === 'm_containListSize') return 'passengerCount';
+  if (method === 'xferObjectID' && argument === 'objectID') return 'passenger.id';
+  if (method === 'xferUnsignedInt' && argument === 'm_tunnelCount') return 'tunnelCount';
+  return null;
+}
+
+function mapTsTunnelTrackerField(token: string): string | null {
+  if (token.includes('SOURCE_TUNNEL_TRACKER_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('xferSourceObjectIdLinkedList')) return 'tunnelIds.objectIdList';
+  if (token.includes('passengerCount')) return 'passengerCount';
+  if (token.includes('xferObjectID')) return 'passenger.id';
+  if (token.includes('tunnelCount')) return 'tunnelCount';
+  return null;
+}
+
+function mapCppSquadField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferUnsignedShort' && argument === 'objectCount') return 'objectCount';
+  if (method === 'xferObjectID' && argument === 'objectID') return 'objectId';
+  return null;
+}
+
+function mapTsSquadField(token: string): string | null {
+  if (token.includes('SOURCE_SQUAD_SNAPSHOT_VERSION')) return 'version';
+  if (token.includes('xferUnsignedShort')) return 'objectCount';
+  if (token.includes('xferObjectID')) return 'objectId';
+  return null;
+}
+
 function mapCppTeamTemplateInfoField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferInt' && argument === 'm_productionPriority') return 'productionPriority';
@@ -2154,6 +2481,38 @@ export function compareScoreKeeperFields(cppFields: string[], tsFields: string[]
   return compareOrderedStrings('save-score-keeper-fields', cppFields, tsFields);
 }
 
+export function compareObjectIdListFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-object-id-list-fields', cppFields, tsFields);
+}
+
+export function compareUpgradeFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-upgrade-fields', cppFields, tsFields);
+}
+
+export function comparePlayerRelationMapFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-player-relation-map-fields', cppFields, tsFields);
+}
+
+export function compareTeamRelationMapFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-team-relation-map-fields', cppFields, tsFields);
+}
+
+export function compareBuildListInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-build-list-info-fields', cppFields, tsFields);
+}
+
+export function compareResourceGatheringManagerFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-resource-gathering-manager-fields', cppFields, tsFields);
+}
+
+export function compareTunnelTrackerFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-tunnel-tracker-fields', cppFields, tsFields);
+}
+
+export function compareSquadFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-squad-fields', cppFields, tsFields);
+}
+
 export function compareTeamTemplateInfoFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-team-template-info-fields', cppFields, tsFields);
 }
@@ -2377,6 +2736,42 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genScoreKeeperCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/RTS/ScoreKeeper.cpp'),
   );
+  const zhXferCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/System/Xfer.cpp'),
+  );
+  const genXferCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/System/Xfer.cpp'),
+  );
+  const zhUpgradeCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/System/Upgrade.cpp'),
+  );
+  const genUpgradeCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/System/Upgrade.cpp'),
+  );
+  const zhSidesListCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Map/SidesList.cpp'),
+  );
+  const genSidesListCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Map/SidesList.cpp'),
+  );
+  const zhResourceGatheringManagerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/RTS/ResourceGatheringManager.cpp'),
+  );
+  const genResourceGatheringManagerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/RTS/ResourceGatheringManager.cpp'),
+  );
+  const zhTunnelTrackerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/RTS/TunnelTracker.cpp'),
+  );
+  const genTunnelTrackerCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/Common/RTS/TunnelTracker.cpp'),
+  );
+  const zhSquadCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/AI/Squad.cpp'),
+  );
+  const genSquadCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/AI/Squad.cpp'),
+  );
 
   // Read TS port source
   const tsIndexPath = path.join(rootDir, 'packages/game-logic/src/index.ts');
@@ -2523,6 +2918,63 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsScoreKeeperFields = parseTsScoreKeeperXferFields(tsRuntimeSave);
   if (cppScoreKeeperFields.length > 0 && tsScoreKeeperFields.length > 0) {
     categories.push(compareScoreKeeperFields(cppScoreKeeperFields, tsScoreKeeperFields));
+  }
+
+  const xferSource = zhXferCpp || genXferCpp;
+  const cppObjectIdListFields = parseCppObjectIdListXferFields(xferSource);
+  const tsObjectIdListFields = parseTsObjectIdListXferFields(tsRuntimeSave);
+  if (cppObjectIdListFields.length > 0 && tsObjectIdListFields.length > 0) {
+    categories.push(compareObjectIdListFields(cppObjectIdListFields, tsObjectIdListFields));
+  }
+
+  const upgradeSource = zhUpgradeCpp || genUpgradeCpp;
+  const cppUpgradeFields = parseCppUpgradeXferFields(upgradeSource);
+  const tsUpgradeFields = parseTsUpgradeXferFields(tsRuntimeSave);
+  if (cppUpgradeFields.length > 0 && tsUpgradeFields.length > 0) {
+    categories.push(compareUpgradeFields(cppUpgradeFields, tsUpgradeFields));
+  }
+
+  const cppPlayerRelationMapFields = parseCppPlayerRelationMapXferFields(playerSource);
+  const tsPlayerRelationMapFields = parseTsPlayerRelationMapXferFields(tsRuntimeSave);
+  if (cppPlayerRelationMapFields.length > 0 && tsPlayerRelationMapFields.length > 0) {
+    categories.push(comparePlayerRelationMapFields(cppPlayerRelationMapFields, tsPlayerRelationMapFields));
+  }
+
+  const cppTeamRelationMapFields = parseCppTeamRelationMapXferFields(teamSource);
+  const tsTeamRelationMapFields = parseTsTeamRelationMapXferFields(tsRuntimeSave);
+  if (cppTeamRelationMapFields.length > 0 && tsTeamRelationMapFields.length > 0) {
+    categories.push(compareTeamRelationMapFields(cppTeamRelationMapFields, tsTeamRelationMapFields));
+  }
+
+  const sidesListSource = zhSidesListCpp || genSidesListCpp;
+  const cppBuildListInfoFields = parseCppBuildListInfoXferFields(sidesListSource);
+  const tsBuildListInfoFields = parseTsBuildListInfoXferFields(tsRuntimeSave);
+  if (cppBuildListInfoFields.length > 0 && tsBuildListInfoFields.length > 0) {
+    categories.push(compareBuildListInfoFields(cppBuildListInfoFields, tsBuildListInfoFields));
+  }
+
+  const resourceGatheringManagerSource = zhResourceGatheringManagerCpp || genResourceGatheringManagerCpp;
+  const cppResourceGatheringManagerFields = parseCppResourceGatheringManagerXferFields(resourceGatheringManagerSource);
+  const tsResourceGatheringManagerFields = parseTsResourceGatheringManagerXferFields(tsRuntimeSave);
+  if (cppResourceGatheringManagerFields.length > 0 && tsResourceGatheringManagerFields.length > 0) {
+    categories.push(compareResourceGatheringManagerFields(
+      cppResourceGatheringManagerFields,
+      tsResourceGatheringManagerFields,
+    ));
+  }
+
+  const tunnelTrackerSource = zhTunnelTrackerCpp || genTunnelTrackerCpp;
+  const cppTunnelTrackerFields = parseCppTunnelTrackerXferFields(tunnelTrackerSource);
+  const tsTunnelTrackerFields = parseTsTunnelTrackerXferFields(tsRuntimeSave);
+  if (cppTunnelTrackerFields.length > 0 && tsTunnelTrackerFields.length > 0) {
+    categories.push(compareTunnelTrackerFields(cppTunnelTrackerFields, tsTunnelTrackerFields));
+  }
+
+  const squadSource = zhSquadCpp || genSquadCpp;
+  const cppSquadFields = parseCppSquadXferFields(squadSource);
+  const tsSquadFields = parseTsSquadXferFields(tsRuntimeSave);
+  if (cppSquadFields.length > 0 && tsSquadFields.length > 0) {
+    categories.push(compareSquadFields(cppSquadFields, tsSquadFields));
   }
 
   const cppTeamTemplateInfoFields = parseCppTeamTemplateInfoXferFields(teamSource);

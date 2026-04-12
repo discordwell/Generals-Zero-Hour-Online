@@ -1213,6 +1213,39 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(scoreKeeperCategory).toBeDefined();
       expect(scoreKeeperCategory!.status).toBe('match');
 
+      const objectIdListCategory = report.categories.find((c) => c.category === 'save-object-id-list-fields');
+      expect(objectIdListCategory).toBeDefined();
+      expect(objectIdListCategory!.status).toBe('match');
+
+      const upgradeCategory = report.categories.find((c) => c.category === 'save-upgrade-fields');
+      expect(upgradeCategory).toBeDefined();
+      expect(upgradeCategory!.status).toBe('match');
+
+      const playerRelationMapCategory = report.categories.find((c) => c.category === 'save-player-relation-map-fields');
+      expect(playerRelationMapCategory).toBeDefined();
+      expect(playerRelationMapCategory!.status).toBe('match');
+
+      const teamRelationMapCategory = report.categories.find((c) => c.category === 'save-team-relation-map-fields');
+      expect(teamRelationMapCategory).toBeDefined();
+      expect(teamRelationMapCategory!.status).toBe('match');
+
+      const buildListInfoCategory = report.categories.find((c) => c.category === 'save-build-list-info-fields');
+      expect(buildListInfoCategory).toBeDefined();
+      expect(buildListInfoCategory!.status).toBe('match');
+
+      const resourceGatheringCategory = report.categories.find((c) =>
+        c.category === 'save-resource-gathering-manager-fields');
+      expect(resourceGatheringCategory).toBeDefined();
+      expect(resourceGatheringCategory!.status).toBe('match');
+
+      const tunnelTrackerCategory = report.categories.find((c) => c.category === 'save-tunnel-tracker-fields');
+      expect(tunnelTrackerCategory).toBeDefined();
+      expect(tunnelTrackerCategory!.status).toBe('match');
+
+      const squadCategory = report.categories.find((c) => c.category === 'save-squad-fields');
+      expect(squadCategory).toBeDefined();
+      expect(squadCategory!.status).toBe('match');
+
       const teamTemplateInfoCategory = report.categories.find((c) => c.category === 'save-team-template-info-fields');
       expect(teamTemplateInfoCategory).toBeDefined();
       expect(teamTemplateInfoCategory!.status).toBe('match');

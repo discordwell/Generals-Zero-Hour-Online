@@ -432,6 +432,7 @@ const SOURCE_RESOURCE_GATHERING_MANAGER_SNAPSHOT_VERSION = 1;
 const SOURCE_TUNNEL_TRACKER_SNAPSHOT_VERSION = 1;
 const SOURCE_SCORE_KEEPER_SNAPSHOT_VERSION = 1;
 const SOURCE_SQUAD_SNAPSHOT_VERSION = 1;
+const SOURCE_OBJECT_ID_LINKED_LIST_VERSION = 1;
 const SOURCE_PLAYER_HOTKEY_SQUAD_COUNT = 10;
 const SOURCE_SIDES_LIST_SAVE_STATE_VERSION = 2;
 const SOURCE_GAME_LOGIC_SNAPSHOT_VERSION = 10;
@@ -22166,6 +22167,10 @@ function xferSourceObjectIdLinkedList(
   xfer: Xfer,
   objectIds: number[],
 ): number[] {
+  const version = xfer.xferVersion(SOURCE_OBJECT_ID_LINKED_LIST_VERSION);
+  if (version !== SOURCE_OBJECT_ID_LINKED_LIST_VERSION) {
+    throw new Error(`Unsupported object-id linked-list snapshot version ${version}`);
+  }
   const count = xfer.xferUnsignedShort(objectIds.length);
   if (xfer.getMode() === XferMode.XFER_LOAD) {
     const loaded: number[] = [];
