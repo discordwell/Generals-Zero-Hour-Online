@@ -3058,6 +3058,14 @@ function sourceSupplyTruckTailFields(): string[] {
   return ['preferredDockId', 'numberBoxes', 'forcePending'];
 }
 
+function sourceDozerTaskEntryFields(): string[] {
+  return ['task.count', 'task.targetObjectId', 'task.taskOrderFrame'];
+}
+
+function sourceDozerSuffixFields(): string[] {
+  return ['dozerMachine', 'currentTask', 'dockPoint.count', 'dockPoint.valid', 'dockPoint.location', 'buildSubTask'];
+}
+
 export function parseCppSourceW3DModelDrawFields(source: string): string[] {
   return parseCppSimpleModuleFields(source, 'void W3DModelDraw::xfer( Xfer *xfer )', {
     'DrawModule::xfer': sourceDrawModuleBaseFields(),
@@ -3255,7 +3263,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /xfer(?:Source(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSourceSupplyTruckTail)\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /xfer(?:Source(?:UpdateModuleBase|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -3308,6 +3316,18 @@ export function parseTsSourceObjectUpdateFields(
     }
     if (token.includes('xferGeneratedSourceSupplyTruckTail')) {
       for (const field of sourceSupplyTruckTailFields()) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferGeneratedSourceDozerTaskEntries')) {
+      for (const field of sourceDozerTaskEntryFields()) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferGeneratedSourceDozerSuffix')) {
+      for (const field of sourceDozerSuffixFields()) {
         pushUniqueField(fields, seen, field);
       }
       continue;
@@ -5150,6 +5170,15 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferObjectID' && argument === 'm_prisonID') return 'prisonId';
   if (method === 'xferUnsignedInt' && argument === 'm_enteredWaitingFrame') return 'enteredWaitingFrame';
   if (method === 'xferUnsignedInt' && argument === 'm_lastFindFrame') return 'lastFindFrame';
+  if (method === 'xferInt' && argument === 'numTasks') return 'task.count';
+  if (method === 'xferObjectID' && argument === 'm_task[i].m_targetObjectID') return 'task.targetObjectId';
+  if (method === 'xferUnsignedInt' && argument === 'm_task[i].m_taskOrderFrame') return 'task.taskOrderFrame';
+  if (method === 'xferSnapshot' && argument === 'm_dozerMachine') return 'dozerMachine';
+  if (method === 'xferInt' && argument === 'dockPoints') return 'dockPoint.count';
+  if (method === 'xferBool' && argument === 'm_dockPoint[i][j].valid') return 'dockPoint.valid';
+  if (method === 'xferCoord3D' && argument === 'm_dockPoint[i][j].location') return 'dockPoint.location';
+  if (method === 'xferUser' && argument.startsWith('m_buildSubTask')) return 'buildSubTask';
+  if (method === 'xferSnapshot' && argument === 'm_workerMachine') return 'workerMachine';
   if (method === 'xferBool' && argument === 'm_inTransit') return 'inTransit';
   if (method === 'xferInt' && argument === 'm_numPaths') return 'paths.count';
   if (method === 'xferUnsignedInt' && argument === 'm_path[i].startWaypointID') {
@@ -5478,6 +5507,7 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('laserStatusBytes')) return 'laserStatus';
     if (window.includes('sourceSpecialAbilityPackingStateToInt')) return 'packingState';
     if (window.includes('sourceDeployStyleStateToInt')) return 'state';
+    if (window.includes('SOURCE_WORKER_ACT_AS_DOZER')) return 'workerMachine';
     if (window.includes('buildGeneratedSourceStubStateMachineBlockData')) return 'stateMachine';
     if (window.includes('entity.powTruckAIMode')) return 'aiMode';
     if (window.includes('entity.powTruckCurrentTask')) return 'currentTask';
@@ -7475,10 +7505,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AutoDepositUpdate.cpp',
     'AIUpdate/AssaultTransportAIUpdate.cpp',
     'AIUpdate/DeployStyleAIUpdate.cpp',
+    'AIUpdate/DozerAIUpdate.cpp',
     'AIUpdate/POWTruckAIUpdate.cpp',
     'AIUpdate/RailedTransportAIUpdate.cpp',
     'AIUpdate/SupplyTruckAIUpdate.cpp',
     'AIUpdate/WanderAIUpdate.cpp',
+    'AIUpdate/WorkerAIUpdate.cpp',
     'AnimationSteeringUpdate.cpp',
     'BaseRenerateUpdate.cpp',
     'BattlePlanUpdate.cpp',
@@ -8545,6 +8577,16 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-assault-transport-ai-update-fields',
       cppClass: 'AssaultTransportAIUpdate',
       tsHelper: 'buildGeneratedSourceAssaultTransportAIUpdateBlockData',
+    },
+    {
+      category: 'save-dozer-ai-update-fields',
+      cppClass: 'DozerAIUpdate',
+      tsHelper: 'buildGeneratedSourceDozerAIUpdateBlockData',
+    },
+    {
+      category: 'save-worker-ai-update-fields',
+      cppClass: 'WorkerAIUpdate',
+      tsHelper: 'buildGeneratedSourceWorkerAIUpdateBlockData',
     },
     {
       category: 'save-supply-truck-ai-update-fields',
