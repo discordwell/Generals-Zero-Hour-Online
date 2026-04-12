@@ -3037,12 +3037,43 @@ function sourceBehaviorModuleBaseFields(): string[] {
   return ['behavior.version', 'objectModule.version', 'module.version'];
 }
 
+function sourceBehaviorModuleDirectFields(): string[] {
+  return ['version', 'objectModule.version', 'module.version'];
+}
+
 function sourceUpdateModuleBaseFields(): string[] {
   return ['update.version', ...sourceBehaviorModuleBaseFields(), 'nextCallFrameAndPhase'];
 }
 
+function sourceUpdateModuleDirectFields(): string[] {
+  return ['version', ...sourceBehaviorModuleBaseFields(), 'nextCallFrameAndPhase'];
+}
+
 function sourceDieModuleBaseFields(): string[] {
   return ['die.version', ...sourceBehaviorModuleBaseFields()];
+}
+
+function sourceDieModuleDirectFields(): string[] {
+  return ['version', ...sourceBehaviorModuleBaseFields()];
+}
+
+function sourceDamageModuleDirectFields(): string[] {
+  return ['version', ...sourceBehaviorModuleBaseFields()];
+}
+
+function sourceCreateModuleDirectFields(): string[] {
+  return ['version', ...sourceBehaviorModuleBaseFields(), 'needToRunOnBuildComplete'];
+}
+
+function sourceSpecialPowerModuleDirectFields(): string[] {
+  return [
+    'version',
+    ...sourceBehaviorModuleBaseFields(),
+    'availableOnFrame',
+    'pausedCount',
+    'pausedOnFrame',
+    'pausedPercent',
+  ];
 }
 
 function sourceUpgradeMuxFields(): string[] {
@@ -3639,6 +3670,24 @@ export function parseTsSourceDrawableClientUpdateFields(source: string, helperNa
 }
 
 export function parseCppSourceObjectUpdateFields(source: string, className: string): string[] {
+  if (className === 'BehaviorModule') {
+    return sourceBehaviorModuleDirectFields();
+  }
+  if (className === 'UpdateModule') {
+    return sourceUpdateModuleDirectFields();
+  }
+  if (className === 'DieModule') {
+    return sourceDieModuleDirectFields();
+  }
+  if (className === 'DamageModule') {
+    return sourceDamageModuleDirectFields();
+  }
+  if (className === 'CreateModule') {
+    return sourceCreateModuleDirectFields();
+  }
+  if (className === 'SpecialPowerModule') {
+    return sourceSpecialPowerModuleDirectFields();
+  }
   if (className === 'AIUpdateInterface') {
     return sourceAIUpdateInterfaceFields();
   }
@@ -3792,6 +3841,24 @@ export function parseTsSourceObjectUpdateFields(
   }
   if (helperName === 'buildGeneratedSourceAIUpdateInterfaceBlockData') {
     return sourceAIUpdateInterfaceFields();
+  }
+  if (helperName === 'xferSourceBehaviorModuleBase') {
+    return sourceBehaviorModuleDirectFields();
+  }
+  if (helperName === 'xferSourceUpdateModuleBase') {
+    return sourceUpdateModuleDirectFields();
+  }
+  if (helperName === 'xferSourceDieModuleBase') {
+    return sourceDieModuleDirectFields();
+  }
+  if (helperName === 'xferSourceDamageModuleBase') {
+    return sourceDamageModuleDirectFields();
+  }
+  if (helperName === 'xferSourceCreateModule') {
+    return sourceCreateModuleDirectFields();
+  }
+  if (helperName === 'xferSourceSpecialPowerModule') {
+    return sourceSpecialPowerModuleDirectFields();
   }
   if (helperName === 'xferSourceOpenContain') {
     return sourceOpenContainFields();
@@ -8948,6 +9015,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AssistedTargetingUpdate.cpp',
     'AnimationSteeringUpdate.cpp',
     '../Behavior/AutoHealBehavior.cpp',
+    '../Behavior/BehaviorModule.cpp',
     'BaseRenerateUpdate.cpp',
     'BattlePlanUpdate.cpp',
     'BoneFXUpdate.cpp',
@@ -8992,11 +9060,13 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     '../Contain/RiderChangeContain.cpp',
     '../Contain/TunnelContain.cpp',
     '../Contain/TransportContain.cpp',
+    '../Create/CreateModule.cpp',
     'CheckpointUpdate.cpp',
     'CleanupHazardUpdate.cpp',
     'CommandButtonHuntUpdate.cpp',
     'DeletionUpdate.cpp',
     'DemoTrapUpdate.cpp',
+    '../Damage/DamageModule.cpp',
     'DockUpdate/DockUpdate.cpp',
     'DockUpdate/PrisonDockUpdate.cpp',
     'DockUpdate/RailedTransportDockUpdate.cpp',
@@ -9007,6 +9077,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'DynamicShroudClearingRangeUpdate.cpp',
     'EMPUpdate.cpp',
     'EnemyNearUpdate.cpp',
+    '../Die/DieModule.cpp',
     'FireWeaponUpdate.cpp',
     'FireOCLAfterWeaponCooldownUpdate.cpp',
     'FireSpreadUpdate.cpp',
@@ -9044,6 +9115,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'SpecialAbilityUpdate.cpp',
     'SpecialPowerUpdateModule.cpp',
     'SpyVisionUpdate.cpp',
+    '../SpecialPower/SpecialPowerModule.cpp',
     'StealthDetectorUpdate.cpp',
     'StealthUpdate.cpp',
     'StickyBombUpdate.cpp',
@@ -9051,6 +9123,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'StructureToppleUpdate.cpp',
     'TensileFormationUpdate.cpp',
     'ToppleUpdate.cpp',
+    'UpdateModule.cpp',
     'WaveGuideUpdate.cpp',
     'WeaponBonusUpdate.cpp',
     '../Upgrade/UpgradeModule.cpp',
@@ -9738,6 +9811,36 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     tsHelper: string;
     hasUpgradeMux?: boolean;
   }> = [
+    {
+      category: 'save-behavior-module-fields',
+      cppClass: 'BehaviorModule',
+      tsHelper: 'xferSourceBehaviorModuleBase',
+    },
+    {
+      category: 'save-update-module-fields',
+      cppClass: 'UpdateModule',
+      tsHelper: 'xferSourceUpdateModuleBase',
+    },
+    {
+      category: 'save-die-module-fields',
+      cppClass: 'DieModule',
+      tsHelper: 'xferSourceDieModuleBase',
+    },
+    {
+      category: 'save-damage-module-fields',
+      cppClass: 'DamageModule',
+      tsHelper: 'xferSourceDamageModuleBase',
+    },
+    {
+      category: 'save-create-module-object-fields',
+      cppClass: 'CreateModule',
+      tsHelper: 'xferSourceCreateModule',
+    },
+    {
+      category: 'save-special-power-module-object-fields',
+      cppClass: 'SpecialPowerModule',
+      tsHelper: 'xferSourceSpecialPowerModule',
+    },
     {
       category: 'save-weapon-bonus-update-fields',
       cppClass: 'WeaponBonusUpdate',
