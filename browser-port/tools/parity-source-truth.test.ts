@@ -1293,6 +1293,11 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(scriptEngineStringObjectIdListCategory).toBeDefined();
       expect(scriptEngineStringObjectIdListCategory!.status).toBe('match');
 
+      const scriptEngineNamedObjectCategory = report.categories.find((c) =>
+        c.category === 'save-script-engine-named-object-fields');
+      expect(scriptEngineNamedObjectCategory).toBeDefined();
+      expect(scriptEngineNamedObjectCategory!.status).toBe('match');
+
       const scriptEngineStringCoordListCategory = report.categories.find((c) =>
         c.category === 'save-script-engine-string-coord-list-fields');
       expect(scriptEngineStringCoordListCategory).toBeDefined();

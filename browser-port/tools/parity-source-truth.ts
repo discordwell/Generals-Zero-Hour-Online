@@ -1301,6 +1301,43 @@ export function parseTsScriptEngineStringObjectIdListXferFields(source: string):
   return fields;
 }
 
+export function parseCppScriptEngineNamedObjectXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void ScriptEngine::xfer');
+  if (!body) return [];
+  const start = body.indexOf('// named objects');
+  if (start < 0) return [];
+  const end = body.indexOf('// first update', start);
+  const namedObjectBody = body.slice(start, end < 0 ? undefined : end);
+  return parseCppXferFields(namedObjectBody, mapCppScriptEngineNamedObjectField);
+}
+
+export function parseTsScriptEngineNamedObjectXferFields(source: string): string[] {
+  const start = source.indexOf('const namedEntitiesByName =');
+  if (start < 0) return [];
+  const end = source.indexOf('xfer.xferBool(false)', start);
+  const namedObjectBody = source.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  if (/xfer\.xferUnsignedShort\s*\(\s*namedObjectEntries\.length\s*\)/.test(namedObjectBody)) {
+    pushUniqueField(fields, seen, 'count');
+  }
+  if (namedObjectBody.includes('xferScriptEngineAsciiStringObjectIdEntries')) {
+    pushUniqueField(fields, seen, 'list.version');
+    pushUniqueField(fields, seen, 'list.count');
+    pushUniqueField(fields, seen, 'entry.name');
+    pushUniqueField(fields, seen, 'entry.objectId');
+    return fields;
+  }
+  const helperBody = extractFunctionBody(source, 'function xferScriptEngineNamedObjectEntries');
+  if (!helperBody) return fields;
+  const tokenRegex = /xfer\.xfer(?:AsciiString|ObjectID)\s*\(/g;
+  let match;
+  while ((match = tokenRegex.exec(helperBody)) !== null) {
+    pushUniqueField(fields, seen, mapTsScriptEngineNamedObjectField(match[0]!));
+  }
+  return fields;
+}
+
 export function parseCppScriptEngineStringCoordListXferFields(source: string): string[] {
   const body = extractFunctionBody(source, 'static void xferListAsciiStringCoord3D');
   if (!body) return [];
@@ -2702,6 +2739,19 @@ function mapTsScriptEngineStringObjectIdListField(token: string): string | null 
   return null;
 }
 
+function mapCppScriptEngineNamedObjectField(method: string, argument: string): string | null {
+  if (method === 'xferUnsignedShort' && argument === 'namedObjectsCount') return 'count';
+  if (method === 'xferAsciiString' && argument === 'namedObjectName') return 'entry.name';
+  if (method === 'xferObjectID' && argument === 'objectID') return 'entry.objectId';
+  return null;
+}
+
+function mapTsScriptEngineNamedObjectField(token: string): string | null {
+  if (token.includes('xferAsciiString')) return 'entry.name';
+  if (token.includes('xferObjectID')) return 'entry.objectId';
+  return null;
+}
+
 function mapCppScriptEngineStringCoordListField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferUnsignedShort' && argument === 'count') return 'count';
@@ -3133,6 +3183,10 @@ export function compareScriptEngineStringObjectIdListFields(
   tsFields: string[],
 ): ParityCategoryResult {
   return compareOrderedStrings('save-script-engine-string-object-id-list-fields', cppFields, tsFields);
+}
+
+export function compareScriptEngineNamedObjectFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-script-engine-named-object-fields', cppFields, tsFields);
 }
 
 export function compareScriptEngineStringCoordListFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
@@ -3691,6 +3745,15 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     categories.push(compareScriptEngineStringObjectIdListFields(
       cppScriptEngineStringObjectIdListFields,
       tsScriptEngineStringObjectIdListFields,
+    ));
+  }
+
+  const cppScriptEngineNamedObjectFields = parseCppScriptEngineNamedObjectXferFields(scriptEngineSource);
+  const tsScriptEngineNamedObjectFields = parseTsScriptEngineNamedObjectXferFields(tsRuntimeSave);
+  if (cppScriptEngineNamedObjectFields.length > 0 && tsScriptEngineNamedObjectFields.length > 0) {
+    categories.push(compareScriptEngineNamedObjectFields(
+      cppScriptEngineNamedObjectFields,
+      tsScriptEngineNamedObjectFields,
     ));
   }
 

@@ -1670,6 +1670,29 @@ function xferScriptEngineAsciiStringObjectIdEntries(
   return entries;
 }
 
+function xferScriptEngineNamedObjectEntries(
+  xfer: Xfer,
+  count: number,
+  entries: Array<[string, number]>,
+): Array<[string, number]> {
+  if (xfer.getMode() === XferMode.XFER_LOAD) {
+    const loaded: Array<[string, number]> = [];
+    for (let index = 0; index < count; index += 1) {
+      loaded.push([
+        xfer.xferAsciiString(''),
+        xfer.xferObjectID(0),
+      ]);
+    }
+    return loaded;
+  }
+  const savedEntries = entries.slice(0, count);
+  for (const [name, objectId] of savedEntries) {
+    xfer.xferAsciiString(name);
+    xfer.xferObjectID(Math.max(0, Math.trunc(objectId)));
+  }
+  return savedEntries;
+}
+
 function xferScriptEngineAsciiStringCoord3DEntries(
   xfer: Xfer,
   entries: Array<[string, { x: number; y: number; z: number }]>,
@@ -24703,8 +24726,9 @@ class ScriptEngineSnapshot implements Snapshot {
     const namedObjectsCount = xfer.xferUnsignedShort(namedObjectEntries.length);
     const loadedNamedEntitiesByName = new Map<string, number>();
     const namedEntitiesForLookup = new Map<string, number>();
-    const namedObjects = xferScriptEngineAsciiStringObjectIdEntries(
+    const namedObjects = xferScriptEngineNamedObjectEntries(
       xfer,
+      namedObjectsCount,
       namedObjectEntries.slice(0, namedObjectsCount),
     );
     if (xfer.getMode() === XferMode.XFER_LOAD) {
