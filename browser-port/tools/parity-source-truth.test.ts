@@ -1205,6 +1205,15 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
       expect(gameLogicCategory).toBeDefined();
       expect(gameLogicCategory!.status).toBe('match');
 
+      const objectModuleListCategory = report.categories.find((c) =>
+        c.category === 'save-object-module-list-fields');
+      expect(objectModuleListCategory).toBeDefined();
+      expect(objectModuleListCategory!.status).toBe('match');
+
+      const objectCategory = report.categories.find((c) => c.category === 'save-object-fields');
+      expect(objectCategory).toBeDefined();
+      expect(objectCategory!.status).toBe('match');
+
       const radarCategory = report.categories.find((c) => c.category === 'save-radar-fields');
       expect(radarCategory).toBeDefined();
       expect(radarCategory!.status).toBe('match');

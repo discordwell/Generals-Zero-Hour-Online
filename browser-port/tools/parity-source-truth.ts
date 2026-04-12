@@ -638,6 +638,91 @@ export function parseTsSourceGameLogicXferFields(source: string): string[] {
   return fields;
 }
 
+export function parseCppObjectModuleListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Object::xfer');
+  if (!body) return [];
+  const start = body.indexOf('// module count');
+  if (start < 0) return [];
+  const end = body.indexOf('if ( version >= 3 )', start);
+  const moduleBody = body.slice(start, end < 0 ? undefined : end);
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer->beginBlock\s*\(\s*\)|xfer->endBlock\s*\(\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(moduleBody)) !== null) {
+    if (match[0]!.includes('beginBlock')) {
+      pushUniqueField(fields, seen, 'module.block.begin');
+      continue;
+    }
+    if (match[0]!.includes('endBlock')) {
+      pushUniqueField(fields, seen, 'module.block.end');
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppObjectModuleListField(match[1]!, normalizeCppXferArgument(match[2]!)));
+  }
+  return fields;
+}
+
+export function parseTsObjectModuleListXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceObjectModuleStates');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferUnsignedShort\s*\(|xfer\.xferAsciiString\s*\(|xfer\.beginBlock\s*\(\s*\)|xfer\.xferUser\s*\(|xfer\.endBlock\s*\(\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsObjectModuleListField(match[0]!));
+  }
+  return fields;
+}
+
+export function parseCppObjectXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'void Object::xfer');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /m_status\.xfer\s*\(\s*xfer\s*\)|m_disabledMask\.xfer\s*\(\s*xfer\s*\)|m_curWeaponSetFlags\.xfer\s*\(\s*xfer\s*\)|m_specialPowerBits\.xfer\s*\(\s*xfer\s*\)|xfer->(xfer\w+)\s*\(\s*([^)]*?)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    const token = match[0]!;
+    if (token.startsWith('m_status.xfer')) {
+      pushUniqueField(fields, seen, 'statusBits');
+      continue;
+    }
+    if (token.startsWith('m_disabledMask.xfer')) {
+      pushUniqueField(fields, seen, 'disabledMask');
+      continue;
+    }
+    if (token.startsWith('m_curWeaponSetFlags.xfer')) {
+      pushUniqueField(fields, seen, 'weaponSetFlags');
+      continue;
+    }
+    if (token.startsWith('m_specialPowerBits.xfer')) {
+      pushUniqueField(fields, seen, 'specialPowerBits');
+      continue;
+    }
+    pushUniqueField(fields, seen, mapCppObjectField(match[1]!, normalizeCppXferArgument(match[2]!)));
+  }
+  return fields;
+}
+
+export function parseTsObjectXferFields(source: string): string[] {
+  const body = extractFunctionBody(source, 'function xferSourceMapEntityChunkState');
+  if (!body) return [];
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  const tokenRegex =
+    /xfer\.xferVersion\s*\(|xfer\.xferObjectID\s*\(\s*current\.objectId\s*\)|xferSourceMatrix3DState\s*\(|xfer\.xferUnsignedInt\s*\(\s*current\.teamId\s*\)|xfer\.xferObjectID\s*\(\s*current\.(?:producerId|builderId|drawableId)\s*\)|xfer\.xferAsciiString\s*\(\s*current\.internalName\s*\)|xferSourceStringBitFlagsState\s*\(\s*xfer\s*,\s*current\.(?:statusBits|disabledMask|weaponSetFlags|specialPowerBits)|xfer\.xferUnsignedByte\s*\(\s*current\.(?:scriptStatus|privateStatus)\s*\)|xferSourceGeometryInfoState\s*\(|xferSourceSightingInfoState\s*\(\s*xfer\s*,\s*current\.(?:partitionLastLook|partitionRevealAllLastLook|partitionLastShroud)|visionSpiedBy\.push\s*\(\s*xfer\.xferInt|xfer\.xferUnsignedShort\s*\(\s*current\.visionSpiedMask\s*\)|xfer\.xferReal\s*\(\s*current\.(?:visionRange|shroudClearingRange|shroudRange|constructionPercent)\s*\)|xfer\.xferBool\s*\(\s*current\.singleUseCommandUsed\s*\)|disabledTillFrame\.push\s*\(\s*xfer\.xferUnsignedInt|xfer\.xferUnsignedInt\s*\(\s*current\.(?:specialModelConditionUntil|containedByFrame|enteredOrExitedFrame|safeOcclusionFrame|soleHealingBenefactorExpirationFrame|weaponBonusCondition)\s*\)|xferSourceExperienceTrackerState\s*\(|xfer\.xferObjectID\s*\(\s*current\.(?:containedById|soleHealingBenefactorId)\s*\?\?\s*0\s*\)|xferSourceUpgradeMaskState\s*\(|xfer\.xferAsciiString\s*\(\s*current\.originalTeamName\s*\)|xfer\.xferColor\s*\(\s*current\.indicatorColor\s*\)|xfer\.xferCoord3D\s*\(\s*current\.healthBoxOffset\s*\)|const triggerAreaCount\s*=\s*xfer\.xferByte\s*\(|xferSourceICoord3DState\s*\(|xfer\.xferAsciiString\s*\(\s*triggerArea\.triggerName\s*\)|xfer\.xferByte\s*\(\s*triggerArea\.(?:entered|exited|isInside)\s*\)|xfer\.xferInt\s*\(\s*current\.(?:layer|destinationLayer|formationId)\s*\)|xfer\.xferBool\s*\(\s*current\.isSelectable\s*\)|xferSourceCoord2DState\s*\(\s*xfer\s*,\s*current\.formationOffset\s*\)|xferSourceObjectModuleStates\s*\(|xferSourceFixedBytes\s*\(\s*xfer\s*,\s*current\.lastWeaponCondition|xferSourceWeaponSetState\s*\(|xfer\.xferAsciiString\s*\(\s*current\.commandSetStringOverride\s*\)|xfer\.xferBool\s*\(\s*current\.(?:modulesReady|isReceivingDifficultyBonus)\s*\)/g;
+  let match;
+  while ((match = tokenRegex.exec(body)) !== null) {
+    pushUniqueField(fields, seen, mapTsObjectField(match[0]!));
+  }
+  return fields;
+}
+
 /**
  * Parse C++ Radar::xfer source-save field order.
  */
@@ -2349,6 +2434,140 @@ function mapTsSourceGameLogicField(token: string): string | null {
   return null;
 }
 
+function mapCppObjectModuleListField(method: string, argument: string): string | null {
+  if (method === 'xferUnsignedShort' && argument === 'moduleCount') return 'moduleCount';
+  if (method === 'xferAsciiString' && argument === 'moduleIdentifier') return 'module.identifier';
+  if (method === 'xferSnapshot' && argument === 'module') return 'module.snapshot';
+  return null;
+}
+
+function mapTsObjectModuleListField(token: string): string | null {
+  if (token.includes('xferUnsignedShort')) return 'moduleCount';
+  if (token.includes('xferAsciiString')) return 'module.identifier';
+  if (token.includes('beginBlock')) return 'module.block.begin';
+  if (token.includes('xferUser')) return 'module.snapshot';
+  if (token.includes('endBlock')) return 'module.block.end';
+  return null;
+}
+
+function mapCppObjectField(method: string, argument: string): string | null {
+  if (method === 'xferVersion') return 'version';
+  if (method === 'xferObjectID' && argument === 'id') return 'objectId';
+  if (method === 'xferMatrix3D' && argument === 'mtx') return 'transformMatrix';
+  if (method === 'xferUser' && argument.startsWith('teamID')) return 'teamId';
+  if (method === 'xferObjectID' && argument === 'm_producerID') return 'producerId';
+  if (method === 'xferObjectID' && argument === 'm_builderID') return 'builderId';
+  if (method === 'xferDrawableID' && argument === 'drawableID') return 'drawableId';
+  if (method === 'xferAsciiString' && argument === 'm_name') return 'internalName';
+  if (method === 'xferUnsignedByte' && argument === 'm_scriptStatus') return 'scriptStatus';
+  if (method === 'xferUnsignedByte' && argument === 'm_privateStatus') return 'privateStatus';
+  if (method === 'xferSnapshot' && argument === 'm_geometryInfo') return 'geometryInfo';
+  if (method === 'xferSnapshot' && argument === 'm_partitionLastLook') return 'partitionLastLook';
+  if (method === 'xferSnapshot' && argument === 'm_partitionRevealAllLastLook') return 'partitionRevealAllLastLook';
+  if (method === 'xferSnapshot' && argument === 'm_partitionLastShroud') return 'partitionLastShroud';
+  if (method === 'xferUser' && argument.startsWith('m_visionSpiedBy')) return 'visionSpiedBy';
+  if (method === 'xferUser' && argument.startsWith('m_visionSpiedMask')) return 'visionSpiedMask';
+  if (method === 'xferReal' && argument === 'm_visionRange') return 'visionRange';
+  if (method === 'xferReal' && argument === 'm_shroudClearingRange') return 'shroudClearingRange';
+  if (method === 'xferReal' && argument === 'm_shroudRange') return 'shroudRange';
+  if (method === 'xferBool' && argument === 'm_singleUseCommandUsed') return 'singleUseCommandUsed';
+  if (method === 'xferUser' && argument.startsWith('m_disabledTillFrame')) return 'disabledTillFrame';
+  if (method === 'xferUnsignedInt' && argument === 'm_smcUntil') return 'specialModelConditionUntil';
+  if (method === 'xferSnapshot' && argument === 'm_experienceTracker') return 'experienceTracker';
+  if (method === 'xferObjectID' && argument === 'm_xferContainedByID') return 'containedById';
+  if (method === 'xferUnsignedInt' && argument === 'm_containedByFrame') return 'containedByFrame';
+  if (method === 'xferReal' && argument === 'm_constructionPercent') return 'constructionPercent';
+  if (method === 'xferUpgradeMask' && argument === 'm_objectUpgradesCompleted') return 'completedUpgradeNames';
+  if (method === 'xferAsciiString' && argument === 'm_originalTeamName') return 'originalTeamName';
+  if (method === 'xferColor' && argument === 'm_indicatorColor') return 'indicatorColor';
+  if (method === 'xferCoord3D' && argument === 'm_healthBoxOffset') return 'healthBoxOffset';
+  if (method === 'xferByte' && argument === 'm_numTriggerAreasActive') return 'triggerAreaCount';
+  if (method === 'xferUnsignedInt' && argument === 'm_enteredOrExitedFrame') return 'enteredOrExitedFrame';
+  if (method === 'xferICoord3D' && argument === 'm_iPos') return 'ipos';
+  if (method === 'xferAsciiString' && argument === 'triggerName') return 'triggerArea.name';
+  if (method === 'xferByte' && argument === 'm_triggerInfo[i].entered') return 'triggerArea.entered';
+  if (method === 'xferByte' && argument === 'm_triggerInfo[i].exited') return 'triggerArea.exited';
+  if (method === 'xferByte' && argument === 'm_triggerInfo[i].isInside') return 'triggerArea.isInside';
+  if (method === 'xferUser' && argument.startsWith('m_layer')) return 'layer';
+  if (method === 'xferUser' && argument.startsWith('m_destinationLayer')) return 'destinationLayer';
+  if (method === 'xferBool' && argument === 'm_isSelectable') return 'isSelectable';
+  if (method === 'xferUnsignedInt' && argument === 'm_safeOcclusionFrame') return 'safeOcclusionFrame';
+  if (method === 'xferUser' && argument.startsWith('m_formationID')) return 'formationId';
+  if (method === 'xferCoord2D' && argument === 'm_formationOffset') return 'formationOffset';
+  if (method === 'xferUnsignedShort' && argument === 'moduleCount') return 'modules.snapshot';
+  if (method === 'xferObjectID' && argument === 'm_soleHealingBenefactorID') return 'soleHealingBenefactorId';
+  if (method === 'xferUnsignedInt' && argument === 'm_soleHealingBenefactorExpirationFrame') {
+    return 'soleHealingBenefactorExpirationFrame';
+  }
+  if (method === 'xferUnsignedInt' && argument === 'm_weaponBonusCondition') return 'weaponBonusCondition';
+  if (method === 'xferUser' && argument.startsWith('m_lastWeaponCondition')) return 'lastWeaponCondition';
+  if (method === 'xferSnapshot' && argument === 'm_weaponSet') return 'weaponSet';
+  if (method === 'xferAsciiString' && argument === 'm_commandSetStringOverride') return 'commandSetStringOverride';
+  if (method === 'xferBool' && argument === 'm_modulesReady') return 'modulesReady';
+  if (method === 'xferBool' && argument === 'm_isReceivingDifficultyBonus') return 'isReceivingDifficultyBonus';
+  return null;
+}
+
+function mapTsObjectField(token: string): string | null {
+  if (token.includes('xferVersion')) return 'version';
+  if (token.includes('current.objectId')) return 'objectId';
+  if (token.includes('xferSourceMatrix3DState')) return 'transformMatrix';
+  if (token.includes('current.teamId')) return 'teamId';
+  if (token.includes('current.producerId')) return 'producerId';
+  if (token.includes('current.builderId')) return 'builderId';
+  if (token.includes('current.drawableId')) return 'drawableId';
+  if (token.includes('current.internalName')) return 'internalName';
+  if (token.includes('current.statusBits')) return 'statusBits';
+  if (token.includes('current.scriptStatus')) return 'scriptStatus';
+  if (token.includes('current.privateStatus')) return 'privateStatus';
+  if (token.includes('xferSourceGeometryInfoState')) return 'geometryInfo';
+  if (token.includes('current.partitionLastLook')) return 'partitionLastLook';
+  if (token.includes('current.partitionRevealAllLastLook')) return 'partitionRevealAllLastLook';
+  if (token.includes('current.partitionLastShroud')) return 'partitionLastShroud';
+  if (token.includes('visionSpiedBy.push')) return 'visionSpiedBy';
+  if (token.includes('current.visionSpiedMask')) return 'visionSpiedMask';
+  if (token.includes('current.visionRange')) return 'visionRange';
+  if (token.includes('current.shroudClearingRange')) return 'shroudClearingRange';
+  if (token.includes('current.shroudRange')) return 'shroudRange';
+  if (token.includes('current.disabledMask')) return 'disabledMask';
+  if (token.includes('current.singleUseCommandUsed')) return 'singleUseCommandUsed';
+  if (token.includes('disabledTillFrame.push')) return 'disabledTillFrame';
+  if (token.includes('current.specialModelConditionUntil')) return 'specialModelConditionUntil';
+  if (token.includes('xferSourceExperienceTrackerState')) return 'experienceTracker';
+  if (token.includes('current.containedById')) return 'containedById';
+  if (token.includes('current.containedByFrame')) return 'containedByFrame';
+  if (token.includes('current.constructionPercent')) return 'constructionPercent';
+  if (token.includes('xferSourceUpgradeMaskState')) return 'completedUpgradeNames';
+  if (token.includes('current.originalTeamName')) return 'originalTeamName';
+  if (token.includes('current.indicatorColor')) return 'indicatorColor';
+  if (token.includes('current.healthBoxOffset')) return 'healthBoxOffset';
+  if (token.includes('xferByte') && !token.includes('triggerArea.')) return 'triggerAreaCount';
+  if (token.includes('current.enteredOrExitedFrame')) return 'enteredOrExitedFrame';
+  if (token.includes('xferSourceICoord3DState')) return 'ipos';
+  if (token.includes('triggerArea.triggerName')) return 'triggerArea.name';
+  if (token.includes('triggerArea.entered')) return 'triggerArea.entered';
+  if (token.includes('triggerArea.exited')) return 'triggerArea.exited';
+  if (token.includes('triggerArea.isInside')) return 'triggerArea.isInside';
+  if (token.includes('current.layer')) return 'layer';
+  if (token.includes('current.destinationLayer')) return 'destinationLayer';
+  if (token.includes('current.isSelectable')) return 'isSelectable';
+  if (token.includes('current.safeOcclusionFrame')) return 'safeOcclusionFrame';
+  if (token.includes('current.formationId')) return 'formationId';
+  if (token.includes('current.formationOffset')) return 'formationOffset';
+  if (token.includes('xferSourceObjectModuleStates')) return 'modules.snapshot';
+  if (token.includes('current.soleHealingBenefactorId')) return 'soleHealingBenefactorId';
+  if (token.includes('current.soleHealingBenefactorExpirationFrame')) return 'soleHealingBenefactorExpirationFrame';
+  if (token.includes('current.weaponSetFlags')) return 'weaponSetFlags';
+  if (token.includes('current.weaponBonusCondition')) return 'weaponBonusCondition';
+  if (token.includes('current.lastWeaponCondition')) return 'lastWeaponCondition';
+  if (token.includes('xferSourceWeaponSetState')) return 'weaponSet';
+  if (token.includes('current.specialPowerBits')) return 'specialPowerBits';
+  if (token.includes('current.commandSetStringOverride')) return 'commandSetStringOverride';
+  if (token.includes('current.modulesReady')) return 'modulesReady';
+  if (token.includes('current.isReceivingDifficultyBonus')) return 'isReceivingDifficultyBonus';
+  return null;
+}
+
 function mapCppRadarField(method: string, argument: string): string | null {
   if (method === 'xferVersion') return 'version';
   if (method === 'xferBool' && argument === 'm_radarHidden') return 'radarHidden';
@@ -3595,6 +3814,14 @@ export function compareGameLogicFields(cppFields: string[], tsFields: string[]):
   return compareOrderedStrings('save-game-logic-fields', cppFields, tsFields);
 }
 
+export function compareObjectModuleListFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-object-module-list-fields', cppFields, tsFields);
+}
+
+export function compareObjectFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
+  return compareOrderedStrings('save-object-fields', cppFields, tsFields);
+}
+
 export function compareRadarFields(cppFields: string[], tsFields: string[]): ParityCategoryResult {
   return compareOrderedStrings('save-radar-fields', cppFields, tsFields);
 }
@@ -3919,6 +4146,12 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const genGameLogicCpp = await readFileOrEmpty(
     path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/System/GameLogic.cpp'),
   );
+  const zhObjectCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Object.cpp'),
+  );
+  const genObjectCpp = await readFileOrEmpty(
+    path.join(repoRoot, 'Generals/Code/GameEngine/Source/GameLogic/Object/Object.cpp'),
+  );
   const zhBuildAssistantCpp = await readFileOrEmpty(
     path.join(repoRoot, 'GeneralsMD/Code/GameEngine/Source/Common/System/BuildAssistant.cpp'),
   );
@@ -4045,6 +4278,8 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsIndex = await readFileOrEmpty(tsIndexPath);
   const tsRuntimeSavePath = path.join(rootDir, 'packages/app/src/runtime-save-game.ts');
   const tsRuntimeSave = await readFileOrEmpty(tsRuntimeSavePath);
+  const tsEntityXferPath = path.join(rootDir, 'packages/game-logic/src/entity-xfer.ts');
+  const tsEntityXfer = await readFileOrEmpty(tsEntityXferPath);
   const tsRuntimeTeamFactoryPath = path.join(rootDir, 'packages/app/src/runtime-team-factory-save.ts');
   const tsRuntimeTeamFactory = await readFileOrEmpty(tsRuntimeTeamFactoryPath);
 
@@ -4171,6 +4406,19 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
   const tsGameLogicFields = parseTsSourceGameLogicXferFields(tsRuntimeSave);
   if (cppGameLogicFields.length > 0 && tsGameLogicFields.length > 0) {
     categories.push(compareGameLogicFields(cppGameLogicFields, tsGameLogicFields));
+  }
+
+  const objectSource = zhObjectCpp || genObjectCpp;
+  const cppObjectModuleListFields = parseCppObjectModuleListXferFields(objectSource);
+  const tsObjectModuleListFields = parseTsObjectModuleListXferFields(tsEntityXfer);
+  if (cppObjectModuleListFields.length > 0 && tsObjectModuleListFields.length > 0) {
+    categories.push(compareObjectModuleListFields(cppObjectModuleListFields, tsObjectModuleListFields));
+  }
+
+  const cppObjectFields = parseCppObjectXferFields(objectSource);
+  const tsObjectFields = parseTsObjectXferFields(tsEntityXfer);
+  if (cppObjectFields.length > 0 && tsObjectFields.length > 0) {
+    categories.push(compareObjectFields(cppObjectFields, tsObjectFields));
   }
 
   const radarSource = zhRadarCpp || genRadarCpp;
