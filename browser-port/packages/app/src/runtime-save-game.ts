@@ -710,6 +710,7 @@ interface RuntimeSaveMapState {
   embeddedMapBytes: Uint8Array;
   objectIdCounter: number;
   drawableIdCounter: number;
+  trailingBytes: Uint8Array;
 }
 
 interface RuntimeSaveCampaignState {
@@ -924,6 +925,7 @@ export interface RuntimeSaveBootstrap {
   metadata: ParsedSaveGameInfo;
   mapData: MapDataJSON | null;
   embeddedMapBytes: ArrayBuffer;
+  gameStateMapTrailingBytes: ArrayBuffer;
   mapPath: string | null;
   mapObjectIdCounter: number;
   mapDrawableIdCounter: number;
@@ -3511,6 +3513,9 @@ class MapSnapshot implements Snapshot {
 
     this.state.objectIdCounter = xfer.xferObjectID(this.state.objectIdCounter);
     this.state.drawableIdCounter = xfer.xferUnsignedInt(this.state.drawableIdCounter);
+    if (xfer.getMode() === XferMode.XFER_SAVE && this.state.trailingBytes.byteLength > 0) {
+      xfer.xferUser(this.state.trailingBytes);
+    }
   }
 
   loadPostProcess(): void {
@@ -26378,6 +26383,7 @@ export function buildRuntimeSaveFile(params: {
     | 'listSourceUpgradeNames'
   >>);
   embeddedMapBytes?: Uint8Array | null;
+  gameStateMapTrailingBytes?: Uint8Array | null;
   sourceGameMode?: number;
   campaign?: RuntimeSaveCampaignBootstrap | null;
   passthroughBlocks?: readonly RuntimeSavePassthroughBlock[];
@@ -26517,6 +26523,7 @@ export function buildRuntimeSaveFile(params: {
     embeddedMapBytes,
     objectIdCounter,
     drawableIdCounter,
+    trailingBytes: params.gameStateMapTrailingBytes ?? new Uint8Array(0),
   };
 
   const state = new GameState();
@@ -26914,6 +26921,7 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     metadata,
     mapData,
     embeddedMapBytes: mapInfo.embeddedMapData,
+    gameStateMapTrailingBytes: mapInfo.trailingBytes,
     mapPath: resolvedMapPath,
     mapObjectIdCounter: mapInfo.objectIdCounter,
     mapDrawableIdCounter: mapInfo.drawableIdCounter,

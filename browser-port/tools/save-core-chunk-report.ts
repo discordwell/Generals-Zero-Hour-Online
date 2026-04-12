@@ -40,6 +40,7 @@ export interface SaveCoreChunkRoundTripReport {
   rebuiltChunkNames?: string[];
   chunkNamesPreserved?: boolean;
   embeddedMapBytesPreserved?: boolean;
+  gameStateMapTrailingBytesPreserved?: boolean;
 }
 
 export interface SaveCoreChunkCollectionReportSummary {
@@ -227,6 +228,7 @@ function buildRoundTripSaveData(data: ArrayBuffer): ArrayBuffer | null {
     mapPath: parsed.mapPath,
     mapData: parsed.mapData,
     embeddedMapBytes: new Uint8Array(parsed.embeddedMapBytes),
+    gameStateMapTrailingBytes: new Uint8Array(parsed.gameStateMapTrailingBytes),
     cameraState: parsed.cameraState,
     tacticalViewState: parsed.tacticalViewState,
     gameClientState: parsed.gameClientState,
@@ -314,15 +316,23 @@ function buildSaveCoreChunkRoundTripReport(
     const sourceChunkNames = listSaveGameChunks(data).map((chunk) => chunk.blockName);
     const rebuiltChunkNames = listSaveGameChunks(rebuiltData).map((chunk) => chunk.blockName);
     const chunkNamesPreserved = arrayValuesEqual(sourceChunkNames, rebuiltChunkNames);
+    const sourceMapInfo = parseSaveGameMapInfo(data);
+    const rebuiltMapInfo = parseSaveGameMapInfo(rebuiltData);
     const embeddedMapBytesPreserved = arrayBuffersEqual(
-      parseSaveGameMapInfo(data).embeddedMapData,
-      parseSaveGameMapInfo(rebuiltData).embeddedMapData,
+      sourceMapInfo.embeddedMapData,
+      rebuiltMapInfo.embeddedMapData,
+    );
+    const gameStateMapTrailingBytesPreserved = arrayBuffersEqual(
+      sourceMapInfo.trailingBytes,
+      rebuiltMapInfo.trailingBytes,
     );
     const preservationBlockReason = !chunkNamesPreserved
       ? 'roundtrip-chunk-names-changed'
       : !embeddedMapBytesPreserved
         ? 'roundtrip-map-payload-changed'
-        : null;
+        : !gameStateMapTrailingBytesPreserved
+          ? 'roundtrip-gamestate-map-trailing-bytes-changed'
+          : null;
     const status = preservationBlockReason === null
       ? rebuiltReport.summary.status
       : 'blocked';
@@ -335,6 +345,7 @@ function buildSaveCoreChunkRoundTripReport(
       rebuiltChunkNames,
       chunkNamesPreserved,
       embeddedMapBytesPreserved,
+      gameStateMapTrailingBytesPreserved,
     };
   } catch (error) {
     return {

@@ -287,6 +287,7 @@ describe('save core chunk report', () => {
     expect(report.roundTrip.summary?.status).toBe('pass');
     expect(report.roundTrip.chunkNamesPreserved).toBe(true);
     expect(report.roundTrip.embeddedMapBytesPreserved).toBe(true);
+    expect(report.roundTrip.gameStateMapTrailingBytesPreserved).toBe(true);
   });
 
   it('round-trips parsed source saves with non-JSON embedded map payloads', () => {
@@ -295,6 +296,7 @@ describe('save core chunk report', () => {
       mapPath: 'Save\\MD_USA01.map',
       mapData: null,
       embeddedMapBytes: new Uint8Array([0xde, 0xad, 0xbe, 0xef]),
+      gameStateMapTrailingBytes: new Uint8Array([0xaa, 0xbb, 0xcc]),
       cameraState: null,
       gameLogic: createRoundTripGameLogic(8),
     });
@@ -307,5 +309,6 @@ describe('save core chunk report', () => {
     expect(report.roundTrip.summary?.status).toBe('pass');
     expect(report.roundTrip.chunkNamesPreserved).toBe(true);
     expect(report.roundTrip.embeddedMapBytesPreserved).toBe(true);
+    expect(report.roundTrip.gameStateMapTrailingBytesPreserved).toBe(true);
   });
 });

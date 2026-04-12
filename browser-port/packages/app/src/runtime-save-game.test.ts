@@ -23,6 +23,7 @@ import {
   inspectRuntimeSaveCoreChunkStatus,
   parseSourceSidesListChunk,
   parseRuntimeSaveFile,
+  SOURCE_GAME_MODE_SKIRMISH,
   SOURCE_GAME_MODE_SINGLE_PLAYER,
   TerrainVisualSnapshot,
   type RuntimeSaveChallengeGameInfoState,
@@ -11253,6 +11254,7 @@ describe('runtime-save-game', () => {
 
   it('treats embedded retail map bytes as non-JSON payloads and falls back to map path reload', () => {
     const embeddedMapBytes = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
+    const gameStateMapTrailingBytes = new Uint8Array([0xaa, 0xbb, 0xcc]);
 
     const saveFile = buildRuntimeSaveFile({
       description: 'Retail Map Bytes',
@@ -11293,14 +11295,20 @@ describe('runtime-save-game', () => {
         getObjectIdCounter: () => 10,
       },
       embeddedMapBytes,
-      sourceGameMode: SOURCE_GAME_MODE_SINGLE_PLAYER,
+      gameStateMapTrailingBytes,
+      sourceGameMode: SOURCE_GAME_MODE_SKIRMISH,
     });
 
     const parsed = parseRuntimeSaveFile(saveFile.data);
+    const mapInfo = parseSaveGameMapInfo(saveFile.data);
 
     expect(parsed.mapPath).toBe('maps/_extracted/MapsZH/Maps/MD_USA01/MD_USA01.json');
     expect(parsed.mapData).toBeNull();
     expect(Array.from(new Uint8Array(parsed.embeddedMapBytes))).toEqual(Array.from(embeddedMapBytes));
+    expect(Array.from(new Uint8Array(parsed.gameStateMapTrailingBytes))).toEqual(
+      Array.from(gameStateMapTrailingBytes),
+    );
+    expect(Array.from(new Uint8Array(mapInfo.trailingBytes))).toEqual(Array.from(gameStateMapTrailingBytes));
     expect(parsed.campaign).toBeNull();
   });
 
