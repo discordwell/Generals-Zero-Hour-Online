@@ -10025,7 +10025,10 @@ const SOURCE_AI_FAST_AS_POSSIBLE = 999999.0;
 const SOURCE_AI_PRIOR_WAYPOINT_DEFAULT = 0xfacade;
 const SOURCE_AI_CURRENT_WAYPOINT_DEFAULT = 0xfacade;
 const SOURCE_AI_INVALID_WAYPOINT_ID = 0x7fffffff;
+const SOURCE_AI_CMD_FROM_PLAYER = 0;
+const SOURCE_AI_CMD_FROM_SCRIPT = 1;
 const SOURCE_AI_CMD_FROM_AI = 2;
+const SOURCE_AI_CMD_FROM_DOZER = 3;
 const SOURCE_AI_GUARDTARGET_NONE = 3;
 const SOURCE_AI_TURRET_INVALID = -1;
 const SOURCE_AI_ATTITUDE_NORMAL = 0;
@@ -10123,6 +10126,24 @@ function sourceAILocomotorSetType(setName: unknown): number {
     return -1;
   }
   return SOURCE_LOCOMOTOR_SET_TYPE_BY_NAME.get(setName.trim().toUpperCase()) ?? -1;
+}
+
+function sourceAICommandSourceFromRuntime(entity: MapEntity): number {
+  const value = typeof entity.lastCommandSource === 'string'
+    ? entity.lastCommandSource
+    : entity.attackCommandSource;
+  switch (typeof value === 'string' ? value.trim().toUpperCase() : '') {
+    case 'PLAYER':
+      return SOURCE_AI_CMD_FROM_PLAYER;
+    case 'SCRIPT':
+      return SOURCE_AI_CMD_FROM_SCRIPT;
+    case 'DOZER':
+      return SOURCE_AI_CMD_FROM_DOZER;
+    case 'AI':
+      return SOURCE_AI_CMD_FROM_AI;
+    default:
+      return SOURCE_AI_CMD_FROM_AI;
+  }
 }
 
 function sourceAIIdleInitialSleepOffset(entity: MapEntity): number {
@@ -10619,7 +10640,7 @@ function buildGeneratedSourceAIUpdateInterfaceBlockData(
     saver.xferUnsignedInt(0);
     saver.xferObjectID(normalizeSourceObjectId(entity.attackTargetEntityId ?? 0));
     saver.xferReal(SOURCE_AI_FAST_AS_POSSIBLE);
-    saver.xferUser(buildSourceRawInt32Bytes(SOURCE_AI_CMD_FROM_AI));
+    saver.xferUser(buildSourceRawInt32Bytes(sourceAICommandSourceFromRuntime(entity)));
     saver.xferUser(buildSourceRawInt32Bytes(SOURCE_AI_GUARDTARGET_NONE));
     saver.xferUser(buildSourceRawInt32Bytes(SOURCE_AI_GUARDTARGET_NONE));
     saver.xferCoord3D({ x: 0, y: 0, z: 0 });

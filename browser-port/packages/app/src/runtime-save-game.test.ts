@@ -20492,6 +20492,7 @@ describe('runtime-save-game', () => {
             attackOriginalVictimPosition: { x: 150, z: 250 },
             attackSubState: 'AIMING',
             attackCommandSource: 'PLAYER',
+            lastCommandSource: 'PLAYER',
             autoTargetScanNextFrame: 81,
             moving: false,
             moveTarget: null,
@@ -20512,6 +20513,7 @@ describe('runtime-save-game', () => {
             attackTargetEntityId: null,
             attackTargetPosition: null,
             attackSubState: 'IDLE',
+            lastCommandSource: 'SCRIPT',
             autoTargetScanNextFrame: 82,
             moving: true,
             moveTarget: { x: 120, z: 220 },
@@ -20583,6 +20585,7 @@ describe('runtime-save-game', () => {
       goalPosition: { x: 150, y: 250, z: 0 },
       currentVictimId: 99,
       nextMoodCheckTime: 81,
+      lastCommandSource: 0,
       attackState: {
         version: 1,
         hasMachine: true,
@@ -20629,6 +20632,7 @@ describe('runtime-save-game', () => {
       },
       currentVictimId: 0,
       nextMoodCheckTime: 82,
+      lastCommandSource: 1,
     });
     expect(moveAI.bytesRead).toBe(moveModule!.blockData.byteLength);
 
