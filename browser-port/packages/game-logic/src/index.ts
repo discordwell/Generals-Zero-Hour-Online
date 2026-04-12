@@ -3404,17 +3404,18 @@ interface SabotageBuildingProfile {
   resetsOclTimer: boolean;
 }
 
-interface PendingEnterObjectActionState {
-  targetObjectId: number;
-  action: EnterObjectCommand['action'];
-  commandSource: 'PLAYER' | 'AI' | 'SCRIPT';
-}
-
 type EntityPendingEnterAction =
   | EnterObjectCommand['action']
   | 'garrisonBuilding'
   | 'enterTransport'
-  | 'enterTunnel';
+  | 'enterTunnel'
+  | 'sourceEnterObject';
+
+interface PendingEnterObjectActionState {
+  targetObjectId: number;
+  action: EntityPendingEnterAction;
+  commandSource: 'PLAYER' | 'AI' | 'SCRIPT';
+}
 
 interface EntityPendingEnterState {
   targetObjectId: number;
@@ -9480,6 +9481,11 @@ interface SourceAIInternalMoveToStateImportState {
   adjustDestinations: boolean;
 }
 
+interface SourceAIEnterStateImportState {
+  moveState: SourceAIInternalMoveToStateImportState;
+  entryToClearId: number;
+}
+
 interface SourceAIAttackStateImportState {
   originalVictimPosition: { x: number; y: number; z: number };
   attackMachine: SourceAttackStateMachineImportState | null;
@@ -9504,6 +9510,7 @@ interface SourceAIStateMachineImportState {
   goalObjectId: number;
   goalPosition: { x: number; y: number; z: number };
   moveState: SourceAIInternalMoveToStateImportState | null;
+  enterState: SourceAIEnterStateImportState | null;
   attackState: SourceAIAttackStateImportState | null;
   guardState: SourceAIGuardStateImportState | null;
 }
@@ -10349,6 +10356,7 @@ const SOURCE_AI_STATE_MOVE_TO = 1;
 const SOURCE_AI_STATE_ATTACK_POSITION = 9;
 const SOURCE_AI_STATE_ATTACK_OBJECT = 10;
 const SOURCE_AI_STATE_FORCE_ATTACK_OBJECT = 11;
+const SOURCE_AI_STATE_ENTER = 15;
 const SOURCE_AI_STATE_GUARD = 16;
 const SOURCE_AI_INVALID_STATE_ID = 999999;
 const SOURCE_AI_MAX_WAYPOINTS = 16;
@@ -15998,6 +16006,21 @@ export class GameLogicSubsystem implements Subsystem {
     return this.parseSourceAIInternalMoveToStateSnapshot(xfer) !== null;
   }
 
+  private parseSourceAIEnterStateImportState(
+    xfer: XferLoad,
+  ): SourceAIEnterStateImportState | null {
+    const version = xfer.xferVersion(1);
+    if (version !== 1) {
+      return null;
+    }
+    const moveState = this.parseSourceAIInternalMoveToStateSnapshot(xfer);
+    if (!moveState) {
+      return null;
+    }
+    const entryToClearId = xfer.xferObjectID(0);
+    return { moveState, entryToClearId };
+  }
+
   private skipSourceAIAttackMoveTargetStateSnapshot(xfer: XferLoad): boolean {
     const version = xfer.xferVersion(1);
     if (version !== 1 || !this.skipSourceAIInternalMoveToStateSnapshot(xfer)) {
@@ -16188,6 +16211,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     let moveState: SourceAIInternalMoveToStateImportState | null = null;
+    let enterState: SourceAIEnterStateImportState | null = null;
     let attackState: SourceAIAttackStateImportState | null = null;
     let guardState: SourceAIGuardStateImportState | null = null;
     if (currentStateId === SOURCE_AI_STATE_IDLE) {
@@ -16197,6 +16221,11 @@ export class GameLogicSubsystem implements Subsystem {
     } else if (currentStateId === SOURCE_AI_STATE_MOVE_TO) {
       moveState = this.parseSourceAIInternalMoveToStateSnapshot(xfer);
       if (!moveState) {
+        return null;
+      }
+    } else if (currentStateId === SOURCE_AI_STATE_ENTER) {
+      enterState = this.parseSourceAIEnterStateImportState(xfer);
+      if (!enterState) {
         return null;
       }
     } else if (this.isSourceAITopAttackStateId(currentStateId)) {
@@ -16234,7 +16263,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
     xfer.xferUnsignedInt(0);
 
-    return { currentStateId, goalObjectId, goalPosition, moveState, attackState, guardState };
+    return { currentStateId, goalObjectId, goalPosition, moveState, enterState, attackState, guardState };
   }
 
   private skipSourcePathSnapshot(xfer: XferLoad): void {
@@ -19083,6 +19112,7 @@ export class GameLogicSubsystem implements Subsystem {
 
       const stateMachine = aiUpdateState.stateMachine;
       const commandSource = this.sourceCommandSourceToRuntime(aiUpdateState.lastCommandSource);
+      const enterCommandSource = this.sourceLastCommandSourceToRuntime(aiUpdateState.lastCommandSource);
       if (stateMachine.currentStateId === SOURCE_AI_STATE_MOVE_TO && stateMachine.moveState) {
         const moveTarget = this.sourceCoord3DToRuntimeXZ(stateMachine.moveState.goalPosition);
         entity.attackTargetEntityId = null;
@@ -19100,6 +19130,40 @@ export class GameLogicSubsystem implements Subsystem {
           };
         }
         entity.temporaryMoveExpireFrame = 0;
+      }
+
+      if (stateMachine.currentStateId === SOURCE_AI_STATE_ENTER && stateMachine.enterState) {
+        const moveTarget = this.sourceCoord3DToRuntimeXZ(stateMachine.enterState.moveState.goalPosition);
+        const targetObjectId = Math.trunc(
+          stateMachine.goalObjectId > 0
+            ? stateMachine.goalObjectId
+            : stateMachine.enterState.entryToClearId,
+        );
+        entity.attackTargetEntityId = null;
+        entity.attackTargetPosition = null;
+        entity.attackOriginalVictimPosition = null;
+        entity.attackSubState = 'IDLE';
+        entity.movePath = [moveTarget];
+        entity.pathIndex = 0;
+        entity.moveTarget = moveTarget;
+        entity.moving = true;
+        entity.temporaryMoveExpireFrame = 0;
+        if (targetObjectId > 0) {
+          entity.ignoredMovementObstacleId = targetObjectId;
+          const pendingEnterState = {
+            targetObjectId,
+            action: 'sourceEnterObject',
+            commandSource: enterCommandSource,
+          } as const;
+          entity.pendingEnterState = pendingEnterState;
+          this.setEntityPendingEnterState(entity.id, pendingEnterState);
+        }
+        if (aiUpdateState.pathfindGoalCell === null) {
+          entity.pathfindGoalCell = {
+            x: Math.floor(moveTarget.x / PATHFIND_CELL_SIZE),
+            z: Math.floor(moveTarget.z / PATHFIND_CELL_SIZE),
+          };
+        }
       }
 
       const guardMachine = stateMachine.guardState?.guardMachine ?? null;
@@ -40802,7 +40866,14 @@ export class GameLogicSubsystem implements Subsystem {
       }
 
       this.resolvePendingEnterObjectAction(source, target, pending.action, pending.commandSource);
-      this.setEntityPendingEnterState(sourceId, null);
+      const latestPending = source.pendingEnterState;
+      if (
+        latestPending
+        && latestPending.targetObjectId === pending.targetObjectId
+        && latestPending.action === pending.action
+      ) {
+        this.setEntityPendingEnterState(sourceId, null);
+      }
     }
   }
 
@@ -40905,10 +40976,15 @@ export class GameLogicSubsystem implements Subsystem {
   private resolvePendingEnterObjectAction(
     source: MapEntity,
     target: MapEntity,
-    action: EnterObjectCommand['action'],
+    action: EntityPendingEnterAction,
     commandSource: 'PLAYER' | 'AI' | 'SCRIPT',
   ): void {
     if (source.destroyed || target.destroyed) {
+      return;
+    }
+
+    if (action === 'sourceEnterObject') {
+      this.resolveSourceEnterObjectAction(source, target, commandSource);
       return;
     }
 
@@ -40934,6 +41010,59 @@ export class GameLogicSubsystem implements Subsystem {
 
     if (action === 'captureUnmannedFactionUnit') {
       this.resolveCaptureUnmannedFactionUnitEnterAction(source, target, commandSource);
+    }
+  }
+
+  private resolveSourceEnterObjectAction(
+    source: MapEntity,
+    target: MapEntity,
+    commandSource: 'PLAYER' | 'AI' | 'SCRIPT',
+  ): void {
+    // Source parity: ActionManager::canEnterObject stores only the goal object in AI_ENTER.
+    // Re-run the source-ordered enter categories that the TS runtime implements.
+    if (this.canExecuteCaptureUnmannedFactionUnitEnterAction(source, target, commandSource)) {
+      this.resolveCaptureUnmannedFactionUnitEnterAction(source, target, commandSource);
+      return;
+    }
+    if (this.canExecuteHijackVehicleEnterAction(source, target)) {
+      this.resolveHijackVehicleEnterAction(source, target);
+      return;
+    }
+    if (this.canExecuteConvertToCarBombEnterAction(source, target)) {
+      this.resolveConvertToCarBombEnterAction(source, target);
+      return;
+    }
+    if (this.canExecuteSabotageBuildingEnterAction(source, target)) {
+      this.resolveSabotageBuildingEnterAction(source, target);
+      return;
+    }
+
+    const containProfile = target.containProfile;
+    if (!containProfile) {
+      return;
+    }
+    if (containProfile.moduleType === 'GARRISON') {
+      if (this.canExecuteGarrisonBuildingEnterAction(source, target, commandSource)) {
+        this.enterGarrisonBuilding(source, target);
+      }
+      return;
+    }
+    if (
+      containProfile.moduleType === 'TRANSPORT'
+      || containProfile.moduleType === 'OVERLORD'
+      || containProfile.moduleType === 'HELIX'
+      || containProfile.moduleType === 'OPEN'
+      || containProfile.moduleType === 'TUNNEL'
+      || containProfile.moduleType === 'CAVE'
+      || containProfile.moduleType === 'HEAL'
+      || containProfile.moduleType === 'INTERNET_HACK'
+    ) {
+      this.handleEnterTransportCommand({
+        type: 'enterTransport',
+        entityId: source.id,
+        targetTransportId: target.id,
+        commandSource,
+      });
     }
   }
 

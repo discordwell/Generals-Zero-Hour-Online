@@ -2195,6 +2195,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
     let idleShouldLookForTargets: boolean | undefined;
     let idleInited: boolean | undefined;
     let moveState: Record<string, unknown> | undefined;
+    let enterState: Record<string, unknown> | undefined;
     let attackState: Record<string, unknown> | undefined;
     let guardState: Record<string, unknown> | undefined;
     if (currentStateId === 0) {
@@ -2221,6 +2222,30 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
         pathTimestamp,
         blockedRepathTimestamp,
         adjustDestinations,
+      };
+    } else if (currentStateId === 15) {
+      const enterVersion = xferLoad.xferVersion(1);
+      const moveToVersion = xferLoad.xferVersion(1);
+      const moveGoalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const moveGoalLayer = readRawInt32Bytes(xferLoad.xferUser(new Uint8Array(4)));
+      const waitingForPath = xferLoad.xferBool(false);
+      const pathGoalPosition = xferLoad.xferCoord3D({ x: 0, y: 0, z: 0 });
+      const pathTimestamp = xferLoad.xferUnsignedInt(0);
+      const blockedRepathTimestamp = xferLoad.xferUnsignedInt(0);
+      const adjustDestinations = xferLoad.xferBool(false);
+      const entryToClearId = xferLoad.xferObjectID(0);
+      enterState = {
+        kind: 'ENTER',
+        enterVersion,
+        moveToVersion,
+        moveGoalPosition,
+        moveGoalLayer,
+        waitingForPath,
+        pathGoalPosition,
+        pathTimestamp,
+        blockedRepathTimestamp,
+        adjustDestinations,
+        entryToClearId,
       };
     } else if (currentStateId === 9 || currentStateId === 10 || currentStateId === 11) {
       const attackStateVersion = xferLoad.xferVersion(1);
@@ -2526,6 +2551,7 @@ function parseGeneratedSourceAIUpdateInterfaceForTest(data: Uint8Array, offset =
       idleShouldLookForTargets,
       idleInited,
       moveState,
+      enterState,
       attackState,
       guardState,
       goalObjectId,
@@ -20618,6 +20644,42 @@ describe('runtime-save-game', () => {
             guardObjectId: 23,
             guardAreaTriggerIndex: -1,
             guardNextScanFrame: 84,
+          } as unknown as import('@generals/game-logic').MapEntity, {
+            id: 26,
+            templateName: 'RuntimeGeneratedEnterTarget',
+            x: 310,
+            y: 0,
+            z: 410,
+            rotationY: 0,
+          } as unknown as import('@generals/game-logic').MapEntity, {
+            id: 27,
+            templateName: 'RuntimeGeneratedEnterAI',
+            x: 120,
+            y: 0,
+            z: 220,
+            rotationY: 0,
+            sourceAIIdleInitialSleepOffset: 7,
+            scriptAiRecruitable: true,
+            attackTargetEntityId: null,
+            attackTargetPosition: null,
+            attackSubState: 'IDLE',
+            lastCommandSource: 'SCRIPT',
+            autoTargetScanNextFrame: 85,
+            moving: true,
+            moveTarget: { x: 305, z: 405 },
+            movePath: [{ x: 180, z: 280 }, { x: 305, z: 405 }],
+            pathIndex: 0,
+            locomotorUpgradeEnabled: false,
+            ignoredMovementObstacleId: 26,
+            pathfindGoalCell: { x: 30, z: 40 },
+            pathfindPosCell: { x: 12, z: 22 },
+            activeLocomotorSet: 'SET_NORMAL',
+            guardState: 'NONE',
+            pendingEnterState: {
+              targetObjectId: 26,
+              action: 'enterTransport',
+              commandSource: 'SCRIPT',
+            },
           } as unknown as import('@generals/game-logic').MapEntity],
         }),
         listSourceObjectModuleDescriptors: (templateName) => {
@@ -20629,6 +20691,9 @@ describe('runtime-save-game', () => {
           }
           if (templateName === 'RuntimeGeneratedGuardAI') {
             return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_GuardAI' }];
+          }
+          if (templateName === 'RuntimeGeneratedEnterAI') {
+            return [{ moduleType: 'AIUpdateInterface', moduleTag: 'ModuleTag_EnterAI' }];
           }
           return templateName === 'RuntimeGeneratedAIUpdates'
             ? [
@@ -20774,6 +20839,36 @@ describe('runtime-save-game', () => {
       },
     });
     expect(guardAI.bytesRead).toBe(guardModule!.blockData.byteLength);
+
+    const generatedEnter = readSourceGameLogicObjectStates(saveFile.data)
+      ?.find((object) => object.templateName === 'RuntimeGeneratedEnterAI')?.state;
+    const enterModule = generatedEnter?.modules.find((module) => module.identifier === 'ModuleTag_EnterAI');
+    expect(enterModule).toBeDefined();
+    const enterAI = parseGeneratedSourceAIUpdateInterfaceForTest(enterModule!.blockData, 0);
+    expect(enterAI).toMatchObject({
+      currentStateId: 15,
+      goalObjectId: 26,
+      goalPosition: { x: 310, y: 410, z: 0 },
+      nextEnemyScanTime: 85,
+      currentVictimId: 0,
+      nextMoodCheckTime: 85,
+      lastCommandSource: 1,
+      ignoreObstacleId: 26,
+      enterState: {
+        kind: 'ENTER',
+        enterVersion: 1,
+        moveToVersion: 1,
+        moveGoalPosition: { x: 310, y: 410, z: 0 },
+        moveGoalLayer: 0,
+        waitingForPath: false,
+        pathGoalPosition: { x: 305, y: 405, z: 0 },
+        pathTimestamp: 42,
+        blockedRepathTimestamp: 0,
+        adjustDestinations: true,
+        entryToClearId: 26,
+      },
+    });
+    expect(enterAI.bytesRead).toBe(enterModule!.blockData.byteLength);
 
     expect(hackModule).toBeDefined();
     const hack = parseSourceHackInternetAIUpdateBlockData(hackModule!.blockData);
