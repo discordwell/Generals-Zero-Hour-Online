@@ -20162,6 +20162,7 @@ describe('runtime-save-game', () => {
       idleInited: true,
       isAiDead: false,
       isRecruitable: false,
+      nextEnemyScanTime: 77,
       currentVictimId: 99,
       desiredSpeed: 999999,
       lastCommandSource: 2,
@@ -20584,6 +20585,7 @@ describe('runtime-save-game', () => {
       goalObjectId: 99,
       goalPosition: { x: 150, y: 250, z: 0 },
       currentVictimId: 99,
+      nextEnemyScanTime: 81,
       nextMoodCheckTime: 81,
       lastCommandSource: 0,
       attackState: {
@@ -20619,6 +20621,7 @@ describe('runtime-save-game', () => {
       currentStateId: 1,
       goalObjectId: 0,
       goalPosition: { x: 180, y: 280, z: 0 },
+      nextEnemyScanTime: 82,
       moveState: {
         kind: 'MOVE_TO',
         moveToVersion: 1,

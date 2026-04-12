@@ -10637,7 +10637,7 @@ function buildGeneratedSourceAIUpdateInterfaceBlockData(
     ));
     saver.xferBool(false);
     saver.xferBool(entity.scriptAiRecruitable !== false);
-    saver.xferUnsignedInt(0);
+    saver.xferUnsignedInt(sourceAIUnsignedFrame(entity.autoTargetScanNextFrame, currentFrame));
     saver.xferObjectID(normalizeSourceObjectId(entity.attackTargetEntityId ?? 0));
     saver.xferReal(SOURCE_AI_FAST_AS_POSSIBLE);
     saver.xferUser(buildSourceRawInt32Bytes(sourceAICommandSourceFromRuntime(entity)));
