@@ -3100,6 +3100,10 @@ function sourceSpecialPowerModuleDirectFields(): string[] {
   ];
 }
 
+function sourceDerivedSpecialPowerModuleFields(): string[] {
+  return ['version', ...prefixBaseVersion(sourceSpecialPowerModuleDirectFields(), 'specialPowerModule')];
+}
+
 function sourceUpgradeMuxFields(): string[] {
   return ['upgradeMux.version', 'upgradeExecuted'];
 }
@@ -3851,6 +3855,10 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
       'UpdateModule::xfer': sourceUpdateModuleBaseFields(),
       'DieModule::xfer': sourceDieModuleBaseFields(),
       'DamageModule::xfer': sourceDamageModuleBaseFields(),
+      'SpecialPowerModule::xfer': prefixBaseVersion(
+        sourceSpecialPowerModuleDirectFields(),
+        'specialPowerModule',
+      ),
       'StateMachine::xfer': sourceStateMachineFields(),
       'UpgradeMux::upgradeMuxXfer': sourceUpgradeMuxFields(),
       'DynamicGeometryInfoUpdate::xfer': prefixBaseVersion(dynamicGeometryFields, 'dynamicGeometry'),
@@ -3916,6 +3924,11 @@ export function parseTsSourceObjectUpdateFields(
   }
   if (helperName === 'xferSourceSpecialPowerModule') {
     return sourceSpecialPowerModuleDirectFields();
+  }
+  if (helperName === 'buildGeneratedSourceSpecialPowerModuleBlockData'
+    || helperName === 'buildSourceSpecialPowerModuleBlockData'
+    || helperName === 'buildDefaultSourceSpecialPowerModuleBlockData') {
+    return sourceDerivedSpecialPowerModuleFields();
   }
   if (helperName === 'xferSourceOpenContain') {
     return sourceOpenContainFields();
@@ -9200,7 +9213,17 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'SpecialAbilityUpdate.cpp',
     'SpecialPowerUpdateModule.cpp',
     'SpyVisionUpdate.cpp',
+    '../SpecialPower/BaikonurLaunchPower.cpp',
+    '../SpecialPower/CashBountyPower.cpp',
+    '../SpecialPower/CashHackSpecialPower.cpp',
+    '../SpecialPower/CleanupAreaPower.cpp',
+    '../SpecialPower/DefectorSpecialPower.cpp',
+    '../SpecialPower/DemoralizeSpecialPower.cpp',
+    '../SpecialPower/FireWeaponPower.cpp',
+    '../SpecialPower/OCLSpecialPower.cpp',
+    '../SpecialPower/SpecialAbility.cpp',
     '../SpecialPower/SpecialPowerModule.cpp',
+    '../SpecialPower/SpyVisionSpecialPower.cpp',
     'StealthDetectorUpdate.cpp',
     'StealthUpdate.cpp',
     'StickyBombUpdate.cpp',
@@ -10025,6 +10048,56 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-special-power-module-object-fields',
       cppClass: 'SpecialPowerModule',
       tsHelper: 'xferSourceSpecialPowerModule',
+    },
+    {
+      category: 'save-baikonur-launch-power-fields',
+      cppClass: 'BaikonurLaunchPower',
+      tsHelper: 'buildGeneratedSourceSpecialPowerModuleBlockData',
+    },
+    {
+      category: 'save-cash-bounty-power-fields',
+      cppClass: 'CashBountyPower',
+      tsHelper: 'buildGeneratedSourceSpecialPowerModuleBlockData',
+    },
+    {
+      category: 'save-cash-hack-special-power-fields',
+      cppClass: 'CashHackSpecialPower',
+      tsHelper: 'buildGeneratedSourceSpecialPowerModuleBlockData',
+    },
+    {
+      category: 'save-cleanup-area-power-fields',
+      cppClass: 'CleanupAreaPower',
+      tsHelper: 'buildGeneratedSourceSpecialPowerModuleBlockData',
+    },
+    {
+      category: 'save-defector-special-power-fields',
+      cppClass: 'DefectorSpecialPower',
+      tsHelper: 'buildGeneratedSourceSpecialPowerModuleBlockData',
+    },
+    {
+      category: 'save-demoralize-special-power-fields',
+      cppClass: 'DemoralizeSpecialPower',
+      tsHelper: 'buildGeneratedSourceSpecialPowerModuleBlockData',
+    },
+    {
+      category: 'save-fire-weapon-power-fields',
+      cppClass: 'FireWeaponPower',
+      tsHelper: 'buildGeneratedSourceSpecialPowerModuleBlockData',
+    },
+    {
+      category: 'save-ocl-special-power-fields',
+      cppClass: 'OCLSpecialPower',
+      tsHelper: 'buildGeneratedSourceSpecialPowerModuleBlockData',
+    },
+    {
+      category: 'save-special-ability-power-fields',
+      cppClass: 'SpecialAbility',
+      tsHelper: 'buildGeneratedSourceSpecialPowerModuleBlockData',
+    },
+    {
+      category: 'save-spy-vision-special-power-fields',
+      cppClass: 'SpyVisionSpecialPower',
+      tsHelper: 'buildGeneratedSourceSpecialPowerModuleBlockData',
     },
     {
       category: 'save-weapon-bonus-update-fields',
