@@ -4,9 +4,11 @@ import { pathToFileURL } from 'node:url';
 
 import { listSaveGameChunks } from '@generals/engine';
 import {
+  buildRuntimeSaveFile,
   inspectGameLogicChunkLayout,
   inspectRuntimeSaveGameClientDrawableHydrationStatus,
   inspectRuntimeSaveCoreChunkStatus,
+  parseRuntimeSaveFile,
   type RuntimeSaveGameClientDrawableHydrationStatus,
   type RuntimeSaveCoreChunkStatus,
 } from '../packages/app/src/runtime-save-game.js';
@@ -27,6 +29,13 @@ export interface SaveCoreChunkReport {
   coreChunks: RuntimeSaveCoreChunkStatus[];
   gameClientDrawables: RuntimeSaveGameClientDrawableHydrationStatus[];
   gameLogicLayout: ReturnType<typeof inspectGameLogicChunkLayout> | null;
+  roundTrip: SaveCoreChunkRoundTripReport;
+}
+
+export interface SaveCoreChunkRoundTripReport {
+  status: 'pass' | 'blocked' | 'skipped';
+  reason: string | null;
+  summary?: SaveCoreChunkReportSummary;
 }
 
 export interface SaveCoreChunkCollectionReportSummary {
@@ -38,6 +47,7 @@ export interface SaveCoreChunkCollectionReportSummary {
   rawPassthroughCoreChunks: number;
   missingCoreChunks: number;
   rawUnsupportedGameClientDrawables: number;
+  blockedRoundTrips: number;
 }
 
 export interface SaveCoreChunkCollectionReport {
@@ -136,12 +146,140 @@ export function summarizeSaveCoreChunkReports(
       (sum, report) => sum + report.summary.rawUnsupportedGameClientDrawables,
       0,
     ),
+    blockedRoundTrips: reports.filter((report) => report.roundTrip.status === 'blocked').length,
   };
+}
+
+function createEmptyRadarEventState() {
+  return {
+    type: 0,
+    active: false,
+    createFrame: 0,
+    dieFrame: 0,
+    fadeFrame: 0,
+    color1: { red: 0, green: 0, blue: 0, alpha: 0 },
+    color2: { red: 0, green: 0, blue: 0, alpha: 0 },
+    worldLoc: { x: 0, y: 0, z: 0 },
+    radarLoc: { x: 0, y: 0 },
+    soundPlayed: false,
+    sourceEntityId: null,
+    sourceTeamName: null,
+  };
+}
+
+function createFallbackGameLogicCoreState(nextId: number) {
+  return {
+    version: 1,
+    nextId: Math.max(1, Math.trunc(nextId) || 1),
+    nextProjectileVisualId: 1,
+    animationTime: 0,
+    selectedEntityId: null,
+    selectedEntityIds: [],
+    scriptSelectionChangedFrame: 0,
+    frameCounter: 0,
+    controlBarDirtyFrame: 0,
+    scriptObjectTopologyVersion: 0,
+    scriptObjectCountChangedFrame: 0,
+    defeatedSides: new Set<string>(),
+    gameEndFrame: null,
+    scriptEndGameTimerActive: false,
+    spawnedEntities: [],
+  };
+}
+
+function buildRoundTripSaveData(data: ArrayBuffer): ArrayBuffer | null {
+  const parsed = parseRuntimeSaveFile(data);
+  if (parsed.mapData === null) {
+    return null;
+  }
+  const fallbackCoreState = createFallbackGameLogicCoreState(parsed.mapObjectIdCounter);
+  return buildRuntimeSaveFile({
+    description: parsed.metadata.description,
+    mapPath: parsed.mapPath,
+    mapData: parsed.mapData,
+    cameraState: parsed.cameraState,
+    tacticalViewState: parsed.tacticalViewState,
+    gameClientState: parsed.gameClientState,
+    inGameUiState: parsed.inGameUiState,
+    scriptEngineFadeState: parsed.scriptEngineFadeState,
+    particleSystemState: parsed.particleSystemState,
+    ghostObjectState: parsed.ghostObjectState,
+    passthroughBlocks: parsed.passthroughBlocks,
+    campaign: parsed.campaign,
+    browserRuntimeState: parsed.gameLogicState ?? { version: 1 },
+    includeBrowserRuntimeCoreState: parsed.gameLogicCoreState !== null,
+    mapDrawableIdCounter: parsed.mapDrawableIdCounter,
+    gameLogic: {
+      captureSourceTerrainLogicRuntimeSaveState: () => parsed.gameLogicTerrainLogicState ?? {
+        version: 2,
+        activeBoundary: 0,
+        waterUpdates: [],
+      },
+      captureSourcePartitionRuntimeSaveState: () => parsed.gameLogicPartitionState ?? {
+        version: 2,
+        cellSize: 10,
+        totalCellCount: 0,
+        cells: [],
+        pendingUndoShroudReveals: [],
+      },
+      captureSourcePlayerRuntimeSaveState: () => parsed.gameLogicPlayersState ?? { version: 1, state: {} },
+      captureSourceRadarRuntimeSaveState: () => parsed.gameLogicRadarState ?? {
+        version: 2,
+        radarHidden: false,
+        radarForced: false,
+        localObjectList: [],
+        objectList: [],
+        events: Array.from({ length: 64 }, () => createEmptyRadarEventState()),
+        nextFreeRadarEvent: 0,
+        lastRadarEvent: -1,
+      },
+      captureSourceSidesListRuntimeSaveState: () => parsed.gameLogicSidesListState ?? {
+        version: 2,
+        state: {},
+        scriptLists: [],
+      },
+      captureSourceTeamFactoryRuntimeSaveState: () => parsed.gameLogicTeamFactoryState ?? { version: 1, state: {} },
+      captureSourceScriptEngineRuntimeSaveState: () => parsed.gameLogicScriptEngineState ?? { version: 1, state: {} },
+      captureSourceInGameUiRuntimeSaveState: () => parsed.gameLogicInGameUiState ?? { version: 1, state: {} },
+      captureSourceGameLogicRuntimeSaveState: () => parsed.gameLogicCoreState ?? fallbackCoreState,
+      captureBrowserRuntimeSaveState: () => parsed.gameLogicState ?? { version: 1 },
+      getObjectIdCounter: () => parsed.gameLogicCoreState?.nextId ?? parsed.mapObjectIdCounter,
+    },
+  }).data;
+}
+
+function buildSaveCoreChunkRoundTripReport(
+  data: ArrayBuffer,
+  savePath: string,
+): SaveCoreChunkRoundTripReport {
+  try {
+    const rebuiltData = buildRoundTripSaveData(data);
+    if (rebuiltData === null) {
+      return {
+        status: 'blocked',
+        reason: 'missing-json-map-data',
+      };
+    }
+    const rebuiltReport = buildSaveCoreChunkReport(rebuiltData, `${savePath}#roundtrip`, {
+      includeRoundTrip: false,
+    });
+    return {
+      status: rebuiltReport.summary.status,
+      reason: rebuiltReport.summary.status === 'pass' ? null : 'roundtrip-core-summary-blocked',
+      summary: rebuiltReport.summary,
+    };
+  } catch (error) {
+    return {
+      status: 'blocked',
+      reason: error instanceof Error ? error.message : 'roundtrip-build-failed',
+    };
+  }
 }
 
 export function buildSaveCoreChunkReport(
   data: ArrayBuffer,
   savePath: string,
+  options: { includeRoundTrip?: boolean } = {},
 ): SaveCoreChunkReport {
   const chunkStatus = inspectRuntimeSaveCoreChunkStatus(data);
   const gameClientDrawables = inspectRuntimeSaveGameClientDrawableHydrationStatus(data);
@@ -163,6 +301,9 @@ export function buildSaveCoreChunkReport(
     coreChunks: chunkStatus,
     gameClientDrawables,
     gameLogicLayout,
+    roundTrip: options.includeRoundTrip === false
+      ? { status: 'skipped', reason: 'disabled' }
+      : buildSaveCoreChunkRoundTripReport(data, savePath),
   };
 }
 

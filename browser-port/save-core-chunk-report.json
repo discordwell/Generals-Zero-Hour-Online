@@ -8,7 +8,8 @@
     "totalCoreChunks": 0,
     "rawPassthroughCoreChunks": 0,
     "missingCoreChunks": 0,
-    "rawUnsupportedGameClientDrawables": 0
+    "rawUnsupportedGameClientDrawables": 0,
+    "blockedRoundTrips": 0
   },
   "saves": []
 }

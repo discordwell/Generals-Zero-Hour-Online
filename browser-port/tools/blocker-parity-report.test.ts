@@ -44,6 +44,7 @@ describe('blocker parity report', () => {
           rawPassthroughCoreChunks: 0,
           missingCoreChunks: 0,
           rawUnsupportedGameClientDrawables: 0,
+          blockedRoundTrips: 0,
         },
       },
       visualSceneParity: {
@@ -114,6 +115,7 @@ describe('blocker parity report', () => {
           rawPassthroughCoreChunks: 2,
           missingCoreChunks: 1,
           rawUnsupportedGameClientDrawables: 3,
+          blockedRoundTrips: 4,
         },
       },
       visualSceneParity: {
@@ -165,6 +167,7 @@ describe('blocker parity report', () => {
       'save-core-no-wet-fixtures',
       'save-core-raw-or-missing-chunks',
       'save-core-unsupported-gameclient-drawables',
+      'save-core-roundtrip-blocked',
       'visual-scene-blocked-scenarios',
       'ui-layout-blocked-scenarios',
     ]));

@@ -66,6 +66,7 @@ export interface BlockerReportInputs {
       rawPassthroughCoreChunks?: number;
       missingCoreChunks?: number;
       rawUnsupportedGameClientDrawables?: number;
+      blockedRoundTrips?: number;
     };
   } | null;
   visualSceneParity?: {
@@ -271,6 +272,7 @@ export function collectBlockerFindings(inputs: BlockerReportInputs): BlockerFind
       normalizeCount(summary.rawPassthroughCoreChunks)
       + normalizeCount(summary.missingCoreChunks);
     const unsupportedGameClientDrawables = normalizeCount(summary.rawUnsupportedGameClientDrawables);
+    const blockedRoundTrips = normalizeCount(summary.blockedRoundTrips);
     pushBlocker(
       blockers,
       'save-core-no-wet-fixtures',
@@ -298,6 +300,13 @@ export function collectBlockerFindings(inputs: BlockerReportInputs): BlockerFind
       'save-files',
       unsupportedGameClientDrawables,
       ['Save fixtures contain unsupported inner GameClient drawable records.'],
+    );
+    pushBlocker(
+      blockers,
+      'save-core-roundtrip-blocked',
+      'save-files',
+      blockedRoundTrips,
+      ['Save fixtures cannot be rebuilt into parsed core save chunks.'],
     );
   }
 
