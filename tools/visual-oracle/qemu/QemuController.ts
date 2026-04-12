@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createConnection, type Socket } from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,6 +16,20 @@ const QMP_TIMEOUT = 30_000;
 function validateHmpArg(value: string, label: string): void {
   if (!/^[\w./ :\\-]+$/.test(value)) {
     throw new Error(`Invalid ${label} for HMP command: ${value}`);
+  }
+}
+
+function validateDiskImage(): void {
+  const result = spawnSync('qemu-img', ['info', '--backing-chain', QEMU_CONFIG.diskImage], {
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) {
+    const detail = (result.stderr || result.stdout || 'qemu-img info failed').trim();
+    throw new Error(
+      `QEMU disk image is not bootable: ${QEMU_CONFIG.diskImage}\n` +
+      `${detail}\n` +
+      'Restore the missing backing image or convert this overlay to a standalone qcow2 before capturing source save fixtures.',
+    );
   }
 }
 
@@ -44,6 +58,7 @@ export class QemuController {
         'See tools/visual-oracle/vm/README.md for setup instructions.'
       );
     }
+    validateDiskImage();
 
     // Clean up stale socket
     if (fs.existsSync(QEMU_CONFIG.qmpSocket)) {
