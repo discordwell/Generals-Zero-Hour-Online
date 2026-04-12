@@ -2933,6 +2933,18 @@ function parseCppSimpleModuleFields(
       }
       continue;
     }
+    if (match[1] === 'xferSTLIntList' && normalizeCppXferArgument(match[2]!) === 'm_replacementTimes') {
+      for (const field of sourceCountedListFields('replacementTimes')) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (match[1] === 'xferSTLObjectIDList' && normalizeCppXferArgument(match[2]!) === 'm_spawnIDs') {
+      for (const field of sourceCountedListFields('spawnIds')) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
     const baseKey = token.split('(')[0]?.replace(/\s+/g, '');
     const baseFields = baseKey ? baseExpansions[baseKey] : undefined;
     if (baseFields) {
@@ -3179,6 +3191,28 @@ function sourceFlightDeckTailFields(): string[] {
   ];
 }
 
+function sourceCountedListFields(prefix: string): string[] {
+  return [`${prefix}.version`, `${prefix}.count`, `${prefix}.entry`];
+}
+
+function sourceSpawnBehaviorFields(): string[] {
+  return [
+    'version',
+    ...sourceBehaviorModuleBaseFields(),
+    'initialBurstTimesInited',
+    'spawnTemplateName',
+    'oneShotCountdown',
+    'framesToWait',
+    'firstBatchCount',
+    ...sourceCountedListFields('replacementTimes'),
+    ...sourceCountedListFields('spawnIds'),
+    'active',
+    'aggregateHealth',
+    'spawnCount',
+    'selfTaskingSpawnCount',
+  ];
+}
+
 function sourceDozerTaskEntryFields(): string[] {
   return ['task.count', 'task.targetObjectId', 'task.taskOrderFrame'];
 }
@@ -3409,6 +3443,10 @@ export function parseCppSourceObjectUpdateFields(source: string, className: stri
     mapper = mapCppJetSlowDeathBehaviorField;
   } else if (className === 'NeutronMissileSlowDeathBehavior') {
     mapper = mapCppNeutronMissileSlowDeathBehaviorField;
+  } else if (className === 'SupplyWarehouseCripplingBehavior') {
+    mapper = mapCppSupplyWarehouseCripplingBehaviorField;
+  } else if (className === 'SpawnBehavior') {
+    mapper = mapCppSpawnBehaviorField;
   }
   return parseCppSimpleModuleFields(
     source,
@@ -3438,7 +3476,7 @@ export function parseTsSourceObjectUpdateFields(
   const fields: string[] = [];
   const seen = new Set<string>();
   const tokenRegex =
-    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:BehaviorModuleBase|UpdateModuleBase|SlowDeathBehaviorBlockState|ObjectIdListByUnsignedShortCount|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedByte|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
+    /(?:writeSource(?:PhysicsBehaviorBlockData|RailroadBehaviorPullInfoBlockData)|xfer(?:Source(?:BehaviorModuleBase|UpdateModuleBase|SlowDeathBehaviorBlockState|SpawnBehaviorBlockState|ObjectIdListByUnsignedShortCount|DynamicGeometryInfoUpdate|DockUpdateBlockState|ProductionExitRallyState|ParticleUplinkVisualState|RadiusDecalTemplateBlockState|WeaponSnapshot|KindOfNames|StringBitFlags|RgbColor|BoneFx(?:Int|Coord)Grid)|GeneratedSource(?:SupplyTruckTail|DozerTaskEntries|DozerSuffix)))\s*\(|(?:saver|xfer)\.xfer(?:Version|UnsignedByte|UnsignedShort|UnsignedInt|ObjectIDList|ObjectID|AsciiString|Int|Bool|Coord3D|Real)\s*\(|(?:saver|xfer)\.xferUser\s*\(/g;
   let versionIndex = 0;
   let match;
   while ((match = tokenRegex.exec(body)) !== null) {
@@ -3497,6 +3535,12 @@ export function parseTsSourceObjectUpdateFields(
         ? sourceSlowDeathBehaviorFields()
         : prefixBaseVersion(sourceSlowDeathBehaviorFields(), 'slowDeath');
       for (const field of slowDeathFields) {
+        pushUniqueField(fields, seen, field);
+      }
+      continue;
+    }
+    if (token.includes('xferSourceSpawnBehaviorBlockState')) {
+      for (const field of sourceSpawnBehaviorFields()) {
         pushUniqueField(fields, seen, field);
       }
       continue;
@@ -5971,6 +6015,27 @@ function mapCppNeutronMissileSlowDeathBehaviorField(method: string, argument: st
   return mapCppSimpleModuleField(method, argument);
 }
 
+function mapCppSupplyWarehouseCripplingBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferUnsignedInt' && argument === 'm_healingSupressedUntilFrame') {
+    return 'healingSuppressedUntilFrame';
+  }
+  if (method === 'xferUnsignedInt' && argument === 'm_nextHealingFrame') return 'nextHealingFrame';
+  return mapCppSimpleModuleField(method, argument);
+}
+
+function mapCppSpawnBehaviorField(method: string, argument: string): string | null {
+  if (method === 'xferBool' && argument === 'm_initialBurstTimesInited') return 'initialBurstTimesInited';
+  if (method === 'xferAsciiString' && argument === 'name') return 'spawnTemplateName';
+  if (method === 'xferInt' && argument === 'm_oneShotCountdown') return 'oneShotCountdown';
+  if (method === 'xferInt' && argument === 'm_framesToWait') return 'framesToWait';
+  if (method === 'xferInt' && argument === 'm_firstBatchCount') return 'firstBatchCount';
+  if (method === 'xferBool' && argument === 'm_active') return 'active';
+  if (method === 'xferBool' && argument === 'm_aggregateHealth') return 'aggregateHealth';
+  if (method === 'xferInt' && argument === 'm_spawnCount') return 'spawnCount';
+  if (method === 'xferUnsignedInt' && argument === 'm_selfTaskingSpawnCount') return 'selfTaskingSpawnCount';
+  return mapCppSimpleModuleField(method, argument);
+}
+
 function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: number): string | null {
   const window = tsTokenStatement(body, tokenIndex);
   if (token.includes('xferSourceWeaponSnapshot')) return 'weapon.snapshot';
@@ -6233,6 +6298,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('timerOnGroundFrame')) return 'timerOnGroundFrame';
     if (window.includes('deathFrame')) return 'deathFrame';
     if (window.includes('nextHealFrame')) return 'nextHealFrame';
+    if (window.includes('swCripplingHealSuppressedUntilFrame')) return 'healingSuppressedUntilFrame';
+    if (window.includes('swCripplingNextHealFrame')) return 'nextHealingFrame';
     if (window.includes('groundCheckFrame')) return 'groundCheckFrame';
     if (window.includes('penaltyDeathFrame')) return 'penaltyDeathFrame';
     if (window.includes('lastSelfSpinUpdateFrame')) return 'lastSelfSpinUpdateFrame';
@@ -8417,6 +8484,8 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     '../Behavior/PropagandaTowerBehavior.cpp',
     '../Behavior/RebuildHoleBehavior.cpp',
     '../Behavior/SlowDeathBehavior.cpp',
+    '../Behavior/SpawnBehavior.cpp',
+    '../Behavior/SupplyWarehouseCripplingBehavior.cpp',
     'CheckpointUpdate.cpp',
     'CleanupHazardUpdate.cpp',
     'CommandButtonHuntUpdate.cpp',
@@ -9446,6 +9515,16 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-neutron-missile-slow-death-behavior-fields',
       cppClass: 'NeutronMissileSlowDeathBehavior',
       tsHelper: 'buildSourceNeutronMissileSlowDeathBehaviorBlockData',
+    },
+    {
+      category: 'save-supply-warehouse-crippling-behavior-fields',
+      cppClass: 'SupplyWarehouseCripplingBehavior',
+      tsHelper: 'buildSourceSupplyWarehouseCripplingBehaviorBlockData',
+    },
+    {
+      category: 'save-spawn-behavior-fields',
+      cppClass: 'SpawnBehavior',
+      tsHelper: 'buildSourceSpawnBehaviorBlockData',
     },
     {
       category: 'save-point-defense-laser-update-fields',

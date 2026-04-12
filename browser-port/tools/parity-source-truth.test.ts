@@ -1355,6 +1355,8 @@ const WEAPON_BONUS_CONDITION_BY_NAME = new Map<string, number>([
         'save-helicopter-slow-death-behavior-fields',
         'save-jet-slow-death-behavior-fields',
         'save-neutron-missile-slow-death-behavior-fields',
+        'save-supply-warehouse-crippling-behavior-fields',
+        'save-spawn-behavior-fields',
         'save-point-defense-laser-update-fields',
         'save-emp-update-fields',
         'save-radar-update-fields',
