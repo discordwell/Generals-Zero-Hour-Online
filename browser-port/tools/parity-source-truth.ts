@@ -5150,6 +5150,16 @@ function mapCppSimpleModuleField(method: string, argument: string): string | nul
   if (method === 'xferObjectID' && argument === 'm_prisonID') return 'prisonId';
   if (method === 'xferUnsignedInt' && argument === 'm_enteredWaitingFrame') return 'enteredWaitingFrame';
   if (method === 'xferUnsignedInt' && argument === 'm_lastFindFrame') return 'lastFindFrame';
+  if (method === 'xferBool' && argument === 'm_inTransit') return 'inTransit';
+  if (method === 'xferInt' && argument === 'm_numPaths') return 'paths.count';
+  if (method === 'xferUnsignedInt' && argument === 'm_path[i].startWaypointID') {
+    return 'paths.entry.startWaypointID';
+  }
+  if (method === 'xferUnsignedInt' && argument === 'm_path[i].endWaypointID') {
+    return 'paths.entry.endWaypointID';
+  }
+  if (method === 'xferInt' && argument === 'm_currentPath') return 'currentPath';
+  if (method === 'xferBool' && argument === 'm_waypointDataLoaded') return 'waypointDataLoaded';
   if (method === 'xferReal' && argument === 'm_angularVelocity') return 'angularVelocity';
   if (method === 'xferReal' && argument === 'm_angularAcceleration') return 'angularAcceleration';
   if (method === 'xferCoord3D' && argument === 'm_toppleDirection') return 'toppleDirection';
@@ -5305,6 +5315,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('isAttackMove')) return 'isAttackMove';
     if (window.includes('isAttackObject')) return 'isAttackObject';
     if (window.includes('forceBusy')) return 'forcePending';
+    if (window.includes('state?.inTransit')) return 'inTransit';
+    if (window.includes('state?.waypointDataLoaded')) return 'waypointDataLoaded';
     if (window.includes('invalidSettings')) return 'invalidSettings';
     if (window.includes('centeringTurret')) return 'centeringTurret';
     if (window.includes('repairing')) return 'repairing';
@@ -5322,8 +5334,10 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('entry.productionQuantityProduced')) return 'queue.entry.productionQuantityProduced';
     if (window.includes('entry.exitDoor')) return 'queue.entry.exitDoor';
     if (window.includes('members.length')) return 'member.count';
+    if (window.includes('paths.length')) return 'paths.count';
     if (window.includes('assaultState')) return 'assaultState';
     if (window.includes('currentBoxes')) return 'numberBoxes';
+    if (window.includes('state?.currentPath')) return 'currentPath';
     if (window.includes('currentPlan')) return 'currentPlan';
     if (window.includes('desiredPlan')) return 'desiredPlan';
     if (window.includes('planAffectingArmy')) return 'planAffectingArmy';
@@ -5377,6 +5391,8 @@ function mapTsSourceObjectUpdateField(token: string, body: string, tokenIndex: n
     if (window.includes('framesRemaining')) return 'framesRemaining';
     if (window.includes('powTruckEnteredWaitingFrame')) return 'enteredWaitingFrame';
     if (window.includes('powTruckLastFindFrame')) return 'lastFindFrame';
+    if (window.includes('path.startWaypointID')) return 'paths.entry.startWaypointID';
+    if (window.includes('path.endWaypointID')) return 'paths.entry.endWaypointID';
     if (window.includes('nextReadyFrame') || window.includes('sourceBattlePlanNextReadyFrame')) {
       return 'nextReadyFrame';
     }
@@ -7460,6 +7476,7 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
     'AIUpdate/AssaultTransportAIUpdate.cpp',
     'AIUpdate/DeployStyleAIUpdate.cpp',
     'AIUpdate/POWTruckAIUpdate.cpp',
+    'AIUpdate/RailedTransportAIUpdate.cpp',
     'AIUpdate/SupplyTruckAIUpdate.cpp',
     'AIUpdate/WanderAIUpdate.cpp',
     'AnimationSteeringUpdate.cpp',
@@ -8538,6 +8555,11 @@ export async function runSourceParityCheck(rootDir: string): Promise<SourceParit
       category: 'save-pow-truck-ai-update-fields',
       cppClass: 'POWTruckAIUpdate',
       tsHelper: 'buildGeneratedSourcePOWTruckAIUpdateBlockData',
+    },
+    {
+      category: 'save-railed-transport-ai-update-fields',
+      cppClass: 'RailedTransportAIUpdate',
+      tsHelper: 'buildGeneratedSourceRailedTransportAIUpdateBlockData',
     },
     {
       category: 'save-spy-vision-update-fields',
