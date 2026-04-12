@@ -103,9 +103,10 @@ export class GameState {
     const xferLoad = new XferLoad(data);
     xferLoad.open('load');
     this.lastLoadError = null;
+    const loadedSnapshots: Snapshot[] = [];
 
     try {
-      this.xferSaveData(xferLoad);
+      this.xferSaveData(xferLoad, loadedSnapshots);
     } catch (error) {
       this.lastLoadError = error instanceof Error
         ? error
@@ -115,15 +116,17 @@ export class GameState {
 
     xferLoad.close();
 
-    // Post-process all block snapshots
-    for (const block of this.blocks) {
-      block.snapshot.loadPostProcess();
+    // Source parity: XferLoad::xferSnapshot registers only loaded snapshots
+    // for GameState::gameStatePostProcessLoad().
+    for (const snapshot of loadedSnapshots) {
+      snapshot.loadPostProcess();
     }
 
     // Post-process additional registered snapshots
     for (const snapshot of this.postProcessList) {
       snapshot.loadPostProcess();
     }
+    this.postProcessList.length = 0;
 
     return SaveCode.SC_OK;
   }
@@ -146,7 +149,7 @@ export class GameState {
    * The shared save/load method. Direction depends on xfer mode.
    * Source parity: GameState::xferSaveData()
    */
-  private xferSaveData(xfer: Xfer): void {
+  private xferSaveData(xfer: Xfer, loadedSnapshots?: Snapshot[]): void {
     if (xfer.getMode() === XferMode.XFER_SAVE || xfer.getMode() === XferMode.XFER_CRC) {
       // Save all blocks
       for (const block of this.blocks) {
@@ -188,6 +191,7 @@ export class GameState {
           xfer.beginBlock();
           xfer.xferSnapshot(blockInfo.snapshot);
           xfer.endBlock();
+          loadedSnapshots?.push(blockInfo.snapshot);
         }
       }
     }

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import type { Snapshot } from './snapshot.js';
 import type { Xfer } from './xfer.js';
-import { XferMode } from './xfer.js';
 import { GameState, SaveCode } from './game-state.js';
 
 class SimpleSnapshot implements Snapshot {
@@ -10,6 +9,7 @@ class SimpleSnapshot implements Snapshot {
   crcCalled = false;
   xferCalled = false;
   postProcessCalled = false;
+  postProcessCount = 0;
 
   crc(xfer: Xfer): void {
     this.crcCalled = true;
@@ -23,6 +23,7 @@ class SimpleSnapshot implements Snapshot {
 
   loadPostProcess(): void {
     this.postProcessCalled = true;
+    this.postProcessCount += 1;
   }
 }
 
@@ -131,7 +132,7 @@ describe('GameState', () => {
     expect(loadC.value).toBe(3);
   });
 
-  it('calls loadPostProcess on all block snapshots', () => {
+  it('calls loadPostProcess on loaded block snapshots', () => {
     const saveState = new GameState();
     const snap = new SimpleSnapshot();
     snap.value = 10;
@@ -144,6 +145,24 @@ describe('GameState', () => {
 
     loadState.loadGame(data);
     expect(loadSnap.postProcessCalled).toBe(true);
+  });
+
+  it('does not post-process registered snapshots whose blocks were not loaded', () => {
+    const saveState = new GameState();
+    const snap = new SimpleSnapshot();
+    snap.value = 10;
+    saveState.addSnapshotBlock('CHUNK_Present', snap);
+    const { data } = saveState.saveGame('partial post process');
+
+    const loadState = new GameState();
+    const presentSnap = new SimpleSnapshot();
+    const missingSnap = new SimpleSnapshot();
+    loadState.addSnapshotBlock('CHUNK_Present', presentSnap);
+    loadState.addSnapshotBlock('CHUNK_Missing', missingSnap);
+
+    loadState.loadGame(data);
+    expect(presentSnap.postProcessCalled).toBe(true);
+    expect(missingSnap.postProcessCalled).toBe(false);
   });
 
   it('calls loadPostProcess on additional registered snapshots', () => {
@@ -162,6 +181,24 @@ describe('GameState', () => {
 
     loadState.loadGame(data);
     expect(extraSnap.postProcessCalled).toBe(true);
+  });
+
+  it('clears additional post-process snapshots after load', () => {
+    const saveState = new GameState();
+    const snap = new SimpleSnapshot();
+    snap.value = 5;
+    saveState.addSnapshotBlock('CHUNK_Test', snap);
+    const { data } = saveState.saveGame('extra post process clear');
+
+    const loadState = new GameState();
+    loadState.addSnapshotBlock('CHUNK_Test', new SimpleSnapshot());
+
+    const extraSnap = new SimpleSnapshot();
+    loadState.addPostProcessSnapshot(extraSnap);
+
+    loadState.loadGame(data);
+    loadState.loadGame(data);
+    expect(extraSnap.postProcessCount).toBe(1);
   });
 
   it('computeCrc returns non-zero for non-empty state', () => {
