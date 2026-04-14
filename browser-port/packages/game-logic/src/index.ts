@@ -167,6 +167,7 @@ import {
   createEntityVisionState as createEntityVisionStateImpl,
   type CellVisibility,
   type EntityVisionState,
+  type SourcePartitionCellCountMode,
 } from './fog-of-war.js';
 import {
   executeAreaDamage as executeAreaDamageImpl,
@@ -11654,25 +11655,38 @@ export class GameLogicSubsystem implements Subsystem {
     this.initializeScriptTriggerMembershipBaselines();
 
     // Initialize fog of war grid based on map dimensions.
-    if (heightmap) {
-      const partitionExtent = resolveSourceTerrainPartitionExtent(
-        mapData,
-        heightmap,
-        this.scriptActiveBoundaryIndex ?? 0,
-      );
-      this.fogOfWarGrid = new FogOfWarGrid(
-        partitionExtent.worldWidth,
-        partitionExtent.worldDepth,
-        this.config.partitionCellSize,
-      );
-      this.initializeObserverMapReveals();
-    }
+    this.rebuildFogOfWarGridForCurrentSourceTerrainExtent();
 
     // Source parity: script condition caches begin from the post-load baseline.
     this.scriptObjectTopologyVersion = 0;
     this.scriptObjectCountChangedFrame = 0;
 
     return this.placementSummary;
+  }
+
+  private getSourcePartitionCellCountMode(): SourcePartitionCellCountMode {
+    return this.sourcePlayerIncludesGeneralsVisionSpyFields
+      ? 'generals-direct-ceil'
+      : 'zero-hour-float-inverse-ceil';
+  }
+
+  private rebuildFogOfWarGridForCurrentSourceTerrainExtent(): void {
+    if (!this.loadedMapData || !this.mapHeightmap) {
+      return;
+    }
+
+    const partitionExtent = resolveSourceTerrainPartitionExtent(
+      this.loadedMapData,
+      this.mapHeightmap,
+      this.scriptActiveBoundaryIndex ?? 0,
+    );
+    this.fogOfWarGrid = new FogOfWarGrid(
+      partitionExtent.worldWidth,
+      partitionExtent.worldDepth,
+      this.config.partitionCellSize,
+      this.getSourcePartitionCellCountMode(),
+    );
+    this.initializeObserverMapReveals();
   }
 
   /**
@@ -14775,8 +14789,12 @@ export class GameLogicSubsystem implements Subsystem {
       throw new Error('Source player save-state content is malformed.');
     }
 
+    const previousPartitionCellCountMode = this.getSourcePartitionCellCountMode();
     const runtimeState = snapshot.state as Record<string, unknown>;
     this.restoreSourceRuntimeStateByKeys(SOURCE_PLAYER_RUNTIME_STATE_KEYS, runtimeState);
+    if (this.getSourcePartitionCellCountMode() !== previousPartitionCellCountMode) {
+      this.rebuildFogOfWarGridForCurrentSourceTerrainExtent();
+    }
     this.normalizeSkirmishAIStates();
     this.tunnelTrackers.clear();
     for (const tunnelTracker of snapshot.tunnelTrackers ?? []) {
@@ -14978,19 +14996,7 @@ export class GameLogicSubsystem implements Subsystem {
     }
 
     this.scriptActiveBoundaryIndex = Math.max(0, Math.trunc(snapshot.activeBoundary ?? 0));
-    if (this.loadedMapData && this.mapHeightmap) {
-      const partitionExtent = resolveSourceTerrainPartitionExtent(
-        this.loadedMapData,
-        this.mapHeightmap,
-        this.scriptActiveBoundaryIndex,
-      );
-      this.fogOfWarGrid = new FogOfWarGrid(
-        partitionExtent.worldWidth,
-        partitionExtent.worldDepth,
-        this.config.partitionCellSize,
-      );
-      this.initializeObserverMapReveals();
-    }
+    this.rebuildFogOfWarGridForCurrentSourceTerrainExtent();
     this.dynamicWaterUpdates.length = 0;
 
     for (const waterUpdate of snapshot.waterUpdates) {
@@ -54972,6 +54978,7 @@ export class GameLogicSubsystem implements Subsystem {
     this.scriptTimeFrozenByScript = false;
     this.scriptWeatherVisible = true;
     this.scriptActiveBoundaryIndex = null;
+    this.sourcePlayerIncludesGeneralsVisionSpyFields = false;
     this.scriptScreenShakeState = null;
     this.scriptCinematicTextState = null;
     this.scriptPopupMessages.length = 0;

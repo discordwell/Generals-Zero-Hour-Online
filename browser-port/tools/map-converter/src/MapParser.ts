@@ -259,10 +259,9 @@ function normalizeMapPayloadBuffer(buffer: ArrayBuffer): ArrayBuffer {
             `EAR wrapper size mismatch: header=${expectedUncompressedLen}, decoded=${decoded.length}.`,
           );
         }
-        return decoded.buffer.slice(
-          decoded.byteOffset,
-          decoded.byteOffset + decoded.byteLength,
-        );
+        const decodedCopy = new Uint8Array(decoded.byteLength);
+        decodedCopy.set(decoded);
+        return decodedCopy.buffer;
       } catch {
         // Fall through to direct CkMp scan for synthetic/partially-unwrapped fixtures.
       }

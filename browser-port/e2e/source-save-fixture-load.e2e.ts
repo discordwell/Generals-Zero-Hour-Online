@@ -30,11 +30,19 @@ async function waitForE2EHook(
 
 const sourceSaveFixtures = [
   {
+    fileName: 'zipeater_GN_001.sav',
+    title: 'Brutal Start - China',
+    expectedMapWidth: 415,
+    expectedMapHeight: 410,
+    expectedEndStateNull: false,
+  },
+  {
     fileName: 'zipeater_ZH_000.sav',
     title: 'Hard Start - USA',
     expectedMapWidth: 610,
     expectedMapHeight: 460,
     expectedPlayerSideLower: 'america',
+    expectedEndStateNull: true,
   },
   {
     fileName: 'zipeater_ZH_161.sav',
@@ -42,11 +50,12 @@ const sourceSaveFixtures = [
     expectedMapWidth: 375,
     expectedMapHeight: 500,
     expectedPlayerSideLower: null,
+    expectedEndStateNull: true,
   },
 ] as const;
 
 for (const fixture of sourceSaveFixtures) {
-  test(`shell imports and loads real Zero Hour source save: ${fixture.fileName}`, async ({ page }) => {
+  test(`shell imports and loads real source save: ${fixture.fileName}`, async ({ page }) => {
     test.setTimeout(180_000);
     const errors: string[] = [];
     const diagnostics: string[] = [];
@@ -91,14 +100,19 @@ for (const fixture of sourceSaveFixtures) {
     expect(restoredSnapshot).not.toBeNull();
     expect(restoredSnapshot?.mapWidth).toBe(fixture.expectedMapWidth);
     expect(restoredSnapshot?.mapHeight).toBe(fixture.expectedMapHeight);
-    if (fixture.expectedPlayerSideLower) {
+    if (!('expectedPlayerSideLower' in fixture)) {
+      // Vanilla Generals source saves in this fixture set omit player index 0;
+      // map load and visual restore are the parity checks for those saves.
+    } else if (fixture.expectedPlayerSideLower) {
       expect(restoredSnapshot?.playerSide0?.toLowerCase?.()).toBe(fixture.expectedPlayerSideLower);
     } else {
       expect(restoredSnapshot?.playerSide0).toBeTruthy();
     }
     expect(restoredSnapshot?.visual?.placementSpawnedObjects ?? 0).toBeGreaterThan(0);
     expect(restoredSnapshot?.visual?.renderableCount ?? 0).toBeGreaterThan(0);
-    expect(restoredSnapshot?.endState).toBeNull();
+    if (fixture.expectedEndStateNull) {
+      expect(restoredSnapshot?.endState).toBeNull();
+    }
     expect(errors).toEqual([]);
   });
 }

@@ -21,6 +21,7 @@
     { "path": "../ui" },
     { "path": "../input" },
     { "path": "../ini-data" },
-    { "path": "../game-logic" }
+    { "path": "../game-logic" },
+    { "path": "../../tools/map-converter" }
   ]
 }

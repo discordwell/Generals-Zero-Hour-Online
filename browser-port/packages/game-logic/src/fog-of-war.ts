@@ -30,9 +30,21 @@ export interface PartitionCellShroudLevelSnapshot {
   activeShroudLevel: number;
 }
 
-function sourcePartitionCellCount(worldExtent: number, cellSize: number): number {
-  // Source parity: PartitionManager stores m_cellSizeInv as Real (float) and
-  // computes REAL_TO_INT_CEIL(worldExtent * m_cellSizeInv), not width / size.
+export type SourcePartitionCellCountMode =
+  | 'generals-direct-ceil'
+  | 'zero-hour-float-inverse-ceil';
+
+function sourcePartitionCellCount(
+  worldExtent: number,
+  cellSize: number,
+  mode: SourcePartitionCellCountMode,
+): number {
+  if (mode === 'generals-direct-ceil') {
+    return Math.max(1, Math.ceil(worldExtent / cellSize));
+  }
+
+  // Zero Hour parity: PartitionManager stores m_cellSizeInv as Real (float)
+  // and computes REAL_TO_INT_CEIL(worldExtent * m_cellSizeInv), not width / size.
   const scaled = Math.fround(worldExtent) * Math.fround(1 / cellSize);
   return Math.max(1, Math.ceil(scaled));
 }
@@ -50,10 +62,23 @@ export class FogOfWarGrid {
   /** Per-player "ever seen" flag per cell. */
   private readonly everSeen: Uint8Array[];
 
-  constructor(worldWidth: number, worldDepth: number, cellSize: number) {
+  constructor(
+    worldWidth: number,
+    worldDepth: number,
+    cellSize: number,
+    sourcePartitionCellCountMode: SourcePartitionCellCountMode = 'zero-hour-float-inverse-ceil',
+  ) {
     this.cellSize = Math.max(1, cellSize);
-    this.cellsWide = sourcePartitionCellCount(worldWidth, this.cellSize);
-    this.cellsDeep = sourcePartitionCellCount(worldDepth, this.cellSize);
+    this.cellsWide = sourcePartitionCellCount(
+      worldWidth,
+      this.cellSize,
+      sourcePartitionCellCountMode,
+    );
+    this.cellsDeep = sourcePartitionCellCount(
+      worldDepth,
+      this.cellSize,
+      sourcePartitionCellCountMode,
+    );
 
     const totalCells = this.cellsWide * this.cellsDeep;
     this.lookerCounts = [];

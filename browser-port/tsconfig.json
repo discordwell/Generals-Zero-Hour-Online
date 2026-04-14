@@ -12,6 +12,7 @@
     { "path": "packages/terrain" },
     { "path": "packages/network" },
     { "path": "packages/ini-data" },
+    { "path": "tools/map-converter" },
     { "path": "packages/app" }
   ]
 }

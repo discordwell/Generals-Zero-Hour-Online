@@ -1420,7 +1420,7 @@ async function startGame(
   const canvas = renderer.domElement as HTMLCanvasElement;
   const gameSubsystems = new SubsystemRegistry();
   const replayManager = new ReplayManager();
-  const activeMapPath = mapPath ?? runtimeSaveLoadContext?.runtimeSave.mapPath;
+  const activeMapPath = mapPath ?? runtimeSaveLoadContext?.runtimeSave.mapPath ?? null;
   const restoredInGameUiState = runtimeSaveLoadContext?.runtimeSave.inGameUiState ?? null;
   let replayRecordFrame = 0;
   let replayRecordingPersisted = false;

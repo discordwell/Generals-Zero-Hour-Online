@@ -17,6 +17,7 @@ import {
 } from '@generals/engine';
 import type { GameDataConfig, VertexWaterSetting } from '@generals/ini-data';
 import type { CameraState } from '@generals/input';
+import { parseMapDataJSON } from '@generals/tool-map-converter';
 import * as THREE from 'three';
 import {
   ARMOR_SET_FLAG_MASK_BY_NAME,
@@ -2232,6 +2233,24 @@ function decodeJsonBytes<T>(bytes: ArrayBuffer | Uint8Array): T {
 function tryDecodeJsonBytes<T>(bytes: ArrayBuffer | Uint8Array): T | null {
   try {
     return decodeJsonBytes<T>(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function tryDecodeSourceMapBytes(bytes: ArrayBuffer | Uint8Array): MapDataJSON | null {
+  const arrayBuffer = bytes instanceof Uint8Array
+    ? (() => {
+        const copy = new Uint8Array(bytes.byteLength);
+        copy.set(bytes);
+        return copy.buffer;
+      })()
+    : bytes;
+  if (arrayBuffer.byteLength === 0) {
+    return null;
+  }
+  try {
+    return parseMapDataJSON(arrayBuffer);
   } catch {
     return null;
   }
@@ -29722,7 +29741,8 @@ export function parseRuntimeSaveFile(data: ArrayBuffer): RuntimeSaveBootstrap {
     mapInfo.saveGameMapPath,
     metadata.missionMapName,
   ]);
-  const mapData = tryDecodeJsonBytes<MapDataJSON>(mapInfo.embeddedMapData);
+  const mapData = tryDecodeJsonBytes<MapDataJSON>(mapInfo.embeddedMapData)
+    ?? tryDecodeSourceMapBytes(mapInfo.embeddedMapData);
   const teamFactoryChunk = extractSaveChunkData(data, SOURCE_TEAM_FACTORY_BLOCK);
   const legacyTeamFactoryState = teamFactoryChunk
     ? tryParseLegacyTeamFactoryChunk(teamFactoryChunk)

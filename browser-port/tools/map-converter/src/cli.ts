@@ -15,6 +15,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { MapParser } from './MapParser.js';
+import { parsedMapToJSON } from './map-json.js';
 
 interface CliArgs {
   input?: string;
@@ -53,21 +54,6 @@ function printUsage(): void {
   console.log('  --input   Path to the .map file to parse (required)');
   console.log('  --output  Path for the JSON output file (required unless --info)');
   console.log('  --info    Print map summary without full conversion');
-}
-
-/** Encode a Uint8Array to base64. */
-function uint8ArrayToBase64(data: Uint8Array): string {
-  return Buffer.from(data).toString('base64');
-}
-
-function stringifyMapObjectProperty(value: unknown): string {
-  if (typeof value === 'string') {
-    return value;
-  }
-  if (typeof value === 'number' || typeof value === 'boolean' || value === null) {
-    return String(value);
-  }
-  return JSON.stringify(value);
 }
 
 async function main(): Promise<void> {
@@ -115,61 +101,7 @@ async function main(): Promise<void> {
 
   const outputPath = resolve(args.output);
 
-  // Build JSON output
-  const jsonOutput = {
-    heightmap: {
-      width: parsed.heightmap.width,
-      height: parsed.heightmap.height,
-      borderSize: parsed.heightmap.borderSize,
-      boundaries: parsed.heightmap.boundaries,
-      data: uint8ArrayToBase64(parsed.heightmap.data),
-    },
-    objects: parsed.objects.map((obj) => ({
-      position: obj.position,
-      angle: obj.angle,
-      templateName: obj.templateName,
-      flags: obj.flags,
-      properties: Object.fromEntries(
-        Array.from(obj.propertiesByName.entries()).map(([key, value]) => (
-          [key, stringifyMapObjectProperty(value)]
-        )),
-      ),
-    })),
-    triggers: parsed.triggers.map((trig) => ({
-      name: trig.name,
-      id: trig.id,
-      isWaterArea: trig.isWaterArea,
-      isRiver: trig.isRiver,
-      points: trig.points,
-    })),
-    waypoints: {
-      nodes: parsed.waypoints.nodes.map((node) => ({
-        id: node.id,
-        name: node.name,
-        position: node.position,
-        pathLabel1: node.pathLabel1,
-        pathLabel2: node.pathLabel2,
-        pathLabel3: node.pathLabel3,
-        biDirectional: node.biDirectional,
-      })),
-      links: parsed.waypoints.links.map((link) => ({
-        waypoint1: link.waypoint1,
-        waypoint2: link.waypoint2,
-      })),
-    },
-    textureClasses: parsed.textureClassDefs.map((tc) => ({
-      name: tc.name,
-      firstTile: tc.firstTile,
-      numTiles: tc.numTiles,
-    })),
-    blendTileCount: parsed.blendTileCount,
-    tileIndices: parsed.tileIndices ? uint8ArrayToBase64(
-      new Uint8Array(parsed.tileIndices.buffer, parsed.tileIndices.byteOffset, parsed.tileIndices.byteLength),
-    ) : undefined,
-    cliffStateData: parsed.cliffStateData ? uint8ArrayToBase64(parsed.cliffStateData) : undefined,
-    cliffStateStride: parsed.cliffStateData ? parsed.cliffStateStride : undefined,
-    sidesList: parsed.sidesList,
-  };
+  const jsonOutput = parsedMapToJSON(parsed);
 
   const jsonStr = JSON.stringify(jsonOutput, null, 2);
   await writeFile(outputPath, jsonStr, 'utf-8');
